@@ -145,10 +145,16 @@ window.abrirPedidoTitular = async function (projectId, id) {
 // Busca e eliminação pelo contato do pedido. A regra é do servidor (/data-subject: busca por igualdade, anonimização, trilha).
 let pedidoAberto = null;
 const painelDados = (html) => { el('pt-dados').innerHTML = html; };
+// O contato vem do pedido do `id` recebido: se a janela aberta é de outro pedido, relê este (senão eliminaria outra pessoa).
+async function pedidoDo(projectId, id) {
+    if (!pedidoAberto || pedidoAberto.id !== id) pedidoAberto = await api('GET', `/api/v1/projects/${projectId}/titular-pedidos/${id}`);
+    return pedidoAberto;
+}
 
-window.localizarDadosDoTitular = async function (projectId) {
+window.localizarDadosDoTitular = async function (projectId, id) {
     try {
-        const r = await api('GET', `/api/v1/projects/${projectId}/data-subject?identificador=${encodeURIComponent(pedidoAberto.titular_contato)}`);
+        const p = await pedidoDo(projectId, id);
+        const r = await api('GET', `/api/v1/projects/${projectId}/data-subject?identificador=${encodeURIComponent(p.titular_contato)}`);
         painelDados(r.encontrado
             ? `<p>${escapeHTML(String(r.total_registros))} registro(s) em ${escapeHTML(String(lista(r.ocorrencias).length))} tabela(s): ${lista(r.ocorrencias).map((o) => escapeHTML(o.tabela)).join(', ')}.</p>`
             : '<p>Nenhum registro encontrado para este contato neste projeto.</p>');
@@ -156,9 +162,11 @@ window.localizarDadosDoTitular = async function (projectId) {
 };
 
 // Confirmação na própria janela (o app não usa confirm()).
-window.eliminarDadosDoTitular = function (projectId, id) {
-    painelDados(`<p>Os dados pessoais de ${escapeHTML(pedidoAberto.titular_contato)} serão anonimizados neste projeto; os registros permanecem sem o dado pessoal. A ação não se desfaz.</p>
-        <div class="form-group"><label class="form-label" for="pt-elim-just">Justificativa</label><input class="form-input" id="pt-elim-just" maxlength="2000" value="${escapeHTML(`Pedido ${pedidoAberto.protocolo}`)}"></div>
+window.eliminarDadosDoTitular = async function (projectId, id) {
+    let p;
+    try { p = await pedidoDo(projectId, id); } catch (e) { falha(e, 'Não foi possível abrir o pedido'); return; }
+    painelDados(`<p>Os dados pessoais de ${escapeHTML(p.titular_contato)} serão anonimizados neste projeto; os registros permanecem sem o dado pessoal. A ação não se desfaz.</p>
+        <div class="form-group"><label class="form-label" for="pt-elim-just">Justificativa</label><input class="form-input" id="pt-elim-just" maxlength="2000" value="${escapeHTML(`Pedido ${p.protocolo}`)}"></div>
         <button class="btn btn-primary btn-sm" data-action="confirmarEliminacaoTitular" data-args='${args(projectId, id)}'>Confirmar eliminação</button>`);
 };
 
@@ -166,7 +174,8 @@ window.confirmarEliminacaoTitular = async function (projectId, id) {
     const justificativa = valorOuNulo('pt-elim-just');
     if (!justificativa) { showToast('Informe a justificativa', 'error'); return; }
     try {
-        const r = await api('POST', `/api/v1/projects/${projectId}/data-subject/erase`, { identificador: pedidoAberto.titular_contato, justificativa, pedido_id: id });
+        const p = await pedidoDo(projectId, id);
+        const r = await api('POST', `/api/v1/projects/${projectId}/data-subject/erase`, { identificador: p.titular_contato, justificativa, pedido_id: id });
         painelDados(`<p>${escapeHTML(String(r.total))} registro(s) anonimizado(s). Registrado na trilha de auditoria.</p>`);
         showToast('Dados do titular anonimizados.', 'success');
     } catch (e) { falha(e, 'Não foi possível eliminar os dados'); }

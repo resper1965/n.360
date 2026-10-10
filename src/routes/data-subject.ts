@@ -72,11 +72,13 @@ dataSubjectApp.post('/erase', async (c) => {
   if (!valid.success) return valid.response;
   const { identificador, justificativa, pedido_id } = valid.data;
 
-  // O pedido tem de ser deste projeto: o protocolo vai para a trilha como a origem da eliminação.
+  // O pedido tem de ser deste projeto e do MESMO titular: o protocolo vai para a trilha como a origem da eliminação, então
+  // eliminar outra pessoa citando o pedido deixaria a trilha mentindo.
   let origem = '';
   if (pedido_id) {
-    const ped = await c.env.DB.prepare('SELECT protocolo FROM titular_pedidos WHERE id = ? AND project_id = ?').bind(pedido_id, projectId).first<{ protocolo: string }>();
+    const ped = await c.env.DB.prepare('SELECT protocolo, titular_contato FROM titular_pedidos WHERE id = ? AND project_id = ?').bind(pedido_id, projectId).first<{ protocolo: string; titular_contato: string | null }>();
     if (!ped) return c.json({ error: 'pedido_id inexistente ou de outro projeto' }, 400);
+    if ((ped.titular_contato ?? '').trim().toLowerCase() !== identificador.trim().toLowerCase()) return c.json({ error: 'identificador não corresponde ao contato do pedido' }, 400);
     origem = ` (pedido ${ped.protocolo})`;
   }
 

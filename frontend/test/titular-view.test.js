@@ -137,11 +137,25 @@ describe('dados do titular a partir do pedido', () => {
     it('eliminação: pedido de eliminação oferece o botão; confirma na janela com justificativa pré-preenchida e manda pedido_id', async () => {
         const f = await abrirPed({ ...PED, tipo: 'anonimizacao_bloqueio_eliminacao' }, { [`POST ${DS}/erase`]: { ok: true, total: 3 } });
         expect(botao('localizarDadosDoTitular')).not.toBeNull();
-        window.eliminarDadosDoTitular('p9', 'a');
+        await window.eliminarDadosDoTitular('p9', 'a');
         expect(chamadas(f)).not.toContain(`POST ${DS}/erase`);
         expect(el('pt-elim-just').value).toBe('Pedido PT-2026-0001');
         await window.confirmarEliminacaoTitular('p9', 'a');
         expect(corpoDe(f, `POST ${DS}/erase`)).toEqual({ identificador: 'ana@exemplo.com', justificativa: 'Pedido PT-2026-0001', pedido_id: 'a' });
+    });
+    it('localizar, eliminar e confirmar usam o contato do pedido do id recebido, não o do último pedido aberto', async () => {
+        const PB = { ...PED, id: 'b', protocolo: 'PT-2026-0002', tipo: 'anonimizacao_bloqueio_eliminacao', titular_contato: 'bruno@exemplo.com' };
+        const f = await abrirPed(PED, { [`GET ${B}/titular-pedidos/b`]: PB, [`GET ${DS}`]: LOC, [`POST ${DS}/erase`]: { ok: true, total: 1 } });
+        await window.localizarDadosDoTitular('p9', 'b');
+        expect(f.mock.calls.map(([x]) => x).find((x) => x.includes('/data-subject'))).toContain('identificador=bruno%40exemplo.com');
+        await window.abrirPedidoTitular('p9', 'a');
+        await window.eliminarDadosDoTitular('p9', 'b');
+        expect(el('pt-elim-just').value).toBe('Pedido PT-2026-0002');
+        expect(el('pt-dados').textContent).toContain('bruno@exemplo.com');
+        await window.abrirPedidoTitular('p9', 'a');
+        el('pt-dados').innerHTML = '<input id="pt-elim-just" value="Pedido PT-2026-0002">';
+        await window.confirmarEliminacaoTitular('p9', 'b');
+        expect(corpoDe(f, `POST ${DS}/erase`)).toEqual({ identificador: 'bruno@exemplo.com', justificativa: 'Pedido PT-2026-0002', pedido_id: 'b' });
     });
     it('org_user não vê os botões', async () => {
         S.user = { role: 'org_user' };

@@ -159,7 +159,9 @@ describe('Requisição de titular', () => {
   it('eliminação a partir do pedido do titular registra o protocolo na trilha', async () => {
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO training_records (id, project_id, employee_name, training_name, status) VALUES ('t7','p1','Pedro Lima','X','Completed')`),
-      env.DB.prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em) VALUES ('ped1','p1','PT-2026-0099','anonimizacao_bloqueio_eliminacao','2026-10-01')`),
+      env.DB.prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em, titular_contato) VALUES ('ped1','p1','PT-2026-0099','anonimizacao_bloqueio_eliminacao','2026-10-01',' pedro LIMA ')`),
+      env.DB.prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em, titular_contato) VALUES ('ped3','p1','PT-2026-0097','anonimizacao_bloqueio_eliminacao','2026-10-01','outra@exemplo.com')`),
+      env.DB.prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em) VALUES ('ped4','p1','PT-2026-0096','anonimizacao_bloqueio_eliminacao','2026-10-01')`),
       env.DB.prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em) VALUES ('ped2','p2','PT-2026-0098','anonimizacao_bloqueio_eliminacao','2026-10-01')`),
     ]);
     const corpo = (pedido_id: string) => JSON.stringify({ identificador: 'Pedro Lima', justificativa: 'Pedido PT', pedido_id });
@@ -168,6 +170,12 @@ describe('Requisição de titular', () => {
       const r = await req('/api/v1/projects/p1/data-subject/erase', { method: 'POST', body: corpo(id) });
       expect(r.status).toBe(400);
       expect((await r.json() as any).error).toBe('pedido_id inexistente ou de outro projeto');
+    }
+    // Pedido de OUTRA pessoa (ou sem contato): o identificador não é o do pedido; 400 e nada é anonimizado.
+    for (const id of ['ped3', 'ped4']) {
+      const r = await req('/api/v1/projects/p1/data-subject/erase', { method: 'POST', body: corpo(id) });
+      expect(r.status).toBe(400);
+      expect((await r.json() as any).error).toBe('identificador não corresponde ao contato do pedido');
     }
     expect((await env.DB.prepare("SELECT employee_name FROM training_records WHERE id='t7'").first<any>()).employee_name).toBe('Pedro Lima');
     const ok = await req('/api/v1/projects/p1/data-subject/erase', { method: 'POST', body: corpo('ped1') });
