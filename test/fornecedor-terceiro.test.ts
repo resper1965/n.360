@@ -136,6 +136,10 @@ CREATE TABLE vendors (id TEXT PRIMARY KEY, project_id TEXT, name TEXT NOT NULL, 
       env.DB.prepare(`INSERT INTO vendors (id, project_id, name) VALUES ('v-acme', 'ft-leg', 'Acme Nuvem'), ('v-beta', 'ft-leg', 'Beta Ltda'), ('v-beta2', 'ft-leg', 'beta ltda '), ('v-orfao', 'projeto-apagado', 'Órfão')`),
       // tipada como terceiro no n.privacy antes da 0061, sem vínculo nem perfil
       env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES ('ft-tipada', 'ft-leg', 'organizacao', 'Tipada Exemplo', 'critico')`),
+      // parte INATIVA com o nome do vendor: não serve (o POST também não a reaproveita); o vendor ganha parte nova ativa
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, status) VALUES ('ft-velha', 'ft-leg', 'organizacao', 'Velha Exemplo', 'inativa')`),
+      env.DB.prepare(`INSERT INTO vendors (id, project_id, name) VALUES ('v-velha', 'ft-leg', 'Velha Exemplo')`),
+      env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-ft3', 'ft-leg', 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`),
     ]);
     await execSql(migration0061);
     const pid = async (id: string) => (await env.DB.prepare('SELECT parte_id FROM vendors WHERE id = ?').bind(id).first<{ parte_id: string }>())!.parte_id;
@@ -146,7 +150,11 @@ CREATE TABLE vendors (id TEXT PRIMARY KEY, project_id TEXT, name TEXT NOT NULL, 
     const beta2 = await pid('v-beta2');
     expect(beta2).toBeTruthy();
     expect(beta2).not.toBe(beta);
-    expect(await env.DB.prepare(`SELECT count(*) AS n FROM partes WHERE project_id = 'ft-leg'`).first()).toEqual({ n: 4 });
+    expect(await env.DB.prepare(`SELECT count(*) AS n FROM partes WHERE project_id = 'ft-leg'`).first()).toEqual({ n: 6 });
+    const velha = await pid('v-velha');
+    expect(velha).not.toBe('ft-velha');
+    expect(await env.DB.prepare('SELECT nome, status FROM partes WHERE id = ?').bind(velha).first()).toEqual({ nome: 'Velha Exemplo', status: 'ativa' });
+    expect((await vendors('ft-leg')).map((v) => v.id)).toContain('v-velha');
     expect(await vinculoTerceiro('ft-acme', 'ft-leg')).toEqual({ ok: 1 });
     expect(await vinculoTerceiro(beta, 'ft-leg')).toEqual({ ok: 1 });
     // o órfão não derruba a migration e fica sem parte; todo o resto tem parte

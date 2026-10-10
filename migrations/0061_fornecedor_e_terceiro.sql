@@ -5,18 +5,18 @@ ALTER TABLE vendors ADD COLUMN parte_id TEXT REFERENCES partes(id) ON DELETE CAS
 -- Vendor cujo projeto não existe mais (órfão de quando a FK não era conferida) fica de fora de toda a carga: a parte exige
 -- projeto, e o INSERT abortaria a migration inteira. Ele segue com parte_id NULL (já não aparecia em lista nenhuma).
 
--- parte que falta (por nome normalizado, organização, mesmo projeto)
+-- parte que falta (por nome normalizado, organização ATIVA, mesmo projeto; parte inativa de mesmo nome não serve, como no POST)
 -- ponytail: espaços internos repetidos não são colapsados; nomes assim viram parte nova
 INSERT INTO partes (id, project_id, tipo, nome)
 SELECT lower(hex(randomblob(16))), v.project_id, 'organizacao', trim(v.name)
   FROM vendors v
  WHERE EXISTS (SELECT 1 FROM projects pr WHERE pr.id = v.project_id)
-   AND NOT EXISTS (SELECT 1 FROM partes p WHERE p.project_id = v.project_id AND p.tipo = 'organizacao'
+   AND NOT EXISTS (SELECT 1 FROM partes p WHERE p.project_id = v.project_id AND p.tipo = 'organizacao' AND p.status = 'ativa'
                      AND lower(trim(p.nome)) = lower(trim(v.name)))
  GROUP BY v.project_id, lower(trim(v.name));
 
 UPDATE vendors SET parte_id = (
-  SELECT p.id FROM partes p WHERE p.project_id = vendors.project_id AND p.tipo = 'organizacao'
+  SELECT p.id FROM partes p WHERE p.project_id = vendors.project_id AND p.tipo = 'organizacao' AND p.status = 'ativa'
      AND lower(trim(p.nome)) = lower(trim(vendors.name)) ORDER BY p.created_at, p.rowid LIMIT 1)
  WHERE parte_id IS NULL
    AND EXISTS (SELECT 1 FROM projects pr WHERE pr.id = vendors.project_id)
