@@ -16,14 +16,13 @@ export type ResumoImportacao = { criadas: number; reaproveitadas: number; vincul
 
 /**
  * Traz as pessoas que o projeto já tem para `partes`: governança (menos os `consultor`, que são da ness.),
- * fornecedores e partes interessadas. Repetível: reaproveita a parte do mesmo tipo e nome, e o vínculo é
+ * e partes interessadas (fornecedor já é parte: a 0061 e o gatilho vendor_perfil_do_terceiro fazem a ponte). Repetível: reaproveita a parte do mesmo tipo e nome, e o vínculo é
  * `INSERT OR IGNORE` sobre a UNIQUE.
  */
 export async function importarPartes(db: D1Database, projectId: string, ator: string): Promise<ResumoImportacao> {
-  const [gov, ven, stk, existentes] = await Promise.all([
+  const [gov, stk, existentes] = await Promise.all([
     db.prepare(`SELECT name, email, role_category FROM project_governance WHERE project_id = ? AND role_category != 'consultor' ORDER BY rowid`)
       .bind(projectId).all<{ name: string; email: string | null; role_category: string }>(),
-    db.prepare('SELECT name FROM vendors WHERE project_id = ? ORDER BY rowid').bind(projectId).all<{ name: string }>(),
     db.prepare('SELECT name FROM stakeholders WHERE project_id = ? ORDER BY rowid').bind(projectId).all<{ name: string }>(),
     db.prepare('SELECT id, nome, tipo FROM partes WHERE project_id = ?').bind(projectId).all<{ id: string; nome: string; tipo: string }>(),
   ]);
@@ -52,7 +51,6 @@ export async function importarPartes(db: D1Database, projectId: string, ator: st
       .bind(crypto.randomUUID(), projectId, parteId, papel, projectId));
 
   for (const g of gov.results) vincular(garantir('pessoa', g.name, g.email), g.role_category === 'dpo' ? 'encarregado' : 'responsavel');
-  for (const v of ven.results) vincular(garantir('organizacao', v.name, null), 'terceiro');
   for (const s of stk.results) vincular(garantir('organizacao', s.name, null), 'parte_interessada');
 
   await emLotes(db, partes); // as partes primeiro: o vínculo tem FK para elas

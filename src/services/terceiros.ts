@@ -77,6 +77,9 @@ export async function definirTipo(db: D1Database, projectId: string, parteId: st
   if (!p) return falha(404, 'Parte não encontrada');
   if (p.tipo !== 'organizacao') return falha(400, 'Só organização é terceiro');
   await db.prepare(`UPDATE partes SET terceiro_tipo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`).bind(tipo, parteId, projectId).run();
+  // tipado é terceiro do projeto: o vínculo faz o gatilho vendor_perfil_do_terceiro criar o perfil de segurança do n.iso
+  if (tipo) await db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, 'terceiro', 'projeto', ?)`)
+    .bind(crypto.randomUUID(), projectId, parteId, projectId).run();
   await logAudit(db, 'terceiro.tipo', ator, `Parte ${parteId}: tipo de terceiro ${p.terceiro_tipo ?? '—'} → ${tipo ?? '—'}`, '', '', projectId);
   return { ok: true };
 }

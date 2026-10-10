@@ -29,33 +29,30 @@ beforeAll(async () => {
       ('proj-a', 'Beto Exemplo', NULL, 'tech', 'Líder de TI'),
       ('proj-a', 'Consultor da Ness', 'cons@ness.lat', 'consultor', 'Consultor'),
       ('proj-b', 'ana exemplo', NULL, 'dpo', 'Encarregada')`),
-    env.DB.prepare(`INSERT INTO vendors (id, project_id, name) VALUES ('v1', 'proj-a', 'Fornecedora Exemplo')`),
     env.DB.prepare(`INSERT INTO stakeholders (id, project_id, name) VALUES ('s1', 'proj-a', 'Regulador Exemplo')`),
   ]);
 });
 
 describe('importar as pessoas do projeto', () => {
-  it('traz governança, fornecedores e partes interessadas; o consultor da ness. fica de fora', async () => {
+  it('traz governança e partes interessadas (fornecedor já é parte desde a 0061); o consultor da ness. fica de fora', async () => {
     const r = await chamar(plat, 'POST', `${A}/partes/importar`);
     expect(r.status).toBe(200);
-    expect(await json(r)).toEqual({ ok: true, criadas: 4, reaproveitadas: 0, vinculos: 4 });
+    expect(await json(r)).toEqual({ ok: true, criadas: 3, reaproveitadas: 0, vinculos: 3 });
 
     const todas = await partes(A);
-    expect(todas.map((p) => p.nome).sort()).toEqual(['Ana Exemplo', 'Beto Exemplo', 'Fornecedora Exemplo', 'Regulador Exemplo']);
+    expect(todas.map((p) => p.nome).sort()).toEqual(['Ana Exemplo', 'Beto Exemplo', 'Regulador Exemplo']);
     const por = (nome: string) => todas.find((p) => p.nome === nome)!;
     expect(por('Ana Exemplo')).toMatchObject({ tipo: 'pessoa' });
-    expect(por('Fornecedora Exemplo')).toMatchObject({ tipo: 'organizacao' });
     expect(await vinculosDe(por('Ana Exemplo').id)).toEqual([{ papel: 'encarregado', alvo_tipo: 'projeto', alvo_id: 'proj-a' }]);
     expect(await vinculosDe(por('Beto Exemplo').id)).toEqual([{ papel: 'responsavel', alvo_tipo: 'projeto', alvo_id: 'proj-a' }]);
-    expect(await vinculosDe(por('Fornecedora Exemplo').id)).toEqual([{ papel: 'terceiro', alvo_tipo: 'projeto', alvo_id: 'proj-a' }]);
     expect(await vinculosDe(por('Regulador Exemplo').id)).toEqual([{ papel: 'parte_interessada', alvo_tipo: 'projeto', alvo_id: 'proj-a' }]);
     expect(await env.DB.prepare(`SELECT email FROM partes WHERE nome = 'Ana Exemplo' AND project_id = 'proj-a'`).first()).toEqual({ email: 'ana@exemplo.com.br' });
   });
 
   it('rodar de novo não duplica parte nem vínculo', async () => {
     const r = await chamar(plat, 'POST', `${A}/partes/importar`);
-    expect(await json(r)).toEqual({ ok: true, criadas: 0, reaproveitadas: 4, vinculos: 0 });
-    expect(await partes(A)).toHaveLength(4);
+    expect(await json(r)).toEqual({ ok: true, criadas: 0, reaproveitadas: 3, vinculos: 0 });
+    expect(await partes(A)).toHaveLength(3);
   });
 
   it('o outro projeto não foi tocado, e uma parte que já existia (outra caixa) é reaproveitada', async () => {

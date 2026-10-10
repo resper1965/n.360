@@ -540,7 +540,9 @@ CREATE TABLE IF NOT EXISTS vendors (
     trust_center_url TEXT,
     dpa_url TEXT,
     attached_certifications TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- perfil de segurança (due diligence ISO) da parte organização; o terceiro do n.privacy é a mesma parte (0061)
+    parte_id TEXT REFERENCES partes(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS training_records (
@@ -1311,6 +1313,24 @@ CREATE TABLE IF NOT EXISTS parte_vinculos (
     UNIQUE (parte_id, papel, alvo_tipo, alvo_id)
 );
 CREATE INDEX IF NOT EXISTS idx_parte_vinculos_alvo ON parte_vinculos(project_id, alvo_tipo, alvo_id);
+
+-- Fornecedor (n.iso) e terceiro (n.privacy) são a mesma parte (0061): o vínculo `terceiro` no projeto cria o perfil em
+-- `vendors`, e o nome da parte manda no nome do perfil.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vendors_parte ON vendors(parte_id);
+
+CREATE TRIGGER IF NOT EXISTS vendor_perfil_do_terceiro
+AFTER INSERT ON parte_vinculos
+WHEN NEW.papel = 'terceiro' AND NEW.alvo_tipo = 'projeto'
+BEGIN
+  INSERT OR IGNORE INTO vendors (id, project_id, name, parte_id)
+  SELECT lower(hex(randomblob(8))), NEW.project_id, p.nome, p.id FROM partes p WHERE p.id = NEW.parte_id AND p.tipo = 'organizacao';
+END;
+
+CREATE TRIGGER IF NOT EXISTS vendor_nome_da_parte
+AFTER UPDATE OF nome ON partes
+BEGIN
+  UPDATE vendors SET name = NEW.nome WHERE parte_id = NEW.id;
+END;
 
 -- Documentos e versões (fatia 3.1 do núcleo do n.privacy). Só CREATE ... IF NOT EXISTS, sem carga: o hash
 -- (SHA-256 canônico) não se calcula em SQLite, então as políticas que já existem entram por

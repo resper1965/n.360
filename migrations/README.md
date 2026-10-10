@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0060** (`ls migrations/*.sql | tail -1`). São 58 arquivos
+- Última migration no repositório: **0061** (`ls migrations/*.sql | tail -1`). São 59 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -384,3 +384,15 @@ Troca o gatilho `projeto_modulo_iso_padrao` (0047, sempre `iso`) por `projeto_mo
 organização contratou (`organizations.modulos_contratados`); contrato vazio ou JSON inválido cai em `iso`. Nenhum projeto existente
 muda. Conferência: `SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'projeto_modulo%'` (só o novo) e a contagem de
 `projeto_modulos` por módulo igual à de antes. **Esta RODA em produção, sem janela.** Depende da 0047.
+
+## 0061 — fornecedor e terceiro são a mesma parte (2026-10)
+
+Acrescenta `vendors.parte_id` (FK para `partes`, `ON DELETE CASCADE`) e o índice único `idx_vendors_parte`. Carga: cada vendor ganha a
+parte organização do projeto de mesmo nome (`lower(trim())`; espaço interno repetido não é colapsado) ou uma parte nova, e o vínculo
+`terceiro` no projeto. Vendor repetido no projeto (mesmo nome normalizado): o mais antigo fica com a parte, cada repetido ganha parte
+própria (`id = 'vendor-' || vendors.id`), senão o índice único abortaria. Gatilhos: `vendor_perfil_do_terceiro` (vínculo `terceiro` no
+projeto cria o perfil em `vendors`) e `vendor_nome_da_parte` (renomear a parte renomeia o perfil). O `ALTER ... ADD COLUMN` não é
+idempotente. Conferência: `PRAGMA table_info(vendors)` (coluna `parte_id`), `SELECT count(*) FROM vendors WHERE parte_id IS NULL AND
+project_id IS NOT NULL` (0) e os dois gatilhos em `sqlite_master`. Antes de aplicar, vale olhar os repetidos:
+`SELECT project_id, lower(trim(name)), count(*) FROM vendors GROUP BY 1, 2 HAVING count(*) > 1`. **Esta RODA em produção, sem janela.**
+Depende da 0047 (`partes`).
