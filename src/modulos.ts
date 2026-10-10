@@ -21,7 +21,7 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   '': 'nucleo', agentes: 'nucleo', 'api-keys': 'nucleo', assets: 'nucleo', 'audit-trail': 'nucleo', chat: 'nucleo',
   'company-profile': 'nucleo', context: 'nucleo', 'data-subject': 'nucleo', departamentos: 'nucleo', documentos: 'nucleo',
   documents: 'nucleo', dpia: 'nucleo', evidence: 'nucleo', export: 'nucleo', governance: 'nucleo', modulos: 'nucleo',
-  partes: 'nucleo', pedidos: 'nucleo', ropa: 'nucleo', 'scim-token': 'nucleo', 'security-policy': 'nucleo', sso: 'nucleo',
+  partes: 'nucleo', pedidos: 'nucleo', 'ponto-de-partida': 'nucleo', ropa: 'nucleo', 'scim-token': 'nucleo', 'security-policy': 'nucleo', sso: 'nucleo',
   incidentes: 'nucleo', stakeholders: 'nucleo', training: 'nucleo', vendors: 'nucleo', webhooks: 'nucleo',
   // só n.iso
   'approve-document': 'iso', assessment: 'iso', 'audit-pack': 'iso', 'auditor-notes': 'iso', 'auditor-token': 'iso', audits: 'iso',

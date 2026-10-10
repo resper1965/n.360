@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, openModal, showToast } from '../ui.js';
 
+import './ponto-de-partida.js';
 // Visão do encarregado (fatia 8 do núcleo): o que está atrasado ou faltando no projeto, numa tela. Só leitura: a regra e as contas são do
 // servidor (`GET /projects/:id/encarregado`); aqui só se mostra e se leva à tela de cada coisa. Todo texto é escapado.
 
@@ -45,7 +46,8 @@ async function renderEncarregado(c, h, a) {
     const encs = Array.isArray(v.encarregados) ? v.encarregados : [];
     const indicar = podeIndicar() ? ` <button class="btn btn-ghost btn-sm" data-action="abrirIndicarEncarregado" data-args='${args(proj.id)}'>${encs.length ? 'Indicar outro' : 'Indicar encarregado'}</button>` : '';
     const linhaEnc = `<p style="margin:0 0 1rem">Encarregado: ${encs.length ? encs.map((e) => escapeHTML(e.nome)).join(', ') : 'não indicado'}${indicar}</p>`;
-    c.innerHTML = `${linhaEnc}${cartoes}<h3 style="margin:1.5rem 0 0.5rem">O que fazer</h3>${tabela}`;
+    c.innerHTML = `<div id="ponto-de-partida"></div>${linhaEnc}${cartoes}<h3 style="margin:1.5rem 0 0.5rem">O que fazer</h3>${tabela}`;
+    window.renderPontoDePartida(c.querySelector('#ponto-de-partida'), proj.id, 'privacy');
 }
 
 window.abrirIndicarEncarregado = async function (projectId) {
