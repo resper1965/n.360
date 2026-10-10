@@ -2,6 +2,7 @@ import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
 import { ISO_27701_2025_CONTROLLER, ISO_27701_2025_PROCESSOR, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
 import { LGPD, LGPD_VERSAO } from '../data/lgpd';
 import { ANPD, ANPD_VERSAO } from '../data/anpd';
+import { MAPEAMENTOS } from '../data/mapeamento-privacidade-iso';
 
 /**
  * Catálogo de requisitos (fatia 2 do núcleo do n.privacy, spec 4.5). Global: sem project_id.
@@ -56,10 +57,10 @@ export function stmtRequisitos(db: D1Database, linhas: readonly Linha[]): D1Prep
 }
 
 /**
- * Semeia fontes e requisitos (ISO, LGPD e ANPD). `requisitos` conta os criados; `fontes` conta as criadas
- * ou as que tiveram `nome`/`versao` atualizados (uma fonte já igual ao código não conta).
+ * Semeia fontes, requisitos (ISO, LGPD e ANPD) e o mapeamento proposto. `requisitos` e `mapeamentos` contam os
+ * criados; `fontes` conta as criadas ou as que tiveram `nome`/`versao` atualizados (uma fonte já igual ao código não conta).
  */
-export async function semearCatalogo(db: D1Database): Promise<{ fontes: number; requisitos: number }> {
+export async function semearCatalogo(db: D1Database): Promise<{ fontes: number; requisitos: number; mapeamentos: number }> {
   const r = await db.batch([
     db.prepare(
       `INSERT INTO requisito_fontes (id, nome, versao, vigente_desde)
@@ -71,8 +72,18 @@ export async function semearCatalogo(db: D1Database): Promise<{ fontes: number; 
     stmtRequisitos(db, linhasIso()),
     stmtRequisitos(db, LGPD.map((r) => ({ ...r, fonte_id: 'lgpd', papel: null }))),
     stmtRequisitos(db, ANPD.map((r) => ({ ...r, fonte_id: 'anpd', papel: null }))),
+    // Depois dos requisitos (FK). OR IGNORE: par já existente, inclusive validado ou editado, fica como está.
+    db.prepare(
+      `INSERT OR IGNORE INTO requisito_mapeamentos (de_id, para_id, tipo, estado)
+       SELECT json_extract(j.value, '$.de'), json_extract(j.value, '$.para'), json_extract(j.value, '$.tipo'), 'proposto'
+         FROM json_each(?1) j`
+    ).bind(JSON.stringify(MAPEAMENTOS)),
   ]);
-  return { fontes: r[0].meta.changes ?? 0, requisitos: r.slice(1).reduce((n, x) => n + (x.meta.changes ?? 0), 0) };
+  return {
+    fontes: r[0].meta.changes ?? 0,
+    requisitos: r.slice(1, -1).reduce((n, x) => n + (x.meta.changes ?? 0), 0),
+    mapeamentos: r[r.length - 1].meta.changes ?? 0,
+  };
 }
 
 /**

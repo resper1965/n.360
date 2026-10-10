@@ -28,7 +28,7 @@ requisitosApp.post('/semear', async (c) => {
     if (!soAdmin(c)) return c.json(NEGADO, 403);
     const r = await semearCatalogo(c.env.DB);
     const ligados = await ligarControles(c.env.DB);
-    await logAudit(c.env.DB, 'requisitos.semear', c.get('user').email, `Seed do catálogo: ${r.fontes} fontes criadas ou atualizadas, ${r.requisitos} requisitos criados, ${ligados} controles ligados`);
+    await logAudit(c.env.DB, 'requisitos.semear', c.get('user').email, `Seed do catálogo: ${r.fontes} fontes criadas ou atualizadas, ${r.requisitos} requisitos criados, ${r.mapeamentos} mapeamentos propostos, ${ligados} controles ligados`);
     return c.json({ ok: true, ...r, controles_ligados: ligados });
   } catch (e) { return erro500(c, 'Falha ao semear o catálogo de requisitos', e); }
 });

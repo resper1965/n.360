@@ -32,7 +32,7 @@ describe('semearCatalogo', () => {
     await env.DB.prepare(`UPDATE requisitos SET titulo = 'Editado pelo administrador' WHERE id = 'iso27001:2022:A.5.1'`).run();
     const antes = await n('SELECT count(*) AS n FROM requisitos');
     const r = await semearCatalogo(env.DB);
-    expect(r).toEqual({ fontes: 0, requisitos: 0 });
+    expect(r).toEqual({ fontes: 0, requisitos: 0, mapeamentos: 0 });
     expect(await n('SELECT count(*) AS n FROM requisitos')).toBe(antes);
     expect(await env.DB.prepare(`SELECT titulo FROM requisitos WHERE id = 'iso27001:2022:A.5.1'`).first()).toEqual({ titulo: 'Editado pelo administrador' });
   });

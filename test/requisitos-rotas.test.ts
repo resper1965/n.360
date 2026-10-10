@@ -69,8 +69,9 @@ describe('leitura do catálogo', () => {
   });
 
   it('cliente nunca recebe mapeamento proposto; consultor e administrador recebem os dois', async () => {
+    // O seed também propõe pares para o art. 37: conta o conjunto de estados, não as linhas.
     const ver = async (h: Record<string, string>) =>
-      (await json<{ mapeamentos: { estado: string }[] }>(await chamar(h, 'GET', '/api/v1/requisitos/lgpd:art37'))).mapeamentos.map((m) => m.estado).sort();
+      [...new Set((await json<{ mapeamentos: { estado: string }[] }>(await chamar(h, 'GET', '/api/v1/requisitos/lgpd:art37'))).mapeamentos.map((m) => m.estado))].sort();
     expect(await ver(cliente)).toEqual(['validado_juridico']);
     expect(await ver(consultor)).toEqual(['proposto', 'validado_juridico']);
     expect(await ver(admin)).toEqual(['proposto', 'validado_juridico']);
