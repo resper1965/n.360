@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 
-import { semRastros, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, genToken, hashPassword, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto } from '../helpers';
+import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, genToken, hashPassword, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto } from '../helpers';
 import { enviarBoasVindas, nomeDaOrg } from './users';
 import { ehDpo, garantirEncarregado } from '../services/encarregado-pessoa';
 import { validateBody, stakeholderSchema, governanceMemberSchema, companyProfileSchema, contextSchema, auditFindingSchema, auditFindingUpdateSchema, stakeholderAtualizarSchema, revisaoCriarSchema, revisaoAtualizarSchema, metricaCriarSchema, metricaAtualizarSchema, cienciaPoliticaSchema } from '../schemas';
@@ -183,7 +183,10 @@ governanceApp.post('/projects/:id/governance', async (c) => {
       await c.env.DB.batch(is_primary ? [desmarcaOutros, grava] : [grava]);
       await logAudit(c.env.DB, 'governance.created', c.get('user')?.email || 'system', `Membro da governança ${name} criado para projeto ${projectId}`);
     }
-    if (ehDpo({ role_category, job_title })) await garantirEncarregado(c.env.DB, projectId, { nome: name, email: email || null });
+    // O membro já está gravado: falha do vínculo é registrada, não vira 500 (o retry duplicaria o membro). A 0062 refaz o vínculo.
+    if (ehDpo({ role_category, job_title })) {
+      try { await garantirEncarregado(c.env.DB, projectId, { nome: name, email: email || null }); } catch (e) { registraErro(c, e); }
+    }
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Falha ao salvar governança', e);

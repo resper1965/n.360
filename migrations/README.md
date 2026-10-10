@@ -409,5 +409,5 @@ projeto por e-mail ou nome (`lower(trim())`) ou cria uma, e grava o vínculo `en
 na parte: aplicar duas vezes não duplica). O `LIKE '%dpo%'` é mais largo que o regex do código (`EH_DPO`): casa "dpo" dentro de outra palavra, o que
 não existe em cargo hoje. Daqui em diante `POST /projects/:id/governance` faz o mesmo no momento da gravação. Conferência antes:
 `SELECT project_id, name, job_title FROM project_governance WHERE role_category = 'dpo' OR lower(job_title) LIKE '%dpo%' OR lower(job_title) LIKE '%encarregad%'`;
-depois: `SELECT count(*) FROM parte_vinculos WHERE papel = 'encarregado' AND alvo_tipo = 'projeto'` deve ser igual ou maior que o número de projetos
+órfãos (governança de projeto que não existe mais fica fora da carga, senão a FK de `partes` abortaria): `SELECT g.id, g.project_id FROM project_governance g WHERE NOT EXISTS (SELECT 1 FROM projects p WHERE p.id = g.project_id)`. Membros DPO repetidos no projeto (mesmo e-mail ou nome) viram uma parte só; havendo e-mail, o vínculo vai para a parte do e-mail, e o nome só vale sem e-mail ou sem parte com aquele e-mail. depois: `SELECT count(*) FROM parte_vinculos WHERE papel = 'encarregado' AND alvo_tipo = 'projeto'` deve ser igual ou maior que o número de projetos
 com DPO. **Esta RODA em produção, sem janela.** Depende da 0047 (`partes`).

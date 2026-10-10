@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, execSql, sessionFor, workerEnv, habilitarPrivacy } from './helpers/d1';
@@ -9,6 +9,8 @@ import migration0062 from '../migrations/0062_dpo_encarregado.sql?raw';
 const P = 'dp-proj';
 const SEM = 'dp-sem';
 const MIG = 'dp-mig';
+const MIG2 = 'dp-mig2';
+const MIG3 = 'dp-mig3';
 
 const chamar = (h: Record<string, string>, metodo: string, caminho: string, corpo?: unknown) =>
   app.fetch(new Request('http://localhost' + caminho, {
@@ -26,11 +28,11 @@ const gov = (p: string, corpo: Record<string, unknown>) => chamar(consultor, 'PO
 beforeAll(async () => {
   await applySchema();
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Cliente', 'ISO 27001', 'Controller', 'Active', 'org_ness'), (?, 'Sem', 'ISO 27001', 'Controller', 'Active', 'org_ness'), (?, 'Mig', 'ISO 27001', 'Controller', 'Active', 'org_ness')`).bind(P, SEM, MIG),
+    env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Cliente', 'ISO 27001', 'Controller', 'Active', 'org_ness'), (?, 'Sem', 'ISO 27001', 'Controller', 'Active', 'org_ness'), (?, 'Mig', 'ISO 27001', 'Controller', 'Active', 'org_ness'), (?, 'Mig2', 'ISO 27001', 'Controller', 'Active', 'org_ness'), (?, 'Mig3', 'ISO 27001', 'Controller', 'Active', 'org_ness')`).bind(P, SEM, MIG, MIG2, MIG3),
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES ('u-dp', 'cons@ness.lat', 'x', 'Cons', 'consultor', NULL, 'org_ness')`),
   ]);
   await env.DB.batch([P, SEM, MIG].map((p) => env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES (?, ?, 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`).bind('gc-' + p, p)));
-  await habilitarPrivacy(P, SEM, MIG);
+  await habilitarPrivacy(P, SEM, MIG, MIG2, MIG3);
   consultor = await sessionFor({ id: 'u-dp', email: 'cons@ness.lat', role: 'consultor' });
 });
 
@@ -78,6 +80,57 @@ describe('migration 0062', () => {
     await execSql(migration0062);
     expect(await vinculos(MIG)).toEqual([{ nome: 'Dora Exemplo', email: 'dora@cliente.com' }]);
     const n = await env.DB.prepare(`SELECT count(*) AS n FROM partes WHERE project_id = ?`).bind(MIG).first<{ n: number }>();
+    expect(n!.n).toBe(1);
+  });
+});
+
+describe('migration 0062: casos de borda', () => {
+  const dpo = (id: string, p: string, nome: string, email: string | null) =>
+    env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES (?, ?, ?, ?, 'executivo', 'DPO')`).bind(id, p, nome, email);
+  const partes = async (p: string) => (await env.DB.prepare(`SELECT nome FROM partes WHERE project_id = ? ORDER BY nome`).bind(p).all<{ nome: string }>()).results.map((r) => r.nome);
+
+  it('governança de projeto que não existe mais não aborta a migration', async () => {
+    // Sem a FK de project_id (CTAS não leva constraint): o jeito de ter o órfão que produção pode ter.
+    await execSql(`CREATE TABLE pg_sem_fk AS SELECT * FROM project_governance; DROP TABLE project_governance; ALTER TABLE pg_sem_fk RENAME TO project_governance;`);
+    await env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('go1', 'dp-orfao', 'Ana Exemplo', 'ana@cliente.com', 'executivo', 'DPO')`).run();
+    await execSql(migration0062);
+    expect((await env.DB.prepare(`SELECT count(*) AS n FROM partes WHERE project_id = 'dp-orfao'`).first<{ n: number }>())!.n).toBe(0);
+  });
+
+  it('dois membros DPO iguais no mesmo projeto: uma parte e um vínculo', async () => {
+    await env.DB.batch([dpo('gd1', MIG2, 'Eva Exemplo', 'eva@cliente.com'), dpo('gd2', MIG2, ' eva  exemplo', 'EVA@cliente.com'), dpo('gd3', MIG2, 'Eva Exemplo', null)]);
+    await execSql(migration0062);
+    expect(await partes(MIG2)).toEqual(['Eva Exemplo']);
+    expect(await vinculos(MIG2)).toHaveLength(1);
+  });
+
+  it('e-mail casa uma parte e o nome outra: só a do e-mail ganha o vínculo', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('pm-a', ?, 'pessoa', 'Outro Nome', 'ivo@cliente.com'), ('pm-b', ?, 'pessoa', 'Ivo Exemplo', 'outro@cliente.com')`).bind(MIG3, MIG3),
+      dpo('gi1', MIG3, 'Ivo Exemplo', 'ivo@cliente.com'),
+    ]);
+    await execSql(migration0062);
+    expect(await vinculos(MIG3)).toEqual([{ nome: 'Outro Nome', email: 'ivo@cliente.com' }]);
+  });
+});
+
+describe('POST /governance com falha do vínculo', () => {
+  it('o membro fica salvo e a resposta é a de sucesso', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const DB = new Proxy(env.DB, {
+      get(alvo, prop) {
+        if (prop === 'prepare') return (sql: string) => { if (/INSERT INTO partes/.test(sql)) throw new Error('D1_ERROR: indisponível'); return alvo.prepare(sql); };
+        const v = (alvo as any)[prop];
+        return typeof v === 'function' ? v.bind(alvo) : v;
+      },
+    });
+    const res = await app.fetch(new Request(`http://localhost/api/v1/projects/${SEM}/governance`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...consultor },
+      body: JSON.stringify({ name: 'Lia Exemplo', email: 'lia@cliente.com', role_category: 'executivo', job_title: 'DPO' }),
+    }), { ...workerEnv(), DB } as any);
+    expect(res.status).toBe(200);
+    const n = await env.DB.prepare(`SELECT count(*) AS n FROM project_governance WHERE project_id = ? AND name = 'Lia Exemplo'`).bind(SEM).first<{ n: number }>();
     expect(n!.n).toBe(1);
   });
 });
