@@ -1,4 +1,5 @@
 import { logAudit } from '../helpers';
+import { ehDpo } from './encarregado-pessoa';
 
 /** Nome comparável: sem caixa e sem espaço repetido. Não tira acento (a spec pede nome exato). */
 const norm = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -21,8 +22,8 @@ export type ResumoImportacao = { criadas: number; reaproveitadas: number; vincul
  */
 export async function importarPartes(db: D1Database, projectId: string, ator: string): Promise<ResumoImportacao> {
   const [gov, stk, existentes] = await Promise.all([
-    db.prepare(`SELECT name, email, role_category FROM project_governance WHERE project_id = ? AND role_category != 'consultor' ORDER BY rowid`)
-      .bind(projectId).all<{ name: string; email: string | null; role_category: string }>(),
+    db.prepare(`SELECT name, email, role_category, job_title FROM project_governance WHERE project_id = ? AND role_category != 'consultor' ORDER BY rowid`)
+      .bind(projectId).all<{ name: string; email: string | null; role_category: string; job_title: string | null }>(),
     db.prepare('SELECT name FROM stakeholders WHERE project_id = ? ORDER BY rowid').bind(projectId).all<{ name: string }>(),
     db.prepare('SELECT id, nome, tipo FROM partes WHERE project_id = ?').bind(projectId).all<{ id: string; nome: string; tipo: string }>(),
   ]);
@@ -50,7 +51,7 @@ export async function importarPartes(db: D1Database, projectId: string, ator: st
     db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, ?, 'projeto', ?)`)
       .bind(crypto.randomUUID(), projectId, parteId, papel, projectId));
 
-  for (const g of gov.results) vincular(garantir('pessoa', g.name, g.email), g.role_category === 'dpo' ? 'encarregado' : 'responsavel');
+  for (const g of gov.results) vincular(garantir('pessoa', g.name, g.email), ehDpo(g) ? 'encarregado' : 'responsavel');
   for (const s of stk.results) vincular(garantir('organizacao', s.name, null), 'parte_interessada');
 
   await emLotes(db, partes); // as partes primeiro: o vínculo tem FK para elas

@@ -37,7 +37,7 @@ beforeEach(async () => {
 });
 
 describe('projeto vazio', () => {
-  it('tudo zerado, LGPD "não carregada", e a única prioridade é cadastrar os prazos legais', async () => {
+  it('tudo zerado, LGPD "não carregada", e as únicas prioridades são indicar o encarregado e cadastrar os prazos legais', async () => {
     const v = await ver();
     expect(v.pedidos_titular).toMatchObject({ abertos: 0, atrasados: 0, vencem_em_7_dias: 0, sem_prazo: 0, itens: [] });
     expect(v.incidentes).toMatchObject({ abertos: 0, comunicacoes_atrasadas: 0, comunicacoes_pendentes: 0 });
@@ -46,7 +46,7 @@ describe('projeto vazio', () => {
     expect(v.evidencias).toEqual({ vencidas: 0, vencem_em_7_dias: 0 });
     expect(v.lgpd).toEqual({ carregada: false });
     expect(v.prazos_legais.nao_definidos).toEqual(['titular.resposta', 'incidente.comunicacao_anpd', 'incidente.comunicacao_titular']);
-    expect(v.prioridades.map((p) => p.texto)).toEqual(['3 prazos legais ainda não cadastrados (os prazos ficam "não calculados")']);
+    expect(v.prioridades.map((p) => p.texto)).toEqual(['Nenhum encarregado indicado (LGPD, art. 41)', '3 prazos legais ainda não cadastrados (os prazos ficam "não calculados")']);
   });
   it('o cliente lê a visão; projeto inexistente não devolve dado', async () => {
     expect((await chamar(cliente, '/api/v1/projects/e1/encarregado')).status).toBe(200);

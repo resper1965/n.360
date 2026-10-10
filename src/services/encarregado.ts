@@ -18,9 +18,12 @@ const n = async (db: D1Database, sql: string, ...binds: unknown[]) => (await db.
 export async function visaoDoEncarregado(db: D1Database, projectId: string) {
   const dia = hoje();
   const em7 = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
-  const [pedidos, incidentes, terceiros, parametros, fontes] = await Promise.all([
+  const [pedidos, incidentes, terceiros, parametros, fontes, encarregados] = await Promise.all([
     listarPedidos(db, projectId), listarIncidentes(db, projectId), listarTerceiros(db, projectId), lerParametros(db),
     db.prepare(`SELECT count(*) AS n FROM requisitos WHERE fonte_id = 'lgpd'`).first<{ n: number }>(),
+    db.prepare(`SELECT p.id, p.nome, p.email FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
+                 WHERE v.project_id = ? AND v.papel = 'encarregado' AND v.alvo_tipo = 'projeto' AND p.status = 'ativa' ORDER BY p.nome`)
+      .bind(projectId).all<{ id: string; nome: string; email: string | null }>().then((r) => r.results),
   ]);
 
   const pedidosAbertos = pedidos.filter((p) => ['recebido', 'em_andamento'].includes(p.status));
@@ -88,6 +91,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string) {
 
   const prioridades: Prioridade[] = [];
   const p = (nivel: Prioridade['nivel'], quantidade: number, texto: (q: number) => string, tela: string) => { if (quantidade > 0) prioridades.push({ nivel, texto: texto(quantidade), tela }); };
+  p('alta', encarregados.length ? 0 : 1, () => 'Nenhum encarregado indicado (LGPD, art. 41)', 'encarregado');
   p('alta', secao.pedidos_titular.atrasados, (q) => `${q} ${q === 1 ? 'pedido do titular atrasado' : 'pedidos do titular atrasados'}`, 'titular');
   p('alta', secao.incidentes.comunicacoes_atrasadas, (q) => `${q} ${q === 1 ? 'comunicação de incidente atrasada' : 'comunicações de incidente atrasadas'}`, 'titular');
   p('alta', secao.incidentes.sem_avaliacao_de_risco, (q) => `${q} ${q === 1 ? 'incidente sem avaliação de risco' : 'incidentes sem avaliação de risco'}`, 'titular');
@@ -102,5 +106,5 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string) {
   if (secao.lgpd.carregada) p('media', secao.lgpd.lacunas ?? 0, (q) => `${q} ${q === 1 ? 'requisito da LGPD sem cobertura' : 'requisitos da LGPD sem cobertura'}`, 'requisitos');
   p('media', secao.prazos_legais.nao_definidos.length, (q) => `${q} ${q === 1 ? 'prazo legal ainda não cadastrado' : 'prazos legais ainda não cadastrados'} (os prazos ficam "não calculados")`, 'titular');
 
-  return { gerado_em: new Date().toISOString(), prioridades, ...secao };
+  return { gerado_em: new Date().toISOString(), encarregados, prioridades, ...secao };
 }

@@ -24,6 +24,7 @@ const VISAO = (extra = {}) => ({
     evidencias: { vencidas: 0, vencem_em_7_dias: 2 },
     lgpd: { carregada: true, total: 20, cobertos: 12, parciais: 3, lacunas: 5 },
     prazos_legais: { nao_definidos: [] },
+    encarregados: [{ id: 'pe1', nome: 'Rita Exemplo', email: 'rita@cliente.com' }],
     ...extra,
 });
 const el = (id) => document.getElementById(id);
@@ -79,5 +80,31 @@ describe('tela do encarregado', () => {
         servir({}); // 404 do Worker
         await window.renderEncarregado(el('c'), el('h'), el('a'));
         expect(el('c').textContent).toContain('Não foi possível montar a visão');
+    });
+
+    it('mostra o encarregado indicado no topo', async () => {
+        await abrir();
+        expect(el('c').textContent).toContain('Encarregado: Rita Exemplo');
+    });
+
+    it('sem encarregado: botão de indicar lista as pessoas e envia o vínculo ao confirmar', async () => {
+        document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div><div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        const f = servir({
+            'GET /api/v1/projects/p9/encarregado': VISAO({ encarregados: [] }),
+            'GET /api/v1/projects/p9/partes': [{ id: 'pe7', nome: 'Rita <b>Exemplo</b>', tipo: 'pessoa' }],
+            'POST /api/v1/projects/p9/partes/pe7/vinculos': { id: 'v1' },
+        });
+        await window.renderEncarregado(el('c'), el('h'), el('a'));
+        expect(el('c').textContent).toContain('Encarregado: não indicado');
+        expect(el('c').querySelector('[data-action="abrirIndicarEncarregado"]')).not.toBeNull();
+        await window.abrirIndicarEncarregado('p9');
+        const sel = document.getElementById('encarregado-parte');
+        expect(sel.options.length).toBe(1);
+        expect(sel.querySelector('b')).toBeNull();
+        sel.value = 'pe7';
+        await window.indicarEncarregado('p9');
+        const post = f.mock.calls.find(([u, o]) => o?.method === 'POST');
+        expect(new URL(post[0], 'http://localhost').pathname).toBe('/api/v1/projects/p9/partes/pe7/vinculos');
+        expect(JSON.parse(post[1].body)).toEqual({ papel: 'encarregado', alvo_tipo: 'projeto', alvo_id: 'p9' });
     });
 });

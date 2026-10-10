@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0061** (`ls migrations/*.sql | tail -1`). São 59 arquivos
+- Última migration no repositório: **0062** (`ls migrations/*.sql | tail -1`). São 60 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -401,3 +401,13 @@ como terceiro (`partes.terceiro_tipo` não nulo) ganha o vínculo `terceiro` e o
 `SELECT count(*) FROM vendors v WHERE parte_id IS NULL AND EXISTS (SELECT 1 FROM projects p WHERE p.id = v.project_id)` (0).
 **Esta RODA em produção, sem janela.**
 Depende da 0047 (`partes`).
+
+## 0062 — o DPO da governança é o encarregado (2026-10)
+
+Só dados, sem DDL. Para cada membro de `project_governance` que é DPO (`role_category = 'dpo'` ou cargo com "dpo"/"encarregad"), acha a parte pessoa do
+projeto por e-mail ou nome (`lower(trim())`) ou cria uma, e grava o vínculo `encarregado` no projeto (`INSERT OR IGNORE` sobre a UNIQUE, `NOT EXISTS`
+na parte: aplicar duas vezes não duplica). O `LIKE '%dpo%'` é mais largo que o regex do código (`EH_DPO`): casa "dpo" dentro de outra palavra, o que
+não existe em cargo hoje. Daqui em diante `POST /projects/:id/governance` faz o mesmo no momento da gravação. Conferência antes:
+`SELECT project_id, name, job_title FROM project_governance WHERE role_category = 'dpo' OR lower(job_title) LIKE '%dpo%' OR lower(job_title) LIKE '%encarregad%'`;
+depois: `SELECT count(*) FROM parte_vinculos WHERE papel = 'encarregado' AND alvo_tipo = 'projeto'` deve ser igual ou maior que o número de projetos
+com DPO. **Esta RODA em produção, sem janela.** Depende da 0047 (`partes`).

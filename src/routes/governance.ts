@@ -3,6 +3,7 @@ import { Bindings, Variables } from '../index';
 
 import { semRastros, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, genToken, hashPassword, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto } from '../helpers';
 import { enviarBoasVindas, nomeDaOrg } from './users';
+import { ehDpo, garantirEncarregado } from '../services/encarregado-pessoa';
 import { validateBody, stakeholderSchema, governanceMemberSchema, companyProfileSchema, contextSchema, auditFindingSchema, auditFindingUpdateSchema, stakeholderAtualizarSchema, revisaoCriarSchema, revisaoAtualizarSchema, metricaCriarSchema, metricaAtualizarSchema, cienciaPoliticaSchema } from '../schemas';
 
 export const governanceApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -182,6 +183,7 @@ governanceApp.post('/projects/:id/governance', async (c) => {
       await c.env.DB.batch(is_primary ? [desmarcaOutros, grava] : [grava]);
       await logAudit(c.env.DB, 'governance.created', c.get('user')?.email || 'system', `Membro da governança ${name} criado para projeto ${projectId}`);
     }
+    if (ehDpo({ role_category, job_title })) await garantirEncarregado(c.env.DB, projectId, { nome: name, email: email || null });
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Falha ao salvar governança', e);
