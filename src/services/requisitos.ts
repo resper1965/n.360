@@ -1,5 +1,6 @@
 import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
 import { ISO_27701_2025_CONTROLLER, ISO_27701_2025_PROCESSOR, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
+import { LGPD, LGPD_VERSAO } from '../data/lgpd';
 
 /**
  * Catálogo de requisitos (fatia 2 do núcleo do n.privacy, spec 4.5). Global: sem project_id.
@@ -8,7 +9,7 @@ import { ISO_27701_2025_CONTROLLER, ISO_27701_2025_PROCESSOR, ISO_27701_2025_STA
  */
 
 type Fonte = { id: string; nome: string; versao: string | null; vigente_desde: string | null };
-type Linha = { id: string; fonte_id: string; referencia: string; titulo: string; papel: string | null };
+type Linha = { id: string; fonte_id: string; referencia: string; titulo: string; papel: string | null; pai_id?: string | null };
 
 const F_27001 = 'iso27001:2022';
 const F_27701 = 'iso27701:2025';
@@ -17,7 +18,7 @@ const F_27701 = 'iso27701:2025';
 export const FONTES: readonly Fonte[] = [
   { id: F_27001, nome: 'ISO/IEC 27001:2022', versao: '2022', vigente_desde: null },
   { id: F_27701, nome: 'ISO/IEC 27701:2025', versao: '2025', vigente_desde: null },
-  { id: 'lgpd', nome: 'Lei Geral de Proteção de Dados (Lei 13.709/2018)', versao: '2018', vigente_desde: null },
+  { id: 'lgpd', nome: 'Lei Geral de Proteção de Dados (Lei 13.709/2018)', versao: LGPD_VERSAO, vigente_desde: null },
   { id: 'gdpr', nome: 'Regulamento Geral sobre a Proteção de Dados (UE 2016/679)', versao: '2016', vigente_desde: null },
 ];
 
@@ -44,14 +45,14 @@ function linhasIso(): Linha[] {
 /** INSERT OR IGNORE de um lote de requisitos (JSON), para entrar num batch. */
 export function stmtRequisitos(db: D1Database, linhas: readonly Linha[]): D1PreparedStatement {
   return db.prepare(
-    `INSERT OR IGNORE INTO requisitos (id, fonte_id, referencia, titulo, papel)
+    `INSERT OR IGNORE INTO requisitos (id, fonte_id, referencia, titulo, papel, pai_id)
      SELECT json_extract(j.value, '$.id'), json_extract(j.value, '$.fonte_id'), json_extract(j.value, '$.referencia'),
-            json_extract(j.value, '$.titulo'), json_extract(j.value, '$.papel')
+            json_extract(j.value, '$.titulo'), json_extract(j.value, '$.papel'), json_extract(j.value, '$.pai_id')
        FROM json_each(?1) j`
   ).bind(JSON.stringify(linhas));
 }
 
-/** Semeia fontes e requisitos ISO que ainda não existem. Devolve quantos foram criados. */
+/** Semeia fontes e requisitos (ISO e LGPD) que ainda não existem. Devolve quantos foram criados. */
 export async function semearCatalogo(db: D1Database): Promise<{ fontes: number; requisitos: number }> {
   const r = await db.batch([
     db.prepare(
@@ -60,8 +61,9 @@ export async function semearCatalogo(db: D1Database): Promise<{ fontes: number; 
          FROM json_each(?1) j`
     ).bind(JSON.stringify(FONTES)),
     stmtRequisitos(db, linhasIso()),
+    stmtRequisitos(db, LGPD.map((r) => ({ ...r, fonte_id: 'lgpd', papel: null }))),
   ]);
-  return { fontes: r[0].meta.changes ?? 0, requisitos: r[1].meta.changes ?? 0 };
+  return { fontes: r[0].meta.changes ?? 0, requisitos: (r[1].meta.changes ?? 0) + (r[2].meta.changes ?? 0) };
 }
 
 /**
