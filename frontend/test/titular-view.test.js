@@ -111,6 +111,46 @@ describe('pedidos', () => {
     });
 });
 
+describe('dados do titular a partir do pedido', () => {
+    const PED = { id: 'a', protocolo: 'PT-2026-0001', tipo: 'acesso', canal: 'email', titular_nome: 'Ana', titular_contato: 'ana@exemplo.com', descricao: '', recebido_em: '2026-10-01', prazo_em: null, situacao_prazo: 'sem_prazo', resposta_texto: null, status: 'recebido' };
+    const DS = `${B}/data-subject`;
+    const LOC = { ok: true, encontrado: true, total_registros: 3, ocorrencias: [{ tabela: 'stakeholders', registros: [{}, {}, {}] }] };
+    const botao = (nome) => el('modal-content').querySelector(`[data-action="${nome}"]`);
+    const abrirPed = async (pedido, extra = {}) => {
+        const f = await abrir('pedidos', { [`GET ${B}/titular-pedidos/a`]: pedido, ...extra });
+        await window.abrirPedidoTitular('p9', 'a');
+        return f;
+    };
+
+    it('com contato: Localizar dados consulta pelo contato e mostra o total; acesso não oferece eliminar', async () => {
+        const f = await abrirPed(PED, { [`GET ${DS}`]: LOC });
+        expect(botao('eliminarDadosDoTitular')).toBeNull();
+        await window.localizarDadosDoTitular('p9', 'a');
+        const u = f.mock.calls.map(([x]) => x).find((x) => x.includes('/data-subject'));
+        expect(u).toContain('identificador=ana%40exemplo.com');
+        expect(el('modal-content').textContent).toContain('3 registro(s)');
+    });
+    it('sem contato não há busca', async () => {
+        await abrirPed({ ...PED, titular_contato: null });
+        expect(botao('localizarDadosDoTitular')).toBeNull();
+    });
+    it('eliminação: pedido de eliminação oferece o botão; confirma na janela com justificativa pré-preenchida e manda pedido_id', async () => {
+        const f = await abrirPed({ ...PED, tipo: 'anonimizacao_bloqueio_eliminacao' }, { [`POST ${DS}/erase`]: { ok: true, total: 3 } });
+        expect(botao('localizarDadosDoTitular')).not.toBeNull();
+        window.eliminarDadosDoTitular('p9', 'a');
+        expect(chamadas(f)).not.toContain(`POST ${DS}/erase`);
+        expect(el('pt-elim-just').value).toBe('Pedido PT-2026-0001');
+        await window.confirmarEliminacaoTitular('p9', 'a');
+        expect(corpoDe(f, `POST ${DS}/erase`)).toEqual({ identificador: 'ana@exemplo.com', justificativa: 'Pedido PT-2026-0001', pedido_id: 'a' });
+    });
+    it('org_user não vê os botões', async () => {
+        S.user = { role: 'org_user' };
+        await abrirPed({ ...PED, tipo: 'anonimizacao_bloqueio_eliminacao' });
+        expect(botao('localizarDadosDoTitular')).toBeNull();
+        expect(botao('eliminarDadosDoTitular')).toBeNull();
+    });
+});
+
 describe('incidentes', () => {
     it('lista com risco, situações de prazo e título escapado', async () => {
         await abrir('incidentes');

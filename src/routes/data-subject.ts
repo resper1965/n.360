@@ -70,7 +70,15 @@ dataSubjectApp.post('/erase', async (c) => {
   const projectId = c.req.param('projectId')!;
   const valid = await validateBody(c, identificadorSchema);
   if (!valid.success) return valid.response;
-  const { identificador, justificativa } = valid.data;
+  const { identificador, justificativa, pedido_id } = valid.data;
+
+  // O pedido tem de ser deste projeto: o protocolo vai para a trilha como a origem da eliminação.
+  let origem = '';
+  if (pedido_id) {
+    const ped = await c.env.DB.prepare('SELECT protocolo FROM titular_pedidos WHERE id = ? AND project_id = ?').bind(pedido_id, projectId).first<{ protocolo: string }>();
+    if (!ped) return c.json({ error: 'pedido_id inexistente ou de outro projeto' }, 400);
+    origem = ` (pedido ${ped.protocolo})`;
+  }
 
   const antes = await localizarTitular(c.env.DB, projectId, identificador);
   if (!antes.length) return c.json({ error: 'Nenhum registro encontrado para este titular neste projeto' }, 404);
@@ -80,7 +88,7 @@ dataSubjectApp.post('/erase', async (c) => {
 
   await logAudit(
     c.env.DB, 'lgpd.titular.eliminacao', c.get('user')?.email ?? 'system',
-    `Anonimização de ${total} registro(s): ${JSON.stringify(afetados)}`,
+    `Anonimização de ${total} registro(s): ${JSON.stringify(afetados)}${origem}`,
     justificativa, '', projectId
   );
 

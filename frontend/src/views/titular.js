@@ -18,6 +18,8 @@ const UNIDADES = { horas: 'horas', dias_corridos: 'dias corridos', dias_uteis: '
 const ABAS = { pedidos: 'Pedidos do titular', incidentes: 'Incidentes', consentimentos: 'Consentimentos', prazos: 'Prazos legais' };
 
 const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'].includes(S.user.role);
+// Papéis que a rota /data-subject aceita (expõe PII).
+const podeDados = () => !!S.user && ['platform_admin', 'consultor', 'org_admin'].includes(S.user.role);
 const ehAdmin = () => !!S.user && S.user.role === 'platform_admin';
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const lista = (r) => (Array.isArray(r) ? r : []);
@@ -131,7 +133,43 @@ window.abrirPedidoTitular = async function (projectId, id) {
         ${editar && p.status !== 'arquivado' ? `<div class="form-group"><label class="form-label" for="pt-status">Status</label><select class="form-input" id="pt-status">${opcoes(STATUS_PEDIDO, p.status)}</select></div>
             <div class="form-group"><label class="form-label" for="pt-resp">Resposta</label><textarea class="form-input" id="pt-resp" rows="4" maxlength="5000" ${final ? 'disabled' : ''}>${escapeHTML(p.resposta_texto || '')}</textarea></div>
             <button class="btn btn-primary" data-action="salvarPedidoTitular" data-args='${args(projectId, id)}'>Salvar</button>`
-            : `<p id="pt-resposta" style="white-space:pre-wrap">${escapeHTML(p.resposta_texto || '')}</p>`}`, 'modal-large');
+            : `<p id="pt-resposta" style="white-space:pre-wrap">${escapeHTML(p.resposta_texto || '')}</p>`}
+        ${podeDados() && p.titular_contato ? `<h4 style="margin:1rem 0 0.5rem">Dados do titular</h4>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+                <button class="btn btn-sm" data-action="localizarDadosDoTitular" data-args='${args(projectId, id)}'>Localizar dados</button>
+                ${p.tipo === 'anonimizacao_bloqueio_eliminacao' ? `<button class="btn btn-sm" data-action="eliminarDadosDoTitular" data-args='${args(projectId, id)}'>Eliminar dados</button>` : ''}
+            </div><div id="pt-dados" style="margin-top:0.75rem"></div>` : ''}`, 'modal-large');
+    pedidoAberto = p;
+};
+
+// Busca e eliminação pelo contato do pedido. A regra é do servidor (/data-subject: busca por igualdade, anonimização, trilha).
+let pedidoAberto = null;
+const painelDados = (html) => { el('pt-dados').innerHTML = html; };
+
+window.localizarDadosDoTitular = async function (projectId) {
+    try {
+        const r = await api('GET', `/api/v1/projects/${projectId}/data-subject?identificador=${encodeURIComponent(pedidoAberto.titular_contato)}`);
+        painelDados(r.encontrado
+            ? `<p>${escapeHTML(String(r.total_registros))} registro(s) em ${escapeHTML(String(lista(r.ocorrencias).length))} tabela(s): ${lista(r.ocorrencias).map((o) => escapeHTML(o.tabela)).join(', ')}.</p>`
+            : '<p>Nenhum registro encontrado para este contato neste projeto.</p>');
+    } catch (e) { falha(e, 'Não foi possível localizar os dados'); }
+};
+
+// Confirmação na própria janela (o app não usa confirm()).
+window.eliminarDadosDoTitular = function (projectId, id) {
+    painelDados(`<p>Os dados pessoais de ${escapeHTML(pedidoAberto.titular_contato)} serão anonimizados neste projeto; os registros permanecem sem o dado pessoal. A ação não se desfaz.</p>
+        <div class="form-group"><label class="form-label" for="pt-elim-just">Justificativa</label><input class="form-input" id="pt-elim-just" maxlength="2000" value="${escapeHTML(`Pedido ${pedidoAberto.protocolo}`)}"></div>
+        <button class="btn btn-primary btn-sm" data-action="confirmarEliminacaoTitular" data-args='${args(projectId, id)}'>Confirmar eliminação</button>`);
+};
+
+window.confirmarEliminacaoTitular = async function (projectId, id) {
+    const justificativa = valorOuNulo('pt-elim-just');
+    if (!justificativa) { showToast('Informe a justificativa', 'error'); return; }
+    try {
+        const r = await api('POST', `/api/v1/projects/${projectId}/data-subject/erase`, { identificador: pedidoAberto.titular_contato, justificativa, pedido_id: id });
+        painelDados(`<p>${escapeHTML(String(r.total))} registro(s) anonimizado(s). Registrado na trilha de auditoria.</p>`);
+        showToast('Dados do titular anonimizados.', 'success');
+    } catch (e) { falha(e, 'Não foi possível eliminar os dados'); }
 };
 
 window.salvarPedidoTitular = (projectId, id) => acao(
