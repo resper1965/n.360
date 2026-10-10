@@ -118,6 +118,7 @@ export const capaUpdateSchema = z.object({
   severity: parcial,
   assigned_to: parcial,
   assigned_to_parte_id: parcial,
+  incidente_id: parcial,
   due_date: parcial,
   status: z.string().min(1, 'Status é obrigatório'),
   resolution: parcial,

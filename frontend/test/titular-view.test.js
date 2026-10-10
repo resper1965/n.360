@@ -5,6 +5,7 @@ import { servir } from './servir-api.js';
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
 import { S } from '../src/state.js';
+import { navigate } from '../src/router.js';
 import '../src/ui.js';
 import '../src/views/titular.js';
 
@@ -46,9 +47,10 @@ beforeEach(() => {
     S.token = 'tok';
     S.user = { role: 'consultor' };
     S.activeProject = { id: 'p9' };
+    sessionStorage.setItem('niso_produto', 'privacy');
     window.render = vi.fn();
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); sessionStorage.removeItem('niso_produto'); });
 
 describe('abas', () => {
     it('mostra as quatro abas e abre em Pedidos; trocar de aba guarda a escolha e redesenha', async () => {
@@ -217,5 +219,36 @@ describe('prazos legais', () => {
         expect(corpoDe(f, 'PUT /api/v1/parametros-legais/titular.resposta')).toEqual({ valor: 15, unidade: 'dias_uteis', fonte: 'Lei X, art. Y', revisado_em: '2026-10-01', revisado_por: 'Dra. Teste' });
         await window.removerParametroLegal('titular.resposta');
         expect(chamadas(f)).toContain('DELETE /api/v1/parametros-legais/titular.resposta');
+    });
+});
+
+describe('incidentes no n.iso', () => {
+    beforeEach(() => { sessionStorage.setItem('niso_produto', 'iso'); });
+    it('só a aba de incidentes, com título Incidentes; abrirIncidentesIso leva para ela', async () => {
+        S.activeProject = { id: 'p9', modulos: ['iso'] };
+        await abrir('pedidos');
+        expect(el('h').textContent).toBe('Incidentes');
+        expect([...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')].map((b) => b.textContent)).toEqual(['Incidentes']);
+        expect(el('c').textContent).toContain('IN-2026-0001');
+        S.titularAba = 'pedidos';
+        window.abrirIncidentesIso();
+        expect(S.titularAba).toBe('incidentes');
+        expect(navigate).toHaveBeenCalledWith('titular');
+    });
+    it('a janela do incidente tem Abrir CAPA quando o projeto tem iso; criar envia incidente_id', async () => {
+        S.activeProject = { id: 'p9', modulos: ['iso'] };
+        const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], descricao: 'Notebook perdido' }, [`POST ${B}/capa`]: { ok: true, id: 'c1' } });
+        await window.abrirIncidente('p9', 'i1');
+        expect(el('modal-content').querySelector('[data-action="abrirCapaDoIncidente"]')).not.toBeNull();
+        await window.abrirCapaDoIncidente('p9', 'i1');
+        expect(corpoDe(f, `POST ${B}/capa`)).toEqual({ title: 'Incidente IN-2026-0001: Acesso <b>indevido</b>', description: 'Notebook perdido', incidente_id: 'i1' });
+    });
+    it('no n.privacy a janela não oferece CAPA e as quatro abas continuam', async () => {
+        sessionStorage.setItem('niso_produto', 'privacy');
+        S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };
+        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
+        expect(el('c').querySelectorAll('[data-action="escolherAbaTitular"]').length).toBe(4);
+        await window.abrirIncidente('p9', 'i1');
+        expect(el('modal-content').querySelector('[data-action="abrirCapaDoIncidente"]')).toBeNull();
     });
 });

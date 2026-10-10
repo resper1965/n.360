@@ -23,8 +23,10 @@ describe('classificação', () => {
   it('as faixas que importam: cadastro compartilhado, só n.iso e só n.privacy', () => {
     const f = (p: string) => faixaDoCaminho(`/api/v1/projects/p1/${p}`);
     for (const p of ['', 'partes', 'documentos', 'documentos/d1', 'evidence', 'ropa', 'ropa/r1/approve', 'dpia', 'assets', 'governance', 'modulos']) expect(f(p), p).toBe('nucleo');
+    expect(f('incidentes'), 'incidentes').toBe('nucleo');
+    expect(f('incidentes/i1/encerrar')).toBe('nucleo');
     for (const p of ['controls', 'risks', 'audits', 'capa', 'certification', 'phases', 'checklist-progress', 'readiness-check', 'auditor-token']) expect(f(p), p).toBe('iso');
-    for (const p of ['terceiros', 'encarregado', 'titular-pedidos', 'incidentes', 'consentimentos', 'requisitos/lacunas', 'ropa/importar',
+    for (const p of ['terceiros', 'encarregado', 'titular-pedidos', 'consentimentos', 'requisitos/lacunas', 'ropa/importar',
       'ropa/r1/ligacoes', 'ropa/r1/lia', 'ropa/r1/dpia', 'documentos/d1/requisitos', 'evidence/e1/validade', 'evidence/e1/requisitos']) expect(f(p), p).toBe('privacy');
     expect(faixaDoCaminho('/api/v1/requisitos')).toBeNull(); // catálogo global: fora da trava de projeto
   });
@@ -118,12 +120,12 @@ describe('trava no servidor', () => {
   });
 
   it('desligar o n.privacy esconde o produto e não apaga o dado; religar devolve', async () => {
-    await env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em) VALUES ('inc-d', 'dois', 'IN-2026-0001', 'X', '2026-10-01')`).run();
+    await env.DB.prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em) VALUES ('inc-d', 'dois', 'PT-2026-0001', 'acesso', '2026-10-01')`).run();
     expect((await chamar(admin, 'PUT', '/api/v1/projects/dois/modulos/privacy', { habilitado: false })).status).toBe(200);
-    expect((await chamar(admin, 'GET', '/api/v1/projects/dois/incidentes')).status).toBe(403);
-    expect((await env.DB.prepare(`SELECT count(*) AS n FROM incidentes WHERE id = 'inc-d'`).first<{ n: number }>())!.n).toBe(1);
+    expect((await chamar(admin, 'GET', '/api/v1/projects/dois/titular-pedidos')).status).toBe(403);
+    expect((await env.DB.prepare(`SELECT count(*) AS n FROM titular_pedidos WHERE id = 'inc-d'`).first<{ n: number }>())!.n).toBe(1);
     expect((await chamar(admin, 'PUT', '/api/v1/projects/dois/modulos/privacy', { habilitado: true })).status).toBe(200);
-    expect((await (await chamar(admin, 'GET', '/api/v1/projects/dois/incidentes')).json() as unknown[]).length).toBe(1);
+    expect((await (await chamar(admin, 'GET', '/api/v1/projects/dois/titular-pedidos')).json() as unknown[]).length).toBe(1);
   });
 });
 

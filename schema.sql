@@ -627,7 +627,8 @@ CREATE TABLE IF NOT EXISTS corrective_actions (
     resolution TEXT,
     completed_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    assigned_to_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL
+    assigned_to_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    incidente_id TEXT REFERENCES incidentes(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -666,6 +667,7 @@ CREATE TABLE IF NOT EXISTS webhooks (
 CREATE INDEX IF NOT EXISTS idx_ropa_project ON ropa_records(project_id);
 CREATE INDEX IF NOT EXISTS idx_audit_schedule_project ON audit_schedule(project_id);
 CREATE INDEX IF NOT EXISTS idx_capa_project ON corrective_actions(project_id);
+CREATE INDEX IF NOT EXISTS idx_capa_incidente ON corrective_actions(incidente_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_project ON api_keys(project_id);
 -- Unicidade do hash de API key (o lookup de autenticação depende disso).
 -- Precisa vir DEPOIS do CREATE TABLE acima — em banco limpo, um índice declarado

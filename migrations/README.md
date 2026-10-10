@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0062** (`ls migrations/*.sql | tail -1`). São 60 arquivos
+- Última migration no repositório: **0063** (`ls migrations/*.sql | tail -1`). São 61 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -411,3 +411,10 @@ não existe em cargo hoje. Daqui em diante `POST /projects/:id/governance` faz o
 `SELECT project_id, name, job_title FROM project_governance WHERE role_category = 'dpo' OR lower(job_title) LIKE '%dpo%' OR lower(job_title) LIKE '%encarregad%'`;
 órfãos (governança de projeto que não existe mais fica fora da carga, senão a FK de `partes` abortaria): `SELECT g.id, g.project_id FROM project_governance g WHERE NOT EXISTS (SELECT 1 FROM projects p WHERE p.id = g.project_id)`. Membros DPO repetidos no projeto (mesmo e-mail ou nome) viram uma parte só; havendo e-mail, o vínculo vai para a parte do e-mail, e o nome só vale sem e-mail ou sem parte com aquele e-mail. depois: `SELECT count(*) FROM parte_vinculos WHERE papel = 'encarregado' AND alvo_tipo = 'projeto'` deve ser igual ou maior que o número de projetos
 com DPO. **Esta RODA em produção, sem janela.** Depende da 0047 (`partes`).
+
+## 0063 — CAPA nasce do incidente (2026-10)
+
+Acrescenta `corrective_actions.incidente_id` (anulável, FK para `incidentes`, `ON DELETE SET NULL`) e o índice `idx_capa_incidente`. Sem carga e sem
+tocar linha existente. O `ALTER ... ADD COLUMN` não é idempotente: aplicar duas vezes falha com "duplicate column". Conferência depois de aplicar:
+`PRAGMA table_info(corrective_actions)` lista `incidente_id`. Depende da 0058 (`incidentes`). **Esta RODA em produção, aditiva, sem janela.**
+Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.

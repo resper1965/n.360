@@ -1,6 +1,8 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
+import { navigate } from '../router.js';
+import { produtoAtual, temProduto } from '../produto.js';
 
 // Titular e incidentes (fatia 7 do núcleo, só registro interno): pedidos do titular, incidentes, consentimentos e prazos legais.
 // Toda regra é do servidor (protocolo, prazo congelado, encerramento do incidente); aqui só se mostra e se chama. Texto escapado.
@@ -27,18 +29,22 @@ const selo = (chave) => { const [r, t] = PRAZO[chave] || [chave, 'neutral']; ret
 const opcoes = (mapa, atual) => Object.entries(mapa).map(([v, r]) => `<option value="${v}" ${v === atual ? 'selected' : ''}>${escapeHTML(r)}</option>`).join('');
 const valorOuNulo = (id) => { const v = el(id).value.trim(); return v || null; };
 
+// No n.iso o incidente é cadastro do núcleo (A.5.26/A.5.27): a tela mostra só ele. Pedidos, consentimentos e prazos são do n.privacy.
+const soIncidentes = () => produtoAtual() === 'iso';
+
 async function renderTitular(c, h, a) {
-    h.textContent = 'Titular e incidentes';
+    h.textContent = soIncidentes() ? 'Incidentes' : 'Titular e incidentes';
     const proj = projetoAtivo();
     if (!proj) {
         a.innerHTML = '';
         c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>';
         return;
     }
-    const aba = ABAS[S.titularAba] ? S.titularAba : 'pedidos';
+    const abasDoProduto = soIncidentes() ? { incidentes: ABAS.incidentes } : ABAS;
+    const aba = abasDoProduto[S.titularAba] ? S.titularAba : Object.keys(abasDoProduto)[0];
     S.titularAba = aba;
     const editar = podeEditar();
-    const abas = `<div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1rem">${Object.entries(ABAS).map(([v, r]) =>
+    const abas = `<div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1rem">${Object.entries(abasDoProduto).map(([v, r]) =>
         `<button class="btn ${v === aba ? 'btn-primary' : 'btn-ghost'} btn-sm" data-action="escolherAbaTitular" data-args='${args(v)}'>${escapeHTML(r)}</button>`).join('')}</div>`;
     const novo = (acao, rotulo) => (editar ? `<button class="btn btn-primary" data-action="${acao}" data-args='${args(proj.id)}'>${rotulo}</button>` : '');
     a.innerHTML = aba === 'pedidos' ? novo('abrirNovoPedidoTitular', '+ Registrar pedido')
@@ -78,6 +84,8 @@ async function renderTitular(c, h, a) {
     }
     c.innerHTML = abas + corpo;
 }
+
+window.abrirIncidentesIso = function () { S.titularAba = 'incidentes'; navigate('titular'); };
 
 window.escolherAbaTitular = function (aba) { S.titularAba = aba; window.render(); };
 
@@ -167,8 +175,16 @@ window.abrirIncidente = async function (projectId, id) {
                 ${i.comunicacao_anpd_em ? '' : `<button class="btn btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, 'anpd')}'>Registrei a comunicação à ANPD</button>`}
                 ${i.comunicacao_titular_em ? '' : `<button class="btn btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, 'titular')}'>Registrei a comunicação ao titular</button>`}
                 <button class="btn btn-primary btn-sm" data-action="encerrarIncidente" data-args='${args(projectId, id)}'>Encerrar incidente</button>
-            </div>` : ''}`, 'modal-large');
+            </div>` : ''}
+        ${podeEditar() && produtoAtual() === 'iso' && temProduto(projetoAtivo(), 'iso') ? `<h4 style="margin:1rem 0 0.5rem">Ação corretiva</h4>
+            <button class="btn btn-sm" data-action="abrirCapaDoIncidente" data-args='${args(projectId, id)}'>Abrir CAPA</button>` : ''}`, 'modal-large');
 };
+
+window.abrirCapaDoIncidente = (projectId, id) => acao(async () => {
+    const i = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}`);
+    await api('POST', `/api/v1/projects/${projectId}/capa`, { title: `Incidente ${i.protocolo}: ${i.titulo}`, description: i.descricao ?? null, incidente_id: id });
+    forceCloseModal();
+}, 'Não foi possível abrir a CAPA', 'CAPA aberta. Acompanhe em CAPA.');
 
 const reabrirIncidente = (projectId, id) => () => window.abrirIncidente(projectId, id);
 
