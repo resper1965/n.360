@@ -8,6 +8,7 @@ import { showToast, openModal, escapeHTML } from '../ui.js';
 
 const SITUACAO = { coberto: ['Coberto', 'success'], parcial: ['Parcial', 'warning'], lacuna: ['Lacuna', 'danger'] };
 const TIPO_MAPA = { equivalente: 'Equivalente', parcial: 'Parcial', relacionado: 'Relacionado' };
+const ORIGEM = { documento: 'Documento', evidencia: 'Evidência', controle: 'Controle' };
 const FONTES_COM_COBERTURA = ['lgpd', 'gdpr'];
 
 const ehAdmin = () => !!S.user && S.user.role === 'platform_admin';
@@ -52,7 +53,7 @@ async function renderRequisitos(c, h, a) {
     const linhas = reqs.map((r) => {
         const cob = cobertura.get(r.id);
         const [rot, tom] = cob ? SITUACAO[cob.situacao] || [cob.situacao, 'info'] : [null, null];
-        const origens = cob ? cob.origens.map((o) => o.tipo === 'documento' ? `Documento: ${escapeHTML(o.titulo)}` : `Controle: ${escapeHTML(o.titulo)}`).join('; ') : '';
+        const origens = cob ? cob.origens.map((o) => `${ORIGEM[o.tipo] || 'Controle'}: ${escapeHTML(o.titulo)}`).join('; ') : '';
         const linha = [
             escapeHTML(r.referencia),
             escapeHTML(r.titulo),
@@ -66,7 +67,7 @@ async function renderRequisitos(c, h, a) {
     if (comCobertura) cab.push('Cobertura', 'Origem');
     cab.push('Ações');
     const aviso = comCobertura
-        ? `<p style="color:var(--text-dim)">Cobertura: documento vigente ligado ao requisito, ou controle implementado ligado por equivalência validada pelo jurídico. Evidência ainda não entra na conta.</p>`
+        ? `<p style="color:var(--text-dim)">Cobertura: documento vigente ligado ao requisito, ou controle implementado ligado por equivalência validada pelo jurídico.</p>`
         : '';
     const quadro = resumo
         ? `<p><strong>${escapeHTML(String(resumo.cobertos))}</strong> cobertos, <strong>${escapeHTML(String(resumo.parciais))}</strong> parciais e <strong>${escapeHTML(String(resumo.lacunas))}</strong> lacunas, de ${escapeHTML(String(resumo.total))}.</p>`

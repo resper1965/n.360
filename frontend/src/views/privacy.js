@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
 import { render } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
+import { temProduto } from '../produto.js';
 
     async function renderROPA(c, h, a) {
         h.textContent = 'ROPA — Registro de Atividades de Tratamento';
@@ -14,7 +15,8 @@ import { opcoesDePartes } from '../partes-opcoes.js';
         }
         
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        a.innerHTML = canCrud ? `<button class="btn" data-action="openImportarRopaModal" data-args='["${proj.id}"]'>Importar planilha</button> <button class="btn btn-primary" data-action="openNewROPAModal" data-args='["${proj.id}"]'>+ Nova Atividade</button>` : '';
+        const comPrivacy = temProduto(proj, 'privacy');
+        a.innerHTML = canCrud ? `${comPrivacy ? `<button class="btn" data-action="openImportarRopaModal" data-args='["${proj.id}"]'>Importar planilha</button> ` : ''}<button class="btn btn-primary" data-action="openNewROPAModal" data-args='["${proj.id}"]'>+ Nova Atividade</button>` : '';
         
         let records = [];
         try { records = await api('GET', `/api/v1/projects/${proj.id}/ropa`); } catch(e) {}
@@ -45,7 +47,7 @@ import { opcoesDePartes } from '../partes-opcoes.js';
                     r.dpia_required ? window.renderStatusBadge('Sim', 'warning') : window.renderStatusBadge('Não', 'neutral'),
                     window.renderStatusBadge(r.status || 'Active', statusType),
                     `<button class="btn btn-ghost btn-sm" data-action="openROPADetailsModal" data-args='["${r.id}"]'>Detalhes</button>
-                     <button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='["${proj.id}","${r.id}"]'>Ligações</button>
+                     ${comPrivacy ? `<button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='["${proj.id}","${r.id}"]'>Ligações</button>` : ''}
                      <button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="openROPAReport" data-args='["${proj.id}"]' data-stop>PDF</button>`
                 ];
             }),

@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, traduzStatus } from '../ui.js';
 import { navigate } from '../router.js';
+import { temProduto } from '../produto.js';
 
     // O id varia por projeto (ctrl-a51, A.5.1, gerado); o código estável é o primeiro token do título.
     function codigoDoControle(ctrl) {
@@ -1501,6 +1502,7 @@ import { navigate } from '../router.js';
         ]);
 
         const isOrgUser = S.user && S.user.role === 'org_user';
+        const comPrivacy = temProduto(proj, 'privacy');
 
         const tableHtml = window.renderDataTable(
             ['Arquivo Evidência', 'Controle', 'Tamanho', 'Hash (SHA-256)', 'Revisão Líder SGSI', 'Assinatura CEO', 'Avaliação', 'Ações'],
@@ -1539,6 +1541,10 @@ import { navigate } from '../router.js';
                     ? `<button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="evaluateEvidenceAI" data-args='["${e.id}"]'>IA</button>`
                     : '';
 
+                const reqBtn = comPrivacy
+                    ? `<button class="btn btn-ghost btn-sm" data-action="abrirRequisitosEvidencia" data-args='${escapeHTML(JSON.stringify([proj.id, e.id]))}'>Requisitos e validade</button>`
+                    : '';
+
                 return [
                     `<strong>${escapeHTML(fileName)}</strong>`,
                     controleCell,
@@ -1547,7 +1553,7 @@ import { navigate } from '../router.js';
                     dpoBadge,
                     ceoBadge,
                     avaliacaoBadge,
-                    `<button data-action="downloadEvidenceFile" data-args='["${e.id}"]' class="btn btn-ghost btn-sm">Download</button> ${dpoBtn} ${ceoBtn} ${evalBtn}`
+                    `<button data-action="downloadEvidenceFile" data-args='["${e.id}"]' class="btn btn-ghost btn-sm">Download</button> ${dpoBtn} ${ceoBtn} ${evalBtn} ${reqBtn}`
                 ];
             }),
             { emptyState: 'Nenhuma evidência enviada para este projeto.' }
@@ -1560,12 +1566,13 @@ import { navigate } from '../router.js';
     }
 
     function openEvidenceUploadModal(projectId) {
+        const comIso = temProduto(S.currentProject || S.activeProject, 'iso');
         openModal(`
             <div class="modal-header"><span class="modal-title">Upload de Evidencia</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
-            <div class="form-group">
+            ${comIso ? `<div class="form-group">
                 <label class="form-label">Controle ISO (opcional)</label>
                 <input class="form-input" id="ev-control-id" placeholder="Ex: A.5.1, A.8.25">
-            </div>
+            </div>` : ''}
             <div class="form-group">
                 <label class="form-label">Arquivo</label>
                 <input type="file" id="ev-file" class="form-input" style="padding:0.5rem">
@@ -1577,7 +1584,7 @@ import { navigate } from '../router.js';
 
     async function doEvidenceUpload(projectId) {
         const fileInput = document.getElementById('ev-file');
-        const controlId = document.getElementById('ev-control-id').value;
+        const controlId = document.getElementById('ev-control-id')?.value;
         const msg = document.getElementById('ev-msg');
         const btn = document.getElementById('btn-ev-upload');
         if (!fileInput.files.length) { msg.style.color = 'var(--danger)'; msg.textContent = 'Selecione um arquivo'; return; }
@@ -2399,6 +2406,57 @@ window.setYesNo = setYesNo;
 window.renderSoA = renderSoA;
 window.renderEvidence = renderEvidence;
 window.openEvidenceUploadModal = openEvidenceUploadModal;
+
+// Requisitos (n.privacy) e validade de uma evidência; mesmo modelo da seção de requisitos do documento.
+window.abrirRequisitosEvidencia = async function (projectId, evidenceId) {
+    const lista = (r) => (Array.isArray(r) ? r : []);
+    let ev = { requisitos: [], valido_ate: null }, catalogo = [];
+    try { ev = await api('GET', `/api/v1/projects/${projectId}/evidence/${evidenceId}/requisitos`); } catch (e) { showToast((e && e.message) || 'Não foi possível abrir os requisitos da evidência', 'error'); return; }
+    try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ }
+    const ligados = lista(ev.requisitos);
+    S.evRequisitos = ligados.map((r) => r.id);
+    const args = (...v) => escapeHTML(JSON.stringify(v));
+    openModal(`
+        <div class="modal-header"><span class="modal-title">Requisitos e validade</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+        <div id="ev-requisitos">
+            ${ligados.length ? ligados.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoEvidencia" data-args='${args(projectId, evidenceId, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">\u00d7</button></span>`).join(' ')
+                : '<p style="color:var(--text-dim)">Nenhum requisito ligado a esta evidência.</p>'}
+            <div class="form-group" style="margin-top:0.75rem"><select class="form-input" id="ev-req-add"><option value="">Escolha um requisito</option>${catalogo.filter((r) => !S.evRequisitos.includes(r.id))
+                .map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} — ${escapeHTML(r.titulo)}</option>`).join('')}</select></div>
+            <button class="btn btn-sm" data-action="salvarRequisitosEvidencia" data-args='${args(projectId, evidenceId)}'>Ligar</button>
+        </div>
+        <div class="form-group" style="margin-top:1.25rem">
+            <label class="form-label" for="ev-valido-ate">Válida até</label>
+            <input type="date" class="form-input" id="ev-valido-ate" value="${escapeHTML(ev.valido_ate || '')}">
+        </div>
+        <button class="btn btn-sm" data-action="salvarValidadeEvidencia" data-args='${args(projectId, evidenceId)}'>Salvar validade</button>
+    `);
+};
+
+async function gravarRequisitosEvidencia(projectId, evidenceId, ids, sucesso) {
+    try {
+        await api('PUT', `/api/v1/projects/${projectId}/evidence/${evidenceId}/requisitos`, { requisitos: ids });
+        showToast(sucesso, 'success');
+        await window.abrirRequisitosEvidencia(projectId, evidenceId);
+    } catch (e) { showToast((e && e.message) || 'Não foi possível salvar os requisitos', 'error'); }
+}
+
+window.salvarRequisitosEvidencia = function (projectId, evidenceId) {
+    const novo = document.getElementById('ev-req-add')?.value;
+    if (!novo) { showToast('Escolha um requisito', 'error'); return; }
+    return gravarRequisitosEvidencia(projectId, evidenceId, [...(S.evRequisitos || []), novo], 'Requisito ligado.');
+};
+
+window.desligarRequisitoEvidencia = (projectId, evidenceId, requisitoId) =>
+    gravarRequisitosEvidencia(projectId, evidenceId, (S.evRequisitos || []).filter((x) => x !== requisitoId), 'Requisito desligado.');
+
+window.salvarValidadeEvidencia = async function (projectId, evidenceId) {
+    const valido_ate = document.getElementById('ev-valido-ate').value || null;
+    try {
+        await api('PUT', `/api/v1/projects/${projectId}/evidence/${evidenceId}/validade`, { valido_ate });
+        showToast('Validade salva.', 'success');
+    } catch (e) { showToast((e && e.message) || 'Não foi possível salvar a validade', 'error'); }
+};
 window.doEvidenceUpload = doEvidenceUpload;
 window.renderPoliciesDashboard = renderPoliciesDashboard;
 // Publicar o rascunho tem o efeito de uma edição manual: o texto vira o vigente, as aprovações vão a zero e os

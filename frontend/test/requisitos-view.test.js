@@ -25,7 +25,7 @@ const LACUNAS = {
     itens: [
         { requisito_id: 'lgpd:art7', referencia: 'art. 7', titulo: 'Bases', pai_id: null, situacao: 'lacuna', origens: [] },
         { requisito_id: 'lgpd:art37', referencia: 'art. 37', titulo: 'Registro', pai_id: null, situacao: 'parcial', origens: [{ tipo: 'controle', id: 'c1', titulo: 'A.5.2 — <i>x</i>', status: 'Implemented', mapeamento: 'parcial' }] },
-        { requisito_id: 'lgpd:art46', referencia: 'art. 46', titulo: 'Segurança', pai_id: null, situacao: 'coberto', origens: [{ tipo: 'documento', id: 'd1', titulo: 'Política de <b>Acesso</b>' }] },
+        { requisito_id: 'lgpd:art46', referencia: 'art. 46', titulo: 'Segurança', pai_id: null, situacao: 'coberto', origens: [{ tipo: 'documento', id: 'd1', titulo: 'Política de <b>Acesso</b>' }, { tipo: 'evidencia', id: 'e1', titulo: 'x.pdf' }] },
     ],
 };
 const rotas = (extra = {}) => ({
@@ -71,6 +71,8 @@ describe('lista', () => {
         expect(t).toContain('Parcial');
         expect(t).toContain('Coberto');
         expect(t).toContain('Documento: Política de <b>Acesso</b>');
+        expect(t).toContain('Evidência: x.pdf');
+        expect(t).not.toContain('Evidência ainda não entra na conta');
         expect(t).toContain('Controle: A.5.2 — <i>x</i>');
         expect(t).toContain('Bases <b>legais</b>');
         expect(el('c').querySelector('b')).toBeNull();

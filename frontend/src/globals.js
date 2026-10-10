@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado } from './produto.js';
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso } from './produto.js';
 import { S } from './state.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
@@ -1026,7 +1026,9 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
                 } else if (subview === 'soa') {
                     navigate('soa', { currentProject: proj });
                 } else if (Object.hasOwn(TELA_DO_AVISO, subview || '')) {
-                    navigate(TELA_DO_AVISO[subview], { currentProject: proj, activeProject: proj });
+                    const destino = destinoDoAviso(subview);
+                    if (destino.href) window.location.href = destino.href;
+                    else navigate(TELA_DO_AVISO[subview], { currentProject: proj, activeProject: proj });
                 } else {
                     navigate('project-detail', { currentProject: proj });
                 }

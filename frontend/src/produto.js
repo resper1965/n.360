@@ -36,10 +36,23 @@ export function produtoAtual(loc = window.location) {
 export const modulosDe = (p) => (Array.isArray(p && p.modulos) && p.modulos.length ? p.modulos : ['iso']);
 export const temProduto = (p, produto = produtoAtual()) => modulosDe(p).includes(produto);
 
+/** De qual produto é a tela (pelo item do menu); null quando aparece nos dois. */
+export function produtoDaTela(tela) {
+    if (SO_ISO.includes(`nav-${tela}`)) return 'iso';
+    if (SO_PRIVACY.includes(`nav-${tela}`)) return 'privacy';
+    return null;
+}
+
 /** Endereço do mesmo app no outro produto (em localhost, a mesma origem com `?produto=`). */
 export function enderecoDoProduto(produto, loc = window.location) {
     if (ehLocal(loc.hostname)) return `${loc.origin}/login?produto=${produto}`;
     return `https://${PRODUTOS[produto].host}/`;
+}
+
+/** Para onde um aviso leva: a tela, ou o outro domínio quando a tela é só do outro produto. */
+export function destinoDoAviso(tela, loc = window.location) {
+    const dono = produtoDaTela(tela);
+    return dono && dono !== produtoAtual(loc) ? { href: enderecoDoProduto(dono, loc) } : { navegar: tela };
 }
 
 const marca = (produto) => `n<span style="color:var(--accent)">.</span><span class="brand-tail">${produto}</span>`;
@@ -137,5 +150,6 @@ window.alternarProdutoDoProjeto = async function (projectId, modulo, habilitar) 
     } catch (e) { showToast((e && e.message) || 'Não foi possível alterar o produto', 'error'); }
 };
 
+window.temProduto = temProduto;
 window.produtoAtual = produtoAtual;
 window.projetosDoProduto = projetosDoProduto;
