@@ -88,11 +88,14 @@ window.semearRequisitos = async function () {
     } catch (e) { showToast((e && e.message) || 'Não foi possível carregar o catálogo', 'error'); }
 };
 
+// Data de hoje no Brasil (AAAA-MM-DD), não em UTC: à noite o UTC já é o dia seguinte.
+const hojeBr = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 const dataBr = (d) => String(d || '').slice(0, 10).split('-').reverse().join('/');
 // Recusa em duas etapas dentro da própria janela (o app não usa confirm()): guarda qual mapeamento espera confirmação.
 let recusando = null;
 
-window.abrirRequisito = async function (id) {
+window.abrirRequisito = async function (id, mantemRecusa) {
+    if (!mantemRecusa) recusando = null;
     let r;
     try { r = await api('GET', `/api/v1/requisitos/${encodeURIComponent(id)}`); } catch (e) { showToast((e && e.message) || 'Não foi possível abrir o requisito', 'error'); return; }
     const mapas = lista(r.mapeamentos).map((m) => {
@@ -107,7 +110,7 @@ window.abrirRequisito = async function (id) {
                 quem += recusando === chave
                     ? ` <button class="btn btn-danger btn-sm" data-action="recusarMapeamentoConfirmado" data-args='${args(m.de_id, m.para_id, r.id)}'>Confirmar recusa</button>
                         <button class="btn btn-ghost btn-sm" data-action="cancelarRecusaMapeamento" data-args='${args(r.id)}'>Cancelar</button>`
-                    : ` <button class="btn btn-sm" data-action="validarMapeamento" data-args='${args(m.de_id, m.para_id, m.tipo, r.id)}'>Validar</button>
+                    : ` <button class="btn btn-sm" data-action="validarMapeamento" data-args='${args(m.de_id, m.para_id, m.tipo, r.id, m.nota || null)}'>Validar</button>
                         <button class="btn btn-ghost btn-sm" data-action="recusarMapeamento" data-args='${args(m.de_id, m.para_id, r.id)}'>Recusar</button>`;
             }
         }
@@ -122,11 +125,11 @@ window.abrirRequisito = async function (id) {
     `, 'modal-large');
 };
 
-window.validarMapeamento = async function (de, para, tipo, requisitoId) {
+window.validarMapeamento = async function (de, para, tipo, requisitoId, nota) {
     try {
         await api('PUT', '/api/v1/requisitos/mapeamentos', {
             de_id: de, para_id: para, tipo, estado: 'validado_juridico',
-            validado_por: (S.user && (S.user.name || S.user.email)) || '', validado_em: new Date().toISOString().slice(0, 10),
+            validado_por: (S.user && (S.user.name || S.user.email)) || '', validado_em: hojeBr(), nota: nota || null,
         });
         showToast('Mapeamento validado.', 'success');
     } catch (e) { showToast((e && e.message) || 'Não foi possível validar o mapeamento', 'error'); return; }
@@ -135,7 +138,7 @@ window.validarMapeamento = async function (de, para, tipo, requisitoId) {
 
 window.recusarMapeamento = function (de, para, requisitoId) {
     recusando = `${de}|${para}`;
-    return window.abrirRequisito(requisitoId);
+    return window.abrirRequisito(requisitoId, true);
 };
 
 window.cancelarRecusaMapeamento = function (requisitoId) {

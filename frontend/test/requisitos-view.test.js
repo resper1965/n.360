@@ -173,9 +173,10 @@ describe('validação dos mapeamentos', () => {
         const f = servir(rotas({ [GET]: REQ, 'PUT /api/v1/requisitos/mapeamentos': { ok: true } }));
         S.user = { role: 'platform_admin', name: 'Ana Jurídico' };
         await abrir();
-        await window.validarMapeamento(MAP.de_id, MAP.para_id, 'equivalente', 'lgpd:art37');
+        vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-11T01:30:00Z'));
+        try { await window.validarMapeamento(MAP.de_id, MAP.para_id, 'equivalente', 'lgpd:art37', 'nota <b>jurídica</b>'); } finally { vi.useRealTimers(); }
         const [[, o]] = corpos(f, 'PUT');
-        expect(JSON.parse(o.body)).toEqual({ de_id: MAP.de_id, para_id: MAP.para_id, tipo: 'equivalente', estado: 'validado_juridico', validado_por: 'Ana Jurídico', validado_em: new Date().toISOString().slice(0, 10) });
+        expect(JSON.parse(o.body)).toEqual({ de_id: MAP.de_id, para_id: MAP.para_id, tipo: 'equivalente', estado: 'validado_juridico', validado_por: 'Ana Jurídico', validado_em: '2026-10-10', nota: 'nota <b>jurídica</b>' });
         expect(chamadas(f).filter((k) => k === `GET ${new URL('/api/v1/requisitos/lgpd%3Aart37', 'http://localhost').pathname}`).length).toBe(1);
     });
 
@@ -191,6 +192,17 @@ describe('validação dos mapeamentos', () => {
         const [[u]] = corpos(f, 'DELETE');
         expect(new URL(u, 'http://localhost').searchParams.get('de')).toBe(MAP.de_id);
         expect(new URL(u, 'http://localhost').searchParams.get('para')).toBe(MAP.para_id);
+    });
+
+    it('o botão Validar leva a nota do mapeamento; reabrir a janela descarta a recusa pendente', async () => {
+        servir(rotas({ [GET]: { ...REQ, mapeamentos: [{ ...MAP, nota: 'n1' }] } }));
+        S.user = { role: 'platform_admin', name: 'Ana' };
+        await abrir(); await window.abrirRequisito('lgpd:art37');
+        expect(JSON.parse(el('modal-content').querySelector('[data-action="validarMapeamento"]').dataset.args)[4]).toBe('n1');
+        await window.recusarMapeamento(MAP.de_id, MAP.para_id, 'lgpd:art37');
+        expect(el('modal-content').textContent).toContain('Confirmar recusa');
+        await window.abrirRequisito('lgpd:art37');
+        expect(el('modal-content').textContent).not.toContain('Confirmar recusa');
     });
 
     it('validado mostra quem e quando (DD/MM/AAAA) e nenhum botão', async () => {
