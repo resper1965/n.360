@@ -60,7 +60,7 @@ describe('leitura do catálogo', () => {
   it('fontes e lista valem para todos os papéis; fonte filtra', async () => {
     for (const h of [admin, consultor, cliente]) {
       const f = await json<{ id: string; requisitos: number }[]>(await chamar(h, 'GET', '/api/v1/requisitos/fontes'));
-      expect(f.map((x) => x.id)).toEqual(['iso27001:2022', 'iso27701:2025', 'lgpd', 'gdpr']);
+      expect(f.map((x) => x.id)).toEqual(['iso27001:2022', 'iso27701:2025', 'lgpd', 'gdpr', 'anpd']);
       expect(f.find((x) => x.id === 'lgpd')!.requisitos).toBe(LGPD.length);
     }
     const lista = await json<{ fonte_id: string }[]>(await chamar(cliente, 'GET', '/api/v1/requisitos?fonte=lgpd'));

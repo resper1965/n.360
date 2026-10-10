@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import { applySchema } from './helpers/d1';
 import { semearCatalogo, ligarControles, fonteDaNorma } from '../src/services/requisitos';
 import { LGPD } from '../src/data/lgpd';
+import { ANPD } from '../src/data/anpd';
 import { semearControles } from '../src/services/project-setup';
 import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../src/data/iso27001-2022';
 import { ISO_27701_2025_CONTROLLER, ISO_27701_2025_PROCESSOR, ISO_27701_2025_STANDARD } from '../src/data/iso27701-2025';
@@ -15,10 +16,10 @@ describe('semearCatalogo', () => {
     await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('p-seed', 'C', 'ISO 27001', 'controller', 'Active')`).run();
   });
 
-  it('cria as 4 fontes e todos os requisitos ISO, com id legível e papel do 27701', async () => {
+  it('cria as 5 fontes e todos os requisitos ISO, com id legível e papel do 27701', async () => {
     const r = await semearCatalogo(env.DB);
-    expect(r.fontes).toBe(4);
-    expect(r.requisitos).toBe(ISO_27001_2022.length + ISO_27701_2025_CONTROLLER.length + ISO_27701_2025_PROCESSOR.length + LGPD.length);
+    expect(r.fontes).toBe(5);
+    expect(r.requisitos).toBe(ISO_27001_2022.length + ISO_27701_2025_CONTROLLER.length + ISO_27701_2025_PROCESSOR.length + LGPD.length + ANPD.length);
     expect(await n(`SELECT count(*) AS n FROM requisitos WHERE fonte_id = 'iso27001:2022'`)).toBe(ISO_27001_2022.length);
     expect(await env.DB.prepare(`SELECT referencia, titulo FROM requisitos WHERE id = 'iso27001:2022:A.5.1'`).first())
       .toEqual({ referencia: 'A.5.1', titulo: ISO_27001_2022[0].title });

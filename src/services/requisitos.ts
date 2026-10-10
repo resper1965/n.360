@@ -1,11 +1,13 @@
 import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
 import { ISO_27701_2025_CONTROLLER, ISO_27701_2025_PROCESSOR, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
 import { LGPD, LGPD_VERSAO } from '../data/lgpd';
+import { ANPD, ANPD_VERSAO } from '../data/anpd';
 
 /**
  * Catálogo de requisitos (fatia 2 do núcleo do n.privacy, spec 4.5). Global: sem project_id.
  * Depois do seed o BANCO é a fonte da verdade: título e mapeamento são dado editável pelo platform_admin,
- * e o seed é INSERT OR IGNORE, então nunca sobrescreve o que foi editado.
+ * e o seed é INSERT OR IGNORE nos requisitos, então nunca sobrescreve o que foi editado. As fontes são
+ * upsert de `nome` e `versao`: a versão do texto consultado acompanha o código.
  */
 
 type Fonte = { id: string; nome: string; versao: string | null; vigente_desde: string | null };
@@ -20,6 +22,7 @@ export const FONTES: readonly Fonte[] = [
   { id: F_27701, nome: 'ISO/IEC 27701:2025', versao: '2025', vigente_desde: null },
   { id: 'lgpd', nome: 'Lei Geral de Proteção de Dados (Lei 13.709/2018)', versao: LGPD_VERSAO, vigente_desde: null },
   { id: 'gdpr', nome: 'Regulamento Geral sobre a Proteção de Dados (UE 2016/679)', versao: '2016', vigente_desde: null },
+  { id: 'anpd', nome: 'Resoluções da ANPD', versao: ANPD_VERSAO, vigente_desde: null },
 ];
 
 const FONTE_DA_NORMA: Record<string, string> = {
@@ -52,18 +55,24 @@ export function stmtRequisitos(db: D1Database, linhas: readonly Linha[]): D1Prep
   ).bind(JSON.stringify(linhas));
 }
 
-/** Semeia fontes e requisitos (ISO e LGPD) que ainda não existem. Devolve quantos foram criados. */
+/**
+ * Semeia fontes e requisitos (ISO, LGPD e ANPD). `requisitos` conta os criados; `fontes` conta as criadas
+ * ou as que tiveram `nome`/`versao` atualizados (uma fonte já igual ao código não conta).
+ */
 export async function semearCatalogo(db: D1Database): Promise<{ fontes: number; requisitos: number }> {
   const r = await db.batch([
     db.prepare(
-      `INSERT OR IGNORE INTO requisito_fontes (id, nome, versao, vigente_desde)
+      `INSERT INTO requisito_fontes (id, nome, versao, vigente_desde)
        SELECT json_extract(j.value, '$.id'), json_extract(j.value, '$.nome'), json_extract(j.value, '$.versao'), json_extract(j.value, '$.vigente_desde')
-         FROM json_each(?1) j`
+         FROM json_each(?1) j WHERE true
+       ON CONFLICT(id) DO UPDATE SET nome = excluded.nome, versao = excluded.versao
+         WHERE requisito_fontes.nome IS NOT excluded.nome OR requisito_fontes.versao IS NOT excluded.versao`
     ).bind(JSON.stringify(FONTES)),
     stmtRequisitos(db, linhasIso()),
     stmtRequisitos(db, LGPD.map((r) => ({ ...r, fonte_id: 'lgpd', papel: null }))),
+    stmtRequisitos(db, ANPD.map((r) => ({ ...r, fonte_id: 'anpd', papel: null }))),
   ]);
-  return { fontes: r[0].meta.changes ?? 0, requisitos: (r[1].meta.changes ?? 0) + (r[2].meta.changes ?? 0) };
+  return { fontes: r[0].meta.changes ?? 0, requisitos: r.slice(1).reduce((n, x) => n + (x.meta.changes ?? 0), 0) };
 }
 
 /**
