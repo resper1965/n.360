@@ -76,4 +76,33 @@ describe('ponto de partida', () => {
     expect((await chamar(cliente, `/api/v1/projects/${P}/ponto-de-partida`)).status).toBe(200);
     expect((await chamar(cliente, `/api/v1/projects/${OUTRO}/ponto-de-partida`)).status).toBe(403);
   });
+
+  it('projeto com 100 ou mais requisitos cobertos não estoura o limite de parâmetros do D1', async () => {
+    const { results } = await env.DB.prepare(`SELECT id FROM requisitos WHERE fonte_id IN ('lgpd', 'anpd') ORDER BY rowid LIMIT 130`).all<{ id: string }>();
+    expect(results.length).toBeGreaterThanOrEqual(100);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('pp-grande', 'G', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness')`),
+      env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-pp3', 'pp-grande', 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`),
+      env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo, status) VALUES ('dg', 'pp-grande', 'Doc', 'vigente')`),
+      ...results.map((r) => env.DB.prepare(`INSERT INTO documento_requisitos (documento_id, requisito_id, project_id) VALUES ('dg', ?, 'pp-grande')`).bind(r.id)),
+    ]);
+    await habilitarPrivacy('pp-grande');
+    const r = await chamar(consultor, '/api/v1/projects/pp-grande/ponto-de-partida');
+    expect(r.status).toBe(200);
+  });
+
+  it('controle equivalente com evidência só parcial não conta como ajuda', async () => {
+    const A59 = 'iso27001:2022:A.5.9';
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('pp-ctrl', 'C', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness')`),
+      env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-pp4', 'pp-ctrl', 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`),
+      env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, requisito_id) VALUES ('cc1', 'pp-ctrl', 'ISO 27001:2022', 'A.5.9', 'Implemented', ?)`).bind(A59),
+      env.DB.prepare(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by, evaluation_status) VALUES ('ep1', 'pp-ctrl', 'p.pdf', 'k', 'h', 'u', 'partial')`),
+      env.DB.prepare(`INSERT INTO evidencia_requisitos (evidencia_id, requisito_id, project_id) VALUES ('ep1', 'lgpd:art37', 'pp-ctrl')`),
+    ]);
+    await habilitarPrivacy('pp-ctrl');
+    const v = await ver('pp-ctrl');
+    expect(v.cobertura.find((x) => x.fonte === 'lgpd')!.cobertos).toBe(1); // coberta pelo controle
+    expect(v.iso_ajudados.map((x) => x.requisito_id)).not.toContain(A59);
+  });
 });

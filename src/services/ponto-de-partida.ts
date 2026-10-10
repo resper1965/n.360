@@ -39,21 +39,21 @@ export async function pontoDePartida(db: D1Database, projectId: string): Promise
     const itens = await lacunasDaFonte(db, projectId, fonte);
     cobertura.push({ fonte, ...resumoDeLacunas(itens) });
     for (const i of itens) {
-      if (i.situacao === 'coberto' && i.origens.some((o) => o.tipo !== 'controle')) porDocOuEvidencia.set(i.requisito_id, i.referencia);
+      if (i.situacao === 'coberto' && i.origens.some((o) => o.tipo === 'documento' || (o.tipo === 'evidencia' && o.status === 'conforming'))) porDocOuEvidencia.set(i.requisito_id, i.referencia);
     }
   }
 
   const iso_ajudados: PontoDePartida['iso_ajudados'] = [];
   if (porDocOuEvidencia.size) {
-    const ids = [...porDocOuEvidencia.keys()];
     const { results } = await db.prepare(
       `SELECT m.de_id AS requisito_id, r.referencia AS referencia, r.titulo AS titulo, m.para_id AS para_id
          FROM requisito_mapeamentos m JOIN requisitos r ON r.id = m.de_id
-        WHERE m.para_id IN (${ids.map(() => '?').join(',')}) AND m.estado = 'validado_juridico' AND m.tipo IN ('equivalente', 'parcial')
+        WHERE m.para_id IN (SELECT id FROM requisitos WHERE fonte_id IN ('lgpd', 'anpd')) AND m.estado = 'validado_juridico' AND m.tipo IN ('equivalente', 'parcial')
         ORDER BY r.rowid`
-    ).bind(...ids).all<{ requisito_id: string; referencia: string; titulo: string; para_id: string }>();
+    ).all<{ requisito_id: string; referencia: string; titulo: string; para_id: string }>();
     const agrupado = new Map<string, PontoDePartida['iso_ajudados'][number]>();
     for (const m of results) {
+      if (!porDocOuEvidencia.has(m.para_id)) continue; // D1 limita 100 parâmetros: filtra aqui, não no IN
       const item = agrupado.get(m.requisito_id) ?? { requisito_id: m.requisito_id, referencia: m.referencia, titulo: m.titulo, por: [] };
       const ref = porDocOuEvidencia.get(m.para_id)!;
       if (!item.por.includes(ref)) item.por.push(ref);

@@ -194,6 +194,12 @@ export type OrigemCobertura =
   | { tipo: 'controle'; id: string; titulo: string; status: string; mapeamento: 'equivalente' | 'parcial' };
 export type Lacuna = { requisito_id: string; referencia: string; titulo: string; pai_id: string | null; situacao: 'coberto' | 'parcial' | 'lacuna'; origens: OrigemCobertura[] };
 
+/** Resumo de uma lista de lacunas: a mesma conta em GET /requisitos/lacunas e no painel de ponto de partida. */
+export function resumoDeLacunas(itens: Lacuna[]) {
+  const total = (s: Lacuna['situacao']) => itens.filter((i) => i.situacao === s).length;
+  return { total: itens.length, cobertos: total('coberto'), parciais: total('parcial'), lacunas: total('lacuna') };
+}
+
 /**
  * Cobertura de uma fonte no projeto (spec 4.9, escopo da fatia 2). Um requisito está **coberto** se há documento
  * VIGENTE ligado a ele, ou controle do projeto (nem `Missing` nem `Not Applicable`) ligado por mapeamento
@@ -201,12 +207,6 @@ export type Lacuna = { requisito_id: string; referencia: string; titulo: string;
  * Mapeamento `relacionado` e `proposto` nunca cobrem. Evidência (fatia 8) ligada ao requisito cobre se `conforming` e dentro da validade
  * (ou sem validade); `partial` dá cobertura parcial; vencida, pendente ou `non_conforming` não conta.
  */
-/** Resumo de uma lista de lacunas: a mesma conta em GET /requisitos/lacunas e no painel de ponto de partida. */
-export function resumoDeLacunas(itens: Lacuna[]) {
-  const total = (s: Lacuna['situacao']) => itens.filter((i) => i.situacao === s).length;
-  return { total: itens.length, cobertos: total('coberto'), parciais: total('parcial'), lacunas: total('lacuna') };
-}
-
 export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: string): Promise<Lacuna[]> {
   const [reqs, docs, ctrls, evids] = await db.batch([
     db.prepare('SELECT id, referencia, titulo, pai_id FROM requisitos WHERE fonte_id = ? ORDER BY rowid').bind(fonte),
