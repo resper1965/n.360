@@ -68,6 +68,32 @@ describe('rotas de vendors sobre a parte', () => {
     expect(await env.DB.prepare('SELECT nome FROM partes WHERE id = ?').bind(gamaParte).first()).toEqual({ nome: 'Gama Nova' });
   });
 
+  it('PUT apara o nome na parte e no perfil', async () => {
+    expect((await chamar(consultor, 'PUT', `/api/v1/vendors/${gama}`, { name: '  Gama Nova  ' })).status).toBe(200);
+    expect(await env.DB.prepare('SELECT nome FROM partes WHERE id = ?').bind(gamaParte).first()).toEqual({ nome: 'Gama Nova' });
+    expect(await env.DB.prepare('SELECT name FROM vendors WHERE id = ?').bind(gama).first()).toEqual({ name: 'Gama Nova' });
+  });
+
+  it('POST de fornecedor que já tem perfil é 409 e não mexe no perfil', async () => {
+    const r1 = await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Zeta', notes: 'primeira' });
+    expect(r1.status).toBe(201);
+    const id = (await json<{ id: string }>(r1)).id;
+    const r2 = await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: ' zeta ', notes: 'segunda', has_iso27001: 1 });
+    expect(r2.status).toBe(409);
+    expect(await json(r2)).toEqual({ error: 'Fornecedor já cadastrado neste projeto', id });
+    expect(await env.DB.prepare('SELECT notes, trust_score FROM vendors WHERE id = ?').bind(id).first()).toEqual({ notes: 'primeira', trust_score: 0 });
+  });
+
+  it('POST não reaproveita parte inativa de mesmo nome: cria parte nova, visível na lista', async () => {
+    await env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, status) VALUES ('ft-inativa', ?, 'organizacao', 'Inativa Exemplo', 'inativa')`).bind(P).run();
+    const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Inativa Exemplo' });
+    expect(r.status).toBe(201);
+    const id = (await json<{ id: string }>(r)).id;
+    const v = (await vendors()).find((x) => x.id === id)!;
+    expect(v.parte_id).not.toBe('ft-inativa');
+    expect(v.name).toBe('Inativa Exemplo');
+  });
+
   it('tipar no n.privacy uma organização sem vendor cria o perfil de segurança (trust_score 0)', async () => {
     const r = await chamar(consultor, 'PUT', `/api/v1/projects/${P}/terceiros/ft-delta/tipo`, { terceiro_tipo: 'medio' });
     expect(r.status).toBe(200);
@@ -97,16 +123,19 @@ describe('rotas de vendors sobre a parte', () => {
 // Por último: recria `vendors` no formato de antes da 0061 e aplica a migration.
 describe('migration 0061', () => {
   it('liga o vendor à parte de mesmo nome (ou cria uma), com vínculo terceiro; nenhum vendor sem parte', async () => {
+    // Sem a FK de project_id na tabela recriada: é o jeito de ter o vendor órfão que produção pode ter (FK não conferida no passado).
     // Cada comando em linha própria: execSql fecha gatilho na linha do END.
     await execSql(`DROP TRIGGER IF EXISTS vendor_perfil_do_terceiro;
 DROP TRIGGER IF EXISTS vendor_nome_da_parte;
 DROP INDEX IF EXISTS idx_vendors_parte;
 DROP TABLE vendors;
-CREATE TABLE vendors (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id), name TEXT NOT NULL, category TEXT, has_iso27001 INTEGER DEFAULT 0, has_iso27701 INTEGER DEFAULT 0, has_soc2 INTEGER DEFAULT 0, trust_score INTEGER DEFAULT 0, diligence_level TEXT DEFAULT 'High', dpa_signed INTEGER DEFAULT 0, last_assessment_date TEXT, notes TEXT, status TEXT DEFAULT 'Active', has_mfa INTEGER DEFAULT 0, has_encryption INTEGER DEFAULT 0, has_backup INTEGER DEFAULT 0, has_incident_plan INTEGER DEFAULT 0, has_pentest INTEGER DEFAULT 0, trust_center_url TEXT, dpa_url TEXT, attached_certifications TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);
+CREATE TABLE vendors (id TEXT PRIMARY KEY, project_id TEXT, name TEXT NOT NULL, category TEXT, has_iso27001 INTEGER DEFAULT 0, has_iso27701 INTEGER DEFAULT 0, has_soc2 INTEGER DEFAULT 0, trust_score INTEGER DEFAULT 0, diligence_level TEXT DEFAULT 'High', dpa_signed INTEGER DEFAULT 0, last_assessment_date TEXT, notes TEXT, status TEXT DEFAULT 'Active', has_mfa INTEGER DEFAULT 0, has_encryption INTEGER DEFAULT 0, has_backup INTEGER DEFAULT 0, has_incident_plan INTEGER DEFAULT 0, has_pentest INTEGER DEFAULT 0, trust_center_url TEXT, dpa_url TEXT, attached_certifications TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`);
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('ft-leg', 'Legado', 'ISO 27001', 'Controller', 'Active', 'org_ness')`),
       env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('ft-acme', 'ft-leg', 'organizacao', ' acme nuvem ')`),
-      env.DB.prepare(`INSERT INTO vendors (id, project_id, name) VALUES ('v-acme', 'ft-leg', 'Acme Nuvem'), ('v-beta', 'ft-leg', 'Beta Ltda'), ('v-beta2', 'ft-leg', 'beta ltda ')`),
+      env.DB.prepare(`INSERT INTO vendors (id, project_id, name) VALUES ('v-acme', 'ft-leg', 'Acme Nuvem'), ('v-beta', 'ft-leg', 'Beta Ltda'), ('v-beta2', 'ft-leg', 'beta ltda '), ('v-orfao', 'projeto-apagado', 'Órfão')`),
+      // tipada como terceiro no n.privacy antes da 0061, sem vínculo nem perfil
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES ('ft-tipada', 'ft-leg', 'organizacao', 'Tipada Exemplo', 'critico')`),
     ]);
     await execSql(migration0061);
     const pid = async (id: string) => (await env.DB.prepare('SELECT parte_id FROM vendors WHERE id = ?').bind(id).first<{ parte_id: string }>())!.parte_id;
@@ -117,10 +146,14 @@ CREATE TABLE vendors (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(i
     const beta2 = await pid('v-beta2');
     expect(beta2).toBeTruthy();
     expect(beta2).not.toBe(beta);
-    expect(await env.DB.prepare(`SELECT count(*) AS n FROM partes WHERE project_id = 'ft-leg'`).first()).toEqual({ n: 3 });
+    expect(await env.DB.prepare(`SELECT count(*) AS n FROM partes WHERE project_id = 'ft-leg'`).first()).toEqual({ n: 4 });
     expect(await vinculoTerceiro('ft-acme', 'ft-leg')).toEqual({ ok: 1 });
     expect(await vinculoTerceiro(beta, 'ft-leg')).toEqual({ ok: 1 });
-    expect(await env.DB.prepare('SELECT count(*) AS n FROM vendors WHERE parte_id IS NULL').first()).toEqual({ n: 0 });
+    // o órfão não derruba a migration e fica sem parte; todo o resto tem parte
+    expect(await env.DB.prepare('SELECT id FROM vendors WHERE parte_id IS NULL').all().then((r) => r.results)).toEqual([{ id: 'v-orfao' }]);
+    // a organização já tipada ganhou vínculo e perfil
+    expect(await vinculoTerceiro('ft-tipada', 'ft-leg')).toEqual({ ok: 1 });
+    expect(await env.DB.prepare(`SELECT project_id, name, trust_score FROM vendors WHERE parte_id = 'ft-tipada'`).first()).toEqual({ project_id: 'ft-leg', name: 'Tipada Exemplo', trust_score: 0 });
     // os gatilhos voltaram com a migration
     expect(await env.DB.prepare(`SELECT count(*) AS n FROM sqlite_master WHERE type = 'trigger' AND name IN ('vendor_perfil_do_terceiro', 'vendor_nome_da_parte')`).first()).toEqual({ n: 2 });
   });

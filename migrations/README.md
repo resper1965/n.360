@@ -394,5 +394,10 @@ própria (`id = 'vendor-' || vendors.id`), senão o índice único abortaria. Ga
 projeto cria o perfil em `vendors`) e `vendor_nome_da_parte` (renomear a parte renomeia o perfil). O `ALTER ... ADD COLUMN` não é
 idempotente. Conferência: `PRAGMA table_info(vendors)` (coluna `parte_id`), `SELECT count(*) FROM vendors WHERE parte_id IS NULL AND
 project_id IS NOT NULL` (0) e os dois gatilhos em `sqlite_master`. Antes de aplicar, vale olhar os repetidos:
-`SELECT project_id, lower(trim(name)), count(*) FROM vendors GROUP BY 1, 2 HAVING count(*) > 1`. **Esta RODA em produção, sem janela.**
+`SELECT project_id, lower(trim(name)), count(*) FROM vendors GROUP BY 1, 2 HAVING count(*) > 1`, e os órfãos (vendor de projeto que
+não existe mais fica fora da carga, com `parte_id` NULL):
+`SELECT id, project_id FROM vendors v WHERE NOT EXISTS (SELECT 1 FROM projects p WHERE p.id = v.project_id)`. Organização já tipada
+como terceiro (`partes.terceiro_tipo` não nulo) ganha o vínculo `terceiro` e o perfil em `vendors`. A conferência de nulos passa a ser
+`SELECT count(*) FROM vendors v WHERE parte_id IS NULL AND EXISTS (SELECT 1 FROM projects p WHERE p.id = v.project_id)` (0).
+**Esta RODA em produção, sem janela.**
 Depende da 0047 (`partes`).
