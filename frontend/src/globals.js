@@ -953,7 +953,7 @@ window.markNotifRead = async function markNotifRead(id) {
 // Telas abertas pelos avisos de prazo (src/services/avisos-prazo.ts, TELA). Elas leem S.activeProject:
 // sem trocá-lo, o aviso do projeto B abria a lista do A.
 // ponytail: troca só em memória; recarregar volta ao projeto salvo em localStorage.
-const TELA_DO_AVISO = { capa: 'capa', audits: 'audits', certification: 'certification', policies: 'policies-dashboard', documentos: 'documentos', terceiros: 'terceiros', titular: 'titular', evidence: 'evidence' };
+const TELA_DO_AVISO = { capa: 'capa', audits: 'audits', certification: 'certification', policies: 'policies-dashboard', documentos: 'documentos', terceiros: 'terceiros', titular: 'titular', incidentes: 'titular', evidence: 'evidence' };
 window.handleNotificationClick = async function handleNotificationClick(id) {
         const n = (S.notifications || []).find(x => x.id === id);
         
@@ -1026,9 +1026,13 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
                 } else if (subview === 'soa') {
                     navigate('soa', { currentProject: proj });
                 } else if (Object.hasOwn(TELA_DO_AVISO, subview || '')) {
-                    const destino = destinoDoAviso(subview);
+                    // Incidente é do núcleo: os dois produtos têm a tela (aba Incidentes), então navega local em qualquer um.
+                    const destino = subview === 'incidentes' ? {} : destinoDoAviso(subview);
                     if (destino.href) window.location.href = destino.href;
-                    else navigate(TELA_DO_AVISO[subview], { currentProject: proj, activeProject: proj });
+                    else {
+                        if (subview === 'incidentes') S.titularAba = 'incidentes';
+                        navigate(TELA_DO_AVISO[subview], { currentProject: proj, activeProject: proj });
+                    }
                 } else {
                     navigate('project-detail', { currentProject: proj });
                 }

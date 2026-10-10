@@ -205,7 +205,7 @@ const ROTULO: Record<Fonte, string> = {
 
 /** Tela de cada fonte no clique do sino (frontend/src/globals.js, handleNotificationClick). */
 const TELA: Record<Fonte, string> = {
-  capa: '/capa', checklist: '', auditoria: '/audits', certificado: '/certification', link_auditor: '/audits', politica: '/policies', documento: '/documentos', excecao: '/documentos', avaliacao_terceiro: '/terceiros', titular_pedido: '/titular', incidente: '/titular', evidencia: '/evidence',
+  capa: '/capa', checklist: '', auditoria: '/audits', certificado: '/certification', link_auditor: '/audits', politica: '/policies', documento: '/documentos', excecao: '/documentos', avaliacao_terceiro: '/terceiros', titular_pedido: '/titular', incidente: '/incidentes', evidencia: '/evidence',
 };
 
 const dataBr = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;

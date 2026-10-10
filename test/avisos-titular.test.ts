@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { env } from 'cloudflare:test';
-import { applySchema, resetData } from './helpers/d1';
-import { itensDoDia, tituloDoAviso } from '../src/services/avisos-prazo';
+import { applySchema, resetData, workerEnv } from './helpers/d1';
+import { itensDoDia, tituloDoAviso, avisosDePrazo } from '../src/services/avisos-prazo';
 
 /** Prazos do pedido do titular e do incidente (fatia 7): fontes `titular_pedido` e `incidente`. HOJE é uma quarta, semana ISO 2026-W41. */
 const HOJE = '2026-10-07';
@@ -63,5 +63,18 @@ describe('fonte incidente', () => {
   it('o título do sino', () => {
     const base = { fonte: 'incidente' as const, titulo: 'Comunicação à ANPD do incidente IN-2026-0001' };
     expect(tituloDoAviso({ ...base, marco: 'D0' })).toBe('Comunicação à ANPD do incidente IN-2026-0001 vence hoje');
+  });
+  it('o sino do incidente leva à tela de incidentes (núcleo), não à do titular', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await db().batch([
+      db().prepare(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('u-cons', 'cons@ness.lat', 'x', 'Carla', 'consultor')`),
+      db().prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('p1', 'Carla', 'cons@ness.lat', 'consultor', 'Consultor')`),
+      inc('i1', { anpd: HOJE }),
+    ]);
+    await avisosDePrazo({ ...workerEnv(), RESEND_API_KEY: undefined }, HOJE);
+    const links = (await db().prepare(`SELECT link FROM notifications WHERE type = 'prazo_incidente'`).all<{ link: string }>()).results.map((n) => n.link);
+    expect(links.length).toBeGreaterThan(0);
+    expect(new Set(links)).toEqual(new Set(['/projects/p1/incidentes']));
+    vi.restoreAllMocks();
   });
 });

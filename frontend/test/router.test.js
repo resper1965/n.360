@@ -15,7 +15,7 @@ const IDS_SIDEBAR = [
     'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-documentos', 'nav-training',
     'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa', 'nav-mgmt',
     'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-ai',
-    'nav-audit-trail', 'nav-users', 'nav-settings',
+    'nav-audit-trail', 'nav-users', 'nav-settings', 'nav-titular', 'nav-incidentes',
 ];
 
 // `render()` despacha para funcoes globais que os modulos de view penduram em
@@ -28,7 +28,7 @@ const VIEWS = [
     'renderGovernance', 'renderCertification', 'renderAIChat', 'renderSettings',
     'renderUsers', 'renderAssessmentDetail', 'renderSelfServiceAssessment', 'renderProjectDetail',
     'renderSoA', 'renderStakeholders', 'renderContext', 'renderAuditExecution',
-    'renderManagementReview', 'renderPropostas', 'renderDocumentos', 'renderPartes', 'updateActiveProjectWidget', 'updateHeaderUser',
+    'renderManagementReview', 'renderPropostas', 'renderDocumentos', 'renderPartes', 'renderTitular', 'updateActiveProjectWidget', 'updateHeaderUser',
 ];
 
 function itemAtivo() {
@@ -140,6 +140,17 @@ describe('navigate()', () => {
         it('a tela Documentos destaca o próprio item da barra lateral', () => {
             navigate('documentos');
             expect(itemAtivo().id).toBe('nav-documentos');
+        });
+
+        it('a tela titular destaca Incidentes no n.iso (nav-titular é oculto lá) e Titular no n.privacy', () => {
+            try {
+                sessionStorage.setItem('niso_produto', 'iso');
+                navigate('titular');
+                expect(itemAtivo().id).toBe('nav-incidentes');
+                sessionStorage.setItem('niso_produto', 'privacy');
+                navigate('titular');
+                expect(itemAtivo().id).toBe('nav-titular');
+            } finally { sessionStorage.removeItem('niso_produto'); }
         });
 
         it('view composta com prefixo valido resolve o item certo', () => {
