@@ -130,11 +130,11 @@ export function enviarBoasVindas(c: any, email: string, name: string, password: 
         </div>
         <p style="color: #ff3b30; font-size: 0.85rem;">* Por motivos de segurança, você deverá redefinir sua senha obrigatoriamente no primeiro login.</p>
         <p style="margin-top: 25px;">
-          <a href="${appUrl(c.env)}" style="background-color: #00ade8; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Entrar no n.iso</a>
+          <a href="${appUrl(c.env)}" style="background-color: #00ade8; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Entrar no n.360</a>
         </p>
       </div>
     `;
-  return sendEmail(c, email, 'Seu acesso ao n.iso', emailHtml);
+  return sendEmail(c, email, 'Seu acesso ao n.360', emailHtml);
 }
 
 usersApp.post('/', async (c) => {

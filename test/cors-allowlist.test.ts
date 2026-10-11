@@ -14,9 +14,10 @@ const req = (origin?: string) =>
   );
 
 describe('CORS allowlist (S3)', () => {
-  it('ecoa a origem permitida', async () => {
-    const res = await req('https://niso.ness.com.br');
-    expect(res.headers.get('access-control-allow-origin')).toBe('https://niso.ness.com.br');
+  it('ecoa a origem permitida: o canônico (n.360) e os domínios dos módulos', async () => {
+    for (const o of ['https://n360.ness.com.br', 'https://niso.ness.com.br', 'https://nprivacy.ness.com.br']) {
+      expect((await req(o)).headers.get('access-control-allow-origin')).toBe(o);
+    }
   });
 
   it('NÃO permite o domínio legado (ele redireciona 308 para o canônico)', async () => {

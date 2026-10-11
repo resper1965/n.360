@@ -64,7 +64,7 @@ import { avisosDePrazo, hojeEmSaoPaulo } from './services/avisos-prazo';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handlerMcp } from './mcp/servidor';
-import { appUrl, APP_URL_PADRAO, HOSTS_LEGADOS, NPRIVACY_URL } from './config/url';
+import { appUrl, fica, HOST_DO_MODULO, HOSTS_LEGADOS, ORIGENS_EXTRAS, RECURSO_MCP } from './config/url';
 
 export type Bindings = {
   DB: D1Database;
@@ -237,8 +237,9 @@ app.get('/.well-known/security.txt', (c) => {
 
 // 1. CORS (S3 / OWASP A05). Era `origin: '*'` — o frontend é servido pelo próprio
 // Worker (mesma origem), então CORS só afeta chamadas de NAVEGADOR cross-origin;
-// clientes não-browser (MCP server, curl) ignoram CORS. Só a origem do `APP_URL`
-// (src/config/url.ts) é aceita: os hosts legados redirecionam antes de chegar aqui. A função ECOA a origem
+// clientes não-browser (MCP server, curl) ignoram CORS. Aceita a origem do `APP_URL` e os domínios dos
+// módulos (`ORIGENS_EXTRAS`, src/config/url.ts), que servem as exceções no lugar; os hosts legados
+// redirecionam antes de chegar aqui. A função ECOA a origem
 // quando permitida (o Hono responde com essa origem exata, não com `*`), e devolve
 // '' (sem header) quando não.
 //
@@ -252,7 +253,7 @@ const CORS_LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 app.use('*', cors({
   origin: (origin, c) => {
     if (!origin) return origin; // requisições same-origin/sem Origin (curl, server-to-server)
-    if (origin === appUrl(c.env) || origin === NPRIVACY_URL || CORS_LOOPBACK.test(origin)) return origin;
+    if (origin === appUrl(c.env) || ORIGENS_EXTRAS.includes(origin) || CORS_LOOPBACK.test(origin)) return origin;
     return ''; // origem não permitida: sem Access-Control-Allow-Origin
   },
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -447,6 +448,8 @@ app.route('', integrations);
 // dobra, seções institucionais abaixo — spec 2026-09-29-landing-login-design).
 // `/` e rota desconhecida não casam com asset e caem no fallback abaixo, que
 // entrega `dist/login.html` pelo caminho `/login` (html_handling do Assets).
+// Os módulos do n.360 (`/iso*`, `/privacy*`) também caem aqui, sem rota própria:
+// nenhum asset tem esse nome, e o SPA lê o módulo do caminho.
 app.get('/*', async (c) => {
   const path = new URL(c.req.url).pathname;
   if (path.startsWith('/api/')) {
@@ -544,7 +547,7 @@ export const provider = new OAuthProvider({
   scopesSupported: ['niso:consultor'],
   accessTokenTTL: 3600,
   refreshTokenTTL: 30 * 86400,
-  resourceMetadata: { resource: `${APP_URL_PADRAO}/mcp`, resource_name: 'n.iso' },
+  resourceMetadata: { resource: RECURSO_MCP, resource_name: 'n.iso' },
 });
 
 /**
@@ -576,9 +579,18 @@ export const ROTAS_OAUTH = (cru: string) => {
 export default Object.assign(app, {
   fetch: (req: Request, env: Bindings, ctx: ExecutionContext) => {
     const url = new URL(req.url);
-    if (HOSTS_LEGADOS.includes(url.hostname)) {
-      // 308 preserva método e corpo: POST de webhook, SCIM e token OAuth chegam inteiros.
-      return Response.redirect(`${appUrl(env)}${url.pathname}${url.search}`, 308);
+    // 308 preserva método e corpo: POST de webhook, SCIM e token OAuth chegam inteiros.
+    const legado = HOSTS_LEGADOS.includes(url.hostname);
+    const prefixo = HOST_DO_MODULO.get(url.hostname) ?? (legado ? '/iso' : undefined);
+    if (prefixo) {
+      const p = url.pathname;
+      // Decodificado, como em ROTAS_OAUTH: o Hono roteia `/%6Fauth/...` como `/oauth/...`, e a exceção vale igual.
+      if (!fica(decodificarCaminho(p))) {
+        const raiz = p === '/' || p === '/login' || p === '/login.html';
+        return Response.redirect(`${appUrl(env)}${prefixo}${raiz ? '' : p}${url.search}`, 308);
+      }
+      if (legado) return Response.redirect(`${appUrl(env)}${p}${url.search}`, 308);
+      // Domínio de módulo, caminho de exceção: responde no lugar.
     }
     return ROTAS_OAUTH(url.pathname) ? provider.fetch(req, env as any, ctx) : fetchHono(req, env, ctx);
   },

@@ -161,6 +161,7 @@ describe('CORS do n.privacy', () => {
     const pre = (origin: string) => app.fetch(new Request('http://localhost/api/v1/auth/me', { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'GET' } }), workerEnv());
     expect((await pre('https://nprivacy.ness.com.br')).headers.get('access-control-allow-origin')).toBe('https://nprivacy.ness.com.br');
     expect((await pre('https://niso.ness.com.br')).headers.get('access-control-allow-origin')).toBe('https://niso.ness.com.br');
+    expect((await pre('https://n360.ness.com.br')).headers.get('access-control-allow-origin')).toBe('https://n360.ness.com.br');
     expect((await pre('https://malicioso.exemplo.com')).headers.get('access-control-allow-origin')).toBeFalsy();
   });
 });

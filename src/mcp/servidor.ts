@@ -4,7 +4,7 @@ import { TOOLS, ferramentaPermitida, executarFerramenta, type Transporte, type F
 import { concessaoValida, CABECALHO_CONFIRMADO, type PropsAgente } from '../middleware/agente';
 import { INSTRUCOES, montarContexto } from './contexto';
 import { SKILLS } from './skills-gerado';
-import { appUrl } from '../config/url';
+import { appUrl, RECURSO_MCP } from '../config/url';
 
 type FetchHono = (r: Request, e: any, c?: any) => Response | Promise<Response>;
 
@@ -241,11 +241,11 @@ export async function handlerMcp(req: Request, env: any, ctx: any, fetchHono: Fe
 }
 
 /**
- * Hosts aceitos pelo /mcp (proteção contra DNS rebinding): só o do `APP_URL`. Os legados redirecionam
- * antes de chegar aqui. Loopback só fora de produção — o dev local roda com ENVIRONMENT=production
+ * Hosts aceitos pelo /mcp (proteção contra DNS rebinding): o do `APP_URL` e o do recurso OAuth
+ * (`RECURSO_MCP`, o niso), onde os conectores já emitidos chamam. Os legados redirecionam antes de chegar aqui. Loopback só fora de produção — o dev local roda com ENVIRONMENT=production
  * (wrangler.jsonc) e, para testar o MCP em localhost, usa `--var ENVIRONMENT:development`.
  */
 export const hostsPermitidosMcp = (env: { APP_URL?: string; ENVIRONMENT?: string }) => [
-  new URL(appUrl(env)).hostname,
+  ...new Set([new URL(appUrl(env)).hostname, new URL(RECURSO_MCP).hostname]),
   ...(env.ENVIRONMENT === 'production' ? [] : ['localhost', '127.0.0.1']),
 ];

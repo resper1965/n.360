@@ -9,7 +9,7 @@ import {
 import { resolveHostIsPublic } from './integrations';
 import { chavePublicaJwk, ALG_ASSINATURA } from '../portabilidade';
 import { genToken, SESSION_TTL_SEC } from '../helpers';
-import { appUrl } from '../config/url';
+import { appUrl, APP_URL_PADRAO, URL_NISO } from '../config/url';
 import { registrarCienciaPortal } from '../services/pedidos';
 
 /** Tentativas de código por e-mail no portal de políticas: 5 por código; a contagem recomeça ao pedir código novo. */
@@ -272,9 +272,14 @@ publicApp.get('/export-public-key', async (c) => {
 //  SSO por OIDC (item 4.1). Rotas PÚBLICAS — são o caminho de entrar.
 // ═════════════════════════════════════════════════════════════════════════════
 
-/** Callback de SSO: sempre o do `APP_URL`, nunca o host da requisição (o IdP cadastra UM só). */
+/**
+ * Callback de SSO: nunca o host da requisição (o IdP cadastra UM só). Com o `APP_URL` de produção (n.360),
+ * continua o do niso, que o IdP do cliente já cadastrou e que segue respondendo `/api` no lugar; trocar fica
+ * para quando os clientes cadastrarem o novo. Outro `APP_URL` (homologação) usa o próprio.
+ */
 function redirectUriDe(c: any): string {
-  return `${appUrl(c.env)}/api/v1/public/sso/callback`;
+  const base = appUrl(c.env);
+  return `${base === APP_URL_PADRAO ? URL_NISO : base}/api/v1/public/sso/callback`;
 }
 
 /**
@@ -313,7 +318,7 @@ publicApp.post('/sso/iniciar', async (c) => {
  */
 publicApp.get('/sso/callback', async (c) => {
   const falha = (motivo: string) =>
-    c.redirect(`/#sso_erro=${encodeURIComponent(motivo)}`, 302);
+    c.redirect(`${appUrl(c.env)}/#sso_erro=${encodeURIComponent(motivo)}`, 302);
 
   try {
     const erroIdp = c.req.query('error');
@@ -370,7 +375,8 @@ publicApp.get('/sso/callback', async (c) => {
       '', '', usuario.client_project_id
     );
 
-    return c.redirect(`/#sso_token=${encodeURIComponent(token)}`, 302);
+    // Absoluto: o callback responde no niso, e um `/#…` relativo deixaria a sessão no domínio antigo.
+    return c.redirect(`${appUrl(c.env)}/#sso_token=${encodeURIComponent(token)}`, 302);
   } catch (e: any) {
     // A mensagem do erro vai para a TRILHA, não para a URL: ela distingue
     // "assinatura inválida" de "nonce errado", e isso ajuda quem ataca mais do

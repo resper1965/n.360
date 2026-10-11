@@ -323,7 +323,7 @@ async function enviarResumos(env: EnvAvisos, r: ResultadoAvisos): Promise<void> 
   for (const [userId, linhas] of porPessoa) {
     const n = linhas.length;
     try {
-      const ok = await enviarEmail(env, linhas[0].email, `n.iso: ${n} ${n === 1 ? 'prazo' : 'prazos'} para acompanhar`, emailResumo(linhas, appUrl(env)));
+      const ok = await enviarEmail(env, linhas[0].email, `n.360: ${n} ${n === 1 ? 'prazo' : 'prazos'} para acompanhar`, emailResumo(linhas, appUrl(env)));
       // Recusado: fica nulo e o dia seguinte tenta de novo, sem notificação nova. O log leva o id, não o e-mail.
       if (!ok) { r.falhas.push(`email ${userId}: envio recusado`); continue; }
       await env.DB.prepare(`UPDATE avisos_prazo SET email_enviado_em = datetime('now') WHERE email_enviado_em IS NULL AND id IN (SELECT value FROM json_each(?))`)
@@ -346,7 +346,7 @@ function emailResumo(linhas: LinhaEmail[], base: string): string {
       `<li>${e(ROTULO[l.fonte])}: ${e(l.titulo)} (${e(quando(l.marco))}, ${dataBr(l.vence_em)})</li>`).join('')}</ul>`).join('');
   return `<div style="font-family: Arial, sans-serif; max-width: 560px; color: #1e293b;">
     <p>Estes prazos precisam da sua atenção:</p>${blocos}
-    <p><a href="${e(base)}" style="background-color: #00ade8; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Abrir o n.iso</a></p>
-    <p style="font-size: 12px; color: #64748b;">Os mesmos avisos estão no sino do n.iso, com o link de cada item.</p>
+    <p><a href="${e(base)}" style="background-color: #00ade8; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Abrir o n.360</a></p>
+    <p style="font-size: 12px; color: #64748b;">Os mesmos avisos estão no sino do n.360, com o link de cada item.</p>
   </div>`;
 }

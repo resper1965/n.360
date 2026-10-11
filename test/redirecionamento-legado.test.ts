@@ -1,16 +1,91 @@
-// Hosts legados redirecionam para o canônico (Tarefa 8 da arrumação final). 308, não 301/302:
-// preserva método e corpo, então POST de webhook, SCIM e token OAuth chegam inteiros.
+// Domínios antigos (spec 2026-10-11-n360-casca-design.md). `niso` e `nprivacy` redirecionam a página
+// de navegador para o módulo no n.360 e servem as exceções (API, SCIM, MCP, OAuth, portais públicos) no
+// lugar. Os legados de antes (`n-iso`, `workers.dev`) vão tudo para o n.360. 308, não 301/302: preserva
+// método e corpo, então POST de webhook, SCIM e token OAuth chegam inteiros.
 import { describe, it, expect } from 'vitest';
 import app from '../src/index';
+import { fica } from '../src/config/url';
 import { workerEnv } from './helpers/d1';
 
+const N360 = 'https://n360.ness.com.br';
 const chamar = (url: string, init: RequestInit = {}) => app.fetch(new Request(url, init), workerEnv() as any, {} as any);
 
-describe('redirecionamento dos hosts legados', () => {
-  it('GET em n-iso.ness.com.br vira 308 para o canônico, com caminho e query', async () => {
+describe('niso e nprivacy: página de navegador vai ao módulo no n.360', () => {
+  const casos: [string, string][] = [
+    ['https://niso.ness.com.br/', `${N360}/iso`],
+    ['https://niso.ness.com.br/login', `${N360}/iso`],
+    ['https://niso.ness.com.br/login.html', `${N360}/iso`],
+    ['https://niso.ness.com.br/login?x=1', `${N360}/iso?x=1`],
+    ['https://niso.ness.com.br/x?y=1', `${N360}/iso/x?y=1`],
+    ['https://niso.ness.com.br/apix', `${N360}/iso/apix`],
+    ['https://niso.ness.com.br/healthz', `${N360}/iso/healthz`],
+    ['https://niso.ness.com.br/politicasx', `${N360}/iso/politicasx`],
+    ['https://nprivacy.ness.com.br/', `${N360}/privacy`],
+    ['https://nprivacy.ness.com.br/login', `${N360}/privacy`],
+    ['https://nprivacy.ness.com.br/x?y=1', `${N360}/privacy/x?y=1`],
+  ];
+  for (const [de, para] of casos) {
+    it(`${de} → 308 ${para}`, async () => {
+      const res = await chamar(de);
+      expect(res.status).toBe(308);
+      expect(res.headers.get('location')).toBe(para);
+    });
+  }
+});
+
+describe('niso e nprivacy: exceções respondem no lugar', () => {
+  const excecoes = [
+    '/health', '/api/v1/auth/me', '/scim/v2/Users', '/mcp', '/oauth/token', '/.well-known/security.txt',
+    '/politicas', '/politicas.html', '/auditor', '/auditor.js', '/auditor.css', '/proposta', '/proposta.html',
+  ];
+  for (const host of ['niso.ness.com.br', 'nprivacy.ness.com.br']) {
+    for (const caminho of excecoes) {
+      it(`${host}${caminho} não redireciona`, async () => {
+        expect((await chamar(`https://${host}${caminho}`)).status).not.toBe(308);
+      });
+    }
+  }
+
+  it('/health no niso responde 200', async () => {
+    expect((await chamar('https://niso.ness.com.br/health')).status).toBe(200);
+  });
+});
+
+describe('fica(caminho)', () => {
+  it('casa prefixo só em fronteira de segmento', () => {
+    expect(fica('/api')).toBe(true);
+    expect(fica('/api/v1/x')).toBe(true);
+    expect(fica('/apix')).toBe(false);
+    expect(fica('/mcp')).toBe(true);
+    expect(fica('/mcpx')).toBe(false);
+    expect(fica('/politicas.html')).toBe(true);
+    expect(fica('/auditor.js')).toBe(true);
+    expect(fica('/proposta.css')).toBe(true);
+    expect(fica('/politicas.json')).toBe(false);
+    expect(fica('/')).toBe(false);
+    expect(fica('/login')).toBe(false);
+  });
+
+  it('entrada hostil não trava', () => {
+    const t0 = performance.now();
+    fica(`/api${'/'.repeat(100_000)}x`);
+    fica('/'.repeat(100_000));
+    expect(performance.now() - t0).toBeLessThan(500);
+  });
+});
+
+describe('legados de antes (n-iso, workers.dev)', () => {
+  it('página vai ao /iso do n.360', async () => {
+    const res = await chamar('https://n-iso.ness.com.br/?x=1');
+    expect(res.status).toBe(308);
+    expect(res.headers.get('location')).toBe(`${N360}/iso?x=1`);
+    expect((await chamar('https://niso.ness.workers.dev/projetos')).headers.get('location')).toBe(`${N360}/iso/projetos`);
+  });
+
+  it('exceção vai ao mesmo caminho no n.360, com query', async () => {
     const res = await chamar('https://n-iso.ness.com.br/health?x=1');
     expect(res.status).toBe(308);
-    expect(res.headers.get('location')).toBe('https://niso.ness.com.br/health?x=1');
+    expect(res.headers.get('location')).toBe(`${N360}/health?x=1`);
   });
 
   it('POST em niso.ness.workers.dev vira 308 (método e corpo preservados), não 301/302', async () => {
@@ -18,16 +93,19 @@ describe('redirecionamento dos hosts legados', () => {
       method: 'POST', headers: { 'Content-Type': 'application/scim+json' }, body: '{}',
     });
     expect(res.status).toBe(308);
-    expect(res.headers.get('location')).toBe('https://niso.ness.com.br/scim/v2/Users');
+    expect(res.headers.get('location')).toBe(`${N360}/scim/v2/Users`);
   });
 
-  it('rotas do OAuth/MCP no host legado também redirecionam', async () => {
+  it('rotas do OAuth/MCP no host legado também redirecionam para o mesmo caminho', async () => {
     const res = await chamar('https://n-iso.ness.com.br/oauth/token', { method: 'POST', body: 'grant_type=x' });
     expect(res.status).toBe(308);
-    expect(res.headers.get('location')).toBe('https://niso.ness.com.br/oauth/token');
+    expect(res.headers.get('location')).toBe(`${N360}/oauth/token`);
   });
+});
 
-  it('o canônico NÃO redireciona', async () => {
-    expect((await chamar('https://niso.ness.com.br/health')).status).toBe(200);
+describe('o n.360 não redireciona', () => {
+  it('/health e /iso respondem no lugar', async () => {
+    expect((await chamar(`${N360}/health`)).status).toBe(200);
+    expect((await chamar(`${N360}/iso`)).status).not.toBe(308);
   });
 });

@@ -4,12 +4,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
-import { appUrl } from '../src/config/url';
+import { appUrl, RECURSO_MCP } from '../src/config/url';
 import { hostsPermitidosMcp } from '../src/mcp/servidor';
 import { applySchema, resetData, resetSessions, sessionFor, workerEnv } from './helpers/d1';
 import { sha256Hex } from '../src/helpers';
 
-const CANONICO = 'https://niso.ness.com.br';
+const CANONICO = 'https://n360.ness.com.br';
+const NISO = 'https://niso.ness.com.br';
 const ALTERNATIVO = 'https://ambiente-alternativo.exemplo.com';
 const A = 'proj-url';
 const ISSUER = 'https://idp.exemplo.com';
@@ -59,8 +60,14 @@ describe('URLs geradas usam o canônico, não o host da requisição', () => {
     return new URL(autorizacao).searchParams.get('redirect_uri');
   }
 
-  it('callback de SSO é o canônico', async () => {
-    expect(await redirectUriDoSso()).toBe(`${CANONICO}/api/v1/public/sso/callback`);
+  it('callback de SSO continua o do niso (o IdP do cliente cadastrou esse)', async () => {
+    expect(await redirectUriDoSso()).toBe(`${NISO}/api/v1/public/sso/callback`);
+  });
+
+  it('redirecionamento final do SSO é absoluto no canônico', async () => {
+    const res = await chamar('/api/v1/public/sso/callback?error=negado', {}, {}, NISO);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`${CANONICO}/#sso_erro=negado`);
   });
 
   it('callback de SSO segue APP_URL', async () => {
@@ -114,17 +121,27 @@ describe('origens e hosts saem do mesmo endereço', () => {
   const acao = async (origem: string, extra: Record<string, unknown> = {}) =>
     (await chamar('/health', { headers: { Origin: origem } }, extra)).headers.get('access-control-allow-origin');
 
-  it('CORS: canônico sim, legados não (eles redirecionam), alternativo só com APP_URL igual a ele', async () => {
+  it('CORS: canônico, niso e nprivacy sim; legados não (eles redirecionam); alternativo só com APP_URL igual a ele', async () => {
     expect(await acao(CANONICO)).toBe(CANONICO);
+    expect(await acao(NISO)).toBe(NISO);
+    expect(await acao('https://nprivacy.ness.com.br')).toBe('https://nprivacy.ness.com.br');
     expect(await acao('https://n-iso.ness.com.br')).toBeNull();
     expect(await acao('https://niso.ness.workers.dev')).toBeNull();
     expect(await acao(ALTERNATIVO)).toBeNull();
     expect(await acao(ALTERNATIVO, { APP_URL: ALTERNATIVO })).toBe(ALTERNATIVO);
   });
 
-  it('MCP: só o host do APP_URL; loopback fora de produção', () => {
-    expect(hostsPermitidosMcp({ ENVIRONMENT: 'production' })).toEqual(['niso.ness.com.br']);
-    expect(hostsPermitidosMcp({ ENVIRONMENT: 'test', APP_URL: ALTERNATIVO })).toEqual(['ambiente-alternativo.exemplo.com', 'localhost', '127.0.0.1']);
+  it('MCP: host do APP_URL e o do recurso (niso); loopback fora de produção', () => {
+    expect(hostsPermitidosMcp({ ENVIRONMENT: 'production' })).toEqual(['n360.ness.com.br', 'niso.ness.com.br']);
+    expect(hostsPermitidosMcp({ ENVIRONMENT: 'production', APP_URL: NISO })).toEqual(['niso.ness.com.br']);
+    expect(hostsPermitidosMcp({ ENVIRONMENT: 'test', APP_URL: ALTERNATIVO })).toEqual(['ambiente-alternativo.exemplo.com', 'niso.ness.com.br', 'localhost', '127.0.0.1']);
     expect(hostsPermitidosMcp({ ENVIRONMENT: 'test' })).toContain('localhost');
+  });
+
+  it('recurso do MCP continua o do niso (tokens e conectores emitidos estão presos a ele)', async () => {
+    expect(RECURSO_MCP).toBe(`${NISO}/mcp`);
+    const res = await chamar('/.well-known/oauth-protected-resource/mcp', {}, {}, NISO);
+    expect(res.status).toBe(200);
+    expect((await res.json<any>()).resource).toBe(`${NISO}/mcp`);
   });
 });
