@@ -242,7 +242,8 @@ export async function handlerMcp(req: Request, env: any, ctx: any, fetchHono: Fe
 
 /**
  * Hosts aceitos pelo /mcp (proteção contra DNS rebinding): o do `APP_URL` e o do recurso OAuth
- * (`RECURSO_MCP`, o niso), onde os conectores já emitidos chamam. Os legados redirecionam antes de chegar aqui. Loopback só fora de produção — o dev local roda com ENVIRONMENT=production
+ * (`RECURSO_MCP`, o niso), onde os conectores já emitidos chamam. Os legados redirecionam antes de
+ * chegar aqui. Loopback só fora de produção — o dev local roda com ENVIRONMENT=production
  * (wrangler.jsonc) e, para testar o MCP em localhost, usa `--var ENVIRONMENT:development`.
  */
 export const hostsPermitidosMcp = (env: { APP_URL?: string; ENVIRONMENT?: string }) => [

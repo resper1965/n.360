@@ -49,6 +49,14 @@ describe('niso e nprivacy: exceções respondem no lugar', () => {
   it('/health no niso responde 200', async () => {
     expect((await chamar('https://niso.ness.com.br/health')).status).toBe(200);
   });
+
+  it('login da API e descoberta do OAuth respondem no niso, com o status de sempre', async () => {
+    const login = await chamar('https://niso.ness.com.br/api/v1/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    expect(login.status).toBe(400);
+    expect((await chamar('https://niso.ness.com.br/.well-known/oauth-authorization-server')).status).toBe(200);
+  });
 });
 
 describe('fica(caminho)', () => {
@@ -96,10 +104,30 @@ describe('legados de antes (n-iso, workers.dev)', () => {
     expect(res.headers.get('location')).toBe(`${N360}/scim/v2/Users`);
   });
 
-  it('rotas do OAuth/MCP no host legado também redirecionam para o mesmo caminho', async () => {
+  it('rotas do OAuth/MCP no host legado vão ao niso, onde o recurso do MCP responde', async () => {
     const res = await chamar('https://n-iso.ness.com.br/oauth/token', { method: 'POST', body: 'grant_type=x' });
     expect(res.status).toBe(308);
-    expect(res.headers.get('location')).toBe(`${N360}/oauth/token`);
+    expect(res.headers.get('location')).toBe('https://niso.ness.com.br/oauth/token');
+    for (const c of ['/mcp', '/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource/mcp?x=1']) {
+      expect((await chamar(`https://niso.ness.workers.dev${c}`)).headers.get('location')).toBe(`https://niso.ness.com.br${c}`);
+    }
+    // .well-known que não é do OAuth segue para o n.360
+    expect((await chamar('https://n-iso.ness.com.br/.well-known/security.txt')).headers.get('location')).toBe(`${N360}/.well-known/security.txt`);
+  });
+});
+
+describe('APP_URL num domínio de módulo (produção até a troca, ou volta atrás)', () => {
+  const comAppUrl = (url: string) => app.fetch(new Request(url), { ...workerEnv(), APP_URL: 'https://niso.ness.com.br' } as any, {} as any);
+
+  it('o próprio host do APP_URL não redireciona (sem laço niso → niso/iso → niso/iso/iso)', async () => {
+    expect((await comAppUrl('https://niso.ness.com.br/')).status).not.toBe(308);
+    expect((await comAppUrl('https://niso.ness.com.br/iso')).status).not.toBe(308);
+  });
+
+  it('o outro domínio de módulo continua indo ao APP_URL com o prefixo', async () => {
+    const res = await comAppUrl('https://nprivacy.ness.com.br/x');
+    expect(res.status).toBe(308);
+    expect(res.headers.get('location')).toBe('https://niso.ness.com.br/privacy/x');
   });
 });
 

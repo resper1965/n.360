@@ -64,7 +64,7 @@ import { avisosDePrazo, hojeEmSaoPaulo } from './services/avisos-prazo';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handlerMcp } from './mcp/servidor';
-import { appUrl, fica, HOST_DO_MODULO, HOSTS_LEGADOS, ORIGENS_EXTRAS, RECURSO_MCP } from './config/url';
+import { appUrl, fica, HOST_DO_MODULO, HOSTS_LEGADOS, ORIGENS_EXTRAS, RECURSO_MCP, URL_NISO } from './config/url';
 
 export type Bindings = {
   DB: D1Database;
@@ -580,16 +580,20 @@ export default Object.assign(app, {
   fetch: (req: Request, env: Bindings, ctx: ExecutionContext) => {
     const url = new URL(req.url);
     // 308 preserva método e corpo: POST de webhook, SCIM e token OAuth chegam inteiros.
+    const base = appUrl(env);
     const legado = HOSTS_LEGADOS.includes(url.hostname);
-    const prefixo = HOST_DO_MODULO.get(url.hostname) ?? (legado ? '/iso' : undefined);
+    // O host do próprio APP_URL nunca redireciona: com APP_URL no niso (antes da troca ou na volta atrás),
+    // `niso/` → `niso/iso` → `niso/iso/iso` viraria laço.
+    const prefixo = url.hostname === new URL(base).hostname ? undefined : HOST_DO_MODULO.get(url.hostname) ?? (legado ? '/iso' : undefined);
     if (prefixo) {
       const p = url.pathname;
       // Decodificado, como em ROTAS_OAUTH: o Hono roteia `/%6Fauth/...` como `/oauth/...`, e a exceção vale igual.
       if (!fica(decodificarCaminho(p))) {
         const raiz = p === '/' || p === '/login' || p === '/login.html';
-        return Response.redirect(`${appUrl(env)}${prefixo}${raiz ? '' : p}${url.search}`, 308);
+        return Response.redirect(`${base}${prefixo}${raiz ? '' : p}${url.search}`, 308);
       }
-      if (legado) return Response.redirect(`${appUrl(env)}${p}${url.search}`, 308);
+      // Legado: OAuth/MCP vão ao niso, onde o recurso do MCP (e seus metadados) responde; o resto, ao APP_URL.
+      if (legado) return Response.redirect(`${ROTAS_OAUTH(p) ? URL_NISO : base}${p}${url.search}`, 308);
       // Domínio de módulo, caminho de exceção: responde no lugar.
     }
     return ROTAS_OAUTH(url.pathname) ? provider.fetch(req, env as any, ctx) : fetchHono(req, env, ctx);
