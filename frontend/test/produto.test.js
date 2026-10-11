@@ -59,6 +59,13 @@ describe('casca', () => {
         expect(el('group-sales').dataset.foraDoProduto).toBe('1');
         expect(el('label-group-sales').dataset.foraDoProduto).toBe('1');
         expect(document.querySelector('[data-args=\'["group-privacy"]\']').textContent).toBe('Privacidade');
+        // a entrada do n.privacy não fala do n.iso: sem o "conheça o n.iso" e sem a versão do n.iso nos rodapés
+        expect(document.querySelector('.entry-more').hidden).toBe(true);
+        const rodapes = [...document.querySelectorAll('.login-sign-links')].map((s) => s.textContent);
+        expect(rodapes.length).toBeGreaterThan(0);
+        for (const r of rodapes) expect(r).not.toContain('n.iso');
+        expect(rodapes.filter((r) => r.includes('n.privacy')).length).toBe((html.match(/n\.iso \d+\.\d+\.\d+/g) || []).length);
+        expect(document.querySelector('.login-sign-links a[href="/politicas.html"]')).not.toBeNull();
     });
     it('n.iso: igual ao de sempre, sem as telas exclusivas do n.privacy, e com RoPA e DPIA', () => {
         montarApp();

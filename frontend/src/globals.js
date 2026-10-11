@@ -661,7 +661,7 @@ window.renderAccountMenu = function renderAccountMenu() {
             <div class="account-rule"></div>
             <div class="account-sign">
                 <span class="account-sign-house">ness<span>.</span></span>
-                <span class="account-sign-ver">${NISO_VERSION}</span>
+                <span class="account-sign-ver">${produtoAtual() === 'privacy' ? 'n.privacy' : NISO_VERSION}</span>
             </div>`;
     }
 
