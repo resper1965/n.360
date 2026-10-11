@@ -80,6 +80,13 @@ describe('Documento', () => {
         await window.openDocumentoModal('p9', 'd1');
         expect(el('doc-requisitos')).not.toBeNull();
     });
+    it('decide pelo projeto do id recebido, não pelo ativo', async () => {
+        S.activeProject = { id: 'outro', modulos: ['iso'] };
+        S.projects = [{ id: 'p9', modulos: ['privacy'] }];
+        servir(rotas);
+        await window.openDocumentoModal('p9', 'd1');
+        expect(el('doc-requisitos')).not.toBeNull();
+    });
 });
 
 describe('Upload de evidência', () => {
@@ -90,6 +97,12 @@ describe('Upload de evidência', () => {
         S.activeProject = { id: 'p9', modulos: ['iso'] };
         window.openEvidenceUploadModal('p9');
         expect(el('ev-control-id')).not.toBeNull();
+    });
+    it('decide pelo projeto do id recebido, não pelo ativo', () => {
+        S.activeProject = { id: 'outro', modulos: ['iso'] };
+        S.projects = [{ id: 'p9', modulos: ['privacy'] }];
+        window.openEvidenceUploadModal('p9');
+        expect(el('ev-control-id')).toBeNull();
     });
 });
 

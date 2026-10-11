@@ -35,6 +35,8 @@ export function produtoAtual(loc = window.location) {
 /** Os módulos de um projeto. Projeto sem a lista (resposta antiga) conta como só n.iso, o comportamento anterior. */
 export const modulosDe = (p) => (Array.isArray(p && p.modulos) && p.modulos.length ? p.modulos : ['iso']);
 export const temProduto = (p, produto = produtoAtual()) => modulosDe(p).includes(produto);
+/** O projeto do id recebido (o modal pode ser de outro projeto que não o ativo); sem ele na lista, o ativo. */
+export const projetoDoId = (projectId) => (S.projects || []).find((p) => p.id === projectId) || S.activeProject;
 
 /** De qual produto é a tela (pelo item do menu); null quando aparece nos dois. */
 export function produtoDaTela(tela) {

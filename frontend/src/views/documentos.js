@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML } from '../ui.js';
-import { temProduto } from '../produto.js';
+import { temProduto, projetoDoId } from '../produto.js';
 
 // Documentos do projeto (fatia 3.4 do núcleo): árvore política → norma → procedimento, dono, revisão, versões,
 // rascunho (inclusive o do agente), ciências e aprovação por versão. Toda regra é do servidor; aqui só se mostra
@@ -149,7 +149,7 @@ window.openDocumentoModal = async function (projectId, id) {
     try { ciencias = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/ciencias`)); } catch (e) { /* o resto do documento abre sem as ciências */ }
     try { excecoes = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/excecoes`)); } catch (e) { /* idem, sem as exceções */ }
     // Requisitos são da faixa n.privacy: projeto sem o produto nem chama a rota (daria 403).
-    const comPrivacy = temProduto(S.activeProject, 'privacy');
+    const comPrivacy = temProduto(projetoDoId(projectId), 'privacy');
     if (comPrivacy) { try { requisitos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/requisitos`)); } catch (e) { /* idem, sem os requisitos */ } }
     const editar = podeEditar();
     if (editar && comPrivacy) { try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ } }

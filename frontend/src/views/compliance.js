@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, traduzStatus } from '../ui.js';
 import { navigate } from '../router.js';
-import { temProduto } from '../produto.js';
+import { temProduto, projetoDoId } from '../produto.js';
 
     // O id varia por projeto (ctrl-a51, A.5.1, gerado); o código estável é o primeiro token do título.
     function codigoDoControle(ctrl) {
@@ -1566,7 +1566,7 @@ import { temProduto } from '../produto.js';
     }
 
     function openEvidenceUploadModal(projectId) {
-        const comIso = temProduto(S.currentProject || S.activeProject, 'iso');
+        const comIso = temProduto(projetoDoId(projectId), 'iso');
         openModal(`
             <div class="modal-header"><span class="modal-title">Upload de Evidencia</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
             ${comIso ? `<div class="form-group">
