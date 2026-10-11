@@ -2,9 +2,9 @@ import { parseModulos } from './schemas/nucleo';
 /**
  * n.iso e n.privacy são PRODUTOS separados sobre o mesmo cadastro (decisão do dono de 09/10/2026, modelo A: um Worker, um banco).
  * O que o projeto habilitou (`projeto_modulos`) decide o que a API aceita: cada rota cai numa FAIXA.
- *   - `nucleo`: o cadastro compartilhado (partes, itens, documentos, evidência, RoPA, DPIA, pedidos…). Vale com QUALQUER módulo.
+ *   - `nucleo`: o cadastro compartilhado (partes, itens, documentos, evidência, RoPA, DPIA, pedidos, incidentes…). Vale com QUALQUER módulo.
  *   - `iso`: o que só o n.iso faz (controles, SoA, riscos, auditorias, certificação…).
- *   - `privacy`: o que só o n.privacy faz (requisitos por projeto, terceiros, titular, incidentes, consentimentos, encarregado,
+ *   - `privacy`: o que só o n.privacy faz (requisitos por projeto, terceiros, pedidos do titular, consentimentos, encarregado,
  *     ligações do tratamento, LIA).
  * Rota nova precisa estar classificada aqui: `test/modulos-faixa.test.ts` reprova a que não estiver.
  */
@@ -21,8 +21,8 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   '': 'nucleo', agentes: 'nucleo', 'api-keys': 'nucleo', assets: 'nucleo', 'audit-trail': 'nucleo', chat: 'nucleo',
   'company-profile': 'nucleo', context: 'nucleo', 'data-subject': 'nucleo', departamentos: 'nucleo', documentos: 'nucleo',
   documents: 'nucleo', dpia: 'nucleo', evidence: 'nucleo', export: 'nucleo', governance: 'nucleo', modulos: 'nucleo',
-  partes: 'nucleo', pedidos: 'nucleo', ropa: 'nucleo', 'scim-token': 'nucleo', 'security-policy': 'nucleo', sso: 'nucleo',
-  stakeholders: 'nucleo', training: 'nucleo', vendors: 'nucleo', webhooks: 'nucleo',
+  partes: 'nucleo', pedidos: 'nucleo', 'ponto-de-partida': 'nucleo', ropa: 'nucleo', 'scim-token': 'nucleo', 'security-policy': 'nucleo', sso: 'nucleo',
+  incidentes: 'nucleo', stakeholders: 'nucleo', training: 'nucleo', vendors: 'nucleo', webhooks: 'nucleo',
   // só n.iso
   'approve-document': 'iso', assessment: 'iso', 'audit-pack': 'iso', 'auditor-notes': 'iso', 'auditor-token': 'iso', audits: 'iso',
   capa: 'iso', certification: 'iso', checklist: 'iso', 'checklist-progress': 'iso', coherence: 'iso', 'control-adequacao': 'iso',
@@ -32,7 +32,7 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   'readiness-check': 'iso', 'revoke-approvals': 'iso', 'risk-matrix': 'iso', risks: 'iso', 'scope-changes': 'iso',
   'seed-27001-2022': 'iso', 'seed-27701-2025': 'iso', traceability: 'iso',
   // só n.privacy
-  consentimentos: 'privacy', encarregado: 'privacy', incidentes: 'privacy', requisitos: 'privacy', terceiros: 'privacy',
+  consentimentos: 'privacy', encarregado: 'privacy', requisitos: 'privacy', terceiros: 'privacy',
   'titular-pedidos': 'privacy',
 };
 

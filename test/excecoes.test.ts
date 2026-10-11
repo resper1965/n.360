@@ -4,6 +4,7 @@ import app from '../src/index';
 import { hashPassword } from '../src/helpers';
 import { applySchema, sessionFor, workerEnv } from './helpers/d1';
 import { criarDocumento, publicarVersao } from '../src/services/documentos';
+import { hojeEmSaoPaulo } from '../src/services/avisos-prazo';
 
 /**
  * Fatia 3.5: exceção a documento. A aprovação é um pedido `tipo = 'excecao'` (ref_id = a exceção), a situação é
@@ -23,7 +24,8 @@ const chamar = (h: Record<string, string>, metodo: string, caminho: string, corp
 const json = async <T>(r: Response) => (await r.json()) as T;
 
 let consultor: Record<string, string>, ciso: Record<string, string>;
-const dias = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+// Conta a partir do dia de São Paulo, como o serviço: em UTC, entre 21h e 0h de Brasília "ontem" ainda era hoje.
+const dias = (n: number) => { const d = new Date(`${hojeEmSaoPaulo()}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 type Exc = { id: string; escopo: string; motivo: string; vence_em: string; status: string; situacao: string; aprovacao: { por: string; em: string; papel: string } | null };
 async function documento(titulo = 'Política de Acesso', projeto = P) {

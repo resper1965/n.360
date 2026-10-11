@@ -4,7 +4,7 @@ import { showToast, openModal, escapeHTML } from '../ui.js';
 
 // Partes e departamentos do projeto (fatia 1.4 do núcleo). O cadastro existe para o responsável de risco,
 // controle, ativo e tratamento apontar para uma pessoa ou organização, e não para um texto digitado.
-// Vínculos nascem da importação (governança, fornecedores, partes interessadas); criar vínculo à mão fica
+// Vínculos nascem da importação (governança e partes interessadas; fornecedor já é parte); criar vínculo à mão fica
 // na API e no agente até uma tela pedir.
 
 const PAPEIS = {
@@ -50,7 +50,7 @@ async function renderPartes(c, h, a) {
             window.renderStatusBadge(p.status === 'ativa' ? 'Ativa' : 'Inativa', p.status === 'ativa' ? 'success' : 'info'),
             `<button class="btn btn-ghost btn-sm" data-action="openParteModal" data-args='["${proj.id}","${escapeHTML(p.id)}"]'>${editar ? 'Abrir' : 'Detalhes'}</button>`,
         ]),
-        { emptyState: 'Nenhuma parte cadastrada. Use "Importar do projeto" para trazer governança, fornecedores e partes interessadas.' }
+        { emptyState: 'Nenhuma parte cadastrada. Use "Importar do projeto" para trazer governança e partes interessadas.' }
     );
     const tabelaDeptos = window.renderDataTable(
         ['Departamento', 'Situação'],

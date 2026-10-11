@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML } from '../ui.js';
+import { temProduto, projetoDoId } from '../produto.js';
 
 // Documentos do projeto (fatia 3.4 do núcleo): árvore política → norma → procedimento, dono, revisão, versões,
 // rascunho (inclusive o do agente), ciências e aprovação por versão. Toda regra é do servidor; aqui só se mostra
@@ -147,9 +148,11 @@ window.openDocumentoModal = async function (projectId, id) {
     try { d = await api('GET', `/api/v1/projects/${projectId}/documentos/${id}`); } catch (e) { falha(e, 'Não foi possível abrir o documento'); return; }
     try { ciencias = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/ciencias`)); } catch (e) { /* o resto do documento abre sem as ciências */ }
     try { excecoes = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/excecoes`)); } catch (e) { /* idem, sem as exceções */ }
-    try { requisitos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/requisitos`)); } catch (e) { /* idem, sem os requisitos */ }
+    // Requisitos são da faixa n.privacy: projeto sem o produto nem chama a rota (daria 403).
+    const comPrivacy = temProduto(projetoDoId(projectId), 'privacy');
+    if (comPrivacy) { try { requisitos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/requisitos`)); } catch (e) { /* idem, sem os requisitos */ } }
     const editar = podeEditar();
-    if (editar) { try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ } }
+    if (editar && comPrivacy) { try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ } }
     S.docRequisitos = requisitos.map((r) => r.id);
     const versoes = lista(d.versoes);
     const rascunho = versoes.find((v) => v.estado === 'rascunho');
@@ -220,7 +223,7 @@ window.openDocumentoModal = async function (projectId, id) {
             ${ciencias.map((x) => `<tr><td>${escapeHTML(x.nome || x.email)}${x.nome ? `<div style="font-size:11px;color:var(--text-dim)">${escapeHTML(x.email)}</div>` : ''}</td>
                 <td>${escapeHTML(String(x.numero))}${x.atual ? '' : ' (anterior)'}</td><td>${escapeHTML(CANAIS[x.canal] || x.canal || '')}</td><td>${escapeHTML(String(x.em || ''))}</td></tr>`).join('')}
         </tbody></table>` : '<p style="color:var(--text-dim)">Ninguém deu ciência ainda.</p>'}
-        <h4 style="margin:1.25rem 0 0.5rem">Requisitos</h4>
+        ${comPrivacy ? `<h4 style="margin:1.25rem 0 0.5rem">Requisitos</h4>
         <div id="doc-requisitos">
             ${requisitos.length ? requisitos.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)}${editar ? ` <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoDocumento" data-args='${args(projectId, id, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">×</button>` : ''}</span>`).join(' ')
                 : '<p style="color:var(--text-dim)">Nenhum requisito ligado a este documento.</p>'}
@@ -230,7 +233,7 @@ window.openDocumentoModal = async function (projectId, id) {
                         .map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} — ${escapeHTML(r.titulo)}</option>`).join('')}</select></div>
                 <button class="btn btn-sm" data-action="ligarRequisitoDocumento" data-args='${args(projectId, id)}'>Ligar</button>
             </div>` : ''}
-        </div>
+        </div>` : ''}
         <h4 style="margin:1.25rem 0 0.5rem">Exceções</h4>
         <div id="doc-excecoes">
             ${excecoes.length ? `<table class="data-table"><thead><tr><th>Escopo</th><th>Motivo</th><th>Vence em</th><th>Situação</th><th>Aprovação</th><th></th></tr></thead><tbody>

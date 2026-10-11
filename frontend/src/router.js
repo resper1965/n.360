@@ -1,4 +1,5 @@
 import { S } from './state.js';
+import { produtoAtual } from './produto.js';
 
 export     function navigate(view, data) {
         let targetView = view;
@@ -16,7 +17,8 @@ export     function navigate(view, data) {
             el.classList.remove('active');
             el.removeAttribute('aria-current');
         });
-        const navId = `nav-${targetView.split('-')[0]}`;
+        // No n.iso a tela titular é só Incidentes (nav-titular fica oculto): destaca o item que levou até ela.
+        const navId = targetView === 'titular' && produtoAtual() === 'iso' ? 'nav-incidentes' : `nav-${targetView.split('-')[0]}`;
         const el = document.getElementById(navId);
         if (el) {
             el.classList.add('active');

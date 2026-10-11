@@ -63,7 +63,7 @@ async function abrirLista() {
 beforeEach(() => {
     S.token = 'tok';
     S.user = { role: 'consultor' };
-    S.activeProject = { id: 'p9' };
+    S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };
     window.render = vi.fn();
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });

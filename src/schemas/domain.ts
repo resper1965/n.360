@@ -486,6 +486,8 @@ export const senhaConfirmacaoSchema = z.object({
 export const identificadorSchema = z.object({
   identificador: z.string().trim().min(1).max(320),
   justificativa: z.string().trim().min(1).max(2000),
+  /** Pedido do titular (titular_pedidos) que originou a eliminação; opcional. */
+  pedido_id: z.string().trim().min(1).max(100).optional(),
 }).passthrough();
 
 // ═════════════════════════════════════════════════════════════════════════════

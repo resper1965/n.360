@@ -5,6 +5,7 @@ import { servir } from './servir-api.js';
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
 import { S } from '../src/state.js';
+import { navigate } from '../src/router.js';
 import '../src/ui.js';
 import '../src/views/titular.js';
 
@@ -46,9 +47,10 @@ beforeEach(() => {
     S.token = 'tok';
     S.user = { role: 'consultor' };
     S.activeProject = { id: 'p9' };
+    sessionStorage.setItem('niso_produto', 'privacy');
     window.render = vi.fn();
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); sessionStorage.removeItem('niso_produto'); });
 
 describe('abas', () => {
     it('mostra as quatro abas e abre em Pedidos; trocar de aba guarda a escolha e redesenha', async () => {
@@ -106,6 +108,60 @@ describe('pedidos', () => {
         servir(rotas({ [`GET ${B}/titular-pedidos/a`]: { ...base, status: 'respondido', resposta_texto: 'Segue.' } }));
         await window.abrirPedidoTitular('p9', 'a');
         expect(el('pt-resp').disabled).toBe(true);
+    });
+});
+
+describe('dados do titular a partir do pedido', () => {
+    const PED = { id: 'a', protocolo: 'PT-2026-0001', tipo: 'acesso', canal: 'email', titular_nome: 'Ana', titular_contato: 'ana@exemplo.com', descricao: '', recebido_em: '2026-10-01', prazo_em: null, situacao_prazo: 'sem_prazo', resposta_texto: null, status: 'recebido' };
+    const DS = `${B}/data-subject`;
+    const LOC = { ok: true, encontrado: true, total_registros: 3, ocorrencias: [{ tabela: 'stakeholders', registros: [{}, {}, {}] }] };
+    const botao = (nome) => el('modal-content').querySelector(`[data-action="${nome}"]`);
+    const abrirPed = async (pedido, extra = {}) => {
+        const f = await abrir('pedidos', { [`GET ${B}/titular-pedidos/a`]: pedido, ...extra });
+        await window.abrirPedidoTitular('p9', 'a');
+        return f;
+    };
+
+    it('com contato: Localizar dados consulta pelo contato e mostra o total; acesso não oferece eliminar', async () => {
+        const f = await abrirPed(PED, { [`GET ${DS}`]: LOC });
+        expect(botao('eliminarDadosDoTitular')).toBeNull();
+        await window.localizarDadosDoTitular('p9', 'a');
+        const u = f.mock.calls.map(([x]) => x).find((x) => x.includes('/data-subject'));
+        expect(u).toContain('identificador=ana%40exemplo.com');
+        expect(el('modal-content').textContent).toContain('3 registro(s)');
+    });
+    it('sem contato não há busca', async () => {
+        await abrirPed({ ...PED, titular_contato: null });
+        expect(botao('localizarDadosDoTitular')).toBeNull();
+    });
+    it('eliminação: pedido de eliminação oferece o botão; confirma na janela com justificativa pré-preenchida e manda pedido_id', async () => {
+        const f = await abrirPed({ ...PED, tipo: 'anonimizacao_bloqueio_eliminacao' }, { [`POST ${DS}/erase`]: { ok: true, total: 3 } });
+        expect(botao('localizarDadosDoTitular')).not.toBeNull();
+        await window.eliminarDadosDoTitular('p9', 'a');
+        expect(chamadas(f)).not.toContain(`POST ${DS}/erase`);
+        expect(el('pt-elim-just').value).toBe('Pedido PT-2026-0001');
+        await window.confirmarEliminacaoTitular('p9', 'a');
+        expect(corpoDe(f, `POST ${DS}/erase`)).toEqual({ identificador: 'ana@exemplo.com', justificativa: 'Pedido PT-2026-0001', pedido_id: 'a' });
+    });
+    it('localizar, eliminar e confirmar usam o contato do pedido do id recebido, não o do último pedido aberto', async () => {
+        const PB = { ...PED, id: 'b', protocolo: 'PT-2026-0002', tipo: 'anonimizacao_bloqueio_eliminacao', titular_contato: 'bruno@exemplo.com' };
+        const f = await abrirPed(PED, { [`GET ${B}/titular-pedidos/b`]: PB, [`GET ${DS}`]: LOC, [`POST ${DS}/erase`]: { ok: true, total: 1 } });
+        await window.localizarDadosDoTitular('p9', 'b');
+        expect(f.mock.calls.map(([x]) => x).find((x) => x.includes('/data-subject'))).toContain('identificador=bruno%40exemplo.com');
+        await window.abrirPedidoTitular('p9', 'a');
+        await window.eliminarDadosDoTitular('p9', 'b');
+        expect(el('pt-elim-just').value).toBe('Pedido PT-2026-0002');
+        expect(el('pt-dados').textContent).toContain('bruno@exemplo.com');
+        await window.abrirPedidoTitular('p9', 'a');
+        el('pt-dados').innerHTML = '<input id="pt-elim-just" value="Pedido PT-2026-0002">';
+        await window.confirmarEliminacaoTitular('p9', 'b');
+        expect(corpoDe(f, `POST ${DS}/erase`)).toEqual({ identificador: 'bruno@exemplo.com', justificativa: 'Pedido PT-2026-0002', pedido_id: 'b' });
+    });
+    it('org_user não vê os botões', async () => {
+        S.user = { role: 'org_user' };
+        await abrirPed({ ...PED, tipo: 'anonimizacao_bloqueio_eliminacao' });
+        expect(botao('localizarDadosDoTitular')).toBeNull();
+        expect(botao('eliminarDadosDoTitular')).toBeNull();
     });
 });
 
@@ -217,5 +273,36 @@ describe('prazos legais', () => {
         expect(corpoDe(f, 'PUT /api/v1/parametros-legais/titular.resposta')).toEqual({ valor: 15, unidade: 'dias_uteis', fonte: 'Lei X, art. Y', revisado_em: '2026-10-01', revisado_por: 'Dra. Teste' });
         await window.removerParametroLegal('titular.resposta');
         expect(chamadas(f)).toContain('DELETE /api/v1/parametros-legais/titular.resposta');
+    });
+});
+
+describe('incidentes no n.iso', () => {
+    beforeEach(() => { sessionStorage.setItem('niso_produto', 'iso'); });
+    it('só a aba de incidentes, com título Incidentes; abrirIncidentesIso leva para ela', async () => {
+        S.activeProject = { id: 'p9', modulos: ['iso'] };
+        await abrir('pedidos');
+        expect(el('h').textContent).toBe('Incidentes');
+        expect([...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')].map((b) => b.textContent)).toEqual(['Incidentes']);
+        expect(el('c').textContent).toContain('IN-2026-0001');
+        S.titularAba = 'pedidos';
+        window.abrirIncidentesIso();
+        expect(S.titularAba).toBe('incidentes');
+        expect(navigate).toHaveBeenCalledWith('titular');
+    });
+    it('a janela do incidente tem Abrir CAPA quando o projeto tem iso; criar envia incidente_id', async () => {
+        S.activeProject = { id: 'p9', modulos: ['iso'] };
+        const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], descricao: 'Notebook perdido' }, [`POST ${B}/capa`]: { ok: true, id: 'c1' } });
+        await window.abrirIncidente('p9', 'i1');
+        expect(el('modal-content').querySelector('[data-action="abrirCapaDoIncidente"]')).not.toBeNull();
+        await window.abrirCapaDoIncidente('p9', 'i1');
+        expect(corpoDe(f, `POST ${B}/capa`)).toEqual({ title: 'Incidente IN-2026-0001: Acesso <b>indevido</b>', description: 'Notebook perdido', incidente_id: 'i1' });
+    });
+    it('no n.privacy a janela não oferece CAPA e as quatro abas continuam', async () => {
+        sessionStorage.setItem('niso_produto', 'privacy');
+        S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };
+        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
+        expect(el('c').querySelectorAll('[data-action="escolherAbaTitular"]').length).toBe(4);
+        await window.abrirIncidente('p9', 'i1');
+        expect(el('modal-content').querySelector('[data-action="abrirCapaDoIncidente"]')).toBeNull();
     });
 });

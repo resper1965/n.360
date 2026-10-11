@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500, logAudit } from '../helpers';
 import {
-  definirRequisitosDaEvidencia, definirRequisitosDoDocumento, lacunasDaFonte, lerRequisito, ligarControles, listarFontes, listarRequisitos,
+  definirRequisitosDaEvidencia, definirRequisitosDoDocumento, lacunasDaFonte, resumoDeLacunas, lerRequisito, ligarControles, listarFontes, listarRequisitos,
   requisitosDaEvidencia, requisitosDoDocumento, semearCatalogo, veMapeamentoProposto,
 } from '../services/requisitos';
 import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, requisitoAtualizarSchema, validateBody } from '../schemas';
@@ -28,7 +28,7 @@ requisitosApp.post('/semear', async (c) => {
     if (!soAdmin(c)) return c.json(NEGADO, 403);
     const r = await semearCatalogo(c.env.DB);
     const ligados = await ligarControles(c.env.DB);
-    await logAudit(c.env.DB, 'requisitos.semear', c.get('user').email, `Seed do catálogo: ${r.fontes} fontes e ${r.requisitos} requisitos criados, ${ligados} controles ligados`);
+    await logAudit(c.env.DB, 'requisitos.semear', c.get('user').email, `Seed do catálogo: ${r.fontes} fontes criadas ou atualizadas, ${r.requisitos} requisitos criados, ${r.mapeamentos} mapeamentos propostos, ${ligados} controles ligados`);
     return c.json({ ok: true, ...r, controles_ligados: ligados });
   } catch (e) { return erro500(c, 'Falha ao semear o catálogo de requisitos', e); }
 });
@@ -180,7 +180,6 @@ projetoRequisitosApp.get('/requisitos/lacunas', async (c) => {
   try {
     const fonte = c.req.query('fonte') || 'lgpd';
     const itens = await lacunasDaFonte(c.env.DB, c.req.param('projectId')!, fonte);
-    const total = (s: string) => itens.filter((i) => i.situacao === s).length;
-    return c.json({ fonte, resumo: { total: itens.length, cobertos: total('coberto'), parciais: total('parcial'), lacunas: total('lacuna') }, itens });
+    return c.json({ fonte, resumo: resumoDeLacunas(itens), itens });
   } catch (e) { return erro500(c, 'Falha ao calcular as lacunas', e); }
 });

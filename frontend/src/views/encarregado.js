@@ -1,7 +1,8 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML } from '../ui.js';
+import { escapeHTML, openModal, showToast } from '../ui.js';
 
+import './ponto-de-partida.js';
 // Visão do encarregado (fatia 8 do núcleo): o que está atrasado ou faltando no projeto, numa tela. Só leitura: a regra e as contas são do
 // servidor (`GET /projects/:id/encarregado`); aqui só se mostra e se leva à tela de cada coisa. Todo texto é escapado.
 
@@ -9,6 +10,7 @@ const NIVEL = { alta: ['Alta', 'danger'], media: ['Média', 'warning'] };
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const n = (v) => escapeHTML(String(v ?? 0));
+const podeIndicar = () => !!S.user && ['platform_admin', 'consultant', 'consultor'].includes(S.user.role);
 const cor = (q, ruim = 'var(--danger)') => (q > 0 ? ruim : '#34c759');
 
 async function renderEncarregado(c, h, a) {
@@ -41,7 +43,34 @@ async function renderEncarregado(c, h, a) {
         const [rotulo, tom] = NIVEL[p.nivel] || [p.nivel, 'neutral'];
         return [window.renderStatusBadge(rotulo, tom), escapeHTML(p.texto), `<button class="btn btn-ghost btn-sm" data-action="navigate" data-args='${args(p.tela)}'>Abrir</button>`];
     }), { emptyState: 'Nada atrasado ou faltando. Os prazos legais e o catálogo de requisitos estão em dia.' });
-    c.innerHTML = `${cartoes}<h3 style="margin:1.5rem 0 0.5rem">O que fazer</h3>${tabela}`;
+    const encs = Array.isArray(v.encarregados) ? v.encarregados : [];
+    const indicar = podeIndicar() ? ` <button class="btn btn-ghost btn-sm" data-action="abrirIndicarEncarregado" data-args='${args(proj.id)}'>${encs.length ? 'Indicar outro' : 'Indicar encarregado'}</button>` : '';
+    const linhaEnc = `<p style="margin:0 0 1rem">Encarregado: ${encs.length ? encs.map((e) => escapeHTML(e.nome)).join(', ') : 'não indicado'}${indicar}</p>`;
+    c.innerHTML = `<div id="ponto-de-partida"></div>${linhaEnc}${cartoes}<h3 style="margin:1.5rem 0 0.5rem">O que fazer</h3>${tabela}`;
+    window.renderPontoDePartida(c.querySelector('#ponto-de-partida'), proj.id, 'privacy');
 }
+
+window.abrirIndicarEncarregado = async function (projectId) {
+    let partes;
+    try { partes = await api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`); } catch (e) { return showToast('Não foi possível listar as pessoas', 'error'); }
+    const opcoes = (Array.isArray(partes) ? partes : []).map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.nome)}</option>`).join('');
+    openModal(`
+        <div class="modal-header"><span class="modal-title">Indicar encarregado</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        ${opcoes
+            ? `<div class="form-group"><label class="form-label">Pessoa</label><select class="form-input" id="encarregado-parte">${opcoes}</select></div>
+               <button class="btn btn-primary" style="width:100%" data-action="indicarEncarregado" data-args='${args(projectId)}'>Indicar</button>`
+            : '<p>Nenhuma pessoa cadastrada. Cadastre em Partes ou na governança (cargo DPO).</p>'}
+    `);
+};
+
+window.indicarEncarregado = async function (projectId) {
+    const id = document.getElementById('encarregado-parte')?.value;
+    if (!id) return;
+    try {
+        await api('POST', `/api/v1/projects/${projectId}/partes/${encodeURIComponent(id)}/vinculos`, { papel: 'encarregado', alvo_tipo: 'projeto', alvo_id: projectId });
+        window.forceCloseModal();
+        window.render();
+    } catch (e) { showToast((e && e.message) || 'Não foi possível indicar o encarregado', 'error'); }
+};
 
 window.renderEncarregado = renderEncarregado;

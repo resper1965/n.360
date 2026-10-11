@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy } from './helpers/d1';
 import { semearCatalogo } from '../src/services/requisitos';
+import { LGPD } from '../src/data/lgpd';
 import { criarDocumento, publicarVersao } from '../src/services/documentos';
 
 /** Fatia 2: catálogo de requisitos (leitura por todos, escrita só do platform_admin), vínculo com documento e lacunas. */
@@ -26,7 +27,8 @@ beforeAll(async () => {
   await applySchema();
   await semearCatalogo(env.DB);
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO requisitos (id, fonte_id, referencia, titulo) VALUES
+    // O seed já traz a LGPD; estes artigos são os que o arquivo usa.
+    env.DB.prepare(`INSERT OR IGNORE INTO requisitos (id, fonte_id, referencia, titulo) VALUES
       ('lgpd:art7', 'lgpd', 'art. 7', 'Bases legais'), ('lgpd:art8', 'lgpd', 'art. 8', 'Consentimento'), ('lgpd:art9', 'lgpd', 'art. 9', 'Acesso facilitado'),
       ('lgpd:art37', 'lgpd', 'art. 37', 'Registro das operações'), ('lgpd:art46', 'lgpd', 'art. 46', 'Segurança')`),
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Cliente', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness'), (?, 'Outro', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness')`).bind(P, OUTRO),
@@ -46,6 +48,9 @@ beforeAll(async () => {
   admin = await sessionFor({ id: 'u-adm', email: 'adm@ness.lat', role: 'platform_admin' });
   consultor = await sessionFor({ id: 'u-cons', email: 'cons@ness.lat', role: 'consultor' });
   cliente = await sessionFor({ id: 'u-cli', email: 'cli@cliente.com', role: 'org_user', client_project_id: P });
+  // O seed propõe estes cinco pares; o arquivo os recria com o estado e o tipo de cada cenário, então tira os do seed antes.
+  await env.DB.prepare(`DELETE FROM requisito_mapeamentos WHERE (de_id, para_id) IN (VALUES (?1, 'lgpd:art46'), (?2, 'lgpd:art37'), (?3, 'lgpd:art37'), (?4, 'lgpd:art7'), (?5, 'lgpd:art9'))`)
+    .bind(A51, A52, A53, A54, A55).run();
   const mapa = (de: string, para: string, tipo: string, extra: object = {}) => chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos', { de_id: de, para_id: para, tipo, ...extra });
   expect((await mapa(A51, 'lgpd:art46', 'equivalente', validado)).status).toBe(201);
   expect((await mapa(A52, 'lgpd:art37', 'parcial', validado)).status).toBe(201);
@@ -58,17 +63,18 @@ describe('leitura do catálogo', () => {
   it('fontes e lista valem para todos os papéis; fonte filtra', async () => {
     for (const h of [admin, consultor, cliente]) {
       const f = await json<{ id: string; requisitos: number }[]>(await chamar(h, 'GET', '/api/v1/requisitos/fontes'));
-      expect(f.map((x) => x.id)).toEqual(['iso27001:2022', 'iso27701:2025', 'lgpd', 'gdpr']);
-      expect(f.find((x) => x.id === 'lgpd')!.requisitos).toBe(5);
+      expect(f.map((x) => x.id)).toEqual(['iso27001:2022', 'iso27701:2025', 'lgpd', 'gdpr', 'anpd']);
+      expect(f.find((x) => x.id === 'lgpd')!.requisitos).toBe(LGPD.length);
     }
     const lista = await json<{ fonte_id: string }[]>(await chamar(cliente, 'GET', '/api/v1/requisitos?fonte=lgpd'));
-    expect(lista).toHaveLength(5);
+    expect(lista).toHaveLength(LGPD.length);
     expect(new Set(lista.map((x) => x.fonte_id))).toEqual(new Set(['lgpd']));
   });
 
   it('cliente nunca recebe mapeamento proposto; consultor e administrador recebem os dois', async () => {
+    // O seed também propõe pares para o art. 37: conta o conjunto de estados, não as linhas.
     const ver = async (h: Record<string, string>) =>
-      (await json<{ mapeamentos: { estado: string }[] }>(await chamar(h, 'GET', '/api/v1/requisitos/lgpd:art37'))).mapeamentos.map((m) => m.estado).sort();
+      [...new Set((await json<{ mapeamentos: { estado: string }[] }>(await chamar(h, 'GET', '/api/v1/requisitos/lgpd:art37'))).mapeamentos.map((m) => m.estado))].sort();
     expect(await ver(cliente)).toEqual(['validado_juridico']);
     expect(await ver(consultor)).toEqual(['proposto', 'validado_juridico']);
     expect(await ver(admin)).toEqual(['proposto', 'validado_juridico']);
@@ -133,7 +139,7 @@ describe('escrita no catálogo', () => {
     const r = await chamar(admin, 'DELETE', `/api/v1/requisitos/${A51}`);
     expect(r.status).toBe(409);
     expect(await json<{ controles: number }>(r)).toMatchObject({ controles: 1 });
-    await env.DB.prepare(`INSERT INTO requisitos (id, fonte_id, referencia, titulo, pai_id) VALUES ('lgpd:art7:i', 'lgpd', 'art. 7, I', 'Inciso', 'lgpd:art7')`).run();
+    await env.DB.prepare(`INSERT OR IGNORE INTO requisitos (id, fonte_id, referencia, titulo, pai_id) VALUES ('lgpd:art7:i', 'lgpd', 'art. 7, I', 'Inciso', 'lgpd:art7')`).run();
     expect((await chamar(admin, 'DELETE', '/api/v1/requisitos/lgpd:art7')).status).toBe(409);
     expect((await chamar(admin, 'DELETE', '/api/v1/requisitos/lgpd:art7:i')).status).toBe(200);
     expect((await chamar(admin, 'DELETE', '/api/v1/requisitos/lgpd:art7:i')).status).toBe(404);
@@ -180,9 +186,10 @@ describe('documento e requisitos', () => {
     await chamar(consultor, 'PUT', base(docRascunho), { requisitos: ['lgpd:art9'] });
     const r = await json<{ resumo: Record<string, number>; itens: { requisito_id: string; situacao: string; origens: { tipo: string }[] }[] }>(
       await chamar(cliente, 'GET', `/api/v1/projects/${P}/requisitos/lacunas?fonte=lgpd`));
-    const sit = Object.fromEntries(r.itens.map((i) => [i.requisito_id, i.situacao]));
+    const usados = new Set(['lgpd:art7', 'lgpd:art8', 'lgpd:art9', 'lgpd:art37', 'lgpd:art46']);
+    const sit = Object.fromEntries(r.itens.filter((i) => usados.has(i.requisito_id)).map((i) => [i.requisito_id, i.situacao]));
     expect(sit).toEqual({ 'lgpd:art7': 'lacuna', 'lgpd:art8': 'coberto', 'lgpd:art9': 'lacuna', 'lgpd:art37': 'parcial', 'lgpd:art46': 'coberto' });
-    expect(r.resumo).toEqual({ total: 5, cobertos: 2, parciais: 1, lacunas: 2 });
+    expect(r.resumo).toEqual({ total: r.itens.length, cobertos: 2, parciais: 1, lacunas: r.itens.length - 3 }); // um teste anterior apaga lgpd:art7:i
     expect(r.itens.find((i) => i.requisito_id === 'lgpd:art8')!.origens).toEqual([{ tipo: 'documento', id: doc, titulo: 'Política Vigente' }]);
   });
 

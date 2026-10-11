@@ -2937,6 +2937,12 @@
                       "null"
                     ]
                   },
+                  "incidente_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "due_date": {
                     "type": [
                       "string",
@@ -11292,6 +11298,11 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 2000
+                  },
+                  "pedido_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
                   }
                 },
                 "required": [

@@ -8,6 +8,7 @@ import { showToast, openModal, escapeHTML } from '../ui.js';
 
 const SITUACAO = { coberto: ['Coberto', 'success'], parcial: ['Parcial', 'warning'], lacuna: ['Lacuna', 'danger'] };
 const TIPO_MAPA = { equivalente: 'Equivalente', parcial: 'Parcial', relacionado: 'Relacionado' };
+const ORIGEM = { documento: 'Documento', evidencia: 'Evidência', controle: 'Controle' };
 const FONTES_COM_COBERTURA = ['lgpd', 'gdpr'];
 
 const ehAdmin = () => !!S.user && S.user.role === 'platform_admin';
@@ -25,7 +26,7 @@ async function renderRequisitos(c, h, a) {
     const fonteId = escolhida ? escolhida.id : null;
     S.fonteRequisitos = fonteId;
 
-    a.innerHTML = ehAdmin() ? '<button class="btn" data-action="semearRequisitos">Carregar catálogo ISO</button>' : '';
+    a.innerHTML = ehAdmin() ? '<button class="btn" data-action="semearRequisitos">Carregar catálogo</button>' : '';
     const seletor = `<div class="form-group" style="max-width:360px"><label class="form-label" for="req-fonte">Fonte</label>
         <select class="form-input" id="req-fonte" data-action-change="escolherFonteRequisitos" data-arg-val>${fontes.map((f) =>
         `<option value="${escapeHTML(f.id)}" ${f.id === fonteId ? 'selected' : ''}>${escapeHTML(f.nome)} (${escapeHTML(String(f.requisitos))})</option>`).join('')}</select></div>`;
@@ -52,7 +53,7 @@ async function renderRequisitos(c, h, a) {
     const linhas = reqs.map((r) => {
         const cob = cobertura.get(r.id);
         const [rot, tom] = cob ? SITUACAO[cob.situacao] || [cob.situacao, 'info'] : [null, null];
-        const origens = cob ? cob.origens.map((o) => o.tipo === 'documento' ? `Documento: ${escapeHTML(o.titulo)}` : `Controle: ${escapeHTML(o.titulo)}`).join('; ') : '';
+        const origens = cob ? cob.origens.map((o) => `${ORIGEM[o.tipo] || 'Controle'}: ${escapeHTML(o.titulo)}`).join('; ') : '';
         const linha = [
             escapeHTML(r.referencia),
             escapeHTML(r.titulo),
@@ -66,7 +67,7 @@ async function renderRequisitos(c, h, a) {
     if (comCobertura) cab.push('Cobertura', 'Origem');
     cab.push('Ações');
     const aviso = comCobertura
-        ? `<p style="color:var(--text-dim)">Cobertura: documento vigente ligado ao requisito, ou controle implementado ligado por equivalência validada pelo jurídico. Evidência ainda não entra na conta.</p>`
+        ? `<p style="color:var(--text-dim)">Cobertura: documento vigente ligado ao requisito, ou controle implementado ligado por equivalência validada pelo jurídico.</p>`
         : '';
     const quadro = resumo
         ? `<p><strong>${escapeHTML(String(resumo.cobertos))}</strong> cobertos, <strong>${escapeHTML(String(resumo.parciais))}</strong> parciais e <strong>${escapeHTML(String(resumo.lacunas))}</strong> lacunas, de ${escapeHTML(String(resumo.total))}.</p>`
@@ -87,14 +88,32 @@ window.semearRequisitos = async function () {
     } catch (e) { showToast((e && e.message) || 'Não foi possível carregar o catálogo', 'error'); }
 };
 
-window.abrirRequisito = async function (id) {
+// Data de hoje no Brasil (AAAA-MM-DD), não em UTC: à noite o UTC já é o dia seguinte.
+const hojeBr = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+const dataBr = (d) => String(d || '').slice(0, 10).split('-').reverse().join('/');
+// Recusa em duas etapas dentro da própria janela (o app não usa confirm()): guarda qual mapeamento espera confirmação.
+let recusando = null;
+
+window.abrirRequisito = async function (id, mantemRecusa) {
+    if (!mantemRecusa) recusando = null;
     let r;
     try { r = await api('GET', `/api/v1/requisitos/${encodeURIComponent(id)}`); } catch (e) { showToast((e && e.message) || 'Não foi possível abrir o requisito', 'error'); return; }
     const mapas = lista(r.mapeamentos).map((m) => {
         const outro = m.de_id === r.id ? m.para_id : m.de_id;
-        const quem = m.estado === 'validado_juridico'
-            ? `Validado por ${escapeHTML(m.validado_por || '')} em ${escapeHTML(String(m.validado_em || '').slice(0, 10))}`
-            : window.renderStatusBadge('Proposto', 'warning');
+        let quem;
+        if (m.estado === 'validado_juridico') {
+            quem = `Validado por ${escapeHTML(m.validado_por || '')} em ${escapeHTML(dataBr(m.validado_em))}`;
+        } else {
+            quem = window.renderStatusBadge('Proposto', 'warning');
+            if (ehAdmin()) {
+                const chave = `${m.de_id}|${m.para_id}`;
+                quem += recusando === chave
+                    ? ` <button class="btn btn-danger btn-sm" data-action="recusarMapeamentoConfirmado" data-args='${args(m.de_id, m.para_id, r.id)}'>Confirmar recusa</button>
+                        <button class="btn btn-ghost btn-sm" data-action="cancelarRecusaMapeamento" data-args='${args(r.id)}'>Cancelar</button>`
+                    : ` <button class="btn btn-sm" data-action="validarMapeamento" data-args='${args(m.de_id, m.para_id, m.tipo, r.id, m.nota || null)}'>Validar</button>
+                        <button class="btn btn-ghost btn-sm" data-action="recusarMapeamento" data-args='${args(m.de_id, m.para_id, r.id)}'>Recusar</button>`;
+            }
+        }
         return `<tr><td>${escapeHTML(outro)}</td><td>${escapeHTML(TIPO_MAPA[m.tipo] || m.tipo)}</td><td>${quem}</td><td>${escapeHTML(m.nota || '')}</td></tr>`;
     }).join('');
     openModal(`
@@ -104,6 +123,36 @@ window.abrirRequisito = async function (id) {
         ${mapas ? `<table class="data-table"><thead><tr><th>Requisito</th><th>Tipo</th><th>Validação</th><th>Nota</th></tr></thead><tbody>${mapas}</tbody></table>`
             : '<p style="color:var(--text-dim)">Nenhuma equivalência registrada.</p>'}
     `, 'modal-large');
+};
+
+window.validarMapeamento = async function (de, para, tipo, requisitoId, nota) {
+    try {
+        await api('PUT', '/api/v1/requisitos/mapeamentos', {
+            de_id: de, para_id: para, tipo, estado: 'validado_juridico',
+            validado_por: (S.user && (S.user.name || S.user.email)) || '', validado_em: hojeBr(), nota: nota || null,
+        });
+        showToast('Mapeamento validado.', 'success');
+    } catch (e) { showToast((e && e.message) || 'Não foi possível validar o mapeamento', 'error'); return; }
+    return window.abrirRequisito(requisitoId);
+};
+
+window.recusarMapeamento = function (de, para, requisitoId) {
+    recusando = `${de}|${para}`;
+    return window.abrirRequisito(requisitoId, true);
+};
+
+window.cancelarRecusaMapeamento = function (requisitoId) {
+    recusando = null;
+    return window.abrirRequisito(requisitoId);
+};
+
+window.recusarMapeamentoConfirmado = async function (de, para, requisitoId) {
+    recusando = null;
+    try {
+        await api('DELETE', `/api/v1/requisitos/mapeamentos?de=${encodeURIComponent(de)}&para=${encodeURIComponent(para)}`);
+        showToast('Mapeamento recusado.', 'success');
+    } catch (e) { showToast((e && e.message) || 'Não foi possível recusar o mapeamento', 'error'); return; }
+    return window.abrirRequisito(requisitoId);
 };
 
 window.renderRequisitos = renderRequisitos;

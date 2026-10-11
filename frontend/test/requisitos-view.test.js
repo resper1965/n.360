@@ -25,7 +25,7 @@ const LACUNAS = {
     itens: [
         { requisito_id: 'lgpd:art7', referencia: 'art. 7', titulo: 'Bases', pai_id: null, situacao: 'lacuna', origens: [] },
         { requisito_id: 'lgpd:art37', referencia: 'art. 37', titulo: 'Registro', pai_id: null, situacao: 'parcial', origens: [{ tipo: 'controle', id: 'c1', titulo: 'A.5.2 — <i>x</i>', status: 'Implemented', mapeamento: 'parcial' }] },
-        { requisito_id: 'lgpd:art46', referencia: 'art. 46', titulo: 'Segurança', pai_id: null, situacao: 'coberto', origens: [{ tipo: 'documento', id: 'd1', titulo: 'Política de <b>Acesso</b>' }] },
+        { requisito_id: 'lgpd:art46', referencia: 'art. 46', titulo: 'Segurança', pai_id: null, situacao: 'coberto', origens: [{ tipo: 'documento', id: 'd1', titulo: 'Política de <b>Acesso</b>' }, { tipo: 'evidencia', id: 'e1', titulo: 'x.pdf' }] },
     ],
 };
 const rotas = (extra = {}) => ({
@@ -71,6 +71,8 @@ describe('lista', () => {
         expect(t).toContain('Parcial');
         expect(t).toContain('Coberto');
         expect(t).toContain('Documento: Política de <b>Acesso</b>');
+        expect(t).toContain('Evidência: x.pdf');
+        expect(t).not.toContain('Evidência ainda não entra na conta');
         expect(t).toContain('Controle: A.5.2 — <i>x</i>');
         expect(t).toContain('Bases <b>legais</b>');
         expect(el('c').querySelector('b')).toBeNull();
@@ -93,11 +95,11 @@ describe('lista', () => {
         expect(window.render).toHaveBeenCalled();
     });
 
-    it('só o administrador da plataforma vê Carregar catálogo ISO', async () => {
+    it('só o administrador da plataforma vê Carregar catálogo', async () => {
         servir(rotas());
         S.user = { role: 'platform_admin' };
         await abrir();
-        expect(el('a').querySelector('[data-action="semearRequisitos"]')).not.toBeNull();
+        expect(el('a').querySelector('[data-action="semearRequisitos"]').textContent).toBe('Carregar catálogo');
         S.user = { role: 'consultor' };
         await abrir();
         expect(el('a').innerHTML).toBe('');
@@ -135,7 +137,7 @@ describe('ações', () => {
         const m = el('modal-content');
         expect(m.textContent).toContain('iso27001:2022:A.5.2');
         expect(m.textContent).toContain('iso27701:2025:A.1.2.6');
-        expect(m.textContent).toContain('Validado por Dra. <b>X</b> em 2026-10-01');
+        expect(m.textContent).toContain('Validado por Dra. <b>X</b> em 01/10/2026');
         expect(m.textContent).toContain('Proposto');
         expect(m.querySelector('b')).toBeNull();
         expect(m.querySelector('i')).toBeNull();
@@ -146,5 +148,68 @@ describe('ações', () => {
         await abrir();
         await window.abrirRequisito('lgpd:art7');
         expect(el('modal-content').textContent).toContain('Nenhuma equivalência registrada');
+    });
+});
+
+describe('validação dos mapeamentos', () => {
+    const MAP = { de_id: 'lgpd:art37', para_id: 'iso27701:2025:A.1.2.6', tipo: 'equivalente', estado: 'proposto', validado_por: null, validado_em: null, nota: null };
+    const REQ = { ...LGPD[1], mapeamentos: [MAP] };
+    const GET = 'GET /api/v1/requisitos/lgpd%3Aart37';
+    const corpos = (f, m) => f.mock.calls.filter(([, o]) => o?.method === m);
+
+    it('administrador vê validar e recusar no proposto; org_user não', async () => {
+        servir(rotas({ [GET]: REQ }));
+        S.user = { role: 'platform_admin', name: 'Ana Jurídico' };
+        await abrir(); await window.abrirRequisito('lgpd:art37');
+        expect(el('modal-content').querySelector('[data-action="validarMapeamento"]')).not.toBeNull();
+        expect(el('modal-content').querySelector('[data-action="recusarMapeamento"]')).not.toBeNull();
+        S.user = { role: 'org_user' };
+        await window.abrirRequisito('lgpd:art37');
+        expect(el('modal-content').querySelector('[data-action="validarMapeamento"]')).toBeNull();
+        expect(el('modal-content').querySelector('[data-action="recusarMapeamento"]')).toBeNull();
+    });
+
+    it('validar envia PUT com validador e data de hoje e reabre', async () => {
+        const f = servir(rotas({ [GET]: REQ, 'PUT /api/v1/requisitos/mapeamentos': { ok: true } }));
+        S.user = { role: 'platform_admin', name: 'Ana Jurídico' };
+        await abrir();
+        vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-11T01:30:00Z'));
+        try { await window.validarMapeamento(MAP.de_id, MAP.para_id, 'equivalente', 'lgpd:art37', 'nota <b>jurídica</b>'); } finally { vi.useRealTimers(); }
+        const [[, o]] = corpos(f, 'PUT');
+        expect(JSON.parse(o.body)).toEqual({ de_id: MAP.de_id, para_id: MAP.para_id, tipo: 'equivalente', estado: 'validado_juridico', validado_por: 'Ana Jurídico', validado_em: '2026-10-10', nota: 'nota <b>jurídica</b>' });
+        expect(chamadas(f).filter((k) => k === `GET ${new URL('/api/v1/requisitos/lgpd%3Aart37', 'http://localhost').pathname}`).length).toBe(1);
+    });
+
+    it('recusar só apaga depois de Confirmar recusa', async () => {
+        const f = servir(rotas({ [GET]: REQ, 'DELETE /api/v1/requisitos/mapeamentos': { ok: true } }));
+        S.user = { role: 'platform_admin', name: 'Ana' };
+        await abrir();
+        await window.recusarMapeamento(MAP.de_id, MAP.para_id, 'lgpd:art37');
+        expect(corpos(f, 'DELETE').length).toBe(0);
+        const b = [...el('modal-content').querySelectorAll('button')].find((x) => x.textContent === 'Confirmar recusa');
+        expect(b).toBeTruthy();
+        await window[b.dataset.action](...JSON.parse(b.dataset.args));
+        const [[u]] = corpos(f, 'DELETE');
+        expect(new URL(u, 'http://localhost').searchParams.get('de')).toBe(MAP.de_id);
+        expect(new URL(u, 'http://localhost').searchParams.get('para')).toBe(MAP.para_id);
+    });
+
+    it('o botão Validar leva a nota do mapeamento; reabrir a janela descarta a recusa pendente', async () => {
+        servir(rotas({ [GET]: { ...REQ, mapeamentos: [{ ...MAP, nota: 'n1' }] } }));
+        S.user = { role: 'platform_admin', name: 'Ana' };
+        await abrir(); await window.abrirRequisito('lgpd:art37');
+        expect(JSON.parse(el('modal-content').querySelector('[data-action="validarMapeamento"]').dataset.args)[4]).toBe('n1');
+        await window.recusarMapeamento(MAP.de_id, MAP.para_id, 'lgpd:art37');
+        expect(el('modal-content').textContent).toContain('Confirmar recusa');
+        await window.abrirRequisito('lgpd:art37');
+        expect(el('modal-content').textContent).not.toContain('Confirmar recusa');
+    });
+
+    it('validado mostra quem e quando (DD/MM/AAAA) e nenhum botão', async () => {
+        servir(rotas({ [GET]: { ...REQ, mapeamentos: [{ ...MAP, estado: 'validado_juridico', validado_por: 'Ana', validado_em: '2026-10-01' }] } }));
+        S.user = { role: 'platform_admin', name: 'Ana' };
+        await abrir(); await window.abrirRequisito('lgpd:art37');
+        expect(el('modal-content').textContent).toContain('Validado por Ana em 01/10/2026');
+        expect(el('modal-content').querySelector('button[data-action$="Mapeamento"]')).toBeNull();
     });
 });
