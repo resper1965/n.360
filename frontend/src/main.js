@@ -17,6 +17,7 @@ import './views/requisitos.js';
 import './views/terceiros.js';
 import './views/titular.js';
 import './views/encarregado.js';
+import './views/importacao.js';
 import './views/ponto-de-partida.js';
 import './views/inicio.js';
 import './views/tratamento-ligacoes.js';

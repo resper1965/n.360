@@ -16,7 +16,7 @@ const MODULOS = ['iso', 'privacy'];
 /** Telas que só existem no n.iso e só no n.privacy. O resto (cadastro, sistema) aparece nos dois e no início do n.360. */
 export const SO_ISO = ['nav-dashboard', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-monitor',
     'nav-soa', 'nav-context', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa', 'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-requisitos', 'nav-terceiros', 'nav-titular'];
+export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular'];
 
 /** O produto do caminho (vale igual em localhost). */
 export function produtoAtual(loc = window.location) {
