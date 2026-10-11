@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { servirShell } from './shell.js';
 
 // Jornada da tela API Keys (exclusiva do Platform Admin) — a mesma que a
 // validação E2E do MCP usa para emitir as chaves consultor/auditor.
@@ -23,7 +24,7 @@ async function seedSession(page, user) {
 // o `navigate` corre com ela e a view certa é sobrescrita. `networkidle` garante
 // que as chamadas de boot (auth/me, projects) terminaram antes de navegar.
 async function bootAndOpen(page, view) {
-  await page.goto('/login.html');
+  await servirShell(page).then(() => page.goto('/iso'));
   await page.waitForFunction(() => typeof window.navigate === 'function' && !!window.S);
   await page.waitForLoadState('networkidle');
   await page.evaluate((v) => window.navigate(v), view);

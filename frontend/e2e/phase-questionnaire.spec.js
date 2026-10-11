@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { servirShell } from './shell.js';
 
 // Questionário por fase — navegador real. Exercita o modal (render dos campos por
 // tipo) e o salvar (PUT), com a API mockada. O banco de perguntas é injetado em
@@ -26,7 +27,7 @@ test('abre o questionário da fase, preenche e salva', async ({ page }) => {
     return json(route.request().method() === 'GET' ? [] : { ok: true });
   });
 
-  await page.goto('/login.html');
+  await servirShell(page).then(() => page.goto('/iso'));
   await page.waitForFunction(() => typeof window.navigate === 'function' && !!window.S);
 
   // Injeta o banco (como o load da jornada faria) e abre o questionário da fase 1.
@@ -83,7 +84,7 @@ test('interpreta a fase e mostra o diagnóstico específico', async ({ page }) =
     return json(route.request().method() === 'GET' ? [] : { ok: true });
   });
 
-  await page.goto('/login.html');
+  await servirShell(page).then(() => page.goto('/iso'));
   await page.waitForFunction(() => typeof window.navigate === 'function' && !!window.S);
 
   await page.evaluate(() => {
@@ -132,7 +133,7 @@ test('gera o dossiê da jornada com as respostas consolidadas', async ({ page })
     return json(route.request().method() === 'GET' ? [] : { ok: true });
   });
 
-  await page.goto('/login.html');
+  await servirShell(page).then(() => page.goto('/iso'));
   await page.waitForFunction(() => typeof window.navigate === 'function' && !!window.S);
 
   await page.evaluate(() => window.generateJourneyDossier('proj-e2e'));

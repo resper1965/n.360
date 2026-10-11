@@ -131,6 +131,8 @@ describe('contrato tela↔API', () => {
       'frontend/public/auditor.js: fetch(caminho',
       'frontend/public/proposta.js: fetch(API + acao',
       'frontend/src/api.js: fetch(API_BASE + p',
+      // /health fica fora de /api/v1 por desenho: o domínio antigo pergunta o endereço canônico (n.360, fatia 1).
+      'frontend/src/produto.js: fetch(\'/health\'',
       'frontend/src/views/propostas.js: api(\'GET\', caminho',
       'frontend/src/views/propostas.js: fetch(API_BASE + caminho',
     ];

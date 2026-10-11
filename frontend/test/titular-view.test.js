@@ -47,10 +47,10 @@ beforeEach(() => {
     S.token = 'tok';
     S.user = { role: 'consultor' };
     S.activeProject = { id: 'p9' };
-    sessionStorage.setItem('niso_produto', 'privacy');
+    history.replaceState(null, '', '/privacy');
     window.render = vi.fn();
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); sessionStorage.removeItem('niso_produto'); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); history.replaceState(null, '', '/'); });
 
 describe('abas', () => {
     it('mostra as quatro abas e abre em Pedidos; trocar de aba guarda a escolha e redesenha', async () => {
@@ -277,7 +277,7 @@ describe('prazos legais', () => {
 });
 
 describe('incidentes no n.iso', () => {
-    beforeEach(() => { sessionStorage.setItem('niso_produto', 'iso'); });
+    beforeEach(() => { history.replaceState(null, '', '/iso'); });
     it('só a aba de incidentes, com título Incidentes; abrirIncidentesIso leva para ela', async () => {
         S.activeProject = { id: 'p9', modulos: ['iso'] };
         await abrir('pedidos');
@@ -289,6 +289,12 @@ describe('incidentes no n.iso', () => {
         expect(S.titularAba).toBe('incidentes');
         expect(navigate).toHaveBeenCalledWith('titular');
     });
+    it('na casca n.360 só a aba de incidentes (aviso de incidente não abre a aba do titular)', async () => {
+        history.replaceState(null, '', '/');
+        S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };
+        await abrir('pedidos');
+        expect([...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')].map((b) => b.textContent)).toEqual(['Incidentes']);
+    });
     it('a janela do incidente tem Abrir CAPA quando o projeto tem iso; criar envia incidente_id', async () => {
         S.activeProject = { id: 'p9', modulos: ['iso'] };
         const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], descricao: 'Notebook perdido' }, [`POST ${B}/capa`]: { ok: true, id: 'c1' } });
@@ -298,7 +304,7 @@ describe('incidentes no n.iso', () => {
         expect(corpoDe(f, `POST ${B}/capa`)).toEqual({ title: 'Incidente IN-2026-0001: Acesso <b>indevido</b>', description: 'Notebook perdido', incidente_id: 'i1' });
     });
     it('no n.privacy a janela não oferece CAPA e as quatro abas continuam', async () => {
-        sessionStorage.setItem('niso_produto', 'privacy');
+        history.replaceState(null, '', '/privacy');
         S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
         expect(el('c').querySelectorAll('[data-action="escolherAbaTitular"]').length).toBe(4);

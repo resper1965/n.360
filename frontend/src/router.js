@@ -33,7 +33,8 @@ export     function navigate(view, data) {
         const h = document.getElementById('header-title');
         const a = document.getElementById('header-actions');
         
-        if (S.view === 'dashboard') renderDashboard(c, h, a);
+        if (S.view === 'inicio') renderInicio(c, h, a);
+        else if (S.view === 'dashboard') renderDashboard(c, h, a);
         else if (S.view === 'leads') renderLeads(c, h, a);
         else if (S.view === 'assessments') renderAssessments(c, h, a);
         else if (S.view === 'proposals') renderPropostas(c, h, a);  // o fluxo antigo (renderProposals) saiu na fatia 4
