@@ -41,7 +41,13 @@ const nf = (error: string): Falha => ({ ok: false, status: 404, error });
 async function loteDoProjeto(db: D1Database, projectId: string, id: string): Promise<Lote | null> {
   return db.prepare('SELECT id, project_id, status FROM importacoes WHERE id = ? AND project_id = ?').bind(id, projectId).first<Lote>();
 }
-const cancelado = (l: Lote): Falha | null => (l.status === 'cancelada' ? { ok: false, status: 409, error: 'Lote cancelado' } : null);
+/** Lote que não aceita mudança: cancelado, ou com uma confirmação gravando (a trava de `confirmarLote`). */
+const cancelado = (l: Lote): Falha | null =>
+  l.status === 'cancelada' ? { ok: false, status: 409, error: 'Lote cancelado' }
+    : l.status === 'gravando' ? { ok: false, status: 409, error: 'Importação em gravação' } : null;
+/** Condição SQL de quem muda o lote: nunca sobrescreve a trava de gravação nem o cancelamento. */
+const LIVRE = `status NOT IN ('gravando', 'cancelada')`;
+const emGravacao: Falha = { ok: false, status: 409, error: 'Importação em gravação' };
 
 const faltandoDe = (d: Partial<TratamentoProposto>) => OBRIGATORIOS_ROPA.filter((k) => !String(d[k] ?? '').trim());
 
@@ -97,7 +103,7 @@ export async function enviarArquivo(env: Env, projectId: string, loteId: string,
     await env.DB.batch([
       env.DB.prepare('INSERT INTO importacao_arquivos (id, importacao_id, project_id, nome, mime, tamanho, r2_key) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .bind(id, loteId, projectId, file.name.slice(0, 255), mime, file.size, r2Key),
-      env.DB.prepare(`UPDATE importacoes SET status = 'recebendo', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(loteId),
+      env.DB.prepare(`UPDATE importacoes SET status = 'recebendo', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ${LIVRE}`).bind(loteId),
     ]);
   } catch (e) {
     // Sem a linha, o objeto seria órfão (mesma compensação do upload de evidência).
@@ -151,7 +157,8 @@ export async function processarArquivo(env: Env, projectId: string, loteId: stri
   const a = await db.prepare('SELECT id, nome, mime, r2_key FROM importacao_arquivos WHERE id = ? AND importacao_id = ?')
     .bind(arquivoId, loteId).first<{ id: string; nome: string; mime: string; r2_key: string }>();
   if (!a) return nf('Arquivo não encontrado');
-  await db.prepare(`UPDATE importacoes SET status = 'processando', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(loteId).run();
+  const inicio = await db.prepare(`UPDATE importacoes SET status = 'processando', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ${LIVRE}`).bind(loteId).run();
+  if (inicio.meta.changes !== 1) return emGravacao;
 
   const fim = async (status: string, tipo: string | null, erro: string | null, modelo: string | null, itens: D1PreparedStatement[] = []) => {
     await db.batch([
@@ -160,7 +167,7 @@ export async function processarArquivo(env: Env, projectId: string, loteId: stri
       ...itens,
       db.prepare('UPDATE importacao_arquivos SET status = ?, tipo = ?, erro = ?, modelo = ? WHERE id = ?').bind(status, tipo, erro, modelo, a.id),
       db.prepare(
-        `UPDATE importacoes SET updated_at = CURRENT_TIMESTAMP, status = CASE WHEN EXISTS (SELECT 1 FROM importacao_arquivos WHERE importacao_id = ?1 AND status = 'pendente') THEN 'recebendo' ELSE 'em_revisao' END WHERE id = ?1`
+        `UPDATE importacoes SET updated_at = CURRENT_TIMESTAMP, status = CASE WHEN EXISTS (SELECT 1 FROM importacao_arquivos WHERE importacao_id = ?1 AND status = 'pendente') THEN 'recebendo' ELSE 'em_revisao' END WHERE id = ?1 AND ${LIVRE}`
       ).bind(loteId),
     ]);
     await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: ${status}${tipo ? ` (${tipo})` : ''}, ${itens.length} itens`, '', '', projectId);
@@ -235,10 +242,11 @@ export async function atualizarItem(db: D1Database, projectId: string, loteId: s
     const { results } = await db.prepare('SELECT id, processing_purpose AS p FROM ropa_records WHERE project_id = ?').bind(projectId).all<{ id: string; p: string }>();
     duplicata = results.find((r) => chave(r.p) === chave(b.dados!.finalidade))?.id ?? null;
   }
-  await db.prepare(
+  const upd = await db.prepare(
     `UPDATE importacao_itens SET dados = ?, faltando = ?, duplicata_de = ?, decisao = ?, motivo = CASE WHEN ? = 'recusado' THEN motivo END, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND decisao <> 'gravado'`
-  ).bind(JSON.stringify(dados), JSON.stringify(faltandoDe(dados)), duplicata, decisao, decisao, itemId).run();
+      WHERE id = ? AND decisao <> 'gravado' AND (SELECT status FROM importacoes WHERE id = ?) NOT IN ('gravando', 'cancelada')`
+  ).bind(JSON.stringify(dados), JSON.stringify(faltandoDe(dados)), duplicata, decisao, decisao, itemId, loteId).run();
+  if (upd.meta.changes !== 1) return emGravacao;
   const novo = await db.prepare('SELECT * FROM importacao_itens WHERE id = ?').bind(itemId).first<LinhaItem>();
   return { ok: true, item: itemLido(novo!) };
 }
@@ -270,16 +278,18 @@ async function mapaPorNome(db: D1Database, sql: string, projectId: string) {
 export const ITENS_POR_CONFIRMACAO = 30;
 
 /**
- * Grava os aceitos. A trava é do lote: só uma confirmação por vez (`status = 'processando'` por UPDATE condicional); a outra recebe
- * 409. Sem ela, duas chamadas simultâneas liam os mesmos aceitos e gravavam cada tratamento duas vezes.
+ * Grava os aceitos. A trava é do lote, com status próprio (`gravando`, por UPDATE condicional): só uma confirmação por vez, e
+ * processar, enviar, editar item e cancelar recebem 409 enquanto ela dura. Sem ela, duas chamadas simultâneas liam os mesmos aceitos
+ * e gravavam cada tratamento duas vezes; e com o status compartilhado com o processamento, um `processar` soltava a trava.
  */
 export async function confirmarLote(db: D1Database, projectId: string, loteId: string, ator: string): Promise<Falha | { ok: true; resultados: Resultado[]; restantes: number }> {
   const lote = await loteDoProjeto(db, projectId, loteId);
   if (!lote) return nf('Lote não encontrado');
-  const c = cancelado(lote);
-  if (c) return c;
+  if (lote.status === 'cancelada') return { ok: false, status: 409, error: 'Lote cancelado' };
   const trava = await db.prepare(
-    `UPDATE importacoes SET status = 'processando', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ? AND status IN ('recebendo', 'em_revisao', 'concluida')`
+    // ponytail: trava sem dono; a de uma gravação interrompida (Worker caiu) é retomada depois de 10 minutos.
+    `UPDATE importacoes SET status = 'gravando', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?
+       AND (status IN ('recebendo', 'em_revisao', 'concluida') OR (status = 'gravando' AND updated_at < datetime('now', '-10 minutes')))`
   ).bind(loteId, projectId).run();
   if (trava.meta.changes !== 1) return { ok: false, status: 409, error: 'Importação já em gravação' };
   try {
@@ -367,12 +377,14 @@ async function gravarAceitos(db: D1Database, projectId: string, loteId: string, 
 export async function cancelarLote(env: Env, projectId: string, loteId: string, ator: string): Promise<Falha | { ok: true }> {
   const lote = await loteDoProjeto(env.DB, projectId, loteId);
   if (!lote) return nf('Lote não encontrado');
+  // Marca cancelada ANTES de apagar, e nunca por cima de uma gravação em curso.
+  const marca = await env.DB.prepare(`UPDATE importacoes SET status = 'cancelada', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status <> 'gravando'`).bind(loteId).run();
+  if (marca.meta.changes !== 1) return emGravacao;
   const { results } = await env.DB.prepare('SELECT r2_key FROM importacao_arquivos WHERE importacao_id = ?').bind(loteId).all<{ r2_key: string }>();
   if (results.length) await env.STORAGE.delete(results.map((r) => r.r2_key));
   await env.DB.batch([
     env.DB.prepare('DELETE FROM importacao_itens WHERE importacao_id = ?').bind(loteId),
     env.DB.prepare('DELETE FROM importacao_arquivos WHERE importacao_id = ?').bind(loteId),
-    env.DB.prepare(`UPDATE importacoes SET status = 'cancelada', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(loteId),
   ]);
   await logAudit(env.DB, 'importacao.cancelada', ator, `Lote ${loteId} cancelado: ${results.length} arquivos apagados`, '', '', projectId);
   return { ok: true };

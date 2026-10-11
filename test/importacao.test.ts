@@ -469,3 +469,56 @@ describe('rodada de correções', () => {
     }
   });
 });
+
+describe('trava de gravação (status próprio)', () => {
+  const statusDo = async (lote: string) => (await env.DB.prepare('SELECT status FROM importacoes WHERE id = ?').bind(lote).first<{ status: string }>())!.status;
+
+  it('lote em gravação recusa processar, enviar, editar item e cancelar com 409; nada muda', async () => {
+    const lote = await novoLote();
+    responde(tratamento('Em gravação'));
+    const { aid } = await enviarEProcessar(lote);
+    const [item] = (await lerLote(lote)).itens;
+    await env.DB.prepare(`UPDATE importacoes SET status = 'gravando' WHERE id = ?`).bind(lote).run();
+    for (const r of [
+      await chamar(consultor, 'POST', `${P}/importacoes/${lote}/arquivos/${aid}/processar`),
+      await enviar(consultor, P, lote, 'b.csv', 'x', 'text/csv'),
+      await chamar(consultor, 'PUT', `${P}/importacoes/${lote}/itens/${item.id}`, { decisao: 'aceito' }),
+      await chamar(consultor, 'DELETE', `${P}/importacoes/${lote}`),
+      await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`),
+    ]) {
+      expect(r.status).toBe(409);
+      expect((await json<{ error: string }>(r)).error).toMatch(/em gravação/);
+    }
+    expect(await statusDo(lote)).toBe('gravando');
+    expect((await lerLote(lote)).itens).toMatchObject([{ id: item.id, decisao: 'pendente' }]);
+    expect(await env.STORAGE.get(`importacoes/${P}/${lote}/${aid}`)).not.toBeNull();
+  });
+
+  it('processar durante a confirmação não solta a trava: sem duplicata, e o status volta ao certo', async () => {
+    const lote = await novoLote();
+    responde(tratamento('Corrida A'), tratamento('Corrida B'));
+    const { aid } = await enviarEProcessar(lote);
+    for (const i of (await lerLote(lote)).itens) await chamar(consultor, 'PUT', `${P}/importacoes/${lote}/itens/${i.id}`, { decisao: 'aceito' });
+    responde(tratamento('Corrida A'), tratamento('Corrida B'));
+    const [conf, proc, conf2] = await Promise.all([
+      chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`),
+      chamar(consultor, 'POST', `${P}/importacoes/${lote}/arquivos/${aid}/processar`),
+      chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`),
+    ]);
+    expect(conf.status).toBe(200);
+    expect([200, 409]).toContain(proc.status);
+    expect(conf2.status).toBe(409);
+    const n = await env.DB.prepare(`SELECT processing_purpose AS p, COUNT(*) AS n FROM ropa_records WHERE project_id = ? AND processing_purpose LIKE 'Corrida %' GROUP BY 1`).bind(P).all<{ p: string; n: number }>();
+    expect(n.results.every((r) => r.n === 1)).toBe(true);
+    expect(await statusDo(lote)).not.toBe('gravando');
+    expect(['em_revisao', 'concluida']).toContain(await statusDo(lote));
+  });
+
+  it('trava esquecida (gravação interrompida há mais de 10 minutos) é retomada pela próxima confirmação', async () => {
+    const lote = await novoLote();
+    await env.DB.prepare(`UPDATE importacoes SET status = 'gravando', updated_at = datetime('now', '-11 minutes') WHERE id = ?`).bind(lote).run();
+    const r = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await statusDo(lote)).toBe('concluida');
+  });
+});

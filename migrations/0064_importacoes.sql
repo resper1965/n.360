@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS importacoes (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     criado_por TEXT,
-    status TEXT NOT NULL DEFAULT 'recebendo' CHECK (status IN ('recebendo', 'processando', 'em_revisao', 'concluida', 'cancelada')),
+    status TEXT NOT NULL DEFAULT 'recebendo' CHECK (status IN ('recebendo', 'processando', 'em_revisao', 'gravando', 'concluida', 'cancelada')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
