@@ -92,6 +92,11 @@ const ultimoAdminDaOrg = async (db: D1Database, orgId: string | null, alvoId: st
   ((await db.prepare(`SELECT COUNT(*) AS n FROM users WHERE org_id = ? AND role = 'consultoria_admin' AND COALESCE(ativo, 1) <> 0 AND id <> ?`)
     .bind(orgId ?? '', alvoId).first<{ n: number }>())?.n ?? 0) === 0;
 const ULTIMO_ADMIN = { error: 'A organização precisa de ao menos um administrador ativo' };
+/** Sem outro platform_admin ativo, ninguém mais administra a plataforma: só o banco devolveria o acesso. */
+const ultimoPlatformAdmin = async (db: D1Database, alvoId: string) =>
+  ((await db.prepare(`SELECT COUNT(*) AS n FROM users WHERE role = 'platform_admin' AND COALESCE(ativo, 1) <> 0 AND id <> ?`)
+    .bind(alvoId).first<{ n: number }>())?.n ?? 0) === 0;
+const ULTIMO_PLATFORM_ADMIN = { error: 'A plataforma precisa de ao menos um platform_admin ativo' };
 /** Conta de outra organização para o `consultoria_admin`: 404, sem revelar que existe. */
 const NAO_ENCONTRADO = { error: 'Usuário não encontrado' };
 
@@ -236,6 +241,10 @@ usersApp.put('/:id', async (c) => {
     if (soPlatformAdmin(admin, user.role) || (role !== undefined && soPlatformAdmin(admin, role))) {
       return c.json(recusaPapelInterno, 403);
     }
+    // Depois da permissão: quem não pode mexer recebe 403, sem saber se este é o último.
+    if (user.role === 'platform_admin' && papelFinal !== 'platform_admin' && await ultimoPlatformAdmin(c.env.DB, id)) {
+      return c.json(ULTIMO_PLATFORM_ADMIN, 409);
+    }
     if (await consultorForaDoProjeto(c.env.DB, admin, user.client_project_id) ||
         (client_project_id !== undefined && await consultorForaDoProjeto(c.env.DB, admin, client_project_id))) {
       return c.json(recusaProjeto, 403);
@@ -247,6 +256,10 @@ usersApp.put('/:id', async (c) => {
       }
       if (role !== undefined && role !== 'org_admin' && role !== 'org_user' && role !== 'client') {
         return c.json({ error: 'Forbidden: Cannot assign this role' }, 403);
+      }
+      // Trocar a senha de outro org_admin seria tomar a conta dele (mesma regra do consultoria_admin).
+      if (password && user.role === 'org_admin' && user.id !== admin.id) {
+        return c.json({ error: 'Forbidden: a senha de outro administrador do projeto só ele mesmo troca' }, 403);
       }
     }
 
@@ -338,6 +351,8 @@ usersApp.delete('/:id', async (c) => {
     }
 
     if (soPlatformAdmin(admin, user.role)) return c.json(recusaPapelInterno, 403);
+    // Depois da permissão: quem não pode apagar recebe 403, sem saber se este é o último.
+    if (user.role === 'platform_admin' && await ultimoPlatformAdmin(c.env.DB, id)) return c.json(ULTIMO_PLATFORM_ADMIN, 409);
     if (await consultorForaDoProjeto(c.env.DB, admin, user.client_project_id)) return c.json(recusaProjeto, 403);
 
     if (admin.role === 'org_admin' && user.client_project_id !== admin.client_project_id) {

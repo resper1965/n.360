@@ -127,6 +127,8 @@ describe('Revogação de sessão', () => {
   });
 
   it('mudar o papel do usuário derruba a sessão com o papel antigo', async () => {
+    // Outro platform_admin ativo: rebaixar o último é recusado (409) desde a trava de 11/10/2026.
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('u-pa2','pa2@ness.io','x','PA2','platform_admin')`).run();
     const { token: sessaoAdmin } = await login();
 
     const res = await app.fetch(

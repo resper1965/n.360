@@ -16,6 +16,10 @@ import {
 
 export const authApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
+/** Conta que não tem senha local para recuperar: criada pelo SSO/SCIM (marcador no hash) ou desativada. */
+const semSenhaLocal = (u: { password_hash?: string | null; ativo?: number | null }) =>
+  u.ativo === 0 || /^(sso|scim):/.test(u.password_hash ?? '');
+
 /**
  * Contagem de falhas por (e-mail digitado + IP), exista a conta ou não: se só
  * contasse conta existente, o próprio número de tentativas restantes diria ao
@@ -331,10 +335,12 @@ authApp.post('/forgot-password', async (c) => {
     const { email } = v.data;
 
     const user = await c.env.DB.prepare(
-      'SELECT id, email, name FROM users WHERE lower(trim(email)) = ? ORDER BY email = ? DESC LIMIT 1'
+      'SELECT id, email, name, password_hash, ativo FROM users WHERE lower(trim(email)) = ? ORDER BY email = ? DESC LIMIT 1'
     ).bind(email, email).first() as any;
 
-    if (!user) {
+    // Conta sem senha local (SSO/SCIM) ou desativada não ganha código: senão "esqueci a senha" criava
+    // uma senha e a pessoa entrava pulando o IdP do cliente, ou voltava depois de desligada.
+    if (!user || semSenhaLocal(user)) {
       return c.json({ ok: true, message: 'Se o e-mail estiver cadastrado, um código foi gerado.' });
     }
 
@@ -391,6 +397,12 @@ authApp.post('/reset-password', async (c) => {
     }
 
     const { email } = JSON.parse(storedData);
+    // O código pode ser de antes de a conta virar SSO/SCIM ou ser desativada.
+    const conta = await c.env.DB.prepare('SELECT password_hash, ativo FROM users WHERE email = ?').bind(email).first<{ password_hash: string; ativo: number | null }>();
+    if (!conta || semSenhaLocal(conta)) {
+      await c.env.SESSIONS.delete(`reset_token:${token}`);
+      return c.json({ error: 'Código de recuperação inválido ou expirado' }, 400);
+    }
     const newHash = await hashPassword(newPassword);
 
     await c.env.DB.prepare('UPDATE users SET password_hash = ?, requires_password_change = 0 WHERE email = ?')
