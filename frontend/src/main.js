@@ -18,6 +18,7 @@ import './views/terceiros.js';
 import './views/titular.js';
 import './views/encarregado.js';
 import './views/ponto-de-partida.js';
+import './views/inicio.js';
 import './views/tratamento-ligacoes.js';
 import './views/compliance.js';
 import './views/monitor.js';
@@ -45,5 +46,5 @@ import './globals.js';
 // no document cobre todo conteúdo renderizado.
 initDelegation();
 
-// n.iso ou n.privacy, pelo domínio: marca, título e menu antes do primeiro desenho.
+// n.360, n.iso ou n.privacy, pelo caminho: marca, título e menu antes do primeiro desenho.
 aplicarCasca();

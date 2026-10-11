@@ -37,6 +37,14 @@ describe('renderPontoDePartida', () => {
         await window.renderPontoDePartida(c, 'p9', 'privacy');
         expect(c.textContent).toContain('Cobertura LGPD: 7 de 20');
     });
+    it('n.360: mostra os dois blocos (cobertura LGPD e controles ISO adiantados)', async () => {
+        servir({ 'GET /api/v1/projects/p9/ponto-de-partida': PONTO() });
+        const c = novo();
+        await window.renderPontoDePartida(c, 'p9', 'n360');
+        expect(c.textContent).toContain('Cobertura LGPD: 7 de 20');
+        expect(c.textContent).toContain('A privacidade já adianta estes controles');
+        expect(c.innerHTML).not.toContain('<b>x</b>');
+    });
     it('número vindo da API é escapado', async () => {
         servir({ 'GET /api/v1/projects/p9/ponto-de-partida': PONTO({ cobertura: [{ fonte: 'lgpd', total: '<i>9</i>', cobertos: 1, parciais: 0, lacunas: 0 }] }) });
         const c = novo();

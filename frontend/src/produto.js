@@ -2,34 +2,44 @@ import { S } from './state.js';
 import { api } from './api.js';
 import { showToast, openModal, escapeHTML } from './ui.js';
 
-// n.iso e n.privacy são PRODUTOS separados sobre o mesmo cadastro (decisão de 09/10/2026). O domínio decide qual casca aparece:
-// nprivacy.ness.com.br → n.privacy; o resto → n.iso. A trava de verdade é do servidor (403 sem o módulo do projeto); aqui só se
-// mostra o produto certo, lista os projetos que têm esse produto e leva ao outro quando o projeto tem os dois.
+// O n.360 é a plataforma-mãe; n.iso e n.privacy são módulos dele sobre o mesmo cadastro (decisão de 11/10/2026). Tudo responde
+// em n360.ness.com.br e o CAMINHO decide a casca: /iso… → n.iso, /privacy… → n.privacy, o resto → o início do n.360. A trava
+// de verdade é do servidor (403 sem o módulo do projeto); aqui só se mostra o produto certo e os projetos que o têm.
 
 export const PRODUTOS = {
-    iso: { nome: 'iso', host: 'niso.ness.com.br', titulo: 'n.iso | ness. Agentic GRC', inicio: 'dashboard' },
-    privacy: { nome: 'privacy', host: 'nprivacy.ness.com.br', titulo: 'n.privacy | ness. Privacidade', inicio: 'encarregado' },
+    n360: { nome: '360', titulo: 'n.360 | ness.', inicio: 'inicio' },
+    iso: { nome: 'iso', titulo: 'n.iso | ness. Agentic GRC', inicio: 'dashboard' },
+    privacy: { nome: 'privacy', titulo: 'n.privacy | ness. Privacidade', inicio: 'encarregado' },
 };
+const MODULOS = ['iso', 'privacy'];
 
-/** Telas que só existem no n.iso e só no n.privacy. O resto (cadastro, sistema) aparece nos dois. */
+/** Telas que só existem no n.iso e só no n.privacy. O resto (cadastro, sistema) aparece nos dois e no início do n.360. */
 export const SO_ISO = ['nav-dashboard', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-monitor',
     'nav-soa', 'nav-context', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa', 'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-requisitos', 'nav-terceiros', 'nav-titular'];
 
-const ehLocal = (h) => h === 'localhost' || h === '127.0.0.1';
-
-/** O produto do domínio. Em localhost, `?produto=privacy` escolhe (e fica guardado na aba) para dá para testar sem DNS. */
+/** O produto do caminho (vale igual em localhost). */
 export function produtoAtual(loc = window.location) {
-    if (/^nprivacy\./i.test(loc.hostname)) return 'privacy';
-    if (ehLocal(loc.hostname)) {
-        const q = new URLSearchParams(loc.search).get('produto');
-        try {
-            if (q === 'iso' || q === 'privacy') sessionStorage.setItem('niso_produto', q);
-            const guardado = sessionStorage.getItem('niso_produto');
-            if (guardado === 'iso' || guardado === 'privacy') return guardado;
-        } catch (e) { /* sem sessionStorage: n.iso */ }
-    }
-    return 'iso';
+    const m = /^\/(iso|privacy)(\/|$)/.exec(loc.pathname || '/');
+    return m ? m[1] : 'n360';
+}
+
+// Domínios antigos → prefixo do módulo no n.360. O Worker já dá 308 no que passa por ele; isto cobre a raiz e o /login,
+// que saem como arquivo estático antes do Worker.
+const CANONICO = 'https://n360.ness.com.br';
+const LEGADOS = { 'niso.ness.com.br': '/iso', 'n-iso.ness.com.br': '/iso', 'niso.ness.workers.dev': '/iso', 'nprivacy.ness.com.br': '/privacy' };
+
+/** Para onde ir quando o app abre num domínio antigo; null no n.360 e em localhost. O fragmento segue (SSO e tokens vão nele). */
+export function destinoLegado(loc = window.location) {
+    const prefixo = LEGADOS[String(loc.hostname || '').toLowerCase()];
+    if (!prefixo) return null;
+    const p = loc.pathname || '/';
+    return `${CANONICO}${prefixo}${p === '/' || p === '/login' || p === '/login.html' ? '' : p}${loc.search || ''}${loc.hash || ''}`;
+}
+
+/** Navegação de página (um ponto só, para os testes dublarem: o jsdom não navega). `trocar` não deixa a página no histórico. */
+export function irPara(url, trocar = false) {
+    if (trocar) window.location.replace(url); else window.location.assign(url);
 }
 
 /** Os módulos de um projeto. Projeto sem a lista (resposta antiga) conta como só n.iso, o comportamento anterior. */
@@ -45,39 +55,42 @@ export function produtoDaTela(tela) {
     return null;
 }
 
-/** Endereço do mesmo app no outro produto (em localhost, a mesma origem com `?produto=`). */
-export function enderecoDoProduto(produto, loc = window.location) {
-    if (ehLocal(loc.hostname)) return `${loc.origin}/login?produto=${produto}`;
-    return `https://${PRODUTOS[produto].host}/`;
-}
+/** Caminho do produto na mesma origem: '/', '/iso' ou '/privacy'. */
+export const enderecoDoProduto = (produto) => (MODULOS.includes(produto) ? `/${produto}` : '/');
 
-/** Para onde um aviso leva: a tela, ou o outro domínio quando a tela é só do outro produto. */
+/** Para onde um aviso leva: a tela, ou o caminho do módulo quando a tela é só de outro. */
 export function destinoDoAviso(tela, loc = window.location) {
     const dono = produtoDaTela(tela);
-    return dono && dono !== produtoAtual(loc) ? { href: enderecoDoProduto(dono, loc) } : { navegar: tela };
+    return dono && dono !== produtoAtual(loc) ? { href: enderecoDoProduto(dono) } : { navegar: tela };
 }
 
-const marca = (produto) => `n<span style="color:var(--accent)">.</span><span class="brand-tail">${produto}</span>`;
+const marca = (produto) => `n<span style="color:var(--accent)">.</span><span class="brand-tail">${PRODUTOS[produto].nome}</span>`;
 
 /** Aplica a casca do produto ao documento: título, marcas, menu. Idempotente. */
 export function aplicarCasca(produto = produtoAtual(), doc = document) {
+    const nome = PRODUTOS[produto].nome;
     doc.documentElement.dataset.produto = produto;
     doc.title = PRODUTOS[produto].titulo;
     const logo = doc.getElementById('sidebar-logo-mark');
     if (logo) logo.innerHTML = marca(produto);
-    doc.querySelectorAll('.entry-mark, .login-brand-logo').forEach((el) => { el.innerHTML = `n<span>.</span>${produto}`; });
-    if (produto === 'privacy') {
+    doc.querySelectorAll('.entry-mark, .login-brand-logo').forEach((el) => { el.innerHTML = `n<span>.</span>${nome}`; });
+    if (produto !== 'iso') {
         const t = doc.querySelector('.entry-title');
-        if (t) t.textContent = 'Privacidade e LGPD conduzidas, do inventário à resposta ao titular.';
         const l = doc.querySelector('.entry-lede');
-        if (l) l.innerHTML = 'O ambiente onde sua organização e a ness<span class="entry-dot">.</span> trabalham juntas: tratamentos, terceiros, pedidos do titular e incidentes em um só lugar.';
+        if (produto === 'privacy') {
+            if (t) t.textContent = 'Privacidade e LGPD conduzidas, do inventário à resposta ao titular.';
+            if (l) l.innerHTML = 'O ambiente onde sua organização e a ness<span class="entry-dot">.</span> trabalham juntas: tratamentos, terceiros, pedidos do titular e incidentes em um só lugar.';
+        } else {
+            if (t) t.textContent = 'Segurança da informação e privacidade, num só lugar.';
+            if (l) l.innerHTML = 'A plataforma onde sua organização e a ness<span class="entry-dot">.</span> trabalham juntas. Os módulos n.iso (conformidade ISO 27001 e 27701) e n.privacy (LGPD) usam o mesmo cadastro.';
+        }
         doc.querySelectorAll('.entry-section').forEach((s) => { s.hidden = true; });
         // O "conheça o n.iso" leva às seções escondidas acima, e o rodapé traz a versão do n.iso.
         const mais = doc.querySelector('.entry-more');
         if (mais) mais.hidden = true;
-        doc.querySelectorAll('.login-sign-links').forEach((s) => { s.innerHTML = s.innerHTML.replace(/n\.iso \d+\.\d+\.\d+/, 'n.privacy'); });
+        doc.querySelectorAll('.login-sign-links').forEach((s) => { s.innerHTML = s.innerHTML.replace(/n\.iso \d+\.\d+\.\d+/, `n.${nome}`); });
     }
-    const esconder = new Set(produto === 'privacy' ? SO_ISO : SO_PRIVACY);
+    const esconder = new Set(produto === 'privacy' ? SO_ISO : produto === 'iso' ? SO_PRIVACY : [...SO_ISO, ...SO_PRIVACY]);
     doc.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach((n) => { if (esconder.has(n.id)) n.dataset.foraDoProduto = '1'; else delete n.dataset.foraDoProduto; });
     // Grupo sem nenhum item do produto some inteiro (rótulo e grupo).
     doc.querySelectorAll('.sidebar-group').forEach((g) => {
@@ -89,40 +102,53 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
     const rotuloPriv = doc.querySelector('[data-args=\'["group-privacy"]\']');
     if (rotuloPriv) { rotuloPriv.textContent = 'Privacidade'; rotuloPriv.removeAttribute('aria-label'); }
     const rotuloOps = doc.querySelector('[data-args=\'["group-ops"]\']');
-    if (rotuloOps) rotuloOps.textContent = produto === 'privacy' ? 'Cadastro' : 'Operacional';
+    if (rotuloOps) rotuloOps.textContent = produto === 'iso' ? 'Operacional' : 'Cadastro';
     const rotuloImpl = doc.querySelector('[data-args=\'["group-impl"]\']');
-    if (rotuloImpl) rotuloImpl.textContent = produto === 'privacy' ? 'Governança' : 'Implementação';
+    if (rotuloImpl) rotuloImpl.textContent = produto === 'iso' ? 'Implementação' : 'Governança';
 }
 
-/** Só os projetos que têm o produto deste domínio. */
-export const projetosDoProduto = (lista, produto = produtoAtual()) => (Array.isArray(lista) ? lista.filter((p) => temProduto(p, produto)) : []);
+/** Só os projetos que têm o módulo do caminho; no início do n.360, todos. */
+export const projetosDoProduto = (lista, produto = produtoAtual()) => (!Array.isArray(lista) ? [] : produto === 'n360' ? lista : lista.filter((p) => temProduto(p, produto)));
 
-/** Tela de quem entrou num produto que nenhum projeto seu tem. */
+/** Tela de quem entrou num módulo que nenhum projeto seu tem (ou no n.360 sem módulo em projeto nenhum). */
 export function semAcesso(c, produto = produtoAtual()) {
+    const nome = PRODUTOS[produto].nome;
     const h = document.getElementById('header-title');
-    if (h) h.textContent = `n.${produto}`;
-    const outro = produto === 'privacy' ? 'iso' : 'privacy';
-    c.innerHTML = `<div class="empty-state fade-in" id="sem-acesso-produto"><h3>Você não tem acesso ao n.${escapeHTML(produto)}</h3>
-        <p>Nenhum projeto seu tem este produto habilitado. Fale com a ness. para contratar, ou volte ao n.${escapeHTML(outro)}.</p>
-        <a class="btn btn-primary" style="margin-top:1rem" href="${escapeHTML(enderecoDoProduto(outro))}">Abrir o n.${escapeHTML(outro)}</a></div>`;
+    if (h) h.textContent = `n.${nome}`;
+    c.innerHTML = produto === 'n360'
+        ? `<div class="empty-state fade-in" id="sem-acesso-produto"><h3>Você ainda não tem acesso a nenhum módulo do n.360</h3>
+        <p>Nenhum projeto seu tem o n.iso ou o n.privacy habilitado. Fale com a ness. para contratar.</p></div>`
+        : `<div class="empty-state fade-in" id="sem-acesso-produto"><h3>Você não tem acesso ao n.${escapeHTML(nome)}</h3>
+        <p>Nenhum projeto seu tem este módulo habilitado. Fale com a ness. para contratar, ou volte ao n.360.</p>
+        <a class="btn btn-primary" style="margin-top:1rem" href="${escapeHTML(enderecoDoProduto('n360'))}">Abrir o n.360</a></div>`;
 }
 
-/** Link no rodapé da barra para o outro produto, quando o projeto ativo tem os dois. */
+/** Link (no rodapé da barra) criado uma vez e reaproveitado. */
+function linkDaBarra(doc, id) {
+    let el = doc.getElementById(id);
+    if (el) return el;
+    const sidebar = doc.getElementById('sidebar');
+    if (!sidebar) return null;
+    el = doc.createElement('a');
+    el.id = id;
+    el.className = 'sidebar-nav';
+    el.style.cssText = 'display:block;margin:0.5rem 1rem;font-size:0.8rem';
+    sidebar.appendChild(el);
+    return el;
+}
+
+/** Num módulo: "n.360" de volta ao início e, quando o projeto ativo tem os dois, o link para o outro módulo. */
 export function atualizarLinkCruzado(doc = document) {
     const produto = produtoAtual();
+    const tirar = (id) => { const el = doc.getElementById(id); if (el) el.remove(); };
+    if (produto === 'n360') { tirar('link-n360'); tirar('link-outro-produto'); return; }
+    const volta = linkDaBarra(doc, 'link-n360');
+    if (volta) { volta.href = enderecoDoProduto('n360'); volta.textContent = 'n.360'; }
     const outro = produto === 'privacy' ? 'iso' : 'privacy';
-    let el = doc.getElementById('link-outro-produto');
     const mostrar = S.activeProject && temProduto(S.activeProject, outro) && temProduto(S.activeProject, produto);
-    if (!mostrar) { if (el) el.remove(); return; }
-    if (!el) {
-        el = doc.createElement('a');
-        el.id = 'link-outro-produto';
-        el.className = 'sidebar-nav';
-        el.style.cssText = 'display:block;margin:0.5rem 1rem;font-size:0.8rem';
-        const sidebar = doc.getElementById('sidebar');
-        if (!sidebar) return;
-        sidebar.appendChild(el);
-    }
+    if (!mostrar) { tirar('link-outro-produto'); return; }
+    const el = linkDaBarra(doc, 'link-outro-produto');
+    if (!el) return;
     el.href = enderecoDoProduto(outro);
     el.textContent = `Abrir este projeto no n.${outro}`;
 }

@@ -37,9 +37,9 @@ describe('produtoDaTela e destinoDoAviso', () => {
         expect(produtoDaTela('terceiros')).toBe('privacy');
         expect(produtoDaTela('documentos')).toBeNull();
     });
-    it('aviso de tela do outro produto leva ao domínio dele; o resto navega', () => {
-        const loc = { hostname: 'nprivacy.ness.com.br', search: '', origin: 'https://nprivacy.ness.com.br' };
-        expect(destinoDoAviso('capa', loc)).toEqual({ href: 'https://niso.ness.com.br/' });
+    it('aviso de tela do outro módulo leva ao caminho dele; o resto navega', () => {
+        const loc = { hostname: 'n360.ness.com.br', pathname: '/privacy', search: '', origin: 'https://n360.ness.com.br' };
+        expect(destinoDoAviso('capa', loc)).toEqual({ href: '/iso' });
         expect(destinoDoAviso('documentos', loc)).toEqual({ navegar: 'documentos' });
         expect(destinoDoAviso('terceiros', loc)).toEqual({ navegar: 'terceiros' });
     });

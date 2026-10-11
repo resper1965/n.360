@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso } from './produto.js';
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosDe, enderecoDoProduto } from './produto.js';
 import { S } from './state.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
@@ -592,8 +592,9 @@ window.updateTenantFace = function updateTenantFace() {
         const p = S.activeProject;
         const name = p ? (p.project_name || p.client_name || 'Projeto') : 'Selecione um projeto';
         nameEl.textContent = name;
-        // No n.privacy a norma ISO do projeto não diz nada: mostra o produto.
-        if (normEl) normEl.textContent = !p ? '' : produtoAtual() === 'privacy' ? 'n.privacy' : (p.standard || p.standards || 'ISO 27001:2022');
+        // Só no n.iso a norma do projeto diz algo; no n.privacy mostra o módulo e no início do n.360 os módulos do projeto.
+        const prod = produtoAtual();
+        if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod === 'privacy' ? 'n.privacy' : modulosDe(p).map((m) => `n.${m}`).join(' · ');
         if (initialsEl) initialsEl.textContent = p ? name.slice(0, 2).toUpperCase() : '—';
     }
 
@@ -661,7 +662,7 @@ window.renderAccountMenu = function renderAccountMenu() {
             <div class="account-rule"></div>
             <div class="account-sign">
                 <span class="account-sign-house">ness<span>.</span></span>
-                <span class="account-sign-ver">${produtoAtual() === 'privacy' ? 'n.privacy' : NISO_VERSION}</span>
+                <span class="account-sign-ver">${{ privacy: 'n.privacy', n360: 'n.360' }[produtoAtual()] || NISO_VERSION}</span>
             </div>`;
     }
 
@@ -1028,7 +1029,7 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
                 } else if (Object.hasOwn(TELA_DO_AVISO, subview || '')) {
                     // Incidente é do núcleo: os dois produtos têm a tela (aba Incidentes), então navega local em qualquer um.
                     const destino = subview === 'incidentes' ? {} : destinoDoAviso(subview);
-                    if (destino.href) window.location.href = destino.href;
+                    if (destino.href) irPara(destino.href);
                     else {
                         if (subview === 'incidentes') S.titularAba = 'incidentes';
                         navigate(TELA_DO_AVISO[subview], { currentProject: proj, activeProject: proj });
@@ -1140,7 +1141,7 @@ window.loadAssessments = async function loadAssessments() { try { S.assessments 
 
 window.loadProjects = async function loadProjects() {
     try {
-        // Só os projetos que têm o produto deste domínio (n.iso ou n.privacy). O servidor trava de qualquer jeito.
+        // Só os projetos que têm o módulo do caminho (n.iso ou n.privacy); no início do n.360, todos. O servidor trava de qualquer jeito.
         const todos = await api('GET', '/api/v1/projects');
         S.projects = projetosDoProduto(todos);
         // O projeto ativo guardado sai só se ele existe e é de OUTRO produto (lista vazia ou com falha não apaga a escolha).
@@ -1336,6 +1337,11 @@ function renderLegalBanner() {
     }
 
 window.initApp = async function initApp() {
+        // Domínio antigo (niso, nprivacy): a raiz e o /login saem como arquivo estático antes do Worker, então o app se
+        // leva ao n.360 antes de qualquer outra coisa (inclusive do ?assessment, que segue na query).
+        const legado = destinoLegado();
+        if (legado) { irPara(legado, true); return; }
+
         // Sprint C: Check for public assessment self-service link
         const assessmentToken = new URLSearchParams(location.search).get('assessment');
         if (assessmentToken) {
@@ -1387,12 +1393,25 @@ window.initApp = async function initApp() {
         updateActiveProjectWidget();
 
         const produto = produtoAtual();
+        // Módulos alcançáveis: os dos projetos visíveis (o cliente olha só o projeto dele).
+        const doCliente = isClient && S.user.client_project_id ? (S.projects || []).filter((p) => p.id === S.user.client_project_id) : [];
+        const meus = doCliente.length ? doCliente : (S.projects || []);
+        const modulos = [...new Set(meus.flatMap(modulosDe))];
         if (ehStakeholder) {
             navigate('meus-pedidos');
-        } else if (produto === 'privacy' && !(S.projects || []).length) {
-            // Nenhum projeto com o produto deste domínio: diz isso, em vez de abrir uma tela vazia ou de outro produto.
+        } else if (produto === 'n360' && !modulos.length && !isClient) {
+            // Equipe da ness. sem projeto ainda (instalação nova, comercial): o funil comercial e a criação de projeto vivem
+            // no n.iso. Sem isto ela ficaria trancada fora.
+            irPara(enderecoDoProduto('iso'), true);
+        } else if (!(S.projects || []).length && (produto === 'privacy' || produto === 'n360' || isClient)) {
+            // Nenhum projeto com o módulo do caminho (ou nenhum módulo, no n.360): diz isso, em vez de uma tela vazia.
             S.view = 'sem-acesso-produto';
             semAcesso(document.getElementById('content'));
+        } else if (produto === 'n360' && modulos.length === 1) {
+            // Um módulo só: entra direto nele.
+            irPara(enderecoDoProduto(modulos[0]), true);
+        } else if (produto === 'n360') {
+            navigate('inicio');
         } else if (produto === 'privacy') {
             if (!S.activeProject) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             navigate('encarregado');

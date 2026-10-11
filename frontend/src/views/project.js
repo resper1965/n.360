@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
 import { navigate } from '../router.js';
+import { PRODUTOS, produtoAtual } from '../produto.js';
 
 // Domínio canônico de evidence.evaluation_status (src/constants.ts, EVALUATION_STATUSES).
 // O selo comparava com a grafia antiga ('conforme', 'parcial', 'nao conforme'), que o banco
@@ -35,12 +36,12 @@ const ISO_GUIDELINES = {
 };
 
     async function renderProjects(c, h, a) {
-        h.textContent = window.produtoAtual() === 'privacy' ? 'Projetos' : 'Gestão de Projetos ISO';
+        h.textContent = window.produtoAtual() === 'iso' ? 'Gestão de Projetos ISO' : 'Projetos';
         a.innerHTML = '';
         c.innerHTML = '<div class="loading"></div>';
         try {
             const projects = await api('GET', '/api/v1/projects').catch(() => []);
-            const projs = window.projetosDoProduto(projects); // só os projetos do produto deste domínio
+            const projs = window.projetosDoProduto(projects); // só os projetos do módulo do caminho (no início do n.360, todos)
             
             const totalProjects = projs.length;
             const activeProjects = projs.filter(p => p.status === 'active' || !p.status).length;
@@ -470,7 +471,7 @@ const ISO_GUIDELINES = {
             S.currentProject = null;
             localStorage.removeItem('niso_activeProject');
             updateActiveProjectWidget();
-            navigate('dashboard');
+            navigate(PRODUTOS[produtoAtual()].inicio);
             return;
         }
         try {
