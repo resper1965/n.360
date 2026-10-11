@@ -11,8 +11,10 @@ Aplicabilidade, matriz de risco, cofre de evidências e trilha de auditoria. É 
 evolução do sistema de adequação da **ness.**, reescrito numa arquitetura
 agêntica e serverless sobre a stack da Cloudflare.
 
-> **Produção:** [`niso.ness.com.br`](https://niso.ness.com.br). Os hosts antigos
-> `n-iso.ness.com.br` e `niso.ness.workers.dev` redirecionam (308) para ele.
+> **Produção:** [`n360.ness.com.br`](https://n360.ness.com.br). O n.iso vive em `/iso` e o
+> n.privacy em `/privacy`. `niso.ness.com.br`, `nprivacy.ness.com.br`, `n-iso.ness.com.br` e
+> `niso.ness.workers.dev` redirecionam (308) para eles; `/api`, `/mcp`, `/oauth`, `/scim` e
+> `/health` seguem respondendo nos domínios antigos.
 > `GET /health` devolve o SHA do commit publicado, e é assim que se confere o
 > que está no ar.
 
@@ -49,16 +51,16 @@ liberado, então o frontend em dev fala com o Worker sem preflight.
 | `frontend/public/_headers` | Cabeçalhos de segurança dos **arquivos estáticos** — ver "Duas fontes de cabeçalho", abaixo. |
 | `mcp-server-niso/` | Servidor MCP **local** (stdio, chave de API) que expõe o n.iso a clientes como Claude Desktop, com filtro de ferramenta por papel. O MCP **remoto**, com login, vive no próprio Worker (`src/mcp/`). |
 | `migrations/` | 61 arquivos de migration do D1 (última: 0063), aplicados em ordem. Nunca editar uma já aplicada ([`migrations/README.md`](migrations/README.md)). |
-| `test/` | 233 arquivos de teste do backend, no pool `workerd` (D1 e KV de verdade). |
-| `frontend/test/` | 76 arquivos de teste da UI, em jsdom. |
-| `frontend/e2e/` | 5 specs em Chromium real, sobre o build servido. Pega o que o jsdom não pega. |
+| `test/` | 234 arquivos de teste do backend, no pool `workerd` (D1 e KV de verdade). |
+| `frontend/test/` | 79 arquivos de teste da UI, em jsdom. |
+| `frontend/e2e/` | 6 specs em Chromium real, sobre o build servido. Pega o que o jsdom não pega. |
 | `docs/` | Runbook, specs, planos e decisões — com [índice próprio](docs/README.md). |
 | `scripts/` | Geradores. `gerar-openapi.mjs` e `gerar-contrato-mcp.mjs` produzem o contrato a partir dos schemas. |
 
 ## Testes
 
-Contagens de 2026-10-10: `ls test/*.test.ts | wc -l` (233), `ls frontend/test/*.test.js | wc -l`
-(76), `ls frontend/e2e/*.spec.js | wc -l` (5), `ls src/routes/*.ts | grep -vc '.test.ts$'` (49),
+Contagens de 2026-10-11: `ls test/*.test.ts | wc -l` (234), `ls frontend/test/*.test.js | wc -l`
+(79), `ls frontend/e2e/*.spec.js | wc -l` (6), `ls src/routes/*.ts | grep -vc '.test.ts$'` (49),
 `ls migrations/*.sql | wc -l` (61).
 
 Três suítes, e cada uma existe porque a anterior não alcança o caso:
@@ -106,7 +108,7 @@ npm run deploy                                      # build do frontend + wrangl
 Depois de publicar, confira o que está no ar:
 
 ```bash
-curl -s https://niso.ness.com.br/health
+curl -s https://n360.ness.com.br/health
 ```
 
 ## Automação
@@ -164,8 +166,8 @@ Bindings e variáveis ficam em `wrangler.jsonc`.
 
 **Variáveis** (públicas, versionadas em `wrangler.jsonc`): `ENVIRONMENT`,
 `EXPORT_PUBLIC_KEY` (verifica a assinatura dos exports), `TURNSTILE_SITE_KEY`
-(vai no HTML do widget), `APP_URL` (endereço canônico usado em links de e-mail, callback de
-SSO, base do SCIM e recurso do MCP; padrão em `src/config/url.ts`). Opcionais, com padrão em `src/agents/types.ts`: `CF_ACCOUNT_ID` e
+(vai no HTML do widget), `APP_URL` (endereço canônico usado em links de e-mail, base do SCIM e CORS; padrão em
+`src/config/url.ts`. O callback do SSO e o recurso do MCP continuam em `niso.ness.com.br`). Opcionais, com padrão em `src/agents/types.ts`: `CF_ACCOUNT_ID` e
 `AI_GATEWAY_ID`.
 
 **Segredos** (`npx wrangler secret put <NOME>`, nunca no git):

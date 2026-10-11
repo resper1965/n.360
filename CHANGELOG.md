@@ -13,6 +13,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 ## [Não publicado]
 
 ### Adicionado
+- n.360 como entrada da plataforma (`n360.ness.com.br`): o início mostra um cartão por módulo habilitado e leva ao n.iso (`/iso`) ou ao n.privacy (`/privacy`), cada um com a sua casca; quem tem um módulo só entra direto nele. `niso.ness.com.br` e `nprivacy.ness.com.br` redirecionam (308) para os caminhos novos e continuam servindo `/api`, `/mcp`, `/oauth`, `/scim`, `/health`, `/politicas`, `/auditor` e `/proposta`; o callback do SSO e o recurso do MCP ficam em `niso`. `APP_URL` passa a `https://n360.ness.com.br`. O produto deixa de vir do domínio e de `?produto=`. Sem migration.
 - Integração entre n.iso e n.privacy sobre o mesmo cadastro (migrations 0061 a 0063): fornecedor e terceiro passam a ser a mesma parte, o DPO da governança vira o encarregado, e o incidente fica no núcleo e abre CAPA. O catálogo LGPD/ANPD traz um mapeamento proposto para a ISO que só conta como cobertura depois de validado, e o painel "Ponto de partida" mostra o que cada produto já aproveita do outro. Eliminar a pessoa pelo pedido do titular anonimiza o nome da parte e mantém o vínculo de encarregado: a tela do encarregado mostra o nome anonimizado, e a nova indicação é manual ("Indicar outro").
 
 ### Corrigido

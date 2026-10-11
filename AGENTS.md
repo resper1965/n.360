@@ -88,9 +88,15 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   proprio statement (a unica excecao e `UPDATE pedidos SET org_id = ?`), sem
   DELETE nem REPLACE; `test/pedidos-prova.test.ts` le o fonte e reprova o que
   fugir disso. Correcao e pedido novo.
-- **URL canonica**: `src/config/url.ts` (`appUrl(env)`, var `APP_URL`). Link de e-mail, callback
-  de SSO, base do SCIM, CORS e recurso do MCP saem dali, nunca do host da requisicao. Os hosts
-  legados (`n-iso.ness.com.br`, `niso.ness.workers.dev`) respondem 308 para ele (#290).
+- **URL canonica**: `src/config/url.ts` (`appUrl(env)`, var `APP_URL`, hoje `https://n360.ness.com.br`). Link de e-mail, base do
+  SCIM e CORS saem dali, nunca do host da requisicao. `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para
+  `/iso` e `/privacy` do n.360 (`HOST_DO_MODULO`); `n-iso.ness.com.br` e `niso.ness.workers.dev` tambem, para `/iso`
+  (#290). **Ficam no dominio antigo, sem redirecionar** (`fica(caminho)`): `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`,
+  `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` (links ja enviados, IdP de SCIM, conectores MCP, chaves
+  de API). **SSO:** o `redirect_uri` enviado ao IdP e `URL_SSO_LEGADA` (`niso`), o unico que os IdPs dos clientes cadastraram; so
+  o redirecionamento final (`/#sso_token=`, `/#sso_erro=`) e absoluto no `appUrl`. **MCP:** o recurso e `RECURSO_MCP`
+  (`https://niso.ness.com.br/mcp`) e `hostsPermitidosMcp` aceita `niso` alem do host do `appUrl`. **Volta atras:** `APP_URL`
+  de volta para `niso` e o `fetch` de `src/index.ts` sem o bloco de `HOST_DO_MODULO` (sem dado nem migration).
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
@@ -220,7 +226,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   RIPD, Requisitos, Terceiros e Titular e incidentes. A casca visual propria (identidade, pagina de entrada) e o bloqueio por modulo no
   frontend NAO foram feitos: dependem de decisao de design do dono.
 - **n.iso e n.privacy sao PRODUTOS separados sobre o mesmo cadastro (decisao de 09/10/2026, migration 0060).** Um Worker, um
-  banco, um deploy; dois dominios (`niso.ness.com.br`, `nprivacy.ness.com.br`, ambos em `routes` do `wrangler.jsonc`). O cliente pode
+  banco, um deploy; um dominio (`n360.ness.com.br`, em `routes` do `wrangler.jsonc`; `niso` e `nprivacy` ficam como redirecionamento, ver URL canonica). O cliente pode
   ter um, o outro ou os dois. **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa FAIXA (`FAIXA_DO_SEGMENTO` e
   `SUBROTAS_PRIVACY`): `nucleo` (o cadastro compartilhado: partes, itens, documentos, evidencia, RoPA, DPIA, pedidos, governanca),
   `iso` (controles, SoA, riscos, auditorias, jornada…) ou `privacy` (requisitos por projeto, terceiros, titular, incidentes,
@@ -230,9 +236,14 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   O gatilho `projeto_modulos_do_contrato` (0060) da ao projeto novo o que a organizacao contratou (`modulos_contratados`, padrao
   `["iso"]`); `POST /projects` aceita `modulos` dentro do contrato e projeto sem `iso` nasce sem a trilha de fases. Os projetos que
   ja existiam ficaram so com `iso`: o n.privacy e habilitado por projeto (`PUT /projects/:id/modulos/privacy`, cartao Produtos na
-  lista de projetos), depois de a organizacao contratar. Desligar nao apaga dado. **Frontend:** `frontend/src/produto.js` le o host
-  (`?produto=` so em localhost), aplica marca, titulo e menu (`SO_ISO`, `SO_PRIVACY`), filtra os projetos pelo produto e mostra "sem
-  acesso" quando nao ha nenhum; o n.privacy abre em Encarregado. Login e por dominio (dois logins). Testes de backend que usam rota do
+  lista de projetos), depois de a organizacao contratar. Desligar nao apaga dado. **Frontend (n.360, 11/10/2026):** o n.360 e a plataforma-mae e os dois produtos sao modulos dele; o CAMINHO decide a casca
+  (`frontend/src/produto.js`, `produtoAtual`): `/` e o inicio do n.360 (`views/inicio.js`, um cartao por modulo habilitado, "Abrir"
+  vai a `/iso` ou `/privacy`), `/iso*` a casca do n.iso, `/privacy*` a do n.privacy (o n.privacy abre em Encarregado). O servidor
+  entrega o mesmo `login.html` para qualquer um (catch-all). Quem tem um modulo so entra direto nele; equipe da ness. sem projeto
+  vai ao n.iso; cliente sem projeto com modulo ve "sem acesso". Nos modulos a casca aplica marca, titulo e menu (`SO_ISO`,
+  `SO_PRIVACY`) e filtra os projetos pelo produto. `destinoLegado` leva quem abre `niso`/`nprivacy` ao n.360. Login unico.
+  E2E em `frontend/e2e/n360.spec.js`; `frontend/e2e/shell.js` entrega `dist/login.html` em `/iso` e `/privacy` (o servidor do
+  Playwright nao faz fallback de SPA). Testes de backend que usam rota do
   n.privacy chamam `habilitarPrivacy(...)` de `test/helpers/d1.ts`.
   **Integracao (0061-0063):** fornecedor e terceiro sao a mesma parte (`vendors.parte_id`; `vendors` e o perfil de seguranca da parte,
   nao um cadastro paralelo); o DPO da governanca e o encarregado (vinculo `encarregado` em `parte_vinculos`, 0062); incidente vive no
@@ -262,7 +273,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   tabela `agente_concessoes`; KV `OAUTH_KV`. Regra: **so `ROTAS_OAUTH` passam
   pelo `OAuthProvider`** (`src/index.ts`) — o resto continua no Hono. KV
   `OAUTH_KV` (id `fc8dfff4…`) criado em 2026-09-29 e declarado no `wrangler.jsonc`. Recurso fixo em
-  `niso.ness.com.br`. Clientes: Claude Code verificado em producao (30/09/2026); Cursor,
+  `niso.ness.com.br` (`RECURSO_MCP`, nao segue o `APP_URL`). Clientes: Claude Code verificado em producao (30/09/2026); Cursor,
   Codex e Antigravity seguem "A confirmar" na tela Conectar agente (ver CHANGELOG).
 
 ## Decisoes de produto ja tomadas — nao reabrir
@@ -309,7 +320,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 233 arquivos de teste do backend mocka o D1 inteiro** (2026-10-10;
+- **Nenhum dos 234 arquivos de teste do backend mocka o D1 inteiro** (2026-10-11;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -319,9 +330,9 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~16,7 mil linhas de JS (2026-10-10)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 77 arquivos de teste em jsdom
-  (`ls frontend/test/*.test.js | wc -l`) e 5 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
+- **Frontend com pouco teste por linha.** ~16,7 mil linhas de JS (2026-10-11)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 79 arquivos de teste em jsdom
+  (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. A maior parte das telas ainda nao
   tem teste proprio.
 - **6 leituras de corpo cruas em 4 arquivos** (2026-10-06: `git grep -n "c\.req\.json" -- 'src/routes/*.ts'`
