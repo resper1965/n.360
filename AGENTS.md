@@ -88,19 +88,25 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   proprio statement (a unica excecao e `UPDATE pedidos SET org_id = ?`), sem
   DELETE nem REPLACE; `test/pedidos-prova.test.ts` le o fonte e reprova o que
   fugir disso. Correcao e pedido novo.
-- **URL canonica**: `src/config/url.ts` (`appUrl(env)`, var `APP_URL`, hoje `https://n360.ness.com.br`). Link de e-mail, base do
+- **URL canonica**: `src/config/url.ts` (`appUrl(env)`, var `APP_URL`; o padrao do codigo e `https://n360.ness.com.br`, e o
+  `wrangler.jsonc` fica com `niso` ate a troca, ver Deploy em duas etapas abaixo). Link de e-mail, base do
   SCIM e CORS saem dali, nunca do host da requisicao. `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para
   `/iso` e `/privacy` do n.360 (`HOST_DO_MODULO`); `n-iso.ness.com.br` e `niso.ness.workers.dev` tambem, para `/iso`
   (#290). **Ficam no dominio antigo, sem redirecionar** (`fica(caminho)`): `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`,
   `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` (links ja enviados, IdP de SCIM, conectores MCP, chaves
-  de API). **SSO:** o `redirect_uri` enviado ao IdP e `URL_SSO_LEGADA` (`niso`), o unico que os IdPs dos clientes cadastraram; so
-  o redirecionamento final (`/#sso_token=`, `/#sso_erro=`) e absoluto no `appUrl`. **MCP:** o recurso e `RECURSO_MCP`
+  de API). **SSO:** o `redirect_uri` enviado ao IdP e a constante `URL_NISO` (`niso`, o unico que os IdPs dos clientes cadastraram)
+  quando o `appUrl` e o padrao de producao (`APP_URL_PADRAO`); com outro `APP_URL`, e o proprio `APP_URL` (`redirectUriDe` em
+  `src/routes/public.ts`). So o redirecionamento final (`/#sso_token=`, `/#sso_erro=`) e absoluto no `appUrl`. **MCP:** o recurso e `RECURSO_MCP`
   (`https://niso.ness.com.br/mcp`) e `hostsPermitidosMcp` aceita `niso` alem do host do `appUrl`. **Volta atras:** `APP_URL`
-  de volta para `niso` e o `fetch` de `src/index.ts` sem o bloco de `HOST_DO_MODULO` (sem dado nem migration).
+  de volta para `niso` (o Worker e o frontend deixam de redirecionar: o host do `APP_URL` nunca redireciona, e o frontend le o
+  `app_url` do `/health`). Sem dado nem migration.
+  **Deploy em duas etapas:** (1) a rota `n360.ness.com.br` entra com `APP_URL` ainda em `niso` (nada redireciona para o n.360);
+  conferir `curl -s https://n360.ness.com.br/health` (o SHA e `"app_url":"https://niso.ness.com.br"`); (2) um PR de uma linha
+  troca o `APP_URL` para `https://n360.ness.com.br` (antes, incluir `n360.ness.com.br` nos hostnames do widget do Turnstile).
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 36 arquivos: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 38 arquivos em 2026-10-11: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -223,8 +229,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   evidencia `conforming` em dia (cobre) ou `partial` (parcial). `GET /projects/:id/encarregado` (`src/services/encarregado.ts`) e SO consulta:
   pedidos do titular, incidentes, tratamentos sem base/DPIA/LIA, terceiros, documentos, evidencias, LGPD e prazos legais nao cadastrados, com a
   lista "o que fazer" priorizada; funciona com tudo vazio. Menu: grupo `n.privacy` (marca com o ponto em destaque) com Encarregado, ROPA, DPIA /
-  RIPD, Requisitos, Terceiros e Titular e incidentes. A casca visual propria (identidade, pagina de entrada) e o bloqueio por modulo no
-  frontend NAO foram feitos: dependem de decisao de design do dono.
+  RIPD, Requisitos, Terceiros e Titular e incidentes. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
+  abaixo (Frontend, n.360).
 - **n.iso e n.privacy sao PRODUTOS separados sobre o mesmo cadastro (decisao de 09/10/2026, migration 0060).** Um Worker, um
   banco, um deploy; um dominio (`n360.ness.com.br`, em `routes` do `wrangler.jsonc`; `niso` e `nprivacy` ficam como redirecionamento, ver URL canonica). O cliente pode
   ter um, o outro ou os dois. **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa FAIXA (`FAIXA_DO_SEGMENTO` e
@@ -241,7 +247,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   vai a `/iso` ou `/privacy`), `/iso*` a casca do n.iso, `/privacy*` a do n.privacy (o n.privacy abre em Encarregado). O servidor
   entrega o mesmo `login.html` para qualquer um (catch-all). Quem tem um modulo so entra direto nele; equipe da ness. sem projeto
   vai ao n.iso; cliente sem projeto com modulo ve "sem acesso". Nos modulos a casca aplica marca, titulo e menu (`SO_ISO`,
-  `SO_PRIVACY`) e filtra os projetos pelo produto. `destinoLegado` leva quem abre `niso`/`nprivacy` ao n.360. Login unico.
+  `SO_PRIVACY`) e filtra os projetos pelo produto. `destinoLegado` (async) leva quem abre `niso`/`nprivacy` ao modulo no `app_url` que o `/health` da mesma origem devolve; se
+  ele for o proprio host, ou o `/health` falhar, fica onde esta. O item Inicio do menu so aparece no n.360; nos modulos a volta e
+  o link "n.360" do rodape. Login unico (a sessao e por origem: na troca, todos entram de novo uma vez).
   E2E em `frontend/e2e/n360.spec.js`; `frontend/e2e/shell.js` entrega `dist/login.html` em `/iso` e `/privacy` (o servidor do
   Playwright nao faz fallback de SPA). Testes de backend que usam rota do
   n.privacy chamam `habilitarPrivacy(...)` de `test/helpers/d1.ts`.

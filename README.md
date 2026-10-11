@@ -12,9 +12,12 @@ evolução do sistema de adequação da **ness.**, reescrito numa arquitetura
 agêntica e serverless sobre a stack da Cloudflare.
 
 > **Produção:** [`n360.ness.com.br`](https://n360.ness.com.br). O n.iso vive em `/iso` e o
-> n.privacy em `/privacy`. `niso.ness.com.br`, `nprivacy.ness.com.br`, `n-iso.ness.com.br` e
-> `niso.ness.workers.dev` redirecionam (308) para eles; `/api`, `/mcp`, `/oauth`, `/scim` e
-> `/health` seguem respondendo nos domínios antigos.
+> n.privacy em `/privacy`. `niso.ness.com.br` e `nprivacy.ness.com.br` redirecionam (308) as
+> páginas para eles, mas seguem respondendo no lugar `/api`, `/scim`, `/mcp`, `/oauth`,
+> `/.well-known`, `/health`, `/politicas`, `/auditor` e `/proposta`. `n-iso.ness.com.br` e
+> `niso.ness.workers.dev` redirecionam tudo para o n.360 (os caminhos de OAuth e MCP, para o
+> `niso`). O destino é o `APP_URL`: até a troca (deploy em duas etapas, ver `AGENTS.md`) ele
+> continua em `niso`.
 > `GET /health` devolve o SHA do commit publicado, e é assim que se confere o
 > que está no ar.
 
