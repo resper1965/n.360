@@ -66,7 +66,7 @@ Contagens de 2026-10-11: `ls test/*.test.ts | wc -l` (234), `ls frontend/test/*.
 Três suítes, e cada uma existe porque a anterior não alcança o caso:
 
 ```bash
-npm test                              # backend: 233 arquivos, D1 e KV reais
+npm test                              # backend: 234 arquivos, D1 e KV reais
 npm run test:coverage                 # idem, com a catraca de cobertura que gateia o deploy
 npm test --prefix frontend            # UI em jsdom
 npm run test:e2e --prefix frontend    # Chromium real sobre o build
