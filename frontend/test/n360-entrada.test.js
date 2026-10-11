@@ -7,7 +7,7 @@ vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://api.test' }));
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 vi.mock('../src/produto.js', async (original) => {
     const real = await original();
-    return { ...real, irPara: vi.fn(), destinoLegado: vi.fn(() => null) };
+    return { ...real, irPara: vi.fn(), destinoLegado: vi.fn(async () => null) };
 });
 
 import { S } from '../src/state.js';
@@ -29,7 +29,7 @@ beforeEach(() => {
     montar();
     navigate.mockClear();
     irPara.mockClear();
-    destinoLegado.mockImplementation(() => null);
+    destinoLegado.mockImplementation(async () => null);
     papel = { role: 'consultor' };
     S.token = 'tok';
     S.user = null;
@@ -113,7 +113,7 @@ describe('initApp num módulo', () => {
 
 describe('domínio antigo', () => {
     it('redireciona antes de pedir qualquer coisa à API', async () => {
-        destinoLegado.mockImplementation(() => 'https://n360.ness.com.br/iso');
+        destinoLegado.mockImplementation(async () => 'https://n360.ness.com.br/iso');
         await window.initApp();
         expect(irPara).toHaveBeenCalledWith('https://n360.ness.com.br/iso', true);
         expect(apiMock).not.toHaveBeenCalled();

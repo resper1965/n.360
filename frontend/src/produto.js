@@ -24,17 +24,29 @@ export function produtoAtual(loc = window.location) {
     return m ? m[1] : 'n360';
 }
 
-// Domínios antigos → prefixo do módulo no n.360. O Worker já dá 308 no que passa por ele; isto cobre a raiz e o /login,
-// que saem como arquivo estático antes do Worker.
-const CANONICO = 'https://n360.ness.com.br';
+// Domínios antigos → prefixo do módulo. O Worker já dá 308 no que passa por ele; isto cobre a raiz e o /login, que saem
+// como arquivo estático antes do Worker.
 const LEGADOS = { 'niso.ness.com.br': '/iso', 'n-iso.ness.com.br': '/iso', 'niso.ness.workers.dev': '/iso', 'nprivacy.ness.com.br': '/privacy' };
 
-/** Para onde ir quando o app abre num domínio antigo; null no n.360 e em localhost. O fragmento segue (SSO e tokens vão nele). */
-export function destinoLegado(loc = window.location) {
-    const prefixo = LEGADOS[String(loc.hostname || '').toLowerCase()];
+/**
+ * Para onde ir quando o app abre num domínio antigo; null no n.360, em localhost, quando o endereço canônico é o próprio
+ * host (APP_URL no niso: antes da troca ou na volta atrás) e quando o /health falha (fica onde está, sem laço). O destino
+ * vem do servidor (`app_url` do /health da mesma origem), como no 308 do Worker. O fragmento segue (SSO e tokens vão nele).
+ */
+export async function destinoLegado(loc = window.location) {
+    const host = String(loc.hostname || '').toLowerCase();
+    const prefixo = LEGADOS[host];
     if (!prefixo) return null;
+    let base;
+    try {
+        const r = await fetch('/health', { cache: 'no-store' });
+        if (!r.ok) return null;
+        base = new URL((await r.json()).app_url);
+    } catch (e) { return null; }
+    if (base.hostname === host) return null;
     const p = loc.pathname || '/';
-    return `${CANONICO}${prefixo}${p === '/' || p === '/login' || p === '/login.html' ? '' : p}${loc.search || ''}${loc.hash || ''}`;
+    const resto = p === '/' || p === '/login' || p === '/login.html' ? '' : p === prefixo || p.startsWith(`${prefixo}/`) ? p.slice(prefixo.length) : p;
+    return `${base.origin}${prefixo}${resto}${loc.search || ''}${loc.hash || ''}`;
 }
 
 /** Navegação de página (um ponto só, para os testes dublarem: o jsdom não navega). `trocar` não deixa a página no histórico. */
@@ -90,7 +102,8 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
         if (mais) mais.hidden = true;
         doc.querySelectorAll('.login-sign-links').forEach((s) => { s.innerHTML = s.innerHTML.replace(/n\.iso \d+\.\d+\.\d+/, `n.${nome}`); });
     }
-    const esconder = new Set(produto === 'privacy' ? SO_ISO : produto === 'iso' ? SO_PRIVACY : [...SO_ISO, ...SO_PRIVACY]);
+    // O Início é do n.360; nos módulos, a volta é o link "n.360" do rodapé.
+    const esconder = new Set(produto === 'privacy' ? [...SO_ISO, 'nav-inicio'] : produto === 'iso' ? [...SO_PRIVACY, 'nav-inicio'] : [...SO_ISO, ...SO_PRIVACY]);
     doc.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach((n) => { if (esconder.has(n.id)) n.dataset.foraDoProduto = '1'; else delete n.dataset.foraDoProduto; });
     // Grupo sem nenhum item do produto some inteiro (rótulo e grupo).
     doc.querySelectorAll('.sidebar-group').forEach((g) => {

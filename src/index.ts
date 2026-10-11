@@ -308,6 +308,9 @@ app.get('/health', (c) => {
     version: (c.env as { VERSAO_SHA?: string }).VERSAO_SHA ?? 'dev',
     deployment_id: meta?.id ?? null,
     deployed_at: meta?.timestamp ?? null,
+    // O frontend num domínio antigo lê daqui para onde ir (frontend/src/produto.js `destinoLegado`): com o APP_URL
+    // de volta no niso, ninguém redireciona, sem endereço repetido no bundle.
+    app_url: appUrl(c.env),
   });
 });
 
@@ -590,7 +593,9 @@ export default Object.assign(app, {
       // Decodificado, como em ROTAS_OAUTH: o Hono roteia `/%6Fauth/...` como `/oauth/...`, e a exceção vale igual.
       if (!fica(decodificarCaminho(p))) {
         const raiz = p === '/' || p === '/login' || p === '/login.html';
-        return Response.redirect(`${base}${prefixo}${raiz ? '' : p}${url.search}`, 308);
+        // `niso/iso/x` vai a `/iso/x`, não a `/iso/iso/x`: o prefixo do módulo já no caminho não se repete.
+        const resto = raiz ? '' : p === prefixo || p.startsWith(`${prefixo}/`) ? p.slice(prefixo.length) : p;
+        return Response.redirect(`${base}${prefixo}${resto}${url.search}`, 308);
       }
       // Legado: OAuth/MCP vão ao niso, onde o recurso do MCP (e seus metadados) responde; o resto, ao APP_URL.
       if (legado) return Response.redirect(`${ROTAS_OAUTH(p) ? URL_NISO : base}${p}${url.search}`, 308);

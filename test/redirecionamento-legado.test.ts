@@ -23,6 +23,12 @@ describe('niso e nprivacy: página de navegador vai ao módulo no n.360', () => 
     ['https://nprivacy.ness.com.br/', `${N360}/privacy`],
     ['https://nprivacy.ness.com.br/login', `${N360}/privacy`],
     ['https://nprivacy.ness.com.br/x?y=1', `${N360}/privacy/x?y=1`],
+    // Prefixo do módulo já no caminho não duplica (`niso/iso/x` não vira `/iso/iso/x`).
+    ['https://niso.ness.com.br/iso', `${N360}/iso`],
+    ['https://niso.ness.com.br/iso/x?y=1', `${N360}/iso/x?y=1`],
+    ['https://nprivacy.ness.com.br/privacy/x', `${N360}/privacy/x`],
+    ['https://niso.ness.com.br/isolado', `${N360}/iso/isolado`],
+    ['https://n-iso.ness.com.br/iso/x', `${N360}/iso/x`],
   ];
   for (const [de, para] of casos) {
     it(`${de} → 308 ${para}`, async () => {

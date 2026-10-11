@@ -1338,8 +1338,9 @@ function renderLegalBanner() {
 
 window.initApp = async function initApp() {
         // Domínio antigo (niso, nprivacy): a raiz e o /login saem como arquivo estático antes do Worker, então o app se
-        // leva ao n.360 antes de qualquer outra coisa (inclusive do ?assessment, que segue na query).
-        const legado = destinoLegado();
+        // leva ao endereço canônico (o `app_url` do /health) antes de qualquer outra coisa (inclusive do ?assessment, que
+        // segue na query). Fora de domínio antigo não há chamada nenhuma aqui.
+        const legado = await destinoLegado();
         if (legado) { irPara(legado, true); return; }
 
         // Sprint C: Check for public assessment self-service link

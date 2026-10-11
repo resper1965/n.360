@@ -38,21 +38,50 @@ describe('produtoAtual', () => {
 });
 
 describe('destinoLegado', () => {
-    it('niso e nprivacy levam ao módulo no n.360; raiz e /login viram só o prefixo', () => {
-        expect(destinoLegado(loc('https://niso.ness.com.br/'))).toBe('https://n360.ness.com.br/iso');
-        expect(destinoLegado(loc('https://niso.ness.com.br/login'))).toBe('https://n360.ness.com.br/iso');
-        expect(destinoLegado(loc('https://niso.ness.com.br/login.html'))).toBe('https://n360.ness.com.br/iso');
-        expect(destinoLegado(loc('https://nprivacy.ness.com.br/'))).toBe('https://n360.ness.com.br/privacy');
-        expect(destinoLegado(loc('https://nprivacy.ness.com.br/x?y=1'))).toBe('https://n360.ness.com.br/privacy/x?y=1');
+    // O destino vem do servidor (`app_url` do /health da mesma origem): com o APP_URL no niso (antes da troca ou na volta
+    // atrás), o frontend não redireciona. Sem endereço do n.360 no bundle.
+    const health = (app_url) => vi.fn(async () => ({ ok: true, json: async () => ({ status: 'ok', app_url }) }));
+    const N360 = 'https://n360.ness.com.br';
+
+    it('niso e nprivacy levam ao módulo no app_url; raiz e /login viram só o prefixo', async () => {
+        const f = health(N360);
+        vi.stubGlobal('fetch', f);
+        expect(await destinoLegado(loc('https://niso.ness.com.br/'))).toBe(`${N360}/iso`);
+        expect(f).toHaveBeenCalledWith('/health', expect.anything());
+        expect(await destinoLegado(loc('https://niso.ness.com.br/login'))).toBe(`${N360}/iso`);
+        expect(await destinoLegado(loc('https://niso.ness.com.br/login.html'))).toBe(`${N360}/iso`);
+        expect(await destinoLegado(loc('https://nprivacy.ness.com.br/'))).toBe(`${N360}/privacy`);
+        expect(await destinoLegado(loc('https://nprivacy.ness.com.br/x?y=1'))).toBe(`${N360}/privacy/x?y=1`);
+        expect(await destinoLegado(loc('https://niso.ness.com.br/iso/x'))).toBe(`${N360}/iso/x`);
     });
-    it('os legados antigos vão ao n.iso; query e fragmento (token do SSO) seguem junto', () => {
-        expect(destinoLegado(loc('https://n-iso.ness.com.br/'))).toBe('https://n360.ness.com.br/iso');
-        expect(destinoLegado(loc('https://niso.ness.workers.dev/login?assessment=t#sso_token=abc'))).toBe('https://n360.ness.com.br/iso?assessment=t#sso_token=abc');
+    it('os legados antigos vão ao n.iso; query e fragmento (token do SSO) seguem junto', async () => {
+        vi.stubGlobal('fetch', health(`${N360}/`));
+        expect(await destinoLegado(loc('https://n-iso.ness.com.br/'))).toBe(`${N360}/iso`);
+        expect(await destinoLegado(loc('https://niso.ness.workers.dev/login?assessment=t#sso_token=abc'))).toBe(`${N360}/iso?assessment=t#sso_token=abc`);
     });
-    it('no n.360 e em localhost não redireciona', () => {
-        expect(destinoLegado(loc('https://n360.ness.com.br/iso'))).toBeNull();
-        expect(destinoLegado(loc('http://localhost:8787/'))).toBeNull();
-        expect(destinoLegado()).toBeNull(); // jsdom: localhost
+    it('APP_URL = niso: o niso não redireciona (sem laço)', async () => {
+        vi.stubGlobal('fetch', health('https://niso.ness.com.br'));
+        expect(await destinoLegado(loc('https://niso.ness.com.br/'))).toBeNull();
+        // o outro domínio de módulo segue para onde o servidor manda
+        expect(await destinoLegado(loc('https://nprivacy.ness.com.br/'))).toBe('https://niso.ness.com.br/privacy');
+    });
+    it('falha do /health (rede, status, JSON sem app_url) não redireciona: fica onde está', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('rede'); }));
+        expect(await destinoLegado(loc('https://niso.ness.com.br/'))).toBeNull();
+        vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ app_url: N360 }) })));
+        expect(await destinoLegado(loc('https://niso.ness.com.br/'))).toBeNull();
+        vi.stubGlobal('fetch', health(undefined));
+        expect(await destinoLegado(loc('https://niso.ness.com.br/'))).toBeNull();
+        vi.stubGlobal('fetch', health('não é url'));
+        expect(await destinoLegado(loc('https://niso.ness.com.br/'))).toBeNull();
+    });
+    it('no n.360 e em localhost não redireciona nem consulta o /health', async () => {
+        const f = health(N360);
+        vi.stubGlobal('fetch', f);
+        expect(await destinoLegado(loc(`${N360}/iso`))).toBeNull();
+        expect(await destinoLegado(loc('http://localhost:8787/'))).toBeNull();
+        expect(await destinoLegado()).toBeNull(); // jsdom: localhost
+        expect(f).not.toHaveBeenCalled();
     });
 });
 
@@ -120,13 +149,19 @@ describe('casca', () => {
         for (const r of rodapes) expect(r).not.toMatch(/n\.iso|n\.privacy/);
         expect(rodapes.filter((r) => r.includes('n.360')).length).toBe((html.match(/n\.iso \d+\.\d+\.\d+/g) || []).length);
     });
-    it('o item Início aparece nos três produtos', () => {
-        for (const p of ['n360', 'iso', 'privacy']) {
+    it('o item Início só aparece no n.360; nos módulos a volta é o link n.360 do rodapé', () => {
+        montarApp();
+        aplicarCasca('n360');
+        expect(visiveis()).toContain('nav-inicio');
+        expect(JSON.parse(el('nav-inicio').getAttribute('data-args'))).toEqual(['inicio']);
+        for (const p of ['iso', 'privacy']) {
             montarApp();
             aplicarCasca(p);
-            expect(visiveis(), p).toContain('nav-inicio');
-            expect(JSON.parse(el('nav-inicio').getAttribute('data-args'))).toEqual(['inicio']);
+            expect(visiveis(), p).not.toContain('nav-inicio');
         }
+        // idempotente: voltar ao n.360 mostra de novo
+        aplicarCasca('n360');
+        expect(visiveis()).toContain('nav-inicio');
     });
     it('todo item do menu é de um produto, do outro ou dos dois (nenhum id inventado nas listas)', () => {
         montarApp();
