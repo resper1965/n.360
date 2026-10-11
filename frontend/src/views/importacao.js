@@ -109,7 +109,7 @@ function htmlLote() {
         ${envios}${arqs}
         <h3 style="margin:1.5rem 0 0.5rem">Revisão</h3>
         ${htmlItens(itens, ativo)}
-        ${E.resultados ? htmlResultados(itens) : ''}
+        ${E.resultados && E.resultados.length ? htmlResultados(itens) : ''}
         ${ativo ? htmlRodape(itens) : ''}`;
 }
 
@@ -162,6 +162,7 @@ window.importacaoEnviar = async function () {
     const files = input ? [...input.files] : [];
     if (!files.length) return msg('Selecione ao menos um arquivo.');
     E.ocupado = true; E.envios = [];
+    pinta(); // desabilita os botões (os arquivos já foram lidos acima)
     for (const [n, f] of files.entries()) {
         msg(`Enviando ${n + 1} de ${files.length}...`);
         const fd = new FormData();
@@ -180,17 +181,19 @@ window.importacaoEnviar = async function () {
 window.importacaoProcessar = async function () {
     const fila = E.det.arquivos.filter((x) => x.status === 'pendente' || x.status === 'erro');
     E.ocupado = true; pinta();
-    let parou = '';
+    const falhas = [];
     for (const [n, x] of fila.entries()) {
         msg(`Processando ${n + 1} de ${fila.length}: ${x.nome}`);
         try { await api('POST', `${base(E.loteId)}/arquivos/${encodeURIComponent(x.id)}/processar`); } catch (err) {
             // Falha da IA fica gravada no arquivo (status erro); só o 409 de gravação ou de cancelamento para o laço.
-            if (/gravação|cancelado/.test(err && err.message)) { parou = err.message; break; }
+            const m = (err && err.message) || 'falha';
+            falhas.push(`${x.nome}: ${m}`);
+            if (/gravação|cancelado|Tempo esgotado|Falha de rede|cancelada/.test(m)) break;
         }
         try { E.det = await api('GET', base(E.loteId)); pinta(); msg(`Processando ${n + 1} de ${fila.length}: ${x.nome}`); } catch (err) { break; }
     }
     E.ocupado = false;
-    E.msg = parou || 'Processamento concluído.';
+    E.msg = falhas.length ? `Falhas no processamento: ${falhas.join('; ')}` : 'Processamento concluído.';
     await recarrega();
 };
 

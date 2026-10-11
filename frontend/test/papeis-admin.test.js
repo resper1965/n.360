@@ -138,3 +138,10 @@ describe('papéis oferecidos na tela de Usuários', () => {
     expect(await opcoes(papel)).toEqual(['org_admin', 'org_user']);
   });
 });
+
+describe('Importar programa (nav-importacao)', () => {
+  it.each([['consultor', true], ['consultoria_admin', true], ['org_admin', false], ['stakeholder', false]])('%s: visível=%s', async (papel, ve) => {
+    await menu(papel);
+    expect(visivel('nav-importacao')).toBe(ve);
+  });
+});

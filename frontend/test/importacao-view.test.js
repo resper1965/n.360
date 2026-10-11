@@ -239,3 +239,60 @@ describe('menu e rota', () => {
         expect(main).toContain("./views/importacao.js");
     });
 });
+
+describe('correções da revisão', () => {
+    it('falha ao processar um arquivo é registrada e aparece na mensagem final; timeout/rede para o laço', async () => {
+        const det = LOTE({ arquivos: [{ id: 'a1', nome: 'um.csv', status: 'pendente' }, { id: 'a2', nome: 'dois.csv', status: 'pendente' }, { id: 'a3', nome: 'tres.csv', status: 'pendente' }] });
+        const f = await abrirLote(det, {
+            [`POST ${B}/l1/arquivos/a1/processar`]: [{ error: 'Falha ao processar o arquivo' }, 500],
+            [`POST ${B}/l1/arquivos/a2/processar`]: () => { throw new Error('rede'); },
+        });
+        await clica('importacaoProcessar');
+        await espera();
+        expect(chamadas(f).filter((c) => c.includes('/processar'))).toHaveLength(2);
+        const m = el('importacao-msg').textContent;
+        expect(m).toContain('um.csv: Falha ao processar o arquivo');
+        expect(m).toContain('dois.csv');
+        expect(m).not.toContain('Processamento concluído');
+    });
+
+    it('durante o envio os botões ficam desabilitados', async () => {
+        let solta;
+        const f = await abrirLote(LOTE(), { [`POST ${B}/l1/arquivos`]: () => new Promise((r) => { solta = r; }).then(() => [{ ok: true, id: 'a1' }, 201]) });
+        Object.defineProperty(el('importacao-arquivos'), 'files', { value: [new File(['x'], 'a.csv')] });
+        await clica('importacaoEnviar');
+        expect(document.querySelector('[data-action="importacaoEnviar"]').disabled).toBe(true);
+        solta();
+        await espera();
+        expect(document.querySelector('[data-action="importacaoEnviar"]').disabled).toBe(false);
+        expect(f).toBeDefined();
+    });
+
+    it('primeira chamada de confirmar falha: não mostra a seção de resultado', async () => {
+        const det = LOTE({ itens: [item('i1', { decisao: 'aceito' })] });
+        await abrirLote(det, { [`POST ${B}/l1/confirmar`]: [{ error: 'Importação em gravação' }, 409] });
+        await clica('importacaoConfirmar');
+        await espera();
+        expect(el('c').textContent).not.toContain('Resultado da importação');
+        expect(el('importacao-msg').textContent).toContain('Importação em gravação');
+    });
+
+    it('confirmar para quando a rodada volta sem resultados mesmo com restantes > 0', async () => {
+        const det = LOTE({ itens: [item('i1', { decisao: 'aceito' })] });
+        const f = await abrirLote(det, { [`POST ${B}/l1/confirmar`]: { ok: true, resultados: [], restantes: 3 } });
+        await clica('importacaoConfirmar');
+        await espera();
+        expect(chamadas(f).filter((c) => c.endsWith('/confirmar'))).toHaveLength(1);
+    });
+
+    it('aspas e apóstrofo no id não quebram o data-args; < e " nos valores de lista do formulário ficam no valor', async () => {
+        const id = `i'1"<x>`;
+        const det = LOTE({ itens: [item(id, { dados: { finalidade: 'F', sistemas: ['A"<b>', "O'Neil"] } })] });
+        await abrirLote(det);
+        const b = [...document.querySelectorAll('[data-action="importacaoEditar"]')][0];
+        expect(JSON.parse(b.getAttribute('data-args'))).toEqual([id]);
+        await clica('importacaoEditar', [id]);
+        expect(el('imp-sistemas').value).toBe(`A"<b>, O'Neil`);
+        expect(document.querySelector('#modal-content b')).toBeNull();
+    });
+});
