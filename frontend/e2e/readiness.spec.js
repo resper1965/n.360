@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { servirShell } from './shell.js';
 
 // Diagnóstico de Prontidão ("gap em voo") — E2E de navegador real com a API
 // mockada. Verifica que o botão dispara o diagnóstico e o painel renderiza os
@@ -42,7 +43,7 @@ async function mockApi(page) {
 test('abre o diagnóstico de prontidão e mostra os achados agrupados', async ({ page }) => {
   await seed(page);
   await mockApi(page);
-  await page.goto('/login.html');
+  await servirShell(page).then(() => page.goto('/iso'));
   await page.waitForFunction(() => typeof window.navigate === 'function' && !!window.S);
   await page.waitForLoadState('networkidle');
   await page.evaluate(() => window.navigate('controls'));

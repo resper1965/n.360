@@ -1403,6 +1403,7 @@ window.initApp = async function initApp() {
             // Equipe da ness. sem projeto ainda (instalação nova, comercial): o funil comercial e a criação de projeto vivem
             // no n.iso. Sem isto ela ficaria trancada fora.
             irPara(enderecoDoProduto('iso'), true);
+            return;
         } else if (!(S.projects || []).length && (produto === 'privacy' || produto === 'n360' || isClient)) {
             // Nenhum projeto com o módulo do caminho (ou nenhum módulo, no n.360): diz isso, em vez de uma tela vazia.
             S.view = 'sem-acesso-produto';
@@ -1410,6 +1411,7 @@ window.initApp = async function initApp() {
         } else if (produto === 'n360' && modulos.length === 1) {
             // Um módulo só: entra direto nele.
             irPara(enderecoDoProduto(modulos[0]), true);
+            return;
         } else if (produto === 'n360') {
             navigate('inicio');
         } else if (produto === 'privacy') {

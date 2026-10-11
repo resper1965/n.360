@@ -23,7 +23,7 @@ export async function renderInicio(c, h, a) {
         c.innerHTML = '<div class="empty-state fade-in"><h3>Nenhum projeto ainda</h3><p>Quando um projeto seu tiver um módulo habilitado, ele aparece aqui.</p></div>';
         return;
     }
-    const cartoes = modulosDe(p).filter((m) => MODULO[m]).map((m) => `<div class="card" style="padding:1.25rem;display:flex;flex-direction:column;gap:0.75rem">
+    const cartoes = modulosDe(p).filter((m) => Object.hasOwn(MODULO, m)).map((m) => `<div class="card" style="padding:1.25rem;display:flex;flex-direction:column;gap:0.75rem">
             <h3 style="margin:0">${escapeHTML(MODULO[m].nome)}</h3>
             <p style="margin:0;color:var(--text-dim)">${escapeHTML(MODULO[m].linha)}</p>
             <div><button class="btn btn-primary btn-sm" data-action="abrirModulo" data-args='${escapeHTML(JSON.stringify([m]))}'>Abrir</button></div>
@@ -38,7 +38,7 @@ export async function renderInicio(c, h, a) {
 
 /** "Abrir" do cartão: só os módulos conhecidos viram endereço (data-args é atributo do DOM). */
 window.abrirModulo = function abrirModulo(m) {
-    if (MODULO[m]) irPara(enderecoDoProduto(m));
+    if (Object.hasOwn(MODULO, m)) irPara(enderecoDoProduto(m));
 };
 
 window.renderInicio = renderInicio;

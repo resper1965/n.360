@@ -289,6 +289,12 @@ describe('incidentes no n.iso', () => {
         expect(S.titularAba).toBe('incidentes');
         expect(navigate).toHaveBeenCalledWith('titular');
     });
+    it('na casca n.360 só a aba de incidentes (aviso de incidente não abre a aba do titular)', async () => {
+        history.replaceState(null, '', '/');
+        S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };
+        await abrir('pedidos');
+        expect([...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')].map((b) => b.textContent)).toEqual(['Incidentes']);
+    });
     it('a janela do incidente tem Abrir CAPA quando o projeto tem iso; criar envia incidente_id', async () => {
         S.activeProject = { id: 'p9', modulos: ['iso'] };
         const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], descricao: 'Notebook perdido' }, [`POST ${B}/capa`]: { ok: true, id: 'c1' } });

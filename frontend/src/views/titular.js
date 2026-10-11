@@ -32,7 +32,7 @@ const opcoes = (mapa, atual) => Object.entries(mapa).map(([v, r]) => `<option va
 const valorOuNulo = (id) => { const v = el(id).value.trim(); return v || null; };
 
 // No n.iso o incidente é cadastro do núcleo (A.5.26/A.5.27): a tela mostra só ele. Pedidos, consentimentos e prazos são do n.privacy.
-const soIncidentes = () => produtoAtual() === 'iso';
+const soIncidentes = () => produtoAtual() !== 'privacy';
 
 async function renderTitular(c, h, a) {
     h.textContent = soIncidentes() ? 'Incidentes' : 'Titular e incidentes';
