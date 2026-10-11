@@ -22,18 +22,24 @@ const registroDoProjeto = (db: D1Database, projectId: string, ropaId: string) =>
  */
 export async function definirLigacao(db: D1Database, projectId: string, ropaId: string, tipo: TipoLigacao, ids: string[]) {
   if (!(await registroDoProjeto(db, projectId, ropaId))) return null;
-  const { ligacao, coluna, alvo } = LIGACOES[tipo]; // nomes vêm da constante acima, nunca da requisição
+  const { alvo } = LIGACOES[tipo]; // nomes vêm da constante acima, nunca da requisição
   const unicos = [...new Set(ids)];
   const { results } = await db.prepare(`SELECT id FROM ${alvo} WHERE project_id = ?1 AND id IN (SELECT value FROM json_each(?2))`)
     .bind(projectId, JSON.stringify(unicos)).all<{ id: string }>();
   const validos = new Set(results.map((r) => r.id));
   const invalidos = unicos.filter((x) => !validos.has(x));
   if (invalidos.length) return { ok: false as const, invalidos };
-  await db.batch([
-    db.prepare(`DELETE FROM ${ligacao} WHERE ropa_id = ? AND project_id = ?`).bind(ropaId, projectId),
-    db.prepare(`INSERT INTO ${ligacao} (ropa_id, ${coluna}, project_id) SELECT ?1, value, ?2 FROM json_each(?3)`).bind(ropaId, projectId, JSON.stringify(unicos)),
-  ]);
+  await db.batch(stmtsLigacao(db, projectId, ropaId, tipo, unicos));
   return { ok: true as const, total: unicos.length };
+}
+
+/** A troca do conjunto, em statements: o chamador já conferiu os ids (a importação de programa a põe na transação do item). */
+export function stmtsLigacao(db: D1Database, projectId: string, ropaId: string, tipo: TipoLigacao, ids: string[]): D1PreparedStatement[] {
+  const { ligacao, coluna } = LIGACOES[tipo];
+  return [
+    db.prepare(`DELETE FROM ${ligacao} WHERE ropa_id = ? AND project_id = ?`).bind(ropaId, projectId),
+    db.prepare(`INSERT INTO ${ligacao} (ropa_id, ${coluna}, project_id) SELECT ?1, value, ?2 FROM json_each(?3)`).bind(ropaId, projectId, JSON.stringify([...new Set(ids)])),
+  ];
 }
 
 export type NovaTransferencia = { pais: string; destinatario_parte_id?: string | null; mecanismo?: string | null; observacao?: string | null };

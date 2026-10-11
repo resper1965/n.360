@@ -42,15 +42,20 @@ export async function lerAtivo(db: D1Database, id: string): Promise<Record<strin
 
 /** Cria o item e o bloco de segurança juntos (um batch é uma transação no D1). Mesmos padrões de antes. */
 export async function criarAtivo(db: D1Database, projectId: string, b: CamposAtivo & { name: string }, id: string = genId()): Promise<string> {
-  await db.batch([
+  await db.batch(stmtsCriarAtivo(db, projectId, b, id));
+  return id;
+}
+
+/** Os dois INSERTs do ativo, para quem precisa pô-los numa transação maior (a importação de programa). */
+export function stmtsCriarAtivo(db: D1Database, projectId: string, b: CamposAtivo & { name: string }, id: string): D1PreparedStatement[] {
+  return [
     db.prepare(`INSERT INTO itens (id, project_id, nome, descricao, responsavel_texto, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
       .bind(id, projectId, b.name, b.description || '', b.owner || ''),
     db.prepare(`INSERT INTO item_seguranca (item_id, project_id, categoria, subtipo, classificacao, criticidade, localizacao, nota_c, nota_i, nota_d)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, projectId, b.category || 'Hardware', b.type ?? null, b.classification || 'Confidential', b.criticality || 'Medium',
         b.location ?? null, b.confidentiality_rating ?? 3, b.integrity_rating ?? 3, b.availability_rating ?? 3),
-  ]);
-  return id;
+  ];
 }
 
 /**
