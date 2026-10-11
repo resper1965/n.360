@@ -160,7 +160,7 @@ export async function processarArquivo(env: Env, projectId: string, loteId: stri
       ...itens,
       db.prepare('UPDATE importacao_arquivos SET status = ?, tipo = ?, erro = ?, modelo = ? WHERE id = ?').bind(status, tipo, erro, modelo, a.id),
       db.prepare(
-        `UPDATE importacoes SET updated_at = CURRENT_TIMESTAMP, status = CASE WHEN EXISTS (SELECT 1 FROM importacao_arquivos WHERE importacao_id = ?1 AND status = 'pendente') THEN 'processando' ELSE 'em_revisao' END WHERE id = ?1`
+        `UPDATE importacoes SET updated_at = CURRENT_TIMESTAMP, status = CASE WHEN EXISTS (SELECT 1 FROM importacao_arquivos WHERE importacao_id = ?1 AND status = 'pendente') THEN 'recebendo' ELSE 'em_revisao' END WHERE id = ?1`
       ).bind(loteId),
     ]);
     await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: ${status}${tipo ? ` (${tipo})` : ''}, ${itens.length} itens`, '', '', projectId);
@@ -227,7 +227,8 @@ export async function atualizarItem(db: D1Database, projectId: string, loteId: s
   if (!item) return nf('Item não encontrado');
   if (item.decisao === 'gravado') return { ok: false, status: 409, error: 'Item já gravado no RoPA' };
   const dados = b.dados ?? (JSON.parse(item.dados) as Partial<TratamentoProposto>);
-  const decisao = b.decisao ?? item.decisao;
+  // Recusado cujos dados corrigidos agora validam (o corpo já passou pelo esquema) volta à revisão.
+  const decisao = b.decisao ?? (b.dados && item.decisao === 'recusado' ? 'pendente' : item.decisao);
   if (decisao === 'aceito' && !tratamentoPropostoSchema.safeParse(dados).success) return { ok: false, status: 400, error: 'Corrija os dados do item antes de aceitar' };
   let duplicata = item.duplicata_de as string | null;
   if (b.dados) {
@@ -262,13 +263,39 @@ async function mapaPorNome(db: D1Database, sql: string, projectId: string) {
   return new Map(results.map((r) => [chave(r.nome), r.id]));
 }
 
-export async function confirmarLote(db: D1Database, projectId: string, loteId: string, ator: string): Promise<Falha | { ok: true; resultados: Resultado[] }> {
+/**
+ * Itens gravados por chamada. Cada item custa ~10 consultas ao D1 e uma invocação do Worker tem teto de consultas: a resposta traz
+ * `restantes` (itens ainda `aceito`) e a tela chama de novo até zerar.
+ */
+export const ITENS_POR_CONFIRMACAO = 30;
+
+/**
+ * Grava os aceitos. A trava é do lote: só uma confirmação por vez (`status = 'processando'` por UPDATE condicional); a outra recebe
+ * 409. Sem ela, duas chamadas simultâneas liam os mesmos aceitos e gravavam cada tratamento duas vezes.
+ */
+export async function confirmarLote(db: D1Database, projectId: string, loteId: string, ator: string): Promise<Falha | { ok: true; resultados: Resultado[]; restantes: number }> {
   const lote = await loteDoProjeto(db, projectId, loteId);
   if (!lote) return nf('Lote não encontrado');
   const c = cancelado(lote);
   if (c) return c;
-  const { results: aceitos } = await db.prepare(`SELECT * FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito' ORDER BY created_at, rowid`)
-    .bind(loteId).all<LinhaItem>();
+  const trava = await db.prepare(
+    `UPDATE importacoes SET status = 'processando', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ? AND status IN ('recebendo', 'em_revisao', 'concluida')`
+  ).bind(loteId, projectId).run();
+  if (trava.meta.changes !== 1) return { ok: false, status: 409, error: 'Importação já em gravação' };
+  try {
+    const resultados = await gravarAceitos(db, projectId, loteId, ator);
+    const r = await db.prepare(`SELECT COUNT(*) AS n FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito'`).bind(loteId).first<{ n: number }>();
+    return { ok: true, resultados, restantes: r?.n ?? 0 };
+  } finally {
+    await db.prepare(
+      `UPDATE importacoes SET updated_at = CURRENT_TIMESTAMP, status = CASE WHEN EXISTS (SELECT 1 FROM importacao_itens WHERE importacao_id = ?1 AND decisao IN ('pendente', 'aceito')) THEN 'em_revisao' ELSE 'concluida' END WHERE id = ?1`
+    ).bind(loteId).run();
+  }
+}
+
+async function gravarAceitos(db: D1Database, projectId: string, loteId: string, ator: string): Promise<Resultado[]> {
+  const { results: aceitos } = await db.prepare(`SELECT * FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito' ORDER BY created_at, rowid LIMIT ?`)
+    .bind(loteId, ITENS_POR_CONFIRMACAO).all<LinhaItem>();
   const { results: catalogo } = await db.prepare(
     `SELECT id, titulo FROM requisitos WHERE pai_id IN ('lgpd:art7', 'lgpd:art11') ORDER BY CASE pai_id WHEN 'lgpd:art7' THEN 0 ELSE 1 END, rowid`
   ).all<{ id: string; titulo: string }>();
@@ -331,10 +358,7 @@ export async function confirmarLote(db: D1Database, projectId: string, loteId: s
     await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como tratamento ${rid}`, '', '', projectId);
   }
 
-  await db.prepare(
-    `UPDATE importacoes SET updated_at = CURRENT_TIMESTAMP, status = CASE WHEN EXISTS (SELECT 1 FROM importacao_itens WHERE importacao_id = ?1 AND decisao IN ('pendente', 'aceito')) THEN 'em_revisao' ELSE 'concluida' END WHERE id = ?1`
-  ).bind(loteId).run();
-  return { ok: true, resultados };
+  return resultados;
 }
 
 // ─── cancelar ──────────────────────────────────────────────────────────────────────────────────────

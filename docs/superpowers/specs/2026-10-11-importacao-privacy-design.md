@@ -76,8 +76,10 @@ alta". "Confirmar importação" mostra o resultado por item. "Cancelar lote" com
 ## Segurança
 
 Instruções escondidas nos documentos não executam nada (só esquema validado chega ao banco; revisão humana antes de
-gravar). Arquivos com dado pessoal ficam no R2 presos ao lote; cancelar apaga; excluir o projeto apaga (trilha de
-exclusão inclui as tabelas novas e os arquivos). Tipos e tamanhos limitados no envio. Isolamento por projeto.
+gravar). Arquivos com dado pessoal ficam no R2 presos ao lote; cancelar apaga. **Exclusão de projeto:** o sistema não tem
+hoje rota que exclua projeto; as linhas das tabelas novas caem por FK (`ON DELETE CASCADE`), mas os objetos da importação
+no R2 (como os de evidência) ficariam órfãos: se uma rota de exclusão de projeto for criada, ela precisa apagar
+`importacoes/<project_id>/` do R2. A rota `DELETE` do lote entra na trilha central de exclusão como rota de projeto. Tipos e tamanhos limitados no envio. Isolamento por projeto.
 
 ## Testes
 

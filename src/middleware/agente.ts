@@ -92,6 +92,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/parametros-legais(\/|$)/, 'prazo legal é parâmetro revisado pelo jurídico, edição do administrador da plataforma; o agente só lê', ['PUT', 'DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/incidentes\/[^/]+\/encerrar$/, 'encerrar incidente é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/consentimentos\/[^/]+\/revogar$/, 'revogar consentimento é ato humano, pela interface', ['POST']],
+  // A importação de programa grava no RoPA depois da revisão de uma pessoa da equipe (spec 2026-10-11). A leitura também é recusada, pela rota (papel de equipe).
+  [/^\/api\/v1\/projects\/[^/]+\/importacoes(\/|$)/, 'importação de programa é feita pela equipe, pela interface', ['POST', 'PUT', 'DELETE']],
   [/^\/api\/v1\/requisitos(\/|$)/, 'o catálogo de requisitos é edição do administrador da plataforma; o agente só lê', ['POST', 'PUT', 'DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/revisar$/, 'marcar documento como revisado é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/excecoes\/[^/]+\/revogar$/, 'revogar exceção a documento é ato humano, pela interface', ['POST']],

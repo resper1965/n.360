@@ -109,7 +109,8 @@ export async function importarTratamentos(db: D1Database, projectId: string, ato
   dados.forEach((celulas, i) => {
     const numero = i + 2; // linha da planilha (o cabeçalho é a 1)
     const entrada: Record<string, unknown> = {};
-    colunas.forEach((c, j) => { if (c) entrada[c] = celulas[j] ?? ''; });
+    // Coluna repetida: célula vazia não apaga o valor de uma anterior que mapeia para o mesmo campo.
+    colunas.forEach((c, j) => { const v = celulas[j] ?? ''; if (c && (v.trim() !== '' || !(c in entrada))) entrada[c] = v; });
     const v = validarTratamento(entrada);
     if (!v.ok) { recusadas.push({ linha: numero, motivo: v.motivo }); return; }
     const k = chave(v.data.processing_purpose);

@@ -37,6 +37,7 @@ const AI = {
   },
 };
 const envComIa = () => ({ ...env, AI });
+const AGENTE = { userId: 'u-c', email: 'cons@ness.lat', projectId: P, concessaoId: 'c-imp' };
 
 const chamar = (h: Record<string, string>, metodo: string, caminho: string, corpo?: unknown) =>
   app.fetch(new Request('http://localhost/api/v1/projects/' + caminho, {
@@ -86,6 +87,7 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES ('u-c', 'cons@ness.lat', 'x', 'C', 'consultor', NULL, 'org_ness'), ('u-o', 'outro@ness.lat', 'x', 'O', 'consultor', NULL, 'org_ness'), ('u-cli', 'cli@cliente.com', 'x', 'Cli', 'org_admin', ?, 'org_ness'), ('u-adm', 'adm@ness.lat', 'x', 'A', 'platform_admin', NULL, 'org_ness')`).bind(P),
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g1', ?, 'C', 'cons@ness.lat', 'consultor', 'Consultor'), ('g2', ?, 'C', 'cons@ness.lat', 'consultor', 'Consultor'), ('g3', ?, 'O', 'outro@ness.lat', 'consultor', 'Consultor')`).bind(P, SO_ISO, OUTRO),
   ]);
+  await env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-imp', 'u-c', ?, datetime('now','+30 days'))`).bind(P).run();
   await habilitarPrivacy(P, OUTRO);
   consultor = await sessionFor({ id: 'u-c', email: 'cons@ness.lat', role: 'consultor' });
   consultorOutro = await sessionFor({ id: 'u-o', email: 'outro@ness.lat', role: 'consultor' });
@@ -401,5 +403,69 @@ describe('revisão e confirmação', () => {
     expect(await env.DB.prepare('SELECT 1 FROM ropa_records WHERE id = ?').bind(resultados[0].registro_id).first()).not.toBeNull();
     // Lote cancelado não recebe mais nada.
     expect((await enviar(consultor, P, lote, 'a.csv', 'x', 'text/csv')).status).toBe(409);
+  });
+});
+
+describe('rodada de correções', () => {
+  /** Lote com `n` itens aceitos, sem passar pela IA. */
+  const loteComAceitos = async (prefixo: string, n: number) => {
+    const lote = await novoLote();
+    const aid = `${prefixo}-arq`;
+    await env.DB.prepare(`INSERT INTO importacao_arquivos (id, importacao_id, project_id, nome, mime, tamanho, r2_key, status, tipo) VALUES (?, ?, ?, 'a.csv', 'text/csv', 1, 'k', 'processado', 'inventario')`).bind(aid, lote, P).run();
+    await env.DB.prepare(`UPDATE importacoes SET status = 'em_revisao' WHERE id = ?`).bind(lote).run();
+    await env.DB.batch(Array.from({ length: n }, (_, i) => env.DB.prepare(
+      `INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, dados, decisao) VALUES (?, ?, ?, ?, ?, 'aceito')`
+    ).bind(`${prefixo}-${i}`, lote, aid, P, JSON.stringify({ finalidade: `${prefixo} finalidade ${i}` }))));
+    return lote;
+  };
+  const contar = async (prefixo: string) => (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ropa_records WHERE project_id = ? AND processing_purpose LIKE ?`).bind(P, `${prefixo} finalidade %`).first<{ n: number }>())!.n;
+
+  it('duas confirmações ao mesmo tempo: uma grava, a outra é 409, e nada duplica', async () => {
+    const lote = await loteComAceitos('Concorrente', 3);
+    const [a, b] = await Promise.all([
+      chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`),
+      chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    const recusada = a.status === 409 ? a : b;
+    expect((await json<{ error: string }>(recusada)).error).toBe('Importação já em gravação');
+    expect(await contar('Concorrente')).toBe(3);
+    expect((await env.DB.prepare('SELECT status FROM importacoes WHERE id = ?').bind(lote).first<{ status: string }>())!.status).toBe('concluida');
+  });
+
+  it('confirmar grava no máximo 30 itens por chamada e devolve os restantes', async () => {
+    const lote = await loteComAceitos('Grande', 35);
+    const r1 = await json<{ resultados: unknown[]; restantes: number }>(await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`));
+    expect(r1.resultados).toHaveLength(30);
+    expect(r1.restantes).toBe(5);
+    expect(await contar('Grande')).toBe(30);
+    expect((await env.DB.prepare('SELECT status FROM importacoes WHERE id = ?').bind(lote).first<{ status: string }>())!.status).toBe('em_revisao');
+    const r2 = await json<{ resultados: unknown[]; restantes: number }>(await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`));
+    expect(r2.resultados).toHaveLength(5);
+    expect(r2.restantes).toBe(0);
+    expect(await contar('Grande')).toBe(35);
+  });
+
+  it('corrigir os dados de um item recusado que agora valida o devolve a pendente (salvo decisão enviada)', async () => {
+    const lote = await novoLote();
+    responde({ base_legal: 'Consentimento', confianca: 'alta' }, { base_legal: 'Contrato', confianca: 'alta' });
+    await enviarEProcessar(lote);
+    const [i1, i2] = (await lerLote(lote)).itens;
+    expect([i1.decisao, i2.decisao]).toEqual(['recusado', 'recusado']);
+    const r1 = await chamar(consultor, 'PUT', `${P}/importacoes/${lote}/itens/${i1.id}`, { dados: { finalidade: 'Corrigido um' } });
+    expect((await json<{ item: Item }>(r1)).item).toMatchObject({ decisao: 'pendente', motivo: null });
+    const r2 = await chamar(consultor, 'PUT', `${P}/importacoes/${lote}/itens/${i2.id}`, { dados: { finalidade: 'Corrigido dois' }, decisao: 'descartado' });
+    expect((await json<{ item: Item }>(r2)).item.decisao).toBe('descartado');
+  });
+
+  it('o agente (MCP) não escreve na importação: recusa explícita de alcance', async () => {
+    const comoAgente = (metodo: string, caminho: string) => app.fetch(new Request(`http://localhost/api/v1/projects/${P}/${caminho}`, {
+      method: metodo, headers: { 'Content-Type': 'application/json', 'X-Agente-Confirmado': '1' }, body: metodo === 'DELETE' ? undefined : '{}',
+    }), { ...envComIa(), AGENTE } as never);
+    for (const [metodo, caminho] of [['POST', 'importacoes'], ['POST', 'importacoes/l1/confirmar'], ['PUT', 'importacoes/l1/itens/i1'], ['DELETE', 'importacoes/l1']] as const) {
+      const r = await comoAgente(metodo, caminho);
+      expect(r.status, `${metodo} ${caminho}`).toBe(403);
+      expect((await json<{ error: string }>(r)).error, `${metodo} ${caminho}`).toContain('fora do alcance do agente');
+    }
   });
 });
