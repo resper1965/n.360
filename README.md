@@ -41,7 +41,7 @@ liberado, então o frontend em dev fala com o Worker sem preflight.
 | Caminho | O que vive aqui |
 |---|---|
 | `src/` | O Worker. `index.ts` monta tudo: cabeçalhos de segurança, CORS, autenticação, rate limit, e os sub-routers. |
-| `src/routes/` | 44 arquivos de rota, um por domínio (controles, riscos, evidências, auditoria, privacidade, SSO, SCIM, propostas, pedidos, agentes…). |
+| `src/routes/` | 49 arquivos de rota (`ls src/routes/*.ts \| grep -vc '\.test\.ts$'`, 2026-10-10), um por domínio (controles, riscos, evidências, auditoria, privacidade, SSO, SCIM, propostas, pedidos, agentes…). |
 | `src/schemas/` | Schemas Zod. Todo corpo de write passa por aqui — é a fonte de verdade do contrato da API. |
 | `src/middleware/` | Autenticação, acesso por projeto (isolamento de tenant), rate limit. |
 | `src/services/`, `src/agents/` | Regra de negócio (motor da SoA, precificação) e os agentes de IA. |

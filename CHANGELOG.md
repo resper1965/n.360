@@ -13,7 +13,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 ## [Não publicado]
 
 ### Adicionado
-- Integração entre n.iso e n.privacy sobre o mesmo cadastro (migrations 0061 a 0063): fornecedor e terceiro passam a ser a mesma parte, o DPO da governança vira o encarregado, e o incidente fica no núcleo e abre CAPA. O catálogo LGPD/ANPD traz um mapeamento proposto para a ISO que só conta como cobertura depois de validado, e o painel "Ponto de partida" mostra o que cada produto já aproveita do outro.
+- Integração entre n.iso e n.privacy sobre o mesmo cadastro (migrations 0061 a 0063): fornecedor e terceiro passam a ser a mesma parte, o DPO da governança vira o encarregado, e o incidente fica no núcleo e abre CAPA. O catálogo LGPD/ANPD traz um mapeamento proposto para a ISO que só conta como cobertura depois de validado, e o painel "Ponto de partida" mostra o que cada produto já aproveita do outro. Eliminar a pessoa pelo pedido do titular anonimiza o nome da parte e mantém o vínculo de encarregado: a tela do encarregado mostra o nome anonimizado, e a nova indicação é manual ("Indicar outro").
 
 ### Corrigido
 - `repository_token` vazava em três rotas que devolviam a linha crua de `projects`: `GET /api/v1/portfolio` (e, por ele, a ferramenta `niso_list_projects` do MCP), `GET /api/v1/client/dashboard` (alcança o papel cliente) e `GET /api/v1/projects/:id/audit-pack`. As três passam por `redactProject` (agora em `helpers.ts`) e devolvem só `repository_token_set`. `test/token-repositorio-sem-vazar.test.ts` procura o segredo no texto das respostas. Quem teve a listagem aberta deve tratar o token como exposto e trocá-lo.

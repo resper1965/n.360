@@ -2,9 +2,9 @@ import { parseModulos } from './schemas/nucleo';
 /**
  * n.iso e n.privacy são PRODUTOS separados sobre o mesmo cadastro (decisão do dono de 09/10/2026, modelo A: um Worker, um banco).
  * O que o projeto habilitou (`projeto_modulos`) decide o que a API aceita: cada rota cai numa FAIXA.
- *   - `nucleo`: o cadastro compartilhado (partes, itens, documentos, evidência, RoPA, DPIA, pedidos…). Vale com QUALQUER módulo.
+ *   - `nucleo`: o cadastro compartilhado (partes, itens, documentos, evidência, RoPA, DPIA, pedidos, incidentes…). Vale com QUALQUER módulo.
  *   - `iso`: o que só o n.iso faz (controles, SoA, riscos, auditorias, certificação…).
- *   - `privacy`: o que só o n.privacy faz (requisitos por projeto, terceiros, titular, consentimentos, encarregado,
+ *   - `privacy`: o que só o n.privacy faz (requisitos por projeto, terceiros, pedidos do titular, consentimentos, encarregado,
  *     ligações do tratamento, LIA).
  * Rota nova precisa estar classificada aqui: `test/modulos-faixa.test.ts` reprova a que não estiver.
  */
