@@ -72,6 +72,10 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
         const l = doc.querySelector('.entry-lede');
         if (l) l.innerHTML = 'O ambiente onde sua organização e a ness<span class="entry-dot">.</span> trabalham juntas: tratamentos, terceiros, pedidos do titular e incidentes em um só lugar.';
         doc.querySelectorAll('.entry-section').forEach((s) => { s.hidden = true; });
+        // O "conheça o n.iso" leva às seções escondidas acima, e o rodapé traz a versão do n.iso.
+        const mais = doc.querySelector('.entry-more');
+        if (mais) mais.hidden = true;
+        doc.querySelectorAll('.login-sign-links').forEach((s) => { s.innerHTML = s.innerHTML.replace(/n\.iso \d+\.\d+\.\d+/, 'n.privacy'); });
     }
     const esconder = new Set(produto === 'privacy' ? SO_ISO : SO_PRIVACY);
     doc.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach((n) => { if (esconder.has(n.id)) n.dataset.foraDoProduto = '1'; else delete n.dataset.foraDoProduto; });
