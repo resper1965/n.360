@@ -34,6 +34,15 @@ describe('mapeamento proposto', () => {
     expect(r!.estado).toBe('validado_juridico');
   });
 
+  it('traz os pares de governança da cláusula A.5 (política, papéis, segregação, direção, autoridades)', () => {
+    const tipo = (code: string, para: string) => MAPEAMENTOS.find((m) => m.de === `iso27001:2022:${code}` && m.para === para)?.tipo;
+    expect(tipo('A.5.1', 'lgpd:art46')).toBe('parcial');
+    expect(tipo('A.5.2', 'lgpd:art37')).toBe('relacionado');
+    expect(tipo('A.5.3', 'lgpd:art37')).toBe('relacionado');
+    expect(tipo('A.5.4', 'lgpd:art7')).toBe('relacionado');
+    expect(tipo('A.5.5', 'lgpd:art9')).toBe('relacionado');
+  });
+
   it('cobre os pontos de contato óbvios', () => {
     const tem = (para: string) => MAPEAMENTOS.some((m) => m.para === para);
     for (const p of ['lgpd:art37', 'lgpd:art38', 'lgpd:art46', 'lgpd:art48', 'lgpd:art41', 'lgpd:art18']) expect(tem(p), p).toBe(true);

@@ -38,6 +38,7 @@ export const MAPEAMENTOS: readonly Mapeamento[] = [
   // art. 7 — bases legais
   p('lgpd:art7', 'A.1.2.3', 'parcial'),
   p('lgpd:art7', 'A.1.2.2', 'relacionado'),
+  p('lgpd:art7', 'A.5.4', 'relacionado'),
   p('lgpd:art7:i', 'A.1.2.4', 'parcial'),
   p('lgpd:art7:i', 'A.1.2.5', 'parcial'),
   p('lgpd:art7:ii', 'A.5.31', 'relacionado'),
@@ -50,6 +51,7 @@ export const MAPEAMENTOS: readonly Mapeamento[] = [
   // art. 9 — informação ao titular
   p('lgpd:art9', 'A.1.3.3', 'parcial'),
   p('lgpd:art9', 'A.1.3.4', 'parcial'),
+  p('lgpd:art9', 'A.5.5', 'relacionado'),
   // art. 10 — legítimo interesse
   p('lgpd:art10', 'A.1.2.3', 'parcial'),
   p('lgpd:art10', 'A.1.4.2', 'parcial'),
@@ -126,6 +128,8 @@ export const MAPEAMENTOS: readonly Mapeamento[] = [
   p('lgpd:art37', 'A.2.2.7', 'parcial'),
   p('lgpd:art37', 'A.1.5.4', 'relacionado'),
   p('lgpd:art37', 'A.1.5.5', 'relacionado'),
+  p('lgpd:art37', 'A.5.2', 'relacionado'),
+  p('lgpd:art37', 'A.5.3', 'relacionado'),
   // art. 38 — relatório de impacto
   p('lgpd:art38', 'A.1.2.6', 'parcial'),
   p('lgpd:art38', 'A.5.34', 'relacionado'),
@@ -150,6 +154,7 @@ export const MAPEAMENTOS: readonly Mapeamento[] = [
   p('lgpd:art46', 'A.1.4.10', 'parcial'),
   p('lgpd:art46', 'A.8.12', 'relacionado'),
   p('lgpd:art46', 'A.8.27', 'relacionado'),
+  p('lgpd:art46', 'A.5.1', 'parcial'),
   p('lgpd:art47', 'A.6.6', 'parcial'),
   p('lgpd:art47', 'A.5.34', 'relacionado'),
   p('lgpd:art47', 'A.8.10', 'relacionado'),

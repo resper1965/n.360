@@ -48,6 +48,9 @@ beforeAll(async () => {
   admin = await sessionFor({ id: 'u-adm', email: 'adm@ness.lat', role: 'platform_admin' });
   consultor = await sessionFor({ id: 'u-cons', email: 'cons@ness.lat', role: 'consultor' });
   cliente = await sessionFor({ id: 'u-cli', email: 'cli@cliente.com', role: 'org_user', client_project_id: P });
+  // O seed propõe estes cinco pares; o arquivo os recria com o estado e o tipo de cada cenário, então tira os do seed antes.
+  await env.DB.prepare(`DELETE FROM requisito_mapeamentos WHERE (de_id, para_id) IN (VALUES (?1, 'lgpd:art46'), (?2, 'lgpd:art37'), (?3, 'lgpd:art37'), (?4, 'lgpd:art7'), (?5, 'lgpd:art9'))`)
+    .bind(A51, A52, A53, A54, A55).run();
   const mapa = (de: string, para: string, tipo: string, extra: object = {}) => chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos', { de_id: de, para_id: para, tipo, ...extra });
   expect((await mapa(A51, 'lgpd:art46', 'equivalente', validado)).status).toBe(201);
   expect((await mapa(A52, 'lgpd:art37', 'parcial', validado)).status).toBe(201);
