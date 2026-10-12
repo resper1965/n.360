@@ -921,6 +921,8 @@ window.updateHeaderUser = function updateHeaderUser() {
             if (navConectar) navConectar.style.display = (S.user && (S.user.role === 'consultor' || S.user.role === 'consultant')) ? '' : 'none';
             const navImportacao = document.getElementById('nav-importacao');
             if (navImportacao) navImportacao.style.display = window.ehEquipeNess() ? '' : 'none';
+            const navSegProj = document.getElementById('nav-seguranca-projeto');
+            if (navSegProj) navSegProj.style.display = window.ehEquipeNess() ? '' : 'none';
             if (navUsers) {
                 const canSeeUsers = S.user && ['platform_admin', 'admin', 'consultor', 'consultant', 'consultoria_admin'].includes(S.user.role);
                 navUsers.style.display = canSeeUsers ? '' : 'none';

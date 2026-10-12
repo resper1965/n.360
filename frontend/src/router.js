@@ -69,6 +69,7 @@ export     function navigate(view, data) {
         else if (S.view === 'users') renderUsers(c, h, a);
         else if (S.view === 'api-keys') renderApiKeys(c, h, a);
         else if (S.view === 'conectar-agente') renderConectarAgente(c, h, a);
+        else if (S.view === 'seguranca-projeto') renderSegurancaProjeto(c, h, a);
         else if (S.view === 'catalogo') renderCatalogo(c, h, a);
         else if (S.view === 'config-comercial') renderConfigComercial(c, h, a);
         else if (S.view === 'organizacoes') renderOrganizacoes(c, h, a);
