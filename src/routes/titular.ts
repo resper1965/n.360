@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500 } from '../helpers';
+import { erro500, registraErro } from '../helpers';
 import { lerParametros, removerParametro, salvarParametro } from '../services/parametros-legais';
 import { atualizarPedido, criarPedido, lerPedido, listarPedidos } from '../services/titular-pedidos';
 import { avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
@@ -73,7 +73,7 @@ titularPedidosApp.put('/:id', async (c) => {
 // Rascunho de IA da resposta: nada é gravado; enviar continua sendo o PUT acima.
 titularPedidosApp.post('/:id/rascunho', async (c) => {
   try {
-    const r = await rascunharResposta(c.env, c.req.param('projectId')!, c.req.param('id'), c.get('user'));
+    const r = await rascunharResposta(c.env, c.req.param('projectId')!, c.req.param('id'), c.get('user'), (e) => registraErro(c, e));
     return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao gerar o rascunho da resposta', e); }
 });
@@ -120,7 +120,7 @@ incidentesApp.post('/:id/rascunho-comunicacao', async (c) => {
   try {
     const v = await validateBody(c, incidenteRascunhoSchema);
     if (!v.success) return v.response;
-    const r = await rascunharComunicacao(c.env, c.req.param('projectId')!, c.req.param('id'), v.data.destino, c.get('user'));
+    const r = await rascunharComunicacao(c.env, c.req.param('projectId')!, c.req.param('id'), v.data.destino, c.get('user'), (e) => registraErro(c, e));
     return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao gerar o rascunho da comunicação', e); }
 });

@@ -62,12 +62,8 @@ export class PrivacidadeAgent extends BaseAgent {
   rascunharResposta(dados: Record<string, unknown>) { return this.perguntar(PROMPT_RESPOSTA, dados, rascunhoTextoSchema); }
   rascunharComunicacao(dados: Record<string, unknown>) { return this.perguntar(PROMPT_COMUNICACAO, dados, rascunhoTextoSchema); }
 
-  async run(prompt: string, _context: AgentContext): Promise<AgentResponse> {
-    try {
-      const r = await this.rascunharResposta({ pedido: prompt });
-      return { success: !!r.valor, content: r.valor?.texto ?? '', confidence: r.valor ? 0.7 : 0, metadata: { model: r.modelo } };
-    } catch (e) {
-      return { success: false, content: '', confidence: 0, metadata: { error: e instanceof Error ? e.message : String(e) } };
-    }
+  // ponytail: o BaseAgent exige `run`; aqui não há uso genérico (cada rascunho tem esquema próprio).
+  async run(_prompt: string, _context: AgentContext): Promise<AgentResponse> {
+    throw new Error('PrivacidadeAgent: use os métodos específicos');
   }
 }

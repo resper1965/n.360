@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, habilitarPrivacy, concederModulos } from './helpers/d1';
 import { faixaDoCaminho } from '../src/modulos';
+import { mascararPii } from '../src/services/rascunhos-privacy';
 
 /**
  * Agentes de rascunho do n.privacy (fatia 5.3): sugestão para o tratamento, rascunho de resposta ao titular e de comunicação de
@@ -207,5 +208,28 @@ describe('rascunho de comunicação de incidente', () => {
     expect(ia.chamadas.length).toBe(0);
     ia.resposta = JSON.stringify({ texto: 'x' });
     expect((await chamar(consultor, `${P}/incidentes/nao-existe/rascunho-comunicacao`, { destino: 'anpd' })).status).toBe(404);
+  });
+});
+
+describe('minimização do texto livre', () => {
+  it('mascararPii tira CPF (com e sem pontuação), e-mail e telefone; CNPJ e datas ficam', () => {
+    const t = mascararPii('CPF 123.456.789-09 ou 12345678909, joao.silva+x@exemplo.com.br, (11) 98765-4321, 11 3456-7890, +55 21 912345678; CNPJ 12.345.678/0001-90 e 12345678000190; em 2026-10-10 às 10:30');
+    for (const pii of ['123.456.789-09', '12345678909', 'joao.silva', '98765-4321', '3456-7890', '912345678']) expect(t).not.toContain(pii);
+    expect(t).toContain('12.345.678/0001-90');
+    expect(t).toContain('12345678000190');
+    expect(t).toContain('2026-10-10 às 10:30');
+    expect(mascararPii(null)).toBeNull();
+  });
+
+  it('CPF, e-mail e telefone na descrição do incidente não chegam ao modelo', async () => {
+    await env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, descricao, ciencia_em, avaliacao_texto)
+      VALUES ('ap-i2', ?, 'IN-2026-0002', 'Vazamento do titular 987.654.321-00', 'Planilha com 98765432100, fulano@exemplo.com e (21) 99876-5432', '2026-10-11', 'Ligar para 11 3333-4444')`).bind(P).run();
+    ia.resposta = JSON.stringify({ texto: 'ok' });
+    const r = await chamar(consultor, `${P}/incidentes/ap-i2/rascunho-comunicacao`, { destino: 'anpd' });
+    expect(r.status, await r.clone().text()).toBe(200);
+    const txt = enviado();
+    for (const pii of ['987.654.321-00', '98765432100', 'fulano@exemplo.com', '99876-5432', '3333-4444']) expect(txt).not.toContain(pii);
+    expect(txt).toContain('[CPF]');
+    expect(txt).toContain('Planilha com');
   });
 });

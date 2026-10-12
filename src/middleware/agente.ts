@@ -97,6 +97,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/requisitos(\/|$)/, 'o catálogo de requisitos é edição do administrador da plataforma; o agente só lê', ['POST', 'PUT', 'DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/revisar$/, 'marcar documento como revisado é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/excecoes\/[^/]+\/revogar$/, 'revogar exceção a documento é ato humano, pela interface', ['POST']],
+  // Rascunho de IA do n.privacy é da tela, para a pessoa revisar (fatia 5.3); o agente já é a IA.
+  [/^\/api\/v1\/projects\/[^/]+\/(ropa\/[^/]+\/sugestao|titular-pedidos\/[^/]+\/rascunho|incidentes\/[^/]+\/rascunho-comunicacao)$/, 'rascunho de IA do n.privacy é pela interface'],
   [/^\/api\/v1\/management-reviews\/[^/]+$/, 'excluir análise crítica destrói registro assinado: use a interface', ['DELETE']],
 ];
 

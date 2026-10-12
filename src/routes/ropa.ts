@@ -165,7 +165,7 @@ projectRopaApp.get('/:recordId/ligacoes', async (c) => {
 // Sugestão de IA (base legal, retenção, DPIA): nada é gravado; aplicar é o PUT /api/v1/ropa/:id de sempre.
 projectRopaApp.post('/:recordId/sugestao', async (c) => {
   try {
-    const r = await sugerirTratamento(c.env, c.req.param('projectId')!, c.req.param('recordId'), c.get('user'));
+    const r = await sugerirTratamento(c.env, c.req.param('projectId')!, c.req.param('recordId'), c.get('user'), (e) => registraErro(c, e));
     return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao gerar a sugestão para o tratamento', e); }
 });
