@@ -112,4 +112,11 @@ describe('POST /ropa/importar', () => {
     const log = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'ropa.importar' AND project_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`).bind(P).first<{ details: string }>();
     expect(log!.details).toMatch(/\d+ criados, \d+ já existiam, \d+ recusadas/);
   });
+
+  it('coluna repetida: célula vazia mais à direita não apaga o valor da anterior', async () => {
+    const r = await importar(['Finalidade;Base legal;Base legal', 'Coluna repetida;Consentimento;'].join('\n'));
+    expect(r.status, await r.clone().text()).toBe(200);
+    const linha = (await registros()).find((x) => x.processing_purpose === 'Coluna repetida');
+    expect(linha?.legal_basis).toBe('Consentimento');
+  });
 });

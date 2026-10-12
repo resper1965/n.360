@@ -866,6 +866,8 @@ window.updateHeaderUser = function updateHeaderUser() {
             if (navApiKeys) navApiKeys.style.display = (S.user && S.user.role === 'platform_admin') ? '' : 'none';
             const navConectar = document.getElementById('nav-conectar-agente');
             if (navConectar) navConectar.style.display = (S.user && (S.user.role === 'consultor' || S.user.role === 'consultant')) ? '' : 'none';
+            const navImportacao = document.getElementById('nav-importacao');
+            if (navImportacao) navImportacao.style.display = window.ehEquipeNess() ? '' : 'none';
             if (navUsers) {
                 const canSeeUsers = S.user && ['platform_admin', 'admin', 'consultor', 'consultant', 'consultoria_admin'].includes(S.user.role);
                 navUsers.style.display = canSeeUsers ? '' : 'none';
@@ -1132,6 +1134,8 @@ window.updateContextPanel = function updateContextPanel() {
 // Espelho de `ehComercial` (src/helpers.ts). Só decide o que MOSTRAR; quem
 // barra de verdade é o servidor.
 window.ehComercial = function ehComercial() { return !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role)); }
+// Espelho de `ehEquipeNess` (src/helpers.ts, PAPEIS_NESS): equipe da consultoria, não cliente. Só decide o que MOSTRAR; o servidor barra.
+window.ehEquipeNess = function ehEquipeNess() { return !!(S.user && ['consultor', 'consultant', 'platform_admin', 'consultoria_admin'].includes(S.user.role)); }
 
 // Leads são do comercial (somenteComercial no servidor): para os demais papéis
 // não pede — evita o 403 a cada login do consultor.

@@ -106,7 +106,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 38 arquivos em 2026-10-11: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 39 arquivos em 2026-10-11: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -140,9 +140,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     (`src/routes/public-auditor.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **82 tabelas** (2026-10-09: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **85 tabelas** (2026-10-11: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0063** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0064** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Inventario (ativos)**: vive em `itens` (nucleo fino) + `item_seguranca` (bloco do n.iso, 1:1), antes `assets`
@@ -258,6 +258,25 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   nucleo e gera CAPA (`corrective_actions.incidente_id`, 0063). O catalogo LGPD/ANPD (`src/data/lgpd.ts`, `src/data/anpd.ts`) traz um
   mapeamento proposto para a ISO (`src/data/mapeamento-privacidade-iso.ts`) que so conta como cobertura depois de validado por
   humano. O painel `GET /projects/:id/ponto-de-partida` (`src/routes/ponto-de-partida.ts`) mostra o que cada produto ja aproveita do outro.
+- **Importacao de programa de privacidade (n.privacy, fatia 1, migration 0064; spec em `docs/superpowers/specs/2026-10-11-importacao-privacy-design.md`).**
+  Rotas em `src/routes/importacao.ts`, montadas em `/api/v1/projects/:projectId/importacoes` na faixa `privacy` (`src/modulos.ts`); so a
+  equipe da consultoria (`ehEquipeNess`), cliente recebe 403. Tabelas `importacoes` (lote), `importacao_arquivos` e `importacao_itens`
+  (a proposta, um tratamento por linha). Arquivo no R2 `STORAGE`, chave `importacoes/<project_id>/<lote>/<arquivo>`. Regras em
+  `src/services/importacao.ts`; o `ImportacaoAgent` (`src/agents/importacao.ts`) classifica o arquivo e extrai tratamentos pelo
+  `BaseAgent.runModel`, tratando o texto do arquivo como dado e nunca como instrucao, e cada item e validado por esquema estrito no servidor.
+  **Processamento em passos, um por chamada** (`processar` devolve `restantes` e a tela repete): o primeiro converte, classifica e
+  guarda o texto em `<r2_key>.txt`; cada seguinte extrai um bloco de ~4.000 caracteres (`BLOCO`, cortado so em quebra de linha;
+  `bloco_atual`/`blocos_total`/`blocos_falhos` em `importacao_arquivos`). Resposta que nao le (JSON truncado) divide o bloco ao meio,
+  ate 2 niveis; bloco que nao le nem assim fica anotado e os outros seguem. Teto de 200.000 caracteres (`MAX_TEXTO`). O status do lote
+  e acertado num `finally`; se o Worker morrer no meio, o lote preso em `processando` e retomado pela confirmacao depois de 10 minutos
+  (`updated_at` renovado a cada chamada), a mesma regra da trava de gravacao.
+  **Revisao humana obrigatoria:** nada vira RoPA sem a pessoa aceitar o item na tela e confirmar. `confirmar` grava no maximo 30 itens por
+  chamada (`ITENS_POR_CONFIRMACAO`, a tela repete ate `restantes` zerar), um item por transacao, e o lote fica em status `gravando` (trava
+  por UPDATE condicional; processar, enviar, editar item e cancelar recebem 409; trava de gravacao interrompida e retomada apos 10 minutos).
+  Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`), e o GET tambem e
+  recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
+  prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:
+  `node scripts/importacao-amostra.mjs` gera CSV e HTML ficticios e diz como subir pela tela num ambiente com a IA real.
 - **Bindings** (`grep '"binding"' wrangler.jsonc`): DB (D1), SESSIONS e OAUTH_KV (KV),
   STORAGE e TRILHA (R2), AI, ANALYTICS (Analytics Engine), CF_VERSION_METADATA, ASSETS.
 - **Rotinas agendadas** (`grep -A2 '"triggers"' wrangler.jsonc`): `10 4 * * *` roda a manutencao
@@ -328,7 +347,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 234 arquivos de teste do backend mocka o D1 inteiro** (2026-10-11;
+- **Nenhum dos 235 arquivos de teste do backend mocka o D1 inteiro** (2026-10-11;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -339,7 +358,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
 - **Frontend com pouco teste por linha.** ~16,7 mil linhas de JS (2026-10-11)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 79 arquivos de teste em jsdom
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 80 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. A maior parte das telas ainda nao
   tem teste proprio.
