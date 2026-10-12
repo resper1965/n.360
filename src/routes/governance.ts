@@ -3,7 +3,7 @@ import { Bindings, Variables } from '../index';
 
 import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, genToken, hashPassword, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto } from '../helpers';
 import { enviarBoasVindas, nomeDaOrg } from './users';
-import { ehDpo, garantirEncarregado } from '../services/encarregado-pessoa';
+import { ehDpo, garantirEncarregado, desfazerEncarregado } from '../services/encarregado-pessoa';
 import { validateBody, stakeholderSchema, governanceMemberSchema, companyProfileSchema, contextSchema, auditFindingSchema, auditFindingUpdateSchema, stakeholderAtualizarSchema, revisaoCriarSchema, revisaoAtualizarSchema, metricaCriarSchema, metricaAtualizarSchema, cienciaPoliticaSchema } from '../schemas';
 
 export const governanceApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -161,9 +161,12 @@ governanceApp.post('/projects/:id/governance', async (c) => {
       `UPDATE project_governance SET is_primary = 0 WHERE project_id = ? AND is_primary = 1 AND id IS NOT ?`
     ).bind(projectId, id ?? null);
 
+    let antesDpo: { nome: string; email: string | null } | null = null;
     if (id) {
-      const emailAntigo = (await c.env.DB.prepare('SELECT email FROM project_governance WHERE id = ? AND project_id = ?')
-        .bind(id, projectId).first<{ email: string | null }>())?.email;
+      const antes = await c.env.DB.prepare('SELECT name, email, role_category, job_title FROM project_governance WHERE id = ? AND project_id = ?')
+        .bind(id, projectId).first<{ name: string; email: string | null; role_category: string | null; job_title: string | null }>();
+      const emailAntigo = antes?.email;
+      if (antes && ehDpo(antes)) antesDpo = { nome: antes.name, email: antes.email };
       const grava = c.env.DB.prepare(`
         UPDATE project_governance
         SET name = ?, email = ?, role_category = ?, job_title = ?, is_primary = ?
@@ -186,6 +189,15 @@ governanceApp.post('/projects/:id/governance', async (c) => {
     // O membro já está gravado: falha do vínculo é registrada, não vira 500 (o retry duplicaria o membro). A 0062 refaz o vínculo.
     if (ehDpo({ role_category, job_title })) {
       try { await garantirEncarregado(c.env.DB, projectId, { nome: name, email: email || null }); } catch (e) { registraErro(c, e); }
+    } else if (id && antesDpo) {
+      // O DPO deixou de ser DPO: o vínculo que a governança criou sai, salvo se outro DPO do projeto casa a mesma parte.
+      try {
+        const { results } = await c.env.DB.prepare('SELECT name, email, role_category, job_title FROM project_governance WHERE project_id = ? AND id <> ?')
+          .bind(projectId, id).all<{ name: string; email: string | null; role_category: string | null; job_title: string | null }>();
+        const outros = results.filter(ehDpo).map((m) => ({ nome: m.name, email: m.email }));
+        const parteId = await desfazerEncarregado(c.env.DB, projectId, antesDpo, outros);
+        if (parteId) await logAudit(c.env.DB, 'governanca.encarregado.removido', c.get('user')?.email || 'system', `Vínculo de encarregado da parte ${parteId} removido: ${name} deixou de ser DPO`, '', '', projectId);
+      } catch (e) { registraErro(c, e); }
     }
     return c.json({ ok: true });
   } catch (e: any) {

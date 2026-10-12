@@ -50,4 +50,18 @@ describe('Agentes com acesso ao projeto', () => {
     const s = await sessionFor({ id: 'u-o', email: 'dono@acme.com', role: 'org_admin', client_project_id: 'p-a' });
     expect((await req('/api/v1/projects/p-a/agentes/c-b/revogar', { method: 'POST', headers: s })).status).toBe(404);
   });
+
+  it('consultoria_admin da organização do projeto vê e revoga; o de outra organização não', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO organizations (id, name, slug, status) VALUES ('org_x','Consultoria X','cx','Active'), ('org_y','Consultoria Y','cy','Active')`),
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-org','Org','ISO 27001','controller','Active','org_x')`),
+      env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-org','u-c','p-org', datetime('now','+30 days'))`),
+    ]);
+    const dentro = await sessionFor({ id: 'u-ca', email: 'ca@ness.lat', role: 'consultoria_admin', org_id: 'org_x' });
+    const fora = await sessionFor({ id: 'u-cb', email: 'cb@outra.lat', role: 'consultoria_admin', org_id: 'org_y' });
+    expect((await req('/api/v1/projects/p-org/agentes', { headers: dentro })).status).toBe(200);
+    expect([403, 404]).toContain((await req('/api/v1/projects/p-org/agentes', { headers: fora })).status);
+    expect([403, 404]).toContain((await req('/api/v1/projects/p-org/agentes/c-org/revogar', { method: 'POST', headers: fora })).status);
+    expect((await req('/api/v1/projects/p-org/agentes/c-org/revogar', { method: 'POST', headers: dentro })).status).toBe(200);
+  });
 });

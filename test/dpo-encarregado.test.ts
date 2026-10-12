@@ -61,6 +61,36 @@ describe('POST /governance', () => {
   });
 });
 
+describe('POST /governance: DPO que deixa de ser DPO', () => {
+  const montar = async (p: string) => {
+    await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Troca', 'ISO 27001', 'Controller', 'Active', 'org_ness')`).bind(p).run();
+    await env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES (?, ?, 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`).bind('gc-' + p, p).run();
+    await habilitarPrivacy(p);
+  };
+  const dpo = { name: 'Vera Exemplo', email: 'vera@cliente.com', role_category: 'executivo', job_title: 'DPO' };
+  const idDe = async (p: string, email: string) => (await env.DB.prepare('SELECT id FROM project_governance WHERE project_id = ? AND email = ?').bind(p, email).first<{ id: string }>())!.id;
+
+  it('DPO que vira CISO perde o vínculo encarregado e a trilha registra', async () => {
+    await montar('dp-troca');
+    await gov('dp-troca', dpo);
+    expect(await vinculos('dp-troca')).toHaveLength(1);
+    const id = await idDe('dp-troca', dpo.email);
+    expect((await gov('dp-troca', { ...dpo, id, role_category: 'tech', job_title: 'CISO' })).status).toBe(200);
+    expect(await vinculos('dp-troca')).toEqual([]);
+    const log = await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'governanca.encarregado.removido' AND project_id = 'dp-troca'`).first<{ n: number }>();
+    expect(log!.n).toBe(1);
+  });
+  it('com outro DPO casando a mesma parte, o vínculo fica', async () => {
+    await montar('dp-troca2');
+    await gov('dp-troca2', dpo);
+    await gov('dp-troca2', { ...dpo, name: 'Vera Duplicada' });
+    const ids = (await env.DB.prepare('SELECT id FROM project_governance WHERE project_id = ? AND email = ?').bind('dp-troca2', dpo.email).all<{ id: string }>()).results;
+    expect(ids).toHaveLength(2);
+    expect((await gov('dp-troca2', { ...dpo, id: ids[0].id, role_category: 'tech', job_title: 'CISO' })).status).toBe(200);
+    expect(await vinculos('dp-troca2')).toHaveLength(1);
+  });
+});
+
 describe('visão do encarregado', () => {
   it('devolve os encarregados do projeto', async () => {
     const v = await json<{ encarregados: { nome: string }[] }>(await chamar(consultor, 'GET', `/api/v1/projects/${P}/encarregado`));

@@ -86,7 +86,8 @@ vendorsApp.delete('/:id', async (c) => {
 projectVendorsApp.get('/', async (c) => {
   const projectId = c.req.param('projectId');
   const { results } = await c.env.DB.prepare(
-    `SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.project_id = ? AND p.status = 'ativa' ORDER BY v.created_at DESC`
+    `SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.project_id = ? AND p.status = 'ativa'
+        AND EXISTS (SELECT 1 FROM parte_vinculos pv WHERE pv.parte_id = v.parte_id AND pv.papel = 'terceiro' AND pv.alvo_tipo = 'projeto' AND pv.alvo_id = v.project_id) ORDER BY v.created_at DESC`
   ).bind(projectId).all();
   return c.json({ ok: true, vendors: results });
 });
