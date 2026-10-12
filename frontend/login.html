@@ -67,7 +67,7 @@
                 </form>
                 <div class="login-sign">
                     <span class="login-sign-house">ness<span>.</span></span>
-                    <span class="login-sign-links"><a href="/politicas.html">privacidade</a> · <a href="/politicas.html">termos</a> · n.iso 1.8.0</span>
+                    <span class="login-sign-links">n.iso 1.8.0</span>
                 </div>
             </div>
 
@@ -239,7 +239,6 @@
 
         <footer class="entry-foot">
             <span class="login-sign-house">ness<span>.</span></span>
-            <span class="login-sign-links"><a href="/politicas">privacidade</a> · <a href="/politicas">termos</a></span>
         </footer>
     </div>
 
@@ -260,209 +259,209 @@
             </div>
         </div>
         <div class="sidebar-nav-list">
-            <div class="sidebar-nav" id="nav-inicio" data-action="navigate" data-args='["inicio"]'>
+            <div class="sidebar-nav" role="link" tabindex="0" id="nav-inicio" data-action="navigate" data-args='["inicio"]'>
                 <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
                 <span class="sidebar-nav-text">Início</span>
             </div>
-            <div class="sidebar-nav" id="nav-meus" data-action="navigate" data-args='["meus-pedidos"]' style="display:none">
+            <div class="sidebar-nav" role="link" tabindex="0" id="nav-meus" data-action="navigate" data-args='["meus-pedidos"]' style="display:none">
                 <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
                 <span class="sidebar-nav-text">Meus pedidos</span>
             </div>
-            <div class="sidebar-nav active" id="nav-dashboard" data-action="navigate" data-args='["dashboard"]'>
+            <div class="sidebar-nav active" role="link" tabindex="0" id="nav-dashboard" data-action="navigate" data-args='["dashboard"]'>
                 <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                 <span class="sidebar-nav-text">Dashboard</span>
             </div>
 
             <!-- Conta e acessos: do n.360 (fatia 2). Nos módulos o grupo some e o rodapé leva a /?tela=… -->
-            <div role="button" aria-expanded="true" class="sidebar-label" data-action="toggleGroup" data-args='["group-conta"]' id="label-group-conta">Conta e acessos</div>
+            <div role="button" tabindex="0" aria-expanded="true" class="sidebar-label" data-action="toggleGroup" data-args='["group-conta"]' id="label-group-conta">Conta e acessos</div>
             <div class="sidebar-group expanded" id="group-conta">
-                <div class="sidebar-nav" id="nav-projects" data-action="navigate" data-args='["projects"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-projects" data-action="navigate" data-args='["projects"]'>
                     <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                     <span class="sidebar-nav-text">Projetos</span>
                 </div>
-                <div class="sidebar-nav" id="nav-users" data-action="navigate" data-args='["users"]' style="display:none">
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-users" data-action="navigate" data-args='["users"]' style="display:none">
                     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     <span class="sidebar-nav-text">Usuários</span>
                 </div>
-                <div class="sidebar-nav" id="nav-organizacoes" data-action="navigate" data-args='["organizacoes"]' style="display:none">
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-organizacoes" data-action="navigate" data-args='["organizacoes"]' style="display:none">
                     <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>
                     <span class="sidebar-nav-text">Organizações</span>
                 </div>
-                <div class="sidebar-nav" id="nav-api-keys" data-action="navigate" data-args='["api-keys"]' style="display:none">
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-seguranca-projeto" data-action="navigate" data-args='["seguranca-projeto"]' style="display:none">
+                    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <span class="sidebar-nav-text">Segurança do projeto</span>
+                </div>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-api-keys" data-action="navigate" data-args='["api-keys"]' style="display:none">
                     <svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
                     <span class="sidebar-nav-text">Chaves de API</span>
                 </div>
-                <div class="sidebar-nav" id="nav-conectar-agente" data-action="navigate" data-args='["conectar-agente"]' style="display:none">
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-conectar-agente" data-action="navigate" data-args='["conectar-agente"]' style="display:none">
                     <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                     <span class="sidebar-nav-text">Conectar agente</span>
                 </div>
             </div>
 
-            <div role="button" aria-expanded="true" class="sidebar-label" data-action="toggleGroup" data-args='["group-sales"]' id="label-group-sales">Comercial</div>
+            <div role="button" tabindex="0" aria-expanded="true" class="sidebar-label" data-action="toggleGroup" data-args='["group-sales"]' id="label-group-sales">Comercial</div>
             <div class="sidebar-group expanded" id="group-sales">
-                <div class="sidebar-nav" id="nav-leads" data-action="navigate" data-args='["leads"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-leads" data-action="navigate" data-args='["leads"]'>
                     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     <span class="sidebar-nav-text">Leads</span>
                 </div>
-                <div class="sidebar-nav" id="nav-assessments" data-action="navigate" data-args='["assessments"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-assessments" data-action="navigate" data-args='["assessments"]'>
                     <svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                     <span class="sidebar-nav-text">Assessments</span>
                 </div>
-                <div class="sidebar-nav" id="nav-proposals" data-action="navigate" data-args='["proposals"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-proposals" data-action="navigate" data-args='["proposals"]'>
                     <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                     <span class="sidebar-nav-text">Propostas</span>
                 </div>
-                <div class="sidebar-nav" id="nav-catalogo" data-action="navigate" data-args='["catalogo"]' style="display:none">
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-catalogo" data-action="navigate" data-args='["catalogo"]' style="display:none">
                     <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                     <span class="sidebar-nav-text">Catálogo</span>
                 </div>
-                <div class="sidebar-nav" id="nav-config" data-action="navigate" data-args='["config-comercial"]' style="display:none">
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-config" data-action="navigate" data-args='["config-comercial"]' style="display:none">
                     <svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
                     <span class="sidebar-nav-text">Configuração comercial</span>
                 </div>
             </div>
 
-            <div role="button" aria-expanded="false" class="sidebar-label collapsed" data-action="toggleGroup" data-args='["group-impl"]'>Implementação</div>
+            <div role="button" tabindex="0" aria-expanded="false" class="sidebar-label collapsed" data-action="toggleGroup" data-args='["group-impl"]'>Implementação</div>
             <div class="sidebar-group" id="group-impl">
-                <div class="sidebar-nav" id="nav-project" data-action="navigate" data-args='["project-detail"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-project" data-action="navigate" data-args='["project-detail"]'>
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
                     <span class="sidebar-nav-text">Jornada</span>
                 </div>
-                <div class="sidebar-nav" id="nav-monitor" data-action="navigate" data-args='["monitor"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-monitor" data-action="navigate" data-args='["monitor"]'>
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     <span class="sidebar-nav-text">Monitor</span>
                 </div>
-                <div class="sidebar-nav" id="nav-soa" data-action="navigate" data-args='["soa"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-soa" data-action="navigate" data-args='["soa"]'>
                     <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                     <span class="sidebar-nav-text">SoA</span>
                 </div>
-                <div class="sidebar-nav" id="nav-governance" data-action="navigate" data-args='["governance"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-governance" data-action="navigate" data-args='["governance"]'>
                     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     <span class="sidebar-nav-text">Governança</span>
                 </div>
             </div>
 
-            <div role="button" aria-expanded="false" class="sidebar-label collapsed group-project-only" data-action="toggleGroup" data-args='["group-ops"]' style="display:none">Operacional</div>
+            <div role="button" tabindex="0" aria-expanded="false" class="sidebar-label collapsed group-project-only" data-action="toggleGroup" data-args='["group-ops"]' style="display:none">Operacional</div>
             <div class="sidebar-group group-project-only" id="group-ops" style="display:none">
-                <div class="sidebar-nav" id="nav-stakeholders" data-action="navigate" data-args='["stakeholders"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-stakeholders" data-action="navigate" data-args='["stakeholders"]'>
                     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     <span class="sidebar-nav-text">Partes Interessadas</span>
                 </div>
-                <div class="sidebar-nav" id="nav-context" data-action="navigate" data-args='["context"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-context" data-action="navigate" data-args='["context"]'>
                     <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                     <span class="sidebar-nav-text">Contexto</span>
                 </div>
-                <div class="sidebar-nav" id="nav-assets" data-action="navigate" data-args='["assets"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-assets" data-action="navigate" data-args='["assets"]'>
                     <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l-7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                     <span class="sidebar-nav-text">Ativos</span>
                 </div>
-                <div class="sidebar-nav" id="nav-risks" data-action="navigate" data-args='["risks"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-risks" data-action="navigate" data-args='["risks"]'>
                     <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     <span class="sidebar-nav-text">Riscos</span>
                 </div>
-                <div class="sidebar-nav" id="nav-vendors" data-action="navigate" data-args='["vendors"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-vendors" data-action="navigate" data-args='["vendors"]'>
                     <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
                     <span class="sidebar-nav-text">Fornecedores</span>
                 </div>
-                <div class="sidebar-nav" id="nav-partes" data-action="navigate" data-args='["partes"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-partes" data-action="navigate" data-args='["partes"]'>
                     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     <span class="sidebar-nav-text">Partes</span>
                 </div>
-                <div class="sidebar-nav" id="nav-documentos" data-action="navigate" data-args='["documentos"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-documentos" data-action="navigate" data-args='["documentos"]'>
                     <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
                     <span class="sidebar-nav-text">Documentos</span>
                 </div>
-                <div class="sidebar-nav" id="nav-training" data-action="navigate" data-args='["training"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-training" data-action="navigate" data-args='["training"]'>
                     <svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
                     <span class="sidebar-nav-text">Treinamento</span>
                 </div>
-                <div class="sidebar-nav" id="nav-acknowledgments" data-action="navigate" data-args='["acknowledgments"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-acknowledgments" data-action="navigate" data-args='["acknowledgments"]'>
                     <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
                     <span class="sidebar-nav-text">Ciência de Políticas</span>
                 </div>
-                <div class="sidebar-nav" id="nav-policies" data-action="navigate" data-args='["policies-dashboard"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-policies" data-action="navigate" data-args='["policies-dashboard"]'>
                     <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 11l2 2 4-4"/></svg>
                     <span class="sidebar-nav-text">Gestão de Políticas</span>
                 </div>
-                <div class="sidebar-nav" id="nav-audits" data-action="navigate" data-args='["audits"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-audits" data-action="navigate" data-args='["audits"]'>
                     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                     <span class="sidebar-nav-text">Auditorias</span>
                 </div>
-                <div class="sidebar-nav" id="nav-capa" data-action="navigate" data-args='["capa"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-capa" data-action="navigate" data-args='["capa"]'>
                     <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
                     <span class="sidebar-nav-text">CAPA</span>
                 </div>
-                <div class="sidebar-nav" id="nav-incidentes" data-action="abrirIncidentesIso">
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-incidentes" data-action="abrirIncidentesIso">
                     <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     <span class="sidebar-nav-text">Incidentes</span>
                 </div>
-                <div class="sidebar-nav" id="nav-mgmt" data-action="navigate" data-args='["management-review"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-mgmt" data-action="navigate" data-args='["management-review"]'>
                     <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
                     <span class="sidebar-nav-text">Análise Crítica</span>
                 </div>
-                <div class="sidebar-nav" id="nav-evidence" data-action="navigate" data-args='["evidence"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-evidence" data-action="navigate" data-args='["evidence"]'>
                     <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                     <span class="sidebar-nav-text">Evidências</span>
                 </div>
             </div>
             
-            <div role="button" aria-expanded="false" class="sidebar-label collapsed group-project-only" data-action="toggleGroup" data-args='["group-privacy"]' style="display:none">Privacidade</div>
+            <div role="button" tabindex="0" aria-expanded="false" class="sidebar-label collapsed group-project-only" data-action="toggleGroup" data-args='["group-privacy"]' style="display:none">Privacidade</div>
             <div class="sidebar-group group-project-only" id="group-privacy" style="display:none">
-                <div class="sidebar-nav" id="nav-encarregado" data-action="navigate" data-args='["encarregado"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-encarregado" data-action="navigate" data-args='["encarregado"]'>
                     <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
                     <span class="sidebar-nav-text">Encarregado</span>
                 </div>
-                <div class="sidebar-nav" id="nav-ropa" data-action="navigate" data-args='["ropa"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-titular" data-action="abrirAbaTitular" data-args='["pedidos"]'>
+                    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                    <span class="sidebar-nav-text">Titular e pedidos</span>
+                </div>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-incidentes-privacy" data-action="abrirAbaTitular" data-args='["incidentes"]'>
+                    <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span class="sidebar-nav-text">Incidentes</span>
+                </div>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-ropa" data-action="navigate" data-args='["ropa"]'>
                     <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                     <span class="sidebar-nav-text">ROPA</span>
                 </div>
-                <div class="sidebar-nav" id="nav-dpia" data-action="navigate" data-args='["dpia"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-dpia" data-action="navigate" data-args='["dpia"]'>
                     <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                     <span class="sidebar-nav-text">DPIA / RIPD</span>
                 </div>
-                <div class="sidebar-nav" id="nav-requisitos" data-action="navigate" data-args='["requisitos"]'>
-                    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                    <span class="sidebar-nav-text">Requisitos</span>
-                </div>
-                <div class="sidebar-nav" id="nav-terceiros" data-action="navigate" data-args='["terceiros"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-terceiros" data-action="navigate" data-args='["terceiros"]'>
                     <svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
                     <span class="sidebar-nav-text">Terceiros</span>
                 </div>
-                <div class="sidebar-nav" id="nav-importacao" data-action="navigate" data-args='["importacao"]' style="display:none">
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-requisitos" data-action="navigate" data-args='["requisitos"]'>
+                    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                    <span class="sidebar-nav-text">Requisitos</span>
+                </div>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-importacao" data-action="navigate" data-args='["importacao"]' style="display:none">
                     <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     <span class="sidebar-nav-text">Importar programa</span>
                 </div>
-                <div class="sidebar-nav" id="nav-titular" data-action="navigate" data-args='["titular"]'>
-                    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
-                    <span class="sidebar-nav-text">Titular e incidentes</span>
-                </div>
             </div>
 
-            <div role="button" aria-expanded="false" class="sidebar-label collapsed" data-action="toggleGroup" data-args='["group-intel"]'>Inteligência</div>
+            <div role="button" tabindex="0" aria-expanded="false" class="sidebar-label collapsed" data-action="toggleGroup" data-args='["group-intel"]'>Inteligência</div>
             <div class="sidebar-group" id="group-intel">
-                <div class="sidebar-nav" id="nav-ai" data-action="navigate" data-args='["ai-chat"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-ai" data-action="navigate" data-args='["ai-chat"]'>
                     <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-                    <span class="sidebar-nav-text">AI Assistant</span>
+                    <span class="sidebar-nav-text">Assistente</span>
                 </div>
             </div>
 
-            <div role="button" aria-expanded="false" class="sidebar-label collapsed" data-action="toggleGroup" data-args='["group-system-config"]' id="label-group-system">Sistema</div>
+            <div role="button" tabindex="0" aria-expanded="false" class="sidebar-label collapsed" data-action="toggleGroup" data-args='["group-system-config"]' id="label-group-system">Sistema</div>
             <div class="sidebar-group" id="group-system-config">
-                <div class="sidebar-nav" id="nav-audit-trail" data-action="navigate" data-args='["audit-trail"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-audit-trail" data-action="navigate" data-args='["audit-trail"]'>
                     <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="11" y2="17"/></svg>
                     <span class="sidebar-nav-text">Trilha de Logs</span>
                 </div>
-                <div class="sidebar-nav" id="nav-seguranca-projeto" data-action="navigate" data-args='["seguranca-projeto"]' style="display:none">
-                    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    <span class="sidebar-nav-text">Segurança do projeto</span>
-                </div>
-                <div class="sidebar-nav" id="nav-seguranca-projeto" data-action="navigate" data-args='["seguranca-projeto"]' style="display:none">
-                    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    <span class="sidebar-nav-text">Segurança do projeto</span>
-                </div>
-                <div class="sidebar-nav" id="nav-settings" data-action="navigate" data-args='["settings"]'>
+                <div class="sidebar-nav" role="link" tabindex="0" id="nav-settings" data-action="navigate" data-args='["settings"]'>
                     <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-                    <span class="sidebar-nav-text">Configurações</span>
+                    <span class="sidebar-nav-text">Preços e margens</span>
                 </div>
             </div>
         </div>
@@ -502,7 +501,7 @@
                  região própria (#live-region), montada e vazia. -->
             <div class="content" id="content" style="flex:1;overflow-y:auto;padding:2rem"></div>
             <div class="context-panel collapsed" id="context-panel">
-                <button class="toggle-context" data-action="toggleContext" aria-label="Fechar painel de contexto">x</button>
+                <button type="button" class="toggle-context" data-action="toggleContext" aria-label="Fechar painel">Fechar</button>
                 <div class="ctx-inner" id="ctx-content"></div>
             </div>
             <button class="toggle-context-open" id="toggle-context-btn" data-action="toggleContext" style="display:none" aria-label="Abrir painel de contexto">...</button>

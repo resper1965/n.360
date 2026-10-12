@@ -15,14 +15,23 @@ const MODULOS = ['iso', 'privacy'];
 
 /** Telas que só existem no n.iso e só no n.privacy. O resto (cadastro, sistema) aparece nos dois e no início do n.360. */
 export const SO_ISO = ['nav-dashboard', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-monitor',
-    'nav-soa', 'nav-context', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa', 'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular'];
+    'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa',
+    'nav-incidentes', 'nav-mgmt'];
+export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular', 'nav-incidentes-privacy'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
  */
 export const TELAS_DA_CONTA = { projects: 'nav-projects', users: 'nav-users', organizacoes: 'nav-organizacoes', 'api-keys': 'nav-api-keys', 'conectar-agente': 'nav-conectar-agente' };
 export const SO_N360 = Object.values(TELAS_DA_CONTA);
+/**
+ * O n.360 é o hub, não um terceiro módulo: o menu dele tem só isto (a conta, os pedidos da pessoa, o acesso do projeto e a
+ * trilha). Segurança do projeto mora em Conta e acessos, então também é só do n.360. Tela fora daqui leva ao módulo (router).
+ */
+export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail'];
+export const TELAS_DO_HUB = ['inicio', 'meus-pedidos', ...Object.keys(TELAS_DA_CONTA), 'seguranca-projeto', 'audit-trail', 'sem-acesso-produto'];
+// Telas do n.iso sem item próprio no menu (abertas de dentro de outra tela ou por aviso).
+const DO_ISO_SEM_ITEM = ['project-detail', 'controls', 'certification', 'metrics', 'audit-execution', 'assessment-detail', 'management-review', 'policies-dashboard'];
 
 /** O produto do caminho (vale igual em localhost). */
 export function produtoAtual(loc = window.location) {
@@ -80,6 +89,9 @@ export function produtoDaTela(tela) {
     return null;
 }
 
+/** O módulo de uma tela, para o hub: o do item do menu, ou o n.iso nas telas dele sem item; null nas do cadastro (dos dois). */
+export const moduloDaTela = (tela) => (DO_ISO_SEM_ITEM.includes(tela) ? 'iso' : produtoDaTela(tela));
+
 /** Caminho do produto na mesma origem: '/', '/iso' ou '/privacy'. */
 export const enderecoDoProduto = (produto) => (MODULOS.includes(produto) ? `/${produto}` : '/');
 
@@ -87,6 +99,15 @@ export const enderecoDoProduto = (produto) => (MODULOS.includes(produto) ? `/${p
 export function destinoDoAviso(tela, loc = window.location) {
     const dono = produtoDaTela(tela);
     return dono && dono !== produtoAtual(loc) ? { href: enderecoDoProduto(dono) } : { navegar: tela };
+}
+
+const rotuloDoGrupo = (doc, grupo) => doc.querySelector(`.sidebar-label[data-args='["${grupo}"]']`);
+/** Abre o grupo (sem fechar os outros) e acerta o rótulo; usado pela casca e pelo router (grupo do item ativo). */
+export function abrirGrupo(grupo, doc = document) {
+    if (!grupo || !grupo.classList.contains('sidebar-group')) return;
+    grupo.classList.add('expanded');
+    const rotulo = rotuloDoGrupo(doc, grupo.id);
+    if (rotulo) { rotulo.classList.remove('collapsed'); rotulo.setAttribute('aria-expanded', 'true'); }
 }
 
 const marca = (produto) => `n<span style="color:var(--accent)">.</span><span class="brand-tail">${PRODUTOS[produto].nome}</span>`;
@@ -117,8 +138,21 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
     }
     // O Início é do n.360; nos módulos, a volta é o link "n.360" do rodapé.
     // Conta e acessos também: nos módulos, o rodapé leva a ela no n.360.
-    const esconder = new Set(produto === 'privacy' ? [...SO_ISO, ...SO_N360, 'nav-inicio'] : produto === 'iso' ? [...SO_PRIVACY, ...SO_N360, 'nav-inicio'] : [...SO_ISO, ...SO_PRIVACY]);
-    doc.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach((n) => { if (esconder.has(n.id)) n.dataset.foraDoProduto = '1'; else delete n.dataset.foraDoProduto; });
+    // No n.360 (hub) fica só NAV_DO_HUB. Segurança do projeto está em Conta e acessos: nos módulos sai com o grupo.
+    const doHub = new Set(NAV_DO_HUB);
+    const esconder = produto === 'n360' ? (id) => !doHub.has(id)
+        : (id) => (produto === 'privacy' ? SO_ISO : SO_PRIVACY).includes(id) || SO_N360.includes(id) || id === 'nav-inicio' || id === 'nav-seguranca-projeto';
+    if (produto === 'privacy') {
+        // Governança e Inteligência teriam um item só cada (rótulo igual ao item): Governança vai para o fim de
+        // Privacidade e o Assistente sobe para o topo do menu (fora de grupo: Sistema some para o cliente).
+        const gov = doc.getElementById('nav-governance');
+        const priv = doc.getElementById('group-privacy');
+        if (gov && priv) priv.appendChild(gov);
+        const ai = doc.getElementById('nav-ai');
+        const topo = doc.getElementById('nav-dashboard');
+        if (ai && topo) topo.after(ai);
+    }
+    doc.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach((n) => { if (esconder(n.id)) n.dataset.foraDoProduto = '1'; else delete n.dataset.foraDoProduto; });
     // Grupo sem nenhum item do produto some inteiro (rótulo e grupo).
     doc.querySelectorAll('.sidebar-group').forEach((g) => {
         const vazio = [...g.querySelectorAll('.sidebar-nav[id^="nav-"]')].every((n) => n.dataset.foraDoProduto === '1');
@@ -128,6 +162,7 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
     });
     const rotuloPriv = doc.querySelector('[data-args=\'["group-privacy"]\']');
     if (rotuloPriv) { rotuloPriv.textContent = 'Privacidade'; rotuloPriv.removeAttribute('aria-label'); }
+    if (produto === 'privacy') abrirGrupo(doc.getElementById('group-privacy'), doc);
     const rotuloOps = doc.querySelector('[data-args=\'["group-ops"]\']');
     if (rotuloOps) rotuloOps.textContent = produto === 'iso' ? 'Operacional' : 'Cadastro';
     const rotuloImpl = doc.querySelector('[data-args=\'["group-impl"]\']');
@@ -150,17 +185,24 @@ export function semAcesso(c, produto = produtoAtual()) {
         <a class="btn btn-primary" style="margin-top:1rem" href="${escapeHTML(enderecoDoProduto('n360'))}">Abrir o n.360</a></div>`;
 }
 
-/** Link (no rodapé da barra) criado uma vez e reaproveitado. */
+const ORDEM_DOS_LINKS = ['link-n360', 'link-conta', 'link-outro-produto'];
+/** Link (no rodapé da barra, dentro de `.sidebar-crosslinks`) criado uma vez e reaproveitado, sempre na mesma ordem. */
 function linkDaBarra(doc, id) {
     let el = doc.getElementById(id);
     if (el) return el;
     const sidebar = doc.getElementById('sidebar');
     if (!sidebar) return null;
+    let caixa = sidebar.querySelector('.sidebar-crosslinks');
+    if (!caixa) {
+        caixa = doc.createElement('div');
+        caixa.className = 'sidebar-crosslinks';
+        sidebar.insertBefore(caixa, sidebar.querySelector(':scope > .sidebar-bottom'));
+    }
     el = doc.createElement('a');
     el.id = id;
-    el.className = 'sidebar-nav';
-    el.style.cssText = 'display:block;margin:0.5rem 1rem;font-size:0.8rem';
-    sidebar.appendChild(el);
+    el.className = 'sidebar-crosslink';
+    const depois = [...caixa.children].find((a) => ORDEM_DOS_LINKS.indexOf(a.id) > ORDEM_DOS_LINKS.indexOf(id));
+    caixa.insertBefore(el, depois || null);
     return el;
 }
 
@@ -173,8 +215,14 @@ const itemVisivel = (doc, id) => { const el = doc.getElementById(id); return !!e
  */
 export function atualizarLinkCruzado(doc = document) {
     const produto = produtoAtual();
-    const tirar = (id) => { const el = doc.getElementById(id); if (el) el.remove(); };
-    if (produto === 'n360') { tirar('link-n360'); tirar('link-conta'); tirar('link-outro-produto'); return; }
+    const tirar = (id) => {
+        const el = doc.getElementById(id);
+        if (!el) return;
+        const caixa = el.parentElement;
+        el.remove();
+        if (caixa && caixa.classList.contains('sidebar-crosslinks') && !caixa.children.length) caixa.remove();
+    };
+    if (produto === 'n360') { ORDEM_DOS_LINKS.forEach(tirar); return; }
     const volta = linkDaBarra(doc, 'link-n360');
     if (volta) { volta.href = enderecoDoProduto('n360'); volta.textContent = 'n.360'; }
     const tela = Object.keys(TELAS_DA_CONTA).find((t) => itemVisivel(doc, TELAS_DA_CONTA[t]));

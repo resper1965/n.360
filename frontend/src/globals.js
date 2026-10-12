@@ -84,12 +84,12 @@ window.viewEvidence = async function viewEvidence(id) {
                 sealHtml = `
                     <div style="background: rgba(0, 173, 232, 0.02); border: 1px solid rgba(0, 173, 232, 0.15); border-radius: 10px; padding: 1rem; margin-top: 1rem;">
                         <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.4rem; margin-bottom: 0.5rem;">
-                            <div style="width: 6px; height: 6px; border-radius: 50%; background: #00ade8;"></div>
-                            <span style="font-family: 'Montserrat', sans-serif; font-size: 0.65rem; font-weight: 700; color: #f5f5f7; text-transform: uppercase; letter-spacing: 0.05em;">Selo de Assinatura da Evidência</span>
+                            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent);"></div>
+                            <span style="font-family: 'Montserrat', sans-serif; font-size: 0.65rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em;">Selo de Assinatura da Evidência</span>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px;">
-                            <div><strong>DPO:</strong> <span style="color: ${ev.ciso_approved_by ? '#10b981' : 'var(--text-dim)'}">${cisoText}</span></div>
-                            <div><strong>CEO:</strong> <span style="color: ${ev.ceo_approved_by ? '#10b981' : 'var(--text-dim)'}">${ceoText}</span></div>
+                            <div><strong>DPO:</strong> <span style="color: ${ev.ciso_approved_by ? 'var(--success)' : 'var(--text-dim)'}">${cisoText}</span></div>
+                            <div><strong>CEO:</strong> <span style="color: ${ev.ceo_approved_by ? 'var(--success)' : 'var(--text-dim)'}">${ceoText}</span></div>
                         </div>
                     </div>
                 `;
@@ -117,6 +117,37 @@ window.viewEvidence = async function viewEvidence(id) {
         }
     }
 
+
+/**
+ * Mostra ou esconde a tela de entrada. Escondida, ela só ficava transparente (opacity 0) por cima do app: o Tab entrava nos
+ * campos invisíveis e o leitor de tela lia o login (e um segundo h1). Agora sai da árvore com `inert`/`aria-hidden`; à
+ * mostra, é o app por baixo que fica inert.
+ */
+function mostrarEntrada(visivel) {
+    const o = document.getElementById('login-overlay');
+    if (o) {
+        o.classList.toggle('hidden', !visivel);
+        o.toggleAttribute('inert', !visivel);
+        if (visivel) o.removeAttribute('aria-hidden'); else o.setAttribute('aria-hidden', 'true');
+    }
+    for (const app of [document.getElementById('sidebar'), document.querySelector('main')]) {
+        if (app) app.toggleAttribute('inert', visivel);
+    }
+}
+window.mostrarEntrada = mostrarEntrada;
+
+// Barra lateral pelo teclado: item (role=link) e rótulo de grupo (role=button) são div com tabindex; Enter e Espaço
+// viram o clique, que a delegação despacha.
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const alvo = e.target && e.target.closest ? e.target.closest('.sidebar-nav[tabindex], .sidebar-label[tabindex]') : null;
+    if (!alvo || alvo !== e.target) return;
+    e.preventDefault();
+    alvo.click();
+});
+
+/** Titular: o menu do n.privacy abre a tela já na aba (Titular e pedidos, Incidentes). */
+window.abrirAbaTitular = function abrirAbaTitular(aba) { S.titularAba = aba; navigate('titular'); };
 
 window.toggleGroup = function toggleGroup(groupId) {
         const groups = document.querySelectorAll('.sidebar-group');
@@ -385,7 +416,7 @@ window.doLogin = async function doLogin() {
                 document.getElementById('forgot-password-box').style.display = 'none';
                 document.getElementById('first-reset-error').style.display = 'none';
             } else {
-                document.getElementById('login-overlay').classList.add('hidden');
+                mostrarEntrada(false);
                 initApp();
             }
         } catch(e) {
@@ -500,7 +531,7 @@ window.doMfaLogin = async function doMfaLogin() {
             }
 
             document.getElementById('standard-login-box').style.display = 'flex';
-            document.getElementById('login-overlay').classList.add('hidden');
+            mostrarEntrada(false);
             initApp();
         } catch(e) {
             err.textContent = e.message;
@@ -542,7 +573,7 @@ window.doLogout = function doLogout() {
         localStorage.removeItem('niso_token');
         localStorage.removeItem('niso_user');
         localStorage.removeItem('niso_activeProject');
-        document.getElementById('login-overlay').classList.remove('hidden');
+        mostrarEntrada(true);
     }
 
 window.openPricingOverrideModal = function openPricingOverrideModal(id) {
@@ -1282,7 +1313,7 @@ window.pedirReautenticacao = function pedirReautenticacao() {
         ['standard-login-box', 'first-login-reset-box', 'mfa-login-box', 'forgot-password-box', 'legal-accept-box']
             .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         caixa.style.display = 'flex';
-        document.getElementById('login-overlay').classList.remove('hidden');
+        mostrarEntrada(true);
         document.getElementById('reauth-password')?.focus();
     };
 
@@ -1299,7 +1330,7 @@ window.doReauth = async function doReauth() {
             document.getElementById('reauth-box').style.display = 'none';
             document.getElementById('standard-login-box').style.display = 'flex';
             document.getElementById('reauth-password').value = '';
-            document.getElementById('login-overlay').classList.add('hidden');
+            mostrarEntrada(false);
             // NÃO re-renderiza a view: o rascunho vive no DOM da tela por baixo,
             // e redesenhar seria justamente perdê-lo.
             showToast('Sessão retomada');
@@ -1359,7 +1390,7 @@ function renderLegalAcceptCard() {
         ['standard-login-box', 'first-login-reset-box', 'mfa-login-box', 'forgot-password-box']
             .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         caixa.style.display = 'flex';
-        document.getElementById('login-overlay').classList.remove('hidden');
+        mostrarEntrada(true);
         window.updateLegalAcceptButton();
     }
 
@@ -1418,13 +1449,13 @@ window.initApp = async function initApp() {
         // Sprint C: Check for public assessment self-service link
         const assessmentToken = new URLSearchParams(location.search).get('assessment');
         if (assessmentToken) {
-            document.getElementById('login-overlay').classList.add('hidden');
+            mostrarEntrada(false);
             renderSelfServiceAssessment(assessmentToken);
             return;
         }
 
         if (!S.token) {
-            document.getElementById('login-overlay').classList.remove('hidden');
+            mostrarEntrada(true);
             return;
         }
 
@@ -1444,7 +1475,7 @@ window.initApp = async function initApp() {
         // de erro atrás da outra.
         if (await window.checkLegalGate()) return;
 
-        document.getElementById('login-overlay').classList.add('hidden');
+        mostrarEntrada(false);
         const ehStakeholder = S.user && S.user.role === 'stakeholder';
         // Stakeholder não alcança leads, projetos nem controles (403 em todos): não os pede.
         if (!ehStakeholder) await loadAll();
@@ -1545,7 +1576,7 @@ window.doFirstLoginReset = async function() {
         
         try {
             await api('POST', '/api/v1/auth/reset-password-first', { newPassword: newPass });
-            document.getElementById('login-overlay').classList.add('hidden');
+            mostrarEntrada(false);
             initApp();
         } catch (e) {
             err.textContent = e.message || 'Falha ao redefinir senha';
@@ -1603,7 +1634,7 @@ window.doForgotPasswordReset = async function() {
             localStorage.setItem('niso_token', res.token);
             localStorage.setItem('niso_user', JSON.stringify(res.user));
             
-            document.getElementById('login-overlay').classList.add('hidden');
+            mostrarEntrada(false);
             initApp();
         } catch (e) {
             err.textContent = e.message || 'Falha ao redefinir senha';

@@ -75,10 +75,11 @@ describe('menu por papel (login.html real)', () => {
 });
 
 // Conta e acessos (n.360 fatia 2): o grupo mostra a cada papel só o que ele alcança; sem nenhum item, o grupo some.
+// Segurança do projeto (SSO/SCIM) mora aqui desde a onda 1 da casca: é da equipe da ness.
 const CONTA = [
-  ['platform_admin', ['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-api-keys']],
-  ['consultoria_admin', ['nav-projects', 'nav-users']],
-  ['consultor', ['nav-projects', 'nav-users', 'nav-conectar-agente']],
+  ['platform_admin', ['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-seguranca-projeto', 'nav-api-keys']],
+  ['consultoria_admin', ['nav-projects', 'nav-users', 'nav-seguranca-projeto']],
+  ['consultor', ['nav-projects', 'nav-users', 'nav-seguranca-projeto', 'nav-conectar-agente']],
   ['comercial', []],
   ['org_admin', ['nav-users']],
   ['org_user', []],

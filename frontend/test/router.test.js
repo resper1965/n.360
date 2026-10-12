@@ -2,7 +2,7 @@
 // para qual tela o usuario vai (papeis de cliente sao desviados) e qual item da
 // barra lateral recebe `active` + `aria-current`. A primeira e uma regra de
 // visibilidade; a segunda e orientacao e acessibilidade.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { navigate } from '../src/router.js';
 import { S } from '../src/state.js';
 
@@ -44,7 +44,10 @@ describe('navigate()', () => {
         for (const nome of VIEWS) globalThis[nome] = vi.fn();
         S.user = null;
         S.view = 'dashboard';
+        // Casca do n.iso: no n.360 (o caminho '/') tela de módulo sai para o módulo (test/casca-router.test.js).
+        history.replaceState(null, '', '/iso');
     });
+    afterEach(() => history.replaceState(null, '', '/'));
 
     describe('desvio por papel — o que o usuario PODE ver', () => {
         it.each(['org_admin', 'org_user', 'client'])(

@@ -107,7 +107,7 @@ describe('casca', () => {
         const v = visiveis();
         for (const id of SO_PRIVACY) expect(v, id).toContain(id);
         for (const id of SO_ISO) expect(v, id).not.toContain(id);
-        for (const id of ['nav-partes', 'nav-documentos', 'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-assets']) expect(v, id).toContain(id);
+        for (const id of ['nav-partes', 'nav-documentos', 'nav-evidence', 'nav-ropa', 'nav-dpia']) expect(v, id).toContain(id);
         // o grupo comercial inteiro some (rótulo também)
         expect(el('group-sales').dataset.foraDoProduto).toBe('1');
         expect(el('label-group-sales').dataset.foraDoProduto).toBe('1');
@@ -118,7 +118,8 @@ describe('casca', () => {
         expect(rodapes.length).toBeGreaterThan(0);
         for (const r of rodapes) expect(r).not.toContain('n.iso');
         expect(rodapes.filter((r) => r.includes('n.privacy')).length).toBe((html.match(/n\.iso \d+\.\d+\.\d+/g) || []).length);
-        expect(document.querySelector('.login-sign-links a[href="/politicas.html"]')).not.toBeNull();
+        // os links "privacidade · termos" apontavam para o portal de políticas do CLIENTE: saíram (test/casca-menu.test.js)
+        expect(document.querySelector('.login-sign-links a')).toBeNull();
     });
     it('n.iso: igual ao de sempre, sem as telas exclusivas do n.privacy, e com RoPA e DPIA', () => {
         montarApp();
@@ -131,7 +132,7 @@ describe('casca', () => {
         expect(el('group-sales').dataset.foraDoProduto).toBe('');
         expect(document.querySelectorAll('.entry-section:not([hidden])').length).toBeGreaterThan(0);
     });
-    it('n.360: título, marca, entrada da plataforma; menu só com cadastro, sistema e Início', () => {
+    it('n.360: título, marca, entrada da plataforma; menu de hub (Início, conta, segurança do projeto, trilha)', () => {
         montarApp();
         aplicarCasca('n360');
         expect(document.title).toBe('n.360 | ness.');
@@ -142,7 +143,9 @@ describe('casca', () => {
         expect(document.querySelector('.entry-lede').textContent).toContain('n.privacy');
         const v = visiveis();
         for (const id of [...SO_ISO, ...SO_PRIVACY]) expect(v, id).not.toContain(id);
-        for (const id of ['nav-inicio', 'nav-projects', 'nav-partes', 'nav-documentos', 'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-settings']) expect(v, id).toContain(id);
+        for (const id of ['nav-inicio', 'nav-projects', 'nav-seguranca-projeto', 'nav-audit-trail']) expect(v, id).toContain(id);
+        // o cadastro (dos dois módulos) não é do hub: abre-se no módulo
+        for (const id of ['nav-partes', 'nav-documentos', 'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-settings']) expect(v, id).not.toContain(id);
         expect(document.querySelector('.entry-more').hidden).toBe(true);
         expect(document.querySelectorAll('.entry-section:not([hidden])').length).toBe(0);
         const rodapes = [...document.querySelectorAll('.login-sign-links')].map((s) => s.textContent);
@@ -179,14 +182,16 @@ describe('conta e acessos', () => {
         const v = visiveis();
         for (const id of CONTA) expect(v, id).toContain(id);
         const grupo = el('group-conta');
-        expect([...grupo.querySelectorAll('.sidebar-nav')].map((n) => n.id)).toEqual(CONTA);
+        // Segurança do projeto (SSO/SCIM do projeto) mora em Conta e acessos, logo depois de Organizações
+        expect([...grupo.querySelectorAll('.sidebar-nav')].map((n) => n.id)).toEqual(['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-seguranca-projeto', 'nav-api-keys', 'nav-conectar-agente']);
         expect(grupo.dataset.foraDoProduto).toBe('');
         expect(el('label-group-conta').textContent).toBe('Conta e acessos');
         expect(el('nav-api-keys').textContent.trim()).toBe('Chaves de API');
         // cada item navega para a tela da lista fechada
         for (const id of CONTA) expect(TELAS_DA_CONTA[JSON.parse(el(id).getAttribute('data-args'))[0]], id).toBe(id);
+        expect(v).toContain('nav-seguranca-projeto');
     });
-    it('nos módulos os itens da conta somem, com o grupo e o rótulo; Segurança do projeto fica', () => {
+    it('nos módulos os itens da conta somem, com o grupo e o rótulo (Segurança do projeto junto)', () => {
         for (const p of ['iso', 'privacy']) {
             montarApp();
             aplicarCasca(p);
@@ -194,7 +199,7 @@ describe('conta e acessos', () => {
             for (const id of CONTA) expect(v, `${p} ${id}`).not.toContain(id);
             expect(el('group-conta').dataset.foraDoProduto, p).toBe('1');
             expect(el('label-group-conta').dataset.foraDoProduto, p).toBe('1');
-            expect(v, p).toContain('nav-seguranca-projeto');
+            expect(v, p).not.toContain('nav-seguranca-projeto');
         }
     });
     it('no módulo, o rodapé leva a "Conta e acessos (n.360)" na primeira tela que o papel vê', () => {

@@ -157,10 +157,14 @@ describe('notificação de proposta (fatia 4)', () => {
       ? { id: 'p1', numero: 'N-1', revisao: 1, status: 'visualizada', cliente: 'Acme', itens: [] }
       : []));
     S.notifications = [{ id: 'n1', read: 0, title: 'Proposta visualizada: Acme', link: '/propostas/p1', action_type: 'proposta_visualizada', target_id: 'p1' }];
-    await window.handleNotificationClick('n1');
-    await vi.waitFor(() => expect(api).toHaveBeenCalledWith('GET', '/api/v1/propostas/p1'));
-    expect(S.view).toBe('proposals');
-    await vi.waitFor(() => expect(document.querySelector('[data-action="__prpEnviar"]')).toBeTruthy());
+    // Propostas é tela do n.iso: no n.360 o aviso levaria ao módulo (test/casca-router.test.js).
+    history.replaceState(null, '', '/iso');
+    try {
+      await window.handleNotificationClick('n1');
+      await vi.waitFor(() => expect(api).toHaveBeenCalledWith('GET', '/api/v1/propostas/p1'));
+      expect(S.view).toBe('proposals');
+      await vi.waitFor(() => expect(document.querySelector('[data-action="__prpEnviar"]')).toBeTruthy());
+    } finally { history.replaceState(null, '', '/'); }
   });
 });
 
