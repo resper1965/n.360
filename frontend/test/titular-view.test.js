@@ -58,7 +58,7 @@ describe('abas', () => {
         const abas = [...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')];
         // contagem nas abas, com o atrasado em --danger; role=tab e a ativa marcada por aria-selected (sem preenchimento)
         expect(abas.map((b) => b.textContent)).toEqual(['Pedidos do titular (3 · 1 atrasado)', 'Incidentes (1 · 1 atrasado)', 'Consentimentos', 'Prazos legais']);
-        expect(abas[1].querySelector('span').getAttribute('style')).toContain('var(--danger)');
+        expect(abas[1].querySelector('span span').getAttribute('style')).toContain('var(--danger)');
         expect(el('c').querySelector('[role="tablist"]')).not.toBeNull();
         expect(abas.map((b) => b.getAttribute('role'))).toEqual(['tab', 'tab', 'tab', 'tab']);
         expect(abas.map((b) => b.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false']);

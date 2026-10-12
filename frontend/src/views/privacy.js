@@ -53,7 +53,7 @@ import { temProduto } from '../produto.js';
     };
 
     async function renderROPA(c, h, a) {
-        h.textContent = 'RoPA — Registro das atividades de tratamento';
+        h.textContent = 'Registro de tratamentos (RoPA)';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';

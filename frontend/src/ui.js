@@ -293,7 +293,7 @@ export function renderDataTable(columns, rows, options = {}) {
  */
 export function renderAbas(abas, ativa, action) {
     return `<div class="ca-abas" role="tablist" style="margin-bottom:1rem">${abas.map(([v, rotulo]) =>
-        `<button type="button" role="tab" class="ca-aba" aria-selected="${v === ativa}" tabindex="${v === ativa ? 0 : -1}" data-action="${escapeHTML(action)}" data-args='${escapeHTML(JSON.stringify([v]))}'>${rotulo}</button>`).join('')}</div>`;
+        `<button type="button" role="tab" class="ca-aba" aria-selected="${v === ativa}" tabindex="${v === ativa ? 0 : -1}" data-action="${escapeHTML(action)}" data-args='${escapeHTML(JSON.stringify([v]))}'><span>${rotulo}</span></button>`).join('')}</div>`;
 }
 
 window.escapeHTML = escapeHTML;
