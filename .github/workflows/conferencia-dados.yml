@@ -1,0 +1,45 @@
+name: Conferência de dados de produção (só leitura)
+
+# Prova, depois de uma migration de DADOS, que produção ficou como o README da migration diz — sem
+# `wrangler d1 execute` manual e sem conector. As consultas são FIXAS (nenhuma entrada do usuário vira SQL)
+# e devolvem só CONTAGENS e valores de configuração: nenhum nome, e-mail ou dado de cliente sai no log.
+# Conferências cobertas: papéis normalizados e módulos por pessoa (0066), contrato da ness. (0065),
+# catálogo de requisitos carregado pela rotina diária (#341).
+# Uma consulta por statement: o D1 recusa SELECT composto com muitos termos.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Contagens
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -o pipefail
+          npx wrangler d1 execute niso-db --remote --json -y --command "
+            SELECT 'papel ' || role AS chave, count(*) AS n FROM users GROUP BY role;
+            SELECT 'usuario_modulos ' || modulo AS chave, count(*) AS n FROM usuario_modulos GROUP BY modulo;
+            SELECT 'requisitos ' || fonte_id AS chave, count(*) AS n FROM requisitos GROUP BY fonte_id;
+            SELECT 'mapeamentos ' || estado AS chave, count(*) AS n FROM requisito_mapeamentos GROUP BY estado;
+            SELECT 'controles sem requisito' AS chave, count(*) AS n FROM compliance_controls WHERE requisito_id IS NULL;
+            SELECT 'contrato ' || id || ' ' || modulos_contratados AS chave, 1 AS n FROM organizations;
+            SELECT 'projetos ' || modulo AS chave, count(*) AS n FROM projeto_modulos GROUP BY modulo;" \
+            | node -e "
+              let e='';process.stdin.on('data',d=>e+=d).on('end',()=>{
+                for (const bloco of JSON.parse(e))
+                  for (const r of bloco.results) console.log(String(r.chave).padEnd(48), r.n);
+              });"

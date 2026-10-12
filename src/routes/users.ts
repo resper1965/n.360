@@ -1,8 +1,8 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
 
 import { genId, hashPassword, logAudit, sendEmail, escapeHtml, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, erro500, ehConsultor, ehAdminDaOrg, consultorDesignado, PROJETOS_DO_CONSULTOR_SQL, PAPEIS_EQUIPE_ORG } from '../helpers';
-import { validateBody, createUserSchema, updateUserSchema, modulosDaContaSchema } from '../schemas';
+import { validateBody, createUserSchema, updateUserSchema, modulosDaContaSchema, ativoDaContaSchema } from '../schemas';
 import { MODULOS_PRODUTO, NOME_DO_PRODUTO, modulosContratados, modulosDaPessoa, modulosDoProjeto, type Modulo } from '../modulos';
 import { appUrl } from '../config/url';
 import { orgDoUsuario, resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_USUARIOS } from '../services/organizacao';
@@ -28,28 +28,28 @@ usersApp.get('/', async (c) => {
   }
   
   try {
-    let stmt = c.env.DB.prepare('SELECT id, email, name, role, client_project_id, created_at FROM users ORDER BY created_at DESC');
+    let stmt = c.env.DB.prepare('SELECT id, email, name, role, client_project_id, ativo, created_at FROM users ORDER BY created_at DESC');
     if (user.role === 'platform_admin' && c.req.header('X-Org-Id')?.trim()) {
       // A organização em que o platform_admin atua (a tela de organizações manda o cabeçalho);
       // sem ele, todas as contas. Organização inexistente → 403, como em `exigirOrg`.
       const org = await resolverOrg(c);
       if (!org) return c.json(SEM_ORG, 403);
-      stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.created_at FROM users u WHERE ${ORG_DA_CONTA_SQL} = ? ORDER BY u.created_at DESC`).bind(org);
+      stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.ativo, u.created_at FROM users u WHERE ${ORG_DA_CONTA_SQL} = ? ORDER BY u.created_at DESC`).bind(org);
     } else if (ehAdminDaOrg(user)) {
       // Todas as contas da organização (equipe e clientes dos projetos dela), nenhuma de fora.
-      stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.created_at FROM users u WHERE ${ORG_DA_CONTA_SQL} = ? ORDER BY u.created_at DESC`).bind(orgDoUsuario(user) ?? '');
+      stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.ativo, u.created_at FROM users u WHERE ${ORG_DA_CONTA_SQL} = ? ORDER BY u.created_at DESC`).bind(orgDoUsuario(user) ?? '');
     } else if (user.role === 'org_admin') {
-      stmt = c.env.DB.prepare('SELECT id, email, name, role, client_project_id, created_at FROM users WHERE client_project_id = ? ORDER BY created_at DESC').bind(user.client_project_id || '');
+      stmt = c.env.DB.prepare('SELECT id, email, name, role, client_project_id, ativo, created_at FROM users WHERE client_project_id = ? ORDER BY created_at DESC').bind(user.client_project_id || '');
     } else if (ehConsultor(user)) {
       // D5: só as contas de cliente dos projetos em que o consultor está designado.
-      stmt = c.env.DB.prepare(`SELECT id, email, name, role, client_project_id, created_at FROM users WHERE client_project_id IN (${PROJETOS_DO_CONSULTOR_SQL}) ORDER BY created_at DESC`).bind(user.email);
+      stmt = c.env.DB.prepare(`SELECT id, email, name, role, client_project_id, ativo, created_at FROM users WHERE client_project_id IN (${PROJETOS_DO_CONSULTOR_SQL}) ORDER BY created_at DESC`).bind(user.email);
     }
     const { results } = await stmt.all();
     const mapped = (results || []).map((u: any) => {
       let r = u.role;
       if (r === 'admin') r = 'platform_admin';
       if (r === 'consultant') r = 'consultor';
-      return { ...u, role: r };
+      return { ...u, role: r, ativo: u.ativo !== 0 };
     });
     return c.json(await comModulos(c.env.DB, mapped, user.role === 'platform_admin'));
   } catch (e: any) {
@@ -269,6 +269,28 @@ usersApp.post('/', async (c) => {
   }
 });
 
+const CAMPOS_RASTREADOS = ['role', 'client_project_id', 'name', 'email'] as const;
+type CampoRastreado = typeof CAMPOS_RASTREADOS[number];
+/**
+ * Linhas `user.updated` da edição: uma por campo rastreado que mudou; uma sem valores se a senha mudou. A troca de
+ * projeto sai também na trilha do projeto ANTERIOR: senão o projeto de onde a pessoa saiu não registra a saída.
+ */
+function trilhaDaEdicao(db: D1Database, id: string, antes: Record<CampoRastreado, string | null>,
+  depois: Record<CampoRastreado, string | null>, senha: boolean, ator: string, ip: string, projeto: string | null) {
+  const linha = (detalhe: string, campo: string | null, velho: string | null, novo: string | null, proj = projeto) =>
+    db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, entity_type, entity_id, field, old_value, new_value, created_at)
+      VALUES (?, 'user.updated', ?, ?, '', ?, ?, 'user', ?, ?, ?, ?, datetime('now'))`)
+      .bind(crypto.randomUUID(), ator, `Usuário ${id} atualizado: ${detalhe}`, ip, proj, id, campo, velho, novo);
+  const linhas = CAMPOS_RASTREADOS.filter((f) => (antes[f] ?? null) !== (depois[f] ?? null))
+    .map((f) => linha(f, f, antes[f] ?? null, depois[f] ?? null));
+  const saiuDe = antes.client_project_id;
+  if (saiuDe && saiuDe !== depois.client_project_id && saiuDe !== projeto) {
+    linhas.push(linha('client_project_id', 'client_project_id', saiuDe, depois.client_project_id, saiuDe));
+  }
+  if (senha) linhas.push(linha('senha', null, null, null));
+  return linhas.length ? linhas : [linha('nenhum campo', null, null, null)];
+}
+
 usersApp.put('/:id', async (c) => {
   const admin = c.get('user');
   if (!GESTORES.has(admin.role)) {
@@ -281,7 +303,7 @@ usersApp.put('/:id', async (c) => {
     if (!v.success) return v.response;
     const { name, email, role, client_project_id, password } = v.data;
     
-    const user = await c.env.DB.prepare(`SELECT u.id, u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id).first() as any;
+    const user = await c.env.DB.prepare(`SELECT u.id, u.name, u.email, u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id).first() as any;
     if (!user) {
       return c.json({ error: 'Usuário não encontrado' }, 404);
     }
@@ -367,11 +389,14 @@ usersApp.put('/:id', async (c) => {
         values.push(orgDoUsuario(admin));
       }
     }
+    let projetoGravado: string | null = user.client_project_id;
     if (client_project_id !== undefined) {
+      projetoGravado = admin.role === 'org_admin' ? (admin.client_project_id || null) : (client_project_id || null);
       updates.push('client_project_id = ?');
-      values.push(admin.role === 'org_admin' ? (admin.client_project_id || null) : (client_project_id || null));
+      values.push(projetoGravado);
     } else if (!ficaCliente && user.client_project_id) {
       // Cliente que vira equipe solta o projeto: conta de equipe não se prende a projeto.
+      projetoGravado = null;
       updates.push('client_project_id = NULL');
     }
     if (password !== undefined && password !== '') {
@@ -393,10 +418,13 @@ usersApp.put('/:id', async (c) => {
       if (password !== undefined && password !== '') await revogarAgentesPorTrocaDeSenha(c.env.DB, id);
       if (role !== undefined || client_project_id !== undefined) await recalcularModulos(c.env.DB, id, user, admin.email);
 
-      // Quais CAMPOS mudaram, nunca o valor (a senha, menos ainda).
-      const campos = [password ? 'senha' : '', role !== undefined ? 'papel' : '', email !== undefined ? 'email' : '',
-        name !== undefined ? 'nome' : '', client_project_id !== undefined ? 'projeto' : ''].filter(Boolean);
-      await logAudit(c.env.DB, 'user.updated', admin.email, `Usuário ${id} atualizado: ${campos.join(', ') || 'nenhum campo'}`);
+      // Antes e depois por campo, só dos quatro rastreados; da senha, só que mudou (nunca o valor).
+      // O projeto é o da conta, para a mudança aparecer na trilha do projeto.
+      const depois: Record<CampoRastreado, string | null> = {
+        name: name ?? user.name, email: email ?? user.email, role: papelFinal, client_project_id: projetoGravado,
+      };
+      await c.env.DB.batch(trilhaDaEdicao(c.env.DB, id, user, depois, !!password, admin.email,
+        c.req.header('CF-Connecting-IP') ?? '', projetoGravado ?? user.client_project_id ?? null));
     }
 
     return c.json({ ok: true, message: 'Usuário atualizado com sucesso' });
@@ -459,6 +487,74 @@ usersApp.put('/:id/modulos', async (c) => {
   }
 });
 
+type ContaAlvo = { id: string; email: string; role: string; client_project_id: string | null; org: string | null };
+type Ctx = Context<{ Bindings: Bindings; Variables: Variables }>;
+const contaAlvo = (db: D1Database, id: string) =>
+  db.prepare(`SELECT u.id, u.email, u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id).first<ContaAlvo>();
+
+/**
+ * Quem gere a conta pode mudar-lhe o acesso? As guardas de sempre do DELETE: organização, conta da ness., consultor
+ * designado, org_admin do projeto. As travas do último administrador valem ao tirar acesso: a do último
+ * `consultoria_admin` vale para todo mundo ao DESATIVAR e, no apagar definitivo, segue como era (o platform_admin
+ * reprovisiona). Devolve a resposta de recusa, ou null.
+ */
+async function recusaDaGestao(c: Ctx, user: ContaAlvo, modo: 'desativar' | 'reativar' | 'definitivo'): Promise<Response | null> {
+  const admin = c.get('user');
+  const db = c.env.DB;
+  if (ehAdminDaOrg(admin) && user.org !== orgDoUsuario(admin)) return c.json(NAO_ENCONTRADO, 404);
+  if (soPlatformAdmin(admin, user.role)) return c.json(recusaPapelInterno, 403);
+  if (await consultorForaDoProjeto(db, admin, user.client_project_id)) return c.json(recusaProjeto, 403);
+  if (admin.role === 'org_admin' && user.client_project_id !== admin.client_project_id) {
+    return c.json({ error: 'Forbidden: Access denied to this user' }, 403);
+  }
+  if (modo === 'reativar') return null;
+  // A própria conta, não: quem se desativa por engano não tem como se reativar.
+  if (user.id === String(admin.id)) return c.json({ error: 'Não é possível desativar ou excluir a própria conta' }, 409);
+  // Depois da permissão: quem não pode mexer recebe 403, sem saber se este é o último.
+  if (user.role === 'consultoria_admin' && (modo === 'desativar' || ehAdminDaOrg(admin)) && await ultimoAdminDaOrg(db, user.org, user.id)) {
+    return c.json(ULTIMO_ADMIN, 409);
+  }
+  if (user.role === 'platform_admin' && await ultimoPlatformAdmin(db, user.id)) return c.json(ULTIMO_PLATFORM_ADMIN, 409);
+  return null;
+}
+
+/**
+ * Desativa ou reativa. Desativar derruba as sessões (marco no KV: o middleware recusa a requisição seguinte) e os
+ * agentes MCP. A trilha leva o projeto da conta (equipe: nenhum). Já no estado pedido: nada se grava na trilha.
+ */
+async function definirAtivo(c: Ctx, user: ContaAlvo, ativo: boolean): Promise<void> {
+  const n = ativo ? 1 : 0;
+  const r = await c.env.DB.prepare('UPDATE users SET ativo = ? WHERE id = ? AND COALESCE(ativo, 1) <> ?').bind(n, user.id, n).run();
+  if (!ativo) {
+    await invalidateUserSessions(c.env.SESSIONS, user.id);
+    await revogarAgentesPorTrocaDeSenha(c.env.DB, user.id, 'conta desativada');
+  }
+  if (!r.meta?.changes) return;
+  await logAudit(c.env.DB, ativo ? 'user.reativado' : 'user.desativado', c.get('user').email,
+    `Conta ${user.email} (${user.id}) ${ativo ? 'reativada' : 'desativada'}`, '', c.req.header('CF-Connecting-IP') ?? '',
+    user.client_project_id ?? undefined);
+}
+
+usersApp.put('/:id/ativo', async (c) => {
+  if (!GESTORES.has(c.get('user').role)) return c.json({ error: 'Unauthorized' }, 403);
+  try {
+    const v = await validateBody(c, ativoDaContaSchema);
+    if (!v.success) return v.response;
+    const user = await contaAlvo(c.env.DB, c.req.param('id'));
+    if (!user) return c.json(NAO_ENCONTRADO, 404);
+    const recusa = await recusaDaGestao(c, user, v.data.ativo ? 'reativar' : 'desativar');
+    if (recusa) return recusa;
+    await definirAtivo(c, user, v.data.ativo);
+    return c.json({ ok: true, ativo: v.data.ativo });
+  } catch (e) {
+    return erro500(c, 'Falha ao alterar a situação da conta', e);
+  }
+});
+
+/**
+ * Excluir conta DESATIVA: a linha fica, e a trilha e as decisões dela continuam apontando para alguém. Apagar de fato,
+ * só o platform_admin com `?definitivo=1`, sob as travas de sempre.
+ */
 usersApp.delete('/:id', async (c) => {
   const admin = c.get('user');
   if (!GESTORES.has(admin.role)) {
@@ -466,30 +562,28 @@ usersApp.delete('/:id', async (c) => {
   }
 
   const id = c.req.param('id');
+  const definitivo = c.req.query('definitivo') === '1';
   try {
-    const user = await c.env.DB.prepare(`SELECT u.id, u.email, u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id).first() as any;
+    if (definitivo && admin.role !== 'platform_admin') {
+      return c.json({ error: 'Forbidden: só o platform_admin apaga uma conta em definitivo' }, 403);
+    }
+    const user = await contaAlvo(c.env.DB, id);
     if (!user) {
       return c.json({ error: 'Usuário não encontrado' }, 404);
     }
-    if (ehAdminDaOrg(admin) && user.org !== orgDoUsuario(admin)) return c.json(NAO_ENCONTRADO, 404);
-    if (ehAdminDaOrg(admin) && user.role === 'consultoria_admin' && await ultimoAdminDaOrg(c.env.DB, user.org, id)) {
-      return c.json(ULTIMO_ADMIN, 409);
-    }
+    const recusa = await recusaDaGestao(c, user, definitivo ? 'definitivo' : 'desativar');
+    if (recusa) return recusa;
 
-    if (soPlatformAdmin(admin, user.role)) return c.json(recusaPapelInterno, 403);
-    // Depois da permissão: quem não pode apagar recebe 403, sem saber se este é o último.
-    if (user.role === 'platform_admin' && await ultimoPlatformAdmin(c.env.DB, id)) return c.json(ULTIMO_PLATFORM_ADMIN, 409);
-    if (await consultorForaDoProjeto(c.env.DB, admin, user.client_project_id)) return c.json(recusaProjeto, 403);
-
-    if (admin.role === 'org_admin' && user.client_project_id !== admin.client_project_id) {
-      return c.json({ error: 'Forbidden: Access denied to this user' }, 403);
+    if (!definitivo) {
+      await definirAtivo(c, user, false);
+      return c.json({ ok: true, desativado: true });
     }
 
     await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
     // Usuário excluído com sessão aberta continuaria navegando: o middleware
     // valida a sessão contra o KV, e a linha em `users` já não existe.
     await invalidateUserSessions(c.env.SESSIONS, id);
-    await logAudit(c.env.DB, 'user.deleted', admin.email, `Usuário ${user.email} excluído`);
+    await logAudit(c.env.DB, 'user.deleted', admin.email, `Usuário ${user.email} excluído`, '', '', user.client_project_id ?? undefined);
 
     return c.json({ ok: true, message: 'Usuário excluído com sucesso' });
   } catch (e: any) {

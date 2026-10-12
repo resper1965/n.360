@@ -77,6 +77,8 @@ const CORPOS: Record<string, (alvo: Org) => unknown> = {
   // lista vazia passa no schema e em qualquer teto: o que tem de recusar é a guarda (conta de outra organização)
   'PUT /api/v1/users/:id/modulos': () => ({ modulos: [] }),
   'PUT /api/v1/admin/users/:id/modulos': () => ({ modulos: [] }),
+  'PUT /api/v1/users/:id/ativo': () => ({ ativo: false }),
+  'PUT /api/v1/admin/users/:id/ativo': () => ({ ativo: false }),
   'POST /api/v1/projects/:projectId/departamentos': () => ({ nome: 'Varredura' }),
   'PUT /api/v1/projects/:projectId/departamentos/:id': () => ({ nome: 'Varredura' }),
   'POST /api/v1/projects/:projectId/partes': () => ({ nome: 'Varredura' }),
