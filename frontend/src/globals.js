@@ -306,7 +306,14 @@ async function iniciarSso(email, quandoSemSso) {
     if (!email) { mostraErroLogin('Informe o e-mail da sua conta.'); return; }
     try {
         const r = await api('POST', '/api/v1/public/sso/iniciar', { email });
-        if (r && r.sso && r.autorizacao) { location.assign(r.autorizacao); return; }
+        if (r && r.sso && r.autorizacao) {
+            // Só segue para https: o destino vem do servidor, mas um esquema estranho nunca deve ser navegado.
+            if (!/^https:\/\//i.test(String(r.autorizacao))) { mostraErroLogin(MOTIVO_SSO_GENERICO); return; }
+            // Marca que ESTE navegador iniciou um login SSO; o retorno só vale com a marca (evita login CSRF por link).
+            try { sessionStorage.setItem('sso_pendente', '1'); } catch { /* sem storage: o retorno será recusado */ }
+            location.assign(r.autorizacao);
+            return;
+        }
         mostraErroLogin(quandoSemSso);
     } catch (e) {
         mostraErroLogin('Não foi possível consultar o SSO agora. Tente novamente.');
@@ -327,11 +334,13 @@ window.consumirRetornoSso = function consumirRetornoSso() {
     history.replaceState(null, '', location.pathname + location.search);
     let valor = '';
     try { valor = decodeURIComponent(m[2]); } catch { /* valor malformado: cai no genérico */ }
-    if (m[1] === 'sso_token' && valor) {
+    let pendente = false;
+    try { pendente = sessionStorage.getItem('sso_pendente') === '1'; sessionStorage.removeItem('sso_pendente'); } catch { /* sem storage */ }
+    if (m[1] === 'sso_token' && valor && pendente) {
         S.token = valor;
         localStorage.setItem('niso_token', valor);
     } else {
-        mostraErroLogin(MOTIVOS_SSO[valor] || MOTIVO_SSO_GENERICO);
+        mostraErroLogin(Object.hasOwn(MOTIVOS_SSO, valor) ? MOTIVOS_SSO[valor] : MOTIVO_SSO_GENERICO);
     }
 };
 

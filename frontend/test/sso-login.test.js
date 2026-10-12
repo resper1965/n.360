@@ -30,6 +30,7 @@ beforeEach(async () => {
   apiMock.mockReset();
   S.token = null; S.user = null;
   localStorage.clear();
+  sessionStorage.clear();
   history.replaceState(null, '', '/');
   window.initApp = vi.fn();
   assign = vi.fn();
@@ -46,6 +47,7 @@ describe('descoberta de SSO ao entrar sem senha', () => {
   it('e-mail com SSO redireciona ao provedor e nao chama o login por senha', async () => {
     apiMock.mockResolvedValue({ sso: true, autorizacao: 'https://idp.exemplo.test/auth?x=1' });
     await window.doLogin();
+    expect(sessionStorage.getItem('sso_pendente')).toBe('1');
     expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/public/sso/iniciar', { email: 'ana@acme.com.br' });
     expect(apiMock).not.toHaveBeenCalledWith('POST', '/api/v1/auth/login', expect.anything());
     expect(assign).toHaveBeenCalledWith('https://idp.exemplo.test/auth?x=1');
@@ -83,13 +85,50 @@ describe('descoberta de SSO ao entrar sem senha', () => {
 });
 
 describe('retorno do callback', () => {
-  it('#sso_token vira sessao e some da URL', () => {
+  it('#sso_token vira sessao e some da URL (com login iniciado neste navegador)', () => {
+    sessionStorage.setItem('sso_pendente', '1');
     location.hash = '#sso_token=tok123';
     const troca = vi.spyOn(history, 'replaceState');
     window.consumirRetornoSso();
     expect(troca).toHaveBeenCalledWith(null, '', '/');
     expect(S.token).toBe('tok123');
     expect(localStorage.getItem('niso_token')).toBe('tok123');
+    expect(sessionStorage.getItem('sso_pendente')).toBeNull();
+  });
+
+  it('#sso_token sem login iniciado aqui nao vira sessao e preserva a sessao aberta', () => {
+    S.token = 'minha'; localStorage.setItem('niso_token', 'minha');
+    location.hash = '#sso_token=do-atacante';
+    const troca = vi.spyOn(history, 'replaceState');
+    window.consumirRetornoSso();
+    expect(troca).toHaveBeenCalledWith(null, '', '/');
+    expect(S.token).toBe('minha');
+    expect(localStorage.getItem('niso_token')).toBe('minha');
+    expect(document.getElementById('login-error').style.display).toBe('block');
+  });
+
+  it('a marca vale uma vez so', () => {
+    sessionStorage.setItem('sso_pendente', '1');
+    location.hash = '#sso_token=a';
+    window.consumirRetornoSso();
+    S.token = null; localStorage.clear();
+    location.hash = '#sso_token=b';
+    window.consumirRetornoSso();
+    expect(S.token).toBeNull();
+  });
+
+  it.each(['http://idp.exemplo.test/a', 'javascript:alert(1)'])('autorizacao fora de https (%s) nao e navegada', async (url) => {
+    apiMock.mockResolvedValue({ sso: true, autorizacao: url });
+    await window.entrarComSso();
+    expect(assign).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('sso_pendente')).toBeNull();
+    expect(document.getElementById('login-error').style.display).toBe('block');
+  });
+
+  it('#sso_erro=toString cai na mensagem generica', () => {
+    location.hash = '#sso_erro=toString';
+    window.consumirRetornoSso();
+    expect(document.getElementById('login-error').textContent).toMatch(/Não foi possível entrar pelo SSO/);
   });
 
   it('#sso_erro mostra mensagem fixa, nunca o texto da URL', () => {

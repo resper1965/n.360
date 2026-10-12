@@ -38,11 +38,11 @@ async function renderSegurancaProjeto(c, h, a) {
             api('GET', `/api/v1/projects/${proj.id}/security-policy`),
         ]);
     } catch (err) {
-        if (alvo !== proj.id) return; // render velho: outro projeto já foi pedido
+        if (alvo !== proj.id || S.view !== 'seguranca-projeto') return; // render velho: outro projeto ou outra tela
         c.innerHTML = `<div class="empty-state fade-in"><h3>Não foi possível carregar</h3><p>${e(err.message)}</p></div>`;
         return;
     }
-    if (alvo !== proj.id) return; // render velho: não pinta o formulário de um projeto sobre o de outro
+    if (alvo !== proj.id || S.view !== 'seguranca-projeto') return; // render velho: não pinta o formulário de um projeto sobre o de outro
     const s = sso?.sso || null;
     const p = pol?.politica || {};
     const ips = String(p.ip_allowlist || '').split(',').map((x) => x.trim()).filter(Boolean).join(', ');

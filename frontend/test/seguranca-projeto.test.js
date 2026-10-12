@@ -46,7 +46,7 @@ async function abrir(h = base) {
     await espera();
     return f;
 }
-beforeEach(() => { S.token = 'tok'; S.user = { role: 'consultor' }; S.activeProject = { id: 'p9' }; });
+beforeEach(() => { S.token = 'tok'; S.user = { role: 'consultor' }; S.activeProject = { id: 'p9' }; S.view = 'seguranca-projeto'; });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('visibilidade', () => {
@@ -190,6 +190,19 @@ describe('projeto fixado no render', () => {
         await clica('salvarSsoProjeto');
         const puts = f.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([u]) => new URL(u, 'http://localhost').pathname);
         expect(puts).toEqual(['/api/v1/projects/p2/sso']);
+    });
+
+    it('render que termina depois de o usuário sair da tela não pinta', async () => {
+        document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div>';
+        let solta;
+        const trava = new Promise((r) => { solta = r; });
+        vi.stubGlobal('fetch', vi.fn(async (url) => { await trava; return resposta(String(url).endsWith('/sso') ? { ok: true, sso: SSO } : { ok: true, politica: POL }); }));
+        const r = window.renderSegurancaProjeto(el('c'), el('h'), el('a'));
+        S.view = 'dashboard';
+        el('c').innerHTML = '<p id="outra">outra tela</p>';
+        solta(); await r; await espera();
+        expect(el('outra')).not.toBeNull();
+        expect(el('sso-issuer')).toBeNull();
     });
 
     it('sem projeto ativo: não cai no primeiro da lista e não chama a API', async () => {
