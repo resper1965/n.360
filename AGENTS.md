@@ -264,10 +264,17 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (a proposta, um tratamento por linha). Arquivo no R2 `STORAGE`, chave `importacoes/<project_id>/<lote>/<arquivo>`. Regras em
   `src/services/importacao.ts`; o `ImportacaoAgent` (`src/agents/importacao.ts`) classifica o arquivo e extrai tratamentos pelo
   `BaseAgent.runModel`, tratando o texto do arquivo como dado e nunca como instrucao, e cada item e validado por esquema estrito no servidor.
+  **Processamento em passos, um por chamada** (`processar` devolve `restantes` e a tela repete): o primeiro converte, classifica e
+  guarda o texto em `<r2_key>.txt`; cada seguinte extrai um bloco de ~4.000 caracteres (`BLOCO`, cortado so em quebra de linha;
+  `bloco_atual`/`blocos_total`/`blocos_falhos` em `importacao_arquivos`). Resposta que nao le (JSON truncado) divide o bloco ao meio,
+  ate 2 niveis; bloco que nao le nem assim fica anotado e os outros seguem. Teto de 200.000 caracteres (`MAX_TEXTO`). O status do lote
+  e acertado num `finally`; se o Worker morrer no meio, o lote preso em `processando` e retomado pela confirmacao depois de 10 minutos
+  (`updated_at` renovado a cada chamada), a mesma regra da trava de gravacao.
   **Revisao humana obrigatoria:** nada vira RoPA sem a pessoa aceitar o item na tela e confirmar. `confirmar` grava no maximo 30 itens por
   chamada (`ITENS_POR_CONFIRMACAO`, a tela repete ate `restantes` zerar), um item por transacao, e o lote fica em status `gravando` (trava
   por UPDATE condicional; processar, enviar, editar item e cancelar recebem 409; trava de gravacao interrompida e retomada apos 10 minutos).
-  Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`); so a leitura (GET) passa. **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
+  Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`), e o GET tambem e
+  recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
   prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:
   `node scripts/importacao-amostra.mjs` gera CSV e HTML ficticios e diz como subir pela tela num ambiente com a IA real.
 - **Bindings** (`grep '"binding"' wrangler.jsonc`): DB (D1), SESSIONS e OAUTH_KV (KV),

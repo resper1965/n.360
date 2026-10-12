@@ -14,8 +14,13 @@ import { ehLegitimoInteresse } from './lia';
 
 export const MAX_ARQUIVOS = 50;
 export const MAX_BYTES = 20 * 1024 * 1024;
+/**
+ * Teto do texto convertido: 200.000 caracteres = até ~50 blocos, uma chamada da tela por bloco. Mantido: com um bloco por chamada o
+ * limite deixou de ser o tempo de uma requisição, mas um inventário maior que isso é sinal de arquivo errado (ou de vários juntos).
+ */
 export const MAX_TEXTO = 200_000;
-const BLOCO = 12_000;
+/** Um bloco por chamada; ~4.000 caracteres de entrada deixam a resposta (até 8.192 tokens) sem truncar. */
+export const BLOCO = 4_000;
 
 /** Extensão aceita → MIME gravado. O MIME do navegador não decide nada (CSV chega como `application/vnd.ms-excel` no Windows). */
 const MIME_DA_EXTENSAO: Record<string, string> = {
@@ -75,7 +80,7 @@ export async function lerLote(db: D1Database, projectId: string, id: string) {
   const lote = await db.prepare('SELECT * FROM importacoes WHERE id = ? AND project_id = ?').bind(id, projectId).first();
   if (!lote) return null;
   const [arquivos, itens] = await db.batch([
-    db.prepare('SELECT id, nome, mime, tamanho, tipo, status, erro, modelo, created_at FROM importacao_arquivos WHERE importacao_id = ? ORDER BY created_at, rowid').bind(id),
+    db.prepare('SELECT id, nome, mime, tamanho, tipo, status, erro, modelo, bloco_atual, blocos_total, created_at FROM importacao_arquivos WHERE importacao_id = ? ORDER BY created_at, rowid').bind(id),
     db.prepare('SELECT * FROM importacao_itens WHERE importacao_id = ? ORDER BY created_at, rowid').bind(id),
   ]);
   return { lote, arquivos: arquivos.results, itens: (itens.results as LinhaItem[]).map(itemLido) };
@@ -132,71 +137,149 @@ async function textoDoArquivo(env: Env, a: { nome: string; mime: string; r2_key:
   return { texto };
 }
 
-/** Blocos de até ~12.000 caracteres, cortados em quebra de linha quando dá. */
+/**
+ * Blocos de até `max` caracteres, cortados SEMPRE em quebra de linha: nenhuma linha (de CSV, de tabela do Markdown) é partida; uma
+ * linha maior que `max` vai inteira e sozinha.
+ */
 export function blocos(texto: string, max = BLOCO): string[] {
   const out: string[] = [];
   let resto = texto;
   while (resto.length > max) {
-    const quebra = resto.lastIndexOf('\n', max);
-    const corte = quebra > max / 2 ? quebra + 1 : max;
-    out.push(resto.slice(0, corte));
-    resto = resto.slice(corte);
+    let q = resto.lastIndexOf('\n', max - 1);
+    if (q < 0) q = resto.indexOf('\n', max);
+    if (q < 0) break;
+    const b = resto.slice(0, q + 1);
+    if (b.trim()) out.push(b);
+    resto = resto.slice(q + 1);
   }
   if (resto.trim()) out.push(resto);
   return out;
 }
 
-const CONFIANCAS = new Set(['alta', 'media', 'baixa']);
+/** O texto em duas metades, cortado na quebra de linha mais perto do meio; [] se for uma linha só. */
+function emDuas(texto: string): string[] {
+  const meio = Math.floor(texto.length / 2);
+  let q = texto.lastIndexOf('\n', meio);
+  if (q <= 0) q = texto.indexOf('\n', meio);
+  if (q <= 0 || q >= texto.trimEnd().length) return [];
+  return [texto.slice(0, q + 1), texto.slice(q + 1)];
+}
 
-export async function processarArquivo(env: Env, projectId: string, loteId: string, arquivoId: string, ator: string) {
+type Extraido = { tratamentos: unknown[]; falhou: boolean; modelo: string };
+
+/**
+ * Extrai um bloco. Resposta fora do formato (em geral, JSON truncado no teto de tokens) divide o bloco ao meio e tenta cada metade uma
+ * vez, até 2 níveis (no pior caso 7 chamadas ao modelo). O que não ler nem assim marca o bloco como falho; o lido nas outras partes fica.
+ * IA fora do ar não divide: só multiplicaria as chamadas que falham.
+ */
+async function extrairComDivisao(agente: ImportacaoAgent, texto: string, nivel = 0): Promise<Extraido> {
+  let r: { tratamentos: unknown[] | null; modelo: string };
+  try { r = await agente.extrairTratamentos(texto); } catch (e) {
+    console.error('importacao: IA indisponível', e);
+    return { tratamentos: [], falhou: true, modelo: '' };
+  }
+  if (r.tratamentos) return { tratamentos: r.tratamentos, falhou: false, modelo: r.modelo };
+  const metades = nivel < 2 ? emDuas(texto) : [];
+  if (!metades.length) return { tratamentos: [], falhou: true, modelo: r.modelo };
+  const partes: Extraido[] = [];
+  for (const m of metades) partes.push(await extrairComDivisao(agente, m, nivel + 1));
+  return { tratamentos: partes.flatMap((p) => p.tratamentos), falhou: partes.some((p) => p.falhou), modelo: r.modelo };
+}
+
+const CONFIANCAS = new Set(['alta', 'media', 'baixa']);
+/** Texto convertido, guardado ao lado do original para os passos seguintes (e apagado com ele no cancelamento). */
+const TXT = (r2Key: string) => `${r2Key}.txt`;
+
+type Arquivo = {
+  id: string; nome: string; mime: string; r2_key: string; status: string; tipo: string | null; modelo: string | null;
+  blocos_total: number | null; bloco_atual: number; blocos_falhos: string | null;
+};
+
+async function situacao(db: D1Database, id: string) {
+  const arquivo = await db.prepare('SELECT id, status, tipo, erro, bloco_atual, blocos_total FROM importacao_arquivos WHERE id = ?').bind(id)
+    .first<{ id: string; status: string; tipo: string | null; erro: string | null; bloco_atual: number; blocos_total: number | null }>();
+  const restantes = arquivo?.status === 'pendente' && arquivo.blocos_total != null ? Math.max(0, arquivo.blocos_total - arquivo.bloco_atual) : 0;
+  return { ok: true as const, arquivo, restantes };
+}
+
+/**
+ * Processa EM PASSOS, um por chamada (a tela chama de novo enquanto `restantes` > 0). Primeira chamada: converte, classifica e, se for
+ * inventário, guarda o texto em `<r2_key>.txt` e conta os blocos. Cada chamada seguinte extrai exatamente um bloco. Um arquivo
+ * processado (ou `reprocessar`) recomeça do zero e substitui os itens ainda não gravados; um que parou no meio (Worker caiu, erro)
+ * continua do bloco onde estava.
+ *
+ * O status do lote é acertado no `finally`, aconteça o que acontecer no meio. Se nem o `finally` rodar (o Worker morreu), o lote fica
+ * `processando` e `updated_at` (renovado a cada chamada) diz há quanto tempo: depois de 10 minutos a confirmação o retoma.
+ */
+export async function processarArquivo(env: Env, projectId: string, loteId: string, arquivoId: string, ator: string, reprocessar = false) {
   const db = env.DB;
   const lote = await loteDoProjeto(db, projectId, loteId);
   if (!lote) return nf('Lote não encontrado');
   const c = cancelado(lote);
   if (c) return c;
-  const a = await db.prepare('SELECT id, nome, mime, r2_key FROM importacao_arquivos WHERE id = ? AND importacao_id = ?')
-    .bind(arquivoId, loteId).first<{ id: string; nome: string; mime: string; r2_key: string }>();
+  const a = await db.prepare('SELECT * FROM importacao_arquivos WHERE id = ? AND importacao_id = ?').bind(arquivoId, loteId).first<Arquivo>();
   if (!a) return nf('Arquivo não encontrado');
   const inicio = await db.prepare(`UPDATE importacoes SET status = 'processando', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND ${LIVRE}`).bind(loteId).run();
   if (inicio.meta.changes !== 1) return emGravacao;
 
-  const fim = async (status: string, tipo: string | null, erro: string | null, modelo: string | null, itens: D1PreparedStatement[] = []) => {
-    await db.batch([
-      // Reprocessar substitui o que ainda não virou registro.
-      db.prepare(`DELETE FROM importacao_itens WHERE arquivo_id = ? AND decisao <> 'gravado'`).bind(a.id),
-      ...itens,
-      db.prepare('UPDATE importacao_arquivos SET status = ?, tipo = ?, erro = ?, modelo = ? WHERE id = ?').bind(status, tipo, erro, modelo, a.id),
-      db.prepare(
-        `UPDATE importacoes SET updated_at = CURRENT_TIMESTAMP, status = CASE WHEN EXISTS (SELECT 1 FROM importacao_arquivos WHERE importacao_id = ?1 AND status = 'pendente') THEN 'recebendo' ELSE 'em_revisao' END WHERE id = ?1 AND ${LIVRE}`
-      ).bind(loteId),
-    ]);
-    await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: ${status}${tipo ? ` (${tipo})` : ''}, ${itens.length} itens`, '', '', projectId);
-    return { ok: true as const, arquivo: { id: a.id, status, tipo, erro }, itens: itens.length };
+  try {
+    const meio = a.blocos_total != null && a.bloco_atual < a.blocos_total && (a.status === 'pendente' || a.status === 'erro');
+    if (meio && !reprocessar) await extrairBloco(env, projectId, loteId, a as Arquivo & { blocos_total: number }, ator);
+    else await converter(env, projectId, loteId, a, ator);
+  } catch (e) {
+    console.error('importacao: falha ao processar', a.id, e);
+    await db.prepare(`UPDATE importacao_arquivos SET status = 'erro', erro = 'falha ao processar o arquivo; processe de novo' WHERE id = ?`).bind(a.id).run();
+  } finally {
+    await db.prepare(
+      `UPDATE importacoes SET updated_at = CURRENT_TIMESTAMP, status = CASE WHEN EXISTS (SELECT 1 FROM importacao_arquivos WHERE importacao_id = ?1 AND status = 'pendente') THEN 'recebendo' ELSE 'em_revisao' END WHERE id = ?1 AND ${LIVRE}`
+    ).bind(loteId).run();
+  }
+  return situacao(db, a.id);
+}
+
+/** Primeiro passo: recomeça o arquivo, converte, classifica e, se for inventário, deixa os blocos prontos. */
+async function converter(env: Env, projectId: string, loteId: string, a: Arquivo, ator: string) {
+  const db = env.DB;
+  await db.batch([
+    db.prepare(`DELETE FROM importacao_itens WHERE arquivo_id = ? AND decisao <> 'gravado'`).bind(a.id),
+    db.prepare(`UPDATE importacao_arquivos SET status = 'pendente', tipo = NULL, erro = NULL, modelo = NULL, blocos_total = NULL, bloco_atual = 0, blocos_falhos = NULL WHERE id = ?`).bind(a.id),
+  ]);
+  await env.STORAGE.delete(TXT(a.r2_key));
+  const fim = async (status: string, tipo: string | null, erro: string | null, modelo: string | null) => {
+    await db.prepare('UPDATE importacao_arquivos SET status = ?, tipo = ?, erro = ?, modelo = ? WHERE id = ?').bind(status, tipo, erro, modelo, a.id).run();
+    await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: ${status}${tipo ? ` (${tipo})` : ''}`, '', '', projectId);
   };
 
   const lido = await textoDoArquivo(env, a);
   if ('erro' in lido) return fim('erro', null, lido.erro, null);
-
-  const agente = new ImportacaoAgent(env.AI, db, env);
-  let tipo: TipoArquivo = 'desconhecido';
-  let modelo = '';
-  const propostos: unknown[] = [];
-  try {
-    ({ tipo, modelo } = await agente.classificar(lido.texto));
-    if (tipo !== 'inventario') return fim('aguardando', tipo, null, modelo);
-    for (const b of blocos(lido.texto)) {
-      const r = await agente.extrairTratamentos(b);
-      if (!r.tratamentos) return fim('erro', tipo, 'a IA respondeu fora do formato; processe de novo', r.modelo);
-      propostos.push(...r.tratamentos);
-    }
-  } catch (e) {
+  let r: { tipo: TipoArquivo; modelo: string };
+  try { r = await new ImportacaoAgent(env.AI, db, env).classificar(lido.texto); } catch (e) {
     console.error('importacao: IA indisponível', e);
     return fim('erro', null, 'a IA não respondeu; processe de novo', null);
   }
+  if (r.tipo !== 'inventario') return fim('aguardando', r.tipo, null, r.modelo);
+  const total = blocos(lido.texto).length;
+  await env.STORAGE.put(TXT(a.r2_key), lido.texto, { httpMetadata: { contentType: 'text/plain; charset=utf-8' } });
+  await db.prepare('UPDATE importacao_arquivos SET tipo = ?, modelo = ?, blocos_total = ? WHERE id = ?').bind(r.tipo, r.modelo, total, a.id).run();
+  await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: inventario, ${total} blocos a extrair`, '', '', projectId);
+}
+
+/** Um passo: extrai o bloco `bloco_atual`, grava os itens e avança. No último, fecha o arquivo (com a nota dos blocos que falharam). */
+async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arquivo & { blocos_total: number }, ator: string) {
+  const db = env.DB;
+  const obj = await env.STORAGE.get(TXT(a.r2_key));
+  if (!obj) {
+    await db.prepare(`UPDATE importacao_arquivos SET status = 'erro', erro = 'texto convertido não encontrado; processe de novo', blocos_total = NULL WHERE id = ?`).bind(a.id).run();
+    return;
+  }
+  const n = a.bloco_atual;
+  const total = a.blocos_total;
+  const r = await extrairComDivisao(new ImportacaoAgent(env.AI, db, env), blocos(await obj.text())[n] ?? '');
+  const falhos = [...(a.blocos_falhos ? a.blocos_falhos.split(',') : []), ...(r.falhou ? [String(n + 1)] : [])];
 
   const { results: existentes } = await db.prepare('SELECT id, processing_purpose AS p FROM ropa_records WHERE project_id = ?').bind(projectId).all<{ id: string; p: string }>();
-  const porFinalidade = new Map(existentes.map((r) => [chave(r.p), r.id]));
-  const stmts = propostos.map((bruto) => {
+  const porFinalidade = new Map(existentes.map((x) => [chave(x.p), x.id]));
+  const stmts = r.tratamentos.map((bruto) => {
     const o = bruto && typeof bruto === 'object' ? { ...(bruto as Record<string, unknown>) } : {};
     const confianca = CONFIANCAS.has(String(o.confianca)) ? String(o.confianca) : 'baixa';
     const origem = typeof o.origem === 'string' ? o.origem.slice(0, 500) : null;
@@ -205,21 +288,37 @@ export async function processarArquivo(env: Env, projectId: string, loteId: stri
     const v = tratamentoPropostoSchema.safeParse(o);
     if (!v.success) {
       const i = v.error.issues[0];
-      const motivo = `${i?.path.join('.') || 'item'}: ${i?.message ?? 'inválido'}`.slice(0, 300);
-      return stmtItem(db, loteId, a.id, projectId, {}, origem, confianca, [], null, 'recusado', motivo);
+      return stmtItem(db, loteId, a.id, projectId, n, {}, origem, confianca, [], null, 'recusado', `${i?.path.join('.') || 'item'}: ${i?.message ?? 'inválido'}`.slice(0, 300));
     }
     const dup = porFinalidade.get(chave(v.data.finalidade)) ?? null;
-    return stmtItem(db, loteId, a.id, projectId, v.data, origem, confianca, faltandoDe(v.data), dup, dup ? 'descartado' : 'pendente', null);
+    return stmtItem(db, loteId, a.id, projectId, n, v.data, origem, confianca, faltandoDe(v.data), dup, dup ? 'descartado' : 'pendente', null);
   });
-  return fim('processado', tipo, null, modelo, stmts);
+
+  const ultimo = n + 1 >= total;
+  let status = 'pendente';
+  let erro: string | null = null;
+  if (ultimo && falhos.length === total) {
+    status = 'erro';
+    erro = `a IA não leu ${total === 1 ? 'o arquivo' : `nenhum dos ${total} blocos`}; processe de novo`;
+  } else if (ultimo) {
+    status = 'processado';
+    if (falhos.length) erro = `a IA não leu ${falhos.length === 1 ? 'o bloco' : 'os blocos'} ${falhos.join(', ')} de ${total}; processe de novo para tentar outra vez`;
+  }
+  // O avanço é condicional ao bloco lido: duas chamadas no mesmo bloco não gravam os itens duas vezes (os INSERTs têm a mesma guarda).
+  await db.batch([
+    ...stmts,
+    db.prepare(`UPDATE importacao_arquivos SET bloco_atual = ?, status = ?, erro = ?, blocos_falhos = ?, modelo = COALESCE(?, modelo) WHERE id = ? AND bloco_atual = ?`)
+      .bind(n + 1, status, erro, falhos.join(',') || null, r.modelo || null, a.id, n),
+  ]);
+  if (ultimo) await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: ${status} (inventario), ${total} blocos, ${falhos.length} com falha`, '', '', projectId);
 }
 
-function stmtItem(db: D1Database, loteId: string, arquivoId: string, projectId: string, dados: Partial<TratamentoProposto>, origem: string | null,
+function stmtItem(db: D1Database, loteId: string, arquivoId: string, projectId: string, bloco: number, dados: Partial<TratamentoProposto>, origem: string | null,
   confianca: string, faltando: string[], duplicataDe: string | null, decisao: string, motivo: string | null) {
   return db.prepare(
     `INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, dados, origem, confianca, faltando, duplicata_de, decisao, motivo)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(crypto.randomUUID(), loteId, arquivoId, projectId, JSON.stringify(dados), origem, confianca, JSON.stringify(faltando), duplicataDe, decisao, motivo);
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM importacao_arquivos WHERE id = ? AND bloco_atual = ?)`
+  ).bind(crypto.randomUUID(), loteId, arquivoId, projectId, JSON.stringify(dados), origem, confianca, JSON.stringify(faltando), duplicataDe, decisao, motivo, arquivoId, bloco);
 }
 
 // ─── revisão ───────────────────────────────────────────────────────────────────────────────────────
@@ -287,11 +386,14 @@ export async function confirmarLote(db: D1Database, projectId: string, loteId: s
   if (!lote) return nf('Lote não encontrado');
   if (lote.status === 'cancelada') return { ok: false, status: 409, error: 'Lote cancelado' };
   const trava = await db.prepare(
-    // ponytail: trava sem dono; a de uma gravação interrompida (Worker caiu) é retomada depois de 10 minutos.
+    // ponytail: trava sem dono; a de uma gravação ou de um processamento interrompido (Worker caiu) é retomada depois de 10 minutos.
     `UPDATE importacoes SET status = 'gravando', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?
-       AND (status IN ('recebendo', 'em_revisao', 'concluida') OR (status = 'gravando' AND updated_at < datetime('now', '-10 minutes')))`
+       AND (status IN ('recebendo', 'em_revisao', 'concluida') OR (status IN ('gravando', 'processando') AND updated_at < datetime('now', '-10 minutes')))`
   ).bind(loteId, projectId).run();
-  if (trava.meta.changes !== 1) return { ok: false, status: 409, error: 'Importação já em gravação' };
+  if (trava.meta.changes !== 1) {
+    const agora = await loteDoProjeto(db, projectId, loteId);
+    return { ok: false, status: 409, error: agora?.status === 'processando' ? 'Importação em processamento' : 'Importação já em gravação' };
+  }
   try {
     const resultados = await gravarAceitos(db, projectId, loteId, ator);
     const r = await db.prepare(`SELECT COUNT(*) AS n FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito'`).bind(loteId).first<{ n: number }>();
@@ -381,7 +483,7 @@ export async function cancelarLote(env: Env, projectId: string, loteId: string, 
   const marca = await env.DB.prepare(`UPDATE importacoes SET status = 'cancelada', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status <> 'gravando'`).bind(loteId).run();
   if (marca.meta.changes !== 1) return emGravacao;
   const { results } = await env.DB.prepare('SELECT r2_key FROM importacao_arquivos WHERE importacao_id = ?').bind(loteId).all<{ r2_key: string }>();
-  if (results.length) await env.STORAGE.delete(results.map((r) => r.r2_key));
+  if (results.length) await env.STORAGE.delete(results.flatMap((r) => [r.r2_key, TXT(r.r2_key)]));
   await env.DB.batch([
     env.DB.prepare('DELETE FROM importacao_itens WHERE importacao_id = ?').bind(loteId),
     env.DB.prepare('DELETE FROM importacao_arquivos WHERE importacao_id = ?').bind(loteId),

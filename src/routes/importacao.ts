@@ -42,7 +42,7 @@ importacaoApp.post('/:id/arquivos', async (c) => {
 
 importacaoApp.post('/:id/arquivos/:aid/processar', async (c) => {
   try {
-    const r = await processarArquivo(c.env, c.req.param('projectId')!, c.req.param('id'), c.req.param('aid'), ator(c));
+    const r = await processarArquivo(c.env, c.req.param('projectId')!, c.req.param('id'), c.req.param('aid'), ator(c), c.req.query('reprocessar') === '1');
     return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao processar o arquivo', e); }
 });

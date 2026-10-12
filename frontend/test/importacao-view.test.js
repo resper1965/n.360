@@ -338,6 +338,54 @@ describe('processar: tempo, sessão', () => {
         expect(f.mock.calls.slice(antes).map(([u, o]) => `${o?.method || 'GET'} ${new URL(u, 'http://localhost').pathname}`)).toEqual([`POST ${B}/l1/arquivos/a1/processar`]);
     });
 
+    it('chama processar de novo enquanto restantes > 0, mostrando "bloco X de Y"', async () => {
+        const det = LOTE({ arquivos: [{ id: 'a1', nome: 'inv.csv', status: 'pendente' }, { id: 'a2', nome: 'b.csv', status: 'pendente' }] });
+        const restantes = [3, 2, 1, 0];
+        const vistas = [];
+        const f = await abrirLote(det, {
+            [`POST ${B}/l1/arquivos/a1/processar`]: () => {
+                vistas.push(el('importacao-msg').textContent);
+                const r = restantes.shift();
+                if (r === 0) det.arquivos[0].status = 'processado';
+                return { ok: true, arquivo: { id: 'a1', status: r ? 'pendente' : 'processado', bloco_atual: 3 - r, blocos_total: 3 }, restantes: r };
+            },
+            [`POST ${B}/l1/arquivos/a2/processar`]: () => { det.arquivos[1].status = 'processado'; return { ok: true, arquivo: { id: 'a2', status: 'processado' }, restantes: 0 }; },
+        });
+        await clica('importacaoProcessar');
+        await espera();
+        expect(chamadas(f).filter((c) => c.includes('/processar'))).toEqual([...Array(4).fill(`POST ${B}/l1/arquivos/a1/processar`), `POST ${B}/l1/arquivos/a2/processar`]);
+        expect(vistas[1]).toContain('bloco 1 de 3');
+        expect(vistas[3]).toContain('bloco 3 de 3');
+        expect(el('importacao-msg').textContent).toBe('Processamento concluído.');
+    });
+
+    it('arquivo que volta em erro no meio não é chamado de novo', async () => {
+        const det = LOTE({ arquivos: [{ id: 'a1', nome: 'inv.csv', status: 'pendente' }] });
+        const f = await abrirLote(det, { [`POST ${B}/l1/arquivos/a1/processar`]: { ok: true, arquivo: { id: 'a1', status: 'erro', bloco_atual: 1, blocos_total: 3 }, restantes: 2 } });
+        await clica('importacaoProcessar');
+        await espera();
+        expect(chamadas(f).filter((c) => c.includes('/processar'))).toHaveLength(1);
+    });
+
+    it('"Confirmar importação" fica desabilitado com o lote em processamento ou em gravação', async () => {
+        for (const status of ['processando', 'gravando']) {
+            await abrirLote(LOTE({ lote: { id: 'l1', status }, itens: [item('i1', { decisao: 'aceito' })] }));
+            expect(document.querySelector('[data-action="importacaoConfirmar"]').disabled, status).toBe(true);
+            await window.importacaoVoltar();
+        }
+        await abrirLote(LOTE({ lote: { id: 'l1', status: 'em_revisao' }, itens: [item('i1', { decisao: 'aceito' })] }));
+        expect(document.querySelector('[data-action="importacaoConfirmar"]').disabled).toBe(false);
+    });
+
+    it('409 ao processar (lote em gravação) para o laço e mostra o motivo', async () => {
+        const det = LOTE({ arquivos: [{ id: 'a1', nome: 'um.csv', status: 'pendente' }, { id: 'a2', nome: 'dois.csv', status: 'pendente' }] });
+        const f = await abrirLote(det, { [`POST ${B}/l1/arquivos/a1/processar`]: [{ error: 'Importação em gravação' }, 409] });
+        await clica('importacaoProcessar');
+        await espera();
+        expect(chamadas(f).filter((c) => c.includes('/processar'))).toHaveLength(1);
+        expect(el('importacao-msg').textContent).toContain('Importação em gravação');
+    });
+
     it('401 ao confirmar não chama de novo nem recarrega', async () => {
         const det = LOTE({ itens: [item('i1', { decisao: 'aceito' })] });
         const f = await abrirLote(det, { [`POST ${B}/l1/confirmar`]: [{ error: 'Unauthorized' }, 401] });

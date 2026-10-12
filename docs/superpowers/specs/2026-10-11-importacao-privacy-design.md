@@ -37,7 +37,7 @@ consultoria_admin, consultor designado) — mesmas checagens das outras rotas de
 | `GET /` | lista os lotes do projeto |
 | `GET /:id` | lote + arquivos + itens |
 | `POST /:id/arquivos` | envio multipart de um arquivo; tipos aceitos: pdf, docx, xlsx, xls, ods, csv, json, html, xml; ≤ 20 MB; ≤ 50 arquivos por lote |
-| `POST /:id/arquivos/:aid/processar` | converte (JSON e CSV lidos direto; o resto por `env.AI.toMarkdown`), classifica, e se for `inventario` extrai tratamentos; um arquivo por chamada (a tela chama em sequência); reprocessar substitui os itens daquele arquivo ainda não gravados |
+| `POST /:id/arquivos/:aid/processar` | converte (JSON e CSV lidos direto; o resto por `env.AI.toMarkdown`), em passos, um por chamada, devolvendo `{ ok, arquivo, restantes }`: o primeiro converte, classifica e, se for `inventario`, guarda o texto em `<r2_key>.txt` e conta os blocos; cada seguinte extrai um bloco (a tela repete enquanto `restantes` > 0). Arquivo já processado, ou `?reprocessar=1`, recomeça e substitui os itens ainda não gravados |
 | `PUT /:id/itens/:iid` | corrige `dados` (revalidado) e/ou muda a `decisao` (`aceito|descartado|pendente`) |
 | `POST /:id/confirmar` | grava os itens `aceito`; resultado por item (`gravado` com `registro_id`, ou `recusado` com motivo); idempotente |
 | `DELETE /:id` | cancela: apaga arquivos do R2, arquivos e itens; não toca registros já gravados |
@@ -49,7 +49,7 @@ consultoria_admin, consultor designado) — mesmas checagens das outras rotas de
 - **Extrair tratamentos**: devolve JSON `{ tratamentos: [...] }` com, por tratamento: `finalidade` (obrigatória),
   `base_legal` (texto), `categorias_dados`, `titulares`, `retencao`, `destinatarios`, `transferencia_internacional`
   (bool), `salvaguardas`, `dpia_requerido` (bool), `responsavel`, `sistemas[]`, `areas[]`, `pessoas[]`, `origem`
-  (trecho literal), `confianca`. Texto longo é dividido em blocos; resultados juntados.
+  (trecho literal), `confianca`. Blocos de ~4.000 caracteres cortados só em quebra de linha, `maxTokens` 8192, `origem` ≤ 150 caracteres; resposta que não lê (JSON truncado) divide o bloco ao meio, até 2 níveis; bloco que não lê nem assim fica anotado no arquivo e os outros seguem.
 - Validação no servidor (zod, `strict`, tetos de tamanho por campo); o que não passa vira item `recusado` com motivo.
   O texto do arquivo é dado: o prompt diz isso, e só os campos do esquema chegam ao banco.
 - `faltando` = obrigatórios do RoPA vazios (`finalidade`, `base_legal`, `categorias_dados`, `titulares`, `retencao`).

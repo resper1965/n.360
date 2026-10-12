@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS importacao_arquivos (
     status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'processado', 'aguardando', 'erro')),
     erro TEXT,
     modelo TEXT,
+    blocos_total INTEGER,
+    bloco_atual INTEGER NOT NULL DEFAULT 0,
+    blocos_falhos TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_importacao_arquivos_lote ON importacao_arquivos(importacao_id);

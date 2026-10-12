@@ -28,7 +28,7 @@ const PROMPT_EXTRAIR = `Você vai EXTRAIR as atividades de tratamento de dados p
 Para cada tratamento encontrado, devolva os campos (omita o que o texto não diz; não invente):
 finalidade (obrigatória), base_legal, categorias_dados, titulares, retencao, destinatarios, transferencia_internacional (true/false),
 salvaguardas, dpia_requerido (true/false), responsavel, sistemas (lista de nomes), areas (lista de nomes de áreas/departamentos),
-pessoas (lista de nomes de pessoas responsáveis), origem (o trecho literal do texto de onde saiu, até 300 caracteres) e
+pessoas (lista de nomes de pessoas responsáveis), origem (o trecho literal do texto de onde saiu, até 150 caracteres) e
 confianca ("alta", "media" ou "baixa").
 ${DADO_NAO_INSTRUCAO}
 Formato: {"tratamentos":[{...}]}. Sem tratamento no trecho: {"tratamentos":[]}.`;
@@ -73,7 +73,7 @@ export class ImportacaoAgent extends BaseAgent {
   }
 
   async extrairTratamentos(texto: string): Promise<{ tratamentos: unknown[] | null; modelo: string }> {
-    const r = await this.perguntar(PROMPT_EXTRAIR, texto, 4096);
+    const r = await this.perguntar(PROMPT_EXTRAIR, texto, 8192);
     return { tratamentos: parseTratamentos(r.content), modelo: r.model };
   }
 

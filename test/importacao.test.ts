@@ -4,7 +4,7 @@ import app from '../src/index';
 import { applySchema, sessionFor, habilitarPrivacy } from './helpers/d1';
 import { faixaDoCaminho } from '../src/modulos';
 import { parseClassificacao, parseTratamentos } from '../src/agents/importacao';
-import { casarBaseLegal } from '../src/services/importacao';
+import { BLOCO, blocos, casarBaseLegal } from '../src/services/importacao';
 import { semearCatalogo } from '../src/services/requisitos';
 
 /**
@@ -65,13 +65,27 @@ const novoLote = async (projeto = P, h = consultor) => {
   expect(r.status, await r.clone().text()).toBe(201);
   return (await json<{ id: string }>(r)).id;
 };
+type Processado = { arquivo: { status: string; tipo: string | null; erro: string | null; bloco_atual: number; blocos_total: number | null }; restantes: number };
+/** Chama `processar` até `restantes` zerar (uma conversão, depois um bloco por chamada), como a tela faz. */
+const processarTudo = async (lote: string, aid: string, sufixo = '') => {
+  const passos: number[] = [];
+  for (let i = 0; i < 100; i++) {
+    const pr = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/arquivos/${aid}/processar${sufixo}`);
+    expect(pr.status, await pr.clone().text()).toBe(200);
+    const r = await json<Processado>(pr);
+    passos.push(r.restantes);
+    if (!(r.restantes > 0)) return { resposta: r, passos };
+    sufixo = '';
+  }
+  throw new Error('processar não terminou');
+};
+const contarItens = async (aid: string) => (await env.DB.prepare('SELECT COUNT(*) AS n FROM importacao_itens WHERE arquivo_id = ?').bind(aid).first<{ n: number }>())!.n;
 const enviarEProcessar = async (lote: string, nome = 'inventario.csv', conteudo = 'finalidade;titulares\nVendas;Clientes', tipo = 'text/csv') => {
   const up = await enviar(consultor, P, lote, nome, conteudo, tipo);
   expect(up.status, await up.clone().text()).toBe(201);
   const aid = (await json<{ id: string }>(up)).id;
-  const pr = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/arquivos/${aid}/processar`);
-  expect(pr.status, await pr.clone().text()).toBe(200);
-  return { aid, resposta: await json<{ arquivo: { status: string; tipo: string | null; erro: string | null }; itens: number }>(pr) };
+  const { resposta, passos } = await processarTudo(lote, aid);
+  return { aid, resposta, passos };
 };
 type Item = { id: string; dados: Record<string, unknown>; decisao: string; confianca: string; faltando: string[]; origem: string | null; duplicata_de: string | null; motivo: string | null; registro_id: string | null; arquivo_id: string };
 const lerLote = async (lote: string, h = consultor) => {
@@ -189,9 +203,9 @@ describe('processar', () => {
     ia.tipo = 'inventario';
     ia.convertidos = [];
     responde(tratamento('Gestão de folha'), { finalidade: 'Marketing', confianca: 'baixa', origem: 'x'.repeat(900), sistemas: ['CRM'] });
-    const { resposta } = await enviarEProcessar(lote);
+    const { aid, resposta } = await enviarEProcessar(lote);
     expect(resposta.arquivo).toMatchObject({ status: 'processado', tipo: 'inventario', erro: null });
-    expect(resposta.itens).toBe(2);
+    expect(await contarItens(aid)).toBe(2);
     expect(ia.convertidos).toEqual([]);
     const l = await lerLote(lote);
     expect(l.lote.status).toBe('em_revisao');
@@ -222,23 +236,94 @@ describe('processar', () => {
     expect(resposta.arquivo.erro).toBe('arquivo grande demais para leitura');
   });
 
-  it('texto longo é extraído em blocos de ~12.000 caracteres e os resultados se juntam', async () => {
+  it('um bloco de ~4.000 caracteres por chamada: 3 blocos em 4 chamadas (conversão + 3), restantes contando para baixo', async () => {
+    expect(BLOCO).toBe(4000);
     const lote = await novoLote();
     ia.tipo = 'inventario';
+    ia.chamadas = [];
     let n = 0;
     ia.extracao = () => JSON.stringify({ tratamentos: [tratamento(`Bloco ${++n}`)] });
-    const linha = 'Tratamento de dados de clientes para atendimento\n';
-    const { resposta } = await enviarEProcessar(lote, 'longo.csv', linha.repeat(Math.ceil(30_000 / linha.length)));
+    const linha = 'Tratamento de dados de clientes para atendimento.\n'; // 50 caracteres
+    const { aid, resposta, passos } = await enviarEProcessar(lote, 'longo.csv', linha.repeat(220));
+    expect(passos).toEqual([3, 2, 1, 0]);
     expect(n).toBe(3);
-    expect(resposta.itens).toBe(3);
+    expect(await contarItens(aid)).toBe(3);
+    expect(resposta.arquivo).toMatchObject({ status: 'processado', bloco_atual: 3, blocos_total: 3, erro: null });
+    // Cada bloco vai inteiro e só ele: nenhum passa de 4.000 caracteres nem corta linha.
+    const extracoes = ia.chamadas.filter((m) => !m[0].content.includes('CLASSIFICAR'));
+    expect(extracoes.every((m) => m[1].content.length <= 4000 && m[1].content.endsWith('\n'))).toBe(true);
+    // O texto convertido fica no R2 ao lado do original.
+    expect(await env.STORAGE.get(`importacoes/${P}/${lote}/${aid}.txt`)).not.toBeNull();
+    expect((await lerLote(lote)).lote.status).toBe('em_revisao');
+  });
+
+  it('entre as chamadas o arquivo segue pendente e o lote não fica em processamento', async () => {
+    const lote = await novoLote();
+    responde(tratamento('Parcial'));
+    const up = await enviar(consultor, P, lote, 'p.csv', 'Linha de inventário com dados.\n'.repeat(300), 'text/csv');
+    const { id: aid } = await json<{ id: string }>(up);
+    const r1 = await json<Processado>(await chamar(consultor, 'POST', `${P}/importacoes/${lote}/arquivos/${aid}/processar`));
+    expect(r1.restantes).toBeGreaterThan(1);
+    expect(r1.arquivo).toMatchObject({ status: 'pendente', tipo: 'inventario', bloco_atual: 0 });
+    const r2 = await json<Processado>(await chamar(consultor, 'POST', `${P}/importacoes/${lote}/arquivos/${aid}/processar`));
+    expect(r2.restantes).toBe(r1.restantes - 1);
+    const l = await lerLote(lote);
+    expect(l.lote.status).toBe('recebendo');
+    expect(l.itens).toHaveLength(1);
+  });
+
+  it('blocos nunca cortam uma linha, nem a que passa do tamanho', () => {
+    const longa = 'x'.repeat(5000) + '\n';
+    const b = blocos(longa + 'a\nb\n', 4000);
+    expect(b[0]).toBe(longa);
+    expect(b.join('')).toBe(longa + 'a\nb\n');
+  });
+
+  it('resposta truncada: o bloco é dividido ao meio e cada metade tentada de novo', async () => {
+    const lote = await novoLote();
+    let primeira = true;
+    ia.extracao = (texto) => {
+      if (primeira) { primeira = false; return '{"tratamentos":[{"finalidade":"Cortad'; }
+      return JSON.stringify({ tratamentos: [tratamento(`Metade ${texto.trim().split('\n')[0]}`)] });
+    };
+    const { aid, resposta } = await enviarEProcessar(lote, 'meio.csv', 'Vendas\nCobranca\n');
+    expect(resposta.arquivo).toMatchObject({ status: 'processado', erro: null });
+    expect(await contarItens(aid)).toBe(2);
+    const { itens } = await lerLote(lote);
+    expect(itens.map((i) => i.dados.finalidade).sort()).toEqual(['Metade Cobranca', 'Metade Vendas']);
+  });
+
+  it('bloco que não lê nem dividido fica anotado e os outros seguem', async () => {
+    const lote = await novoLote();
+    ia.extracao = (texto) => (texto.includes('QUEBRA') ? 'desculpe' : JSON.stringify({ tratamentos: [tratamento(`Ok ${texto.length}`)] }));
+    const conteudo = 'QUEBRA\n'.repeat(500) + 'Linha de inventário de dados pessoais do RH.\n'.repeat(80); // 2 blocos; o 1º nunca lê
+    const { aid, resposta } = await enviarEProcessar(lote, 'falha.csv', conteudo);
+    expect(resposta.arquivo.status).toBe('processado');
+    expect(resposta.arquivo.erro).toMatch(/bloco 1 de 2/);
+    expect(await contarItens(aid)).toBe(1);
+  });
+
+  it('conversão que estoura (toMarkdown lança) não deixa o lote em processamento; o arquivo fica em erro', async () => {
+    const lote = await novoLote();
+    const original = AI.toMarkdown;
+    AI.toMarkdown = async () => { throw new Error('conversor fora do ar'); };
+    try {
+      const up = await enviar(consultor, P, lote, 'quebra.pdf', '%PDF-1.4', 'application/pdf');
+      const { id: aid } = await json<{ id: string }>(up);
+      await chamar(consultor, 'POST', `${P}/importacoes/${lote}/arquivos/${aid}/processar`);
+      const l = await lerLote(lote);
+      expect(l.lote.status).not.toBe('processando');
+      expect(l.arquivos[0].status).toBe('erro');
+    } finally { AI.toMarkdown = original; }
   });
 
   it('arquivo de outra fatia fica aguardando, sem itens', async () => {
     const lote = await novoLote();
     ia.tipo = 'terceiros';
-    const { resposta } = await enviarEProcessar(lote, 'fornecedores.csv');
+    const { aid, resposta, passos } = await enviarEProcessar(lote, 'fornecedores.csv');
     expect(resposta.arquivo).toMatchObject({ status: 'aguardando', tipo: 'terceiros' });
-    expect(resposta.itens).toBe(0);
+    expect(passos).toEqual([0]);
+    expect(await contarItens(aid)).toBe(0);
     ia.tipo = 'inventario';
   });
 
@@ -268,9 +353,9 @@ describe('processar', () => {
   it('resposta fora do formato vira erro do arquivo', async () => {
     const lote = await novoLote();
     ia.extracao = () => 'desculpe, não consegui';
-    const { resposta } = await enviarEProcessar(lote);
+    const { aid, resposta } = await enviarEProcessar(lote);
     expect(resposta.arquivo.status).toBe('erro');
-    expect(resposta.itens).toBe(0);
+    expect(await contarItens(aid)).toBe(0);
   });
 
   it('duplicata de tratamento existente (finalidade normalizada) nasce descartada e apontada', async () => {
@@ -289,10 +374,13 @@ describe('processar', () => {
     responde(tratamento('Primeira'));
     const { aid } = await enviarEProcessar(lote);
     responde(tratamento('Segunda'), tratamento('Terceira'));
-    const r = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/arquivos/${aid}/processar`);
-    expect(r.status).toBe(200);
+    await processarTudo(lote, aid);
     const { itens } = await lerLote(lote);
     expect(itens.map((i) => i.dados.finalidade).sort()).toEqual(['Segunda', 'Terceira']);
+    // ?reprocessar=1 recomeça do zero e substitui de novo.
+    responde(tratamento('Quarta'));
+    await processarTudo(lote, aid, '?reprocessar=1');
+    expect((await lerLote(lote)).itens.map((i) => i.dados.finalidade)).toEqual(['Quarta']);
   });
 });
 
@@ -391,11 +479,13 @@ describe('revisão e confirmação', () => {
     const { resultados } = await json<{ resultados: { registro_id: string }[] }>(await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`));
     const chave = `importacoes/${P}/${lote}/${aid}`;
     expect(await env.STORAGE.get(chave)).not.toBeNull();
+    expect(await env.STORAGE.get(`${chave}.txt`)).not.toBeNull();
 
     expect((await chamar(cliente, 'DELETE', `${P}/importacoes/${lote}`)).status).toBe(403);
     const r = await chamar(consultor, 'DELETE', `${P}/importacoes/${lote}`);
     expect(r.status, await r.clone().text()).toBe(200);
     expect(await env.STORAGE.get(chave)).toBeNull();
+    expect(await env.STORAGE.get(`${chave}.txt`)).toBeNull();
     const n = async (t: string) => (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE importacao_id = ?`).bind(lote).first<{ n: number }>())!.n;
     expect(await n('importacao_arquivos')).toBe(0);
     expect(await n('importacao_itens')).toBe(0);
@@ -512,6 +602,18 @@ describe('trava de gravação (status próprio)', () => {
     expect(n.results.every((r) => r.n === 1)).toBe(true);
     expect(await statusDo(lote)).not.toBe('gravando');
     expect(['em_revisao', 'concluida']).toContain(await statusDo(lote));
+  });
+
+  it('lote em processamento: confirmar recebe 409 com texto próprio; processamento esquecido (> 10 min) é retomado', async () => {
+    const lote = await novoLote();
+    await env.DB.prepare(`UPDATE importacoes SET status = 'processando', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(lote).run();
+    const r = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`);
+    expect(r.status).toBe(409);
+    expect((await json<{ error: string }>(r)).error).toBe('Importação em processamento');
+    await env.DB.prepare(`UPDATE importacoes SET updated_at = datetime('now', '-11 minutes') WHERE id = ?`).bind(lote).run();
+    const r2 = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`);
+    expect(r2.status, await r2.clone().text()).toBe(200);
+    expect(await statusDo(lote)).toBe('concluida');
   });
 
   it('trava esquecida (gravação interrompida há mais de 10 minutos) é retomada pela próxima confirmação', async () => {

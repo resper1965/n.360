@@ -113,7 +113,7 @@ function htmlLote() {
         <h3 style="margin:1.5rem 0 0.5rem">Revisão</h3>
         ${htmlItens(itens, ativo)}
         ${E.resultados && E.resultados.length ? htmlResultados(itens) : ''}
-        ${ativo ? htmlRodape(itens) : ''}`;
+        ${ativo ? htmlRodape(itens, lote) : ''}`;
 }
 
 function htmlItens(itens, ativo) {
@@ -143,8 +143,10 @@ function htmlResultados(itens) {
     return `<h3 style="margin:1.5rem 0 0.5rem">Resultado da importação</h3>${window.renderDataTable(['Tratamento', 'Resultado', 'Motivo'], linhas, { emptyState: 'Nenhum item gravado.' })}`;
 }
 
-function htmlRodape(itens) {
+function htmlRodape(itens, lote) {
     const aceitos = itens.filter((i) => i.decisao === 'aceito').length;
+    // Com outro processamento ou gravação em curso (outra aba, outra pessoa) o servidor recusaria com 409.
+    const travado = lote.status === 'processando' || lote.status === 'gravando';
     if (E.cancelando) {
         return `<div role="alert" style="margin-top:1.5rem;padding:1rem;border:1px solid var(--danger)">
             <p style="margin:0 0 0.75rem">Cancelar o lote apaga os arquivos enviados e os tratamentos propostos. O que já foi gravado no RoPA permanece. Confirma?</p>
@@ -152,7 +154,7 @@ function htmlRodape(itens) {
             <button class="btn" data-action="importacaoCancelarNao">Voltar</button></div>`;
     }
     return `<div style="margin-top:1.5rem;display:flex;gap:0.75rem">
-        <button class="btn btn-primary" data-action="importacaoConfirmar"${aceitos && !E.ocupado ? '' : ' disabled'}>Confirmar importação (${aceitos})</button>
+        <button class="btn btn-primary" data-action="importacaoConfirmar"${aceitos && !E.ocupado && !travado ? '' : ' disabled'}>Confirmar importação (${aceitos})</button>
         <button class="btn btn-ghost" data-action="importacaoCancelar">Cancelar lote</button></div>`;
 }
 
@@ -190,23 +192,32 @@ window.importacaoProcessar = async function () {
     const falhas = [];
     let parou = '';
     let sessao = false;
-    for (const [n, x] of fila.entries()) {
+    arquivos: for (const [n, x] of fila.entries()) {
         const andamento = `Processando ${n + 1} de ${fila.length}: ${x.nome}`;
         msg(andamento);
-        try { await api('POST', `/api/v1/projects/${pid()}/importacoes/${lid()}/arquivos/${encodeURIComponent(x.id)}/processar`, undefined, { timeoutMs: TEMPO_PROCESSAR }); } catch (err) {
-            const m = (err && err.message) || 'falha';
-            if (SESSAO.test(m)) { sessao = true; parou = m; break; }
-            if (/^Tempo esgotado/.test(m)) {
-                // O Worker pode ter terminado depois do corte: o servidor é quem sabe a situação do arquivo.
-                try { E.det = await api('GET', `/api/v1/projects/${pid()}/importacoes/${lid()}`); } catch (e2) { falhas.push(`${x.nome}: ${m}`); break; }
-                const atual = E.det.arquivos.find((a) => a.id === x.id);
-                if (atual && (atual.status === 'processado' || atual.status === 'aguardando')) { pinta(); msg(andamento); continue; }
-                parou = `O arquivo ${x.nome} ainda está em processamento; aguarde e clique em Processar de novo.`;
+        // Um passo por chamada (conversão, depois um bloco): chama de novo enquanto o servidor disser que restam blocos.
+        for (;;) {
+            let r;
+            try { r = await api('POST', `/api/v1/projects/${pid()}/importacoes/${lid()}/arquivos/${encodeURIComponent(x.id)}/processar`, undefined, { timeoutMs: TEMPO_PROCESSAR }); } catch (err) {
+                const m = (err && err.message) || 'falha';
+                if (SESSAO.test(m)) { sessao = true; parou = m; break arquivos; }
+                if (/^Tempo esgotado/.test(m)) {
+                    // O Worker pode ter terminado depois do corte: o servidor é quem sabe a situação do arquivo.
+                    try { E.det = await api('GET', `/api/v1/projects/${pid()}/importacoes/${lid()}`); } catch (e2) { falhas.push(`${x.nome}: ${m}`); break arquivos; }
+                    const atual = E.det.arquivos.find((a) => a.id === x.id);
+                    if (atual && (atual.status === 'processado' || atual.status === 'aguardando')) { pinta(); msg(andamento); continue arquivos; }
+                    parou = `O arquivo ${x.nome} ainda está em processamento; aguarde e clique em Processar de novo.`;
+                    break arquivos;
+                }
+                // Falha da IA fica gravada no arquivo (status erro); 409 (gravação/cancelamento) e rede param o laço.
+                falhas.push(`${x.nome}: ${m}`);
+                if (/em gravação|em processamento|cancelado|cancelada|Falha de rede/.test(m)) break arquivos;
                 break;
             }
-            // Falha da IA fica gravada no arquivo (status erro); 409 (gravação/cancelamento) e rede param o laço.
-            falhas.push(`${x.nome}: ${m}`);
-            if (/gravação|cancelado|Falha de rede|cancelada/.test(m)) break;
+            const a = (r && r.arquivo) || {};
+            if (!(r && r.restantes > 0) || a.status !== 'pendente') break;
+            const total = a.blocos_total || r.restantes;
+            msg(`${andamento}, bloco ${total - r.restantes + 1} de ${total}`);
         }
         try { E.det = await api('GET', `/api/v1/projects/${pid()}/importacoes/${lid()}`); pinta(); msg(andamento); } catch (err) { break; }
     }

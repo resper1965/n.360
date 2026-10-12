@@ -423,6 +423,7 @@ Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remot
 
 Cria `importacoes`, `importacao_arquivos` e `importacao_itens` (com seus índices). Aditiva: só `CREATE ... IF NOT EXISTS`, nenhum dado existente
 muda, nada para carregar. Conferência depois de aplicar: `SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'importacao%'` devolve as
-três, e `PRAGMA table_info(importacao_itens)` lista as colunas do item (`dados`, `decisao`, `registro_id`). Para desfazer: nada a reverter nos dados
+três, `PRAGMA table_info(importacao_itens)` lista as colunas do item (`dados`, `decisao`, `registro_id`) e `PRAGMA table_info(importacao_arquivos)`
+traz as do processamento em passos (`blocos_total`, `bloco_atual`, `blocos_falhos`). Para desfazer: nada a reverter nos dados
 existentes; as tabelas novas podem ficar vazias. **Esta RODA em produção, aditiva, sem janela.**
 Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
