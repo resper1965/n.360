@@ -5,7 +5,7 @@ import { hashPassword } from '../src/helpers';
 import { applySchema, resetData, resetSessions, sessionFor, pedir } from './helpers/d1';
 import {
   descobrir, iniciarLogin, consumirState, validarIdToken, provisionar,
-  configPorDominio, papelValidoParaSso,
+  configPorDominio, papelValidoParaSso, trocarCodigo, buscarChaves,
 } from '../src/sso';
 
 /**
@@ -460,5 +460,43 @@ describe('Rotas de SSO', () => {
     const res = await pedir(worker, '/api/v1/public/sso/callback');
     expect(res.status).toBe(302);
     expect(res.headers.get('Location')).toContain('sso_erro');
+  });
+});
+
+// Endpoint público que responde 302 para endereço interno contornaria a checagem de host: nenhum dos três segue redirecionamento.
+describe('descoberta, token e chaves não seguem redirecionamento', () => {
+  beforeEach(async () => { await resetSessions(); });
+  const d = { issuer: ISSUER, authorization_endpoint: `${ISSUER}/auth`, token_endpoint: `${ISSUER}/token`, jwks_uri: `${ISSUER}/jwks` };
+  const redireciona = (vistos: RequestInit[]) => (async (_u: unknown, init?: RequestInit) => {
+    vistos.push(init ?? {});
+    return new Response(null, { status: 302, headers: { Location: 'http://169.254.169.254/latest/meta-data' } });
+  }) as any;
+  const opaco = (async () => ({ ok: false, status: 0, type: 'opaqueredirect', json: async () => ({}) })) as any;
+
+  it('descoberta respondendo 302 é recusada, pedida com redirect manual, e não cacheia', async () => {
+    const vistos: RequestInit[] = [];
+    await expect(descobrir(env as any, ISSUER, redireciona(vistos))).rejects.toThrow(/redirecion/);
+    expect(vistos[0].redirect).toBe('manual');
+    expect(await env.SESSIONS.get(`sso_descoberta:${ISSUER}`)).toBeNull();
+    await expect(descobrir(env as any, ISSUER, opaco)).rejects.toThrow(/redirecion/);
+  });
+
+  it('token_endpoint respondendo 302 é recusado, pedido com redirect manual', async () => {
+    const vistos: RequestInit[] = [];
+    await expect(trocarCodigo(d, { client_id: 'c', client_secret: 's' }, 'code', 'v', 'https://x/cb', redireciona(vistos))).rejects.toThrow(/redirecion/);
+    expect(vistos[0].redirect).toBe('manual');
+    await expect(trocarCodigo(d, { client_id: 'c', client_secret: 's' }, 'code', 'v', 'https://x/cb', opaco)).rejects.toThrow(/redirecion/);
+  });
+
+  it('jwks_uri respondendo 302 é recusado, pedido com redirect manual', async () => {
+    const vistos: RequestInit[] = [];
+    await expect(buscarChaves(d, redireciona(vistos))).rejects.toThrow(/redirecion/);
+    expect(vistos[0].redirect).toBe('manual');
+    await expect(buscarChaves(d, opaco)).rejects.toThrow(/redirecion/);
+  });
+
+  it('jwks_uri 200 devolve as chaves', async () => {
+    const f = (async () => new Response(JSON.stringify({ keys: [{ kid: 'k' }] }))) as any;
+    expect(await buscarChaves(d, f)).toEqual({ keys: [{ kid: 'k' }] });
   });
 });

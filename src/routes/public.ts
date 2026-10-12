@@ -4,7 +4,7 @@ import { logAudit, genNumericCode, erro500, sendEmail, escapeHtml, rateLimit, ra
 import { validateBody, otpPedidoSchema, otpVerificacaoSchema, aceiteDeDocumentoSchema, ssoInicioSchema } from '../schemas';
 import {
   configPorDominio, descobrir, iniciarLogin, consumirState, trocarCodigo,
-  validarIdToken, provisionar, segredoDoCliente,
+  validarIdToken, provisionar, segredoDoCliente, buscarChaves,
 } from '../sso';
 import { resolveHostIsPublic } from './integrations';
 import { chavePublicaJwk, ALG_ASSINATURA } from '../portabilidade';
@@ -344,9 +344,8 @@ publicApp.get('/sso/callback', async (c) => {
       code, guardado.verifier, guardado.redirectUri
     );
 
-    const jwksRes = await fetch(d.jwks_uri);
-    if (!jwksRes.ok) return falha('não foi possível obter as chaves do IdP');
-    const jwks = (await jwksRes.json()) as { keys: any[] };
+    // Sem seguir redirecionamento; falha cai no erro genérico abaixo (o motivo vai para a trilha).
+    const jwks = await buscarChaves(d);
 
     const claims = await validarIdToken(id_token, {
       jwks, issuer: cfg.issuer, clientId: cfg.client_id, nonce: guardado.nonce,

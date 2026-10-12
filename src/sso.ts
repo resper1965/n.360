@@ -115,6 +115,25 @@ async function exigirHostPublico(u: URL, rotulo: string, verificarHost?: (host: 
 }
 
 /**
+ * Busca no IdP sem seguir redirecionamento: um endpoint público que responde 302 para endereço interno contornaria
+ * `exigirHostPublico`. Qualquer 3xx (ou `opaqueredirect`) é recusado.
+ */
+async function buscarNoIdp(fetchImpl: typeof fetch, url: string, rotulo: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetchImpl(url, { ...init, redirect: 'manual' });
+  if ((res.type as string) === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+    throw new Error(`${rotulo} respondeu com redirecionamento (${res.status}); redirecionamento não é seguido.`);
+  }
+  return res;
+}
+
+/** Chaves públicas do IdP (`jwks_uri`, já conferido na descoberta), sem seguir redirecionamento. */
+export async function buscarChaves(d: Descoberta, fetchImpl: typeof fetch = fetch): Promise<{ keys: (JsonWebKey & { kid?: string })[] }> {
+  const res = await buscarNoIdp(fetchImpl, d.jwks_uri, 'jwks_uri');
+  if (!res.ok) throw new Error(`Busca das chaves do IdP falhou: ${res.status}`);
+  return (await res.json()) as { keys: (JsonWebKey & { kid?: string })[] };
+}
+
+/**
  * Busca (e cacheia) o documento de descoberta.
  *
  * `verificarHost` é injetado para o teste não depender de DNS — em produção é o
@@ -135,7 +154,7 @@ export async function descobrir(
   if (url.protocol !== 'https:') throw new Error('O issuer precisa ser https.');
   await exigirHostPublico(url, 'issuer', verificarHost);
 
-  const res = await fetchImpl(url.toString());
+  const res = await buscarNoIdp(fetchImpl, url.toString(), 'Descoberta OIDC');
   if (!res.ok) throw new Error(`Descoberta OIDC falhou: ${res.status}`);
   const doc = (await res.json()) as Partial<Descoberta>;
 
@@ -296,7 +315,7 @@ export async function trocarCodigo(
     client_secret: cfg.client_secret,
     code_verifier: verifier,
   });
-  const res = await fetchImpl(d.token_endpoint, {
+  const res = await buscarNoIdp(fetchImpl, d.token_endpoint, 'token_endpoint', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: corpo.toString(),
