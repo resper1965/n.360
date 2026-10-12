@@ -103,6 +103,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   **Deploy em duas etapas:** (1) a rota `n360.ness.com.br` entra com `APP_URL` ainda em `niso` (nada redireciona para o n.360);
   conferir `curl -s https://n360.ness.com.br/health` (o SHA e `"app_url":"https://niso.ness.com.br"`); (2) um PR de uma linha
   troca o `APP_URL` para `https://n360.ness.com.br` (antes, incluir `n360.ness.com.br` nos hostnames do widget do Turnstile).
+- **Contas**: conta de usuario se **desativa**, nao se apaga (`PUT /api/v1/users/:id/ativo`; `DELETE /api/v1/users/:id` so desativa). Apagar de verdade e `DELETE ...?definitivo=1`, so `platform_admin`. Conta desativada nao entra por nenhum caminho; nao reintroduza `DELETE FROM users` fora dessa rota.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).

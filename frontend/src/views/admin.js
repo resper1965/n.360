@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, closeModal, forceCloseModal, escapeHTML } from '../ui.js';
 import { render } from '../router.js';
 
 // S2: wrappers para os handlers COMPOSTOS (a delegação chama uma função só).
@@ -121,13 +121,22 @@ window.__adminCopiarApiKey = () => {
     // Resposta antiga (sem o campo) mostra traço, não "sem módulo".
     const rotuloModulos = (m) => (!Array.isArray(m) ? '—' : m.length ? MODULOS_CONTA.filter(([v]) => m.includes(v)).map(([, r]) => r).join(' · ') : 'Nenhum');
 
+    // Contas desativadas ficam escondidas por padrão; a escolha vale até recarregar a página.
+    let mostrarDesativadas = false;
+    let contasListadas = [];
+    const contaAtiva = (u) => u.ativo !== false;
+
     async function renderUsers(c, h, a) {
         h.textContent = 'Gestão de Usuários & RBAC';
-        a.innerHTML = '<button class="btn btn-primary" data-action="openUserModal">+ Novo Usuário</button>';
+        a.innerHTML = `<button class="btn btn-ghost" data-action="alternarDesativadas">${mostrarDesativadas ? 'Ocultar desativadas' : 'Mostrar desativadas'}</button>
+            <button class="btn btn-primary" data-action="openUserModal">+ Novo Usuário</button>`;
         c.innerHTML = '<div class="loading"></div>';
         try {
             const users = await api('GET', '/api/v1/users').catch(() => []);
-            const userArr = Array.isArray(users) ? users : [];
+            const todas = Array.isArray(users) ? users : [];
+            contasListadas = todas;
+            const desativadas = todas.filter(u => !contaAtiva(u)).length;
+            const userArr = mostrarDesativadas ? todas : todas.filter(contaAtiva);
             if (!S.projects || S.projects.length === 0) {
                 await loadProjects();
             }
@@ -141,13 +150,13 @@ window.__adminCopiarApiKey = () => {
             const clientUsers = totalUsers - admins;
 
             const statsHtml = window.renderStatCards([
-                { label: 'Total de Usuários', value: totalUsers, color: 'var(--accent)', subtext: 'Contas ativas' },
+                { label: 'Total de Usuários', value: totalUsers, color: 'var(--accent)', subtext: desativadas ? `${desativadas} desativada(s)` : 'Nenhuma desativada' },
                 { label: 'Administradores & Consultores', value: admins, color: '#34c759', subtext: 'Equipe ness.' },
                 { label: 'Usuários de Clientes', value: clientUsers, color: '#ffcc00', subtext: 'Acesso às orgs' }
             ]);
 
             const tableHtml = window.renderDataTable(
-                ['Nome', 'E-mail', 'Papel (Role)', 'Projeto / Organização', 'Módulos', 'Ações'],
+                ['Nome', 'E-mail', 'Papel (Role)', 'Projeto / Organização', 'Módulos', 'Situação', 'Ações'],
                 userArr.map(u => {
                     const projectName = u.client_project_id ? (projMap[u.client_project_id] || u.client_project_id) : '—';
                     const roleLabel = u.role === 'platform_admin' ? 'Admin Plataforma' : 
@@ -163,8 +172,10 @@ window.__adminCopiarApiKey = () => {
                         window.renderStatusBadge(roleLabel, u.role === 'platform_admin' ? 'info' : 'success'),
                         escapeHTML(projectName),
                         escapeHTML(rotuloModulos(u.modulos)),
+                        window.renderStatusBadge(contaAtiva(u) ? 'Ativa' : 'Desativada', contaAtiva(u) ? 'success' : 'info'),
                         `<button class="btn btn-ghost btn-sm" data-action="openUserModal" data-args='["${u.id}"]'>Editar</button>
-                         <button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="deleteUser" data-args='["${u.id}"]'>Excluir</button>`
+                         <button class="btn btn-ghost btn-sm" data-action="confirmarContaAtiva" data-args='["${u.id}"]'>${contaAtiva(u) ? 'Desativar' : 'Reativar'}</button>
+                         ${S.user && S.user.role === 'platform_admin' ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="confirmarExclusaoDefinitiva" data-args='["${u.id}"]'>Excluir definitivamente</button>` : ''}`
                     ];
                 }),
                 { emptyState: 'Nenhum usuário cadastrado.' }
@@ -215,14 +226,63 @@ window.__adminCopiarApiKey = () => {
         `;
     }
 
-    async function deleteUser(id) {
-        if (!confirm('Deseja realmente excluir este usuário permanentemente?')) return;
+    function alternarDesativadas() {
+        mostrarDesativadas = !mostrarDesativadas;
+        render();
+    }
+
+    // Confirmação na própria janela da tela (sem window.confirm).
+    function janelaConfirmar(titulo, texto, acao, rotulo, perigo) {
+        openModal(`
+            <div class="modal-header"><span class="modal-title">${escapeHTML(titulo)}</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            <div style="padding:1.25rem 0;text-align:left"><p>${texto}</p>
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:1rem">
+                    <button class="btn" data-action="forceCloseModal">Cancelar</button>
+                    <button class="btn btn-primary"${perigo ? ' style="background:var(--danger);border-color:var(--danger)"' : ''} data-action="${acao.nome}" data-args='${JSON.stringify(acao.args)}'>${rotulo}</button>
+                </div>
+            </div>`);
+    }
+
+    function confirmarContaAtiva(id) {
+        const u = contasListadas.find(x => x.id === id);
+        if (!u) return;
+        const ativar = !contaAtiva(u);
+        const quem = `<strong>${escapeHTML(u.name)}</strong> (${escapeHTML(u.email)})`;
+        janelaConfirmar(ativar ? 'Reativar conta' : 'Desativar conta',
+            ativar ? `${quem} volta a poder entrar no sistema.`
+                   : `${quem} deixa de poder entrar (senha, SSO e chave de API) e as sessões abertas caem. Os registros continuam e a conta pode ser reativada.`,
+            { nome: 'definirContaAtiva', args: [id, ativar] }, ativar ? 'Reativar' : 'Desativar', false);
+    }
+
+    async function definirContaAtiva(id, ativo) {
         try {
-            await api('DELETE', `/api/v1/users/${id}`);
-            showToast('Usuário excluído com sucesso');
+            await api('PUT', `/api/v1/users/${id}/ativo`, { ativo });
+            forceCloseModal();
+            showToast(ativo ? 'Conta reativada' : 'Conta desativada');
             render();
         } catch (e) {
-            showToast('Erro ao excluir usuário: ' + e.message, 'error');
+            forceCloseModal();
+            showToast('Erro ao ' + (ativo ? 'reativar' : 'desativar') + ' a conta: ' + e.message, 'error');
+        }
+    }
+
+    function confirmarExclusaoDefinitiva(id) {
+        const u = contasListadas.find(x => x.id === id);
+        if (!u) return;
+        janelaConfirmar('Excluir definitivamente',
+            `Isto apaga a conta <strong>${escapeHTML(u.name)}</strong> (${escapeHTML(u.email)}) do sistema e não pode ser desfeito. Para só impedir o acesso, use Desativar.`,
+            { nome: 'excluirContaDefinitiva', args: [id] }, 'Excluir definitivamente', true);
+    }
+
+    async function excluirContaDefinitiva(id) {
+        try {
+            await api('DELETE', `/api/v1/users/${id}?definitivo=1`);
+            forceCloseModal();
+            showToast('Conta excluída definitivamente');
+            render();
+        } catch (e) {
+            forceCloseModal();
+            showToast('Erro ao excluir a conta: ' + e.message, 'error');
         }
     }
 
@@ -574,5 +634,9 @@ window.renderUsers = renderUsers;
 window.renderAuditTrail = renderAuditTrail;
 window.renderApiKeys = renderApiKeys;
 window.savePricingConfig = savePricingConfig;
-window.deleteUser = deleteUser;
+window.alternarDesativadas = alternarDesativadas;
+window.confirmarContaAtiva = confirmarContaAtiva;
+window.definirContaAtiva = definirContaAtiva;
+window.confirmarExclusaoDefinitiva = confirmarExclusaoDefinitiva;
+window.excluirContaDefinitiva = excluirContaDefinitiva;
 window.openUserModal = openUserModal;

@@ -52,7 +52,7 @@ describe('renderUsers', () => {
     expect(linhas[2].textContent).toContain('Colaborador Cliente');
     expect(linhas[2].textContent).toContain('pX');
     expect(linhas[3].textContent).toContain('Consultor');
-    expect(linhas[1].querySelector('[data-action="deleteUser"]').dataset.args).toBe('["u2"]');
+    expect(linhas[1].querySelector('[data-action="confirmarContaAtiva"]').dataset.args).toBe('["u2"]');
     expect(linhas[1].querySelector('[data-action="openUserModal"]').dataset.args).toBe('["u2"]');
   });
 
@@ -105,29 +105,72 @@ describe('renderUsers', () => {
   });
 });
 
-describe('deleteUser', () => {
-  it('sem confirmação não chama a API', async () => {
-    vi.stubGlobal('confirm', vi.fn(() => false));
-    await window.deleteUser('u1');
-    expect(apiMock).not.toHaveBeenCalled();
+describe('desativar, reativar e excluir definitivamente', () => {
+  const COM_DESATIVADA = [...USERS, { id: 'u9', name: 'Zeca', email: 'zeca@exemplo.test', role: 'org_user', ativo: false }];
+
+  it('desativadas ficam escondidas até o filtro; a coluna Situação diz Ativa/Desativada', async () => {
+    apiMock.mockResolvedValue(COM_DESATIVADA);
+    const [c, h, a] = dom();
+    await window.renderUsers(c, h, a);
+    expect(c.querySelectorAll('tbody tr')).toHaveLength(4);
+    expect(c.textContent).toContain('Situação');
+    expect(c.textContent).not.toContain('Contas ativas');
+    expect(c.querySelector('tbody tr').textContent).toContain('Ativa');
+    window.alternarDesativadas();
+    expect(renderMock).toHaveBeenCalledOnce();
+    await window.renderUsers(c, h, a);
+    const linhas = [...c.querySelectorAll('tbody tr')];
+    expect(linhas).toHaveLength(5);
+    expect(linhas[4].textContent).toContain('Desativada');
+    expect(linhas[4].textContent).toContain('Reativar');
+    window.alternarDesativadas(); // devolve o padrão
   });
 
-  it('confirmado: DELETE do id certo, toast e re-render', async () => {
-    dom();
-    vi.stubGlobal('confirm', vi.fn(() => true));
-    apiMock.mockResolvedValue({});
-    await window.deleteUser('u7');
-    expect(apiMock).toHaveBeenCalledWith('DELETE', '/api/v1/users/u7');
+  it('desativar: confirma na janela e envia PUT /ativo {ativo:false}', async () => {
+    apiMock.mockResolvedValue(USERS);
+    const [c, h, a] = dom();
+    await window.renderUsers(c, h, a);
+    window.confirmarContaAtiva('u2');
+    expect(apiMock).toHaveBeenCalledTimes(1); // nada foi enviado antes da confirmação
+    expect($('modal-content').textContent).toContain('Desativar conta');
+    const botao = $('modal-content').querySelector('[data-action="definirContaAtiva"]');
+    expect(botao.dataset.args).toBe('["u2",false]');
+    apiMock.mockResolvedValue({ ok: true, ativo: false });
+    await window.definirContaAtiva('u2', false);
+    expect(apiMock).toHaveBeenLastCalledWith('PUT', '/api/v1/users/u2/ativo', { ativo: false });
     expect(renderMock).toHaveBeenCalledOnce();
   });
 
-  it('falha: não re-renderiza e mostra o erro', async () => {
+  it('reativar envia {ativo:true}; recusa do servidor aparece e não re-renderiza', async () => {
+    apiMock.mockResolvedValue({ ok: true });
     dom();
-    vi.stubGlobal('confirm', vi.fn(() => true));
-    apiMock.mockRejectedValue(new Error('Proibido'));
-    await window.deleteUser('u7');
+    await window.definirContaAtiva('u9', true);
+    expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/users/u9/ativo', { ativo: true });
+    renderMock.mockReset();
+    apiMock.mockRejectedValue(new Error('A organização precisa de ao menos um administrador ativo'));
+    await window.definirContaAtiva('u2', false);
     expect(renderMock).not.toHaveBeenCalled();
-    expect(document.body.textContent).toContain('Erro ao excluir usuário: Proibido');
+    expect(document.body.textContent).toContain('precisa de ao menos um administrador ativo');
+  });
+
+  it('excluir definitivamente: só platform_admin vê o botão; DELETE com ?definitivo=1 após confirmar', async () => {
+    apiMock.mockResolvedValue(USERS);
+    const [c, h, a] = dom();
+    await window.renderUsers(c, h, a);
+    expect(c.querySelectorAll('[data-action="confirmarExclusaoDefinitiva"]')).toHaveLength(4);
+    S.user = { role: 'consultoria_admin', email: 'g@exemplo.test' };
+    await window.renderUsers(c, h, a);
+    expect(c.querySelector('[data-action="confirmarExclusaoDefinitiva"]')).toBeNull();
+    S.user = { role: 'platform_admin', email: 'root@exemplo.test' };
+    await window.renderUsers(c, h, a);
+    apiMock.mockClear();
+    window.confirmarExclusaoDefinitiva('u2');
+    expect($('modal-content').textContent).toMatch(/apaga a conta/);
+    expect(apiMock).not.toHaveBeenCalled();
+    apiMock.mockResolvedValue({ ok: true });
+    await window.excluirContaDefinitiva('u2');
+    expect(apiMock).toHaveBeenCalledWith('DELETE', '/api/v1/users/u2?definitivo=1');
+    expect(renderMock).toHaveBeenCalledOnce();
   });
 });
 
