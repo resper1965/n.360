@@ -107,6 +107,8 @@ describe('DELETE /governance: DPO excluído', () => {
     expect(await vinculos('dp-del')).toHaveLength(1);
     expect((await apagar('dp-del', (await ids('dp-del'))[0])).status).toBe(200);
     expect(await vinculos('dp-del')).toEqual([]);
+    const trilha = await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'governance.deleted' AND project_id = 'dp-del'`).first<{ n: number }>();
+    expect(trilha!.n, 'a exclusão precisa aparecer na trilha do projeto').toBe(1);
     const log = await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'governanca.encarregado.removido' AND project_id = 'dp-del'`).first<{ n: number }>();
     expect(log!.n).toBe(1);
   });

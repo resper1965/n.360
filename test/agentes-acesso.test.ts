@@ -60,8 +60,8 @@ describe('Agentes com acesso ao projeto', () => {
     const dentro = await sessionFor({ id: 'u-ca', email: 'ca@ness.lat', role: 'consultoria_admin', org_id: 'org_x' });
     const fora = await sessionFor({ id: 'u-cb', email: 'cb@outra.lat', role: 'consultoria_admin', org_id: 'org_y' });
     expect((await req('/api/v1/projects/p-org/agentes', { headers: dentro })).status).toBe(200);
-    expect([403, 404]).toContain((await req('/api/v1/projects/p-org/agentes', { headers: fora })).status);
-    expect([403, 404]).toContain((await req('/api/v1/projects/p-org/agentes/c-org/revogar', { method: 'POST', headers: fora })).status);
+    expect((await req('/api/v1/projects/p-org/agentes', { headers: fora })).status).toBe(403);
+    expect((await req('/api/v1/projects/p-org/agentes/c-org/revogar', { method: 'POST', headers: fora })).status).toBe(403);
     expect((await req('/api/v1/projects/p-org/agentes/c-org/revogar', { method: 'POST', headers: dentro })).status).toBe(200);
   });
 });

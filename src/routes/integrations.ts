@@ -3,6 +3,7 @@ import type { Bindings, Variables } from '../index';
 import { requireResourceAccess, genToken, signWebhook, registraErro } from '../helpers';
 import { validateBody, createWebhookSchema, createApiKeySchema } from '../schemas';
 import { listarAtivos } from '../services/itens';
+import { SQL_VENDORS_VISIVEIS } from './vendors';
 
 const integrations = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -347,7 +348,7 @@ integrations.get('/api/v1/projects/:projectId/export/risks', async (c) => {
 
 integrations.get('/api/v1/projects/:projectId/export/vendors', async (c) => {
   const projectId = c.req.param('projectId');
-  const result = await c.env.DB.prepare('SELECT * FROM vendors WHERE project_id = ?').bind(projectId).all();
+  const result = await c.env.DB.prepare(SQL_VENDORS_VISIVEIS).bind(projectId).all();
   const rows = (result.results || []) as any[];
   const headers = 'name,category,trust_score,diligence_level,has_iso27001,has_soc2,dpa_signed';
   const csv = headers + '\n' + rows.map(r => 

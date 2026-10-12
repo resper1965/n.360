@@ -83,11 +83,14 @@ vendorsApp.delete('/:id', async (c) => {
 
 // ─── Project Vendor Operations (/api/v1/projects/:projectId/vendors) ──────
 
+/** Fornecedor listado = perfil de parte ATIVA com vínculo `terceiro` no projeto. A lista e o CSV usam a mesma consulta. */
+export const SQL_VENDORS_VISIVEIS = `SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.project_id = ? AND p.status = 'ativa'
+        AND EXISTS (SELECT 1 FROM parte_vinculos pv WHERE pv.parte_id = v.parte_id AND pv.papel = 'terceiro' AND pv.alvo_tipo = 'projeto' AND pv.alvo_id = v.project_id)`;
+
 projectVendorsApp.get('/', async (c) => {
   const projectId = c.req.param('projectId');
   const { results } = await c.env.DB.prepare(
-    `SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.project_id = ? AND p.status = 'ativa'
-        AND EXISTS (SELECT 1 FROM parte_vinculos pv WHERE pv.parte_id = v.parte_id AND pv.papel = 'terceiro' AND pv.alvo_tipo = 'projeto' AND pv.alvo_id = v.project_id) ORDER BY v.created_at DESC`
+    `${SQL_VENDORS_VISIVEIS} ORDER BY v.created_at DESC`
   ).bind(projectId).all();
   return c.json({ ok: true, vendors: results });
 });
@@ -108,7 +111,15 @@ projectVendorsApp.post('/', async (c) => {
       .bind(projectId, body.name).first<{ id: string }>();
     // perfil que já existe não é sobrescrito pelo POST (corpo parcial zeraria os campos): edição é pelo PUT
     const existente = achada ? await db.prepare('SELECT id FROM vendors WHERE parte_id = ?').bind(achada.id).first<{ id: string }>() : null;
-    if (existente) return c.json({ error: 'Fornecedor já cadastrado neste projeto', id: existente.id }, 409);
+    if (existente) {
+      // Perfil escondido por ter perdido o vínculo terceiro: o cadastro o traz de volta, com os dados de antes.
+      const r = await db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id)
+        SELECT ?, ?, ?, 'terceiro', 'projeto', ? WHERE NOT EXISTS (SELECT 1 FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro' AND alvo_tipo = 'projeto' AND alvo_id = ?)`)
+        .bind(crypto.randomUUID(), projectId, achada!.id, projectId, achada!.id, projectId).run();
+      if (!r.meta.changes) return c.json({ error: 'Fornecedor já cadastrado neste projeto', id: existente.id }, 409);
+      await logAudit(db, 'vendor.restored', c.get('user')?.email ?? 'system', `Vendor ${body.name} restaurado no projeto ${projectId}`, '', '', projectId);
+      return c.json({ ok: true, id: existente.id }, 200);
+    }
     const parteId = achada?.id ?? crypto.randomUUID();
     const r = await db.batch([
       ...(achada ? [] : [db.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES (?, ?, 'organizacao', ?)`).bind(parteId, projectId, body.name.trim())]),

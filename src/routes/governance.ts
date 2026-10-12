@@ -188,14 +188,14 @@ governanceApp.post('/projects/:id/governance', async (c) => {
         && !(await emailAindaNaMatriz(c.env.DB, projectId, emailAntigo))) {
         await revogarContaStakeholder(c, projectId, emailAntigo, c.get('user')?.email || 'system');
       }
-      await logAudit(c.env.DB, 'governance.updated', c.get('user')?.email || 'system', `Membro da governança ${name} atualizado para projeto ${projectId}`);
+      await logAudit(c.env.DB, 'governance.updated', c.get('user')?.email || 'system', `Membro da governança ${name} atualizado para projeto ${projectId}`, '', '', projectId);
     } else {
       const grava = c.env.DB.prepare(`
         INSERT INTO project_governance (id, project_id, name, email, role_category, job_title, is_primary)
         VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?)
       `).bind(projectId, name, email || null, role_category, job_title, is_primary ? 1 : 0);
       await c.env.DB.batch(is_primary ? [desmarcaOutros, grava] : [grava]);
-      await logAudit(c.env.DB, 'governance.created', c.get('user')?.email || 'system', `Membro da governança ${name} criado para projeto ${projectId}`);
+      await logAudit(c.env.DB, 'governance.created', c.get('user')?.email || 'system', `Membro da governança ${name} criado para projeto ${projectId}`, '', '', projectId);
     }
     // O membro já está gravado: falha do vínculo é registrada, não vira 500 (o retry duplicaria o membro). A 0062 refaz o vínculo.
     if (ehDpo({ role_category, job_title })) {
@@ -225,7 +225,7 @@ governanceApp.delete('/projects/:id/governance/:memberId', async (c) => {
     if (emailAntigo && !(await emailAindaNaMatriz(c.env.DB, projectId, emailAntigo))) {
       await revogarContaStakeholder(c, projectId, emailAntigo, c.get('user')?.email || 'system');
     }
-    await logAudit(c.env.DB, 'governance.deleted', c.get('user')?.email || 'system', `Membro da governança id ${memberId} deletado do projeto ${projectId}`);
+    await logAudit(c.env.DB, 'governance.deleted', c.get('user')?.email || 'system', `Membro da governança id ${memberId} deletado do projeto ${projectId}`, '', '', projectId);
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Falha ao deletar governança', e);

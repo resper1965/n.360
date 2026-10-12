@@ -123,6 +123,17 @@ describe('rotas de vendors sobre a parte', () => {
     const nova = await chamar(consultor, 'POST', `/api/v1/projects/${P}/partes/${parteId}/vinculos`, { papel: 'terceiro', alvo_tipo: 'projeto', alvo_id: P });
     expect(nova.status).toBe(201);
     expect((await vendors()).find((x) => x.id === id)).toMatchObject({ id, name: 'Vinculo Exemplo', notes: 'guardada' });
+    // sem o vínculo de novo, e pelo cadastro: o POST traz o perfil de volta sem sobrescrever; com o vínculo, segue 409
+    await env.DB.prepare(`DELETE FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro'`).bind(parteId).run();
+    const volta = await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Vinculo Exemplo' });
+    expect(volta.status).toBe(200);
+    expect((await json<{ id: string }>(volta)).id).toBe(id);
+    expect((await vendors()).find((x) => x.id === id)).toMatchObject({ notes: 'guardada' });
+    expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Vinculo Exemplo' })).status).toBe(409);
+    const csv = await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/export/vendors`)).text();
+    expect(csv).toContain('Vinculo Exemplo');
+    await env.DB.prepare(`DELETE FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro'`).bind(parteId).run();
+    expect(await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/export/vendors`)).text()).not.toContain('Vinculo Exemplo');
   });
 
   it('perfil de parte inativa já tipada como terceiro não aparece na lista', async () => {
