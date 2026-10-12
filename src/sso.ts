@@ -2,6 +2,7 @@ import { decryptSecret } from './secret-crypto';
 import { log } from './observability';
 import type { Bindings } from './index';
 import { PAPEIS_SSO } from './schemas/auth';
+import { isValidWebhookUrl } from './routes/integrations';
 
 /**
  * SSO por OIDC, por tenant (item 4.1 do `enterprise-grade-plan.md`).
@@ -104,6 +105,16 @@ export async function configPorDominio(env: Bindings, email: string): Promise<Co
 }
 
 /**
+ * Host de URL que o servidor vai buscar: literal interno (localhost, faixa privada, link-local/metadata, IPv6 interno) é recusado
+ * sempre; nome, pelo `verificarHost` (DoH em produção, contra DNS rebinding).
+ */
+async function exigirHostPublico(u: URL, rotulo: string, verificarHost?: (host: string) => Promise<boolean>): Promise<void> {
+  if (!isValidWebhookUrl(u.toString()) || (verificarHost && !(await verificarHost(u.hostname)))) {
+    throw new Error(`Host do ${rotulo} não resolve para endereço público: ${u.hostname}`);
+  }
+}
+
+/**
  * Busca (e cacheia) o documento de descoberta.
  *
  * `verificarHost` é injetado para o teste não depender de DNS — em produção é o
@@ -122,9 +133,7 @@ export async function descobrir(
 
   const url = new URL('.well-known/openid-configuration', issuer.endsWith('/') ? issuer : `${issuer}/`);
   if (url.protocol !== 'https:') throw new Error('O issuer precisa ser https.');
-  if (verificarHost && !(await verificarHost(url.hostname))) {
-    throw new Error(`Host do issuer não resolve para endereço público: ${url.hostname}`);
-  }
+  await exigirHostPublico(url, 'issuer', verificarHost);
 
   const res = await fetchImpl(url.toString());
   if (!res.ok) throw new Error(`Descoberta OIDC falhou: ${res.status}`);
@@ -136,6 +145,13 @@ export async function descobrir(
   }
   for (const campo of ['authorization_endpoint', 'token_endpoint', 'jwks_uri'] as const) {
     if (!doc[campo]) throw new Error(`Documento de descoberta sem ${campo}.`);
+  }
+  // O servidor busca estes dois (troca do código e chaves): valem as regras do issuer, senão o documento vira SSRF.
+  for (const campo of ['token_endpoint', 'jwks_uri'] as const) {
+    let u: URL;
+    try { u = new URL(String(doc[campo])); } catch { throw new Error(`${campo} do documento de descoberta não é URL.`); }
+    if (u.protocol !== 'https:') throw new Error(`${campo} do documento de descoberta precisa ser https.`);
+    await exigirHostPublico(u, campo, verificarHost);
   }
 
   const d = doc as Descoberta;

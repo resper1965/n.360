@@ -187,6 +187,36 @@ describe('descobrir', () => {
     await expect(descobrir(env as any, ISSUER, fetchDoc({ issuer: ISSUER })))
       .rejects.toThrow(/sem authorization_endpoint/);
   });
+
+  // O servidor busca token_endpoint e jwks_uri (public.ts, callback): um documento que os aponte para dentro vira SSRF.
+  // Valem as regras do issuer: https e host público (literal interno recusado sempre; nome, pelo verificarHost).
+  const internos = ['http://idp.exemplo.com/x', 'https://localhost/x', 'https://127.0.0.1/x', 'https://10.0.0.5/x', 'https://169.254.169.254/latest/meta-data', 'https://[::1]/x'];
+  for (const campo of ['token_endpoint', 'jwks_uri'] as const) {
+    for (const alvo of internos) {
+      it(`recusa ${campo} em ${alvo} e não cacheia`, async () => {
+        await expect(descobrir(env as any, ISSUER, fetchDoc({ ...docOk, [campo]: alvo }), async () => true)).rejects.toThrow(new RegExp(campo));
+        expect(await env.SESSIONS.get(`sso_descoberta:${ISSUER}`)).toBeNull();
+      });
+    }
+    it(`recusa ${campo} cujo nome não resolve para endereço público`, async () => {
+      const verificar = async (host: string) => host !== 'interno.exemplo.com';
+      await expect(descobrir(env as any, ISSUER, fetchDoc({ ...docOk, [campo]: 'https://interno.exemplo.com/x' }), verificar))
+        .rejects.toThrow(new RegExp(campo));
+    });
+  }
+
+  it('aceita token_endpoint e jwks_uri https em host público de outro domínio (IdP que separa os endpoints)', async () => {
+    const vistos: string[] = [];
+    const doc = { ...docOk, token_endpoint: 'https://login.provedor.com/oauth2/token', jwks_uri: 'https://keys.provedor.com/jwks' };
+    const d = await descobrir(env as any, ISSUER, fetchDoc(doc), async (h) => { vistos.push(h); return true; });
+    expect(d).toEqual(doc);
+    expect(vistos).toEqual(expect.arrayContaining(['idp.exemplo.com', 'login.provedor.com', 'keys.provedor.com']));
+  });
+
+  it('recusa issuer em IP literal interno mesmo sem verificarHost', async () => {
+    await expect(descobrir(env as any, 'https://127.0.0.1', fetchDoc({ ...docOk, issuer: 'https://127.0.0.1' })))
+      .rejects.toThrow(/endereço público/);
+  });
 });
 
 describe('state e PKCE', () => {
