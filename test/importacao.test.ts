@@ -840,6 +840,37 @@ describe('terceiros (fatia 2)', () => {
     expect((await env.DB.prepare('SELECT status FROM importacoes WHERE id = ?').bind(lote).first<{ status: string }>())!.status).toBe('concluida');
   });
 
+  it('terceiro proposto antes do tratamento, na mesma confirmação, ainda ganha o vínculo operador', async () => {
+    const lote = await novoLote();
+    await env.DB.prepare(`INSERT INTO importacao_arquivos (id, importacao_id, project_id, nome, mime, tamanho, r2_key, status, tipo) VALUES ('ordem-arq', ?, ?, 'a.csv', 'text/csv', 1, 'k', 'processado', 'terceiros')`).bind(lote, P).run();
+    await env.DB.prepare(`UPDATE importacoes SET status = 'em_revisao' WHERE id = ?`).bind(lote).run();
+    // O terceiro nasce ANTES (created_at e rowid) do tratamento que ele cita.
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, entidade, dados, decisao, created_at) VALUES ('ordem-t', ?, 'ordem-arq', ?, 'terceiro', ?, 'aceito', '2026-01-01 00:00:00')`)
+        .bind(lote, P, JSON.stringify({ nome: 'Ordem Fornecedor Ltda', tratamentos: ['Ordem de gravação'] })),
+      env.DB.prepare(`INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, entidade, dados, decisao, created_at) VALUES ('ordem-r', ?, 'ordem-arq', ?, 'tratamento', ?, 'aceito', '2026-01-02 00:00:00')`)
+        .bind(lote, P, JSON.stringify({ finalidade: 'Ordem de gravação' })),
+    ]);
+    const res = await confirmar(lote);
+    expect(res.map((r) => r.decisao)).toEqual(['gravado', 'gravado']);
+    const trat = res.find((r) => r.item_id === 'ordem-r')!.registro_id!;
+    const parte = res.find((r) => r.item_id === 'ordem-t')!;
+    expect(parte.aviso ?? '').not.toMatch(/não encontrados/);
+    const v = await env.DB.prepare(`SELECT papel FROM parte_vinculos WHERE parte_id = ? AND alvo_tipo = 'tratamento' AND alvo_id = ?`).bind(parte.registro_id, trat).first<{ papel: string }>();
+    expect(v?.papel).toBe('operador');
+  });
+
+  it('contato que não é e-mail não vira e-mail da parte: vira aviso', async () => {
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Contato Telefone Ltda', { contato: 'Maria, ramal 123' }));
+    await processarTerceiros(lote);
+    const [i] = (await lerLote(lote)).itens;
+    await aceitar(lote, i.id);
+    const [r] = await confirmar(lote);
+    expect(r.aviso).toMatch(/contato "Maria, ramal 123" não é e-mail/);
+    expect((await partesCom('Contato Telefone Ltda'))[0].email).toBeNull();
+  });
+
   it('o mesmo nome duas vezes no mesmo lote cria uma parte só', async () => {
     const lote = await novoLote();
     respondeTerceiros(terceiro('Gêmeo Serviços'), terceiro('gemeo servicos'));

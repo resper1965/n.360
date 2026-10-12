@@ -392,7 +392,7 @@ async function mapaPorNome(db: D1Database, sql: string, projectId: string) {
 }
 
 /**
- * Itens gravados por chamada. Cada item custa ~10 consultas ao D1 e uma invocação do Worker tem teto de consultas: a resposta traz
+ * Itens gravados por chamada. Cada item custa ~10 consultas ao D1 (terceiro, ~17: os serviços de tipo, avaliação e DPA) e uma invocação do Worker tem teto de consultas: a resposta traz
  * `restantes` (itens ainda `aceito`) e a tela chama de novo até zerar.
  */
 export const ITENS_POR_CONFIRMACAO = 30;
@@ -427,7 +427,8 @@ export async function confirmarLote(db: D1Database, projectId: string, loteId: s
 }
 
 async function gravarAceitos(db: D1Database, projectId: string, loteId: string, ator: string): Promise<Resultado[]> {
-  const { results: aceitos } = await db.prepare(`SELECT * FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito' ORDER BY created_at, rowid LIMIT ?`)
+  // Tratamentos antes dos terceiros: o terceiro da mesma confirmação liga aos tratamentos que acabaram de ser gravados.
+  const { results: aceitos } = await db.prepare(`SELECT * FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito' ORDER BY CASE entidade WHEN 'tratamento' THEN 0 ELSE 1 END, created_at, rowid LIMIT ?`)
     .bind(loteId, ITENS_POR_CONFIRMACAO).all<LinhaItem>();
   const { results: catalogo } = await db.prepare(
     `SELECT id, titulo FROM requisitos WHERE pai_id IN ('lgpd:art7', 'lgpd:art11') ORDER BY CASE pai_id WHEN 'lgpd:art7' THEN 0 ELSE 1 END, rowid`
@@ -523,6 +524,7 @@ async function gravarTerceiro(db: D1Database, projectId: string, loteId: string,
     stmts.push(db.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES (?, ?, 'organizacao', ?, ?)`)
       .bind(parteId, projectId, d.nome, d.contato && EMAIL.test(d.contato) ? d.contato : null));
   }
+  if (d.contato && !EMAIL.test(d.contato)) avisos.push(`contato "${d.contato}" não é e-mail; não foi gravado`);
   const faltam: string[] = [];
   for (const f of new Set(d.tratamentos ?? [])) {
     const rid = mapas.finalidades.get(chave(f));
