@@ -18,7 +18,9 @@ export     function navigate(view, data) {
             el.removeAttribute('aria-current');
         });
         // No n.iso a tela titular é só Incidentes (nav-titular fica oculto): destaca o item que levou até ela.
-        const navId = targetView === 'titular' && produtoAtual() === 'iso' ? 'nav-incidentes' : `nav-${targetView.split('-')[0]}`;
+        // Nos módulos, Projetos é do n.360 (fora do menu): a lista, aberta pelo Voltar da Jornada, destaca a Jornada.
+        const navId = targetView === 'titular' && produtoAtual() === 'iso' ? 'nav-incidentes'
+            : targetView === 'projects' && produtoAtual() !== 'n360' ? 'nav-project' : `nav-${targetView.split('-')[0]}`;
         const el = document.getElementById(navId);
         if (el) {
             el.classList.add('active');

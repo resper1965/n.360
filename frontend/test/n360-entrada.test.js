@@ -125,7 +125,6 @@ describe('initApp no n.360 com ?tela= (vindo do rodapé de um módulo)', () => {
         expect(irPara).toHaveBeenCalledWith('/iso', true);
         expect(location.search).toBe('');
         irPara.mockClear();
-        comMenu();
         history.replaceState(null, '', '/?tela=api-keys'); // consultor não vê Chaves de API
         await window.initApp();
         expect(irPara).toHaveBeenCalledWith('/iso', true);
