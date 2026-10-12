@@ -120,7 +120,7 @@
 		// nunca do host da requisição. O callback de SSO e o recurso do MCP NÃO seguem
 		// o APP_URL: ficam presos em niso (URL_NISO). Etapa 1 do deploy: niso (nada
 		// redireciona para o n360); a etapa 2 troca para https://n360.ness.com.br.
-		"APP_URL": "https://niso.ness.com.br",
+		"APP_URL": "https://n360.ness.com.br",
 		// Chave PÚBLICA de verificação dos exports de portabilidade (item 4.6).
 		// É `var` e não `secret` DE PROPÓSITO: ela existe para ser publicada — o
 		// Worker a serve em `GET /api/v1/public/export-public-key`, e quem recebe
