@@ -2,13 +2,23 @@
 // controles), a ciência é da versão ("Assinado" na vigente, "Versão anterior (n)" nas passadas), o POST leva só
 // o id do documento e o conteúdo, que vem do servidor, é sempre escapado. Mesmo molde de politicas-link.test.js:
 // o HTML e o script reais, com `fetch` dublado.
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import html from '../public/politicas.html?raw';
 
 const json = (corpo, status = 200) =>
   new Response(JSON.stringify(corpo), { status, headers: { 'content-type': 'application/json' } });
 const espera = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 const el = (id) => document.getElementById(id);
+
+// O portal agenda `setTimeout(showStep, 1200)` depois de pedir o código. Sem cancelar, o timer dispara depois
+// que o arquivo terminou e o jsdom já foi desmontado ("document is not defined"): o vitest acusa erro solto e
+// sai com código 1 mesmo com todos os testes verdes. Cada timer criado no teste é cancelado ao final.
+const setTimeoutReal = globalThis.setTimeout;
+const timers = new Set();
+beforeEach(() => {
+  vi.stubGlobal('setTimeout', (fn, ms, ...a) => { const id = setTimeoutReal(fn, ms, ...a); timers.add(id); return id; });
+});
+afterEach(() => { timers.forEach((id) => clearTimeout(id)); timers.clear(); });
 
 let fetchMock;
 let iniciar;
