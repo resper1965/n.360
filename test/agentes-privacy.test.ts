@@ -218,12 +218,22 @@ describe('rascunho de comunicação de incidente', () => {
 
 describe('minimização do texto livre', () => {
   it('mascararPii tira CPF (com e sem pontuação), e-mail e telefone; CNPJ e datas ficam', () => {
-    const t = mascararPii('CPF 123.456.789-09 ou 12345678909, joao.silva+x@exemplo.com.br, (11) 98765-4321, 11 3456-7890, +55 21 912345678, sem DDD 98765-4321 e 3456-7890; CNPJ 12.345.678/0001-90 e 12345678000190; em 2026-10-10 às 10:30');
+    const t = mascararPii('CPF 123.456.789-09 ou 12345678909, joao.silva+x@exemplo.com.br, (11) 98765-4321, 11 3456-7890, +55 21 912345678, sem DDD 98765-4321; CNPJ 12.345.678/0001-90 e 12345678000190; em 2026-10-10 às 10:30');
     for (const pii of ['123.456.789-09', '12345678909', 'joao.silva', '98765-4321', '3456-7890', '912345678']) expect(t).not.toContain(pii);
     expect(t).toContain('12.345.678/0001-90');
     expect(t).toContain('12345678000190');
     expect(t).toContain('2026-10-10 às 10:30');
     expect(mascararPii(null)).toBeNull();
+  });
+
+  // A regra de telefone é a da importação (DDD entre parênteses ou com separador, celular 9XXXX-XXXX, +55 E.164):
+  // a anterior trocava intervalo de anos e protocolo com hífen por [telefone], e o rascunho perdia o dado.
+  it('mascararPii não toma intervalo de anos, protocolo com hífen nem data por telefone', () => {
+    const fica = 'vigência 2025-2026; incidente IN-2026-0002; processo 1234-5678; em 2026-10-10, 2026-10-10T10:30:00Z';
+    expect(mascararPii(fica)).toBe(fica);
+    expect(mascararPii('ligar (11) 98765-4321, 11 98765-4321, 98765-4321 ou +5511987654321'))
+      .toBe('ligar [telefone], [telefone], [telefone] ou [telefone]');
+    expect(mascararPii('CPF 123.456.789-09 e maria@exemplo.com')).toBe('CPF [CPF] e [e-mail]');
   });
 
   it('CPF, e-mail e telefone na descrição do incidente não chegam ao modelo', async () => {

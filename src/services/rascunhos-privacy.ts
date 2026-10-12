@@ -2,6 +2,7 @@ import { ehEquipeNess, logAudit } from '../helpers';
 import { PrivacidadeAgent } from '../agents/privacidade';
 import { lerPedido } from './titular-pedidos';
 import { lerIncidente } from './incidentes';
+import { TELEFONE } from './importacao';
 
 /**
  * Rascunhos de IA do n.privacy (fatia 5.3). Cada função escolhe O QUE vai ao modelo (minimização), valida a saída pelo esquema do
@@ -23,7 +24,8 @@ const NEGADO = falha(403, 'Rascunho de IA é pedido pela equipe da consultoria o
 type AoFalhar = (e: unknown) => void;
 
 /**
- * Mascara CPF (com ou sem pontuação), e-mail e telefone BR no texto livre antes de ir ao modelo externo. CNPJ fica (é da
+ * Mascara CPF (com ou sem pontuação), e-mail e telefone BR no texto livre antes de ir ao modelo externo. Telefone pela regra da
+ * importação (`TELEFONE`): intervalo de anos e protocolo com hífen não são telefone. CNPJ fica (é da
  * empresa). ponytail: regex, não detector de PII; nome de pessoa no texto livre passa. Upgrade: NER, se o risco pedir.
  */
 export function mascararPii(texto: string | null | undefined): string | null {
@@ -31,8 +33,7 @@ export function mascararPii(texto: string | null | undefined): string | null {
   return texto
     .replace(/(?<![\d./-])\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?![\d/])/g, '[CPF]')
     .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, '[e-mail]')
-    .replace(/(?:\+?55[\s-]?)?(?:\(\d{2}\)|(?<!\d)\d{2})[\s-]?9?\d{4}[\s-]?\d{4}(?!\d)/g, '[telefone]')
-    .replace(/(?<![\d\]])9?\d{4}-\d{4}(?!\d)/g, '[telefone]');
+    .replace(TELEFONE, '[telefone]');
 }
 
 /** Chama o agente: modelo fora do ar ou resposta fora do esquema viram 502, sem nada gravado. */
