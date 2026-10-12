@@ -3,7 +3,7 @@ import { env } from 'cloudflare:test';
 import worker from '../src/index';
 import { applySchema, sessionFor, habilitarPrivacy, concederModulos } from './helpers/d1';
 
-/** Chat por mÃ³dulo: o prompt de sistema segue o mÃ³dulo pedido, e o mÃ³dulo tem de ser do projeto E da pessoa. IA simulada. */
+/** Chat por módulo: o prompt de sistema segue o módulo pedido, e o módulo tem de ser do projeto E da pessoa. IA simulada. */
 describe('POST /projects/:id/chat com modulo', () => {
   let prompts: string[];
   const envComIa = () => ({ ...env, AI: { run: async (_m: string, o: { messages: { role: string; content: string }[] }) => { prompts.push(o.messages[0].content); return { response: 'ok' }; } } }) as any;
@@ -48,7 +48,7 @@ describe('POST /projects/:id/chat com modulo', () => {
     expect(prompts[0]).not.toMatch(/ISO 27001/);
   });
 
-  it('sem modulo (ou iso) mantÃ©m o prompt atual', async () => {
+  it('sem modulo (ou iso) mantém o prompt atual', async () => {
     for (const corpo of [{ message: 'oi' }, { message: 'oi', modulo: 'iso' }]) {
       expect((await chat(admin, corpo)).status).toBe(200);
     }
@@ -80,11 +80,11 @@ describe('POST /projects/:id/chat com modulo', () => {
   it('pessoa sem o n.privacy recebe 403, mesmo no projeto que o tem', async () => {
     const r = await chat(soIso, { message: 'oi', modulo: 'privacy' });
     expect(r.status).toBe(403);
-    expect(((await r.json()) as { error: string }).error).toBe('VocÃª nÃ£o tem acesso ao n.privacy');
+    expect(((await r.json()) as { error: string }).error).toBe('Você não tem acesso ao n.privacy');
     expect(prompts).toHaveLength(0);
   });
 
-  it('projeto sem o n.privacy recebe 403, mesmo para quem tem o mÃ³dulo', async () => {
+  it('projeto sem o n.privacy recebe 403, mesmo para quem tem o módulo', async () => {
     const r = await chat(admin, { message: 'oi', modulo: 'privacy' }, 'p-iso');
     expect(r.status).toBe(403);
     expect(prompts).toHaveLength(0);
