@@ -78,7 +78,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                         escapeHTML(p.sector || 'Geral'),
                         window.renderStatusBadge(p.status || 'active', p.status === 'completed' ? 'success' : 'info'),
                         escapeHTML(escopoDe(p)),
-                        `${jornada ? `<button class="btn btn-primary btn-sm" data-action="openProjectDetail" data-args='["${p.id}"]'>Gerenciar Jornada &rarr;</button> ` : ''}${unico ? '' : abrir.map((m) => `<button class="btn btn-secondary btn-sm" data-action="abrirProjetoNoModulo" data-args='${escapeHTML(JSON.stringify([p.id, m]))}'>Abrir no n.${m}</button> `).join('')}${equipe ? `<button class="btn btn-ghost btn-sm" data-action="abrirProdutosDoProjeto" data-args='["${p.id}"]'>Módulos…</button>` : ''}`,
+                        `<div class="acoes-linha">${equipe ? `<button class="btn btn-ghost btn-sm" data-action="abrirProdutosDoProjeto" data-args='["${p.id}"]'>Módulos…</button>` : ''}${jornada ? `<button class="btn btn-primary btn-sm" data-action="openProjectDetail" data-args='["${p.id}"]'>Gerenciar Jornada &rarr;</button>` : ''}${unico ? '' : abrir.map((m) => `<button class="btn btn-secondary btn-sm" data-action="abrirProjetoNoModulo" data-args='${escapeHTML(JSON.stringify([p.id, m]))}'>Abrir no n.${m}</button>`).join('')}</div>`,
                     ];
                 }),
                 { emptyState: 'Nenhum projeto de implementação ativo no momento.' }

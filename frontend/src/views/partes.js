@@ -30,14 +30,13 @@ async function renderPartes(c, h, a) {
     }
     const editar = podeEditar();
     // Uma ação primária; as três secundárias num menu nativo (<details>), para o header não virar uma fila de 5 botões.
-    const itemMenu = 'display:block; width:100%; text-align:left; border:0; margin:0';
     a.innerHTML = editar
-        ? `<details style="position:relative; display:inline-block">
-               <summary class="btn" style="list-style:none; cursor:pointer">Mais</summary>
-               <div style="position:absolute; right:0; top:calc(100% + 4px); z-index:20; min-width:220px; background:var(--surface); border:1px solid var(--border); padding:0.25rem 0">
-                   <button class="btn" style="${itemMenu}" data-action="importarPartes" data-args='["${proj.id}"]'>Importar do projeto</button>
-                   <button class="btn" style="${itemMenu}" data-action="conciliarPartes" data-args='["${proj.id}"]'>Conciliar responsáveis</button>
-                   <button class="btn" style="${itemMenu}" data-action="openNovoDepartamentoModal" data-args='["${proj.id}"]'>+ Departamento</button>
+        ? `<details class="menu-mais">
+               <summary class="btn">Mais</summary>
+               <div class="menu-mais-lista">
+                   <button class="btn" data-action="importarPartes" data-args='["${proj.id}"]'>Importar do projeto</button>
+                   <button class="btn" data-action="conciliarPartes" data-args='["${proj.id}"]'>Conciliar responsáveis</button>
+                   <button class="btn" data-action="openNovoDepartamentoModal" data-args='["${proj.id}"]'>+ Departamento</button>
                </div>
            </details>
            <button class="btn btn-primary" data-action="openNovaParteModal" data-args='["${proj.id}"]'>+ Nova parte</button>`

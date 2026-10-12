@@ -32,6 +32,8 @@ describe('ehLegitimoInteresse', () => {
     expect(ehLegitimoInteresse('Legítimo interesse (art. 7, IX)')).toBe(true);
     expect(ehLegitimoInteresse(null, 'LEGITIMO INTERESSE')).toBe(true);
     expect(ehLegitimoInteresse('Consentimento', 'Execução de contrato')).toBe(false);
+    expect(ehLegitimoInteresse('Interesse legitimo')).toBe(true);
+    expect(ehLegitimoInteresse('Interesse legítimo')).toBe(true);
     expect(ehLegitimoInteresse(null, undefined)).toBe(false);
   });
 });
@@ -57,9 +59,11 @@ describe('LIA exigida', () => {
   it('pelo texto livre ou pela base do catálogo; consentimento não exige', async () => {
     const texto = await novo('Por texto', { legal_basis: 'Legítimo Interesse' });
     const catalogo = await novo('Por catálogo', { base_legal_id: 'lgpd:art7:ix' });
+    const antigo = await novo('Registro antigo', { legal_basis: 'Interesse legitimo' });
     const consent = await novo('Consentimento', { legal_basis: 'Consentimento', base_legal_id: 'lgpd:art7:i' });
     expect((await lig(texto)).lia).toEqual({ exigida: true, existe: false, status: null });
     expect((await lig(catalogo)).lia.exigida).toBe(true);
+    expect((await lig(antigo)).lia.exigida).toBe(true);
     expect((await lig(consent)).lia.exigida).toBe(false);
   });
 });

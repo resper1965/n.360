@@ -308,7 +308,7 @@
         .ctx-label { font-size: 0.6rem; font-weight: 500; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem; margin-top: 1rem; }
 
         /* ——— CARDS ————————————————————————————————————————— */
-        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; backdrop-filter: var(--glass-blur); transition: all 0.3s; margin-bottom: 1rem; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; backdrop-filter: var(--glass-blur); transition: all 0.3s; margin-bottom: 1rem; }
         .card:hover { border-color: rgba(255,255,255,0.12); }
         .card-label { font-size: 0.6rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 0.75rem; font-family: 'Montserrat', sans-serif; }
 
@@ -349,7 +349,7 @@
         /* ——— MODALS ——————————————————————————————————————— */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 1000; display: none; align-items: center; justify-content: center; }
         .modal-overlay.open { display: flex; }
-        .modal { background: rgba(12,16,28,0.98); backdrop-filter: var(--glass-blur); border: 1px solid var(--border); border-radius: 20px; max-width: 560px; width: 90%; max-height: 85vh; overflow-y: auto; padding: 2rem; animation: modalIn 0.3s ease-out; }
+        .modal { background: rgba(12,16,28,0.98); backdrop-filter: var(--glass-blur); border: 1px solid var(--border); border-radius: var(--radius); max-width: 560px; width: 90%; max-height: 85vh; overflow-y: auto; padding: 2rem; animation: modalIn 0.3s ease-out; }
         .modal-large { max-width: 900px; }
         .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
         .modal-title { font-family: 'Montserrat', sans-serif; font-size: 1.1rem; font-weight: 500; }
@@ -372,7 +372,7 @@
         .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.5s ease; }
 
         /* ——— PHASES ——————————————————————————————————————— */
-        .phase-item { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 0.5rem; transition: 0.2s; cursor: pointer; }
+        .phase-item { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.5rem; transition: 0.2s; cursor: pointer; }
         .phase-item:hover { border-color: rgba(255,255,255,0.12); }
         .phase-num { width: 28px; height: 28px; border-radius: 8px; background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: var(--text-dim); font-family: 'Montserrat', sans-serif; flex-shrink: 0; }
         .phase-title { font-size: 0.8rem; flex: 1; }
@@ -1291,11 +1291,11 @@ textarea:focus-visible {
 .ca-passo-titulo { margin: 0 0 4px; font: 600 15px/1.3 var(--font-head); color: var(--text); }
 .ca-passo-txt { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text-2); }
 
-.ca-abas { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); }
-.ca-aba { appearance: none; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; font: 500 14px var(--font-body); color: var(--text-dim); cursor: pointer; transition: color 150ms var(--ease-out), border-color 150ms var(--ease-out); }
-.ca-aba:hover { color: var(--text); }
-.ca-aba[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
-.ca-aba:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px 6px 0 0; }
+.abas { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); }
+.aba { appearance: none; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; font: 500 14px var(--font-body); color: var(--text-dim); cursor: pointer; transition: color 150ms var(--ease-out), border-color 150ms var(--ease-out); }
+.aba:hover { color: var(--text); }
+.aba[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.aba:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px 6px 0 0; }
 .ca-selo { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font: 500 10.5px var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
 .ca-selo-ok { border-color: var(--accent-glow); color: var(--accent); }
 
@@ -1546,3 +1546,15 @@ textarea:focus-visible {
 
 /* n.iso / n.privacy: item ou grupo que não é do produto deste domínio (frontend/src/produto.js). */
 [data-fora-do-produto="1"] { display: none !important; }
+
+/* Menu suspenso nativo (<details>): "Mais" em Partes. Fecha ao clicar fora (globals.js). */
+.menu-mais { position: relative; display: inline-block; }
+.menu-mais > summary { list-style: none; cursor: pointer; }
+.menu-mais > summary::-webkit-details-marker { display: none; }
+.menu-mais-lista { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 220px; background: var(--surface); border: 1px solid var(--border); padding: 0.25rem 0; }
+.menu-mais-lista .btn { display: block; width: 100%; text-align: left; border: 0; margin: 0; }
+/* Selo do projeto ativo no header */
+.header-project-badge { display: none; cursor: pointer; font-size: 12px; padding: 0.2rem 0.6rem; border-radius: 0; background: rgba(0,173,232,0.12); color: var(--accent); border: 1px solid rgba(0,173,232,0.25); white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.titulo-secao { margin-bottom: 1rem; font-family: var(--font-head); font-weight: 600; font-size: 14px; color: var(--text); }
+/* Ações da linha de Projetos: Módulos… sempre na primeira coluna */
+.acoes-linha { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

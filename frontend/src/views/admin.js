@@ -41,7 +41,7 @@ window.__adminCopiarApiKey = () => {
 
             c.innerHTML = `
             <div class="card fade-in" style="margin-bottom:1.5rem">
-                <h3 style="margin-bottom:1rem;font-family:'Montserrat',sans-serif;font-weight:500;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">Taxa de venda por PD (R$/dia)</h3>
+                <h3 class="titulo-secao">Taxa de venda por PD (R$/dia)</h3>
                 <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem">O que cobramos do cliente por Person-Day (8h). Inclui margem, overhead e impostos.</p>
                 <div style="display:flex;flex-wrap:wrap;gap:1rem">
                     ${numInput('cfg-venda-1', (cfg.taxaVendaPD[1] ?? 0), 'Foundation (Tier 1)', 'R$/PD')}
@@ -52,7 +52,7 @@ window.__adminCopiarApiKey = () => {
             </div>
 
             <div class="card fade-in" style="margin-bottom:1.5rem">
-                <h3 style="margin-bottom:1rem;font-family:'Montserrat',sans-serif;font-weight:500;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">Custo interno por PD (R$/dia)</h3>
+                <h3 class="titulo-secao">Custo interno por PD (R$/dia)</h3>
                 <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem">Custo real do consultor por dia (salário + benefícios). Usado para calcular margem operacional.</p>
                 <div style="display:flex;flex-wrap:wrap;gap:1rem">
                     ${numInput('cfg-custo-1', (cfg.custoInternoPD[1] ?? 0), 'Foundation (Tier 1)', 'R$/PD')}
@@ -63,7 +63,7 @@ window.__adminCopiarApiKey = () => {
             </div>
 
             <div class="card fade-in" style="margin-bottom:1.5rem">
-                <h3 style="margin-bottom:1rem;font-family:'Montserrat',sans-serif;font-weight:500;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">Tributos e encargos</h3>
+                <h3 class="titulo-secao">Tributos e encargos</h3>
                 <div style="display:flex;flex-wrap:wrap;gap:1rem">
                     ${numInput('cfg-iss', pct(cfg.tributos.iss), 'ISS', '%')}
                     ${numInput('cfg-pis', pct(cfg.tributos.pis), 'PIS', '%')}
@@ -74,7 +74,7 @@ window.__adminCopiarApiKey = () => {
             </div>
 
             <div class="card fade-in" style="margin-bottom:1.5rem">
-                <h3 style="margin-bottom:1rem;font-family:'Montserrat',sans-serif;font-weight:500;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">Parâmetros gerais</h3>
+                <h3 class="titulo-secao">Parâmetros gerais</h3>
                 <div style="display:flex;flex-wrap:wrap;gap:1rem">
                     ${numInput('cfg-overhead', pct(cfg.overheadPct, 1), 'Overhead', '%')}
                     ${numInput('cfg-margem', pct(cfg.margemAlvo, 1), 'Margem Alvo (referência)', '%')}
@@ -83,7 +83,7 @@ window.__adminCopiarApiKey = () => {
             </div>
 
             <div class="card fade-in" style="margin-bottom:1.5rem">
-                <h3 style="margin-bottom:1rem;font-family:'Montserrat',sans-serif;font-weight:500;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">Buffer de risco por tier</h3>
+                <h3 class="titulo-secao">Buffer de risco por tier</h3>
                 <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem">Multiplicador adicional sobre o preço de venda para cobrir riscos e imprevistos.</p>
                 <div style="display:flex;flex-wrap:wrap;gap:1rem">
                     ${numInput('cfg-buffer-1', pct(cfg.bufferRisco[1], 1), 'Foundation', '%')}

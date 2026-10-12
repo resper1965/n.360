@@ -289,11 +289,11 @@ export function renderDataTable(columns, rows, options = {}) {
 /**
  * Abas de tela: `abas` = [[valor, rótuloHtml], ...]. O rótulo já é HTML (pode trazer contagem colorida):
  * quem chama escapa o que vier do servidor. A aba ativa é sublinhado accent sem preenchimento (classes
- * `.ca-abas`/`.ca-aba` de style.css), para não competir com o botão primário do header.
+ * `.abas`/`.aba` de style.css), para não competir com o botão primário do header.
  */
 export function renderAbas(abas, ativa, action) {
-    return `<div class="ca-abas" role="tablist" style="margin-bottom:1rem">${abas.map(([v, rotulo]) =>
-        `<button type="button" role="tab" class="ca-aba" aria-selected="${v === ativa}" tabindex="${v === ativa ? 0 : -1}" data-action="${escapeHTML(action)}" data-args='${escapeHTML(JSON.stringify([v]))}'><span>${rotulo}</span></button>`).join('')}</div>`;
+    return `<div class="abas" role="tablist" style="margin-bottom:1rem">${abas.map(([v, rotulo]) =>
+        `<button type="button" role="tab" class="aba" aria-selected="${v === ativa}" tabindex="${v === ativa ? 0 : -1}" data-action="${escapeHTML(action)}" data-args='${escapeHTML(JSON.stringify([v]))}'><span>${rotulo}</span></button>`).join('')}</div>`;
 }
 
 window.escapeHTML = escapeHTML;

@@ -641,7 +641,7 @@ window.updateActiveProjectWidget = function updateActiveProjectWidget() {
 
         if (S.activeProject) {
             badge.textContent = S.activeProject.project_name || S.activeProject.client_name || 'Projeto';
-            badge.style.display = '';
+            badge.style.display = 'block';
             grcItems.forEach(el => el.style.display = '');
         } else {
             badge.style.display = 'none';
@@ -834,6 +834,8 @@ window.toggleAccountMenu = function toggleAccountMenu() {
     }
 
 document.addEventListener('click', (e) => {
+        // Menus <details class="menu-mais">: fecham ao clicar fora (ou no item, que abre modal).
+        document.querySelectorAll('details.menu-mais[open]').forEach((d) => { if (!d.contains(e.target) || e.target.closest('.menu-mais-lista')) d.open = false; });
         const box = document.getElementById('account-menu');
         if (!box || box.hidden) return;
         if (e.target.closest('#account-menu') || e.target.closest('#sidebar-user-card')) return;
