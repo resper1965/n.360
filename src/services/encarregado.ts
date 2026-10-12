@@ -92,6 +92,8 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string) {
   const prioridades: Prioridade[] = [];
   const p = (nivel: Prioridade['nivel'], quantidade: number, texto: (q: number) => string, tela: string) => { if (quantidade > 0) prioridades.push({ nivel, texto: texto(quantidade), tela }); };
   p('alta', encarregados.length ? 0 : 1, () => 'Nenhum encarregado indicado (LGPD, art. 41)', 'encarregado');
+  // Projeto vazio não é projeto em dia: sem inventário e sem catálogo, a lista vazia afirmaria conformidade que ninguém verificou.
+  p('alta', tratamentos.total ? 0 : 1, () => 'Nenhum tratamento no RoPA (LGPD, art. 37)', 'ropa');
   p('alta', secao.pedidos_titular.atrasados, (q) => `${q} ${q === 1 ? 'pedido do titular atrasado' : 'pedidos do titular atrasados'}`, 'titular');
   p('alta', secao.incidentes.comunicacoes_atrasadas, (q) => `${q} ${q === 1 ? 'comunicação de incidente atrasada' : 'comunicações de incidente atrasadas'}`, 'titular');
   p('alta', secao.incidentes.sem_avaliacao_de_risco, (q) => `${q} ${q === 1 ? 'incidente sem avaliação de risco' : 'incidentes sem avaliação de risco'}`, 'titular');
@@ -103,6 +105,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string) {
   p('media', secao.documentos.revisao_vencida, (q) => `${q} ${q === 1 ? 'documento com revisão vencida' : 'documentos com revisão vencida'}`, 'documentos');
   p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'terceiro nunca avaliado' : 'terceiros nunca avaliados'}`, 'terceiros');
   p('media', secao.tratamentos.sem_base_legal, (q) => `${q} ${q === 1 ? 'tratamento sem base legal' : 'tratamentos sem base legal'}`, 'ropa');
+  p('media', lgpdCarregada ? 0 : 1, () => 'Catálogo de requisitos LGPD não carregado', 'requisitos');
   if (secao.lgpd.carregada) p('media', secao.lgpd.lacunas ?? 0, (q) => `${q} ${q === 1 ? 'requisito da LGPD sem cobertura' : 'requisitos da LGPD sem cobertura'}`, 'requisitos');
   p('media', secao.prazos_legais.nao_definidos.length, (q) => `${q} ${q === 1 ? 'prazo legal ainda não cadastrado' : 'prazos legais ainda não cadastrados'} (os prazos ficam "não calculados")`, 'titular');
 
