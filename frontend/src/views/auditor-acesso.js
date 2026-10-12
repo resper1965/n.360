@@ -74,7 +74,7 @@ window.gerarAcessoAuditor = async function (projectId) {
     try {
         const r = await api('POST', `/api/v1/projects/${projectId}/auditor-token`, { days_valid: dias });
         document.getElementById('aud-ext-novo').innerHTML = `
-            <div style="margin-top:1rem;padding:1rem;border:1px solid var(--border);border-radius:10px">
+            <div style="margin-top:1rem;padding:1rem;border:1px solid var(--border);">
                 <label class="form-label" for="aud-ext-link">Link do auditor, válido até ${escapeHTML(dataBR(r.expires_at))}</label>
                 <div style="display:flex;gap:.5rem">
                     <input class="form-input" id="aud-ext-link" readonly value="${escapeHTML(r.url)}">

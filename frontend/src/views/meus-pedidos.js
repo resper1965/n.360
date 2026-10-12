@@ -94,7 +94,7 @@ window.abrirPedido = async function abrirPedido(id) {
             <h3 style="font-family:var(--font-head);font-weight:600;font-size:17px;margin:0 0 4px">${escapeHTML(p.titulo)}</h3>
             <p style="font-size:12px;color:var(--text-dim);margin:0 0 16px">${escapeHTML(PAPEIS[p.papel_exigido] || p.papel_exigido)} · pedido por ${escapeHTML(p.criado_por)} em ${escapeHTML(data(p.criado_em))} · situação: ${escapeHTML(STATUS[p.status] || p.status)}</p>
             ${aviso}
-            <div style="max-height:50vh;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px">${conteudoHtml(p.tipo, p.conteudo || {})}</div>
+            <div style="max-height:50vh;overflow:auto;border:1px solid var(--border);padding:16px;margin-bottom:12px">${conteudoHtml(p.tipo, p.conteudo || {})}</div>
             <p style="font-size:11px;color:var(--text-dim);margin:0 0 16px;word-break:break-all">Versão (SHA-256): <span style="font-family:var(--font-mono)">${escapeHTML(p.hash)}</span></p>
             ${decide ? `
             <form id="pd-form" data-action-submit="aprovarPedido" data-arg-event data-args='${args(p.id)}' data-prevent novalidate>

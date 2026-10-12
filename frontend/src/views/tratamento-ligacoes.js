@@ -135,7 +135,7 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
                 <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tl-mec">Mecanismo</label><input class="form-input" id="tl-mec" maxlength="300"></div>
                 <button class="btn btn-sm" data-action="adicionarTransferenciaTratamento" data-args='${args(projectId, ropaId)}'>Registrar</button></div>` : ''}</div>`)}
         ${secao('Diagrama', `<p style="color:var(--text-dim)">Gerado das ligações acima; muda quando elas mudam. Cole em qualquer visualizador de Mermaid.</p>
-            <pre id="tl-diagrama" style="white-space:pre-wrap; max-height:240px; overflow:auto; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.75rem">${escapeHTML(diagrama)}</pre>
+            <pre id="tl-diagrama" style="white-space:pre-wrap; max-height:240px; overflow:auto; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(diagrama)}</pre>
             ${diagrama ? '<button class="btn btn-ghost btn-sm" data-action="copiarDiagramaTratamento">Copiar diagrama</button>' : ''}`)}
     `, 'modal-large');
 };

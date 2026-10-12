@@ -128,7 +128,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                     </div>
                     <div>
                         <div class="ctx-label">Maturidade (CMM 0-5)</div>
-                        <div style="display:flex; align-items:center; gap: 1rem; background:rgba(255,255,255,0.03); padding:0.5rem; border-radius:8px">
+                        <div style="display:flex; align-items:center; gap: 1rem; background:rgba(255,255,255,0.03); padding:0.5rem;">
                             <input type="range" min="0" max="5" step="1" value="${ctrl.maturity || 0}" 
                                 data-action-input="__syncSiblingText"
                                 data-action-change="updateControlMaturity" data-args='["${ctrl.id}"]' data-arg-val
@@ -764,7 +764,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                     ${controls.length} controles · j/k navega · x seleciona · a alterna tudo · enter abre · esc fecha · ⌘K busca
                 </div>
 
-                <div class="soa-filters fade-in" style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:2rem;align-items:center;background:rgba(15,20,35,0.4);border:1px solid var(--border);border-radius:12px;padding:16px;backdrop-filter:var(--glass-blur)">
+                <div class="soa-filters fade-in" style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:2rem;align-items:center;background:rgba(15,20,35,0.4);border:1px solid var(--border);padding:16px;backdrop-filter:var(--glass-blur)">
                     <div style="flex:1;min-width:280px;position:relative">
                         <input type="text" id="soa-search" placeholder="Buscar por ID ou termo..." data-action-input="filterSoATable" style="width:100%;background:rgba(7,11,20,0.5);border:1px solid var(--border);border-radius:10px;padding:8px 12px 8px 36px;color:var(--text);font-size:0.85rem;outline:none" />
                         <svg viewBox="0 0 24 24" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;stroke:var(--text-dim);fill:none;stroke-width:1.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -782,7 +782,7 @@ import { temProduto, projetoDoId } from '../produto.js';
             for (const [stdName, subGroups] of Object.entries(stdGroups).sort()) {
                 html += `
                     <div style="margin-top:2rem; margin-bottom:1rem; font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.05rem; color:var(--text); letter-spacing:0.5px; display:flex; align-items:center; gap:8px" class="fade-in">
-                        <span style="width:4px; height:18px; background:var(--accent); border-radius:2px; display:inline-block"></span>
+                        <span style="width:4px; height:18px; background:var(--accent); display:inline-block"></span>
                         Norma ${escapeHTML(stdName)}
                     </div>
                 `;
@@ -879,10 +879,10 @@ import { temProduto, projetoDoId } from '../produto.js';
                                 </td>
                                 <td>
                                     <div style="display:flex;gap:6px">
-                                        <span data-action="showControlRisks" data-args='["${ctrl.id}","${escapeHTML(parsed.code)}"]' class="badge-trace" style="cursor:pointer;background:${risksCount > 0 ? 'rgba(0,173,232,0.12)' : 'rgba(255,255,255,0.02)'};color:${risksCount > 0 ? 'var(--accent)' : 'var(--text-dim)'};border:1px solid ${risksCount > 0 ? 'rgba(0,173,232,0.2)' : 'var(--border)'};padding:3px 7px;border-radius:6px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px" title="${risksCount} risco(s) vinculado(s)">
+                                        <span data-action="showControlRisks" data-args='["${ctrl.id}","${escapeHTML(parsed.code)}"]' class="badge-trace" style="cursor:pointer;background:${risksCount > 0 ? 'rgba(0,173,232,0.12)' : 'rgba(255,255,255,0.02)'};color:${risksCount > 0 ? 'var(--accent)' : 'var(--text-dim)'};border:1px solid ${risksCount > 0 ? 'rgba(0,173,232,0.2)' : 'var(--border)'};padding:3px 7px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px" title="${risksCount} risco(s) vinculado(s)">
                                             R: ${risksCount}
                                         </span>
-                                        <span data-action="showControlEvidence" data-args='["${ctrl.id}","${escapeHTML(parsed.code)}"]' class="badge-trace" style="cursor:pointer;background:${evidenceCount > 0 ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)'};color:${evidenceCount > 0 ? 'var(--success)' : 'var(--text-dim)'};border:1px solid ${evidenceCount > 0 ? 'rgba(16,185,129,0.15)' : 'var(--border)'};padding:3px 7px;border-radius:6px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px" title="${evidenceCount} evidência(s) vinculada(s)">
+                                        <span data-action="showControlEvidence" data-args='["${ctrl.id}","${escapeHTML(parsed.code)}"]' class="badge-trace" style="cursor:pointer;background:${evidenceCount > 0 ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)'};color:${evidenceCount > 0 ? 'var(--success)' : 'var(--text-dim)'};border:1px solid ${evidenceCount > 0 ? 'rgba(16,185,129,0.15)' : 'var(--border)'};padding:3px 7px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px" title="${evidenceCount} evidência(s) vinculada(s)">
                                             E: ${evidenceCount}
                                         </span>
                                     </div>
@@ -1264,7 +1264,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                         <td style="font-weight:500">${escapeHTML(r.asset)}</td>
                         <td style="color:var(--text-dim)">${escapeHTML(r.threat)}</td>
                         <td>
-                            <span class="badge" style="background:${lvlBg};color:${lvlColor};border:1px solid ${lvlColor}33;text-transform:capitalize">
+                            <span class="badge" style="background:${lvlBg};color:${lvlColor};border:1px solid color-mix(in oklab, ${lvlColor} 20%, transparent);text-transform:capitalize">
                                 ${escapeHTML(r.risk_level || 'Low')}
                             </span>
                         </td>
@@ -1766,12 +1766,12 @@ import { temProduto, projetoDoId } from '../produto.js';
         // do modal: com política vigente e no formulário de geração.
         const rasc = policyRes.rascunho;
         const rascunhoHtml = rasc ? `
-            <div id="policy-rascunho" style="border:1px solid var(--accent); border-radius:10px; padding:1rem; margin-bottom:1rem">
+            <div id="policy-rascunho" style="border:1px solid var(--accent); padding:1rem; margin-bottom:1rem">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:600; margin-bottom:0.25rem">Rascunho ${rasc.origem === 'agente' ? 'do agente ' : ''}aguardando revisão</div>
                 <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem">
                     Por ${escapeHTML(rasc.criado_por || 'autor não registrado')} em ${escapeHTML(rasc.criado_em || '')}. A política vigente só muda quando você publicar.
                 </div>
-                <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.75rem">${escapeHTML(rasc.texto || '')}</div>
+                <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(rasc.texto || '')}</div>
                 <div style="display:flex; gap:8px; margin-top:0.75rem">
                     <button class="btn btn-primary btn-sm" data-action="publicarRascunhoPolitica" data-args='${escapeHTML(JSON.stringify([projectId, rasc.documento_id, rasc.numero, ctrl.id]))}'>Publicar rascunho</button>
                     <button class="btn btn-sm" data-action="descartarRascunhoPolitica" data-args='${escapeHTML(JSON.stringify([projectId, rasc.documento_id, ctrl.id]))}'>Descartar</button>
@@ -1884,7 +1884,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                 versionsSelectHtml = `
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px">
                         <label style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; min-width:120px">Histórico de Versões:</label>
-                        <select class="form-input" style="height:32px; padding:0 8px; font-size:0.75rem; border-radius:6px; background:rgba(255,255,255,0.02); border-color:var(--border); flex:1" id="policy-version-selector" data-action-change="onPolicyVersionChange" data-args='["${projectId}","${escapeHTML(ctrl.id)}"]' data-arg-val>
+                        <select class="form-input" style="height:32px; padding:0 8px; font-size:0.75rem; border-radius:10px; background:rgba(255,255,255,0.02); border-color:var(--border); flex:1" id="policy-version-selector" data-action-change="onPolicyVersionChange" data-args='["${projectId}","${escapeHTML(ctrl.id)}"]' data-arg-val>
                             ${versions.map((v, index) => `<option value="${v.id}">${index === 0 ? 'v' + v.version + ' (Atual)' : 'v' + v.version} - por ${escapeHTML(v.created_by)} em ${new Date(v.created_at).toLocaleDateString()}</option>`).join('')}
                         </select>
                         <button class="btn" id="btn-restore-version" style="display:none; padding:4px 10px; font-size:0.7rem; border-color:var(--accent); color:var(--accent);" data-action="doRestorePolicyVersion" data-args='["${projectId}","${escapeHTML(ctrl.id)}"]'>Restaurar vX</button>
@@ -1896,13 +1896,13 @@ import { temProduto, projetoDoId } from '../produto.js';
             const evidenceHash = policyRes.hash;
             if (ctrl.ciso_approved_by || ctrl.ceo_approved_by) {
                 signatureSealHtml = `
-                    <div style="background: rgba(0, 173, 232, 0.03); border: 1px solid rgba(0, 173, 232, 0.15); border-radius: 12px; padding: 1rem 1.25rem; backdrop-filter: blur(12px);">
+                    <div style="background: rgba(0, 173, 232, 0.03); border: 1px solid rgba(0, 173, 232, 0.15); padding: 1rem 1.25rem;">
                         <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.5rem; margin-bottom: 0.6rem;">
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent); "></div>
+                                <div style="width: 8px; height: 8px; background: var(--accent); "></div>
                                 <span style="font-family: 'Montserrat', sans-serif; font-size:0.75rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.1em;">Selo de Homologação Digital</span>
                             </div>
-                            <span style="font-family: 'Montserrat', sans-serif; font-size:0.72rem; font-weight: 700; color: var(--accent); background: rgba(0, 173, 232, 0.1); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(0, 173, 232, 0.2);">ISO 27001 CONFORME</span>
+                            <span style="font-family: 'Montserrat', sans-serif; font-size:0.72rem; font-weight: 700; color: var(--accent); background: rgba(0, 173, 232, 0.1); padding: 2px 6px; border: 1px solid rgba(0, 173, 232, 0.2);">ISO 27001 CONFORME</span>
                         </div>
                         <div style="font-size: 0.7rem; font-family: monospace; display: flex; flex-direction: column; gap: 4px; color: rgba(229, 235, 255, 0.75);">
                             <div><span style="color: var(--text-dim);">INTEGRIDADE DO TEXTO DA POLÍTICA (SHA-256 do texto, não do pedido):</span> <span style="color: var(--accent); word-break: break-all;">${escapeHTML(evidenceHash)}</span></div>
@@ -1918,7 +1918,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                     <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:8px">
                         <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--accent); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Histórico de Alterações & Revisões</h4>
                         <div style="overflow-x:auto">
-                            <table style="width:100%; font-size:0.7rem; border-collapse:collapse; background:rgba(255,255,255,0.01); border-radius:8px; border:1px solid rgba(255,255,255,0.05)">
+                            <table style="width:100%; font-size:0.7rem; border-collapse:collapse; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.05)">
                                 <thead>
                                     <tr style="border-bottom:1px solid rgba(255,255,255,0.08); text-align:left; color:var(--text-dim)">
                                         <th style="padding:6px 12px">Versão</th>
@@ -1963,16 +1963,16 @@ import { temProduto, projetoDoId } from '../produto.js';
 
                     <div style="font-size:0.72rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.2em; font-family:'Montserrat',sans-serif; margin-top:8px">Conteúdo da Política</div>
                     <div id="policy-content-container">
-                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:1.25rem; max-height:350px; overflow-y:auto; font-size:0.8rem; line-height:1.6; font-family:'Inter',sans-serif;" id="policy-content-text" class="markdown-body">${renderedHtml}</div>
+                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:1.25rem; max-height:350px; overflow-y:auto; font-size:0.8rem; line-height:1.6; font-family:'Inter',sans-serif;" id="policy-content-text" class="markdown-body">${renderedHtml}</div>
                     </div>
                     
                     <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:8px" id="signature-workflow-container">
                         <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--accent); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Workflow de Assinatura (A.5.1)</h4>
                         <div style="display:flex; flex-direction:column; gap:0.75rem">
-                            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:8px; font-size:0.75rem">
+                            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
                                 ${cisoStatusHtml}
                             </div>
-                            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:8px; font-size:0.75rem">
+                            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
                                 ${ceoStatusHtml}
                             </div>
                         </div>
@@ -2013,11 +2013,11 @@ import { temProduto, projetoDoId } from '../produto.js';
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; height:400px; margin-top:10px">
                             <div style="display:flex; flex-direction:column; gap:8px; height:100%">
                                 <label class="form-label" style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em">Editor Markdown</label>
-                                <textarea id="policy-editor-textarea" style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:12px; color:var(--text); font-family:monospace; font-size:0.75rem; resize:none; outline:none; line-height:1.4;" placeholder="Digite o conteúdo da política em Markdown...">${escapeHTML(originalMarkdown)}</textarea>
+                                <textarea id="policy-editor-textarea" style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px; color:var(--text); font-family:monospace; font-size:0.75rem; resize:none; outline:none; line-height:1.4;" placeholder="Digite o conteúdo da política em Markdown...">${escapeHTML(originalMarkdown)}</textarea>
                             </div>
                             <div style="display:flex; flex-direction:column; gap:8px; height:100%">
                                 <label class="form-label" style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em">Preview Renderizado (VSCode Mode)</label>
-                                <div id="policy-editor-preview" style="flex:1; overflow-y:auto; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:12px; font-size:0.8rem; line-height:1.6;" class="markdown-body">${renderedHtml}</div>
+                                <div id="policy-editor-preview" style="flex:1; overflow-y:auto; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.06); padding:12px; font-size:0.8rem; line-height:1.6;" class="markdown-body">${renderedHtml}</div>
                             </div>
                         </div>
                     `;

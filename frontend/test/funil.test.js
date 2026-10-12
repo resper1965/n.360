@@ -57,7 +57,7 @@ beforeEach(() => vi.restoreAllMocks());
 describe('cartões de leads', () => {
   it('contam pelos status reais do banco', async () => {
     const c = await monta('comercial');
-    expect(valorDoCartao(c, 'Total de Oportunidades')).toBe('8');
+    expect(valorDoCartao(c, 'Oportunidades')).toBe('8');
     expect(valorDoCartao(c, 'Novos')).toBe('2');
     expect(valorDoCartao(c, 'Em diagnóstico')).toBe('1');
     expect(valorDoCartao(c, 'Com proposta')).toBe('1');
@@ -111,7 +111,7 @@ describe('seção Funil por papel', () => {
   it('erro do servidor aparece no alerta da seção, sem derrubar a lista', async () => {
     const c = await monta('comercial', () => json({ error: 'Janela máxima de 366 dias' }, 400));
     expect($('fn-erro').textContent).toContain('Janela máxima de 366 dias');
-    expect(valorDoCartao(c, 'Total de Oportunidades')).toBe('8');
+    expect(valorDoCartao(c, 'Oportunidades')).toBe('8');
   });
 });
 

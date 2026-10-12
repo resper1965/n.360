@@ -118,10 +118,10 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             }
         }
         if (!p || !p.id) { navigate('projects'); return; }
-        h.textContent = 'Jornada';
+        h.textContent = p.client_name ? 'Jornada — ' + p.client_name : 'Jornada';
         if (!S.expandedJourneys) S.expandedJourneys = {};
         if (!S.expandedPhases) S.expandedPhases = {};
-        a.innerHTML = `<button class="btn" style="border-color:var(--accent);color:var(--accent);margin-right:8px" data-action="openAuditorNotesModal" data-args='["${p.id}"]'>Notas do Auditor</button><button class="btn" data-action="navigate" data-args='["projects"]'>&larr; Voltar</button>`;
+        a.innerHTML = `<button class="btn" style="margin-right:8px" data-action="openAuditorNotesModal" data-args='["${p.id}"]'>Notas do Auditor</button><button class="btn btn-ghost" data-action="navigate" data-args='["projects"]'>&larr; Voltar</button>`;
         c.innerHTML = '<div class="loading"></div>';
         
         try {
@@ -188,9 +188,9 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const searchQuery = (S.jornadaSearchQuery || '').toLowerCase().trim();
 
             const metricsHtml = `
-                <div class="stat-card" style="margin-bottom:1.5rem; padding:16px; background:rgba(255,255,255,0.01); border:1px solid var(--border); border-radius:10px;">
+                <div class="stat-card" style="margin-bottom:1.5rem; padding:16px; background:rgba(255,255,255,0.01); border:1px solid var(--border);">
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
-                        <div style="background:rgba(0,0,0,0.2); padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.02)">
+                        <div style="background:rgba(0,0,0,0.2); padding:12px; border:1px solid rgba(255,255,255,0.02)">
                             <div style="font-size:0.75rem; color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px">Progresso Geral</div>
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <div style="font-size:1.5rem; font-weight:700; color:var(--text)">${overallPercent}%</div>
@@ -200,7 +200,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                             </div>
                             <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px">${completedPhasesCount} de ${totalPhasesCount} fases concluídas</div>
                         </div>
-                        <div style="background:rgba(0,0,0,0.2); padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.02)">
+                        <div style="background:rgba(0,0,0,0.2); padding:12px; border:1px solid rgba(255,255,255,0.02)">
                             <div style="font-size:0.75rem; color:${blockedPhasesCount > 0 ? 'var(--danger)' : 'var(--text-dim)'}; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px">Impedimentos / Bloqueios</div>
                             <div style="font-size:1.5rem; font-weight:700; color:${blockedPhasesCount > 0 ? 'var(--danger)' : 'var(--text)'}">${blockedPhasesCount}</div>
                             <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px">Fases necessitando de intervenção</div>
@@ -210,7 +210,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             `;
 
             const filtersHtml = `
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:1.5rem; background:rgba(255,255,255,0.01); padding:10px 16px; border:1px solid var(--border); border-radius:12px; backdrop-filter: var(--glass-blur);">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:1.5rem; background:rgba(255,255,255,0.01); padding:10px 16px; border:1px solid var(--border); backdrop-filter: var(--glass-blur);">
                     <div style="position:relative; flex:1;">
                         <input type="text" class="form-input" style="width:100%; padding-left:2.25rem; font-size:0.8rem; height:38px; border-radius:10px; background: rgba(255,255,255,0.02); border-color: var(--border);" placeholder="Buscar fase ou atividade..." value="${escapeHTML(S.jornadaSearchQuery || '')}" data-action-input="__setFilter" data-args='["jornadaSearchQuery"]' data-arg-val>
                         <svg viewBox="0 0 24 24" style="position:absolute; left:10px; top:10px; width:18px; height:18px; stroke:var(--text-dim); stroke-width:2; fill:none; pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -329,20 +329,20 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                         </div>
                                         <div class="phase-details ${isPhExpanded ? 'expanded' : ''}" id="p-details-${ph.phase_number}">
                                             ${ph.notes ? `
-                                                <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:1rem; padding:0.5rem; background:rgba(255,255,255,0.02); border-left:2px solid var(--accent); border-radius:4px">
+                                                <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:1rem; padding:0.5rem; background:rgba(255,255,255,0.02); border-left:2px solid var(--accent);">
                                                     <strong>Notas:</strong> ${escapeHTML(ph.notes)}
                                                 </div>
                                             ` : ''}
                                             
                                             ${(window.PHASE_PLAYBOOKS && window.PHASE_PLAYBOOKS[ph.phase_number]) ? `
-                                                <div class="playbook-card" style="margin-bottom:1.25rem; padding:12px; background:rgba(0,173,232,0.04); border-left:3px solid var(--accent); border-radius:10px; font-size:0.75rem">
+                                                <div class="playbook-card" style="margin-bottom:1.25rem; padding:12px; background:rgba(0,173,232,0.04); border-left:3px solid var(--accent); font-size:0.75rem">
                                                     <div style="font-weight:500; color:var(--accent); margin-bottom:4px; font-family:'Montserrat',sans-serif; text-transform:uppercase; letter-spacing:0.5px; font-size:0.7rem">Diretriz do Consultor: ${escapeHTML(window.PHASE_PLAYBOOKS[ph.phase_number].obj)}</div>
                                                     <div style="color:var(--text); line-height:1.4">${escapeHTML(window.PHASE_PLAYBOOKS[ph.phase_number].guideline)}</div>
                                                 </div>
                                             ` : ''}
 
                                             ${(S.phaseQuestions && S.phaseQuestions[ph.phase_number] && S.phaseQuestions[ph.phase_number].length) ? `
-                                                <div style="margin-bottom:1.25rem; padding:12px; background:rgba(255,255,255,0.02); border:1px dashed var(--border); border-radius:10px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
+                                                <div style="margin-bottom:1.25rem; padding:12px; background:rgba(255,255,255,0.02); border:1px dashed var(--border); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
                                                     <div style="font-size:0.72rem; color:var(--text-dim)"><strong>Questionário da fase</strong> — ${Object.values((S.phaseAnswers && S.phaseAnswers[ph.phase_number]) || {}).filter(v => v != null && String(v).trim() !== '').length}/${S.phaseQuestions[ph.phase_number].length} respondidas</div>
                                                     <div style="display:flex; gap:8px">
                                                         ${Object.values((S.phaseAnswers && S.phaseAnswers[ph.phase_number]) || {}).filter(v => v != null && String(v).trim() !== '').length > 0 ? `<button class="btn-inline-action" data-action="interpretPhaseAnswers" data-args='["${ph.phase_number}","${p.id}"]'>Interpretar</button><button class="btn-inline-action" data-action="suggestControlAdequacao" data-args='["${ph.phase_number}","${p.id}"]'>Adequar controles</button>` : ''}
@@ -372,7 +372,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                         let badgeHtml = '';
                                                         const selo = window.seloDaAvaliacao(itemStatus);
                                                         if (isChecked && itemEvidenceId) {
-                                                            badgeHtml = `<span style="font-size:0.72rem; padding:2px 6px; border-radius:4px; border:1px solid ${selo.cor}; color:${selo.cor}; margin-left:8px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">${selo.rotulo}</span>`;
+                                                            badgeHtml = `<span style="font-size:0.72rem; padding:2px 6px; border:1px solid ${selo.cor}; color:${selo.cor}; margin-left:8px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">${selo.rotulo}</span>`;
                                                         }
 
                                                         let borderLeftColor = 'rgba(255, 255, 255, 0.06)';
@@ -381,7 +381,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                         }
 
                                                         return `
-                                                            <div class="checklist-item-wrapper" style="margin-bottom: 0.75rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-left: 3px solid ${borderLeftColor}; border-radius: 10px; padding: 0.75rem;">
+                                                            <div class="checklist-item-wrapper" style="margin-bottom: 0.75rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-left: 3px solid ${borderLeftColor}; padding: 0.75rem;">
                                                                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
                                                                     <div class="checklist-left" style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
                                                                         <input type="checkbox" class="checklist-item-checkbox" 
@@ -412,14 +412,14 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                                     </div>
                                                                 </div>
                                                                 ${(hasTip && isTipExpanded) ? `
-                                                                    <div style="margin-top:0.6rem; background:rgba(0,173,232,0.03); border:1px solid rgba(0,173,232,0.1); border-radius:8px; padding:10px; font-size:0.75rem; text-align: left;">
+                                                                    <div style="margin-top:0.6rem; background:rgba(0,173,232,0.03); border:1px solid rgba(0,173,232,0.1); padding:10px; font-size:0.75rem; text-align: left;">
                                                                         <div style="color:var(--accent); font-weight:700; margin-bottom:4px; text-transform:uppercase; font-size:0.72rem; letter-spacing:0.5px;">Auditoria (${tipInfo.control}) - ${tipInfo.tip}</div>
                                                                         <div style="color:var(--text); margin-bottom:6px;"><strong style="color:var(--text-dim);">Dica:</strong> ${escapeHTML(tipInfo.advice)}</div>
                                                                         <div style="color:var(--text-dim);"><strong style="color:var(--text-dim);">Evidência Recomendada:</strong> ${escapeHTML(tipInfo.evidence)}</div>
                                                                     </div>
                                                                 ` : ''}
                                                                 ${(isChecked && selo.problema && itemEvalNotes) ? `
-                                                                    <div style="margin-top:0.6rem; background:rgba(255,77,77,0.03); border:1px solid rgba(255,77,77,0.15); border-radius:8px; padding:10px; font-size:0.75rem; text-align: left;">
+                                                                    <div style="margin-top:0.6rem; background:rgba(255,77,77,0.03); border:1px solid rgba(255,77,77,0.15); padding:10px; font-size:0.75rem; text-align: left;">
                                                                         <div style="color:var(--danger); font-weight:700; margin-bottom:4px; text-transform:uppercase; font-size:0.72rem; letter-spacing:0.5px;">Lacunas apontadas na avaliação</div>
                                                                         <div style="color:var(--text);">${escapeHTML(itemEvalNotes)}</div>
                                                                     </div>
@@ -430,20 +430,20 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                                         ${itemNotes.trim().startsWith('{') && itemNotes.trim().endsWith('}') ? formatActivityNotes(itemNotes) : ''}
                                                                         <textarea class="form-input" 
                                                                             placeholder="Digite aqui para registrar informações (Ex: nome do sponsor executivo, link do documento, etc.)"
-                                                                            style="width: 100%; height: 50px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; color: var(--text); font-size: 0.7rem; font-family: inherit; resize: vertical; margin-bottom: 0.5rem;"
+                                                                            style="width: 100%; height: 50px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius:10px; padding: 6px 10px; color: var(--text); font-size: 0.7rem; font-family: inherit; resize: vertical; margin-bottom: 0.5rem;"
                                                                             data-action-blur="saveChecklistItemNotes" data-args='["${p.id}","${ph.phase_number}","${item.id}"]' data-arg-val>${itemNotes.trim().startsWith('{') && itemNotes.trim().endsWith('}') ? '' : escapeHTML(itemNotes)}</textarea>
                                                                         
                                                                         <div style="display: flex; gap: 12px; align-items: center;">
                                                                             <div style="flex: 1;">
                                                                                 <div style="font-size:0.72rem; color: var(--text-dim); margin-bottom: 0.25rem;">Responsável</div>
-                                                                                <select class="form-input" style="width: 100%; font-size: 0.7rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; color: var(--text);"
+                                                                                <select class="form-input" style="width: 100%; font-size: 0.7rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius:10px; padding: 4px 8px; color: var(--text);"
                                                                                     data-action-change="saveChecklistItemAssigned" data-args='["${p.id}","${ph.phase_number}","${item.id}"]' data-arg-val>
                                             ${window.renderGovernanceSelectOptions(S.currentGovernance, itemAssigned)}
                                             </select>
                                                                             </div>
                                                                             <div style="width: 150px;">
                                                                                 <div style="font-size:0.72rem; color: var(--text-dim); margin-bottom: 0.25rem;">Prazo</div>
-                                                                                <input type="date" class="form-input" style="width: 100%; font-size: 0.7rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 3px 8px; color: var(--text);"
+                                                                                <input type="date" class="form-input" style="width: 100%; font-size: 0.7rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius:10px; padding: 3px 8px; color: var(--text);"
                                                                                     value="${itemDueDate}"
                                                                                     data-action-change="saveChecklistItemDueDate" data-args='["${p.id}","${ph.phase_number}","${item.id}"]' data-arg-val>
                                                                             </div>
@@ -529,14 +529,14 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const req = f.required ? '<span style="color:var(--danger)">*</span>' : '';
             let input = '';
             if (f.type === 'textarea') {
-                input = `<textarea id="wiz-${f.id}" class="form-input" style="width:100%; min-height:80px; font-size:0.8rem; resize:vertical; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-family:inherit;" placeholder="${f.placeholder || ''}">${escapedVal}</textarea>`;
+                input = `<textarea id="wiz-${f.id}" class="form-input" style="width:100%; min-height:80px; font-size:0.8rem; resize:vertical; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:8px 12px; color:var(--text); font-family:inherit;" placeholder="${f.placeholder || ''}">${escapedVal}</textarea>`;
             } else if (f.type === 'select') {
                 const opts = (f.options || []).map(o => `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`).join('');
-                input = `<select id="wiz-${f.id}" class="form-input" style="width:100%; font-size:0.8rem; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:8px; padding:6px 12px; color:var(--text);"><option value="">Selecionar...</option>${opts}</select>`;
+                input = `<select id="wiz-${f.id}" class="form-input" style="width:100%; font-size:0.8rem; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:6px 12px; color:var(--text);"><option value="">Selecionar...</option>${opts}</select>`;
             } else if (f.type === 'date') {
-                input = `<input type="date" id="wiz-${f.id}" class="form-input" style="width:100%; font-size:0.8rem; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:8px; padding:6px 12px; color:var(--text);" value="${escapedVal}">`;
+                input = `<input type="date" id="wiz-${f.id}" class="form-input" style="width:100%; font-size:0.8rem; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:6px 12px; color:var(--text);" value="${escapedVal}">`;
             } else {
-                input = `<input type="text" id="wiz-${f.id}" class="form-input" style="width:100%; font-size:0.8rem; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:8px; padding:6px 12px; color:var(--text);" value="${escapedVal}" placeholder="${f.placeholder || ''}">`;
+                input = `<input type="text" id="wiz-${f.id}" class="form-input" style="width:100%; font-size:0.8rem; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:6px 12px; color:var(--text);" value="${escapedVal}" placeholder="${f.placeholder || ''}">`;
             }
             return `<div style="margin-bottom:1rem;"><label style="font-size:0.75rem; color:var(--text-dim); font-weight:500; display:block; margin-bottom:4px;">${f.label} ${req}</label>${input}</div>`;
         }).join('');
@@ -547,7 +547,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                 <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
             </div>
             <div style="padding:1.5rem 0;">
-                <div style="background:rgba(0,173,232,0.04); border:1px solid rgba(0,173,232,0.1); border-radius:10px; padding:12px; margin-bottom:1.25rem; font-size:0.75rem;">
+                <div style="background:rgba(0,173,232,0.04); border:1px solid rgba(0,173,232,0.1); padding:12px; margin-bottom:1.25rem; font-size:0.75rem;">
                     <div style="color:var(--accent); font-weight:700; margin-bottom:4px; text-transform:uppercase; font-size:0.75rem; letter-spacing:0.5px;">Dica do Auditor (${wiz.isoRef})</div>
                     <div style="color:var(--text); line-height:1.4;">${escapeHTML(wiz.auditorTip)}</div>
                 </div>
@@ -614,7 +614,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             preview.style.display = 'block';
             preview.innerHTML = `
                 <div style="margin-bottom:0.75rem; font-size:0.75rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Preview do Registro de Evidência</div>
-                <textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border); border-radius:8px;">${escapeHTML(content)}</textarea>
+                <textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border); border-radius:10px;">${escapeHTML(content)}</textarea>
             `;
             document.getElementById('wiz-actions').innerHTML = `
                 <button class="btn" data-action="wizBackToForm" data-args='["${projectId}","${itemId}"]' style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Voltar e Editar</button>
@@ -634,7 +634,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             preview.style.display = 'block';
             preview.innerHTML = `
                 <div style="margin-bottom:0.75rem; font-size:0.75rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Preview do Documento Gerado</div>
-                <textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border); border-radius:8px;">${escapeHTML(res.content || '')}</textarea>
+                <textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border); border-radius:10px;">${escapeHTML(res.content || '')}</textarea>
             `;
             document.getElementById('wiz-actions').innerHTML = `
                 <button class="btn" data-action="wizBackToForm" data-args='["${projectId}","${itemId}"]' style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Voltar e Editar Dados</button>
@@ -691,7 +691,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         const sidebarHtml = tracks.map(t => {
             const isDone = S.interviewProgress[projectId + '_' + t.id];
             const check = isDone ? '<span style="color:var(--success); font-weight:bold; margin-right:4px;"></span>' : '';
-            return `<div class="wizard-sidebar-item" id="track-tab-${t.id}" data-action="changeInterviewTrack" data-args='["${projectId}","${t.id}"]' style="padding: 10px 12px; font-size: 0.8rem; border-radius: 8px; cursor: pointer; color: var(--text-dim); transition: all 0.2s; border-left: 3px solid transparent; display: flex; align-items: center; justify-content: space-between;">
+            return `<div class="wizard-sidebar-item" id="track-tab-${t.id}" data-action="changeInterviewTrack" data-args='["${projectId}","${t.id}"]' style="padding: 10px 12px; font-size: 0.8rem; cursor: pointer; color: var(--text-dim); transition: all 0.2s; border-left: 3px solid transparent; display: flex; align-items: center; justify-content: space-between;">
                 <span>${check}${t.name}</span>
             </div>`;
         }).join('');
@@ -758,18 +758,18 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                 const gap = q.gap_detected === 1;
 
                 return `
-                    <div class="list-item" style="display: flex; flex-direction: column; gap: 10px; padding: 1.25rem; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); margin-bottom: 12px;">
+                    <div class="list-item" style="display: flex; flex-direction: column; gap: 10px; padding: 1.25rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); margin-bottom: 12px;">
                         <div style="font-size: 0.85rem; font-weight: 600; color: var(--text); line-height: 1.4;">
                             ${idx + 1}. ${escapeHTML(q.question)}
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
                             <label style="font-size:0.75rem; color: var(--text-dim); font-weight: 500;">Resposta / Constatação do Auditor</label>
-                            <textarea id="ans-${q.key}" class="form-input" style="width: 100%; min-height: 70px; font-size: 0.8rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; color: var(--text); resize: vertical; font-family: inherit;" placeholder="Registre a resposta ou evidências coletadas...">${escapeHTML(ans)}</textarea>
+                            <textarea id="ans-${q.key}" class="form-input" style="width: 100%; min-height: 70px; font-size: 0.8rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius:10px; padding: 8px 12px; color: var(--text); resize: vertical; font-family: inherit;" placeholder="Registre a resposta ou evidências coletadas...">${escapeHTML(ans)}</textarea>
                         </div>
                         <div style="display: flex; gap: 12px; align-items: center; margin-top: 4px;">
                             <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
                                 <label style="font-size:0.75rem; color: var(--text-dim); font-weight: 500;">Entrevistado (Nome / Cargo)</label>
-                                <input type="text" id="who-${q.key}" class="form-input" style="font-size: 0.8rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; color: var(--text);" value="${escapeHTML(who)}" placeholder="Ex: João CISO, Maria DevOps">
+                                <input type="text" id="who-${q.key}" class="form-input" style="font-size: 0.8rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius:10px; padding: 6px 12px; color: var(--text);" value="${escapeHTML(who)}" placeholder="Ex: João CISO, Maria DevOps">
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px; padding-top: 16px;">
                                 <input type="checkbox" id="gap-${q.key}" ${gap ? 'checked' : ''} style="cursor: pointer;">
@@ -891,7 +891,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                     else if (key === 'timeline') label = 'Prazo';
                     else if (key === 'main_risk') label = 'Risco Principal';
                     
-                    parts.push(`<span style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:3px 8px; border-radius:4px; margin-right:4px;"><strong>${label}</strong>: ${val}</span>`);
+                    parts.push(`<span style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:3px 8px; margin-right:4px;"><strong>${label}</strong>: ${val}</span>`);
                 }
                 return `<div style="display:flex; flex-wrap:wrap; gap:8px; font-size:0.7rem; color:var(--text-dim); margin-bottom:8px;">${parts.join('')}</div>`;
             } catch (e) {}
@@ -991,12 +991,12 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             if (it) {
                 const [cor, rotulo] = badge[it.prontidao] || badge.atencao;
                 corpo += `<div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem">
-                    <span style="background:${cor}; color:var(--bg); padding:3px 12px; border-radius:999px; font-size:0.72rem; font-weight:500; text-transform:uppercase; letter-spacing:0.5px">${rotulo}</span>
+                    <span style="background:${cor}; color:var(--bg); padding:3px 12px; font-size:0.72rem; font-weight:500; text-transform:uppercase; letter-spacing:0.5px">${rotulo}</span>
                     <span style="font-size:0.75rem; color:var(--text-dim)">Prontidão da fase</span></div>`;
                 if (it.resumo) corpo += `<p style="font-size:0.85rem; line-height:1.5; margin-bottom:1rem">${escapeHTML(it.resumo)}</p>`;
                 if (it.pontos && it.pontos.length) {
                     corpo += `<div style="font-weight:500; font-size:0.78rem; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim)">Pontos de atenção</div>`;
-                    corpo += it.pontos.map(pt => `<div style="border-left:3px solid ${sevCor[pt.severidade] || 'var(--text-dim)'}; padding:6px 10px; margin-bottom:8px; background:rgba(255,255,255,0.02); border-radius:6px">
+                    corpo += it.pontos.map(pt => `<div style="border-left:3px solid ${sevCor[pt.severidade] || 'var(--text-dim)'}; padding:6px 10px; margin-bottom:8px; background:rgba(255,255,255,0.02);">
                         <div style="font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px">${escapeHTML(pt.severidade)} · ${escapeHTML(textoDaPergunta(pt.pergunta_key))}</div>
                         <div style="font-size:0.82rem; line-height:1.45; margin-top:2px">${escapeHTML(pt.observacao)}</div></div>`).join('');
                 }
@@ -1112,7 +1112,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                 corpo = sugs.map((s, i) => {
                     S._adequacaoSugestoes[i] = { control_id: s.control_id, status: s.sugestao_status, maturity: s.sugestao_maturidade, justificativa: s.justificativa, pergunta_key: s.pergunta_key, phase_number: phaseNumber };
                     const alvo = [s.sugestao_status ? `status: <strong>${escapeHTML(s.sugestao_status)}</strong>` : '', (s.sugestao_maturidade != null) ? `maturidade: <strong>${s.sugestao_maturidade}</strong>` : ''].filter(Boolean).join(' · ');
-                    return `<div id="adeq-item-${i}" style="border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:10px">
+                    return `<div id="adeq-item-${i}" style="border:1px solid var(--border); padding:10px; margin-bottom:10px">
                         <div style="font-size:0.8rem; font-weight:600">${escapeHTML(s.control_id)} — ${escapeHTML(s.control_title || '')}</div>
                         <div style="font-size:0.72rem; color:var(--text-dim); margin:2px 0 6px">atual: status ${escapeHTML(String(s.status_atual ?? '—'))} · maturidade ${escapeHTML(String(s.maturidade_atual ?? 0))} → ${alvo}</div>
                         <div style="font-size:0.8rem; line-height:1.4; margin-bottom:8px">${escapeHTML(s.justificativa)}</div>

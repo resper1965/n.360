@@ -13,18 +13,18 @@ const CLIENTES = [
       depois: 'Depois do comando o servidor aparece como "Needs authentication": é o esperado. Abra o claude, rode /mcp, escolha niso e entre no navegador. Confira com: claude mcp list (deve mostrar conectado). Para refazer: claude mcp remove niso -s user.' },
     { id: 'cursor', nome: 'Cursor', onde: 'Arquivo .cursor/mcp.json (este projeto) ou ~/.cursor/mcp.json (todos)', aConfirmar: true,
       trecho: `{ "mcpServers": { "niso": { "url": "${URL_MCP}" } } }`,
-      depois: 'Salve o arquivo e abra Cursor Settings > MCP: o niso aparece pedindo login. Clique, entre no n.iso pelo navegador e volte. Conectado, ele lista as ferramentas do niso. Se o navegador não abrir, atualize o Cursor: algumas versões têm esse defeito.' },
+      depois: 'Salve o arquivo e abra Cursor Settings > MCP: o niso aparece pedindo login. Clique, entre pelo navegador e volte. Conectado, ele lista as ferramentas do niso. Se o navegador não abrir, atualize o Cursor: algumas versões têm esse defeito.' },
     { id: 'codex', nome: 'Codex', onde: 'Terminal', aConfirmar: true,
       trecho: `codex mcp add niso --url ${URL_MCP}\ncodex mcp login niso`,
       depois: 'O segundo comando abre o navegador para você entrar no n.iso. Confira com: codex mcp list (deve mostrar o niso), ou /mcp dentro do Codex.' },
     { id: 'antigravity', nome: 'Antigravity', onde: 'Arquivo ~/.gemini/config/mcp_config.json', aConfirmar: true,
       trecho: `{ "mcpServers": { "niso": { "serverUrl": "${URL_MCP}" } } }`,
-      depois: 'No painel MCP do Antigravity, o niso aparece com o botão Authenticate: clique e entre no n.iso pelo navegador. Conectado, o botão vira Sign out. O editor e a linha de comando guardam o login separado: entre em cada um. Antes da versão 2.0 o arquivo ficava em ~/.gemini/antigravity/mcp_config.json. A tela de login do n.iso avisa que o acesso vai para outro endereço: confira que é do Google antes de autorizar.' },
+      depois: 'No painel MCP do Antigravity, o niso aparece com o botão Authenticate: clique e entre pelo navegador. Conectado, o botão vira Sign out. O editor e a linha de comando guardam o login separado: entre em cada um. Antes da versão 2.0 o arquivo ficava em ~/.gemini/antigravity/mcp_config.json. A tela de login do n.iso avisa que o acesso vai para outro endereço: confira que é do Google antes de autorizar.' },
 ];
 
 const PASSOS = [
     { titulo: 'Adicione o servidor', texto: 'Copie o comando do seu cliente, na aba acima, e rode-o de qualquer pasta. O endereço já vai dentro dele.' },
-    { titulo: 'Entre e escolha o cliente', texto: 'O servidor fica sem acesso até você entrar: no Claude Code, abra o claude, rode /mcp, escolha niso e entre no n.iso pelo navegador. Esse login é seu, o agente da sessão não o faz por você. Escolha um cliente: é um por conexão.' },
+    { titulo: 'Entre e escolha o cliente', texto: 'O servidor fica sem acesso até você entrar: no Claude Code, abra o claude, rode /mcp, escolha niso e entre pelo navegador. Esse login é seu, o agente da sessão não o faz por você. Escolha um cliente: é um por conexão.' },
     { titulo: 'Chame niso_contexto', texto: 'Peça ao agente para começar por niso_contexto: ela diz o cliente, o mapa da app e os roteiros (diagnóstico, fechar lacuna, responder auditoria e a pré-avaliação de prontidão, que só lê).' },
 ];
 

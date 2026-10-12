@@ -140,7 +140,7 @@ describe('revisão', () => {
             [`PUT ${B}/l1/itens/i1`]: () => { det.itens[0].decisao = 'aceito'; return { ok: true }; },
             [`PUT ${B}/l1/itens/i4`]: () => { det.itens[3].decisao = 'aceito'; return { ok: true }; },
         });
-        expect(el('c').textContent).toContain('Aceitar todos de confiança alta (2)');
+        expect(el('c').textContent).toContain('Aceitar os 2 de confiança alta');
         await clica('importacaoAceitarAlta');
         await espera();
         expect(f.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([u]) => u.split('/').pop())).toEqual(['i1', 'i4']);
@@ -432,7 +432,7 @@ describe('terceiros (fatia 2): aba própria na revisão', () => {
         expect(t).toContain('Já existe');
         expect(el('c').querySelector('[data-action="navigate"][data-args=\'["terceiros"]\']')).not.toBeNull();
         // "aceitar todos de confiança alta" vale para a aba aberta
-        expect(t).toContain('Aceitar todos de confiança alta (1)');
+        expect(t).toContain('Aceitar os 1 de confiança alta');
     });
 
     it('editar terceiro abre o formulário dele e envia os dados no formato do esquema', async () => {
@@ -520,7 +520,7 @@ describe('documentos e avaliações (fatia 3): abas próprias na revisão', () =
         expect(t).toContain('Tratamento v1');
         expect(t).toContain('Conclusão v1');
         expect(t).toContain('Vazamento');
-        expect(t).toContain('Aceitar todos de confiança alta (2)');
+        expect(t).toContain('Aceitar os 2 de confiança alta');
     });
 
     it('editar documento e avaliação envia os dados no formato do esquema; sem título ou tratamento não salva', async () => {

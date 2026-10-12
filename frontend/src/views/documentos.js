@@ -160,10 +160,10 @@ window.openDocumentoModal = async function (projectId, id) {
     const [rotuloStatus] = STATUS[d.status] || [d.status];
 
     const aviso = rascunho ? `
-        <div id="doc-rascunho" style="border:1px solid var(--accent); border-radius:10px; padding:1rem; margin-bottom:1rem">
+        <div id="doc-rascunho" style="border:1px solid var(--accent); padding:1rem; margin-bottom:1rem">
             <div style="font-family:'Montserrat',sans-serif; font-weight:600; margin-bottom:0.25rem">Rascunho ${rascunho.origem === 'agente' ? 'do agente ' : ''}aguardando revisão</div>
             <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem">Por ${escapeHTML(rascunho.criado_por || 'autor não registrado')} em ${escapeHTML(rascunho.criado_em || '')}. O documento vigente só muda quando você publicar.</div>
-            <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.75rem">${escapeHTML(rascunho.texto || '')}</div>
+            <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(rascunho.texto || '')}</div>
             ${editar ? `<div style="display:flex; gap:8px; margin-top:0.75rem">
                 <button class="btn btn-primary btn-sm" data-action="publicarVersaoDocumento" data-args='${args(projectId, id, rascunho.numero)}'>Publicar rascunho</button>
                 <button class="btn btn-sm" data-action="descartarRascunhoDocumento" data-args='${args(projectId, id)}'>Descartar</button>

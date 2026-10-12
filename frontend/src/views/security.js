@@ -101,7 +101,7 @@ function telaQr(secret, otpauthUrl) {
     </p>
     <div style="text-align:center;margin-bottom:1rem">
       <img src="${qrDataUri(otpauthUrl)}" alt="QR code para configurar o segundo fator"
-           style="background:#fff;padding:8px;border-radius:8px;max-width:100%">
+           style="background:#fff;padding:8px;max-width:100%">
     </div>
     <details style="margin-bottom:1rem">
       <summary style="font-size:0.75rem;color:var(--accent);cursor:pointer">Não consegue escanear?</summary>
@@ -109,7 +109,7 @@ function telaQr(secret, otpauthUrl) {
         Digite esta chave manualmente no aplicativo:
       </p>
       <code style="display:block;word-break:break-all;font-size:0.75rem;background:var(--surface);
-                   padding:0.5rem;border-radius:6px;user-select:all">${escapeHTML(secret)}</code>
+                   padding:0.5rem;user-select:all">${escapeHTML(secret)}</code>
     </details>
     <div class="form-group">
       <label class="form-label">Código de 6 dígitos</label>
@@ -181,7 +181,7 @@ function telaCodigosRecuperacao(codigos) {
       o servidor guarda apenas o hash.
     </p>
     <div style="font-family:monospace;font-size:0.85rem;background:var(--surface);padding:1rem;
-                border-radius:8px;line-height:1.9;letter-spacing:1px;margin-bottom:1rem">${lista}</div>
+line-height:1.9;letter-spacing:1px;margin-bottom:1rem">${lista}</div>
     <div style="display:flex;gap:0.75rem">
       <button class="btn btn-primary" data-action="baixarCodigosMfa">Baixar .txt</button>
       <button class="btn" data-action="forceCloseModal">Já guardei</button>

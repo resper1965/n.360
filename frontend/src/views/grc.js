@@ -52,7 +52,7 @@ window.__grcCloseExecAudit = function (id) {
             else veryLowCount++;
         });
 
-        const averageScore = risks.length ? (totalScore / risks.length).toFixed(1) : '0.0';
+        const averageScore = risks.length ? (totalScore / risks.length).toFixed(1) : '—';
 
         // Helper to check cell color
         const getCellLevel = (p, i) => {
@@ -106,7 +106,7 @@ window.__grcCloseExecAudit = function (id) {
         if (S.riskFilter) {
             filteredRisks = risks.filter(r => r.probability === S.riskFilter.probability && r.impact === S.riskFilter.impact);
             filterIndicatorBar = `
-                <div class="filter-indicator-bar" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0, 173, 232, 0.1); border: 1px solid rgba(0, 173, 232, 0.2); border-radius:8px; padding:0.5rem 1rem; margin-bottom:1.5rem; font-size:0.8rem; animation: fadeIn 0.2s ease-out;">
+                <div class="filter-indicator-bar" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0, 173, 232, 0.1); border: 1px solid rgba(0, 173, 232, 0.2); padding:0.5rem 1rem; margin-bottom:1.5rem; font-size:0.8rem; animation: fadeIn 0.2s ease-out;">
                     <span>Filtrando riscos com <strong>Impacto ${S.riskFilter.impact}</strong> e <strong>Probabilidade ${S.riskFilter.probability}</strong> (${filteredRisks.length} encontrado${filteredRisks.length !== 1 ? 's' : ''})</span>
                     <button class="btn btn-ghost" data-action="toggleRiskFilter" data-args='[${S.riskFilter.probability},${S.riskFilter.impact}]' style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--accent);">Limpar Filtro</button>
                 </div>
@@ -196,7 +196,7 @@ window.__grcCloseExecAudit = function (id) {
                             </div>
                             <div style="text-align: right;">
                                 <div class="card-label" style="margin-bottom: 0.25rem;">Score Médio</div>
-                                <div style="font-size: 1.8rem; font-weight: 500; color: var(--accent); font-family: 'Montserrat', sans-serif;">${averageScore}</div>
+                                <div style="font-size: 1.8rem; font-weight: 500; color: var(--text); font-family: 'Montserrat', sans-serif;">${averageScore}</div>
                             </div>
                         </div>
                     </div>
@@ -208,7 +208,7 @@ window.__grcCloseExecAudit = function (id) {
                 <!-- List Section -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; margin-top: 1rem;">
                     <div class="card-label" style="margin-bottom: 0;">Lista Detalhada de Riscos</div>
-                    <button class="btn" data-action="exportCSV" data-args='["risks"]' style="font-size:0.7rem; padding:0.4rem 0.8rem">Exportar Riscos</button>
+                    ${risks.length ? `<button class="btn" data-action="exportCSV" data-args='["risks"]' style="font-size:0.7rem; padding:0.4rem 0.8rem">Exportar Riscos</button>` : ''}
                 </div>
                 
                 <div>
@@ -430,7 +430,7 @@ window.__grcCloseExecAudit = function (id) {
                     ${escapeHTML(r.asset || '')} — ${escapeHTML(r.threat || '')}
                 </div>
                 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:16px">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px">
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Nível de Risco</div>
                         <span class="ctx-tag" style="background:color-mix(in oklab, ${levelColor(r.risk_level)} 12%, transparent); color:${levelColor(r.risk_level)}; font-weight:600">${escapeHTML(traduzStatus(r.risk_level) || 'Sem nível')}</span>
@@ -555,7 +555,7 @@ window.__grcCloseExecAudit = function (id) {
                     ${escapeHTML(v.name || '')}
                 </div>
                 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:16px">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px">
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Categoria</div>
                         <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(v.category || 'Geral')}</div>
@@ -682,7 +682,7 @@ window.__grcCloseExecAudit = function (id) {
                 </div>
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; margin-bottom:1rem; background:rgba(255,255,255,0.01); border:1px solid var(--border); border-radius:10px; padding:12px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; margin-bottom:1rem; background:rgba(255,255,255,0.01); border:1px solid var(--border); padding:12px">
                 <span style="font-size:0.8rem; font-weight:600">Trust Score Estimado:</span>
                 <span id="vnd-score-preview" style="font-size:1.1rem; font-weight:700; color:var(--danger)">0 / 100</span>
             </div>
@@ -761,7 +761,7 @@ window.__grcCloseExecAudit = function (id) {
                 </div>
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; margin-bottom:1rem; background:rgba(255,255,255,0.01); border:1px solid var(--border); border-radius:10px; padding:12px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; margin-bottom:1rem; background:rgba(255,255,255,0.01); border:1px solid var(--border); padding:12px">
                 <span style="font-size:0.8rem; font-weight:600">Trust Score Estimado:</span>
                 <span id="vnd-score-preview" style="font-size:1.1rem; font-weight:700; color:var(--danger)">${v.trust_score||0} / 100</span>
             </div>
@@ -912,7 +912,7 @@ window.__grcCloseExecAudit = function (id) {
                     ${escapeHTML(r.training_name || '')}
                 </div>
                 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:16px">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px">
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Colaborador</div>
                         <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(r.employee_name || '')}</div>
@@ -1219,7 +1219,7 @@ window.__grcCloseExecAudit = function (id) {
                     ${escapeHTML(ca.title || '')}
                 </div>
                 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:16px">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px">
                     <div style="grid-column:span 2">
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Descrição</div>
                         <div style="font-size:0.85rem; color:var(--text)">${escapeHTML(ca.description || 'Sem descricao')}</div>
@@ -1503,7 +1503,7 @@ window.__grcCloseExecAudit = function (id) {
                     ${escapeHTML(au.title || '')}
                 </div>
                 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:16px">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px">
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Tipo de Auditoria</div>
                         <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(au.audit_type || '')}</div>
@@ -1716,7 +1716,7 @@ window.__grcCloseExecAudit = function (id) {
                                 <span style="font-weight:600;color:var(--accent)">${escapeHTML(f.control_id || 'Geral')}</span>
                             </div>
                             <div style="font-size:0.85rem;margin-bottom:8px">${escapeHTML(f.description)}</div>
-                            ${f.auditor_notes ? `<div style="font-size:0.75rem;color:var(--muted);background:rgba(255,255,255,0.02);padding:6px 10px;border-radius:6px;margin-bottom:8px"><strong>Notas:</strong> ${escapeHTML(f.auditor_notes)}</div>` : ''}
+                            ${f.auditor_notes ? `<div style="font-size:0.75rem;color:var(--muted);background:rgba(255,255,255,0.02);padding:6px 10px;margin-bottom:8px"><strong>Notas:</strong> ${escapeHTML(f.auditor_notes)}</div>` : ''}
                             <div style="display:flex;justify-content:space-between;align-items:center">
                                 <span style="font-size:0.7rem;color:var(--muted)">Registrado em: ${f.created_at.split('T')[0]}</span>
                                 ${podeRegistrarAchado ? `<button data-action="deleteFinding" data-args='["${f.id}"]' class="btn" style="padding:2px 6px;font-size:0.7rem;color:red;border-color:rgba(255,0,0,0.15)">Deletar</button>` : ''}
