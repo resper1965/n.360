@@ -20,7 +20,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             // Status reais do banco (leads.status): New, Assessment, Proposal, Won, Lost.
             const conta = (s) => leadsArr.filter(l => (l.status || 'New') === s).length;
             const statsHtml = window.renderStatCards([
-                { label: 'Total de Oportunidades', value: leadsArr.length, color: 'var(--accent)', subtext: 'Empresas no pipeline' },
+                { label: 'Total de Oportunidades', value: leadsArr.length, color: 'var(--text)', subtext: 'Empresas no pipeline' },
                 { label: 'Novos', value: conta('New'), color: 'var(--text)', subtext: 'Ainda sem diagnóstico' },
                 { label: 'Em diagnóstico', value: conta('Assessment'), color: 'var(--text)', subtext: 'Assessment em andamento' },
                 { label: 'Com proposta', value: conta('Proposal'), color: 'var(--text)', subtext: 'Contratos em pré-vendas' },
@@ -84,11 +84,11 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             document.getElementById('fn-de').value = f.periodo.de ?? '';
             document.getElementById('fn-ate').value = f.periodo.ate ?? '';
             const cartoes = window.renderStatCards([
-                { label: 'Pipeline: projeto', value: brl(f.pipeline.totalProjeto), subtext: `${f.pipeline.propostas} proposta(s) em aberto` },
-                { label: 'Pipeline: mensalidade', value: brl(f.pipeline.mensalidade), subtext: 'Recorrente, não somado ao projeto' },
+                { label: 'Pipeline: projeto', color: 'var(--text)', value: brl(f.pipeline.totalProjeto), subtext: `${f.pipeline.propostas} proposta(s) em aberto` },
+                { label: 'Pipeline: mensalidade', color: 'var(--text)', value: brl(f.pipeline.mensalidade), subtext: 'Recorrente, não somado ao projeto' },
                 { label: 'Ganho: projeto', value: brl(f.ganho.totalProjeto), color: 'var(--text)', subtext: `${f.ganho.propostas} aceita(s) no período` },
                 { label: 'Ganho: mensalidade', value: brl(f.ganho.mensalidade), color: 'var(--text)', subtext: 'Recorrente' },
-                { label: 'Ciclo médio', value: f.cicloMedioDias == null ? '---' : `${String(f.cicloMedioDias).replace('.', ',')} dias`, subtext: 'Lead criado até aceite' }
+                { label: 'Ciclo médio', color: 'var(--text)', value: f.cicloMedioDias == null ? '---' : `${String(f.cicloMedioDias).replace('.', ',')} dias`, subtext: 'Lead criado até aceite' }
             ]);
             const tabela = (cols, rows, vazio) => window.renderDataTable(cols, rows, { emptyState: vazio, dense: true });
             corpo.innerHTML = `
@@ -243,7 +243,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             const activeAs = totalAs - completedAs;
 
             const statsHtml = window.renderStatCards([
-                { label: 'Total Levantamentos', value: totalAs, color: 'var(--accent)', subtext: 'Pesquisas de escopo' },
+                { label: 'Total Levantamentos', value: totalAs, color: 'var(--text)', subtext: 'Pesquisas de escopo' },
                 { label: 'Em Andamento', value: activeAs, color: 'var(--text)', subtext: 'Em preenchimento' },
                 { label: 'Concluídos', value: completedAs, color: 'var(--text)', subtext: 'Prontos para proposta' }
             ]);

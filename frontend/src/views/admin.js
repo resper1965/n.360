@@ -161,7 +161,7 @@ window.__adminCopiarApiKey = () => {
             const clientUsers = totalUsers - admins;
 
             const statsHtml = window.renderStatCards([
-                { label: 'Total de Usuários', value: totalUsers, color: 'var(--accent)', subtext: desativadas ? `${desativadas} desativada(s)` : 'Nenhuma desativada' },
+                { label: 'Total de Usuários', value: totalUsers, color: 'var(--text)', subtext: desativadas ? `${desativadas} desativada(s)` : 'Nenhuma desativada' },
                 { label: 'Administradores & Consultores', value: admins, color: 'var(--text)', subtext: 'Equipe ness.' },
                 { label: 'Usuários de Clientes', value: clientUsers, color: 'var(--text)', subtext: 'Acesso às orgs' }
             ]);
@@ -216,7 +216,7 @@ window.__adminCopiarApiKey = () => {
         if (!Array.isArray(logs)) logs = [];
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total de Eventos', value: logs.length, color: 'var(--accent)', subtext: 'Registros na trilha' },
+            { label: 'Total de Eventos', value: logs.length, color: 'var(--text)', subtext: 'Registros na trilha' },
             { label: 'Projeto Ativo', value: escapeHTML(proj.client_name || 'Sem nome'), color: 'var(--text)', subtext: `ID: ${proj.id}` }
         ]);
 
