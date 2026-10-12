@@ -271,15 +271,22 @@ usersApp.post('/', async (c) => {
 
 const CAMPOS_RASTREADOS = ['role', 'client_project_id', 'name', 'email'] as const;
 type CampoRastreado = typeof CAMPOS_RASTREADOS[number];
-/** Linhas `user.updated` da edição: uma por campo rastreado que mudou; uma sem valores se a senha mudou. */
+/**
+ * Linhas `user.updated` da edição: uma por campo rastreado que mudou; uma sem valores se a senha mudou. A troca de
+ * projeto sai também na trilha do projeto ANTERIOR: senão o projeto de onde a pessoa saiu não registra a saída.
+ */
 function trilhaDaEdicao(db: D1Database, id: string, antes: Record<CampoRastreado, string | null>,
   depois: Record<CampoRastreado, string | null>, senha: boolean, ator: string, ip: string, projeto: string | null) {
-  const linha = (detalhe: string, campo: string | null, velho: string | null, novo: string | null) =>
+  const linha = (detalhe: string, campo: string | null, velho: string | null, novo: string | null, proj = projeto) =>
     db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, entity_type, entity_id, field, old_value, new_value, created_at)
       VALUES (?, 'user.updated', ?, ?, '', ?, ?, 'user', ?, ?, ?, ?, datetime('now'))`)
-      .bind(crypto.randomUUID(), ator, `Usuário ${id} atualizado: ${detalhe}`, ip, projeto, id, campo, velho, novo);
+      .bind(crypto.randomUUID(), ator, `Usuário ${id} atualizado: ${detalhe}`, ip, proj, id, campo, velho, novo);
   const linhas = CAMPOS_RASTREADOS.filter((f) => (antes[f] ?? null) !== (depois[f] ?? null))
     .map((f) => linha(f, f, antes[f] ?? null, depois[f] ?? null));
+  const saiuDe = antes.client_project_id;
+  if (saiuDe && saiuDe !== depois.client_project_id && saiuDe !== projeto) {
+    linhas.push(linha('client_project_id', 'client_project_id', saiuDe, depois.client_project_id, saiuDe));
+  }
   if (senha) linhas.push(linha('senha', null, null, null));
   return linhas.length ? linhas : [linha('nenhum campo', null, null, null)];
 }

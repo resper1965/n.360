@@ -169,6 +169,28 @@ describe('trilha de acessos e de alterações', () => {
   });
 });
 
+describe('trilha de quem sai do projeto e da exclusão', () => {
+  it('cliente movido de A para B: a troca aparece na trilha dos DOIS projetos', async () => {
+    await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('proj-b', 'Cliente B', 'ISO 27001', 'controller', 'Active')`).run();
+    expect((await chamar('PUT', '/api/v1/users/u-cli', pa, { client_project_id: 'proj-b' })).status).toBe(200);
+    for (const p of [A, 'proj-b']) {
+      const t = await (await chamar('GET', `/api/v1/projects/${p}/audit-trail`, pa)).json() as any[];
+      const linha = t.find((x) => x.action === 'user.updated' && x.field === 'client_project_id' && x.entity_id === 'u-cli');
+      expect(linha, `trilha de ${p}`).toMatchObject({ old_value: A, new_value: 'proj-b' });
+    }
+  });
+
+  it('DELETE comum (desativa) não grava registro.excluido; o definitivo grava', async () => {
+    const conta = async () => (await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'registro.excluido' AND details LIKE '%/users/u-cli%'`).first<{ n: number }>())!.n;
+    // audit_logs é append-only e sobrevive ao resetData: conta-se a diferença.
+    const antes = await conta();
+    expect((await chamar('DELETE', '/api/v1/users/u-cli', pa)).status).toBe(200);
+    expect(await conta()).toBe(antes);
+    expect((await chamar('DELETE', '/api/v1/users/u-cli?definitivo=1', pa)).status).toBe(200);
+    expect(await conta()).toBe(antes + 1);
+  });
+});
+
 describe('GET /users', () => {
   it('devolve ativo', async () => {
     await chamar('PUT', '/api/v1/users/u-cli/ativo', pa, { ativo: false });
