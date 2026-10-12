@@ -203,6 +203,17 @@ describe('manutenção diária', () => {
         .bind(um!.de_id, um!.para_id).first<{ estado: string }>();
       expect(estado!.estado).toBe('validado_juridico');
     });
+
+    it('liga ao requisito o controle sem requisito_id cujo código bate com o catálogo', async () => {
+      await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('p-cat','C','ISO 27001','controller','Active')`).run();
+      await env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status) VALUES ('ctl-cat','p-cat','ISO 27001:2022','A.5.1 Políticas de segurança da informação','Missing')`).run();
+      const r = await manutencaoDiaria(env as any);
+      expect(r.falhas).toEqual([]);
+      expect(r.controles_ligados).toBeGreaterThanOrEqual(1);
+      const c = await env.DB.prepare(`SELECT requisito_id FROM compliance_controls WHERE id = 'ctl-cat'`).first<{ requisito_id: string | null }>();
+      expect(c!.requisito_id).toBe('iso27001:2022:A.5.1');
+      expect((await manutencaoDiaria(env as any)).controles_ligados).toBe(0);
+    });
   });
 
   describe('tolerância a falha', () => {

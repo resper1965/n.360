@@ -1,6 +1,6 @@
 import { log } from './observability';
 import { arquivarDia, diaAtras } from './trilha';
-import { semearCatalogo } from './services/requisitos';
+import { ligarControles, semearCatalogo } from './services/requisitos';
 import type { Bindings } from './index';
 
 /**
@@ -96,6 +96,8 @@ export type ResultadoManutencao = {
   retencao: Record<string, number>;
   /** O que a semeadura do catálogo de requisitos criou nesta execução, ou null se falhou. */
   catalogo: { fontes: number; requisitos: number; mapeamentos: number } | null;
+  /** Controles ligados ao requisito da sua norma nesta execução (só os que estavam sem `requisito_id`). */
+  controles_ligados: number;
   falhas: string[];
 };
 
@@ -111,6 +113,7 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
     trilha_arquivada: null,
     retencao: {},
     catalogo: null,
+    controles_ligados: 0,
     falhas: [],
   };
 
@@ -176,6 +179,13 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
     resultado.catalogo = await semearCatalogo(env.DB);
   } catch (e) {
     resultado.falhas.push(`catalogo: ${e instanceof Error ? e.message : e}`);
+  }
+
+  // Depois da semeadura: o controle criado antes do requisito existir ganha o vínculo aqui. Idempotente (só requisito_id nulo).
+  try {
+    resultado.controles_ligados = await ligarControles(env.DB);
+  } catch (e) {
+    resultado.falhas.push(`catalogo_ligacao: ${e instanceof Error ? e.message : e}`);
   }
 
   log(resultado.falhas.length ? 'error' : 'info', {
