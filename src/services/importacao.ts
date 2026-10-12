@@ -191,7 +191,7 @@ export async function enviarArquivo(env: Env, projectId: string, loteId: string,
 
 /**
  * E-mail, CPF e telefone (BR; com DDD entre parênteses ou seguido de separador, ou celular 9XXXX-XXXX: número solto de 10 dígitos,
- * intervalo de anos e protocolo com hífen não são telefone), com o valor normalizado (e-mail em minúsculas, CPF e telefone só dígitos, telefone sem o 55) para que o
+ * intervalo de anos e protocolo com hífen não são telefone; E.164 `+55` seguido de 10 ou 11 dígitos é), com o valor normalizado (e-mail em minúsculas, CPF e telefone só dígitos, telefone sem o 55) para que o
  * mesmo titular escrito de jeitos diferentes dê o mesmo pseudônimo. Ordem importa: e-mail antes (tem dígitos), CPF antes do telefone
  * (11 dígitos soltos são tratados como CPF; o pseudônimo é o mesmo porque a normalização é a mesma).
  * ponytail: só esses três por regex; nome, endereço e outros identificadores não são detectáveis assim (o prompt proíbe devolvê-los,
@@ -200,7 +200,7 @@ export async function enviarArquivo(env: Env, projectId: string, loteId: string,
 const PII: [RegExp, (s: string) => string][] = [
   [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, (s) => s.toLowerCase()],
   [/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, (s) => s.replace(/\D/g, '')],
-  [/(?:(?:\+55\s?)?(?:\(\d{2}\)\s?|\b\d{2}[\s.-])9?\d{4}[\s.-]?\d{4}|\b9\d{4}-\d{4})\b/g, (s) => s.replace(/\D/g, '').slice(-11)],
+  [/(?:(?:\+55\s?)?(?:\(\d{2}\)\s?|\b\d{2}[\s.-])9?\d{4}[\s.-]?\d{4}|\b9\d{4}-\d{4}|\+55\d{10,11})\b/g, (s) => s.replace(/\D/g, '').slice(-11)],
 ];
 
 /** Troca cada e-mail, CPF e telefone do texto por `troca(valor normalizado)`. Uma passada por padrão, sobre marcadores: o que entra não é casado de novo. */
@@ -899,7 +899,7 @@ const JA_EXISTE: Record<EntidadeHistorico, string> = {
 /**
  * Grava um registro do histórico (fatia 4) pela função "importar histórico" do serviço dele: datas e status do registro de origem,
  * protocolo do sistema gerado como na criação, protocolo de origem na descrição, prazo do parâmetro para o registro aberto (o que já
- * venceu aparece atrasado; o aviso retroativo é cortado em `avisos-prazo.ts`). Consentimento exige o tratamento do RoPA de mesma finalidade normalizada.
+ * venceu aparece atrasado; `avisos-prazo.ts` não avisa o atraso na semana da importação). Consentimento exige o tratamento do RoPA de mesma finalidade normalizada.
  */
 async function gravarHistorico(db: D1Database, projectId: string, loteId: string, ator: string, item: LinhaItem, finalidades: Map<string, string>,
   gravados: Map<string, string>): Promise<Resultado> {
@@ -918,7 +918,7 @@ async function gravarHistorico(db: D1Database, projectId: string, loteId: string
       tipo: d.tipo, canal: d.canal, recebido_em: d.recebido_em, status: d.status, respondido_em: d.respondido_em,
       descricao: descricaoImportada(loteId, d.protocolo, d.titular_ref ? [`Titular (pseudônimo): ${d.titular_ref}`] : []),
     });
-    if (x.ok && x.prazo_vencido) avisos.push(`prazo de resposta (${x.prazo_vencido.slice(0, 10)}) já vencido: o pedido aparece atrasado, sem aviso de prazo`);
+    if (x.ok && x.prazo_vencido) avisos.push(`prazo de resposta (${x.prazo_vencido.slice(0, 10)}) já vencido: o pedido aparece atrasado; o aviso de atraso começa na semana que vem`);
     r = x;
   } else if (entidade === 'incidente') {
     const d = p.data as IncidenteProposto;
@@ -927,7 +927,7 @@ async function gravarHistorico(db: D1Database, projectId: string, loteId: string
       titulo: d.titulo, descricao: descricaoImportada(loteId, d.protocolo), ciencia_em: d.ciencia_em, risco_titular: d.risco_titular,
       comunicacao_anpd_em: d.comunicacao_anpd_em, comunicacao_titular_em: d.comunicacao_titular_em, status: d.status,
     });
-    if (x.ok && x.prazos_vencidos.length) avisos.push(`prazo de comunicação já vencido (${x.prazos_vencidos.join('; ')}): aparece atrasado, sem aviso de prazo`);
+    if (x.ok && x.prazos_vencidos.length) avisos.push(`prazo de comunicação já vencido (${x.prazos_vencidos.join('; ')}): aparece atrasado; o aviso de atraso começa na semana que vem`);
     r = x;
   } else {
     const d = p.data as ConsentimentoProposto;

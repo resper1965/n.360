@@ -87,7 +87,7 @@ export type IncidenteImportado = {
  * Importar histórico (importação, fatia 4): incidente já tratado fora do sistema, com as datas e o status do registro de origem. Mesmas
  * regras do encerramento (risco avaliado; risco relevante exige a comunicação à ANPD). Prazos: encerrado não tem (não se recalcula); aberto
  * tem os do parâmetro, contados da ciência, para a comunicação ainda não feita, mesmo que já vencidos (a tela os mostra atrasados; volta
- * em `prazos_vencidos`). O aviso retroativo é cortado na rotina de avisos (prazo anterior à criação do registro não avisa).
+ * em `prazos_vencidos`). A rotina de avisos dá carência na semana ISO da criação ao prazo que nasceu vencido; depois, o atraso volta.
  */
 export async function importarIncidente(db: D1Database, projectId: string, ator: string, d: IncidenteImportado): Promise<Falha | { ok: true; id: string; protocolo: string; prazos_vencidos: string[] }> {
   for (const [campo, v] of [['ciencia_em', d.ciencia_em], ['comunicacao_anpd_em', d.comunicacao_anpd_em], ['comunicacao_titular_em', d.comunicacao_titular_em]] as const) {

@@ -6,7 +6,8 @@ import { faixaDoCaminho } from '../src/modulos';
 import { parseAvaliacoes, parseClassificacao, parseDocumentos, parseTerceiros, parseTratamentos } from '../src/agents/importacao';
 import { BLOCO, blocos, casarBaseLegal, mascararPii, pseudonimizador, SUBCHAVE_TITULAR } from '../src/services/importacao';
 import { visaoDoEncarregado } from '../src/services/encarregado';
-import { itensDoDia, somarDias } from '../src/services/avisos-prazo';
+import { itensDoDia, semanaIso, somarDias } from '../src/services/avisos-prazo';
+import { criarIncidente } from '../src/services/incidentes';
 import { parseHistorico } from '../src/agents/importacao';
 import { semearCatalogo } from '../src/services/requisitos';
 
@@ -1218,6 +1219,7 @@ describe('histórico operacional (fatia 4)', () => {
     expect(t).toBe('X; X; X; X; X; X; X; X; 2026-01-10; PT-2024-0001');
     const fica = 'vigência 2024-2025; protocolo 1234567890; PT-2024-0001; 2026-01-10; 2026-01-10T10:30:00Z; 2026-01-10 10:30:00; lote 2024-0001-77';
     expect(await mascararPii(fica, () => 'X')).toBe(fica);
+    expect(await mascararPii('ligar +5511987654321 ou +551134567890', () => 'X')).toBe('ligar X ou X');
     const p = pseudonimizador('k', 'proj-a');
     const a = await p('maria@exemplo.com.br');
     expect(a).toMatch(/^tit-[0-9a-f]{16}$/);
@@ -1348,10 +1350,15 @@ describe('histórico operacional (fatia 4)', () => {
     const ids = [por('ANT-001'), por('ANT-002'), por('ANT-003')].map((r) => r.registro_id);
     const nossos = async (d: string) => (await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'titular_pedido' && ids.includes(i.item_id));
     expect(await nossos(HOJE)).toEqual([]);
-    // o vencido na importação não gera D-7 nem D0 (nem nos dias deles) nem atraso
-    for (const d of [dia(-32), dia(-25), dia(-24), dia(1), dia(7)]) expect(await nossos(d)).toEqual([]);
-    expect(await nossos(dia(20))).toMatchObject([{ item_id: por('ANT-003').registro_id, marco: expect.stringMatching(/^atraso-/) }]);
-    expect(await nossos(dia(13))).toMatchObject([{ item_id: por('ANT-003').registro_id, marco: 'D0' }]);
+    // o vencido na importação não avisa na semana ISO da importação; da semana seguinte em diante, o atraso semanal volta
+    const ant2 = por('ANT-002').registro_id;
+    const doAnt2 = async (d: string) => (await nossos(d)).filter((i) => i.item_id === ant2);
+    const mesmaSemana = [0, 1, 2, 3, 4, 5, 6].map(dia).filter((d) => semanaIso(d) === semanaIso(HOJE));
+    for (const d of mesmaSemana) expect(await doAnt2(d)).toEqual([]);
+    expect(await doAnt2(dia(7))).toMatchObject([{ marco: `atraso-${semanaIso(dia(7))}` }]);
+    const em20 = await nossos(dia(20));
+    expect(em20.map((i) => [i.item_id, i.marco.startsWith('atraso-')]).sort()).toEqual([[ant2, true], [por('ANT-003').registro_id, true]].sort());
+    expect((await nossos(dia(13))).filter((i) => i.item_id === por('ANT-003').registro_id)).toMatchObject([{ marco: 'D0' }]);
 
     const trilha = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'importacao.gravada' AND project_id = ? AND details LIKE ?`).bind(P, `%${lote}%`).first<{ n: number }>();
     expect(trilha!.n).toBe(3);
@@ -1399,15 +1406,26 @@ describe('histórico operacional (fatia 4)', () => {
     expect(i2.prazo_titular_em!.slice(0, 10)).toBe(dia(-27));
     expect((await visaoDoEncarregado(env.DB, P)).incidentes.comunicacoes_atrasadas).toBe(comunicacoesAntes + 2);
     const ids = [por('INC-1'), por('INC-2')].map((r) => r.registro_id);
-    for (const d of [dia(-34), dia(-27), HOJE, dia(7), dia(30)]) {
-      expect((await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'incidente' && ids.some((id) => i.item_id.startsWith(`${id}:`)))).toEqual([]);
-    }
+    const dosNossos = async (d: string) => (await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'incidente' && ids.some((id) => i.item_id.startsWith(`${id}:`)));
+    for (const d of [0, 1, 2, 3, 4, 5, 6].map(dia).filter((x) => semanaIso(x) === semanaIso(HOJE))) expect(await dosNossos(d)).toEqual([]);
+    // semana seguinte: o aberto (INC-2) volta a avisar as duas comunicações; o encerrado (INC-1), nunca
+    expect((await dosNossos(dia(7))).map((i) => i.item_id).sort()).toEqual([`${por('INC-2').registro_id}:anpd`, `${por('INC-2').registro_id}:titular`].sort());
 
     const l2 = await novoLote();
     respondeHistorico(() => [incidente({ protocolo: 'inc-1' })]);
     await processarHistorico(l2, 'incidentes de novo');
     const [dup] = (await lerLote(l2)).itens;
     expect(dup).toMatchObject({ decisao: 'descartado', duplicata_de: por('INC-1').registro_id });
+  });
+
+  it('incidente criado à mão com ciência antiga: carência só na semana da criação, depois o atraso da ANPD avisa', async () => {
+    const r = await criarIncidente(env.DB, P, 'cons@ness.lat', { titulo: 'Notebook perdido', ciencia_em: dia(-5) });
+    expect(r.ok).toBe(true);
+    const id = (r as { id: string }).id;
+    const deste = async (d: string) => (await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'incidente' && i.item_id === `${id}:anpd`);
+    expect(await deste(HOJE)).toEqual([]);
+    expect(await deste(dia(7))).toMatchObject([{ marco: `atraso-${semanaIso(dia(7))}`, vence_em: dia(-2) }]);
+    expect(await deste(dia(14))).toMatchObject([{ marco: `atraso-${semanaIso(dia(14))}` }]);
   });
 
   it('consentimentos: exigem tratamento casado pela finalidade (o da mesma confirmação vale); datas preservadas; duplicata por titular, finalidade e data', async () => {

@@ -85,8 +85,8 @@ export type PedidoImportado = { tipo: TipoPedido; canal?: CanalPedido | null; re
  * Importar histórico (importação, fatia 4): pedido já existente fora do sistema, com a data de recebimento e o status do registro de
  * origem (inclusive final). O protocolo do sistema é gerado como na criação; o de origem vem em `descricao`. Prazo: encerrado não tem
  * (não se recalcula prazo de pedido já respondido); aberto tem o do parâmetro, contado do recebimento, mesmo que já tenha vencido (a tela
- * e o painel do encarregado o mostram atrasado; `prazo_vencido` devolve a data). O aviso retroativo é cortado na rotina de avisos
- * (`avisos-prazo.ts`: prazo anterior à criação do registro não avisa). Sem titular: nome e contato ficam nulos.
+ * e o painel do encarregado o mostram atrasado; `prazo_vencido` devolve a data). A rotina de avisos (`avisos-prazo.ts`) dá carência:
+ * prazo que nasceu vencido não gera atraso na semana ISO da criação; depois, o atraso semanal volta. Sem titular: nome e contato ficam nulos.
  */
 export async function importarPedido(db: D1Database, projectId: string, ator: string, d: PedidoImportado): Promise<Falha | { ok: true; id: string; protocolo: string; prazo_em: string | null; prazo_vencido: string | null }> {
   if (!ehData(d.recebido_em)) return falha(400, 'recebido_em precisa ser uma data AAAA-MM-DD');

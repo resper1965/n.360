@@ -231,7 +231,7 @@ function resumoHistorico(i) {
 
 function htmlHistorico(itens, ativo) {
     const linhas = itens.map((i) => [resumoHistorico(i), badge(CONF[i.confianca] || [i.confianca, 'neutral']), faltaItem(i), situacaoItem(i, 'titular', 'Ver no titular e incidentes'), acoesItem(i, ativo)]);
-    return `<p style="margin:0 0 0.5rem;color:var(--text-dim)">E-mail, CPF e telefone do arquivo não vão à IA: viram um pseudônimo (tit-...). Datas e situação ficam as do registro de origem e o protocolo de origem vai na descrição. Registro encerrado entra sem prazo; o aberto com prazo legal já vencido aparece atrasado, sem aviso de prazo. O consentimento é ligado ao tratamento do RoPA com a mesma finalidade.</p>`
+    return `<p style="margin:0 0 0.5rem;color:var(--text-dim)">E-mail, CPF e telefone do arquivo não vão à IA: viram um pseudônimo (tit-...). Datas e situação ficam as do registro de origem e o protocolo de origem vai na descrição. Registro encerrado entra sem prazo; o aberto com prazo legal já vencido aparece atrasado, e o aviso de atraso só começa na semana seguinte. O consentimento é ligado ao tratamento do RoPA com a mesma finalidade.</p>`
         + barraAlta(itens) + window.renderDataTable(['Registro proposto', 'Confiança', 'Faltando', 'Situação', 'Ações'], linhas, { emptyState: 'Nenhum registro proposto. Envie o histórico de pedidos, incidentes ou consentimentos e clique em Processar.' });
 }
 
