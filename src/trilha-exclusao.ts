@@ -16,7 +16,7 @@
 /** Recurso (primeiro segmento depois de /api/v1/) → tabela que guarda `project_id`. */
 export const TABELA_DO_RECURSO: Record<string, string> = {
   'api-keys': 'api_keys',
-  assets: 'assets',
+  assets: 'itens',
   'audit-findings': 'audit_findings',
   audits: 'audit_schedule',
   capa: 'corrective_actions',
@@ -33,8 +33,8 @@ export const TABELA_DO_RECURSO: Record<string, string> = {
   webhooks: 'webhooks',
 };
 
-/** Recursos que não pertencem a um projeto: usuários, e a área comercial. */
-const SEM_PROJETO = new Set(['admin/users', 'users', 'leads', 'proposals']);
+/** Recursos que não pertencem a um projeto: usuários, a área comercial e o catálogo global de requisitos. */
+const SEM_PROJETO = new Set(['admin/users', 'users', 'leads', 'proposals', 'requisitos', 'parametros-legais']);
 
 export type ClasseDaRota = { tipo: 'projeto' } | { tipo: 'tabela'; tabela: string } | { tipo: 'sem-projeto' };
 

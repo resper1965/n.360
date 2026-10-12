@@ -299,6 +299,11 @@ window.__orgEditar = (id) => {
             ${campo('org-e', 'maxProjetos', `Máximo de projetos (em uso: ${o.projetos})`, o.maxProjetos, { tipo: 'number' })}
             ${campo('org-e', 'maxUsuarios', `Máximo de usuários (em uso: ${o.usuarios})`, o.maxUsuarios, { tipo: 'number' })}
         </div>
+        ${ehPlatformAdmin() ? `<fieldset id="org-e-contrato">
+            <legend class="form-label">Módulos contratados</legend>
+            ${[['iso', 'n.iso'], ['privacy', 'n.privacy']].map(([m, r]) => `<label class="org-modulo"><input type="checkbox" class="e-modulo-contrato" value="${m}"${(o.modulosContratados || ['iso']).includes(m) ? ' checked' : ''}> ${r}</label>`).join('')}
+            <p class="org-meta" id="org-e-contrato-aviso">Tirar um módulo do contrato não o remove das pessoas nem dos projetos; só limita o que se concede daqui em diante.</p>
+        </fieldset>` : ''}
         <p class="org-erro" id="org-e-erro" role="alert"></p>
         <div class="org-form-rodape">
             <button type="button" class="btn btn-secondary" data-action="forceCloseModal">Cancelar</button>
@@ -313,6 +318,12 @@ window.__orgSalvar = async (id) => {
     try {
         await api('PUT', `/api/v1/platform/orgs/${encodeURIComponent(id)}`,
             { nome: val('org-e-nome').trim(), maxProjetos: num('org-e-maxProjetos'), maxUsuarios: num('org-e-maxUsuarios') });
+        // Contrato de módulos: só se mudou (o servidor recusa tirar o que algum projeto da organização usa).
+        const caixas = [...form.querySelectorAll('.e-modulo-contrato')];
+        const novos = caixas.filter((x) => x.checked).map((x) => x.value);
+        if (caixas.length && novos.join() !== caixas.filter((x) => x.defaultChecked).map((x) => x.value).join()) {
+            await api('PUT', `/api/v1/platform/orgs/${encodeURIComponent(id)}/modulos`, { modulos: novos });
+        }
     } catch (e) {
         return mostrarErros('org-e', e);
     }

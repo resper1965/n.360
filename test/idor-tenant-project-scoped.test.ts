@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import worker from '../src/index';
-import { applySchema, sessionFor, seedTwoProjects } from './helpers/d1';
+import { applySchema, sessionFor, seedTwoProjects, concederModulos } from './helpers/d1';
 
 /**
  * Isolamento multi-tenant nas rotas de PROJETO dos routers montados na raiz
@@ -55,6 +55,7 @@ describe('IDOR cross-tenant nas rotas de projeto (risks/policies/integrations)',
   beforeAll(async () => {
     await applySchema();
     await seedTwoProjects();
+    await concederModulos('u-adm-a', ['iso']); // a pessoa tem o n.iso: o que se prova aqui é o tenant
     // Ator preso ao projeto A: papel de cliente, não de staff — staff
     // (consultor/platform_admin) atravessa a checagem por desenho.
     headers = {

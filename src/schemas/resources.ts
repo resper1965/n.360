@@ -22,6 +22,7 @@ export const createRiskSchema = z.object({
   treatment_plan: z.string().optional().nullable(),
   control_id: z.string().optional().nullable(),
   owner: z.string().optional().nullable(),
+  owner_parte_id: z.string().optional().nullable(),
   accepted_by: z.string().optional().nullable(),
   accepted_at: z.string().optional().nullable()
 }).passthrough();
@@ -61,6 +62,7 @@ export const createCapaSchema = z.object({
   description: z.string().optional().nullable(),
   severity: z.string().optional().nullable(),
   assigned_to: z.string().optional().nullable(),
+  assigned_to_parte_id: z.string().optional().nullable(),
   due_date: z.string().optional().nullable(),
   status: z.string().optional().nullable()
 }).passthrough();
@@ -115,6 +117,8 @@ export const capaUpdateSchema = z.object({
   description: parcial,
   severity: parcial,
   assigned_to: parcial,
+  assigned_to_parte_id: parcial,
+  incidente_id: parcial,
   due_date: parcial,
   status: z.string().min(1, 'Status é obrigatório'),
   resolution: parcial,

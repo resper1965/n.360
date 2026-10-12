@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { requireResourceAccess, genToken, signWebhook, registraErro } from '../helpers';
 import { validateBody, createWebhookSchema, createApiKeySchema } from '../schemas';
+import { listarAtivos } from '../services/itens';
+import { SQL_VENDORS_VISIVEIS } from './vendors';
 
 const integrations = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -346,7 +348,7 @@ integrations.get('/api/v1/projects/:projectId/export/risks', async (c) => {
 
 integrations.get('/api/v1/projects/:projectId/export/vendors', async (c) => {
   const projectId = c.req.param('projectId');
-  const result = await c.env.DB.prepare('SELECT * FROM vendors WHERE project_id = ?').bind(projectId).all();
+  const result = await c.env.DB.prepare(SQL_VENDORS_VISIVEIS).bind(projectId).all();
   const rows = (result.results || []) as any[];
   const headers = 'name,category,trust_score,diligence_level,has_iso27001,has_soc2,dpa_signed';
   const csv = headers + '\n' + rows.map(r => 
@@ -383,8 +385,7 @@ integrations.get('/api/v1/projects/:projectId/export/audit-log', async (c) => {
 
 integrations.get('/api/v1/projects/:projectId/export/assets', async (c) => {
   const projectId = c.req.param('projectId');
-  const result = await c.env.DB.prepare("SELECT * FROM assets WHERE project_id = ? AND COALESCE(status, '') != 'Removido'").bind(projectId).all();
-  const rows = (result.results || []) as any[];
+  const rows = (await listarAtivos(c.env.DB, projectId)) as Record<string, string>[];
   const headers = 'name,category,classification,owner,location,status,description,confidentiality_rating,integrity_rating,availability_rating';
   const csv = headers + '\n' + rows.map(r => 
     `${safeCsvCell(r.name)},${safeCsvCell(r.category)},${safeCsvCell(r.classification)},${safeCsvCell(r.owner)},${safeCsvCell(r.location)},${safeCsvCell(r.status)},${safeCsvCell(r.description)},${safeCsvCell(r.confidentiality_rating)},${safeCsvCell(r.integrity_rating)},${safeCsvCell(r.availability_rating)}`

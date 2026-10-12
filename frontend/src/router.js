@@ -1,4 +1,5 @@
 import { S } from './state.js';
+import { produtoAtual } from './produto.js';
 
 export     function navigate(view, data) {
         let targetView = view;
@@ -16,7 +17,8 @@ export     function navigate(view, data) {
             el.classList.remove('active');
             el.removeAttribute('aria-current');
         });
-        const navId = `nav-${targetView.split('-')[0]}`;
+        // No n.iso a tela titular é só Incidentes (nav-titular fica oculto): destaca o item que levou até ela.
+        const navId = targetView === 'titular' && produtoAtual() === 'iso' ? 'nav-incidentes' : `nav-${targetView.split('-')[0]}`;
         const el = document.getElementById(navId);
         if (el) {
             el.classList.add('active');
@@ -31,7 +33,8 @@ export     function navigate(view, data) {
         const h = document.getElementById('header-title');
         const a = document.getElementById('header-actions');
         
-        if (S.view === 'dashboard') renderDashboard(c, h, a);
+        if (S.view === 'inicio') renderInicio(c, h, a);
+        else if (S.view === 'dashboard') renderDashboard(c, h, a);
         else if (S.view === 'leads') renderLeads(c, h, a);
         else if (S.view === 'assessments') renderAssessments(c, h, a);
         else if (S.view === 'proposals') renderPropostas(c, h, a);  // o fluxo antigo (renderProposals) saiu na fatia 4
@@ -44,6 +47,13 @@ export     function navigate(view, data) {
         else if (S.view === 'policies-dashboard') renderPoliciesDashboard(c, h, a);
         else if (S.view === 'risks') renderRisks(c, h, a);
         else if (S.view === 'vendors') renderVendors(c, h, a);
+        else if (S.view === 'partes') renderPartes(c, h, a);
+        else if (S.view === 'documentos') renderDocumentos(c, h, a);
+        else if (S.view === 'requisitos') renderRequisitos(c, h, a);
+        else if (S.view === 'terceiros') renderTerceiros(c, h, a);
+        else if (S.view === 'titular') renderTitular(c, h, a);
+        else if (S.view === 'encarregado') renderEncarregado(c, h, a);
+        else if (S.view === 'importacao') renderImportacao(c, h, a);
         else if (S.view === 'training') renderTraining(c, h, a);
         else if (S.view === 'ropa') renderROPA(c, h, a);
         else if (S.view === 'dpia') renderDPIA(c, h, a);

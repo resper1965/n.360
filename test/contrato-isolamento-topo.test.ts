@@ -194,6 +194,9 @@ const CATALOGO_GLOBAL: Record<string, string> = {
   // irmã `GET /api/v1/policy-templates` já lista tudo para qualquer sessão.
   // Não há dado de tenant a vazar aqui.
   'GET /api/v1/policy-templates/:id': 'catálogo global, sem coluna project_id',
+  // `requisitos` (fatia 2) é catálogo de referência, sem `project_id`: as normas e leis são as mesmas para todos.
+  // Só o mapeamento ainda `proposto` é restringido por papel, e isso não é isolamento de tenant.
+  'GET /api/v1/requisitos/:id': 'catálogo global, sem coluna project_id',
 };
 
 /**
@@ -213,6 +216,9 @@ const CORPOS: Record<string, unknown> = {
   // Decisão de pedido valida o corpo antes de procurar o pedido; senha correta pelo mesmo motivo.
   'POST /api/v1/pedidos/:id/aprovar': { senha: SENHA_DO_USUARIO },
   'POST /api/v1/pedidos/:id/recusar': { senha: SENHA_DO_USUARIO },
+  // Lista vazia passa no schema e em qualquer teto: o que tem de recusar é a guarda.
+  'PUT /api/v1/users/:id/modulos': { modulos: [] },
+  'PUT /api/v1/admin/users/:id/modulos': { modulos: [] },
 };
 
 /**
@@ -229,6 +235,9 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   servicos: { tipo: 'avulso' },
   propostas: { status: 'rascunho' },
   pedidos: { tipo: 'dpia', papel_exigido: 'ciente' },
+  parte_vinculos: { papel: 'responsavel', alvo_tipo: 'projeto' },
+  avaliacoes_terceiro: { metodo: 'auditoria', resultado: 'aprovado' },
+  titular_pedidos: { tipo: 'acesso' },
 };
 
 async function semearTenantAlheio(id: string, projeto: string): Promise<void> {

@@ -38,16 +38,20 @@ vendorsApp.put('/:id', async (c) => {
     const v = await validateBody(c, vendorUpdateSchema);
     if (!v.success) return v.response;
     const body = v.data as any;
+    const nome = String(body.name).trim();
     const ts = calculateTrustScore(body);
     const dl = diligenceLevel(ts);
 
     await c.env.DB.prepare(
       `UPDATE vendors SET name=?, category=?, has_iso27001=?, has_iso27701=?, has_soc2=?, trust_score=?, diligence_level=?, dpa_signed=?, notes=?, status=?, has_mfa=?, has_encryption=?, has_backup=?, has_incident_plan=?, has_pentest=?, trust_center_url=?, dpa_url=?, attached_certifications=? WHERE id=?`
     ).bind(
-      body.name, body.category ?? null, body.has_iso27001 ?? 0, body.has_iso27701 ?? 0, body.has_soc2 ?? 0, ts, dl, body.dpa_signed ?? 0, body.notes ?? null, body.status ?? 'Active',
+      nome, body.category ?? null, body.has_iso27001 ?? 0, body.has_iso27701 ?? 0, body.has_soc2 ?? 0, ts, dl, body.dpa_signed ?? 0, body.notes ?? null, body.status ?? 'Active',
       body.has_mfa ?? 0, body.has_encryption ?? 0, body.has_backup ?? 0, body.has_incident_plan ?? 0, body.has_pentest ?? 0, body.trust_center_url ?? null, body.dpa_url ?? null, body.attached_certifications ?? null,
       id
     ).run();
+    // o nome é da parte (o gatilho vendor_nome_da_parte devolve o mesmo nome ao perfil)
+    await c.env.DB.prepare('UPDATE partes SET nome = ?, updated_at = CURRENT_TIMESTAMP WHERE id = (SELECT parte_id FROM vendors WHERE id = ?) AND nome <> ?')
+      .bind(nome, id, nome).run();
 
     const proj = await c.env.DB.prepare('SELECT project_id FROM vendors WHERE id = ?').bind(id).first<{ project_id: string | null }>();
     await logAudit(c.env.DB, 'vendor.updated', c.get('user')?.email ?? 'system', `Vendor ${id} atualizado`, '', '', proj?.project_id ?? undefined);
@@ -63,7 +67,13 @@ vendorsApp.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'vendors', id, c.get('user'));
-    await c.env.DB.prepare('DELETE FROM vendors WHERE id = ?').bind(id).run();
+    const v = await c.env.DB.prepare('SELECT project_id, parte_id, name FROM vendors WHERE id = ?').bind(id).first<{ project_id: string | null; parte_id: string | null; name: string }>();
+    // sai o perfil e o papel de terceiro no projeto; a parte (e a avaliação do n.privacy) fica
+    await c.env.DB.batch([
+      c.env.DB.prepare(`DELETE FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro' AND alvo_tipo = 'projeto' AND alvo_id = ?`).bind(v?.parte_id ?? null, v?.project_id ?? null),
+      c.env.DB.prepare('DELETE FROM vendors WHERE id = ?').bind(id),
+    ]);
+    await logAudit(c.env.DB, 'vendor.deleted', c.get('user')?.email ?? 'system', `Vendor ${v?.name ?? id} excluído`, '', '', v?.project_id ?? undefined);
     return c.json({ ok: true });
   } catch (e: any) {
     if (e.message && e.message.startsWith('Forbidden')) return c.json({ error: e.message }, 403);
@@ -73,10 +83,14 @@ vendorsApp.delete('/:id', async (c) => {
 
 // ─── Project Vendor Operations (/api/v1/projects/:projectId/vendors) ──────
 
+/** Fornecedor listado = perfil de parte ATIVA com vínculo `terceiro` no projeto. A lista e o CSV usam a mesma consulta. */
+export const SQL_VENDORS_VISIVEIS = `SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.project_id = ? AND p.status = 'ativa'
+        AND EXISTS (SELECT 1 FROM parte_vinculos pv WHERE pv.parte_id = v.parte_id AND pv.papel = 'terceiro' AND pv.alvo_tipo = 'projeto' AND pv.alvo_id = v.project_id)`;
+
 projectVendorsApp.get('/', async (c) => {
   const projectId = c.req.param('projectId');
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM vendors WHERE project_id = ? ORDER BY created_at DESC'
+    `${SQL_VENDORS_VISIVEIS} ORDER BY v.created_at DESC`
   ).bind(projectId).all();
   return c.json({ ok: true, vendors: results });
 });
@@ -87,17 +101,41 @@ projectVendorsApp.post('/', async (c) => {
     const valid = await validateBody(c, createVendorSchema);
     if (!valid.success) return valid.response;
     const body = valid.data as any;
-    const id = genId();
     const ts = calculateTrustScore(body);
     const dl = diligenceLevel(ts);
+    const db = c.env.DB;
 
-    await c.env.DB.prepare(
-      `INSERT INTO vendors (id, project_id, name, category, has_iso27001, has_iso27701, has_soc2, trust_score, diligence_level, dpa_signed, notes, has_mfa, has_encryption, has_backup, has_incident_plan, has_pentest, trust_center_url, dpa_url, attached_certifications)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      id, projectId, body.name, body.category ?? null, body.has_iso27001 ?? 0, body.has_iso27701 ?? 0, body.has_soc2 ?? 0, ts, dl, body.dpa_signed ?? 0, body.notes ?? null,
-      body.has_mfa ?? 0, body.has_encryption ?? 0, body.has_backup ?? 0, body.has_incident_plan ?? 0, body.has_pentest ?? 0, body.trust_center_url ?? null, body.dpa_url ?? null, body.attached_certifications ?? null
-    ).run();
+    // O fornecedor é a parte organização ATIVA do projeto: reaproveita a de mesmo nome (sem caixa e sem espaço nas pontas) ou cria.
+    // Parte inativa de mesmo nome não serve: o perfil ficaria invisível na lista.
+    const achada = await db.prepare(`SELECT id FROM partes WHERE project_id = ? AND tipo = 'organizacao' AND status = 'ativa' AND lower(trim(nome)) = lower(trim(?)) ORDER BY created_at, rowid LIMIT 1`)
+      .bind(projectId, body.name).first<{ id: string }>();
+    // perfil que já existe não é sobrescrito pelo POST (corpo parcial zeraria os campos): edição é pelo PUT
+    const existente = achada ? await db.prepare('SELECT id FROM vendors WHERE parte_id = ?').bind(achada.id).first<{ id: string }>() : null;
+    if (existente) {
+      // Perfil escondido por ter perdido o vínculo terceiro: o cadastro o traz de volta, com os dados de antes.
+      const r = await db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id)
+        SELECT ?, ?, ?, 'terceiro', 'projeto', ? WHERE NOT EXISTS (SELECT 1 FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro' AND alvo_tipo = 'projeto' AND alvo_id = ?)`)
+        .bind(crypto.randomUUID(), projectId, achada!.id, projectId, achada!.id, projectId).run();
+      if (!r.meta.changes) return c.json({ error: 'Fornecedor já cadastrado neste projeto', id: existente.id }, 409);
+      await logAudit(db, 'vendor.restored', c.get('user')?.email ?? 'system', `Vendor ${body.name} restaurado no projeto ${projectId}`, '', '', projectId);
+      return c.json({ ok: true, id: existente.id }, 200);
+    }
+    const parteId = achada?.id ?? crypto.randomUUID();
+    const r = await db.batch([
+      ...(achada ? [] : [db.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES (?, ?, 'organizacao', ?)`).bind(parteId, projectId, body.name.trim())]),
+      db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, 'terceiro', 'projeto', ?)`).bind(crypto.randomUUID(), projectId, parteId, projectId),
+      // o gatilho vendor_perfil_do_terceiro já cria o perfil; isto cobre o vínculo que já existia sem perfil
+      db.prepare('INSERT OR IGNORE INTO vendors (id, project_id, name, parte_id) VALUES (?, ?, ?, ?)').bind(genId(), projectId, body.name.trim(), parteId),
+      db.prepare(
+        `UPDATE vendors SET category=?, has_iso27001=?, has_iso27701=?, has_soc2=?, trust_score=?, diligence_level=?, dpa_signed=?, notes=?, has_mfa=?, has_encryption=?, has_backup=?, has_incident_plan=?, has_pentest=?, trust_center_url=?, dpa_url=?, attached_certifications=? WHERE parte_id=?`
+      ).bind(
+        body.category ?? null, body.has_iso27001 ?? 0, body.has_iso27701 ?? 0, body.has_soc2 ?? 0, ts, dl, body.dpa_signed ?? 0, body.notes ?? null,
+        body.has_mfa ?? 0, body.has_encryption ?? 0, body.has_backup ?? 0, body.has_incident_plan ?? 0, body.has_pentest ?? 0, body.trust_center_url ?? null, body.dpa_url ?? null, body.attached_certifications ?? null,
+        parteId
+      ),
+      db.prepare('SELECT id FROM vendors WHERE parte_id = ?').bind(parteId),
+    ]);
+    const id = (r[r.length - 1].results[0] as { id: string }).id;
 
     await logAudit(c.env.DB, 'vendor.created', c.get('user')?.email ?? 'system', `Vendor ${body.name} created for project ${projectId}`, '', '', projectId);
     return c.json({ ok: true, id, diligence_level: dl, trust_score: ts }, 201);

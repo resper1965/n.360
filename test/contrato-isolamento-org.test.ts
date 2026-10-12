@@ -73,6 +73,15 @@ const CORPOS: Record<string, (alvo: Org) => unknown> = {
   'POST /api/v1/pedidos/:id/recusar': () => ({ senha: SENHA }),
   'POST /api/v1/projects/:projectId/pedidos': (alvo) => ({ tipo: 'dpia', ref_id: alvo.rec, papel_exigido: 'ciente', destinatarios: [{ email: `stk@${alvo.m}.lat` }] }),
   'POST /api/v1/leads/:id/enrich-cnpj': () => ({ cnpj: '11222333000181' }),
+  'PUT /api/v1/projects/:projectId/modulos/:modulo': () => ({ habilitado: true }),
+  // lista vazia passa no schema e em qualquer teto: o que tem de recusar é a guarda (conta de outra organização)
+  'PUT /api/v1/users/:id/modulos': () => ({ modulos: [] }),
+  'PUT /api/v1/admin/users/:id/modulos': () => ({ modulos: [] }),
+  'POST /api/v1/projects/:projectId/departamentos': () => ({ nome: 'Varredura' }),
+  'PUT /api/v1/projects/:projectId/departamentos/:id': () => ({ nome: 'Varredura' }),
+  'POST /api/v1/projects/:projectId/partes': () => ({ nome: 'Varredura' }),
+  'PUT /api/v1/projects/:projectId/partes/:id': () => ({ nome: 'Varredura' }),
+  'POST /api/v1/projects/:projectId/partes/:id/vinculos': (alvo) => ({ papel: 'responsavel', alvo_tipo: 'departamento', alvo_id: alvo.rec }),
   // tenta trazer o projeto alheio para a organização de quem chama: só platform_admin transfere
   'POST /api/v1/platform/projects/:id/transferir': (alvo) => ({ orgDestinoId: alvo === B ? NESS.org : B.org, motivo: 'varredura de isolamento' }),
 };
@@ -124,6 +133,10 @@ const VINCULO_ALHEIO: [string, (p: Ctx) => string, (p: Ctx) => unknown][] = [
 /** Rota sem parâmetro, não GET, que não recebe nem devolve recurso de outra organização. */
 const SEM_RECURSO_ALHEIO: Record<string, string> = {
   'POST /api/v1/auth/setup': 'bootstrap do primeiro admin, por SETUP_KEY; sem sessão',
+  'POST /api/v1/requisitos/semear': 'catálogo global de requisitos, só platform_admin; não recebe id de recurso',
+  'POST /api/v1/requisitos/mapeamentos': 'catálogo global de requisitos, só platform_admin; ids são de requisito, não de organização',
+  'PUT /api/v1/requisitos/mapeamentos': 'catálogo global de requisitos, só platform_admin',
+  'DELETE /api/v1/requisitos/mapeamentos': 'catálogo global de requisitos, só platform_admin',
   'POST /api/v1/auth/login': 'login: identidade global por e-mail e senha',
   'POST /api/v1/auth/reset-password-first': 'troca da senha provisória da própria conta',
   'POST /api/v1/auth/forgot-password': 'pedido de redefinição por e-mail; não devolve dado',
@@ -173,6 +186,9 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   servicos: { tipo: 'avulso' },
   propostas: { status: 'rascunho' },
   pedidos: { tipo: 'dpia', papel_exigido: 'ciente' },
+  parte_vinculos: { papel: 'responsavel', alvo_tipo: 'projeto' },
+  avaliacoes_terceiro: { metodo: 'auditoria', resultado: 'aprovado' },
+  titular_pedidos: { tipo: 'acesso' },
 };
 
 /**

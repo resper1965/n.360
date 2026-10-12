@@ -175,6 +175,21 @@ describe('api()', () => {
             );
         });
 
+        it('timeoutMs por chamada vale no lugar dos 30s, não vira cabeçalho e não muda o padrão', async () => {
+            const espia = vi.spyOn(AbortSignal, 'timeout');
+            fetchMock.mockResolvedValue(resposta({ ok: true, x: 1 }));
+            await api('POST', '/api/v1/leads', undefined, { timeoutMs: 150000, 'X-Operacao': 'op1' });
+            expect(espia).toHaveBeenLastCalledWith(150000);
+            const h = fetchMock.mock.calls.at(-1)[1].headers;
+            expect(h['X-Operacao']).toBe('op1');
+            expect(h.timeoutMs).toBeUndefined();
+            await api('GET', '/api/v1/leads');
+            expect(espia).toHaveBeenLastCalledWith(30000);
+            fetchMock.mockRejectedValue(erroDeRede('TimeoutError'));
+            await expect(api('POST', '/api/v1/leads', undefined, { timeoutMs: 150000 })).rejects.toThrow('(150s)');
+            espia.mockRestore();
+        });
+
         it('abort vira "Requisicao cancelada"', async () => {
             fetchMock.mockRejectedValue(erroDeRede('AbortError'));
             await expect(api('GET', '/api/v1/leads')).rejects.toThrow(/cancelada/);

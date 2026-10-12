@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 
-import { semRastros, genId, genToken, logAudit, validateUpload, erro500, somenteNess, ehEquipeNess, sha256Hex, projetosVisiveis, designacaoDoCriador, refForaDoProjeto } from '../helpers';
+import { redactProject, semRastros, genId, genToken, logAudit, validateUpload, erro500, somenteNess, ehEquipeNess, sha256Hex, projetosVisiveis, designacaoDoCriador, refForaDoProjeto } from '../helpers';
 import { itemDoChecklist, controleDoItem, marcarItemComEvidencia } from '../services/checklist-evidencia';
 import { resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_PROJETOS } from '../services/organizacao';
 import { INTERVIEW_TRACKS } from '../constants';
@@ -19,6 +19,7 @@ import { exportarProjeto } from '../portabilidade';
 import { ipPermitido } from '../politica-tenant';
 import { papelValidoParaSso } from '../sso';
 import { appUrl } from '../config/url';
+import { modulosContratados } from '../modulos';
 
 export const projectsApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -276,15 +277,8 @@ projectsApp.get('/:projectId/export', async (c) => {
   }
 });
 
-// NUNCA devolver credenciais no corpo. `repository_token` é secret (uso só
-// server-side); redigido aqui — o cliente recebe apenas um booleano indicando se
-// há token configurado. Em repouso ele é cifrado (AES-GCM, ver secret-crypto.ts);
-// consumidores server-side leem via getRepositoryToken (decifra).
-function redactProject<T extends Record<string, any> | null | undefined>(p: T): T {
-  if (!p) return p;
-  const { repository_token, ...rest } = p as Record<string, any>;
-  return { ...rest, repository_token_set: !!repository_token } as unknown as T;
-}
+// `redactProject` (helpers.ts) tira `repository_token` do corpo. Em repouso ele é cifrado (AES-GCM, ver
+// secret-crypto.ts); consumidores server-side leem via getRepositoryToken (decifra).
 
 /**
  * Lê o `repository_token` de um projeto DECIFRADO, para uso server-side (git ops).
@@ -335,16 +329,26 @@ projectsApp.post('/', async (c) => {
       orgId
     );
     // D5: consultor que cria fica designado no projeto, no mesmo batch.
+    // Produtos: o gatilho dá ao projeto o que a organização contratou; `modulos` no corpo escolhe um subconjunto disso.
+    const contratados = await modulosContratados(c.env.DB, orgId);
+    const escolhidos = body.modulos?.length ? [...new Set(body.modulos)] : null;
+    const fora = (escolhidos ?? []).filter((m) => !contratados.includes(m));
+    if (fora.length) return c.json({ error: `Produto não contratado pela organização: ${fora.join(', ')}` }, 409);
     const designa = designacaoDoCriador(c.env.DB, user, id);
-    await c.env.DB.batch(designa ? [cria, designa] : [cria]);
+    const tiraNaoEscolhidos = escolhidos
+      ? c.env.DB.prepare(`DELETE FROM projeto_modulos WHERE project_id = ? AND modulo NOT IN (SELECT value FROM json_each(?))`).bind(id, JSON.stringify(escolhidos))
+      : null;
+    await c.env.DB.batch([cria, ...(designa ? [designa] : []), ...(tiraNaoEscolhidos ? [tiraNaoEscolhidos] : [])]);
 
-    await seedPhases(c.env.DB, id);
+    const modulos = (await c.env.DB.prepare('SELECT modulo FROM projeto_modulos WHERE project_id = ?').bind(id).all<{ modulo: string }>()).results.map((r) => r.modulo);
+    // A trilha de fases é a jornada da ISO: projeto só de n.privacy nasce sem ela.
+    if (modulos.includes('iso')) await seedPhases(c.env.DB, id);
     await logAudit(c.env.DB, 'project.created', user?.email ?? 'system', `Projeto ${id} criado para ${body.client_name}`, '', '', id);
     if (designa) {
       await logAudit(c.env.DB, 'governance.created', user.email, `Consultor ${user.email} designado no projeto ${id} que criou`, '', '', id);
     }
 
-    return c.json({ id, project_name: body.project_name, client_name: body.client_name, status: 'active' }, 201);
+    return c.json({ id, project_name: body.project_name, client_name: body.client_name, status: 'active', modulos: modulos.sort() }, 201);
   } catch (e: any) {
     return erro500(c, 'Falha ao criar projeto', e);
   }
@@ -358,7 +362,7 @@ projectsApp.get('/', async (c) => {
         return c.json([]);
       }
       const project = await c.env.DB.prepare(
-        'SELECT * FROM projects WHERE id = ?'
+        'SELECT *, (SELECT group_concat(pm.modulo) FROM projeto_modulos pm WHERE pm.project_id = projects.id) AS modulos FROM projects WHERE id = ?'
       ).bind(user.client_project_id).first();
       return c.json(project ? [redactProject(project)] : []);
     }
@@ -367,8 +371,8 @@ projectsApp.get('/', async (c) => {
     // só o platform_admin vê todos. Comercial e papel desconhecido: nenhum.
     const v = projetosVisiveis(user);
     const { results } = await (v
-      ? c.env.DB.prepare(`SELECT * FROM projects WHERE id IN (${v.sql}) ORDER BY created_at DESC`).bind(v.bind)
-      : c.env.DB.prepare('SELECT * FROM projects ORDER BY created_at DESC')).all();
+      ? c.env.DB.prepare(`SELECT *, (SELECT group_concat(pm.modulo) FROM projeto_modulos pm WHERE pm.project_id = projects.id) AS modulos FROM projects WHERE id IN (${v.sql}) ORDER BY created_at DESC`).bind(v.bind)
+      : c.env.DB.prepare('SELECT *, (SELECT group_concat(pm.modulo) FROM projeto_modulos pm WHERE pm.project_id = projects.id) AS modulos FROM projects ORDER BY created_at DESC')).all();
     return c.json((results ?? []).map(redactProject));
   } catch (e: any) {
     return erro500(c, 'Falha ao listar projetos', e);
@@ -383,7 +387,7 @@ projectsApp.get('/:id', async (c) => {
       return c.json({ error: 'Forbidden: No access to this project' }, 403);
     }
   }
-  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first();
+  const project = await c.env.DB.prepare('SELECT *, (SELECT group_concat(pm.modulo) FROM projeto_modulos pm WHERE pm.project_id = projects.id) AS modulos FROM projects WHERE id = ?').bind(id).first();
   if (!project) return c.json({ error: 'Project not found' }, 404);
   return c.json(redactProject(project));
 });
@@ -1089,7 +1093,7 @@ projectsApp.get('/:id/audit-pack', async (c) => {
     return c.json({
       ok: true,
       pack: {
-        project,
+        project: redactProject(project),
         phases: phases.results || [],
         controls: semRastros(controls.results),
         evidence: semRastros(evidence.results),

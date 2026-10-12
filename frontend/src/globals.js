@@ -1,3 +1,4 @@
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto } from './produto.js';
 import { S } from './state.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
@@ -557,6 +558,7 @@ window.updateActiveProjectWidget = function updateActiveProjectWidget() {
         if (typeof updateSidebarProjectSelector === 'function') {
             updateSidebarProjectSelector();
         }
+        atualizarLinkCruzado();
     }
 
 window.updateSidebarProjectSelector = function updateSidebarProjectSelector() {
@@ -590,7 +592,9 @@ window.updateTenantFace = function updateTenantFace() {
         const p = S.activeProject;
         const name = p ? (p.project_name || p.client_name || 'Projeto') : 'Selecione um projeto';
         nameEl.textContent = name;
-        if (normEl) normEl.textContent = p ? (p.standard || p.standards || 'ISO 27001:2022') : '';
+        // Só no n.iso a norma do projeto diz algo; no n.privacy mostra o módulo e no início do n.360 os módulos do projeto.
+        const prod = produtoAtual();
+        if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod === 'privacy' ? 'n.privacy' : modulosVisiveis(p).map((m) => `n.${m}`).join(' · ');
         if (initialsEl) initialsEl.textContent = p ? name.slice(0, 2).toUpperCase() : '—';
     }
 
@@ -658,7 +662,7 @@ window.renderAccountMenu = function renderAccountMenu() {
             <div class="account-rule"></div>
             <div class="account-sign">
                 <span class="account-sign-house">ness<span>.</span></span>
-                <span class="account-sign-ver">${NISO_VERSION}</span>
+                <span class="account-sign-ver">${{ privacy: 'n.privacy', n360: 'n.360' }[produtoAtual()] || NISO_VERSION}</span>
             </div>`;
     }
 
@@ -862,6 +866,8 @@ window.updateHeaderUser = function updateHeaderUser() {
             if (navApiKeys) navApiKeys.style.display = (S.user && S.user.role === 'platform_admin') ? '' : 'none';
             const navConectar = document.getElementById('nav-conectar-agente');
             if (navConectar) navConectar.style.display = (S.user && (S.user.role === 'consultor' || S.user.role === 'consultant')) ? '' : 'none';
+            const navImportacao = document.getElementById('nav-importacao');
+            if (navImportacao) navImportacao.style.display = window.ehEquipeNess() ? '' : 'none';
             if (navUsers) {
                 const canSeeUsers = S.user && ['platform_admin', 'admin', 'consultor', 'consultant', 'consultoria_admin'].includes(S.user.role);
                 navUsers.style.display = canSeeUsers ? '' : 'none';
@@ -950,7 +956,7 @@ window.markNotifRead = async function markNotifRead(id) {
 // Telas abertas pelos avisos de prazo (src/services/avisos-prazo.ts, TELA). Elas leem S.activeProject:
 // sem trocá-lo, o aviso do projeto B abria a lista do A.
 // ponytail: troca só em memória; recarregar volta ao projeto salvo em localStorage.
-const TELA_DO_AVISO = { capa: 'capa', audits: 'audits', certification: 'certification', policies: 'policies-dashboard' };
+const TELA_DO_AVISO = { capa: 'capa', audits: 'audits', certification: 'certification', policies: 'policies-dashboard', documentos: 'documentos', terceiros: 'terceiros', titular: 'titular', incidentes: 'titular', evidence: 'evidence' };
 window.handleNotificationClick = async function handleNotificationClick(id) {
         const n = (S.notifications || []).find(x => x.id === id);
         
@@ -1023,7 +1029,13 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
                 } else if (subview === 'soa') {
                     navigate('soa', { currentProject: proj });
                 } else if (Object.hasOwn(TELA_DO_AVISO, subview || '')) {
-                    navigate(TELA_DO_AVISO[subview], { currentProject: proj, activeProject: proj });
+                    // Incidente é do núcleo: os dois produtos têm a tela (aba Incidentes), então navega local em qualquer um.
+                    const destino = subview === 'incidentes' ? {} : destinoDoAviso(subview);
+                    if (destino.href) irPara(destino.href);
+                    else {
+                        if (subview === 'incidentes') S.titularAba = 'incidentes';
+                        navigate(TELA_DO_AVISO[subview], { currentProject: proj, activeProject: proj });
+                    }
                 } else {
                     navigate('project-detail', { currentProject: proj });
                 }
@@ -1122,6 +1134,8 @@ window.updateContextPanel = function updateContextPanel() {
 // Espelho de `ehComercial` (src/helpers.ts). Só decide o que MOSTRAR; quem
 // barra de verdade é o servidor.
 window.ehComercial = function ehComercial() { return !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role)); }
+// Espelho de `ehEquipeNess` (src/helpers.ts, PAPEIS_NESS): equipe da consultoria, não cliente. Só decide o que MOSTRAR; o servidor barra.
+window.ehEquipeNess = function ehEquipeNess() { return !!(S.user && ['consultor', 'consultant', 'platform_admin', 'consultoria_admin'].includes(S.user.role)); }
 
 // Leads são do comercial (somenteComercial no servidor): para os demais papéis
 // não pede — evita o 403 a cada login do consultor.
@@ -1129,7 +1143,17 @@ window.loadLeads = async function loadLeads() { if (!window.ehComercial()) { S.l
 
 window.loadAssessments = async function loadAssessments() { try { S.assessments = await api('GET', '/api/v1/assessments'); } catch(e) { S.assessments = []; } }
 
-window.loadProjects = async function loadProjects() { try { S.projects = await api('GET', '/api/v1/projects'); if (typeof updateSidebarProjectSelector === 'function') { updateSidebarProjectSelector(); } } catch(e) { S.projects = []; } }
+window.loadProjects = async function loadProjects() {
+    try {
+        // Só os projetos que têm o módulo do caminho (n.iso ou n.privacy); no início do n.360, todos. O servidor trava de qualquer jeito.
+        const todos = await api('GET', '/api/v1/projects');
+        S.projects = projetosDoProduto(todos);
+        // O projeto ativo guardado sai só se ele existe e é de OUTRO produto (lista vazia ou com falha não apaga a escolha).
+        const ativo = S.activeProject && Array.isArray(todos) ? todos.find((p) => p.id === S.activeProject.id) : null;
+        if (ativo && !S.projects.some((p) => p.id === ativo.id)) { S.activeProject = null; S.currentProject = null; try { localStorage.removeItem('niso_activeProject'); } catch (e) {} }
+        if (typeof updateSidebarProjectSelector === 'function') { updateSidebarProjectSelector(); }
+    } catch(e) { S.projects = []; }
+}
 
 window.loadControls = async function loadControls() { try { S.controls = await api('GET', '/api/v1/controls'); } catch(e) { S.controls = []; } }
 
@@ -1317,6 +1341,12 @@ function renderLegalBanner() {
     }
 
 window.initApp = async function initApp() {
+        // Domínio antigo (niso, nprivacy): a raiz e o /login saem como arquivo estático antes do Worker, então o app se
+        // leva ao endereço canônico (o `app_url` do /health) antes de qualquer outra coisa (inclusive do ?assessment, que
+        // segue na query). Fora de domínio antigo não há chamada nenhuma aqui.
+        const legado = await destinoLegado();
+        if (legado) { irPara(legado, true); return; }
+
         // Sprint C: Check for public assessment self-service link
         const assessmentToken = new URLSearchParams(location.search).get('assessment');
         if (assessmentToken) {
@@ -1367,8 +1397,31 @@ window.initApp = async function initApp() {
         updateHeaderUser();
         updateActiveProjectWidget();
 
+        const produto = produtoAtual();
+        // Módulos alcançáveis: os dos projetos visíveis (o cliente olha só o projeto dele).
+        const doCliente = isClient && S.user.client_project_id ? (S.projects || []).filter((p) => p.id === S.user.client_project_id) : [];
+        const meus = doCliente.length ? doCliente : (S.projects || []);
+        const modulos = [...new Set(meus.flatMap(modulosVisiveis))];
         if (ehStakeholder) {
             navigate('meus-pedidos');
+        } else if (produto === 'n360' && !modulos.length && !isClient) {
+            // Equipe da ness. sem projeto ainda (instalação nova, comercial): o funil comercial e a criação de projeto vivem
+            // no n.iso. Sem isto ela ficaria trancada fora.
+            irPara(enderecoDoProduto('iso'), true);
+            return;
+        } else if (!(S.projects || []).length && (produto === 'privacy' || produto === 'n360' || isClient)) {
+            // Nenhum projeto com o módulo do caminho (ou nenhum módulo, no n.360): diz isso, em vez de uma tela vazia.
+            S.view = 'sem-acesso-produto';
+            semAcesso(document.getElementById('content'));
+        } else if (produto === 'n360' && modulos.length === 1) {
+            // Um módulo só: entra direto nele.
+            irPara(enderecoDoProduto(modulos[0]), true);
+            return;
+        } else if (produto === 'n360') {
+            navigate('inicio');
+        } else if (produto === 'privacy') {
+            if (!S.activeProject) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
+            navigate('encarregado');
         } else if (isClient && S.user.client_project_id) {
             navigate('project-detail');
         } else {

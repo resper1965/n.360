@@ -40,6 +40,15 @@ describe('Raiz e rota desconhecida entregam a tela de entrada', () => {
     expect(pedidos).toEqual(['/auditor']);
   });
 
+  it('/iso e /privacy/x (módulos do n.360) entregam o shell do app', async () => {
+    for (const caminho of ['/iso', '/privacy/x']) {
+      const assets = assetsFalso();
+      const res = await app.request(caminho, {}, { ASSETS: assets } as any);
+      expect(await res.text()).toBe('shell do app');
+      expect(assets.pedidos).toEqual([caminho, '/login']);
+    }
+  });
+
   it('rota desconhecida também cai na tela de entrada', async () => {
     const assets = assetsFalso();
     const res = await app.request('/algo-que-nao-existe', {}, { ASSETS: assets } as any);

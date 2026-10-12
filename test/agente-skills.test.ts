@@ -93,5 +93,8 @@ describe('niso_skill e o roteiro 4', () => {
     expect(ROTEIROS).toContain('niso_skill');
     expect(ROTEIROS).toMatch(/prontid[aã]o/i);
     expect(INSTRUCOES.length).toBeLessThanOrEqual(2048);
+    // Roteiros do n.privacy: inventário, titular/incidente e cobertura LGPD, todos com aprovação humana.
+    for (const n of ['5. Inventário', '6. Pedido do titular ou incidente', '7. Cobertura LGPD']) expect(ROTEIROS, n).toContain(n);
+    expect(ROTEIROS.split('\n').filter((l) => /^[567]\./.test(l)).every((l) => l.includes('PEÇA APROVAÇÃO HUMANA'))).toBe(true);
   });
 });

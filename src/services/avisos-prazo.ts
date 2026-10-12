@@ -8,10 +8,11 @@
 
 import { genId, escapeHtml, enviarEmail } from '../helpers';
 import { appUrl } from '../config/url';
+import { vencerEvidencias } from './evidencia-validade';
 import { log } from '../observability';
 import type { Bindings } from '../index';
 
-export type Fonte = 'capa' | 'checklist' | 'auditoria' | 'certificado' | 'link_auditor' | 'politica';
+export type Fonte = 'capa' | 'checklist' | 'auditoria' | 'certificado' | 'link_auditor' | 'politica' | 'documento' | 'excecao' | 'avaliacao_terceiro' | 'titular_pedido' | 'incidente' | 'evidencia';
 
 export type ItemPrazo = {
   fonte: Fonte;
@@ -66,6 +67,17 @@ export function marcoDoDia(vence: string, hoje: string): string | null {
  * link revogado; certificado renovado e política revisada saem sozinhos, porque a data anda.
  * Política: o filtro efetivo é "as duas assinaturas" (CISO e CEO); a descrição (texto) do catálogo quase
  * sempre existe, então o teste de texto não vazio quase nunca descarta nada.
+ * Documento (fatia 3.4): `revisar_ate` de documento VIGENTE; revisar (data nova) ou aposentar tira o item. O responsável
+ * é o e-mail da parte dona, senão o nome.
+ * Exceção (fatia 3.5): `vence_em` de exceção ATIVA a documento; revogar ou prorrogar tira o item. Responsável = dono do documento.
+ * Avaliação de terceiro (fatia 6): `valido_ate` da avaliação MAIS RECENTE de cada terceiro ativo, que não seja reprovada (reprovada já é
+ * alerta por si); avaliação nova põe a data para frente e tira o item. O título leva quantos tratamentos usam o terceiro. Sem responsável:
+ * a parte não tem dono, então o aviso vai aos consultores do projeto.
+ * Pedido do titular (fatia 7): `prazo_em` de pedido ainda não respondido, negado ou arquivado; sem parâmetro cadastrado o prazo é nulo e
+ * o pedido não entra. Incidente: um item por comunicação pendente (`<id>:anpd` e `<id>:titular`), só enquanto não encerrado, não comunicado
+ * e com risco diferente de `sem_risco`. Responsável = a parte responsável do registro.
+ * Evidência (fatia 8): `valido_ate` da evidência que tem validade; renovar a data (reavaliar com validade nova) tira o item. Sem responsável: vai
+ * aos consultores. A rotina `vencerEvidencias` devolve a avaliação a `pending` antes de avisar.
  * ponytail: '-3 hours' é o fuso de São Paulo fixo (sem horário de verão desde 2019); se voltar, troca
  * por conversão no TypeScript.
  */
@@ -87,6 +99,37 @@ const FONTES: Record<Fonte, string> = {
       c.title AS titulo, c.owner AS responsavel
     FROM compliance_controls c JOIN projects p ON p.id = c.project_id
     WHERE trim(COALESCE(c.description, '')) <> '' AND c.ciso_approved_at IS NOT NULL AND c.ceo_approved_at IS NOT NULL`,
+  documento: `SELECT d.id AS item_id, d.project_id, date(substr(d.revisar_ate, 1, 10)) AS vence_em, d.titulo AS titulo,
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel
+    FROM documentos d JOIN projects p ON p.id = d.project_id LEFT JOIN partes pa ON pa.id = d.dono_parte_id AND pa.project_id = d.project_id
+    WHERE d.status = 'vigente' AND d.revisar_ate IS NOT NULL`,
+  excecao: `SELECT e.id AS item_id, e.project_id, date(substr(e.vence_em, 1, 10)) AS vence_em, 'Exceção a ' || d.titulo AS titulo,
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel
+    FROM documento_excecoes e JOIN documentos d ON d.id = e.documento_id JOIN projects p ON p.id = e.project_id
+      LEFT JOIN partes pa ON pa.id = d.dono_parte_id AND pa.project_id = d.project_id
+    WHERE e.status = 'ativa'`,
+  avaliacao_terceiro: `SELECT a.id AS item_id, a.project_id, date(substr(a.valido_ate, 1, 10)) AS vence_em,
+      'Avaliação do terceiro ' || pa.nome || CASE WHEN COALESCE(n.q, 0) > 0 THEN ' (' || n.q || CASE WHEN n.q = 1 THEN ' tratamento' ELSE ' tratamentos' END || ')' ELSE '' END AS titulo,
+      NULL AS responsavel
+    FROM avaliacoes_terceiro a JOIN partes pa ON pa.id = a.parte_id JOIN projects p ON p.id = a.project_id
+      LEFT JOIN (SELECT parte_id, count(DISTINCT alvo_id) AS q FROM parte_vinculos WHERE alvo_tipo = 'tratamento' GROUP BY parte_id) n ON n.parte_id = pa.id
+    WHERE pa.status = 'ativa' AND a.resultado <> 'reprovado'
+      AND a.id = (SELECT a2.id FROM avaliacoes_terceiro a2 WHERE a2.parte_id = a.parte_id ORDER BY a2.created_at DESC, a2.rowid DESC LIMIT 1)`,
+  titular_pedido: `SELECT t.id AS item_id, t.project_id, date(substr(t.prazo_em, 1, 10)) AS vence_em, 'Pedido do titular ' || t.protocolo AS titulo,
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel
+    FROM titular_pedidos t JOIN projects p ON p.id = t.project_id LEFT JOIN partes pa ON pa.id = t.responsavel_parte_id AND pa.project_id = t.project_id
+    WHERE t.status IN ('recebido', 'em_andamento') AND t.prazo_em IS NOT NULL`,
+  incidente: `SELECT i.id || ':anpd' AS item_id, i.project_id, date(substr(i.prazo_anpd_em, 1, 10)) AS vence_em, 'Comunicação à ANPD do incidente ' || i.protocolo AS titulo,
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel
+    FROM incidentes i JOIN projects p ON p.id = i.project_id LEFT JOIN partes pa ON pa.id = i.responsavel_parte_id AND pa.project_id = i.project_id
+    WHERE i.status <> 'encerrado' AND i.prazo_anpd_em IS NOT NULL AND i.comunicacao_anpd_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'
+    UNION ALL
+    SELECT i.id || ':titular', i.project_id, date(substr(i.prazo_titular_em, 1, 10)), 'Comunicação ao titular do incidente ' || i.protocolo,
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome)
+    FROM incidentes i JOIN projects p ON p.id = i.project_id LEFT JOIN partes pa ON pa.id = i.responsavel_parte_id AND pa.project_id = i.project_id
+    WHERE i.status <> 'encerrado' AND i.prazo_titular_em IS NOT NULL AND i.comunicacao_titular_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'`,
+  evidencia: `SELECT e.id AS item_id, e.project_id, date(substr(e.valido_ate, 1, 10)) AS vence_em, 'Evidência ' || e.file_name AS titulo, NULL AS responsavel
+    FROM evidence e JOIN projects p ON p.id = e.project_id WHERE e.valido_ate IS NOT NULL`,
 };
 
 /** Os itens que têm marco hoje. Uma fonte que falha vai para `falhas` e as outras seguem. */
@@ -157,12 +200,12 @@ export type ResultadoAvisos = { avisos_criados: number; emails_enviados: number;
 
 const ROTULO: Record<Fonte, string> = {
   capa: 'CAPA', checklist: 'Item do checklist', auditoria: 'Auditoria', certificado: 'Certificado',
-  link_auditor: 'Link do auditor', politica: 'Política',
+  link_auditor: 'Link do auditor', politica: 'Política', documento: 'Documento', excecao: 'Exceção', avaliacao_terceiro: 'Avaliação de terceiro', titular_pedido: 'Pedido do titular', incidente: 'Incidente', evidencia: 'Evidência',
 };
 
 /** Tela de cada fonte no clique do sino (frontend/src/globals.js, handleNotificationClick). */
 const TELA: Record<Fonte, string> = {
-  capa: '/capa', checklist: '', auditoria: '/audits', certificado: '/certification', link_auditor: '/audits', politica: '/policies',
+  capa: '/capa', checklist: '', auditoria: '/audits', certificado: '/certification', link_auditor: '/audits', politica: '/policies', documento: '/documentos', excecao: '/documentos', avaliacao_terceiro: '/terceiros', titular_pedido: '/titular', incidente: '/incidentes', evidencia: '/evidence',
 };
 
 const dataBr = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;
@@ -172,6 +215,8 @@ const quando = (marco: string) => (marco === 'D-7' ? 'vence em 7 dias' : marco =
 export function tituloDoAviso(item: Pick<ItemDoDia, 'fonte' | 'marco' | 'titulo'>): string {
   const d7 = item.marco === 'D-7';
   if (item.fonte === 'politica') return `Política ${item.titulo.split(' ')[0]} precisa de revisão${d7 ? ' em 7 dias' : ''}`;
+  if (item.fonte === 'documento') return `Documento ${item.titulo} precisa de revisão${d7 ? ' em 7 dias' : ''}`;
+  if (item.fonte === 'excecao' || item.fonte === 'avaliacao_terceiro' || item.fonte === 'titular_pedido' || item.fonte === 'incidente' || item.fonte === 'evidencia') return `${item.titulo} ${quando(item.marco)}`;
   if (item.fonte === 'auditoria') return `Auditoria ${d7 ? 'em 7 dias' : 'hoje'}`;
   return `${ROTULO[item.fonte]} ${quando(item.marco)}`;
 }
@@ -190,6 +235,8 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
   const primeira = !(await db.prepare('SELECT 1 FROM avisos_prazo LIMIT 1').first());
   const { itens, falhas } = await itensDoDia(db, hoje);
   const r: ResultadoAvisos = { avisos_criados: 0, emails_enviados: 0, sem_destinatario: 0, falhas };
+  // Antes de avisar: a evidência vencida volta a `pending` (fatia 8). Falha aqui não impede os avisos.
+  try { await vencerEvidencias(db, hoje); } catch (e) { falhas.push(`evidencia_vencida: ${mensagem(e)}`); }
   const pessoasPorProjeto = new Map<string, Pessoa[]>();
   const atrasoNovo = new Map<string, { project_id: string; user_id: string; n: number }>();
 
@@ -276,7 +323,7 @@ async function enviarResumos(env: EnvAvisos, r: ResultadoAvisos): Promise<void> 
   for (const [userId, linhas] of porPessoa) {
     const n = linhas.length;
     try {
-      const ok = await enviarEmail(env, linhas[0].email, `n.iso: ${n} ${n === 1 ? 'prazo' : 'prazos'} para acompanhar`, emailResumo(linhas, appUrl(env)));
+      const ok = await enviarEmail(env, linhas[0].email, `n.360: ${n} ${n === 1 ? 'prazo' : 'prazos'} para acompanhar`, emailResumo(linhas, appUrl(env)));
       // Recusado: fica nulo e o dia seguinte tenta de novo, sem notificação nova. O log leva o id, não o e-mail.
       if (!ok) { r.falhas.push(`email ${userId}: envio recusado`); continue; }
       await env.DB.prepare(`UPDATE avisos_prazo SET email_enviado_em = datetime('now') WHERE email_enviado_em IS NULL AND id IN (SELECT value FROM json_each(?))`)
@@ -299,7 +346,7 @@ function emailResumo(linhas: LinhaEmail[], base: string): string {
       `<li>${e(ROTULO[l.fonte])}: ${e(l.titulo)} (${e(quando(l.marco))}, ${dataBr(l.vence_em)})</li>`).join('')}</ul>`).join('');
   return `<div style="font-family: Arial, sans-serif; max-width: 560px; color: #1e293b;">
     <p>Estes prazos precisam da sua atenção:</p>${blocos}
-    <p><a href="${e(base)}" style="background-color: #00ade8; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Abrir o n.iso</a></p>
-    <p style="font-size: 12px; color: #64748b;">Os mesmos avisos estão no sino do n.iso, com o link de cada item.</p>
+    <p><a href="${e(base)}" style="background-color: #00ade8; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Abrir o n.360</a></p>
+    <p style="font-size: 12px; color: #64748b;">Os mesmos avisos estão no sino do n.360, com o link de cada item.</p>
   </div>`;
 }

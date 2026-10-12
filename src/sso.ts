@@ -323,10 +323,13 @@ export async function provisionar(
   const email = claims.email!.toLowerCase().trim();
 
   const existente = await env.DB.prepare(
-    'SELECT id, email, role, client_project_id, org_id FROM users WHERE lower(trim(email)) = ? ORDER BY email = ? DESC LIMIT 1'
-  ).bind(email, email).first<{ id: string; email: string; role: string; client_project_id: string | null; org_id: string }>();
+    'SELECT id, email, role, client_project_id, org_id, ativo FROM users WHERE lower(trim(email)) = ? ORDER BY email = ? DESC LIMIT 1'
+  ).bind(email, email).first<{ id: string; email: string; role: string; client_project_id: string | null; org_id: string; ativo: number | null }>();
 
   if (existente) {
+    // Desligada pelo SCIM ou pela tela, a pessoa ainda pode estar ativa no IdP do cliente: o IdP não
+    // decide sozinho quem volta a entrar.
+    if (existente.ativo === 0) throw new Error('Conta desativada. Login por SSO recusado.');
     // Conta de equipe (ou papel desconhecido) não entra por SSO de tenant, nem com projeto gravado.
     if (!papelValidoParaSso(existente.role)) {
       throw new Error('Esta conta não é de cliente. Login por SSO recusado.');
@@ -339,7 +342,8 @@ export async function provisionar(
       // um login de cliente a acesso de plataforma.
       throw new Error('Esta conta não é de cliente. Login por SSO recusado.');
     }
-    return { ...existente, client_project_id: existente.client_project_id, criado: false };
+    const { ativo: _ativo, ...conta } = existente;
+    return { ...conta, client_project_id: existente.client_project_id, criado: false };
   }
 
   if (!papelValidoParaSso(cfg.papel_padrao)) {

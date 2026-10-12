@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
-import { applySchema, workerEnv, sessionFor } from './helpers/d1';
+import { applySchema, workerEnv, sessionFor, concederModulos } from './helpers/d1';
 
 /**
  * Papel legado `employee` (existe uma conta de cliente assim em produção, criada em 22/07/2026, presa a
@@ -19,6 +19,7 @@ describe('papel legado employee', () => {
       env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-meu','Meu','ISO 27001','controller','Active','org_ness'),('p-outro','Outro','ISO 27001','controller','Active','org_ness')`),
       env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat) VALUES ('r-meu','p-meu','A','T'),('r-outro','p-outro','A','T')`),
     ]);
+    await concederModulos('u-emp', ['iso']);
     h = await sessionFor({ id: 'u-emp', email: 'emp@cliente.com', role: 'employee', client_project_id: 'p-meu', org_id: 'org_ness' });
   });
 

@@ -1,6 +1,8 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML } from '../ui.js';
+import './ponto-de-partida.js';
+import { projetosDoProduto } from '../produto.js';
 
 // Espelho de `ehComercial` (src/helpers.ts): o funil de leads é do comercial.
 // Local, e não `window.ehComercial`, para a view não depender da ordem de carga.
@@ -77,7 +79,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                 api('GET', '/api/v1/projects').catch(() => []),
                 api('GET', '/api/v1/controls').catch(() => [])
             ]);
-            const activeProjectsList = Array.isArray(projects) ? projects : [];
+            const activeProjectsList = projetosDoProduto(projects); // só os projetos do produto deste domínio
             const leadsCount = Array.isArray(leads) ? leads.length : 0;
             const assessmentsCount = Array.isArray(assessments) ? assessments.length : 0;
             const projectsCount = activeProjectsList.length;
@@ -134,6 +136,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
 
             c.innerHTML = `
                 <div class="fade-in">
+                    <div id="ponto-de-partida"></div>
                     ${statsHtml}
 
                     <div class="card fade-in" style="margin-bottom:1.5rem; background:rgba(15,23,42,0.65); border:1px solid rgba(229,235,255,0.08); border-radius:12px; padding:1.5rem; backdrop-filter:blur(24px);">
@@ -163,6 +166,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                     </div>
                 </div>
             `;
+            if (S.activeProject && S.activeProject.id) window.renderPontoDePartida(c.querySelector('#ponto-de-partida'), S.activeProject.id, 'iso');
         } catch (e) {
             c.innerHTML = '<div class="error">Erro ao carregar dashboard</div>';
         }

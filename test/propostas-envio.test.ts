@@ -100,7 +100,7 @@ describe('envio, link e aceite manual', () => {
     expect(e.to).toEqual(['cliente@empresa.com']);
     expect(e.reply_to).toBe('com@ness.lat');
     expect(e.from).toMatch(/^[^<>"\r\n]+ via n\.iso <noreply@ness\.com\.br>$/);
-    expect(e.html).toContain(`https://niso.ness.com.br/proposta#${t}`);
+    expect(e.html).toContain(`https://n360.ness.com.br/proposta#${t}`);
     expect(e.html).toContain('31/12/2099');
     expect(e.html).toContain('Ver e responder a proposta');
     expect(e.html).not.toContain('<b>Oi</b>');
@@ -155,7 +155,7 @@ describe('envio, link e aceite manual', () => {
     const r = await chamar('POST', `/api/v1/propostas/${id}/link`, com);
     expect(r.status).toBe(200);
     const { url } = await r.json<any>();
-    expect(url).toMatch(/^https:\/\/niso\.ness\.com\.br\/proposta#[0-9a-f]{64}$/);
+    expect(url).toMatch(/^https:\/\/n360\.ness\.com\.br\/proposta#[0-9a-f]{64}$/);
     const t = url.split('#')[1];
     const p = await linha(id);
     expect(p.token_hash).toBe(await sha256Hex(t));
