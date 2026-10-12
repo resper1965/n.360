@@ -445,13 +445,15 @@ usersApp.put('/:id/modulos', async (c) => {
       return c.json({ error: 'Forbidden: Access denied to this user' }, 403);
     }
     const pedido = ordenar(v.data.modulos);
-    if (admin.role !== 'platform_admin') {
-      const recusa = recusaDeTeto(pedido, await tetoDaConta(db, user));
-      if (recusa) return c.json(recusa, 400);
-    }
     const antes = await modulosDaPessoa(db, { id });
-    await db.batch(trocarModulosComTrilha(db, user, antes, pedido, admin.email));
-    return c.json({ ok: true, modulos: pedido });
+    // O que quem edita pode dar: o teto da conta (platform_admin: todos). Pedir fora dele é recusado; o que a conta JÁ tem
+    // fora dele fica (quem edita não vê nem tira o módulo que o platform_admin deu): final = (pedido ∩ teto) ∪ (atual \ teto).
+    const teto = admin.role === 'platform_admin' ? [...MODULOS_PRODUTO] : await tetoDaConta(db, user);
+    const recusa = recusaDeTeto(pedido, teto);
+    if (recusa) return c.json(recusa, 400);
+    const depois = ordenar([...pedido, ...antes.filter((m) => !teto.includes(m))]);
+    await db.batch(trocarModulosComTrilha(db, user, antes, depois, admin.email));
+    return c.json({ ok: true, modulos: depois });
   } catch (e) {
     return erro500(c, 'Falha ao conceder módulos', e);
   }

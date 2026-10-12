@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, logAudit, podeAdministrarOrg } from '../helpers';
+import { erro500, genId, logAudit, podeAdministrarOrg } from '../helpers';
 import { importarPartes, conciliarResponsaveis } from '../services/partes';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { NOME_DO_PRODUTO } from '../modulos';
@@ -47,13 +47,17 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
       if (!ligado) {
         // Módulos por pessoa (fatia 3 do n.360): ligar o módulo no projeto o concede às contas de CLIENTE dele, no mesmo
         // batch. Equipe e stakeholder não: a equipe recebe pelo contrato da organização (ou por PUT /users/:id/modulos).
-        const [, concedidas] = await db.batch([
+        // A trilha é o terceiro statement do MESMO batch: se ela falha, nem o módulo nem a concessão ficam.
+        await db.batch([
           db.prepare('INSERT INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, ?, ?)').bind(projectId, modulo, user.email),
           db.prepare(`INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
             SELECT id, ?, ? FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client')`).bind(modulo, user.email, projectId),
+          db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
+            VALUES (?, 'usuario.modulos', ?, ? || ' habilitado no projeto: concedido a '
+              || (SELECT COUNT(*) FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client')) || ' contas de cliente',
+              '', '', ?, datetime('now'))`)
+            .bind(genId(), user.email, NOME_DO_PRODUTO[modulo as Modulo], projectId, projectId),
         ]);
-        await logAudit(db, 'usuario.modulos', user.email,
-          `${NOME_DO_PRODUTO[modulo as Modulo]} habilitado no projeto: concedido a ${concedidas.meta.changes ?? 0} contas de cliente`, '', '', projectId);
       }
     } else if (ligado) {
       if (est.habilitados.length === 1) return c.json({ error: 'O projeto precisa de ao menos um módulo' }, 409);

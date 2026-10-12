@@ -170,6 +170,28 @@ describe('habilitar módulo no projeto concede às contas de cliente dele', () =
     expect(await modulos('h-ou')).toEqual(['iso']);
     expect(await trilha()).toHaveLength(1);
   });
+
+  it('a trilha está no mesmo batch: se ela falha, nem o módulo do projeto nem a concessão ficam', async () => {
+    await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-hab2', 'Hab2', 'x', 'c', 'Active', 'o-duo')`).run();
+    await env.DB.prepare(`DELETE FROM projeto_modulos WHERE project_id = 'p-hab2' AND modulo = 'privacy'`).run();
+    await env.DB.batch([conta('h2-ou', 'org_user', 'p-hab2'), conta('h2-pa', 'platform_admin')]);
+    // Proxy sobre o D1 real: só o INSERT da trilha `usuario.modulos` aponta para tabela inexistente (falha no batch).
+    const db = new Proxy(env.DB, {
+      get(alvo, prop) {
+        if (prop === 'prepare') {
+          return (sql: string) => alvo.prepare(/INSERT INTO audit_logs/.test(sql) && sql.includes('usuario.modulos') ? sql.replace('audit_logs', 'tabela_que_nao_existe') : sql);
+        }
+        const v = (alvo as any)[prop];
+        return typeof v === 'function' ? v.bind(alvo) : v;
+      },
+    });
+    const h = await sessao('h2-pa', 'platform_admin');
+    const r = await worker.fetch(new Request('http://localhost/api/v1/projects/p-hab2/modulos/privacy',
+      { method: 'PUT', headers: { ...h, ...json }, body: JSON.stringify({ habilitado: true }) }), { ...workerEnv(), DB: db });
+    expect(r.status).toBe(500);
+    expect(await env.DB.prepare(`SELECT 1 FROM projeto_modulos WHERE project_id = 'p-hab2' AND modulo = 'privacy'`).first()).toBeNull();
+    expect(await modulos('h2-ou')).toEqual(['iso']);
+  });
 });
 
 describe('conceder: PUT /users/:id/modulos', () => {
@@ -224,6 +246,21 @@ describe('conceder: PUT /users/:id/modulos', () => {
     expect((await put(cadm, 'c-cons-priv', ['iso'])).status).toBe(400);
     expect((await put(cadm, 'c-cons-priv', [])).status).toBe(200);
     expect(await modulos('c-cons-priv')).toEqual([]);
+  });
+
+  it('o que a conta já tem fora do teto de quem edita fica (não se perde módulo dado pelo platform_admin)', async () => {
+    await env.DB.batch([conta('c-oadm-iso', 'org_admin', 'p-iso'), conta('c-alvo', 'org_user', 'p-iso')]);
+    expect((await put(await sessao('c-pa', 'platform_admin'), 'c-alvo', ['iso', 'privacy'])).status).toBe(200);
+    const oadm = await sessao('c-oadm-iso', 'org_admin', 'p-iso'); // teto: n.iso (o do projeto)
+    const r = await put(oadm, 'c-alvo', ['iso']);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true, modulos: ['iso', 'privacy'] });
+    expect(await modulos('c-alvo')).toEqual(['iso', 'privacy']);
+    expect((await put(oadm, 'c-alvo', [])).status).toBe(200);
+    expect(await modulos('c-alvo')).toEqual(['privacy']);
+    const log = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'usuario.modulos' AND details LIKE '%c-alvo@ex.lat%' ORDER BY rowid DESC LIMIT 1`).first<any>();
+    expect(log.details).toContain('iso, privacy → privacy');
+    expect((await put(oadm, 'c-alvo', ['privacy'])).status).toBe(400); // pedir fora do teto continua recusado
   });
 
   it('quem não gere a conta não concede', async () => {
