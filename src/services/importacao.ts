@@ -1,17 +1,22 @@
 import { logAudit } from '../helpers';
 import { log, resumoErro } from '../observability';
-import { ImportacaoAgent, type TipoArquivo } from '../agents/importacao';
-import { OBRIGATORIOS_ROPA, OBRIGATORIOS_TERCEIRO, terceiroPropostoSchema, tratamentoPropostoSchema, type TerceiroProposto, type TratamentoProposto } from '../schemas/importacao';
+import { ImportacaoAgent, type TipoArquivo, type TipoExtraido } from '../agents/importacao';
+import {
+  OBRIGATORIOS_AVALIACAO, OBRIGATORIOS_DOCUMENTO, OBRIGATORIOS_ROPA, OBRIGATORIOS_TERCEIRO, avaliacaoPropostaSchema, documentoPropostoSchema,
+  terceiroPropostoSchema, tratamentoPropostoSchema, type AvaliacaoProposta, type DocumentoProposto, type TerceiroProposto, type TratamentoProposto,
+} from '../schemas/importacao';
 import { chave, stmtInserirTratamento, validarTratamento } from './tratamentos-importar';
-import { stmtsLigacao } from './tratamentos';
+import { lerLigacoes, stmtsLigacao } from './tratamentos';
 import { stmtsCriarAtivo } from './itens';
-import { ehLegitimoInteresse } from './lia';
+import { criarDpiaDoTratamento, ehLegitimoInteresse, lerLia, salvarLia } from './lia';
+import { criarDocumento } from './documentos';
 import { definirTipo, ligarDocumento, registrarAvaliacao } from './terceiros';
 
 /**
- * Importação de programa de privacidade (n.privacy, fatias 1 e 2; spec docs/superpowers/specs/2026-10-11-importacao-privacy-design.md).
- * Lote → arquivos (R2 `STORAGE`, chave `importacoes/<projeto>/<lote>/<arquivo>`) → o agente classifica e, se for inventário ou lista
- * de terceiros, propõe os itens (`entidade` tratamento ou terceiro) → uma pessoa revisa → `confirmar` grava os aceitos.
+ * Importação de programa de privacidade (n.privacy, fatias 1 a 3; spec docs/superpowers/specs/2026-10-11-importacao-privacy-design.md).
+ * Lote → arquivos (R2 `STORAGE`, chave `importacoes/<projeto>/<lote>/<arquivo>`) → o agente classifica e, se for inventário, lista
+ * de terceiros, documento ou avaliação, propõe os itens (`entidade` tratamento, terceiro, documento, dpia ou lia) → uma pessoa revisa
+ * → `confirmar` grava os aceitos.
  */
 
 export const MAX_ARQUIVOS = 50;
@@ -43,13 +48,21 @@ type Env = { DB: D1Database; STORAGE: R2Bucket; AI: Ai };
 type Lote = { id: string; project_id: string; status: string };
 type LinhaItem = { id: string; entidade: Entidade; dados: string; faltando: string; decisao: string; [k: string]: unknown };
 
-/** Entidade proposta por tipo de arquivo; tipo fora daqui fica `aguardando` (fatias seguintes). */
-type Entidade = 'tratamento' | 'terceiro';
-type TipoExtraido = 'inventario' | 'terceiros';
-const ENTIDADE_DO_TIPO: Partial<Record<TipoArquivo, Entidade>> = { inventario: 'tratamento', terceiros: 'terceiro' };
-const ESQUEMA = { tratamento: tratamentoPropostoSchema, terceiro: terceiroPropostoSchema };
-/** O nome que decide a duplicata: finalidade do tratamento, nome do terceiro. */
-const nomeDe = (entidade: Entidade, d: Record<string, unknown>) => String((entidade === 'terceiro' ? d.nome : d.finalidade) ?? '');
+/**
+ * Entidade proposta por tipo de arquivo; tipo fora daqui fica `aguardando` (fatia 4). Avaliação é `dpia` ou `lia` item a item (o campo
+ * `tipo` da resposta do modelo decide); `dpia` aqui só marca que o tipo é extraído.
+ */
+type Entidade = 'tratamento' | 'terceiro' | 'documento' | 'dpia' | 'lia';
+const ENTIDADE_DO_TIPO: Partial<Record<TipoArquivo, Entidade>> = { inventario: 'tratamento', terceiros: 'terceiro', documento: 'documento', avaliacao: 'dpia' };
+const ESQUEMA = {
+  tratamento: tratamentoPropostoSchema, terceiro: terceiroPropostoSchema, documento: documentoPropostoSchema, dpia: avaliacaoPropostaSchema, lia: avaliacaoPropostaSchema,
+};
+const OBRIGATORIOS: Record<Entidade, readonly string[]> = {
+  tratamento: OBRIGATORIOS_ROPA, terceiro: OBRIGATORIOS_TERCEIRO, documento: OBRIGATORIOS_DOCUMENTO, dpia: OBRIGATORIOS_AVALIACAO, lia: OBRIGATORIOS_AVALIACAO,
+};
+/** O nome que decide a duplicata: finalidade do tratamento, nome do terceiro, título do documento, tratamento avaliado. */
+const CAMPO_NOME: Record<Entidade, string> = { tratamento: 'finalidade', terceiro: 'nome', documento: 'titulo', dpia: 'tratamento', lia: 'tratamento' };
+const nomeDe = (entidade: Entidade, d: Record<string, unknown>) => String(d[CAMPO_NOME[entidade]] ?? '');
 
 const nf = (error: string): Falha => ({ ok: false, status: 404, error });
 
@@ -64,13 +77,20 @@ const cancelado = (l: Lote): Falha | null =>
 const LIVRE = `status NOT IN ('gravando', 'cancelada')`;
 const emGravacao: Falha = { ok: false, status: 409, error: 'Importação em gravação' };
 
-const faltandoDe = (entidade: Entidade, d: Record<string, unknown>) =>
-  (entidade === 'terceiro' ? OBRIGATORIOS_TERCEIRO : OBRIGATORIOS_ROPA).filter((k) => !String(d[k] ?? '').trim());
+const faltandoDe = (entidade: Entidade, d: Record<string, unknown>) => OBRIGATORIOS[entidade].filter((k) => !String(d[k] ?? '').trim());
 
-/** Registros já cadastrados, por nome normalizado: tratamentos do RoPA ou partes organização ATIVAS (a inativa não é duplicata). */
-const existentes = (db: D1Database, projectId: string, entidade: Entidade) => mapaPorNome(db, entidade === 'terceiro'
-  ? `SELECT id, nome FROM partes WHERE project_id = ? AND tipo = 'organizacao' AND status = 'ativa' ORDER BY created_at`
-  : 'SELECT id, processing_purpose AS nome FROM ropa_records WHERE project_id = ?', projectId);
+/**
+ * Registros já cadastrados, por nome normalizado: tratamentos do RoPA, partes organização ATIVAS (a inativa não é duplicata),
+ * documentos pelo título, DPIA e LIA pela finalidade do tratamento a que estão ligadas.
+ */
+const SQL_EXISTENTES: Record<Entidade, string> = {
+  tratamento: 'SELECT id, processing_purpose AS nome FROM ropa_records WHERE project_id = ?',
+  terceiro: `SELECT id, nome FROM partes WHERE project_id = ? AND tipo = 'organizacao' AND status = 'ativa' ORDER BY created_at`,
+  documento: 'SELECT id, titulo AS nome FROM documentos WHERE project_id = ? ORDER BY created_at',
+  dpia: 'SELECT d.id, r.processing_purpose AS nome FROM dpia_assessments d JOIN ropa_records r ON r.id = d.ropa_id WHERE d.project_id = ? ORDER BY d.created_at',
+  lia: 'SELECT l.id, r.processing_purpose AS nome FROM lia_assessments l JOIN ropa_records r ON r.id = l.ropa_id WHERE l.project_id = ?',
+};
+const existentes = (db: D1Database, projectId: string, entidade: Entidade) => mapaPorNome(db, SQL_EXISTENTES[entidade], projectId);
 
 const itemLido = (i: LinhaItem) => ({ ...i, dados: JSON.parse(i.dados) as Record<string, unknown>, faltando: JSON.parse(i.faltando) as string[] });
 
@@ -274,7 +294,8 @@ async function converter(env: Env, projectId: string, loteId: string, a: Arquivo
     return fim('erro', null, 'a IA não respondeu; processe de novo', null);
   }
   if (!ENTIDADE_DO_TIPO[r.tipo]) return fim('aguardando', r.tipo, null, r.modelo);
-  const total = blocos(lido.texto).length;
+  // Documento: um item por arquivo, tirado do começo (título, tipo, resumo); o texto inteiro vai para a versão na gravação.
+  const total = r.tipo === 'documento' ? 1 : blocos(lido.texto).length;
   await env.STORAGE.put(TXT(a.r2_key), lido.texto, { httpMetadata: { contentType: 'text/plain; charset=utf-8' } });
   // Um cancelamento entre a conversão e o put já apagou o lote: o texto (dado do cliente) não pode ficar órfão no R2.
   const vivo = await db.prepare(`SELECT 1 FROM importacao_arquivos a JOIN importacoes l ON l.id = a.importacao_id WHERE a.id = ? AND l.status <> 'cancelada'`).bind(a.id).first();
@@ -293,26 +314,38 @@ async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arqu
   }
   const n = a.bloco_atual;
   const total = a.blocos_total;
-  const tipo = a.tipo as TipoExtraido; // só inventário e terceiros chegam aqui (os outros param em `aguardando`)
-  const entidade = ENTIDADE_DO_TIPO[tipo]!;
+  const tipo = a.tipo as TipoExtraido; // só os tipos de ENTIDADE_DO_TIPO chegam aqui (os outros param em `aguardando`)
   const r = await extrairComDivisao(new ImportacaoAgent(env.AI, db, env), tipo, blocos(await obj.text())[n] ?? '');
   const falhos = [...(a.blocos_falhos ? a.blocos_falhos.split(',') : []), ...(r.falhou ? [String(n + 1)] : [])];
 
-  const porNome = await existentes(db, projectId, entidade);
-  const stmts = r.itens.map((bruto) => {
+  const mapas = new Map<Entidade, Map<string, string>>();
+  const porNome = async (e: Entidade) => mapas.get(e) ?? mapas.set(e, await existentes(db, projectId, e)).get(e)!;
+  // Um documento por arquivo: o que vier a mais na resposta é ignorado.
+  const brutos = tipo === 'documento' ? r.itens.slice(0, 1) : r.itens;
+  const stmts: D1PreparedStatement[] = [];
+  for (const bruto of brutos) {
     const o = bruto && typeof bruto === 'object' ? { ...(bruto as Record<string, unknown>) } : {};
     const confianca = CONFIANCAS.has(String(o.confianca)) ? String(o.confianca) : 'baixa';
     const origem = typeof o.origem === 'string' ? o.origem.slice(0, 500) : null;
+    let entidade = ENTIDADE_DO_TIPO[tipo]!;
+    let recusa: string | null = null;
+    if (tipo === 'avaliacao') {
+      if (o.tipo === 'dpia' || o.tipo === 'lia') entidade = o.tipo; else recusa = 'tipo: informe dpia ou lia';
+      delete o.tipo;
+    }
     delete o.confianca;
     delete o.origem;
     const v = ESQUEMA[entidade].safeParse(o);
-    if (!v.success) {
-      const i = v.error.issues[0];
-      return stmtItem(db, loteId, a.id, projectId, n, entidade, {}, origem, confianca, [], null, 'recusado', `${i?.path.join('.') || 'item'}: ${i?.message ?? 'inválido'}`.slice(0, 300));
+    if (recusa || !v.success) {
+      const i = v.success ? null : v.error.issues[0];
+      const motivo = recusa ?? `${i?.path.join('.') || 'item'}: ${i?.message ?? 'inválido'}`;
+      stmts.push(stmtItem(db, loteId, a.id, projectId, n, entidade, {}, origem, confianca, [], null, 'recusado', motivo.slice(0, 300)));
+      continue;
     }
-    const dup = porNome.get(chave(nomeDe(entidade, v.data))) ?? null;
-    return stmtItem(db, loteId, a.id, projectId, n, entidade, v.data, origem, confianca, faltandoDe(entidade, v.data), dup, dup ? 'descartado' : 'pendente', null);
-  });
+    const dados = v.data as Record<string, unknown>;
+    const dup = (await porNome(entidade)).get(chave(nomeDe(entidade, dados))) ?? null;
+    stmts.push(stmtItem(db, loteId, a.id, projectId, n, entidade, dados, origem, confianca, faltandoDe(entidade, dados), dup, dup ? 'descartado' : 'pendente', null));
+  }
 
   const ultimo = n + 1 >= total;
   let status = 'pendente';
@@ -344,7 +377,7 @@ function stmtItem(db: D1Database, loteId: string, arquivoId: string, projectId: 
 // ─── revisão ───────────────────────────────────────────────────────────────────────────────────────
 
 export async function atualizarItem(db: D1Database, projectId: string, loteId: string, itemId: string,
-  b: { dados?: TratamentoProposto | TerceiroProposto; decisao?: 'aceito' | 'descartado' | 'pendente' }): Promise<Falha | { ok: true; item: ReturnType<typeof itemLido> }> {
+  b: { dados?: TratamentoProposto | TerceiroProposto | DocumentoProposto | AvaliacaoProposta; decisao?: 'aceito' | 'descartado' | 'pendente' }): Promise<Falha | { ok: true; item: ReturnType<typeof itemLido> }> {
   const lote = await loteDoProjeto(db, projectId, loteId);
   if (!lote) return nf('Lote não encontrado');
   const c = cancelado(lote);
@@ -402,7 +435,8 @@ export const ITENS_POR_CONFIRMACAO = 30;
  * processar, enviar, editar item e cancelar recebem 409 enquanto ela dura. Sem ela, duas chamadas simultâneas liam os mesmos aceitos
  * e gravavam cada tratamento duas vezes; e com o status compartilhado com o processamento, um `processar` soltava a trava.
  */
-export async function confirmarLote(db: D1Database, projectId: string, loteId: string, ator: string): Promise<Falha | { ok: true; resultados: Resultado[]; restantes: number }> {
+export async function confirmarLote(env: Env, projectId: string, loteId: string, ator: string): Promise<Falha | { ok: true; resultados: Resultado[]; restantes: number }> {
+  const db = env.DB;
   const lote = await loteDoProjeto(db, projectId, loteId);
   if (!lote) return nf('Lote não encontrado');
   if (lote.status === 'cancelada') return { ok: false, status: 409, error: 'Lote cancelado' };
@@ -416,7 +450,7 @@ export async function confirmarLote(db: D1Database, projectId: string, loteId: s
     return { ok: false, status: 409, error: agora?.status === 'processando' ? 'Importação em processamento' : 'Importação já em gravação' };
   }
   try {
-    const resultados = await gravarAceitos(db, projectId, loteId, ator);
+    const resultados = await gravarAceitos(env, projectId, loteId, ator);
     const r = await db.prepare(`SELECT COUNT(*) AS n FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito'`).bind(loteId).first<{ n: number }>();
     return { ok: true, resultados, restantes: r?.n ?? 0 };
   } finally {
@@ -426,9 +460,11 @@ export async function confirmarLote(db: D1Database, projectId: string, loteId: s
   }
 }
 
-async function gravarAceitos(db: D1Database, projectId: string, loteId: string, ator: string): Promise<Resultado[]> {
-  // Tratamentos antes dos terceiros: o terceiro da mesma confirmação liga aos tratamentos que acabaram de ser gravados.
-  const { results: aceitos } = await db.prepare(`SELECT * FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito' ORDER BY CASE entidade WHEN 'tratamento' THEN 0 ELSE 1 END, created_at, rowid LIMIT ?`)
+async function gravarAceitos(env: Env, projectId: string, loteId: string, ator: string): Promise<Resultado[]> {
+  const db = env.DB;
+  // Tratamentos primeiro, depois documentos, depois o resto: terceiro, DPIA e LIA da mesma confirmação ligam aos tratamentos e
+  // documentos (DPA) que acabaram de ser gravados.
+  const { results: aceitos } = await db.prepare(`SELECT * FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito' ORDER BY CASE entidade WHEN 'tratamento' THEN 0 WHEN 'documento' THEN 1 ELSE 2 END, created_at, rowid LIMIT ?`)
     .bind(loteId, ITENS_POR_CONFIRMACAO).all<LinhaItem>();
   const { results: catalogo } = await db.prepare(
     `SELECT id, titulo FROM requisitos WHERE pai_id IN ('lgpd:art7', 'lgpd:art11') ORDER BY CASE pai_id WHEN 'lgpd:art7' THEN 0 ELSE 1 END, rowid`
@@ -449,6 +485,18 @@ async function gravarAceitos(db: D1Database, projectId: string, loteId: string, 
   for (const item of aceitos) {
     if (item.entidade === 'terceiro') {
       const r = await gravarTerceiro(db, projectId, loteId, ator, item, { orgs, finalidades, documentos });
+      if (r.decisao === 'recusado') await recusar(item.id, r.motivo!); else resultados.push(r);
+      continue;
+    }
+    if (item.entidade !== 'tratamento') {
+      let r: Resultado;
+      try {
+        r = item.entidade === 'documento' ? await gravarDocumento(env, projectId, loteId, ator, item, documentos)
+          : await gravarAvaliacao(db, projectId, loteId, ator, item, finalidades);
+      } catch (e) {
+        log('error', { msg: 'importacao_gravar_item', item: item.id, entidade: item.entidade, erro: resumoErro(e) });
+        r = { item_id: item.id, decisao: 'recusado', motivo: 'falha ao gravar o registro; tente de novo' };
+      }
       if (r.decisao === 'recusado') await recusar(item.id, r.motivo!); else resultados.push(r);
       continue;
     }
@@ -596,6 +644,111 @@ async function completarTerceiro(db: D1Database, projectId: string, loteId: stri
         WHERE parte_id = ?2 AND project_id = ?3 AND instr(COALESCE(notes, ''), ?1) = 0`).bind(nota, parteId, projectId).run();
     }
   }
+}
+
+const recusado = (item: LinhaItem, motivo: string): Resultado => ({ item_id: item.id, decisao: 'recusado', motivo });
+const marcarGravado = (db: D1Database, itemId: string, registroId: string) =>
+  db.prepare(`UPDATE importacao_itens SET decisao = 'gravado', registro_id = ?, motivo = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND decisao = 'aceito'`)
+    .bind(registroId, itemId).run();
+const gravado = (item: LinhaItem, registroId: string, avisos: string[]): Resultado =>
+  ({ item_id: item.id, decisao: 'gravado', registro_id: registroId, ...(avisos.length ? { aviso: avisos.join('; ') } : {}) });
+
+/**
+ * Grava um documento aceito (fatia 3) pelo serviço de documentos: nasce em RASCUNHO (nunca publicado: publicar é ato de uma pessoa
+ * na tela do documento), com o texto convertido do arquivo como versão 1 em rascunho. Título igual (normalizado) a um documento do
+ * projeto recusa. Depois, o arquivo original vira evidência ligada ao documento; se isso falhar, o documento fica e vira aviso.
+ */
+async function gravarDocumento(env: Env, projectId: string, loteId: string, ator: string, item: LinhaItem, documentos: Map<string, string>): Promise<Resultado> {
+  const db = env.DB;
+  const p = documentoPropostoSchema.safeParse(JSON.parse(item.dados));
+  if (!p.success) return recusado(item, 'dados do item inválidos');
+  const d = p.data;
+  const k = chave(d.titulo);
+  if (documentos.has(k)) return recusado(item, 'já existe documento com esse título neste projeto');
+  const a = await db.prepare('SELECT nome, mime, r2_key FROM importacao_arquivos WHERE id = ?').bind(item.arquivo_id).first<{ nome: string; mime: string; r2_key: string }>();
+  const txt = a ? await env.STORAGE.get(TXT(a.r2_key)) : null;
+  if (!a || !txt) return recusado(item, 'texto do arquivo não encontrado; processe o arquivo de novo');
+  const avisos: string[] = d.tipo ? [] : ['tipo não informado; gravado como política'];
+  const c = await criarDocumento(db, projectId, ator, { tipo: d.tipo ?? 'politica', titulo: d.titulo, texto: await txt.text() });
+  if (!c.ok) return recusado(item, c.error);
+  await marcarGravado(db, item.id, c.id);
+  documentos.set(k, c.id);
+  await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como documento ${c.id} (rascunho)`, '', '', projectId);
+  try {
+    await guardarOriginal(env, projectId, loteId, ator, c.id, a);
+  } catch (e) {
+    log('error', { msg: 'importacao_documento_original', item: item.id, erro: resumoErro(e) });
+    avisos.push('o arquivo original não foi guardado como evidência; anexe-o à mão');
+  }
+  return gravado(item, c.id, avisos);
+}
+
+/**
+ * Cópia do arquivo original em `evidence/<projeto>/` (o da importação some quando o lote é cancelado), com a linha de evidência ligada ao
+ * documento. Sem a linha, o objeto copiado é apagado (mesma compensação do upload de evidência).
+ */
+async function guardarOriginal(env: Env, projectId: string, loteId: string, ator: string, documentoId: string, a: { nome: string; mime: string; r2_key: string }) {
+  const obj = await env.STORAGE.get(a.r2_key);
+  if (!obj) throw new Error('arquivo original não encontrado no armazenamento');
+  const bytes = await obj.arrayBuffer();
+  const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const id = crypto.randomUUID();
+  const r2Key = `evidence/${projectId}/${id}-${a.nome}`;
+  await env.STORAGE.put(r2Key, bytes, { httpMetadata: { contentType: a.mime } });
+  try {
+    await env.DB.prepare(
+      `INSERT INTO evidence (id, project_id, control_id, documento_id, file_name, file_size, file_type, r2_key, file_hash, evaluation_status, evaluation_notes, uploaded_by, created_at)
+       VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, datetime('now'))`
+    ).bind(id, projectId, documentoId, a.nome, bytes.byteLength, a.mime, r2Key, hash, `Arquivo original do documento, importado no lote ${loteId}`, ator).run();
+  } catch (e) {
+    await env.STORAGE.delete(r2Key).catch(() => undefined);
+    throw e;
+  }
+  await logAudit(env.DB, 'evidence.uploaded', ator, `Evidência ${a.nome} (SHA-256: ${hash.slice(0, 8)}...) guardada como original do documento ${documentoId}`, '', '', projectId);
+}
+
+/**
+ * Grava uma DPIA ou LIA aceita (fatia 3), ligada ao tratamento do RoPA de mesma finalidade normalizada (sem ele, recusa). DPIA: a
+ * do tratamento (`criarDpiaDoTratamento`, `Draft`), com os riscos e a conclusão do arquivo copiados depois (a falha disso vira aviso).
+ * LIA: rascunho (`salvarLia`), com a conclusão e os riscos do arquivo no balanceamento; concluir (prevalece ou não) é de uma pessoa.
+ * Já existe DPIA/LIA no tratamento: recusa, o arquivo não sobrescreve.
+ */
+async function gravarAvaliacao(db: D1Database, projectId: string, loteId: string, ator: string, item: LinhaItem, finalidades: Map<string, string>): Promise<Resultado> {
+  const p = avaliacaoPropostaSchema.safeParse(JSON.parse(item.dados));
+  if (!p.success) return recusado(item, 'dados do item inválidos');
+  const d = p.data;
+  const ropaId = finalidades.get(chave(d.tratamento));
+  if (!ropaId) return recusado(item, `tratamento "${d.tratamento}" não encontrado no RoPA deste projeto`);
+  const conclusao = d.conclusao ? `Conclusão no documento importado (lote ${loteId}): ${d.conclusao}` : '';
+  const riscos = (d.riscos ?? []).map((r) => `- ${r}`).join('\n');
+
+  if (item.entidade === 'lia') {
+    if (await lerLia(db, projectId, ropaId)) return recusado(item, 'já existe LIA para este tratamento');
+    const balanceamento = [conclusao, riscos && `Riscos apontados no documento importado:\n${riscos}`].filter(Boolean).join('\n\n') || null;
+    const r = await salvarLia(db, projectId, ropaId, ator, { balanceamento, status: 'rascunho' });
+    if (!r.ok) return recusado(item, r.error);
+    await marcarGravado(db, item.id, r.id);
+    await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como LIA ${r.id} do tratamento ${ropaId}`, '', '', projectId);
+    return gravado(item, r.id, []);
+  }
+
+  const lig = await lerLigacoes(db, projectId, ropaId);
+  if (!lig) return recusado(item, `tratamento "${d.tratamento}" não encontrado no RoPA deste projeto`);
+  const r = await criarDpiaDoTratamento(db, projectId, ropaId, ator, lig);
+  if (!r.ok) return recusado(item, r.status === 409 ? 'já existe DPIA ligada a este tratamento' : r.error);
+  await marcarGravado(db, item.id, r.id);
+  await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como DPIA ${r.id} do tratamento ${ropaId}`, '', '', projectId);
+  const avisos: string[] = [];
+  if (riscos || conclusao) {
+    try {
+      await db.prepare('UPDATE dpia_assessments SET risks_identified = ?, dpo_opinion = ? WHERE id = ? AND project_id = ?')
+        .bind(riscos || null, conclusao || null, r.id, projectId).run();
+    } catch (e) {
+      log('error', { msg: 'importacao_dpia_completar', item: item.id, erro: resumoErro(e) });
+      avisos.push('riscos e conclusão não foram copiados para a DPIA; complete na DPIA');
+    }
+  }
+  return gravado(item, r.id, avisos);
 }
 
 // ─── cancelar ──────────────────────────────────────────────────────────────────────────────────────

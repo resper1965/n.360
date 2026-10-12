@@ -399,7 +399,9 @@ CREATE TABLE IF NOT EXISTS evidence (
     ceo_approved_ua TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    valido_ate TEXT
+    valido_ate TEXT,
+    -- Arquivo original de documento importado (fatia 3 da importação, migration 0068): apagar o documento só solta a ligação.
+    documento_id TEXT REFERENCES documentos(id) ON DELETE SET NULL
 );
 
 -- ═══════════════════════════════════════════════
@@ -1353,6 +1355,7 @@ CREATE TABLE IF NOT EXISTS documentos (
 );
 CREATE INDEX IF NOT EXISTS idx_documentos_projeto ON documentos(project_id, tipo);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_documentos_controle ON documentos(origem_control_id) WHERE origem_control_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_evidence_documento ON evidence(documento_id);
 
 -- Uma versão vigente e um rascunho, no máximo, por documento (índices parciais): é a trava contra duas
 -- publicações simultâneas. `project_id` se repete aqui para a tabela entrar na portabilidade.

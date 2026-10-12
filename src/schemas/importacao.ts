@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Importação de programa de privacidade (n.privacy, fatia 1). O que o agente propõe só chega ao banco por este esquema:
+ * Importação de programa de privacidade (n.privacy, fatias 1 a 3). O que o agente propõe só chega ao banco por este esquema:
  * `strict` (campo a mais recusa o item inteiro, inclusive o que uma instrução escondida no arquivo tentasse pôr) e com teto
  * de tamanho por campo. Os nomes são os da spec; o mapeamento para o RoPA é o da planilha (`validarTratamento`).
  */
@@ -50,8 +50,29 @@ export type TerceiroProposto = z.infer<typeof terceiroPropostoSchema>;
 /** O que a revisão mostra como "faltando" num terceiro (só o nome barra a gravação). */
 export const OBRIGATORIOS_TERCEIRO = ['nome', 'tipo', 'ultima_avaliacao'] as const;
 
-/** `dados` passa por um dos dois esquemas aqui; o serviço confere que é o da entidade do item. */
+/**
+ * Fatia 3: documento proposto (um por arquivo). O texto inteiro do arquivo vira a versão em rascunho; daqui só sai o que a revisão
+ * decide: título, tipo (o da tabela `documentos`) e um resumo para quem revisa.
+ */
+export const documentoPropostoSchema = z.object({
+  titulo: z.string().trim().min(1).max(300),
+  tipo: z.enum(['politica', 'norma', 'procedimento']).nullish(),
+  resumo: z.string().trim().max(2000).nullish(),
+}).strict();
+export type DocumentoProposto = z.infer<typeof documentoPropostoSchema>;
+export const OBRIGATORIOS_DOCUMENTO = ['titulo', 'tipo'] as const;
+
+/** Fatia 3: DPIA ou LIA proposta (a entidade do item diz qual). `tratamento` é a finalidade, casada com o RoPA pelo nome normalizado. */
+export const avaliacaoPropostaSchema = z.object({
+  tratamento: z.string().trim().min(1).max(500),
+  conclusao: z.string().trim().max(2000).nullish(),
+  riscos: z.array(z.string().trim().min(1).max(500)).max(50).optional(),
+}).strict();
+export type AvaliacaoProposta = z.infer<typeof avaliacaoPropostaSchema>;
+export const OBRIGATORIOS_AVALIACAO = ['tratamento', 'conclusao', 'riscos'] as const;
+
+/** `dados` passa por um dos esquemas aqui; o serviço confere que é o da entidade do item. */
 export const importacaoItemSchema = z.object({
-  dados: z.union([tratamentoPropostoSchema, terceiroPropostoSchema]).optional(),
+  dados: z.union([tratamentoPropostoSchema, terceiroPropostoSchema, documentoPropostoSchema, avaliacaoPropostaSchema]).optional(),
   decisao: z.enum(['aceito', 'descartado', 'pendente']).optional(),
 }).strict().refine((b) => b.dados !== undefined || b.decisao !== undefined, { message: 'Informe dados ou decisao' });

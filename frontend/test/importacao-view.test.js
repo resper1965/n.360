@@ -493,3 +493,100 @@ describe('terceiros (fatia 2): aba própria na revisão', () => {
         expect(window.__xss2).toBeUndefined();
     });
 });
+
+describe('documentos e avaliações (fatia 3): abas próprias na revisão', () => {
+    const base = { arquivo_id: 'a3', origem: 'trecho do arquivo', confianca: 'alta', faltando: [], duplicata_de: null, decisao: 'pendente', motivo: null };
+    const docu = (id, extra = {}) => ({ id, entidade: 'documento', ...base, dados: { titulo: `Política ${id}`, tipo: 'politica', resumo: `Resumo ${id}` }, ...extra });
+    const aval = (id, entidade, extra = {}) => ({ id, entidade, ...base, dados: { tratamento: `Tratamento ${id}`, conclusao: `Conclusão ${id}`, riscos: ['Vazamento', 'Acesso indevido'] }, ...extra });
+
+    it('abas Documentos e Avaliações com contagem; documento com tipo e resumo; avaliação com DPIA/LIA, tratamento, conclusão e riscos', async () => {
+        await abrirLote(LOTE({ itens: [item('i1'), docu('d1'), docu('d2', { duplicata_de: 'doc9', decisao: 'descartado' }), aval('v1', 'dpia'), aval('v2', 'lia')] }));
+        const t0 = el('c').textContent;
+        expect(t0).toContain('Documentos (2)');
+        expect(t0).toContain('Avaliações (2)');
+        await clica('importacaoAba', ['documento']);
+        let t = el('c').textContent;
+        expect(t).not.toContain('Finalidade i1');
+        expect(t).toContain('Política d1');
+        expect(t).toContain('Tipo: Política');
+        expect(t).toContain('Resumo d1');
+        expect(t).toContain('Já existe');
+        expect(el('c').querySelector('[data-action="navigate"][data-args=\'["documentos"]\']')).not.toBeNull();
+        expect(t).toContain('rascunho');
+        await clica('importacaoAba', ['avaliacao']);
+        t = el('c').textContent;
+        expect(t).toContain('DPIA');
+        expect(t).toContain('LIA');
+        expect(t).toContain('Tratamento v1');
+        expect(t).toContain('Conclusão v1');
+        expect(t).toContain('Vazamento');
+        expect(t).toContain('Aceitar todos de confiança alta (2)');
+    });
+
+    it('editar documento e avaliação envia os dados no formato do esquema; sem título ou tratamento não salva', async () => {
+        const det = LOTE({ itens: [docu('d1'), aval('v1', 'lia')] });
+        const f = await abrirLote(det, { [`PUT ${B}/l1/itens/d1`]: { ok: true }, [`PUT ${B}/l1/itens/v1`]: { ok: true } });
+        await clica('importacaoAba', ['documento']);
+        await clica('importacaoEditar', ['d1']);
+        expect(el('imp-titulo').value).toBe('Política d1');
+        expect(el('imp-tipo').value).toBe('politica');
+        el('imp-tipo').value = 'norma';
+        el('imp-resumo').value = '';
+        await clica('importacaoSalvarItem', ['d1']);
+        await espera();
+        const puts = () => f.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([, o]) => JSON.parse(o.body));
+        expect(puts()[0]).toEqual({ dados: { titulo: 'Política d1', tipo: 'norma', resumo: null } });
+
+        await clica('importacaoAba', ['avaliacao']);
+        await clica('importacaoEditar', ['v1']);
+        expect(el('imp-tratamento').value).toBe('Tratamento v1');
+        expect(el('imp-riscos').value).toBe('Vazamento\nAcesso indevido');
+        el('imp-riscos').value = 'Vazamento\n\n Perfilamento ';
+        await clica('importacaoSalvarItem', ['v1']);
+        await espera();
+        expect(puts()[1]).toEqual({ dados: { tratamento: 'Tratamento v1', conclusao: 'Conclusão v1', riscos: ['Vazamento', 'Perfilamento'] } });
+
+        await clica('importacaoEditar', ['v1']);
+        el('imp-tratamento').value = ' ';
+        await clica('importacaoSalvarItem', ['v1']);
+        expect(el('imp-erro').textContent).toContain('tratamento');
+        await clica('importacaoAba', ['documento']);
+        await clica('importacaoEditar', ['d1']);
+        el('imp-titulo').value = '';
+        await clica('importacaoSalvarItem', ['d1']);
+        expect(el('imp-erro').textContent).toContain('título');
+    });
+
+    it('o resultado da confirmação mostra o título do documento e o tratamento da avaliação', async () => {
+        const det = LOTE({ itens: [docu('d1', { decisao: 'aceito' }), aval('v1', 'dpia', { decisao: 'aceito' })] });
+        await abrirLote(det, { [`POST ${B}/l1/confirmar`]: { ok: true, resultados: [
+            { item_id: 'd1', decisao: 'gravado', registro_id: 'doc1', aviso: 'o arquivo original não foi guardado como evidência; anexe-o à mão' },
+            { item_id: 'v1', decisao: 'recusado', motivo: 'tratamento "Tratamento v1" não encontrado no RoPA deste projeto' },
+        ], restantes: 0 } });
+        await clica('importacaoConfirmar');
+        await espera();
+        const t = el('c').textContent;
+        expect(t).toContain('Política d1');
+        expect(t).toContain('não foi guardado como evidência');
+        expect(t).toContain('não encontrado no RoPA');
+    });
+
+    it('texto de documento e avaliação com HTML não vira elemento', async () => {
+        const mal = '<img src=x onerror="window.__xss3=1">';
+        await abrirLote(LOTE({ itens: [
+            docu('d1', { dados: { titulo: mal, tipo: mal, resumo: mal }, origem: mal, motivo: mal }),
+            aval('v1', 'dpia', { dados: { tratamento: mal, conclusao: mal, riscos: [mal] }, origem: mal }),
+        ] }));
+        await clica('importacaoAba', ['documento']);
+        expect(el('c').querySelector('img')).toBeNull();
+        expect(el('c').textContent).toContain(mal);
+        await clica('importacaoEditar', ['d1']);
+        expect(el('imp-titulo').value).toBe(mal);
+        await clica('importacaoAba', ['avaliacao']);
+        expect(el('c').querySelector('img')).toBeNull();
+        await clica('importacaoEditar', ['v1']);
+        expect(el('imp-tratamento').value).toBe(mal);
+        expect(document.querySelector('img')).toBeNull();
+        expect(window.__xss3).toBeUndefined();
+    });
+});

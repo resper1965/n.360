@@ -21,7 +21,8 @@ describe('migration 0059 — evidência com validade e requisito', () => {
   });
 
   it('o schema canônico tem a coluna (no fim) e a tabela', async () => {
-    expect((await colunas('evidence')).at(-1)).toBe('valido_ate');
+    // Na ordem dos ALTER: depois da `valido_ate` só a `documento_id` da 0068.
+    expect((await colunas('evidence')).slice(-2)).toEqual(['valido_ate', 'documento_id']);
     expect(await colunas('evidencia_requisitos')).toEqual(['evidencia_id', 'requisito_id', 'project_id', 'created_at']);
   });
 

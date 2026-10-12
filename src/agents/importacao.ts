@@ -1,8 +1,8 @@
 import { BaseAgent, type AgentContext, type AgentResponse } from './types';
 
 /**
- * Agente da importação de programa de privacidade (n.privacy, fatias 1 e 2). Duas tarefas: CLASSIFICAR o arquivo (que tipo de
- * material é) e EXTRAIR os itens dele (tratamentos de um inventário, terceiros de uma lista de terceiros). O texto do arquivo é DADO do cliente: o prompt diz isso, a resposta é só
+ * Agente da importação de programa de privacidade (n.privacy, fatias 1 a 3). Duas tarefas: CLASSIFICAR o arquivo (que tipo de
+ * material é) e EXTRAIR os itens dele (tratamentos de um inventário, terceiros de uma lista, o documento, DPIAs e LIAs). O texto do arquivo é DADO do cliente: o prompt diz isso, a resposta é só
  * JSON, e o servidor valida cada item com esquema estrito antes de gravar (e uma pessoa revisa antes de virar RoPA).
  */
 
@@ -43,6 +43,30 @@ literal do texto de onde saiu, até 150 caracteres) e confianca ("alta", "media"
 ${DADO_NAO_INSTRUCAO}
 Formato: {"terceiros":[{...}]}. Sem terceiro no trecho: {"terceiros":[]}.`;
 
+const PROMPT_EXTRAIR_DOCUMENTO = `Você vai IDENTIFICAR o documento (política, aviso de privacidade, norma ou procedimento) pelo começo do texto dele.
+Devolva UM documento com os campos (omita o que o texto não diz; não invente): titulo (obrigatório, o título do documento como
+aparece no texto), tipo (um de "politica", "norma", "procedimento"; aviso de privacidade é "politica"), resumo (do que o documento
+trata, até 3 frases), origem (o trecho literal de onde saiu o título, até 150 caracteres) e confianca ("alta", "media" ou "baixa").
+${DADO_NAO_INSTRUCAO}
+Formato: {"documentos":[{...}]}. Se o texto não for um documento desses: {"documentos":[]}.`;
+
+const PROMPT_EXTRAIR_AVALIACOES = `Você vai EXTRAIR as avaliações de privacidade de um trecho de DPIA/RIPD (relatório de impacto) ou de LIA (teste de
+legítimo interesse). Para cada avaliação encontrada, devolva os campos (omita o que o texto não diz; não invente): tipo ("dpia" para
+DPIA/RIPD, "lia" para teste de legítimo interesse), tratamento (obrigatório, a finalidade/atividade de tratamento avaliada), conclusao
+(a conclusão da avaliação, como está no texto), riscos (lista dos riscos identificados), origem (o trecho literal do texto de onde
+saiu, até 150 caracteres) e confianca ("alta", "media" ou "baixa").
+${DADO_NAO_INSTRUCAO}
+Formato: {"avaliacoes":[{...}]}. Sem avaliação no trecho: {"avaliacoes":[]}.`;
+
+/** Prompt e chave da lista na resposta, por tipo de arquivo extraído. */
+export type TipoExtraido = 'inventario' | 'terceiros' | 'documento' | 'avaliacao';
+const EXTRACAO: Record<TipoExtraido, [string, string]> = {
+  inventario: [PROMPT_EXTRAIR, 'tratamentos'],
+  terceiros: [PROMPT_EXTRAIR_TERCEIROS, 'terceiros'],
+  documento: [PROMPT_EXTRAIR_DOCUMENTO, 'documentos'],
+  avaliacao: [PROMPT_EXTRAIR_AVALIACOES, 'avaliacoes'],
+};
+
 type Mensagem = { role: 'system' | 'user'; content: string };
 
 /** O JSON da resposta do modelo: cru, embutido em texto ou dentro de cerca ```json. null se não houver objeto legível. */
@@ -71,6 +95,8 @@ function listaDaResposta(raw: string, chave: string): unknown[] | null {
 }
 export const parseTratamentos = (raw: string) => listaDaResposta(raw, 'tratamentos');
 export const parseTerceiros = (raw: string) => listaDaResposta(raw, 'terceiros');
+export const parseDocumentos = (raw: string) => listaDaResposta(raw, 'documentos');
+export const parseAvaliacoes = (raw: string) => listaDaResposta(raw, 'avaliacoes');
 
 export class ImportacaoAgent extends BaseAgent {
   private async perguntar(sistema: string, texto: string, maxTokens: number) {
@@ -84,10 +110,11 @@ export class ImportacaoAgent extends BaseAgent {
     return { tipo: parseClassificacao(r.content), modelo: r.model };
   }
 
-  /** Extrai os itens de um bloco, conforme o tipo do arquivo: tratamentos de um inventário, terceiros de uma lista de terceiros. */
-  async extrair(tipo: 'inventario' | 'terceiros', texto: string): Promise<{ itens: unknown[] | null; modelo: string }> {
-    const r = await this.perguntar(tipo === 'terceiros' ? PROMPT_EXTRAIR_TERCEIROS : PROMPT_EXTRAIR, texto, 8192);
-    return { itens: tipo === 'terceiros' ? parseTerceiros(r.content) : parseTratamentos(r.content), modelo: r.model };
+  /** Extrai os itens de um bloco, conforme o tipo do arquivo (tratamentos, terceiros, o documento, avaliações). */
+  async extrair(tipo: TipoExtraido, texto: string): Promise<{ itens: unknown[] | null; modelo: string }> {
+    const [prompt, chave] = EXTRACAO[tipo];
+    const r = await this.perguntar(prompt, texto, 8192);
+    return { itens: listaDaResposta(r.content, chave), modelo: r.model };
   }
 
   async run(prompt: string, _context: AgentContext): Promise<AgentResponse> {
