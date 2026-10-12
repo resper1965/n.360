@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
 import { navigate } from '../router.js';
-import { PRODUTOS, produtoAtual } from '../produto.js';
+import { PRODUTOS, produtoAtual, modulosVisiveis, enderecoDoProduto, irPara } from '../produto.js';
 
 // Domínio canônico de evidence.evaluation_status (src/constants.ts, EVALUATION_STATUSES).
 // O selo comparava com a grafia antiga ('conforme', 'parcial', 'nao conforme'), que o banco
@@ -35,6 +35,19 @@ const ISO_GUIDELINES = {
     'p21_1': { control: 'Cl 6.1.3', tip: 'Declaração de Aplicabilidade (SoA)', advice: 'O SoA deve conter todos os 93 controles da Annex A com justificativa explícita de inclusão ou exclusão.', evidence: 'Statement of Applicability (SoA) gerado.' }
 };
 
+// Os módulos (do projeto E da pessoa) em que a lista oferece "Abrir no": fora o do caminho, onde já se está.
+const modulosParaAbrir = (p) => modulosVisiveis(p).filter((m) => (m === 'iso' || m === 'privacy') && m !== produtoAtual());
+
+/** "Abrir no n.…" da lista: ativa o projeto, guarda-o para o outro caminho (o state o hidrata de lá) e vai ao módulo. */
+window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
+    const p = (S.projects || []).find((x) => x.id === projectId);
+    if (!p || !modulosParaAbrir(p).includes(modulo)) return;
+    S.activeProject = p;
+    S.currentProject = p;
+    try { localStorage.setItem('niso_activeProject', JSON.stringify(p)); } catch (e) { /* sem storage: o módulo abre no primeiro projeto */ }
+    irPara(enderecoDoProduto(modulo));
+};
+
     async function renderProjects(c, h, a) {
         h.textContent = window.produtoAtual() === 'iso' ? 'Gestão de Projetos ISO' : 'Projetos';
         a.innerHTML = '';
@@ -60,7 +73,7 @@ const ISO_GUIDELINES = {
                     escapeHTML(p.sector || 'Geral'),
                     window.renderStatusBadge(p.status || 'active', p.status === 'completed' ? 'success' : 'info'),
                     escapeHTML(p.standard || 'ISO 27001:2022'),
-                    `${(p.modulos || ['iso']).includes('iso') && window.produtoAtual() === 'iso' ? `<button class="btn btn-primary btn-sm" data-action="openProjectDetail" data-args='["${p.id}"]'>Gerenciar Jornada &rarr;</button> ` : ''}<button class="btn btn-ghost btn-sm" data-action="abrirProdutosDoProjeto" data-args='["${p.id}"]'>Produtos (${escapeHTML((p.modulos || ['iso']).map((m) => 'n.' + m).join(', '))})</button>`
+                    `${(p.modulos || ['iso']).includes('iso') && window.produtoAtual() === 'iso' ? `<button class="btn btn-primary btn-sm" data-action="openProjectDetail" data-args='["${p.id}"]'>Gerenciar Jornada &rarr;</button> ` : ''}${modulosParaAbrir(p).map((m) => `<button class="btn btn-primary btn-sm" data-action="abrirProjetoNoModulo" data-args='${escapeHTML(JSON.stringify([p.id, m]))}'>Abrir no n.${m}</button> `).join('')}<button class="btn btn-ghost btn-sm" data-action="abrirProdutosDoProjeto" data-args='["${p.id}"]'>Produtos (${escapeHTML((p.modulos || ['iso']).map((m) => 'n.' + m).join(', '))})</button>`
                 ]),
                 { emptyState: 'Nenhum projeto de implementação ativo no momento.' }
             );

@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosDe, enderecoDoProduto } from './produto.js';
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida } from './produto.js';
 import { S } from './state.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
@@ -284,12 +284,74 @@ function aplicaBloqueio(mensagem) {
         bloqueioTimer = setInterval(tick, 1000);
     }
 
+// ——— Entrada federada (SSO) ————————————————————————————————————————————
+// Mensagens FIXAS por motivo conhecido do callback: o `#sso_erro` vem da URL e,
+// no caso do erro devolvido pelo IdP, de fora — nunca vai para a tela como veio.
+const MOTIVOS_SSO = {
+    'pedido de login expirado ou já usado': 'O pedido de login expirou ou já foi usado. Tente entrar novamente.',
+    'SSO não está ativo para este cliente': 'O SSO não está ativo para a sua empresa. Entre com e-mail e senha.',
+    'resposta do IdP incompleta': 'O provedor de identidade da sua empresa não completou o login. Tente novamente.',
+};
+const MOTIVO_SSO_GENERICO = 'Não foi possível entrar pelo SSO da sua empresa. Tente novamente ou use e-mail e senha.';
+
+function mostraErroLogin(msg) {
+    const err = document.getElementById('login-error');
+    if (!err) return;
+    err.style.display = 'block';
+    err.textContent = msg;
+}
+
+/** Pergunta ao servidor se o domínio do e-mail entra por SSO; se sim, leva o navegador ao provedor. */
+async function iniciarSso(email, quandoSemSso) {
+    if (!email) { mostraErroLogin('Informe o e-mail da sua conta.'); return; }
+    try {
+        const r = await api('POST', '/api/v1/public/sso/iniciar', { email });
+        if (r && r.sso && r.autorizacao) {
+            // Só segue para https: o destino vem do servidor, mas um esquema estranho nunca deve ser navegado.
+            if (!/^https:\/\//i.test(String(r.autorizacao))) { mostraErroLogin(MOTIVO_SSO_GENERICO); return; }
+            // Marca que ESTE navegador iniciou um login SSO; o retorno só vale com a marca (evita login CSRF por link).
+            try { sessionStorage.setItem('sso_pendente', '1'); } catch { /* sem storage: o retorno será recusado */ }
+            location.assign(r.autorizacao);
+            return;
+        }
+        mostraErroLogin(quandoSemSso);
+    } catch (e) {
+        mostraErroLogin('Não foi possível consultar o SSO agora. Tente novamente.');
+    }
+}
+
+window.entrarComSso = async function entrarComSso() {
+    document.getElementById('login-error').style.display = 'none';
+    await iniciarSso(document.getElementById('login-email').value,
+        'Seu domínio não tem SSO configurado. Entre com e-mail e senha.');
+};
+
+/** Boot: devolve o token do callback à sessão (mesmo armazenamento do login por senha) ou mostra o erro. */
+window.consumirRetornoSso = function consumirRetornoSso() {
+    const h = location.hash || '';
+    const m = h.match(/^#(sso_token|sso_erro)=(.*)$/);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    let valor = '';
+    try { valor = decodeURIComponent(m[2]); } catch { /* valor malformado: cai no genérico */ }
+    let pendente = false;
+    try { pendente = sessionStorage.getItem('sso_pendente') === '1'; sessionStorage.removeItem('sso_pendente'); } catch { /* sem storage */ }
+    if (m[1] === 'sso_token' && valor && pendente) {
+        S.token = valor;
+        localStorage.setItem('niso_token', valor);
+    } else {
+        mostraErroLogin(Object.hasOwn(MOTIVOS_SSO, valor) ? MOTIVOS_SSO[valor] : MOTIVO_SSO_GENERICO);
+    }
+};
+
 window.doLogin = async function doLogin() {
         const email = document.getElementById('login-email').value;
         const pass = document.getElementById('login-password').value;
         const err = document.getElementById('login-error');
         err.style.display = 'none';
         limpaSinalDeErro();
+        // Sem senha: o e-mail pode ser de uma empresa com SSO. `required` saiu do campo no HTML por isso.
+        if (!pass) { await iniciarSso(email, 'Informe a sua senha.'); return; }
         try {
             const corpo = { email, password: pass };
             if (desafioResolvido) corpo.challengeToken = desafioResolvido;
@@ -594,7 +656,7 @@ window.updateTenantFace = function updateTenantFace() {
         nameEl.textContent = name;
         // Só no n.iso a norma do projeto diz algo; no n.privacy mostra o módulo e no início do n.360 os módulos do projeto.
         const prod = produtoAtual();
-        if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod === 'privacy' ? 'n.privacy' : modulosDe(p).map((m) => `n.${m}`).join(' · ');
+        if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod === 'privacy' ? 'n.privacy' : modulosVisiveis(p).map((m) => `n.${m}`).join(' · ');
         if (initialsEl) initialsEl.textContent = p ? name.slice(0, 2).toUpperCase() : '—';
     }
 
@@ -835,19 +897,12 @@ window.updateHeaderUser = function updateHeaderUser() {
             if (navSettings) navSettings.style.display = 'none';
             if (navApiKeys) navApiKeys.style.display = 'none';
 
-            if (S.user.role === 'org_admin') {
-                if (groupSystem) {
-                    groupSystem.style.display = 'block';
-                    groupSystem.style.maxHeight = 'none';
-                }
-                if (navUsers) {
-                    navUsers.style.display = '';
-                    const navUsersText = navUsers.querySelector('.sidebar-nav-text');
-                    if (navUsersText) navUsersText.textContent = 'Gestão de Equipe';
-                }
-            } else {
-                if (groupSystem) groupSystem.style.display = 'none';
-                if (navUsers) navUsers.style.display = 'none';
+            // O gestor do cliente vê a equipe dele, no grupo Conta e acessos; o resto do Sistema não é do cliente.
+            if (groupSystem) groupSystem.style.display = 'none';
+            if (navUsers) {
+                navUsers.style.display = S.user.role === 'org_admin' ? '' : 'none';
+                const navUsersText = navUsers.querySelector('.sidebar-nav-text');
+                if (navUsersText && S.user.role === 'org_admin') navUsersText.textContent = 'Gestão de Equipe';
             }
         } else {
             if (labelSystem) labelSystem.style.display = '';
@@ -868,6 +923,8 @@ window.updateHeaderUser = function updateHeaderUser() {
             if (navConectar) navConectar.style.display = (S.user && (S.user.role === 'consultor' || S.user.role === 'consultant')) ? '' : 'none';
             const navImportacao = document.getElementById('nav-importacao');
             if (navImportacao) navImportacao.style.display = window.ehEquipeNess() ? '' : 'none';
+            const navSegProj = document.getElementById('nav-seguranca-projeto');
+            if (navSegProj) navSegProj.style.display = window.ehEquipeNess() ? '' : 'none';
             if (navUsers) {
                 const canSeeUsers = S.user && ['platform_admin', 'admin', 'consultor', 'consultant', 'consultoria_admin'].includes(S.user.role);
                 navUsers.style.display = canSeeUsers ? '' : 'none';
@@ -896,6 +953,15 @@ window.updateHeaderUser = function updateHeaderUser() {
         // o estado vazio). platform_admin e comercial não decidem pedido de cliente.
         const navMeus = document.getElementById('nav-meus');
         if (navMeus) navMeus.style.display = ['org_admin', 'org_user', 'client', 'consultor', 'consultant', 'consultoria_admin'].includes(S.user?.role) ? '' : 'none';
+
+        // Conta e acessos sem nenhum item do papel (cliente sem gestão, comercial) some com o rótulo.
+        const grupoConta = document.getElementById('group-conta');
+        if (grupoConta) {
+            const algum = [...grupoConta.querySelectorAll('.sidebar-nav')].some(el => el.style.display !== 'none');
+            grupoConta.style.display = algum ? '' : 'none';
+            const rotuloConta = document.getElementById('label-group-conta');
+            if (rotuloConta) rotuloConta.style.display = algum ? '' : 'none';
+        }
 
         // Stakeholder (mínimo privilégio): só "Meus pedidos" e o cartão de perfil (senha e MFA). O
         // servidor já recusa o resto (allow-list de caminhos); o menu só não oferece o que daria 403.
@@ -1347,6 +1413,8 @@ window.initApp = async function initApp() {
         const legado = await destinoLegado();
         if (legado) { irPara(legado, true); return; }
 
+        window.consumirRetornoSso();
+
         // Sprint C: Check for public assessment self-service link
         const assessmentToken = new URLSearchParams(location.search).get('assessment');
         if (assessmentToken) {
@@ -1401,9 +1469,13 @@ window.initApp = async function initApp() {
         // Módulos alcançáveis: os dos projetos visíveis (o cliente olha só o projeto dele).
         const doCliente = isClient && S.user.client_project_id ? (S.projects || []).filter((p) => p.id === S.user.client_project_id) : [];
         const meus = doCliente.length ? doCliente : (S.projects || []);
-        const modulos = [...new Set(meus.flatMap(modulosDe))];
+        const modulos = [...new Set(meus.flatMap(modulosVisiveis))];
+        // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida vence o "um módulo só, entra nele".
+        const tela = produto === 'n360' && !ehStakeholder ? telaPedida() : null;
         if (ehStakeholder) {
             navigate('meus-pedidos');
+        } else if (tela) {
+            navigate(tela);
         } else if (produto === 'n360' && !modulos.length && !isClient) {
             // Equipe da ness. sem projeto ainda (instalação nova, comercial): o funil comercial e a criação de projeto vivem
             // no n.iso. Sem isto ela ficaria trancada fora.

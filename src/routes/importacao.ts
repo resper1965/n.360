@@ -58,7 +58,7 @@ importacaoApp.put('/:id/itens/:iid', async (c) => {
 
 importacaoApp.post('/:id/confirmar', async (c) => {
   try {
-    const r = await confirmarLote(c.env.DB, c.req.param('projectId')!, c.req.param('id'), ator(c));
+    const r = await confirmarLote(c.env, c.req.param('projectId')!, c.req.param('id'), ator(c));
     return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao confirmar a importação', e); }
 });

@@ -82,8 +82,10 @@ describe('3. travas de administrador', () => {
     expect((await chamar('DELETE', '/api/v1/users/u-pa', pa)).status).toBe(409);
     expect((await env.DB.prepare(`SELECT role FROM users WHERE id = 'u-pa'`).first<{ role: string }>())!.role).toBe('platform_admin');
     // com outro platform_admin ativo, pode (rebaixar esbarraria no limite do plano da org de teste, que não existe)
+    // (e é o OUTRO quem apaga: a própria conta ninguém desativa nem exclui).
     await env.DB.prepare(`UPDATE users SET ativo = 1 WHERE id = 'u-pa-off'`).run();
-    expect((await chamar('DELETE', '/api/v1/users/u-pa', pa)).status).toBe(200);
+    const outro = await sessionFor({ id: 'u-pa-off', email: 'paoff@ness.lat', role: 'platform_admin', org_id: 'org_ness' });
+    expect((await chamar('DELETE', '/api/v1/users/u-pa', outro)).status).toBe(200);
   });
 
   it('org_admin não troca a senha de outro org_admin; troca a do próprio usuário comum', async () => {

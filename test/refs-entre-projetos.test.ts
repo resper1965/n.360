@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import worker from '../src/index';
-import { applySchema, resetData, sessionFor, seedTwoProjects, pedir } from './helpers/d1';
+import { applySchema, resetData, sessionFor, seedTwoProjects, pedir, concederModulos } from './helpers/d1';
 import { sha256Hex } from '../src/helpers';
 
 /**
@@ -59,6 +59,7 @@ beforeAll(applySchema);
 beforeEach(async () => {
   await resetData();
   await seed();
+  await concederModulos(['u-a', 'u-b'], ['iso']); // as pessoas têm o n.iso: o que se prova aqui é o projeto da referência
   // Cliente do projeto A: papel preso a projeto, como quem atacaria pelo corpo.
   h = await sessionFor({ id: 'u-a', email: 'adm@a.com', role: 'org_admin', client_project_id: A });
 });

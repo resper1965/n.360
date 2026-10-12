@@ -33,6 +33,234 @@
     }
   ],
   "paths": {
+    "/api/v1/admin/users/{id}/ativo": {
+      "put": {
+        "operationId": "put_api_v1_admin_users__id__ativo",
+        "tags": [
+          "admin"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "ativo": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "ativo"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Payload inválido — corpo recusado pelo schema, com `details` por campo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "request_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem sessão válida"
+          },
+          "403": {
+            "description": "Sessão válida, sem acesso ao recurso ou ao projeto"
+          },
+          "500": {
+            "description": "Erro de servidor. `request_id` correlaciona com o log estruturado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "request_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{id}/modulos": {
+      "put": {
+        "operationId": "put_api_v1_admin_users__id__modulos",
+        "tags": [
+          "admin"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "modulos": {
+                    "maxItems": 2,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "iso",
+                        "privacy"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "modulos"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Payload inválido — corpo recusado pelo schema, com `details` por campo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "request_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem sessão válida"
+          },
+          "403": {
+            "description": "Sessão válida, sem acesso ao recurso ou ao projeto"
+          },
+          "500": {
+            "description": "Erro de servidor. `request_id` correlaciona com o log estruturado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "request_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/users/{id}": {
       "put": {
         "operationId": "put_api_v1_admin_users__id_",
@@ -215,6 +443,17 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "modulos": {
+                    "maxItems": 2,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "iso",
+                        "privacy"
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -7288,6 +7527,13 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 10000
+                  },
+                  "modulo": {
+                    "type": "string",
+                    "enum": [
+                      "iso",
+                      "privacy"
+                    ]
                   }
                 },
                 "required": [
@@ -13007,134 +13253,553 @@
                 "type": "object",
                 "properties": {
                   "dados": {
-                    "type": "object",
-                    "properties": {
-                      "finalidade": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 500
-                      },
-                      "base_legal": {
-                        "anyOf": [
-                          {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "finalidade": {
                             "type": "string",
+                            "minLength": 1,
                             "maxLength": 500
                           },
-                          {
-                            "type": "null"
+                          "base_legal": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "categorias_dados": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "titulares": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "retencao": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "destinatarios": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "transferencia_internacional": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          },
+                          "salvaguardas": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "dpia_requerido": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          },
+                          "responsavel": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sistemas": {
+                            "maxItems": 50,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "areas": {
+                            "maxItems": 50,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "pessoas": {
+                            "maxItems": 50,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
                           }
-                        ]
+                        },
+                        "required": [
+                          "finalidade"
+                        ],
+                        "additionalProperties": false
                       },
-                      "categorias_dados": {
-                        "anyOf": [
-                          {
+                      {
+                        "type": "object",
+                        "properties": {
+                          "nome": {
                             "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "tipo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "grande_provedor",
+                                  "medio",
+                                  "pequeno",
+                                  "critico"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "cnpj": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 30
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "contato": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "ultima_avaliacao": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "resultado": {
+                                    "type": "string",
+                                    "enum": [
+                                      "aprovado",
+                                      "com_ressalvas",
+                                      "reprovado"
+                                    ]
+                                  },
+                                  "valido_ate": {
+                                    "type": "string",
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                  },
+                                  "metodo": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 100
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "resultado",
+                                  "valido_ate"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "dpa": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 300
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tratamentos": {
+                            "maxItems": 50,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            }
+                          }
+                        },
+                        "required": [
+                          "nome"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "titulo": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300
+                          },
+                          "tipo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "politica",
+                                  "norma",
+                                  "procedimento"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "resumo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "titulo"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "tratamento": {
+                            "type": "string",
+                            "minLength": 1,
                             "maxLength": 500
                           },
-                          {
-                            "type": "null"
+                          "conclusao": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "riscos": {
+                            "maxItems": 50,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            }
                           }
-                        ]
+                        },
+                        "required": [
+                          "tratamento"
+                        ],
+                        "additionalProperties": false
                       },
-                      "titulares": {
-                        "anyOf": [
-                          {
+                      {
+                        "type": "object",
+                        "properties": {
+                          "tipo": {
                             "type": "string",
+                            "enum": [
+                              "confirmacao",
+                              "acesso",
+                              "correcao",
+                              "anonimizacao_bloqueio_eliminacao",
+                              "portabilidade",
+                              "informacao_compartilhamento",
+                              "revogacao_consentimento",
+                              "oposicao",
+                              "outro"
+                            ]
+                          },
+                          "canal": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "email",
+                                  "telefone",
+                                  "formulario",
+                                  "presencial",
+                                  "outro"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "recebido_em": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "recebido",
+                              "em_andamento",
+                              "respondido",
+                              "negado",
+                              "arquivado"
+                            ]
+                          },
+                          "respondido_em": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "protocolo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 60
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "titular_ref": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^tit-[0-9a-f]{16}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "tipo",
+                          "recebido_em",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "titulo": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300
+                          },
+                          "protocolo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 60
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "ciencia_em": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ][\\d:.]+Z?)?$"
+                          },
+                          "risco_titular": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sem_risco",
+                                  "baixo",
+                                  "relevante"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "comunicacao_anpd_em": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ][\\d:.]+Z?)?$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "comunicacao_titular_em": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ][\\d:.]+Z?)?$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "aberto",
+                              "avaliado",
+                              "comunicado",
+                              "encerrado"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "titulo",
+                          "ciencia_em",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "tratamento": {
+                            "type": "string",
+                            "minLength": 1,
                             "maxLength": 500
                           },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "retencao": {
-                        "anyOf": [
-                          {
+                          "titular_ref": {
                             "type": "string",
+                            "pattern": "^tit-[0-9a-f]{16}$"
+                          },
+                          "finalidade": {
+                            "type": "string",
+                            "minLength": 1,
                             "maxLength": 500
                           },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "destinatarios": {
-                        "anyOf": [
-                          {
+                          "obtido_em": {
                             "type": "string",
-                            "maxLength": 500
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
                           },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "transferencia_internacional": {
-                        "type": [
-                          "boolean",
-                          "null"
-                        ]
-                      },
-                      "salvaguardas": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "maxLength": 500
+                          "revogado_em": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "dpia_requerido": {
-                        "type": [
-                          "boolean",
-                          "null"
-                        ]
-                      },
-                      "responsavel": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "maxLength": 500
+                          "versao_aviso": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
-                          {
-                            "type": "null"
+                          "canal": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
-                        ]
-                      },
-                      "sistemas": {
-                        "maxItems": 50,
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 200
-                        }
-                      },
-                      "areas": {
-                        "maxItems": 50,
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 200
-                        }
-                      },
-                      "pessoas": {
-                        "maxItems": 50,
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 200
-                        }
+                        },
+                        "required": [
+                          "tratamento",
+                          "titular_ref",
+                          "finalidade",
+                          "obtido_em"
+                        ],
+                        "additionalProperties": false
                       }
-                    },
-                    "required": [
-                      "finalidade"
-                    ],
-                    "additionalProperties": false
+                    ]
                   },
                   "decisao": {
                     "type": "string",
@@ -13266,6 +13931,128 @@
                   "em": {
                     "type": "string",
                     "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ][\\d:.]+Z?)?$"
+                  }
+                },
+                "required": [
+                  "destino"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Payload inválido — corpo recusado pelo schema, com `details` por campo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "request_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem sessão válida"
+          },
+          "403": {
+            "description": "Sessão válida, sem acesso ao recurso ou ao projeto"
+          },
+          "500": {
+            "description": "Erro de servidor. `request_id` correlaciona com o log estruturado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "request_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/incidentes/{id}/rascunho-comunicacao": {
+      "post": {
+        "operationId": "post_api_v1_projects__projectId__incidentes__id__rascunho_comunicacao",
+        "tags": [
+          "projects"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "destino": {
+                    "type": "string",
+                    "enum": [
+                      "anpd",
+                      "titular"
+                    ]
                   }
                 },
                 "required": [

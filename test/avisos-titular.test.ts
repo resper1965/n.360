@@ -7,11 +7,12 @@ import { itensDoDia, tituloDoAviso, avisosDePrazo } from '../src/services/avisos
 const HOJE = '2026-10-07';
 const db = () => env.DB;
 
+// created_at no passado do HOJE fixo: prazo anterior à criação do registro não avisa (histórico importado, avisos-prazo.ts).
 const ped = (id: string, prazo: string | null, status = 'recebido') =>
-  db().prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em, prazo_em, status, respondido_em, responsavel_parte_id) VALUES (?, 'p1', ?, 'acesso', '2026-09-20', ?, ?, ?, 'pa1')`)
+  db().prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em, prazo_em, status, respondido_em, responsavel_parte_id, created_at) VALUES (?, 'p1', ?, 'acesso', '2026-09-20', ?, ?, ?, 'pa1', '2026-09-20 12:00:00')`)
     .bind(id, `PT-2026-${id}`, prazo, status, ['respondido', 'negado'].includes(status) ? '2026-10-01' : null);
 const inc = (id: string, extra: { anpd?: string | null; tit?: string | null; feitaAnpd?: string | null; feitaTit?: string | null; status?: string; risco?: string | null } = {}) =>
-  db().prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, prazo_titular_em, comunicacao_anpd_em, comunicacao_titular_em, status, risco_titular) VALUES (?, 'p1', ?, 'Incidente', '2026-10-01', ?, ?, ?, ?, ?, ?)`)
+  db().prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, prazo_anpd_em, prazo_titular_em, comunicacao_anpd_em, comunicacao_titular_em, status, risco_titular, created_at) VALUES (?, 'p1', ?, 'Incidente', '2026-10-01', ?, ?, ?, ?, ?, ?, '2026-10-01 12:00:00')`)
     .bind(id, `IN-2026-${id}`, extra.anpd ?? null, extra.tit ?? null, extra.feitaAnpd ?? null, extra.feitaTit ?? null, extra.status ?? 'aberto', extra.risco ?? 'relevante');
 const daFonte = async (fonte: string) => (await itensDoDia(db(), HOJE)).itens.filter((i) => i.fonte === fonte);
 

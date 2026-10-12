@@ -94,6 +94,44 @@ describe('initApp no n.360', () => {
     });
 });
 
+describe('initApp no n.360 com ?tela= (vindo do rodapé de um módulo)', () => {
+    const comMenu = () => {
+        document.body.insertAdjacentHTML('beforeend', ['projects', 'users', 'organizacoes', 'api-keys', 'conectar-agente']
+            .map((t) => `<div class="sidebar-nav" id="nav-${t}"></div>`).join(''));
+    };
+    it('abre a tela pedida mesmo com um módulo só (não volta ao módulo) e limpa o endereço', async () => {
+        comMenu();
+        papel = { role: 'consultor' };
+        projetos = [{ id: 'p1', modulos: ['iso'] }];
+        history.replaceState(null, '', '/?tela=users');
+        await window.initApp();
+        expect(irPara).not.toHaveBeenCalled();
+        expect(navigate).toHaveBeenCalledWith('users');
+        expect(location.search).toBe('');
+    });
+    it('platform_admin sem projeto ainda chega às organizações', async () => {
+        comMenu();
+        papel = { role: 'platform_admin' };
+        history.replaceState(null, '', '/?tela=organizacoes');
+        await window.initApp();
+        expect(irPara).not.toHaveBeenCalled();
+        expect(navigate).toHaveBeenCalledWith('organizacoes');
+    });
+    it('tela fora da lista ou que o papel não vê: segue a entrada normal', async () => {
+        comMenu();
+        projetos = [{ id: 'p1', modulos: ['iso'] }];
+        history.replaceState(null, '', '/?tela=soa');
+        await window.initApp();
+        expect(irPara).toHaveBeenCalledWith('/iso', true);
+        expect(location.search).toBe('');
+        irPara.mockClear();
+        history.replaceState(null, '', '/?tela=api-keys'); // consultor não vê Chaves de API
+        await window.initApp();
+        expect(irPara).toHaveBeenCalledWith('/iso', true);
+        expect(navigate).not.toHaveBeenCalledWith('api-keys');
+    });
+});
+
 describe('initApp num módulo', () => {
     it('/iso com projeto: dashboard, como sempre', async () => {
         history.replaceState(null, '', '/iso');

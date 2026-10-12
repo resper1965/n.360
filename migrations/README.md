@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0063** (`ls migrations/*.sql | tail -1`). São 61 arquivos
+- Última migration no repositório: **0068** (`ls migrations/*.sql | tail -1`). São 66 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -426,4 +426,57 @@ muda, nada para carregar. Conferência depois de aplicar: `SELECT name FROM sqli
 três, `PRAGMA table_info(importacao_itens)` lista as colunas do item (`dados`, `decisao`, `registro_id`) e `PRAGMA table_info(importacao_arquivos)`
 traz as do processamento em passos (`blocos_total`, `bloco_atual`, `blocos_falhos`). Para desfazer: nada a reverter nos dados
 existentes; as tabelas novas podem ficar vazias. **Esta RODA em produção, aditiva, sem janela.**
+Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
+
+## 0065 — a ness. contrata o n.privacy (2026-10-11)
+
+Só dados, sem DDL e sem mudança no `schema.sql`. O dono da plataforma aprovou em 2026-10-11 a contratação do n.privacy pela organização ness.:
+`UPDATE organizations SET modulos_contratados = '["iso","privacy"]' WHERE id = 'org_ness' AND modulos_contratados = '["iso"]'`. Idempotente: só
+troca o valor padrão `["iso"]`; outro valor (ajustado à mão) fica como está, e aplicar de novo não muda nada. Projetos já existentes não ganham o
+módulo sozinhos (o teto sobe; habilitar continua sendo da tela de módulos), mas projeto NOVO da ness. passa a nascer com `iso` e `privacy` (gatilho da 0060). Conferência depois de aplicar:
+`SELECT modulos_contratados FROM organizations WHERE id = 'org_ness'` devolve `["iso","privacy"]`. Para desfazer: o mesmo `UPDATE` com os valores
+trocados. **Esta RODA em produção, sem janela.**
+Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
+
+## 0066 — módulos por pessoa (2026-10-12)
+
+n.360, fatia 3. Cria `usuario_modulos` (PK `user_id, modulo`; `modulo` só `iso` ou `privacy`), o gatilho `usuario_modulos_padrao` (conta nova recebe o
+padrão: cliente, os módulos do projeto; equipe, o contrato da organização) e **normaliza os papéis legados** em `users`: `admin`→`platform_admin`,
+`consultant`→`consultor`, `client_admin`→`client`, `user`/`employee`→`org_user`. A carga inicial dá a cada conta o que ela já usa: cliente
+(`org_admin`, `org_user`, `client`) os módulos do projeto; equipe (`consultor`, `consultoria_admin`, `comercial`) o contrato da organização (vazio ou
+ilegível, `iso`). `platform_admin` e `stakeholder` não ganham linha. **Repetível:** `CREATE ... IF NOT EXISTS`, `UPDATE` e `INSERT OR IGNORE`
+idempotentes; rodar de novo **restaura os padrões** das contas sem linha (o que alguém revogou volta se o padrão o incluir). **Precisa rodar DEPOIS
+da 0065** (a equipe da ness. herda `["iso","privacy"]` do contrato; antes dela, só `iso`). Conferência depois de aplicar:
+`SELECT role, count(*) FROM users GROUP BY role` não lista `admin`, `consultant`, `client_admin`, `user` nem `employee`, e
+`SELECT count(*) FROM usuario_modulos` devolve **18 em produção** (5 consultores × 2 módulos + 8 `org_admin` × 1). Para desfazer: nada a reverter nos
+papéis (o mapa de `src/middleware/auth.ts` aceita os dois nomes); a tabela pode ficar. **Esta RODA em produção, sem janela:** o código novo exige o
+módulo da pessoa, então a migration vai ANTES do deploy.
+Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
+
+## 0067 — importação de terceiros (2026-10-12)
+
+Importação de programa, fatia 2. Rebuild de `importacao_itens` (CHECK só muda por rebuild no SQLite): `entidade` passa a aceitar `terceiro` e, de
+uma vez, as entidades das fatias 3 e 4 (`documento`, `dpia`, `lia`, `titular_pedido`, `incidente`, `consentimento`; o código ainda só grava
+`tratamento` e `terceiro`), para as próximas fatias não reconstruírem a tabela de novo; e
+`duplicata_de` e `registro_id` perdem a FK para `ropa_records` (num item `terceiro` apontam para `partes`; a coluna guarda o id do registro conforme a
+entidade, como `parte_vinculos.alvo_id`). Nenhuma tabela aponta para `importacao_itens`, então o `DROP` não cascateia; as FKs dela para lote,
+arquivo e projeto seguem iguais e os três índices são recriados. `test/migration-0067.test.ts` prova sobre o banco da 0064 com linhas: nada some,
+as oito entidades entram, entidade fora da lista é recusada, a cascata do lote continua. **Precisa da 0064 aplicada. NÃO é idempotente**
+(rebuild: `CREATE TABLE importacao_itens_new` sem `IF NOT EXISTS`); aplicar só uma vez, pelo `migrations apply`. Conferência antes: `SELECT COUNT(*)
+FROM importacao_itens`; depois: a mesma contagem, `SELECT sql FROM sqlite_master WHERE name = 'importacao_itens'` com `'terceiro'` no CHECK e
+`PRAGMA foreign_key_list(importacao_itens)` só com `importacoes`, `importacao_arquivos` e `projects`. Para desfazer: não precisa (o código anterior
+só grava `tratamento`, que a tabela nova aceita). **Esta RODA em produção, sem janela:** o código novo grava `entidade = 'terceiro'`, então a
+migration vai ANTES do deploy.
+Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
+
+---
+
+## 0068 — evidência ligada a documento (2026-10-12)
+
+Importação de programa, fatia 3. `evidence.documento_id` (FK para `documentos`, `ON DELETE SET NULL`) e o índice `idx_evidence_documento`:
+o arquivo original de um documento importado fica guardado como evidência ligada a ele. Coluna nova e nula, nada muda nas linhas que
+existem. `test/migration-0068.test.ts` prova sobre a `evidence` antiga com linha: a linha fica, a coluna e o índice entram, apagar o
+documento só solta a ligação. **NÃO é idempotente** (`ADD COLUMN` aborta com "duplicate column"): aplicar uma vez, pelo
+`migrations apply`. Conferência depois: `PRAGMA table_info(evidence)` com `documento_id`. Para desfazer: não precisa (o código anterior
+não lê a coluna). **Esta RODA em produção, sem janela:** o código novo grava `documento_id`, então a migration vai ANTES do deploy.
 Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.

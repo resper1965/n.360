@@ -193,4 +193,15 @@ describe('navigate()', () => {
             expect(document.querySelector('[aria-current]')).toBeNull();
         });
     });
+    describe('projetos num módulo', () => {
+        // No n.iso o item Projetos fica fora do menu (é do n.360); a lista, aberta pelo Voltar da Jornada, destaca a Jornada.
+        it('/iso: "projects" destaca nav-project; no n.360, nav-projects', () => {
+            history.replaceState(null, '', '/iso');
+            navigate('projects');
+            expect(itemAtivo().id).toBe('nav-project');
+            history.replaceState(null, '', '/');
+            navigate('projects');
+            expect(itemAtivo().id).toBe('nav-projects');
+        });
+    });
 });

@@ -399,7 +399,9 @@ CREATE TABLE IF NOT EXISTS evidence (
     ceo_approved_ua TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    valido_ate TEXT
+    valido_ate TEXT,
+    -- Arquivo original de documento importado (fatia 3 da importação, migration 0068): apagar o documento só solta a ligação.
+    documento_id TEXT REFERENCES documentos(id) ON DELETE SET NULL
 );
 
 -- ═══════════════════════════════════════════════
@@ -1353,6 +1355,7 @@ CREATE TABLE IF NOT EXISTS documentos (
 );
 CREATE INDEX IF NOT EXISTS idx_documentos_projeto ON documentos(project_id, tipo);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_documentos_controle ON documentos(origem_control_id) WHERE origem_control_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_evidence_documento ON evidence(documento_id);
 
 -- Uma versão vigente e um rascunho, no máximo, por documento (índices parciais): é a trava contra duas
 -- publicações simultâneas. `project_id` se repete aqui para a tabela entrar na portabilidade.
@@ -1666,18 +1669,45 @@ CREATE TABLE IF NOT EXISTS importacao_itens (
     importacao_id TEXT NOT NULL REFERENCES importacoes(id) ON DELETE CASCADE,
     arquivo_id TEXT NOT NULL REFERENCES importacao_arquivos(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento')),
+    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento', 'terceiro', 'documento', 'dpia', 'lia', 'titular_pedido', 'incidente', 'consentimento')),
     dados TEXT NOT NULL DEFAULT '{}',
     origem TEXT CHECK (origem IS NULL OR length(origem) <= 500),
     confianca TEXT NOT NULL DEFAULT 'baixa' CHECK (confianca IN ('alta', 'media', 'baixa')),
     faltando TEXT NOT NULL DEFAULT '[]',
-    duplicata_de TEXT REFERENCES ropa_records(id) ON DELETE SET NULL,
+    -- id do registro conforme a entidade (ropa_records ou partes), sem FK desde a 0067
+    duplicata_de TEXT,
     decisao TEXT NOT NULL DEFAULT 'pendente' CHECK (decisao IN ('pendente', 'aceito', 'descartado', 'gravado', 'recusado')),
     motivo TEXT,
-    registro_id TEXT REFERENCES ropa_records(id) ON DELETE SET NULL,
+    registro_id TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_importacao_itens_lote ON importacao_itens(importacao_id, decisao);
 CREATE INDEX IF NOT EXISTS idx_importacao_itens_arquivo ON importacao_itens(arquivo_id);
 CREATE INDEX IF NOT EXISTS idx_importacao_itens_projeto ON importacao_itens(project_id);
+
+-- ─── n.360, fatia 3: módulos por pessoa (migration 0066) ───
+CREATE TABLE IF NOT EXISTS usuario_modulos (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy')),
+    concedido_por TEXT,
+    concedido_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, modulo)
+);
+-- Conta nova recebe o padrão (cliente: os módulos do projeto; equipe: o contrato da organização, ou n.iso). Ver a 0066.
+CREATE TRIGGER IF NOT EXISTS usuario_modulos_padrao AFTER INSERT ON users
+BEGIN
+    INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
+        SELECT NEW.id, pm.modulo, 'padrao' FROM projeto_modulos pm
+         WHERE pm.project_id = NEW.client_project_id
+           AND NEW.role IN ('org_admin', 'org_user', 'client', 'client_admin', 'user', 'employee');
+    INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
+        SELECT NEW.id, j.value, 'padrao' FROM organizations o,
+               json_each(CASE WHEN json_valid(o.modulos_contratados) THEN o.modulos_contratados ELSE '[]' END) j
+         WHERE o.id = NEW.org_id AND j.value IN ('iso', 'privacy')
+           AND NEW.role IN ('consultor', 'consultant', 'consultoria_admin', 'comercial');
+    INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
+        SELECT NEW.id, 'iso', 'padrao'
+         WHERE NEW.role IN ('consultor', 'consultant', 'consultoria_admin', 'comercial')
+           AND NOT EXISTS (SELECT 1 FROM usuario_modulos WHERE user_id = NEW.id);
+END;

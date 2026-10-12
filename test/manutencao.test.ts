@@ -179,6 +179,43 @@ describe('manutenção diária', () => {
     });
   });
 
+  describe('catálogo de requisitos', () => {
+    const n = async (sql: string) => (await env.DB.prepare(sql).first<{ n: number }>())!.n;
+
+    it('semeia o catálogo (LGPD incluída), não duplica na segunda vez e não rebaixa mapeamento validado', async () => {
+      const r1 = await manutencaoDiaria(env as any);
+      expect(r1.falhas).toEqual([]);
+      expect(r1.catalogo?.requisitos).toBeGreaterThan(0);
+      expect(await n(`SELECT count(*) AS n FROM requisitos WHERE fonte_id = 'lgpd'`)).toBeGreaterThan(0);
+
+      const total = await n('SELECT count(*) AS n FROM requisitos');
+      const mapas = await n('SELECT count(*) AS n FROM requisito_mapeamentos');
+      expect(mapas).toBeGreaterThan(0);
+      const um = await env.DB.prepare('SELECT de_id, para_id FROM requisito_mapeamentos LIMIT 1').first<{ de_id: string; para_id: string }>();
+      await env.DB.prepare(`UPDATE requisito_mapeamentos SET estado = 'validado_juridico', validado_por = 'u', validado_em = datetime('now') WHERE de_id = ? AND para_id = ?`)
+        .bind(um!.de_id, um!.para_id).run();
+
+      const r2 = await manutencaoDiaria(env as any);
+      expect(r2.catalogo).toEqual({ fontes: 0, requisitos: 0, mapeamentos: 0 });
+      expect(await n('SELECT count(*) AS n FROM requisitos')).toBe(total);
+      expect(await n('SELECT count(*) AS n FROM requisito_mapeamentos')).toBe(mapas);
+      const estado = await env.DB.prepare('SELECT estado FROM requisito_mapeamentos WHERE de_id = ? AND para_id = ?')
+        .bind(um!.de_id, um!.para_id).first<{ estado: string }>();
+      expect(estado!.estado).toBe('validado_juridico');
+    });
+
+    it('liga ao requisito o controle sem requisito_id cujo código bate com o catálogo', async () => {
+      await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('p-cat','C','ISO 27001','controller','Active')`).run();
+      await env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status) VALUES ('ctl-cat','p-cat','ISO 27001:2022','A.5.1 Políticas de segurança da informação','Missing')`).run();
+      const r = await manutencaoDiaria(env as any);
+      expect(r.falhas).toEqual([]);
+      expect(r.controles_ligados).toBeGreaterThanOrEqual(1);
+      const c = await env.DB.prepare(`SELECT requisito_id FROM compliance_controls WHERE id = 'ctl-cat'`).first<{ requisito_id: string | null }>();
+      expect(c!.requisito_id).toBe('iso27001:2022:A.5.1');
+      expect((await manutencaoDiaria(env as any)).controles_ligados).toBe(0);
+    });
+  });
+
   describe('tolerância a falha', () => {
     it('uma tarefa que estoura não impede as outras, e a falha vai no resultado', async () => {
       // Sem a tabela, a purga de rate_limits estoura; a de tokens tem de rodar

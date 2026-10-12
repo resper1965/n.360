@@ -96,22 +96,26 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` (links ja enviados, IdP de SCIM, conectores MCP, chaves
   de API). **SSO:** o `redirect_uri` enviado ao IdP e a constante `URL_NISO` (`niso`, o unico que os IdPs dos clientes cadastraram)
   quando o `appUrl` e o padrao de producao (`APP_URL_PADRAO`); com outro `APP_URL`, e o proprio `APP_URL` (`redirectUriDe` em
-  `src/routes/public.ts`). So o redirecionamento final (`/#sso_token=`, `/#sso_erro=`) e absoluto no `appUrl`. **MCP:** o recurso e `RECURSO_MCP`
+  `src/routes/public.ts`). Telas: o login pergunta `POST /api/v1/public/sso/iniciar` (`entrarComSso`, `frontend/src/globals.js`) e a equipe configura SSO, SCIM e politica em `frontend/src/views/seguranca-projeto.js`. So o redirecionamento final (`/#sso_token=`, `/#sso_erro=`) e absoluto no `appUrl`. **MCP:** o recurso e `RECURSO_MCP`
   (`https://niso.ness.com.br/mcp`) e `hostsPermitidosMcp` aceita `niso` alem do host do `appUrl`. **Volta atras:** `APP_URL`
   de volta para `niso` (o Worker e o frontend deixam de redirecionar: o host do `APP_URL` nunca redireciona, e o frontend le o
   `app_url` do `/health`). Sem dado nem migration.
   **Deploy em duas etapas:** (1) a rota `n360.ness.com.br` entra com `APP_URL` ainda em `niso` (nada redireciona para o n.360);
   conferir `curl -s https://n360.ness.com.br/health` (o SHA e `"app_url":"https://niso.ness.com.br"`); (2) um PR de uma linha
   troca o `APP_URL` para `https://n360.ness.com.br` (antes, incluir `n360.ness.com.br` nos hostnames do widget do Turnstile).
+- **Contas**: conta de usuario se **desativa**, nao se apaga (`PUT /api/v1/users/:id/ativo`; `DELETE /api/v1/users/:id` so desativa). Apagar de verdade e `DELETE ...?definitivo=1`, so `platform_admin`. Conta desativada nao entra por senha, SSO, agente MCP nem sessao aberta; chave de API e do projeto, nao da pessoa, e continua valendo ate ser revogada em Chaves de API. Ninguem desativa nem exclui a propria conta (409). Nao reintroduza `DELETE FROM users` fora dessa rota.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 39 arquivos em 2026-10-11: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 40 arquivos em 2026-10-12: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
 - **Agents** (`src/agents/`): policy, evidence, assessment, control-adequacao,
-  phase-interpretation, readiness (`ls src/agents`).
+  phase-interpretation, readiness, importacao e privacidade (`ls src/agents`). O `privacidade` so
+  RASCUNHA no n.privacy (sugestao do tratamento, resposta ao titular, comunicacao de incidente): a saida
+  passa por zod estrito, nada e gravado no registro e a trilha `agente.rascunho` nao leva o texto
+  (`src/services/rascunhos-privacy.ts`).
 - **Frontend**: `frontend/src/` → `frontend/dist`, servido pelo binding ASSETS.
   - `frontend/login.html` — o app de verdade (login + SPA), entrada do Vite
     (`vite.config.js: rollupOptions.input`), com `src/main.js`, `router.js`,
@@ -140,9 +144,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     (`src/routes/public-auditor.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **85 tabelas** (2026-10-11: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **86 tabelas** (2026-10-12: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0064** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0068** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Inventario (ativos)**: vive em `itens` (nucleo fino) + `item_seguranca` (bloco do n.iso, 1:1), antes `assets`
@@ -239,6 +243,18 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   consentimentos, encarregado, ligacoes/LIA/importacao do RoPA). O `projectAccessMiddleware` e o `requireResourceAccess` (pela
   `FAIXA_DA_TABELA`) devolvem 403 se o projeto nao tem o produto, inclusive para o `platform_admin`. Projeto sem nenhum modulo e
   inexistente (passa, e a rota da o 404 dela). **Rota nova de projeto precisa de faixa:** `test/modulos-produto.test.ts` reprova.
+  **Acesso por PESSOA (n.360, fatia 3, migration 0066; spec `docs/superpowers/specs/2026-10-12-n360-modulos-por-pessoa-design.md`):** rota de
+  faixa `iso`/`privacy` so passa se o projeto tem o modulo **E** a pessoa tem (`usuario_modulos`; 403 "Voce nao tem acesso ao n.X");
+  faixa `nucleo` nao exige modulo da pessoa. `modulosDaPessoa` (`src/modulos.ts`): `platform_admin` tem todos sem linha, chave de API
+  vale os modulos do projeto da chave, agente MCP os do consultor que concedeu; a consulta e por requisicao (a mudanca vale na hora).
+  `GET /auth/me` devolve `modulos`; o frontend cruza com os do projeto (`modulosVisiveis`, `produto.js`). Quem concede e quem ja gere a
+  conta, com teto (cliente: modulos do projeto dele; equipe: contrato da organizacao; `platform_admin`, qualquer um):
+  `PUT /users/:id/modulos`, trilha `usuario.modulos` com antes e depois; `POST /users` aceita `modulos`. O gatilho
+  `usuario_modulos_padrao` da a conta nova o padrao (cliente: modulos do projeto; equipe: contrato). Habilitar um modulo num projeto
+  concede aos clientes dele na hora; a equipe da consultoria recebe pela tela Usuarios. Tirar modulo do contrato da organizacao
+  (`PUT /platform/orgs/:id/modulos`, tela Organizacoes) nao tira de pessoas nem de projetos, so limita o que se concede depois. **Papeis
+  normalizados:** a 0066 gravou `admin`→`platform_admin`, `consultant`→`consultor`, `client_admin`→`client`, `user`/`employee`→`org_user`
+  (o mapa de `src/middleware/auth.ts` continua para sessoes antigas); confira com `SELECT role, count(*) FROM users GROUP BY role`.
   O gatilho `projeto_modulos_do_contrato` (0060) da ao projeto novo o que a organizacao contratou (`modulos_contratados`, padrao
   `["iso"]`); `POST /projects` aceita `modulos` dentro do contrato e projeto sem `iso` nasce sem a trilha de fases. Os projetos que
   ja existiam ficaram so com `iso`: o n.privacy e habilitado por projeto (`PUT /projects/:id/modulos/privacy`, cartao Produtos na
@@ -250,6 +266,12 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `SO_PRIVACY`) e filtra os projetos pelo produto. `destinoLegado` (async) leva quem abre `niso`/`nprivacy` ao modulo no `app_url` que o `/health` da mesma origem devolve; se
   ele for o proprio host, ou o `/health` falhar, fica onde esta. O item Inicio do menu so aparece no n.360; nos modulos a volta e
   o link "n.360" do rodape. Login unico (a sessao e por origem: na troca, todos entram de novo uma vez).
+  **Conta e acessos (n.360, fatia 2):** Projetos (com o cartao Produtos), Usuarios, Organizacoes, Chaves de API e Conectar agente
+  ficam no grupo "Conta e acessos" (`group-conta` em `login.html`), que so o n.360 mostra (`SO_N360`); o papel continua decidindo
+  cada item (`updateHeaderUser`), e o grupo sem item do papel some. Nos modulos o rodape traz "Conta e acessos (n.360)", que leva a
+  `/?tela=<primeira tela da conta que o papel ve>`. O boot do n.360 le o `?tela=` uma vez (`telaPedida`): so valores de
+  `TELAS_DA_CONTA`, so se o item estiver visivel para o papel, e o parametro sai do endereco (`history.replaceState`); a tela pedida
+  vence o "um modulo so, entra nele". "Seguranca do projeto" fica no grupo Sistema, em todas as cascas.
   E2E em `frontend/e2e/n360.spec.js`; `frontend/e2e/shell.js` entrega `dist/login.html` em `/iso` e `/privacy` (o servidor do
   Playwright nao faz fallback de SPA). Testes de backend que usam rota do
   n.privacy chamam `habilitarPrivacy(...)` de `test/helpers/d1.ts`.
@@ -261,8 +283,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Importacao de programa de privacidade (n.privacy, fatia 1, migration 0064; spec em `docs/superpowers/specs/2026-10-11-importacao-privacy-design.md`).**
   Rotas em `src/routes/importacao.ts`, montadas em `/api/v1/projects/:projectId/importacoes` na faixa `privacy` (`src/modulos.ts`); so a
   equipe da consultoria (`ehEquipeNess`), cliente recebe 403. Tabelas `importacoes` (lote), `importacao_arquivos` e `importacao_itens`
-  (a proposta, um tratamento por linha). Arquivo no R2 `STORAGE`, chave `importacoes/<project_id>/<lote>/<arquivo>`. Regras em
-  `src/services/importacao.ts`; o `ImportacaoAgent` (`src/agents/importacao.ts`) classifica o arquivo e extrai tratamentos pelo
+  (a proposta, um item por linha; `entidade` `tratamento`, `terceiro` desde a fatia 2 (migration 0067), `documento`, `dpia` e `lia` desde a fatia 3, `titular_pedido`, `incidente` e `consentimento` desde a fatia 4). Arquivo no R2 `STORAGE`, chave `importacoes/<project_id>/<lote>/<arquivo>`. Regras em
+  `src/services/importacao.ts`; o `ImportacaoAgent` (`src/agents/importacao.ts`) classifica o arquivo e extrai, conforme o tipo
+  (`inventario` → tratamentos, `terceiros` → terceiros, `documento` → um documento por arquivo, tirado so do primeiro bloco, `avaliacao` →
+  DPIA ou LIA item a item pelo campo `tipo` da resposta, `historico` → pedido do titular, incidente ou consentimento pelo campo `registro`;
+  `desconhecido` fica `aguardando`), pelo
   `BaseAgent.runModel`, tratando o texto do arquivo como dado e nunca como instrucao, e cada item e validado por esquema estrito no servidor.
   **Processamento em passos, um por chamada** (`processar` devolve `restantes` e a tela repete): o primeiro converte, classifica e
   guarda o texto em `<r2_key>.txt`; cada seguinte extrai um bloco de ~4.000 caracteres (`BLOCO`, cortado so em quebra de linha;
@@ -273,6 +298,38 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   **Revisao humana obrigatoria:** nada vira RoPA sem a pessoa aceitar o item na tela e confirmar. `confirmar` grava no maximo 30 itens por
   chamada (`ITENS_POR_CONFIRMACAO`, a tela repete ate `restantes` zerar), um item por transacao, e o lote fica em status `gravando` (trava
   por UPDATE condicional; processar, enviar, editar item e cancelar recebem 409; trava de gravacao interrompida e retomada apos 10 minutos).
+  **Terceiro (fatia 2):** `gravarTerceiro` casa a parte organizacao por nome normalizado (a existente e reaproveitada; duplicata nasce
+  `descartado` e, aceita, nao cria outra parte), liga aos tratamentos ja cadastrados por finalidade normalizada (papel `operador`) na mesma
+  transacao que marca o item `gravado`, e depois chama `definirTipo`, `registrarAvaliacao` (so com validade no futuro, sem repetir a mesma) e
+  `ligarDocumento` (DPA pelo titulo) de `src/services/terceiros.ts`; o que falhar nesses passos vira `aviso` no resultado, sem desfazer a parte.
+  Tipo de parte ja tipificada nao e trocado pelo arquivo. `duplicata_de`/`registro_id` apontam para o registro da entidade (sem FK).
+  **Documento e avaliacao (fatia 3, migration 0068):** `gravarDocumento` cria pelo `criarDocumento` de `src/services/documentos.ts` um
+  documento em RASCUNHO (nunca publicado) com o texto convertido (`<r2_key>.txt`) como versao 1; titulo normalizado igual ao de um documento
+  do projeto recusa. Depois copia o arquivo original para `evidence/<projeto>/` e grava a evidencia com `evidence.documento_id` (a 0068);
+  `lerDocumento` devolve `evidencias`. `gravarAvaliacao` casa o tratamento por finalidade normalizada (sem ele, `recusado`): DPIA pelo
+  `criarDpiaDoTratamento` de `src/services/lia.ts` (`Draft`; riscos e a conclusao (marcada como do arquivo) em
+  `risks_identified`; parecer do DPO fica vazio), LIA pelo `salvarLia` em rascunho (conclusao e riscos no `balanceamento`; concluir e de uma pessoa); DPIA/LIA ja existente
+  no tratamento recusa. Ordem da confirmacao: tratamentos, depois documentos, depois o resto (DPIA/LIA acham o tratamento e o terceiro acha o
+  DPA gravados na mesma confirmacao). Falha depois da criacao (evidencia, riscos da DPIA) vira `aviso` mais log estruturado, sem desfazer o registro;
+  falha da marca `gravado` vira `recusado` com o id criado.
+  **Historico operacional (fatia 4, sem migration):** dado pessoal minimo. Antes de qualquer texto ir ao modelo, `mascararPii` troca
+  e-mail, CPF e telefone: na classificacao por `[dado pessoal]`, na extracao do historico pelo pseudonimo `tit-<16 hex>` de
+  `pseudonimizador` (HMAC-SHA256 com a `TOKEN_ENC_KEY`, separado por projeto; sem a chave o arquivo fica `erro` e nada vai ao modelo).
+  Os esquemas (`pedidoPropostoSchema`, `incidentePropostoSchema`, `consentimentoPropostoSchema`) nao tem campo de nome, CPF, e-mail ou
+  telefone; `titular_ref` so aceita o pseudonimo (o que o modelo devolver fora do formato e pseudonimizado no servidor), e o trecho de
+  `origem` nao e guardado. Nome, endereco e afins nao sao detectaveis por regex: o prompt proibe devolve-los, o esquema estrito recusa
+  campo a mais e uma pessoa revisa. Gravacao pelas funcoes "importar historico" dos servicos (`importarPedido` em
+  `src/services/titular-pedidos.ts`, `importarIncidente` em `incidentes.ts`, `importarConsentimento` em `consentimentos.ts`): datas e status
+  do registro de origem (final inclusive), protocolo do sistema gerado como na criacao (ano da data de origem), protocolo de origem na
+  primeira linha da descricao (`Protocolo original: ...`, e por ela que a duplicata e achada). **Avisos de prazo:** registro encerrado
+  entra sem prazo (nao se recalcula); registro aberto recebe o prazo do parametro contado da data de origem, mesmo vencido (a tela e o
+  painel do encarregado o mostram atrasado, e o resultado traz `aviso`). Carencia em `src/services/avisos-prazo.ts` (`itensDoDia`): pedido
+  do titular e comunicacao de incidente cujo prazo e anterior ao dia de `created_at` nao geram atraso na semana ISO da criacao; da semana
+  seguinte em diante o atraso semanal volta, como para qualquer registro. D-7 e D0 so saem no proprio dia, entao nunca sao retroativos.
+  Vale igual para pedido e incidente criados a mao com data antiga (prazo que ja nasce vencido).
+  O pseudonimo usa uma subchave (`HMAC(TOKEN_ENC_KEY, "n.iso/importacao/titular_ref/v1")`), nao a chave de cifra direto. Consentimento exige o tratamento do RoPA de mesma finalidade normalizada (o gravado na mesma confirmacao vale;
+  sem ele, `recusado`). Duplicata: pedido pelo protocolo de origem; incidente pelo protocolo de origem ou titulo e dia da ciencia;
+  consentimento pelo pseudonimo, finalidade e data.
   Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`), e o GET tambem e
   recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
   prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:
@@ -280,7 +337,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Bindings** (`grep '"binding"' wrangler.jsonc`): DB (D1), SESSIONS e OAUTH_KV (KV),
   STORAGE e TRILHA (R2), AI, ANALYTICS (Analytics Engine), CF_VERSION_METADATA, ASSETS.
 - **Rotinas agendadas** (`grep -A2 '"triggers"' wrangler.jsonc`): `10 4 * * *` roda a manutencao
-  (`src/manutencao.ts`, purga e retencao) e `0 11 * * *` (08:00 em Brasilia) os avisos de prazo
+  (`src/manutencao.ts`, purga, retencao e semeadura idempotente do catalogo de requisitos) e `0 11 * * *` (08:00 em Brasilia) os avisos de prazo
   (`src/services/avisos-prazo.ts`: sino em D-7 e D0, aviso agregado por pessoa e projeto no atraso,
   e-mail-resumo; idempotencia em `avisos_prazo`). O
   `scheduled` de `src/index.ts` despacha por `event.cron`.
@@ -347,7 +404,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 235 arquivos de teste do backend mocka o D1 inteiro** (2026-10-11;
+- **Nenhum dos 237 arquivos de teste do backend mocka o D1 inteiro** (2026-10-12;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -358,7 +415,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
 - **Frontend com pouco teste por linha.** ~16,7 mil linhas de JS (2026-10-11)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 80 arquivos de teste em jsdom
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 81 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. A maior parte das telas ainda nao
   tem teste proprio.

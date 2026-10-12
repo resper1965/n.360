@@ -75,7 +75,11 @@ export function marcoDoDia(vence: string, hoje: string): string | null {
  * a parte não tem dono, então o aviso vai aos consultores do projeto.
  * Pedido do titular (fatia 7): `prazo_em` de pedido ainda não respondido, negado ou arquivado; sem parâmetro cadastrado o prazo é nulo e
  * o pedido não entra. Incidente: um item por comunicação pendente (`<id>:anpd` e `<id>:titular`), só enquanto não encerrado, não comunicado
- * e com risco diferente de `sem_risco`. Responsável = a parte responsável do registro.
+ * e com risco diferente de `sem_risco`. Responsável = a parte responsável do registro. As duas fontes trazem `criado_em` (dia da criação do
+ * registro) só para a carência de `itensDoDia`: prazo que já nasce vencido (histórico importado, ou registro à mão com data antiga) não
+ * gera atraso na semana ISO da criação; da semana seguinte em diante, o atraso semanal volta. D-7 e D0 nunca são retroativos (só saem no
+ * próprio dia).
+ * ponytail: a carência é a semana ISO da criação (pode ser 1 dia, se o registro nasce num domingo); se precisar de prazo fixo, contar dias.
  * Evidência (fatia 8): `valido_ate` da evidência que tem validade; renovar a data (reavaliar com validade nova) tira o item. Sem responsável: vai
  * aos consultores. A rotina `vencerEvidencias` devolve a avaliação a `pending` antes de avisar.
  * ponytail: '-3 hours' é o fuso de São Paulo fixo (sem horário de verão desde 2019); se voltar, troca
@@ -116,16 +120,16 @@ const FONTES: Record<Fonte, string> = {
     WHERE pa.status = 'ativa' AND a.resultado <> 'reprovado'
       AND a.id = (SELECT a2.id FROM avaliacoes_terceiro a2 WHERE a2.parte_id = a.parte_id ORDER BY a2.created_at DESC, a2.rowid DESC LIMIT 1)`,
   titular_pedido: `SELECT t.id AS item_id, t.project_id, date(substr(t.prazo_em, 1, 10)) AS vence_em, 'Pedido do titular ' || t.protocolo AS titulo,
-      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel, date(t.created_at) AS criado_em
     FROM titular_pedidos t JOIN projects p ON p.id = t.project_id LEFT JOIN partes pa ON pa.id = t.responsavel_parte_id AND pa.project_id = t.project_id
     WHERE t.status IN ('recebido', 'em_andamento') AND t.prazo_em IS NOT NULL`,
   incidente: `SELECT i.id || ':anpd' AS item_id, i.project_id, date(substr(i.prazo_anpd_em, 1, 10)) AS vence_em, 'Comunicação à ANPD do incidente ' || i.protocolo AS titulo,
-      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel, date(i.created_at) AS criado_em
     FROM incidentes i JOIN projects p ON p.id = i.project_id LEFT JOIN partes pa ON pa.id = i.responsavel_parte_id AND pa.project_id = i.project_id
     WHERE i.status <> 'encerrado' AND i.prazo_anpd_em IS NOT NULL AND i.comunicacao_anpd_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'
     UNION ALL
     SELECT i.id || ':titular', i.project_id, date(substr(i.prazo_titular_em, 1, 10)), 'Comunicação ao titular do incidente ' || i.protocolo,
-      COALESCE(NULLIF(trim(pa.email), ''), pa.nome)
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome), date(i.created_at)
     FROM incidentes i JOIN projects p ON p.id = i.project_id LEFT JOIN partes pa ON pa.id = i.responsavel_parte_id AND pa.project_id = i.project_id
     WHERE i.status <> 'encerrado' AND i.prazo_titular_em IS NOT NULL AND i.comunicacao_titular_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'`,
   evidencia: `SELECT e.id AS item_id, e.project_id, date(substr(e.valido_ate, 1, 10)) AS vence_em, 'Evidência ' || e.file_name AS titulo, NULL AS responsavel
@@ -141,9 +145,11 @@ export async function itensDoDia(db: D1Database, hoje: string): Promise<{ itens:
       const { results } = await db
         .prepare(`SELECT * FROM (${FONTES[fonte]}) WHERE vence_em IS NOT NULL AND vence_em <= ? ORDER BY vence_em, item_id`)
         .bind(somarDias(hoje, 7))
-        .all<Omit<ItemPrazo, 'fonte'>>();
-      for (const r of results) {
+        .all<Omit<ItemPrazo, 'fonte'> & { criado_em?: string | null }>();
+      for (const { criado_em, ...r } of results) {
         const marco = marcoDoDia(r.vence_em, hoje);
+        // Carência (pedido e incidente): prazo que nasceu vencido não gera atraso na semana ISO em que o registro foi criado.
+        if (marco?.startsWith('atraso-') && criado_em && r.vence_em < criado_em && semanaIso(hoje) === semanaIso(criado_em)) continue;
         if (marco) itens.push({ fonte, ...r, marco });
       }
     } catch (e) {

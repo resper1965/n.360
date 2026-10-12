@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
-import { applySchema, sessionFor, workerEnv, habilitarPrivacy } from './helpers/d1';
+import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
 import { semearCatalogo } from '../src/services/requisitos';
 import { LGPD } from '../src/data/lgpd';
 import { criarDocumento, publicarVersao } from '../src/services/documentos';
@@ -45,6 +45,8 @@ beforeAll(async () => {
       ('c55', ?1, 'ISO 27001:2022', 'A.5.5 — x', 'Implemented', ?6)`).bind(P, A51, A52, A53, A54, A55),
   ]);
   await habilitarPrivacy(P, OUTRO);
+  // o cliente já existia: recebe o n.privacy como ao ligar o módulo pela tela (rota coberta em modulos-por-pessoa)
+  await concederModulos('u-cli', ['privacy']);
   admin = await sessionFor({ id: 'u-adm', email: 'adm@ness.lat', role: 'platform_admin' });
   consultor = await sessionFor({ id: 'u-cons', email: 'cons@ness.lat', role: 'consultor' });
   cliente = await sessionFor({ id: 'u-cli', email: 'cli@cliente.com', role: 'org_user', client_project_id: P });

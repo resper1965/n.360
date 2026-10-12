@@ -406,3 +406,286 @@ describe('processar: tempo, sessão', () => {
         expect(f.mock.calls.length - antes).toBe(1);
     });
 });
+
+describe('terceiros (fatia 2): aba própria na revisão', () => {
+    const terc = (id, extra = {}) => ({
+        id, entidade: 'terceiro', arquivo_id: 'a2', origem: 'linha do fornecedor', confianca: 'alta', faltando: [], duplicata_de: null, decisao: 'pendente', motivo: null,
+        dados: { nome: `Fornecedor ${id}`, tipo: 'medio', cnpj: '00.000.000/0001-00', contato: 'dpo@fornecedor.example', dpa: 'DPA Fornecedor', tratamentos: ['Folha'], ultima_avaliacao: { resultado: 'com_ressalvas', valido_ate: '2027-06-30', metodo: 'questionário' } },
+        ...extra,
+    });
+
+    it('abas por entidade com contagem; a de terceiros mostra tipo, avaliação, DPA, tratamentos e o link da duplicata', async () => {
+        await abrirLote(LOTE({ itens: [item('i1'), terc('t1'), terc('t2', { duplicata_de: 'pa1', decisao: 'descartado' })] }));
+        const t0 = el('c').textContent;
+        expect(t0).toContain('Tratamentos (1)');
+        expect(t0).toContain('Terceiros (2)');
+        expect(t0).toContain('Finalidade i1');
+        expect(t0).not.toContain('Fornecedor t1');
+        await clica('importacaoAba', ['terceiro']);
+        const t = el('c').textContent;
+        expect(t).not.toContain('Finalidade i1');
+        expect(t).toContain('Fornecedor t1');
+        expect(t).toContain('Tipo: Médio');
+        expect(t).toContain('Aprovado com ressalvas até 2027-06-30');
+        expect(t).toContain('DPA Fornecedor');
+        expect(t).toContain('Folha');
+        expect(t).toContain('Já existe');
+        expect(el('c').querySelector('[data-action="navigate"][data-args=\'["terceiros"]\']')).not.toBeNull();
+        // "aceitar todos de confiança alta" vale para a aba aberta
+        expect(t).toContain('Aceitar todos de confiança alta (1)');
+    });
+
+    it('editar terceiro abre o formulário dele e envia os dados no formato do esquema', async () => {
+        const det = LOTE({ itens: [terc('t1')] });
+        const f = await abrirLote(det, { [`PUT ${B}/l1/itens/t1`]: { ok: true } });
+        await clica('importacaoAba', ['terceiro']);
+        await clica('importacaoEditar', ['t1']);
+        expect(el('imp-nome').value).toBe('Fornecedor t1');
+        expect(el('imp-tipo').value).toBe('medio');
+        expect(el('imp-tratamentos').value).toBe('Folha');
+        expect(el('imp-aval_valido_ate').value).toBe('2027-06-30');
+        el('imp-tipo').value = 'critico';
+        el('imp-cnpj').value = '';
+        el('imp-tratamentos').value = 'Folha, Benefícios';
+        await clica('importacaoSalvarItem', ['t1']);
+        await espera();
+        const put = f.mock.calls.find(([, o]) => o?.method === 'PUT');
+        expect(JSON.parse(put[1].body)).toEqual({ dados: {
+            nome: 'Fornecedor t1', tipo: 'critico', cnpj: null, contato: 'dpo@fornecedor.example', dpa: 'DPA Fornecedor', tratamentos: ['Folha', 'Benefícios'],
+            ultima_avaliacao: { resultado: 'com_ressalvas', valido_ate: '2027-06-30', metodo: 'questionário' },
+        } });
+    });
+
+    it('sem resultado ou validade, a avaliação vai nula; sem nome não salva', async () => {
+        const det = LOTE({ itens: [terc('t1', { dados: { nome: 'Sem avaliação' } })] });
+        const f = await abrirLote(det, { [`PUT ${B}/l1/itens/t1`]: { ok: true } });
+        await clica('importacaoAba', ['terceiro']);
+        await clica('importacaoEditar', ['t1']);
+        el('imp-aval_resultado').value = 'aprovado';
+        await clica('importacaoSalvarItem', ['t1']);
+        await espera();
+        expect(JSON.parse(f.mock.calls.find(([, o]) => o?.method === 'PUT')[1].body).dados).toMatchObject({ nome: 'Sem avaliação', tipo: null, ultima_avaliacao: null });
+        await clica('importacaoEditar', ['t1']);
+        el('imp-nome').value = ' ';
+        await clica('importacaoSalvarItem', ['t1']);
+        expect(el('imp-erro').textContent).toContain('nome');
+    });
+
+    it('o resultado da confirmação mostra o nome do terceiro e o aviso', async () => {
+        const det = LOTE({ itens: [terc('t1', { decisao: 'aceito' })] });
+        await abrirLote(det, { [`POST ${B}/l1/confirmar`]: { ok: true, resultados: [{ item_id: 't1', decisao: 'gravado', registro_id: 'pa1', aviso: 'avaliação vencida (2020-01-01) não registrada' }], restantes: 0 } });
+        await clica('importacaoConfirmar');
+        await espera();
+        const t = el('c').textContent;
+        expect(t).toContain('Fornecedor t1');
+        expect(t).toContain('avaliação vencida (2020-01-01) não registrada');
+    });
+
+    it('texto do terceiro com HTML não vira elemento', async () => {
+        const mal = '<img src=x onerror="window.__xss2=1">';
+        await abrirLote(LOTE({ itens: [terc('t1', { dados: { nome: mal, tipo: mal, cnpj: mal, contato: mal, dpa: mal, tratamentos: [mal], ultima_avaliacao: { resultado: mal, valido_ate: mal, metodo: mal } }, origem: mal, motivo: mal })] }));
+        await clica('importacaoAba', ['terceiro']);
+        expect(el('c').querySelector('img')).toBeNull();
+        expect(el('c').textContent).toContain(mal);
+        await clica('importacaoEditar', ['t1']);
+        expect(el('imp-nome').value).toBe(mal);
+        expect(document.querySelector('img')).toBeNull();
+        expect(window.__xss2).toBeUndefined();
+    });
+});
+
+describe('documentos e avaliações (fatia 3): abas próprias na revisão', () => {
+    const base = { arquivo_id: 'a3', origem: 'trecho do arquivo', confianca: 'alta', faltando: [], duplicata_de: null, decisao: 'pendente', motivo: null };
+    const docu = (id, extra = {}) => ({ id, entidade: 'documento', ...base, dados: { titulo: `Política ${id}`, tipo: 'politica', resumo: `Resumo ${id}` }, ...extra });
+    const aval = (id, entidade, extra = {}) => ({ id, entidade, ...base, dados: { tratamento: `Tratamento ${id}`, conclusao: `Conclusão ${id}`, riscos: ['Vazamento', 'Acesso indevido'] }, ...extra });
+
+    it('abas Documentos e Avaliações com contagem; documento com tipo e resumo; avaliação com DPIA/LIA, tratamento, conclusão e riscos', async () => {
+        await abrirLote(LOTE({ itens: [item('i1'), docu('d1'), docu('d2', { duplicata_de: 'doc9', decisao: 'descartado' }), aval('v1', 'dpia'), aval('v2', 'lia')] }));
+        const t0 = el('c').textContent;
+        expect(t0).toContain('Documentos (2)');
+        expect(t0).toContain('Avaliações (2)');
+        await clica('importacaoAba', ['documento']);
+        let t = el('c').textContent;
+        expect(t).not.toContain('Finalidade i1');
+        expect(t).toContain('Política d1');
+        expect(t).toContain('Tipo: Política');
+        expect(t).toContain('Resumo d1');
+        expect(t).toContain('Já existe');
+        expect(el('c').querySelector('[data-action="navigate"][data-args=\'["documentos"]\']')).not.toBeNull();
+        expect(t).toContain('rascunho');
+        await clica('importacaoAba', ['avaliacao']);
+        t = el('c').textContent;
+        expect(t).toContain('DPIA');
+        expect(t).toContain('LIA');
+        expect(t).toContain('Tratamento v1');
+        expect(t).toContain('Conclusão v1');
+        expect(t).toContain('Vazamento');
+        expect(t).toContain('Aceitar todos de confiança alta (2)');
+    });
+
+    it('editar documento e avaliação envia os dados no formato do esquema; sem título ou tratamento não salva', async () => {
+        const det = LOTE({ itens: [docu('d1'), aval('v1', 'lia')] });
+        const f = await abrirLote(det, { [`PUT ${B}/l1/itens/d1`]: { ok: true }, [`PUT ${B}/l1/itens/v1`]: { ok: true } });
+        await clica('importacaoAba', ['documento']);
+        await clica('importacaoEditar', ['d1']);
+        expect(el('imp-titulo').value).toBe('Política d1');
+        expect(el('imp-tipo').value).toBe('politica');
+        el('imp-tipo').value = 'norma';
+        el('imp-resumo').value = '';
+        await clica('importacaoSalvarItem', ['d1']);
+        await espera();
+        const puts = () => f.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([, o]) => JSON.parse(o.body));
+        expect(puts()[0]).toEqual({ dados: { titulo: 'Política d1', tipo: 'norma', resumo: null } });
+
+        await clica('importacaoAba', ['avaliacao']);
+        await clica('importacaoEditar', ['v1']);
+        expect(el('imp-tratamento').value).toBe('Tratamento v1');
+        expect(el('imp-riscos').value).toBe('Vazamento\nAcesso indevido');
+        el('imp-riscos').value = 'Vazamento\n\n Perfilamento ';
+        await clica('importacaoSalvarItem', ['v1']);
+        await espera();
+        expect(puts()[1]).toEqual({ dados: { tratamento: 'Tratamento v1', conclusao: 'Conclusão v1', riscos: ['Vazamento', 'Perfilamento'] } });
+
+        await clica('importacaoEditar', ['v1']);
+        el('imp-tratamento').value = ' ';
+        await clica('importacaoSalvarItem', ['v1']);
+        expect(el('imp-erro').textContent).toContain('tratamento');
+        await clica('importacaoAba', ['documento']);
+        await clica('importacaoEditar', ['d1']);
+        el('imp-titulo').value = '';
+        await clica('importacaoSalvarItem', ['d1']);
+        expect(el('imp-erro').textContent).toContain('título');
+    });
+
+    it('o resultado da confirmação mostra o título do documento e o tratamento da avaliação', async () => {
+        const det = LOTE({ itens: [docu('d1', { decisao: 'aceito' }), aval('v1', 'dpia', { decisao: 'aceito' })] });
+        await abrirLote(det, { [`POST ${B}/l1/confirmar`]: { ok: true, resultados: [
+            { item_id: 'd1', decisao: 'gravado', registro_id: 'doc1', aviso: 'o arquivo original não foi guardado como evidência; anexe-o à mão' },
+            { item_id: 'v1', decisao: 'recusado', motivo: 'tratamento "Tratamento v1" não encontrado no RoPA deste projeto' },
+        ], restantes: 0 } });
+        await clica('importacaoConfirmar');
+        await espera();
+        const t = el('c').textContent;
+        expect(t).toContain('Política d1');
+        expect(t).toContain('não foi guardado como evidência');
+        expect(t).toContain('não encontrado no RoPA');
+    });
+
+    it('texto de documento e avaliação com HTML não vira elemento', async () => {
+        const mal = '<img src=x onerror="window.__xss3=1">';
+        await abrirLote(LOTE({ itens: [
+            docu('d1', { dados: { titulo: mal, tipo: mal, resumo: mal }, origem: mal, motivo: mal }),
+            aval('v1', 'dpia', { dados: { tratamento: mal, conclusao: mal, riscos: [mal] }, origem: mal }),
+        ] }));
+        await clica('importacaoAba', ['documento']);
+        expect(el('c').querySelector('img')).toBeNull();
+        expect(el('c').textContent).toContain(mal);
+        await clica('importacaoEditar', ['d1']);
+        expect(el('imp-titulo').value).toBe(mal);
+        await clica('importacaoAba', ['avaliacao']);
+        expect(el('c').querySelector('img')).toBeNull();
+        await clica('importacaoEditar', ['v1']);
+        expect(el('imp-tratamento').value).toBe(mal);
+        expect(document.querySelector('img')).toBeNull();
+        expect(window.__xss3).toBeUndefined();
+    });
+});
+
+describe('histórico operacional (fatia 4): aba própria na revisão', () => {
+    const base = { arquivo_id: 'a4', origem: null, confianca: 'alta', faltando: [], duplicata_de: null, decisao: 'pendente', motivo: null };
+    const REF = 'tit-0123456789abcdef';
+    const ped = (id, extra = {}) => ({ id, entidade: 'titular_pedido', ...base, dados: { tipo: 'acesso', canal: 'email', recebido_em: '2026-01-10', status: 'respondido', respondido_em: '2026-01-20', protocolo: `ANT-${id}`, titular_ref: REF }, ...extra });
+    const inc = (id, extra = {}) => ({ id, entidade: 'incidente', ...base, dados: { titulo: `Incidente ${id}`, protocolo: `INC-${id}`, ciencia_em: '2026-02-01', risco_titular: 'relevante', comunicacao_anpd_em: '2026-02-03', status: 'encerrado' }, ...extra });
+    const con = (id, extra = {}) => ({ id, entidade: 'consentimento', ...base, dados: { tratamento: `Tratamento ${id}`, titular_ref: REF, finalidade: `Finalidade ${id}`, obtido_em: '2025-05-05', revogado_em: null, versao_aviso: 'v1' }, ...extra });
+
+    it('aba Histórico com contagem; pedido, incidente e consentimento com selo, datas e protocolo de origem; aviso de pseudônimo e de prazo', async () => {
+        await abrirLote(LOTE({ itens: [item('i1'), ped('p1'), inc('n1', { duplicata_de: 'inc9', decisao: 'descartado' }), con('c1')] }));
+        expect(el('c').textContent).toContain('Histórico (3)');
+        await clica('importacaoAba', ['historico']);
+        const t = el('c').textContent;
+        expect(t).not.toContain('Finalidade i1');
+        expect(t).toContain('Pedido');
+        expect(t).toContain('Acesso aos dados');
+        expect(t).toContain('ANT-p1');
+        expect(t).toContain('2026-01-10');
+        expect(t).toContain('Respondido');
+        expect(t).toContain('Incidente n1');
+        expect(t).toContain('Relevante');
+        expect(t).toContain('Encerrado');
+        expect(t).toContain('Consentimento');
+        expect(t).toContain('Tratamento c1');
+        expect(t).toContain(REF);
+        expect(t).toContain('pseudônimo');
+        expect(t).toContain('prazo');
+        expect(t).toContain('Já existe');
+        expect(el('c').querySelector('[data-action="navigate"][data-args=\'["titular"]\']')).not.toBeNull();
+    });
+
+    it('editar pedido, incidente e consentimento envia os dados no formato do esquema, preservando o pseudônimo', async () => {
+        const det = LOTE({ itens: [ped('p1'), inc('n1'), con('c1')] });
+        const f = await abrirLote(det, { [`PUT ${B}/l1/itens/p1`]: { ok: true }, [`PUT ${B}/l1/itens/n1`]: { ok: true }, [`PUT ${B}/l1/itens/c1`]: { ok: true } });
+        const puts = () => f.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([, o]) => JSON.parse(o.body));
+        await clica('importacaoAba', ['historico']);
+
+        await clica('importacaoEditar', ['p1']);
+        expect(el('imp-tipo').value).toBe('acesso');
+        expect(el('imp-titular_ref')).toBeNull();
+        el('imp-status').value = 'arquivado';
+        el('imp-respondido_em').value = '';
+        await clica('importacaoSalvarItem', ['p1']);
+        await espera();
+        expect(puts()[0]).toEqual({ dados: { tipo: 'acesso', canal: 'email', recebido_em: '2026-01-10', status: 'arquivado', respondido_em: null, protocolo: 'ANT-p1', titular_ref: REF } });
+
+        await clica('importacaoEditar', ['n1']);
+        el('imp-risco_titular').value = 'baixo';
+        el('imp-comunicacao_anpd_em').value = '';
+        await clica('importacaoSalvarItem', ['n1']);
+        await espera();
+        expect(puts()[1]).toEqual({ dados: { titulo: 'Incidente n1', protocolo: 'INC-n1', ciencia_em: '2026-02-01', risco_titular: 'baixo', comunicacao_anpd_em: null, comunicacao_titular_em: null, status: 'encerrado' } });
+
+        await clica('importacaoEditar', ['c1']);
+        el('imp-revogado_em').value = '2026-03-03';
+        await clica('importacaoSalvarItem', ['c1']);
+        await espera();
+        expect(puts()[2]).toEqual({ dados: { tratamento: 'Tratamento c1', titular_ref: REF, finalidade: 'Finalidade c1', obtido_em: '2025-05-05', revogado_em: '2026-03-03', versao_aviso: 'v1', canal: null } });
+
+        await clica('importacaoEditar', ['n1']);
+        el('imp-titulo').value = ' ';
+        await clica('importacaoSalvarItem', ['n1']);
+        expect(el('imp-erro').textContent).toContain('obrigatório');
+    });
+
+    it('o resultado da confirmação nomeia pedido, incidente e consentimento e mostra o aviso', async () => {
+        const det = LOTE({ itens: [ped('p1', { decisao: 'aceito' }), inc('n1', { decisao: 'aceito' }), con('c1', { decisao: 'aceito' })] });
+        await abrirLote(det, { [`POST ${B}/l1/confirmar`]: { ok: true, resultados: [
+            { item_id: 'p1', decisao: 'gravado', registro_id: 'tp1', aviso: 'prazo de resposta (2026-01-25) já vencido: o pedido aparece atrasado; o aviso de atraso começa na semana que vem' },
+            { item_id: 'n1', decisao: 'gravado', registro_id: 'in1' },
+            { item_id: 'c1', decisao: 'recusado', motivo: 'tratamento "Tratamento c1" não encontrado no RoPA deste projeto' },
+        ], restantes: 0 } });
+        await clica('importacaoConfirmar');
+        await espera();
+        const t = el('c').textContent;
+        expect(t).toContain('ANT-p1');
+        expect(t).toContain('Incidente n1');
+        expect(t).toContain('Tratamento c1');
+        expect(t).toContain('já vencido');
+    });
+
+    it('texto do histórico com HTML não vira elemento', async () => {
+        const mal = '<img src=x onerror="window.__xss4=1">';
+        await abrirLote(LOTE({ itens: [
+            ped('p1', { dados: { tipo: mal, canal: mal, recebido_em: mal, status: mal, protocolo: mal, titular_ref: mal }, motivo: mal }),
+            inc('n1', { dados: { titulo: mal, protocolo: mal, ciencia_em: mal, risco_titular: mal, status: mal } }),
+            con('c1', { dados: { tratamento: mal, titular_ref: mal, finalidade: mal, obtido_em: mal, versao_aviso: mal } }),
+        ] }));
+        await clica('importacaoAba', ['historico']);
+        expect(el('c').querySelector('img')).toBeNull();
+        expect(el('c').textContent).toContain(mal);
+        await clica('importacaoEditar', ['n1']);
+        expect(el('imp-titulo').value).toBe(mal);
+        await clica('importacaoEditar', ['c1']);
+        expect(el('imp-tratamento').value).toBe(mal);
+        expect(document.querySelector('img')).toBeNull();
+        expect(window.__xss4).toBeUndefined();
+    });
+});

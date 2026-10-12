@@ -17,6 +17,12 @@ const MODULOS = ['iso', 'privacy'];
 export const SO_ISO = ['nav-dashboard', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-monitor',
     'nav-soa', 'nav-context', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa', 'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular'];
+/**
+ * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
+ * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
+ */
+export const TELAS_DA_CONTA = { projects: 'nav-projects', users: 'nav-users', organizacoes: 'nav-organizacoes', 'api-keys': 'nav-api-keys', 'conectar-agente': 'nav-conectar-agente' };
+export const SO_N360 = Object.values(TELAS_DA_CONTA);
 
 /** O produto do caminho (vale igual em localhost). */
 export function produtoAtual(loc = window.location) {
@@ -56,7 +62,14 @@ export function irPara(url, trocar = false) {
 
 /** Os módulos de um projeto. Projeto sem a lista (resposta antiga) conta como só n.iso, o comportamento anterior. */
 export const modulosDe = (p) => (Array.isArray(p && p.modulos) && p.modulos.length ? p.modulos : ['iso']);
-export const temProduto = (p, produto = produtoAtual()) => modulosDe(p).includes(produto);
+/**
+ * Os módulos da PESSOA (`S.user.modulos`, do /auth/me); platform_admin tem todos. Sem o campo (resposta antiga), null:
+ * nada é filtrado, o comportamento anterior. A trava de verdade é do servidor.
+ */
+export const modulosDaPessoa = () => (S.user && S.user.role === 'platform_admin' ? MODULOS : S.user && Array.isArray(S.user.modulos) ? S.user.modulos : null);
+/** Os módulos do projeto que a pessoa também tem. */
+export const modulosVisiveis = (p) => { const meus = modulosDaPessoa(); return meus ? modulosDe(p).filter((m) => meus.includes(m)) : modulosDe(p); };
+export const temProduto = (p, produto = produtoAtual()) => modulosVisiveis(p).includes(produto);
 /** O projeto do id recebido (o modal pode ser de outro projeto que não o ativo); sem ele na lista, o ativo. */
 export const projetoDoId = (projectId) => (S.projects || []).find((p) => p.id === projectId) || S.activeProject;
 
@@ -103,7 +116,8 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
         doc.querySelectorAll('.login-sign-links').forEach((s) => { s.innerHTML = s.innerHTML.replace(/n\.iso \d+\.\d+\.\d+/, `n.${nome}`); });
     }
     // O Início é do n.360; nos módulos, a volta é o link "n.360" do rodapé.
-    const esconder = new Set(produto === 'privacy' ? [...SO_ISO, 'nav-inicio'] : produto === 'iso' ? [...SO_PRIVACY, 'nav-inicio'] : [...SO_ISO, ...SO_PRIVACY]);
+    // Conta e acessos também: nos módulos, o rodapé leva a ela no n.360.
+    const esconder = new Set(produto === 'privacy' ? [...SO_ISO, ...SO_N360, 'nav-inicio'] : produto === 'iso' ? [...SO_PRIVACY, ...SO_N360, 'nav-inicio'] : [...SO_ISO, ...SO_PRIVACY]);
     doc.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach((n) => { if (esconder.has(n.id)) n.dataset.foraDoProduto = '1'; else delete n.dataset.foraDoProduto; });
     // Grupo sem nenhum item do produto some inteiro (rótulo e grupo).
     doc.querySelectorAll('.sidebar-group').forEach((g) => {
@@ -150,13 +164,25 @@ function linkDaBarra(doc, id) {
     return el;
 }
 
-/** Num módulo: "n.360" de volta ao início e, quando o projeto ativo tem os dois, o link para o outro módulo. */
+/** O item do menu está à mostra para o papel (o updateHeaderUser esconde por style.display). */
+const itemVisivel = (doc, id) => { const el = doc.getElementById(id); return !!el && el.style.display !== 'none'; };
+
+/**
+ * Num módulo: "n.360" de volta ao início, "Conta e acessos (n.360)" na primeira tela da conta que o papel vê e, quando o
+ * projeto ativo tem os dois, o link para o outro módulo.
+ */
 export function atualizarLinkCruzado(doc = document) {
     const produto = produtoAtual();
     const tirar = (id) => { const el = doc.getElementById(id); if (el) el.remove(); };
-    if (produto === 'n360') { tirar('link-n360'); tirar('link-outro-produto'); return; }
+    if (produto === 'n360') { tirar('link-n360'); tirar('link-conta'); tirar('link-outro-produto'); return; }
     const volta = linkDaBarra(doc, 'link-n360');
     if (volta) { volta.href = enderecoDoProduto('n360'); volta.textContent = 'n.360'; }
+    const tela = Object.keys(TELAS_DA_CONTA).find((t) => itemVisivel(doc, TELAS_DA_CONTA[t]));
+    if (!tela) tirar('link-conta');
+    else {
+        const conta = linkDaBarra(doc, 'link-conta');
+        if (conta) { conta.href = `${enderecoDoProduto('n360')}?tela=${tela}`; conta.textContent = 'Conta e acessos (n.360)'; }
+    }
     const outro = produto === 'privacy' ? 'iso' : 'privacy';
     const mostrar = S.activeProject && temProduto(S.activeProject, outro) && temProduto(S.activeProject, produto);
     if (!mostrar) { tirar('link-outro-produto'); return; }
@@ -164,6 +190,21 @@ export function atualizarLinkCruzado(doc = document) {
     if (!el) return;
     el.href = enderecoDoProduto(outro);
     el.textContent = `Abrir este projeto no n.${outro}`;
+}
+
+/**
+ * O `?tela=` com que o rodapé de um módulo abre o n.360, lido uma vez no boot. Só no n.360; sai do endereço (o resto da
+ * query e o fragmento ficam); só vale tela da lista fechada cujo item o papel vê. Fora disso, null: a entrada normal.
+ */
+export function telaPedida(loc = window.location, doc = document) {
+    if (produtoAtual(loc) !== 'n360') return null;
+    const q = new URLSearchParams(loc.search || '');
+    if (!q.has('tela')) return null;
+    const tela = q.get('tela');
+    q.delete('tela');
+    const resto = q.toString();
+    history.replaceState(history.state, '', `${loc.pathname}${resto ? `?${resto}` : ''}${loc.hash || ''}`);
+    return Object.hasOwn(TELAS_DA_CONTA, tela) && itemVisivel(doc, TELAS_DA_CONTA[tela]) ? tela : null;
 }
 
 // ─── Produtos do projeto (habilitar e desligar) ─────────────────────────────────────────────────────────
@@ -183,6 +224,7 @@ window.abrirProdutosDoProjeto = async function (projectId) {
     };
     openModal(`<h3>Produtos do projeto</h3>
         <p style="color:var(--text-dim)">Os dois produtos usam o mesmo cadastro (partes, itens, documentos, RoPA, DPIA, evidências). Desligar um produto não apaga dado: ele volta ao religar.</p>
+        <p id="produtos-aviso-pessoas" style="color:var(--text-dim)">Os usuários do cliente deste projeto recebem o módulo; a equipe da consultoria precisa recebê-lo na tela Usuários.</p>
         <table class="data-table" id="produtos-do-projeto"><tbody>${linha('iso')}${linha('privacy')}</tbody></table>`);
 };
 

@@ -200,6 +200,8 @@ describe('widget do Turnstile', () => {
   it('a segunda falha REINICIA o widget em vez de montar outro', async () => {
     apiMock.mockRejectedValue(erroApi('erro', { challengeRequired: true, challengeSiteKey: '0xDOSERVIDOR' }));
     await window.doLogin();
+    // O campo é limpo na falha e a pessoa digita de novo (sem senha, o Entrar consulta o SSO).
+    document.getElementById('login-password').value = 'senha-errada';
     await window.doLogin();
 
     expect(turnstile.render).toHaveBeenCalledTimes(1);
@@ -215,6 +217,7 @@ describe('widget do Turnstile', () => {
 
     apiMock.mockReset();
     apiMock.mockResolvedValue({ token: 't', user: {} });
+    document.getElementById('login-password').value = 'senha-certa';
     await window.doLogin();
     expect(apiMock.mock.calls[0][2].challengeToken).toBe('tok-do-widget');
   });

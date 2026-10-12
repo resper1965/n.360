@@ -6,7 +6,8 @@ import { applySchema, resetData, workerEnv, sessionFor } from './helpers/d1';
 
 /**
  * Revisão final da fatia 5, M4: o `consultoria_admin` e as contas dos colegas.
- * - a trilha da edição diz QUAIS campos mudaram (nunca o valor, menos ainda a senha);
+ * - a trilha da edição diz QUAIS campos mudaram, com antes e depois dos quatro rastreados (nome, e-mail,
+ *   papel, projeto); da senha, só que mudou, nunca o valor;
  * - ele não troca a senha de outro `consultoria_admin` (seria tomar a conta); o platform_admin troca;
  * - ele não apaga nem rebaixa o ÚLTIMO `consultoria_admin` ativo da organização (409).
  */
@@ -39,12 +40,14 @@ beforeEach(async () => {
 const trilha = async () => (await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'user.updated' ORDER BY rowid DESC LIMIT 1`).first<any>())?.details ?? '';
 
 describe('M4 — contas de colegas', () => {
-  it('a trilha da edição lista os campos que mudaram, sem valor nem senha', async () => {
+  it('a trilha da edição lista os campos que mudaram com antes e depois; a senha, sem valor', async () => {
     const res = await chamar('PUT', '/api/v1/users/u-cb', S.ab, { name: 'Novo Nome', email: 'cb2@b.lat', password: NOVA, role: 'comercial' });
     expect(res.status, await res.clone().text()).toBe(200);
-    const t = await trilha();
-    for (const campo of ['senha', 'papel', 'email', 'nome']) expect(t).toContain(campo);
-    for (const valor of [NOVA, 'Novo Nome', 'cb2@b.lat', 'comercial']) expect(t).not.toContain(valor);
+    const { results } = await env.DB.prepare(`SELECT field, new_value, details FROM audit_logs WHERE action = 'user.updated' AND entity_id = 'u-cb'`).all<any>();
+    expect(results.map((r) => r.field).filter(Boolean).sort()).toEqual(['email', 'name', 'role']);
+    expect(results.find((r) => r.field === 'role').new_value).toBe('comercial');
+    expect(results.some((r) => r.field === null && r.details.endsWith('senha'))).toBe(true);
+    expect(JSON.stringify(results)).not.toContain(NOVA);
   });
 
   it('consultoria_admin não troca a senha de outro consultoria_admin (403); o platform_admin troca', async () => {
