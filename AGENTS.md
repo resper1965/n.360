@@ -140,9 +140,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     (`src/routes/public-auditor.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **85 tabelas** (2026-10-11: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **86 tabelas** (2026-10-12: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0065** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0066** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Inventario (ativos)**: vive em `itens` (nucleo fino) + `item_seguranca` (bloco do n.iso, 1:1), antes `assets`
@@ -239,6 +239,18 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   consentimentos, encarregado, ligacoes/LIA/importacao do RoPA). O `projectAccessMiddleware` e o `requireResourceAccess` (pela
   `FAIXA_DA_TABELA`) devolvem 403 se o projeto nao tem o produto, inclusive para o `platform_admin`. Projeto sem nenhum modulo e
   inexistente (passa, e a rota da o 404 dela). **Rota nova de projeto precisa de faixa:** `test/modulos-produto.test.ts` reprova.
+  **Acesso por PESSOA (n.360, fatia 3, migration 0066; spec `docs/superpowers/specs/2026-10-12-n360-modulos-por-pessoa-design.md`):** rota de
+  faixa `iso`/`privacy` so passa se o projeto tem o modulo **E** a pessoa tem (`usuario_modulos`; 403 "Voce nao tem acesso ao n.X");
+  faixa `nucleo` nao exige modulo da pessoa. `modulosDaPessoa` (`src/modulos.ts`): `platform_admin` tem todos sem linha, chave de API
+  vale os modulos do projeto da chave, agente MCP os do consultor que concedeu; a consulta e por requisicao (a mudanca vale na hora).
+  `GET /auth/me` devolve `modulos`; o frontend cruza com os do projeto (`modulosVisiveis`, `produto.js`). Quem concede e quem ja gere a
+  conta, com teto (cliente: modulos do projeto dele; equipe: contrato da organizacao; `platform_admin`, qualquer um):
+  `PUT /users/:id/modulos`, trilha `usuario.modulos` com antes e depois; `POST /users` aceita `modulos`. O gatilho
+  `usuario_modulos_padrao` da a conta nova o padrao (cliente: modulos do projeto; equipe: contrato). Habilitar um modulo num projeto
+  concede aos clientes dele na hora; a equipe da consultoria recebe pela tela Usuarios. Tirar modulo do contrato da organizacao
+  (`PUT /platform/orgs/:id/modulos`, tela Organizacoes) nao tira de pessoas nem de projetos, so limita o que se concede depois. **Papeis
+  normalizados:** a 0066 gravou `admin`→`platform_admin`, `consultant`→`consultor`, `client_admin`→`client`, `user`/`employee`→`org_user`
+  (o mapa de `src/middleware/auth.ts` continua para sessoes antigas); confira com `SELECT role, count(*) FROM users GROUP BY role`.
   O gatilho `projeto_modulos_do_contrato` (0060) da ao projeto novo o que a organizacao contratou (`modulos_contratados`, padrao
   `["iso"]`); `POST /projects` aceita `modulos` dentro do contrato e projeto sem `iso` nasce sem a trilha de fases. Os projetos que
   ja existiam ficaram so com `iso`: o n.privacy e habilitado por projeto (`PUT /projects/:id/modulos/privacy`, cartao Produtos na
@@ -347,7 +359,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 235 arquivos de teste do backend mocka o D1 inteiro** (2026-10-11;
+- **Nenhum dos 237 arquivos de teste do backend mocka o D1 inteiro** (2026-10-12;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -358,7 +370,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
 - **Frontend com pouco teste por linha.** ~16,7 mil linhas de JS (2026-10-11)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 80 arquivos de teste em jsdom
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 81 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. A maior parte das telas ainda nao
   tem teste proprio.
