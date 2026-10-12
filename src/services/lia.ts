@@ -7,8 +7,8 @@ import { logAudit } from '../helpers';
 
 const normaliza = (s: string | null | undefined) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** A base é legítimo interesse? Vale o título da base do catálogo ou o texto livre do registro (sem acento nem caixa). */
-export const ehLegitimoInteresse = (...textos: (string | null | undefined)[]) => textos.some((t) => normaliza(t).includes('legitimo interesse'));
+/** A base é legítimo interesse? Vale o título da base do catálogo ou o texto livre do registro (sem acento nem caixa, nas duas ordens: o formulário antigo gravava "Interesse legitimo"). */
+export const ehLegitimoInteresse = (...textos: (string | null | undefined)[]) => textos.some((t) => /legitimo interesse|interesse legitimo/.test(normaliza(t)));
 
 export type Lia = {
   id: string; ropa_id: string; finalidade_legitima: string | null; necessidade: string | null; balanceamento: string | null; salvaguardas: string | null;

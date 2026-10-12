@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500 } from '../helpers';
+import { erro500, ehPapelCliente } from '../helpers';
 import { visaoDoEncarregado } from '../services/encarregado';
 
 /**
@@ -10,6 +10,6 @@ import { visaoDoEncarregado } from '../services/encarregado';
 export const encarregadoApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 encarregadoApp.get('/', async (c) => {
-  try { return c.json(await visaoDoEncarregado(c.env.DB, c.req.param('projectId')!)); }
+  try { return c.json(await visaoDoEncarregado(c.env.DB, c.req.param('projectId')!, { cliente: ehPapelCliente(c.get('user')) })); }
   catch (e) { return erro500(c, 'Falha ao montar a visão do encarregado', e); }
 });

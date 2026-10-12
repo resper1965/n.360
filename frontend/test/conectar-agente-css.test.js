@@ -12,7 +12,7 @@ describe('Conectar agente — CSS', () => {
   it('toda classe ca-* usada na view tem regra em style.css', () => {
     const usadas = new Set([...view.matchAll(/\bca-[a-z0-9-]+/g)].map((m) => m[0]));
     expect(usadas.size).toBeGreaterThan(10);
-    // `\b` no fim: ".ca-abas" não pode contar como regra de ".ca-aba".
+    // `\b` no fim: ".ca-x" não pode contar como regra de ".ca".
     const sem = [...usadas].filter((cl) => !new RegExp('\\.' + cl + '\\b').test(css));
     expect(sem, 'classes sem regra no CSS').toEqual([]);
   });

@@ -8,7 +8,8 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import html from '../login.html?raw';
-import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, SO_ISO, SO_PRIVACY, SO_N360, TELAS_DA_CONTA, telaPedida } from '../src/produto.js';
+import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, SO_ISO, SO_PRIVACY, SO_N360, TELAS_DA_CONTA, telaPedida, pedidoDoHub, TELAS_DOS_MODULOS, TELAS_DO_HUB } from '../src/produto.js';
+import fonteRouter from '../src/router.js?raw';
 
 const loc = (url) => { const u = new URL(url); return { hostname: u.hostname, pathname: u.pathname, search: u.search, hash: u.hash, origin: u.origin }; };
 const ir = (caminho) => history.replaceState(null, '', caminho);
@@ -107,7 +108,7 @@ describe('casca', () => {
         const v = visiveis();
         for (const id of SO_PRIVACY) expect(v, id).toContain(id);
         for (const id of SO_ISO) expect(v, id).not.toContain(id);
-        for (const id of ['nav-partes', 'nav-documentos', 'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-assets']) expect(v, id).toContain(id);
+        for (const id of ['nav-partes', 'nav-documentos', 'nav-evidence', 'nav-ropa', 'nav-dpia']) expect(v, id).toContain(id);
         // o grupo comercial inteiro some (rótulo também)
         expect(el('group-sales').dataset.foraDoProduto).toBe('1');
         expect(el('label-group-sales').dataset.foraDoProduto).toBe('1');
@@ -118,7 +119,8 @@ describe('casca', () => {
         expect(rodapes.length).toBeGreaterThan(0);
         for (const r of rodapes) expect(r).not.toContain('n.iso');
         expect(rodapes.filter((r) => r.includes('n.privacy')).length).toBe((html.match(/n\.iso \d+\.\d+\.\d+/g) || []).length);
-        expect(document.querySelector('.login-sign-links a[href="/politicas.html"]')).not.toBeNull();
+        // os links "privacidade · termos" apontavam para o portal de políticas do CLIENTE: saíram (test/casca-menu.test.js)
+        expect(document.querySelector('.login-sign-links a')).toBeNull();
     });
     it('n.iso: igual ao de sempre, sem as telas exclusivas do n.privacy, e com RoPA e DPIA', () => {
         montarApp();
@@ -131,7 +133,7 @@ describe('casca', () => {
         expect(el('group-sales').dataset.foraDoProduto).toBe('');
         expect(document.querySelectorAll('.entry-section:not([hidden])').length).toBeGreaterThan(0);
     });
-    it('n.360: título, marca, entrada da plataforma; menu só com cadastro, sistema e Início', () => {
+    it('n.360: título, marca, entrada da plataforma; menu de hub (Início, conta, segurança do projeto, trilha)', () => {
         montarApp();
         aplicarCasca('n360');
         expect(document.title).toBe('n.360 | ness.');
@@ -142,7 +144,9 @@ describe('casca', () => {
         expect(document.querySelector('.entry-lede').textContent).toContain('n.privacy');
         const v = visiveis();
         for (const id of [...SO_ISO, ...SO_PRIVACY]) expect(v, id).not.toContain(id);
-        for (const id of ['nav-inicio', 'nav-projects', 'nav-partes', 'nav-documentos', 'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-settings']) expect(v, id).toContain(id);
+        for (const id of ['nav-inicio', 'nav-projects', 'nav-seguranca-projeto', 'nav-audit-trail']) expect(v, id).toContain(id);
+        // o cadastro (dos dois módulos) não é do hub: abre-se no módulo
+        for (const id of ['nav-partes', 'nav-documentos', 'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-settings']) expect(v, id).not.toContain(id);
         expect(document.querySelector('.entry-more').hidden).toBe(true);
         expect(document.querySelectorAll('.entry-section:not([hidden])').length).toBe(0);
         const rodapes = [...document.querySelectorAll('.login-sign-links')].map((s) => s.textContent);
@@ -179,14 +183,16 @@ describe('conta e acessos', () => {
         const v = visiveis();
         for (const id of CONTA) expect(v, id).toContain(id);
         const grupo = el('group-conta');
-        expect([...grupo.querySelectorAll('.sidebar-nav')].map((n) => n.id)).toEqual(CONTA);
+        // Segurança do projeto (SSO/SCIM do projeto) mora em Conta e acessos, logo depois de Organizações
+        expect([...grupo.querySelectorAll('.sidebar-nav')].map((n) => n.id)).toEqual(['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-seguranca-projeto', 'nav-api-keys', 'nav-conectar-agente']);
         expect(grupo.dataset.foraDoProduto).toBe('');
         expect(el('label-group-conta').textContent).toBe('Conta e acessos');
         expect(el('nav-api-keys').textContent.trim()).toBe('Chaves de API');
         // cada item navega para a tela da lista fechada
         for (const id of CONTA) expect(TELAS_DA_CONTA[JSON.parse(el(id).getAttribute('data-args'))[0]], id).toBe(id);
+        expect(v).toContain('nav-seguranca-projeto');
     });
-    it('nos módulos os itens da conta somem, com o grupo e o rótulo; Segurança do projeto fica', () => {
+    it('nos módulos os itens da conta somem, com o grupo e o rótulo (Segurança do projeto junto)', () => {
         for (const p of ['iso', 'privacy']) {
             montarApp();
             aplicarCasca(p);
@@ -194,7 +200,7 @@ describe('conta e acessos', () => {
             for (const id of CONTA) expect(v, `${p} ${id}`).not.toContain(id);
             expect(el('group-conta').dataset.foraDoProduto, p).toBe('1');
             expect(el('label-group-conta').dataset.foraDoProduto, p).toBe('1');
-            expect(v, p).toContain('nav-seguranca-projeto');
+            expect(v, p).not.toContain('nav-seguranca-projeto');
         }
     });
     it('no módulo, o rodapé leva a "Conta e acessos (n.360)" na primeira tela que o papel vê', () => {
@@ -258,6 +264,51 @@ describe('telaPedida (?tela= no boot do n.360)', () => {
         ir('/iso?tela=users');
         expect(telaPedida()).toBeNull();
         expect(location.search).toBe('?tela=users');
+    });
+});
+
+describe('pedidoDoHub (?tela= e aviso no boot do módulo)', () => {
+    it('toda tela da lista fechada tem ramo no render e nenhuma é do hub', () => {
+        for (const t of TELAS_DOS_MODULOS) {
+            expect(fonteRouter, t).toContain(`S.view === '${t}'`);
+            expect(TELAS_DO_HUB, t).not.toContain(t);
+        }
+    });
+    it('tela deste módulo ou dos dois: aceita e tira tela e aba do endereço, sem mexer no resto', () => {
+        ir('/iso?tela=capa&x=1#f');
+        expect(pedidoDoHub()).toEqual({ tela: 'capa', aba: null });
+        expect(location.pathname + location.search + location.hash).toBe('/iso?x=1#f');
+        ir('/privacy?tela=documentos');
+        expect(pedidoDoHub()).toEqual({ tela: 'documentos', aba: null });
+        // incidentes: a tela titular vale no n.iso com a aba de incidentes
+        ir('/iso?tela=titular&aba=incidentes');
+        expect(pedidoDoHub()).toEqual({ tela: 'titular', aba: 'incidentes' });
+        expect(location.search).toBe('');
+    });
+    it('tela desconhecida, do hub, ou só do outro módulo é ignorada (e sai do endereço)', () => {
+        for (const [c, t] of [['/iso', 'constructor'], ['/iso', '__proto__'], ['/iso', 'javascript:alert(1)'], ['/iso', 'users'], ['/iso', 'encarregado'], ['/privacy', 'soa'], ['/iso', 'titular'], ['/iso', '']]) {
+            ir(`${c}?tela=${encodeURIComponent(t)}`);
+            expect(pedidoDoHub(), `${c} ${t}`).toBeNull();
+            expect(location.search).toBe('');
+        }
+    });
+    it('o aviso guardado é lido uma vez, limpo, e só com ?tela=; no n.360 nada é lido', () => {
+        sessionStorage.setItem('n360_aviso', JSON.stringify({ link: '/projects/p1/capa', target_id: 7, title: '<b>x</b>' }));
+        ir('/?tela=capa');
+        expect(pedidoDoHub()).toBeNull();
+        expect(sessionStorage.getItem('n360_aviso')).not.toBeNull();
+        ir('/iso?tela=capa');
+        expect(pedidoDoHub()).toEqual({ aviso: { link: '/projects/p1/capa', action_type: '', target_id: '', title: '<b>x</b>', message: '' } });
+        expect(sessionStorage.getItem('n360_aviso')).toBeNull();
+        ir('/iso?tela=capa');
+        expect(pedidoDoHub()).toEqual({ tela: 'capa', aba: null });
+        sessionStorage.setItem('n360_aviso', 'não é json');
+        ir('/iso?tela=soa');
+        expect(pedidoDoHub()).toEqual({ tela: 'soa', aba: null });
+        sessionStorage.setItem('n360_aviso', JSON.stringify({ link: '/x' }));
+        ir('/iso');
+        expect(pedidoDoHub()).toBeNull();
+        expect(sessionStorage.getItem('n360_aviso')).toBeNull();
     });
 });
 

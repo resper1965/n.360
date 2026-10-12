@@ -11,16 +11,23 @@ window.__adminCopiarApiKey = () => {
 };
 
     async function renderSettings(c, h, a) {
-        h.textContent = 'Configurações';
+        h.textContent = 'Preços e margens';
         a.innerHTML = '';
         c.innerHTML = '<div class="loading"></div>';
         try {
-            let cfg;
+            let raw;
             try {
-                cfg = await api('GET', '/api/v1/pricing-config');
+                raw = await api('GET', '/api/v1/pricing-config');
             } catch(err) {
-                cfg = await api('GET', '/api/v1/proposals/config/pricing');
+                raw = await api('GET', '/api/v1/proposals/config/pricing');
             }
+            // Configuração incompleta não derruba a tela: o que faltar vira zero e o campo continua editável.
+            const cfg = {
+                taxaVendaPD: raw?.taxaVendaPD || {}, custoInternoPD: raw?.custoInternoPD || {},
+                tributos: raw?.tributos || {}, bufferRisco: raw?.bufferRisco || {},
+                overheadPct: raw?.overheadPct ?? 0, margemAlvo: raw?.margemAlvo ?? 0, comissaoPct: raw?.comissaoPct ?? 0,
+            };
+            const pct = (v, d = 2) => ((Number(v) || 0) * 100).toFixed(d);
 
             function numInput(id, val, label, suffix) {
                 return `<div class="form-group" style="flex:1;min-width:140px">
@@ -34,62 +41,63 @@ window.__adminCopiarApiKey = () => {
 
             c.innerHTML = `
             <div class="card fade-in" style="margin-bottom:1.5rem">
-                <h3 style="margin-bottom:1rem;font-family:'Montserrat',sans-serif;font-weight:500;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">Taxa de Venda por PD (R$/dia)</h3>
+                <h3 class="titulo-secao">Taxa de venda por PD (R$/dia)</h3>
                 <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem">O que cobramos do cliente por Person-Day (8h). Inclui margem, overhead e impostos.</p>
                 <div style="display:flex;flex-wrap:wrap;gap:1rem">
-                    ${numInput('cfg-venda-1', cfg.taxaVendaPD[1], 'Foundation (Tier 1)', 'R$/PD')}
-                    ${numInput('cfg-venda-2', cfg.taxaVendaPD[2], 'Standard (Tier 2)', 'R$/PD')}
-                    ${numInput('cfg-venda-3', cfg.taxaVendaPD[3], 'Enterprise (Tier 3)', 'R$/PD')}
-                    ${numInput('cfg-venda-4', cfg.taxaVendaPD[4], 'Critical (Tier 4)', 'R$/PD')}
+                    ${numInput('cfg-venda-1', (cfg.taxaVendaPD[1] ?? 0), 'Foundation (Tier 1)', 'R$/PD')}
+                    ${numInput('cfg-venda-2', (cfg.taxaVendaPD[2] ?? 0), 'Standard (Tier 2)', 'R$/PD')}
+                    ${numInput('cfg-venda-3', (cfg.taxaVendaPD[3] ?? 0), 'Enterprise (Tier 3)', 'R$/PD')}
+                    ${numInput('cfg-venda-4', (cfg.taxaVendaPD[4] ?? 0), 'Critical (Tier 4)', 'R$/PD')}
                 </div>
             </div>
 
             <div class="card fade-in" style="margin-bottom:1.5rem">
-                <h3 style="margin-bottom:1rem;font-family:'Montserrat',sans-serif;font-weight:500;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">Custo Interno por PD (R$/dia)</h3>
-                <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem">Custo real do consultor por dia (salario + beneficios). Usado para calcular margem operacional.</p>
+                <h3 class="titulo-secao">Custo interno por PD (R$/dia)</h3>
+                <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem">Custo real do consultor por dia (salário + benefícios). Usado para calcular margem operacional.</p>
                 <div style="display:flex;flex-wrap:wrap;gap:1rem">
-                    ${numInput('cfg-custo-1', cfg.custoInternoPD[1], 'Foundation (Tier 1)', 'R$/PD')}
-                    ${numInput('cfg-custo-2', cfg.custoInternoPD[2], 'Standard (Tier 2)', 'R$/PD')}
-                    ${numInput('cfg-custo-3', cfg.custoInternoPD[3], 'Enterprise (Tier 3)', 'R$/PD')}
-                    ${numInput('cfg-custo-4', cfg.custoInternoPD[4], 'Critical (Tier 4)', 'R$/PD')}
+                    ${numInput('cfg-custo-1', (cfg.custoInternoPD[1] ?? 0), 'Foundation (Tier 1)', 'R$/PD')}
+                    ${numInput('cfg-custo-2', (cfg.custoInternoPD[2] ?? 0), 'Standard (Tier 2)', 'R$/PD')}
+                    ${numInput('cfg-custo-3', (cfg.custoInternoPD[3] ?? 0), 'Enterprise (Tier 3)', 'R$/PD')}
+                    ${numInput('cfg-custo-4', (cfg.custoInternoPD[4] ?? 0), 'Critical (Tier 4)', 'R$/PD')}
                 </div>
             </div>
 
             <div class="card fade-in" style="margin-bottom:1.5rem">
-                <h3 style="margin-bottom:1rem;font-family:'Montserrat',sans-serif;font-weight:500;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">Tributos e Encargos</h3>
+                <h3 class="titulo-secao">Tributos e encargos</h3>
                 <div style="display:flex;flex-wrap:wrap;gap:1rem">
-                    ${numInput('cfg-iss', (cfg.tributos.iss*100).toFixed(2), 'ISS', '%')}
-                    ${numInput('cfg-pis', (cfg.tributos.pis*100).toFixed(2), 'PIS', '%')}
-                    ${numInput('cfg-cofins', (cfg.tributos.cofins*100).toFixed(2), 'COFINS', '%')}
-                    ${numInput('cfg-irpj', (cfg.tributos.irpj*100).toFixed(2), 'IRPJ', '%')}
-                    ${numInput('cfg-csll', (cfg.tributos.csll*100).toFixed(2), 'CSLL', '%')}
+                    ${numInput('cfg-iss', pct(cfg.tributos.iss), 'ISS', '%')}
+                    ${numInput('cfg-pis', pct(cfg.tributos.pis), 'PIS', '%')}
+                    ${numInput('cfg-cofins', pct(cfg.tributos.cofins), 'COFINS', '%')}
+                    ${numInput('cfg-irpj', pct(cfg.tributos.irpj), 'IRPJ', '%')}
+                    ${numInput('cfg-csll', pct(cfg.tributos.csll), 'CSLL', '%')}
                 </div>
             </div>
 
             <div class="card fade-in" style="margin-bottom:1.5rem">
-                <h3 style="margin-bottom:1rem;font-family:'Montserrat',sans-serif;font-weight:500;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">Parametros Gerais</h3>
+                <h3 class="titulo-secao">Parâmetros gerais</h3>
                 <div style="display:flex;flex-wrap:wrap;gap:1rem">
-                    ${numInput('cfg-overhead', (cfg.overheadPct*100).toFixed(1), 'Overhead', '%')}
-                    ${numInput('cfg-margem', (cfg.margemAlvo*100).toFixed(1), 'Margem Alvo (referencia)', '%')}
-                    ${numInput('cfg-comissao', (cfg.comissaoPct*100).toFixed(1), 'Comissao', '%')}
+                    ${numInput('cfg-overhead', pct(cfg.overheadPct, 1), 'Overhead', '%')}
+                    ${numInput('cfg-margem', pct(cfg.margemAlvo, 1), 'Margem Alvo (referência)', '%')}
+                    ${numInput('cfg-comissao', pct(cfg.comissaoPct, 1), 'Comissão', '%')}
                 </div>
             </div>
 
             <div class="card fade-in" style="margin-bottom:1.5rem">
-                <h3 style="margin-bottom:1rem;font-family:'Montserrat',sans-serif;font-weight:500;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">Buffer de Risco por Tier</h3>
-                <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem">Multiplicador adicional sobre o preco de venda para cobrir riscos e imprevistos.</p>
+                <h3 class="titulo-secao">Buffer de risco por tier</h3>
+                <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem">Multiplicador adicional sobre o preço de venda para cobrir riscos e imprevistos.</p>
                 <div style="display:flex;flex-wrap:wrap;gap:1rem">
-                    ${numInput('cfg-buffer-1', (cfg.bufferRisco[1]*100).toFixed(1), 'Foundation', '%')}
-                    ${numInput('cfg-buffer-2', (cfg.bufferRisco[2]*100).toFixed(1), 'Standard', '%')}
-                    ${numInput('cfg-buffer-3', (cfg.bufferRisco[3]*100).toFixed(1), 'Enterprise', '%')}
-                    ${numInput('cfg-buffer-4', (cfg.bufferRisco[4]*100).toFixed(1), 'Critical', '%')}
+                    ${numInput('cfg-buffer-1', pct(cfg.bufferRisco[1], 1), 'Foundation', '%')}
+                    ${numInput('cfg-buffer-2', pct(cfg.bufferRisco[2], 1), 'Standard', '%')}
+                    ${numInput('cfg-buffer-3', pct(cfg.bufferRisco[3], 1), 'Enterprise', '%')}
+                    ${numInput('cfg-buffer-4', pct(cfg.bufferRisco[4], 1), 'Critical', '%')}
                 </div>
             </div>
 
-            <button class="btn btn-primary" style="padding:0.6rem 2rem" data-action="savePricingConfig">Salvar Configurações</button>
+            <button class="btn btn-primary" style="padding:0.6rem 2rem" data-action="savePricingConfig">Salvar preços e margens</button>
             `;
         } catch(e) {
-            c.innerHTML = '<div class="error">Erro ao carregar configuracoes: ' + escapeHTML(e.message) + '</div>';
+            console.error('Tabela de preços:', e);
+            c.innerHTML = `<div class="empty-state fade-in"><h3>Não foi possível carregar a tabela de preços</h3><p>Tente de novo; se persistir, avise o suporte.</p><button class="btn btn-secondary" data-action="navigate" data-args='["settings"]'>Tentar de novo</button></div>`;
         }
     }
 
@@ -113,7 +121,7 @@ window.__adminCopiarApiKey = () => {
             } catch(err) {
                 await api('PUT', '/api/v1/proposals/config/pricing', config);
             }
-            showToast('Configurações salvas com sucesso');
+            showToast('Preços e margens salvos');
         } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
@@ -129,9 +137,9 @@ window.__adminCopiarApiKey = () => {
     const propria = (u) => !!(S.user && S.user.id && String(S.user.id) === String(u.id));
 
     async function renderUsers(c, h, a) {
-        h.textContent = 'Gestão de Usuários & RBAC';
+        h.textContent = 'Usuários';
         a.innerHTML = `<button class="btn btn-ghost" data-action="alternarDesativadas">${mostrarDesativadas ? 'Ocultar desativadas' : 'Mostrar desativadas'}</button>
-            <button class="btn btn-primary" data-action="openUserModal">+ Novo Usuário</button>`;
+            <button class="btn btn-primary" data-action="openUserModal">Novo usuário</button>`;
         c.innerHTML = '<div class="loading"></div>';
         try {
             const users = await api('GET', '/api/v1/users').catch(() => []);
@@ -153,9 +161,9 @@ window.__adminCopiarApiKey = () => {
             const clientUsers = totalUsers - admins;
 
             const statsHtml = window.renderStatCards([
-                { label: 'Total de Usuários', value: totalUsers, color: 'var(--accent)', subtext: desativadas ? `${desativadas} desativada(s)` : 'Nenhuma desativada' },
-                { label: 'Administradores & Consultores', value: admins, color: '#34c759', subtext: 'Equipe ness.' },
-                { label: 'Usuários de Clientes', value: clientUsers, color: '#ffcc00', subtext: 'Acesso às orgs' }
+                { label: 'Total de Usuários', value: totalUsers, color: 'var(--text)', subtext: desativadas ? `${desativadas} desativada(s)` : 'Nenhuma desativada' },
+                { label: 'Administradores & Consultores', value: admins, color: 'var(--text)', subtext: 'Equipe ness.' },
+                { label: 'Usuários de Clientes', value: clientUsers, color: 'var(--text)', subtext: 'Acesso às orgs' }
             ]);
 
             const tableHtml = window.renderDataTable(
@@ -181,7 +189,7 @@ window.__adminCopiarApiKey = () => {
                          ${S.user && S.user.role === 'platform_admin' && !propria(u) ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="confirmarExclusaoDefinitiva" data-args='["${u.id}"]'>Excluir definitivamente</button>` : ''}`
                     ];
                 }),
-                { emptyState: 'Nenhum usuário cadastrado.' }
+                { emptyState: 'Nenhum usuário cadastrado ainda. Use "Novo usuário" para convidar a equipe da ness. ou o administrador do cliente.' }
             );
 
             c.innerHTML = `
@@ -208,8 +216,8 @@ window.__adminCopiarApiKey = () => {
         if (!Array.isArray(logs)) logs = [];
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total de Eventos', value: logs.length, color: 'var(--accent)', subtext: 'Registros na trilha' },
-            { label: 'Projeto Ativo', value: escapeHTML(proj.client_name || 'Sem nome'), color: '#34c759', subtext: `ID: ${proj.id}` }
+            { label: 'Total de Eventos', value: logs.length, color: 'var(--text)', subtext: 'Registros na trilha' },
+            { label: 'Projeto Ativo', value: escapeHTML(proj.client_name || 'Sem nome'), color: 'var(--text)', subtext: `ID: ${proj.id}` }
         ]);
 
         const tableHtml = window.renderDataTable(
@@ -504,9 +512,13 @@ window.__adminCopiarApiKey = () => {
         }
     };
 
-    // ── API Keys (MCP / Integrações) — EXCLUSIVO Platform Admin ──────────────
+    // ── Chaves de API (MCP / Integrações) — EXCLUSIVO Platform Admin ──────────────
+    // Papéis atuais; `write`/`admin` só aparecem como rótulo de chaves antigas, não se oferecem na criação.
+    const PAPEL_CHAVE = { consultant: 'Consultor', consultor: 'Consultor', auditor: 'Auditor', read: 'Somente leitura', write: 'Escrita (legado)', admin: 'Admin (legado)' };
+    const rotuloPapelChave = (p) => PAPEL_CHAVE[p || 'read'] || String(p);
+
     async function renderApiKeys(c, h, a) {
-        h.textContent = 'API Keys (MCP / Integrações)';
+        h.textContent = 'Chaves de API';
         a.innerHTML = '';
         if (!S.user || S.user.role !== 'platform_admin') {
             c.innerHTML = '<div class="error">Acesso restrito ao Platform Admin.</div>';
@@ -518,66 +530,59 @@ window.__adminCopiarApiKey = () => {
             const projects = S.projects || [];
             if (!S.apiKeysProjectId && projects.length) S.apiKeysProjectId = projects[0].id;
             const pid = S.apiKeysProjectId;
+            a.innerHTML = `<button class="btn btn-primary" data-action="openApiKeyModal" ${pid ? '' : 'disabled'}>Nova chave</button>`;
             const projOptions = projects.map(p =>
                 `<option value="${p.id}" ${p.id === pid ? 'selected' : ''}>${escapeHTML(p.project_name || p.client_name || p.id)}</option>`
             ).join('');
 
-            let keysRows = '';
+            let tabela = '';
             if (pid) {
                 // api() desembrulha o envelope { ok, keys: [...] } e devolve o array direto.
                 // Deixar o erro propagar para o catch externo — não mascarar falha como "sem chaves".
                 const resp = await api('GET', `/api/v1/projects/${pid}/api-keys`);
                 const keys = Array.isArray(resp) ? resp : ((resp && resp.keys) || []);
-                keysRows = keys.length ? keys.map(k => {
-                    const active = k.status === 'Active';
-                    return `<tr>
-                        <td>${escapeHTML(k.name || '')}</td>
-                        <td><code style="font-size:0.75rem">${escapeHTML(k.permissions || 'read')}</code></td>
-                        <td>${window.renderStatusBadge(k.status, active ? 'success' : 'info')}</td>
-                        <td style="font-size:0.75rem;color:var(--muted)">${k.last_used_at ? escapeHTML(String(k.last_used_at)) : '—'}</td>
-                        <td style="font-size:0.75rem;color:var(--muted)">${escapeHTML(String(k.created_at || '').slice(0, 10))}</td>
-                        <td>${active ? `<button class="btn-inline-action" style="border-color:var(--danger);color:var(--danger)" data-action="revokeApiKey" data-args='["${k.id}"]'>Revogar</button>` : ''}</td>
-                    </tr>`;
-                }).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1rem">Nenhuma chave para este projeto.</td></tr>`;
+                tabela = window.renderDataTable(
+                    ['Nome', 'Papel', 'Status', 'Último uso', 'Criada', ''],
+                    keys.map(k => {
+                        const active = k.status === 'Active';
+                        return [
+                            escapeHTML(k.name || ''),
+                            escapeHTML(rotuloPapelChave(k.permissions)),
+                            window.renderStatusBadge(k.status, active ? 'success' : 'info'),
+                            k.last_used_at ? escapeHTML(String(k.last_used_at)) : '—',
+                            escapeHTML(String(k.created_at || '').slice(0, 10)),
+                            active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="revokeApiKey" data-args='["${k.id}"]'>Revogar</button>` : '',
+                        ];
+                    }),
+                    { emptyState: 'Nenhuma chave para este projeto.' }
+                );
             }
 
             c.innerHTML = `
             <div class="card fade-in" style="margin-bottom:1rem">
-                <p style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem">Chaves de API para integrações e agentes MCP. Papéis: <strong>consultant</strong> (implementação), <strong>auditor</strong> (achados de auditoria), <strong>read</strong> (só leitura), <strong>write/admin</strong> (legado). A chave em texto puro aparece <strong>uma única vez</strong> na criação — só o hash é armazenado.</p>
-                <div style="display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap">
-                    <div class="form-group" style="flex:1;min-width:220px;margin:0">
-                        <label class="form-label">Projeto</label>
-                        <select class="form-input" data-action-change="__setFilter" data-args='["apiKeysProjectId"]' data-arg-val>${projOptions}</select>
-                    </div>
-                    <button class="btn btn-primary" data-action="openApiKeyModal" ${pid ? '' : 'disabled'}>+ Nova Chave</button>
+                <p class="form-hint" style="margin-bottom:1rem">Chaves de API para integrações e agentes MCP. Papéis: <strong>Consultor</strong> (implementação), <strong>Auditor</strong> (achados de auditoria), <strong>Somente leitura</strong>. A chave em texto puro aparece <strong>uma única vez</strong> na criação — só o hash é armazenado.</p>
+                <div class="form-group" style="max-width:420px;margin:0">
+                    <label class="form-label" for="apikeys-projeto">Projeto</label>
+                    <select id="apikeys-projeto" class="form-input" data-action-change="__setFilter" data-args='["apiKeysProjectId"]' data-arg-val>${projOptions}</select>
                 </div>
             </div>
-            <div class="card fade-in" style="overflow-x:auto">
-                <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
-                    <thead><tr style="text-align:left;color:var(--muted);font-size:0.72rem;text-transform:uppercase">
-                        <th style="padding:0.5rem">Nome</th><th style="padding:0.5rem">Papel</th><th style="padding:0.5rem">Status</th><th style="padding:0.5rem">Último uso</th><th style="padding:0.5rem">Criada</th><th></th>
-                    </tr></thead>
-                    <tbody>${keysRows}</tbody>
-                </table>
-            </div>`;
+            ${tabela}`;
         } catch (e) {
-            c.innerHTML = '<div class="error">Erro ao carregar API keys: ' + escapeHTML(e.message) + '</div>';
+            c.innerHTML = '<div class="error">Erro ao carregar chaves de API: ' + escapeHTML(e.message) + '</div>';
         }
     }
 
     window.openApiKeyModal = function () {
         if (!S.apiKeysProjectId) { showToast('Selecione um projeto', 'error'); return; }
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova API Key</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            <div class="modal-header"><span class="modal-title">Nova chave de API</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
             <div style="padding:1.25rem 0;text-align:left">
                 <div class="form-group"><label class="form-label">Nome</label><input id="apikey-name" class="form-input" placeholder="ex: consultor-clienteX"></div>
                 <div class="form-group"><label class="form-label">Papel</label>
                     <select id="apikey-perm" class="form-input">
-                        <option value="consultant">consultant — implementação</option>
-                        <option value="auditor">auditor — achados de auditoria</option>
-                        <option value="read">read — só leitura</option>
-                        <option value="write">write — legado (escrita ampla)</option>
-                        <option value="admin">admin — legado</option>
+                        <option value="consultant">Consultor — implementação</option>
+                        <option value="auditor">Auditor — achados de auditoria</option>
+                        <option value="read">Somente leitura</option>
                     </select>
                 </div>
                 <div class="form-group"><label class="form-label">Expiração</label>

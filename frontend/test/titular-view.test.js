@@ -55,7 +55,14 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); history.replaceSt
 describe('abas', () => {
     it('mostra as quatro abas e abre em Pedidos; trocar de aba guarda a escolha e redesenha', async () => {
         await abrir(undefined);
-        expect([...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')].map((b) => b.textContent)).toEqual(['Pedidos do titular', 'Incidentes', 'Consentimentos', 'Prazos legais']);
+        const abas = [...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')];
+        // contagem nas abas, com o atrasado em --danger; role=tab e a ativa marcada por aria-selected (sem preenchimento)
+        expect(abas.map((b) => b.textContent)).toEqual(['Pedidos do titular (3 · 1 atrasado)', 'Incidentes (1 · 1 atrasado)', 'Consentimentos', 'Prazos legais']);
+        expect(abas[1].querySelector('span span').getAttribute('style')).toContain('var(--danger)');
+        expect(el('c').querySelector('[role="tablist"]')).not.toBeNull();
+        expect(abas.map((b) => b.getAttribute('role'))).toEqual(['tab', 'tab', 'tab', 'tab']);
+        expect(abas.map((b) => b.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false']);
+        expect(abas[0].className).not.toContain('btn-primary');
         window.escolherAbaTitular('incidentes');
         expect(S.titularAba).toBe('incidentes');
         expect(window.render).toHaveBeenCalled();
@@ -175,8 +182,11 @@ describe('incidentes', () => {
         expect(t).toContain('Atrasado');
         expect(el('c').querySelector('b')).toBeNull();
     });
-    it('registrar exige título e ciência (sem eles não chama a API) e mostra o protocolo', async () => {
-        const f = await abrir('incidentes', { [`POST ${B}/incidentes`]: { ok: true, id: 'n', protocolo: 'IN-2026-0002', prazo_anpd_em: null, prazo_titular_em: null } });
+    it('registrar exige título e ciência (sem eles não chama a API), mostra o protocolo e abre o incidente criado', async () => {
+        const f = await abrir('incidentes', {
+            [`POST ${B}/incidentes`]: { ok: true, id: 'n', protocolo: 'IN-2026-0002', prazo_anpd_em: null, prazo_titular_em: null },
+            [`GET ${B}/incidentes/n`]: { ...INCIDENTES[0], id: 'n', protocolo: 'IN-2026-0002', titulo: 'Perda de notebook', prazo_anpd_em: null, situacao_anpd: 'sem_prazo' },
+        });
         window.abrirNovoIncidente('p9');
         await window.salvarNovoIncidente('p9');
         expect(chamadas(f)).not.toContain(`POST ${B}/incidentes`);
@@ -185,6 +195,88 @@ describe('incidentes', () => {
         expect(corpoDe(f, `POST ${B}/incidentes`)).toEqual({ titulo: 'Perda de notebook', descricao: null, ocorrido_em: null, ciencia_em: '2026-10-08' });
         expect(document.body.textContent).toContain('IN-2026-0002');
         expect(document.body.textContent).toContain('Prazos não calculados');
+        expect(chamadas(f)).toContain(`GET ${B}/incidentes/n`);
+        expect(el('modal-content').textContent).toContain('IN-2026-0002 — Perda de notebook');
+        expect(el('in-faixa-anpd').textContent).toContain('Prazo da ANPD não calculado');
+    });
+
+    it('faixa fixa no topo: "Comunicar à ANPD até DD/MM (faltam N dias úteis)", em --warning com folga e --danger em cima da hora', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-12T12:00:00Z')); // segunda-feira
+        try {
+            await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-16T10:00:00.000Z', situacao_anpd: 'no_prazo' } });
+            await window.abrirIncidente('p9', 'i1');
+            const faixa = el('in-faixa-anpd');
+            expect(faixa.textContent).toContain('Comunicar à ANPD até 16/10 (faltam 4 dias úteis)');
+            expect(faixa.getAttribute('style')).toContain('var(--warning)');
+            expect(el('modal-content').firstElementChild).toBe(faixa);
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-13T10:00:00.000Z', situacao_anpd: 'no_prazo' } }));
+            await window.abrirIncidente('p9', 'i1');
+            expect(el('in-faixa-anpd').textContent).toContain('(falta 1 dia útil)');
+            expect(el('in-faixa-anpd').getAttribute('style')).toContain('var(--danger)');
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } })); // atrasado
+            await window.abrirIncidente('p9', 'i1');
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicação à ANPD atrasada: o prazo era 04/10');
+            expect(el('in-faixa-anpd').getAttribute('style')).toContain('var(--danger)');
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], comunicacao_anpd_em: '2026-10-03T09:00:00Z', situacao_anpd: 'comunicado' } }));
+            await window.abrirIncidente('p9', 'i1');
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicado à ANPD em 03/10, dentro do prazo.');
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('sem dia útil restante: nunca "faltam 0 dias úteis"; vence hoje ou venceu pela data', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-16T12:00:00Z')); // sexta-feira
+        try {
+            // prazo hoje, com o servidor ainda dizendo "no_prazo"
+            await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-16T22:00:00.000Z', situacao_anpd: 'no_prazo' } });
+            await window.abrirIncidente('p9', 'i1');
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até hoje, 16/10.');
+            // prazo no sábado: nenhum dia útil antes dele
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-17T10:00:00.000Z', situacao_anpd: 'no_prazo' } }));
+            await window.abrirIncidente('p9', 'i1');
+            expect(el('in-faixa-anpd').textContent).not.toContain('0 dias');
+            expect(el('in-faixa-anpd').getAttribute('style')).toContain('var(--danger)');
+            // prazo ontem
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-15T10:00:00.000Z', situacao_anpd: 'no_prazo' } }));
+            await window.abrirIncidente('p9', 'i1');
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicação à ANPD atrasada: o prazo era 15/10');
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('sem risco ao titular: nenhuma comunicação é a próxima ação e encerrar não fala da ANPD', async () => {
+        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], risco_titular: 'sem_risco' } });
+        await window.abrirIncidente('p9', 'i1');
+        expect(el('modal-content').querySelectorAll('.btn-primary').length).toBe(0);
+        window.pedirEncerramentoIncidente(...JSON.parse(el('modal-content').querySelector('[data-action="pedirEncerramentoIncidente"]').getAttribute('data-args')));
+        expect(el('in-encerrar').textContent).not.toContain('ANPD');
+        expect(el('in-encerrar').textContent).toContain('Encerrar o incidente?');
+    });
+
+    it('o primário é a próxima comunicação devida; encerrar é ghost, no fim, e confirma na janela', async () => {
+        const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] }, [`POST ${B}/incidentes/i1/encerrar`]: { ok: true } });
+        await window.abrirIncidente('p9', 'i1');
+        const primarios = [...el('modal-content').querySelectorAll('.btn-primary')].map((b) => b.textContent);
+        expect(primarios).toEqual(['Registrei a comunicação à ANPD']);
+        const pedir = el('modal-content').querySelector('[data-action="pedirEncerramentoIncidente"]');
+        expect(pedir.className).toContain('btn-ghost');
+        expect(pedir.textContent).toBe('Encerrar incidente');
+        const botoes = [...el('modal-content').querySelectorAll('button')];
+        expect(botoes[botoes.length - 1]).toBe(pedir);
+        window.pedirEncerramentoIncidente('p9', 'i1', false);
+        expect(el('in-encerrar').textContent).toContain('A ANPD ainda não foi comunicada. Encerrar mesmo assim?');
+        expect(chamadas(f)).not.toContain(`POST ${B}/incidentes/i1/encerrar`);
+        expect(el('in-encerrar').querySelector('[data-action="encerrarIncidente"]')).not.toBeNull();
+        await window.encerrarIncidente('p9', 'i1');
+        expect(chamadas(f)).toContain(`POST ${B}/incidentes/i1/encerrar`);
+        // ANPD comunicada: o primário passa a ser o titular, e a confirmação não fala da ANPD
+        servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], comunicacao_anpd_em: '2026-10-03', situacao_anpd: 'comunicado' } }));
+        await window.abrirIncidente('p9', 'i1');
+        expect([...el('modal-content').querySelectorAll('.btn-primary')].map((b) => b.textContent)).toEqual(['Registrei a comunicação ao titular']);
+        window.pedirEncerramentoIncidente('p9', 'i1', true);
+        expect(el('in-encerrar').textContent).not.toContain('ANPD ainda não');
+        window.cancelarEncerramentoIncidente();
+        expect(el('in-encerrar').textContent).toBe('');
     });
     it('abrir mostra prazos e ações; avaliar, comunicar e encerrar chamam as rotas certas', async () => {
         const f = await abrir('incidentes', {
@@ -204,17 +296,32 @@ describe('incidentes', () => {
     it('incidente encerrado e papel de leitura não têm ações', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], status: 'encerrado' } });
         await window.abrirIncidente('p9', 'i1');
-        expect(el('modal-content').querySelector('[data-action="encerrarIncidente"]')).toBeNull();
+        expect(el('modal-content').querySelector('[data-action="encerrarIncidente"], [data-action="pedirEncerramentoIncidente"]')).toBeNull();
         S.user = { role: 'org_user' };
         servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } }));
         await window.abrirIncidente('p9', 'i1');
-        expect(el('modal-content').querySelector('[data-action="encerrarIncidente"]')).toBeNull();
+        expect(el('modal-content').querySelector('[data-action="encerrarIncidente"], [data-action="pedirEncerramentoIncidente"]')).toBeNull();
     });
     it('erro de regra do servidor (409 no encerramento) vira aviso e não derruba a tela', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
         await window.abrirIncidente('p9', 'i1');
         await window.encerrarIncidente('p9', 'i1'); // POST sem dublê: 404 do Worker
         expect(document.body.textContent).toContain('API route not found');
+    });
+});
+
+describe('aviso de prazos legais não cadastrados', () => {
+    it('pedidos sem o prazo de resposta: aviso acima da tabela e atalho para a aba Prazos legais', async () => {
+        await abrir('pedidos', { 'GET /api/v1/parametros-legais': [{ chave: 'titular.resposta', descricao: 'X', definido: false }] });
+        const aviso = el('titular-aviso-prazos');
+        expect(aviso.textContent).toContain('Prazos legais não cadastrados: novos pedidos ficarão sem prazo. Fale com o administrador.');
+        expect(aviso.getAttribute('style')).toContain('var(--warning)');
+        expect(JSON.parse(aviso.querySelector('[data-action="escolherAbaTitular"]').getAttribute('data-args'))).toEqual(['prazos']);
+        expect(el('c').innerHTML.indexOf('titular-aviso-prazos')).toBeLessThan(el('c').innerHTML.indexOf('PT-2026-0001'));
+    });
+    it('com o prazo cadastrado não há aviso', async () => {
+        await abrir('pedidos');
+        expect(el('titular-aviso-prazos')).toBeNull();
     });
 });
 
@@ -282,7 +389,7 @@ describe('incidentes no n.iso', () => {
         S.activeProject = { id: 'p9', modulos: ['iso'] };
         await abrir('pedidos');
         expect(el('h').textContent).toBe('Incidentes');
-        expect([...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')].map((b) => b.textContent)).toEqual(['Incidentes']);
+        expect([...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')].map((b) => b.textContent)).toEqual(['Incidentes (1 · 1 atrasado)']);
         expect(el('c').textContent).toContain('IN-2026-0001');
         S.titularAba = 'pedidos';
         window.abrirIncidentesIso();
@@ -293,7 +400,7 @@ describe('incidentes no n.iso', () => {
         history.replaceState(null, '', '/');
         S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };
         await abrir('pedidos');
-        expect([...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')].map((b) => b.textContent)).toEqual(['Incidentes']);
+        expect([...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')].map((b) => b.textContent)).toEqual(['Incidentes (1 · 1 atrasado)']);
     });
     it('a janela do incidente tem Abrir CAPA quando o projeto tem iso; criar envia incidente_id', async () => {
         S.activeProject = { id: 'p9', modulos: ['iso'] };
@@ -307,7 +414,7 @@ describe('incidentes no n.iso', () => {
         history.replaceState(null, '', '/privacy');
         S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
-        expect(el('c').querySelectorAll('[data-action="escolherAbaTitular"]').length).toBe(4);
+        expect(el('c').querySelectorAll('[role="tab"][data-action="escolherAbaTitular"]').length).toBe(4);
         await window.abrirIncidente('p9', 'i1');
         expect(el('modal-content').querySelector('[data-action="abrirCapaDoIncidente"]')).toBeNull();
     });

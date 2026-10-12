@@ -311,15 +311,19 @@ describe('renderApiKeys', () => {
     expect(S.apiKeysProjectId).toBe('p1');
     expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/projects/p1/api-keys');
     expect($('kn')).toBeNull();
+    expect(h.textContent).toBe('Chaves de API');
+    expect(a.querySelector('[data-action="openApiKeyModal"]').textContent).toBe('Nova chave');
     const linhas = c.querySelectorAll('tbody tr');
     expect(linhas).toHaveLength(2);
     expect(linhas[0].querySelector('[data-action="revokeApiKey"]').dataset.args).toBe('["k1"]');
+    expect(linhas[0].textContent).toContain('Consultor');
+    expect(linhas[0].textContent).not.toContain('consultant');
     expect(linhas[0].textContent).toContain('2026-10-01');
     expect(linhas[1].querySelector('[data-action="revokeApiKey"]')).toBeNull();
     expect(linhas[1].textContent).toContain('2026-09-01');
   });
 
-  it('sem chaves: linha de vazio; sem projetos: "Nova Chave" desabilitado e nenhuma chamada de chaves', async () => {
+  it('sem chaves: linha de vazio; sem projetos: "Nova chave" desabilitado e nenhuma chamada de chaves', async () => {
     apiMock.mockResolvedValue([]);
     let [c, h, a] = dom();
     await window.renderApiKeys(c, h, a);
@@ -331,19 +335,27 @@ describe('renderApiKeys', () => {
     [c, h, a] = dom();
     await window.renderApiKeys(c, h, a);
     expect(apiMock).not.toHaveBeenCalled();
-    expect(c.querySelector('[data-action="openApiKeyModal"]').disabled).toBe(true);
+    expect(a.querySelector('[data-action="openApiKeyModal"]').disabled).toBe(true);
   });
 
   it('erro da API não vira "sem chaves": mostra o erro', async () => {
     apiMock.mockRejectedValue(new Error('403 Forbidden'));
     const [c, h, a] = dom();
     await window.renderApiKeys(c, h, a);
-    expect(c.textContent).toContain('Erro ao carregar API keys: 403 Forbidden');
+    expect(c.textContent).toContain('Erro ao carregar chaves de API: 403 Forbidden');
     expect(c.querySelector('table')).toBeNull();
   });
 });
 
 describe('criar e revogar chave', () => {
+  it('a criação não oferece os papéis legados write/admin', () => {
+    dom();
+    S.apiKeysProjectId = 'p1';
+    window.openApiKeyModal();
+    const valores = [...$('apikey-perm').options].map((o) => o.value);
+    expect(valores).toEqual(['consultant', 'auditor', 'read']);
+  });
+
   function abreModal() {
     dom();
     S.apiKeysProjectId = 'p1';
@@ -412,5 +424,30 @@ describe('criar e revogar chave', () => {
     await window.revokeApiKey('k1');
     expect(apiMock).toHaveBeenCalledWith('DELETE', '/api/v1/api-keys/k1');
     expect(renderMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe('renderSettings (Preços e margens)', () => {
+  it('falha da API: mensagem própria, sem exceção crua, com "Tentar de novo"', async () => {
+    apiMock.mockRejectedValue(new Error("Cannot read properties of undefined (reading '1')"));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const [c, h, a] = dom();
+    await window.renderSettings(c, h, a);
+    expect(h.textContent).toBe('Preços e margens');
+    expect(c.textContent).toContain('Não foi possível carregar a tabela de preços');
+    expect(c.textContent).not.toContain('Cannot read');
+    expect(c.querySelector('[data-action="navigate"]').dataset.args).toBe('["settings"]');
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('configuração incompleta não quebra: campos aparecem zerados', async () => {
+    apiMock.mockResolvedValue({});
+    const [c, h, a] = dom();
+    await window.renderSettings(c, h, a);
+    expect(c.querySelector('#cfg-venda-1').value).toBe('0');
+    expect(c.querySelector('#cfg-iss').value).toBe('0.00');
+    expect(c.textContent).toContain('Parâmetros gerais');
+    expect(c.textContent).toContain('Comissão');
   });
 });

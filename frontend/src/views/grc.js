@@ -497,9 +497,10 @@ window.__grcCloseExecAudit = function (id) {
 
         const statsHtml = window.renderStatCards([
             { label: 'Total Fornecedores', value: totalVendors, color: 'var(--accent)', subtext: 'Terceiros mapeados' },
-            { label: 'Trust Score Médio', value: `${avgScore}/100`, color: avgScore >= 80 ? '#34c759' : avgScore >= 50 ? '#ffcc00' : 'var(--danger)', subtext: 'Postura global' },
-            { label: 'DPAs Assinados', value: dpaSignedCount, color: '#34c759', subtext: 'Proteção de dados' },
-            { label: 'Alta Diligência', value: highDilCount, color: '#ff3b30', subtext: 'Acompanhamento rigoroso' }
+            // Sem fornecedor não há postura a medir: "—", nunca "0/100" em vermelho.
+            { label: 'Trust Score Médio', value: totalVendors ? `${avgScore}/100` : '—', color: !totalVendors ? 'var(--text-dim)' : avgScore >= 80 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : 'var(--danger)', subtext: 'Postura global' },
+            { label: 'DPAs Assinados', value: dpaSignedCount, color: 'var(--text)', subtext: 'Proteção de dados' },
+            { label: 'Alta Diligência', value: highDilCount, color: highDilCount ? 'var(--warning)' : 'var(--text)', subtext: 'Acompanhamento rigoroso' }
         ]);
 
         const tableHtml = window.renderDataTable(
@@ -511,7 +512,7 @@ window.__grcCloseExecAudit = function (id) {
                 if (v.has_soc2) certs.push('SOC 2');
                 if (v.attached_certifications) certs.push(v.attached_certifications);
                 const certStr = certs.length ? certs.join(', ') : '—';
-                const scoreColor = (v.trust_score || 0) >= 80 ? 'var(--success)' : (v.trust_score || 0) >= 50 ? '#ffcc00' : 'var(--danger)';
+                const scoreColor = (v.trust_score || 0) >= 80 ? 'var(--success)' : (v.trust_score || 0) >= 50 ? 'var(--warning)' : 'var(--danger)';
 
                 return [
                     `<strong>${escapeHTML(v.name)}</strong>`,

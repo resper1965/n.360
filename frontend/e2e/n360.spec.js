@@ -33,15 +33,15 @@ test('dois módulos: início do n.360 e "Abrir" leva à casca de cada módulo', 
 
   await expect(page.locator('#content')).toContainText('n.iso');
   await expect(page.locator('#content')).toContainText('n.privacy');
-  await expect(page.getByRole('button', { name: 'Abrir', exact: true })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: /^Abrir o n\./ })).toHaveCount(2);
 
-  await page.getByRole('button', { name: 'Abrir', exact: true }).first().click();
+  await page.getByRole('button', { name: /^Abrir o n\./ }).first().click();
   await expect(page).toHaveURL(/\/iso$/);
   await expect(page).toHaveTitle('n.iso | ness. Agentic GRC');
 
   await page.goto('/login.html');
-  await expect(page.getByRole('button', { name: 'Abrir', exact: true })).toHaveCount(2);
-  await page.getByRole('button', { name: 'Abrir', exact: true }).nth(1).click();
+  await expect(page.getByRole('button', { name: /^Abrir o n\./ })).toHaveCount(2);
+  await page.getByRole('button', { name: /^Abrir o n\./ }).nth(1).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page).toHaveTitle('n.privacy | ness. Privacidade');
 });

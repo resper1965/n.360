@@ -8,9 +8,9 @@ import { PRODUTOS, produtoAtual, modulosVisiveis, enderecoDoProduto, irPara } fr
 // O selo comparava com a grafia antiga ('conforme', 'parcial', 'nao conforme'), que o banco
 // não usa mais: todo item aparecia pendente com borda vermelha.
 const SELO_AVALIACAO = {
-    conforming: { rotulo: 'Conforme', cor: '#00ade8', problema: false },
-    partial: { rotulo: 'Parcial', cor: '#ffc107', problema: true },
-    non_conforming: { rotulo: 'Não conforme', cor: '#ff4d4d', problema: true },
+    conforming: { rotulo: 'Conforme', cor: 'var(--success)', problema: false },
+    partial: { rotulo: 'Parcial', cor: 'var(--warning)', problema: true },
+    non_conforming: { rotulo: 'Não conforme', cor: 'var(--danger)', problema: true },
 };
 window.seloDaAvaliacao = (status) => SELO_AVALIACAO[status] || { rotulo: 'Aguarda revisão', cor: 'var(--text-dim)', problema: false };
 
@@ -56,32 +56,35 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const projects = await api('GET', '/api/v1/projects').catch(() => []);
             const projs = window.projetosDoProduto(projects); // só os projetos do módulo do caminho (no início do n.360, todos)
             
-            const totalProjects = projs.length;
-            const activeProjects = projs.filter(p => p.status === 'active' || !p.status).length;
-            const completedProjects = projs.filter(p => p.status === 'completed').length;
-            
-            const statsHtml = window.renderStatCards([
-                { label: 'Total de Projetos', value: totalProjects, color: 'var(--accent)', subtext: 'Cadastrados no sistema' },
-                { label: 'Projetos Em Andamento', value: activeProjects, color: '#34c759', subtext: 'Implementação ativa' },
-                { label: 'Projetos Concluídos', value: completedProjects, color: '#ffcc00', subtext: 'Prontos para auditoria' }
-            ]);
-
+            // Sem faixa de KPIs — três contagens da lista que aparece logo abaixo não informam decisão nenhuma.
+            const escopoDe = (p) => {
+                if (p.standard) return p.standard;
+                const m = p.modulos || ['iso'];
+                return [m.includes('iso') ? 'ISO 27001:2022' : '', m.includes('privacy') ? 'LGPD' : ''].filter(Boolean).join(' · ') || '—';
+            };
+            const equipe = typeof window.ehEquipeNess === 'function' && window.ehEquipeNess();
             const tableHtml = window.renderDataTable(
-                ['Cliente / Projeto', 'Setor / Ramo', 'Status', 'Fase / Escopo', 'Ações'],
-                projs.map(p => [
-                    `<strong>${escapeHTML(p.client_name || p.project_name || 'Sem nome')}</strong>`,
-                    escapeHTML(p.sector || 'Geral'),
-                    window.renderStatusBadge(p.status || 'active', p.status === 'completed' ? 'success' : 'info'),
-                    escapeHTML(p.standard || 'ISO 27001:2022'),
-                    `${(p.modulos || ['iso']).includes('iso') && window.produtoAtual() === 'iso' ? `<button class="btn btn-primary btn-sm" data-action="openProjectDetail" data-args='["${p.id}"]'>Gerenciar Jornada &rarr;</button> ` : ''}${modulosParaAbrir(p).map((m) => `<button class="btn btn-primary btn-sm" data-action="abrirProjetoNoModulo" data-args='${escapeHTML(JSON.stringify([p.id, m]))}'>Abrir no n.${m}</button> `).join('')}<button class="btn btn-ghost btn-sm" data-action="abrirProdutosDoProjeto" data-args='["${p.id}"]'>Produtos (${escapeHTML((p.modulos || ['iso']).map((m) => 'n.' + m).join(', '))})</button>`
-                ]),
+                ['Cliente / Projeto', 'Setor / Ramo', 'Status', 'Escopo', 'Ações'],
+                projs.map(p => {
+                    const abrir = modulosParaAbrir(p);
+                    const jornada = (p.modulos || ['iso']).includes('iso') && window.produtoAtual() === 'iso';
+                    const nome = escapeHTML(p.client_name || p.project_name || 'Sem nome');
+                    // Um só destino possível: o nome do cliente é o link e a linha não repete o botão.
+                    const unico = !jornada && abrir.length === 1;
+                    return [
+                        unico
+                            ? `<button class="btn-ghost" style="padding:0;font-size:inherit;font-weight:600;text-align:left" data-action="abrirProjetoNoModulo" data-args='${escapeHTML(JSON.stringify([p.id, abrir[0]]))}'>${nome}</button>`
+                            : `<strong>${nome}</strong>`,
+                        escapeHTML(p.sector || 'Geral'),
+                        window.renderStatusBadge(p.status || 'active', p.status === 'completed' ? 'success' : 'info'),
+                        escapeHTML(escopoDe(p)),
+                        `<div class="acoes-linha">${equipe ? `<button class="btn btn-ghost btn-sm" data-action="abrirProdutosDoProjeto" data-args='["${p.id}"]'>Módulos…</button>` : ''}${jornada ? `<button class="btn btn-primary btn-sm" data-action="openProjectDetail" data-args='["${p.id}"]'>Gerenciar Jornada &rarr;</button>` : ''}${unico ? '' : abrir.map((m) => `<button class="btn btn-secondary btn-sm" data-action="abrirProjetoNoModulo" data-args='${escapeHTML(JSON.stringify([p.id, m]))}'>Abrir no n.${m}</button>`).join('')}</div>`,
+                    ];
+                }),
                 { emptyState: 'Nenhum projeto de implementação ativo no momento.' }
             );
 
-            c.innerHTML = `
-                ${statsHtml}
-                ${tableHtml}
-            `;
+            c.innerHTML = tableHtml;
         } catch (e) {
             c.innerHTML = '<div class="error">Erro ao carregar projetos: ' + escapeHTML(e.message) + '</div>';
         }
@@ -417,7 +420,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                                 ` : ''}
                                                                 ${(isChecked && selo.problema && itemEvalNotes) ? `
                                                                     <div style="margin-top:0.6rem; background:rgba(255,77,77,0.03); border:1px solid rgba(255,77,77,0.15); border-radius:8px; padding:10px; font-size:0.75rem; text-align: left;">
-                                                                        <div style="color:#ff4d4d; font-weight:700; margin-bottom:4px; text-transform:uppercase; font-size:0.72rem; letter-spacing:0.5px;">Lacunas apontadas na avaliação</div>
+                                                                        <div style="color:var(--danger); font-weight:700; margin-bottom:4px; text-transform:uppercase; font-size:0.72rem; letter-spacing:0.5px;">Lacunas apontadas na avaliação</div>
                                                                         <div style="color:var(--text);">${escapeHTML(itemEvalNotes)}</div>
                                                                     </div>
                                                                 ` : ''}
@@ -493,7 +496,11 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             S.currentProject = p;
             localStorage.setItem('niso_activeProject', JSON.stringify(p));
             updateActiveProjectWidget();
-            navigate(S.view === 'projects' || S.view === 'project-detail' ? 'certification' : (S.view || 'dashboard'));
+            // No n.360 fica na tela do hub (a certificação é do n.iso, e o projeto pode ser só n.privacy); da lista, nos módulos,
+            // o n.iso abre a certificação e o n.privacy o início dele.
+            const produto = produtoAtual();
+            const daLista = S.view === 'projects' || S.view === 'project-detail';
+            navigate(produto === 'n360' ? (S.view || 'inicio') : daLista ? (produto === 'iso' ? 'certification' : PRODUTOS[produto].inicio) : (S.view || PRODUTOS[produto].inicio));
         } catch(e) {
             showToast('Erro ao mudar de projeto', 'error');
         }
@@ -514,7 +521,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         let fieldsHtml = wiz.fields.map(f => {
             const val = savedAnswers[f.id] || '';
             const escapedVal = typeof val === 'string' ? val.replace(/"/g, '&quot;').replace(/</g, '&lt;') : val;
-            const req = f.required ? '<span style="color:#ff4d4d">*</span>' : '';
+            const req = f.required ? '<span style="color:var(--danger)">*</span>' : '';
             let input = '';
             if (f.type === 'textarea') {
                 input = `<textarea id="wiz-${f.id}" class="form-input" style="width:100%; min-height:80px; font-size:0.8rem; resize:vertical; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-family:inherit;" placeholder="${f.placeholder || ''}">${escapedVal}</textarea>`;
@@ -764,7 +771,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px; padding-top: 16px;">
                                 <input type="checkbox" id="gap-${q.key}" ${gap ? 'checked' : ''} style="cursor: pointer;">
-                                <label for="gap-${q.key}" style="font-size: 0.75rem; color: #ff4d4d; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                                <label for="gap-${q.key}" style="font-size: 0.75rem; color: var(--danger); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
                                     Lacuna Detectada
                                 </label>
                             </div>
@@ -785,7 +792,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             document.getElementById('interview-buttons-right').innerHTML = rightButtons;
 
         } catch (e) {
-            container.innerHTML = `<div style="color:#ff4d4d; text-align:center; padding:3rem;">Erro ao carregar perguntas: ${escapeHTML(e.message)}</div>`;
+            container.innerHTML = `<div style="color:var(--danger); text-align:center; padding:3rem;">Erro ao carregar perguntas: ${escapeHTML(e.message)}</div>`;
         }
     };
 
@@ -971,8 +978,8 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             <div style="padding:1.5rem 0; text-align:center; color:var(--text-dim)">Analisando as respostas com o agente de conformidade…</div>`);
         try {
             const r = await api('GET', `/api/v1/projects/${projectId}/phase-answers/${phaseNumber}/interpret`);
-            const badge = { em_dia: ['#1f9d55', 'Em dia'], atencao: ['#c9770a', 'Atenção'], critico: ['#c0392b', 'Crítico'] };
-            const sevCor = { critico: '#c0392b', alto: '#c9770a', medio: 'var(--text-dim)' };
+            const badge = { em_dia: ['var(--success)', 'Em dia'], atencao: ['var(--warning)', 'Atenção'], critico: ['var(--danger)', 'Crítico'] };
+            const sevCor = { critico: 'var(--danger)', alto: 'var(--warning)', medio: 'var(--text-dim)' };
             const it = r.interpretacao;
             const cab = r.clausula ? `${escapeHTML(r.titulo)} — cláusula ${escapeHTML(r.clausula)}` : escapeHTML(r.titulo || ('Fase ' + phaseNumber));
             const cov = r.cobertura || { total: 0, respondidas: 0, sem_resposta: [] };
@@ -982,7 +989,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             if (it) {
                 const [cor, rotulo] = badge[it.prontidao] || badge.atencao;
                 corpo += `<div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem">
-                    <span style="background:${cor}; color:#fff; padding:3px 12px; border-radius:999px; font-size:0.72rem; font-weight:500; text-transform:uppercase; letter-spacing:0.5px">${rotulo}</span>
+                    <span style="background:${cor}; color:var(--bg); padding:3px 12px; border-radius:999px; font-size:0.72rem; font-weight:500; text-transform:uppercase; letter-spacing:0.5px">${rotulo}</span>
                     <span style="font-size:0.75rem; color:var(--text-dim)">Prontidão da fase</span></div>`;
                 if (it.resumo) corpo += `<p style="font-size:0.85rem; line-height:1.5; margin-bottom:1rem">${escapeHTML(it.resumo)}</p>`;
                 if (it.pontos && it.pontos.length) {

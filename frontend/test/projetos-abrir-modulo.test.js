@@ -10,6 +10,7 @@ vi.mock('../src/produto.js', async (original) => ({ ...(await original()), irPar
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import { irPara } from '../src/produto.js';
+import { navigate } from '../src/router.js';
 import '../src/views/project.js';
 
 const P = [{ id: 'p1', client_name: 'Alfa', modulos: ['iso', 'privacy'] }, { id: 'p2', client_name: 'Beta', modulos: ['privacy'] }];
@@ -34,7 +35,10 @@ afterEach(() => history.replaceState(null, '', '/'));
 describe('lista de projetos no n.360', () => {
     it('platform_admin: "Abrir no" para cada módulo de cada projeto', async () => {
         await lista('/', { role: 'platform_admin' });
-        expect(abrir()).toEqual([[['p1', 'iso'], 'Abrir no n.iso'], [['p1', 'privacy'], 'Abrir no n.privacy'], [['p2', 'privacy'], 'Abrir no n.privacy']]);
+        // p2 tem um só destino: o nome do cliente é o link, sem botão repetido.
+        expect(abrir()).toEqual([[['p1', 'iso'], 'Abrir no n.iso'], [['p1', 'privacy'], 'Abrir no n.privacy'], [['p2', 'privacy'], 'Beta']]);
+        const botoes = [...document.querySelectorAll('[data-action="abrirProjetoNoModulo"].btn-secondary')];
+        expect(botoes).toHaveLength(2);
         expect(document.querySelector('[data-action="openProjectDetail"]')).toBeNull();
     });
     it('só os módulos que a pessoa também tem', async () => {
@@ -46,6 +50,28 @@ describe('lista de projetos no n.360', () => {
         // a lista do n.iso só tem os projetos com n.iso (p2 é só n.privacy)
         expect(abrir().map(([a]) => a)).toEqual([['p1', 'privacy']]);
         expect(document.querySelector('[data-action="openProjectDetail"]')).not.toBeNull();
+    });
+});
+
+describe('escopo e módulos na lista', () => {
+    it('coluna Escopo vem dos módulos: projeto só n.privacy diz LGPD, não ISO', async () => {
+        await lista('/', { role: 'platform_admin' });
+        const linhas = [...document.querySelectorAll('tbody tr')];
+        expect(document.querySelector('thead').textContent).toContain('Escopo');
+        expect(document.querySelector('thead').textContent).not.toContain('Fase');
+        expect(linhas[0].textContent).toContain('ISO 27001:2022 · LGPD');
+        expect(linhas[1].textContent).toContain('LGPD');
+        expect(linhas[1].textContent).not.toContain('ISO 27001');
+        expect(document.querySelector('.stat-strip')).toBeNull();
+    });
+    it('"Módulos…" só para a equipe da ness.', async () => {
+        window.ehEquipeNess = () => true;
+        await lista('/', { role: 'platform_admin' });
+        expect(document.querySelector('[data-action="abrirProdutosDoProjeto"]').textContent).toBe('Módulos…');
+        window.ehEquipeNess = () => false;
+        await lista('/', { role: 'org_admin' });
+        expect(document.querySelector('[data-action="abrirProdutosDoProjeto"]')).toBeNull();
+        delete window.ehEquipeNess;
     });
 });
 
@@ -65,5 +91,29 @@ describe('abrirProjetoNoModulo', () => {
         window.abrirProjetoNoModulo('zz', 'privacy');
         expect(irPara).not.toHaveBeenCalled();
         expect(S.activeProject).toBeNull();
+    });
+});
+
+describe('trocar o projeto ativo', () => {
+    beforeEach(() => { globalThis.updateActiveProjectWidget = vi.fn(); });
+    it('no n.360, na lista de projetos, fica nela (projeto só n.privacy não vai ao n.iso)', async () => {
+        history.replaceState(null, '', '/');
+        S.view = 'projects';
+        navigate.mockClear();
+        await window.changeActiveProject('p2');
+        expect(S.activeProject.id).toBe('p2');
+        expect(navigate).toHaveBeenCalledWith('projects');
+    });
+    it('no n.privacy, da lista, vai ao início do módulo; no n.iso, à certificação (como antes)', async () => {
+        S.view = 'projects';
+        history.replaceState(null, '', '/privacy');
+        navigate.mockClear();
+        await window.changeActiveProject('p2');
+        expect(navigate).toHaveBeenCalledWith('encarregado');
+        S.view = 'projects';
+        history.replaceState(null, '', '/iso');
+        navigate.mockClear();
+        await window.changeActiveProject('p1');
+        expect(navigate).toHaveBeenCalledWith('certification');
     });
 });

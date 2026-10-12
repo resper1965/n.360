@@ -1,5 +1,5 @@
 import { S } from './state.js';
-import { produtoAtual } from './produto.js';
+import { produtoAtual, TELAS_DO_HUB, moduloPara, enderecoNoModulo, irPara, abrirGrupo } from './produto.js';
 
 export     function navigate(view, data) {
         let targetView = view;
@@ -7,6 +7,17 @@ export     function navigate(view, data) {
         if (isClient && (view === 'dashboard' || view === 'projects')) {
             targetView = 'project-detail';
         }
+        const produto = produtoAtual();
+        // O n.360 é o hub: tela de módulo leva ao módulo, na própria tela (`?tela=`, lido no boot dele); a dos dois módulos vai a um
+        // que o projeto tem. Sem módulo para ela, fica no início do portal. Nada de tela de módulo desenhada dentro do portal.
+        if (produto === 'n360' && !TELAS_DO_HUB.includes(targetView)) {
+            const proj = (data && (data.activeProject || data.currentProject)) || S.activeProject;
+            const modulo = moduloPara(targetView, proj);
+            if (modulo) { irPara(enderecoNoModulo(modulo, targetView, proj)); return; }
+            targetView = 'inicio';
+        }
+        // Fornecedores é a tela ISO (KYV, Trust Score); no n.privacy o cadastro deles é Terceiros.
+        if (produto === 'privacy' && targetView === 'vendors') targetView = 'terceiros';
         
         S.view = targetView;
         if (data) Object.assign(S, data);
@@ -19,12 +30,16 @@ export     function navigate(view, data) {
         });
         // No n.iso a tela titular é só Incidentes (nav-titular fica oculto): destaca o item que levou até ela.
         // Nos módulos, Projetos é do n.360 (fora do menu): a lista, aberta pelo Voltar da Jornada, destaca a Jornada.
-        const navId = targetView === 'titular' && produtoAtual() === 'iso' ? 'nav-incidentes'
-            : targetView === 'projects' && produtoAtual() !== 'n360' ? 'nav-project' : `nav-${targetView.split('-')[0]}`;
+        // No n.privacy a aba de incidentes tem item próprio.
+        const navId = targetView === 'titular' && produto === 'iso' ? 'nav-incidentes'
+            : targetView === 'titular' && produto === 'privacy' && S.titularAba === 'incidentes' ? 'nav-incidentes-privacy'
+            : targetView === 'projects' && produto !== 'n360' ? 'nav-project' : `nav-${targetView.split('-')[0]}`;
         const el = document.getElementById(navId);
         if (el) {
             el.classList.add('active');
             el.setAttribute('aria-current', 'page');
+            // O grupo do item ativo abre sozinho: sem isto a página atual ficava dentro de um grupo recolhido.
+            abrirGrupo(el.closest('.sidebar-group'));
         }
 
         render();

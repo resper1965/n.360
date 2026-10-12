@@ -1,6 +1,8 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
+import { produtoAtual } from '../produto.js';
+import { podeIndicar } from './encarregado.js';
 
     async function renderMonitor(c, h, a) {
         h.textContent = 'Monitor de Adequação';
@@ -511,6 +513,8 @@ import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
         };
 
         const anchor = members.find(m => m.is_primary) || null;
+        // No n.privacy a âncora vazia é a falta do encarregado (LGPD, art. 41), não do Líder do SGSI.
+        const privacy = produtoAtual() === 'privacy';
         members.forEach(m => {
             if (anchor && m.id === anchor.id) return;
             if (categories[m.role_category]) categories[m.role_category].list.push(m);
@@ -548,6 +552,11 @@ import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
                     ${anchor.job_title === CARGO_CONTATO_ACEITE ? '<div class="gov-empty-list" style="padding:2px 0 0">e-mail informado no aceite da proposta, não verificado</div>' : ''}
                 </div>
                 ${acoesAcesso(anchor)}
+            </div>` : privacy ? `
+            <div class="org-anchor org-anchor-empty">
+                <div class="org-anchor-name">Encarregado (DPO) não designado</div>
+                <div class="org-anchor-title">A LGPD exige a indicação do encarregado (art. 41).</div>
+                ${podeIndicar() ? `<button class="btn btn-primary" data-action="abrirIndicarEncarregado" data-args='${escapeHTML(JSON.stringify([projectId]))}'>Indicar encarregado</button>` : ''}
             </div>` : `
             <div class="org-anchor org-anchor-empty">
                 <div class="org-anchor-name">Líder do SGSI não designado</div>
@@ -577,7 +586,7 @@ import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
         return `
             <div class="org-chart">
                 <div class="org-header">
-                    <p class="org-header-intro">Quem responde pelo SGSI deste cliente, por área. O líder é um só; consultores são designados pelo administrador do cliente ou da consultoria.</p>
+                    <p class="org-header-intro">${privacy ? 'Quem responde pela privacidade deste cliente, por área.' : 'Quem responde pelo SGSI deste cliente, por área.'} O líder é um só; consultores são designados pelo administrador do cliente ou da consultoria.</p>
                     ${manageBtn}
                 </div>
                 ${avisoHtml}

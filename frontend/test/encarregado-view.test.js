@@ -55,15 +55,34 @@ describe('tela do encarregado', () => {
         expect([...el('c').querySelectorAll('[data-action="navigate"]')].map((b) => JSON.parse(b.getAttribute('data-args'))[0])).toEqual(['titular', 'documentos']);
     });
 
-    it('catálogo da LGPD ainda não carregado: o cartão diz isso, sem número inventado', async () => {
+    it('catálogo da LGPD ainda não carregado: sem cartão LGPD (o banner e a prioridade já dizem), sem número inventado', async () => {
         await abrir(VISAO({ lgpd: { carregada: false } }));
-        expect(el('c').textContent).toContain('Catálogo ainda não carregado');
+        expect(el('c').textContent).not.toContain('LGPD coberta');
+        expect([...el('c').querySelectorAll('.stat-card')].map((x) => x.textContent)).not.toContainEqual(expect.stringContaining('LGPD'));
         expect(el('c').textContent).not.toContain('/0');
     });
 
-    it('sem nenhuma pendência: mensagem de estar em dia', async () => {
+    it('sem nenhuma pendência: não afirma estar em dia, só que nada foi calculado do que está cadastrado', async () => {
         await abrir(VISAO({ prioridades: [] }));
-        expect(el('c').textContent).toContain('Nada atrasado ou faltando');
+        expect(el('c').textContent).toContain('Nenhuma pendência calculada a partir do que está cadastrado.');
+        expect(el('c').textContent).not.toContain('em dia');
+    });
+
+    it('título "Painel do encarregado"; zero sai em var(--text), cor só quando há alerta', async () => {
+        await abrir(VISAO({ incidentes: { abertos: 0, comunicacoes_atrasadas: 0 }, evidencias: { vencidas: 0, vencem_em_7_dias: 0 } }));
+        expect(el('h').textContent).toBe('Painel do encarregado');
+        const valor = (rotulo) => [...el('c').querySelectorAll('.stat-card')].find((x) => x.textContent.includes(rotulo)).children[1].getAttribute('style');
+        expect(valor('Incidentes abertos')).toContain('color:var(--text)');
+        expect(valor('Evidências vencidas')).toContain('color:var(--text)');
+        expect(valor('Pedidos do titular')).toContain('color:var(--danger)');
+        expect(valor('Tratamentos com pendência')).toContain('color:var(--warning)');
+        expect(el('c').innerHTML).not.toMatch(/#34c759|#ffcc00/i);
+    });
+
+    it('ordem: "O que fazer" vem antes dos cartões', async () => {
+        await abrir();
+        const html = el('c').innerHTML;
+        expect(html.indexOf('O que fazer')).toBeLessThan(html.indexOf('stat-strip'));
     });
 
     it('sem projeto ativo: estado vazio, sem chamar a API', async () => {
@@ -95,8 +114,13 @@ describe('tela do encarregado', () => {
             'POST /api/v1/projects/p9/partes/pe7/vinculos': { id: 'v1' },
         });
         await window.renderEncarregado(el('c'), el('h'), el('a'));
-        expect(el('c').textContent).toContain('Encarregado: não indicado');
-        expect(el('c').querySelector('[data-action="abrirIndicarEncarregado"]')).not.toBeNull();
+        // o alerta vem primeiro, com o artigo e o botão primário
+        const alerta = el('c').querySelector('#alerta-encarregado');
+        expect(alerta.textContent).toContain('Nenhum encarregado indicado. A LGPD exige a indicação (art. 41).');
+        expect(el('c').innerHTML.indexOf('alerta-encarregado')).toBeLessThan(el('c').innerHTML.indexOf('O que fazer'));
+        const botao = alerta.querySelector('[data-action="abrirIndicarEncarregado"]');
+        expect(botao.className).toContain('btn-primary');
+        expect(botao.textContent).toBe('Indicar encarregado');
         await window.abrirIndicarEncarregado('p9');
         const sel = document.getElementById('encarregado-parte');
         expect(sel.options.length).toBe(1);

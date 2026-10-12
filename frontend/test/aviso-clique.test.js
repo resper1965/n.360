@@ -51,11 +51,14 @@ describe('handleNotificationClick', () => {
     expect(destinoDoAviso.mock.results[0].value).toEqual({ href: '/privacy' });
   });
 
-  it('no início do n.360, tela de módulo leva ao caminho do módulo', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('no início do n.360, navega com o aviso em curso: o router leva ao módulo e guarda o aviso (aviso-hub.test)', async () => {
+    let emCurso;
+    navigate.mockImplementationOnce(() => { emCurso = S.avisoEmCurso; });
     await clicar('/projects/p1/capa');
-    expect(navigate).not.toHaveBeenCalled();
-    expect(destinoDoAviso.mock.results[0].value).toEqual({ href: '/iso' });
+    expect(destinoDoAviso.mock.results[0].value).toEqual({ navegar: 'capa' });
+    expect(navigate).toHaveBeenCalledWith('capa', { currentProject: PROJ, activeProject: PROJ });
+    expect(emCurso).toMatchObject({ link: '/projects/p1/capa' });
+    expect(S.avisoEmCurso).toBeNull();
   });
 
   it('tela do próprio produto navega local', async () => {

@@ -256,3 +256,15 @@ describe('segurança', () => {
     expect(c.querySelector('script')).toBeNull();
   });
 });
+
+describe('configuração incompleta', () => {
+  it.each([[{}], [null], [{ nome: 'ness.' }]])('resposta %j: estado "indisponível" com Tentar de novo, sem exceção', async (corpo) => {
+    document.body.innerHTML = '<div id="content"><p>Nenhuma proposta ainda</p></div><h1 id="hdr"></h1><div id="act"></div>';
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => json(corpo));
+    await window.renderConfigComercial($('content'), $('hdr'), $('act'));
+    expect($('hdr').textContent).toBe('Configuração comercial');
+    expect($('content').textContent).toContain('ainda não está disponível');
+    expect($('content').textContent).not.toContain('Nenhuma proposta');
+    expect($('content').querySelector('[data-action="navigate"]').dataset.args).toBe('["config-comercial"]');
+  });
+});

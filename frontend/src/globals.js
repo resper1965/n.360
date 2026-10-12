@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida } from './produto.js';
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub } from './produto.js';
 import { S } from './state.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
@@ -84,12 +84,12 @@ window.viewEvidence = async function viewEvidence(id) {
                 sealHtml = `
                     <div style="background: rgba(0, 173, 232, 0.02); border: 1px solid rgba(0, 173, 232, 0.15); border-radius: 10px; padding: 1rem; margin-top: 1rem;">
                         <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.4rem; margin-bottom: 0.5rem;">
-                            <div style="width: 6px; height: 6px; border-radius: 50%; background: #00ade8;"></div>
-                            <span style="font-family: 'Montserrat', sans-serif; font-size: 0.65rem; font-weight: 700; color: #f5f5f7; text-transform: uppercase; letter-spacing: 0.05em;">Selo de Assinatura da Evidência</span>
+                            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent);"></div>
+                            <span style="font-family: 'Montserrat', sans-serif; font-size: 0.65rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em;">Selo de Assinatura da Evidência</span>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px;">
-                            <div><strong>DPO:</strong> <span style="color: ${ev.ciso_approved_by ? '#10b981' : 'var(--text-dim)'}">${cisoText}</span></div>
-                            <div><strong>CEO:</strong> <span style="color: ${ev.ceo_approved_by ? '#10b981' : 'var(--text-dim)'}">${ceoText}</span></div>
+                            <div><strong>DPO:</strong> <span style="color: ${ev.ciso_approved_by ? 'var(--success)' : 'var(--text-dim)'}">${cisoText}</span></div>
+                            <div><strong>CEO:</strong> <span style="color: ${ev.ceo_approved_by ? 'var(--success)' : 'var(--text-dim)'}">${ceoText}</span></div>
                         </div>
                     </div>
                 `;
@@ -117,6 +117,37 @@ window.viewEvidence = async function viewEvidence(id) {
         }
     }
 
+
+/**
+ * Mostra ou esconde a tela de entrada. Escondida, ela só ficava transparente (opacity 0) por cima do app: o Tab entrava nos
+ * campos invisíveis e o leitor de tela lia o login (e um segundo h1). Agora sai da árvore com `inert`/`aria-hidden`; à
+ * mostra, é o app por baixo que fica inert.
+ */
+function mostrarEntrada(visivel) {
+    const o = document.getElementById('login-overlay');
+    if (o) {
+        o.classList.toggle('hidden', !visivel);
+        o.toggleAttribute('inert', !visivel);
+        if (visivel) o.removeAttribute('aria-hidden'); else o.setAttribute('aria-hidden', 'true');
+    }
+    for (const app of [document.getElementById('sidebar'), document.querySelector('main')]) {
+        if (app) app.toggleAttribute('inert', visivel);
+    }
+}
+window.mostrarEntrada = mostrarEntrada;
+
+// Barra lateral pelo teclado: item (role=link) e rótulo de grupo (role=button) são div com tabindex; Enter e Espaço
+// viram o clique, que a delegação despacha.
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const alvo = e.target && e.target.closest ? e.target.closest('.sidebar-nav[tabindex], .sidebar-label[tabindex]') : null;
+    if (!alvo || alvo !== e.target) return;
+    e.preventDefault();
+    alvo.click();
+});
+
+/** Titular: o menu do n.privacy abre a tela já na aba (Titular e pedidos, Incidentes). */
+window.abrirAbaTitular = function abrirAbaTitular(aba) { S.titularAba = aba; navigate('titular'); };
 
 window.toggleGroup = function toggleGroup(groupId) {
         const groups = document.querySelectorAll('.sidebar-group');
@@ -385,7 +416,7 @@ window.doLogin = async function doLogin() {
                 document.getElementById('forgot-password-box').style.display = 'none';
                 document.getElementById('first-reset-error').style.display = 'none';
             } else {
-                document.getElementById('login-overlay').classList.add('hidden');
+                mostrarEntrada(false);
                 initApp();
             }
         } catch(e) {
@@ -500,7 +531,7 @@ window.doMfaLogin = async function doMfaLogin() {
             }
 
             document.getElementById('standard-login-box').style.display = 'flex';
-            document.getElementById('login-overlay').classList.add('hidden');
+            mostrarEntrada(false);
             initApp();
         } catch(e) {
             err.textContent = e.message;
@@ -542,7 +573,7 @@ window.doLogout = function doLogout() {
         localStorage.removeItem('niso_token');
         localStorage.removeItem('niso_user');
         localStorage.removeItem('niso_activeProject');
-        document.getElementById('login-overlay').classList.remove('hidden');
+        mostrarEntrada(true);
     }
 
 window.openPricingOverrideModal = function openPricingOverrideModal(id) {
@@ -610,7 +641,7 @@ window.updateActiveProjectWidget = function updateActiveProjectWidget() {
 
         if (S.activeProject) {
             badge.textContent = S.activeProject.project_name || S.activeProject.client_name || 'Projeto';
-            badge.style.display = '';
+            badge.style.display = 'block';
             grcItems.forEach(el => el.style.display = '');
         } else {
             badge.style.display = 'none';
@@ -803,6 +834,8 @@ window.toggleAccountMenu = function toggleAccountMenu() {
     }
 
 document.addEventListener('click', (e) => {
+        // Menus <details class="menu-mais">: fecham ao clicar fora (ou no item, que abre modal).
+        document.querySelectorAll('details.menu-mais[open]').forEach((d) => { if (!d.contains(e.target) || e.target.closest('.menu-mais-lista')) d.open = false; });
         const box = document.getElementById('account-menu');
         if (!box || box.hidden) return;
         if (e.target.closest('#account-menu') || e.target.closest('#sidebar-user-card')) return;
@@ -1036,7 +1069,15 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
         if (dd) dd.classList.remove('open');
 
         if (!n) return;
+        // No n.360 a tela do aviso é de um módulo: o router leva a ele e guarda o aviso (enderecoNoModulo), que o módulo reabre no
+        // boot (pedidoDoHub) com o modal, a linha ou a aba do aviso.
+        S.avisoEmCurso = produtoAtual() === 'n360' ? n : null;
+        try { await window.abrirAviso(n); } finally { S.avisoEmCurso = null; }
+    };
 
+/** Leva à tela do aviso (o link ou o tipo de ação dele). No n.360, a navegação sai para o módulo: o resto fica para lá. */
+window.abrirAviso = async function abrirAviso(n) {
+        const noHub = produtoAtual() === 'n360';
         // 2. Prioritize Action Type & Target ID (Deep-linking)
         if (n.action_type && n.target_id) {
             const actionType = n.action_type;
@@ -1045,7 +1086,7 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
 
             if (actionType === 'open_finding') {
                 navigate('capa');
-                if (projectId) {
+                if (projectId && !noHub) {
                     try {
                         const capas = await api('GET', `/api/v1/projects/${projectId}/capa`) || [];
                         const ca = capas.find(x => x.id === targetId);
@@ -1059,6 +1100,7 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
                 return;
             } else if (actionType === 'open_soa') {
                 navigate('soa');
+                if (noHub) return;
                 setTimeout(() => {
                     const row = document.getElementById(`soa-row-${targetId}`);
                     if (row) {
@@ -1103,7 +1145,9 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
                         navigate(TELA_DO_AVISO[subview], { currentProject: proj, activeProject: proj });
                     }
                 } else {
-                    navigate('project-detail', { currentProject: proj });
+                    // Projeto sem o n.iso (só n.privacy): a página do projeto é a do encarregado.
+                    const semIso = !modulosVisiveis(proj).includes('iso');
+                    navigate(semIso ? 'encarregado' : 'project-detail', { currentProject: proj });
                 }
             } else if (parts[1] === 'proposals') {
                 const proposalId = parts[2];
@@ -1282,7 +1326,7 @@ window.pedirReautenticacao = function pedirReautenticacao() {
         ['standard-login-box', 'first-login-reset-box', 'mfa-login-box', 'forgot-password-box', 'legal-accept-box']
             .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         caixa.style.display = 'flex';
-        document.getElementById('login-overlay').classList.remove('hidden');
+        mostrarEntrada(true);
         document.getElementById('reauth-password')?.focus();
     };
 
@@ -1299,7 +1343,7 @@ window.doReauth = async function doReauth() {
             document.getElementById('reauth-box').style.display = 'none';
             document.getElementById('standard-login-box').style.display = 'flex';
             document.getElementById('reauth-password').value = '';
-            document.getElementById('login-overlay').classList.add('hidden');
+            mostrarEntrada(false);
             // NÃO re-renderiza a view: o rascunho vive no DOM da tela por baixo,
             // e redesenhar seria justamente perdê-lo.
             showToast('Sessão retomada');
@@ -1359,7 +1403,7 @@ function renderLegalAcceptCard() {
         ['standard-login-box', 'first-login-reset-box', 'mfa-login-box', 'forgot-password-box']
             .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         caixa.style.display = 'flex';
-        document.getElementById('login-overlay').classList.remove('hidden');
+        mostrarEntrada(true);
         window.updateLegalAcceptButton();
     }
 
@@ -1418,13 +1462,13 @@ window.initApp = async function initApp() {
         // Sprint C: Check for public assessment self-service link
         const assessmentToken = new URLSearchParams(location.search).get('assessment');
         if (assessmentToken) {
-            document.getElementById('login-overlay').classList.add('hidden');
+            mostrarEntrada(false);
             renderSelfServiceAssessment(assessmentToken);
             return;
         }
 
         if (!S.token) {
-            document.getElementById('login-overlay').classList.remove('hidden');
+            mostrarEntrada(true);
             return;
         }
 
@@ -1444,7 +1488,7 @@ window.initApp = async function initApp() {
         // de erro atrás da outra.
         if (await window.checkLegalGate()) return;
 
-        document.getElementById('login-overlay').classList.add('hidden');
+        mostrarEntrada(false);
         const ehStakeholder = S.user && S.user.role === 'stakeholder';
         // Stakeholder não alcança leads, projetos nem controles (403 em todos): não os pede.
         if (!ehStakeholder) await loadAll();
@@ -1472,6 +1516,8 @@ window.initApp = async function initApp() {
         const modulos = [...new Set(meus.flatMap(modulosVisiveis))];
         // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida vence o "um módulo só, entra nele".
         const tela = produto === 'n360' && !ehStakeholder ? telaPedida() : null;
+        // Vindo do n.360 numa tela de módulo (o router ou o sino de lá): a tela pedida, ou o aviso reaberto aqui.
+        const doHub = produto !== 'n360' && !ehStakeholder ? pedidoDoHub() : null;
         if (ehStakeholder) {
             navigate('meus-pedidos');
         } else if (tela) {
@@ -1491,6 +1537,10 @@ window.initApp = async function initApp() {
             return;
         } else if (produto === 'n360') {
             navigate('inicio');
+        } else if (doHub) {
+            if (!S.activeProject && (S.projects || []).length) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
+            if (doHub.aviso) await window.abrirAviso(doHub.aviso);
+            else { if (doHub.aba) S.titularAba = doHub.aba; navigate(doHub.tela); }
         } else if (produto === 'privacy') {
             if (!S.activeProject) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             navigate('encarregado');
@@ -1545,7 +1595,7 @@ window.doFirstLoginReset = async function() {
         
         try {
             await api('POST', '/api/v1/auth/reset-password-first', { newPassword: newPass });
-            document.getElementById('login-overlay').classList.add('hidden');
+            mostrarEntrada(false);
             initApp();
         } catch (e) {
             err.textContent = e.message || 'Falha ao redefinir senha';
@@ -1603,7 +1653,7 @@ window.doForgotPasswordReset = async function() {
             localStorage.setItem('niso_token', res.token);
             localStorage.setItem('niso_user', JSON.stringify(res.user));
             
-            document.getElementById('login-overlay').classList.add('hidden');
+            mostrarEntrada(false);
             initApp();
         } catch (e) {
             err.textContent = e.message || 'Falha ao redefinir senha';

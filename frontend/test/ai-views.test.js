@@ -40,9 +40,23 @@ describe('renderAIChat', () => {
     const [c, h, a] = dom();
     await window.renderAIChat(c, h, a);
     expect(apiMock).not.toHaveBeenCalled();
-    expect(c.textContent).toMatch(/Faca uma pergunta/);
+    expect(c.textContent).toMatch(/Faça uma pergunta/);
     expect(a.innerHTML).toBe('');
     expect(window.clearChatHistory).toBeUndefined();
+    expect(h.textContent).toBe('Assistente');
+    // aviso fixo: sugestão, não parecer; a conversa não fica salva
+    expect(c.textContent).toContain('A resposta é sugestão, não parecer jurídico. A conversa não fica salva.');
+  });
+
+  it('no n.privacy a cópia é de LGPD, sem ISO', async () => {
+    history.replaceState(null, '', '/privacy');
+    try {
+      S.activeProject = { id: 'p1' };
+      const [c, h, a] = dom();
+      await window.renderAIChat(c, h, a);
+      expect(c.textContent).toContain('Pergunte sobre LGPD, bases legais, prazos do titular ou comunicação de incidente.');
+      expect(c.innerHTML).not.toMatch(/ISO|audit/);
+    } finally { history.replaceState(null, '', '/'); }
   });
 
   async function comChat() {

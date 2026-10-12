@@ -51,28 +51,47 @@ async function renderTitular(c, h, a) {
     const aba = abasDoProduto[S.titularAba] ? S.titularAba : Object.keys(abasDoProduto)[0];
     S.titularAba = aba;
     const editar = podeEditar();
-    const abas = `<div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1rem">${Object.entries(abasDoProduto).map(([v, r]) =>
-        `<button class="btn ${v === aba ? 'btn-primary' : 'btn-ghost'} btn-sm" data-action="escolherAbaTitular" data-args='${args(v)}'>${escapeHTML(r)}</button>`).join('')}</div>`;
+    // Pedidos e incidentes são lidos sempre: a contagem (e o atraso) aparece na aba, sem precisar abri-la.
+    const ler = (pedido) => pedido.then(lista, () => []);
+    const [pedidos, incidentes] = await Promise.all([
+        soIncidentes() ? [] : ler(api('GET', `/api/v1/projects/${proj.id}/titular-pedidos`)),
+        ler(api('GET', `/api/v1/projects/${proj.id}/incidentes`)),
+    ]);
+    const contagem = (l, atrasados) => (l.length ? ` (${l.length}${atrasados ? ` · <span style="color:var(--danger)">${atrasados} ${atrasados === 1 ? 'atrasado' : 'atrasados'}</span>` : ''})` : '');
+    const rotulos = {
+        pedidos: contagem(pedidos, pedidos.filter((p) => p.situacao_prazo === 'atrasado').length),
+        incidentes: contagem(incidentes, incidentes.filter((i) => i.status !== 'encerrado' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado')).length),
+    };
+    const abas = window.renderAbas(Object.entries(abasDoProduto).map(([v, r]) => [v, escapeHTML(r) + (rotulos[v] || '')]), aba, 'escolherAbaTitular');
     const novo = (acao, rotulo) => (editar ? `<button class="btn btn-primary" data-action="${acao}" data-args='${args(proj.id)}'>${rotulo}</button>` : '');
     a.innerHTML = aba === 'pedidos' ? novo('abrirNovoPedidoTitular', '+ Registrar pedido')
         : aba === 'incidentes' ? novo('abrirNovoIncidente', '+ Registrar incidente')
         : aba === 'consentimentos' ? novo('abrirNovoConsentimento', '+ Registrar consentimento') : '';
 
+    // Sem o prazo legal cadastrado, todo registro novo nasce "prazo não calculado": avisar antes, não depois de salvar.
+    let aviso = '';
+    if (!soIncidentes() && (aba === 'pedidos' || aba === 'incidentes')) {
+        const chaves = aba === 'pedidos' ? ['titular.resposta'] : ['incidente.comunicacao_anpd', 'incidente.comunicacao_titular'];
+        const faltam = (await ler(api('GET', '/api/v1/parametros-legais'))).filter((p) => chaves.includes(p.chave) && !p.definido);
+        if (faltam.length) aviso = `<p id="titular-aviso-prazos" style="color:var(--warning); margin:0 0 1rem">Prazos legais não cadastrados: ${aba === 'pedidos' ? 'novos pedidos ficarão sem prazo' : 'novos incidentes ficarão sem prazo de comunicação'}. Fale com o administrador.
+            <button class="btn btn-ghost btn-sm" data-action="escolherAbaTitular" data-args='${args('prazos')}'>Ver prazos legais</button></p>`;
+    }
+
     let corpo = '';
     if (aba === 'pedidos') {
-        let l = []; try { l = lista(await api('GET', `/api/v1/projects/${proj.id}/titular-pedidos`)); } catch (e) { /* tabela vazia */ }
+        const l = pedidos;
         corpo = window.renderDataTable(['Protocolo', 'Tipo', 'Recebido em', 'Prazo', 'Situação', 'Status', 'Ações'], l.map((p) => [
             `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(dia(p.recebido_em)), escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'),
             selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
             `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Abrir</button>`,
-        ]), { emptyState: 'Nenhum pedido de titular registrado.' });
+        ]), { emptyState: 'Nenhum pedido de titular registrado.', emptyHint: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', emptyAction: novo('abrirNovoPedidoTitular', 'Registrar pedido') });
     } else if (aba === 'incidentes') {
-        let l = []; try { l = lista(await api('GET', `/api/v1/projects/${proj.id}/incidentes`)); } catch (e) { /* tabela vazia */ }
+        const l = incidentes;
         corpo = window.renderDataTable(['Protocolo', 'Incidente', 'Ciência', 'Risco', 'ANPD', 'Titular', 'Status', 'Ações'], l.map((i) => [
             `<strong>${escapeHTML(i.protocolo)}</strong>`, escapeHTML(i.titulo), escapeHTML(dia(i.ciencia_em)), escapeHTML(RISCOS[i.risco_titular] || 'Não avaliado'),
             selo(i.situacao_anpd), selo(i.situacao_titular), escapeHTML(STATUS_INCIDENTE[i.status] || i.status),
             `<button class="btn btn-ghost btn-sm" data-action="abrirIncidente" data-args='${args(proj.id, i.id)}'>Abrir</button>`,
-        ]), { emptyState: 'Nenhum incidente registrado.' });
+        ]), { emptyState: 'Nenhum incidente registrado.', emptyHint: soIncidentes() ? '' : 'LGPD, art. 48. Registre o incidente com a data da ciência: é dela que contam os prazos de comunicação.', emptyAction: novo('abrirNovoIncidente', 'Registrar incidente') });
     } else if (aba === 'consentimentos') {
         let l = []; try { l = lista(await api('GET', `/api/v1/projects/${proj.id}/consentimentos`)); } catch (e) { /* tabela vazia */ }
         corpo = `<p style="color:var(--text-dim)">Use uma referência pseudonimizada do titular. Não registre CPF.</p>` + window.renderDataTable(['Tratamento', 'Referência', 'Finalidade', 'Aviso', 'Obtido em', 'Situação', 'Ações'], l.map((x) => [
@@ -89,7 +108,7 @@ async function renderTitular(c, h, a) {
                 ehAdmin() ? `<button class="btn btn-ghost btn-sm" data-action="editarParametroLegal" data-args='${args(p.chave, p.descricao, p.valor ?? '', p.unidade || 'dias_corridos', p.fonte || '', p.revisado_em || '', p.revisado_por || '', !!p.definido)}'>${p.definido ? 'Editar' : 'Definir'}</button>` : '',
             ]), { emptyState: 'Sem parâmetros.' });
     }
-    c.innerHTML = abas + corpo;
+    c.innerHTML = abas + aviso + corpo;
 }
 
 window.abrirIncidentesIso = function () { S.titularAba = 'incidentes'; navigate('titular'); };
@@ -215,18 +234,51 @@ window.abrirNovoIncidente = function (projectId) {
 window.salvarNovoIncidente = function (projectId) {
     const titulo = valorOuNulo('in-titulo'); const ciencia = el('in-ciencia').value;
     if (!titulo || !ciencia) { showToast('Informe o título e a data da ciência', 'error'); return; }
+    // Depois de registrar, a janela vira o próprio incidente: o prazo da ANPD fica na faixa do topo, não num aviso que some.
+    let novoId = null;
     return acao(async () => {
         const r = await api('POST', `/api/v1/projects/${projectId}/incidentes`, { titulo, descricao: valorOuNulo('in-desc'), ocorrido_em: el('in-ocorrido').value || null, ciencia_em: ciencia });
+        novoId = r.id;
         showToast(`Incidente ${r.protocolo} registrado. ${r.prazo_anpd_em ? `Prazo ANPD: ${dia(r.prazo_anpd_em)}.` : 'Prazos não calculados (cadastre os prazos legais).'}`, 'success');
-        forceCloseModal();
-    }, 'Não foi possível registrar o incidente');
+    }, 'Não foi possível registrar o incidente', null, () => (novoId ? window.abrirIncidente(projectId, novoId) : forceCloseModal()));
 };
+
+const diaMes = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}` : '—');
+// Dias úteis (seg. a sex.) depois de hoje até o prazo, inclusive. ponytail: sem feriados; a contagem oficial é a do servidor.
+function diasUteisAte(prazo) {
+    const fim = new Date(`${String(prazo).slice(0, 10)}T00:00:00Z`);
+    const d = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+    let n = 0;
+    while (d < fim) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() % 6 !== 0) n++; }
+    return n;
+}
+/** Faixa fixa do topo do incidente: o prazo da ANPD em contagem, ou a confirmação de que foi comunicado. */
+function faixaAnpd(i) {
+    const faixa = (cor, texto) => `<div id="in-faixa-anpd" role="status" style="position:sticky; top:0; z-index:2; background:var(--surface); border:1px solid ${cor}; color:${cor}; padding:0.6rem 0.9rem; margin:0 0 1rem; font-weight:600">${escapeHTML(texto)}</div>`;
+    if (i.comunicacao_anpd_em) {
+        const noPrazo = !i.prazo_anpd_em || String(i.comunicacao_anpd_em).slice(0, 10) <= String(i.prazo_anpd_em).slice(0, 10);
+        return faixa('var(--text-2)', `Comunicado à ANPD em ${diaMes(i.comunicacao_anpd_em)}, ${noPrazo ? 'dentro do prazo' : 'fora do prazo'}.`);
+    }
+    if (i.status === 'encerrado' || i.risco_titular === 'sem_risco') return '';
+    if (!i.prazo_anpd_em) return faixa('var(--warning)', 'Prazo da ANPD não calculado: cadastre os prazos legais.');
+    // A data do prazo também decide (o servidor pode ainda dizer "no_prazo" no dia): nunca "faltam 0 dias úteis".
+    const hoje = new Date().toISOString().slice(0, 10), prazo = String(i.prazo_anpd_em).slice(0, 10);
+    if (i.situacao_anpd === 'atrasado' || prazo < hoje) return faixa('var(--danger)', `Comunicação à ANPD atrasada: o prazo era ${diaMes(i.prazo_anpd_em)}.`);
+    if (i.situacao_anpd === 'vence_hoje' || prazo === hoje) return faixa('var(--danger)', `Comunicar à ANPD até hoje, ${diaMes(i.prazo_anpd_em)}.`);
+    const n = diasUteisAte(i.prazo_anpd_em);
+    return faixa(n <= 1 ? 'var(--danger)' : 'var(--warning)', `Comunicar à ANPD até ${diaMes(i.prazo_anpd_em)} (${n === 0 ? 'nenhum dia útil antes do prazo' : n === 1 ? 'falta 1 dia útil' : `faltam ${n} dias úteis`})`);
+}
 
 window.abrirIncidente = async function (projectId, id) {
     let i;
     try { i = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}`); } catch (e) { falha(e, 'Não foi possível abrir o incidente'); return; }
     const editar = podeEditar() && i.status !== 'encerrado';
-    openModal(`<h3>${escapeHTML(i.protocolo)} — ${escapeHTML(i.titulo)}</h3>
+    // A ação primária é a próxima comunicação devida; encerrar é secundário e fica no fim, com confirmação.
+    // Sem risco ao titular não há comunicação devida (nem à ANPD): nenhuma vira a ação primária, e encerrar não alerta da ANPD.
+    const semRisco = i.risco_titular === 'sem_risco';
+    const proxima = semRisco ? null : !i.comunicacao_anpd_em ? 'anpd' : !i.comunicacao_titular_em ? 'titular' : null;
+    const comunicar = (destino, rotulo) => `<button class="btn ${proxima === destino ? 'btn-primary' : ''} btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, destino)}'>${rotulo}</button>`;
+    openModal(`${faixaAnpd(i)}<h3>${escapeHTML(i.protocolo)} — ${escapeHTML(i.titulo)}</h3>
         <p style="white-space:pre-wrap">${escapeHTML(i.descricao || '')}</p>
         <p id="in-prazos">Ciência em ${escapeHTML(dia(i.ciencia_em))}. ANPD: ${selo(i.situacao_anpd)} (${escapeHTML(i.prazo_anpd_em ? dia(i.prazo_anpd_em) : 'prazo não calculado')}) · Titular: ${selo(i.situacao_titular)} (${escapeHTML(i.prazo_titular_em ? dia(i.prazo_titular_em) : 'prazo não calculado')}).</p>
         <p id="in-status">Status: ${escapeHTML(STATUS_INCIDENTE[i.status] || i.status)} · Risco ao titular: ${escapeHTML(RISCOS[i.risco_titular] || 'não avaliado')}</p>
@@ -236,9 +288,8 @@ window.abrirIncidente = async function (projectId, id) {
             <button class="btn btn-sm" data-action="avaliarRiscoIncidente" data-args='${args(projectId, id)}'>Salvar avaliação</button>
             <h4 style="margin:1rem 0 0.5rem">Comunicações</h4>
             <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
-                ${i.comunicacao_anpd_em ? '' : `<button class="btn btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, 'anpd')}'>Registrei a comunicação à ANPD</button>`}
-                ${i.comunicacao_titular_em ? '' : `<button class="btn btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, 'titular')}'>Registrei a comunicação ao titular</button>`}
-                <button class="btn btn-primary btn-sm" data-action="encerrarIncidente" data-args='${args(projectId, id)}'>Encerrar incidente</button>
+                ${i.comunicacao_anpd_em ? '' : comunicar('anpd', 'Registrei a comunicação à ANPD')}
+                ${i.comunicacao_titular_em ? '' : comunicar('titular', 'Registrei a comunicação ao titular')}
             </div>` : ''}
         ${podeRascunho() ? `<h4 style="margin:1rem 0 0.5rem">Rascunho da comunicação</h4>
             <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
@@ -246,8 +297,24 @@ window.abrirIncidente = async function (projectId, id) {
                 <button class="btn btn-sm" data-action="rascunhoComunicacaoIncidente" data-args='${args(projectId, id, 'titular')}'>Rascunho para o titular</button>
             </div><div id="in-rascunho" style="margin-top:0.75rem"></div>` : ''}
         ${podeEditar() && produtoAtual() === 'iso' && temProduto(projetoAtivo(), 'iso') ? `<h4 style="margin:1rem 0 0.5rem">Ação corretiva</h4>
-            <button class="btn btn-sm" data-action="abrirCapaDoIncidente" data-args='${args(projectId, id)}'>Abrir CAPA</button>` : ''}`, 'modal-large');
+            <button class="btn btn-sm" data-action="abrirCapaDoIncidente" data-args='${args(projectId, id)}'>Abrir CAPA</button>` : ''}
+        ${editar ? `<div style="border-top:1px solid var(--border); margin-top:1.5rem; padding-top:1rem">
+            <div id="in-encerrar"></div>
+            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco)}'>Encerrar incidente</button>
+        </div>` : ''}`, 'modal-large');
 };
+
+// Confirmação na própria janela (o app não usa confirm()). Sem a comunicação à ANPD (e com risco), a pergunta diz isso.
+window.pedirEncerramentoIncidente = function (projectId, id, semPendenciaAnpd) {
+    el('in-encerrar').innerHTML = `<p style="color:${semPendenciaAnpd ? 'var(--text)' : 'var(--warning)'}">${semPendenciaAnpd
+        ? 'Encerrar o incidente? Depois de encerrado, ele não recebe mais avaliação nem comunicação.'
+        : 'A ANPD ainda não foi comunicada. Encerrar mesmo assim?'}</p>
+        <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem">
+            <button class="btn btn-sm" style="color:var(--danger)" data-action="encerrarIncidente" data-args='${args(projectId, id)}'>Confirmar encerramento</button>
+            <button class="btn btn-ghost btn-sm" data-action="cancelarEncerramentoIncidente">Cancelar</button>
+        </div>`;
+};
+window.cancelarEncerramentoIncidente = function () { el('in-encerrar').innerHTML = ''; };
 
 window.abrirCapaDoIncidente = (projectId, id) => acao(async () => {
     const i = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}`);

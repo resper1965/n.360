@@ -414,8 +414,8 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~17,8 mil linhas de JS (2026-10-12)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 84 arquivos de teste em jsdom
+- **Frontend com pouco teste por linha.** ~18,1 mil linhas de JS (2026-10-12)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 88 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. A maior parte das telas ainda nao
   tem teste proprio.

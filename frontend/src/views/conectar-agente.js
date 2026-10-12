@@ -69,7 +69,7 @@ function desenhar() {
 
     const abas = CLIENTES.map(cl => {
         const ativa = cl.id === atual.id;
-        return `<button type="button" role="tab" id="aba-${cl.id}" class="ca-aba" aria-selected="${ativa}" aria-controls="painel-cliente" tabindex="${ativa ? 0 : -1}" data-action="__selecionarCliente" data-args='["${cl.id}"]'>${escapeHTML(cl.nome)} ${selo(cl.aConfirmar)}</button>`;
+        return `<button type="button" role="tab" id="aba-${cl.id}" class="aba" aria-selected="${ativa}" aria-controls="painel-cliente" tabindex="${ativa ? 0 : -1}" data-action="__selecionarCliente" data-args='["${cl.id}"]'>${escapeHTML(cl.nome)} ${selo(cl.aConfirmar)}</button>`;
     }).join('');
 
     const estado = atual.aConfirmar
@@ -97,7 +97,7 @@ function desenhar() {
                 <section aria-label="Seu cliente MCP">
                     <h2 class="ca-titulo">Conectar o seu cliente</h2>
                     <p class="ca-nota">O endereço do servidor é o mesmo para todos. O login define quem é o agente e em qual cliente ele atua: ele age em nome de você, só nos clientes em que você é consultor, e a trilha registra o seu e-mail.</p>
-                    <div class="ca-abas" role="tablist" aria-label="Cliente MCP" data-action-keydown="__abaTecla" data-arg-event>${abas}</div>
+                    <div class="abas" role="tablist" aria-label="Cliente MCP" data-action-keydown="__abaTecla" data-arg-event>${abas}</div>
                     <div class="ca-painel" role="tabpanel" id="painel-cliente" aria-labelledby="aba-${atual.id}">
                         <div class="ca-painel-cab">
                             <span class="ca-onde">${escapeHTML(atual.onde)}</span>
