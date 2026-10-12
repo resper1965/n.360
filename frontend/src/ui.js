@@ -165,7 +165,8 @@ const STATUS_DICT = {
     'scheduled': 'Agendado',
     'very low': 'Muito Baixo',
     'rejected': 'Rejeitado',
-    'revoked': 'Revogado'
+    'revoked': 'Revogado',
+    'inactive': 'Inativo'
 };
 
 /**
@@ -214,9 +215,12 @@ export function renderStatusBadge(arg1, arg2) {
 export function renderDataTable(columns, rows, options = {}) {
     const emptyMessage = options.emptyState || options.emptyMessage || 'Nenhum registro encontrado.';
     if (!rows || rows.length === 0) {
+        // emptyHint é texto (escapado): a obrigação ou o próximo passo. emptyAction é HTML de botão montado por quem chama.
+        const hint = options.emptyHint ? `<p class="empty-hint" style="margin:0.5rem 0 0; font-size:0.8rem; color:var(--text-dim);">${escapeHTML(options.emptyHint)}</p>` : '';
+        const acao = options.emptyAction ? `<div class="empty-action" style="margin-top:1rem; display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap;">${options.emptyAction}</div>` : '';
         return `
             <div class="empty-state" style="border:1px dashed var(--border); padding:3rem 1.5rem; text-align:center; color:var(--text-dim);">
-                <p style="margin:0; font-size:0.9rem;">${escapeHTML(emptyMessage)}</p>
+                <p style="margin:0; font-size:0.9rem;">${escapeHTML(emptyMessage)}</p>${hint}${acao}
             </div>
         `;
     }
@@ -282,7 +286,18 @@ export function renderDataTable(columns, rows, options = {}) {
     `;
 }
 
+/**
+ * Abas de tela: `abas` = [[valor, rótuloHtml], ...]. O rótulo já é HTML (pode trazer contagem colorida):
+ * quem chama escapa o que vier do servidor. A aba ativa é sublinhado accent sem preenchimento (classes
+ * `.ca-abas`/`.ca-aba` de style.css), para não competir com o botão primário do header.
+ */
+export function renderAbas(abas, ativa, action) {
+    return `<div class="ca-abas" role="tablist" style="margin-bottom:1rem">${abas.map(([v, rotulo]) =>
+        `<button type="button" role="tab" class="ca-aba" aria-selected="${v === ativa}" tabindex="${v === ativa ? 0 : -1}" data-action="${escapeHTML(action)}" data-args='${escapeHTML(JSON.stringify([v]))}'>${rotulo}</button>`).join('')}</div>`;
+}
+
 window.escapeHTML = escapeHTML;
+window.renderAbas = renderAbas;
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.forceCloseModal = forceCloseModal;

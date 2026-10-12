@@ -87,6 +87,25 @@ describe('lista', () => {
         expect(el('c').querySelector('table')).toBeNull();
     });
 
+    it('catálogo vazio: sem seletor de fonte; o admin tem o primário de carregar e os demais sabem a quem pedir', async () => {
+        history.replaceState(null, '', '/privacy');
+        try {
+            const vazias = FONTES.map((x) => ({ ...x, requisitos: 0 }));
+            S.user = { role: 'platform_admin' };
+            servir(rotas({ 'GET /api/v1/requisitos/fontes': vazias }));
+            await abrir();
+            expect(el('req-fonte')).toBeNull();
+            const carregar = el('c').querySelector('.empty-state [data-action="semearRequisitos"]');
+            expect(carregar.className).toContain('btn-primary');
+            expect(carregar.textContent).toBe('Carregar catálogo LGPD/ANPD');
+            S.user = { role: 'consultor' };
+            servir(rotas({ 'GET /api/v1/requisitos/fontes': vazias }));
+            await abrir();
+            expect(el('c').querySelector('[data-action="semearRequisitos"]')).toBeNull();
+            expect(el('c').textContent).toContain('O catálogo é carregado pelo administrador da plataforma. Peça a ele para habilitar os requisitos da LGPD e da ANPD.');
+        } finally { history.replaceState(null, '', '/'); }
+    });
+
     it('trocar a fonte no seletor guarda a escolha e redesenha', async () => {
         servir(rotas());
         await abrir();

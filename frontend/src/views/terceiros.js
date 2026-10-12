@@ -24,8 +24,10 @@ const linkSeguro = (u) => (/^https?:\/\/\S+$/i.test(String(u || '')) ? `<a href=
 
 async function renderTerceiros(c, h, a) {
     h.textContent = 'Terceiros';
-    a.innerHTML = '';
     const proj = projetoAtivo();
+    // Terceiro é parte do tipo organização: cadastrar daqui abre o formulário de Partes já como organização.
+    const cadastrar = podeEditar() && proj ? `<button class="btn btn-primary" data-action="openNovaParteModal" data-args='${args(proj.id, 'organizacao')}'>Cadastrar terceiro</button>` : '';
+    a.innerHTML = cadastrar;
     if (!proj) {
         c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>';
         return;
@@ -50,7 +52,11 @@ async function renderTerceiros(c, h, a) {
     c.innerHTML = aviso + window.renderDataTable(
         ['Terceiro', 'Tipo', 'Método', 'Avaliação', 'Vale até', 'Tratamentos', 'Documentos', 'Ações'],
         linhas,
-        { emptyState: 'Nenhuma organização cadastrada em Partes. Importe os fornecedores na tela Partes para avaliá-los aqui.' },
+        {
+            emptyState: 'Nenhuma organização cadastrada em Partes.',
+            emptyHint: 'Cadastre os fornecedores e operadores que tratam dados para o cliente, ou traga os que já estão no projeto pela tela Partes.',
+            emptyAction: `${cadastrar}<button class="btn" data-action="navigate" data-args='${args('partes')}'>Abrir Partes</button>`,
+        },
     );
 }
 
