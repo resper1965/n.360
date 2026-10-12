@@ -4,7 +4,8 @@ import app from '../src/index';
 import { applySchema, sessionFor, habilitarPrivacy } from './helpers/d1';
 import { faixaDoCaminho } from '../src/modulos';
 import { parseAvaliacoes, parseClassificacao, parseDocumentos, parseTerceiros, parseTratamentos } from '../src/agents/importacao';
-import { BLOCO, blocos, casarBaseLegal, mascararPii, pseudonimizador } from '../src/services/importacao';
+import { BLOCO, blocos, casarBaseLegal, mascararPii, pseudonimizador, SUBCHAVE_TITULAR } from '../src/services/importacao';
+import { visaoDoEncarregado } from '../src/services/encarregado';
 import { itensDoDia, somarDias } from '../src/services/avisos-prazo';
 import { parseHistorico } from '../src/agents/importacao';
 import { semearCatalogo } from '../src/services/requisitos';
@@ -1212,12 +1213,22 @@ describe('histórico operacional (fatia 4)', () => {
     await env.DB.prepare(`INSERT OR REPLACE INTO parametros_legais (chave, valor, unidade, fonte, revisado_em, revisado_por) VALUES ('titular.resposta', 15, 'dias_corridos', 'F', '2026-10-01', 'X'), ('incidente.comunicacao_anpd', 72, 'horas', 'F', '2026-10-01', 'X'), ('incidente.comunicacao_titular', 72, 'horas', 'F', '2026-10-01', 'X')`).run();
   });
 
-  it('mascararPii troca e-mail, CPF e telefone; datas e protocolos ficam', async () => {
-    const t = await mascararPii('maria@exemplo.com.br; 123.456.789-09; 12345678909; (11) 98765-4321; +55 11 98765-4321; 2026-01-10; PT-2024-0001', () => 'X');
-    expect(t).toBe('X; X; X; X; X; 2026-01-10; PT-2024-0001');
+  it('mascararPii troca e-mail, CPF e telefone; datas, intervalos de anos, protocolos e número solto ficam', async () => {
+    const t = await mascararPii('maria@exemplo.com.br; 123.456.789-09; 12345678909; (11) 98765-4321; +55 11 98765-4321; 11 3456-7890; 98765-4321; (21)3456-7890; 2026-01-10; PT-2024-0001', () => 'X');
+    expect(t).toBe('X; X; X; X; X; X; X; X; 2026-01-10; PT-2024-0001');
+    const fica = 'vigência 2024-2025; protocolo 1234567890; PT-2024-0001; 2026-01-10; 2026-01-10T10:30:00Z; 2026-01-10 10:30:00; lote 2024-0001-77';
+    expect(await mascararPii(fica, () => 'X')).toBe(fica);
     const p = pseudonimizador('k', 'proj-a');
     const a = await p('maria@exemplo.com.br');
     expect(a).toMatch(/^tit-[0-9a-f]{16}$/);
+    // subchave por finalidade: HMAC(chave, SUBCHAVE_TITULAR), e só ela assina o valor (com o projeto como prefixo)
+    const enc = new TextEncoder();
+    const imp = (k: ArrayBuffer | Uint8Array) => crypto.subtle.importKey('raw', k, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sub = await crypto.subtle.sign('HMAC', await imp(enc.encode('k')), enc.encode(SUBCHAVE_TITULAR));
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', await imp(sub), enc.encode('titular_ref:proj-a:maria@exemplo.com.br')));
+    expect(a).toBe(`tit-${[...sig.slice(0, 8)].map((b) => b.toString(16).padStart(2, '0')).join('')}`);
+    const direto = new Uint8Array(await crypto.subtle.sign('HMAC', await imp(enc.encode('k')), enc.encode('titular_ref:proj-a:maria@exemplo.com.br')));
+    expect(a).not.toBe(`tit-${[...direto.slice(0, 8)].map((b) => b.toString(16).padStart(2, '0')).join('')}`);
     expect(await p('maria@exemplo.com.br')).toBe(a);
     expect(await pseudonimizador('k', 'proj-b')('maria@exemplo.com.br')).not.toBe(a);
     expect(await pseudonimizador('outra', 'proj-a')('maria@exemplo.com.br')).not.toBe(a);
@@ -1295,7 +1306,8 @@ describe('histórico operacional (fatia 4)', () => {
     } finally { ia.tipo = 'inventario'; }
   });
 
-  it('pedidos: datas e protocolo original preservados, protocolo do sistema gerado; encerrado sem prazo; nenhum aviso de prazo retroativo', async () => {
+  it('pedidos: datas e protocolo original preservados, protocolo do sistema gerado; encerrado sem prazo; aberto vencido aparece atrasado; nenhum aviso de prazo retroativo', async () => {
+    const atrasadosAntes = (await visaoDoEncarregado(env.DB, P)).pedidos_titular.atrasados;
     const lote = await novoLote();
     respondeHistorico(() => [
       pedido({ protocolo: 'ANT-001' }),
@@ -1325,13 +1337,19 @@ describe('histórico operacional (fatia 4)', () => {
     expect(p1.descricao.split('\n')[0]).toBe('Protocolo original: ANT-001');
     expect(p1.resposta_texto).toBeTruthy();
     const p2 = (await linha(por('ANT-002').registro_id!))!;
-    expect(p2).toMatchObject({ status: 'em_andamento', recebido_em: dia(-40), prazo_em: null });
+    expect(p2).toMatchObject({ status: 'em_andamento', recebido_em: dia(-40) });
+    expect(p2.prazo_em!.slice(0, 10)).toBe(dia(-25));
+    const pedidoTela = await json<{ situacao_prazo: string }>(await chamar(consultor, 'GET', `${P}/titular-pedidos/${por('ANT-002').registro_id}`));
+    expect(pedidoTela.situacao_prazo).toBe('atrasado');
+    expect((await visaoDoEncarregado(env.DB, P)).pedidos_titular.atrasados).toBe(atrasadosAntes + 1);
     const p3 = (await linha(por('ANT-003').registro_id!))!;
     expect(p3.prazo_em!.slice(0, 10)).toBe(dia(13));
 
     const ids = [por('ANT-001'), por('ANT-002'), por('ANT-003')].map((r) => r.registro_id);
     const nossos = async (d: string) => (await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'titular_pedido' && ids.includes(i.item_id));
     expect(await nossos(HOJE)).toEqual([]);
+    // o vencido na importação não gera D-7 nem D0 (nem nos dias deles) nem atraso
+    for (const d of [dia(-32), dia(-25), dia(-24), dia(1), dia(7)]) expect(await nossos(d)).toEqual([]);
     expect(await nossos(dia(20))).toMatchObject([{ item_id: por('ANT-003').registro_id, marco: expect.stringMatching(/^atraso-/) }]);
     expect(await nossos(dia(13))).toMatchObject([{ item_id: por('ANT-003').registro_id, marco: 'D0' }]);
 
@@ -1350,7 +1368,8 @@ describe('histórico operacional (fatia 4)', () => {
     expect(r.motivo).toMatch(/já existe pedido/);
   });
 
-  it('incidentes: encerrado preservado sem prazo; aberto com prazo vencido fica sem prazo (sem aviso retroativo); encerrado sem risco recusa; duplicata por protocolo', async () => {
+  it('incidentes: encerrado preservado sem prazo; aberto com prazo vencido aparece atrasado (sem aviso retroativo); encerrado sem risco recusa; duplicata por protocolo', async () => {
+    const comunicacoesAntes = (await visaoDoEncarregado(env.DB, P)).incidentes.comunicacoes_atrasadas;
     const lote = await novoLote();
     respondeHistorico(() => [
       incidente({ protocolo: 'INC-1' }),
@@ -1374,9 +1393,13 @@ describe('histórico operacional (fatia 4)', () => {
     const i1 = (await linha(por('INC-1').registro_id!))!;
     expect(i1.protocolo).toMatch(/^IN-\d{4}-\d{4}$/);
     expect(i1.descricao!.split('\n')[0]).toBe('Protocolo original: INC-1');
-    expect(await linha(por('INC-2').registro_id!)).toMatchObject({ status: 'aberto', ciencia_em: dia(-30), prazo_anpd_em: null, prazo_titular_em: null });
+    const i2 = (await linha(por('INC-2').registro_id!))!;
+    expect(i2).toMatchObject({ status: 'aberto', ciencia_em: dia(-30) });
+    expect(i2.prazo_anpd_em!.slice(0, 10)).toBe(dia(-27));
+    expect(i2.prazo_titular_em!.slice(0, 10)).toBe(dia(-27));
+    expect((await visaoDoEncarregado(env.DB, P)).incidentes.comunicacoes_atrasadas).toBe(comunicacoesAntes + 2);
     const ids = [por('INC-1'), por('INC-2')].map((r) => r.registro_id);
-    for (const d of [HOJE, dia(7), dia(30)]) {
+    for (const d of [dia(-34), dia(-27), HOJE, dia(7), dia(30)]) {
       expect((await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'incidente' && ids.some((id) => i.item_id.startsWith(`${id}:`)))).toEqual([]);
     }
 

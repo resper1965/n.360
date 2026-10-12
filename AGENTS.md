@@ -311,10 +311,12 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   campo a mais e uma pessoa revisa. Gravacao pelas funcoes "importar historico" dos servicos (`importarPedido` em
   `src/services/titular-pedidos.ts`, `importarIncidente` em `incidentes.ts`, `importarConsentimento` em `consentimentos.ts`): datas e status
   do registro de origem (final inclusive), protocolo do sistema gerado como na criacao (ano da data de origem), protocolo de origem na
-  primeira linha da descricao (`Protocolo original: ...`, e por ela que a duplicata e achada). **Avisos de prazo:** a rotina le o prazo
-  gravado no registro, entao registro encerrado entra sem prazo (nao se recalcula), e registro aberto so recebe o prazo do parametro se
-  ele ainda nao venceu; prazo ja vencido fica nulo e vira `aviso` no resultado (sem atraso retroativo; a pessoa define o prazo do pedido a
-  mao se for acompanhar). Consentimento exige o tratamento do RoPA de mesma finalidade normalizada (o gravado na mesma confirmacao vale;
+  primeira linha da descricao (`Protocolo original: ...`, e por ela que a duplicata e achada). **Avisos de prazo:** registro encerrado
+  entra sem prazo (nao se recalcula); registro aberto recebe o prazo do parametro contado da data de origem, mesmo vencido (a tela e o
+  painel do encarregado o mostram atrasado, e o resultado traz `aviso`). O aviso retroativo e cortado em `src/services/avisos-prazo.ts`:
+  pedido e comunicacao de incidente cujo dia do prazo e anterior ao dia de `created_at` nao entram na rotina (nem atraso semanal; D-7 e
+  D0 so saem no proprio dia, entao nunca sao retroativos). Vale tambem para pedido criado a mao com recebimento antigo ja vencido.
+  O pseudonimo usa uma subchave (`HMAC(TOKEN_ENC_KEY, "n.iso/importacao/titular_ref/v1")`), nao a chave de cifra direto. Consentimento exige o tratamento do RoPA de mesma finalidade normalizada (o gravado na mesma confirmacao vale;
   sem ele, `recusado`). Duplicata: pedido pelo protocolo de origem; incidente pelo protocolo de origem ou titulo e dia da ciencia;
   consentimento pelo pseudonimo, finalidade e data.
   Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`), e o GET tambem e

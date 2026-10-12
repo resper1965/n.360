@@ -84,9 +84,9 @@ export type PedidoImportado = { tipo: TipoPedido; canal?: CanalPedido | null; re
 /**
  * Importar histórico (importação, fatia 4): pedido já existente fora do sistema, com a data de recebimento e o status do registro de
  * origem (inclusive final). O protocolo do sistema é gerado como na criação; o de origem vem em `descricao`. Prazo: encerrado não tem
- * (não se recalcula prazo de pedido já respondido); aberto tem o do parâmetro, contado do recebimento, SÓ se ainda não venceu: um prazo
- * já vencido fica nulo (`prazo_vencido` diz qual era), senão a rotina de avisos dispararia atraso retroativo de um pedido que a equipe
- * acabou de trazer. Quem quiser acompanhar define o prazo à mão no pedido. Sem titular: nome e contato ficam nulos.
+ * (não se recalcula prazo de pedido já respondido); aberto tem o do parâmetro, contado do recebimento, mesmo que já tenha vencido (a tela
+ * e o painel do encarregado o mostram atrasado; `prazo_vencido` devolve a data). O aviso retroativo é cortado na rotina de avisos
+ * (`avisos-prazo.ts`: prazo anterior à criação do registro não avisa). Sem titular: nome e contato ficam nulos.
  */
 export async function importarPedido(db: D1Database, projectId: string, ator: string, d: PedidoImportado): Promise<Falha | { ok: true; id: string; protocolo: string; prazo_em: string | null; prazo_vencido: string | null }> {
   if (!ehData(d.recebido_em)) return falha(400, 'recebido_em precisa ser uma data AAAA-MM-DD');
@@ -100,9 +100,8 @@ export async function importarPedido(db: D1Database, projectId: string, ator: st
     if (aberto) return falha(400, 'pedido em aberto não tem respondido_em');
   } else if (final) return falha(400, 'respondido_em: informe a data da resposta do pedido respondido ou negado');
 
-  let prazo = aberto ? await prazoDe(db, 'titular.resposta', d.recebido_em) : null;
-  let vencido: string | null = null;
-  if (prazo && prazo.slice(0, 10) < hoje()) { vencido = prazo; prazo = null; }
+  const prazo = aberto ? await prazoDe(db, 'titular.resposta', d.recebido_em) : null;
+  const vencido = prazo && prazo.slice(0, 10) < hoje() ? prazo : null;
   const resposta = final ? 'Resposta dada fora do sistema; pedido importado do histórico.' : null;
   const id = crypto.randomUUID();
   const protocolo = await comProtocolo(db, projectId, d.recebido_em, (protocolo) => db.prepare(

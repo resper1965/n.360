@@ -86,8 +86,8 @@ export type IncidenteImportado = {
 /**
  * Importar histórico (importação, fatia 4): incidente já tratado fora do sistema, com as datas e o status do registro de origem. Mesmas
  * regras do encerramento (risco avaliado; risco relevante exige a comunicação à ANPD). Prazos: encerrado não tem (não se recalcula); aberto
- * tem os do parâmetro, contados da ciência, só para a comunicação ainda não feita e só se o prazo ainda não venceu. Prazo já vencido fica
- * nulo (volta em `prazos_vencidos`): a rotina de avisos não dispara atraso retroativo de um registro que acabou de chegar.
+ * tem os do parâmetro, contados da ciência, para a comunicação ainda não feita, mesmo que já vencidos (a tela os mostra atrasados; volta
+ * em `prazos_vencidos`). O aviso retroativo é cortado na rotina de avisos (prazo anterior à criação do registro não avisa).
  */
 export async function importarIncidente(db: D1Database, projectId: string, ator: string, d: IncidenteImportado): Promise<Falha | { ok: true; id: string; protocolo: string; prazos_vencidos: string[] }> {
   for (const [campo, v] of [['ciencia_em', d.ciencia_em], ['comunicacao_anpd_em', d.comunicacao_anpd_em], ['comunicacao_titular_em', d.comunicacao_titular_em]] as const) {
@@ -103,7 +103,7 @@ export async function importarIncidente(db: D1Database, projectId: string, ator:
   const prazo = async (chave: 'incidente.comunicacao_anpd' | 'incidente.comunicacao_titular', feita: string | null | undefined, rotulo: string) => {
     if (d.status === 'encerrado' || feita) return null;
     const p = await prazoDe(db, chave, d.ciencia_em);
-    if (p && instanteMs(p) < Date.now()) { vencidos.push(`${rotulo} ${p.slice(0, 16)}`); return null; }
+    if (p && instanteMs(p) < Date.now()) vencidos.push(`${rotulo} ${p.slice(0, 16)}`);
     return p;
   };
   const prazoAnpd = await prazo('incidente.comunicacao_anpd', d.comunicacao_anpd_em, 'ANPD');

@@ -658,7 +658,7 @@ describe('histórico operacional (fatia 4): aba própria na revisão', () => {
     it('o resultado da confirmação nomeia pedido, incidente e consentimento e mostra o aviso', async () => {
         const det = LOTE({ itens: [ped('p1', { decisao: 'aceito' }), inc('n1', { decisao: 'aceito' }), con('c1', { decisao: 'aceito' })] });
         await abrirLote(det, { [`POST ${B}/l1/confirmar`]: { ok: true, resultados: [
-            { item_id: 'p1', decisao: 'gravado', registro_id: 'tp1', aviso: 'prazo de resposta (2026-01-25) já vencido: gravado sem prazo e sem aviso' },
+            { item_id: 'p1', decisao: 'gravado', registro_id: 'tp1', aviso: 'prazo de resposta (2026-01-25) já vencido: o pedido aparece atrasado, sem aviso de prazo' },
             { item_id: 'n1', decisao: 'gravado', registro_id: 'in1' },
             { item_id: 'c1', decisao: 'recusado', motivo: 'tratamento "Tratamento c1" não encontrado no RoPA deste projeto' },
         ], restantes: 0 } });

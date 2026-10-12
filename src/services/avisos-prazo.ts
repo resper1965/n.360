@@ -75,7 +75,10 @@ export function marcoDoDia(vence: string, hoje: string): string | null {
  * a parte não tem dono, então o aviso vai aos consultores do projeto.
  * Pedido do titular (fatia 7): `prazo_em` de pedido ainda não respondido, negado ou arquivado; sem parâmetro cadastrado o prazo é nulo e
  * o pedido não entra. Incidente: um item por comunicação pendente (`<id>:anpd` e `<id>:titular`), só enquanto não encerrado, não comunicado
- * e com risco diferente de `sem_risco`. Responsável = a parte responsável do registro.
+ * e com risco diferente de `sem_risco`. Responsável = a parte responsável do registro. Prazo que já nasce vencido (dia do prazo anterior ao
+ * dia da criação do registro, caso do histórico importado) não avisa: o registro aparece atrasado na tela e no painel do encarregado, mas
+ * a importação não vira uma rajada de atrasos. D-7 e D0 nunca são retroativos (só saem no próprio dia).
+ * ponytail: o corte vale também para pedido criado à mão com recebimento antigo e prazo já vencido; ele também nasce atrasado.
  * Evidência (fatia 8): `valido_ate` da evidência que tem validade; renovar a data (reavaliar com validade nova) tira o item. Sem responsável: vai
  * aos consultores. A rotina `vencerEvidencias` devolve a avaliação a `pending` antes de avisar.
  * ponytail: '-3 hours' é o fuso de São Paulo fixo (sem horário de verão desde 2019); se voltar, troca
@@ -118,16 +121,18 @@ const FONTES: Record<Fonte, string> = {
   titular_pedido: `SELECT t.id AS item_id, t.project_id, date(substr(t.prazo_em, 1, 10)) AS vence_em, 'Pedido do titular ' || t.protocolo AS titulo,
       COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel
     FROM titular_pedidos t JOIN projects p ON p.id = t.project_id LEFT JOIN partes pa ON pa.id = t.responsavel_parte_id AND pa.project_id = t.project_id
-    WHERE t.status IN ('recebido', 'em_andamento') AND t.prazo_em IS NOT NULL`,
+    WHERE t.status IN ('recebido', 'em_andamento') AND t.prazo_em IS NOT NULL AND date(substr(t.prazo_em, 1, 10)) >= date(t.created_at)`,
   incidente: `SELECT i.id || ':anpd' AS item_id, i.project_id, date(substr(i.prazo_anpd_em, 1, 10)) AS vence_em, 'Comunicação à ANPD do incidente ' || i.protocolo AS titulo,
       COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel
     FROM incidentes i JOIN projects p ON p.id = i.project_id LEFT JOIN partes pa ON pa.id = i.responsavel_parte_id AND pa.project_id = i.project_id
     WHERE i.status <> 'encerrado' AND i.prazo_anpd_em IS NOT NULL AND i.comunicacao_anpd_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'
+      AND date(substr(i.prazo_anpd_em, 1, 10)) >= date(i.created_at)
     UNION ALL
     SELECT i.id || ':titular', i.project_id, date(substr(i.prazo_titular_em, 1, 10)), 'Comunicação ao titular do incidente ' || i.protocolo,
       COALESCE(NULLIF(trim(pa.email), ''), pa.nome)
     FROM incidentes i JOIN projects p ON p.id = i.project_id LEFT JOIN partes pa ON pa.id = i.responsavel_parte_id AND pa.project_id = i.project_id
-    WHERE i.status <> 'encerrado' AND i.prazo_titular_em IS NOT NULL AND i.comunicacao_titular_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'`,
+    WHERE i.status <> 'encerrado' AND i.prazo_titular_em IS NOT NULL AND i.comunicacao_titular_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'
+      AND date(substr(i.prazo_titular_em, 1, 10)) >= date(i.created_at)`,
   evidencia: `SELECT e.id AS item_id, e.project_id, date(substr(e.valido_ate, 1, 10)) AS vence_em, 'Evidência ' || e.file_name AS titulo, NULL AS responsavel
     FROM evidence e JOIN projects p ON p.id = e.project_id WHERE e.valido_ate IS NOT NULL`,
 };
