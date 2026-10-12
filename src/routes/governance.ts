@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
 
 import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, genToken, hashPassword, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto } from '../helpers';
@@ -142,11 +142,11 @@ async function mexeEmConsultor(db: D1Database, projectId: string, memberId: stri
 const recusaDesignacao = { error: 'Forbidden: designar consultor é do platform_admin, do administrador da consultoria ou do administrador do cliente' };
 
 /** Tira o vínculo de encarregado de quem era DPO (membro `excluirId`), se nenhum outro DPO do projeto casa a mesma parte. Falha é registrada, não vira 500. */
-async function tirarEncarregado(c: any, projectId: string, excluirId: string, antes: { nome: string; email: string | null }, nome: string) {
+async function tirarEncarregado(c: Context<{ Bindings: Bindings; Variables: Variables }>, projectId: string, excluirId: string, antes: { nome: string; email: string | null }, nome: string) {
   try {
     const { results } = await c.env.DB.prepare('SELECT name, email, role_category, job_title FROM project_governance WHERE project_id = ? AND id <> ?')
-      .bind(projectId, excluirId).all();
-    const outros = (results as any[]).filter(ehDpo).map((m) => ({ nome: m.name, email: m.email }));
+      .bind(projectId, excluirId).all<{ name: string; email: string | null; role_category: string | null; job_title: string | null }>();
+    const outros = results.filter(ehDpo).map((m) => ({ nome: m.name, email: m.email }));
     const parteId = await desfazerEncarregado(c.env.DB, projectId, antes, outros);
     if (parteId) await logAudit(c.env.DB, 'governanca.encarregado.removido', c.get('user')?.email || 'system', `Vínculo de encarregado da parte ${parteId} removido: ${nome} deixou de ser DPO`, '', '', projectId);
   } catch (e) { registraErro(c, e); }
