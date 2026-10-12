@@ -211,7 +211,7 @@ describe('nISO API (D1 e KV reais)', () => {
       expect(alterado.name).toBe('Nome Novo');
       expect(alterado.role).toBe('org_admin');
 
-      const del = await req('/api/v1/users/usr-alvo', { method: 'DELETE', headers: admin });
+      const del = await req('/api/v1/users/usr-alvo?definitivo=1', { method: 'DELETE', headers: admin });
       expect(del.status).toBe(200);
       const removido = await env.DB.prepare("SELECT id FROM users WHERE id='usr-alvo'").first<any>();
       expect(removido).toBeNull();
