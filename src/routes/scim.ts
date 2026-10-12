@@ -229,9 +229,9 @@ scimApp.post('/Users', async (c) => {
     const id = genId();
     const nome = String(corpo.displayName ?? corpo.name?.formatted ?? email.split('@')[0]);
     await c.env.DB.prepare(
-      `INSERT INTO users (id, email, password_hash, name, role, client_project_id, ativo)
-       VALUES (?,?,?,?,?,?,?)`
-    ).bind(id, email, 'scim:sem-senha-local', nome, PAPEL_PROVISIONADO, projectId, corpo.active === false ? 0 : 1).run();
+      `INSERT INTO users (id, email, password_hash, name, role, client_project_id, ativo, org_id)
+       VALUES (?,?,?,?,?,?,?, COALESCE((SELECT org_id FROM projects WHERE id = ?), 'org_ness'))`
+    ).bind(id, email, 'scim:sem-senha-local', nome, PAPEL_PROVISIONADO, projectId, corpo.active === false ? 0 : 1, projectId).run();
 
     await logAudit(c.env.DB, 'scim.user_created', `scim:${projectId}`, `Conta ${email} provisionada por SCIM`, '', '', projectId);
 

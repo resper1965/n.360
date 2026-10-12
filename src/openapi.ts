@@ -114,6 +114,7 @@ import {
   trilhaDesfazerSchema,
   updateUserSchema,
   modulosDaContaSchema,
+  ativoDaContaSchema,
   vendorUpdateSchema,
   versaoRestaurarSchema,
   moduloHabilitarSchema, orgModulosSchema,
@@ -122,7 +123,7 @@ import {
   documentoRequisitosSchema, requisitoAtualizarSchema, mapeamentoSchema,
   tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, ropaImportarSchema, liaSalvarSchema,
   terceiroTipoSchema, avaliacaoTerceiroSchema, terceiroDocumentoSchema,
-  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, consentimentoCriarSchema,
+  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema,
 } from './schemas';
 
@@ -166,6 +167,7 @@ type Entrada = {
 
 // ─── INÍCIO DA TABELA GERADA — `npm run openapi` reescreve daqui até o fim ───
 export const ROTAS_COM_SCHEMA: Entrada[] = [
+  { metodo: 'PUT', caminho: '/api/v1/admin/users/:id/ativo', schema: ativoDaContaSchema, nome: 'ativoDaContaSchema' },
   { metodo: 'PUT', caminho: '/api/v1/admin/users/:id/modulos', schema: modulosDaContaSchema, nome: 'modulosDaContaSchema' },
   { metodo: 'PUT', caminho: '/api/v1/admin/users/:id', schema: updateUserSchema, nome: 'updateUserSchema' },
   { metodo: 'POST', caminho: '/api/v1/admin/users', schema: createUserSchema, nome: 'createUserSchema' },
@@ -261,6 +263,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/generate-policies-bulk', schema: politicasLoteSchema, nome: 'politicasLoteSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/importacoes/:id/itens/:iid', schema: importacaoItemSchema, nome: 'importacaoItemSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes/:id/comunicacoes', schema: incidenteComunicacaoSchema, nome: 'incidenteComunicacaoSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes/:id/rascunho-comunicacao', schema: incidenteRascunhoSchema, nome: 'incidenteRascunhoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/incidentes/:id/risco', schema: incidenteRiscoSchema, nome: 'incidenteRiscoSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes', schema: incidenteCriarSchema, nome: 'incidenteCriarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/modulos/:modulo', schema: moduloHabilitarSchema, nome: 'moduloHabilitarSchema' },

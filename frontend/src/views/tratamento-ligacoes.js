@@ -12,6 +12,10 @@ const PAIS_DAS_BASES = ['lgpd:art7', 'lgpd:art11'];
 
 const podePedir = () => typeof window.podePedirAprovacao === 'function' && window.podePedirAprovacao(S.user);
 const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'].includes(S.user.role);
+// Quem o servidor deixa pedir rascunho de IA (services/rascunhos-privacy.ts): equipe e o administrador do cliente.
+const podeRascunho = () => podeEditar() || (!!S.user && S.user.role === 'org_admin');
+const AVISO_IA = 'Rascunho gerado por IA — revise antes de usar';
+let basesAbertas = [];
 const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
@@ -69,6 +73,7 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
         try { partes = lista(await api('GET', `/api/v1/projects/${projectId}/partes`)).filter((p) => p.status !== 'inativa'); } catch (e) { /* idem */ }
     }
     try { bases = lista(await api('GET', '/api/v1/requisitos?fonte=lgpd')).filter((r) => PAIS_DAS_BASES.includes(r.pai_id)); } catch (e) { /* sem catálogo */ }
+    basesAbertas = bases;
     S.ligacoesTratamento = { itens: lig.itens.map((i) => i.id), departamentos: lig.departamentos.map((d) => d.id) };
     const finalidade = ((S.ropa || []).find((r) => r.id === ropaId) || {}).processing_purpose || '';
 
@@ -98,6 +103,9 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
                     `<option value="${escapeHTML(b.id)}" ${lig.base_legal && lig.base_legal.id === b.id ? 'selected' : ''}>${escapeHTML(b.referencia)} — ${escapeHTML(b.titulo)}</option>`).join('')}</select></div>
                 <button class="btn btn-sm" data-action="salvarBaseLegalTratamento" data-args='${args(projectId, ropaId)}'>Salvar</button></div>`
                 : (editar ? vazio('O catálogo da LGPD ainda não tem as bases legais carregadas; vale o texto livre do registro.') : '')}`)}
+        ${podeRascunho() ? secao('Sugestão da IA', `<p style="color:var(--text-dim)">Base legal, retenção e DPIA sugeridas a partir da descrição do tratamento. Nada muda até você aplicar.</p>
+            <button class="btn btn-sm" data-action="sugerirTratamento" data-args='${args(projectId, ropaId)}'>Sugerir</button>
+            <div id="tl-sugestao" style="margin-top:0.75rem"></div>`) : ''}
         ${secao('Sistemas, bases e processos', editar
             ? `<div id="tl-itens">${marcados(itens, S.ligacoesTratamento.itens, (x) => `${escapeHTML(x.nome || x.name || '')}${x.tipo ? ` (${escapeHTML(TIPOS_ITEM[x.tipo] || x.tipo)})` : ''}`, 'item')}</div>
                <button class="btn btn-sm" style="margin-top:0.5rem" data-action="salvarItensTratamento" data-args='${args(projectId, ropaId)}'>Salvar itens</button>`
@@ -159,6 +167,29 @@ window.salvarBaseLegalTratamento = (projectId, ropaId) => {
     return acao(projectId, ropaId,
         () => api('PUT', `/api/v1/ropa/${ropaId}`, { processing_purpose: registro.processing_purpose, base_legal_id: el('tl-base').value || null }),
         'Não foi possível salvar a base legal', 'Base legal salva.');
+};
+
+// Sugestão de IA: o servidor só devolve a proposta (esquema estrito). Aplicar é o PUT do registro, com o que a pessoa deixou nos campos.
+window.sugerirTratamento = async function (projectId, ropaId) {
+    let r;
+    try { r = await api('POST', `/api/v1/projects/${projectId}/ropa/${ropaId}/sugestao`); } catch (e) { falha(e, 'Não foi possível gerar a sugestão'); return; }
+    const s = r.sugestao;
+    const opcoesBase = basesAbertas.some((b) => b.id === s.base_legal) ? basesAbertas : [...basesAbertas, { id: s.base_legal, referencia: s.base_legal, titulo: '' }];
+    el('tl-sugestao').innerHTML = `<p><strong>${escapeHTML(AVISO_IA)}</strong></p>
+        <div class="form-group"><label class="form-label" for="tl-sug-base">Base legal</label><select class="form-input" id="tl-sug-base">${opcoesBase.map((b) =>
+            `<option value="${escapeHTML(b.id)}" ${b.id === s.base_legal ? 'selected' : ''}>${escapeHTML(b.referencia)}${b.titulo ? ` — ${escapeHTML(b.titulo)}` : ''}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label" for="tl-sug-ret">Retenção</label><input class="form-input" id="tl-sug-ret" maxlength="500" value="${escapeHTML(s.retencao)}"></div>
+        <label style="display:flex; gap:0.4rem; align-items:center"><input type="checkbox" id="tl-sug-dpia" ${s.dpia_requerido ? 'checked' : ''}> DPIA requerida</label>
+        <p id="tl-sug-just" style="color:var(--text-dim); white-space:pre-wrap">${escapeHTML(s.justificativa)}</p>
+        <button class="btn btn-primary btn-sm" data-action="aplicarSugestaoTratamento" data-args='${args(projectId, ropaId)}'>Aplicar</button>`;
+};
+
+window.aplicarSugestaoTratamento = (projectId, ropaId) => {
+    const registro = (S.ropa || []).find((r) => r.id === ropaId) || {};
+    return acao(projectId, ropaId, () => api('PUT', `/api/v1/ropa/${ropaId}`, {
+        processing_purpose: registro.processing_purpose, base_legal_id: el('tl-sug-base').value || null,
+        retention_period: el('tl-sug-ret').value.trim() || null, dpia_required: el('tl-sug-dpia').checked,
+    }), 'Não foi possível aplicar a sugestão', 'Sugestão aplicada ao registro.');
 };
 
 window.adicionarParteTratamento = (projectId, ropaId) => acao(projectId, ropaId,

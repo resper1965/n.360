@@ -93,7 +93,7 @@ const EXTRACAO: Record<TipoExtraido, [string, string]> = {
 type Mensagem = { role: 'system' | 'user'; content: string };
 
 /** O JSON da resposta do modelo: cru, embutido em texto ou dentro de cerca ```json. null se não houver objeto legível. */
-function objetoDaResposta(raw: string): Record<string, unknown> | null {
+export function objetoDaResposta(raw: string): Record<string, unknown> | null {
   let txt = (raw ?? '').trim();
   const cerca = txt.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (cerca) txt = cerca[1].trim();

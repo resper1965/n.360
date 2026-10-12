@@ -28,6 +28,7 @@ import './views/monitor.js';
 import './views/dashboard.js';
 import './views/admin.js';
 import './views/conectar-agente.js';
+import './views/seguranca-projeto.js';
 import './views/catalogo.js';
 import './views/config-comercial.js';
 import './views/organizacoes.js';

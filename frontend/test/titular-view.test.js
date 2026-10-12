@@ -312,3 +312,52 @@ describe('incidentes no n.iso', () => {
         expect(el('modal-content').querySelector('[data-action="abrirCapaDoIncidente"]')).toBeNull();
     });
 });
+
+describe('rascunhos de IA no n.privacy', () => {
+    const PED = { id: 'a', protocolo: 'PT-2026-0001', tipo: 'acesso', canal: 'email', titular_nome: null, titular_contato: null, descricao: '', recebido_em: '2026-10-01', prazo_em: null, situacao_prazo: 'sem_prazo', resposta_texto: 'minha resposta', status: 'recebido' };
+    const AVISO = 'Rascunho gerado por IA — revise antes de usar';
+
+    it('pedido: Rascunho mostra o texto editável e escapado, sem tocar na resposta; Usar copia; Salvar continua o PUT', async () => {
+        const f = await abrir('pedidos', { [`GET ${B}/titular-pedidos/a`]: PED, [`POST ${B}/titular-pedidos/a/rascunho`]: { ok: true, texto: 'Prezado <b>titular</b>' }, [`PUT ${B}/titular-pedidos/a`]: { ok: true } });
+        await window.abrirPedidoTitular('p9', 'a');
+        await window.rascunhoRespostaTitular('p9', 'a');
+        expect(el('pt-rascunho').textContent).toContain(AVISO);
+        expect(el('pt-rascunho-texto').value).toBe('Prezado <b>titular</b>');
+        expect(el('pt-rascunho').querySelector('b')).toBeNull();
+        expect(el('pt-resp').value).toBe('minha resposta');
+        expect(chamadas(f)).not.toContain(`PUT ${B}/titular-pedidos/a`);
+        window.usarRascunhoTitular();
+        expect(el('pt-resp').value).toBe('Prezado <b>titular</b>');
+    });
+
+    it('incidente: rascunho para a ANPD manda o destino, lista o que tem e o que falta, texto editável e escapado', async () => {
+        const f = await abrir('incidentes', {
+            [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] },
+            [`POST ${B}/incidentes/i1/rascunho-comunicacao`]: { ok: true, texto: 'À ANPD <script>x</script>', presentes: ['Data da ciência'], faltando: ['Número de titulares <i>afetados</i>'] },
+        });
+        await window.abrirIncidente('p9', 'i1');
+        await window.rascunhoComunicacaoIncidente('p9', 'i1', 'anpd');
+        expect(corpoDe(f, `POST ${B}/incidentes/i1/rascunho-comunicacao`)).toEqual({ destino: 'anpd' });
+        expect(el('in-rascunho-tem').textContent).toContain('Data da ciência');
+        expect(el('in-rascunho-falta').textContent).toContain('Número de titulares <i>afetados</i>');
+        expect(el('in-rascunho').textContent).toContain(AVISO);
+        expect(el('in-rascunho-texto').value).toBe('À ANPD <script>x</script>');
+        expect(el('in-rascunho').querySelector('i, script')).toBeNull();
+    });
+
+    it('org_admin vê os botões de rascunho; org_user e a casca n.iso não', async () => {
+        S.user = { role: 'org_admin' };
+        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] }, [`GET ${B}/titular-pedidos/a`]: PED });
+        await window.abrirIncidente('p9', 'i1');
+        expect(el('modal-content').querySelectorAll('[data-action="rascunhoComunicacaoIncidente"]').length).toBe(2);
+        await window.abrirPedidoTitular('p9', 'a');
+        expect(el('modal-content').querySelector('[data-action="rascunhoRespostaTitular"]')).not.toBeNull();
+        S.user = { role: 'org_user' };
+        await window.abrirIncidente('p9', 'i1');
+        expect(el('modal-content').querySelector('[data-action="rascunhoComunicacaoIncidente"]')).toBeNull();
+        S.user = { role: 'consultor' };
+        history.replaceState(null, '', '/iso');
+        await window.abrirIncidente('p9', 'i1');
+        expect(el('modal-content').querySelector('[data-action="rascunhoComunicacaoIncidente"]')).toBeNull();
+    });
+});

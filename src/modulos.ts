@@ -6,7 +6,7 @@ import { parseModulos } from './schemas/nucleo';
  *   - `iso`: o que só o n.iso faz (controles, SoA, riscos, auditorias, certificação…).
  *   - `privacy`: o que só o n.privacy faz (requisitos por projeto, terceiros, pedidos do titular, consentimentos, encarregado,
  *     ligações do tratamento, LIA).
- * Rota nova precisa estar classificada aqui: `test/modulos-faixa.test.ts` reprova a que não estiver.
+ * Rota nova precisa estar classificada aqui: `test/modulos-produto.test.ts` reprova a que não estiver.
  */
 
 export const MODULOS_PRODUTO = ['iso', 'privacy'] as const;
@@ -39,7 +39,8 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
 /** Sub-rotas de um segmento do núcleo que são do n.privacy (o registro é compartilhado; a camada nova não). */
 const SUBROTAS_PRIVACY: RegExp[] = [
   /^ropa\/importar$/,
-  /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|lia)$/,
+  /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|lia|sugestao)$/,
+  /^incidentes\/[^/]+\/rascunho-comunicacao$/,
   /^documentos\/[^/]+\/requisitos$/,
   /^evidence\/[^/]+\/(requisitos|validade)$/,
 ];
