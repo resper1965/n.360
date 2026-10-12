@@ -97,7 +97,7 @@ window.__orgVoltar = () => window.__orgEscolher(ORG_NESS);
 function desenhar() {
     const { c, h, a } = ultimo;
     h.textContent = 'Organizações';
-    a.innerHTML = `<button type="button" class="btn btn-secondary" data-action="__orgTransferir">Transferir projeto</button>
+    a.innerHTML = `<button type="button" class="btn btn-ghost" data-action="__orgTransferir">Transferir projeto</button>
         <button type="button" class="btn btn-primary" data-action="__orgNova">Nova organização</button>`;
     const linhas = orgs.map((o) => {
         const id = escapeHTML(o.id);
@@ -132,6 +132,10 @@ function desenhar() {
             <td><div class="org-acoes">${acoes}</div></td>
         </tr>`;
     }).join('');
+    if (!orgs.length) {
+        c.innerHTML = '<div class="empty-state fade-in"><h3>Nenhuma organização</h3><p>A ness. aparece aqui depois do primeiro acesso. Use "Nova organização" para cadastrar uma consultoria parceira.</p></div>';
+        return;
+    }
     c.innerHTML = `<div class="org fade-in">
         <div class="org-tabela-caixa"><table class="org-tabela">
             <caption class="org-sr">Organizações da plataforma</caption>

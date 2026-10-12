@@ -32,15 +32,36 @@ describe('renderInicio', () => {
         S.activeProject = { id: 'p9', project_name: '<b>Acme</b>', modulos: ['iso', 'privacy'] };
         const f = servir({ 'GET /api/v1/projects/p9/ponto-de-partida': PONTO });
         await abrir();
-        expect(el('h').textContent).toBe('n.360');
+        expect(el('h').textContent).toBe('Início');
         expect(cartoes()).toEqual(['iso', 'privacy']);
         expect(el('c').textContent).toContain('n.iso');
         expect(el('c').textContent).toContain('n.privacy');
-        expect(el('c').innerHTML).not.toContain('<b>Acme</b>');
-        expect(el('c').textContent).toContain('<b>Acme</b>');
+        expect(el('c').textContent).not.toContain('Projeto:');
+        expect([...document.querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toEqual(['Abrir o n.iso', 'Abrir o n.privacy']);
+        expect(document.querySelector('[data-action="abrirModulo"]').parentElement.style.marginTop).toBe('auto');
         await vi.waitFor(() => expect(el('c').textContent).toContain('Cobertura LGPD: 7 de 20'));
         expect(el('c').textContent).toContain('A privacidade já adianta estes controles');
         expect(chamadas(f)).toContain('GET /api/v1/projects/p9/ponto-de-partida');
+    });
+    it('tudo zerado: uma linha só, sem painel de zeros', async () => {
+        S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };
+        servir({ 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: { tratamentos: 0, itens: 0, encarregado: false }, cobertura: [{ fonte: 'lgpd', total: 20, cobertos: 0 }], iso_ajudados: [] } });
+        await abrir();
+        await vi.waitFor(() => expect(el('c').textContent).toContain('Ainda não há trabalho registrado neste projeto. Comece pelo n.iso ou pelo n.privacy.'));
+        expect(el('c').textContent).not.toContain('Cobertura LGPD');
+    });
+    it('cliente nunca vê "catálogo ainda não carregado"; a equipe vê', async () => {
+        S.activeProject = { id: 'p9', modulos: ['privacy'] };
+        const dados = { cadastro: { tratamentos: 2 }, cobertura: [], iso_ajudados: [] };
+        servir({ 'GET /api/v1/projects/p9/ponto-de-partida': dados });
+        window.ehEquipeNess = () => false;
+        await abrir();
+        await vi.waitFor(() => expect(el('c').textContent).toContain('Já no cadastro'));
+        expect(el('c').textContent).not.toContain('catálogo ainda não carregado');
+        window.ehEquipeNess = () => true;
+        await abrir();
+        await vi.waitFor(() => expect(el('c').textContent).toContain('catálogo ainda não carregado'));
+        delete window.ehEquipeNess;
     });
     it('só os módulos habilitados no projeto', async () => {
         S.activeProject = { id: 'p9', modulos: ['privacy'] };

@@ -20,12 +20,12 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             // Status reais do banco (leads.status): New, Assessment, Proposal, Won, Lost.
             const conta = (s) => leadsArr.filter(l => (l.status || 'New') === s).length;
             const statsHtml = window.renderStatCards([
-                { label: 'Total de Oportunidades', value: leadsArr.length, color: 'var(--accent)', subtext: 'Empresas no pipeline' },
-                { label: 'Novos', value: conta('New'), color: '#34c759', subtext: 'Ainda sem diagnóstico' },
-                { label: 'Em diagnóstico', value: conta('Assessment'), color: '#34c759', subtext: 'Assessment em andamento' },
-                { label: 'Com proposta', value: conta('Proposal'), color: '#ffcc00', subtext: 'Contratos em pré-vendas' },
-                { label: 'Ganhos', value: conta('Won'), color: '#34c759', subtext: 'Proposta aceita' },
-                { label: 'Perdidos', value: conta('Lost'), color: '#ef4444', subtext: 'Recusados ou encerrados' }
+                { label: 'Total de Oportunidades', value: leadsArr.length, color: 'var(--text)', subtext: 'Empresas no pipeline' },
+                { label: 'Novos', value: conta('New'), color: 'var(--text)', subtext: 'Ainda sem diagnóstico' },
+                { label: 'Em diagnóstico', value: conta('Assessment'), color: 'var(--text)', subtext: 'Assessment em andamento' },
+                { label: 'Com proposta', value: conta('Proposal'), color: 'var(--text)', subtext: 'Contratos em pré-vendas' },
+                { label: 'Ganhos', value: conta('Won'), color: 'var(--text)', subtext: 'Proposta aceita' },
+                { label: 'Perdidos', value: conta('Lost'), color: 'var(--text)', subtext: 'Recusados ou encerrados' }
             ]);
 
             const tableHtml = window.renderDataTable(
@@ -74,15 +74,21 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
         if (!corpo) return;
         erro.textContent = '';
         try {
-            const f = await api('GET', '/api/v1/funil' + consulta);
-            document.getElementById('fn-de').value = f.periodo.de;
-            document.getElementById('fn-ate').value = f.periodo.ate;
+            const bruto = await api('GET', '/api/v1/funil' + consulta);
+            // Resposta incompleta não derruba a seção: o que faltar vira zero/vazio.
+            const zero = { propostas: 0, totalProjeto: 0, mensalidade: 0 };
+            const f = {
+                ...bruto, periodo: bruto?.periodo || {}, pipeline: bruto?.pipeline || zero, ganho: bruto?.ganho || zero,
+                conversao: bruto?.conversao || [], perdas: bruto?.perdas || [], propostasPorStatus: bruto?.propostasPorStatus || {},
+            };
+            document.getElementById('fn-de').value = f.periodo.de ?? '';
+            document.getElementById('fn-ate').value = f.periodo.ate ?? '';
             const cartoes = window.renderStatCards([
-                { label: 'Pipeline: projeto', value: brl(f.pipeline.totalProjeto), subtext: `${f.pipeline.propostas} proposta(s) em aberto` },
-                { label: 'Pipeline: mensalidade', value: brl(f.pipeline.mensalidade), subtext: 'Recorrente, não somado ao projeto' },
-                { label: 'Ganho: projeto', value: brl(f.ganho.totalProjeto), color: '#34c759', subtext: `${f.ganho.propostas} aceita(s) no período` },
-                { label: 'Ganho: mensalidade', value: brl(f.ganho.mensalidade), color: '#34c759', subtext: 'Recorrente' },
-                { label: 'Ciclo médio', value: f.cicloMedioDias == null ? '---' : `${String(f.cicloMedioDias).replace('.', ',')} dias`, subtext: 'Lead criado até aceite' }
+                { label: 'Pipeline: projeto', color: 'var(--text)', value: brl(f.pipeline.totalProjeto), subtext: `${f.pipeline.propostas} proposta(s) em aberto` },
+                { label: 'Pipeline: mensalidade', color: 'var(--text)', value: brl(f.pipeline.mensalidade), subtext: 'Recorrente, não somado ao projeto' },
+                { label: 'Ganho: projeto', value: brl(f.ganho.totalProjeto), color: 'var(--text)', subtext: `${f.ganho.propostas} aceita(s) no período` },
+                { label: 'Ganho: mensalidade', value: brl(f.ganho.mensalidade), color: 'var(--text)', subtext: 'Recorrente' },
+                { label: 'Ciclo médio', color: 'var(--text)', value: f.cicloMedioDias == null ? '---' : `${String(f.cicloMedioDias).replace('.', ',')} dias`, subtext: 'Lead criado até aceite' }
             ]);
             const tabela = (cols, rows, vazio) => window.renderDataTable(cols, rows, { emptyState: vazio, dense: true });
             corpo.innerHTML = `
@@ -96,8 +102,10 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
                         Object.entries(f.propostasPorStatus).map(([s, n]) => [escapeHTML(ROTULO_PROPOSTA[s] || s), String(n)]), 'Sem propostas.')}</div>
                 </div>`;
         } catch (e) {
-            corpo.innerHTML = '';
-            erro.textContent = e.message || 'Não foi possível carregar o funil.';
+            console.error('Funil:', e);
+            // Erro de código (TypeError) não vai à tela; mensagem do servidor (ex.: janela máxima) sim.
+            erro.textContent = 'Não foi possível carregar o funil.' + (e instanceof TypeError || !e.message ? '' : ' ' + e.message);
+            corpo.innerHTML = '<button type="button" class="btn btn-secondary btn-sm" data-action="__fnAplicar">Tentar de novo</button>';
         }
     }
 
@@ -235,9 +243,9 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             const activeAs = totalAs - completedAs;
 
             const statsHtml = window.renderStatCards([
-                { label: 'Total Levantamentos', value: totalAs, color: 'var(--accent)', subtext: 'Pesquisas de escopo' },
-                { label: 'Em Andamento', value: activeAs, color: '#ffcc00', subtext: 'Em preenchimento' },
-                { label: 'Concluídos', value: completedAs, color: '#34c759', subtext: 'Prontos para proposta' }
+                { label: 'Total Levantamentos', value: totalAs, color: 'var(--text)', subtext: 'Pesquisas de escopo' },
+                { label: 'Em Andamento', value: activeAs, color: 'var(--text)', subtext: 'Em preenchimento' },
+                { label: 'Concluídos', value: completedAs, color: 'var(--text)', subtext: 'Prontos para proposta' }
             ]);
 
             const tableHtml = window.renderDataTable(

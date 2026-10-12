@@ -11,7 +11,7 @@ const MODULO = {
 };
 
 export async function renderInicio(c, h, a) {
-    if (h) h.textContent = 'n.360';
+    if (h) h.textContent = 'Início';
     if (a) a.innerHTML = '';
     if (!S.activeProject && Array.isArray(S.projects) && S.projects.length) {
         S.activeProject = S.projects[0];
@@ -26,10 +26,9 @@ export async function renderInicio(c, h, a) {
     const cartoes = modulosVisiveis(p).filter((m) => Object.hasOwn(MODULO, m)).map((m) => `<div class="card" style="padding:1.25rem;display:flex;flex-direction:column;gap:0.75rem">
             <h3 style="margin:0">${escapeHTML(MODULO[m].nome)}</h3>
             <p style="margin:0;color:var(--text-dim)">${escapeHTML(MODULO[m].linha)}</p>
-            <div><button class="btn btn-primary btn-sm" data-action="abrirModulo" data-args='${escapeHTML(JSON.stringify([m]))}'>Abrir</button></div>
+            <div style="margin-top:auto"><button class="btn btn-primary btn-sm" data-action="abrirModulo" data-args='${escapeHTML(JSON.stringify([m]))}'>Abrir o ${escapeHTML(MODULO[m].nome)}</button></div>
         </div>`).join('');
     c.innerHTML = `<div class="fade-in">
-        <p style="margin:0 0 1rem;color:var(--text-dim)">Projeto: <strong>${escapeHTML(p.project_name || p.client_name || p.id)}</strong></p>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;margin-bottom:1.5rem">${cartoes}</div>
         <div id="inicio-ponto-de-partida"></div>
     </div>`;
