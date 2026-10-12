@@ -394,7 +394,9 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
   c.set('user', user);
   // Trilha central de exclusão (C4): o projeto do recurso é resolvido ANTES do handler, que
   // apaga a linha. O agente fica de fora: já tem a sua (`agente.acao_destrutiva`), abaixo.
-  const exclusao = c.req.method === 'DELETE' && user.agente !== true ? await alvoDaExclusao(c.env.DB, c.req.path) : null;
+  // DELETE de conta sem `?definitivo=1` só DESATIVA (routes/users.ts grava `user.desativado`): não é exclusão.
+  const soDesativa = /^\/api\/v1\/(admin\/)?users\/[^/]+\/?$/.test(c.req.path) && c.req.query('definitivo') !== '1';
+  const exclusao = c.req.method === 'DELETE' && user.agente !== true && !soDesativa ? await alvoDaExclusao(c.env.DB, c.req.path) : null;
   await next();
   if (exclusao && c.res.status < 400) {
     await logAudit(c.env.DB, 'registro.excluido', user.email, `${c.req.method} ${c.req.path}`,

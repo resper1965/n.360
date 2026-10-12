@@ -17,7 +17,7 @@ const chamar = (h: Record<string, string>, metodo: string, caminho: string, corp
 const json = async <T>(r: Response) => (await r.json()) as T;
 
 let consultor: Record<string, string>;
-type V = { id: string; name: string; parte_id: string; trust_score: number };
+type V = { id: string; name: string; parte_id: string; trust_score: number; notes?: string };
 const vendors = async (p = P) => (await json<{ vendors: V[] }>(await chamar(consultor, 'GET', `/api/v1/projects/${p}/vendors`))).vendors;
 const contarPartes = async () => (await env.DB.prepare('SELECT count(*) AS n FROM partes WHERE project_id = ?').bind(P).first<{ n: number }>())!.n;
 const vinculoTerceiro = (parteId: string, p = P) =>
@@ -111,6 +111,37 @@ describe('rotas de vendors sobre a parte', () => {
     expect(await env.DB.prepare('SELECT nome FROM partes WHERE id = ?').bind(gamaParte).first()).toEqual({ nome: 'Gama Nova' });
     expect(await env.DB.prepare(`SELECT id FROM avaliacoes_terceiro WHERE id = 'ft-av'`).first()).toEqual({ id: 'ft-av' });
     expect(await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'vendor.deleted'`).first()).toEqual({ n: 1 });
+  });
+
+  it('perfil sem vínculo terceiro some da lista e volta, com os dados de antes, quando o vínculo é recriado', async () => {
+    const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Vinculo Exemplo', notes: 'guardada' });
+    const { id } = await json<{ id: string }>(r);
+    const parteId = (await vendors()).find((x) => x.id === id)!.parte_id;
+    const vin = await env.DB.prepare(`SELECT id FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro'`).bind(parteId).first<{ id: string }>();
+    expect((await chamar(consultor, 'DELETE', `/api/v1/projects/${P}/partes/${parteId}/vinculos/${vin!.id}`)).status).toBe(200);
+    expect((await vendors()).find((x) => x.id === id)).toBeUndefined();
+    const nova = await chamar(consultor, 'POST', `/api/v1/projects/${P}/partes/${parteId}/vinculos`, { papel: 'terceiro', alvo_tipo: 'projeto', alvo_id: P });
+    expect(nova.status).toBe(201);
+    expect((await vendors()).find((x) => x.id === id)).toMatchObject({ id, name: 'Vinculo Exemplo', notes: 'guardada' });
+    // sem o vínculo de novo, e pelo cadastro: o POST traz o perfil de volta sem sobrescrever; com o vínculo, segue 409
+    await env.DB.prepare(`DELETE FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro'`).bind(parteId).run();
+    const volta = await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Vinculo Exemplo' });
+    expect(volta.status).toBe(200);
+    expect((await json<{ id: string }>(volta)).id).toBe(id);
+    expect((await vendors()).find((x) => x.id === id)).toMatchObject({ notes: 'guardada' });
+    expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Vinculo Exemplo' })).status).toBe(409);
+    const csv = await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/export/vendors`)).text();
+    expect(csv).toContain('Vinculo Exemplo');
+    await env.DB.prepare(`DELETE FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro'`).bind(parteId).run();
+    expect(await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/export/vendors`)).text()).not.toContain('Vinculo Exemplo');
+  });
+
+  it('perfil de parte inativa já tipada como terceiro não aparece na lista', async () => {
+    const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Tipada Inativa' });
+    const { id } = await json<{ id: string }>(r);
+    const parteId = (await vendors()).find((x) => x.id === id)!.parte_id;
+    await env.DB.prepare(`UPDATE partes SET status = 'inativa', terceiro_tipo = 'medio' WHERE id = ?`).bind(parteId).run();
+    expect((await vendors()).find((x) => x.id === id)).toBeUndefined();
   });
 
   it('projeto só n.iso: POST /vendors funciona (faixa núcleo)', async () => {
