@@ -667,7 +667,7 @@ async function fecharItem(db: D1Database, projectId: string, loteId: string, ato
     await marcarGravado(db, item.id, registroId);
   } catch (e) {
     log('error', { msg: 'importacao_marcar_gravado', item: item.id, registro: registroId, erro: resumoErro(e) });
-    return recusado(item, `${rotulo} ${registroId} criado; confira em ${ONDE[entidade]} antes de tentar de novo`);
+    return recusado(item, `${rotulo} ${registroId} ${rotulo === 'documento' ? 'criado' : 'criada'}; confira em ${ONDE[entidade]} antes de tentar de novo`);
   }
   try {
     await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como ${rotulo} ${registroId}`, '', '', projectId);
@@ -698,7 +698,7 @@ async function gravarDocumento(env: Env, projectId: string, loteId: string, ator
   if (!c.ok) return recusado(item, c.error);
   documentos.set(k, c.id);
   try {
-    await guardarOriginal(env, projectId, loteId, ator, c.id, a);
+    await guardarOriginal(env, projectId, loteId, ator, c.id, a, avisos);
   } catch (e) {
     log('error', { msg: 'importacao_documento_original', item: item.id, erro: resumoErro(e) });
     avisos.push('o arquivo original não foi guardado como evidência; anexe-o à mão');
@@ -710,7 +710,7 @@ async function gravarDocumento(env: Env, projectId: string, loteId: string, ator
  * Cópia do arquivo original em `evidence/<projeto>/` (o da importação some quando o lote é cancelado), com a linha de evidência ligada ao
  * documento. Sem a linha, o objeto copiado é apagado (mesma compensação do upload de evidência).
  */
-async function guardarOriginal(env: Env, projectId: string, loteId: string, ator: string, documentoId: string, a: { nome: string; mime: string; r2_key: string }) {
+async function guardarOriginal(env: Env, projectId: string, loteId: string, ator: string, documentoId: string, a: { nome: string; mime: string; r2_key: string }, avisos: string[]) {
   const obj = await env.STORAGE.get(a.r2_key);
   if (!obj) throw new Error('arquivo original não encontrado no armazenamento');
   const bytes = await obj.arrayBuffer();
@@ -727,7 +727,13 @@ async function guardarOriginal(env: Env, projectId: string, loteId: string, ator
     await env.STORAGE.delete(r2Key).catch(() => undefined);
     throw e;
   }
-  await logAudit(env.DB, 'evidence.uploaded', ator, `Evidência ${a.nome} (SHA-256: ${hash.slice(0, 8)}...) guardada como original do documento ${documentoId}`, '', '', projectId);
+  // A evidência já está guardada: falha só da trilha não pode virar "original não guardado".
+  try {
+    await logAudit(env.DB, 'evidence.uploaded', ator, `Evidência ${a.nome} (SHA-256: ${hash.slice(0, 8)}...) guardada como original do documento ${documentoId}`, '', '', projectId);
+  } catch (e) {
+    log('error', { msg: 'importacao_trilha_evidencia', documento: documentoId, erro: resumoErro(e) });
+    avisos.push('a trilha da evidência do arquivo original não foi registrada');
+  }
 }
 
 /**

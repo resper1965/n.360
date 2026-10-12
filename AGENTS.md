@@ -296,10 +296,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   documento em RASCUNHO (nunca publicado) com o texto convertido (`<r2_key>.txt`) como versao 1; titulo normalizado igual ao de um documento
   do projeto recusa. Depois copia o arquivo original para `evidence/<projeto>/` e grava a evidencia com `evidence.documento_id` (a 0068);
   `lerDocumento` devolve `evidencias`. `gravarAvaliacao` casa o tratamento por finalidade normalizada (sem ele, `recusado`): DPIA pelo
-  `criarDpiaDoTratamento` de `src/services/lia.ts` (`Draft`; riscos em `risks_identified` e a conclusao, marcada como do arquivo, em
-  `dpo_opinion`), LIA pelo `salvarLia` em rascunho (conclusao e riscos no `balanceamento`; concluir e de uma pessoa); DPIA/LIA ja existente
+  `criarDpiaDoTratamento` de `src/services/lia.ts` (`Draft`; riscos e a conclusao (marcada como do arquivo) em
+  `risks_identified`; parecer do DPO fica vazio), LIA pelo `salvarLia` em rascunho (conclusao e riscos no `balanceamento`; concluir e de uma pessoa); DPIA/LIA ja existente
   no tratamento recusa. Ordem da confirmacao: tratamentos, depois documentos, depois o resto (DPIA/LIA acham o tratamento e o terceiro acha o
-  DPA gravados na mesma confirmacao). Falha depois da criacao (evidencia, riscos da DPIA) vira `aviso` mais log estruturado, sem desfazer o registro.
+  DPA gravados na mesma confirmacao). Falha depois da criacao (evidencia, riscos da DPIA) vira `aviso` mais log estruturado, sem desfazer o registro;
+  falha da marca `gravado` vira `recusado` com o id criado.
   Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`), e o GET tambem e
   recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
   prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:

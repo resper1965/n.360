@@ -1147,8 +1147,32 @@ describe('documentos e avaliações (fatia 3)', () => {
     expect(rd).toMatchObject({ decisao: 'recusado', motivo: `documento ${docId} criado; confira em Documentos antes de tentar de novo` });
     const [ra] = await confirmarCom(loteA, semMarca);
     const dpiaId = (await env.DB.prepare(`SELECT id FROM dpia_assessments WHERE ropa_id = 'ropa-av-marca'`).first<{ id: string }>())!.id;
-    expect(ra).toMatchObject({ decisao: 'recusado', motivo: `DPIA ${dpiaId} criado; confira em DPIA antes de tentar de novo` });
+    expect(ra).toMatchObject({ decisao: 'recusado', motivo: `DPIA ${dpiaId} criada; confira em DPIA antes de tentar de novo` });
     // a DPIA foi completada antes da marca
     expect((await env.DB.prepare('SELECT risks_identified FROM dpia_assessments WHERE id = ?').bind(dpiaId).first<{ risks_identified: string }>())!.risks_identified).toContain('Vazamento de dados');
+  });
+
+  it('falha só da trilha da evidência não diz que o original ficou de fora: a evidência existe e o aviso é da trilha', async () => {
+    const lote = await novoLote();
+    respondeDocumento(doc('Aviso de Privacidade do Site'));
+    await processarPdf(lote, 'documento', 'Aviso do site', 'aviso.pdf');
+    const [i] = (await lerLote(lote)).itens;
+    await aceitar(lote, i.id);
+    const DB = new Proxy(env.DB, {
+      get(t, k) {
+        if (k === 'prepare') return (sql: string) => {
+          const st = t.prepare(sql);
+          if (!sql.trim().startsWith('INSERT INTO audit_logs')) return st;
+          return { bind: (...a: unknown[]) => (a[1] === 'evidence.uploaded' ? { run: async () => { throw new Error('trilha fora do ar'); } } : st.bind(...a)) };
+        };
+        const f = (t as unknown as Record<string | symbol, unknown>)[k];
+        return typeof f === 'function' ? f.bind(t) : f;
+      },
+    });
+    const [r] = await confirmarCom(lote, DB as unknown as D1Database);
+    expect(r).toMatchObject({ decisao: 'gravado' });
+    expect(r.aviso).toMatch(/trilha da evidência/);
+    expect(r.aviso).not.toMatch(/não foi guardado como evidência/);
+    expect(await env.DB.prepare('SELECT 1 FROM evidence WHERE documento_id = ?').bind(r.registro_id).first()).not.toBeNull();
   });
 });
