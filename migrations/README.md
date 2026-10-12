@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0063** (`ls migrations/*.sql | tail -1`). São 61 arquivos
+- Última migration no repositório: **0065** (`ls migrations/*.sql | tail -1`). São 63 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -426,4 +426,14 @@ muda, nada para carregar. Conferência depois de aplicar: `SELECT name FROM sqli
 três, `PRAGMA table_info(importacao_itens)` lista as colunas do item (`dados`, `decisao`, `registro_id`) e `PRAGMA table_info(importacao_arquivos)`
 traz as do processamento em passos (`blocos_total`, `bloco_atual`, `blocos_falhos`). Para desfazer: nada a reverter nos dados
 existentes; as tabelas novas podem ficar vazias. **Esta RODA em produção, aditiva, sem janela.**
+Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
+
+## 0065 — a ness. contrata o n.privacy (2026-10-11)
+
+Só dados, sem DDL e sem mudança no `schema.sql`. O dono da plataforma aprovou em 2026-10-11 a contratação do n.privacy pela organização ness.:
+`UPDATE organizations SET modulos_contratados = '["iso","privacy"]' WHERE id = 'org_ness' AND modulos_contratados = '["iso"]'`. Idempotente: só
+troca o valor padrão `["iso"]`; outro valor (ajustado à mão) fica como está, e aplicar de novo não muda nada. Projetos já existentes não ganham o
+módulo sozinhos (o teto sobe; habilitar continua sendo da tela de módulos), mas projeto NOVO da ness. passa a nascer com `iso` e `privacy` (gatilho da 0060). Conferência depois de aplicar:
+`SELECT modulos_contratados FROM organizations WHERE id = 'org_ness'` devolve `["iso","privacy"]`. Para desfazer: o mesmo `UPDATE` com os valores
+trocados. **Esta RODA em produção, sem janela.**
 Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
