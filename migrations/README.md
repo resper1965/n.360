@@ -418,3 +418,11 @@ Acrescenta `corrective_actions.incidente_id` (anulável, FK para `incidentes`, `
 tocar linha existente. O `ALTER ... ADD COLUMN` não é idempotente: aplicar duas vezes falha com "duplicate column". Conferência depois de aplicar:
 `PRAGMA table_info(corrective_actions)` lista `incidente_id`. Depende da 0058 (`incidentes`). **Esta RODA em produção, aditiva, sem janela.**
 Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
+
+## 0064 — importação de programa de privacidade (2026-10)
+
+Cria `importacoes`, `importacao_arquivos` e `importacao_itens` (com seus índices). Aditiva: só `CREATE ... IF NOT EXISTS`, nenhum dado existente
+muda, nada para carregar. Conferência depois de aplicar: `SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'importacao%'` devolve as
+três, e `PRAGMA table_info(importacao_itens)` lista as colunas do item (`dados`, `decisao`, `registro_id`). Para desfazer: nada a reverter nos dados
+existentes; as tabelas novas podem ficar vazias. **Esta RODA em produção, aditiva, sem janela.**
+Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
