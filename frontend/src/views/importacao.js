@@ -143,10 +143,17 @@ function htmlResultados(itens) {
     return `<h3 style="margin:1.5rem 0 0.5rem">Resultado da importação</h3>${window.renderDataTable(['Tratamento', 'Resultado', 'Motivo'], linhas, { emptyState: 'Nenhum item gravado.' })}`;
 }
 
+// Processamento cujo Worker morreu: depois de 10 minutos sem atualização o servidor deixa a confirmação retomar o lote.
+// `updated_at` vem do D1 em UTC ('AAAA-MM-DD HH:MM:SS').
+function processamentoVelho(lote) {
+    const t = Date.parse(String(lote.updated_at || '').replace(' ', 'T') + 'Z');
+    return Number.isFinite(t) && Date.now() - t > 10 * 60000;
+}
+
 function htmlRodape(itens, lote) {
     const aceitos = itens.filter((i) => i.decisao === 'aceito').length;
     // Com outro processamento ou gravação em curso (outra aba, outra pessoa) o servidor recusaria com 409.
-    const travado = lote.status === 'processando' || lote.status === 'gravando';
+    const travado = lote.status === 'gravando' || (lote.status === 'processando' && !processamentoVelho(lote));
     if (E.cancelando) {
         return `<div role="alert" style="margin-top:1.5rem;padding:1rem;border:1px solid var(--danger)">
             <p style="margin:0 0 0.75rem">Cancelar o lote apaga os arquivos enviados e os tratamentos propostos. O que já foi gravado no RoPA permanece. Confirma?</p>

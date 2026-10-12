@@ -560,6 +560,33 @@ describe('rodada de correções', () => {
   });
 });
 
+describe('cancelar no meio da conversão', () => {
+  it('o texto convertido gravado depois do cancelamento é apagado (nada órfão no R2)', async () => {
+    const lote = await novoLote();
+    responde(tratamento('Corrida com cancelamento'));
+    const up = await enviar(consultor, P, lote, 'c.csv', 'finalidade\nVendas\n', 'text/csv');
+    const { id: aid } = await json<{ id: string }>(up);
+    // O cancelamento chega entre a conversão e o put do .txt.
+    const STORAGE = new Proxy(env.STORAGE, {
+      get(t, k) {
+        if (k === 'put') {
+          return async (key: string, v: string, o?: R2PutOptions) => {
+            if (key.endsWith('.txt')) expect((await chamar(consultor, 'DELETE', `${P}/importacoes/${lote}`)).status).toBe(200);
+            return t.put(key, v, o);
+          };
+        }
+        const f = (t as unknown as Record<string | symbol, unknown>)[k];
+        return typeof f === 'function' ? f.bind(t) : f;
+      },
+    });
+    await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/importacoes/${lote}/arquivos/${aid}/processar`, { method: 'POST', headers: consultor }),
+      { ...envComIa(), STORAGE } as never);
+    expect(await env.STORAGE.get(`importacoes/${P}/${lote}/${aid}.txt`)).toBeNull();
+    expect(await env.STORAGE.get(`importacoes/${P}/${lote}/${aid}`)).toBeNull();
+    expect((await env.DB.prepare('SELECT status FROM importacoes WHERE id = ?').bind(lote).first<{ status: string }>())!.status).toBe('cancelada');
+  });
+});
+
 describe('trava de gravação (status próprio)', () => {
   const statusDo = async (lote: string) => (await env.DB.prepare('SELECT status FROM importacoes WHERE id = ?').bind(lote).first<{ status: string }>())!.status;
 

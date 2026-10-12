@@ -260,6 +260,9 @@ async function converter(env: Env, projectId: string, loteId: string, a: Arquivo
   if (r.tipo !== 'inventario') return fim('aguardando', r.tipo, null, r.modelo);
   const total = blocos(lido.texto).length;
   await env.STORAGE.put(TXT(a.r2_key), lido.texto, { httpMetadata: { contentType: 'text/plain; charset=utf-8' } });
+  // Um cancelamento entre a conversão e o put já apagou o lote: o texto (dado do cliente) não pode ficar órfão no R2.
+  const vivo = await db.prepare(`SELECT 1 FROM importacao_arquivos a JOIN importacoes l ON l.id = a.importacao_id WHERE a.id = ? AND l.status <> 'cancelada'`).bind(a.id).first();
+  if (!vivo) { await env.STORAGE.delete(TXT(a.r2_key)); return; }
   await db.prepare('UPDATE importacao_arquivos SET tipo = ?, modelo = ?, blocos_total = ? WHERE id = ?').bind(r.tipo, r.modelo, total, a.id).run();
   await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: inventario, ${total} blocos a extrair`, '', '', projectId);
 }

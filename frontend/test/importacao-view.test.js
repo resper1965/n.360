@@ -377,6 +377,17 @@ describe('processar: tempo, sessão', () => {
         expect(document.querySelector('[data-action="importacaoConfirmar"]').disabled).toBe(false);
     });
 
+    it('lote preso em processamento há mais de 10 minutos: Confirmar e Processar voltam a valer', async () => {
+        const fmt = (ms) => new Date(Date.now() - ms).toISOString().slice(0, 19).replace('T', ' ');
+        const det = (updated_at) => LOTE({ lote: { id: 'l1', status: 'processando', updated_at }, arquivos: [{ id: 'a1', nome: 'um.csv', status: 'pendente' }], itens: [item('i1', { decisao: 'aceito' })] });
+        await abrirLote(det(fmt(2 * 60000)));
+        expect(document.querySelector('[data-action="importacaoConfirmar"]').disabled).toBe(true);
+        await window.importacaoVoltar();
+        await abrirLote(det(fmt(11 * 60000)));
+        expect(document.querySelector('[data-action="importacaoConfirmar"]').disabled).toBe(false);
+        expect(document.querySelector('[data-action="importacaoProcessar"]').disabled).toBe(false);
+    });
+
     it('409 ao processar (lote em gravação) para o laço e mostra o motivo', async () => {
         const det = LOTE({ arquivos: [{ id: 'a1', nome: 'um.csv', status: 'pendente' }, { id: 'a2', nome: 'dois.csv', status: 'pendente' }] });
         const f = await abrirLote(det, { [`POST ${B}/l1/arquivos/a1/processar`]: [{ error: 'Importação em gravação' }, 409] });
