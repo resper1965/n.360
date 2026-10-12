@@ -236,6 +236,7 @@ export const assinaturaSchema = z.object({
 // ─── IA ──────────────────────────────────────────────────────────────────────
 export const chatSchema = z.object({
   message: z.string().trim().min(1).max(10_000),
+  modulo: z.enum(['iso', 'privacy']).optional(),
 }).passthrough();
 
 export const gerarPoliticaSchema = z.object({

@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { CANAIS_PEDIDO, STATUS_PEDIDO, TIPOS_PEDIDO } from '../services/titular-pedidos';
+import { RISCOS } from '../services/incidentes';
 
 /**
- * Importação de programa de privacidade (n.privacy, fatia 1). O que o agente propõe só chega ao banco por este esquema:
+ * Importação de programa de privacidade (n.privacy, fatias 1 a 4). O que o agente propõe só chega ao banco por este esquema:
  * `strict` (campo a mais recusa o item inteiro, inclusive o que uma instrução escondida no arquivo tentasse pôr) e com teto
  * de tamanho por campo. Os nomes são os da spec; o mapeamento para o RoPA é o da planilha (`validarTratamento`).
  */
@@ -28,7 +30,100 @@ export type TratamentoProposto = z.infer<typeof tratamentoPropostoSchema>;
 /** Obrigatórios do RoPA que a revisão mostra como "faltando" (só a finalidade barra a gravação). */
 export const OBRIGATORIOS_ROPA = ['finalidade', 'base_legal', 'categorias_dados', 'titulares', 'retencao'] as const;
 
+/**
+ * Fatia 2: terceiro proposto. `tipo` é o do n.privacy (define o método de avaliação); `ultima_avaliacao.metodo` é só o que o
+ * arquivo diz (o método gravado vem do tipo, como na tela de terceiros); `tratamentos` são finalidades, ligadas por nome.
+ */
+export const terceiroPropostoSchema = z.object({
+  nome: z.string().trim().min(1).max(200),
+  tipo: z.enum(['grande_provedor', 'medio', 'pequeno', 'critico']).nullish(),
+  cnpj: z.string().trim().max(30).nullish(),
+  contato: z.string().trim().max(200).nullish(),
+  ultima_avaliacao: z.object({
+    resultado: z.enum(['aprovado', 'com_ressalvas', 'reprovado']),
+    valido_ate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD'),
+    metodo: z.string().trim().max(100).nullish(),
+  }).strict().nullish(),
+  dpa: z.string().trim().max(300).nullish(),
+  tratamentos: z.array(z.string().trim().min(1).max(500)).max(50).optional(),
+}).strict();
+export type TerceiroProposto = z.infer<typeof terceiroPropostoSchema>;
+
+/** O que a revisão mostra como "faltando" num terceiro (só o nome barra a gravação). */
+export const OBRIGATORIOS_TERCEIRO = ['nome', 'tipo', 'ultima_avaliacao'] as const;
+
+/**
+ * Fatia 3: documento proposto (um por arquivo). O texto inteiro do arquivo vira a versão em rascunho; daqui só sai o que a revisão
+ * decide: título, tipo (o da tabela `documentos`) e um resumo para quem revisa.
+ */
+export const documentoPropostoSchema = z.object({
+  titulo: z.string().trim().min(1).max(300),
+  tipo: z.enum(['politica', 'norma', 'procedimento']).nullish(),
+  resumo: z.string().trim().max(2000).nullish(),
+}).strict();
+export type DocumentoProposto = z.infer<typeof documentoPropostoSchema>;
+export const OBRIGATORIOS_DOCUMENTO = ['titulo', 'tipo'] as const;
+
+/** Fatia 3: DPIA ou LIA proposta (a entidade do item diz qual). `tratamento` é a finalidade, casada com o RoPA pelo nome normalizado. */
+export const avaliacaoPropostaSchema = z.object({
+  tratamento: z.string().trim().min(1).max(500),
+  conclusao: z.string().trim().max(2000).nullish(),
+  riscos: z.array(z.string().trim().min(1).max(500)).max(50).optional(),
+}).strict();
+export type AvaliacaoProposta = z.infer<typeof avaliacaoPropostaSchema>;
+export const OBRIGATORIOS_AVALIACAO = ['tratamento', 'conclusao', 'riscos'] as const;
+
+/**
+ * Fatia 4: histórico operacional. Dado pessoal mínimo: nenhum campo de nome, CPF, e-mail ou telefone do titular. `titular_ref` só
+ * aceita o pseudônimo que o servidor calcula (HMAC por projeto, `pseudonimizador` em services/importacao.ts), nunca o identificador.
+ * `protocolo` é o do registro de origem (vai para a descrição; o protocolo do sistema é gerado na gravação).
+ */
+export const PSEUDONIMO = /^tit-[0-9a-f]{16}$/;
+const pseudonimo = z.string().regex(PSEUDONIMO, 'Use o pseudônimo calculado pelo sistema (tit-...)');
+const dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD');
+const instante = z.string().regex(/^\d{4}-\d{2}-\d{2}([T ][\d:.]+Z?)?$/, 'Use AAAA-MM-DD ou data e hora ISO');
+const protocolo = z.string().trim().max(60).nullish();
+
+export const pedidoPropostoSchema = z.object({
+  tipo: z.enum(TIPOS_PEDIDO),
+  canal: z.enum(CANAIS_PEDIDO).nullish(),
+  recebido_em: dia,
+  status: z.enum(STATUS_PEDIDO),
+  respondido_em: dia.nullish(),
+  protocolo,
+  titular_ref: pseudonimo.nullish(),
+}).strict();
+export type PedidoProposto = z.infer<typeof pedidoPropostoSchema>;
+export const OBRIGATORIOS_PEDIDO = ['protocolo'] as const;
+
+export const incidentePropostoSchema = z.object({
+  titulo: z.string().trim().min(1).max(300),
+  protocolo,
+  ciencia_em: instante,
+  risco_titular: z.enum(RISCOS).nullish(),
+  comunicacao_anpd_em: instante.nullish(),
+  comunicacao_titular_em: instante.nullish(),
+  status: z.enum(['aberto', 'avaliado', 'comunicado', 'encerrado']),
+}).strict();
+export type IncidenteProposto = z.infer<typeof incidentePropostoSchema>;
+export const OBRIGATORIOS_INCIDENTE = ['protocolo', 'risco_titular'] as const;
+
+/** `tratamento` é a finalidade do RoPA (casada pelo nome normalizado, como DPIA e LIA); `finalidade` é a consentida. */
+export const consentimentoPropostoSchema = z.object({
+  tratamento: z.string().trim().min(1).max(500),
+  titular_ref: pseudonimo,
+  finalidade: z.string().trim().min(1).max(500),
+  obtido_em: dia,
+  revogado_em: dia.nullish(),
+  versao_aviso: z.string().trim().max(100).nullish(),
+  canal: z.string().trim().max(100).nullish(),
+}).strict();
+export type ConsentimentoProposto = z.infer<typeof consentimentoPropostoSchema>;
+export const OBRIGATORIOS_CONSENTIMENTO = ['versao_aviso'] as const;
+
+/** `dados` passa por um dos esquemas aqui; o serviço confere que é o da entidade do item. */
 export const importacaoItemSchema = z.object({
-  dados: tratamentoPropostoSchema.optional(),
+  dados: z.union([tratamentoPropostoSchema, terceiroPropostoSchema, documentoPropostoSchema, avaliacaoPropostaSchema,
+    pedidoPropostoSchema, incidentePropostoSchema, consentimentoPropostoSchema]).optional(),
   decisao: z.enum(['aceito', 'descartado', 'pendente']).optional(),
 }).strict().refine((b) => b.dados !== undefined || b.decisao !== undefined, { message: 'Informe dados ou decisao' });

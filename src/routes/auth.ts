@@ -269,7 +269,11 @@ authApp.post('/login', async (c) => {
     const sessao = { ...user, org_id: user.org_id, iat: agora, seen: agora, ...(exigeMfa ? { mfa_pending: true } : {}) };
     await c.env.SESSIONS.put(`session_${token}`, JSON.stringify(sessao), { expirationTtl: SESSION_TTL_SEC });
     await c.env.SESSIONS.put(token, JSON.stringify(sessao), { expirationTtl: SESSION_TTL_SEC });
-    
+    // Trilha de acessos: só login que passou na senha (falha não grava o e-mail digitado, que pode
+    // nem existir). O projeto é o da conta, para o acesso aparecer na trilha do projeto.
+    await logAudit(c.env.DB, 'auth.login', user.email, `Login por senha${exigeMfa ? ' (aguarda o segundo fator)' : ''}`,
+      '', ip, user.client_project_id ?? undefined);
+
     return c.json({ token, user, requiresPasswordChange: requiresChange, requiresMfa: exigeMfa });
   } catch (e: any) {
     return erro500(c, 'Login failed', e);

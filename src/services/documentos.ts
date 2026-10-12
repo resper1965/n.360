@@ -38,7 +38,9 @@ export async function lerDocumento(db: D1Database, projectId: string, id: string
     `SELECT numero, estado, origem, hash, texto, criado_por, criado_em FROM documento_versoes WHERE documento_id = ? AND project_id = ? ORDER BY numero`
   ).bind(id, projectId).all();
   const aprovacao = (await aprovacoesDoProjeto(db, projectId, id)).get(id) ?? semAprovacao();
-  return { ...comBooleano(d), aprovacao, versoes: v.results };
+  // Evidências ligadas ao documento: hoje, o arquivo original de um documento importado (migration 0068).
+  const ev = await db.prepare('SELECT id, file_name, created_at FROM evidence WHERE documento_id = ? AND project_id = ? ORDER BY created_at').bind(id, projectId).all();
+  return { ...comBooleano(d), aprovacao, versoes: v.results, evidencias: ev.results };
 }
 
 export async function criarDocumento(db: D1Database, projectId: string, ator: string, dados: DocumentoCriar): Promise<Falha | { ok: true; id: string }> {
