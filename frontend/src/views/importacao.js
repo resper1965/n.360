@@ -2,9 +2,9 @@ import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML, openModal, showToast } from '../ui.js';
 
-// Importar programa (n.privacy, fatias 1 a 3). A regra é do servidor (`/projects/:id/importacoes`); aqui: lotes, envio de arquivos (um
+// Importar programa (n.privacy, fatias 1 a 4). A regra é do servidor (`/projects/:id/importacoes`); aqui: lotes, envio de arquivos (um
 // por requisição), processamento arquivo a arquivo, revisão dos itens propostos (uma aba por entidade: tratamentos, terceiros,
-// documentos e avaliações, estas com DPIA e LIA juntas) e
+// documentos, avaliações, estas com DPIA e LIA juntas, e histórico, com pedidos do titular, incidentes e consentimentos juntos) e
 // confirmação em rodadas. TUDO o que vem da API
 // (nome de arquivo, origem, motivo, dados) é texto que um modelo extraiu de arquivo do cliente: sai sempre por escapeHTML.
 
@@ -29,7 +29,8 @@ const CAMPOS = [
     ['retencao', 'Retenção'], ['destinatarios', 'Destinatários'], ['salvaguardas', 'Salvaguardas'], ['responsavel', 'Responsável'],
 ];
 const LISTAS = [['sistemas', 'Sistemas'], ['areas', 'Áreas'], ['pessoas', 'Pessoas']];
-const ROTULO = Object.fromEntries([...CAMPOS, ...LISTAS, ['nome', 'Nome'], ['tipo', 'Tipo'], ['ultima_avaliacao', 'Avaliação'], ['titulo', 'Título'], ['tratamento', 'Tratamento'], ['conclusao', 'Conclusão'], ['riscos', 'Riscos']]);
+const ROTULO = Object.fromEntries([...CAMPOS, ...LISTAS, ['nome', 'Nome'], ['tipo', 'Tipo'], ['ultima_avaliacao', 'Avaliação'], ['titulo', 'Título'], ['tratamento', 'Tratamento'], ['conclusao', 'Conclusão'], ['riscos', 'Riscos'],
+    ['protocolo', 'Protocolo de origem'], ['risco_titular', 'Risco ao titular'], ['versao_aviso', 'Versão do aviso']]);
 // Terceiros (fatia 2): os mesmos rótulos da tela de terceiros.
 const TIPO_TERCEIRO = { grande_provedor: 'Grande provedor', medio: 'Médio', pequeno: 'Pequeno', critico: 'Crítico' };
 const RESULTADO = { aprovado: 'Aprovado', com_ressalvas: 'Aprovado com ressalvas', reprovado: 'Reprovado' };
@@ -38,11 +39,19 @@ const CAMPOS_TERCEIRO = [['nome', 'Nome', 200], ['cnpj', 'CNPJ', 30], ['contato'
 // Documentos e avaliações (fatia 3): os tipos da tabela de documentos; DPIA e LIA dividem a aba.
 const TIPO_DOCUMENTO = { politica: 'Política', norma: 'Norma', procedimento: 'Procedimento' };
 const AVALIACAO = { dpia: 'DPIA', lia: 'LIA' };
+// Histórico (fatia 4): os mesmos rótulos da tela do titular (views/titular.js); as três entidades dividem a aba.
+const HISTORICO = { titular_pedido: 'Pedido', incidente: 'Incidente', consentimento: 'Consentimento' };
+const TIPOS_PEDIDO = { confirmacao: 'Confirmação de tratamento', acesso: 'Acesso aos dados', correcao: 'Correção', anonimizacao_bloqueio_eliminacao: 'Anonimização, bloqueio ou eliminação', portabilidade: 'Portabilidade',
+    informacao_compartilhamento: 'Informação sobre compartilhamento', revogacao_consentimento: 'Revogação do consentimento', oposicao: 'Oposição', outro: 'Outro' };
+const CANAIS = { email: 'E-mail', telefone: 'Telefone', formulario: 'Formulário', presencial: 'Presencial', outro: 'Outro' };
+const STATUS_PEDIDO = { recebido: 'Recebido', em_andamento: 'Em andamento', respondido: 'Respondido', negado: 'Negado', arquivado: 'Arquivado' };
+const RISCOS = { sem_risco: 'Sem risco', baixo: 'Baixo', relevante: 'Relevante' };
+const STATUS_INCIDENTE = { aberto: 'Aberto', avaliado: 'Avaliado', comunicado: 'Comunicado', encerrado: 'Encerrado' };
 // Item sem `entidade` é da fatia 1.
 const entidade = (i) => i.entidade || 'tratamento';
-const abaDe = (i) => (AVALIACAO[entidade(i)] ? 'avaliacao' : entidade(i));
-const ABAS = [['tratamento', 'Tratamentos'], ['terceiro', 'Terceiros'], ['documento', 'Documentos'], ['avaliacao', 'Avaliações']];
-const nomeItem = (i) => (i.dados && (i.dados.finalidade || i.dados.nome || i.dados.titulo || i.dados.tratamento)) || '';
+const abaDe = (i) => (AVALIACAO[entidade(i)] ? 'avaliacao' : HISTORICO[entidade(i)] ? 'historico' : entidade(i));
+const ABAS = [['tratamento', 'Tratamentos'], ['terceiro', 'Terceiros'], ['documento', 'Documentos'], ['avaliacao', 'Avaliações'], ['historico', 'Histórico']];
+const nomeItem = (i) => (i.dados && (i.dados.finalidade || i.dados.nome || i.dados.titulo || i.dados.tratamento || i.dados.protocolo)) || '';
 
 const badge = (par) => window.renderStatusBadge(par[0], par[1]);
 
@@ -85,7 +94,7 @@ function htmlLista() {
         e(l.arquivos), e(l.itens), l.status === 'cancelada' ? '' : `<button class="btn btn-ghost btn-sm" data-action="importacaoAbrir" data-args='${args(l.id)}'>Abrir</button>`,
     ]);
     return `
-        <p style="margin:0 0 1rem;color:var(--text-dim)">Envie o inventário de tratamentos, a lista de terceiros, as políticas e normas e as DPIAs e LIAs que o cliente já tem (planilha, documento ou PDF). A IA propõe os itens; você revisa e confirma antes de gravar.</p>
+        <p style="margin:0 0 1rem;color:var(--text-dim)">Envie o inventário de tratamentos, a lista de terceiros, as políticas e normas, as DPIAs e LIAs e o histórico de pedidos de titulares, incidentes e consentimentos que o cliente já tem (planilha, documento ou PDF). A IA propõe os itens; você revisa e confirma antes de gravar.</p>
         <button class="btn btn-primary" data-action="importacaoNovo" style="margin-bottom:1rem">Novo lote</button>
         ${window.renderDataTable(['Criado em', 'Situação', 'Arquivos', 'Itens propostos', 'Ações'], linhas, { emptyState: 'Nenhum lote de importação neste projeto.' })}`;
 }
@@ -200,7 +209,33 @@ function htmlItens(itens, ativo) {
     return barra + window.renderDataTable(['Tratamento proposto', 'Confiança', 'Faltando', 'Situação', 'Ações'], linhas, { emptyState: 'Nenhum tratamento proposto. Envie arquivos e clique em Processar.' });
 }
 
-const TABELA = { terceiro: htmlTerceiros, documento: htmlDocumentos, avaliacao: htmlAvaliacoes };
+const rotulo = (mapa, v) => (v ? mapa[v] || v : '');
+const linhaDados = (pares) => pares.filter(([, v]) => v).map(([k, v]) => `${e(k)}: ${e(v)}`).join(' · ');
+function resumoHistorico(i) {
+    const d = i.dados || {};
+    const ent = entidade(i);
+    let titulo;
+    let pares;
+    if (ent === 'titular_pedido') {
+        titulo = rotulo(TIPOS_PEDIDO, d.tipo) || '(sem tipo)';
+        pares = [['Protocolo de origem', d.protocolo], ['Recebido em', d.recebido_em], ['Situação', rotulo(STATUS_PEDIDO, d.status)], ['Respondido em', d.respondido_em], ['Canal', rotulo(CANAIS, d.canal)], ['Titular', d.titular_ref]];
+    } else if (ent === 'incidente') {
+        titulo = d.titulo || '(sem título)';
+        pares = [['Protocolo de origem', d.protocolo], ['Ciência em', d.ciencia_em], ['Risco ao titular', rotulo(RISCOS, d.risco_titular)], ['Comunicação à ANPD', d.comunicacao_anpd_em], ['Comunicação ao titular', d.comunicacao_titular_em], ['Situação', rotulo(STATUS_INCIDENTE, d.status)]];
+    } else {
+        titulo = d.tratamento || '(sem tratamento)';
+        pares = [['Finalidade', d.finalidade], ['Titular', d.titular_ref], ['Obtido em', d.obtido_em], ['Revogado em', d.revogado_em], ['Versão do aviso', d.versao_aviso], ['Canal', d.canal]];
+    }
+    return `${badge([HISTORICO[ent] || ent, 'info'])} <strong>${e(titulo)}</strong><div style="color:var(--text-dim)">${linhaDados(pares)}</div>${rodapeItem(i)}`;
+}
+
+function htmlHistorico(itens, ativo) {
+    const linhas = itens.map((i) => [resumoHistorico(i), badge(CONF[i.confianca] || [i.confianca, 'neutral']), faltaItem(i), situacaoItem(i, 'titular', 'Ver no titular e incidentes'), acoesItem(i, ativo)]);
+    return `<p style="margin:0 0 0.5rem;color:var(--text-dim)">E-mail, CPF e telefone do arquivo não vão à IA: viram um pseudônimo (tit-...). Datas e situação ficam as do registro de origem e o protocolo de origem vai na descrição. Registro encerrado, ou com prazo legal já vencido, entra sem prazo e não gera aviso. O consentimento é ligado ao tratamento do RoPA com a mesma finalidade.</p>`
+        + barraAlta(itens) + window.renderDataTable(['Registro proposto', 'Confiança', 'Faltando', 'Situação', 'Ações'], linhas, { emptyState: 'Nenhum registro proposto. Envie o histórico de pedidos, incidentes ou consentimentos e clique em Processar.' });
+}
+
+const TABELA = { terceiro: htmlTerceiros, documento: htmlDocumentos, avaliacao: htmlAvaliacoes, historico: htmlHistorico };
 
 function htmlResultados(itens) {
     const nome = (id) => nomeItem(itens.find((i) => i.id === id) || {}) || id;
@@ -327,6 +362,7 @@ window.importacaoEditar = function (iid) {
     if (entidade(i) === 'terceiro') return editarTerceiro(i);
     if (entidade(i) === 'documento') return editarDocumento(i);
     if (AVALIACAO[entidade(i)]) return editarAvaliacao(i);
+    if (HISTORICO[entidade(i)]) return editarHistorico(i);
     const d = i.dados || {};
     const campo = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="500"></div>`;
     const lista = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)} (separe por vírgula)</label><input class="form-input" id="imp-${k}" value="${e((d[k] || []).join(', '))}"></div>`;
@@ -378,6 +414,43 @@ function editarAvaliacao(i) {
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 
+// [campo, rótulo, maxlength] de texto e [campo, rótulo] de data: os de pedidoPropostoSchema, incidentePropostoSchema e
+// consentimentoPropostoSchema (src/schemas/importacao.ts). O pseudônimo do titular não se edita: volta como veio.
+const FORM_HISTORICO = {
+    titular_pedido: { selects: [['tipo', 'Tipo', TIPOS_PEDIDO], ['canal', 'Canal', CANAIS], ['status', 'Situação', STATUS_PEDIDO]], datas: [['recebido_em', 'Recebido em'], ['respondido_em', 'Respondido em']], textos: [['protocolo', 'Protocolo de origem', 60]] },
+    incidente: { selects: [['risco_titular', 'Risco ao titular', RISCOS], ['status', 'Situação', STATUS_INCIDENTE]], datas: [], textos: [['titulo', 'Título', 300], ['protocolo', 'Protocolo de origem', 60], ['ciencia_em', 'Ciência em (AAAA-MM-DD ou data e hora)', 30], ['comunicacao_anpd_em', 'Comunicação à ANPD em', 30], ['comunicacao_titular_em', 'Comunicação ao titular em', 30]] },
+    consentimento: { selects: [], datas: [['obtido_em', 'Obtido em'], ['revogado_em', 'Revogado em']], textos: [['tratamento', 'Tratamento (finalidade, como está no RoPA)', 500], ['finalidade', 'Finalidade consentida', 500], ['versao_aviso', 'Versão do aviso', 100], ['canal', 'Canal', 100]] },
+};
+const OBRIG_HISTORICO = { titular_pedido: ['tipo', 'recebido_em', 'status'], incidente: ['titulo', 'ciencia_em', 'status'], consentimento: ['tratamento', 'finalidade', 'obtido_em'] };
+// Ordem das chaves igual à do esquema (o PUT compara o corpo inteiro nos testes).
+const CHAVES_HISTORICO = {
+    titular_pedido: ['tipo', 'canal', 'recebido_em', 'status', 'respondido_em', 'protocolo', 'titular_ref'],
+    incidente: ['titulo', 'protocolo', 'ciencia_em', 'risco_titular', 'comunicacao_anpd_em', 'comunicacao_titular_em', 'status'],
+    consentimento: ['tratamento', 'titular_ref', 'finalidade', 'obtido_em', 'revogado_em', 'versao_aviso', 'canal'],
+};
+
+function editarHistorico(i) {
+    const d = i.dados || {};
+    const f = FORM_HISTORICO[entidade(i)];
+    const texto = ([k, r, max]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="${max}"></div>`;
+    const data = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input type="date" class="form-input" id="imp-${k}" value="${e(d[k])}"></div>`;
+    openModal(`
+        <div class="modal-header"><span class="modal-title">Editar ${e((HISTORICO[entidade(i)] || '').toLowerCase())}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        ${f.textos.map(texto).join('')}${f.selects.map(([k, r, mapa]) => opcoes(k, r, mapa, d[k])).join('')}${f.datas.map(data).join('')}
+        ${d.titular_ref ? `<p style="color:var(--text-dim)">Titular (pseudônimo): ${e(d.titular_ref)}</p>` : ''}
+        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
+}
+
+function dadosHistorico(i, v) {
+    const ent = entidade(i);
+    const dados = {};
+    for (const k of CHAVES_HISTORICO[ent]) dados[k] = k === 'titular_ref' ? (i.dados || {}).titular_ref ?? null : v(k).trim() || null;
+    if (ent === 'consentimento' && !dados.titular_ref) delete dados.titular_ref;
+    const falta = OBRIG_HISTORICO[ent].find((k) => !dados[k]);
+    return falta ? { erro: `${ROTULO[falta] || falta} é obrigatório.` } : { dados };
+}
+
 // Dados do formulário de documento e de avaliação, ou o motivo de não salvar.
 function dadosDocOuAvaliacao(i, v) {
     const t = (k) => v(k).trim() || null;
@@ -404,8 +477,8 @@ function dadosTerceiro(v) {
 window.importacaoSalvarItem = async function (iid) {
     const v = (k) => document.getElementById(`imp-${k}`)?.value ?? '';
     const item = E.det.itens.find((x) => x.id === iid);
-    if (item && (entidade(item) === 'documento' || AVALIACAO[entidade(item)])) {
-        const r = dadosDocOuAvaliacao(item, v);
+    if (item && (entidade(item) === 'documento' || AVALIACAO[entidade(item)] || HISTORICO[entidade(item)])) {
+        const r = HISTORICO[entidade(item)] ? dadosHistorico(item, v) : dadosDocOuAvaliacao(item, v);
         if (r.erro) { document.getElementById('imp-erro').textContent = r.erro; return; }
         try { await atualiza(iid, { dados: r.dados }); } catch (err) { document.getElementById('imp-erro').textContent = (err && err.message) || 'Não foi possível salvar'; return; }
         window.forceCloseModal();

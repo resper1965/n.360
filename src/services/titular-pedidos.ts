@@ -56,20 +56,62 @@ export async function criarPedido(db: D1Database, projectId: string, ator: strin
   if (!(await parteDoProjeto(db, projectId, d.responsavel_parte_id))) return falha(400, 'responsavel_parte_id inexistente ou de outro projeto');
   const prazo = await prazoDe(db, 'titular.resposta', recebido);
   const id = crypto.randomUUID();
+  const protocolo = await comProtocolo(db, projectId, recebido, (protocolo) => db.prepare(
+    `INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, canal, titular_nome, titular_contato, descricao, recebido_em, prazo_em, responsavel_parte_id, criado_por)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, projectId, protocolo, d.tipo, d.canal ?? 'outro', d.titular_nome ?? null, d.titular_contato ?? null, d.descricao ?? null, recebido, prazo, d.responsavel_parte_id ?? null, ator).run());
+  if (!protocolo) return falha(409, 'Não foi possível gerar o protocolo; tente de novo');
+  await logAudit(db, 'titular.pedido_criado', ator, `Pedido ${protocolo} (${d.tipo}) registrado; prazo ${prazo ? prazo.slice(0, 10) : 'não calculado'}`, '', '', projectId);
+  return { ok: true, id, protocolo, prazo_em: prazo };
+}
+
+/** Protocolo `PT-AAAA-NNNN` (ano do recebimento) e o INSERT; duas criações juntas que pegam o mesmo número tentam o próximo. null: 3 colisões. */
+async function comProtocolo(db: D1Database, projectId: string, recebido: string, inserir: (protocolo: string) => Promise<unknown>): Promise<string | null> {
   for (let tentativa = 0; tentativa < 3; tentativa++) {
     const protocolo = await proximoProtocolo(db, 'titular_pedidos', 'PT', projectId, Number(recebido.slice(0, 4)));
     try {
-      await db.prepare(
-        `INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, canal, titular_nome, titular_contato, descricao, recebido_em, prazo_em, responsavel_parte_id, criado_por)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(id, projectId, protocolo, d.tipo, d.canal ?? 'outro', d.titular_nome ?? null, d.titular_contato ?? null, d.descricao ?? null, recebido, prazo, d.responsavel_parte_id ?? null, ator).run();
-      await logAudit(db, 'titular.pedido_criado', ator, `Pedido ${protocolo} (${d.tipo}) registrado; prazo ${prazo ? prazo.slice(0, 10) : 'não calculado'}`, '', '', projectId);
-      return { ok: true, id, protocolo, prazo_em: prazo };
+      await inserir(protocolo);
+      return protocolo;
     } catch (e) {
-      if (!/UNIQUE/i.test(String((e as Error)?.message))) throw e; // duas criações juntas pegaram o mesmo número: tenta o próximo
+      if (!/UNIQUE/i.test(String((e as Error)?.message))) throw e;
     }
   }
-  return falha(409, 'Não foi possível gerar o protocolo; tente de novo');
+  return null;
+}
+
+export type PedidoImportado = { tipo: TipoPedido; canal?: CanalPedido | null; recebido_em: string; status: StatusPedido; respondido_em?: string | null; descricao: string };
+
+/**
+ * Importar histórico (importação, fatia 4): pedido já existente fora do sistema, com a data de recebimento e o status do registro de
+ * origem (inclusive final). O protocolo do sistema é gerado como na criação; o de origem vem em `descricao`. Prazo: encerrado não tem
+ * (não se recalcula prazo de pedido já respondido); aberto tem o do parâmetro, contado do recebimento, SÓ se ainda não venceu: um prazo
+ * já vencido fica nulo (`prazo_vencido` diz qual era), senão a rotina de avisos dispararia atraso retroativo de um pedido que a equipe
+ * acabou de trazer. Quem quiser acompanhar define o prazo à mão no pedido. Sem titular: nome e contato ficam nulos.
+ */
+export async function importarPedido(db: D1Database, projectId: string, ator: string, d: PedidoImportado): Promise<Falha | { ok: true; id: string; protocolo: string; prazo_em: string | null; prazo_vencido: string | null }> {
+  if (!ehData(d.recebido_em)) return falha(400, 'recebido_em precisa ser uma data AAAA-MM-DD');
+  if (d.recebido_em > hoje()) return falha(400, 'recebido_em não pode estar no futuro');
+  const final = d.status === 'respondido' || d.status === 'negado';
+  const aberto = d.status === 'recebido' || d.status === 'em_andamento';
+  if (d.respondido_em != null) {
+    if (!ehData(d.respondido_em)) return falha(400, 'respondido_em precisa ser uma data AAAA-MM-DD');
+    if (d.respondido_em > hoje()) return falha(400, 'respondido_em não pode estar no futuro');
+    if (d.respondido_em < d.recebido_em) return falha(400, 'respondido_em não pode ser anterior a recebido_em');
+    if (aberto) return falha(400, 'pedido em aberto não tem respondido_em');
+  } else if (final) return falha(400, 'respondido_em: informe a data da resposta do pedido respondido ou negado');
+
+  let prazo = aberto ? await prazoDe(db, 'titular.resposta', d.recebido_em) : null;
+  let vencido: string | null = null;
+  if (prazo && prazo.slice(0, 10) < hoje()) { vencido = prazo; prazo = null; }
+  const resposta = final ? 'Resposta dada fora do sistema; pedido importado do histórico.' : null;
+  const id = crypto.randomUUID();
+  const protocolo = await comProtocolo(db, projectId, d.recebido_em, (protocolo) => db.prepare(
+    `INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, canal, descricao, recebido_em, prazo_em, status, respondido_em, resposta_texto, criado_por)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, projectId, protocolo, d.tipo, d.canal ?? 'outro', d.descricao, d.recebido_em, prazo, d.status, d.respondido_em ?? null, resposta, ator).run());
+  if (!protocolo) return falha(409, 'Não foi possível gerar o protocolo; tente de novo');
+  await logAudit(db, 'titular.pedido_importado', ator, `Pedido ${protocolo} (${d.tipo}, ${d.status}) importado do histórico; recebido em ${d.recebido_em}`, '', '', projectId);
+  return { ok: true, id, protocolo, prazo_em: prazo, prazo_vencido: vencido };
 }
 
 export type AtualizacaoPedido = { status?: StatusPedido; resposta_texto?: string | null; responsavel_parte_id?: string | null; prazo_em?: string | null; descricao?: string | null };

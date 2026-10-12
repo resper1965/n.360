@@ -2,8 +2,10 @@ import { logAudit } from '../helpers';
 import { log, resumoErro } from '../observability';
 import { ImportacaoAgent, type TipoArquivo, type TipoExtraido } from '../agents/importacao';
 import {
-  OBRIGATORIOS_AVALIACAO, OBRIGATORIOS_DOCUMENTO, OBRIGATORIOS_ROPA, OBRIGATORIOS_TERCEIRO, avaliacaoPropostaSchema, documentoPropostoSchema,
-  terceiroPropostoSchema, tratamentoPropostoSchema, type AvaliacaoProposta, type DocumentoProposto, type TerceiroProposto, type TratamentoProposto,
+  OBRIGATORIOS_AVALIACAO, OBRIGATORIOS_CONSENTIMENTO, OBRIGATORIOS_DOCUMENTO, OBRIGATORIOS_INCIDENTE, OBRIGATORIOS_PEDIDO, OBRIGATORIOS_ROPA,
+  OBRIGATORIOS_TERCEIRO, PSEUDONIMO, avaliacaoPropostaSchema, consentimentoPropostoSchema, documentoPropostoSchema, incidentePropostoSchema,
+  pedidoPropostoSchema, terceiroPropostoSchema, tratamentoPropostoSchema, type AvaliacaoProposta, type ConsentimentoProposto, type DocumentoProposto,
+  type IncidenteProposto, type PedidoProposto, type TerceiroProposto, type TratamentoProposto,
 } from '../schemas/importacao';
 import { chave, stmtInserirTratamento, validarTratamento } from './tratamentos-importar';
 import { lerLigacoes, stmtsLigacao } from './tratamentos';
@@ -11,12 +13,15 @@ import { stmtsCriarAtivo } from './itens';
 import { criarDpiaDoTratamento, ehLegitimoInteresse, lerLia, salvarLia } from './lia';
 import { criarDocumento } from './documentos';
 import { definirTipo, ligarDocumento, registrarAvaliacao } from './terceiros';
+import { importarPedido } from './titular-pedidos';
+import { importarIncidente } from './incidentes';
+import { importarConsentimento } from './consentimentos';
 
 /**
- * Importação de programa de privacidade (n.privacy, fatias 1 a 3; spec docs/superpowers/specs/2026-10-11-importacao-privacy-design.md).
+ * Importação de programa de privacidade (n.privacy, fatias 1 a 4; spec docs/superpowers/specs/2026-10-11-importacao-privacy-design.md).
  * Lote → arquivos (R2 `STORAGE`, chave `importacoes/<projeto>/<lote>/<arquivo>`) → o agente classifica e, se for inventário, lista
- * de terceiros, documento ou avaliação, propõe os itens (`entidade` tratamento, terceiro, documento, dpia ou lia) → uma pessoa revisa
- * → `confirmar` grava os aceitos.
+ * de terceiros, documento, avaliação ou histórico, propõe os itens (`entidade` tratamento, terceiro, documento, dpia, lia,
+ * titular_pedido, incidente ou consentimento) → uma pessoa revisa → `confirmar` grava os aceitos.
  */
 
 export const MAX_ARQUIVOS = 50;
@@ -44,25 +49,46 @@ const MIME_DA_EXTENSAO: Record<string, string> = {
 const LIDOS_DIRETO = new Set(['text/csv', 'application/json']);
 
 type Falha = { ok: false; status: 400 | 404 | 409; error: string };
-type Env = { DB: D1Database; STORAGE: R2Bucket; AI: Ai };
+type Env = { DB: D1Database; STORAGE: R2Bucket; AI: Ai; TOKEN_ENC_KEY?: string };
 type Lote = { id: string; project_id: string; status: string };
 type LinhaItem = { id: string; entidade: Entidade; dados: string; faltando: string; decisao: string; [k: string]: unknown };
 
 /**
- * Entidade proposta por tipo de arquivo; tipo fora daqui fica `aguardando` (fatia 4). Avaliação é `dpia` ou `lia` item a item (o campo
- * `tipo` da resposta do modelo decide); `dpia` aqui só marca que o tipo é extraído.
+ * Entidade proposta por tipo de arquivo; tipo fora daqui (desconhecido) fica `aguardando`. Avaliação é `dpia` ou `lia` item a item (o
+ * campo `tipo` da resposta do modelo decide); histórico é `titular_pedido`, `incidente` ou `consentimento` (o campo `registro`). A
+ * entidade aqui só marca que o tipo é extraído.
  */
-type Entidade = 'tratamento' | 'terceiro' | 'documento' | 'dpia' | 'lia';
-const ENTIDADE_DO_TIPO: Partial<Record<TipoArquivo, Entidade>> = { inventario: 'tratamento', terceiros: 'terceiro', documento: 'documento', avaliacao: 'dpia' };
+type Entidade = 'tratamento' | 'terceiro' | 'documento' | 'dpia' | 'lia' | 'titular_pedido' | 'incidente' | 'consentimento';
+type EntidadeHistorico = 'titular_pedido' | 'incidente' | 'consentimento';
+const ENTIDADE_DO_TIPO: Partial<Record<TipoArquivo, Entidade>> = { inventario: 'tratamento', terceiros: 'terceiro', documento: 'documento', avaliacao: 'dpia', historico: 'titular_pedido' };
+const DO_REGISTRO: Record<string, EntidadeHistorico> = { pedido: 'titular_pedido', incidente: 'incidente', consentimento: 'consentimento' };
 const ESQUEMA = {
   tratamento: tratamentoPropostoSchema, terceiro: terceiroPropostoSchema, documento: documentoPropostoSchema, dpia: avaliacaoPropostaSchema, lia: avaliacaoPropostaSchema,
+  titular_pedido: pedidoPropostoSchema, incidente: incidentePropostoSchema, consentimento: consentimentoPropostoSchema,
 };
 const OBRIGATORIOS: Record<Entidade, readonly string[]> = {
   tratamento: OBRIGATORIOS_ROPA, terceiro: OBRIGATORIOS_TERCEIRO, documento: OBRIGATORIOS_DOCUMENTO, dpia: OBRIGATORIOS_AVALIACAO, lia: OBRIGATORIOS_AVALIACAO,
+  titular_pedido: OBRIGATORIOS_PEDIDO, incidente: OBRIGATORIOS_INCIDENTE, consentimento: OBRIGATORIOS_CONSENTIMENTO,
 };
-/** O nome que decide a duplicata: finalidade do tratamento, nome do terceiro, título do documento, tratamento avaliado. */
-const CAMPO_NOME: Record<Entidade, string> = { tratamento: 'finalidade', terceiro: 'nome', documento: 'titulo', dpia: 'tratamento', lia: 'tratamento' };
-const nomeDe = (entidade: Entidade, d: Record<string, unknown>) => String(d[CAMPO_NOME[entidade]] ?? '');
+const campo = (k: string) => (d: Record<string, unknown>) => String(d[k] ?? '');
+const protocoloDe = (d: Record<string, unknown>) => (d.protocolo ? `p ${d.protocolo}` : '');
+/**
+ * O nome que decide a duplicata: finalidade do tratamento, nome do terceiro, título do documento, tratamento avaliado; pedido pelo
+ * protocolo de origem (sem ele, não há como saber); incidente pelo protocolo de origem, senão título e dia da ciência; consentimento
+ * pelo pseudônimo, finalidade e data.
+ */
+const NOME: Record<Entidade, (d: Record<string, unknown>) => string> = {
+  tratamento: campo('finalidade'), terceiro: campo('nome'), documento: campo('titulo'), dpia: campo('tratamento'), lia: campo('tratamento'),
+  titular_pedido: protocoloDe,
+  incidente: (d) => protocoloDe(d) || `t ${d.titulo} ${String(d.ciencia_em ?? '').slice(0, 10)}`,
+  consentimento: (d) => `${d.titular_ref} ${d.finalidade} ${d.obtido_em}`,
+};
+const nomeDe = (entidade: Entidade, d: Record<string, unknown>) => NOME[entidade](d);
+/** Id do registro já cadastrado com o mesmo nome normalizado; nome vazio (pedido sem protocolo) nunca é duplicata. */
+const duplicataDe = (mapa: Map<string, string>, entidade: Entidade, d: Record<string, unknown>) => {
+  const k = chave(nomeDe(entidade, d));
+  return k ? mapa.get(k) ?? null : null;
+};
 
 const nf = (error: string): Falha => ({ ok: false, status: 404, error });
 
@@ -79,9 +105,11 @@ const emGravacao: Falha = { ok: false, status: 409, error: 'Importação em grav
 
 const faltandoDe = (entidade: Entidade, d: Record<string, unknown>) => OBRIGATORIOS[entidade].filter((k) => !String(d[k] ?? '').trim());
 
+/** Protocolo de origem gravado pela importação: a primeira linha da descrição, `Protocolo original: <x>` (20 caracteres de prefixo). */
+const PROTOCOLO_ORIGINAL = `'p ' || substr(descricao, 21, CASE WHEN instr(descricao, char(10)) > 0 THEN instr(descricao, char(10)) - 21 ELSE length(descricao) END)`;
 /**
  * Registros já cadastrados, por nome normalizado: tratamentos do RoPA, partes organização ATIVAS (a inativa não é duplicata),
- * documentos pelo título, DPIA e LIA pela finalidade do tratamento a que estão ligadas.
+ * documentos pelo título, DPIA e LIA pela finalidade do tratamento a que estão ligadas; histórico pelas chaves de `NOME`.
  */
 const SQL_EXISTENTES: Record<Entidade, string> = {
   tratamento: 'SELECT id, processing_purpose AS nome FROM ropa_records WHERE project_id = ?',
@@ -89,6 +117,10 @@ const SQL_EXISTENTES: Record<Entidade, string> = {
   documento: 'SELECT id, titulo AS nome FROM documentos WHERE project_id = ? ORDER BY created_at',
   dpia: 'SELECT d.id, r.processing_purpose AS nome FROM dpia_assessments d JOIN ropa_records r ON r.id = d.ropa_id WHERE d.project_id = ? ORDER BY d.created_at',
   lia: 'SELECT l.id, r.processing_purpose AS nome FROM lia_assessments l JOIN ropa_records r ON r.id = l.ropa_id WHERE l.project_id = ?',
+  titular_pedido: `SELECT id, ${PROTOCOLO_ORIGINAL} AS nome FROM titular_pedidos WHERE project_id = ? AND descricao LIKE 'Protocolo original: %' ORDER BY created_at`,
+  incidente: `SELECT id, 't ' || titulo || ' ' || substr(ciencia_em, 1, 10) AS nome FROM incidentes WHERE project_id = ?1
+    UNION ALL SELECT id, ${PROTOCOLO_ORIGINAL} FROM incidentes WHERE project_id = ?1 AND descricao LIKE 'Protocolo original: %'`,
+  consentimento: `SELECT id, titular_ref || ' ' || finalidade || ' ' || substr(obtido_em, 1, 10) AS nome FROM consentimentos WHERE project_id = ? ORDER BY created_at`,
 };
 const existentes = (db: D1Database, projectId: string, entidade: Entidade) => mapaPorNome(db, SQL_EXISTENTES[entidade], projectId);
 
@@ -153,6 +185,58 @@ export async function enviarArquivo(env: Env, projectId: string, loteId: string,
   }
   await logAudit(env.DB, 'importacao.arquivo', ator, `Arquivo ${id} enviado ao lote ${loteId}`, '', '', projectId);
   return { ok: true, id };
+}
+
+// ─── dado pessoal ──────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * E-mail, CPF e telefone (BR), com o valor normalizado (e-mail em minúsculas, CPF e telefone só dígitos, telefone sem o 55) para que o
+ * mesmo titular escrito de jeitos diferentes dê o mesmo pseudônimo. Ordem importa: e-mail antes (tem dígitos), CPF antes do telefone
+ * (11 dígitos soltos são tratados como CPF; o pseudônimo é o mesmo porque a normalização é a mesma).
+ * ponytail: só esses três por regex; nome, endereço e outros identificadores não são detectáveis assim (o prompt proíbe devolvê-los,
+ * o esquema não tem campo para eles e uma pessoa revisa).
+ */
+const PII: [RegExp, (s: string) => string][] = [
+  [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, (s) => s.toLowerCase()],
+  [/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, (s) => s.replace(/\D/g, '')],
+  [/(?:\+55\s?)?\(?\b\d{2}\)?\s?9?\d{4}-?\d{4}\b/g, (s) => s.replace(/\D/g, '').slice(-11)],
+];
+
+/** Troca cada e-mail, CPF e telefone do texto por `troca(valor normalizado)`. Uma passada por padrão, sobre marcadores: o que entra não é casado de novo. */
+export async function mascararPii(texto: string, troca: (valor: string) => string | Promise<string>): Promise<string> {
+  const valores: string[] = [];
+  let t = texto.replace(/\u0001/g, '');
+  for (const [re, normalizar] of PII) t = t.replace(re, (m) => `\u0001${valores.push(normalizar(m)) - 1}\u0001`);
+  const trocas = await Promise.all(valores.map((v) => troca(v)));
+  return t.replace(/\u0001(\d+)\u0001/g, (_m, i: string) => trocas[Number(i)]);
+}
+
+/**
+ * Pseudônimo do titular: `tit-` + 16 hex do HMAC-SHA256 com a chave do servidor (`TOKEN_ENC_KEY`), separado por projeto. O mesmo
+ * valor no mesmo projeto dá sempre o mesmo pseudônimo (a duplicata do consentimento depende disso); sem a chave não se reverte nem se
+ * testa CPF por força bruta. Sem a chave, FALHA: o histórico não vai ao modelo sem pseudonimizar.
+ * ponytail: trocar a chave muda os pseudônimos novos (os já gravados ficam); se a chave precisar girar, guardar uma chave própria.
+ */
+export function pseudonimizador(segredo: string | undefined, projectId: string): (valor: string) => Promise<string> {
+  if (!segredo) throw new Error('TOKEN_ENC_KEY ausente: sem pseudonimização o histórico não vai ao modelo');
+  const enc = new TextEncoder();
+  const k = crypto.subtle.importKey('raw', enc.encode(segredo), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const cache = new Map<string, Promise<string>>();
+  return (valor) => {
+    let t = cache.get(valor);
+    if (!t) {
+      t = k.then((chaveHmac) => crypto.subtle.sign('HMAC', chaveHmac, enc.encode(`titular_ref:${projectId}:${valor}`)))
+        .then((sig) => `tit-${[...new Uint8Array(sig).slice(0, 8)].map((b) => b.toString(16).padStart(2, '0')).join('')}`);
+      cache.set(valor, t);
+    }
+    return t;
+  };
+}
+
+/** `titular_ref` devolvido pelo modelo: o pseudônimo copiado do texto fica; qualquer outra coisa (código interno, ou um nome) vira pseudônimo. */
+async function refPseudonima(pseud: (v: string) => Promise<string>, ref: string): Promise<string> {
+  const t = (await mascararPii(ref.trim(), pseud)).trim();
+  return PSEUDONIMO.test(t) ? t : pseud(`ref:${chave(ref)}`);
 }
 
 // ─── processar ─────────────────────────────────────────────────────────────────────────────────────
@@ -289,11 +373,13 @@ async function converter(env: Env, projectId: string, loteId: string, a: Arquivo
   const lido = await textoDoArquivo(env, a);
   if ('erro' in lido) return fim('erro', null, lido.erro, null);
   let r: { tipo: TipoArquivo; modelo: string };
-  try { r = await new ImportacaoAgent(env.AI, db, env).classificar(lido.texto); } catch (e) {
+  // A classificação não precisa de quem é o titular: e-mail, CPF e telefone não saem para o modelo.
+  try { r = await new ImportacaoAgent(env.AI, db, env).classificar(await mascararPii(lido.texto, () => '[dado pessoal]')); } catch (e) {
     console.error('importacao: IA indisponível', e);
     return fim('erro', null, 'a IA não respondeu; processe de novo', null);
   }
   if (!ENTIDADE_DO_TIPO[r.tipo]) return fim('aguardando', r.tipo, null, r.modelo);
+  if (r.tipo === 'historico' && !env.TOKEN_ENC_KEY) return fim('erro', r.tipo, 'chave de pseudonimização (TOKEN_ENC_KEY) não configurada: o histórico não vai à IA sem ela', r.modelo);
   // Documento: um item por arquivo, tirado do começo (título, tipo, resumo); o texto inteiro vai para a versão na gravação.
   const total = r.tipo === 'documento' ? 1 : blocos(lido.texto).length;
   await env.STORAGE.put(TXT(a.r2_key), lido.texto, { httpMetadata: { contentType: 'text/plain; charset=utf-8' } });
@@ -315,7 +401,11 @@ async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arqu
   const n = a.bloco_atual;
   const total = a.blocos_total;
   const tipo = a.tipo as TipoExtraido; // só os tipos de ENTIDADE_DO_TIPO chegam aqui (os outros param em `aguardando`)
-  const r = await extrairComDivisao(new ImportacaoAgent(env.AI, db, env), tipo, blocos(await obj.text())[n] ?? '');
+  let texto = blocos(await obj.text())[n] ?? '';
+  // Histórico: e-mail, CPF e telefone viram pseudônimo ANTES do modelo; ele só vê (e só devolve) `tit-...`.
+  const pseud = tipo === 'historico' ? pseudonimizador(env.TOKEN_ENC_KEY, projectId) : null;
+  if (pseud) texto = await mascararPii(texto, pseud);
+  const r = await extrairComDivisao(new ImportacaoAgent(env.AI, db, env), tipo, texto);
   const falhos = [...(a.blocos_falhos ? a.blocos_falhos.split(',') : []), ...(r.falhou ? [String(n + 1)] : [])];
 
   const mapas = new Map<Entidade, Map<string, string>>();
@@ -326,12 +416,20 @@ async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arqu
   for (const bruto of brutos) {
     const o = bruto && typeof bruto === 'object' ? { ...(bruto as Record<string, unknown>) } : {};
     const confianca = CONFIANCAS.has(String(o.confianca)) ? String(o.confianca) : 'baixa';
-    const origem = typeof o.origem === 'string' ? o.origem.slice(0, 500) : null;
+    let origem = typeof o.origem === 'string' ? o.origem.slice(0, 500) : null;
     let entidade = ENTIDADE_DO_TIPO[tipo]!;
     let recusa: string | null = null;
     if (tipo === 'avaliacao') {
       if (o.tipo === 'dpia' || o.tipo === 'lia') entidade = o.tipo; else recusa = 'tipo: informe dpia ou lia';
       delete o.tipo;
+    }
+    if (pseud) {
+      // O trecho de origem repetiria o texto do registro (dado pessoal que a regex não pega, como nome): não é guardado.
+      origem = null;
+      const e = DO_REGISTRO[String(o.registro)];
+      if (e) entidade = e; else recusa = 'registro: informe pedido, incidente ou consentimento';
+      delete o.registro;
+      if (typeof o.titular_ref === 'string' && o.titular_ref.trim()) o.titular_ref = await refPseudonima(pseud, o.titular_ref);
     }
     delete o.confianca;
     delete o.origem;
@@ -343,7 +441,7 @@ async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arqu
       continue;
     }
     const dados = v.data as Record<string, unknown>;
-    const dup = (await porNome(entidade)).get(chave(nomeDe(entidade, dados))) ?? null;
+    const dup = duplicataDe(await porNome(entidade), entidade, dados);
     stmts.push(stmtItem(db, loteId, a.id, projectId, n, entidade, dados, origem, confianca, faltandoDe(entidade, dados), dup, dup ? 'descartado' : 'pendente', null));
   }
 
@@ -377,7 +475,7 @@ function stmtItem(db: D1Database, loteId: string, arquivoId: string, projectId: 
 // ─── revisão ───────────────────────────────────────────────────────────────────────────────────────
 
 export async function atualizarItem(db: D1Database, projectId: string, loteId: string, itemId: string,
-  b: { dados?: TratamentoProposto | TerceiroProposto | DocumentoProposto | AvaliacaoProposta; decisao?: 'aceito' | 'descartado' | 'pendente' }): Promise<Falha | { ok: true; item: ReturnType<typeof itemLido> }> {
+  b: { dados?: TratamentoProposto | TerceiroProposto | DocumentoProposto | AvaliacaoProposta | PedidoProposto | IncidenteProposto | ConsentimentoProposto; decisao?: 'aceito' | 'descartado' | 'pendente' }): Promise<Falha | { ok: true; item: ReturnType<typeof itemLido> }> {
   const lote = await loteDoProjeto(db, projectId, loteId);
   if (!lote) return nf('Lote não encontrado');
   const c = cancelado(lote);
@@ -394,7 +492,7 @@ export async function atualizarItem(db: D1Database, projectId: string, loteId: s
   const decisao = b.decisao ?? (novos && item.decisao === 'recusado' ? 'pendente' : item.decisao);
   if (decisao === 'aceito' && !esquema.safeParse(dados).success) return { ok: false, status: 400, error: 'Corrija os dados do item antes de aceitar' };
   let duplicata = item.duplicata_de as string | null;
-  if (novos) duplicata = (await existentes(db, projectId, item.entidade)).get(chave(nomeDe(item.entidade, dados))) ?? null;
+  if (novos) duplicata = duplicataDe(await existentes(db, projectId, item.entidade), item.entidade, dados);
   const upd = await db.prepare(
     `UPDATE importacao_itens SET dados = ?, faltando = ?, duplicata_de = ?, decisao = ?, motivo = CASE WHEN ? = 'recusado' THEN motivo END, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND decisao <> 'gravado' AND (SELECT status FROM importacoes WHERE id = ?) NOT IN ('gravando', 'cancelada')`
@@ -476,6 +574,9 @@ async function gravarAceitos(env: Env, projectId: string, loteId: string, ator: 
   const orgs = await existentes(db, projectId, 'terceiro');
   const documentos = await mapaPorNome(db, 'SELECT id, titulo AS nome FROM documentos WHERE project_id = ? ORDER BY created_at', projectId);
 
+  const jaGravados = new Map<Entidade, Map<string, string>>();
+  const gravadosDe = async (e: Entidade) => jaGravados.get(e) ?? jaGravados.set(e, await existentes(db, projectId, e)).get(e)!;
+
   const resultados: Resultado[] = [];
   const recusar = async (id: string, motivo: string) => {
     await db.prepare(`UPDATE importacao_itens SET decisao = 'recusado', motivo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND decisao = 'aceito'`).bind(motivo, id).run();
@@ -492,7 +593,8 @@ async function gravarAceitos(env: Env, projectId: string, loteId: string, ator: 
       let r: Resultado;
       try {
         r = item.entidade === 'documento' ? await gravarDocumento(env, projectId, loteId, ator, item, documentos)
-          : await gravarAvaliacao(db, projectId, loteId, ator, item, finalidades);
+          : item.entidade === 'dpia' || item.entidade === 'lia' ? await gravarAvaliacao(db, projectId, loteId, ator, item, finalidades)
+            : await gravarHistorico(db, projectId, loteId, ator, item, finalidades, await gravadosDe(item.entidade));
       } catch (e) {
         log('error', { msg: 'importacao_gravar_item', item: item.id, entidade: item.entidade, erro: resumoErro(e) });
         // A falha pode ter vindo depois de o serviço criar o registro (a trilha dele, por exemplo): não mandar repetir às cegas.
@@ -653,8 +755,10 @@ const marcarGravado = (db: D1Database, itemId: string, registroId: string) =>
     .bind(registroId, itemId).run();
 const gravado = (item: LinhaItem, registroId: string, avisos: string[]): Resultado =>
   ({ item_id: item.id, decisao: 'gravado', registro_id: registroId, ...(avisos.length ? { aviso: avisos.join('; ') } : {}) });
-/** Onde a pessoa confere o registro criado (documento, DPIA, LIA). */
-const ONDE = { documento: 'Documentos', dpia: 'DPIA', lia: 'LIA do tratamento' } as const;
+/** Onde a pessoa confere o registro criado (documento, DPIA, LIA, histórico). */
+const ONDE = {
+  documento: 'Documentos', dpia: 'DPIA', lia: 'LIA do tratamento', titular_pedido: 'Pedidos do titular', incidente: 'Incidentes', consentimento: 'Consentimentos',
+} as const;
 
 /**
  * Depois que o serviço criou o registro, o item NUNCA volta como recusado sem dizer qual registro existe: a marca `gravado` que falha
@@ -667,7 +771,7 @@ async function fecharItem(db: D1Database, projectId: string, loteId: string, ato
     await marcarGravado(db, item.id, registroId);
   } catch (e) {
     log('error', { msg: 'importacao_marcar_gravado', item: item.id, registro: registroId, erro: resumoErro(e) });
-    return recusado(item, `${rotulo} ${registroId} ${rotulo === 'documento' ? 'criado' : 'criada'}; confira em ${ONDE[entidade]} antes de tentar de novo`);
+    return recusado(item, `${rotulo} ${registroId} ${rotulo === 'DPIA' || rotulo === 'LIA' ? 'criada' : 'criado'}; confira em ${ONDE[entidade]} antes de tentar de novo`);
   }
   try {
     await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como ${rotulo} ${registroId}`, '', '', projectId);
@@ -776,6 +880,65 @@ async function gravarAvaliacao(db: D1Database, projectId: string, loteId: string
     }
   }
   return fecharItem(db, projectId, loteId, ator, item, r.id, 'DPIA', avisos);
+}
+
+/** Descrição do registro importado; a primeira linha é o protocolo de origem (é por ela que a duplicata é achada, `PROTOCOLO_ORIGINAL`). */
+const descricaoImportada = (loteId: string, protocolo: string | null | undefined, extra: string[] = []) =>
+  [protocolo ? `Protocolo original: ${protocolo}` : null, `Importado do histórico no lote ${loteId}.`, ...extra].filter(Boolean).join('\n');
+
+const JA_EXISTE: Record<EntidadeHistorico, string> = {
+  titular_pedido: 'já existe pedido com esse protocolo de origem neste projeto',
+  incidente: 'já existe incidente com esse protocolo de origem (ou título e data) neste projeto',
+  consentimento: 'já existe consentimento desse titular para essa finalidade nessa data neste projeto',
+};
+
+/**
+ * Grava um registro do histórico (fatia 4) pela função "importar histórico" do serviço dele: datas e status do registro de origem,
+ * protocolo do sistema gerado como na criação, protocolo de origem na descrição, prazo só se ainda não venceu (nenhum aviso de prazo
+ * retroativo; ver `importarPedido` e `importarIncidente`). Consentimento exige o tratamento do RoPA de mesma finalidade normalizada.
+ */
+async function gravarHistorico(db: D1Database, projectId: string, loteId: string, ator: string, item: LinhaItem, finalidades: Map<string, string>,
+  gravados: Map<string, string>): Promise<Resultado> {
+  const entidade = item.entidade as EntidadeHistorico;
+  const p = ESQUEMA[entidade].safeParse(JSON.parse(item.dados));
+  if (!p.success) return recusado(item, 'dados do item inválidos');
+  const k = chave(nomeDe(entidade, p.data as Record<string, unknown>));
+  if (k && gravados.has(k)) return recusado(item, JA_EXISTE[entidade]);
+  const avisos: string[] = [];
+  let r: { ok: false; error: string } | { ok: true; id: string };
+  let rotulo: string;
+  if (entidade === 'titular_pedido') {
+    const d = p.data as PedidoProposto;
+    rotulo = 'pedido';
+    const x = await importarPedido(db, projectId, ator, {
+      tipo: d.tipo, canal: d.canal, recebido_em: d.recebido_em, status: d.status, respondido_em: d.respondido_em,
+      descricao: descricaoImportada(loteId, d.protocolo, d.titular_ref ? [`Titular (pseudônimo): ${d.titular_ref}`] : []),
+    });
+    if (x.ok && x.prazo_vencido) avisos.push(`prazo de resposta (${x.prazo_vencido.slice(0, 10)}) já vencido: gravado sem prazo e sem aviso; defina o prazo no pedido se for acompanhar`);
+    r = x;
+  } else if (entidade === 'incidente') {
+    const d = p.data as IncidenteProposto;
+    rotulo = 'incidente';
+    const x = await importarIncidente(db, projectId, ator, {
+      titulo: d.titulo, descricao: descricaoImportada(loteId, d.protocolo), ciencia_em: d.ciencia_em, risco_titular: d.risco_titular,
+      comunicacao_anpd_em: d.comunicacao_anpd_em, comunicacao_titular_em: d.comunicacao_titular_em, status: d.status,
+    });
+    if (x.ok && x.prazos_vencidos.length) avisos.push(`prazo de comunicação já vencido (${x.prazos_vencidos.join('; ')}): gravado sem prazo e sem aviso`);
+    r = x;
+  } else {
+    const d = p.data as ConsentimentoProposto;
+    rotulo = 'consentimento';
+    const ropaId = finalidades.get(chave(d.tratamento));
+    if (!ropaId) return recusado(item, `tratamento "${d.tratamento}" não encontrado no RoPA deste projeto`);
+    if (!d.versao_aviso) avisos.push('versão do aviso não informada no registro de origem');
+    r = await importarConsentimento(db, projectId, ator, {
+      ropa_id: ropaId, titular_ref: d.titular_ref, finalidade: d.finalidade, versao_aviso: d.versao_aviso || 'não informada no registro de origem',
+      obtido_em: d.obtido_em, canal: d.canal, revogado_em: d.revogado_em,
+    });
+  }
+  if (!r.ok) return recusado(item, r.error);
+  if (k) gravados.set(k, r.id);
+  return fecharItem(db, projectId, loteId, ator, item, r.id, rotulo, avisos);
 }
 
 // ─── cancelar ──────────────────────────────────────────────────────────────────────────────────────

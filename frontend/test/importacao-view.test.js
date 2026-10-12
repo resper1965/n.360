@@ -590,3 +590,102 @@ describe('documentos e avaliações (fatia 3): abas próprias na revisão', () =
         expect(window.__xss3).toBeUndefined();
     });
 });
+
+describe('histórico operacional (fatia 4): aba própria na revisão', () => {
+    const base = { arquivo_id: 'a4', origem: null, confianca: 'alta', faltando: [], duplicata_de: null, decisao: 'pendente', motivo: null };
+    const REF = 'tit-0123456789abcdef';
+    const ped = (id, extra = {}) => ({ id, entidade: 'titular_pedido', ...base, dados: { tipo: 'acesso', canal: 'email', recebido_em: '2026-01-10', status: 'respondido', respondido_em: '2026-01-20', protocolo: `ANT-${id}`, titular_ref: REF }, ...extra });
+    const inc = (id, extra = {}) => ({ id, entidade: 'incidente', ...base, dados: { titulo: `Incidente ${id}`, protocolo: `INC-${id}`, ciencia_em: '2026-02-01', risco_titular: 'relevante', comunicacao_anpd_em: '2026-02-03', status: 'encerrado' }, ...extra });
+    const con = (id, extra = {}) => ({ id, entidade: 'consentimento', ...base, dados: { tratamento: `Tratamento ${id}`, titular_ref: REF, finalidade: `Finalidade ${id}`, obtido_em: '2025-05-05', revogado_em: null, versao_aviso: 'v1' }, ...extra });
+
+    it('aba Histórico com contagem; pedido, incidente e consentimento com selo, datas e protocolo de origem; aviso de pseudônimo e de prazo', async () => {
+        await abrirLote(LOTE({ itens: [item('i1'), ped('p1'), inc('n1', { duplicata_de: 'inc9', decisao: 'descartado' }), con('c1')] }));
+        expect(el('c').textContent).toContain('Histórico (3)');
+        await clica('importacaoAba', ['historico']);
+        const t = el('c').textContent;
+        expect(t).not.toContain('Finalidade i1');
+        expect(t).toContain('Pedido');
+        expect(t).toContain('Acesso aos dados');
+        expect(t).toContain('ANT-p1');
+        expect(t).toContain('2026-01-10');
+        expect(t).toContain('Respondido');
+        expect(t).toContain('Incidente n1');
+        expect(t).toContain('Relevante');
+        expect(t).toContain('Encerrado');
+        expect(t).toContain('Consentimento');
+        expect(t).toContain('Tratamento c1');
+        expect(t).toContain(REF);
+        expect(t).toContain('pseudônimo');
+        expect(t).toContain('prazo');
+        expect(t).toContain('Já existe');
+        expect(el('c').querySelector('[data-action="navigate"][data-args=\'["titular"]\']')).not.toBeNull();
+    });
+
+    it('editar pedido, incidente e consentimento envia os dados no formato do esquema, preservando o pseudônimo', async () => {
+        const det = LOTE({ itens: [ped('p1'), inc('n1'), con('c1')] });
+        const f = await abrirLote(det, { [`PUT ${B}/l1/itens/p1`]: { ok: true }, [`PUT ${B}/l1/itens/n1`]: { ok: true }, [`PUT ${B}/l1/itens/c1`]: { ok: true } });
+        const puts = () => f.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([, o]) => JSON.parse(o.body));
+        await clica('importacaoAba', ['historico']);
+
+        await clica('importacaoEditar', ['p1']);
+        expect(el('imp-tipo').value).toBe('acesso');
+        expect(el('imp-titular_ref')).toBeNull();
+        el('imp-status').value = 'arquivado';
+        el('imp-respondido_em').value = '';
+        await clica('importacaoSalvarItem', ['p1']);
+        await espera();
+        expect(puts()[0]).toEqual({ dados: { tipo: 'acesso', canal: 'email', recebido_em: '2026-01-10', status: 'arquivado', respondido_em: null, protocolo: 'ANT-p1', titular_ref: REF } });
+
+        await clica('importacaoEditar', ['n1']);
+        el('imp-risco_titular').value = 'baixo';
+        el('imp-comunicacao_anpd_em').value = '';
+        await clica('importacaoSalvarItem', ['n1']);
+        await espera();
+        expect(puts()[1]).toEqual({ dados: { titulo: 'Incidente n1', protocolo: 'INC-n1', ciencia_em: '2026-02-01', risco_titular: 'baixo', comunicacao_anpd_em: null, comunicacao_titular_em: null, status: 'encerrado' } });
+
+        await clica('importacaoEditar', ['c1']);
+        el('imp-revogado_em').value = '2026-03-03';
+        await clica('importacaoSalvarItem', ['c1']);
+        await espera();
+        expect(puts()[2]).toEqual({ dados: { tratamento: 'Tratamento c1', titular_ref: REF, finalidade: 'Finalidade c1', obtido_em: '2025-05-05', revogado_em: '2026-03-03', versao_aviso: 'v1', canal: null } });
+
+        await clica('importacaoEditar', ['n1']);
+        el('imp-titulo').value = ' ';
+        await clica('importacaoSalvarItem', ['n1']);
+        expect(el('imp-erro').textContent).toContain('obrigatório');
+    });
+
+    it('o resultado da confirmação nomeia pedido, incidente e consentimento e mostra o aviso', async () => {
+        const det = LOTE({ itens: [ped('p1', { decisao: 'aceito' }), inc('n1', { decisao: 'aceito' }), con('c1', { decisao: 'aceito' })] });
+        await abrirLote(det, { [`POST ${B}/l1/confirmar`]: { ok: true, resultados: [
+            { item_id: 'p1', decisao: 'gravado', registro_id: 'tp1', aviso: 'prazo de resposta (2026-01-25) já vencido: gravado sem prazo e sem aviso' },
+            { item_id: 'n1', decisao: 'gravado', registro_id: 'in1' },
+            { item_id: 'c1', decisao: 'recusado', motivo: 'tratamento "Tratamento c1" não encontrado no RoPA deste projeto' },
+        ], restantes: 0 } });
+        await clica('importacaoConfirmar');
+        await espera();
+        const t = el('c').textContent;
+        expect(t).toContain('ANT-p1');
+        expect(t).toContain('Incidente n1');
+        expect(t).toContain('Tratamento c1');
+        expect(t).toContain('já vencido');
+    });
+
+    it('texto do histórico com HTML não vira elemento', async () => {
+        const mal = '<img src=x onerror="window.__xss4=1">';
+        await abrirLote(LOTE({ itens: [
+            ped('p1', { dados: { tipo: mal, canal: mal, recebido_em: mal, status: mal, protocolo: mal, titular_ref: mal }, motivo: mal }),
+            inc('n1', { dados: { titulo: mal, protocolo: mal, ciencia_em: mal, risco_titular: mal, status: mal } }),
+            con('c1', { dados: { tratamento: mal, titular_ref: mal, finalidade: mal, obtido_em: mal, versao_aviso: mal } }),
+        ] }));
+        await clica('importacaoAba', ['historico']);
+        expect(el('c').querySelector('img')).toBeNull();
+        expect(el('c').textContent).toContain(mal);
+        await clica('importacaoEditar', ['n1']);
+        expect(el('imp-titulo').value).toBe(mal);
+        await clica('importacaoEditar', ['c1']);
+        expect(el('imp-tratamento').value).toBe(mal);
+        expect(document.querySelector('img')).toBeNull();
+        expect(window.__xss4).toBeUndefined();
+    });
+});

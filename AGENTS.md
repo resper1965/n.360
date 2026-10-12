@@ -273,10 +273,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Importacao de programa de privacidade (n.privacy, fatia 1, migration 0064; spec em `docs/superpowers/specs/2026-10-11-importacao-privacy-design.md`).**
   Rotas em `src/routes/importacao.ts`, montadas em `/api/v1/projects/:projectId/importacoes` na faixa `privacy` (`src/modulos.ts`); so a
   equipe da consultoria (`ehEquipeNess`), cliente recebe 403. Tabelas `importacoes` (lote), `importacao_arquivos` e `importacao_itens`
-  (a proposta, um item por linha; `entidade` `tratamento`, `terceiro` desde a fatia 2 (migration 0067), `documento`, `dpia` e `lia` desde a fatia 3). Arquivo no R2 `STORAGE`, chave `importacoes/<project_id>/<lote>/<arquivo>`. Regras em
+  (a proposta, um item por linha; `entidade` `tratamento`, `terceiro` desde a fatia 2 (migration 0067), `documento`, `dpia` e `lia` desde a fatia 3, `titular_pedido`, `incidente` e `consentimento` desde a fatia 4). Arquivo no R2 `STORAGE`, chave `importacoes/<project_id>/<lote>/<arquivo>`. Regras em
   `src/services/importacao.ts`; o `ImportacaoAgent` (`src/agents/importacao.ts`) classifica o arquivo e extrai, conforme o tipo
   (`inventario` → tratamentos, `terceiros` → terceiros, `documento` → um documento por arquivo, tirado so do primeiro bloco, `avaliacao` →
-  DPIA ou LIA item a item pelo campo `tipo` da resposta; `historico` fica `aguardando`), pelo
+  DPIA ou LIA item a item pelo campo `tipo` da resposta, `historico` → pedido do titular, incidente ou consentimento pelo campo `registro`;
+  `desconhecido` fica `aguardando`), pelo
   `BaseAgent.runModel`, tratando o texto do arquivo como dado e nunca como instrucao, e cada item e validado por esquema estrito no servidor.
   **Processamento em passos, um por chamada** (`processar` devolve `restantes` e a tela repete): o primeiro converte, classifica e
   guarda o texto em `<r2_key>.txt`; cada seguinte extrai um bloco de ~4.000 caracteres (`BLOCO`, cortado so em quebra de linha;
@@ -301,6 +302,21 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   no tratamento recusa. Ordem da confirmacao: tratamentos, depois documentos, depois o resto (DPIA/LIA acham o tratamento e o terceiro acha o
   DPA gravados na mesma confirmacao). Falha depois da criacao (evidencia, riscos da DPIA) vira `aviso` mais log estruturado, sem desfazer o registro;
   falha da marca `gravado` vira `recusado` com o id criado.
+  **Historico operacional (fatia 4, sem migration):** dado pessoal minimo. Antes de qualquer texto ir ao modelo, `mascararPii` troca
+  e-mail, CPF e telefone: na classificacao por `[dado pessoal]`, na extracao do historico pelo pseudonimo `tit-<16 hex>` de
+  `pseudonimizador` (HMAC-SHA256 com a `TOKEN_ENC_KEY`, separado por projeto; sem a chave o arquivo fica `erro` e nada vai ao modelo).
+  Os esquemas (`pedidoPropostoSchema`, `incidentePropostoSchema`, `consentimentoPropostoSchema`) nao tem campo de nome, CPF, e-mail ou
+  telefone; `titular_ref` so aceita o pseudonimo (o que o modelo devolver fora do formato e pseudonimizado no servidor), e o trecho de
+  `origem` nao e guardado. Nome, endereco e afins nao sao detectaveis por regex: o prompt proibe devolve-los, o esquema estrito recusa
+  campo a mais e uma pessoa revisa. Gravacao pelas funcoes "importar historico" dos servicos (`importarPedido` em
+  `src/services/titular-pedidos.ts`, `importarIncidente` em `incidentes.ts`, `importarConsentimento` em `consentimentos.ts`): datas e status
+  do registro de origem (final inclusive), protocolo do sistema gerado como na criacao (ano da data de origem), protocolo de origem na
+  primeira linha da descricao (`Protocolo original: ...`, e por ela que a duplicata e achada). **Avisos de prazo:** a rotina le o prazo
+  gravado no registro, entao registro encerrado entra sem prazo (nao se recalcula), e registro aberto so recebe o prazo do parametro se
+  ele ainda nao venceu; prazo ja vencido fica nulo e vira `aviso` no resultado (sem atraso retroativo; a pessoa define o prazo do pedido a
+  mao se for acompanhar). Consentimento exige o tratamento do RoPA de mesma finalidade normalizada (o gravado na mesma confirmacao vale;
+  sem ele, `recusado`). Duplicata: pedido pelo protocolo de origem; incidente pelo protocolo de origem ou titulo e dia da ciencia;
+  consentimento pelo pseudonimo, finalidade e data.
   Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`), e o GET tambem e
   recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
   prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:

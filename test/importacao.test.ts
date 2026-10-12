@@ -4,7 +4,9 @@ import app from '../src/index';
 import { applySchema, sessionFor, habilitarPrivacy } from './helpers/d1';
 import { faixaDoCaminho } from '../src/modulos';
 import { parseAvaliacoes, parseClassificacao, parseDocumentos, parseTerceiros, parseTratamentos } from '../src/agents/importacao';
-import { BLOCO, blocos, casarBaseLegal } from '../src/services/importacao';
+import { BLOCO, blocos, casarBaseLegal, mascararPii, pseudonimizador } from '../src/services/importacao';
+import { itensDoDia, somarDias } from '../src/services/avisos-prazo';
+import { parseHistorico } from '../src/agents/importacao';
 import { semearCatalogo } from '../src/services/requisitos';
 
 /**
@@ -317,11 +319,11 @@ describe('processar', () => {
     } finally { AI.toMarkdown = original; }
   });
 
-  it('arquivo de fatia ainda não feita (histórico) fica aguardando, sem itens', async () => {
+  it('arquivo não reconhecido fica aguardando, sem itens', async () => {
     const lote = await novoLote();
-    ia.tipo = 'historico';
-    const { aid, resposta, passos } = await enviarEProcessar(lote, 'pedidos.csv');
-    expect(resposta.arquivo).toMatchObject({ status: 'aguardando', tipo: 'historico' });
+    ia.tipo = 'desconhecido';
+    const { aid, resposta, passos } = await enviarEProcessar(lote, 'outra-coisa.csv');
+    expect(resposta.arquivo).toMatchObject({ status: 'aguardando', tipo: 'desconhecido' });
     expect(passos).toEqual([0]);
     expect(await contarItens(aid)).toBe(0);
     ia.tipo = 'inventario';
@@ -1174,5 +1176,244 @@ describe('documentos e avaliações (fatia 3)', () => {
     expect(r.aviso).toMatch(/trilha da evidência/);
     expect(r.aviso).not.toMatch(/não foi guardado como evidência/);
     expect(await env.DB.prepare('SELECT 1 FROM evidence WHERE documento_id = ?').bind(r.registro_id).first()).not.toBeNull();
+  });
+});
+
+describe('histórico operacional (fatia 4)', () => {
+  type Res = { item_id: string; decisao: string; registro_id?: string; motivo?: string; aviso?: string };
+  const HOJE = new Date().toISOString().slice(0, 10);
+  const dia = (n: number) => somarDias(HOJE, n);
+  const TOKEN = /tit-[0-9a-f]{16}/;
+  const aceitar = async (lote: string, id: string) =>
+    expect((await chamar(consultor, 'PUT', `${P}/importacoes/${lote}/itens/${id}`, { decisao: 'aceito' })).status).toBe(200);
+  const confirmar = async (lote: string) => {
+    const r = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    return (await json<{ resultados: Res[] }>(r)).resultados;
+  };
+  /** O "modelo" recebe o texto já mascarado e devolve os registros; `fn` pode ler o texto (para copiar o pseudônimo, como o modelo faria). */
+  const respondeHistorico = (fn: (texto: string) => unknown[]) => { ia.extracao = (texto) => JSON.stringify({ registros: fn(texto) }); };
+  const processarHistorico = async (lote: string, conteudo: string, nome = 'historico.csv') => {
+    ia.tipo = 'historico';
+    try { return await enviarEProcessar(lote, nome, conteudo); } finally { ia.tipo = 'inventario'; }
+  };
+  const entidadeDe = (i: Item) => (i as Item & { entidade: string }).entidade;
+  const pedido = (extra: Record<string, unknown> = {}) => ({ registro: 'pedido', tipo: 'acesso', canal: 'email', recebido_em: dia(-60), status: 'respondido', respondido_em: dia(-50), confianca: 'alta', ...extra });
+  const incidente = (extra: Record<string, unknown> = {}) => ({
+    registro: 'incidente', titulo: 'Envio de planilha ao destinatário errado', ciencia_em: dia(-90), risco_titular: 'relevante',
+    comunicacao_anpd_em: dia(-88), status: 'encerrado', confianca: 'alta', ...extra,
+  });
+  const consentimento = (extra: Record<string, unknown> = {}) => ({
+    registro: 'consentimento', tratamento: 'Newsletter do histórico', titular_ref: 'cliente 4471', finalidade: 'Envio de newsletter',
+    obtido_em: dia(-200), confianca: 'alta', ...extra,
+  });
+
+  beforeAll(async () => {
+    await env.DB.prepare(`INSERT OR REPLACE INTO parametros_legais (chave, valor, unidade, fonte, revisado_em, revisado_por) VALUES ('titular.resposta', 15, 'dias_corridos', 'F', '2026-10-01', 'X'), ('incidente.comunicacao_anpd', 72, 'horas', 'F', '2026-10-01', 'X'), ('incidente.comunicacao_titular', 72, 'horas', 'F', '2026-10-01', 'X')`).run();
+  });
+
+  it('mascararPii troca e-mail, CPF e telefone; datas e protocolos ficam', async () => {
+    const t = await mascararPii('maria@exemplo.com.br; 123.456.789-09; 12345678909; (11) 98765-4321; +55 11 98765-4321; 2026-01-10; PT-2024-0001', () => 'X');
+    expect(t).toBe('X; X; X; X; X; 2026-01-10; PT-2024-0001');
+    const p = pseudonimizador('k', 'proj-a');
+    const a = await p('maria@exemplo.com.br');
+    expect(a).toMatch(/^tit-[0-9a-f]{16}$/);
+    expect(await p('maria@exemplo.com.br')).toBe(a);
+    expect(await pseudonimizador('k', 'proj-b')('maria@exemplo.com.br')).not.toBe(a);
+    expect(await pseudonimizador('outra', 'proj-a')('maria@exemplo.com.br')).not.toBe(a);
+    expect(() => pseudonimizador(undefined, 'proj-a')).toThrow();
+  });
+
+  it('parseHistorico tolera cerca e devolve null fora do formato', () => {
+    expect(parseHistorico('```json\n{"registros":[{"registro":"pedido"}]}\n```')).toEqual([{ registro: 'pedido' }]);
+    expect(parseHistorico('{"avaliacoes":[]}')).toBeNull();
+  });
+
+  it('o modelo nunca vê e-mail, CPF ou telefone; titular_ref é pseudônimo; campo a mais e registro desconhecido recusam; origem não é guardada', async () => {
+    const lote = await novoLote();
+    ia.chamadas = [];
+    respondeHistorico((texto) => {
+      const ref = texto.match(TOKEN)?.[0];
+      return [
+        pedido({ protocolo: 'ANT-PII-1', titular_ref: ref, origem: 'maria@exemplo.com.br pediu acesso' }),
+        consentimento({ titular_ref: 'Maria Exemplo' }),
+        pedido({ protocolo: 'ANT-PII-2', nome: 'Maria Exemplo' }),
+        { registro: 'reclamacao', titulo: 'x', confianca: 'alta' },
+        incidente({ protocolo: 'INC-PII-1', titular_ref: ref }),
+      ];
+    });
+    const csv = 'protocolo;data;tipo;email;cpf;telefone\nANT-PII-1;2026-01-10;acesso;maria@exemplo.com.br;123.456.789-09;(11) 98765-4321\n';
+    const { aid, resposta } = await processarHistorico(lote, csv);
+    expect(resposta.arquivo).toMatchObject({ status: 'processado', tipo: 'historico' });
+    const textos = ia.chamadas.map((m) => m[1].content).join('\n');
+    expect(ia.chamadas.length).toBeGreaterThanOrEqual(2); // classificação e extração
+    for (const pii of ['maria@exemplo.com.br', '123.456.789-09', '98765-4321']) expect(textos).not.toContain(pii);
+    const extracao = ia.chamadas.find((m) => !m[0].content.includes('CLASSIFICAR'))!;
+    expect(extracao[0].content).toMatch(/ignore/i);
+    expect(extracao[0].content).toMatch(/CPF/);
+    const token = extracao[1].content.match(TOKEN)![0];
+
+    expect(await contarItens(aid)).toBe(5);
+    const { itens } = await lerLote(lote);
+    const ped = itens.find((i) => i.dados.protocolo === 'ANT-PII-1')!;
+    expect(entidadeDe(ped)).toBe('titular_pedido');
+    expect(ped).toMatchObject({ decisao: 'pendente', origem: null, dados: { titular_ref: token } });
+    const cons = itens.find((i) => entidadeDe(i) === 'consentimento')!;
+    expect(cons.dados.titular_ref).toMatch(/^tit-[0-9a-f]{16}$/);
+    expect(cons.dados.titular_ref).not.toBe(token);
+    expect(itens.filter((i) => i.decisao === 'recusado')).toHaveLength(3); // nome a mais, registro desconhecido, incidente com titular_ref
+    const { results } = await env.DB.prepare('SELECT dados, origem, motivo FROM importacao_itens WHERE arquivo_id = ?').bind(aid).all<Record<string, string | null>>();
+    const gravado = JSON.stringify(results);
+    for (const pii of ['maria@exemplo.com.br', '123.456.789-09', 'Maria', 'cliente 4471']) expect(gravado).not.toContain(pii);
+  });
+
+  it('PUT não aceita titular_ref que não seja pseudônimo', async () => {
+    const lote = await novoLote();
+    respondeHistorico(() => [consentimento()]);
+    await processarHistorico(lote, 'consentimentos');
+    const [i] = (await lerLote(lote)).itens;
+    const url = `${P}/importacoes/${lote}/itens/${i.id}`;
+    expect((await chamar(consultor, 'PUT', url, { dados: { ...i.dados, titular_ref: 'maria@exemplo.com.br' } })).status).toBe(400);
+    const ok = await chamar(consultor, 'PUT', url, { dados: { ...i.dados, versao_aviso: 'v2' } });
+    expect(ok.status, await ok.clone().text()).toBe(200);
+  });
+
+  it('sem a chave de pseudonimização o histórico não é extraído (falha fechada)', async () => {
+    const lote = await novoLote();
+    ia.tipo = 'historico';
+    ia.chamadas = [];
+    try {
+      const fd = new FormData();
+      fd.append('file', new File(['pedido;maria@exemplo.com.br'], 'h.csv'));
+      const semChave = { ...env, AI, TOKEN_ENC_KEY: undefined };
+      const up = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/importacoes/${lote}/arquivos`, { method: 'POST', headers: consultor, body: fd }), semChave as never);
+      const aid = (await json<{ id: string }>(up)).id;
+      const pr = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/importacoes/${lote}/arquivos/${aid}/processar`, { method: 'POST', headers: consultor }), semChave as never);
+      expect((await json<Processado>(pr)).arquivo).toMatchObject({ status: 'erro', tipo: 'historico' });
+      expect(ia.chamadas.filter((m) => !m[0].content.includes('CLASSIFICAR'))).toHaveLength(0);
+      expect(await contarItens(aid)).toBe(0);
+    } finally { ia.tipo = 'inventario'; }
+  });
+
+  it('pedidos: datas e protocolo original preservados, protocolo do sistema gerado; encerrado sem prazo; nenhum aviso de prazo retroativo', async () => {
+    const lote = await novoLote();
+    respondeHistorico(() => [
+      pedido({ protocolo: 'ANT-001' }),
+      pedido({ protocolo: 'ANT-002', status: 'em_andamento', respondido_em: null, recebido_em: dia(-40) }),
+      pedido({ protocolo: 'ANT-003', status: 'recebido', respondido_em: null, recebido_em: dia(-2) }),
+      pedido({ protocolo: 'ANT-004', respondido_em: null }),
+      pedido({ protocolo: 'ANT-005', recebido_em: dia(5), status: 'recebido', respondido_em: null }),
+    ]);
+    await processarHistorico(lote, 'pedidos');
+    const { itens } = await lerLote(lote);
+    for (const i of itens) await aceitar(lote, i.id);
+    const rs = await confirmar(lote);
+    const por = (p: string) => rs.find((r) => r.item_id === itens.find((i) => i.dados.protocolo === p)!.id)!;
+    expect(por('ANT-004')).toMatchObject({ decisao: 'recusado' });
+    expect(por('ANT-004').motivo).toMatch(/respondido_em/);
+    expect(por('ANT-005')).toMatchObject({ decisao: 'recusado' });
+    expect(por('ANT-005').motivo).toMatch(/futuro/);
+    expect(por('ANT-001')).toMatchObject({ decisao: 'gravado' });
+    expect(por('ANT-002').aviso).toMatch(/prazo/);
+    expect(por('ANT-003').aviso).toBeUndefined();
+
+    const linha = (id: string) => env.DB.prepare('SELECT protocolo, recebido_em, respondido_em, status, prazo_em, descricao, resposta_texto FROM titular_pedidos WHERE id = ? AND project_id = ?').bind(id, P)
+      .first<{ protocolo: string; recebido_em: string; respondido_em: string | null; status: string; prazo_em: string | null; descricao: string; resposta_texto: string | null }>();
+    const p1 = (await linha(por('ANT-001').registro_id!))!;
+    expect(p1).toMatchObject({ recebido_em: dia(-60), respondido_em: dia(-50), status: 'respondido', prazo_em: null });
+    expect(p1.protocolo).toMatch(/^PT-\d{4}-\d{4}$/);
+    expect(p1.descricao.split('\n')[0]).toBe('Protocolo original: ANT-001');
+    expect(p1.resposta_texto).toBeTruthy();
+    const p2 = (await linha(por('ANT-002').registro_id!))!;
+    expect(p2).toMatchObject({ status: 'em_andamento', recebido_em: dia(-40), prazo_em: null });
+    const p3 = (await linha(por('ANT-003').registro_id!))!;
+    expect(p3.prazo_em!.slice(0, 10)).toBe(dia(13));
+
+    const ids = [por('ANT-001'), por('ANT-002'), por('ANT-003')].map((r) => r.registro_id);
+    const nossos = async (d: string) => (await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'titular_pedido' && ids.includes(i.item_id));
+    expect(await nossos(HOJE)).toEqual([]);
+    expect(await nossos(dia(20))).toMatchObject([{ item_id: por('ANT-003').registro_id, marco: expect.stringMatching(/^atraso-/) }]);
+    expect(await nossos(dia(13))).toMatchObject([{ item_id: por('ANT-003').registro_id, marco: 'D0' }]);
+
+    const trilha = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'importacao.gravada' AND project_id = ? AND details LIKE ?`).bind(P, `%${lote}%`).first<{ n: number }>();
+    expect(trilha!.n).toBe(3);
+
+    // o mesmo protocolo original outra vez nasce descartado; aceito mesmo assim é recusado
+    const l2 = await novoLote();
+    respondeHistorico(() => [pedido({ protocolo: 'ant 001' })]);
+    await processarHistorico(l2, 'pedidos de novo');
+    const [dup] = (await lerLote(l2)).itens;
+    expect(dup).toMatchObject({ decisao: 'descartado', duplicata_de: por('ANT-001').registro_id });
+    await aceitar(l2, dup.id);
+    const [r] = await confirmar(l2);
+    expect(r).toMatchObject({ decisao: 'recusado' });
+    expect(r.motivo).toMatch(/já existe pedido/);
+  });
+
+  it('incidentes: encerrado preservado sem prazo; aberto com prazo vencido fica sem prazo (sem aviso retroativo); encerrado sem risco recusa; duplicata por protocolo', async () => {
+    const lote = await novoLote();
+    respondeHistorico(() => [
+      incidente({ protocolo: 'INC-1' }),
+      incidente({ protocolo: 'INC-2', status: 'aberto', risco_titular: null, comunicacao_anpd_em: null, ciencia_em: dia(-30) }),
+      incidente({ protocolo: 'INC-3', risco_titular: null }),
+      incidente({ protocolo: 'INC-4', comunicacao_anpd_em: null }),
+    ]);
+    await processarHistorico(lote, 'incidentes');
+    const { itens } = await lerLote(lote);
+    expect(itens.every((i) => entidadeDe(i) === 'incidente')).toBe(true);
+    for (const i of itens) await aceitar(lote, i.id);
+    const rs = await confirmar(lote);
+    const por = (p: string) => rs.find((r) => r.item_id === itens.find((i) => i.dados.protocolo === p)!.id)!;
+    expect(por('INC-3')).toMatchObject({ decisao: 'recusado' });
+    expect(por('INC-3').motivo).toMatch(/risco/);
+    expect(por('INC-4')).toMatchObject({ decisao: 'recusado' });
+    expect(por('INC-4').motivo).toMatch(/ANPD/);
+    expect(por('INC-2').aviso).toMatch(/prazo/);
+    const linha = (id: string) => env.DB.prepare('SELECT protocolo, titulo, ciencia_em, risco_titular, comunicacao_anpd_em, prazo_anpd_em, prazo_titular_em, status, descricao FROM incidentes WHERE id = ? AND project_id = ?').bind(id, P).first<Record<string, string | null>>();
+    expect(await linha(por('INC-1').registro_id!)).toMatchObject({ ciencia_em: dia(-90), comunicacao_anpd_em: dia(-88), risco_titular: 'relevante', status: 'encerrado', prazo_anpd_em: null, prazo_titular_em: null });
+    const i1 = (await linha(por('INC-1').registro_id!))!;
+    expect(i1.protocolo).toMatch(/^IN-\d{4}-\d{4}$/);
+    expect(i1.descricao!.split('\n')[0]).toBe('Protocolo original: INC-1');
+    expect(await linha(por('INC-2').registro_id!)).toMatchObject({ status: 'aberto', ciencia_em: dia(-30), prazo_anpd_em: null, prazo_titular_em: null });
+    const ids = [por('INC-1'), por('INC-2')].map((r) => r.registro_id);
+    for (const d of [HOJE, dia(7), dia(30)]) {
+      expect((await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'incidente' && ids.some((id) => i.item_id.startsWith(`${id}:`)))).toEqual([]);
+    }
+
+    const l2 = await novoLote();
+    respondeHistorico(() => [incidente({ protocolo: 'inc-1' })]);
+    await processarHistorico(l2, 'incidentes de novo');
+    const [dup] = (await lerLote(l2)).itens;
+    expect(dup).toMatchObject({ decisao: 'descartado', duplicata_de: por('INC-1').registro_id });
+  });
+
+  it('consentimentos: exigem tratamento casado pela finalidade (o da mesma confirmação vale); datas preservadas; duplicata por titular, finalidade e data', async () => {
+    const lote = await novoLote();
+    respondeHistorico(() => [
+      consentimento({ revogado_em: dia(-10), versao_aviso: 'v3' }),
+      consentimento({ tratamento: 'Tratamento que não existe', finalidade: 'Outra finalidade' }),
+    ]);
+    await processarHistorico(lote, 'consentimentos');
+    responde(tratamento('Newsletter do histórico'));
+    await enviarEProcessar(lote, 'inventario-newsletter.csv');
+    const { itens } = await lerLote(lote);
+    for (const i of itens) await aceitar(lote, i.id);
+    const rs = await confirmar(lote);
+    const cons = itens.filter((i) => entidadeDe(i) === 'consentimento');
+    const ok = rs.find((r) => r.item_id === cons.find((i) => i.dados.tratamento === 'Newsletter do histórico')!.id)!;
+    const sem = rs.find((r) => r.item_id === cons.find((i) => i.dados.tratamento === 'Tratamento que não existe')!.id)!;
+    expect(sem).toMatchObject({ decisao: 'recusado' });
+    expect(sem.motivo).toMatch(/não encontrado no RoPA/);
+    expect(ok).toMatchObject({ decisao: 'gravado' });
+    const c = await env.DB.prepare('SELECT c.ropa_id, c.titular_ref, c.finalidade, c.obtido_em, c.revogado_em, c.versao_aviso, r.processing_purpose AS trat FROM consentimentos c JOIN ropa_records r ON r.id = c.ropa_id WHERE c.id = ? AND c.project_id = ?')
+      .bind(ok.registro_id, P).first<Record<string, string | null>>();
+    expect(c).toMatchObject({ trat: 'Newsletter do histórico', finalidade: 'Envio de newsletter', obtido_em: dia(-200), revogado_em: dia(-10), versao_aviso: 'v3' });
+    expect(c!.titular_ref).toMatch(/^tit-[0-9a-f]{16}$/);
+
+    const l2 = await novoLote();
+    respondeHistorico(() => [consentimento()]);
+    await processarHistorico(l2, 'consentimentos de novo');
+    const [dup] = (await lerLote(l2)).itens;
+    expect(dup).toMatchObject({ decisao: 'descartado', duplicata_de: ok.registro_id });
   });
 });

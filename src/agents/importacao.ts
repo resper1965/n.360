@@ -1,8 +1,8 @@
 import { BaseAgent, type AgentContext, type AgentResponse } from './types';
 
 /**
- * Agente da importação de programa de privacidade (n.privacy, fatias 1 a 3). Duas tarefas: CLASSIFICAR o arquivo (que tipo de
- * material é) e EXTRAIR os itens dele (tratamentos de um inventário, terceiros de uma lista, o documento, DPIAs e LIAs). O texto do arquivo é DADO do cliente: o prompt diz isso, a resposta é só
+ * Agente da importação de programa de privacidade (n.privacy, fatias 1 a 4). Duas tarefas: CLASSIFICAR o arquivo (que tipo de
+ * material é) e EXTRAIR os itens dele (tratamentos de um inventário, terceiros de uma lista, o documento, DPIAs e LIAs, pedidos do titular, incidentes e consentimentos). O texto do arquivo é DADO do cliente: o prompt diz isso, a resposta é só
  * JSON, e o servidor valida cada item com esquema estrito antes de gravar (e uma pessoa revisa antes de virar RoPA).
  */
 
@@ -58,13 +58,36 @@ saiu, até 150 caracteres) e confianca ("alta", "media" ou "baixa").
 ${DADO_NAO_INSTRUCAO}
 Formato: {"avaliacoes":[{...}]}. Sem avaliação no trecho: {"avaliacoes":[]}.`;
 
+/**
+ * Fatia 4. O texto chega com e-mail, CPF e telefone já trocados por pseudônimos `tit-...` (services/importacao.ts); o prompt proíbe
+ * devolver dado que identifique o titular e não pede o trecho de origem (que repetiria o texto).
+ */
+const PROMPT_EXTRAIR_HISTORICO = `Você vai EXTRAIR registros operacionais de privacidade (LGPD) de um trecho de planilha ou relatório: pedidos de
+titulares, incidentes de segurança com dados pessoais e consentimentos. Para cada registro, devolva "registro" ("pedido", "incidente" ou
+"consentimento") e os campos abaixo (omita o que o texto não diz; não invente). Datas em AAAA-MM-DD.
+- pedido: tipo (um de "confirmacao", "acesso", "correcao", "anonimizacao_bloqueio_eliminacao", "portabilidade",
+  "informacao_compartilhamento", "revogacao_consentimento", "oposicao", "outro"), canal (um de "email", "telefone", "formulario",
+  "presencial", "outro"), recebido_em, status (um de "recebido", "em_andamento", "respondido", "negado", "arquivado"), respondido_em,
+  protocolo (o número do pedido no registro de origem), titular_ref.
+- incidente: titulo (o que aconteceu, em poucas palavras, sem citar pessoas), protocolo (o número no registro de origem), ciencia_em
+  (quando a organização soube; pode ter hora ISO), risco_titular (um de "sem_risco", "baixo", "relevante"), comunicacao_anpd_em,
+  comunicacao_titular_em, status (um de "aberto", "avaliado", "comunicado", "encerrado").
+- consentimento: tratamento (a atividade de tratamento a que o consentimento se refere), titular_ref, finalidade (a finalidade
+  consentida), obtido_em, revogado_em, versao_aviso (a versão do aviso de privacidade aceita), canal.
+NUNCA devolva nome, CPF, e-mail, telefone, endereço ou qualquer outro dado que identifique o titular. No texto, e-mail, CPF e telefone já
+foram trocados por referências "tit-..."; em titular_ref use só essa referência ou um código interno do registro (nunca um nome).
+Não devolva o trecho de origem. Em cada registro, devolva também confianca ("alta", "media" ou "baixa").
+${DADO_NAO_INSTRUCAO}
+Formato: {"registros":[{...}]}. Sem registro no trecho: {"registros":[]}.`;
+
 /** Prompt e chave da lista na resposta, por tipo de arquivo extraído. */
-export type TipoExtraido = 'inventario' | 'terceiros' | 'documento' | 'avaliacao';
+export type TipoExtraido = 'inventario' | 'terceiros' | 'documento' | 'avaliacao' | 'historico';
 const EXTRACAO: Record<TipoExtraido, [string, string]> = {
   inventario: [PROMPT_EXTRAIR, 'tratamentos'],
   terceiros: [PROMPT_EXTRAIR_TERCEIROS, 'terceiros'],
   documento: [PROMPT_EXTRAIR_DOCUMENTO, 'documentos'],
   avaliacao: [PROMPT_EXTRAIR_AVALIACOES, 'avaliacoes'],
+  historico: [PROMPT_EXTRAIR_HISTORICO, 'registros'],
 };
 
 type Mensagem = { role: 'system' | 'user'; content: string };
@@ -97,6 +120,7 @@ export const parseTratamentos = (raw: string) => listaDaResposta(raw, 'tratament
 export const parseTerceiros = (raw: string) => listaDaResposta(raw, 'terceiros');
 export const parseDocumentos = (raw: string) => listaDaResposta(raw, 'documentos');
 export const parseAvaliacoes = (raw: string) => listaDaResposta(raw, 'avaliacoes');
+export const parseHistorico = (raw: string) => listaDaResposta(raw, 'registros');
 
 export class ImportacaoAgent extends BaseAgent {
   private async perguntar(sistema: string, texto: string, maxTokens: number) {
