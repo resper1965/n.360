@@ -219,6 +219,8 @@ const CORPOS: Record<string, unknown> = {
   // Lista vazia passa no schema e em qualquer teto: o que tem de recusar é a guarda.
   'PUT /api/v1/users/:id/modulos': { modulos: [] },
   'PUT /api/v1/admin/users/:id/modulos': { modulos: [] },
+  'PUT /api/v1/users/:id/ativo': { ativo: false },
+  'PUT /api/v1/admin/users/:id/ativo': { ativo: false },
 };
 
 /**

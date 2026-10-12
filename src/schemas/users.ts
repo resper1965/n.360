@@ -44,3 +44,6 @@ export const updateUserSchema = z.object({
 export const modulosDaContaSchema = z.object({
   modulos: z.array(z.enum(MODULOS, 'Módulo inválido')).max(MODULOS.length)
 }).strict();
+
+/** Desativar ou reativar a conta (`PUT /users/:id/ativo`). */
+export const ativoDaContaSchema = z.object({ ativo: z.boolean() }).strict();
