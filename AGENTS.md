@@ -96,7 +96,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` (links ja enviados, IdP de SCIM, conectores MCP, chaves
   de API). **SSO:** o `redirect_uri` enviado ao IdP e a constante `URL_NISO` (`niso`, o unico que os IdPs dos clientes cadastraram)
   quando o `appUrl` e o padrao de producao (`APP_URL_PADRAO`); com outro `APP_URL`, e o proprio `APP_URL` (`redirectUriDe` em
-  `src/routes/public.ts`). So o redirecionamento final (`/#sso_token=`, `/#sso_erro=`) e absoluto no `appUrl`. **MCP:** o recurso e `RECURSO_MCP`
+  `src/routes/public.ts`). Telas: o login pergunta `POST /api/v1/public/sso/iniciar` (`entrarComSso`, `frontend/src/globals.js`) e a equipe configura SSO, SCIM e politica em `frontend/src/views/seguranca-projeto.js`. So o redirecionamento final (`/#sso_token=`, `/#sso_erro=`) e absoluto no `appUrl`. **MCP:** o recurso e `RECURSO_MCP`
   (`https://niso.ness.com.br/mcp`) e `hostsPermitidosMcp` aceita `niso` alem do host do `appUrl`. **Volta atras:** `APP_URL`
   de volta para `niso` (o Worker e o frontend deixam de redirecionar: o host do `APP_URL` nunca redireciona, e o frontend le o
   `app_url` do `/health`). Sem dado nem migration.
