@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosDe, enderecoDoProduto } from './produto.js';
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto } from './produto.js';
 import { S } from './state.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
@@ -594,7 +594,7 @@ window.updateTenantFace = function updateTenantFace() {
         nameEl.textContent = name;
         // Só no n.iso a norma do projeto diz algo; no n.privacy mostra o módulo e no início do n.360 os módulos do projeto.
         const prod = produtoAtual();
-        if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod === 'privacy' ? 'n.privacy' : modulosDe(p).map((m) => `n.${m}`).join(' · ');
+        if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod === 'privacy' ? 'n.privacy' : modulosVisiveis(p).map((m) => `n.${m}`).join(' · ');
         if (initialsEl) initialsEl.textContent = p ? name.slice(0, 2).toUpperCase() : '—';
     }
 
@@ -1401,7 +1401,7 @@ window.initApp = async function initApp() {
         // Módulos alcançáveis: os dos projetos visíveis (o cliente olha só o projeto dele).
         const doCliente = isClient && S.user.client_project_id ? (S.projects || []).filter((p) => p.id === S.user.client_project_id) : [];
         const meus = doCliente.length ? doCliente : (S.projects || []);
-        const modulos = [...new Set(meus.flatMap(modulosDe))];
+        const modulos = [...new Set(meus.flatMap(modulosVisiveis))];
         if (ehStakeholder) {
             navigate('meus-pedidos');
         } else if (produto === 'n360' && !modulos.length && !isClient) {
