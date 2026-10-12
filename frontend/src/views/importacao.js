@@ -9,7 +9,10 @@ import { escapeHTML, openModal, showToast } from '../ui.js';
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const e = (v) => escapeHTML(String(v ?? ''));
-const base = (id = '') => `/api/v1/projects/${projetoAtivo().id}/importacoes${id ? `/${encodeURIComponent(id)}` : ''}`;
+// Caminhos escritos por extenso em cada chamada: test/contrato-tela-api.test.ts só confere o que é literal /api/v1/...
+const pid = () => projetoAtivo().id;
+const lid = () => encodeURIComponent(E.loteId);
+const SESSAO = /Unauthorized|Sessão expirada/;
 
 // Estado da tela (um lote aberto por vez).
 const E = { c: null, h: null, a: null, lotes: null, loteId: null, det: null, msg: '', envios: [], resultados: null, cancelando: false, ocupado: false };
@@ -43,7 +46,7 @@ async function renderImportacao(c, h, a) {
     }
     if (E.loteId) return recarrega();
     E.det = null;
-    try { E.lotes = (await api('GET', base())).lotes || []; } catch (err) {
+    try { E.lotes = (await api('GET', `/api/v1/projects/${pid()}/importacoes`)).lotes || []; } catch (err) {
         c.innerHTML = `<div class="empty-state fade-in"><h3>Não foi possível listar os lotes</h3><p>${e(err.message)}</p></div>`;
         return;
     }
@@ -51,7 +54,7 @@ async function renderImportacao(c, h, a) {
 }
 
 async function recarrega() {
-    try { E.det = await api('GET', base(E.loteId)); } catch (err) {
+    try { E.det = await api('GET', `/api/v1/projects/${pid()}/importacoes/${lid()}`); } catch (err) {
         E.loteId = null; E.det = null;
         showToast((err && err.message) || 'Não foi possível abrir o lote', 'error');
         return renderImportacao(E.c, E.h, E.a);
@@ -75,7 +78,7 @@ function htmlLista() {
 function abreLote(id) { Object.assign(E, { loteId: id, envios: [], resultados: null, msg: '', cancelando: false }); return recarrega(); }
 
 window.importacaoNovo = async function () {
-    try { await abreLote((await api('POST', base())).id); } catch (err) { showToast((err && err.message) || 'Não foi possível criar o lote', 'error'); }
+    try { await abreLote((await api('POST', `/api/v1/projects/${pid()}/importacoes`)).id); } catch (err) { showToast((err && err.message) || 'Não foi possível criar o lote', 'error'); }
 };
 window.importacaoAbrir = (id) => abreLote(id);
 window.importacaoVoltar = async function () {
@@ -168,7 +171,7 @@ window.importacaoEnviar = async function () {
         const fd = new FormData();
         fd.append('file', f);
         try {
-            const r = await fetch(API_BASE + base(E.loteId) + '/arquivos', { method: 'POST', headers: cabecalhosAuth(), body: fd });
+            const r = await fetch(`${API_BASE}/api/v1/projects/${pid()}/importacoes/${lid()}/arquivos`, { method: 'POST', headers: cabecalhosAuth(), body: fd });
             const corpo = await r.json().catch(() => ({}));
             E.envios.push(r.ok ? { nome: f.name, ok: true } : { nome: f.name, ok: false, erro: corpo.error || `HTTP ${r.status}` });
         } catch (err) { E.envios.push({ nome: f.name, ok: false, erro: 'falha de rede' }); }
@@ -178,28 +181,44 @@ window.importacaoEnviar = async function () {
     await recarrega();
 };
 
+// A IA pode levar mais que os 30 s padrão do api() num arquivo grande.
+const TEMPO_PROCESSAR = 150000;
+
 window.importacaoProcessar = async function () {
     const fila = E.det.arquivos.filter((x) => x.status === 'pendente' || x.status === 'erro');
     E.ocupado = true; pinta();
     const falhas = [];
+    let parou = '';
+    let sessao = false;
     for (const [n, x] of fila.entries()) {
-        msg(`Processando ${n + 1} de ${fila.length}: ${x.nome}`);
-        try { await api('POST', `${base(E.loteId)}/arquivos/${encodeURIComponent(x.id)}/processar`); } catch (err) {
-            // Falha da IA fica gravada no arquivo (status erro); só o 409 de gravação ou de cancelamento para o laço.
+        const andamento = `Processando ${n + 1} de ${fila.length}: ${x.nome}`;
+        msg(andamento);
+        try { await api('POST', `/api/v1/projects/${pid()}/importacoes/${lid()}/arquivos/${encodeURIComponent(x.id)}/processar`, undefined, { timeoutMs: TEMPO_PROCESSAR }); } catch (err) {
             const m = (err && err.message) || 'falha';
+            if (SESSAO.test(m)) { sessao = true; parou = m; break; }
+            if (/^Tempo esgotado/.test(m)) {
+                // O Worker pode ter terminado depois do corte: o servidor é quem sabe a situação do arquivo.
+                try { E.det = await api('GET', `/api/v1/projects/${pid()}/importacoes/${lid()}`); } catch (e2) { falhas.push(`${x.nome}: ${m}`); break; }
+                const atual = E.det.arquivos.find((a) => a.id === x.id);
+                if (atual && (atual.status === 'processado' || atual.status === 'aguardando')) { pinta(); msg(andamento); continue; }
+                parou = `O arquivo ${x.nome} ainda está em processamento; aguarde e clique em Processar de novo.`;
+                break;
+            }
+            // Falha da IA fica gravada no arquivo (status erro); 409 (gravação/cancelamento) e rede param o laço.
             falhas.push(`${x.nome}: ${m}`);
-            if (/gravação|cancelado|Tempo esgotado|Falha de rede|cancelada/.test(m)) break;
+            if (/gravação|cancelado|Falha de rede|cancelada/.test(m)) break;
         }
-        try { E.det = await api('GET', base(E.loteId)); pinta(); msg(`Processando ${n + 1} de ${fila.length}: ${x.nome}`); } catch (err) { break; }
+        try { E.det = await api('GET', `/api/v1/projects/${pid()}/importacoes/${lid()}`); pinta(); msg(andamento); } catch (err) { break; }
     }
     E.ocupado = false;
-    E.msg = falhas.length ? `Falhas no processamento: ${falhas.join('; ')}` : 'Processamento concluído.';
+    E.msg = [falhas.length ? `Falhas no processamento: ${falhas.join('; ')}` : '', parou].filter(Boolean).join(' ') || 'Processamento concluído.';
+    if (sessao) return pinta();
     await recarrega();
 };
 
 // ─── revisão ─────────────────────────────────────────────────────────────────────────────────────
 
-const atualiza = (iid, corpo) => api('PUT', `${base(E.loteId)}/itens/${encodeURIComponent(iid)}`, corpo);
+const atualiza = (iid, corpo) => api('PUT', `/api/v1/projects/${pid()}/importacoes/${lid()}/itens/${encodeURIComponent(iid)}`, corpo);
 
 window.importacaoDecidir = async function (iid, decisao) {
     try { await atualiza(iid, { decisao }); E.msg = ''; } catch (err) { E.msg = (err && err.message) || 'Não foi possível atualizar o item'; }
@@ -253,7 +272,7 @@ window.importacaoConfirmar = async function () {
     try {
         for (;;) {
             msg(`Gravando... ${E.resultados.length} item(ns) processado(s).`);
-            const r = await api('POST', `${base(E.loteId)}/confirmar`);
+            const r = await api('POST', `/api/v1/projects/${pid()}/importacoes/${lid()}/confirmar`);
             E.resultados.push(...(r.resultados || []));
             if (!(r.restantes > 0) || !(r.resultados || []).length) break;
         }
@@ -261,6 +280,7 @@ window.importacaoConfirmar = async function () {
         E.msg = `Importação concluída: ${n('gravado')} gravado(s), ${n('recusado')} recusado(s).`;
     } catch (err) {
         E.msg = `${(err && err.message) || 'Falha ao confirmar'}. Você pode tentar de novo.`;
+        if (SESSAO.test(E.msg)) { E.ocupado = false; return pinta(); }
     }
     E.ocupado = false;
     await recarrega();
@@ -270,7 +290,7 @@ window.importacaoCancelar = function () { E.cancelando = true; pinta(); };
 window.importacaoCancelarNao = function () { E.cancelando = false; pinta(); };
 window.importacaoCancelarSim = async function () {
     try {
-        await api('DELETE', base(E.loteId));
+        await api('DELETE', `/api/v1/projects/${pid()}/importacoes/${lid()}`);
         E.cancelando = false;
         showToast('Lote cancelado.', 'success');
         await window.importacaoVoltar();

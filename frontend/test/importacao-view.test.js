@@ -265,7 +265,7 @@ describe('correções da revisão', () => {
         solta();
         await espera();
         expect(document.querySelector('[data-action="importacaoEnviar"]').disabled).toBe(false);
-        expect(f).toBeDefined();
+        expect(f.mock.calls.filter(([, o]) => o?.method === 'POST' && o.body instanceof FormData)).toHaveLength(1);
     });
 
     it('primeira chamada de confirmar falha: não mostra a seção de resultado', async () => {
@@ -294,5 +294,56 @@ describe('correções da revisão', () => {
         await clica('importacaoEditar', [id]);
         expect(el('imp-sistemas').value).toBe(`A"<b>, O'Neil`);
         expect(document.querySelector('#modal-content b')).toBeNull();
+    });
+});
+
+describe('processar: tempo, sessão', () => {
+    const timeout = () => { const e = new Error('TimeoutError'); e.name = 'TimeoutError'; return e; };
+
+    it('processar usa 150 s; timeout com o arquivo já processado segue para o próximo', async () => {
+        const espia = vi.spyOn(AbortSignal, 'timeout');
+        const det = LOTE({ arquivos: [{ id: 'a1', nome: 'um.csv', status: 'pendente' }, { id: 'a2', nome: 'dois.csv', status: 'pendente' }] });
+        const f = await abrirLote(det, { [`POST ${B}/l1/arquivos/a2/processar`]: () => { det.arquivos[1].status = 'processado'; return { ok: true }; } });
+        const base = f.getMockImplementation();
+        f.mockImplementation(async (u, o = {}) => {
+            if (o.method === 'POST' && u.includes('/a1/processar')) { det.arquivos[0].status = 'processado'; throw timeout(); }
+            return base(u, o);
+        });
+        await clica('importacaoProcessar');
+        await espera();
+        expect(espia).toHaveBeenCalledWith(150000);
+        expect(chamadas(f).filter((c) => c.includes('/processar'))).toHaveLength(2);
+        expect(el('importacao-msg').textContent).toBe('Processamento concluído.');
+    });
+
+    it('timeout com o arquivo ainda pendente: para e pede para aguardar, sem registrar falha', async () => {
+        const det = LOTE({ arquivos: [{ id: 'a1', nome: 'grande.pdf', status: 'pendente' }, { id: 'a2', nome: 'dois.csv', status: 'pendente' }] });
+        const f = await abrirLote(det, {});
+        const base = f.getMockImplementation();
+        f.mockImplementation(async (u, o = {}) => { if (o.method === 'POST' && u.includes('/processar')) throw timeout(); return base(u, o); });
+        await clica('importacaoProcessar');
+        await espera();
+        expect(chamadas(f).filter((c) => c.includes('/processar'))).toHaveLength(1);
+        const m = el('importacao-msg').textContent;
+        expect(m).toBe('O arquivo grande.pdf ainda está em processamento; aguarde e clique em Processar de novo.');
+        expect(m).not.toContain('Falhas');
+    });
+
+    it('401 ao processar para o laço e não recarrega', async () => {
+        const det = LOTE({ arquivos: [{ id: 'a1', nome: 'um.csv', status: 'pendente' }, { id: 'a2', nome: 'dois.csv', status: 'pendente' }] });
+        const f = await abrirLote(det, { [`POST ${B}/l1/arquivos/a1/processar`]: [{ error: 'Unauthorized' }, 401] });
+        const antes = f.mock.calls.length;
+        await clica('importacaoProcessar');
+        await espera();
+        expect(f.mock.calls.slice(antes).map(([u, o]) => `${o?.method || 'GET'} ${new URL(u, 'http://localhost').pathname}`)).toEqual([`POST ${B}/l1/arquivos/a1/processar`]);
+    });
+
+    it('401 ao confirmar não chama de novo nem recarrega', async () => {
+        const det = LOTE({ itens: [item('i1', { decisao: 'aceito' })] });
+        const f = await abrirLote(det, { [`POST ${B}/l1/confirmar`]: [{ error: 'Unauthorized' }, 401] });
+        const antes = f.mock.calls.length;
+        await clica('importacaoConfirmar');
+        await espera();
+        expect(f.mock.calls.length - antes).toBe(1);
     });
 });
