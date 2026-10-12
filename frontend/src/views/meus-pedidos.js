@@ -31,8 +31,8 @@ const CAMPOS_EXCECAO = [['escopo', 'Escopo'], ['motivo', 'Motivo'], ['vence_em',
 // Tratamento do RoPA (fatia 4.3): o registro e tudo o que ele liga. Listas chegam como lista; 0/1 viram Sim/Não.
 const CAMPOS_TRATAMENTO = [['finalidade', 'Finalidade'], ['titulares', 'Titulares'], ['categorias', 'Categorias de dados'], ['base_legal_texto', 'Base legal'],
     ['retencao', 'Retenção'], ['destinatarios', 'Destinatários'], ['transferencia_internacional', 'Transferência internacional'], ['salvaguardas', 'Salvaguardas'],
-    ['dpia_requerido', 'DPIA requerido'], ['itens', 'Sistemas, bases e processos'], ['departamentos', 'Departamentos'], ['partes', 'Partes'], ['transferencias', 'Transferências']];
-const SIM_NAO = ['transferencia_internacional', 'dpia_requerido'];
+    ['dpia_requerido', 'DPIA requerido'], ['dados_sensiveis', 'Dados sensíveis (art. 11)'], ['criancas_adolescentes', 'Crianças e adolescentes (art. 14)'], ['itens', 'Sistemas, bases e processos'], ['departamentos', 'Departamentos'], ['partes', 'Partes'], ['transferencias', 'Transferências']];
+const SIM_NAO = ['transferencia_internacional', 'dpia_requerido', 'dados_sensiveis', 'criancas_adolescentes'];
 const textoDoCampo = (k, v) => (Array.isArray(v) ? v.join('\n') : SIM_NAO.includes(k) ? (v ? 'Sim' : 'Não') : String(v));
 
 const data = (s) => (s ? new Date(s).toLocaleString('pt-BR') : '');
