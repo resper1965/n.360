@@ -18,16 +18,18 @@ export function cabecalhosAuth() {
 // linhas da trilha de uma ação em lote. Fica opcional para não tocar nas ~200
 // chamadas existentes.
 async function api(m, p, b, extras) {
-    const headers = { 'Content-Type': 'application/json', ...(extras || {}), ...cabecalhosAuth() };
+    // `timeoutMs` (opcional) é do cliente, não vira cabeçalho: chamada lenta por natureza (IA) pede mais que os 30 s padrão.
+    const { timeoutMs, ...cab } = extras || {};
+    const headers = { 'Content-Type': 'application/json', ...cab, ...cabecalhosAuth() };
     // AbortSignal.timeout é nativo: sem ele, um backend travado deixava a UI
     // esperando para sempre, sem erro e sem feedback.
-    const o = { method: m, headers, signal: AbortSignal.timeout(30000) };
+    const o = { method: m, headers, signal: AbortSignal.timeout(timeoutMs || 30000) };
     if (b) o.body = JSON.stringify(b);
     let r;
     try {
         r = await fetch(API_BASE + p, o);
     } catch (e) {
-        if (e.name === 'TimeoutError') throw new Error(`Tempo esgotado ao chamar ${p} (30s)`);
+        if (e.name === 'TimeoutError') throw new Error(`Tempo esgotado ao chamar ${p} (${Math.round((timeoutMs || 30000) / 1000)}s)`);
         if (e.name === 'AbortError') throw new Error(`Requisição cancelada (${p})`);
         throw new Error(`Falha de rede ao chamar ${p}`);
     }

@@ -104,6 +104,14 @@ describe('contrato tela↔API', () => {
     expect(casa('POST', '/api/v1/servicos/:p/:p')).toBe(false);
   });
 
+  it('a tela de importação tem as chamadas conferidas contra as rotas (nada fica fora por montar o caminho)', () => {
+    const minhas = CHAMADAS.filter((c) => c.onde.includes('views/importacao.js')).map(chave);
+    for (const k of ['GET /api/v1/projects/:p/importacoes', 'POST /api/v1/projects/:p/importacoes', 'GET /api/v1/projects/:p/importacoes/:p', 'DELETE /api/v1/projects/:p/importacoes/:p',
+      'POST /api/v1/projects/:p/importacoes/:p/arquivos', 'POST /api/v1/projects/:p/importacoes/:p/arquivos/:p/processar', 'PUT /api/v1/projects/:p/importacoes/:p/itens/:p', 'POST /api/v1/projects/:p/importacoes/:p/confirmar']) {
+      expect(minhas, k).toContain(k);
+    }
+  });
+
   it('normaliza as formas de caminho que o frontend usa', () => {
     const src = [
       "api('GET', `/api/v1/projects/${p.id}/readiness-check${comIA ? '?ai=1' : ''}`)",
@@ -131,6 +139,8 @@ describe('contrato tela↔API', () => {
       'frontend/public/auditor.js: fetch(caminho',
       'frontend/public/proposta.js: fetch(API + acao',
       'frontend/src/api.js: fetch(API_BASE + p',
+      // /health fica fora de /api/v1 por desenho: o domínio antigo pergunta o endereço canônico (n.360, fatia 1).
+      'frontend/src/produto.js: fetch(\'/health\'',
       'frontend/src/views/propostas.js: api(\'GET\', caminho',
       'frontend/src/views/propostas.js: fetch(API_BASE + caminho',
     ];

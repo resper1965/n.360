@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import worker from '../src/index';
-import { applySchema, resetData, sessionFor, seedTwoProjects, pedir } from './helpers/d1';
+import { applySchema, resetData, sessionFor, seedTwoProjects, pedir, concederModulos } from './helpers/d1';
 import { sha256Hex } from '../src/helpers';
 
 /**
@@ -26,7 +26,7 @@ async function seed() {
   await db.batch([
     ...['a', 'b'].flatMap((x) => [
       db.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title) VALUES (?, ?, 'ISO 27001', ?)`).bind(`ctl-${x}`, `proj-${x}`, `Controle ${x}`),
-      db.prepare(`INSERT INTO assets (id, project_id, name) VALUES (?, ?, ?)`).bind(`as-${x}`, `proj-${x}`, `Ativo ${x}`),
+      db.prepare(`INSERT INTO itens (id, project_id, nome) VALUES (?, ?, ?)`).bind(`as-${x}`, `proj-${x}`, `Ativo ${x}`),
       db.prepare(`INSERT INTO risks (id, project_id, asset, threat) VALUES (?, ?, 'Ativo', 'Ameaça')`).bind(`r-${x}`, `proj-${x}`),
       db.prepare(`INSERT INTO audit_schedule (id, project_id, audit_type, title, scheduled_date) VALUES (?, ?, 'internal', 'Auditoria', '2026-12-01')`).bind(`au-${x}`, `proj-${x}`),
       db.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES (?, ?, 'Folha')`).bind(`ropa-${x}`, `proj-${x}`),
@@ -59,6 +59,7 @@ beforeAll(applySchema);
 beforeEach(async () => {
   await resetData();
   await seed();
+  await concederModulos(['u-a', 'u-b'], ['iso']); // as pessoas têm o n.iso: o que se prova aqui é o projeto da referência
   // Cliente do projeto A: papel preso a projeto, como quem atacaria pelo corpo.
   h = await sessionFor({ id: 'u-a', email: 'adm@a.com', role: 'org_admin', client_project_id: A });
 });

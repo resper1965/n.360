@@ -4,6 +4,7 @@ import { logAudit, erro500 } from '../helpers';
 import { AssessmentAgent } from '../agents/assessment';
 import { validateBody, chatSchema } from '../schemas';
 import { chatModel } from '../config/models';
+import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo, type Modulo } from '../modulos';
 
 export const aiApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -19,8 +20,24 @@ aiApp.post('/projects/:id/chat', async (c) => {
   const project = await c.env.DB.prepare('SELECT client_name, scope, sector FROM projects WHERE id = ?').bind(projectId).first<any>();
   if (!project) return c.json({ error: 'Project not found' }, 404);
 
-  const systemPrompt = `Você é o Assistente Virtual de Conformidade ISO 27001 / ISO 27701 da ness.
-Seu objetivo é auxiliar a equipe do projeto da empresa "${project.client_name}" (Setor: ${project.sector || 'Geral'}, Escopo: ${project.scope || 'SGSI Completo'}).
+  // O chat é do núcleo (a faixa não barra), então o módulo pedido é conferido aqui: o projeto E a pessoa precisam tê-lo.
+  // Sem `modulo` (casca n.360), vale o primeiro, na ordem iso -> privacy, que o projeto E a pessoa têm; `modulo` explícito é checado à risca.
+  const doProjeto = await modulosDoProjeto(c.env.DB, projectId);
+  const daPessoa = await modulosDaPessoa(c.env.DB, user);
+  const recusaDe = (m: Modulo) => recusaDeModulo(m, doProjeto) ?? recusaDaPessoa(m, daPessoa);
+  const modulo: Modulo = body.modulo ?? (['iso', 'privacy'] as const).find((m) => !recusaDe(m)) ?? 'iso';
+  const recusa = recusaDe(modulo);
+  if (recusa) return c.json({ error: recusa }, 403);
+
+  const contexto = `da empresa "${project.client_name}" (Setor: ${project.sector || 'Geral'}, Escopo: ${project.scope || 'SGSI Completo'})`;
+  const systemPrompt = modulo === 'privacy'
+    ? `Você é o Assistente Virtual de Privacidade e Proteção de Dados do n.privacy, da ness.
+Seu objetivo é auxiliar a equipe do projeto ${contexto} em LGPD, ANPD, RoPA (registro das operações de tratamento), direitos do titular e incidentes de segurança com dados pessoais.
+Responda sempre em português do Brasil, de forma clara, objetiva e profissional.
+Não invente prazo legal nem artigo de lei: quando a pergunta depender de prazo, cite o valor cadastrado em parametros_legais, com a fonte, ou diga que ele ainda não foi cadastrado.
+Você orienta; não emite parecer jurídico.`
+    : `Você é o Assistente Virtual de Conformidade ISO 27001 / ISO 27701 da ness.
+Seu objetivo é auxiliar a equipe do projeto ${contexto}.
 Responda de forma clara, objetiva, profissional e baseada estritamente nas normas ISO/IEC 27001:2022 e ISO/IEC 27701:2019/2025.
 Seja solícito e forneça exemplos práticos quando solicitado.`;
 

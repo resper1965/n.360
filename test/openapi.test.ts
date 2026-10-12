@@ -129,7 +129,7 @@ describe('Spec versionada no repositório', () => {
     // `.min(1)` por `.min(8)` num schema é uma linha fácil de não ver; a mesma
     // mudança aqui é `"minLength": 8`, e o revisor vê. Isso só vale se o
     // arquivo não puder ficar velho — é o que esta asserção garante.
-    const gerado = documentoOpenApi('https://niso.ness.com.br');
+    const gerado = documentoOpenApi('https://n360.ness.com.br');
     expect(
       specVersionada,
       'docs/openapi.json divergiu do código — rode `npm run openapi` e inclua o arquivo no commit'

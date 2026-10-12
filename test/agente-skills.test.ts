@@ -93,5 +93,20 @@ describe('niso_skill e o roteiro 4', () => {
     expect(ROTEIROS).toContain('niso_skill');
     expect(ROTEIROS).toMatch(/prontid[aã]o/i);
     expect(INSTRUCOES.length).toBeLessThanOrEqual(2048);
+    // Roteiros do n.privacy: inventário, titular/incidente e cobertura LGPD, todos com aprovação humana.
+    for (const n of ['5. Inventário', '6. Pedido do titular ou incidente', '7. Cobertura LGPD']) expect(ROTEIROS, n).toContain(n);
+    expect(ROTEIROS.split('\n').filter((l) => /^[567]\./.test(l)).every((l) => l.includes('PEÇA APROVAÇÃO HUMANA'))).toBe(true);
+  });
+});
+
+describe('skill maturidade-lgpd', () => {
+  it('o roteiro aponta a skill, que é só leitura e cita as rotas do mapa do n.privacy', () => {
+    expect(ROTEIROS).toContain('maturidade-lgpd');
+    const texto = SKILLS['maturidade-lgpd'].arquivos['SKILL.md'];
+    for (const rota of ['/ropa', '/terceiros', '/titular-pedidos', '/incidentes', '/encarregado', '/requisitos/lacunas?fonte=lgpd', '/ponto-de-partida']) {
+      expect(texto, rota).toContain(rota);
+    }
+    expect(texto).toMatch(/Só leitura/);
+    expect(texto).toMatch(/Não é parecer jurídico/);
   });
 });

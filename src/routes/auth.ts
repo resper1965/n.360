@@ -8,6 +8,7 @@ export function clientIp(c: any): string {
   return c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
 }
 import { authMiddleware } from '../middleware/auth';
+import { modulosDaPessoa } from '../modulos';
 import { validateBody, loginSchema, setupSchema, resetRequestSchema, resetConfirmSchema, primeiroAcessoSchema, mudarSenhaSchema } from '../schemas';
 import {
   decisaoLogin, mensagemCredencialInvalida, mensagemBloqueio,
@@ -15,6 +16,10 @@ import {
 } from '../auth-policy';
 
 export const authApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+/** Conta que não tem senha local para recuperar: criada pelo SSO/SCIM (marcador no hash) ou desativada. */
+const semSenhaLocal = (u: { password_hash?: string | null; ativo?: number | null }) =>
+  u.ativo === 0 || /^(sso|scim):/.test(u.password_hash ?? '');
 
 /**
  * Contagem de falhas por (e-mail digitado + IP), exista a conta ou não: se só
@@ -128,7 +133,7 @@ authApp.post('/setup', async (c) => {
     const hash = await hashPassword(password);
     
     await c.env.DB.prepare(
-      `INSERT INTO users (id, email, password_hash, name, role) SELECT ?, ?, ?, ?, 'consultant'
+      `INSERT INTO users (id, email, password_hash, name, role) SELECT ?, ?, ?, ?, 'consultor'
        WHERE NOT EXISTS (SELECT 1 FROM users WHERE lower(trim(email)) = ?)
        ON CONFLICT(email) DO NOTHING`
     ).bind(id, email, hash, name, email).run();
@@ -264,7 +269,11 @@ authApp.post('/login', async (c) => {
     const sessao = { ...user, org_id: user.org_id, iat: agora, seen: agora, ...(exigeMfa ? { mfa_pending: true } : {}) };
     await c.env.SESSIONS.put(`session_${token}`, JSON.stringify(sessao), { expirationTtl: SESSION_TTL_SEC });
     await c.env.SESSIONS.put(token, JSON.stringify(sessao), { expirationTtl: SESSION_TTL_SEC });
-    
+    // Trilha de acessos: só login que passou na senha (falha não grava o e-mail digitado, que pode
+    // nem existir). O projeto é o da conta, para o acesso aparecer na trilha do projeto.
+    await logAudit(c.env.DB, 'auth.login', user.email, `Login por senha${exigeMfa ? ' (aguarda o segundo fator)' : ''}`,
+      '', ip, user.client_project_id ?? undefined);
+
     return c.json({ token, user, requiresPasswordChange: requiresChange, requiresMfa: exigeMfa });
   } catch (e: any) {
     return erro500(c, 'Login failed', e);
@@ -331,10 +340,12 @@ authApp.post('/forgot-password', async (c) => {
     const { email } = v.data;
 
     const user = await c.env.DB.prepare(
-      'SELECT id, email, name FROM users WHERE lower(trim(email)) = ? ORDER BY email = ? DESC LIMIT 1'
+      'SELECT id, email, name, password_hash, ativo FROM users WHERE lower(trim(email)) = ? ORDER BY email = ? DESC LIMIT 1'
     ).bind(email, email).first() as any;
 
-    if (!user) {
+    // Conta sem senha local (SSO/SCIM) ou desativada não ganha código: senão "esqueci a senha" criava
+    // uma senha e a pessoa entrava pulando o IdP do cliente, ou voltava depois de desligada.
+    if (!user || semSenhaLocal(user)) {
       return c.json({ ok: true, message: 'Se o e-mail estiver cadastrado, um código foi gerado.' });
     }
 
@@ -391,6 +402,12 @@ authApp.post('/reset-password', async (c) => {
     }
 
     const { email } = JSON.parse(storedData);
+    // O código pode ser de antes de a conta virar SSO/SCIM ou ser desativada.
+    const conta = await c.env.DB.prepare('SELECT password_hash, ativo FROM users WHERE email = ?').bind(email).first<{ password_hash: string; ativo: number | null }>();
+    if (!conta || semSenhaLocal(conta)) {
+      await c.env.SESSIONS.delete(`reset_token:${token}`);
+      return c.json({ error: 'Código de recuperação inválido ou expirado' }, 400);
+    }
     const newHash = await hashPassword(newPassword);
 
     await c.env.DB.prepare('UPDATE users SET password_hash = ?, requires_password_change = 0 WHERE email = ?')
@@ -424,8 +441,10 @@ authApp.post('/logout', async (c) => {
   return c.json({ ok: true });
 });
 
-authApp.get('/me', (c) => {
-  return c.json({ user: c.get('user') });
+// `modulos`: os da PESSOA (fatia 3 do n.360), lidos do banco a cada chamada; a tela cruza com os do projeto.
+authApp.get('/me', async (c) => {
+  const user = c.get('user');
+  return c.json({ user: { ...user, modulos: await modulosDaPessoa(c.env.DB, user) } });
 });
 
 authApp.post('/change-password', async (c) => {

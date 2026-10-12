@@ -1,6 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { Bindings, Variables } from '../index';
 import { requireProjectAccess } from '../helpers';
+import { faixaDoCaminho, modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo } from '../modulos';
 
 // Segmentos literais sob /api/v1/projects/<seg>/... que NÃO são IDs de projeto
 // e portanto não devem passar pela checagem de tenant. Se uma rota literal for
@@ -25,6 +26,15 @@ export const projectAccessMiddleware = createMiddleware<{ Bindings: Bindings; Va
       await requireProjectAccess(c.env.DB, user, projectId);
     } catch {
       return c.json({ error: 'Forbidden: No access to this project' }, 403);
+    }
+    // Produto: o que o projeto habilitou decide a faixa (n.iso, n.privacy ou o núcleo compartilhado). Vale para qualquer papel.
+    const faixa = faixaDoCaminho(c.req.path);
+    // Depois, a pessoa (fatia 3 do n.360): o projeto ter o módulo não basta, ela também precisa ter. Projeto sem módulo
+    // nenhum é inexistente: passa, e a rota responde o 404 dela.
+    if (faixa && faixa !== 'nucleo') {
+      const doProjeto = await modulosDoProjeto(c.env.DB, projectId);
+      const recusa = recusaDeModulo(faixa, doProjeto) ?? (doProjeto.length ? recusaDaPessoa(faixa, await modulosDaPessoa(c.env.DB, user)) : null);
+      if (recusa) return c.json({ error: recusa }, 403);
     }
   }
 

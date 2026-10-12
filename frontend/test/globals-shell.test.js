@@ -47,11 +47,20 @@ beforeEach(() => {
 });
 
 describe('seletor de tenant', () => {
-  it('mostra nome, norma e iniciais numa linha só', () => {
+  it('mostra nome, norma e iniciais numa linha só (no n.iso)', () => {
+    history.replaceState(null, '', '/iso');
+    try {
+      window.updateSidebarProjectSelector();
+      expect(document.getElementById('tenant-name').textContent).toBe('Acme');
+      expect(document.getElementById('tenant-norm').textContent).toBe('ISO 27001:2022');
+      expect(document.getElementById('tenant-initials').textContent).toBe('AC');
+    } finally { history.replaceState(null, '', '/'); }
+  });
+
+  it('no início do n.360 mostra os módulos do projeto no lugar da norma', () => {
+    S.activeProject = { id: 'p1', project_name: 'Acme', standard: 'ISO 27001:2022', modulos: ['iso', 'privacy'] };
     window.updateSidebarProjectSelector();
-    expect(document.getElementById('tenant-name').textContent).toBe('Acme');
-    expect(document.getElementById('tenant-norm').textContent).toBe('ISO 27001:2022');
-    expect(document.getElementById('tenant-initials').textContent).toBe('AC');
+    expect(document.getElementById('tenant-norm').textContent).toBe('n.iso · n.privacy');
   });
 
   it('não imprime fase, prazo nem percentual — esse contexto é da Jornada', () => {
@@ -171,6 +180,7 @@ describe('notificação de prazo (avisos de prazo)', () => {
     S.activeProject = S.projects[0];
     S.currentProject = S.projects[0];
     S.notifications = [{ id: 'n9', read: 0, type: 'prazo_capa', title: 'CAPA vence hoje', link }];
+    history.replaceState(null, '', '/iso'); // telas do n.iso: dentro do módulo navegam local
     try {
       await window.handleNotificationClick('n9');
       expect(S.view).toBe(view);
@@ -179,6 +189,7 @@ describe('notificação de prazo (avisos de prazo)', () => {
       expect(desenhar).toHaveBeenCalled();
     } finally {
       delete globalThis[tela];
+      history.replaceState(null, '', '/');
     }
   });
 });

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { senhaNovaSchema, emailNormalizado } from './auth';
+import { MODULOS } from './nucleo';
 
 /**
  * Papéis que uma conta pode RECEBER pela API. Lista fechada: `users.role` é TEXT livre, e um papel
@@ -17,7 +18,9 @@ export const createUserSchema = z.object({
   password: senhaNovaSchema,
   name: z.string().min(1, 'Nome é obrigatório'),
   role: papel,
-  client_project_id: z.string().nullable().optional()
+  client_project_id: z.string().nullable().optional(),
+  /** Módulos da pessoa (n.360, fatia 3). Sem o campo, o padrão (gatilho `usuario_modulos_padrao`). */
+  modulos: z.array(z.enum(MODULOS, 'Módulo inválido')).max(MODULOS.length).optional()
 }).strict();
 
 /**
@@ -36,3 +39,11 @@ export const updateUserSchema = z.object({
   password: senhaNovaSchema.optional(),
   client_project_id: z.string().nullable().optional()
 }).strict();
+
+/** `PUT /api/v1/users/:id/modulos`: a lista inteira (substitui). Vazia tira todos. */
+export const modulosDaContaSchema = z.object({
+  modulos: z.array(z.enum(MODULOS, 'Módulo inválido')).max(MODULOS.length)
+}).strict();
+
+/** Desativar ou reativar a conta (`PUT /users/:id/ativo`). */
+export const ativoDaContaSchema = z.object({ ativo: z.boolean() }).strict();

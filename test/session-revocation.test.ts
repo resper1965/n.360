@@ -127,6 +127,8 @@ describe('Revogação de sessão', () => {
   });
 
   it('mudar o papel do usuário derruba a sessão com o papel antigo', async () => {
+    // Outro platform_admin ativo: rebaixar o último é recusado (409) desde a trava de 11/10/2026.
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('u-pa2','pa2@ness.io','x','PA2','platform_admin')`).run();
     const { token: sessaoAdmin } = await login();
 
     const res = await app.fetch(
@@ -141,6 +143,18 @@ describe('Revogação de sessão', () => {
 
     // Sem isto, o rebaixamento só valeria daqui a 24h — a sessão carrega o papel.
     const depois = await app.fetch(new Request('http://localhost/api/v1/projects', { headers: comSessao(sessaoAdmin) }), env as any);
+    expect(depois.status).toBe(401);
+  });
+
+  it('desativar a conta (o DELETE agora desativa) derruba a sessão em curso', async () => {
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('u-pa2','pa2@ness.io','x','PA2','platform_admin')`).run();
+    const { token } = await login();
+    expect((await app.fetch(new Request('http://localhost/api/v1/projects', { headers: comSessao(token) }), env as any)).status).toBe(200);
+    const agora = Date.now();
+    await env.SESSIONS.put('session_pa2', JSON.stringify({ id: 'u-pa2', email: 'pa2@ness.io', role: 'platform_admin', org_id: 'org_ness', iat: agora, seen: agora }));
+    const del = await app.fetch(new Request('http://localhost/api/v1/users/u-alvo', { method: 'DELETE', headers: comSessao('pa2') }), env as any);
+    expect(del.status).toBe(200);
+    const depois = await app.fetch(new Request('http://localhost/api/v1/projects', { headers: comSessao(token) }), env as any);
     expect(depois.status).toBe(401);
   });
 });

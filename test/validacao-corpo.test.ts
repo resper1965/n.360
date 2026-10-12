@@ -470,4 +470,14 @@ describe('GET /health', () => {
     );
     expect((await res.json<any>()).version).toBe('abc1234');
   });
+
+  it('traz o endereço canônico (app_url): o frontend num domínio antigo só redireciona se ele for outro host', async () => {
+    const padrao = await (await pedir(worker, '/health')).json<any>();
+    expect(padrao.app_url).toBe('https://n360.ness.com.br');
+    const res = await worker.fetch(
+      new Request('http://localhost/health'),
+      { ...env, APP_URL: 'https://niso.ness.com.br/', AI: { run: async () => ({ response: 'stub' }) } } as any
+    );
+    expect((await res.json<any>()).app_url).toBe('https://niso.ness.com.br');
+  });
 });
