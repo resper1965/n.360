@@ -11,6 +11,8 @@ describe('POST /projects/:id/chat com modulo', () => {
     worker.fetch(new Request(`http://localhost/api/v1/projects/${id}/chat`, { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }), envComIa());
   let admin: Record<string, string>;
   let soIso: Record<string, string>;
+  let soPrivacy: Record<string, string>;
+  let semModulo: Record<string, string>;
 
   beforeAll(async () => {
     await applySchema();
@@ -23,6 +25,15 @@ describe('POST /projects/:id/chat com modulo', () => {
     soIso = await sessionFor({ id: 'u-iso', email: 'iso@ness.lat', role: 'consultor' });
     await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('u-iso','iso@ness.lat','x','Iso','consultor')`).run();
     await concederModulos('u-iso', ['iso']);
+    soPrivacy = await sessionFor({ id: 'u-pri', email: 'pri@ness.lat', role: 'consultor' });
+    semModulo = await sessionFor({ id: 'u-nada', email: 'nada@ness.lat', role: 'consultor' });
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('u-pri','pri@ness.lat','x','Pri','consultor'), ('u-nada','nada@ness.lat','x','Nada','consultor')`),
+    ]);
+    // o gatilho usuario_modulos_padrao dá módulos à conta nova: parte-se do zero para o caso.
+    await env.DB.prepare(`DELETE FROM usuario_modulos WHERE user_id IN ('u-pri','u-nada')`).run();
+    await concederModulos('u-pri', ['privacy']);
+    await env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('p-chat','C','pri@ness.lat','consultor','C'), ('p-chat','C','nada@ness.lat','consultor','C')`).run();
     await env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('p-chat','C','iso@ness.lat','consultor','C'), ('p-iso','C','iso@ness.lat','consultor','C')`).run();
   });
 
@@ -43,6 +54,22 @@ describe('POST /projects/:id/chat com modulo', () => {
     }
     expect(prompts).toHaveLength(2);
     for (const p of prompts) expect(p).toMatch(/ISO 27001/);
+  });
+
+  it('sem modulo, quem só tem o n.privacy cai no prompt de privacidade (200)', async () => {
+    const r = await chat(soPrivacy, { message: 'oi' });
+    expect(r.status).toBe(200);
+    expect(prompts[0]).toMatch(/LGPD/);
+  });
+
+  it('sem modulo e sem nenhum módulo em comum, 403', async () => {
+    expect((await chat(semModulo, { message: 'oi' })).status).toBe(403);
+    expect(prompts).toHaveLength(0);
+  });
+
+  it('modulo iso explícito sem o n.iso, 403', async () => {
+    expect((await chat(soPrivacy, { message: 'oi', modulo: 'iso' })).status).toBe(403);
+    expect(prompts).toHaveLength(0);
   });
 
   it('modulo desconhecido responde 400', async () => {

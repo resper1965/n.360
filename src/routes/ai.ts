@@ -4,7 +4,7 @@ import { logAudit, erro500 } from '../helpers';
 import { AssessmentAgent } from '../agents/assessment';
 import { validateBody, chatSchema } from '../schemas';
 import { chatModel } from '../config/models';
-import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo } from '../modulos';
+import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo, type Modulo } from '../modulos';
 
 export const aiApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -21,8 +21,12 @@ aiApp.post('/projects/:id/chat', async (c) => {
   if (!project) return c.json({ error: 'Project not found' }, 404);
 
   // O chat é do núcleo (a faixa não barra), então o módulo pedido é conferido aqui: o projeto E a pessoa precisam tê-lo.
-  const modulo = body.modulo ?? 'iso';
-  const recusa = recusaDeModulo(modulo, await modulosDoProjeto(c.env.DB, projectId)) ?? recusaDaPessoa(modulo, await modulosDaPessoa(c.env.DB, user));
+  // Sem `modulo` (casca n.360), vale o primeiro, na ordem iso -> privacy, que o projeto E a pessoa têm; `modulo` explícito é checado à risca.
+  const doProjeto = await modulosDoProjeto(c.env.DB, projectId);
+  const daPessoa = await modulosDaPessoa(c.env.DB, user);
+  const recusaDe = (m: Modulo) => recusaDeModulo(m, doProjeto) ?? recusaDaPessoa(m, daPessoa);
+  const modulo: Modulo = body.modulo ?? (['iso', 'privacy'] as const).find((m) => !recusaDe(m)) ?? 'iso';
+  const recusa = recusaDe(modulo);
   if (recusa) return c.json({ error: recusa }, 403);
 
   const contexto = `da empresa "${project.client_name}" (Setor: ${project.sector || 'Geral'}, Escopo: ${project.scope || 'SGSI Completo'})`;
