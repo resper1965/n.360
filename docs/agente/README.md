@@ -20,7 +20,9 @@ Sem chave de API, sem instalar nada, sem compilar nada.
 O endereço oficial é `https://niso.ness.com.br/mcp`. Ele não funciona em outro
 domínio, e continua o mesmo com o n.360 como entrada da plataforma: `niso.ness.com.br`
 segue servindo `/mcp` e `/oauth`. O agente trabalha com os módulos do projeto (n.iso,
-n.privacy); rota de módulo que o projeto não tem responde 403.
+n.privacy); rota de módulo que o projeto não tem responde 403. Os rascunhos de IA do n.privacy
+(`ropa/:id/sugestao`, `titular-pedidos/:id/rascunho`, `incidentes/:id/rascunho-comunicacao`) são da tela, para a
+equipe e o administrador do cliente: o agente MCP recebe 403 neles (o principal dele entra com papel `client`).
 
 | Cliente | Como |
 |---|---|

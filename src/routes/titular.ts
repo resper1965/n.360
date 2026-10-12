@@ -5,8 +5,9 @@ import { lerParametros, removerParametro, salvarParametro } from '../services/pa
 import { atualizarPedido, criarPedido, lerPedido, listarPedidos } from '../services/titular-pedidos';
 import { avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
 import { listarConsentimentos, registrarConsentimento, revogarConsentimento } from '../services/consentimentos';
+import { rascunharComunicacao, rascunharResposta } from '../services/rascunhos-privacy';
 import {
-  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteCriarSchema, incidenteRiscoSchema, parametroLegalSchema,
+  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, parametroLegalSchema,
   titularPedidoAtualizarSchema, titularPedidoCriarSchema,
 } from '../schemas';
 
@@ -69,6 +70,14 @@ titularPedidosApp.put('/:id', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao atualizar o pedido do titular', e); }
 });
 
+// Rascunho de IA da resposta: nada é gravado; enviar continua sendo o PUT acima.
+titularPedidosApp.post('/:id/rascunho', async (c) => {
+  try {
+    const r = await rascunharResposta(c.env, c.req.param('projectId')!, c.req.param('id'), c.get('user'));
+    return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao gerar o rascunho da resposta', e); }
+});
+
 // ─── Incidente ───────────────────────────────────────────────────────────────────────────────────
 export const incidentesApp = new Hono<Ctx>();
 
@@ -104,6 +113,16 @@ incidentesApp.post('/:id/comunicacoes', async (c) => {
     const r = await registrarComunicacao(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao registrar a comunicação', e); }
+});
+
+// Rascunho de IA da comunicação (faixa n.privacy, ver SUBROTAS_PRIVACY): nada é gravado; registrar a comunicação é a rota acima.
+incidentesApp.post('/:id/rascunho-comunicacao', async (c) => {
+  try {
+    const v = await validateBody(c, incidenteRascunhoSchema);
+    if (!v.success) return v.response;
+    const r = await rascunharComunicacao(c.env, c.req.param('projectId')!, c.req.param('id'), v.data.destino, c.get('user'));
+    return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao gerar o rascunho da comunicação', e); }
 });
 
 incidentesApp.post('/:id/encerrar', async (c) => {

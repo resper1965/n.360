@@ -254,3 +254,34 @@ describe('terceiro com avaliação vencida', () => {
         expect(el('tl-vencidos')).toBeNull();
     });
 });
+
+describe('sugestão da IA', () => {
+    const SUG = { ok: true, sugestao: { base_legal: 'lgpd:art7:i', retencao: '5 anos <b>após</b>', dpia_requerido: true, justificativa: 'Porque <img src=x onerror=alert(1)>' } };
+
+    it('Sugerir mostra a proposta editável, com o aviso de rascunho, tudo escapado; nada é gravado até Aplicar', async () => {
+        const f = await abrir({ [`POST ${B}/sugestao`]: SUG, 'PUT /api/v1/ropa/r1': { ok: true } });
+        await window.sugerirTratamento('p9', 'r1');
+        const s = el('tl-sugestao');
+        expect(s.textContent).toContain('Rascunho gerado por IA — revise antes de usar');
+        expect(el('tl-sug-base').value).toBe('lgpd:art7:i');
+        expect(el('tl-sug-ret').value).toBe('5 anos <b>após</b>');
+        expect(el('tl-sug-dpia').checked).toBe(true);
+        expect(el('tl-sug-just').textContent).toContain('<img src=x');
+        expect(s.querySelector('img, b')).toBeNull();
+        expect(chamadas(f)).not.toContain('PUT /api/v1/ropa/r1');
+        el('tl-sug-ret').value = ' 2 anos ';
+        await window.aplicarSugestaoTratamento('p9', 'r1');
+        expect(corpoDe(f, 'PUT /api/v1/ropa/r1')).toEqual({ processing_purpose: 'Folha de <b>pagamento</b>', base_legal_id: 'lgpd:art7:i', retention_period: '2 anos', dpia_required: true });
+    });
+
+    it('org_admin vê Sugerir; org_user não; falha do servidor vira aviso', async () => {
+        S.user = { role: 'org_admin' };
+        await abrir();
+        expect(el('modal-content').querySelector('[data-action="sugerirTratamento"]')).not.toBeNull();
+        await window.sugerirTratamento('p9', 'r1'); // sem dublê: 404 do Worker
+        expect(document.body.textContent).toContain('API route not found');
+        S.user = { role: 'org_user' };
+        await abrir();
+        expect(el('modal-content').querySelector('[data-action="sugerirTratamento"]')).toBeNull();
+    });
+});

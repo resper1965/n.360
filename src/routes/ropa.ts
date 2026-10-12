@@ -8,6 +8,7 @@ import { aprovacoesDoProjeto } from '../services/documentos';
 import { importarTratamentos } from '../services/tratamentos-importar';
 import { apagarLia, criarDpiaDoTratamento, lerLia, salvarLia } from '../services/lia';
 import { conferirPedidosDoDocumento } from './pedidos';
+import { sugerirTratamento } from '../services/rascunhos-privacy';
 
 export const ropaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectRopaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -159,6 +160,14 @@ projectRopaApp.post('/:recordId/dpia', async (c) => {
 projectRopaApp.get('/:recordId/ligacoes', async (c) => {
   const r = await lerLigacoes(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
   return r ? c.json(r) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+});
+
+// Sugestão de IA (base legal, retenção, DPIA): nada é gravado; aplicar é o PUT /api/v1/ropa/:id de sempre.
+projectRopaApp.post('/:recordId/sugestao', async (c) => {
+  try {
+    const r = await sugerirTratamento(c.env, c.req.param('projectId')!, c.req.param('recordId'), c.get('user'));
+    return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao gerar a sugestão para o tratamento', e); }
 });
 
 projectRopaApp.get('/:recordId/diagrama', async (c) => {
