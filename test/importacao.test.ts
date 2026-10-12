@@ -1076,7 +1076,8 @@ describe('documentos e avaliações (fatia 3)', () => {
     expect(dp).toMatchObject({ ropa_id: 'ropa-av-video', status: 'Draft', processing_name: 'Videomonitoramento', data_subjects_types: 'Visitantes' });
     expect(dp!.risks_identified).toContain('Vazamento de dados');
     expect(dp!.risks_identified).toContain('Uso indevido');
-    expect(dp!.dpo_opinion).toContain('Conclusão sobre videomonitoramento');
+    expect(dp!.risks_identified).toContain('Conclusão sobre videomonitoramento');
+    expect(dp!.dpo_opinion).toBeNull(); // parecer é do encarregado, não do arquivo
 
     const rl = por('PREVENCAO A FRAUDE');
     expect(rl.decisao).toBe('gravado');
@@ -1128,5 +1129,26 @@ describe('documentos e avaliações (fatia 3)', () => {
     expect(r).toMatchObject({ decisao: 'gravado' });
     expect(r.aviso).toMatch(/riscos e conclusão não foram copiados/);
     expect(await env.DB.prepare(`SELECT 1 FROM dpia_assessments WHERE id = ? AND ropa_id = 'ropa-av-falha'`).bind(r.registro_id).first()).not.toBeNull();
+  });
+
+  it('falha depois de criado o registro nunca o esconde: o motivo diz qual documento ou DPIA existe', async () => {
+    await env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('ropa-av-marca', ?, 'Controle de acesso físico')`).bind(P).run();
+    const loteD = await novoLote();
+    respondeDocumento(doc('Norma de Senhas', { tipo: 'norma' }));
+    await processarPdf(loteD, 'documento', 'Senhas fortes');
+    const loteA = await novoLote();
+    respondeAvaliacoes(aval('dpia', 'Controle de acesso físico'));
+    await processarPdf(loteA, 'avaliacao', 'DPIA');
+    for (const l of [loteD, loteA]) { const [i] = (await lerLote(l)).itens; await aceitar(l, i.id); }
+    const semMarca = quebrando(`UPDATE importacao_itens SET decisao = 'gravado'`);
+
+    const [rd] = await confirmarCom(loteD, semMarca);
+    const docId = (await env.DB.prepare(`SELECT id FROM documentos WHERE project_id = ? AND titulo = 'Norma de Senhas'`).bind(P).first<{ id: string }>())!.id;
+    expect(rd).toMatchObject({ decisao: 'recusado', motivo: `documento ${docId} criado; confira em Documentos antes de tentar de novo` });
+    const [ra] = await confirmarCom(loteA, semMarca);
+    const dpiaId = (await env.DB.prepare(`SELECT id FROM dpia_assessments WHERE ropa_id = 'ropa-av-marca'`).first<{ id: string }>())!.id;
+    expect(ra).toMatchObject({ decisao: 'recusado', motivo: `DPIA ${dpiaId} criado; confira em DPIA antes de tentar de novo` });
+    // a DPIA foi completada antes da marca
+    expect((await env.DB.prepare('SELECT risks_identified FROM dpia_assessments WHERE id = ?').bind(dpiaId).first<{ risks_identified: string }>())!.risks_identified).toContain('Vazamento de dados');
   });
 });

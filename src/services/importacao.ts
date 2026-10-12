@@ -495,7 +495,8 @@ async function gravarAceitos(env: Env, projectId: string, loteId: string, ator: 
           : await gravarAvaliacao(db, projectId, loteId, ator, item, finalidades);
       } catch (e) {
         log('error', { msg: 'importacao_gravar_item', item: item.id, entidade: item.entidade, erro: resumoErro(e) });
-        r = { item_id: item.id, decisao: 'recusado', motivo: 'falha ao gravar o registro; tente de novo' };
+        // A falha pode ter vindo depois de o serviço criar o registro (a trilha dele, por exemplo): não mandar repetir às cegas.
+        r = recusado(item, `falha ao gravar; confira em ${ONDE[item.entidade as keyof typeof ONDE]} se o registro foi criado antes de tentar de novo`);
       }
       if (r.decisao === 'recusado') await recusar(item.id, r.motivo!); else resultados.push(r);
       continue;
@@ -652,6 +653,30 @@ const marcarGravado = (db: D1Database, itemId: string, registroId: string) =>
     .bind(registroId, itemId).run();
 const gravado = (item: LinhaItem, registroId: string, avisos: string[]): Resultado =>
   ({ item_id: item.id, decisao: 'gravado', registro_id: registroId, ...(avisos.length ? { aviso: avisos.join('; ') } : {}) });
+/** Onde a pessoa confere o registro criado (documento, DPIA, LIA). */
+const ONDE = { documento: 'Documentos', dpia: 'DPIA', lia: 'LIA do tratamento' } as const;
+
+/**
+ * Depois que o serviço criou o registro, o item NUNCA volta como recusado sem dizer qual registro existe: a marca `gravado` que falha
+ * vira `recusado` com o id criado (uma nova confirmação recusaria por duplicata, ou criaria outro); a trilha da importação que falha
+ * vira aviso.
+ */
+async function fecharItem(db: D1Database, projectId: string, loteId: string, ator: string, item: LinhaItem, registroId: string, rotulo: string, avisos: string[]): Promise<Resultado> {
+  const entidade = item.entidade as keyof typeof ONDE;
+  try {
+    await marcarGravado(db, item.id, registroId);
+  } catch (e) {
+    log('error', { msg: 'importacao_marcar_gravado', item: item.id, registro: registroId, erro: resumoErro(e) });
+    return recusado(item, `${rotulo} ${registroId} criado; confira em ${ONDE[entidade]} antes de tentar de novo`);
+  }
+  try {
+    await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como ${rotulo} ${registroId}`, '', '', projectId);
+  } catch (e) {
+    log('error', { msg: 'importacao_trilha', item: item.id, registro: registroId, erro: resumoErro(e) });
+    avisos.push('a trilha da importação não foi registrada');
+  }
+  return gravado(item, registroId, avisos);
+}
 
 /**
  * Grava um documento aceito (fatia 3) pelo serviço de documentos: nasce em RASCUNHO (nunca publicado: publicar é ato de uma pessoa
@@ -671,16 +696,14 @@ async function gravarDocumento(env: Env, projectId: string, loteId: string, ator
   const avisos: string[] = d.tipo ? [] : ['tipo não informado; gravado como política'];
   const c = await criarDocumento(db, projectId, ator, { tipo: d.tipo ?? 'politica', titulo: d.titulo, texto: await txt.text() });
   if (!c.ok) return recusado(item, c.error);
-  await marcarGravado(db, item.id, c.id);
   documentos.set(k, c.id);
-  await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como documento ${c.id} (rascunho)`, '', '', projectId);
   try {
     await guardarOriginal(env, projectId, loteId, ator, c.id, a);
   } catch (e) {
     log('error', { msg: 'importacao_documento_original', item: item.id, erro: resumoErro(e) });
     avisos.push('o arquivo original não foi guardado como evidência; anexe-o à mão');
   }
-  return gravado(item, c.id, avisos);
+  return fecharItem(db, projectId, loteId, ator, item, c.id, 'documento', avisos);
 }
 
 /**
@@ -709,7 +732,8 @@ async function guardarOriginal(env: Env, projectId: string, loteId: string, ator
 
 /**
  * Grava uma DPIA ou LIA aceita (fatia 3), ligada ao tratamento do RoPA de mesma finalidade normalizada (sem ele, recusa). DPIA: a
- * do tratamento (`criarDpiaDoTratamento`, `Draft`), com os riscos e a conclusão do arquivo copiados depois (a falha disso vira aviso).
+ * do tratamento (`criarDpiaDoTratamento`, `Draft`), com a conclusão (marcada como do arquivo) e os riscos copiados depois para
+ * `risks_identified` (a falha disso vira aviso). Parecer e recomendações do DPO ficam vazios: são do encarregado, não do arquivo.
  * LIA: rascunho (`salvarLia`), com a conclusão e os riscos do arquivo no balanceamento; concluir (prevalece ou não) é de uma pessoa.
  * Já existe DPIA/LIA no tratamento: recusa, o arquivo não sobrescreve.
  */
@@ -727,28 +751,25 @@ async function gravarAvaliacao(db: D1Database, projectId: string, loteId: string
     const balanceamento = [conclusao, riscos && `Riscos apontados no documento importado:\n${riscos}`].filter(Boolean).join('\n\n') || null;
     const r = await salvarLia(db, projectId, ropaId, ator, { balanceamento, status: 'rascunho' });
     if (!r.ok) return recusado(item, r.error);
-    await marcarGravado(db, item.id, r.id);
-    await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como LIA ${r.id} do tratamento ${ropaId}`, '', '', projectId);
-    return gravado(item, r.id, []);
+    return fecharItem(db, projectId, loteId, ator, item, r.id, 'LIA', []);
   }
 
   const lig = await lerLigacoes(db, projectId, ropaId);
   if (!lig) return recusado(item, `tratamento "${d.tratamento}" não encontrado no RoPA deste projeto`);
   const r = await criarDpiaDoTratamento(db, projectId, ropaId, ator, lig);
   if (!r.ok) return recusado(item, r.status === 409 ? 'já existe DPIA ligada a este tratamento' : r.error);
-  await marcarGravado(db, item.id, r.id);
-  await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como DPIA ${r.id} do tratamento ${ropaId}`, '', '', projectId);
   const avisos: string[] = [];
-  if (riscos || conclusao) {
+  // `dpo_opinion` e `dpo_recommendations` ficam nulos: o relatório os imprime como parecer do encarregado e a tela espera o dele.
+  const texto = [conclusao, riscos && `Riscos apontados no documento importado:\n${riscos}`].filter(Boolean).join('\n\n');
+  if (texto) {
     try {
-      await db.prepare('UPDATE dpia_assessments SET risks_identified = ?, dpo_opinion = ? WHERE id = ? AND project_id = ?')
-        .bind(riscos || null, conclusao || null, r.id, projectId).run();
+      await db.prepare('UPDATE dpia_assessments SET risks_identified = ? WHERE id = ? AND project_id = ?').bind(texto, r.id, projectId).run();
     } catch (e) {
       log('error', { msg: 'importacao_dpia_completar', item: item.id, erro: resumoErro(e) });
       avisos.push('riscos e conclusão não foram copiados para a DPIA; complete na DPIA');
     }
   }
-  return gravado(item, r.id, avisos);
+  return fecharItem(db, projectId, loteId, ator, item, r.id, 'DPIA', avisos);
 }
 
 // ─── cancelar ──────────────────────────────────────────────────────────────────────────────────────
