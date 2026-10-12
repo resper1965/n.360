@@ -1789,12 +1789,12 @@ window.closeDoDDrawerEl = function(e) {
 
 window.signEvidence = async function(evidenceId, role, fileHash) {
         if (!evidenceId) {
-            alert('Não é possível assinar: ID da evidência inválido.');
+            showToast('Não é possível assinar: ID da evidência inválido.', 'error');
             return;
         }
-        const name = prompt(`Digite seu nome completo para assinar eletronicamente como ${role.toUpperCase()}:`);
+        const name = await window.pedirTexto(`Digite seu nome completo para assinar eletronicamente como ${role.toUpperCase()}.`, { titulo: 'Assinar evidência' });
         if (!name) return;
-        const password = prompt(`Digite sua senha de login para confirmar a assinatura eletrônica como ${role.toUpperCase()}:`);
+        const password = await window.pedirTexto(`Digite sua senha de login para confirmar a assinatura eletrônica como ${role.toUpperCase()}.`, { titulo: 'Assinar evidência', rotulo: 'Assinar', tipo: 'password' });
         if (!password) return;
         
         try {
@@ -1807,7 +1807,7 @@ window.signEvidence = async function(evidenceId, role, fileHash) {
                 await renderEvidence(c, h, a);
             }
         } catch(e) {
-            alert('Erro ao registrar assinatura: ' + e.message);
+            showToast('Erro ao registrar assinatura: ' + e.message, 'error');
         }
     }
 
@@ -1872,7 +1872,7 @@ window.submitScopeChange = async function(projectId, prevScope) {
             approved_by: document.getElementById('scope-approved-by').value
         };
         if (!body.new_scope || !body.change_reason || !body.approved_by) {
-            alert('Por favor, preencha todos os campos obrigatórios.');
+            showToast('Preencha todos os campos obrigatórios.', 'error');
             return;
         }
         // Nomes do scopeChangeSchema (src/schemas/domain.ts:294-301). Os da tela davam 400 sempre.

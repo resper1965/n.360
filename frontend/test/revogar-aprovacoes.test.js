@@ -45,18 +45,18 @@ describe('quem vê os botões de desaprovar', () => {
 describe('o motivo é obrigatório', () => {
   it('sem motivo (ou curto demais) nenhuma chamada sai', async () => {
     const api = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}'));
-    window.prompt = vi.fn().mockReturnValue('x');
+    window.pedirTexto = vi.fn().mockResolvedValue('x');
     await window.revogarROPA('p1', 'r1', 'ciso');
     await window.revogarDPIA('p1', 'd1');
-    window.prompt = vi.fn().mockReturnValue(null);
+    window.pedirTexto = vi.fn().mockResolvedValue(null);
     await window.revogarDPIA('p1', 'd1');
     expect(api).not.toHaveBeenCalled();
   });
 
   it('excluir análise pede confirmação e, recusada, não apaga', async () => {
-    window.confirm = vi.fn().mockReturnValue(false);
+    window.confirmar = vi.fn().mockResolvedValue(false);
     await window.excluirMgmtReview('m1');
-    expect(window.confirm).toHaveBeenCalledOnce();
-    expect(window.confirm.mock.calls[0][0]).toMatch(/permanente/);
+    expect(window.confirmar).toHaveBeenCalledOnce();
+    expect(window.confirmar.mock.calls[0][0]).toMatch(/permanente/);
   });
 });

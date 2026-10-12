@@ -38,7 +38,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                         <div class="card" style="padding:1.5rem; display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02)">
                             <div>
                                 <div style="font-size:0.75rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:0.5px">Fase 1</div>
-                                <h3 style="font-family:'Montserrat'; font-weight:500; font-size:1.15rem; margin:0.25rem 0 0.5rem 0">Avaliação de Escopo (Assessment Inicial)</h3>
+                                <h3 style="font-family:'Montserrat'; font-weight:500; font-size:1.15rem; margin:0.25rem 0 0.5rem 0">Levantamento de escopo</h3>
                                 <p style="color:var(--text-dim); font-size:0.85rem; margin:0">Questionário para mapear as atividades, equipe e tecnologia do seu negócio para cálculo do pricing e maturidade.</p>
                             </div>
                             <div style="text-align:right">
@@ -52,7 +52,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                                 <p style="color:var(--text-dim); font-size:0.85rem; margin:0">Aprovação da proposta comercial baseada no escopo mapeado e assinatura digital para início da adequação.</p>
                             </div>
                             <div style="text-align:right">
-                                ${proposalStatus === 'Approved' ? '<span class="status-badge" style="background:rgba(0,173,232,0.1); color:var(--accent); border:1px solid rgba(0,173,232,0.2)">Assinado</span>' : S.clientProposalId ? '<span class="status-badge" style="background:rgba(255,255,255,0.05); color:var(--text-dim)">Proposta enviada pelo comercial</span>' : '<span class="status-badge" style="background:rgba(255,255,255,0.05); color:var(--text-dim)">Aguardando Assessment</span>'}
+                                ${proposalStatus === 'Approved' ? '<span class="status-badge" style="background:rgba(0,173,232,0.1); color:var(--accent); border:1px solid rgba(0,173,232,0.2)">Assinado</span>' : S.clientProposalId ? '<span class="status-badge" style="background:rgba(255,255,255,0.05); color:var(--text-dim)">Proposta enviada pelo comercial</span>' : '<span class="status-badge" style="background:rgba(255,255,255,0.05); color:var(--text-dim)">Aguardando levantamento</span>'}
                             </div>
                         </div>
                         <div class="card" style="padding:1.5rem; display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02)">
@@ -94,10 +94,11 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
 
             const statsHtml = window.renderStatCards([
                 // Só o comercial vê o funil; para o consultor o cartão mostraria 0 e enganaria.
-                ...(ehComercial() ? [{ label: 'Leads Ativos', value: leadsCount, color: 'var(--accent)', subtext: 'Oportunidades em pré-venda' }] : []),
-                { label: 'Levantamentos', value: assessmentsCount, color: '#ffcc00', subtext: 'Assessments cadastrados' },
-                { label: 'Projetos em Curso', value: projectsCount, color: '#34c759', subtext: 'Implementações ISO ativas' },
-                { label: 'Taxa de Conformidade', value: `${complianceRate}%`, color: complianceRate >= 80 ? '#34c759' : complianceRate >= 50 ? '#ffcc00' : '#00ade8', subtext: `${approvedControls} de ${totalControls} controles` }
+                ...(ehComercial() ? [{ label: 'Leads Ativos', value: leadsCount, color: 'var(--text)', subtext: 'Oportunidades em pré-venda' }] : []),
+                // Contagem é neutra (--text); cor só quando o número diz algo (conformidade a partir de 80%).
+                { label: 'Levantamentos', value: assessmentsCount, color: 'var(--text)', subtext: 'Levantamentos de escopo cadastrados' },
+                { label: 'Projetos em Curso', value: projectsCount, color: 'var(--text)', subtext: 'Implementações ISO ativas' },
+                { label: 'Taxa de Conformidade', value: `${complianceRate}%`, color: complianceRate >= 80 ? 'var(--success)' : 'var(--text)', subtext: `${approvedControls} de ${totalControls} controles` }
             ]);
 
             const assessmentsTable = window.renderDataTable(
@@ -111,7 +112,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                     }
                 ],
                 assessments.slice(0, 5),
-                { emptyMessage: 'Nenhum levantamento recente cadastrado.' }
+                { emptyMessage: 'Nenhum levantamento cadastrado.', emptyHint: 'O levantamento de escopo mapeia atividades, equipe e tecnologia do cliente e é a base da proposta.' }
             );
 
             const projectsTable = window.renderDataTable(
@@ -122,8 +123,8 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                             const progVal = (row.progress !== undefined && row.progress !== null && row.progress > 0) ? row.progress : complianceRate;
                             return `
                             <div style="display:flex; align-items:center; gap:0.75rem; width:100%;">
-                                <div class="progress-bar" style="flex:1; height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;"><div class="progress-fill" style="width:${progVal}%; background:var(--accent); height:100%;"></div></div>
-                                <span style="font-size:0.75rem; font-weight:600; color:var(--accent);">${progVal}%</span>
+                                <div class="progress-bar" style="flex:1; height:6px; background:var(--surface-2); overflow:hidden;"><div class="progress-fill" style="width:${progVal}%; background:var(--accent); height:100%;"></div></div>
+                                <span style="font-size:0.75rem; font-weight:600; color:var(--text); font-variant-numeric:tabular-nums">${progVal}%</span>
                             </div>
                             `;
                         }
@@ -131,7 +132,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                     { label: 'Ação', align: 'right', render: (row) => `<button class="btn btn-ghost" style="padding:0.25rem 0.6rem; font-size:0.7rem;" data-action="openProjectDetail" data-args='["${row.id}"]'>Gerenciar</button>` }
                 ],
                 activeProjectsList.slice(0, 5),
-                { emptyMessage: 'Nenhum projeto ativo.' }
+                { emptyMessage: 'Nenhum projeto ativo.', emptyHint: 'O projeto nasce quando a proposta é aprovada; a jornada de adequação começa por ele.', emptyAction: `<button class="btn" data-action="navigate" data-args='["projects"]'>Ver projetos</button>` }
             );
 
             c.innerHTML = `
@@ -139,24 +140,24 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                     <div id="ponto-de-partida"></div>
                     ${statsHtml}
 
-                    <div class="card fade-in" style="margin-bottom:1.5rem; background:rgba(15,23,42,0.65); border:1px solid rgba(229,235,255,0.08); border-radius:12px; padding:1.5rem; backdrop-filter:blur(24px);">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem">
-                            <div style="font-family:'Montserrat',sans-serif; font-weight:500; font-size:1rem; color:var(--text);">Burnup de Gaps — Velocidade de Conformidade</div>
-                            <span style="background:rgba(0,173,232,0.15); color:var(--accent); padding:0.25rem 0.61rem; border-radius:6px; font-weight:600; font-size:0.75rem;">${complianceRate}% Implementado</span>
+                    <div class="card" id="progresso-controles" style="margin-bottom:1.5rem">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:0.75rem">
+                            <h3 style="font-family:var(--font-head); font-weight:600; font-size:1rem; margin:0; color:var(--text)">Progresso de implementação dos controles</h3>
+                            ${window.renderStatusBadge('info', `${complianceRate}% implementado`)}
                         </div>
-                        <div class="progress-bar" style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden; margin-bottom:1rem">
-                            <div class="progress-fill" style="width: ${complianceRate}%; background:linear-gradient(90deg, var(--accent), #34c759); height:100%;"></div>
+                        <div class="progress-bar" style="height:8px; background:var(--surface-2); margin-bottom:1rem" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${complianceRate}" aria-label="Controles implementados">
+                            <div class="progress-fill" style="width:${complianceRate}%; background:var(--accent); height:100%"></div>
                         </div>
-                        <div style="display:flex; gap:1.5rem; font-size:0.8rem; color:var(--text-dim)">
-                            <div><strong style="color:var(--text)">Controles Implementados:</strong> ${approvedControls}</div>
-                            <div><strong style="color:var(--text)">Gaps Restantes:</strong> ${gapsControls}</div>
-                            <div><strong style="color:var(--text)">Total do ISMS:</strong> ${totalControls}</div>
+                        <div style="display:flex; gap:1.5rem; font-size:0.8rem; color:var(--text-dim); font-variant-numeric:tabular-nums">
+                            <div><strong style="color:var(--text)">Controles implementados:</strong> ${approvedControls}</div>
+                            <div><strong style="color:var(--text)">Gaps restantes:</strong> ${gapsControls}</div>
+                            <div><strong style="color:var(--text)">Total do SGSI:</strong> ${totalControls}</div>
                         </div>
                     </div>
 
                     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:1.5rem;">
                         <div>
-                            <h3 style="font-family:'Montserrat',sans-serif; font-weight:500; font-size:1.05rem; margin-bottom:0.8rem; color:var(--text)">Levantamentos Recentes</h3>
+                            <h3 style="font-family:'Montserrat',sans-serif; font-weight:500; font-size:1.05rem; margin-bottom:0.8rem; color:var(--text)">Levantamentos recentes</h3>
                             ${assessmentsTable}
                         </div>
                         <div>

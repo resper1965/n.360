@@ -6,8 +6,8 @@ import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 
 // S2: wrappers para handlers COMPOSTOS/inline (a delegação chama uma função só).
-window.__grcDeleteRisk = function (riskId) {
-    if (confirm('Excluir este risco?')) {
+window.__grcDeleteRisk = async function (riskId) {
+    if (await window.confirmar('O risco sai do registro e da matriz deste projeto.', { titulo: 'Excluir risco', perigo: true, rotulo: 'Excluir' })) {
         api('DELETE', `/api/v1/risks/${riskId}`).then(() => { window.forceCloseModal(); window.render(); });
     }
 };
@@ -19,7 +19,7 @@ window.__grcCloseExecAudit = function (id) {
     async function renderRisks(c, h, a) {
         h.textContent = 'Riscos';
         const proj = S.activeProject || S.projects[0];
-        if (!proj) { c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto primeiro.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; return; }
+        if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
         const isOrgUser = S.user && S.user.role === 'org_user';
         a.innerHTML = isOrgUser ? '' : `<button class="btn btn-primary" data-action="openNewRiskModal" data-args='["${proj.id}"]'>+ Novo Risco</button>`;
         
@@ -95,6 +95,11 @@ window.__grcCloseExecAudit = function (id) {
             }
         }
 
+        // Vazio por filtro e vazio de verdade dizem coisas diferentes.
+        const VAZIO_RISCOS = risks.length
+            ? { titulo: 'Nenhum risco nesta célula da matriz', texto: 'Limpe o filtro para ver os demais riscos.' }
+            : { titulo: 'Nenhum risco registrado', texto: 'A apreciação de riscos (ISO 27001, 6.1.2) é o que justifica cada controle da SoA. Registre os riscos de segurança e de privacidade do escopo.',
+                acao: isOrgUser ? '' : `<button class="btn btn-primary" data-action="openNewRiskModal" data-args='["${proj.id}"]'>Novo risco</button>` };
         // Apply filter if active
         let filteredRisks = risks;
         let filterIndicatorBar = '';
@@ -108,7 +113,7 @@ window.__grcCloseExecAudit = function (id) {
             `;
         }
 
-        const levelColor = l => l === 'Critical' ? 'var(--danger)' : l === 'High' ? 'var(--warning)' : l === 'Medium' ? '#f59e0b' : 'var(--accent)';
+        const levelColor = l => l === 'Critical' ? 'var(--danger)' : l === 'High' ? 'var(--warning)' : l === 'Medium' ? 'var(--warning)' : 'var(--accent)';
 
         c.innerHTML = `
             <div class="fade-in">
@@ -169,7 +174,7 @@ window.__grcCloseExecAudit = function (id) {
                                 <div class="legend-item">
                                     <div class="legend-color" style="background: rgba(145, 110, 25, 0.45); border: 1px solid rgba(234, 179, 8, 0.45);"></div>
                                     <div style="flex: 1;">Médio (Score 6-12)</div>
-                                    <div style="font-weight: 600; color: #f59e0b;">${mediumCount}</div>
+                                    <div style="font-weight: 600; color: var(--warning);">${mediumCount}</div>
                                 </div>
                                 <div class="legend-item">
                                     <div class="legend-color" style="background: rgba(20, 60, 100, 0.65); border: 1px solid rgba(0, 173, 232, 0.35);"></div>
@@ -220,10 +225,10 @@ window.__grcCloseExecAudit = function (id) {
                             </div>
                             <div style="display:flex;align-items:center;gap:0.5rem">
                                 <span style="font-weight:600;color:${levelColor(r.risk_level)}">${r.risk_score || (r.impact * r.probability)}</span>
-                                <span class="ctx-tag" style="background:${levelColor(r.risk_level)}20;color:${levelColor(r.risk_level)}">${escapeHTML(traduzStatus(r.risk_level) || 'Sem nível')}</span>
+                                <span class="ctx-tag" style="background:color-mix(in oklab, ${levelColor(r.risk_level)} 12%, transparent);color:${levelColor(r.risk_level)}">${escapeHTML(traduzStatus(r.risk_level) || 'Sem nível')}</span>
                             </div>
                         </div>
-                    `).join('') : '<div class="empty-state"><h3>Nenhum risco correspondente</h3><p>Não há riscos cadastrados ou que correspondam ao filtro selecionado.</p></div>'}
+                    `).join('') : window.renderEmptyState(VAZIO_RISCOS)}
                 </div>
             </div>
         `;
@@ -412,7 +417,7 @@ window.__grcCloseExecAudit = function (id) {
     window.openRiskDetailsModal = function(id) {
         const r = S.risks.find(x => x.id === id) || {};
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        const levelColor = l => l === 'Critical' ? 'var(--danger)' : l === 'High' ? 'var(--warning)' : l === 'Medium' ? '#f59e0b' : 'var(--accent)';
+        const levelColor = l => l === 'Critical' ? 'var(--danger)' : l === 'High' ? 'var(--warning)' : l === 'Medium' ? 'var(--warning)' : 'var(--accent)';
         const score = r.risk_score || (r.impact * r.probability);
         
         openModal(`
@@ -428,7 +433,7 @@ window.__grcCloseExecAudit = function (id) {
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:16px">
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Nível de Risco</div>
-                        <span class="ctx-tag" style="background:${levelColor(r.risk_level)}20; color:${levelColor(r.risk_level)}; font-weight:600">${escapeHTML(traduzStatus(r.risk_level) || 'Sem nível')}</span>
+                        <span class="ctx-tag" style="background:color-mix(in oklab, ${levelColor(r.risk_level)} 12%, transparent); color:${levelColor(r.risk_level)}; font-weight:600">${escapeHTML(traduzStatus(r.risk_level) || 'Sem nível')}</span>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Score Total</div>
@@ -476,7 +481,7 @@ window.__grcCloseExecAudit = function (id) {
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -496,7 +501,7 @@ window.__grcCloseExecAudit = function (id) {
         const highDilCount = vendors.filter(v => v.diligence_level === 'High' || v.diligence_level === 'Critical').length;
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total Fornecedores', value: totalVendors, color: 'var(--accent)', subtext: 'Terceiros mapeados' },
+            { label: 'Total Fornecedores', value: totalVendors, color: 'var(--text)', subtext: 'Terceiros mapeados' },
             // Sem fornecedor não há postura a medir: "—", nunca "0/100" em vermelho.
             { label: 'Trust Score Médio', value: totalVendors ? `${avgScore}/100` : '—', color: !totalVendors ? 'var(--text-dim)' : avgScore >= 80 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : 'var(--danger)', subtext: 'Postura global' },
             { label: 'DPAs Assinados', value: dpaSignedCount, color: 'var(--text)', subtext: 'Proteção de dados' },
@@ -524,7 +529,9 @@ window.__grcCloseExecAudit = function (id) {
                     `<button class="btn btn-ghost btn-sm" data-action="openVendorDetailsModal" data-args='["${v.id}"]'>Detalhes</button>`
                 ];
             }),
-            { emptyState: 'Nenhum fornecedor registrado neste projeto.' }
+            { emptyState: 'Nenhum fornecedor registrado neste projeto.',
+              emptyHint: 'Fornecedor com acesso a informação do escopo precisa de requisitos de segurança acordados e acompanhados (ISO 27001, A.5.19 a A.5.22).',
+              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewVendorModal" data-args='["${proj.id}"]'>Novo fornecedor</button>` : '' }
         );
 
         c.innerHTML = `
@@ -559,7 +566,7 @@ window.__grcCloseExecAudit = function (id) {
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Trust Score (Calculado)</div>
-                        <span style="font-size:1.1rem; font-weight:700; color:${v.trust_score >= 80 ? 'var(--success)' : v.trust_score >= 50 ? '#f59e0b' : 'var(--danger)'}">${v.trust_score || 0} / 100</span>
+                        <span style="font-size:1.1rem; font-weight:700; color:${v.trust_score >= 80 ? 'var(--success)' : v.trust_score >= 50 ? 'var(--warning)' : 'var(--danger)'}">${v.trust_score || 0} / 100</span>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">DPA Assinado</div>
@@ -625,7 +632,7 @@ window.__grcCloseExecAudit = function (id) {
         const scorePreviewEl = document.getElementById('vnd-score-preview');
         if (scorePreviewEl) {
             scorePreviewEl.textContent = finalScore + ' / 100';
-            scorePreviewEl.style.color = finalScore >= 80 ? 'var(--success)' : finalScore >= 50 ? '#f59e0b' : 'var(--danger)';
+            scorePreviewEl.style.color = finalScore >= 80 ? 'var(--success)' : finalScore >= 50 ? 'var(--warning)' : 'var(--danger)';
         }
     };
 
@@ -781,7 +788,7 @@ window.__grcCloseExecAudit = function (id) {
             const scorePreviewEl = document.getElementById('vnd-score-preview');
             if (scorePreviewEl) {
                 scorePreviewEl.textContent = finalScore + ' / 100';
-                scorePreviewEl.style.color = finalScore >= 80 ? 'var(--success)' : finalScore >= 50 ? '#f59e0b' : 'var(--danger)';
+                scorePreviewEl.style.color = finalScore >= 80 ? 'var(--success)' : finalScore >= 50 ? 'var(--warning)' : 'var(--danger)';
             }
         };
         window.previewVendorScore();
@@ -809,7 +816,7 @@ window.__grcCloseExecAudit = function (id) {
     };
 
     window.deleteVendor = async function(id) {
-        if (confirm('Excluir este fornecedor?')) { await api('DELETE', `/api/v1/vendors/${id}`); render(); }
+        if (await window.confirmar('O fornecedor e a avaliação dele saem deste projeto.', { titulo: 'Excluir fornecedor', perigo: true, rotulo: 'Excluir' })) { await api('DELETE', `/api/v1/vendors/${id}`); render(); }
     };
 
     async function renderTraining(c, h, a) {
@@ -817,7 +824,7 @@ window.__grcCloseExecAudit = function (id) {
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -840,10 +847,11 @@ window.__grcCloseExecAudit = function (id) {
         const compStatus = summary.compliance_status || (coveragePct >= 80 ? 'Compliant' : 'Non-Compliant');
 
         const statsHtml = window.renderStatCards([
-            { label: 'Cobertura de Treinamento', value: `${coveragePct}%`, color: coveragePct >= 80 ? '#34c759' : '#ffcc00', subtext: 'Meta ISO 27001' },
-            { label: 'Concluídos', value: `${completedRecords}/${totalRecords}`, color: '#34c759', subtext: 'Colaboradores aptos' },
-            { label: 'Pendentes / Expirados', value: totalRecords - completedRecords, color: totalRecords - completedRecords > 0 ? '#ffcc00' : 'var(--accent)', subtext: 'Requer atenção' },
-            { label: 'Status Global', value: compStatus, color: compStatus === 'Compliant' ? '#34c759' : '#ff3b30', subtext: 'Avaliação SGSI' }
+            // Sem registro não há cobertura a medir: "—", nunca "0%" e "Non-Compliant" em vermelho.
+            { label: 'Cobertura de Treinamento', value: totalRecords ? `${coveragePct}%` : '—', color: !totalRecords ? 'var(--text-dim)' : coveragePct >= 80 ? 'var(--success)' : 'var(--warning)', subtext: 'Meta ISO 27001' },
+            { label: 'Concluídos', value: `${completedRecords}/${totalRecords}`, color: 'var(--text)', subtext: 'Colaboradores aptos' },
+            { label: 'Pendentes / Expirados', value: totalRecords - completedRecords, color: totalRecords - completedRecords > 0 ? 'var(--warning)' : 'var(--text)', subtext: 'Requer atenção' },
+            { label: 'Status Global', value: !totalRecords ? '—' : compStatus === 'Compliant' ? 'Conforme' : 'Não conforme', color: !totalRecords ? 'var(--text-dim)' : compStatus === 'Compliant' ? 'var(--success)' : 'var(--danger)', subtext: 'Avaliação SGSI' }
         ]);
 
         const tableHtml = window.renderDataTable(
@@ -862,7 +870,9 @@ window.__grcCloseExecAudit = function (id) {
                     `<button class="btn btn-ghost btn-sm" data-action="openTrainingDetailsModal" data-args='["${r.id}"]'>Detalhes</button>`
                 ];
             }),
-            { emptyState: 'Nenhum registro de treinamento cadastrado para este projeto.' }
+            { emptyState: 'Nenhum registro de treinamento neste projeto.',
+              emptyHint: 'O registro de quem foi treinado e quando é a evidência de conscientização (ISO 27001, 7.2 e 7.3; A.6.3).',
+              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewTrainingModal" data-args='["${proj.id}"]'>Novo registro</button>` : '' }
         );
 
         c.innerHTML = `
@@ -1053,7 +1063,7 @@ window.__grcCloseExecAudit = function (id) {
     };
 
     window.deleteTraining = async function(id) {
-        if (confirm('Excluir este registro?')) { await api('DELETE', `/api/v1/training/${id}`); render(); }
+        if (await window.confirmar('O registro de treinamento sai deste projeto.', { titulo: 'Excluir registro de treinamento', perigo: true, rotulo: 'Excluir' })) { await api('DELETE', `/api/v1/training/${id}`); render(); }
     };
 
     window.openImportTrainingModal = function(projectId) {
@@ -1088,7 +1098,7 @@ window.__grcCloseExecAudit = function (id) {
         const payloadText = document.getElementById('training-json-payload').value.trim();
         const btn = document.getElementById('btn-import-training');
         if (!payloadText) {
-            alert('Cole o JSON de entrada para importar.');
+            showToast('Cole o JSON de entrada para importar.', 'error');
             return;
         }
 
@@ -1096,7 +1106,7 @@ window.__grcCloseExecAudit = function (id) {
         try {
             parsed = JSON.parse(payloadText);
         } catch(e) {
-            alert('JSON inválido: ' + e.message);
+            showToast('JSON inválido: ' + e.message, 'error');
             return;
         }
 
@@ -1113,7 +1123,7 @@ window.__grcCloseExecAudit = function (id) {
                 throw new Error(res.error || 'Erro desconhecido');
             }
         } catch(e) {
-            alert('Falha na importação: ' + e.message);
+            showToast('Falha na importação: ' + e.message, 'error');
         } finally {
             btn.disabled = false;
             btn.textContent = 'Confirmar Importação';
@@ -1125,7 +1135,7 @@ window.__grcCloseExecAudit = function (id) {
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -1145,10 +1155,10 @@ window.__grcCloseExecAudit = function (id) {
         const criticalCAPA = items.filter(i => i.severity === 'Critical' || i.severity === 'High').length;
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total Ações CAPA', value: totalCAPA, color: 'var(--accent)', subtext: 'Planos registrados' },
-            { label: 'Abertas / Em Andamento', value: openCAPA, color: openCAPA > 0 ? '#ffcc00' : '#34c759', subtext: 'Requer acompanhamento' },
-            { label: 'Concluídas / Fechadas', value: closedCAPA, color: '#34c759', subtext: 'Resoluções efetivas' },
-            { label: 'Críticas / Alta Severidade', value: criticalCAPA, color: criticalCAPA > 0 ? '#ff3b30' : '#34c759', subtext: 'Prioridade máxima' }
+            { label: 'Total Ações CAPA', value: totalCAPA, color: 'var(--text)', subtext: 'Planos registrados' },
+            { label: 'Abertas / Em Andamento', value: openCAPA, color: openCAPA > 0 ? 'var(--warning)' : 'var(--text)', subtext: 'Requer acompanhamento' },
+            { label: 'Concluídas / Fechadas', value: closedCAPA, color: 'var(--text)', subtext: 'Resoluções efetivas' },
+            { label: 'Críticas / Alta Severidade', value: criticalCAPA, color: criticalCAPA > 0 ? 'var(--danger)' : 'var(--text)', subtext: 'Prioridade máxima' }
         ]);
 
         const tableHtml = window.renderDataTable(
@@ -1166,7 +1176,9 @@ window.__grcCloseExecAudit = function (id) {
                     `<button class="btn btn-ghost btn-sm" data-action="openCAPADetailsModal" data-args='["${ca.id}"]'>Detalhes</button>`
                 ];
             }),
-            { emptyState: 'Nenhuma ação corretiva registrada para este projeto.' }
+            { emptyState: 'Nenhuma ação corretiva registrada neste projeto.',
+              emptyHint: 'Cada não conformidade pede ação para eliminar a causa e o registro do resultado (ISO 27001, 10.2).',
+              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewCAPAModal" data-args='["${proj.id}"]'>Nova ação</button>` : '' }
         );
 
         c.innerHTML = `
@@ -1179,8 +1191,8 @@ window.__grcCloseExecAudit = function (id) {
         const ca = S.capa.find(x => x.id === id) || {};
         const projectId = S.activeProject ? S.activeProject.id : '';
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        const sevColor = s => s === 'Critical' ? 'var(--danger)' : s === 'High' ? '#ff9f43' : s === 'Medium' ? '#feca57' : 'var(--accent)';
-        const statusColor = s => s === 'Closed' ? 'var(--accent)' : s === 'In Progress' ? '#feca57' : 'var(--muted)';
+        const sevColor = s => s === 'Critical' ? 'var(--danger)' : s === 'High' ? 'var(--warning)' : s === 'Medium' ? 'var(--warning)' : 'var(--accent)';
+        const statusColor = s => s === 'Closed' ? 'var(--accent)' : s === 'In Progress' ? 'var(--warning)' : 'var(--muted)';
         
         let risks = [];
         let audits = [];
@@ -1407,7 +1419,7 @@ window.__grcCloseExecAudit = function (id) {
     };
 
     window.deleteCAPA = async function(id) { 
-        if (confirm('Excluir acao corretiva?')) { 
+        if (await window.confirmar('A ação corretiva sai deste projeto, e a não conformidade de origem fica sem tratamento registrado.', { titulo: 'Excluir ação corretiva', perigo: true, rotulo: 'Excluir' })) { 
             await api('DELETE', `/api/v1/capa/${id}`); 
             forceCloseModal(); 
             render(); 
@@ -1415,11 +1427,11 @@ window.__grcCloseExecAudit = function (id) {
     };
 
     async function renderAudits(c, h, a) {
-        h.textContent = 'Calendário de Auditorias';
+        h.textContent = 'Auditorias';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -1439,10 +1451,10 @@ window.__grcCloseExecAudit = function (id) {
         const totalFindings = audits.reduce((acc, au) => acc + (au.findings_count || 0), 0);
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total de Auditorias', value: totalAudits, color: 'var(--accent)', subtext: 'Ciclo de auditoria' },
-            { label: 'Agendadas / Em Execução', value: plannedAudits, color: '#ffcc00', subtext: 'Próximas fases' },
-            { label: 'Concluídas', value: completedAudits, color: '#34c759', subtext: 'Relatórios emitidos' },
-            { label: 'Total de Achados', value: totalFindings, color: totalFindings > 0 ? '#ff3b30' : '#34c759', subtext: 'Gaps mapeados' }
+            { label: 'Total de Auditorias', value: totalAudits, color: 'var(--text)', subtext: 'Ciclo de auditoria' },
+            { label: 'Agendadas / Em Execução', value: plannedAudits, color: 'var(--text)', subtext: 'Próximas fases' },
+            { label: 'Concluídas', value: completedAudits, color: 'var(--text)', subtext: 'Relatórios emitidos' },
+            { label: 'Total de Achados', value: totalFindings, color: totalFindings > 0 ? 'var(--danger)' : 'var(--text)', subtext: 'Achados registrados nas auditorias' }
         ]);
 
         const tableHtml = window.renderDataTable(
@@ -1463,7 +1475,9 @@ window.__grcCloseExecAudit = function (id) {
                     `${executeBtn}<button class="btn btn-ghost btn-sm" data-action="openAuditDetailsModal" data-args='["${au.id}"]'>Detalhes</button>`
                 ];
             }),
-            { emptyState: 'Nenhuma auditoria agendada para este projeto.' }
+            { emptyState: 'Nenhuma auditoria agendada neste projeto.',
+              emptyHint: 'A auditoria interna em intervalos planejados é requisito da certificação (ISO 27001, 9.2). Agende a primeira para fechar o ciclo antes do estágio 1.',
+              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewAuditModal" data-args='["${proj.id}"]'>Nova auditoria</button>` : '' }
         );
 
         c.innerHTML = `
@@ -1477,7 +1491,7 @@ window.__grcCloseExecAudit = function (id) {
     window.openAuditDetailsModal = function(id) {
         const au = S.audits.find(x => x.id === id) || {};
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        const statusColor = s => s === 'Completed' ? 'var(--accent)' : s === 'In Progress' ? '#feca57' : 'var(--muted)';
+        const statusColor = s => s === 'Completed' ? 'var(--accent)' : s === 'In Progress' ? 'var(--warning)' : 'var(--muted)';
         
         openModal(`
             <div class="modal-header">
@@ -1605,7 +1619,7 @@ window.__grcCloseExecAudit = function (id) {
     };
 
     window.deleteAudit = async function(id) { 
-        if (confirm('Excluir auditoria?')) { 
+        if (await window.confirmar('A auditoria sai do calendário deste projeto.', { titulo: 'Excluir auditoria', perigo: true, rotulo: 'Excluir' })) { 
             await api('DELETE', `/api/v1/audits/${id}`); 
             forceCloseModal(); 
             render(); 
@@ -1689,7 +1703,7 @@ window.__grcCloseExecAudit = function (id) {
             `;
             
             if (findings.length === 0) {
-                html += '<div style="padding:2rem;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:10px">Nenhum achado ou NC registrado nesta auditoria.</div>';
+                html += window.renderEmptyState({ titulo: 'Nenhum achado registrado nesta auditoria', texto: 'Registre cada não conformidade ou observação com a evidência que a sustenta (ISO 27001, 9.2).' });
             } else {
                 html += `<div style="display:flex;flex-direction:column;gap:12px;max-height:600px;overflow-y:auto">`;
                 findings.forEach(f => {
@@ -1786,7 +1800,7 @@ window.__grcCloseExecAudit = function (id) {
     };
 
     window.deleteFinding = async function(id) {
-        if (!confirm('Deseja realmente deletar este achado?')) return;
+        if (!(await window.confirmar('O achado sai desta auditoria.', { titulo: 'Excluir achado', perigo: true, rotulo: 'Excluir' }))) return;
         try {
             await api('DELETE', `/api/v1/audit-findings/${id}`);
             showToast('Achado removido');

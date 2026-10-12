@@ -65,13 +65,13 @@ async function renderImportacao(c, h, a) {
     a.innerHTML = '';
     Object.assign(E, { c, h, a });
     if (!projetoAtivo()) {
-        c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>';
+        c.innerHTML = window.renderSemProjeto();
         return;
     }
     if (E.loteId) return recarrega();
     E.det = null;
     try { E.lotes = (await api('GET', `/api/v1/projects/${pid()}/importacoes`)).lotes || []; } catch (err) {
-        c.innerHTML = `<div class="empty-state fade-in"><h3>Não foi possível listar os lotes</h3><p>${e(err.message)}</p></div>`;
+        c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível listar os lotes', texto: err.message });
         return;
     }
     pinta();

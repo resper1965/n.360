@@ -37,12 +37,13 @@ async function renderRequisitos(c, h, a) {
     if (!escolhida || !escolhida.requisitos) {
         // Só o administrador carrega o catálogo: para ele, a ação primária; para os demais, a quem pedir (não um beco sem saída).
         const privacy = produtoAtual() === 'privacy';
-        const proximo = ehAdmin()
-            ? `<button class="btn btn-primary" data-action="semearRequisitos" style="margin-top:1rem">${privacy ? 'Carregar catálogo LGPD/ANPD' : 'Carregar catálogo'}</button>`
-            : `<p>O catálogo é carregado pelo administrador da plataforma. Peça a ele para habilitar os requisitos ${privacy ? 'da LGPD e da ANPD' : 'das normas do projeto'}.</p>`;
+        const situacao = escolhida && algumaCarregada ? escolhida.nome + ' ainda não tem requisitos carregados.' : 'Nenhuma fonte de requisitos foi carregada.';
         if (ehAdmin()) a.innerHTML = '';
-        c.innerHTML = `${seletor}<div class="empty-state fade-in"><h3>Catálogo ainda não carregado</h3>
-            <p>${escolhida && algumaCarregada ? escapeHTML(escolhida.nome) + ' ainda não tem requisitos carregados.' : 'Nenhuma fonte de requisitos foi carregada.'}</p>${proximo}</div>`;
+        c.innerHTML = seletor + window.renderEmptyState({
+            titulo: 'Catálogo ainda não carregado',
+            texto: ehAdmin() ? situacao : `${situacao} O catálogo é carregado pelo administrador da plataforma. Peça a ele para habilitar os requisitos ${privacy ? 'da LGPD e da ANPD' : 'das normas do projeto'}.`,
+            acao: ehAdmin() ? `<button class="btn btn-primary" data-action="semearRequisitos">${privacy ? 'Carregar catálogo LGPD/ANPD' : 'Carregar catálogo'}</button>` : '',
+        });
         return;
     }
 

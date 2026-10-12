@@ -20,13 +20,13 @@ async function renderSegurancaProjeto(c, h, a) {
     alvo = null;
     a.innerHTML = '';
     if (!window.ehEquipeNess()) {
-        c.innerHTML = '<div class="empty-state fade-in"><h3>Acesso restrito</h3><p>Esta tela é da equipe da consultoria.</p></div>';
+        c.innerHTML = window.renderEmptyState({ titulo: 'Acesso restrito', texto: 'Esta tela é da equipe da consultoria.' });
         return;
     }
     const proj = projetoAtivo();
     alvo = proj?.id ?? null;
     if (!proj) {
-        c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>';
+        c.innerHTML = window.renderSemProjeto();
         return;
     }
     h.textContent = `Segurança do projeto: ${proj.project_name || proj.client_name || proj.id}`;
@@ -39,7 +39,7 @@ async function renderSegurancaProjeto(c, h, a) {
         ]);
     } catch (err) {
         if (alvo !== proj.id || S.view !== 'seguranca-projeto') return; // render velho: outro projeto ou outra tela
-        c.innerHTML = `<div class="empty-state fade-in"><h3>Não foi possível carregar</h3><p>${e(err.message)}</p></div>`;
+        c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível carregar', texto: err.message });
         return;
     }
     if (alvo !== proj.id || S.view !== 'seguranca-projeto') return; // render velho: não pinta o formulário de um projeto sobre o de outro

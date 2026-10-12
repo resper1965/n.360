@@ -94,9 +94,16 @@ test('platform_admin: abre a tela, cria a chave (exibida uma vez) e revoga', asy
   await expect(page.getByText('e2e-auditor')).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Auditor', exact: true })).toBeVisible();
 
-  // Revoga (confirm() nativo → aceitar).
-  page.on('dialog', (d) => d.accept());
+  // Revoga: a confirmação é na própria tela (sem diálogo nativo). Cancelar não revoga.
+  page.on('dialog', () => { throw new Error('diálogo nativo não deveria abrir'); });
   await page.getByRole('button', { name: 'Revogar', exact: true }).click();
+  const confirmacao = page.getByRole('alertdialog', { name: 'Revogar chave de API' });
+  await expect(confirmacao).toBeVisible();
+  await confirmacao.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(confirmacao).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Revogar', exact: true })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Revogar', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Revogar chave de API' }).getByRole('button', { name: 'Revogar', exact: true }).click();
 
   // Após revogar, a linha não oferece mais o botão Revogar (status != Active).
   await expect(page.getByRole('button', { name: 'Revogar', exact: true })).toHaveCount(0);

@@ -415,11 +415,15 @@ describe('criar e revogar chave', () => {
 
   it('revogar: só com confirmação, DELETE na rota certa e re-render', async () => {
     dom();
-    vi.stubGlobal('confirm', vi.fn(() => false));
+    // Confirmação na própria tela (ui.js confirmar), não window.confirm.
+    const nativo = vi.fn(); vi.stubGlobal('confirm', nativo);
+    const conf = vi.spyOn(window, 'confirmar').mockResolvedValue(false);
     await window.revokeApiKey('k1');
+    expect(conf.mock.calls[0][1]).toMatchObject({ perigo: true, rotulo: 'Revogar' });
+    expect(nativo).not.toHaveBeenCalled();
     expect(apiMock).not.toHaveBeenCalled();
 
-    vi.stubGlobal('confirm', vi.fn(() => true));
+    conf.mockResolvedValue(true);
     apiMock.mockResolvedValue({});
     await window.revokeApiKey('k1');
     expect(apiMock).toHaveBeenCalledWith('DELETE', '/api/v1/api-keys/k1');

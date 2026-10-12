@@ -59,26 +59,23 @@ describe('consumidores que o desembrulho antigo quebrava', () => {
     });
 
     it('migrar 27701: mostra o resultado (projects.ts:831)', async () => {
-        vi.stubGlobal('confirm', vi.fn(() => true));
-        const alerta = vi.fn();
-        vi.stubGlobal('alert', alerta);
+        vi.spyOn(window, 'confirmar').mockResolvedValue(true);
         servir({ 'POST /api/v1/projects/p1/migrate-27701': { ok: true, gaps: [{ control_id: 'A.5.34' }], transformation_ratio: 0.5, new_controls_created: 3 } });
         await window.migrate27701('p1');
-        expect(alerta.mock.calls[0][0]).toContain('Novos controles: 3');
+        expect(document.querySelector('.toast').textContent).toContain('Novos controles: 3');
     });
 
     it('políticas em lote: mostra total, sucesso e falhas (policies.ts:390)', async () => {
-        vi.stubGlobal('prompt', vi.fn(() => 'A.5.1,A.5.2'));
-        vi.stubGlobal('confirm', vi.fn(() => true));
-        const alerta = vi.fn();
-        vi.stubGlobal('alert', alerta);
+        vi.spyOn(window, 'pedirTexto').mockResolvedValue('A.5.1,A.5.2');
+        vi.spyOn(window, 'confirmar').mockResolvedValue(true);
         servir({ 'POST /api/v1/projects/p1/generate-policies-bulk': {
             ok: true, total: 2, successful: 1, failed: 1,
             policies: [{ control_id: 'A.5.1', success: true, content_preview: 'Política...' }, { control_id: 'A.5.2', success: false, content_preview: '' }],
         } });
         await window.bulkGeneratePolicies('p1');
-        expect(alerta.mock.calls[0][0]).toContain('Sucesso: 1');
-        expect(alerta.mock.calls[0][0]).toContain('Falhas: 1');
+        const t = [...document.querySelectorAll('.toast')].pop().textContent;
+        expect(t).toContain('Sucesso: 1');
+        expect(t).toContain('Falhas: 1');
     });
 
     it('carteira: lê `portfolio` do envelope de duas listas (platform.ts:547)', async () => {
@@ -108,7 +105,8 @@ describe('consumidores que liam campo que a resposta não tem', () => {
         servir({ 'GET /api/v1/projects/p1/certification': { ok: true, certification: null } });
         const [c, h, a] = tela();
         await window.renderCertification(c, h, a);
-        expect(a.querySelector('[data-action="initCertification"]')).not.toBeNull();
+        // O CTA mora no estado vazio, não no header.
+        expect(c.querySelector('.empty-state [data-action="initCertification"]')).not.toBeNull();
     });
 
     it('notas do auditor: a lista vem desembrulhada (auditor.ts:91)', async () => {

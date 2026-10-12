@@ -141,7 +141,7 @@ function desenhar() {
     carregarLogo();
 }
 
-const vazioConfig = (titulo, texto) => `<div class="empty-state fade-in"><h3>${titulo}</h3><p>${texto}</p><button class="btn btn-secondary" data-action="navigate" data-args='["config-comercial"]'>Tentar de novo</button></div>`;
+const vazioConfig = (titulo, texto) => window.renderEmptyState({ titulo, texto, acao: `<button class="btn btn-secondary" data-action="navigate" data-args='["config-comercial"]'>Tentar de novo</button>` });
 
 async function renderConfigComercial(c, h, a) {
     ultimo = { c, h, a };

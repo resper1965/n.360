@@ -77,7 +77,7 @@ describe('modal de política', () => {
 
     it('salvar texto já assinado pede confirmação; sem ela, não grava', async () => {
         const f = servir(rotasDoModal(controle({ ciso_approved_by: 'Ana', ciso_approved_at: '2026-10-07' })));
-        const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false);
+        const confirmar = vi.spyOn(window, 'confirmar').mockResolvedValue(false);
         await window.openGeneratePolicyModal('p1', 'A.5.1');
         const editar = document.getElementById('btn-edit-policy');
         editar.onclick();
@@ -91,9 +91,10 @@ describe('modal de política', () => {
         const f = servir(rotasDoModal(controle(), {
             'POST /api/v1/controls/ctrl_b_a51/approve': { ok: true, role: 'ceo', approved_by: 'Direção', approved_at: '2026-10-07' }, // controls.ts, Task 1
         }));
-        const pedir = vi.spyOn(window, 'prompt').mockReturnValue('senha');
+        const pedir = vi.spyOn(window, 'pedirTexto').mockResolvedValue('senha');
         await window.signPolicy('p1', 'ctrl_b_a51', 'ceo');
         expect(pedir).toHaveBeenCalledTimes(1);
+        expect(pedir.mock.calls[0][1]).toMatchObject({ tipo: 'password' }); // senha não aparece em claro
         expect(corpoDe(f, 'POST /api/v1/controls/ctrl_b_a51/approve')).toEqual({ role: 'ceo', password: 'senha' });
         expect(chamadas(f)).toContain('GET /api/v1/projects/p1/controls/ctrl_b_a51/policy');
     });

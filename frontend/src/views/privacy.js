@@ -61,7 +61,7 @@ import { temProduto } from '../produto.js';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -303,7 +303,7 @@ import { temProduto } from '../produto.js';
     };
 
     window.deleteROPA = async function(id) { 
-        if (confirm('Excluir registro ROPA?')) { await api('DELETE', `/api/v1/ropa/${id}`); render(); } 
+        if (await window.confirmar('O tratamento sai do RoPA deste projeto.', { titulo: 'Excluir registro do RoPA', perigo: true, rotulo: 'Excluir' })) { await api('DELETE', `/api/v1/ropa/${id}`); render(); } 
     };
 
     async function renderDPIA(c, h, a) {
@@ -312,7 +312,7 @@ import { temProduto } from '../produto.js';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -534,7 +534,7 @@ import { temProduto } from '../produto.js';
     };
 
     window.deleteDPIA = async function(id) {
-        if (confirm('Excluir este RIPD?')) {
+        if (await window.confirmar('O RIPD sai deste projeto.', { titulo: 'Excluir RIPD', perigo: true, rotulo: 'Excluir' })) {
             await api('DELETE', `/api/v1/dpia/${id}`);
             forceCloseModal();
             render();
@@ -547,12 +547,12 @@ import { temProduto } from '../produto.js';
     };
 
     // Desaprovar é ato da direção (F6): só platform_admin e org_admin veem o botão; o servidor decide de novo.
-    // O motivo é obrigatório e vai para a trilha. ponytail: prompt() nativo em vez de modal próprio.
+    // O motivo é obrigatório e vai para a trilha.
     function podeRevogar() {
         return !!S.user && (S.user.role === 'platform_admin' || S.user.role === 'org_admin');
     }
-    function pedeMotivo(o_que) {
-        const motivo = (window.prompt(`Revogar ${o_que}. Informe o motivo (obrigatório, vai para a trilha de auditoria):`) || '').trim();
+    async function pedeMotivo(o_que) {
+        const motivo = (await window.pedirTexto(`Revogar ${o_que}. Informe o motivo (obrigatório, vai para a trilha de auditoria).`, { titulo: 'Revogar aprovação', rotulo: 'Revogar', perigo: true })) || '';
         if (motivo.length < 5) {
             if (motivo) showToast('Motivo muito curto (mínimo de 5 caracteres)', 'error');
             return null;
@@ -561,7 +561,7 @@ import { temProduto } from '../produto.js';
     }
 
     window.revogarROPA = async function(projectId, recordId, role) {
-        const motivo = pedeMotivo(role === 'ciso' ? 'a aprovação do Líder SGSI no ROPA' : 'a aprovação da Direção no ROPA');
+        const motivo = await pedeMotivo(role === 'ciso' ? 'a aprovação do Líder SGSI no ROPA' : 'a aprovação da Direção no ROPA');
         if (!motivo) return;
         try {
             await api('POST', `/api/v1/projects/${projectId}/ropa/${recordId}/revoke-approval`, { role, reason: motivo });
@@ -578,7 +578,7 @@ import { temProduto } from '../produto.js';
     };
 
     window.revogarDPIA = async function(projectId, id) {
-        const motivo = pedeMotivo('a aprovação e as assinaturas do DPIA');
+        const motivo = await pedeMotivo('a aprovação e as assinaturas do DPIA');
         if (!motivo) return;
         try {
             await api('POST', `/api/v1/projects/${projectId}/dpia/${id}/revoke-approval`, { reason: motivo });

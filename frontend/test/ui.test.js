@@ -58,24 +58,24 @@ describe('renderStatusBadge()', () => {
     it('aceita (tipo, texto)', () => {
         const html = renderStatusBadge('success', 'Tudo certo');
         expect(html).toContain('Tudo certo');
-        expect(html).toContain('#10b981');
+        expect(html).toContain('var(--success)');
     });
 
     it('aceita (texto, tipo) — ordem invertida', () => {
         const html = renderStatusBadge('Tudo certo', 'success');
         expect(html).toContain('Tudo certo');
-        expect(html).toContain('#10b981');
+        expect(html).toContain('var(--success)');
     });
 
     it('sem tipo conhecido cai em neutral', () => {
         const html = renderStatusBadge('Rascunho', 'inexistente');
         expect(html).toContain('Rascunho');
-        expect(html).toContain('#94a3b8');
+        expect(html).toContain('var(--text-dim)');
     });
 
     it('preenche por color-mix e NAO desenha borda', () => {
         const html = renderStatusBadge('danger', 'Gap');
-        expect(html).toContain('color-mix(in oklab, #ef4444 16%, transparent)');
+        expect(html).toContain('color-mix(in oklab, var(--danger) 16%, transparent)');
         expect(html).toContain('border:0');
         expect(html).not.toMatch(/border:1px/);
     });
@@ -122,7 +122,7 @@ describe('renderStatusBadge()', () => {
     // mas o dia em que cair, a celula fica vazia em silencio.
     it('ARESTA: texto que coincide com nome de tipo e lido como tipo', () => {
         const html = renderStatusBadge('info', 'warning');
-        expect(html).toContain('color:#00ade8'); // venceu 'info' como TIPO
+        expect(html).toContain('color:var(--info)'); // venceu 'info' como TIPO
         expect(html).toContain('>warning<'); // e 'warning' virou o TEXTO
     });
 });
@@ -415,7 +415,7 @@ describe('renderDataTable(): estado vazio que ensina', () => {
         expect(d.textContent).toContain('Nada <aqui>');
         expect(d.querySelector('b')).toBeNull();
         expect(d.querySelector('.empty-hint').textContent).toBe('LGPD, art. 37 <b>');
-        expect(d.querySelector('.empty-hint').getAttribute('style')).toContain('var(--text-dim)');
+        expect(d.querySelector('.empty-hint').hasAttribute('style')).toBe(false);
         expect(d.querySelector('[data-action="x"]').textContent).toBe('Criar');
         const cheio = renderDataTable(['A'], [['1']], { emptyHint: 'H', emptyAction: '<button data-action="x"></button>' });
         expect(cheio).not.toContain('data-action="x"');
@@ -439,5 +439,129 @@ describe('renderAbas()', () => {
         expect(abas[1].className).not.toContain('btn-primary');
         expect(abas[1].getAttribute('tabindex')).toBe('0');
         expect(abas[0].getAttribute('tabindex')).toBe('-1');
+    });
+});
+
+describe('renderEmptyState(): o estado vazio único', () => {
+    it('título e texto escapados, ação como HTML, numa caixa .empty-state sem estilo inline', async () => {
+        const { renderEmptyState } = await import('../src/ui.js');
+        const d = document.createElement('div');
+        d.innerHTML = renderEmptyState({ titulo: 'Nada <b>', texto: 'ISO 27001, 7.5 <i>', acao: '<button class="btn" data-action="x">Criar</button>' });
+        const caixa = d.querySelector('.empty-state');
+        expect(caixa.hasAttribute('style')).toBe(false);
+        expect(caixa.querySelector('h3').textContent).toBe('Nada <b>');
+        expect(caixa.querySelector('.empty-hint').textContent).toBe('ISO 27001, 7.5 <i>');
+        expect(caixa.querySelector('b, i')).toBeNull();
+        expect(caixa.querySelector('.empty-action [data-action="x"]').textContent).toBe('Criar');
+    });
+    it('sem texto nem ação, não sobra parágrafo nem contêiner vazio', async () => {
+        const { renderEmptyState } = await import('../src/ui.js');
+        const d = document.createElement('div');
+        d.innerHTML = renderEmptyState({ titulo: 'Vazio' });
+        expect(d.querySelector('.empty-hint')).toBeNull();
+        expect(d.querySelector('.empty-action')).toBeNull();
+    });
+    it('renderDataTable usa o mesmo primitivo', async () => {
+        const d = document.createElement('div');
+        d.innerHTML = renderDataTable(['A'], [], { emptyState: 'Sem linhas', emptyHint: 'Dica', emptyAction: '<button data-action="y"></button>' });
+        expect(d.querySelector('.empty-state h3').textContent).toBe('Sem linhas');
+        expect(d.querySelector('.empty-state .empty-hint').textContent).toBe('Dica');
+        expect(d.querySelector('.empty-state .empty-action [data-action="y"]')).not.toBeNull();
+    });
+});
+
+describe('confirmar() e pedirTexto(): pergunta na própria tela, sem window.confirm/prompt', () => {
+    beforeEach(() => { document.body.innerHTML = '<div id="modal-overlay" class="open"><div id="modal"><div id="modal-content"><textarea id="t">rascunho</textarea></div></div></div>'; });
+
+    it('confirmar resolve true no botão de confirmar e some, sem tocar a janela que estava aberta', async () => {
+        const { confirmar } = await import('../src/ui.js');
+        const p = confirmar('Revogar <b>chave</b>?', { titulo: 'Revogar chave', rotulo: 'Revogar', perigo: true });
+        const dlg = document.querySelector('.confirmar[role="alertdialog"]');
+        expect(dlg.getAttribute('aria-modal')).toBe('true');
+        expect(dlg.textContent).toContain('Revogar <b>chave</b>?');
+        expect(dlg.querySelector('b')).toBeNull();
+        expect(document.activeElement.textContent).toBe('Cancelar');
+        dlg.querySelector('[data-confirmar="sim"]').click();
+        await expect(p).resolves.toBe(true);
+        expect(document.querySelector('.confirmar')).toBeNull();
+        expect(document.getElementById('t').value).toBe('rascunho');
+        expect(document.getElementById('modal-overlay').classList.contains('open')).toBe(true);
+    });
+    it('confirmar resolve false em Cancelar e em Esc, e o Esc não fecha a janela de baixo', async () => {
+        const { confirmar } = await import('../src/ui.js');
+        const esc = vi.fn();
+        document.addEventListener('keydown', esc);
+        let p = confirmar('Excluir?');
+        document.querySelector('[data-confirmar="nao"]').click();
+        await expect(p).resolves.toBe(false);
+        p = confirmar('Excluir?');
+        document.querySelector('.confirmar').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await expect(p).resolves.toBe(false);
+        expect(esc).not.toHaveBeenCalled();
+        document.removeEventListener('keydown', esc);
+    });
+    it('pedirTexto devolve o texto (aparado), null ao cancelar, e senha vai em input password', async () => {
+        const { pedirTexto } = await import('../src/ui.js');
+        let p = pedirTexto('Motivo', { padrao: 'x' });
+        const input = document.querySelector('.confirmar input');
+        expect(input.value).toBe('x');
+        expect(document.activeElement).toBe(input);
+        input.value = '  falta de base  ';
+        document.querySelector('[data-confirmar="sim"]').click();
+        await expect(p).resolves.toBe('falta de base');
+        p = pedirTexto('Senha', { tipo: 'password' });
+        expect(document.querySelector('.confirmar input').type).toBe('password');
+        document.querySelector('[data-confirmar="nao"]').click();
+        await expect(p).resolves.toBeNull();
+    });
+    it('pedirTexto: Enter no campo confirma', async () => {
+        const { pedirTexto } = await import('../src/ui.js');
+        const p = pedirTexto('Nome');
+        const input = document.querySelector('.confirmar input');
+        input.value = 'Ana';
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await expect(p).resolves.toBe('Ana');
+    });
+    it('cancelar: false deixa um botão só (mostrar para copiar), que resolve o texto', async () => {
+        const { pedirTexto } = await import('../src/ui.js');
+        const p = pedirTexto('Copie a URL.', { titulo: 'Portal', rotulo: 'Fechar', padrao: 'https://x', cancelar: false });
+        const botoes = [...document.querySelectorAll('.confirmar button')].map((b) => b.textContent);
+        expect(botoes).toEqual(['Fechar']);
+        document.querySelector('[data-confirmar="sim"]').click();
+        await expect(p).resolves.toBe('https://x');
+    });
+    it('senha não é aparada: espaço no começo ou no fim faz parte dela', async () => {
+        const { pedirTexto } = await import('../src/ui.js');
+        const p = pedirTexto('Senha', { tipo: 'password' });
+        document.querySelector('.confirmar input').value = ' s3nha ';
+        document.querySelector('[data-confirmar="sim"]').click();
+        await expect(p).resolves.toBe(' s3nha ');
+    });
+    it('mousedown no fundo da camada não tira o foco do diálogo', async () => {
+        const { confirmar } = await import('../src/ui.js');
+        const p = confirmar('Excluir?');
+        const camada = document.querySelector('.confirmar');
+        const ev = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+        camada.dispatchEvent(ev);
+        expect(ev.defaultPrevented).toBe(true);
+        const noBotao = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+        camada.querySelector('[data-confirmar="nao"]').dispatchEvent(noBotao);
+        expect(noBotao.defaultPrevented).toBe(false);
+        camada.querySelector('[data-confirmar="nao"]').click();
+        await p;
+    });
+    it('Esc com o foco fora da camada também cancela e não chega ao handler global', async () => {
+        const { confirmar } = await import('../src/ui.js');
+        const global = vi.fn();
+        document.addEventListener('keydown', global);
+        const p = confirmar('Excluir?');
+        document.body.focus();
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await expect(p).resolves.toBe(false);
+        expect(global).not.toHaveBeenCalled();
+        // Depois de fechada, o Esc volta a chegar ao app.
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(global).toHaveBeenCalledOnce();
+        document.removeEventListener('keydown', global);
     });
 });

@@ -38,6 +38,75 @@ export     function openModal(html, extraClass) {
         }
     }
 
+/**
+ * Pergunta na própria tela, no lugar de window.confirm/prompt (bloqueiam a página, não seguem a
+ * marca e o prompt mostra senha em claro). Camada própria acima do #modal: a janela que estava
+ * aberta (com o que o usuário digitou) fica intacta embaixo. Esc e Cancelar respondem "não"; o Esc
+ * não chega ao handler global, que fecharia a janela de baixo. O foco volta para onde estava.
+ */
+function perguntar(texto, { titulo = 'Confirmar', rotulo = 'Confirmar', perigo = false, campo = null, cancelar = true } = {}) {
+    return new Promise((resolve) => {
+        const antes = document.activeElement;
+        const camada = document.createElement('div');
+        camada.className = 'confirmar';
+        camada.setAttribute('role', 'alertdialog');
+        camada.setAttribute('aria-modal', 'true');
+        camada.setAttribute('aria-labelledby', 'confirmar-titulo');
+        camada.setAttribute('aria-describedby', 'confirmar-texto');
+        camada.innerHTML = `<div class="confirmar-caixa">
+            <h2 class="confirmar-titulo" id="confirmar-titulo">${escapeHTML(titulo)}</h2>
+            <p class="confirmar-texto" id="confirmar-texto">${escapeHTML(texto)}</p>
+            ${campo ? `<input class="form-input" type="${campo.tipo === 'password' ? 'password' : 'text'}" aria-labelledby="confirmar-texto"${campo.tipo === 'password' ? ' autocomplete="current-password"' : ''}>` : ''}
+            <div class="confirmar-acoes">
+                ${cancelar ? '<button type="button" class="btn" data-confirmar="nao">Cancelar</button>' : ''}
+                <button type="button" class="btn ${perigo ? 'btn-perigo' : 'btn-primary'}" data-confirmar="sim">${escapeHTML(rotulo)}</button>
+            </div></div>`;
+        const input = camada.querySelector('input');
+        if (input) input.value = campo.padrao ?? '';
+        // Esc em captura na window: com a camada aberta, nenhum handler do app (forceCloseModal) vê a tecla,
+        // esteja o foco onde estiver.
+        const esc = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); fim(false); } };
+        let aberta = true;
+        const fim = (sim) => {
+            if (!aberta) return;
+            aberta = false;
+            window.removeEventListener('keydown', esc, true);
+            camada.remove();
+            if (antes && typeof antes.focus === 'function') antes.focus();
+            // Senha não se apara: espaço no começo ou no fim é parte dela.
+            const valor = campo && sim ? (campo.tipo === 'password' ? input.value : input.value.trim()) : null;
+            resolve(campo ? valor : sim);
+        };
+        window.addEventListener('keydown', esc, true);
+        // Clicar no fundo não leva o foco para o body (ele sairia da camada).
+        camada.addEventListener('mousedown', (e) => { if (e.target === camada) e.preventDefault(); });
+        camada.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-confirmar]');
+            if (b) { e.stopPropagation(); fim(b.dataset.confirmar === 'sim'); }
+        });
+        camada.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target === input) { e.preventDefault(); fim(true); }
+            else if (e.key === 'Tab') {
+                // Foco preso na camada: só os controles dela.
+                const f = [...camada.querySelectorAll('input, button')];
+                const i = f.indexOf(document.activeElement);
+                const prox = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i === f.length - 1 ? 0 : i + 1);
+                e.preventDefault(); f[prox].focus();
+            }
+        });
+        document.body.appendChild(camada);
+        (input || camada.querySelector('[data-confirmar="nao"]') || camada.querySelector('[data-confirmar="sim"]')).focus();
+    });
+}
+
+/** Sim/não na própria tela. Resolve true ou false. `perigo` pinta o botão de confirmar em --danger. */
+export function confirmar(texto, opcoes = {}) { return perguntar(texto, opcoes); }
+
+/** Texto na própria tela. Resolve o texto (aparado, menos senha), ou null se cancelou. `tipo: 'password'` esconde o que se digita. */
+export function pedirTexto(texto, { padrao = '', tipo = 'text', ...opcoes } = {}) {
+    return perguntar(texto, { titulo: opcoes.titulo || 'Informe', rotulo: opcoes.rotulo || 'Continuar', ...opcoes, campo: { padrao, tipo } });
+}
+
 export const TOAST_MS = 4200;
 
 // A região de anúncio é PERMANENTE e vazia: leitor de tela só anuncia mudança
@@ -201,28 +270,41 @@ export function renderStatusBadge(arg1, arg2) {
     // Sem borda: o preenchimento por color-mix já separa a badge do fundo, e a
     // borda somava um terceiro tom de cinza em cada célula da tabela.
     const COLORS = {
-        success: '#10b981',
-        warning: '#f59e0b',
-        danger: '#ef4444',
-        info: '#00ade8',
-        neutral: '#94a3b8'
+        success: 'var(--success)',
+        warning: 'var(--warning)',
+        danger: 'var(--danger)',
+        info: 'var(--info)',
+        neutral: 'var(--text-dim)'
     };
     const color = COLORS[type] || COLORS.neutral;
     const bStyle = `background:color-mix(in oklab, ${color} 16%, transparent); color:${color}; border:0; border-radius:0;`;
     return `<span class="badge" style="${bStyle} padding:1px 8px; font:500 10px/1.7 var(--font-mono); text-transform:uppercase; letter-spacing:0.08em; display:inline-block;">${escapeHTML(text)}</span>`;
 }
 
+/**
+ * Estado vazio único do app: o que falta (título), por que importa (texto, com a cláusula quando
+ * houver) e a ação que o usuário pode tomar. Título e texto são texto (escapados); `acao` é HTML de
+ * botão montado por quem chama. A aparência vive em `.empty-state` (style.css), nunca inline.
+ */
+export function renderEmptyState({ titulo = '', texto = '', acao = '', id = '' } = {}) {
+    return `<div class="empty-state fade-in"${id ? ` id="${escapeHTML(id)}"` : ''}>`
+        + (titulo ? `<h3>${escapeHTML(titulo)}</h3>` : '')
+        + (texto ? `<p class="empty-hint">${escapeHTML(texto)}</p>` : '')
+        + (acao ? `<div class="empty-action">${acao}</div>` : '')
+        + '</div>';
+}
+
+/** O vazio de "nenhum projeto escolhido", repetido em quase toda tela de projeto. */
+export function renderSemProjeto(texto = 'Selecione um projeto para continuar.') {
+    return renderEmptyState({ titulo: 'Sem projeto ativo', texto,
+        acao: '<button class="btn btn-primary" data-action="openActiveProjectModal">Selecionar projeto</button>' });
+}
+
 export function renderDataTable(columns, rows, options = {}) {
     const emptyMessage = options.emptyState || options.emptyMessage || 'Nenhum registro encontrado.';
     if (!rows || rows.length === 0) {
-        // emptyHint é texto (escapado): a obrigação ou o próximo passo. emptyAction é HTML de botão montado por quem chama.
-        const hint = options.emptyHint ? `<p class="empty-hint" style="margin:0.5rem 0 0; font-size:0.8rem; color:var(--text-dim);">${escapeHTML(options.emptyHint)}</p>` : '';
-        const acao = options.emptyAction ? `<div class="empty-action" style="margin-top:1rem; display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap;">${options.emptyAction}</div>` : '';
-        return `
-            <div class="empty-state" style="border:1px dashed var(--border); padding:3rem 1.5rem; text-align:center; color:var(--text-dim);">
-                <p style="margin:0; font-size:0.9rem;">${escapeHTML(emptyMessage)}</p>${hint}${acao}
-            </div>
-        `;
+        // emptyHint é texto (a obrigação ou o próximo passo); emptyAction é HTML de botão montado por quem chama.
+        return renderEmptyState({ titulo: emptyMessage, texto: options.emptyHint, acao: options.emptyAction });
     }
 
     // Normalize column headers. `numeric` liga tabular-nums; alinhar à direita
@@ -307,3 +389,7 @@ window.renderStatCards = renderStatCards;
 window.renderStatusBadge = renderStatusBadge;
 window.traduzStatus = traduzStatus;
 window.renderDataTable = renderDataTable;
+window.renderEmptyState = renderEmptyState;
+window.renderSemProjeto = renderSemProjeto;
+window.confirmar = confirmar;
+window.pedirTexto = pedirTexto;

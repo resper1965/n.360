@@ -215,7 +215,7 @@ function telaAtivo(restantes) {
   const poucos = (restantes ?? 0) <= 2;
   openModal(`<div style="${CAIXA}">
     <h3 style="${TITULO}">Autenticação em duas etapas</h3>
-    <p style="font-size:0.8rem;color:var(--success, #22c55e);margin-bottom:1rem">● Ativa</p>
+    <p style="font-size:0.8rem;color:var(--success);margin-bottom:1rem">● Ativa</p>
     <p style="${AJUDA}">
       Códigos de recuperação restantes: <strong>${restantes ?? 0}</strong>.
       ${poucos ? '<br><span style="color:var(--danger)">Estão acabando. Desative e ative de novo para gerar uma lista nova.</span>' : ''}

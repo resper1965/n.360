@@ -20,7 +20,7 @@ export async function renderInicio(c, h, a) {
     }
     const p = S.activeProject;
     if (!p) {
-        c.innerHTML = '<div class="empty-state fade-in"><h3>Nenhum projeto ainda</h3><p>Quando um projeto seu tiver um módulo habilitado, ele aparece aqui.</p></div>';
+        c.innerHTML = window.renderEmptyState({ titulo: 'Nenhum projeto ainda', texto: 'Quando um projeto seu tiver um módulo habilitado, ele aparece aqui.' });
         return;
     }
     const cartoes = modulosVisiveis(p).filter((m) => Object.hasOwn(MODULO, m)).map((m) => `<div class="card" style="padding:1.25rem;display:flex;flex-direction:column;gap:0.75rem">
