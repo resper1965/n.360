@@ -8,7 +8,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import html from '../login.html?raw';
-import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, SO_ISO, SO_PRIVACY } from '../src/produto.js';
+import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, SO_ISO, SO_PRIVACY, SO_N360, TELAS_DA_CONTA, telaPedida } from '../src/produto.js';
 
 const loc = (url) => { const u = new URL(url); return { hostname: u.hostname, pathname: u.pathname, search: u.search, hash: u.hash, origin: u.origin }; };
 const ir = (caminho) => history.replaceState(null, '', caminho);
@@ -166,7 +166,98 @@ describe('casca', () => {
     it('todo item do menu é de um produto, do outro ou dos dois (nenhum id inventado nas listas)', () => {
         montarApp();
         const ids = new Set([...document.querySelectorAll('.sidebar-nav[id^="nav-"]')].map((n) => n.id));
-        for (const id of [...SO_ISO, ...SO_PRIVACY]) expect(ids.has(id), id).toBe(true);
+        for (const id of [...SO_ISO, ...SO_PRIVACY, ...SO_N360]) expect(ids.has(id), id).toBe(true);
+    });
+});
+
+describe('conta e acessos', () => {
+    const CONTA = ['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-api-keys', 'nav-conectar-agente'];
+    it('no n.360 o grupo "Conta e acessos" traz projetos, usuários, organizações, chaves de API e conectar agente', () => {
+        montarApp();
+        aplicarCasca('n360');
+        expect(SO_N360).toEqual(CONTA);
+        const v = visiveis();
+        for (const id of CONTA) expect(v, id).toContain(id);
+        const grupo = el('group-conta');
+        expect([...grupo.querySelectorAll('.sidebar-nav')].map((n) => n.id)).toEqual(CONTA);
+        expect(grupo.dataset.foraDoProduto).toBe('');
+        expect(el('label-group-conta').textContent).toBe('Conta e acessos');
+        expect(el('nav-api-keys').textContent.trim()).toBe('Chaves de API');
+        // cada item navega para a tela da lista fechada
+        for (const id of CONTA) expect(TELAS_DA_CONTA[JSON.parse(el(id).getAttribute('data-args'))[0]], id).toBe(id);
+    });
+    it('nos módulos os itens da conta somem, com o grupo e o rótulo; Segurança do projeto fica', () => {
+        for (const p of ['iso', 'privacy']) {
+            montarApp();
+            aplicarCasca(p);
+            const v = visiveis();
+            for (const id of CONTA) expect(v, `${p} ${id}`).not.toContain(id);
+            expect(el('group-conta').dataset.foraDoProduto, p).toBe('1');
+            expect(el('label-group-conta').dataset.foraDoProduto, p).toBe('1');
+            expect(v, p).toContain('nav-seguranca-projeto');
+        }
+    });
+    it('no módulo, o rodapé leva a "Conta e acessos (n.360)" na primeira tela que o papel vê', () => {
+        montarApp();
+        ir('/iso');
+        aplicarCasca('iso');
+        // papel que vê usuários (o updateHeaderUser deixa display vazio)
+        el('nav-users').style.display = '';
+        atualizarLinkCruzado();
+        expect(el('link-conta').textContent).toBe('Conta e acessos (n.360)');
+        expect(el('link-conta').getAttribute('href')).toBe('/?tela=projects');
+        el('nav-projects').style.display = 'none';
+        atualizarLinkCruzado();
+        expect(el('link-conta').getAttribute('href')).toBe('/?tela=users');
+        expect(document.querySelectorAll('#link-conta').length).toBe(1);
+        // papel sem nenhum item da conta: sem o link
+        el('nav-users').style.display = 'none';
+        atualizarLinkCruzado();
+        expect(el('link-conta')).toBeNull();
+    });
+    it('no n.360 não há link de conta (o grupo está no menu)', () => {
+        montarApp();
+        ir('/');
+        aplicarCasca('n360');
+        atualizarLinkCruzado();
+        expect(el('link-conta')).toBeNull();
+    });
+});
+
+describe('telaPedida (?tela= no boot do n.360)', () => {
+    const montar = () => {
+        document.body.innerHTML = Object.values(TELAS_DA_CONTA).map((id) => `<div class="sidebar-nav" id="${id}"></div>`).join('');
+    };
+    it('aceita só a lista fechada e tira o parâmetro do endereço, sem mexer no resto', () => {
+        montar();
+        for (const t of ['projects', 'users', 'organizacoes', 'api-keys', 'conectar-agente']) {
+            ir(`/?tela=${t}&x=1#frag`);
+            expect(telaPedida(), t).toBe(t);
+            expect(location.pathname + location.search + location.hash).toBe('/?x=1#frag');
+        }
+        expect(Object.keys(TELAS_DA_CONTA)).toEqual(['projects', 'users', 'organizacoes', 'api-keys', 'conectar-agente']);
+    });
+    it('valor fora da lista é ignorado (e sai do endereço do mesmo jeito)', () => {
+        montar();
+        for (const t of ['soa', 'settings', 'constructor', '__proto__', 'javascript:alert(1)', '']) {
+            ir(`/?tela=${encodeURIComponent(t)}`);
+            expect(telaPedida(), t).toBeNull();
+            expect(location.search).toBe('');
+        }
+        ir('/');
+        expect(telaPedida()).toBeNull();
+    });
+    it('item que o papel não vê não abre', () => {
+        montar();
+        el('nav-api-keys').style.display = 'none';
+        ir('/?tela=api-keys');
+        expect(telaPedida()).toBeNull();
+    });
+    it('só no n.360: no módulo o parâmetro fica onde está', () => {
+        montar();
+        ir('/iso?tela=users');
+        expect(telaPedida()).toBeNull();
+        expect(location.search).toBe('?tela=users');
     });
 });
 

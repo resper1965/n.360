@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto } from './produto.js';
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida } from './produto.js';
 import { S } from './state.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
@@ -897,19 +897,12 @@ window.updateHeaderUser = function updateHeaderUser() {
             if (navSettings) navSettings.style.display = 'none';
             if (navApiKeys) navApiKeys.style.display = 'none';
 
-            if (S.user.role === 'org_admin') {
-                if (groupSystem) {
-                    groupSystem.style.display = 'block';
-                    groupSystem.style.maxHeight = 'none';
-                }
-                if (navUsers) {
-                    navUsers.style.display = '';
-                    const navUsersText = navUsers.querySelector('.sidebar-nav-text');
-                    if (navUsersText) navUsersText.textContent = 'Gestão de Equipe';
-                }
-            } else {
-                if (groupSystem) groupSystem.style.display = 'none';
-                if (navUsers) navUsers.style.display = 'none';
+            // O gestor do cliente vê a equipe dele, no grupo Conta e acessos; o resto do Sistema não é do cliente.
+            if (groupSystem) groupSystem.style.display = 'none';
+            if (navUsers) {
+                navUsers.style.display = S.user.role === 'org_admin' ? '' : 'none';
+                const navUsersText = navUsers.querySelector('.sidebar-nav-text');
+                if (navUsersText && S.user.role === 'org_admin') navUsersText.textContent = 'Gestão de Equipe';
             }
         } else {
             if (labelSystem) labelSystem.style.display = '';
@@ -960,6 +953,15 @@ window.updateHeaderUser = function updateHeaderUser() {
         // o estado vazio). platform_admin e comercial não decidem pedido de cliente.
         const navMeus = document.getElementById('nav-meus');
         if (navMeus) navMeus.style.display = ['org_admin', 'org_user', 'client', 'consultor', 'consultant', 'consultoria_admin'].includes(S.user?.role) ? '' : 'none';
+
+        // Conta e acessos sem nenhum item do papel (cliente sem gestão, comercial) some com o rótulo.
+        const grupoConta = document.getElementById('group-conta');
+        if (grupoConta) {
+            const algum = [...grupoConta.querySelectorAll('.sidebar-nav')].some(el => el.style.display !== 'none');
+            grupoConta.style.display = algum ? '' : 'none';
+            const rotuloConta = document.getElementById('label-group-conta');
+            if (rotuloConta) rotuloConta.style.display = algum ? '' : 'none';
+        }
 
         // Stakeholder (mínimo privilégio): só "Meus pedidos" e o cartão de perfil (senha e MFA). O
         // servidor já recusa o resto (allow-list de caminhos); o menu só não oferece o que daria 403.
@@ -1468,8 +1470,12 @@ window.initApp = async function initApp() {
         const doCliente = isClient && S.user.client_project_id ? (S.projects || []).filter((p) => p.id === S.user.client_project_id) : [];
         const meus = doCliente.length ? doCliente : (S.projects || []);
         const modulos = [...new Set(meus.flatMap(modulosVisiveis))];
+        // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida vence o "um módulo só, entra nele".
+        const tela = produto === 'n360' && !ehStakeholder ? telaPedida() : null;
         if (ehStakeholder) {
             navigate('meus-pedidos');
+        } else if (tela) {
+            navigate(tela);
         } else if (produto === 'n360' && !modulos.length && !isClient) {
             // Equipe da ness. sem projeto ainda (instalação nova, comercial): o funil comercial e a criação de projeto vivem
             // no n.iso. Sem isto ela ficaria trancada fora.
