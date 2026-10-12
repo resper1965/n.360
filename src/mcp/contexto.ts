@@ -52,7 +52,8 @@ export const ROTEIROS = `Roteiros de trabalho:
 n.privacy (só com o módulo no projeto):
 5. Inventário — leia /ropa e /ponto-de-partida → proponha base legal, ligações e LIA de cada tratamento → PEÇA APROVAÇÃO HUMANA antes de gravar.
 6. Pedido do titular ou incidente — leia o prazo (situacao_prazo; situacao_anpd e situacao_titular) → rascunhe a resposta ou a comunicação → PEÇA APROVAÇÃO HUMANA antes de gravar ou enviar.
-7. Cobertura LGPD — leia /requisitos/lacunas → proponha o documento ou a evidência que fecha cada lacuna → PEÇA APROVAÇÃO HUMANA antes de gravar.`;
+7. Cobertura LGPD — leia /requisitos/lacunas → proponha o documento ou a evidência que fecha cada lacuna → PEÇA APROVAÇÃO HUMANA antes de gravar.
+8. Maturidade LGPD — chame niso_skill com nome=maturidade-lgpd. Só leitura: tabela de achados com fonte e próxima ação; não grava nada e não é parecer jurídico.`;
 
 export function montarContexto(
   projeto: { id: string; client_name: string; project_name?: string | null; standards?: string | null; status?: string | null; modulos?: string[] | null },

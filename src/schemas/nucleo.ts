@@ -125,6 +125,8 @@ export const incidenteRiscoSchema = z.object({
   avaliacao_texto: textoLongo.nullish(),
 }).strict();
 
+export const incidenteRascunhoSchema = z.object({ destino: z.enum(['anpd', 'titular']) }).strict();
+
 export const incidenteComunicacaoSchema = z.object({
   destino: z.enum(['anpd', 'titular']),
   em: instante.optional(),

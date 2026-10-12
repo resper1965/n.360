@@ -93,6 +93,15 @@ describe('Agente com paridade de consultor, preso ao projeto', () => {
     }
   });
 
+  it('rascunho de IA do n.privacy é recusado pela lista do agente, não só pelo módulo', async () => {
+    // p-a só tem n.iso: o 403 de módulo também viria; a mensagem prova que quem recusou foi FORA_DO_AGENTE.
+    for (const caminho of ['/api/v1/projects/p-a/ropa/r1/sugestao', '/api/v1/projects/p-a/titular-pedidos/t1/rascunho', '/api/v1/projects/p-a/incidentes/i1/rascunho-comunicacao']) {
+      const r = await comoAgente(caminho, { method: 'POST', headers: { ...confirmado, ...json }, body: '{"destino":"anpd"}' });
+      expect(r.status, caminho).toBe(403);
+      expect((await r.json<any>()).error, caminho).toContain('fora do alcance do agente');
+    }
+  });
+
   it('eliminar titular (anonimização) exige confirmação', async () => {
     const corpo = JSON.stringify({ identificador: 'x@y.lat', justificativa: 'pedido do titular' });
     const sem = await comoAgente('/api/v1/projects/p-a/data-subject/erase', { method: 'POST', headers: json, body: corpo });

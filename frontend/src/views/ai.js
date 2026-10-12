@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML } from '../ui.js';
+import { produtoAtual } from '../produto.js';
 
     async function renderAIChat(c, h, a) {
         h.textContent = 'AI Compliance Assistant';
@@ -34,7 +35,8 @@ import { escapeHTML } from '../ui.js';
         msgs.innerHTML += `<div id="chat-loading" style="align-self:flex-start;max-width:80%;padding:0.75rem 1rem;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);font-size:0.8rem;color:var(--muted)">Pensando...</div>`;
         msgs.scrollTop = msgs.scrollHeight;
         try {
-            const res = await api('POST', `/api/v1/projects/${projectId}/chat`, { message });
+            const produto = produtoAtual(); // n.360: sem módulo, o servidor escolhe o que o projeto e a pessoa têm
+            const res = await api('POST', `/api/v1/projects/${projectId}/chat`, { message, ...(produto === 'n360' ? {} : { modulo: produto }) });
             const loading = document.getElementById('chat-loading');
             if (loading) { loading.id = ''; loading.style.color = 'var(--text)'; loading.textContent = res.reply || 'Sem resposta.'; }
             msgs.scrollTop = msgs.scrollHeight;

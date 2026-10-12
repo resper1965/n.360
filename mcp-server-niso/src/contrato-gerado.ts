@@ -69,6 +69,7 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/generate-policies-bulk': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/incidentes': { obrigatorios: ['ciencia_em', 'titulo'] },
   'POST /api/v1/projects/{projectId}/incidentes/{id}/comunicacoes': { obrigatorios: ['destino'] },
+  'POST /api/v1/projects/{projectId}/incidentes/{id}/rascunho-comunicacao': { obrigatorios: ['destino'] },
   'POST /api/v1/projects/{projectId}/partes': { obrigatorios: ['nome'] },
   'POST /api/v1/projects/{projectId}/partes/{id}/vinculos': { obrigatorios: ['alvo_id', 'alvo_tipo', 'papel'] },
   'POST /api/v1/projects/{projectId}/pedidos': { obrigatorios: ['destinatarios', 'papel_exigido', 'ref_id', 'tipo'] },

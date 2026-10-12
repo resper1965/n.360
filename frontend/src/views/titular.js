@@ -21,6 +21,11 @@ const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor
 // Papéis que a rota /data-subject aceita (expõe PII).
 const podeDados = () => !!S.user && ['platform_admin', 'consultor', 'org_admin'].includes(S.user.role);
 const ehAdmin = () => !!S.user && S.user.role === 'platform_admin';
+// Rascunho de IA (services/rascunhos-privacy.ts): equipe e o administrador do cliente; só no n.privacy.
+const podeRascunho = () => (podeEditar() || (!!S.user && S.user.role === 'org_admin')) && produtoAtual() === 'privacy';
+const AVISO_IA = 'Rascunho gerado por IA — revise antes de usar';
+const caixaRascunho = (id, texto) => `<p><strong>${escapeHTML(AVISO_IA)}</strong></p>
+    <textarea class="form-input" id="${id}" rows="8" maxlength="8000" aria-label="${escapeHTML(AVISO_IA)}">${escapeHTML(texto)}</textarea>`;
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
@@ -134,6 +139,8 @@ window.abrirPedidoTitular = async function (projectId, id) {
             <div class="form-group"><label class="form-label" for="pt-resp">Resposta</label><textarea class="form-input" id="pt-resp" rows="4" maxlength="5000" ${final ? 'disabled' : ''}>${escapeHTML(p.resposta_texto || '')}</textarea></div>
             <button class="btn btn-primary" data-action="salvarPedidoTitular" data-args='${args(projectId, id)}'>Salvar</button>`
             : `<p id="pt-resposta" style="white-space:pre-wrap">${escapeHTML(p.resposta_texto || '')}</p>`}
+        ${podeRascunho() && !final && p.status !== 'arquivado' ? `<div style="margin-top:0.75rem"><button class="btn btn-sm" data-action="rascunhoRespostaTitular" data-args='${args(projectId, id)}'>Rascunho</button></div>
+            <div id="pt-rascunho" style="margin-top:0.75rem"></div>` : ''}
         ${podeDados() && p.titular_contato ? `<h4 style="margin:1rem 0 0.5rem">Dados do titular</h4>
             <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
                 <button class="btn btn-sm" data-action="localizarDadosDoTitular" data-args='${args(projectId, id)}'>Localizar dados</button>
@@ -181,6 +188,16 @@ window.confirmarEliminacaoTitular = async function (projectId, id) {
     } catch (e) { falha(e, 'Não foi possível eliminar os dados'); }
 };
 
+// O rascunho fica numa caixa à parte; "Usar na resposta" copia para o campo Resposta, e enviar continua sendo o Salvar (PUT).
+window.rascunhoRespostaTitular = async function (projectId, id) {
+    let r;
+    try { r = await api('POST', `/api/v1/projects/${projectId}/titular-pedidos/${id}/rascunho`); } catch (e) { falha(e, 'Não foi possível gerar o rascunho'); return; }
+    el('pt-rascunho').innerHTML = caixaRascunho('pt-rascunho-texto', r.texto)
+        + (el('pt-resp') ? '<button class="btn btn-sm" style="margin-top:0.5rem" data-action="usarRascunhoTitular">Usar na resposta</button>' : '');
+};
+
+window.usarRascunhoTitular = function () { el('pt-resp').value = el('pt-rascunho-texto').value; };
+
 window.salvarPedidoTitular = (projectId, id) => acao(
     () => api('PUT', `/api/v1/projects/${projectId}/titular-pedidos/${id}`, { status: el('pt-status').value, resposta_texto: el('pt-resp').disabled ? undefined : valorOuNulo('pt-resp') }),
     'Não foi possível salvar o pedido', 'Pedido atualizado.', () => window.abrirPedidoTitular(projectId, id));
@@ -223,6 +240,11 @@ window.abrirIncidente = async function (projectId, id) {
                 ${i.comunicacao_titular_em ? '' : `<button class="btn btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, 'titular')}'>Registrei a comunicação ao titular</button>`}
                 <button class="btn btn-primary btn-sm" data-action="encerrarIncidente" data-args='${args(projectId, id)}'>Encerrar incidente</button>
             </div>` : ''}
+        ${podeRascunho() ? `<h4 style="margin:1rem 0 0.5rem">Rascunho da comunicação</h4>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+                <button class="btn btn-sm" data-action="rascunhoComunicacaoIncidente" data-args='${args(projectId, id, 'anpd')}'>Rascunho para a ANPD</button>
+                <button class="btn btn-sm" data-action="rascunhoComunicacaoIncidente" data-args='${args(projectId, id, 'titular')}'>Rascunho para o titular</button>
+            </div><div id="in-rascunho" style="margin-top:0.75rem"></div>` : ''}
         ${podeEditar() && produtoAtual() === 'iso' && temProduto(projetoAtivo(), 'iso') ? `<h4 style="margin:1rem 0 0.5rem">Ação corretiva</h4>
             <button class="btn btn-sm" data-action="abrirCapaDoIncidente" data-args='${args(projectId, id)}'>Abrir CAPA</button>` : ''}`, 'modal-large');
 };
@@ -241,6 +263,16 @@ window.avaliarRiscoIncidente = (projectId, id) => acao(
 
 window.registrarComunicacaoIncidente = (projectId, id, destino) => acao(
     () => api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/comunicacoes`, { destino }), 'Não foi possível registrar a comunicação', 'Comunicação registrada.', reabrirIncidente(projectId, id));
+
+// O que tem e o que falta vêm do servidor, calculados do registro (Res. CD/ANPD 15/2024); o texto é editável e não é gravado.
+window.rascunhoComunicacaoIncidente = async function (projectId, id, destino) {
+    let r;
+    try { r = await api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/rascunho-comunicacao`, { destino }); } catch (e) { falha(e, 'Não foi possível gerar o rascunho'); return; }
+    const itens = (l) => (lista(l).length ? lista(l).map((x) => escapeHTML(x)).join('; ') : 'nada');
+    el('in-rascunho').innerHTML = `<p id="in-rascunho-tem">O incidente tem: ${itens(r.presentes)}.</p>
+        <p id="in-rascunho-falta" style="color:var(--warning)">Falta (complete antes de enviar): ${itens(r.faltando)}.</p>
+        ${caixaRascunho('in-rascunho-texto', r.texto)}`;
+};
 
 window.encerrarIncidente = (projectId, id) => acao(
     () => api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/encerrar`), 'Não foi possível encerrar o incidente', 'Incidente encerrado.', reabrirIncidente(projectId, id));

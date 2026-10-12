@@ -107,12 +107,15 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 39 arquivos em 2026-10-11: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 40 arquivos em 2026-10-12: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
 - **Agents** (`src/agents/`): policy, evidence, assessment, control-adequacao,
-  phase-interpretation, readiness (`ls src/agents`).
+  phase-interpretation, readiness, importacao e privacidade (`ls src/agents`). O `privacidade` so
+  RASCUNHA no n.privacy (sugestao do tratamento, resposta ao titular, comunicacao de incidente): a saida
+  passa por zod estrito, nada e gravado no registro e a trilha `agente.rascunho` nao leva o texto
+  (`src/services/rascunhos-privacy.ts`).
 - **Frontend**: `frontend/src/` → `frontend/dist`, servido pelo binding ASSETS.
   - `frontend/login.html` — o app de verdade (login + SPA), entrada do Vite
     (`vite.config.js: rollupOptions.input`), com `src/main.js`, `router.js`,
