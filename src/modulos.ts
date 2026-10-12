@@ -86,3 +86,29 @@ export async function modulosContratados(db: D1Database, orgId: string): Promise
   const o = await db.prepare('SELECT modulos_contratados AS m FROM organizations WHERE id = ?').bind(orgId).first<{ m: string | null }>();
   return parseModulos(o?.m);
 }
+
+/** Quem pede acesso: o principal da requisição (sessão, chave de API ou agente). */
+export interface PrincipalDeModulo {
+  id?: string;
+  role?: string;
+  client_project_id?: string | null;
+}
+
+/**
+ * Os módulos da PESSOA (n.360, fatia 3; migration 0066). `platform_admin`: todos, sem linha. Chave de API (`id`
+ * `apikey:<id>`, ver `middleware/auth.ts`): não é pessoa, vale o projeto dela. Agente MCP: o `id` do principal é o
+ * `users.id` do consultor que concedeu (`middleware/agente.ts`), então lê os dele. Os demais: `usuario_modulos`.
+ * Consulta por requisição: conceder ou tirar vale na hora, sem derrubar sessão.
+ */
+export async function modulosDaPessoa(db: D1Database, user: PrincipalDeModulo): Promise<Modulo[]> {
+  if (user.role === 'platform_admin') return [...MODULOS_PRODUTO];
+  if (user.id?.startsWith('apikey:')) return user.client_project_id ? modulosDoProjeto(db, user.client_project_id) : [];
+  const { results } = await db.prepare('SELECT modulo FROM usuario_modulos WHERE user_id = ? ORDER BY modulo').bind(user.id ?? '').all<{ modulo: Modulo }>();
+  return results.map((r) => r.modulo);
+}
+
+/** A recusa se a faixa é de um módulo que a pessoa não tem; null se pode. O núcleo não exige módulo da pessoa. */
+export function recusaDaPessoa(faixa: Faixa, modulos: readonly Modulo[]): string | null {
+  if (faixa === 'nucleo' || modulos.includes(faixa)) return null;
+  return `Você não tem acesso ao ${NOME_DO_PRODUTO[faixa]}`;
+}

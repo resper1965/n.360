@@ -1,4 +1,4 @@
-import { FAIXA_DA_TABELA, modulosDoProjeto, recusaDeModulo } from './modulos';
+import { FAIXA_DA_TABELA, modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo, type Modulo } from './modulos';
 import { log, requestId, resumoErro } from './observability';
 import { orgDoUsuario } from './services/organizacao';
 
@@ -148,6 +148,8 @@ export async function createNotification(
  * devolveria o buraco pela porta dos fundos.
  */
 export interface AtorAutorizado {
+  /** `users.id` (ou `apikey:<id>`): por ele se leem os módulos da pessoa (`modulosDaPessoa`). */
+  id?: string;
   role?: string;
   /** Só o consultor precisa: é por ele que a designação na governança é procurada. */
   email?: string;
@@ -286,22 +288,27 @@ export async function requireResourceAccess(db: D1Database, table: string, resou
     throw new Error('Invalid table');
   }
   const row = await db.prepare(`SELECT project_id FROM ${table} WHERE id = ?`).bind(resourceId).first<{ project_id: string | null }>();
+  const faixa = FAIXA_DA_TABELA[table] ?? 'nucleo';
   // Produto (n.iso / n.privacy): o recurso só é alcançável se o projeto dele tem o produto da faixa. Vale para qualquer papel.
+  let doProjeto: Modulo[] = [];
   if (row?.project_id) {
     // Falha fechada: sem conseguir ler os produtos do projeto, nega.
-    const modulos = await modulosDoProjeto(db, row.project_id).catch(() => { throw new ForbiddenError('Forbidden: No access to this resource'); });
-    const recusa = recusaDeModulo(FAIXA_DA_TABELA[table] ?? 'nucleo', modulos);
+    doProjeto = await modulosDoProjeto(db, row.project_id).catch(() => { throw new ForbiddenError('Forbidden: No access to this resource'); });
+    const recusa = recusaDeModulo(faixa, doProjeto);
     if (recusa) throw new ForbiddenError(recusa);
   }
-  if (user.role === 'platform_admin') return true;
   // Equipe: o projeto do recurso tem de ser um que ela alcança (designação ou administração, sempre
   // na própria organização). Recurso inexistente ou sem projeto nega (antes passava direto).
-  if (ehEquipeDeProjeto(user)) {
-    if (row?.project_id && await equipeAlcanca(db, user, row.project_id)) return true;
-    throw new ForbiddenError('Forbidden: No access to this resource');
-  }
-  if (!ehPapelCliente(user) || !row || !row.project_id || row.project_id !== user.client_project_id) {
-    throw new ForbiddenError('Forbidden: No access to this resource');
+  const alcanca = user.role === 'platform_admin'
+    || (ehEquipeDeProjeto(user) ? !!row?.project_id && await equipeAlcanca(db, user, row.project_id)
+      : ehPapelCliente(user) && !!row?.project_id && row.project_id === user.client_project_id);
+  if (!alcanca) throw new ForbiddenError('Forbidden: No access to this resource');
+  // A pessoa também precisa do módulo (fatia 3 do n.360). Só depois do alcance: antes, a mensagem diria a quem não
+  // alcança o recurso que ele existe.
+  if (doProjeto.length && faixa !== 'nucleo') {
+    const daPessoa = await modulosDaPessoa(db, user).catch(() => { throw new ForbiddenError('Forbidden: No access to this resource'); });
+    const recusa = recusaDaPessoa(faixa, daPessoa);
+    if (recusa) throw new ForbiddenError(recusa);
   }
   return true;
 }

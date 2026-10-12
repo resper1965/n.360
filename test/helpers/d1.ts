@@ -152,7 +152,31 @@ export const lerAtivo = (id: string) => lerAtivoDoBanco(env.DB, id);
 /**
  * Habilita o n.privacy nos projetos do teste. O gatilho da 0060 dá ao projeto o que a organização contratou, e a `org_ness` dos
  * testes contratou só o n.iso: sem isto, as rotas do n.privacy respondem 403 (a trava por produto).
+ *
+ * Desde a fatia 3 do n.360 o módulo também é da PESSOA: as contas que já existem e trabalham nesses projetos (os clientes
+ * deles e a equipe da organização deles) recebem o n.privacy junto, como o platform_admin faria na tela. Conta criada
+ * DEPOIS recebe o padrão do gatilho (cliente: os do projeto; equipe: o contrato). Teste da regra por pessoa:
+ * `test/modulos-por-pessoa.test.ts`.
  */
 export async function habilitarPrivacy(...ids: string[]): Promise<void> {
-  await env.DB.batch(ids.map((id) => env.DB.prepare(`INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, 'privacy', 'teste')`).bind(id)));
+  await env.DB.batch(ids.flatMap((id) => [
+    env.DB.prepare(`INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, 'privacy', 'teste')`).bind(id),
+    env.DB.prepare(`INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
+      SELECT u.id, 'privacy', 'teste' FROM users u WHERE u.client_project_id = ?1 AND u.role IN ('org_admin', 'org_user', 'client')
+      UNION SELECT u.id, 'privacy', 'teste' FROM users u JOIN projects p ON p.id = ?1 AND p.org_id = u.org_id
+       WHERE u.role IN ('consultor', 'consultoria_admin')`).bind(id),
+  ]));
+}
+
+/**
+ * Dá módulos às contas (n.360, fatia 3: a rota de n.iso/n.privacy exige o módulo da pessoa). Em produção toda sessão é de
+ * uma conta em `users`; muitos testes abrem sessão (`sessionFor`) com um `id` que não está lá, e `usuario_modulos` tem FK.
+ * Para esses, cria a conta mínima (e-mail sintético, para não colidir com a conta do mesmo e-mail que o teste já tenha).
+ * Chame DEPOIS de inserir as contas do próprio teste.
+ */
+export async function concederModulos(ids: string | string[], modulos: readonly ('iso' | 'privacy')[] = ['iso', 'privacy']): Promise<void> {
+  await env.DB.batch([ids].flat().flatMap((id) => [
+    env.DB.prepare(`INSERT OR IGNORE INTO users (id, email, password_hash, name, role) VALUES (?, ?, 'x', ?, 'org_user')`).bind(id, `${id}@conta.teste`, id),
+    ...modulos.map((m) => env.DB.prepare(`INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por) VALUES (?, ?, 'teste')`).bind(id, m)),
+  ]));
 }

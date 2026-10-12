@@ -216,6 +216,9 @@ const CORPOS: Record<string, unknown> = {
   // Decisão de pedido valida o corpo antes de procurar o pedido; senha correta pelo mesmo motivo.
   'POST /api/v1/pedidos/:id/aprovar': { senha: SENHA_DO_USUARIO },
   'POST /api/v1/pedidos/:id/recusar': { senha: SENHA_DO_USUARIO },
+  // Lista vazia passa no schema e em qualquer teto: o que tem de recusar é a guarda.
+  'PUT /api/v1/users/:id/modulos': { modulos: [] },
+  'PUT /api/v1/admin/users/:id/modulos': { modulos: [] },
 };
 
 /**

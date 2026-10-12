@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 
 import { genId, hashPassword, logAudit, sendEmail, escapeHtml, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, erro500, ehConsultor, ehAdminDaOrg, consultorDesignado, PROJETOS_DO_CONSULTOR_SQL, PAPEIS_EQUIPE_ORG } from '../helpers';
-import { validateBody, createUserSchema, updateUserSchema } from '../schemas';
+import { validateBody, createUserSchema, updateUserSchema, modulosDaContaSchema } from '../schemas';
+import { MODULOS_PRODUTO, NOME_DO_PRODUTO, modulosContratados, modulosDaPessoa, modulosDoProjeto, type Modulo } from '../modulos';
 import { appUrl } from '../config/url';
 import { orgDoUsuario, resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_USUARIOS } from '../services/organizacao';
 
@@ -50,7 +51,7 @@ usersApp.get('/', async (c) => {
       if (r === 'consultant') r = 'consultor';
       return { ...u, role: r };
     });
-    return c.json(mapped);
+    return c.json(await comModulos(c.env.DB, mapped, user.role === 'platform_admin'));
   } catch (e: any) {
     return erro500(c, 'Falha ao listar usuários', e);
   }
@@ -108,6 +109,56 @@ const NAO_ENCONTRADO = { error: 'Usuário não encontrado' };
 const consultorForaDoProjeto = async (db: D1Database, quem: { role?: string; email?: string }, projectId: string | null | undefined) =>
   ehConsultor(quem) && !(projectId && await consultorDesignado(db, quem.email ?? '', projectId));
 const recusaProjeto = { error: 'Forbidden: consultor só gere usuários dos projetos em que está designado' };
+
+/*
+ * Módulos da pessoa (n.360, fatia 3). O TETO do que se concede a uma conta: cliente, os módulos do projeto dele; equipe,
+ * o contrato da organização; outro papel (stakeholder, platform_admin), nenhum. O `platform_admin` que concede não tem
+ * teto. Conta nova recebe o padrão pelo gatilho `usuario_modulos_padrao` (schema.sql, migration 0066).
+ */
+type ContaDeModulo = { role: string; client_project_id: string | null; org: string | null };
+const categoria = (role: string) => PAPEIS_CLIENTE_GERIVEIS.has(role) ? 'cliente' : PAPEIS_EQUIPE_ORG.has(role) ? 'equipe' : 'outro';
+async function tetoDaConta(db: D1Database, conta: ContaDeModulo): Promise<Modulo[]> {
+  const cat = categoria(conta.role);
+  if (cat === 'cliente') return conta.client_project_id ? modulosDoProjeto(db, conta.client_project_id) : [];
+  return cat === 'equipe' ? modulosContratados(db, conta.org ?? '') : [];
+}
+/** Os módulos pedidos que estão fora do teto, como 400; null se cabem. */
+const recusaDeTeto = (pedido: readonly Modulo[], teto: readonly Modulo[]) => {
+  const fora = pedido.filter((m) => !teto.includes(m));
+  return fora.length ? { error: `Esta conta não pode receber ${fora.map((m) => NOME_DO_PRODUTO[m]).join(', ')}` } : null;
+};
+/** Troca os módulos da conta pela lista (statements para entrar no batch de quem chama). */
+const gravarModulos = (db: D1Database, userId: string, modulos: readonly Modulo[], por: string) => [
+  db.prepare('DELETE FROM usuario_modulos WHERE user_id = ?').bind(userId),
+  ...modulos.map((m) => db.prepare('INSERT INTO usuario_modulos (user_id, modulo, concedido_por) VALUES (?, ?, ?)').bind(userId, m, por)),
+];
+const listaDeModulos = (m: readonly string[]) => m.join(', ') || 'nenhum';
+const ordenar = (m: readonly Modulo[]) => MODULOS_PRODUTO.filter((x) => m.includes(x));
+
+/**
+ * A listagem leva, por conta, `modulos` (os dela; `platform_admin` tem todos) e `teto_modulos` (o que quem lista pode
+ * conceder a ela: o teto da conta, ou todos para o platform_admin). Duas consultas para a lista inteira; o teto é
+ * calculado uma vez por projeto/organização.
+ */
+async function comModulos<T extends { id: string; role: string; client_project_id: string | null }>(db: D1Database, contas: T[], semTeto: boolean) {
+  const ids = JSON.stringify(contas.map((u) => u.id));
+  const [mods, orgs] = await Promise.all([
+    db.prepare('SELECT user_id, modulo FROM usuario_modulos WHERE user_id IN (SELECT value FROM json_each(?))').bind(ids).all<{ user_id: string; modulo: Modulo }>(),
+    db.prepare(`SELECT u.id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id IN (SELECT value FROM json_each(?))`).bind(ids).all<{ id: string; org: string | null }>(),
+  ]);
+  const orgDe = new Map(orgs.results.map((o) => [o.id, o.org]));
+  const tetos = new Map<string, Promise<Modulo[]>>();
+  return Promise.all(contas.map(async (u) => {
+    const conta = { role: u.role, client_project_id: u.client_project_id, org: orgDe.get(u.id) ?? null };
+    const chave = `${categoria(u.role)}|${categoria(u.role) === 'cliente' ? conta.client_project_id : conta.org}`;
+    if (!tetos.has(chave)) tetos.set(chave, tetoDaConta(db, conta));
+    return {
+      ...u,
+      modulos: u.role === 'platform_admin' ? [...MODULOS_PRODUTO] : ordenar(mods.results.filter((m) => m.user_id === u.id).map((m) => m.modulo)),
+      teto_modulos: semTeto ? [...MODULOS_PRODUTO] : await tetos.get(chave)!,
+    };
+  }));
+}
 
 /**
  * Convite de primeiro acesso: e-mail com a senha provisória (a conta nasce com
@@ -179,12 +230,22 @@ usersApp.post('/', async (c) => {
       return c.json({ error: 'Email já cadastrado' }, 400);
     }
 
+    // Módulos pedidos: só dentro do teto da conta (o platform_admin concede qualquer um). Sem o campo, o padrão do gatilho.
+    const pedido = valid.data.modulos ? ordenar(valid.data.modulos) : null;
+    if (pedido && admin.role !== 'platform_admin') {
+      const recusa = recusaDeTeto(pedido, await tetoDaConta(c.env.DB, { role: targetRole, client_project_id: targetProject || null, org: orgNovo }));
+      if (recusa) return c.json(recusa, 400);
+    }
+
     const id = genId();
     const hash = await hashPassword(password);
 
-    await c.env.DB.prepare(
-      `INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, requires_password_change) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`
-    ).bind(id, email, hash, name, targetRole, targetProject || null, orgNovo).run();
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, requires_password_change) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`
+      ).bind(id, email, hash, name, targetRole, targetProject || null, orgNovo),
+      ...(pedido ? gravarModulos(c.env.DB, id, pedido, admin.email) : []),
+    ]);
 
     await logAudit(c.env.DB, 'user.created', admin.email, `Usuário ${email} criado como ${targetRole}`);
 
@@ -319,6 +380,7 @@ usersApp.put('/:id', async (c) => {
         await invalidateUserSessions(c.env.SESSIONS, id);
       }
       if (password !== undefined && password !== '') await revogarAgentesPorTrocaDeSenha(c.env.DB, id);
+      if (role !== undefined || client_project_id !== undefined) await recalcularModulos(c.env.DB, id, user, admin.email);
 
       // Quais CAMPOS mudaram, nunca o valor (a senha, menos ainda).
       const campos = [password ? 'senha' : '', role !== undefined ? 'papel' : '', email !== undefined ? 'email' : '',
@@ -330,6 +392,58 @@ usersApp.put('/:id', async (c) => {
   } catch (e: any) {
     if (e.message && e.message.includes('UNIQUE')) return c.json({ error: 'Email já cadastrado' }, 400);
     return erro500(c, 'Falha ao atualizar usuário', e);
+  }
+});
+
+/**
+ * Troca de projeto (cliente) ou de tipo de conta muda o teto: fica a interseção com o que a pessoa tinha; vazia, o teto
+ * inteiro (spec da fatia 3). Mesma conta no mesmo teto: nada muda (o que o platform_admin deu além do teto fica).
+ */
+async function recalcularModulos(db: D1Database, id: string, antes: ContaDeModulo, ator: string) {
+  const depois = await db.prepare(`SELECT u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id).first<ContaDeModulo>();
+  const chave = (x: ContaDeModulo) => `${categoria(x.role)}|${categoria(x.role) === 'cliente' ? x.client_project_id : x.org}`;
+  if (!depois || chave(depois) === chave(antes)) return;
+  const teto = await tetoDaConta(db, depois);
+  const tinha = await modulosDaPessoa(db, { id });
+  const ficam = tinha.filter((m) => teto.includes(m));
+  const novo = ficam.length ? ficam : teto;
+  if (listaDeModulos(novo) === listaDeModulos(tinha)) return;
+  await db.batch(gravarModulos(db, id, novo, ator));
+  await logAudit(db, 'usuario.modulos', ator, `Usuário ${id}: módulos ${listaDeModulos(tinha)} → ${listaDeModulos(novo)} (troca de projeto ou de papel)`);
+}
+
+/**
+ * Concede os módulos de uma conta (n.360, fatia 3): a lista inteira, que substitui a atual. Quem pode é quem já gere a
+ * conta (as mesmas travas de `PUT /:id`), até o teto dela. Trilha `usuario.modulos` com antes e depois.
+ */
+usersApp.put('/:id/modulos', async (c) => {
+  const admin = c.get('user');
+  if (!GESTORES.has(admin.role)) return c.json({ error: 'Unauthorized' }, 403);
+  const id = c.req.param('id');
+  try {
+    const v = await validateBody(c, modulosDaContaSchema);
+    if (!v.success) return v.response;
+    const db = c.env.DB;
+    const user = await db.prepare(`SELECT u.id, u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id)
+      .first<ContaDeModulo & { id: string }>();
+    if (!user) return c.json(NAO_ENCONTRADO, 404);
+    if (ehAdminDaOrg(admin) && user.org !== orgDoUsuario(admin)) return c.json(NAO_ENCONTRADO, 404);
+    if (soPlatformAdmin(admin, user.role)) return c.json(recusaPapelInterno, 403);
+    if (await consultorForaDoProjeto(db, admin, user.client_project_id)) return c.json(recusaProjeto, 403);
+    if (admin.role === 'org_admin' && user.client_project_id !== admin.client_project_id) {
+      return c.json({ error: 'Forbidden: Access denied to this user' }, 403);
+    }
+    const pedido = ordenar(v.data.modulos);
+    if (admin.role !== 'platform_admin') {
+      const recusa = recusaDeTeto(pedido, await tetoDaConta(db, user));
+      if (recusa) return c.json(recusa, 400);
+    }
+    const antes = await modulosDaPessoa(db, { id });
+    await db.batch(gravarModulos(db, id, pedido, admin.email));
+    await logAudit(db, 'usuario.modulos', admin.email, `Usuário ${id}: módulos ${listaDeModulos(antes)} → ${listaDeModulos(pedido)}`);
+    return c.json({ ok: true, modulos: pedido });
+  } catch (e) {
+    return erro500(c, 'Falha ao conceder módulos', e);
   }
 });
 

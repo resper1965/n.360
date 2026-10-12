@@ -74,6 +74,9 @@ const CORPOS: Record<string, (alvo: Org) => unknown> = {
   'POST /api/v1/projects/:projectId/pedidos': (alvo) => ({ tipo: 'dpia', ref_id: alvo.rec, papel_exigido: 'ciente', destinatarios: [{ email: `stk@${alvo.m}.lat` }] }),
   'POST /api/v1/leads/:id/enrich-cnpj': () => ({ cnpj: '11222333000181' }),
   'PUT /api/v1/projects/:projectId/modulos/:modulo': () => ({ habilitado: true }),
+  // lista vazia passa no schema e em qualquer teto: o que tem de recusar é a guarda (conta de outra organização)
+  'PUT /api/v1/users/:id/modulos': () => ({ modulos: [] }),
+  'PUT /api/v1/admin/users/:id/modulos': () => ({ modulos: [] }),
   'POST /api/v1/projects/:projectId/departamentos': () => ({ nome: 'Varredura' }),
   'PUT /api/v1/projects/:projectId/departamentos/:id': () => ({ nome: 'Varredura' }),
   'POST /api/v1/projects/:projectId/partes': () => ({ nome: 'Varredura' }),
