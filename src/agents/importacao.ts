@@ -1,8 +1,8 @@
 import { BaseAgent, type AgentContext, type AgentResponse } from './types';
 
 /**
- * Agente da importação de programa de privacidade (n.privacy, fatia 1). Duas tarefas: CLASSIFICAR o arquivo (que tipo de
- * material é) e EXTRAIR tratamentos de um inventário. O texto do arquivo é DADO do cliente: o prompt diz isso, a resposta é só
+ * Agente da importação de programa de privacidade (n.privacy, fatias 1 e 2). Duas tarefas: CLASSIFICAR o arquivo (que tipo de
+ * material é) e EXTRAIR os itens dele (tratamentos de um inventário, terceiros de uma lista de terceiros). O texto do arquivo é DADO do cliente: o prompt diz isso, a resposta é só
  * JSON, e o servidor valida cada item com esquema estrito antes de gravar (e uma pessoa revisa antes de virar RoPA).
  */
 
@@ -33,6 +33,16 @@ confianca ("alta", "media" ou "baixa").
 ${DADO_NAO_INSTRUCAO}
 Formato: {"tratamentos":[{...}]}. Sem tratamento no trecho: {"tratamentos":[]}.`;
 
+const PROMPT_EXTRAIR_TERCEIROS = `Você vai EXTRAIR os terceiros (fornecedores, operadores, parceiros que tratam dados pessoais) de um trecho de
+lista ou avaliação de terceiros (LGPD). Para cada terceiro encontrado, devolva os campos (omita o que o texto não diz; não invente):
+nome (obrigatório, razão social ou nome do fornecedor), tipo (um de "grande_provedor", "medio", "pequeno", "critico"; omita se o texto
+não permitir decidir), cnpj, contato (e-mail ou nome do contato), ultima_avaliacao ({"resultado": "aprovado" | "com_ressalvas" |
+"reprovado", "valido_ate": "AAAA-MM-DD", "metodo": texto}; só se o texto trouxer resultado e validade), dpa (nome do documento do
+acordo de tratamento de dados, se houver), tratamentos (lista de finalidades/atividades em que o terceiro atua), origem (o trecho
+literal do texto de onde saiu, até 150 caracteres) e confianca ("alta", "media" ou "baixa").
+${DADO_NAO_INSTRUCAO}
+Formato: {"terceiros":[{...}]}. Sem terceiro no trecho: {"terceiros":[]}.`;
+
 type Mensagem = { role: 'system' | 'user'; content: string };
 
 /** O JSON da resposta do modelo: cru, embutido em texto ou dentro de cerca ```json. null se não houver objeto legível. */
@@ -54,11 +64,13 @@ export function parseClassificacao(raw: string): TipoArquivo {
   return (TIPOS_ARQUIVO as readonly unknown[]).includes(tipo) ? (tipo as TipoArquivo) : 'desconhecido';
 }
 
-/** A lista crua de tratamentos (cada um ainda NÃO validado), ou null se a resposta está fora do formato. */
-export function parseTratamentos(raw: string): unknown[] | null {
-  const lista = objetoDaResposta(raw)?.tratamentos;
+/** A lista crua em `chave` (cada item ainda NÃO validado), ou null se a resposta está fora do formato. */
+function listaDaResposta(raw: string, chave: string): unknown[] | null {
+  const lista = objetoDaResposta(raw)?.[chave];
   return Array.isArray(lista) ? lista : null;
 }
+export const parseTratamentos = (raw: string) => listaDaResposta(raw, 'tratamentos');
+export const parseTerceiros = (raw: string) => listaDaResposta(raw, 'terceiros');
 
 export class ImportacaoAgent extends BaseAgent {
   private async perguntar(sistema: string, texto: string, maxTokens: number) {
@@ -72,9 +84,10 @@ export class ImportacaoAgent extends BaseAgent {
     return { tipo: parseClassificacao(r.content), modelo: r.model };
   }
 
-  async extrairTratamentos(texto: string): Promise<{ tratamentos: unknown[] | null; modelo: string }> {
-    const r = await this.perguntar(PROMPT_EXTRAIR, texto, 8192);
-    return { tratamentos: parseTratamentos(r.content), modelo: r.model };
+  /** Extrai os itens de um bloco, conforme o tipo do arquivo: tratamentos de um inventário, terceiros de uma lista de terceiros. */
+  async extrair(tipo: 'inventario' | 'terceiros', texto: string): Promise<{ itens: unknown[] | null; modelo: string }> {
+    const r = await this.perguntar(tipo === 'terceiros' ? PROMPT_EXTRAIR_TERCEIROS : PROMPT_EXTRAIR, texto, 8192);
+    return { itens: tipo === 'terceiros' ? parseTerceiros(r.content) : parseTratamentos(r.content), modelo: r.model };
   }
 
   async run(prompt: string, _context: AgentContext): Promise<AgentResponse> {

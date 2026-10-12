@@ -3,7 +3,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, habilitarPrivacy } from './helpers/d1';
 import { faixaDoCaminho } from '../src/modulos';
-import { parseClassificacao, parseTratamentos } from '../src/agents/importacao';
+import { parseClassificacao, parseTerceiros, parseTratamentos } from '../src/agents/importacao';
 import { BLOCO, blocos, casarBaseLegal } from '../src/services/importacao';
 import { semearCatalogo } from '../src/services/requisitos';
 
@@ -317,11 +317,11 @@ describe('processar', () => {
     } finally { AI.toMarkdown = original; }
   });
 
-  it('arquivo de outra fatia fica aguardando, sem itens', async () => {
+  it('arquivo de fatia ainda não feita (documento) fica aguardando, sem itens', async () => {
     const lote = await novoLote();
-    ia.tipo = 'terceiros';
-    const { aid, resposta, passos } = await enviarEProcessar(lote, 'fornecedores.csv');
-    expect(resposta.arquivo).toMatchObject({ status: 'aguardando', tipo: 'terceiros' });
+    ia.tipo = 'documento';
+    const { aid, resposta, passos } = await enviarEProcessar(lote, 'politica.csv');
+    expect(resposta.arquivo).toMatchObject({ status: 'aguardando', tipo: 'documento' });
     expect(passos).toEqual([0]);
     expect(await contarItens(aid)).toBe(0);
     ia.tipo = 'inventario';
@@ -649,5 +649,154 @@ describe('trava de gravação (status próprio)', () => {
     const r = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`);
     expect(r.status, await r.clone().text()).toBe(200);
     expect(await statusDo(lote)).toBe('concluida');
+  });
+});
+
+describe('terceiros (fatia 2)', () => {
+  const futuro = new Date(Date.now() + 365 * 864e5).toISOString().slice(0, 10);
+  const terceiro = (nome: string, extra: Record<string, unknown> = {}) => ({
+    nome, tipo: 'medio', confianca: 'alta', origem: `linha sobre ${nome}`, ...extra,
+  });
+  const respondeTerceiros = (...ts: unknown[]) => { ia.extracao = () => JSON.stringify({ terceiros: ts }); };
+  const processarTerceiros = async (lote: string, nome = 'fornecedores.csv') => {
+    ia.tipo = 'terceiros';
+    try { return await enviarEProcessar(lote, nome, 'fornecedor;tipo\nAlfa;medio'); } finally { ia.tipo = 'inventario'; }
+  };
+  const aceitar = async (lote: string, id: string) =>
+    expect((await chamar(consultor, 'PUT', `${P}/importacoes/${lote}/itens/${id}`, { decisao: 'aceito' })).status).toBe(200);
+  type Res = { item_id: string; decisao: string; registro_id?: string; motivo?: string; aviso?: string };
+  const confirmar = async (lote: string) => {
+    const r = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    return (await json<{ resultados: Res[] }>(r)).resultados;
+  };
+  const partesCom = async (nome: string) => (await env.DB.prepare(`SELECT id, tipo, terceiro_tipo, email FROM partes WHERE project_id = ? AND nome = ?`).bind(P, nome)
+    .all<{ id: string; tipo: string; terceiro_tipo: string | null; email: string | null }>()).results;
+
+  it('parseTerceiros tolera cerca e devolve null fora do formato', () => {
+    expect(parseTerceiros('```json\n{"terceiros":[{"nome":"A"}]}\n```')).toEqual([{ nome: 'A' }]);
+    expect(parseTerceiros('{"terceiros":[]}')).toEqual([]);
+    expect(parseTerceiros('{"tratamentos":[]}')).toBeNull();
+  });
+
+  it('arquivo classificado como terceiros é extraído (não fica aguardando): válido vira item terceiro, inválido é recusado', async () => {
+    const lote = await novoLote();
+    ia.chamadas = [];
+    respondeTerceiros(
+      terceiro('Nuvem Exemplo S.A.', { tipo: 'grande_provedor', cnpj: '00.000.000/0001-00', contato: 'privacidade@nuvem.example', dpa: 'DPA Nuvem', tratamentos: ['Folha de pagamento'], ultima_avaliacao: { resultado: 'aprovado', valido_ate: futuro, metodo: 'trust center' } }),
+      { nome: 'Sem tipo Ltda', confianca: 'media' },
+      { ...terceiro('Injetado'), status: 'aprovado' },
+      terceiro('Tipo inventado', { tipo: 'parceiro' }),
+      { tipo: 'medio', confianca: 'alta' },
+    );
+    const { aid, resposta } = await processarTerceiros(lote);
+    expect(resposta.arquivo).toMatchObject({ status: 'processado', tipo: 'terceiros', erro: null });
+    expect(await contarItens(aid)).toBe(5);
+    // o prompt de extração é o de terceiros e trata o arquivo como dado
+    const extracao = ia.chamadas.find((m) => !m[0].content.includes('CLASSIFICAR'))!;
+    expect(extracao[0].content).toMatch(/terceiros/i);
+    expect(extracao[0].content).toMatch(/ignore/i);
+    const { itens } = await lerLote(lote);
+    expect(itens.every((i) => (i as Item & { entidade: string }).entidade === 'terceiro')).toBe(true);
+    const nuvem = itens.find((i) => i.dados.nome === 'Nuvem Exemplo S.A.')!;
+    expect(nuvem).toMatchObject({ decisao: 'pendente', confianca: 'alta', faltando: [] });
+    expect(itens.find((i) => i.dados.nome === 'Sem tipo Ltda')!.faltando).toEqual(['tipo', 'ultima_avaliacao']);
+    const recusados = itens.filter((i) => i.decisao === 'recusado');
+    expect(recusados).toHaveLength(3);
+    expect(recusados.every((i) => i.motivo && JSON.stringify(i.dados) === '{}')).toBe(true);
+  });
+
+  it('PUT valida os dados pelo esquema do terceiro', async () => {
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Editável Ltda'));
+    await processarTerceiros(lote);
+    const [item] = (await lerLote(lote)).itens;
+    const url = `${P}/importacoes/${lote}/itens/${item.id}`;
+    expect((await chamar(consultor, 'PUT', url, { dados: { finalidade: 'Não é terceiro' } })).status).toBe(400);
+    expect((await chamar(consultor, 'PUT', url, { dados: { nome: 'X', tipo: 'gigante' } })).status).toBe(400);
+    const r = await chamar(consultor, 'PUT', url, { dados: { nome: 'Editável Ltda', tipo: 'critico' } });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await json<{ item: Item }>(r)).item.dados).toEqual({ nome: 'Editável Ltda', tipo: 'critico' });
+  });
+
+  it('confirmar cria a parte organização, o tipo, a avaliação vigente e o vínculo com o tratamento; liga o DPA; trilha', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('ropa-t-folha', ?, 'Folha de Pagamento (RH)')`).bind(P),
+      env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo) VALUES ('doc-dpa-cn', ?, 'DPA Correio Nuvem')`).bind(P),
+    ]);
+    const lote = await novoLote();
+    respondeTerceiros(
+      terceiro('Correio Nuvem Ltda', {
+        tipo: 'grande_provedor', contato: 'dpo@correio.example', cnpj: '11.111.111/0001-11', dpa: 'dpa correio nuvem',
+        tratamentos: ['folha de pagamento (rh)', 'Tratamento que não existe'],
+        ultima_avaliacao: { resultado: 'com_ressalvas', valido_ate: futuro, metodo: 'questionário' },
+      }),
+      terceiro('Avaliação Vencida SA', { tipo: 'pequeno', ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2020-01-01' } }),
+    );
+    await processarTerceiros(lote);
+    const { itens } = await lerLote(lote);
+    for (const i of itens) await aceitar(lote, i.id);
+    const resultados = await confirmar(lote);
+    expect(resultados.map((r) => r.decisao)).toEqual(['gravado', 'gravado']);
+
+    const [cn] = await partesCom('Correio Nuvem Ltda');
+    expect(cn).toMatchObject({ tipo: 'organizacao', terceiro_tipo: 'grande_provedor', email: 'dpo@correio.example' });
+    expect(resultados.find((r) => r.item_id === itens.find((i) => i.dados.nome === 'Correio Nuvem Ltda')!.id)!.registro_id).toBe(cn.id);
+    const t = await json<{ situacao: string; metodo: string; tratamentos_afetados: { id: string }[]; documentos_ligados: { id: string; papel: string }[]; historico: { resultado: string; valido_ate: string }[] }>(
+      await chamar(consultor, 'GET', `${P}/terceiros/${cn.id}`));
+    expect(t).toMatchObject({ situacao: 'vigente', metodo: 'trust_center' });
+    expect(t.historico).toMatchObject([{ resultado: 'com_ressalvas', valido_ate: futuro }]);
+    expect(t.tratamentos_afetados.map((x) => x.id)).toEqual(['ropa-t-folha']);
+    expect(t.documentos_ligados).toMatchObject([{ id: 'doc-dpa-cn', papel: 'dpa' }]);
+    // o tipo faz do terceiro um fornecedor do n.iso (perfil de segurança), com o CNPJ anotado
+    const vendor = await env.DB.prepare('SELECT notes FROM vendors WHERE parte_id = ?').bind(cn.id).first<{ notes: string | null }>();
+    expect(vendor?.notes).toContain('11.111.111/0001-11');
+    const aviso = resultados.find((r) => r.registro_id === cn.id)!.aviso!;
+    expect(aviso).toMatch(/Tratamento que não existe/);
+
+    // avaliação vencida não é registrada; o terceiro fica pendente de avaliação
+    const [venc] = await partesCom('Avaliação Vencida SA');
+    expect(venc.terceiro_tipo).toBe('pequeno');
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM avaliacoes_terceiro WHERE parte_id = ?').bind(venc.id).first<{ n: number }>())!.n).toBe(0);
+    expect(resultados.find((r) => r.registro_id === venc.id)!.aviso).toMatch(/vencida/i);
+
+    const trilha = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'importacao.gravada' AND project_id = ? AND details LIKE ?`).bind(P, `%${lote}%`).first<{ n: number }>();
+    expect(trilha!.n).toBe(2);
+  });
+
+  it('duplicata (parte organização com o mesmo nome) nasce descartada; reimportar e aceitar mesmo assim não duplica nada', async () => {
+    const lote1 = await novoLote();
+    const dados = terceiro('Pagamentos Exemplo Ltda', { ultima_avaliacao: { resultado: 'aprovado', valido_ate: futuro }, tratamentos: ['Folha de Pagamento (RH)'] });
+    respondeTerceiros(dados);
+    await processarTerceiros(lote1);
+    const [i1] = (await lerLote(lote1)).itens;
+    await aceitar(lote1, i1.id);
+    await confirmar(lote1);
+    const [parte] = await partesCom('Pagamentos Exemplo Ltda');
+
+    // reimportar: o mesmo nome (normalizado) já é parte organização
+    const lote2 = await novoLote();
+    respondeTerceiros({ ...dados, nome: 'PAGAMENTOS  exemplo ltda' });
+    await processarTerceiros(lote2);
+    const [i2] = (await lerLote(lote2)).itens;
+    expect(i2).toMatchObject({ duplicata_de: parte.id, decisao: 'descartado' });
+    await aceitar(lote2, i2.id);
+    const [r] = await confirmar(lote2);
+    expect(r).toMatchObject({ decisao: 'gravado', registro_id: parte.id });
+    expect(await partesCom('Pagamentos Exemplo Ltda')).toHaveLength(1);
+    expect(await partesCom('PAGAMENTOS  exemplo ltda')).toHaveLength(0);
+    const n = async (sql: string) => (await env.DB.prepare(sql).bind(parte.id).first<{ n: number }>())!.n;
+    expect(await n('SELECT COUNT(*) AS n FROM avaliacoes_terceiro WHERE parte_id = ?')).toBe(1);
+    expect(await n(`SELECT COUNT(*) AS n FROM parte_vinculos WHERE parte_id = ? AND alvo_tipo = 'tratamento'`)).toBe(1);
+  });
+
+  it('o mesmo nome duas vezes no mesmo lote cria uma parte só', async () => {
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Gêmeo Serviços'), terceiro('gemeo servicos'));
+    await processarTerceiros(lote);
+    for (const i of (await lerLote(lote)).itens) await aceitar(lote, i.id);
+    const res = await confirmar(lote);
+    expect(res.map((r) => r.decisao)).toEqual(['gravado', 'gravado']);
+    expect(res[0].registro_id).toBe(res[1].registro_id);
   });
 });

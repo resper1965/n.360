@@ -1,15 +1,16 @@
 import { logAudit } from '../helpers';
 import { ImportacaoAgent, type TipoArquivo } from '../agents/importacao';
-import { OBRIGATORIOS_ROPA, tratamentoPropostoSchema, type TratamentoProposto } from '../schemas/importacao';
+import { OBRIGATORIOS_ROPA, OBRIGATORIOS_TERCEIRO, terceiroPropostoSchema, tratamentoPropostoSchema, type TerceiroProposto, type TratamentoProposto } from '../schemas/importacao';
 import { chave, stmtInserirTratamento, validarTratamento } from './tratamentos-importar';
 import { stmtsLigacao } from './tratamentos';
 import { stmtsCriarAtivo } from './itens';
 import { ehLegitimoInteresse } from './lia';
+import { definirTipo, ligarDocumento, registrarAvaliacao } from './terceiros';
 
 /**
- * Importação de programa de privacidade (n.privacy, fatia 1; spec docs/superpowers/specs/2026-10-11-importacao-privacy-design.md).
- * Lote → arquivos (R2 `STORAGE`, chave `importacoes/<projeto>/<lote>/<arquivo>`) → o agente classifica e, se for inventário,
- * propõe tratamentos → uma pessoa revisa → `confirmar` grava os aceitos no RoPA, um item por transação.
+ * Importação de programa de privacidade (n.privacy, fatias 1 e 2; spec docs/superpowers/specs/2026-10-11-importacao-privacy-design.md).
+ * Lote → arquivos (R2 `STORAGE`, chave `importacoes/<projeto>/<lote>/<arquivo>`) → o agente classifica e, se for inventário ou lista
+ * de terceiros, propõe os itens (`entidade` tratamento ou terceiro) → uma pessoa revisa → `confirmar` grava os aceitos.
  */
 
 export const MAX_ARQUIVOS = 50;
@@ -39,7 +40,15 @@ const LIDOS_DIRETO = new Set(['text/csv', 'application/json']);
 type Falha = { ok: false; status: 400 | 404 | 409; error: string };
 type Env = { DB: D1Database; STORAGE: R2Bucket; AI: Ai };
 type Lote = { id: string; project_id: string; status: string };
-type LinhaItem = { id: string; dados: string; faltando: string; decisao: string; [k: string]: unknown };
+type LinhaItem = { id: string; entidade: Entidade; dados: string; faltando: string; decisao: string; [k: string]: unknown };
+
+/** Entidade proposta por tipo de arquivo; tipo fora daqui fica `aguardando` (fatias seguintes). */
+type Entidade = 'tratamento' | 'terceiro';
+type TipoExtraido = 'inventario' | 'terceiros';
+const ENTIDADE_DO_TIPO: Partial<Record<TipoArquivo, Entidade>> = { inventario: 'tratamento', terceiros: 'terceiro' };
+const ESQUEMA = { tratamento: tratamentoPropostoSchema, terceiro: terceiroPropostoSchema };
+/** O nome que decide a duplicata: finalidade do tratamento, nome do terceiro. */
+const nomeDe = (entidade: Entidade, d: Record<string, unknown>) => String((entidade === 'terceiro' ? d.nome : d.finalidade) ?? '');
 
 const nf = (error: string): Falha => ({ ok: false, status: 404, error });
 
@@ -54,7 +63,13 @@ const cancelado = (l: Lote): Falha | null =>
 const LIVRE = `status NOT IN ('gravando', 'cancelada')`;
 const emGravacao: Falha = { ok: false, status: 409, error: 'Importação em gravação' };
 
-const faltandoDe = (d: Partial<TratamentoProposto>) => OBRIGATORIOS_ROPA.filter((k) => !String(d[k] ?? '').trim());
+const faltandoDe = (entidade: Entidade, d: Record<string, unknown>) =>
+  (entidade === 'terceiro' ? OBRIGATORIOS_TERCEIRO : OBRIGATORIOS_ROPA).filter((k) => !String(d[k] ?? '').trim());
+
+/** Registros já cadastrados, por nome normalizado: tratamentos do RoPA ou partes organização (o terceiro). */
+const existentes = (db: D1Database, projectId: string, entidade: Entidade) => mapaPorNome(db, entidade === 'terceiro'
+  ? `SELECT id, nome FROM partes WHERE project_id = ? AND tipo = 'organizacao' ORDER BY created_at`
+  : 'SELECT id, processing_purpose AS nome FROM ropa_records WHERE project_id = ?', projectId);
 
 const itemLido = (i: LinhaItem) => ({ ...i, dados: JSON.parse(i.dados) as Record<string, unknown>, faltando: JSON.parse(i.faltando) as string[] });
 
@@ -165,25 +180,25 @@ function emDuas(texto: string): string[] {
   return [texto.slice(0, q + 1), texto.slice(q + 1)];
 }
 
-type Extraido = { tratamentos: unknown[]; falhou: boolean; modelo: string };
+type Extraido = { itens: unknown[]; falhou: boolean; modelo: string };
 
 /**
  * Extrai um bloco. Resposta fora do formato (em geral, JSON truncado no teto de tokens) divide o bloco ao meio e tenta cada metade uma
  * vez, até 2 níveis (no pior caso 7 chamadas ao modelo). O que não ler nem assim marca o bloco como falho; o lido nas outras partes fica.
  * IA fora do ar não divide: só multiplicaria as chamadas que falham.
  */
-async function extrairComDivisao(agente: ImportacaoAgent, texto: string, nivel = 0): Promise<Extraido> {
-  let r: { tratamentos: unknown[] | null; modelo: string };
-  try { r = await agente.extrairTratamentos(texto); } catch (e) {
+async function extrairComDivisao(agente: ImportacaoAgent, tipo: TipoExtraido, texto: string, nivel = 0): Promise<Extraido> {
+  let r: { itens: unknown[] | null; modelo: string };
+  try { r = await agente.extrair(tipo, texto); } catch (e) {
     console.error('importacao: IA indisponível', e);
-    return { tratamentos: [], falhou: true, modelo: '' };
+    return { itens: [], falhou: true, modelo: '' };
   }
-  if (r.tratamentos) return { tratamentos: r.tratamentos, falhou: false, modelo: r.modelo };
+  if (r.itens) return { itens: r.itens, falhou: false, modelo: r.modelo };
   const metades = nivel < 2 ? emDuas(texto) : [];
-  if (!metades.length) return { tratamentos: [], falhou: true, modelo: r.modelo };
+  if (!metades.length) return { itens: [], falhou: true, modelo: r.modelo };
   const partes: Extraido[] = [];
-  for (const m of metades) partes.push(await extrairComDivisao(agente, m, nivel + 1));
-  return { tratamentos: partes.flatMap((p) => p.tratamentos), falhou: partes.some((p) => p.falhou), modelo: r.modelo };
+  for (const m of metades) partes.push(await extrairComDivisao(agente, tipo, m, nivel + 1));
+  return { itens: partes.flatMap((p) => p.itens), falhou: partes.some((p) => p.falhou), modelo: r.modelo };
 }
 
 const CONFIANCAS = new Set(['alta', 'media', 'baixa']);
@@ -237,7 +252,7 @@ export async function processarArquivo(env: Env, projectId: string, loteId: stri
   return situacao(db, a.id);
 }
 
-/** Primeiro passo: recomeça o arquivo, converte, classifica e, se for inventário, deixa os blocos prontos. */
+/** Primeiro passo: recomeça o arquivo, converte, classifica e, se for inventário ou lista de terceiros, deixa os blocos prontos. */
 async function converter(env: Env, projectId: string, loteId: string, a: Arquivo, ator: string) {
   const db = env.DB;
   await db.batch([
@@ -257,14 +272,14 @@ async function converter(env: Env, projectId: string, loteId: string, a: Arquivo
     console.error('importacao: IA indisponível', e);
     return fim('erro', null, 'a IA não respondeu; processe de novo', null);
   }
-  if (r.tipo !== 'inventario') return fim('aguardando', r.tipo, null, r.modelo);
+  if (!ENTIDADE_DO_TIPO[r.tipo]) return fim('aguardando', r.tipo, null, r.modelo);
   const total = blocos(lido.texto).length;
   await env.STORAGE.put(TXT(a.r2_key), lido.texto, { httpMetadata: { contentType: 'text/plain; charset=utf-8' } });
   // Um cancelamento entre a conversão e o put já apagou o lote: o texto (dado do cliente) não pode ficar órfão no R2.
   const vivo = await db.prepare(`SELECT 1 FROM importacao_arquivos a JOIN importacoes l ON l.id = a.importacao_id WHERE a.id = ? AND l.status <> 'cancelada'`).bind(a.id).first();
   if (!vivo) { await env.STORAGE.delete(TXT(a.r2_key)); return; }
   await db.prepare('UPDATE importacao_arquivos SET tipo = ?, modelo = ?, blocos_total = ? WHERE id = ?').bind(r.tipo, r.modelo, total, a.id).run();
-  await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: inventario, ${total} blocos a extrair`, '', '', projectId);
+  await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: ${r.tipo}, ${total} blocos a extrair`, '', '', projectId);
 }
 
 /** Um passo: extrai o bloco `bloco_atual`, grava os itens e avança. No último, fecha o arquivo (com a nota dos blocos que falharam). */
@@ -277,24 +292,25 @@ async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arqu
   }
   const n = a.bloco_atual;
   const total = a.blocos_total;
-  const r = await extrairComDivisao(new ImportacaoAgent(env.AI, db, env), blocos(await obj.text())[n] ?? '');
+  const tipo = a.tipo as TipoExtraido; // só inventário e terceiros chegam aqui (os outros param em `aguardando`)
+  const entidade = ENTIDADE_DO_TIPO[tipo]!;
+  const r = await extrairComDivisao(new ImportacaoAgent(env.AI, db, env), tipo, blocos(await obj.text())[n] ?? '');
   const falhos = [...(a.blocos_falhos ? a.blocos_falhos.split(',') : []), ...(r.falhou ? [String(n + 1)] : [])];
 
-  const { results: existentes } = await db.prepare('SELECT id, processing_purpose AS p FROM ropa_records WHERE project_id = ?').bind(projectId).all<{ id: string; p: string }>();
-  const porFinalidade = new Map(existentes.map((x) => [chave(x.p), x.id]));
-  const stmts = r.tratamentos.map((bruto) => {
+  const porNome = await existentes(db, projectId, entidade);
+  const stmts = r.itens.map((bruto) => {
     const o = bruto && typeof bruto === 'object' ? { ...(bruto as Record<string, unknown>) } : {};
     const confianca = CONFIANCAS.has(String(o.confianca)) ? String(o.confianca) : 'baixa';
     const origem = typeof o.origem === 'string' ? o.origem.slice(0, 500) : null;
     delete o.confianca;
     delete o.origem;
-    const v = tratamentoPropostoSchema.safeParse(o);
+    const v = ESQUEMA[entidade].safeParse(o);
     if (!v.success) {
       const i = v.error.issues[0];
-      return stmtItem(db, loteId, a.id, projectId, n, {}, origem, confianca, [], null, 'recusado', `${i?.path.join('.') || 'item'}: ${i?.message ?? 'inválido'}`.slice(0, 300));
+      return stmtItem(db, loteId, a.id, projectId, n, entidade, {}, origem, confianca, [], null, 'recusado', `${i?.path.join('.') || 'item'}: ${i?.message ?? 'inválido'}`.slice(0, 300));
     }
-    const dup = porFinalidade.get(chave(v.data.finalidade)) ?? null;
-    return stmtItem(db, loteId, a.id, projectId, n, v.data, origem, confianca, faltandoDe(v.data), dup, dup ? 'descartado' : 'pendente', null);
+    const dup = porNome.get(chave(nomeDe(entidade, v.data))) ?? null;
+    return stmtItem(db, loteId, a.id, projectId, n, entidade, v.data, origem, confianca, faltandoDe(entidade, v.data), dup, dup ? 'descartado' : 'pendente', null);
   });
 
   const ultimo = n + 1 >= total;
@@ -313,41 +329,42 @@ async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arqu
     db.prepare(`UPDATE importacao_arquivos SET bloco_atual = ?, status = ?, erro = ?, blocos_falhos = ?, modelo = COALESCE(?, modelo) WHERE id = ? AND bloco_atual = ?`)
       .bind(n + 1, status, erro, falhos.join(',') || null, r.modelo || null, a.id, n),
   ]);
-  if (ultimo) await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: ${status} (inventario), ${total} blocos, ${falhos.length} com falha`, '', '', projectId);
+  if (ultimo) await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: ${status} (${tipo}), ${total} blocos, ${falhos.length} com falha`, '', '', projectId);
 }
 
-function stmtItem(db: D1Database, loteId: string, arquivoId: string, projectId: string, bloco: number, dados: Partial<TratamentoProposto>, origem: string | null,
-  confianca: string, faltando: string[], duplicataDe: string | null, decisao: string, motivo: string | null) {
+function stmtItem(db: D1Database, loteId: string, arquivoId: string, projectId: string, bloco: number, entidade: Entidade, dados: Record<string, unknown>,
+  origem: string | null, confianca: string, faltando: string[], duplicataDe: string | null, decisao: string, motivo: string | null) {
   return db.prepare(
-    `INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, dados, origem, confianca, faltando, duplicata_de, decisao, motivo)
-     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM importacao_arquivos WHERE id = ? AND bloco_atual = ?)`
-  ).bind(crypto.randomUUID(), loteId, arquivoId, projectId, JSON.stringify(dados), origem, confianca, JSON.stringify(faltando), duplicataDe, decisao, motivo, arquivoId, bloco);
+    `INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, entidade, dados, origem, confianca, faltando, duplicata_de, decisao, motivo)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM importacao_arquivos WHERE id = ? AND bloco_atual = ?)`
+  ).bind(crypto.randomUUID(), loteId, arquivoId, projectId, entidade, JSON.stringify(dados), origem, confianca, JSON.stringify(faltando), duplicataDe, decisao, motivo, arquivoId, bloco);
 }
 
 // ─── revisão ───────────────────────────────────────────────────────────────────────────────────────
 
 export async function atualizarItem(db: D1Database, projectId: string, loteId: string, itemId: string,
-  b: { dados?: TratamentoProposto; decisao?: 'aceito' | 'descartado' | 'pendente' }): Promise<Falha | { ok: true; item: ReturnType<typeof itemLido> }> {
+  b: { dados?: TratamentoProposto | TerceiroProposto; decisao?: 'aceito' | 'descartado' | 'pendente' }): Promise<Falha | { ok: true; item: ReturnType<typeof itemLido> }> {
   const lote = await loteDoProjeto(db, projectId, loteId);
   if (!lote) return nf('Lote não encontrado');
   const c = cancelado(lote);
   if (c) return c;
   const item = await db.prepare('SELECT * FROM importacao_itens WHERE id = ? AND importacao_id = ?').bind(itemId, loteId).first<LinhaItem>();
   if (!item) return nf('Item não encontrado');
-  if (item.decisao === 'gravado') return { ok: false, status: 409, error: 'Item já gravado no RoPA' };
-  const dados = b.dados ?? (JSON.parse(item.dados) as Partial<TratamentoProposto>);
-  // Recusado cujos dados corrigidos agora validam (o corpo já passou pelo esquema) volta à revisão.
-  const decisao = b.decisao ?? (b.dados && item.decisao === 'recusado' ? 'pendente' : item.decisao);
-  if (decisao === 'aceito' && !tratamentoPropostoSchema.safeParse(dados).success) return { ok: false, status: 400, error: 'Corrija os dados do item antes de aceitar' };
+  if (item.decisao === 'gravado') return { ok: false, status: 409, error: 'Item já gravado' };
+  const esquema = ESQUEMA[item.entidade];
+  // O corpo passou por um dos dois esquemas; aqui ele precisa ser o da entidade do item.
+  const novos = b.dados ? esquema.safeParse(b.dados) : null;
+  if (novos && !novos.success) return { ok: false, status: 400, error: `Os dados não são de um ${item.entidade}` };
+  const dados = (novos?.data ?? JSON.parse(item.dados)) as Record<string, unknown>;
+  // Recusado cujos dados corrigidos agora validam volta à revisão.
+  const decisao = b.decisao ?? (novos && item.decisao === 'recusado' ? 'pendente' : item.decisao);
+  if (decisao === 'aceito' && !esquema.safeParse(dados).success) return { ok: false, status: 400, error: 'Corrija os dados do item antes de aceitar' };
   let duplicata = item.duplicata_de as string | null;
-  if (b.dados) {
-    const { results } = await db.prepare('SELECT id, processing_purpose AS p FROM ropa_records WHERE project_id = ?').bind(projectId).all<{ id: string; p: string }>();
-    duplicata = results.find((r) => chave(r.p) === chave(b.dados!.finalidade))?.id ?? null;
-  }
+  if (novos) duplicata = (await existentes(db, projectId, item.entidade)).get(chave(nomeDe(item.entidade, dados))) ?? null;
   const upd = await db.prepare(
     `UPDATE importacao_itens SET dados = ?, faltando = ?, duplicata_de = ?, decisao = ?, motivo = CASE WHEN ? = 'recusado' THEN motivo END, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND decisao <> 'gravado' AND (SELECT status FROM importacoes WHERE id = ?) NOT IN ('gravando', 'cancelada')`
-  ).bind(JSON.stringify(dados), JSON.stringify(faltandoDe(dados)), duplicata, decisao, decisao, itemId, loteId).run();
+  ).bind(JSON.stringify(dados), JSON.stringify(faltandoDe(item.entidade, dados)), duplicata, decisao, decisao, itemId, loteId).run();
   if (upd.meta.changes !== 1) return emGravacao;
   const novo = await db.prepare('SELECT * FROM importacao_itens WHERE id = ?').bind(itemId).first<LinhaItem>();
   return { ok: true, item: itemLido(novo!) };
@@ -366,7 +383,7 @@ export function casarBaseLegal(texto: string | null | undefined, catalogo: { id:
   return catalogo.find((r) => { const k = chave(r.titulo); return k.includes(t) || t.includes(k); })?.id ?? null;
 }
 
-type Resultado = { item_id: string; decisao: 'gravado' | 'recusado'; registro_id?: string; motivo?: string };
+type Resultado = { item_id: string; decisao: 'gravado' | 'recusado'; registro_id?: string; motivo?: string; aviso?: string };
 
 async function mapaPorNome(db: D1Database, sql: string, projectId: string) {
   const { results } = await db.prepare(sql).bind(projectId).all<{ id: string; nome: string }>();
@@ -418,6 +435,8 @@ async function gravarAceitos(db: D1Database, projectId: string, loteId: string, 
   const itens = await mapaPorNome(db, `SELECT id, nome FROM itens WHERE project_id = ? AND status = 'ativo' ORDER BY created_at`, projectId);
   const deptos = await mapaPorNome(db, 'SELECT id, nome FROM departamentos WHERE project_id = ? ORDER BY created_at', projectId);
   const pessoas = await mapaPorNome(db, `SELECT id, nome FROM partes WHERE project_id = ? AND tipo = 'pessoa' ORDER BY created_at`, projectId);
+  const orgs = await existentes(db, projectId, 'terceiro');
+  const documentos = await mapaPorNome(db, 'SELECT id, titulo AS nome FROM documentos WHERE project_id = ? ORDER BY created_at', projectId);
 
   const resultados: Resultado[] = [];
   const recusar = async (id: string, motivo: string) => {
@@ -426,6 +445,11 @@ async function gravarAceitos(db: D1Database, projectId: string, loteId: string, 
   };
 
   for (const item of aceitos) {
+    if (item.entidade === 'terceiro') {
+      const r = await gravarTerceiro(db, projectId, loteId, ator, item, { orgs, finalidades, documentos });
+      if (r.decisao === 'recusado') await recusar(item.id, r.motivo!); else resultados.push(r);
+      continue;
+    }
     const p = tratamentoPropostoSchema.safeParse(JSON.parse(item.dados));
     const v = p.success ? validarTratamento(p.data) : null;
     if (!p.success || !v?.ok) { await recusar(item.id, v && !v.ok ? v.motivo : 'dados do item inválidos'); continue; }
@@ -474,6 +498,86 @@ async function gravarAceitos(db: D1Database, projectId: string, loteId: string, 
   }
 
   return resultados;
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Grava um terceiro aceito (fatia 2). A parte organização casa por nome normalizado (a que existe é reaproveitada, nunca duplicada);
+ * criação da parte, vínculos com os tratamentos já cadastrados (por finalidade normalizada, papel `operador`) e a marca `gravado` vão
+ * numa transação. Tipo, avaliação e DPA vêm depois pelos serviços de terceiros, cada um com a sua trilha: o que falhar ali não desfaz
+ * a parte, vira `aviso` no resultado para a pessoa completar na ficha do terceiro.
+ */
+async function gravarTerceiro(db: D1Database, projectId: string, loteId: string, ator: string, item: LinhaItem,
+  mapas: { orgs: Map<string, string>; finalidades: Map<string, string>; documentos: Map<string, string> }): Promise<Resultado> {
+  const p = terceiroPropostoSchema.safeParse(JSON.parse(item.dados));
+  const k = p.success ? chave(p.data.nome) : '';
+  if (!p.success || !k) return { item_id: item.id, decisao: 'recusado', motivo: 'dados do item inválidos' };
+  const d = p.data;
+  const avisos: string[] = [];
+  const existente = mapas.orgs.get(k);
+  const parteId = existente ?? crypto.randomUUID();
+  const stmts: D1PreparedStatement[] = [];
+  if (!existente) {
+    stmts.push(db.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES (?, ?, 'organizacao', ?, ?)`)
+      .bind(parteId, projectId, d.nome, d.contato && EMAIL.test(d.contato) ? d.contato : null));
+  }
+  const faltam: string[] = [];
+  for (const f of new Set(d.tratamentos ?? [])) {
+    const rid = mapas.finalidades.get(chave(f));
+    if (!rid) { faltam.push(f); continue; }
+    stmts.push(db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, 'operador', 'tratamento', ?)`)
+      .bind(crypto.randomUUID(), projectId, parteId, rid));
+  }
+  if (faltam.length) avisos.push(`tratamentos não encontrados no RoPA: ${faltam.join(', ')}`);
+  stmts.push(db.prepare(`UPDATE importacao_itens SET decisao = 'gravado', registro_id = ?, motivo = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND decisao = 'aceito'`)
+    .bind(parteId, item.id));
+  try {
+    await db.batch(stmts);
+  } catch (e) {
+    console.error('importacao: falha ao gravar terceiro', item.id, e);
+    return { item_id: item.id, decisao: 'recusado', motivo: 'falha ao gravar o registro; tente de novo' };
+  }
+  mapas.orgs.set(k, parteId);
+  await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como terceiro ${parteId}${existente ? ' (parte existente)' : ''}`, '', '', projectId);
+
+  // O tipo de uma parte que já tem tipo não é trocado pelo arquivo: quem tipificou à mão decide.
+  const atual = (await db.prepare('SELECT terceiro_tipo FROM partes WHERE id = ?').bind(parteId).first<{ terceiro_tipo: string | null }>())?.terceiro_tipo ?? null;
+  let tipo = atual;
+  if (d.tipo && !atual) {
+    const r = await definirTipo(db, projectId, parteId, ator, d.tipo);
+    if (r.ok) tipo = d.tipo; else avisos.push(`tipo não definido: ${r.error}`);
+  } else if (d.tipo && atual !== d.tipo) avisos.push(`tipo mantido como ${atual} (o arquivo diz ${d.tipo})`);
+
+  const av = d.ultima_avaliacao;
+  if (av) {
+    if (av.valido_ate < new Date().toISOString().slice(0, 10)) avisos.push(`avaliação vencida (${av.valido_ate}) não registrada`);
+    else if (!tipo) avisos.push('avaliação não registrada: o terceiro está sem tipo');
+    else if (!(await db.prepare('SELECT 1 FROM avaliacoes_terceiro WHERE parte_id = ? AND resultado = ? AND valido_ate = ?').bind(parteId, av.resultado, av.valido_ate).first())) {
+      const r = await registrarAvaliacao(db, projectId, parteId, ator, {
+        resultado: av.resultado, valido_ate: av.valido_ate, observacao: `Importada no lote ${loteId}${av.metodo ? `; método no arquivo: ${av.metodo}` : ''}`,
+      });
+      if (!r.ok) avisos.push(`avaliação não registrada: ${r.error}`);
+    }
+  }
+
+  if (d.dpa) {
+    const doc = mapas.documentos.get(chave(d.dpa));
+    if (!doc) avisos.push(`DPA "${d.dpa}" não está nos documentos do projeto`);
+    else {
+      const r = await ligarDocumento(db, projectId, parteId, ator, doc, 'dpa');
+      if (!r.ok && r.status !== 409) avisos.push(`DPA não ligado: ${r.error}`);
+    }
+  }
+
+  // CNPJ no perfil de fornecedor (criado pelo tipo); a anotação não se repete numa reimportação.
+  if (d.cnpj) {
+    const nota = `CNPJ: ${d.cnpj}`;
+    await db.prepare(`UPDATE vendors SET notes = CASE WHEN COALESCE(notes, '') = '' THEN ?1 ELSE notes || char(10) || ?1 END
+      WHERE parte_id = ?2 AND project_id = ?3 AND instr(COALESCE(notes, ''), ?1) = 0`).bind(nota, parteId, projectId).run();
+  }
+
+  return { item_id: item.id, decisao: 'gravado', registro_id: parteId, ...(avisos.length ? { aviso: avisos.join('; ') } : {}) };
 }
 
 // ─── cancelar ──────────────────────────────────────────────────────────────────────────────────────

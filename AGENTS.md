@@ -142,7 +142,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
 - **Schema**: `schema.sql` — **86 tabelas** (2026-10-12: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0066** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0067** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Inventario (ativos)**: vive em `itens` (nucleo fino) + `item_seguranca` (bloco do n.iso, 1:1), antes `assets`
@@ -273,8 +273,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Importacao de programa de privacidade (n.privacy, fatia 1, migration 0064; spec em `docs/superpowers/specs/2026-10-11-importacao-privacy-design.md`).**
   Rotas em `src/routes/importacao.ts`, montadas em `/api/v1/projects/:projectId/importacoes` na faixa `privacy` (`src/modulos.ts`); so a
   equipe da consultoria (`ehEquipeNess`), cliente recebe 403. Tabelas `importacoes` (lote), `importacao_arquivos` e `importacao_itens`
-  (a proposta, um tratamento por linha). Arquivo no R2 `STORAGE`, chave `importacoes/<project_id>/<lote>/<arquivo>`. Regras em
-  `src/services/importacao.ts`; o `ImportacaoAgent` (`src/agents/importacao.ts`) classifica o arquivo e extrai tratamentos pelo
+  (a proposta, um item por linha; `entidade` `tratamento` ou `terceiro` desde a fatia 2, migration 0067). Arquivo no R2 `STORAGE`, chave `importacoes/<project_id>/<lote>/<arquivo>`. Regras em
+  `src/services/importacao.ts`; o `ImportacaoAgent` (`src/agents/importacao.ts`) classifica o arquivo e extrai, conforme o tipo
+  (`inventario` → tratamentos, `terceiros` → terceiros; os demais tipos ficam `aguardando`), pelo
   `BaseAgent.runModel`, tratando o texto do arquivo como dado e nunca como instrucao, e cada item e validado por esquema estrito no servidor.
   **Processamento em passos, um por chamada** (`processar` devolve `restantes` e a tela repete): o primeiro converte, classifica e
   guarda o texto em `<r2_key>.txt`; cada seguinte extrai um bloco de ~4.000 caracteres (`BLOCO`, cortado so em quebra de linha;
@@ -285,6 +286,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   **Revisao humana obrigatoria:** nada vira RoPA sem a pessoa aceitar o item na tela e confirmar. `confirmar` grava no maximo 30 itens por
   chamada (`ITENS_POR_CONFIRMACAO`, a tela repete ate `restantes` zerar), um item por transacao, e o lote fica em status `gravando` (trava
   por UPDATE condicional; processar, enviar, editar item e cancelar recebem 409; trava de gravacao interrompida e retomada apos 10 minutos).
+  **Terceiro (fatia 2):** `gravarTerceiro` casa a parte organizacao por nome normalizado (a existente e reaproveitada; duplicata nasce
+  `descartado` e, aceita, nao cria outra parte), liga aos tratamentos ja cadastrados por finalidade normalizada (papel `operador`) na mesma
+  transacao que marca o item `gravado`, e depois chama `definirTipo`, `registrarAvaliacao` (so com validade no futuro, sem repetir a mesma) e
+  `ligarDocumento` (DPA pelo titulo) de `src/services/terceiros.ts`; o que falhar nesses passos vira `aviso` no resultado, sem desfazer a parte.
+  Tipo de parte ja tipificada nao e trocado pelo arquivo. `duplicata_de`/`registro_id` apontam para `ropa_records` ou `partes` (sem FK).
   Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`), e o GET tambem e
   recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
   prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:

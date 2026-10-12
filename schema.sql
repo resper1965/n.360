@@ -1666,15 +1666,16 @@ CREATE TABLE IF NOT EXISTS importacao_itens (
     importacao_id TEXT NOT NULL REFERENCES importacoes(id) ON DELETE CASCADE,
     arquivo_id TEXT NOT NULL REFERENCES importacao_arquivos(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento')),
+    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento', 'terceiro')),
     dados TEXT NOT NULL DEFAULT '{}',
     origem TEXT CHECK (origem IS NULL OR length(origem) <= 500),
     confianca TEXT NOT NULL DEFAULT 'baixa' CHECK (confianca IN ('alta', 'media', 'baixa')),
     faltando TEXT NOT NULL DEFAULT '[]',
-    duplicata_de TEXT REFERENCES ropa_records(id) ON DELETE SET NULL,
+    -- id do registro conforme a entidade (ropa_records ou partes), sem FK desde a 0067
+    duplicata_de TEXT,
     decisao TEXT NOT NULL DEFAULT 'pendente' CHECK (decisao IN ('pendente', 'aceito', 'descartado', 'gravado', 'recusado')),
     motivo TEXT,
-    registro_id TEXT REFERENCES ropa_records(id) ON DELETE SET NULL,
+    registro_id TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

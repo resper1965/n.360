@@ -406,3 +406,90 @@ describe('processar: tempo, sessão', () => {
         expect(f.mock.calls.length - antes).toBe(1);
     });
 });
+
+describe('terceiros (fatia 2): aba própria na revisão', () => {
+    const terc = (id, extra = {}) => ({
+        id, entidade: 'terceiro', arquivo_id: 'a2', origem: 'linha do fornecedor', confianca: 'alta', faltando: [], duplicata_de: null, decisao: 'pendente', motivo: null,
+        dados: { nome: `Fornecedor ${id}`, tipo: 'medio', cnpj: '00.000.000/0001-00', contato: 'dpo@fornecedor.example', dpa: 'DPA Fornecedor', tratamentos: ['Folha'], ultima_avaliacao: { resultado: 'com_ressalvas', valido_ate: '2027-06-30', metodo: 'questionário' } },
+        ...extra,
+    });
+
+    it('abas por entidade com contagem; a de terceiros mostra tipo, avaliação, DPA, tratamentos e o link da duplicata', async () => {
+        await abrirLote(LOTE({ itens: [item('i1'), terc('t1'), terc('t2', { duplicata_de: 'pa1', decisao: 'descartado' })] }));
+        const t0 = el('c').textContent;
+        expect(t0).toContain('Tratamentos (1)');
+        expect(t0).toContain('Terceiros (2)');
+        expect(t0).toContain('Finalidade i1');
+        expect(t0).not.toContain('Fornecedor t1');
+        await clica('importacaoAba', ['terceiro']);
+        const t = el('c').textContent;
+        expect(t).not.toContain('Finalidade i1');
+        expect(t).toContain('Fornecedor t1');
+        expect(t).toContain('Tipo: Médio');
+        expect(t).toContain('Aprovado com ressalvas até 2027-06-30');
+        expect(t).toContain('DPA Fornecedor');
+        expect(t).toContain('Folha');
+        expect(t).toContain('Já existe');
+        expect(el('c').querySelector('[data-action="navigate"][data-args=\'["terceiros"]\']')).not.toBeNull();
+        // "aceitar todos de confiança alta" vale para a aba aberta
+        expect(t).toContain('Aceitar todos de confiança alta (1)');
+    });
+
+    it('editar terceiro abre o formulário dele e envia os dados no formato do esquema', async () => {
+        const det = LOTE({ itens: [terc('t1')] });
+        const f = await abrirLote(det, { [`PUT ${B}/l1/itens/t1`]: { ok: true } });
+        await clica('importacaoAba', ['terceiro']);
+        await clica('importacaoEditar', ['t1']);
+        expect(el('imp-nome').value).toBe('Fornecedor t1');
+        expect(el('imp-tipo').value).toBe('medio');
+        expect(el('imp-tratamentos').value).toBe('Folha');
+        expect(el('imp-aval_valido_ate').value).toBe('2027-06-30');
+        el('imp-tipo').value = 'critico';
+        el('imp-cnpj').value = '';
+        el('imp-tratamentos').value = 'Folha, Benefícios';
+        await clica('importacaoSalvarItem', ['t1']);
+        await espera();
+        const put = f.mock.calls.find(([, o]) => o?.method === 'PUT');
+        expect(JSON.parse(put[1].body)).toEqual({ dados: {
+            nome: 'Fornecedor t1', tipo: 'critico', cnpj: null, contato: 'dpo@fornecedor.example', dpa: 'DPA Fornecedor', tratamentos: ['Folha', 'Benefícios'],
+            ultima_avaliacao: { resultado: 'com_ressalvas', valido_ate: '2027-06-30', metodo: 'questionário' },
+        } });
+    });
+
+    it('sem resultado ou validade, a avaliação vai nula; sem nome não salva', async () => {
+        const det = LOTE({ itens: [terc('t1', { dados: { nome: 'Sem avaliação' } })] });
+        const f = await abrirLote(det, { [`PUT ${B}/l1/itens/t1`]: { ok: true } });
+        await clica('importacaoAba', ['terceiro']);
+        await clica('importacaoEditar', ['t1']);
+        el('imp-aval_resultado').value = 'aprovado';
+        await clica('importacaoSalvarItem', ['t1']);
+        await espera();
+        expect(JSON.parse(f.mock.calls.find(([, o]) => o?.method === 'PUT')[1].body).dados).toMatchObject({ nome: 'Sem avaliação', tipo: null, ultima_avaliacao: null });
+        await clica('importacaoEditar', ['t1']);
+        el('imp-nome').value = ' ';
+        await clica('importacaoSalvarItem', ['t1']);
+        expect(el('imp-erro').textContent).toContain('nome');
+    });
+
+    it('o resultado da confirmação mostra o nome do terceiro e o aviso', async () => {
+        const det = LOTE({ itens: [terc('t1', { decisao: 'aceito' })] });
+        await abrirLote(det, { [`POST ${B}/l1/confirmar`]: { ok: true, resultados: [{ item_id: 't1', decisao: 'gravado', registro_id: 'pa1', aviso: 'avaliação vencida (2020-01-01) não registrada' }], restantes: 0 } });
+        await clica('importacaoConfirmar');
+        await espera();
+        const t = el('c').textContent;
+        expect(t).toContain('Fornecedor t1');
+        expect(t).toContain('avaliação vencida (2020-01-01) não registrada');
+    });
+
+    it('texto do terceiro com HTML não vira elemento', async () => {
+        const mal = '<img src=x onerror="window.__xss2=1">';
+        await abrirLote(LOTE({ itens: [terc('t1', { dados: { nome: mal, tipo: mal, cnpj: mal, contato: mal, dpa: mal, tratamentos: [mal], ultima_avaliacao: { resultado: mal, valido_ate: mal, metodo: mal } }, origem: mal, motivo: mal })] }));
+        await clica('importacaoAba', ['terceiro']);
+        expect(el('c').querySelector('img')).toBeNull();
+        expect(el('c').textContent).toContain(mal);
+        await clica('importacaoEditar', ['t1']);
+        expect(el('imp-nome').value).toBe(mal);
+        expect(document.querySelector('img')).toBeNull();
+        expect(window.__xss2).toBeUndefined();
+    });
+});

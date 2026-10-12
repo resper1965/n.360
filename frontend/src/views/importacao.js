@@ -2,8 +2,9 @@ import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML, openModal, showToast } from '../ui.js';
 
-// Importar programa (n.privacy, fatia 1). A regra é do servidor (`/projects/:id/importacoes`); aqui: lotes, envio de arquivos (um por
-// requisição), processamento arquivo a arquivo, revisão dos tratamentos propostos e confirmação em rodadas. TUDO o que vem da API
+// Importar programa (n.privacy, fatias 1 e 2). A regra é do servidor (`/projects/:id/importacoes`); aqui: lotes, envio de arquivos (um
+// por requisição), processamento arquivo a arquivo, revisão dos itens propostos (uma aba por entidade: tratamentos e terceiros) e
+// confirmação em rodadas. TUDO o que vem da API
 // (nome de arquivo, origem, motivo, dados) é texto que um modelo extraiu de arquivo do cliente: sai sempre por escapeHTML.
 
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
@@ -15,11 +16,11 @@ const lid = () => encodeURIComponent(E.loteId);
 const SESSAO = /Unauthorized|Sessão expirada/;
 
 // Estado da tela (um lote aberto por vez).
-const E = { c: null, h: null, a: null, lotes: null, loteId: null, det: null, msg: '', envios: [], resultados: null, cancelando: false, ocupado: false };
+const E = { c: null, h: null, a: null, lotes: null, loteId: null, det: null, msg: '', envios: [], resultados: null, cancelando: false, ocupado: false, aba: 'tratamento' };
 
 const STATUS_LOTE = { recebendo: 'Recebendo arquivos', processando: 'Processando', em_revisao: 'Em revisão', gravando: 'Gravando', concluida: 'Concluída', cancelada: 'Cancelada' };
 const STATUS_ARQ = { pendente: ['Na fila', 'neutral'], processado: ['Processado', 'success'], aguardando: ['Sem extração', 'info'], erro: ['Erro', 'danger'] };
-const TIPOS = { inventario: 'Inventário de tratamentos', desconhecido: 'Não reconhecido' };
+const TIPOS = { inventario: 'Inventário de tratamentos', terceiros: 'Lista de terceiros', desconhecido: 'Não reconhecido' };
 const CONF = { alta: ['Alta', 'success'], media: ['Média', 'warning'], baixa: ['Baixa', 'danger'] };
 const DECISAO = { pendente: ['Pendente', 'neutral'], aceito: ['Aceito', 'info'], descartado: ['Descartado', 'neutral'], recusado: ['Recusado', 'danger'], gravado: ['Gravado', 'success'] };
 const CAMPOS = [
@@ -27,7 +28,15 @@ const CAMPOS = [
     ['retencao', 'Retenção'], ['destinatarios', 'Destinatários'], ['salvaguardas', 'Salvaguardas'], ['responsavel', 'Responsável'],
 ];
 const LISTAS = [['sistemas', 'Sistemas'], ['areas', 'Áreas'], ['pessoas', 'Pessoas']];
-const ROTULO = Object.fromEntries([...CAMPOS, ...LISTAS]);
+const ROTULO = Object.fromEntries([...CAMPOS, ...LISTAS, ['nome', 'Nome'], ['tipo', 'Tipo'], ['ultima_avaliacao', 'Avaliação']]);
+// Terceiros (fatia 2): os mesmos rótulos da tela de terceiros.
+const TIPO_TERCEIRO = { grande_provedor: 'Grande provedor', medio: 'Médio', pequeno: 'Pequeno', critico: 'Crítico' };
+const RESULTADO = { aprovado: 'Aprovado', com_ressalvas: 'Aprovado com ressalvas', reprovado: 'Reprovado' };
+const CAMPOS_TERCEIRO = [['nome', 'Nome'], ['cnpj', 'CNPJ'], ['contato', 'Contato'], ['dpa', 'DPA (nome do documento)']];
+// Item sem `entidade` é da fatia 1.
+const entidade = (i) => i.entidade || 'tratamento';
+const ABAS = [['tratamento', 'Tratamentos'], ['terceiro', 'Terceiros']];
+const nomeItem = (i) => (i.dados && (i.dados.finalidade || i.dados.nome)) || '';
 
 const badge = (par) => window.renderStatusBadge(par[0], par[1]);
 
@@ -70,12 +79,12 @@ function htmlLista() {
         e(l.arquivos), e(l.itens), l.status === 'cancelada' ? '' : `<button class="btn btn-ghost btn-sm" data-action="importacaoAbrir" data-args='${args(l.id)}'>Abrir</button>`,
     ]);
     return `
-        <p style="margin:0 0 1rem;color:var(--text-dim)">Envie o inventário de tratamentos que o cliente já tem (planilha, documento ou PDF). A IA propõe os tratamentos; você revisa e confirma antes de gravar no RoPA.</p>
+        <p style="margin:0 0 1rem;color:var(--text-dim)">Envie o inventário de tratamentos e a lista de terceiros que o cliente já tem (planilha, documento ou PDF). A IA propõe os itens; você revisa e confirma antes de gravar.</p>
         <button class="btn btn-primary" data-action="importacaoNovo" style="margin-bottom:1rem">Novo lote</button>
         ${window.renderDataTable(['Criado em', 'Situação', 'Arquivos', 'Tratamentos propostos', 'Ações'], linhas, { emptyState: 'Nenhum lote de importação neste projeto.' })}`;
 }
 
-function abreLote(id) { Object.assign(E, { loteId: id, envios: [], resultados: null, msg: '', cancelando: false }); return recarrega(); }
+function abreLote(id) { Object.assign(E, { loteId: id, envios: [], resultados: null, msg: '', cancelando: false, aba: 'tratamento' }); return recarrega(); }
 
 window.importacaoNovo = async function () {
     try { await abreLote((await api('POST', `/api/v1/projects/${pid()}/importacoes`)).id); } catch (err) { showToast((err && err.message) || 'Não foi possível criar o lote', 'error'); }
@@ -111,36 +120,61 @@ function htmlLote() {
         </div>` : ''}
         ${envios}${arqs}
         <h3 style="margin:1.5rem 0 0.5rem">Revisão</h3>
-        ${htmlItens(itens, ativo)}
+        ${htmlAbas(itens)}
+        ${E.aba === 'terceiro' ? htmlTerceiros(itens.filter((i) => entidade(i) === 'terceiro'), ativo) : htmlItens(itens.filter((i) => entidade(i) === 'tratamento'), ativo)}
         ${E.resultados && E.resultados.length ? htmlResultados(itens) : ''}
         ${ativo ? htmlRodape(itens, lote) : ''}`;
 }
 
-function htmlItens(itens, ativo) {
-    const alta = itens.filter((i) => i.confianca === 'alta' && i.decisao === 'pendente' && !i.duplicata_de).length;
-    const barra = alta ? `<button class="btn btn-ghost btn-sm" style="margin-bottom:0.75rem" data-action="importacaoAceitarAlta"${E.ocupado ? ' disabled' : ''}>Aceitar todos de confiança alta (${alta})</button>` : '';
-    const linhas = itens.map((i) => {
-        const d = i.dados || {};
-        const falta = (i.faltando || []).map((k) => e(ROTULO[k] || k)).join(', ');
-        const dup = i.duplicata_de ? `<div>${badge(['Já existe', 'warning'])} <button class="btn btn-ghost btn-sm" data-action="navigate" data-args='${args('ropa')}'>Ver no RoPA</button></div>` : '';
-        const origem = i.origem ? `<details><summary>Origem</summary><div style="white-space:pre-wrap;color:var(--text-dim)">${e(i.origem)}</div></details>` : '';
-        const motivo = i.motivo ? `<div style="color:var(--danger)">${e(i.motivo)}</div>` : '';
-        const resumo = `<strong>${e(d.finalidade || '(sem finalidade)')}</strong><div style="color:var(--text-dim)">${[
-            ['Base legal', d.base_legal], ['Dados', d.categorias_dados], ['Titulares', d.titulares], ['Retenção', d.retencao],
-        ].filter(([, v]) => v).map(([k, v]) => `${e(k)}: ${e(v)}`).join(' · ')}</div>${origem}${motivo}`;
-        const acoes = !ativo || i.decisao === 'gravado' ? '' : `
+function htmlAbas(itens) {
+    return `<div role="tablist" style="display:flex;gap:0.5rem;margin-bottom:0.75rem">${ABAS.map(([k, r]) => `<button role="tab" aria-selected="${E.aba === k}" class="btn btn-sm ${E.aba === k ? 'btn-primary' : 'btn-ghost'}" data-action="importacaoAba" data-args='${args(k)}'>${e(r)} (${itens.filter((i) => entidade(i) === k).length})</button>`).join('')}</div>`;
+}
+window.importacaoAba = (k) => { E.aba = k; pinta(); };
+
+const altaPendentes = (itens) => itens.filter((i) => i.confianca === 'alta' && i.decisao === 'pendente' && !i.duplicata_de);
+function barraAlta(itens) {
+    const alta = altaPendentes(itens).length;
+    return alta ? `<button class="btn btn-ghost btn-sm" style="margin-bottom:0.75rem" data-action="importacaoAceitarAlta"${E.ocupado ? ' disabled' : ''}>Aceitar todos de confiança alta (${alta})</button>` : '';
+}
+// Origem, motivo e ações de um item, iguais nas duas abas.
+const rodapeItem = (i) => `${i.origem ? `<details><summary>Origem</summary><div style="white-space:pre-wrap;color:var(--text-dim)">${e(i.origem)}</div></details>` : ''}${i.motivo ? `<div style="color:var(--danger)">${e(i.motivo)}</div>` : ''}`;
+const acoesItem = (i, ativo) => (!ativo || i.decisao === 'gravado' ? '' : `
             <button class="btn btn-ghost btn-sm" data-action="importacaoEditar" data-args='${args(i.id)}'>Editar</button>
             ${i.decisao !== 'aceito' && i.decisao !== 'recusado' ? `<button class="btn btn-ghost btn-sm" data-action="importacaoDecidir" data-args='${args(i.id, 'aceito')}'>Aceitar</button>` : ''}
-            ${i.decisao !== 'descartado' ? `<button class="btn btn-ghost btn-sm" data-action="importacaoDecidir" data-args='${args(i.id, 'descartado')}'>Descartar</button>` : ''}`;
-        return [resumo, badge(CONF[i.confianca] || [i.confianca, 'neutral']), falta || 'Nada', `${badge(DECISAO[i.decisao] || [i.decisao, 'neutral'])}${dup}`, acoes];
+            ${i.decisao !== 'descartado' ? `<button class="btn btn-ghost btn-sm" data-action="importacaoDecidir" data-args='${args(i.id, 'descartado')}'>Descartar</button>` : ''}`);
+const situacaoItem = (i, destino, rotulo) => `${badge(DECISAO[i.decisao] || [i.decisao, 'neutral'])}${i.duplicata_de ? `<div>${badge(['Já existe', 'warning'])} <button class="btn btn-ghost btn-sm" data-action="navigate" data-args='${args(destino)}'>${rotulo}</button></div>` : ''}`;
+const faltaItem = (i) => (i.faltando || []).map((k) => e(ROTULO[k] || k)).join(', ') || 'Nada';
+
+function htmlTerceiros(itens, ativo) {
+    const linhas = itens.map((i) => {
+        const d = i.dados || {};
+        const av = d.ultima_avaliacao;
+        const resumo = `<strong>${e(d.nome || '(sem nome)')}</strong><div style="color:var(--text-dim)">${[
+            ['Tipo', d.tipo && (TIPO_TERCEIRO[d.tipo] || d.tipo)], ['CNPJ', d.cnpj], ['Contato', d.contato],
+            ['Avaliação', av && `${RESULTADO[av.resultado] || av.resultado} até ${av.valido_ate}${av.metodo ? ` (${av.metodo})` : ''}`],
+            ['DPA', d.dpa], ['Tratamentos', (d.tratamentos || []).join(', ')],
+        ].filter(([, v]) => v).map(([k, v]) => `${e(k)}: ${e(v)}`).join(' · ')}</div>${rodapeItem(i)}`;
+        return [resumo, badge(CONF[i.confianca] || [i.confianca, 'neutral']), faltaItem(i), situacaoItem(i, 'terceiros', 'Ver terceiros'), acoesItem(i, ativo)];
+    });
+    return barraAlta(itens) + window.renderDataTable(['Terceiro proposto', 'Confiança', 'Faltando', 'Situação', 'Ações'], linhas, { emptyState: 'Nenhum terceiro proposto. Envie a lista de terceiros e clique em Processar.' });
+}
+
+function htmlItens(itens, ativo) {
+    const barra = barraAlta(itens);
+    const linhas = itens.map((i) => {
+        const d = i.dados || {};
+        const resumo = `<strong>${e(d.finalidade || '(sem finalidade)')}</strong><div style="color:var(--text-dim)">${[
+            ['Base legal', d.base_legal], ['Dados', d.categorias_dados], ['Titulares', d.titulares], ['Retenção', d.retencao],
+        ].filter(([, v]) => v).map(([k, v]) => `${e(k)}: ${e(v)}`).join(' · ')}</div>${rodapeItem(i)}`;
+        return [resumo, badge(CONF[i.confianca] || [i.confianca, 'neutral']), faltaItem(i), situacaoItem(i, 'ropa', 'Ver no RoPA'), acoesItem(i, ativo)];
     });
     return barra + window.renderDataTable(['Tratamento proposto', 'Confiança', 'Faltando', 'Situação', 'Ações'], linhas, { emptyState: 'Nenhum tratamento proposto. Envie arquivos e clique em Processar.' });
 }
 
 function htmlResultados(itens) {
-    const nome = (id) => (itens.find((i) => i.id === id)?.dados?.finalidade) || id;
-    const linhas = E.resultados.map((r) => [e(nome(r.item_id)), badge(r.decisao === 'gravado' ? ['Gravado', 'success'] : ['Recusado', 'danger']), e(r.motivo || '')]);
-    return `<h3 style="margin:1.5rem 0 0.5rem">Resultado da importação</h3>${window.renderDataTable(['Tratamento', 'Resultado', 'Motivo'], linhas, { emptyState: 'Nenhum item gravado.' })}`;
+    const nome = (id) => nomeItem(itens.find((i) => i.id === id) || {}) || id;
+    const linhas = E.resultados.map((r) => [e(nome(r.item_id)), badge(r.decisao === 'gravado' ? ['Gravado', 'success'] : ['Recusado', 'danger']), e(r.motivo || r.aviso || '')]);
+    return `<h3 style="margin:1.5rem 0 0.5rem">Resultado da importação</h3>${window.renderDataTable(['Item', 'Resultado', 'Motivo ou aviso'], linhas, { emptyState: 'Nenhum item gravado.' })}`;
 }
 
 // Processamento cujo Worker morreu: depois de 10 minutos sem atualização o servidor deixa a confirmação retomar o lote.
@@ -244,7 +278,7 @@ window.importacaoDecidir = async function (iid, decisao) {
 };
 
 window.importacaoAceitarAlta = async function () {
-    const alvo = E.det.itens.filter((i) => i.confianca === 'alta' && i.decisao === 'pendente' && !i.duplicata_de);
+    const alvo = altaPendentes(E.det.itens.filter((i) => entidade(i) === E.aba));
     E.ocupado = true;
     let ok = 0;
     E.msg = '';
@@ -259,6 +293,7 @@ window.importacaoAceitarAlta = async function () {
 window.importacaoEditar = function (iid) {
     const i = E.det.itens.find((x) => x.id === iid);
     if (!i) return;
+    if (entidade(i) === 'terceiro') return editarTerceiro(i);
     const d = i.dados || {};
     const campo = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="500"></div>`;
     const lista = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)} (separe por vírgula)</label><input class="form-input" id="imp-${k}" value="${e((d[k] || []).join(', '))}"></div>`;
@@ -270,8 +305,45 @@ window.importacaoEditar = function (iid) {
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(iid)}'>Salvar</button>`);
 };
 
+const opcoes = (k, r, mapa, atual) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><select class="form-input" id="imp-${k}">${[['', 'Não informado'], ...Object.entries(mapa)].map(([v, t]) => `<option value="${e(v)}"${String(atual ?? '') === v ? ' selected' : ''}>${e(t)}</option>`).join('')}</select></div>`;
+
+function editarTerceiro(i) {
+    const d = i.dados || {};
+    const av = d.ultima_avaliacao || {};
+    const campo = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="300"></div>`;
+    openModal(`
+        <div class="modal-header"><span class="modal-title">Editar terceiro</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        ${CAMPOS_TERCEIRO.map(campo).join('')}${opcoes('tipo', 'Tipo', TIPO_TERCEIRO, d.tipo)}
+        <div class="form-group"><label class="form-label" for="imp-tratamentos">Tratamentos (finalidades, separe por vírgula)</label><input class="form-input" id="imp-tratamentos" value="${e((d.tratamentos || []).join(', '))}"></div>
+        ${opcoes('aval_resultado', 'Resultado da última avaliação', RESULTADO, av.resultado)}
+        <div class="form-group"><label class="form-label" for="imp-aval_valido_ate">Avaliação válida até</label><input type="date" class="form-input" id="imp-aval_valido_ate" value="${e(av.valido_ate)}"></div>
+        <div class="form-group"><label class="form-label" for="imp-aval_metodo">Método da avaliação (como está no arquivo)</label><input class="form-input" id="imp-aval_metodo" value="${e(av.metodo)}" maxlength="100"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
+}
+
+// Avaliação só com resultado E validade; sem um dos dois, vai nula (o servidor exige os dois).
+function dadosTerceiro(v) {
+    const t = (k) => v(k).trim() || null;
+    const resultado = t('aval_resultado');
+    const validoAte = t('aval_valido_ate');
+    return {
+        nome: v('nome').trim(), tipo: t('tipo'), cnpj: t('cnpj'), contato: t('contato'), dpa: t('dpa'),
+        tratamentos: v('tratamentos').split(',').map((s) => s.trim()).filter(Boolean),
+        ultima_avaliacao: resultado && validoAte ? { resultado, valido_ate: validoAte, metodo: t('aval_metodo') } : null,
+    };
+}
+
 window.importacaoSalvarItem = async function (iid) {
     const v = (k) => document.getElementById(`imp-${k}`)?.value ?? '';
+    const item = E.det.itens.find((x) => x.id === iid);
+    if (item && entidade(item) === 'terceiro') {
+        const dados = dadosTerceiro(v);
+        if (!dados.nome) { document.getElementById('imp-erro').textContent = 'O nome é obrigatório.'; return; }
+        try { await atualiza(iid, { dados }); } catch (err) { document.getElementById('imp-erro').textContent = (err && err.message) || 'Não foi possível salvar'; return; }
+        window.forceCloseModal();
+        return recarrega();
+    }
     const dados = {};
     for (const [k] of CAMPOS) { const t = v(k).trim(); dados[k] = t === '' ? null : t; }
     for (const k of ['transferencia_internacional', 'dpia_requerido']) dados[k] = v(k) === '' ? null : v(k) === 'true';
