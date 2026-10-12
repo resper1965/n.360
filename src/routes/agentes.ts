@@ -1,20 +1,25 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { logAudit, erro500 } from '../helpers';
+import { logAudit, erro500, podeAdministrarOrg } from '../helpers';
 
 /**
  * Agentes de IA com acesso a um projeto (MCP remoto). O cliente vê e revoga;
- * o platform_admin também; o consultor revoga os próprios. O isolamento entre
+ * o platform_admin também; o consultoria_admin, nos projetos da própria organização; o consultor revoga os próprios. O isolamento entre
  * projetos vem do projectAccessMiddleware (montado antes).
  */
 export const agentesApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-const podeVer = (role: string) => ['platform_admin', 'org_admin', 'consultor', 'consultant'].includes(role);
+const podeVer = (role: string) => ['platform_admin', 'org_admin', 'consultor', 'consultant', 'consultoria_admin'].includes(role);
+
+/** consultoria_admin só age em projeto da própria organização (os demais papéis já vêm limitados pelo acesso ao projeto). */
+const orgDoProjeto = async (db: D1Database, projectId: string) =>
+  (await db.prepare('SELECT org_id FROM projects WHERE id = ?').bind(projectId).first<{ org_id: string | null }>())?.org_id ?? null;
 
 agentesApp.get('/projects/:projectId/agentes', async (c) => {
   const user = c.get('user');
   if (!podeVer(user.role)) return c.json({ error: 'Forbidden' }, 403);
   try {
+    if (user.role === 'consultoria_admin' && !podeAdministrarOrg(user, await orgDoProjeto(c.env.DB, c.req.param('projectId')))) return c.json({ error: 'Forbidden' }, 403);
     const { results } = await c.env.DB.prepare(
       `SELECT ac.id, u.email AS consultor, ac.cliente_mcp, ac.criado_em, ac.ultimo_uso_em, ac.expira_em, ac.revogado_em
          FROM agente_concessoes ac JOIN users u ON u.id = ac.user_id
@@ -35,7 +40,8 @@ agentesApp.post('/projects/:projectId/agentes/:id/revogar', async (c) => {
       .bind(id, projectId).first<{ user_id: string }>();
     if (!conc) return c.json({ error: 'Acesso de agente não encontrado' }, 404);
     const dono = conc.user_id === user.id && (user.role === 'consultor' || user.role === 'consultant');
-    if (!(user.role === 'platform_admin' || user.role === 'org_admin' || dono)) return c.json({ error: 'Forbidden' }, 403);
+    const adminDaOrg = user.role === 'consultoria_admin' && podeAdministrarOrg(user, await orgDoProjeto(c.env.DB, projectId));
+    if (!(user.role === 'platform_admin' || user.role === 'org_admin' || adminDaOrg || dono)) return c.json({ error: 'Forbidden' }, 403);
     await c.env.DB.prepare(`UPDATE agente_concessoes SET revogado_em = datetime('now'), revogado_por = ? WHERE id = ? AND project_id = ? AND revogado_em IS NULL`)
       .bind(user.email, id, projectId).run();
     await logAudit(c.env.DB, 'agente.revogado', user.email, `Acesso de agente ${id} revogado`, '', c.req.header('CF-Connecting-IP') || '', projectId);
