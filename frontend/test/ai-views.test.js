@@ -67,10 +67,20 @@ describe('renderAIChat', () => {
     expect($('chat-loading').textContent).toBe('Pensando...');
     expect($('chat-input').value).toBe('');
     await p;
-    expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/chat', { message: 'o que é <b id="m">A.5</b>?' });
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/chat', { message: 'o que é <b id="m">A.5</b>?', modulo: 'iso' });
     expect($('m')).toBeNull();
     expect($('chat-loading')).toBeNull();
     expect($('chat-messages').lastElementChild.textContent).toBe('Resposta A.5.1');
+  });
+
+  it('no n.privacy o envio leva modulo: privacy', async () => {
+    await comChat();
+    window.history.pushState({}, '', '/privacy/chat');
+    apiMock.mockResolvedValue({ reply: 'ok' });
+    $('chat-input').value = 'oi';
+    await window.sendChatMessage('p1');
+    window.history.pushState({}, '', '/');
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/chat', { message: 'oi', modulo: 'privacy' });
   });
 
   it('resposta sem reply: "Sem resposta."', async () => {
