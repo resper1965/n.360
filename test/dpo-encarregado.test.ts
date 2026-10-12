@@ -91,6 +91,36 @@ describe('POST /governance: DPO que deixa de ser DPO', () => {
   });
 });
 
+describe('DELETE /governance: DPO excluído', () => {
+  const dpo = { name: 'Nina Exemplo', email: 'nina@cliente.com', role_category: 'executivo', job_title: 'DPO' };
+  const montar = async (p: string) => {
+    await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Exclui', 'ISO 27001', 'Controller', 'Active', 'org_ness')`).bind(p).run();
+    await env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES (?, ?, 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`).bind('gc-' + p, p).run();
+    await habilitarPrivacy(p);
+  };
+  const ids = async (p: string) => (await env.DB.prepare('SELECT id FROM project_governance WHERE project_id = ? AND email = ?').bind(p, dpo.email).all<{ id: string }>()).results.map((r) => r.id);
+  const apagar = (p: string, id: string) => chamar(consultor, 'DELETE', `/api/v1/projects/${p}/governance/${id}`);
+
+  it('DPO único excluído: o vínculo sai e a trilha registra', async () => {
+    await montar('dp-del');
+    await gov('dp-del', dpo);
+    expect(await vinculos('dp-del')).toHaveLength(1);
+    expect((await apagar('dp-del', (await ids('dp-del'))[0])).status).toBe(200);
+    expect(await vinculos('dp-del')).toEqual([]);
+    const log = await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'governanca.encarregado.removido' AND project_id = 'dp-del'`).first<{ n: number }>();
+    expect(log!.n).toBe(1);
+  });
+  it('outro DPO casando a mesma parte: o vínculo fica', async () => {
+    await montar('dp-del2');
+    await gov('dp-del2', dpo);
+    await gov('dp-del2', { ...dpo, name: 'Nina Duplicada' });
+    const lista = await ids('dp-del2');
+    expect(lista).toHaveLength(2);
+    expect((await apagar('dp-del2', lista[0])).status).toBe(200);
+    expect(await vinculos('dp-del2')).toHaveLength(1);
+  });
+});
+
 describe('visão do encarregado', () => {
   it('devolve os encarregados do projeto', async () => {
     const v = await json<{ encarregados: { nome: string }[] }>(await chamar(consultor, 'GET', `/api/v1/projects/${P}/encarregado`));

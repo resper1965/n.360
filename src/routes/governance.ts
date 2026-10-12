@@ -141,6 +141,17 @@ async function mexeEmConsultor(db: D1Database, projectId: string, memberId: stri
 
 const recusaDesignacao = { error: 'Forbidden: designar consultor é do platform_admin, do administrador da consultoria ou do administrador do cliente' };
 
+/** Tira o vínculo de encarregado de quem era DPO (membro `excluirId`), se nenhum outro DPO do projeto casa a mesma parte. Falha é registrada, não vira 500. */
+async function tirarEncarregado(c: any, projectId: string, excluirId: string, antes: { nome: string; email: string | null }, nome: string) {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT name, email, role_category, job_title FROM project_governance WHERE project_id = ? AND id <> ?')
+      .bind(projectId, excluirId).all();
+    const outros = (results as any[]).filter(ehDpo).map((m) => ({ nome: m.name, email: m.email }));
+    const parteId = await desfazerEncarregado(c.env.DB, projectId, antes, outros);
+    if (parteId) await logAudit(c.env.DB, 'governanca.encarregado.removido', c.get('user')?.email || 'system', `Vínculo de encarregado da parte ${parteId} removido: ${nome} deixou de ser DPO`, '', '', projectId);
+  } catch (e) { registraErro(c, e); }
+}
+
 governanceApp.post('/projects/:id/governance', async (c) => {
   try {
     const projectId = c.req.param('id');
@@ -191,13 +202,7 @@ governanceApp.post('/projects/:id/governance', async (c) => {
       try { await garantirEncarregado(c.env.DB, projectId, { nome: name, email: email || null }); } catch (e) { registraErro(c, e); }
     } else if (id && antesDpo) {
       // O DPO deixou de ser DPO: o vínculo que a governança criou sai, salvo se outro DPO do projeto casa a mesma parte.
-      try {
-        const { results } = await c.env.DB.prepare('SELECT name, email, role_category, job_title FROM project_governance WHERE project_id = ? AND id <> ?')
-          .bind(projectId, id).all<{ name: string; email: string | null; role_category: string | null; job_title: string | null }>();
-        const outros = results.filter(ehDpo).map((m) => ({ nome: m.name, email: m.email }));
-        const parteId = await desfazerEncarregado(c.env.DB, projectId, antesDpo, outros);
-        if (parteId) await logAudit(c.env.DB, 'governanca.encarregado.removido', c.get('user')?.email || 'system', `Vínculo de encarregado da parte ${parteId} removido: ${name} deixou de ser DPO`, '', '', projectId);
-      } catch (e) { registraErro(c, e); }
+      await tirarEncarregado(c, projectId, id, antesDpo, name);
     }
     return c.json({ ok: true });
   } catch (e: any) {
@@ -212,9 +217,11 @@ governanceApp.delete('/projects/:id/governance/:memberId', async (c) => {
     if (!PODE_DESIGNAR_CONSULTOR.has(c.get('user')?.role ?? '') && await mexeEmConsultor(c.env.DB, projectId, memberId)) {
       return c.json(recusaDesignacao, 403);
     }
-    const emailAntigo = (await c.env.DB.prepare('SELECT email FROM project_governance WHERE id = ? AND project_id = ?')
-      .bind(memberId, projectId).first<{ email: string | null }>())?.email;
+    const antes = await c.env.DB.prepare('SELECT name, email, role_category, job_title FROM project_governance WHERE id = ? AND project_id = ?')
+      .bind(memberId, projectId).first<{ name: string; email: string | null; role_category: string | null; job_title: string | null }>();
+    const emailAntigo = antes?.email;
     await c.env.DB.prepare('DELETE FROM project_governance WHERE id = ? AND project_id = ?').bind(memberId, projectId).run();
+    if (antes && ehDpo(antes)) await tirarEncarregado(c, projectId, memberId, { nome: antes.name, email: antes.email }, antes.name);
     if (emailAntigo && !(await emailAindaNaMatriz(c.env.DB, projectId, emailAntigo))) {
       await revogarContaStakeholder(c, projectId, emailAntigo, c.get('user')?.email || 'system');
     }

@@ -31,8 +31,8 @@ export async function desfazerEncarregado(db: D1Database, projectId: string, ant
 export async function garantirEncarregado(db: D1Database, projectId: string, pessoa: { nome: string; email: string | null }): Promise<string> {
   const email = pessoa.email?.trim().toLowerCase() || null;
   const { results } = await db.prepare(`SELECT id, nome, email FROM partes WHERE project_id = ? AND tipo = 'pessoa' ORDER BY rowid`)
-    .bind(projectId).all<{ id: string; nome: string; email: string | null }>();
-  const achada = (email && results.find((p) => p.email?.trim().toLowerCase() === email)) || results.find((p) => norm(p.nome) === norm(pessoa.nome));
+    .bind(projectId).all<Parte>();
+  const achada = casa(results, pessoa);
   const id = achada?.id ?? crypto.randomUUID();
   if (!achada) await db.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES (?, ?, 'pessoa', ?, ?)`).bind(id, projectId, pessoa.nome.trim(), email).run();
   await db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, 'encarregado', 'projeto', ?)`)
