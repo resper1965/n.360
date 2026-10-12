@@ -113,6 +113,7 @@ import {
   transferirProjetoSchema,
   trilhaDesfazerSchema,
   updateUserSchema,
+  modulosDaContaSchema,
   vendorUpdateSchema,
   versaoRestaurarSchema,
   moduloHabilitarSchema, orgModulosSchema,
@@ -165,6 +166,7 @@ type Entrada = {
 
 // ─── INÍCIO DA TABELA GERADA — `npm run openapi` reescreve daqui até o fim ───
 export const ROTAS_COM_SCHEMA: Entrada[] = [
+  { metodo: 'PUT', caminho: '/api/v1/admin/users/:id/modulos', schema: modulosDaContaSchema, nome: 'modulosDaContaSchema' },
   { metodo: 'PUT', caminho: '/api/v1/admin/users/:id', schema: updateUserSchema, nome: 'updateUserSchema' },
   { metodo: 'POST', caminho: '/api/v1/admin/users', schema: createUserSchema, nome: 'createUserSchema' },
   { metodo: 'POST', caminho: '/api/v1/assessments/:id/block/:num', schema: assessmentBlocoSchema, nome: 'assessmentBlocoSchema' },

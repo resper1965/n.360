@@ -143,6 +143,8 @@ export async function resolverAgente(
   // projectAccessMiddleware; a escrita é liberada pelo chamador (writeCapable).
   // Sem nome de cliente, NOME_CLIENTE_SQL já cai para o projeto: não repita o nome.
   const rotulo = row.client_name === row.project_name ? row.client_name : `${row.client_name} / ${row.project_name}`;
+  // `id` é o users.id REAL do consultor: os módulos da pessoa (`modulosDaPessoa`) saem dele, então o agente alcança
+  // só o n.iso/n.privacy que o consultor que concedeu tem, e tirar o módulo dele vale na chamada seguinte.
   return {
     id: p.userId,
     email: `agente de ${row.email} (${rotulo})`,

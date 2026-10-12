@@ -117,6 +117,10 @@ window.__adminCopiarApiKey = () => {
         } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
+    const MODULOS_CONTA = [['iso', 'n.iso'], ['privacy', 'n.privacy']];
+    // Resposta antiga (sem o campo) mostra traço, não "sem módulo".
+    const rotuloModulos = (m) => (!Array.isArray(m) ? '—' : m.length ? MODULOS_CONTA.filter(([v]) => m.includes(v)).map(([, r]) => r).join(' · ') : 'Nenhum');
+
     async function renderUsers(c, h, a) {
         h.textContent = 'Gestão de Usuários & RBAC';
         a.innerHTML = '<button class="btn btn-primary" data-action="openUserModal">+ Novo Usuário</button>';
@@ -143,7 +147,7 @@ window.__adminCopiarApiKey = () => {
             ]);
 
             const tableHtml = window.renderDataTable(
-                ['Nome', 'E-mail', 'Papel (Role)', 'Projeto / Organização', 'Ações'],
+                ['Nome', 'E-mail', 'Papel (Role)', 'Projeto / Organização', 'Módulos', 'Ações'],
                 userArr.map(u => {
                     const projectName = u.client_project_id ? (projMap[u.client_project_id] || u.client_project_id) : '—';
                     const roleLabel = u.role === 'platform_admin' ? 'Admin Plataforma' : 
@@ -158,6 +162,7 @@ window.__adminCopiarApiKey = () => {
                         escapeHTML(u.email),
                         window.renderStatusBadge(roleLabel, u.role === 'platform_admin' ? 'info' : 'success'),
                         escapeHTML(projectName),
+                        escapeHTML(rotuloModulos(u.modulos)),
                         `<button class="btn btn-ghost btn-sm" data-action="openUserModal" data-args='["${u.id}"]'>Editar</button>
                          <button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="deleteUser" data-args='["${u.id}"]'>Excluir</button>`
                     ];
@@ -223,14 +228,20 @@ window.__adminCopiarApiKey = () => {
 
     async function openUserModal(userId) {
         let user = null;
+        let tetoModulos = [];
         if (userId) {
             try {
                 const users = await api('GET', '/api/v1/users');
                 user = users.find(u => u.id === userId);
+                tetoModulos = (user && user.teto_modulos) || [];
             } catch(e) {
                 showToast('Erro ao buscar dados do usuário', 'error');
                 return;
             }
+        } else {
+            // Conta nova: o teto de quem cria é o maior teto das contas que ele enxerga (platform_admin, todos).
+            const lista = await api('GET', '/api/v1/users').catch(() => []);
+            tetoModulos = [...new Set((Array.isArray(lista) ? lista : []).flatMap(u => u.teto_modulos || []))];
         }
 
         if (!S.projects || S.projects.length === 0) {
@@ -352,6 +363,16 @@ window.__adminCopiarApiKey = () => {
                     </select>
                 </div>
 
+                <fieldset class="form-group" id="user-m-modulos-grupo" style="border:0;padding:0;margin:0">
+                    <legend class="form-label">Módulos</legend>
+                    ${MODULOS_CONTA.map(([v, r]) => {
+                        const tem = !!(user && Array.isArray(user.modulos) && user.modulos.includes(v));
+                        const pode = tetoModulos.includes(v);
+                        return `<label style="display:block"><input type="checkbox" class="user-m-modulo" value="${v}" ${tem ? 'checked' : ''} ${pode ? '' : 'disabled'}> ${r}${pode ? '' : ' (fora do que a organização ou o projeto contratou)'}</label>`;
+                    }).join('')}
+                    <p class="org-dica">${user ? 'Define a que a pessoa acessa nos projetos que têm o módulo.' : 'Sem marcar nenhum, a conta recebe os módulos padrão do projeto ou da organização.'}</p>
+                </fieldset>
+
                 <div style="display:flex; gap:1rem; margin-top:1.5rem">
                     <button class="btn btn-primary" style="flex:1" data-action="saveUser" data-args='["${user ? user.id : ""}"]'>Salvar</button>
                     <button class="btn" style="flex:1" data-action="closeModal">Cancelar</button>
@@ -397,12 +418,19 @@ window.__adminCopiarApiKey = () => {
         if (password) {
             payload.password = password;
         }
+        // Caixas de módulo (só as habilitadas, dentro do teto). Na criação vai `modulos` se marcou algum; na edição, o PUT
+        // próprio depois do salvar e só se mudou.
+        const caixas = [...document.querySelectorAll('.user-m-modulo:not(:disabled)')];
+        const marcados = caixas.filter(x => x.checked).map(x => x.value);
 
         try {
             if (id) {
                 await api('PUT', `/api/v1/users/${id}`, payload);
+                const antes = caixas.filter(x => x.defaultChecked).map(x => x.value);
+                if (caixas.length && marcados.join() !== antes.join()) await api('PUT', `/api/v1/users/${id}/modulos`, { modulos: marcados });
                 showToast('Usuário atualizado com sucesso');
             } else {
+                if (marcados.length) payload.modulos = marcados;
                 await api('POST', '/api/v1/users', payload);
                 showToast('Usuário criado com sucesso');
             }

@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
-import { applySchema, resetData, resetSessions, sessionFor, designarConsultor } from './helpers/d1';
+import { applySchema, resetData, resetSessions, sessionFor, designarConsultor, concederModulos } from './helpers/d1';
 
 describe('revogar aprovação de controle (D3)', () => {
   let headers: Record<string, string>;
@@ -34,6 +34,7 @@ describe('revogar aprovação de controle (D3)', () => {
     ).run();
     // Chave de ESCRITA do consultor (sem senha de aprovador).
     await designarConsultor('consultor@ness.io', 'pr1');
+    await concederModulos('u1'); // a sessão abaixo é 'u1', não a conta `cons:` que designarConsultor cria
     headers = { ...(await sessionFor({ id: 'u1', email: 'consultor@ness.io', role: 'consultor', iat: Date.now() })), 'Content-Type': 'application/json' };
   });
 

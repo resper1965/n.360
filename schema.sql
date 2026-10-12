@@ -1681,3 +1681,29 @@ CREATE TABLE IF NOT EXISTS importacao_itens (
 CREATE INDEX IF NOT EXISTS idx_importacao_itens_lote ON importacao_itens(importacao_id, decisao);
 CREATE INDEX IF NOT EXISTS idx_importacao_itens_arquivo ON importacao_itens(arquivo_id);
 CREATE INDEX IF NOT EXISTS idx_importacao_itens_projeto ON importacao_itens(project_id);
+
+-- ─── n.360, fatia 3: módulos por pessoa (migration 0066) ───
+CREATE TABLE IF NOT EXISTS usuario_modulos (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy')),
+    concedido_por TEXT,
+    concedido_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, modulo)
+);
+-- Conta nova recebe o padrão (cliente: os módulos do projeto; equipe: o contrato da organização, ou n.iso). Ver a 0066.
+CREATE TRIGGER IF NOT EXISTS usuario_modulos_padrao AFTER INSERT ON users
+BEGIN
+    INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
+        SELECT NEW.id, pm.modulo, 'padrao' FROM projeto_modulos pm
+         WHERE pm.project_id = NEW.client_project_id
+           AND NEW.role IN ('org_admin', 'org_user', 'client', 'client_admin', 'user', 'employee');
+    INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
+        SELECT NEW.id, j.value, 'padrao' FROM organizations o,
+               json_each(CASE WHEN json_valid(o.modulos_contratados) THEN o.modulos_contratados ELSE '[]' END) j
+         WHERE o.id = NEW.org_id AND j.value IN ('iso', 'privacy')
+           AND NEW.role IN ('consultor', 'consultant', 'consultoria_admin', 'comercial');
+    INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
+        SELECT NEW.id, 'iso', 'padrao'
+         WHERE NEW.role IN ('consultor', 'consultant', 'consultoria_admin', 'comercial')
+           AND NOT EXISTS (SELECT 1 FROM usuario_modulos WHERE user_id = NEW.id);
+END;

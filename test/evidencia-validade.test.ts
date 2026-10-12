@@ -89,6 +89,7 @@ describe('rotas e cobertura', () => {
       db().prepare(`INSERT INTO requisito_fontes (id, nome) VALUES ('lgpd', 'LGPD')`),
       db().prepare(`INSERT INTO requisitos (id, fonte_id, referencia, titulo) VALUES ('lgpd:a', 'lgpd', 'art. 1', 'Um'), ('lgpd:b', 'lgpd', 'art. 2', 'Dois'), ('lgpd:c', 'lgpd', 'art. 3', 'Três'), ('lgpd:d', 'lgpd', 'art. 4', 'Quatro'), ('lgpd:e', 'lgpd', 'art. 5', 'Cinco')`),
     ]);
+    await habilitarPrivacy('p1', 'p2'); // as contas acima nasceram depois: o n.privacy também é da pessoa (fatia 3 do n.360)
     consultor = await sessionFor({ id: 'u-cons', email: 'cons@ness.lat', role: 'consultor' });
     cliente = await sessionFor({ id: 'u-cli', email: 'cli@cliente.com', role: 'org_user', client_project_id: 'p1' });
   });

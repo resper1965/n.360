@@ -437,3 +437,18 @@ módulo sozinhos (o teto sobe; habilitar continua sendo da tela de módulos), ma
 `SELECT modulos_contratados FROM organizations WHERE id = 'org_ness'` devolve `["iso","privacy"]`. Para desfazer: o mesmo `UPDATE` com os valores
 trocados. **Esta RODA em produção, sem janela.**
 Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
+
+## 0066 — módulos por pessoa (2026-10-12)
+
+n.360, fatia 3. Cria `usuario_modulos` (PK `user_id, modulo`; `modulo` só `iso` ou `privacy`), o gatilho `usuario_modulos_padrao` (conta nova recebe o
+padrão: cliente, os módulos do projeto; equipe, o contrato da organização) e **normaliza os papéis legados** em `users`: `admin`→`platform_admin`,
+`consultant`→`consultor`, `client_admin`→`client`, `user`/`employee`→`org_user`. A carga inicial dá a cada conta o que ela já usa: cliente
+(`org_admin`, `org_user`, `client`) os módulos do projeto; equipe (`consultor`, `consultoria_admin`, `comercial`) o contrato da organização (vazio ou
+ilegível, `iso`). `platform_admin` e `stakeholder` não ganham linha. **Repetível:** `CREATE ... IF NOT EXISTS`, `UPDATE` e `INSERT OR IGNORE`
+idempotentes; rodar de novo **restaura os padrões** das contas sem linha (o que alguém revogou volta se o padrão o incluir). **Precisa rodar DEPOIS
+da 0065** (a equipe da ness. herda `["iso","privacy"]` do contrato; antes dela, só `iso`). Conferência depois de aplicar:
+`SELECT role, count(*) FROM users GROUP BY role` não lista `admin`, `consultant`, `client_admin`, `user` nem `employee`, e
+`SELECT count(*) FROM usuario_modulos` devolve **18 em produção** (5 consultores × 2 módulos + 8 `org_admin` × 1). Para desfazer: nada a reverter nos
+papéis (o mapa de `src/middleware/auth.ts` aceita os dois nomes); a tabela pode ficar. **Esta RODA em produção, sem janela:** o código novo exige o
+módulo da pessoa, então a migration vai ANTES do deploy.
+Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.

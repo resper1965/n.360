@@ -30,7 +30,7 @@ const clica = async (nome, args) => {
 
 const ORGS = [
   { id: 'org_ness', nome: 'ness.', slug: 'ness', plano: 'interno', status: 'Active', maxProjetos: 1000, maxUsuarios: 1000,
-    termoAceitoEm: null, termoVersao: null, projetos: 12, usuarios: 8, propostas: {} },
+    termoAceitoEm: null, termoVersao: null, projetos: 12, usuarios: 8, propostas: {}, modulosContratados: ['iso', 'privacy'] },
   { id: 'org_alfa', nome: 'Alfa Consultoria', slug: 'alfa', plano: 'consultoria', status: 'Active', maxProjetos: 10, maxUsuarios: 5,
     termoAceitoEm: '2026-10-02 12:00:00', termoVersao: 'v1-2026', projetos: 3, usuarios: 2, propostas: {}, adminPendente: true },
   { id: 'org_beta', nome: 'Beta <b>Seg</b>', slug: 'beta', plano: 'consultoria', status: 'Suspended', maxProjetos: 4, maxUsuarios: 3,
@@ -271,6 +271,55 @@ describe('editar', () => {
     await espera();
     expect(corpo('PUT', '/api/v1/platform/orgs/org_alfa')).toEqual({ nome: 'Alfa Consultoria', maxProjetos: 20000, maxUsuarios: 5 });
     expect($('org-e-maxProjetos-erro').textContent).toBe('Número muito grande');
+  });
+});
+
+describe('contrato de módulos', () => {
+  const caixas = () => [...document.querySelectorAll('.e-modulo-contrato')];
+
+  it('platform_admin vê as caixas (marcadas pelo contrato) e o aviso', async () => {
+    await monta();
+    await clica('__orgEditar', ['org_ness']);
+    expect(caixas().map((x) => [x.value, x.checked])).toEqual([['iso', true], ['privacy', true]]);
+    expect($('org-e-contrato-aviso').textContent).toContain('não o remove das pessoas nem dos projetos');
+    await clica('forceCloseModal');
+    await clica('__orgEditar', ['org_alfa']);
+    expect(caixas().map((x) => [x.value, x.checked])).toEqual([['iso', true], ['privacy', false]]);
+  });
+
+  it('outro papel não vê o contrato', async () => {
+    await monta();
+    S.user.role = 'consultoria_admin';
+    await clica('__orgEditar', ['org_alfa']);
+    expect($('org-e-form')).toBeTruthy();
+    expect(caixas()).toHaveLength(0);
+  });
+
+  it('mudou: PUT /modulos depois do PUT da organização; sem mudar, não chama', async () => {
+    rotas['PUT /api/v1/platform/orgs/org_alfa'] = () => json({ ok: true });
+    rotas['PUT /api/v1/platform/orgs/org_alfa/modulos'] = () => json({ ok: true, modulos: ['iso', 'privacy'] });
+    await monta();
+    await clica('__orgEditar', ['org_alfa']);
+    envia('org-e-form');
+    await espera();
+    expect(chamadas('PUT', '/api/v1/platform/orgs/org_alfa/modulos')).toHaveLength(0);
+    await clica('__orgEditar', ['org_alfa']);
+    caixas()[1].checked = true;
+    envia('org-e-form');
+    await espera();
+    expect(corpo('PUT', '/api/v1/platform/orgs/org_alfa/modulos')).toEqual({ modulos: ['iso', 'privacy'] });
+  });
+
+  it('409 do servidor aparece no formulário', async () => {
+    rotas['PUT /api/v1/platform/orgs/org_alfa'] = () => json({ ok: true });
+    rotas['PUT /api/v1/platform/orgs/org_alfa/modulos'] = () => json({ error: 'O módulo iso está habilitado em 3 projeto(s) da organização' }, 409);
+    await monta();
+    await clica('__orgEditar', ['org_alfa']);
+    caixas()[0].checked = false;
+    caixas()[1].checked = true;
+    envia('org-e-form');
+    await espera();
+    expect($('org-e-erro').textContent).toContain('habilitado em 3 projeto(s)');
   });
 });
 

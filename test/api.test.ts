@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import worker from '../src/index';
 import { hashPassword, sha256Hex } from '../src/helpers';
-import { applySchema, sessionFor, designarConsultor, inserirAtivo, lerAtivo } from './helpers/d1';
+import { applySchema, sessionFor, designarConsultor, inserirAtivo, lerAtivo, concederModulos } from './helpers/d1';
 
 /**
  * Testes de API contra D1 e KV REAIS (miniflare).
@@ -406,6 +406,8 @@ describe('nISO API (D1 e KV reais)', () => {
 
     it('consultor alcança o projeto em que está designado (D5)', async () => {
       await designarConsultor('admin@ness.io', OUTRO);
+      // a sessão `consultor` reaproveita a conta `usr-admin` (platform_admin no banco, sem linha de módulo): o consultor tem o n.iso
+      await concederModulos('usr-admin', ['iso']);
       expect((await req(`/api/v1/projects/${OUTRO}/risks`, { headers: consultor })).status).toBe(200);
     });
 

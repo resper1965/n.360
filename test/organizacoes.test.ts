@@ -192,7 +192,7 @@ describe('GET/PUT /api/v1/platform/orgs', () => {
     const lista = await r.json<any[]>();
     const b = lista.find((o) => o.id === 'org_b');
     expect(b).toMatchObject({ nome: 'Consultoria B', slug: 'consultoria-b', status: 'Active', maxProjetos: 100, maxUsuarios: 100,
-      projetos: 1, usuarios: 3, propostas: { aguardando_aprovacao: 1 } });
+      projetos: 1, usuarios: 3, propostas: { aguardando_aprovacao: 1 }, modulosContratados: expect.any(Array) });
     expect(lista.some((o) => o.id === 'org_ness')).toBe(true);
     const texto = JSON.stringify(lista);
     for (const s of ['config_preco', 'textos', 'Obrigações', 'password', 'Lead B']) expect(texto).not.toContain(s);

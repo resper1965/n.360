@@ -112,6 +112,7 @@ export const ROTAS = {
   'POST /api/v1/requisitos/mapeamentos': { obrigatorios: ['de_id', 'para_id', 'tipo'] },
   'POST /api/v1/servicos': { obrigatorios: [] },
   'PUT /api/v1/admin/users/{id}': { obrigatorios: [] },
+  'PUT /api/v1/admin/users/{id}/modulos': { obrigatorios: ['modulos'] },
   'PUT /api/v1/assessments/{id}': { obrigatorios: [] },
   'PUT /api/v1/assessments/{id}/pricing': { obrigatorios: [] },
   'PUT /api/v1/assets/{id}': { obrigatorios: ['name'] },

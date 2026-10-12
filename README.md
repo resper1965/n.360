@@ -53,23 +53,23 @@ liberado, então o frontend em dev fala com o Worker sem preflight.
 | `frontend/` | Vite + JavaScript sem framework. `login.html` é a casca; `src/views/` tem uma tela por arquivo. |
 | `frontend/public/_headers` | Cabeçalhos de segurança dos **arquivos estáticos** — ver "Duas fontes de cabeçalho", abaixo. |
 | `mcp-server-niso/` | Servidor MCP **local** (stdio, chave de API) que expõe o n.iso a clientes como Claude Desktop, com filtro de ferramenta por papel. O MCP **remoto**, com login, vive no próprio Worker (`src/mcp/`). |
-| `migrations/` | 63 arquivos de migration do D1 (`ls migrations/*.sql | wc -l`; última: 0065), aplicados em ordem. Nunca editar uma já aplicada ([`migrations/README.md`](migrations/README.md)). |
-| `test/` | 235 arquivos de teste do backend, no pool `workerd` (D1 e KV de verdade). |
-| `frontend/test/` | 80 arquivos de teste da UI, em jsdom. |
+| `migrations/` | 64 arquivos de migration do D1 (`ls migrations/*.sql | wc -l`; última: 0066), aplicados em ordem. Nunca editar uma já aplicada ([`migrations/README.md`](migrations/README.md)). |
+| `test/` | 237 arquivos de teste do backend, no pool `workerd` (D1 e KV de verdade). |
+| `frontend/test/` | 81 arquivos de teste da UI, em jsdom. |
 | `frontend/e2e/` | 6 specs em Chromium real, sobre o build servido. Pega o que o jsdom não pega. |
 | `docs/` | Runbook, specs, planos e decisões — com [índice próprio](docs/README.md). |
 | `scripts/` | Geradores. `gerar-openapi.mjs` e `gerar-contrato-mcp.mjs` produzem o contrato a partir dos schemas. |
 
 ## Testes
 
-Contagens de 2026-10-11: `ls test/*.test.ts | wc -l` (235), `ls frontend/test/*.test.js | wc -l`
-(80), `ls frontend/e2e/*.spec.js | wc -l` (6), `ls src/routes/*.ts | grep -vc '.test.ts$'` (50),
-`ls migrations/*.sql | wc -l` (62).
+Contagens de 2026-10-12: `ls test/*.test.ts | wc -l` (237), `ls frontend/test/*.test.js | wc -l`
+(81), `ls frontend/e2e/*.spec.js | wc -l` (6), `ls src/routes/*.ts | grep -vc '.test.ts$'` (50),
+`ls migrations/*.sql | wc -l` (64).
 
 Três suítes, e cada uma existe porque a anterior não alcança o caso:
 
 ```bash
-npm test                              # backend: 235 arquivos, D1 e KV reais
+npm test                              # backend: 237 arquivos, D1 e KV reais
 npm run test:coverage                 # idem, com a catraca de cobertura que gateia o deploy
 npm test --prefix frontend            # UI em jsdom
 npm run test:e2e --prefix frontend    # Chromium real sobre o build

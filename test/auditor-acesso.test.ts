@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
-import { applySchema, sessionFor, workerEnv, designarConsultor } from './helpers/d1';
+import { applySchema, sessionFor, workerEnv, designarConsultor, concederModulos } from './helpers/d1';
 
 /**
  * A consultoria gera, lista e revoga o link do auditor externo; o cliente não. E o critério da
@@ -40,6 +40,7 @@ beforeAll(async () => {
   await env.STORAGE.put('ac/politica.pdf', 'PDF-falso');
   await designarConsultor(CONS, P);
   consultor = await sessionFor({ id: `cons:${CONS}`, email: CONS, role: 'consultor' });
+  await concederModulos('u-cli', ['iso']); // o cliente tem o n.iso: o que o barra é o papel
   cliente = await sessionFor({ id: 'u-cli', email: 'cli@cliente.lat', role: 'org_admin', client_project_id: P });
 });
 

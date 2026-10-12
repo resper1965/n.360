@@ -56,7 +56,14 @@ export function irPara(url, trocar = false) {
 
 /** Os módulos de um projeto. Projeto sem a lista (resposta antiga) conta como só n.iso, o comportamento anterior. */
 export const modulosDe = (p) => (Array.isArray(p && p.modulos) && p.modulos.length ? p.modulos : ['iso']);
-export const temProduto = (p, produto = produtoAtual()) => modulosDe(p).includes(produto);
+/**
+ * Os módulos da PESSOA (`S.user.modulos`, do /auth/me); platform_admin tem todos. Sem o campo (resposta antiga), null:
+ * nada é filtrado, o comportamento anterior. A trava de verdade é do servidor.
+ */
+export const modulosDaPessoa = () => (S.user && S.user.role === 'platform_admin' ? MODULOS : S.user && Array.isArray(S.user.modulos) ? S.user.modulos : null);
+/** Os módulos do projeto que a pessoa também tem. */
+export const modulosVisiveis = (p) => { const meus = modulosDaPessoa(); return meus ? modulosDe(p).filter((m) => meus.includes(m)) : modulosDe(p); };
+export const temProduto = (p, produto = produtoAtual()) => modulosVisiveis(p).includes(produto);
 /** O projeto do id recebido (o modal pode ser de outro projeto que não o ativo); sem ele na lista, o ativo. */
 export const projetoDoId = (projectId) => (S.projects || []).find((p) => p.id === projectId) || S.activeProject;
 
@@ -183,6 +190,7 @@ window.abrirProdutosDoProjeto = async function (projectId) {
     };
     openModal(`<h3>Produtos do projeto</h3>
         <p style="color:var(--text-dim)">Os dois produtos usam o mesmo cadastro (partes, itens, documentos, RoPA, DPIA, evidências). Desligar um produto não apaga dado: ele volta ao religar.</p>
+        <p id="produtos-aviso-pessoas" style="color:var(--text-dim)">Os usuários do cliente deste projeto recebem o módulo; a equipe da consultoria precisa recebê-lo na tela Usuários.</p>
         <table class="data-table" id="produtos-do-projeto"><tbody>${linha('iso')}${linha('privacy')}</tbody></table>`);
 };
 

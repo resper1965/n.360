@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { genId, genToken, hashPassword, logAudit, erro500, rateLimitD1, invalidateUserSessions } from '../helpers';
-import { validateBody, criarOrgSchema, atualizarOrgSchema, orgModulosSchema, MODULOS } from '../schemas';
+import { validateBody, criarOrgSchema, atualizarOrgSchema, orgModulosSchema, MODULOS, parseModulos } from '../schemas';
 import { ORG_NESS, SQL_EQUIPE } from '../services/organizacao';
 import { enviarBoasVindas } from './users';
 
@@ -81,7 +81,7 @@ organizacoesApp.get('/', async (c) => {
   try {
     const db = c.env.DB;
     const [orgs, props] = await db.batch<any>([
-      db.prepare(`SELECT o.id, o.name, o.slug, o.plan, o.status, o.max_projects, o.max_users, o.termo_aceito_em, o.termo_versao, o.created_at,
+      db.prepare(`SELECT o.id, o.name, o.slug, o.plan, o.status, o.max_projects, o.max_users, o.termo_aceito_em, o.termo_versao, o.created_at, o.modulos_contratados,
         (SELECT COUNT(*) FROM projects p WHERE p.org_id = o.id) AS projetos,
         (SELECT COUNT(*) FROM users WHERE org_id = o.id AND ${SQL_EQUIPE}) AS usuarios,
         EXISTS (SELECT 1 FROM users WHERE ${ADMIN_PENDENTE}) AS admin_pendente
@@ -94,7 +94,7 @@ organizacoesApp.get('/', async (c) => {
       id: o.id, nome: o.name, slug: o.slug, plano: o.plan, status: o.status,
       maxProjetos: o.max_projects, maxUsuarios: o.max_users, termoAceitoEm: o.termo_aceito_em, termoVersao: o.termo_versao,
       criadaEm: o.created_at, projetos: o.projetos, usuarios: o.usuarios, propostas: porOrg[o.id] ?? {},
-      adminPendente: !!o.admin_pendente,
+      adminPendente: !!o.admin_pendente, modulosContratados: parseModulos(o.modulos_contratados),
     })));
   } catch (e) { return erro500(c, 'Erro ao listar as organizações', e); }
 });
