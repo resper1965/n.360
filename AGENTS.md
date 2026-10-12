@@ -263,6 +263,12 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `SO_PRIVACY`) e filtra os projetos pelo produto. `destinoLegado` (async) leva quem abre `niso`/`nprivacy` ao modulo no `app_url` que o `/health` da mesma origem devolve; se
   ele for o proprio host, ou o `/health` falhar, fica onde esta. O item Inicio do menu so aparece no n.360; nos modulos a volta e
   o link "n.360" do rodape. Login unico (a sessao e por origem: na troca, todos entram de novo uma vez).
+  **Conta e acessos (n.360, fatia 2):** Projetos (com o cartao Produtos), Usuarios, Organizacoes, Chaves de API e Conectar agente
+  ficam no grupo "Conta e acessos" (`group-conta` em `login.html`), que so o n.360 mostra (`SO_N360`); o papel continua decidindo
+  cada item (`updateHeaderUser`), e o grupo sem item do papel some. Nos modulos o rodape traz "Conta e acessos (n.360)", que leva a
+  `/?tela=<primeira tela da conta que o papel ve>`. O boot do n.360 le o `?tela=` uma vez (`telaPedida`): so valores de
+  `TELAS_DA_CONTA`, so se o item estiver visivel para o papel, e o parametro sai do endereco (`history.replaceState`); a tela pedida
+  vence o "um modulo so, entra nele". "Seguranca do projeto" fica no grupo Sistema, em todas as cascas.
   E2E em `frontend/e2e/n360.spec.js`; `frontend/e2e/shell.js` entrega `dist/login.html` em `/iso` e `/privacy` (o servidor do
   Playwright nao faz fallback de SPA). Testes de backend que usam rota do
   n.privacy chamam `habilitarPrivacy(...)` de `test/helpers/d1.ts`.
