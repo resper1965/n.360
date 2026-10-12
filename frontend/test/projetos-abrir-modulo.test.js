@@ -10,6 +10,7 @@ vi.mock('../src/produto.js', async (original) => ({ ...(await original()), irPar
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import { irPara } from '../src/produto.js';
+import { navigate } from '../src/router.js';
 import '../src/views/project.js';
 
 const P = [{ id: 'p1', client_name: 'Alfa', modulos: ['iso', 'privacy'] }, { id: 'p2', client_name: 'Beta', modulos: ['privacy'] }];
@@ -90,5 +91,29 @@ describe('abrirProjetoNoModulo', () => {
         window.abrirProjetoNoModulo('zz', 'privacy');
         expect(irPara).not.toHaveBeenCalled();
         expect(S.activeProject).toBeNull();
+    });
+});
+
+describe('trocar o projeto ativo', () => {
+    beforeEach(() => { globalThis.updateActiveProjectWidget = vi.fn(); });
+    it('no n.360, na lista de projetos, fica nela (projeto só n.privacy não vai ao n.iso)', async () => {
+        history.replaceState(null, '', '/');
+        S.view = 'projects';
+        navigate.mockClear();
+        await window.changeActiveProject('p2');
+        expect(S.activeProject.id).toBe('p2');
+        expect(navigate).toHaveBeenCalledWith('projects');
+    });
+    it('no n.privacy, da lista, vai ao início do módulo; no n.iso, à certificação (como antes)', async () => {
+        S.view = 'projects';
+        history.replaceState(null, '', '/privacy');
+        navigate.mockClear();
+        await window.changeActiveProject('p2');
+        expect(navigate).toHaveBeenCalledWith('encarregado');
+        S.view = 'projects';
+        history.replaceState(null, '', '/iso');
+        navigate.mockClear();
+        await window.changeActiveProject('p1');
+        expect(navigate).toHaveBeenCalledWith('certification');
     });
 });

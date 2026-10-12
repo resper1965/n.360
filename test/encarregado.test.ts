@@ -60,6 +60,12 @@ describe('projeto vazio', () => {
     expect((await chamar(cliente, '/api/v1/projects/e1/encarregado')).status).toBe(200);
     expect((await chamar(cliente, '/api/v1/projects/e2/encarregado')).status).toBe(403);
   });
+  it('catálogo LGPD não carregado é assunto da ness.: o cliente não vê essa prioridade (o resto, sim)', async () => {
+    const textos = (await ver(cliente)).prioridades.map((p) => p.texto);
+    expect(textos).not.toContain('Catálogo de requisitos LGPD não carregado');
+    expect(textos).toContain('Nenhum encarregado indicado (LGPD, art. 41)');
+    expect((await ver()).prioridades.map((p) => p.texto)).toContain('Catálogo de requisitos LGPD não carregado');
+  });
 });
 
 describe('projeto com pendências', () => {

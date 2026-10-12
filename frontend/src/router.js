@@ -1,5 +1,5 @@
 import { S } from './state.js';
-import { produtoAtual, TELAS_DO_HUB, moduloDaTela, enderecoDoProduto, irPara, abrirGrupo } from './produto.js';
+import { produtoAtual, TELAS_DO_HUB, moduloPara, enderecoNoModulo, irPara, abrirGrupo } from './produto.js';
 
 export     function navigate(view, data) {
         let targetView = view;
@@ -8,11 +8,12 @@ export     function navigate(view, data) {
             targetView = 'project-detail';
         }
         const produto = produtoAtual();
-        // O n.360 é o hub: tela de módulo leva ao módulo (a tela não viaja: abre o início dele); a do cadastro, que os dois
-        // módulos têm, volta ao início do portal. Nada de tela de módulo desenhada dentro do portal.
+        // O n.360 é o hub: tela de módulo leva ao módulo, na própria tela (`?tela=`, lido no boot dele); a dos dois módulos vai a um
+        // que o projeto tem. Sem módulo para ela, fica no início do portal. Nada de tela de módulo desenhada dentro do portal.
         if (produto === 'n360' && !TELAS_DO_HUB.includes(targetView)) {
-            const dono = moduloDaTela(targetView);
-            if (dono) { irPara(enderecoDoProduto(dono)); return; }
+            const proj = (data && (data.activeProject || data.currentProject)) || S.activeProject;
+            const modulo = moduloPara(targetView, proj);
+            if (modulo) { irPara(enderecoNoModulo(modulo, targetView, proj)); return; }
             targetView = 'inicio';
         }
         // Fornecedores é a tela ISO (KYV, Trust Score); no n.privacy o cadastro deles é Terceiros.

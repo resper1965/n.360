@@ -27,11 +27,15 @@ import { temProduto } from '../produto.js';
     const rotuloBase = (v) => BASES_LEGADO[normaliza(v)] || v || '';
     const ehLegitimoInteresse = (v) => { const t = normaliza(v); return t.includes('legitimo interesse') || t.includes('interesse legitimo'); };
     function opcoesBase(atual) {
-        const sel = rotuloBase(atual);
+        // Valor antigo fica selecionado com o valor GRAVADO: salvar sem mexer não reescreve legal_basis (que reenviaria os pedidos
+        // de aprovação do documento). Só a escolha de outra hipótese grava o texto novo.
+        const antigo = BASES_LEGADO[normaliza(atual)] && atual !== rotuloBase(atual) ? atual : null;
+        const sel = antigo ? null : rotuloBase(atual);
         const conhecidos = [...BASES_ART7, ...BASES_ART11.map(ART11)];
         const opt = (valor, rotulo) => `<option value="${escapeHTML(valor)}" ${valor === sel ? 'selected' : ''}>${escapeHTML(rotulo)}</option>`;
         // Texto livre (importado de planilha, por exemplo) não some ao editar: fica como opção, selecionado.
-        const livre = sel && !conhecidos.includes(sel) ? opt(sel, sel) : '';
+        const livre = antigo ? `<option value="${escapeHTML(antigo)}" selected>${escapeHTML(rotuloBase(antigo))} (valor antigo)</option>`
+            : sel && !conhecidos.includes(sel) ? opt(sel, sel) : '';
         return `<option value="">Selecione a hipótese</option>${livre}
             <optgroup label="Art. 7 (dados pessoais)">${BASES_ART7.map((b) => opt(b, b)).join('')}</optgroup>
             <optgroup label="Art. 11 (dados sensíveis)">${BASES_ART11.map((b) => opt(ART11(b), b)).join('')}</optgroup>`;

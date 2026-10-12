@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
 import { produtoAtual } from '../produto.js';
+import { podeIndicar } from './encarregado.js';
 
     async function renderMonitor(c, h, a) {
         h.textContent = 'Monitor de Adequação';
@@ -555,7 +556,7 @@ import { produtoAtual } from '../produto.js';
             <div class="org-anchor org-anchor-empty">
                 <div class="org-anchor-name">Encarregado (DPO) não designado</div>
                 <div class="org-anchor-title">A LGPD exige a indicação do encarregado (art. 41).</div>
-                <button class="btn btn-primary" data-action="abrirIndicarEncarregado" data-args='${escapeHTML(JSON.stringify([projectId]))}'>Indicar encarregado</button>
+                ${podeIndicar() ? `<button class="btn btn-primary" data-action="abrirIndicarEncarregado" data-args='${escapeHTML(JSON.stringify([projectId]))}'>Indicar encarregado</button>` : ''}
             </div>` : `
             <div class="org-anchor org-anchor-empty">
                 <div class="org-anchor-name">Líder do SGSI não designado</div>

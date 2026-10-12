@@ -10,7 +10,8 @@ const NIVEL = { alta: ['Alta', 'danger'], media: ['Média', 'warning'] };
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const n = (v) => escapeHTML(String(v ?? 0));
-const podeIndicar = () => !!S.user && ['platform_admin', 'consultant', 'consultor'].includes(S.user.role);
+/** Quem indica o encarregado (a mesma regra na governança do n.privacy). */
+export const podeIndicar = () => !!S.user && ['platform_admin', 'consultant', 'consultor'].includes(S.user.role);
 // Zero é neutro: o sistema não sabe que está "bom", só que nada foi contado. Cor só quando há alerta.
 const cor = (q, ruim = 'var(--danger)') => (q > 0 ? ruim : 'var(--text)');
 

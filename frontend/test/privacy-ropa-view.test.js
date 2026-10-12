@@ -58,7 +58,20 @@ describe('base legal do RoPA', () => {
         expect(el('c').textContent).toContain('Execução de contrato ou procedimentos preliminares');
         expect(el('c').textContent).toContain('Inativo');
         await window.openEditROPAModal('r1');
-        expect(el('ropa-e-basis').value).toBe('Execução de contrato ou procedimentos preliminares');
+        // selecionado o valor gravado (bruto), com o rótulo atual: salvar sem mexer não reescreve a base (e não reenvia pedidos)
+        const sel = el('ropa-e-basis');
+        expect(sel.value).toBe('Execucao contratual');
+        expect(sel.selectedOptions[0].textContent).toBe('Execução de contrato ou procedimentos preliminares (valor antigo)');
+        await window.updateROPA('r1');
+        expect(apiMock.mock.calls.find((c) => c[0] === 'PUT')[2].legal_basis).toBe('Execucao contratual');
+    });
+
+    it('valor antigo trocado pelo usuário grava a hipótese nova', async () => {
+        S.ropa = [{ id: 'r1', project_id: 'p1', processing_purpose: 'Folha', legal_basis: 'interesse legitimo' }];
+        await window.openEditROPAModal('r1');
+        el('ropa-e-basis').value = 'Legítimo interesse';
+        await window.updateROPA('r1');
+        expect(apiMock.mock.calls.find((c) => c[0] === 'PUT')[2].legal_basis).toBe('Legítimo interesse');
     });
 
     it('valor livre desconhecido (importado) não some: fica como opção selecionada', async () => {

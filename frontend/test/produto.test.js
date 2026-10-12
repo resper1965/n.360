@@ -8,7 +8,8 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import html from '../login.html?raw';
-import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, SO_ISO, SO_PRIVACY, SO_N360, TELAS_DA_CONTA, telaPedida } from '../src/produto.js';
+import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, SO_ISO, SO_PRIVACY, SO_N360, TELAS_DA_CONTA, telaPedida, pedidoDoHub, TELAS_DOS_MODULOS, TELAS_DO_HUB } from '../src/produto.js';
+import fonteRouter from '../src/router.js?raw';
 
 const loc = (url) => { const u = new URL(url); return { hostname: u.hostname, pathname: u.pathname, search: u.search, hash: u.hash, origin: u.origin }; };
 const ir = (caminho) => history.replaceState(null, '', caminho);
@@ -263,6 +264,51 @@ describe('telaPedida (?tela= no boot do n.360)', () => {
         ir('/iso?tela=users');
         expect(telaPedida()).toBeNull();
         expect(location.search).toBe('?tela=users');
+    });
+});
+
+describe('pedidoDoHub (?tela= e aviso no boot do módulo)', () => {
+    it('toda tela da lista fechada tem ramo no render e nenhuma é do hub', () => {
+        for (const t of TELAS_DOS_MODULOS) {
+            expect(fonteRouter, t).toContain(`S.view === '${t}'`);
+            expect(TELAS_DO_HUB, t).not.toContain(t);
+        }
+    });
+    it('tela deste módulo ou dos dois: aceita e tira tela e aba do endereço, sem mexer no resto', () => {
+        ir('/iso?tela=capa&x=1#f');
+        expect(pedidoDoHub()).toEqual({ tela: 'capa', aba: null });
+        expect(location.pathname + location.search + location.hash).toBe('/iso?x=1#f');
+        ir('/privacy?tela=documentos');
+        expect(pedidoDoHub()).toEqual({ tela: 'documentos', aba: null });
+        // incidentes: a tela titular vale no n.iso com a aba de incidentes
+        ir('/iso?tela=titular&aba=incidentes');
+        expect(pedidoDoHub()).toEqual({ tela: 'titular', aba: 'incidentes' });
+        expect(location.search).toBe('');
+    });
+    it('tela desconhecida, do hub, ou só do outro módulo é ignorada (e sai do endereço)', () => {
+        for (const [c, t] of [['/iso', 'constructor'], ['/iso', '__proto__'], ['/iso', 'javascript:alert(1)'], ['/iso', 'users'], ['/iso', 'encarregado'], ['/privacy', 'soa'], ['/iso', 'titular'], ['/iso', '']]) {
+            ir(`${c}?tela=${encodeURIComponent(t)}`);
+            expect(pedidoDoHub(), `${c} ${t}`).toBeNull();
+            expect(location.search).toBe('');
+        }
+    });
+    it('o aviso guardado é lido uma vez, limpo, e só com ?tela=; no n.360 nada é lido', () => {
+        sessionStorage.setItem('n360_aviso', JSON.stringify({ link: '/projects/p1/capa', target_id: 7, title: '<b>x</b>' }));
+        ir('/?tela=capa');
+        expect(pedidoDoHub()).toBeNull();
+        expect(sessionStorage.getItem('n360_aviso')).not.toBeNull();
+        ir('/iso?tela=capa');
+        expect(pedidoDoHub()).toEqual({ aviso: { link: '/projects/p1/capa', action_type: '', target_id: '', title: '<b>x</b>', message: '' } });
+        expect(sessionStorage.getItem('n360_aviso')).toBeNull();
+        ir('/iso?tela=capa');
+        expect(pedidoDoHub()).toEqual({ tela: 'capa', aba: null });
+        sessionStorage.setItem('n360_aviso', 'não é json');
+        ir('/iso?tela=soa');
+        expect(pedidoDoHub()).toEqual({ tela: 'soa', aba: null });
+        sessionStorage.setItem('n360_aviso', JSON.stringify({ link: '/x' }));
+        ir('/iso');
+        expect(pedidoDoHub()).toBeNull();
+        expect(sessionStorage.getItem('n360_aviso')).toBeNull();
     });
 });
 

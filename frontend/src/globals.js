@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida } from './produto.js';
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub } from './produto.js';
 import { S } from './state.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
@@ -1069,7 +1069,15 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
         if (dd) dd.classList.remove('open');
 
         if (!n) return;
+        // No n.360 a tela do aviso é de um módulo: o router leva a ele e guarda o aviso (enderecoNoModulo), que o módulo reabre no
+        // boot (pedidoDoHub) com o modal, a linha ou a aba do aviso.
+        S.avisoEmCurso = produtoAtual() === 'n360' ? n : null;
+        try { await window.abrirAviso(n); } finally { S.avisoEmCurso = null; }
+    };
 
+/** Leva à tela do aviso (o link ou o tipo de ação dele). No n.360, a navegação sai para o módulo: o resto fica para lá. */
+window.abrirAviso = async function abrirAviso(n) {
+        const noHub = produtoAtual() === 'n360';
         // 2. Prioritize Action Type & Target ID (Deep-linking)
         if (n.action_type && n.target_id) {
             const actionType = n.action_type;
@@ -1078,7 +1086,7 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
 
             if (actionType === 'open_finding') {
                 navigate('capa');
-                if (projectId) {
+                if (projectId && !noHub) {
                     try {
                         const capas = await api('GET', `/api/v1/projects/${projectId}/capa`) || [];
                         const ca = capas.find(x => x.id === targetId);
@@ -1092,6 +1100,7 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
                 return;
             } else if (actionType === 'open_soa') {
                 navigate('soa');
+                if (noHub) return;
                 setTimeout(() => {
                     const row = document.getElementById(`soa-row-${targetId}`);
                     if (row) {
@@ -1136,7 +1145,9 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
                         navigate(TELA_DO_AVISO[subview], { currentProject: proj, activeProject: proj });
                     }
                 } else {
-                    navigate('project-detail', { currentProject: proj });
+                    // Projeto sem o n.iso (só n.privacy): a página do projeto é a do encarregado.
+                    const semIso = !modulosVisiveis(proj).includes('iso');
+                    navigate(semIso ? 'encarregado' : 'project-detail', { currentProject: proj });
                 }
             } else if (parts[1] === 'proposals') {
                 const proposalId = parts[2];
@@ -1505,6 +1516,8 @@ window.initApp = async function initApp() {
         const modulos = [...new Set(meus.flatMap(modulosVisiveis))];
         // Vindo do rodapé "Conta e acessos (n.360)" de um módulo: a tela pedida vence o "um módulo só, entra nele".
         const tela = produto === 'n360' && !ehStakeholder ? telaPedida() : null;
+        // Vindo do n.360 numa tela de módulo (o router ou o sino de lá): a tela pedida, ou o aviso reaberto aqui.
+        const doHub = produto !== 'n360' && !ehStakeholder ? pedidoDoHub() : null;
         if (ehStakeholder) {
             navigate('meus-pedidos');
         } else if (tela) {
@@ -1524,6 +1537,10 @@ window.initApp = async function initApp() {
             return;
         } else if (produto === 'n360') {
             navigate('inicio');
+        } else if (doHub) {
+            if (!S.activeProject && (S.projects || []).length) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
+            if (doHub.aviso) await window.abrirAviso(doHub.aviso);
+            else { if (doHub.aba) S.titularAba = doHub.aba; navigate(doHub.tela); }
         } else if (produto === 'privacy') {
             if (!S.activeProject) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             navigate('encarregado');

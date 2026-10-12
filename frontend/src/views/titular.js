@@ -261,10 +261,12 @@ function faixaAnpd(i) {
     }
     if (i.status === 'encerrado' || i.risco_titular === 'sem_risco') return '';
     if (!i.prazo_anpd_em) return faixa('var(--warning)', 'Prazo da ANPD não calculado: cadastre os prazos legais.');
-    if (i.situacao_anpd === 'atrasado') return faixa('var(--danger)', `Comunicação à ANPD atrasada: o prazo era ${diaMes(i.prazo_anpd_em)}.`);
-    if (i.situacao_anpd === 'vence_hoje') return faixa('var(--danger)', `Comunicar à ANPD até hoje, ${diaMes(i.prazo_anpd_em)}.`);
+    // A data do prazo também decide (o servidor pode ainda dizer "no_prazo" no dia): nunca "faltam 0 dias úteis".
+    const hoje = new Date().toISOString().slice(0, 10), prazo = String(i.prazo_anpd_em).slice(0, 10);
+    if (i.situacao_anpd === 'atrasado' || prazo < hoje) return faixa('var(--danger)', `Comunicação à ANPD atrasada: o prazo era ${diaMes(i.prazo_anpd_em)}.`);
+    if (i.situacao_anpd === 'vence_hoje' || prazo === hoje) return faixa('var(--danger)', `Comunicar à ANPD até hoje, ${diaMes(i.prazo_anpd_em)}.`);
     const n = diasUteisAte(i.prazo_anpd_em);
-    return faixa(n <= 1 ? 'var(--danger)' : 'var(--warning)', `Comunicar à ANPD até ${diaMes(i.prazo_anpd_em)} (${n === 1 ? 'falta 1 dia útil' : `faltam ${n} dias úteis`})`);
+    return faixa(n <= 1 ? 'var(--danger)' : 'var(--warning)', `Comunicar à ANPD até ${diaMes(i.prazo_anpd_em)} (${n === 0 ? 'nenhum dia útil antes do prazo' : n === 1 ? 'falta 1 dia útil' : `faltam ${n} dias úteis`})`);
 }
 
 window.abrirIncidente = async function (projectId, id) {
@@ -272,7 +274,9 @@ window.abrirIncidente = async function (projectId, id) {
     try { i = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}`); } catch (e) { falha(e, 'Não foi possível abrir o incidente'); return; }
     const editar = podeEditar() && i.status !== 'encerrado';
     // A ação primária é a próxima comunicação devida; encerrar é secundário e fica no fim, com confirmação.
-    const proxima = !i.comunicacao_anpd_em ? 'anpd' : !i.comunicacao_titular_em ? 'titular' : null;
+    // Sem risco ao titular não há comunicação devida (nem à ANPD): nenhuma vira a ação primária, e encerrar não alerta da ANPD.
+    const semRisco = i.risco_titular === 'sem_risco';
+    const proxima = semRisco ? null : !i.comunicacao_anpd_em ? 'anpd' : !i.comunicacao_titular_em ? 'titular' : null;
     const comunicar = (destino, rotulo) => `<button class="btn ${proxima === destino ? 'btn-primary' : ''} btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, destino)}'>${rotulo}</button>`;
     openModal(`${faixaAnpd(i)}<h3>${escapeHTML(i.protocolo)} — ${escapeHTML(i.titulo)}</h3>
         <p style="white-space:pre-wrap">${escapeHTML(i.descricao || '')}</p>
@@ -296,13 +300,13 @@ window.abrirIncidente = async function (projectId, id) {
             <button class="btn btn-sm" data-action="abrirCapaDoIncidente" data-args='${args(projectId, id)}'>Abrir CAPA</button>` : ''}
         ${editar ? `<div style="border-top:1px solid var(--border); margin-top:1.5rem; padding-top:1rem">
             <div id="in-encerrar"></div>
-            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em)}'>Encerrar incidente</button>
+            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco)}'>Encerrar incidente</button>
         </div>` : ''}`, 'modal-large');
 };
 
-// Confirmação na própria janela (o app não usa confirm()). Sem a comunicação à ANPD, a pergunta diz isso.
-window.pedirEncerramentoIncidente = function (projectId, id, anpdComunicada) {
-    el('in-encerrar').innerHTML = `<p style="color:${anpdComunicada ? 'var(--text)' : 'var(--warning)'}">${anpdComunicada
+// Confirmação na própria janela (o app não usa confirm()). Sem a comunicação à ANPD (e com risco), a pergunta diz isso.
+window.pedirEncerramentoIncidente = function (projectId, id, semPendenciaAnpd) {
+    el('in-encerrar').innerHTML = `<p style="color:${semPendenciaAnpd ? 'var(--text)' : 'var(--warning)'}">${semPendenciaAnpd
         ? 'Encerrar o incidente? Depois de encerrado, ele não recebe mais avaliação nem comunicação.'
         : 'A ANPD ainda não foi comunicada. Encerrar mesmo assim?'}</p>
         <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem">

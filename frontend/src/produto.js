@@ -95,10 +95,77 @@ export const moduloDaTela = (tela) => (DO_ISO_SEM_ITEM.includes(tela) ? 'iso' : 
 /** Caminho do produto na mesma origem: '/', '/iso' ou '/privacy'. */
 export const enderecoDoProduto = (produto) => (MODULOS.includes(produto) ? `/${produto}` : '/');
 
-/** Para onde um aviso leva: a tela, ou o caminho do módulo quando a tela é só de outro. */
+/** Para onde um aviso leva: a tela, ou o caminho do módulo quando a tela é só de outro. No n.360 navega: o router leva ao módulo. */
 export function destinoDoAviso(tela, loc = window.location) {
     const dono = produtoDaTela(tela);
-    return dono && dono !== produtoAtual(loc) ? { href: enderecoDoProduto(dono) } : { navegar: tela };
+    const aqui = produtoAtual(loc);
+    return dono && aqui !== 'n360' && dono !== aqui ? { href: enderecoDoProduto(dono) } : { navegar: tela };
+}
+
+/**
+ * Telas dos módulos (as que o render desenha fora do hub): a lista fechada do `?tela=` com que o n.360 abre um módulo na tela
+ * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
+ */
+export const TELAS_DOS_MODULOS = ['dashboard', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
+    'policies-dashboard', 'risks', 'vendors', 'partes', 'documentos', 'requisitos', 'terceiros', 'titular', 'encarregado', 'importacao',
+    'training', 'ropa', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
+    'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
+// O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
+const CHAVE_AVISO = 'n360_aviso';
+const texto = (v) => (typeof v === 'string' ? v : '');
+const avisoLimpo = (x) => (x && typeof x === 'object'
+    ? { link: texto(x.link), action_type: texto(x.action_type), target_id: texto(x.target_id), title: texto(x.title), message: texto(x.message) } : null);
+// Incidentes: a tela titular na aba de incidentes, que os dois módulos têm.
+const ehIncidentes = (tela) => tela === 'titular' && S.titularAba === 'incidentes';
+
+/**
+ * Em qual módulo o n.360 abre a tela: o dono dela; nas que os dois têm (cadastro, incidentes), um que o projeto tem (o n.iso
+ * primeiro; nos incidentes, o n.privacy). Null quando o projeto não tem nenhum dos dois: o hub fica no início.
+ */
+export function moduloPara(tela, proj) {
+    const dono = ehIncidentes(tela) ? null : moduloDaTela(tela);
+    if (dono) return dono;
+    if (!TELAS_DOS_MODULOS.includes(tela) || !proj) return null;
+    const tem = modulosVisiveis(proj);
+    return (ehIncidentes(tela) ? ['privacy', 'iso'] : MODULOS).find((m) => tem.includes(m)) || null;
+}
+
+/** O endereço da tela no módulo, para sair do n.360; guarda o projeto (o state o hidrata de lá) e o aviso em curso, se houver. */
+export function enderecoNoModulo(modulo, tela, proj) {
+    const aviso = avisoLimpo(S.avisoEmCurso);
+    S.avisoEmCurso = null;
+    try {
+        if (aviso) sessionStorage.setItem(CHAVE_AVISO, JSON.stringify(aviso));
+        const p = proj && (S.projects || []).find((x) => x.id === proj.id);
+        if (p) localStorage.setItem('niso_activeProject', JSON.stringify(p));
+    } catch (e) { /* sem storage: o módulo abre a tela no projeto salvo */ }
+    return `${enderecoDoProduto(modulo)}?tela=${encodeURIComponent(tela)}${ehIncidentes(tela) ? '&aba=incidentes' : ''}`;
+}
+
+/**
+ * O pedido do n.360 lido uma vez no boot do módulo: `?tela=` (lista fechada, tela deste módulo ou dos dois) e o aviso guardado.
+ * Os parâmetros saem do endereço e o aviso do storage. Null fora de módulo, sem `?tela=` ou com tela que não vale aqui.
+ */
+export function pedidoDoHub(loc = window.location) {
+    const produto = produtoAtual(loc);
+    if (produto === 'n360') return null;
+    let aviso = null;
+    try {
+        const bruto = sessionStorage.getItem(CHAVE_AVISO);
+        sessionStorage.removeItem(CHAVE_AVISO);
+        aviso = bruto ? avisoLimpo(JSON.parse(bruto)) : null;
+    } catch (e) { aviso = null; }
+    const q = new URLSearchParams(loc.search || '');
+    if (!q.has('tela')) return null;
+    const tela = q.get('tela');
+    const aba = q.get('aba') === 'incidentes' && tela === 'titular' ? 'incidentes' : null;
+    q.delete('tela');
+    q.delete('aba');
+    const resto = q.toString();
+    history.replaceState(history.state, '', `${loc.pathname}${resto ? `?${resto}` : ''}${loc.hash || ''}`);
+    if (aviso) return { aviso };
+    const dono = moduloDaTela(tela);
+    return TELAS_DOS_MODULOS.includes(tela) && (dono === null || dono === produto || aba) ? { tela, aba } : null;
 }
 
 const rotuloDoGrupo = (doc, grupo) => doc.querySelector(`.sidebar-label[data-args='["${grupo}"]']`);

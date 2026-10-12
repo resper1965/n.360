@@ -224,6 +224,35 @@ describe('incidentes', () => {
         } finally { vi.useRealTimers(); }
     });
 
+    it('sem dia útil restante: nunca "faltam 0 dias úteis"; vence hoje ou venceu pela data', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-16T12:00:00Z')); // sexta-feira
+        try {
+            // prazo hoje, com o servidor ainda dizendo "no_prazo"
+            await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-16T22:00:00.000Z', situacao_anpd: 'no_prazo' } });
+            await window.abrirIncidente('p9', 'i1');
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até hoje, 16/10.');
+            // prazo no sábado: nenhum dia útil antes dele
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-17T10:00:00.000Z', situacao_anpd: 'no_prazo' } }));
+            await window.abrirIncidente('p9', 'i1');
+            expect(el('in-faixa-anpd').textContent).not.toContain('0 dias');
+            expect(el('in-faixa-anpd').getAttribute('style')).toContain('var(--danger)');
+            // prazo ontem
+            servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-15T10:00:00.000Z', situacao_anpd: 'no_prazo' } }));
+            await window.abrirIncidente('p9', 'i1');
+            expect(el('in-faixa-anpd').textContent).toContain('Comunicação à ANPD atrasada: o prazo era 15/10');
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('sem risco ao titular: nenhuma comunicação é a próxima ação e encerrar não fala da ANPD', async () => {
+        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], risco_titular: 'sem_risco' } });
+        await window.abrirIncidente('p9', 'i1');
+        expect(el('modal-content').querySelectorAll('.btn-primary').length).toBe(0);
+        window.pedirEncerramentoIncidente(...JSON.parse(el('modal-content').querySelector('[data-action="pedirEncerramentoIncidente"]').getAttribute('data-args')));
+        expect(el('in-encerrar').textContent).not.toContain('ANPD');
+        expect(el('in-encerrar').textContent).toContain('Encerrar o incidente?');
+    });
+
     it('o primário é a próxima comunicação devida; encerrar é ghost, no fim, e confirma na janela', async () => {
         const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] }, [`POST ${B}/incidentes/i1/encerrar`]: { ok: true } });
         await window.abrirIncidente('p9', 'i1');

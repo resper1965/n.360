@@ -496,7 +496,11 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             S.currentProject = p;
             localStorage.setItem('niso_activeProject', JSON.stringify(p));
             updateActiveProjectWidget();
-            navigate(S.view === 'projects' || S.view === 'project-detail' ? 'certification' : (S.view || 'dashboard'));
+            // No n.360 fica na tela do hub (a certificação é do n.iso, e o projeto pode ser só n.privacy); da lista, nos módulos,
+            // o n.iso abre a certificação e o n.privacy o início dele.
+            const produto = produtoAtual();
+            const daLista = S.view === 'projects' || S.view === 'project-detail';
+            navigate(produto === 'n360' ? (S.view || 'inicio') : daLista ? (produto === 'iso' ? 'certification' : PRODUTOS[produto].inicio) : (S.view || PRODUTOS[produto].inicio));
         } catch(e) {
             showToast('Erro ao mudar de projeto', 'error');
         }

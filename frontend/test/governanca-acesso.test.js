@@ -90,6 +90,17 @@ describe('governança no n.privacy', () => {
       expect(JSON.parse(document.querySelector('[data-action="abrirIndicarEncarregado"]').getAttribute('data-args'))).toEqual(['p1']);
     } finally { history.replaceState(null, '', '/'); }
   });
+  it('quem não pode indicar (cliente) não vê o botão "Indicar encarregado"; o aviso fica', () => {
+    history.replaceState(null, '', '/privacy');
+    try {
+      for (const papel of ['org_admin', 'org_user', 'client']) {
+        S.user = { role: papel, email: 'x@n.com' };
+        document.body.innerHTML = window.renderProjectGovernance(MEMBROS.filter((m) => !m.is_primary), 'p1');
+        expect(document.body.textContent, papel).toContain('Encarregado (DPO) não designado');
+        expect(document.querySelector('[data-action="abrirIndicarEncarregado"]'), papel).toBeNull();
+      }
+    } finally { history.replaceState(null, '', '/'); }
+  });
   it('fora do n.privacy o texto do SGSI continua', () => {
     S.user = { role: 'consultor', email: 'x@n.com' };
     document.body.innerHTML = window.renderProjectGovernance(MEMBROS.filter((m) => !m.is_primary), 'p1');

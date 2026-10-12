@@ -38,20 +38,52 @@ describe('n.360 é o hub', () => {
     it('tela de um módulo leva ao módulo, sem desenhar no portal', () => {
         ir('/');
         navigate('soa');
-        expect(irPara).toHaveBeenCalledWith('/iso');
+        expect(irPara).toHaveBeenCalledWith('/iso?tela=soa');
         expect(globalThis.renderSoA).not.toHaveBeenCalled();
         irPara.mockClear();
         navigate('encarregado');
-        expect(irPara).toHaveBeenCalledWith('/privacy');
+        expect(irPara).toHaveBeenCalledWith('/privacy?tela=encarregado');
         expect(globalThis.renderEncarregado).not.toHaveBeenCalled();
         irPara.mockClear();
         // o cliente pedindo "projects" cai em project-detail, que é do n.iso
         S.user = { role: 'org_admin' };
         navigate('projects');
-        expect(irPara).toHaveBeenCalledWith('/iso');
+        expect(irPara).toHaveBeenCalledWith('/iso?tela=project-detail');
     });
-    it('tela dos dois módulos (cadastro) volta ao início do portal', () => {
+    it('tela dos dois módulos (cadastro) vai a um módulo que o projeto tem, levando o projeto', () => {
         ir('/');
+        const SO_PRIV = { id: 'pp', modulos: ['privacy'] }, AMBOS = { id: 'pa', modulos: ['iso', 'privacy'] };
+        S.projects = [SO_PRIV, AMBOS];
+        navigate('documentos', { activeProject: SO_PRIV });
+        expect(irPara).toHaveBeenLastCalledWith('/privacy?tela=documentos');
+        expect(JSON.parse(localStorage.getItem('niso_activeProject')).id).toBe('pp');
+        navigate('ropa', { currentProject: AMBOS });
+        expect(irPara).toHaveBeenLastCalledWith('/iso?tela=ropa');
+        // incidentes (aba da tela titular): o n.privacy se o projeto tem; projeto só n.iso vai ao n.iso
+        S.titularAba = 'incidentes';
+        navigate('titular', { activeProject: AMBOS });
+        expect(irPara).toHaveBeenLastCalledWith('/privacy?tela=titular&aba=incidentes');
+        navigate('titular', { activeProject: { id: 'pi', modulos: ['iso'] } });
+        expect(irPara).toHaveBeenLastCalledWith('/iso?tela=titular&aba=incidentes');
+        S.titularAba = 'pedidos';
+    });
+    it('o aviso em curso viaja limpo no sessionStorage, só quando sai para o módulo', () => {
+        ir('/');
+        sessionStorage.clear();
+        S.avisoEmCurso = { id: 'n1', link: '/projects/p1/capa', title: 'CAPA vence', read: 0, extra: { x: 1 } };
+        navigate('users');
+        expect(sessionStorage.getItem('n360_aviso')).toBeNull();
+        navigate('capa');
+        expect(JSON.parse(sessionStorage.getItem('n360_aviso'))).toEqual({ link: '/projects/p1/capa', action_type: '', target_id: '', title: 'CAPA vence', message: '' });
+        expect(S.avisoEmCurso).toBeNull();
+    });
+    it('tela dos dois módulos sem projeto (ou projeto sem nenhum dos módulos da pessoa) fica no início do portal', () => {
+        ir('/');
+        S.activeProject = null;
+        S.user = { role: 'consultor', modulos: [] };
+        navigate('documentos', { activeProject: { id: 'px', modulos: ['iso'] } });
+        expect(irPara).not.toHaveBeenCalled();
+        expect(S.view).toBe('inicio');
         navigate('ropa');
         expect(irPara).not.toHaveBeenCalled();
         expect(S.view).toBe('inicio');
