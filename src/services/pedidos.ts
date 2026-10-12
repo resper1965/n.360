@@ -103,7 +103,7 @@ const COLUNAS_DPIA = [
 type Documento = { titulo: string; conteudo: Record<string, unknown> };
 
 /** Onde mora cada tipo e quais colunas são CONTEÚDO (entram no hash e na conferência do batch). */
-const DOCUMENTOS: Record<TipoPedido, { tabela: string; colunas: readonly string[]; listas?: readonly string[]; titulo: (r: Record<string, unknown>, refId: string) => string }> = {
+const DOCUMENTOS: Record<TipoPedido, { tabela: string; colunas: readonly string[]; listas?: readonly string[]; soSeMarcado?: readonly string[]; titulo: (r: Record<string, unknown>, refId: string) => string }> = {
   dpia: { tabela: 'dpia_assessments', colunas: COLUNAS_DPIA, titulo: (r, id) => `DPIA: ${String(r.processing_name || r.system_name || id)}` },
   politica: { tabela: 'compliance_controls', colunas: ['title', 'description'], titulo: (r, id) => `Política: ${String(r.title || id)}` },
   // ref_id = documentos.id; o conteúdo é a versão VIGENTE (titulo, texto, numero). O "nome da tabela" é um subselect:
@@ -126,14 +126,19 @@ const DOCUMENTOS: Record<TipoPedido, { tabela: string; colunas: readonly string[
     tabela: "(SELECT r.id AS id, r.project_id AS project_id, r.processing_purpose AS finalidade, r.data_categories AS categorias, r.data_subjects AS titulares, " +
       "r.legal_basis AS base_legal_texto, r.base_legal_id AS base_legal_id, r.retention_period AS retencao, r.recipients AS destinatarios, " +
       "r.international_transfers AS transferencia_internacional, r.transfer_safeguards AS salvaguardas, r.dpia_required AS dpia_requerido, " +
+      "NULLIF(r.dados_sensiveis, 0) AS dados_sensiveis, NULLIF(r.criancas_adolescentes, 0) AS criancas_adolescentes, " +
       "(SELECT json_group_array(x.n) FROM (SELECT i.nome || ' (' || i.tipo || ')' AS n FROM tratamento_itens t JOIN itens i ON i.id = t.item_id WHERE t.ropa_id = r.id ORDER BY i.nome, i.id) x) AS itens, " +
       "(SELECT json_group_array(x.n) FROM (SELECT d.nome AS n FROM tratamento_departamentos t JOIN departamentos d ON d.id = t.departamento_id WHERE t.ropa_id = r.id ORDER BY d.nome, d.id) x) AS departamentos, " +
       "(SELECT json_group_array(x.n) FROM (SELECT v.papel || ': ' || p.nome AS n FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id WHERE v.alvo_tipo = 'tratamento' AND v.alvo_id = r.id ORDER BY v.papel, p.nome, v.id) x) AS partes, " +
       "(SELECT json_group_array(x.n) FROM (SELECT t.pais || ' | ' || COALESCE(p.nome, '') || ' | ' || COALESCE(t.mecanismo, '') AS n FROM tratamento_transferencias t LEFT JOIN partes p ON p.id = t.destinatario_parte_id WHERE t.ropa_id = r.id ORDER BY t.pais, t.id) x) AS transferencias " +
       "FROM ropa_records r)",
-    colunas: ['finalidade', 'categorias', 'titulares', 'base_legal_texto', 'base_legal_id', 'retencao', 'destinatarios', 'transferencia_internacional', 'salvaguardas', 'dpia_requerido', 'itens', 'departamentos', 'partes', 'transferencias'],
+    colunas: ['finalidade', 'categorias', 'titulares', 'base_legal_texto', 'base_legal_id', 'retencao', 'destinatarios', 'transferencia_internacional', 'salvaguardas', 'dpia_requerido', 'dados_sensiveis', 'criancas_adolescentes', 'itens', 'departamentos', 'partes', 'transferencias'],
     // Colunas que o SQL entrega como JSON (json_group_array): viram lista de verdade no conteúdo congelado.
     listas: ['itens', 'departamentos', 'partes', 'transferencias'],
+    // Riscos da 0069 (arts. 11 e 14): só entram no conteúdo quando marcados. Desmarcados, o SQL dá NULL (NULLIF) e a chave sai,
+    // então o hash dos registros de antes da 0069 (todos 0) não muda e nenhum pedido aberto é substituído; `intacto` confere
+    // NULL contra a chave ausente (json_extract dá NULL).
+    soSeMarcado: ['dados_sensiveis', 'criancas_adolescentes'],
     titulo: (r, id) => `Tratamento: ${String(r.finalidade || id).slice(0, 80)}`,
   },
 };
@@ -145,7 +150,8 @@ export async function documentoAtual(db: D1Database, tipo: TipoPedido, refId: st
     .bind(refId, projectId).first<Record<string, unknown>>();
   if (!row) return null;
   const lista = (c: string) => (d.listas?.includes(c) && typeof row[c] === 'string' ? JSON.parse(row[c] as string) : row[c] ?? null);
-  return { titulo: d.titulo(row, refId), conteudo: Object.fromEntries(d.colunas.map((c) => [c, lista(c)])) };
+  const colunas = d.colunas.filter((c) => !(d.soSeMarcado?.includes(c) && row[c] == null));
+  return { titulo: d.titulo(row, refId), conteudo: Object.fromEntries(colunas.map((c) => [c, lista(c)])) };
 }
 
 /** Texto-padrão que o catálogo grava quando a política ainda não foi escrita. */

@@ -27,7 +27,7 @@ Formato: {"tipo":"<um dos tipos>"}`;
 const PROMPT_EXTRAIR = `Você vai EXTRAIR as atividades de tratamento de dados pessoais de um trecho de inventário de dados (LGPD).
 Para cada tratamento encontrado, devolva os campos (omita o que o texto não diz; não invente):
 finalidade (obrigatória), base_legal, categorias_dados, titulares, retencao, destinatarios, transferencia_internacional (true/false),
-salvaguardas, dpia_requerido (true/false), responsavel, sistemas (lista de nomes), areas (lista de nomes de áreas/departamentos),
+salvaguardas, dpia_requerido (true/false), dados_sensiveis (true/false, LGPD art. 11), criancas_adolescentes (true/false, LGPD art. 14), responsavel, sistemas (lista de nomes), areas (lista de nomes de áreas/departamentos),
 pessoas (lista de nomes de pessoas responsáveis), origem (o trecho literal do texto de onde saiu, até 150 caracteres) e
 confianca ("alta", "media" ou "baixa").
 ${DADO_NAO_INSTRUCAO}

@@ -197,10 +197,12 @@ export async function enviarArquivo(env: Env, projectId: string, loteId: string,
  * ponytail: só esses três por regex; nome, endereço e outros identificadores não são detectáveis assim (o prompt proíbe devolvê-los,
  * o esquema não tem campo para eles e uma pessoa revisa).
  */
+/** Telefone BR pela regra acima. Também a do rascunho de IA (`rascunhos-privacy.ts`): uma regra só para o que vai ao modelo. */
+export const TELEFONE = /(?:(?:\+55\s?)?(?:\(\d{2}\)\s?|\b\d{2}[\s.-])9?\d{4}[\s.-]?\d{4}|\b9\d{4}-\d{4}|\+55\d{10,11})\b/g;
 const PII: [RegExp, (s: string) => string][] = [
   [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, (s) => s.toLowerCase()],
   [/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, (s) => s.replace(/\D/g, '')],
-  [/(?:(?:\+55\s?)?(?:\(\d{2}\)\s?|\b\d{2}[\s.-])9?\d{4}[\s.-]?\d{4}|\b9\d{4}-\d{4}|\+55\d{10,11})\b/g, (s) => s.replace(/\D/g, '').slice(-11)],
+  [TELEFONE, (s) => s.replace(/\D/g, '').slice(-11)],
 ];
 
 /** Troca cada e-mail, CPF e telefone do texto por `troca(valor normalizado)`. Uma passada por padrão, sobre marcadores: o que entra não é casado de novo. */

@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { hashPassword } from '../src/helpers';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy } from './helpers/d1';
+import { documentoAtual, hashConteudo } from '../src/services/pedidos';
 
 /**
  * Fatia 4.3: aprovação do tratamento por pedido (`tipo = 'tratamento'`, ref_id = o registro do RoPA). O conteúdo congelado é o
@@ -154,5 +155,46 @@ describe('pedido de aprovação do tratamento', () => {
     expect(direta.status, await direta.clone().text()).toBe(200);
     expect((await registro(id)).ciso_approved_by).toBe('Cida Matriz');
     expect((await registro(id)).aprovacao_pedido).toEqual({ ciso: null, ceo: null });
+  });
+});
+
+// Migration 0069: dados sensíveis (art. 11) e crianças e adolescentes (art. 14) entram no conteúdo congelado SÓ quando marcados.
+// Desmarcados (todo registro existente depois da 0069), o conteúdo e o hash ficam byte a byte como antes: nenhum pedido aberto é substituído.
+describe('riscos do tratamento no conteúdo congelado', () => {
+  // Hash do registro abaixo calculado ANTES da 0069 (código sem as colunas). Mudou? Todo pedido aberto de tratamento seria substituído.
+  const HASH_ANTES_DA_0069 = 'c9978f1a6e8be0ca4ac815ce7bf8bd0e238baf3de7fc5fcd79b1dfe8ca9a3cc3';
+  const fixo = async (id: string) => {
+    await env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, data_categories, data_subjects, legal_basis, retention_period, recipients, international_transfers, transfer_safeguards, dpia_required)
+      VALUES (?, ?, 'Folha fixa', 'Cadastrais', 'Colaboradores', 'Obrigação legal', '5 anos', 'Contabilidade', 1, 'Cláusulas-padrão', 0)`).bind(id, P).run();
+  };
+
+  it('desmarcados: conteúdo sem as chaves novas e hash igual ao de antes da 0069', async () => {
+    await fixo('ta-fixo');
+    const doc = await documentoAtual(env.DB, 'tratamento', 'ta-fixo', P);
+    expect(Object.keys(doc!.conteudo)).not.toContain('dados_sensiveis');
+    expect(Object.keys(doc!.conteudo)).not.toContain('criancas_adolescentes');
+    expect(await hashConteudo(doc!.conteudo)).toBe(HASH_ANTES_DA_0069);
+  });
+
+  it('marcar um risco muda o conteúdo, substitui o pedido aberto e invalida a aprovação; aprovar com ele marcado funciona', async () => {
+    const id = await novo('Risco marcado');
+    const antes = (await documentoAtual(env.DB, 'tratamento', id, P))!;
+    await pedido(id);
+    expect((await chamar(consultor, 'PUT', `/api/v1/ropa/${id}`, { processing_purpose: 'Risco marcado', dados_sensiveis: 0, criancas_adolescentes: 0 })).status).toBe(200);
+    expect(await statusPedidos(id)).toEqual(['aberto']); // gravar 0 sobre 0 não é mudança
+
+    expect((await chamar(consultor, 'PUT', `/api/v1/ropa/${id}`, { processing_purpose: 'Risco marcado', criancas_adolescentes: 1 })).status).toBe(200);
+    const depois = (await documentoAtual(env.DB, 'tratamento', id, P))!;
+    expect(depois.conteudo).toEqual({ ...antes.conteudo, criancas_adolescentes: 1 });
+    expect(await hashConteudo(depois.conteudo)).not.toBe(await hashConteudo(antes.conteudo));
+    expect(await statusPedidos(id)).toEqual(['substituido', 'aberto']);
+
+    const aberto = await env.DB.prepare(`SELECT id FROM pedidos WHERE tipo = 'tratamento' AND ref_id = ? AND status = 'aberto'`).bind(id).first<{ id: string }>();
+    const r = await aprovar(aberto!.id);
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await registro(id)).aprovacao_pedido.ciso).not.toBeNull();
+
+    await chamar(consultor, 'PUT', `/api/v1/ropa/${id}`, { processing_purpose: 'Risco marcado', dados_sensiveis: true });
+    expect((await registro(id)).aprovacao_pedido.ciso).toBeNull();
   });
 });

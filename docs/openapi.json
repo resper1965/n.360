@@ -13340,6 +13340,18 @@
                               "null"
                             ]
                           },
+                          "dados_sensiveis": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          },
+                          "criancas_adolescentes": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          },
                           "responsavel": {
                             "anyOf": [
                               {
@@ -16754,6 +16766,22 @@
                     ]
                   },
                   "dpia_required": {
+                    "type": [
+                      "boolean",
+                      "number",
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "dados_sensiveis": {
+                    "type": [
+                      "boolean",
+                      "number",
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "criancas_adolescentes": {
                     "type": [
                       "boolean",
                       "number",
@@ -22275,6 +22303,22 @@
                     ]
                   },
                   "dpia_required": {
+                    "type": [
+                      "boolean",
+                      "number",
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "dados_sensiveis": {
+                    "type": [
+                      "boolean",
+                      "number",
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "criancas_adolescentes": {
                     "type": [
                       "boolean",
                       "number",

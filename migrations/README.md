@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0068** (`ls migrations/*.sql | tail -1`). São 66 arquivos
+- Última migration no repositório: **0069** (`ls migrations/*.sql | tail -1`). São 67 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -480,3 +480,17 @@ documento só solta a ligação. **NÃO é idempotente** (`ADD COLUMN` aborta co
 `migrations apply`. Conferência depois: `PRAGMA table_info(evidence)` com `documento_id`. Para desfazer: não precisa (o código anterior
 não lê a coluna). **Esta RODA em produção, sem janela:** o código novo grava `documento_id`, então a migration vai ANTES do deploy.
 Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
+
+---
+
+## 0069 — riscos do tratamento no RoPA (2026-10-12)
+
+`ropa_records.dados_sensiveis` e `ropa_records.criancas_adolescentes` (`INTEGER NOT NULL DEFAULT 0`): os riscos de LGPD art. 11 (dados
+sensíveis) e art. 14 (crianças e adolescentes), marcados na seção "Riscos do tratamento" do formulário, no relatório do RoPA e na
+importação (planilha e programa). Colunas novas com default 0, nada muda nas linhas que existem. `test/migration-0069.test.ts` prova sobre a
+`ropa_records` antiga com linha: a linha fica, as duas colunas entram com 0. **NÃO é idempotente** (`ADD COLUMN` aborta com "duplicate
+column"): aplicar uma vez. Conferência depois: `PRAGMA table_info(ropa_records)` com as duas colunas. Para desfazer: não precisa (o código
+anterior não lê as colunas, e o default cobre o INSERT dele). **Esta RODA em produção**, e pode rodar depois do merge: o código anterior
+convive com as colunas novas, e o deploy do merge recusa enquanto ela estiver pendente.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
