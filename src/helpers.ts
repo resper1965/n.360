@@ -29,8 +29,10 @@ export class ForbiddenError extends Error {
   }
 }
 
+// Parte aleatória do CSPRNG do runtime (antes Math.random, que o CodeQL marca como inseguro quando o id chega a dado de acesso).
 export function genId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const r = crypto.getRandomValues(new Uint32Array(2));
+  return Date.now().toString(36) + r[0].toString(36) + r[1].toString(36);
 }
 
 /**
