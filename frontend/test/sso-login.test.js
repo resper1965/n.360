@@ -85,18 +85,32 @@ describe('descoberta de SSO ao entrar sem senha', () => {
 describe('retorno do callback', () => {
   it('#sso_token vira sessao e some da URL', () => {
     location.hash = '#sso_token=tok123';
+    const troca = vi.spyOn(history, 'replaceState');
     window.consumirRetornoSso();
+    expect(troca).toHaveBeenCalledWith(null, '', '/');
     expect(S.token).toBe('tok123');
     expect(localStorage.getItem('niso_token')).toBe('tok123');
   });
 
   it('#sso_erro mostra mensagem fixa, nunca o texto da URL', () => {
     location.hash = '#sso_erro=%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E';
+    const troca = vi.spyOn(history, 'replaceState');
     window.consumirRetornoSso();
+    expect(troca).toHaveBeenCalledWith(null, '', '/');
     const err = document.getElementById('login-error');
     expect(err.style.display).toBe('block');
     expect(err.innerHTML).not.toContain('<img');
     expect(err.textContent).toMatch(/SSO/);
+  });
+
+  it.each(['#sso_token=%', '#sso_token='])('token malformado ou vazio (%s) nao vira sessao e mostra erro', (hash) => {
+    location.hash = hash;
+    const troca = vi.spyOn(history, 'replaceState');
+    window.consumirRetornoSso();
+    expect(troca).toHaveBeenCalledWith(null, '', '/');
+    expect(S.token).toBeNull();
+    expect(localStorage.getItem('niso_token')).toBeNull();
+    expect(document.getElementById('login-error').style.display).toBe('block');
   });
 
   it('sem hash de SSO nao mexe em nada', () => {
