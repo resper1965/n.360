@@ -6,7 +6,7 @@ import { parseModulos } from './schemas/nucleo';
  *   - `iso`: o que só o n.iso faz (controles, SoA, riscos, auditorias, certificação…).
  *   - `privacy`: o que só o n.privacy faz (requisitos por projeto, terceiros, pedidos do titular, consentimentos, encarregado,
  *     ligações do tratamento, LIA).
- * Rota nova precisa estar classificada aqui: `test/modulos-faixa.test.ts` reprova a que não estiver.
+ * Rota nova precisa estar classificada aqui: `test/modulos-produto.test.ts` reprova a que não estiver.
  */
 
 export const MODULOS_PRODUTO = ['iso', 'privacy'] as const;

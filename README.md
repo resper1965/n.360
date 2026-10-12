@@ -54,8 +54,8 @@ liberado, então o frontend em dev fala com o Worker sem preflight.
 | `frontend/public/_headers` | Cabeçalhos de segurança dos **arquivos estáticos** — ver "Duas fontes de cabeçalho", abaixo. |
 | `mcp-server-niso/` | Servidor MCP **local** (stdio, chave de API) que expõe o n.iso a clientes como Claude Desktop, com filtro de ferramenta por papel. O MCP **remoto**, com login, vive no próprio Worker (`src/mcp/`). |
 | `migrations/` | 64 arquivos de migration do D1 (`ls migrations/*.sql | wc -l`; última: 0066), aplicados em ordem. Nunca editar uma já aplicada ([`migrations/README.md`](migrations/README.md)). |
-| `test/` | 237 arquivos de teste do backend, no pool `workerd` (D1 e KV de verdade). |
-| `frontend/test/` | 81 arquivos de teste da UI, em jsdom. |
+| `test/` | 237 arquivos de teste do backend (`ls test/*.test.ts \| wc -l`), no pool `workerd` (D1 e KV de verdade). |
+| `frontend/test/` | 81 arquivos de teste da UI (`ls frontend/test/*.test.js \| wc -l`), em jsdom. |
 | `frontend/e2e/` | 6 specs em Chromium real, sobre o build servido. Pega o que o jsdom não pega. |
 | `docs/` | Runbook, specs, planos e decisões — com [índice próprio](docs/README.md). |
 | `scripts/` | Geradores. `gerar-openapi.mjs` e `gerar-contrato-mcp.mjs` produzem o contrato a partir dos schemas. |

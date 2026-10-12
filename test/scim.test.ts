@@ -169,6 +169,22 @@ describe('SCIM 2.0', () => {
     });
   });
 
+  describe('organização da conta provisionada', () => {
+    it('grava o org_id do projeto do token', async () => {
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('proj-org', 'Cliente Org', 'ISO 27001', 'controller', 'Active', 'org_b')`),
+        env.DB.prepare('INSERT INTO project_scim (project_id, token_hash) VALUES (?,?)').bind('proj-org', await sha256Hex('scim-token-org')),
+      ]);
+      const res = await scim('/Users', 'scim-token-org', {
+        method: 'POST',
+        body: JSON.stringify({ userName: 'org@b.com', displayName: 'Pessoa Org', active: true }),
+      });
+      expect(res.status).toBe(201);
+      const linha = await env.DB.prepare('SELECT org_id FROM users WHERE email = ?').bind('org@b.com').first<any>();
+      expect(linha.org_id).toBe('org_b');
+    });
+  });
+
   describe('DESPROVISIONAMENTO — o critério de saída do item', () => {
     it('PATCH com `path: active` desativa (sintaxe do Okta)', async () => {
       const res = await scim('/Users/u-a1', TOKEN_A, {
