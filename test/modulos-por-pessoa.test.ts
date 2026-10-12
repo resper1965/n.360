@@ -144,6 +144,34 @@ describe('regra: a pessoa precisa do módulo', () => {
   });
 });
 
+describe('habilitar módulo no projeto concede às contas de cliente dele', () => {
+  it('off→on: clientes do projeto recebem; stakeholder e equipe não; trilha com o módulo e a contagem', async () => {
+    await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-hab', 'Hab', 'x', 'c', 'Active', 'o-duo')`).run();
+    await env.DB.prepare(`DELETE FROM projeto_modulos WHERE project_id = 'p-hab' AND modulo = 'privacy'`).run();
+    await env.DB.batch([conta('h-oadm', 'org_admin', 'p-hab'), conta('h-ou', 'org_user', 'p-hab'), conta('h-stk', 'stakeholder', 'p-hab'),
+      conta('h-cons', 'consultor'), conta('h-pa', 'platform_admin')]);
+    expect(await modulos('h-ou')).toEqual(['iso']);
+    const h = await sessao('h-pa', 'platform_admin');
+    const ligar = () => req('/api/v1/projects/p-hab/modulos/privacy', { method: 'PUT', headers: { ...h, ...json }, body: JSON.stringify({ habilitado: true }) });
+    const r = await ligar();
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await modulos('h-oadm')).toEqual(['iso', 'privacy']);
+    expect(await modulos('h-ou')).toEqual(['iso', 'privacy']);
+    expect(await modulos('h-stk')).toEqual([]);
+    expect(await modulos('h-cons')).toEqual(['iso']);
+    const trilha = async () => (await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'usuario.modulos' AND project_id = 'p-hab'`).all<{ details: string }>()).results;
+    const log = await trilha();
+    expect(log).toHaveLength(1);
+    expect(log[0].details).toContain('n.privacy');
+    expect(log[0].details).toContain('2 contas');
+    // já ligado: não concede de novo nem escreve trilha
+    await env.DB.prepare(`DELETE FROM usuario_modulos WHERE user_id = 'h-ou' AND modulo = 'privacy'`).run();
+    expect((await ligar()).status).toBe(200);
+    expect(await modulos('h-ou')).toEqual(['iso']);
+    expect(await trilha()).toHaveLength(1);
+  });
+});
+
 describe('conceder: PUT /users/:id/modulos', () => {
   beforeAll(async () => {
     await env.DB.batch([
@@ -162,8 +190,10 @@ describe('conceder: PUT /users/:id/modulos', () => {
     expect(r.status, await r.clone().text()).toBe(200);
     expect(await r.json()).toEqual({ ok: true, modulos: ['privacy'] });
     expect(await modulos('c-ou')).toEqual(['privacy']);
-    const log = await env.DB.prepare(`SELECT actor, details FROM audit_logs WHERE action = 'usuario.modulos' ORDER BY rowid DESC LIMIT 1`).first<any>();
+    const log = await env.DB.prepare(`SELECT actor, details, project_id FROM audit_logs WHERE action = 'usuario.modulos' ORDER BY rowid DESC LIMIT 1`).first<any>();
     expect(log.actor).toBe('c-oadm@ex.lat');
+    expect(log.project_id).toBe('p-duo'); // o projeto da conta-alvo
+    expect(log.details).toContain('c-ou@ex.lat');
     expect(log.details).toContain('iso, privacy');
     expect(log.details).toContain('→ privacy');
   });
@@ -229,6 +259,9 @@ describe('conceder: PUT /users/:id/modulos', () => {
     const mover = (id: string) => req(`/api/v1/users/${id}`, { method: 'PUT', headers: { ...pa, ...json }, body: JSON.stringify({ client_project_id: 'p-iso' }) });
     expect((await mover('t-1')).status).toBe(200);
     expect(await modulos('t-1')).toEqual(['iso']); // tinha os dois: fica o que o projeto novo tem
+    const log = await env.DB.prepare(`SELECT details, project_id FROM audit_logs WHERE action = 'usuario.modulos' AND details LIKE '%t-1@ex.lat%'`).first<any>();
+    expect(log.project_id).toBe('p-iso');
+    expect(log.details).toContain('iso, privacy → iso');
     expect((await mover('t-2')).status).toBe(200);
     expect(await modulos('t-2')).toEqual(['iso']); // só n.privacy: interseção vazia → os do projeto novo
   });

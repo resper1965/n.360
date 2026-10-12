@@ -133,6 +133,17 @@ const gravarModulos = (db: D1Database, userId: string, modulos: readonly Modulo[
   ...modulos.map((m) => db.prepare('INSERT INTO usuario_modulos (user_id, modulo, concedido_por) VALUES (?, ?, ?)').bind(userId, m, por)),
 ];
 const listaDeModulos = (m: readonly string[]) => m.join(', ') || 'nenhum';
+/**
+ * Troca os módulos de uma conta que já existe E grava a trilha `usuario.modulos` no MESMO batch (sem trilha, sem troca).
+ * A trilha leva o e-mail da conta e, como projeto, o `client_project_id` dela (equipe: nenhum).
+ */
+const trocarModulosComTrilha = (db: D1Database, conta: { id: string; email: string; client_project_id: string | null },
+  antes: readonly Modulo[], depois: readonly Modulo[], ator: string, motivo = '') => [
+  ...gravarModulos(db, conta.id, depois, ator),
+  db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
+    VALUES (?, 'usuario.modulos', ?, ?, '', '', ?, datetime('now'))`)
+    .bind(genId(), ator, `Usuário ${conta.email} (${conta.id}): módulos ${listaDeModulos(antes)} → ${listaDeModulos(depois)}${motivo}`, conta.client_project_id),
+];
 const ordenar = (m: readonly Modulo[]) => MODULOS_PRODUTO.filter((x) => m.includes(x));
 
 /**
@@ -400,7 +411,8 @@ usersApp.put('/:id', async (c) => {
  * inteiro (spec da fatia 3). Mesma conta no mesmo teto: nada muda (o que o platform_admin deu além do teto fica).
  */
 async function recalcularModulos(db: D1Database, id: string, antes: ContaDeModulo, ator: string) {
-  const depois = await db.prepare(`SELECT u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id).first<ContaDeModulo>();
+  const depois = await db.prepare(`SELECT u.id, u.email, u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id)
+    .first<ContaDeModulo & { id: string; email: string }>();
   const chave = (x: ContaDeModulo) => `${categoria(x.role)}|${categoria(x.role) === 'cliente' ? x.client_project_id : x.org}`;
   if (!depois || chave(depois) === chave(antes)) return;
   const teto = await tetoDaConta(db, depois);
@@ -408,8 +420,7 @@ async function recalcularModulos(db: D1Database, id: string, antes: ContaDeModul
   const ficam = tinha.filter((m) => teto.includes(m));
   const novo = ficam.length ? ficam : teto;
   if (listaDeModulos(novo) === listaDeModulos(tinha)) return;
-  await db.batch(gravarModulos(db, id, novo, ator));
-  await logAudit(db, 'usuario.modulos', ator, `Usuário ${id}: módulos ${listaDeModulos(tinha)} → ${listaDeModulos(novo)} (troca de projeto ou de papel)`);
+  await db.batch(trocarModulosComTrilha(db, depois, tinha, novo, ator, ' (troca de projeto ou de papel)'));
 }
 
 /**
@@ -424,8 +435,8 @@ usersApp.put('/:id/modulos', async (c) => {
     const v = await validateBody(c, modulosDaContaSchema);
     if (!v.success) return v.response;
     const db = c.env.DB;
-    const user = await db.prepare(`SELECT u.id, u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id)
-      .first<ContaDeModulo & { id: string }>();
+    const user = await db.prepare(`SELECT u.id, u.email, u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id)
+      .first<ContaDeModulo & { id: string; email: string }>();
     if (!user) return c.json(NAO_ENCONTRADO, 404);
     if (ehAdminDaOrg(admin) && user.org !== orgDoUsuario(admin)) return c.json(NAO_ENCONTRADO, 404);
     if (soPlatformAdmin(admin, user.role)) return c.json(recusaPapelInterno, 403);
@@ -439,8 +450,7 @@ usersApp.put('/:id/modulos', async (c) => {
       if (recusa) return c.json(recusa, 400);
     }
     const antes = await modulosDaPessoa(db, { id });
-    await db.batch(gravarModulos(db, id, pedido, admin.email));
-    await logAudit(db, 'usuario.modulos', admin.email, `Usuário ${id}: módulos ${listaDeModulos(antes)} → ${listaDeModulos(pedido)}`);
+    await db.batch(trocarModulosComTrilha(db, user, antes, pedido, admin.email));
     return c.json({ ok: true, modulos: pedido });
   } catch (e) {
     return erro500(c, 'Falha ao conceder módulos', e);

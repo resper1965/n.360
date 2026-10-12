@@ -103,6 +103,7 @@ export interface PrincipalDeModulo {
 export async function modulosDaPessoa(db: D1Database, user: PrincipalDeModulo): Promise<Modulo[]> {
   if (user.role === 'platform_admin') return [...MODULOS_PRODUTO];
   if (user.id?.startsWith('apikey:')) return user.client_project_id ? modulosDoProjeto(db, user.client_project_id) : [];
+  // ponytail: principal sem `id` não tem módulo nenhum, de propósito (falha fechada): `''` não casa com conta alguma.
   const { results } = await db.prepare('SELECT modulo FROM usuario_modulos WHERE user_id = ? ORDER BY modulo').bind(user.id ?? '').all<{ modulo: Modulo }>();
   return results.map((r) => r.modulo);
 }

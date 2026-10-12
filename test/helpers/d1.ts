@@ -153,17 +153,16 @@ export const lerAtivo = (id: string) => lerAtivoDoBanco(env.DB, id);
  * Habilita o n.privacy nos projetos do teste. O gatilho da 0060 dá ao projeto o que a organização contratou, e a `org_ness` dos
  * testes contratou só o n.iso: sem isto, as rotas do n.privacy respondem 403 (a trava por produto).
  *
- * Desde a fatia 3 do n.360 o módulo também é da PESSOA: as contas que já existem e trabalham nesses projetos (os clientes
- * deles e a equipe da organização deles) recebem o n.privacy junto, como o platform_admin faria na tela. Conta criada
- * DEPOIS recebe o padrão do gatilho (cliente: os do projeto; equipe: o contrato). Teste da regra por pessoa:
- * `test/modulos-por-pessoa.test.ts`.
+ * Desde a fatia 3 do n.360 o módulo também é da PESSOA. As contas de CLIENTE do projeto não entram aqui: quem dá a elas é
+ * o produto (ligar o módulo pela rota concede; conta nova recebe pelo gatilho), e o teste daquele comportamento não pode
+ * ficar escondido pela fixture. A EQUIPE da organização do projeto recebe o n.privacy aqui, como o platform_admin faria
+ * na tela (a `org_ness` dos testes contratou só o n.iso). Regra por pessoa: `test/modulos-por-pessoa.test.ts`.
  */
 export async function habilitarPrivacy(...ids: string[]): Promise<void> {
   await env.DB.batch(ids.flatMap((id) => [
     env.DB.prepare(`INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, 'privacy', 'teste')`).bind(id),
     env.DB.prepare(`INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
-      SELECT u.id, 'privacy', 'teste' FROM users u WHERE u.client_project_id = ?1 AND u.role IN ('org_admin', 'org_user', 'client')
-      UNION SELECT u.id, 'privacy', 'teste' FROM users u JOIN projects p ON p.id = ?1 AND p.org_id = u.org_id
+      SELECT u.id, 'privacy', 'teste' FROM users u JOIN projects p ON p.id = ? AND p.org_id = u.org_id
        WHERE u.role IN ('consultor', 'consultoria_admin')`).bind(id),
   ]));
 }

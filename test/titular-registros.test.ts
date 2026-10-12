@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
-import { applySchema, sessionFor, workerEnv, habilitarPrivacy } from './helpers/d1';
+import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
 import { somarPrazo } from '../src/services/parametros-legais';
 import { situacaoDoPrazo } from '../src/services/titular-pedidos';
 import { situacaoDaComunicacao } from '../src/services/incidentes';
@@ -67,6 +67,8 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('tr-r1', ?1, 'Marketing'), ('tr-r-o', ?2, 'Do outro')`).bind(P, OUTRO),
   ]);
   await habilitarPrivacy(P, OUTRO);
+  // o cliente já existia: recebe o n.privacy como ao ligar o módulo pela tela (rota coberta em modulos-por-pessoa)
+  await concederModulos('u-cli', ['privacy']);
   admin = await sessionFor({ id: 'u-adm', email: 'adm@ness.lat', role: 'platform_admin' });
   consultor = await sessionFor({ id: 'u-cons', email: 'cons@ness.lat', role: 'consultor' });
   cliente = await sessionFor({ id: 'u-cli', email: 'cli@cliente.com', role: 'org_user', client_project_id: P });
