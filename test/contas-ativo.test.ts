@@ -87,6 +87,16 @@ describe('PUT /users/:id/ativo', () => {
     expect((await chamar('PUT', '/api/v1/users/u-ab/ativo', pa, { ativo: false })).status).toBe(409);
     expect(await ativoDe('u-ab')).toBe(1);
   });
+
+  it('ninguém desativa nem exclui a própria conta, mesmo com outro administrador ativo', async () => {
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, org_id) VALUES ('u-pa2','pa2@ness.lat','x','PA2','platform_admin','org_ness')`).run();
+    const proprio = async (r: Response) => ({ status: r.status, error: ((await r.json()) as any).error });
+    const esperado = { status: 409, error: 'Não é possível desativar ou excluir a própria conta' };
+    expect(await proprio(await chamar('PUT', '/api/v1/users/u-pa/ativo', pa, { ativo: false }))).toEqual(esperado);
+    expect(await proprio(await chamar('DELETE', '/api/v1/users/u-pa', pa))).toEqual(esperado);
+    expect(await proprio(await chamar('DELETE', '/api/v1/users/u-pa?definitivo=1', pa))).toEqual(esperado);
+    expect(await ativoDe('u-pa')).toBe(1);
+  });
 });
 
 describe('conta desativada não entra por caminho nenhum', () => {

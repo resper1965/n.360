@@ -125,6 +125,8 @@ window.__adminCopiarApiKey = () => {
     let mostrarDesativadas = false;
     let contasListadas = [];
     const contaAtiva = (u) => u.ativo !== false;
+    // A própria conta não se desativa nem se exclui (o servidor recusa com 409): sem botão.
+    const propria = (u) => !!(S.user && S.user.id && String(S.user.id) === String(u.id));
 
     async function renderUsers(c, h, a) {
         h.textContent = 'Gestão de Usuários & RBAC';
@@ -145,8 +147,9 @@ window.__adminCopiarApiKey = () => {
                 projMap[p.id] = p.project_name || p.client_name;
             });
 
-            const totalUsers = userArr.length;
-            const admins = userArr.filter(u => ['platform_admin', 'admin', 'consultor', 'consultant', 'comercial', 'consultoria_admin'].includes(u.role)).length;
+            // Os cartões contam todas as contas; o filtro de desativadas só muda a tabela.
+            const totalUsers = todas.length;
+            const admins = todas.filter(u => ['platform_admin', 'admin', 'consultor', 'consultant', 'comercial', 'consultoria_admin'].includes(u.role)).length;
             const clientUsers = totalUsers - admins;
 
             const statsHtml = window.renderStatCards([
@@ -174,8 +177,8 @@ window.__adminCopiarApiKey = () => {
                         escapeHTML(rotuloModulos(u.modulos)),
                         window.renderStatusBadge(contaAtiva(u) ? 'Ativa' : 'Desativada', contaAtiva(u) ? 'success' : 'info'),
                         `<button class="btn btn-ghost btn-sm" data-action="openUserModal" data-args='["${u.id}"]'>Editar</button>
-                         <button class="btn btn-ghost btn-sm" data-action="confirmarContaAtiva" data-args='["${u.id}"]'>${contaAtiva(u) ? 'Desativar' : 'Reativar'}</button>
-                         ${S.user && S.user.role === 'platform_admin' ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="confirmarExclusaoDefinitiva" data-args='["${u.id}"]'>Excluir definitivamente</button>` : ''}`
+                         ${propria(u) ? '' : `<button class="btn btn-ghost btn-sm" data-action="confirmarContaAtiva" data-args='["${u.id}"]'>${contaAtiva(u) ? 'Desativar' : 'Reativar'}</button>`}
+                         ${S.user && S.user.role === 'platform_admin' && !propria(u) ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="confirmarExclusaoDefinitiva" data-args='["${u.id}"]'>Excluir definitivamente</button>` : ''}`
                     ];
                 }),
                 { emptyState: 'Nenhum usuário cadastrado.' }
@@ -250,7 +253,7 @@ window.__adminCopiarApiKey = () => {
         const quem = `<strong>${escapeHTML(u.name)}</strong> (${escapeHTML(u.email)})`;
         janelaConfirmar(ativar ? 'Reativar conta' : 'Desativar conta',
             ativar ? `${quem} volta a poder entrar no sistema.`
-                   : `${quem} deixa de poder entrar (senha, SSO e chave de API) e as sessões abertas caem. Os registros continuam e a conta pode ser reativada.`,
+                   : `${quem} deixa de poder entrar (senha e SSO) e as sessões abertas caem. Os registros continuam e a conta pode ser reativada. As chaves de API do projeto continuam valendo; revogue-as em Chaves de API.`,
             { nome: 'definirContaAtiva', args: [id, ativar] }, ativar ? 'Reativar' : 'Desativar', false);
     }
 

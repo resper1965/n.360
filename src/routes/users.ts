@@ -508,6 +508,8 @@ async function recusaDaGestao(c: Ctx, user: ContaAlvo, modo: 'desativar' | 'reat
     return c.json({ error: 'Forbidden: Access denied to this user' }, 403);
   }
   if (modo === 'reativar') return null;
+  // A própria conta, não: quem se desativa por engano não tem como se reativar.
+  if (user.id === String(admin.id)) return c.json({ error: 'Não é possível desativar ou excluir a própria conta' }, 409);
   // Depois da permissão: quem não pode mexer recebe 403, sem saber se este é o último.
   if (user.role === 'consultoria_admin' && (modo === 'desativar' || ehAdminDaOrg(admin)) && await ultimoAdminDaOrg(db, user.org, user.id)) {
     return c.json(ULTIMO_ADMIN, 409);

@@ -172,6 +172,35 @@ describe('desativar, reativar e excluir definitivamente', () => {
     expect(apiMock).toHaveBeenCalledWith('DELETE', '/api/v1/users/u2?definitivo=1');
     expect(renderMock).toHaveBeenCalledOnce();
   });
+
+  it('a própria conta não tem Desativar nem Excluir; as outras têm', async () => {
+    S.user = { id: 'u2', role: 'platform_admin', email: 'caio@exemplo.test' };
+    apiMock.mockResolvedValue(USERS);
+    const [c, h, a] = dom();
+    await window.renderUsers(c, h, a);
+    const linhas = [...c.querySelectorAll('tbody tr')];
+    expect(linhas[1].querySelector('[data-action="confirmarContaAtiva"]')).toBeNull();
+    expect(linhas[1].querySelector('[data-action="confirmarExclusaoDefinitiva"]')).toBeNull();
+    expect(linhas[1].querySelector('[data-action="openUserModal"]')).toBeTruthy();
+    expect(linhas[0].querySelector('[data-action="confirmarContaAtiva"]')).toBeTruthy();
+  });
+
+  it('a confirmação não promete cortar chave de API e avisa das chaves do projeto', async () => {
+    apiMock.mockResolvedValue(USERS);
+    const [c, h, a] = dom();
+    await window.renderUsers(c, h, a);
+    window.confirmarContaAtiva('u2');
+    const t = $('modal-content').textContent;
+    expect(t).not.toMatch(/SSO e chave de API/);
+    expect(t).toContain('As chaves de API do projeto continuam valendo; revogue-as em Chaves de API');
+  });
+
+  it('Total de Usuários conta todas as contas, inclusive as desativadas escondidas', async () => {
+    apiMock.mockResolvedValue([...USERS, { id: 'u9', name: 'Zeca', email: 'zeca@exemplo.test', role: 'org_user', ativo: false }]);
+    const [c, h, a] = dom();
+    await window.renderUsers(c, h, a);
+    expect(c.textContent).toMatch(/Total de Usuários\s*5/);
+  });
 });
 
 describe('saveUser', () => {
