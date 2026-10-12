@@ -58,6 +58,8 @@ const badge = (par) => window.renderStatusBadge(par[0], par[1]);
 function pinta() {
     if (!E.c) return;
     E.c.innerHTML = E.det ? htmlLote() : E.lotes ? htmlLista() : '';
+    // A ação primária mora no header, como nas outras telas.
+    if (E.a) E.a.innerHTML = !E.det && E.lotes ? '<button class="btn btn-primary" data-action="importacaoNovo">Nova importação</button>' : '';
 }
 
 async function renderImportacao(c, h, a) {
@@ -95,8 +97,7 @@ function htmlLista() {
     ]);
     return `
         <p style="margin:0 0 1rem;color:var(--text-dim)">Envie o inventário de tratamentos, a lista de terceiros, as políticas e normas, as DPIAs e LIAs e o histórico de pedidos de titulares, incidentes e consentimentos que o cliente já tem (planilha, documento ou PDF). A IA propõe os itens; você revisa e confirma antes de gravar.</p>
-        <button class="btn btn-primary" data-action="importacaoNovo" style="margin-bottom:1rem">Novo lote</button>
-        ${window.renderDataTable(['Criado em', 'Situação', 'Arquivos', 'Itens propostos', 'Ações'], linhas, { emptyState: 'Nenhum lote de importação neste projeto.' })}`;
+        ${window.renderDataTable(['Importação', 'Situação', 'Arquivos', 'Itens propostos', 'Ações'], linhas, { emptyState: 'Nenhuma importação neste projeto.' })}`;
 }
 
 function abreLote(id) { Object.assign(E, { loteId: id, envios: [], resultados: null, msg: '', cancelando: false, aba: 'tratamento' }); return recarrega(); }
@@ -149,7 +150,7 @@ window.importacaoAba = (k) => { E.aba = k; pinta(); };
 const altaPendentes = (itens) => itens.filter((i) => i.confianca === 'alta' && i.decisao === 'pendente' && !i.duplicata_de);
 function barraAlta(itens) {
     const alta = altaPendentes(itens).length;
-    return alta ? `<button class="btn btn-ghost btn-sm" style="margin-bottom:0.75rem" data-action="importacaoAceitarAlta"${E.ocupado ? ' disabled' : ''}>Aceitar todos de confiança alta (${alta})</button>` : '';
+    return alta ? `<button class="btn btn-ghost btn-sm" style="margin-bottom:0.75rem" data-action="importacaoAceitarAlta"${E.ocupado ? ' disabled' : ''}>Aceitar os ${alta} de confiança alta (revise antes de confirmar)</button>` : '';
 }
 // Origem, motivo e ações de um item, iguais nas duas abas.
 const rodapeItem = (i) => `${i.origem ? `<details><summary>Origem</summary><div style="white-space:pre-wrap;color:var(--text-dim)">${e(i.origem)}</div></details>` : ''}${i.motivo ? `<div style="color:var(--danger)">${e(i.motivo)}</div>` : ''}`;

@@ -44,4 +44,14 @@ describe('renderMonitor', () => {
         expect(vazio.querySelector('.empty-hint').textContent).toMatch(/fases da jornada/);
         expect(vazio.querySelector('[data-action="navigate"]').dataset.args).toBe('["projects"]');
     });
+    it('projeto com 0 fases: vazio explicado, sem "0 / 0"', async () => {
+        apiMock.mockImplementation(async (m, url) => {
+            if (url === '/api/v1/projects') return [{ id: 'p1', project_name: 'Adequação', modulos: ['iso'] }];
+            return [];
+        });
+        const [c, h, a] = tela();
+        await window.renderMonitor(c, h, a);
+        expect(c.querySelector('.empty-state h3').textContent).toBe('Fases da jornada ainda não carregadas');
+        expect(c.textContent).not.toContain('0 / 0');
+    });
 });

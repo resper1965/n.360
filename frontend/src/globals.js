@@ -60,20 +60,20 @@ window.viewEvidence = async function viewEvidence(id) {
             let isLarge = false;
             
             if (fileType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) {
-                previewHtml = `<div style="text-align: center; margin-top: 1rem;"><img src="${objectUrl}" style="max-width: 100%; max-height: 450px; border-radius: 8px; border: 1px solid var(--border);" /></div>`;
+                previewHtml = `<div style="text-align: center; margin-top: 1rem;"><img src="${objectUrl}" style="max-width: 100%; max-height: 450px; border: 1px solid var(--border);" /></div>`;
             } else if (fileType === 'application/pdf' || ext === 'pdf') {
                 isLarge = true;
-                previewHtml = `<iframe src="${objectUrl}" style="width: 100%; height: 550px; border: none; border-radius: 8px; margin-top: 1rem;"></iframe>`;
+                previewHtml = `<iframe src="${objectUrl}" style="width: 100%; height: 550px; border: none; margin-top: 1rem;"></iframe>`;
             } else if (ext === 'md') {
                 isLarge = true;
                 const text = await blob.text();
                 const rendered = window.marked ? window.marked.parse(text) : escapeHTML(text);
-                previewHtml = `<div style="max-height: 450px; overflow: auto; background: rgba(255,255,255,0.03); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); font-family: 'Inter', sans-serif; font-size: 0.8rem; line-height: 1.6; color: var(--text); text-align: left; margin-top: 1rem;" class="markdown-body">${rendered}</div>`;
+                previewHtml = `<div style="max-height: 450px; overflow: auto; background: rgba(255,255,255,0.03); padding: 1.25rem; border: 1px solid var(--border); font-family: 'Inter', sans-serif; font-size: 0.8rem; line-height: 1.6; color: var(--text); text-align: left; margin-top: 1rem;" class="markdown-body">${rendered}</div>`;
             } else if (fileType.startsWith('text/') || ['txt', 'csv', 'json', 'xml', 'log'].includes(ext)) {
                 const text = await blob.text();
-                previewHtml = `<pre style="max-height: 400px; overflow: auto; background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; border: 1px solid var(--border); font-family: monospace; font-size: 0.75rem; margin-top: 1rem; white-space: pre-wrap; word-break: break-all; color: var(--text); text-align: left;">${escapeHTML(text)}</pre>`;
+                previewHtml = `<pre style="max-height: 400px; overflow: auto; background: rgba(0,0,0,0.3); padding: 1rem; border: 1px solid var(--border); font-family: monospace; font-size: 0.75rem; margin-top: 1rem; white-space: pre-wrap; word-break: break-all; color: var(--text); text-align: left;">${escapeHTML(text)}</pre>`;
             } else {
-                previewHtml = `<div style="text-align: center; padding: 2rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px dashed var(--border); margin-top: 1rem; color: var(--text-dim); font-size: 0.8rem;">Visualização direta não suportada para o formato (.${ext}). Use o botão abaixo para baixar.</div>`;
+                previewHtml = `<div style="text-align: center; padding: 2rem; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); margin-top: 1rem; color: var(--text-dim); font-size: 0.8rem;">Visualização direta não suportada para o formato (.${ext}). Use o botão abaixo para baixar.</div>`;
             }
             
             let sealHtml = '';
@@ -82,9 +82,9 @@ window.viewEvidence = async function viewEvidence(id) {
                 const ceoText = ev.ceo_approved_by ? `Assinado por ${escapeHTML(ev.ceo_approved_by)} em ${new Date(ev.ceo_approved_at).toLocaleString()}` : 'Pendente';
                 
                 sealHtml = `
-                    <div style="background: rgba(0, 173, 232, 0.02); border: 1px solid rgba(0, 173, 232, 0.15); border-radius: 10px; padding: 1rem; margin-top: 1rem;">
+                    <div style="background: rgba(0, 173, 232, 0.02); border: 1px solid rgba(0, 173, 232, 0.15); padding: 1rem; margin-top: 1rem;">
                         <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.4rem; margin-bottom: 0.5rem;">
-                            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent);"></div>
+                            <div style="width: 6px; height: 6px; background: var(--accent);"></div>
                             <span style="font-family: 'Montserrat', sans-serif; font-size: 0.65rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em;">Selo de Assinatura da Evidência</span>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px;">
@@ -641,7 +641,8 @@ window.updateActiveProjectWidget = function updateActiveProjectWidget() {
 
         if (S.activeProject) {
             badge.textContent = S.activeProject.project_name || S.activeProject.client_name || 'Projeto';
-            badge.style.display = 'block';
+            // Pedidos são da pessoa, não do projeto: o selo não se aplica à tela.
+            badge.style.display = S.view === 'meus-pedidos' ? 'none' : 'block';
             grcItems.forEach(el => el.style.display = '');
         } else {
             badge.style.display = 'none';
@@ -1721,7 +1722,7 @@ window.refreshDoDDrawer = function() {
                             const controlId = match ? match[0] : 'A.5.1';
                             
                             return `
-                                <div class="list-item" style="display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border);">
+                                <div class="list-item" style="display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border);">
                                     <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; width: 100%;">
                                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
                                             <span class="badge-cat ${item.category}" style="align-self: flex-start; font-size: 0.6rem; font-weight: 500;">${item.category.toUpperCase()}</span>
@@ -1949,8 +1950,8 @@ window.renderSelfServiceBlock = function renderSelfServiceBlock(c, blocks) {
                 <div class="logo" style="font-size:1.5rem;margin-bottom:0.5rem">n<span style="color:var(--accent)">.</span>iso</div>
                 <div style="font-size:0.75rem;color:var(--muted)">Assessment Self-Service para ${escapeHTML(window._ssData.client_name)}</div>
                 <div style="margin-top:0.5rem;font-size:0.6rem;color:var(--muted)">Bloco ${idx + 1} de ${total}</div>
-                <div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:0.75rem">
-                    <div style="width:100%;height:100%;background:var(--accent);border-radius:2px;transform-origin:left;transform:scaleX(${((idx + 1) / total).toFixed(3)});transition:transform 0.3s"></div>
+                <div style="height:4px;background:rgba(255,255,255,0.1);margin-top:0.75rem">
+                    <div style="width:100%;height:100%;background:var(--accent);transform-origin:left;transform:scaleX(${((idx + 1) / total).toFixed(3)});transition:transform 0.3s"></div>
                 </div>
             </div>
             <div class="card" style="padding:1.5rem">

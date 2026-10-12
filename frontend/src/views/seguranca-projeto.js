@@ -119,7 +119,7 @@ window.gerarTokenScim = async function () {
     try {
         const r = await api('POST', `/api/v1/projects/${proj.id}/scim-token`);
         document.getElementById('scim-novo').innerHTML = `
-            <div style="margin-top:1rem;padding:1rem;border:1px solid var(--border);border-radius:10px">
+            <div style="margin-top:1rem;padding:1rem;border:1px solid var(--border);">
                 <label class="form-label" for="scim-url">URL base do SCIM</label>
                 <div style="display:flex;gap:.5rem;margin-bottom:.75rem">
                     <input class="form-input" id="scim-url" readonly value="${e(r.base_url)}">

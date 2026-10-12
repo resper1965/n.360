@@ -30,6 +30,16 @@ import { podeIndicar } from './encarregado.js';
             // Puxar as fases detalhadas
             const phases = await api('GET', `/api/v1/projects/${p.id}/phases`);
             
+            // Sem fases, "0 / 0" e jornadas vazias não dizem nada: o vazio explica.
+            if (!phases.length) {
+                c.innerHTML = renderEmptyState({
+                    titulo: 'Fases da jornada ainda não carregadas',
+                    texto: 'Este projeto não tem as fases da jornada de adequação. Sem elas não há progresso para acompanhar.',
+                    acao: `<button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${escapeHTML(String(p.id))}"}}]'>Abrir o projeto</button>`,
+                });
+                return;
+            }
+
             // Desenhar os cards de métricas (Dashboard)
             const completedPhases = phases.filter(ph => ph.status === 'completed').length;
             const totalPhases = phases.length;
@@ -147,15 +157,15 @@ import { podeIndicar } from './encarregado.js';
             return `
             <div class="list-item" style="cursor:pointer" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${p.id}"}}]'>
                 <div style="display:flex;align-items:center;gap:0.75rem;flex:1">
-                    <div style="width:10px;height:10px;border-radius:50%;background:${semaphore.color};flex-shrink:0" title="${semaphore.label}"></div>
+                    <div style="width:10px;height:10px;background:${semaphore.color};flex-shrink:0" title="${semaphore.label}"></div>
                     <div>
                         <div class="item-name">${escapeHTML(p.project_name || p.client_name)}</div>
                         <div class="item-meta" style="margin-top:0.25rem">${p.project_name ? escapeHTML(p.client_name) + ' · ' : ''}Fases: ${p.completed_phases}/${p.phase_count} | Riscos: ${p.risk_count} | Evidências: ${p.evidence_count}</div>
                     </div>
                 </div>
                 <div style="display:flex;align-items:center;gap:0.5rem">
-                    <div style="width:80px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden">
-                        <div style="width:${pct}%;height:100%;background:${semaphore.color};border-radius:3px;transition:width 0.3s"></div>
+                    <div style="width:80px;height:6px;background:rgba(255,255,255,0.1);overflow:hidden">
+                        <div style="width:${pct}%;height:100%;background:${semaphore.color};transition:width 0.3s"></div>
                     </div>
                     <span style="font-size:0.7rem;color:${semaphore.color};font-weight:600">${pct}%</span>
                 </div>
@@ -237,11 +247,11 @@ import { podeIndicar } from './encarregado.js';
                         <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em">Completude</div>
                     </div>
                 </div>
-                <div style="height:4px;background:rgba(255,255,255,0.05);border-radius:2px;margin-bottom:2rem;position:relative;overflow:hidden">
-                    <div style="width:${pct}%;height:100%;background:var(--accent);border-radius:2px;transition:width(0.8s);box-shadow:0 0 15px var(--accent-dim)"></div>
+                <div style="height:4px;background:rgba(255,255,255,0.05);margin-bottom:2rem;position:relative;overflow:hidden">
+                    <div style="width:${pct}%;height:100%;background:var(--accent);transition:width 0.8s"></div>
                 </div>
                 <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-                    ${stages.map((s, i) => `<span style="font-size:0.72rem;padding:0.35rem 0.75rem;border-radius:8px;font-weight:600;letter-spacing:0.05em;background:${i <= si ? 'var(--accent-dim)' : 'var(--surface)'};border:1px solid ${i <= si ? 'var(--accent)' : 'var(--border)'};color:${i <= si ? 'var(--accent)' : 'var(--muted)'}">${STAGE_MAP_PT[s] || s}</span>`).join('')}
+                    ${stages.map((s, i) => `<span style="font-size:0.72rem;padding:0.35rem 0.75rem;font-weight:600;letter-spacing:0.05em;background:${i <= si ? 'var(--accent-dim)' : 'var(--surface)'};border:1px solid ${i <= si ? 'var(--accent)' : 'var(--border)'};color:${i <= si ? 'var(--accent)' : 'var(--muted)'}">${STAGE_MAP_PT[s] || s}</span>`).join('')}
                 </div>
             </div>
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem">
@@ -264,7 +274,7 @@ import { podeIndicar } from './encarregado.js';
                     <div style="font-size:0.8rem;font-weight:500">${cert.target_date || 'Não definida'}</div>
                 </div>
             </div>
-            <div style="margin-top:2rem;display:flex;gap:0.75rem;align-items:center;background:rgba(255,255,255,0.02);padding:1.25rem;border-radius:12px;border:1px solid rgba(255,255,255,0.04)">
+            <div style="margin-top:2rem;display:flex;gap:0.75rem;align-items:center;background:rgba(255,255,255,0.02);padding:1.25rem;border:1px solid rgba(255,255,255,0.04)">
                 <div style="font-size:0.7rem;color:var(--muted);white-space:nowrap">Mudar estágio para:</div>
                 <select class="form-select" id="cert-stage" style="max-width:260px;font-size:0.75rem">${stages.map(s => `<option value="${s}" ${s===cert.stage?'selected':''}>${STAGE_MAP_PT[s] || s}</option>`).join('')}</select>
                 <button class="btn btn-primary" data-action="updateCertStage" data-args='["${cert.id}"]'>Atualizar</button>
@@ -754,7 +764,7 @@ import { podeIndicar } from './encarregado.js';
 
     window.renderGovernanceModalContent = function(projectId, members) {
         const listHtml = members.map(m => `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:8px 12px; border-radius:8px; margin-bottom:8px">
+            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:8px 12px; margin-bottom:8px">
                 <div>
                     <strong style="color:var(--text)">${escapeHTML(m.name)}</strong>
                     <span style="font-size:0.7rem; color:var(--accent)">- ${escapeHTML(m.job_title)} (${escapeHTML(m.role_category)})</span>
@@ -996,53 +1006,53 @@ import { podeIndicar } from './encarregado.js';
                     <div style="display:grid; grid-template-columns:2fr 1fr; gap:20px; margin-bottom:24px" class="fade-in">
                         <!-- PERÍMETRO & FRONTEIRAS -->
                         <div style="display:flex; flex-direction:column; gap:16px">
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:20px">
+                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:20px">
                                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.9rem; color:var(--accent); text-transform:uppercase; margin-bottom:8px">
                                     1. Perímetro de Negócio, Sistemas & Infraestrutura (Cláusula 4.3.a)
                                 </div>
                                 <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px">Defina os produtos, serviços, plataformas (ex: APIs, biometria), aplicações e ambientes de nuvem/escritórios abrangidos pelo SGSI.</div>
-                                <textarea id="charter-perimeter" class="form-input" style="width:100%; height:100px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:10px 12px" placeholder="Ex: Plataforma SaaS principal, APIs REST, infraestrutura AWS us-east-1 e repositórios de dados biográficos.">${escapeHTML(scopeCharter.perimeter)}</textarea>
+                                <textarea id="charter-perimeter" class="form-input" style="width:100%; height:100px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px" placeholder="Ex: Plataforma SaaS principal, APIs REST, infraestrutura AWS us-east-1 e repositórios de dados biográficos.">${escapeHTML(scopeCharter.perimeter)}</textarea>
                             </div>
 
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:20px">
+                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:20px">
                                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.9rem; color:var(--accent); text-transform:uppercase; margin-bottom:8px">
                                     2. Fronteiras Físicas, Lógicas e Organizacionais (Cláusula 4.3.b)
                                 </div>
                                 <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px">Especifique limites de rede (VPCs, firewalls), localidades físicas de escritórios, unidades operacionais e acessos remotos.</div>
-                                <textarea id="charter-boundaries" class="form-input" style="width:100%; height:90px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:10px 12px" placeholder="Ex: VPCs de Produção na AWS, subredes privadas EKS, escritório central em SP e colaboradores autorizados via VPN ZTNA.">${escapeHTML(scopeCharter.boundaries)}</textarea>
+                                <textarea id="charter-boundaries" class="form-input" style="width:100%; height:90px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px" placeholder="Ex: VPCs de Produção na AWS, subredes privadas EKS, escritório central em SP e colaboradores autorizados via VPN ZTNA.">${escapeHTML(scopeCharter.boundaries)}</textarea>
                             </div>
 
-                            <div style="background:rgba(255,59,48,0.02); border:1px solid rgba(255,59,48,0.2); border-radius:12px; padding:20px">
+                            <div style="background:rgba(255,59,48,0.02); border:1px solid rgba(255,59,48,0.2); padding:20px">
                                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.9rem; color:var(--danger); text-transform:uppercase; margin-bottom:8px">
                                     3. Exclusões Justificadas de Escopo (Exclusões Aceitas por Auditores)
                                 </div>
                                 <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px">Descreva detalhadamente o que está **fora do escopo** e a justificativa técnica normativamente válida perante o auditor ISO 27001.</div>
-                                <textarea id="charter-exclusions" class="form-input" style="width:100%; height:90px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:10px 12px" placeholder="Ex: Unidades fabris externas e sistemas legados de RH (mantidos fora do perímetro inicial sem interconexão com a API de produção).">${escapeHTML(scopeCharter.exclusions)}</textarea>
+                                <textarea id="charter-exclusions" class="form-input" style="width:100%; height:90px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px" placeholder="Ex: Unidades fabris externas e sistemas legados de RH (mantidos fora do perímetro inicial sem interconexão com a API de produção).">${escapeHTML(scopeCharter.exclusions)}</textarea>
                             </div>
                         </div>
 
                         <!-- GOVERNANÇA & APROVAÇÃO EXECUTIVA -->
                         <div style="display:flex; flex-direction:column; gap:16px">
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:20px">
+                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:20px">
                                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.85rem; color:var(--accent); text-transform:uppercase; margin-bottom:8px">
                                     Público & Titulares Impactados
                                 </div>
-                                <textarea id="charter-users" class="form-input" style="width:100%; height:80px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px" placeholder="Ex: 150 colaboradores internos, 2M de titulares de dados biométricos LGPD e 12 clientes B2B.">${escapeHTML(scopeCharter.impacted_users)}</textarea>
+                                <textarea id="charter-users" class="form-input" style="width:100%; height:80px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: 150 colaboradores internos, 2M de titulares de dados biométricos LGPD e 12 clientes B2B.">${escapeHTML(scopeCharter.impacted_users)}</textarea>
                             </div>
 
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:20px">
+                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:20px">
                                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.85rem; color:var(--accent); text-transform:uppercase; margin-bottom:12px">
                                     Aprovação do Escopo (Sign-Off Executivo)
                                 </div>
                                 
                                 <div style="margin-bottom:12px">
                                     <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:4px">Assinatura Líder SGSI / CISO</label>
-                                    <input type="text" id="charter-ciso" class="form-input" style="width:100%; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:6px 10px" value="${escapeHTML(scopeCharter.ciso_approved_by)}" placeholder="Nome do CISO / Responsável" />
+                                    <input type="text" id="charter-ciso" class="form-input" style="width:100%; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:6px 10px" value="${escapeHTML(scopeCharter.ciso_approved_by)}" placeholder="Nome do CISO / Responsável" />
                                 </div>
 
                                 <div>
                                     <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:4px">Assinatura Direção Executiva / CEO</label>
-                                    <input type="text" id="charter-ceo" class="form-input" style="width:100%; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:6px 10px" value="${escapeHTML(scopeCharter.ceo_approved_by)}" placeholder="Nome do CEO / Direção" />
+                                    <input type="text" id="charter-ceo" class="form-input" style="width:100%; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:6px 10px" value="${escapeHTML(scopeCharter.ceo_approved_by)}" placeholder="Nome do CEO / Direção" />
                                 </div>
                             </div>
                         </div>
@@ -1052,7 +1062,7 @@ import { podeIndicar } from './encarregado.js';
                 tabBody = `
                     <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:24px" class="fade-in">
                         <!-- MATRIX SWOT 2x2 CARD -->
-                        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:20px">
+                        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:20px">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
                                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.95rem; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px">
                                     Matriz SWOT de Segurança da Informação (Cláusula 4.1)
@@ -1061,72 +1071,72 @@ import { podeIndicar } from './encarregado.js';
                             </div>
                             
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
-                                <div style="background:rgba(0,173,232,0.03); border:1px solid rgba(0,173,232,0.2); border-radius:10px; padding:14px">
+                                <div style="background:rgba(0,173,232,0.03); border:1px solid rgba(0,173,232,0.2); padding:14px">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
                                         <label style="color:var(--accent); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
-                                            <span style="width:8px; height:8px; background:var(--accent); border-radius:50%"></span>
+                                            <span style="width:8px; height:8px; background:var(--accent);"></span>
                                             Forças (Strengths)
                                         </label>
                                         ${window.renderStatusBadge(`${sCount} itens`, 'info')}
                                     </div>
-                                    <textarea id="ctx-strengths" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px" placeholder="Ex: Criptografia AES-256 no S3, arquitetura isolada via VPC...">${escapeHTML(ctx.internal_strengths || '')}</textarea>
+                                    <textarea id="ctx-strengths" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: Criptografia AES-256 no S3, arquitetura isolada via VPC...">${escapeHTML(ctx.internal_strengths || '')}</textarea>
                                 </div>
                                 
-                                <div style="background:rgba(254,202,87,0.03); border:1px solid rgba(254,202,87,0.2); border-radius:10px; padding:14px">
+                                <div style="background:rgba(254,202,87,0.03); border:1px solid rgba(254,202,87,0.2); padding:14px">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
                                         <label style="color:var(--warning); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
-                                            <span style="width:8px; height:8px; background:var(--warning); border-radius:50%"></span>
+                                            <span style="width:8px; height:8px; background:var(--warning);"></span>
                                             Fraquezas (Weaknesses)
                                         </label>
                                         ${window.renderStatusBadge(`${wCount} itens`, 'warning')}
                                     </div>
-                                    <textarea id="ctx-weaknesses" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px" placeholder="Ex: Ausência de GuardDuty, falta de testes de restore...">${escapeHTML(ctx.internal_weaknesses || '')}</textarea>
+                                    <textarea id="ctx-weaknesses" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: Ausência de GuardDuty, falta de testes de restore...">${escapeHTML(ctx.internal_weaknesses || '')}</textarea>
                                 </div>
 
-                                <div style="background:rgba(52,199,89,0.03); border:1px solid rgba(52,199,89,0.2); border-radius:10px; padding:14px">
+                                <div style="background:rgba(52,199,89,0.03); border:1px solid rgba(52,199,89,0.2); padding:14px">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
                                         <label style="color:var(--success); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
-                                            <span style="width:8px; height:8px; background:var(--success); border-radius:50%"></span>
+                                            <span style="width:8px; height:8px; background:var(--success);"></span>
                                             Oportunidades (Opportunities)
                                         </label>
                                         ${window.renderStatusBadge(`${oCount} itens`, 'success')}
                                     </div>
-                                    <textarea id="ctx-opportunities" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px" placeholder="Ex: Certificação ISO 27001 como diferencial competitivo...">${escapeHTML(ctx.external_opportunities || '')}</textarea>
+                                    <textarea id="ctx-opportunities" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: Certificação ISO 27001 como diferencial competitivo...">${escapeHTML(ctx.external_opportunities || '')}</textarea>
                                 </div>
 
-                                <div style="background:rgba(255,59,48,0.03); border:1px solid rgba(255,59,48,0.2); border-radius:10px; padding:14px">
+                                <div style="background:rgba(255,59,48,0.03); border:1px solid rgba(255,59,48,0.2); padding:14px">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
                                         <label style="color:var(--danger); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
-                                            <span style="width:8px; height:8px; background:var(--danger); border-radius:50%"></span>
+                                            <span style="width:8px; height:8px; background:var(--danger);"></span>
                                             Ameaças (Threats)
                                         </label>
                                         ${window.renderStatusBadge(`${tCount} itens`, 'danger')}
                                     </div>
-                                    <textarea id="ctx-threats" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px" placeholder="Ex: Ataques cibernéticos no setor, atuações da ANPD...">${escapeHTML(ctx.external_threats || '')}</textarea>
+                                    <textarea id="ctx-threats" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: Ataques cibernéticos no setor, atuações da ANPD...">${escapeHTML(ctx.external_threats || '')}</textarea>
                                 </div>
                             </div>
                         </div>
 
                         <!-- REQUISITOS NORMATIVOS & CONTRATUAIS CARD -->
                         <div style="display:flex; flex-direction:column; gap:16px">
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:18px; flex:1">
+                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:18px; flex:1">
                                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
                                     <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.85rem; color:var(--accent); text-transform:uppercase">
                                         Requisitos Legais / Regulatórios
                                     </div>
                                     ${window.renderStatusBadge(`${lCount} req`, 'info')}
                                 </div>
-                                <textarea id="ctx-legal" class="form-input" style="width:100%; height:85px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px" placeholder="Ex: LGPD (Lei 13.709), resoluções da ANPD...">${escapeHTML(ctx.legal_requirements || '')}</textarea>
+                                <textarea id="ctx-legal" class="form-input" style="width:100%; height:85px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: LGPD (Lei 13.709), resoluções da ANPD...">${escapeHTML(ctx.legal_requirements || '')}</textarea>
                             </div>
 
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:18px; flex:1">
+                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:18px; flex:1">
                                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
                                     <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.85rem; color:var(--accent); text-transform:uppercase">
                                         Requisitos Contratuais / SLAs
                                     </div>
                                     ${window.renderStatusBadge(`${cCount} req`, 'info')}
                                 </div>
-                                <textarea id="ctx-contractual" class="form-input" style="width:100%; height:85px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px" placeholder="Ex: SLAs de segurança exigidos por clientes enterprise...">${escapeHTML(ctx.contractual_requirements || '')}</textarea>
+                                <textarea id="ctx-contractual" class="form-input" style="width:100%; height:85px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: SLAs de segurança exigidos por clientes enterprise...">${escapeHTML(ctx.contractual_requirements || '')}</textarea>
                             </div>
                         </div>
                     </div>
@@ -1359,13 +1369,13 @@ import { podeIndicar } from './encarregado.js';
                     const name = match[1].trim();
                     const role = match[2] ? match[2].trim() : '';
                     return `
-                        <span style="display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 0.75rem; color: var(--text); line-height: 1;">
+                        <span style="display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); padding: 3px 8px; font-size: 0.75rem; color: var(--text); line-height: 1;">
                             <span style="font-weight: 400; margin-right: 4px;">${escapeHTML(name)}</span>
                             ${role ? `<span style="color: var(--accent); font-size:0.75rem; font-weight: 500;">(${escapeHTML(role)})</span>` : ''}
                         </span>
                     `;
                 }
-                return `<span style="display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 0.75rem; color: var(--text); line-height: 1;">${escapeHTML(part)}</span>`;
+                return `<span style="display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); padding: 3px 8px; font-size: 0.75rem; color: var(--text); line-height: 1;">${escapeHTML(part)}</span>`;
             }).join('') + 
         `</div>`;
     }
@@ -1473,7 +1483,7 @@ import { podeIndicar } from './encarregado.js';
             console.error("Erro ao analisar agenda_json", e);
         }
         
-        let agendaHtml = `<div style="max-height:250px;overflow-y:auto;background:rgba(255,255,255,0.01);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:16px">`;
+        let agendaHtml = `<div style="max-height:250px;overflow-y:auto;background:rgba(255,255,255,0.01);border:1px solid var(--border);padding:12px;margin-bottom:16px">`;
         (agenda.items || []).forEach(item => {
             let topicName = '';
             let dataStr = '';
@@ -1521,12 +1531,12 @@ import { podeIndicar } from './encarregado.js';
                 ${agendaHtml}
             </div>
 
-            <div style="margin-bottom:16px; background:rgba(255,255,255,0.01); border:1px solid var(--border); border-radius:10px; padding:12px">
+            <div style="margin-bottom:16px; background:rgba(255,255,255,0.01); border:1px solid var(--border); padding:12px">
                 <div style="font-weight:600;font-size:0.95rem;margin-bottom:6px;color:var(--accent)">Decisões Tomadas (Diretrizes, recursos...)</div>
                 <div style="font-size:0.9rem;color:var(--text);white-space:pre-wrap;line-height:1.5">${escapeHTML(decisionsText)}</div>
             </div>
 
-            <div style="margin-bottom:20px; background:rgba(255,255,255,0.01); border:1px solid var(--border); border-radius:10px; padding:12px">
+            <div style="margin-bottom:20px; background:rgba(255,255,255,0.01); border:1px solid var(--border); padding:12px">
                 <div style="font-weight:600;font-size:0.95rem;margin-bottom:6px;color:var(--accent)">Ações Corretivas / Oportunidades Definidas</div>
                 <div style="font-size:0.9rem;color:var(--text);white-space:pre-wrap;line-height:1.5">${escapeHTML(actionItemsText)}</div>
             </div>
@@ -1644,7 +1654,7 @@ import { podeIndicar } from './encarregado.js';
                 const badgeColor = n.note_type === 'evidence_request' ? 'badge-warning' : n.note_type === 'observation' ? 'badge-critical' : 'badge-info';
                 
                 html += `
-                    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:10px;padding:12px">
+                    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);padding:12px">
                         <div style="display:flex;justify-content:space-between;margin-bottom:8px">
                             <span class="badge ${badgeColor}">${typeLabel}</span>
                             <span style="font-weight:600;color:var(--accent)">${escapeHTML(n.control_standard || 'Geral')}</span>
@@ -1652,13 +1662,13 @@ import { podeIndicar } from './encarregado.js';
                         <div style="font-size:0.9rem;margin-bottom:8px;color:var(--text)">${escapeHTML(n.content)}</div>
                         
                         ${n.response ? `
-                            <div style="background:rgba(52,199,89,0.05);border:1px solid rgba(52,199,89,0.15);border-radius:8px;padding:8px;font-size:0.85rem;color:var(--success);margin-top:8px">
+                            <div style="background:rgba(52,199,89,0.05);border:1px solid rgba(52,199,89,0.15);padding:8px;font-size:0.85rem;color:var(--success);margin-top:8px">
                                 <strong>Sua Resposta:</strong> ${escapeHTML(n.response)}
                             </div>
                         ` : `
                             <div style="margin-top:8px;display:flex;gap:8px">
-                                <input type="text" id="respond-input-${n.id}" placeholder="Escreva a resposta para o auditor..." style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:0.85rem" />
-                                <button data-action="submitAuditorResponse" data-args='["${n.id}","${projectId}"]' class="btn-primary" style="padding:6px 12px;font-size:0.85rem;border-radius:8px;border:none;background:var(--accent);color:var(--accent-ink);font-weight:700">Responder</button>
+                                <input type="text" id="respond-input-${n.id}" placeholder="Escreva a resposta para o auditor..." style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:6px 10px;color:var(--text);font-size:0.85rem" />
+                                <button data-action="submitAuditorResponse" data-args='["${n.id}","${projectId}"]' class="btn-primary" style="padding:6px 12px;font-size:0.85rem;border-radius:10px;border:none;background:var(--accent);color:var(--accent-ink);font-weight:700">Responder</button>
                             </div>
                         `}
                     </div>
@@ -1759,7 +1769,7 @@ import { podeIndicar } from './encarregado.js';
                     ${escapeHTML(ast.name || '')}
                 </div>
                 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:16px">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px">
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Categoria</div>
                         <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(ast.category || 'Geral')}</div>

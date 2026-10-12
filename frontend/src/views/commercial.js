@@ -20,7 +20,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             // Status reais do banco (leads.status): New, Assessment, Proposal, Won, Lost.
             const conta = (s) => leadsArr.filter(l => (l.status || 'New') === s).length;
             const statsHtml = window.renderStatCards([
-                { label: 'Total de Oportunidades', value: leadsArr.length, color: 'var(--text)', subtext: 'Empresas no pipeline' },
+                { label: 'Oportunidades', value: leadsArr.length, color: 'var(--text)', subtext: 'Empresas no pipeline' },
                 { label: 'Novos', value: conta('New'), color: 'var(--text)', subtext: 'Ainda sem diagnóstico' },
                 { label: 'Em diagnóstico', value: conta('Assessment'), color: 'var(--text)', subtext: 'Levantamento em andamento' },
                 { label: 'Com proposta', value: conta('Proposal'), color: 'var(--text)', subtext: 'Contratos em pré-vendas' },
@@ -189,9 +189,9 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
 
     async function openLeadDetail(id) {
         const l = await api('GET', '/api/v1/leads/' + id);
-        const cnpjBadge = l.cnpj_fetched_at ? '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:600;background:rgba(0,173,232,0.12);color:var(--accent);margin-left:0.5rem">CNPJ Verificado</span>' : '';
+        const cnpjBadge = l.cnpj_fetched_at ? '<span style="display:inline-block;padding:2px 8px;font-size:0.75rem;font-weight:600;background:rgba(0,173,232,0.12);color:var(--accent);margin-left:0.5rem">CNPJ Verificado</span>' : '';
         const cnpjInfo = l.razao_social ? `
-            <div style="margin:1rem 0;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:12px">
+            <div style="margin:1rem 0;padding:1rem;background:var(--surface);border:1px solid var(--border);">
                 <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem">Dados Receita Federal</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;font-size:0.85rem">
                     <div><strong>Razao Social:</strong> ${escapeHTML(l.razao_social)}</div>

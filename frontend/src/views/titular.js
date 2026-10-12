@@ -348,7 +348,7 @@ window.encerrarIncidente = (projectId, id) => acao(
 window.abrirNovoConsentimento = async function (projectId) {
     let tratamentos = [];
     try { const r = await api('GET', `/api/v1/projects/${projectId}/ropa`); tratamentos = Array.isArray(r) ? r : lista(r && r.records); } catch (e) { /* sem seletor */ }
-    if (!tratamentos.length) { showToast('Cadastre um tratamento no RoPA primeiro', 'error'); return; }
+    if (!tratamentos.length) { showToast('Consentimento é ligado a um tratamento. Cadastre o tratamento no RoPA primeiro.', 'error'); return; }
     openModal(`<h3>Registrar consentimento</h3>
         <div class="form-group"><label class="form-label" for="co-ropa">Tratamento</label><select class="form-input" id="co-ropa">${tratamentos.map((t) => `<option value="${escapeHTML(t.id)}">${escapeHTML(t.processing_purpose)}</option>`).join('')}</select></div>
         <div class="form-group"><label class="form-label" for="co-ref">Referência do titular (pseudonimizada, sem CPF)</label><input class="form-input" id="co-ref" maxlength="500"></div>

@@ -24,7 +24,7 @@ const HEX = /(?<!&)#[0-9a-fA-F]{3,8}\b/;
 // Onde a cor de tela é montada: as views e os montadores compartilhados.
 const COM_COR = (arq) => arq.startsWith('src/views/') || ['src/ui.js', 'src/globals.js', 'src/produto.js'].includes(arq);
 // Sufixo de alfa colado num token (`${cor}20` com cor = 'var(--warning)') vira CSS inválido e o fundo some.
-const ALFA_COLADO = /\)\}[0-9a-fA-F]{2}(?=[;"'\s])|var\(--[\w-]+\)[0-9a-fA-F]/;
+const ALFA_COLADO = /\}[0-9a-fA-F]{2}(?=[;"'\s,])|var\(--[\w-]+\)[0-9a-fA-F]/;
 
 describe('catracas do sistema visual', () => {
     it('nenhuma cor em hex fora da lista de exceções', () => {
@@ -48,7 +48,21 @@ describe('catracas do sistema visual', () => {
         expect(achados).toEqual([]);
         expect(ALFA_COLADO.test('style="background:${levelColor(x)}20;"')).toBe(true);
         expect(ALFA_COLADO.test('background:var(--warning)20')).toBe(true);
+        expect(ALFA_COLADO.test('border:1px solid ${lvlColor}33;text-transform')).toBe(true);
         expect(ALFA_COLADO.test('color-mix(in oklab, ${cor} 12%, transparent);')).toBe(false);
+    });
+
+    it('nenhum border-radius inline fora de 0 e 10px (sistema quadrado)', () => {
+        const achados = [];
+        for (const [arq, src] of Object.entries(FONTES)) {
+            if (!COM_COR(arq)) continue;
+            semComentario(src).split('\n').forEach((linha, i) => {
+                for (const m of linha.matchAll(/border-radius:\s*([^;"'`]+)/g)) {
+                    if (!['0', '0px', '10px'].includes(m[1].trim())) achados.push(`${arq}:${i + 1}`);
+                }
+            });
+        }
+        expect(achados).toEqual([]);
     });
 
     it('a lista de exceções não guarda linha que já saiu', () => {

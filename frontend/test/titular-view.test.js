@@ -351,7 +351,7 @@ describe('consentimentos', () => {
         await abrir('consentimentos', { [`GET ${B}/ropa`]: [] });
         await window.abrirNovoConsentimento('p9');
         expect(el('co-ref')).toBeNull();
-        expect(document.body.textContent).toContain('Cadastre um tratamento');
+        expect(document.body.textContent).toContain('Cadastre o tratamento');
     });
 });
 
