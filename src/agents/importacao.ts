@@ -1,8 +1,8 @@
 import { BaseAgent, type AgentContext, type AgentResponse } from './types';
 
 /**
- * Agente da importação de programa de privacidade (n.privacy, fatia 1). Duas tarefas: CLASSIFICAR o arquivo (que tipo de
- * material é) e EXTRAIR tratamentos de um inventário. O texto do arquivo é DADO do cliente: o prompt diz isso, a resposta é só
+ * Agente da importação de programa de privacidade (n.privacy, fatias 1 a 4). Duas tarefas: CLASSIFICAR o arquivo (que tipo de
+ * material é) e EXTRAIR os itens dele (tratamentos de um inventário, terceiros de uma lista, o documento, DPIAs e LIAs, pedidos do titular, incidentes e consentimentos). O texto do arquivo é DADO do cliente: o prompt diz isso, a resposta é só
  * JSON, e o servidor valida cada item com esquema estrito antes de gravar (e uma pessoa revisa antes de virar RoPA).
  */
 
@@ -33,6 +33,63 @@ confianca ("alta", "media" ou "baixa").
 ${DADO_NAO_INSTRUCAO}
 Formato: {"tratamentos":[{...}]}. Sem tratamento no trecho: {"tratamentos":[]}.`;
 
+const PROMPT_EXTRAIR_TERCEIROS = `Você vai EXTRAIR os terceiros (fornecedores, operadores, parceiros que tratam dados pessoais) de um trecho de
+lista ou avaliação de terceiros (LGPD). Para cada terceiro encontrado, devolva os campos (omita o que o texto não diz; não invente):
+nome (obrigatório, razão social ou nome do fornecedor), tipo (um de "grande_provedor", "medio", "pequeno", "critico"; omita se o texto
+não permitir decidir), cnpj, contato (e-mail ou nome do contato), ultima_avaliacao ({"resultado": "aprovado" | "com_ressalvas" |
+"reprovado", "valido_ate": "AAAA-MM-DD", "metodo": texto}; só se o texto trouxer resultado e validade), dpa (nome do documento do
+acordo de tratamento de dados, se houver), tratamentos (lista de finalidades/atividades em que o terceiro atua), origem (o trecho
+literal do texto de onde saiu, até 150 caracteres) e confianca ("alta", "media" ou "baixa").
+${DADO_NAO_INSTRUCAO}
+Formato: {"terceiros":[{...}]}. Sem terceiro no trecho: {"terceiros":[]}.`;
+
+const PROMPT_EXTRAIR_DOCUMENTO = `Você vai IDENTIFICAR o documento (política, aviso de privacidade, norma ou procedimento) pelo começo do texto dele.
+Devolva UM documento com os campos (omita o que o texto não diz; não invente): titulo (obrigatório, o título do documento como
+aparece no texto), tipo (um de "politica", "norma", "procedimento"; aviso de privacidade é "politica"), resumo (do que o documento
+trata, até 3 frases), origem (o trecho literal de onde saiu o título, até 150 caracteres) e confianca ("alta", "media" ou "baixa").
+${DADO_NAO_INSTRUCAO}
+Formato: {"documentos":[{...}]}. Se o texto não for um documento desses: {"documentos":[]}.`;
+
+const PROMPT_EXTRAIR_AVALIACOES = `Você vai EXTRAIR as avaliações de privacidade de um trecho de DPIA/RIPD (relatório de impacto) ou de LIA (teste de
+legítimo interesse). Para cada avaliação encontrada, devolva os campos (omita o que o texto não diz; não invente): tipo ("dpia" para
+DPIA/RIPD, "lia" para teste de legítimo interesse), tratamento (obrigatório, a finalidade/atividade de tratamento avaliada), conclusao
+(a conclusão da avaliação, como está no texto), riscos (lista dos riscos identificados), origem (o trecho literal do texto de onde
+saiu, até 150 caracteres) e confianca ("alta", "media" ou "baixa").
+${DADO_NAO_INSTRUCAO}
+Formato: {"avaliacoes":[{...}]}. Sem avaliação no trecho: {"avaliacoes":[]}.`;
+
+/**
+ * Fatia 4. O texto chega com e-mail, CPF e telefone já trocados por pseudônimos `tit-...` (services/importacao.ts); o prompt proíbe
+ * devolver dado que identifique o titular e não pede o trecho de origem (que repetiria o texto).
+ */
+const PROMPT_EXTRAIR_HISTORICO = `Você vai EXTRAIR registros operacionais de privacidade (LGPD) de um trecho de planilha ou relatório: pedidos de
+titulares, incidentes de segurança com dados pessoais e consentimentos. Para cada registro, devolva "registro" ("pedido", "incidente" ou
+"consentimento") e os campos abaixo (omita o que o texto não diz; não invente). Datas em AAAA-MM-DD.
+- pedido: tipo (um de "confirmacao", "acesso", "correcao", "anonimizacao_bloqueio_eliminacao", "portabilidade",
+  "informacao_compartilhamento", "revogacao_consentimento", "oposicao", "outro"), canal (um de "email", "telefone", "formulario",
+  "presencial", "outro"), recebido_em, status (um de "recebido", "em_andamento", "respondido", "negado", "arquivado"), respondido_em,
+  protocolo (o número do pedido no registro de origem), titular_ref.
+- incidente: titulo (o que aconteceu, em poucas palavras, sem citar pessoas), protocolo (o número no registro de origem), ciencia_em
+  (quando a organização soube; pode ter hora ISO), risco_titular (um de "sem_risco", "baixo", "relevante"), comunicacao_anpd_em,
+  comunicacao_titular_em, status (um de "aberto", "avaliado", "comunicado", "encerrado").
+- consentimento: tratamento (a atividade de tratamento a que o consentimento se refere), titular_ref, finalidade (a finalidade
+  consentida), obtido_em, revogado_em, versao_aviso (a versão do aviso de privacidade aceita), canal.
+NUNCA devolva nome, CPF, e-mail, telefone, endereço ou qualquer outro dado que identifique o titular. No texto, e-mail, CPF e telefone já
+foram trocados por referências "tit-..."; em titular_ref use só essa referência ou um código interno do registro (nunca um nome).
+Não devolva o trecho de origem. Em cada registro, devolva também confianca ("alta", "media" ou "baixa").
+${DADO_NAO_INSTRUCAO}
+Formato: {"registros":[{...}]}. Sem registro no trecho: {"registros":[]}.`;
+
+/** Prompt e chave da lista na resposta, por tipo de arquivo extraído. */
+export type TipoExtraido = 'inventario' | 'terceiros' | 'documento' | 'avaliacao' | 'historico';
+const EXTRACAO: Record<TipoExtraido, [string, string]> = {
+  inventario: [PROMPT_EXTRAIR, 'tratamentos'],
+  terceiros: [PROMPT_EXTRAIR_TERCEIROS, 'terceiros'],
+  documento: [PROMPT_EXTRAIR_DOCUMENTO, 'documentos'],
+  avaliacao: [PROMPT_EXTRAIR_AVALIACOES, 'avaliacoes'],
+  historico: [PROMPT_EXTRAIR_HISTORICO, 'registros'],
+};
+
 type Mensagem = { role: 'system' | 'user'; content: string };
 
 /** O JSON da resposta do modelo: cru, embutido em texto ou dentro de cerca ```json. null se não houver objeto legível. */
@@ -54,11 +111,16 @@ export function parseClassificacao(raw: string): TipoArquivo {
   return (TIPOS_ARQUIVO as readonly unknown[]).includes(tipo) ? (tipo as TipoArquivo) : 'desconhecido';
 }
 
-/** A lista crua de tratamentos (cada um ainda NÃO validado), ou null se a resposta está fora do formato. */
-export function parseTratamentos(raw: string): unknown[] | null {
-  const lista = objetoDaResposta(raw)?.tratamentos;
+/** A lista crua em `chave` (cada item ainda NÃO validado), ou null se a resposta está fora do formato. */
+function listaDaResposta(raw: string, chave: string): unknown[] | null {
+  const lista = objetoDaResposta(raw)?.[chave];
   return Array.isArray(lista) ? lista : null;
 }
+export const parseTratamentos = (raw: string) => listaDaResposta(raw, 'tratamentos');
+export const parseTerceiros = (raw: string) => listaDaResposta(raw, 'terceiros');
+export const parseDocumentos = (raw: string) => listaDaResposta(raw, 'documentos');
+export const parseAvaliacoes = (raw: string) => listaDaResposta(raw, 'avaliacoes');
+export const parseHistorico = (raw: string) => listaDaResposta(raw, 'registros');
 
 export class ImportacaoAgent extends BaseAgent {
   private async perguntar(sistema: string, texto: string, maxTokens: number) {
@@ -72,9 +134,11 @@ export class ImportacaoAgent extends BaseAgent {
     return { tipo: parseClassificacao(r.content), modelo: r.model };
   }
 
-  async extrairTratamentos(texto: string): Promise<{ tratamentos: unknown[] | null; modelo: string }> {
-    const r = await this.perguntar(PROMPT_EXTRAIR, texto, 8192);
-    return { tratamentos: parseTratamentos(r.content), modelo: r.model };
+  /** Extrai os itens de um bloco, conforme o tipo do arquivo (tratamentos, terceiros, o documento, avaliações). */
+  async extrair(tipo: TipoExtraido, texto: string): Promise<{ itens: unknown[] | null; modelo: string }> {
+    const [prompt, chave] = EXTRACAO[tipo];
+    const r = await this.perguntar(prompt, texto, 8192);
+    return { itens: listaDaResposta(r.content, chave), modelo: r.model };
   }
 
   async run(prompt: string, _context: AgentContext): Promise<AgentResponse> {

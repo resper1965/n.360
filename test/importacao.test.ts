@@ -3,8 +3,12 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, habilitarPrivacy } from './helpers/d1';
 import { faixaDoCaminho } from '../src/modulos';
-import { parseClassificacao, parseTratamentos } from '../src/agents/importacao';
-import { BLOCO, blocos, casarBaseLegal } from '../src/services/importacao';
+import { parseAvaliacoes, parseClassificacao, parseDocumentos, parseTerceiros, parseTratamentos } from '../src/agents/importacao';
+import { BLOCO, blocos, casarBaseLegal, mascararPii, pseudonimizador, SUBCHAVE_TITULAR } from '../src/services/importacao';
+import { visaoDoEncarregado } from '../src/services/encarregado';
+import { itensDoDia, semanaIso, somarDias } from '../src/services/avisos-prazo';
+import { criarIncidente } from '../src/services/incidentes';
+import { parseHistorico } from '../src/agents/importacao';
 import { semearCatalogo } from '../src/services/requisitos';
 
 /**
@@ -317,11 +321,11 @@ describe('processar', () => {
     } finally { AI.toMarkdown = original; }
   });
 
-  it('arquivo de outra fatia fica aguardando, sem itens', async () => {
+  it('arquivo não reconhecido fica aguardando, sem itens', async () => {
     const lote = await novoLote();
-    ia.tipo = 'terceiros';
-    const { aid, resposta, passos } = await enviarEProcessar(lote, 'fornecedores.csv');
-    expect(resposta.arquivo).toMatchObject({ status: 'aguardando', tipo: 'terceiros' });
+    ia.tipo = 'desconhecido';
+    const { aid, resposta, passos } = await enviarEProcessar(lote, 'outra-coisa.csv');
+    expect(resposta.arquivo).toMatchObject({ status: 'aguardando', tipo: 'desconhecido' });
     expect(passos).toEqual([0]);
     expect(await contarItens(aid)).toBe(0);
     ia.tipo = 'inventario';
@@ -649,5 +653,808 @@ describe('trava de gravação (status próprio)', () => {
     const r = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`);
     expect(r.status, await r.clone().text()).toBe(200);
     expect(await statusDo(lote)).toBe('concluida');
+  });
+});
+
+describe('terceiros (fatia 2)', () => {
+  const futuro = new Date(Date.now() + 365 * 864e5).toISOString().slice(0, 10);
+  const terceiro = (nome: string, extra: Record<string, unknown> = {}) => ({
+    nome, tipo: 'medio', confianca: 'alta', origem: `linha sobre ${nome}`, ...extra,
+  });
+  const respondeTerceiros = (...ts: unknown[]) => { ia.extracao = () => JSON.stringify({ terceiros: ts }); };
+  const processarTerceiros = async (lote: string, nome = 'fornecedores.csv') => {
+    ia.tipo = 'terceiros';
+    try { return await enviarEProcessar(lote, nome, 'fornecedor;tipo\nAlfa;medio'); } finally { ia.tipo = 'inventario'; }
+  };
+  const aceitar = async (lote: string, id: string) =>
+    expect((await chamar(consultor, 'PUT', `${P}/importacoes/${lote}/itens/${id}`, { decisao: 'aceito' })).status).toBe(200);
+  type Res = { item_id: string; decisao: string; registro_id?: string; motivo?: string; aviso?: string };
+  const confirmar = async (lote: string) => {
+    const r = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    return (await json<{ resultados: Res[] }>(r)).resultados;
+  };
+  const partesCom = async (nome: string) => (await env.DB.prepare(`SELECT id, tipo, terceiro_tipo, email FROM partes WHERE project_id = ? AND nome = ?`).bind(P, nome)
+    .all<{ id: string; tipo: string; terceiro_tipo: string | null; email: string | null }>()).results;
+
+  it('parseTerceiros tolera cerca e devolve null fora do formato', () => {
+    expect(parseTerceiros('```json\n{"terceiros":[{"nome":"A"}]}\n```')).toEqual([{ nome: 'A' }]);
+    expect(parseTerceiros('{"terceiros":[]}')).toEqual([]);
+    expect(parseTerceiros('{"tratamentos":[]}')).toBeNull();
+  });
+
+  it('arquivo classificado como terceiros é extraído (não fica aguardando): válido vira item terceiro, inválido é recusado', async () => {
+    const lote = await novoLote();
+    ia.chamadas = [];
+    respondeTerceiros(
+      terceiro('Nuvem Exemplo S.A.', { tipo: 'grande_provedor', cnpj: '00.000.000/0001-00', contato: 'privacidade@nuvem.example', dpa: 'DPA Nuvem', tratamentos: ['Folha de pagamento'], ultima_avaliacao: { resultado: 'aprovado', valido_ate: futuro, metodo: 'trust center' } }),
+      { nome: 'Sem tipo Ltda', confianca: 'media' },
+      { ...terceiro('Injetado'), status: 'aprovado' },
+      terceiro('Tipo inventado', { tipo: 'parceiro' }),
+      { tipo: 'medio', confianca: 'alta' },
+    );
+    const { aid, resposta } = await processarTerceiros(lote);
+    expect(resposta.arquivo).toMatchObject({ status: 'processado', tipo: 'terceiros', erro: null });
+    expect(await contarItens(aid)).toBe(5);
+    // o prompt de extração é o de terceiros e trata o arquivo como dado
+    const extracao = ia.chamadas.find((m) => !m[0].content.includes('CLASSIFICAR'))!;
+    expect(extracao[0].content).toMatch(/terceiros/i);
+    expect(extracao[0].content).toMatch(/ignore/i);
+    const { itens } = await lerLote(lote);
+    expect(itens.every((i) => (i as Item & { entidade: string }).entidade === 'terceiro')).toBe(true);
+    const nuvem = itens.find((i) => i.dados.nome === 'Nuvem Exemplo S.A.')!;
+    expect(nuvem).toMatchObject({ decisao: 'pendente', confianca: 'alta', faltando: [] });
+    expect(itens.find((i) => i.dados.nome === 'Sem tipo Ltda')!.faltando).toEqual(['tipo', 'ultima_avaliacao']);
+    const recusados = itens.filter((i) => i.decisao === 'recusado');
+    expect(recusados).toHaveLength(3);
+    expect(recusados.every((i) => i.motivo && JSON.stringify(i.dados) === '{}')).toBe(true);
+  });
+
+  it('PUT valida os dados pelo esquema do terceiro', async () => {
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Editável Ltda'));
+    await processarTerceiros(lote);
+    const [item] = (await lerLote(lote)).itens;
+    const url = `${P}/importacoes/${lote}/itens/${item.id}`;
+    expect((await chamar(consultor, 'PUT', url, { dados: { finalidade: 'Não é terceiro' } })).status).toBe(400);
+    expect((await chamar(consultor, 'PUT', url, { dados: { nome: 'X', tipo: 'gigante' } })).status).toBe(400);
+    const r = await chamar(consultor, 'PUT', url, { dados: { nome: 'Editável Ltda', tipo: 'critico' } });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await json<{ item: Item }>(r)).item.dados).toEqual({ nome: 'Editável Ltda', tipo: 'critico' });
+  });
+
+  it('confirmar cria a parte organização, o tipo, a avaliação vigente e o vínculo com o tratamento; liga o DPA; trilha', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('ropa-t-folha', ?, 'Folha de Pagamento (RH)')`).bind(P),
+      env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo) VALUES ('doc-dpa-cn', ?, 'DPA Correio Nuvem')`).bind(P),
+    ]);
+    const lote = await novoLote();
+    respondeTerceiros(
+      terceiro('Correio Nuvem Ltda', {
+        tipo: 'grande_provedor', contato: 'dpo@correio.example', cnpj: '11.111.111/0001-11', dpa: 'dpa correio nuvem',
+        tratamentos: ['folha de pagamento (rh)', 'Tratamento que não existe'],
+        ultima_avaliacao: { resultado: 'com_ressalvas', valido_ate: futuro, metodo: 'questionário' },
+      }),
+      terceiro('Avaliação Vencida SA', { tipo: 'pequeno', ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2020-01-01' } }),
+    );
+    await processarTerceiros(lote);
+    const { itens } = await lerLote(lote);
+    for (const i of itens) await aceitar(lote, i.id);
+    const resultados = await confirmar(lote);
+    expect(resultados.map((r) => r.decisao)).toEqual(['gravado', 'gravado']);
+
+    const [cn] = await partesCom('Correio Nuvem Ltda');
+    expect(cn).toMatchObject({ tipo: 'organizacao', terceiro_tipo: 'grande_provedor', email: 'dpo@correio.example' });
+    expect(resultados.find((r) => r.item_id === itens.find((i) => i.dados.nome === 'Correio Nuvem Ltda')!.id)!.registro_id).toBe(cn.id);
+    const t = await json<{ situacao: string; metodo: string; tratamentos_afetados: { id: string }[]; documentos_ligados: { id: string; papel: string }[]; historico: { resultado: string; valido_ate: string }[] }>(
+      await chamar(consultor, 'GET', `${P}/terceiros/${cn.id}`));
+    expect(t).toMatchObject({ situacao: 'vigente', metodo: 'trust_center' });
+    expect(t.historico).toMatchObject([{ resultado: 'com_ressalvas', valido_ate: futuro }]);
+    expect(t.tratamentos_afetados.map((x) => x.id)).toEqual(['ropa-t-folha']);
+    expect(t.documentos_ligados).toMatchObject([{ id: 'doc-dpa-cn', papel: 'dpa' }]);
+    // o tipo faz do terceiro um fornecedor do n.iso (perfil de segurança), com o CNPJ anotado
+    const vendor = await env.DB.prepare('SELECT notes FROM vendors WHERE parte_id = ?').bind(cn.id).first<{ notes: string | null }>();
+    expect(vendor?.notes).toContain('11.111.111/0001-11');
+    const aviso = resultados.find((r) => r.registro_id === cn.id)!.aviso!;
+    expect(aviso).toMatch(/Tratamento que não existe/);
+
+    // avaliação vencida não é registrada; o terceiro fica pendente de avaliação
+    const [venc] = await partesCom('Avaliação Vencida SA');
+    expect(venc.terceiro_tipo).toBe('pequeno');
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM avaliacoes_terceiro WHERE parte_id = ?').bind(venc.id).first<{ n: number }>())!.n).toBe(0);
+    expect(resultados.find((r) => r.registro_id === venc.id)!.aviso).toMatch(/vencida/i);
+
+    const trilha = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'importacao.gravada' AND project_id = ? AND details LIKE ?`).bind(P, `%${lote}%`).first<{ n: number }>();
+    expect(trilha!.n).toBe(2);
+  });
+
+  it('duplicata (parte organização com o mesmo nome) nasce descartada; reimportar e aceitar mesmo assim não duplica nada', async () => {
+    const lote1 = await novoLote();
+    const dados = terceiro('Pagamentos Exemplo Ltda', { ultima_avaliacao: { resultado: 'aprovado', valido_ate: futuro }, tratamentos: ['Folha de Pagamento (RH)'] });
+    respondeTerceiros(dados);
+    await processarTerceiros(lote1);
+    const [i1] = (await lerLote(lote1)).itens;
+    await aceitar(lote1, i1.id);
+    await confirmar(lote1);
+    const [parte] = await partesCom('Pagamentos Exemplo Ltda');
+
+    // reimportar: o mesmo nome (normalizado) já é parte organização
+    const lote2 = await novoLote();
+    respondeTerceiros({ ...dados, nome: 'PAGAMENTOS  exemplo ltda' });
+    await processarTerceiros(lote2);
+    const [i2] = (await lerLote(lote2)).itens;
+    expect(i2).toMatchObject({ duplicata_de: parte.id, decisao: 'descartado' });
+    await aceitar(lote2, i2.id);
+    const [r] = await confirmar(lote2);
+    expect(r).toMatchObject({ decisao: 'gravado', registro_id: parte.id });
+    expect(await partesCom('Pagamentos Exemplo Ltda')).toHaveLength(1);
+    expect(await partesCom('PAGAMENTOS  exemplo ltda')).toHaveLength(0);
+    const n = async (sql: string) => (await env.DB.prepare(sql).bind(parte.id).first<{ n: number }>())!.n;
+    expect(await n('SELECT COUNT(*) AS n FROM avaliacoes_terceiro WHERE parte_id = ?')).toBe(1);
+    expect(await n(`SELECT COUNT(*) AS n FROM parte_vinculos WHERE parte_id = ? AND alvo_tipo = 'tratamento'`)).toBe(1);
+  });
+
+  it('parte organização inativa não é duplicata: nasce pendente e a gravação cria uma parte ativa nova', async () => {
+    await env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, status) VALUES ('pa-inativa', ?, 'organizacao', 'Antigo Fornecedor Ltda', 'inativa')`).bind(P).run();
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Antigo Fornecedor Ltda'));
+    await processarTerceiros(lote);
+    const [i] = (await lerLote(lote)).itens;
+    expect(i).toMatchObject({ duplicata_de: null, decisao: 'pendente' });
+    await aceitar(lote, i.id);
+    const [r] = await confirmar(lote);
+    expect(r.decisao).toBe('gravado');
+    expect(r.registro_id).not.toBe('pa-inativa');
+    const ativas = (await env.DB.prepare(`SELECT id FROM partes WHERE project_id = ? AND nome = 'Antigo Fornecedor Ltda' AND status = 'ativa'`).bind(P).all()).results;
+    expect(ativas).toHaveLength(1);
+  });
+
+  it('CNPJ sem tipo (sem perfil de fornecedor) não se perde calado: vira aviso', async () => {
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Sem Perfil Ltda', { tipo: null, cnpj: '22.222.222/0001-22' }));
+    await processarTerceiros(lote);
+    const [i] = (await lerLote(lote)).itens;
+    await aceitar(lote, i.id);
+    const [r] = await confirmar(lote);
+    expect(r.decisao).toBe('gravado');
+    expect(r.aviso).toMatch(/CNPJ/);
+  });
+
+  it('falha depois da transação (tipo/avaliação/DPA) não desfaz a parte: vira aviso e o lote não trava', async () => {
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Falha Depois Ltda', { tipo: 'critico', ultima_avaliacao: { resultado: 'aprovado', valido_ate: futuro } }));
+    await processarTerceiros(lote);
+    const [i] = (await lerLote(lote)).itens;
+    await aceitar(lote, i.id);
+    // O D1 real, com o UPDATE do tipo da parte quebrando (é o primeiro passo depois da transação).
+    const DB = new Proxy(env.DB, {
+      get(t, k) {
+        if (k === 'prepare') return (sql: string) => { if (sql.startsWith('UPDATE partes SET terceiro_tipo')) throw new Error('D1 fora do ar'); return t.prepare(sql); };
+        const f = (t as unknown as Record<string | symbol, unknown>)[k];
+        return typeof f === 'function' ? f.bind(t) : f;
+      },
+    });
+    const resp = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/importacoes/${lote}/confirmar`, { method: 'POST', headers: consultor }), { ...envComIa(), DB } as never);
+    expect(resp.status, await resp.clone().text()).toBe(200);
+    const [r] = (await json<{ resultados: Res[] }>(resp)).resultados;
+    expect(r).toMatchObject({ decisao: 'gravado' });
+    expect(r.aviso).toMatch(/falha ao completar tipo\/avaliação\/DPA; complete na ficha/);
+    const [parte] = await partesCom('Falha Depois Ltda');
+    expect(parte).toMatchObject({ id: r.registro_id, terceiro_tipo: null });
+    expect((await env.DB.prepare('SELECT status FROM importacoes WHERE id = ?').bind(lote).first<{ status: string }>())!.status).toBe('concluida');
+  });
+
+  it('terceiro proposto antes do tratamento, na mesma confirmação, ainda ganha o vínculo operador', async () => {
+    const lote = await novoLote();
+    await env.DB.prepare(`INSERT INTO importacao_arquivos (id, importacao_id, project_id, nome, mime, tamanho, r2_key, status, tipo) VALUES ('ordem-arq', ?, ?, 'a.csv', 'text/csv', 1, 'k', 'processado', 'terceiros')`).bind(lote, P).run();
+    await env.DB.prepare(`UPDATE importacoes SET status = 'em_revisao' WHERE id = ?`).bind(lote).run();
+    // O terceiro nasce ANTES (created_at e rowid) do tratamento que ele cita.
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, entidade, dados, decisao, created_at) VALUES ('ordem-t', ?, 'ordem-arq', ?, 'terceiro', ?, 'aceito', '2026-01-01 00:00:00')`)
+        .bind(lote, P, JSON.stringify({ nome: 'Ordem Fornecedor Ltda', tratamentos: ['Ordem de gravação'] })),
+      env.DB.prepare(`INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, entidade, dados, decisao, created_at) VALUES ('ordem-r', ?, 'ordem-arq', ?, 'tratamento', ?, 'aceito', '2026-01-02 00:00:00')`)
+        .bind(lote, P, JSON.stringify({ finalidade: 'Ordem de gravação' })),
+    ]);
+    const res = await confirmar(lote);
+    expect(res.map((r) => r.decisao)).toEqual(['gravado', 'gravado']);
+    const trat = res.find((r) => r.item_id === 'ordem-r')!.registro_id!;
+    const parte = res.find((r) => r.item_id === 'ordem-t')!;
+    expect(parte.aviso ?? '').not.toMatch(/não encontrados/);
+    const v = await env.DB.prepare(`SELECT papel FROM parte_vinculos WHERE parte_id = ? AND alvo_tipo = 'tratamento' AND alvo_id = ?`).bind(parte.registro_id, trat).first<{ papel: string }>();
+    expect(v?.papel).toBe('operador');
+  });
+
+  it('contato que não é e-mail não vira e-mail da parte: vira aviso', async () => {
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Contato Telefone Ltda', { contato: 'Maria, ramal 123' }));
+    await processarTerceiros(lote);
+    const [i] = (await lerLote(lote)).itens;
+    await aceitar(lote, i.id);
+    const [r] = await confirmar(lote);
+    expect(r.aviso).toMatch(/contato "Maria, ramal 123" não é e-mail/);
+    expect((await partesCom('Contato Telefone Ltda'))[0].email).toBeNull();
+  });
+
+  it('o mesmo nome duas vezes no mesmo lote cria uma parte só', async () => {
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Gêmeo Serviços'), terceiro('gemeo servicos'));
+    await processarTerceiros(lote);
+    for (const i of (await lerLote(lote)).itens) await aceitar(lote, i.id);
+    const res = await confirmar(lote);
+    expect(res.map((r) => r.decisao)).toEqual(['gravado', 'gravado']);
+    expect(res[0].registro_id).toBe(res[1].registro_id);
+  });
+});
+
+describe('documentos e avaliações (fatia 3)', () => {
+  type Res = { item_id: string; decisao: string; registro_id?: string; motivo?: string; aviso?: string };
+  const aceitar = async (lote: string, id: string) =>
+    expect((await chamar(consultor, 'PUT', `${P}/importacoes/${lote}/itens/${id}`, { decisao: 'aceito' })).status).toBe(200);
+  const confirmar = async (lote: string) => {
+    const r = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    return (await json<{ resultados: Res[] }>(r)).resultados;
+  };
+  const respondeDocumento = (...ds: unknown[]) => { ia.extracao = () => JSON.stringify({ documentos: ds }); };
+  const respondeAvaliacoes = (...as: unknown[]) => { ia.extracao = () => JSON.stringify({ avaliacoes: as }); };
+  /** PDF convertido por `toMarkdown` no texto dado, classificado como `tipo`. */
+  const processarPdf = async (lote: string, tipo: string, texto: string, nome = 'politica.pdf') => {
+    ia.tipo = tipo;
+    ia.markdown = { format: 'markdown', data: texto };
+    try { return await enviarEProcessar(lote, nome, '%PDF-1.4 original', 'application/pdf'); } finally { ia.tipo = 'inventario'; ia.markdown = { format: 'markdown', data: '' }; }
+  };
+  const doc = (titulo: string, extra: Record<string, unknown> = {}) => ({ titulo, tipo: 'politica', resumo: `Resumo de ${titulo}`, confianca: 'alta', origem: titulo, ...extra });
+  const aval = (tipo: string, tratamento: string, extra: Record<string, unknown> = {}) => ({
+    tipo, tratamento, conclusao: `Conclusão sobre ${tratamento}`, riscos: ['Vazamento de dados', 'Uso indevido'], confianca: 'alta', origem: tratamento, ...extra,
+  });
+  const entidadeDe = (i: Item) => (i as Item & { entidade: string }).entidade;
+  const quebrando = (prefixo: string) => new Proxy(env.DB, {
+    get(t, k) {
+      if (k === 'prepare') return (sql: string) => { if (sql.startsWith(prefixo)) throw new Error('D1 fora do ar'); return t.prepare(sql); };
+      const f = (t as unknown as Record<string | symbol, unknown>)[k];
+      return typeof f === 'function' ? f.bind(t) : f;
+    },
+  });
+  const confirmarCom = async (lote: string, DB: D1Database) => {
+    const resp = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/importacoes/${lote}/confirmar`, { method: 'POST', headers: consultor }), { ...envComIa(), DB } as never);
+    expect(resp.status, await resp.clone().text()).toBe(200);
+    return (await json<{ resultados: Res[] }>(resp)).resultados;
+  };
+
+  it('parseDocumentos e parseAvaliacoes toleram cerca e devolvem null fora do formato', () => {
+    expect(parseDocumentos('```json\n{"documentos":[{"titulo":"A"}]}\n```')).toEqual([{ titulo: 'A' }]);
+    expect(parseDocumentos('{"tratamentos":[]}')).toBeNull();
+    expect(parseAvaliacoes('{"avaliacoes":[]}')).toEqual([]);
+    expect(parseAvaliacoes('nada')).toBeNull();
+  });
+
+  it('documento: uma extração só (o começo do texto), um item por arquivo; tipo fora do enum e campo a mais recusam', async () => {
+    const lote = await novoLote();
+    ia.chamadas = [];
+    respondeDocumento(doc('Política de Privacidade'), doc('Segundo documento ignorado'));
+    const texto = Array.from({ length: 300 }, (_, i) => `Linha ${i} da política, com texto suficiente para passar de um bloco.`).join('\n');
+    const { aid, resposta, passos } = await processarPdf(lote, 'documento', texto);
+    expect(resposta.arquivo).toMatchObject({ status: 'processado', tipo: 'documento', erro: null });
+    expect(passos).toEqual([1, 0]);
+    const extracoes = ia.chamadas.filter((m) => !m[0].content.includes('CLASSIFICAR'));
+    expect(extracoes).toHaveLength(1);
+    expect(extracoes[0][0].content).toMatch(/ignore/i);
+    expect(extracoes[0][1].content.length).toBeLessThanOrEqual(BLOCO);
+    expect(await contarItens(aid)).toBe(1);
+    const [item] = (await lerLote(lote)).itens;
+    expect(entidadeDe(item)).toBe('documento');
+    expect(item).toMatchObject({ decisao: 'pendente', faltando: [], dados: { titulo: 'Política de Privacidade', tipo: 'politica', resumo: 'Resumo de Política de Privacidade' } });
+
+    for (const ruim of [doc('Tipo errado', { tipo: 'manual' }), { ...doc('Injetado'), publicar: true }]) {
+      const l = await novoLote();
+      respondeDocumento(ruim);
+      await processarPdf(l, 'documento', 'Texto curto');
+      const [i] = (await lerLote(l)).itens;
+      expect(i).toMatchObject({ decisao: 'recusado', dados: {} });
+      expect(i.motivo).toBeTruthy();
+    }
+  });
+
+  it('confirmar documento: rascunho (nunca publicado) com o texto convertido, original guardado como evidência ligada; trilha', async () => {
+    const lote = await novoLote();
+    respondeDocumento(doc('Norma de Retenção', { tipo: 'norma' }));
+    const texto = 'Norma de retenção\n\nGuardar por 5 anos.\n<script>alert(1)</script>';
+    const { aid } = await processarPdf(lote, 'documento', texto, 'retencao.pdf');
+    const [item] = (await lerLote(lote)).itens;
+    await aceitar(lote, item.id);
+    const [r] = await confirmar(lote);
+    expect(r).toMatchObject({ decisao: 'gravado' });
+    expect(r.aviso).toBeUndefined();
+
+    const d = await json<{ titulo: string; tipo: string; status: string; versao_vigente: number | null; versoes: { numero: number; estado: string; texto: string }[]; evidencias: { id: string; file_name: string }[] }>(
+      await chamar(consultor, 'GET', `${P}/documentos/${r.registro_id}`));
+    expect(d).toMatchObject({ titulo: 'Norma de Retenção', tipo: 'norma', status: 'rascunho', versao_vigente: null });
+    expect(d.versoes).toMatchObject([{ numero: 1, estado: 'rascunho', texto }]);
+    expect(d.evidencias).toMatchObject([{ file_name: 'retencao.pdf' }]);
+
+    const ev = await env.DB.prepare('SELECT project_id, control_id, r2_key, file_hash, file_size, documento_id FROM evidence WHERE id = ?').bind(d.evidencias[0].id)
+      .first<{ project_id: string; control_id: string | null; r2_key: string; file_hash: string; file_size: number; documento_id: string }>();
+    expect(ev).toMatchObject({ project_id: P, control_id: null, documento_id: r.registro_id, file_size: '%PDF-1.4 original'.length });
+    expect(ev!.r2_key.startsWith(`evidence/${P}/`)).toBe(true);
+    expect(ev!.file_hash).toMatch(/^[0-9a-f]{64}$/);
+    // a cópia é da evidência: cancelar o lote apaga o original da importação, não ela
+    expect((await chamar(consultor, 'DELETE', `${P}/importacoes/${lote}`)).status).toBe(200);
+    expect(await env.STORAGE.get(`importacoes/${P}/${lote}/${aid}`)).toBeNull();
+    expect(await (await env.STORAGE.get(ev!.r2_key))!.text()).toBe('%PDF-1.4 original');
+
+    const trilha = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'importacao.gravada' AND project_id = ? AND details LIKE ?`).bind(P, `%${lote}%`).first<{ n: number }>();
+    expect(trilha!.n).toBe(1);
+  });
+
+  it('documento com o mesmo título (normalizado) nasce descartado; aceito mesmo assim é recusado com motivo', async () => {
+    await env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo) VALUES ('doc-ja', ?, 'Política de Cookies')`).bind(P).run();
+    const lote = await novoLote();
+    respondeDocumento(doc('POLITICA DE  COOKIES'));
+    await processarPdf(lote, 'documento', 'Texto');
+    const [i] = (await lerLote(lote)).itens;
+    expect(i).toMatchObject({ duplicata_de: 'doc-ja', decisao: 'descartado' });
+    await aceitar(lote, i.id);
+    const [r] = await confirmar(lote);
+    expect(r).toMatchObject({ decisao: 'recusado' });
+    expect(r.motivo).toMatch(/já existe documento/);
+    expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM documentos WHERE project_id = ? AND titulo LIKE '%ookies%'`).bind(P).first<{ n: number }>())!.n).toBe(1);
+  });
+
+  it('falha ao guardar a evidência não desfaz o documento: vira aviso, sem objeto órfão no R2', async () => {
+    const lote = await novoLote();
+    respondeDocumento(doc('Procedimento de Incidentes', { tipo: 'procedimento' }));
+    await processarPdf(lote, 'documento', 'Passos do procedimento');
+    const [i] = (await lerLote(lote)).itens;
+    await aceitar(lote, i.id);
+    const antes = (await env.STORAGE.list({ prefix: `evidence/${P}/` })).objects.length;
+    const [r] = await confirmarCom(lote, quebrando('INSERT INTO evidence'));
+    expect(r).toMatchObject({ decisao: 'gravado' });
+    expect(r.aviso).toMatch(/arquivo original não foi guardado como evidência/);
+    expect(await env.DB.prepare('SELECT 1 FROM documentos WHERE id = ?').bind(r.registro_id).first()).not.toBeNull();
+    expect((await env.STORAGE.list({ prefix: `evidence/${P}/` })).objects.length).toBe(antes);
+  });
+
+  it('avaliação: cada item vira dpia ou lia pelo tipo; tipo desconhecido e campo a mais recusam; duplicata de DPIA nasce descartada', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('ropa-av-crm', ?, 'Marketing por e-mail')`).bind(P),
+      env.DB.prepare(`INSERT INTO dpia_assessments (id, project_id, ropa_id, processing_name, status) VALUES ('dpia-ja', ?, 'ropa-av-crm', 'Marketing por e-mail', 'Draft')`).bind(P),
+    ]);
+    const lote = await novoLote();
+    ia.chamadas = [];
+    respondeAvaliacoes(
+      aval('dpia', 'MARKETING por e-mail'),
+      aval('lia', 'Prevenção a fraude'),
+      aval('ripd_extra', 'Outra'),
+      { ...aval('lia', 'Injetada'), concluida: true },
+      aval('dpia', 'Sem riscos', { riscos: undefined, conclusao: undefined }),
+    );
+    const { aid, resposta } = await processarPdf(lote, 'avaliacao', 'DPIA do marketing...', 'dpia.pdf');
+    expect(resposta.arquivo).toMatchObject({ status: 'processado', tipo: 'avaliacao' });
+    expect(ia.chamadas.find((m) => !m[0].content.includes('CLASSIFICAR'))![0].content).toMatch(/ignore/i);
+    expect(await contarItens(aid)).toBe(5);
+    const { itens } = await lerLote(lote);
+    const dpia = itens.find((i) => i.dados.tratamento === 'MARKETING por e-mail')!;
+    expect(entidadeDe(dpia)).toBe('dpia');
+    expect(dpia).toMatchObject({ duplicata_de: 'dpia-ja', decisao: 'descartado', dados: { tratamento: 'MARKETING por e-mail', conclusao: 'Conclusão sobre MARKETING por e-mail', riscos: ['Vazamento de dados', 'Uso indevido'] } });
+    const lia = itens.find((i) => i.dados.tratamento === 'Prevenção a fraude')!;
+    expect(entidadeDe(lia)).toBe('lia');
+    expect(lia).toMatchObject({ decisao: 'pendente', duplicata_de: null });
+    expect(itens.find((i) => i.dados.tratamento === 'Sem riscos')!.faltando).toEqual(['conclusao', 'riscos']);
+    expect(itens.filter((i) => i.decisao === 'recusado')).toHaveLength(2);
+  });
+
+  it('PUT valida pelo esquema da entidade do item (avaliação com dados de documento é 400)', async () => {
+    const lote = await novoLote();
+    respondeAvaliacoes(aval('lia', 'Qualquer'));
+    await processarPdf(lote, 'avaliacao', 'LIA');
+    const [i] = (await lerLote(lote)).itens;
+    const url = `${P}/importacoes/${lote}/itens/${i.id}`;
+    expect((await chamar(consultor, 'PUT', url, { dados: { titulo: 'Não é avaliação', tipo: 'politica' } })).status).toBe(400);
+    const r = await chamar(consultor, 'PUT', url, { dados: { tratamento: 'Outro tratamento', conclusao: 'Prevalece', riscos: [] } });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await json<{ item: Item }>(r)).item.dados).toEqual({ tratamento: 'Outro tratamento', conclusao: 'Prevalece', riscos: [] });
+  });
+
+  it('confirmar DPIA e LIA: ligadas ao tratamento casado pela finalidade; sem tratamento casado é recusado; DPIA existente é recusada', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, data_subjects) VALUES ('ropa-av-video', ?, 'Videomonitoramento', 'Visitantes')`).bind(P),
+      env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('ropa-av-fraude', ?, 'Prevenção à fraude')`).bind(P),
+    ]);
+    const lote = await novoLote();
+    respondeAvaliacoes(
+      aval('dpia', 'videomonitoramento'),
+      aval('lia', 'PREVENCAO A FRAUDE'),
+      aval('dpia', 'Tratamento inexistente'),
+      aval('dpia', 'Marketing por e-mail'), // já tem DPIA (dpia-ja, do teste anterior)
+    );
+    await processarPdf(lote, 'avaliacao', 'Avaliações');
+    const itensDo = (await lerLote(lote)).itens;
+    for (const i of itensDo) await aceitar(lote, i.id);
+    const res = await confirmar(lote);
+    const por = (t: string) => res.find((r) => r.item_id === itensDo.find((i) => i.dados.tratamento === t)!.id)!;
+
+    const rd = por('videomonitoramento');
+    expect(rd.decisao).toBe('gravado');
+    const dp = await env.DB.prepare('SELECT ropa_id, status, processing_name, data_subjects_types, risks_identified, dpo_opinion FROM dpia_assessments WHERE id = ?').bind(rd.registro_id)
+      .first<{ ropa_id: string; status: string; processing_name: string; data_subjects_types: string; risks_identified: string; dpo_opinion: string }>();
+    expect(dp).toMatchObject({ ropa_id: 'ropa-av-video', status: 'Draft', processing_name: 'Videomonitoramento', data_subjects_types: 'Visitantes' });
+    expect(dp!.risks_identified).toContain('Vazamento de dados');
+    expect(dp!.risks_identified).toContain('Uso indevido');
+    expect(dp!.risks_identified).toContain('Conclusão sobre videomonitoramento');
+    expect(dp!.dpo_opinion).toBeNull(); // parecer é do encarregado, não do arquivo
+
+    const rl = por('PREVENCAO A FRAUDE');
+    expect(rl.decisao).toBe('gravado');
+    const l = await json<{ lia: { id: string; status: string; conclusao: string | null; balanceamento: string } }>(await chamar(consultor, 'GET', `${P}/ropa/ropa-av-fraude/lia`));
+    expect(l.lia).toMatchObject({ id: rl.registro_id, status: 'rascunho', conclusao: null });
+    expect(l.lia.balanceamento).toContain('Conclusão sobre PREVENCAO A FRAUDE');
+    expect(l.lia.balanceamento).toContain('Vazamento de dados');
+
+    expect(por('Tratamento inexistente')).toMatchObject({ decisao: 'recusado' });
+    expect(por('Tratamento inexistente').motivo).toMatch(/tratamento "Tratamento inexistente" não encontrado/);
+    expect(por('Marketing por e-mail').decisao).toBe('recusado');
+    expect(por('Marketing por e-mail').motivo).toMatch(/já existe DPIA/);
+
+    const trilha = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'importacao.gravada' AND project_id = ? AND details LIKE ?`).bind(P, `%${lote}%`).first<{ n: number }>();
+    expect(trilha!.n).toBe(2);
+  });
+
+  it('na mesma confirmação, o tratamento grava antes da DPIA que o cita e o documento antes do terceiro que o tem como DPA', async () => {
+    const lote = await novoLote();
+    await env.DB.prepare(`INSERT INTO importacao_arquivos (id, importacao_id, project_id, nome, mime, tamanho, r2_key, status, tipo) VALUES ('ordem3-arq', ?, ?, 'a.pdf', 'application/pdf', 8, 'k-ordem3', 'processado', 'avaliacao')`).bind(lote, P).run();
+    await env.STORAGE.put('k-ordem3', 'original');
+    await env.STORAGE.put('k-ordem3.txt', 'Texto do DPA');
+    await env.DB.prepare(`UPDATE importacoes SET status = 'em_revisao' WHERE id = ?`).bind(lote).run();
+    const linha = (id: string, entidade: string, dados: unknown, quando: string) =>
+      env.DB.prepare(`INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, entidade, dados, decisao, created_at) VALUES (?, ?, 'ordem3-arq', ?, ?, ?, 'aceito', ?)`)
+        .bind(id, lote, P, entidade, JSON.stringify(dados), quando);
+    await env.DB.batch([
+      linha('o3-terc', 'terceiro', { nome: 'Ordem3 Fornecedor', dpa: 'DPA Ordem3' }, '2026-01-01 00:00:00'),
+      linha('o3-dpia', 'dpia', { tratamento: 'Ordem3 tratamento', riscos: ['Risco'] }, '2026-01-01 00:00:01'),
+      linha('o3-doc', 'documento', { titulo: 'DPA Ordem3', tipo: 'norma' }, '2026-01-02 00:00:00'),
+      linha('o3-trat', 'tratamento', { finalidade: 'Ordem3 tratamento' }, '2026-01-03 00:00:00'),
+    ]);
+    const res = await confirmar(lote);
+    expect(res.map((r) => [r.item_id, r.decisao])).toEqual([['o3-trat', 'gravado'], ['o3-doc', 'gravado'], ['o3-terc', 'gravado'], ['o3-dpia', 'gravado']]);
+    const terc = res.find((r) => r.item_id === 'o3-terc')!;
+    expect(terc.aviso ?? '').not.toMatch(/DPA/);
+    const lig = await env.DB.prepare(`SELECT documento_id FROM documento_partes WHERE parte_id = ? AND papel = 'dpa'`).bind(terc.registro_id).first<{ documento_id: string }>();
+    expect(lig?.documento_id).toBe(res.find((r) => r.item_id === 'o3-doc')!.registro_id);
+  });
+
+  it('falha ao completar a DPIA (riscos e conclusão) não a desfaz: vira aviso', async () => {
+    await env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('ropa-av-falha', ?, 'Biometria na portaria')`).bind(P).run();
+    const lote = await novoLote();
+    respondeAvaliacoes(aval('dpia', 'Biometria na portaria'));
+    await processarPdf(lote, 'avaliacao', 'DPIA');
+    const [i] = (await lerLote(lote)).itens;
+    await aceitar(lote, i.id);
+    const [r] = await confirmarCom(lote, quebrando('UPDATE dpia_assessments SET risks_identified'));
+    expect(r).toMatchObject({ decisao: 'gravado' });
+    expect(r.aviso).toMatch(/riscos e conclusão não foram copiados/);
+    expect(await env.DB.prepare(`SELECT 1 FROM dpia_assessments WHERE id = ? AND ropa_id = 'ropa-av-falha'`).bind(r.registro_id).first()).not.toBeNull();
+  });
+
+  it('falha depois de criado o registro nunca o esconde: o motivo diz qual documento ou DPIA existe', async () => {
+    await env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('ropa-av-marca', ?, 'Controle de acesso físico')`).bind(P).run();
+    const loteD = await novoLote();
+    respondeDocumento(doc('Norma de Senhas', { tipo: 'norma' }));
+    await processarPdf(loteD, 'documento', 'Senhas fortes');
+    const loteA = await novoLote();
+    respondeAvaliacoes(aval('dpia', 'Controle de acesso físico'));
+    await processarPdf(loteA, 'avaliacao', 'DPIA');
+    for (const l of [loteD, loteA]) { const [i] = (await lerLote(l)).itens; await aceitar(l, i.id); }
+    const semMarca = quebrando(`UPDATE importacao_itens SET decisao = 'gravado'`);
+
+    const [rd] = await confirmarCom(loteD, semMarca);
+    const docId = (await env.DB.prepare(`SELECT id FROM documentos WHERE project_id = ? AND titulo = 'Norma de Senhas'`).bind(P).first<{ id: string }>())!.id;
+    expect(rd).toMatchObject({ decisao: 'recusado', motivo: `documento ${docId} criado; confira em Documentos antes de tentar de novo` });
+    const [ra] = await confirmarCom(loteA, semMarca);
+    const dpiaId = (await env.DB.prepare(`SELECT id FROM dpia_assessments WHERE ropa_id = 'ropa-av-marca'`).first<{ id: string }>())!.id;
+    expect(ra).toMatchObject({ decisao: 'recusado', motivo: `DPIA ${dpiaId} criada; confira em DPIA antes de tentar de novo` });
+    // a DPIA foi completada antes da marca
+    expect((await env.DB.prepare('SELECT risks_identified FROM dpia_assessments WHERE id = ?').bind(dpiaId).first<{ risks_identified: string }>())!.risks_identified).toContain('Vazamento de dados');
+  });
+
+  it('falha só da trilha da evidência não diz que o original ficou de fora: a evidência existe e o aviso é da trilha', async () => {
+    const lote = await novoLote();
+    respondeDocumento(doc('Aviso de Privacidade do Site'));
+    await processarPdf(lote, 'documento', 'Aviso do site', 'aviso.pdf');
+    const [i] = (await lerLote(lote)).itens;
+    await aceitar(lote, i.id);
+    const DB = new Proxy(env.DB, {
+      get(t, k) {
+        if (k === 'prepare') return (sql: string) => {
+          const st = t.prepare(sql);
+          if (!sql.trim().startsWith('INSERT INTO audit_logs')) return st;
+          return { bind: (...a: unknown[]) => (a[1] === 'evidence.uploaded' ? { run: async () => { throw new Error('trilha fora do ar'); } } : st.bind(...a)) };
+        };
+        const f = (t as unknown as Record<string | symbol, unknown>)[k];
+        return typeof f === 'function' ? f.bind(t) : f;
+      },
+    });
+    const [r] = await confirmarCom(lote, DB as unknown as D1Database);
+    expect(r).toMatchObject({ decisao: 'gravado' });
+    expect(r.aviso).toMatch(/trilha da evidência/);
+    expect(r.aviso).not.toMatch(/não foi guardado como evidência/);
+    expect(await env.DB.prepare('SELECT 1 FROM evidence WHERE documento_id = ?').bind(r.registro_id).first()).not.toBeNull();
+  });
+});
+
+describe('histórico operacional (fatia 4)', () => {
+  type Res = { item_id: string; decisao: string; registro_id?: string; motivo?: string; aviso?: string };
+  const HOJE = new Date().toISOString().slice(0, 10);
+  const dia = (n: number) => somarDias(HOJE, n);
+  const TOKEN = /tit-[0-9a-f]{16}/;
+  const aceitar = async (lote: string, id: string) =>
+    expect((await chamar(consultor, 'PUT', `${P}/importacoes/${lote}/itens/${id}`, { decisao: 'aceito' })).status).toBe(200);
+  const confirmar = async (lote: string) => {
+    const r = await chamar(consultor, 'POST', `${P}/importacoes/${lote}/confirmar`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    return (await json<{ resultados: Res[] }>(r)).resultados;
+  };
+  /** O "modelo" recebe o texto já mascarado e devolve os registros; `fn` pode ler o texto (para copiar o pseudônimo, como o modelo faria). */
+  const respondeHistorico = (fn: (texto: string) => unknown[]) => { ia.extracao = (texto) => JSON.stringify({ registros: fn(texto) }); };
+  const processarHistorico = async (lote: string, conteudo: string, nome = 'historico.csv') => {
+    ia.tipo = 'historico';
+    try { return await enviarEProcessar(lote, nome, conteudo); } finally { ia.tipo = 'inventario'; }
+  };
+  const entidadeDe = (i: Item) => (i as Item & { entidade: string }).entidade;
+  const pedido = (extra: Record<string, unknown> = {}) => ({ registro: 'pedido', tipo: 'acesso', canal: 'email', recebido_em: dia(-60), status: 'respondido', respondido_em: dia(-50), confianca: 'alta', ...extra });
+  const incidente = (extra: Record<string, unknown> = {}) => ({
+    registro: 'incidente', titulo: 'Envio de planilha ao destinatário errado', ciencia_em: dia(-90), risco_titular: 'relevante',
+    comunicacao_anpd_em: dia(-88), status: 'encerrado', confianca: 'alta', ...extra,
+  });
+  const consentimento = (extra: Record<string, unknown> = {}) => ({
+    registro: 'consentimento', tratamento: 'Newsletter do histórico', titular_ref: 'cliente 4471', finalidade: 'Envio de newsletter',
+    obtido_em: dia(-200), confianca: 'alta', ...extra,
+  });
+
+  beforeAll(async () => {
+    await env.DB.prepare(`INSERT OR REPLACE INTO parametros_legais (chave, valor, unidade, fonte, revisado_em, revisado_por) VALUES ('titular.resposta', 15, 'dias_corridos', 'F', '2026-10-01', 'X'), ('incidente.comunicacao_anpd', 72, 'horas', 'F', '2026-10-01', 'X'), ('incidente.comunicacao_titular', 72, 'horas', 'F', '2026-10-01', 'X')`).run();
+  });
+
+  it('mascararPii troca e-mail, CPF e telefone; datas, intervalos de anos, protocolos e número solto ficam', async () => {
+    const t = await mascararPii('maria@exemplo.com.br; 123.456.789-09; 12345678909; (11) 98765-4321; +55 11 98765-4321; 11 3456-7890; 98765-4321; (21)3456-7890; 2026-01-10; PT-2024-0001', () => 'X');
+    expect(t).toBe('X; X; X; X; X; X; X; X; 2026-01-10; PT-2024-0001');
+    const fica = 'vigência 2024-2025; protocolo 1234567890; PT-2024-0001; 2026-01-10; 2026-01-10T10:30:00Z; 2026-01-10 10:30:00; lote 2024-0001-77';
+    expect(await mascararPii(fica, () => 'X')).toBe(fica);
+    expect(await mascararPii('ligar +5511987654321 ou +551134567890', () => 'X')).toBe('ligar X ou X');
+    const p = pseudonimizador('k', 'proj-a');
+    const a = await p('maria@exemplo.com.br');
+    expect(a).toMatch(/^tit-[0-9a-f]{16}$/);
+    // subchave por finalidade: HMAC(chave, SUBCHAVE_TITULAR), e só ela assina o valor (com o projeto como prefixo)
+    const enc = new TextEncoder();
+    const imp = (k: ArrayBuffer | Uint8Array) => crypto.subtle.importKey('raw', k, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sub = await crypto.subtle.sign('HMAC', await imp(enc.encode('k')), enc.encode(SUBCHAVE_TITULAR));
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', await imp(sub), enc.encode('titular_ref:proj-a:maria@exemplo.com.br')));
+    expect(a).toBe(`tit-${[...sig.slice(0, 8)].map((b) => b.toString(16).padStart(2, '0')).join('')}`);
+    const direto = new Uint8Array(await crypto.subtle.sign('HMAC', await imp(enc.encode('k')), enc.encode('titular_ref:proj-a:maria@exemplo.com.br')));
+    expect(a).not.toBe(`tit-${[...direto.slice(0, 8)].map((b) => b.toString(16).padStart(2, '0')).join('')}`);
+    expect(await p('maria@exemplo.com.br')).toBe(a);
+    expect(await pseudonimizador('k', 'proj-b')('maria@exemplo.com.br')).not.toBe(a);
+    expect(await pseudonimizador('outra', 'proj-a')('maria@exemplo.com.br')).not.toBe(a);
+    expect(() => pseudonimizador(undefined, 'proj-a')).toThrow();
+  });
+
+  it('parseHistorico tolera cerca e devolve null fora do formato', () => {
+    expect(parseHistorico('```json\n{"registros":[{"registro":"pedido"}]}\n```')).toEqual([{ registro: 'pedido' }]);
+    expect(parseHistorico('{"avaliacoes":[]}')).toBeNull();
+  });
+
+  it('o modelo nunca vê e-mail, CPF ou telefone; titular_ref é pseudônimo; campo a mais e registro desconhecido recusam; origem não é guardada', async () => {
+    const lote = await novoLote();
+    ia.chamadas = [];
+    respondeHistorico((texto) => {
+      const ref = texto.match(TOKEN)?.[0];
+      return [
+        pedido({ protocolo: 'ANT-PII-1', titular_ref: ref, origem: 'maria@exemplo.com.br pediu acesso' }),
+        consentimento({ titular_ref: 'Maria Exemplo' }),
+        pedido({ protocolo: 'ANT-PII-2', nome: 'Maria Exemplo' }),
+        { registro: 'reclamacao', titulo: 'x', confianca: 'alta' },
+        incidente({ protocolo: 'INC-PII-1', titular_ref: ref }),
+      ];
+    });
+    const csv = 'protocolo;data;tipo;email;cpf;telefone\nANT-PII-1;2026-01-10;acesso;maria@exemplo.com.br;123.456.789-09;(11) 98765-4321\n';
+    const { aid, resposta } = await processarHistorico(lote, csv);
+    expect(resposta.arquivo).toMatchObject({ status: 'processado', tipo: 'historico' });
+    const textos = ia.chamadas.map((m) => m[1].content).join('\n');
+    expect(ia.chamadas.length).toBeGreaterThanOrEqual(2); // classificação e extração
+    for (const pii of ['maria@exemplo.com.br', '123.456.789-09', '98765-4321']) expect(textos).not.toContain(pii);
+    const extracao = ia.chamadas.find((m) => !m[0].content.includes('CLASSIFICAR'))!;
+    expect(extracao[0].content).toMatch(/ignore/i);
+    expect(extracao[0].content).toMatch(/CPF/);
+    const token = extracao[1].content.match(TOKEN)![0];
+
+    expect(await contarItens(aid)).toBe(5);
+    const { itens } = await lerLote(lote);
+    const ped = itens.find((i) => i.dados.protocolo === 'ANT-PII-1')!;
+    expect(entidadeDe(ped)).toBe('titular_pedido');
+    expect(ped).toMatchObject({ decisao: 'pendente', origem: null, dados: { titular_ref: token } });
+    const cons = itens.find((i) => entidadeDe(i) === 'consentimento')!;
+    expect(cons.dados.titular_ref).toMatch(/^tit-[0-9a-f]{16}$/);
+    expect(cons.dados.titular_ref).not.toBe(token);
+    expect(itens.filter((i) => i.decisao === 'recusado')).toHaveLength(3); // nome a mais, registro desconhecido, incidente com titular_ref
+    const { results } = await env.DB.prepare('SELECT dados, origem, motivo FROM importacao_itens WHERE arquivo_id = ?').bind(aid).all<Record<string, string | null>>();
+    const gravado = JSON.stringify(results);
+    for (const pii of ['maria@exemplo.com.br', '123.456.789-09', 'Maria', 'cliente 4471']) expect(gravado).not.toContain(pii);
+  });
+
+  it('PUT não aceita titular_ref que não seja pseudônimo', async () => {
+    const lote = await novoLote();
+    respondeHistorico(() => [consentimento()]);
+    await processarHistorico(lote, 'consentimentos');
+    const [i] = (await lerLote(lote)).itens;
+    const url = `${P}/importacoes/${lote}/itens/${i.id}`;
+    expect((await chamar(consultor, 'PUT', url, { dados: { ...i.dados, titular_ref: 'maria@exemplo.com.br' } })).status).toBe(400);
+    const ok = await chamar(consultor, 'PUT', url, { dados: { ...i.dados, versao_aviso: 'v2' } });
+    expect(ok.status, await ok.clone().text()).toBe(200);
+  });
+
+  it('sem a chave de pseudonimização o histórico não é extraído (falha fechada)', async () => {
+    const lote = await novoLote();
+    ia.tipo = 'historico';
+    ia.chamadas = [];
+    try {
+      const fd = new FormData();
+      fd.append('file', new File(['pedido;maria@exemplo.com.br'], 'h.csv'));
+      const semChave = { ...env, AI, TOKEN_ENC_KEY: undefined };
+      const up = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/importacoes/${lote}/arquivos`, { method: 'POST', headers: consultor, body: fd }), semChave as never);
+      const aid = (await json<{ id: string }>(up)).id;
+      const pr = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/importacoes/${lote}/arquivos/${aid}/processar`, { method: 'POST', headers: consultor }), semChave as never);
+      expect((await json<Processado>(pr)).arquivo).toMatchObject({ status: 'erro', tipo: 'historico' });
+      expect(ia.chamadas.filter((m) => !m[0].content.includes('CLASSIFICAR'))).toHaveLength(0);
+      expect(await contarItens(aid)).toBe(0);
+    } finally { ia.tipo = 'inventario'; }
+  });
+
+  it('pedidos: datas e protocolo original preservados, protocolo do sistema gerado; encerrado sem prazo; aberto vencido aparece atrasado; nenhum aviso de prazo retroativo', async () => {
+    const atrasadosAntes = (await visaoDoEncarregado(env.DB, P)).pedidos_titular.atrasados;
+    const lote = await novoLote();
+    respondeHistorico(() => [
+      pedido({ protocolo: 'ANT-001' }),
+      pedido({ protocolo: 'ANT-002', status: 'em_andamento', respondido_em: null, recebido_em: dia(-40) }),
+      pedido({ protocolo: 'ANT-003', status: 'recebido', respondido_em: null, recebido_em: dia(-2) }),
+      pedido({ protocolo: 'ANT-004', respondido_em: null }),
+      pedido({ protocolo: 'ANT-005', recebido_em: dia(5), status: 'recebido', respondido_em: null }),
+    ]);
+    await processarHistorico(lote, 'pedidos');
+    const { itens } = await lerLote(lote);
+    for (const i of itens) await aceitar(lote, i.id);
+    const rs = await confirmar(lote);
+    const por = (p: string) => rs.find((r) => r.item_id === itens.find((i) => i.dados.protocolo === p)!.id)!;
+    expect(por('ANT-004')).toMatchObject({ decisao: 'recusado' });
+    expect(por('ANT-004').motivo).toMatch(/respondido_em/);
+    expect(por('ANT-005')).toMatchObject({ decisao: 'recusado' });
+    expect(por('ANT-005').motivo).toMatch(/futuro/);
+    expect(por('ANT-001')).toMatchObject({ decisao: 'gravado' });
+    expect(por('ANT-002').aviso).toMatch(/prazo/);
+    expect(por('ANT-003').aviso).toBeUndefined();
+
+    const linha = (id: string) => env.DB.prepare('SELECT protocolo, recebido_em, respondido_em, status, prazo_em, descricao, resposta_texto FROM titular_pedidos WHERE id = ? AND project_id = ?').bind(id, P)
+      .first<{ protocolo: string; recebido_em: string; respondido_em: string | null; status: string; prazo_em: string | null; descricao: string; resposta_texto: string | null }>();
+    const p1 = (await linha(por('ANT-001').registro_id!))!;
+    expect(p1).toMatchObject({ recebido_em: dia(-60), respondido_em: dia(-50), status: 'respondido', prazo_em: null });
+    expect(p1.protocolo).toMatch(/^PT-\d{4}-\d{4}$/);
+    expect(p1.descricao.split('\n')[0]).toBe('Protocolo original: ANT-001');
+    expect(p1.resposta_texto).toBeTruthy();
+    const p2 = (await linha(por('ANT-002').registro_id!))!;
+    expect(p2).toMatchObject({ status: 'em_andamento', recebido_em: dia(-40) });
+    expect(p2.prazo_em!.slice(0, 10)).toBe(dia(-25));
+    const pedidoTela = await json<{ situacao_prazo: string }>(await chamar(consultor, 'GET', `${P}/titular-pedidos/${por('ANT-002').registro_id}`));
+    expect(pedidoTela.situacao_prazo).toBe('atrasado');
+    expect((await visaoDoEncarregado(env.DB, P)).pedidos_titular.atrasados).toBe(atrasadosAntes + 1);
+    const p3 = (await linha(por('ANT-003').registro_id!))!;
+    expect(p3.prazo_em!.slice(0, 10)).toBe(dia(13));
+
+    const ids = [por('ANT-001'), por('ANT-002'), por('ANT-003')].map((r) => r.registro_id);
+    const nossos = async (d: string) => (await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'titular_pedido' && ids.includes(i.item_id));
+    expect(await nossos(HOJE)).toEqual([]);
+    // o vencido na importação não avisa na semana ISO da importação; da semana seguinte em diante, o atraso semanal volta
+    const ant2 = por('ANT-002').registro_id;
+    const doAnt2 = async (d: string) => (await nossos(d)).filter((i) => i.item_id === ant2);
+    const mesmaSemana = [0, 1, 2, 3, 4, 5, 6].map(dia).filter((d) => semanaIso(d) === semanaIso(HOJE));
+    for (const d of mesmaSemana) expect(await doAnt2(d)).toEqual([]);
+    expect(await doAnt2(dia(7))).toMatchObject([{ marco: `atraso-${semanaIso(dia(7))}` }]);
+    const em20 = await nossos(dia(20));
+    expect(em20.map((i) => [i.item_id, i.marco.startsWith('atraso-')]).sort()).toEqual([[ant2, true], [por('ANT-003').registro_id, true]].sort());
+    expect((await nossos(dia(13))).filter((i) => i.item_id === por('ANT-003').registro_id)).toMatchObject([{ marco: 'D0' }]);
+
+    const trilha = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'importacao.gravada' AND project_id = ? AND details LIKE ?`).bind(P, `%${lote}%`).first<{ n: number }>();
+    expect(trilha!.n).toBe(3);
+
+    // o mesmo protocolo original outra vez nasce descartado; aceito mesmo assim é recusado
+    const l2 = await novoLote();
+    respondeHistorico(() => [pedido({ protocolo: 'ant 001' })]);
+    await processarHistorico(l2, 'pedidos de novo');
+    const [dup] = (await lerLote(l2)).itens;
+    expect(dup).toMatchObject({ decisao: 'descartado', duplicata_de: por('ANT-001').registro_id });
+    await aceitar(l2, dup.id);
+    const [r] = await confirmar(l2);
+    expect(r).toMatchObject({ decisao: 'recusado' });
+    expect(r.motivo).toMatch(/já existe pedido/);
+  });
+
+  it('incidentes: encerrado preservado sem prazo; aberto com prazo vencido aparece atrasado (sem aviso retroativo); encerrado sem risco recusa; duplicata por protocolo', async () => {
+    const comunicacoesAntes = (await visaoDoEncarregado(env.DB, P)).incidentes.comunicacoes_atrasadas;
+    const lote = await novoLote();
+    respondeHistorico(() => [
+      incidente({ protocolo: 'INC-1' }),
+      incidente({ protocolo: 'INC-2', status: 'aberto', risco_titular: null, comunicacao_anpd_em: null, ciencia_em: dia(-30) }),
+      incidente({ protocolo: 'INC-3', risco_titular: null }),
+      incidente({ protocolo: 'INC-4', comunicacao_anpd_em: null }),
+    ]);
+    await processarHistorico(lote, 'incidentes');
+    const { itens } = await lerLote(lote);
+    expect(itens.every((i) => entidadeDe(i) === 'incidente')).toBe(true);
+    for (const i of itens) await aceitar(lote, i.id);
+    const rs = await confirmar(lote);
+    const por = (p: string) => rs.find((r) => r.item_id === itens.find((i) => i.dados.protocolo === p)!.id)!;
+    expect(por('INC-3')).toMatchObject({ decisao: 'recusado' });
+    expect(por('INC-3').motivo).toMatch(/risco/);
+    expect(por('INC-4')).toMatchObject({ decisao: 'recusado' });
+    expect(por('INC-4').motivo).toMatch(/ANPD/);
+    expect(por('INC-2').aviso).toMatch(/prazo/);
+    const linha = (id: string) => env.DB.prepare('SELECT protocolo, titulo, ciencia_em, risco_titular, comunicacao_anpd_em, prazo_anpd_em, prazo_titular_em, status, descricao FROM incidentes WHERE id = ? AND project_id = ?').bind(id, P).first<Record<string, string | null>>();
+    expect(await linha(por('INC-1').registro_id!)).toMatchObject({ ciencia_em: dia(-90), comunicacao_anpd_em: dia(-88), risco_titular: 'relevante', status: 'encerrado', prazo_anpd_em: null, prazo_titular_em: null });
+    const i1 = (await linha(por('INC-1').registro_id!))!;
+    expect(i1.protocolo).toMatch(/^IN-\d{4}-\d{4}$/);
+    expect(i1.descricao!.split('\n')[0]).toBe('Protocolo original: INC-1');
+    const i2 = (await linha(por('INC-2').registro_id!))!;
+    expect(i2).toMatchObject({ status: 'aberto', ciencia_em: dia(-30) });
+    expect(i2.prazo_anpd_em!.slice(0, 10)).toBe(dia(-27));
+    expect(i2.prazo_titular_em!.slice(0, 10)).toBe(dia(-27));
+    expect((await visaoDoEncarregado(env.DB, P)).incidentes.comunicacoes_atrasadas).toBe(comunicacoesAntes + 2);
+    const ids = [por('INC-1'), por('INC-2')].map((r) => r.registro_id);
+    const dosNossos = async (d: string) => (await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'incidente' && ids.some((id) => i.item_id.startsWith(`${id}:`)));
+    for (const d of [0, 1, 2, 3, 4, 5, 6].map(dia).filter((x) => semanaIso(x) === semanaIso(HOJE))) expect(await dosNossos(d)).toEqual([]);
+    // semana seguinte: o aberto (INC-2) volta a avisar as duas comunicações; o encerrado (INC-1), nunca
+    expect((await dosNossos(dia(7))).map((i) => i.item_id).sort()).toEqual([`${por('INC-2').registro_id}:anpd`, `${por('INC-2').registro_id}:titular`].sort());
+
+    const l2 = await novoLote();
+    respondeHistorico(() => [incidente({ protocolo: 'inc-1' })]);
+    await processarHistorico(l2, 'incidentes de novo');
+    const [dup] = (await lerLote(l2)).itens;
+    expect(dup).toMatchObject({ decisao: 'descartado', duplicata_de: por('INC-1').registro_id });
+  });
+
+  it('incidente criado à mão com ciência antiga: carência só na semana da criação, depois o atraso da ANPD avisa', async () => {
+    const r = await criarIncidente(env.DB, P, 'cons@ness.lat', { titulo: 'Notebook perdido', ciencia_em: dia(-5) });
+    expect(r.ok).toBe(true);
+    const id = (r as { id: string }).id;
+    const deste = async (d: string) => (await itensDoDia(env.DB, d)).itens.filter((i) => i.fonte === 'incidente' && i.item_id === `${id}:anpd`);
+    expect(await deste(HOJE)).toEqual([]);
+    expect(await deste(dia(7))).toMatchObject([{ marco: `atraso-${semanaIso(dia(7))}`, vence_em: dia(-2) }]);
+    expect(await deste(dia(14))).toMatchObject([{ marco: `atraso-${semanaIso(dia(14))}` }]);
+  });
+
+  it('consentimentos: exigem tratamento casado pela finalidade (o da mesma confirmação vale); datas preservadas; duplicata por titular, finalidade e data', async () => {
+    const lote = await novoLote();
+    respondeHistorico(() => [
+      consentimento({ revogado_em: dia(-10), versao_aviso: 'v3' }),
+      consentimento({ tratamento: 'Tratamento que não existe', finalidade: 'Outra finalidade' }),
+    ]);
+    await processarHistorico(lote, 'consentimentos');
+    responde(tratamento('Newsletter do histórico'));
+    await enviarEProcessar(lote, 'inventario-newsletter.csv');
+    const { itens } = await lerLote(lote);
+    for (const i of itens) await aceitar(lote, i.id);
+    const rs = await confirmar(lote);
+    const cons = itens.filter((i) => entidadeDe(i) === 'consentimento');
+    const ok = rs.find((r) => r.item_id === cons.find((i) => i.dados.tratamento === 'Newsletter do histórico')!.id)!;
+    const sem = rs.find((r) => r.item_id === cons.find((i) => i.dados.tratamento === 'Tratamento que não existe')!.id)!;
+    expect(sem).toMatchObject({ decisao: 'recusado' });
+    expect(sem.motivo).toMatch(/não encontrado no RoPA/);
+    expect(ok).toMatchObject({ decisao: 'gravado' });
+    const c = await env.DB.prepare('SELECT c.ropa_id, c.titular_ref, c.finalidade, c.obtido_em, c.revogado_em, c.versao_aviso, r.processing_purpose AS trat FROM consentimentos c JOIN ropa_records r ON r.id = c.ropa_id WHERE c.id = ? AND c.project_id = ?')
+      .bind(ok.registro_id, P).first<Record<string, string | null>>();
+    expect(c).toMatchObject({ trat: 'Newsletter do histórico', finalidade: 'Envio de newsletter', obtido_em: dia(-200), revogado_em: dia(-10), versao_aviso: 'v3' });
+    expect(c!.titular_ref).toMatch(/^tit-[0-9a-f]{16}$/);
+
+    const l2 = await novoLote();
+    respondeHistorico(() => [consentimento()]);
+    await processarHistorico(l2, 'consentimentos de novo');
+    const [dup] = (await lerLote(l2)).itens;
+    expect(dup).toMatchObject({ decisao: 'descartado', duplicata_de: ok.registro_id });
   });
 });

@@ -146,7 +146,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
 - **Schema**: `schema.sql` — **86 tabelas** (2026-10-12: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0066** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0068** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Inventario (ativos)**: vive em `itens` (nucleo fino) + `item_seguranca` (bloco do n.iso, 1:1), antes `assets`
@@ -283,8 +283,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Importacao de programa de privacidade (n.privacy, fatia 1, migration 0064; spec em `docs/superpowers/specs/2026-10-11-importacao-privacy-design.md`).**
   Rotas em `src/routes/importacao.ts`, montadas em `/api/v1/projects/:projectId/importacoes` na faixa `privacy` (`src/modulos.ts`); so a
   equipe da consultoria (`ehEquipeNess`), cliente recebe 403. Tabelas `importacoes` (lote), `importacao_arquivos` e `importacao_itens`
-  (a proposta, um tratamento por linha). Arquivo no R2 `STORAGE`, chave `importacoes/<project_id>/<lote>/<arquivo>`. Regras em
-  `src/services/importacao.ts`; o `ImportacaoAgent` (`src/agents/importacao.ts`) classifica o arquivo e extrai tratamentos pelo
+  (a proposta, um item por linha; `entidade` `tratamento`, `terceiro` desde a fatia 2 (migration 0067), `documento`, `dpia` e `lia` desde a fatia 3, `titular_pedido`, `incidente` e `consentimento` desde a fatia 4). Arquivo no R2 `STORAGE`, chave `importacoes/<project_id>/<lote>/<arquivo>`. Regras em
+  `src/services/importacao.ts`; o `ImportacaoAgent` (`src/agents/importacao.ts`) classifica o arquivo e extrai, conforme o tipo
+  (`inventario` → tratamentos, `terceiros` → terceiros, `documento` → um documento por arquivo, tirado so do primeiro bloco, `avaliacao` →
+  DPIA ou LIA item a item pelo campo `tipo` da resposta, `historico` → pedido do titular, incidente ou consentimento pelo campo `registro`;
+  `desconhecido` fica `aguardando`), pelo
   `BaseAgent.runModel`, tratando o texto do arquivo como dado e nunca como instrucao, e cada item e validado por esquema estrito no servidor.
   **Processamento em passos, um por chamada** (`processar` devolve `restantes` e a tela repete): o primeiro converte, classifica e
   guarda o texto em `<r2_key>.txt`; cada seguinte extrai um bloco de ~4.000 caracteres (`BLOCO`, cortado so em quebra de linha;
@@ -295,6 +298,38 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   **Revisao humana obrigatoria:** nada vira RoPA sem a pessoa aceitar o item na tela e confirmar. `confirmar` grava no maximo 30 itens por
   chamada (`ITENS_POR_CONFIRMACAO`, a tela repete ate `restantes` zerar), um item por transacao, e o lote fica em status `gravando` (trava
   por UPDATE condicional; processar, enviar, editar item e cancelar recebem 409; trava de gravacao interrompida e retomada apos 10 minutos).
+  **Terceiro (fatia 2):** `gravarTerceiro` casa a parte organizacao por nome normalizado (a existente e reaproveitada; duplicata nasce
+  `descartado` e, aceita, nao cria outra parte), liga aos tratamentos ja cadastrados por finalidade normalizada (papel `operador`) na mesma
+  transacao que marca o item `gravado`, e depois chama `definirTipo`, `registrarAvaliacao` (so com validade no futuro, sem repetir a mesma) e
+  `ligarDocumento` (DPA pelo titulo) de `src/services/terceiros.ts`; o que falhar nesses passos vira `aviso` no resultado, sem desfazer a parte.
+  Tipo de parte ja tipificada nao e trocado pelo arquivo. `duplicata_de`/`registro_id` apontam para o registro da entidade (sem FK).
+  **Documento e avaliacao (fatia 3, migration 0068):** `gravarDocumento` cria pelo `criarDocumento` de `src/services/documentos.ts` um
+  documento em RASCUNHO (nunca publicado) com o texto convertido (`<r2_key>.txt`) como versao 1; titulo normalizado igual ao de um documento
+  do projeto recusa. Depois copia o arquivo original para `evidence/<projeto>/` e grava a evidencia com `evidence.documento_id` (a 0068);
+  `lerDocumento` devolve `evidencias`. `gravarAvaliacao` casa o tratamento por finalidade normalizada (sem ele, `recusado`): DPIA pelo
+  `criarDpiaDoTratamento` de `src/services/lia.ts` (`Draft`; riscos e a conclusao (marcada como do arquivo) em
+  `risks_identified`; parecer do DPO fica vazio), LIA pelo `salvarLia` em rascunho (conclusao e riscos no `balanceamento`; concluir e de uma pessoa); DPIA/LIA ja existente
+  no tratamento recusa. Ordem da confirmacao: tratamentos, depois documentos, depois o resto (DPIA/LIA acham o tratamento e o terceiro acha o
+  DPA gravados na mesma confirmacao). Falha depois da criacao (evidencia, riscos da DPIA) vira `aviso` mais log estruturado, sem desfazer o registro;
+  falha da marca `gravado` vira `recusado` com o id criado.
+  **Historico operacional (fatia 4, sem migration):** dado pessoal minimo. Antes de qualquer texto ir ao modelo, `mascararPii` troca
+  e-mail, CPF e telefone: na classificacao por `[dado pessoal]`, na extracao do historico pelo pseudonimo `tit-<16 hex>` de
+  `pseudonimizador` (HMAC-SHA256 com a `TOKEN_ENC_KEY`, separado por projeto; sem a chave o arquivo fica `erro` e nada vai ao modelo).
+  Os esquemas (`pedidoPropostoSchema`, `incidentePropostoSchema`, `consentimentoPropostoSchema`) nao tem campo de nome, CPF, e-mail ou
+  telefone; `titular_ref` so aceita o pseudonimo (o que o modelo devolver fora do formato e pseudonimizado no servidor), e o trecho de
+  `origem` nao e guardado. Nome, endereco e afins nao sao detectaveis por regex: o prompt proibe devolve-los, o esquema estrito recusa
+  campo a mais e uma pessoa revisa. Gravacao pelas funcoes "importar historico" dos servicos (`importarPedido` em
+  `src/services/titular-pedidos.ts`, `importarIncidente` em `incidentes.ts`, `importarConsentimento` em `consentimentos.ts`): datas e status
+  do registro de origem (final inclusive), protocolo do sistema gerado como na criacao (ano da data de origem), protocolo de origem na
+  primeira linha da descricao (`Protocolo original: ...`, e por ela que a duplicata e achada). **Avisos de prazo:** registro encerrado
+  entra sem prazo (nao se recalcula); registro aberto recebe o prazo do parametro contado da data de origem, mesmo vencido (a tela e o
+  painel do encarregado o mostram atrasado, e o resultado traz `aviso`). Carencia em `src/services/avisos-prazo.ts` (`itensDoDia`): pedido
+  do titular e comunicacao de incidente cujo prazo e anterior ao dia de `created_at` nao geram atraso na semana ISO da criacao; da semana
+  seguinte em diante o atraso semanal volta, como para qualquer registro. D-7 e D0 so saem no proprio dia, entao nunca sao retroativos.
+  Vale igual para pedido e incidente criados a mao com data antiga (prazo que ja nasce vencido).
+  O pseudonimo usa uma subchave (`HMAC(TOKEN_ENC_KEY, "n.iso/importacao/titular_ref/v1")`), nao a chave de cifra direto. Consentimento exige o tratamento do RoPA de mesma finalidade normalizada (o gravado na mesma confirmacao vale;
+  sem ele, `recusado`). Duplicata: pedido pelo protocolo de origem; incidente pelo protocolo de origem ou titulo e dia da ciencia;
+  consentimento pelo pseudonimo, finalidade e data.
   Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`), e o GET tambem e
   recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
   prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:

@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0065** (`ls migrations/*.sql | tail -1`). São 63 arquivos
+- Última migration no repositório: **0068** (`ls migrations/*.sql | tail -1`). São 66 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -451,4 +451,32 @@ da 0065** (a equipe da ness. herda `["iso","privacy"]` do contrato; antes dela, 
 `SELECT count(*) FROM usuario_modulos` devolve **18 em produção** (5 consultores × 2 módulos + 8 `org_admin` × 1). Para desfazer: nada a reverter nos
 papéis (o mapa de `src/middleware/auth.ts` aceita os dois nomes); a tabela pode ficar. **Esta RODA em produção, sem janela:** o código novo exige o
 módulo da pessoa, então a migration vai ANTES do deploy.
+Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
+
+## 0067 — importação de terceiros (2026-10-12)
+
+Importação de programa, fatia 2. Rebuild de `importacao_itens` (CHECK só muda por rebuild no SQLite): `entidade` passa a aceitar `terceiro` e, de
+uma vez, as entidades das fatias 3 e 4 (`documento`, `dpia`, `lia`, `titular_pedido`, `incidente`, `consentimento`; o código ainda só grava
+`tratamento` e `terceiro`), para as próximas fatias não reconstruírem a tabela de novo; e
+`duplicata_de` e `registro_id` perdem a FK para `ropa_records` (num item `terceiro` apontam para `partes`; a coluna guarda o id do registro conforme a
+entidade, como `parte_vinculos.alvo_id`). Nenhuma tabela aponta para `importacao_itens`, então o `DROP` não cascateia; as FKs dela para lote,
+arquivo e projeto seguem iguais e os três índices são recriados. `test/migration-0067.test.ts` prova sobre o banco da 0064 com linhas: nada some,
+as oito entidades entram, entidade fora da lista é recusada, a cascata do lote continua. **Precisa da 0064 aplicada. NÃO é idempotente**
+(rebuild: `CREATE TABLE importacao_itens_new` sem `IF NOT EXISTS`); aplicar só uma vez, pelo `migrations apply`. Conferência antes: `SELECT COUNT(*)
+FROM importacao_itens`; depois: a mesma contagem, `SELECT sql FROM sqlite_master WHERE name = 'importacao_itens'` com `'terceiro'` no CHECK e
+`PRAGMA foreign_key_list(importacao_itens)` só com `importacoes`, `importacao_arquivos` e `projects`. Para desfazer: não precisa (o código anterior
+só grava `tratamento`, que a tabela nova aceita). **Esta RODA em produção, sem janela:** o código novo grava `entidade = 'terceiro'`, então a
+migration vai ANTES do deploy.
+Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
+
+---
+
+## 0068 — evidência ligada a documento (2026-10-12)
+
+Importação de programa, fatia 3. `evidence.documento_id` (FK para `documentos`, `ON DELETE SET NULL`) e o índice `idx_evidence_documento`:
+o arquivo original de um documento importado fica guardado como evidência ligada a ele. Coluna nova e nula, nada muda nas linhas que
+existem. `test/migration-0068.test.ts` prova sobre a `evidence` antiga com linha: a linha fica, a coluna e o índice entram, apagar o
+documento só solta a ligação. **NÃO é idempotente** (`ADD COLUMN` aborta com "duplicate column"): aplicar uma vez, pelo
+`migrations apply`. Conferência depois: `PRAGMA table_info(evidence)` com `documento_id`. Para desfazer: não precisa (o código anterior
+não lê a coluna). **Esta RODA em produção, sem janela:** o código novo grava `documento_id`, então a migration vai ANTES do deploy.
 Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remote` → `npx wrangler d1 migrations list niso-db --remote` → merge.
