@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML } from '../ui.js';
+import { produtoAtual } from '../produto.js';
 
 // Catálogo de requisitos (fatia 2 do núcleo): fontes (ISO 27001, ISO 27701, LGPD, GDPR), cada requisito com as
 // equivalências validadas pelo jurídico e, nas leis, a cobertura do projeto (documento vigente ou controle ligado por
@@ -27,13 +28,21 @@ async function renderRequisitos(c, h, a) {
     S.fonteRequisitos = fonteId;
 
     a.innerHTML = ehAdmin() ? '<button class="btn" data-action="semearRequisitos">Carregar catálogo</button>' : '';
-    const seletor = `<div class="form-group" style="max-width:360px"><label class="form-label" for="req-fonte">Fonte</label>
+    // Sem nenhuma fonte com requisito, o seletor só listaria zeros: não aparece.
+    const algumaCarregada = fontes.some((f) => f.requisitos > 0);
+    const seletor = algumaCarregada ? `<div class="form-group" style="max-width:360px"><label class="form-label" for="req-fonte">Fonte</label>
         <select class="form-input" id="req-fonte" data-action-change="escolherFonteRequisitos" data-arg-val>${fontes.map((f) =>
-        `<option value="${escapeHTML(f.id)}" ${f.id === fonteId ? 'selected' : ''}>${escapeHTML(f.nome)} (${escapeHTML(String(f.requisitos))})</option>`).join('')}</select></div>`;
+        `<option value="${escapeHTML(f.id)}" ${f.id === fonteId ? 'selected' : ''}>${escapeHTML(f.nome)} (${escapeHTML(String(f.requisitos))})</option>`).join('')}</select></div>` : '';
 
     if (!escolhida || !escolhida.requisitos) {
+        // Só o administrador carrega o catálogo: para ele, a ação primária; para os demais, a quem pedir (não um beco sem saída).
+        const privacy = produtoAtual() === 'privacy';
+        const proximo = ehAdmin()
+            ? `<button class="btn btn-primary" data-action="semearRequisitos" style="margin-top:1rem">${privacy ? 'Carregar catálogo LGPD/ANPD' : 'Carregar catálogo'}</button>`
+            : `<p>O catálogo é carregado pelo administrador da plataforma. Peça a ele para habilitar os requisitos ${privacy ? 'da LGPD e da ANPD' : 'das normas do projeto'}.</p>`;
+        if (ehAdmin()) a.innerHTML = '';
         c.innerHTML = `${seletor}<div class="empty-state fade-in"><h3>Catálogo ainda não carregado</h3>
-            <p>${escolhida ? escapeHTML(escolhida.nome) + ' ainda não tem requisitos carregados.' : 'Nenhuma fonte de requisitos foi carregada.'}</p></div>`;
+            <p>${escolhida && algumaCarregada ? escapeHTML(escolhida.nome) + ' ainda não tem requisitos carregados.' : 'Nenhuma fonte de requisitos foi carregada.'}</p>${proximo}</div>`;
         return;
     }
 

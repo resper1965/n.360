@@ -75,3 +75,24 @@ describe('aviso quando o e-mail do convite não saiu', () => {
     expect(toast()).toContain('Convite enviado por e-mail');
   });
 });
+
+describe('governança no n.privacy', () => {
+  it('fala de privacidade e do encarregado, não de SGSI; sem âncora, oferece indicar o encarregado', () => {
+    history.replaceState(null, '', '/privacy');
+    try {
+      S.user = { role: 'consultor', email: 'x@n.com' };
+      document.body.innerHTML = window.renderProjectGovernance(MEMBROS.filter((m) => !m.is_primary), 'p1');
+      const t = document.body.textContent;
+      expect(t).toContain('Quem responde pela privacidade deste cliente, por área.');
+      expect(t).toContain('Encarregado (DPO) não designado');
+      expect(t).not.toContain('Quem responde pelo SGSI');
+      expect(t).not.toContain('Líder do SGSI não designado');
+      expect(JSON.parse(document.querySelector('[data-action="abrirIndicarEncarregado"]').getAttribute('data-args'))).toEqual(['p1']);
+    } finally { history.replaceState(null, '', '/'); }
+  });
+  it('fora do n.privacy o texto do SGSI continua', () => {
+    S.user = { role: 'consultor', email: 'x@n.com' };
+    document.body.innerHTML = window.renderProjectGovernance(MEMBROS.filter((m) => !m.is_primary), 'p1');
+    expect(document.body.textContent).toContain('Líder do SGSI não designado');
+  });
+});

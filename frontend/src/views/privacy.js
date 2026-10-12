@@ -5,8 +5,55 @@ import { render } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { temProduto } from '../produto.js';
 
+    // Base legal do RoPA (LGPD, art. 7 e art. 11). Grava-se o TEXTO da hipótese, não um código: o relatório PDF, os
+    // pedidos de aprovação e a regra da LIA (services/lia.ts procura "legitimo interesse") leem `legal_basis` como texto.
+    // As do art. 11 levam o sufixo "(art. 11)" porque os rótulos repetem os do art. 7 ("Tutela da saúde").
+    const BASES_ART7 = ['Consentimento', 'Cumprimento de obrigação legal ou regulatória', 'Execução de políticas públicas', 'Estudos por órgão de pesquisa',
+        'Execução de contrato ou procedimentos preliminares', 'Exercício regular de direitos', 'Proteção da vida ou incolumidade física', 'Tutela da saúde',
+        'Legítimo interesse', 'Proteção do crédito'];
+    const BASES_ART11 = ['Consentimento específico e destacado', 'Obrigação legal ou regulatória', 'Políticas públicas', 'Estudos por órgão de pesquisa',
+        'Exercício regular de direitos', 'Proteção da vida', 'Tutela da saúde', 'Prevenção à fraude e segurança do titular'];
+    const ART11 = (b) => `${b} (art. 11)`;
+    const normaliza = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    // Valores que o formulário antigo gravava (sem acento, 6 hipóteses): exibidos e pré-selecionados com o rótulo atual.
+    const BASES_LEGADO = {
+        'consentimento': 'Consentimento',
+        'execucao contratual': 'Execução de contrato ou procedimentos preliminares',
+        'obrigacao legal': 'Cumprimento de obrigação legal ou regulatória',
+        'interesse legitimo': 'Legítimo interesse',
+        'protecao da vida': 'Proteção da vida ou incolumidade física',
+        'tutela da saude': 'Tutela da saúde',
+    };
+    const rotuloBase = (v) => BASES_LEGADO[normaliza(v)] || v || '';
+    const ehLegitimoInteresse = (v) => { const t = normaliza(v); return t.includes('legitimo interesse') || t.includes('interesse legitimo'); };
+    function opcoesBase(atual) {
+        const sel = rotuloBase(atual);
+        const conhecidos = [...BASES_ART7, ...BASES_ART11.map(ART11)];
+        const opt = (valor, rotulo) => `<option value="${escapeHTML(valor)}" ${valor === sel ? 'selected' : ''}>${escapeHTML(rotulo)}</option>`;
+        // Texto livre (importado de planilha, por exemplo) não some ao editar: fica como opção, selecionado.
+        const livre = sel && !conhecidos.includes(sel) ? opt(sel, sel) : '';
+        return `<option value="">Selecione a hipótese</option>${livre}
+            <optgroup label="Art. 7 (dados pessoais)">${BASES_ART7.map((b) => opt(b, b)).join('')}</optgroup>
+            <optgroup label="Art. 11 (dados sensíveis)">${BASES_ART11.map((b) => opt(ART11(b), b)).join('')}</optgroup>`;
+    }
+    const STATUS_ROPA = [['Active', 'Ativo'], ['Inactive', 'Inativo'], ['Draft', 'Rascunho'], ['Under Review', 'Em revisão']];
+    const opcoesStatus = (lista, atual) => lista.map(([v, r]) => `<option value="${v}" ${atual === v ? 'selected' : ''}>${r}</option>`).join('');
+    // Os dois campos de maior consequência legal ficam logo abaixo da base legal, em tamanho normal.
+    // ponytail: dado sensível (art. 11) e criança/adolescente (art. 14) não têm coluna em ropa_records; entram quando houver.
+    const riscosDoTratamento = (p, r = {}) => `
+            <fieldset style="border:1px solid var(--border); padding:0.75rem 1rem; margin:0 0 1.25rem">
+                <legend class="form-label" style="padding:0 0.25rem">Riscos do tratamento</legend>
+                <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text); margin-bottom:0.5rem"><input type="checkbox" id="${p}-intl" data-action-change="alternarSalvaguarda" data-args='["${p}"]' ${r.international_transfers ? 'checked' : ''}> Transferência internacional (arts. 33-36)</label>
+                <div class="form-group" style="margin:0 0 0.75rem 1.5rem" ${r.international_transfers ? '' : 'hidden'}><label class="form-label" for="${p}-safeguards">Salvaguarda de transferência</label><input class="form-input" id="${p}-safeguards" value="${escapeHTML(r.transfer_safeguards || '')}" placeholder="Cláusulas-padrão contratuais (Res. CD/ANPD 19/2024)"></div>
+                <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text)"><input type="checkbox" id="${p}-dpia" ${r.dpia_required ? 'checked' : ''}> Exige RIPD</label>
+            </fieldset>`;
+    window.alternarSalvaguarda = function(p) {
+        const grupo = document.getElementById(`${p}-safeguards`)?.closest('.form-group');
+        if (grupo) grupo.hidden = !document.getElementById(`${p}-intl`)?.checked;
+    };
+
     async function renderROPA(c, h, a) {
-        h.textContent = 'ROPA — Registro de Atividades de Tratamento';
+        h.textContent = 'Registro de tratamentos (RoPA)';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -16,42 +63,55 @@ import { temProduto } from '../produto.js';
         
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
         const comPrivacy = temProduto(proj, 'privacy');
-        a.innerHTML = canCrud ? `${comPrivacy ? `<button class="btn" data-action="openImportarRopaModal" data-args='["${proj.id}"]'>Importar planilha</button> ` : ''}<button class="btn btn-primary" data-action="openNewROPAModal" data-args='["${proj.id}"]'>+ Nova Atividade</button>` : '';
-        
+        const btnImportar = canCrud && comPrivacy ? `<button class="btn" data-action="openImportarRopaModal" data-args='["${proj.id}"]'>Importar planilha</button>` : '';
+        const btnNovo = (rotulo) => (canCrud ? `<button class="btn btn-primary" data-action="openNewROPAModal" data-args='["${proj.id}"]'>${rotulo}</button>` : '');
+
         let records = [];
         try { records = await api('GET', `/api/v1/projects/${proj.id}/ropa`); } catch(e) {}
         if (!Array.isArray(records)) records = [];
         S.ropa = records;
+        // O PDF é do projeto inteiro: uma ação no header, não um botão por linha.
+        a.innerHTML = [btnImportar, records.length ? `<button class="btn" data-action="openROPAReport" data-args='["${proj.id}"]'>Exportar RoPA (PDF)</button>` : '', btnNovo('Nova atividade')].filter(Boolean).join(' ');
+
+        // A conta de "legítimo interesse sem LIA" é do servidor (visão do encarregado): a lista do RoPA não traz a LIA.
+        let liaPendente = null;
+        if (comPrivacy) { try { const v = await api('GET', `/api/v1/projects/${proj.id}/encarregado`); if (v && v.tratamentos) liaPendente = v.tratamentos.lia_pendente || 0; } catch (e) { /* sem o cartão */ } }
 
         const totalRecords = records.length;
         const dpiaReqCount = records.filter(r => r.dpia_required).length;
         const intlTransCount = records.filter(r => r.international_transfers).length;
+        const semSalvaguarda = records.filter(r => r.international_transfers && !String(r.transfer_safeguards || '').trim()).length;
         const activeRecords = records.filter(r => r.status === 'Active' || !r.status).length;
 
+        // Número em var(--text); cor só quando há alerta (transferência sem salvaguarda, LIA pendente).
         const statsHtml = window.renderStatCards([
-            { label: 'Total de Processamentos', value: totalRecords, color: 'var(--accent)', subtext: 'Atividades mapeadas' },
-            { label: 'Atividades Ativas', value: activeRecords, color: '#34c759', subtext: 'Em operação' },
-            { label: 'DPIA Requerido', value: dpiaReqCount, color: dpiaReqCount > 0 ? '#ffcc00' : '#34c759', subtext: 'Avaliação de impacto' },
-            { label: 'Transferências Int.', value: intlTransCount, color: intlTransCount > 0 ? '#ff3b30' : 'var(--accent)', subtext: 'Fronteiras internacionais' }
+            { label: 'Tratamentos', value: totalRecords, color: 'var(--text)', subtext: 'Atividades mapeadas' },
+            { label: 'Atividades ativas', value: activeRecords, color: 'var(--text)', subtext: 'Em operação' },
+            { label: 'Exige RIPD', value: dpiaReqCount, color: 'var(--text)', subtext: 'Relatório de impacto' },
+            { label: 'Com transferência internacional', value: intlTransCount, color: semSalvaguarda ? 'var(--warning)' : 'var(--text)', subtext: semSalvaguarda ? `${semSalvaguarda} sem salvaguarda` : 'Arts. 33-36' },
+            ...(liaPendente === null ? [] : [{ label: 'Legítimo interesse sem LIA', value: liaPendente, color: liaPendente ? 'var(--warning)' : 'var(--text)', subtext: 'Faça em "Base legal e LIA"' }]),
         ]);
 
         const tableHtml = window.renderDataTable(
-            ['Propósito do Tratamento', 'Base Legal', 'Titulares', 'Retenção', 'DPIA Requerido', 'Status', 'Ações'],
+            ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Status', 'Ações'],
             records.map(r => {
                 const statusType = r.status === 'Active' || !r.status ? 'success' : 'info';
                 return [
                     `<strong>${escapeHTML(r.processing_purpose)}</strong>`,
-                    escapeHTML(r.legal_basis || 'N/A'),
+                    escapeHTML(rotuloBase(r.legal_basis) || 'N/A'),
                     escapeHTML(r.data_subjects || 'N/A'),
                     escapeHTML(r.retention_period || 'N/A'),
                     r.dpia_required ? window.renderStatusBadge('Sim', 'warning') : window.renderStatusBadge('Não', 'neutral'),
                     window.renderStatusBadge(r.status || 'Active', statusType),
                     `<button class="btn btn-ghost btn-sm" data-action="openROPADetailsModal" data-args='["${r.id}"]'>Detalhes</button>
-                     ${comPrivacy ? `<button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='["${proj.id}","${r.id}"]'>Ligações</button>` : ''}
-                     <button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="openROPAReport" data-args='["${proj.id}"]' data-stop>PDF</button>`
+                     ${comPrivacy ? `<button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='["${proj.id}","${r.id}"]'>${ehLegitimoInteresse(r.legal_basis) ? 'Base legal e LIA' : 'Ligações'}</button>` : ''}`
                 ];
             }),
-            { emptyState: 'Nenhum registro ROPA cadastrado neste projeto.' }
+            {
+                emptyState: 'O inventário de tratamentos (art. 37) está vazio.',
+                emptyHint: 'Registre a primeira atividade ou importe a planilha que o cliente já tem.',
+                emptyAction: btnNovo('Registrar atividade') + btnImportar,
+            }
         );
 
         c.innerHTML = `
@@ -67,18 +127,18 @@ import { temProduto } from '../produto.js';
         
         openModal(`
             <div class="modal-header">
-                <span class="modal-title">Detalhes da Atividade ROPA</span>
+                <span class="modal-title">Detalhes da atividade (RoPA)</span>
                 <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
-                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.3rem; color:var(--accent)">
+                <div style="font-family:'Montserrat',sans-serif; font-weight:600; font-size:1.3rem; color:var(--text)">
                     ${escapeHTML(r.processing_purpose || '')}
                 </div>
                 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:16px">
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Base Legal</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(r.legal_basis || 'N/A')}</div>
+                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(rotuloBase(r.legal_basis) || 'N/A')}</div>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Responsável / Owner</div>
@@ -102,11 +162,11 @@ import { temProduto } from '../produto.js';
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Status</div>
-                        <span class="ctx-tag ctx-tag-green" style="font-weight:600">${r.status || 'Active'}</span>
+                        <span class="ctx-tag" style="font-weight:600">${escapeHTML(window.traduzStatus(r.status || 'Active'))}</span>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">DPIA Requerido</div>
-                        <span class="ctx-tag" style="background:${r.dpia_required ? 'rgba(234,179,8,0.12)' : 'rgba(255,255,255,0.05)'}; color:${r.dpia_required ? '#f59e0b' : 'var(--text-dim)'}; font-weight:600">${r.dpia_required ? 'Sim' : 'Não'}</span>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Exige RIPD</div>
+                        <span class="ctx-tag" style="background:${r.dpia_required ? 'rgba(234,179,8,0.12)' : 'rgba(255,255,255,0.05)'}; color:${r.dpia_required ? 'var(--warning)' : 'var(--text-dim)'}; font-weight:600">${r.dpia_required ? 'Sim' : 'Não'}</span>
                     </div>
                     ${r.international_transfers ? `
                     <div style="grid-column:span 2">
@@ -118,7 +178,7 @@ import { temProduto } from '../produto.js';
                 </div>
             </div>
             <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:16px">
-                <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--accent); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Workflow de Assinatura (ROPA)</h4>
+                <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--text-dim); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Assinaturas do RoPA</h4>
                 <div style="display:flex; flex-direction:column; gap:0.75rem">
                     <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:8px; font-size:0.75rem">
                         <div>
@@ -138,7 +198,7 @@ import { temProduto } from '../produto.js';
             </div>
             
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px">
-                <button class="btn btn-secondary" data-action="openROPAReport" data-args='["${projectId}"]'>Gerar Relatório ROPA</button>
+                <button class="btn btn-secondary" data-action="openROPAReport" data-args='["${projectId}"]'>Exportar RoPA (PDF)</button>
                 <div>
                     <button class="btn" data-action="forceCloseModal">Fechar</button>
                     ${canCrud ? `<button class="btn btn-primary" data-action="openEditROPAModal" data-args='["${id}"]'>Editar Atividade</button>` : ''}
@@ -150,35 +210,21 @@ import { temProduto } from '../produto.js';
     window.openNewROPAModal = async function(projectId) {
         const parteOptions = await opcoesDePartes(projectId, null);
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova Atividade de Tratamento (ROPA)</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
-            <div class="form-group"><label class="form-label">Finalidade do Tratamento</label><input class="form-input" id="ropa-purpose" placeholder="Ex: Folha de pagamento"></div>
-            <div class="form-group"><label class="form-label">Categorias de Dados</label><input class="form-input" id="ropa-categories" placeholder="Ex: Dados pessoais, financeiros, biometria"></div>
-            <div class="form-group"><label class="form-label">Titulares</label><input class="form-input" id="ropa-subjects" placeholder="Ex: Colaboradores, Clientes"></div>
-            <div class="form-group"><label class="form-label">Base Legal</label>
-                <select class="form-input" id="ropa-basis">
-                    <option>Consentimento</option>
-                    <option>Execucao contratual</option>
-                    <option>Obrigacao legal</option>
-                    <option>Interesse legitimo</option>
-                    <option>Protecao da vida</option>
-                    <option>Tutela da saude</option>
-                </select></div>
+            <div class="modal-header"><span class="modal-title">Nova atividade de tratamento (RoPA)</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="form-group"><label class="form-label" for="ropa-purpose">Finalidade do tratamento</label><input class="form-input" id="ropa-purpose" placeholder="Ex: Folha de pagamento"></div>
+            <div class="form-group"><label class="form-label" for="ropa-categories">Categorias de dados</label><input class="form-input" id="ropa-categories" placeholder="Ex: Dados pessoais, financeiros, biometria"></div>
+            <div class="form-group"><label class="form-label" for="ropa-subjects">Titulares</label><input class="form-input" id="ropa-subjects" placeholder="Ex: Colaboradores, Clientes"></div>
+            <div class="form-group"><label class="form-label" for="ropa-basis">Base legal</label>
+                <select class="form-input" id="ropa-basis">${opcoesBase('')}</select></div>
+            ${riscosDoTratamento('ropa')}
             <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Retencao</label><input class="form-input" id="ropa-retention" placeholder="Ex: 5 anos"></div>
-                <div class="form-group" style="flex:1"><label class="form-label">Responsável (cadastro de partes)</label><select class="form-input" id="ropa-owner-parte">${parteOptions}</select></div>
+                <div class="form-group" style="flex:1"><label class="form-label" for="ropa-retention">Retenção</label><input class="form-input" id="ropa-retention" placeholder="Ex: 5 anos"></div>
+                <div class="form-group" style="flex:1"><label class="form-label" for="ropa-owner-parte">Responsável (cadastro de partes)</label><select class="form-input" id="ropa-owner-parte">${parteOptions}</select></div>
             </div>
-            <div class="form-group"><label class="form-label">Responsável (texto livre)</label><input class="form-input" id="ropa-owner" placeholder="Ex: DPO"></div>
-            <div class="form-group"><label class="form-label">Destinatarios / Compartilhamento</label><input class="form-input" id="ropa-recipients" placeholder="Ex: Contabilidade, INSS, Cloud Providers"></div>
-            <div class="form-group"><label class="form-label">Salvaguardas de Transferência (Se aplicável)</label><input class="form-input" id="ropa-safeguards" placeholder="Ex: Standard Contractual Clauses (SCCs)"></div>
-            <div class="form-group"><label class="form-label">Status</label>
-                <select class="form-input" id="ropa-status">
-                    <option>Active</option>
-                    <option>Inactive</option>
-                </select></div>
-            <div style="display:flex;gap:1rem;margin-bottom:1rem">
-                <label style="font-size:0.7rem;color:var(--muted);display:flex;align-items:center;gap:0.25rem"><input type="checkbox" id="ropa-intl"> Transferencia Internacional</label>
-                <label style="font-size:0.7rem;color:var(--muted);display:flex;align-items:center;gap:0.25rem"><input type="checkbox" id="ropa-dpia"> DPIA Requerido</label>
-            </div>
+            <div class="form-group"><label class="form-label" for="ropa-owner">Responsável (texto livre)</label><input class="form-input" id="ropa-owner" placeholder="Ex: DPO"></div>
+            <div class="form-group"><label class="form-label" for="ropa-recipients">Destinatários / compartilhamento</label><input class="form-input" id="ropa-recipients" placeholder="Ex: Contabilidade, INSS, provedores de nuvem"></div>
+            <div class="form-group"><label class="form-label" for="ropa-status">Status</label>
+                <select class="form-input" id="ropa-status">${opcoesStatus(STATUS_ROPA.slice(0, 2), 'Active')}</select></div>
             <button class="btn btn-primary" style="width:100%" data-action="createROPA" data-args='["${projectId}"]'>Registrar</button>
         `);
     };
@@ -207,30 +253,23 @@ import { temProduto } from '../produto.js';
         const r = S.ropa.find(x => x.id === id) || {};
         const parteOptions = await opcoesDePartes(r.project_id || (S.activeProject && S.activeProject.id), r.owner_parte_id);
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Atividade ROPA</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
-            <div class="form-group"><label class="form-label">Finalidade</label><input class="form-input" id="ropa-e-purpose" value="${escapeHTML(r.processing_purpose||'')}"></div>
-            <div class="form-group"><label class="form-label">Categorias de Dados</label><input class="form-input" id="ropa-e-categories" value="${escapeHTML(r.data_categories||'')}"></div>
-            <div class="form-group"><label class="form-label">Titulares</label><input class="form-input" id="ropa-e-subjects" value="${escapeHTML(r.data_subjects||'')}"></div>
-            <div class="form-group"><label class="form-label">Base Legal</label>
-                <select class="form-input" id="ropa-e-basis">
-                    ${['Consentimento','Execucao contratual','Obrigacao legal','Interesse legitimo','Protecao da vida','Tutela da saude'].map(opt => `<option ${opt===r.legal_basis?'selected':''}>${opt}</option>`).join('')}
-                </select></div>
+            <div class="modal-header"><span class="modal-title">Editar atividade (RoPA)</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="form-group"><label class="form-label" for="ropa-e-purpose">Finalidade</label><input class="form-input" id="ropa-e-purpose" value="${escapeHTML(r.processing_purpose||'')}"></div>
+            <div class="form-group"><label class="form-label" for="ropa-e-categories">Categorias de dados</label><input class="form-input" id="ropa-e-categories" value="${escapeHTML(r.data_categories||'')}"></div>
+            <div class="form-group"><label class="form-label" for="ropa-e-subjects">Titulares</label><input class="form-input" id="ropa-e-subjects" value="${escapeHTML(r.data_subjects||'')}"></div>
+            <div class="form-group"><label class="form-label" for="ropa-e-basis">Base legal</label>
+                <select class="form-input" id="ropa-e-basis">${opcoesBase(r.legal_basis)}</select></div>
+            ${riscosDoTratamento('ropa-e', r)}
             <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Retencao</label><input class="form-input" id="ropa-e-retention" value="${escapeHTML(r.retention_period||'')}"></div>
-                <div class="form-group" style="flex:1"><label class="form-label">Responsável (cadastro de partes)</label><select class="form-input" id="ropa-e-owner-parte">${parteOptions}</select></div>
+                <div class="form-group" style="flex:1"><label class="form-label" for="ropa-e-retention">Retenção</label><input class="form-input" id="ropa-e-retention" value="${escapeHTML(r.retention_period||'')}"></div>
+                <div class="form-group" style="flex:1"><label class="form-label" for="ropa-e-owner-parte">Responsável (cadastro de partes)</label><select class="form-input" id="ropa-e-owner-parte">${parteOptions}</select></div>
             </div>
-            <div class="form-group"><label class="form-label">Responsável (texto livre)</label><input class="form-input" id="ropa-e-owner" value="${escapeHTML(r.owner||'')}"></div>
-            <div class="form-group"><label class="form-label">Destinatarios / Compartilhamento</label><input class="form-input" id="ropa-e-recipients" value="${escapeHTML(r.recipients||'')}"></div>
-            <div class="form-group"><label class="form-label">Salvaguardas de Transferência</label><input class="form-input" id="ropa-e-safeguards" value="${escapeHTML(r.transfer_safeguards||'')}"></div>
-            <div class="form-group"><label class="form-label">Status</label>
+            <div class="form-group"><label class="form-label" for="ropa-e-owner">Responsável (texto livre)</label><input class="form-input" id="ropa-e-owner" value="${escapeHTML(r.owner||'')}"></div>
+            <div class="form-group"><label class="form-label" for="ropa-e-recipients">Destinatários / compartilhamento</label><input class="form-input" id="ropa-e-recipients" value="${escapeHTML(r.recipients||'')}"></div>
+            <div class="form-group"><label class="form-label" for="ropa-e-status">Status</label>
                 <select class="form-input" id="ropa-e-status" ${r.status==='Approved'?'disabled':''}>
-                    ${r.status==='Approved' ? '<option value="Approved" selected>Approved (reabrir: Revogar aprovação)</option>' : `
-                    ${['Active','Inactive','Draft','Under Review'].map(v => `<option value="${v}" ${(r.status||'Active')===v?'selected':''}>${v}</option>`).join('')}`}
+                    ${r.status==='Approved' ? '<option value="Approved" selected>Aprovado (para reabrir, revogue a aprovação)</option>' : opcoesStatus(STATUS_ROPA, r.status || 'Active')}
                 </select></div>
-            <div style="display:flex;gap:1rem;margin-bottom:1rem">
-                <label style="font-size:0.7rem;color:var(--muted);display:flex;align-items:center;gap:0.25rem"><input type="checkbox" id="ropa-e-intl" ${r.international_transfers?'checked':''}> Transferencia Internacional</label>
-                <label style="font-size:0.7rem;color:var(--muted);display:flex;align-items:center;gap:0.25rem"><input type="checkbox" id="ropa-e-dpia" ${r.dpia_required?'checked':''}> DPIA Requerido</label>
-            </div>
             <div style="display:flex;gap:0.5rem;justify-content:space-between;margin-top:1rem">
                 <button class="btn" style="color:var(--danger)" data-action="deleteROPA" data-args='["${id}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateROPA" data-args='["${id}"]'>Salvar</button>
@@ -264,7 +303,8 @@ import { temProduto } from '../produto.js';
     };
 
     async function renderDPIA(c, h, a) {
-        h.textContent = 'DPIA / RIPD — Relatório de Impacto à Proteção de Dados';
+        // O termo legal brasileiro vem primeiro (LGPD, art. 5º, XVII).
+        h.textContent = 'RIPD (DPIA)';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -273,12 +313,18 @@ import { temProduto } from '../produto.js';
         }
         
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        a.innerHTML = canCrud ? `<button class="btn btn-primary" data-action="openNewDPIAModal" data-args='["${proj.id}"]'>+ Novo Relatório (DPIA)</button>` : '';
-        
+        a.innerHTML = canCrud ? `<button class="btn btn-primary" data-action="openNewDPIAModal" data-args='["${proj.id}"]'>Novo RIPD</button>` : '';
+
         let assessments = [];
         try { assessments = await api('GET', `/api/v1/projects/${proj.id}/dpia`); } catch(e) {}
         if (!Array.isArray(assessments)) assessments = [];
         S.dpia = assessments;
+
+        // Sem RIPD, o vazio diz onde ele é exigido: os tratamentos marcados "Exige RIPD" no RoPA.
+        let exigem = 0;
+        if (!assessments.length) {
+            try { const rs = await api('GET', `/api/v1/projects/${proj.id}/ropa`); exigem = Array.isArray(rs) ? rs.filter(r => r.dpia_required).length : 0; } catch(e) {}
+        }
 
         const totalDPIA = assessments.length;
         const approvedCount = assessments.filter(dp => dp.status === 'Approved').length;
@@ -286,14 +332,14 @@ import { temProduto } from '../produto.js';
         const draftCount = totalDPIA - (approvedCount + reviewCount);
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total de Relatórios DPIA', value: totalDPIA, color: 'var(--accent)', subtext: 'Avaliações registradas' },
-            { label: 'Aprovados', value: approvedCount, color: '#34c759', subtext: 'Risco aceitável / mitigado' },
-            { label: 'Em Revisão', value: reviewCount, color: '#ffcc00', subtext: 'Aguardando DPO / CISO' },
-            { label: 'Rascunhos / Pendentes', value: draftCount, color: 'var(--text-dim)', subtext: 'Em elaboração' }
+            { label: 'RIPDs', value: totalDPIA, color: 'var(--text)', subtext: 'Relatórios registrados' },
+            { label: 'Aprovados', value: approvedCount, color: 'var(--text)', subtext: 'Risco aceitável ou mitigado' },
+            { label: 'Em revisão', value: reviewCount, color: reviewCount ? 'var(--warning)' : 'var(--text)', subtext: 'Aguardando o encarregado' },
+            { label: 'Rascunhos', value: draftCount, color: 'var(--text)', subtext: 'Em elaboração' }
         ]);
 
         const tableHtml = window.renderDataTable(
-            ['Sistema / Operação', 'Tipos de Titulares', 'Categorias de Dados', 'Status', 'Ações'],
+            ['Sistema ou operação', 'Titulares', 'Categorias de dados', 'Status', 'Ações'],
             assessments.map(dp => {
                 const statusType = dp.status === 'Approved' ? 'success' : dp.status === 'Under Review' ? 'warning' : 'info';
                 return [
@@ -305,7 +351,12 @@ import { temProduto } from '../produto.js';
                      <button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="openDPIAReport" data-args='["${proj.id}","${dp.id}"]' data-stop>PDF</button>`
                 ];
             }),
-            { emptyState: 'Nenhum relatório DPIA / RIPD cadastrado.' }
+            exigem
+                ? { emptyState: `Nenhum RIPD. ${exigem} ${exigem === 1 ? 'tratamento do RoPA está marcado' : 'tratamentos do RoPA estão marcados'} como "Exige RIPD".`,
+                    emptyAction: `<button class="btn" data-action="navigate" data-args='["ropa"]'>Abrir o RoPA</button>${canCrud ? `<button class="btn btn-primary" data-action="openNewDPIAModal" data-args='["${proj.id}"]'>Novo RIPD</button>` : ''}` }
+                : { emptyState: 'Nenhum RIPD registrado.',
+                    emptyHint: 'Marque no RoPA os tratamentos de alto risco para saber onde o RIPD é exigido.',
+                    emptyAction: `<button class="btn" data-action="navigate" data-args='["ropa"]'>Abrir o RoPA</button>` }
         );
 
         c.innerHTML = `
@@ -318,22 +369,22 @@ import { temProduto } from '../produto.js';
         const dp = S.dpia.find(x => x.id === id) || {};
         const projectId = S.activeProject ? S.activeProject.id : '';
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        const statusColor = s => s === 'Approved' ? 'var(--success)' : s === 'Under Review' ? '#feca57' : 'var(--muted)';
+        const statusColor = s => s === 'Approved' ? 'var(--success)' : s === 'Under Review' ? 'var(--warning)' : 'var(--muted)';
         
         openModal(`
             <div class="modal-header">
-                <span class="modal-title">Detalhes do DPIA / RIPD</span>
+                <span class="modal-title">Detalhes do RIPD</span>
                 <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
-                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.3rem; color:var(--accent)">
+                <div style="font-family:'Montserrat',sans-serif; font-weight:600; font-size:1.3rem; color:var(--text)">
                     ${escapeHTML(dp.system_name)}
                 </div>
                 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:16px">
                     <div style="grid-column:span 2">
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Descrição do Fluxo de Dados</div>
-                        <div style="font-size:0.85rem; color:var(--text)">${escapeHTML(dp.data_flow_description || 'Sem descricao')}</div>
+                        <div style="font-size:0.85rem; color:var(--text)">${escapeHTML(dp.data_flow_description || 'Sem descrição')}</div>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Tipos de Titulares</div>
@@ -348,11 +399,11 @@ import { temProduto } from '../produto.js';
                         <div style="font-size:0.85rem; color:var(--text)">${escapeHTML(dp.necessity_proportionality || 'Sem justificativa cadastrada')}</div>
                     </div>
                     <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Riscos Identificados a Privacidade</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Riscos identificados à privacidade</div>
                         <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(dp.risks_identified || 'Nenhum risco listado')}</div>
                     </div>
                     <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Medidas de Mitigacao e Salvaguardas</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Medidas de mitigação e salvaguardas</div>
                         <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(dp.mitigation_measures || 'Nenhuma medida cadastrada')}</div>
                     </div>
                     <div style="grid-column:span 2">
@@ -360,13 +411,13 @@ import { temProduto } from '../produto.js';
                         <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(dp.dpo_opinion || 'Aguardando parecer formal do DPO')}</div>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Status do DPIA</div>
-                        <span class="ctx-tag" style="color:${statusColor(dp.status)}; border-color:${statusColor(dp.status)}; font-weight:600">${dp.status}</span>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Status do RIPD</div>
+                        <span class="ctx-tag" style="color:${statusColor(dp.status)}; border-color:${statusColor(dp.status)}; font-weight:600">${escapeHTML(window.traduzStatus(dp.status || 'Draft'))}</span>
                     </div>
                 </div>
             </div>
             <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:16px">
-                <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--accent); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Workflow de Assinatura (DPIA)</h4>
+                <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--text-dim); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Assinaturas do RIPD</h4>
                 <div style="display:flex; flex-direction:column; gap:0.75rem">
                     <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:8px; font-size:0.75rem">
                         <div>
@@ -388,10 +439,10 @@ import { temProduto } from '../produto.js';
             </div>
             
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px">
-                <button class="btn btn-secondary" data-action="openDPIAReport" data-args='["${projectId}","${dp.id}"]'>Gerar Relatório DPIA</button>
+                <button class="btn btn-secondary" data-action="openDPIAReport" data-args='["${projectId}","${dp.id}"]'>Exportar RIPD (PDF)</button>
                 <div>
                     <button class="btn" data-action="forceCloseModal">Fechar</button>
-                    ${canCrud ? `<button class="btn btn-primary" data-action="openEditDPIAModal" data-args='["${id}"]'>Editar Relatório</button>` : ''}
+                    ${canCrud ? `<button class="btn btn-primary" data-action="openEditDPIAModal" data-args='["${id}"]'>Editar RIPD</button>` : ''}
                 </div>
             </div>
         `);
@@ -399,19 +450,19 @@ import { temProduto } from '../produto.js';
 
     window.openNewDPIAModal = function(projectId) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">Novo DPIA / RIPD</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Novo RIPD</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             <div class="form-group"><label class="form-label">Nome do Sistema / Processo de Dados</label><input class="form-input" id="dpia-system" placeholder="Ex: CRM Salesforce, Sistema de RH Interno"></div>
             <div class="form-group"><label class="form-label">Descrição do Fluxo de Dados</label><textarea class="form-input" id="dpia-flow" placeholder="Descreva como os dados entram, circulam e saem do sistema..."></textarea></div>
             <div style="display:flex; gap:0.5rem">
                 <div class="form-group" style="flex:1"><label class="form-label">Tipos de Titulares</label><input class="form-input" id="dpia-subjects" placeholder="Ex: Clientes, Colaboradores"></div>
-                <div class="form-group" style="flex:1"><label class="form-label">Categorias de Dados</label><input class="form-input" id="dpia-categories" placeholder="Ex: Nome, CPF, E-mail, Cartao"></div>
+                <div class="form-group" style="flex:1"><label class="form-label">Categorias de Dados</label><input class="form-input" id="dpia-categories" placeholder="Ex: Nome, CPF, e-mail, cartão"></div>
             </div>
-            <div class="form-group"><label class="form-label">Necessidade e Proporcionalidade</label><textarea class="form-input" id="dpia-necessity" placeholder="Por que estes dados sao estritamente necessarios para a finalidade?"></textarea></div>
-            <div class="form-group"><label class="form-label">Riscos Identificados para a Privacidade</label><textarea class="form-input" id="dpia-risks" placeholder="Ex: Vazamento de dados em transito, acesso nao autorizado..."></textarea></div>
+            <div class="form-group"><label class="form-label">Necessidade e Proporcionalidade</label><textarea class="form-input" id="dpia-necessity" placeholder="Por que estes dados são estritamente necessários para a finalidade?"></textarea></div>
+            <div class="form-group"><label class="form-label">Riscos Identificados para a Privacidade</label><textarea class="form-input" id="dpia-risks" placeholder="Ex: Vazamento de dados em trânsito, acesso não autorizado..."></textarea></div>
             <div class="form-group"><label class="form-label">Medidas de Mitigação e Salvaguardas</label><textarea class="form-input" id="dpia-mitigations" placeholder="Ex: Uso de criptografia TLS/AES-256, MFA ativo, auditorias..."></textarea></div>
             <div class="form-group"><label class="form-label">Parecer DPO (Opcional)</label><textarea class="form-input" id="dpia-opinion" placeholder="Parecer inicial do encarregado..."></textarea></div>
             
-            <button class="btn btn-primary" style="width:100%; margin-top:1rem" data-action="createDPIA" data-args='["${projectId}"]'>Registrar DPIA</button>
+            <button class="btn btn-primary" style="width:100%; margin-top:1rem" data-action="createDPIA" data-args='["${projectId}"]'>Registrar RIPD</button>
         `);
     };
 
@@ -434,7 +485,7 @@ import { temProduto } from '../produto.js';
     window.openEditDPIAModal = function(id) {
         const dp = S.dpia.find(x => x.id === id) || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar DPIA / RIPD</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar RIPD</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             <div class="form-group"><label class="form-label">Nome do Sistema</label><input class="form-input" id="dpia-e-system" value="${escapeHTML(dp.system_name||'')}"></div>
             <div class="form-group"><label class="form-label">Descrição do Fluxo</label><textarea class="form-input" id="dpia-e-flow">${escapeHTML(dp.data_flow_description||'')}</textarea></div>
             <div style="display:flex; gap:0.5rem">
@@ -447,9 +498,9 @@ import { temProduto } from '../produto.js';
             <div class="form-group"><label class="form-label">Parecer do DPO (Encarregado)</label><textarea class="form-input" id="dpia-e-opinion">${escapeHTML(dp.dpo_opinion||'')}</textarea></div>
             <div class="form-group"><label class="form-label">Status</label>
                 <select class="form-input" id="dpia-e-status" ${dp.status==='Approved'?'disabled':''}>
-                    ${dp.status==='Approved' ? '<option value="Approved" selected>Approved (reabrir: Revogar aprovação)</option>' : `
-                    <option value="Draft" ${dp.status==='Draft'?'selected':''}>Draft</option>
-                    <option value="Under Review" ${dp.status==='Under Review'?'selected':''}>Under Review</option>`}
+                    ${dp.status==='Approved' ? '<option value="Approved" selected>Aprovado (para reabrir, revogue a aprovação)</option>' : `
+                    <option value="Draft" ${dp.status==='Draft'?'selected':''}>Rascunho</option>
+                    <option value="Under Review" ${dp.status==='Under Review'?'selected':''}>Em revisão</option>`}
                 </select></div>
 
             <div style="display:flex; gap:0.5rem; justify-content:space-between; margin-top:1.5rem">
@@ -479,7 +530,7 @@ import { temProduto } from '../produto.js';
     };
 
     window.deleteDPIA = async function(id) {
-        if (confirm('Excluir este DPIA?')) {
+        if (confirm('Excluir este RIPD?')) {
             await api('DELETE', `/api/v1/dpia/${id}`);
             forceCloseModal();
             render();

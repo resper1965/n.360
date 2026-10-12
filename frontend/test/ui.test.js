@@ -12,6 +12,7 @@ import {
     showToast,
     TOAST_MS,
     traduzStatus,
+    renderAbas,
 } from '../src/ui.js';
 
 describe('escapeHTML()', () => {
@@ -397,5 +398,46 @@ describe('traduzStatus()', () => {
         // o valor direto no HTML, que é onde o bug estava.
         expect(traduzStatus('<b>x</b>')).toBe('<b>x</b>');
         expect(renderStatusBadge('<b>x</b>', 'info')).toContain('&lt;b&gt;');
+    });
+});
+
+
+describe('traduzStatus(): Inativo', () => {
+    it('o RoPA grava "Inactive" e a tabela mostrava cru', () => {
+        expect(traduzStatus('Inactive')).toBe('Inativo');
+    });
+});
+
+describe('renderDataTable(): estado vazio que ensina', () => {
+    it('emptyHint (escapado, em --text-dim) e emptyAction (HTML do botão) aparecem só sem linhas', () => {
+        const vazio = renderDataTable(['A'], [], { emptyState: 'Nada <aqui>', emptyHint: 'LGPD, art. 37 <b>', emptyAction: '<button class="btn" data-action="x">Criar</button>' });
+        const d = document.createElement('div'); d.innerHTML = vazio;
+        expect(d.textContent).toContain('Nada <aqui>');
+        expect(d.querySelector('b')).toBeNull();
+        expect(d.querySelector('.empty-hint').textContent).toBe('LGPD, art. 37 <b>');
+        expect(d.querySelector('.empty-hint').getAttribute('style')).toContain('var(--text-dim)');
+        expect(d.querySelector('[data-action="x"]').textContent).toBe('Criar');
+        const cheio = renderDataTable(['A'], [['1']], { emptyHint: 'H', emptyAction: '<button data-action="x"></button>' });
+        expect(cheio).not.toContain('data-action="x"');
+    });
+    it('sem as opções novas, o vazio continua igual (chamadas antigas)', () => {
+        const d = document.createElement('div'); d.innerHTML = renderDataTable(['A'], [], { emptyState: 'Vazio' });
+        expect(d.querySelector('.empty-hint')).toBeNull();
+        expect(d.textContent.trim()).toBe('Vazio');
+    });
+});
+
+describe('renderAbas()', () => {
+    it('tablist com tab, aria-selected e a ação com o valor da aba; ativa sem preenchimento', () => {
+        const d = document.createElement('div');
+        d.innerHTML = renderAbas([['a', 'Pedidos (2)'], ['b', 'Incidentes']], 'b', 'trocar');
+        const lista = d.querySelector('[role="tablist"]');
+        const abas = [...lista.querySelectorAll('[role="tab"]')];
+        expect(abas.map((x) => x.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+        expect(abas.map((x) => JSON.parse(x.getAttribute('data-args'))[0])).toEqual(['a', 'b']);
+        expect(abas.every((x) => x.getAttribute('data-action') === 'trocar')).toBe(true);
+        expect(abas[1].className).not.toContain('btn-primary');
+        expect(abas[1].getAttribute('tabindex')).toBe('0');
+        expect(abas[0].getAttribute('tabindex')).toBe('-1');
     });
 });

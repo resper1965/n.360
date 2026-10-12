@@ -76,6 +76,20 @@ describe('lista', () => {
         S.activeProject = { id: 'p9' };
         await lista({ [`GET ${B}`]: [] });
         expect(el('c').textContent).toContain('Nenhuma organização cadastrada');
+        // a ponte para Partes é um link, não uma instrução de memória
+        const vazio = el('c').querySelector('.empty-state');
+        expect(JSON.parse(vazio.querySelector('[data-action="navigate"]').getAttribute('data-args'))).toEqual(['partes']);
+        expect(vazio.querySelector('[data-action="openNovaParteModal"]')).not.toBeNull();
+    });
+
+    it('header tem "Cadastrar terceiro", que abre a nova parte já como organização', async () => {
+        await lista();
+        const b = el('a').querySelector('[data-action="openNovaParteModal"]');
+        expect(b.textContent).toBe('Cadastrar terceiro');
+        expect(JSON.parse(b.getAttribute('data-args'))).toEqual(['p9', 'organizacao']);
+        S.user = { role: 'org_user' };
+        await lista();
+        expect(el('a').innerHTML).toBe('');
     });
 });
 

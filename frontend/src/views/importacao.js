@@ -142,7 +142,7 @@ function htmlLote() {
 }
 
 function htmlAbas(itens) {
-    return `<div role="tablist" style="display:flex;gap:0.5rem;margin-bottom:0.75rem">${ABAS.map(([k, r]) => `<button role="tab" aria-selected="${E.aba === k}" class="btn btn-sm ${E.aba === k ? 'btn-primary' : 'btn-ghost'}" data-action="importacaoAba" data-args='${args(k)}'>${e(r)} (${itens.filter((i) => abaDe(i) === k).length})</button>`).join('')}</div>`;
+    return window.renderAbas(ABAS.map(([k, r]) => [k, `${e(r)} (${itens.filter((i) => abaDe(i) === k).length})`]), E.aba, 'importacaoAba');
 }
 window.importacaoAba = (k) => { E.aba = k; pinta(); };
 

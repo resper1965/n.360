@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML } from '../ui.js';
+import { produtoAtual } from '../produto.js';
 
 // Partes e departamentos do projeto (fatia 1.4 do núcleo). O cadastro existe para o responsável de risco,
 // controle, ativo e tratamento apontar para uma pessoa ou organização, e não para um texto digitado.
@@ -28,10 +29,17 @@ async function renderPartes(c, h, a) {
         return;
     }
     const editar = podeEditar();
+    // Uma ação primária; as três secundárias num menu nativo (<details>), para o header não virar uma fila de 5 botões.
+    const itemMenu = 'display:block; width:100%; text-align:left; border:0; margin:0';
     a.innerHTML = editar
-        ? `<button class="btn" data-action="importarPartes" data-args='["${proj.id}"]'>Importar do projeto</button>
-           <button class="btn" data-action="conciliarPartes" data-args='["${proj.id}"]'>Conciliar responsáveis</button>
-           <button class="btn" data-action="openNovoDepartamentoModal" data-args='["${proj.id}"]'>+ Departamento</button>
+        ? `<details style="position:relative; display:inline-block">
+               <summary class="btn" style="list-style:none; cursor:pointer">Mais</summary>
+               <div style="position:absolute; right:0; top:calc(100% + 4px); z-index:20; min-width:220px; background:var(--surface); border:1px solid var(--border); padding:0.25rem 0">
+                   <button class="btn" style="${itemMenu}" data-action="importarPartes" data-args='["${proj.id}"]'>Importar do projeto</button>
+                   <button class="btn" style="${itemMenu}" data-action="conciliarPartes" data-args='["${proj.id}"]'>Conciliar responsáveis</button>
+                   <button class="btn" style="${itemMenu}" data-action="openNovoDepartamentoModal" data-args='["${proj.id}"]'>+ Departamento</button>
+               </div>
+           </details>
            <button class="btn btn-primary" data-action="openNovaParteModal" data-args='["${proj.id}"]'>+ Nova parte</button>`
         : '';
 
@@ -50,7 +58,9 @@ async function renderPartes(c, h, a) {
             window.renderStatusBadge(p.status === 'ativa' ? 'Ativa' : 'Inativa', p.status === 'ativa' ? 'success' : 'info'),
             `<button class="btn btn-ghost btn-sm" data-action="openParteModal" data-args='["${proj.id}","${escapeHTML(p.id)}"]'>${editar ? 'Abrir' : 'Detalhes'}</button>`,
         ]),
-        { emptyState: 'Nenhuma parte cadastrada. Use "Importar do projeto" para trazer governança e partes interessadas.' }
+        { emptyState: produtoAtual() === 'privacy'
+            ? 'Nenhuma pessoa ou organização. Cadastre o encarregado, os operadores e os fornecedores que tratam dados, ou traga quem já está no projeto.'
+            : 'Nenhuma parte cadastrada. Use "Importar do projeto" para trazer governança e partes interessadas.' }
     );
     const tabelaDeptos = window.renderDataTable(
         ['Departamento', 'Situação'],
@@ -70,11 +80,11 @@ async function renderPartes(c, h, a) {
 // Mensagem do servidor quando existe (409 de duplicata, 400 de validação), senão a genérica.
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
-window.openNovaParteModal = function (projectId) {
+window.openNovaParteModal = function (projectId, tipo = 'pessoa') {
     openModal(`
-        <div class="modal-header"><span class="modal-title">Nova parte</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
-        <div class="form-group"><label class="form-label">Tipo</label>
-            <select class="form-input" id="parte-tipo"><option value="pessoa">Pessoa</option><option value="organizacao">Organização</option></select></div>
+        <div class="modal-header"><span class="modal-title">${tipo === 'organizacao' ? 'Novo terceiro (organização)' : 'Nova parte'}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="form-group"><label class="form-label" for="parte-tipo">Tipo</label>
+            <select class="form-input" id="parte-tipo">${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${v === tipo ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="parte-nome" maxlength="200"></div>
         <div class="form-group"><label class="form-label">E-mail (opcional)</label><input class="form-input" id="parte-email" type="email" maxlength="320"></div>
         <button class="btn btn-primary" style="width:100%" data-action="criarParte" data-args='["${projectId}"]'>Cadastrar</button>
