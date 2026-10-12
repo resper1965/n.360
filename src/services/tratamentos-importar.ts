@@ -47,9 +47,11 @@ const COLUNAS: Record<string, string> = {
   transferencia_internacional: 'international_transfers', international_transfers: 'international_transfers',
   salvaguardas: 'transfer_safeguards', transfer_safeguards: 'transfer_safeguards',
   dpia_requerido: 'dpia_required', dpia_required: 'dpia_required',
+  dados_sensiveis: 'dados_sensiveis', criancas_e_adolescentes: 'criancas_adolescentes', criancas_adolescentes: 'criancas_adolescentes',
   responsavel: 'owner', owner: 'owner',
 };
-const BOOLEANAS = new Set(['international_transfers', 'dpia_required']);
+const BOOLEANAS = new Set(['international_transfers', 'dpia_required', 'dados_sensiveis', 'criancas_adolescentes']);
+const NOME_BOOLEANA: Record<string, string> = { dpia_required: 'dpia_requerido', international_transfers: 'transferencia_internacional', dados_sensiveis: 'dados_sensiveis', criancas_adolescentes: 'criancas_adolescentes' };
 
 const simNao = (v: string): 0 | 1 | null => {
   const k = chave(v);
@@ -73,7 +75,7 @@ export function validarTratamento(entrada: Record<string, unknown>): { ok: true;
     if (BOOLEANAS.has(c)) campos[c] = typeof v === 'string' ? (simNao(v) ?? v) : v;
     else if (v !== '' && v !== null && v !== undefined) campos[c] = v;
   }
-  for (const c of BOOLEANAS) if (typeof campos[c] === 'string') return { ok: false, motivo: `${c === 'dpia_required' ? 'dpia_requerido' : 'transferencia_internacional'} aceita sim ou não` };
+  for (const c of BOOLEANAS) if (typeof campos[c] === 'string') return { ok: false, motivo: `${NOME_BOOLEANA[c]} aceita sim ou não` };
   const ok = ropaSchema.safeParse(campos);
   if (!ok.success) return { ok: false, motivo: `${String(ok.error.issues[0]?.path[0] ?? 'linha')}: ${ok.error.issues[0]?.message ?? 'inválido'}` };
   return { ok: true, data: ok.data as TratamentoValido };
@@ -82,10 +84,10 @@ export function validarTratamento(entrada: Record<string, unknown>): { ok: true;
 /** O INSERT do tratamento em `Draft`, o mesmo para a planilha e a importação de programa. */
 export function stmtInserirTratamento(db: D1Database, id: string, projectId: string, b: TratamentoValido, agora: string, baseLegalId: string | null = null): D1PreparedStatement {
   return db.prepare(
-    `INSERT INTO ropa_records (id, project_id, processing_purpose, data_categories, data_subjects, legal_basis, retention_period, recipients, international_transfers, transfer_safeguards, dpia_required, status, owner, base_legal_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?, ?, ?)`
+    `INSERT INTO ropa_records (id, project_id, processing_purpose, data_categories, data_subjects, legal_basis, retention_period, recipients, international_transfers, transfer_safeguards, dpia_required, dados_sensiveis, criancas_adolescentes, status, owner, base_legal_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?, ?, ?)`
   ).bind(id, projectId, b.processing_purpose, b.data_categories ?? null, b.data_subjects ?? null, b.legal_basis ?? null,
-    b.retention_period ?? null, b.recipients ?? null, b.international_transfers ? 1 : 0, b.transfer_safeguards ?? null, b.dpia_required ? 1 : 0, b.owner ?? null,
+    b.retention_period ?? null, b.recipients ?? null, b.international_transfers ? 1 : 0, b.transfer_safeguards ?? null, b.dpia_required ? 1 : 0, b.dados_sensiveis ? 1 : 0, b.criancas_adolescentes ? 1 : 0, b.owner ?? null,
     baseLegalId, agora, agora);
 }
 

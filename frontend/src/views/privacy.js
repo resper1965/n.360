@@ -43,13 +43,14 @@ import { temProduto } from '../produto.js';
     const STATUS_ROPA = [['Active', 'Ativo'], ['Inactive', 'Inativo'], ['Draft', 'Rascunho'], ['Under Review', 'Em revisão']];
     const opcoesStatus = (lista, atual) => lista.map(([v, r]) => `<option value="${v}" ${atual === v ? 'selected' : ''}>${r}</option>`).join('');
     // Os dois campos de maior consequência legal ficam logo abaixo da base legal, em tamanho normal.
-    // ponytail: dado sensível (art. 11) e criança/adolescente (art. 14) não têm coluna em ropa_records; entram quando houver.
     const riscosDoTratamento = (p, r = {}) => `
             <fieldset style="border:1px solid var(--border); padding:0.75rem 1rem; margin:0 0 1.25rem">
                 <legend class="form-label" style="padding:0 0.25rem">Riscos do tratamento</legend>
                 <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text); margin-bottom:0.5rem"><input type="checkbox" id="${p}-intl" data-action-change="alternarSalvaguarda" data-args='["${p}"]' ${r.international_transfers ? 'checked' : ''}> Transferência internacional (arts. 33-36)</label>
                 <div class="form-group" style="margin:0 0 0.75rem 1.5rem" ${r.international_transfers ? '' : 'hidden'}><label class="form-label" for="${p}-safeguards">Salvaguarda de transferência</label><input class="form-input" id="${p}-safeguards" value="${escapeHTML(r.transfer_safeguards || '')}" placeholder="Cláusulas-padrão contratuais (Res. CD/ANPD 19/2024)"></div>
                 <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text)"><input type="checkbox" id="${p}-dpia" ${r.dpia_required ? 'checked' : ''}> Exige RIPD</label>
+                <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text); margin-top:0.5rem"><input type="checkbox" id="${p}-sensiveis" ${r.dados_sensiveis ? 'checked' : ''}> Dados sensíveis (art. 11)</label>
+                <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text); margin-top:0.5rem"><input type="checkbox" id="${p}-criancas" ${r.criancas_adolescentes ? 'checked' : ''}> Crianças e adolescentes (art. 14)</label>
             </fieldset>`;
     window.alternarSalvaguarda = function(p) {
         const grupo = document.getElementById(`${p}-safeguards`)?.closest('.form-group');
@@ -246,7 +247,9 @@ import { temProduto } from '../produto.js';
             transfer_safeguards: document.getElementById('ropa-safeguards').value,
             status: document.getElementById('ropa-status').value,
             international_transfers: document.getElementById('ropa-intl').checked ? 1 : 0, 
-            dpia_required: document.getElementById('ropa-dpia').checked ? 1 : 0 
+            dpia_required: document.getElementById('ropa-dpia').checked ? 1 : 0,
+            dados_sensiveis: document.getElementById('ropa-sensiveis').checked ? 1 : 0,
+            criancas_adolescentes: document.getElementById('ropa-criancas').checked ? 1 : 0
         };
         if (!body.processing_purpose) return;
         await api('POST', `/api/v1/projects/${projectId}/ropa`, body);
@@ -293,7 +296,9 @@ import { temProduto } from '../produto.js';
             owner_parte_id: document.getElementById('ropa-e-owner-parte').value || null,
             transfer_safeguards: document.getElementById('ropa-e-safeguards').value,
             international_transfers: document.getElementById('ropa-e-intl').checked ? 1 : 0, 
-            dpia_required: document.getElementById('ropa-e-dpia').checked ? 1 : 0 
+            dpia_required: document.getElementById('ropa-e-dpia').checked ? 1 : 0,
+            dados_sensiveis: document.getElementById('ropa-e-sensiveis').checked ? 1 : 0,
+            criancas_adolescentes: document.getElementById('ropa-e-criancas').checked ? 1 : 0
         };
         // Aprovar é pelo fluxo de assinatura; o PUT recusa 'Approved' e status em ROPA já aprovado.
         const st = document.getElementById('ropa-e-status');

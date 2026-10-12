@@ -107,6 +107,25 @@ describe('formulário do RoPA', () => {
         expect(grupo.hidden).toBe(false);
     });
 
+    it('dados sensíveis (art. 11) e crianças e adolescentes (art. 14): checkbox nos riscos, enviados na criação e na edição', async () => {
+        await window.openNewROPAModal('p1');
+        const riscos = el('modal-content').querySelector('fieldset').textContent;
+        expect(riscos).toContain('Dados sensíveis (art. 11)');
+        expect(riscos).toContain('Crianças e adolescentes (art. 14)');
+        el('ropa-purpose').value = 'Prontuário';
+        el('ropa-sensiveis').checked = true;
+        await window.createROPA('p1');
+        expect(apiMock.mock.calls.find((c) => c[0] === 'POST')[2]).toMatchObject({ dados_sensiveis: 1, criancas_adolescentes: 0 });
+
+        S.ropa = [{ id: 'r9', project_id: 'p1', processing_purpose: 'Creche', dados_sensiveis: 0, criancas_adolescentes: 1 }];
+        await window.openEditROPAModal('r9');
+        expect(el('ropa-e-sensiveis').checked).toBe(false);
+        expect(el('ropa-e-criancas').checked).toBe(true);
+        el('ropa-e-sensiveis').checked = true;
+        await window.updateROPA('r9');
+        expect(apiMock.mock.calls.find((c) => c[0] === 'PUT')[2]).toMatchObject({ dados_sensiveis: 1, criancas_adolescentes: 1 });
+    });
+
     it('cópia sem palavra sem acento nem hex de cor fora dos tokens', () => {
         for (const w of ['Retencao', 'Execucao', 'Obrigacao', 'Protecao', 'Transferencia', 'Destinatarios', 'Faca ', ' sao ', ' nao ', 'Cartao', 'descricao', 'Mitigacao', 'necessarios']) expect(fonte).not.toContain(w);
         expect(fonte).not.toMatch(/#34c759|#ffcc00|#ff3b30|#feca57/i);

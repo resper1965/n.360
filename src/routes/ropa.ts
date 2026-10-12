@@ -35,11 +35,11 @@ ropaApp.put('/:id', async (c) => {
     if (atual?.status === 'Approved' && Object.hasOwn(body, 'status')) {
       return c.json({ error: 'ROPA aprovado não muda de status pela edição. Para reabrir, use "Revogar aprovação" (motivo obrigatório).' }, 400);
     }
-    for (const k of ['international_transfers', 'dpia_required']) if (k in body && body[k] !== null) body[k] = body[k] ? 1 : 0;
+    for (const k of ['international_transfers', 'dpia_required', 'dados_sensiveis', 'criancas_adolescentes']) if (k in body && body[k] !== null) body[k] = body[k] ? 1 : 0;
     const p = setParcial(body, {
       processing_purpose: null, data_categories: null, data_subjects: null, legal_basis: null, consent_details: null,
       data_subject_rights_details: null, retention_period: null, recipients: null, international_transfers: 0,
-      transfer_safeguards: null, dpia_required: 0, status: 'Draft', owner: null, owner_parte_id: null, base_legal_id: null,
+      transfer_safeguards: null, dpia_required: 0, dados_sensiveis: 0, criancas_adolescentes: 0, status: 'Draft', owner: null, owner_parte_id: null, base_legal_id: null,
     });
     if (p.sql) await c.env.DB.prepare(`UPDATE ropa_records SET ${p.sql}, updated_at=? WHERE id=?`).bind(...p.binds, new Date().toISOString(), id).run();
     const user = c.get('user');
@@ -93,13 +93,13 @@ projectRopaApp.post('/', async (c) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     await c.env.DB.prepare(
-      `INSERT INTO ropa_records (id, project_id, processing_purpose, data_categories, data_subjects, legal_basis, consent_details, data_subject_rights_details, retention_period, recipients, international_transfers, transfer_safeguards, dpia_required, status, owner, owner_parte_id, base_legal_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?, ?, ?, ?)`
+      `INSERT INTO ropa_records (id, project_id, processing_purpose, data_categories, data_subjects, legal_basis, consent_details, data_subject_rights_details, retention_period, recipients, international_transfers, transfer_safeguards, dpia_required, dados_sensiveis, criancas_adolescentes, status, owner, owner_parte_id, base_legal_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?, ?, ?, ?, ?)`
     ).bind(
       id, projectId, body.processing_purpose, body.data_categories ?? null, body.data_subjects ?? null,
       body.legal_basis ?? null, body.consent_details ?? null, body.data_subject_rights_details ?? null,
       body.retention_period ?? null, body.recipients ?? null, body.international_transfers ? 1 : 0,
-      body.transfer_safeguards ?? null, body.dpia_required ? 1 : 0, body.owner ?? null, body.owner_parte_id || null, body.base_legal_id || null, now, now
+      body.transfer_safeguards ?? null, body.dpia_required ? 1 : 0, body.dados_sensiveis ? 1 : 0, body.criancas_adolescentes ? 1 : 0, body.owner ?? null, body.owner_parte_id || null, body.base_legal_id || null, now, now
     ).run();
     const user = c.get('user');
     await logAudit(c.env.DB, 'ropa_created', user?.email || 'system', `ROPA ${id} created`);
@@ -346,6 +346,14 @@ projectRopaApp.get('/report', async (c) => {
             <div class="ropa-field">
               <div class="ropa-label">Tempo de Retenção</div>
               <div class="ropa-value">${escapeHtml(r.retention_period || '-')}</div>
+            </div>
+            <div class="ropa-field">
+              <div class="ropa-label">Dados sensíveis (art. 11)</div>
+              <div class="ropa-value">${r.dados_sensiveis ? 'Sim' : 'Não'}</div>
+            </div>
+            <div class="ropa-field">
+              <div class="ropa-label">Crianças e adolescentes (art. 14)</div>
+              <div class="ropa-value">${r.criancas_adolescentes ? 'Sim' : 'Não'}</div>
             </div>
             <div class="ropa-field full-width">
               <div class="ropa-label">Destinatários / Compartilhamento</div>

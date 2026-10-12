@@ -59,6 +59,9 @@ export const ropaSchema = z.object({
   consent_details: longoOpcional,
   data_subject_rights_details: longoOpcional,
   dpia_required: boolLike,
+  // Riscos do tratamento (migration 0069): dados sensíveis (LGPD art. 11) e crianças e adolescentes (art. 14).
+  dados_sensiveis: boolLike,
+  criancas_adolescentes: boolLike,
   owner: curtoOpcional,
   // Responsável do cadastro de partes (fatia 1.4). Sem o transform de `opcional`: o PUT distingue ausente (mantém) de null (desliga).
   owner_parte_id: z.string().nullish(),

@@ -594,7 +594,10 @@ CREATE TABLE IF NOT EXISTS ropa_records (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     owner_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
-    base_legal_id TEXT REFERENCES requisitos(id) ON DELETE SET NULL
+    base_legal_id TEXT REFERENCES requisitos(id) ON DELETE SET NULL,
+    -- Riscos do tratamento (migration 0069): LGPD art. 11 e art. 14.
+    dados_sensiveis INTEGER NOT NULL DEFAULT 0,
+    criancas_adolescentes INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS audit_schedule (

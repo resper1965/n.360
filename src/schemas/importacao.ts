@@ -20,6 +20,8 @@ export const tratamentoPropostoSchema = z.object({
   transferencia_internacional: z.boolean().nullish(),
   salvaguardas: texto,
   dpia_requerido: z.boolean().nullish(),
+  dados_sensiveis: z.boolean().nullish(),
+  criancas_adolescentes: z.boolean().nullish(),
   responsavel: texto,
   sistemas: nomes,
   areas: nomes,
