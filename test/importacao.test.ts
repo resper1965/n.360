@@ -790,6 +790,56 @@ describe('terceiros (fatia 2)', () => {
     expect(await n(`SELECT COUNT(*) AS n FROM parte_vinculos WHERE parte_id = ? AND alvo_tipo = 'tratamento'`)).toBe(1);
   });
 
+  it('parte organização inativa não é duplicata: nasce pendente e a gravação cria uma parte ativa nova', async () => {
+    await env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, status) VALUES ('pa-inativa', ?, 'organizacao', 'Antigo Fornecedor Ltda', 'inativa')`).bind(P).run();
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Antigo Fornecedor Ltda'));
+    await processarTerceiros(lote);
+    const [i] = (await lerLote(lote)).itens;
+    expect(i).toMatchObject({ duplicata_de: null, decisao: 'pendente' });
+    await aceitar(lote, i.id);
+    const [r] = await confirmar(lote);
+    expect(r.decisao).toBe('gravado');
+    expect(r.registro_id).not.toBe('pa-inativa');
+    const ativas = (await env.DB.prepare(`SELECT id FROM partes WHERE project_id = ? AND nome = 'Antigo Fornecedor Ltda' AND status = 'ativa'`).bind(P).all()).results;
+    expect(ativas).toHaveLength(1);
+  });
+
+  it('CNPJ sem tipo (sem perfil de fornecedor) não se perde calado: vira aviso', async () => {
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Sem Perfil Ltda', { tipo: null, cnpj: '22.222.222/0001-22' }));
+    await processarTerceiros(lote);
+    const [i] = (await lerLote(lote)).itens;
+    await aceitar(lote, i.id);
+    const [r] = await confirmar(lote);
+    expect(r.decisao).toBe('gravado');
+    expect(r.aviso).toMatch(/CNPJ/);
+  });
+
+  it('falha depois da transação (tipo/avaliação/DPA) não desfaz a parte: vira aviso e o lote não trava', async () => {
+    const lote = await novoLote();
+    respondeTerceiros(terceiro('Falha Depois Ltda', { tipo: 'critico', ultima_avaliacao: { resultado: 'aprovado', valido_ate: futuro } }));
+    await processarTerceiros(lote);
+    const [i] = (await lerLote(lote)).itens;
+    await aceitar(lote, i.id);
+    // O D1 real, com o UPDATE do tipo da parte quebrando (é o primeiro passo depois da transação).
+    const DB = new Proxy(env.DB, {
+      get(t, k) {
+        if (k === 'prepare') return (sql: string) => { if (sql.startsWith('UPDATE partes SET terceiro_tipo')) throw new Error('D1 fora do ar'); return t.prepare(sql); };
+        const f = (t as unknown as Record<string | symbol, unknown>)[k];
+        return typeof f === 'function' ? f.bind(t) : f;
+      },
+    });
+    const resp = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/importacoes/${lote}/confirmar`, { method: 'POST', headers: consultor }), { ...envComIa(), DB } as never);
+    expect(resp.status, await resp.clone().text()).toBe(200);
+    const [r] = (await json<{ resultados: Res[] }>(resp)).resultados;
+    expect(r).toMatchObject({ decisao: 'gravado' });
+    expect(r.aviso).toMatch(/falha ao completar tipo\/avaliação\/DPA; complete na ficha/);
+    const [parte] = await partesCom('Falha Depois Ltda');
+    expect(parte).toMatchObject({ id: r.registro_id, terceiro_tipo: null });
+    expect((await env.DB.prepare('SELECT status FROM importacoes WHERE id = ?').bind(lote).first<{ status: string }>())!.status).toBe('concluida');
+  });
+
   it('o mesmo nome duas vezes no mesmo lote cria uma parte só', async () => {
     const lote = await novoLote();
     respondeTerceiros(terceiro('Gêmeo Serviços'), terceiro('gemeo servicos'));

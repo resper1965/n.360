@@ -32,7 +32,8 @@ const ROTULO = Object.fromEntries([...CAMPOS, ...LISTAS, ['nome', 'Nome'], ['tip
 // Terceiros (fatia 2): os mesmos rótulos da tela de terceiros.
 const TIPO_TERCEIRO = { grande_provedor: 'Grande provedor', medio: 'Médio', pequeno: 'Pequeno', critico: 'Crítico' };
 const RESULTADO = { aprovado: 'Aprovado', com_ressalvas: 'Aprovado com ressalvas', reprovado: 'Reprovado' };
-const CAMPOS_TERCEIRO = [['nome', 'Nome'], ['cnpj', 'CNPJ'], ['contato', 'Contato'], ['dpa', 'DPA (nome do documento)']];
+// [campo, rótulo, maxlength]: os tetos de terceiroPropostoSchema (src/schemas/importacao.ts).
+const CAMPOS_TERCEIRO = [['nome', 'Nome', 200], ['cnpj', 'CNPJ', 30], ['contato', 'Contato', 200], ['dpa', 'DPA (nome do documento)', 300]];
 // Item sem `entidade` é da fatia 1.
 const entidade = (i) => i.entidade || 'tratamento';
 const ABAS = [['tratamento', 'Tratamentos'], ['terceiro', 'Terceiros']];
@@ -310,7 +311,7 @@ const opcoes = (k, r, mapa, atual) => `<div class="form-group"><label class="for
 function editarTerceiro(i) {
     const d = i.dados || {};
     const av = d.ultima_avaliacao || {};
-    const campo = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="300"></div>`;
+    const campo = ([k, r, max]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="${max}"></div>`;
     openModal(`
         <div class="modal-header"><span class="modal-title">Editar terceiro</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
         ${CAMPOS_TERCEIRO.map(campo).join('')}${opcoes('tipo', 'Tipo', TIPO_TERCEIRO, d.tipo)}

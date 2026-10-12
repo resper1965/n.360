@@ -455,11 +455,14 @@ Ordem: `npm run db:backup` → `npx wrangler d1 migrations apply niso-db --remot
 
 ## 0067 — importação de terceiros (2026-10-12)
 
-Importação de programa, fatia 2. Rebuild de `importacao_itens` (CHECK só muda por rebuild no SQLite): `entidade` passa a aceitar `terceiro`, e
+Importação de programa, fatia 2. Rebuild de `importacao_itens` (CHECK só muda por rebuild no SQLite): `entidade` passa a aceitar `terceiro` e, de
+uma vez, as entidades das fatias 3 e 4 (`documento`, `dpia`, `lia`, `titular_pedido`, `incidente`, `consentimento`; o código ainda só grava
+`tratamento` e `terceiro`), para as próximas fatias não reconstruírem a tabela de novo; e
 `duplicata_de` e `registro_id` perdem a FK para `ropa_records` (num item `terceiro` apontam para `partes`; a coluna guarda o id do registro conforme a
 entidade, como `parte_vinculos.alvo_id`). Nenhuma tabela aponta para `importacao_itens`, então o `DROP` não cascateia; as FKs dela para lote,
 arquivo e projeto seguem iguais e os três índices são recriados. `test/migration-0067.test.ts` prova sobre o banco da 0064 com linhas: nada some,
-`terceiro` entra, entidade fora da lista é recusada, a cascata do lote continua. **Precisa da 0064 aplicada.** Conferência antes: `SELECT COUNT(*)
+as oito entidades entram, entidade fora da lista é recusada, a cascata do lote continua. **Precisa da 0064 aplicada. NÃO é idempotente**
+(rebuild: `CREATE TABLE importacao_itens_new` sem `IF NOT EXISTS`); aplicar só uma vez, pelo `migrations apply`. Conferência antes: `SELECT COUNT(*)
 FROM importacao_itens`; depois: a mesma contagem, `SELECT sql FROM sqlite_master WHERE name = 'importacao_itens'` com `'terceiro'` no CHECK e
 `PRAGMA foreign_key_list(importacao_itens)` só com `importacoes`, `importacao_arquivos` e `projects`. Para desfazer: não precisa (o código anterior
 só grava `tratamento`, que a tabela nova aceita). **Esta RODA em produção, sem janela:** o código novo grava `entidade = 'terceiro'`, então a

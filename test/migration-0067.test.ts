@@ -8,7 +8,9 @@ const item = (id: string, entidade: string, ref: string | null = null) =>
   env.DB.prepare(`INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, entidade, dados, duplicata_de, registro_id) VALUES (?, 'l67', 'a67', 'm67', ?, '{}', ?, ?)`)
     .bind(id, entidade, ref, ref);
 
-describe('migration 0067 — importacao_itens aceita a entidade terceiro', () => {
+const TODAS = ['tratamento', 'terceiro', 'documento', 'dpia', 'lia', 'titular_pedido', 'incidente', 'consentimento'];
+
+describe('migration 0067 — importacao_itens aceita as entidades de todas as fatias', () => {
   it('sobre o banco da 0064: preserva os itens, aceita terceiro (com id de parte) e mantém índices e cascata', async () => {
     await applySchema();
     await execSql('DROP TABLE IF EXISTS importacao_itens; DROP TABLE IF EXISTS importacao_arquivos; DROP TABLE IF EXISTS importacoes;');
@@ -29,7 +31,8 @@ describe('migration 0067 — importacao_itens aceita a entidade terceiro', () =>
 
     expect((await env.DB.prepare('SELECT * FROM importacao_itens ORDER BY id').all()).results).toEqual(antes);
     await item('i-terc', 'terceiro', 'pa67').run(); // id de parte em duplicata_de/registro_id: sem FK para ropa_records
-    await expect(item('i-outro', 'documento').run()).rejects.toThrow();
+    for (const ent of TODAS.slice(2)) await item(`i-${ent}`, ent).run(); // fatias 3 e 4 não reconstroem a tabela de novo
+    await expect(item('i-outro', 'politica').run()).rejects.toThrow();
     for (const n of ['idx_importacao_itens_lote', 'idx_importacao_itens_arquivo', 'idx_importacao_itens_projeto']) {
       expect(await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?").bind(n).first(), n).toBeTruthy();
     }
@@ -40,14 +43,14 @@ describe('migration 0067 — importacao_itens aceita a entidade terceiro', () =>
     await applySchema(); // convive com o schema canônico
   }, 30_000);
 
-  it('o schema canônico aceita terceiro e recusa entidade fora da lista', async () => {
+  it('o schema canônico aceita as mesmas entidades e recusa as de fora', async () => {
     await applySchema();
     await env.DB.batch([
       env.DB.prepare(`INSERT OR IGNORE INTO projects (id, client_name, standards, org_role, status) VALUES ('m67', 'C', 'LGPD', 'Controller', 'Active')`),
       env.DB.prepare(`INSERT OR IGNORE INTO importacoes (id, project_id) VALUES ('l67', 'm67')`),
       env.DB.prepare(`INSERT OR IGNORE INTO importacao_arquivos (id, importacao_id, project_id, nome, mime, tamanho, r2_key) VALUES ('a67', 'l67', 'm67', 'a.csv', 'text/csv', 1, 'k')`),
     ]);
-    await item('s-terc', 'terceiro', 'qualquer-parte').run();
+    for (const ent of TODAS) await item(`s-${ent}`, ent, 'qualquer-registro').run();
     await expect(item('s-x', 'historico').run()).rejects.toThrow();
   });
 });

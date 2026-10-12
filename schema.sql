@@ -1666,7 +1666,7 @@ CREATE TABLE IF NOT EXISTS importacao_itens (
     importacao_id TEXT NOT NULL REFERENCES importacoes(id) ON DELETE CASCADE,
     arquivo_id TEXT NOT NULL REFERENCES importacao_arquivos(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento', 'terceiro')),
+    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento', 'terceiro', 'documento', 'dpia', 'lia', 'titular_pedido', 'incidente', 'consentimento')),
     dados TEXT NOT NULL DEFAULT '{}',
     origem TEXT CHECK (origem IS NULL OR length(origem) <= 500),
     confianca TEXT NOT NULL DEFAULT 'baixa' CHECK (confianca IN ('alta', 'media', 'baixa')),

@@ -1,4 +1,5 @@
 import { logAudit } from '../helpers';
+import { log, resumoErro } from '../observability';
 import { ImportacaoAgent, type TipoArquivo } from '../agents/importacao';
 import { OBRIGATORIOS_ROPA, OBRIGATORIOS_TERCEIRO, terceiroPropostoSchema, tratamentoPropostoSchema, type TerceiroProposto, type TratamentoProposto } from '../schemas/importacao';
 import { chave, stmtInserirTratamento, validarTratamento } from './tratamentos-importar';
@@ -66,9 +67,9 @@ const emGravacao: Falha = { ok: false, status: 409, error: 'Importação em grav
 const faltandoDe = (entidade: Entidade, d: Record<string, unknown>) =>
   (entidade === 'terceiro' ? OBRIGATORIOS_TERCEIRO : OBRIGATORIOS_ROPA).filter((k) => !String(d[k] ?? '').trim());
 
-/** Registros já cadastrados, por nome normalizado: tratamentos do RoPA ou partes organização (o terceiro). */
+/** Registros já cadastrados, por nome normalizado: tratamentos do RoPA ou partes organização ATIVAS (a inativa não é duplicata). */
 const existentes = (db: D1Database, projectId: string, entidade: Entidade) => mapaPorNome(db, entidade === 'terceiro'
-  ? `SELECT id, nome FROM partes WHERE project_id = ? AND tipo = 'organizacao' ORDER BY created_at`
+  ? `SELECT id, nome FROM partes WHERE project_id = ? AND tipo = 'organizacao' AND status = 'ativa' ORDER BY created_at`
   : 'SELECT id, processing_purpose AS nome FROM ropa_records WHERE project_id = ?', projectId);
 
 const itemLido = (i: LinhaItem) => ({ ...i, dados: JSON.parse(i.dados) as Record<string, unknown>, faltando: JSON.parse(i.faltando) as string[] });
@@ -541,6 +542,20 @@ async function gravarTerceiro(db: D1Database, projectId: string, loteId: string,
   mapas.orgs.set(k, parteId);
   await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como terceiro ${parteId}${existente ? ' (parte existente)' : ''}`, '', '', projectId);
 
+  try {
+    await completarTerceiro(db, projectId, loteId, ator, parteId, d, mapas.documentos, avisos);
+  } catch (e) {
+    // A parte já está gravada (e o item, `gravado`): a falha daqui não a desfaz nem trava o lote; a pessoa completa na ficha.
+    log('error', { msg: 'importacao_terceiro_completar', item: item.id, erro: resumoErro(e) });
+    avisos.push('falha ao completar tipo/avaliação/DPA; complete na ficha');
+  }
+
+  return { item_id: item.id, decisao: 'gravado', registro_id: parteId, ...(avisos.length ? { aviso: avisos.join('; ') } : {}) };
+}
+
+/** Depois da transação: tipo, avaliação, DPA e CNPJ, pelos serviços de terceiros. O que não der vira aviso. */
+async function completarTerceiro(db: D1Database, projectId: string, loteId: string, ator: string, parteId: string, d: TerceiroProposto,
+  documentos: Map<string, string>, avisos: string[]) {
   // O tipo de uma parte que já tem tipo não é trocado pelo arquivo: quem tipificou à mão decide.
   const atual = (await db.prepare('SELECT terceiro_tipo FROM partes WHERE id = ?').bind(parteId).first<{ terceiro_tipo: string | null }>())?.terceiro_tipo ?? null;
   let tipo = atual;
@@ -562,7 +577,7 @@ async function gravarTerceiro(db: D1Database, projectId: string, loteId: string,
   }
 
   if (d.dpa) {
-    const doc = mapas.documentos.get(chave(d.dpa));
+    const doc = documentos.get(chave(d.dpa));
     if (!doc) avisos.push(`DPA "${d.dpa}" não está nos documentos do projeto`);
     else {
       const r = await ligarDocumento(db, projectId, parteId, ator, doc, 'dpa');
@@ -570,14 +585,15 @@ async function gravarTerceiro(db: D1Database, projectId: string, loteId: string,
     }
   }
 
-  // CNPJ no perfil de fornecedor (criado pelo tipo); a anotação não se repete numa reimportação.
+  // CNPJ no perfil de fornecedor (criado pelo tipo); a anotação não se repete numa reimportação. Sem tipo não há perfil: avisa.
   if (d.cnpj) {
-    const nota = `CNPJ: ${d.cnpj}`;
-    await db.prepare(`UPDATE vendors SET notes = CASE WHEN COALESCE(notes, '') = '' THEN ?1 ELSE notes || char(10) || ?1 END
-      WHERE parte_id = ?2 AND project_id = ?3 AND instr(COALESCE(notes, ''), ?1) = 0`).bind(nota, parteId, projectId).run();
+    if (!tipo) avisos.push(`CNPJ ${d.cnpj} não anotado: o terceiro está sem tipo (sem perfil de fornecedor)`);
+    else {
+      const nota = `CNPJ: ${d.cnpj}`;
+      await db.prepare(`UPDATE vendors SET notes = CASE WHEN COALESCE(notes, '') = '' THEN ?1 ELSE notes || char(10) || ?1 END
+        WHERE parte_id = ?2 AND project_id = ?3 AND instr(COALESCE(notes, ''), ?1) = 0`).bind(nota, parteId, projectId).run();
+    }
   }
-
-  return { item_id: item.id, decisao: 'gravado', registro_id: parteId, ...(avisos.length ? { aviso: avisos.join('; ') } : {}) };
 }
 
 // ─── cancelar ──────────────────────────────────────────────────────────────────────────────────────

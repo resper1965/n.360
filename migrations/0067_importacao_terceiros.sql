@@ -1,6 +1,9 @@
--- 0067: importação de programa de privacidade, fatia 2 (terceiros). `importacao_itens.entidade` passa a aceitar `terceiro`.
---
--- CHECK só muda por rebuild no SQLite. De quebra, `duplicata_de` e `registro_id` perdem a FK para `ropa_records`: num item
+-- 0067: importação de programa de privacidade, fatia 2 (terceiros). `importacao_itens.entidade` passa a aceitar `terceiro` e, de uma
+-- vez, as entidades das fatias 3 e 4 (`documento`, `dpia`, `lia`, `titular_pedido`, `incidente`, `consentimento`): CHECK só muda por
+-- rebuild no SQLite, e reconstruir a tabela a cada fatia seria risco sem ganho (mesma razão da 0055). O código ainda só grava
+-- `tratamento` e `terceiro`. NÃO é idempotente (rebuild, `CREATE TABLE` sem `IF NOT EXISTS`): aplicar uma vez, pelo
+-- `migrations apply`; se parar no meio, confira `importacao_itens_new` antes de repetir.
+-- De quebra, `duplicata_de` e `registro_id` perdem a FK para `ropa_records`: num item
 -- `terceiro` eles apontam para `partes`, então a coluna guarda o id do registro conforme a entidade (sem FK, como
 -- `parte_vinculos.alvo_id`). Nenhuma tabela aponta para `importacao_itens`, então o DROP não cascateia nada; as FKs dela para
 -- lote, arquivo e projeto (CASCADE) seguem iguais. Os três índices são recriados.
@@ -10,7 +13,7 @@ CREATE TABLE importacao_itens_new (
     importacao_id TEXT NOT NULL REFERENCES importacoes(id) ON DELETE CASCADE,
     arquivo_id TEXT NOT NULL REFERENCES importacao_arquivos(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento', 'terceiro')),
+    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento', 'terceiro', 'documento', 'dpia', 'lia', 'titular_pedido', 'incidente', 'consentimento')),
     dados TEXT NOT NULL DEFAULT '{}',
     origem TEXT CHECK (origem IS NULL OR length(origem) <= 500),
     confianca TEXT NOT NULL DEFAULT 'baixa' CHECK (confianca IN ('alta', 'media', 'baixa')),
