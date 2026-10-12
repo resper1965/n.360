@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, genId, logAudit, podeAdministrarOrg } from '../helpers';
+import { erro500, logAudit, podeAdministrarOrg } from '../helpers';
 import { importarPartes, conciliarResponsaveis } from '../services/partes';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { NOME_DO_PRODUTO } from '../modulos';
@@ -56,7 +56,7 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
             VALUES (?, 'usuario.modulos', ?, ? || ' habilitado no projeto: concedido a '
               || (SELECT COUNT(*) FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client')) || ' contas de cliente',
               '', '', ?, datetime('now'))`)
-            .bind(genId(), user.email, NOME_DO_PRODUTO[modulo as Modulo], projectId, projectId),
+            .bind(crypto.randomUUID(), user.email, NOME_DO_PRODUTO[modulo as Modulo], projectId, projectId),
         ]);
       }
     } else if (ligado) {

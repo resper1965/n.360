@@ -142,7 +142,7 @@ const trocarModulosComTrilha = (db: D1Database, conta: { id: string; email: stri
   ...gravarModulos(db, conta.id, depois, ator),
   db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
     VALUES (?, 'usuario.modulos', ?, ?, '', '', ?, datetime('now'))`)
-    .bind(genId(), ator, `Usuário ${conta.email} (${conta.id}): módulos ${listaDeModulos(antes)} → ${listaDeModulos(depois)}${motivo}`, conta.client_project_id),
+    .bind(crypto.randomUUID(), ator, `Usuário ${conta.email} (${conta.id}): módulos ${listaDeModulos(antes)} → ${listaDeModulos(depois)}${motivo}`, conta.client_project_id),
 ];
 const ordenar = (m: readonly Modulo[]) => MODULOS_PRODUTO.filter((x) => m.includes(x));
 
