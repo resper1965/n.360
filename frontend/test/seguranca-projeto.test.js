@@ -164,6 +164,34 @@ describe('projeto fixado no render', () => {
         expect(puts.every((x) => x.includes('/projects/p9/'))).toBe(true);
     });
 
+    it('render antigo que termina por último não pinta nem redireciona a gravação', async () => {
+        document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div>';
+        let solta;
+        const trava = new Promise((r) => { solta = r; });
+        const rest = (iss) => ({ ok: true, sso: { ...SSO, issuer: iss } });
+        const f = vi.fn(async (url, opts = {}) => {
+            const u = new URL(url, 'http://localhost').pathname;
+            const m = opts.method || 'GET';
+            if (u.startsWith('/api/v1/projects/p1/')) { await trava; return u.endsWith('/sso') ? resposta(rest('https://p1.exemplo.test')) : resposta({ ok: true, politica: POL }); }
+            if (m === 'PUT' && u === '/api/v1/projects/p2/sso') return resposta({ ok: true });
+            if (u === '/api/v1/projects/p2/sso') return resposta(rest('https://p2.exemplo.test'));
+            if (u === '/api/v1/projects/p2/security-policy') return resposta({ ok: true, politica: POL });
+            return resposta({ error: u }, 404);
+        });
+        vi.stubGlobal('fetch', f);
+        S.activeProject = { id: 'p1', name: 'Um' };
+        const a = window.renderSegurancaProjeto(el('c'), el('h'), el('a'));
+        S.activeProject = { id: 'p2', name: 'Dois' };
+        await window.renderSegurancaProjeto(el('c'), el('h'), el('a'));
+        solta(); await a; await espera();
+        expect(el('sso-issuer').value).toBe('https://p2.exemplo.test');
+        expect(el('h').textContent).toContain('Dois');
+        el('sso-secret').value = 's';
+        await clica('salvarSsoProjeto');
+        const puts = f.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([u]) => new URL(u, 'http://localhost').pathname);
+        expect(puts).toEqual(['/api/v1/projects/p2/sso']);
+    });
+
     it('sem projeto ativo: não cai no primeiro da lista e não chama a API', async () => {
         S.activeProject = null; S.projects = [{ id: 'p1' }];
         const f = await abrir();
