@@ -22,7 +22,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             const statsHtml = window.renderStatCards([
                 { label: 'Total de Oportunidades', value: leadsArr.length, color: 'var(--text)', subtext: 'Empresas no pipeline' },
                 { label: 'Novos', value: conta('New'), color: 'var(--text)', subtext: 'Ainda sem diagnóstico' },
-                { label: 'Em diagnóstico', value: conta('Assessment'), color: 'var(--text)', subtext: 'Assessment em andamento' },
+                { label: 'Em diagnóstico', value: conta('Assessment'), color: 'var(--text)', subtext: 'Levantamento em andamento' },
                 { label: 'Com proposta', value: conta('Proposal'), color: 'var(--text)', subtext: 'Contratos em pré-vendas' },
                 { label: 'Ganhos', value: conta('Won'), color: 'var(--text)', subtext: 'Proposta aceita' },
                 { label: 'Perdidos', value: conta('Lost'), color: 'var(--text)', subtext: 'Recusados ou encerrados' }
@@ -37,7 +37,9 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
                     window.renderStatusBadge(l.status || 'New', l.status === 'Won' ? 'success' : l.status === 'Lost' ? 'danger' : 'info'),
                     `<button class="btn btn-ghost btn-sm" data-action="openLeadDetail" data-args='["${l.id}"]'>Ver Detalhes &rarr;</button>`
                 ]),
-                { emptyState: 'Nenhum lead comercial cadastrado no momento.' }
+                { emptyState: 'Nenhum lead cadastrado.',
+                  emptyHint: 'O funil começa pelo lead: a empresa, o contato e o CNPJ. Do lead sai o levantamento de escopo e, dele, a proposta.',
+                  emptyAction: '<button class="btn btn-primary" data-action="openCreateLeadModal">Novo lead</button>' }
             );
 
             // Preço e motivo de perda: só quem a rota /funil admite (consultor comum leva 403).
@@ -117,7 +119,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
     };
 
     async function deleteLead(id) {
-        if (!confirm('Deseja excluir este lead permanentemente?')) return;
+        if (!(await window.confirmar('O lead sai do funil. A exclusão é permanente.', { titulo: 'Excluir lead', perigo: true, rotulo: 'Excluir' }))) return;
         try {
             await api('DELETE', `/api/v1/leads/${id}`);
             showToast('Lead excluído com sucesso');
@@ -182,7 +184,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
                 try { await api('POST', '/api/v1/leads/' + lead.id + '/enrich-cnpj', { cnpj }); } catch(e) { console.warn('CNPJ enrich failed:', e); }
             }
             closeModal(); render();
-        } catch(e) { alert('Erro: ' + e.message); }
+        } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
     async function openLeadDetail(id) {
@@ -260,7 +262,9 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
                         `<button class="btn btn-primary btn-sm" data-action="openAssessmentDetail" data-args='["${as.id}"]'>Gerenciar Levantamento &rarr;</button>`
                     ];
                 }),
-                { emptyState: 'Nenhum levantamento de escopo cadastrado.' }
+                { emptyState: 'Nenhum levantamento de escopo cadastrado.',
+                  emptyHint: 'O levantamento mapeia atividades, equipe e tecnologia do cliente para dimensionar o projeto e a proposta. Ele nasce a partir de um lead.',
+                  emptyAction: `<button class="btn" data-action="navigate" data-args='["leads"]'>Ver leads</button>` }
             );
 
             c.innerHTML = `
@@ -483,9 +487,9 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             // Finalize assessment
             try {
                 await api('PUT', `/api/v1/assessments/${S.currentAssessmentId}`, { status: 'completed' });
-                alert('Assessment finalizado com sucesso!');
+                showToast('Levantamento finalizado');
                 navigate('assessments');
-            } catch(e) { alert('Erro ao finalizar: ' + e.message); }
+            } catch(e) { showToast('Erro ao finalizar: ' + e.message, 'error'); }
             return;
         }
 

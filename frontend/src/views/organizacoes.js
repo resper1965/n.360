@@ -133,7 +133,7 @@ function desenhar() {
         </tr>`;
     }).join('');
     if (!orgs.length) {
-        c.innerHTML = '<div class="empty-state fade-in"><h3>Nenhuma organização</h3><p>A ness. aparece aqui depois do primeiro acesso. Use "Nova organização" para cadastrar uma consultoria parceira.</p></div>';
+        c.innerHTML = window.renderEmptyState({ titulo: 'Nenhuma organização', texto: 'A ness. aparece aqui depois do primeiro acesso. Use "Nova organização" para cadastrar uma consultoria parceira.' });
         return;
     }
     c.innerHTML = `<div class="org fade-in">

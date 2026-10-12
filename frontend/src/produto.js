@@ -1,6 +1,6 @@
 import { S } from './state.js';
 import { api } from './api.js';
-import { showToast, openModal, escapeHTML } from './ui.js';
+import { showToast, openModal, escapeHTML, renderEmptyState } from './ui.js';
 
 // O n.360 é a plataforma-mãe; n.iso e n.privacy são módulos dele sobre o mesmo cadastro (decisão de 11/10/2026). Tudo responde
 // em n360.ness.com.br e o CAMINHO decide a casca: /iso… → n.iso, /privacy… → n.privacy, o resto → o início do n.360. A trava
@@ -245,11 +245,11 @@ export function semAcesso(c, produto = produtoAtual()) {
     const h = document.getElementById('header-title');
     if (h) h.textContent = `n.${nome}`;
     c.innerHTML = produto === 'n360'
-        ? `<div class="empty-state fade-in" id="sem-acesso-produto"><h3>Você ainda não tem acesso a nenhum módulo do n.360</h3>
-        <p>Nenhum projeto seu tem o n.iso ou o n.privacy habilitado. Fale com a ness. para contratar.</p></div>`
-        : `<div class="empty-state fade-in" id="sem-acesso-produto"><h3>Você não tem acesso ao n.${escapeHTML(nome)}</h3>
-        <p>Nenhum projeto seu tem este módulo habilitado. Fale com a ness. para contratar, ou volte ao n.360.</p>
-        <a class="btn btn-primary" style="margin-top:1rem" href="${escapeHTML(enderecoDoProduto('n360'))}">Abrir o n.360</a></div>`;
+        ? renderEmptyState({ id: 'sem-acesso-produto', titulo: 'Você ainda não tem acesso a nenhum módulo do n.360',
+            texto: 'Nenhum projeto seu tem o n.iso ou o n.privacy habilitado. Fale com a ness. para contratar.' })
+        : renderEmptyState({ id: 'sem-acesso-produto', titulo: `Você não tem acesso ao n.${nome}`,
+            texto: 'Nenhum projeto seu tem este módulo habilitado. Fale com a ness. para contratar, ou volte ao n.360.',
+            acao: `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('n360'))}">Abrir o n.360</a>` });
 }
 
 const ORDEM_DOS_LINKS = ['link-n360', 'link-conta', 'link-outro-produto'];

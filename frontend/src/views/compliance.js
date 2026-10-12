@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, traduzStatus } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto } from '../ui.js';
 import { navigate } from '../router.js';
 import { temProduto, projetoDoId } from '../produto.js';
 
@@ -27,17 +27,21 @@ import { temProduto, projetoDoId } from '../produto.js';
 
     function renderControls(c, h, a) {
         h.textContent = 'Controles';
-        // Botão do Diagnóstico de Prontidão ("gap em voo") — só com projeto ativo.
-        a.innerHTML = S.currentProject
-            ? `<button class="btn btn-secondary" data-action="runReadinessCheck" data-args='["${S.currentProject.id}"]'>Diagnóstico de prontidão</button>`
-            : '';
         // /controls traz controles de todos os projetos visíveis ao consultor: filtra pelo projeto atual.
         const controls = S.currentProject ? S.controls.filter(x => x.project_id === S.currentProject.id) : S.controls;
+        // O diagnóstico de prontidão só tem o que ler com controles: no vazio, o CTA é carregar o catálogo.
+        a.innerHTML = S.currentProject && controls.length
+            ? `<button class="btn btn-secondary" data-action="runReadinessCheck" data-args='["${S.currentProject.id}"]'>Diagnóstico de prontidão</button>`
+            : '';
         if (!controls.length) {
             const com27701 = String(S.currentProject?.standards || '').includes('27701');
             c.innerHTML = S.currentProject
-                ? `<div class="empty-state fade-in"><h3>Nenhum controle carregado</h3><p>Carregue o Anexo A da ISO 27001:2022${com27701 ? ' e os controles de privacidade da ISO 27701:2025' : ''} deste projeto.</p><button class="btn btn-primary" data-action="carregarCatalogo" data-args='["${escapeHTML(S.currentProject.id)}"]'>Carregar catálogo</button></div>`
-                : `<div class="empty-state fade-in"><h3>Nenhum controle carregado</h3><p>Escolha um projeto para carregar o catálogo.</p></div>`;
+                ? renderEmptyState({
+                    titulo: 'Nenhum controle carregado',
+                    texto: `Carregue o Anexo A da ISO 27001:2022${com27701 ? ' e os controles de privacidade da ISO 27701:2025' : ''} deste projeto. Sem o catálogo não há SoA (cláusula 6.1.3), maturidade nem evidência por controle.`,
+                    acao: `<button class="btn btn-primary" data-action="carregarCatalogo" data-args='["${escapeHTML(S.currentProject.id)}"]'>Carregar catálogo</button>`,
+                })
+                : renderSemProjeto('Escolha um projeto para carregar o catálogo de controles.');
             return;
         }
         c.innerHTML = `<div class="fade-in card" style="padding:0;overflow:hidden">${controls.map(ctrl => `
@@ -58,7 +62,7 @@ import { temProduto, projetoDoId } from '../produto.js';
         openModal(`<div class="modal-header"><span class="modal-title">Diagnóstico de prontidão</span><button class="btn-ghost" data-action="closeModal">&times;</button></div><div style="padding:1.5rem 0;text-align:center"><div class="loading"></div>${comIA ? '<p style="font-size:0.75rem;color:var(--muted);margin-top:8px">Analisando com IA…</p>' : ''}</div>`);
         try {
             const r = await api('GET', `/api/v1/projects/${projectId}/readiness-check${comIA ? '?ai=1' : ''}`);
-            const cor = { critico: 'var(--danger)', alto: '#e0a800', medio: 'var(--muted)' };
+            const cor = { critico: 'var(--danger)', alto: 'var(--warning)', medio: 'var(--muted)' };
             const rotuloCat = { doc_faltante: 'Documentos faltando', doc_inconsistente: 'Documentos inconsistentes', evidencia_faltante: 'Evidências faltando' };
             const porCat = {};
             (r.achados || []).forEach(a => { (porCat[a.categoria] = porCat[a.categoria] || []).push(a); });
@@ -87,7 +91,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                     <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem">${escapeHTML(r.rotulo || '')}</p>
                     <div style="display:flex;gap:16px;margin-bottom:0.4rem;font-size:0.85rem">
                         <span style="color:var(--danger)"><strong>${r.resumo.critico}</strong> crítico</span>
-                        <span style="color:#e0a800"><strong>${r.resumo.alto}</strong> alto</span>
+                        <span style="color:var(--warning)"><strong>${r.resumo.alto}</strong> alto</span>
                         <span style="color:var(--muted)"><strong>${r.resumo.medio}</strong> médio</span>
                     </div>
                     ${r.resumo.total ? grupos : '<p style="color:var(--muted)">Nenhum gap encontrado nas verificações automáticas.</p>'}
@@ -146,7 +150,7 @@ import { temProduto, projetoDoId } from '../produto.js';
 
                 <div style="display:flex; gap:0.75rem">
                     <button class="btn btn-primary" style="flex:1" data-action="generatePolicyForControl" data-args='["${ctrl.id}"]'>Gerar Política AI</button>
-                    <button class="btn" style="flex:1" data-action="openEvidenceUploadModal" data-args='["${S.currentProject?.id}","${ctrl.id}"]'>Upload Evidência</button>
+                    <button class="btn" style="flex:1" data-action="openEvidenceUploadModal" data-args='["${S.currentProject?.id}","${ctrl.id}"]'>Enviar evidência</button>
                 </div>
             </div>
         `);
@@ -213,7 +217,7 @@ import { temProduto, projetoDoId } from '../produto.js';
             await api('PUT', `/api/v1/controls/${id}/status`, { status });
             await loadControls();
             // Do not close modal, just refresh background
-        } catch(e) { alert(e.message); }
+        } catch(e) { showToast(e.message, 'error'); }
     }
 
     window.updateControlMaturity = async function(id, maturity) {
@@ -228,7 +232,7 @@ import { temProduto, projetoDoId } from '../produto.js';
             } else {
                 await loadControls();
             }
-        } catch(e) { alert(e.message); }
+        } catch(e) { showToast(e.message, 'error'); }
     };
 
     async function loadControlEvidence(controlId) {
@@ -260,9 +264,9 @@ import { temProduto, projetoDoId } from '../produto.js';
         btn.textContent = 'Gerando...';
         try {
             await api('POST', `/api/v1/projects/${S.currentProject?.id}/generate-policy`, { control_id: controlId });
-            alert('Política gerada com sucesso! Verifique o Log de Atividade.');
+            showToast('Política gerada. Confira o rascunho em Gestão de Políticas.');
             closeModal();
-        } catch(e) { alert(e.message); }
+        } catch(e) { showToast(e.message, 'error'); }
         finally { btn.disabled = false; btn.textContent = oldText; }
     }
 
@@ -640,11 +644,11 @@ import { temProduto, projetoDoId } from '../produto.js';
     window.MIN_NA_JUSTIFICATION = MIN_NA_JUSTIFICATION;
 
     async function renderSoA(c, h, a) {
-        h.textContent = 'Statement of Applicability (SoA)';
+        h.textContent = 'Declaração de Aplicabilidade (SoA)';
         const proj = S.activeProject || S.projects[0];
         if (!proj) {
             a.innerHTML = '';
-            c.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">Selecione um projeto ativo para visualizar o SoA.</div>';
+            c.innerHTML = renderSemProjeto('Selecione um projeto para ver a Declaração de Aplicabilidade.');
             return;
         }
         
@@ -670,6 +674,17 @@ import { temProduto, projetoDoId } from '../produto.js';
                 api('GET', `/api/v1/projects/${proj.id}/traceability`).then(r => (Array.isArray(r) ? r : [])).catch(() => [])
             ]);
             
+            // Sem controles não há o que declarar: nada de busca, filtros, atalhos nem "Conforme" sobre lista vazia.
+            if (!controls.length) {
+                a.innerHTML = '';
+                c.innerHTML = renderEmptyState({
+                    titulo: 'Nenhum controle na Declaração de Aplicabilidade',
+                    texto: 'A SoA (ISO 27001, 6.1.3 d) lista os controles do Anexo A com a justificativa de inclusão ou de exclusão de cada um. Carregue o catálogo do projeto para começar.',
+                    acao: `<button class="btn btn-primary" data-action="carregarCatalogo" data-args='${escapeHTML(JSON.stringify([proj.id]))}'>Carregar catálogo</button>`,
+                });
+                return;
+            }
+
             const traceMap = {};
             if (Array.isArray(traceData)) {
                 traceData.forEach(t => { traceMap[t.id] = t; });
@@ -730,7 +745,8 @@ import { temProduto, projetoDoId } from '../produto.js';
             const statsHtml = window.renderStatCards([
                 { label: 'Controles Aplicáveis', value: `${totalApplicable} / ${controls.length}`, color: 'var(--accent)', subtext: `${controls.length > 0 ? ((totalApplicable / controls.length) * 100).toFixed(0) : 0}% de cobertura` },
                 { label: 'Controles Não Aplicáveis', value: totalNA, color: 'var(--text-dim)', subtext: 'Exclusões de escopo' },
-                { label: 'Justificativas de Exclusão', value: `${totalJustified} / ${totalNA || 1}`, color: travado ? 'var(--danger)' : 'var(--success)', subtext: travado ? 'Pendente' : 'Conforme' }
+                // Sem exclusão não há o que justificar: "0 / 1 Conforme" em verde era contradição.
+                { label: 'Justificativas de Exclusão', value: totalNA ? `${totalJustified} / ${totalNA}` : '—', color: travado ? 'var(--danger)' : totalNA ? 'var(--success)' : 'var(--text-dim)', subtext: travado ? 'Pendente' : totalNA ? 'Conforme' : 'Nenhum controle excluído' }
             ]);
 
             const faixaBloqueio = travado ? `
@@ -863,16 +879,16 @@ import { temProduto, projetoDoId } from '../produto.js';
                                 </td>
                                 <td>
                                     <div style="display:flex;gap:6px">
-                                        <span data-action="showControlRisks" data-args='["${ctrl.id}","${escapeHTML(parsed.code)}"]' class="badge-trace" style="cursor:pointer;background:${risksCount > 0 ? 'rgba(0,173,232,0.12)' : 'rgba(255,255,255,0.02)'};color:${risksCount > 0 ? '#00ade8' : 'var(--text-dim)'};border:1px solid ${risksCount > 0 ? 'rgba(0,173,232,0.2)' : 'var(--border)'};padding:3px 7px;border-radius:6px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px" title="${risksCount} risco(s) vinculado(s)">
+                                        <span data-action="showControlRisks" data-args='["${ctrl.id}","${escapeHTML(parsed.code)}"]' class="badge-trace" style="cursor:pointer;background:${risksCount > 0 ? 'rgba(0,173,232,0.12)' : 'rgba(255,255,255,0.02)'};color:${risksCount > 0 ? 'var(--accent)' : 'var(--text-dim)'};border:1px solid ${risksCount > 0 ? 'rgba(0,173,232,0.2)' : 'var(--border)'};padding:3px 7px;border-radius:6px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px" title="${risksCount} risco(s) vinculado(s)">
                                             R: ${risksCount}
                                         </span>
-                                        <span data-action="showControlEvidence" data-args='["${ctrl.id}","${escapeHTML(parsed.code)}"]' class="badge-trace" style="cursor:pointer;background:${evidenceCount > 0 ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)'};color:${evidenceCount > 0 ? '#10b981' : 'var(--text-dim)'};border:1px solid ${evidenceCount > 0 ? 'rgba(16,185,129,0.15)' : 'var(--border)'};padding:3px 7px;border-radius:6px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px" title="${evidenceCount} evidência(s) vinculada(s)">
+                                        <span data-action="showControlEvidence" data-args='["${ctrl.id}","${escapeHTML(parsed.code)}"]' class="badge-trace" style="cursor:pointer;background:${evidenceCount > 0 ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)'};color:${evidenceCount > 0 ? 'var(--success)' : 'var(--text-dim)'};border:1px solid ${evidenceCount > 0 ? 'rgba(16,185,129,0.15)' : 'var(--border)'};padding:3px 7px;border-radius:6px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px" title="${evidenceCount} evidência(s) vinculada(s)">
                                             E: ${evidenceCount}
                                         </span>
                                     </div>
                                     <div style="display:flex;gap:4px;margin-top:4px">
-                                        ${ctrl.ciso_approved_by ? `<span class="badge" style="font-size:0.72rem;padding:2px 4px;background:rgba(16,185,129,0.08);color:#10b981;border:1px solid rgba(16,185,129,0.15)" title="Assinado por DPO: ${escapeHTML(ctrl.ciso_approved_by)}">DPO</span>` : ''}
-                                        ${ctrl.ceo_approved_by ? `<span class="badge" style="font-size:0.72rem;padding:2px 4px;background:rgba(16,185,129,0.08);color:#10b981;border:1px solid rgba(16,185,129,0.15)" title="Assinado por CEO: ${escapeHTML(ctrl.ceo_approved_by)}">CEO</span>` : ''}
+                                        ${ctrl.ciso_approved_by ? `<span class="badge" style="font-size:0.72rem;padding:2px 4px;background:rgba(16,185,129,0.08);color:var(--success);border:1px solid rgba(16,185,129,0.15)" title="Assinado por DPO: ${escapeHTML(ctrl.ciso_approved_by)}">DPO</span>` : ''}
+                                        ${ctrl.ceo_approved_by ? `<span class="badge" style="font-size:0.72rem;padding:2px 4px;background:rgba(16,185,129,0.08);color:var(--success);border:1px solid rgba(16,185,129,0.15)" title="Assinado por CEO: ${escapeHTML(ctrl.ceo_approved_by)}">CEO</span>` : ''}
                                     </div>
                                 </td>
                                 <td>
@@ -1475,11 +1491,11 @@ import { temProduto, projetoDoId } from '../produto.js';
         const proj = S.currentProject || S.activeProject || S.projects[0];
         if (!proj) {
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Selecione um projeto</h3><p>Acesse um projeto para ver suas evidências.</p></div>';
+            c.innerHTML = window.renderSemProjeto('Selecione um projeto para ver as evidências dele.');
             return;
         }
         
-        a.innerHTML = `<button class="btn btn-primary" data-action="openEvidenceUploadModal" data-args='["${proj.id}"]'>+ Upload Evidência</button>`;
+        a.innerHTML = `<button class="btn btn-primary" data-action="openEvidenceUploadModal" data-args='["${proj.id}"]'>+ Enviar evidência</button>`;
 
         // As duas rotas devolvem {ok, <lista>}; o api() entrega a lista.
         const lista = (r) => (Array.isArray(r) ? r : []);
@@ -1495,10 +1511,10 @@ import { temProduto, projetoDoId } from '../produto.js';
         const aiEvaluatedCount = evidence.filter(e => e.evaluation_status && e.evaluation_status !== 'pending').length;
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total de Evidências', value: totalEvidence, color: 'var(--accent)', subtext: 'Arquivos no repositório R2' },
-            { label: 'Revisadas (Líder SGSI)', value: dpoSignedCount, color: '#34c759', subtext: 'Aprovação técnica' },
-            { label: 'Assinadas CEO', value: ceoSignedCount, color: '#34c759', subtext: 'Aprovação executiva' },
-            { label: 'Avaliadas', value: aiEvaluatedCount, color: '#ffcc00', subtext: 'Revisão ou avaliação concluída' }
+            { label: 'Total de Evidências', value: totalEvidence, color: 'var(--text)', subtext: 'Arquivos enviados' },
+            { label: 'Revisadas (Líder SGSI)', value: dpoSignedCount, color: 'var(--text)', subtext: 'Aprovação técnica' },
+            { label: 'Assinadas CEO', value: ceoSignedCount, color: 'var(--text)', subtext: 'Aprovação executiva' },
+            { label: 'Avaliadas', value: aiEvaluatedCount, color: 'var(--text)', subtext: 'Revisão ou avaliação concluída' }
         ]);
 
         const isOrgUser = S.user && S.user.role === 'org_user';
@@ -1556,7 +1572,9 @@ import { temProduto, projetoDoId } from '../produto.js';
                     `<button data-action="downloadEvidenceFile" data-args='["${e.id}"]' class="btn btn-ghost btn-sm">Download</button> ${dpoBtn} ${ceoBtn} ${evalBtn} ${reqBtn}`
                 ];
             }),
-            { emptyState: 'Nenhuma evidência enviada para este projeto.' }
+            { emptyState: 'Nenhuma evidência enviada para este projeto.',
+              emptyHint: 'A evidência é o que o auditor confere para dar o controle como implementado (ISO 27001, 7.5: informação documentada). Envie o arquivo e ligue-o ao controle.',
+              emptyAction: `<button class="btn btn-primary" data-action="openEvidenceUploadModal" data-args='["${proj.id}"]'>Enviar evidência</button>` }
         );
 
         c.innerHTML = `
@@ -1624,7 +1642,7 @@ import { temProduto, projetoDoId } from '../produto.js';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -1641,10 +1659,11 @@ import { temProduto, projetoDoId } from '../produto.js';
             const vigentes = projectControls.filter(ctrl => ctrl.ciso_approved_by && ctrl.ceo_approved_by).length;
             
             const statsHtml = window.renderStatCards([
-                { label: 'Total de Políticas', value: total, color: 'var(--accent)', subtext: 'Controles no escopo' },
-                { label: 'Rascunho / Pendentes', value: draft, color: '#ff3b30', subtext: 'Requer elaboração' },
-                { label: 'Aprovadas Líder SGSI', value: ciso, color: '#feca57', subtext: 'Aprovação técnica' },
-                { label: 'Aprovadas & Vigentes', value: vigentes, color: '#34c759', subtext: 'Assinatura DPO + CEO' }
+                // Contagem neutra; só o que pede ação ganha cor.
+                { label: 'Total de Políticas', value: total, color: 'var(--text)', subtext: 'Controles no escopo' },
+                { label: 'Rascunho / Pendentes', value: draft, color: draft > 0 ? 'var(--warning)' : 'var(--text)', subtext: 'Requer elaboração' },
+                { label: 'Aprovadas Líder SGSI', value: ciso, color: 'var(--text)', subtext: 'Aprovação técnica' },
+                { label: 'Aprovadas & Vigentes', value: vigentes, color: 'var(--text)', subtext: 'Assinatura DPO + CEO' }
             ]);
 
             const tableHtml = window.renderDataTable(
@@ -1699,7 +1718,9 @@ import { temProduto, projetoDoId } from '../produto.js';
                         `<button data-action="openGeneratePolicyModal" data-args='["${proj.id}","${escapeHTML(ctrl.id)}"]' class="btn btn-ghost btn-sm">Visualizar / Gerar</button>`
                     ];
                 }),
-                { emptyState: 'Nenhuma política cadastrada.' }
+                { emptyState: 'Nenhuma política cadastrada.',
+                  emptyHint: 'Cada política nasce de um controle do Anexo A (A.5.1 pede o conjunto aprovado pela direção). Carregue o catálogo de controles para gerar, revisar e assinar as políticas.',
+                  emptyAction: `<button class="btn btn-primary" data-action="navigate" data-args='["controls"]'>Ir para Controles</button>` }
             );
 
             c.innerHTML = `
@@ -1712,9 +1733,9 @@ import { temProduto, projetoDoId } from '../produto.js';
     }
 
     // Mudar o texto zera as duas assinaturas no servidor (policies.ts): quem clica precisa saber antes.
-    function avisarQueAnulaAssinaturas(ctrl) {
+    async function avisarQueAnulaAssinaturas(ctrl) {
         if (!ctrl.ciso_approved_by && !ctrl.ceo_approved_by) return true;
-        return window.confirm('Mudar o texto anula as assinaturas já registradas desta política. Continuar?');
+        return window.confirmar('Mudar o texto anula as assinaturas já registradas desta política.', { titulo: 'Anular assinaturas', rotulo: 'Continuar', perigo: true });
     }
 
     async function openGeneratePolicyModal(projectId, controlIdArg) {
@@ -1878,13 +1899,13 @@ import { temProduto, projetoDoId } from '../produto.js';
                     <div style="background: rgba(0, 173, 232, 0.03); border: 1px solid rgba(0, 173, 232, 0.15); border-radius: 12px; padding: 1rem 1.25rem; backdrop-filter: blur(12px);">
                         <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.5rem; margin-bottom: 0.6rem;">
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 8px; height: 8px; border-radius: 50%; background: #00ade8; box-shadow: 0 0 10px #00ade8;"></div>
-                                <span style="font-family: 'Montserrat', sans-serif; font-size:0.75rem; font-weight: 700; color: #f5f5f7; text-transform: uppercase; letter-spacing: 0.1em;">Selo de Homologação Digital</span>
+                                <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent); "></div>
+                                <span style="font-family: 'Montserrat', sans-serif; font-size:0.75rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.1em;">Selo de Homologação Digital</span>
                             </div>
-                            <span style="font-family: 'Montserrat', sans-serif; font-size:0.72rem; font-weight: 700; color: #00ade8; background: rgba(0, 173, 232, 0.1); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(0, 173, 232, 0.2);">ISO 27001 CONFORME</span>
+                            <span style="font-family: 'Montserrat', sans-serif; font-size:0.72rem; font-weight: 700; color: var(--accent); background: rgba(0, 173, 232, 0.1); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(0, 173, 232, 0.2);">ISO 27001 CONFORME</span>
                         </div>
                         <div style="font-size: 0.7rem; font-family: monospace; display: flex; flex-direction: column; gap: 4px; color: rgba(229, 235, 255, 0.75);">
-                            <div><span style="color: var(--text-dim);">INTEGRIDADE DO TEXTO DA POLÍTICA (SHA-256 do texto, não do pedido):</span> <span style="color: #00ade8; word-break: break-all;">${escapeHTML(evidenceHash)}</span></div>
+                            <div><span style="color: var(--text-dim);">INTEGRIDADE DO TEXTO DA POLÍTICA (SHA-256 do texto, não do pedido):</span> <span style="color: var(--accent); word-break: break-all;">${escapeHTML(evidenceHash)}</span></div>
                             <div><span style="color: var(--text-dim);">MÉTODO:</span> Assinatura Eletrônica Simples (Senha & Autenticação de Sessão via HTTPS)</div>
                         </div>
                     </div>
@@ -1976,7 +1997,7 @@ import { temProduto, projetoDoId } from '../produto.js';
             let isEditing = false;
             const originalMarkdown = policyText;
 
-            document.getElementById('btn-edit-policy').onclick = function() {
+            document.getElementById('btn-edit-policy').onclick = async function() {
                 const container = document.getElementById('policy-content-container');
                 const sigContainer = document.getElementById('signature-workflow-container');
                 const editBtn = document.getElementById('btn-edit-policy');
@@ -1992,7 +2013,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; height:400px; margin-top:10px">
                             <div style="display:flex; flex-direction:column; gap:8px; height:100%">
                                 <label class="form-label" style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em">Editor Markdown</label>
-                                <textarea id="policy-editor-textarea" style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:12px; color:#fff; font-family:monospace; font-size:0.75rem; resize:none; outline:none; line-height:1.4;" placeholder="Digite o conteúdo da política em Markdown...">${escapeHTML(originalMarkdown)}</textarea>
+                                <textarea id="policy-editor-textarea" style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:12px; color:var(--text); font-family:monospace; font-size:0.75rem; resize:none; outline:none; line-height:1.4;" placeholder="Digite o conteúdo da política em Markdown...">${escapeHTML(originalMarkdown)}</textarea>
                             </div>
                             <div style="display:flex; flex-direction:column; gap:8px; height:100%">
                                 <label class="form-label" style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em">Preview Renderizado (VSCode Mode)</label>
@@ -2010,7 +2031,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                 } else {
                     // Salvar as alterações
                     const newContent = document.getElementById('policy-editor-textarea').value;
-                    if (!avisarQueAnulaAssinaturas(ctrl)) return;
+                    if (!(await avisarQueAnulaAssinaturas(ctrl))) return;
                     editBtn.disabled = true;
                     editBtn.textContent = 'Salvando...';
                     api('POST', `/api/v1/projects/${projectId}/controls/${encodeURIComponent(ctrl.id)}/policy`, { text: newContent })
@@ -2065,7 +2086,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                 const selector = document.getElementById('policy-version-selector');
                 const verId = selector.value;
                 if (!verId) return;
-                if (!avisarQueAnulaAssinaturas(ctrl)) return;
+                if (!(await avisarQueAnulaAssinaturas(ctrl))) return;
                 
                 try {
                     const res = await api('POST', `/api/v1/projects/${pId}/controls/${cId}/restore-version`, { version_id: verId });
@@ -2139,7 +2160,7 @@ import { temProduto, projetoDoId } from '../produto.js';
     // por isso a tela pede só a senha.
     window.signPolicy = async function(projectId, controlId, role) {
         const roleLabel = role === 'ciso' ? 'Líder SGSI' : 'Direção Executiva';
-        const password = prompt(`Digite sua senha de login para assinar eletronicamente como ${roleLabel}:`);
+        const password = await window.pedirTexto(`Digite sua senha de login para assinar eletronicamente como ${roleLabel}.`, { titulo: 'Assinar política', rotulo: 'Assinar', tipo: 'password' });
         if (!password) return;
         try {
             const res = await api('POST', `/api/v1/controls/${encodeURIComponent(controlId)}/approve`, { role, password });
@@ -2151,10 +2172,10 @@ import { temProduto, projetoDoId } from '../produto.js';
     };
 
     async function renderAcknowledgments(c, h, a) {
-        h.textContent = 'Ciencia de Políticas';
+        h.textContent = 'Ciência de Políticas';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -2247,7 +2268,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                     <td style="font-size: 0.7rem; font-family: monospace; color: var(--muted);">${escapeHTML(a.ip_address || 'N/A')}</td>
                 </tr>
             `;
-        }).join('') : `<tr><td colspan="5" style="text-align:center; color:var(--text-dim); padding:2rem;">Nenhum registro de ciencia encontrado para este projeto.</td></tr>`;
+        }).join('') : `<tr><td colspan="5" style="text-align:center; color:var(--text-dim); padding:2rem;">Nenhum registro de ciência neste projeto. A confirmação de leitura pelo colaborador é a evidência de que a política foi comunicada (ISO 27001, A.5.1 e 7.3).</td></tr>`;
 
         c.innerHTML = `
             <div class="fade-in">
@@ -2306,7 +2327,8 @@ import { temProduto, projetoDoId } from '../produto.js';
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(url);
         } else {
-            prompt('Copie a URL do Portal de Políticas:', url);
+            window.pedirTexto('Copie a URL do Portal de Políticas.', { titulo: 'Portal de Políticas', rotulo: 'Fechar', padrao: url });
+            return;
         }
         showToast('Link do Portal de Políticas copiado!');
     };
@@ -2317,7 +2339,7 @@ import { temProduto, projetoDoId } from '../produto.js';
         const email = document.getElementById('ack-self-email').value.trim();
         
         if (!policyType || !name || !email) {
-            alert('Erro: Nome e E-mail de usuario logado nao identificados.');
+            showToast('Nome e e-mail do usuário logado não identificados.', 'error');
             return;
         }
 
@@ -2334,7 +2356,7 @@ import { temProduto, projetoDoId } from '../produto.js';
                 throw new Error(res.error || 'Erro desconhecido');
             }
         } catch(e) {
-            alert('Falha ao registrar ciencia: ' + e.message);
+            showToast('Falha ao registrar ciência: ' + e.message, 'error');
         }
     };
 
@@ -2344,7 +2366,7 @@ import { temProduto, projetoDoId } from '../produto.js';
         const email = document.getElementById('ack-manual-email').value.trim();
 
         if (!name || !email) {
-            alert('Por favor, preencha o nome e o e-mail do colaborador.');
+            showToast('Preencha o nome e o e-mail do colaborador.', 'error');
             return;
         }
 
@@ -2363,36 +2385,36 @@ import { temProduto, projetoDoId } from '../produto.js';
                 throw new Error(res.error || 'Erro desconhecido');
             }
         } catch(e) {
-            alert('Falha ao registrar ciencia: ' + e.message);
+            showToast('Falha ao registrar ciência: ' + e.message, 'error');
         }
     };
 
     async function bulkGeneratePolicies(projectId) {
-        const controls = prompt('Controles ISO (separados por virgula):\nEx: A.5.1,A.5.2,A.5.3,A.5.4,A.5.8', 'A.5.1,A.5.2,A.5.3,A.5.4,A.5.8,A.5.9,A.5.10');
+        const controls = await window.pedirTexto('Controles ISO separados por vírgula (ex.: A.5.1,A.5.2,A.5.3).', { titulo: 'Gerar políticas em lote', padrao: 'A.5.1,A.5.2,A.5.3,A.5.4,A.5.8,A.5.9,A.5.10' });
         if (!controls) return;
         const control_ids = controls.split(',').map(s => s.trim()).filter(Boolean);
         if (!control_ids.length) return;
-        const msg = `Gerar ${control_ids.length} politicas via AI? Isso pode levar alguns minutos.`;
-        if (!confirm(msg)) return;
+        const msg = `Gerar ${control_ids.length} políticas com IA? Pode levar alguns minutos.`;
+        if (!(await window.confirmar(msg, { titulo: 'Gerar políticas em lote', rotulo: 'Gerar' }))) return;
 
         try {
             const res = await api('POST', `/api/v1/projects/${projectId}/generate-policies-bulk`, { control_ids });
             if (res.ok) {
-                alert(`Bulk Policy Completo!\n\nTotal: ${res.total}\nSucesso: ${res.successful}\nFalhas: ${res.failed}`);
+                showToast(`Políticas em lote. Total: ${res.total}. Sucesso: ${res.successful}. Falhas: ${res.failed}.`);
             }
-        } catch(e) { alert('Erro: ' + e.message); }
+        } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
     async function migrate27701(projectId) {
-        if (!confirm('Migrar SoA para ISO 27701 (PIMS)?\nIsso adicionara controles de privacidade ao sistema.')) return;
+        if (!(await window.confirmar('Isso adiciona os controles de privacidade da ISO 27701 (PIMS) à SoA deste projeto.', { titulo: 'Migrar SoA para ISO 27701', rotulo: 'Migrar' }))) return;
         try {
             const res = await api('POST', `/api/v1/projects/${projectId}/migrate-27701`);
             if (res.ok) {
-                alert(`Migracao 27701 Completa!\n\nGaps identificados: ${res.gaps?.length || 0}\nNovos controles: ${res.new_controls_created}\nTransformacao: ${(res.transformation_ratio * 100).toFixed(0)}%`);
+                showToast(`Migração 27701 concluída. Gaps identificados: ${res.gaps?.length || 0}. Novos controles: ${res.new_controls_created}. Transformação: ${(res.transformation_ratio * 100).toFixed(0)}%.`);
                 await loadControls();
                 render();
             }
-        } catch(e) { alert('Erro: ' + e.message); }
+        } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
 window.renderControls = renderControls;

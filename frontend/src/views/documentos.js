@@ -57,7 +57,7 @@ async function renderDocumentos(c, h, a) {
     const proj = projetoAtivo();
     if (!proj) {
         a.innerHTML = '';
-        c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>';
+        c.innerHTML = window.renderSemProjeto();
         return;
     }
     a.innerHTML = podeEditar()

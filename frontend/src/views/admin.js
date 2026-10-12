@@ -97,7 +97,7 @@ window.__adminCopiarApiKey = () => {
             `;
         } catch(e) {
             console.error('Tabela de preços:', e);
-            c.innerHTML = `<div class="empty-state fade-in"><h3>Não foi possível carregar a tabela de preços</h3><p>Tente de novo; se persistir, avise o suporte.</p><button class="btn btn-secondary" data-action="navigate" data-args='["settings"]'>Tentar de novo</button></div>`;
+            c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível carregar a tabela de preços', texto: 'Tente de novo; se persistir, avise o suporte.', acao: `<button class="btn btn-secondary" data-action="navigate" data-args='["settings"]'>Tentar de novo</button>` });
         }
     }
 
@@ -206,7 +206,7 @@ window.__adminCopiarApiKey = () => {
         a.innerHTML = '';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto primeiro.</p></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
 
@@ -628,7 +628,7 @@ window.__adminCopiarApiKey = () => {
     };
 
     window.revokeApiKey = async function (id) {
-        if (!confirm('Revogar esta chave? A ação é permanente.')) return;
+        if (!(await window.confirmar('A integração que usa esta chave perde o acesso na próxima chamada. A revogação é permanente.', { titulo: 'Revogar chave de API', rotulo: 'Revogar', perigo: true }))) return;
         try {
             await api('DELETE', `/api/v1/api-keys/${id}`);
             showToast('Chave revogada');

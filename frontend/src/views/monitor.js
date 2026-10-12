@@ -1,27 +1,23 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
-import { produtoAtual } from '../produto.js';
+import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto } from '../ui.js';
+import { produtoAtual, projetosDoProduto } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
 
     async function renderMonitor(c, h, a) {
         h.textContent = 'Monitor de Adequação';
         a.innerHTML = ''; // Clear actions
         
+        // Mesma fonte do Dashboard (/projects, só os projetos deste módulo). Lia /portfolio e, quando ele
+        // vinha vazio, o Monitor dizia "nenhum projeto" com o Dashboard mostrando um projeto em curso.
         let portfolio = [];
-        try { 
-            const res = await api('GET', '/api/v1/portfolio'); 
-            portfolio = Array.isArray(res) ? res : (res && res.projects ? res.projects : (res && res.portfolio ? res.portfolio : []));
-        } catch(e) {
-            try {
-                const res = await api('GET', '/api/v1/projects');
-                portfolio = Array.isArray(res) ? res : (res && res.projects ? res.projects : []);
-            } catch(err) {
-                portfolio = [];
-            }
-        }
-        if (!Array.isArray(portfolio) || portfolio.length === 0) {
-            c.innerHTML = '<div class="empty-state"><h3>Nenhum projeto ativo para monitorar.</h3></div>';
+        try { portfolio = projetosDoProduto(await api('GET', '/api/v1/projects')); } catch (e) { portfolio = []; }
+        if (portfolio.length === 0) {
+            c.innerHTML = renderEmptyState({
+                titulo: 'Nenhum projeto do n.iso para monitorar',
+                texto: 'O monitor acompanha as fases da jornada de adequação de cada projeto com o n.iso habilitado. Quando houver um, o progresso aparece aqui.',
+                acao: `<button class="btn" data-action="navigate" data-args='["projects"]'>Ver projetos</button>`,
+            });
             return;
         }
         
@@ -61,7 +57,7 @@ import { podeIndicar } from './encarregado.js';
                     <div class="monitor-card">
                         <div class="monitor-card-title">Evidências Coletadas</div>
                         <div class="monitor-card-value">${p.evidence_count || 0}</div>
-                        <div style="font-size:0.75rem; color:var(--text-dim)">Documentos na nuvem R2</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim)">Arquivos enviados</div>
                     </div>
                 </div>
             `;
@@ -120,7 +116,7 @@ import { podeIndicar } from './encarregado.js';
                         </div>
                         <div style="display:flex; gap:0.5rem">
                             <button class="btn" data-action="exportCSV" data-args='["risks"]' style="font-size:0.7rem; padding:0.4rem 0.8rem">Exportar Riscos</button>
-                            <button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${p.id}"}}]' style="background:var(--accent); color:#000; font-size:0.7rem; padding:0.4rem 0.8rem">Gerenciar Fases</button>
+                            <button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${p.id}"}}]' style="background:var(--accent); color:var(--accent-ink); font-size:0.7rem; padding:0.4rem 0.8rem">Gerenciar Fases</button>
                         </div>
                     </div>
                     
@@ -164,12 +160,12 @@ import { podeIndicar } from './encarregado.js';
                     <span style="font-size:0.7rem;color:${semaphore.color};font-weight:600">${pct}%</span>
                 </div>
             </div>`;
-        }).join('') : '<div class="empty-state"><h3>Nenhum projeto no portfolio</h3></div>'}</div>`;
+        }).join('') : renderEmptyState({ titulo: 'Nenhum projeto no portfólio', texto: 'Os projetos em que você está designado aparecem aqui com o andamento das fases.' })}</div>`;
     }
 
     async function exportCSV(type) {
         const proj = S.activeProject || S.projects[0];
-        if (!proj) { alert('Selecione um projeto primeiro'); return; }
+        if (!proj) { showToast('Selecione um projeto primeiro', 'error'); return; }
         try {
             const headers = {};
             if (S.token) headers['Authorization'] = `Bearer ${S.token}`;
@@ -179,36 +175,41 @@ import { podeIndicar } from './encarregado.js';
             const a = document.createElement('a');
             a.href = url; a.download = `${type}-${proj.id}.csv`; a.click();
             URL.revokeObjectURL(url);
-        } catch(e) { alert('Erro: ' + e.message); }
+        } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
     async function showGapAnalysis(projectId) {
         try {
             const data = await api('GET', `/api/v1/projects/${projectId}/gap-analysis`);
             const pct = data.coverage_pct || 0;
-            const barColor = pct > 80 ? 'var(--accent)' : pct > 50 ? '#feca57' : 'var(--danger)';
+            const barColor = pct > 80 ? 'var(--accent)' : pct > 50 ? 'var(--warning)' : 'var(--danger)';
             openModal(`
                 <div class="modal-header"><span class="modal-title">Gap Analysis</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
                 <div style="display:flex;gap:2rem;margin-bottom:1.5rem">
                     <div><div class="card-label">Cobertura</div><div style="font-size:2rem;font-weight:600;color:${barColor}">${pct.toFixed(0)}%</div></div>
                     <div><div class="card-label">Implementados</div><div style="font-size:1.2rem">${data.by_status?.Implemented || 0}</div></div>
-                    <div><div class="card-label">Parciais</div><div style="font-size:1.2rem;color:#feca57">${data.by_status?.Partial || 0}</div></div>
+                    <div><div class="card-label">Parciais</div><div style="font-size:1.2rem;color:var(--warning)">${data.by_status?.Partial || 0}</div></div>
                     <div><div class="card-label">Missing</div><div style="font-size:1.2rem;color:var(--danger)">${data.by_status?.Missing || 0}</div></div>
                 </div>
                 <div style="font-size:0.7rem;color:var(--muted)">Controles com evidencia: ${data.controls_with_evidence || 0} | Controles com risco vinculado: ${data.controls_with_risks || 0}</div>
             `);
-        } catch(e) { alert('Erro: ' + e.message); }
+        } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
     async function renderCertification(c, h, a) {
         h.textContent = 'Acompanhamento de Certificação';
         const proj = S.activeProject || S.projects[0];
-        if (!proj) { c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; return; }
+        if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
         let cert = null;
         try { cert = (await api('GET', `/api/v1/projects/${proj.id}/certification`))?.certification ?? null; } catch(e) {}
         if (!cert || !cert.id) {
-            a.innerHTML = `<button class="btn btn-primary" data-action="initCertification" data-args='["${proj.id}"]'>Iniciar Tracker</button>`;
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Nenhum tracker de certificação</h3><p>Clique em Iniciar Tracker para começar a acompanhar o processo de certificação.</p></div>';
+            // O CTA mora no vazio: o header repetia a instrução apontando para cima.
+            a.innerHTML = '';
+            c.innerHTML = renderEmptyState({
+                titulo: 'Certificação ainda não acompanhada',
+                texto: 'O acompanhamento registra as etapas até o certificado: avaliação de gaps, remediação, auditoria interna, estágios 1 e 2 e manutenção.',
+                acao: `<button class="btn btn-primary" data-action="initCertification" data-args='["${proj.id}"]'>Iniciar acompanhamento de certificação</button>`,
+            });
             return;
         }
         a.innerHTML = '';
@@ -237,7 +238,7 @@ import { podeIndicar } from './encarregado.js';
                     </div>
                 </div>
                 <div style="height:4px;background:rgba(255,255,255,0.05);border-radius:2px;margin-bottom:2rem;position:relative;overflow:hidden">
-                    <div style="width:${pct}%;height:100%;background:linear-gradient(90deg, var(--accent), #00d2ff);border-radius:2px;transition:width(0.8s);box-shadow:0 0 15px var(--accent-dim)"></div>
+                    <div style="width:${pct}%;height:100%;background:var(--accent);border-radius:2px;transition:width(0.8s);box-shadow:0 0 15px var(--accent-dim)"></div>
                 </div>
                 <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
                     ${stages.map((s, i) => `<span style="font-size:0.72rem;padding:0.35rem 0.75rem;border-radius:8px;font-weight:600;letter-spacing:0.05em;background:${i <= si ? 'var(--accent-dim)' : 'var(--surface)'};border:1px solid ${i <= si ? 'var(--accent)' : 'var(--border)'};color:${i <= si ? 'var(--accent)' : 'var(--muted)'}">${STAGE_MAP_PT[s] || s}</span>`).join('')}
@@ -285,7 +286,7 @@ import { podeIndicar } from './encarregado.js';
     async function renderMetrics(c, h, a) {
         h.textContent = 'Métricas & KPIs do SGSI';
         const proj = S.activeProject || S.projects[0];
-        if (!proj) { c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; return; }
+        if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
         a.innerHTML = `<button class="btn btn-primary" data-action="openNewMetricModal" data-args='["${proj.id}"]'>+ Nova Métrica</button>`;
         
         let metrics = [];
@@ -339,7 +340,7 @@ import { podeIndicar } from './encarregado.js';
                         </tbody>
                     </table>
                 </div>
-            ` : '<div class="empty-state"><h3>Nenhuma métrica registrada</h3><p>Defina KPIs de segurança para avaliar o desempenho do SGSI (Cláusula 9.1).</p></div>'}
+            ` : renderEmptyState({ titulo: 'Nenhuma métrica registrada', texto: 'A ISO 27001 (9.1) pede que se defina o que medir, como e quando, para avaliar o desempenho do SGSI. Registre os indicadores do projeto.', acao: `<button class="btn btn-primary" data-action="openNewMetricModal" data-args='["${proj.id}"]'>Nova métrica</button>` })}
         </div>`;
     }
 
@@ -479,7 +480,7 @@ import { podeIndicar } from './encarregado.js';
         a.innerHTML = '';
         const p = S.currentProject || S.activeProject;
         if (!p) {
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para visualizar a governança.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>';
+            c.innerHTML = window.renderSemProjeto('Selecione um projeto para ver a governança.');
             return;
         }
         c.innerHTML = '<div class="loading"></div>';
@@ -685,7 +686,7 @@ import { podeIndicar } from './encarregado.js';
     };
 
     window.revogarStakeholder = async function(projectId, memberId) {
-        if (!confirm('Revogar o acesso desta pessoa ao n.iso? A conta é desativada e as sessões abertas caem.')) return;
+        if (!(await window.confirmar('A conta é desativada e as sessões abertas caem.', { titulo: 'Revogar acesso ao n.iso', perigo: true, rotulo: 'Revogar' }))) return;
         try {
             await api('POST', `/api/v1/projects/${projectId}/governance/${memberId}/revogar-acesso`);
             showToast('Acesso revogado');
@@ -693,7 +694,7 @@ import { podeIndicar } from './encarregado.js';
     };
 
     window.revogarAgente = async function(projectId, id) {
-        if (!confirm('Revogar o acesso deste agente? Ele perde o acesso na próxima chamada.')) return;
+        if (!(await window.confirmar('O agente perde o acesso na próxima chamada.', { titulo: 'Revogar acesso do agente', perigo: true, rotulo: 'Revogar' }))) return;
         try {
             await api('POST', `/api/v1/projects/${projectId}/agentes/${id}/revogar`);
             showToast('Acesso do agente revogado');
@@ -763,12 +764,12 @@ import { podeIndicar } from './encarregado.js';
                     <button class="btn btn-ghost" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--accent); border-color:rgba(0,173,232,0.2)" data-action="editGovernanceMember" data-args='["${m.id}"]'>
                         Editar
                     </button>
-                    <button class="btn btn-ghost" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:#ef4444; border-color:rgba(239,68,68,0.2)" data-action="deleteGovernanceMember" data-args='["${projectId}","${m.id}"]'>
+                    <button class="btn btn-ghost" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--danger); border-color:rgba(239,68,68,0.2)" data-action="deleteGovernanceMember" data-args='["${projectId}","${m.id}"]'>
                         Excluir
                     </button>
                 </div>
             </div>
-        `).join('') || `<div style="font-size:0.75rem; color:var(--text-dim); text-align:center; padding:12px; border:1px dashed var(--border); border-radius:8px; margin-bottom:12px">Nenhum membro cadastrado.</div>`;
+        `).join('') || renderEmptyState({ titulo: 'Nenhum membro cadastrado', texto: 'Papéis e responsabilidades do SGSI precisam ser atribuídos e comunicados (ISO 27001, 5.3).' });
 
         const formHtml = `
             <div style="border-top:1px solid var(--border); padding-top:16px; margin-top:16px">
@@ -896,7 +897,7 @@ import { podeIndicar } from './encarregado.js';
     };
 
     window.deleteGovernanceMember = async function(projectId, memberId) {
-        if (!confirm('Deseja realmente excluir este membro da governança?')) return;
+        if (!(await window.confirmar('A pessoa sai da matriz de governança deste projeto.', { titulo: 'Excluir membro da governança', perigo: true, rotulo: 'Excluir' }))) return;
         
         try {
             await api('DELETE', `/api/v1/projects/${projectId}/governance/${memberId}`);
@@ -931,7 +932,7 @@ import { podeIndicar } from './encarregado.js';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -976,10 +977,10 @@ import { podeIndicar } from './encarregado.js';
             const activeTab = S.contextTab || 'swot';
 
             const statsHtml = window.renderStatCards([
-                { label: 'Total Fatores de Contexto', value: totalFatores, color: 'var(--accent)', subtext: 'Mapeados ISO 27001' },
-                { label: 'Forças & Oportunidades', value: sCount + oCount, color: '#34c759', subtext: 'Fatores positivos' },
-                { label: 'Fraquezas & Ameaças', value: wCount + tCount, color: (wCount + tCount) > 0 ? '#ff3b30' : 'var(--text-dim)', subtext: 'Pontos de atenção / Risco' },
-                { label: 'Maturidade Cláusula 4.3', value: `${maturityScore}%`, color: maturityScore >= 80 ? '#34c759' : '#ffcc00', subtext: maturityStatus }
+                { label: 'Total Fatores de Contexto', value: totalFatores, color: 'var(--text)', subtext: 'Mapeados ISO 27001' },
+                { label: 'Forças & Oportunidades', value: sCount + oCount, color: 'var(--text)', subtext: 'Fatores positivos' },
+                { label: 'Fraquezas & Ameaças', value: wCount + tCount, color: (wCount + tCount) > 0 ? 'var(--danger)' : 'var(--text-dim)', subtext: 'Pontos de atenção / Risco' },
+                { label: 'Maturidade Cláusula 4.3', value: `${maturityScore}%`, color: maturityScore >= 80 ? 'var(--success)' : 'var(--warning)', subtext: maturityStatus }
             ]);
 
             const tabsHeader = `
@@ -1012,7 +1013,7 @@ import { podeIndicar } from './encarregado.js';
                             </div>
 
                             <div style="background:rgba(255,59,48,0.02); border:1px solid rgba(255,59,48,0.2); border-radius:12px; padding:20px">
-                                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.9rem; color:#ff3b30; text-transform:uppercase; margin-bottom:8px">
+                                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.9rem; color:var(--danger); text-transform:uppercase; margin-bottom:8px">
                                     3. Exclusões Justificadas de Escopo (Exclusões Aceitas por Auditores)
                                 </div>
                                 <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px">Descreva detalhadamente o que está **fora do escopo** e a justificativa técnica normativamente válida perante o auditor ISO 27001.</div>
@@ -1062,8 +1063,8 @@ import { podeIndicar } from './encarregado.js';
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
                                 <div style="background:rgba(0,173,232,0.03); border:1px solid rgba(0,173,232,0.2); border-radius:10px; padding:14px">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                                        <label style="color:#00ade8; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
-                                            <span style="width:8px; height:8px; background:#00ade8; border-radius:50%"></span>
+                                        <label style="color:var(--accent); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
+                                            <span style="width:8px; height:8px; background:var(--accent); border-radius:50%"></span>
                                             Forças (Strengths)
                                         </label>
                                         ${window.renderStatusBadge(`${sCount} itens`, 'info')}
@@ -1073,8 +1074,8 @@ import { podeIndicar } from './encarregado.js';
                                 
                                 <div style="background:rgba(254,202,87,0.03); border:1px solid rgba(254,202,87,0.2); border-radius:10px; padding:14px">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                                        <label style="color:#feca57; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
-                                            <span style="width:8px; height:8px; background:#feca57; border-radius:50%"></span>
+                                        <label style="color:var(--warning); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
+                                            <span style="width:8px; height:8px; background:var(--warning); border-radius:50%"></span>
                                             Fraquezas (Weaknesses)
                                         </label>
                                         ${window.renderStatusBadge(`${wCount} itens`, 'warning')}
@@ -1084,8 +1085,8 @@ import { podeIndicar } from './encarregado.js';
 
                                 <div style="background:rgba(52,199,89,0.03); border:1px solid rgba(52,199,89,0.2); border-radius:10px; padding:14px">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                                        <label style="color:#34c759; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
-                                            <span style="width:8px; height:8px; background:#34c759; border-radius:50%"></span>
+                                        <label style="color:var(--success); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
+                                            <span style="width:8px; height:8px; background:var(--success); border-radius:50%"></span>
                                             Oportunidades (Opportunities)
                                         </label>
                                         ${window.renderStatusBadge(`${oCount} itens`, 'success')}
@@ -1095,8 +1096,8 @@ import { podeIndicar } from './encarregado.js';
 
                                 <div style="background:rgba(255,59,48,0.03); border:1px solid rgba(255,59,48,0.2); border-radius:10px; padding:14px">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                                        <label style="color:#ff3b30; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
-                                            <span style="width:8px; height:8px; background:#ff3b30; border-radius:50%"></span>
+                                        <label style="color:var(--danger); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
+                                            <span style="width:8px; height:8px; background:var(--danger); border-radius:50%"></span>
                                             Ameaças (Threats)
                                         </label>
                                         ${window.renderStatusBadge(`${tCount} itens`, 'danger')}
@@ -1178,11 +1179,11 @@ import { podeIndicar } from './encarregado.js';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
-        a.innerHTML = `<button data-action="openStakeholderModal" class="btn btn-primary">+ Novo Stakeholder</button>`;
+        a.innerHTML = `<button data-action="openStakeholderModal" class="btn btn-primary">+ Nova parte interessada</button>`;
         
         let list = [];
         try {
@@ -1197,10 +1198,10 @@ import { podeIndicar } from './encarregado.js';
         const highInfluence = list.filter(s => (s.influence || '').toLowerCase() === 'high' || (s.influence || '').toLowerCase() === 'alta').length;
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total Partes Interessadas', value: total, color: 'var(--accent)', subtext: 'Mapeadas ISO 27001' },
-            { label: 'Partes Externas', value: external, color: '#34c759', subtext: 'Reguladores, Clientes & Operadores' },
-            { label: 'Partes Internas', value: internal, color: '#00ade8', subtext: 'Equipes & Diretoria' },
-            { label: 'Alta Influência', value: highInfluence, color: highInfluence > 0 ? '#ff3b30' : 'var(--text-dim)', subtext: 'Requisitos prioritários' }
+            { label: 'Total Partes Interessadas', value: total, color: 'var(--text)', subtext: 'Mapeadas ISO 27001' },
+            { label: 'Partes Externas', value: external, color: 'var(--text)', subtext: 'Reguladores, Clientes & Operadores' },
+            { label: 'Partes Internas', value: internal, color: 'var(--text)', subtext: 'Equipes & Diretoria' },
+            { label: 'Alta Influência', value: highInfluence, color: highInfluence > 0 ? 'var(--danger)' : 'var(--text-dim)', subtext: 'Requisitos prioritários' }
         ]);
 
         const catLabels = {
@@ -1231,11 +1232,13 @@ import { podeIndicar } from './encarregado.js';
                     `<div style="font-size:0.8rem; line-height:1.45">${escapeHTML(s.communication_method || '')}</div>`,
                     `<div style="display:flex; gap:6px; justify-content:center">
                         <button data-action="openStakeholderModal" data-args='["${s.id}"]' class="btn btn-ghost btn-sm">Editar</button>
-                        <button data-action="deleteStakeholder" data-args='["${s.id}"]' class="btn btn-ghost btn-sm" style="color:#ff3b30">Excluir</button>
+                        <button data-action="deleteStakeholder" data-args='["${s.id}"]' class="btn btn-ghost btn-sm" style="color:var(--danger)">Excluir</button>
                     </div>`
                 ];
             }),
-            { emptyState: 'Nenhum stakeholder cadastrado ainda.' }
+            { emptyState: 'Nenhuma parte interessada cadastrada.',
+              emptyHint: 'A ISO 27001 (4.2) pede as partes interessadas relevantes para o SGSI e os requisitos de cada uma: reguladores, clientes, fornecedores, equipe.',
+              emptyAction: '<button class="btn btn-primary" data-action="openStakeholderModal">Nova parte interessada</button>' }
         );
 
         c.innerHTML = `
@@ -1336,7 +1339,7 @@ import { podeIndicar } from './encarregado.js';
     };
 
     window.deleteStakeholder = async function(id) {
-        if (!confirm('Deseja realmente deletar este stakeholder?')) return;
+        if (!(await window.confirmar('A parte interessada sai do registro da cláusula 4.2 deste projeto.', { titulo: 'Excluir parte interessada', perigo: true, rotulo: 'Excluir' }))) return;
         try {
             await api('DELETE', `/api/v1/stakeholders/${id}`);
             showToast('Parte interessada removida');
@@ -1372,7 +1375,7 @@ import { podeIndicar } from './encarregado.js';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -1391,10 +1394,10 @@ import { podeIndicar } from './encarregado.js';
         const plannedReviews = totalReviews - completedReviews;
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total de Análises Críticas', value: totalReviews, color: 'var(--accent)', subtext: 'Reuniões registradas' },
-            { label: 'Reuniões Concluídas', value: completedReviews, color: '#34c759', subtext: 'Ata & decisões emitidas' },
-            { label: 'Reuniões Planejadas', value: plannedReviews, color: plannedReviews > 0 ? '#ffcc00' : 'var(--text-dim)', subtext: 'Em agendamento' },
-            { label: 'Conformidade Cl. 9.3', value: totalReviews > 0 ? 'Conforme' : 'Pendente', color: totalReviews > 0 ? '#34c759' : '#ff3b30', subtext: 'Requisito ISO 27001' }
+            { label: 'Total de Análises Críticas', value: totalReviews, color: 'var(--text)', subtext: 'Reuniões registradas' },
+            { label: 'Reuniões Concluídas', value: completedReviews, color: 'var(--text)', subtext: 'Ata & decisões emitidas' },
+            { label: 'Reuniões Planejadas', value: plannedReviews, color: plannedReviews > 0 ? 'var(--warning)' : 'var(--text-dim)', subtext: 'Em agendamento' },
+            { label: 'Conformidade Cl. 9.3', value: totalReviews > 0 ? 'Conforme' : 'Pendente', color: totalReviews > 0 ? 'var(--success)' : 'var(--danger)', subtext: 'Requisito ISO 27001' }
         ]);
 
         const tableHtml = window.renderDataTable(
@@ -1408,7 +1411,9 @@ import { podeIndicar } from './encarregado.js';
                     `<button data-action="openEditMgmtReviewModal" data-args='["${m.id}"]' class="btn btn-ghost btn-sm">Abrir Pauta / Editar</button>`
                 ];
             }),
-            { emptyState: 'Nenhuma reunião de análise crítica cadastrada ainda.' }
+            { emptyState: 'Nenhuma análise crítica registrada.',
+              emptyHint: 'A direção analisa o SGSI em intervalos planejados, com as entradas da cláusula 9.3: situação das ações anteriores, mudanças, desempenho, auditorias e oportunidades de melhoria.',
+              emptyAction: isOrgUser ? '' : '<button class="btn btn-primary" data-action="openNewMgmtReviewModal">Nova análise crítica</button>' }
         );
 
         c.innerHTML = `
@@ -1579,7 +1584,7 @@ import { podeIndicar } from './encarregado.js';
 
     // F6: excluir análise crítica é da direção, pela interface (o agente não alcança a rota).
     window.excluirMgmtReview = async function(id) {
-        if (!confirm('Excluir esta análise crítica? Ela é um registro de gestão, possivelmente assinado, e a exclusão é permanente (fica na trilha de auditoria).')) return;
+        if (!(await window.confirmar('Ela é um registro de gestão, possivelmente assinado, e a exclusão é permanente (fica na trilha de auditoria).', { titulo: 'Excluir análise crítica', perigo: true, rotulo: 'Excluir' }))) return;
         try {
             await api('DELETE', `/api/v1/management-reviews/${id}`);
             showToast('Análise crítica excluída');
@@ -1629,7 +1634,7 @@ import { podeIndicar } from './encarregado.js';
             
             const container = document.getElementById('auditor-notes-modal-content');
             if (notes.length === 0) {
-                container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:2rem">Nenhuma nota ou solicitação do auditor registrada para este projeto.</div>';
+                container.innerHTML = renderEmptyState({ titulo: 'Nenhuma nota do auditor', texto: 'Notas e solicitações do auditor externo sobre este projeto aparecem aqui para resposta.' });
                 return;
             }
             
@@ -1647,13 +1652,13 @@ import { podeIndicar } from './encarregado.js';
                         <div style="font-size:0.9rem;margin-bottom:8px;color:var(--text)">${escapeHTML(n.content)}</div>
                         
                         ${n.response ? `
-                            <div style="background:rgba(52,199,89,0.05);border:1px solid rgba(52,199,89,0.15);border-radius:8px;padding:8px;font-size:0.85rem;color:#34c759;margin-top:8px">
+                            <div style="background:rgba(52,199,89,0.05);border:1px solid rgba(52,199,89,0.15);border-radius:8px;padding:8px;font-size:0.85rem;color:var(--success);margin-top:8px">
                                 <strong>Sua Resposta:</strong> ${escapeHTML(n.response)}
                             </div>
                         ` : `
                             <div style="margin-top:8px;display:flex;gap:8px">
                                 <input type="text" id="respond-input-${n.id}" placeholder="Escreva a resposta para o auditor..." style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:0.85rem" />
-                                <button data-action="submitAuditorResponse" data-args='["${n.id}","${projectId}"]' class="btn-primary" style="padding:6px 12px;font-size:0.85rem;border-radius:8px;border:none;background:var(--accent);color:#070b14;font-weight:700">Responder</button>
+                                <button data-action="submitAuditorResponse" data-args='["${n.id}","${projectId}"]' class="btn-primary" style="padding:6px 12px;font-size:0.85rem;border-radius:8px;border:none;background:var(--accent);color:var(--accent-ink);font-weight:700">Responder</button>
                             </div>
                         `}
                     </div>
@@ -1685,7 +1690,7 @@ import { podeIndicar } from './encarregado.js';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
-            c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; 
+            c.innerHTML = window.renderSemProjeto(); 
             return; 
         }
         
@@ -1705,10 +1710,11 @@ import { podeIndicar } from './encarregado.js';
         const activeCount = assets.filter(ast => ast.status === 'Active' || !ast.status).length;
 
         const statsHtml = window.renderStatCards([
-            { label: 'Total de Ativos', value: totalAssets, color: 'var(--accent)', subtext: 'Inventário SGSI' },
-            { label: 'Confidenciais / Críticos', value: confidentialCount, color: confidentialCount > 0 ? '#ff3b30' : '#34c759', subtext: 'Proteção máxima' },
-            { label: 'Restritos / Internos', value: restrictedCount, color: '#ffcc00', subtext: 'Uso corporativo' },
-            { label: 'Ativos Operacionais', value: activeCount, color: '#34c759', subtext: 'Em uso ativo' }
+            // Classificação é inventário, não alerta: contagem em --text.
+            { label: 'Total de Ativos', value: totalAssets, color: 'var(--text)', subtext: 'Inventário SGSI' },
+            { label: 'Confidenciais / Críticos', value: confidentialCount, color: 'var(--text)', subtext: 'Proteção máxima' },
+            { label: 'Restritos / Internos', value: restrictedCount, color: 'var(--text)', subtext: 'Uso corporativo' },
+            { label: 'Ativos Operacionais', value: activeCount, color: 'var(--text)', subtext: 'Em uso ativo' }
         ]);
 
         const tableHtml = window.renderDataTable(
@@ -1727,7 +1733,9 @@ import { podeIndicar } from './encarregado.js';
                     `<button class="btn btn-ghost btn-sm" data-action="openAssetDetailsModal" data-args='["${ast.id}"]'>Detalhes</button>`
                 ];
             }),
-            { emptyState: 'Nenhum ativo de informação registrado neste projeto.' }
+            { emptyState: 'Nenhum ativo de informação registrado neste projeto.',
+              emptyHint: 'O inventário de ativos, com dono e classificação, é a base da apreciação de riscos (ISO 27001, A.5.9 e A.5.12).',
+              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>Novo ativo</button>` : '' }
         );
 
         c.innerHTML = `
@@ -1866,13 +1874,13 @@ import { podeIndicar } from './encarregado.js';
     };
 
     window.deleteAsset = async function(id) {
-        if (confirm('Deseja excluir este ativo?')) { await api('DELETE', `/api/v1/assets/${id}`); forceCloseModal(); render(); }
+        if (await window.confirmar('O ativo sai do inventário deste projeto.', { titulo: 'Excluir ativo', perigo: true, rotulo: 'Excluir' })) { await api('DELETE', `/api/v1/assets/${id}`); forceCloseModal(); render(); }
     };
 
 // Wrappers S2 (delegação): expressões que antes viviam no onclick inline.
 window.__monToggleDropdown = (el) => { const menu = el && el.nextElementSibling; if (menu) menu.classList.toggle('open'); };
-window.__monDeleteMetric = (id) => {
-    if (!confirm('Deseja excluir esta métrica?')) return;
+window.__monDeleteMetric = async (id) => {
+    if (!(await window.confirmar('A métrica e o histórico dela saem deste projeto.', { titulo: 'Excluir métrica', perigo: true, rotulo: 'Excluir' }))) return;
     api('DELETE', `/api/v1/metrics/${id}`).then(() => { forceCloseModal(); render(); });
 };
 

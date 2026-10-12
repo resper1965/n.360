@@ -88,11 +88,11 @@ describe('acesso do auditor externo', () => {
     it('revogar pede confirmação e chama a rota do próprio projeto', async () => {
         const f = servir({ [GET]: LISTA, [REVOGAR]: { revogado: true } });
         await renderAcessoAuditor(el, 'p1', 'consultor');
-        const confirma = vi.spyOn(window, 'confirm').mockReturnValue(true);
+        const confirma = vi.spyOn(window, 'confirmar').mockResolvedValue(true);
         await window.revogarAcessoAuditor('p1', 't1');
         expect(confirma).toHaveBeenCalled();
         expect(chamadas(f, REVOGAR)).toHaveLength(1);
-        confirma.mockReturnValue(false);
+        confirma.mockResolvedValue(false);
         f.mockClear();
         await window.revogarAcessoAuditor('p1', 't1');
         expect(f).not.toHaveBeenCalled();
@@ -103,7 +103,7 @@ describe('acesso do auditor externo', () => {
         await renderAcessoAuditor(el, 'p1', 'consultor');
         await window.gerarAcessoAuditor('p1');
         expect(document.getElementById('aud-ext-link')).not.toBeNull();
-        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        vi.spyOn(window, 'confirmar').mockResolvedValue(true);
         await window.revogarAcessoAuditor('p1', 't1');
         expect(document.getElementById('aud-ext-link')).toBeNull();
         expect(document.getElementById('aud-ext-novo').innerHTML).toBe('');

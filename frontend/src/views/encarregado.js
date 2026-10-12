@@ -20,12 +20,12 @@ async function renderEncarregado(c, h, a) {
     a.innerHTML = '';
     const proj = projetoAtivo();
     if (!proj) {
-        c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>';
+        c.innerHTML = window.renderSemProjeto();
         return;
     }
     let v;
     try { v = await api('GET', `/api/v1/projects/${proj.id}/encarregado`); } catch (e) {
-        c.innerHTML = '<div class="empty-state fade-in"><h3>Não foi possível montar a visão</h3><p>Tente de novo em instantes.</p></div>';
+        c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível montar a visão', texto: 'Tente de novo em instantes.' });
         return;
     }
     const pt = v.pedidos_titular || {}, inc = v.incidentes || {}, tr = v.tratamentos || {}, te = v.terceiros || {}, ev = v.evidencias || {}, lg = v.lgpd || {};

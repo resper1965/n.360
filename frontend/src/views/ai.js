@@ -13,7 +13,7 @@ import { produtoAtual } from '../produto.js';
     async function renderAIChat(c, h, a) {
         h.textContent = 'Assistente';
         const proj = S.activeProject || S.projects[0];
-        if (!proj) { c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>'; return; }
+        if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
         // ponytail: a conversa vive só nesta tela. O servidor não guarda histórico (nada grava
         // ai_chat_history; GET/DELETE /chat/history nunca existiram). Guardar conversa é decisão
         // de produto, com retenção LGPD, não correção. O aviso abaixo do campo diz isso ao usuário.

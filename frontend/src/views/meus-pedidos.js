@@ -42,16 +42,16 @@ const args = (...v) => escapeHTML(JSON.stringify(v));
 window.renderMeusPedidos = async function renderMeusPedidos(c, h, a) {
     h.textContent = 'Meus pedidos';
     a.innerHTML = '';
-    c.innerHTML = '<div class="empty-state fade-in"><p>Carregando…</p></div>';
+    c.innerHTML = '<div class="loading"></div>';
     let pedidos = [];
     try {
         pedidos = (await api('GET', '/api/v1/pedidos')).pedidos || [];
     } catch (e) {
-        c.innerHTML = `<div class="empty-state fade-in"><h3>Não foi possível carregar os pedidos</h3><p>${escapeHTML(e.message)}</p></div>`;
+        c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível carregar os pedidos', texto: e.message });
         return;
     }
     if (!pedidos.length) {
-        c.innerHTML = '<div class="empty-state fade-in"><h3>Nenhum pedido por enquanto</h3><p>Quando a consultoria ou a sua empresa pedir sua ciência ou aprovação de um documento, ele aparece aqui.</p></div>';
+        c.innerHTML = window.renderEmptyState({ titulo: 'Nenhum pedido por enquanto', texto: 'Quando a consultoria ou a sua empresa pedir sua ciência ou aprovação de um documento, ele aparece aqui.' });
         return;
     }
     c.innerHTML = `<div class="fade-in" style="display:flex;flex-direction:column;gap:10px;max-width:820px">

@@ -100,7 +100,7 @@ describe('renderDashboard — visão do consultor', () => {
     // 3/4 = 75% de conformidade aparece no burnup.
     expect(c.textContent).toContain('75%');
     // Controles implementados = 3, gaps = 1, total = 4.
-    expect(c.textContent).toContain('Controles Implementados:');
+    expect(c.textContent).toContain('Controles implementados:');
     expect(c.innerHTML).toContain('3 de 4 controles');
     // Cartões de estatística renderizados.
     expect(c.textContent).toContain('Leads Ativos');
@@ -134,7 +134,21 @@ describe('renderDashboard — visão do consultor', () => {
       .mockResolvedValueOnce([]);
     await window.renderDashboard(c, h, a);
     expect(c.innerHTML).toContain('0 de 93 controles');
-    expect(c.textContent).toContain('Total do ISMS:');
+    expect(c.textContent).toContain('Total do SGSI:');
+  });
+
+  it('cartão de progresso dentro do sistema: sem blur, gradiente, raio nem hex; contagens neutras', async () => {
+    const { c, h, a } = montaDom();
+    S.user = { role: 'consultor' };
+    apiMock.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'p1', project_name: 'P' }]).mockResolvedValueOnce([]);
+    await window.renderDashboard(c, h, a);
+    const card = c.querySelector('#progresso-controles');
+    expect(card.textContent).toContain('Progresso de implementação dos controles');
+    expect(c.textContent).not.toContain('Burnup');
+    const html = c.innerHTML;
+    expect(html).not.toMatch(/backdrop-filter|linear-gradient|border-radius:\s*[1-9]|#[0-9a-f]{3,6}\b/i);
+    // "Projetos em Curso 1" não é verde: contagem não é sinal.
+    expect(html).not.toContain('var(--success)');
   });
 
   it('mostra estado de erro quando a agregação falha', async () => {

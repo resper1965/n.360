@@ -96,7 +96,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             S.activeProject = p;
             S.currentProject = p;
             navigate('project-detail');
-        } catch(e) { alert('Erro ao carregar projeto'); }
+        } catch(e) { showToast('Erro ao carregar projeto', 'error'); }
     }
 
     async function renderProjectDetail(c, h, a) {
@@ -198,7 +198,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                     <div class="progress-fill" style="width: ${overallPercent}%"></div>
                                 </div>
                             </div>
-                            <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px">${completedPhasesCount} de ${totalPhasesCount} Fases Concluídas</div>
+                            <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px">${completedPhasesCount} de ${totalPhasesCount} fases concluídas</div>
                         </div>
                         <div style="background:rgba(0,0,0,0.2); padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.02)">
                             <div style="font-size:0.75rem; color:${blockedPhasesCount > 0 ? 'var(--danger)' : 'var(--text-dim)'}; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px">Impedimentos / Bloqueios</div>
@@ -464,14 +464,19 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                 `;
             });
             
-            c.innerHTML = `
+            // Sem fases, contadores "0 de 0" e filtros sobre lista vazia não dizem nada: o vazio explica.
+            c.innerHTML = totalPhasesCount === 0 ? window.renderEmptyState({
+                titulo: 'Fases da jornada ainda não carregadas',
+                texto: 'Este projeto não tem as fases da jornada de adequação. Sem elas não há checklist, responsável, prazo nem progresso para acompanhar.',
+                acao: `<button class="btn" data-action="navigate" data-args='["projects"]'>Voltar aos projetos</button>`,
+            }) : `
                 <div style="margin-top: 0.5rem;">
                     ${metricsHtml}
                     <div style="display:flex; justify-content:flex-end; margin-bottom:0.75rem">
-                        <button class="btn-inline-action" style="border-color:var(--accent); color:var(--accent); font-weight:600" data-action="generateJourneyDossier" data-args='["${p.id}"]'>📖 Gerar Dossiê da Jornada</button>
+                        <button class="btn" data-action="generateJourneyDossier" data-args='["${p.id}"]'>Gerar dossiê da jornada</button>
                     </div>
                     ${filtersHtml}
-                    ${journeysHtml || '<div class="empty-state"><h3>Nenhuma fase correspondente aos filtros</h3></div>'}
+                    ${journeysHtml || window.renderEmptyState({ titulo: 'Nenhuma fase corresponde aos filtros', texto: 'Limpe a busca ou troque o status e a categoria para ver as fases.' })}
                 </div>
             `;
             if (window.refreshDoDDrawer) window.refreshDoDDrawer();
@@ -703,10 +708,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                 </div>
                 <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding-left: 8px;">
                     <div id="interview-questions-container" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
-                        <div class="empty-state">
-                            <h3>Selecione uma Trilha</h3>
-                            <p>Escolha uma trilha na barra lateral para iniciar a entrevista.</p>
-                        </div>
+                        ${window.renderEmptyState({ titulo: 'Selecione uma trilha', texto: 'Escolha uma trilha na barra lateral para iniciar a entrevista.' })}
                     </div>
                     <div id="interview-actions-container" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
                         <button class="btn" data-action="forceCloseModal" style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Fechar</button>
@@ -743,7 +745,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const qs = res.questions || [];
 
             if (qs.length === 0) {
-                container.innerHTML = '<div class="empty-state"><h3>Sem perguntas</h3><p>Nenhuma pergunta cadastrada para esta trilha.</p></div>';
+                container.innerHTML = window.renderEmptyState({ titulo: 'Sem perguntas', texto: 'Nenhuma pergunta cadastrada para esta trilha.' });
                 return;
             }
 
@@ -1311,7 +1313,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
 
     async function openPhaseDetail(projectId, phaseNum) {
         // Basic implementation
-        alert('Detalhes da fase ' + phaseNum);
+        showToast('Detalhes da fase ' + phaseNum);
     }
 
     async function wsUploadEvidence(docType) {
@@ -1363,7 +1365,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                     <button class="btn" data-action="forceCloseModal">Fechar</button>
                     <button class="btn btn-primary" data-action="wsConfirmExtraction" data-args='["${docId}"]'>Confirmar e Indexar</button>
                 </div>`);
-        } catch(e) { alert('Erro: ' + e.message); }
+        } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
     async function wsConfirmExtraction(docId) {
@@ -1453,7 +1455,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             a.download = `audit-pack-${projectId}.json`;
             a.click();
             URL.revokeObjectURL(url);
-        } catch(e) { alert('Erro ao baixar audit pack: ' + e.message); }
+        } catch(e) { showToast('Erro ao baixar o pacote de auditoria: ' + e.message, 'error'); }
     }
 
 window.renderProjects = renderProjects;

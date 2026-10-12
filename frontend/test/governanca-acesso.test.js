@@ -52,7 +52,7 @@ describe('ações', () => {
     expect(api).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/governance/g1/convidar');
   });
   it('revogar pede confirmação e só então chama a rota', async () => {
-    window.confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    window.confirmar = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     await window.revogarStakeholder('p1', 'g1');
     expect(api).not.toHaveBeenCalled();
     await window.revogarStakeholder('p1', 'g1');

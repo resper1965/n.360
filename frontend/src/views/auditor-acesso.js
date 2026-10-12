@@ -89,7 +89,7 @@ window.gerarAcessoAuditor = async function (projectId) {
 };
 
 window.revogarAcessoAuditor = async function (projectId, tokenId) {
-    if (!confirm('Revogar este link? O auditor perde o acesso na hora.')) return;
+    if (!(await window.confirmar('O auditor perde o acesso na hora.', { titulo: 'Revogar link do auditor', perigo: true, rotulo: 'Revogar' }))) return;
     try {
         await api('POST', `/api/v1/projects/${projectId}/auditor-token/${tokenId}/revogar`);
         showToast('Link revogado');
