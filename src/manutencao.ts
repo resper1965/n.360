@@ -1,5 +1,6 @@
 import { log } from './observability';
 import { arquivarDia, diaAtras } from './trilha';
+import { semearCatalogo } from './services/requisitos';
 import type { Bindings } from './index';
 
 /**
@@ -93,6 +94,8 @@ export type ResultadoManutencao = {
   trilha_arquivada: string | null;
   /** Linhas removidas por política de retenção, por tabela. */
   retencao: Record<string, number>;
+  /** O que a semeadura do catálogo de requisitos criou nesta execução, ou null se falhou. */
+  catalogo: { fontes: number; requisitos: number; mapeamentos: number } | null;
   falhas: string[];
 };
 
@@ -107,6 +110,7 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
     tokens_auditor_removidos: 0,
     trilha_arquivada: null,
     retencao: {},
+    catalogo: null,
     falhas: [],
   };
 
@@ -161,6 +165,17 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
     }
   } catch (e: any) {
     resultado.falhas.push(`trilha: ${e?.message ?? e}`);
+  }
+
+  /*
+   * Catálogo de requisitos (ISO, LGPD, ANPD e o mapeamento proposto): o código traz o catálogo, o banco o recebe aqui,
+   * sem depender de alguém chamar a rota de semeadura depois do deploy. Idempotente: requisito e mapeamento existentes
+   * ficam como estão (INSERT OR IGNORE), então mapeamento validado nunca volta a proposto.
+   */
+  try {
+    resultado.catalogo = await semearCatalogo(env.DB);
+  } catch (e) {
+    resultado.falhas.push(`catalogo: ${e instanceof Error ? e.message : e}`);
   }
 
   log(resultado.falhas.length ? 'error' : 'info', {

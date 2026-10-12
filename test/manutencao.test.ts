@@ -179,6 +179,32 @@ describe('manutenção diária', () => {
     });
   });
 
+  describe('catálogo de requisitos', () => {
+    const n = async (sql: string) => (await env.DB.prepare(sql).first<{ n: number }>())!.n;
+
+    it('semeia o catálogo (LGPD incluída), não duplica na segunda vez e não rebaixa mapeamento validado', async () => {
+      const r1 = await manutencaoDiaria(env as any);
+      expect(r1.falhas).toEqual([]);
+      expect(r1.catalogo?.requisitos).toBeGreaterThan(0);
+      expect(await n(`SELECT count(*) AS n FROM requisitos WHERE fonte_id = 'lgpd'`)).toBeGreaterThan(0);
+
+      const total = await n('SELECT count(*) AS n FROM requisitos');
+      const mapas = await n('SELECT count(*) AS n FROM requisito_mapeamentos');
+      expect(mapas).toBeGreaterThan(0);
+      const um = await env.DB.prepare('SELECT de_id, para_id FROM requisito_mapeamentos LIMIT 1').first<{ de_id: string; para_id: string }>();
+      await env.DB.prepare(`UPDATE requisito_mapeamentos SET estado = 'validado_juridico', validado_por = 'u', validado_em = datetime('now') WHERE de_id = ? AND para_id = ?`)
+        .bind(um!.de_id, um!.para_id).run();
+
+      const r2 = await manutencaoDiaria(env as any);
+      expect(r2.catalogo).toEqual({ fontes: 0, requisitos: 0, mapeamentos: 0 });
+      expect(await n('SELECT count(*) AS n FROM requisitos')).toBe(total);
+      expect(await n('SELECT count(*) AS n FROM requisito_mapeamentos')).toBe(mapas);
+      const estado = await env.DB.prepare('SELECT estado FROM requisito_mapeamentos WHERE de_id = ? AND para_id = ?')
+        .bind(um!.de_id, um!.para_id).first<{ estado: string }>();
+      expect(estado!.estado).toBe('validado_juridico');
+    });
+  });
+
   describe('tolerância a falha', () => {
     it('uma tarefa que estoura não impede as outras, e a falha vai no resultado', async () => {
       // Sem a tabela, a purga de rate_limits estoura; a de tokens tem de rodar
