@@ -31,7 +31,8 @@ export function mascararPii(texto: string | null | undefined): string | null {
   return texto
     .replace(/(?<![\d./-])\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?![\d/])/g, '[CPF]')
     .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, '[e-mail]')
-    .replace(/(?:\+?55[\s-]?)?(?:\(\d{2}\)|(?<!\d)\d{2})[\s-]?9?\d{4}[\s-]?\d{4}(?!\d)/g, '[telefone]');
+    .replace(/(?:\+?55[\s-]?)?(?:\(\d{2}\)|(?<!\d)\d{2})[\s-]?9?\d{4}[\s-]?\d{4}(?!\d)/g, '[telefone]')
+    .replace(/(?<![\d\]])9?\d{4}-\d{4}(?!\d)/g, '[telefone]');
 }
 
 /** Chama o agente: modelo fora do ar ou resposta fora do esquema viram 502, sem nada gravado. */

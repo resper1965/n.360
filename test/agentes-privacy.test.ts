@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, habilitarPrivacy, concederModulos } from './helpers/d1';
@@ -116,10 +116,15 @@ describe('sugestão para o tratamento', () => {
     expect((await trilha()).length).toBe(n);
   });
 
-  it('modelo fora do ar é 502', async () => {
+  it('modelo fora do ar é 502 e a falha vai ao log (registraErro)', async () => {
     ia.falha = true;
-    const r = await chamar(consultor, `${P}/ropa/ap-r1/sugestao`);
-    expect(r.status).toBe(502);
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const r = await chamar(consultor, `${P}/ropa/ap-r1/sugestao`);
+      expect(r.status).toBe(502);
+      const linhas = erro.mock.calls.map(([l]) => String(l));
+      expect(linhas.some((l) => l.includes('"erro_handler"') && l.includes('modelo fora do ar'))).toBe(true);
+    } finally { erro.mockRestore(); }
   });
 
   it('tratamento inexistente ou de outro projeto é 404', async () => {
@@ -213,7 +218,7 @@ describe('rascunho de comunicação de incidente', () => {
 
 describe('minimização do texto livre', () => {
   it('mascararPii tira CPF (com e sem pontuação), e-mail e telefone; CNPJ e datas ficam', () => {
-    const t = mascararPii('CPF 123.456.789-09 ou 12345678909, joao.silva+x@exemplo.com.br, (11) 98765-4321, 11 3456-7890, +55 21 912345678; CNPJ 12.345.678/0001-90 e 12345678000190; em 2026-10-10 às 10:30');
+    const t = mascararPii('CPF 123.456.789-09 ou 12345678909, joao.silva+x@exemplo.com.br, (11) 98765-4321, 11 3456-7890, +55 21 912345678, sem DDD 98765-4321 e 3456-7890; CNPJ 12.345.678/0001-90 e 12345678000190; em 2026-10-10 às 10:30');
     for (const pii of ['123.456.789-09', '12345678909', 'joao.silva', '98765-4321', '3456-7890', '912345678']) expect(t).not.toContain(pii);
     expect(t).toContain('12.345.678/0001-90');
     expect(t).toContain('12345678000190');
@@ -231,5 +236,16 @@ describe('minimização do texto livre', () => {
     for (const pii of ['987.654.321-00', '98765432100', 'fulano@exemplo.com', '99876-5432', '3333-4444']) expect(txt).not.toContain(pii);
     expect(txt).toContain('[CPF]');
     expect(txt).toContain('Planilha com');
+  });
+
+  it('CPF e e-mail no texto livre do tratamento não chegam ao modelo', async () => {
+    await env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, data_categories, recipients)
+      VALUES ('ap-r2', ?, 'Cobrança do cliente 111.222.333-44', 'CPF 11122233344, e-mail cobranca@exemplo.com', 'Enviar a contato@exemplo.com')`).bind(P).run();
+    ia.resposta = JSON.stringify(SUGESTAO);
+    const r = await chamar(consultor, `${P}/ropa/ap-r2/sugestao`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    const txt = enviado();
+    for (const pii of ['111.222.333-44', '11122233344', 'cobranca@exemplo.com', 'contato@exemplo.com']) expect(txt).not.toContain(pii);
+    expect(txt).toContain('Cobrança do cliente [CPF]');
   });
 });
