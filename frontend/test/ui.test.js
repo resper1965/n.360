@@ -522,4 +522,46 @@ describe('confirmar() e pedirTexto(): pergunta na própria tela, sem window.conf
         input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
         await expect(p).resolves.toBe('Ana');
     });
+    it('cancelar: false deixa um botão só (mostrar para copiar), que resolve o texto', async () => {
+        const { pedirTexto } = await import('../src/ui.js');
+        const p = pedirTexto('Copie a URL.', { titulo: 'Portal', rotulo: 'Fechar', padrao: 'https://x', cancelar: false });
+        const botoes = [...document.querySelectorAll('.confirmar button')].map((b) => b.textContent);
+        expect(botoes).toEqual(['Fechar']);
+        document.querySelector('[data-confirmar="sim"]').click();
+        await expect(p).resolves.toBe('https://x');
+    });
+    it('senha não é aparada: espaço no começo ou no fim faz parte dela', async () => {
+        const { pedirTexto } = await import('../src/ui.js');
+        const p = pedirTexto('Senha', { tipo: 'password' });
+        document.querySelector('.confirmar input').value = ' s3nha ';
+        document.querySelector('[data-confirmar="sim"]').click();
+        await expect(p).resolves.toBe(' s3nha ');
+    });
+    it('mousedown no fundo da camada não tira o foco do diálogo', async () => {
+        const { confirmar } = await import('../src/ui.js');
+        const p = confirmar('Excluir?');
+        const camada = document.querySelector('.confirmar');
+        const ev = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+        camada.dispatchEvent(ev);
+        expect(ev.defaultPrevented).toBe(true);
+        const noBotao = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+        camada.querySelector('[data-confirmar="nao"]').dispatchEvent(noBotao);
+        expect(noBotao.defaultPrevented).toBe(false);
+        camada.querySelector('[data-confirmar="nao"]').click();
+        await p;
+    });
+    it('Esc com o foco fora da camada também cancela e não chega ao handler global', async () => {
+        const { confirmar } = await import('../src/ui.js');
+        const global = vi.fn();
+        document.addEventListener('keydown', global);
+        const p = confirmar('Excluir?');
+        document.body.focus();
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await expect(p).resolves.toBe(false);
+        expect(global).not.toHaveBeenCalled();
+        // Depois de fechada, o Esc volta a chegar ao app.
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(global).toHaveBeenCalledOnce();
+        document.removeEventListener('keydown', global);
+    });
 });

@@ -44,7 +44,7 @@ export     function openModal(html, extraClass) {
  * aberta (com o que o usuário digitou) fica intacta embaixo. Esc e Cancelar respondem "não"; o Esc
  * não chega ao handler global, que fecharia a janela de baixo. O foco volta para onde estava.
  */
-function perguntar(texto, { titulo = 'Confirmar', rotulo = 'Confirmar', perigo = false, campo = null } = {}) {
+function perguntar(texto, { titulo = 'Confirmar', rotulo = 'Confirmar', perigo = false, campo = null, cancelar = true } = {}) {
     return new Promise((resolve) => {
         const antes = document.activeElement;
         const camada = document.createElement('div');
@@ -58,23 +58,34 @@ function perguntar(texto, { titulo = 'Confirmar', rotulo = 'Confirmar', perigo =
             <p class="confirmar-texto" id="confirmar-texto">${escapeHTML(texto)}</p>
             ${campo ? `<input class="form-input" type="${campo.tipo === 'password' ? 'password' : 'text'}" aria-labelledby="confirmar-texto"${campo.tipo === 'password' ? ' autocomplete="current-password"' : ''}>` : ''}
             <div class="confirmar-acoes">
-                <button type="button" class="btn" data-confirmar="nao">Cancelar</button>
+                ${cancelar ? '<button type="button" class="btn" data-confirmar="nao">Cancelar</button>' : ''}
                 <button type="button" class="btn ${perigo ? 'btn-perigo' : 'btn-primary'}" data-confirmar="sim">${escapeHTML(rotulo)}</button>
             </div></div>`;
         const input = camada.querySelector('input');
         if (input) input.value = campo.padrao ?? '';
+        // Esc em captura na window: com a camada aberta, nenhum handler do app (forceCloseModal) vê a tecla,
+        // esteja o foco onde estiver.
+        const esc = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); fim(false); } };
+        let aberta = true;
         const fim = (sim) => {
+            if (!aberta) return;
+            aberta = false;
+            window.removeEventListener('keydown', esc, true);
             camada.remove();
             if (antes && typeof antes.focus === 'function') antes.focus();
-            resolve(campo ? (sim ? input.value.trim() : null) : sim);
+            // Senha não se apara: espaço no começo ou no fim é parte dela.
+            const valor = campo && sim ? (campo.tipo === 'password' ? input.value : input.value.trim()) : null;
+            resolve(campo ? valor : sim);
         };
+        window.addEventListener('keydown', esc, true);
+        // Clicar no fundo não leva o foco para o body (ele sairia da camada).
+        camada.addEventListener('mousedown', (e) => { if (e.target === camada) e.preventDefault(); });
         camada.addEventListener('click', (e) => {
             const b = e.target.closest('[data-confirmar]');
             if (b) { e.stopPropagation(); fim(b.dataset.confirmar === 'sim'); }
         });
         camada.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') { e.stopPropagation(); fim(false); }
-            else if (e.key === 'Enter' && e.target === input) { e.preventDefault(); fim(true); }
+            if (e.key === 'Enter' && e.target === input) { e.preventDefault(); fim(true); }
             else if (e.key === 'Tab') {
                 // Foco preso na camada: só os controles dela.
                 const f = [...camada.querySelectorAll('input, button')];
@@ -84,14 +95,14 @@ function perguntar(texto, { titulo = 'Confirmar', rotulo = 'Confirmar', perigo =
             }
         });
         document.body.appendChild(camada);
-        (input || camada.querySelector('[data-confirmar="nao"]')).focus();
+        (input || camada.querySelector('[data-confirmar="nao"]') || camada.querySelector('[data-confirmar="sim"]')).focus();
     });
 }
 
 /** Sim/não na própria tela. Resolve true ou false. `perigo` pinta o botão de confirmar em --danger. */
 export function confirmar(texto, opcoes = {}) { return perguntar(texto, opcoes); }
 
-/** Texto na própria tela. Resolve o texto aparado, ou null se cancelou. `tipo: 'password'` esconde o que se digita. */
+/** Texto na própria tela. Resolve o texto (aparado, menos senha), ou null se cancelou. `tipo: 'password'` esconde o que se digita. */
 export function pedirTexto(texto, { padrao = '', tipo = 'text', ...opcoes } = {}) {
     return perguntar(texto, { titulo: opcoes.titulo || 'Informe', rotulo: opcoes.rotulo || 'Continuar', ...opcoes, campo: { padrao, tipo } });
 }

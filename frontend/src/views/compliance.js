@@ -2327,7 +2327,7 @@ import { temProduto, projetoDoId } from '../produto.js';
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(url);
         } else {
-            window.pedirTexto('Copie a URL do Portal de Políticas.', { titulo: 'Portal de Políticas', rotulo: 'Fechar', padrao: url });
+            window.pedirTexto('Copie a URL do Portal de Políticas.', { titulo: 'Portal de Políticas', rotulo: 'Fechar', padrao: url, cancelar: false });
             return;
         }
         showToast('Link do Portal de Políticas copiado!');

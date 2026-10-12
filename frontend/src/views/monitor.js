@@ -334,7 +334,7 @@ import { podeIndicar } from './encarregado.js';
                                     <td><span class="badge" style="background:rgba(255,255,255,0.05)">${m.frequency}</span></td>
                                     <td>${m.last_measured_at || '—'}</td>
                                     <td>${escapeHTML(m.owner || '—')}</td>
-                                    <td><span class="badge" style="background:${statusColor(m.status)}20; color:${statusColor(m.status)}">${m.status}</span></td>
+                                    <td><span class="badge" style="background:color-mix(in oklab, ${statusColor(m.status)} 12%, transparent); color:${statusColor(m.status)}">${m.status}</span></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1766,7 +1766,7 @@ import { podeIndicar } from './encarregado.js';
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Classificação de Segurança</div>
-                        <span class="ctx-tag" style="background:${classColor(ast.classification)}20; color:${classColor(ast.classification)}; font-weight:600">${ast.classification || 'Internal'}</span>
+                        <span class="ctx-tag" style="background:color-mix(in oklab, ${classColor(ast.classification)} 12%, transparent); color:${classColor(ast.classification)}; font-weight:600">${ast.classification || 'Internal'}</span>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Dono (Owner)</div>
