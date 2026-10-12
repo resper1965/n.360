@@ -76,8 +76,8 @@ test('platform_admin: abre a tela, cria a chave (exibida uma vez) e revoga', asy
   await mockApi(page, ADMIN);
   await bootAndOpen(page, 'api-keys');
 
-  await expect(page.locator('#header-title')).toHaveText('API Keys (MCP / Integrações)');
-  const novaChave = page.getByRole('button', { name: '+ Nova Chave', exact: true });
+  await expect(page.locator('#header-title')).toHaveText('Chaves de API');
+  const novaChave = page.getByRole('button', { name: 'Nova chave', exact: true });
   await expect(novaChave).toBeVisible();
 
   // Cria uma chave de auditor.
@@ -92,7 +92,7 @@ test('platform_admin: abre a tela, cria a chave (exibida uma vez) e revoga', asy
 
   // A chave criada aparece na tabela.
   await expect(page.getByText('e2e-auditor')).toBeVisible();
-  await expect(page.locator('code', { hasText: 'auditor' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Auditor', exact: true })).toBeVisible();
 
   // Revoga (confirm() nativo → aceitar).
   page.on('dialog', (d) => d.accept());
@@ -109,5 +109,5 @@ test('gate de papel: conta não-admin vê "Acesso restrito"', async ({ page }) =
   await bootAndOpen(page, 'api-keys');
 
   await expect(page.locator('.error')).toContainText('Acesso restrito ao Platform Admin');
-  await expect(page.getByRole('button', { name: '+ Nova Chave', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Nova chave', exact: true })).toHaveCount(0);
 });

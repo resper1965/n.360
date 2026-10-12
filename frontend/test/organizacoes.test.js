@@ -117,6 +117,15 @@ describe('lista', () => {
     expect(linha('org_beta').textContent).toContain('Beta <b>Seg</b>');
   });
 
+  it('lista vazia: mensagem, sem tabela; Transferir projeto é ghost e Nova organização é a primária', async () => {
+    servidor({ 'GET /api/v1/platform/orgs': () => json([]) });
+    const c = await monta();
+    expect(c.textContent).toContain('Nenhuma organização');
+    expect(c.querySelector('table')).toBeNull();
+    expect($('act').querySelector('[data-action="__orgTransferir"]').className).toContain('btn-ghost');
+    expect($('act').querySelector('[data-action="__orgNova"]').className).toContain('btn-primary');
+  });
+
   it('a ness. não tem botão de suspender; as outras têm Suspender ou Reativar', async () => {
     await monta();
     expect(linha('org_ness').querySelector('[data-action="__orgSuspender"], [data-action="__orgReativar"]')).toBeNull();

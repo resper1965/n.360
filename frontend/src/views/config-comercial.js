@@ -110,13 +110,13 @@ function desenhar() {
             <section class="cfg-bloco" aria-labelledby="cfg-t-preco">
                 <h2 class="cfg-titulo" id="cfg-t-preco">Preço</h2>
                 <h3 class="cfg-sub">Diária de venda (R$)</h3>
-                ${trio('diaria', 'Diária', p.diaria)}
+                ${trio('diaria', 'Diária', p.diaria ?? {})}
                 <h3 class="cfg-sub">Fator por porte da empresa</h3>
-                <div id="cfg-porte-corpo">${porteHtml(p.porte)}</div>
+                <div id="cfg-porte-corpo">${porteHtml(p.porte ?? [])}</div>
                 <div class="cfg-grade3">${campo('preco-tetoDesconto', 'Teto de desconto (%)', p.tetoDesconto, { tipo: 'number' })}</div>
                 <details class="cfg-custos" id="cfg-custos">
                     <summary>Custo interno, overhead, tributos e margem-alvo</summary>
-                    ${trio('custoInterno', 'Custo interno (R$/dia)', p.custoInterno)}
+                    ${trio('custoInterno', 'Custo interno (R$/dia)', p.custoInterno ?? {})}
                     <div class="cfg-grade3">
                         ${campo('preco-overheadPct', 'Overhead (%)', pct(p.overheadPct), { tipo: 'number' })}
                         ${campo('preco-tributosPct', 'Tributos (%)', pct(p.tributosPct), { tipo: 'number' })}
@@ -141,16 +141,27 @@ function desenhar() {
     carregarLogo();
 }
 
+const vazioConfig = (titulo, texto) => `<div class="empty-state fade-in"><h3>${titulo}</h3><p>${texto}</p><button class="btn btn-secondary" data-action="navigate" data-args='["config-comercial"]'>Tentar de novo</button></div>`;
+
 async function renderConfigComercial(c, h, a) {
     ultimo = { c, h, a };
+    h.textContent = 'Configuração comercial';
+    a.innerHTML = '';
+    c.innerHTML = '<div class="loading"></div>';
     podeEditar = S.user?.role === 'platform_admin' || S.user?.role === 'consultoria_admin';
     try {
         cfg = await api('GET', '/api/v1/org/config');
     } catch (e) {
-        c.innerHTML = '<p class="cfg-nota" role="alert">Não foi possível carregar a configuração.</p>';
+        c.innerHTML = vazioConfig('Não foi possível carregar a configuração', 'Tente de novo; se persistir, avise o suporte.');
         window.showToast(e.message || 'Erro ao carregar a configuração', 'error');
         return;
     }
+    // Resposta sem preço/textos (organização sem configuração gravada): estado próprio, não tela quebrada.
+    if (!cfg || typeof cfg !== 'object' || !cfg.preco || !cfg.textos) {
+        c.innerHTML = vazioConfig('A configuração comercial ainda não está disponível', 'Esta organização não tem preços e textos de proposta gravados. Tente de novo ou avise o suporte.');
+        return;
+    }
+    cfg.secoesDesligadas = Array.isArray(cfg.secoesDesligadas) ? cfg.secoesDesligadas : [];
     desenhar();
 }
 

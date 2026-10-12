@@ -179,9 +179,9 @@ describe('projeto fixado no render', () => {
             return resposta({ error: u }, 404);
         });
         vi.stubGlobal('fetch', f);
-        S.activeProject = { id: 'p1', name: 'Um' };
+        S.activeProject = { id: 'p1', project_name: 'Um' };
         const a = window.renderSegurancaProjeto(el('c'), el('h'), el('a'));
-        S.activeProject = { id: 'p2', name: 'Dois' };
+        S.activeProject = { id: 'p2', client_name: 'Dois' };
         await window.renderSegurancaProjeto(el('c'), el('h'), el('a'));
         solta(); await a; await espera();
         expect(el('sso-issuer').value).toBe('https://p2.exemplo.test');
@@ -213,7 +213,7 @@ describe('projeto fixado no render', () => {
     });
 
     it('o título mostra o cliente editado', async () => {
-        S.activeProject = { id: 'p9', name: 'Cliente Exemplo' };
+        S.activeProject = { id: 'p9', project_name: 'Cliente Exemplo' };
         await abrir();
         expect(el('h').textContent).toContain('Cliente Exemplo');
     });

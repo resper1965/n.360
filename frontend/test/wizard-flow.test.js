@@ -81,7 +81,7 @@ describe('wizard de documentos', () => {
 
         it('marca os obrigatorios com asterisco', () => {
             window.openDocWizard('proj-1', WIZ_COM_SELECT);
-            const marcas = document.querySelectorAll('#wiz-form-fields span[style*="ff4d4d"]');
+            const marcas = document.querySelectorAll('#wiz-form-fields span[style*="--danger"]');
             const obrigatorios = DOC_WIZARDS[WIZ_COM_SELECT].fields.filter((f) => f.required).length;
             expect(marcas.length).toBe(obrigatorios);
         });

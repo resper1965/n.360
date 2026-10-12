@@ -29,7 +29,7 @@ async function renderSegurancaProjeto(c, h, a) {
         c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>';
         return;
     }
-    h.textContent = `Segurança do projeto: ${proj.name || proj.id}`;
+    h.textContent = `Segurança do projeto: ${proj.project_name || proj.client_name || proj.id}`;
     c.innerHTML = '<div class="loading"></div>';
     let sso, pol;
     try {
@@ -50,13 +50,13 @@ async function renderSegurancaProjeto(c, h, a) {
     c.innerHTML = `
         <section class="card fade-in" aria-labelledby="sso-titulo" style="margin-bottom:1.5rem;padding:1.25rem">
             <h3 id="sso-titulo" style="margin:0 0 .25rem">Login corporativo (SSO)</h3>
-            <p class="text-muted" style="margin:0 0 1rem">Quem controla o issuer controla quem entra. O papel padrão vale para contas criadas no primeiro acesso.</p>
+            <p class="form-hint" style="margin:0 0 1rem">Quem controla o issuer controla quem entra. O papel padrão vale para contas criadas no primeiro acesso.</p>
             ${campo('sso-issuer', 'Issuer (URL https)', s?.issuer)}
             ${campo('sso-client-id', 'Client ID', s?.client_id)}
             <div class="form-group">
                 <label class="form-label" for="sso-secret">Client secret</label>
                 <input class="form-input" id="sso-secret" type="password" autocomplete="new-password" placeholder="Digite para definir ou trocar">
-                <p id="sso-secret-estado" class="text-muted" style="margin:.25rem 0 0">Segredo ${s ? 'definido' : 'não definido'}. Ele nunca é mostrado; a gravação exige digitá-lo de novo.</p>
+                <p id="sso-secret-estado" class="form-hint" style="margin:.25rem 0 0">Segredo ${s ? 'definido' : 'não definido'}. Ele nunca é mostrado; a gravação exige digitá-lo de novo.</p>
             </div>
             ${campo('sso-dominios', 'Domínios de e-mail (separados por vírgula)', s?.dominios)}
             <div class="form-group">
@@ -70,7 +70,7 @@ async function renderSegurancaProjeto(c, h, a) {
 
         <section class="card fade-in" aria-labelledby="scim-titulo" style="margin-bottom:1.5rem;padding:1.25rem">
             <h3 id="scim-titulo" style="margin:0 0 .25rem">Provisionamento (SCIM)</h3>
-            <p class="text-muted" style="margin:0 0 1rem">Gerar um token novo invalida o anterior. O token aparece uma vez.</p>
+            <p class="form-hint" style="margin:0 0 1rem">Gerar um token novo invalida o anterior. O token aparece uma vez.</p>
             <p id="scim-erro" role="alert" style="color:var(--danger);margin:0 0 .5rem"></p>
             <button class="btn btn-primary" data-action="gerarTokenScim">Gerar token SCIM</button>
             <div id="scim-novo" role="status" aria-live="polite"></div>
@@ -78,7 +78,7 @@ async function renderSegurancaProjeto(c, h, a) {
 
         <section class="card fade-in" aria-labelledby="pol-titulo" style="margin-bottom:1.5rem;padding:1.25rem">
             <h3 id="pol-titulo" style="margin:0 0 .25rem">Política de segurança</h3>
-            <p class="text-muted" style="margin:0 0 1rem">Vale para os usuários deste cliente. Uma lista de IPs que não casa com ninguém tranca o cliente para fora.</p>
+            <p class="form-hint" style="margin:0 0 1rem">Vale para os usuários deste cliente. Uma lista de IPs que não casa com ninguém tranca o cliente para fora.</p>
             <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem"><input type="checkbox" id="pol-mfa"${p.mfa_obrigatorio ? ' checked' : ''}> MFA obrigatório para usuários do cliente</label>
             ${campo('pol-ttl', 'Duração da sessão em segundos (300 a 86400; vazio usa o padrão)', p.sessao_ttl_seg, 'type="number" min="300" max="86400" step="1"')}
             <div class="form-group">
@@ -130,7 +130,7 @@ window.gerarTokenScim = async function () {
                     <input class="form-input" id="scim-token" readonly value="${e(r.token)}">
                     <button class="btn btn-ghost" data-action="copiarScim" data-args='["scim-token"]'>Copiar</button>
                 </div>
-                <p class="text-muted" style="margin:.5rem 0 0">Copie agora: o token não aparece de novo. Gerar outro invalida este.</p>
+                <p class="form-hint" style="margin:.5rem 0 0">Copie agora: o token não aparece de novo. Gerar outro invalida este.</p>
             </div>`;
     } catch (err) {
         msg('scim-erro', err.message || 'Não foi possível gerar o token.');

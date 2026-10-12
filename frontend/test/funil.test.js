@@ -115,6 +115,23 @@ describe('seção Funil por papel', () => {
   });
 });
 
+describe('resposta incompleta do funil', () => {
+  it('corpo vazio não quebra: cartões zerados e sem erro', async () => {
+    const c = await monta('comercial', () => json({}));
+    expect($('fn-erro').textContent).toBe('');
+    expect($('fn-de').value).toBe('');
+    expect(valorDoCartao(c, 'Ciclo médio')).toBe('---');
+    expect(c.textContent).not.toMatch(/Cannot read/);
+  });
+
+  it('falha de rede: texto próprio, sem exceção crua, com "Tentar de novo"', async () => {
+    const c = await monta('comercial', () => { throw new TypeError("Cannot read properties of undefined (reading 'de')"); });
+    expect($('fn-erro').textContent).toContain('Não foi possível carregar o funil.');
+    expect($('fn-corpo').querySelector('[data-action="__fnAplicar"]').textContent).toBe('Tentar de novo');
+    expect(c.textContent).not.toMatch(/Cannot read/);
+  });
+});
+
 describe('CSS e markup da seção', () => {
   it('toda classe fn-* usada tem regra em style.css', () => {
     const usadas = new Set([...view.matchAll(/class="([^"]*)"/g)].flatMap((m) => m[1].match(/\bfn-[a-z0-9-]+/g) || []));
