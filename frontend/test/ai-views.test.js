@@ -73,6 +73,26 @@ describe('renderAIChat', () => {
     expect($('chat-messages').lastElementChild.textContent).toBe('Resposta A.5.1');
   });
 
+  it('no /iso o envio leva modulo: iso', async () => {
+    await comChat();
+    window.history.pushState({}, '', '/iso/chat');
+    apiMock.mockResolvedValue({ reply: 'ok' });
+    $('chat-input').value = 'oi';
+    await window.sendChatMessage('p1');
+    window.history.pushState({}, '', '/');
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/chat', { message: 'oi', modulo: 'iso' });
+  });
+
+  it('no n.privacy o envio leva modulo: privacy', async () => {
+    await comChat();
+    window.history.pushState({}, '', '/privacy/chat');
+    apiMock.mockResolvedValue({ reply: 'ok' });
+    $('chat-input').value = 'oi';
+    await window.sendChatMessage('p1');
+    window.history.pushState({}, '', '/');
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/chat', { message: 'oi', modulo: 'privacy' });
+  });
+
   it('resposta sem reply: "Sem resposta."', async () => {
     await comChat();
     apiMock.mockResolvedValue({});

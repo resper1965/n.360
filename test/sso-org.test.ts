@@ -118,6 +118,8 @@ describe('B2 — fluxo JIT completo pelo callback', () => {
     await chamar('PUT', '/api/v1/projects/p-b/sso', S.ab, corpoSso('org_user'));
     const { location, token } = await loginSso('pessoa@atacante.tld');
     expect(token, location).not.toBeNull();
+    // Absoluto no n.360: o callback responde no domínio antigo (o IdP cadastrou esse), e um `/#…` relativo deixaria a sessão lá.
+    expect(location.startsWith('https://n360.ness.com.br/#sso_token=')).toBe(true);
     const conta = await env.DB.prepare(`SELECT role, client_project_id, org_id FROM users WHERE email = 'pessoa@atacante.tld'`).first();
     expect(conta).toEqual({ role: 'org_user', client_project_id: 'p-b', org_id: 'org_b' });
     const sessao = JSON.parse((await env.SESSIONS.get(`session_${token}`))!);

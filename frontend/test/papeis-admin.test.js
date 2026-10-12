@@ -74,6 +74,28 @@ describe('menu por papel (login.html real)', () => {
   });
 });
 
+// Conta e acessos (n.360 fatia 2): o grupo mostra a cada papel só o que ele alcança; sem nenhum item, o grupo some.
+const CONTA = [
+  ['platform_admin', ['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-api-keys']],
+  ['consultoria_admin', ['nav-projects', 'nav-users']],
+  ['consultor', ['nav-projects', 'nav-users', 'nav-conectar-agente']],
+  ['comercial', []],
+  ['org_admin', ['nav-users']],
+  ['org_user', []],
+  ['client', []],
+  ['stakeholder', []],
+];
+
+describe('grupo Conta e acessos por papel', () => {
+  it.each(CONTA)('%s', async (papel, itens) => {
+    await menu(papel);
+    const vistos = [...$('group-conta').querySelectorAll('.sidebar-nav')].filter((el) => el.style.display !== 'none').map((el) => el.id);
+    expect(vistos).toEqual(itens);
+    expect(visivel('group-conta')).toBe(itens.length > 0);
+    expect(visivel('label-group-conta')).toBe(itens.length > 0);
+  });
+});
+
 describe('menu do stakeholder', () => {
   it('só "Meus pedidos" aparece; o resto do menu some', async () => {
     await menu('stakeholder');
@@ -136,5 +158,12 @@ describe('papéis oferecidos na tela de Usuários', () => {
 
   it.each(['consultor', 'org_admin'])('%s: só papéis de cliente', async (papel) => {
     expect(await opcoes(papel)).toEqual(['org_admin', 'org_user']);
+  });
+});
+
+describe('Importar programa (nav-importacao)', () => {
+  it.each([['consultor', true], ['consultoria_admin', true], ['org_admin', false], ['stakeholder', false]])('%s: visível=%s', async (papel, ve) => {
+    await menu(papel);
+    expect(visivel('nav-importacao')).toBe(ve);
   });
 });

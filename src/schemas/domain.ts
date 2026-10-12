@@ -60,6 +60,10 @@ export const ropaSchema = z.object({
   data_subject_rights_details: longoOpcional,
   dpia_required: boolLike,
   owner: curtoOpcional,
+  // Responsável do cadastro de partes (fatia 1.4). Sem o transform de `opcional`: o PUT distingue ausente (mantém) de null (desliga).
+  owner_parte_id: z.string().nullish(),
+  // Base legal do catálogo de requisitos (fatia 4.1). Ausente mantém; null desliga.
+  base_legal_id: z.string().trim().min(1).max(200).nullish(),
   // 'Approved' fica de fora de propósito (como na DPIA): aprovar exige senha, autoridade na matriz de
   // Governança e segregação, e isso só existe em POST .../approve e nos pedidos de aprovação.
   // Active/Inactive é o ciclo de vida da atividade de tratamento, que convive com o status de aprovação.
@@ -232,6 +236,7 @@ export const assinaturaSchema = z.object({
 // ─── IA ──────────────────────────────────────────────────────────────────────
 export const chatSchema = z.object({
   message: z.string().trim().min(1).max(10_000),
+  modulo: z.enum(['iso', 'privacy']).optional(),
 }).passthrough();
 
 export const gerarPoliticaSchema = z.object({
@@ -445,12 +450,13 @@ export const otpVerificacaoSchema = z.object({
   otp: z.string().min(1, 'Código OTP é obrigatório'),
 });
 
-/** Aceite de política. Nome e e-mail caem para os da sessão quando ausentes. */
-export const aceiteDePoliticaSchema = z.object({
-  policy_type: z.string().min(1, 'Tipo/Nome da Política é obrigatório'),
-  user_name: z.string().optional(),
-  user_email: z.string().email('E-mail inválido').optional(),
-});
+/**
+ * Ciência de documento pelo portal público. SÓ o id: nome e e-mail são os da sessão (código por e-mail); o corpo
+ * não os escolhe. `strict`: campo extra é 400.
+ */
+export const aceiteDeDocumentoSchema = z.object({
+  documento_id: z.string().min(1, 'Documento é obrigatório').max(100),
+}).strict();
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  MFA e direitos do titular — eram locais aos arquivos de rota
@@ -481,6 +487,8 @@ export const senhaConfirmacaoSchema = z.object({
 export const identificadorSchema = z.object({
   identificador: z.string().trim().min(1).max(320),
   justificativa: z.string().trim().min(1).max(2000),
+  /** Pedido do titular (titular_pedidos) que originou a eliminação; opcional. */
+  pedido_id: z.string().trim().min(1).max(100).optional(),
 }).passthrough();
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -660,7 +668,9 @@ export const propostaAjusteSchema = z.object({ token: tokenProposta, mensagem: z
 export const pedidoCriarSchema = z.object({
   // `politica` só para aprovação (ciso/ceo): a ciência de política é pelo lote por link (pedidoCienciaLoteSchema).
   // A rota recusa `politica` + `ciente` com 400.
-  tipo: z.enum(['dpia', 'politica']),
+  // `documento` (migration 0051, fatia 3.4): aprovação CISO/CEO de uma versão; a ciência de documento é pelo lote.
+  // `excecao` (migration 0051, fatia 3.5): aprovação CISO/CEO de uma exceção a documento; ciência não existe para ela.
+  tipo: z.enum(['dpia', 'politica', 'documento', 'excecao', 'tratamento']),
   ref_id: z.string().trim().min(1).max(200),
   papel_exigido: z.enum(['ciso', 'ceo', 'ciente']),
   destinatarios: z.array(z.object({
@@ -672,7 +682,8 @@ export const pedidoCriarSchema = z.object({
 // Ciência em massa por link (fatia 3, migration 0042): só `ciente`, para quem não tem conta.
 // Teto de 200 por lote. A aprovação (com assinatura) de DPIA e de política fica em `pedidoCriarSchema`.
 export const pedidoCienciaLoteSchema = z.object({
-  tipo: z.enum(['politica', 'dpia']),
+  // `documento` (migration 0051): ref_id = documentos.id, conteúdo = a versão vigente.
+  tipo: z.enum(['politica', 'dpia', 'documento']),
   ref_id: z.string().trim().min(1).max(200),
   destinatarios: z.array(z.object({
     email: z.string().trim().email().max(320),

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { servirShell } from './shell.js';
 
 // Adequação de controles (F3) — navegador real. A IA sugere; o humano aprova.
 // A API é mockada: GET suggestions devolve uma sugestão aterrada; POST apply
@@ -41,7 +42,7 @@ test('sugere adequação de controle e aplica com aprovação', async ({ page })
     return json(method === 'GET' ? [] : { ok: true });
   });
 
-  await page.goto('/login.html');
+  await servirShell(page).then(() => page.goto('/iso'));
   await page.waitForFunction(() => typeof window.navigate === 'function' && !!window.S);
 
   await page.evaluate(() => window.suggestControlAdequacao(15, 'proj-e2e'));

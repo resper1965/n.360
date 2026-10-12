@@ -36,6 +36,14 @@ import { publicAuditorApp } from './routes/public-auditor';
 import { scimApp } from './routes/scim';
 import { aiApp } from './routes/ai';
 import { governanceApp } from './routes/governance';
+import { nucleoApp } from './routes/nucleo';
+import { documentosApp } from './routes/documentos';
+import { requisitosApp, projetoRequisitosApp } from './routes/requisitos';
+import { terceirosApp } from './routes/terceiros';
+import { importacaoApp } from './routes/importacao';
+import { encarregadoApp } from './routes/encarregado';
+import { pontoDePartidaApp } from './routes/ponto-de-partida';
+import { parametrosLegaisApp, titularPedidosApp, incidentesApp, consentimentosApp } from './routes/titular';
 import { agentesApp } from './routes/agentes';
 import { auditorApp } from './routes/auditor';
 import { platformApp } from './routes/platform';
@@ -57,7 +65,7 @@ import { avisosDePrazo, hojeEmSaoPaulo } from './services/avisos-prazo';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handlerMcp } from './mcp/servidor';
-import { appUrl, APP_URL_PADRAO, HOSTS_LEGADOS } from './config/url';
+import { appUrl, fica, HOST_DO_MODULO, HOSTS_LEGADOS, ORIGENS_EXTRAS, RECURSO_MCP, URL_NISO } from './config/url';
 
 export type Bindings = {
   DB: D1Database;
@@ -230,8 +238,9 @@ app.get('/.well-known/security.txt', (c) => {
 
 // 1. CORS (S3 / OWASP A05). Era `origin: '*'` — o frontend é servido pelo próprio
 // Worker (mesma origem), então CORS só afeta chamadas de NAVEGADOR cross-origin;
-// clientes não-browser (MCP server, curl) ignoram CORS. Só a origem do `APP_URL`
-// (src/config/url.ts) é aceita: os hosts legados redirecionam antes de chegar aqui. A função ECOA a origem
+// clientes não-browser (MCP server, curl) ignoram CORS. Aceita a origem do `APP_URL` e os domínios dos
+// módulos (`ORIGENS_EXTRAS`, src/config/url.ts), que servem as exceções no lugar; os hosts legados
+// redirecionam antes de chegar aqui. A função ECOA a origem
 // quando permitida (o Hono responde com essa origem exata, não com `*`), e devolve
 // '' (sem header) quando não.
 //
@@ -245,7 +254,7 @@ const CORS_LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 app.use('*', cors({
   origin: (origin, c) => {
     if (!origin) return origin; // requisições same-origin/sem Origin (curl, server-to-server)
-    if (origin === appUrl(c.env) || CORS_LOOPBACK.test(origin)) return origin;
+    if (origin === appUrl(c.env) || ORIGENS_EXTRAS.includes(origin) || CORS_LOOPBACK.test(origin)) return origin;
     return ''; // origem não permitida: sem Access-Control-Allow-Origin
   },
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -300,6 +309,9 @@ app.get('/health', (c) => {
     version: (c.env as { VERSAO_SHA?: string }).VERSAO_SHA ?? 'dev',
     deployment_id: meta?.id ?? null,
     deployed_at: meta?.timestamp ?? null,
+    // O frontend num domínio antigo lê daqui para onde ir (frontend/src/produto.js `destinoLegado`): com o APP_URL
+    // de volta no niso, ninguém redireciona, sem endereço repetido no bundle.
+    app_url: appUrl(c.env),
   });
 });
 
@@ -399,6 +411,18 @@ app.route('/api/v1/pedidos', pedidosApp);
 
 app.route('/api/v1/certification', certificationsApp);
 app.route('/api/v1/projects/:projectId/certification', projectCertificationsApp);
+app.route('/api/v1/projects/:projectId', nucleoApp);
+app.route('/api/v1/projects/:projectId', documentosApp);
+app.route('/api/v1/requisitos', requisitosApp);
+app.route('/api/v1/projects/:projectId', projetoRequisitosApp);
+app.route('/api/v1/projects/:projectId/terceiros', terceirosApp);
+app.route('/api/v1/projects/:projectId/importacoes', importacaoApp);
+app.route('/api/v1/projects/:projectId/encarregado', encarregadoApp);
+app.route('/api/v1/projects/:projectId/ponto-de-partida', pontoDePartidaApp);
+app.route('/api/v1/parametros-legais', parametrosLegaisApp);
+app.route('/api/v1/projects/:projectId/titular-pedidos', titularPedidosApp);
+app.route('/api/v1/projects/:projectId/incidentes', incidentesApp);
+app.route('/api/v1/projects/:projectId/consentimentos', consentimentosApp);
 
 app.route('/api/v1', aiApp);
 app.route('/api/v1', governanceApp);
@@ -429,6 +453,8 @@ app.route('', integrations);
 // dobra, seções institucionais abaixo — spec 2026-09-29-landing-login-design).
 // `/` e rota desconhecida não casam com asset e caem no fallback abaixo, que
 // entrega `dist/login.html` pelo caminho `/login` (html_handling do Assets).
+// Os módulos do n.360 (`/iso*`, `/privacy*`) também caem aqui, sem rota própria:
+// nenhum asset tem esse nome, e o SPA lê o módulo do caminho.
 app.get('/*', async (c) => {
   const path = new URL(c.req.url).pathname;
   if (path.startsWith('/api/')) {
@@ -526,7 +552,7 @@ export const provider = new OAuthProvider({
   scopesSupported: ['niso:consultor'],
   accessTokenTTL: 3600,
   refreshTokenTTL: 30 * 86400,
-  resourceMetadata: { resource: `${APP_URL_PADRAO}/mcp`, resource_name: 'n.iso' },
+  resourceMetadata: { resource: RECURSO_MCP, resource_name: 'n.iso' },
 });
 
 /**
@@ -558,9 +584,24 @@ export const ROTAS_OAUTH = (cru: string) => {
 export default Object.assign(app, {
   fetch: (req: Request, env: Bindings, ctx: ExecutionContext) => {
     const url = new URL(req.url);
-    if (HOSTS_LEGADOS.includes(url.hostname)) {
-      // 308 preserva método e corpo: POST de webhook, SCIM e token OAuth chegam inteiros.
-      return Response.redirect(`${appUrl(env)}${url.pathname}${url.search}`, 308);
+    // 308 preserva método e corpo: POST de webhook, SCIM e token OAuth chegam inteiros.
+    const base = appUrl(env);
+    const legado = HOSTS_LEGADOS.includes(url.hostname);
+    // O host do próprio APP_URL nunca redireciona: com APP_URL no niso (antes da troca ou na volta atrás),
+    // `niso/` → `niso/iso` → `niso/iso/iso` viraria laço.
+    const prefixo = url.hostname === new URL(base).hostname ? undefined : HOST_DO_MODULO.get(url.hostname) ?? (legado ? '/iso' : undefined);
+    if (prefixo) {
+      const p = url.pathname;
+      // Decodificado, como em ROTAS_OAUTH: o Hono roteia `/%6Fauth/...` como `/oauth/...`, e a exceção vale igual.
+      if (!fica(decodificarCaminho(p))) {
+        const raiz = p === '/' || p === '/login' || p === '/login.html';
+        // `niso/iso/x` vai a `/iso/x`, não a `/iso/iso/x`: o prefixo do módulo já no caminho não se repete.
+        const resto = raiz ? '' : p === prefixo || p.startsWith(`${prefixo}/`) ? p.slice(prefixo.length) : p;
+        return Response.redirect(`${base}${prefixo}${resto}${url.search}`, 308);
+      }
+      // Legado: OAuth/MCP vão ao niso, onde o recurso do MCP (e seus metadados) responde; o resto, ao APP_URL.
+      if (legado) return Response.redirect(`${ROTAS_OAUTH(p) ? URL_NISO : base}${p}${url.search}`, 308);
+      // Domínio de módulo, caminho de exceção: responde no lugar.
     }
     return ROTAS_OAUTH(url.pathname) ? provider.fetch(req, env as any, ctx) : fetchHono(req, env, ctx);
   },

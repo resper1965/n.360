@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { hashPassword, requireProjectAccess, requireResourceAccess, projetosVisiveis } from '../src/helpers';
-import { applySchema, workerEnv, sessionFor } from './helpers/d1';
+import { applySchema, workerEnv, sessionFor, concederModulos } from './helpers/d1';
 
 /**
  * Revisão final da fatia 5, B1: conta de EQUIPE nunca se prende a projeto por `client_project_id`.
@@ -106,7 +106,8 @@ describe('B1 — defesa em profundidade: equipe com client_project_id gravado n�
       expect(v.bind, role).not.toBe('p-ness');
     }
     // O cliente continua preso ao próprio projeto.
-    const cli = { role: 'org_user', client_project_id: 'p-ness' };
+    await concederModulos('u-cli-b1', ['iso']);
+    const cli = { id: 'u-cli-b1', role: 'org_user', client_project_id: 'p-ness' };
     await expect(requireProjectAccess(env.DB, cli, 'p-ness')).resolves.toBe(true);
     await expect(requireResourceAccess(env.DB, 'risks', 'r-ness', cli)).resolves.toBe(true);
     expect(projetosVisiveis(cli)).toEqual({ sql: 'SELECT ?', bind: 'p-ness' });

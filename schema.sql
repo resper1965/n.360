@@ -364,7 +364,9 @@ CREATE TABLE IF NOT EXISTS compliance_controls (
     ceo_approved_at TEXT,
     ceo_approved_ip TEXT,
     ceo_approved_ua TEXT,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    owner_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    requisito_id TEXT REFERENCES requisitos(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS evidence (
@@ -396,7 +398,10 @@ CREATE TABLE IF NOT EXISTS evidence (
     ceo_approved_ip TEXT,
     ceo_approved_ua TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    valido_ate TEXT,
+    -- Arquivo original de documento importado (fatia 3 da importação, migration 0068): apagar o documento só solta a ligação.
+    documento_id TEXT REFERENCES documentos(id) ON DELETE SET NULL
 );
 
 -- ═══════════════════════════════════════════════
@@ -451,29 +456,40 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read
 -- SPRINT 4: RISK ASSESSMENT, VENDORS (KYV), TRAINING
 -- ═══════════════════════════════════════════════
 
-CREATE TABLE IF NOT EXISTS assets (
+-- Itens do inventário (migration 0048; eram `assets`). Núcleo fino: o que os dois produtos usam.
+-- `responsavel_texto` é transitório: o dono vira vínculo em `parte_vinculos` (fatia 1.3).
+CREATE TABLE IF NOT EXISTS itens (
     id TEXT PRIMARY KEY,
     project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    type TEXT, -- tipo do ativo (usado no cadastro de ativos)
-    category TEXT, -- Informação, Software, Hardware, Pessoas
-    classification TEXT DEFAULT 'Confidential', -- Confidential, Restricted, Internal, Public
-    criticality TEXT DEFAULT 'Medium', -- Low, Medium, High, Critical
-    description TEXT,
-    owner TEXT,
-    location TEXT, -- ex: AWS S3, local, etc.
-    status TEXT DEFAULT 'Active',
-    confidentiality_rating INTEGER DEFAULT 3,
-    integrity_rating INTEGER DEFAULT 3,
-    availability_rating INTEGER DEFAULT 3,
+    nome TEXT NOT NULL,
+    descricao TEXT,
+    responsavel_texto TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'removido')),
+    tipo TEXT NOT NULL DEFAULT 'ativo' CHECK (tipo IN ('sistema', 'ativo', 'base', 'processo')),
+    departamento_id TEXT REFERENCES departamentos(id) ON DELETE SET NULL
 );
+
+-- Bloco do n.iso (1:1). `project_id` repete o do item porque a portabilidade exporta por essa coluna.
+CREATE TABLE IF NOT EXISTS item_seguranca (
+    item_id TEXT PRIMARY KEY REFERENCES itens(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    categoria TEXT,
+    subtipo TEXT,
+    classificacao TEXT DEFAULT 'Confidential',
+    criticidade TEXT DEFAULT 'Medium',
+    localizacao TEXT,
+    nota_c INTEGER DEFAULT 3,
+    nota_i INTEGER DEFAULT 3,
+    nota_d INTEGER DEFAULT 3
+);
+CREATE INDEX IF NOT EXISTS idx_itens_projeto ON itens(project_id, tipo, status);
 
 CREATE TABLE IF NOT EXISTS risks (
     id TEXT PRIMARY KEY,
     project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-    asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL,
+    asset_id TEXT REFERENCES itens(id) ON DELETE SET NULL,
     asset TEXT NOT NULL,
     threat TEXT NOT NULL,
     vulnerability TEXT,
@@ -489,7 +505,8 @@ CREATE TABLE IF NOT EXISTS risks (
     accepted_by TEXT,
     accepted_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    owner_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS risk_history (
@@ -525,7 +542,9 @@ CREATE TABLE IF NOT EXISTS vendors (
     trust_center_url TEXT,
     dpa_url TEXT,
     attached_certifications TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- perfil de segurança (due diligence ISO) da parte organização; o terceiro do n.privacy é a mesma parte (0061)
+    parte_id TEXT REFERENCES partes(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS training_records (
@@ -573,7 +592,9 @@ CREATE TABLE IF NOT EXISTS ropa_records (
     ceo_approved_ip TEXT,
     ceo_approved_ua TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    owner_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    base_legal_id TEXT REFERENCES requisitos(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS audit_schedule (
@@ -607,7 +628,9 @@ CREATE TABLE IF NOT EXISTS corrective_actions (
     status TEXT DEFAULT 'Open',
     resolution TEXT,
     completed_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    assigned_to_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    incidente_id TEXT REFERENCES incidentes(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -646,6 +669,7 @@ CREATE TABLE IF NOT EXISTS webhooks (
 CREATE INDEX IF NOT EXISTS idx_ropa_project ON ropa_records(project_id);
 CREATE INDEX IF NOT EXISTS idx_audit_schedule_project ON audit_schedule(project_id);
 CREATE INDEX IF NOT EXISTS idx_capa_project ON corrective_actions(project_id);
+CREATE INDEX IF NOT EXISTS idx_capa_incidente ON corrective_actions(incidente_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_project ON api_keys(project_id);
 -- Unicidade do hash de API key (o lookup de autenticação depende disso).
 -- Precisa vir DEPOIS do CREATE TABLE acima — em banco limpo, um índice declarado
@@ -682,7 +706,9 @@ CREATE TABLE IF NOT EXISTS organizations (
     termo_aceito_em DATETIME,
     termo_versao TEXT,
     -- Chave do logo no R2 (migration 0040).
-    logo_chave TEXT
+    logo_chave TEXT,
+    -- Módulos que a consultoria contratou: o teto do que cada projeto pode habilitar (migration 0047).
+    modulos_contratados TEXT NOT NULL DEFAULT '["iso"]'
 );
 -- Prefixo de proposta único entre organizações (migration 0040): a conferência na rota tem corrida,
 -- o índice decide. Parcial: organização sem prefixo (NULL) não conflita com outra.
@@ -759,6 +785,7 @@ CREATE TABLE IF NOT EXISTS checklist_progress (
     notes TEXT,
     assigned_to TEXT,
     due_date TEXT,
+    assigned_to_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
     UNIQUE(project_id, phase_number, item_id)
 );
 CREATE INDEX IF NOT EXISTS idx_checklist_progress_project ON checklist_progress(project_id);
@@ -858,10 +885,9 @@ CREATE INDEX IF NOT EXISTS idx_auditor_notes_project ON auditor_notes(project_id
 -- SPRINT GAPS: ATIVOS, KPIS E ACEITES DE POLÍTICAS
 -- -----------------------------------------------
 
--- ponytail: definição canônica de `assets` unificada acima (inclui type/criticality/
+-- ponytail: definição canônica de `itens` (eram `assets`) unificada acima (inclui type/criticality/
 -- description). A duplicata que existia aqui foi removida — CREATE TABLE IF NOT EXISTS
 -- fazia a segunda ser silenciosamente ignorada e divergir da usada pelo código.
-CREATE INDEX IF NOT EXISTS idx_assets_project ON assets(project_id);
 
 CREATE TABLE IF NOT EXISTS performance_metrics (
   id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
@@ -1158,7 +1184,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    tipo TEXT NOT NULL CHECK (tipo IN ('dpia', 'politica')),
+    tipo TEXT NOT NULL CHECK (tipo IN ('dpia', 'politica', 'documento', 'excecao', 'tratamento', 'avaliacao_terceiro')),
     ref_id TEXT NOT NULL,
     titulo TEXT NOT NULL,
     papel_exigido TEXT NOT NULL CHECK (papel_exigido IN ('ciso', 'ceo', 'ciente')),
@@ -1171,6 +1197,9 @@ CREATE TABLE IF NOT EXISTS pedidos (
 );
 CREATE INDEX IF NOT EXISTS idx_pedidos_projeto ON pedidos(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_pedidos_documento ON pedidos(tipo, ref_id, status);
+-- Um pedido "em pé" aberto por documento para a ciência do portal público (criado_por = 'sistema:portal'):
+-- dois acessos simultâneos não criam dois contêineres. A substituição marca o antigo ANTES de criar o novo.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pedidos_portal_aberto ON pedidos(tipo, ref_id) WHERE criado_por = 'sistema:portal' AND status = 'aberto';
 -- Pedido também é prova (0043): conteúdo, hash e documento nunca mudam; fechado não muda de status
 -- nem de substituto. `org_id` livre (transferência de projeto). DELETE livre (cascata do projeto).
 CREATE TRIGGER IF NOT EXISTS pedido_prova_imutavel
@@ -1196,7 +1225,7 @@ CREATE TABLE IF NOT EXISTS pedido_destinatarios (
     aberto_em DATETIME,
     status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'ciente', 'aprovado', 'recusado')),
     decidido_em DATETIME,
-    canal TEXT CHECK (canal IS NULL OR canal IN ('conta', 'link')),
+    canal TEXT CHECK (canal IS NULL OR canal IN ('conta', 'link', 'portal')),
     ip TEXT,
     user_agent TEXT,
     hash_lido TEXT,
@@ -1230,3 +1259,455 @@ CREATE TABLE IF NOT EXISTS avisos_prazo (
     UNIQUE(fonte, item_id, marco, user_id, vence_em)
 );
 CREATE INDEX IF NOT EXISTS idx_avisos_prazo_email ON avisos_prazo(email_enviado_em, user_id);
+
+-- ─── Núcleo do n.privacy, fatia 1.1 (migration 0047) ───
+CREATE TABLE IF NOT EXISTS projeto_modulos (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy')),
+    habilitado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    habilitado_por TEXT NOT NULL DEFAULT 'sistema',
+    PRIMARY KEY (project_id, modulo)
+);
+-- Módulo inicial do projeto novo = o contrato da organização (0060; antes, sempre `iso`).
+CREATE TRIGGER IF NOT EXISTS projeto_modulos_do_contrato AFTER INSERT ON projects
+BEGIN
+    INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por)
+        SELECT NEW.id, j.value, 'sistema' FROM organizations o, json_each(CASE WHEN json_valid(o.modulos_contratados) THEN o.modulos_contratados ELSE '[]' END) j
+         WHERE o.id = NEW.org_id AND j.value IN ('iso', 'privacy');
+    INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por)
+        SELECT NEW.id, 'iso', 'sistema' WHERE NOT EXISTS (SELECT 1 FROM projeto_modulos WHERE project_id = NEW.id);
+END;
+
+CREATE TABLE IF NOT EXISTS departamentos (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    nome TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'inativo')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, nome)
+);
+
+-- Pessoa ou organização do projeto. O papel é do vínculo, não da parte. Sem CPF (spec 4.2).
+-- user_id liga a pessoa à conta quando existe; a API da 1.1 não o escreve (entra na conciliação, 1.3).
+CREATE TABLE IF NOT EXISTS partes (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL DEFAULT 'pessoa' CHECK (tipo IN ('pessoa', 'organizacao')),
+    nome TEXT NOT NULL,
+    email TEXT,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'ativa' CHECK (status IN ('ativa', 'inativa')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    terceiro_tipo TEXT CHECK (terceiro_tipo IS NULL OR terceiro_tipo IN ('grande_provedor', 'medio', 'pequeno', 'critico'))
+);
+CREATE INDEX IF NOT EXISTS idx_partes_projeto ON partes(project_id, status);
+
+-- alvo_id não tem FK: aponta para tabelas diferentes conforme alvo_tipo. A API confere que o alvo
+-- existe NO projeto antes de gravar.
+CREATE TABLE IF NOT EXISTS parte_vinculos (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    parte_id TEXT NOT NULL REFERENCES partes(id) ON DELETE CASCADE,
+    papel TEXT NOT NULL CHECK (papel IN ('encarregado', 'dono_processo', 'dono_sistema', 'operador', 'cocontrolador', 'suboperador', 'terceiro', 'responsavel', 'parte_interessada')),
+    alvo_tipo TEXT NOT NULL CHECK (alvo_tipo IN ('projeto', 'item', 'departamento', 'tratamento', 'parte')),
+    alvo_id TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (parte_id, papel, alvo_tipo, alvo_id)
+);
+CREATE INDEX IF NOT EXISTS idx_parte_vinculos_alvo ON parte_vinculos(project_id, alvo_tipo, alvo_id);
+
+-- Fornecedor (n.iso) e terceiro (n.privacy) são a mesma parte (0061): o vínculo `terceiro` no projeto cria o perfil em
+-- `vendors`, e o nome da parte manda no nome do perfil.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vendors_parte ON vendors(parte_id);
+
+CREATE TRIGGER IF NOT EXISTS vendor_perfil_do_terceiro
+AFTER INSERT ON parte_vinculos
+WHEN NEW.papel = 'terceiro' AND NEW.alvo_tipo = 'projeto'
+BEGIN
+  INSERT OR IGNORE INTO vendors (id, project_id, name, parte_id)
+  SELECT lower(hex(randomblob(8))), NEW.project_id, p.nome, p.id FROM partes p WHERE p.id = NEW.parte_id AND p.tipo = 'organizacao';
+END;
+
+CREATE TRIGGER IF NOT EXISTS vendor_nome_da_parte
+AFTER UPDATE OF nome ON partes
+BEGIN
+  UPDATE vendors SET name = NEW.nome WHERE parte_id = NEW.id;
+END;
+
+-- Documentos e versões (fatia 3.1 do núcleo do n.privacy). Só CREATE ... IF NOT EXISTS, sem carga: o hash
+-- (SHA-256 canônico) não se calcula em SQLite, então as políticas que já existem entram por
+-- POST /api/v1/projects/:projectId/documentos/importar, por projeto e repetível.
+CREATE TABLE IF NOT EXISTS documentos (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL DEFAULT 'politica' CHECK (tipo IN ('politica', 'norma', 'procedimento')),
+    titulo TEXT NOT NULL,
+    pai_id TEXT REFERENCES documentos(id) ON DELETE SET NULL,
+    dono_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    revisar_a_cada_meses INTEGER CHECK (revisar_a_cada_meses IS NULL OR revisar_a_cada_meses BETWEEN 1 AND 120),
+    revisar_ate TEXT,
+    status TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'vigente', 'obsoleto')),
+    origem_control_id TEXT REFERENCES compliance_controls(id) ON DELETE SET NULL, -- transitório: sai quando a ciência passar para a versão (3.3)
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_documentos_projeto ON documentos(project_id, tipo);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documentos_controle ON documentos(origem_control_id) WHERE origem_control_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_evidence_documento ON evidence(documento_id);
+
+-- Uma versão vigente e um rascunho, no máximo, por documento (índices parciais): é a trava contra duas
+-- publicações simultâneas. `project_id` se repete aqui para a tabela entrar na portabilidade.
+CREATE TABLE IF NOT EXISTS documento_versoes (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    documento_id TEXT NOT NULL REFERENCES documentos(id) ON DELETE CASCADE,
+    numero INTEGER NOT NULL,
+    texto TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'rascunho' CHECK (estado IN ('rascunho', 'vigente', 'substituida')),
+    origem TEXT NOT NULL DEFAULT 'humano' CHECK (origem IN ('humano', 'agente', 'gerador')),
+    criado_por TEXT,
+    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (documento_id, numero)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_versao_vigente ON documento_versoes(documento_id) WHERE estado = 'vigente';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_versao_rascunho ON documento_versoes(documento_id) WHERE estado = 'rascunho';
+
+-- Exceções a documentos (fatia 3.5 do núcleo do n.privacy). Só CREATE ... IF NOT EXISTS, sem carga.
+--
+-- Uma exceção diz a quem ou ao quê ela vale (`escopo`), por quê (`motivo`) e até quando (`vence_em`, AAAA-MM-DD).
+-- A aprovação NÃO tem coluna aqui: é um pedido `tipo = 'excecao'` (a 0051 já aceita) com `ref_id` = esta linha, e a
+-- prova é a linha do destinatário. A exceção está aprovada se existe pedido aprovado com o hash do conteúdo atual
+-- (escopo, motivo, vence_em): mudar qualquer um invalida a aprovação sozinho. `status` guarda só o que é ato:
+-- `ativa` ou `revogada`. Vencida, aprovada e aguardando são derivadas.
+CREATE TABLE IF NOT EXISTS documento_excecoes (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    documento_id TEXT NOT NULL REFERENCES documentos(id) ON DELETE CASCADE,
+    escopo TEXT NOT NULL,
+    motivo TEXT NOT NULL,
+    vence_em TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ativa' CHECK (status IN ('ativa', 'revogada')),
+    criado_por TEXT,
+    revogada_em DATETIME,
+    revogada_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_excecoes_documento ON documento_excecoes(documento_id, status);
+CREATE INDEX IF NOT EXISTS idx_excecoes_projeto ON documento_excecoes(project_id, status, vence_em);
+
+-- Catálogo de requisitos (fatia 2, migration 0053)
+CREATE TABLE IF NOT EXISTS requisito_fontes (
+    id TEXT PRIMARY KEY,
+    nome TEXT NOT NULL,
+    versao TEXT,
+    vigente_desde TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS requisitos (
+    id TEXT PRIMARY KEY,
+    fonte_id TEXT NOT NULL REFERENCES requisito_fontes(id),
+    referencia TEXT NOT NULL,
+    titulo TEXT NOT NULL,
+    pai_id TEXT REFERENCES requisitos(id),
+    papel TEXT CHECK (papel IS NULL OR papel IN ('controlador', 'operador')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (fonte_id, referencia)
+);
+CREATE INDEX IF NOT EXISTS idx_requisitos_fonte ON requisitos(fonte_id, referencia);
+CREATE INDEX IF NOT EXISTS idx_requisitos_pai ON requisitos(pai_id);
+
+CREATE TABLE IF NOT EXISTS requisito_mapeamentos (
+    de_id TEXT NOT NULL REFERENCES requisitos(id) ON DELETE CASCADE,
+    para_id TEXT NOT NULL REFERENCES requisitos(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL CHECK (tipo IN ('equivalente', 'parcial', 'relacionado')),
+    estado TEXT NOT NULL DEFAULT 'proposto' CHECK (estado IN ('proposto', 'validado_juridico')),
+    validado_por TEXT,
+    validado_em TEXT,
+    nota TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (de_id, para_id),
+    CHECK (de_id <> para_id),
+    CHECK (estado = 'proposto' OR (validado_por IS NOT NULL AND validado_em IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_mapeamentos_para ON requisito_mapeamentos(para_id);
+
+CREATE TABLE IF NOT EXISTS documento_requisitos (
+    documento_id TEXT NOT NULL REFERENCES documentos(id) ON DELETE CASCADE,
+    requisito_id TEXT NOT NULL REFERENCES requisitos(id),
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (documento_id, requisito_id)
+);
+CREATE INDEX IF NOT EXISTS idx_doc_requisitos_requisito ON documento_requisitos(requisito_id);
+CREATE INDEX IF NOT EXISTS idx_doc_requisitos_projeto ON documento_requisitos(project_id);
+
+-- Ligações do tratamento (fatia 4.1, migration 0054)
+CREATE TABLE IF NOT EXISTS tratamento_itens (
+    ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,
+    item_id TEXT NOT NULL REFERENCES itens(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ropa_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_trat_itens_item ON tratamento_itens(item_id);
+
+CREATE TABLE IF NOT EXISTS tratamento_departamentos (
+    ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,
+    departamento_id TEXT NOT NULL REFERENCES departamentos(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ropa_id, departamento_id)
+);
+CREATE INDEX IF NOT EXISTS idx_trat_deptos_depto ON tratamento_departamentos(departamento_id);
+
+CREATE TABLE IF NOT EXISTS tratamento_transferencias (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,
+    pais TEXT NOT NULL,
+    destinatario_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    mecanismo TEXT,
+    observacao TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_trat_transf_ropa ON tratamento_transferencias(ropa_id);
+CREATE INDEX IF NOT EXISTS idx_trat_transf_projeto ON tratamento_transferencias(project_id);
+
+-- DPIA ligada ao tratamento e LIA (fatia 5, migration 0056)
+CREATE TRIGGER IF NOT EXISTS dpia_ropa_do_projeto_ins
+BEFORE INSERT ON dpia_assessments
+WHEN NEW.ropa_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ropa_records r WHERE r.id = NEW.ropa_id AND r.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'ropa_id inexistente ou de outro projeto');
+END;
+
+CREATE TRIGGER IF NOT EXISTS dpia_ropa_do_projeto_upd
+BEFORE UPDATE OF ropa_id ON dpia_assessments
+WHEN NEW.ropa_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ropa_records r WHERE r.id = NEW.ropa_id AND r.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'ropa_id inexistente ou de outro projeto');
+END;
+
+CREATE TRIGGER IF NOT EXISTS dpia_ropa_apagada
+AFTER DELETE ON ropa_records
+BEGIN
+    UPDATE dpia_assessments SET ropa_id = NULL WHERE ropa_id = OLD.id;
+END;
+
+CREATE TABLE IF NOT EXISTS lia_assessments (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    ropa_id TEXT NOT NULL UNIQUE REFERENCES ropa_records(id) ON DELETE CASCADE,
+    finalidade_legitima TEXT,
+    necessidade TEXT,
+    balanceamento TEXT,
+    salvaguardas TEXT,
+    conclusao TEXT CHECK (conclusao IS NULL OR conclusao IN ('prevalece', 'nao_prevalece')),
+    status TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'concluida')),
+    concluida_em DATETIME,
+    concluida_por TEXT,
+    criado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (status = 'rascunho' OR (conclusao IS NOT NULL AND concluida_em IS NOT NULL AND concluida_por IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_lia_projeto ON lia_assessments(project_id, status);
+
+-- Terceiros tipificados (fatia 6, migration 0057)
+CREATE TABLE IF NOT EXISTS avaliacoes_terceiro (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    parte_id TEXT NOT NULL REFERENCES partes(id) ON DELETE CASCADE,
+    metodo TEXT NOT NULL CHECK (metodo IN ('trust_center', 'questionario', 'auditoria')),
+    resultado TEXT NOT NULL CHECK (resultado IN ('aprovado', 'com_ressalvas', 'reprovado')),
+    valido_ate TEXT NOT NULL,
+    evidencia_url TEXT,
+    observacao TEXT,
+    avaliado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_aval_terceiro_parte ON avaliacoes_terceiro(parte_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_aval_terceiro_projeto ON avaliacoes_terceiro(project_id, valido_ate);
+
+CREATE TABLE IF NOT EXISTS documento_partes (
+    documento_id TEXT NOT NULL REFERENCES documentos(id) ON DELETE CASCADE,
+    parte_id TEXT NOT NULL REFERENCES partes(id) ON DELETE CASCADE,
+    papel TEXT NOT NULL DEFAULT 'dpa' CHECK (papel IN ('dpa', 'contrato', 'outro')),
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (documento_id, parte_id, papel)
+);
+CREATE INDEX IF NOT EXISTS idx_doc_partes_parte ON documento_partes(parte_id);
+
+-- Titular, incidente e consentimento (fatia 7, migration 0058)
+CREATE TABLE IF NOT EXISTS parametros_legais (
+    chave TEXT PRIMARY KEY,
+    valor INTEGER NOT NULL CHECK (valor > 0),
+    unidade TEXT NOT NULL CHECK (unidade IN ('horas', 'dias_corridos', 'dias_uteis')),
+    fonte TEXT NOT NULL,
+    revisado_em TEXT NOT NULL,
+    revisado_por TEXT NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS titular_pedidos (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    protocolo TEXT NOT NULL,
+    tipo TEXT NOT NULL CHECK (tipo IN ('confirmacao', 'acesso', 'correcao', 'anonimizacao_bloqueio_eliminacao', 'portabilidade', 'informacao_compartilhamento', 'revogacao_consentimento', 'oposicao', 'outro')),
+    canal TEXT NOT NULL DEFAULT 'outro' CHECK (canal IN ('email', 'telefone', 'formulario', 'presencial', 'outro')),
+    titular_nome TEXT,
+    titular_contato TEXT,
+    descricao TEXT,
+    recebido_em TEXT NOT NULL,
+    prazo_em TEXT,
+    status TEXT NOT NULL DEFAULT 'recebido' CHECK (status IN ('recebido', 'em_andamento', 'respondido', 'negado', 'arquivado')),
+    respondido_em TEXT,
+    resposta_texto TEXT,
+    responsavel_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    criado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, protocolo),
+    CHECK (status NOT IN ('respondido', 'negado') OR respondido_em IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_titular_pedidos_projeto ON titular_pedidos(project_id, status, prazo_em);
+
+CREATE TABLE IF NOT EXISTS incidentes (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    protocolo TEXT NOT NULL,
+    titulo TEXT NOT NULL,
+    descricao TEXT,
+    ocorrido_em TEXT,
+    ciencia_em TEXT NOT NULL,
+    risco_titular TEXT CHECK (risco_titular IS NULL OR risco_titular IN ('sem_risco', 'baixo', 'relevante')),
+    avaliacao_texto TEXT,
+    comunicacao_anpd_em TEXT,
+    comunicacao_titular_em TEXT,
+    prazo_anpd_em TEXT,
+    prazo_titular_em TEXT,
+    status TEXT NOT NULL DEFAULT 'aberto' CHECK (status IN ('aberto', 'avaliado', 'comunicado', 'encerrado')),
+    responsavel_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    criado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, protocolo),
+    CHECK (status <> 'encerrado' OR risco_titular IS NOT NULL),
+    CHECK (status <> 'encerrado' OR risco_titular <> 'relevante' OR comunicacao_anpd_em IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_incidentes_projeto ON incidentes(project_id, status);
+
+CREATE TABLE IF NOT EXISTS consentimentos (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,
+    titular_ref TEXT NOT NULL,
+    finalidade TEXT NOT NULL,
+    versao_aviso TEXT NOT NULL,
+    obtido_em TEXT NOT NULL,
+    canal TEXT,
+    revogado_em TEXT,
+    revogado_por TEXT,
+    criado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_consentimentos_ropa ON consentimentos(ropa_id);
+CREATE INDEX IF NOT EXISTS idx_consentimentos_projeto ON consentimentos(project_id, revogado_em);
+
+-- Evidência com validade e requisito (fatia 8, migration 0059)
+CREATE TABLE IF NOT EXISTS evidencia_requisitos (
+    evidencia_id TEXT NOT NULL REFERENCES evidence(id) ON DELETE CASCADE,
+    requisito_id TEXT NOT NULL REFERENCES requisitos(id),
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (evidencia_id, requisito_id)
+);
+CREATE INDEX IF NOT EXISTS idx_evid_requisitos_requisito ON evidencia_requisitos(requisito_id);
+CREATE INDEX IF NOT EXISTS idx_evid_requisitos_projeto ON evidencia_requisitos(project_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_validade ON evidence(valido_ate);
+
+-- Importação de programa de privacidade (n.privacy, migration 0064)
+CREATE TABLE IF NOT EXISTS importacoes (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    criado_por TEXT,
+    status TEXT NOT NULL DEFAULT 'recebendo' CHECK (status IN ('recebendo', 'processando', 'em_revisao', 'gravando', 'concluida', 'cancelada')),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_importacoes_projeto ON importacoes(project_id, created_at);
+
+CREATE TABLE IF NOT EXISTS importacao_arquivos (
+    id TEXT PRIMARY KEY,
+    importacao_id TEXT NOT NULL REFERENCES importacoes(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    nome TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    tamanho INTEGER NOT NULL,
+    r2_key TEXT NOT NULL,
+    tipo TEXT CHECK (tipo IS NULL OR tipo IN ('inventario', 'terceiros', 'documento', 'avaliacao', 'historico', 'desconhecido')),
+    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'processado', 'aguardando', 'erro')),
+    erro TEXT,
+    modelo TEXT,
+    blocos_total INTEGER,
+    bloco_atual INTEGER NOT NULL DEFAULT 0,
+    blocos_falhos TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_importacao_arquivos_lote ON importacao_arquivos(importacao_id);
+CREATE INDEX IF NOT EXISTS idx_importacao_arquivos_projeto ON importacao_arquivos(project_id);
+
+CREATE TABLE IF NOT EXISTS importacao_itens (
+    id TEXT PRIMARY KEY,
+    importacao_id TEXT NOT NULL REFERENCES importacoes(id) ON DELETE CASCADE,
+    arquivo_id TEXT NOT NULL REFERENCES importacao_arquivos(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento', 'terceiro', 'documento', 'dpia', 'lia', 'titular_pedido', 'incidente', 'consentimento')),
+    dados TEXT NOT NULL DEFAULT '{}',
+    origem TEXT CHECK (origem IS NULL OR length(origem) <= 500),
+    confianca TEXT NOT NULL DEFAULT 'baixa' CHECK (confianca IN ('alta', 'media', 'baixa')),
+    faltando TEXT NOT NULL DEFAULT '[]',
+    -- id do registro conforme a entidade (ropa_records ou partes), sem FK desde a 0067
+    duplicata_de TEXT,
+    decisao TEXT NOT NULL DEFAULT 'pendente' CHECK (decisao IN ('pendente', 'aceito', 'descartado', 'gravado', 'recusado')),
+    motivo TEXT,
+    registro_id TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_importacao_itens_lote ON importacao_itens(importacao_id, decisao);
+CREATE INDEX IF NOT EXISTS idx_importacao_itens_arquivo ON importacao_itens(arquivo_id);
+CREATE INDEX IF NOT EXISTS idx_importacao_itens_projeto ON importacao_itens(project_id);
+
+-- ─── n.360, fatia 3: módulos por pessoa (migration 0066) ───
+CREATE TABLE IF NOT EXISTS usuario_modulos (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy')),
+    concedido_por TEXT,
+    concedido_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, modulo)
+);
+-- Conta nova recebe o padrão (cliente: os módulos do projeto; equipe: o contrato da organização, ou n.iso). Ver a 0066.
+CREATE TRIGGER IF NOT EXISTS usuario_modulos_padrao AFTER INSERT ON users
+BEGIN
+    INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
+        SELECT NEW.id, pm.modulo, 'padrao' FROM projeto_modulos pm
+         WHERE pm.project_id = NEW.client_project_id
+           AND NEW.role IN ('org_admin', 'org_user', 'client', 'client_admin', 'user', 'employee');
+    INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
+        SELECT NEW.id, j.value, 'padrao' FROM organizations o,
+               json_each(CASE WHEN json_valid(o.modulos_contratados) THEN o.modulos_contratados ELSE '[]' END) j
+         WHERE o.id = NEW.org_id AND j.value IN ('iso', 'privacy')
+           AND NEW.role IN ('consultor', 'consultant', 'consultoria_admin', 'comercial');
+    INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
+        SELECT NEW.id, 'iso', 'padrao'
+         WHERE NEW.role IN ('consultor', 'consultant', 'consultoria_admin', 'comercial')
+           AND NOT EXISTS (SELECT 1 FROM usuario_modulos WHERE user_id = NEW.id);
+END;

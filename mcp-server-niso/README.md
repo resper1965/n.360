@@ -31,6 +31,8 @@ MCP em `https://niso.ness.com.br/mcp` com login OAuth. Na primeira chamada o
 cliente abre o navegador, o consultor entra no n.iso e escolhe o cliente
 (um cliente por conexao). O administrador do cliente enxerga o acesso e pode
 revoga-lo. O recurso e fixo no dominio oficial: nao funciona em outro dominio.
+O endereco continua `https://niso.ness.com.br/mcp` com o n.360 como entrada da
+plataforma; o agente remoto trabalha com os modulos do projeto (n.iso, n.privacy).
 
 O metodo de trabalho tambem chega pelo MCP: `niso_skill` lista e entrega as skills do
 consultor (hoje `prontidao-certificacao`, a pre-avaliacao de prontidao para Stage 1 e 2),

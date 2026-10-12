@@ -102,6 +102,7 @@ describe('/mcp remoto', () => {
     expect(texto).toContain('Acme');
     expect(texto).toContain('p-a');
     expect(texto).toContain('Diagnóstico');
+    expect(texto).toContain('Módulos deste projeto: n.iso');
   });
 
   it('ferramenta de leitura funciona no próprio cliente', async () => {

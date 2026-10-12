@@ -18,8 +18,8 @@ import {
   RECUSA_PLATAFORMA, type PapelAssinatura,
 } from '../helpers';
 
-export type TipoPedido = 'dpia' | 'politica';
-export type Canal = 'conta' | 'link';
+export type TipoPedido = 'dpia' | 'politica' | 'documento' | 'excecao' | 'tratamento';
+export type Canal = 'conta' | 'link' | 'portal';
 /** Validade do link pessoal da ciência; reenviar emite outro. */
 export const DIAS_LINK = 30;
 export type PapelPedido = 'ciso' | 'ceo' | 'ciente';
@@ -103,9 +103,39 @@ const COLUNAS_DPIA = [
 type Documento = { titulo: string; conteudo: Record<string, unknown> };
 
 /** Onde mora cada tipo e quais colunas são CONTEÚDO (entram no hash e na conferência do batch). */
-const DOCUMENTOS: Record<TipoPedido, { tabela: string; colunas: readonly string[]; titulo: (r: Record<string, unknown>, refId: string) => string }> = {
+const DOCUMENTOS: Record<TipoPedido, { tabela: string; colunas: readonly string[]; listas?: readonly string[]; titulo: (r: Record<string, unknown>, refId: string) => string }> = {
   dpia: { tabela: 'dpia_assessments', colunas: COLUNAS_DPIA, titulo: (r, id) => `DPIA: ${String(r.processing_name || r.system_name || id)}` },
   politica: { tabela: 'compliance_controls', colunas: ['title', 'description'], titulo: (r, id) => `Política: ${String(r.title || id)}` },
+  // ref_id = documentos.id; o conteúdo é a versão VIGENTE (titulo, texto, numero). O "nome da tabela" é um subselect:
+  // publicar versão nova muda o hash e a máquina de substituição funciona sem mudar. `FROM ${tabela} d` e `FROM ${tabela}` valem.
+  documento: {
+    tabela: "(SELECT d.id AS id, d.project_id AS project_id, d.titulo AS titulo, v.texto AS texto, v.numero AS numero FROM documentos d JOIN documento_versoes v ON v.documento_id = d.id AND v.estado = 'vigente')",
+    colunas: ['titulo', 'texto', 'numero'],
+    titulo: (r, id) => `Documento: ${String(r.titulo || id)}`,
+  },
+  // ref_id = documento_excecoes.id (fatia 3.5). Só exceção ATIVA existe para o pedido: revogada some, e o pedido aberto vira `cancelado`.
+  excecao: {
+    tabela: "(SELECT e.id AS id, e.project_id AS project_id, e.escopo AS escopo, e.motivo AS motivo, e.vence_em AS vence_em FROM documento_excecoes e WHERE e.status = 'ativa')",
+    colunas: ['escopo', 'motivo', 'vence_em'],
+    titulo: (r, id) => `Exceção: ${String(r.escopo || id).slice(0, 80)}`,
+  },
+  // ref_id = ropa_records.id (fatia 4.3). O conteúdo é o registro e tudo o que ele liga: o diagrama é derivado dessas
+  // colunas, então congelá-las congela o diagrama. Status, responsável e aprovações antigas ficam de fora de propósito
+  // (mudar o status não pode invalidar a aprovação do conteúdo). Listas em ordem fixa para o hash ser estável.
+  tratamento: {
+    tabela: "(SELECT r.id AS id, r.project_id AS project_id, r.processing_purpose AS finalidade, r.data_categories AS categorias, r.data_subjects AS titulares, " +
+      "r.legal_basis AS base_legal_texto, r.base_legal_id AS base_legal_id, r.retention_period AS retencao, r.recipients AS destinatarios, " +
+      "r.international_transfers AS transferencia_internacional, r.transfer_safeguards AS salvaguardas, r.dpia_required AS dpia_requerido, " +
+      "(SELECT json_group_array(x.n) FROM (SELECT i.nome || ' (' || i.tipo || ')' AS n FROM tratamento_itens t JOIN itens i ON i.id = t.item_id WHERE t.ropa_id = r.id ORDER BY i.nome, i.id) x) AS itens, " +
+      "(SELECT json_group_array(x.n) FROM (SELECT d.nome AS n FROM tratamento_departamentos t JOIN departamentos d ON d.id = t.departamento_id WHERE t.ropa_id = r.id ORDER BY d.nome, d.id) x) AS departamentos, " +
+      "(SELECT json_group_array(x.n) FROM (SELECT v.papel || ': ' || p.nome AS n FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id WHERE v.alvo_tipo = 'tratamento' AND v.alvo_id = r.id ORDER BY v.papel, p.nome, v.id) x) AS partes, " +
+      "(SELECT json_group_array(x.n) FROM (SELECT t.pais || ' | ' || COALESCE(p.nome, '') || ' | ' || COALESCE(t.mecanismo, '') AS n FROM tratamento_transferencias t LEFT JOIN partes p ON p.id = t.destinatario_parte_id WHERE t.ropa_id = r.id ORDER BY t.pais, t.id) x) AS transferencias " +
+      "FROM ropa_records r)",
+    colunas: ['finalidade', 'categorias', 'titulares', 'base_legal_texto', 'base_legal_id', 'retencao', 'destinatarios', 'transferencia_internacional', 'salvaguardas', 'dpia_requerido', 'itens', 'departamentos', 'partes', 'transferencias'],
+    // Colunas que o SQL entrega como JSON (json_group_array): viram lista de verdade no conteúdo congelado.
+    listas: ['itens', 'departamentos', 'partes', 'transferencias'],
+    titulo: (r, id) => `Tratamento: ${String(r.finalidade || id).slice(0, 80)}`,
+  },
 };
 
 /** Conteúdo atual do documento (do projeto informado), ou `null` se não existe nele. */
@@ -114,7 +144,8 @@ export async function documentoAtual(db: D1Database, tipo: TipoPedido, refId: st
   const row = await db.prepare(`SELECT ${d.colunas.join(', ')} FROM ${d.tabela} WHERE id = ? AND project_id = ?`)
     .bind(refId, projectId).first<Record<string, unknown>>();
   if (!row) return null;
-  return { titulo: d.titulo(row, refId), conteudo: Object.fromEntries(d.colunas.map((c) => [c, row[c] ?? null])) };
+  const lista = (c: string) => (d.listas?.includes(c) && typeof row[c] === 'string' ? JSON.parse(row[c] as string) : row[c] ?? null);
+  return { titulo: d.titulo(row, refId), conteudo: Object.fromEntries(d.colunas.map((c) => [c, lista(c)])) };
 }
 
 /** Texto-padrão que o catálogo grava quando a política ainda não foi escrita. */
@@ -218,7 +249,8 @@ export async function conferirVigencia(db: D1Database, p: PedidoRow): Promise<Vi
     const atual = await db.prepare('SELECT status, substituido_por FROM pedidos WHERE id = ?').bind(p.id).first<{ status: string; substituido_por: string | null }>();
     return { vigente: false, status: atual?.status ?? 'substituido', substituido_por: atual?.substituido_por ?? null };
   }
-  const { results: dests } = await db.prepare('SELECT email, nome, user_id FROM pedido_destinatarios WHERE pedido_id = ?').bind(p.id).all<Destinatario>();
+  // Quem leu pelo portal público (canal `portal`) não vai para o pedido novo: revê a versão nova quando voltar ao portal.
+  const { results: dests } = await db.prepare("SELECT email, nome, user_id FROM pedido_destinatarios WHERE pedido_id = ? AND COALESCE(canal, '') <> 'portal'").bind(p.id).all<Destinatario>();
   await db.batch(inserirPedido(db, {
     id: novoId, projectId: p.project_id, tipo: p.tipo, refId: p.ref_id, papel: p.papel_exigido, doc, hash, criadoPor: p.criado_por,
   }, dests));
@@ -342,7 +374,9 @@ export async function registrarDecisao(db: D1Database, a: {
       .bind(a.status, decididoEm, link ? 'link' : 'conta', a.ip, a.ua, p.hash, a.mfa ? 1 : 0, a.nome, a.motivo, a.destId,
         ...(link ? [a.tokenHash ?? ''] : []), p.id, p.hash, p.ref_id, p.project_id, ...ok.binds),
   ];
-  if (a.assinar) {
+  // Documento e exceção: a prova da aprovação é a linha do destinatário (hash, IP, user-agent, MFA); não há coluna de assinatura a escrever.
+  // Sem esta condição, cairia em `assinaturaDpia` e assinaria um DPIA de mesmo id.
+  if (a.assinar && p.tipo !== 'documento' && p.tipo !== 'excecao' && p.tipo !== 'tratamento') {
     const guarda = { destId: a.destId, status: a.status, decididoEm, conteudoJson: p.conteudo_json };
     // Cada tipo assina pela MESMA função da aprovação direta: DPIA (platform.ts) e política (controls.ts).
     const st = p.tipo === 'politica'
@@ -359,4 +393,70 @@ export async function registrarDecisao(db: D1Database, a: {
     WHERE id = ?1 AND status = 'aberto'`).bind(p.id));
   const res = await db.batch(stmts);
   return !!res[0].meta?.changes;
+}
+
+/** `criado_por` do pedido "em pé" que guarda a ciência de quem entra pelo portal público (índice único parcial na 0051). */
+export const CONTEINER_PORTAL = 'sistema:portal';
+
+export type CienciaPortal =
+  | { ok: true; numero: number; hash: string; decididoEm: string; jaExistia: boolean }
+  | { ok: false; status: 404 | 409; error: string };
+
+/**
+ * Ciência de uma pessoa que entrou no portal público com código por e-mail (sem pedido prévio). A prova é a de
+ * sempre: uma linha de `pedido_destinatarios` JÁ DECIDIDA (`ciente`, canal `portal`, `hash_lido`, IP, user-agent)
+ * num pedido de ciência "em pé" do documento, achado ou criado na hora. É sempre a versão VIGENTE no momento do
+ * registro, e `numero` volta para a tela dizer qual foi. O mesmo e-mail na mesma versão não duplica.
+ */
+export async function registrarCienciaPortal(
+  db: D1Database, a: { projectId: string; documentoId: string; nome: string; email: string; ip: string | null; ua: string | null },
+): Promise<CienciaPortal> {
+  const doc = await documentoAtual(db, 'documento', a.documentoId, a.projectId);
+  if (!doc) return { ok: false, status: 404, error: 'Documento não encontrado ou sem versão vigente' };
+  const numero = Number(doc.conteudo.numero);
+  const email = a.email.trim().toLowerCase();
+
+  const achar = () => db.prepare(
+    `SELECT * FROM pedidos WHERE project_id = ? AND tipo = 'documento' AND ref_id = ? AND papel_exigido = 'ciente' AND criado_por = ? AND status = 'aberto'
+      ORDER BY criado_em DESC, rowid DESC LIMIT 1`
+  ).bind(a.projectId, a.documentoId, CONTEINER_PORTAL).first<PedidoRow>();
+
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    let pedido = await achar();
+    if (pedido) {
+      // O contêiner pode ter ficado para trás de uma versão publicada: confere, e usa o substituto.
+      const vig = await conferirVigencia(db, pedido);
+      if (!vig.vigente) pedido = vig.substituido_por ? await db.prepare('SELECT * FROM pedidos WHERE id = ?').bind(vig.substituido_por).first<PedidoRow>() : null;
+    }
+    if (pedido) {
+      const ja = await db.prepare(`SELECT decidido_em FROM pedido_destinatarios WHERE pedido_id = ? AND lower(email) = ? AND status = 'ciente'`)
+        .bind(pedido.id, email).first<{ decidido_em: string }>();
+      if (ja) return { ok: true, numero, hash: pedido.hash, decididoEm: ja.decidido_em, jaExistia: true };
+    }
+
+    const hash = await hashConteudo(doc.conteudo);
+    const decididoEm = new Date().toISOString();
+    const u = await db.prepare(`SELECT id FROM users WHERE lower(email) = ? AND COALESCE(ativo, 1) <> 0`).bind(email).first<{ id: string }>();
+    const pedidoId = pedido?.id ?? genId();
+    // A condição vai no próprio INSERT: só grava se o pedido segue aberto e com o hash que acabamos de ler.
+    const inserirDestinatario = db.prepare(
+      `INSERT INTO pedido_destinatarios (id, pedido_id, nome, email, user_id, aberto_em, status, decidido_em, canal, ip, user_agent, hash_lido, mfa_usado)
+       SELECT ?, ?, ?, ?, ?, ?, 'ciente', ?, 'portal', ?, ?, ?, 0
+        WHERE EXISTS (SELECT 1 FROM pedidos WHERE id = ? AND status = 'aberto' AND hash = ?)`
+    ).bind(genId(), pedidoId, a.nome, email, u?.id ?? null, decididoEm, decididoEm, a.ip, a.ua, hash, pedidoId, hash);
+    try {
+      const res = pedido
+        ? [await inserirDestinatario.run()]
+        : await db.batch([
+            ...inserirPedido(db, { id: pedidoId, projectId: a.projectId, tipo: 'documento', refId: a.documentoId, papel: 'ciente', doc, hash, criadoPor: CONTEINER_PORTAL }, []),
+            inserirDestinatario,
+          ]);
+      if (res[res.length - 1].meta?.changes) return { ok: true, numero, hash, decididoEm, jaExistia: false };
+      // O pedido deixou de estar aberto/igual entre a leitura e a gravação (versão publicada agora): lê de novo.
+    } catch (e) {
+      // Dois acessos criando o contêiner ao mesmo tempo: o índice único barrou o segundo; lê de novo e usa o do primeiro.
+      if (!String((e as { message?: string })?.message ?? e).includes('UNIQUE')) throw e;
+    }
+  }
+  return { ok: false, status: 409, error: 'O documento mudou durante o registro; recarregue e tente de novo' };
 }

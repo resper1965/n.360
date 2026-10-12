@@ -237,12 +237,14 @@ describe('rotina avisosDePrazo', () => {
       { user_id: 'u-cons', type: 'prazo_capa', title: 'CAPA vence hoje', message: 'Trocar <b>senhas</b> (prazo 07/10/2026)', link: '/projects/p1/capa' },
     ]);
     const paraCons = emails.find((e) => e.to[0] === 'cons@ness.lat')!;
-    expect(paraCons.subject).toBe('n.iso: 2 prazos para acompanhar');
+    expect(paraCons.subject).toBe('n.360: 2 prazos para acompanhar');
     expect(paraCons.html).toContain('Trocar &lt;b&gt;senhas&lt;/b&gt;');
     expect(paraCons.html).not.toContain('<b>senhas');
     expect(paraCons.html).toContain('Cliente p1');
     expect(paraCons.html).toContain('14/10/2026');
-    expect(emails.find((e) => e.to[0] === 'ana@cliente.com')!.subject).toBe('n.iso: 1 prazo para acompanhar');
+    expect(paraCons.html).toContain('>Abrir o n.360</a>');
+    expect(paraCons.html).toContain('href="https://n360.ness.com.br"');
+    expect(emails.find((e) => e.to[0] === 'ana@cliente.com')!.subject).toBe('n.360: 1 prazo para acompanhar');
     expect((await avisos()).every((a) => a.email_enviado_em)).toBe(true);
 
     const r2 = await avisosDePrazo(COM_CHAVE(), HOJE);
@@ -265,7 +267,7 @@ describe('rotina avisosDePrazo', () => {
     const r2 = await avisosDePrazo(COM_CHAVE(), '2026-10-08');
     expect(r2).toMatchObject({ avisos_criados: 0, emails_enviados: 2 });
     expect(await notificacoes()).toHaveLength(3);
-    expect(emails.find((e) => e.to[0] === 'cons@ness.lat')!.subject).toBe('n.iso: 2 prazos para acompanhar');
+    expect(emails.find((e) => e.to[0] === 'cons@ness.lat')!.subject).toBe('n.360: 2 prazos para acompanhar');
     expect((await avisos()).every((a) => a.email_enviado_em)).toBe(true);
   });
 
@@ -377,7 +379,7 @@ describe('rotina avisosDePrazo', () => {
       { user_id: 'u-cons', type: 'prazo_atraso', title: '2 prazos vencidos', message: 'Cliente p1. Veja a lista no projeto.', link: '/projects/p1' },
     ]);
     expect(emails.map((e) => e.to[0])).toEqual(['cons@ness.lat']);
-    expect(emails[0].subject).toBe('n.iso: 2 prazos para acompanhar');
+    expect(emails[0].subject).toBe('n.360: 2 prazos para acompanhar');
   });
 });
 

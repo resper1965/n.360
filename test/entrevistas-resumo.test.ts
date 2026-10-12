@@ -59,6 +59,16 @@ describe('Resumo das entrevistas e mapa da app', () => {
     expect(MAPA_DA_APP).not.toMatch(/leads|proposals|assessments/);
   });
 
+  it('o mapa tem os três blocos (cadastro compartilhado, n.iso, n.privacy) e as rotas do n.privacy', () => {
+    for (const bloco of ['Cadastro compartilhado', '\nn.iso:', '\nn.privacy:']) expect(MAPA_DA_APP, bloco).toContain(bloco);
+    for (const area of ['/partes', '/departamentos', '/documentos', '/pedidos', '/incidentes', '/ponto-de-partida', '/requisitos/lacunas?fonte=lgpd',
+      '/terceiros', '/titular-pedidos', '/consentimentos', '/encarregado', '/ropa/{id}/ligacoes', '/ropa/{id}/lia']) {
+      expect(MAPA_DA_APP, area).toContain(area);
+    }
+    expect(MAPA_DA_APP).toContain('devolve 403; não insista');
+    expect(MAPA_DA_APP).toMatch(/Fora do seu alcance[^\n]*importação de programa/);
+  });
+
   it('todo caminho do mapa da app existe como rota (o agente não é mandado a um 404)', async () => {
     // O teste anterior confere texto; este confere que a rota responde. "Rota não encontrada" é o
     // 404 do roteador; um 404 de registro inexistente (placeholder `x`) é outra coisa e passa.
@@ -91,5 +101,7 @@ describe('Resumo das entrevistas e mapa da app', () => {
     expect(INSTRUCOES.length).toBeLessThanOrEqual(2048);
     expect(INSTRUCOES).toContain('confirmado_pelo_usuario');
     expect(INSTRUCOES).not.toContain('Não apaga registros');
+    expect(INSTRUCOES).toContain('n.360');
+    expect(INSTRUCOES).toContain('n.privacy');
   });
 });

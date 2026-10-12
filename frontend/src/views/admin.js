@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, closeModal, forceCloseModal, escapeHTML } from '../ui.js';
 import { render } from '../router.js';
 
 // S2: wrappers para os handlers COMPOSTOS (a delegação chama uma função só).
@@ -117,13 +117,28 @@ window.__adminCopiarApiKey = () => {
         } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
 
+    const MODULOS_CONTA = [['iso', 'n.iso'], ['privacy', 'n.privacy']];
+    // Resposta antiga (sem o campo) mostra traço, não "sem módulo".
+    const rotuloModulos = (m) => (!Array.isArray(m) ? '—' : m.length ? MODULOS_CONTA.filter(([v]) => m.includes(v)).map(([, r]) => r).join(' · ') : 'Nenhum');
+
+    // Contas desativadas ficam escondidas por padrão; a escolha vale até recarregar a página.
+    let mostrarDesativadas = false;
+    let contasListadas = [];
+    const contaAtiva = (u) => u.ativo !== false;
+    // A própria conta não se desativa nem se exclui (o servidor recusa com 409): sem botão.
+    const propria = (u) => !!(S.user && S.user.id && String(S.user.id) === String(u.id));
+
     async function renderUsers(c, h, a) {
         h.textContent = 'Gestão de Usuários & RBAC';
-        a.innerHTML = '<button class="btn btn-primary" data-action="openUserModal">+ Novo Usuário</button>';
+        a.innerHTML = `<button class="btn btn-ghost" data-action="alternarDesativadas">${mostrarDesativadas ? 'Ocultar desativadas' : 'Mostrar desativadas'}</button>
+            <button class="btn btn-primary" data-action="openUserModal">+ Novo Usuário</button>`;
         c.innerHTML = '<div class="loading"></div>';
         try {
             const users = await api('GET', '/api/v1/users').catch(() => []);
-            const userArr = Array.isArray(users) ? users : [];
+            const todas = Array.isArray(users) ? users : [];
+            contasListadas = todas;
+            const desativadas = todas.filter(u => !contaAtiva(u)).length;
+            const userArr = mostrarDesativadas ? todas : todas.filter(contaAtiva);
             if (!S.projects || S.projects.length === 0) {
                 await loadProjects();
             }
@@ -132,18 +147,19 @@ window.__adminCopiarApiKey = () => {
                 projMap[p.id] = p.project_name || p.client_name;
             });
 
-            const totalUsers = userArr.length;
-            const admins = userArr.filter(u => ['platform_admin', 'admin', 'consultor', 'consultant', 'comercial', 'consultoria_admin'].includes(u.role)).length;
+            // Os cartões contam todas as contas; o filtro de desativadas só muda a tabela.
+            const totalUsers = todas.length;
+            const admins = todas.filter(u => ['platform_admin', 'admin', 'consultor', 'consultant', 'comercial', 'consultoria_admin'].includes(u.role)).length;
             const clientUsers = totalUsers - admins;
 
             const statsHtml = window.renderStatCards([
-                { label: 'Total de Usuários', value: totalUsers, color: 'var(--accent)', subtext: 'Contas ativas' },
+                { label: 'Total de Usuários', value: totalUsers, color: 'var(--accent)', subtext: desativadas ? `${desativadas} desativada(s)` : 'Nenhuma desativada' },
                 { label: 'Administradores & Consultores', value: admins, color: '#34c759', subtext: 'Equipe ness.' },
                 { label: 'Usuários de Clientes', value: clientUsers, color: '#ffcc00', subtext: 'Acesso às orgs' }
             ]);
 
             const tableHtml = window.renderDataTable(
-                ['Nome', 'E-mail', 'Papel (Role)', 'Projeto / Organização', 'Ações'],
+                ['Nome', 'E-mail', 'Papel (Role)', 'Projeto / Organização', 'Módulos', 'Situação', 'Ações'],
                 userArr.map(u => {
                     const projectName = u.client_project_id ? (projMap[u.client_project_id] || u.client_project_id) : '—';
                     const roleLabel = u.role === 'platform_admin' ? 'Admin Plataforma' : 
@@ -158,8 +174,11 @@ window.__adminCopiarApiKey = () => {
                         escapeHTML(u.email),
                         window.renderStatusBadge(roleLabel, u.role === 'platform_admin' ? 'info' : 'success'),
                         escapeHTML(projectName),
+                        escapeHTML(rotuloModulos(u.modulos)),
+                        window.renderStatusBadge(contaAtiva(u) ? 'Ativa' : 'Desativada', contaAtiva(u) ? 'success' : 'info'),
                         `<button class="btn btn-ghost btn-sm" data-action="openUserModal" data-args='["${u.id}"]'>Editar</button>
-                         <button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="deleteUser" data-args='["${u.id}"]'>Excluir</button>`
+                         ${propria(u) ? '' : `<button class="btn btn-ghost btn-sm" data-action="confirmarContaAtiva" data-args='["${u.id}"]'>${contaAtiva(u) ? 'Desativar' : 'Reativar'}</button>`}
+                         ${S.user && S.user.role === 'platform_admin' && !propria(u) ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="confirmarExclusaoDefinitiva" data-args='["${u.id}"]'>Excluir definitivamente</button>` : ''}`
                     ];
                 }),
                 { emptyState: 'Nenhum usuário cadastrado.' }
@@ -210,27 +229,82 @@ window.__adminCopiarApiKey = () => {
         `;
     }
 
-    async function deleteUser(id) {
-        if (!confirm('Deseja realmente excluir este usuário permanentemente?')) return;
+    function alternarDesativadas() {
+        mostrarDesativadas = !mostrarDesativadas;
+        render();
+    }
+
+    // Confirmação na própria janela da tela (sem window.confirm).
+    function janelaConfirmar(titulo, texto, acao, rotulo, perigo) {
+        openModal(`
+            <div class="modal-header"><span class="modal-title">${escapeHTML(titulo)}</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            <div style="padding:1.25rem 0;text-align:left"><p>${texto}</p>
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:1rem">
+                    <button class="btn" data-action="forceCloseModal">Cancelar</button>
+                    <button class="btn btn-primary"${perigo ? ' style="background:var(--danger);border-color:var(--danger)"' : ''} data-action="${acao.nome}" data-args='${JSON.stringify(acao.args)}'>${rotulo}</button>
+                </div>
+            </div>`);
+    }
+
+    function confirmarContaAtiva(id) {
+        const u = contasListadas.find(x => x.id === id);
+        if (!u) return;
+        const ativar = !contaAtiva(u);
+        const quem = `<strong>${escapeHTML(u.name)}</strong> (${escapeHTML(u.email)})`;
+        janelaConfirmar(ativar ? 'Reativar conta' : 'Desativar conta',
+            ativar ? `${quem} volta a poder entrar no sistema.`
+                   : `${quem} deixa de poder entrar (senha e SSO) e as sessões abertas caem. Os registros continuam e a conta pode ser reativada. As chaves de API do projeto continuam valendo; revogue-as em Chaves de API.`,
+            { nome: 'definirContaAtiva', args: [id, ativar] }, ativar ? 'Reativar' : 'Desativar', false);
+    }
+
+    async function definirContaAtiva(id, ativo) {
         try {
-            await api('DELETE', `/api/v1/users/${id}`);
-            showToast('Usuário excluído com sucesso');
+            await api('PUT', `/api/v1/users/${id}/ativo`, { ativo });
+            forceCloseModal();
+            showToast(ativo ? 'Conta reativada' : 'Conta desativada');
             render();
         } catch (e) {
-            showToast('Erro ao excluir usuário: ' + e.message, 'error');
+            forceCloseModal();
+            showToast('Erro ao ' + (ativo ? 'reativar' : 'desativar') + ' a conta: ' + e.message, 'error');
+        }
+    }
+
+    function confirmarExclusaoDefinitiva(id) {
+        const u = contasListadas.find(x => x.id === id);
+        if (!u) return;
+        janelaConfirmar('Excluir definitivamente',
+            `Isto apaga a conta <strong>${escapeHTML(u.name)}</strong> (${escapeHTML(u.email)}) do sistema e não pode ser desfeito. Para só impedir o acesso, use Desativar.`,
+            { nome: 'excluirContaDefinitiva', args: [id] }, 'Excluir definitivamente', true);
+    }
+
+    async function excluirContaDefinitiva(id) {
+        try {
+            await api('DELETE', `/api/v1/users/${id}?definitivo=1`);
+            forceCloseModal();
+            showToast('Conta excluída definitivamente');
+            render();
+        } catch (e) {
+            forceCloseModal();
+            showToast('Erro ao excluir a conta: ' + e.message, 'error');
         }
     }
 
     async function openUserModal(userId) {
         let user = null;
+        let tetoModulos = [];
         if (userId) {
             try {
                 const users = await api('GET', '/api/v1/users');
                 user = users.find(u => u.id === userId);
+                tetoModulos = (user && user.teto_modulos) || [];
             } catch(e) {
                 showToast('Erro ao buscar dados do usuário', 'error');
                 return;
             }
+        } else {
+            // Conta nova: o teto de quem cria é o maior teto das contas que ele enxerga (platform_admin, todos).
+            const lista = await api('GET', '/api/v1/users').catch(() => []);
+            tetoModulos = [...new Set((Array.isArray(lista) ? lista : []).flatMap(u => u.teto_modulos || []))];
         }
 
         if (!S.projects || S.projects.length === 0) {
@@ -352,6 +426,16 @@ window.__adminCopiarApiKey = () => {
                     </select>
                 </div>
 
+                <fieldset class="form-group" id="user-m-modulos-grupo" style="border:0;padding:0;margin:0">
+                    <legend class="form-label">Módulos</legend>
+                    ${MODULOS_CONTA.map(([v, r]) => {
+                        const tem = !!(user && Array.isArray(user.modulos) && user.modulos.includes(v));
+                        const pode = tetoModulos.includes(v);
+                        return `<label style="display:block"><input type="checkbox" class="user-m-modulo" value="${v}" ${tem ? 'checked' : ''} ${pode ? '' : 'disabled'}> ${r}${pode ? '' : ' (fora do que a organização ou o projeto contratou)'}</label>`;
+                    }).join('')}
+                    <p class="org-dica">${user ? 'Define a que a pessoa acessa nos projetos que têm o módulo.' : 'Sem marcar nenhum, a conta recebe os módulos padrão do projeto ou da organização.'}</p>
+                </fieldset>
+
                 <div style="display:flex; gap:1rem; margin-top:1.5rem">
                     <button class="btn btn-primary" style="flex:1" data-action="saveUser" data-args='["${user ? user.id : ""}"]'>Salvar</button>
                     <button class="btn" style="flex:1" data-action="closeModal">Cancelar</button>
@@ -397,12 +481,19 @@ window.__adminCopiarApiKey = () => {
         if (password) {
             payload.password = password;
         }
+        // Caixas de módulo (só as habilitadas, dentro do teto). Na criação vai `modulos` se marcou algum; na edição, o PUT
+        // próprio depois do salvar e só se mudou.
+        const caixas = [...document.querySelectorAll('.user-m-modulo:not(:disabled)')];
+        const marcados = caixas.filter(x => x.checked).map(x => x.value);
 
         try {
             if (id) {
                 await api('PUT', `/api/v1/users/${id}`, payload);
+                const antes = caixas.filter(x => x.defaultChecked).map(x => x.value);
+                if (caixas.length && marcados.join() !== antes.join()) await api('PUT', `/api/v1/users/${id}/modulos`, { modulos: marcados });
                 showToast('Usuário atualizado com sucesso');
             } else {
+                if (marcados.length) payload.modulos = marcados;
                 await api('POST', '/api/v1/users', payload);
                 showToast('Usuário criado com sucesso');
             }
@@ -546,5 +637,9 @@ window.renderUsers = renderUsers;
 window.renderAuditTrail = renderAuditTrail;
 window.renderApiKeys = renderApiKeys;
 window.savePricingConfig = savePricingConfig;
-window.deleteUser = deleteUser;
+window.alternarDesativadas = alternarDesativadas;
+window.confirmarContaAtiva = confirmarContaAtiva;
+window.definirContaAtiva = definirContaAtiva;
+window.confirmarExclusaoDefinitiva = confirmarExclusaoDefinitiva;
+window.excluirContaDefinitiva = excluirContaDefinitiva;
 window.openUserModal = openUserModal;
