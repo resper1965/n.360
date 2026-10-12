@@ -12,6 +12,17 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Operação
+- 2026-10-12: entrega do plano `docs/superpowers/plans/2026-10-12-finalizacao.md`. Ordem das publicações: #343, #353, #345, #310, #347, #344, #346, #348, #349 (com #350 e #351) e #340.
+  - Migrations 0067 e 0068 aplicadas pelo `db-migrate.yml` (run 38273038967).
+  - `n360.ness.com.br` passou a ser o endereço principal (`APP_URL`). `niso` e `nprivacy` respondem 308 para `/iso` e `/privacy`; `/health` e `/api/*` respondem no lugar.
+  - Conferência de dados (`conferencia-dados.yml`, run 38274688257):
+    - papéis: `platform_admin` 1, `consultor` 5, `org_admin` 8, sem papel legado;
+    - `usuario_modulos`: iso 13, privacy 5;
+    - requisitos: lgpd 72, anpd 49, iso27001:2022 93, iso27701:2025 49; 179 mapeamentos propostos;
+    - contrato `org_ness` `["iso","privacy"]`;
+    - projetos com n.iso: 4. **Nenhum projeto tem o n.privacy habilitado**: habilitar pelo n.360, em Projetos → Produtos.
+
 ### Adicionado
 - n.privacy: "Importar programa" passa a ler também o histórico operacional (fatia 4, sem migration): pedidos de titulares, incidentes e consentimentos que o cliente registrava fora do sistema. A revisão ganha a aba "Histórico". E-mail, CPF e telefone do arquivo não vão à IA: viram um pseudônimo por projeto (`tit-...`), e nenhum nome, CPF, e-mail ou telefone de titular é proposto nem gravado; sem a chave de pseudonimização configurada o arquivo de histórico não é processado. Ao confirmar, cada registro entra com as datas e a situação de origem, o protocolo de origem na descrição e um protocolo novo do sistema; registro já encerrado entra sem prazo; o aberto recebe o prazo legal contado da data de origem e, se já venceu, aparece atrasado (na tela e no painel do encarregado); a rotina de avisos não avisa o atraso de prazo que já nasceu vencido na semana em que o registro foi criado, para a importação não virar uma rajada de avisos, e retoma o aviso semanal na semana seguinte. O consentimento é ligado ao tratamento do RoPA com a mesma finalidade; sem ele, é recusado. Reimportar o mesmo protocolo (ou o mesmo consentimento) nasce como duplicata.
 - n.privacy: "Importar programa" passa a ler também documentos e avaliações (fatia 3, migration 0068). Política, aviso, norma ou procedimento vira um documento proposto (título, tipo e resumo, tirados do começo do arquivo); DPIA e LIA viram avaliações propostas (tratamento, conclusão e riscos). A revisão ganha as abas "Documentos" e "Avaliações". Ao confirmar, o documento é criado como rascunho, nunca publicado, com o texto do arquivo, e o arquivo original fica guardado como evidência ligada a ele; título igual a um documento do projeto é recusado. A DPIA ou a LIA nasce em rascunho ligada ao tratamento do RoPA com a mesma finalidade; sem esse tratamento, ou com DPIA/LIA já existente nele, o item é recusado com o motivo. O que não deu para completar aparece como aviso. Roda no D1 de produção antes do deploy.
