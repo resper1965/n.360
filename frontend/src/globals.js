@@ -284,12 +284,65 @@ function aplicaBloqueio(mensagem) {
         bloqueioTimer = setInterval(tick, 1000);
     }
 
+// ——— Entrada federada (SSO) ————————————————————————————————————————————
+// Mensagens FIXAS por motivo conhecido do callback: o `#sso_erro` vem da URL e,
+// no caso do erro devolvido pelo IdP, de fora — nunca vai para a tela como veio.
+const MOTIVOS_SSO = {
+    'pedido de login expirado ou já usado': 'O pedido de login expirou ou já foi usado. Tente entrar novamente.',
+    'SSO não está ativo para este cliente': 'O SSO não está ativo para a sua empresa. Entre com e-mail e senha.',
+    'resposta do IdP incompleta': 'O provedor de identidade da sua empresa não completou o login. Tente novamente.',
+};
+const MOTIVO_SSO_GENERICO = 'Não foi possível entrar pelo SSO da sua empresa. Tente novamente ou use e-mail e senha.';
+
+function mostraErroLogin(msg) {
+    const err = document.getElementById('login-error');
+    if (!err) return;
+    err.style.display = 'block';
+    err.textContent = msg;
+}
+
+/** Pergunta ao servidor se o domínio do e-mail entra por SSO; se sim, leva o navegador ao provedor. */
+async function iniciarSso(email, quandoSemSso) {
+    if (!email) { mostraErroLogin('Informe o e-mail da sua conta.'); return; }
+    try {
+        const r = await api('POST', '/api/v1/public/sso/iniciar', { email });
+        if (r && r.sso && r.autorizacao) { location.assign(r.autorizacao); return; }
+        mostraErroLogin(quandoSemSso);
+    } catch (e) {
+        mostraErroLogin('Não foi possível consultar o SSO agora. Tente novamente.');
+    }
+}
+
+window.entrarComSso = async function entrarComSso() {
+    document.getElementById('login-error').style.display = 'none';
+    await iniciarSso(document.getElementById('login-email').value,
+        'Seu domínio não tem SSO configurado. Entre com e-mail e senha.');
+};
+
+/** Boot: devolve o token do callback à sessão (mesmo armazenamento do login por senha) ou mostra o erro. */
+window.consumirRetornoSso = function consumirRetornoSso() {
+    const h = location.hash || '';
+    const m = h.match(/^#(sso_token|sso_erro)=(.*)$/);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    let valor = '';
+    try { valor = decodeURIComponent(m[2]); } catch { /* valor malformado: cai no genérico */ }
+    if (m[1] === 'sso_token' && valor) {
+        S.token = valor;
+        localStorage.setItem('niso_token', valor);
+    } else {
+        mostraErroLogin(MOTIVOS_SSO[valor] || MOTIVO_SSO_GENERICO);
+    }
+};
+
 window.doLogin = async function doLogin() {
         const email = document.getElementById('login-email').value;
         const pass = document.getElementById('login-password').value;
         const err = document.getElementById('login-error');
         err.style.display = 'none';
         limpaSinalDeErro();
+        // Sem senha: o e-mail pode ser de uma empresa com SSO. `required` saiu do campo no HTML por isso.
+        if (!pass) { await iniciarSso(email, 'Informe a sua senha.'); return; }
         try {
             const corpo = { email, password: pass };
             if (desafioResolvido) corpo.challengeToken = desafioResolvido;
@@ -1346,6 +1399,8 @@ window.initApp = async function initApp() {
         // segue na query). Fora de domínio antigo não há chamada nenhuma aqui.
         const legado = await destinoLegado();
         if (legado) { irPara(legado, true); return; }
+
+        window.consumirRetornoSso();
 
         // Sprint C: Check for public assessment self-service link
         const assessmentToken = new URLSearchParams(location.search).get('assessment');
