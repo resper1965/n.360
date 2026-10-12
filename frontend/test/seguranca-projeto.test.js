@@ -151,6 +151,33 @@ describe('política de segurança', () => {
     });
 });
 
+describe('projeto fixado no render', () => {
+    it('trocar o projeto ativo depois de renderizar não desvia a gravação', async () => {
+        const f = await abrir({ ...base, [`PUT ${B}/sso`]: { ok: true }, [`PUT ${B}/security-policy`]: { ok: true }, [`POST ${B}/scim-token`]: [{ ok: true, token: 't', base_url: 'u' }, 201] });
+        S.activeProject = { id: 'outro' };
+        el('sso-secret').value = 's';
+        await clica('salvarSsoProjeto');
+        await clica('salvarPoliticaProjeto');
+        await clica('gerarTokenScim');
+        const puts = f.mock.calls.filter(([, o]) => o?.method && o.method !== 'GET').map(([u, o]) => `${o.method} ${u}`);
+        expect(puts).toHaveLength(3);
+        expect(puts.every((x) => x.includes('/projects/p9/'))).toBe(true);
+    });
+
+    it('sem projeto ativo: não cai no primeiro da lista e não chama a API', async () => {
+        S.activeProject = null; S.projects = [{ id: 'p1' }];
+        const f = await abrir();
+        expect(f).not.toHaveBeenCalled();
+        expect(el('c').textContent).toContain('Sem projeto ativo');
+    });
+
+    it('o título mostra o cliente editado', async () => {
+        S.activeProject = { id: 'p9', name: 'Cliente Exemplo' };
+        await abrir();
+        expect(el('h').textContent).toContain('Cliente Exemplo');
+    });
+});
+
 describe('menu e rota', () => {
     it('item no menu, rota no roteador e import no main', () => {
         const doc = new DOMParser().parseFromString(html, 'text/html');

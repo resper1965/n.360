@@ -6,7 +6,10 @@ import { escapeHTML, showToast } from '../ui.js';
 // e o servidor recusa o resto com 403; aqui só se decide o que MOSTRAR. O client_secret é só de escrita: a API nunca o devolve
 // e a tela nunca o repõe no campo. O token SCIM aparece uma vez, logo depois de gerado.
 
-const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
+// Projeto ativo, sem cair em outro: editar o cliente errado é pior que não editar. `alvo` fixa o id no render, para o clique
+// gravar no projeto que a tela mostrou, mesmo que o projeto ativo mude no meio.
+const projetoAtivo = () => S.activeProject;
+let alvo = null;
 const e = (v) => escapeHTML(String(v ?? ''));
 const PAPEIS = [['org_admin', 'Administrador do cliente'], ['org_user', 'Usuário do cliente'], ['client', 'Cliente (leitura)']];
 const val = (id) => document.getElementById(id)?.value ?? '';
@@ -14,16 +17,19 @@ const msg = (id, t) => { const n = document.getElementById(id); if (n) n.textCon
 
 async function renderSegurancaProjeto(c, h, a) {
     h.textContent = 'Segurança do projeto';
+    alvo = null;
     a.innerHTML = '';
     if (!window.ehEquipeNess()) {
         c.innerHTML = '<div class="empty-state fade-in"><h3>Acesso restrito</h3><p>Esta tela é da equipe da consultoria.</p></div>';
         return;
     }
     const proj = projetoAtivo();
+    alvo = proj?.id ?? null;
     if (!proj) {
         c.innerHTML = '<div class="empty-state fade-in"><h3>Sem projeto ativo</h3><p>Selecione um projeto para continuar.</p><button class="btn btn-primary" data-action="openActiveProjectModal" style="margin-top:1rem">Selecionar Projeto</button></div>';
         return;
     }
+    h.textContent = `Segurança do projeto: ${proj.name || proj.id}`;
     c.innerHTML = '<div class="loading"></div>';
     let sso, pol;
     try {
@@ -83,7 +89,8 @@ async function renderSegurancaProjeto(c, h, a) {
 }
 
 window.salvarSsoProjeto = async function () {
-    const proj = projetoAtivo();
+    const proj = { id: alvo };
+    if (!alvo) return;
     msg('sso-erro', '');
     const secret = val('sso-secret');
     if (!secret) { msg('sso-erro', 'Digite o client_secret: a rota o exige a cada gravação.'); return; }
@@ -104,7 +111,8 @@ window.salvarSsoProjeto = async function () {
 };
 
 window.gerarTokenScim = async function () {
-    const proj = projetoAtivo();
+    const proj = { id: alvo };
+    if (!alvo) return;
     msg('scim-erro', '');
     try {
         const r = await api('POST', `/api/v1/projects/${proj.id}/scim-token`);
@@ -140,7 +148,8 @@ window.copiarScim = async function (id) {
 };
 
 window.salvarPoliticaProjeto = async function () {
-    const proj = projetoAtivo();
+    const proj = { id: alvo };
+    if (!alvo) return;
     msg('pol-erro', '');
     const ttl = val('pol-ttl').trim();
     const ips = val('pol-ips').split(/[,\n]/).map((x) => x.trim()).filter(Boolean).join(',');
