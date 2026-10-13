@@ -1,7 +1,10 @@
-# n.iso — Manifesto do Agente
+# n.360 — Manifesto do Agente
 
 Se voce esta lendo isto, voce e o agente responsavel por continuar o
-desenvolvimento do **n.iso** (Agentic GRC System da ness.).
+desenvolvimento do **n.360**, a plataforma de GRC da ness., e dos seus dois
+modulos: **n.iso** (ISO 27001/27701, em `/iso`) e **n.privacy** (LGPD/ANPD, em
+`/privacy`). O repositorio, o Worker e o banco ainda se chamam `niso` por
+historia; nao e o nome do produto.
 
 Este arquivo descreve o que **existe hoje**. Historico de sprint vive no
 `CHANGELOG.md` — nao acrescente narrativa de entrega aqui, ela envelhece e
@@ -24,9 +27,11 @@ Entao:
   commit publicado, injetado no deploy:
 
   ```
-  curl -s https://niso.ness.com.br/health
-  # {"status":"ok","version":"<sha>","deployment_id":"...","deployed_at":"..."}
+  curl -s https://n360.ness.com.br/health
+  # {"status":"ok","version":"<sha>","deployment_id":"...","deployed_at":"...","app_url":"https://n360.ness.com.br"}
   ```
+
+  (`niso.ness.com.br/health` responde o mesmo: `/health` e `/api/*` ficam no dominio antigo.)
 
   Compare o `version` com o SHA que voce espera. `"dev"` significa que a var nao
   foi injetada — deploy feito fora do workflow.
@@ -36,7 +41,7 @@ Entao:
 
   ```
   curl -s -X POST -H "Content-Type: application/json" -d "{}" \
-    https://niso.ness.com.br/api/v1/auth/login
+    https://n360.ness.com.br/api/v1/auth/login
   ```
 
   Codigo atual devolve o envelope completo:
@@ -60,6 +65,21 @@ testes mockam o D1" porque `grep vi.fn()` casa mock de qualquer coisa. Os
 numeros certos eram 44 e 2 de 22. `grep` conveniente nao e evidencia — confira o
 que o padrao realmente casou antes de escrever o numero. **Todo numero neste arquivo
 traz ao lado o comando que o mede**; numero sem comando nao entra.
+
+## O que e o n.360, em uma tela
+
+- **Um Worker, um banco (D1 `niso-db`), um deploy.** O endereco canonico e `https://n360.ness.com.br`
+  (`APP_URL` em `wrangler.jsonc`). `/` e o inicio do n.360 (um cartao por modulo e o grupo "Conta e acessos"),
+  `/iso*` a casca do n.iso e `/privacy*` a do n.privacy. O CAMINHO decide a casca (`frontend/src/produto.js`);
+  o servidor entrega o mesmo `login.html` para todos.
+- **Um cadastro so.** Partes, itens, documentos, RoPA, DPIA, evidencias, pedidos e incidentes sao do nucleo e
+  servem aos dois modulos. O que e so de um modulo fica na faixa dele.
+- **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa faixa (`nucleo`, `iso`, `privacy`).
+  Faixa de modulo exige o modulo no projeto (`projeto_modulos`) **e** na pessoa (`usuario_modulos`, migration
+  0066); senao 403. Rota nova de projeto sem faixa reprova em `test/modulos-produto.test.ts`.
+- **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
+  `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*` e `/proposta*`
+  ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.
 
 ## Stack
 
@@ -88,8 +108,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   proprio statement (a unica excecao e `UPDATE pedidos SET org_id = ?`), sem
   DELETE nem REPLACE; `test/pedidos-prova.test.ts` le o fonte e reprova o que
   fugir disso. Correcao e pedido novo.
-- **URL canonica**: `src/config/url.ts` (`appUrl(env)`, var `APP_URL`; o padrao do codigo e `https://n360.ness.com.br`, e o
-  `wrangler.jsonc` fica com `niso` ate a troca, ver Deploy em duas etapas abaixo). Link de e-mail, base do
+- **URL canonica**: `src/config/url.ts` (`appUrl(env)`, var `APP_URL`; o padrao do codigo e o `wrangler.jsonc` sao
+  `https://n360.ness.com.br`, desde o #340). Link de e-mail, base do
   SCIM e CORS saem dali, nunca do host da requisicao. `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para
   `/iso` e `/privacy` do n.360 (`HOST_DO_MODULO`); `n-iso.ness.com.br` e `niso.ness.workers.dev` tambem, para `/iso`
   (#290). **Ficam no dominio antigo, sem redirecionar** (`fica(caminho)`): `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`,
@@ -99,10 +119,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `src/routes/public.ts`). Telas: o login pergunta `POST /api/v1/public/sso/iniciar` (`entrarComSso`, `frontend/src/globals.js`) e a equipe configura SSO, SCIM e politica em `frontend/src/views/seguranca-projeto.js`. So o redirecionamento final (`/#sso_token=`, `/#sso_erro=`) e absoluto no `appUrl`. **MCP:** o recurso e `RECURSO_MCP`
   (`https://niso.ness.com.br/mcp`) e `hostsPermitidosMcp` aceita `niso` alem do host do `appUrl`. **Volta atras:** `APP_URL`
   de volta para `niso` (o Worker e o frontend deixam de redirecionar: o host do `APP_URL` nunca redireciona, e o frontend le o
-  `app_url` do `/health`). Sem dado nem migration.
-  **Deploy em duas etapas:** (1) a rota `n360.ness.com.br` entra com `APP_URL` ainda em `niso` (nada redireciona para o n.360);
-  conferir `curl -s https://n360.ness.com.br/health` (o SHA e `"app_url":"https://niso.ness.com.br"`); (2) um PR de uma linha
-  troca o `APP_URL` para `https://n360.ness.com.br` (antes, incluir `n360.ness.com.br` nos hostnames do widget do Turnstile).
+  `app_url` do `/health`). Sem dado nem migration; o widget do Turnstile precisa ter os dois hostnames.
 - **Contas**: conta de usuario se **desativa**, nao se apaga (`PUT /api/v1/users/:id/ativo`; `DELETE /api/v1/users/:id` so desativa). Apagar de verdade e `DELETE ...?definitivo=1`, so `platform_admin`. Conta desativada nao entra por senha, SSO, agente MCP nem sessao aberta; chave de API e do projeto, nao da pessoa, e continua valendo ate ser revogada em Chaves de API. Ninguem desativa nem exclui a propria conta (409). Nao reintroduza `DELETE FROM users` fora dessa rota.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
@@ -232,12 +249,13 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   atesta o conteudo), uma linha de trilha por evidencia, idempotente; fonte `evidencia` nos avisos. A cobertura da LGPD (`lacunasDaFonte`) conta
   evidencia `conforming` em dia (cobre) ou `partial` (parcial). `GET /projects/:id/encarregado` (`src/services/encarregado.ts`) e SO consulta:
   pedidos do titular, incidentes, tratamentos sem base/DPIA/LIA, terceiros, documentos, evidencias, LGPD e prazos legais nao cadastrados, com a
-  lista "o que fazer" priorizada; funciona com tudo vazio. Menu: grupo `n.privacy` (marca com o ponto em destaque) com Encarregado, ROPA, DPIA /
-  RIPD, Requisitos, Terceiros e Titular e incidentes. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
+  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy (`login.html`): grupo Privacidade com Encarregado, Titular e pedidos,
+  Incidentes, ROPA, DPIA / RIPD, Terceiros e Requisitos, e grupo Implantacao com Importar programa. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
   abaixo (Frontend, n.360).
-- **n.iso e n.privacy sao PRODUTOS separados sobre o mesmo cadastro (decisao de 09/10/2026, migration 0060).** Um Worker, um
-  banco, um deploy; um dominio (`n360.ness.com.br`, em `routes` do `wrangler.jsonc`; `niso` e `nprivacy` ficam como redirecionamento, ver URL canonica). O cliente pode
-  ter um, o outro ou os dois. **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa FAIXA (`FAIXA_DO_SEGMENTO` e
+- **n.iso e n.privacy sao MODULOS do n.360 sobre o mesmo cadastro (decisao de 09/10/2026, migration 0060; casca n.360 em 11/10).**
+  Um Worker, um banco, um deploy; um dominio (`n360.ness.com.br`, em `routes` do `wrangler.jsonc`; `niso` e `nprivacy` ficam como
+  redirecionamento, ver URL canonica). O cliente pode ter um, o outro ou os dois. (Comentarios antigos no codigo ainda dizem
+  "produtos separados"; e o mesmo modelo.) **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa FAIXA (`FAIXA_DO_SEGMENTO` e
   `SUBROTAS_PRIVACY`): `nucleo` (o cadastro compartilhado: partes, itens, documentos, evidencia, RoPA, DPIA, pedidos, governanca),
   `iso` (controles, SoA, riscos, auditorias, jornada…) ou `privacy` (requisitos por projeto, terceiros, titular, incidentes,
   consentimentos, encarregado, ligacoes/LIA/importacao do RoPA). O `projectAccessMiddleware` e o `requireResourceAccess` (pela
@@ -273,7 +291,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   cada item (`updateHeaderUser`), e o grupo sem item do papel some. Nos modulos o rodape traz "Conta e acessos (n.360)", que leva a
   `/?tela=<primeira tela da conta que o papel ve>`. O boot do n.360 le o `?tela=` uma vez (`telaPedida`): so valores de
   `TELAS_DA_CONTA`, so se o item estiver visivel para o papel, e o parametro sai do endereco (`history.replaceState`); a tela pedida
-  vence o "um modulo so, entra nele". "Seguranca do projeto" fica no grupo Sistema, em todas as cascas.
+  vence o "um modulo so, entra nele". "Seguranca do projeto" (SSO, SCIM e politica; so a equipe) fica em "Conta e acessos",
+  so no n.360 (`NAV_DO_HUB` em `frontend/src/produto.js`).
   E2E em `frontend/e2e/n360.spec.js`; `frontend/e2e/shell.js` entrega `dist/login.html` em `/iso` e `/privacy` (o servidor do
   Playwright nao faz fallback de SPA). Testes de backend que usam rota do
   n.privacy chamam `habilitarPrivacy(...)` de `test/helpers/d1.ts`.
@@ -346,7 +365,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **MCP**: `mcp-server-niso/` expoe o produto a clientes MCP com filtro de
   ferramenta por papel. Ver `mcp-server-niso/README.md`.
 - **Skills do consultor**: `agent-skills/<nome>/` (SKILL.md + references + scripts) e a fonte; o
-  Worker nao le disco, entao `npm run skills:gerar` escreve `src/mcp/skills-gerado.ts` (commitado; o
+  Worker nao le disco (hoje `prontidao-certificacao` e `maturidade-lgpd`: `ls agent-skills`), entao `npm run skills:gerar` escreve `src/mcp/skills-gerado.ts` (commitado; o
   `test/agente-skills.test.ts` falha se ficar velho). O agente as le pelo MCP com `niso_skill`,
   atras do login. Skill nova = pasta nova + gerar + roteiro em `src/mcp/contexto.ts`.
 - **Documentacao do agente**: `docs/agente/` (uso, arquitetura com diagramas, seguranca e o
@@ -400,13 +419,13 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
 
-- **536 `any` em `src/`** (medido em 2026-10-12, fora `*.test.ts`:
+- **535 `any` em `src/`** (medido em 2026-10-12, fora `*.test.ts`:
   `git grep -ahoE ': any\b|as any\b|<any>' -- 'src/*.ts' ':!*.test.ts' | wc -l`).
   `tsc --noEmit` limpo diz pouco. Tipar o que voce tocar e melhoria barata; nao
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 242 arquivos de teste do backend mocka o D1 inteiro** (2026-10-12;
+- **Nenhum dos 245 arquivos de teste do backend mocka o D1 inteiro** (2026-10-12;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -416,13 +435,13 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~18,1 mil linhas de JS (2026-10-12)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 88 arquivos de teste em jsdom
+- **Frontend com pouco teste por linha.** ~18,5 mil linhas de JS (2026-10-12)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 92 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. A maior parte das telas ainda nao
   tem teste proprio.
-- **6 leituras de corpo cruas em 4 arquivos** (2026-10-06: `git grep -n "c\.req\.json" -- 'src/routes/*.ts'`
-  da 7 linhas; `policies.ts` passa o corpo por `safeParse` e nao conta): `control-adequacao`,
+- **6 leituras de corpo cruas em 4 arquivos** (2026-10-12: `git grep -n "c\.req\.json" -- 'src/routes/*.ts'`
+  da 7 linhas em 5 arquivos; a de `policies.ts` passa o corpo por `safeParse` e nao conta): `control-adequacao`,
   `controls` (le so para recusar `maturity`, depois `validateBody`), `phase-questionnaire` e
   `scim` (3, formato SCIM). Elas validam campo a campo no handler; o `bodyGuard` global cobre
   teto de tamanho e poluicao de prototipo. O T3 (#259) fechou as demais.
@@ -472,17 +491,20 @@ errar um digito destruia a sessao.
   a landing antiga seguiu a cópia, não o app. Hoje: `--bg #0b1326`,
   `--surface #162244`, `--accent #00ade8`, `--text #f1f5f9`.
 - Tipografia: Inter no corpo; Montserrat 500 na marca, 600 em títulos.
-- Produto: `n.iso`, com o ponto em accent, como a marca `ness.`.
+- Produtos: `n.360` (a plataforma), `n.iso` e `n.privacy` (os modulos), com o ponto em accent, como a marca `ness.`.
 - Proibido: italicos, emojis/icones, accent como background de area.
-- Inputs: border-radius 10px (`.form-input`).
+- Geometria: superficies quadradas (`--radius: 0`: card, modal, badge, chip); controles com 10px (`.btn`,
+  `.form-input`, `.form-select`, menus). Inline so `0` ou `10px` (`frontend/test/catracas-visuais.test.js`).
 - Login: tela dividida — marca à esquerda, cartão à direita; empilha abaixo
   de 900px.
 
 ## Documentos que valem a leitura
 
 - `docs/README.md` — indice da documentacao; `docs/arquivo/` guarda o que ja foi executado
-- `docs/plano-2026-10-fechamento.md` — estado de cada item do plano de outubro (quase todo entregue)
-- `docs/superpowers/plans/2026-10-05-plano-mestre-execucao.md` — o plano mestre e o estado de hoje
+- `docs/plano-2026-10-fechamento.md` — foto de 08/10 do plano de outubro, com as pendencias do dono (H2, F2, F4, F5, T5)
+- `docs/superpowers/specs/` — o desenho vigente de cada funcionalidade grande (n.360, modulos por pessoa, importacao,
+  integracao, nucleo do n.privacy); plano executado vai para `docs/arquivo/planos/`
+- `docs/design/diagnostico-2026-10-12/` — diagnostico de design do n.360, do n.iso e do n.privacy
 - `CONTRIBUTING.md` — verificacao antes do PR, regras de schema e de teste
 - `SECURITY.md` — invariantes de seguranca que nao podem regredir
 - `backups/README.md` — runbook de backup e restauracao
@@ -491,15 +513,12 @@ errar um digito destruia a sessao.
 - `test/e2e/README.md` — o E2E legado de MFA (o E2E principal e `frontend/e2e/`)
 - `CONSTITUTION.md`, `design.md` — principios e identidade visual
 
-<!-- SPECKIT START -->
-## Contexto Spec Kit
-Este projeto utiliza o GitHub Spec Kit para desenvolvimento orientado a
-especificacoes.
-- Constituicao: CONSTITUTION.md (a unica; `.specify/memory/constitution.md` foi removida)
-- Design: design.md
-- Especificacoes e planos: `docs/superpowers/specs/` e `docs/superpowers/plans/`; os ja
-  executados e as specs iniciais do Spec Kit estao em `docs/arquivo/`
-<!-- SPECKIT END -->
+## Specs e planos
+
+Mudanca de arquitetura ou de comportamento comeca por spec (`docs/superpowers/specs/`, pela skill
+`brainstorming`) e plano (`docs/superpowers/plans/`, pela `writing-plans`); plano executado vai para
+`docs/arquivo/planos/`. O Spec Kit do inicio (`.specify/`, `.gemini/commands/`) saiu em 2026-10-12: nada o
+usava. Constituicao: `CONSTITUTION.md`. Design: `design.md`.
 
 ## Skills instaladas
 
