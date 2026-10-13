@@ -51,6 +51,19 @@ describe('lista de usuários', () => {
   });
 });
 
+describe('modal de usuário: e-mail', () => {
+  it('na edição, só o platform_admin troca o e-mail; os demais papéis veem o campo travado', async () => {
+    apiMock.mockResolvedValue(USERS);
+    dom();
+    await window.openUserModal('u3');
+    expect(document.getElementById('user-m-email').readOnly).toBe(false);
+    S.user = { role: 'consultoria_admin', email: 'adm@exemplo.test' };
+    dom();
+    await window.openUserModal('u3');
+    expect(document.getElementById('user-m-email').readOnly).toBe(true);
+  });
+});
+
 describe('modal de usuário: módulos', () => {
   it('edição: caixas até o teto; fora do teto desabilitada; marcadas as da conta', async () => {
     apiMock.mockResolvedValue(USERS);
