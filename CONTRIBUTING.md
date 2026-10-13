@@ -41,11 +41,18 @@ Catracas que reprovam o PR mesmo sem você ter tocado no assunto delas:
 | `frontend/test/catracas-visuais.test.js` | Cor em hex nas telas, `border-radius` inline fora de `0`/`10px` (o 10px é legado tolerado; o sistema é quadrado, ver `design.md`), `confirm`/`alert`/`prompt` nativos, estado vazio fora de `renderEmptyState` |
 | `test/sem-dado-de-cliente.test.ts` | Nome, e-mail ou identificador de cliente real |
 | `test/workflows-actions-sha.test.ts` | Action do GitHub sem SHA fixo |
+| `test/workflows-economia.test.ts` | `push` de volta no `ci.yml`, `schedule` no `uptime.yml`, suíte no deploy automático |
 
 O CI (`.github/workflows/ci.yml`) roda mais do que isso: a suíte completa do worker e do
 frontend **com cobertura** (a catraca de cobertura reprova se cair), o E2E em Chromium
 (`frontend/e2e/`) e `npm audit --audit-level=high` nos três pacotes (informativo). O ruleset da
 `main` exige os checks `test` e `e2e` verdes, com a branch em dia com a base.
+
+O CI roda **só no PR**, e é a única vez que a suíte roda antes da produção: o push na `main` não
+dispara CI, e o Deploy automático faz só `tsc`, build e a checagem de migration (a suíte volta no
+deploy manual). Com o repositório privado cada minuto de Actions é cobrado; não acrescente gatilho
+nem `paths`/`paths-ignore` ao `ci.yml` (check obrigatório que não reporta trava o merge). Detalhe e
+orçamento em [`docs/runbook-publicacao.md`](docs/runbook-publicacao.md).
 
 ## Branch e commit
 
