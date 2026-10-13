@@ -247,7 +247,7 @@ Nenhum passo desta tarefa roda sem "sim" explícito do dono no turno. Se o class
 - Modify: `AGENTS.md` (contagens com o comando ao lado; remover instrução viva sobre staging)
 - Modify: `CHANGELOG.md` (entrada da versão; ler a convenção no topo do arquivo antes de escolher o número; o último registro é `v11.0.0`)
 - Modify: `docs/plano-2026-10-fechamento.md` (atualizar as linhas de estado que mudaram)
-- Modify: `docs/superpowers/plans/2026-10-05-plano-mestre-execucao.md` (acrescentar apontamento para este plano)
+- Modify: `docs/arquivo/planos/2026-10-05-plano-mestre-execucao.md` (acrescentar apontamento para este plano)
 
 - [ ] **Step 1: Contagens com o comando**
 
@@ -271,7 +271,7 @@ Branch `docs/fechamento-2026-10-08`, a partir de `origin/main` depois dos merges
 | Merges #294, #295, PR de staging, PR de governança, PR de dependências | "sim" para cada merge | Tarefa 6 |
 | Policy_version órfã em produção | Confirmar se apaga (remoção em produção exige "sim") | notas da sessão anterior |
 | Alertas Dependabot segurados | Aceitar o grupo segurado e o motivo | Tarefa 5 |
-| TypeScript 7 (#277) | Migrar ou segurar | `docs/superpowers/plans/2026-10-05-plano-mestre-execucao.md` |
+| TypeScript 7 (#277) | Migrar ou segurar | `docs/arquivo/planos/2026-10-05-plano-mestre-execucao.md` |
 | Governança: papéis que escrevem | Confirmar a tabela da Tarefa 4 para rotas sem regra clara | Tarefa 4 |
 | Repositório público ou privado | Decidir. Privado exige Advanced Security para o CodeQL | `AGENTS.md`, seção de portões |
 | Cobrança do Actions | Conferir que o limite de gasto não bloqueia `test`, `e2e` e `deploy` | plano mestre |

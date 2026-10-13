@@ -1,4 +1,6 @@
-# Documentação do n.iso
+# Documentação do n.360
+
+O n.360 é a plataforma; n.iso (`/iso`) e n.privacy (`/privacy`) são os módulos, sobre um cadastro só.
 
 Índice do que existe em `docs/`, agrupado por **quando você vai precisar**. Cada
 linha diz o que o documento responde — não o que ele contém.
@@ -25,7 +27,7 @@ entrada é o [`README.md`](../README.md) da raiz.
 
 | Documento | Responde |
 |---|---|
-| [`sso-scim.md`](sso-scim.md) | Como funciona o login federado (OIDC) e o provisionamento SCIM 2.0 — inclusive a pergunta que toda revisão de fornecedor faz: quando alguém é desligado no IdP do cliente, o acesso aqui cai sozinho? |
+| [`sso-scim.md`](sso-scim.md) | Como funciona o login federado (OIDC), a tela Segurança do projeto e o provisionamento SCIM 2.0 — inclusive a pergunta que toda revisão de fornecedor faz: quando alguém é desligado no IdP do cliente, o acesso aqui cai sozinho? |
 | [`portabilidade.md`](portabilidade.md) | O caminho de saída dos dados de um tenant (LGPD art. 18, V), e por que a assinatura do export é assimétrica. |
 
 ## Vou mexer no agente consultor (MCP remoto)
@@ -47,16 +49,15 @@ entrada é o [`README.md`](../README.md) da raiz.
 
 | Documento | Responde |
 |---|---|
-| [`plano-2026-10-fechamento.md`](plano-2026-10-fechamento.md) | O plano de fechamento de outubro/2026 com o estado real de cada item (entregue, com o PR, ou o que falta e de quem é). |
-| [`superpowers/plans/2026-10-05-plano-mestre-execucao.md`](superpowers/plans/2026-10-05-plano-mestre-execucao.md) | O plano mestre de execução e a seção "Estado em 2026-10-06". |
-| [`superpowers/plans/2026-10-06-arrumacao-final.md`](superpowers/plans/2026-10-06-arrumacao-final.md) | A arrumação final (URL canônica, dados de cliente, documentação, versão), com os inventários em [`superpowers/arrumacao/`](superpowers/arrumacao/). |
-| [`superpowers/specs/`](superpowers/specs/) | O desenho de cada funcionalidade grande (landing, MCP remoto, paridade do agente, propostas, stakeholders). |
-| [`arquivo/`](arquivo/README.md) | O que já foi executado ou ficou superado: planos entregues, o plano enterprise-grade, a avaliação OWASP de 2026-08, triagens e specs antigas. Registro, não instrução. |
+| [`plano-2026-10-fechamento.md`](plano-2026-10-fechamento.md) | Foto de 08/10/2026 do plano de outubro. Não está todo entregue: seguem abertos H2 (MFA do `platform_admin`), F2 (login OAuth em Cursor, Codex e Antigravity), F4, F5 e T5, do dono ou dependentes de decisão. |
+| [`superpowers/specs/`](superpowers/specs/) | O desenho vigente de cada funcionalidade grande. Do n.360 e do n.privacy: [`n.360 como casca`](superpowers/specs/2026-10-11-n360-casca-design.md), [`módulos por pessoa`](superpowers/specs/2026-10-12-n360-modulos-por-pessoa-design.md), [`núcleo comum e n.privacy`](superpowers/specs/2026-10-06-nucleo-comum-nprivacy-design.md), [`integração dos módulos`](superpowers/specs/2026-10-10-integracao-produtos-design.md), [`importação do programa de privacidade`](superpowers/specs/2026-10-11-importacao-privacy-design.md). Do n.iso e da plataforma: landing, MCP remoto, paridade do agente, propostas, stakeholders, avisos de prazo, jornada. |
+| [`arquivo/`](arquivo/README.md) | O que já foi executado ou ficou superado: os planos de outubro/2026 (n.privacy fatias 1 a 8, n.360, módulos por pessoa, importação, finalização), a arrumação final de 06/10, o plano enterprise-grade, a avaliação OWASP de 2026-08, triagens e specs antigas. Registro, não instrução. |
 
 ## Design
 
 | Documento | Responde |
 |---|---|
+| [`design/diagnostico-2026-10-12/`](design/diagnostico-2026-10-12/README.md) | Diagnóstico de design de 12/10/2026 (método Impeccable): [`n.360`](design/diagnostico-2026-10-12/n360-portal.md), [`n.iso`](design/diagnostico-2026-10-12/n-iso.md), [`n.privacy`](design/diagnostico-2026-10-12/n-privacy.md) e [`detector e acessibilidade`](design/diagnostico-2026-10-12/detector-e-acessibilidade.md). As ondas 1 a 3 (#358 a #360) já corrigiram parte: confira o código antes de seguir uma linha. |
 | [`design/handoff-ness-v1/`](design/handoff-ness-v1/) | O pacote de handoff visual da ness.: protótipos `.dc.html` navegáveis e tokens do design system (o patch de implementação, já aplicado, foi para `arquivo/design/`). Metade das decisões só aparece em interação — abra os protótipos no navegador antes de mexer na UI. |
 | [`../design.md`](../design.md) | Os princípios do design system aplicados no produto; os valores vivem em `frontend/src/style.css` (`:root`). |
 

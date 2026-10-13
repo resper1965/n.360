@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Steps use checkbox (`- [ ]`).
 
-**Spec:** `docs/superpowers/specs/2026-10-06-nucleo-comum-nprivacy-design.md`, seção 4.6 ("Revisão: `revisar_ate` vencido sinaliza o documento e o dono"; hierarquia política → norma → procedimento). Decomposição: `docs/superpowers/plans/2026-10-09-nprivacy-fatia-3-documentos.md`. Anterior: 3.3 (`…-3-3-ciencia-por-versao.md`).
+**Spec:** `docs/superpowers/specs/2026-10-06-nucleo-comum-nprivacy-design.md`, seção 4.6 ("Revisão: `revisar_ate` vencido sinaliza o documento e o dono"; hierarquia política → norma → procedimento). Decomposição: `docs/arquivo/planos/2026-10-09-nprivacy-fatia-3-documentos.md`. Anterior: 3.3 (`…-3-3-ciencia-por-versao.md`).
 
 **Goal:** o consultor trabalha com documentos numa tela própria (árvore, dono, revisão, versões, rascunho, ciências), a hierarquia e a revisão passam a ser regras do servidor, a revisão vencida avisa no sino e a **aprovação CISO/CEO de documento** existe, apontando para a versão.
 

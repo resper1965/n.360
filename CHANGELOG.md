@@ -13,7 +13,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 ## [Não publicado]
 
 ### Operação
-- 2026-10-12: entrega do plano `docs/superpowers/plans/2026-10-12-finalizacao.md`. Ordem das publicações: #343, #353, #345, #310, #347, #344, #346, #348, #349 (com #350 e #351) e #340.
+- 2026-10-12: entrega do plano `docs/arquivo/planos/2026-10-12-finalizacao.md`. Ordem das publicações: #343, #353, #345, #310, #347, #344, #346, #348, #349 (com #350 e #351) e #340.
   - Migrations 0067 e 0068 aplicadas pelo `db-migrate.yml` (run 38273038967).
   - `n360.ness.com.br` passou a ser o endereço principal (`APP_URL`). `niso` e `nprivacy` respondem 308 para `/iso` e `/privacy`; `/health` e `/api/*` respondem no lugar.
   - Conferência de dados (`conferencia-dados.yml`, run 38274688257):
@@ -22,6 +22,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
     - requisitos: lgpd 72, anpd 49, iso27001:2022 93, iso27701:2025 49; 179 mapeamentos propostos;
     - contrato `org_ness` `["iso","privacy"]`;
     - projetos com n.iso: 4. **Nenhum projeto tem o n.privacy habilitado**: habilitar pelo n.360, em Projetos → Produtos.
+
+### Documentação
+- Higienização para o n.360: README reescrito (a plataforma, os dois módulos sobre um cadastro, papéis e regra de acesso, mapa dos módulos, IA com aprovação humana, como rodar, testar e publicar); `AGENTS.md` com a arquitetura do n.360 no topo e os números remedidos (rotas 50, services 40, tabelas 86, última migration 0069, `any` 535, testes 245/92/6); `CONTRIBUTING.md` com as catracas e o número da migration nova; `SECURITY.md` com os invariantes de outubro (módulo do projeto e da pessoa, conta desativada, SSO sem SSRF, rascunho de IA sem dado do titular, pseudonimização da importação); `docs/sso-scim.md` com as telas de login e de Segurança do projeto; `docs/agente/` com o roteiro 8 (`maturidade-lgpd`) e a lista completa do `FORA_DO_AGENTE`; `design.md` com a regra de geometria (o sistema é quadrado; os 10px de `.btn`/`.form-input` em `style.css` são sobrepostos pelo bloco do fim do arquivo; o 10px visível vem só do inline das telas e de cinco classes fora da sobreposição).
+- Arquivos movidos: os 33 planos de `docs/superpowers/plans/` foram para `docs/arquivo/planos/` e os inventários de `docs/superpowers/arrumacao/` para `docs/arquivo/arrumacao/` (entregues; caminhos citados corrigidos). Removidos por não terem referência: `seedPhases_current.txt`, `seed_27701.sql`, `seed_blueprint.sql`, `vitest.basic.config.ts`, `.specify/` e `.gemini/commands/` (Spec Kit sem uso).
 
 ### Adicionado
 - Ligar o n.privacy num projeto traz o que o n.iso já tem (sem migration): `PUT /projects/:id/modulos/privacy`, quando o módulo passa de desligado a ligado, roda as mesmas pontes repetíveis dos botões manuais (importar partes, conciliar responsáveis, importar políticas), com a trilha de cada uma no projeto. Cada ponte falha sozinha: o módulo fica ligado e a resposta traz `avisos`; a resposta ganha `importados` (`partes`, `documentos`). Ligar o n.iso não roda nada. `importarDocumentos` passa a ligar a evidência do controle de política ao documento (`evidence.documento_id`, só a que ainda não tem documento), também pelo botão manual. A tela Produtos diz quantas pessoas e organizações e quantos documentos vieram e mostra o aviso.

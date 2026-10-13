@@ -13,4 +13,8 @@ Ondas de correção:
 - **Onda 2:** P1 do n.iso e o estado vazio único.
 - **Onda 3:** P2.
 
+Geometria: o sistema é quadrado. Onde uma linha abaixo cita raio de 10px em botão ou campo, a regra vigente
+está em [`design.md`](../../../design.md): os 10px das classes em `style.css` são sobrepostos pelo bloco do fim do
+arquivo, e o 10px que ainda aparece vem do inline das telas e de cinco classes fora da sobreposição.
+
 Cada arquivo traz a tabela por tela, com problema, evidência, correção e severidade. Leia o estado atual no código antes de seguir uma linha: as linhas da Onda 1 já foram corrigidas.

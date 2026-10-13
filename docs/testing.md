@@ -5,13 +5,13 @@ caiu, em que linha, e quanto do código está coberto.
 
 ## Suites
 
-Contagens de 2026-10-06, com o comando ao lado:
+Contagens de 2026-10-12, com o comando ao lado:
 
 | Suite | Runtime | Config | Arquivos |
 |---|---|---|---|
-| Worker (backend) | runtime real do Cloudflare Workers (`@cloudflare/vitest-pool-workers`) | `vitest.config.mts` | 153 (`ls test/*.test.ts \| wc -l`) |
-| Frontend (unit) | jsdom (DOM simulado) | `frontend/vitest.config.js` | 46 (`ls frontend/test/*.test.js \| wc -l`) |
-| Frontend (E2E) | Chromium real (Playwright), API mockada | `frontend/playwright.config.js` | 5 (`ls frontend/e2e/*.spec.js \| wc -l`) |
+| Worker (backend) | runtime real do Cloudflare Workers (`@cloudflare/vitest-pool-workers`) | `vitest.config.mts` | 245 (`ls test/*.test.ts \| wc -l`) |
+| Frontend (unit) | jsdom (DOM simulado) | `frontend/vitest.config.js` | 92 (`ls frontend/test/*.test.js \| wc -l`) |
+| Frontend (E2E) | Chromium real (Playwright), API mockada | `frontend/playwright.config.js` | 6 (`ls frontend/e2e/*.spec.js \| wc -l`) |
 | E2E legado de MFA | Python + navegador, fora do CI | `test/e2e/` | 1 (`mfa.py`) |
 | MCP server | build (tsc) | `mcp-server-niso/` | — |
 

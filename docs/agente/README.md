@@ -20,7 +20,8 @@ Sem chave de API, sem instalar nada, sem compilar nada.
 O endereço oficial é `https://niso.ness.com.br/mcp`. Ele não funciona em outro
 domínio, e continua o mesmo com o n.360 como entrada da plataforma: `niso.ness.com.br`
 segue servindo `/mcp` e `/oauth`. O agente trabalha com os módulos do projeto (n.iso,
-n.privacy); rota de módulo que o projeto não tem responde 403. Os rascunhos de IA do n.privacy
+n.privacy) que o consultor que concedeu o acesso também tem (`modulosDaPessoa`, `src/modulos.ts`); rota de
+módulo fora disso responde 403. A importação de programa também é só da tela, da equipe. Os rascunhos de IA do n.privacy
 (`ropa/:id/sugestao`, `titular-pedidos/:id/rascunho`, `incidentes/:id/rascunho-comunicacao`) são da tela, para a
 equipe e o administrador do cliente: o agente MCP recebe 403 neles (`FORA_DO_AGENTE`, "use a interface").
 
@@ -80,8 +81,9 @@ roteiros. Depois ele escolhe o roteiro.
 | **5. Inventário** (n.privacy) | Lê o RoPA e o ponto de partida, propõe base legal, ligações e LIA, espera a sua aprovação. | Sim, depois do seu ok |
 | **6. Pedido do titular ou incidente** (n.privacy) | Lê os prazos e rascunha a resposta ou a comunicação, espera a sua aprovação. | Sim, depois do seu ok |
 | **7. Cobertura LGPD** (n.privacy) | Lê as lacunas de requisitos e propõe o documento ou a evidência que fecha cada uma, espera a sua aprovação. | Sim, depois do seu ok |
+| **8. Maturidade LGPD** (n.privacy) | Tabela de achados com fonte e próxima ação sobre RoPA, terceiros, titular, incidentes, encarregado e lacunas. Usa a skill `maturidade-lgpd`. Não é parecer jurídico. | **Não**: só lê |
 
-A skill do roteiro 4 chega pelo próprio MCP (`niso_skill`), com referências e um
+As skills dos roteiros 4 e 8 chegam pelo próprio MCP (`niso_skill`); a do 4 traz referências e um
 validador de achados. Não há nada para instalar.
 
 ### O que ele lê
@@ -159,6 +161,7 @@ auditoria.
    feito e espere meu "sim" antes de enviar com `confirmado_pelo_usuario: true`.
 6. Para ler qualquer área use `niso_ler`; o mapa está em `niso_contexto`.
 7. Pré-avaliação de prontidão: `niso_skill nome=prontidao-certificacao`.
+8. Maturidade LGPD (n.privacy): `niso_skill nome=maturidade-lgpd`.
 
 ## Arquivos
 - `rascunhos/` — minutas antes de irem ao n.iso.

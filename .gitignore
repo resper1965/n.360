@@ -197,3 +197,8 @@ playwright-report/
 .github/hooks/
 .github/skills/
 .claude/settings.local.json
+
+# Locais de ferramenta, nunca versionados
+debug.log
+.impeccable/
+.superpowers/

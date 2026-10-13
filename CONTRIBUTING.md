@@ -1,15 +1,15 @@
 # Como contribuir
 
-Este repositório é o produto n.iso em produção, processando dados de conformidade
-e dados pessoais de clientes reais. As regras abaixo existem por causa de
+Este repositório é o n.360 em produção (a plataforma e os módulos n.iso e n.privacy),
+processando dados de conformidade e dados pessoais de clientes reais. As regras abaixo existem por causa de
 defeitos que já aconteceram aqui — não por formalidade.
 
 ## Ambiente
 
 ```bash
 npm ci
-cd frontend && npm ci && cd ..
-npm run dev            # worker local em http://localhost:8787
+npm ci --prefix frontend
+npm run dev            # worker local em http://localhost:8787 (/login, /iso, /privacy)
 ```
 
 O banco local é um D1 em `.wrangler/`. Para criá-lo do zero:
@@ -25,8 +25,22 @@ npx wrangler d1 migrations apply niso-db --local
 npx tsc --noEmit                                  # sem erro
 npx vitest run <arquivos de teste que você tocou> # a suíte completa é do CI
 cd frontend && npx vitest run <arquivos> && npm run build   # se tocou a UI
+cd frontend && npm run test:e2e                   # se tocou casca, menu ou navegação (Chromium sobre o build)
 cd mcp-server-niso && npm run build               # se tocou o servidor MCP
+npm run skills:gerar                              # se tocou agent-skills/ (commite src/mcp/skills-gerado.ts)
+npm run openapi                                   # se tocou schema Zod de rota (commite docs/openapi.json)
 ```
+
+Catracas que reprovam o PR mesmo sem você ter tocado no assunto delas:
+
+| Teste | Reprova |
+|---|---|
+| `test/any-catraca.test.ts` | `any` em `src/` acima do `TETO`; e também abaixo dele: quem tipou baixa o `TETO` no mesmo PR |
+| `test/colunas-catraca.test.ts` | Coluna escrita por INSERT/UPDATE que não existe no schema aplicado |
+| `test/modulos-produto.test.ts` | Rota de projeto sem faixa (`nucleo`, `iso` ou `privacy`) em `src/modulos.ts` |
+| `frontend/test/catracas-visuais.test.js` | Cor em hex nas telas, `border-radius` inline fora de `0`/`10px` (o 10px é legado tolerado; o sistema é quadrado, ver `design.md`), `confirm`/`alert`/`prompt` nativos, estado vazio fora de `renderEmptyState` |
+| `test/sem-dado-de-cliente.test.ts` | Nome, e-mail ou identificador de cliente real |
+| `test/workflows-actions-sha.test.ts` | Action do GitHub sem SHA fixo |
 
 O CI (`.github/workflows/ci.yml`) roda mais do que isso: a suíte completa do worker e do
 frontend **com cobertura** (a catraca de cobertura reprova se cair), o E2E em Chromium
@@ -62,6 +76,12 @@ consultar tabela que não existia em produção.
    banco novo, nunca no seu, que já tem a tabela.
 4. O cabeçalho da migration diz o que verificar antes de aplicar em produção.
    Migration que reconstrói tabela com PII exige `PRAGMA table_info` antes.
+5. Número da migration nova: o seguinte ao da última (`ls migrations/*.sql | tail -1`), com 4
+   dígitos. Antes de abrir o PR, confira se outro PR aberto não pegou o mesmo número. Leia
+   [`migrations/README.md`](migrations/README.md): 0011 é neutralizada e 0031–0033 não existem.
+6. Migration não sai do PR para a produção sozinha: o deploy recusa com migration pendente.
+   O caminho (aplicar antes pelo terminal, ou mergear e rodar *Apply DB migrations*) está no
+   [`README.md`](README.md#publicar).
 
 ## Testes
 
@@ -73,7 +93,8 @@ nenhum dos defeitos reais. Hoje nenhum arquivo de teste mocka o D1 inteiro (ver 
 - Caminho novo de banco → teste de integração com D1 real (miniflare), no estilo
   de `test/schema-contract.test.ts`.
 - Autenticação, autorização, isolamento de tenant → teste que confirma o **403**,
-  não só o 200 do caminho feliz.
+  não só o 200 do caminho feliz. Rota do n.privacy: o projeto do teste precisa do módulo
+  (`habilitarPrivacy(...)` de `test/helpers/d1.ts`), e o 403 sem o módulo também se testa.
 - Lógica não trivial (parser, cálculo, guarda de segurança) deixa uma verificação
   executável para trás.
 

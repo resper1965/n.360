@@ -1,4 +1,4 @@
-# Constituição do n.iso
+# Constituição do n.360
 
 A única constituição do projeto. A cópia-modelo do Spec Kit em `.specify/memory/` foi
 removida em 2026-10-06: tinha só os marcadores do template e competia com esta.
@@ -16,8 +16,9 @@ número em documento leva ao lado o comando que o mede. Regra completa no `AGENT
 Hono no Cloudflare Workers, D1, KV, R2 e Workers AI. Frontend SPA em JavaScript sem framework,
 empacotado pelo Vite. Sem framework é decisão, não dívida.
 
-### III. Foco em ISO 27001:2022 e ISO 27701
-Toda funcionalidade, política, avaliação e controle segue as normas. A IA produz rascunho; quem
+### III. Foco nas normas e na lei
+O n.iso segue a ISO 27001:2022 e a ISO 27701; o n.privacy, a LGPD e as resoluções da ANPD. Toda
+funcionalidade, política, avaliação e controle segue a referência do seu módulo. A IA produz rascunho; quem
 aprova é uma pessoa, e cada aprovação deixa assinatura e trilha.
 
 ### IV. Segurança por padrão
@@ -30,7 +31,8 @@ Teste de caminho de banco roda contra o D1 real do pool `workerd`, não contra m
 schema entra em dois lugares: `schema.sql` e uma migration numerada.
 
 ### VI. Identidade da ness.
-PT-BR em todo texto visível. Marca `ness.` (minúsculo, com ponto) e produto `n.iso`. Um tema
+PT-BR em todo texto visível. Marca `ness.` (minúsculo, com ponto), plataforma `n.360` e módulos
+`n.iso` e `n.privacy`. Um tema
 escuro só, sem itálico, sem emoji. Tokens visuais com fonte única em `frontend/src/style.css`
 (`:root`); ver [`design.md`](design.md).
 

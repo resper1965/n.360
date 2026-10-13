@@ -14,7 +14,7 @@
 
 ## Restrições globais
 
-As mesmas do plano das fatias 1–2 (`docs/superpowers/plans/2026-10-02-sistema-de-propostas.md`): worktree de `origin/main`; rodapé `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; schema em dois lugares (próxima migration: **0038**); backup + `migrations apply` antes do merge; OpenAPI + `npm run openapi`; rotas comerciais em `FORA_DO_AGENTE`; `escapeHtml` em todo texto que vira HTML; sem handler/`<script>` inline; TDD com mutação; **cada implementador roda a suíte inteira do backend (`npm test`) antes de entregar** — na fatia 2 o teste genérico de isolamento quebrou porque só os arquivos tocados foram rodados. Tabela nova com `CHECK` de enum entra em `VALOR_FIXO` de `test/contrato-isolamento-topo.test.ts`.
+As mesmas do plano das fatias 1–2 (`docs/arquivo/planos/2026-10-02-sistema-de-propostas.md`): worktree de `origin/main`; rodapé `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; schema em dois lugares (próxima migration: **0038**); backup + `migrations apply` antes do merge; OpenAPI + `npm run openapi`; rotas comerciais em `FORA_DO_AGENTE`; `escapeHtml` em todo texto que vira HTML; sem handler/`<script>` inline; TDD com mutação; **cada implementador roda a suíte inteira do backend (`npm test`) antes de entregar** — na fatia 2 o teste genérico de isolamento quebrou porque só os arquivos tocados foram rodados. Tabela nova com `CHECK` de enum entra em `VALOR_FIXO` de `test/contrato-isolamento-topo.test.ts`.
 
 ## Decisões (rulings) deste plano
 

@@ -68,7 +68,7 @@ repositório e precisam ser confirmados por ele.
 |----|--------|-----------|
 | H1 | feito | apagado em 01/10/2026 (seção H1) |
 | H2 | aberto, do dono | MFA da conta `platform_admin`: confirmar no login |
-| H3, H4 | abertos, do dono | checkout principal e stashes antigos (`docs/superpowers/arrumacao/inventario-github.md`, seções 4 e 5) |
+| H3, H4 | abertos, do dono | checkout principal e stashes antigos (`docs/arquivo/arrumacao/inventario-github.md`, seções 4 e 5) |
 | H5 | feito | #228 e a reescrita do `AGENTS.md` na arrumação final (números com o comando ao lado) |
 | C1 | feito | #229 |
 | C2, C3 | descartados | premissa errada, com teste (#230) |
