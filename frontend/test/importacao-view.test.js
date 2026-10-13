@@ -234,7 +234,7 @@ describe('menu e rota', () => {
         const nav = doc.getElementById('nav-importacao');
         expect(nav.textContent.trim()).toBe('Importar programa');
         expect(nav.getAttribute('data-args')).toBe('["importacao"]');
-        expect(nav.closest('#group-privacy')).not.toBeNull();
+        expect(nav.closest('#group-implantacao')).not.toBeNull();
         expect(rota).toContain("S.view === 'importacao'");
         expect(main).toContain("./views/importacao.js");
     });

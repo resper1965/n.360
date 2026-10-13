@@ -967,6 +967,11 @@ window.updateHeaderUser = function updateHeaderUser() {
             }
         }
 
+        // Implantação só tem Importar programa (equipe ness.): sem ele o grupo some com o rótulo, cliente inclusive.
+        const semItem = window.ehEquipeNess() ? '' : '1';
+        [document.getElementById('group-implantacao'), document.querySelector(`.sidebar-label[data-args='["group-implantacao"]']`)]
+            .forEach(g => { if (g) g.dataset.semItem = semItem; });
+
         // Comercial não entrega adequação: o servidor recusa projeto, controle e
         // evidência a ele (não é staff em requireProjectAccess). O menu mostra só
         // o que ele alcança, em vez de telas que abririam vazias ou com erro.
@@ -975,7 +980,7 @@ window.updateHeaderUser = function updateHeaderUser() {
             document.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach(el => {
                 el.style.display = doComercial.has(el.id) ? '' : 'none';
             });
-            ['group-impl', 'group-ops', 'group-privacy', 'group-intel'].forEach(id => {
+            ['group-impl', 'group-ops', 'group-privacy', 'group-implantacao', 'group-intel'].forEach(id => {
                 const g = document.getElementById(id);
                 if (g) g.style.display = 'none';
                 const rotulo = document.querySelector(`.sidebar-label[data-args='["${id}"]']`);
