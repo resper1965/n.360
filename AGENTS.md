@@ -258,7 +258,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   O gatilho `projeto_modulos_do_contrato` (0060) da ao projeto novo o que a organizacao contratou (`modulos_contratados`, padrao
   `["iso"]`); `POST /projects` aceita `modulos` dentro do contrato e projeto sem `iso` nasce sem a trilha de fases. Os projetos que
   ja existiam ficaram so com `iso`: o n.privacy e habilitado por projeto (`PUT /projects/:id/modulos/privacy`, cartao Produtos na
-  lista de projetos), depois de a organizacao contratar. Desligar nao apaga dado. **Frontend (n.360, 11/10/2026):** o n.360 e a plataforma-mae e os dois produtos sao modulos dele; o CAMINHO decide a casca
+  lista de projetos), depois de a organizacao contratar. Ligar o `privacy` (de desligado a ligado) roda `importarPartes`,
+  `conciliarResponsaveis` e `importarDocumentos` no projeto, cada uma em try/catch (falha vira `avisos` na resposta, o modulo fica
+  ligado; `test/modulos-ligar-privacy.test.ts`). Desligar nao apaga dado. **Frontend (n.360, 11/10/2026):** o n.360 e a plataforma-mae e os dois produtos sao modulos dele; o CAMINHO decide a casca
   (`frontend/src/produto.js`, `produtoAtual`): `/` e o inicio do n.360 (`views/inicio.js`, um cartao por modulo habilitado, "Abrir"
   vai a `/iso` ou `/privacy`), `/iso*` a casca do n.iso, `/privacy*` a do n.privacy (o n.privacy abre em Encarregado). O servidor
   entrega o mesmo `login.html` para qualquer um (catch-all). Quem tem um modulo so entra direto nele; equipe da ness. sem projeto

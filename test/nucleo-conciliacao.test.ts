@@ -37,7 +37,7 @@ describe('importar as pessoas do projeto', () => {
   it('traz governança e partes interessadas (fornecedor já é parte desde a 0061); o consultor da ness. fica de fora', async () => {
     const r = await chamar(plat, 'POST', `${A}/partes/importar`);
     expect(r.status).toBe(200);
-    expect(await json(r)).toEqual({ ok: true, criadas: 3, reaproveitadas: 0, vinculos: 3 });
+    expect(await json(r)).toEqual({ ok: true, criadas: 3, reaproveitadas: 0, vinculos: 3, avisos: [] });
 
     const todas = await partes(A);
     expect(todas.map((p) => p.nome).sort()).toEqual(['Ana Exemplo', 'Beto Exemplo', 'Regulador Exemplo']);
@@ -51,7 +51,7 @@ describe('importar as pessoas do projeto', () => {
 
   it('rodar de novo não duplica parte nem vínculo', async () => {
     const r = await chamar(plat, 'POST', `${A}/partes/importar`);
-    expect(await json(r)).toEqual({ ok: true, criadas: 0, reaproveitadas: 3, vinculos: 0 });
+    expect(await json(r)).toEqual({ ok: true, criadas: 0, reaproveitadas: 3, vinculos: 0, avisos: [] });
     expect(await partes(A)).toHaveLength(3);
   });
 
@@ -59,7 +59,7 @@ describe('importar as pessoas do projeto', () => {
     expect(await partes(B)).toEqual([]);
     await chamar(plat, 'POST', `${B}/partes`, { nome: 'ANA  EXEMPLO' });
     const r = await chamar(plat, 'POST', `${B}/partes/importar`);
-    expect(await json(r)).toEqual({ ok: true, criadas: 0, reaproveitadas: 1, vinculos: 1 });
+    expect(await json(r)).toEqual({ ok: true, criadas: 0, reaproveitadas: 1, vinculos: 1, avisos: [] });
     expect(await partes(B)).toHaveLength(1);
   });
 });

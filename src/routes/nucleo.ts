@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, logAudit, podeAdministrarOrg } from '../helpers';
+import { erro500, logAudit, podeAdministrarOrg, registraErro } from '../helpers';
 import { importarPartes, conciliarResponsaveis } from '../services/partes';
+import { importarDocumentos } from '../services/documentos';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { NOME_DO_PRODUTO } from '../modulos';
 import {
@@ -42,6 +43,7 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
     const est = await estadoDosModulos(db, projectId);
     if (!podeAdministrarOrg(user, est.orgId)) return c.json({ error: 'Forbidden: só o administrador da consultoria habilita módulo' }, 403);
     const ligado = est.habilitados.includes(modulo);
+    let trazido: { importados: { partes: number; documentos: number }; avisos: string[] } | undefined;
     if (v.data.habilitado) {
       if (!est.contratados.includes(modulo as Modulo)) return c.json({ error: 'Módulo não contratado pela organização' }, 409);
       if (!ligado) {
@@ -58,13 +60,25 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
               '', '', ?, datetime('now'))`)
             .bind(crypto.randomUUID(), user.email, NOME_DO_PRODUTO[modulo as Modulo], projectId, projectId),
         ]);
+        if (modulo === 'privacy') {
+          // O n.privacy lê o modelo comum (partes, vínculos, documentos); ligar traz o que o n.iso já tem, com as mesmas
+          // pontes repetíveis dos botões manuais. Cada uma falha sozinha: o módulo já está ligado e o aviso diz o que refazer.
+          trazido = { importados: { partes: 0, documentos: 0 }, avisos: [] };
+          const t = trazido;
+          const tentar = async (oQue: string, refazer: string, f: () => Promise<unknown>) => {
+            try { await f(); } catch (e) { registraErro(c, e); t.avisos.push(`Não foi possível ${oQue}; refaça em ${refazer}.`); }
+          };
+          await tentar('trazer as pessoas e organizações', 'Partes, "Importar do projeto"', async () => { const r = await importarPartes(db, projectId, user.email); t.importados.partes = r.criadas; t.avisos.push(...r.avisos); });
+          await tentar('conciliar os responsáveis', 'Partes, "Conciliar responsáveis"', () => conciliarResponsaveis(db, projectId, user.email));
+          await tentar('trazer as políticas', 'Documentos, "Importar políticas"', async () => { const r = await importarDocumentos(db, projectId, user.email); t.importados.documentos = r.criados; t.avisos.push(...r.avisos); });
+        }
       }
     } else if (ligado) {
       if (est.habilitados.length === 1) return c.json({ error: 'O projeto precisa de ao menos um módulo' }, 409);
       await db.prepare('DELETE FROM projeto_modulos WHERE project_id = ? AND modulo = ?').bind(projectId, modulo).run();
     }
     await logAudit(db, 'projeto.modulo', user.email, `Módulo ${modulo} ${v.data.habilitado ? 'habilitado' : 'desabilitado'}`, '', '', projectId);
-    return c.json({ ok: true });
+    return c.json({ ok: true, ...trazido });
   } catch (e) { return erro500(c, 'Falha ao alterar o módulo', e); }
 });
 
