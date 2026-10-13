@@ -68,9 +68,9 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
           const tentar = async (oQue: string, refazer: string, f: () => Promise<unknown>) => {
             try { await f(); } catch (e) { registraErro(c, e); t.avisos.push(`Não foi possível ${oQue}; refaça em ${refazer}.`); }
           };
-          await tentar('trazer as pessoas e organizações', 'Partes, "Importar do projeto"', async () => { t.importados.partes = (await importarPartes(db, projectId, user.email)).criadas; });
+          await tentar('trazer as pessoas e organizações', 'Partes, "Importar do projeto"', async () => { const r = await importarPartes(db, projectId, user.email); t.importados.partes = r.criadas; t.avisos.push(...r.avisos); });
           await tentar('conciliar os responsáveis', 'Partes, "Conciliar responsáveis"', () => conciliarResponsaveis(db, projectId, user.email));
-          await tentar('trazer as políticas', 'Documentos, "Importar políticas"', async () => { t.importados.documentos = (await importarDocumentos(db, projectId, user.email)).criados; });
+          await tentar('trazer as políticas', 'Documentos, "Importar políticas"', async () => { const r = await importarDocumentos(db, projectId, user.email); t.importados.documentos = r.criados; t.avisos.push(...r.avisos); });
         }
       }
     } else if (ligado) {

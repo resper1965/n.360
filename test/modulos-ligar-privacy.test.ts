@@ -4,6 +4,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv } from './helpers/d1';
+import { importarDocumentos, garantirDocumentoDoControle } from '../src/services/documentos';
+import { importarPartes } from '../src/services/partes';
 
 const chamar = (h: Record<string, string>, metodo: string, caminho: string, corpo?: unknown, e: any = workerEnv()) =>
   app.fetch(new Request('http://localhost' + caminho, {
@@ -127,5 +129,70 @@ describe('importarDocumentos liga a evidência do controle ao documento (botão 
     const r = await chamar(cadm, 'POST', '/api/v1/projects/pl1/documentos/importar');
     expect(r.status).toBe(200);
     expect(await contar(`SELECT COUNT(*) AS n FROM evidence WHERE project_id = 'pl1' AND control_id = 'pl1-c1' AND documento_id = ?`, doc!.id)).toBe(2);
+  });
+  it('documento rascunho de controle SEM sinal de política (garantirDocumentoDoControle) não recebe a evidência', async () => {
+    await env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, description) VALUES ('pl3-c2', 'pl3', 'ISO 27001', 'A.8.1 Catálogo', 'Missing', 'Texto de catálogo')`).run();
+    await garantirDocumentoDoControle(env.DB, 'pl3', 'pl3-c2', 'x@exemplo.com.br');
+    await env.DB.prepare(`INSERT INTO evidence (id, control_id, project_id, file_name, r2_key, file_hash, uploaded_by) VALUES ('pl3-ev2', 'pl3-c2', 'pl3', 'c.pdf', 'k3', 'h3', 'x@exemplo.com.br')`).run();
+    await importarDocumentos(env.DB, 'pl3', 'x@exemplo.com.br');
+    expect(await contar(`SELECT COUNT(*) AS n FROM evidence WHERE id = 'pl3-ev2' AND documento_id IS NULL`)).toBe(1);
+  });
+});
+
+/** D1 que lança no `prepare` cujo SQL contém `trecho`, ou no `batch` que leva um statement assim. */
+const d1QueFalha = (trecho: string, onde: 'prepare' | 'batch') => {
+  const marcados = new WeakSet<object>();
+  return new Proxy(env.DB, {
+    get(alvo, prop) {
+      if (prop === 'prepare') {
+        return (sql: string) => {
+          if (onde === 'prepare' && sql.includes(trecho)) throw new Error('falha injetada');
+          const st = alvo.prepare(sql);
+          if (sql.includes(trecho)) {
+            // `bind` devolve outro objeto: marca também o que sai dele
+            const bind = st.bind.bind(st);
+            st.bind = (...a: unknown[]) => { const b = bind(...a); marcados.add(b); return b; };
+            marcados.add(st);
+          }
+          return st;
+        };
+      }
+      if (prop === 'batch' && onde === 'batch') {
+        return async (stmts: D1PreparedStatement[]) => {
+          if (stmts.some((s) => marcados.has(s))) throw new Error('falha injetada');
+          return alvo.batch(stmts);
+        };
+      }
+      const v = (alvo as any)[prop];
+      return typeof v === 'function' ? v.bind(alvo) : v;
+    },
+  });
+};
+
+describe('falha depois de gravar: a trilha e a contagem dizem o que entrou', () => {
+  it('importarDocumentos: a ligação da evidência falha, o documento criado conta, a trilha sai e vem um aviso', async () => {
+    const r = await importarDocumentos(d1QueFalha('UPDATE evidence SET documento_id', 'prepare'), 'pl2', 'x@exemplo.com.br');
+    expect(r.criados).toBe(1);
+    expect(r.avisos).toHaveLength(1);
+    expect(await contar(`SELECT COUNT(*) AS n FROM documentos WHERE project_id = 'pl2'`)).toBe(1);
+    expect(await contar(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'documentos.importados' AND project_id = 'pl2'`)).toBe(1);
+    expect(await contar(`SELECT COUNT(*) AS n FROM evidence WHERE project_id = 'pl2' AND documento_id IS NOT NULL`)).toBe(0);
+  });
+
+  it('importarPartes: os vínculos falham, as partes criadas contam, a trilha sai e vem um aviso', async () => {
+    const r = await importarPartes(d1QueFalha('INTO parte_vinculos', 'batch'), 'pl2', 'x@exemplo.com.br');
+    expect(r).toMatchObject({ criadas: 3, vinculos: 0 });
+    expect(r.avisos).toHaveLength(1);
+    expect(await contar(`SELECT COUNT(*) AS n FROM partes WHERE project_id = 'pl2'`)).toBe(3);
+    expect(await contar(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'partes.importadas' AND project_id = 'pl2'`)).toBe(1);
+  });
+
+  it('o aviso de dentro da ponte chega à resposta de ligar o n.privacy', async () => {
+    const r = await ligar('pl2', 'privacy', true, { ...workerEnv(), DB: d1QueFalha('UPDATE evidence SET documento_id', 'prepare') });
+    expect(r.status).toBe(200);
+    const corpo = await r.json() as { avisos: string[] };
+    expect(corpo.avisos).toHaveLength(1);
+    expect(corpo.avisos[0]).toMatch(/evidências/);
+    expect(JSON.stringify(corpo)).not.toContain('falha injetada');
   });
 });

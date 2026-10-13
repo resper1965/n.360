@@ -66,7 +66,7 @@ describe('importar as políticas que já existem', () => {
   it('traz só o que é política, renumera as versões e deixa o texto atual como vigente', async () => {
     const r = await chamar(plat, 'POST', `${A}/documentos/importar`);
     expect(r.status).toBe(200);
-    expect(await json(r)).toEqual({ ok: true, criados: 4, ja_existiam: 0, versoes: 6, ignorados_nao_aplicavel: 1, ignorados_sem_texto: 1 });
+    expect(await json(r)).toEqual({ ok: true, criados: 4, ja_existiam: 0, versoes: 6, ignorados_nao_aplicavel: 1, ignorados_sem_texto: 1, avisos: [] });
 
     const c1 = (await docDoControle('imp-c1'))!;
     expect(c1).toMatchObject({ titulo: 'A.5.1 Política Um', tipo: 'politica', status: 'vigente', versao_vigente: 2 });
@@ -95,7 +95,7 @@ describe('importar as políticas que já existem', () => {
 
   it('rodar de novo não duplica documento nem versão', async () => {
     const r = await chamar(plat, 'POST', `${A}/documentos/importar`);
-    expect(await json(r)).toEqual({ ok: true, criados: 0, ja_existiam: 4, versoes: 0, ignorados_nao_aplicavel: 1, ignorados_sem_texto: 1 });
+    expect(await json(r)).toEqual({ ok: true, criados: 0, ja_existiam: 4, versoes: 0, ignorados_nao_aplicavel: 1, ignorados_sem_texto: 1, avisos: [] });
     expect((await env.DB.prepare(`SELECT count(*) AS n FROM documentos WHERE project_id = 'proj-a'`).first<{ n: number }>())?.n).toBe(4);
     expect((await env.DB.prepare(`SELECT count(*) AS n FROM documento_versoes WHERE project_id = 'proj-a'`).first<{ n: number }>())?.n).toBe(6);
   });

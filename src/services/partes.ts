@@ -1,4 +1,5 @@
 import { logAudit } from '../helpers';
+import { log, resumoErro } from '../observability';
 import { ehDpo } from './encarregado-pessoa';
 
 /** Nome comparável: sem caixa e sem espaço repetido. Não tira acento (a spec pede nome exato). */
@@ -13,7 +14,7 @@ async function emLotes(db: D1Database, stmts: D1PreparedStatement[]): Promise<D1
 
 const mudancas = (rs: D1Result[]) => rs.reduce((s, r) => s + (r.meta.changes ?? 0), 0);
 
-export type ResumoImportacao = { criadas: number; reaproveitadas: number; vinculos: number };
+export type ResumoImportacao = { criadas: number; reaproveitadas: number; vinculos: number; avisos: string[] };
 
 /**
  * Traz as pessoas que o projeto já tem para `partes`: governança (menos os `consultor`, que são da ness.),
@@ -54,10 +55,20 @@ export async function importarPartes(db: D1Database, projectId: string, ator: st
   for (const g of gov.results) vincular(garantir('pessoa', g.name, g.email), ehDpo(g) ? 'encarregado' : 'responsavel');
   for (const s of stk.results) vincular(garantir('organizacao', s.name, null), 'parte_interessada');
 
-  await emLotes(db, partes); // as partes primeiro: o vínculo tem FK para elas
-  const novos = mudancas(await emLotes(db, vinculos));
+  // Lote que falha no meio deixa os anteriores gravados: aí a contagem sai do banco, não do plano, e a trilha sai do mesmo jeito.
+  const avisos: string[] = [];
+  let novos = 0;
+  try {
+    await emLotes(db, partes); // as partes primeiro: o vínculo tem FK para elas
+    novos = mudancas(await emLotes(db, vinculos));
+  } catch (e) {
+    log('error', { msg: 'partes_importar', projeto: projectId, erro: resumoErro(e) });
+    avisos.push('A importação de partes parou no meio; importe de novo para completar.');
+    const n = await db.prepare('SELECT COUNT(*) AS n FROM partes WHERE project_id = ?').bind(projectId).first<{ n: number }>();
+    criadas = Math.max(0, (n?.n ?? 0) - existentes.results.length);
+  }
   await logAudit(db, 'partes.importadas', ator, `Importação de partes: ${criadas} criadas, ${reaproveitadas} reaproveitadas, ${novos} vínculos`, '', '', projectId);
-  return { criadas, reaproveitadas, vinculos: novos };
+  return { criadas, reaproveitadas, vinculos: novos, avisos };
 }
 
 /** Tabela e colunas que entram em SQL vêm só daqui, nunca da requisição. */

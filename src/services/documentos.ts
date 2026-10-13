@@ -1,4 +1,5 @@
 import { logAudit } from '../helpers';
+import { log, resumoErro } from '../observability';
 import { documentoAtual, hashConteudo, type TipoPedido } from './pedidos';
 import type { DocumentoCriar } from '../schemas';
 
@@ -129,6 +130,11 @@ export async function publicarVersao(
 }
 
 type ControleDePolitica = { id: string; title: string; description: string | null };
+
+/** O controle `c` é política: tem versão, aprovação CISO/CEO ou pedido de política. Um só lugar para as três consultas. */
+const SINAL_DE_POLITICA = `(EXISTS (SELECT 1 FROM policy_versions pv WHERE pv.control_id = c.id)
+  OR c.ciso_approved_by IS NOT NULL OR c.ceo_approved_by IS NOT NULL
+  OR EXISTS (SELECT 1 FROM pedidos p WHERE p.project_id = c.project_id AND p.tipo = 'politica' AND p.ref_id = c.id))`;
 type VersaoDeHistorico = { texto: string; por: string | null };
 
 /**
@@ -156,7 +162,7 @@ async function importarControle(
 }
 
 export type ResumoImportacaoDocumentos = {
-  criados: number; ja_existiam: number; versoes: number; ignorados_nao_aplicavel: number; ignorados_sem_texto: number;
+  criados: number; ja_existiam: number; versoes: number; ignorados_nao_aplicavel: number; ignorados_sem_texto: number; avisos: string[];
 };
 
 /**
@@ -177,9 +183,7 @@ export async function importarDocumentos(db: D1Database, projectId: string, ator
          EXISTS (SELECT 1 FROM documentos d WHERE d.origem_control_id = c.id) AS ja
        FROM compliance_controls c
        WHERE c.project_id = ?
-         AND (EXISTS (SELECT 1 FROM policy_versions pv WHERE pv.control_id = c.id)
-              OR c.ciso_approved_by IS NOT NULL OR c.ceo_approved_by IS NOT NULL
-              OR EXISTS (SELECT 1 FROM pedidos p WHERE p.project_id = c.project_id AND p.tipo = 'politica' AND p.ref_id = c.id))
+         AND ${SINAL_DE_POLITICA}
        ORDER BY c.id`
     ).bind(projectId).all<{ id: string; title: string; description: string | null; status: string | null; ja: number }>(),
     db.prepare(
@@ -195,7 +199,7 @@ export async function importarDocumentos(db: D1Database, projectId: string, ator
     porControle.set(h.control_id, [...(porControle.get(h.control_id) ?? []), { texto: h.policy_text, por: h.created_by }]);
   }
 
-  const resumo: ResumoImportacaoDocumentos = { criados: 0, ja_existiam: 0, versoes: 0, ignorados_nao_aplicavel: 0, ignorados_sem_texto: 0 };
+  const resumo: ResumoImportacaoDocumentos = { criados: 0, ja_existiam: 0, versoes: 0, ignorados_nao_aplicavel: 0, ignorados_sem_texto: 0, avisos: [] };
   for (const c of controles.results) {
     if (c.status === 'Not Applicable') { resumo.ignorados_nao_aplicavel++; continue; }
     if (c.ja) { resumo.ja_existiam++; continue; }
@@ -205,16 +209,24 @@ export async function importarDocumentos(db: D1Database, projectId: string, ator
     resumo.criados++;
     resumo.versoes += feito.versoes;
   }
-  // A evidência do controle de política passa a ser do documento também. Só a ainda sem documento: repetível, e a ligação
-  // feita à mão (ou o arquivo original de um documento importado) não é trocada.
-  await db.prepare(
-    `UPDATE evidence SET documento_id = (SELECT d.id FROM documentos d WHERE d.origem_control_id = evidence.control_id AND d.project_id = evidence.project_id)
-     WHERE project_id = ? AND documento_id IS NULL
-       AND EXISTS (SELECT 1 FROM documentos d WHERE d.origem_control_id = evidence.control_id AND d.project_id = evidence.project_id)`
-  ).bind(projectId).run();
   await logAudit(db, 'documentos.importados', ator,
     `Importação de políticas: ${resumo.criados} criadas, ${resumo.ja_existiam} já existiam, ${resumo.versoes} versões, ` +
     `${resumo.ignorados_nao_aplicavel} não aplicáveis e ${resumo.ignorados_sem_texto} sem texto ignorados`, '', '', projectId);
+  // A evidência do controle de POLÍTICA passa a ser do documento também (o rascunho vazio que garantirDocumentoDoControle dá a
+  // controle sem sinal fica de fora). Só a ainda sem documento: repetível, e a ligação já feita não é trocada. Depois da
+  // trilha e fora dela: os documentos já entraram, e falhar aqui não pode apagar a contagem.
+  try {
+    await db.prepare(
+      `UPDATE evidence SET documento_id = (SELECT d.id FROM documentos d WHERE d.origem_control_id = evidence.control_id AND d.project_id = evidence.project_id)
+       WHERE project_id = ? AND documento_id IS NULL
+         AND EXISTS (SELECT 1 FROM documentos d JOIN compliance_controls c ON c.id = d.origem_control_id
+                     WHERE d.origem_control_id = evidence.control_id AND d.project_id = evidence.project_id
+                       AND COALESCE(c.status, '') != 'Not Applicable' AND ${SINAL_DE_POLITICA})`
+    ).bind(projectId).run();
+  } catch (e) {
+    log('error', { msg: 'documentos_ligar_evidencias', projeto: projectId, erro: resumoErro(e) });
+    resumo.avisos.push('Os documentos entraram, mas as evidências das políticas não foram ligadas a eles; importe de novo para ligar.');
+  }
   return resumo;
 }
 
@@ -231,9 +243,7 @@ export async function garantirDocumentoDoControle(db: D1Database, projectId: str
 
   const c = await db.prepare(
     `SELECT c.id, c.title, c.description, c.status,
-       (EXISTS (SELECT 1 FROM policy_versions pv WHERE pv.control_id = c.id)
-        OR c.ciso_approved_by IS NOT NULL OR c.ceo_approved_by IS NOT NULL
-        OR EXISTS (SELECT 1 FROM pedidos p WHERE p.project_id = c.project_id AND p.tipo = 'politica' AND p.ref_id = c.id)) AS sinal
+       ${SINAL_DE_POLITICA} AS sinal
      FROM compliance_controls c WHERE c.id = ? AND c.project_id = ?`
   ).bind(controlId, projectId).first<ControleDePolitica & { status: string | null; sinal: number }>();
   if (!c) throw new Error('Controle não encontrado neste projeto');
