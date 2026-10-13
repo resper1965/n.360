@@ -1,31 +1,14 @@
 import { S } from '../state.js';
-import { api } from '../api.js';
+import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
 import { render } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { temProduto } from '../produto.js';
+import { podeEntrevistar, confirmaEdicaoAprovada } from './ropa-entrevista.js';
+import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ehLegitimoInteresse, camposDaBase, idsDoCatalogo } from '../bases-legais.js';
 
-    // Base legal do RoPA (LGPD, art. 7 e art. 11). Grava-se o TEXTO da hipótese, não um código: o relatório PDF, os
-    // pedidos de aprovação e a regra da LIA (services/lia.ts procura "legitimo interesse") leem `legal_basis` como texto.
-    // As do art. 11 levam o sufixo "(art. 11)" porque os rótulos repetem os do art. 7 ("Tutela da saúde").
-    const BASES_ART7 = ['Consentimento', 'Cumprimento de obrigação legal ou regulatória', 'Execução de políticas públicas', 'Estudos por órgão de pesquisa',
-        'Execução de contrato ou procedimentos preliminares', 'Exercício regular de direitos', 'Proteção da vida ou incolumidade física', 'Tutela da saúde',
-        'Legítimo interesse', 'Proteção do crédito'];
-    const BASES_ART11 = ['Consentimento específico e destacado', 'Obrigação legal ou regulatória', 'Políticas públicas', 'Estudos por órgão de pesquisa',
-        'Exercício regular de direitos', 'Proteção da vida', 'Tutela da saúde', 'Prevenção à fraude e segurança do titular'];
-    const ART11 = (b) => `${b} (art. 11)`;
-    const normaliza = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-    // Valores que o formulário antigo gravava (sem acento, 6 hipóteses): exibidos e pré-selecionados com o rótulo atual.
-    const BASES_LEGADO = {
-        'consentimento': 'Consentimento',
-        'execucao contratual': 'Execução de contrato ou procedimentos preliminares',
-        'obrigacao legal': 'Cumprimento de obrigação legal ou regulatória',
-        'interesse legitimo': 'Legítimo interesse',
-        'protecao da vida': 'Proteção da vida ou incolumidade física',
-        'tutela da saude': 'Tutela da saúde',
-    };
-    const rotuloBase = (v) => BASES_LEGADO[normaliza(v)] || v || '';
-    const ehLegitimoInteresse = (v) => { const t = normaliza(v); return t.includes('legitimo interesse') || t.includes('interesse legitimo'); };
+    // Base legal: as listas e a coerência texto/catálogo vivem em bases-legais.js (as ligações e a entrevista usam as mesmas).
+    let catalogoBases = new Set();
     function opcoesBase(atual) {
         // Valor antigo fica selecionado com o valor GRAVADO: salvar sem mexer não reescreve legal_basis (que reenviaria os pedidos
         // de aprovação do documento). Só a escolha de outra hipótese grava o texto novo.
@@ -69,14 +52,17 @@ import { temProduto } from '../produto.js';
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
         const comPrivacy = temProduto(proj, 'privacy');
         const btnImportar = canCrud && comPrivacy ? `<button class="btn" data-action="openImportarRopaModal" data-args='["${proj.id}"]'>Importar planilha</button>` : '';
-        const btnNovo = (rotulo) => (canCrud ? `<button class="btn btn-primary" data-action="openNewROPAModal" data-args='["${proj.id}"]'>${rotulo}</button>` : '');
+        // A entrevista é o caminho principal (equipe e administrador do cliente); o formulário inteiro fica como edição avançada da equipe.
+        const entrevista = podeEntrevistar();
+        const btnEntrevista = (rotulo) => (entrevista ? `<button class="btn btn-primary" data-action="abrirRopaEntrevista" data-args='["${proj.id}"]'>${rotulo}</button>` : '');
+        const btnNovo = (rotulo) => (canCrud ? `<button class="btn" data-action="openNewROPAModal" data-args='["${proj.id}"]'>${rotulo}</button>` : '');
 
         let records = [];
         try { records = await api('GET', `/api/v1/projects/${proj.id}/ropa`); } catch(e) {}
         if (!Array.isArray(records)) records = [];
         S.ropa = records;
         // O PDF é do projeto inteiro: uma ação no header, não um botão por linha.
-        a.innerHTML = [btnImportar, records.length ? `<button class="btn" data-action="openROPAReport" data-args='["${proj.id}"]'>Exportar RoPA (PDF)</button>` : '', btnNovo('Nova atividade')].filter(Boolean).join(' ');
+        a.innerHTML = [btnImportar, records.length ? `<button class="btn" data-action="openROPAReport" data-args='["${proj.id}"]'>Exportar RoPA (PDF)</button>` : '', btnNovo('Edição avançada'), btnEntrevista('Nova atividade (entrevista)')].filter(Boolean).join(' ');
 
         // A conta de "legítimo interesse sem LIA" é do servidor (visão do encarregado): a lista do RoPA não traz a LIA.
         let liaPendente = null;
@@ -102,20 +88,21 @@ import { temProduto } from '../produto.js';
             records.map(r => {
                 const statusType = r.status === 'Active' || !r.status ? 'success' : 'info';
                 return [
-                    `<strong>${escapeHTML(r.processing_purpose)}</strong>`,
+                    `<strong>${escapeHTML(r.processing_purpose)}</strong>${Array.isArray(r.nao_informado) && r.nao_informado.length ? ` ${window.renderStatusBadge('Importado: revisar', 'warning')}` : ''}`,
                     escapeHTML(rotuloBase(r.legal_basis) || 'N/A'),
                     escapeHTML(r.data_subjects || 'N/A'),
                     escapeHTML(r.retention_period || 'N/A'),
                     r.dpia_required ? window.renderStatusBadge('Sim', 'warning') : window.renderStatusBadge('Não', 'neutral'),
                     window.renderStatusBadge(r.status || 'Active', statusType),
                     `<button class="btn btn-ghost btn-sm" data-action="openROPADetailsModal" data-args='["${r.id}"]'>Detalhes</button>
+                     ${entrevista ? `<button class="btn btn-ghost btn-sm" data-action="abrirRopaEntrevista" data-args='["${proj.id}","${r.id}"]'>Continuar entrevista</button>` : ''}
                      ${comPrivacy ? `<button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='["${proj.id}","${r.id}"]'>${ehLegitimoInteresse(r.legal_basis) ? 'Base legal e LIA' : 'Ligações'}</button>` : ''}`
                 ];
             }),
             {
                 emptyState: 'O inventário de tratamentos (art. 37) está vazio.',
                 emptyHint: 'Registre a primeira atividade ou importe a planilha que o cliente já tem.',
-                emptyAction: btnNovo('Registrar atividade') + btnImportar,
+                emptyAction: btnEntrevista('Registrar atividade (entrevista)') + btnNovo('Edição avançada') + btnImportar,
             }
         );
 
@@ -206,7 +193,8 @@ import { temProduto } from '../produto.js';
                 <button class="btn btn-secondary" data-action="openROPAReport" data-args='["${projectId}"]'>Exportar RoPA (PDF)</button>
                 <div>
                     <button class="btn" data-action="forceCloseModal">Fechar</button>
-                    ${canCrud ? `<button class="btn btn-primary" data-action="openEditROPAModal" data-args='["${id}"]'>Editar Atividade</button>` : ''}
+                    ${podeEntrevistar() ? `<button class="btn btn-primary" data-action="abrirRopaEntrevista" data-args='${escapeHTML(JSON.stringify([projectId, id]))}'>Continuar entrevista</button>` : ''}
+                    ${canCrud ? `<button class="btn" data-action="openEditROPAModal" data-args='["${id}"]'>Edição avançada</button>` : ''}
                 </div>
             </div>
         `);
@@ -214,8 +202,9 @@ import { temProduto } from '../produto.js';
 
     window.openNewROPAModal = async function(projectId) {
         const parteOptions = await opcoesDePartes(projectId, null);
+        catalogoBases = await idsDoCatalogo(api);
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova atividade de tratamento (RoPA)</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Nova atividade de tratamento (RoPA), edição avançada</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             <div class="form-group"><label class="form-label" for="ropa-purpose">Finalidade do tratamento</label><input class="form-input" id="ropa-purpose" placeholder="Ex: Folha de pagamento"></div>
             <div class="form-group"><label class="form-label" for="ropa-categories">Categorias de dados</label><input class="form-input" id="ropa-categories" placeholder="Ex: Dados pessoais, financeiros, biometria"></div>
             <div class="form-group"><label class="form-label" for="ropa-subjects">Titulares</label><input class="form-input" id="ropa-subjects" placeholder="Ex: Colaboradores, Clientes"></div>
@@ -228,8 +217,7 @@ import { temProduto } from '../produto.js';
             </div>
             <div class="form-group"><label class="form-label" for="ropa-owner">Responsável (texto livre)</label><input class="form-input" id="ropa-owner" placeholder="Ex: DPO"></div>
             <div class="form-group"><label class="form-label" for="ropa-recipients">Destinatários / compartilhamento</label><input class="form-input" id="ropa-recipients" placeholder="Ex: Contabilidade, INSS, provedores de nuvem"></div>
-            <div class="form-group"><label class="form-label" for="ropa-status">Status</label>
-                <select class="form-input" id="ropa-status">${opcoesStatus(STATUS_ROPA.slice(0, 2), 'Active')}</select></div>
+            <p class="form-label" id="ropa-nasce-rascunho">A atividade nasce como rascunho. O status muda depois, na edição ou pela aprovação.</p>
             <button class="btn btn-primary" style="width:100%" data-action="createROPA" data-args='["${projectId}"]'>Registrar</button>
         `);
     };
@@ -239,28 +227,29 @@ import { temProduto } from '../produto.js';
             processing_purpose: document.getElementById('ropa-purpose').value, 
             data_categories: document.getElementById('ropa-categories').value, 
             data_subjects: document.getElementById('ropa-subjects').value, 
-            legal_basis: document.getElementById('ropa-basis').value, 
+            ...camposDaBase(document.getElementById('ropa-basis').value, catalogoBases), 
             retention_period: document.getElementById('ropa-retention').value, 
             recipients: document.getElementById('ropa-recipients').value, 
             owner: document.getElementById('ropa-owner').value, 
             owner_parte_id: document.getElementById('ropa-owner-parte').value || null,
             transfer_safeguards: document.getElementById('ropa-safeguards').value,
-            status: document.getElementById('ropa-status').value,
             international_transfers: document.getElementById('ropa-intl').checked ? 1 : 0, 
             dpia_required: document.getElementById('ropa-dpia').checked ? 1 : 0,
             dados_sensiveis: document.getElementById('ropa-sensiveis').checked ? 1 : 0,
             criancas_adolescentes: document.getElementById('ropa-criancas').checked ? 1 : 0
         };
-        if (!body.processing_purpose) return;
-        await api('POST', `/api/v1/projects/${projectId}/ropa`, body);
+        if (!body.processing_purpose.trim()) { showToast('Informe a finalidade do tratamento', 'error'); document.getElementById('ropa-purpose').focus(); return; }
+        try { await api('POST', `/api/v1/projects/${projectId}/ropa`, body); }
+        catch (e) { showToast('Não foi possível registrar a atividade: ' + e.message, 'error'); return; }
         forceCloseModal(); render();
     };
 
     window.openEditROPAModal = async function(id) {
         const r = S.ropa.find(x => x.id === id) || {};
         const parteOptions = await opcoesDePartes(r.project_id || (S.activeProject && S.activeProject.id), r.owner_parte_id);
+        catalogoBases = await idsDoCatalogo(api);
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar atividade (RoPA)</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar atividade (RoPA), edição avançada</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             <div class="form-group"><label class="form-label" for="ropa-e-purpose">Finalidade</label><input class="form-input" id="ropa-e-purpose" value="${escapeHTML(r.processing_purpose||'')}"></div>
             <div class="form-group"><label class="form-label" for="ropa-e-categories">Categorias de dados</label><input class="form-input" id="ropa-e-categories" value="${escapeHTML(r.data_categories||'')}"></div>
             <div class="form-group"><label class="form-label" for="ropa-e-subjects">Titulares</label><input class="form-input" id="ropa-e-subjects" value="${escapeHTML(r.data_subjects||'')}"></div>
@@ -289,7 +278,7 @@ import { temProduto } from '../produto.js';
             processing_purpose: document.getElementById('ropa-e-purpose').value, 
             data_categories: document.getElementById('ropa-e-categories').value, 
             data_subjects: document.getElementById('ropa-e-subjects').value, 
-            legal_basis: document.getElementById('ropa-e-basis').value, 
+            ...camposDaBase(document.getElementById('ropa-e-basis').value, catalogoBases), 
             retention_period: document.getElementById('ropa-e-retention').value, 
             recipients: document.getElementById('ropa-e-recipients').value, 
             owner: document.getElementById('ropa-e-owner').value, 
@@ -303,7 +292,10 @@ import { temProduto } from '../produto.js';
         // Aprovar é pelo fluxo de assinatura; o PUT recusa 'Approved' e status em ROPA já aprovado.
         const st = document.getElementById('ropa-e-status');
         if (!st.disabled) body.status = st.value;
-        await api('PUT', `/api/v1/ropa/${id}`, body);
+        if (!body.processing_purpose.trim()) { showToast('Informe a finalidade do tratamento', 'error'); return; }
+        if (!(await confirmaEdicaoAprovada(S.ropa.find(x => x.id === id)))) return;
+        try { await api('PUT', `/api/v1/ropa/${id}`, body); }
+        catch (e) { showToast('Não foi possível salvar a atividade: ' + e.message, 'error'); return; }
         forceCloseModal(); render();
     };
 
@@ -547,9 +539,18 @@ import { temProduto } from '../produto.js';
     };
 
 
-    window.openROPAReport = function(projectId) {
-        window.open(`/api/v1/projects/${projectId}/ropa/report?token=${S.token}`, '_blank');
-    };
+    // O relatório é HTML autenticado: busca com o cabeçalho da sessão e abre o conteúdo como blob. O token nunca vai na URL
+    // (ficava no histórico do navegador, em log de proxy e no Referer).
+    async function abrirRelatorio(caminho) {
+        let r;
+        try { r = await fetch(API_BASE + caminho, { headers: cabecalhosAuth(), signal: AbortSignal.timeout(30000) }); }
+        catch (e) { showToast('Não foi possível gerar o relatório', 'error'); return; }
+        if (!r.ok) { showToast(`Não foi possível gerar o relatório (erro ${r.status})`, 'error'); return; }
+        const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html;charset=utf-8' }));
+        if (!window.open(url, '_blank')) showToast('O navegador bloqueou a nova janela. Permita pop-ups para este endereço.', 'error');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+    window.openROPAReport = (projectId) => abrirRelatorio(`/api/v1/projects/${projectId}/ropa/report`);
 
     // Desaprovar é ato da direção (F6): só platform_admin e org_admin veem o botão; o servidor decide de novo.
     // O motivo é obrigatório e vai para a trilha.
@@ -616,9 +617,7 @@ import { temProduto } from '../produto.js';
         }
     };
 
-    window.openDPIAReport = function(projectId, id) {
-        window.open(`/api/v1/projects/${projectId}/dpia/${id}/report?token=${S.token}`, '_blank');
-    };
+    window.openDPIAReport = (projectId, id) => abrirRelatorio(`/api/v1/projects/${projectId}/dpia/${id}/report`);
 
     window.approveDPIA = async function(projectId, id, role) {
         try {

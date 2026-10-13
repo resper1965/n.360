@@ -17,6 +17,22 @@ export const projectRopaApp = new Hono<{ Bindings: Bindings; Variables: Variable
 const baseLegalInexistente = async (db: D1Database, id: unknown) =>
   typeof id === 'string' && id !== '' && !(await db.prepare('SELECT 1 FROM requisitos WHERE id = ?').bind(id).first());
 
+/**
+ * Riscos que a importação de programa não trouxe: o INSERT grava 0 nas três colunas (NOT NULL) quando o item não tinha o campo, e
+ * a tela afirmaria "não". Enquanto o registro não for editado (updated_at = created_at), devolve quais ficaram sem informação, a
+ * partir dos dados do item importado. A planilha CSV não deixa rastro por registro: fica de fora (sem coluna nova).
+ */
+const RISCOS_IMPORTADOS: [coluna: string, campo: string][] = [['dados_sensiveis', 'dados_sensiveis'], ['criancas_adolescentes', 'criancas_adolescentes'], ['international_transfers', 'transferencia_internacional']];
+const SQL_DADOS_IMPORTADOS = `(SELECT ii.dados FROM importacao_itens ii WHERE ii.registro_id = r.id AND ii.project_id = r.project_id
+  AND ii.entidade = 'tratamento' AND ii.decisao = 'gravado' AND r.updated_at = r.created_at LIMIT 1) AS dados_importados`;
+export function naoInformados(dados: unknown): string[] {
+  if (typeof dados !== 'string') return [];
+  let d: Record<string, unknown>;
+  try { d = JSON.parse(dados); } catch { return []; }
+  return RISCOS_IMPORTADOS.filter(([, campo]) => typeof d[campo] !== 'boolean').map(([coluna]) => coluna);
+}
+const comNaoInformados = ({ dados_importados, ...r }: Record<string, unknown>): Record<string, unknown> => ({ ...r, nao_informado: naoInformados(dados_importados) });
+
 // Direct ROPA operations (/api/v1/ropa)
 ropaApp.put('/:id', async (c) => {
   try {
@@ -72,12 +88,12 @@ ropaApp.delete('/:id', async (c) => {
 projectRopaApp.get('/', async (c) => {
   const projectId = c.req.param('projectId');
   const result = await c.env.DB.prepare(
-    `SELECT r.*, pa.nome AS owner_parte_nome FROM ropa_records r
+    `SELECT r.*, pa.nome AS owner_parte_nome, ${SQL_DADOS_IMPORTADOS} FROM ropa_records r
      LEFT JOIN partes pa ON pa.id = r.owner_parte_id AND pa.project_id = r.project_id
      WHERE r.project_id = ? ORDER BY r.created_at DESC`
   ).bind(projectId).all();
   const aprovacoes = await aprovacoesDoProjeto(c.env.DB, projectId!, undefined, 'tratamento');
-  const records = semRastros(result.results as Record<string, unknown>[]).map((r) => ({ ...r, aprovacao_pedido: aprovacoes.get(String(r.id)) ?? { ciso: null, ceo: null } }));
+  const records = semRastros(result.results as Record<string, unknown>[]).map(comNaoInformados).map((r) => ({ ...r, aprovacao_pedido: aprovacoes.get(String(r.id)) ?? { ciso: null, ceo: null } }));
   return c.json({ ok: true, records });
 });
 
@@ -316,11 +332,13 @@ projectRopaApp.get('/report', async (c) => {
     if (!project) return c.html('<h3>Projeto não encontrado</h3>', 404);
 
     const { results: records } = await c.env.DB.prepare(
-      'SELECT * FROM ropa_records WHERE project_id = ? ORDER BY created_at ASC'
+      `SELECT r.*, ${SQL_DADOS_IMPORTADOS} FROM ropa_records r WHERE r.project_id = ? ORDER BY r.created_at ASC`
     ).bind(projectId).all<any>();
 
     let rowsHtml = '';
     for (const r of (records || [])) {
+      const falta = naoInformados(r.dados_importados);
+      const simNao = (coluna: string) => (falta.includes(coluna) ? 'Não informado (importado, não revisado)' : r[coluna] ? 'Sim' : 'Não');
       const cisoSig = r.ciso_approved_by ? `<span style="color:#10b981; font-weight:600">✓ Assinado por ${escapeHtml(r.ciso_approved_by)} em ${new Date(r.ciso_approved_at).toLocaleDateString()}</span>` : '<span style="color:#d97706">Aguardando Líder SGSI</span>';
       const ceoSig = r.ceo_approved_by ? `<span style="color:#10b981; font-weight:600">✓ Assinado por ${escapeHtml(r.ceo_approved_by)} em ${new Date(r.ceo_approved_at).toLocaleDateString()}</span>` : '<span style="color:#d97706">Aguardando Direção Executiva</span>';
       
@@ -349,11 +367,15 @@ projectRopaApp.get('/report', async (c) => {
             </div>
             <div class="ropa-field">
               <div class="ropa-label">Dados sensíveis (art. 11)</div>
-              <div class="ropa-value">${r.dados_sensiveis ? 'Sim' : 'Não'}</div>
+              <div class="ropa-value">${simNao('dados_sensiveis')}</div>
             </div>
             <div class="ropa-field">
               <div class="ropa-label">Crianças e adolescentes (art. 14)</div>
-              <div class="ropa-value">${r.criancas_adolescentes ? 'Sim' : 'Não'}</div>
+              <div class="ropa-value">${simNao('criancas_adolescentes')}</div>
+            </div>
+            <div class="ropa-field">
+              <div class="ropa-label">Transferência internacional</div>
+              <div class="ropa-value">${simNao('international_transfers')}</div>
             </div>
             <div class="ropa-field full-width">
               <div class="ropa-label">Destinatários / Compartilhamento</div>

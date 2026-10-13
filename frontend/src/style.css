@@ -1574,3 +1574,65 @@ textarea:focus-visible {
 .btn-perigo { background: var(--danger); border-color: var(--danger); color: var(--accent-ink); } /* tinta escura: branco sobre --danger fica abaixo de 4.5:1 */
 .btn-perigo:hover { filter: brightness(1.1); }
 .aba .ca-selo { padding: 1px 6px; font-size: 10px; letter-spacing: 0.02em; }
+
+/* ——— Entrevista do RoPA (views/ropa-entrevista.js) ———
+   Uma pergunta por vez, coluna de leitura estreita. Quadrado, só tokens. Accent apenas no que se clica e no foco:
+   a opção marcada ganha contorno accent; a barra de progresso é tinta neutra. */
+.re { max-width: 760px; display: flex; flex-direction: column; gap: 20px; }
+.re-topo { display: flex; flex-direction: column; gap: 8px; }
+.re-legenda { margin: 0; font-size: 13px; color: var(--text-dim); }
+.re-barra { width: 100%; height: 4px; border: 0; background: var(--surface-2); -webkit-appearance: none; appearance: none; }
+.re-barra::-webkit-progress-bar { background: var(--surface-2); }
+.re-barra::-webkit-progress-value { background: var(--text-2); }
+.re-barra::-moz-progress-bar { background: var(--text-2); }
+.re-blocos { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--text-faint); }
+.re-blocos .re-bloco-atual { color: var(--text); font-weight: 500; }
+.re-pergunta, .re-resumo { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+.re-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.re-legend { padding: 0; margin-bottom: 4px; }
+.re-titulo { margin: 0; font: 600 20px/1.35 var(--font-head); color: var(--text); }
+.re-titulo:focus { outline: none; }
+.re-titulo:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.re-ajuda { font-size: 13px; color: var(--text-2); }
+.re-ajuda > summary { cursor: pointer; color: var(--accent); width: fit-content; }
+.re-ajuda > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.re-ajuda > p { margin: 8px 0 0; line-height: 1.5; }
+.re-opcoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.re-opcao { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); cursor: pointer; color: var(--text); font-size: 14px; }
+.re-opcao:hover { border-color: var(--text-dim); }
+.re-opcao input { margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.re-opcao:has(input:checked) { border-color: var(--accent); }
+.re-opcao:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.re-opcao-texto { display: flex; flex-direction: column; gap: 2px; }
+.re-opcao-dica { font-size: 12px; color: var(--text-dim); }
+.re-exemplos { display: flex; flex-wrap: wrap; gap: 6px; }
+.re-exemplos .chip { color: var(--text-2); }
+.re-exemplos .chip:hover, .re-exemplos .chip:focus-visible { border-color: var(--accent); color: var(--text); }
+.re-outro { margin: 0; }
+.re-aviso { margin: 0; padding: 10px 12px; border-left: 2px solid var(--warning); background: var(--bg); color: var(--text-2); font-size: 13px; line-height: 1.5; }
+.re-faixa { border: 1px solid var(--warning); }
+.re-nota { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+.re-erro { margin: 0; font-size: 13px; color: var(--danger); }
+.re-erro:empty { display: none; }
+.re-sugestao { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 12px; border: 1px solid var(--border); background: var(--bg); font-size: 13px; color: var(--text-2); }
+.re-sugestao p { margin: 0; }
+.re-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 20px; }
+.re-acoes .btn-primary { margin-left: auto; }
+.re-resumo { display: flex; flex-direction: column; gap: 16px; }
+.re-pendencias { padding: 12px 16px; border: 1px solid var(--warning); background: var(--bg); }
+.re-pendencias h3 { margin: 0 0 8px; font: 600 14px var(--font-head); color: var(--text); }
+.re-pendencias ul { margin: 0; padding-left: 18px; color: var(--text-2); font-size: 13px; line-height: 1.6; }
+.re-bloco { border-top: 1px solid var(--border); padding-top: 12px; }
+.re-bloco-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.re-bloco-cabeca h3 { margin: 0; font: 600 15px var(--font-head); color: var(--text); }
+.re-respostas { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 6px 16px; margin: 8px 0 0; font-size: 13px; }
+.re-respostas dt { color: var(--text-dim); }
+.re-respostas dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.re-pendente { color: var(--warning); }
+@media (max-width: 640px) {
+    .re-pergunta, .re-resumo { padding: 16px; }
+    .re-opcoes { grid-template-columns: 1fr; }
+    .re-respostas { grid-template-columns: 1fr; gap: 2px; }
+    .re-respostas dd { margin-bottom: 8px; }
+    .re-acoes .btn-primary { margin-left: 0; }
+}
