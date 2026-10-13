@@ -1,7 +1,8 @@
 # Política de Segurança
 
-O n.iso processa dados de conformidade e **dados pessoais sob a LGPD** (registros de
-ROPA e DPIA, evidências de auditoria). Uma falha aqui não afeta só o sistema — afeta
+O n.360 (e os módulos n.iso e n.privacy) processa dados de conformidade e **dados pessoais
+sob a LGPD** (RoPA, DPIA, pedidos de titulares, incidentes, consentimentos, evidências de
+auditoria). Uma falha aqui não afeta só o sistema — afeta
 os titulares de dados dos nossos clientes. Trate relatos de segurança com essa
 gravidade.
 
@@ -11,7 +12,7 @@ gravidade.
 
 1. **GitHub Security Advisory** (preferencial) — aba *Security* → *Report a vulnerability*.
    Cria um canal privado com os mantenedores.
-2. **E-mail** — `security@ness.lat`, com "n.iso" no assunto.
+2. **E-mail** — `security@ness.lat`, com "n.360" no assunto.
 
 Inclua, se possível: passos para reproduzir, impacto observado, versão/commit
 afetado e se há exploração ativa.
@@ -60,6 +61,11 @@ Invariantes de segurança que o código mantém e que **não devem regredir**:
 | Ação destrutiva do agente (apagar, lote, eliminar titular, revogar aprovações) exige confirmação **no servidor** e deixa trilha com o projeto | `acaoDestrutiva` + `X-Agente-Confirmado`; hook em `src/middleware/auth.ts` — `test/agente-paridade.test.ts` |
 | Concessão do agente revalidada a cada chamada; troca de senha a revoga | `concessaoValida` — `test/mcp-remoto.test.ts`, `test/agente-principal.test.ts` |
 | Segredo de integração não sai (listagem de webhooks, export de portabilidade) | `src/routes/integrations.ts`, `src/portabilidade.ts` — `test/webhooks-segredo.test.ts` |
+| Rota de módulo só com o módulo no projeto **e** na pessoa; o núcleo vale com qualquer módulo | `src/modulos.ts` (faixas, `modulosDaPessoa`) no `projectAccessMiddleware` e no `requireResourceAccess` — `test/modulos-produto.test.ts`, `test/modulos-por-pessoa.test.ts` |
+| Conta se desativa, não se apaga; desativada não entra por senha, SSO, agente nem sessão aberta. Apagar de verdade só `platform_admin`; ninguém desativa a própria conta | `PUT /api/v1/users/:id/ativo` e `DELETE ...?definitivo=1` em `src/routes/users.ts` — `test/contas-ativo.test.ts`, `test/contas-seguranca.test.ts` |
+| Busca ao IdP do SSO só em host público e sem seguir redirecionamento (SSRF) | `exigirHostPublico` e `buscarNoIdp` (`redirect: 'manual'`) em `src/sso.ts` — `test/sso.test.ts` |
+| Rascunho de IA do n.privacy não leva dado do titular ao modelo e não grava nada no registro | `mascararPii` e esquema estrito em `src/services/rascunhos-privacy.ts` — `test/agentes-privacy.test.ts` |
+| Importação de histórico: e-mail, CPF e telefone viram pseudônimo por projeto antes da IA; sem a chave, nada vai ao modelo | `pseudonimizador` (HMAC com subchave da `TOKEN_ENC_KEY`) e `mascararPii` em `src/services/importacao.ts` — `test/importacao.test.ts` |
 | 500 não devolve o interior do banco | `erro500` em `src/helpers.ts`: detalhe do D1 vai ao log, cliente recebe `request_id` — `test/erro-sem-vazamento.test.ts` |
 
 Ao alterar qualquer um destes pontos, o PR precisa explicar por quê.
