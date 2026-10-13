@@ -131,6 +131,8 @@ window.__adminCopiarApiKey = () => {
 
     // Contas desativadas ficam escondidas por padrão; a escolha vale até recarregar a página.
     let mostrarDesativadas = false;
+    // Filtro de organização da lista (só platform_admin): '' = todas as organizações.
+    let filtroOrg = '';
     let contasListadas = [];
     const contaAtiva = (u) => u.ativo !== false;
     // A própria conta não se desativa nem se exclui (o servidor recusa com 409): sem botão.
@@ -142,7 +144,8 @@ window.__adminCopiarApiKey = () => {
             <button class="btn btn-primary" data-action="openUserModal">Novo usuário</button>`;
         c.innerHTML = '<div class="loading"></div>';
         try {
-            const users = await api('GET', '/api/v1/users').catch(() => []);
+            const souPA = S.user?.role === 'platform_admin';
+            const users = await (filtroOrg && souPA ? api('GET', '/api/v1/users', undefined, { 'X-Org-Id': filtroOrg }) : api('GET', '/api/v1/users')).catch(() => []);
             const todas = Array.isArray(users) ? users : [];
             contasListadas = todas;
             const desativadas = todas.filter(u => !contaAtiva(u)).length;
@@ -193,9 +196,13 @@ window.__adminCopiarApiKey = () => {
                 { emptyState: 'Nenhum usuário cadastrado ainda. Use "Novo usuário" para convidar a equipe da ness. ou o administrador do cliente.' }
             );
 
-            // Platform admin sem filtro (seletor na ness.) recebe as contas de todas as organizações.
-            const nota = S.user?.role === 'platform_admin' && !S.orgAtuacao
-                ? '<p class="org-dica">Mostrando as contas de todas as organizações. Para ver só uma, escolha-a no seletor do cabeçalho.</p>' : '';
+            // Platform admin escolhe aqui de qual organização listar; sem escolha, todas.
+            const orgsLista = souPA ? (window.orgsConhecidas?.() || []) : [];
+            const nota = souPA && orgsLista.length ? `<div class="org-filtro-usuarios"><label class="org-sel-rotulo" for="usr-org">Organização</label>
+                <select class="org-sel" id="usr-org" data-action-change="__usuariosFiltrarOrg" data-arg-val>
+                    <option value="">Todas as organizações</option>
+                    ${orgsLista.map((o) => `<option value="${escapeHTML(o.id)}"${o.id === filtroOrg ? ' selected' : ''}>${escapeHTML(o.nome)}</option>`).join('')}
+                </select></div>` : '';
             c.innerHTML = `
                 ${statsHtml}
                 ${nota}
@@ -648,6 +655,7 @@ window.renderAuditTrail = renderAuditTrail;
 window.renderApiKeys = renderApiKeys;
 window.savePricingConfig = savePricingConfig;
 window.alternarDesativadas = alternarDesativadas;
+window.__usuariosFiltrarOrg = (id) => { filtroOrg = id || ''; render(); };
 window.confirmarContaAtiva = confirmarContaAtiva;
 window.definirContaAtiva = definirContaAtiva;
 window.confirmarExclusaoDefinitiva = confirmarExclusaoDefinitiva;
