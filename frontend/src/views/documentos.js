@@ -55,7 +55,7 @@ function arvore(docs) {
 const DOCS_LGPD = [
     { tipo: 'politica', titulo: 'Política de privacidade', ref: 'aviso aos titulares — LGPD art. 9' },
     { tipo: 'procedimento', titulo: 'Procedimento de atendimento ao titular', ref: 'art. 18' },
-    { tipo: 'procedimento', titulo: 'Plano de resposta a incidente', ref: 'art. 48; Res. CD/ANPD 15/2024' },
+    { tipo: 'procedimento', titulo: 'Plano de resposta a incidente', ref: 'arts. 48 e 50, §2º, I, g; Res. CD/ANPD 15/2024' },
     { tipo: 'politica', titulo: 'Política de retenção e descarte', ref: 'arts. 15 e 16' },
 ];
 const normal = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();

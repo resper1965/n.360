@@ -1270,7 +1270,7 @@ import { podeIndicar } from './encarregado.js';
                 ];
             }),
             { emptyState: 'Nenhuma parte interessada cadastrada.',
-              emptyHint: 'A ISO/IEC 27001 (4.2) pede que se determine, entre reguladores, clientes, fornecedores e equipe:',
+              emptyHint: 'A ISO/IEC 27001 (4.2) pede que se determine as partes interessadas relevantes (por exemplo, reguladores, clientes, fornecedores, equipe):',
               emptyItens: ENTRADAS_4_2,
               emptyAction: '<button class="btn btn-primary" data-action="openStakeholderModal">Nova parte interessada</button>' }
         );

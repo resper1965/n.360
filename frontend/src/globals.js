@@ -1264,7 +1264,7 @@ window.loadProjects = async function loadProjects() {
         const ativo = S.activeProject && Array.isArray(todos) ? todos.find((p) => p.id === S.activeProject.id) : null;
         if (ativo && !S.projects.some((p) => p.id === ativo.id)) { S.activeProject = null; S.currentProject = null; try { localStorage.removeItem('niso_activeProject'); } catch (e) {} }
         if (typeof updateSidebarProjectSelector === 'function') { updateSidebarProjectSelector(); }
-    } catch(e) { S.projects = []; }
+    } catch(e) { S.projects = []; S.totalProjetos = undefined; } // falha não é zero: nada de "Nenhum projeto ainda"
 }
 
 window.loadControls = async function loadControls() { try { S.controls = await api('GET', '/api/v1/controls'); } catch(e) { S.controls = []; } }

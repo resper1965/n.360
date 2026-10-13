@@ -374,7 +374,7 @@ describe('n.privacy: documentos que um programa LGPD costuma ter', () => {
     const ROTULOS = [
         'Política de privacidade (aviso aos titulares — LGPD art. 9)',
         'Procedimento de atendimento ao titular (art. 18)',
-        'Plano de resposta a incidente (art. 48; Res. CD/ANPD 15/2024)',
+        'Plano de resposta a incidente (arts. 48 e 50, §2º, I, g; Res. CD/ANPD 15/2024)',
         'Política de retenção e descarte (arts. 15 e 16)',
     ];
 

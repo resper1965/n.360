@@ -82,6 +82,13 @@ describe('initApp no n.360', () => {
         expect(document.getElementById('content').textContent).toContain('Você ainda não tem acesso a um projeto');
         expect(document.getElementById('content').querySelector('.empty-action')).toBeNull();
     });
+    it('lista de projetos que falha não vira "zero projetos" (sem entrada guiada por engano)', async () => {
+        S.totalProjetos = 0;
+        apiMock.mockImplementation(async () => { throw new Error('503'); });
+        await window.loadProjects();
+        expect(S.totalProjetos).toBeUndefined();
+        expect(S.projects).toEqual([]);
+    });
     it('equipe da ness. sem projeto ainda: vai ao n.iso, onde está o comercial (não fica trancada fora)', async () => {
         papel = { role: 'platform_admin' };
         await window.initApp();
