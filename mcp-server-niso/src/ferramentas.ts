@@ -380,13 +380,13 @@ export const TOOLS: Ferramenta[] = [
       properties: {
         auditId: { type: "string", description: "The audit schedule ID" },
         projectId: { type: "string", description: "The project ID" },
-        controlId: { type: "string", description: "The control ID (e.g. ctrl-a51)" },
+        controlId: { type: "string", description: "The control ID (e.g. ctrl-a51). Optional: a LGPD finding may have no control" },
         findingType: { type: "string", description: "Type: conforming, minor_nc, major_nc, observation" },
         description: { type: "string", description: "Detailed description of the finding" },
         evidenceReviewed: { type: "string", description: "Description of evidence reviewed" },
         auditorNotes: { type: "string", description: "Additional auditor internal notes" },
       },
-      required: ["auditId", "projectId", "controlId", "findingType", "description"],
+      required: ["auditId", "projectId", "findingType", "description"],
     },
   },
   {
@@ -696,7 +696,7 @@ export async function executarFerramenta(
         const schema = z.object({
           auditId: z.string(),
           projectId: z.string(),
-          controlId: z.string(),
+          controlId: z.string().optional(),
           findingType: z.string(),
           description: z.string(),
           evidenceReviewed: z.string().optional(),

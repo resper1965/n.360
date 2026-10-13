@@ -31,9 +31,22 @@ const CLIENTES = [
       depois: 'Adicione um conector personalizado, dê o nome niso e cole o endereço acima. Conecte: o navegador abre para você entrar no n.360. Conectado, o niso aparece na lista de conectores com as ferramentas. Para o terminal, use a aba Claude Code.' },
 ];
 
-// O agente é de um papel. Hoje só existe o Consultor; o seletor aparece quando houver mais de um.
+// O papel é escolhido no login OAuth, junto com o cliente (src/routes/oauth-autorizacao.ts). Dois papéis: as duas abas ficam
+// na ordem de tabulação (sem o tabindex móvel das abas de cliente). Mudou o alcance? Mude aqui,
+// no consentimento, no niso_contexto (src/mcp/contexto.ts) e em docs/agente/seguranca.md.
 const PAPEIS = [
-    { id: 'consultor', nome: 'Consultor' },
+    { id: 'consultor', nome: 'Consultor', alcance: [
+        { titulo: 'Lê', texto: 'Tudo o que você lê neste cliente, nos módulos que o projeto e você têm. n.iso: controles, riscos, evidências em texto, políticas, entrevistas, governança. n.privacy: RoPA, DPIA, requisitos, pedidos do titular, incidentes e terceiros.' },
+        { titulo: 'Grava', texto: 'Como você grava na interface. n.iso: políticas (como rascunho), SoA, evidências em texto, controles, ativos e riscos. n.privacy: os registros que a interface deixa gravar.' },
+        { titulo: 'Pede o seu "sim"', sim: true, texto: 'Apagar, gerar políticas em lote, eliminar dados de titular e revogar aprovações de controle. Ele mostra o que vai fazer antes.' },
+        { titulo: 'Não faz', texto: 'Usuários, SSO, chaves de API, webhooks, sua conta pessoal, criar projeto e registrar achado de auditoria (quem implementa não audita: ISO 27001, 9.2). Os rascunhos de IA do n.privacy e a importação de programa são da tela, não do agente.' },
+    ] },
+    { id: 'auditor', nome: 'Auditor', alcance: [
+        { titulo: 'Lê', texto: 'Só este cliente, nos módulos que o projeto e você têm. n.iso: controles, SoA, riscos, evidências, políticas e auditorias. n.privacy: RoPA, DPIA, requisitos e lacunas, pedidos do titular, incidentes, terceiros e documentos.' },
+        { titulo: 'Registra, com o seu "sim"', sim: true, texto: 'Achado de auditoria (a não conformidade abre a ação corretiva) e nota de auditor (pergunta ou pedido de evidência), citando a evidência que leu. Ele mostra o texto antes de gravar.' },
+        { titulo: 'Não faz', texto: 'Nenhuma escrita de implementação: não grava, não corrige, não apaga, não gera política e não responde nota. Quem audita não implementa (ISO 27001, 9.2).' },
+        { titulo: 'Separação de funções', texto: 'A mesma conta não tem agente Consultor e Auditor ativos no mesmo cliente. Para trocar de papel, revogue o outro acesso e conecte de novo, escolhendo o papel no login.' },
+    ] },
 ];
 
 // Quem pode ser identidade de agente (src/middleware/agente.ts): o consultor e o administrador da consultoria.
@@ -43,17 +56,8 @@ const VE_CONECTADOS = ['platform_admin', 'consultoria_admin'];
 
 const PASSOS = [
     { titulo: 'Adicione o servidor', texto: 'Copie o comando ou o endereço do seu cliente, na aba acima, e use-o onde a aba indica. O endereço é o mesmo para todos.' },
-    { titulo: 'Entre e escolha o cliente', texto: 'O servidor fica sem acesso até você entrar: no Claude Code, abra o claude, rode /mcp, escolha niso e entre pelo navegador. Esse login é seu, o agente da sessão não o faz por você. No navegador, escolha um cliente: é um por conexão.' },
+    { titulo: 'Entre e escolha o cliente e o papel', texto: 'O servidor fica sem acesso até você entrar: no Claude Code, abra o claude, rode /mcp, escolha niso e entre pelo navegador. Esse login é seu, o agente da sessão não o faz por você. No navegador, escolha um cliente (é um por conexão) e o papel: Consultor ou Auditor.' },
     { titulo: 'Chame niso_contexto', texto: 'Peça ao agente para começar por niso_contexto: ela diz o cliente, o mapa da app e os roteiros (diagnóstico, fechar lacuna, responder auditoria e a pré-avaliação de prontidão, que só lê).' },
-];
-
-// O que o agente faz hoje (docs/agente/README.md). Mudou o alcance? Mude aqui, no consentimento
-// da tela OAuth (src/routes/oauth-autorizacao.ts) e no niso_contexto.
-const ALCANCE = [
-    { titulo: 'Lê', texto: 'Tudo o que você lê neste cliente, nos módulos que o projeto e você têm. n.iso: controles, riscos, evidências em texto, políticas, entrevistas, governança. n.privacy: RoPA, DPIA, requisitos, pedidos do titular, incidentes e terceiros.' },
-    { titulo: 'Grava', texto: 'Como você grava na interface. n.iso: políticas (como rascunho), SoA, evidências em texto, controles, ativos e riscos. n.privacy: os registros que a interface deixa gravar.' },
-    { titulo: 'Pede o seu "sim"', sim: true, texto: 'Apagar, gerar políticas em lote, eliminar dados de titular e revogar aprovações de controle. Ele mostra o que vai fazer antes.' },
-    { titulo: 'Não faz', texto: 'Usuários, SSO, chaves de API, webhooks, sua conta pessoal, criar projeto e registrar achado de auditoria (quem implementa não audita: ISO 27001, 9.2). Os rascunhos de IA do n.privacy e a importação de programa são da tela, não do agente.' },
 ];
 
 let selecionado = 'claude';
@@ -110,11 +114,8 @@ function desenhar() {
         </li>`).join('');
 
     const papelAtual = PAPEIS.find(x => x.id === papel) || PAPEIS[0];
-    // ponytail: com um papel só o seletor não aparece; com dois, vira abas (o alcance por papel entra em PAPEIS).
-    const seletorPapel = PAPEIS.length > 1
-        ? `<div class="abas" role="tablist" aria-label="Papel do agente">${PAPEIS.map(x => `<button type="button" role="tab" class="aba" aria-selected="${x.id === papelAtual.id}" data-action="__selecionarPapel" data-args='["${x.id}"]'>${escapeHTML(x.nome)}</button>`).join('')}</div>`
-        : '';
-    const alcance = ALCANCE.map(x => `
+    const seletorPapel = `<div class="abas" role="tablist" aria-label="Papel do agente">${PAPEIS.map(x => `<button type="button" role="tab" id="papel-${x.id}" class="aba" aria-selected="${x.id === papelAtual.id}" aria-controls="alcance-papel" data-action="__selecionarPapel" data-args='["${x.id}"]'>${escapeHTML(x.nome)}</button>`).join('')}</div>`;
+    const alcance = papelAtual.alcance.map(x => `
         <article class="ca-alc${x.sim ? ' ca-alc-sim' : ''}">
             <h3 class="ca-alc-titulo">${escapeHTML(x.titulo)}</h3>
             <p class="ca-alc-txt">${escapeHTML(x.texto)}</p>
@@ -146,7 +147,7 @@ function desenhar() {
             <aside class="ca-lado" aria-label="O que o agente faz">
                 <h2 class="ca-titulo">O que o agente ${escapeHTML(papelAtual.nome)} faz</h2>
                 ${seletorPapel}
-                <div class="ca-alcance">${alcance}</div>
+                <div class="ca-alcance" id="alcance-papel" role="tabpanel" aria-labelledby="papel-${papelAtual.id}">${alcance}</div>
                 <p class="ca-rodape">O MCP remoto só funciona em niso.ness.com.br. O administrador do cliente vê este acesso em Governança e pode revogá-lo; ele também cai quando você troca a senha ou sai da governança do projeto.</p>
             </aside>
         </div>`;

@@ -1,8 +1,8 @@
 import { createMcpHandler } from 'agents/mcp/server';
 import { Server, type CallToolResult } from '@modelcontextprotocol/server';
 import { TOOLS, ferramentaPermitida, executarFerramenta, type Transporte, type Ferramenta } from '../../mcp-server-niso/src/ferramentas';
-import { concessaoValida, CABECALHO_CONFIRMADO, type PropsAgente } from '../middleware/agente';
-import { INSTRUCOES, montarContexto } from './contexto';
+import { concessaoValida, CABECALHO_CONFIRMADO, type PropsAgente, type PapelAgente } from '../middleware/agente';
+import { INSTRUCOES, INSTRUCOES_AUDITOR, montarContexto } from './contexto';
 import { SKILLS } from './skills-gerado';
 import { appUrl, RECURSO_MCP } from '../config/url';
 
@@ -53,13 +53,63 @@ const GENERICAS: Ferramenta[] = [
 /** Teto do texto devolvido ao modelo: trilha e dossiê podem ter megabytes. */
 const LIMITE_TEXTO = 100_000;
 
-const DISPONIVEIS: Ferramenta[] = [
-  CONTEXTO,
-  SKILL,
-  ...GENERICAS,
-  ...TOOLS.filter((t) => ferramentaPermitida(t.name, 'consultant') && !BLOQUEADAS.has(t.name)),
-];
-const NOMES = new Set(DISPONIVEIS.map((f) => f.name));
+/**
+ * O auditor remoto não tem token do portal do auditor externo: a nota dele vai para a rota autenticada do
+ * projeto (POST /projects/:id/auditor-notes), que só aceita o principal do agente auditor.
+ */
+const NOTA_AUDITOR: Ferramenta = {
+  name: 'niso_create_auditor_note',
+  description:
+    'Registra uma nota de auditor no projeto desta conexão: pergunta, observação ou pedido de evidência, ligada ou não a um controle. A equipe responde pela interface. Mostre o texto ao usuário e espere o "sim" antes de gravar.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string' },
+      controlId: { type: 'string', description: 'Controle do projeto (opcional)' },
+      noteType: { type: 'string', enum: ['question', 'observation', 'evidence_request'] },
+      content: { type: 'string' },
+    },
+    required: ['projectId', 'content'],
+  },
+};
+
+/**
+ * Ferramentas por papel. O filtro é conveniência: quem impõe o papel é o servidor (resolverAgente), que recusa
+ * a escrita do auditor mesmo forjada. Auditor: leitura nomeada, niso_ler (só GET) e as duas escritas de auditoria.
+ */
+const DISPONIVEIS: Record<PapelAgente, Ferramenta[]> = {
+  consultor: [
+    CONTEXTO,
+    SKILL,
+    ...GENERICAS,
+    ...TOOLS.filter((t) => ferramentaPermitida(t.name, 'consultant') && !BLOQUEADAS.has(t.name)),
+  ],
+  auditor: [
+    CONTEXTO,
+    SKILL,
+    GENERICAS[0], // niso_ler
+    ...TOOLS.filter((t) => ferramentaPermitida(t.name, 'readonly') || t.name === 'niso_create_audit_finding'),
+    NOTA_AUDITOR,
+  ],
+};
+const NOMES: Record<PapelAgente, Set<string>> = {
+  consultor: new Set(DISPONIVEIS.consultor.map((f) => f.name)),
+  auditor: new Set(DISPONIVEIS.auditor.map((f) => f.name)),
+};
+
+async function notaDoAuditor(args: Record<string, unknown> | undefined, t: Transporte, projetoFixo: string): Promise<CallToolResult> {
+  const falha = (text: string): CallToolResult => ({ isError: true, content: [{ type: 'text', text }] });
+  const { projectId, content, noteType, controlId } = args ?? {};
+  if (projectId !== projetoFixo) return falha('Erro: projeto fora do escopo desta sessão');
+  if (typeof content !== 'string' || !content.trim()) return falha('Erro: content é obrigatório');
+  const corpo = {
+    content,
+    note_type: typeof noteType === 'string' ? noteType : 'question',
+    ...(typeof controlId === 'string' && controlId ? { control_id: controlId } : {}),
+  };
+  const dados = await t.enviar(`/api/v1/projects/${encodeURIComponent(projetoFixo)}/auditor-notes`, corpo);
+  return { content: [{ type: 'text', text: JSON.stringify(dados, null, 2) }] };
+}
 
 /**
  * O caminho que chega ao Worker tem de ser exatamente o que a ferramenta montou.
@@ -196,7 +246,8 @@ export async function handlerMcp(req: Request, env: any, ctx: any, fetchHono: Fe
   // Token OAuth válido não basta: a concessão pode ter sido revogada, expirada
   // ou perdido a designação. 401 (e não isError num 200) é o que faz o cliente
   // MCP descartar o token e reabrir o fluxo OAuth.
-  if (!props || !(await concessaoValida(env.DB, props))) {
+  const concessao = props ? await concessaoValida(env.DB, props) : null;
+  if (!props || !concessao) {
     return new Response(JSON.stringify({ error: 'Acesso do agente revogado ou expirado: conecte de novo.' }), {
       status: 401,
       headers: {
@@ -205,27 +256,30 @@ export async function handlerMcp(req: Request, env: any, ctx: any, fetchHono: Fe
       },
     });
   }
+  // Papel relido do banco agora (e de novo em cada chamada interna, por resolverAgente).
+  const papel = concessao.papel;
   const bruto = requisicaoInterna(req, env, ctx, props, fetchHono);
   const t = transporteInterno(bruto);
 
   const criar = () => {
-    const server = new Server({ name: 'niso', version: '2.0.0' }, { capabilities: { tools: {} }, instructions: INSTRUCOES });
-    server.setRequestHandler('tools/list', async () => ({ tools: DISPONIVEIS as any }));
+    const server = new Server({ name: 'niso', version: '2.0.0' }, { capabilities: { tools: {} }, instructions: papel === 'auditor' ? INSTRUCOES_AUDITOR : INSTRUCOES });
+    server.setRequestHandler('tools/list', async () => ({ tools: DISPONIVEIS[papel] as any }));
     server.setRequestHandler('tools/call', async (r) => {
       const { name, arguments: args } = r.params;
       try {
+        if (!NOMES[papel].has(name)) {
+          return { isError: true, content: [{ type: 'text', text: `Ferramenta ${name} indisponível para o agente ${papel}` }] };
+        }
         if (name === 'niso_contexto') {
           // GET /projects/:id devolve o projeto na raiz (redactProject), sem envelope.
           const projeto = (await t.get(`/api/v1/projects/${encodeURIComponent(props.projectId)}`)) as any;
-          return { content: [{ type: 'text', text: montarContexto({ ...projeto, id: props.projectId }, props.email) }] };
+          return { content: [{ type: 'text', text: montarContexto({ ...projeto, id: props.projectId }, props.email, papel) }] };
         }
         if (name === 'niso_skill') return skill(args);
         if (name === 'niso_ler' || name === 'niso_executar') return await genericas(name, args, bruto);
-        if (!NOMES.has(name)) {
-          return { isError: true, content: [{ type: 'text', text: `Ferramenta ${name} indisponível para o agente consultor` }] };
-        }
+        if (papel === 'auditor' && name === 'niso_create_auditor_note') return await notaDoAuditor(args, t, props.projectId);
         // projetoFixo: projectId de outro cliente é recusado antes de qualquer chamada.
-        return (await executarFerramenta(name, args, t, { projetoFixo: props.projectId, papel: 'consultant' })) as CallToolResult;
+        return (await executarFerramenta(name, args, t, { projetoFixo: props.projectId, papel: papel === 'auditor' ? 'auditor' : 'consultant' })) as CallToolResult;
       } catch (e: any) {
         return { isError: true, content: [{ type: 'text', text: `Erro: ${e?.message ?? 'falha interna'}` }] };
       }

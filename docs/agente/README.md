@@ -38,7 +38,8 @@ Na primeira chamada o cliente abre o navegador. Você:
 
 1. entra com seu e-mail e senha do n.iso (e o código do segundo fator, se tiver);
 2. escolhe **um** cliente: o consultor, entre os projetos em que está designado; o administrador da consultoria (`consultoria_admin`), entre os projetos da própria organização;
-3. volta ao cliente MCP, que já está conectado.
+3. escolhe o **papel** do agente: **Consultor** (implementa) ou **Auditor** (só lê e audita), ver [Dois papéis](#dois-papéis-consultor-e-auditor);
+4. volta ao cliente MCP, que já está conectado.
 
 > **Estado dos clientes.** O Claude Code foi exercitado contra a produção em
 > 30/09/2026 (conexão, leitura e escrita). Codex, Cursor, Antigravity, ChatGPT e Claude
@@ -52,7 +53,29 @@ agente de uma não enxerga a outra. Para trocar de projeto, conecte de novo e
 escolha o outro.
 
 **Não é você?** O agente age como você: a trilha registra
-`agente de <seu e-mail> (<cliente> / <projeto>)`.
+`agente de <seu e-mail> (<cliente> / <projeto>)`, ou `agente auditor de <seu e-mail> (...)` no papel Auditor.
+
+### Dois papéis: Consultor e Auditor
+
+O endereço é o mesmo (`/mcp`); o papel é escolhido na tela de login, junto com o cliente, e fica gravado na
+concessão (`agente_concessoes.papel`, migration 0070). O servidor relê o papel do banco **a cada chamada**: o
+token só o confere.
+
+| | Consultor | Auditor |
+|---|---|---|
+| Lê | Tudo o que o consultor lê no projeto | O projeto da conexão, nos dois módulos: n.iso (controles, SoA, riscos, evidências, políticas, auditorias) e n.privacy (RoPA, DPIA, requisitos e lacunas, pedidos do titular, incidentes, terceiros, documentos) |
+| Grava | Adequação, como na interface; destrutivo com o seu "sim" | **Só** achado de auditoria (`niso_create_audit_finding`) e nota de auditor (`niso_create_auditor_note`) |
+| Não faz | Achado e nota de auditor (quem implementa não audita) | Nenhuma escrita de implementação: não grava, não corrige, não apaga, não gera política, não responde nota |
+| Ferramentas | Leitura, `niso_ler`, `niso_executar` e as de escrita do consultor | Leitura, `niso_ler` (só GET) e as duas de auditoria; sem `niso_executar` |
+| Roteiros (`niso_contexto`) | Os oito abaixo | Auditoria interna ISO 27001 (9.2), cláusulas 4 a 10, prontidão; no n.privacy: RoPA e bases legais, DPIA, prazos de pedidos do titular, terceiros, incidentes e comunicação à ANPD, cobertura. Sempre: ler, comparar com o requisito, registrar o achado citando a evidência |
+
+**Separação de funções.** A mesma conta não pode ter, no mesmo projeto, um agente Consultor **e** um Auditor ativos.
+Ao conectar o segundo papel com o primeiro ativo, a tela de login recusa e pede para revogar o outro acesso antes
+(painel Agentes ou Governança). Quem conecta como auditor é sempre a conta de equipe logada (consultor ou
+`consultoria_admin`); `platform_admin` e `comercial` não conectam agente em nenhum papel.
+
+A nota do auditor remoto entra por `POST /api/v1/projects/:id/auditor-notes`, que só aceita o principal do agente
+auditor; o auditor externo continua gravando pelo portal, com o token do link.
 
 ### Quem conecta, e o painel Agentes
 
@@ -189,7 +212,7 @@ auditoria.
 ## O que o cliente vê e controla
 
 Na tela de **Governança** do projeto, o cartão **Agentes com acesso** lista cada
-agente conectado: de quem é (o consultor), qual cliente MCP, desde quando, **último
+agente conectado: de quem é (o consultor), o **papel** (Consultor ou Auditor), qual cliente MCP, desde quando, **último
 uso** e até quando vale. O administrador do cliente, o `platform_admin`, o `consultoria_admin` da organização e o próprio
 consultor dono do acesso podem **Revogar**; o acesso cai **na próxima chamada** do
 agente.
@@ -211,6 +234,8 @@ Quem vê o cartão: administrador do cliente, `platform_admin`, `consultoria_adm
 |---|---|
 | A ferramenta nova não aparece, ou `/mcp` não carregou | Reconecte: rode `/mcp` no Claude Code e reconecte o `niso`. O cliente guarda a lista de ferramentas da conexão anterior. |
 | "refaça o login" / 401 | A concessão foi revogada, expirou (30 dias), você saiu da governança do projeto ou trocou a senha. Conecte de novo. |
+| "Separação de funções" ao conectar | Você já tem um agente do outro papel ativo neste cliente. Revogue-o (painel Agentes ou Governança) e conecte de novo. |
+| O agente auditor recebe 403 ao gravar | Correto: o auditor só grava achado e nota. Corrigir é da equipe, pela ação corretiva. |
 | O "último uso" na tela parece parado | A tela mostra o momento em que foi carregada. Recarregue a página. |
 | O agente leu, mas não há nada na trilha | A trilha registra **escrita**. Leitura não é registrada; o único sinal é o "último uso". |
 | Não consigo editar ou excluir uma linha de consultor na Governança | É de propósito: designar consultor é do `platform_admin` ou do administrador do cliente, porque essa linha decide quem pode conectar um agente ao projeto. |

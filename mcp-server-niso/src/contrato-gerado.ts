@@ -54,6 +54,7 @@ export const ROTAS = {
   'POST /api/v1/projects/{id}/stakeholders': { obrigatorios: ['name'] },
   'POST /api/v1/projects/{projectId}/api-keys': { obrigatorios: ['name'] },
   'POST /api/v1/projects/{projectId}/approve-document': { obrigatorios: ['content', 'itemId'] },
+  'POST /api/v1/projects/{projectId}/auditor-notes': { obrigatorios: ['content'] },
   'POST /api/v1/projects/{projectId}/audits': { obrigatorios: ['audit_type', 'scheduled_date', 'title'] },
   'POST /api/v1/projects/{projectId}/capa': { obrigatorios: ['title'] },
   'POST /api/v1/projects/{projectId}/certification': { obrigatorios: [] },

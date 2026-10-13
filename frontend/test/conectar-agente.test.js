@@ -20,7 +20,7 @@ function monta(role = 'consultor', activeProject = null) {
   return { c, h, a };
 }
 
-const abas = (c) => [...c.querySelectorAll('[role="tab"]')];
+const abas = (c) => [...c.querySelectorAll('[aria-label="Cliente MCP"] [role="tab"]')];
 const aba = (c, nome) => abas(c).find((t) => t.textContent.includes(nome));
 const painel = (c) => c.querySelector('[role="tabpanel"]');
 
@@ -46,7 +46,8 @@ describe('Conectar agente — estrutura', () => {
     expect(main.querySelector('[role="tablist"]')).toBeTruthy();
     expect(main.querySelector('ol.ca-passos')).toBeTruthy();
     expect(lado.querySelector('.ca-alcance')).toBeTruthy();
-    expect(lado.querySelector('[role="tablist"]')).toBeNull();
+    expect(lado.querySelector('[aria-label="Cliente MCP"]')).toBeNull();
+    expect(lado.querySelector('[aria-label="Papel do agente"]')).toBeTruthy();
   });
 
   it('um cliente por vez, em abas acessíveis: o Claude Code vem selecionado', () => {
@@ -185,14 +186,28 @@ describe('Conectar agente — o que a tela afirma', () => {
 });
 
 describe('Agentes: os dois módulos e os dois clientes novos', () => {
-  it('fala do n.360 e dos dois módulos, e não promete o papel Auditor nem "em breve"', () => {
+  it('fala do n.360 e dos dois módulos, sem "em breve"', () => {
     const { c } = monta();
     expect(c.textContent).toContain('n.360');
     expect(c.textContent).toContain('n.privacy');
-    expect(c.textContent).not.toMatch(/bauditorb|em breve/i);
-    // com um papel só o seletor de papel não aparece
-    expect(c.querySelector('[aria-label="Papel do agente"]')).toBeNull();
-    expect(c.querySelector('.ca-alcance').previousElementSibling.textContent).toBe('O que o agente Consultor faz');
+    expect(c.textContent).not.toMatch(/em breve/i);
+  });
+
+  it('dois papéis em abas: Consultor vem selecionado; Auditor mostra o alcance de quem só lê e audita', () => {
+    const { c } = monta();
+    const papeis = [...c.querySelectorAll('[aria-label="Papel do agente"] [role="tab"]')];
+    expect(papeis.map((t) => t.textContent)).toEqual(['Consultor', 'Auditor']);
+    expect(papeis[0].getAttribute('aria-selected')).toBe('true');
+    expect(c.querySelector('.ca-lado h2').textContent).toBe('O que o agente Consultor faz');
+    window.__selecionarPapel('auditor');
+    expect(c.querySelector('.ca-lado h2').textContent).toBe('O que o agente Auditor faz');
+    const painelPapel = c.querySelector('.ca-alcance');
+    expect(painelPapel.getAttribute('role')).toBe('tabpanel');
+    expect(painelPapel.getAttribute('aria-labelledby')).toBe('papel-auditor');
+    const t = painelPapel.textContent.toLowerCase();
+    for (const x of ['só este cliente', 'n.iso', 'n.privacy', 'ropa', 'dpia', 'pedidos do titular', 'incidentes', 'terceiros', 'achado de auditoria', 'nota de auditor', 'não grava', 'não apaga', 'não gera política', '9.2', 'consultor e auditor ativos no mesmo cliente']) expect(t, x).toContain(x);
+    // trocar de papel não muda o cliente selecionado
+    expect(aba(c, 'Claude Code').getAttribute('aria-selected')).toBe('true');
   });
 
   it('ChatGPT: onde, endereço copiável, login OAuth e como conferir; selo A confirmar', () => {

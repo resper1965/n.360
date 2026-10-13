@@ -4,7 +4,7 @@ import { verifyPassword, rateLimit, rateLimitD1, genId, genToken, logAudit, esca
 import { clientIp, chavesTentativa, registrarFalhaLogin } from './auth';
 import { mensagemBloqueio } from '../auth-policy';
 import { verificarCodigoTotp } from '../services/totp';
-import { NOME_CLIENTE_SQL, type PropsAgente } from '../middleware/agente';
+import { NOME_CLIENTE_SQL, PAPEIS_AGENTE, type PapelAgente, type PropsAgente } from '../middleware/agente';
 
 /*
  * Tela de autorização do MCP remoto (spec 2026-09-29-receita-agentes-mcp-remoto).
@@ -28,6 +28,21 @@ const chave = (t: string) => `oauth_pedido:${t}`;
 
 interface Pedido { oauth: unknown; clientName: string; destino: string; userId?: string; email?: string }
 
+/**
+ * O alcance de cada papel, em linguagem simples: é o que a pessoa consente. Mudou o alcance (resolverAgente,
+ * FORA_DO_AGENTE, foraDoAuditor), mude aqui no mesmo PR.
+ */
+const ALCANCE_PAPEL: Record<PapelAgente, { nome: string; texto: string }> = {
+  consultor: {
+    nome: 'Consultor (implementa)',
+    texto: 'O agente tem o mesmo alcance que você tem neste cliente: lê tudo e grava adequação (políticas, SoA, evidências, controles, riscos). Com a sua confirmação a cada vez, também apaga registros, gera políticas em lote, elimina dados de titular e revoga aprovações de controle. Aprovação de ROPA e DPIA e análise crítica assinada só se desfazem pela interface, por quem administra. Não registra achado de auditoria, não gerencia usuários, SSO, chaves de API nem webhooks.',
+  },
+  auditor: {
+    nome: 'Auditor (só lê e audita)',
+    texto: 'O agente só lê este cliente, nos módulos do projeto: no n.iso, controles, SoA, riscos, evidências, políticas e auditorias; no n.privacy, RoPA, DPIA, requisitos e lacunas, pedidos do titular, incidentes, terceiros e documentos. Grava só achado de auditoria e nota de auditor. Não grava, não corrige, não apaga e não gera política: quem audita não implementa (ISO 27001, 9.2). Você não pode ter, no mesmo cliente, um agente consultor e um auditor ativos ao mesmo tempo.',
+  },
+};
+
 /** Loopback é o callback local do cliente MCP na máquina da pessoa. */
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -44,6 +59,7 @@ input[type=email],input[type=password],input[type=text]{width:100%;box-sizing:bo
 button{margin-top:24px;width:100%;padding:12px;border:0;border-radius:10px;background:#00ade8;color:#04121c;font:500 15px Inter,system-ui,sans-serif;cursor:pointer}
 .op{display:flex;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.1)}
 .erro{color:#fca5a5}.nota{font-size:13px;color:#94a3b8}
+h2{font:600 17px Montserrat,system-ui,sans-serif;margin:24px 0 0}
 </style></head><body><main><div class="marca">n<span>.</span>iso</div>${corpo}</main></body></html>`;
   return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
 }
@@ -152,13 +168,19 @@ oauthAutorizacao.post('/authorize/entrar', async (c) => {
   const opcoes = results.map((p) =>
     `<label class="op"><input type="radio" name="projeto" value="${escapeHtml(p.id)}" required> ${escapeHtml(p.client_name)}</label>`
   ).join('');
+  // Nenhum papel pré-marcado, como o cliente: a escolha é explícita.
+  const papeis = PAPEIS_AGENTE.map((id) =>
+    `<label class="op"><input type="radio" name="papel" value="${id}" required> <span><strong>${escapeHtml(ALCANCE_PAPEL[id].nome)}</strong><br><span class="nota">${escapeHtml(ALCANCE_PAPEL[id].texto)}</span></span></label>`
+  ).join('');
   return pagina('Escolha o cliente', `
 <h1>Em qual cliente o agente vai atuar?</h1>
 <p class="nota">${escapeHtml(pedido.clientName)} em ${escapeHtml(pedido.destino)}. Um cliente por conexão. Para outro cliente, conecte de novo.</p>
 ${LOOPBACK.has(new URL(`http://${pedido.destino}`).hostname) ? '' : `<p class="erro">Atenção: o acesso será entregue a ${escapeHtml(pedido.destino)}. Só autorize se você reconhece este endereço.</p>`}
 <form method="post" action="/oauth/authorize/confirmar">
 <input type="hidden" name="pedido" value="${token}">${opcoes}
-<p class="nota">O agente tem o mesmo alcance que você tem neste cliente: lê tudo e grava adequação (políticas, SoA, evidências, controles, riscos). Com a sua confirmação a cada vez, também apaga registros, gera políticas em lote, elimina dados de titular e revoga aprovações de controle. Aprovação de ROPA e DPIA e análise crítica assinada só se desfazem pela interface, por quem administra. Não registra achado de auditoria, não gerencia usuários, SSO, chaves de API nem webhooks. O administrador do cliente vê e pode revogar este acesso.</p>
+<h2>Com qual papel?</h2>
+${papeis}
+<p class="nota">O administrador do cliente vê este acesso, com o papel, e pode revogá-lo.</p>
 <button type="submit">Autorizar</button></form>`);
 });
 
@@ -170,6 +192,9 @@ oauthAutorizacao.post('/authorize/confirmar', async (c) => {
   await c.env.SESSIONS.delete(chave(token)); // uso único, antes de qualquer efeito
 
   const projectId = String(f.projeto || '');
+  // Sem o campo: formulário anterior ao papel, que só conhecia o consultor. Valor fora da lista é recusado.
+  const papel = String(f.papel ?? 'consultor') as PapelAgente;
+  if (!PAPEIS_AGENTE.includes(papel)) return pagina('Pedido inválido', '<h1>Papel inválido</h1><p>Volte ao seu cliente MCP e conecte de novo.</p>', 400);
   const quem = await c.env.DB.prepare('SELECT email, role, org_id FROM users WHERE id = ?').bind(pedido.userId).first<{ email: string; role: string; org_id: string | null }>();
   if (!quem) return pagina('Não autorizado', '<h1>Cliente fora da sua designação</h1>', 403);
   const alcance = projetosDoAgente(quem);
@@ -179,27 +204,36 @@ oauthAutorizacao.post('/authorize/confirmar', async (c) => {
   ).bind(projectId, alcance.bind, quem.org_id ?? '').first<{ client_name: string }>();
   if (!alvo) return pagina('Não autorizado', '<h1>Cliente fora da sua designação</h1>', 403);
 
+  // Separação de funções (ISO 27001, 9.2): quem implementa neste cliente não o audita, e vice-versa.
+  const outro = await c.env.DB.prepare(
+    `SELECT papel FROM agente_concessoes WHERE user_id = ? AND project_id = ? AND papel <> ?
+        AND revogado_em IS NULL AND expira_em > datetime('now') LIMIT 1`
+  ).bind(pedido.userId, projectId, papel).first<{ papel: PapelAgente }>();
+  if (outro) {
+    return pagina('Papel em conflito', `<h1>Separação de funções</h1><p class="erro">Você já tem um agente ${outro.papel} ativo em ${escapeHtml(alvo.client_name)}. A mesma conta não pode ser ${outro.papel} e ${papel} no mesmo cliente: quem implementa não audita (ISO 27001, 9.2).</p><p>Revogue o outro acesso no painel Agentes do n.360 e conecte de novo.</p>`, 409);
+  }
+
   // Grant primeiro: se completeAuthorization falhar, não sobra concessão nem
   // trilha órfã. Se o INSERT falhar depois, o grant aponta para concessão
   // inexistente e resolverAgente o recusa — falha fechada.
   const concessaoId = genId();
   const clienteMcp = `${pedido.clientName} (${pedido.destino})`.slice(0, 120);
-  const props: PropsAgente = { userId: pedido.userId, email: pedido.email, projectId, concessaoId };
+  const props: PropsAgente = { userId: pedido.userId, email: pedido.email, projectId, concessaoId, papel };
   const provedor = c.env.OAUTH_PROVIDER;
   if (!provedor) return c.notFound(); // o use('*') já barra; aqui só estreita o tipo
   const { redirectTo } = await provedor.completeAuthorization({
     request: pedido.oauth as any, userId: pedido.userId,
-    metadata: { clientName: pedido.clientName, projectId },
-    // Escopo fixo: o que o agente pode é decidido aqui (papel consultor), não
-    // pelo que o cliente MCP pediu na URL.
-    scope: ['niso:consultor'],
+    metadata: { clientName: pedido.clientName, projectId, papel },
+    // Escopo fixo pelo papel escolhido aqui, não pelo que o cliente MCP pediu na URL. É rótulo: o servidor relê
+    // o papel da concessão a cada chamada (concessaoValida).
+    scope: [`niso:${papel}`],
     props, revokeExistingGrants: false,
   });
 
   await c.env.DB.prepare(
-    `INSERT INTO agente_concessoes (id, user_id, project_id, cliente_mcp, expira_em) VALUES (?, ?, ?, ?, datetime('now', ?))`
-  ).bind(concessaoId, pedido.userId, projectId, clienteMcp, `+${TTL_CONCESSAO_DIAS} days`).run();
-  await logAudit(c.env.DB, 'agente.autorizado', pedido.email, `Agente ${clienteMcp} conectado ao cliente ${alvo.client_name}`, '', c.req.header('CF-Connecting-IP') || '', projectId);
+    `INSERT INTO agente_concessoes (id, user_id, project_id, cliente_mcp, expira_em, papel) VALUES (?, ?, ?, ?, datetime('now', ?), ?)`
+  ).bind(concessaoId, pedido.userId, projectId, clienteMcp, `+${TTL_CONCESSAO_DIAS} days`, papel).run();
+  await logAudit(c.env.DB, 'agente.autorizado', pedido.email, `Agente ${papel} ${clienteMcp} conectado ao cliente ${alvo.client_name}`, '', c.req.header('CF-Connecting-IP') || '', projectId);
 
   // Página com meta refresh, e não 302: o CSP `form-action 'self'` barra o
   // redirecionamento pós-formulário para o callback local do cliente MCP.

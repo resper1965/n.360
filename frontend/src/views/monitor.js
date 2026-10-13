@@ -670,7 +670,7 @@ import { podeIndicar } from './encarregado.js';
             return `
             <div class="gov-agente ${revogado ? 'gov-agente-revogado' : ''}">
                 <div>
-                    <div class="gov-member-name">${escapeHTML(ag.consultor)} · ${escapeHTML(ag.cliente_mcp || 'cliente MCP')}</div>
+                    <div class="gov-member-name">${escapeHTML(ag.consultor)} · ${ag.papel === 'auditor' ? 'Auditor' : 'Consultor'} · ${escapeHTML(ag.cliente_mcp || 'cliente MCP')}</div>
                     <div class="gov-agente-meta">desde ${data(ag.criado_em)} · último uso ${ultimoUso(ag.ultimo_uso_em)} · ${revogado ? `revogado em ${data(ag.revogado_em)}` : `válido até ${data(ag.expira_em)}`}</div>
                 </div>
                 ${!revogado && podeRevogar(ag) ? `<button class="btn btn-secondary" data-action="revogarAgente" data-args='["${escapeHTML(projectId)}","${escapeHTML(ag.id)}"]'>Revogar</button>` : ''}
@@ -680,7 +680,7 @@ import { podeIndicar } from './encarregado.js';
             <section class="gov-agentes" aria-labelledby="gov-agentes-titulo">
                 <div class="gov-agentes-head">
                     <h3 class="gov-section-title gov-agentes-titulo" id="gov-agentes-titulo">Agentes com acesso</h3>
-                    <p class="gov-agentes-nota">Agentes de IA que consultores conectaram a este cliente. Revogar corta o acesso na próxima chamada.</p>
+                    <p class="gov-agentes-nota">Agentes de IA que a equipe da consultoria conectou a este cliente, com o papel de cada um: Consultor implementa, Auditor só lê e registra achado e nota. Revogar corta o acesso na próxima chamada.</p>
                 </div>
                 ${linhas || '<div class="gov-empty-list">Nenhum agente conectado a este cliente.</div>'}
             </section>`;

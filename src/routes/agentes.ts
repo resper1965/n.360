@@ -21,7 +21,7 @@ agentesApp.get('/projects/:projectId/agentes', async (c) => {
   try {
     if (user.role === 'consultoria_admin' && !podeAdministrarOrg(user, await orgDoProjeto(c.env.DB, c.req.param('projectId')))) return c.json({ error: 'Forbidden' }, 403);
     const { results } = await c.env.DB.prepare(
-      `SELECT ac.id, u.email AS consultor, ac.cliente_mcp, ac.criado_em, ac.ultimo_uso_em, ac.expira_em, ac.revogado_em
+      `SELECT ac.id, u.email AS consultor, ac.papel, ac.cliente_mcp, ac.criado_em, ac.ultimo_uso_em, ac.expira_em, ac.revogado_em
          FROM agente_concessoes ac JOIN users u ON u.id = ac.user_id
         WHERE ac.project_id = ? ORDER BY ac.criado_em DESC`
     ).bind(c.req.param('projectId')).all();

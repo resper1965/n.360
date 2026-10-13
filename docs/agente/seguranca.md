@@ -10,6 +10,30 @@ Visão geral e uso: [`README.md`](README.md). Peças e fluxos:
 
 ---
 
+## Matriz de papéis do agente
+
+O agente remoto tem dois papéis, escolhidos no consentimento OAuth e gravados na concessão
+(`agente_concessoes.papel`, migration 0070). O papel vale **pelo banco**, relido a cada chamada.
+
+| | Consultor | Auditor |
+|---|---|---|
+| Quem conecta | `consultor` designado, `consultoria_admin` da organização | Os mesmos. `platform_admin` e `comercial` não conectam em nenhum papel |
+| Leitura | Tudo o que o consultor alcança no projeto (menos `FORA_DO_AGENTE`) | Só GET/HEAD numa **allow-list**: `/projects/<projeto da concessão>` e abaixo, `/portfolio`, `/audits/:id/findings`, `/evidence/:id/{content,detail,download}` (menos `FORA_DO_AGENTE`). Rota fora da lista é 403, inclusive rota nova |
+| Escrita | Adequação; destrutivo com confirmação (I5) | **Só** `POST /audits/:id/findings` e `POST /projects/<projeto>/auditor-notes`. Qualquer outro método/rota: 403 |
+| Achado e nota de auditor | Recusados (I6) | Permitidos |
+| Trilha | `agente de <email> (<cliente> / <projeto>)` | `agente auditor de <email> (<cliente> / <projeto>)` |
+| Ferramentas (`tools/list`) | Leitura, `niso_ler`, `niso_executar`, escrita do consultor | Leitura, `niso_ler`, `niso_create_audit_finding`, `niso_create_auditor_note`, `niso_contexto`, `niso_skill` |
+
+O filtro de ferramentas é conveniência. Quem impõe o papel é o servidor: `foraDoAuditor` em
+`src/middleware/agente.ts` (allow-list) e, como segunda camada, `apiKeyRoleViolation('auditor' | 'consultant')`.
+
+**Separação de funções (I13).** A mesma conta não tem, no mesmo projeto, concessão ativa de consultor **e** de
+auditor. O consentimento recusa o segundo papel (409, "revogue o outro acesso"); se os dois coexistirem por
+corrida, `concessaoValida` recusa os dois (falha fechada). A regra é sobre concessões de agente: a sessão humana
+do consultor segue sem gravar achado (I6), como antes.
+
+---
+
 ## A decisão que explica todo o resto
 
 O agente tem **o mesmo alcance do consultor humano, preso a um projeto**.
@@ -60,12 +84,13 @@ quê (mesma regra do [`SECURITY.md`](../../SECURITY.md)).
 | **I3** | O caminho é avaliado **decodificado**. `%`, `#`, `\`, segmentos `.` e `..` e qualquer caminho que o parser de URL reescreva são recusados antes da API. | `caminhoSeguro` (`servidor.ts`), `resolverAgente` | `agente-principal` — caminhos percent-encoded e de travessia |
 | **I4** | Há uma lista fechada de rotas **fora do alcance** do agente (tabela abaixo), recusada mesmo com confirmação. | `FORA_DO_AGENTE` em `src/middleware/agente.ts` | `agente-paridade` — "rotas fora do alcance mesmo com confirmação" |
 | **I5** | Ação destrutiva exige confirmação **imposta no servidor**: apagar (`DELETE`), `generate-policies-bulk`, `data-subject/erase`, `revoke-approval(s)`. Só o booleano `true` em `confirmado_pelo_usuario` vira o cabeçalho; o texto `"true"` não vale. Cada uma que passa grava `agente.acao_destrutiva` com o projeto. | `acaoDestrutiva`, `resolverAgente`, `genericas` (`servidor.ts`), hook em `auth.ts` | `agente-paridade`, `agente-ferramentas-genericas` |
-| **I6** | O agente **não registra achado de auditoria** (ISO 27001, 9.2: quem implementa não audita). | `apiKeyRoleViolation('consultant', …)` em `src/auth-policy.ts` | `agente-paridade` — "escrita de auditor continua recusada" |
-| **I7** | A concessão é revalidada **a cada chamada**: não revogada, não expirada (30 dias), conta ativa, papel `consultor` (o `consultoria_admin` e os demais papéis não conectam agente), projeto da organização do consultor (multiconsultoria, #253) e pessoa **ainda designada** na governança do projeto. | `concessaoValida` (`agente.ts`), chamada pelo `/mcp` (401) e por `resolverAgente` | `mcp-remoto` — revogada, designação removida, expirada (401); `agentes-acesso` — o agente cai na chamada seguinte à revogação |
+| **I6** | O agente **consultor** não registra achado de auditoria nem nota de auditor (ISO 27001, 9.2: quem implementa não audita). O agente **auditor** só lê e grava achado e nota. | `apiKeyRoleViolation` e `isAuditWrite` em `src/auth-policy.ts`; `foraDoAuditor` em `src/middleware/agente.ts`; a rota `POST /projects/:id/auditor-notes` só aceita o agente auditor | `agente-paridade` — "escrita de auditor continua recusada"; `agente-auditor` — escrita forjada, regressão do consultor |
+| **I7** | A concessão é revalidada **a cada chamada**: não revogada, não expirada (30 dias), conta ativa, papel de conta `consultor` ou `consultoria_admin` (os demais não conectam agente), **papel do agente igual ao do token** (concessão trocada derruba), projeto da organização do consultor (multiconsultoria, #253) e pessoa **ainda designada** na governança do projeto. | `concessaoValida` (`agente.ts`), chamada pelo `/mcp` (401) e por `resolverAgente` | `mcp-remoto` — revogada, designação removida, expirada (401); `agentes-acesso` — o agente cai na chamada seguinte à revogação |
 | **I8** | Trocar ou redefinir a senha revoga as concessões do usuário. | `revogarAgentesPorTrocaDeSenha` (`src/helpers.ts`) | `agente-principal` — "troca de senha derruba o agente" |
-| **I9** | O fluxo OAuth usa a mesma contagem e o mesmo bloqueio do login do app; senha errada, conta inativa e papel sem acesso dão a **mesma** resposta; senha provisória barra a conexão; o escopo é fixo em `niso:consultor`; o pedido é de uso único. | `src/routes/oauth-autorizacao.ts`, `registrarFalhaLogin` (`routes/auth.ts`) | `oauth-autorizacao` |
+| **I9** | O fluxo OAuth usa a mesma contagem e o mesmo bloqueio do login do app; senha errada, conta inativa e papel sem acesso dão a **mesma** resposta; senha provisória barra a conexão; o escopo é fixado pelo papel escolhido (`niso:consultor` ou `niso:auditor`; papel desconhecido é 400), nunca pelo que o cliente pediu; o pedido é de uso único. | `src/routes/oauth-autorizacao.ts`, `registrarFalhaLogin` (`routes/auth.ts`) | `oauth-autorizacao` |
 | **I10** | `niso_skill` só lê de um mapa embutido. `nome` e `arquivo` **nunca** viram caminho de disco. | `skill()` em `servidor.ts` (`Object.hasOwn`) | `agente-skills` — nome inexistente, `../`, `..\` |
 | **I11** | Segredo de integração não sai: a listagem de webhooks não devolve `secret`, e o export de portabilidade omite webhook, SSO, SCIM e `repository_token`. | `routes/integrations.ts`, `src/portabilidade.ts` | `webhooks-segredo`, `portabilidade` |
+| **I13** | **Separação de funções**: a mesma conta não tem agente consultor e auditor ativos no mesmo projeto. | `/authorize/confirmar` (409) e o `NOT EXISTS` de `concessaoValida` | `agente-auditor` — "separação de funções" |
 | **I12** | **O consultor humano só alcança os projetos em que consta como `consultor` na governança** (`project_governance.role_category = 'consultor'`, e-mail sem caixa, conta ativa). Vale para rota de projeto, recurso por id e listagem entre projetos (`/projects`, `/portfolio`, `/controls`, `/dashboard`, `/dashboard/stats`, `/users`). É a **mesma** regra da concessão do agente (I7): uma função, `consultorDesignado`, e um SQL, `PROJETOS_DO_CONSULTOR_SQL`. Tirar a linha da governança derruba o acesso na requisição seguinte. Erro na consulta nega. O `consultoria_admin` alcança os projetos da própria organização (multiconsultoria, #253); só o `platform_admin` vê todos. | `src/helpers.ts` (`requireProjectAccess`, `requireResourceAccess`, `projetosVisiveis`), `src/middleware/project-access.ts`, `src/routes/users.ts` | `consultor-escopo` |
 
 ### O que está fora do alcance (I4) e por quê
@@ -117,8 +142,8 @@ independente de 30/09/2026 avaliou e descartou como vulnerabilidade, e o motivo.
    falso (já aconteceu entre o #221 e o #222). Mudou o alcance, mude o texto de
    `src/routes/oauth-autorizacao.ts` no mesmo PR.
 4. **Concessões antigas ganham poderes novos sem novo consentimento.** O escopo
-   é fixo em `niso:consultor`, então uma concessão emitida antes de uma mudança
-   de alcance a herda. Mudança que **amplia** o alcance merece aviso aos
+   é fixo pelo papel (`niso:consultor`), então uma concessão emitida antes de uma mudança
+   de alcance a herda. As concessões anteriores à 0070 viram `consultor` (default da coluna). Mudança que **amplia** o alcance merece aviso aos
    administradores de cliente.
 5. **`GET /projects/:id/export` é alcançável.** Devolve todo o conteúdo do
    projeto, como para qualquer membro. Desde o #222 ele não leva segredo de
@@ -180,6 +205,7 @@ segundo não aparece.
 | `test/agentes-acesso.test.ts` | Revogação, expiração, designação, listagem para o cliente. |
 | `test/oauth-autorizacao.test.ts` | Login OAuth, MFA, bloqueio, escopo, texto do consentimento. |
 | `test/mcp-remoto.test.ts` | Handshake, ferramentas listadas, 401 após revogar. |
+| `test/agente-auditor.test.ts` | Papel auditor: leitura nos dois módulos, 403 em toda escrita do consultor (forjada na API e pelo MCP), achado e nota com a trilha, papel relido do banco, separação de funções, `tools/list` por papel, platform_admin e comercial recusados. |
 | `test/agente-skills.test.ts` | Módulo embutido em dia, `niso_skill` sem vazamento, roteiro 4. |
 | `test/agente-gap-traceability.test.ts` | Diagnóstico acima de 100 controles, edição parcial de risco. |
 | `test/webhooks-segredo.test.ts`, `test/portabilidade.test.ts` | Segredo de integração fora da listagem e do export. |

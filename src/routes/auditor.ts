@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { logAudit, requireResourceAccess, erro500, sha256Hex } from '../helpers';
-import { validateBody, auditorResponseSchema } from '../schemas';
+import { logAudit, requireResourceAccess, erro500, sha256Hex, refForaDoProjeto, genId } from '../helpers';
+import { validateBody, auditorResponseSchema, auditorNoteSchema } from '../schemas';
 
 export const auditorApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -43,6 +43,35 @@ auditorApp.put('/auditor-notes/:id/respond', async (c) => {
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Falha ao responder nota de auditor', e);
+  }
+});
+
+/**
+ * Nota do agente AUDITOR remoto (MCP). O auditor externo grava pelo portal, com o token do link; a equipe não grava
+ * nota de auditor (quem implementa não audita). O projeto vem da rota, já conferido pelo projectAccessMiddleware
+ * contra o projeto da concessão; `auditor_token` guarda a concessão, nunca um segredo.
+ */
+auditorApp.post('/projects/:projectId/auditor-notes', async (c) => {
+  const user = c.get('user');
+  const agente = c.env.AGENTE;
+  if (!agente || user.agente_papel !== 'auditor') {
+    return c.json({ error: 'Forbidden: nota de auditor é do auditor (portal do auditor externo ou agente auditor)' }, 403);
+  }
+  try {
+    const projectId = c.req.param('projectId');
+    const v = await validateBody(c, auditorNoteSchema);
+    if (!v.success) return v.response;
+    const { control_id, note_type, content } = v.data;
+    const fora = await refForaDoProjeto(c.env.DB, projectId, { control_id }, ['control_id']);
+    if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
+    const id = genId();
+    await c.env.DB.prepare(
+      `INSERT INTO auditor_notes (id, project_id, auditor_token, control_id, note_type, content) VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(id, projectId, `agente:${agente.concessaoId}`, control_id || null, note_type || 'question', content).run();
+    await logAudit(c.env.DB, 'auditor_note.created', user.email, `Nota de auditor ${id} criada`, '', c.req.header('CF-Connecting-IP') ?? '', projectId);
+    return c.json({ ok: true, id });
+  } catch (e) {
+    return erro500(c, 'Falha ao criar nota de auditor', e);
   }
 });
 
