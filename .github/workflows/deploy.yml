@@ -16,6 +16,10 @@ name: Deploy
 # O que ele faz é RECUSAR o deploy se houver migration pendente — publicar código
 # que consulta tabela que ainda não existe é exatamente o defeito que já custou
 # caro aqui.
+#
+# Plano B, para o dia em que o Actions não rodar (minutos esgotados, GitHub fora):
+# `scripts/publicar.sh` repete estes passos na máquina do dono. Runbook em
+# docs/runbook-publicacao.md.
 
 on:
   workflow_dispatch:
@@ -45,20 +49,25 @@ jobs:
 
       - run: npm ci
 
-      # Mesma verificação do CI. Redundante por PR, necessária por deploy manual
-      # e por push direto em main.
+      # Barato (segundos) e pega o que mudaria entre o PR e a `main`.
       - name: TypeScript Check
         run: npx tsc --noEmit
 
-      # Roda com cobertura (istanbul) + piso de catraca. Sem retry: a flakiness
-      # de teardown era do pool 0.4.x; no 0.20 (pool reescrito) não reproduz.
-      - name: Run Tests
+      # SUÍTE SÓ NO DEPLOY MANUAL (workflow_dispatch). No `push` para a `main` ela
+      # já passou no PR — o ruleset exige `test` e `e2e` verdes com a branch em dia
+      # com a base, e o merge é squash —, então rodá-la de novo aqui custava ~14 min
+      # de Actions por merge sem testar nada novo. O deploy manual (hotfix, re-run
+      # depois de migration) não tem esse PR por trás: ali ela é o portão.
+      # Cobertura (istanbul) + piso de catraca, sem retry, como no CI.
+      - name: Run Tests (deploy manual)
+        if: github.event_name == 'workflow_dispatch'
         run: npm run test:coverage
 
       - name: Build Frontend
         run: cd frontend && npm ci && npm run build
 
-      - name: Test Frontend (coverage)
+      - name: Test Frontend (deploy manual)
+        if: github.event_name == 'workflow_dispatch'
         run: cd frontend && npm run test:coverage
 
       - name: Recusar deploy com migration pendente
