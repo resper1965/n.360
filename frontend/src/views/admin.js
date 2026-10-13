@@ -299,9 +299,9 @@ window.__adminCopiarApiKey = () => {
 
     async function excluirContaDefinitiva(id) {
         try {
-            await api('DELETE', `/api/v1/users/${id}?definitivo=1`);
+            const r = await api('DELETE', `/api/v1/users/${id}?definitivo=1`);
             forceCloseModal();
-            showToast('Conta excluída definitivamente');
+            showToast(r && r.anonimizado ? 'A conta tem histórico: ficou sem identidade e sem acesso, e o e-mail foi liberado' : 'Conta excluída definitivamente');
             render();
         } catch (e) {
             forceCloseModal();
