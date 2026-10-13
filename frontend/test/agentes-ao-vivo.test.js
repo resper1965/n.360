@@ -34,6 +34,16 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe('papel de cada agente', () => {
+  it('o cartão diz se o agente é Consultor ou Auditor (linha antiga, sem papel, é Consultor)', async () => {
+    apiMock.mockResolvedValue([agente(), agente({ id: 'a2', consultor: 'aud@ness.lat', papel: 'auditor' }), agente({ id: 'a3', papel: 'consultor' })]);
+    montaCartao();
+    await window.carregarAgentesDoProjeto('p1');
+    const nomes = [...cartao().querySelectorAll('.gov-member-name')].map((n) => n.textContent);
+    expect(nomes).toEqual(['cons@ness.lat · Consultor · Claude Code (localhost:1)', 'aud@ness.lat · Auditor · Claude Code (localhost:1)', 'cons@ness.lat · Consultor · Claude Code (localhost:1)']);
+  });
+});
+
 describe('horário do cartão de agentes', () => {
   it('mostra o último uso no horário LOCAL, com "há quanto tempo"', async () => {
     montaCartao();
