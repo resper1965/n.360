@@ -47,9 +47,11 @@
 	// Cron de manutenção (ver src/manutencao.ts). Diário às 04:10 UTC — fora do
 	// horário comercial no Brasil e deslocado da hora cheia, onde a fila de cron
 	// da Cloudflare é mais disputada. É a PRIMEIRA execução periódica do
-	// sistema; até aqui nada rodava sozinho.
+	// sistema; até aqui nada rodava sozinho. 11:00 UTC: avisos de prazo
+	// (src/services/avisos-prazo.ts). A cada 15 min: sonda interna das
+	// dependências (src/services/sonda.ts), que substitui o cron do uptime.yml.
 	"triggers": {
-		"crons": ["10 4 * * *", "0 11 * * *"]
+		"crons": ["10 4 * * *", "0 11 * * *", "*/15 * * * *"]
 	},
 	"upload_source_maps": true,
 
@@ -138,5 +140,12 @@
 		// routes/auth.ts): meia configuração não exige desafio nenhum, em vez de
 		// exigir um que a tela não tem como montar.
 		"TURNSTILE_SITE_KEY": "0x4AAAAAAE0CsIG61nlQBahR"
+
+		// Destino dos alertas da sonda interna (src/services/sonda.ts): um e-mail
+		// na queda de D1/KV/R2 e um na volta. Opcional; sem ele a sonda só grava
+		// log. Não é segredo, mas precisa morar AQUI: `wrangler deploy` apaga var
+		// criada só no painel. Para ligar, acrescente a linha abaixo (vírgula na
+		// linha de cima) com a caixa de operação:
+		// "ALERTA_EMAIL": "operacao@<dominio>"
 	}
 }
