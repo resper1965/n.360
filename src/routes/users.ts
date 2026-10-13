@@ -579,13 +579,24 @@ usersApp.delete('/:id', async (c) => {
       return c.json({ ok: true, desativado: true });
     }
 
-    await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+    let anonimizado = false;
+    try {
+      await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+    } catch (e: any) {
+      if (!/FOREIGN KEY/i.test(String(e?.message ?? e))) throw e;
+      // Conta com histórico (marcação de checklist, aceite de termo...): apagar a linha tiraria o autor do que ela fez.
+      // A conta fica, sem identidade e sem acesso, e o e-mail volta a ficar livre.
+      await c.env.DB.prepare(`UPDATE users SET email = 'removida+' || id || '@invalido.local', name = 'Conta removida', password_hash = '!',
+        ativo = 0, totp_enabled = 0, totp_secret = NULL, totp_recovery_hashes = NULL, requires_password_change = 0 WHERE id = ?`).bind(id).run();
+      anonimizado = true;
+    }
     // Usuário excluído com sessão aberta continuaria navegando: o middleware
     // valida a sessão contra o KV, e a linha em `users` já não existe.
     await invalidateUserSessions(c.env.SESSIONS, id);
-    await logAudit(c.env.DB, 'user.deleted', admin.email, `Usuário ${user.email} excluído`, '', '', user.client_project_id ?? undefined);
+    await logAudit(c.env.DB, anonimizado ? 'user.anonimizado' : 'user.deleted', admin.email,
+      anonimizado ? `Usuário ${user.email} anonimizado (a conta tem histórico e não pode ser apagada)` : `Usuário ${user.email} excluído`, '', '', user.client_project_id ?? undefined);
 
-    return c.json({ ok: true, message: 'Usuário excluído com sucesso' });
+    return c.json({ ok: true, anonimizado, message: anonimizado ? 'A conta tem histórico: ficou sem identidade e sem acesso, e o e-mail foi liberado' : 'Usuário excluído com sucesso' });
   } catch (e: any) {
     return erro500(c, 'Falha ao excluir usuário', e);
   }
