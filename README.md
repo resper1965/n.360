@@ -1,45 +1,161 @@
-# n.360 — plataforma de GRC da ness.
+# n.360 | ness.
 
 [![CI](https://github.com/resper1965/n.iso/actions/workflows/ci.yml/badge.svg)](https://github.com/resper1965/n.iso/actions/workflows/ci.yml)
 [![Deploy](https://github.com/resper1965/n.iso/actions/workflows/deploy.yml/badge.svg)](https://github.com/resper1965/n.iso/actions/workflows/deploy.yml)
 [![CodeQL](https://github.com/resper1965/n.iso/actions/workflows/codeql.yml/badge.svg)](https://github.com/resper1965/n.iso/actions/workflows/codeql.yml)
-![License: Proprietary](https://img.shields.io/badge/license-Proprietary-red.svg)
-![Stack](https://img.shields.io/badge/stack-Cloudflare%20Workers%20%2B%20D1%20%2B%20R2-f38020.svg)
 
-O **n.360** é a plataforma de governança, risco e conformidade da **ness.**: um Worker, um banco,
-um deploy, e dois módulos sobre **um cadastro só** (partes, itens, documentos, RoPA, DPIA,
-evidências, incidentes).
+O **n.360** é a plataforma de governança, risco e conformidade da ness. Ela tem dois módulos que
+trabalham sobre **um cadastro só** (partes, itens, documentos, RoPA, DPIA, evidências):
 
-| Módulo | Caminho | Para quê |
+| Módulo | Caminho | Escopo |
 |---|---|---|
-| **n.iso** | `/iso` | Adequação e certificação ISO 27001 e 27701: SoA, riscos, controles, políticas, auditorias, CAPA, jornada da certificação. |
-| **n.privacy** | `/privacy` | Programa LGPD/ANPD: encarregado, RoPA (com as marcas dos arts. 11 e 14), DPIA/RIPD, LIA, pedidos do titular, incidentes com prazo da ANPD, consentimentos, terceiros, requisitos LGPD/ANPD, "Importar programa" e rascunhos de IA com aprovação humana. |
+| **n.iso** | `/iso` | Adequação e certificação ISO 27001 e ISO 27701 |
+| **n.privacy** | `/privacy` | Programa de privacidade sob a LGPD e as resoluções da ANPD |
 
-O início do n.360 (`/`) mostra um cartão por módulo e o grupo **Conta e acessos** (projetos,
-usuários, organizações, chaves de API, conectar agente). O repositório e o Worker continuam
-chamados `niso` por história; não é o nome do produto.
+Endereço: **<https://n360.ness.com.br>** (`APP_URL` em `wrangler.jsonc`). Os domínios antigos
+`niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`. Integrações já
+configuradas continuam respondendo no lugar, sem redirecionar: `/api/*`, `/scim/*`, `/mcp`,
+`/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*` e `/proposta*` (`fica` em
+`src/config/url.ts`). O callback de SSO e o recurso OAuth do MCP ficam presos em `niso`.
 
-> **Produção:** [`n360.ness.com.br`](https://n360.ness.com.br) é o `APP_URL` (`wrangler.jsonc`).
-> `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas servem no
-> lugar `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`,
-> `/auditor*` e `/proposta*` (`fica` em `src/config/url.ts`): chaves de API, IdPs de SCIM,
-> conectores MCP e links já enviados não quebram. O callback de SSO e o recurso do MCP ficam
-> presos em `niso`. `GET /health` devolve o SHA do commit publicado e o `app_url`.
+### Nomes
 
-## Quem acessa o quê
-
-- **Projeto tem o módulo E a pessoa tem o módulo.** Cada rota de projeto cai numa faixa
-  (`nucleo`, `iso` ou `privacy`, em `src/modulos.ts`); a faixa de módulo exige `projeto_modulos`
-  e `usuario_modulos` (migration 0066), senão 403. O núcleo vale com qualquer módulo.
-- Habilitar o n.privacy num projeto (`PUT /api/v1/projects/:id/modulos/privacy`, cartão Produtos)
-  importa as partes e os documentos que o n.iso já tem; desligar não apaga dado.
-- Conta se **desativa**, não se apaga; apagar de verdade é só do `platform_admin`.
-- Login por senha ou por SSO (o e-mail decide); a equipe configura SSO, SCIM e política em
-  **Segurança do projeto**. Detalhe em [`docs/sso-scim.md`](docs/sso-scim.md).
+No texto e na marca, **n.360**, **n.iso** e **n.privacy**; `n360` só no endereço. `niso` é
+identificador técnico mantido de propósito e nunca aparece como nome de produto: o repositório
+`resper1965/n.iso`, o Worker `niso`, o D1 `niso-db`, o pacote `mcp-server-niso`, o cabeçalho
+`X-nISO-Signature` e as variáveis `NISO_*`. Trocar esses nomes quebraria deploy, banco,
+integrações e assinaturas de webhook já emitidas.
 
 ---
 
-## Começando
+## Quem usa o quê
+
+### Papéis
+
+Papéis de conta (`PAPEIS_DE_CONTA` em `src/schemas/users.ts`):
+
+| Papel | Quem é | Alcance |
+|---|---|---|
+| `platform_admin` | Dono da plataforma | Tudo, todos os projetos e organizações; único que apaga conta de vez |
+| `consultoria_admin` | Administrador da consultoria | Projetos da própria organização |
+| `consultor` | Consultor da ness. | Só os projetos em que está designado como consultor na governança |
+| `comercial` | Área comercial | Leads, levantamentos, propostas; não alcança projeto |
+| `org_admin` | Administrador do cliente | O projeto do cliente, inclusive a gestão das contas dele |
+| `org_user` | Usuário do cliente | O projeto do cliente |
+| `client` | Cliente (leitura) | O projeto do cliente |
+
+Há ainda o `stakeholder`, criado pelo fluxo de pedidos: só vê e decide os pedidos de aprovação e
+ciência dirigidos a ele (`/api/v1/pedidos*`).
+
+### Regra de acesso
+
+Cada rota de projeto cai numa **faixa** (`src/modulos.ts`):
+
+- `nucleo`: o cadastro compartilhado (partes, itens, documentos, evidências, RoPA, DPIA, pedidos,
+  incidentes, governança). Vale com qualquer módulo.
+- `iso`: só do n.iso (controles, SoA, riscos, auditorias, CAPA, certificação…).
+- `privacy`: só do n.privacy (requisitos, terceiros, pedidos do titular, consentimentos,
+  encarregado, importação, ligações e LIA do RoPA).
+
+Rota das faixas `iso` e `privacy` só abre quando **o projeto tem o módulo E a pessoa tem o
+módulo** (`projeto_modulos` e `usuario_modulos`, migration 0066); senão, 403. Rota nova de projeto
+sem faixa reprova em `test/modulos-produto.test.ts`.
+
+Habilitar o n.privacy num projeto (`PUT /api/v1/projects/:id/modulos/privacy`, cartão Produtos em
+Projetos) importa as partes e os documentos que o n.iso já tem. Desligar um módulo não apaga dado.
+
+Contas se **desativam** (`PUT /api/v1/users/:id/ativo`); conta desativada não entra por senha,
+SSO, agente nem sessão aberta. Apagar de verdade é `DELETE /api/v1/users/:id?definitivo=1`, só do
+`platform_admin`.
+
+## Mapa dos módulos
+
+O CAMINHO decide a casca (`frontend/src/produto.js`); o servidor entrega o mesmo `login.html`
+para todos.
+
+**Início do n.360 (`/`).** Um cartão por módulo habilitado e o grupo **Conta e acessos**:
+Projetos (com o cartão Produtos), Usuários, Organizações, Segurança do projeto (SSO, SCIM e
+política; só a equipe), Chaves de API e Conectar agente. Nos módulos, o rodapé "Conta e acessos
+(n.360)" leva de volta para lá. Quem tem um módulo só entra direto nele.
+
+**n.iso (`/iso`).** Dashboard; Comercial (Leads, Levantamentos, Propostas, Catálogo,
+Configuração comercial); Implementação (Jornada, Monitor, SoA, Governança); Operação (Partes
+Interessadas, Contexto, Ativos, Riscos, Fornecedores, Ciência e Gestão de Políticas, Auditorias,
+CAPA, Incidentes, Análise Crítica).
+
+**n.privacy (`/privacy`, abre em Encarregado).** Privacidade (Encarregado, Titular e pedidos,
+Incidentes com o prazo da ANPD, ROPA com as marcas dos arts. 11 e 14, DPIA / RIPD, Terceiros,
+Requisitos LGPD/ANPD); LIA e consentimentos ficam no tratamento e no titular; **Implantação**
+(Importar programa: a IA lê inventários, listas de terceiros, documentos, DPIA/LIA e o histórico
+de titulares, incidentes e consentimentos, e uma pessoa da equipe revisa item a item antes de
+gravar).
+
+**Compartilhado pelos dois.** Partes, Documentos, Evidências, Treinamento, Governança, ROPA e
+DPIA, Assistente e a trilha de auditoria.
+
+## Agentes e IA
+
+A regra vale para tudo: **a IA rascunha, uma pessoa aprova**. Nada que a IA produz vira registro
+sem revisão humana, e cada aprovação deixa assinatura e trilha.
+
+- **Assistente (chat por módulo).** `POST /api/v1/projects/:id/chat` recebe `modulo` (`iso` ou `privacy`);
+  o servidor confere que o projeto e a pessoa têm o módulo, e no n.privacy a instrução é de LGPD e
+  ANPD (`src/routes/ai.ts`).
+- **Rascunhos do n.privacy.** Sugestão de base legal do tratamento, resposta ao titular e
+  comunicação de incidente: saída validada por esquema estrito, nada gravado no registro, PII
+  mascarada antes de ir ao modelo (`src/services/rascunhos-privacy.ts`).
+- **Agente consultor (MCP remoto, `/mcp`).** Entra com a conta do consultor por OAuth, fica preso a
+  um projeto e tem o alcance do consultor nele. Ação destrutiva exige confirmação no servidor; a
+  lista fechada `FORA_DO_AGENTE` (`src/middleware/agente.ts`) recusa conta, acesso, credenciais,
+  área comercial, publicação de documento, importação de programa e os rascunhos de IA da tela.
+  Detalhe em [`docs/agente/`](docs/agente/README.md).
+- **Skills do agente** (`ls agent-skills`): `prontidao-certificacao` (pré-avaliação para Stage 1 e
+  2) e `maturidade-lgpd` (achados de maturidade do programa de privacidade), servidas pelo próprio
+  MCP (`niso_skill`).
+- **MCP local** (`mcp-server-niso/`, stdio com chave de API, 23 ferramentas:
+  `grep -oE 'name: "niso_[a-z_0-9]+"' mcp-server-niso/src/*.ts | sort -u | wc -l`), com filtro por
+  papel. Ver [`mcp-server-niso/README.md`](mcp-server-niso/README.md).
+
+## Arquitetura
+
+- **Runtime:** Hono no Cloudflare Workers; um Worker serve API, páginas públicas e o frontend.
+- **Banco:** D1 (SQLite), 86 tabelas
+  (`grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`).
+  Trilha de auditoria append-only por trigger.
+- **KV:** sessões, tokens e rate limit (`SESSIONS`); estado do OAuth do MCP (`OAUTH_KV`).
+- **R2:** evidências, documentos e arquivos de importação (`STORAGE`); trilha arquivada (`TRILHA`).
+- **IA:** Workers AI via AI Gateway (`git grep -hoE "@cf/[a-z0-9/._-]+" -- src`). Sem embedding.
+- **Frontend:** JavaScript sem framework, empacotado pelo Vite. Um tema só, o escuro da marca.
+- **Contrato:** `docs/openapi.json` é gerado dos schemas Zod (`npm run openapi`); editar à mão
+  reprova em `test/openapi.test.ts`.
+
+| Caminho | O que vive aqui |
+|---|---|
+| `src/index.ts` | Composition root: cabeçalhos, CORS, redirecionamento dos domínios antigos, autenticação, rotas. |
+| `src/routes/` | 50 arquivos de rota (`ls src/routes/*.ts \| grep -vc '\.test\.ts$'`). |
+| `src/services/` | 40 arquivos de regra de negócio (`ls src/services/*.ts \| wc -l`). |
+| `src/agents/` | Agentes de IA (`ls src/agents`): política, evidência, avaliação, adequação de controle, fases, prontidão, importação, privacidade. |
+| `src/modulos.ts`, `src/middleware/` | Faixas e módulos; autenticação, acesso por projeto, principal do agente. |
+| `src/schemas/` | Schemas Zod de todo corpo de escrita. |
+| `src/mcp/` | MCP remoto do agente consultor. |
+| `frontend/` | `login.html` (a casca), `src/produto.js` (n.360, n.iso ou n.privacy pelo caminho), `src/views/` (uma tela por arquivo). |
+| `frontend/public/` | Páginas públicas copiadas como estão: `politicas.html`, `auditor.html`, `_headers`. |
+| `mcp-server-niso/` | Servidor MCP local. |
+| `agent-skills/` | Fonte das skills do agente (`npm run skills:gerar`). |
+| `migrations/` | 67 arquivos (`ls migrations/*.sql \| wc -l`), última 0069 (`ls migrations/*.sql \| tail -1`). |
+| `test/` | 245 arquivos de teste do backend (`ls test/*.test.ts \| wc -l`). |
+| `frontend/test/`, `frontend/e2e/` | 92 testes em jsdom (`ls frontend/test/*.test.js \| wc -l`) e 6 specs em Chromium (`ls frontend/e2e/*.spec.js \| wc -l`). |
+| `docs/` | Runbook, specs, diagnóstico de design e decisões ([índice](docs/README.md)). |
+| `scripts/`, `ops/`, `backups/` | Geradores, SQL de reconciliação conferido por teste, runbook de backup. |
+
+### Duas fontes de cabeçalho de segurança
+
+O `secureHeaders` em `src/index.ts` só alcança resposta que o **Worker gera**. Arquivo estático é
+servido pelo Workers Assets **antes** de o Worker rodar, então os mesmos cabeçalhos vivem também
+em `frontend/public/_headers`. `test/cabecalhos-assets.test.ts` compara os dois e falha nas duas
+direções: mudou num lugar, muda no outro.
+
+## Rodar, testar e verificar
 
 Pré-requisitos: **Node 22+** e uma conta Cloudflare com acesso ao projeto.
 
@@ -47,188 +163,99 @@ Pré-requisitos: **Node 22+** e uma conta Cloudflare com acesso ao projeto.
 npm ci                          # backend (Worker)
 npm ci --prefix frontend        # frontend (Vite)
 
-# Banco local, na ordem: schema primeiro, migrations depois
+# Banco local: schema primeiro, migrations depois
 npx wrangler d1 execute niso-db --local --file=./schema.sql
 npx wrangler d1 migrations apply niso-db --local
 
-npm run dev                     # Worker + assets em http://127.0.0.1:8787
+npm run dev                     # Worker + assets em http://127.0.0.1:8787 (/login, /iso, /privacy)
 ```
 
-A tela de entrada fica em `/login`; `/iso` e `/privacy` abrem as cascas dos módulos. Em
-`localhost` e `127.0.0.1` o CORS é sempre liberado.
-
-## Mapa do repositório
-
-| Caminho | O que vive aqui |
-|---|---|
-| `src/` | O Worker. `index.ts` monta tudo: cabeçalhos de segurança, CORS, redirecionamento dos domínios antigos, autenticação, rate limit e os sub-routers. |
-| `src/routes/` | 50 arquivos de rota (`ls src/routes/*.ts \| grep -vc '\.test\.ts$'`), um por domínio. |
-| `src/modulos.ts` | A faixa de cada rota de projeto (`nucleo`, `iso`, `privacy`) e os módulos da pessoa. |
-| `src/schemas/` | Schemas Zod. Todo corpo de escrita passa por aqui; é a fonte do contrato da API. |
-| `src/middleware/` | Autenticação, acesso por projeto e por módulo, principal do agente, rate limit. |
-| `src/services/`, `src/agents/` | Regra de negócio (40 services: `ls src/services/*.ts \| wc -l`) e os agentes de IA (`ls src/agents`). |
-| `frontend/` | Vite + JavaScript sem framework. `login.html` é a casca; `src/produto.js` escolhe n.360, n.iso ou n.privacy pelo caminho; `src/views/` tem uma tela por arquivo. |
-| `frontend/public/_headers` | Cabeçalhos de segurança dos **arquivos estáticos** (ver "Duas fontes de cabeçalho"). |
-| `mcp-server-niso/` | Servidor MCP **local** (stdio, chave de API). O MCP **remoto**, com login, vive no Worker (`src/mcp/`). |
-| `agent-skills/` | Skills do consultor servidas pelo MCP (`prontidao-certificacao`, `maturidade-lgpd`). |
-| `migrations/` | 67 arquivos (`ls migrations/*.sql \| wc -l`), última 0069 (`ls migrations/*.sql \| tail -1`). Nunca editar uma já aplicada ([`migrations/README.md`](migrations/README.md)). |
-| `test/` | 245 arquivos de teste do backend (`ls test/*.test.ts \| wc -l`), no pool `workerd` (D1 e KV de verdade). |
-| `frontend/test/` | 92 arquivos de teste da UI (`ls frontend/test/*.test.js \| wc -l`), em jsdom. |
-| `frontend/e2e/` | 6 specs em Chromium real (`ls frontend/e2e/*.spec.js \| wc -l`), sobre o build servido. |
-| `docs/` | Runbook, specs, diagnóstico de design e decisões, com [índice próprio](docs/README.md). |
-| `scripts/` | Geradores (`gerar-openapi.mjs`, `gerar-contrato-mcp.mjs`, `gerar-skills.mjs`) e utilitários. |
-
-## Testes
-
-Contagens de 2026-10-12, com o comando na tabela acima.
-
-Três suítes, e cada uma existe porque a anterior não alcança o caso:
-
 ```bash
-npm test                              # backend, D1 e KV reais
+npx tsc --noEmit                      # tipos
+npm test                              # backend: D1 e KV reais no pool workerd
 npm run test:coverage                 # idem, com a catraca de cobertura que gateia o deploy
 npm test --prefix frontend            # UI em jsdom
+npm run build --prefix frontend       # build do frontend
 npm run test:e2e --prefix frontend    # Chromium real sobre o build
 ```
 
-A catraca de cobertura **sobe, nunca desce**: os pisos em `vitest.config.mts`
-barram regressão sem inventar meta. O deploy falha se a cobertura cair abaixo
-deles.
+Catracas que só deixam o número andar para um lado:
 
-O e2e não é luxo. Dois defeitos recentes só apareceram lá: o atributo `hidden`
-que não escondia (porque folha de autor vence a do agente na cascata) e um
-iframe `blob:` bloqueado pelo CSP. O jsdom passava nos dois.
+| Teste | O que trava |
+|---|---|
+| `test/any-catraca.test.ts` | `any` em `src/` não sobe (e, se descer, o `TETO` desce junto) |
+| `test/colunas-catraca.test.ts` | Coluna escrita pelo código (INSERT/UPDATE) existe no schema aplicado num D1 real |
+| `frontend/test/catracas-visuais.test.js` | Cor em hex nas telas, `border-radius` inline fora de `0`/`10px`, `confirm`/`alert`/`prompt` nativos, estado vazio fora de `renderEmptyState` |
+| `test/sem-dado-de-cliente.test.ts` | Nome, e-mail ou identificador de cliente real no repositório |
+| `vitest.config.mts` (cobertura) | Piso de cobertura do backend |
+
+**Migrations:** toda mudança de schema entra em `schema.sql` e numa migration nova. Procedimento,
+particularidades (0011 neutralizada, buraco 0031–0033) e o estado em produção em
+[`migrations/README.md`](migrations/README.md). Backup antes de aplicar: `npm run db:backup`
+([`backups/README.md`](backups/README.md)).
 
 ## Publicar
 
-O deploy é automático a cada push na `main`, com um portão deliberado: **recusa
-publicar se houver migration D1 pendente**. Publicar código que consulta tabela
-inexistente já custou caro aqui.
+1. PR para a `main`; o CI roda `tsc`, as suítes, o build e o E2E. O ruleset exige os checks
+   **`test`** e **`e2e`** verdes, com a branch em dia.
+2. Merge na `main` dispara o **Deploy**, que **recusa publicar com migration pendente**.
+3. Com migration nova: rodar **Apply DB migrations** (Actions, digitar `APLICAR`; faz backup e
+   aplica) e depois **Deploy**. Ou aplicar antes do merge pelo terminal:
 
-**Pela aba Actions, sem terminal:**
+   ```bash
+   npm run db:backup
+   npx wrangler d1 migrations apply niso-db --remote
+   ```
 
-1. **Apply DB migrations (manual)** → *Run workflow* → digite `APLICAR`.
-   Faz backup do D1 como artifact e aplica as migrations pendentes.
-2. **Deploy** → *Run workflow* na `main`. Com as migrations aplicadas, publica.
-
-O ambiente `production` do GitHub só aceita a `main`, então o *Apply DB migrations* roda na `main`. Migration
-nova só existe lá depois do merge, e o deploy que o merge dispara recusa de propósito (migration
-pendente): aplique e rode *Deploy*. Para aplicar **antes** do merge, use o terminal, abaixo.
-
-**Pelo terminal:**
-
-```bash
-npx wrangler login
-npm run db:backup                                   # backup verificado antes de mutar
-npx wrangler d1 migrations apply niso-db --remote
-npm run deploy                                      # build do frontend + wrangler deploy
-```
-
-Depois de publicar, confira o que está no ar:
-
-```bash
-curl -s https://n360.ness.com.br/health
-```
-
-## Automação
+4. Conferir o que está no ar: `curl -s https://n360.ness.com.br/health` devolve o SHA do commit
+   publicado (`version`) e o `app_url`.
 
 | Workflow | Quando roda | O que garante |
 |---|---|---|
-| **CI** | push e pull request | tsc, as três suítes, build do frontend, `npm audit` |
-| **CodeQL** | push, PR e toda segunda | SAST sobre o JS/TS do Worker e do frontend |
-| **Deploy** | push na `main` e manual | Recusa com migration pendente; injeta o SHA em `/health` |
-| **Apply DB migrations** | só manual, com confirmação | Backup antes de aplicar |
-| **Backup do D1** | diário, 03h40 UTC | Exporta e **verifica o dump** antes de guardar; abre issue se falhar |
-| **Sonda externa** | a cada 15 min | `/health` responde e o login recusa corpo vazio com o envelope certo |
-| **SLO de produção** | a cada 6h | Latência e taxa de erro dentro do alvo |
-| **Drift de schema** | toda segunda | `schema.sql` contra o D1 real, com a diferença conhecida documentada |
+| CI (`ci.yml`) | push e pull request | tsc, suítes, build, E2E, `npm audit` (informativo) |
+| CodeQL (`codeql.yml`) | push, PR e semanal | SAST do Worker e do frontend |
+| Deploy (`deploy.yml`) | push na `main` e manual | Recusa com migration pendente; injeta o SHA em `/health` |
+| Apply DB migrations (`db-migrate.yml`) | manual, com confirmação | Backup antes de aplicar |
+| Backup do D1 (`db-backup.yml`) | diário | Exporta e verifica o dump |
+| Sonda externa (`uptime.yml`) | a cada 15 min | `/health` e o login respondem como devem |
+| SLO (`slo.yml`) | a cada 6 h | Latência e taxa de erro |
+| Drift de schema (`schema-drift.yml`) | semanal | `schema.sql` contra o D1 real |
+| Conferência de dados (`conferencia-dados.yml`) | manual | Contagens de produção, só leitura |
 
-> Alarme quebrado é pior que nenhum, porque parece um. A sonda externa passou
-> dias reprovando por um erro no próprio script — ver `test/workflows-shell.test.ts`,
-> que existe por causa disso.
+### Configuração
 
-## Arquitetura
+Bindings em `wrangler.jsonc` (`grep '"binding"' wrangler.jsonc`): `DB`, `SESSIONS`, `OAUTH_KV`,
+`STORAGE`, `TRILHA`, `AI`, `ANALYTICS`, `CF_VERSION_METADATA`, `ASSETS`.
 
-- **Runtime**: Hono no Cloudflare Workers.
-- **Banco**: D1 (SQLite). Trilha de auditoria append-only por trigger.
-- **Arquivos**: R2 para evidências e documentos; bucket separado para a trilha arquivada.
-- **IA**: Workers AI via AI Gateway (`n-iso`): `llama-3.1-8b-instruct` e `llama-3.3-70b-instruct-fp8-fast`
-  (`git grep -hoE "@cf/[a-z0-9/._-]+" -- src`). Sem embedding: a vetorização saiu no #289.
-- **Contrato**: `docs/openapi.json` é **gerado** dos schemas Zod. Editar à mão cria
-  uma segunda fonte de verdade, e o teste de contrato reprova a divergência.
+Variáveis públicas, versionadas: `ENVIRONMENT`, `APP_URL`, `EXPORT_PUBLIC_KEY`,
+`TURNSTILE_SITE_KEY`; opcionais `CF_ACCOUNT_ID` e `AI_GATEWAY_ID`.
 
-### Duas fontes de cabeçalho de segurança
-
-O `secureHeaders` em `src/index.ts` só alcança resposta que o **Worker gera**.
-Arquivo estático é servido pelo Workers Assets **antes** de o Worker rodar, então
-os mesmos cabeçalhos vivem também em `frontend/public/_headers`.
-
-Nenhum dos dois alcança o lado do outro — não existe fonte única possível, só a
-obrigação de não divergirem. `test/cabecalhos-assets.test.ts` compara os dois e
-falha nas duas direções. Mudou num lugar, muda no outro.
-
-## Configuração
-
-Bindings e variáveis ficam em `wrangler.jsonc`.
-
-| Binding | Tipo | Finalidade |
-|---|---|---|
-| `DB` | D1 | Banco relacional |
-| `SESSIONS` | KV | Sessões, tokens e contadores de rate limit |
-| `STORAGE` | R2 | Evidências e documentos |
-| `TRILHA` | R2 | Trilha de auditoria arquivada, em cadeia encadeada |
-| `OAUTH_KV` | KV | Estado do OAuth do MCP remoto (clientes, códigos, tokens) |
-| `AI` | Workers AI | Inferência |
-| `ANALYTICS` | Analytics Engine | Métricas de requisição (SLO) |
-| `CF_VERSION_METADATA` | Version metadata | Identifica a versão publicada em `/health` |
-| `ASSETS` | Workers Assets | O frontend (`frontend/dist`) |
-
-**Variáveis** (públicas, versionadas em `wrangler.jsonc`): `ENVIRONMENT`,
-`EXPORT_PUBLIC_KEY` (verifica a assinatura dos exports), `TURNSTILE_SITE_KEY`
-(vai no HTML do widget), `APP_URL` (`https://n360.ness.com.br`: links de e-mail, base do SCIM, CORS e destino dos 308; padrão em
-`src/config/url.ts`. O callback do SSO e o recurso do MCP continuam em `niso.ness.com.br`). Opcionais, com padrão em `src/agents/types.ts`: `CF_ACCOUNT_ID` e
-`AI_GATEWAY_ID`.
-
-**Segredos** (`npx wrangler secret put <NOME>`, nunca no git):
+Segredos (`npx wrangler secret put <NOME>`; só o nome aqui, nunca o valor):
 
 | Segredo | Sem ele |
 |---|---|
-| `RESEND_API_KEY` | E-mail não sai; o OTP do portal público falha em produção. |
-| `EXPORT_SIGNING_KEY` | Export de portabilidade não é assinado. |
-| `TURNSTILE_SECRET_KEY` | O desafio anti-abuso **não é exigido** — e essa é a falha segura. Ele só liga em par com `TURNSTILE_SITE_KEY`; meia configuração exigiria um desafio que a tela não teria como montar. |
-| `TOKEN_ENC_KEY` | Configurar SSO devolve **503**: o `client_secret` do IdP não é gravado em claro. |
-| `SETUP_KEY` | A rota de seed do primeiro usuário recusa com 403. |
-
-## Integração com agentes (MCP)
-
-Dois caminhos:
-
-- **MCP remoto** (`/mcp`, com login OAuth em `/oauth/*`): o agente do consultor entra com a
-  conta do consultor, fica preso a um projeto escolhido no login e tem o alcance do consultor
-  nesse projeto. Ação destrutiva exige confirmação no servidor. Uso, arquitetura e segurança em
-  [`docs/agente/`](docs/agente/README.md).
-- **MCP local** (`mcp-server-niso/`, stdio com chave de API): filtro de ferramentas por papel —
-  o auditor não escreve implementação, o consultor não registra achado de auditoria.
-  Instalação, variáveis e diagnóstico em [`mcp-server-niso/README.md`](mcp-server-niso/README.md).
+| `TOKEN_ENC_KEY` | Configurar SSO devolve 503 (o `client_secret` não é gravado em claro) e o histórico da importação não é processado (sem pseudonimização, nada vai ao modelo). |
+| `TURNSTILE_SECRET_KEY` | O desafio anti-abuso não é exigido; só liga em par com `TURNSTILE_SITE_KEY`. |
+| `SETUP_KEY` | A rota de criação do primeiro usuário fica desligada. |
+| `RESEND_API_KEY` | E-mail não sai. |
+| `EXPORT_SIGNING_KEY` | Export de portabilidade sai sem assinatura. |
 
 ## Documentação
 
-- [`docs/README.md`](docs/README.md) — **índice**, agrupado por quando você vai precisar
-- [`docs/runbook-incidente.md`](docs/runbook-incidente.md) — produção quebrou: comece aqui
-- [`AGENTS.md`](AGENTS.md) — contexto canônico para quem (ou o que) for mexer no código
-- [`docs/sso-scim.md`](docs/sso-scim.md) — login federado, SCIM e a tela Segurança do projeto
-- [`docs/agente/`](docs/agente/README.md) — o agente consultor (MCP remoto): uso, arquitetura, segurança
-- [`docs/design/diagnostico-2026-10-12/`](docs/design/diagnostico-2026-10-12/README.md) — diagnóstico de design do n.360, do n.iso e do n.privacy
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — ambiente, verificação antes do PR, regras de schema e teste
-- [`SECURITY.md`](SECURITY.md) — como reportar vulnerabilidade e quais invariantes não podem regredir
-- [`CHANGELOG.md`](CHANGELOG.md) — o que mudou, versão a versão
+| Documento | Para quê |
+|---|---|
+| [`docs/README.md`](docs/README.md) | Índice da documentação, agrupado por quando você vai precisar |
+| [`AGENTS.md`](AGENTS.md) | Contexto canônico para quem (ou o que) mexe no código, com o comando que mede cada número |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Ambiente, verificação antes do PR, regras de schema e de teste |
+| [`SECURITY.md`](SECURITY.md) | Como reportar vulnerabilidade e os invariantes que não podem regredir |
+| [`CHANGELOG.md`](CHANGELOG.md) | O que mudou, versão a versão |
+| [`docs/runbook-incidente.md`](docs/runbook-incidente.md) | Produção quebrou: comece aqui |
+| [`docs/design/diagnostico-2026-10-12/`](docs/design/diagnostico-2026-10-12/README.md) | Diagnóstico de design do n.360, do n.iso e do n.privacy |
+| [`migrations/README.md`](migrations/README.md) | Procedimento e estado das migrations |
+| [`backups/README.md`](backups/README.md) | Backup e restauração do D1 |
 
 ## Licença
 
 Proprietária — © 2026 ness. Cybersecurity. Todos os direitos reservados. Ver
-[`LICENSE`](LICENSE). Visualizar o repositório não concede direito de uso, cópia
-ou distribuição. Componentes de terceiros (ex.: skills adaptadas sob MIT) mantêm
-sua própria licença e atribuição.
-
----
-**ness.** · Cybersecurity Enterprise Grade
+[`LICENSE`](LICENSE). Visualizar o repositório não concede direito de uso, cópia ou distribuição.
+Componentes de terceiros (ex.: skills adaptadas sob MIT) mantêm a própria licença e atribuição.
