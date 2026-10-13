@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { apiKeyRoleViolation } from '../auth-policy';
-import { consultorDesignado } from '../helpers';
+import { consultorDesignado, projetosDoAgente } from '../helpers';
 
 /**
  * Identidade de um agente de IA conectado pelo MCP remoto (spec
@@ -35,7 +35,7 @@ export async function concessaoValida(
   p: PropsAgente
 ): Promise<{ email: string; client_name: string; project_name: string } | null> {
   const row = await db.prepare(
-    `SELECT u.email, u.role, u.ativo, ${NOME_CLIENTE_SQL} AS client_name,
+    `SELECT u.email, u.role, u.org_id, u.ativo, ${NOME_CLIENTE_SQL} AS client_name,
             COALESCE(NULLIF(trim(p.project_name), ''), p.id) AS project_name
        FROM agente_concessoes ac
        JOIN users u ON u.id = ac.user_id
@@ -46,13 +46,15 @@ export async function concessaoValida(
         AND p.org_id = u.org_id
         -- organização suspensa derruba o agente da equipe dela (a ness. não é suspensa)
         AND (u.org_id = 'org_ness' OR EXISTS (SELECT 1 FROM organizations o WHERE o.id = u.org_id AND o.status = 'Active'))`
-  ).bind(p.concessaoId, p.userId, p.projectId).first<{ email: string; role: string; ativo: number | null; client_name: string; project_name: string }>();
-  if (!row || row.ativo === 0 || (row.role !== 'consultor' && row.role !== 'consultant')) return null;
+  ).bind(p.concessaoId, p.userId, p.projectId).first<{ email: string; role: string; org_id: string | null; ativo: number | null; client_name: string; project_name: string }>();
+  if (!row || row.ativo === 0 || (row.role !== 'consultor' && row.role !== 'consultant' && row.role !== 'consultoria_admin')) return null;
 
   // Tirar o consultor da governança derruba o agente na próxima requisição,
   // sem esperar o token expirar.
   // Mesma regra do consultor humano (D5): uma fonte só.
-  return await consultorDesignado(db, row.email, p.projectId) ?{ email: row.email, client_name: row.client_name, project_name: row.project_name } : null;
+  // consultoria_admin: o projeto da própria organização (p.org_id = u.org_id, acima) basta, sem designação.
+  const alcanca = row.role === 'consultoria_admin' || await consultorDesignado(db, row.email, p.projectId);
+  return alcanca ? { email: row.email, client_name: row.client_name, project_name: row.project_name } : null;
 }
 
 /** Só `resolverAgente` lê; ele só roda com `env.AGENTE`, então de fora o cabeçalho é inerte. */

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { verifyPassword, rateLimit, rateLimitD1, genId, genToken, logAudit, escapeHtml, PROJETOS_DO_CONSULTOR_SQL } from '../helpers';
+import { verifyPassword, rateLimit, rateLimitD1, genId, genToken, logAudit, escapeHtml, projetosDoAgente } from '../helpers';
 import { clientIp, chavesTentativa, registrarFalhaLogin } from './auth';
 import { mensagemBloqueio } from '../auth-policy';
 import { verificarCodigoTotp } from '../services/totp';
@@ -106,14 +106,14 @@ oauthAutorizacao.post('/authorize/entrar', async (c) => {
   const falhas = parseInt((await c.env.SESSIONS.get(chaves.falhas)) || '0', 10) || 0;
 
   const u = await c.env.DB.prepare(
-    'SELECT id, email, role, password_hash, ativo, requires_password_change, totp_enabled, totp_secret, totp_last_window FROM users WHERE lower(email) = ?'
+    'SELECT id, email, role, org_id, password_hash, ativo, requires_password_change, totp_enabled, totp_secret, totp_last_window FROM users WHERE lower(email) = ?'
   ).bind(email).first<any>();
   // A senha é conferida sempre que a conta existe, e senha errada, conta
   // inativa e papel sem acesso dão a MESMA resposta e contam como falha: a
   // tela é pública, e responder diferente à senha certa de quem não é
   // consultor viraria oráculo de senha de qualquer conta, platform_admin inclusive.
   const senhaOk = u ? await verifyPassword(String(f.senha || ''), u.password_hash) : false;
-  if (!senhaOk || u.ativo === 0 || (u.role !== 'consultor' && u.role !== 'consultant')) {
+  if (!senhaOk || u.ativo === 0 || (u.role !== 'consultor' && u.role !== 'consultant' && u.role !== 'consultoria_admin')) {
     await c.env.SESSIONS.delete(chave(token)); // falha consome o pedido
     const depois = await registrarFalhaLogin(c, chaves, falhas, false, ip);
     if (depois.bloqueado) return bloqueio();
@@ -137,14 +137,15 @@ oauthAutorizacao.post('/authorize/entrar', async (c) => {
     return pagina('Senha provisória', '<h1>Senha provisória</h1><p>Defina sua senha definitiva no n.iso antes de conectar um agente.</p>', 403);
   }
 
+  const alcance = projetosDoAgente(u);
   const { results } = await c.env.DB.prepare(
-    // A mesma definição de "designado" do consultor humano: só projetos da organização dele.
+    // A mesma definição do humano: o consultor, os designados; o consultoria_admin, os da organização dele.
     `SELECT p.id, ${NOME_CLIENTE_SQL} AS client_name FROM projects p
-      WHERE p.id IN (${PROJETOS_DO_CONSULTOR_SQL}) ORDER BY 2`
-  ).bind(email).all<{ id: string; client_name: string }>();
+      WHERE p.id IN (${alcance.sql}) AND p.org_id = ? ORDER BY 2`
+  ).bind(alcance.bind, u.org_id ?? '').all<{ id: string; client_name: string }>();
   if (!results.length) {
     await c.env.SESSIONS.delete(chave(token));
-    return pagina('Sem clientes', '<h1>Nenhum cliente</h1><p>Você não é consultor designado em nenhum cliente. Peça ao administrador do cliente ou ao platform_admin para designá-lo na governança do projeto.</p>');
+    return pagina('Sem clientes', '<h1>Nenhum cliente</h1><p>Você não é consultor designado em nenhum cliente. Peça ao administrador do cliente ou ao platform_admin para designá-lo na governança do projeto. (Administrador da consultoria: a sua organização ainda não tem projeto.)</p>');
   }
 
   await c.env.SESSIONS.put(chave(token), JSON.stringify({ ...pedido, userId: u.id, email: u.email }), { expirationTtl: TTL_PEDIDO });
@@ -169,10 +170,13 @@ oauthAutorizacao.post('/authorize/confirmar', async (c) => {
   await c.env.SESSIONS.delete(chave(token)); // uso único, antes de qualquer efeito
 
   const projectId = String(f.projeto || '');
+  const quem = await c.env.DB.prepare('SELECT email, role, org_id FROM users WHERE id = ?').bind(pedido.userId).first<{ email: string; role: string; org_id: string | null }>();
+  if (!quem) return pagina('Não autorizado', '<h1>Cliente fora da sua designação</h1>', 403);
+  const alcance = projetosDoAgente(quem);
   const alvo = await c.env.DB.prepare(
     `SELECT ${NOME_CLIENTE_SQL} AS client_name FROM projects p
-      WHERE p.id = ? AND p.id IN (${PROJETOS_DO_CONSULTOR_SQL})`
-  ).bind(projectId, pedido.email).first<{ client_name: string }>();
+      WHERE p.id = ? AND p.id IN (${alcance.sql}) AND p.org_id = ?`
+  ).bind(projectId, alcance.bind, quem.org_id ?? '').first<{ client_name: string }>();
   if (!alvo) return pagina('Não autorizado', '<h1>Cliente fora da sua designação</h1>', 403);
 
   // Grant primeiro: se completeAuthorization falhar, não sobra concessão nem
