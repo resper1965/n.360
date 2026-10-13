@@ -1,4 +1,5 @@
 import { S } from './state.js';
+import { atualizarSelos } from './selos-menu.js';
 import { produtoAtual, TELAS_DO_HUB, moduloPara, enderecoNoModulo, irPara, abrirGrupo } from './produto.js';
 
 export     function navigate(view, data) {
@@ -100,6 +101,7 @@ export     function navigate(view, data) {
         else if (S.view === 'management-review') renderManagementReview(c, h, a);
         updateActiveProjectWidget();
         updateHeaderUser();
+        if (S.view === 'encarregado') atualizarSelos(document, true);
     }
 
 window.navigate = navigate;

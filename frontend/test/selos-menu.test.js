@@ -1,0 +1,84 @@
+// Selos de vencimento do menu do n.privacy: carregam depois do menu, falham em silêncio e respeitam papel e projeto.
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+const apiMock = vi.hoisted(() => vi.fn());
+vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://api.test' }));
+vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
+
+import { S } from '../src/state.js';
+import html from '../login.html?raw';
+import { aplicarCasca } from '../src/produto.js';
+import { atualizarSelos } from '../src/selos-menu.js';
+
+const el = (id) => document.getElementById(id);
+const PROJ = { id: 'p1', modulos: ['privacy'] };
+const VISAO = {
+    pedidos_titular: { exigem_atencao: 3, atrasados: 1 },
+    terceiros: { com_pendencia: 2, vencidos: 0, reprovados: 0 },
+    incidentes: { comunicacoes_pendentes: 1, comunicacoes_atrasadas: 0 },
+};
+const montar = () => { history.replaceState(null, '', '/privacy'); document.open(); document.write(html); document.close(); aplicarCasca('privacy'); };
+
+beforeEach(() => { apiMock.mockReset(); S.user = { id: 'u1', role: 'consultor' }; S.activeProject = PROJ; montar(); });
+afterEach(() => history.replaceState(null, '', '/'));
+
+describe('selos do menu do n.privacy', () => {
+    it('mostra a contagem, o texto para leitor de tela e o tom de perigo só quando há atraso', async () => {
+        apiMock.mockResolvedValue(VISAO);
+        await atualizarSelos(document, true);
+        expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/projects/p1/encarregado');
+        expect(el('selo-titular').textContent).toBe('3');
+        expect(el('selo-titular').getAttribute('aria-label')).toBe('3 pedidos vencidos ou a vencer em 7 dias');
+        expect(el('selo-titular').classList.contains('is-danger')).toBe(true);
+        expect(el('selo-terceiros').getAttribute('aria-label')).toContain('2 terceiros');
+        expect(el('selo-terceiros').classList.contains('is-danger')).toBe(false);
+        expect(el('selo-incidentes').getAttribute('aria-label')).toBe('1 comunicação de incidente pendente');
+    });
+    it('zero não mostra selo', async () => {
+        apiMock.mockResolvedValue({ pedidos_titular: { exigem_atencao: 0 }, terceiros: {}, incidentes: { comunicacoes_pendentes: 0 } });
+        await atualizarSelos(document, true);
+        for (const id of ['selo-titular', 'selo-terceiros', 'selo-incidentes']) expect(el(id).hidden, id).toBe(true);
+    });
+    it('falha silenciosa: sem selo e sem exceção, e tira o selo antigo', async () => {
+        apiMock.mockResolvedValueOnce(VISAO);
+        await atualizarSelos(document, true);
+        expect(el('selo-titular').hidden).toBe(false);
+        apiMock.mockRejectedValueOnce(new Error('Falha de rede'));
+        await expect(atualizarSelos(document, true)).resolves.toBeUndefined();
+        expect(el('selo-titular').hidden).toBe(true);
+    });
+    it('sem chamada para papel sem acesso à visão, sem projeto ou projeto sem o n.privacy', async () => {
+        for (const [user, proj] of [[{ id: 'u2', role: 'stakeholder' }, PROJ], [{ id: 'u3', role: 'comercial' }, PROJ], [S.user, null], [S.user, { id: 'p2', modulos: ['iso'] }]]) {
+            S.user = user; S.activeProject = proj;
+            await atualizarSelos(document, true);
+        }
+        expect(apiMock).not.toHaveBeenCalled();
+    });
+    it('o cliente, que lê a visão, também recebe os selos', async () => {
+        S.user = { id: 'u4', role: 'org_user' };
+        apiMock.mockResolvedValue(VISAO);
+        await atualizarSelos(document, true);
+        expect(el('selo-titular').hidden).toBe(false);
+    });
+    it('não repete a chamada para o mesmo projeto e recarrega ao trocar de projeto', async () => {
+        apiMock.mockResolvedValue(VISAO);
+        await atualizarSelos();
+        await atualizarSelos();
+        expect(apiMock).toHaveBeenCalledTimes(1);
+        S.activeProject = { id: 'p3', modulos: ['privacy'] };
+        await atualizarSelos();
+        expect(apiMock).toHaveBeenCalledTimes(2);
+        await atualizarSelos(document, true);
+        expect(apiMock).toHaveBeenCalledTimes(3);
+    });
+    it('resposta de um projeto antigo não sobrescreve a do projeto atual', async () => {
+        let soltar;
+        apiMock.mockImplementationOnce(() => new Promise((r) => { soltar = r; }));
+        const velha = atualizarSelos(document, true);
+        apiMock.mockResolvedValueOnce({ pedidos_titular: { exigem_atencao: 0 }, terceiros: {}, incidentes: {} });
+        await atualizarSelos(document, true);
+        soltar(VISAO);
+        await velha;
+        expect(el('selo-titular').hidden).toBe(true);
+    });
+});

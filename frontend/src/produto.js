@@ -179,6 +179,34 @@ export function abrirGrupo(grupo, doc = document) {
 
 const marca = (produto) => `n<span style="color:var(--accent)">.</span><span class="brand-tail">${PRODUTOS[produto].nome}</span>`;
 
+// Rótulos do n.privacy (a interface fala RoPA e RIPD; os ids nav-* e as rotas não mudam).
+const ROTULOS_PRIVACY = { 'nav-titular': 'Direitos do titular (DSAR)', 'nav-terceiros': 'Terceiros (risco de fornecedores)', 'nav-ropa': 'RoPA', 'nav-dpia': 'RIPD (DPIA)' };
+
+/**
+ * Menu do n.privacy por área de trabalho (só aqui; o n.iso e o n.360 não mudam). Painel (Encarregado) e as três filas em
+ * destaque (DSAR, Terceiros, Incidentes) sobem para o primeiro nível; "Mapear e avaliar" fica com RoPA, RIPD e Requisitos;
+ * o cadastro compartilhado com o n.iso vai para "Governança e provas". O Assistente fecha o bloco de primeiro nível.
+ */
+function organizarMenuPrivacy(doc) {
+    const topo = doc.getElementById('nav-dashboard');
+    if (topo) {
+        let ancora = topo;
+        for (const id of ['nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-incidentes-privacy', 'nav-ai']) {
+            const el = doc.getElementById(id);
+            if (el) { ancora.after(el); ancora = el; }
+        }
+    }
+    const provas = doc.getElementById('group-provas');
+    if (provas) for (const id of ['nav-documentos', 'nav-evidence', 'nav-partes', 'nav-governance', 'nav-training']) {
+        const el = doc.getElementById(id);
+        if (el) provas.appendChild(el);
+    }
+    for (const [id, rotulo] of Object.entries(ROTULOS_PRIVACY)) {
+        const t = doc.querySelector(`#${id} .sidebar-nav-text`);
+        if (t) t.textContent = rotulo;
+    }
+}
+
 /** Aplica a casca do produto ao documento: título, marcas, menu. Idempotente. */
 export function aplicarCasca(produto = produtoAtual(), doc = document) {
     const nome = PRODUTOS[produto].nome;
@@ -209,16 +237,7 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
     const doHub = new Set(NAV_DO_HUB);
     const esconder = produto === 'n360' ? (id) => !doHub.has(id)
         : (id) => (produto === 'privacy' ? SO_ISO : SO_PRIVACY).includes(id) || SO_N360.includes(id) || id === 'nav-inicio' || id === 'nav-seguranca-projeto';
-    if (produto === 'privacy') {
-        // Governança e Inteligência teriam um item só cada (rótulo igual ao item): Governança vai para o fim de
-        // Privacidade e o Assistente sobe para o topo do menu (fora de grupo: Sistema some para o cliente).
-        const gov = doc.getElementById('nav-governance');
-        const priv = doc.getElementById('group-privacy');
-        if (gov && priv) priv.appendChild(gov);
-        const ai = doc.getElementById('nav-ai');
-        const topo = doc.getElementById('nav-dashboard');
-        if (ai && topo) topo.after(ai);
-    }
+    if (produto === 'privacy') organizarMenuPrivacy(doc);
     doc.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach((n) => { if (esconder(n.id)) n.dataset.foraDoProduto = '1'; else delete n.dataset.foraDoProduto; });
     // Grupo sem nenhum item do produto some inteiro (rótulo e grupo).
     doc.querySelectorAll('.sidebar-group').forEach((g) => {
@@ -228,7 +247,7 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
         if (rotulo) rotulo.dataset.foraDoProduto = vazio ? '1' : '';
     });
     const rotuloPriv = doc.querySelector('[data-args=\'["group-privacy"]\']');
-    if (rotuloPriv) { rotuloPriv.textContent = 'Privacidade'; rotuloPriv.removeAttribute('aria-label'); }
+    if (rotuloPriv) { rotuloPriv.textContent = produto === 'privacy' ? 'Mapear e avaliar' : 'Privacidade'; rotuloPriv.removeAttribute('aria-label'); }
     if (produto === 'privacy') abrirGrupo(doc.getElementById('group-privacy'), doc);
     const rotuloOps = doc.querySelector('[data-args=\'["group-ops"]\']');
     if (rotuloOps) rotuloOps.textContent = produto === 'iso' ? 'Operacional' : 'Cadastro';

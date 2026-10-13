@@ -26,7 +26,7 @@ describe('n.360: menu de hub', () => {
     it('grupo que ficou vazio some com o rótulo', () => {
         montarApp();
         aplicarCasca('n360');
-        for (const g of ['group-sales', 'group-impl', 'group-ops', 'group-privacy', 'group-implantacao', 'group-intel']) {
+        for (const g of ['group-sales', 'group-impl', 'group-ops', 'group-privacy', 'group-provas', 'group-implantacao', 'group-intel']) {
             expect(el(g).dataset.foraDoProduto, g).toBe('1');
             expect(rotuloDe(g).dataset.foraDoProduto, g).toBe('1');
         }
@@ -53,7 +53,7 @@ describe('n.privacy: menu', () => {
         expect(el('group-implantacao').classList.contains('expanded')).toBe(false);
         const r = rotuloDe('group-implantacao');
         expect([r.getAttribute('role'), r.getAttribute('tabindex'), r.getAttribute('aria-expanded'), r.dataset.action]).toEqual(['button', '0', 'false', 'toggleGroup']);
-        expect(r.previousElementSibling).toBe(el('group-privacy'));
+        expect(r.previousElementSibling).toBe(el('group-provas'));
         expect(el('group-implantacao').nextElementSibling).toBe(rotuloDe('group-intel'));
     });
     it('n.iso não mostra Implantação', () => {
@@ -62,14 +62,48 @@ describe('n.privacy: menu', () => {
         expect(el('group-implantacao').dataset.foraDoProduto).toBe('1');
         expect(rotuloDe('group-implantacao').dataset.foraDoProduto).toBe('1');
     });
-    it('Privacidade na ordem do trabalho, aberto, com Governança no fim', () => {
+    it('por área de trabalho: painel e filas em destaque no primeiro nível, depois Mapear e avaliar, Governança e provas e Implantação', () => {
         montarApp();
         aplicarCasca('privacy');
-        const ordem = [...el('group-privacy').querySelectorAll('.sidebar-nav')].filter((n) => n.dataset.foraDoProduto !== '1').map((n) => n.id);
-        expect(ordem).toEqual(['nav-encarregado', 'nav-titular', 'nav-incidentes-privacy', 'nav-ropa', 'nav-dpia', 'nav-terceiros', 'nav-requisitos', 'nav-governance']);
-        expect(el('nav-titular').textContent.trim()).toBe('Titular e pedidos');
+        const lista = el('nav-dashboard').parentElement;
+        const topo = [...lista.children].filter((n) => n.matches('.sidebar-nav') && n.dataset.foraDoProduto !== '1').map((n) => n.id);
+        expect(topo).toEqual(['nav-meus', 'nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-incidentes-privacy', 'nav-ai']);
+        const ids = (g) => [...el(g).querySelectorAll('.sidebar-nav')].filter((n) => n.dataset.foraDoProduto !== '1').map((n) => n.id);
+        expect(ids('group-privacy')).toEqual(['nav-ropa', 'nav-dpia', 'nav-requisitos']);
+        expect(ids('group-provas')).toEqual(['nav-documentos', 'nav-evidence', 'nav-partes', 'nav-governance', 'nav-training']);
+        expect(rotuloDe('group-privacy').textContent).toBe('Mapear e avaliar');
+        expect(rotuloDe('group-provas').textContent).toBe('Governança e provas');
+        expect(el('group-ops').dataset.foraDoProduto).toBe('1');
+        const ordem = [...lista.children].map((n) => n.id).filter((i) => ['group-privacy', 'group-provas', 'group-implantacao'].includes(i));
+        expect(ordem).toEqual(['group-privacy', 'group-provas', 'group-implantacao']);
         expect(el('group-privacy').classList.contains('expanded')).toBe(true);
         expect(rotuloDe('group-privacy').getAttribute('aria-expanded')).toBe('true');
+        expect(el('group-provas').classList.contains('expanded')).toBe(false);
+    });
+    it('rótulos e destaque: DSAR, Terceiros e Incidentes têm selo; ids, rotas e ações não mudam', () => {
+        montarApp();
+        aplicarCasca('privacy');
+        const texto = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
+        expect(texto('nav-titular')).toBe('Direitos do titular (DSAR)');
+        expect(texto('nav-terceiros')).toBe('Terceiros (risco de fornecedores)');
+        expect(texto('nav-ropa')).toBe('RoPA');
+        expect(texto('nav-dpia')).toBe('RIPD (DPIA)');
+        expect(texto('nav-incidentes-privacy')).toBe('Incidentes');
+        for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes']]) {
+            expect(el(id).classList.contains('sidebar-nav-destaque'), id).toBe(true);
+            expect(el(id).contains(el(selo)), selo).toBe(true);
+            expect(el(selo).hidden, selo).toBe(true);
+        }
+        expect(el('nav-encarregado').classList.contains('sidebar-nav-destaque')).toBe(false);
+        expect(JSON.parse(el('nav-ropa').getAttribute('data-args'))).toEqual(['ropa']);
+        expect(JSON.parse(el('nav-terceiros').getAttribute('data-args'))).toEqual(['terceiros']);
+    });
+    it('os itens de primeiro nível seguem o projeto: sem projeto somem junto com os grupos', () => {
+        montarApp();
+        for (const id of ['nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-incidentes-privacy', 'group-provas']) {
+            expect(el(id).classList.contains('group-project-only'), id).toBe(true);
+            expect(el(id).style.display, id).toBe('none');
+        }
     });
     it('Governança e Inteligência de um item só não viram grupo; o assistente se chama Assistente', () => {
         montarApp();
@@ -93,6 +127,10 @@ describe('n.privacy: menu', () => {
     it('no n.iso o menu continua com Governança no grupo e sem o item de incidentes do n.privacy', () => {
         montarApp();
         aplicarCasca('iso');
+        expect(rotuloDe('group-privacy').textContent).toBe('Privacidade');
+        expect(el('nav-ropa').textContent.trim()).toBe('ROPA');
+        expect(el('nav-dpia').textContent.trim()).toBe('DPIA / RIPD');
+        expect(el('group-provas').dataset.foraDoProduto).toBe('1');
         expect(el('nav-governance').parentElement.id).toBe('group-impl');
         expect(visiveis()).not.toContain('nav-incidentes-privacy');
         expect(visiveis()).toContain('nav-assets');
