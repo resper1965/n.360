@@ -28,7 +28,7 @@ usersApp.get('/', async (c) => {
   }
   
   try {
-    let stmt = c.env.DB.prepare('SELECT id, email, name, role, client_project_id, ativo, created_at FROM users ORDER BY created_at DESC');
+    let stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.ativo, u.created_at, ${ORG_DA_CONTA_SQL} AS org FROM users u ORDER BY u.created_at DESC`);
     if (user.role === 'platform_admin' && c.req.header('X-Org-Id')?.trim()) {
       // A organização em que o platform_admin atua (a tela de organizações manda o cabeçalho);
       // sem ele, todas as contas. Organização inexistente → 403, como em `exigirOrg`.

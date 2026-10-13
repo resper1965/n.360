@@ -162,12 +162,12 @@ window.__adminCopiarApiKey = () => {
 
             const statsHtml = window.renderStatCards([
                 { label: 'Total de Usuários', value: totalUsers, color: 'var(--text)', subtext: desativadas ? `${desativadas} desativada(s)` : 'Nenhuma desativada' },
-                { label: 'Administradores & Consultores', value: admins, color: 'var(--text)', subtext: 'Equipe ness.' },
+                { label: 'Administradores & Consultores', value: admins, color: 'var(--text)', subtext: 'Equipe da plataforma' },
                 { label: 'Usuários de Clientes', value: clientUsers, color: 'var(--text)', subtext: 'Acesso às orgs' }
             ]);
 
             const tableHtml = window.renderDataTable(
-                ['Nome', 'E-mail', 'Papel (Role)', 'Projeto / Organização', 'Módulos', 'Situação', 'Ações'],
+                ['Nome', 'E-mail', 'Papel (Role)', 'Projeto', 'Organização', 'Módulos', 'Situação', 'Ações'],
                 userArr.map(u => {
                     const projectName = u.client_project_id ? (projMap[u.client_project_id] || u.client_project_id) : '—';
                     const roleLabel = u.role === 'platform_admin' ? 'Admin Plataforma' : 
@@ -182,6 +182,7 @@ window.__adminCopiarApiKey = () => {
                         escapeHTML(u.email),
                         window.renderStatusBadge(roleLabel, u.role === 'platform_admin' ? 'info' : 'success'),
                         escapeHTML(projectName),
+                        escapeHTML(window.nomeOrgDe?.(u.org) || '—'),
                         escapeHTML(rotuloModulos(u.modulos)),
                         window.renderStatusBadge(contaAtiva(u) ? 'Ativa' : 'Desativada', contaAtiva(u) ? 'success' : 'info'),
                         `<button class="btn btn-ghost btn-sm" data-action="openUserModal" data-args='["${u.id}"]'>Editar</button>
@@ -192,8 +193,12 @@ window.__adminCopiarApiKey = () => {
                 { emptyState: 'Nenhum usuário cadastrado ainda. Use "Novo usuário" para convidar a equipe da ness. ou o administrador do cliente.' }
             );
 
+            // Platform admin sem filtro (seletor na ness.) recebe as contas de todas as organizações.
+            const nota = S.user?.role === 'platform_admin' && !S.orgAtuacao
+                ? '<p class="org-dica">Mostrando as contas de todas as organizações. Para ver só uma, escolha-a no seletor do cabeçalho.</p>' : '';
             c.innerHTML = `
                 ${statsHtml}
+                ${nota}
                 ${tableHtml}
             `;
         } catch (e) {

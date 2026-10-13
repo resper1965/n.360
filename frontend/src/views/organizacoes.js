@@ -477,3 +477,4 @@ export { renderOrganizacoes, atualizarSeletorOrg };
 window.renderOrganizacoes = renderOrganizacoes;
 window.atualizarSeletorOrg = atualizarSeletorOrg;
 window.nomeOrgAtuacao = () => (S.orgAtuacao ? nomeDe(S.orgAtuacao) : null);
+window.nomeOrgDe = (id) => (id ? nomeDe(id) : null);
