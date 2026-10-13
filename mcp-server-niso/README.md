@@ -1,6 +1,6 @@
 # mcp-server-niso
 
-Servidor MCP (Model Context Protocol) que expõe o n.iso a agentes de IA — Claude
+Servidor MCP (Model Context Protocol) que expõe o n.iso (módulo do n.360) a agentes de IA — Claude
 Desktop, Claude Code, ou qualquer cliente MCP.
 
 O servidor **não tem lógica de negócio nem acesso ao banco**. Ele é um adaptador
@@ -35,11 +35,13 @@ O endereco continua `https://niso.ness.com.br/mcp` com o n.360 como entrada da
 plataforma; o agente remoto trabalha com os modulos do projeto (n.iso, n.privacy).
 
 O metodo de trabalho tambem chega pelo MCP: `niso_skill` lista e entrega as skills do
-consultor (hoje `prontidao-certificacao`, a pre-avaliacao de prontidao para Stage 1 e 2),
-com referencias e o validador de achados. Nada para instalar; o texto mora em
+consultor (hoje `prontidao-certificacao`, a pre-avaliacao de prontidao para Stage 1 e 2, com
+referencias e o validador de achados, e `maturidade-lgpd`, os achados de maturidade do programa de
+privacidade, so leitura). Nada para instalar; o texto mora em
 `agent-skills/` e e atualizado junto com o deploy.
 
-O agente remoto tem o alcance do consultor humano no projeto escolhido no login: le qualquer area com `niso_ler` e grava com `niso_executar` ou com as ferramentas especificas. Apagar, gerar em lote, eliminar dados do titular e revogar aprovacoes exigem `confirmado_pelo_usuario: true`, que o agente so envia depois de mostrar o que sera feito e receber o 'sim'. Fora do alcance: usuarios, SSO, politica de seguranca, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificacoes), criar projeto, painel global, area comercial, /agentes e registro de achado de auditoria. Para outro projeto, refaca o login.
+O agente remoto tem o alcance do consultor humano no projeto escolhido no login: le qualquer area com `niso_ler` e grava com `niso_executar` ou com as ferramentas especificas. Apagar, gerar em lote, eliminar dados do titular e revogar aprovacoes exigem `confirmado_pelo_usuario: true`, que o agente so envia depois de mostrar o que sera feito e receber o 'sim'. Fora do alcance: usuarios, SSO, politica de seguranca, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificacoes), criar projeto, painel global, area comercial, /agentes, registro de achado de auditoria, importacao
+de programa e os rascunhos de IA do n.privacy (que sao da tela). Para outro projeto, refaca o login.
 
 | Cliente | Onde | Trecho | Estado |
 |---|---|---|---|
