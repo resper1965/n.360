@@ -41,7 +41,7 @@ describe('botões de acesso na matriz', () => {
   it('sem handler inline', () => {
     montar('org_admin');
     expect(document.body.innerHTML).not.toMatch(/\sonclick\s*=/i);
-    expect(document.body.textContent).toContain('Convidar para o n.iso');
+    expect(document.body.textContent).toContain('Convidar para o n.360');
     expect(document.body.textContent).toContain('Revogar acesso');
   });
 });

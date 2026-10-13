@@ -560,7 +560,7 @@ import { podeIndicar } from './encarregado.js';
         // Convite e revogação nascem da linha da matriz; sem e-mail, ou para a equipe da consultoria, não há o que convidar.
         const acoesAcesso = (m) => (podeConvidarStakeholder() && m.email && m.role_category !== 'consultor') ? `
                 <div class="gov-member-acoes">
-                    <button class="btn btn-secondary" data-action="convidarStakeholder" data-args='["${escapeHTML(projectId)}","${escapeHTML(m.id)}"]'>Convidar para o n.iso</button>
+                    <button class="btn btn-secondary" data-action="convidarStakeholder" data-args='["${escapeHTML(projectId)}","${escapeHTML(m.id)}"]'>Convidar para o n.360</button>
                     <button class="btn btn-secondary" data-action="revogarStakeholder" data-args='["${escapeHTML(projectId)}","${escapeHTML(m.id)}"]'>Revogar acesso</button>
                 </div>` : '';
 
@@ -712,14 +712,14 @@ import { podeIndicar } from './encarregado.js';
     window.convidarStakeholder = async function(projectId, memberId) {
         try {
             const r = await api('POST', `/api/v1/projects/${projectId}/governance/${memberId}/convidar`);
-            if (r && r.ja_convidado) showToast('Esta pessoa já tem acesso ao n.iso');
-            else if (r && r.emailEnviado === false) showToast('Conta criada, mas o e-mail NÃO foi enviado. Use "Revogar acesso" e depois "Convidar para o n.iso" de novo para gerar outra senha e reenviar, ou avise o administrador da plataforma.', 'error');
+            if (r && r.ja_convidado) showToast('Esta pessoa já tem acesso ao n.360');
+            else if (r && r.emailEnviado === false) showToast('Conta criada, mas o e-mail NÃO foi enviado. Use "Revogar acesso" e depois "Convidar para o n.360" de novo para gerar outra senha e reenviar, ou avise o administrador da plataforma.', 'error');
             else showToast('Convite enviado por e-mail');
         } catch (e) { showToast(e.message || 'Falha ao convidar', 'error'); }
     };
 
     window.revogarStakeholder = async function(projectId, memberId) {
-        if (!(await window.confirmar('A conta é desativada e as sessões abertas caem.', { titulo: 'Revogar acesso ao n.iso', perigo: true, rotulo: 'Revogar' }))) return;
+        if (!(await window.confirmar('A conta é desativada e as sessões abertas caem.', { titulo: 'Revogar acesso ao n.360', perigo: true, rotulo: 'Revogar' }))) return;
         try {
             await api('POST', `/api/v1/projects/${projectId}/governance/${memberId}/revogar-acesso`);
             showToast('Acesso revogado');
