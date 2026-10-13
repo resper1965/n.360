@@ -662,7 +662,7 @@ import { podeIndicar } from './encarregado.js';
         let lista;
         try { lista = await api('GET', `/api/v1/projects/${projectId}/agentes`); } catch (e) { if (!manter) alvo.innerHTML = ''; return; }
         if (!Array.isArray(lista)) { if (!manter) alvo.innerHTML = ''; return; }
-        const podeRevogar = (ag) => S.user && (S.user.role === 'platform_admin' || S.user.role === 'org_admin' || ((S.user.role === 'consultor' || S.user.role === 'consultant') && ag.consultor === S.user.email));
+        const podeRevogar = (ag) => S.user && (S.user.role === 'platform_admin' || S.user.role === 'org_admin' || S.user.role === 'consultoria_admin' || ((S.user.role === 'consultor' || S.user.role === 'consultant') && ag.consultor === S.user.email));
         const data = (v) => escapeHTML(dataLocal(v));
         const ultimoUso = (v) => v ? `${data(v)} (${haQuanto(v)})` : 'nunca';
         const linhas = lista.map(ag => {

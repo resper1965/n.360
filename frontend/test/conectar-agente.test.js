@@ -1,14 +1,17 @@
-// Tela "Conectar agente" (src/views/conectar-agente.js). Três coisas importam:
+// Tela "Agentes" (antes "Conectar agente"; a rota interna segue conectar-agente) (src/views/conectar-agente.js). Três coisas importam:
 // (1) a estrutura: endereço do servidor, três passos, UM cliente por vez em abas, e o alcance do agente;
 // (2) o que ela afirma bate com o que foi verificado: "Verificado" só no cliente exercitado em produção,
 //     e o texto diz que o LOGIN define quem é o agente e o cliente;
 // (3) "Copiado" só depois que a área de transferência aceitou.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/conectar-agente.js';
 
-function monta() {
+function monta(role = 'consultor', activeProject = null) {
+  S.user = { role, email: 'x@ness.lat' };
+  S.activeProject = activeProject;
   document.body.innerHTML = '<div id="content"></div><h1 id="hdr"></h1><div id="act"></div>';
   const c = document.getElementById('content');
   const h = document.getElementById('hdr');
@@ -28,7 +31,7 @@ beforeEach(() => {
 describe('Conectar agente — estrutura', () => {
   it('título, três passos, e o endereço do servidor UMA vez só (dentro do comando)', () => {
     const { c, h } = monta();
-    expect(h.textContent).toBe('Conectar agente');
+    expect(h.textContent).toBe('Agentes');
     expect(c.textContent.split('https://niso.ness.com.br/mcp').length - 1).toBe(1);
     expect(painel(c).textContent).toContain('https://niso.ness.com.br/mcp');
     const passos = [...c.querySelectorAll('ol.ca-passos > li')];
@@ -49,12 +52,12 @@ describe('Conectar agente — estrutura', () => {
   it('um cliente por vez, em abas acessíveis: o Claude Code vem selecionado', () => {
     const { c } = monta();
     expect(c.querySelector('[role="tablist"]')).toBeTruthy();
-    expect(abas(c).map((t) => t.textContent.replace(/\s+/g, ' ').trim().split(' ')[0])).toEqual(['Claude', 'Cursor', 'Codex', 'Antigravity']);
+    expect(abas(c).map((t) => t.textContent.replace(/\s+/g, ' ').trim().split(' ')[0])).toEqual(['Claude', 'Cursor', 'Codex', 'Antigravity', 'ChatGPT', 'Claude']);
     const sel = abas(c).filter((t) => t.getAttribute('aria-selected') === 'true');
     expect(sel).toHaveLength(1);
     expect(sel[0].textContent).toContain('Claude Code');
     // tabindex móvel: só a aba selecionada entra na ordem de tabulação
-    expect(abas(c).map((t) => t.getAttribute('tabindex'))).toEqual(['0', '-1', '-1', '-1']);
+    expect(abas(c).map((t) => t.getAttribute('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1']);
     expect(painel(c).getAttribute('aria-labelledby')).toBe(sel[0].id);
     expect(abas(c).every((t) => t.getAttribute('aria-controls') === painel(c).id)).toBe(true);
   });
@@ -77,11 +80,11 @@ describe('Conectar agente — estrutura', () => {
     tecla('ArrowRight');
     expect(aba(c, 'Cursor').getAttribute('aria-selected')).toBe('true');
     tecla('End');
-    expect(aba(c, 'Antigravity').getAttribute('aria-selected')).toBe('true');
+    expect(aba(c, 'navegador e desktop').getAttribute('aria-selected')).toBe('true');
     tecla('ArrowRight'); // dá a volta
     expect(aba(c, 'Claude Code').getAttribute('aria-selected')).toBe('true');
     tecla('ArrowLeft'); // dá a volta para trás
-    expect(aba(c, 'Antigravity').getAttribute('aria-selected')).toBe('true');
+    expect(aba(c, 'navegador e desktop').getAttribute('aria-selected')).toBe('true');
     tecla('Home');
     expect(aba(c, 'Claude Code').getAttribute('aria-selected')).toBe('true');
   });
@@ -108,7 +111,7 @@ describe('Conectar agente — instruções que o consultor precisa', () => {
 
   it('os outros clientes não ganham instruções do Claude Code', () => {
     const { c } = monta();
-    for (const id of ['cursor', 'codex', 'antigravity']) {
+    for (const id of ['cursor', 'codex', 'antigravity', 'chatgpt', 'claude-web']) {
       window.__selecionarCliente(id);
       expect(painel(c).textContent, id).not.toContain('claude mcp');
       expect(painel(c).textContent, id).not.toContain('Needs authentication');
@@ -117,11 +120,11 @@ describe('Conectar agente — instruções que o consultor precisa', () => {
 });
 
 describe('Conectar agente — o que a tela afirma', () => {
-  it('só o Claude Code é "Verificado"; os outros três são "A confirmar"', () => {
+  it('só o Claude Code é "Verificado"; os outros cinco são "A confirmar"', () => {
     // Em 30/09/2026 só o Claude Code foi exercitado contra a produção.
     const { c } = monta();
     expect(aba(c, 'Claude Code').textContent).toContain('Verificado');
-    for (const nome of ['Cursor', 'Codex', 'Antigravity']) {
+    for (const nome of ['Cursor', 'Codex', 'Antigravity', 'ChatGPT', 'navegador e desktop']) {
       expect(aba(c, nome).textContent, nome).toContain('A confirmar');
       expect(aba(c, nome).textContent, nome).not.toContain('Verificado');
     }
@@ -164,6 +167,8 @@ describe('Conectar agente — o que a tela afirma', () => {
     const { c } = monta();
     const blocos = [...c.querySelectorAll('.ca-alcance > .ca-alc')];
     expect(blocos).toHaveLength(4);
+    // as duas plataformas, e o que é da tela e não do agente
+    for (const t of ['n.iso', 'n.privacy', 'ropa', 'dpia', 'requisitos', 'pedidos do titular', 'incidentes', 'terceiros', 'rascunhos de ia do n.privacy', 'importação de programa']) expect(c.querySelector('.ca-alcance').textContent.toLowerCase(), t).toContain(t);
     const t = c.querySelector('.ca-alcance').textContent.toLowerCase();
     for (const pede of ['apagar', 'gerar políticas em lote', 'eliminar dados de titular', 'revogar aprovações']) expect(t, pede).toContain(pede);
     for (const nao of ['usuários', 'sso', 'chaves de api', 'webhooks', 'achado de auditoria']) expect(t, nao).toContain(nao);
@@ -176,6 +181,92 @@ describe('Conectar agente — o que a tela afirma', () => {
     const { c } = monta();
     expect(c.innerHTML).not.toMatch(/\son[a-z]+=/i);
     expect(c.querySelector('script')).toBeNull();
+  });
+});
+
+describe('Agentes: os dois módulos e os dois clientes novos', () => {
+  it('fala do n.360 e dos dois módulos, e não promete o papel Auditor nem "em breve"', () => {
+    const { c } = monta();
+    expect(c.textContent).toContain('n.360');
+    expect(c.textContent).toContain('n.privacy');
+    expect(c.textContent).not.toMatch(/bauditorb|em breve/i);
+    // com um papel só o seletor de papel não aparece
+    expect(c.querySelector('[aria-label="Papel do agente"]')).toBeNull();
+    expect(c.querySelector('.ca-alcance').previousElementSibling.textContent).toBe('O que o agente Consultor faz');
+  });
+
+  it('ChatGPT: onde, endereço copiável, login OAuth e como conferir; selo A confirmar', () => {
+    const { c } = monta();
+    window.__selecionarCliente('chatgpt');
+    const t = painel(c).textContent;
+    expect(t).toContain('Configurações > Conectores > Avançado > Modo desenvolvedor');
+    expect(t).toContain('https://niso.ness.com.br/mcp');
+    expect(t).toMatch(/OAuth/);
+    expect(t).toMatch(/lista as ferramentas/);
+    expect(t).toMatch(/ainda não foi confirmado/i);
+    expect(c.textContent.split('https://niso.ness.com.br/mcp').length - 1).toBe(1);
+  });
+
+  it('Claude no navegador e no desktop: conector personalizado com o endereço', () => {
+    const { c } = monta();
+    window.__selecionarCliente('claude-web');
+    const t = painel(c).textContent;
+    expect(t).toContain('Configurações > Conectores > adicionar conector personalizado');
+    expect(t).toContain('https://niso.ness.com.br/mcp');
+    expect(t).toMatch(/ainda não foi confirmado/i);
+  });
+});
+
+describe('Agentes: quem conecta e quem só vê', () => {
+  const NOTA = 'Esta conta não conecta agente; use uma conta de consultor';
+  it.each(['consultor', 'consultant', 'consultoria_admin'])('%s conecta: sem nota e com botão Copiar', (role) => {
+    const { c } = monta(role);
+    expect(c.textContent).not.toContain(NOTA);
+    expect(c.querySelector('[data-action="__copiarTrecho"]')).toBeTruthy();
+  });
+
+  it.each(['platform_admin', 'comercial'])('%s vê o painel com a nota e sem botão de conexão', (role) => {
+    const { c } = monta(role);
+    expect(c.textContent).toContain(NOTA);
+    expect(c.querySelector('[data-action="__copiarTrecho"]')).toBeNull();
+    expect(painel(c).textContent).toContain('claude mcp add');
+  });
+
+  it('a nota segue depois de trocar de aba', () => {
+    const { c } = monta('comercial');
+    window.__selecionarCliente('cursor');
+    expect(c.textContent).toContain(NOTA);
+    expect(c.querySelector('[data-action="__copiarTrecho"]')).toBeNull();
+  });
+});
+
+describe('Agentes: quem está conectado', () => {
+  it.each(['consultor', 'comercial'])('%s não vê o bloco', (role) => {
+    const { c } = monta(role, { id: 'p1' });
+    expect(c.querySelector('.ca-conectados')).toBeNull();
+    expect(c.querySelector('#gov-agentes')).toBeNull();
+  });
+
+  it.each(['platform_admin', 'consultoria_admin'])('%s sem projeto ativo: estado vazio com o botão de escolher', (role) => {
+    const { c } = monta(role, null);
+    const b = c.querySelector('.ca-conectados');
+    expect(b.querySelector('.empty-state')).toBeTruthy();
+    expect(b.textContent).toContain('Sem projeto ativo');
+    expect(b.querySelector('[data-action="openActiveProjectModal"]')).toBeTruthy();
+  });
+
+  it.each(['platform_admin', 'consultoria_admin'])('%s com projeto: carrega o cartão da Governança e liga a atualização', (role) => {
+    window.carregarAgentesDoProjeto = vi.fn();
+    window.agentesAoVivo = vi.fn();
+    const { c } = monta(role, { id: 'p1' });
+    expect(c.querySelector('.ca-conectados #gov-agentes')).toBeTruthy();
+    expect(window.carregarAgentesDoProjeto).toHaveBeenCalledWith('p1');
+    expect(window.agentesAoVivo).toHaveBeenCalledWith('p1');
+    // trocar de aba não refaz a consulta nem apaga o cartão
+    window.__selecionarCliente('codex');
+    expect(window.carregarAgentesDoProjeto).toHaveBeenCalledTimes(1);
+    expect(c.querySelector('#gov-agentes')).toBeTruthy();
+    delete window.carregarAgentesDoProjeto; delete window.agentesAoVivo;
   });
 });
 
