@@ -166,5 +166,9 @@ describe('Importar programa (nav-importacao)', () => {
   it.each([['consultor', true], ['consultoria_admin', true], ['org_admin', false], ['stakeholder', false]])('%s: visível=%s', async (papel, ve) => {
     await menu(papel);
     expect(visivel('nav-importacao')).toBe(ve);
+    // Grupo Implantação (só tem esse item): sem permissão, grupo e rótulo somem juntos.
+    const g = document.getElementById('group-implantacao');
+    const r = document.querySelector(`.sidebar-label[data-args='["group-implantacao"]']`);
+    expect([g.dataset.semItem, r.dataset.semItem]).toEqual(ve ? ['', ''] : ['1', '1']);
   });
 });

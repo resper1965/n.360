@@ -1548,7 +1548,7 @@ textarea:focus-visible {
 .fn-sub { margin: 0 0 8px; font: 600 13px var(--font-head); color: var(--text-2); }
 
 /* n.iso / n.privacy: item ou grupo que não é do produto deste domínio (frontend/src/produto.js). */
-[data-fora-do-produto="1"] { display: none !important; }
+[data-fora-do-produto="1"], [data-sem-item="1"] { display: none !important; }
 
 /* Menu suspenso nativo (<details>): "Mais" em Partes. Fecha ao clicar fora (globals.js). */
 .menu-mais { position: relative; display: inline-block; }

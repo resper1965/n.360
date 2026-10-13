@@ -26,7 +26,7 @@ describe('n.360: menu de hub', () => {
     it('grupo que ficou vazio some com o rótulo', () => {
         montarApp();
         aplicarCasca('n360');
-        for (const g of ['group-sales', 'group-impl', 'group-ops', 'group-privacy', 'group-intel']) {
+        for (const g of ['group-sales', 'group-impl', 'group-ops', 'group-privacy', 'group-implantacao', 'group-intel']) {
             expect(el(g).dataset.foraDoProduto, g).toBe('1');
             expect(rotuloDe(g).dataset.foraDoProduto, g).toBe('1');
         }
@@ -44,11 +44,29 @@ describe('Segurança do projeto', () => {
 });
 
 describe('n.privacy: menu', () => {
+    it('Importar programa fica fora do menu operacional, em Implantação (recolhido, depois de Privacidade)', () => {
+        montarApp();
+        aplicarCasca('privacy');
+        expect(el('group-privacy').contains(el('nav-importacao'))).toBe(false);
+        expect(el('nav-importacao').parentElement.id).toBe('group-implantacao');
+        expect(el('group-implantacao').dataset.foraDoProduto).toBe('');
+        expect(el('group-implantacao').classList.contains('expanded')).toBe(false);
+        const r = rotuloDe('group-implantacao');
+        expect([r.getAttribute('role'), r.getAttribute('tabindex'), r.getAttribute('aria-expanded'), r.dataset.action]).toEqual(['button', '0', 'false', 'toggleGroup']);
+        expect(r.previousElementSibling).toBe(el('group-privacy'));
+        expect(el('group-implantacao').nextElementSibling).toBe(rotuloDe('group-intel'));
+    });
+    it('n.iso não mostra Implantação', () => {
+        montarApp();
+        aplicarCasca('iso');
+        expect(el('group-implantacao').dataset.foraDoProduto).toBe('1');
+        expect(rotuloDe('group-implantacao').dataset.foraDoProduto).toBe('1');
+    });
     it('Privacidade na ordem do trabalho, aberto, com Governança no fim', () => {
         montarApp();
         aplicarCasca('privacy');
         const ordem = [...el('group-privacy').querySelectorAll('.sidebar-nav')].filter((n) => n.dataset.foraDoProduto !== '1').map((n) => n.id);
-        expect(ordem).toEqual(['nav-encarregado', 'nav-titular', 'nav-incidentes-privacy', 'nav-ropa', 'nav-dpia', 'nav-terceiros', 'nav-requisitos', 'nav-importacao', 'nav-governance']);
+        expect(ordem).toEqual(['nav-encarregado', 'nav-titular', 'nav-incidentes-privacy', 'nav-ropa', 'nav-dpia', 'nav-terceiros', 'nav-requisitos', 'nav-governance']);
         expect(el('nav-titular').textContent.trim()).toBe('Titular e pedidos');
         expect(el('group-privacy').classList.contains('expanded')).toBe(true);
         expect(rotuloDe('group-privacy').getAttribute('aria-expanded')).toBe('true');
