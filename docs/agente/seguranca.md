@@ -22,7 +22,7 @@ O agente remoto tem dois papéis, escolhidos no consentimento OAuth e gravados n
 | Escrita | Adequação; destrutivo com confirmação (I5) | **Só** `POST /audits/:id/findings` e `POST /projects/<projeto>/auditor-notes`. Qualquer outro método/rota: 403 |
 | Achado e nota de auditor | Recusados (I6) | Permitidos |
 | Trilha | `agente de <email> (<cliente> / <projeto>)` | `agente auditor de <email> (<cliente> / <projeto>)` |
-| Ferramentas (`tools/list`) | Leitura, `niso_ler`, `niso_executar`, escrita do consultor | Leitura, `niso_ler`, `niso_create_audit_finding`, `niso_create_auditor_note`, `niso_contexto`, `niso_skill` |
+| Ferramentas (`tools/list`) | 40: leitura (n.iso e n.privacy), `niso_ler`, `niso_executar`, escrita do consultor (inclusive as 8 `niso_privacy_*` de rascunho) | 22: leitura (inclusive as 8 `niso_privacy_*` de leitura), `niso_ler`, `niso_create_audit_finding`, `niso_create_auditor_note`, `niso_contexto`, `niso_skill` |
 
 O filtro de ferramentas é conveniência. Quem impõe o papel é o servidor: `foraDoAuditor` em
 `src/middleware/agente.ts` (allow-list) e, como segunda camada, `apiKeyRoleViolation('auditor' | 'consultant')`.
@@ -118,6 +118,32 @@ quê (mesma regra do [`SECURITY.md`](../../SECURITY.md)).
 
 Fonte da lista: `FORA_DO_AGENTE` em `src/middleware/agente.ts`. Mudou lá, muda aqui.
 
+### Ferramentas nomeadas do n.privacy: o que gravam e por que só rascunho
+
+As 16 `niso_privacy_*` (`mcp-server-niso/src/ferramentas.ts`) são finas sobre rotas que o consultor já usa; **não ampliam o
+alcance**: tudo o que fazem o `niso_executar` já fazia. O ganho é de forma: esquema estrito (campo desconhecido é recusado antes
+da API, inclusive `status`), projeto fixo e uma descrição que manda pedir aprovação humana. O servidor continua sendo quem
+autoriza: faixa do módulo (projeto **e** pessoa), tenant do projeto e `FORA_DO_AGENTE`.
+
+| Ferramenta | Rota | O que grava | O que nunca faz |
+|---|---|---|---|
+| `propor_tratamento` | `POST /projects/:id/ropa` | Tratamento novo; a rota grava sempre `Draft`. Recusa finalidade já cadastrada | Definir status, aprovar |
+| `atualizar_tratamento` | `PUT /ropa/:id` | Só os campos enviados | Mudar status (o esquema não tem o campo). Em registro aprovado, a edição substitui o pedido de aprovação aberto (regra da rota), e a ferramenta avisa |
+| `ligar_tratamento` | `PUT .../ropa/:id/itens`, `.../departamentos`, `PUT /ropa/:id` | Soma itens e departamentos aos ligados; base legal do catálogo | Desligar (só pela interface ou `niso_executar`) |
+| `criar_dpia_do_tratamento` | `POST .../ropa/:id/dpia` | DPIA `Draft` pré-preenchida; 409 com o id se já existe | Aprovar a DPIA |
+| `rascunhar_lia` | `PUT .../ropa/:id/lia` | Campos da LIA em rascunho; LIA concluída é recusada (409) | Enviar `status` (concluir ou reabrir) |
+| `registrar_pedido_titular` | `POST .../titular-pedidos` | Pedido com protocolo; o prazo sai do parâmetro | Definir prazo, responder, encerrar |
+| `registrar_incidente` | `POST .../incidentes` e, se pedido, `PUT .../incidentes/:id/risco` | Incidente e avaliação de risco | Encerrar, registrar comunicação enviada, definir prazo |
+| `ligar_documento_requisito` | `PUT .../documentos/:id/requisitos` | Soma requisitos aos ligados | Publicar o documento |
+
+Por que só rascunho: no n.privacy a aprovação é prova (pedido com conteúdo congelado e hash, assinatura com autoridade na
+matriz de Governança) e a conclusão de LIA, o encerramento de incidente e a revogação de consentimento têm consequência
+jurídica. Um modelo pode ser induzido por conteúdo do cliente (Limites conhecidos, item 2); o que ele grava precisa continuar
+revisável por uma pessoa antes de valer. Concluir ou reabrir a LIA também é recusado ao agente na própria rota
+(`PUT .../lia` com `status` dá 403 quando `user.agente`), então nem o `niso_executar` conclui. **Lacuna conhecida:** mudar o
+status de ciclo de vida do tratamento (`PUT /ropa/:id` com `Under Review`, `Active` ou `Inactive`) segue alcançável pelo
+`niso_executar`, porque `FORA_DO_AGENTE` decide por caminho e método, não pelo corpo; `Approved` nunca passa pela edição.
+
 ---
 
 ## Limites conhecidos
@@ -206,6 +232,7 @@ segundo não aparece.
 | `test/oauth-autorizacao.test.ts` | Login OAuth, MFA, bloqueio, escopo, texto do consentimento. |
 | `test/mcp-remoto.test.ts` | Handshake, ferramentas listadas, 401 após revogar. |
 | `test/agente-auditor.test.ts` | Papel auditor: leitura nos dois módulos, 403 em toda escrita do consultor (forjada na API e pelo MCP), achado e nota com a trilha, papel relido do banco, separação de funções, `tools/list` por papel, platform_admin e comercial recusados. |
-| `test/agente-skills.test.ts` | Módulo embutido em dia, `niso_skill` sem vazamento, roteiro 4. |
+| `test/agente-skills.test.ts` | Módulo embutido em dia, `niso_skill` sem vazamento, roteiro 4, as quatro skills do n.privacy. |
+| `test/agente-privacy-ferramentas.test.ts` | As 16 `niso_privacy_*`: esquema estrito, escrita em `Draft` e rascunho sem aprovar, faixa do módulo (projeto e pessoa), projeto de outra organização, auditor só lê, `FORA_DO_AGENTE` mantido, contagem do `tools/list` por papel. |
 | `test/agente-gap-traceability.test.ts` | Diagnóstico acima de 100 controles, edição parcial de risco. |
 | `test/webhooks-segredo.test.ts`, `test/portabilidade.test.ts` | Segredo de integração fora da listagem e do export. |

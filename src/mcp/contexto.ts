@@ -10,7 +10,8 @@ export const INSTRUCOES =
   'Apagar, gerar em lote, eliminar dados do titular e revogar aprovações de controle: mostre ao usuário o que será feito e só envie com confirmado_pelo_usuario: true depois do "sim". ' +
   'Não registra achado de auditoria (ISO 27001, 9.2: quem implementa não audita). ' +
   'Rascunho de IA é rascunho até revisão humana: peça aprovação antes de gravar. ' +
-  'Política: niso_update_policy e niso_generate_policy gravam um RASCUNHO que um humano publica na tela da política; o agente não publica nem altera a política vigente.';
+  'Política: niso_update_policy e niso_generate_policy gravam um RASCUNHO que um humano publica na tela da política; o agente não publica nem altera a política vigente. ' +
+  'n.privacy: as ferramentas niso_privacy_* leem o programa e gravam só rascunho (tratamento em Draft, LIA em rascunho, DPIA em Draft); aprovar, concluir LIA, encerrar incidente e revogar consentimento são de uma pessoa, pela interface.';
 
 /** Handshake do agente auditor: mesmo limite de 2048. */
 export const INSTRUCOES_AUDITOR =
@@ -45,7 +46,7 @@ n.iso:
 - Diagnóstico: /api/v1/projects/{p}/gap-analysis · /api/v1/projects/{p}/traceability · /api/v1/projects/{p}/coherence · /api/v1/projects/{p}/audit-pack
 
 n.privacy:
-- Requisitos e cobertura: /api/v1/projects/{p}/requisitos/lacunas?fonte=lgpd (ou fonte=anpd)
+- Requisitos e cobertura: /api/v1/projects/{p}/requisitos/lacunas?fonte=lgpd (ou fonte=anpd) · catálogo (ids de base legal): /api/v1/requisitos?fonte=lgpd
 - Terceiros: /api/v1/projects/{p}/terceiros · Pedidos do titular: /api/v1/projects/{p}/titular-pedidos (prazo em situacao_prazo)
 - Consentimentos: /api/v1/projects/{p}/consentimentos · Encarregado: /api/v1/projects/{p}/encarregado
 - Ligações e LIA de um tratamento do RoPA: /api/v1/projects/{p}/ropa/{id}/ligacoes · /api/v1/projects/{p}/ropa/{id}/lia
@@ -59,11 +60,14 @@ export const ROTEIROS = `Roteiros de trabalho:
 3. Responder auditoria — leia as notas em niso_audit_pack → rascunhe a resposta → PEÇA APROVAÇÃO HUMANA → niso_respond_auditor_note.
 4. Pré-avaliação de prontidão para certificação (Stage 1 e 2) — chame niso_skill (sem argumentos lista as skills; nome=prontidao-certificacao traz o método). Só leitura: nenhum achado vai para a n.iso, e não substitui a auditoria interna (9.2).
 
-n.privacy (só com o módulo no projeto):
-5. Inventário — leia /ropa e /ponto-de-partida → proponha base legal, ligações e LIA de cada tratamento → PEÇA APROVAÇÃO HUMANA antes de gravar.
-6. Pedido do titular ou incidente — leia o prazo (situacao_prazo; situacao_anpd e situacao_titular) → rascunhe a resposta ou a comunicação → PEÇA APROVAÇÃO HUMANA antes de gravar ou enviar.
-7. Cobertura LGPD — leia /requisitos/lacunas → proponha o documento ou a evidência que fecha cada lacuna → PEÇA APROVAÇÃO HUMANA antes de gravar.
-8. Maturidade LGPD — chame niso_skill com nome=maturidade-lgpd. Só leitura: tabela de achados com fonte e próxima ação; não grava nada e não é parecer jurídico.`;
+n.privacy (só com o módulo no projeto e na sua conta; as ferramentas niso_privacy_* gravam só rascunho, nunca aprovam):
+5. Inventário (RoPA), um tratamento por vez, pelos 8 blocos da entrevista — niso_privacy_ropa e niso_privacy_ponto_de_partida para ver o que já existe → pergunte ao usuário, bloco a bloco: A atividade, finalidade, responsável e área; B titulares e menores (art. 14); C categorias e dado sensível (art. 11); D base legal (do art. 11 se há sensível; legítimo interesse pede LIA); E sistemas por onde o dado passa (/assets); F com quem compartilha; G retenção; H transferência internacional e necessidade de RIPD → PEÇA APROVAÇÃO HUMANA → niso_privacy_propor_tratamento (Draft) ou niso_privacy_atualizar_tratamento, niso_privacy_ligar_tratamento (itens, departamentos, base do catálogo), niso_privacy_rascunhar_lia, niso_privacy_criar_dpia_do_tratamento. "Não sei" fica pendente; não invente. Pare em niso_privacy_ropa_detalhe sem pendência ou com as pendências listadas. Aprovar é de uma pessoa.
+6. Pedido do titular ou incidente — niso_privacy_titular_pedidos ou niso_privacy_incidentes (situacao_prazo; situacao_anpd e situacao_titular) → rascunhe a resposta ou a comunicação no chat → PEÇA APROVAÇÃO HUMANA antes de gravar → niso_privacy_registrar_pedido_titular ou niso_privacy_registrar_incidente. Responder, encerrar, revogar consentimento e mudar prazo: pela interface. Método: niso_skill nome=atendimento-titular.
+7. Cobertura LGPD — niso_privacy_requisitos_lacunas → proponha o documento ou a evidência que fecha cada lacuna → PEÇA APROVAÇÃO HUMANA antes de gravar → niso_privacy_ligar_documento_requisito (só documento vigente cobre).
+8. Maturidade LGPD — chame niso_skill com nome=maturidade-lgpd. Só leitura: tabela de achados com fonte e próxima ação; não grava nada e não é parecer jurídico.
+9. Implantação em cliente novo — niso_skill nome=implantacao-privacy: ordem de trabalho, o que pedir ao cliente e critério de pronto. Comece por niso_privacy_encarregado e niso_privacy_ponto_de_partida. Cada gravação: PEÇA APROVAÇÃO HUMANA.
+10. Migração de programa existente — niso_skill nome=migracao-programa: planilhas, políticas e contratos do cliente. Arquivo inteiro sobe pela tela Importar programa (só a equipe, com revisão item a item); o agente completa à mão o que faltar. Cada gravação: PEÇA APROVAÇÃO HUMANA.
+11. Terceiros — niso_skill nome=avaliacao-terceiros → niso_privacy_terceiros (tipo, método, situação) → proponha tipo, avaliação e DPA. Cada gravação: PEÇA APROVAÇÃO HUMANA.`;
 
 /** Roteiros do auditor: ler, comparar com o requisito, registrar achado com a evidência citada. */
 export const ROTEIROS_AUDITOR = `Roteiros de auditoria (ler → comparar com o requisito → registrar achado com a evidência citada):
@@ -77,7 +81,7 @@ n.iso (só com o módulo no projeto):
 2. Cláusulas 4 a 10 — contexto e escopo (/context, /governance), riscos (/risks, /risk-matrix: método, dono, tratamento ligado a controle), políticas (/documentos: versão vigente, aprovação, ciência), análise crítica (/management-reviews), métricas (/metrics), ações corretivas de auditoria anterior (/capa) → achado onde faltar registro.
 3. Pré-avaliação de prontidão — niso_skill com nome=prontidao-certificacao: o método serve de lista de verificação; o resultado vira achado ou nota.
 
-n.privacy (só com o módulo no projeto):
+n.privacy (só com o módulo no projeto). Leitura nomeada: niso_privacy_encarregado (visão geral e prioridades), niso_privacy_ropa (todos os tratamentos, com ligações resumidas e nao_informado), niso_privacy_ropa_detalhe (um tratamento: ligações, LIA, DPIAs), niso_privacy_requisitos_lacunas, niso_privacy_titular_pedidos, niso_privacy_incidentes, niso_privacy_terceiros e niso_privacy_ponto_de_partida. As ferramentas niso_privacy_* de escrita não são suas.
 4. RoPA e bases legais — /ropa: finalidade, base legal (art. 7; dado sensível, art. 11; criança e adolescente, art. 14), LIA quando é legítimo interesse (/ropa/{id}/lia), retenção, compartilhamento, transferência internacional, aprovação do registro.
 5. DPIA (RIPD) — /dpia: existe para cada tratamento que a exige (dpia_required, dado sensível, alto risco); riscos, medidas e aprovação.
 6. Pedidos do titular — /titular-pedidos: prazo (situacao_prazo; art. 18 e 19), resposta registrada, pedido em atraso é achado.
@@ -119,9 +123,9 @@ export function montarContexto(
     ...cabecalho,
     `Você age em nome de: ${email}. Tudo que gravar sai na trilha como "agente de ${email}".`,
     '',
-    'Pode: tudo o que o consultor humano faz neste projeto — ler política e propor rascunho de política (um humano publica), gravar SoA, evidência (texto), controle, ativo, risco, entrevista, ROPA, DPIA, governança; responder nota de auditoria.',
+    'Pode: tudo o que o consultor humano faz neste projeto — ler política e propor rascunho de política (um humano publica), gravar SoA, evidência (texto), controle, ativo, risco, entrevista, ROPA, DPIA, governança; responder nota de auditoria. No n.privacy, as ferramentas niso_privacy_* gravam rascunho: tratamento em Draft, ligações, LIA em rascunho, DPIA em Draft, pedido do titular e incidente registrados.',
     'Com confirmação do usuário (confirmado_pelo_usuario: true): apagar; gerar políticas em lote; eliminar dados do titular; revogar aprovações de controle.',
-    'Não pode: registrar achado de auditoria; sair deste projeto.',
+    'Não pode: registrar achado de auditoria; aprovar tratamento ou DPIA, concluir LIA, encerrar incidente, revogar consentimento, editar prazo legal (são de uma pessoa, pela interface); sair deste projeto.',
     'O administrador do cliente vê este acesso e pode revogá-lo a qualquer momento.',
     '',
     MAPA_DA_APP.replaceAll('{p}', projeto.id),

@@ -66,8 +66,8 @@ token só o confere.
 | Lê | Tudo o que o consultor lê no projeto | O projeto da conexão, nos dois módulos: n.iso (controles, SoA, riscos, evidências, políticas, auditorias) e n.privacy (RoPA, DPIA, requisitos e lacunas, pedidos do titular, incidentes, terceiros, documentos) |
 | Grava | Adequação, como na interface; destrutivo com o seu "sim" | **Só** achado de auditoria (`niso_create_audit_finding`) e nota de auditor (`niso_create_auditor_note`) |
 | Não faz | Achado e nota de auditor (quem implementa não audita) | Nenhuma escrita de implementação: não grava, não corrige, não apaga, não gera política, não responde nota |
-| Ferramentas | Leitura, `niso_ler`, `niso_executar` e as de escrita do consultor | Leitura, `niso_ler` (só GET) e as duas de auditoria; sem `niso_executar` |
-| Roteiros (`niso_contexto`) | Os oito abaixo | Auditoria interna ISO 27001 (9.2), cláusulas 4 a 10, prontidão; no n.privacy: RoPA e bases legais, DPIA, prazos de pedidos do titular, terceiros, incidentes e comunicação à ANPD, cobertura. Sempre: ler, comparar com o requisito, registrar o achado citando a evidência |
+| Ferramentas | 40: leitura, `niso_ler`, `niso_executar` e as de escrita do consultor, inclusive as 8 de escrita do n.privacy (só rascunho) | 22: leitura (inclusive as 8 do n.privacy), `niso_ler` (só GET) e as duas de auditoria; sem `niso_executar` |
+| Roteiros (`niso_contexto`) | Os onze abaixo | Auditoria interna ISO 27001 (9.2), cláusulas 4 a 10, prontidão; no n.privacy: RoPA e bases legais, DPIA, prazos de pedidos do titular, terceiros, incidentes e comunicação à ANPD, cobertura. Sempre: ler, comparar com o requisito, registrar o achado citando a evidência |
 
 **Separação de funções.** A mesma conta não pode ter, no mesmo projeto, um agente Consultor **e** um Auditor ativos.
 Ao conectar o segundo papel com o primeiro ativo, a tela de login recusa e pede para revogar o outro acesso antes
@@ -115,13 +115,30 @@ roteiros. Depois ele escolhe o roteiro.
 | **2. Fechar lacuna** | Escolhe um controle, rascunha evidência ou política, **espera a sua aprovação**, grava. Para quando o controle tem evidência vinculada. | Sim, depois do seu ok |
 | **3. Responder auditoria** | Lê as notas do auditor, rascunha a resposta, espera a sua aprovação. | Sim, depois do seu ok |
 | **4. Pré-avaliação de prontidão** | Avalia se o SGSI está pronto para o Stage 1 e o Stage 2 da certificadora (ISO 27001:2022 + 27701:2025). Usa a skill `prontidao-certificacao`. | **Não**: só lê |
-| **5. Inventário** (n.privacy) | Lê o RoPA e o ponto de partida, propõe base legal, ligações e LIA, espera a sua aprovação. | Sim, depois do seu ok |
-| **6. Pedido do titular ou incidente** (n.privacy) | Lê os prazos e rascunha a resposta ou a comunicação, espera a sua aprovação. | Sim, depois do seu ok |
-| **7. Cobertura LGPD** (n.privacy) | Lê as lacunas de requisitos e propõe o documento ou a evidência que fecha cada uma, espera a sua aprovação. | Sim, depois do seu ok |
+| **5. Inventário** (n.privacy) | Um tratamento por vez, pelos 8 blocos da entrevista de RoPA (A atividade, B titulares, C dados, D base legal, E sistemas, F compartilhamento, G retenção, H transferência e RIPD). Propõe o registro em `Draft`, as ligações, a LIA em rascunho e a DPIA em `Draft`, espera a sua aprovação. | Rascunho, depois do seu ok |
+| **6. Pedido do titular ou incidente** (n.privacy) | Lê os prazos, rascunha a resposta ou a comunicação no chat e registra o pedido ou o incidente. Usa a skill `atendimento-titular`. Responder, encerrar e mudar prazo ficam com você. | Registro, depois do seu ok |
+| **7. Cobertura LGPD** (n.privacy) | Lê as lacunas de requisitos, propõe o documento ou a evidência que fecha cada uma e liga o documento ao requisito. | Sim, depois do seu ok |
 | **8. Maturidade LGPD** (n.privacy) | Tabela de achados com fonte e próxima ação sobre RoPA, terceiros, titular, incidentes, encarregado e lacunas. Usa a skill `maturidade-lgpd`. Não é parecer jurídico. | **Não**: só lê |
+| **9. Implantação em cliente novo** (n.privacy) | Ordem de trabalho, o que pedir ao cliente e critério de pronto de cada etapa. Usa a skill `implantacao-privacy`. | Rascunho, depois do seu ok |
+| **10. Migração de programa existente** (n.privacy) | Escolhe entre a tela Importar programa (da equipe), a planilha CSV do RoPA e o cadastro à mão, e confere o que entrou. Usa a skill `migracao-programa`. | Rascunho, depois do seu ok |
+| **11. Terceiros** (n.privacy) | Tipo, método, evidência, validade e DPA de cada terceiro. Usa a skill `avaliacao-terceiros`. | Sim, depois do seu ok |
 
-As skills dos roteiros 4 e 8 chegam pelo próprio MCP (`niso_skill`); a do 4 traz referências e um
-validador de achados. Não há nada para instalar.
+As skills dos roteiros 4, 6, 8, 9, 10 e 11 chegam pelo próprio MCP (`niso_skill`): `prontidao-certificacao`,
+`atendimento-titular`, `maturidade-lgpd`, `implantacao-privacy`, `migracao-programa` e `avaliacao-terceiros`. A do 4 traz
+referências e um validador de achados; as do n.privacy trazem referências (a entrevista de RoPA, o que pedir ao cliente, as
+colunas da planilha do RoPA, o questionário base de terceiro, a verificação de identidade do titular). Não há nada para instalar.
+
+### Ferramentas do n.privacy
+
+| | Consultor | Auditor |
+|---|---|---|
+| Leitura | `niso_privacy_ropa` (todos os tratamentos, com `nao_informado` e ligações resumidas), `niso_privacy_ropa_detalhe` (um tratamento com ligações, LIA e DPIAs), `niso_privacy_requisitos_lacunas` (LGPD e ANPD), `niso_privacy_titular_pedidos` (com `situacao_prazo`), `niso_privacy_incidentes` (com `situacao_anpd` e `situacao_titular`), `niso_privacy_terceiros` (com a situação da avaliação), `niso_privacy_encarregado` (o painel e as prioridades), `niso_privacy_ponto_de_partida` | As mesmas 8 |
+| Escrita (rascunho) | `niso_privacy_propor_tratamento` (`Draft`), `niso_privacy_atualizar_tratamento` (sem status), `niso_privacy_ligar_tratamento` (soma itens e departamentos; base do catálogo), `niso_privacy_criar_dpia_do_tratamento` (`Draft`), `niso_privacy_rascunhar_lia` (nunca conclui), `niso_privacy_registrar_pedido_titular`, `niso_privacy_registrar_incidente` (com avaliação de risco opcional), `niso_privacy_ligar_documento_requisito` (soma) | Nenhuma |
+
+Cada uma é fina sobre uma rota que o consultor já usa na interface; nenhuma rota nova. Exigem o módulo n.privacy no projeto e na
+sua conta (senão 403), e o projeto da conexão. O que fica com uma pessoa, pela interface: aprovar tratamento e DPIA, concluir a
+LIA, publicar documento, responder e encerrar pedido do titular, encerrar incidente, registrar a comunicação enviada, revogar
+consentimento e mudar prazo legal.
 
 ### O que ele lê
 
@@ -140,6 +157,9 @@ Com `niso_executar` ou com as ferramentas específicas (política, SoA, evidênc
 em texto, controle, ativo, risco, treinamento, entrevistas, governança e o resto
 que você grava na interface). Evidência pelo agente é **só texto**: transcrever
 um PDF não substitui o documento.
+
+**n.privacy é rascunho.** As ferramentas `niso_privacy_*` gravam tratamento em `Draft`, LIA em rascunho, DPIA em `Draft`, e
+registram pedido do titular e incidente. Nenhuma aprova, conclui, encerra ou revoga.
 
 **Política é diferente.** `niso_update_policy` e `niso_generate_policy` gravam um **rascunho**, que aparece num aviso no modal da política. Você publica ou descarta; o agente não altera a política vigente nem publica (o servidor recusa).
 
@@ -199,6 +219,8 @@ auditoria.
 6. Para ler qualquer área use `niso_ler`; o mapa está em `niso_contexto`.
 7. Pré-avaliação de prontidão: `niso_skill nome=prontidao-certificacao`.
 8. Maturidade LGPD (n.privacy): `niso_skill nome=maturidade-lgpd`.
+9. Implantação, migração, terceiros e titular (n.privacy): `niso_skill` com
+   `implantacao-privacy`, `migracao-programa`, `avaliacao-terceiros` ou `atendimento-titular`.
 
 ## Arquivos
 - `rascunhos/` — minutas antes de irem ao n.iso.

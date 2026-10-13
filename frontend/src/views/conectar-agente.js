@@ -37,7 +37,7 @@ const CLIENTES = [
 const PAPEIS = [
     { id: 'consultor', nome: 'Consultor', alcance: [
         { titulo: 'Lê', texto: 'Tudo o que você lê neste cliente, nos módulos que o projeto e você têm. n.iso: controles, riscos, evidências em texto, políticas, entrevistas, governança. n.privacy: RoPA, DPIA, requisitos, pedidos do titular, incidentes e terceiros.' },
-        { titulo: 'Grava', texto: 'Como você grava na interface. n.iso: políticas (como rascunho), SoA, evidências em texto, controles, ativos e riscos. n.privacy: os registros que a interface deixa gravar.' },
+        { titulo: 'Grava', texto: 'Como você grava na interface. n.iso: políticas (como rascunho), SoA, evidências em texto, controles, ativos e riscos. n.privacy: propõe em rascunho, pelas ferramentas do n.privacy, tratamento do RoPA (pela entrevista de 8 blocos), ligações, LIA, DPIA, pedido do titular e incidente. Aprovar, concluir a LIA, encerrar incidente e revogar consentimento ficam com você, pela interface.' },
         { titulo: 'Pede o seu "sim"', sim: true, texto: 'Apagar, gerar políticas em lote, eliminar dados de titular e revogar aprovações de controle. Ele mostra o que vai fazer antes.' },
         { titulo: 'Não faz', texto: 'Usuários, SSO, chaves de API, webhooks, sua conta pessoal, criar projeto e registrar achado de auditoria (quem implementa não audita: ISO 27001, 9.2). Os rascunhos de IA do n.privacy e a importação de programa são da tela, não do agente.' },
     ] },
@@ -57,7 +57,7 @@ const VE_CONECTADOS = ['platform_admin', 'consultoria_admin'];
 const PASSOS = [
     { titulo: 'Adicione o servidor', texto: 'Copie o comando ou o endereço do seu cliente, na aba acima, e use-o onde a aba indica. O endereço é o mesmo para todos.' },
     { titulo: 'Entre e escolha o cliente e o papel', texto: 'O servidor fica sem acesso até você entrar: no Claude Code, abra o claude, rode /mcp, escolha niso e entre pelo navegador. Esse login é seu, o agente da sessão não o faz por você. No navegador, escolha um cliente (é um por conexão) e o papel: Consultor ou Auditor.' },
-    { titulo: 'Chame niso_contexto', texto: 'Peça ao agente para começar por niso_contexto: ela diz o cliente, o mapa da app e os roteiros (diagnóstico, fechar lacuna, responder auditoria e a pré-avaliação de prontidão, que só lê).' },
+    { titulo: 'Chame niso_contexto', texto: 'Peça ao agente para começar por niso_contexto: ela diz o cliente, o mapa da app e os roteiros (diagnóstico, fechar lacuna, responder auditoria e a pré-avaliação de prontidão, que só lê; no n.privacy, inventário, titular e incidente, cobertura, maturidade, implantação, migração e terceiros).' },
 ];
 
 let selecionado = 'claude';
