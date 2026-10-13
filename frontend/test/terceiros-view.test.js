@@ -126,6 +126,35 @@ describe('ficha', () => {
     });
 });
 
+describe('adicionar parte existente', () => {
+    it('só quem edita vê o botão; ele lista os candidatos (escapados) e tipificar chama o PUT do tipo', async () => {
+        await lista();
+        expect(JSON.parse(el('a').querySelector('[data-action="abrirAdicionarTerceiro"]').getAttribute('data-args'))).toEqual(['p9']);
+        S.user = { role: 'org_user' };
+        await lista();
+        expect(el('a').querySelector('[data-action="abrirAdicionarTerceiro"]')).toBeNull();
+        S.user = { role: 'consultor' };
+
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        const f = servir(rotas({ [`GET ${B}/candidatos`]: [{ id: 'anpd', nome: 'ANPD <b>x</b>' }], [`PUT ${B}/anpd/tipo`]: { ok: true } }));
+        await window.abrirAdicionarTerceiro('p9');
+        expect(el('tc-cand').textContent).toContain('ANPD <b>x</b>');
+        expect(el('modal-content').querySelector('b')).toBeNull();
+        el('tc-cand').value = 'anpd';
+        el('tc-cand-tipo').value = 'critico';
+        await window.adicionarTerceiro('p9');
+        expect(corpoDe(f, `PUT ${B}/anpd/tipo`)).toEqual({ terceiro_tipo: 'critico' });
+    });
+
+    it('sem candidatos, diz que não há parte para adicionar', async () => {
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        servir(rotas({ [`GET ${B}/candidatos`]: [] }));
+        await window.abrirAdicionarTerceiro('p9');
+        expect(el('modal-content').textContent).toContain('Nenhuma parte');
+        expect(el('tc-cand')).toBeNull();
+    });
+});
+
 describe('ações', () => {
     it('salvar tipo manda o valor (vazio vira null)', async () => {
         const f = await ficha({ [`PUT ${B}/a/tipo`]: { ok: true } });

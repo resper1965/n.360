@@ -44,11 +44,11 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-tc', ?, 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`).bind(P),
     env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('tc-a', ?1, 'organizacao', 'Nuvem Grande'), ('tc-b', ?1, 'organizacao', 'Fornecedor Médio'), ('tc-c', ?1, 'organizacao', 'Crítico SA'),
       ('tc-p', ?1, 'pessoa', 'Ana Pessoa'), ('tc-i', ?1, 'organizacao', 'Inativo'), ('tc-o', ?2, 'organizacao', 'Terceiro Alheio'),
-      ('tc-anpd', ?1, 'organizacao', 'ANPD'), ('tc-forn', ?1, 'organizacao', 'Fornecedor Stakeholder')`).bind(P, OUTRO),
+      ('tc-anpd', ?1, 'organizacao', 'ANPD'), ('tc-reg', ?1, 'organizacao', 'Regulador Setorial'), ('tc-forn', ?1, 'organizacao', 'Fornecedor Stakeholder')`).bind(P, OUTRO),
     env.DB.prepare(`UPDATE partes SET status = 'inativa' WHERE id = 'tc-i'`),
     // o que o importarPartes grava para stakeholder: a ANPD só é parte interessada; o fornecedor também é terceiro
     env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES
-      ('tc-si1', ?1, 'tc-anpd', 'parte_interessada', 'projeto', ?1), ('tc-si2', ?1, 'tc-forn', 'parte_interessada', 'projeto', ?1), ('tc-si3', ?1, 'tc-forn', 'terceiro', 'projeto', ?1)`).bind(P),
+      ('tc-si1', ?1, 'tc-anpd', 'parte_interessada', 'projeto', ?1), ('tc-si4', ?1, 'tc-reg', 'parte_interessada', 'projeto', ?1), ('tc-si2', ?1, 'tc-forn', 'parte_interessada', 'projeto', ?1), ('tc-si3', ?1, 'tc-forn', 'terceiro', 'projeto', ?1)`).bind(P),
     env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo) VALUES ('tc-d1', ?, 'DPA Nuvem'), ('tc-do', ?, 'Doc alheio')`).bind(P, OUTRO),
   ]);
   await habilitarPrivacy(P, OUTRO);
@@ -63,6 +63,14 @@ describe('lista e tipo', () => {
     const l = await lista();
     expect(l.map((t) => t.id).sort()).toEqual(['tc-a', 'tc-b', 'tc-c', 'tc-forn']);
     expect(l.every((t) => t.situacao === 'pendente' && t.terceiro_tipo === null && t.metodo === null && t.ultima_avaliacao === null)).toBe(true);
+  });
+
+  it('candidatos são as organizações só parte interessada; tipificar uma a traz para a lista', async () => {
+    const cand = async () => (await json<{ id: string }[]>(await chamar(consultor, 'GET', `${base}/candidatos`))).map((x) => x.id).sort();
+    expect(await cand()).toEqual(['tc-anpd', 'tc-reg']);
+    expect((await chamar(consultor, 'PUT', `${base}/tc-reg/tipo`, { terceiro_tipo: 'pequeno' })).status).toBe(200);
+    expect((await lista()).map((t) => t.id)).toContain('tc-reg');
+    expect(await cand()).toEqual(['tc-anpd']);
   });
 
   it('definir o tipo mostra o método; pessoa e parte de outro projeto não viram terceiro; valor fora da lista é 400; null limpa', async () => {
