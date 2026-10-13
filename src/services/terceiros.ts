@@ -37,10 +37,22 @@ export type Terceiro = {
 
 const COLS_AVALIACAO = 'id, parte_id, metodo, resultado, valido_ate, evidencia_url, observacao, avaliado_por, created_at';
 
-/** Terceiros do projeto (partes organização ativas) com tipo, situação, nº de tratamentos que os usam e nº de documentos (DPA). */
+/**
+ * Organização que o n.iso importou só como parte interessada (a ANPD, um cliente) e que nada no n.privacy usa: sem tipo, avaliação,
+ * documento, perfil de fornecedor nem outro vínculo. Não é terceiro; qualquer uso (tipificar, avaliar, ligar a tratamento) a traz de volta.
+ */
+const SO_PARTE_INTERESSADA = `EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.parte_id = p.id AND v.papel = 'parte_interessada')
+  AND NOT EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.parte_id = p.id AND v.papel != 'parte_interessada')
+  AND p.terceiro_tipo IS NULL
+  AND NOT EXISTS (SELECT 1 FROM avaliacoes_terceiro a WHERE a.parte_id = p.id)
+  AND NOT EXISTS (SELECT 1 FROM documento_partes d WHERE d.parte_id = p.id)
+  AND NOT EXISTS (SELECT 1 FROM vendors f WHERE f.parte_id = p.id)`;
+
+/** Terceiros do projeto (partes organização ativas, menos as que são só parte interessada) com tipo, situação, nº de tratamentos que os usam e nº de documentos (DPA). */
 export async function listarTerceiros(db: D1Database, projectId: string): Promise<Terceiro[]> {
   const [partes, avals, trat, docs] = await db.batch([
-    db.prepare(`SELECT id, nome, terceiro_tipo FROM partes WHERE project_id = ? AND tipo = 'organizacao' AND status = 'ativa' ORDER BY nome`).bind(projectId),
+    db.prepare(`SELECT id, nome, terceiro_tipo FROM partes p WHERE project_id = ?1 AND tipo = 'organizacao' AND status = 'ativa'
+      AND NOT (${SO_PARTE_INTERESSADA}) ORDER BY nome`).bind(projectId),
     db.prepare(`SELECT ${COLS_AVALIACAO} FROM avaliacoes_terceiro WHERE project_id = ? ORDER BY created_at, rowid`).bind(projectId),
     db.prepare(`SELECT parte_id, count(DISTINCT alvo_id) AS n FROM parte_vinculos WHERE project_id = ? AND alvo_tipo = 'tratamento' GROUP BY parte_id`).bind(projectId),
     db.prepare(`SELECT parte_id, count(DISTINCT documento_id) AS n FROM documento_partes WHERE project_id = ? GROUP BY parte_id`).bind(projectId),
