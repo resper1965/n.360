@@ -361,8 +361,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Rotinas agendadas** (`grep -A2 '"triggers"' wrangler.jsonc`): `10 4 * * *` roda a manutencao
   (`src/manutencao.ts`, purga, retencao e semeadura idempotente do catalogo de requisitos) e `0 11 * * *` (08:00 em Brasilia) os avisos de prazo
   (`src/services/avisos-prazo.ts`: sino em D-7 e D0, aviso agregado por pessoa e projeto no atraso,
-  e-mail-resumo; idempotencia em `avisos_prazo`). O
-  `scheduled` de `src/index.ts` despacha por `event.cron`.
+  e-mail-resumo; idempotencia em `avisos_prazo`); `*/15 * * * *` a sonda interna (`src/services/sonda.ts`:
+  D1, KV e R2; um e-mail para `ALERTA_EMAIL` na queda e um na volta, estado nos dois KV). O
+  `scheduled` de `src/index.ts` despacha por `event.cron`; cron desconhecido cai na manutencao.
 - **MCP**: `mcp-server-niso/` expoe o produto a clientes MCP com filtro de
   ferramenta por papel. Ver `mcp-server-niso/README.md`.
 - **Skills do consultor**: `agent-skills/<nome>/` (SKILL.md + references + scripts) e a fonte; o
@@ -512,6 +513,8 @@ errar um digito destruia a sessao.
 - `CONTRIBUTING.md` — verificacao antes do PR, regras de schema e de teste
 - `SECURITY.md` — invariantes de seguranca que nao podem regredir
 - `backups/README.md` — runbook de backup e restauracao
+- `docs/runbook-publicacao.md` — publicacao pelo Actions, plano B local (`scripts/publicar.sh`),
+  orcamento de minutos e checklist do repositorio privado
 - `migrations/README.md` — estado real das migrations em producao e como
   reconciliar quando a `d1_migrations` divergir do banco
 - `test/e2e/README.md` — o E2E legado de MFA (o E2E principal e `frontend/e2e/`)
@@ -584,14 +587,23 @@ base so nessas skills sem conferir contra a norma publicada.
 
 ## Portões de revisão — o que existe e o que não existe
 
-O repositório está **público** (`gh api repos/resper1965/n.360 --jq .visibility`, 2026-10-06).
-O dono pretende torná-lo privado ao fim da arrumação final; quando isso acontecer, reveja esta
-seção: em repositório privado o code scanning exige GitHub Advanced Security, e o CodeQL
-passaria a falhar no upload (já aconteceu em 2026-08, quando o repo foi privado pela primeira vez).
+O repositório está **público** (`gh api repos/resper1965/n.360 --jq .visibility`, 2026-10-06) e
+**vai ficar privado** (decisão do dono). O código já está pronto para isso desde 2026-10-13; a parte
+de configuração do GitHub é do dono e está no checklist de
+[`docs/runbook-publicacao.md`](docs/runbook-publicacao.md) (seção 5). Em privado, minuto de Actions é
+cobrado, code scanning exige GitHub Advanced Security e ruleset exige plano pago.
 
-- **CodeQL roda** (`.github/workflows/codeql.yml`; última execução com sucesso em 2026-10-06:
-  `gh api "repos/resper1965/n.360/actions/workflows/codeql.yml/runs?per_page=1"`).
+- **CodeQL** (`.github/workflows/codeql.yml`) roda enquanto o repositório for público; em privado o
+  job se pula sozinho (`if: github.event.repository.private == false`) em vez de falhar no upload,
+  como em 2026-08. No lugar dele: `npm audit` no CI (informativo), Dependabot e secret scanning.
+  Última execução: `gh api "repos/resper1965/n.360/actions/workflows/codeql.yml/runs?per_page=1"`.
 - **Codex** revisa o diff, atrelado à assinatura e não à visibilidade do repo.
+- **A suíte roda uma vez, no PR.** O `ci.yml` dispara só em `pull_request` (com cancelamento da
+  execução superada); o push na `main` não roda CI. `test/workflows-economia.test.ts` reprova a
+  volta do `push`, de `paths`/`paths-ignore` e do `schedule` no `uptime.yml`.
+- **Vigilância de produção** (`docs/runbook-incidente.md`, seção 1): monitor externo gratuito (ação
+  do dono), sonda interna do Worker a cada 15 min (`src/services/sonda.ts`, e-mail para
+  `ALERTA_EMAIL`) e `slo.yml` a cada 6 h. O `uptime.yml` ficou só manual.
 
 ### Protecao da `main` e deploy — ja configurados
 
@@ -602,9 +614,11 @@ passaria a falhar no upload (já aconteceu em 2026-08, quando o repo foi privado
 - Nao exija check que pode deixar de existir (o `CodeQL`, se o repo ficar privado): um check
   obrigatorio inexistente trava todo merge para sempre.
 - **Deploy e automatico** desde 2026-08-03: merge na `main` dispara
-  `.github/workflows/deploy.yml`, que roda `npm ci`, `tsc --noEmit`, a suite,
-  o build do frontend, **recusa se houver migration pendente**, e so entao
-  publica. O secret `CLOUDFLARE_API_TOKEN` e **environment secret** de
+  `.github/workflows/deploy.yml`, que roda `npm ci`, `tsc --noEmit`, o build do
+  frontend, **recusa se houver migration pendente**, e so entao publica. A suite
+  NAO roda no deploy do merge (ja passou no PR, sobre a mesma arvore); roda no
+  disparo manual (`workflow_dispatch`), o caminho de hotfix. Sem Actions, o plano B
+  e `scripts/publicar.sh` (`docs/runbook-publicacao.md`). O secret `CLOUDFLARE_API_TOKEN` e **environment secret** de
   `production`, nao repository secret — assim so jobs que declaram
   `environment: production` o enxergam (conferido em 2026-10-06:
   `gh api repos/resper1965/n.360/environments/production/secrets` lista o token e

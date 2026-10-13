@@ -15,10 +15,17 @@ name: Sonda externa de produção
 # de dezenas de minutos, não de segundos. Isso é melhor que "ninguém vê" e pior
 # que monitoramento de verdade; quando o produto precisar de minutos, o caminho
 # é um serviço de uptime externo pago, não apertar este cron.
+#
+# SÓ MANUAL desde 2026-10-13. Com o repositório privado, cada execução cobra 1
+# minuto arredondado: a cada 15 min eram ~2.900 min/mês, mais do que todo o CI.
+# A vigilância contínua passou para dois lugares (docs/runbook-incidente.md,
+# seção 1): um monitor externo gratuito (de fora, pega o Worker fora do ar) e a
+# sonda interna do próprio Worker (`src/services/sonda.ts`, cron de 15 min, pega
+# D1/KV/R2 sem resposta). Este workflow fica para a sonda completa sob pedido —
+# inclusive o envelope do login, que o monitor externo não confere.
+# `test/workflows-economia.test.ts` reprova a volta do `schedule`.
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch: {}
 
 permissions:

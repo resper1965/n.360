@@ -62,6 +62,7 @@ import policies from './routes/policies';
 import integrations from './routes/integrations';
 import { manutencaoDiaria } from './manutencao';
 import { avisosDePrazo, hojeEmSaoPaulo } from './services/avisos-prazo';
+import { sondaInterna, CRON_SONDA } from './services/sonda';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handlerMcp } from './mcp/servidor';
@@ -110,6 +111,8 @@ export type Bindings = {
   CF_ACCOUNT_ID?: string;
   AI_GATEWAY_ID?: string;
   RESEND_API_KEY?: string;
+  /** Destino dos alertas da sonda interna (src/services/sonda.ts). Var pública, opcional: sem ela, só o log. */
+  ALERTA_EMAIL?: string;
   /** Analytics Engine. Opcional: sem o binding, a métrica é ignorada. */
   ANALYTICS?: AnalyticsEngineDataset;
   /** SHA do commit publicado. Injetada no deploy; ausente em dev e em teste. */
@@ -525,9 +528,10 @@ app.onError((err, c) => {
  * `.request()` do Hono, que um objeto novo não teria. Trocar o formato do export
  * custaria editar testes que esta mudança não tem motivo para tocar.
  *
- * `scheduled` atende os dois crons do bloco `triggers` do `wrangler.jsonc`:
+ * `scheduled` atende os três crons do bloco `triggers` do `wrangler.jsonc`:
  * 04:10 UTC, a manutenção (`src/manutencao.ts`); 11:00 UTC, os avisos de prazo
- * (`src/services/avisos-prazo.ts`). O `waitUntil` mantém a invocação viva até a
+ * (`src/services/avisos-prazo.ts`); a cada 15 minutos, a sonda interna
+ * (`src/services/sonda.ts`). O `waitUntil` mantém a invocação viva até a
  * rotina terminar — sem ele o runtime pode encerrá-la no meio do DELETE.
  */
 
@@ -608,7 +612,11 @@ export default Object.assign(app, {
     return ROTAS_OAUTH(url.pathname) ? provider.fetch(req, env as any, ctx) : fetchHono(req, env, ctx);
   },
   scheduled: (evento: ScheduledController, env: Bindings, ctx: ExecutionContext) => {
-    // ponytail: cron que não é o dos avisos cai na manutenção, o comportamento de antes desta rotina.
-    ctx.waitUntil(evento.cron === CRON_AVISOS ? avisosDePrazo(env, hojeEmSaoPaulo()) : manutencaoDiaria(env));
+    // ponytail: cron que não é o dos avisos nem o da sonda cai na manutenção, o comportamento de antes destas rotinas.
+    ctx.waitUntil(
+      evento.cron === CRON_AVISOS ? avisosDePrazo(env, hojeEmSaoPaulo())
+        : evento.cron === CRON_SONDA ? sondaInterna(env)
+        : manutencaoDiaria(env)
+    );
   },
 });

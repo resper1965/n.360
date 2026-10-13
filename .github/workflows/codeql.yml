@@ -1,7 +1,12 @@
 name: CodeQL
 
-# Análise estática de segurança (SAST) do GitHub. Agora que o repo é público, o
-# code scanning é gratuito. Cobre o código JS/TS do Worker e do frontend; os
+# Análise estática de segurança (SAST) do GitHub. Em repositório público o
+# code scanning é gratuito; em PRIVADO ele exige GitHub Advanced Security, e o
+# job abaixo se pula sozinho (ver o `if:`). O que sobra para o privado está em
+# docs/runbook-publicacao.md: `npm audit` no CI, Dependabot e secret scanning.
+# Job pulado não cobra minuto. NÃO ponha este check entre os obrigatórios do
+# ruleset: no dia em que o workflow for desligado, o check nunca reporta e trava
+# todo merge. Cobre o código JS/TS do Worker e do frontend; os
 # achados aparecem na aba Security → Code scanning. Não substitui o CI de testes
 # — é a camada que pega classes de bug (injeção, path traversal, uso inseguro de
 # cripto) que teste unitário raramente cobre.
