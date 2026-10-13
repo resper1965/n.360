@@ -1,8 +1,8 @@
 # n.360 | ness.
 
-[![CI](https://github.com/resper1965/n.iso/actions/workflows/ci.yml/badge.svg)](https://github.com/resper1965/n.iso/actions/workflows/ci.yml)
-[![Deploy](https://github.com/resper1965/n.iso/actions/workflows/deploy.yml/badge.svg)](https://github.com/resper1965/n.iso/actions/workflows/deploy.yml)
-[![CodeQL](https://github.com/resper1965/n.iso/actions/workflows/codeql.yml/badge.svg)](https://github.com/resper1965/n.iso/actions/workflows/codeql.yml)
+[![CI](https://github.com/resper1965/n.360/actions/workflows/ci.yml/badge.svg)](https://github.com/resper1965/n.360/actions/workflows/ci.yml)
+[![Deploy](https://github.com/resper1965/n.360/actions/workflows/deploy.yml/badge.svg)](https://github.com/resper1965/n.360/actions/workflows/deploy.yml)
+[![CodeQL](https://github.com/resper1965/n.360/actions/workflows/codeql.yml/badge.svg)](https://github.com/resper1965/n.360/actions/workflows/codeql.yml)
 
 O **n.360** é a plataforma de governança, risco e conformidade da ness. Ela tem dois módulos que
 trabalham sobre **um cadastro só** (partes, itens, documentos, RoPA, DPIA, evidências):
@@ -20,11 +20,12 @@ configuradas continuam respondendo no lugar, sem redirecionar: `/api/*`, `/scim/
 
 ### Nomes
 
-No texto e na marca, **n.360**, **n.iso** e **n.privacy**; `n360` só no endereço. `niso` é
-identificador técnico mantido de propósito e nunca aparece como nome de produto: o repositório
-`resper1965/n.iso`, o Worker `niso`, o D1 `niso-db`, o pacote `mcp-server-niso`, o cabeçalho
-`X-nISO-Signature` e as variáveis `NISO_*`. Trocar esses nomes quebraria deploy, banco,
-integrações e assinaturas de webhook já emitidas.
+No texto e na marca, **n.360**, **n.iso** e **n.privacy**; `n360` só no endereço. O repositório se
+chama `resper1965/n.360` (renomeado em 2026-10-13; o endereço antigo `resper1965/n.iso` redireciona).
+`niso` sobrou como identificador técnico mantido de propósito, e nunca aparece como nome de produto:
+o Worker `niso`, o D1 `niso-db`, o pacote `mcp-server-niso`, o cabeçalho `X-nISO-Signature` e as
+variáveis `NISO_*`. Trocar esses nomes quebraria deploy, banco, integrações e assinaturas de webhook
+já emitidas.
 
 ---
 

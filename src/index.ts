@@ -224,11 +224,11 @@ app.get('/.well-known/security.txt', (c) => {
   return c.text(
     [
       'Contact: mailto:security@ness.lat',
-      'Contact: https://github.com/resper1965/n.iso/security/advisories/new',
+      'Contact: https://github.com/resper1965/n.360/security/advisories/new',
       `Expires: ${expira}`,
       'Preferred-Languages: pt-BR, en',
       `Canonical: ${appUrl(c.env)}/.well-known/security.txt`,
-      'Policy: https://github.com/resper1965/n.iso/blob/main/SECURITY.md',
+      'Policy: https://github.com/resper1965/n.360/blob/main/SECURITY.md',
       '',
     ].join('\n'),
     200,

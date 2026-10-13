@@ -1,5 +1,5 @@
 # n.360 — plataforma de GRC da ness.
-> Dois módulos sobre um cadastro só (partes, itens, documentos, RoPA, DPIA, evidências): n.iso (/iso, adequação e certificação ISO 27001/27701) e n.privacy (/privacy, LGPD/ANPD). Endereço https://n360.ness.com.br. Stack da Cloudflare. O repositório e o Worker se chamam `niso` por história.
+> Dois módulos sobre um cadastro só (partes, itens, documentos, RoPA, DPIA, evidências): n.iso (/iso, adequação e certificação ISO 27001/27701) e n.privacy (/privacy, LGPD/ANPD). Endereço https://n360.ness.com.br. Stack da Cloudflare. O repositório é `resper1965/n.360`; o Worker `niso` e o banco `niso-db` mantêm o nome antigo por serem identificadores técnicos.
 
 ## Arquivos centrais
 - [AGENTS.md](AGENTS.md): contexto canônico do projeto, com o comando que mede cada número.
