@@ -417,7 +417,7 @@ window.__adminCopiarApiKey = () => {
                 </div>
                 <div class="form-group">
                     <label class="form-label">E-mail</label>
-                    <input type="email" id="user-m-email" class="form-input" value="${user ? escapeHTML(user.email) : ''}" placeholder="usuario@empresa.com" ${user ? 'readonly style="opacity: 0.6"' : ''}>
+                    <input type="email" id="user-m-email" class="form-input" value="${user ? escapeHTML(user.email) : ''}" placeholder="usuario@empresa.com" ${user && S.user?.role !== 'platform_admin' ? 'readonly style="opacity: 0.6"' : ''}>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Senha ${user ? '(Deixe em branco para manter a atual)' : ''}</label>
