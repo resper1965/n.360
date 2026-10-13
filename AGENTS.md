@@ -249,8 +249,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   atesta o conteudo), uma linha de trilha por evidencia, idempotente; fonte `evidencia` nos avisos. A cobertura da LGPD (`lacunasDaFonte`) conta
   evidencia `conforming` em dia (cobre) ou `partial` (parcial). `GET /projects/:id/encarregado` (`src/services/encarregado.ts`) e SO consulta:
   pedidos do titular, incidentes, tratamentos sem base/DPIA/LIA, terceiros, documentos, evidencias, LGPD e prazos legais nao cadastrados, com a
-  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy (`login.html`): grupo Privacidade com Encarregado, Titular e pedidos,
-  Incidentes, ROPA, DPIA / RIPD, Terceiros e Requisitos, e grupo Implantacao com Importar programa. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
+  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy (`login.html`, reorganizado em `organizarMenuPrivacy` de `frontend/src/produto.js`): Encarregado e as filas em destaque
+  (Direitos do titular (DSAR), Terceiros, Incidentes, cada uma com selo de vencimento de `frontend/src/selos-menu.js`) no primeiro nivel, grupo Mapear e avaliar (RoPA, RIPD (DPIA), Requisitos),
+  grupo Governanca e provas (Documentos, Evidencias, Partes, Governanca, Treinamento) e grupo Implantacao com Importar programa. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
   abaixo (Frontend, n.360).
 - **n.iso e n.privacy sao MODULOS do n.360 sobre o mesmo cadastro (decisao de 09/10/2026, migration 0060; casca n.360 em 11/10).**
   Um Worker, um banco, um deploy; um dominio (`n360.ness.com.br`, em `routes` do `wrangler.jsonc`; `niso` e `nprivacy` ficam como
@@ -436,8 +437,8 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~18,5 mil linhas de JS (2026-10-12)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 92 arquivos de teste em jsdom
+- **Frontend com pouco teste por linha.** ~19,4 mil linhas de JS (2026-10-13)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 94 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. A maior parte das telas ainda nao
   tem teste proprio.

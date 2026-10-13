@@ -52,3 +52,21 @@ test('um módulo só (privacy): entra direto em /privacy', async ({ page }) => {
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page).toHaveTitle('n.privacy | ness. Privacidade');
 });
+
+test('n.privacy: menu por área de trabalho, com DSAR, terceiros e incidentes em destaque e os selos de vencimento', async ({ page }) => {
+  await mockApi(page, ['privacy']);
+  await page.route('**/api/v1/projects/proj-e2e/encarregado', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ encarregados: [{ id: 'e', nome: 'Enc' }], prioridades: [], pedidos_titular: { exigem_atencao: 4, atrasados: 1 }, terceiros: { com_pendencia: 2 }, incidentes: { comunicacoes_pendentes: 0 } }),
+  }));
+  await entrar(page);
+  await expect(page).toHaveURL(/\/privacy$/);
+  const menu = page.locator('#sidebar');
+  await expect(menu.locator('#nav-titular')).toContainText('Direitos do titular (DSAR)');
+  await expect(menu.locator('#nav-terceiros')).toContainText('Terceiros (risco de fornecedores)');
+  await expect(menu.locator('#selo-titular')).toHaveAttribute('aria-label', '4 pedidos vencidos ou a vencer em 7 dias');
+  await expect(menu.locator('#selo-terceiros')).toHaveText('2');
+  await expect(menu.locator('#selo-incidentes')).toBeHidden();
+  await expect(menu.getByText('Mapear e avaliar', { exact: true })).toBeVisible();
+  await expect(menu.getByText('Governança e provas', { exact: true })).toBeVisible();
+});

@@ -1,5 +1,6 @@
 import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub } from './produto.js';
 import { S } from './state.js';
+import { atualizarSelos } from './selos-menu.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
 import { showToast, openModal, escapeHTML } from './ui.js';
@@ -653,6 +654,7 @@ window.updateActiveProjectWidget = function updateActiveProjectWidget() {
             updateSidebarProjectSelector();
         }
         atualizarLinkCruzado();
+        atualizarSelos();
     }
 
 window.updateSidebarProjectSelector = function updateSidebarProjectSelector() {
@@ -980,7 +982,7 @@ window.updateHeaderUser = function updateHeaderUser() {
             document.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach(el => {
                 el.style.display = doComercial.has(el.id) ? '' : 'none';
             });
-            ['group-impl', 'group-ops', 'group-privacy', 'group-implantacao', 'group-intel'].forEach(id => {
+            ['group-impl', 'group-ops', 'group-privacy', 'group-provas', 'group-implantacao', 'group-intel'].forEach(id => {
                 const g = document.getElementById(id);
                 if (g) g.style.display = 'none';
                 const rotulo = document.querySelector(`.sidebar-label[data-args='["${id}"]']`);

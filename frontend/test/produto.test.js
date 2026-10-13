@@ -112,7 +112,7 @@ describe('casca', () => {
         // o grupo comercial inteiro some (rótulo também)
         expect(el('group-sales').dataset.foraDoProduto).toBe('1');
         expect(el('label-group-sales').dataset.foraDoProduto).toBe('1');
-        expect(document.querySelector('[data-args=\'["group-privacy"]\']').textContent).toBe('Privacidade');
+        expect(document.querySelector('[data-args=\'["group-privacy"]\']').textContent).toBe('Mapear e avaliar');
         // a entrada do n.privacy não fala do n.iso: sem o "conheça o n.iso" e sem a versão do n.iso nos rodapés
         expect(document.querySelector('.entry-more').hidden).toBe(true);
         const rodapes = [...document.querySelectorAll('.login-sign-links')].map((s) => s.textContent);
