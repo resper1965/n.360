@@ -111,7 +111,7 @@ describe('URLs geradas usam o canônico, não o host da requisição', () => {
 describe('security.txt', () => {
   it('aponta para o repositório n.iso e não usa o nome antigo', async () => {
     const corpo = await (await chamar('/.well-known/security.txt')).text();
-    expect(corpo).toContain('https://github.com/resper1965/n.iso/');
+    expect(corpo).toContain('https://github.com/resper1965/n.360/');
     expect(corpo).toContain(`Canonical: ${CANONICO}/.well-known/security.txt`);
     expect(corpo).not.toContain('nISO');
   });

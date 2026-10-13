@@ -583,19 +583,19 @@ base so nessas skills sem conferir contra a norma publicada.
 
 ## Portões de revisão — o que existe e o que não existe
 
-O repositório está **público** (`gh api repos/resper1965/n.iso --jq .visibility`, 2026-10-06).
+O repositório está **público** (`gh api repos/resper1965/n.360 --jq .visibility`, 2026-10-06).
 O dono pretende torná-lo privado ao fim da arrumação final; quando isso acontecer, reveja esta
 seção: em repositório privado o code scanning exige GitHub Advanced Security, e o CodeQL
 passaria a falhar no upload (já aconteceu em 2026-08, quando o repo foi privado pela primeira vez).
 
 - **CodeQL roda** (`.github/workflows/codeql.yml`; última execução com sucesso em 2026-10-06:
-  `gh api "repos/resper1965/n.iso/actions/workflows/codeql.yml/runs?per_page=1"`).
+  `gh api "repos/resper1965/n.360/actions/workflows/codeql.yml/runs?per_page=1"`).
 - **Codex** revisa o diff, atrelado à assinatura e não à visibilidade do repo.
 
 ### Protecao da `main` e deploy — ja configurados
 
 - **Ruleset "main protegida"**: exige PR, exige os checks **`test` e `e2e`**
-  (`gh api repos/resper1965/n.iso/rulesets/20312002`), exige branch atualizado com a base,
+  (`gh api repos/resper1965/n.360/rulesets/20312002`), exige branch atualizado com a base,
   bloqueia delecao e force-push. `bypass_actors` vazio — em rulesets, admin do repo **nao**
   tem bypass automatico.
 - Nao exija check que pode deixar de existir (o `CodeQL`, se o repo ficar privado): um check
@@ -606,10 +606,10 @@ passaria a falhar no upload (já aconteceu em 2026-08, quando o repo foi privado
   publica. O secret `CLOUDFLARE_API_TOKEN` e **environment secret** de
   `production`, nao repository secret — assim so jobs que declaram
   `environment: production` o enxergam (conferido em 2026-10-06:
-  `gh api repos/resper1965/n.iso/environments/production/secrets` lista o token e
-  `gh api repos/resper1965/n.iso/actions/secrets` volta vazio).
+  `gh api repos/resper1965/n.360/environments/production/secrets` lista o token e
+  `gh api repos/resper1965/n.360/actions/secrets` volta vazio).
 - **O ambiente `production` aceita deploy só da `main`** (2026-10-08,
-  `gh api repos/resper1965/n.iso/environments/production/deployment-branch-policies`): uma branch
+  `gh api repos/resper1965/n.360/environments/production/deployment-branch-policies`): uma branch
   qualquer não consegue rodar job com o token de deploy. Consequência para migration: o workflow
   `db-migrate.yml` só roda na `main`, onde a migration nova ainda não existe antes do merge. Ordem
   possível: (a) aplicar pelo terminal (`npx wrangler d1 migrations apply niso-db --remote`, depois do
