@@ -239,11 +239,31 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
 /** Só os projetos que têm o módulo do caminho; no início do n.360, todos. */
 export const projetosDoProduto = (lista, produto = produtoAtual()) => (!Array.isArray(lista) ? [] : produto === 'n360' ? lista : lista.filter((p) => temProduto(p, produto)));
 
+/**
+ * Ninguém com projeto nenhum, em qualquer casca (S.totalProjetos, da lista inteira do loadProjects). A equipe da ness. vê o
+ * caminho que o papel alcança: o funil comercial do n.iso (o projeto nasce da proposta aprovada) e as organizações; o
+ * cliente sabe a quem pedir. Só o que mostrar: o servidor barra o resto.
+ */
+function semProjetoNenhum() {
+    const id = 'sem-acesso-produto';
+    if (!(typeof window.ehEquipeNess === 'function' && window.ehEquipeNess())) {
+        return renderEmptyState({ id, titulo: 'Você ainda não tem acesso a um projeto',
+            texto: 'Peça à consultoria que conduz o trabalho, ou ao administrador da sua organização, para incluir você no projeto.' });
+    }
+    const acao = [
+        typeof window.ehComercial === 'function' && window.ehComercial() ? `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
+        S.user && S.user.role === 'platform_admin' ? '<a class="btn btn-secondary" href="/?tela=organizacoes">Ver organizações</a>' : '',
+    ].join('');
+    return renderEmptyState({ id, titulo: 'Nenhum projeto ainda',
+        texto: 'O projeto nasce quando a proposta é aprovada, no funil comercial do n.iso: lead, diagnóstico e proposta.', acao });
+}
+
 /** Tela de quem entrou num módulo que nenhum projeto seu tem (ou no n.360 sem módulo em projeto nenhum). */
 export function semAcesso(c, produto = produtoAtual()) {
     const nome = PRODUTOS[produto].nome;
     const h = document.getElementById('header-title');
     if (h) h.textContent = `n.${nome}`;
+    if (S.totalProjetos === 0) { c.innerHTML = semProjetoNenhum(); return; }
     c.innerHTML = produto === 'n360'
         ? renderEmptyState({ id: 'sem-acesso-produto', titulo: 'Você ainda não tem acesso a nenhum módulo do n.360',
             texto: 'Nenhum projeto seu tem o n.iso ou o n.privacy habilitado. Fale com a ness. para contratar.' })
