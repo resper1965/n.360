@@ -327,6 +327,31 @@ describe('sem acesso e links entre módulos', () => {
         expect(el('c').textContent).toContain('nenhum módulo do n.360');
         expect(el('c').querySelector('a')).toBeNull();
     });
+    it('ninguém com projeto nenhum: equipe da ness. tem o caminho para criar; cliente sabe a quem pedir', () => {
+        document.body.innerHTML = '<div id="c"></div>';
+        const antes = [window.ehEquipeNess, window.ehComercial];
+        window.ehEquipeNess = () => ['consultor', 'consultant', 'platform_admin', 'consultoria_admin'].includes(S.user.role);
+        window.ehComercial = () => ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role);
+        S.totalProjetos = 0;
+        try {
+            S.user = { role: 'platform_admin' };
+            semAcesso(el('c'), 'privacy');
+            expect(el('c').querySelector('h3').textContent).toBe('Nenhum projeto ainda');
+            const links = [...el('c').querySelectorAll('.empty-action a')];
+            expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Criar projeto', '/iso?tela=leads'], ['Ver organizações', '/?tela=organizacoes']]);
+            expect(links[0].className).toContain('btn-primary');
+            // consultor: não abre o funil comercial nem as organizações; fica o texto
+            S.user = { role: 'consultor' };
+            semAcesso(el('c'), 'n360');
+            expect(el('c').querySelector('h3').textContent).toBe('Nenhum projeto ainda');
+            expect(el('c').querySelector('a')).toBeNull();
+            S.user = { role: 'org_user' };
+            semAcesso(el('c'), 'iso');
+            expect(el('c').querySelector('h3').textContent).toBe('Você ainda não tem acesso a um projeto');
+            expect(el('c').textContent).toMatch(/consultoria|administrador/);
+            expect(el('c').querySelector('a, button')).toBeNull();
+        } finally { delete S.totalProjetos; [window.ehEquipeNess, window.ehComercial] = antes; }
+    });
     it('num módulo: "n.360" volta ao início; o link para o outro módulo só quando o projeto tem os dois', () => {
         document.body.innerHTML = '<nav id="sidebar"></nav>';
         ir('/iso');

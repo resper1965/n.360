@@ -293,6 +293,29 @@ import { podeIndicar } from './encarregado.js';
         render();
     }
 
+    // O que cada cláusula pede, na redação da ISO/IEC 27001:2022 em linguagem simples (vazio das telas 4.2, 9.1 e 9.3).
+    const ENTRADAS_4_2 = [
+        'As partes interessadas relevantes para o SGSI',
+        'Os requisitos relevantes dessas partes interessadas',
+        'Quais desses requisitos serão tratados pelo SGSI',
+    ];
+    const ENTRADAS_9_1 = [
+        'O que monitorar e medir, incluindo os processos e os controles de segurança da informação',
+        'Os métodos de monitoramento, medição, análise e avaliação, para que os resultados sejam válidos (comparáveis e reproduzíveis)',
+        'Quando monitorar e medir, e quem monitora e mede',
+        'Quando analisar e avaliar os resultados, e quem analisa e avalia',
+        'Os resultados, retidos como informação documentada (evidência)',
+    ];
+    const ENTRADAS_9_3 = [
+        'A situação das ações de análises críticas anteriores',
+        'Mudanças nas questões externas e internas relevantes para o SGSI',
+        'Mudanças nas necessidades e expectativas das partes interessadas relevantes para o SGSI',
+        'O desempenho da segurança da informação e suas tendências: não conformidades e ações corretivas, resultados de monitoramento e medição, resultados de auditoria e cumprimento dos objetivos',
+        'O retorno das partes interessadas',
+        'Os resultados da avaliação de riscos e a situação do plano de tratamento de riscos',
+        'As oportunidades de melhoria contínua',
+    ];
+
     async function renderMetrics(c, h, a) {
         h.textContent = 'Métricas & KPIs do SGSI';
         const proj = S.activeProject || S.projects[0];
@@ -350,7 +373,7 @@ import { podeIndicar } from './encarregado.js';
                         </tbody>
                     </table>
                 </div>
-            ` : renderEmptyState({ titulo: 'Nenhuma métrica registrada', texto: 'A ISO 27001 (9.1) pede que se defina o que medir, como e quando, para avaliar o desempenho do SGSI. Registre os indicadores do projeto.', acao: `<button class="btn btn-primary" data-action="openNewMetricModal" data-args='["${proj.id}"]'>Nova métrica</button>` })}
+            ` : renderEmptyState({ titulo: 'Nenhuma métrica registrada', texto: 'Para avaliar o desempenho do SGSI, a ISO/IEC 27001 (9.1) pede que se determine:', itens: ENTRADAS_9_1, acao: `<button class="btn btn-primary" data-action="openNewMetricModal" data-args='["${proj.id}"]'>Nova métrica</button>` })}
         </div>`;
     }
 
@@ -1247,7 +1270,8 @@ import { podeIndicar } from './encarregado.js';
                 ];
             }),
             { emptyState: 'Nenhuma parte interessada cadastrada.',
-              emptyHint: 'A ISO 27001 (4.2) pede as partes interessadas relevantes para o SGSI e os requisitos de cada uma: reguladores, clientes, fornecedores, equipe.',
+              emptyHint: 'A ISO/IEC 27001 (4.2) pede que se determine as partes interessadas relevantes (por exemplo, reguladores, clientes, fornecedores, equipe):',
+              emptyItens: ENTRADAS_4_2,
               emptyAction: '<button class="btn btn-primary" data-action="openStakeholderModal">Nova parte interessada</button>' }
         );
 
@@ -1422,7 +1446,8 @@ import { podeIndicar } from './encarregado.js';
                 ];
             }),
             { emptyState: 'Nenhuma análise crítica registrada.',
-              emptyHint: 'A direção analisa o SGSI em intervalos planejados, com as entradas da cláusula 9.3: situação das ações anteriores, mudanças, desempenho, auditorias e oportunidades de melhoria.',
+              emptyHint: 'A direção analisa o SGSI em intervalos planejados. A ISO/IEC 27001 (9.3.2) pede que a análise considere:',
+              emptyItens: ENTRADAS_9_3,
               emptyAction: isOrgUser ? '' : '<button class="btn btn-primary" data-action="openNewMgmtReviewModal">Nova análise crítica</button>' }
         );
 

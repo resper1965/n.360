@@ -461,6 +461,19 @@ describe('renderEmptyState(): o estado vazio único', () => {
         expect(d.querySelector('.empty-hint')).toBeNull();
         expect(d.querySelector('.empty-action')).toBeNull();
     });
+    it('itens: lista de texto escapado, cada um com ação opcional; renderDataTable repassa emptyItens', async () => {
+        const { renderEmptyState } = await import('../src/ui.js');
+        const d = document.createElement('div');
+        d.innerHTML = renderEmptyState({ titulo: 'T', itens: ['Um <b>', { texto: 'Dois', acao: '<button data-action="z">Criar</button>' }] });
+        const lis = [...d.querySelectorAll('.empty-state ul.empty-list li')];
+        expect(lis.map((li) => li.querySelector('span').textContent)).toEqual(['Um <b>', 'Dois']);
+        expect(d.querySelector('b')).toBeNull();
+        expect(lis[1].querySelector('[data-action="z"]')).not.toBeNull();
+        d.innerHTML = renderEmptyState({ titulo: 'T' });
+        expect(d.querySelector('.empty-list')).toBeNull();
+        d.innerHTML = renderDataTable(['A'], [], { emptyState: 'Sem', emptyItens: ['x'] });
+        expect(d.querySelector('.empty-state .empty-list li').textContent).toBe('x');
+    });
     it('renderDataTable usa o mesmo primitivo', async () => {
         const d = document.createElement('div');
         d.innerHTML = renderDataTable(['A'], [], { emptyState: 'Sem linhas', emptyHint: 'Dica', emptyAction: '<button data-action="y"></button>' });

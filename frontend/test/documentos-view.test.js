@@ -368,3 +368,56 @@ describe('requisitos do documento', () => {
         expect(secao().textContent).toContain('Nenhum requisito ligado');
     });
 });
+
+describe('n.privacy: documentos que um programa LGPD costuma ter', () => {
+    const noPrivacy = async (fn) => { history.replaceState(null, '', '/privacy'); try { await fn(); } finally { history.replaceState(null, '', '/'); } };
+    const ROTULOS = [
+        'Política de privacidade (aviso aos titulares — LGPD art. 9)',
+        'Procedimento de atendimento ao titular (art. 18)',
+        'Plano de resposta a incidente (arts. 48 e 50, §2º, I, g; Res. CD/ANPD 15/2024)',
+        'Política de retenção e descarte (arts. 15 e 16)',
+    ];
+
+    it('lista vazia: os quatro, cada um com "Criar" que abre o novo documento com tipo e título', () => noPrivacy(async () => {
+        servir(rotas({ 'GET /api/v1/projects/p9/documentos': [] }));
+        await abrirLista();
+        const lis = [...el('c').querySelectorAll('.empty-state .empty-list li')];
+        expect(lis.map((li) => li.querySelector('span').textContent)).toEqual(ROTULOS);
+        expect(el('c').textContent).toContain('costuma');
+        const botao = lis[2].querySelector('button[data-action="openNovoDocumentoModal"]');
+        expect(botao.textContent).toBe('Criar');
+        window.openNovoDocumentoModal(...JSON.parse(botao.getAttribute('data-args')));
+        expect(el('doc-novo-tipo').value).toBe('procedimento');
+        expect(el('doc-novo-titulo').value).toBe('Plano de resposta a incidente');
+    }));
+
+    it('papel só de leitura vê a lista sem "Criar"', () => noPrivacy(async () => {
+        S.user = { role: 'org_user' };
+        servir(rotas({ 'GET /api/v1/projects/p9/documentos': [] }));
+        await abrirLista();
+        expect(el('c').querySelectorAll('.empty-list li').length).toBe(4);
+        expect(el('c').querySelector('.empty-list button')).toBeNull();
+    }));
+
+    it('com documentos: aviso dos que faltam, casando título sem acento nem caixa', () => noPrivacy(async () => {
+        servir(rotas({ 'GET /api/v1/projects/p9/documentos': [
+            ...LISTA, doc('x1', { titulo: 'POLITICA DE PRIVACIDADE e cookies' }), doc('x2', { tipo: 'procedimento', titulo: 'Plano de Resposta a Incidentes' }),
+        ] }));
+        await abrirLista();
+        const aviso = el('docs-lgpd-faltando');
+        expect(aviso.textContent).toContain('Procedimento de atendimento ao titular');
+        expect(aviso.textContent).toContain('Política de retenção e descarte');
+        expect(aviso.textContent).not.toContain('Política de privacidade');
+        expect(aviso.textContent).not.toContain('Plano de resposta');
+        expect(el('c').querySelectorAll('tbody tr').length).toBe(6);
+    }));
+
+    it('fora do n.privacy: nada disso', async () => {
+        servir(rotas({ 'GET /api/v1/projects/p9/documentos': [] }));
+        await abrirLista();
+        expect(el('c').querySelector('.empty-list')).toBeNull();
+        servir(rotas());
+        await abrirLista();
+        expect(el('docs-lgpd-faltando')).toBeNull();
+    });
+});
