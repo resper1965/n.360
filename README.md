@@ -210,15 +210,17 @@ particularidades (0011 neutralizada, buraco 0031–0033) e o estado em produçã
 
 4. Conferir o que está no ar: `curl -s https://n360.ness.com.br/health` devolve o SHA do commit
    publicado (`version`) e o `app_url`.
+5. Sem Actions (minutos esgotados, GitHub fora): `scripts/publicar.sh` publica da máquina do dono,
+   com a suíte como portão. Runbook: [`docs/runbook-publicacao.md`](docs/runbook-publicacao.md).
 
 | Workflow | Quando roda | O que garante |
 |---|---|---|
-| CI (`ci.yml`) | push e pull request | tsc, suítes, build, E2E, `npm audit` (informativo) |
-| CodeQL (`codeql.yml`) | push, PR e semanal | SAST do Worker e do frontend |
-| Deploy (`deploy.yml`) | push na `main` e manual | Recusa com migration pendente; injeta o SHA em `/health` |
+| CI (`ci.yml`) | pull request | tsc, suítes, build, E2E, `npm audit` (informativo) |
+| CodeQL (`codeql.yml`) | push, PR e semanal; pulado em repositório privado | SAST do Worker e do frontend |
+| Deploy (`deploy.yml`) | push na `main` e manual (só o manual roda a suíte) | Recusa com migration pendente; injeta o SHA em `/health` |
 | Apply DB migrations (`db-migrate.yml`) | manual, com confirmação | Backup antes de aplicar |
 | Backup do D1 (`db-backup.yml`) | diário | Exporta e verifica o dump |
-| Sonda externa (`uptime.yml`) | a cada 15 min | `/health` e o login respondem como devem em `n360` e em `niso` |
+| Sonda externa (`uptime.yml`) | manual | `/health` e o login respondem como devem em `n360` e em `niso` (vigilância contínua: monitor externo e sonda interna, `docs/runbook-incidente.md`) |
 | SLO (`slo.yml`) | a cada 6 h | Latência e taxa de erro |
 | Drift de schema (`schema-drift.yml`) | semanal | `schema.sql` contra o D1 real |
 | Conferência de dados (`conferencia-dados.yml`) | manual | Contagens de produção, só leitura |

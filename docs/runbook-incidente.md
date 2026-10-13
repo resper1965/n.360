@@ -19,8 +19,8 @@ curl -s -X POST -H "Content-Type: application/json" -d '{}' \
   https://n360.ness.com.br/api/v1/auth/login
 ```
 
-Os domínios antigos (`niso.ness.com.br`, `nprivacy.ness.com.br`) servem `/health` e `/api/*` no lugar. A sonda externa
-(`.github/workflows/uptime.yml`) bate nos dois, `n360` e `niso`, e o motivo da issue diz qual falhou. Se só um cai, o
+Os domínios antigos (`niso.ness.com.br`, `nprivacy.ness.com.br`) servem `/health` e `/api/*` no lugar. O monitor externo vigia os dois,
+`n360` e `niso`, e o alerta diz qual falhou (a sonda manual `.github/workflows/uptime.yml` também bate nos dois). Se só um cai, o
 problema é de rota ou de domínio (Custom Domain, certificado, DNS), não do Worker: repita os dois `curl` acima com o
 outro domínio para confirmar.
 
@@ -43,17 +43,45 @@ O n.iso não tem plantão formal. Isto é o que existe de fato:
 | :--- | :--- | :--- |
 | Deploy falhou | issue automática no repositório | `deploy.yml` abre e fecha sozinha |
 | Backup falhou | issue automática, label `backup` | `db-backup.yml` |
-| Produção fora do ar ou publicada pela metade | issue automática, label `uptime` | `uptime.yml`, sonda externa a cada 15 min |
+| Produção fora do ar (Worker, domínio, certificado) | e-mail do monitor externo | serviço de uptime gratuito, a cada 5 min (passo a passo abaixo) |
+| D1, KV ou R2 sem resposta com o Worker no ar | e-mail para `ALERTA_EMAIL` (um na queda, um na volta) | sonda interna do Worker, cron de 15 min (`src/services/sonda.ts`) |
+| Publicada pela metade (sob pedido) | issue, label `uptime` | `uptime.yml`, só manual desde 13/10/2026 |
 | Taxa de erro alta com o site NO ar | issue automática, label `slo` | `slo.yml`, a cada 6h sobre o Analytics Engine |
 | Cliente reclama | quem atende | — |
 
-A sonda de `uptime.yml` roda **fora** da Cloudflare e faz as duas verificações
-da seção 0 (`/health` e o envelope de validação do login) em `https://n360.ness.com.br`
-e em `https://niso.ness.com.br`, três tentativas cada; qualquer domínio que falhe nas três
-reprova o job. Ela abre uma issue única (label `uptime`), com o domínio e o motivo, e a
-fecha sozinha quando os dois voltam.
+**Por que três sondas.** A do `uptime.yml` rodava no Actions a cada 15 minutos; com o repositório privado, cada
+execução cobra 1 minuto arredondado (~2.900 min/mês), mais que todo o CI. Ela virou manual, e a vigilância contínua
+se dividiu:
 
-A sonda de `uptime.yml` pega o sistema fora do ar; o `slo.yml` pega o caso em
+- **Monitor externo** (de fora da Cloudflare): pega o Worker fora do ar, o domínio que caiu, o certificado vencido.
+  É o único que enxerga a queda do próprio Worker.
+- **Sonda interna** (`src/services/sonda.ts`, cron `*/15 * * * *` no `wrangler.jsonc`): o Worker confere D1
+  (`SELECT 1`), os KV `SESSIONS` e `OAUTH_KV` (leitura) e os R2 `STORAGE` e `TRILHA` (`head`). Falha grava
+  `{"msg":"sonda_interna",...}` no log e manda **um** e-mail para `ALERTA_EMAIL`; a volta manda outro. O estado fica
+  nos dois KV. **Limite:** com o Worker fora do ar o cron não roda e a sonda fica calada — por isso o monitor externo.
+  Sem `ALERTA_EMAIL` em `vars` do `wrangler.jsonc`, ela só grava log.
+- **`uptime.yml` manual** (aba Actions, *Run workflow*): as duas verificações da seção 0 (`/health` e o envelope do
+  login) nos dois domínios, três tentativas cada, com issue (label `uptime`). Use para confirmar uma suspeita ou
+  depois de um deploy feito fora do Actions.
+
+### Ligar o monitor externo (ação do dono, uma vez)
+
+Qualquer serviço gratuito com checagem HTTP a cada 5 minutos e alerta por e-mail serve (UptimeRobot e Better Stack
+têm plano gratuito com isso). No UptimeRobot:
+
+1. Criar conta com o e-mail de operação e confirmar o endereço (é para ele que vai o alerta).
+2. *Add New Monitor* → tipo **HTTP(s) - Keyword**.
+3. URL `https://n360.ness.com.br/health`, intervalo **5 minutos**, palavra-chave `"status":"ok"`, alerta quando a
+   palavra **não existir**. Timeout de 30 s.
+4. Em *Alert Contacts*, marcar o e-mail de operação. Salvar.
+5. Repetir para `https://niso.ness.com.br/health` (os dois domínios caem separados quando o problema é de rota).
+6. Testar: trocar a palavra-chave de um monitor por uma que não existe, esperar o e-mail de "Down" (até 10
+   minutos), desfazer e esperar o de "Up". Alerta que nunca foi visto chegar não é alerta.
+
+O monitor externo confere só o `/health`. O envelope de validação do login (código publicado pela metade) fica
+com o `uptime.yml` manual e com a conferência do SHA depois de cada deploy.
+
+O monitor externo e a sonda interna pegam o sistema fora do ar; o `slo.yml` pega o caso em
 que ele responde mal. São coisas diferentes de propósito: se 30% das requisições
 devolverem 500 e a sonda cair nos 70% que respondem, ela passa verde — e é o SLO
 que acusa.
@@ -63,10 +91,10 @@ acima de 800 ms** fora das rotas de IA. A IA fica de fora porque leva segundos
 por desenho — misturá-la faria o p95 subir com a ADOÇÃO do produto, e alerta que
 dispara quando o produto é mais usado é alerta que se aprende a ignorar.
 
-> **O que continua valendo como limite.** A detecção não é imediata: schedule do
+> **O que continua valendo como limite.** A queda chega em ~5 minutos pelo monitor
+> externo e a dependência caída em até 15 pela sonda interna, mas schedule do
 > GitHub Actions atrasa por fila (o `db-backup.yml` sai rotineiramente horas
-> depois do pedido), e a janela do SLO é de 24h. Conte dezenas de minutos para
-> uma queda, e horas para uma degradação. Isso é melhor que "ninguém vê" e pior
+> depois do pedido), e a janela do SLO é de 24h: conte horas para uma degradação. Isso é melhor que "ninguém vê" e pior
 > que monitoramento com plantão; quando o produto precisar de minutos, o caminho
 > é serviço de observabilidade de verdade, não apertar estes crons.
 
@@ -82,7 +110,9 @@ git revert --no-edit <sha-do-merge>     # commit de squash: um SHA só
 git push -u origin reverte-<sha-curto>
 ```
 
-Abra o PR e mergeie. O `deploy.yml` republica a versão anterior.
+Abra o PR e mergeie. O `deploy.yml` republica a versão anterior. Se o Actions não
+estiver rodando, publique a `main` revertida com `scripts/publicar.sh`
+([`runbook-publicacao.md`](runbook-publicacao.md), seção 3).
 
 **Reverter direto pelo wrangler** só se o repositório estiver inacessível e a
 urgência não permitir esperar o CI:

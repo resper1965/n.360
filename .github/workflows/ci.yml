@@ -1,8 +1,15 @@
 name: CI
 
+# SÓ `pull_request`, de propósito (custo: com o repositório privado, minuto de
+# Actions é cobrado). O `push` na `main` repetia esta suíte inteira (~14 min) sobre
+# uma árvore que já tinha passado aqui: o ruleset exige `test` e `e2e` verdes no PR
+# e a branch em dia com a base, e o merge é squash, então o que chega à `main` é
+# exatamente o que foi testado. `test/workflows-economia.test.ts` reprova a volta
+# do `push`.
+#
+# NÃO acrescente `paths`/`paths-ignore`: PR que não dispara o workflow não reporta
+# os checks obrigatórios, e check obrigatório que não reporta trava o merge.
 on:
-  push:
-    branches: [main]
   # Sem filtro de branch: `branches: [main]` casa com a BASE do PR, então PR
   # empilhado sobre outro branch não rodava job nenhum — e "0 checks" se parece
   # com "ainda não começou", não com "não vai rodar". Aconteceu no PR #14.
@@ -11,6 +18,12 @@ on:
 # O CI só lê o repositório. Sem isso, o GITHUB_TOKEN vem com escrita por padrão.
 permissions:
   contents: read
+
+# Push novo no mesmo PR cancela a execução anterior, que já não vale nada: o
+# check que conta é o do último commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -87,8 +100,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Auditoria de dependências (S5 do backlog / OWASP A06). INFORMATIVO: só o job
-  # `test` é required pela proteção de branch, então isto reporta vulnerabilidades
+  # Auditoria de dependências (S5 do backlog / OWASP A06). INFORMATIVO: só os jobs
+  # `test` e `e2e` são exigidos pelo ruleset, então isto reporta vulnerabilidades
   # high+ sem bloquear o merge. Cada passo é continue-on-error para o job ficar
   # verde e servir de sinal, não de portão — apertar para bloqueante quando a base
   # estiver limpa. Não roda `npm ci`: `npm audit` só precisa do package-lock.json.

@@ -413,8 +413,8 @@ describe('scheduled despacha pelo cron', () => {
     expect(await db().prepare(`SELECT item_id, marco FROM avisos_prazo`).all()).toMatchObject({ results: [{ item_id: 'cap-hoje', marco: 'D0' }] });
   });
 
-  it('wrangler.jsonc agenda os dois crons', () => {
+  it('wrangler.jsonc agenda os três crons (manutenção, avisos e sonda interna)', () => {
     expect(CRON_AVISOS).toBe('0 11 * * *');
-    expect(wrangler).toContain('"crons": ["10 4 * * *", "0 11 * * *"]');
+    expect(wrangler).toContain('"crons": ["10 4 * * *", "0 11 * * *", "*/15 * * * *"]');
   });
 });
