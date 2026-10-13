@@ -582,8 +582,8 @@ usersApp.delete('/:id', async (c) => {
     let anonimizado = false;
     try {
       await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
-    } catch (e: any) {
-      if (!/FOREIGN KEY/i.test(String(e?.message ?? e))) throw e;
+    } catch (e) {
+      if (!/FOREIGN KEY/i.test(e instanceof Error ? e.message : String(e))) throw e;
       // Conta com histórico (marcação de checklist, aceite de termo...): apagar a linha tiraria o autor do que ela fez.
       // A conta fica, sem identidade e sem acesso, e o e-mail volta a ficar livre.
       await c.env.DB.prepare(`UPDATE users SET email = 'removida+' || id || '@invalido.local', name = 'Conta removida', password_hash = '!',
