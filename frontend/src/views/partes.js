@@ -16,7 +16,8 @@ const PAPEIS = {
 const ALVOS = { projeto: 'projeto', item: 'ativo', departamento: 'departamento', tratamento: 'tratamento', parte: 'parte' };
 const TIPOS = { pessoa: 'Pessoa', organizacao: 'Organização' };
 
-const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor'].includes(S.user.role);
+/** Quem cria e edita o cadastro (partes, departamentos; o inventário de ativos usa a mesma lista). A entrevista do RoPA reusa. */
+export const podeEditar = () =>!!S.user && ['platform_admin', 'consultant', 'consultor'].includes(S.user.role);
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const lista = (r) => (Array.isArray(r) ? r : []);
 

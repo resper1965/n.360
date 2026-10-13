@@ -1631,6 +1631,16 @@ textarea:focus-visible {
 .re-respostas dt { color: var(--text-dim); }
 .re-respostas dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .re-pendente { color: var(--warning); }
+/* Cadastro na entrevista: busca na lista e "Cadastrar agora" inline. */
+.re-opcao[hidden] { display: none; }
+.re-busca { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.re-busca .re-nota:empty { display: none; }
+.re-cadastro { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--border); background: var(--bg); }
+.re-cadastro .form-group { margin: 0; }
+.re-cadastro-titulo { margin: 0; font: 600 15px var(--font-head); color: var(--text); }
+.re-cadastro-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+#re-similares { display: flex; flex-direction: column; gap: 6px; }
+#re-similares .btn { margin-left: 8px; vertical-align: baseline; }
 @media (max-width: 640px) {
     .re-pergunta, .re-resumo { padding: 16px; }
     .re-opcoes { grid-template-columns: 1fr; }

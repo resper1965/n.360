@@ -3,6 +3,8 @@ import { api } from '../api.js';
 import { showToast, escapeHTML, renderEmptyState } from '../ui.js';
 import { navigate } from '../router.js';
 import { BASES_ART7, BASES_ART11, ART11, normaliza, rotuloBase, ehLegitimoInteresse, ehConsentimento, ehArt11, camposDaBase, idsDoCatalogo, textoDaBase } from '../bases-legais.js';
+import { parecidos, mesmoEmail } from '../similares.js';
+import { podeEditar as podeCadastrar } from './partes.js';
 
 // Entrevista do RoPA (n.privacy): o caminho principal para criar e revisar uma atividade de tratamento, uma pergunta por vez,
 // em linguagem de consultor. Desenho em docs/design/diagnostico-2026-10-13/n-privacy-ropa-entrevista.md (seção 4).
@@ -68,6 +70,18 @@ const SEM_MECANISMO = MECANISMOS[4];
 const PAISES = ['Estados Unidos', 'Irlanda', 'Países Baixos', 'Alemanha', 'Reino Unido', 'Singapura'];
 const CONCLUSOES_LIA = [op('prevalece', 'O interesse da empresa prevalece'), op('nao_prevalece', 'Os direitos da pessoa prevalecem')];
 const VOLUME_ALTO = ['10mil-100mil', '100mil+'];
+// "Cadastrar agora" de sistema ou arquivo: as categorias do inventário de ativos (monitor.js, openNewAssetModal), menos Pessoas.
+const CATEGORIAS_ITEM = [op('Software', 'Sistema (software, aplicativo, API)'), op('Informacao', 'Arquivo ou base de dados'), op('Hardware', 'Equipamento')];
+const ROTULO_CATEGORIA = { Software: 'sistema', Informacao: 'arquivo ou base', Hardware: 'equipamento', Pessoas: 'pessoas' };
+// O que cada "Cadastrar agora" cria, pela rota de sempre do cadastro (partes.js, monitor.js).
+const CADASTROS = {
+    pessoa: { nome: 'Pessoa', lista: 'pessoas', detalhe: (x) => x.email || 'pessoa', rota: (pid) => `/api/v1/projects/${pid}/partes`,
+        corpo: (f) => ({ tipo: 'pessoa', nome: f.nome, email: f.email || null }), novo: (id, f) => ({ id, nome: f.nome, email: f.email || null, tipo: 'pessoa', status: 'ativa' }) },
+    area: { nome: 'Área', lista: 'deptos', detalhe: () => 'área', rota: (pid) => `/api/v1/projects/${pid}/departamentos`,
+        corpo: (f) => ({ nome: f.nome }), novo: (id, f) => ({ id, nome: f.nome }) },
+    item: { nome: 'Sistema ou arquivo', lista: 'itens', detalhe: (x) => ROTULO_CATEGORIA[x.category] || 'item', rota: (pid) => `/api/v1/projects/${pid}/assets`,
+        corpo: (f) => ({ name: f.nome, category: f.categoria }), novo: (id, f) => ({ id, name: f.nome, category: f.categoria }) },
+};
 
 const temSensivel = (r) => Array.isArray(r.sensiveis) && r.sensiveis.some((x) => x !== NENHUM);
 const valor = (r, id) => (r[id] === NAO_SEI ? undefined : r[id]);
@@ -102,11 +116,11 @@ const PERGUNTAS = [
         titulo: 'Em uma frase, para que essa atividade serve?',
         ajuda: 'A finalidade precisa ser específica: "RH" não basta. A frase entra junto com o nome da atividade.',
         exemplos: ['Pagar salários e recolher encargos', 'Escolher quem contratar para as vagas abertas', 'Responder pedidos e reclamações de clientes'] },
-    { id: 'responsavel', bloco: 'A', tipo: 'unica', curto: 'Responsável', outro: 'Outra pessoa (digite o nome)',
-        opcoes: (ctx) => ctx.pessoas.map((p) => op(p.id, p.nome)),
+    { id: 'responsavel', bloco: 'A', tipo: 'unica', curto: 'Responsável', cadastro: 'pessoa',
+        opcoes: (ctx) => ctx.pessoas.map((p) => op(p.id, p.nome, p.email || '')),
         titulo: 'Quem responde por essa atividade na empresa?',
         ajuda: 'É quem explica o fluxo dos dados se a ANPD ou o titular perguntarem. As opções vêm do cadastro de partes do projeto.' },
-    { id: 'areas', bloco: 'A', tipo: 'multipla', curto: 'Áreas', mostrar: (r, ctx) => ctx.deptos.length > 0,
+    { id: 'areas', bloco: 'A', tipo: 'multipla', curto: 'Áreas', cadastro: 'area',
         opcoes: (ctx) => ctx.deptos.map((d) => op(d.id, d.nome)),
         titulo: 'Qual área executa a atividade?',
         ajuda: 'Delimita quem acessa os dados e quem precisa de treinamento. As áreas vêm do cadastro de departamentos.' },
@@ -155,8 +169,8 @@ const PERGUNTAS = [
         opcoes: () => ['A própria pessoa', 'Outro sistema da empresa', 'Parceiro ou fornecedor', 'Fonte pública', 'Base comprada ou licenciada'].map((t) => op(t)),
         titulo: 'De onde vêm os dados?',
         ajuda: 'Dado recebido de terceiro exige conferir a origem e informar o titular (art. 9). Esta resposta não fica gravada: aparece no resumo.' },
-    { id: 'sistemas', bloco: 'E', tipo: 'multipla', curto: 'Sistemas e arquivos', mostrar: (r, ctx) => ctx.itens.length > 0,
-        opcoes: (ctx) => ctx.itens.map((i) => op(i.id, i.nome || i.name || '')),
+    { id: 'sistemas', bloco: 'E', tipo: 'multipla', curto: 'Sistemas e arquivos', cadastro: 'item',
+        opcoes: (ctx) => ctx.itens.map((i) => op(i.id, i.nome || i.name || '', ROTULO_CATEGORIA[i.category] || '')),
         titulo: 'Em quais sistemas ou arquivos esses dados passam?',
         ajuda: 'Mostra onde procurar o dado e onde aplicar segurança, e desenha o diagrama do tratamento. As opções vêm dos itens do projeto.' },
     { id: 'compartilha', bloco: 'F', tipo: 'unica', curto: 'Compartilha com terceiros', opcoes: () => SIM_NAO,
@@ -203,7 +217,7 @@ let ctx = null;  // o que veio do servidor: pessoas, deptos, itens, catálogo, r
 
 const chaveDe = (projectId, recordId) => `ropa-entrevista:${projectId}:${recordId || 'nova'}`;
 function guardar() {
-    try { sessionStorage.setItem(st.chave, JSON.stringify({ passo: st.passo, respostas: st.respostas, recordId: st.recordId })); } catch (e) { /* sem storage: fica em memória */ }
+    try { sessionStorage.setItem(st.chave, JSON.stringify({ passo: st.passo, respostas: st.respostas, recordId: st.recordId, criados: st.criados })); } catch (e) { /* sem storage: fica em memória */ }
 }
 function lerGuardado(chave) {
     try { const v = JSON.parse(sessionStorage.getItem(chave) || 'null'); return v && typeof v === 'object' && v.respostas ? v : null; } catch (e) { return null; }
@@ -253,7 +267,8 @@ export function respostasDoRegistro(r, c) {
     const flag = (coluna) => (nao.has(coluna) ? undefined : r[coluna] ? 'sim' : 'nao');
     const out = { finalidade: r.processing_purpose || '' };
     if (r.owner_parte_id && c.pessoas.some((p) => p.id === r.owner_parte_id)) out.responsavel = r.owner_parte_id;
-    else if (r.owner || r.owner_parte_nome) { out.responsavel = OUTRO; out.responsavel_outro = r.owner || r.owner_parte_nome; }
+    // Registro antigo com o responsável só em texto: o texto fica à vista (e no PUT, por omissão) até alguém ligar a pessoa.
+    else if (r.owner || r.owner_parte_nome) out.responsavel_texto = r.owner || r.owner_parte_nome;
     if (c.ligacoes) {
         out.areas = lista(c.ligacoes.departamentos).map((d) => d.id);
         out.sistemas = lista(c.ligacoes.itens).map((i) => i.id);
@@ -304,9 +319,10 @@ export function montarPayload(r, c) {
     const para = String(valor(r, 'para_que') || '').trim();
     const fin = String(r.finalidade || '').trim();
     b.processing_purpose = para && PERGUNTA.para_que.mostrar(r, c) ? `${fin}: ${para}` : fin;
+    // O responsável é sempre uma pessoa do cadastro; sem escolha, o owner gravado (inclusive o texto antigo) fica como está.
     const resp = valor(r, 'responsavel');
-    if (resp === OUTRO) { const nome = String(r.responsavel_outro || '').trim(); if (nome) { b.owner = nome; b.owner_parte_id = null; } }
-    else if (resp) { const p = c.pessoas.find((x) => x.id === resp); if (p) { b.owner_parte_id = p.id; b.owner = p.nome; } }
+    const p = resp && c.pessoas.find((x) => x.id === resp);
+    if (p) { b.owner_parte_id = p.id; b.owner = p.nome; }
     const tit = comOutro(r, 'titulares');
     if (tit) b.data_subjects = tit.join(', ');
     const cat = comOutro(r, 'categorias');
@@ -333,7 +349,7 @@ export function pendencias(r, c) {
     // Fora da lista: o motivo (só prepara a base), "criar o RIPD" (tem pendência própria logo abaixo) e as perguntas sem coluna no
     // registro, que só alimentam a recomendação de RIPD: na revisão de uma atividade salva elas voltam sempre vazias.
     const lista = PERGUNTAS.filter((p) => (!p.mostrar || p.mostrar(r, c)) && !p.semColuna && !['para_que', 'motivo', 'criar_ripd'].includes(p.id) && (r[p.id] === NAO_SEI || vazio(r[p.id])))
-        .map((p) => ({ bloco: p.bloco, texto: `Sem resposta: ${p.curto}` }));
+        .map((p) => ({ bloco: p.bloco, texto: p.id === 'responsavel' && r.responsavel_texto ? 'Responsável só em texto: escolha ou cadastre a pessoa' : `Sem resposta: ${p.curto}` }));
     const mec = r.transf_destino && r.transf_destino !== NAO_SEI ? r.transf_destino.mecanismo : '';
     if (r.transferencia === 'sim' && mec === SEM_MECANISMO) lista.push({ bloco: 'H', texto: 'Transferência internacional sem salvaguarda definida' });
     if (r.ripd === 'sim' && !c.temDpia && r.criar_ripd !== 'sim') lista.push({ bloco: 'H', texto: 'RIPD exigido e ainda não criado' });
@@ -373,7 +389,8 @@ function controle(p) {
     const multipla = p.tipo === 'multipla';
     const marcados = multipla ? (Array.isArray(v) ? v : []) : [v];
     const opcoes = [...opcoesDe(p), ...(p.outro ? [op(OUTRO, p.outro)] : []), ...(p.nenhum ? [op(NENHUM, p.nenhum)] : [])];
-    const itens = opcoes.map((o, i) => `<label class="re-opcao" for="re-op-${i}">
+    const busca = p.cadastro ? normaliza((st.busca || {})[p.id]) : '';
+    const itens = opcoes.map((o, i) => `<label class="re-opcao" for="re-op-${i}" ${p.cadastro ? `data-busca="${escapeHTML(normaliza(`${o.r} ${o.dica}`))}"` : ''} ${busca && !normaliza(`${o.r} ${o.dica}`).includes(busca) ? 'hidden' : ''}>
             <input type="${multipla ? 'checkbox' : 'radio'}" id="re-op-${i}" name="re-${escapeHTML(p.id)}" value="${escapeHTML(o.v)}" ${marcados.includes(o.v) ? 'checked' : ''}
                 data-action-change="${multipla ? 'reMarcar' : 'reEscolher'}" data-args='${args(p.id)}' data-arg-el>
             <span class="re-opcao-texto">${escapeHTML(o.r)}${o.dica ? `<span class="re-opcao-dica">${escapeHTML(o.dica)}</span>` : ''}</span></label>`).join('');
@@ -381,7 +398,59 @@ function controle(p) {
         ? `<div class="form-group re-outro"><label class="form-label" for="re-outro">${escapeHTML(p.outro)}: qual?</label>
             <input class="form-input" id="re-outro" type="text" maxlength="300" value="${escapeHTML(r[`${p.id}_outro`] || '')}" data-action-input="reTexto" data-args='${args(`${p.id}_outro`)}' data-arg-val></div>` : '';
     const semOpcao = !opcoes.length ? '<p class="re-nota">Nada cadastrado neste projeto ainda.</p>' : '';
-    return `<div class="re-opcoes" role="${multipla ? 'group' : 'radiogroup'}" aria-labelledby="re-titulo">${itens}</div>${semOpcao}${outro}`;
+    const campoBusca = p.cadastro && opcoes.length ? `<div class="form-group re-busca"><label class="form-label" for="re-busca">Buscar na lista</label>
+        <input class="form-input" id="re-busca" type="search" maxlength="100" autocomplete="off" value="${escapeHTML((st.busca || {})[p.id] || '')}" data-action-input="reBuscar" data-args='${args(p.id)}' data-arg-val>
+        <p class="re-nota" id="re-busca-vazia" aria-live="polite">${busca && !opcoes.some((o) => normaliza(`${o.r} ${o.dica}`).includes(busca)) ? 'Nada na lista com esse nome.' : ''}</p></div>` : '';
+    return `${campoBusca}<div class="re-opcoes" role="${multipla ? 'group' : 'radiogroup'}" aria-labelledby="re-titulo">${itens}</div>${semOpcao}${outro}${p.cadastro ? blocoCadastro(p) : ''}`;
+}
+
+// ─── "Cadastrar agora" (pessoa, área, sistema ou arquivo) ──────────────────────────────────────────
+
+/** Os existentes do cadastro da pergunta, no formato de similares.js: { id, nome, email?, detalhe }. */
+function existentesDe(tipo) {
+    const k = CADASTROS[tipo];
+    return ctx[k.lista].map((x) => ({ id: x.id, nome: x.nome || x.name || '', email: x.email || null, detalhe: k.detalhe(x) }));
+}
+
+/** O que já existe parecido com o que está no formulário: aviso por nome (e por e-mail, na pessoa). Vazio quando nada. */
+function avisosDeDuplicata(tipo, f) {
+    const ex = existentesDe(tipo);
+    const usar = (x, rot) => `<button type="button" class="btn btn-sm" data-action="reUsarExistente" data-args='${args(x.id)}'>${rot}</button>`;
+    const linhas = [];
+    const mail = tipo === 'pessoa' && mesmoEmail(f.email, ex);
+    if (mail) linhas.push(`<p class="re-aviso">Já existe uma pessoa com este e-mail: ${escapeHTML(mail.nome)} (${escapeHTML(mail.email)}). Usar esta pessoa? ${usar(mail, 'Usar esta')}</p>`);
+    for (const s of parecidos(f.nome, ex)) {
+        if (mail && s.item.id === mail.id) continue;
+        linhas.push(s.igual
+            ? `<p class="re-aviso">Já existe com este nome: ${escapeHTML(s.item.nome)} (${escapeHTML(s.item.detalhe)}). Use o existente. ${usar(s.item, 'Usar este')}</p>`
+            : `<p class="re-aviso">Já existe: ${escapeHTML(s.item.nome)} (${escapeHTML(s.item.detalhe)}; ${escapeHTML(s.motivo)}). Usar este? ${usar(s.item, 'Usar este')}</p>`);
+    }
+    return linhas.join('');
+}
+
+function blocoCadastro(p) {
+    const k = CADASTROS[p.cadastro];
+    if (!podeCadastrar()) return '<p class="re-nota">Não está na lista? Peça a quem administra o cadastro.</p>';
+    const f = st.cadastro && st.cadastro.pergunta === p.id ? st.cadastro : null;
+    if (!f) return `<div class="re-cadastro-abrir"><button type="button" class="btn btn-sm" data-action="reCadastroAbrir" data-args='${args(p.id)}'>Cadastrar agora: ${escapeHTML(k.nome.toLowerCase())}</button></div>`;
+    // Enter no campo salva o cadastro (e não avança a pergunta). O filtro de tecla fica no invólucro: no próprio campo ele
+    // barraria também o evento de input (delegation.js confere data-key em qualquer evento).
+    const campo = (id, rotulo, extra = '') => `<div class="form-group" data-action-keydown="reCadastrar" data-key="Enter" data-prevent><label class="form-label" for="re-cad-${id}">${rotulo}</label>
+        <input class="form-input" id="re-cad-${id}" ${extra} value="${escapeHTML(f[id] || '')}" data-action-input="reCadastroCampo" data-args='${args(id)}' data-arg-val></div>`;
+    const categoria = p.cadastro === 'item' ? `<div class="form-group"><label class="form-label" for="re-cad-categoria">Tipo</label>
+        <select class="form-input" id="re-cad-categoria" data-action-change="reCadastroCampo" data-args='${args('categoria')}' data-arg-val>${CATEGORIAS_ITEM.map((o) =>
+            `<option value="${escapeHTML(o.v)}" ${o.v === f.categoria ? 'selected' : ''}>${escapeHTML(o.r)}</option>`).join('')}</select></div>` : '';
+    return `<div class="re-cadastro" role="group" aria-labelledby="re-cad-titulo">
+        <h3 class="re-cadastro-titulo" id="re-cad-titulo">Cadastrar ${escapeHTML(k.nome.toLowerCase())}</h3>
+        ${campo('nome', 'Nome (obrigatório)', 'type="text" maxlength="200" autocomplete="off" aria-describedby="re-similares"')}
+        <div id="re-similares" aria-live="polite">${avisosDeDuplicata(p.cadastro, f)}</div>
+        ${p.cadastro === 'pessoa' ? campo('email', 'E-mail (opcional)', 'type="email" maxlength="320" autocomplete="off"') : ''}
+        ${categoria}
+        <div class="re-cadastro-acoes">
+            <button type="button" class="btn btn-sm btn-primary" data-action="reCadastrar">Salvar no cadastro</button>
+            <button type="button" class="btn btn-sm btn-ghost" data-action="reCadastroFechar">Cancelar</button>
+        </div>
+    </div>`;
 }
 
 function extras(p) {
@@ -397,7 +466,9 @@ function extras(p) {
         const m = MOTIVOS.find((x) => x.v === r.motivo);
         if (m && temSensivel(r) && m.b7 && !m.b11) partes.push('<p class="re-aviso">Com dado sensível, esse motivo não serve de base legal (art. 11). Escolha a hipótese que se aplica.</p>');
     }
-    if (p.id === 'responsavel' && !ctx.pessoas.length) partes.push('<p class="re-nota">Nenhuma pessoa no cadastro de partes do projeto. Digite o nome em "Outra pessoa".</p>');
+    if (p.id === 'responsavel' && r.responsavel_texto && !valor(r, 'responsavel')) {
+        partes.push(`<p class="re-aviso">Hoje o responsável está só em texto: ${escapeHTML(r.responsavel_texto)}. Escolha a pessoa na lista ou cadastre agora para ligar ao cadastro; sem escolha, o texto fica como está.</p>`);
+    }
     if (p.id === 'lia' && ctx.lia && ctx.lia.status === 'concluida') partes.push('<p class="re-aviso">A LIA desta atividade já está concluída. Para alterar, reabra nas Ligações; aqui ela não é regravada.</p>');
     if (p.id === 'transf_destino' && ctx.transferencias.length) {
         partes.push(`<p class="re-nota">Já registradas: ${ctx.transferencias.map((t) => `${escapeHTML(t.pais)}${t.mecanismo ? ` (${escapeHTML(t.mecanismo)})` : ''}`).join('; ')}. Preencha o país só para acrescentar outro.</p>`);
@@ -469,6 +540,7 @@ function textoResposta(p) {
     const r = st.respostas;
     if (r[p.id] === NAO_SEI) return 'Não sei agora';
     const v = r[p.id];
+    if (p.id === 'responsavel' && vazio(v) && r.responsavel_texto) return `${r.responsavel_texto} (só texto, sem cadastro)`;
     if (vazio(v)) return '';
     if (p.tipo === 'texto' || p.tipo === 'longo') return v;
     if (p.tipo === 'grupo') return p.sub.filter((s) => String(v[s.id] || '').trim()).map((s) => `${s.rotulo} ${s.tipo === 'select' ? (s.opcoes.find((o) => o.v === v[s.id]) || {}).r || v[s.id] : v[s.id]}`).join(' / ');
@@ -494,6 +566,7 @@ function desenharResumo() {
         ${pend.length ? `<div class="re-pendencias" role="note"><h3>O que ficou para depois (${pend.length})</h3><ul>${pend.map((x) => `<li>${escapeHTML(x.texto)}</li>`).join('')}</ul></div>`
             : '<p class="re-nota">Nenhuma pendência nas respostas.</p>'}
         ${mot.length ? `<p class="re-aviso">Recomendação de RIPD (DPIA): ${escapeHTML(mot.join(', '))}.</p>` : ''}
+        ${(st.criados || []).length ? `<p class="re-nota" id="re-criados">Cadastrados durante a entrevista: ${st.criados.map((x) => `${escapeHTML(x.tipo)} ${escapeHTML(x.nome)}`).join('; ')}.</p>` : ''}
         ${blocos}
         <p class="re-erro" id="re-erro" aria-live="polite"></p>
         <div class="re-acoes">
@@ -561,8 +634,12 @@ async function renderRopaEntrevista(c, h, a) {
         const guardado = lerGuardado(chave);
         ctx = await carregar(pedido.projectId, pedido.recordId || (guardado && guardado.recordId));
         const respostas = guardado ? guardado.respostas : ctx.registro ? respostasDoRegistro(ctx.registro, ctx) : {};
-        ctx.inicial = { areas: [...(respostas.areas || [])], sistemas: [...(respostas.sistemas || [])] };
-        st = { chave, projectId: pedido.projectId, recordId: pedido.recordId || (guardado && guardado.recordId) || null, respostas, passo: null, voltarAoResumo: false, sugestao: null, salvo: null };
+        // Rascunho de antes do "Cadastrar agora" com "Outra pessoa" digitada: vira o texto antigo, à espera da pessoa do cadastro.
+        if (respostas.responsavel === OUTRO) { respostas.responsavel_texto = respostas.responsavel_outro || ''; delete respostas.responsavel; delete respostas.responsavel_outro; }
+        // O que o SERVIDOR já tem ligado (não o rascunho da aba): rascunho retomado de atividade nova também liga no fim.
+        ctx.inicial = { areas: lista(ctx.ligacoes && ctx.ligacoes.departamentos).map((d) => d.id), sistemas: lista(ctx.ligacoes && ctx.ligacoes.itens).map((i) => i.id) };
+        st = { chave, projectId: pedido.projectId, recordId: pedido.recordId || (guardado && guardado.recordId) || null, respostas, passo: null, voltarAoResumo: false, sugestao: null, salvo: null,
+            criados: Array.isArray(guardado && guardado.criados) ? guardado.criados : [], cadastro: null, busca: {} };
         st.passo = guardado && (guardado.passo === 'resumo' || PERGUNTA[guardado.passo]) ? guardado.passo : passoInicial();
     }
     h.textContent = st.recordId ? 'Entrevista do RoPA: revisar atividade' : 'Entrevista do RoPA: nova atividade';
@@ -609,6 +686,64 @@ window.reMarcar = function (id, el) {
     st.respostas[id] = v; guardar(); desenhar(el.id);
 };
 
+// Busca na lista: esconde as opções sem redesenhar, para o cursor ficar no campo.
+window.reBuscar = function (id, v) {
+    st.busca[id] = v;
+    const q = normaliza(v);
+    let algum = false;
+    document.querySelectorAll('.re-opcao[data-busca]').forEach((l) => { l.hidden = !!q && !l.dataset.busca.includes(q); if (!l.hidden) algum = true; });
+    const n = document.getElementById('re-busca-vazia');
+    if (n) n.textContent = algum ? '' : 'Nada na lista com esse nome.';
+};
+
+window.reCadastroAbrir = function (pid) {
+    const p = PERGUNTA[pid];
+    // O nome já vem com o que a pessoa buscou, ou com o responsável antigo em texto.
+    const nome = String(st.busca[pid] || (pid === 'responsavel' ? st.respostas.responsavel_texto || '' : '')).trim();
+    st.cadastro = { pergunta: pid, nome, email: '', categoria: p.cadastro === 'item' ? CATEGORIAS_ITEM[0].v : '' };
+    desenhar('re-cad-nome');
+};
+window.reCadastroFechar = function () { st.cadastro = null; desenhar(); };
+window.reCadastroCampo = function (campo, v) {
+    if (!st.cadastro) return;
+    st.cadastro[campo] = v;
+    const sim = document.getElementById('re-similares');
+    if (sim && campo !== 'categoria') sim.innerHTML = avisosDeDuplicata(PERGUNTA[st.cadastro.pergunta].cadastro, st.cadastro);
+};
+
+/** Marca o registro do cadastro na pergunta (seleção única ou múltipla), fecha o formulário e redesenha com o foco nele. */
+function selecionar(pid, id) {
+    const p = PERGUNTA[pid];
+    if (p.tipo === 'multipla') {
+        const v = Array.isArray(st.respostas[pid]) ? st.respostas[pid] : [];
+        st.respostas[pid] = v.includes(id) ? v : [...v, id];
+    } else st.respostas[pid] = id;
+    if (pid === 'responsavel') delete st.respostas.responsavel_texto;
+    st.cadastro = null;
+    st.busca[pid] = '';
+    guardar();
+    desenhar(`re-op-${opcoesDe(p).findIndex((o) => o.v === id)}`);
+}
+window.reUsarExistente = function (id) { if (st.cadastro) selecionar(st.cadastro.pergunta, id); };
+
+window.reCadastrar = async function () {
+    const f = st.cadastro;
+    if (!f || f.gravando) return;
+    const p = PERGUNTA[f.pergunta];
+    const k = CADASTROS[p.cadastro];
+    const dados = { nome: String(f.nome || '').trim(), email: String(f.email || '').trim(), categoria: f.categoria };
+    if (!dados.nome) { erro('Digite o nome para cadastrar.'); return; }
+    const igual = parecidos(dados.nome, existentesDe(p.cadastro)).find((x) => x.igual);
+    if (igual) { erro(`Já existe com este nome: ${igual.item.nome}. Use o existente.`); return; }
+    f.gravando = true;
+    let id;
+    try { id = (await api('POST', k.rota(st.projectId), k.corpo(dados))).id; }
+    catch (e) { f.gravando = false; erro(`Não foi possível cadastrar: ${e.message}`); return; }
+    ctx[k.lista].push(k.novo(id, dados));
+    st.criados.push({ tipo: k.nome, nome: dados.nome });
+    selecionar(f.pergunta, id);
+};
+
 /** Mensagem de validação da pergunta atual, ou vazio quando pode seguir. */
 function validar(p) {
     const r = st.respostas;
@@ -626,6 +761,7 @@ function irPara(passo, foco) { st.passo = passo; guardar(); desenhar(foco); }
 window.reAvancar = function () {
     const p = PERGUNTA[st.passo];
     if (!p) return;
+    if (st.cadastro && st.cadastro.pergunta === p.id) { erro('Salve ou cancele o cadastro aberto antes de seguir.'); return; }
     const msg = validar(p);
     if (msg) { erro(msg); return; }
     proximo(p);
@@ -640,6 +776,7 @@ window.reNaoSei = function () {
     const p = PERGUNTA[st.passo];
     if (!p || p.obrigatoria) return;
     st.respostas[p.id] = NAO_SEI;
+    st.cadastro = null;
     proximo(p);
 };
 window.reVoltar = function () {
