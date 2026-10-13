@@ -34,6 +34,35 @@ export interface Resultado {
 const WRITE_GUARDRAIL =
   "ESCRITA em projeto de cliente: requer contrato ativo e aprovação humana prévia (ver constituição do Aegis-Consultor).";
 
+// n.privacy: o agente propõe, uma pessoa aprova. Toda escrita nomeada grava rascunho e nunca aprova.
+const RASCUNHO_PRIVACY =
+  'Grava RASCUNHO; o agente propõe e uma pessoa aprova pela interface. PEÇA APROVAÇÃO HUMANA: mostre ao usuário o que será gravado e espere o "sim" antes de chamar. Exige o módulo n.privacy no projeto e na sua conta (senão 403).';
+
+const P_PROJETO = { projectId: { type: "string", description: "The project ID (o desta conexão)" } };
+const P_ROPA = { ...P_PROJETO, ropaId: { type: "string", description: "Id do tratamento (registro do RoPA)" } };
+const texto = (description: string) => ({ type: ["string", "null"], description });
+const simNao = (description: string) => ({ type: "boolean", description });
+
+/** Campos do tratamento, na ordem dos blocos da entrevista de RoPA (A a H). Sem `status`: aprovar é humano. */
+const CAMPOS_TRATAMENTO = {
+  processing_purpose: { type: "string", description: "Bloco A: a atividade e para que serve, específica (ex.: 'Folha de pagamento: pagar salários e recolher encargos')" },
+  owner: texto("Bloco A: nome de quem responde pela atividade"),
+  owner_parte_id: texto("Bloco A: id da pessoa responsável no cadastro de partes do projeto (/partes)"),
+  data_subjects: texto("Bloco B: titulares, separados por vírgula (ex.: Colaboradores, Dependentes)"),
+  criancas_adolescentes: simNao("Bloco B: há menores de 18 anos entre os titulares (LGPD art. 14)"),
+  data_categories: texto("Bloco C: categorias de dado, separadas por vírgula (ex.: Identificação, Contato, Financeiro)"),
+  dados_sensiveis: simNao("Bloco C: há dado sensível (LGPD art. 11); a base legal deve ser do art. 11"),
+  legal_basis: texto("Bloco D: texto da hipótese legal, como a tela grava (ex.: 'Cumprimento de obrigação legal ou regulatória'); sensível leva o sufixo ' (art. 11)'"),
+  base_legal_id: texto("Bloco D: id da base no catálogo de requisitos (ex.: lgpd:art7:ii); liste com /api/v1/requisitos?fonte=lgpd. null desliga"),
+  consent_details: texto("Blocos B e D: como o consentimento é pedido e guardado (e o do responsável legal, se há menores)"),
+  data_subject_rights_details: texto("Como o titular exerce os direitos neste tratamento"),
+  recipients: texto("Bloco F: com quem compartilha, em texto (ex.: contabilidade terceirizada, Receita Federal)"),
+  retention_period: texto("Bloco G: por quanto tempo guarda e o critério"),
+  international_transfers: simNao("Bloco H: algum dado vai para fora do Brasil ou fica em servidor no exterior"),
+  transfer_safeguards: texto("Bloco H: mecanismo da transferência (ex.: cláusulas-padrão contratuais)"),
+  dpia_required: simNao("Bloco H: precisa de relatório de impacto (RIPD/DPIA)"),
+};
+
 // ── Classes de ferramenta por papel ──────────────────────────────────────────
 export const READ_TOOLS = new Set([
   "niso_list_projects",
@@ -45,6 +74,15 @@ export const READ_TOOLS = new Set([
   "niso_list_evidence",
   "niso_audit_pack",
   "niso_coherence_check",
+  // n.privacy: leitura nomeada (o auditor também lê o n.privacy)
+  "niso_privacy_ropa",
+  "niso_privacy_ropa_detalhe",
+  "niso_privacy_requisitos_lacunas",
+  "niso_privacy_titular_pedidos",
+  "niso_privacy_incidentes",
+  "niso_privacy_terceiros",
+  "niso_privacy_encarregado",
+  "niso_privacy_ponto_de_partida",
 ]);
 // Escrita exclusiva do auditor (achados e notas de auditoria).
 export const AUDITOR_WRITE_TOOLS = new Set([
@@ -415,6 +453,163 @@ export const TOOLS: Ferramenta[] = [
       required: ["noteId", "response"],
     },
   },
+
+  // ── n.privacy: leitura ─────────────────────────────────────────────────────
+  {
+    name: "niso_privacy_ropa",
+    description:
+      "n.privacy: lista os tratamentos do RoPA com status, base legal, riscos (sensível, menores, transferência), nao_informado (campo que a importação não trouxe) e as ligações resumidas de cada um (itens, departamentos, partes, transferências, DPIAs, LIA, terceiros com avaliação vencida). Só leitura.",
+    inputSchema: { type: "object", properties: P_PROJETO, required: ["projectId"], additionalProperties: false },
+  },
+  {
+    name: "niso_privacy_ropa_detalhe",
+    description:
+      "n.privacy: um tratamento do RoPA por inteiro: o registro, as ligações (base legal do catálogo, itens, departamentos, partes, transferências, DPIAs, dpia_pendente, aprovação) e a LIA. Só leitura.",
+    inputSchema: { type: "object", properties: P_ROPA, required: ["projectId", "ropaId"], additionalProperties: false },
+  },
+  {
+    name: "niso_privacy_requisitos_lacunas",
+    description:
+      "n.privacy: cobertura dos requisitos da LGPD e da ANPD no projeto (resumo e cada requisito: coberto, parcial ou lacuna, com o documento, controle ou evidência que cobre). Sem fonte traz as duas. Só leitura.",
+    inputSchema: {
+      type: "object",
+      properties: { ...P_PROJETO, fonte: { type: "string", enum: ["lgpd", "anpd"], description: "Uma fonte só (opcional)" } },
+      required: ["projectId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "niso_privacy_titular_pedidos",
+    description:
+      "n.privacy: pedidos do titular (protocolo, tipo, status, prazo_em e situacao_prazo). O prazo sai de parametros_legais; sem o parâmetro cadastrado o prazo é 'não calculado', não invente um. Só leitura.",
+    inputSchema: { type: "object", properties: P_PROJETO, required: ["projectId"], additionalProperties: false },
+  },
+  {
+    name: "niso_privacy_incidentes",
+    description:
+      "n.privacy: incidentes (protocolo, risco ao titular, status) com os prazos de comunicação em situacao_anpd e situacao_titular. Só leitura.",
+    inputSchema: { type: "object", properties: P_PROJETO, required: ["projectId"], additionalProperties: false },
+  },
+  {
+    name: "niso_privacy_terceiros",
+    description:
+      "n.privacy: terceiros (partes do tipo organização) com o tipo (grande_provedor, medio, pequeno, critico), o método que o tipo exige (trust_center, questionario, auditoria), a situação da avaliação mais recente (pendente, vigente, vencida, reprovada) e quantos tratamentos e documentos os ligam. Só leitura.",
+    inputSchema: { type: "object", properties: P_PROJETO, required: ["projectId"], additionalProperties: false },
+  },
+  {
+    name: "niso_privacy_encarregado",
+    description:
+      "n.privacy: o painel do encarregado: pedidos do titular, incidentes, tratamentos sem base, DPIA ou LIA, terceiros, documentos, evidências, cobertura LGPD, prazos legais não cadastrados e o 'o que fazer' em prioridades (alta, media). Comece por aqui. Só leitura.",
+    inputSchema: { type: "object", properties: P_PROJETO, required: ["projectId"], additionalProperties: false },
+  },
+  {
+    name: "niso_privacy_ponto_de_partida",
+    description:
+      "Ponto de partida do projeto: o que já existe no cadastro compartilhado (tratamentos, DPIAs, documentos vigentes, evidências válidas, itens, terceiros, encarregado, incidentes, treinamentos), a cobertura LGPD e ANPD e os requisitos ISO que a privacidade já adianta (só mapeamento validado pelo jurídico). Só leitura.",
+    inputSchema: { type: "object", properties: P_PROJETO, required: ["projectId"], additionalProperties: false },
+  },
+
+  // ── n.privacy: escrita do consultor (rascunho; aprovar é humano) ───────────
+  {
+    name: "niso_privacy_propor_tratamento",
+    description: `n.privacy: cria um tratamento no RoPA com as respostas da entrevista (blocos A a H). Nasce SEMPRE em Draft; o agente não define status nem aprova. Recusa finalidade já cadastrada (devolve o id: use niso_privacy_atualizar_tratamento). Itens, departamentos e base legal depois: niso_privacy_ligar_tratamento. ${RASCUNHO_PRIVACY}`,
+    inputSchema: { type: "object", properties: { ...P_PROJETO, ...CAMPOS_TRATAMENTO }, required: ["projectId", "processing_purpose"], additionalProperties: false },
+  },
+  {
+    name: "niso_privacy_atualizar_tratamento",
+    description: `n.privacy: altera campos de um tratamento do RoPA (só os enviados; o resto fica). Não muda status nem aprovação. Tratamento aprovado: a edição substitui o pedido de aprovação aberto; avise o usuário antes. ${RASCUNHO_PRIVACY}`,
+    inputSchema: { type: "object", properties: { ...P_ROPA, ...CAMPOS_TRATAMENTO }, required: ["projectId", "ropaId"], additionalProperties: false },
+  },
+  {
+    name: "niso_privacy_ligar_tratamento",
+    description: `n.privacy: liga ao tratamento itens (sistemas, bases, processos de /assets; bloco E), departamentos (/departamentos; bloco A) e a base legal do catálogo (bloco D). Itens e departamentos SOMAM aos já ligados (desligar é pela interface). ${RASCUNHO_PRIVACY}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...P_ROPA,
+        itens: { type: "array", items: { type: "string" }, description: "Ids de itens do projeto a ligar" },
+        departamentos: { type: "array", items: { type: "string" }, description: "Ids de departamentos do projeto a ligar" },
+        base_legal_id: texto("Id da base legal no catálogo (ex.: lgpd:art7:ii); null desliga"),
+        legal_basis: texto("Texto da hipótese legal que acompanha a base do catálogo"),
+      },
+      required: ["projectId", "ropaId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "niso_privacy_criar_dpia_do_tratamento",
+    description: `n.privacy: cria a DPIA (RIPD) do tratamento em Draft, pré-preenchida com o registro e as ligações. Se já existe, devolve o id dela. A análise, o parecer do encarregado e a aprovação são de pessoas, pela interface. ${RASCUNHO_PRIVACY}`,
+    inputSchema: { type: "object", properties: P_ROPA, required: ["projectId", "ropaId"], additionalProperties: false },
+  },
+  {
+    name: "niso_privacy_rascunhar_lia",
+    description: `n.privacy: grava o RASCUNHO da LIA (teste de legítimo interesse) do tratamento: só os campos enviados mudam. Nunca conclui nem reabre: concluir é de uma pessoa, pela interface. LIA concluída é recusada. ${RASCUNHO_PRIVACY}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...P_ROPA,
+        finalidade_legitima: { type: "string", description: "Qual é o interesse da empresa" },
+        necessidade: { type: "string", description: "Dá para atingir o objetivo sem esses dados" },
+        balanceamento: { type: "string", description: "O que o titular espera e que impacto sofre" },
+        salvaguardas: { type: "string", description: "Medidas que reduzem o impacto" },
+        conclusao: { type: ["string", "null"], enum: ["prevalece", "nao_prevalece", null], description: "Conclusão PROPOSTA; a pessoa confirma ao concluir" },
+      },
+      required: ["projectId", "ropaId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "niso_privacy_registrar_pedido_titular",
+    description: `n.privacy: registra um pedido do titular recebido. O sistema gera o protocolo e congela o prazo a partir de parametros_legais; o agente não define nem edita prazo, não responde e não encerra (a resposta é registrada por uma pessoa). ${RASCUNHO_PRIVACY}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...P_PROJETO,
+        tipo: { type: "string", enum: ["confirmacao", "acesso", "correcao", "anonimizacao_bloqueio_eliminacao", "portabilidade", "informacao_compartilhamento", "revogacao_consentimento", "oposicao", "outro"] },
+        canal: { type: "string", enum: ["email", "telefone", "formulario", "presencial", "outro"] },
+        titular_nome: texto("Nome do titular (só o necessário para atender)"),
+        titular_contato: texto("Contato informado pelo titular"),
+        descricao: texto("O que o titular pediu"),
+        recebido_em: { type: "string", description: "AAAA-MM-DD (padrão: hoje)" },
+        responsavel_parte_id: texto("Id da parte responsável pelo atendimento"),
+      },
+      required: ["projectId", "tipo"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "niso_privacy_registrar_incidente",
+    description: `n.privacy: registra um incidente e, se informado, a avaliação de risco ao titular. O sistema gera o protocolo e os prazos de comunicação. O agente não encerra o incidente, não registra a comunicação enviada e não edita prazo: são atos de pessoas, pela interface. ${RASCUNHO_PRIVACY}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...P_PROJETO,
+        titulo: { type: "string" },
+        descricao: texto("O que aconteceu, sem dado pessoal de titular"),
+        ocorrido_em: texto("AAAA-MM-DD ou data e hora ISO"),
+        ciencia_em: { type: "string", description: "Quando a empresa soube: AAAA-MM-DD ou data e hora ISO" },
+        responsavel_parte_id: texto("Id da parte responsável"),
+        risco_titular: { type: "string", enum: ["sem_risco", "baixo", "relevante"], description: "Avaliação PROPOSTA do risco ao titular (opcional)" },
+        avaliacao_texto: texto("Fundamento da avaliação de risco"),
+      },
+      required: ["projectId", "titulo", "ciencia_em"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "niso_privacy_ligar_documento_requisito",
+    description: `n.privacy: liga um documento do projeto a requisitos do catálogo (LGPD, ANPD), para contar na cobertura. SOMA aos já ligados (desligar é pela interface). Só documento VIGENTE cobre o requisito; rascunho não conta. ${RASCUNHO_PRIVACY}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...P_PROJETO,
+        documentoId: { type: "string", description: "Id do documento (/documentos)" },
+        requisitos: { type: "array", items: { type: "string" }, minItems: 1, description: "Ids de requisitos do catálogo (ex.: lgpd:art37)" },
+      },
+      required: ["projectId", "documentoId", "requisitos"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 const projectIdSchema = z.object({ projectId: z.string() });
@@ -426,6 +621,41 @@ const projectIdSchema = z.object({ projectId: z.string() });
  * Codificado, o id é um segmento só; o transporte recusa o que sobrar.
  */
 const enc = encodeURIComponent;
+
+// ── n.privacy: esquemas estritos (campo desconhecido, inclusive `status`, é recusado) ──
+const zId = z.string().trim().min(1).max(200);
+const zTexto = z.string().trim().max(5000).nullable().optional();
+const zTratamento = {
+  processing_purpose: z.string().trim().min(1).max(500),
+  owner: zTexto,
+  owner_parte_id: zId.nullable().optional(),
+  data_subjects: zTexto,
+  criancas_adolescentes: z.boolean().optional(),
+  data_categories: zTexto,
+  dados_sensiveis: z.boolean().optional(),
+  legal_basis: zTexto,
+  base_legal_id: zId.nullable().optional(),
+  consent_details: zTexto,
+  data_subject_rights_details: zTexto,
+  recipients: zTexto,
+  retention_period: zTexto,
+  international_transfers: z.boolean().optional(),
+  transfer_safeguards: zTexto,
+  dpia_required: z.boolean().optional(),
+};
+const comProjeto = <T extends z.ZodRawShape>(shape: T) => z.object({ projectId: zId, ...shape }).strict();
+const comRopa = <T extends z.ZodRawShape>(shape: T) => comProjeto({ ropaId: zId, ...shape });
+const algumCampo = (v: Record<string, unknown>) => Object.values(v).some((x) => x !== undefined);
+
+type Registro = Record<string, unknown> & { id?: unknown; processing_purpose?: unknown; status?: unknown };
+type LigacoesLidas = {
+  base_legal: { referencia: string } | null; itens: { id: string }[]; departamentos: { id: string }[]; partes: unknown[];
+  transferencias: unknown[]; dpias: unknown[]; dpia_pendente: boolean; lia: unknown; terceiros_com_avaliacao_vencida: unknown[];
+};
+/** Teto de ligações lidas por chamada de niso_privacy_ropa: uma requisição por tratamento. */
+// ponytail: N+1 sobre GET .../ligacoes; acima de 50 tratamentos o resto pede niso_privacy_ropa_detalhe. Rota agregada se o RoPA crescer.
+const LIMITE_LIGACOES = 50;
+const normaliza = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 
 export async function executarFerramenta(
   nome: string,
@@ -451,6 +681,23 @@ export async function executarFerramenta(
   // de qualquer await (caminho suspeito no MCP remoto), a promessa já nasce
   // rejeitada; sem o await o tratador só entra microtasks depois, e o workerd
   // conta isso como rejeição não tratada (derrubou o CI do #213).
+  const projeto = (projectId: string) => `/api/v1/projects/${enc(projectId)}`;
+  // Leitura que COMPÕE outra chamada: o transporte local devolve o corpo de erro como dado ({ error }); aqui vira exceção.
+  const ler = async (path: string): Promise<unknown> => {
+    const d = await t.get(path);
+    if (d && typeof d === "object" && !Array.isArray(d) && typeof (d as { error?: unknown }).error === "string") {
+      throw new Error((d as { error: string }).error);
+    }
+    return d;
+  };
+  /** O tratamento DESTE projeto (a lista é escopada pela rota); serve de prova de que o id é do projeto antes de gravar. */
+  const tratamento = async (projectId: string, ropaId: string): Promise<Registro> => {
+    const { records = [] } = (await ler(`${projeto(projectId)}/ropa`)) as { records?: Registro[] };
+    const r = records.find((x) => x.id === ropaId);
+    if (!r) throw new Error(`Tratamento ${ropaId} não encontrado no projeto ${projectId}`);
+    return r;
+  };
+
   async function despachar(): Promise<unknown> {
     switch (nome) {
 
@@ -753,6 +1000,186 @@ export async function executarFerramenta(
           { id: validated.noteId },
           { response: validated.response }
         );
+      }
+
+      // ── n.privacy: leitura ───────────────────────────────────────────────
+      case "niso_privacy_ropa": {
+        const { projectId } = comProjeto({}).parse(args);
+        fora(projectId);
+        const { records = [] } = (await ler(`${projeto(projectId)}/ropa`)) as { records?: Registro[] };
+        let aviso: string | undefined;
+        const registros: Registro[] = [];
+        for (const [i, r] of records.entries()) {
+          let ligacoes: Record<string, unknown> | null = null;
+          if (aviso === undefined && i < LIMITE_LIGACOES) {
+            try {
+              const l = (await ler(`${projeto(projectId)}/ropa/${enc(String(r.id))}/ligacoes`)) as LigacoesLidas;
+              ligacoes = {
+                base_legal: l.base_legal?.referencia ?? null, itens: l.itens.length, departamentos: l.departamentos.length,
+                partes: l.partes.length, transferencias: l.transferencias.length, dpias: l.dpias.length, dpia_pendente: l.dpia_pendente,
+                lia: l.lia, terceiros_com_avaliacao_vencida: l.terceiros_com_avaliacao_vencida.length,
+              };
+            } catch (e) {
+              // Sem o n.privacy (no projeto ou na conta) as ligações dão 403: a lista do RoPA, que é do núcleo, segue.
+              aviso = `ligações não lidas: ${e instanceof Error ? e.message : "falha"}`;
+            }
+          }
+          registros.push({ ...r, ligacoes });
+        }
+        if (aviso === undefined && records.length > LIMITE_LIGACOES) {
+          aviso = `ligações resumidas só nos ${LIMITE_LIGACOES} primeiros; para os demais use niso_privacy_ropa_detalhe`;
+        }
+        return { total: records.length, registros, ...(aviso ? { aviso } : {}) };
+      }
+
+      case "niso_privacy_ropa_detalhe": {
+        const { projectId, ropaId } = comRopa({}).parse(args);
+        fora(projectId);
+        const registro = await tratamento(projectId, ropaId);
+        const ligacoes = await ler(`${projeto(projectId)}/ropa/${enc(ropaId)}/ligacoes`);
+        const { lia } = (await ler(`${projeto(projectId)}/ropa/${enc(ropaId)}/lia`)) as { lia: unknown };
+        return { registro, ligacoes, lia };
+      }
+
+      case "niso_privacy_requisitos_lacunas": {
+        const { projectId, fonte } = comProjeto({ fonte: z.enum(["lgpd", "anpd"]).optional() }).parse(args);
+        fora(projectId);
+        const lacunas = (f: string) => ler(`${projeto(projectId)}/requisitos/lacunas?fonte=${f}`);
+        return fonte ? await lacunas(fonte) : { lgpd: await lacunas("lgpd"), anpd: await lacunas("anpd") };
+      }
+
+      case "niso_privacy_titular_pedidos":
+      case "niso_privacy_incidentes":
+      case "niso_privacy_terceiros":
+      case "niso_privacy_encarregado":
+      case "niso_privacy_ponto_de_partida": {
+        const { projectId } = comProjeto({}).parse(args);
+        fora(projectId);
+        const area = {
+          niso_privacy_titular_pedidos: "titular-pedidos", niso_privacy_incidentes: "incidentes", niso_privacy_terceiros: "terceiros",
+          niso_privacy_encarregado: "encarregado", niso_privacy_ponto_de_partida: "ponto-de-partida",
+        }[nome];
+        return await ler(`${projeto(projectId)}/${area}`);
+      }
+
+      // ── n.privacy: escrita do consultor (sempre rascunho) ─────────────────
+      case "niso_privacy_propor_tratamento": {
+        const { projectId, ...campos } = comProjeto(zTratamento).parse(args);
+        fora(projectId);
+        const { records = [] } = (await ler(`${projeto(projectId)}/ropa`)) as { records?: Registro[] };
+        const igual = records.find((r) => normaliza(r.processing_purpose) === normaliza(campos.processing_purpose));
+        if (igual) throw new Error(`Já existe tratamento com esta finalidade (id ${String(igual.id)}): use niso_privacy_atualizar_tratamento`);
+        // O POST grava sempre Draft e ignora status: a aprovação é humana (pedido de aprovação ou assinatura).
+        const criado = (await t.contrato("POST /api/v1/projects/{projectId}/ropa", { projectId }, campos)) as { id?: unknown };
+        if (typeof criado?.id !== "string") return criado; // erro da API (transporte local devolve o corpo)
+        return { ...criado, status: "Draft", proximo_passo: "rascunho gravado; a aprovação é de uma pessoa, pela interface" };
+      }
+
+      case "niso_privacy_atualizar_tratamento": {
+        const { projectId, ropaId, ...mudancas } = comRopa(z.object(zTratamento).partial().shape).parse(args);
+        fora(projectId);
+        if (!algumCampo(mudancas)) throw new Error("Informe ao menos um campo do tratamento para alterar");
+        const atual = await tratamento(projectId, ropaId);
+        // O schema da rota exige a finalidade mesmo no PUT parcial: reenvia a gravada quando não muda.
+        const r = await t.contrato("PUT /api/v1/ropa/{id}", { id: ropaId }, { processing_purpose: atual.processing_purpose, ...mudancas });
+        return atual.status === "Approved"
+          ? { ...(r as object), aviso: "o tratamento estava aprovado: a edição substituiu o pedido de aprovação aberto; peça nova aprovação pela interface" }
+          : r;
+      }
+
+      case "niso_privacy_ligar_tratamento": {
+        const { projectId, ropaId, itens, departamentos, base_legal_id, legal_basis } = comRopa({
+          itens: z.array(zId).max(200).optional(),
+          departamentos: z.array(zId).max(200).optional(),
+          base_legal_id: zId.nullable().optional(),
+          legal_basis: zTexto,
+        }).parse(args);
+        fora(projectId);
+        if (!itens?.length && !departamentos?.length && base_legal_id === undefined && legal_basis === undefined) {
+          throw new Error("Informe itens, departamentos ou a base legal");
+        }
+        const atual = await tratamento(projectId, ropaId);
+        const base = `${projeto(projectId)}/ropa/${enc(ropaId)}`;
+        const lig = (await ler(`${base}/ligacoes`)) as LigacoesLidas;
+        const somar = (ja: { id: string }[], novos: string[]) => [...new Set([...ja.map((x) => x.id), ...novos])];
+        const feito: Record<string, unknown> = {};
+        if (itens?.length) {
+          feito.itens = await t.contrato("PUT /api/v1/projects/{projectId}/ropa/{recordId}/itens", { projectId, recordId: ropaId }, { itens: somar(lig.itens, itens) });
+        }
+        if (departamentos?.length) {
+          feito.departamentos = await t.contrato("PUT /api/v1/projects/{projectId}/ropa/{recordId}/departamentos", { projectId, recordId: ropaId },
+            { departamentos: somar(lig.departamentos, departamentos) });
+        }
+        if (base_legal_id !== undefined || legal_basis !== undefined) {
+          feito.base_legal = await t.contrato("PUT /api/v1/ropa/{id}", { id: ropaId }, {
+            processing_purpose: atual.processing_purpose,
+            ...(base_legal_id !== undefined ? { base_legal_id } : {}),
+            ...(legal_basis !== undefined ? { legal_basis } : {}),
+          });
+        }
+        return feito;
+      }
+
+      case "niso_privacy_criar_dpia_do_tratamento": {
+        const { projectId, ropaId } = comRopa({}).parse(args);
+        fora(projectId);
+        // Rota sem corpo (não está no contrato): a DPIA nasce Draft, pré-preenchida pelo servidor.
+        return await t.enviar(`/api/v1/projects/${enc(projectId)}/ropa/${enc(ropaId)}/dpia`);
+      }
+
+      case "niso_privacy_rascunhar_lia": {
+        // Sem `status`: o agente nunca conclui nem reabre (o .strict() recusa o campo).
+        const { projectId, ropaId, ...campos } = comRopa({
+          finalidade_legitima: z.string().trim().max(5000).optional(),
+          necessidade: z.string().trim().max(5000).optional(),
+          balanceamento: z.string().trim().max(5000).optional(),
+          salvaguardas: z.string().trim().max(5000).optional(),
+          conclusao: z.enum(["prevalece", "nao_prevalece"]).nullable().optional(),
+        }).parse(args);
+        fora(projectId);
+        if (!algumCampo(campos)) throw new Error("Informe ao menos um campo da LIA");
+        return await t.contrato("PUT /api/v1/projects/{projectId}/ropa/{recordId}/lia", { projectId, recordId: ropaId }, campos);
+      }
+
+      case "niso_privacy_registrar_pedido_titular": {
+        const { projectId, ...pedido } = comProjeto({
+          tipo: z.enum(["confirmacao", "acesso", "correcao", "anonimizacao_bloqueio_eliminacao", "portabilidade", "informacao_compartilhamento", "revogacao_consentimento", "oposicao", "outro"]),
+          canal: z.enum(["email", "telefone", "formulario", "presencial", "outro"]).optional(),
+          titular_nome: zTexto,
+          titular_contato: zTexto,
+          descricao: zTexto,
+          recebido_em: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use AAAA-MM-DD").optional(),
+          responsavel_parte_id: zId.nullable().optional(),
+        }).parse(args);
+        fora(projectId);
+        return await t.contrato("POST /api/v1/projects/{projectId}/titular-pedidos", { projectId }, pedido);
+      }
+
+      case "niso_privacy_registrar_incidente": {
+        const { projectId, risco_titular, avaliacao_texto, ...incidente } = comProjeto({
+          titulo: z.string().trim().min(1).max(500),
+          descricao: zTexto,
+          ocorrido_em: z.string().nullable().optional(),
+          ciencia_em: z.string().min(1),
+          responsavel_parte_id: zId.nullable().optional(),
+          risco_titular: z.enum(["sem_risco", "baixo", "relevante"]).optional(),
+          avaliacao_texto: zTexto,
+        }).parse(args);
+        fora(projectId);
+        const criado = (await t.contrato("POST /api/v1/projects/{projectId}/incidentes", { projectId }, incidente)) as { id?: string; error?: string };
+        if (!risco_titular || typeof criado?.id !== "string") return criado;
+        const avaliacao = await t.contrato("PUT /api/v1/projects/{projectId}/incidentes/{id}/risco", { projectId, id: criado.id },
+          { risco_titular, ...(avaliacao_texto !== undefined ? { avaliacao_texto } : {}) });
+        return { ...criado, avaliacao };
+      }
+
+      case "niso_privacy_ligar_documento_requisito": {
+        const { projectId, documentoId, requisitos } = comProjeto({ documentoId: zId, requisitos: z.array(zId).min(1).max(100) }).parse(args);
+        fora(projectId);
+        const caminho = `${projeto(projectId)}/documentos/${enc(documentoId)}/requisitos`;
+        const ja = (await ler(caminho)) as { id: string }[];
+        const todos = [...new Set([...ja.map((r) => r.id), ...requisitos])];
+        return await t.contrato("PUT /api/v1/projects/{projectId}/documentos/{id}/requisitos", { projectId, id: documentoId }, { requisitos: todos });
       }
 
       default:

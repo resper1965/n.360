@@ -110,3 +110,23 @@ describe('skill maturidade-lgpd', () => {
     expect(texto).toMatch(/Não é parecer jurídico/);
   });
 });
+
+describe('skills do n.privacy para o consultor', () => {
+  it('as quatro existem, apontadas pelos roteiros, param para aprovação humana e não fixam prazo legal', () => {
+    for (const nome of ['implantacao-privacy', 'migracao-programa', 'avaliacao-terceiros', 'atendimento-titular']) {
+      const texto = SKILLS[nome]?.arquivos['SKILL.md'];
+      expect(texto, nome).toBeTruthy();
+      expect(ROTEIROS, nome).toContain(nome);
+      expect(texto, nome).toContain('PEÇA APROVAÇÃO HUMANA');
+      expect(Object.keys(SKILLS[nome].arquivos).some((a) => a.startsWith('references/')), nome).toBe(true);
+    }
+    expect(SKILLS['implantacao-privacy'].arquivos['references/entrevista-ropa.md']).toMatch(/## A\.[\s\S]*## H\./);
+    const titular = SKILLS['atendimento-titular'].arquivos['SKILL.md'];
+    expect(titular).toContain('parametros_legais');
+    expect(titular).not.toMatch(/\b\d+\s+dias\b/);
+    for (const tipo of ['grande_provedor', 'medio', 'pequeno', 'critico', 'trust_center', 'questionario', 'auditoria']) {
+      expect(SKILLS['avaliacao-terceiros'].arquivos['SKILL.md'], tipo).toContain(tipo);
+    }
+    expect(SKILLS['migracao-programa'].arquivos['SKILL.md']).toContain('Importar programa');
+  });
+});

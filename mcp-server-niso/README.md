@@ -35,12 +35,14 @@ O endereco continua `https://niso.ness.com.br/mcp` com o n.360 como entrada da
 plataforma; o agente remoto trabalha com os modulos do projeto (n.iso, n.privacy).
 
 O metodo de trabalho tambem chega pelo MCP: `niso_skill` lista e entrega as skills do
-consultor (hoje `prontidao-certificacao`, a pre-avaliacao de prontidao para Stage 1 e 2, com
-referencias e o validador de achados, e `maturidade-lgpd`, os achados de maturidade do programa de
-privacidade, so leitura). Nada para instalar; o texto mora em
+consultor (hoje seis: `ls agent-skills`). `prontidao-certificacao`, a pre-avaliacao de prontidao para Stage 1 e 2, com
+referencias e o validador de achados; `maturidade-lgpd`, os achados de maturidade do programa de
+privacidade, so leitura; e as quatro do n.privacy, que propoem rascunho e param para aprovacao humana:
+`implantacao-privacy` (cliente novo, entrevista de RoPA em 8 blocos), `migracao-programa` (trazer um programa existente),
+`avaliacao-terceiros` (TPRM) e `atendimento-titular` (DSAR, prazo como parametro). Nada para instalar; o texto mora em
 `agent-skills/` e e atualizado junto com o deploy.
 
-O agente remoto tem o alcance do consultor humano no projeto escolhido no login: le qualquer area com `niso_ler` e grava com `niso_executar` ou com as ferramentas especificas. Apagar, gerar em lote, eliminar dados do titular e revogar aprovacoes exigem `confirmado_pelo_usuario: true`, que o agente so envia depois de mostrar o que sera feito e receber o 'sim'. Fora do alcance: usuarios, SSO, politica de seguranca, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificacoes), criar projeto, painel global, area comercial, /agentes, registro de achado de auditoria, importacao
+O agente remoto tem o alcance do consultor humano no projeto escolhido no login: le qualquer area com `niso_ler` e grava com `niso_executar` ou com as ferramentas especificas. No n.privacy, as ferramentas `niso_privacy_*` leem o programa e gravam so rascunho (tratamento em Draft, LIA em rascunho, DPIA em Draft, pedido do titular e incidente registrados); aprovar, concluir LIA, encerrar incidente e revogar consentimento ficam com uma pessoa, pela interface. Apagar, gerar em lote, eliminar dados do titular e revogar aprovacoes exigem `confirmado_pelo_usuario: true`, que o agente so envia depois de mostrar o que sera feito e receber o 'sim'. Fora do alcance: usuarios, SSO, politica de seguranca, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificacoes), criar projeto, painel global, area comercial, /agentes, registro de achado de auditoria, importacao
 de programa e os rascunhos de IA do n.privacy (que sao da tela). Para outro projeto, refaca o login.
 
 | Cliente | Onde | Trecho | Estado |
@@ -95,7 +97,7 @@ Variável | Default | O que faz
 `NISO_BASE_URL` | `https://niso.ness.com.br` | Base da API. Aponte para `http://localhost:8787` em desenvolvimento.
 `NISO_API_KEY` | — | Chave de API do projeto. Sem ela o servidor sobe, mas toda chamada volta 401.
 `NISO_ROLE` | vazio (todas as ferramentas) | `consultant` ou `auditor`. Ver abaixo.
-`NISO_READONLY` | `false` | `1`/`true` → só as 9 ferramentas de leitura, ignorando `NISO_ROLE`. Observador puro.
+`NISO_READONLY` | `false` | `1`/`true` → só as 17 ferramentas de leitura, ignorando `NISO_ROLE`. Observador puro.
 `NISO_PROJECT_ID` | vazio | Fixa a sessão num projeto: chamada com outro `projectId` é recusada antes de sair da máquina.
 
 ## Papéis: independência de auditoria na camada MCP
@@ -106,8 +108,8 @@ agente recebe:
 
 Papel | Enxerga
 ---|---
-`auditor` | 9 ferramentas de leitura + `niso_create_audit_finding`, `niso_create_auditor_note`
-`consultant` | 9 ferramentas de leitura + todas as demais escritas (política, SoA, risco, ativo, evidência, 27701, treinamento)
+`auditor` | 17 ferramentas de leitura (9 do n.iso, 8 do n.privacy) + `niso_create_audit_finding`, `niso_create_auditor_note` (19)
+`consultant` | 17 ferramentas de leitura + todas as demais escritas: política, SoA, risco, ativo, evidência, 27701, treinamento e as 8 de rascunho do n.privacy (37)
 vazio | tudo — use só em desenvolvimento
 
 O filtro é aplicado **duas vezes**: em `ListTools` (o agente não vê o que não é
@@ -139,7 +141,7 @@ Os dois recebem também o limite de projeto: a chave de API é vinculada a **um*
 projeto, e nenhum agente alcança outro. Com `NISO_PROJECT_ID`, o contexto nomeia
 qual.
 
-Rodar sem `NISO_ROLE` recebe um contexto próprio, avisando que as 23 ferramentas
+Rodar sem `NISO_ROLE` recebe um contexto próprio, avisando que as 39 ferramentas
 estão na mesma sessão e que isso mistura os dois lados que a norma separa.
 
 ## Chave de API: `read` não escreve
@@ -171,15 +173,27 @@ numa máquina de desenvolvedor — trate como tal.
 
 ## Ferramentas
 
-**Leitura (9)** — `niso_list_projects`, `niso_get_project`, `niso_list_controls`,
+39 ao todo (`grep -c '^    name: "niso_' src/ferramentas.ts`, 2026-10-13).
+
+**Leitura do n.iso (9)** — `niso_list_projects`, `niso_get_project`, `niso_list_controls`,
 `niso_list_risks`, `niso_gap_analysis`, `niso_traceability`, `niso_list_evidence`,
 `niso_audit_pack`, `niso_coherence_check`
+
+**Leitura do n.privacy (8)** — `niso_privacy_ropa`, `niso_privacy_ropa_detalhe`,
+`niso_privacy_requisitos_lacunas`, `niso_privacy_titular_pedidos`, `niso_privacy_incidentes`,
+`niso_privacy_terceiros`, `niso_privacy_encarregado`, `niso_privacy_ponto_de_partida`
 
 **Escrita do consultor (12)** — `niso_create_risk`, `niso_update_risk`, `niso_create_asset`,
 `niso_create_evidence`, `niso_generate_policy`, `niso_generate_policies_bulk`,
 `niso_evaluate_evidence`, `niso_update_policy`,
 `niso_update_control`, `niso_migrate_27701`, `niso_import_training`,
 `niso_respond_auditor_note`
+
+**Escrita do consultor no n.privacy, só rascunho (8)** — `niso_privacy_propor_tratamento` (Draft),
+`niso_privacy_atualizar_tratamento` (sem status), `niso_privacy_ligar_tratamento`,
+`niso_privacy_criar_dpia_do_tratamento` (Draft), `niso_privacy_rascunhar_lia` (nunca conclui),
+`niso_privacy_registrar_pedido_titular`, `niso_privacy_registrar_incidente`,
+`niso_privacy_ligar_documento_requisito`. Esquema estrito: campo desconhecido, inclusive `status`, é recusado antes da API.
 
 **Escrita do auditor (2)** — `niso_create_audit_finding`, `niso_create_auditor_note`
 

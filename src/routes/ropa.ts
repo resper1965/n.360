@@ -148,6 +148,10 @@ projectRopaApp.put('/:recordId/lia', async (c) => {
   try {
     const v = await validateBody(c, liaSalvarSchema);
     if (!v.success) return v.response;
+    // O agente (MCP) rascunha; concluir ou reabrir a LIA é ato de uma pessoa, pela interface.
+    if (c.get('user')?.agente === true && v.data.status !== undefined) {
+      return c.json({ error: 'Forbidden: concluir ou reabrir a LIA é ato humano, pela interface' }, 403);
+    }
     const r = await salvarLia(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'), c.get('user')?.email || 'system', v.data);
     return r.ok ? c.json({ ok: true, id: r.id }, r.criada ? 201 : 200) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao salvar a LIA', e); }
