@@ -151,6 +151,21 @@ describe('DELETE /users/:id desativa; apagar de fato só com ?definitivo=1 e pla
   });
 });
 
+describe('?definitivo=1 numa conta com histórico', () => {
+  it('anonimiza em vez de falhar: a linha fica (a autoria do histórico), sem identidade, sem acesso e com o e-mail livre', async () => {
+    await env.DB.prepare(`INSERT INTO legal_documents (id, kind, version, classification, title) VALUES ('ld1','termo','1','comum','Termo')`).run();
+    await env.DB.prepare(`INSERT INTO legal_acceptances (id, user_id, document_id) VALUES ('la1','u-cli','ld1')`).run();
+    const r = await chamar('DELETE', '/api/v1/users/u-cli?definitivo=1', pa);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ ok: true, anonimizado: true });
+    const u = await env.DB.prepare(`SELECT email, name, ativo, password_hash FROM users WHERE id = 'u-cli'`).first<any>();
+    expect(u).toMatchObject({ name: 'Conta removida', ativo: 0, password_hash: '!' });
+    expect(u.email).toMatch(/^removida\+u-cli@/);
+    expect(await env.DB.prepare(`SELECT 1 FROM users WHERE lower(email) = 'cli@cliente.com'`).first()).toBeNull();
+    expect((await trilha('user.anonimizado')).length).toBe(1);
+  });
+});
+
 describe('trilha de acessos e de alterações', () => {
   it('login por senha grava auth.login com o projeto; e-mail inexistente não entra na trilha', async () => {
     expect((await login('cli@cliente.com')).status).toBe(200);
