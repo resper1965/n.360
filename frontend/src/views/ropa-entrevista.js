@@ -74,12 +74,18 @@ const VOLUME_ALTO = ['10mil-100mil', '100mil+'];
 const CATEGORIAS_ITEM = [op('Software', 'Sistema (software, aplicativo, API)'), op('Informacao', 'Arquivo ou base de dados'), op('Hardware', 'Equipamento')];
 const ROTULO_CATEGORIA = { Software: 'sistema', Informacao: 'arquivo ou base', Hardware: 'equipamento', Pessoas: 'pessoas' };
 // O que cada "Cadastrar agora" cria, pela rota de sempre do cadastro (partes.js, monitor.js).
+// Um literal /api/v1 por rota: test/contrato-tela-api.test.ts só confere o que consegue ler no fonte.
+const criarCadastro = (tipo, pid, corpo) =>
+    tipo === 'pessoa' ? api('POST', `/api/v1/projects/${pid}/partes`, corpo)
+    : tipo === 'area' ? api('POST', `/api/v1/projects/${pid}/departamentos`, corpo)
+    : api('POST', `/api/v1/projects/${pid}/assets`, corpo);
+
 const CADASTROS = {
-    pessoa: { nome: 'Pessoa', lista: 'pessoas', detalhe: (x) => x.email || 'pessoa', rota: (pid) => `/api/v1/projects/${pid}/partes`,
+    pessoa: { nome: 'Pessoa', lista: 'pessoas', detalhe: (x) => x.email || 'pessoa',
         corpo: (f) => ({ tipo: 'pessoa', nome: f.nome, email: f.email || null }), novo: (id, f) => ({ id, nome: f.nome, email: f.email || null, tipo: 'pessoa', status: 'ativa' }) },
-    area: { nome: 'Área', lista: 'deptos', detalhe: () => 'área', rota: (pid) => `/api/v1/projects/${pid}/departamentos`,
+    area: { nome: 'Área', lista: 'deptos', detalhe: () => 'área',
         corpo: (f) => ({ nome: f.nome }), novo: (id, f) => ({ id, nome: f.nome }) },
-    item: { nome: 'Sistema ou arquivo', lista: 'itens', detalhe: (x) => ROTULO_CATEGORIA[x.category] || 'item', rota: (pid) => `/api/v1/projects/${pid}/assets`,
+    item: { nome: 'Sistema ou arquivo', lista: 'itens', detalhe: (x) => ROTULO_CATEGORIA[x.category] || 'item',
         corpo: (f) => ({ name: f.nome, category: f.categoria }), novo: (id, f) => ({ id, name: f.nome, category: f.categoria }) },
 };
 
@@ -737,7 +743,7 @@ window.reCadastrar = async function () {
     if (igual) { erro(`Já existe com este nome: ${igual.item.nome}. Use o existente.`); return; }
     f.gravando = true;
     let id;
-    try { id = (await api('POST', k.rota(st.projectId), k.corpo(dados))).id; }
+    try { id = (await criarCadastro(p.cadastro, st.projectId, k.corpo(dados))).id; }
     catch (e) { f.gravando = false; erro(`Não foi possível cadastrar: ${e.message}`); return; }
     ctx[k.lista].push(k.novo(id, dados));
     st.criados.push({ tipo: k.nome, nome: dados.nome });
