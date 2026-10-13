@@ -72,6 +72,30 @@ describe('RoPA: dados sensíveis (art. 11) e crianças e adolescentes (art. 14)'
     ]);
   }, 30_000);
 
+  it('importação de programa sem os riscos: lista e relatório dizem "não informado" até o registro ser editado', async () => {
+    const agora = '2026-10-01T10:00:00.000Z';
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO importacoes (id, project_id, status) VALUES ('rl-lote', ?, 'concluida')`).bind(P),
+      env.DB.prepare(`INSERT INTO importacao_arquivos (id, importacao_id, project_id, nome, mime, tamanho, r2_key) VALUES ('rl-arq', 'rl-lote', ?, 'inventario.csv', 'text/csv', 1, 'k')`).bind(P),
+      env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, created_at, updated_at) VALUES ('rl-imp', ?, 'Cadastro de visitantes', ?, ?)`).bind(P, agora, agora),
+      env.DB.prepare(`INSERT INTO importacao_itens (id, importacao_id, arquivo_id, project_id, entidade, dados, decisao, registro_id) VALUES ('rl-it', 'rl-lote', 'rl-arq', ?, 'tratamento', ?, 'gravado', 'rl-imp')`)
+        .bind(P, JSON.stringify({ finalidade: 'Cadastro de visitantes', dados_sensiveis: false })),
+    ]);
+    const lista = async () => ((await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/ropa`)).json()) as { records: Record<string, unknown>[] }).records;
+    const imp = (await lista()).find((x) => x.id === 'rl-imp')!;
+    // dados_sensiveis veio explícito (false): é "não" de verdade; os outros dois não vieram
+    expect(imp.nao_informado).toEqual(['criancas_adolescentes', 'international_transfers']);
+    expect(imp).not.toHaveProperty('dados_importados');
+    // registro criado na tela não tem marca
+    expect((await lista()).filter((x) => x.id !== 'rl-imp').every((x) => Array.isArray(x.nao_informado) && (x.nao_informado as string[]).length === 0)).toBe(true);
+    expect(await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/ropa/report`)).text()).toContain('Não informado (importado, não revisado)');
+
+    // Editar é revisar: a marca some
+    expect((await chamar(consultor, 'PUT', `/api/v1/ropa/rl-imp`, { processing_purpose: 'Cadastro de visitantes', criancas_adolescentes: 0, international_transfers: 0 })).status).toBe(200);
+    expect((await lista()).find((x) => x.id === 'rl-imp')!.nao_informado).toEqual([]);
+    expect(await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/ropa/report`)).text()).not.toContain('Não informado');
+  }, 30_000);
+
   it('importação de programa: os dois campos são opcionais no tratamento proposto', () => {
     expect(tratamentoPropostoSchema.safeParse({ finalidade: 'X' }).success).toBe(true);
     expect(tratamentoPropostoSchema.safeParse({ finalidade: 'X', dados_sensiveis: true, criancas_adolescentes: false }).success).toBe(true);

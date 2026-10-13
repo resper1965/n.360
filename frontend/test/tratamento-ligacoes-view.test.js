@@ -120,6 +120,15 @@ describe('ações', () => {
         expect(corpoDe(f, 'PUT /api/v1/ropa/r1')).toEqual({ processing_purpose: 'Folha de <b>pagamento</b>', base_legal_id: null });
     });
 
+    it('salvar base do catálogo grava também o texto da hipótese (art. 7 e art. 11)', async () => {
+        const f = await abrir({ 'PUT /api/v1/ropa/r1': { ok: true } });
+        const sel = el('tl-base');
+        sel.innerHTML += '<option value="lgpd:art11:ii-f">art. 11, II, f</option>';
+        sel.value = 'lgpd:art11:ii-f';
+        await window.salvarBaseLegalTratamento('p9', 'r1');
+        expect(corpoDe(f, 'PUT /api/v1/ropa/r1')).toEqual({ processing_purpose: 'Folha de <b>pagamento</b>', base_legal_id: 'lgpd:art11:ii-f', legal_basis: 'Tutela da saúde (art. 11)' });
+    });
+
     it('ligar parte usa o vínculo existente com alvo tratamento; remover chama o DELETE do vínculo', async () => {
         const f = await abrir({ 'POST /api/v1/projects/p9/partes/pa1/vinculos': { ok: true, id: 'v2' }, 'DELETE /api/v1/projects/p9/partes/pa1/vinculos/v1': { ok: true } });
         el('tl-papel').value = 'suboperador';
@@ -271,7 +280,8 @@ describe('sugestão da IA', () => {
         expect(chamadas(f)).not.toContain('PUT /api/v1/ropa/r1');
         el('tl-sug-ret').value = ' 2 anos ';
         await window.aplicarSugestaoTratamento('p9', 'r1');
-        expect(corpoDe(f, 'PUT /api/v1/ropa/r1')).toEqual({ processing_purpose: 'Folha de <b>pagamento</b>', base_legal_id: 'lgpd:art7:i', retention_period: '2 anos', dpia_required: true });
+        // o catálogo manda: o texto da hipótese sai do id, junto (a LIA, o PDF e os pedidos leem o texto)
+        expect(corpoDe(f, 'PUT /api/v1/ropa/r1')).toEqual({ processing_purpose: 'Folha de <b>pagamento</b>', base_legal_id: 'lgpd:art7:i', legal_basis: 'Consentimento', retention_period: '2 anos', dpia_required: true });
     });
 
     it('org_admin vê Sugerir; org_user não; falha do servidor vira aviso', async () => {
