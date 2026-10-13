@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
-vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://localhost' }));
+vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://localhost', cabecalhosAuth: () => ({ Authorization: 'Bearer tok-sessao' }) }));
 vi.mock('../src/router.js', () => ({ render: vi.fn(), navigate: vi.fn() }));
 
 import { S } from '../src/state.js';
@@ -83,9 +83,13 @@ describe('base legal do RoPA', () => {
 });
 
 describe('formulário do RoPA', () => {
-    it('status com rótulo em PT e valor em inglês', async () => {
+    it('criação não oferece status (o POST grava sempre rascunho); edição tem status com rótulo em PT e valor em inglês', async () => {
         await window.openNewROPAModal('p1');
-        expect([...el('ropa-status').options].map((o) => [o.value, o.textContent])).toEqual([['Active', 'Ativo'], ['Inactive', 'Inativo']]);
+        expect(el('ropa-status')).toBeNull();
+        expect(el('ropa-nasce-rascunho').textContent).toContain('rascunho');
+        el('ropa-purpose').value = 'Folha';
+        await window.createROPA('p1');
+        expect(apiMock.mock.calls.find((c) => c[0] === 'POST')[2]).not.toHaveProperty('status');
         S.ropa = [{ id: 'r1', project_id: 'p1', processing_purpose: 'X', status: 'Draft' }];
         await window.openEditROPAModal('r1');
         expect([...el('ropa-e-status').options].map((o) => o.textContent)).toEqual(['Ativo', 'Inativo', 'Rascunho', 'Em revisão']);
@@ -132,13 +136,87 @@ describe('formulário do RoPA', () => {
     });
 });
 
+describe('correções P0 do RoPA', () => {
+    it('base legal: o texto escolhido leva junto o id do catálogo quando ele está carregado', async () => {
+        rotas['/requisitos?fonte=lgpd'] = [{ id: 'lgpd:art7:ix', pai_id: 'lgpd:art7' }];
+        await window.openNewROPAModal('p1');
+        el('ropa-purpose').value = 'Prevenção a fraude';
+        el('ropa-basis').value = 'Legítimo interesse';
+        await window.createROPA('p1');
+        expect(apiMock.mock.calls.find((c) => c[0] === 'POST')[2]).toMatchObject({ legal_basis: 'Legítimo interesse', base_legal_id: 'lgpd:art7:ix' });
+    });
+
+    it('finalidade vazia e falha do servidor viram aviso, sem fechar o formulário em silêncio', async () => {
+        await window.openNewROPAModal('p1');
+        await window.createROPA('p1');
+        expect(apiMock.mock.calls.some((c) => c[0] === 'POST')).toBe(false);
+        expect(document.querySelector('.toast').textContent).toContain('Informe a finalidade');
+        apiMock.mockImplementation((m) => (m === 'POST' ? Promise.reject(new Error('Falha simulada')) : Promise.resolve([])));
+        el('ropa-purpose').value = 'Folha';
+        await window.createROPA('p1');
+        expect([...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' ')).toContain('Falha simulada');
+        expect(el('ropa-purpose')).not.toBeNull();
+    });
+
+    it('editar registro aprovado pede confirmação antes do PUT; cancelar não grava', async () => {
+        window.confirmar = vi.fn(async () => false);
+        S.ropa = [{ id: 'r1', project_id: 'p1', processing_purpose: 'Folha', status: 'Approved' }];
+        await window.openEditROPAModal('r1');
+        await window.updateROPA('r1');
+        expect(window.confirmar).toHaveBeenCalledTimes(1);
+        expect(window.confirmar.mock.calls[0][0]).toContain('substitui o pedido de aprovação');
+        expect(apiMock.mock.calls.some((c) => c[0] === 'PUT')).toBe(false);
+        window.confirmar = vi.fn(async () => true);
+        await window.updateROPA('r1');
+        expect(apiMock.mock.calls.some((c) => c[0] === 'PUT')).toBe(true);
+        // sem aprovação nenhuma, não pergunta
+        window.confirmar = vi.fn(async () => true);
+        S.ropa = [{ id: 'r2', project_id: 'p1', processing_purpose: 'Cobrança', status: 'Draft', aprovacao_pedido: { ciso: null, ceo: null } }];
+        await window.openEditROPAModal('r2');
+        await window.updateROPA('r2');
+        expect(window.confirmar).not.toHaveBeenCalled();
+    });
+
+    it('relatório do RoPA e do RIPD: busca com o cabeçalho da sessão e abre o blob; token nunca na URL', async () => {
+        const f = vi.fn(async () => ({ ok: true, status: 200, text: async () => '<html>relatório</html>' }));
+        vi.stubGlobal('fetch', f);
+        const abre = vi.fn(() => ({}));
+        vi.stubGlobal('open', abre);
+        URL.createObjectURL = vi.fn(() => 'blob:relatorio');
+        URL.revokeObjectURL = vi.fn();
+        S.token = 'tok-sessao';
+        await window.openROPAReport('p1');
+        await window.openDPIAReport('p1', 'd1');
+        expect(f.mock.calls.map((c) => c[0])).toEqual(['http://localhost/api/v1/projects/p1/ropa/report', 'http://localhost/api/v1/projects/p1/dpia/d1/report']);
+        expect(f.mock.calls[0][1].headers).toEqual({ Authorization: 'Bearer tok-sessao' });
+        expect(abre).toHaveBeenCalledWith('blob:relatorio', '_blank');
+        expect(fonte).not.toContain('token=');
+        vi.unstubAllGlobals();
+    });
+
+    it('registro importado com risco não informado ganha o selo "Importado: revisar"', async () => {
+        rotas['/ropa'] = [{ id: 'r1', project_id: 'p1', processing_purpose: 'Visitantes', nao_informado: ['criancas_adolescentes'] },
+            { id: 'r2', project_id: 'p1', processing_purpose: 'Folha', nao_informado: [] }];
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        const linhas = [...el('c').querySelectorAll('tbody tr')].map((tr) => tr.textContent);
+        expect(linhas.find((t) => t.includes('Visitantes'))).toContain('Importado: revisar');
+        expect(linhas.find((t) => t.includes('Folha'))).not.toContain('Importado');
+        // cada linha oferece continuar a entrevista
+        expect(el('c').querySelectorAll('[data-action="abrirRopaEntrevista"]')).toHaveLength(2);
+        expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade (entrevista)');
+    });
+});
+
 describe('lista do RoPA', () => {
     it('vazia: explica o art. 37 e oferece registrar e importar', async () => {
         await window.renderROPA(el('c'), el('h'), el('a'));
         expect(el('h').textContent).toContain('RoPA');
         expect(el('c').textContent).toContain('O inventário de tratamentos (art. 37) está vazio.');
         const acoes = [...el('c').querySelectorAll('.empty-state [data-action]')].map((b) => b.getAttribute('data-action'));
-        expect(acoes).toEqual(['openNewROPAModal', 'openImportarRopaModal']);
+        expect(acoes).toEqual(['abrirRopaEntrevista', 'openNewROPAModal', 'openImportarRopaModal']);
+        // a entrevista é o botão principal; o formulário inteiro fica como edição avançada
+        expect(el('c').querySelector('.empty-state [data-action="abrirRopaEntrevista"]').className).toContain('btn-primary');
+        expect(el('c').querySelector('.empty-state [data-action="openNewROPAModal"]').textContent).toBe('Edição avançada');
     });
 
     it('legítimo interesse: botão "Base legal e LIA" e cartão de LIA pendente vindo da visão do encarregado', async () => {

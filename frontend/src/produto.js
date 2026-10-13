@@ -108,7 +108,7 @@ export function destinoDoAviso(tela, loc = window.location) {
  */
 export const TELAS_DOS_MODULOS = ['dashboard', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
     'policies-dashboard', 'risks', 'vendors', 'partes', 'documentos', 'requisitos', 'terceiros', 'titular', 'encarregado', 'importacao',
-    'training', 'ropa', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
+    'training', 'ropa', 'ropa-entrevista', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
 const CHAVE_AVISO = 'n360_aviso';

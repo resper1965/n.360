@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML } from '../ui.js';
+import { textoDaBase } from '../bases-legais.js';
 
 // Ligações do registro do RoPA (fatia 4.1 e 4.2 do núcleo): base legal do catálogo, itens, departamentos, partes,
 // transferências internacionais e o diagrama derivado. Toda regra é do servidor; aqui só se mostra e se chama.
@@ -162,10 +163,14 @@ window.salvarItensTratamento = (projectId, ropaId) => acao(projectId, ropaId,
 window.salvarDepartamentosTratamento = (projectId, ropaId) => acao(projectId, ropaId,
     () => api('PUT', `/api/v1/projects/${projectId}/ropa/${ropaId}/departamentos`, { departamentos: marcadosDe('depto') }), 'Não foi possível salvar os departamentos', 'Departamentos salvos.');
 
+// O catálogo manda: o texto de `legal_basis` (que a LIA, o PDF e os pedidos leem) sai do id escolhido. "Sem base do catálogo" só
+// desliga o id: o texto gravado (às vezes texto livre importado, sem id) não se perde por um Salvar sem escolha.
+const baseCoerente = (id) => (id ? { base_legal_id: id, ...(textoDaBase(id) ? { legal_basis: textoDaBase(id) } : {}) } : { base_legal_id: null });
+
 window.salvarBaseLegalTratamento = (projectId, ropaId) => {
     const registro = (S.ropa || []).find((r) => r.id === ropaId) || {};
     return acao(projectId, ropaId,
-        () => api('PUT', `/api/v1/ropa/${ropaId}`, { processing_purpose: registro.processing_purpose, base_legal_id: el('tl-base').value || null }),
+        () => api('PUT', `/api/v1/ropa/${ropaId}`, { processing_purpose: registro.processing_purpose, ...baseCoerente(el('tl-base').value) }),
         'Não foi possível salvar a base legal', 'Base legal salva.');
 };
 
@@ -187,7 +192,7 @@ window.sugerirTratamento = async function (projectId, ropaId) {
 window.aplicarSugestaoTratamento = (projectId, ropaId) => {
     const registro = (S.ropa || []).find((r) => r.id === ropaId) || {};
     return acao(projectId, ropaId, () => api('PUT', `/api/v1/ropa/${ropaId}`, {
-        processing_purpose: registro.processing_purpose, base_legal_id: el('tl-sug-base').value || null,
+        processing_purpose: registro.processing_purpose, ...baseCoerente(el('tl-sug-base').value),
         retention_period: el('tl-sug-ret').value.trim() || null, dpia_required: el('tl-sug-dpia').checked,
     }), 'Não foi possível aplicar a sugestão', 'Sugestão aplicada ao registro.');
 };
