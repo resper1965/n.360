@@ -12,7 +12,7 @@
 
 ## Restrições globais
 
-As do plano da fatia 4 (`docs/superpowers/plans/2026-10-02-propostas-fatia4.md`), mais: próxima migration **0040**; **todo implementador roda as duas suítes inteiras** (backend `npx vitest run --maxWorkers=2`, frontend `cd frontend && npx vitest run`) antes de entregar; qualquer rota nova entra em `src/openapi.ts` (se tem corpo) e é classificada nos testes que percorrem `app.routes` (`trilha-exclusao`, `contrato-isolamento-topo`, o novo de organização); **falha fechada**: em dúvida sobre a organização, nega.
+As do plano da fatia 4 (`docs/arquivo/planos/2026-10-02-propostas-fatia4.md`), mais: próxima migration **0040**; **todo implementador roda as duas suítes inteiras** (backend `npx vitest run --maxWorkers=2`, frontend `cd frontend && npx vitest run`) antes de entregar; qualquer rota nova entra em `src/openapi.ts` (se tem corpo) e é classificada nos testes que percorrem `app.routes` (`trilha-exclusao`, `contrato-isolamento-topo`, o novo de organização); **falha fechada**: em dúvida sobre a organização, nega.
 
 ## Decisões (rulings)
 

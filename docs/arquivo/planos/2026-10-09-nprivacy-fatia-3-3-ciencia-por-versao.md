@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Steps use checkbox (`- [ ]`).
 
-**Spec:** `docs/superpowers/specs/2026-10-06-nucleo-comum-nprivacy-design.md`, seção 4.6 ("A ciência aponta para a versão", migração e `policy_acknowledgments` congelado). Decomposição: `docs/superpowers/plans/2026-10-09-nprivacy-fatia-3-documentos.md`.
+**Spec:** `docs/superpowers/specs/2026-10-06-nucleo-comum-nprivacy-design.md`, seção 4.6 ("A ciência aponta para a versão", migração e `policy_acknowledgments` congelado). Decomposição: `docs/arquivo/planos/2026-10-09-nprivacy-fatia-3-documentos.md`.
 
 **Goal:** a ciência passa a apontar para a **versão do documento**: o pedido congela o texto vigente, publicar versão nova substitui o pedido aberto e a ciência antiga continua válida como "versão anterior"; o portal público `/politicas` lista os documentos vigentes e registra a ciência como prova (hash, IP, user-agent), e nada novo entra em `policy_acknowledgments` pelo portal.
 

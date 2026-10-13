@@ -21,6 +21,23 @@ Arquivados em 2026-10-06 (arrumação final, Tarefa 11), com `git mv` para prese
 | [`backlog-plan.md`](backlog-plan.md) | Sucedido pelo plano de fechamento de outubro (`docs/plano-2026-10-fechamento.md`), que cita os itens dele que seguiam abertos |
 | [`reconciliacao-migrations-2026-08.md`](reconciliacao-migrations-2026-08.md) | Runbook do incidente de 2026-08 (antes no topo de `migrations/README.md`) |
 
+## Planos de outubro/2026, arquivados em 2026-10-12
+
+Saíram de `docs/superpowers/plans/` com `git mv` na higienização de 12/10, depois de entregues (`git log --oneline --since=2026-10-06`).
+As caixas `- [ ]` dos planos nunca foram marcadas: a prova da entrega é o PR, não a caixa.
+
+| Documentos (em `planos/`) | Entregue em |
+|---|---|
+| [`2026-10-05-plano-mestre-execucao.md`](planos/2026-10-05-plano-mestre-execucao.md), [`2026-10-06-arrumacao-final.md`](planos/2026-10-06-arrumacao-final.md) (inventários em [`arrumacao/`](arrumacao/inventario-docs.md)) | #291 (versão 11.0.0) |
+| `2026-10-07-fatia-0-chao-firme.md`, `2026-10-07-p1` a `p5`, `2026-10-07-avisos-de-prazo.md` | #293, #294, #295 |
+| `2026-10-08-finalizacao-niso.md`, `2026-10-08-papeis-conectores.md` | #298, #299 (o login real em Cursor, Codex e Antigravity segue com o dono) |
+| `2026-10-09-nprivacy-*` (fatias 1.1 a 8 e o plano mestre das fatias 2 a 8) | #312 a #331 |
+| `2026-10-10-integracao-produtos.md` | #333 |
+| `2026-10-11-n360-casca.md`, `2026-10-11-importacao-privacy.md` | #337, #339 |
+| `2026-10-12-n360-modulos-por-pessoa.md`, `2026-10-12-finalizacao.md` | #342; #340 a #351 |
+
+As specs desses planos continuam em `docs/superpowers/specs/`: descrevem o desenho vigente e o código as cita.
+
 ## Avaliações e triagens datadas
 
 | Documento | Por que saiu |

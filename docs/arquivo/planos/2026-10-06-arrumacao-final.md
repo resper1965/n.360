@@ -10,7 +10,7 @@
 
 **Tech Stack:** Cloudflare Workers + Hono + D1 + KV + R2 + Vectorize, SPA vanilla JS (Vite), vitest com @cloudflare/vitest-pool-workers, GitHub Actions.
 
-**Spec:** desenho aprovado em chat em 2026-10-06 (ondas 0–7), mais os inventários `docs/superpowers/arrumacao/inventario-docs.md` e `inventario-github.md`, e o relatório de finalização (resumido na seção "Fatos de base" abaixo).
+**Spec:** desenho aprovado em chat em 2026-10-06 (ondas 0–7), mais os inventários `docs/arquivo/arrumacao/inventario-docs.md` e `inventario-github.md`, e o relatório de finalização (resumido na seção "Fatos de base" abaixo).
 
 ## Decisões do dono (2026-10-06)
 

@@ -12,7 +12,7 @@
 
 ## Restrições globais
 
-As do plano da fatia 3 (`docs/superpowers/plans/2026-10-02-propostas-fatia3.md`), mais: próxima migration **0039**; rotas públicas ficam no `publicApp` (montado antes do `authMiddleware`) e **precisam** de limite de taxa próprio (`rateLimitD1`, por token e por IP); token com `genToken` (CSPRNG), guardado só como **SHA-256** (`token_hash`), nunca em claro, comparado por consulta ao hash; **cada implementador roda `npm test` inteiro e `cd frontend && npx vitest run` inteiro antes de entregar**; commits com rodapé `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`; nenhuma credencial em log nem em mensagem de erro; página pública sem handler/`<script>` inline (CSP `script-src 'self'`); tabela nova com `CHECK` de enum entra em `VALOR_FIXO` de `test/contrato-isolamento-topo.test.ts`.
+As do plano da fatia 3 (`docs/arquivo/planos/2026-10-02-propostas-fatia3.md`), mais: próxima migration **0039**; rotas públicas ficam no `publicApp` (montado antes do `authMiddleware`) e **precisam** de limite de taxa próprio (`rateLimitD1`, por token e por IP); token com `genToken` (CSPRNG), guardado só como **SHA-256** (`token_hash`), nunca em claro, comparado por consulta ao hash; **cada implementador roda `npm test` inteiro e `cd frontend && npx vitest run` inteiro antes de entregar**; commits com rodapé `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`; nenhuma credencial em log nem em mensagem de erro; página pública sem handler/`<script>` inline (CSP `script-src 'self'`); tabela nova com `CHECK` de enum entra em `VALOR_FIXO` de `test/contrato-isolamento-topo.test.ts`.
 
 ## Decisões (rulings)
 

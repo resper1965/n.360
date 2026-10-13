@@ -13,7 +13,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 ## [Não publicado]
 
 ### Operação
-- 2026-10-12: entrega do plano `docs/superpowers/plans/2026-10-12-finalizacao.md`. Ordem das publicações: #343, #353, #345, #310, #347, #344, #346, #348, #349 (com #350 e #351) e #340.
+- 2026-10-12: entrega do plano `docs/arquivo/planos/2026-10-12-finalizacao.md`. Ordem das publicações: #343, #353, #345, #310, #347, #344, #346, #348, #349 (com #350 e #351) e #340.
   - Migrations 0067 e 0068 aplicadas pelo `db-migrate.yml` (run 38273038967).
   - `n360.ness.com.br` passou a ser o endereço principal (`APP_URL`). `niso` e `nprivacy` respondem 308 para `/iso` e `/privacy`; `/health` e `/api/*` respondem no lugar.
   - Conferência de dados (`conferencia-dados.yml`, run 38274688257):

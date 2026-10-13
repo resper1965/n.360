@@ -42,7 +42,7 @@
   a partir do PR #63.**
 - ✅ CI por PR + review automatizado (Codex, CodeRabbit).
 - ⏳ **Teste E2E da integração MCP** contra o ambiente publicado — roteiro em
-  [`docs/mcp-e2e-validation.md`](./mcp-e2e-validation.md) (criar chave real → MCP
+  [`docs/mcp-e2e-validation.md`](../mcp-e2e-validation.md) (criar chave real → MCP
   conecta → consultor escreve, auditor é barrado, projeto errado recusado). Hoje há
   cobertura unitária da política (`test/apikey-role.test.ts`); falta rodar o loop.
   Dono: **plataforma** (emitir a chave pela nova tela de API keys).

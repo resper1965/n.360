@@ -167,7 +167,7 @@ Conferido: os símbolos, os testes e os triggers citados na tabela existem.
 - `docs/sso-scim.md:21, 36, 67, 69`: `https://niso.ness.workers.dev`. Atenção: callback de SSO e endpoint SCIM entregues a cliente devem usar o domínio oficial.
 - `specs/002-ui-ux-homogenization-design.md:128`: `https://niso.ness.workers.dev`.
 - `docs/superpowers/specs/2026-09-22-n360-arquitetura-design.md:31, 191`: `n-iso.ness.com.br`.
-- `docs/superpowers/plans/2026-09-29-receita-agentes-mcp-remoto.md:1043`: `n-iso.ness.com.br` e `niso.ness.workers.dev`.
+- `docs/arquivo/planos/2026-09-29-receita-agentes-mcp-remoto.md:1043`: `n-iso.ness.com.br` e `niso.ness.workers.dev`.
 - `docs/staging.md:4, 24`, `docs/enterprise-grade-plan.md:181` e `.github/workflows/deploy.yml:82`: `niso-staging.ness.workers.dev` está **correto**, porque o staging só existe no workers.dev.
 - `docs/readiness-check-spec.md:98`: gateway `n-iso` é nome do AI Gateway. Conferir se ainda é esse.
 - Homepage do repositório no GitHub (fora do git): `https://n-iso.ness.com.br`. Trocar com `gh repo edit --homepage https://niso.ness.com.br`.
@@ -191,5 +191,5 @@ Conferido: os símbolos, os testes e os triggers citados na tabela existem.
 - `mcp-server-niso/README.md:3, 7, 12, 29, 143`
 - `.github/ISSUE_TEMPLATE/feature.yml:2`
 - Ocorrências adicionais em `docs/*.md`, `docs/superpowers/**`, `specs/**` e `deliveries/**`. Só na raiz e no `.github` (excluídos `docs/superpowers`, `specs`, `deliveries` e templates) são 43 casos de `\bnISO\b`.
-- **"NESS" maiúsculo** em `docs/superpowers/plans/2026-10-02-sistema-de-propostas.md` e na spec de propostas: é o **prefixo de numeração de proposta** (`NESS-2026-014`), um identificador. Não é erro de marca.
+- **"NESS" maiúsculo** em `docs/arquivo/planos/2026-10-02-sistema-de-propostas.md` e na spec de propostas: é o **prefixo de numeração de proposta** (`NESS-2026-014`), um identificador. Não é erro de marca.
 - **Emojis:** `deliveries/niso-deep-gap-analysis.md` (a remover).

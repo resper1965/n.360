@@ -50,7 +50,7 @@ Sugestão: APAGAR candidatas após confirmar por `gh pr list --state all --head 
 - main LOCAL: ahead 38, behind 70 (commits MSP não publicados, igual feat/camada-msp 1f7b109). NÃO resetar sem salvar.
 
 ## 5. Checkout principal
-Branch docs/receita-agentes-mcp-remoto (limpa em relação à remota). Soltos: M .vscode/settings.json; ?? .impeccable/; ?? debug.log; ?? docs/superpowers/plans/2026-10-01-entrega-final.md.
+Branch docs/receita-agentes-mcp-remoto (limpa em relação à remota). Soltos: M .vscode/settings.json; ?? .impeccable/; ?? debug.log; ?? docs/arquivo/planos/2026-10-01-entrega-final.md.
 
 ## 6. Configuração do repo
 - visibility public; default main; delete_branch_on_merge true; wiki e projects habilitados (sem uso aparente -> desabilitar).

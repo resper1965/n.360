@@ -109,11 +109,11 @@ Dono agente, uma onda por vez, cada item com teste vermelho primeiro, PR, CI ver
   `consultoria_admin` alcança todos os projetos da própria org. Teste de contrato: `test/contrato-isolamento-org.test.ts` (varre as rotas × todos os papéis).
 - **Dados de produção:** só escrever com "sim" explícito do dono. Backup (`npm run db:backup` → `backups/niso-backup.sql`, local, não versionado) antes de migration.
 - **Documentos:** spec `docs/superpowers/specs/2026-10-04-acesso-stakeholders-design.md`; plano das 5 fatias
-  `docs/superpowers/plans/2026-10-04-acesso-stakeholders.md`; plano de fechamento `docs/plano-2026-10-fechamento.md`; este plano mestre.
+  `docs/arquivo/planos/2026-10-04-acesso-stakeholders.md`; plano de fechamento `docs/plano-2026-10-fechamento.md`; este plano mestre.
 
 ## 7. Como retomar numa sessão nova (cole isto)
 
-> Leia `docs/superpowers/plans/2026-10-05-plano-mestre-execucao.md` (branch `docs/acesso-stakeholders`) e continue do §2. Confirme cada fato com
+> Leia `docs/arquivo/planos/2026-10-05-plano-mestre-execucao.md` (branch `docs/acesso-stakeholders`) e continue do §2. Confirme cada fato com
 > evidência (git, /health, wrangler) antes de afirmar. Use o `/goal termine todas as fatias` se quiser o hook de continuidade.
 
 ## 8. ESTADO FINAL da cadeia de stakeholders (2026-10-05) — CONCLUÍDA
@@ -185,7 +185,7 @@ Conferido com `git log --oneline origin/main`, `gh run list --workflow=deploy.ym
   "Gerar SoA (IA)"), #287 (entrevista e código morto), #288 (DPIA: texto da tela e XSS de
   relatório), #289 (sai a vetorização e a tela Knowledge Base; `TETO` de `any` 558) e #290 (URL
   canônica `niso.ness.com.br`; hosts legados redirecionam com 308).
-- **Arrumação final** (`docs/superpowers/plans/2026-10-06-arrumacao-final.md`): tarefas 1 a 8
+- **Arrumação final** (`docs/arquivo/planos/2026-10-06-arrumacao-final.md`): tarefas 1 a 8
   entregues pelos PRs acima (a 6 foi decidida como remoção, #289). As tarefas 9 (dados de
   cliente), 11 (documentação) e 12 (versão) estão na branch `chore/arrumacao-final`, num PR só.
   Faltam a 10 (higiene do GitHub), a 13 (reescrita do histórico, com o dono) e a 14 (fechamento:

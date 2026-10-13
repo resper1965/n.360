@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Steps use checkbox (`- [ ]`).
 
-**Spec:** `docs/superpowers/specs/2026-10-06-nucleo-comum-nprivacy-design.md`, seções 4.6 e 4.8 ("`niso_update_policy` deixa de sobrescrever o vigente: cria versão `rascunho`"). Decomposição e a 3.1: `docs/superpowers/plans/2026-10-09-nprivacy-fatia-3-documentos.md`.
+**Spec:** `docs/superpowers/specs/2026-10-06-nucleo-comum-nprivacy-design.md`, seções 4.6 e 4.8 ("`niso_update_policy` deixa de sobrescrever o vigente: cria versão `rascunho`"). Decomposição e a 3.1: `docs/arquivo/planos/2026-10-09-nprivacy-fatia-3-documentos.md`.
 
 **Goal:** todo caminho que grava texto de política passa a deixar também uma versão em `documentos`, e o agente (MCP) deixa de sobrescrever a política vigente: o que ele grava entra como **rascunho**, que só um humano publica.
 
