@@ -1181,10 +1181,10 @@
         .org-branch::before { content: ''; position: absolute; top: -24px; left: 50%; width: 1px; height: 24px; background: var(--border); }
         .gov-section-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 4px; height: 100%; }
         .gov-section-title { font-family: var(--font-head); font-weight: 600; font-size: 14px; color: var(--text); padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
-        .gov-member-item { display: flex; align-items: center; gap: 12px; padding: 8px 4px; border-radius: var(--radius); transition: background-color var(--fast) var(--ease-out); }
+        .gov-member-item { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 4px; border-radius: var(--radius); transition: background-color var(--fast) var(--ease-out); }
         .gov-member-item:hover { background: var(--surface-2); }
         .gov-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; font-family: var(--font-head); font-weight: 500; font-size: 13px; flex-shrink: 0; user-select: none; }
-        .gov-member-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .gov-member-info { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
         .gov-member-name { font-weight: 500; font-size: 14px; color: var(--text); line-height: 1.3; }
         .gov-member-title { font-size: 13px; color: var(--text-2); line-height: 1.3; }
         .gov-member-acoes { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
