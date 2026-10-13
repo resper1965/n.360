@@ -21,6 +21,8 @@ async function api(m, p, b, extras) {
     // `timeoutMs` (opcional) é do cliente, não vira cabeçalho: chamada lenta por natureza (IA) pede mais que os 30 s padrão.
     const { timeoutMs, ...cab } = extras || {};
     const headers = { 'Content-Type': 'application/json', ...cab, ...cabecalhosAuth() };
+    // Escolha da própria chamada (filtro de organização da tela Usuários) vale sobre a do seletor do cabeçalho.
+    if (cab['X-Org-Id'] && S.user?.role === 'platform_admin') headers['X-Org-Id'] = cab['X-Org-Id'];
     // AbortSignal.timeout é nativo: sem ele, um backend travado deixava a UI
     // esperando para sempre, sem erro e sem feedback.
     const o = { method: m, headers, signal: AbortSignal.timeout(timeoutMs || 30000) };

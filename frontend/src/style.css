@@ -1431,6 +1431,7 @@ textarea:focus-visible {
 .org-seletor:not(:has(option + option)) { display: none; }
 .org-sel-rotulo { font: 500 11px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
 .org-sel { height: 34px; padding: 0 10px; font: 400 13px var(--font-body); color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.org-filtro-usuarios { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
 .org-sel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .org-faixa { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 2rem; background: var(--surface); border-bottom: 1px solid var(--warning); }
 .org-faixa[hidden] { display: none; }
