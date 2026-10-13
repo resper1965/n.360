@@ -17,6 +17,10 @@ export function isAuditWrite(method: string, path: string): boolean {
   if (method === 'POST' && /\/api\/v1\/audits\/[^/]+\/findings\/?$/.test(path)) {
     return true;
   }
+  // Nota de auditor pelo agente auditor remoto: POST /api/v1/projects/:projectId/auditor-notes (a rota só aceita ele).
+  if (method === 'POST' && /\/api\/v1\/projects\/[^/]+\/auditor-notes\/?$/.test(path)) {
+    return true;
+  }
   // Edição/remoção de achado: PUT|DELETE /api/v1/audit-findings/:id
   // Sem isto, um consultor poderia reescrever/apagar achados e o auditor ficaria
   // barrado de editar os seus — invertendo a separação de papéis.

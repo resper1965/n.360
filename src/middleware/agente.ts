@@ -13,7 +13,13 @@ export interface PropsAgente {
   email: string;
   projectId: string;
   concessaoId: string;
+  /** Escolhido no consentimento e gravado na concessão (migration 0070). Token anterior ao papel: consultor. */
+  papel?: PapelAgente;
 }
+
+/** Consultor implementa; auditor só lê o projeto e registra achado e nota de auditoria (ISO 27001, 9.2). */
+export type PapelAgente = 'consultor' | 'auditor';
+export const PAPEIS_AGENTE: readonly PapelAgente[] = ['consultor', 'auditor'];
 
 const REFACA = 'Acesso do agente revogado, expirado ou sem designação no projeto: refaça o login no cliente MCP.';
 
@@ -33,9 +39,9 @@ export const NOME_CLIENTE_SQL = `COALESCE(NULLIF(trim(p.client_name), ''), p.pro
 export async function concessaoValida(
   db: D1Database,
   p: PropsAgente
-): Promise<{ email: string; client_name: string; project_name: string } | null> {
+): Promise<{ email: string; client_name: string; project_name: string; papel: PapelAgente } | null> {
   const row = await db.prepare(
-    `SELECT u.email, u.role, u.org_id, u.ativo, ${NOME_CLIENTE_SQL} AS client_name,
+    `SELECT u.email, u.role, u.org_id, u.ativo, ac.papel, ${NOME_CLIENTE_SQL} AS client_name,
             COALESCE(NULLIF(trim(p.project_name), ''), p.id) AS project_name
        FROM agente_concessoes ac
        JOIN users u ON u.id = ac.user_id
@@ -45,16 +51,22 @@ export async function concessaoValida(
         -- multiconsultoria: o projeto tem de ser da organização do consultor da concessão
         AND p.org_id = u.org_id
         -- organização suspensa derruba o agente da equipe dela (a ness. não é suspensa)
-        AND (u.org_id = 'org_ness' OR EXISTS (SELECT 1 FROM organizations o WHERE o.id = u.org_id AND o.status = 'Active'))`
-  ).bind(p.concessaoId, p.userId, p.projectId).first<{ email: string; role: string; org_id: string | null; ativo: number | null; client_name: string; project_name: string }>();
+        AND (u.org_id = 'org_ness' OR EXISTS (SELECT 1 FROM organizations o WHERE o.id = u.org_id AND o.status = 'Active'))
+        -- separação de funções: a mesma conta não tem consultor E auditor ativos no mesmo projeto. O consentimento
+        -- já recusa o segundo; se os dois coexistirem (corrida), nenhum vale: falha fechada.
+        AND NOT EXISTS (SELECT 1 FROM agente_concessoes o WHERE o.user_id = ac.user_id AND o.project_id = ac.project_id
+                          AND o.papel <> ac.papel AND o.revogado_em IS NULL AND o.expira_em > datetime('now'))`
+  ).bind(p.concessaoId, p.userId, p.projectId).first<{ email: string; role: string; org_id: string | null; ativo: number | null; papel: PapelAgente; client_name: string; project_name: string }>();
   if (!row || row.ativo === 0 || (row.role !== 'consultor' && row.role !== 'consultant' && row.role !== 'consultoria_admin')) return null;
+  // O papel vale pelo BANCO; o do token só confere. Token sem papel é anterior à 0070, quando só havia consultor.
+  if ((p.papel ?? 'consultor') !== row.papel) return null;
 
   // Tirar o consultor da governança derruba o agente na próxima requisição,
   // sem esperar o token expirar.
   // Mesma regra do consultor humano (D5): uma fonte só.
   // consultoria_admin: o projeto da própria organização (p.org_id = u.org_id, acima) basta, sem designação.
   const alcanca = row.role === 'consultoria_admin' || await consultorDesignado(db, row.email, p.projectId);
-  return alcanca ? { email: row.email, client_name: row.client_name, project_name: row.project_name } : null;
+  return alcanca ? { email: row.email, client_name: row.client_name, project_name: row.project_name, papel: row.papel } : null;
 }
 
 /** Só `resolverAgente` lê; ele só roda com `env.AGENTE`, então de fora o cabeçalho é inerte. */
@@ -104,6 +116,23 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/management-reviews\/[^/]+$/, 'excluir análise crítica destrói registro assinado: use a interface', ['DELETE']],
 ];
 
+/**
+ * O auditor só LÊ, e só o projeto da concessão, mais as duas escritas de auditoria. Allow-list: rota que não está
+ * aqui é recusada, inclusive rota nova (falha fechada). Devolve o motivo da recusa, ou null.
+ */
+export function foraDoAuditor(method: string, path: string, projectId: string): string | null {
+  const doProjeto = path === `/api/v1/projects/${projectId}` || path.startsWith(`/api/v1/projects/${projectId}/`);
+  if (method === 'GET' || method === 'HEAD') {
+    const leitura = doProjeto
+      || path === '/api/v1/portfolio' // escopado ao projeto da concessão (role client)
+      || /^\/api\/v1\/audits\/[^/]+\/findings$/.test(path)
+      || /^\/api\/v1\/evidence\/[^/]+\/(content|detail|download)$/.test(path);
+    return leitura ? null : 'o agente auditor lê só o projeto desta conexão';
+  }
+  if (method === 'POST' && (/^\/api\/v1\/audits\/[^/]+\/findings$/.test(path) || path === `/api/v1/projects/${projectId}/auditor-notes`)) return null;
+  return 'o agente auditor só lê e registra achado e nota de auditoria; quem audita não implementa (ISO 27001, 9.2)';
+}
+
 /** Única definição do que exige confirmação: apagar, gerar em lote, anonimizar titular, revogar aprovações. */
 export function acaoDestrutiva(method: string, path: string): boolean {
   return method.toUpperCase() === 'DELETE' || path.endsWith('/generate-policies-bulk') || path.endsWith('/data-subject/erase') || /\/revoke-approvals?$/.test(path);
@@ -134,10 +163,15 @@ export async function resolverAgente(
   for (const [re, motivo, metodos] of FORA_DO_AGENTE) {
     if (re.test(path) && (!metodos || metodos.includes(method))) return c.json({ error: `Forbidden: fora do alcance do agente (${motivo}) — use a interface` }, 403);
   }
+  if (row.papel === 'auditor') {
+    const motivo = foraDoAuditor(method, path, p.projectId);
+    if (motivo) return c.json({ error: `Forbidden: ${motivo}` }, 403);
+  }
   if (acaoDestrutiva(method, path) && c.req.header(CABECALHO_CONFIRMADO) !== '1') {
     return c.json({ error: 'Forbidden: apagar, gerar em lote, eliminar titular e revogar aprovações exigem confirmação — mostre ao usuário o que será feito, espere o "sim" e reenvie com confirmado_pelo_usuario: true' }, 403);
   }
-  const violacao = apiKeyRoleViolation('consultant', method, path);
+  // Segunda camada, a mesma da chave de API: consultor não registra achado; auditor só escreve achado.
+  const violacao = apiKeyRoleViolation(row.papel === 'auditor' ? 'auditor' : 'consultant', method, path);
   if (violacao) return c.json({ error: violacao }, 403);
 
   await c.env.DB.prepare(`UPDATE agente_concessoes SET ultimo_uso_em = datetime('now') WHERE id = ?`)
@@ -151,9 +185,10 @@ export async function resolverAgente(
   // só o n.iso/n.privacy que o consultor que concedeu tem, e tirar o módulo dele vale na chamada seguinte.
   return {
     id: p.userId,
-    email: `agente de ${row.email} (${rotulo})`,
+    email: `${row.papel === 'auditor' ? 'agente auditor' : 'agente'} de ${row.email} (${rotulo})`,
     role: 'client',
     client_project_id: p.projectId,
     agente: true,
+    agente_papel: row.papel,
   };
 }
