@@ -56,6 +56,22 @@ describe('renderUsers', () => {
     expect(linhas[1].querySelector('[data-action="openUserModal"]').dataset.args).toBe('["u2"]');
   });
 
+  it('mostra a organização de cada conta e avisa que a lista é de todas, quando não há filtro', async () => {
+    window.nomeOrgDe = (id) => ({ org_ness: 'ness.', org_bekaa: 'Bekaa' }[id]);
+    S.orgAtuacao = null;
+    apiMock.mockResolvedValue([
+      { id: 'u1', name: 'Ana', email: 'ana@exemplo.test', role: 'platform_admin', org: 'org_ness' },
+      { id: 'u2', name: 'Caio', email: 'caio@exemplo.test', role: 'org_admin', client_project_id: 'p1', org: 'org_bekaa' },
+    ]);
+    const [c, h, a] = dom();
+    await window.renderUsers(c, h, a);
+    const linhas = [...c.querySelectorAll('tbody tr')];
+    expect(linhas[0].textContent).toContain('ness.');
+    expect(linhas[1].textContent).toContain('Bekaa');
+    expect(c.textContent).toContain('todas as organizações');
+    delete window.nomeOrgDe;
+  });
+
   it('estado vazio e resposta que não é array', async () => {
     apiMock.mockResolvedValue({ erro: 'x' });
     const [c, h, a] = dom();

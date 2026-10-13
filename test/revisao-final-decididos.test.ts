@@ -65,6 +65,14 @@ describe('a) GET /users do platform_admin', () => {
     expect(await ids(S.pa)).toEqual(['u-ab', 'u-clib', 'u-clin', 'u-cn', 'u-pa']);
     expect((await chamar('GET', '/api/v1/users', { ...S.pa, 'X-Org-Id': 'org_nao_existe' })).status).toBe(403);
   });
+
+  it('sem o cabeçalho, cada conta traz a organização: equipe pelo org_id, cliente pela do projeto', async () => {
+    const l = await (await chamar('GET', '/api/v1/users', S.pa)).json<any[]>();
+    const org = Object.fromEntries(l.map((u) => [u.id, u.org]));
+    expect(org['u-ab']).toBe('org_b');
+    expect(org['u-clib']).toBe('org_b');
+    expect(org['u-cn']).toBe('org_ness');
+  });
 });
 
 describe('b) reenviar convite', () => {
