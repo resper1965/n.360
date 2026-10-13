@@ -954,7 +954,7 @@ window.updateHeaderUser = function updateHeaderUser() {
             // API Keys: exclusivo do Platform Admin (nem consultor vê).
             if (navApiKeys) navApiKeys.style.display = (S.user && S.user.role === 'platform_admin') ? '' : 'none';
             const navConectar = document.getElementById('nav-conectar-agente');
-            if (navConectar) navConectar.style.display = (S.user && (S.user.role === 'consultor' || S.user.role === 'consultant')) ? '' : 'none';
+            if (navConectar) navConectar.style.display = (S.user && ['consultor', 'consultant', 'platform_admin', 'consultoria_admin', 'comercial'].includes(S.user.role)) ? '' : 'none';
             const navImportacao = document.getElementById('nav-importacao');
             if (navImportacao) navImportacao.style.display = window.ehEquipeNess() ? '' : 'none';
             const navSegProj = document.getElementById('nav-seguranca-projeto');
@@ -976,7 +976,7 @@ window.updateHeaderUser = function updateHeaderUser() {
         // evidência a ele (não é staff em requireProjectAccess). O menu mostra só
         // o que ele alcança, em vez de telas que abririam vazias ou com erro.
         if (S.user && S.user.role === 'comercial') {
-            const doComercial = new Set(['nav-dashboard', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-settings']);
+            const doComercial = new Set(['nav-dashboard', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-settings', 'nav-conectar-agente']);
             document.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach(el => {
                 el.style.display = doComercial.has(el.id) ? '' : 'none';
             });

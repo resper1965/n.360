@@ -1,7 +1,7 @@
 # O agente consultor do n.iso
 
-Um consultor conecta o **Claude Code, o Codex, o Cursor ou o Antigravity** ao
-n.iso, entra com a própria conta e escolhe um cliente. O agente passa a trabalhar
+Um consultor conecta o **Claude Code, o Codex, o Cursor, o Antigravity, o ChatGPT ou o Claude
+(navegador e desktop)** ao n.360, entra com a própria conta e escolhe um cliente. O agente passa a trabalhar
 **dentro daquele projeto**, lendo o SGSI inteiro e gravando adequação, com o
 alcance que o consultor tem na interface e nenhum a mais.
 
@@ -31,16 +31,18 @@ equipe e o administrador do cliente: o agente MCP recebe 403 neles (`FORA_DO_AGE
 | **Codex** | `codex mcp add niso --url https://niso.ness.com.br/mcp`, depois `codex mcp login niso`. Confira com `codex mcp list`. |
 | **Cursor** | em `.cursor/mcp.json` (ou `~/.cursor/mcp.json`, para todos os projetos): `{ "mcpServers": { "niso": { "url": "https://niso.ness.com.br/mcp" } } }`. Entre por Cursor Settings > MCP. |
 | **Antigravity** | em `~/.gemini/config/mcp_config.json` (antes da 2.0: `~/.gemini/antigravity/mcp_config.json`): `{ "mcpServers": { "niso": { "serverUrl": "https://niso.ness.com.br/mcp" } } }`. Entre pelo botão Authenticate do painel MCP; editor e linha de comando têm login separado. |
+| **ChatGPT** | Configurações > Conectores > Avançado > Modo desenvolvedor: crie um conector com a URL `https://niso.ness.com.br/mcp` e autenticação OAuth. |
+| **Claude (navegador e desktop)** | Configurações > Conectores > adicionar conector personalizado, com a URL `https://niso.ness.com.br/mcp`. |
 
 Na primeira chamada o cliente abre o navegador. Você:
 
 1. entra com seu e-mail e senha do n.iso (e o código do segundo fator, se tiver);
-2. escolhe **um** cliente, entre os projetos em que você é consultor designado;
+2. escolhe **um** cliente: o consultor, entre os projetos em que está designado; o administrador da consultoria (`consultoria_admin`), entre os projetos da própria organização;
 3. volta ao cliente MCP, que já está conectado.
 
 > **Estado dos clientes.** O Claude Code foi exercitado contra a produção em
-> 30/09/2026 (conexão, leitura e escrita). Codex, Cursor e Antigravity
-> têm a configuração acima, mas o login OAuth deles **ainda não foi confirmado**.
+> 30/09/2026 (conexão, leitura e escrita). Codex, Cursor, Antigravity, ChatGPT e Claude
+> no navegador têm a configuração acima, mas o login OAuth deles **ainda não foi confirmado**.
 > Se algum falhar, registre qual e em que etapa. Um ponto a vigiar: o provider recusa, já no registro,
 > callback de esquema próprio (`myapp:/cb`; erro `invalid_client_metadata`, "Redirect URI must use https,
 > or http on a loopback host"). Cliente de desktop que registre um callback desse tipo não consegue conectar.
@@ -52,10 +54,22 @@ escolha o outro.
 **Não é você?** O agente age como você: a trilha registra
 `agente de <seu e-mail> (<cliente> / <projeto>)`.
 
+### Quem conecta, e o painel Agentes
+
+A tela **Agentes** (menu Conta e acessos) é do n.360 e aparece para `platform_admin`,
+`consultoria_admin`, `consultor` e `comercial`. Só **conecta** quem pode ser identidade de agente:
+o `consultor` e o `consultoria_admin`, este **só nos projetos da própria organização**
+(`projetosDoAgente` em `src/helpers.ts`; a concessão exige `p.org_id = u.org_id`, e o consultor
+segue exigindo a designação na governança). O agente do `consultoria_admin` tem o mesmo alcance do
+consultor. `platform_admin` e `comercial` veem o painel como informação e a nota "Esta conta não
+conecta agente; use uma conta de consultor", sem botão de copiar. `platform_admin` e
+`consultoria_admin` também veem **Quem está conectado**: o mesmo cartão da Governança (agentes ativos do
+projeto escolhido, com Revogar), sem rota nova.
+
 ### Outros clientes MCP (possíveis, não suportados)
 
 Qualquer cliente que fale MCP por HTTP com OAuth (registro dinâmico, PKCE, callback `https` ou
-`http` em loopback) conecta. A ness. só dá suporte aos quatro acima.
+`http` em loopback) conecta. A ness. só dá suporte aos seis acima.
 
 **OpenClaw: não use com dado de cliente.** Ele conecta (`openclaw mcp add`, depois
 `openclaw mcp login niso`), mas é um agente de longa duração que recebe mensagem por WhatsApp,
@@ -176,7 +190,7 @@ auditoria.
 
 Na tela de **Governança** do projeto, o cartão **Agentes com acesso** lista cada
 agente conectado: de quem é (o consultor), qual cliente MCP, desde quando, **último
-uso** e até quando vale. O administrador do cliente, o `platform_admin` e o próprio
+uso** e até quando vale. O administrador do cliente, o `platform_admin`, o `consultoria_admin` da organização e o próprio
 consultor dono do acesso podem **Revogar**; o acesso cai **na próxima chamada** do
 agente.
 
@@ -187,7 +201,7 @@ O acesso também termina sozinho quando:
 - o consultor **troca a senha** (todas as concessões dele caem);
 - a conta é desativada.
 
-Quem vê o cartão: administrador do cliente, `platform_admin` e consultores. Um usuário comum do cliente não vê.
+Quem vê o cartão: administrador do cliente, `platform_admin`, `consultoria_admin` (da própria organização) e consultores. O mesmo cartão aparece na tela Agentes, para `platform_admin` e `consultoria_admin`. Um usuário comum do cliente não vê.
 
 ---
 

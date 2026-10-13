@@ -213,6 +213,17 @@ export const PROJETOS_DO_CONSULTOR_SQL = `SELECT g.project_id FROM project_gover
 /** Projetos de uma organização (o único `?`): o alcance do `consultoria_admin`. */
 const PROJETOS_DA_ORG_SQL = 'SELECT id FROM projects WHERE org_id = ?';
 
+/**
+ * Projetos em que um agente pode atuar, por papel de quem o conecta: o consultor, os designados na
+ * governança; o `consultoria_admin`, todos os da própria organização (mesmo alcance que ele tem na
+ * interface). Devolve a subconsulta e o único `?`.
+ */
+export function projetosDoAgente(user: { role?: string; email: string; org_id?: string | null }): { sql: string; bind: string } {
+  return user.role === 'consultoria_admin'
+    ? { sql: PROJETOS_DA_ORG_SQL, bind: user.org_id ?? '' }
+    : { sql: PROJETOS_DO_CONSULTOR_SQL, bind: user.email };
+}
+
 /** O consultor está designado neste projeto? Erro de banco propaga: o chamador decide negar. */
 export async function consultorDesignado(db: D1Database, email: string, projectId: string): Promise<boolean> {
   return !!(await db.prepare(`${PROJETOS_DO_CONSULTOR_SQL} AND g.project_id = ?`).bind(email, projectId).first());

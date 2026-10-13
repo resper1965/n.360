@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (agentes)
+- Tela **Agentes** (antes "Conectar agente"; a rota interna segue `conectar-agente`), do n.360 e visível a `platform_admin`, `consultoria_admin`, `consultor` e `comercial`. Fala dos dois módulos (n.iso e n.privacy); receitas por cliente com ChatGPT (Configurações > Conectores > Avançado > Modo desenvolvedor) e Claude no navegador e no desktop (conector personalizado), ambas com o selo "A confirmar"; o alcance do agente Consultor lista o que lê no n.privacy (RoPA, DPIA, requisitos, pedidos do titular, incidentes, terceiros) e diz que rascunhos de IA do n.privacy e a importação de programa são da tela. `platform_admin` e `comercial` veem a nota "Esta conta não conecta agente" e nenhum botão de copiar. `platform_admin` e `consultoria_admin` ganham "Quem está conectado" (o cartão da Governança, com revogação, para o projeto ativo; sem projeto, estado vazio). O `consultoria_admin` passa a poder revogar nesse cartão (o servidor já permitia).
+- O `consultoria_admin` também pode ser identidade de agente, com o alcance do consultor e só nos projetos da própria organização (`src/middleware/agente.ts`, `src/routes/oauth-autorizacao.ts`, `projetosDoAgente` em `src/helpers.ts`; `test/agente-consultoria-admin.test.ts`). Sem migration.
+
 ### Operação
 - 2026-10-12: entrega do plano `docs/arquivo/planos/2026-10-12-finalizacao.md`. Ordem das publicações: #343, #353, #345, #310, #347, #344, #346, #348, #349 (com #350 e #351) e #340.
   - Migrations 0067 e 0068 aplicadas pelo `db-migrate.yml` (run 38273038967).
