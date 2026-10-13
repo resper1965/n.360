@@ -11,10 +11,10 @@ const dias = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().
 
 type Visao = {
   prioridades: { nivel: string; texto: string; tela: string }[];
-  pedidos_titular: { abertos: number; atrasados: number; vencem_em_7_dias: number; sem_prazo: number; itens: { protocolo: string }[] };
+  pedidos_titular: { abertos: number; atrasados: number; vencem_em_7_dias: number; exigem_atencao: number; sem_prazo: number; itens: { protocolo: string }[] };
   incidentes: { abertos: number; comunicacoes_atrasadas: number; comunicacoes_pendentes: number; sem_avaliacao_de_risco: number };
   tratamentos: { total: number; sem_base_legal: number; dpia_pendente: number; lia_pendente: number; sem_responsavel: number; com_terceiro_vencido: number };
-  terceiros: { total: number; sem_tipo: number; pendentes: number; vencidos: number; reprovados: number };
+  terceiros: { total: number; sem_tipo: number; pendentes: number; vencidos: number; reprovados: number; com_pendencia: number };
   documentos: { revisao_vencida: number };
   evidencias: { vencidas: number; vencem_em_7_dias: number };
   lgpd: { carregada: boolean; total?: number; cobertos?: number; parciais?: number; lacunas?: number };
@@ -41,10 +41,10 @@ beforeEach(async () => {
 describe('projeto vazio', () => {
   it('tudo zerado, LGPD "não carregada", e as prioridades dizem o que falta: encarregado, RoPA, catálogo e prazos legais', async () => {
     const v = await ver();
-    expect(v.pedidos_titular).toMatchObject({ abertos: 0, atrasados: 0, vencem_em_7_dias: 0, sem_prazo: 0, itens: [] });
+    expect(v.pedidos_titular).toMatchObject({ abertos: 0, atrasados: 0, vencem_em_7_dias: 0, exigem_atencao: 0, sem_prazo: 0, itens: [] });
     expect(v.incidentes).toMatchObject({ abertos: 0, comunicacoes_atrasadas: 0, comunicacoes_pendentes: 0 });
     expect(v.tratamentos).toEqual({ total: 0, sem_base_legal: 0, dpia_pendente: 0, lia_pendente: 0, sem_responsavel: 0, com_terceiro_vencido: 0 });
-    expect(v.terceiros).toMatchObject({ total: 0, vencidos: 0 });
+    expect(v.terceiros).toMatchObject({ total: 0, vencidos: 0, com_pendencia: 0 });
     expect(v.evidencias).toEqual({ vencidas: 0, vencem_em_7_dias: 0 });
     expect(v.lgpd).toEqual({ carregada: false });
     expect(v.prazos_legais.nao_definidos).toEqual(['titular.resposta', 'incidente.comunicacao_anpd', 'incidente.comunicacao_titular']);
@@ -91,11 +91,11 @@ describe('projeto com pendências', () => {
       db().prepare(`INSERT INTO documentos (id, project_id, titulo, status, revisar_ate) VALUES ('d1', 'e1', 'Política', 'vigente', ?1)`).bind(dias(-10)),
     ]);
     const v = await ver();
-    expect(v.pedidos_titular).toMatchObject({ abertos: 3, atrasados: 1, vencem_em_7_dias: 1, sem_prazo: 1 });
+    expect(v.pedidos_titular).toMatchObject({ abertos: 3, atrasados: 1, vencem_em_7_dias: 1, exigem_atencao: 2, sem_prazo: 1 });
     expect(v.pedidos_titular.itens.map((i) => i.protocolo).sort()).toEqual(['PT-1', 'PT-2', 'PT-3']);
     expect(v.incidentes).toMatchObject({ abertos: 2, comunicacoes_atrasadas: 2, sem_avaliacao_de_risco: 1 });
     expect(v.tratamentos).toEqual({ total: 3, sem_base_legal: 1, dpia_pendente: 1, lia_pendente: 1, sem_responsavel: 0, com_terceiro_vencido: 1 });
-    expect(v.terceiros).toEqual({ total: 3, sem_tipo: 1, pendentes: 1, vencidos: 1, reprovados: 0 });
+    expect(v.terceiros).toEqual({ total: 3, sem_tipo: 1, pendentes: 1, vencidos: 1, reprovados: 0, com_pendencia: 3 });
     expect(v.evidencias).toEqual({ vencidas: 1, vencem_em_7_dias: 1 });
     expect(v.documentos.revisao_vencida).toBe(1);
     expect(v.prazos_legais.nao_definidos).toEqual([]);

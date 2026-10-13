@@ -64,6 +64,8 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
       abertos: pedidosAbertos.length,
       atrasados: pedidosAbertos.filter((p) => p.situacao_prazo === 'atrasado').length,
       vencem_em_7_dias: pedidosAbertos.filter((p) => p.prazo_em && p.prazo_em.slice(0, 10) >= dia && p.prazo_em.slice(0, 10) <= em7).length,
+      // Contador do menu: aberto com prazo já vencido ou até 7 dias à frente (os dois grupos não se cruzam; sem prazo fica de fora).
+      exigem_atencao: pedidosAbertos.filter((p) => p.prazo_em && p.prazo_em.slice(0, 10) <= em7).length,
       sem_prazo: pedidosAbertos.filter((p) => p.situacao_prazo === 'sem_prazo').length,
       itens: pedidosAbertos.slice(0, 5).map((p) => ({ id: p.id, protocolo: p.protocolo, tipo: p.tipo, prazo_em: p.prazo_em, situacao_prazo: p.situacao_prazo })),
     },
@@ -81,6 +83,8 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
       pendentes: terceiros.filter((t) => t.terceiro_tipo && t.situacao === 'pendente').length,
       vencidos: terceiros.filter((t) => t.situacao === 'vencida').length,
       reprovados: terceiros.filter((t) => t.situacao === 'reprovada').length,
+      // Contador do menu: sem tipo (nunca avaliado), pendente, vencido ou reprovado, sem contar duas vezes.
+      com_pendencia: terceiros.filter((t) => !t.terceiro_tipo || ['pendente', 'vencida', 'reprovada'].includes(t.situacao)).length,
     },
     documentos: { revisao_vencida: await n(db, `SELECT count(*) AS n FROM documentos WHERE project_id = ?1 AND status = 'vigente' AND revisar_ate IS NOT NULL AND substr(revisar_ate, 1, 10) < ?2`, projectId, dia) },
     evidencias,

@@ -1638,3 +1638,13 @@ textarea:focus-visible {
     .re-respostas dd { margin-bottom: 8px; }
     .re-acoes .btn-primary { margin-left: 0; }
 }
+
+/* Menu do n.privacy: filas em destaque (DSAR, Terceiros, Incidentes) com selo de vencimento. Selo só com token semântico;
+   o accent fica para foco e item ativo. */
+.sidebar-nav.sidebar-nav-destaque { color: var(--text); font-weight: 500; }
+.sidebar-nav.sidebar-nav-destaque { height: auto; min-height: 32px; padding-top: 6px; padding-bottom: 6px; }
+.sidebar-nav-destaque .sidebar-nav-text { white-space: normal; line-height: 1.25; }
+.sidebar-nav.sidebar-nav-destaque svg { opacity: 0.8; }
+.sidebar-selo { margin-left: auto; min-width: 18px; height: 16px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 500; line-height: 1; color: var(--warning); border: 1px solid currentColor; border-radius: var(--radius); }
+.sidebar-selo.is-danger { color: var(--danger); }
+.sidebar-selo[hidden], .sidebar.collapsed .sidebar-selo { display: none; }
