@@ -205,6 +205,13 @@ export async function importarDocumentos(db: D1Database, projectId: string, ator
     resumo.criados++;
     resumo.versoes += feito.versoes;
   }
+  // A evidência do controle de política passa a ser do documento também. Só a ainda sem documento: repetível, e a ligação
+  // feita à mão (ou o arquivo original de um documento importado) não é trocada.
+  await db.prepare(
+    `UPDATE evidence SET documento_id = (SELECT d.id FROM documentos d WHERE d.origem_control_id = evidence.control_id AND d.project_id = evidence.project_id)
+     WHERE project_id = ? AND documento_id IS NULL
+       AND EXISTS (SELECT 1 FROM documentos d WHERE d.origem_control_id = evidence.control_id AND d.project_id = evidence.project_id)`
+  ).bind(projectId).run();
   await logAudit(db, 'documentos.importados', ator,
     `Importação de políticas: ${resumo.criados} criadas, ${resumo.ja_existiam} já existiam, ${resumo.versoes} versões, ` +
     `${resumo.ignorados_nao_aplicavel} não aplicáveis e ${resumo.ignorados_sem_texto} sem texto ignorados`, '', '', projectId);

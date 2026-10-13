@@ -411,4 +411,20 @@ describe('produtos do projeto', () => {
         expect(new URL(c[0], 'http://x').pathname).toBe('/api/v1/projects/p9/modulos/privacy');
         expect(JSON.parse(c[1].body)).toEqual({ habilitado: true });
     });
+    const toasts = () => [...document.querySelectorAll('.toast')].map((t) => [t.className, t.textContent]);
+    it('ligar o n.privacy diz o que veio do n.iso e mostra o aviso de ponte que falhou', async () => {
+        await abrir({ habilitados: ['iso'], contratados: ['iso', 'privacy'] }, {
+            'PUT /api/v1/projects/p9/modulos/privacy': { ok: true, importados: { partes: 4, documentos: 2 }, avisos: ['Não foi possível conciliar os responsáveis; refaça.'] },
+        });
+        await window.alternarProdutoDoProjeto('p9', 'privacy', true);
+        expect(toasts()).toEqual([
+            ['toast toast-success', 'n.privacy habilitado. Trouxemos 4 pessoas e organizações e 2 documentos do n.iso.'],
+            ['toast toast-warning', 'Não foi possível conciliar os responsáveis; refaça.'],
+        ]);
+    });
+    it('sem importados (n.iso, ou desligar) o toast é o de sempre', async () => {
+        await abrir({ habilitados: ['iso', 'privacy'], contratados: ['iso', 'privacy'] }, { 'PUT /api/v1/projects/p9/modulos/privacy': { ok: true } });
+        await window.alternarProdutoDoProjeto('p9', 'privacy', false);
+        expect(toasts()).toEqual([['toast toast-success', 'n.privacy desligado neste projeto.']]);
+    });
 });

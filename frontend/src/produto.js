@@ -365,8 +365,13 @@ window.abrirProdutosDoProjeto = async function (projectId) {
 
 window.alternarProdutoDoProjeto = async function (projectId, modulo, habilitar) {
     try {
-        await api('PUT', `/api/v1/projects/${projectId}/modulos/${modulo}`, { habilitado: habilitar });
-        showToast(`n.${modulo} ${habilitar ? 'habilitado' : 'desligado'} neste projeto.`, 'success');
+        const r = await api('PUT', `/api/v1/projects/${projectId}/modulos/${modulo}`, { habilitado: habilitar });
+        // Ligar o n.privacy traz o que o n.iso já tem (partes e documentos); ponte que falhou volta como aviso.
+        const imp = r && r.importados;
+        showToast(imp
+            ? `n.${modulo} habilitado. Trouxemos ${imp.partes} pessoas e organizações e ${imp.documentos} documentos do n.iso.`
+            : `n.${modulo} ${habilitar ? 'habilitado' : 'desligado'} neste projeto.`, 'success');
+        for (const aviso of (r && r.avisos) || []) showToast(aviso, 'warning');
         if (typeof window.loadProjects === 'function') await window.loadProjects();
         await window.abrirProdutosDoProjeto(projectId);
     } catch (e) { showToast((e && e.message) || 'Não foi possível alterar o produto', 'error'); }
