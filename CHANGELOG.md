@@ -58,15 +58,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - Onda 1 do Impeccable (casca, n.privacy e portal n.360): menu do n.360 virou hub (Início, Conta e acessos, Sistema) com links entre módulos; grupo Privacidade na ordem do encarregado; telas do n.privacy dizem o que falta (painel do encarregado, RoPA com base legal em art. 7 e art. 11, RIPD, Titular com abas e contagem, faixa do prazo da ANPD no incidente, Terceiros, Requisitos, Assistente); portal com "Preços e margens" e Projetos com a coluna de ações alinhada (Módulos… primeiro). `.card`, `.modal` e `.phase-item` seguem o sistema quadrado; as abas viraram `.abas/.aba` (antes `.ca-abas/.ca-aba`); o menu "Mais" de Partes e o selo do projeto no header saíram do estilo inline e o menu fecha ao clicar fora.
 
 ### Corrigido
-<<<<<<< HEAD
 - **Usuários, filtro de organização.** O Platform Admin escolhe na própria tela de qual organização listar as contas (ness., bekaa ou todas); antes a lista parecia da ness. e trazia tudo. O filtro vale só para a lista e não muda a organização em que ele atua.
-=======
 - n.privacy, RoPA: a criação não oferece mais status (o `POST` grava sempre rascunho e ignorava o seletor); finalidade vazia e falha do servidor viram aviso em vez de fechar em silêncio.
 - n.privacy, RoPA: a base legal deixa de ter duas verdades. Escolher a hipótese grava também o id do catálogo quando ele está carregado, e escolher no catálogo (ligações e "Aplicar" da sugestão) grava o texto da hipótese que a LIA, o PDF e os pedidos leem. A tabela texto ↔ id vive em `frontend/src/bases-legais.js`.
 - n.privacy, RoPA: editar uma atividade aprovada (ou com aprovação por pedido vigente) pede confirmação antes de gravar, porque a edição substitui o pedido de aprovação.
 - n.privacy: os relatórios do RoPA e do RIPD não levam mais o token da sessão na URL (`?token=`, que ficava no histórico e em log); a tela busca com o cabeçalho `Authorization` e abre o conteúdo como blob.
 - n.privacy, RoPA: tratamento gravado pela importação de programa sem dizer se tem dado sensível, crianças ou transferência deixa de aparecer como "não". A lista (`GET /projects/:id/ropa`) devolve `nao_informado`, o relatório mostra "Não informado (importado, não revisado)" e a tela marca "Importado: revisar", até o registro ser editado. A planilha CSV não deixa rastro por registro e segue gravando 0 quando falta a coluna.
->>>>>>> origin/main
 - **Governança, convite e revogação.** Os botões diziam "Convidar para o n.iso" mesmo no n.privacy; agora dizem n.360, a plataforma. Em coluna estreita os botões deixam de cobrir o nome e o cargo: a linha quebra e as ações descem.
 - **Usuários, visão do platform_admin.** Com o seletor em "ness." a lista traz as contas de todas as organizações (sem filtro), mas parecia da ness. Agora a tela avisa, ganha a coluna Organização (equipe pelo `org_id`, cliente pela do projeto) e o cartão passa a dizer "Equipe da plataforma".
 - LIA: `ehLegitimoInteresse` também reconhece "Interesse legitimo", o valor que o formulário antigo do RoPA gravava; antes esses registros nunca contavam como LIA exigida.
