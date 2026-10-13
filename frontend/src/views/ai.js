@@ -1,13 +1,27 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML } from '../ui.js';
-import { produtoAtual } from '../produto.js';
+import { produtoAtual, modulosVisiveis } from '../produto.js';
 
     // Convite e exemplo do campo por produto: no n.privacy nada de ISO.
     const COPIA = {
         privacy: ['Pergunte sobre LGPD, bases legais, prazos do titular ou comunicação de incidente.', 'Ex.: qual base legal cabe para o envio de newsletter?'],
         iso: ['Faça uma pergunta sobre ISO 27001, controles, preparação para auditoria ou conformidade.', 'Ex.: que evidência atende o controle A.5.15?'],
         n360: ['Faça uma pergunta sobre o projeto: conformidade, controles ou privacidade.', 'Pergunte sobre o projeto...'],
+    };
+
+    // Perguntas de partida com a conversa vazia. No n.360, as da ISO, salvo projeto só com n.privacy.
+    const SUGESTOES = {
+        privacy: ['Qual base legal cabe para este tratamento?', 'Quando a DPIA (RIPD) é exigida?',
+            'Quais são os prazos para responder ao titular?', 'O que a comunicação de incidente à ANPD precisa conter?'],
+        iso: ['Por onde começar a implantação da ISO 27001?', 'Quais controles do Anexo A costumam ser excluídos?',
+            'Como preparar a auditoria interna?', 'O que a análise crítica pela direção (9.3) precisa cobrir?'],
+    };
+    const sugestoesDe = (proj) => {
+        const produto = produtoAtual();
+        if (produto !== 'n360') return SUGESTOES[produto];
+        const m = modulosVisiveis(proj);
+        return SUGESTOES[m.length === 1 && m[0] === 'privacy' ? 'privacy' : 'iso'];
     };
 
     async function renderAIChat(c, h, a) {
@@ -21,7 +35,10 @@ import { produtoAtual } from '../produto.js';
         const [convite, exemplo] = COPIA[produtoAtual()] || COPIA.n360;
         c.innerHTML = `<div class="fade-in" style="display:flex;flex-direction:column;height:calc(100vh - 180px)">
             <div id="chat-messages" style="flex:1;overflow-y:auto;padding:1rem 0;display:flex;flex-direction:column;gap:0.75rem">
-                <div style="text-align:center;color:var(--text-dim);padding:3rem 0;font-size:0.85rem">${convite}</div>
+                <div id="chat-vazio" style="text-align:center;color:var(--text-dim);padding:3rem 0;font-size:0.85rem">${convite}
+                    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:center;max-width:720px;margin:1.25rem auto 0">${sugestoesDe(proj).map((q) =>
+                        `<button class="btn btn-secondary btn-sm" data-action="perguntarSugestao" data-args='${escapeHTML(JSON.stringify([proj.id, q]))}'>${escapeHTML(q)}</button>`).join('')}</div>
+                </div>
             </div>
             <div style="display:flex;gap:0.5rem;padding-top:1rem;border-top:1px solid var(--border)">
                 <input class="form-input" id="chat-input" aria-label="Pergunta ao assistente" placeholder="${exemplo}" style="flex:1" data-action-keydown="sendChatMessage" data-args='["${proj.id}"]' data-key="Enter">
@@ -38,6 +55,7 @@ import { produtoAtual } from '../produto.js';
         const message = input.value.trim();
         if (!message) return;
         input.value = '';
+        document.getElementById('chat-vazio')?.remove(); // a conversa começou: convite e sugestões saem
         // Add user message to UI immediately
         const msgs = document.getElementById('chat-messages');
         msgs.innerHTML += `<div style="align-self:flex-end;max-width:80%;padding:0.75rem 1rem;border-radius:0;background:rgba(0,173,232,0.15);border:1px solid rgba(0,173,232,0.2);font-size:0.8rem;line-height:1.6">${escapeHTML(message)}</div>`;
@@ -55,6 +73,15 @@ import { produtoAtual } from '../produto.js';
         }
     }
 
+    /** Sugestão clicada: vai pelo mesmo envio, como se tivesse sido digitada. */
+    function perguntarSugestao(projectId, pergunta) {
+        const input = document.getElementById('chat-input');
+        if (!input) return;
+        input.value = pergunta;
+        return sendChatMessage(projectId);
+    }
+
 export { renderAIChat };
+window.perguntarSugestao = perguntarSugestao;
 window.renderAIChat = renderAIChat;
 window.sendChatMessage = sendChatMessage;

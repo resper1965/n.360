@@ -1,7 +1,7 @@
 // Chat de compliance (src/views/ai.js). Cobre: estado sem projeto, estado
 // vazio, escape de conteúdo vindo da API, chamadas com os argumentos certos e o ciclo do chat
 // (mensagem do usuário, "Pensando...", resposta ou erro).
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const { apiMock, renderMock } = vi.hoisted(() => ({ apiMock: vi.fn(), renderMock: vi.fn() }));
 vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://api.test' }));
@@ -121,5 +121,45 @@ describe('renderAIChat', () => {
     $('chat-input').value = 'oi';
     await window.sendChatMessage('p1');
     expect($('chat-loading').textContent).toBe('Erro: timeout');
+  });
+});
+
+describe('perguntas sugeridas com a conversa vazia', () => {
+  const sugestoes = (c) => [...c.querySelectorAll('[data-action="perguntarSugestao"]')];
+  const textos = (c) => sugestoes(c).map((b) => b.textContent);
+  const PRIVACY = ['Qual base legal cabe para este tratamento?', 'Quando a DPIA (RIPD) é exigida?',
+    'Quais são os prazos para responder ao titular?', 'O que a comunicação de incidente à ANPD precisa conter?'];
+  const ISO = ['Por onde começar a implantação da ISO 27001?', 'Quais controles do Anexo A costumam ser excluídos?',
+    'Como preparar a auditoria interna?', 'O que a análise crítica pela direção (9.3) precisa cobrir?'];
+  const em = async (caminho, proj) => {
+    history.replaceState(null, '', caminho);
+    S.user = { role: 'consultor' };
+    S.activeProject = proj;
+    const [c, h, a] = dom();
+    await window.renderAIChat(c, h, a);
+    return c;
+  };
+  afterEach(() => history.replaceState(null, '', '/'));
+
+  it('n.privacy e n.iso: quatro de cada módulo, e o aviso continua', async () => {
+    expect(textos(await em('/privacy', { id: 'p1', modulos: ['privacy'] }))).toEqual(PRIVACY);
+    const c = await em('/iso', { id: 'p1', modulos: ['iso', 'privacy'] });
+    expect(textos(c)).toEqual(ISO);
+    expect(c.textContent).toContain('A resposta é sugestão, não parecer jurídico.');
+  });
+
+  it('n.360: as da ISO, salvo projeto só com n.privacy', async () => {
+    expect(textos(await em('/', { id: 'p1', modulos: ['iso', 'privacy'] }))).toEqual(ISO);
+    expect(textos(await em('/', { id: 'p1', modulos: ['privacy'] }))).toEqual(PRIVACY);
+  });
+
+  it('clicar envia a pergunta pelo mesmo caminho e as sugestões saem', async () => {
+    const c = await em('/iso', { id: 'p1', modulos: ['iso'] });
+    apiMock.mockResolvedValue({ reply: 'ok' });
+    const b = sugestoes(c)[2];
+    await window.perguntarSugestao(...JSON.parse(b.getAttribute('data-args')));
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/chat', { message: 'Como preparar a auditoria interna?', modulo: 'iso' });
+    expect(sugestoes(c)).toEqual([]);
+    expect($('chat-messages').textContent).toContain('Como preparar a auditoria interna?');
   });
 });
