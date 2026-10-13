@@ -58,6 +58,7 @@ describe('renderUsers', () => {
 
   it('mostra a organização de cada conta e avisa que a lista é de todas, quando não há filtro', async () => {
     window.nomeOrgDe = (id) => ({ org_ness: 'ness.', org_bekaa: 'Bekaa' }[id]);
+    window.orgsConhecidas = () => [{ id: 'org_ness', nome: 'ness.' }, { id: 'org_bekaa', nome: 'Bekaa' }];
     S.orgAtuacao = null;
     apiMock.mockResolvedValue([
       { id: 'u1', name: 'Ana', email: 'ana@exemplo.test', role: 'platform_admin', org: 'org_ness' },
@@ -68,8 +69,16 @@ describe('renderUsers', () => {
     const linhas = [...c.querySelectorAll('tbody tr')];
     expect(linhas[0].textContent).toContain('ness.');
     expect(linhas[1].textContent).toContain('Bekaa');
-    expect(c.textContent).toContain('todas as organizações');
-    delete window.nomeOrgDe;
+    const sel = c.querySelector('#usr-org');
+    expect([...sel.options].map((o) => o.textContent)).toEqual(['Todas as organizações', 'ness.', 'Bekaa']);
+    apiMock.mockClear();
+    renderMock.mockClear();
+    window.__usuariosFiltrarOrg('org_bekaa');
+    expect(renderMock).toHaveBeenCalled();   // a tela se redesenha com o filtro
+    await window.renderUsers(c, h, a);
+    expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/users', undefined, { 'X-Org-Id': 'org_bekaa' });
+    window.__usuariosFiltrarOrg('');
+    delete window.nomeOrgDe; delete window.orgsConhecidas;
   });
 
   it('estado vazio e resposta que não é array', async () => {

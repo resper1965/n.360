@@ -478,3 +478,4 @@ window.renderOrganizacoes = renderOrganizacoes;
 window.atualizarSeletorOrg = atualizarSeletorOrg;
 window.nomeOrgAtuacao = () => (S.orgAtuacao ? nomeDe(S.orgAtuacao) : null);
 window.nomeOrgDe = (id) => (id ? nomeDe(id) : null);
+window.orgsConhecidas = () => orgs.map((o) => ({ id: o.id, nome: o.nome }));
