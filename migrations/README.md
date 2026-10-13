@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0069** (`ls migrations/*.sql | tail -1`). São 67 arquivos
+- Última migration no repositório: **0070** (`ls migrations/*.sql | tail -1`). São 68 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -492,5 +492,20 @@ importação (planilha e programa). Colunas novas com default 0, nada muda nas l
 column"): aplicar uma vez. Conferência depois: `PRAGMA table_info(ropa_records)` com as duas colunas. Para desfazer: não precisa (o código
 anterior não lê as colunas, e o default cobre o INSERT dele). **Esta RODA em produção**, e pode rodar depois do merge: o código anterior
 convive com as colunas novas, e o deploy do merge recusa enquanto ela estiver pendente.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+---
+
+## 0070 — papel do agente remoto (2026-10-13)
+
+`agente_concessoes.papel` (`TEXT NOT NULL DEFAULT 'consultor' CHECK (papel IN ('consultor', 'auditor'))`): o papel escolhido no
+consentimento OAuth do MCP remoto. O auditor só lê o projeto e registra achado e nota de auditoria; o servidor relê o papel daqui a cada
+chamada (`concessaoValida`). Default `consultor`: toda concessão existente fica como era. `test/migration-0070.test.ts` prova sobre a
+`agente_concessoes` antiga com linha: a linha fica e vira `consultor`, o CHECK recusa papel desconhecido. **NÃO é idempotente** (`ADD
+COLUMN` aborta com "duplicate column"): aplicar uma vez. Conferência depois: `PRAGMA table_info(agente_concessoes)` com `papel`. Para
+desfazer: não precisa (o código anterior não lê a coluna, e o default cobre o INSERT dele). **Esta RODA em produção, ANTES do código
+novo:** o código novo lê `ac.papel` em toda chamada de agente, então publicá-lo sem a coluna derruba todos os agentes conectados (401). O
+deploy do merge recusa enquanto ela estiver pendente, e é isso que protege.
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.

@@ -970,7 +970,9 @@ CREATE TABLE IF NOT EXISTS agente_concessoes (
     ultimo_uso_em DATETIME,
     expira_em DATETIME NOT NULL,
     revogado_em DATETIME,
-    revogado_por TEXT
+    revogado_por TEXT,
+    -- migration 0070: consultor implementa; auditor só lê e registra achado e nota (ISO 27001, 9.2)
+    papel TEXT NOT NULL DEFAULT 'consultor' CHECK (papel IN ('consultor', 'auditor'))
 );
 CREATE INDEX IF NOT EXISTS idx_agente_concessoes_projeto ON agente_concessoes(project_id);
 
