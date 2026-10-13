@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML } from '../ui.js';
-import { temProduto, projetoDoId } from '../produto.js';
+import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
 
 // Documentos do projeto (fatia 3.4 do núcleo): árvore política → norma → procedimento, dono, revisão, versões,
 // rascunho (inclusive o do agente), ciências e aprovação por versão. Toda regra é do servidor; aqui só se mostra
@@ -50,6 +50,17 @@ function arvore(docs) {
     return saida;
 }
 
+// O que um programa de adequação à LGPD costuma ter (n.privacy). Orientação, não lista de obrigação: o casamento é pelo
+// título sem acento nem caixa, então um documento com outro nome não conta e o aviso continua — por isso só "costuma".
+const DOCS_LGPD = [
+    { tipo: 'politica', titulo: 'Política de privacidade', ref: 'aviso aos titulares — LGPD art. 9' },
+    { tipo: 'procedimento', titulo: 'Procedimento de atendimento ao titular', ref: 'art. 18' },
+    { tipo: 'procedimento', titulo: 'Plano de resposta a incidente', ref: 'art. 48; Res. CD/ANPD 15/2024' },
+    { tipo: 'politica', titulo: 'Política de retenção e descarte', ref: 'arts. 15 e 16' },
+];
+const normal = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+const faltandoLgpd = (docs) => DOCS_LGPD.filter((m) => !docs.some((d) => normal(d.titulo).includes(normal(m.titulo))));
+
 const nomeDaParte = (id) => ((S.partes || []).find((p) => p.id === id) || {}).nome || '';
 
 async function renderDocumentos(c, h, a) {
@@ -84,10 +95,21 @@ async function renderDocumentos(c, h, a) {
             `<button class="btn btn-ghost btn-sm" data-action="openDocumentoModal" data-args='${args(proj.id, d.id)}'>Abrir</button>`,
         ];
     });
-    c.innerHTML = window.renderDataTable(
+    const privacy = produtoAtual() === 'privacy';
+    const faltam = privacy ? faltandoLgpd(docs) : [];
+    const criar = (m) => (podeEditar() ? `<button class="btn btn-ghost btn-sm" data-action="openNovoDocumentoModal" data-args='${args(proj.id, m.tipo, m.titulo)}'>Criar</button>` : '');
+    const vazio = privacy
+        ? { emptyState: 'Nenhum documento neste projeto',
+            emptyHint: 'Um programa de adequação à LGPD costuma ter os documentos abaixo. Comece por um deles, ou use "Importar políticas" para trazer os que já existem.',
+            emptyItens: faltam.map((m) => ({ texto: `${m.titulo} (${m.ref})`, acao: criar(m) })) }
+        : { emptyState: 'Nenhum documento neste projeto. Use "Importar políticas" para trazer as que já existem, ou crie um novo.' };
+    const aviso = docs.length && faltam.length
+        ? `<p id="docs-lgpd-faltando" style="margin:0 0 1rem; font-size:0.85rem; color:var(--text-dim)">Costuma existir num programa LGPD e não encontramos pelo título: ${escapeHTML(faltam.map((m) => m.titulo).join('; '))}.</p>`
+        : '';
+    c.innerHTML = aviso + window.renderDataTable(
         ['Documento', 'Tipo', 'Situação', 'Versão', 'Revisão', 'Dono', 'Aprovação', 'Ações'],
         linhas,
-        { emptyState: 'Nenhum documento neste projeto. Use "Importar políticas" para trazer as que já existem, ou crie um novo.' },
+        vazio,
     );
 }
 
@@ -111,11 +133,11 @@ window.importarDocumentos = async function (projectId) {
     } catch (e) { falha(e, 'Não foi possível importar'); }
 };
 
-window.openNovoDocumentoModal = function (projectId) {
+window.openNovoDocumentoModal = function (projectId, tipo = 'politica', titulo = '') {
     openModal(`
         <div class="modal-header"><span class="modal-title">Novo documento</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
-        <div class="form-group"><label class="form-label">Tipo</label><select class="form-input" id="doc-novo-tipo">${opcoesTipo('politica')}</select></div>
-        <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="doc-novo-titulo" maxlength="300"></div>
+        <div class="form-group"><label class="form-label">Tipo</label><select class="form-input" id="doc-novo-tipo">${opcoesTipo(TIPOS[tipo] ? tipo : 'politica')}</select></div>
+        <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="doc-novo-titulo" maxlength="300" value="${escapeHTML(titulo)}"></div>
         <div class="form-group"><label class="form-label">Texto (versão 1, em rascunho)</label><textarea class="form-input" id="doc-novo-texto" rows="8"></textarea></div>
         <div class="form-group"><label class="form-label">Documento pai (norma sob política; procedimento sob norma ou política)</label><select class="form-input" id="doc-novo-pai">${opcoesPais(null, null)}</select></div>
         <div class="form-group"><label class="form-label">Dono</label><select class="form-input" id="doc-novo-dono">${opcoesPartes(null)}</select></div>

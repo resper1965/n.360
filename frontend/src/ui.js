@@ -286,10 +286,16 @@ export function renderStatusBadge(arg1, arg2) {
  * houver) e a ação que o usuário pode tomar. Título e texto são texto (escapados); `acao` é HTML de
  * botão montado por quem chama. A aparência vive em `.empty-state` (style.css), nunca inline.
  */
-export function renderEmptyState({ titulo = '', texto = '', acao = '', id = '' } = {}) {
+export function renderEmptyState({ titulo = '', texto = '', acao = '', id = '', itens = [] } = {}) {
+    // `itens`: lista curta de texto (o que a cláusula pede, o que costuma existir); cada um pode trazer a própria ação (HTML).
+    const lista = itens.length ? `<ul class="empty-list">${itens.map((it) => {
+        const { texto: t, acao: ac } = typeof it === 'string' ? { texto: it } : it;
+        return `<li><span>${escapeHTML(t)}</span>${ac || ''}</li>`;
+    }).join('')}</ul>` : '';
     return `<div class="empty-state fade-in"${id ? ` id="${escapeHTML(id)}"` : ''}>`
         + (titulo ? `<h3>${escapeHTML(titulo)}</h3>` : '')
         + (texto ? `<p class="empty-hint">${escapeHTML(texto)}</p>` : '')
+        + lista
         + (acao ? `<div class="empty-action">${acao}</div>` : '')
         + '</div>';
 }
@@ -304,7 +310,7 @@ export function renderDataTable(columns, rows, options = {}) {
     const emptyMessage = options.emptyState || options.emptyMessage || 'Nenhum registro encontrado.';
     if (!rows || rows.length === 0) {
         // emptyHint é texto (a obrigação ou o próximo passo); emptyAction é HTML de botão montado por quem chama.
-        return renderEmptyState({ titulo: emptyMessage, texto: options.emptyHint, acao: options.emptyAction });
+        return renderEmptyState({ titulo: emptyMessage, texto: options.emptyHint, acao: options.emptyAction, itens: options.emptyItens });
     }
 
     // Normalize column headers. `numeric` liga tabular-nums; alinhar à direita
