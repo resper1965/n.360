@@ -11,8 +11,8 @@
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
-	// Domínios. `n360.ness.com.br` é o oficial depois da troca do APP_URL (etapa 2); n.iso e n.privacy são caminhos dele
-	// (/iso, /privacy). Com o APP_URL em niso (etapa 1, ou volta atrás) o n360 só responde, ninguém é redirecionado a ele.
+	// Domínios. `n360.ness.com.br` é o oficial (APP_URL, desde o #340); n.iso e n.privacy são caminhos dele
+	// (/iso, /privacy). Na volta atrás (APP_URL em niso) o n360 só responde, ninguém é redirecionado a ele.
 	// `niso.ness.com.br` e `nprivacy.ness.com.br` redirecionam (308) para o APP_URL + módulo e seguem servindo
 	// /api, /mcp, /oauth, /scim, /health etc. (HOST_DO_MODULO e `fica` em src/config/url.ts); o callback do SSO e o
 	// recurso do MCP continuam em niso.
@@ -118,8 +118,8 @@
 		// Endereço canônico (src/config/url.ts): links de e-mail, base do SCIM, CORS e
 		// o destino dos 308 (Worker e frontend, pelo `app_url` do /health) saem daqui,
 		// nunca do host da requisição. O callback de SSO e o recurso do MCP NÃO seguem
-		// o APP_URL: ficam presos em niso (URL_NISO). Etapa 1 do deploy: niso (nada
-		// redireciona para o n360); a etapa 2 troca para https://n360.ness.com.br.
+		// o APP_URL: ficam presos em niso (URL_NISO). Volta atrás: trocar para
+		// https://niso.ness.com.br (nada mais redireciona para o n360).
 		"APP_URL": "https://n360.ness.com.br",
 		// Chave PÚBLICA de verificação dos exports de portabilidade (item 4.6).
 		// É `var` e não `secret` DE PROPÓSITO: ela existe para ser publicada — o

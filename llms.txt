@@ -1,14 +1,16 @@
-# n.iso — Agentic GRC System
-> Plataforma da ness. para conduzir a adequação e a certificação ISO 27001/27701, sobre a stack da Cloudflare.
+# n.360 — plataforma de GRC da ness.
+> Dois módulos sobre um cadastro só (partes, itens, documentos, RoPA, DPIA, evidências): n.iso (/iso, adequação e certificação ISO 27001/27701) e n.privacy (/privacy, LGPD/ANPD). Endereço https://n360.ness.com.br. Stack da Cloudflare. O repositório e o Worker se chamam `niso` por história.
 
 ## Arquivos centrais
 - [AGENTS.md](AGENTS.md): contexto canônico do projeto, com o comando que mede cada número.
 - [src/index.ts](src/index.ts): composition root do Worker (Hono): cabeçalhos, CORS, autenticação, rotas.
 - [src/routes/](src/routes/): um arquivo de rota por domínio.
+- [src/modulos.ts](src/modulos.ts): a faixa de cada rota de projeto (nucleo, iso, privacy) e os módulos da pessoa.
 - [src/mcp/](src/mcp/): MCP remoto do agente consultor (login OAuth em /oauth/*).
-- [src/agents/](src/agents/): agentes de IA (política, evidência, avaliação, prontidão).
+- [src/agents/](src/agents/): agentes de IA (política, evidência, avaliação, prontidão, importação, privacidade); a IA rascunha, uma pessoa aprova.
+- [agent-skills/](agent-skills/): skills do agente consultor (prontidao-certificacao, maturidade-lgpd).
 - [schema.sql](schema.sql): schema do D1; migrations em [migrations/](migrations/).
-- [frontend/login.html](frontend/login.html): a SPA em JavaScript sem framework (views em frontend/src/views/).
+- [frontend/login.html](frontend/login.html): a SPA em JavaScript sem framework; frontend/src/produto.js escolhe n.360, n.iso ou n.privacy pelo caminho (views em frontend/src/views/).
 - [docs/openapi.json](docs/openapi.json): contrato da API, gerado dos schemas Zod.
 
 ## Conceitos
@@ -16,6 +18,8 @@
 - **Cofre de evidências**: R2 com integridade SHA-256 e assinatura eletrônica.
 - **Multi-tenant**: isolamento por projeto e por organização (multiconsultoria), provado por teste.
 - **Pedidos de aprovação e ciência**: conteúdo congelado e prova imutável por destinatário.
+- **Acesso por módulo**: rota do n.iso ou do n.privacy só abre se o projeto E a pessoa têm o módulo.
+- **Programa LGPD**: RoPA, DPIA/RIPD, LIA, pedidos do titular, incidentes com prazo da ANPD, consentimentos, terceiros, encarregado.
 
 ## Stack
 - **Backend**: Hono no Cloudflare Workers, D1, KV, R2, Workers AI.
