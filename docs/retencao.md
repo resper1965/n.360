@@ -1,6 +1,6 @@
 # Política de retenção
 
-> Item 4.5 do `enterprise-grade-plan.md`. O que é apagado, quando, e — mais
+> Item 4.5 do [`enterprise-grade-plan.md`](arquivo/enterprise-grade-plan.md). O que é apagado, quando, e — mais
 > importante para uma auditoria — **o que não é, e por quê**.
 
 A política não vive só aqui. A tabela `RETENCAO` em `src/manutencao.ts` é o que
@@ -33,6 +33,19 @@ ao cron.
 cliente mantém: quem é o encarregado, quem responde por quê. O prazo é decisão dele. Nome e e-mail em
 `partes` são dado pessoal, e por isso a busca e a eliminação do titular (`FONTES_PII`) as alcançam: a
 pessoa é anonimizada, o vínculo e o fato ficam.
+
+**A importação de programa do n.privacy também não** (`importacoes`, `importacao_arquivos`,
+`importacao_itens` e os arquivos no R2 `STORAGE`, prefixo `importacoes/<project_id>/`). É o registro de
+onde veio cada tratamento, terceiro, documento ou avaliação gravado. O ciclo é humano: **cancelar o
+lote** apaga os arquivos do R2 e as linhas de `importacao_arquivos` e `importacao_itens` do lote; o lote fica
+marcado `cancelada` (`cancelarLote` em `src/services/importacao.ts`).
+O histórico de titulares chega pseudonimizado (`tit-<16 hex>`, sem nome, CPF, e-mail ou telefone), e o
+documento importado guarda o arquivo original como evidência (`evidence.documento_id`). Não existe rota
+de exclusão de projeto; se um dia existir, precisa limpar esse prefixo do R2, que o cascade do D1 não
+alcança.
+
+**Conta de usuário também não.** Conta se desativa (`users.ativo = 0`); apagar de verdade é ato do
+`platform_admin` (`DELETE /api/v1/users/:id?definitivo=1`), porque a trilha referencia o e-mail.
 
 **`audit_logs` também não**, por dois motivos que se somam:
 

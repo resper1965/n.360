@@ -1,4 +1,4 @@
-# Runbook de incidente — n.iso
+# Runbook de incidente — n.360 (n.iso e n.privacy)
 
 > Para quando o sistema está quebrado, não para leitura de fim de semana.
 > Cada passo tem comando; nenhum diz "investigue".
@@ -12,12 +12,16 @@
 ```bash
 # O worker responde, e com qual versão? `version` é o SHA do commit publicado
 # ("dev" = deploy feito fora do workflow). Compare com o SHA que você espera.
-curl -s https://niso.ness.com.br/health
+curl -s https://n360.ness.com.br/health
 
 # O comportamento é o do código atual? (prova comportamento, não só o rótulo)
 curl -s -X POST -H "Content-Type: application/json" -d '{}' \
-  https://niso.ness.com.br/api/v1/auth/login
+  https://n360.ness.com.br/api/v1/auth/login
 ```
+
+Os domínios antigos (`niso.ness.com.br`, `nprivacy.ness.com.br`) servem `/health` e `/api/*` no lugar; a sonda externa
+(`.github/workflows/uptime.yml`) bate em `niso`. Se `n360` cai e `niso` responde, o problema é de rota ou de domínio,
+não do Worker.
 
 O login com corpo vazio deve devolver `{"error":"Payload inválido","details":[…]}`
 com `path` e `message` por campo. Resposta diferente disso significa **código
@@ -190,7 +194,7 @@ npx wrangler d1 execute niso-db --remote --command \
 > ```bash
 > # Durante um incidente ou uma auditoria, a pergunta é esta:
 > curl -H "Authorization: Bearer <sessao-platform-admin>" \
->   https://niso.ness.com.br/api/v1/admin/trilha/verificar
+>   https://n360.ness.com.br/api/v1/admin/trilha/verificar
 > # 200 = cadeia íntegra · 409 = quebra, com o dia e o motivo no corpo
 > ```
 >
