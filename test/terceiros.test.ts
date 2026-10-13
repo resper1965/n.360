@@ -43,8 +43,12 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES ('u-cons', 'cons@ness.lat', 'x', 'Cons', 'consultor', NULL, 'org_ness'), ('u-cli', 'cli@cliente.com', 'x', 'Cli', 'org_user', ?, 'org_ness')`).bind(P),
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-tc', ?, 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`).bind(P),
     env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('tc-a', ?1, 'organizacao', 'Nuvem Grande'), ('tc-b', ?1, 'organizacao', 'Fornecedor Médio'), ('tc-c', ?1, 'organizacao', 'Crítico SA'),
-      ('tc-p', ?1, 'pessoa', 'Ana Pessoa'), ('tc-i', ?1, 'organizacao', 'Inativo'), ('tc-o', ?2, 'organizacao', 'Terceiro Alheio')`).bind(P, OUTRO),
+      ('tc-p', ?1, 'pessoa', 'Ana Pessoa'), ('tc-i', ?1, 'organizacao', 'Inativo'), ('tc-o', ?2, 'organizacao', 'Terceiro Alheio'),
+      ('tc-anpd', ?1, 'organizacao', 'ANPD'), ('tc-forn', ?1, 'organizacao', 'Fornecedor Stakeholder')`).bind(P, OUTRO),
     env.DB.prepare(`UPDATE partes SET status = 'inativa' WHERE id = 'tc-i'`),
+    // o que o importarPartes grava para stakeholder: a ANPD só é parte interessada; o fornecedor também é terceiro
+    env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES
+      ('tc-si1', ?1, 'tc-anpd', 'parte_interessada', 'projeto', ?1), ('tc-si2', ?1, 'tc-forn', 'parte_interessada', 'projeto', ?1), ('tc-si3', ?1, 'tc-forn', 'terceiro', 'projeto', ?1)`).bind(P),
     env.DB.prepare(`INSERT INTO documentos (id, project_id, titulo) VALUES ('tc-d1', ?, 'DPA Nuvem'), ('tc-do', ?, 'Doc alheio')`).bind(P, OUTRO),
   ]);
   await habilitarPrivacy(P, OUTRO);
@@ -55,9 +59,9 @@ beforeAll(async () => {
 });
 
 describe('lista e tipo', () => {
-  it('lista só organização ativa do projeto, todas pendentes e sem tipo', async () => {
+  it('lista só organização ativa do projeto, todas pendentes e sem tipo; quem é só parte interessada (regulador) fica fora', async () => {
     const l = await lista();
-    expect(l.map((t) => t.id).sort()).toEqual(['tc-a', 'tc-b', 'tc-c']);
+    expect(l.map((t) => t.id).sort()).toEqual(['tc-a', 'tc-b', 'tc-c', 'tc-forn']);
     expect(l.every((t) => t.situacao === 'pendente' && t.terceiro_tipo === null && t.metodo === null && t.ultima_avaliacao === null)).toBe(true);
   });
 
@@ -150,7 +154,7 @@ describe('documentos, tratamentos e ficha', () => {
   it('a ficha traz tratamentos afetados (partes ligadas ao registro) e suboperadores', async () => {
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('tc-r1', ?, 'Folha de pagamento')`).bind(P),
-      env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES ('tc-v1', ?1, 'tc-a', 'operador', 'tratamento', 'tc-r1'), ('tc-v2', ?1, 'tc-b', 'suboperador', 'parte', 'tc-a')`).bind(P),
+      env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES ('tc-vs1', ?1, 'tc-a', 'operador', 'tratamento', 'tc-r1'), ('tc-vs2', ?1, 'tc-b', 'suboperador', 'parte', 'tc-a')`).bind(P),
     ]);
     const ficha = await json<{ tratamentos: number; tratamentos_afetados: { id: string; finalidade: string }[]; suboperadores: { id: string; nome: string }[] }>(await chamar(consultor, 'GET', `${base}/tc-a`));
     expect(ficha.tratamentos).toBe(1);
