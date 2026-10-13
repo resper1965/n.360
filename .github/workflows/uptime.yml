@@ -40,30 +40,42 @@ jobs:
       #
       # Três tentativas espaçadas: uma falha isolada de rede do runner não vale
       # uma issue. Falha nas três é sinal, não ruído.
+      #
+      # Dois domínios, e qualquer um que falhe reprova o job. `n360` é o
+      # endereço principal (APP_URL); `niso` segue servindo /health e /api/*
+      # no lugar (chaves de API, SCIM, MCP). Um cai sem o outro quando o
+      # problema é de rota ou de domínio, não do Worker.
       - name: Sondar
         id: sonda
         run: |
-          base=https://niso.ness.com.br
-          for tentativa in 1 2 3; do
-            motivo=""
-            saude=$(curl -s -m 15 -w "\n%{http_code}" "$base/health" || echo $'\n000')
-            codigo=$(printf '%s' "$saude" | tail -n1)
-            if [ "$codigo" != "200" ]; then
-              motivo="/health devolveu $codigo"
-            elif ! printf '%s' "$saude" | grep -q '"version"'; then
-              # `/health` sem o campo `version` = código anterior ao item 0.2 no
-              # ar. Não é queda, mas é deploy que não saiu — e vale alerta.
-              motivo="/health respondeu sem o campo version — código antigo publicado"
-            else
-              corpo=$(curl -s -m 15 -X POST -H "Content-Type: application/json" -d '{}' "$base/api/v1/auth/login" || echo "")
-              echo "$corpo" | grep -q 'Payload inválido' || motivo="login com corpo vazio não devolveu o envelope de validação"
+          falhas=""
+          for base in https://n360.ness.com.br https://niso.ness.com.br; do
+            ok=0
+            for tentativa in 1 2 3; do
+              motivo=""
+              saude=$(curl -s -m 15 -w "\n%{http_code}" "$base/health" || echo $'\n000')
+              codigo=$(printf '%s' "$saude" | tail -n1)
+              if [ "$codigo" != "200" ]; then
+                motivo="/health devolveu $codigo"
+              elif ! printf '%s' "$saude" | grep -q '"version"'; then
+                # `/health` sem o campo `version` = código anterior ao item 0.2 no
+                # ar. Não é queda, mas é deploy que não saiu — e vale alerta.
+                motivo="/health respondeu sem o campo version — código antigo publicado"
+              else
+                corpo=$(curl -s -m 15 -X POST -H "Content-Type: application/json" -d '{}' "$base/api/v1/auth/login" || echo "")
+                echo "$corpo" | grep -q 'Payload inválido' || motivo="login com corpo vazio não devolveu o envelope de validação"
+              fi
+              if [ -z "$motivo" ]; then echo "$base ok na tentativa $tentativa"; ok=1; break; fi
+              echo "$base tentativa $tentativa falhou: $motivo"
+              [ "$tentativa" -lt 3 ] && sleep 20
+            done
+            if [ "$ok" -ne 1 ]; then
+              falhas="${falhas}${falhas:+; }$base: $motivo"
+              echo "::error::$base não respondeu como esperado em 3 tentativas: $motivo"
             fi
-            [ -z "$motivo" ] && { echo "ok na tentativa $tentativa"; exit 0; }
-            echo "tentativa $tentativa falhou: $motivo"
-            [ "$tentativa" -lt 3 ] && sleep 20
           done
-          echo "motivo=$motivo" >> "$GITHUB_OUTPUT"
-          echo "::error::produção não respondeu como esperado em 3 tentativas: $motivo"
+          [ -z "$falhas" ] && exit 0
+          echo "motivo=$falhas" >> "$GITHUB_OUTPUT"
           exit 1
 
       # Uma issue, um estado — mesmo padrão do `deploy.yml`. Atualiza o corpo da

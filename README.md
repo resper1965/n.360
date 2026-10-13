@@ -217,7 +217,7 @@ particularidades (0011 neutralizada, buraco 0031–0033) e o estado em produçã
 | Deploy (`deploy.yml`) | push na `main` e manual | Recusa com migration pendente; injeta o SHA em `/health` |
 | Apply DB migrations (`db-migrate.yml`) | manual, com confirmação | Backup antes de aplicar |
 | Backup do D1 (`db-backup.yml`) | diário | Exporta e verifica o dump |
-| Sonda externa (`uptime.yml`) | a cada 15 min | `/health` e o login respondem como devem |
+| Sonda externa (`uptime.yml`) | a cada 15 min | `/health` e o login respondem como devem em `n360` e em `niso` |
 | SLO (`slo.yml`) | a cada 6 h | Latência e taxa de erro |
 | Drift de schema (`schema-drift.yml`) | semanal | `schema.sql` contra o D1 real |
 | Conferência de dados (`conferencia-dados.yml`) | manual | Contagens de produção, só leitura |

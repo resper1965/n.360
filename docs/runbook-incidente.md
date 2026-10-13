@@ -19,9 +19,10 @@ curl -s -X POST -H "Content-Type: application/json" -d '{}' \
   https://n360.ness.com.br/api/v1/auth/login
 ```
 
-Os domínios antigos (`niso.ness.com.br`, `nprivacy.ness.com.br`) servem `/health` e `/api/*` no lugar; a sonda externa
-(`.github/workflows/uptime.yml`) bate em `niso`. Se `n360` cai e `niso` responde, o problema é de rota ou de domínio,
-não do Worker.
+Os domínios antigos (`niso.ness.com.br`, `nprivacy.ness.com.br`) servem `/health` e `/api/*` no lugar. A sonda externa
+(`.github/workflows/uptime.yml`) bate nos dois, `n360` e `niso`, e o motivo da issue diz qual falhou. Se só um cai, o
+problema é de rota ou de domínio (Custom Domain, certificado, DNS), não do Worker: repita os dois `curl` acima com o
+outro domínio para confirmar.
 
 O login com corpo vazio deve devolver `{"error":"Payload inválido","details":[…]}`
 com `path` e `message` por campo. Resposta diferente disso significa **código
@@ -47,8 +48,10 @@ O n.iso não tem plantão formal. Isto é o que existe de fato:
 | Cliente reclama | quem atende | — |
 
 A sonda de `uptime.yml` roda **fora** da Cloudflare e faz as duas verificações
-da seção 0: `/health` e o envelope de validação do login. Ela abre uma issue
-única (label `uptime`) e a fecha sozinha quando produção volta.
+da seção 0 (`/health` e o envelope de validação do login) em `https://n360.ness.com.br`
+e em `https://niso.ness.com.br`, três tentativas cada; qualquer domínio que falhe nas três
+reprova o job. Ela abre uma issue única (label `uptime`), com o domínio e o motivo, e a
+fecha sozinha quando os dois voltam.
 
 A sonda de `uptime.yml` pega o sistema fora do ar; o `slo.yml` pega o caso em
 que ele responde mal. São coisas diferentes de propósito: se 30% das requisições
