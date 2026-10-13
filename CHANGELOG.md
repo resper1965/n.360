@@ -59,6 +59,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ### Corrigido
 - **Usuários, filtro de organização.** O Platform Admin escolhe na própria tela de qual organização listar as contas (ness., bekaa ou todas); antes a lista parecia da ness. e trazia tudo. O filtro vale só para a lista e não muda a organização em que ele atua.
+- **Usuários, e-mail da conta.** Na edição o campo ficava sempre travado, embora a rota aceite a troca (e confira se o e-mail já existe). Agora o Platform Admin pode trocá-lo; os demais papéis continuam vendo o campo travado. Serve, por exemplo, para liberar um e-mail antes de recadastrá-lo em outra organização sem apagar a conta, que tem histórico.
 - n.privacy, RoPA: a criação não oferece mais status (o `POST` grava sempre rascunho e ignorava o seletor); finalidade vazia e falha do servidor viram aviso em vez de fechar em silêncio.
 - n.privacy, RoPA: a base legal deixa de ter duas verdades. Escolher a hipótese grava também o id do catálogo quando ele está carregado, e escolher no catálogo (ligações e "Aplicar" da sugestão) grava o texto da hipótese que a LIA, o PDF e os pedidos leem. A tabela texto ↔ id vive em `frontend/src/bases-legais.js`.
 - n.privacy, RoPA: editar uma atividade aprovada (ou com aprovação por pedido vigente) pede confirmação antes de gravar, porque a edição substitui o pedido de aprovação.
