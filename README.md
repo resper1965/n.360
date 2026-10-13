@@ -185,7 +185,7 @@ Catracas que só deixam o número andar para um lado:
 |---|---|
 | `test/any-catraca.test.ts` | `any` em `src/` não sobe (e, se descer, o `TETO` desce junto) |
 | `test/colunas-catraca.test.ts` | Coluna escrita pelo código (INSERT/UPDATE) existe no schema aplicado num D1 real |
-| `frontend/test/catracas-visuais.test.js` | Cor em hex nas telas, `border-radius` inline fora de `0`/`10px`, `confirm`/`alert`/`prompt` nativos, estado vazio fora de `renderEmptyState` |
+| `frontend/test/catracas-visuais.test.js` | Cor em hex nas telas, `border-radius` inline fora de `0`/`10px` (o 10px é legado tolerado; o sistema é quadrado, ver [`design.md`](design.md)), `confirm`/`alert`/`prompt` nativos, estado vazio fora de `renderEmptyState` |
 | `test/sem-dado-de-cliente.test.ts` | Nome, e-mail ou identificador de cliente real no repositório |
 | `vitest.config.mts` (cobertura) | Piso de cobertura do backend |
 

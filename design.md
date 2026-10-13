@@ -26,7 +26,7 @@ por casca, em [`docs/design/diagnostico-2026-10-12/`](docs/design/diagnostico-20
 | Tinta | `--text`, `--text-2`, `--text-dim`, `--text-faint` (contraste medido no comentário de cada um) |
 | Semânticos | `--success`, `--warning`, `--danger`, `--info` |
 | Tipografia | `--font-head` (Montserrat), `--font-body` (Inter), `--font-mono` |
-| Geometria | `--radius: 0` — as superfícies são quadradas (ver Regras) |
+| Geometria | `--radius: 0` — o sistema é quadrado (ver Regras) |
 | Shell | `--hdr-h` (altura do header e da banda da marca), `--side-w`, `--side-w-rail` |
 
 Para ver os valores: `sed -n '/^:root/,/^}/p' frontend/src/style.css`.
@@ -38,14 +38,21 @@ Para ver os valores: `sed -n '/^:root/,/^}/p' frontend/src/style.css`.
 - Accent só em elemento interativo e foco; nunca como fundo de área.
 - Sem itálico, sem emoji, sem ícone decorativo.
 - Sem blur e sem gradiente na elevação (`--glass-blur: none`).
-- Geometria: **superfícies quadradas, controles com 10px.** Card, modal, badge, chip, item de lista,
-  barra de progresso e tabela usam `border-radius: var(--radius)` (= 0). Botões e controles de
-  formulário (`.btn`, `.btn-primary`, `.btn-secondary`, `.form-input`, `.form-select`,
-  `.ness-select-*`, `.dropdown-menu`, `.wizard-step`, `.yesno-btn`) têm `10px` literal em `style.css`.
-  Estilo inline nas telas só aceita `0` ou `10px` (`frontend/test/catracas-visuais.test.js`); o
-  inline de 10px ainda existe em controles de algumas telas
-  (`git grep -c "border-radius:\s*10px" -- 'frontend/src/views/*.js'`), e o diagnóstico de 12/10
-  (`docs/design/diagnostico-2026-10-12/`) tirou os raios fora da regra (6px, 12px, 16px).
+- Geometria: **o sistema é quadrado** (`--radius: 0`). A regra antiga "inputs e botões com 10px"
+  está superada. Como a cascata fica hoje (`frontend/src/style.css`):
+  - O bloco "Correções de superfície herdadas", no fim do arquivo, põe `border-radius: var(--radius)`
+    em `.sidebar-nav`, `.btn`, `.btn-primary`, `.btn-secondary`, `.chip`, `.form-input`, `.form-select`,
+    `.stat-card`, `.card`, `.table-container`, `.toast`, `.badge` e `.modal`. Mesma especificidade, vem
+    depois: vence. Os `border-radius: 10px` dessas classes perto do topo do arquivo são **código morto**.
+    O CSS do build confirma a ordem (`npm run build --prefix frontend`; em `dist/assets/login-*.css` o
+    `.btn{...}` vem antes da regra de sobreposição).
+  - Ainda renderizam com 10px: `.wizard-step`, `.yesno-btn`, `.ness-select-trigger`,
+    `.ness-select-options` e `.dropdown-menu`, que ficaram fora da sobreposição (usados em
+    `commercial.js`, `compliance.js`, `monitor.js` e `globals.js`), e os estilos inline das telas
+    (`git grep -c "border-radius:\s*10px" -- 'frontend/src/views/*.js'`: 41 em 4 arquivos em 2026-10-12).
+    Regra de CSS não vence atributo `style`; eles vão a 0 conforme cada tela é revisitada.
+  - `frontend/test/catracas-visuais.test.js` só aceita `0` ou `10px` inline: o 10px é tolerado até a
+    limpeza, não é o padrão. Componente novo nasce quadrado.
 - Login: tela dividida, marca à esquerda e cartão à direita; empilha abaixo de 900px.
 
 ## Utilitários de tela (`frontend/src/ui.js`)

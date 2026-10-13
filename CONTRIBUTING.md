@@ -38,7 +38,7 @@ Catracas que reprovam o PR mesmo sem você ter tocado no assunto delas:
 | `test/any-catraca.test.ts` | `any` em `src/` acima do `TETO`; e também abaixo dele: quem tipou baixa o `TETO` no mesmo PR |
 | `test/colunas-catraca.test.ts` | Coluna escrita por INSERT/UPDATE que não existe no schema aplicado |
 | `test/modulos-produto.test.ts` | Rota de projeto sem faixa (`nucleo`, `iso` ou `privacy`) em `src/modulos.ts` |
-| `frontend/test/catracas-visuais.test.js` | Cor em hex nas telas, `border-radius` inline fora de `0`/`10px`, `confirm`/`alert`/`prompt` nativos, estado vazio fora de `renderEmptyState` |
+| `frontend/test/catracas-visuais.test.js` | Cor em hex nas telas, `border-radius` inline fora de `0`/`10px` (o 10px é legado tolerado; o sistema é quadrado, ver `design.md`), `confirm`/`alert`/`prompt` nativos, estado vazio fora de `renderEmptyState` |
 | `test/sem-dado-de-cliente.test.ts` | Nome, e-mail ou identificador de cliente real |
 | `test/workflows-actions-sha.test.ts` | Action do GitHub sem SHA fixo |
 
