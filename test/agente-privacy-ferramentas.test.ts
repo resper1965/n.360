@@ -110,6 +110,8 @@ describe('ferramentas nomeadas do n.privacy (MCP remoto)', () => {
     const aud = await nomesDaLista(tokenAuditor);
     for (const n of LEITURA) expect(aud, n).toContain(n);
     for (const n of ESCRITA) expect(aud, n).not.toContain(n);
+    // Contagem citada em docs/agente/README.md e mcp-server-niso/README.md.
+    expect([cons.length, aud.length]).toEqual([40, 22]);
   });
 
   it('propor_tratamento cria em Draft com os campos da entrevista e a base do catálogo; não aceita status', async () => {
@@ -277,6 +279,12 @@ describe('ferramentas nomeadas do n.privacy (MCP remoto)', () => {
       expect(res.isError, caminho).toBe(true);
       expect(res.content[0].text, caminho).toContain('HTTP 403');
     }
+    // Concluir ou reabrir a LIA, nem pelo genérico.
+    for (const status of ['concluida', 'rascunho']) {
+      const lia = await chamarFerramenta(token, 'niso_executar', { metodo: 'PUT', caminho: `/api/v1/projects/${P}/ropa/${ropaId}/lia`, corpo: { status } });
+      expect(lia.content[0].text, status).toContain('HTTP 403');
+    }
+    expect((await linha<any>(`SELECT status FROM lia_assessments WHERE ropa_id = ?`, ropaId)).status).toBe('concluida');
     // Aprovar exige autoridade na matriz de governança: o agente não a tem.
     const aprovar = await chamarFerramenta(token, 'niso_executar', { metodo: 'POST', caminho: `/api/v1/projects/${P}/ropa/${ropaId}/approve`, corpo: { role: 'ciso' } });
     expect(aprovar.isError).toBe(true);
