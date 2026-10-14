@@ -16,7 +16,7 @@ const IDS_SIDEBAR = [
     'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa', 'nav-mgmt',
     'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-ai',
     'nav-audit-trail', 'nav-users', 'nav-settings', 'nav-titular', 'nav-incidentes', 'nav-inicio',
-    'nav-incidentes-privacy',
+    'nav-incidentes-privacy', 'nav-consentimentos',
 ];
 
 // `render()` despacha para funcoes globais que os modulos de view penduram em
@@ -189,14 +189,13 @@ describe('navigate()', () => {
             expect(itemAtivo().getAttribute('aria-current')).toBe('page');
         });
 
-        it('n.privacy: a tela titular destaca o item da aba (Pedidos do titular ou Incidentes)', () => {
+        it('n.privacy: a tela titular destaca o item da aba (Pedidos do titular, Incidentes, Consentimentos)', () => {
             history.replaceState(null, '', '/privacy');
-            S.titularAba = 'incidentes';
-            navigate('titular');
-            expect(itemAtivo().id).toBe('nav-incidentes-privacy');
-            S.titularAba = 'pedidos';
-            navigate('titular');
-            expect(itemAtivo().id).toBe('nav-titular');
+            for (const [aba, id] of [['incidentes', 'nav-incidentes-privacy'], ['consentimentos', 'nav-consentimentos'], ['pedidos', 'nav-titular'], ['prazos', 'nav-titular']]) {
+                S.titularAba = aba;
+                navigate('titular');
+                expect(itemAtivo().id, aba).toBe(id);
+            }
         });
 
         it.each([

@@ -1662,12 +1662,20 @@ textarea:focus-visible {
     .re-acoes .btn-primary { margin-left: 0; }
 }
 
-/* Menu do n.privacy: filas em destaque (Pedidos do titular, Terceiros, Incidentes) com selo. Rótulos de uma linha.
+/* Menu do n.privacy (alternativa A): Painel, quatro seções fixas (título que não é botão e não recolhe) e o Assistente.
+   Item com o mesmo peso em todo lugar; quem chama atenção é o selo. Abaixo de 820px de altura o n.privacy fica compacto
+   (itens de 28px) para caber a 1024x768; o n.iso e o n.360 não mudam.
    Selo: o número é o total a tratar; contorno âmbar = pendente (7,26:1 sobre --surface); fundo --danger com número em
    --accent-ink = há atrasado (forma além da cor; o contorno vermelho dava 4,14:1 e reprovava o AA). O accent fica para foco
    e item ativo. */
-.sidebar-nav.sidebar-nav-destaque { color: var(--text); font-weight: 500; }
-.sidebar-nav.sidebar-nav-destaque svg { opacity: 0.8; }
+.sidebar-secao { padding: 10px 20px 2px; font-family: var(--font-mono); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+.sidebar-secao-lista { list-style: none; margin: 0; padding: 0; }
+.sidebar-secao-fim { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; }
+@media (max-height: 820px) {
+    html[data-produto="privacy"] #secoes-privacy .sidebar-nav { height: 28px; }
+    html[data-produto="privacy"] .sidebar-secao { padding-top: 8px; padding-bottom: 0; }
+    html[data-produto="privacy"] .sidebar-secao-fim { margin-top: 4px; padding-top: 4px; }
+}
 .sidebar-selo { margin-left: auto; min-width: 18px; height: 16px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; color: var(--warning); border: 1px solid currentColor; border-radius: var(--radius); }
 .sidebar-selo.is-danger { background: var(--danger); border-color: var(--danger); color: var(--accent-ink); }
 .sidebar-selo[hidden], .sidebar.collapsed .sidebar-selo { display: none; }

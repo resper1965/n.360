@@ -17,7 +17,7 @@ const MODULOS = ['iso', 'privacy'];
 export const SO_ISO = ['nav-dashboard', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular', 'nav-incidentes-privacy'];
+export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
@@ -184,27 +184,51 @@ const marca = (produto) => `n<span style="color:var(--accent)">.</span><span cla
 export const ROTULOS_PRIVACY = {
     'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas, áreas e sistemas', 'nav-requisitos': 'Cobertura da LGPD',
     'nav-governance': 'Papéis e comitê', 'nav-titular': 'Pedidos do titular', 'nav-dpia': 'RIPD', 'nav-terceiros': 'Terceiros',
-    'nav-meus': 'Minhas aprovações',
 };
 
 /**
- * Menu do n.privacy por área de trabalho (só aqui; o n.iso e o n.360 não mudam). Painel (Encarregado) e as três filas em
- * destaque (DSAR, Terceiros, Incidentes) sobem para o primeiro nível; "Mapear e avaliar" fica com RoPA, RIPD e Requisitos;
- * o cadastro compartilhado com o n.iso vai para "Governança e provas". O Assistente fecha o bloco de primeiro nível.
+ * Menu do n.privacy (alternativa A do estudo de 14/10/2026; só aqui, o n.iso e o n.360 não mudam): Painel no topo, quatro
+ * seções FIXAS na ordem do programa e o Assistente no fim. O título de seção não é botão e não recolhe: tudo fica à vista.
+ * Os itens são os mesmos `.sidebar-nav` de sempre, movidos para `ul`/`li`; os grupos de onde saíram ficam vazios e somem.
  */
+export const SECOES_PRIVACY = [
+    ['', ['nav-encarregado']],
+    ['Mapear', ['nav-ropa', 'nav-partes', 'nav-terceiros', 'nav-importacao']],
+    ['Avaliar', ['nav-dpia', 'nav-requisitos']],
+    ['Responder', ['nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos']],
+    ['Provar', ['nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance']],
+    ['', ['nav-ai']],
+];
+/** Fora do menu do n.privacy: Minhas aprovações e Trilha de logs vão para o menu de conta; Preços e margens é do comercial do n.iso. */
+export const FORA_DO_MENU_PRIVACY = ['nav-meus', 'nav-audit-trail', 'nav-settings'];
+
 function organizarMenuPrivacy(doc) {
-    const topo = doc.getElementById('nav-dashboard');
-    if (topo) {
-        let ancora = topo;
-        for (const id of ['nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-incidentes-privacy', 'nav-ai']) {
-            const el = doc.getElementById(id);
-            if (el) { ancora.after(el); ancora = el; }
-        }
-    }
-    const provas = doc.getElementById('group-provas');
-    if (provas) for (const id of ['nav-documentos', 'nav-evidence', 'nav-partes', 'nav-governance', 'nav-training']) {
-        const el = doc.getElementById(id);
-        if (el) provas.appendChild(el);
+    const ancora = doc.getElementById('nav-dashboard');
+    if (ancora && !doc.getElementById('secoes-privacy')) {
+        const caixa = doc.createElement('div');
+        caixa.id = 'secoes-privacy';
+        SECOES_PRIVACY.forEach(([titulo, ids], n) => {
+            const ul = doc.createElement('ul');
+            ul.className = 'sidebar-secao-lista';
+            if (titulo) {
+                const t = doc.createElement('div');
+                t.className = 'sidebar-secao group-project-only';
+                t.id = `secao-${titulo.toLowerCase()}`;
+                t.textContent = titulo;
+                caixa.appendChild(t);
+                ul.classList.add('group-project-only');
+                ul.setAttribute('aria-labelledby', t.id);
+            } else if (n) ul.classList.add('sidebar-secao-fim');
+            for (const id of ids) {
+                const el = doc.getElementById(id);
+                if (!el) continue;
+                const li = doc.createElement('li');
+                li.appendChild(el);
+                ul.appendChild(li);
+            }
+            caixa.appendChild(ul);
+        });
+        ancora.after(caixa);
     }
     for (const [id, rotulo] of Object.entries(ROTULOS_PRIVACY)) {
         const t = doc.querySelector(`#${id} .sidebar-nav-text`);
@@ -241,7 +265,7 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
     // No n.360 (hub) fica só NAV_DO_HUB. Segurança do projeto está em Conta e acessos: nos módulos sai com o grupo.
     const doHub = new Set(NAV_DO_HUB);
     const esconder = produto === 'n360' ? (id) => !doHub.has(id)
-        : (id) => (produto === 'privacy' ? SO_ISO : SO_PRIVACY).includes(id) || SO_N360.includes(id) || id === 'nav-inicio' || id === 'nav-seguranca-projeto';
+        : (id) => (produto === 'privacy' ? [...SO_ISO, ...FORA_DO_MENU_PRIVACY] : SO_PRIVACY).includes(id) || SO_N360.includes(id) || id === 'nav-inicio' || id === 'nav-seguranca-projeto';
     if (produto === 'privacy') organizarMenuPrivacy(doc);
     doc.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach((n) => { if (esconder(n.id)) n.dataset.foraDoProduto = '1'; else delete n.dataset.foraDoProduto; });
     // Grupo sem nenhum item do produto some inteiro (rótulo e grupo).
@@ -252,8 +276,7 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
         if (rotulo) rotulo.dataset.foraDoProduto = vazio ? '1' : '';
     });
     const rotuloPriv = doc.querySelector('[data-args=\'["group-privacy"]\']');
-    if (rotuloPriv) { rotuloPriv.textContent = produto === 'privacy' ? 'Mapear e avaliar' : 'Privacidade'; rotuloPriv.removeAttribute('aria-label'); }
-    if (produto === 'privacy') abrirGrupo(doc.getElementById('group-privacy'), doc);
+    if (rotuloPriv) { rotuloPriv.textContent = 'Privacidade'; rotuloPriv.removeAttribute('aria-label'); }
     const rotuloOps = doc.querySelector('[data-args=\'["group-ops"]\']');
     if (rotuloOps) rotuloOps.textContent = produto === 'iso' ? 'Operacional' : 'Cadastro';
     const rotuloImpl = doc.querySelector('[data-args=\'["group-impl"]\']');

@@ -710,6 +710,11 @@ const ICON_LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11
 const ICON_HISTORY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>';
 const ICON_LOGOUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
 const ICON_CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+const ICON_APROVACOES = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>';
+const ICON_TRILHA = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="11" y2="17"/></svg>';
+// No n.privacy, Minhas aprovações e Trilha de logs moram no menu de conta (fora do menu do módulo). Quem vê cada um é o papel,
+// a mesma regra do item escondido do menu (updateHeaderUser): aqui só se lê o estilo dele.
+const NO_MENU_DE_CONTA = [['nav-meus', 'meus-pedidos', 'Minhas aprovações', ICON_APROVACOES], ['nav-audit-trail', 'audit-trail', 'Trilha de logs', ICON_TRILHA]];
 
 window.renderAccountMenu = function renderAccountMenu() {
         const box = document.getElementById('account-menu');
@@ -719,6 +724,10 @@ window.renderAccountMenu = function renderAccountMenu() {
         const initials = name.trim().slice(0, 2).toUpperCase();
         const tenants = Array.isArray(S.projects) ? S.projects : [];
         const activeId = S.activeProject ? S.activeProject.id : '';
+        const doModulo = produtoAtual() !== 'privacy' ? '' : NO_MENU_DE_CONTA.filter(([id]) => { const el = document.getElementById(id); return el && el.style.display !== 'none'; })
+            .map(([, tela, rotulo, icone]) => `<button type="button" role="menuitem" class="account-item" id="conta-${tela}" data-action="accountMenuAction" data-args='${escapeHTML(JSON.stringify(['navigate', tela]))}'>
+                ${icone}<span class="account-item-label">${rotulo}</span>
+            </button>`).join('');
 
         const tenantRows = tenants.map(p => {
             const label = p.project_name || p.client_name || p.id;
@@ -741,6 +750,7 @@ window.renderAccountMenu = function renderAccountMenu() {
             </div>
             <div class="account-rule"></div>
             ${tenantRows ? `<div class="account-group">Tenant</div>${tenantRows}<div class="account-rule"></div>` : ''}
+            ${doModulo ? `${doModulo}<div class="account-rule"></div>` : ''}
             <button type="button" role="menuitem" class="account-item" data-action="accountMenuAction" data-args='["openProfileModal"]'>
                 ${ICON_KEY}<span class="account-item-label">Minha conta e MFA</span>
             </button>
@@ -1011,6 +1021,15 @@ window.updateHeaderUser = function updateHeaderUser() {
             document.querySelectorAll('.sidebar-label, .sidebar-group').forEach(el => { el.style.display = 'none'; });
             if (selectorContainer) selectorContainer.style.display = 'none';
         }
+
+        // Seção do n.privacy sem nenhum item do papel some com o título (cliente sem Importar programa ainda vê Mapear;
+        // comercial e stakeholder não veem nenhuma).
+        document.querySelectorAll('.sidebar-secao-lista').forEach(ul => {
+            const vazia = ![...ul.querySelectorAll('.sidebar-nav')].some(el => el.style.display !== 'none') ? '1' : '';
+            ul.dataset.semItem = vazia;
+            const titulo = ul.getAttribute('aria-labelledby') && document.getElementById(ul.getAttribute('aria-labelledby'));
+            if (titulo) titulo.dataset.semItem = vazia;
+        });
 
         // Seletor de organização e faixa "Atuando em": só o platform_admin (views/organizacoes.js).
         if (window.atualizarSeletorOrg) window.atualizarSeletorOrg();

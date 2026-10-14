@@ -68,6 +68,14 @@ test('n.privacy: menu por área de trabalho, rótulos de uma linha e selos (tota
   await expect(menu.locator('#selo-painel')).toHaveText('1');
   await expect(menu.locator('#selo-terceiros')).toHaveText('2');
   await expect(menu.locator('#selo-incidentes')).toBeHidden();
-  await expect(menu.getByText('Mapear e avaliar', { exact: true })).toBeVisible();
-  await expect(menu.getByText('Governança e provas', { exact: true })).toBeVisible();
+  for (const secao of ['Mapear', 'Avaliar', 'Responder', 'Provar']) await expect(menu.getByText(secao, { exact: true })).toBeVisible();
+  // tudo à vista, sem abrir grupo: Documentos e Consentimentos a um clique
+  await expect(menu.locator('#nav-documentos')).toBeVisible();
+  await expect(menu.locator('#nav-consentimentos')).toBeVisible();
+  await expect(menu.locator('#nav-meus')).toBeHidden();
+  await expect(menu.locator('#nav-audit-trail')).toBeHidden();
+  // Minhas aprovações e Trilha de logs moram no menu de conta
+  await page.click('#sidebar-user-card');
+  await expect(page.getByRole('menuitem', { name: 'Minhas aprovações' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Trilha de logs' })).toBeVisible();
 });
