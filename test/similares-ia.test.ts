@@ -142,6 +142,21 @@ describe('rota de parecidos por significado', () => {
     expect(trilha?.n).toBe(0);
   });
 
+  it('lista grande vai ao modelo em blocos de até 100 textos e o resultado é o mesmo', async () => {
+    const LOTE = 'sim-lote';
+    await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'L', 'LGPD', 'Controller', 'Active', 'org_ness')`).bind(LOTE).run();
+    await env.DB.batch(Array.from({ length: 250 }, (_, i) =>
+      env.DB.prepare(`INSERT INTO departamentos (id, project_id, nome) VALUES (?, ?, ?)`).bind(`dl${i}`, LOTE, i === 240 ? 'Folha' : `Setor ${i}`)));
+    await designarConsultor('cons@ness.lat', LOTE);
+    const r = await chamar(consultor, LOTE, { tipo: 'area', nome: DIGITADO });
+    expect(r.status).toBe(200);
+    expect(ia.textos.length).toBe(3);
+    expect(ia.textos.every((t) => t.length <= 100)).toBe(true);
+    expect(ia.textos.flat().length).toBe(251);
+    const corpo = (await r.json()) as Resp;
+    expect(corpo.resultados[0].nome).toBe('Folha');
+  });
+
   it('limite por usuário: 429 quando a janela estoura', async () => {
     const outro = await sessionFor({ id: 'sim-limite', email: 'lim@ness.lat', role: 'platform_admin' });
     await env.SESSIONS.put('ratelimit:similares:sim-limite', '60', { expirationTtl: 600 });

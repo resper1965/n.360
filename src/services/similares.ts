@@ -56,15 +56,24 @@ function vetores(r: unknown, n: number): number[][] | null {
   return data.every((v) => Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'number')) ? (data as number[][]) : null;
 }
 
+/** Textos por chamada ao modelo de embeddings (limite do lote não documentado: conservador). */
+const TAMANHO_LOTE = 100;
+
 export async function buscarSimilares(env: { DB: D1Database; AI?: unknown } & Record<string, unknown>, projectId: string, tipo: TipoSimilar, nome: string): Promise<ResultadoSimilares> {
   const lista = await candidatos(env.DB, projectId, tipo);
   if (!lista.length) return { resultados: [] };
   const ai = env.AI as Modelo | undefined;
   if (!ai || typeof ai.run !== 'function') return { resultados: [], indisponivel: true };
-  let vs: number[][] | null;
-  // ponytail: uma chamada com até 301 textos curtos; se o modelo passar a limitar o tamanho do lote, dividir em blocos aqui.
-  try { vs = vetores(await ai.run(embeddingsModel(env), { text: [nome, ...lista.map((c) => c.nome)] }), lista.length + 1); }
-  catch (e) {
+  let vs: number[][] | null = [];
+  const textos = [nome, ...lista.map((c) => c.nome)];
+  try {
+    // A documentação do bge-m3 não diz o tamanho máximo do lote: blocos de TAMANHO_LOTE textos, em sequência.
+    for (let i = 0; i < textos.length && vs; i += TAMANHO_LOTE) {
+      const bloco = textos.slice(i, i + TAMANHO_LOTE);
+      const v = vetores(await ai.run(embeddingsModel(env), { text: bloco }), bloco.length);
+      vs = v ? vs.concat(v) : null;
+    }
+  } catch (e) {
     log('warn', { msg: 'similares_indisponivel', projeto: projectId, tipo, erro: e instanceof Error ? e.name : 'desconhecido' });
     return { resultados: [], indisponivel: true };
   }
