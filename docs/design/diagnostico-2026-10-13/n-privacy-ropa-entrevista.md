@@ -214,6 +214,13 @@ Legenda: ES escolha única, EM escolha múltipla, TC texto curto, TL texto longo
 - Sem IA para sensíveis, crianças e transferência: são respostas do cliente e têm consequência jurídica.
 - O servidor só atende equipe e `org_admin`; para os demais o botão não aparece. Sem catálogo carregado a sugestão não tem id válido: esconder o botão.
 - Sem rota nova. A sugestão devolve id do catálogo; D2 converte para o texto de `legal_basis` pelo título do requisito.
+- **Copiloto (etapa 3, 13/10/2026).** Na atividade nova, um bloco opcional "Descreva a atividade com suas palavras" chama
+  `POST .../ropa/copiloto` (`src/services/copiloto-ropa.ts`). O servidor lê do banco os sistemas (sem a categoria Pessoas), as áreas e as
+  hipóteses do art. 7 do catálogo; mascara a descrição; pede ao modelo `reasoning` em JSON mode e valida campo a campo (id fora da lista some,
+  texto é cortado ao teto do RoPA). A proposta cobre só A1, B1, C1, D1/D2, E2, F1/F2 e G1; responsável, sensíveis, crianças, transferência e
+  salvaguarda ficam fora do contrato e voltam em `perguntas_a_confirmar`; indício no texto (saúde, menores, exterior) vira só aviso. Na tela,
+  cada resposta preenchida leva o selo "Proposta do assistente: confira" até a pessoa alterá-la; sistema ou área citados e não cadastrados viram
+  "Cadastrar X?", que passa pela checagem de parecidos antes de criar. Nada é gravado antes do Salvar; indisponível esconde o bloco.
 
 ### 4.5 Perguntas sem coluna no registro
 

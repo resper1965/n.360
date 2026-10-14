@@ -132,7 +132,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   phase-interpretation, readiness, importacao e privacidade (`ls src/agents`). O `privacidade` so
   RASCUNHA no n.privacy (sugestao do tratamento, resposta ao titular, comunicacao de incidente): a saida
   passa por zod estrito, nada e gravado no registro e a trilha `agente.rascunho` nao leva o texto
-  (`src/services/rascunhos-privacy.ts`).
+  (`src/services/rascunhos-privacy.ts`). O copiloto da entrevista do RoPA (`POST .../ropa/copiloto`,
+  `src/services/copiloto-ropa.ts`) segue a mesma regra, mas chama o modelo `reasoning` direto em JSON mode: so PROPOE
+  respostas a partir de uma descricao livre, nunca decide sensivel, crianca nem transferencia, e a tela marca cada proposta.
 - **Frontend**: `frontend/src/` → `frontend/dist`, servido pelo binding ASSETS.
   - `frontend/login.html` — o app de verdade (login + SPA), entrada do Vite
     (`vite.config.js: rollupOptions.input`), com `src/main.js`, `router.js`,
