@@ -43,97 +43,188 @@ describe('Segurança do projeto', () => {
     });
 });
 
-describe('n.privacy: menu', () => {
-    it('Importar programa fica fora do menu operacional, em Implantação (recolhido, depois de Privacidade)', () => {
+// A estrutura do menu do n.iso e do n.360, medida antes da alternativa A do n.privacy: não pode mudar (rótulos, ordem, grupos
+// e quem começa aberto). Formato: item `id=rótulo`, `[rótulo de grupo] aria-expanded` e `grupo (aberto): itens`.
+const estrutura = () => [...document.querySelector('.sidebar-nav-list').children]
+    .filter((n) => n.dataset.foraDoProduto !== '1')
+    .map((n) => (n.matches('.sidebar-label') ? `[${n.textContent.trim()}] ${n.getAttribute('aria-expanded')}`
+        : n.matches('.sidebar-group') ? `${n.id}${n.classList.contains('expanded') ? ' (aberto)' : ''}: ${[...n.querySelectorAll('.sidebar-nav')].filter((i) => i.dataset.foraDoProduto !== '1').map((i) => `${i.id}=${i.querySelector('.sidebar-nav-text').textContent.trim()}`).join(', ')}`
+        : `${n.id}=${n.querySelector('.sidebar-nav-text').textContent.trim()}`));
+const ESTRUTURA_ISO = [
+    'nav-meus=Meus pedidos',
+    'nav-dashboard=Dashboard',
+    '[Comercial] true',
+    'group-sales (aberto): nav-leads=Leads, nav-assessments=Levantamentos, nav-proposals=Propostas, nav-catalogo=Catálogo, nav-config=Configuração comercial',
+    '[Implementação] false',
+    'group-impl: nav-project=Jornada, nav-monitor=Monitor, nav-soa=SoA, nav-governance=Governança',
+    '[Operacional] false',
+    'group-ops: nav-stakeholders=Partes Interessadas, nav-context=Contexto, nav-assets=Ativos, nav-risks=Riscos, nav-vendors=Fornecedores, nav-partes=Partes, nav-documentos=Documentos, nav-training=Treinamento, nav-acknowledgments=Ciência de Políticas, nav-policies=Gestão de Políticas, nav-audits=Auditorias, nav-capa=CAPA, nav-incidentes=Incidentes, nav-mgmt=Análise Crítica, nav-evidence=Evidências',
+    '[Privacidade] false',
+    'group-privacy: nav-ropa=ROPA, nav-dpia=DPIA / RIPD',
+    '[Inteligência] false',
+    'group-intel: nav-ai=Assistente',
+    '[Sistema] false',
+    'group-system-config: nav-audit-trail=Trilha de Logs, nav-settings=Preços e margens',
+];
+const ESTRUTURA_N360 = [
+    'nav-inicio=Início',
+    'nav-meus=Meus pedidos',
+    '[Conta e acessos] true',
+    'group-conta (aberto): nav-projects=Projetos, nav-users=Usuários, nav-organizacoes=Organizações, nav-seguranca-projeto=Segurança do projeto, nav-api-keys=Chaves de API, nav-conectar-agente=Agentes',
+    '[Sistema] false',
+    'group-system-config: nav-audit-trail=Trilha de Logs',
+];
+
+describe('n.iso e n.360: o menu não muda com a alternativa A do n.privacy', () => {
+    it.each([['iso', ESTRUTURA_ISO], ['n360', ESTRUTURA_N360]])('%s: mesma estrutura, mesmos rótulos, mesmos grupos', (produto, esperado) => {
+        montarApp();
+        aplicarCasca(produto);
+        expect(estrutura()).toEqual(esperado);
+        expect(el('secoes-privacy')).toBeNull();
+        expect(document.querySelector('.sidebar-secao')).toBeNull();
+    });
+});
+
+describe('n.privacy: menu (alternativa A, seções fixas)', () => {
+    const itensDe = (ul) => [...ul.querySelectorAll(':scope > li > .sidebar-nav')].map((n) => n.id);
+    it('Painel no topo, Mapear, Avaliar, Responder e Provar, e o Assistente no fim', () => {
         montarApp();
         aplicarCasca('privacy');
-        expect(el('group-privacy').contains(el('nav-importacao'))).toBe(false);
-        expect(el('nav-importacao').parentElement.id).toBe('group-implantacao');
-        expect(el('group-implantacao').dataset.foraDoProduto).toBe('');
-        expect(el('group-implantacao').classList.contains('expanded')).toBe(false);
-        const r = rotuloDe('group-implantacao');
-        expect([r.getAttribute('role'), r.getAttribute('tabindex'), r.getAttribute('aria-expanded'), r.dataset.action]).toEqual(['button', '0', 'false', 'toggleGroup']);
-        expect(r.previousElementSibling).toBe(el('group-provas'));
-        expect(el('group-implantacao').nextElementSibling).toBe(rotuloDe('group-intel'));
+        const caixa = el('secoes-privacy');
+        expect(caixa.previousElementSibling).toBe(el('nav-dashboard'));
+        const partes = [...caixa.children].map((n) => (n.matches('.sidebar-secao') ? `# ${n.textContent}` : itensDe(n).join(' ')));
+        expect(partes).toEqual([
+            'nav-encarregado',
+            '# Mapear', 'nav-ropa nav-partes nav-terceiros nav-importacao',
+            '# Avaliar', 'nav-dpia nav-requisitos',
+            '# Responder', 'nav-titular nav-incidentes-privacy nav-consentimentos',
+            '# Provar', 'nav-documentos nav-evidence nav-training nav-governance',
+            'nav-ai',
+        ]);
+        expect(caixa.lastElementChild.classList.contains('sidebar-secao-fim')).toBe(true);
+        for (const ul of caixa.querySelectorAll('ul')) {
+            expect(ul.className).toContain('sidebar-secao-lista');
+            for (const li of ul.children) expect(li.tagName).toBe('LI');
+        }
     });
-    it('n.iso não mostra Implantação', () => {
+    it('os títulos de seção não são botão, não recolhem e dão nome à lista', () => {
+        montarApp();
+        aplicarCasca('privacy');
+        for (const t of document.querySelectorAll('.sidebar-secao')) {
+            expect(t.getAttribute('role'), t.textContent).toBeNull();
+            expect(t.hasAttribute('tabindex'), t.textContent).toBe(false);
+            expect(t.dataset.action, t.textContent).toBeUndefined();
+            expect(t.hasAttribute('aria-expanded'), t.textContent).toBe(false);
+            expect(t.nextElementSibling.getAttribute('aria-labelledby')).toBe(t.id);
+        }
+        expect(document.querySelectorAll('.sidebar-secao').length).toBe(4);
+        // nenhum rótulo de grupo (acordeão) sobra no menu do n.privacy
+        const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
+        expect(rotulos.map((r) => r.textContent)).toEqual([]);
+    });
+    it('15 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
+        montarApp();
+        aplicarCasca('privacy');
+        const destinos = [...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => n.id);
+        expect(destinos.length).toBe(15);
+        expect(new Set(visiveis())).toEqual(new Set(destinos));
+        for (const id of ['nav-meus', 'nav-audit-trail', 'nav-settings']) expect(el(id).dataset.foraDoProduto, id).toBe('1');
+        expect(el('group-system-config').dataset.foraDoProduto).toBe('1');
+    });
+    it('aplicar a casca de novo não duplica as seções', () => {
+        montarApp();
+        aplicarCasca('privacy');
+        aplicarCasca('privacy');
+        expect(document.querySelectorAll('#secoes-privacy').length).toBe(1);
+        expect(document.querySelectorAll('.sidebar-secao').length).toBe(4);
+    });
+    it('n.iso não mostra Implantação nem Consentimentos', () => {
         montarApp();
         aplicarCasca('iso');
         expect(el('group-implantacao').dataset.foraDoProduto).toBe('1');
         expect(rotuloDe('group-implantacao').dataset.foraDoProduto).toBe('1');
+        expect(visiveis()).not.toContain('nav-consentimentos');
     });
-    it('por área de trabalho: painel e filas em destaque no primeiro nível, depois Mapear e avaliar, Governança e provas e Implantação', () => {
-        montarApp();
-        aplicarCasca('privacy');
-        const lista = el('nav-dashboard').parentElement;
-        const topo = [...lista.children].filter((n) => n.matches('.sidebar-nav') && n.dataset.foraDoProduto !== '1').map((n) => n.id);
-        expect(topo).toEqual(['nav-meus', 'nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-incidentes-privacy', 'nav-ai']);
-        const ids = (g) => [...el(g).querySelectorAll('.sidebar-nav')].filter((n) => n.dataset.foraDoProduto !== '1').map((n) => n.id);
-        expect(ids('group-privacy')).toEqual(['nav-ropa', 'nav-dpia', 'nav-requisitos']);
-        expect(ids('group-provas')).toEqual(['nav-documentos', 'nav-evidence', 'nav-partes', 'nav-governance', 'nav-training']);
-        expect(rotuloDe('group-privacy').textContent).toBe('Mapear e avaliar');
-        expect(rotuloDe('group-provas').textContent).toBe('Governança e provas');
-        expect(el('group-ops').dataset.foraDoProduto).toBe('1');
-        const ordem = [...lista.children].map((n) => n.id).filter((i) => ['group-privacy', 'group-provas', 'group-implantacao'].includes(i));
-        expect(ordem).toEqual(['group-privacy', 'group-provas', 'group-implantacao']);
-        expect(el('group-privacy').classList.contains('expanded')).toBe(true);
-        expect(rotuloDe('group-privacy').getAttribute('aria-expanded')).toBe('true');
-        expect(el('group-provas').classList.contains('expanded')).toBe(false);
-    });
-    it('rótulos e destaque: DSAR, Terceiros e Incidentes têm selo; ids, rotas e ações não mudam', () => {
+    it('rótulos de uma linha, nome do objeto antes da sigla; ids, rotas e ações não mudam', () => {
         montarApp();
         aplicarCasca('privacy');
         const texto = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
-        expect(texto('nav-titular')).toBe('Direitos do titular (DSAR)');
-        expect(texto('nav-terceiros')).toBe('Terceiros (risco de fornecedores)');
-        expect(texto('nav-ropa')).toBe('RoPA');
-        expect(texto('nav-dpia')).toBe('RIPD (DPIA)');
-        expect(texto('nav-incidentes-privacy')).toBe('Incidentes');
-        for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes']]) {
-            expect(el(id).classList.contains('sidebar-nav-destaque'), id).toBe(true);
+        expect(Object.fromEntries([...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => [n.id, texto(n.id)]))).toEqual({
+            'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas, áreas e sistemas', 'nav-terceiros': 'Terceiros',
+            'nav-importacao': 'Importar programa', 'nav-dpia': 'RIPD', 'nav-requisitos': 'Cobertura da LGPD', 'nav-titular': 'Pedidos do titular',
+            'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-documentos': 'Documentos', 'nav-evidence': 'Evidências',
+            'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-ai': 'Assistente',
+        });
+        for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes'], ['nav-encarregado', 'selo-painel']]) {
             expect(el(id).contains(el(selo)), selo).toBe(true);
             expect(el(selo).hidden, selo).toBe(true);
         }
-        expect(el('nav-encarregado').classList.contains('sidebar-nav-destaque')).toBe(false);
+        // peso igual em todo item: sem a classe de destaque das filas
+        expect(document.querySelector('.sidebar-nav-destaque')).toBeNull();
         expect(JSON.parse(el('nav-ropa').getAttribute('data-args'))).toEqual(['ropa']);
         expect(JSON.parse(el('nav-terceiros').getAttribute('data-args'))).toEqual(['terceiros']);
     });
-    it('os itens de primeiro nível seguem o projeto: sem projeto somem junto com os grupos', () => {
+    it('os rótulos novos ficam só no n.privacy: n.iso e n.360 mantêm os deles', () => {
+        const texto = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
+        for (const produto of ['iso', 'n360']) {
+            montarApp();
+            aplicarCasca(produto);
+            expect([texto('nav-governance'), texto('nav-partes'), texto('nav-ropa'), texto('nav-dpia'), texto('nav-requisitos'), texto('nav-meus')], produto)
+                .toEqual(['Governança', 'Partes', 'ROPA', 'DPIA / RIPD', 'Requisitos', 'Meus pedidos']);
+        }
+    });
+    it('rótulo de item numa linha só: o CSS não deixa o texto quebrar', () => {
+        expect(css).toMatch(/\.sidebar-nav-text\s*\{[^}]*white-space:\s*nowrap/);
+        expect(css).not.toMatch(/\.sidebar-nav-destaque/);
+    });
+    it('os itens com projeto seguem o projeto: sem projeto somem, e as seções também', () => {
         montarApp();
-        for (const id of ['nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-incidentes-privacy', 'group-provas']) {
+        for (const id of ['nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-incidentes-privacy', 'nav-consentimentos']) {
             expect(el(id).classList.contains('group-project-only'), id).toBe(true);
             expect(el(id).style.display, id).toBe('none');
         }
+        aplicarCasca('privacy');
+        for (const n of document.querySelectorAll('.sidebar-secao, #secoes-privacy ul[aria-labelledby]')) expect(n.classList.contains('group-project-only')).toBe(true);
     });
-    it('Governança e Inteligência de um item só não viram grupo; o assistente se chama Assistente', () => {
+    it('Pedidos do titular, Incidentes e Consentimentos abrem a tela do titular na aba deles; Partes Interessadas, Ativos e Fornecedores ficam fora', () => {
         montarApp();
         aplicarCasca('privacy');
-        expect(el('group-impl').dataset.foraDoProduto).toBe('1');
-        expect(rotuloDe('group-impl').dataset.foraDoProduto).toBe('1');
-        expect(el('group-intel').dataset.foraDoProduto).toBe('1');
-        expect(rotuloDe('group-intel').dataset.foraDoProduto).toBe('1');
-        expect(visiveis()).toContain('nav-ai');
-        expect(el('nav-ai').textContent.trim()).toBe('Assistente');
-        expect(el('nav-ai').closest('.sidebar-group')).toBeNull();
-    });
-    it('Incidentes abre a tela do titular na aba de incidentes; Partes Interessadas, Ativos e Fornecedores ficam fora', () => {
-        montarApp();
-        aplicarCasca('privacy');
-        expect(el('nav-incidentes-privacy').getAttribute('data-action')).toBe('abrirAbaTitular');
-        expect(JSON.parse(el('nav-incidentes-privacy').getAttribute('data-args'))).toEqual(['incidentes']);
-        expect(JSON.parse(el('nav-titular').getAttribute('data-args'))).toEqual(['pedidos']);
+        for (const [id, aba] of [['nav-titular', 'pedidos'], ['nav-incidentes-privacy', 'incidentes'], ['nav-consentimentos', 'consentimentos']]) {
+            expect(el(id).getAttribute('data-action'), id).toBe('abrirAbaTitular');
+            expect(JSON.parse(el(id).getAttribute('data-args')), id).toEqual([aba]);
+        }
         for (const id of ['nav-stakeholders', 'nav-assets', 'nav-vendors']) expect(visiveis(), id).not.toContain(id);
     });
-    it('no n.iso o menu continua com Governança no grupo e sem o item de incidentes do n.privacy', () => {
+});
+
+describe('barra lateral acessível nos três produtos', () => {
+    it('todo rótulo de grupo diz qual grupo controla (aria-controls)', () => {
         montarApp();
-        aplicarCasca('iso');
-        expect(rotuloDe('group-privacy').textContent).toBe('Privacidade');
-        expect(el('nav-ropa').textContent.trim()).toBe('ROPA');
-        expect(el('nav-dpia').textContent.trim()).toBe('DPIA / RIPD');
-        expect(el('group-provas').dataset.foraDoProduto).toBe('1');
-        expect(el('nav-governance').parentElement.id).toBe('group-impl');
-        expect(visiveis()).not.toContain('nav-incidentes-privacy');
-        expect(visiveis()).toContain('nav-assets');
+        const rotulos = [...document.querySelectorAll('.sidebar-label')];
+        expect(rotulos.length).toBeGreaterThan(0);
+        for (const r of rotulos) {
+            const alvo = JSON.parse(r.dataset.args)[0];
+            expect(r.getAttribute('aria-controls'), r.textContent).toBe(alvo);
+            expect(el(alvo).classList.contains('sidebar-group'), alvo).toBe(true);
+        }
+    });
+    it('grupo fechado sai do Tab e da árvore de acessibilidade (visibility), o aberto volta', () => {
+        expect(css).toMatch(/\.sidebar-group\s*\{[^}]*max-height:\s*0[^}]*visibility:\s*hidden/);
+        expect(css).toMatch(/\.sidebar-group\.expanded\s*\{[^}]*visibility:\s*visible/);
+    });
+    it('recolhida: o texto do item fica só visualmente escondido (nunca display:none), e o selo vai para o canto do ícone', () => {
+        expect(css).not.toMatch(/\.sidebar\.collapsed \.sidebar-nav-text[^{]*\{[^}]*display:\s*none/);
+        expect(css).toMatch(/\.sidebar\.collapsed \.sidebar-nav-text[^{]*\{[^}]*position:\s*absolute[^}]*clip:\s*rect\(0 0 0 0\)/);
+        expect(css).not.toMatch(/\.sidebar\.collapsed \.sidebar-selo[^{]*\{[^}]*display:\s*none/);
+        expect(css).toMatch(/\.sidebar\.collapsed \.sidebar-selo\s*\{[^}]*position:\s*absolute/);
+        expect(css).toMatch(/\.sidebar-dica\s*\{[^}]*position:\s*fixed/);
+        montarApp();
+        expect(el('sidebar-dica').getAttribute('aria-hidden')).toBe('true');
+    });
+    it('Partes e Governança com ícones diferentes', () => {
+        montarApp();
+        const desenho = (id) => el(id).querySelector('svg').innerHTML;
+        expect(desenho('nav-governance')).not.toBe(desenho('nav-partes'));
     });
 });
 

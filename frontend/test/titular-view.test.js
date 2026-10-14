@@ -63,9 +63,10 @@ describe('abas', () => {
         expect(abas.map((b) => b.getAttribute('role'))).toEqual(['tab', 'tab', 'tab', 'tab']);
         expect(abas.map((b) => b.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false']);
         expect(abas[0].className).not.toContain('btn-primary');
+        // pela navegação, para o item ativo do menu acompanhar a aba
         window.escolherAbaTitular('incidentes');
         expect(S.titularAba).toBe('incidentes');
-        expect(window.render).toHaveBeenCalled();
+        expect(navigate).toHaveBeenLastCalledWith('titular');
     });
     it('sem projeto ativo: estado vazio', async () => {
         S.activeProject = null; S.projects = [];
