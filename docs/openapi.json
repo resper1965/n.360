@@ -23598,10 +23598,6 @@
                     ]
                   }
                 },
-                "required": [
-                  "asset",
-                  "threat"
-                ],
                 "additionalProperties": {}
               }
             }

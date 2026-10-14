@@ -439,7 +439,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
 
-- **535 `any` em `src/`** (medido em 2026-10-14, fora `*.test.ts`:
+- **531 `any` em `src/`** (medido em 2026-10-14, fora `*.test.ts`:
   `git grep -ahoE ': any\b|as any\b|<any>' -- 'src/*.ts' ':!*.test.ts' | wc -l`).
   `tsc --noEmit` limpo diz pouco. Tipar o que voce tocar e melhoria barata; nao
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o

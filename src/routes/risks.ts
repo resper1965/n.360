@@ -83,36 +83,44 @@ risks.put('/api/v1/risks/:id', async (c) => {
     const v = await validateBody(c, riskUpdateSchema);
     if (!v.success) return v.response;
     const body = v.data as any;
-    const impact = body.impact ?? 3;
-    const probability = body.probability ?? 3;
-    const level = riskLevel(impact * probability);
 
-    // Buscar o project_id para registrar no histórico
-    const currentRisk = await c.env.DB.prepare('SELECT project_id FROM risks WHERE id = ?').bind(id).first() as any;
-    const projectId = currentRisk?.project_id;
+    // PUT parcial: campo ausente mantém o valor gravado; null limpa onde a coluna aceita NULL.
+    const atual = await c.env.DB.prepare(
+      'SELECT project_id, asset_id, asset, threat, vulnerability, impact, probability, treatment, treatment_plan, control_id, owner, owner_parte_id, status, accepted_by, accepted_at FROM risks WHERE id = ?'
+    ).bind(id).first<Record<string, any>>();
+    if (!atual) return c.json({ error: 'Risco não encontrado' }, 404);
+    const projectId = atual.project_id;
     // O projeto vem do risco gravado, nunca do corpo.
     const fora = await refForaDoProjeto(c.env.DB, projectId, body, ['control_id', 'asset_id', 'owner_parte_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
 
+    // Coluna que aceita NULL: ausente mantém, null (ou vazio, nas referências) limpa.
+    const anulavel = (k: string, vazioLimpa = false) =>
+      body[k] === undefined ? atual[k] : (vazioLimpa ? body[k] || null : body[k]);
+    // Coluna NOT NULL: ausente ou null mantém.
+    const obrigatoria = (k: string) => body[k] ?? atual[k];
+    const impact = obrigatoria('impact') as number;
+    const probability = obrigatoria('probability') as number;
+    const level = riskLevel(impact * probability);
+
     await c.env.DB.prepare(
-      `UPDATE risks SET asset_id=?, asset=?, threat=?, vulnerability=?, impact=?, probability=?, risk_level=?, treatment=?, treatment_plan=?, control_id=?, owner=?, owner_parte_id=CASE WHEN ? THEN ? ELSE owner_parte_id END, status=?, accepted_by=?, accepted_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
+      `UPDATE risks SET asset_id=?, asset=?, threat=?, vulnerability=?, impact=?, probability=?, risk_level=?, treatment=?, treatment_plan=?, control_id=?, owner=?, owner_parte_id=?, status=?, accepted_by=?, accepted_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
     ).bind(
-      body.asset_id || null,
-      body.asset,
-      body.threat,
-      body.vulnerability ?? null,
+      anulavel('asset_id', true),
+      obrigatoria('asset'),
+      obrigatoria('threat'),
+      anulavel('vulnerability'),
       impact,
       probability,
       level,
-      body.treatment ?? 'Mitigate',
-      body.treatment_plan ?? null,
-      body.control_id || null,
-      body.owner ?? null,
-      body.owner_parte_id === undefined ? 0 : 1, // ausente mantém a parte; null desliga
-      body.owner_parte_id || null,
-      body.status ?? 'Open',
-      body.accepted_by ?? null,
-      body.accepted_at ?? null,
+      obrigatoria('treatment'),
+      anulavel('treatment_plan'),
+      anulavel('control_id', true),
+      anulavel('owner'),
+      anulavel('owner_parte_id', true),
+      obrigatoria('status'),
+      anulavel('accepted_by'),
+      anulavel('accepted_at'),
       id
     ).run();
 
