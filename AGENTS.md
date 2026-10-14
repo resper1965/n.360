@@ -251,9 +251,10 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   atesta o conteudo), uma linha de trilha por evidencia, idempotente; fonte `evidencia` nos avisos. A cobertura da LGPD (`lacunasDaFonte`) conta
   evidencia `conforming` em dia (cobre) ou `partial` (parcial). `GET /projects/:id/encarregado` (`src/services/encarregado.ts`) e SO consulta:
   pedidos do titular, incidentes, tratamentos sem base/DPIA/LIA, terceiros, documentos, evidencias, LGPD e prazos legais nao cadastrados, com a
-  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy (`login.html`, reorganizado em `organizarMenuPrivacy` de `frontend/src/produto.js`): Encarregado e as filas em destaque
-  (Direitos do titular (DSAR), Terceiros, Incidentes, cada uma com selo de vencimento de `frontend/src/selos-menu.js`) no primeiro nivel, grupo Mapear e avaliar (RoPA, RIPD (DPIA), Requisitos),
-  grupo Governanca e provas (Documentos, Evidencias, Partes, Governanca, Treinamento) e grupo Implantacao com Importar programa. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
+  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy (`login.html`, reorganizado em `organizarMenuPrivacy` de `frontend/src/produto.js`, rotulos so do modulo em `ROTULOS_PRIVACY`): Painel e as filas em destaque
+  (Pedidos do titular, Terceiros, Incidentes, cada uma com selo de `frontend/src/selos-menu.js`: numero = total a tratar, contorno ambar = pendente, fundo
+  vermelho = atraso; o Painel tem selo so com atraso) no primeiro nivel, grupo Mapear e avaliar (Tratamentos (RoPA), RIPD, Cobertura da LGPD),
+  grupo Governanca e provas (Documentos, Evidencias, Pessoas areas e sistemas, Papeis e comite, Treinamento) e grupo Implantacao com Importar programa. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
   abaixo (Frontend, n.360).
 - **n.iso e n.privacy sao MODULOS do n.360 sobre o mesmo cadastro (decisao de 09/10/2026, migration 0060; casca n.360 em 11/10).**
   Um Worker, um banco, um deploy; um dominio (`n360.ness.com.br`, em `routes` do `wrangler.jsonc`; `niso` e `nprivacy` ficam como
