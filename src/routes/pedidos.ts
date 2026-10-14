@@ -6,8 +6,9 @@ import {
   type PapelAssinatura,
   sendEmail, escapeHtml, genToken, sha256Hex, registraErro,
 } from '../helpers';
-import { validateBody, pedidoCriarSchema, pedidoDecisaoSchema, pedidoCienciaLoteSchema, pedidoReenvioSchema } from '../schemas';
+import { validateBody, aprovacaoLoteSchema, pedidoCriarSchema, pedidoDecisaoSchema, pedidoCienciaLoteSchema, pedidoReenvioSchema } from '../schemas';
 import { appUrl } from '../config/url';
+import { assinarEvidencia } from './evidence';
 import {
   criarPedido, recusaDeDestinatarios, politicaVazia, conferirVigencia, registrarDecisao, podePedir, autoridadeNoPedido, DIAS_LINK, type PedidoRow,
   substituirPedidosDoDocumento, type TipoPedido, type Vigencia,
@@ -271,6 +272,41 @@ pedidosApp.post('/:id/recusar', async (c) => {
   const valid = await validateBody(c, pedidoDecisaoSchema);
   if (!valid.success) return valid.response;
   return decidir(c, 'recusar', valid.data);
+});
+
+// Aprovação em lote (spec 2026-10-14): NÃO é caminho novo. Cada item passa pela função da aprovação individual
+// (`decidirPedido`, `assinarEvidencia`: autoridade, segregação de funções, hash); o lote só confere a senha uma vez.
+// Item que falha vira `ignorado` com o motivo e não derruba os outros. Só aprova: recusar pede motivo por item.
+pedidosApp.post('/lote', async (c) => {
+  try {
+    const valid = await validateBody(c, aprovacaoLoteSchema);
+    if (!valid.success) return valid.response;
+    const user = c.get('user');
+    const db = c.env.DB;
+    const dbUser = await db.prepare('SELECT password_hash, name, totp_enabled FROM users WHERE id = ? OR email = ?')
+      .bind(user.id ?? '', user.email ?? '').first<DbUser>();
+    if (!dbUser || !(await verifyPassword(valid.data.senha, dbUser.password_hash))) return c.json({ error: 'Senha incorreta' }, 401);
+
+    const resultados: { tipo: string; id: string; resultado: 'aprovado' | 'ignorado'; motivo?: string }[] = [];
+    for (const it of valid.data.itens) {
+      let r: Resultado;
+      try {
+        r = it.tipo === 'pedido'
+          ? await decidirPedido(c, user, it.id, 'aprovar', { senha: null, dbUser, hashVisto: it.hash_visto })
+          : await assinarEvidencia(c, user, it.id, { password: null, dbUser, fileHash: it.hash_visto });
+      } catch (e) {
+        registraErro(c, e);
+        r = { status: 403, corpo: { error: (e as { name?: string })?.name === 'ForbiddenError' ? 'Sem acesso a este item' : 'Não foi possível processar este item' } };
+      }
+      resultados.push(r.status === 200
+        ? { tipo: it.tipo, id: it.id, resultado: 'aprovado' }
+        : { tipo: it.tipo, id: it.id, resultado: 'ignorado', motivo: String(r.corpo.error ?? 'Não foi possível aprovar') });
+    }
+    const aprovados = resultados.filter((x) => x.resultado === 'aprovado').length;
+    await logAudit(db, 'aprovacao.lote', user.email, `Lote de aprovação: ${resultados.length} itens, ${aprovados} aprovados`,
+      '', c.req.header('CF-Connecting-IP') || '', '');
+    return c.json({ ok: true, aprovados, resultados });
+  } catch (e) { return erro500(c, 'Erro ao processar o lote de aprovação', e); }
 });
 
 // ─── Ciência em massa por link com código (fatia 3) ──────────────────────────────────────────────
