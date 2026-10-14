@@ -35,6 +35,7 @@ import './views/organizacoes.js';
 import './views/propostas.js';
 import './views/trocar-senha.js';
 import './views/meus-pedidos.js';
+import './views/aprovacao-lote.js';
 import './views/ai.js';
 import './views/privacy.js';
 import './views/security.js';

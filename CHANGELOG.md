@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (aprovação em lote)
+- **`POST /api/v1/pedidos/lote`**: aprova até 50 pedidos (documento, política, DPIA, tratamento) e evidências com a senha conferida uma vez. Não é caminho novo: cada item passa pelas mesmas funções da aprovação individual (`decidirPedido`, `assinarEvidencia`: autoridade, segregação de funções, hash), e o `hash_visto` de cada item tem de ser o do conteúdo atual (senão é ignorado). Resposta por item; só aprova (recusar pede motivo por item). Trilha: a de sempre por item, mais `aprovacao.lote`. Fora do agente. Tela: em "Meus pedidos" a caixa de seleção só libera depois de abrir o pedido, e "Aprovar selecionados" pede a senha e mostra o resultado e os motivos dos ignorados. A tela de evidências ainda não tem a seleção em lote (a rota já aceita evidência).
+- **`POST /projects/:id/importacoes/:id/itens/decidir`**: aceita ou descarta até 200 itens da revisão da importação de uma vez; "Aceitar os de confiança alta" passa a usar uma chamada só.
+
+### Alterado (aprovações)
+- `decidirPedido` e `assinarEvidencia` extraídos das rotas individuais, sem mudar o comportamento delas; teto de `any` de 535 para 532.
+- `api.js`: o 401 de `/api/v1/pedidos/lote` (senha incorreta) não derruba a sessão.
+
 ### Adicionado (documentos)
 - **Excluir documento**, só para o `platform_admin` e só enquanto o documento nunca virou prova: `DELETE /projects/:id/documentos/:id` recusa (409) se há versão publicada (vigente ou substituída), pedido de ciência ou aprovação ou exceção, e o `DELETE` é condicional no próprio statement. As versões em rascunho e as ligações a requisito e a terceiro vão junto; evidência fica, sem o vínculo. Trilha `documento.excluido`; fora do agente MCP. Tela Documentos: botão Excluir (com confirmação) em documento em rascunho. Quem já tem prova continua se aposentando.
 

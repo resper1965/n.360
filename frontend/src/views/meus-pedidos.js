@@ -56,15 +56,20 @@ window.renderMeusPedidos = async function renderMeusPedidos(c, h, a) {
     }
     c.innerHTML = `<div class="fade-in" style="display:flex;flex-direction:column;gap:10px;max-width:820px">
         ${pedidos.map((p) => `
+        <div style="display:flex;align-items:stretch;gap:10px">
+        ${p.meu_status === 'pendente' && p.status === 'aberto'
+            ? `<input type="checkbox" data-pl="${escapeHTML(p.id)}" disabled title="Abra o pedido para poder marcá-lo" aria-label="Selecionar ${escapeHTML(p.titulo)}">` : ''}
         <button type="button" class="card" data-action="abrirPedido" data-args='${args(p.id)}'
-            style="text-align:left;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 18px;cursor:pointer">
+            style="flex:1;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 18px;cursor:pointer">
             <span>
                 <span style="display:block;font-weight:600;color:var(--text)">${escapeHTML(p.titulo)}</span>
                 <span style="display:block;font-size:12px;color:var(--text-dim)">${escapeHTML(PAPEIS[p.papel_exigido] || p.papel_exigido)} · ${escapeHTML(data(p.criado_em))}</span>
             </span>
             <span class="ctx-tag">${escapeHTML(p.meu_status === 'pendente' && p.status === 'aberto' ? 'Aguardando você' : STATUS[p.meu_status] || p.meu_status)}</span>
-        </button>`).join('')}
+        </button>
+        </div>`).join('')}
     </div>`;
+    if (typeof window.lotePedidosRender === 'function') window.lotePedidosRender(a, pedidos);
 };
 
 function conteudoHtml(tipo, conteudo) {
@@ -86,6 +91,7 @@ window.abrirPedido = async function abrirPedido(id) {
     }
     const { pedido: p, destinatario: d } = r;
     const decide = p.status === 'aberto' && d.status === 'pendente';
+    if (decide && typeof window.lotePedidoVisto === 'function') window.lotePedidoVisto(p.id, p.hash); // libera a caixa do lote
     const aviso = p.status === 'substituido'
         ? '<p class="login-error" role="status">O documento mudou depois deste pedido. Um pedido novo, com o texto atual, está em Meus pedidos.</p>'
         : '';
