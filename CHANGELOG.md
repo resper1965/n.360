@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (documentos)
+- **Excluir documento**, só para o `platform_admin` e só enquanto o documento nunca virou prova: `DELETE /projects/:id/documentos/:id` recusa (409) se há versão publicada (vigente ou substituída), pedido de ciência ou aprovação ou exceção, e o `DELETE` é condicional no próprio statement. As versões em rascunho e as ligações a requisito e a terceiro vão junto; evidência fica, sem o vínculo. Trilha `documento.excluido`; fora do agente MCP. Tela Documentos: botão Excluir (com confirmação) em documento em rascunho. Quem já tem prova continua se aposentando.
+
 ### Alterado (n.privacy, menu: alternativa A, fases 2 e 3)
 - **Seções fixas** no n.privacy (`organizarMenuPrivacy` e `SECOES_PRIVACY` em `frontend/src/produto.js`): Painel no topo; **Mapear** (Tratamentos (RoPA), Pessoas, áreas e sistemas, Terceiros, Importar programa para a equipe), **Avaliar** (RIPD, Cobertura da LGPD), **Responder** (Pedidos do titular, Incidentes, Consentimentos) e **Provar** (Documentos, Evidências, Treinamento, Papéis e comitê); o Assistente fecha a lista. O título de seção não é botão e não recolhe; os itens ficam em `ul`/`li`, com a lista nomeada pelo título. Os grupos de onde os itens saíram ficam vazios e somem pela regra que já existia; seção sem item do papel some com o título.
 - **Consentimentos** ganhou item próprio (`nav-consentimentos`, em `SO_PRIVACY`), que abre a tela do titular na aba de consentimentos e fica ativo nela. As filas deixam de ter peso visual fixo (sai `.sidebar-nav-destaque`); quem chama atenção é o selo. Abaixo de 820px de altura o menu do n.privacy fica compacto (itens de 28px).

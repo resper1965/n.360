@@ -221,6 +221,24 @@ describe('ações do detalhe', () => {
         expect(c).toContain('POST /api/v1/projects/p9/documentos/p1/revisar');
     });
 
+    it('excluir: só o platform_admin vê o botão, e só em documento que nunca foi publicado; confirma e chama o DELETE', async () => {
+        const rascunho = DETALHE({ status: 'rascunho', versoes: [{ numero: 1, estado: 'rascunho', origem: 'humano', hash: 'a'.repeat(64), texto: 'x', criado_por: 'a', criado_em: '2026-10-01 10:00:00' }] });
+        S.user = { role: 'consultor' };
+        await abrirDetalhe({}, rascunho);
+        expect(document.querySelector('[data-action="excluirDocumento"]')).toBeNull();
+        S.user = { role: 'platform_admin' };
+        await abrirDetalhe({}, DETALHE());
+        expect(document.querySelector('[data-action="excluirDocumento"]')).toBeNull(); // vigente: aposenta, não exclui
+        const f = await abrirDetalhe({ 'DELETE /api/v1/projects/p9/documentos/p1': { ok: true } }, rascunho);
+        expect(JSON.parse(document.querySelector('[data-action="excluirDocumento"]').getAttribute('data-args'))).toEqual(['p9', 'p1']);
+        window.confirmar = vi.fn().mockResolvedValue(false);
+        await window.excluirDocumento('p9', 'p1');
+        expect(chamadas(f)).not.toContain('DELETE /api/v1/projects/p9/documentos/p1');
+        window.confirmar = vi.fn().mockResolvedValue(true);
+        await window.excluirDocumento('p9', 'p1');
+        expect(chamadas(f)).toContain('DELETE /api/v1/projects/p9/documentos/p1');
+    });
+
     it('aposentar e reativar mandam o status; texto vazio não vira rascunho', async () => {
         const f = await abrirDetalhe({ 'PUT /api/v1/projects/p9/documentos/p1': { ok: true } });
         await window.mudarStatusDocumento('p9', 'p1', 'obsoleto');

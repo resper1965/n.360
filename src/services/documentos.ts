@@ -304,6 +304,32 @@ export async function descartarRascunho(db: D1Database, projectId: string, docum
   return { ok: true };
 }
 
+/**
+ * Exclusão de verdade, só para o que nunca virou prova: sem versão publicada (vigente ou substituída), sem pedido de ciência ou
+ * aprovação e sem exceção. Versões em rascunho, ligações a requisito e a terceiro vão junto (CASCADE); evidência fica, sem o vínculo.
+ * Quem já tem prova se aposenta, não se apaga. A permissão (platform_admin) é da rota.
+ */
+export async function excluirDocumento(db: D1Database, projectId: string, documentoId: string, ator: string): Promise<Falha | { ok: true }> {
+  const d = await db.prepare('SELECT titulo FROM documentos WHERE id = ? AND project_id = ?').bind(documentoId, projectId).first<{ titulo: string }>();
+  if (!d) return falha(404, 'Documento não encontrado');
+  const prova = await db.prepare(
+    `SELECT (SELECT count(*) FROM documento_versoes WHERE documento_id = ?1 AND estado != 'rascunho')
+          + (SELECT count(*) FROM pedidos WHERE project_id = ?2 AND tipo = 'documento' AND ref_id = ?1)
+          + (SELECT count(*) FROM documento_excecoes WHERE documento_id = ?1) AS n`
+  ).bind(documentoId, projectId).first<{ n: number }>();
+  if (prova?.n) return falha(409, 'Este documento já tem versão publicada, pedido ou exceção: aposente-o em vez de excluir');
+  // Condicional no próprio DELETE: um pedido ou uma publicação que entre entre a leitura e aqui não perde a prova.
+  const r = await db.prepare(
+    `DELETE FROM documentos WHERE id = ?1 AND project_id = ?2
+       AND NOT EXISTS (SELECT 1 FROM documento_versoes WHERE documento_id = ?1 AND estado != 'rascunho')
+       AND NOT EXISTS (SELECT 1 FROM pedidos WHERE project_id = ?2 AND tipo = 'documento' AND ref_id = ?1)
+       AND NOT EXISTS (SELECT 1 FROM documento_excecoes WHERE documento_id = ?1)`
+  ).bind(documentoId, projectId).run();
+  if (!r.meta.changes) return falha(409, 'Este documento já tem versão publicada, pedido ou exceção: aposente-o em vez de excluir');
+  await logAudit(db, 'documento.excluido', ator, `Documento ${documentoId} ("${d.titulo}") excluído`, '', '', projectId);
+  return { ok: true };
+}
+
 /** O rascunho pendente do documento de um controle (o que o agente propôs), ou null. */
 export async function rascunhoDoControle(db: D1Database, projectId: string, controlId: string) {
   return db.prepare(

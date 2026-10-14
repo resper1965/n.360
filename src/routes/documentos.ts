@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500 } from '../helpers';
-import { alvoDaPublicacao, atualizarDocumento, cienciasDoDocumento, criarDocumento, descartarRascunho, importarDocumentos, lerDocumento, listarDocumentos, marcarRevisado, publicarVersao, salvarRascunho } from '../services/documentos';
+import { alvoDaPublicacao, atualizarDocumento, cienciasDoDocumento, criarDocumento, descartarRascunho, excluirDocumento, importarDocumentos, lerDocumento, listarDocumentos, marcarRevisado, publicarVersao, salvarRascunho } from '../services/documentos';
 import { aplicarTextoNoControle } from '../services/politica-escrita';
 import { atualizarExcecao, criarExcecao, listarExcecoes, revogarExcecao } from '../services/excecoes';
 import { conferirPedidosDoDocumento } from './pedidos';
@@ -135,4 +135,13 @@ documentosApp.delete('/documentos/:id/rascunho', async (c) => {
     const r = await descartarRascunho(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao descartar o rascunho', e); }
+});
+
+// Excluir de verdade só o que nunca virou prova, e só o administrador da plataforma; o resto se aposenta.
+documentosApp.delete('/documentos/:id', async (c) => {
+  try {
+    if (c.get('user').role !== 'platform_admin') return c.json({ error: 'Só o administrador da plataforma exclui documentos' }, 403);
+    const r = await excluirDocumento(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao excluir o documento', e); }
 });

@@ -152,3 +152,45 @@ describe('versões e publicação', () => {
     }
   });
 });
+
+describe('excluir documento', () => {
+  const excluir = (h: Record<string, string>, id: string, base = A) => chamar(h, 'DELETE', `${base}/documentos/${id}`);
+  const existe = async (id: string) => !!(await env.DB.prepare('SELECT 1 AS x FROM documentos WHERE id = ?').bind(id).first());
+
+  it('só o platform_admin exclui; consultor leva 403 e o documento fica', async () => {
+    const id = await novo({ titulo: 'Criado por engano' });
+    const consultor = await sessionFor({ id: 'u-cons-x', email: 'cons-x@ness.lat', role: 'consultor' });
+    expect((await excluir(consultor, id)).status).toBe(403);
+    expect(await existe(id)).toBe(true);
+  });
+
+  it('documento que nunca foi publicado: exclui com as versões, deixa trilha e some do projeto', async () => {
+    const id = await novo({ titulo: 'Rascunho solto' });
+    expect((await excluir(plat, id)).status).toBe(200);
+    expect(await existe(id)).toBe(false);
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM documento_versoes WHERE documento_id = ?').bind(id).first<{ n: number }>())?.n).toBe(0);
+    const t = await env.DB.prepare(`SELECT project_id FROM audit_logs WHERE action = 'documento.excluido' ORDER BY created_at DESC LIMIT 1`).first<{ project_id: string }>();
+    expect(t?.project_id).toBe('proj-a');
+  });
+
+  it('com versão publicada (vigente ou já substituída): 409 e nada some', async () => {
+    const id = await novo({ titulo: 'Publicado' });
+    expect((await chamar(plat, 'POST', `${A}/documentos/${id}/versoes/1/publicar`, {})).status).toBe(200);
+    expect((await excluir(plat, id)).status).toBe(409);
+    expect(await existe(id)).toBe(true);
+  });
+
+  it('com pedido de ciência ou aprovação: 409', async () => {
+    const id = await novo({ titulo: 'Com pedido' });
+    await env.DB.prepare(`INSERT INTO pedidos (id, org_id, project_id, tipo, ref_id, titulo, papel_exigido, conteudo_json, hash, criado_por) VALUES (?, 'org_ness', 'proj-a', 'documento', ?, 'x', 'ciente', '{}', 'h', 'x')`).bind(`ped-${id}`, id).run();
+    expect((await excluir(plat, id)).status).toBe(409);
+    expect(await existe(id)).toBe(true);
+  });
+
+  it('inexistente ou de outro projeto: 404', async () => {
+    const id = await novo({ titulo: 'Do A' });
+    expect((await excluir(plat, id, B)).status).toBe(404);
+    expect((await excluir(plat, 'nao-existe')).status).toBe(404);
+    expect(await existe(id)).toBe(true);
+  });
+});
