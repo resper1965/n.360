@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { hashPassword, sha256Hex } from '../src/helpers';
@@ -6,6 +6,17 @@ import {
   gerarSegredoTotp, gerarCodigoTotp, verificarCodigoTotp, base32Encode, base32Decode, uriProvisionamento, gerarCodigosRecuperacao,
 } from '../src/services/totp';
 import { applySchema, resetData, resetSessions, sessionFor } from './helpers/d1';
+
+/**
+ * O limite de tentativas conta em baldes fixos de 300 s (`BALDE_SEG`, src/routes/mfa.ts). As 14 tentativas dos testes de
+ * limite que cruzam a virada do balde zeram o contador e nenhuma chega ao 429: o teste falhava ao acaso. Aqui o relógio
+ * (só o `Date`) vai para 1 s depois do próximo balde, e as 14 caem no mesmo.
+ */
+async function noMesmoBalde(fn: () => Promise<void>) {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime((Math.floor(Date.now() / 300_000) + 1) * 300_000 + 1_000);
+  try { await fn(); } finally { vi.useRealTimers(); }
+}
 
 /**
  * TOTP e o fluxo de MFA.
@@ -208,23 +219,27 @@ describe('Fluxo de MFA', () => {
     // MFA com códigos de recuperação que só ele viu. O /verify já era limitado;
     // o /activate ficara de fora.
     await post('/api/v1/auth/mfa/setup', { password: 'password123' });
-    let bloqueou = 0;
-    for (let i = 0; i < 14; i++) {
-      const r = await post('/api/v1/auth/mfa/activate', { codigo: '000000' });
-      if (r.status === 429) bloqueou++;
-    }
-    expect(bloqueou).toBeGreaterThan(0);
+    await noMesmoBalde(async () => {
+      let bloqueou = 0;
+      for (let i = 0; i < 14; i++) {
+        const r = await post('/api/v1/auth/mfa/activate', { codigo: '000000' });
+        if (r.status === 429) bloqueou++;
+      }
+      expect(bloqueou).toBeGreaterThan(0);
+    });
   });
 
   it('disable é limitado — não vira oráculo de senha', async () => {
     // O /auth/login limita por IP; este endpoint não passava por lá. E acertar
     // a senha aqui desliga o segundo fator.
-    let bloqueou = 0;
-    for (let i = 0; i < 14; i++) {
-      const r = await post('/api/v1/auth/mfa/disable', { password: `tentativa${i}` });
-      if (r.status === 429) bloqueou++;
-    }
-    expect(bloqueou).toBeGreaterThan(0);
+    await noMesmoBalde(async () => {
+      let bloqueou = 0;
+      for (let i = 0; i < 14; i++) {
+        const r = await post('/api/v1/auth/mfa/disable', { password: `tentativa${i}` });
+        if (r.status === 429) bloqueou++;
+      }
+      expect(bloqueou).toBeGreaterThan(0);
+    });
   }, 30_000);
 
   it('MFA exige sessão — não é rota pública', async () => {
