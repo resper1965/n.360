@@ -168,7 +168,10 @@
            rodapé de conta nunca sair da viewport. */
         .sidebar { flex: 0 0 var(--side-w); background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; overflow: hidden; z-index: 100; transition: flex-basis var(--normal) var(--ease-out); }
         .sidebar.collapsed { flex-basis: var(--side-w-rail); }
-        .sidebar.collapsed .sidebar-nav-text, .sidebar.collapsed .sidebar-label, .sidebar.collapsed .sidebar-brand { display: none; }
+        .sidebar.collapsed .sidebar-label, .sidebar.collapsed .sidebar-brand { display: none; }
+        /* Recolhida, o texto do item sai só da vista (nunca display:none): o link continua com nome acessível, e a dica
+           (.sidebar-dica, globals.js) mostra o nome ao passar o mouse e ao focar. Vale para os três produtos. */
+        .sidebar.collapsed .sidebar-nav-text, .sidebar.collapsed .sidebar-user-info { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
         .sidebar.collapsed .sidebar-nav { justify-content: center; padding: 0 24px; }
 
         /* Banda da marca: mesma altura da banda de título, para as duas
@@ -217,8 +220,10 @@
         .sidebar-label::after { content: '\25BE'; font-size: 0.75rem; transition: transform var(--normal); color: var(--text-faint); }
         .sidebar-label.collapsed::after { transform: rotate(-90deg); }
 
-        .sidebar-group { max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out; }
-        .sidebar-group.expanded { max-height: 1000px; }
+        /* Grupo fechado sai também do teclado e da árvore de acessibilidade (visibility), depois de a animação fechar. */
+        .sidebar-group { max-height: 0; overflow: hidden; visibility: hidden; transition: max-height 0.4s ease-out, visibility 0s linear 0.4s; }
+        .sidebar-group.expanded { max-height: 1000px; visibility: visible; transition: max-height 0.4s ease-out, visibility 0s; }
+        .sidebar-dica { position: fixed; z-index: 400; transform: translateY(-50%); padding: 4px 10px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg); color: var(--text); font-family: var(--font-body); font-size: 13px; white-space: nowrap; pointer-events: none; }
         .sidebar-nav:focus-visible, .sidebar-label:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
         /* Rodapé de links entre módulos (n.360, Conta e acessos, o outro módulo): produto.js cria e reaproveita. */
@@ -237,7 +242,7 @@
         .sidebar-user-name { font-family: var(--font-body); font-size: 12px; color: var(--text); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sidebar-user-role { font-family: var(--font-mono); font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sidebar-user-caret { font-size: 10px; color: var(--text-faint); flex-shrink: 0; }
-        .sidebar.collapsed .sidebar-user-info, .sidebar.collapsed .sidebar-user-caret { display: none; }
+        .sidebar.collapsed .sidebar-user-caret { display: none; }
         .sidebar.collapsed .sidebar-user-card { justify-content: center; }
 
         /* ——— MENU DE CONTA ———————————————————————————————————————————
@@ -1678,4 +1683,8 @@ textarea:focus-visible {
 }
 .sidebar-selo { margin-left: auto; min-width: 18px; height: 16px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; color: var(--warning); border: 1px solid currentColor; border-radius: var(--radius); }
 .sidebar-selo.is-danger { background: var(--danger); border-color: var(--danger); color: var(--accent-ink); }
-.sidebar-selo[hidden], .sidebar.collapsed .sidebar-selo { display: none; }
+.sidebar-selo[hidden] { display: none; }
+/* Recolhida: o selo vai para o canto do ícone, e o título de seção vira um fio (o texto continua nomeando a lista). */
+.sidebar.collapsed .sidebar-selo { position: absolute; top: 1px; right: 12px; min-width: 16px; height: 14px; padding: 0 3px; }
+.sidebar.collapsed .sidebar-secao { height: 1px; padding: 0; margin: 8px 18px; background: var(--border); overflow: hidden; color: transparent; }
+.sidebar.collapsed .sidebar-secao-fim { margin-inline: 18px; }

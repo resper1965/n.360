@@ -627,7 +627,26 @@ window.toggleSidebar = function toggleSidebar() {
         }
         // Recolhida o menu de conta não cabe ancorado no rodapé estreito.
         if (collapsed && typeof closeAccountMenu === 'function') closeAccountMenu();
+        const dica = document.getElementById('sidebar-dica');
+        if (dica) dica.hidden = true;
     }
+
+// Barra recolhida: o nome do item aparece ao lado ao passar o mouse e ao focar. O nome acessível já está no item (o texto
+// fica só visualmente escondido); a dica é para quem enxerga. Fica fora da barra, em position:fixed, porque a barra corta o
+// que vaza dela.
+function dicaDaBarra(e) {
+    const dica = document.getElementById('sidebar-dica');
+    if (!dica) return;
+    const item = e.type === 'focusout' || !e.target.closest ? null : e.target.closest('#sidebar.collapsed .sidebar-nav');
+    if (!item) { dica.hidden = true; return; }
+    const r = item.getBoundingClientRect();
+    const texto = item.querySelector('.sidebar-nav-text');
+    dica.textContent = texto ? texto.textContent : '';
+    dica.style.top = `${r.top + r.height / 2}px`;
+    dica.style.left = `${r.right + 4}px`;
+    dica.hidden = !dica.textContent;
+}
+['mouseover', 'focusin', 'focusout'].forEach((t) => document.addEventListener(t, dicaDaBarra));
 
 window.toggleContext = function toggleContext() {
         const ctx = document.getElementById('context-panel');

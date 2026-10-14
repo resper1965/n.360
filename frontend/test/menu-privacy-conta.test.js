@@ -84,3 +84,26 @@ describe('n.privacy: Minhas aprovações e Trilha de logs no menu de conta', () 
     });
 });
 
+
+describe('barra recolhida: dica com o nome do item ao passar e ao focar', () => {
+    it.each(['/privacy', '/iso', '/'])('%s', (caminho) => {
+        ir(caminho);
+        document.body.innerHTML = corpo;
+        aplicarCasca(caminho === '/privacy' ? 'privacy' : caminho === '/iso' ? 'iso' : 'n360');
+        const item = caminho === '/' ? el('nav-inicio') : el('nav-ropa');
+        const nome = item.querySelector('.sidebar-nav-text').textContent;
+        const dica = el('sidebar-dica');
+        item.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+        expect(dica.hidden).toBe(true); // aberta, sem dica
+        window.toggleSidebar();
+        item.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+        expect(dica.hidden).toBe(false);
+        expect(dica.textContent).toBe(nome);
+        item.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+        expect(dica.hidden).toBe(true);
+        item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        expect(dica.hidden).toBe(false);
+        window.toggleSidebar();
+        expect(dica.hidden).toBe(true);
+    });
+});

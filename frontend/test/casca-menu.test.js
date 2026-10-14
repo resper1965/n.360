@@ -197,6 +197,37 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
     });
 });
 
+describe('barra lateral acessível nos três produtos', () => {
+    it('todo rótulo de grupo diz qual grupo controla (aria-controls)', () => {
+        montarApp();
+        const rotulos = [...document.querySelectorAll('.sidebar-label')];
+        expect(rotulos.length).toBeGreaterThan(0);
+        for (const r of rotulos) {
+            const alvo = JSON.parse(r.dataset.args)[0];
+            expect(r.getAttribute('aria-controls'), r.textContent).toBe(alvo);
+            expect(el(alvo).classList.contains('sidebar-group'), alvo).toBe(true);
+        }
+    });
+    it('grupo fechado sai do Tab e da árvore de acessibilidade (visibility), o aberto volta', () => {
+        expect(css).toMatch(/\.sidebar-group\s*\{[^}]*max-height:\s*0[^}]*visibility:\s*hidden/);
+        expect(css).toMatch(/\.sidebar-group\.expanded\s*\{[^}]*visibility:\s*visible/);
+    });
+    it('recolhida: o texto do item fica só visualmente escondido (nunca display:none), e o selo vai para o canto do ícone', () => {
+        expect(css).not.toMatch(/\.sidebar\.collapsed \.sidebar-nav-text[^{]*\{[^}]*display:\s*none/);
+        expect(css).toMatch(/\.sidebar\.collapsed \.sidebar-nav-text[^{]*\{[^}]*position:\s*absolute[^}]*clip:\s*rect\(0 0 0 0\)/);
+        expect(css).not.toMatch(/\.sidebar\.collapsed \.sidebar-selo[^{]*\{[^}]*display:\s*none/);
+        expect(css).toMatch(/\.sidebar\.collapsed \.sidebar-selo\s*\{[^}]*position:\s*absolute/);
+        expect(css).toMatch(/\.sidebar-dica\s*\{[^}]*position:\s*fixed/);
+        montarApp();
+        expect(el('sidebar-dica').getAttribute('aria-hidden')).toBe('true');
+    });
+    it('Partes e Governança com ícones diferentes', () => {
+        montarApp();
+        const desenho = (id) => el(id).querySelector('svg').innerHTML;
+        expect(desenho('nav-governance')).not.toBe(desenho('nav-partes'));
+    });
+});
+
 describe('menu: AI Assistant virou Assistente', () => {
     it('em qualquer produto', () => {
         expect(html).not.toContain('AI Assistant');
