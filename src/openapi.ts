@@ -125,7 +125,7 @@ import {
   tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, ropaImportarSchema, liaSalvarSchema,
   terceiroTipoSchema, avaliacaoTerceiroSchema, terceiroDocumentoSchema,
   parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
-  evidenciaValidadeSchema, importacaoItemSchema, similaresSchema, copilotoRopaSchema,
+  evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
 
 /**
@@ -265,6 +265,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/generate-document', schema: documentoGerarSchema, nome: 'documentoGerarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/generate-policies-bulk', schema: politicasLoteSchema, nome: 'politicasLoteSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/importacoes/:id/itens/:iid', schema: importacaoItemSchema, nome: 'importacaoItemSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/importacoes/:id/itens/decidir', schema: importacaoItensDecidirSchema, nome: 'importacaoItensDecidirSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes/:id/comunicacoes', schema: incidenteComunicacaoSchema, nome: 'incidenteComunicacaoSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes/:id/rascunho-comunicacao', schema: incidenteRascunhoSchema, nome: 'incidenteRascunhoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/incidentes/:id/risco', schema: incidenteRiscoSchema, nome: 'incidenteRiscoSchema' },
