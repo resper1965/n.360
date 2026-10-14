@@ -10,7 +10,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
 
     async function renderDashboard(c, h, a) {
         h.textContent = 'Dashboard Executivo';
-        a.innerHTML = `<button class="btn btn-primary" data-action="openCreateLeadModal">+ Novo Lead</button>
+        a.innerHTML = `${ehComercial() ? '<button class="btn btn-primary" data-action="openCreateLeadModal">+ Novo Lead</button>' : ''}
                        <button class="btn btn-ghost" data-action="navigate" data-args='["monitor"]'>Monitor</button>`;
         if (S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client') && !S.user.client_project_id) {
             let assessmentStatus = 'Pending';
@@ -77,14 +77,15 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                 ehComercial() ? api('GET', '/api/v1/leads').catch(() => []) : [],
                 api('GET', '/api/v1/assessments').catch(() => []),
                 api('GET', '/api/v1/projects').catch(() => []),
-                api('GET', '/api/v1/controls').catch(() => [])
+                // Controles do projeto ativo: /api/v1/controls devolve os de todos os projetos visíveis.
+                S.activeProject && S.activeProject.id ? api('GET', `/api/v1/projects/${S.activeProject.id}/controls`).catch(() => []) : []
             ]);
             const activeProjectsList = projetosDoProduto(projects); // só os projetos do módulo deste caminho (/iso ou /privacy)
             const leadsCount = Array.isArray(leads) ? leads.length : 0;
             const assessmentsCount = Array.isArray(assessments) ? assessments.length : 0;
             const projectsCount = activeProjectsList.length;
 
-            const totalControls = (Array.isArray(controls) && controls.length > 0) ? controls.length : 93;
+            const totalControls = Array.isArray(controls) ? controls.length : 0;
             const approvedControls = Array.isArray(controls) ? controls.filter(ctrl => {
                 const s = String(ctrl.status || '').toUpperCase();
                 return s === 'APPROVED' || s === 'IMPLEMENTED' || s === 'COMPLETED' || s === 'CONFORME';
@@ -92,13 +93,16 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
             const gapsControls = Math.max(0, totalControls - approvedControls);
             const complianceRate = totalControls > 0 ? Math.round((approvedControls / totalControls) * 100) : 0;
 
+            const semControles = totalControls === 0;
             const statsHtml = window.renderStatCards([
                 // Só o comercial vê o funil; para o consultor o cartão mostraria 0 e enganaria.
                 ...(ehComercial() ? [{ label: 'Leads Ativos', value: leadsCount, color: 'var(--text)', subtext: 'Oportunidades em pré-venda' }] : []),
                 // Contagem é neutra (--text); cor só quando o número diz algo (conformidade a partir de 80%).
                 { label: 'Levantamentos', value: assessmentsCount, color: 'var(--text)', subtext: 'Levantamentos de escopo cadastrados' },
                 { label: 'Projetos em Curso', value: projectsCount, color: 'var(--text)', subtext: 'Implementações ISO ativas' },
-                { label: 'Taxa de Conformidade', value: `${complianceRate}%`, color: complianceRate >= 80 ? 'var(--success)' : 'var(--text)', subtext: `${approvedControls} de ${totalControls} controles` }
+                semControles
+                    ? { label: 'Taxa de Conformidade', value: '—', color: 'var(--text)', subtext: S.activeProject && S.activeProject.id ? 'Sem controles neste projeto' : 'Selecione um projeto' }
+                    : { label: 'Taxa de Conformidade', value: `${complianceRate}%`, color: complianceRate >= 80 ? 'var(--success)' : 'var(--text)', subtext: `${approvedControls} de ${totalControls} controles` }
             ]);
 
             const assessmentsTable = window.renderDataTable(
@@ -120,7 +124,9 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                     { label: 'Projeto', render: (row) => escapeHTML(row.project_name || row.client_name || 'Sem nome') },
                     {
                         label: 'Progresso', render: (row) => {
-                            const progVal = (row.progress !== undefined && row.progress !== null && row.progress > 0) ? row.progress : complianceRate;
+                            const doAtivo = S.activeProject && row.id === S.activeProject.id && !semControles;
+                            const progVal = (row.progress !== undefined && row.progress !== null && row.progress > 0) ? row.progress : (doAtivo ? complianceRate : null);
+                            if (progVal === null) return '<span style="color:var(--text-dim)">—</span>';
                             return `
                             <div style="display:flex; align-items:center; gap:0.75rem; width:100%;">
                                 <div class="progress-bar" style="flex:1; height:6px; background:var(--surface-2); overflow:hidden;"><div class="progress-fill" style="width:${progVal}%; background:var(--accent); height:100%;"></div></div>
