@@ -544,7 +544,7 @@ describe('IDOR cross-tenant nos routers de topo', () => {
       });
       expect(putAst.status, await putAst.clone().text()).toBe(200);
       const ast = (await lerAtivo('ast-a')) as any;
-      expect(ast.name).toBe('Ativo do A revisado');
+      expect(ast.name).toBe('Ativo do A Revisado'); // o nome é padronizado ao gravar
 
       const delWh = await req('/api/v1/webhooks/wh-a', { method: 'DELETE', headers: orgAdminA });
       expect(delWh.status, await delWh.clone().text()).toBe(200);

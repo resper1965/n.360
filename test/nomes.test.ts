@@ -21,6 +21,8 @@ const CASOS: [string, string][] = [
   ['o setor', 'O Setor'],
   ['Gerência DE TI', 'Gerência de TI'],
   ['PC-001', 'PC-001'],
+  ['Ativo do A revisado', 'Ativo do A Revisado'],
+  ['ANA E SILVA', 'Ana e Silva'],
   ['maria-clara', 'Maria-Clara'],
   ['', ''],
   ['   ', ''],

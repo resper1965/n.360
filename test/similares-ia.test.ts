@@ -31,7 +31,7 @@ const AI = {
     ia.textos.push(entrada.text);
     if (ia.falha) throw new Error(`modelo fora do ar: ${entrada.text.join('|')}`);
     if (ia.formato === 'ruim') return { response: 'texto' };
-    return { shape: [entrada.text.length, 4], data: entrada.text.map((t) => VETORES[t] ?? [0, 0, 0, 0.0001]) };
+    return { shape: [entrada.text.length, 4], data: entrada.text.map((t) => VETORES[t] ?? VETORES[t.toLowerCase()] ?? [0, 0, 0, 0.0001]) };
   },
 };
 
@@ -87,7 +87,7 @@ describe('rota de parecidos por significado', () => {
     // Uma chamada só, em lote; o digitado primeiro e só nomes do banco deste projeto (sem Pessoas, sem removido, sem outro projeto).
     expect(ia.chamadas).toBe(1);
     expect(ia.textos[0][0]).toBe(DIGITADO);
-    expect([...ia.textos[0].slice(1)].sort()).toEqual(['controle de acesso físico', 'payroll system', 'processo de pagamento']);
+    expect([...ia.textos[0].slice(1)].sort()).toEqual(['Controle de Acesso Físico', 'Payroll System', 'Processo de Pagamento']); // nomes padronizados ao gravar
   });
 
   it('área: no máximo 3, e departamento inativo não entra', async () => {

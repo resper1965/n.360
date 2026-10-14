@@ -26,7 +26,9 @@ function palavra(w: string, i: number, tudoMaiusculo: boolean): string {
   if (/^\p{L}$/u.test(core) && pos.startsWith('.')) return pre + core.toUpperCase() + pos; // inicial: "A."
   if (ABREVIATURAS[chave]) return pre + ABREVIATURAS[chave] + pos.replace(/^\./, '');
   if (SIGLAS.has(chave)) return pre + core.toUpperCase() + pos;
-  if (i > 0 && CONECTORES.has(chave)) return pre + chave + pos;
+  // "A" sozinha e em maiúscula, num texto que não está todo em maiúsculas, é rótulo ("Projeto A"), não o artigo.
+  const rotulo = core.length === 1 && core === core.toUpperCase() && !tudoMaiusculo;
+  if (i > 0 && CONECTORES.has(chave) && !rotulo) return pre + chave + pos;
   const resto = core.slice(1);
   if (resto !== resto.toLowerCase() && core !== core.toUpperCase()) return w; // maiúscula no meio: McDonald, iPhone, D'Ávila
   if (core === core.toUpperCase() && /\d/.test(core)) return w; // código: PC-001
