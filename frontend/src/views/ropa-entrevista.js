@@ -83,6 +83,13 @@ const criarCadastro = (tipo, pid, corpo) =>
 const buscarPorSignificado = (pid, corpo) => api('POST', `/api/v1/projects/${pid}/similares`, corpo);
 const ESPERA_SIGNIFICADO = 600;
 const significado = { timer: null, seq: 0 };
+// Copiloto (etapa 3): proposta de respostas a partir de uma descrição livre. Nada é gravado: a pessoa revisa e salva no fim.
+const pedirCopiloto = (pid, corpo) => api('POST', `/api/v1/projects/${pid}/ropa/copiloto`, corpo, { timeoutMs: 90000 });
+const COPILOTO_MIN = 20;
+const COPILOTO_MAX = 2000;
+const SELO = 'Proposta do assistente: confira';
+// Uma vez indisponível nesta sessão, o bloco não volta a aparecer nas próximas atividades novas.
+let copilotoIndisponivel = false;
 
 const CADASTROS = {
     pessoa: { nome: 'Pessoa', lista: 'pessoas', detalhe: (x) => x.email || 'pessoa',
@@ -227,7 +234,7 @@ let ctx = null;  // o que veio do servidor: pessoas, deptos, itens, catálogo, r
 
 const chaveDe = (projectId, recordId) => `ropa-entrevista:${projectId}:${recordId || 'nova'}`;
 function guardar() {
-    try { sessionStorage.setItem(st.chave, JSON.stringify({ passo: st.passo, respostas: st.respostas, recordId: st.recordId, criados: st.criados })); } catch (e) { /* sem storage: fica em memória */ }
+    try { sessionStorage.setItem(st.chave, JSON.stringify({ passo: st.passo, respostas: st.respostas, recordId: st.recordId, criados: st.criados, selos: st.selos, novos: st.novos, motivoBase: st.motivoBase })); } catch (e) { /* sem storage: fica em memória */ }
 }
 function lerGuardado(chave) {
     try { const v = JSON.parse(sessionStorage.getItem(chave) || 'null'); return v && typeof v === 'object' && v.respostas ? v : null; } catch (e) { return null; }
@@ -411,7 +418,7 @@ function controle(p) {
     const campoBusca = p.cadastro && opcoes.length ? `<div class="form-group re-busca"><label class="form-label" for="re-busca">Buscar na lista</label>
         <input class="form-input" id="re-busca" type="search" maxlength="100" autocomplete="off" value="${escapeHTML((st.busca || {})[p.id] || '')}" data-action-input="reBuscar" data-args='${args(p.id)}' data-arg-val>
         <p class="re-nota" id="re-busca-vazia" aria-live="polite">${busca && !opcoes.some((o) => normaliza(`${o.r} ${o.dica}`).includes(busca)) ? 'Nada na lista com esse nome.' : ''}</p></div>` : '';
-    return `${campoBusca}<div class="re-opcoes" role="${multipla ? 'group' : 'radiogroup'}" aria-labelledby="re-titulo">${itens}</div>${semOpcao}${outro}${p.cadastro ? blocoCadastro(p) : ''}`;
+    return `${campoBusca}<div class="re-opcoes" role="${multipla ? 'group' : 'radiogroup'}" aria-labelledby="re-titulo">${itens}</div>${semOpcao}${outro}${novosDoCopiloto(p)}${p.cadastro ? blocoCadastro(p) : ''}`;
 }
 
 // ─── "Cadastrar agora" (pessoa, área, sistema ou arquivo) ──────────────────────────────────────────
@@ -477,6 +484,15 @@ function agendarSignificado() {
     }, ESPERA_SIGNIFICADO);
 }
 
+/** Sistemas e áreas que o copiloto citou e não achou: "Cadastrar X?" abre o cadastro já preenchido, com a checagem de parecidos. */
+function novosDoCopiloto(p) {
+    const nomes = (st.novos && st.novos[p.id]) || [];
+    if (!nomes.length || (st.cadastro && st.cadastro.pergunta === p.id)) return '';
+    if (!podeCadastrar()) return `<p class="re-nota">O assistente citou e não achou no cadastro: ${escapeHTML(nomes.join(', '))}. Peça a quem administra o cadastro.</p>`;
+    return `<div class="re-cop-novos" role="note"><p class="re-nota">O assistente citou e não achou no cadastro. Confira antes de criar:</p>
+        ${nomes.map((n) => `<button type="button" class="btn btn-sm" data-action="reCadastroAbrir" data-args='${args(p.id, n)}'>Cadastrar ${escapeHTML(n)}?</button>`).join('')}</div>`;
+}
+
 function blocoCadastro(p) {
     const k = CADASTROS[p.cadastro];
     if (!podeCadastrar()) return '<p class="re-nota">Não está na lista? Peça a quem administra o cadastro.</p>';
@@ -512,6 +528,7 @@ function extras(p) {
         if (dup) partes.push(`<p class="re-aviso">Já existe uma atividade com essa finalidade no inventário. Se for a mesma, volte e use "Continuar entrevista" nela.</p>`);
     }
     if (p.id === 'base') {
+        if (st.selos.includes('base') && st.motivoBase) partes.push(`<p class="re-nota">Motivo do assistente: ${escapeHTML(st.motivoBase)}</p>`);
         if (temSensivel(r) && valor(r, 'base') && !ehArt11(r.base)) partes.push(`<p class="re-aviso">A hipótese gravada (${escapeHTML(r.base)}) é do art. 7. Com dado sensível, escolha uma do art. 11.</p>`);
         const m = MOTIVOS.find((x) => x.v === r.motivo);
         if (m && temSensivel(r) && m.b7 && !m.b11) partes.push('<p class="re-aviso">Com dado sensível, esse motivo não serve de base legal (art. 11). Escolha a hipótese que se aplica.</p>');
@@ -566,12 +583,47 @@ function topo() {
     </div>${aprovado}`;
 }
 
+const selo = (id = '') => `<span class="re-selo" ${id ? `id="${id}"` : ''} role="note" aria-label="${SELO}: resposta preenchida pelo assistente, ainda não conferida">${SELO}</span>`;
+
+/** O bloco do copiloto no começo de uma atividade nova: pedir, ou o painel com avisos e o que confirmar antes de começar. */
+function blocoCopiloto() {
+    const c = st.copiloto;
+    if (c.estado === 'indisponivel') return '<p class="re-nota re-copiloto-nota" role="status">O assistente não está disponível agora. Responda uma a uma: nada se perdeu.</p>';
+    if (c.estado === 'pronto') {
+        const lista = (titulo, xs) => (xs.length ? `<div class="re-pendencias"><h3>${titulo}</h3><ul>${xs.map((x) => `<li>${escapeHTML(x)}</li>`).join('')}</ul></div>` : '');
+        return `<section class="re-copiloto" aria-labelledby="re-cop-titulo">
+            <h2 class="re-cop-titulo" id="re-cop-titulo" tabindex="-1">${c.n ? `O assistente pré-preencheu ${c.n} ${c.n === 1 ? 'resposta' : 'respostas'}` : 'O assistente não achou o que propor'}</h2>
+            <p class="re-nota">Cada resposta proposta traz o selo "${SELO}". Ao alterar a resposta, o selo some. Nada foi gravado: a atividade só entra no inventário quando você salvar no fim.</p>
+            ${lista('Atenção', c.avisos)}${lista('Para você responder', c.perguntas)}
+            <div class="re-acoes"><button type="button" class="btn btn-primary" data-action="reCopilotoComecar">Começar a revisão</button></div>
+        </section>`;
+    }
+    const n = String(c.descricao || '').length;
+    const pedindo = c.estado === 'pedindo';
+    return `<section class="re-copiloto" aria-labelledby="re-cop-titulo">
+        <h2 class="re-cop-titulo" id="re-cop-titulo" tabindex="-1">Descreva a atividade com suas palavras</h2>
+        <p class="re-nota">Opcional. O assistente lê o texto e pré-preenche as respostas como proposta; você confere pergunta a pergunta. Não escreva nomes de pessoas nem dados de alguém.</p>
+        <label class="form-label" for="re-cop-texto">Descrição da atividade</label>
+        <textarea class="form-input" id="re-cop-texto" rows="4" maxlength="${COPILOTO_MAX}" aria-describedby="re-cop-contador re-cop-erro" ${pedindo ? 'disabled' : ''}
+            placeholder="Exemplo: fazemos a folha de pagamento dos funcionários no sistema Totvs e enviamos o arquivo ao banco." data-action-input="reCopilotoTexto" data-arg-val>${escapeHTML(c.descricao || '')}</textarea>
+        <p class="re-nota" id="re-cop-contador">${n} de ${COPILOTO_MAX} caracteres (mínimo ${COPILOTO_MIN})</p>
+        <p class="re-erro" id="re-cop-erro" aria-live="polite"></p>
+        <div class="re-acoes">
+            <button type="button" class="btn btn-primary" data-action="reCopilotoPedir" ${pedindo ? 'disabled' : ''}>${pedindo ? 'Preenchendo...' : 'Preencher com sugestão'}</button>
+            <button type="button" class="btn btn-ghost" data-action="reCopilotoFechar" ${pedindo ? 'disabled' : ''}>Prefiro responder uma a uma</button>
+        </div>
+        <p class="re-nota" aria-live="polite">${pedindo ? 'O assistente está lendo a descrição.' : ''}</p>
+    </section>`;
+}
+
 function desenharPergunta(p) {
     const primeira = visiveis()[0] === p;
     return `${topo()}
+    ${primeira && st.copiloto ? blocoCopiloto() : ''}
     <form class="re-pergunta" data-action-submit="reAvancar" data-prevent novalidate>
         <fieldset class="re-fieldset">
             <legend class="re-legend"><h2 class="re-titulo" id="re-titulo" tabindex="-1">${escapeHTML(p.titulo)}</h2></legend>
+            ${st.selos.includes(p.id) ? selo('re-selo') : ''}
             <details class="re-ajuda"><summary>Por que perguntamos</summary><p>${escapeHTML(p.ajuda)}</p></details>
             ${controle(p)}
             ${p.aviso && p.aviso(st.respostas) ? `<p class="re-aviso" role="note">${escapeHTML(p.aviso(st.respostas))}</p>` : ''}
@@ -607,7 +659,7 @@ function desenharResumo() {
             <button type="button" class="btn btn-ghost btn-sm" data-action="reAlterar" data-args='${args(l)}' aria-label="Alterar: ${escapeHTML(BLOCOS[l])}">Alterar</button></div>
         <dl class="re-respostas">${vis.filter((p) => p.bloco === l).map((p) => {
             const t = textoResposta(p);
-            return `<dt>${escapeHTML(p.curto)}</dt><dd>${t ? escapeHTML(t) : '<span class="re-pendente">Sem resposta</span>'}</dd>`;
+            return `<dt>${escapeHTML(p.curto)}</dt><dd>${t ? escapeHTML(t) : '<span class="re-pendente">Sem resposta</span>'}${t && st.selos.includes(p.id) ? ` ${selo()}` : ''}</dd>`;
         }).join('')}</dl></section>`).join('');
     const mot = motivosRipd(st.respostas);
     return `${topo()}
@@ -689,7 +741,11 @@ async function renderRopaEntrevista(c, h, a) {
         // O que o SERVIDOR já tem ligado (não o rascunho da aba): rascunho retomado de atividade nova também liga no fim.
         ctx.inicial = { areas: lista(ctx.ligacoes && ctx.ligacoes.departamentos).map((d) => d.id), sistemas: lista(ctx.ligacoes && ctx.ligacoes.itens).map((i) => i.id) };
         st = { chave, projectId: pedido.projectId, recordId: pedido.recordId || (guardado && guardado.recordId) || null, respostas, passo: null, voltarAoResumo: false, sugestao: null, salvo: null,
-            criados: Array.isArray(guardado && guardado.criados) ? guardado.criados : [], cadastro: null, busca: {} };
+            criados: Array.isArray(guardado && guardado.criados) ? guardado.criados : [], cadastro: null, busca: {},
+            // O copiloto só abre numa atividade nova que ainda não começou (sem rascunho na aba).
+            copiloto: !pedido.recordId && !guardado && !copilotoIndisponivel && podeEntrevistar() ? { estado: 'aberto', descricao: '' } : null,
+            selos: Array.isArray(guardado && guardado.selos) ? guardado.selos : [],
+            novos: guardado && guardado.novos && typeof guardado.novos === 'object' ? guardado.novos : {}, motivoBase: (guardado && guardado.motivoBase) || '' };
         st.passo = guardado && (guardado.passo === 'resumo' || PERGUNTA[guardado.passo]) ? guardado.passo : passoInicial();
     }
     h.textContent = st.recordId ? 'Entrevista do RoPA: revisar atividade' : 'Entrevista do RoPA: nova atividade';
@@ -710,16 +766,27 @@ window.abrirRopaEntrevista = function (projectId, recordId) {
 
 // ─── Ações (delegação por data-action) ─────────────────────────────────────────────────────────────
 
-window.reTexto = function (id, v) { st.respostas[id] = v; guardar(); };
+/** A pessoa mexeu na resposta: ela deixa de ser proposta do assistente (o selo some). `x_outro` é da pergunta `x`. */
+function daPessoa(...ids) {
+    const antes = st.selos.length;
+    st.selos = st.selos.filter((x) => !ids.includes(x) && !ids.includes(`${x}_outro`));
+    if (st.selos.length !== antes && !st.selos.includes(st.passo)) { const n = document.getElementById('re-selo'); if (n) n.remove(); }
+}
+
+window.reTexto = function (id, v) { daPessoa(id); st.respostas[id] = v; guardar(); };
 window.reSub = function (id, sub, v) {
+    daPessoa(id);
     const g = st.respostas[id] && st.respostas[id] !== NAO_SEI && typeof st.respostas[id] === 'object' ? st.respostas[id] : {};
     st.respostas[id] = { ...g, [sub]: v }; guardar();
 };
 window.reExemplo = function (id, texto) {
+    daPessoa(id);
     st.respostas[id] = texto; guardar();
     desenhar('re-campo');
 };
 window.reEscolher = function (id, el) {
+    // Escolher o motivo remarca a base: as duas viram resposta da pessoa.
+    daPessoa(id, ...(id === 'motivo' ? ['base'] : []));
     st.respostas[id] = el.value;
     // O motivo marca a hipótese correspondente; a pessoa confirma na pergunta seguinte.
     if (id === 'motivo') {
@@ -730,6 +797,7 @@ window.reEscolher = function (id, el) {
     guardar(); desenhar(el.id);
 };
 window.reMarcar = function (id, el) {
+    daPessoa(id);
     let v = Array.isArray(st.respostas[id]) ? [...st.respostas[id]] : [];
     if (el.checked) v = el.value === NENHUM ? [NENHUM] : [...v.filter((x) => x !== NENHUM), el.value];
     else v = v.filter((x) => x !== el.value);
@@ -746,11 +814,11 @@ window.reBuscar = function (id, v) {
     if (n) n.textContent = algum ? '' : 'Nada na lista com esse nome.';
 };
 
-window.reCadastroAbrir = function (pid) {
+window.reCadastroAbrir = function (pid, sugerido) {
     const p = PERGUNTA[pid];
-    // O nome já vem com o que a pessoa buscou, ou com o responsável antigo em texto.
-    const nome = String(st.busca[pid] || (pid === 'responsavel' ? st.respostas.responsavel_texto || '' : '')).trim();
-    st.cadastro = { pergunta: pid, nome, email: '', categoria: p.cadastro === 'item' ? CATEGORIAS_ITEM[0].v : '' };
+    // O nome já vem com o que o copiloto citou, com o que a pessoa buscou, ou com o responsável antigo em texto.
+    const nome = String(sugerido || st.busca[pid] || (pid === 'responsavel' ? st.respostas.responsavel_texto || '' : '')).trim();
+    st.cadastro = { pergunta: pid, nome, email: '', categoria: p.cadastro === 'item' ? CATEGORIAS_ITEM[0].v : '', sugerido: sugerido || null };
     desenhar('re-cad-nome');
     agendarSignificado();
 };
@@ -766,6 +834,10 @@ window.reCadastroCampo = function (campo, v) {
 /** Marca o registro do cadastro na pergunta (seleção única ou múltipla), fecha o formulário e redesenha com o foco nele. */
 function selecionar(pid, id) {
     const p = PERGUNTA[pid];
+    daPessoa(pid);
+    // O nome que o copiloto citou foi resolvido (cadastrado ou trocado por um existente): sai das sugestões.
+    const sug = st.cadastro && st.cadastro.sugerido;
+    if (sug && Array.isArray(st.novos[pid])) st.novos[pid] = st.novos[pid].filter((n) => n !== sug);
     if (p.tipo === 'multipla') {
         const v = Array.isArray(st.respostas[pid]) ? st.respostas[pid] : [];
         st.respostas[pid] = v.includes(id) ? v : [...v, id];
@@ -787,6 +859,8 @@ window.reCadastrar = async function () {
     if (!dados.nome) { erro('Digite o nome para cadastrar.'); return; }
     const igual = parecidos(dados.nome, existentesDe(p.cadastro)).find((x) => x.igual);
     if (igual) { erro(`Já existe com este nome: ${igual.item.nome}. Use o existente.`); return; }
+    // Nome citado pelo copiloto: a checagem por significado termina antes de criar.
+    if (f.sugerido && f.buscando) { erro('Aguarde a busca de parecidos terminar antes de cadastrar.'); return; }
     f.gravando = true;
     let id;
     try { id = (await criarCadastro(p.cadastro, st.projectId, k.corpo(dados))).id; }
@@ -808,7 +882,8 @@ function validar(p) {
     return '';
 }
 
-function irPara(passo, foco) { st.passo = passo; guardar(); desenhar(foco); }
+// Sair da primeira pergunta encerra o bloco do copiloto: dali em diante a entrevista é pergunta a pergunta.
+function irPara(passo, foco) { st.passo = passo; st.copiloto = null; guardar(); desenhar(foco); }
 
 window.reAvancar = function () {
     const p = PERGUNTA[st.passo];
@@ -827,6 +902,7 @@ function proximo(p) {
 window.reNaoSei = function () {
     const p = PERGUNTA[st.passo];
     if (!p || p.obrigatoria) return;
+    daPessoa(p.id);
     st.respostas[p.id] = NAO_SEI;
     st.cadastro = null;
     proximo(p);
@@ -862,12 +938,93 @@ window.reSugerir = async function () {
 window.reUsarSugestao = function (campo) {
     const s = st.sugestao;
     if (!s) return;
+    daPessoa(campo);
     if (campo === 'base') { const t = textoDaBase(s.base_legal); if (t) st.respostas.base = t; }
     else if (s.retencao) {
         if (RETENCOES.some((o) => o.v === s.retencao)) st.respostas.retencao = s.retencao;
         else { st.respostas.retencao = OUTRO; st.respostas.retencao_outro = s.retencao; }
     }
     guardar(); desenhar();
+};
+
+// ─── Copiloto ────────────────────────────────────────────────────────────────────────────────────
+
+window.reCopilotoTexto = function (v) {
+    if (!st.copiloto) return;
+    st.copiloto.descricao = v;
+    const n = document.getElementById('re-cop-contador');
+    if (n) n.textContent = `${v.length} de ${COPILOTO_MAX} caracteres (mínimo ${COPILOTO_MIN})`;
+};
+window.reCopilotoFechar = function () { st.copiloto = null; desenhar(); };
+window.reCopilotoComecar = window.reCopilotoFechar;
+
+/**
+ * Respostas a partir da proposta do servidor. A proposta é texto NÃO confiável: só vira valor de resposta, e tudo o que é
+ * desenhado passa por escapeHTML. Ids só valem se estiverem nas listas desta tela; base só do catálogo carregado e do art. 7.
+ * Sensível, crianças e transferência nunca vêm do servidor e não são tocados aqui. Devolve as perguntas preenchidas (selos).
+ */
+export function aplicarProposta(p, r, c) {
+    const selos = [];
+    const marca = (...ids) => selos.push(...ids);
+    const txt = (v, max) => String(v).trim().slice(0, max);
+    const temTexto = (v) => typeof v === 'string' && !!v.trim();
+    if (temTexto(p.finalidade)) { r.finalidade = txt(p.finalidade, PERGUNTA.finalidade.max); marca('finalidade'); }
+    for (const [id, campo, opcoes] of [['titulares', 'titulares', TITULARES], ['categorias', 'categorias_de_dados', CATEGORIAS]]) {
+        const xs = Array.isArray(p[campo]) ? p[campo].filter(temTexto) : [];
+        if (!xs.length) continue;
+        const s = separar(xs.join(', '), opcoes);
+        r[id] = [...s.achadas, ...(s.resto.length ? [OUTRO] : [])];
+        if (s.resto.length) r[`${id}_outro`] = txt(s.resto.join(', '), 300);
+        marca(id);
+    }
+    if (temTexto(p.destinatarios)) { r.compartilha = 'sim'; r.destinatarios = txt(p.destinatarios, PERGUNTA.destinatarios.max); marca('compartilha', 'destinatarios'); }
+    if (temTexto(p.retencao)) {
+        const t = txt(p.retencao, 300);
+        const o = RETENCOES.find((x) => normaliza(x.v) === normaliza(t));
+        if (o) r.retencao = o.v; else { r.retencao = OUTRO; r.retencao_outro = t; }
+        marca('retencao');
+    }
+    const base = typeof p.base_legal_id === 'string' && c.catalogo.has(p.base_legal_id) ? textoDaBase(p.base_legal_id) : null;
+    if (base && !ehArt11(base)) {
+        r.base = base;
+        const m = MOTIVOS.find((x) => x.b7 === base);
+        if (m) { r.motivo = m.v; marca('motivo'); }
+        marca('base');
+    }
+    for (const [id, campo, lista] of [['sistemas', 'sistemas_ids', c.itens], ['areas', 'areas_ids', c.deptos]]) {
+        const ids = (Array.isArray(p[campo]) ? p[campo] : []).filter((x) => lista.some((i) => i.id === x));
+        if (ids.length) { r[id] = [...new Set([...(Array.isArray(r[id]) ? r[id] : []), ...ids])]; marca(id); }
+    }
+    const nomes = (xs) => (Array.isArray(xs) ? [...new Set(xs.filter(temTexto).map((x) => txt(x, 120)))].slice(0, 5) : []);
+    return { selos: [...new Set(selos)], novos: { sistemas: nomes(p.sistemas_novos), areas: nomes(p.areas_novas) },
+        motivoBase: base && temTexto(p.base_legal_motivo) ? txt(p.base_legal_motivo, 300) : '' };
+}
+
+window.reCopilotoPedir = async function () {
+    const c = st.copiloto;
+    if (!c || c.estado === 'pedindo') return;
+    const descricao = String(c.descricao || '').trim();
+    const erroCop = (msg) => { const e = document.getElementById('re-cop-erro'); if (e) e.textContent = msg; };
+    if (descricao.length < COPILOTO_MIN) { erroCop(`Escreva pelo menos ${COPILOTO_MIN} caracteres para o assistente entender a atividade.`); return; }
+    c.estado = 'pedindo';
+    desenhar('re-cop-titulo');
+    let r = null;
+    try { r = await pedirCopiloto(st.projectId, { descricao }); }
+    catch (e) {
+        if (!st || st.copiloto !== c) return;
+        c.estado = 'aberto'; desenhar('re-cop-texto');
+        erroCop(`Não foi possível falar com o assistente: ${e.message}. Tente de novo ou responda uma a uma; nada se perdeu.`);
+        return;
+    }
+    // A pessoa saiu ou fechou o bloco enquanto o assistente lia: a resposta não preenche nada.
+    if (!st || st.copiloto !== c) return;
+    if (!r || r.indisponivel || !r.proposta || typeof r.proposta !== 'object') { copilotoIndisponivel = true; c.estado = 'indisponivel'; desenhar(); return; }
+    const a = aplicarProposta(r.proposta, st.respostas, ctx);
+    Object.assign(st, { selos: a.selos, novos: a.novos, motivoBase: a.motivoBase });
+    const textos = (xs) => (Array.isArray(xs) ? xs.filter((x) => typeof x === 'string') : []);
+    Object.assign(c, { estado: 'pronto', n: a.selos.length, avisos: textos(r.avisos), perguntas: textos(r.perguntas_a_confirmar) });
+    guardar();
+    desenhar('re-cop-titulo');
 };
 
 /** Grava tudo no fim: o registro (POST ou PUT) e as ligações que mudaram. Falha de uma ligação não desfaz o registro: vai para a lista. */
