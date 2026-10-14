@@ -4,7 +4,9 @@ import { showToast, escapeHTML, renderEmptyState } from '../ui.js';
 import { navigate } from '../router.js';
 import { BASES_ART7, BASES_ART11, ART11, normaliza, rotuloBase, ehLegitimoInteresse, ehConsentimento, ehArt11, camposDaBase, idsDoCatalogo, textoDaBase } from '../bases-legais.js';
 import { parecidos, mesmoEmail } from '../similares.js';
-import { podeEditar as podeCadastrar } from './partes.js';
+import { podeEditar } from './partes.js';
+// Quem edita o cadastro nas telas, mais o administrador da consultoria: o servidor aceita as três criações no projeto da organização dele.
+const podeCadastrar = () => podeEditar() || S.user?.role === 'consultoria_admin';
 
 // Entrevista do RoPA (n.privacy): o caminho principal para criar e revisar uma atividade de tratamento, uma pergunta por vez,
 // em linguagem de consultor. Desenho em docs/design/diagnostico-2026-10-13/n-privacy-ropa-entrevista.md (seção 4).

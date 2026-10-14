@@ -575,6 +575,14 @@ describe('cadastrar durante a entrevista (pessoa, área, sistema)', () => {
         expect(el('c').textContent).toContain('Peça a quem administra o cadastro.');
     });
 
+    it('o administrador da consultoria também vê o "Cadastrar agora"', async () => {
+        S.user = { role: 'consultoria_admin' };
+        rascunho('areas', { ...basico });
+        await abrir();
+        expect(el('c').querySelector('[data-action="reCadastroAbrir"]')).not.toBeNull();
+        expect(el('c').textContent).not.toContain('Peça a quem administra o cadastro.');
+    });
+
     it('registro antigo só com owner em texto: mostra o texto, pede a pessoa e não regrava o owner', async () => {
         S.ropa = [{ id: 'r1', project_id: 'p1', processing_purpose: 'Portaria', data_subjects: 'Visitantes', data_categories: 'Identificação',
             owner: 'Gerente <img src=x>', owner_parte_id: null, status: 'Draft', nao_informado: [], aprovacao_pedido: { ciso: null, ceo: null } }];
