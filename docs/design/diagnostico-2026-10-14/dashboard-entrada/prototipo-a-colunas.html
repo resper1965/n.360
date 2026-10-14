@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel de entrada, direção A</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="prototipo-base.css">
+<style>
+  main { container-type: inline-size; }
+  .miolo { max-width: 1240px; }
+  /* Identidade: faixa sem cartão, a empresa é o título da tela */
+  .ident { display: flex; justify-content: space-between; gap: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .ident h2 { font-size: 24px; line-height: 1.25; }
+  .ident h2 small { font: 400 14px var(--font-body); color: var(--text-dim); margin-left: 8px; }
+  .ident dl { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 12px 0 0; }
+  .ident dl div { min-width: 0; }
+  .ident dt { font-size: 11.5px; color: var(--text-dim); }
+  .ident dd { margin: 0; font-size: 13.5px; color: var(--text-2); }
+  .ident dd .falta { color: var(--text-dim); }
+  /* Saúde: uma frase, não um mostrador */
+  .saude { padding: 22px 0 24px; }
+  .saude p.frase { font: 600 22px/1.35 var(--font-head); margin: 8px 0 6px; max-width: 60ch; text-wrap: balance; }
+  .saude p.apoio { margin: 0; color: var(--text-2); max-width: 75ch; }
+  .saude .meta { margin-top: 8px; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); gap: 20px; align-items: start; }
+  .cols > div { display: grid; gap: 20px; min-width: 0; }
+  @container (max-width: 860px) { .cols { grid-template-columns: 1fr; } .ident { flex-direction: column; } }
+  /* O que fazer */
+  .grupo { margin: 0; padding: 0; list-style: none; }
+  .grupo + .gt { margin-top: 18px; }
+  .gt { font-size: 12px; color: var(--text-dim); margin: 0 0 4px; display: flex; gap: 8px; align-items: center; }
+  .grupo li { display: grid; grid-template-columns: 128px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 11px 0; border-top: 1px solid var(--border); }
+  .grupo li .tx { font-size: 14px; color: var(--text); }
+  .grupo li .cx { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
+  @container (max-width: 560px) { .grupo li { grid-template-columns: 1fr; gap: 4px; } }
+  .mod { font: 500 10.5px var(--font-mono); color: var(--text-dim); border: 1px solid var(--border); padding: 0 5px; margin-right: 6px; }
+  /* n.360: uma linha por módulo */
+  .modulos { display: grid; gap: 0; margin-bottom: 20px; border: 1px solid var(--border); background: var(--surface); }
+  .modulos .m { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto auto; gap: 18px; align-items: center; padding: 16px 20px; }
+  .modulos .m + .m { border-top: 1px solid var(--border); }
+  .modulos .m h3 { font: 500 17px var(--font-head); } .modulos .m h3 i { font-style: normal; color: var(--accent); }
+  .modulos .fig { display: flex; gap: 22px; }
+  .modulos .fig div { font-size: 12px; color: var(--text-dim); } .modulos .fig b { display: block; font-size: 18px; color: var(--text); font-weight: 600; }
+  @container (max-width: 900px) { .modulos .m { grid-template-columns: 1fr auto; } .modulos .fig { grid-column: 1 / -1; } }
+  .passos { margin: 0; padding: 0; list-style: none; counter-reset: p; }
+  .passos li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--border); counter-increment: p; }
+  .passos li::before { content: counter(p); font: 600 14px var(--font-head); color: var(--text-dim); }
+  .vazio-tx { color: var(--text-2); margin: 0 0 10px; max-width: 60ch; }
+  .vazio-tx + .vazio-tx { color: var(--text-dim); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="proto-bar" role="toolbar" aria-label="Controles do protótipo">
+  <fieldset data-k="papel"><legend><b>Papel</b></legend><button data-v="consultor">Consultor</button><button data-v="cliente">Cliente</button></fieldset>
+  <fieldset data-k="entrada"><legend><b>Entrada</b></legend><button data-v="n360">n.360</button><button data-v="iso">n.iso</button><button data-v="privacy">n.privacy</button></fieldset>
+  <fieldset data-k="estado"><legend><b>Estado</b></legend><button data-v="dados">Em andamento</button><button data-v="novo">Projeto novo</button><button data-v="sem">Módulo não habilitado</button><button data-v="carregando">Carregando</button></fieldset>
+  <fieldset data-k="vista"><legend><b>n.360</b></legend><button data-v="projeto">Projeto</button><button data-v="carteira">Carteira</button></fieldset>
+  <fieldset data-k="barra"><legend><b>Barra</b></legend><button data-v="aberta">Aberta</button><button data-v="recolhida">Recolhida</button></fieldset>
+  <span class="aviso">Protótipo da direção A. Dados fictícios de exemplo.</span>
+</div>
+<div class="app" id="app">
+  <aside class="side" aria-label="Menu"><div class="marca" id="marca"></div><div class="proj" id="proj"></div><nav id="nav" aria-label="Navegação principal"></nav></aside>
+  <div style="min-width:0">
+    <header class="topo"><h1 id="titulo">Painel</h1><span class="chip" id="chip"></span><div class="dir"><button class="btn" aria-label="Avisos">Avisos</button></div></header>
+    <main id="main" tabindex="-1"></main>
+  </div>
+</div>
+<div class="tip" role="tooltip"></div>
+<script src="prototipo-dados.js"></script>
+<script src="prototipo-graficos.js"></script>
+<script>
+const E = window.EXEMPLO, { esc } = window.U;
+const st = { papel: 'consultor', entrada: 'privacy', estado: 'dados', vista: 'projeto', barra: 'aberta' };
+try { Object.assign(st, JSON.parse(sessionStorage.getItem('proto-a') || '{}')); } catch (e) {}
+if (location.hash.length > 1) Object.assign(st, Object.fromEntries(new URLSearchParams(location.hash.slice(1))));
+
+const MENU = {
+  n360: [['', [['Início', 1], ['Meus pedidos']]], ['Conta e acessos', [['Projetos'], ['Usuários'], ['Organizações'], ['Conectar agente']]]],
+  privacy: [['', [['Painel', 1]]], ['Mapear', [['Tratamentos (RoPA)'], ['Pessoas, áreas e sistemas'], ['Terceiros']]], ['Avaliar', [['RIPD'], ['Cobertura da LGPD'], ['Mapa de risco']]], ['Responder', [['Pedidos do titular'], ['Incidentes'], ['Consentimentos']]], ['Provar', [['Documentos'], ['Evidências'], ['Treinamento']]]],
+  iso: [['', [['Painel', 1], ['Meus pedidos']]], ['Implementação', [['Jornada'], ['Controles'], ['SoA'], ['Riscos']]], ['Operacional', [['Evidências'], ['Auditorias'], ['Ações corretivas'], ['Documentos']]]],
+};
+const NOME = { n360: 'n<i>.</i>360', iso: 'n<i>.</i>iso', privacy: 'n<i>.</i>privacy' };
+
+function casca() {
+  document.getElementById('app').classList.toggle('recolhida', st.barra === 'recolhida');
+  document.getElementById('marca').innerHTML = st.barra === 'recolhida' ? 'n<i>.</i>' : NOME[st.entrada];
+  const emp = st.estado === 'novo' ? E.empresaNova : E.empresa;
+  document.getElementById('proj').innerHTML = `${esc(emp.fantasia || emp.razao)}<small>${st.estado === 'sem' ? 'n.iso' : 'n.iso · n.privacy'}</small>`;
+  document.getElementById('nav').innerHTML = MENU[st.entrada].map(([s, itens]) => `${s ? `<div class="sec">${esc(s)}</div>` : ''}${itens.map(([n, at]) => `<a class="item" href="#" ${at ? 'aria-current="page"' : ''} title="${esc(n)}"><span class="ic" aria-hidden="true"></span><span class="rot">${esc(n)}</span></a>`).join('')}`).join('');
+  document.getElementById('titulo').textContent = st.entrada === 'n360' ? 'Início' : 'Painel';
+  document.getElementById('chip').textContent = st.entrada === 'n360' && st.vista === 'carteira' && st.papel === 'consultor' ? 'Todos os seus projetos' : 'Programa de privacidade e segurança';
+}
+
+const estado = (tom, txt) => `<span class="estado ${tom}">${esc(txt)}</span>`;
+const painel = (id, titulo, corpo, extra = '') => `<section class="painel" aria-labelledby="${id}"><header><h2 id="${id}">${esc(titulo)}</h2>${extra}</header>${corpo}</section>`;
+
+function identidade(emp) {
+  const campo = (rot, val, falta = 'Não informado') => `<div><dt>${rot}</dt><dd>${val ? esc(val) : `<span class="falta">${falta}</span>`}</dd></div>`;
+  return `<section class="ident" aria-labelledby="emp-nome"><div>
+      <h2 id="emp-nome">${esc(emp.razao)}${emp.fantasia ? `<small>${esc(emp.fantasia)}</small>` : ''}</h2>
+      <dl>${campo('CNPJ', emp.cnpj)}${campo('Setor', emp.setor && `${emp.setor} (CNAE ${emp.cnae})`)}${campo('Porte', emp.porte && `${emp.porte}${emp.funcionarios ? `, ${emp.funcionarios} pessoas` : ''}`)}${campo('Local', emp.local)}${campo('Encarregado', emp.encarregado, 'Não indicado')}${campo('Programa', emp.programa)}</dl>
+    </div><div><a class="btn" href="#">${emp.setor ? 'Dados da empresa' : 'Completar o cadastro'}</a></div></section>`;
+}
+
+function saude(s) {
+  return `<section class="saude" aria-labelledby="saude-t"><h2 id="saude-t" class="sr">Situação do programa</h2>${estado(s.tom, s.rotulo)}
+    <p class="frase">${esc(s.frase)}</p><p class="apoio">${esc(s.apoio)}</p><p class="meta">Calculado às 14:32 a partir do cadastro do projeto. <a href="#">Como esta frase é montada</a></p></section>`;
+}
+
+function listaFazer(itens, comModulo) {
+  const g = { atraso: ['Atrasado', []], semana: ['Nesta semana', []], plano: ['Para planejar', []] };
+  itens.forEach((i) => g[i.tom][1].push(i));
+  return Object.entries(g).filter(([, [, l]]) => l.length).map(([tom, [rot, l]]) => `<p class="gt">${estado(tom, rot)}<span class="num">${l.length}</span></p><ul class="grupo">${l.map((i) => `
+      <li><span class="meta">${esc(i.quando)}</span><div><div class="tx">${comModulo && i.mod ? `<span class="mod">${esc(i.mod)}</span>` : ''}${esc(i.texto)}</div><div class="cx">${esc(i.ctx)}</div></div>
+      <a class="btn${tom === 'atraso' ? ' prim' : ''}" href="#" aria-label="${esc(i.acao)}: ${esc(i.texto)}">${esc(i.acao)}</a></li>`).join('')}</ul>`).join('');
+}
+
+function modulo(m) {
+  const cli = st.papel === 'cliente';
+  const fazer = cli ? E.fazer.cliente : E.fazer[m];
+  const titulo = cli ? 'Esperando a sua decisão' : 'O que fazer agora';
+  const extra = `<a class="btn link" href="#">Ver ${cli ? 'todos os pedidos' : 'as 12 pendências'}</a>`;
+  const esquerda = [painel('fazer-t', titulo, listaFazer(fazer), extra)];
+  const direita = [painel('cob-t', 'Cobertura do programa', G.cobertura(E.cobertura[m]), '<span class="meta">mesma escala em todos os temas</span>')];
+  if (!cli) esquerda.push(painel('venc-t', 'Próximos vencimentos, 90 dias', G.vencimentos(E.vencimentos[m])));
+  direita.push(painel('mapa-t', 'Mapa de risco', G.mapaDeRisco(E.riscos), m === 'privacy' ? '<span class="meta">riscos das atividades, fase F2</span>' : `<span class="meta">${E.riscos.length} riscos</span>`));
+  if (m === 'privacy' && !cli) direita.push(painel('ped-t', 'Pedidos do titular recebidos', G.sparkline(E.pedidosSemana)));
+  return `${identidade(E.empresa)}${saude(cli ? E.saude.cliente : E.saude[m])}<div class="cols"><div>${esquerda.join('')}</div><div>${direita.join('')}</div></div>`;
+}
+
+function inicio360() {
+  const cli = st.papel === 'cliente';
+  if (!cli && st.vista === 'carteira') return carteira();
+  const sem = st.estado === 'sem';
+  const linha = (id, nome, s, fig) => `<div class="m"><h3>${nome}</h3><div>${estado(s.tom, s.rotulo)}<div style="margin-top:4px">${esc(s.frase)}</div></div><div class="fig">${fig.map(([v, r]) => `<div><b class="num">${esc(v)}</b>${esc(r)}</div>`).join('')}</div><a class="btn" href="#">Abrir o ${id}</a></div>`;
+  const semModulo = `<div class="m"><h3>n<i>.</i>privacy</h3><div><span class="estado plano">Não habilitado neste projeto</span><div style="margin-top:4px;color:var(--text-2)">${cli ? 'Inventário, pedidos do titular e incidentes da LGPD, sobre o mesmo cadastro que o n.iso já usa. Fale com a ness. para contratar.' : 'A organização já contratou o n.privacy. Ao habilitar, as partes, os responsáveis e os documentos do n.iso entram prontos.'}</div></div><div></div>${cli ? '<a class="btn" href="#">Falar com a ness.</a>' : '<a class="btn prim" href="#">Habilitar no projeto</a>'}</div>`;
+  const mods = `<section class="modulos" aria-label="Módulos deste projeto">
+      ${linha('n.iso', NOME.iso, E.saude.iso, [['31 de 93', 'controles'], ['4', 'ações vencidas'], ['23/10', 'auditoria']])}
+      ${sem ? semModulo : linha('n.privacy', NOME.privacy, E.saude.privacy, [['29 de 38', 'atividades aprovadas'], ['2', 'pedidos atrasados'], ['41 de 65', 'artigos cobertos']])}</section>`;
+  const juntos = cli ? E.fazer.cliente : [...E.fazer.privacy.map((i) => ({ ...i, mod: 'n.privacy' })), ...E.fazer.iso.map((i) => ({ ...i, mod: 'n.iso' }))]
+    .filter((i) => !sem || i.mod === 'n.iso').sort((a, b) => ['atraso', 'semana', 'plano'].indexOf(a.tom) - ['atraso', 'semana', 'plano'].indexOf(b.tom)).slice(0, 6);
+  const adianta = `<ul style="margin:0;padding-left:18px;color:var(--text-2);display:grid;gap:6px"><li>38 atividades e 77 itens do inventário já servem aos dois módulos.</li><li>14 documentos vigentes e 52 evidências válidas contam para a ISO e para a LGPD.</li><li>A privacidade já adianta 6 controles do Anexo A, entre eles A.5.34.</li></ul>`;
+  const saudeCli = { tom: 'semana', rotulo: 'Sua vez', frase: 'Três documentos esperam a sua aprovação.', apoio: sem ? 'No n.iso, a auditoria interna é em 23/10; a consultoria está preparando o escopo.' : 'No n.iso, a auditoria interna é em 23/10. No n.privacy, a consultoria responde dois pedidos do titular atrasados.' };
+  const saude360 = { tom: 'atraso', rotulo: 'Atrasado', frase: sem ? 'Quatro ações corretivas vencidas no n.iso.' : 'Dois prazos legais vencidos no n.privacy e quatro ações vencidas no n.iso.', apoio: 'Cada módulo abaixo diz o que falta. A lista junta os dois, do mais urgente ao que pode ser planejado.' };
+  return `${identidade(E.empresa)}${saude(cli ? saudeCli : saude360)}${mods}<div class="cols"><div>${painel('fazer-t', cli ? 'Esperando a sua decisão' : 'O que fazer agora, nos dois módulos', listaFazer(juntos, true))}</div><div>${sem ? '' : painel('ad-t', 'O que um módulo já adianta para o outro', adianta)}</div></div>`;
+}
+
+function carteira() {
+  const ord = ['atraso', 'semana', 'plano', 'ok'];
+  const l = [...E.carteira].sort((a, b) => ord.indexOf(a.tom) - ord.indexOf(b.tom));
+  const at = l.filter((p) => p.tom === 'atraso').length;
+  return `<section class="saude" aria-labelledby="cart-t"><h2 id="cart-t" class="sr">Sua carteira</h2>${estado('atraso', 'Atenção hoje')}
+    <p class="frase">${l.length} projetos. ${at === 2 ? 'Dois precisam' : at + ' precisam'} de você hoje.</p><p class="apoio">A lista começa pelo que tem prazo legal vencido. Abrir leva ao painel do projeto, no módulo onde está a pendência.</p></section>
+    ${painel('cart-l', 'Projetos por urgência', `<table class="tabela"><thead><tr><th>Empresa</th><th>Módulos</th><th>Situação</th><th>O mais urgente</th><th>Último movimento</th><th><span class="sr">Ação</span></th></tr></thead><tbody>${l.map((p) => `<tr><td style="color:var(--text)">${esc(p.empresa)}</td><td class="meta">${esc(p.modulos)}</td><td>${estado(p.tom, p.situacao)}</td><td style="color:var(--text-2)">${esc(p.urgente)}</td><td class="meta">${esc(p.mov)}</td><td style="text-align:right"><a class="btn" href="#" aria-label="Abrir ${esc(p.empresa)}">Abrir</a></td></tr>`).join('')}</tbody></table>`, '<a class="btn" href="#">Novo projeto</a>')}`;
+}
+
+function projetoNovo() {
+  const m = st.entrada;
+  const passos = m === 'iso'
+    ? [['Conferir o cadastro da empresa', 'Feito em 10/10', 'ok'], ['Definir o escopo do SGSI', 'Leva cerca de 20 minutos', 'Definir o escopo'], ['Responder o diagnóstico inicial', 'Gera a SoA proposta e a jornada', 'Começar o diagnóstico'], ['Cadastrar os ativos principais', 'Ou importar uma planilha', 'Cadastrar ativos']]
+    : [['Conferir o cadastro da empresa', 'Feito em 10/10', 'ok'], ['Indicar o encarregado', 'A LGPD exige (art. 41)', 'Indicar'], ['Trazer as atividades de tratamento', 'Importe o programa que já existe ou cadastre a primeira', 'Importar o programa'], ['Cadastrar os terceiros', 'Fornecedores que recebem dados pessoais', 'Cadastrar terceiros']];
+  const lista = `<ol class="passos">${passos.map(([t, c, a]) => `<li><div><div style="color:var(--text)">${esc(t)}</div><div class="meta">${esc(c)}</div></div>${a === 'ok' ? estado('ok', 'Feito') : `<a class="btn${t.startsWith('Indicar') || t.startsWith('Definir') ? ' prim' : ''}" href="#">${esc(a)}</a>`}</li>`).join('')}</ol>`;
+  const depois = `<p class="vazio-tx">Quando houver a primeira atividade, este lado mostra a cobertura do programa por tema, o mapa de risco e os próximos vencimentos.</p><p class="vazio-tx">Nada aparece zerado de propósito: zero aqui significaria "em dia", e um projeto sem cadastro não está em dia.</p>`;
+  return `${identidade(E.empresaNova)}${saude({ tom: 'plano', rotulo: 'Começando', frase: 'O programa ainda não começou. Quatro passos o colocam de pé.', apoio: 'O primeiro já está feito. Os outros levam de minutos a poucos dias, conforme o que a empresa já tem documentado.' })}
+    <div class="cols"><div>${painel('passos-t', 'Primeiros passos', lista)}</div><div>${painel('dep-t', 'O que vai aparecer aqui', depois)}</div></div>`;
+}
+
+function semModuloNaEntrada() {
+  const nome = st.entrada === 'iso' ? 'n.iso' : 'n.privacy';
+  const cli = st.papel === 'cliente';
+  return `${identidade(E.empresa)}<section class="saude"><span class="estado plano">Módulo não habilitado</span><p class="frase">O ${nome} não está habilitado neste projeto.</p>
+    <p class="apoio">${cli ? 'Fale com a ness. para contratar. O que já está no cadastro (pessoas, sistemas, documentos) entra pronto quando o módulo for habilitado.' : 'A organização contratou o módulo. Habilite no projeto; partes, responsáveis e documentos entram prontos.'}</p>
+    <p style="margin-top:16px;display:flex;gap:8px">${cli ? '<a class="btn" href="#">Falar com a ness.</a>' : '<a class="btn prim" href="#">Habilitar no projeto</a>'}<a class="btn" href="#">Voltar ao início do n.360</a></p></section>`;
+}
+
+function carregando() {
+  const b = (w, h, mb = 10) => `<div class="esq" style="width:${w};height:${h}px;margin-bottom:${mb}px"></div>`;
+  return `<div aria-busy="true" aria-label="Carregando o painel"><div class="ident"><div style="flex:1">${b('380px', 26)}${b('70%', 14, 0)}</div></div>
+    <div class="saude">${b('90px', 14)}${b('520px', 26)}${b('420px', 14, 0)}</div>
+    <div class="cols"><div><div class="painel">${b('160px', 16, 18)}${b('100%', 40)}${b('100%', 40)}${b('100%', 40)}${b('100%', 40, 0)}</div></div><div><div class="painel">${b('140px', 16, 18)}${[1, 2, 3, 4, 5, 6, 7].map(() => b('100%', 12, 13)).join('')}</div></div></div></div>`;
+}
+
+function render() {
+  try { sessionStorage.setItem('proto-a', JSON.stringify(st)); } catch (e) {}
+  document.querySelectorAll('.proto-bar fieldset').forEach((f) => f.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(st[f.dataset.k] === b.dataset.v))));
+  document.querySelector('[data-k="vista"]').style.display = st.entrada === 'n360' && st.papel === 'consultor' ? '' : 'none';
+  casca();
+  const main = document.getElementById('main');
+  let html;
+  if (st.estado === 'carregando') html = carregando();
+  else if (st.estado === 'novo') html = projetoNovo();
+  else if (st.estado === 'sem' && st.entrada !== 'n360') html = semModuloNaEntrada();
+  else html = st.entrada === 'n360' ? inicio360() : modulo(st.entrada);
+  main.innerHTML = `<div class="miolo">${html}</div>`;
+}
+document.querySelector('.proto-bar').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  st[b.closest('fieldset').dataset.k] = b.dataset.v;
+  render();
+});
+U.ligarDicas();
+render();
+</script>
+</body>
+</html>
