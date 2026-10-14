@@ -124,6 +124,12 @@ export type ConsentimentoProposto = z.infer<typeof consentimentoPropostoSchema>;
 export const OBRIGATORIOS_CONSENTIMENTO = ['versao_aviso'] as const;
 
 /** `dados` passa por um dos esquemas aqui; o serviço confere que é o da entidade do item. */
+/** Aceitar ou descartar vários itens de uma vez (a gravação continua exigindo "confirmar"). */
+export const importacaoItensDecidirSchema = z.object({
+  ids: z.array(z.string().min(1).max(100)).min(1).max(200),
+  decisao: z.enum(['aceito', 'descartado']),
+}).strict();
+
 export const importacaoItemSchema = z.object({
   dados: z.union([tratamentoPropostoSchema, terceiroPropostoSchema, documentoPropostoSchema, avaliacaoPropostaSchema,
     pedidoPropostoSchema, incidentePropostoSchema, consentimentoPropostoSchema]).optional(),

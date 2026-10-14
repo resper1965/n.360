@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (aprovação em lote)
+- **`POST /api/v1/pedidos/lote`**: aprova até 50 pedidos (documento, política, DPIA, tratamento) e evidências com a senha conferida uma vez. Não é caminho novo: cada item passa pelas mesmas funções da aprovação individual (`decidirPedido`, `assinarEvidencia`: autoridade, segregação de funções, hash), e o `hash_visto` de cada item tem de ser o do conteúdo atual (senão é ignorado). Resposta por item; só aprova (recusar pede motivo por item). Trilha: a de sempre por item, mais `aprovacao.lote`. Fora do agente. Tela: em "Meus pedidos" a caixa de seleção só libera depois de abrir o pedido, e "Aprovar selecionados" pede a senha e mostra o resultado e os motivos dos ignorados. A tela de evidências ainda não tem a seleção em lote (a rota já aceita evidência).
+- **`POST /projects/:id/importacoes/:id/itens/decidir`**: aceita ou descarta até 200 itens da revisão da importação de uma vez; "Aceitar os de confiança alta" passa a usar uma chamada só.
+
+### Alterado (aprovações)
+- `decidirPedido` e `assinarEvidencia` extraídos das rotas individuais, sem mudar o comportamento delas; teto de `any` de 535 para 532.
+- `api.js`: o 401 de `/api/v1/pedidos/lote` (senha incorreta) não derruba a sessão.
 ### Adicionado (nomes padronizados)
 - **`normalizarNome`** (`src/services/nomes.ts`): todo nome de parte, departamento, ativo e organização entra padronizado (Title Case com conectores em minúsculas, siglas como TI, RH, DPO e LGPD em maiúsculas, abreviatura sem ambiguidade expandida: `depto` vira Departamento). Aplicada nos esquemas de entrada e nos gravadores que os contornam (importação de partes, fornecedor, encarregado, importação de programa, ativo). Idempotente; o que tem maiúscula no meio (McDonald, iPhone) e códigos (PC-001) ficam como estão.
 - **Padronizar nomes** (Partes, menu Mais; `GET/POST /projects/:id/padronizar-nomes`, equipe da consultoria, fora do agente): lista antes e depois do que já está gravado, aplica só o marcado com o nome novo recalculado no servidor, ignora o que mudou desde a lista e o que colidiria com um nome existente, e mostra as possíveis duplicatas sem uni-las. Trilha `nome.padronizado`.

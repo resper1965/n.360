@@ -16,7 +16,7 @@ const FONTES = import.meta.glob('../src/**/*.ts', { query: '?raw', import: 'defa
 const PADRAO = /: any\b|as any\b|<any>/g;
 
 // Medido em 2026-10-12. Só pode DIMINUIR.
-const TETO = 535;
+const TETO = 532;
 
 const porArquivo = Object.entries(FONTES)
   .filter(([arq]) => !arq.endsWith('.test.ts'))

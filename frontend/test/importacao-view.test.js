@@ -137,13 +137,18 @@ describe('revisão', () => {
     it('"aceitar todos de confiança alta" só pega pendentes de confiança alta e sem duplicata', async () => {
         const det = LOTE({ itens: [item('i1'), item('i2', { confianca: 'media' }), item('i3', { duplicata_de: 'r1' }), item('i4')] });
         const f = await abrirLote(det, {
-            [`PUT ${B}/l1/itens/i1`]: () => { det.itens[0].decisao = 'aceito'; return { ok: true }; },
-            [`PUT ${B}/l1/itens/i4`]: () => { det.itens[3].decisao = 'aceito'; return { ok: true }; },
+            [`POST ${B}/l1/itens/decidir`]: (o) => {
+                const ids = JSON.parse(o.body).ids;
+                for (const i of det.itens) if (ids.includes(i.id)) i.decisao = 'aceito';
+                return { ok: true, aplicados: ids.length, resultados: ids.map((id) => ({ id, resultado: 'ok' })) };
+            },
         });
         expect(el('c').textContent).toContain('Aceitar os 2 de confiança alta');
         await clica('importacaoAceitarAlta');
         await espera();
-        expect(f.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([u]) => u.split('/').pop())).toEqual(['i1', 'i4']);
+        const posts = f.mock.calls.filter(([, o]) => o?.method === 'POST');
+        expect(posts).toHaveLength(1); // uma chamada só, não uma por item
+        expect(JSON.parse(posts[0][1].body)).toEqual({ ids: ['i1', 'i4'], decisao: 'aceito' });
         expect(el('importacao-msg').textContent).toContain('2 item(ns) aceito(s)');
     });
 

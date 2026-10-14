@@ -706,6 +706,16 @@ export const pedidoCienciaLinkSchema = z.object({
   nome: z.string().trim().min(2).max(200),
 }).strict();
 
+/** Aprovação em lote (spec 2026-10-14): até 50 itens, cada um com o hash que a pessoa viu. */
+export const aprovacaoLoteSchema = z.object({
+  senha: z.string().min(1).max(500),
+  itens: z.array(z.object({
+    tipo: z.enum(['pedido', 'evidencia']),
+    id: z.string().min(1).max(100),
+    hash_visto: z.string().min(1).max(128),
+  }).strict()).min(1).max(50),
+}).strict();
+
 export const pedidoDecisaoSchema = z.object({
   senha: z.string().min(1).max(500),
   motivo: z.string().trim().max(2000).optional().nullable(),

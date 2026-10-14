@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500, ehEquipeNess } from '../helpers';
-import { validateBody, importacaoItemSchema } from '../schemas';
+import { validateBody, importacaoItemSchema, importacaoItensDecidirSchema } from '../schemas';
 import { atualizarItem, cancelarLote, confirmarLote, criarLote, enviarArquivo, lerLote, listarLotes, processarArquivo } from '../services/importacao';
 
 /**
@@ -54,6 +54,23 @@ importacaoApp.put('/:id/itens/:iid', async (c) => {
     const r = await atualizarItem(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.req.param('iid'), v.data);
     return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao atualizar o item', e); }
+});
+
+importacaoApp.post('/:id/itens/decidir', async (c) => {
+  try {
+    const v = await validateBody(c, importacaoItensDecidirSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const lote = c.req.param('id');
+    const resultados: { id: string; resultado: 'ok' | 'ignorado'; motivo?: string }[] = [];
+    for (const id of v.data.ids) {
+      const r = await atualizarItem(c.env.DB, projectId, lote, id, { decisao: v.data.decisao });
+      if (r.ok) resultados.push({ id, resultado: 'ok' });
+      else if (r.status === 404 && r.error === 'Lote não encontrado') return c.json({ error: r.error }, 404);
+      else resultados.push({ id, resultado: 'ignorado', motivo: r.error });
+    }
+    return c.json({ ok: true, aplicados: resultados.filter((x) => x.resultado === 'ok').length, resultados });
+  } catch (e) { return erro500(c, 'Falha ao decidir os itens', e); }
 });
 
 importacaoApp.post('/:id/confirmar', async (c) => {

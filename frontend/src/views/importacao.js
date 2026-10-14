@@ -346,14 +346,16 @@ window.importacaoDecidir = async function (iid, decisao) {
 
 window.importacaoAceitarAlta = async function () {
     const alvo = altaPendentes(E.det.itens.filter((i) => abaDe(i) === E.aba));
+    if (!alvo.length) return;
     E.ocupado = true;
-    let ok = 0;
     E.msg = '';
-    for (const i of alvo) {
-        try { await atualiza(i.id, { decisao: 'aceito' }); ok++; } catch (err) { E.msg = (err && err.message) || 'Falha ao aceitar'; break; }
-    }
+    // Uma chamada só (POST .../itens/decidir): o servidor aplica a cada item o mesmo efeito do PUT e diz o que ignorou.
+    try {
+        const r = await api('POST', `/api/v1/projects/${pid()}/importacoes/${lid()}/itens/decidir`, { ids: alvo.map((i) => i.id), decisao: 'aceito' });
+        const ign = (r.resultados || []).filter((x) => x.resultado === 'ignorado').length;
+        E.msg = `${r.aplicados} item(ns) aceito(s)${ign ? `; ${ign} ignorado(s)` : ''}.`;
+    } catch (err) { E.msg = (err && err.message) || 'Falha ao aceitar'; }
     E.ocupado = false;
-    if (!E.msg) E.msg = `${ok} item(ns) aceito(s).`;
     await recarrega();
 };
 

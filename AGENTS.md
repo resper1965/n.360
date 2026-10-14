@@ -108,6 +108,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   proprio statement (a unica excecao e `UPDATE pedidos SET org_id = ?`), sem
   DELETE nem REPLACE; `test/pedidos-prova.test.ts` le o fonte e reprova o que
   fugir disso. Correcao e pedido novo.
+- **Aprovacao em lote** (`POST /api/v1/pedidos/lote`): nao e caminho novo de aprovacao. Cada item passa por `decidirPedido` (`src/routes/pedidos.ts`) ou `assinarEvidencia` (`src/routes/evidence.ts`), as mesmas funcoes da rota individual; a senha e conferida uma vez e o `hash_visto` de cada item tem de bater com o conteudo atual. So aprova, ate 50 itens, fora do agente. Mexer na regra de autoridade ou de segregacao e mexer nas duas funcoes, e o lote acompanha.
 - **URL canonica**: `src/config/url.ts` (`appUrl(env)`, var `APP_URL`; o padrao do codigo e o `wrangler.jsonc` sao
   `https://n360.ness.com.br`, desde o #340). Link de e-mail, base do
   SCIM e CORS saem dali, nunca do host da requisicao. `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para
