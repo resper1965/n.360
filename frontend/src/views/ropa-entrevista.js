@@ -79,6 +79,10 @@ const criarCadastro = (tipo, pid, corpo) =>
     tipo === 'pessoa' ? api('POST', `/api/v1/projects/${pid}/partes`, corpo)
     : tipo === 'area' ? api('POST', `/api/v1/projects/${pid}/departamentos`, corpo)
     : api('POST', `/api/v1/projects/${pid}/assets`, corpo);
+// Parecidos por SIGNIFICADO (servidor, embeddings): só sistema/arquivo e área. Pessoa nunca vai ao modelo; a regra de similares.js é a única.
+const buscarPorSignificado = (pid, corpo) => api('POST', `/api/v1/projects/${pid}/similares`, corpo);
+const ESPERA_SIGNIFICADO = 600;
+const significado = { timer: null, seq: 0 };
 
 const CADASTROS = {
     pessoa: { nome: 'Pessoa', lista: 'pessoas', detalhe: (x) => x.email || 'pessoa',
@@ -431,7 +435,46 @@ function avisosDeDuplicata(tipo, f) {
             ? `<p class="re-aviso">Já existe com este nome: ${escapeHTML(s.item.nome)} (${escapeHTML(s.item.detalhe)}). Use o existente. ${usar(s.item, 'Usar este')}</p>`
             : `<p class="re-aviso">Já existe: ${escapeHTML(s.item.nome)} (${escapeHTML(s.item.detalhe)}; ${escapeHTML(s.motivo)}). Usar este? ${usar(s.item, 'Usar este')}</p>`);
     }
+    // O servidor devolve o id; o aviso só aparece se o item está na lista desta tela (é o que "Usar este" marca).
+    for (const s of f.porSignificado || []) {
+        const x = ex.find((e) => e.id === s.id);
+        if (x) linhas.push(`<p class="re-aviso">Já existe: ${escapeHTML(x.nome)} (${escapeHTML(x.detalhe)}; parecido por significado). Usar este? ${usar(x, 'Usar este')}</p>`);
+    }
     return linhas.join('');
+}
+
+const textoBuscando = (f) => (f && f.buscando ? 'buscando parecidos…' : '');
+function marcarBuscando(f, v) {
+    f.buscando = v;
+    const n = document.getElementById('re-similares-busca');
+    if (n) n.textContent = textoBuscando(f);
+}
+
+/**
+ * Pergunta ao servidor quais itens já cadastrados significam o mesmo ("folha de pagamento" ~ "payroll system"), quando a regra
+ * não achou nada e o nome tem 4+ letras. Debounce de 600 ms; a resposta de um nome já superado é descartada (seq). Falha ou
+ * `indisponivel` = silêncio: a tela segue só com a regra.
+ */
+function agendarSignificado() {
+    clearTimeout(significado.timer);
+    const seq = ++significado.seq;
+    const f = st && st.cadastro;
+    if (!f) return;
+    f.porSignificado = null;
+    const tipo = PERGUNTA[f.pergunta].cadastro;
+    const nome = String(f.nome || '').trim();
+    if (tipo === 'pessoa' || nome.length < 4 || parecidos(nome, existentesDe(tipo)).length) { marcarBuscando(f, false); return; }
+    marcarBuscando(f, true);
+    significado.timer = setTimeout(async () => {
+        if (seq !== significado.seq || !st || st.cadastro !== f) return;
+        let r = null;
+        try { r = await buscarPorSignificado(st.projectId, { tipo, nome }); } catch (e) { /* silêncio: segue só a regra */ }
+        if (seq !== significado.seq || !st || st.cadastro !== f) return;
+        f.porSignificado = r && Array.isArray(r.resultados) ? r.resultados : [];
+        marcarBuscando(f, false);
+        const sim = document.getElementById('re-similares');
+        if (sim) sim.innerHTML = avisosDeDuplicata(tipo, f);
+    }, ESPERA_SIGNIFICADO);
 }
 
 function blocoCadastro(p) {
@@ -450,6 +493,7 @@ function blocoCadastro(p) {
         <h3 class="re-cadastro-titulo" id="re-cad-titulo">Cadastrar ${escapeHTML(k.nome.toLowerCase())}</h3>
         ${campo('nome', 'Nome (obrigatório)', 'type="text" maxlength="200" autocomplete="off" aria-describedby="re-similares"')}
         <div id="re-similares" aria-live="polite">${avisosDeDuplicata(p.cadastro, f)}</div>
+        ${p.cadastro === 'pessoa' ? '' : `<p class="re-nota re-similares-busca" id="re-similares-busca" aria-live="polite">${textoBuscando(f)}</p>`}
         ${p.cadastro === 'pessoa' ? campo('email', 'E-mail (opcional)', 'type="email" maxlength="320" autocomplete="off"') : ''}
         ${categoria}
         <div class="re-cadastro-acoes">
@@ -708,12 +752,14 @@ window.reCadastroAbrir = function (pid) {
     const nome = String(st.busca[pid] || (pid === 'responsavel' ? st.respostas.responsavel_texto || '' : '')).trim();
     st.cadastro = { pergunta: pid, nome, email: '', categoria: p.cadastro === 'item' ? CATEGORIAS_ITEM[0].v : '' };
     desenhar('re-cad-nome');
+    agendarSignificado();
 };
 window.reCadastroFechar = function () { st.cadastro = null; desenhar(); };
 window.reCadastroCampo = function (campo, v) {
     if (!st.cadastro) return;
     st.cadastro[campo] = v;
     const sim = document.getElementById('re-similares');
+    if (campo === 'nome') agendarSignificado();
     if (sim && campo !== 'categoria') sim.innerHTML = avisosDeDuplicata(PERGUNTA[st.cadastro.pergunta].cadastro, st.cadastro);
 };
 

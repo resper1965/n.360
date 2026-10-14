@@ -602,3 +602,103 @@ describe('cadastrar durante a entrevista (pessoa, área, sistema)', () => {
         expect(corpoDe(f, `POST ${P}/ropa`)).not.toHaveProperty('owner');
     });
 });
+
+describe('parecidos por significado (servidor) no "Cadastrar agora"', () => {
+    const basico = { finalidade: 'Folha de pagamento', titulares: ['Colaboradores'], categorias: ['Financeiro'] };
+    const SIM = `POST ${P}/similares`;
+    const preencher = (id, v) => { const i = el(id); i.value = v; i.dispatchEvent(new Event('input', { bubbles: true })); };
+    const abrirCadastro = () => el('c').querySelector('[data-action="reCadastroAbrir"]').click();
+    const marcado = () => opcoes().filter((i) => i.checked).map((i) => i.value);
+    const pedidos = (f) => f.mock.calls.filter(([u, o]) => `${o?.method || 'GET'} ${new URL(u, 'http://localhost').pathname}` === SIM).map(([, o]) => JSON.parse(o.body));
+    beforeEach(() => { vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('sistema: depois de 600 ms sem digitar, pergunta ao servidor e oferece o existente; "Usar este" marca', async () => {
+        rascunho('sistemas', { ...basico });
+        // src/routes/similares.ts: { resultados: [{ id, nome, score }] }
+        const f = await abrir(undefined, { [SIM]: { resultados: [{ id: 'i1', nome: 'Sistema de folha', score: 0.91 }] } });
+        abrirCadastro();
+        preencher('re-cad-nome', 'contracheque');
+        expect(el('re-similares-busca').textContent).toBe('buscando parecidos…');
+        expect(el('re-similares-busca').getAttribute('aria-live')).toBe('polite');
+        await vi.advanceTimersByTimeAsync(599);
+        expect(pedidos(f)).toEqual([]);
+        await vi.advanceTimersByTimeAsync(1);
+        await vi.waitFor(() => expect(el('re-similares').textContent).toContain('Já existe: Sistema de folha (item; parecido por significado). Usar este?'));
+        expect(pedidos(f)).toEqual([{ tipo: 'item', nome: 'contracheque' }]);
+        expect(el('re-similares-busca').textContent).toBe('');
+        el('re-similares').querySelector('[data-action="reUsarExistente"]').click();
+        expect(marcado()).toEqual(['i1']);
+    });
+
+    it('debounce: digitação seguida vira uma chamada só, com o último nome; área manda tipo area', async () => {
+        rascunho('areas', { ...basico });
+        const f = await abrir(undefined, { [SIM]: { resultados: [] } });
+        abrirCadastro();
+        for (const v of ['cont', 'contra', 'contracheque']) { preencher('re-cad-nome', v); await vi.advanceTimersByTimeAsync(300); }
+        await vi.advanceTimersByTimeAsync(600);
+        expect(pedidos(f)).toEqual([{ tipo: 'area', nome: 'contracheque' }]);
+        expect(el('re-similares').textContent).toBe('');
+    });
+
+    it('resposta de um nome superado não sobrescreve a do nome atual', async () => {
+        rascunho('sistemas', { ...basico });
+        const f = await abrir();
+        const base = f.getMockImplementation();
+        const pendentes = [];
+        f.mockImplementation((url, o = {}) => (o.method === 'POST' && url.endsWith('/similares')
+            ? new Promise((ok) => pendentes.push({ nome: JSON.parse(o.body).nome, ok })) : base(url, o)));
+        abrirCadastro();
+        preencher('re-cad-nome', 'contracheque');
+        await vi.advanceTimersByTimeAsync(600);
+        preencher('re-cad-nome', 'controle de portaria');
+        await vi.advanceTimersByTimeAsync(600);
+        expect(pendentes.map((x) => x.nome)).toEqual(['contracheque', 'controle de portaria']);
+        pendentes[1].ok(resposta({ resultados: [] }));
+        await vi.waitFor(() => expect(el('re-similares-busca').textContent).toBe(''));
+        pendentes[0].ok(resposta({ resultados: [{ id: 'i1', nome: 'Sistema de folha', score: 0.9 }] }));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(el('re-similares').textContent).toBe('');
+    });
+
+    it('erro ou indisponível: silêncio, sem aviso nem toast', async () => {
+        rascunho('sistemas', { ...basico });
+        const f = await abrir(undefined, { [SIM]: { resultados: [], indisponivel: true } });
+        abrirCadastro();
+        preencher('re-cad-nome', 'contracheque');
+        await vi.advanceTimersByTimeAsync(600);
+        await vi.waitFor(() => expect(el('re-similares-busca').textContent).toBe(''));
+        expect(el('re-similares').textContent).toBe('');
+        const base = f.getMockImplementation();
+        f.mockImplementation(async (url, o = {}) => (o.method === 'POST' && url.endsWith('/similares') ? resposta({ error: 'Limite' }, 429) : base(url, o)));
+        preencher('re-cad-nome', 'controle de portaria');
+        await vi.advanceTimersByTimeAsync(600);
+        await vi.waitFor(() => expect(el('re-similares-busca').textContent).toBe(''));
+        expect(el('re-similares').textContent).toBe('');
+        expect(el('re-erro').textContent).toBe('');
+        expect(document.querySelector('.toast')).toBeNull();
+    });
+
+    it('não pergunta ao servidor para pessoa, nome curto, quando a regra já achou ou com o cadastro fechado', async () => {
+        rascunho('responsavel', { ...basico });
+        let f = await abrir(undefined, { [SIM]: { resultados: [] } });
+        abrirCadastro();
+        preencher('re-cad-nome', 'Bruno Fictício');
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(el('re-similares-busca')).toBeNull();
+        expect(pedidos(f)).toEqual([]);
+        rascunho('sistemas', { ...basico });
+        f = await abrir(undefined, { [SIM]: { resultados: [] } });
+        abrirCadastro();
+        preencher('re-cad-nome', 'abc');
+        await vi.advanceTimersByTimeAsync(1000);
+        preencher('re-cad-nome', 'Payroll'); // a regra acha "Sistema de folha" por sinônimo
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(el('re-similares').textContent).toContain('sinônimo');
+        expect(pedidos(f)).toEqual([]);
+        preencher('re-cad-nome', 'contracheque');
+        window.reCadastroFechar();
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(pedidos(f)).toEqual([]);
+    });
+});

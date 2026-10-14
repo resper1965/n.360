@@ -1614,6 +1614,8 @@ textarea:focus-visible {
 .re-aviso { margin: 0; padding: 10px 12px; border-left: 2px solid var(--warning); background: var(--bg); color: var(--text-2); font-size: 13px; line-height: 1.5; }
 .re-faixa { border: 1px solid var(--warning); }
 .re-nota { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+/* Reserva a linha do "buscando parecidos…": o aviso aparece e some sem empurrar o formulário. */
+.re-similares-busca { min-height: 1.5em; }
 .re-erro { margin: 0; font-size: 13px; color: var(--danger); }
 .re-erro:empty { display: none; }
 .re-sugestao { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 12px; border: 1px solid var(--border); background: var(--bg); font-size: 13px; color: var(--text-2); }
