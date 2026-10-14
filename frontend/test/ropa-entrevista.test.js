@@ -391,11 +391,11 @@ describe('sugestão de IA (base legal e retenção)', () => {
 
 describe('montarPayload', () => {
     const c = { pessoas: [], catalogo: new Set() };
-    it('sem catálogo vai só o texto; "Outro" entra pelo texto digitado; transferência sem mecanismo não inventa salvaguarda', () => {
+    it('sem catálogo vai só o texto; "Outro" entra pelo texto digitado; transferência sem mecanismo não inventa salvaguarda; responsável só em texto não é regravado', () => {
         const b = montarPayload({ finalidade: 'Portaria com reconhecimento facial ou de outro tipo, controle de visitantes', titulares: ['Visitantes', '__outro'], titulares_outro: 'Prestadores',
             categorias: ['Imagem e voz'], sensiveis: ['Biometria'], base: 'Prevenção à fraude e segurança do titular (art. 11)',
-            transferencia: 'sim', transf_destino: { pais: 'Irlanda', mecanismo: 'Ainda sem mecanismo definido' }, responsavel: '__outro', responsavel_outro: 'Gerente de segurança' }, c);
-        expect(b).toEqual({ processing_purpose: 'Portaria com reconhecimento facial ou de outro tipo, controle de visitantes', owner: 'Gerente de segurança', owner_parte_id: null,
+            transferencia: 'sim', transf_destino: { pais: 'Irlanda', mecanismo: 'Ainda sem mecanismo definido' }, responsavel_texto: 'Gerente de segurança' }, c);
+        expect(b).toEqual({ processing_purpose: 'Portaria com reconhecimento facial ou de outro tipo, controle de visitantes',
             data_subjects: 'Visitantes, Prestadores', data_categories: 'Imagem e voz, Biometria', dados_sensiveis: 1,
             legal_basis: 'Prevenção à fraude e segurança do titular (art. 11)', international_transfers: 1, transfer_safeguards: null });
     });
@@ -425,5 +425,180 @@ describe('ligações no fim e cópia', () => {
         expect(fonte).not.toMatch(/\son[a-z]+=/);
         expect(fonte).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
         expect(fonte).not.toMatch(/(?<![.\w])(confirm|alert|prompt)\(/);
+    });
+});
+
+describe('cadastrar durante a entrevista (pessoa, área, sistema)', () => {
+    const basico = { finalidade: 'Folha de pagamento', titulares: ['Colaboradores'], categorias: ['Financeiro'] };
+    const preencher = (id, v) => { const i = el(id); i.value = v; i.dispatchEvent(new Event(i.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); };
+    const abrirCadastro = () => el('c').querySelector('[data-action="reCadastroAbrir"]').click();
+    const salvarCadastro = () => el('c').querySelector('[data-action="reCadastrar"]').click();
+    const marcado = () => opcoes().filter((i) => i.checked).map((i) => i.value);
+    /** Reabre a entrevista no resumo com o rascunho da aba (como quem sai e volta), e o servidor já devolvendo o que foi criado. */
+    async function noResumo(rotas) {
+        const g = JSON.parse(sessionStorage.getItem('ropa-entrevista:p1:nova'));
+        sessionStorage.setItem('ropa-entrevista:p1:nova', JSON.stringify({ ...g, passo: 'resumo' }));
+        return abrir(undefined, rotas);
+    }
+
+    it('áreas e sistemas aparecem mesmo com o cadastro vazio, com "Cadastrar agora"', async () => {
+        rascunho('responsavel', { ...basico });
+        await abrir(undefined, { [`GET ${P}/departamentos`]: [], [`GET ${P}/assets`]: { ok: true, assets: [] } });
+        proxima();
+        expect(titulo()).toBe('Qual área executa a atividade?');
+        expect(el('c').textContent).toContain('Nada cadastrado neste projeto ainda.');
+        expect(el('re-busca')).toBeNull();
+        expect(el('c').querySelector('[data-action="reCadastroAbrir"]').textContent).toContain('Cadastrar agora');
+        rascunho('origem', { ...basico });
+        await abrir(undefined, { [`GET ${P}/assets`]: { ok: true, assets: [] } });
+        naoSei();
+        expect(titulo()).toBe('Em quais sistemas ou arquivos esses dados passam?');
+        expect(el('c').querySelector('[data-action="reCadastroAbrir"]')).not.toBeNull();
+    });
+
+    it('área: POST no cadastro de departamentos, entra marcada, fica no rascunho, aparece no resumo e é ligada ao salvar', async () => {
+        rascunho('areas', { ...basico, areas: ['d1'] });
+        const f = await abrir(undefined, { [`POST ${P}/departamentos`]: { ok: true, id: 'd9' } }); // nucleo.ts:93
+        abrirCadastro();
+        expect(document.activeElement).toBe(el('re-cad-nome'));
+        preencher('re-cad-nome', 'Jurídico');
+        salvarCadastro();
+        await vi.waitFor(() => expect(el('re-cad-nome')).toBeNull());
+        expect(corpoDe(f, `POST ${P}/departamentos`)).toEqual({ nome: 'Jurídico' });
+        expect(marcado()).toEqual(['d1', 'd9']);
+        expect(document.activeElement.value).toBe('d9');
+        expect(titulo()).toBe('Qual área executa a atividade?');
+        expect(JSON.parse(sessionStorage.getItem('ropa-entrevista:p1:nova')).respostas.areas).toEqual(['d1', 'd9']);
+        const g = await noResumo({ [`GET ${P}/departamentos`]: [{ id: 'd1', nome: 'Pessoas' }, { id: 'd9', nome: 'Jurídico' }] });
+        expect(el('re-criados').textContent).toBe('Cadastrados durante a entrevista: Área Jurídico.');
+        expect(el('c').textContent).toContain('Pessoas, Jurídico');
+        await window.reSalvar();
+        expect(corpoDe(g, `PUT ${P}/ropa/novo1/departamentos`)).toEqual({ departamentos: ['d1', 'd9'] });
+    });
+
+    it('sistema: POST no inventário com nome e tipo, entra marcado; Enter no nome salva', async () => {
+        rascunho('sistemas', { ...basico });
+        const f = await abrir(undefined, { [`POST ${P}/assets`]: { ok: true, id: 'i9' } }); // project-assets.ts:25
+        abrirCadastro();
+        preencher('re-cad-nome', 'Planilha de benefícios');
+        preencher('re-cad-categoria', 'Informacao');
+        el('re-cad-nome').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        await vi.waitFor(() => expect(marcado()).toEqual(['i9']));
+        expect(corpoDe(f, `POST ${P}/assets`)).toEqual({ name: 'Planilha de benefícios', category: 'Informacao' });
+        expect(el('c').textContent).toContain('arquivo ou base');
+        expect(titulo()).toBe('Em quais sistemas ou arquivos esses dados passam?');
+    });
+
+    it('pessoa: POST de parte tipo pessoa com e-mail, entra escolhida e vira o owner_parte_id', async () => {
+        rascunho('responsavel', { ...basico });
+        const f = await abrir(undefined, { [`POST ${P}/partes`]: { ok: true, id: 'pe9' } }); // nucleo.ts:149
+        abrirCadastro();
+        preencher('re-cad-nome', 'Bruno Fictício');
+        preencher('re-cad-email', 'bruno@exemplo.com');
+        salvarCadastro();
+        await vi.waitFor(() => expect(marcado()).toEqual(['pe9']));
+        expect(corpoDe(f, `POST ${P}/partes`)).toEqual({ tipo: 'pessoa', nome: 'Bruno Fictício', email: 'bruno@exemplo.com' });
+        const g = await noResumo({ [`GET ${P}/partes`]: [{ id: 'pe9', nome: 'Bruno Fictício', email: 'bruno@exemplo.com' }] });
+        expect(el('re-criados').textContent).toBe('Cadastrados durante a entrevista: Pessoa Bruno Fictício.');
+        await window.reSalvar();
+        expect(corpoDe(g, `POST ${P}/ropa`)).toMatchObject({ owner_parte_id: 'pe9', owner: 'Bruno Fictício' });
+    });
+
+    it('erro da API aparece na região viva da pergunta e o que foi digitado fica', async () => {
+        rascunho('areas', { ...basico });
+        const f = await abrir();
+        const base = f.getMockImplementation();
+        f.mockImplementation(async (url, o = {}) => (o.method === 'POST' && url.endsWith('/departamentos')
+            ? resposta({ error: 'Já existe um departamento com esse nome neste projeto' }, 409) : base(url, o)));
+        abrirCadastro();
+        preencher('re-cad-nome', 'Jurídico');
+        salvarCadastro();
+        await vi.waitFor(() => expect(el('re-erro').textContent).toContain('Já existe um departamento com esse nome'));
+        expect(el('re-erro').getAttribute('aria-live')).toBe('polite');
+        expect(el('re-cad-nome').value).toBe('Jurídico');
+        expect(marcado()).toEqual([]);
+        // com o cadastro aberto, Próxima não pula
+        proxima();
+        expect(el('re-erro').textContent).toBe('Salve ou cancele o cadastro aberto antes de seguir.');
+        expect(titulo()).toBe('Qual área executa a atividade?');
+    });
+
+    it('anti-duplicata: parecido oferece o existente; nome igual é recusado sem chamar a API', async () => {
+        rascunho('sistemas', { ...basico });
+        const f = await abrir();
+        abrirCadastro();
+        preencher('re-cad-nome', 'Payroll');
+        expect(el('re-similares').textContent).toContain('Já existe: Sistema de folha');
+        expect(el('re-similares').textContent).toContain('sinônimo');
+        preencher('re-cad-nome', 'folha');
+        expect(el('re-similares').textContent).toContain('Já existe com este nome: Sistema de folha');
+        salvarCadastro();
+        expect(el('re-erro').textContent).toBe('Já existe com este nome: Sistema de folha. Use o existente.');
+        expect(chamadas(f)).not.toContain(`POST ${P}/assets`);
+        el('re-similares').querySelector('[data-action="reUsarExistente"]').click();
+        expect(marcado()).toEqual(['i1']);
+        expect(el('re-cad-nome')).toBeNull();
+    });
+
+    it('pessoa com e-mail de alguém já cadastrado: oferece usar a pessoa existente; o nome vem escapado', async () => {
+        rascunho('responsavel', { ...basico });
+        const f = await abrir(undefined, { [`GET ${P}/partes`]: [{ id: 'pe1', nome: 'Ana <b>Exemplo</b>', email: 'ana@exemplo.com' }] });
+        abrirCadastro();
+        preencher('re-cad-nome', 'A. Fulana');
+        preencher('re-cad-email', 'ANA@exemplo.com');
+        expect(el('re-similares').textContent).toContain('Já existe uma pessoa com este e-mail: Ana <b>Exemplo</b> (ana@exemplo.com)');
+        expect(el('re-similares').querySelector('b')).toBeNull();
+        el('re-similares').querySelector('[data-action="reUsarExistente"]').click();
+        expect(marcado()).toEqual(['pe1']);
+        expect(chamadas(f)).not.toContain(`POST ${P}/partes`);
+    });
+
+    it('busca filtra a lista na hora, sem acento nem caixa', async () => {
+        rascunho('areas', { ...basico });
+        await abrir();
+        preencher('re-busca', 'FINAN');
+        const naLista = [...el('c').querySelectorAll('.re-opcao')].filter((l) => !l.hidden).map((l) => l.textContent.trim());
+        expect(naLista).toEqual(['Financeiro']);
+        preencher('re-busca', 'xyz');
+        expect(el('re-busca-vazia').textContent).toBe('Nada na lista com esse nome.');
+        // o que foi buscado vira o nome no "Cadastrar agora"
+        abrirCadastro();
+        expect(el('re-cad-nome').value).toBe('xyz');
+    });
+
+    it('quem não cria o cadastro vê a lista e a busca, sem o botão', async () => {
+        S.user = { role: 'org_admin' };
+        rascunho('areas', { ...basico });
+        await abrir();
+        expect(el('re-busca')).not.toBeNull();
+        expect(el('c').querySelector('[data-action="reCadastroAbrir"]')).toBeNull();
+        expect(el('c').textContent).toContain('Peça a quem administra o cadastro.');
+    });
+
+    it('registro antigo só com owner em texto: mostra o texto, pede a pessoa e não regrava o owner', async () => {
+        S.ropa = [{ id: 'r1', project_id: 'p1', processing_purpose: 'Portaria', data_subjects: 'Visitantes', data_categories: 'Identificação',
+            owner: 'Gerente <img src=x>', owner_parte_id: null, status: 'Draft', nao_informado: [], aprovacao_pedido: { ciso: null, ceo: null } }];
+        const f = await abrir('r1');
+        expect(el('c').textContent).toContain('Gerente <img src=x> (só texto, sem cadastro)');
+        expect(el('c').querySelector('.re-pendencias').textContent).toContain('Responsável só em texto');
+        expect(el('c').querySelector('img')).toBeNull();
+        window.reAlterar('A'); proxima(); // finalidade -> responsável
+        expect(titulo()).toBe('Quem responde por essa atividade na empresa?');
+        expect(el('c').textContent).toContain('Hoje o responsável está só em texto');
+        abrirCadastro();
+        expect(el('re-cad-nome').value).toBe('Gerente <img src=x>');
+        window.reCadastroFechar();
+        await window.reSalvar();
+        const corpo = corpoDe(f, 'PUT /api/v1/ropa/r1');
+        expect(corpo).not.toHaveProperty('owner');
+        expect(corpo).not.toHaveProperty('owner_parte_id');
+    });
+
+    it('rascunho guardado com a antiga "Outra pessoa" vira texto à espera da pessoa', async () => {
+        rascunho('resumo', { ...basico, responsavel: '__outro', responsavel_outro: 'Coordenação' });
+        const f = await abrir();
+        expect(el('c').textContent).toContain('Coordenação (só texto, sem cadastro)');
+        await window.reSalvar();
+        expect(corpoDe(f, `POST ${P}/ropa`)).not.toHaveProperty('owner');
     });
 });
