@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
 
 // Terceiros (fatia 6 do núcleo): organizações com tipo, o método que o tipo define, a avaliação com validade e o DPA ligado.
 // Toda regra é do servidor; aqui só se mostra e se chama. Todo texto vindo do servidor é escapado.
@@ -27,7 +27,9 @@ async function renderTerceiros(c, h, a) {
     const proj = projetoAtivo();
     // Terceiro é parte do tipo organização: cadastrar daqui abre o formulário de Partes já como organização.
     const cadastrar = podeEditar() && proj ? `<button class="btn btn-primary" data-action="openNovaParteModal" data-args='${args(proj.id, 'organizacao')}'>Cadastrar terceiro</button>` : '';
-    a.innerHTML = cadastrar;
+    // Regulador e cliente (só parte interessada no n.iso) não entram na lista; quem quiser tratá-los como terceiro os adiciona aqui.
+    const adicionar = podeEditar() && proj ? `<button class="btn" data-action="abrirAdicionarTerceiro" data-args='${args(proj.id)}'>Adicionar parte existente</button>` : '';
+    a.innerHTML = adicionar + cadastrar;
     if (!proj) {
         c.innerHTML = window.renderSemProjeto();
         return;
@@ -105,6 +107,29 @@ window.abrirTerceiro = async function (projectId, parteId) {
         <h4 style="margin:1.25rem 0 0.5rem">Tratamentos que usam este terceiro</h4>
         <div id="tc-trat">${lista(t.tratamentos_afetados).length ? lista(t.tratamentos_afetados).map((r) => escapeHTML(r.finalidade)).join('; ') : '<span style="color:var(--text-dim)">Nenhum.</span>'}</div>
     `, 'modal-large');
+};
+
+window.abrirAdicionarTerceiro = async function (projectId) {
+    let cand;
+    try { cand = lista(await api('GET', `/api/v1/projects/${projectId}/terceiros/candidatos`)); } catch (e) { falha(e, 'Não foi possível listar as partes'); return; }
+    openModal(`
+        <h3>Adicionar parte existente como terceiro</h3>
+        ${cand.length ? `<div class="form-group"><label class="form-label" for="tc-cand">Parte</label>
+            <select class="form-input" id="tc-cand">${cand.map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.nome)}</option>`).join('')}</select></div>
+            <div class="form-group"><label class="form-label" for="tc-cand-tipo">Tipo do terceiro</label>
+            <select class="form-input" id="tc-cand-tipo">${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
+            <button class="btn btn-primary" data-action="adicionarTerceiro" data-args='${args(projectId)}'>Adicionar</button>`
+            : '<p style="color:var(--text-dim)">Nenhuma parte para adicionar: as organizações do projeto já são terceiros.</p>'}
+    `);
+};
+
+window.adicionarTerceiro = async function (projectId) {
+    try {
+        await api('PUT', `/api/v1/projects/${projectId}/terceiros/${el('tc-cand').value}/tipo`, { terceiro_tipo: el('tc-cand-tipo').value });
+        closeModal();
+        showToast('Terceiro adicionado.', 'success');
+        window.render();
+    } catch (e) { falha(e, 'Não foi possível adicionar o terceiro'); }
 };
 
 async function acao(projectId, parteId, fazer, padrao, sucesso) {

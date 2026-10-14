@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500 } from '../helpers';
-import { definirTipo, desligarDocumento, lerTerceiro, ligarDocumento, listarTerceiros, registrarAvaliacao, type PapelDocumento } from '../services/terceiros';
+import { definirTipo, desligarDocumento, lerTerceiro, ligarDocumento, listarCandidatos, listarTerceiros, registrarAvaliacao, type PapelDocumento } from '../services/terceiros';
 import { validateBody, avaliacaoTerceiroSchema, terceiroDocumentoSchema, terceiroTipoSchema } from '../schemas';
 
 /**
@@ -11,6 +11,8 @@ import { validateBody, avaliacaoTerceiroSchema, terceiroDocumentoSchema, terceir
 export const terceirosApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 terceirosApp.get('/', async (c) => c.json(await listarTerceiros(c.env.DB, c.req.param('projectId')!)));
+
+terceirosApp.get('/candidatos', async (c) => c.json(await listarCandidatos(c.env.DB, c.req.param('projectId')!)));
 
 terceirosApp.get('/:parteId', async (c) => {
   const t = await lerTerceiro(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'));

@@ -67,6 +67,13 @@ export async function listarTerceiros(db: D1Database, projectId: string): Promis
   });
 }
 
+/** Organizações ativas que a lista de terceiros esconde (só parte interessada): quem quiser tratá-las como terceiro tipifica uma. */
+export async function listarCandidatos(db: D1Database, projectId: string): Promise<{ id: string; nome: string }[]> {
+  const r = await db.prepare(`SELECT id, nome FROM partes p WHERE project_id = ?1 AND tipo = 'organizacao' AND status = 'ativa' AND (${SO_PARTE_INTERESSADA}) ORDER BY nome`)
+    .bind(projectId).all<{ id: string; nome: string }>();
+  return r.results;
+}
+
 /** A ficha do terceiro: dados, histórico, documentos ligados, suboperadores e os tratamentos que o usam. null = não é do projeto. */
 export async function lerTerceiro(db: D1Database, projectId: string, parteId: string) {
   const todos = await listarTerceiros(db, projectId);
