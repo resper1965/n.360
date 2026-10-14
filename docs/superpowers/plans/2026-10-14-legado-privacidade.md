@@ -52,7 +52,7 @@ Hoje a DPIA criada a partir do tratamento herda só finalidade, titulares, categ
 
 | # | Lacuna do legado | No n.360 hoje | Ajuste ao cruzar com o n.iso | Fase |
 |---|---|---|---|---|
-| 1 | Teste de impacto com 11 perguntas que gera o RIPD | entrevista recomenda RIPD no frontend, sem guardar respostas | tabela nova fora do hash; `dpia_required` continua decisão humana | F1 |
+| 1 | Teste de impacto (2 de critério geral e 11 de específico) que gera o RIPD | entrevista recomenda RIPD no frontend, sem guardar respostas | tabela nova fora do hash; `dpia_required` continua decisão humana | F1 |
 | 2 | Riscos por atividade com estratégia, risco residual e prazo | `risks` do n.iso, sem ligação à atividade nem residual | `risks.ropa_id` e residual; sub-rotas da atividade; **mapa de risco no n.privacy** sobre o mesmo registro; corrigir `coherence` R1 | F2 |
 | 3 | Gaps por atividade | `corrective_actions` do n.iso | `corrective_actions.ropa_id`; mesmos avisos de prazo, com a tela certa por módulo | F2 |
 | 4 | Ciclo de vida do dado por etapa | inexistente | tabela nova que aponta para `itens`; fora do hash | F3 |
@@ -319,7 +319,7 @@ git -c user.name=resper1965 -c user.email=44273656+resper1965@users.noreply.gith
 
 ## Fase F1: teste de impacto que gera o RIPD
 
-**Passo prévio de leitura (sem código):** o legado tem três blocos no teste: "A atividade pode gerar alto risco ao titular de dados?", "Critério Geral" e "Critério Específico". Foram vistas as **11 perguntas do Critério Específico**; os blocos de Critério Geral e da pergunta inicial estavam recolhidos. Antes de codar, abrir os dois blocos no legado (somente leitura) e registrar o texto exato deles em `src/services/impacto.ts` como `CRITERIOS_GERAIS`. Se o dono não os quiser, a tarefa F1.2 funciona só com as 11.
+**Lido no legado em 14/10/2026 (somente leitura):** o teste tem três blocos. (1) Um **resultado**: "A atividade pode gerar alto risco ao titular de dados?", que o legado preenche sozinho com "Sim, há alto risco para o titular." ou o contrário. (2) **Critério Geral**, com 2 perguntas: "O tratamento pode afetar significativamente interesses e direitos dos titulares" e "Será realizado o tratamento de qualquer tipo de Dados Pessoais em larga escala?". (3) **Critério Específico**, com as 11 perguntas já listadas. A regra que o legado aplica, observada no resultado dele, é: **alto risco quando há pelo menos um critério geral E pelo menos um específico marcados**. É o desenho dos critérios de alto risco da ANPD para agentes de pequeno porte; a conferência com a norma e a validação jurídica são do dono. O catálogo abaixo tem as 13 perguntas, com o grupo de cada uma, e a regra do passo F1.2 segue o legado.
 
 ### Tarefa F1.1: migration e schema do teste de impacto
 
@@ -372,7 +372,7 @@ Esperado: FALHA (`no such table: tratamento_impacto`).
 `migrations/0072_tratamento_impacto.sql`:
 
 ```sql
--- 0072: respostas do teste de impacto (as 11 perguntas do critério específico do legado) por tratamento. A pergunta é texto
+-- 0072: respostas do teste de impacto (as 13 perguntas do legado: 2 de critério geral e 11 de específico) por tratamento. A pergunta é texto
 -- livre validado no código (o catálogo pode mudar sem migration). Fora do conteúdo congelado da aprovação do RoPA.
 CREATE TABLE IF NOT EXISTS tratamento_impacto (
     ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,
@@ -417,8 +417,9 @@ import { describe, it, expect } from 'vitest';
 import { PERGUNTAS_IMPACTO, recomendarRipd } from '../src/services/impacto';
 
 describe('catálogo do teste de impacto', () => {
-  it('tem as 11 perguntas do critério específico, com id estável e texto', () => {
-    expect(PERGUNTAS_IMPACTO.map((p) => p.id)).toEqual([
+  it('tem 2 perguntas de critério geral e 11 de critério específico, com id estável e texto', () => {
+    expect(PERGUNTAS_IMPACTO.filter((p) => p.grupo === 'geral').map((p) => p.id)).toEqual(['afeta_direitos', 'larga_escala']);
+    expect(PERGUNTAS_IMPACTO.filter((p) => p.grupo === 'especifico').map((p) => p.id)).toEqual([
       'sensiveis', 'vulneraveis', 'finalidade_distinta', 'compartilhamento_novo', 'monitoramento', 'perfilizacao',
       'combinacao', 'transferencia', 'tecnologia_inovadora', 'decisao_automatizada', 'legitimo_interesse',
     ]);
@@ -427,18 +428,23 @@ describe('catálogo do teste de impacto', () => {
 });
 describe('recomendarRipd', () => {
   const todas = (v: 'sim' | 'nao' | 'nao_sei') => Object.fromEntries(PERGUNTAS_IMPACTO.map((p) => [p.id, v]));
-  it('qualquer sim recomenda o RIPD e lista os motivos', () => {
-    const r = recomendarRipd({ ...todas('nao'), sensiveis: 'sim', monitoramento: 'sim' });
+  it('um critério geral E um específico marcados recomendam o RIPD e listam os motivos', () => {
+    const r = recomendarRipd({ ...todas('nao'), larga_escala: 'sim', sensiveis: 'sim', monitoramento: 'sim' });
     expect(r.resultado).toBe('recomendado');
-    expect(r.motivos).toEqual(['sensiveis', 'monitoramento']);
+    expect(r.motivos).toEqual(['larga_escala', 'sensiveis', 'monitoramento']);
   });
-  it('tudo não deixa dispensável, mas a confirmação é humana', () => {
+  it('só específico, ou só geral, não basta para recomendar', () => {
+    expect(recomendarRipd({ ...todas('nao'), sensiveis: 'sim' }).resultado).toBe('dispensavel_a_confirmar');
+    expect(recomendarRipd({ ...todas('nao'), sensiveis: 'sim' }).motivos).toEqual([]);
+    expect(recomendarRipd({ ...todas('nao'), larga_escala: 'sim' }).motivos).toEqual([]);
+  });
+  it('tudo respondido sem geral E específico deixa dispensável, mas a confirmação é humana', () => {
     expect(recomendarRipd(todas('nao')).resultado).toBe('dispensavel_a_confirmar');
   });
-  it('pergunta sem resposta ou "não sei" deixa incompleto, salvo se já há um sim', () => {
+  it('pergunta sem resposta ou "não sei" deixa incompleto, salvo quando já há geral e específico', () => {
     expect(recomendarRipd({ sensiveis: 'nao' }).resultado).toBe('incompleto');
     expect(recomendarRipd({ ...todas('nao_sei') }).resultado).toBe('incompleto');
-    expect(recomendarRipd({ ...todas('nao_sei'), perfilizacao: 'sim' }).resultado).toBe('recomendado');
+    expect(recomendarRipd({ ...todas('nao_sei'), larga_escala: 'sim', perfilizacao: 'sim' }).resultado).toBe('recomendado');
   });
 });
 ```
@@ -453,35 +459,40 @@ Esperado: FALHA (módulo inexistente).
 ```ts
 // src/services/impacto.ts
 export type RespostaImpacto = 'sim' | 'nao' | 'nao_sei';
+export type GrupoImpacto = 'geral' | 'especifico';
 
-/** Critério específico do teste de impacto do legado (11 perguntas). Texto fiel ao legado; revisão jurídica é do dono. */
-export const PERGUNTAS_IMPACTO: { id: string; texto: string }[] = [
-  { id: 'sensiveis', texto: 'Será realizado o tratamento de dados pessoais sensíveis dos titulares, ou seja, informações sobre origem racial ou étnica, convicção religiosa, opinião política, filiação a sindicato ou a organização de caráter religioso, filosófico ou político, dado referente à saúde ou à vida sexual, dado genético ou biométrico, quando vinculado a uma pessoa natural?' },
-  { id: 'vulneraveis', texto: 'Será realizado o tratamento de dados pessoais sobre indivíduos vulneráveis?' },
-  { id: 'finalidade_distinta', texto: 'O projeto envolve a utilização de dados pessoais para finalidade distinta daquela pela qual foi coletado?' },
-  { id: 'compartilhamento_novo', texto: 'O projeto envolve o compartilhamento de dados pessoais com terceiros que não tinham acesso aos dados anteriormente?' },
-  { id: 'monitoramento', texto: 'Será realizado o monitoramento sistemático de titulares de dados pessoais?' },
-  { id: 'perfilizacao', texto: 'O projeto incluirá a avaliação (perfilização) ou pontuação (scoring) dos titulares de dados pessoais?' },
-  { id: 'combinacao', texto: 'Conjuntos de dados pessoais serão combinados ou enriquecidos?' },
-  { id: 'transferencia', texto: 'Existirá transferência de dados pessoais para fora do território nacional brasileiro?' },
-  { id: 'tecnologia_inovadora', texto: 'Durante o tratamento de dados pessoais serão empregadas soluções tecnológicas ou organizacionais inovadoras?' },
-  { id: 'decisao_automatizada', texto: 'O projeto incluirá o uso de dados pessoais para tomada de decisão automatizada com efeito legal ou significativamente similar?' },
-  { id: 'legitimo_interesse', texto: 'O fundamento legal para o tratamento de dados é legítimo interesse?' },
+/** Teste de impacto do legado: 2 perguntas de critério geral e 11 de critério específico. Texto fiel ao legado; revisão jurídica é do dono. */
+export const PERGUNTAS_IMPACTO: { id: string; grupo: GrupoImpacto; texto: string }[] = [
+  { id: 'afeta_direitos', grupo: 'geral', texto: 'O tratamento pode afetar significativamente interesses e direitos dos titulares?' },
+  { id: 'larga_escala', grupo: 'geral', texto: 'Será realizado o tratamento de qualquer tipo de dados pessoais em larga escala?' },
+  { id: 'sensiveis', grupo: 'especifico', texto: 'Será realizado o tratamento de dados pessoais sensíveis dos titulares, ou seja, informações sobre origem racial ou étnica, convicção religiosa, opinião política, filiação a sindicato ou a organização de caráter religioso, filosófico ou político, dado referente à saúde ou à vida sexual, dado genético ou biométrico, quando vinculado a uma pessoa natural?' },
+  { id: 'vulneraveis', grupo: 'especifico', texto: 'Será realizado o tratamento de dados pessoais sobre indivíduos vulneráveis?' },
+  { id: 'finalidade_distinta', grupo: 'especifico', texto: 'O projeto envolve a utilização de dados pessoais para finalidade distinta daquela pela qual foi coletado?' },
+  { id: 'compartilhamento_novo', grupo: 'especifico', texto: 'O projeto envolve o compartilhamento de dados pessoais com terceiros que não tinham acesso aos dados anteriormente?' },
+  { id: 'monitoramento', grupo: 'especifico', texto: 'Será realizado o monitoramento sistemático de titulares de dados pessoais?' },
+  { id: 'perfilizacao', grupo: 'especifico', texto: 'O projeto incluirá a avaliação (perfilização) ou pontuação (scoring) dos titulares de dados pessoais?' },
+  { id: 'combinacao', grupo: 'especifico', texto: 'Conjuntos de dados pessoais serão combinados ou enriquecidos?' },
+  { id: 'transferencia', grupo: 'especifico', texto: 'Existirá transferência de dados pessoais para fora do território nacional brasileiro?' },
+  { id: 'tecnologia_inovadora', grupo: 'especifico', texto: 'Durante o tratamento de dados pessoais serão empregadas soluções tecnológicas ou organizacionais inovadoras?' },
+  { id: 'decisao_automatizada', grupo: 'especifico', texto: 'O projeto incluirá o uso de dados pessoais para tomada de decisão automatizada com efeito legal ou significativamente similar?' },
+  { id: 'legitimo_interesse', grupo: 'especifico', texto: 'O fundamento legal para o tratamento de dados é legítimo interesse?' },
 ];
 const IDS = new Set(PERGUNTAS_IMPACTO.map((p) => p.id));
 export const ehPerguntaDeImpacto = (id: string) => IDS.has(id);
 
 /**
- * Regra: qualquer "sim" recomenda o RIPD. Sem nenhum "sim", só dispensa quando as 11 estão respondidas "não"; senão fica incompleto.
- * É sugestão: `dpia_required` continua sendo decisão humana.
+ * Regra do legado: alto risco (RIPD recomendado) quando há pelo menos um critério GERAL e pelo menos um ESPECÍFICO marcados "sim".
+ * Sem isso, só dispensa quando as 13 estão respondidas (sim ou não); com alguma sem resposta ou "não sei", fica incompleto. É sugestão: `dpia_required` continua decisão humana.
  */
 export function recomendarRipd(respostas: Record<string, RespostaImpacto | undefined>): {
   resultado: 'recomendado' | 'dispensavel_a_confirmar' | 'incompleto'; motivos: string[];
 } {
-  const motivos = PERGUNTAS_IMPACTO.filter((p) => respostas[p.id] === 'sim').map((p) => p.id);
-  if (motivos.length) return { resultado: 'recomendado', motivos };
-  const todasNao = PERGUNTAS_IMPACTO.every((p) => respostas[p.id] === 'nao');
-  return { resultado: todasNao ? 'dispensavel_a_confirmar' : 'incompleto', motivos: [] };
+  const sim = (g: GrupoImpacto) => PERGUNTAS_IMPACTO.filter((p) => p.grupo === g && respostas[p.id] === 'sim').map((p) => p.id);
+  const gerais = sim('geral');
+  const especificos = sim('especifico');
+  if (gerais.length && especificos.length) return { resultado: 'recomendado', motivos: [...gerais, ...especificos] };
+  const todasRespondidas = PERGUNTAS_IMPACTO.every((p) => respostas[p.id] === 'sim' || respostas[p.id] === 'nao');
+  return { resultado: todasRespondidas ? 'dispensavel_a_confirmar' : 'incompleto', motivos: [] };
 }
 ```
 
@@ -531,7 +542,7 @@ Esperado: passa.
 
 ```bash
 git add src/services/impacto.ts test/impacto.test.ts
-git -c user.name=resper1965 -c user.email=44273656+resper1965@users.noreply.github.com commit -m "feat(impacto): catálogo de 11 perguntas e recomendação de RIPD no servidor"
+git -c user.name=resper1965 -c user.email=44273656+resper1965@users.noreply.github.com commit -m "feat(impacto): catálogo de 13 perguntas e recomendação de RIPD no servidor"
 ```
 
 ### Tarefa F1.3: rotas `GET` e `PUT /projects/:id/ropa/:rid/impacto`
@@ -839,4 +850,4 @@ Cada fase abaixo vira um plano próprio (`docs/superpowers/plans/AAAA-MM-DD-<fas
 - **Cobertura:** as 7 lacunas e a migração têm fase; os dois defeitos achados têm tarefa (F0.1, F0.2); o pré-preenchimento tem tarefa (F1.4, F1.5, F2.4) e matriz; as adequações de projeto existente têm seção própria e teste de não regressão (F1.4).
 - **Sem marcadores pendentes:** as fases F3 a F6 estão deliberadamente delimitadas e não detalhadas passo a passo; isso é escopo, não lacuna, e cada uma vira plano com a mesma forma depois da F2.
 - **Consistência de nomes:** `tratamento_impacto`, `impacto_finalizado_em`, `origem_hash`, `ropa_id`, `residual_*`, `lerImpacto`, `salvarImpacto`, `recomendarRipd` aparecem com a mesma grafia em todas as tarefas.
-- **Pontos que dependem de decisão do dono (registrados, não escondidos):** (1) texto do Critério Geral do legado (passo prévio da F1); (2) regra de recomendação ("qualquer sim" é proposta, a revisão jurídica é do dono); (3) o que fazer com a ação quando o risco é apagado (F2.2, padrão proposto: a ação sobrevive).
+- **Pontos que dependem de decisão do dono (registrados, não escondidos):** (1) a regra de recomendação segue o legado (um critério geral E um específico); a conferência com a norma e a validação jurídica são do dono; (3) o que fazer com a ação quando o risco é apagado (F2.2, padrão proposto: a ação sobrevive).
