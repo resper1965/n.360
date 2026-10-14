@@ -1,4 +1,5 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Bindings, Variables } from '../index';
 import {
   logAudit, verifyPassword, erro500, requireProjectAccess, projetosVisiveis, idDoControle,
@@ -186,58 +187,74 @@ pedidosApp.get('/:id', async (c) => {
  * id do substituto, se houver); senha errada é 401; sem autoridade para o papel, 403. A prova, a
  * assinatura do documento e o novo status do pedido vão num único `batch`.
  */
-async function decidir(c: any, decisao: 'aprovar' | 'recusar', corpo: { senha: string; motivo?: string | null }) {
+export type Resultado = { status: number; corpo: Record<string, unknown> };
+export type DbUser = { password_hash: string; name: string | null; totp_enabled: number | null };
+
+/**
+ * A decisão de UM pedido, sem resposta HTTP: serve à rota individual (que confere a senha aqui) e ao lote (que a conferiu
+ * uma vez e passa `dbUser`, com `senha: null`). `hashVisto`, quando vem, tem de ser o hash do pedido: senão o item não é
+ * decidido (o conteúdo mudou desde que a pessoa o viu).
+ */
+export async function decidirPedido(
+  c: Context<Ctx>, user: Usuario, pedidoId: string, decisao: 'aprovar' | 'recusar',
+  a: { senha: string | null; dbUser?: DbUser; motivo?: string | null; hashVisto?: string },
+): Promise<Resultado> {
+  const db: D1Database = c.env.DB;
+  const meu = await meuPedido(db, user, pedidoId);
+  if (!meu) return { status: 404, corpo: { error: 'Pedido não encontrado' } };
+  const { pedido, dest } = meu;
+
+  const vig = await conferirEAvisar(c, pedido);
+  if (!vig.vigente) {
+    const msg = vig.status === 'substituido'
+      ? 'O documento mudou depois deste pedido. Abra o pedido novo, com o texto atual.'
+      : 'Este pedido não está mais aberto.';
+    return { status: 409, corpo: { error: msg, status: vig.status, substituido_por: vig.substituido_por ?? null } };
+  }
+  if (dest.status !== 'pendente') return { status: 409, corpo: { error: 'Você já decidiu este pedido.', status: dest.status } };
+  if (a.hashVisto !== undefined && a.hashVisto !== pedido.hash) {
+    return { status: 409, corpo: { error: 'O conteúdo mudou desde que você abriu; recarregue e revise de novo' } };
+  }
+
+  const dbUser = a.dbUser ?? await db.prepare('SELECT password_hash, name, totp_enabled FROM users WHERE id = ?').bind(user.id ?? '')
+    .first<DbUser>();
+  if (!dbUser) return { status: 401, corpo: { error: 'Senha incorreta' } };
+  if (a.senha !== null && !(await verifyPassword(a.senha, dbUser.password_hash))) return { status: 401, corpo: { error: 'Senha incorreta' } };
+
+  const autoridade = await autoridadeNoPedido(db, pedido, user);
+  if (autoridade.recusa) return { status: 403, corpo: { error: autoridade.recusa } };
+  const nome = autoridade.nome || dest.nome || dbUser.name || user.email;
+  const assinar: { papel: PapelAssinatura } | undefined =
+    decisao === 'aprovar' && pedido.papel_exigido !== 'ciente' ? { papel: pedido.papel_exigido } : undefined;
+
+  const novoStatus = decisao === 'recusar' ? 'recusado' : pedido.papel_exigido === 'ciente' ? 'ciente' : 'aprovado';
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || null;
+  const ua = c.req.header('User-Agent') || null;
+  const motivo = decisao === 'recusar' ? a.motivo ?? null : null;
+  const pegou = await registrarDecisao(db, {
+    pedido, destId: dest.id, status: novoStatus, ip, ua, mfa: dbUser.totp_enabled === 1, nome, motivo, assinar,
+  });
+  if (!pegou) {
+    // Algo mudou entre a conferência e a gravação (documento, pedido ou outra decisão): nada foi
+    // gravado. Confere de novo para devolver o motivo e, se for o caso, abrir o pedido substituto.
+    const atual = await db.prepare('SELECT * FROM pedidos WHERE id = ?').bind(pedido.id).first<PedidoRow>();
+    const vig2 = atual ? await conferirEAvisar(c, atual) : null;
+    if (vig2 && !vig2.vigente) {
+      return { status: 409, corpo: { error: 'O pedido mudou enquanto você decidia. Abra-o de novo.', status: vig2.status, substituido_por: vig2.substituido_por ?? null } };
+    }
+    return { status: 409, corpo: { error: 'Você já decidiu este pedido.' } };
+  }
+
+  await logAudit(db, decisao === 'recusar' ? 'pedido.recusado' : 'pedido.aprovado', user.email,
+    `Pedido ${pedido.id} (${pedido.tipo} ${pedido.ref_id}, papel ${pedido.papel_exigido}): ${novoStatus} por ${nome}; hash lido ${pedido.hash}`,
+    decisao === 'recusar' ? a.motivo ?? '' : '', ip ?? '', pedido.project_id);
+  return { status: 200, corpo: { ok: true, status: novoStatus, hash_lido: pedido.hash } };
+}
+
+async function decidir(c: Context<Ctx>, decisao: 'aprovar' | 'recusar', corpo: { senha: string; motivo?: string | null }) {
   try {
-    const user: Usuario = c.get('user');
-    const db: D1Database = c.env.DB;
-    const meu = await meuPedido(db, user, c.req.param('id'));
-    if (!meu) return c.json({ error: 'Pedido não encontrado' }, 404);
-    const valid = { data: corpo };
-    const { pedido, dest } = meu;
-
-    const vig = await conferirEAvisar(c, pedido);
-    if (!vig.vigente) {
-      const msg = vig.status === 'substituido'
-        ? 'O documento mudou depois deste pedido. Abra o pedido novo, com o texto atual.'
-        : 'Este pedido não está mais aberto.';
-      return c.json({ error: msg, status: vig.status, substituido_por: vig.substituido_por ?? null }, 409);
-    }
-    if (dest.status !== 'pendente') return c.json({ error: 'Você já decidiu este pedido.', status: dest.status }, 409);
-
-    const dbUser = await db.prepare('SELECT password_hash, name, totp_enabled FROM users WHERE id = ?').bind(user.id ?? '')
-      .first<{ password_hash: string; name: string | null; totp_enabled: number | null }>();
-    if (!dbUser || !(await verifyPassword(valid.data.senha, dbUser.password_hash))) {
-      return c.json({ error: 'Senha incorreta' }, 401);
-    }
-
-    const autoridade = await autoridadeNoPedido(db, pedido, user);
-    if (autoridade.recusa) return c.json({ error: autoridade.recusa }, 403);
-    const nome = autoridade.nome || dest.nome || dbUser.name || user.email;
-    const assinar: { papel: PapelAssinatura } | undefined =
-      decisao === 'aprovar' && pedido.papel_exigido !== 'ciente' ? { papel: pedido.papel_exigido } : undefined;
-
-    const novoStatus = decisao === 'recusar' ? 'recusado' : pedido.papel_exigido === 'ciente' ? 'ciente' : 'aprovado';
-    const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || null;
-    const ua = c.req.header('User-Agent') || null;
-    const pegou = await registrarDecisao(db, {
-      pedido, destId: dest.id, status: novoStatus, ip, ua, mfa: dbUser.totp_enabled === 1, nome,
-      motivo: decisao === 'recusar' ? valid.data.motivo ?? null : null, assinar,
-    });
-    if (!pegou) {
-      // Algo mudou entre a conferência e a gravação (documento, pedido ou outra decisão): nada foi
-      // gravado. Confere de novo para devolver o motivo e, se for o caso, abrir o pedido substituto.
-      const atual = await db.prepare('SELECT * FROM pedidos WHERE id = ?').bind(pedido.id).first<PedidoRow>();
-      const vig2 = atual ? await conferirEAvisar(c, atual) : null;
-      if (vig2 && !vig2.vigente) {
-        return c.json({ error: 'O pedido mudou enquanto você decidia. Abra-o de novo.', status: vig2.status, substituido_por: vig2.substituido_por ?? null }, 409);
-      }
-      return c.json({ error: 'Você já decidiu este pedido.' }, 409);
-    }
-
-    await logAudit(db, decisao === 'recusar' ? 'pedido.recusado' : 'pedido.aprovado', user.email,
-      `Pedido ${pedido.id} (${pedido.tipo} ${pedido.ref_id}, papel ${pedido.papel_exigido}): ${novoStatus} por ${nome}; hash lido ${pedido.hash}`,
-      decisao === 'recusar' ? valid.data.motivo ?? '' : '', ip ?? '', pedido.project_id);
-    return c.json({ ok: true, status: novoStatus, hash_lido: pedido.hash });
+    const r = await decidirPedido(c, c.get('user'), c.req.param('id') ?? '', decisao, { senha: corpo.senha, motivo: corpo.motivo });
+    return c.json(r.corpo, r.status as ContentfulStatusCode);
   } catch (e: any) {
     return erro500(c, 'Erro ao registrar a decisão do pedido', e);
   }

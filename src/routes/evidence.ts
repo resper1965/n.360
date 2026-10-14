@@ -1,4 +1,5 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Bindings, Variables } from '../index';
 import { semRastroDeAssinatura, semRastros, genId, logAudit, requireResourceAccess, verifyPassword, validateUpload, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, idDoControle } from '../helpers';
 import type { PapelAssinatura } from '../helpers';
@@ -246,6 +247,84 @@ const enviadoPor = (u: string) => (/^agente de (\S+) \(/i.exec(u)?.[1] ?? u).toL
 
 const MUDOU = 'O conteúdo da evidência mudou desde que você abriu; recarregue e revise de novo';
 
+export type ResultadoAprovacao = { status: number; corpo: Record<string, unknown> };
+
+/**
+ * A assinatura de UMA evidência, sem resposta HTTP: serve à rota individual e ao lote (`POST /pedidos/lote`). `password`
+ * é a senha a conferir (a rota); no lote ela é conferida uma vez antes e vem `null`, com o `dbUser` já lido. `fileHash` é o
+ * conteúdo que a pessoa viu: o UPDATE só pega se a evidência ainda tem esse hash.
+ */
+export async function assinarEvidencia(
+  c: Context<{ Bindings: Bindings; Variables: Variables }>, user: NonNullable<Variables['user']>, id: string,
+  a: { password: string | null; dbUser?: { password_hash: string; name: string | null }; fileHash?: string; role?: string | null },
+): Promise<ResultadoAprovacao> {
+  await requireResourceAccess(c.env.DB, 'evidence', id, user);
+  const evidence = await c.env.DB.prepare('SELECT * FROM evidence WHERE id = ?').bind(id).first<{ project_id: string; uploaded_by: string | null; evaluation_status: string | null }>();
+  if (!evidence) return { status: 404, corpo: { error: 'Evidência não encontrada' } };
+  const dbUser = a.dbUser ?? await c.env.DB.prepare('SELECT password_hash, name FROM users WHERE id = ? OR email = ?').bind(user.id || '', user.email || '').first<{ password_hash: string; name: string | null }>();
+  if (!dbUser || (a.password !== null && !(await verifyPassword(a.password, dbUser.password_hash)))) {
+    return { status: 401, corpo: { error: 'Senha incorreta para assinatura eletrônica' } };
+  }
+
+  const email = user.email || '';
+  let targetRole = a.role;
+  let approvedBy = dbUser.name;
+
+  // A matriz de governança vale para TODO MUNDO, inclusive `platform_admin`.
+  // Antes, papel de plataforma pulava esta checagem inteira e assinava como
+  // Líder SGSI em qualquer projeto — mas papel de plataforma diz o que a
+  // pessoa OPERA, não quem ela É num projeto específico. A mesma pessoa é DPO
+  // num cliente, consultor noutro e nada num terceiro; é a matriz que sabe
+  // disso, e por isso ela é a única fonte de autoridade de assinatura.
+  const autoridade = await autoridadeDeAssinatura(c.env.DB, evidence.project_id, user);
+
+  // Sem papel explícito no corpo, deduz do cargo designado.
+  if (!targetRole) {
+    if (autoridade.ehLiderSgsi) targetRole = 'ciso';
+    else if (autoridade.ehDirecao) targetRole = 'ceo';
+    else targetRole = 'ciso';
+  }
+
+  const recusa = recusaDeAssinatura(autoridade, targetRole as PapelAssinatura);
+  if (recusa) return { status: 403, corpo: { error: recusa } };
+
+  // Quem enviou a evidência não a revisa (segregação de funções).
+  if (targetRole === 'ciso' && evidence.uploaded_by && email && enviadoPor(evidence.uploaded_by) === email.toLowerCase()) {
+    return { status: 403, corpo: { error: 'Quem enviou a evidência não pode revisá-la' } };
+  }
+  // A assinatura vale para o conteúdo que a tela mostrou (hash), não para o que estiver lá depois.
+  if (!a.fileHash) return { status: 400, corpo: { error: 'file_hash é obrigatório: assine o conteúdo que você revisou' } };
+
+  // O carimbo leva o nome da matriz: é sob aquela designação que se assina.
+  approvedBy = autoridade.nome || approvedBy;
+
+  const now = new Date().toISOString();
+  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '127.0.0.1';
+  const ua = c.req.header('User-Agent') || 'Unknown';
+
+  if (targetRole === 'ciso') {
+    // A assinatura do Líder SGSI é a revisão humana: leva a evidência pendente a conforme.
+    // Não passa por cima de parcial/não conforme: essas voltam a pendente ao serem corrigidas.
+    const r = await c.env.DB.prepare(
+      `UPDATE evidence SET ciso_approved_by = ?, ciso_approved_at = ?, ciso_approved_ip = ?, ciso_approved_ua = ?,
+         evaluation_status = CASE WHEN COALESCE(evaluation_status, 'pending') = 'pending' THEN 'conforming' ELSE evaluation_status END
+       WHERE id = ? AND file_hash = ?`
+    ).bind(approvedBy, now, ip, ua, id, a.fileHash).run();
+    if (!r.meta.changes) return { status: 409, corpo: { error: MUDOU } };
+    const antes = evidence.evaluation_status || 'pending';
+    const transicao = antes === 'pending' ? 'pending→conforming' : `status mantido: ${antes}`;
+    await logAudit(c.env.DB, 'evidence.approved_ciso', email, `Evidência ${id} aprovada pelo Líder SGSI (${approvedBy}); ${transicao}`);
+  } else {
+    const r = await c.env.DB.prepare(
+      'UPDATE evidence SET ceo_approved_by = ?, ceo_approved_at = ?, ceo_approved_ip = ?, ceo_approved_ua = ? WHERE id = ? AND file_hash = ?'
+    ).bind(approvedBy, now, ip, ua, id, a.fileHash).run();
+    if (!r.meta.changes) return { status: 409, corpo: { error: MUDOU } };
+    await logAudit(c.env.DB, 'evidence.approved_ceo', email, `Evidência ${id} aprovada pela Direção Executiva (${approvedBy})`);
+  }
+
+  return { status: 200, corpo: { ok: true, role: targetRole, approved_by: approvedBy, approved_at: now } };
+}
+
 async function handleApprove(c: any) {
   try {
     const id = c.req.param('id');
@@ -256,8 +335,8 @@ async function handleApprove(c: any) {
     // `ciso` escopado ao projeto A assinava evidência do projeto B — sonda
     // devolveu 200 e gravou `ciso_approved_by` na linha do outro cliente.
     await requireResourceAccess(c.env.DB, 'evidence', id, c.get('user'));
-    const evidence = (await c.env.DB.prepare('SELECT * FROM evidence WHERE id = ?').bind(id).first()) as any;
-    if (!evidence) return c.json({ error: 'Evidência não encontrada' }, 404);
+    const existe = await c.env.DB.prepare('SELECT 1 AS x FROM evidence WHERE id = ?').bind(id).first();
+    if (!existe) return c.json({ error: 'Evidência não encontrada' }, 404);
 
     const user = c.get('user');
     if (!user) return c.json({ error: 'Não autorizado' }, 401);
@@ -266,71 +345,10 @@ async function handleApprove(c: any) {
     const v = await validateBody(c, evidenciaAssinarSchema);
     if (!v.success) return v.response;
     const body = v.data;
-    const password = body.password;
-    if (!password) return c.json({ error: 'Senha é obrigatória para assinatura eletrônica' }, 400);
+    if (!body.password) return c.json({ error: 'Senha é obrigatória para assinatura eletrônica' }, 400);
 
-    const dbUser = (await c.env.DB.prepare('SELECT password_hash, name FROM users WHERE id = ? OR email = ?').bind(user.id || '', user.email || '').first()) as any;
-    if (!dbUser || !(await verifyPassword(password, dbUser.password_hash))) {
-      return c.json({ error: 'Senha incorreta para assinatura eletrônica' }, 401);
-    }
-
-    const email = user.email || '';
-    let targetRole = body.role;
-    let approvedBy = dbUser.name;
-
-    // A matriz de governança vale para TODO MUNDO, inclusive `platform_admin`.
-    // Antes, papel de plataforma pulava esta checagem inteira e assinava como
-    // Líder SGSI em qualquer projeto — mas papel de plataforma diz o que a
-    // pessoa OPERA, não quem ela É num projeto específico. A mesma pessoa é DPO
-    // num cliente, consultor noutro e nada num terceiro; é a matriz que sabe
-    // disso, e por isso ela é a única fonte de autoridade de assinatura.
-    const autoridade = await autoridadeDeAssinatura(c.env.DB, evidence.project_id, user);
-
-    // Sem papel explícito no corpo, deduz do cargo designado.
-    if (!targetRole) {
-      if (autoridade.ehLiderSgsi) targetRole = 'ciso';
-      else if (autoridade.ehDirecao) targetRole = 'ceo';
-      else targetRole = 'ciso';
-    }
-
-    const recusa = recusaDeAssinatura(autoridade, targetRole as PapelAssinatura);
-    if (recusa) return c.json({ error: recusa }, 403);
-
-    // Quem enviou a evidência não a revisa (segregação de funções).
-    if (targetRole === 'ciso' && evidence.uploaded_by && email && enviadoPor(evidence.uploaded_by) === email.toLowerCase()) {
-      return c.json({ error: 'Quem enviou a evidência não pode revisá-la' }, 403);
-    }
-    // A assinatura vale para o conteúdo que a tela mostrou (hash), não para o que estiver lá depois.
-    if (!body.file_hash) return c.json({ error: 'file_hash é obrigatório: assine o conteúdo que você revisou' }, 400);
-
-    // O carimbo leva o nome da matriz: é sob aquela designação que se assina.
-    approvedBy = autoridade.nome || approvedBy;
-
-    const now = new Date().toISOString();
-    const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '127.0.0.1';
-    const ua = c.req.header('User-Agent') || 'Unknown';
-
-    if (targetRole === 'ciso') {
-      // A assinatura do Líder SGSI é a revisão humana: leva a evidência pendente a conforme.
-      // Não passa por cima de parcial/não conforme: essas voltam a pendente ao serem corrigidas.
-      const r = await c.env.DB.prepare(
-        `UPDATE evidence SET ciso_approved_by = ?, ciso_approved_at = ?, ciso_approved_ip = ?, ciso_approved_ua = ?,
-           evaluation_status = CASE WHEN COALESCE(evaluation_status, 'pending') = 'pending' THEN 'conforming' ELSE evaluation_status END
-         WHERE id = ? AND file_hash = ?`
-      ).bind(approvedBy, now, ip, ua, id, body.file_hash).run();
-      if (!r.meta.changes) return c.json({ error: MUDOU }, 409);
-      const antes = evidence.evaluation_status || 'pending';
-      const transicao = antes === 'pending' ? 'pending→conforming' : `status mantido: ${antes}`;
-      await logAudit(c.env.DB, 'evidence.approved_ciso', email, `Evidência ${id} aprovada pelo Líder SGSI (${approvedBy}); ${transicao}`);
-    } else {
-      const r = await c.env.DB.prepare(
-        'UPDATE evidence SET ceo_approved_by = ?, ceo_approved_at = ?, ceo_approved_ip = ?, ceo_approved_ua = ? WHERE id = ? AND file_hash = ?'
-      ).bind(approvedBy, now, ip, ua, id, body.file_hash).run();
-      if (!r.meta.changes) return c.json({ error: MUDOU }, 409);
-      await logAudit(c.env.DB, 'evidence.approved_ceo', email, `Evidência ${id} aprovada pela Direção Executiva (${approvedBy})`);
-    }
-
-    return c.json({ ok: true, role: targetRole, approved_by: approvedBy, approved_at: now });
+    const r = await assinarEvidencia(c, user, id, { password: body.password, fileHash: body.file_hash, role: body.role });
+    return c.json(r.corpo, r.status as ContentfulStatusCode);
   } catch (e: any) {
     return erro500(c, 'Falha ao assinar evidência', e);
   }
