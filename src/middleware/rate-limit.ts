@@ -22,6 +22,8 @@ const REGRAS: Regra[] = [
   { nome: 'ia', teste: p => /\/(chat|generate-policy|generate-policies-bulk|migrate-27701|evaluate)$/.test(p), max: 30, janelaSec: 3600 },
   // Parecidos por significado (embeddings): a tela chama com debounce enquanto a pessoa digita.
   { nome: 'similares', teste: p => /^\/api\/v1\/projects\/[^/]+\/similares$/.test(p), max: 60, janelaSec: 600 },
+  // Copiloto da entrevista do RoPA: uma chamada ao modelo de 70B por descrição; mais restrito que os parecidos.
+  { nome: 'copiloto', teste: p => /^\/api\/v1\/projects\/[^/]+\/ropa\/copiloto$/.test(p), max: 20, janelaSec: 600 },
   // Upload: o teto de tamanho já existe por arquivo; isto limita o volume.
   { nome: 'upload', teste: p => p.endsWith('/upload'), max: 100, janelaSec: 3600 },
   // Export varre tabelas inteiras.

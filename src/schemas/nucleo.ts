@@ -66,6 +66,8 @@ export const ropaImportarSchema = z.object({ csv: z.string().min(1).max(300_000)
  * Parecidos por significado (entrevista do RoPA). Só sistema/arquivo (`item`) e área: nome de pessoa nunca vai ao modelo
  * de embeddings, então `pessoa` não existe aqui e é recusado pelo enum.
  */
+/** Copiloto da entrevista do RoPA: só a descrição livre; o contexto (sistemas, áreas, bases) o servidor lê do banco. */
+export const copilotoRopaSchema = z.object({ descricao: z.string().trim().min(20).max(2000) }).strict();
 export const similaresSchema = z.object({ tipo: z.enum(['item', 'area']), nome: z.string().trim().min(1).max(120) }).strict();
 
 // ─── Terceiros tipificados (fatia 6) ──────────────────────────────────────────

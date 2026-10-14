@@ -2,13 +2,14 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
-import { validateBody, ropaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema } from '../schemas';
+import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema } from '../schemas';
 import { criarTransferencia, definirLigacao, diagramaDoTratamento, lerLigacoes, removerTransferencia } from '../services/tratamentos';
 import { aprovacoesDoProjeto } from '../services/documentos';
 import { importarTratamentos } from '../services/tratamentos-importar';
 import { apagarLia, criarDpiaDoTratamento, lerLia, salvarLia } from '../services/lia';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { sugerirTratamento } from '../services/rascunhos-privacy';
+import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
 
 export const ropaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectRopaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -137,6 +138,16 @@ projectRopaApp.post('/importar', async (c) => {
 });
 
 // ─── LIA e DPIA do tratamento (fatia 5) ───────────────────────────────────────────────────────────
+
+// Copiloto da entrevista (atividade nova): proposta de respostas a partir de uma descrição livre. Nada é gravado; faixa privacy.
+projectRopaApp.post('/copiloto', async (c) => {
+  try {
+    if (!podePedirCopiloto(c.get('user'))) return c.json({ error: 'O copiloto é pedido pela equipe da consultoria ou pelo administrador do cliente' }, 403);
+    const v = await validateBody(c, copilotoRopaSchema);
+    if (!v.success) return v.response;
+    return c.json(await copilotoDoRopa(c.env as unknown as Parameters<typeof copilotoDoRopa>[0], c.req.param('projectId')!, v.data.descricao, c.get('user')));
+  } catch (e) { return erro500(c, 'Falha no copiloto da entrevista', e); }
+});
 
 projectRopaApp.get('/:recordId/lia', async (c) => {
   const projectId = c.req.param('projectId')!;

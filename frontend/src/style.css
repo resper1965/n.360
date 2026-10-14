@@ -1643,8 +1643,19 @@ textarea:focus-visible {
 .re-cadastro-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
 #re-similares { display: flex; flex-direction: column; gap: 6px; }
 #re-similares .btn { margin-left: 8px; vertical-align: baseline; }
+/* Copiloto: descrição livre no começo da atividade nova e o selo de resposta proposta (texto, sem fundo de accent). */
+.re-copiloto { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; padding: 20px 24px; border: 1px solid var(--border); background: var(--surface); }
+.re-copiloto .re-acoes { margin-top: 4px; }
+.re-copiloto-nota { margin-bottom: 16px; }
+.re-cop-titulo { margin: 0; font: 600 16px var(--font-head); color: var(--text); }
+.re-cop-titulo:focus { outline: none; }
+.re-cop-titulo:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.re-selo { display: inline-block; width: fit-content; padding: 2px 8px; border: 1px solid var(--accent); color: var(--text-2); font-size: 12px; line-height: 1.5; }
+.re-respostas .re-selo { margin-left: 6px; }
+.re-cop-novos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.re-cop-novos .re-nota { flex-basis: 100%; }
 @media (max-width: 640px) {
-    .re-pergunta, .re-resumo { padding: 16px; }
+    .re-pergunta, .re-resumo, .re-copiloto { padding: 16px; }
     .re-opcoes { grid-template-columns: 1fr; }
     .re-respostas { grid-template-columns: 1fr; gap: 2px; }
     .re-respostas dd { margin-bottom: 8px; }
