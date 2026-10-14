@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0070** (`ls migrations/*.sql | tail -1`). São 68 arquivos
+- Última migration no repositório: **0071** (`ls migrations/*.sql | tail -1`). São 69 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -507,5 +507,22 @@ COLUMN` aborta com "duplicate column"): aplicar uma vez. Conferência depois: `P
 desfazer: não precisa (o código anterior não lê a coluna, e o default cobre o INSERT dele). **Esta RODA em produção, ANTES do código
 novo:** o código novo lê `ac.papel` em toda chamada de agente, então publicá-lo sem a coluna derruba todos os agentes conectados (401). O
 deploy do merge recusa enquanto ela estiver pendente, e é isso que protege.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+---
+
+## 0071 — cadastro da empresa do projeto (2026-10-14)
+
+Tabela nova `empresas`, 1:1 com `projects` (`project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE`): CNPJ (14 dígitos,
+CHECK de formato), documento alternativo, identificação, CNAE, endereço (UF com CHECK de 2 letras maiúsculas), contato e representante
+legal (nome e cargo; sem CPF). `pais` NOT NULL DEFAULT 'BR'; `funcionarios` com CHECK >= 0; `data_abertura` no formato AAAA-MM-DD.
+Backfill na própria migration: uma linha por projeto, com `cnpj` (máscara tirada; o que não fecha 14 dígitos vai inteiro para
+`documento_alternativo`), `client_name` como razão social, `sector` e `employee_count`. As colunas antigas de `projects` não mudam.
+**É idempotente** (`CREATE TABLE/INDEX IF NOT EXISTS` e `INSERT OR IGNORE`). `test/migration-0071.test.ts` prova sobre projetos com CNPJ
+mascarado, CNPJ curto e nome em branco: nenhum dado perdido, `projects` intacta, CHECKs valendo. Conferência depois:
+`PRAGMA table_info(empresas)` e `SELECT count(*) FROM empresas` igual a `SELECT count(*) FROM projects`. Para desfazer: `DROP TABLE empresas`
+(o código anterior não a lê). **Esta RODA em produção ANTES do código novo:** o código lê e grava `empresas` (cadastro, criação de projeto
+com empresa, relatório do RoPA, company-profile); o deploy do merge recusa enquanto ela estiver pendente.
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.

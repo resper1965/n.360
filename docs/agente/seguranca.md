@@ -105,6 +105,7 @@ quê (mesma regra do [`SECURITY.md`](../../SECURITY.md)).
 | `/auth/*`, `/legal/*`, `/notifications` | **Conta pessoal do consultor** (veja a terceira linha do primeiro quadro). |
 | `/projects/:id/auditor-token` | Emitiria uma credencial externa de até 365 dias e permitiria forjar nota de auditor. |
 | `POST /projects` | O agente é preso a um projeto; criar outro contradiz isso. `GET /projects` continua valendo, escopado. |
+| `GET /projects/consulta-cnpj/:cnpj` | Consulta externa à Receita (BrasilAPI) do assistente "Novo projeto", que o agente não usa (não cria projeto). A rota também corta por papel (`platform_admin`, `consultoria_admin`) e tem limite por usuário. O cadastro da empresa (`GET /projects/:id/empresa`) segue legível pelo agente; a edição (`PUT`) é recusada pela própria rota, que só aceita a equipe e o `org_admin` (o agente entra como `client`). |
 | `/agentes` | O agente não gere o próprio acesso. |
 | `/projects/:id/{ropa,dpia}/:id/revoke-approval` | Desaprovar ROPA e DPIA é ato da direção, pela interface (F6, decisão D1). Revogar aprovação de **controle** segue possível, com confirmação. |
 | `DELETE /management-reviews/:id` | Excluir análise crítica destrói registro assinado: só pela interface. |

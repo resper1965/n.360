@@ -46,9 +46,22 @@ o histórico. Atenção: designações na Governança valem pelo e-mail; depois 
 
 ## 4. Começar um cliente novo
 
-1. **Projetos › Novo projeto** (confira o limite de projetos do plano da organização).
-2. Em **Produtos** do projeto, habilite o módulo que o cliente contratou. Ligar o n.privacy num projeto que já
-   tem n.iso importa sozinho partes, responsáveis e políticas do cadastro, e avisa se alguma importação falhar.
+1. **Projetos › Novo projeto** (só o Platform Admin e o administrador da consultoria veem o botão). O assistente
+   tem quatro passos:
+   - **Empresa**: digite o CNPJ (a tela põe a máscara e confere o dígito verificador) e clique em **Buscar dados do
+     CNPJ**, ou só saia do campo. Os dados da Receita entram como proposta: confira e corrija o que precisar. Se a
+     situação cadastral não for ATIVA, a tela avisa. Se o CNPJ já está em outro projeto da organização, aparece
+     "Já existe: <projeto>. Abrir?" e o servidor recusa o segundo. Empresa estrangeira ou sem CNPJ: marque **Empresa
+     sem CNPJ** e preencha o documento e o país.
+   - **Programa**: nome do projeto, normas, papel na LGPD (controlador, operador ou os dois) e os módulos, dentro do
+     que a organização contratou. Se o limite de projetos do plano foi atingido, a mensagem aparece aqui ao criar.
+   - **Pessoas-chave** (opcional): representante legal (nome e cargo) e o DPO (nome e e-mail). Os dois entram em
+     **Partes** do projeto; o DPO já como encarregado do n.privacy. Não se pede CPF de ninguém.
+   - **Resumo**: confira e clique em **Criar projeto**. A tela abre o projeto novo.
+2. O cadastro da empresa fica em **Projetos › Empresa…** (e no botão **Dados da empresa** da Jornada): a equipe com
+   acesso ao projeto e o administrador do cliente editam; os demais só leem. O histórico mostra quem alterou o quê
+   (só o nome dos campos). Em **Módulos…** do projeto, habilite ou desligue um módulo depois. Ligar o n.privacy num
+   projeto que já tem n.iso importa sozinho partes, responsáveis e políticas do cadastro, e avisa se alguma importação falhar.
 3. Crie o administrador do cliente (`org_admin`) em **Usuários**, escolhendo o projeto dele. Ele recebe o convite.
 4. Conceda a ele os módulos do projeto (o padrão já é o dos módulos do projeto).
 5. **Governança do projeto**: cadastre as pessoas-chave do cliente e designe os consultores da ness.
