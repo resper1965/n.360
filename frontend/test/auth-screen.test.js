@@ -390,6 +390,16 @@ describe('reautenticação após expirar por inatividade', () => {
     expect(window.render).not.toHaveBeenCalled();
   });
 
+  it('senha vazia não vai ao servidor: pede a senha em vez de "Payload inválido"', async () => {
+    window.pedirReautenticacao();
+    document.getElementById('reauth-password').value = '';
+    apiMock.mockClear();
+    await window.doReauth();
+    expect(apiMock).not.toHaveBeenCalled();
+    expect(document.getElementById('reauth-error').textContent).toBe('Digite a sua senha para continuar.');
+    expect(document.getElementById('reauth-box').style.display).toBe('flex');
+  });
+
   it('senha errada mantém o cartão e limpa o campo', async () => {
     window.pedirReautenticacao();
     document.getElementById('reauth-password').value = 'errada';
