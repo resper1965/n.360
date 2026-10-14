@@ -158,6 +158,34 @@ describe('pedido de aprovação do tratamento', () => {
   });
 });
 
+// Migration 0072: teste de impacto, impacto_finalizado_em e origem_hash ficam FORA do conteúdo congelado. Aprovação de antes continua valendo.
+describe('teste de impacto e aprovações (não regressão da 0072)', () => {
+  it('responder e finalizar o teste e criar a DPIA do tratamento não derrubam a aprovação nem substituem pedido', async () => {
+    const id = await novo('Aprovado antes da 0072');
+    await aprovar(await pedido(id));
+    const aberto = await novo('Pedido aberto antes da 0072');
+    await pedido(aberto);
+    const antes = await hashConteudo((await documentoAtual(env.DB, 'tratamento', id, P))!.conteudo);
+    for (const rid of [id, aberto]) {
+      expect((await chamar(consultor, 'PUT', `/api/v1/projects/${P}/ropa/${rid}/impacto`, { respostas: { sensiveis: 'sim', larga_escala: 'sim' }, finalizar: true })).status).toBe(200);
+      expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/ropa/${rid}/dpia`)).status).toBe(201);
+    }
+    expect(await hashConteudo((await documentoAtual(env.DB, 'tratamento', id, P))!.conteudo)).toBe(antes);
+    expect((await registro(id)).aprovacao_pedido.ciso).toMatchObject({ por: 'Cida Matriz' });
+    expect(await statusPedidos(id)).toEqual(['aprovado']);
+    expect(await statusPedidos(aberto)).toEqual(['aberto']);
+  });
+
+  it('origem_hash não entra no conteúdo congelado da DPIA', async () => {
+    const id = await novo('DPIA com origem');
+    const dpia = (await json<{ id: string }>(await chamar(consultor, 'POST', `/api/v1/projects/${P}/ropa/${id}/dpia`))).id;
+    const doc = (await documentoAtual(env.DB, 'dpia', dpia, P))!;
+    expect(Object.keys(doc.conteudo)).not.toContain('origem_hash');
+    await env.DB.prepare('UPDATE dpia_assessments SET origem_hash = NULL WHERE id = ?').bind(dpia).run();
+    expect(await hashConteudo((await documentoAtual(env.DB, 'dpia', dpia, P))!.conteudo)).toBe(await hashConteudo(doc.conteudo));
+  });
+});
+
 // Migration 0069: dados sensíveis (art. 11) e crianças e adolescentes (art. 14) entram no conteúdo congelado SÓ quando marcados.
 // Desmarcados (todo registro existente depois da 0069), o conteúdo e o hash ficam byte a byte como antes: nenhum pedido aberto é substituído.
 describe('riscos do tratamento no conteúdo congelado', () => {

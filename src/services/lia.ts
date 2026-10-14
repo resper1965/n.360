@@ -1,4 +1,10 @@
 import { logAudit } from '../helpers';
+import { documentoAtual, hashConteudo } from './pedidos';
+import { lerImpacto, type Recomendacao } from './impacto';
+
+const RESULTADO_IMPACTO: Record<Recomendacao['resultado'], string> = {
+  recomendado: 'RIPD recomendado', dispensavel_a_confirmar: 'RIPD dispensável, a confirmar', incompleto: 'incompleto',
+};
 
 /**
  * Núcleo do n.privacy, fatia 5: LIA (teste de legítimo interesse), uma por tratamento, e a DPIA que nasce do tratamento.
@@ -47,10 +53,10 @@ export async function salvarLia(db: D1Database, projectId: string, ropaId: strin
   if (!atual) {
     const id = crypto.randomUUID();
     await db.prepare(
-      `INSERT INTO lia_assessments (id, project_id, ropa_id, finalidade_legitima, necessidade, balanceamento, salvaguardas, conclusao, status, concluida_em, concluida_por, criado_por)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO lia_assessments (id, project_id, ropa_id, finalidade_legitima, necessidade, balanceamento, salvaguardas, conclusao, status, concluida_em, concluida_por, criado_por, origem_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(id, projectId, ropaId, d.finalidade_legitima ?? null, d.necessidade ?? null, d.balanceamento ?? null, d.salvaguardas ?? null, d.conclusao ?? null, status,
-      concluindo ? new Date().toISOString() : null, concluindo ? ator : null, ator).run();
+      concluindo ? new Date().toISOString() : null, concluindo ? ator : null, ator, await hashDoTratamento(db, projectId, ropaId)).run();
     await logAudit(db, 'lia.criada', ator, `LIA do tratamento ${ropaId} criada (${status})`, '', '', projectId);
     return { ok: true, id, criada: true };
   }
@@ -70,13 +76,31 @@ export async function apagarLia(db: D1Database, projectId: string, ropaId: strin
   return (r.meta.changes ?? 0) > 0;
 }
 
-/** DPIA `Draft` já ligada ao tratamento e pré-preenchida com o que o registro sabe. 409 (com o id) se já existe uma. */
+/** Hash do conteúdo do tratamento agora (o mesmo da aprovação): a DPIA/LIA guarda de qual versão do RoPA nasceu. */
+const hashDoTratamento = async (db: D1Database, projectId: string, ropaId: string) => {
+  const doc = await documentoAtual(db, 'tratamento', ropaId, projectId);
+  return doc ? hashConteudo(doc.conteudo) : null;
+};
+
+type RegistroParaDpia = {
+  processing_purpose: string; data_subjects: string | null; data_categories: string | null; retention_period: string | null; recipients: string | null;
+  dados_sensiveis: number; criancas_adolescentes: number; legal_basis: string | null; base_legal: string | null;
+};
+
+/**
+ * DPIA `Draft` já ligada ao tratamento e pré-preenchida com o que o registro sabe (nada se pergunta de novo): finalidade, titulares,
+ * categorias, fluxo (ligações e destinatários), base legal e retenção (necessidade), riscos do registro e o teste de impacto.
+ * `origem_hash` guarda o hash do tratamento nesse momento. 409 (com o id) se já existe uma.
+ */
 export async function criarDpiaDoTratamento(
   db: D1Database, projectId: string, ropaId: string, ator: string,
   lig: { itens: { nome: string; tipo: string }[]; departamentos: { nome: string }[]; partes: { nome: string; papel: string }[]; transferencias: { pais: string; destinatario: string | null; mecanismo: string | null }[] },
 ): Promise<Falha | { ok: true; id: string } | { ok: false; status: 409; error: string; id: string }> {
-  const reg = await db.prepare('SELECT processing_purpose, data_subjects, data_categories FROM ropa_records WHERE id = ? AND project_id = ?')
-    .bind(ropaId, projectId).first<{ processing_purpose: string; data_subjects: string | null; data_categories: string | null }>();
+  const reg = await db.prepare(
+    `SELECT r.processing_purpose, r.data_subjects, r.data_categories, r.retention_period, r.recipients, r.dados_sensiveis, r.criancas_adolescentes, r.legal_basis,
+            (SELECT q.referencia || ' - ' || q.titulo FROM requisitos q WHERE q.id = r.base_legal_id) AS base_legal
+       FROM ropa_records r WHERE r.id = ? AND r.project_id = ?`
+  ).bind(ropaId, projectId).first<RegistroParaDpia>();
   if (!reg) return { ok: false, status: 404, error: 'Registro do RoPA não encontrado' };
   const ja = await db.prepare('SELECT id FROM dpia_assessments WHERE ropa_id = ? AND project_id = ? ORDER BY created_at LIMIT 1').bind(ropaId, projectId).first<{ id: string }>();
   if (ja) return { ok: false, status: 409, error: 'Já existe DPIA ligada a este tratamento', id: ja.id };
@@ -85,12 +109,24 @@ export async function criarDpiaDoTratamento(
     lig.departamentos.length ? `Departamentos: ${lig.departamentos.map((d) => d.nome).join(', ')}` : '',
     lig.partes.length ? `Partes: ${lig.partes.map((p) => `${p.nome} (${p.papel})`).join(', ')}` : '',
     lig.transferencias.length ? `Transferências: ${lig.transferencias.map((t) => `${t.pais}${t.destinatario ? ` para ${t.destinatario}` : ''}${t.mecanismo ? ` (${t.mecanismo})` : ''}`).join('; ')}` : '',
+    reg.recipients ? `Destinatários: ${reg.recipients}` : '',
   ].filter(Boolean);
+  const base = [reg.base_legal, reg.legal_basis].filter(Boolean).join('; ');
+  const necessidade = [base ? `Base legal: ${base}.` : '', reg.retention_period ? `Retenção: ${reg.retention_period}.` : ''].filter(Boolean).join(' ');
+  const impacto = await lerImpacto(db, projectId, ropaId);
+  const sim = impacto?.perguntas.filter((p) => p.resposta === 'sim').map((p) => p.id) ?? [];
+  const riscos = [
+    reg.dados_sensiveis ? 'Dados pessoais sensíveis (LGPD art. 11).' : '',
+    reg.criancas_adolescentes ? 'Dados de crianças e adolescentes (LGPD art. 14).' : '',
+    impacto && sim.length ? `Teste de impacto (${RESULTADO_IMPACTO[impacto.recomendacao.resultado]}), respondidas sim: ${sim.join(', ')}.` : '',
+  ].filter(Boolean).join('\n');
   const id = crypto.randomUUID();
   await db.prepare(
-    `INSERT INTO dpia_assessments (id, project_id, ropa_id, processing_name, system_name, data_subjects_types, personal_data_categories, data_flow_description, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Draft')`
-  ).bind(id, projectId, ropaId, reg.processing_purpose, lig.itens.map((i) => i.nome).join(', ') || null, reg.data_subjects, reg.data_categories, linhas.join('\n') || null).run();
+    `INSERT INTO dpia_assessments (id, project_id, ropa_id, processing_name, system_name, data_subjects_types, personal_data_categories, data_flow_description,
+       necessity_proportionality, risks_identified, origem_hash, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft')`
+  ).bind(id, projectId, ropaId, reg.processing_purpose, lig.itens.map((i) => i.nome).join(', ') || null, reg.data_subjects, reg.data_categories, linhas.join('\n') || null,
+    necessidade || null, riscos || null, await hashDoTratamento(db, projectId, ropaId)).run();
   await logAudit(db, 'dpia.criada_do_tratamento', ator, `DPIA ${id} criada a partir do tratamento ${ropaId}`, '', '', projectId);
   return { ok: true, id };
 }
