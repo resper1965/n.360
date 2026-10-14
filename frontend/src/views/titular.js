@@ -113,7 +113,8 @@ async function renderTitular(c, h, a) {
 
 window.abrirIncidentesIso = function () { S.titularAba = 'incidentes'; navigate('titular'); };
 
-window.escolherAbaTitular = function (aba) { S.titularAba = aba; window.render(); };
+// Pela navegação (não só render): o item ativo do menu acompanha a aba (Pedidos do titular, Incidentes).
+window.escolherAbaTitular = function (aba) { S.titularAba = aba; navigate('titular'); };
 
 async function acao(fazer, padrao, sucesso, reabrir) {
     try {

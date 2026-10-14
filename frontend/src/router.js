@@ -31,10 +31,12 @@ export     function navigate(view, data) {
         });
         // No n.iso a tela titular é só Incidentes (nav-titular fica oculto): destaca o item que levou até ela.
         // Nos módulos, Projetos é do n.360 (fora do menu): a lista, aberta pelo Voltar da Jornada, destaca a Jornada.
-        // No n.privacy a aba de incidentes tem item próprio.
+        // No n.privacy as abas de incidentes e de consentimentos têm item próprio.
         const navId = targetView === 'titular' && produto === 'iso' ? 'nav-incidentes'
-            : targetView === 'titular' && produto === 'privacy' && S.titularAba === 'incidentes' ? 'nav-incidentes-privacy'
-            : targetView === 'projects' && produto !== 'n360' ? 'nav-project' : `nav-${targetView.split('-')[0]}`;
+            : targetView === 'titular' && produto === 'privacy' ? ({ incidentes: 'nav-incidentes-privacy', consentimentos: 'nav-consentimentos' }[S.titularAba] || 'nav-titular')
+            : targetView === 'projects' && produto !== 'n360' ? 'nav-project'
+            // O id inteiro vence o prefixo: 'audit-trail' é nav-audit-trail (nav-audit não existe).
+            : document.getElementById(`nav-${targetView}`) ? `nav-${targetView}` : `nav-${targetView.split('-')[0]}`;
         const el = document.getElementById(navId);
         if (el) {
             el.classList.add('active');

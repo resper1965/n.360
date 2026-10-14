@@ -53,7 +53,7 @@ test('um módulo só (privacy): entra direto em /privacy', async ({ page }) => {
   await expect(page).toHaveTitle('n.privacy | ness. Privacidade');
 });
 
-test('n.privacy: menu por área de trabalho, com DSAR, terceiros e incidentes em destaque e os selos de vencimento', async ({ page }) => {
+test('n.privacy: menu em seções fixas, rótulos de uma linha, selos (total a tratar; atraso em fundo cheio; painel com os atrasados) e barra recolhida com nome', async ({ page }) => {
   await mockApi(page, ['privacy']);
   await page.route('**/api/v1/projects/proj-e2e/encarregado', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
@@ -62,11 +62,50 @@ test('n.privacy: menu por área de trabalho, com DSAR, terceiros e incidentes em
   await entrar(page);
   await expect(page).toHaveURL(/\/privacy$/);
   const menu = page.locator('#sidebar');
-  await expect(menu.locator('#nav-titular')).toContainText('Direitos do titular (DSAR)');
-  await expect(menu.locator('#nav-terceiros')).toContainText('Terceiros (risco de fornecedores)');
-  await expect(menu.locator('#selo-titular')).toHaveAttribute('aria-label', '4 pedidos vencidos ou a vencer em 7 dias');
+  await expect(menu.locator('#nav-titular')).toContainText('Pedidos do titular');
+  await expect(menu.locator('#nav-encarregado')).toContainText('Painel');
+  await expect(menu.locator('#selo-titular')).toHaveAttribute('aria-label', '4 pedidos vencidos ou a vencer em 7 dias, 1 atrasado');
+  await expect(menu.locator('#selo-painel')).toHaveText('1');
   await expect(menu.locator('#selo-terceiros')).toHaveText('2');
   await expect(menu.locator('#selo-incidentes')).toBeHidden();
-  await expect(menu.getByText('Mapear e avaliar', { exact: true })).toBeVisible();
-  await expect(menu.getByText('Governança e provas', { exact: true })).toBeVisible();
+  for (const secao of ['Mapear', 'Avaliar', 'Responder', 'Provar']) await expect(menu.getByText(secao, { exact: true })).toBeVisible();
+  // tudo à vista, sem abrir grupo: Documentos e Consentimentos a um clique
+  await expect(menu.locator('#nav-documentos')).toBeVisible();
+  await expect(menu.locator('#nav-consentimentos')).toBeVisible();
+  await expect(menu.locator('#nav-meus')).toBeHidden();
+  await expect(menu.locator('#nav-audit-trail')).toBeHidden();
+  // Minhas aprovações e Trilha de logs moram no menu de conta
+  await page.click('#sidebar-user-card');
+  await expect(page.getByRole('menuitem', { name: 'Minhas aprovações' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Trilha de logs' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  // barra recolhida: todo link com nome, a dica aparece ao focar e o selo segue à vista no canto do ícone
+  await page.click('#toggle-sidebar');
+  await expect(menu.getByRole('link', { name: /^Pedidos do titular/ })).toBeVisible();
+  await expect(menu.getByRole('link', { name: /^Consentimentos/ })).toBeVisible();
+  await expect(menu.locator('#selo-titular')).toBeVisible();
+  await menu.locator('#nav-ropa').focus();
+  await expect(page.locator('#sidebar-dica')).toHaveText('Tratamentos (RoPA)');
+  await expect(page.locator('#sidebar-dica')).toBeVisible();
+});
+
+// Acessibilidade da barra também no n.iso, sem mudar o acordeão: Tab não para em item de grupo fechado e a barra recolhida
+// tem nome em todo link.
+test('n.iso: Tab sem item escondido e barra recolhida com nome', async ({ page }) => {
+  await mockApi(page, ['iso']);
+  await entrar(page);
+  await expect(page).toHaveURL(/\/iso$/);
+  const menu = page.locator('#sidebar');
+  await expect(menu.locator('#nav-evidence')).toBeHidden(); // grupo Operacional começa fechado
+  await page.locator('#toggle-sidebar').focus();
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.press('Tab');
+    const foco = await page.evaluate(() => (document.activeElement && document.activeElement.closest('#sidebar') ? document.activeElement.id : null));
+    if (foco === null) break;
+    expect(['nav-evidence', 'nav-ropa', 'nav-audit-trail']).not.toContain(foco);
+  }
+  await page.locator('#toggle-sidebar').click();
+  await expect(menu.getByRole('link', { name: 'Dashboard' })).toBeVisible();
+  const semNome = await menu.locator('.sidebar-nav[role="link"]:visible').evaluateAll((ns) => ns.filter((n) => !n.textContent.trim()).length);
+  expect(semNome).toBe(0);
 });
