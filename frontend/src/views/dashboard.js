@@ -79,7 +79,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                 api('GET', '/api/v1/projects').catch(() => []),
                 api('GET', '/api/v1/controls').catch(() => [])
             ]);
-            const activeProjectsList = projetosDoProduto(projects); // só os projetos do produto deste domínio
+            const activeProjectsList = projetosDoProduto(projects); // só os projetos do módulo deste caminho (/iso ou /privacy)
             const leadsCount = Array.isArray(leads) ? leads.length : 0;
             const assessmentsCount = Array.isArray(assessments) ? assessments.length : 0;
             const projectsCount = activeProjectsList.length;

@@ -305,7 +305,7 @@ export async function requireResourceAccess(db: D1Database, table: string, resou
   // Produto (n.iso / n.privacy): o recurso só é alcançável se o projeto dele tem o produto da faixa. Vale para qualquer papel.
   let doProjeto: Modulo[] = [];
   if (row?.project_id) {
-    // Falha fechada: sem conseguir ler os produtos do projeto, nega.
+    // Falha fechada: sem conseguir ler os módulos do projeto, nega.
     doProjeto = await modulosDoProjeto(db, row.project_id).catch(() => { throw new ForbiddenError('Forbidden: No access to this resource'); });
     const recusa = recusaDeModulo(faixa, doProjeto);
     if (recusa) throw new ForbiddenError(recusa);

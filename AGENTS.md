@@ -87,8 +87,8 @@ Cloudflare Workers (Hono) + D1 + KV + R2 + Workers AI. Frontend SPA
 Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 - **Backend**: `src/index.ts` e o composition root que monta os sub-routers de
-  dominio: **50 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
-  2026-10-12). A lista nominal envelhecia a cada PR; leia o diretorio.
+  dominio: **51 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
+  2026-10-14). A lista nominal envelhecia a cada PR; leia o diretorio.
 - **Pedidos de aprovacao/ciencia (acesso de stakeholders)**: tabelas `pedidos`
   (conteudo congelado + SHA-256) e `pedido_destinatarios` (a prova por pessoa).
   Regras em `src/services/pedidos.ts` (`podePedir`, `autoridadeNoPedido`,
@@ -124,7 +124,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 40 arquivos em 2026-10-12: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 43 arquivos em 2026-10-14: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -369,14 +369,16 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **MCP**: `mcp-server-niso/` expoe o produto a clientes MCP com filtro de
   ferramenta por papel. Ver `mcp-server-niso/README.md`.
 - **Skills do consultor**: `agent-skills/<nome>/` (SKILL.md + references + scripts) e a fonte; o
-  Worker nao le disco (hoje `prontidao-certificacao` e `maturidade-lgpd`: `ls agent-skills`), entao `npm run skills:gerar` escreve `src/mcp/skills-gerado.ts` (commitado; o
+  Worker nao le disco (seis em 2026-10-14, `ls agent-skills`: `prontidao-certificacao`, `maturidade-lgpd`,
+  `atendimento-titular`, `implantacao-privacy`, `migracao-programa` e `avaliacao-terceiros`), entao `npm run skills:gerar` escreve `src/mcp/skills-gerado.ts` (commitado; o
   `test/agente-skills.test.ts` falha se ficar velho). O agente as le pelo MCP com `niso_skill`,
   atras do login. Skill nova = pasta nova + gerar + roteiro em `src/mcp/contexto.ts`.
 - **Documentacao do agente**: `docs/agente/` (uso, arquitetura com diagramas, seguranca e o
   checklist de PR). Leia `docs/agente/seguranca.md` antes de criar rota nova: o principal do
   agente carrega o `users.id` real do consultor, e rota de "minha conta" entra em
   `FORA_DO_AGENTE`.
-- **MCP remoto** (consultor): agente com alcance de consultor preso a um projeto (`src/mcp/servidor.ts`); `/mcp` em `src/mcp/`; login OAuth em `/oauth/*`
+- **MCP remoto** (consultor ou auditor, papel gravado em `agente_concessoes.papel` pela migration 0070 e relido a cada
+  chamada; matriz em `docs/agente/seguranca.md`): agente com alcance de consultor preso a um projeto (`src/mcp/servidor.ts`); `/mcp` em `src/mcp/`; login OAuth em `/oauth/*`
   (`src/routes/oauth-autorizacao.ts`); principal agente em
   `src/middleware/agente.ts`; gestao das concessoes em `src/routes/agentes.ts`;
   tabela `agente_concessoes`; KV `OAUTH_KV`. Regra: **so `ROTAS_OAUTH` passam
@@ -423,27 +425,31 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
 
-- **535 `any` em `src/`** (medido em 2026-10-12, fora `*.test.ts`:
+- **535 `any` em `src/`** (medido em 2026-10-14, fora `*.test.ts`:
   `git grep -ahoE ': any\b|as any\b|<any>' -- 'src/*.ts' ':!*.test.ts' | wc -l`).
   `tsc --noEmit` limpo diz pouco. Tipar o que voce tocar e melhoria barata; nao
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 245 arquivos de teste do backend mocka o D1 inteiro** (2026-10-12;
+- **Nenhum dos 254 arquivos de teste do backend mocka o D1 inteiro** (2026-10-14;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
   nao aceita (`api.test.ts`) e Proxy sobre o D1 real para simular erro ou corrida
-  (`erro-sem-vazamento`, `pedidos-corrida`, `revisao-final-decididos`). Medicao:
+  (`erro-sem-vazamento`, `pedidos-corrida`, `revisao-final-decididos`, `avisos-prazo`, `politica-escritores`,
+  `modulos-ligar-privacy`, entre outros; em 2026-10-14 o comando abaixo casa 18 linhas em 12 arquivos, todas
+  dubles pontuais ou parametro com nome `DB`). Medicao:
   `git grep -nE "prepare\s*[:(]\s*(vi\.fn|\(|async)|\bDB\s*:" -- test` e conferir
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~19,4 mil linhas de JS (2026-10-13)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 94 arquivos de teste em jsdom
+- **Frontend com pouco teste por linha.** ~19,9 mil linhas de JS (2026-10-14)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 96 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
-  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. A maior parte das telas ainda nao
-  tem teste proprio.
+  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 30 telas de `frontend/src/views/` sao
+  importadas por ao menos um teste (2026-10-14: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
+  nao imprime nada), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, `project.js`, todas acima de 1.400 linhas)
+  tem teste so de fatias.
 - **6 leituras de corpo cruas em 4 arquivos** (2026-10-12: `git grep -n "c\.req\.json" -- 'src/routes/*.ts'`
   da 7 linhas em 5 arquivos; a de `policies.ts` passa o corpo por `safeParse` e nao conta): `control-adequacao`,
   `controls` (le so para recusar `maturity`, depois `validateBody`), `phase-questionnaire` e
@@ -456,7 +462,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   reabrem o buraco.
 - **Direitos do titular nao cobrem PII em texto livre.** A busca e por igualdade
   em colunas conhecidas (`FONTES_PII` em `src/services/data-subject.ts`).
-- **`npm audit` esta em zero nos tres pacotes** (2026-10-08, `npm audit` em cada um: raiz, `frontend` e
+- **`npm audit` esta em zero nos tres pacotes** (2026-10-14, `npm audit` em cada um: raiz, `frontend` e
   `mcp-server-niso`). Em 06/10 a raiz tinha 4 (o `undici` puxado por `miniflare`/`wrangler`); o #297
   fixou `undici`, `sharp` e os pacotes MCP por `overrides` no `package.json`, sem rebaixar o pool de
   testes. O job `audit` do CI segue informativo (`continue-on-error`). Rode `npm audit` antes de repetir
@@ -531,7 +537,8 @@ usava. Constituicao: `CONSTITUTION.md`. Design: `design.md`.
 
 ## Skills instaladas
 
-`.agents/skills/`, simlinkadas em `.claude/skills/`. O texto completo vive em
+`.agents/skills/`, simlinkadas em `.claude/skills/` (a excecao e o `ponytail`, pasta real em
+`.claude/skills/ponytail/`, fora de `.agents/skills/` e do `skills-lock.json`). O texto completo vive em
 cada skill — nao duplicar as regras aqui, senao as duas copias divergem (foi o
 que aconteceu com a copia inline do ponytail).
 
@@ -589,7 +596,7 @@ base so nessas skills sem conferir contra a norma publicada.
 
 ## Portões de revisão — o que existe e o que não existe
 
-O repositório está **público** (`gh api repos/resper1965/n.360 --jq .visibility`, 2026-10-06) e
+O repositório está **público** (`gh api repos/resper1965/n.360 --jq .visibility`, 2026-10-14) e
 **vai ficar privado** (decisão do dono). O código já está pronto para isso desde 2026-10-13; a parte
 de configuração do GitHub é do dono e está no checklist de
 [`docs/runbook-publicacao.md`](docs/runbook-publicacao.md) (seção 5). Em privado, minuto de Actions é
@@ -622,7 +629,7 @@ cobrado, code scanning exige GitHub Advanced Security e ruleset exige plano pago
   disparo manual (`workflow_dispatch`), o caminho de hotfix. Sem Actions, o plano B
   e `scripts/publicar.sh` (`docs/runbook-publicacao.md`). O secret `CLOUDFLARE_API_TOKEN` e **environment secret** de
   `production`, nao repository secret — assim so jobs que declaram
-  `environment: production` o enxergam (conferido em 2026-10-06:
+  `environment: production` o enxergam (conferido em 2026-10-14:
   `gh api repos/resper1965/n.360/environments/production/secrets` lista o token e
   `gh api repos/resper1965/n.360/actions/secrets` volta vazio).
 - **O ambiente `production` aceita deploy só da `main`** (2026-10-08,

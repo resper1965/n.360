@@ -1145,7 +1145,7 @@ window.abrirAviso = async function abrirAviso(n) {
                 } else if (subview === 'soa') {
                     navigate('soa', { currentProject: proj });
                 } else if (Object.hasOwn(TELA_DO_AVISO, subview || '')) {
-                    // Incidente é do núcleo: os dois produtos têm a tela (aba Incidentes), então navega local em qualquer um.
+                    // Incidente é do núcleo: os dois módulos têm a tela (aba Incidentes), então navega local em qualquer um.
                     const destino = subview === 'incidentes' ? {} : destinoDoAviso(subview);
                     if (destino.href) irPara(destino.href);
                     else {
@@ -1267,7 +1267,7 @@ window.loadProjects = async function loadProjects() {
         const todos = await api('GET', '/api/v1/projects');
         S.projects = projetosDoProduto(todos);
         S.totalProjetos = Array.isArray(todos) ? todos.length : undefined; // zero de verdade: a entrada guiada do semAcesso
-        // O projeto ativo guardado sai só se ele existe e é de OUTRO produto (lista vazia ou com falha não apaga a escolha).
+        // O projeto ativo guardado sai só se ele existe e é de OUTRO módulo (lista vazia ou com falha não apaga a escolha).
         const ativo = S.activeProject && Array.isArray(todos) ? todos.find((p) => p.id === S.activeProject.id) : null;
         if (ativo && !S.projects.some((p) => p.id === ativo.id)) { S.activeProject = null; S.currentProject = null; try { localStorage.removeItem('niso_activeProject'); } catch (e) {} }
         if (typeof updateSidebarProjectSelector === 'function') { updateSidebarProjectSelector(); }

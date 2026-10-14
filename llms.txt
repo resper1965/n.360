@@ -8,7 +8,7 @@
 - [src/modulos.ts](src/modulos.ts): a faixa de cada rota de projeto (nucleo, iso, privacy) e os módulos da pessoa.
 - [src/mcp/](src/mcp/): MCP remoto do agente consultor (login OAuth em /oauth/*).
 - [src/agents/](src/agents/): agentes de IA (política, evidência, avaliação, prontidão, importação, privacidade); a IA rascunha, uma pessoa aprova.
-- [agent-skills/](agent-skills/): skills do agente consultor (prontidao-certificacao, maturidade-lgpd).
+- [agent-skills/](agent-skills/): skills do agente consultor (prontidao-certificacao, maturidade-lgpd, atendimento-titular, implantacao-privacy, migracao-programa, avaliacao-terceiros).
 - [schema.sql](schema.sql): schema do D1; migrations em [migrations/](migrations/).
 - [frontend/login.html](frontend/login.html): a SPA em JavaScript sem framework; frontend/src/produto.js escolhe n.360, n.iso ou n.privacy pelo caminho (views em frontend/src/views/).
 - [docs/openapi.json](docs/openapi.json): contrato da API, gerado dos schemas Zod.
