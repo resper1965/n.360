@@ -10,6 +10,7 @@ import { itensDoDia, semanaIso, somarDias } from '../src/services/avisos-prazo';
 import { criarIncidente } from '../src/services/incidentes';
 import { parseHistorico } from '../src/agents/importacao';
 import { semearCatalogo } from '../src/services/requisitos';
+import { normalizarNome } from '../src/services/nomes';
 
 /**
  * Importação de programa de privacidade (n.privacy, fatia 1). D1 real; `env.AI` simulado (nunca IA de verdade no CI):
@@ -674,7 +675,7 @@ describe('terceiros (fatia 2)', () => {
     expect(r.status, await r.clone().text()).toBe(200);
     return (await json<{ resultados: Res[] }>(r)).resultados;
   };
-  const partesCom = async (nome: string) => (await env.DB.prepare(`SELECT id, tipo, terceiro_tipo, email FROM partes WHERE project_id = ? AND nome = ?`).bind(P, nome)
+  const partesCom = async (nome: string) => (await env.DB.prepare(`SELECT id, tipo, terceiro_tipo, email FROM partes WHERE project_id = ? AND nome = ?`).bind(P, normalizarNome(nome))
     .all<{ id: string; tipo: string; terceiro_tipo: string | null; email: string | null }>()).results;
 
   it('parseTerceiros tolera cerca e devolve null fora do formato', () => {
@@ -805,7 +806,7 @@ describe('terceiros (fatia 2)', () => {
     const [r] = await confirmar(lote);
     expect(r.decisao).toBe('gravado');
     expect(r.registro_id).not.toBe('pa-inativa');
-    const ativas = (await env.DB.prepare(`SELECT id FROM partes WHERE project_id = ? AND nome = 'Antigo Fornecedor Ltda' AND status = 'ativa'`).bind(P).all()).results;
+    const ativas = (await env.DB.prepare(`SELECT id FROM partes WHERE project_id = ? AND nome = 'Antigo Fornecedor Ltda.' AND status = 'ativa'`).bind(P).all()).results;
     expect(ativas).toHaveLength(1);
   });
 

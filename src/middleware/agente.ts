@@ -104,6 +104,7 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/versoes\/[^/]+\/publicar$/, 'publicar versão de documento é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/rascunho$/, 'descartar rascunho de documento é ato humano, pela interface', ['DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+$/, 'excluir documento é ato humano do administrador da plataforma, pela interface', ['DELETE']],
+  [/^\/api\/v1\/projects\/[^/]+\/padronizar-nomes$/, 'padronizar nomes é ato humano da equipe, pela interface', ['POST']],
   [/^\/api\/v1\/parametros-legais(\/|$)/, 'prazo legal é parâmetro revisado pelo jurídico, edição do administrador da plataforma; o agente só lê', ['PUT', 'DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/incidentes\/[^/]+\/encerrar$/, 'encerrar incidente é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/consentimentos\/[^/]+\/revogar$/, 'revogar consentimento é ato humano, pela interface', ['POST']],

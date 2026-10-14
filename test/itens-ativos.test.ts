@@ -73,7 +73,7 @@ describe('ativos sobre itens: a API fica como estava', () => {
     const { id } = await (await chamar(plat, 'POST', '/api/v1/projects/proj-a/assets', { name: 'Topo', owner: 'TI', location: 'DC' })).json() as { id: string };
     expect((await chamar(plat, 'PUT', `/api/v1/assets/${id}`, { name: 'Topo novo' })).status).toBe(200);
     const [item] = (await env.DB.prepare(`SELECT i.nome, i.responsavel_texto AS owner, s.localizacao AS location FROM itens i JOIN item_seguranca s ON s.item_id = i.id WHERE i.id = ?`).bind(id).all()).results;
-    expect(item).toEqual({ nome: 'Topo novo', owner: 'TI', location: 'DC' });
+    expect(item).toEqual({ nome: 'Topo Novo', owner: 'TI', location: 'DC' });
     expect((await chamar(plat, 'DELETE', `/api/v1/assets/${id}`)).status).toBe(200);
     expect(await env.DB.prepare(`SELECT count(*) AS n FROM item_seguranca WHERE item_id = ?`).bind(id).first()).toEqual({ n: 0 });
   });

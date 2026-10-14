@@ -12,6 +12,7 @@ import './views/commercial.js';
 import './views/project.js';
 import './views/grc.js';
 import './views/partes.js';
+import './views/padronizar-nomes.js';
 import './views/documentos.js';
 import './views/requisitos.js';
 import './views/terceiros.js';
