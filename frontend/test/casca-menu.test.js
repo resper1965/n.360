@@ -80,23 +80,36 @@ describe('n.privacy: menu', () => {
         expect(rotuloDe('group-privacy').getAttribute('aria-expanded')).toBe('true');
         expect(el('group-provas').classList.contains('expanded')).toBe(false);
     });
-    it('rótulos e destaque: DSAR, Terceiros e Incidentes têm selo; ids, rotas e ações não mudam', () => {
+    it('rótulos de uma linha, nome do objeto antes da sigla; ids, rotas e ações não mudam', () => {
         montarApp();
         aplicarCasca('privacy');
         const texto = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
-        expect(texto('nav-titular')).toBe('Direitos do titular (DSAR)');
-        expect(texto('nav-terceiros')).toBe('Terceiros (risco de fornecedores)');
-        expect(texto('nav-ropa')).toBe('RoPA');
-        expect(texto('nav-dpia')).toBe('RIPD (DPIA)');
-        expect(texto('nav-incidentes-privacy')).toBe('Incidentes');
-        for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes']]) {
-            expect(el(id).classList.contains('sidebar-nav-destaque'), id).toBe(true);
+        expect(Object.fromEntries(['nav-encarregado', 'nav-ropa', 'nav-partes', 'nav-terceiros', 'nav-importacao', 'nav-dpia', 'nav-requisitos', 'nav-titular',
+            'nav-incidentes-privacy', 'nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance', 'nav-ai', 'nav-meus'].map((id) => [id, texto(id)]))).toEqual({
+            'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas, áreas e sistemas', 'nav-terceiros': 'Terceiros',
+            'nav-importacao': 'Importar programa', 'nav-dpia': 'RIPD', 'nav-requisitos': 'Cobertura da LGPD', 'nav-titular': 'Pedidos do titular',
+            'nav-incidentes-privacy': 'Incidentes', 'nav-documentos': 'Documentos', 'nav-evidence': 'Evidências', 'nav-training': 'Treinamento',
+            'nav-governance': 'Papéis e comitê', 'nav-ai': 'Assistente', 'nav-meus': 'Minhas aprovações',
+        });
+        for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes'], ['nav-encarregado', 'selo-painel']]) {
             expect(el(id).contains(el(selo)), selo).toBe(true);
             expect(el(selo).hidden, selo).toBe(true);
         }
-        expect(el('nav-encarregado').classList.contains('sidebar-nav-destaque')).toBe(false);
         expect(JSON.parse(el('nav-ropa').getAttribute('data-args'))).toEqual(['ropa']);
         expect(JSON.parse(el('nav-terceiros').getAttribute('data-args'))).toEqual(['terceiros']);
+    });
+    it('os rótulos novos ficam só no n.privacy: n.iso e n.360 mantêm os deles', () => {
+        const texto = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
+        for (const produto of ['iso', 'n360']) {
+            montarApp();
+            aplicarCasca(produto);
+            expect([texto('nav-governance'), texto('nav-partes'), texto('nav-ropa'), texto('nav-dpia'), texto('nav-requisitos'), texto('nav-meus')], produto)
+                .toEqual(['Governança', 'Partes', 'ROPA', 'DPIA / RIPD', 'Requisitos', 'Meus pedidos']);
+        }
+    });
+    it('rótulo de item numa linha só: o CSS não deixa o texto quebrar', () => {
+        expect(css).toMatch(/\.sidebar-nav-text\s*\{[^}]*white-space:\s*nowrap/);
+        expect(css).not.toMatch(/\.sidebar-nav-destaque \.sidebar-nav-text\s*\{[^}]*white-space:\s*normal/);
     });
     it('os itens de primeiro nível seguem o projeto: sem projeto somem junto com os grupos', () => {
         montarApp();

@@ -53,7 +53,7 @@ test('um módulo só (privacy): entra direto em /privacy', async ({ page }) => {
   await expect(page).toHaveTitle('n.privacy | ness. Privacidade');
 });
 
-test('n.privacy: menu por área de trabalho, com DSAR, terceiros e incidentes em destaque e os selos de vencimento', async ({ page }) => {
+test('n.privacy: menu por área de trabalho, rótulos de uma linha e selos (total a tratar; atraso em fundo cheio; painel com os atrasados)', async ({ page }) => {
   await mockApi(page, ['privacy']);
   await page.route('**/api/v1/projects/proj-e2e/encarregado', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
@@ -62,9 +62,10 @@ test('n.privacy: menu por área de trabalho, com DSAR, terceiros e incidentes em
   await entrar(page);
   await expect(page).toHaveURL(/\/privacy$/);
   const menu = page.locator('#sidebar');
-  await expect(menu.locator('#nav-titular')).toContainText('Direitos do titular (DSAR)');
-  await expect(menu.locator('#nav-terceiros')).toContainText('Terceiros (risco de fornecedores)');
-  await expect(menu.locator('#selo-titular')).toHaveAttribute('aria-label', '4 pedidos vencidos ou a vencer em 7 dias');
+  await expect(menu.locator('#nav-titular')).toContainText('Pedidos do titular');
+  await expect(menu.locator('#nav-encarregado')).toContainText('Painel');
+  await expect(menu.locator('#selo-titular')).toHaveAttribute('aria-label', '4 pedidos vencidos ou a vencer em 7 dias, 1 atrasado');
+  await expect(menu.locator('#selo-painel')).toHaveText('1');
   await expect(menu.locator('#selo-terceiros')).toHaveText('2');
   await expect(menu.locator('#selo-incidentes')).toBeHidden();
   await expect(menu.getByText('Mapear e avaliar', { exact: true })).toBeVisible();

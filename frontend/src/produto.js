@@ -179,8 +179,13 @@ export function abrirGrupo(grupo, doc = document) {
 
 const marca = (produto) => `n<span style="color:var(--accent)">.</span><span class="brand-tail">${PRODUTOS[produto].nome}</span>`;
 
-// Rótulos do n.privacy (a interface fala RoPA e RIPD; os ids nav-* e as rotas não mudam).
-const ROTULOS_PRIVACY = { 'nav-titular': 'Direitos do titular (DSAR)', 'nav-terceiros': 'Terceiros (risco de fornecedores)', 'nav-ropa': 'RoPA', 'nav-dpia': 'RIPD (DPIA)' };
+// Rótulos do n.privacy, uma linha cada, nome do objeto antes da sigla (decisão de 14/10/2026). Só aqui: o n.iso e o n.360 ficam
+// com os deles; os ids nav-* e as rotas não mudam.
+export const ROTULOS_PRIVACY = {
+    'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas, áreas e sistemas', 'nav-requisitos': 'Cobertura da LGPD',
+    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Pedidos do titular', 'nav-dpia': 'RIPD', 'nav-terceiros': 'Terceiros',
+    'nav-meus': 'Minhas aprovações',
+};
 
 /**
  * Menu do n.privacy por área de trabalho (só aqui; o n.iso e o n.360 não mudam). Painel (Encarregado) e as três filas em

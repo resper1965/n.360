@@ -7,6 +7,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
 import { S } from '../src/state.js';
 import html from '../login.html?raw';
+import css from '../src/style.css?raw';
 import { aplicarCasca } from '../src/produto.js';
 import { atualizarSelos } from '../src/selos-menu.js';
 
@@ -23,21 +24,41 @@ beforeEach(() => { apiMock.mockReset(); S.user = { id: 'u1', role: 'consultor' }
 afterEach(() => history.replaceState(null, '', '/'));
 
 describe('selos do menu do n.privacy', () => {
-    it('mostra a contagem, o texto para leitor de tela e o tom de perigo só quando há atraso', async () => {
+    it('o número é o total a tratar; o atraso vira fundo cheio (is-danger) e entra no texto para leitor de tela', async () => {
         apiMock.mockResolvedValue(VISAO);
         await atualizarSelos(document, true);
         expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/projects/p1/encarregado');
         expect(el('selo-titular').textContent).toBe('3');
-        expect(el('selo-titular').getAttribute('aria-label')).toBe('3 pedidos vencidos ou a vencer em 7 dias');
+        expect(el('selo-titular').getAttribute('aria-label')).toBe('3 pedidos vencidos ou a vencer em 7 dias, 1 atrasado');
         expect(el('selo-titular').classList.contains('is-danger')).toBe(true);
-        expect(el('selo-terceiros').getAttribute('aria-label')).toContain('2 terceiros');
+        expect(el('selo-terceiros').getAttribute('aria-label')).toBe('2 terceiros sem avaliação, vencida ou reprovada');
         expect(el('selo-terceiros').classList.contains('is-danger')).toBe(false);
         expect(el('selo-incidentes').getAttribute('aria-label')).toBe('1 comunicação de incidente pendente');
+    });
+    it('Painel: selo só com atraso, com a soma dos atrasados das filas', async () => {
+        apiMock.mockResolvedValue({ pedidos_titular: { exigem_atencao: 3, atrasados: 1 }, terceiros: { com_pendencia: 2, vencidos: 1, reprovados: 1 },
+            incidentes: { comunicacoes_pendentes: 2, comunicacoes_atrasadas: 2 } });
+        await atualizarSelos(document, true);
+        expect(el('selo-painel').hidden).toBe(false);
+        expect(el('selo-painel').textContent).toBe('5');
+        expect(el('selo-painel').getAttribute('aria-label')).toBe('5 itens atrasados');
+        expect(el('selo-painel').classList.contains('is-danger')).toBe(true);
+        expect(el('selo-incidentes').getAttribute('aria-label')).toBe('2 comunicações de incidente pendentes, 2 atrasadas');
+        expect(el('selo-terceiros').getAttribute('aria-label')).toBe('2 terceiros sem avaliação, vencida ou reprovada, 2 com avaliação vencida ou reprovada');
+        apiMock.mockResolvedValue({ pedidos_titular: { exigem_atencao: 3, atrasados: 0 }, terceiros: { com_pendencia: 2 }, incidentes: {} });
+        await atualizarSelos(document, true);
+        expect(el('selo-painel').hidden).toBe(true);
+        expect(el('selo-titular').classList.contains('is-danger')).toBe(false);
+    });
+    it('CSS: pendente com contorno âmbar, atraso com fundo --danger e número em --accent-ink; sem selo em Minhas aprovações', () => {
+        expect(css).toMatch(/\.sidebar-selo\s*\{[^}]*color:\s*var\(--warning\)[^}]*border:\s*1px solid currentColor/);
+        expect(css).toMatch(/\.sidebar-selo\.is-danger\s*\{[^}]*background:\s*var\(--danger\)[^}]*color:\s*var\(--accent-ink\)/);
+        expect(el('nav-meus').querySelector('.sidebar-selo')).toBeNull();
     });
     it('zero não mostra selo', async () => {
         apiMock.mockResolvedValue({ pedidos_titular: { exigem_atencao: 0 }, terceiros: {}, incidentes: { comunicacoes_pendentes: 0 } });
         await atualizarSelos(document, true);
-        for (const id of ['selo-titular', 'selo-terceiros', 'selo-incidentes']) expect(el(id).hidden, id).toBe(true);
+        for (const id of ['selo-painel', 'selo-titular', 'selo-terceiros', 'selo-incidentes']) expect(el(id).hidden, id).toBe(true);
     });
     it('falha silenciosa: sem selo e sem exceção, e tira o selo antigo', async () => {
         apiMock.mockResolvedValueOnce(VISAO);
