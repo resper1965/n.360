@@ -16,6 +16,7 @@ const IDS_SIDEBAR = [
     'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa', 'nav-mgmt',
     'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-ai',
     'nav-audit-trail', 'nav-users', 'nav-settings', 'nav-titular', 'nav-incidentes', 'nav-inicio',
+    'nav-incidentes-privacy',
 ];
 
 // `render()` despacha para funcoes globais que os modulos de view penduram em
@@ -176,15 +177,29 @@ describe('navigate()', () => {
         // na barra lateral tem id com mais de um segmento ficam SEM nenhum item
         // ativo e sem `aria-current`: o usuario perde a referencia de onde
         // esta, e o leitor de tela nao anuncia a pagina atual.
-        //   'audit-trail'       -> procura 'nav-audit'       (existe 'nav-audit-trail')
         //   'management-review' -> procura 'nav-management'  (existe 'nav-mgmt')
         //   'assessment-detail' -> procura 'nav-assessment'  (existe 'nav-assessments')
         //   'audit-execution'   -> procura 'nav-audit'       (existe 'nav-audits')
         //   'certification'     -> nao ha item na barra (destino de changeActiveProject)
         // Estes testes fixam o comportamento ATUAL. Ao corrigir, eles falham —
         // e e esse o sinal de que a correcao pegou.
+        it('"audit-trail" destaca nav-audit-trail: o id inteiro vence o prefixo', () => {
+            navigate('audit-trail');
+            expect(itemAtivo().id).toBe('nav-audit-trail');
+            expect(itemAtivo().getAttribute('aria-current')).toBe('page');
+        });
+
+        it('n.privacy: a tela titular destaca o item da aba (Pedidos do titular ou Incidentes)', () => {
+            history.replaceState(null, '', '/privacy');
+            S.titularAba = 'incidentes';
+            navigate('titular');
+            expect(itemAtivo().id).toBe('nav-incidentes-privacy');
+            S.titularAba = 'pedidos';
+            navigate('titular');
+            expect(itemAtivo().id).toBe('nav-titular');
+        });
+
         it.each([
-            ['audit-trail', 'nav-audit-trail'],
             ['management-review', 'nav-mgmt'],
             ['assessment-detail', 'nav-assessments'],
             ['audit-execution', 'nav-audits'],
