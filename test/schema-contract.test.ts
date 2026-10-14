@@ -320,4 +320,15 @@ describe('schema contract (real D1)', () => {
     }
     await env.DB.prepare(`DELETE FROM pedidos WHERE id = 'pd_a'`).run();
   });
+
+  it('empresas (0071): 1:1 com o projeto, CHECKs de CNPJ, UF e funcionários, some com o projeto', async () => {
+    await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role) VALUES ('p-emp','Cliente Empresa','ISO 27001','controller')`).run();
+    await env.DB.prepare(`INSERT INTO empresas (project_id, cnpj, razao_social, uf, funcionarios) VALUES ('p-emp', '11111111000191', 'Empresa Fictícia', 'SP', 3)`).run();
+    expect((await env.DB.prepare(`SELECT pais FROM empresas WHERE project_id = 'p-emp'`).first<any>()).pais).toBe('BR');
+    await expect(env.DB.prepare(`INSERT INTO empresas (project_id) VALUES ('p-emp')`).run()).rejects.toThrow(/UNIQUE|PRIMARY/);
+    await expect(env.DB.prepare(`UPDATE empresas SET cnpj = '11.111.111/0001-91' WHERE project_id = 'p-emp'`).run()).rejects.toThrow(/CHECK/);
+    await expect(env.DB.prepare(`UPDATE empresas SET uf = 'S' WHERE project_id = 'p-emp'`).run()).rejects.toThrow(/CHECK/);
+    await env.DB.prepare(`DELETE FROM projects WHERE id = 'p-emp'`).run();
+    expect(await env.DB.prepare(`SELECT 1 FROM empresas WHERE project_id = 'p-emp'`).first()).toBeNull();
+  });
 });

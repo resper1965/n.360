@@ -58,6 +58,9 @@ const temParametro = (r: Rota) => /:\w/.test(r.caminho);
 const EXCECOES: Record<string, string> = {
   // Consulta a CNPJ em base pública externa (faz fetch para fora); não lê dado de organização.
   'GET /api/v1/leads/consulta-cnpj/:cnpj': 'consulta pública externa de CNPJ, sem dado de tenant',
+  // Idem para o assistente "Novo projeto"; o `existente` da resposta sai de `projetoComCnpj`, preso à organização da sessão
+  // (test/empresa.test.ts prova o corte do cadastro por organização).
+  'GET /api/v1/projects/consulta-cnpj/:cnpj': 'consulta pública externa de CNPJ; o projeto existente vem só da organização da sessão',
   // Responde 200 mesmo sem alterar nada: o filtro é por dono no WHERE; a asserção real é sobre a
   // linha (`org-corte.test.ts` e `idor-tenant.test.ts`), e aqui a linha alheia é conferida abaixo.
   'PUT /api/v1/notifications/:id/read': 'escopo por destinatário; prova pela linha, não pelo status',
@@ -311,6 +314,10 @@ beforeAll(async () => {
     await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, ?, 'ISO 27001', 'controller', 'Active', ?)`)
       .bind(o.proj, `Cliente ${o.m}`, o.org).run();
     await semearOrganizacao(o, neutro);
+    // `empresas` (0071) tem `project_id` como chave, sem `id`: a semeadura derivada a pula. Linha à mão, com o marcador,
+    // para a varredura de listas cobrir `GET /projects/:id/empresa` e a por id cobrir o GET e o PUT.
+    await env.DB.prepare(`INSERT INTO empresas (project_id, razao_social, representante_nome) VALUES (?, ?, ?)`)
+      .bind(o.proj, `Empresa ${o.m}`, `Representante ${o.m}`).run();
     await semearPessoas(o, senha);
     // Logo (tarefa 6): cada organização tem o seu, com o marcador nos bytes. `GET /api/v1/org/logo`
     // entra na varredura de listas: devolver o logo alheio traria o marcador alheio no corpo.

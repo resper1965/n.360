@@ -165,11 +165,17 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     (`src/routes/public-auditor.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **86 tabelas** (2026-10-12: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **87 tabelas** (2026-10-14: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0070** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0071** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
+- **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
+  e `src/routes/empresa.ts` (`GET/PUT /projects/:id/empresa`, faixa `nucleo`; edita a equipe com acesso e o `org_admin`). CNPJ so
+  digitos com dígito verificador (`cnpjValido` em `src/schemas/corpos.ts`), unico por organizacao (409); sem CPF de ninguem. As colunas
+  antigas de `projects` (cnpj, employee_count, sector, client_name) sao espelhadas a cada gravacao. `POST /projects` aceita `empresa` e
+  `pessoas` (representante e DPO viram `partes`, o DPO com o vinculo `encarregado`) no mesmo batch. `GET /projects/consulta-cnpj/:cnpj`
+  (BrasilAPI pelo servidor, sem QSA) e so de `platform_admin`/`consultoria_admin`, com limite por usuario, e fica fora do agente.
 - **Inventario (ativos)**: vive em `itens` (nucleo fino) + `item_seguranca` (bloco do n.iso, 1:1), antes `assets`
   (migration 0048). `src/services/itens.ts` traduz as duas tabelas para o formato antigo da API de ativos
   (`name`, `owner`, `status` Active/Removido...), entao tela, MCP e CSV nao mudaram. Coluna nova no inventario:
