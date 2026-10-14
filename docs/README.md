@@ -38,7 +38,7 @@ entrada é o [`README.md`](../README.md) da raiz.
 |---|---|
 | [`agente/README.md`](agente/README.md) | O que é o agente, como o consultor conecta o Claude Code, o Codex, o Cursor ou o Antigravity, o que ele lê, grava e o que pede o seu "sim"; o que o cliente vê e revoga; solução de problemas. |
 | [`agente/arquitetura.md`](agente/arquitetura.md) | Como a conexão nasce e como cada chamada é decidida (com diagramas), o mapa de arquivos, os dados, os prazos, e como estender com skill, ferramenta ou rota. |
-| [`agente/seguranca.md`](agente/seguranca.md) | Contra quem o agente é desenhado, os 12 invariantes e o teste de cada um, os limites que **não** são garantia, e o checklist para um PR que toque a superfície do agente. |
+| [`agente/seguranca.md`](agente/seguranca.md) | Contra quem o agente é desenhado, os 13 invariantes (I1 a I13) e o teste de cada um, os limites que **não** são garantia, e o checklist para um PR que toque a superfície do agente. |
 
 ## Vou escrever ou depurar teste
 
@@ -60,6 +60,7 @@ entrada é o [`README.md`](../README.md) da raiz.
 | Documento | Responde |
 |---|---|
 | [`design/diagnostico-2026-10-12/`](design/diagnostico-2026-10-12/README.md) | Diagnóstico de design de 12/10/2026 (método Impeccable): [`n.360`](design/diagnostico-2026-10-12/n360-portal.md), [`n.iso`](design/diagnostico-2026-10-12/n-iso.md), [`n.privacy`](design/diagnostico-2026-10-12/n-privacy.md) e [`detector e acessibilidade`](design/diagnostico-2026-10-12/detector-e-acessibilidade.md). As ondas 1 a 3 (#358 a #360) já corrigiram parte: confira o código antes de seguir uma linha. |
+| [`design/diagnostico-2026-10-13/`](design/diagnostico-2026-10-13/n-privacy-ropa-entrevista.md) | Diagnóstico tela a tela do n.privacy e o desenho do RoPA como entrevista (13/10/2026), base de `frontend/src/views/ropa-entrevista.js`. |
 | [`design/handoff-ness-v1/`](design/handoff-ness-v1/) | O pacote de handoff visual da ness.: protótipos `.dc.html` navegáveis e tokens do design system (o patch de implementação, já aplicado, foi para `arquivo/design/`). Metade das decisões só aparece em interação — abra os protótipos no navegador antes de mexer na UI. |
 | [`../design.md`](../design.md) | Os princípios do design system aplicados no produto; os valores vivem em `frontend/src/style.css` (`:root`). |
 

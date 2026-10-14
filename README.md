@@ -106,14 +106,16 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
   comunicação de incidente: saída validada por esquema estrito, nada gravado no registro, PII
   mascarada antes de ir ao modelo (`src/services/rascunhos-privacy.ts`).
 - **Agente consultor (MCP remoto, `/mcp`).** Entra com a conta do consultor por OAuth, fica preso a
-  um projeto e tem o alcance do consultor nele. Ação destrutiva exige confirmação no servidor; a
+  um projeto e tem o alcance do consultor nele; no consentimento se escolhe o papel `consultor` ou
+  `auditor` (só lê e registra achado e nota; `agente_concessoes.papel`, migration 0070). Ação destrutiva exige confirmação no servidor; a
   lista fechada `FORA_DO_AGENTE` (`src/middleware/agente.ts`) recusa conta, acesso, credenciais,
   área comercial, publicação de documento, importação de programa e os rascunhos de IA da tela.
   Detalhe em [`docs/agente/`](docs/agente/README.md).
-- **Skills do agente** (`ls agent-skills`): `prontidao-certificacao` (pré-avaliação para Stage 1 e
-  2) e `maturidade-lgpd` (achados de maturidade do programa de privacidade), servidas pelo próprio
-  MCP (`niso_skill`).
-- **MCP local** (`mcp-server-niso/`, stdio com chave de API, 23 ferramentas:
+- **Skills do agente** (seis em 2026-10-14: `ls agent-skills`): `prontidao-certificacao` (pré-avaliação
+  para Stage 1 e 2), `maturidade-lgpd` (achados de maturidade do programa de privacidade),
+  `atendimento-titular`, `implantacao-privacy`, `migracao-programa` e `avaliacao-terceiros`, servidas
+  pelo próprio MCP (`niso_skill`); roteiro de cada uma em [`docs/agente/README.md`](docs/agente/README.md).
+- **MCP local** (`mcp-server-niso/`, stdio com chave de API, 39 ferramentas em 2026-10-14:
   `grep -oE 'name: "niso_[a-z_0-9]+"' mcp-server-niso/src/*.ts | sort -u | wc -l`), com filtro por
   papel. Ver [`mcp-server-niso/README.md`](mcp-server-niso/README.md).
 
@@ -133,8 +135,8 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
 | Caminho | O que vive aqui |
 |---|---|
 | `src/index.ts` | Composition root: cabeçalhos, CORS, redirecionamento dos domínios antigos, autenticação, rotas. |
-| `src/routes/` | 50 arquivos de rota (`ls src/routes/*.ts \| grep -vc '\.test\.ts$'`). |
-| `src/services/` | 40 arquivos de regra de negócio (`ls src/services/*.ts \| wc -l`). |
+| `src/routes/` | 51 arquivos de rota (2026-10-14: `ls src/routes/*.ts \| grep -vc '\.test\.ts$'`). |
+| `src/services/` | 43 arquivos de regra de negócio (2026-10-14: `ls src/services/*.ts \| wc -l`). |
 | `src/agents/` | Agentes de IA (`ls src/agents`): política, evidência, avaliação, adequação de controle, fases, prontidão, importação, privacidade. |
 | `src/modulos.ts`, `src/middleware/` | Faixas e módulos; autenticação, acesso por projeto, principal do agente. |
 | `src/schemas/` | Schemas Zod de todo corpo de escrita. |
@@ -143,9 +145,9 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
 | `frontend/public/` | Páginas públicas copiadas como estão: `politicas.html`, `auditor.html`, `_headers`. |
 | `mcp-server-niso/` | Servidor MCP local. |
 | `agent-skills/` | Fonte das skills do agente (`npm run skills:gerar`). |
-| `migrations/` | 67 arquivos (`ls migrations/*.sql \| wc -l`), última 0069 (`ls migrations/*.sql \| tail -1`). |
-| `test/` | 245 arquivos de teste do backend (`ls test/*.test.ts \| wc -l`). |
-| `frontend/test/`, `frontend/e2e/` | 92 testes em jsdom (`ls frontend/test/*.test.js \| wc -l`) e 6 specs em Chromium (`ls frontend/e2e/*.spec.js \| wc -l`). |
+| `migrations/` | 68 arquivos (2026-10-14: `ls migrations/*.sql \| wc -l`), última 0070 (`ls migrations/*.sql \| tail -1`). |
+| `test/` | 254 arquivos de teste do backend (2026-10-14: `ls test/*.test.ts \| wc -l`). |
+| `frontend/test/`, `frontend/e2e/` | 96 testes em jsdom (2026-10-14: `ls frontend/test/*.test.js \| wc -l`) e 6 specs em Chromium (`ls frontend/e2e/*.spec.js \| wc -l`). |
 | `docs/` | Runbook, specs, diagnóstico de design e decisões ([índice](docs/README.md)). |
 | `scripts/`, `ops/`, `backups/` | Geradores, SQL de reconciliação conferido por teste, runbook de backup. |
 

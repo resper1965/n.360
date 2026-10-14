@@ -50,7 +50,7 @@ frontend **com cobertura** (a catraca de cobertura reprova se cair), o E2E em Ch
 
 O CI roda **só no PR**, e é a única vez que a suíte roda antes da produção: o push na `main` não
 dispara CI, e o Deploy automático faz só `tsc`, build e a checagem de migration (a suíte volta no
-deploy manual). Com o repositório privado cada minuto de Actions é cobrado; não acrescente gatilho
+deploy manual). Quando o repositório ficar privado (hoje é público), cada minuto de Actions passa a ser cobrado; não acrescente gatilho
 nem `paths`/`paths-ignore` ao `ci.yml` (check obrigatório que não reporta trava o merge). Detalhe e
 orçamento em [`docs/runbook-publicacao.md`](docs/runbook-publicacao.md).
 
