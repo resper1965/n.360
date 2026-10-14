@@ -14,6 +14,7 @@ entrada é o [`README.md`](../README.md) da raiz.
 
 | Documento | Responde |
 |---|---|
+| [`manual-equipe-ness.md`](manual-equipe-ness.md) | Passo a passo para a equipe da ness. operar clientes no n.360: papéis, criar conta, cliente novo, migração, transferência, agentes de IA, desativar e excluir, rotina do n.privacy. |
 | [`runbook-incidente.md`](runbook-incidente.md) | Produção não responde, deploy ruim, banco corrompido, alguém perdeu o segundo fator, suspeita de acesso indevido. Começa pelo "primeiro minuto" e vai até a comunicação. |
 | [`runbook-publicacao.md`](runbook-publicacao.md) | Como o código chega à produção pelo Actions, como publicar da máquina do dono quando o Actions não roda (`scripts/publicar.sh`), migration, rollback, orçamento de minutos e o checklist para tornar o repositório privado. |
 
