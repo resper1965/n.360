@@ -19,6 +19,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 ### Alterado (aprovações)
 - `decidirPedido` e `assinarEvidencia` extraídos das rotas individuais, sem mudar o comportamento delas; teto de `any` de 535 para 532.
 - `api.js`: o 401 de `/api/v1/pedidos/lote` (senha incorreta) não derruba a sessão.
+### Adicionado (nomes padronizados)
+- **`normalizarNome`** (`src/services/nomes.ts`): todo nome de parte, departamento, ativo e organização entra padronizado (Title Case com conectores em minúsculas, siglas como TI, RH, DPO e LGPD em maiúsculas, abreviatura sem ambiguidade expandida: `depto` vira Departamento). Aplicada nos esquemas de entrada e nos gravadores que os contornam (importação de partes, fornecedor, encarregado, importação de programa, ativo). Idempotente; o que tem maiúscula no meio (McDonald, iPhone) e códigos (PC-001) ficam como estão.
+- **Padronizar nomes** (Partes, menu Mais; `GET/POST /projects/:id/padronizar-nomes`, equipe da consultoria, fora do agente): lista antes e depois do que já está gravado, aplica só o marcado com o nome novo recalculado no servidor, ignora o que mudou desde a lista e o que colidiria com um nome existente, e mostra as possíveis duplicatas sem uni-las. Trilha `nome.padronizado`.
 
 ### Adicionado (documentos)
 - **Excluir documento**, só para o `platform_admin` e só enquanto o documento nunca virou prova: `DELETE /projects/:id/documentos/:id` recusa (409) se há versão publicada (vigente ou substituída), pedido de ciência ou aprovação ou exceção, e o `DELETE` é condicional no próprio statement. As versões em rascunho e as ligações a requisito e a terceiro vão junto; evidência fica, sem o vínculo. Trilha `documento.excluido`; fora do agente MCP. Tela Documentos: botão Excluir (com confirmação) em documento em rascunho. Quem já tem prova continua se aposentando.

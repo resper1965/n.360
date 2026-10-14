@@ -31,7 +31,7 @@ describe('ativos: campos gravados, PUT parcial, CSV', () => {
     const res = await req('PUT', '/api/v1/assets/a1', { name: 'ERP novo' });
     expect(res.status).toBe(200);
     const { name, type, owner, location } = (await lerAtivo('a1')) as any;
-    expect({ name, type, owner, location }).toEqual({ name: 'ERP novo', type: 'Software', owner: 'TI', location: 'AWS' });
+    expect({ name, type, owner, location }).toEqual({ name: 'ERP Novo', type: 'Software', owner: 'TI', location: 'AWS' });
   });
 
   it('POST sem notas CID grava o default 3', async () => {

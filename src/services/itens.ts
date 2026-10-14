@@ -1,3 +1,4 @@
+import { normalizarNome } from './nomes';
 import { genId } from '../helpers';
 
 /**
@@ -50,7 +51,7 @@ export async function criarAtivo(db: D1Database, projectId: string, b: CamposAti
 export function stmtsCriarAtivo(db: D1Database, projectId: string, b: CamposAtivo & { name: string }, id: string): D1PreparedStatement[] {
   return [
     db.prepare(`INSERT INTO itens (id, project_id, nome, descricao, responsavel_texto, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`)
-      .bind(id, projectId, b.name, b.description || '', b.owner || ''),
+      .bind(id, projectId, normalizarNome(b.name), b.description || '', b.owner || ''),
     db.prepare(`INSERT INTO item_seguranca (item_id, project_id, categoria, subtipo, classificacao, criticidade, localizacao, nota_c, nota_i, nota_d)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, projectId, b.category || 'Hardware', b.type ?? null, b.classification || 'Confidential', b.criticality || 'Medium',
@@ -70,7 +71,7 @@ export async function atualizarAtivo(db: D1Database, id: string, projectId: stri
   for (const k of CAMPOS_ATIVO) {
     if (campos[k] === undefined) continue;
     sets[CAMPOS[k].tabela].sql.push(`${CAMPOS[k].coluna} = ?`);
-    sets[CAMPOS[k].tabela].binds.push(campos[k]);
+    sets[CAMPOS[k].tabela].binds.push(k === 'name' && typeof campos[k] === 'string' ? normalizarNome(campos[k] as string) : campos[k]);
   }
   if (!sets.itens.sql.length && !sets.item_seguranca.sql.length) return 0;
   const corte = projectId === null ? '' : ' AND project_id = ?';

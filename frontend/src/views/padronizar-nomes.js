@@ -1,0 +1,47 @@
+import { api } from '../api.js';
+import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
+
+// Padronizar nomes (spec 2026-10-14): o servidor lista antes → depois e recalcula o nome novo ao aplicar;
+// aqui só se mostra, se marca e se manda "qual linha e qual nome eu vi". Todo texto vindo do servidor é escapado.
+
+const ROTULO = { partes: 'Parte', departamentos: 'Departamento', itens: 'Ativo/item' };
+const args = (...v) => escapeHTML(JSON.stringify(v));
+const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
+// ponytail: as marcadas ficam no DOM (data-pn), não em estado; a lista é refeita do servidor a cada abertura.
+let ultima = [];
+
+window.abrirPadronizarNomes = async function (projectId) {
+    let r;
+    try { r = await api('GET', `/api/v1/projects/${projectId}/padronizar-nomes`); } catch (e) { falha(e, 'Não foi possível listar os nomes'); return; }
+    const propostas = Array.isArray(r && r.propostas) ? r.propostas : [];
+    const duplicatas = Array.isArray(r && r.duplicatas) ? r.duplicatas : [];
+    ultima = propostas;
+    const linhas = propostas.map((p) => `<tr>
+        <td><input type="checkbox" data-pn="${escapeHTML(p.id)}" aria-label="Aplicar a ${escapeHTML(p.antes)}" ${p.conflito ? 'disabled' : 'checked'}></td>
+        <td>${escapeHTML(ROTULO[p.tabela] || p.tabela)}</td><td>${escapeHTML(p.antes)}</td><td>${escapeHTML(p.depois)}</td>
+        <td>${p.conflito ? 'Já existe um igual: una à mão' : ''}</td></tr>`).join('');
+    const dups = duplicatas.length
+        ? `<h4 style="margin:1.25rem 0 0.5rem">Possíveis duplicatas (una à mão)</h4><ul>${duplicatas.map((d) => `<li>${escapeHTML(ROTULO[d.tabela] || d.tabela)}: ${escapeHTML((d.nomes || []).join(', '))}</li>`).join('')}</ul>` : '';
+    openModal(`
+        <h3>Padronizar nomes</h3>
+        ${propostas.length
+            ? `<p style="color:var(--text-dim)">Caixa, siglas e abreviaturas comuns. Nada é unido sozinho.</p>
+               <table class="data-table"><thead><tr><th></th><th>Tipo</th><th>Antes</th><th>Depois</th><th></th></tr></thead><tbody>${linhas}</tbody></table>
+               <button class="btn btn-primary" data-action="aplicarPadronizarNomes" data-args='${args(projectId)}' style="margin-top:1rem">Aplicar selecionados</button>`
+            : '<p style="color:var(--text-dim)">Todos os nomes já estão no padrão.</p>'}
+        ${dups}
+    `, 'modal-large');
+};
+
+window.aplicarPadronizarNomes = async function (projectId) {
+    const marcadas = new Set([...document.querySelectorAll('input[data-pn]:checked')].map((i) => i.getAttribute('data-pn')));
+    const itens = ultima.filter((p) => marcadas.has(p.id)).map((p) => ({ tabela: p.tabela, id: p.id, antes: p.antes }));
+    if (!itens.length) { showToast('Marque ao menos um nome', 'error'); return; }
+    try {
+        const r = await api('POST', `/api/v1/projects/${projectId}/padronizar-nomes`, { itens });
+        const ign = (r.ignorados || []).length;
+        showToast(`${r.aplicados} nome(s) padronizado(s)${ign ? `; ${ign} ignorado(s)` : ''}.`, ign ? 'warning' : 'success');
+        closeModal();
+        window.render();
+    } catch (e) { falha(e, 'Não foi possível padronizar os nomes'); }
+};

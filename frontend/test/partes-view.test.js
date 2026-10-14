@@ -38,7 +38,7 @@ describe('tela de Partes', () => {
     expect(c.textContent).toContain('Ana Exemplo');
     expect(c.textContent).toContain('TI');
     expect(c.querySelector('img')).toBeNull(); // nome de parte não vira HTML
-    expect(a.querySelectorAll('button').length).toBe(4);
+    expect(a.querySelectorAll('button').length).toBe(5);
   });
 
   it('papel só de leitura não vê os botões de escrita', async () => {
@@ -82,13 +82,13 @@ describe('tela de Partes', () => {
 });
 
 describe('Partes no n.privacy', () => {
-  it('header: só "+ Nova parte" é primário; os outros três ficam no menu "Mais"', async () => {
+  it('header: só "+ Nova parte" é primário; os outros quatro ficam no menu "Mais"', async () => {
     const [c, h, a] = montar();
     await window.renderPartes(c, h, a);
     expect([...a.querySelectorAll('.btn-primary')].map((b) => b.textContent.trim())).toEqual(['+ Nova parte']);
     const mais = a.querySelector('details');
     expect(mais.querySelector('summary').textContent.trim()).toBe('Mais');
-    expect([...mais.querySelectorAll('button')].map((b) => b.getAttribute('data-action'))).toEqual(['importarPartes', 'conciliarPartes', 'openNovoDepartamentoModal']);
+    expect([...mais.querySelectorAll('button')].map((b) => b.getAttribute('data-action'))).toEqual(['importarPartes', 'conciliarPartes', 'abrirPadronizarNomes', 'openNovoDepartamentoModal']);
   });
 
   it('vazio no n.privacy fala de encarregado, operadores e fornecedores, sem vocabulário ISO', async () => {
