@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, logAudit, podeAdministrarOrg, registraErro } from '../helpers';
+import { ehEquipeNess, erro500, logAudit, podeAdministrarOrg, registraErro } from '../helpers';
+import { aplicarNomes, propostasDeNomes } from '../services/padronizar-nomes';
 import { importarPartes, conciliarResponsaveis } from '../services/partes';
 import { importarDocumentos } from '../services/documentos';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { NOME_DO_PRODUTO } from '../modulos';
 import {
   validateBody, moduloHabilitarSchema, MODULOS, parseModulos, type Modulo,
-  departamentoCriarSchema, departamentoAtualizarSchema, parteCriarSchema, parteAtualizarSchema, vinculoCriarSchema,
+  padronizarNomesSchema, departamentoCriarSchema, departamentoAtualizarSchema, parteCriarSchema, parteAtualizarSchema, vinculoCriarSchema,
   MATRIZ_PAPEL_ALVO, type AlvoVinculo,
 } from '../schemas';
 
@@ -83,6 +84,23 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
 });
 
 const unico = (e: unknown) => String((e as { message?: string })?.message ?? e).includes('UNIQUE');
+
+// ─── padronizar nomes (saneamento do que já está gravado) ──────────────────
+nucleoApp.get('/padronizar-nomes', async (c) => {
+  try {
+    if (!ehEquipeNess(c.get('user'))) return c.json({ error: 'A padronização de nomes é feita pela equipe da consultoria' }, 403);
+    return c.json(await propostasDeNomes(c.env.DB, c.req.param('projectId')!));
+  } catch (e) { return erro500(c, 'Falha ao listar os nomes a padronizar', e); }
+});
+
+nucleoApp.post('/padronizar-nomes', async (c) => {
+  try {
+    if (!ehEquipeNess(c.get('user'))) return c.json({ error: 'A padronização de nomes é feita pela equipe da consultoria' }, 403);
+    const v = await validateBody(c, padronizarNomesSchema);
+    if (!v.success) return v.response;
+    return c.json({ ok: true, ...(await aplicarNomes(c.env.DB, c.req.param('projectId')!, c.get('user').email, v.data.itens)) });
+  } catch (e) { return erro500(c, 'Falha ao padronizar os nomes', e); }
+});
 
 // ─── departamentos ─────────────────────────────────────────────────────────
 nucleoApp.get('/departamentos', async (c) => {

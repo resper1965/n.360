@@ -35,6 +35,10 @@ export const MATRIZ_PAPEL_ALVO: Record<AlvoVinculo, readonly PapelVinculo[]> = {
 const nome = z.string().trim().min(1).max(200).transform(normalizarNome);
 const email = z.string().trim().email().max(320);
 
+export const padronizarNomesSchema = z.object({
+  itens: z.array(z.object({ tabela: z.enum(['partes', 'departamentos', 'itens']), id: z.string().min(1).max(100), antes: z.string().max(500) }).strict()).min(1).max(200),
+}).strict();
+
 export const departamentoCriarSchema = z.object({ nome });
 export const departamentoAtualizarSchema = z.object({ nome: nome.optional(), status: z.enum(['ativo', 'inativo']).optional() });
 export const parteCriarSchema = z.object({ tipo: z.enum(['pessoa', 'organizacao']).default('pessoa'), nome, email: email.optional().nullable() });
