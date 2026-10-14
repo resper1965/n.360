@@ -742,16 +742,11 @@ export async function executarFerramenta(
           status: z.string().optional(),
         }).strip().parse(args); // strip: accepted_by/accepted_at do agente são descartados
         fora(projectId);
-        // O PUT da API substitui o registro inteiro (campo ausente vira default).
-        // Lê o atual DESTE projeto e reenvia tudo, trocando só o pedido.
-        const { risks: lista } = (await t.get(`/api/v1/projects/${enc(projectId)}/risks`)) as { risks?: any[] };
-        const atual = lista?.find((r) => r?.id === riskId);
-        if (!atual) throw new Error(`Risco ${riskId} não encontrado no projeto ${projectId}`);
-        const campos = ["asset_id", "asset", "threat", "vulnerability", "impact", "probability", "treatment", "treatment_plan", "control_id", "owner", "status", "accepted_by", "accepted_at"] as const;
-        const corpo: Record<string, unknown> = {};
-        for (const k of campos) corpo[k] = atual[k] ?? null;
-        Object.assign(corpo, mudancas);
-        return await t.contrato("PUT /api/v1/risks/{id}", { id: riskId }, corpo as { asset: unknown; threat: unknown });
+        // O PUT da API é parcial (campo ausente mantém o gravado): manda só o pedido.
+        // A leitura confirma que o risco é DESTE projeto (o PUT é por id, sem projeto na rota).
+        const { risks: lista } = (await t.get(`/api/v1/projects/${enc(projectId)}/risks`)) as { risks?: Array<{ id?: string }> };
+        if (!lista?.some((r) => r?.id === riskId)) throw new Error(`Risco ${riskId} não encontrado no projeto ${projectId}`);
+        return await t.contrato("PUT /api/v1/risks/{id}", { id: riskId }, mudancas);
       }
 
       case "niso_list_controls": {

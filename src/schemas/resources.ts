@@ -146,8 +146,8 @@ export const vendorUpdateSchema = z.object({
  * depois vira nível de risco em relatório e em SoA. Quem escreve tem de respeitar
  * a matriz, seja qual for o verbo.
  *
- * Os obrigatórios não mudam (`asset` e `threat` já eram), então nenhum corpo que
- * era aceito e válido passa a ser recusado; o que passa a ser recusado é nota
- * fora de 1..5, que nunca deveria ter sido gravada.
+ * Desde a F0.1 o PUT é parcial: `asset` e `threat` deixam de ser obrigatórios
+ * (ausente mantém o gravado); o POST segue exigindo os dois. A nota fora de
+ * 1..5 continua recusada.
  */
-export const riskUpdateSchema = createRiskSchema;
+export const riskUpdateSchema = createRiskSchema.partial();
