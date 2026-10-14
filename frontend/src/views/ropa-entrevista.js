@@ -609,8 +609,8 @@ function blocoCopiloto() {
         <p class="re-nota" id="re-cop-contador">${n} de ${COPILOTO_MAX} caracteres (mínimo ${COPILOTO_MIN})</p>
         <p class="re-erro" id="re-cop-erro" aria-live="polite"></p>
         <div class="re-acoes">
-            <button type="button" class="btn btn-primary" data-action="reCopilotoPedir" ${pedindo ? 'disabled' : ''}>${pedindo ? 'Preenchendo...' : 'Preencher com sugestão'}</button>
             <button type="button" class="btn btn-ghost" data-action="reCopilotoFechar" ${pedindo ? 'disabled' : ''}>Prefiro responder uma a uma</button>
+            <button type="button" class="btn btn-primary" data-action="reCopilotoPedir" ${pedindo ? 'disabled' : ''}>${pedindo ? 'Preenchendo...' : 'Preencher com sugestão'}</button>
         </div>
         <p class="re-nota" aria-live="polite">${pedindo ? 'O assistente está lendo a descrição.' : ''}</p>
     </section>`;

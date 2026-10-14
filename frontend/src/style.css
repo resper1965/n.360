@@ -1655,7 +1655,7 @@ textarea:focus-visible {
 .re-cop-novos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .re-cop-novos .re-nota { flex-basis: 100%; }
 @media (max-width: 640px) {
-    .re-pergunta, .re-resumo { padding: 16px; }
+    .re-pergunta, .re-resumo, .re-copiloto { padding: 16px; }
     .re-opcoes { grid-template-columns: 1fr; }
     .re-respostas { grid-template-columns: 1fr; gap: 2px; }
     .re-respostas dd { margin-bottom: 8px; }
