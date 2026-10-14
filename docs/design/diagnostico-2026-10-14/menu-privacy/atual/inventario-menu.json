@@ -1,0 +1,1431 @@
+{
+  "consultor": {
+    "aberto_1440": {
+      "itens": [
+        {
+          "tipo": "item",
+          "id": "nav-meus",
+          "texto": "Meus pedidos",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-encarregado",
+          "texto": "Encarregado",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-titular",
+          "texto": "Direitos do titular (DSAR)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "4 (4 pedidos vencidos ou a vencer em 7 dias)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-terceiros",
+          "texto": "Terceiros (risco de fornecedores)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "2 (2 terceiros sem avaliação, vencida ou reprovada)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-incidentes-privacy",
+          "texto": "Incidentes",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "1 (1 comunicação de incidente pendente)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ai",
+          "texto": "Assistente",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-privacy\"]",
+          "texto": "Mapear e avaliar",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "true",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ropa",
+          "texto": "RoPA",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-dpia",
+          "texto": "RIPD (DPIA)",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-requisitos",
+          "texto": "Requisitos",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-provas\"]",
+          "texto": "Governança e provas",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-documentos",
+          "texto": "Documentos",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-evidence",
+          "texto": "Evidências",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-partes",
+          "texto": "Partes",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-governance",
+          "texto": "Governança",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-training",
+          "texto": "Treinamento",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-implantacao\"]",
+          "texto": "Implantação",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-importacao",
+          "texto": "Importar programa",
+          "grupo": "group-implantacao",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "label-group-system",
+          "texto": "Sistema",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-audit-trail",
+          "texto": "Trilha de Logs",
+          "grupo": "group-system-config",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-n360",
+          "texto": "n.360",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-conta",
+          "texto": "Conta e acessos (n.360)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        }
+      ],
+      "rolagem": {
+        "scrollHeight": 635,
+        "clientHeight": 635
+      }
+    },
+    "provas_aberto": {
+      "itens": [
+        {
+          "tipo": "item",
+          "id": "nav-meus",
+          "texto": "Meus pedidos",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-encarregado",
+          "texto": "Encarregado",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-titular",
+          "texto": "Direitos do titular (DSAR)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "4 (4 pedidos vencidos ou a vencer em 7 dias)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-terceiros",
+          "texto": "Terceiros (risco de fornecedores)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "2 (2 terceiros sem avaliação, vencida ou reprovada)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-incidentes-privacy",
+          "texto": "Incidentes",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "1 (1 comunicação de incidente pendente)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ai",
+          "texto": "Assistente",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-privacy\"]",
+          "texto": "Mapear e avaliar",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ropa",
+          "texto": "RoPA",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-dpia",
+          "texto": "RIPD (DPIA)",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-requisitos",
+          "texto": "Requisitos",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-provas\"]",
+          "texto": "Governança e provas",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "true",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-documentos",
+          "texto": "Documentos",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-evidence",
+          "texto": "Evidências",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-partes",
+          "texto": "Partes",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-governance",
+          "texto": "Governança",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-training",
+          "texto": "Treinamento",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-implantacao\"]",
+          "texto": "Implantação",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-importacao",
+          "texto": "Importar programa",
+          "grupo": "group-implantacao",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "label-group-system",
+          "texto": "Sistema",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-audit-trail",
+          "texto": "Trilha de Logs",
+          "grupo": "group-system-config",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-n360",
+          "texto": "n.360",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-conta",
+          "texto": "Conta e acessos (n.360)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        }
+      ],
+      "rolagem": {
+        "scrollHeight": 635,
+        "clientHeight": 635
+      }
+    },
+    "aberto_1024": {
+      "itens": [
+        {
+          "tipo": "item",
+          "id": "nav-meus",
+          "texto": "Meus pedidos",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-encarregado",
+          "texto": "Encarregado",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-titular",
+          "texto": "Direitos do titular (DSAR)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "4 (4 pedidos vencidos ou a vencer em 7 dias)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-terceiros",
+          "texto": "Terceiros (risco de fornecedores)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "2 (2 terceiros sem avaliação, vencida ou reprovada)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-incidentes-privacy",
+          "texto": "Incidentes",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "1 (1 comunicação de incidente pendente)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ai",
+          "texto": "Assistente",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-privacy\"]",
+          "texto": "Mapear e avaliar",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "true",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ropa",
+          "texto": "RoPA",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-dpia",
+          "texto": "RIPD (DPIA)",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-requisitos",
+          "texto": "Requisitos",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-provas\"]",
+          "texto": "Governança e provas",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-documentos",
+          "texto": "Documentos",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-evidence",
+          "texto": "Evidências",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-partes",
+          "texto": "Partes",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-governance",
+          "texto": "Governança",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-training",
+          "texto": "Treinamento",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-implantacao\"]",
+          "texto": "Implantação",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-importacao",
+          "texto": "Importar programa",
+          "grupo": "group-implantacao",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "label-group-system",
+          "texto": "Sistema",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-audit-trail",
+          "texto": "Trilha de Logs",
+          "grupo": "group-system-config",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-n360",
+          "texto": "n.360",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-conta",
+          "texto": "Conta e acessos (n.360)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        }
+      ],
+      "rolagem": {
+        "scrollHeight": 503,
+        "clientHeight": 503
+      }
+    }
+  },
+  "consultoria_admin": {
+    "aberto_1440": {
+      "itens": [
+        {
+          "tipo": "item",
+          "id": "nav-meus",
+          "texto": "Meus pedidos",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-encarregado",
+          "texto": "Encarregado",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-titular",
+          "texto": "Direitos do titular (DSAR)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "4 (4 pedidos vencidos ou a vencer em 7 dias)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-terceiros",
+          "texto": "Terceiros (risco de fornecedores)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "2 (2 terceiros sem avaliação, vencida ou reprovada)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-incidentes-privacy",
+          "texto": "Incidentes",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "1 (1 comunicação de incidente pendente)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ai",
+          "texto": "Assistente",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-privacy\"]",
+          "texto": "Mapear e avaliar",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "true",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ropa",
+          "texto": "RoPA",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-dpia",
+          "texto": "RIPD (DPIA)",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-requisitos",
+          "texto": "Requisitos",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-provas\"]",
+          "texto": "Governança e provas",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-documentos",
+          "texto": "Documentos",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-evidence",
+          "texto": "Evidências",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-partes",
+          "texto": "Partes",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-governance",
+          "texto": "Governança",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-training",
+          "texto": "Treinamento",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-implantacao\"]",
+          "texto": "Implantação",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-importacao",
+          "texto": "Importar programa",
+          "grupo": "group-implantacao",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "label-group-system",
+          "texto": "Sistema",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-audit-trail",
+          "texto": "Trilha de Logs",
+          "grupo": "group-system-config",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-n360",
+          "texto": "n.360",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-conta",
+          "texto": "Conta e acessos (n.360)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-outro-produto",
+          "texto": "Abrir este projeto no n.iso",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        }
+      ],
+      "rolagem": {
+        "scrollHeight": 607,
+        "clientHeight": 607
+      }
+    }
+  },
+  "org_admin": {
+    "aberto_1440": {
+      "itens": [
+        {
+          "tipo": "item",
+          "id": "nav-meus",
+          "texto": "Meus pedidos",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-encarregado",
+          "texto": "Encarregado",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-titular",
+          "texto": "Direitos do titular (DSAR)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "4 (4 pedidos vencidos ou a vencer em 7 dias)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-terceiros",
+          "texto": "Terceiros (risco de fornecedores)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "2 (2 terceiros sem avaliação, vencida ou reprovada)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-incidentes-privacy",
+          "texto": "Incidentes",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "1 (1 comunicação de incidente pendente)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ai",
+          "texto": "Assistente",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-privacy\"]",
+          "texto": "Mapear e avaliar",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "true",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ropa",
+          "texto": "RoPA",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-dpia",
+          "texto": "RIPD (DPIA)",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-requisitos",
+          "texto": "Requisitos",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-provas\"]",
+          "texto": "Governança e provas",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-documentos",
+          "texto": "Documentos",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-evidence",
+          "texto": "Evidências",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-partes",
+          "texto": "Partes",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-governance",
+          "texto": "Governança",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-training",
+          "texto": "Treinamento",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-n360",
+          "texto": "n.360",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-conta",
+          "texto": "Conta e acessos (n.360)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        }
+      ],
+      "rolagem": {
+        "scrollHeight": 635,
+        "clientHeight": 635
+      }
+    },
+    "aberto_1024": {
+      "itens": [
+        {
+          "tipo": "item",
+          "id": "nav-meus",
+          "texto": "Meus pedidos",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-encarregado",
+          "texto": "Encarregado",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-titular",
+          "texto": "Direitos do titular (DSAR)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "4 (4 pedidos vencidos ou a vencer em 7 dias)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-terceiros",
+          "texto": "Terceiros (risco de fornecedores)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "2 (2 terceiros sem avaliação, vencida ou reprovada)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-incidentes-privacy",
+          "texto": "Incidentes",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": "1 (1 comunicação de incidente pendente)"
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ai",
+          "texto": "Assistente",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-privacy\"]",
+          "texto": "Mapear e avaliar",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "true",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-ropa",
+          "texto": "RoPA",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-dpia",
+          "texto": "RIPD (DPIA)",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-requisitos",
+          "texto": "Requisitos",
+          "grupo": "group-privacy",
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "grupo",
+          "id": "[\"group-provas\"]",
+          "texto": "Governança e provas",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": "false",
+          "role": "button",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-documentos",
+          "texto": "Documentos",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-evidence",
+          "texto": "Evidências",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-partes",
+          "texto": "Partes",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-governance",
+          "texto": "Governança",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "item",
+          "id": "nav-training",
+          "texto": "Treinamento",
+          "grupo": "group-provas",
+          "visivel": true,
+          "noGrupoFechado": true,
+          "expandido": null,
+          "role": "link",
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-n360",
+          "texto": "n.360",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        },
+        {
+          "tipo": "link",
+          "id": "link-conta",
+          "texto": "Conta e acessos (n.360)",
+          "grupo": null,
+          "visivel": true,
+          "noGrupoFechado": false,
+          "expandido": null,
+          "role": null,
+          "selo": null
+        }
+      ],
+      "rolagem": {
+        "scrollHeight": 503,
+        "clientHeight": 503
+      }
+    }
+  }
+}
