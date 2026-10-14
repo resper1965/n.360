@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { normalizarNome } from '../services/nomes';
 import { Bindings, Variables } from '../index';
 
 import { genId, logAudit, requireResourceAccess, erro500 } from '../helpers';
@@ -122,7 +123,7 @@ projectVendorsApp.post('/', async (c) => {
     }
     const parteId = achada?.id ?? crypto.randomUUID();
     const r = await db.batch([
-      ...(achada ? [] : [db.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES (?, ?, 'organizacao', ?)`).bind(parteId, projectId, body.name.trim())]),
+      ...(achada ? [] : [db.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES (?, ?, 'organizacao', ?)`).bind(parteId, projectId, normalizarNome(body.name))]),
       db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, 'terceiro', 'projeto', ?)`).bind(crypto.randomUUID(), projectId, parteId, projectId),
       // o gatilho vendor_perfil_do_terceiro já cria o perfil; isto cobre o vínculo que já existia sem perfil
       db.prepare('INSERT OR IGNORE INTO vendors (id, project_id, name, parte_id) VALUES (?, ?, ?, ?)').bind(genId(), projectId, body.name.trim(), parteId),

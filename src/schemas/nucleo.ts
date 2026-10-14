@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizarNome } from '../services/nomes';
 
 export const MODULOS = ['iso', 'privacy'] as const;
 export type Modulo = (typeof MODULOS)[number];
@@ -31,7 +32,7 @@ export const MATRIZ_PAPEL_ALVO: Record<AlvoVinculo, readonly PapelVinculo[]> = {
   tratamento: ['operador', 'cocontrolador', 'suboperador', 'terceiro', 'responsavel'],
 };
 
-const nome = z.string().trim().min(1).max(200);
+const nome = z.string().trim().min(1).max(200).transform(normalizarNome);
 const email = z.string().trim().email().max(320);
 
 export const departamentoCriarSchema = z.object({ nome });

@@ -1,4 +1,5 @@
 import { logAudit } from '../helpers';
+import { normalizarNome } from './nomes';
 import { log, resumoErro } from '../observability';
 import { ImportacaoAgent, type TipoArquivo, type TipoExtraido } from '../agents/importacao';
 import {
@@ -633,8 +634,8 @@ async function gravarAceitos(env: Env, projectId: string, loteId: string, ator: 
       return [...ids.values()];
     };
     const sistemas = resolver(d.sistemas, itens, (id, nome) => stmtsCriarAtivo(db, projectId, { name: nome, category: 'Software' }, id));
-    const areas = resolver(d.areas, deptos, (id, nome) => [db.prepare('INSERT INTO departamentos (id, project_id, nome) VALUES (?, ?, ?)').bind(id, projectId, nome)]);
-    const gente = resolver(d.pessoas, pessoas, (id, nome) => [db.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES (?, ?, 'pessoa', ?)`).bind(id, projectId, nome)]);
+    const areas = resolver(d.areas, deptos, (id, nome) => [db.prepare('INSERT INTO departamentos (id, project_id, nome) VALUES (?, ?, ?)').bind(id, projectId, normalizarNome(nome))]);
+    const gente = resolver(d.pessoas, pessoas, (id, nome) => [db.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES (?, ?, 'pessoa', ?)`).bind(id, projectId, normalizarNome(nome))]);
     if (sistemas.length) stmts.push(...stmtsLigacao(db, projectId, rid, 'itens', sistemas));
     if (areas.length) stmts.push(...stmtsLigacao(db, projectId, rid, 'departamentos', areas));
     for (const parte of gente) {
@@ -679,7 +680,7 @@ async function gravarTerceiro(db: D1Database, projectId: string, loteId: string,
   const stmts: D1PreparedStatement[] = [];
   if (!existente) {
     stmts.push(db.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES (?, ?, 'organizacao', ?, ?)`)
-      .bind(parteId, projectId, d.nome, d.contato && EMAIL.test(d.contato) ? d.contato : null));
+      .bind(parteId, projectId, normalizarNome(d.nome), d.contato && EMAIL.test(d.contato) ? d.contato : null));
   }
   if (d.contato && !EMAIL.test(d.contato)) avisos.push(`contato "${d.contato}" não é e-mail; não foi gravado`);
   const faltam: string[] = [];

@@ -1,6 +1,7 @@
 import { logAudit } from '../helpers';
 import { log, resumoErro } from '../observability';
 import { ehDpo } from './encarregado-pessoa';
+import { normalizarNome } from './nomes';
 
 /** Nome comparável: sem caixa e sem espaço repetido. Não tira acento (a spec pede nome exato). */
 const norm = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -45,7 +46,7 @@ export async function importarPartes(db: D1Database, projectId: string, ator: st
     ids.set(chave, id);
     criadas++;
     partes.push(db.prepare('INSERT INTO partes (id, project_id, tipo, nome, email) VALUES (?, ?, ?, ?, ?)')
-      .bind(id, projectId, tipo, nome.trim(), email ? email.trim().toLowerCase() : null));
+      .bind(id, projectId, tipo, normalizarNome(nome), email ? email.trim().toLowerCase() : null));
     return id;
   };
   const vincular = (parteId: string, papel: string) => vinculos.push(
