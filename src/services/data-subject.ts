@@ -69,6 +69,13 @@ export const FONTES_PII: FontePII[] = [
     anonimizar: { nome: '[ANONIMIZADO]', email: '' },
     descricao: 'Parte cadastrada no núcleo (pessoa ou organização, com papel por vínculo)',
   },
+  {
+    tabela: 'empresas',
+    colunaProjeto: 'project_id',
+    identificadores: ['representante_nome'],
+    anonimizar: { representante_nome: '[ANONIMIZADO]', representante_cargo: '' },
+    descricao: 'Representante legal no cadastro da empresa do projeto',
+  },
 ];
 
 export type Ocorrencia = {

@@ -12986,6 +12986,386 @@
         }
       }
     },
+    "/api/v1/projects/{projectId}/empresa": {
+      "put": {
+        "operationId": "put_api_v1_projects__projectId__empresa",
+        "tags": [
+          "projects"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "cnpj": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "documento_alternativo": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "razao_social": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nome_fantasia": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "natureza_juridica": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "porte": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "data_abertura": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 10
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "situacao_cadastral": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cnae_codigo": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cnae_descricao": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "setor": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "funcionarios": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cep": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "logradouro": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "numero": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 30
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "complemento": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bairro": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "municipio": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "uf": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "pais": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "telefone": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 320
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "site": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "representante_nome": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "representante_cargo": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Payload inválido — corpo recusado pelo schema, com `details` por campo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "request_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem sessão válida"
+          },
+          "403": {
+            "description": "Sessão válida, sem acesso ao recurso ou ao projeto"
+          },
+          "500": {
+            "description": "Erro de servidor. `request_id` correlaciona com o log estruturado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "request_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{projectId}/evidence/{evidenceId}/requisitos": {
       "put": {
         "operationId": "put_api_v1_projects__projectId__evidence__evidenceId__requisitos",
@@ -19367,6 +19747,354 @@
                         "privacy"
                       ]
                     }
+                  },
+                  "empresa": {
+                    "type": "object",
+                    "properties": {
+                      "cnpj": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 20
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "documento_alternativo": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 100
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "razao_social": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 300
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "nome_fantasia": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 300
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "natureza_juridica": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "porte": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 100
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "data_abertura": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 10
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "situacao_cadastral": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 100
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "cnae_codigo": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 20
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "cnae_descricao": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 300
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "setor": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "funcionarios": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 10000000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "cep": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 20
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "logradouro": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 300
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "numero": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 30
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "complemento": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "bairro": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "municipio": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "uf": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 2
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "pais": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 60
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "telefone": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 40
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "email": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 320
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "site": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "representante_nome": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "representante_cargo": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "pessoas": {
+                    "type": "object",
+                    "properties": {
+                      "representante": {
+                        "type": "object",
+                        "properties": {
+                          "nome": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "cargo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "nome"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "dpo": {
+                        "type": "object",
+                        "properties": {
+                          "nome": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "email": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 320,
+                                    "format": "email",
+                                    "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "const": ""
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "nome"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 }
               }

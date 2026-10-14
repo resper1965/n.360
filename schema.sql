@@ -1716,3 +1716,36 @@ BEGIN
          WHERE NEW.role IN ('consultor', 'consultant', 'consultoria_admin', 'comercial')
            AND NOT EXISTS (SELECT 1 FROM usuario_modulos WHERE user_id = NEW.id);
 END;
+
+-- ─── Cadastro da empresa do projeto (migration 0071) ───
+CREATE TABLE IF NOT EXISTS empresas (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    cnpj TEXT CHECK (cnpj IS NULL OR (length(cnpj) = 14 AND cnpj NOT GLOB '*[^0-9]*')),
+    documento_alternativo TEXT,
+    razao_social TEXT,
+    nome_fantasia TEXT,
+    natureza_juridica TEXT,
+    porte TEXT,
+    data_abertura TEXT CHECK (data_abertura IS NULL OR data_abertura GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    situacao_cadastral TEXT,
+    cnae_codigo TEXT,
+    cnae_descricao TEXT,
+    setor TEXT,
+    funcionarios INTEGER CHECK (funcionarios IS NULL OR funcionarios >= 0),
+    cep TEXT,
+    logradouro TEXT,
+    numero TEXT,
+    complemento TEXT,
+    bairro TEXT,
+    municipio TEXT,
+    uf TEXT CHECK (uf IS NULL OR (length(uf) = 2 AND uf GLOB '[A-Z][A-Z]')),
+    pais TEXT NOT NULL DEFAULT 'BR',
+    telefone TEXT,
+    email TEXT,
+    site TEXT,
+    representante_nome TEXT,
+    representante_cargo TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_empresas_cnpj ON empresas(cnpj);

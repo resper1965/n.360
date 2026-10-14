@@ -3,6 +3,7 @@ import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
 import { navigate } from '../router.js';
 import { PRODUTOS, produtoAtual, modulosVisiveis, enderecoDoProduto, irPara } from '../produto.js';
+import { podeCriarProjeto } from './empresa.js';
 
 // Domínio canônico de evidence.evaluation_status (src/constants.ts, EVALUATION_STATUSES).
 // O selo comparava com a grafia antiga ('conforme', 'parcial', 'nao conforme'), que o banco
@@ -50,7 +51,8 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
 
     async function renderProjects(c, h, a) {
         h.textContent = window.produtoAtual() === 'iso' ? 'Gestão de Projetos ISO' : 'Projetos';
-        a.innerHTML = '';
+        // Criar projeto: platform_admin e administrador da consultoria (decisão do dono). Os demais não veem o botão.
+        a.innerHTML = podeCriarProjeto() ? '<button class="btn btn-primary" data-action="abrirNovoProjeto">Novo projeto</button>' : '';
         c.innerHTML = '<div class="loading"></div>';
         try {
             const projects = await api('GET', '/api/v1/projects').catch(() => []);
@@ -78,7 +80,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                         escapeHTML(p.sector || 'Geral'),
                         window.renderStatusBadge(p.status || 'active', p.status === 'completed' ? 'success' : 'info'),
                         escapeHTML(escopoDe(p)),
-                        `<div class="acoes-linha">${equipe ? `<button class="btn btn-ghost btn-sm" data-action="abrirProdutosDoProjeto" data-args='["${p.id}"]'>Módulos…</button>` : ''}${jornada ? `<button class="btn btn-primary btn-sm" data-action="openProjectDetail" data-args='["${p.id}"]'>Gerenciar Jornada &rarr;</button>` : ''}${unico ? '' : abrir.map((m) => `<button class="btn btn-secondary btn-sm" data-action="abrirProjetoNoModulo" data-args='${escapeHTML(JSON.stringify([p.id, m]))}'>Abrir no n.${m}</button>`).join('')}</div>`,
+                        `<div class="acoes-linha"><button class="btn btn-ghost btn-sm" data-action="abrirDadosEmpresa" data-args='${escapeHTML(JSON.stringify([p.id]))}'>Empresa…</button>${equipe ? `<button class="btn btn-ghost btn-sm" data-action="abrirProdutosDoProjeto" data-args='["${p.id}"]'>Módulos…</button>` : ''}${jornada ? `<button class="btn btn-primary btn-sm" data-action="openProjectDetail" data-args='["${p.id}"]'>Gerenciar Jornada &rarr;</button>` : ''}${unico ? '' : abrir.map((m) => `<button class="btn btn-secondary btn-sm" data-action="abrirProjetoNoModulo" data-args='${escapeHTML(JSON.stringify([p.id, m]))}'>Abrir no n.${m}</button>`).join('')}</div>`,
                     ];
                 }),
                 { emptyState: 'Nenhum projeto de implementação ativo no momento.' }
@@ -121,7 +123,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         h.textContent = p.client_name ? 'Jornada — ' + p.client_name : 'Jornada';
         if (!S.expandedJourneys) S.expandedJourneys = {};
         if (!S.expandedPhases) S.expandedPhases = {};
-        a.innerHTML = `<button class="btn" style="margin-right:8px" data-action="openAuditorNotesModal" data-args='["${p.id}"]'>Notas do Auditor</button><button class="btn btn-ghost" data-action="navigate" data-args='["projects"]'>&larr; Voltar</button>`;
+        a.innerHTML = `<button class="btn" style="margin-right:8px" data-action="abrirDadosEmpresa" data-args='${escapeHTML(JSON.stringify([p.id]))}'>Dados da empresa</button><button class="btn" style="margin-right:8px" data-action="openAuditorNotesModal" data-args='["${p.id}"]'>Notas do Auditor</button><button class="btn btn-ghost" data-action="navigate" data-args='["projects"]'>&larr; Voltar</button>`;
         c.innerHTML = '<div class="loading"></div>';
         
         try {

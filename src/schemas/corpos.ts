@@ -15,6 +15,64 @@ const txt = (max: number) => z.string().max(max).optional().nullable();
 const num = z.number().finite().optional().nullable();
 
 // ─── projects ───────────────────────────────────────────────────────────────
+
+/** CNPJ só com dígitos, 14, com os dois dígitos verificadores certos (módulo 11 da Receita). */
+export function cnpjValido(d: string): boolean {
+  if (!/^\d{14}$/.test(d) || /^(\d)\1{13}$/.test(d)) return false;
+  const dv = (n: number) => {
+    let s = 0;
+    for (let i = 0; i < n; i++) s += Number(d[i]) * ((n - i - 1) % 8 + 2);
+    const r = s % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return dv(12) === Number(d[12]) && dv(13) === Number(d[13]);
+}
+
+/** Texto opcional: aparado, vazio vira null (limpa o campo); ausente fica ausente (não mexe). */
+const campo = (max: number) => z.string().max(max).nullable().optional()
+  .transform((s) => (s === undefined ? undefined : s === null ? null : s.trim() || null));
+
+/**
+ * Cadastro da empresa do projeto (migration 0071). Estrito: chave desconhecida é recusada. SEM CPF de ninguém;
+ * o representante entra por nome e cargo, e vira pessoa em `partes` na criação do projeto.
+ */
+export const empresaSchema = z.object({
+  cnpj: z.string().max(20).nullable().optional()
+    .transform((s) => (s === undefined ? undefined : s === null ? null : s.replace(/\D/g, '') || null))
+    .refine((d) => d == null || cnpjValido(d), { message: 'CNPJ inválido (confira os dígitos verificadores)' }),
+  documento_alternativo: campo(100),
+  razao_social: campo(300),
+  nome_fantasia: campo(300),
+  natureza_juridica: campo(200),
+  porte: campo(100),
+  data_abertura: campo(10).refine((s) => s == null || /^\d{4}-\d{2}-\d{2}$/.test(s), { message: 'Data no formato AAAA-MM-DD' }),
+  situacao_cadastral: campo(100),
+  cnae_codigo: campo(20),
+  cnae_descricao: campo(300),
+  setor: campo(200),
+  funcionarios: z.number().int().nonnegative().max(10_000_000).nullable().optional(),
+  cep: campo(20),
+  logradouro: campo(300),
+  numero: campo(30),
+  complemento: campo(200),
+  bairro: campo(200),
+  municipio: campo(200),
+  uf: campo(2).transform((s) => (s ? s.toUpperCase() : s)).refine((s) => s == null || /^[A-Z]{2}$/.test(s), { message: 'UF com 2 letras' }),
+  pais: campo(60),
+  telefone: campo(40),
+  email: campo(320).refine((s) => s == null || z.email().safeParse(s).success, { message: 'E-mail inválido' }),
+  site: campo(500),
+  representante_nome: campo(200),
+  representante_cargo: campo(200),
+}).strict();
+export type EmpresaCorpo = z.output<typeof empresaSchema>;
+
+/** Pessoas-chave da criação do projeto: viram partes (o DPO, com o vínculo `encarregado`). Sem CPF. */
+export const pessoasChaveSchema = z.object({
+  representante: z.object({ nome: z.string().trim().min(1).max(200), cargo: z.string().trim().max(200).optional().nullable() }).strict().optional(),
+  dpo: z.object({ nome: z.string().trim().min(1).max(200), email: z.union([z.email().max(320), z.literal('')]).optional().nullable() }).strict().optional(),
+}).strict();
+
 export const projetoCriarSchema = z.object({
   project_name: txt(500),
   client_name: z.string().max(500).optional(),
@@ -24,6 +82,9 @@ export const projetoCriarSchema = z.object({
   org_role: txt(200),
   /** Produtos do projeto (n.iso, n.privacy), dentro do que a organização contratou. Ausente = tudo o que foi contratado. */
   modulos: z.array(z.enum(['iso', 'privacy'])).min(1).max(2).optional(),
+  /** Cadastro da empresa (o mesmo de `PUT /projects/:id/empresa`). Ausente = só o projeto, como sempre foi. */
+  empresa: empresaSchema.optional(),
+  pessoas: pessoasChaveSchema.optional(),
 });
 
 export const projetoAtualizarSchema = z.object({

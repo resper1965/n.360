@@ -93,6 +93,7 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/(auth|legal|notifications)(\/|$)/, 'conta pessoal do consultor'],
   [/^\/api\/v1\/projects\/[^/]+\/auditor-token(\/|$)/, 'credencial de auditor externo'],
   [/^\/api\/v1\/projects\/?$/, 'o agente está preso a um projeto', ['POST']],
+  [/^\/api\/v1\/projects\/consulta-cnpj(\/|$)/, 'consulta de CNPJ é do assistente de criação de projeto, pela interface'],
   [/\/agentes(\/|$)/, 'o agente não gere o próprio acesso'],
   // Desaprovar é ato da direção, pela interface (F6, decisão D1): o agente não revoga a aprovação de
   // ROPA nem de DPIA, e não apaga análise crítica, que é registro assinado. Revogar aprovação de

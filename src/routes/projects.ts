@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { Bindings, Variables } from '../index';
 
 import { redactProject, semRastros, genId, genToken, logAudit, validateUpload, erro500, somenteNess, ehEquipeNess, sha256Hex, projetosVisiveis, designacaoDoCriador, refForaDoProjeto } from '../helpers';
@@ -11,7 +12,8 @@ import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
 import { controlsForRole, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
 import { checkCoherence } from '../services/coherence';
 import { NA_STATUS } from '../services/soa-logic';
-import { validateBody, checklistProgressSchema, dpiaSchema, projectPhaseSchema, interviewSchema, evidenceMetaSchema, scopeChangeSchema, auditorTokenSchema, politicaTenantSchema, ssoConfigSchema, projetoCriarSchema, projetoAtualizarSchema, revogarAprovacaoSchema, reatribuirResponsavelSchema } from '../schemas';
+import { validateBody, checklistProgressSchema, dpiaSchema, projectPhaseSchema, interviewSchema, evidenceMetaSchema, scopeChangeSchema, auditorTokenSchema, politicaTenantSchema, ssoConfigSchema, projetoCriarSchema, projetoAtualizarSchema, revogarAprovacaoSchema, reatribuirResponsavelSchema, cnpjValido } from '../schemas';
+import { camposPresentes, gravacaoDaEmpresa, gravacaoDasPessoas, projetoComCnpj } from '../services/empresas';
 import { registerAssetRoutes } from './project-assets';
 import { encryptSecret, decryptSecret, isEncrypted } from '../secret-crypto';
 import { COLUNAS_REVOGACAO } from './controls';
@@ -301,6 +303,16 @@ projectsApp.post('/', async (c) => {
     const v = await validateBody(c, projetoCriarSchema);
     if (!v.success) return v.response;
     const body = v.data;
+    // Com o cadastro da empresa, o nome do cliente sai dele (nome fantasia, senão razão social) quando não vier.
+    const empresa = body.empresa;
+    if (empresa) {
+      if (!body.client_name?.trim()) body.client_name = empresa.nome_fantasia || empresa.razao_social || '';
+      if (body.pessoas?.representante && empresa.representante_nome === undefined) {
+        empresa.representante_nome = body.pessoas.representante.nome;
+        empresa.representante_cargo ??= body.pessoas.representante.cargo || null;
+      }
+      if (body.sector === undefined && empresa.setor !== undefined) body.sector = empresa.setor;
+    }
 
     if (!body.client_name) {
       return c.json({ error: 'client_name é obrigatório' }, 400);
@@ -334,11 +346,21 @@ projectsApp.post('/', async (c) => {
     const escolhidos = body.modulos?.length ? [...new Set(body.modulos)] : null;
     const fora = (escolhidos ?? []).filter((m) => !contratados.includes(m));
     if (fora.length) return c.json({ error: `Produto não contratado pela organização: ${fora.join(', ')}` }, 409);
+    // CNPJ repetido na organização: 409 com o projeto que já o tem (só equipe chega aqui com empresa; o cliente não cria).
+    if (empresa?.cnpj) {
+      const outro = await projetoComCnpj(c.env.DB, orgId, empresa.cnpj, id);
+      if (outro) return c.json({ error: `CNPJ já cadastrado no projeto ${outro.nome}`, projeto_existente: outro }, 409);
+    }
     const designa = designacaoDoCriador(c.env.DB, user, id);
     const tiraNaoEscolhidos = escolhidos
       ? c.env.DB.prepare(`DELETE FROM projeto_modulos WHERE project_id = ? AND modulo NOT IN (SELECT value FROM json_each(?))`).bind(id, JSON.stringify(escolhidos))
       : null;
-    await c.env.DB.batch([cria, ...(designa ? [designa] : []), ...(tiraNaoEscolhidos ? [tiraNaoEscolhidos] : [])]);
+    // Projeto, empresa e pessoas no MESMO batch (transação do D1): falhou um, não nasce projeto pela metade.
+    await c.env.DB.batch([
+      cria, ...(designa ? [designa] : []), ...(tiraNaoEscolhidos ? [tiraNaoEscolhidos] : []),
+      ...(empresa ? gravacaoDaEmpresa(c.env.DB, id, empresa) : []),
+      ...gravacaoDasPessoas(c.env.DB, id, body.pessoas),
+    ]);
 
     const modulos = (await c.env.DB.prepare('SELECT modulo FROM projeto_modulos WHERE project_id = ?').bind(id).all<{ modulo: string }>()).results.map((r) => r.modulo);
     // A trilha de fases é a jornada da ISO: projeto só de n.privacy nasce sem ela.
@@ -347,6 +369,11 @@ projectsApp.post('/', async (c) => {
     if (designa) {
       await logAudit(c.env.DB, 'governance.created', user.email, `Consultor ${user.email} designado no projeto ${id} que criou`, '', '', id);
     }
+    if (empresa && camposPresentes(empresa).length) {
+      await logAudit(c.env.DB, 'empresa.atualizada', user?.email ?? 'system', `Cadastro da empresa do projeto ${id}: ${camposPresentes(empresa).join(', ')}`, '', '', id);
+    }
+    const pessoas = [body.pessoas?.representante && 'representante legal', body.pessoas?.dpo && 'encarregado (DPO)'].filter(Boolean);
+    if (pessoas.length) await logAudit(c.env.DB, 'parte.criada', user?.email ?? 'system', `Pessoas-chave do projeto ${id}: ${pessoas.join(', ')}`, '', '', id);
 
     return c.json({ id, project_name: body.project_name, client_name: body.client_name, status: 'active', modulos: modulos.sort() }, 201);
   } catch (e: any) {
@@ -376,6 +403,68 @@ projectsApp.get('/', async (c) => {
     return c.json((results ?? []).map(redactProject));
   } catch (e: any) {
     return erro500(c, 'Falha ao listar projetos', e);
+  }
+});
+
+/** Forma da resposta da BrasilAPI que interessa ao cadastro. QSA (sócios) fica de fora: é dado pessoal e não entra. */
+const textoOuNumero = z.union([z.string(), z.number()]).nullable().optional();
+const respostaBrasilApi = z.object({
+  razao_social: z.string().min(1),
+  nome_fantasia: textoOuNumero, natureza_juridica: textoOuNumero, porte: textoOuNumero, data_inicio_atividade: textoOuNumero,
+  descricao_situacao_cadastral: textoOuNumero, cnae_fiscal: textoOuNumero, cnae_fiscal_descricao: textoOuNumero, cep: textoOuNumero,
+  descricao_tipo_de_logradouro: textoOuNumero, logradouro: textoOuNumero, numero: textoOuNumero, complemento: textoOuNumero,
+  bairro: textoOuNumero, municipio: textoOuNumero, uf: textoOuNumero, ddd_telefone_1: textoOuNumero, email: textoOuNumero,
+});
+const corte = (v: unknown, max = 300) => (v === null || v === undefined || String(v).trim() === '' ? null : String(v).trim().slice(0, max));
+
+/**
+ * Consulta de CNPJ para PROPOR o cadastro no assistente "Novo projeto" (e na seção "Dados da empresa"). Pelo servidor,
+ * como `GET /leads/consulta-cnpj`: o CSP da tela fica fechado e o IP de quem digita não vai à BrasilAPI. Só quem cria
+ * projeto (`platform_admin`, `consultoria_admin`); limite por usuário no `rateLimitMiddleware`; fora do agente MCP
+ * (FORA_DO_AGENTE). `consulta-cnpj` é segmento reservado no `projectAccessMiddleware`. Declarada antes de `/:id`.
+ * Provedor fora do ar, lento ou com resposta estranha: 200 `{ indisponivel: true }`, e a pessoa preenche à mão.
+ */
+projectsApp.get('/consulta-cnpj/:cnpj', async (c) => {
+  try {
+    const user = c.get('user');
+    if (user?.role !== 'platform_admin' && user?.role !== 'consultoria_admin') {
+      return c.json({ error: 'Forbidden: só quem cria projeto consulta CNPJ' }, 403);
+    }
+    const cnpj = (c.req.param('cnpj') || '').replace(/\D/g, '');
+    if (!cnpjValido(cnpj)) return c.json({ error: 'CNPJ inválido (confira os dígitos verificadores)' }, 400);
+    const orgId = await resolverOrg(c);
+    const existente = orgId ? await projetoComCnpj(c.env.DB, orgId, cnpj, '') : null;
+
+    let res: Response;
+    try {
+      res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, { signal: AbortSignal.timeout(8000) });
+    } catch {
+      return c.json({ ok: true, cnpj, indisponivel: true, existente });
+    }
+    if (res.status === 404) return c.json({ error: 'CNPJ não encontrado na Receita Federal', existente }, 404);
+    const forma = res.ok ? respostaBrasilApi.safeParse(await res.json().catch(() => null)) : null;
+    if (!forma?.success) return c.json({ ok: true, cnpj, indisponivel: true, existente });
+    const d = forma.data;
+    const cep = corte(d.cep)?.replace(/\D/g, '').padStart(8, '0') ?? null;
+    const uf = corte(d.uf, 2)?.toUpperCase() ?? null;
+    const data = corte(d.data_inicio_atividade, 10);
+    return c.json({
+      ok: true, cnpj, existente,
+      proposta: {
+        cnpj,
+        razao_social: corte(d.razao_social), nome_fantasia: corte(d.nome_fantasia), natureza_juridica: corte(d.natureza_juridica, 200),
+        porte: corte(d.porte, 100), data_abertura: data && /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : null,
+        situacao_cadastral: corte(d.descricao_situacao_cadastral, 100),
+        cnae_codigo: corte(d.cnae_fiscal, 20), cnae_descricao: corte(d.cnae_fiscal_descricao),
+        cep: cep && cep.length === 8 ? cep : null,
+        logradouro: corte([d.descricao_tipo_de_logradouro, d.logradouro].filter((x) => x !== null && x !== undefined && String(x).trim()).join(' ')),
+        numero: corte(d.numero, 30), complemento: corte(d.complemento, 200), bairro: corte(d.bairro, 200),
+        municipio: corte(d.municipio, 200), uf: uf && /^[A-Z]{2}$/.test(uf) ? uf : null,
+        telefone: corte(d.ddd_telefone_1, 40), email: corte(d.email, 320),
+      },
+    });
+  } catch (e) {
+    return erro500(c, 'Falha ao consultar o CNPJ', e);
   }
 });
 

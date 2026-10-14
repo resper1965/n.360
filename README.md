@@ -122,7 +122,7 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
 ## Arquitetura
 
 - **Runtime:** Hono no Cloudflare Workers; um Worker serve API, páginas públicas e o frontend.
-- **Banco:** D1 (SQLite), 86 tabelas
+- **Banco:** D1 (SQLite), 87 tabelas
   (`grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`).
   Trilha de auditoria append-only por trigger.
 - **KV:** sessões, tokens e rate limit (`SESSIONS`); estado do OAuth do MCP (`OAUTH_KV`).
@@ -145,7 +145,7 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
 | `frontend/public/` | Páginas públicas copiadas como estão: `politicas.html`, `auditor.html`, `_headers`. |
 | `mcp-server-niso/` | Servidor MCP local. |
 | `agent-skills/` | Fonte das skills do agente (`npm run skills:gerar`). |
-| `migrations/` | 68 arquivos (2026-10-14: `ls migrations/*.sql \| wc -l`), última 0070 (`ls migrations/*.sql \| tail -1`). |
+| `migrations/` | 69 arquivos (2026-10-14: `ls migrations/*.sql \| wc -l`), última 0071 (`ls migrations/*.sql \| tail -1`). |
 | `test/` | 254 arquivos de teste do backend (2026-10-14: `ls test/*.test.ts \| wc -l`). |
 | `frontend/test/`, `frontend/e2e/` | 96 testes em jsdom (2026-10-14: `ls frontend/test/*.test.js \| wc -l`) e 6 specs em Chromium (`ls frontend/e2e/*.spec.js \| wc -l`). |
 | `docs/` | Runbook, specs, diagnóstico de design e decisões ([índice](docs/README.md)). |

@@ -5,6 +5,7 @@ import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, POD
 import { enviarBoasVindas, nomeDaOrg } from './users';
 import { ehDpo, garantirEncarregado, desfazerEncarregado } from '../services/encarregado-pessoa';
 import { validateBody, stakeholderSchema, governanceMemberSchema, companyProfileSchema, contextSchema, auditFindingSchema, auditFindingUpdateSchema, stakeholderAtualizarSchema, revisaoCriarSchema, revisaoAtualizarSchema, metricaCriarSchema, metricaAtualizarSchema, cienciaPoliticaSchema } from '../schemas';
+import { espelhoDoPerfilAntigo } from '../services/empresas';
 
 export const governanceApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -331,6 +332,8 @@ governanceApp.put('/projects/:id/company-profile', async (c) => {
       client_name ?? '',
       projectId
     ).run();
+    // O cadastro novo (`empresas`, migration 0071) recebe os mesmos campos: as duas leituras não divergem.
+    await c.env.DB.batch(espelhoDoPerfilAntigo(c.env.DB, projectId, { cnpj, employee_count, sector }));
 
     await logAudit(c.env.DB, 'company_profile.updated', c.get('user')?.email || 'system', `Perfil corporativo do projeto ${projectId} atualizado`);
     return c.json({ ok: true });

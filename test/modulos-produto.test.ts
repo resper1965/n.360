@@ -22,7 +22,7 @@ describe('classificação', () => {
 
   it('as faixas que importam: cadastro compartilhado, só n.iso e só n.privacy', () => {
     const f = (p: string) => faixaDoCaminho(`/api/v1/projects/p1/${p}`);
-    for (const p of ['', 'partes', 'documentos', 'documentos/d1', 'evidence', 'ropa', 'ropa/r1/approve', 'dpia', 'assets', 'governance', 'modulos']) expect(f(p), p).toBe('nucleo');
+    for (const p of ['', 'partes', 'documentos', 'documentos/d1', 'evidence', 'ropa', 'ropa/r1/approve', 'dpia', 'assets', 'governance', 'modulos', 'empresa']) expect(f(p), p).toBe('nucleo');
     expect(f('incidentes'), 'incidentes').toBe('nucleo');
     expect(f('incidentes/i1/encerrar')).toBe('nucleo');
     for (const p of ['controls', 'risks', 'audits', 'capa', 'certification', 'phases', 'checklist-progress', 'readiness-check', 'auditor-token']) expect(f(p), p).toBe('iso');
