@@ -10,6 +10,7 @@ import './data/assessment.js';
 
 import './views/commercial.js';
 import './views/project.js';
+import './views/empresa.js';
 import './views/grc.js';
 import './views/partes.js';
 import './views/padronizar-nomes.js';
