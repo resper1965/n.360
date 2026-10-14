@@ -39,7 +39,7 @@ export function cosseno(a: number[], b: number[]): number {
   return aa && bb ? ab / Math.sqrt(aa * bb) : 0;
 }
 
-async function candidatos(db: D1Database, projectId: string, tipo: TipoSimilar): Promise<{ id: string; nome: string }[]> {
+export async function candidatos(db: D1Database, projectId: string, tipo: TipoSimilar): Promise<{ id: string; nome: string }[]> {
   const sql = tipo === 'area'
     ? `SELECT id, nome FROM departamentos WHERE project_id = ? AND status = 'ativo' ORDER BY nome LIMIT ${MAX_CANDIDATOS}`
     // Os mesmos itens que a tela lista como opção (listarAtivos, services/itens.ts), para "Usar este" achar o id. Item da categoria

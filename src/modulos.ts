@@ -38,7 +38,7 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
 
 /** Sub-rotas de um segmento do núcleo que são do n.privacy (o registro é compartilhado; a camada nova não). */
 const SUBROTAS_PRIVACY: RegExp[] = [
-  /^ropa\/importar$/,
+  /^ropa\/(importar|copiloto)$/,
   /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|lia|sugestao)$/,
   /^incidentes\/[^/]+\/rascunho-comunicacao$/,
   /^documentos\/[^/]+\/requisitos$/,
