@@ -8,11 +8,13 @@
 // - reasoning: análise/diagnóstico dos agentes (Workers AI, 70B). Capaz, on-CF.
 // - gateway:   primário via AI Gateway (roteável), quando há AI_GATEWAY_TOKEN.
 // - chat:      assistente de chat, mais barato e rápido (8B).
+// - embeddings: vetores multilíngues (PT/EN) para achar cadastro parecido por significado (services/similares.ts).
 
 export const DEFAULT_MODELS = {
   reasoning: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
   gateway: 'openai/gpt-4.1',
   chat: '@cf/meta/llama-3.1-8b-instruct',
+  embeddings: '@cf/baai/bge-m3',
 } as const;
 
 // Override por ambiente: `NISO_MODEL_*` vence o default quando presente. Sem o
@@ -25,4 +27,8 @@ export function gatewayModel(env?: any): string {
 }
 export function chatModel(env?: any): string {
   return env?.NISO_MODEL_CHAT || DEFAULT_MODELS.chat;
+}
+export function embeddingsModel(env?: Record<string, unknown>): string {
+  const v = env?.NISO_MODEL_EMBEDDINGS;
+  return typeof v === 'string' && v ? v : DEFAULT_MODELS.embeddings;
 }

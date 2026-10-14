@@ -62,6 +62,12 @@ export const liaSalvarSchema = z.object({
 /** Importação do RoPA por planilha (fatia 4.4): o CSV inteiro como texto; as linhas são validadas uma a uma no serviço. */
 export const ropaImportarSchema = z.object({ csv: z.string().min(1).max(300_000) }).strict();
 
+/**
+ * Parecidos por significado (entrevista do RoPA). Só sistema/arquivo (`item`) e área: nome de pessoa nunca vai ao modelo
+ * de embeddings, então `pessoa` não existe aqui e é recusado pelo enum.
+ */
+export const similaresSchema = z.object({ tipo: z.enum(['item', 'area']), nome: z.string().trim().min(1).max(120) }).strict();
+
 // ─── Terceiros tipificados (fatia 6) ──────────────────────────────────────────
 export const terceiroTipoSchema = z.object({ terceiro_tipo: z.enum(['grande_provedor', 'medio', 'pequeno', 'critico']).nullable() }).strict();
 

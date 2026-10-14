@@ -125,7 +125,7 @@ import {
   tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, ropaImportarSchema, liaSalvarSchema,
   terceiroTipoSchema, avaliacaoTerceiroSchema, terceiroDocumentoSchema,
   parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
-  evidenciaValidadeSchema, importacaoItemSchema,
+  evidenciaValidadeSchema, importacaoItemSchema, similaresSchema,
 } from './schemas';
 
 /**
@@ -286,6 +286,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/importar', schema: ropaImportarSchema, nome: 'ropaImportarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa', schema: ropaSchema, nome: 'ropaSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/security-policy', schema: politicaTenantSchema, nome: 'politicaTenantSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/similares', schema: similaresSchema, nome: 'similaresSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/sso', schema: ssoConfigSchema, nome: 'ssoConfigSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/avaliacoes', schema: avaliacaoTerceiroSchema, nome: 'avaliacaoTerceiroSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/documentos', schema: terceiroDocumentoSchema, nome: 'terceiroDocumentoSchema' },

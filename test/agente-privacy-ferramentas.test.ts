@@ -279,6 +279,9 @@ describe('ferramentas nomeadas do n.privacy (MCP remoto)', () => {
       expect(res.isError, caminho).toBe(true);
       expect(res.content[0].text, caminho).toContain('HTTP 403');
     }
+    // Parecidos por significado (embeddings) são da tela: recusados pelo FORA_DO_AGENTE, antes do corte de papel da rota.
+    const similares = await chamarFerramenta(token, 'niso_executar', { metodo: 'POST', caminho: `/api/v1/projects/${P}/similares`, corpo: { tipo: 'item', nome: 'folha' } });
+    expect(similares.content[0].text).toContain('fora do alcance do agente');
     // Concluir ou reabrir a LIA, nem pelo genérico.
     for (const status of ['concluida', 'rascunho']) {
       const lia = await chamarFerramenta(token, 'niso_executar', { metodo: 'PUT', caminho: `/api/v1/projects/${P}/ropa/${ropaId}/lia`, corpo: { status } });
