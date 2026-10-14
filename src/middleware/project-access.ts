@@ -9,7 +9,8 @@ import { faixaDoCaminho, modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recu
 // tratado como id de projeto e negado para clientes.
 //  - `admin`: rotas administrativas (ex.: POST /projects/admin/encrypt-tokens),
 //    protegidas por checagem de platform_admin no próprio handler.
-const RESERVED_SEGMENTS = new Set<string>(['admin']);
+//  - `consulta-cnpj`: GET /projects/consulta-cnpj/:cnpj (assistente "Novo projeto"), papel conferido no handler.
+const RESERVED_SEGMENTS = new Set<string>(['admin', 'consulta-cnpj']);
 
 /**
  * Reforça o isolamento multi-tenant para todas as rotas com escopo de projeto

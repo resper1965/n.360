@@ -20,7 +20,7 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   // núcleo: o cadastro compartilhado e a administração do projeto
   '': 'nucleo', agentes: 'nucleo', 'api-keys': 'nucleo', assets: 'nucleo', 'audit-trail': 'nucleo', chat: 'nucleo',
   'company-profile': 'nucleo', context: 'nucleo', 'data-subject': 'nucleo', departamentos: 'nucleo', documentos: 'nucleo',
-  documents: 'nucleo', dpia: 'nucleo', evidence: 'nucleo', export: 'nucleo', governance: 'nucleo', modulos: 'nucleo',
+  documents: 'nucleo', dpia: 'nucleo', empresa: 'nucleo', evidence: 'nucleo', export: 'nucleo', governance: 'nucleo', modulos: 'nucleo',
   partes: 'nucleo', 'padronizar-nomes': 'nucleo', pedidos: 'nucleo', 'ponto-de-partida': 'nucleo', ropa: 'nucleo', 'scim-token': 'nucleo', 'security-policy': 'nucleo', similares: 'nucleo', sso: 'nucleo',
   incidentes: 'nucleo', stakeholders: 'nucleo', training: 'nucleo', vendors: 'nucleo', webhooks: 'nucleo',
   // só n.iso

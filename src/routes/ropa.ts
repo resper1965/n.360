@@ -10,6 +10,7 @@ import { apagarLia, criarDpiaDoTratamento, lerLia, salvarLia } from '../services
 import { conferirPedidosDoDocumento } from './pedidos';
 import { sugerirTratamento } from '../services/rascunhos-privacy';
 import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
+import { lerEmpresa } from '../services/empresas';
 
 export const ropaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectRopaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -345,6 +346,21 @@ projectRopaApp.get('/report', async (c) => {
     const projectId = c.req.param('projectId');
     const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(projectId).first<any>();
     if (!project) return c.html('<h3>Projeto não encontrado</h3>', 404);
+    // Cabeçalho do controlador (art. 37): cadastro da empresa (0071) e o encarregado (vínculo `encarregado` no projeto).
+    const empresa = await lerEmpresa(c.env.DB, projectId!);
+    const dpo = await c.env.DB.prepare(
+      `SELECT p.nome, p.email FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
+        WHERE v.project_id = ? AND v.papel = 'encarregado' AND v.alvo_tipo = 'projeto' AND p.status = 'ativa' ORDER BY v.created_at LIMIT 1`
+    ).bind(projectId).first<{ nome: string; email: string | null }>();
+    const cnpjFmt = empresa?.cnpj ? String(empresa.cnpj).replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : null;
+    const endereco = empresa ? [[empresa.logradouro, empresa.numero].filter(Boolean).join(', '), empresa.complemento, empresa.bairro,
+      [empresa.municipio, empresa.uf].filter(Boolean).join('/'), empresa.cep].filter(Boolean).join(' · ') : '';
+    const linhaControlador = [
+      empresa?.razao_social ? `<strong>Controlador:</strong> ${escapeHtml(String(empresa.razao_social))}` : '',
+      cnpjFmt ? `CNPJ ${escapeHtml(cnpjFmt)}` : empresa?.documento_alternativo ? `Documento ${escapeHtml(String(empresa.documento_alternativo))}` : '',
+      endereco ? escapeHtml(endereco) : '',
+      dpo ? `<strong>Encarregado:</strong> ${escapeHtml(dpo.nome)}${dpo.email ? ` (${escapeHtml(dpo.email)})` : ''}` : '',
+    ].filter(Boolean).join('<br>');
 
     const { results: records } = await c.env.DB.prepare(
       `SELECT r.*, ${SQL_DADOS_IMPORTADOS} FROM ropa_records r WHERE r.project_id = ? ORDER BY r.created_at ASC`
@@ -431,6 +447,7 @@ projectRopaApp.get('/report', async (c) => {
       <body>
         <h1 style="font-family: 'Montserrat', sans-serif; color: #0f172a;">Relatório ROPA — ${escapeHtml(project.client_name)}</h1>
         <p style="color: #64748b;">Registro das Atividades de Tratamento de Dados Pessoais (Art. 37 LGPD / ISO 27701)</p>
+        ${linhaControlador ? `<p style="color: #334155;">${linhaControlador}</p>` : ''}
         ${rowsHtml || '<p>Nenhum registro ROPA cadastrado neste projeto.</p>'}
       </body>
       </html>
