@@ -76,19 +76,19 @@ describe('niso_update_risk: edição parcial sem apagar o resto', () => {
     uploadTexto: async () => { throw new Error('não usado'); },
   };
 
-  it('lê o risco, mescla só o que mudou e manda o registro completo', async () => {
+  it('confere o risco no projeto e manda só o que mudou (o PUT é parcial)', async () => {
     const r = await executarFerramenta('niso_update_risk', { projectId: 'p-grande', riskId: 'r-1', status: 'Open' }, t, { projetoFixo: 'p-grande', papel: 'consultant' });
     expect(r.isError, r.content[0].text).toBeFalsy();
     const put = chamadas.find((c) => c.metodo === 'PUT')!;
     expect(put.path).toBe('/api/v1/risks/r-1');
-    expect(put.corpo).toMatchObject({ status: 'Open', asset: 'Servidor', impact: 4, probability: 4, owner: 'CTO', treatment_plan: 'Cluster', control_id: 'ctl-75' });
+    expect(put.corpo).toEqual({ status: 'Open' });
   });
 
   it('não deixa o agente mexer no aceite de risco (decisão da direção)', async () => {
     chamadas.length = 0;
     await executarFerramenta('niso_update_risk', { projectId: 'p-grande', riskId: 'r-1', accepted_by: 'Agente' }, t, { projetoFixo: 'p-grande', papel: 'consultant' });
     const put = chamadas.find((c) => c.metodo === 'PUT');
-    expect(put?.corpo?.accepted_by ?? 'CEO').toBe('CEO');
+    expect(put?.corpo ?? {}).not.toHaveProperty('accepted_by');
   });
 
   it('risco de outro projeto é recusado antes de qualquer chamada', async () => {

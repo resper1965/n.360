@@ -36,6 +36,9 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   'titular-pedidos': 'privacy',
 };
 
+/** Sub-rotas de um segmento do núcleo que são do n.iso (a exportação de riscos lê a matriz ISO; as outras exportações seguem no núcleo). */
+const SUBROTAS_ISO: RegExp[] = [/^export\/risks$/];
+
 /** Sub-rotas de um segmento do núcleo que são do n.privacy (o registro é compartilhado; a camada nova não). */
 const SUBROTAS_PRIVACY: RegExp[] = [
   /^ropa\/(importar|copiloto)$/,
@@ -55,6 +58,7 @@ export function restoDoCaminho(caminho: string): string | null {
 export function faixaDoCaminho(caminho: string): Faixa | null {
   const resto = restoDoCaminho(caminho);
   if (resto === null) return null;
+  if (SUBROTAS_ISO.some((re) => re.test(resto))) return 'iso';
   if (SUBROTAS_PRIVACY.some((re) => re.test(resto))) return 'privacy';
   const seg = resto.split('/')[0];
   return Object.hasOwn(FAIXA_DO_SEGMENTO, seg) ? FAIXA_DO_SEGMENTO[seg] : null;

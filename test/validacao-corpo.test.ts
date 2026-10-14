@@ -321,7 +321,8 @@ describe('PUT dos módulos com corpo parcial — 400, não 500', () => {
     { rota: '/api/v1/capa/reg-a', tabela: 'corrective_actions', campo: 'title' },
     { rota: '/api/v1/training/reg-a', tabela: 'training_records', campo: 'employee_name' },
     { rota: '/api/v1/vendors/reg-a', tabela: 'vendors', campo: 'name' },
-    { rota: '/api/v1/risks/reg-a', tabela: 'risks', campo: 'asset' },
+    // risks fora desde a F0.1: o PUT do risco é parcial (campo ausente mantém), então corpo vazio é válido;
+    // a cobertura está em test/risco-put-parcial.test.ts.
   ];
 
   let staff: Record<string, string>;
