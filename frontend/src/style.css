@@ -1617,6 +1617,8 @@ textarea:focus-visible {
 .re-exemplos .chip:hover, .re-exemplos .chip:focus-visible { border-color: var(--accent); color: var(--text); }
 .re-outro { margin: 0; }
 .re-aviso { margin: 0; padding: 10px 12px; border-left: 2px solid var(--warning); background: var(--bg); color: var(--text-2); font-size: 13px; line-height: 1.5; }
+.re-impacto { display: flex; flex-direction: column; gap: 20px; }
+.re-impacto .re-fieldset { gap: 8px; }
 .re-faixa { border: 1px solid var(--warning); }
 .re-nota { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
 /* Reserva a linha do "buscando parecidos…": o aviso aparece e some sem empurrar o formulário. */
