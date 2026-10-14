@@ -165,9 +165,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     (`src/routes/public-auditor.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **87 tabelas** (2026-10-14: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **88 tabelas** (2026-10-14: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0071** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0072** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -237,6 +237,16 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `liaExigida` vale quando a base do catalogo OU o texto livre diz "legitimo interesse" (sem acento nem caixa) e so aparece em
   `GET .../ropa/:rid/ligacoes` (`lia`, `dpias`, `dpia_pendente`), nao bloqueia. `POST .../ropa/:rid/dpia` cria a DPIA `Draft` ligada e
   pre-preenchida (409 com o id se ja existe). As duas familias de colunas da DPIA NAO foram unificadas (hash de aprovacoes existentes).
+- **Teste de impacto do tratamento (migration 0072)**: `tratamento_impacto` (uma resposta `sim|nao|nao_sei` por pergunta, chave
+  `(ropa_id, pergunta)`, some com o tratamento) e `ropa_records.impacto_finalizado_em`. O catalogo (13 perguntas: 2 de criterio geral e
+  11 de especifico) e a regra moram em `src/services/impacto.ts`: RIPD `recomendado` com ao menos um geral E um especifico em "sim";
+  sem isso, `dispensavel_a_confirmar` so com as 13 respondidas sim ou nao, senao `incompleto`. E sugestao: `dpia_required` continua
+  decisao humana. Rotas `GET/PUT /projects/:id/ropa/:rid/impacto` (faixa `privacy`); o agente responde mas nao finaliza (403 com
+  `finalizar`). Fica FORA do conteudo congelado da aprovacao (nada entra em `COLUNAS_DPIA` nem em `DOCUMENTOS.tratamento.colunas`):
+  responder nao substitui pedido. A DPIA criada do tratamento herda tambem base legal e retencao (`necessity_proportionality`),
+  destinatarios (fluxo), riscos do registro e as respostas "sim" do teste (`risks_identified`); DPIA e LIA guardam `origem_hash`, o hash
+  do conteudo do tratamento quando nasceram. Na tela: bloco "Teste de impacto" da entrevista (so com a atividade gravada; perguntas e
+  recomendacao vem do servidor) e "Novo RIPD" que escolhe a atividade e cria por `POST .../ropa/:rid/dpia`.
 - **Terceiros tipificados (fatia 6, migration 0057)**: o terceiro e uma `partes` do tipo `organizacao` com `terceiro_tipo`
   (`grande_provedor|medio|pequeno|critico`) e `src/services/terceiros.ts` (rotas `/projects/:id/terceiros*`). **O tipo define o
   metodo** (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. `avaliacoes_terceiro`

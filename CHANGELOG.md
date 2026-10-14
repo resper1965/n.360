@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (teste de impacto do tratamento, F1 do legado de privacidade)
+- **Migration 0072**: `tratamento_impacto` (uma resposta `sim`, `nao` ou `nao_sei` por pergunta e tratamento), `ropa_records.impacto_finalizado_em` e `origem_hash` em `dpia_assessments` e `lia_assessments`, todas fora do conteúdo congelado das aprovações. **Não aplicada em produção**: vai pelo workflow depois do merge (`migrations/README.md`). `test/migration-0072.test.ts`.
+- **`GET/PUT /projects/:id/ropa/:rid/impacto`** (faixa n.privacy): as 13 perguntas do teste (2 de critério geral, 11 de específico) e a recomendação de RIPD calculada no servidor (`src/services/impacto.ts`: recomendado com um geral e um específico em "sim"). O agente responde, mas finalizar é de uma pessoa. Responder não mexe no hash da aprovação do tratamento nem substitui pedido (teste de não regressão em `test/tratamento-aprovacao.test.ts`).
+- **RIPD que herda do tratamento**: `POST .../ropa/:rid/dpia` passa a trazer base legal, retenção, destinatários, os riscos do registro e as respostas "sim" do teste de impacto, e guarda o hash do tratamento (`origem_hash`); a LIA também guarda o hash ao nascer.
+- **Tela**: bloco "Teste de impacto" na entrevista do RoPA (atividade já gravada; perguntas e recomendação vêm do servidor, "Abrir o RIPD" quando recomendado); "Novo RIPD" escolhe a atividade e cria a partir dela, sem repetir finalidade, titulares e categorias.
+
 ### Corrigido (riscos, F0 do legado de privacidade)
 - **`PUT /api/v1/risks/:id` é parcial**: campo ausente mantém o valor gravado, `null` limpa onde a coluna aceita NULL (`asset`, `threat`, `impact`, `probability`, `treatment` e `status` ignoram `null`), e o nível é recalculado com impacto e probabilidade atuais quando só um deles vem. Antes o PUT substituía o registro inteiro: editar um risco pela tela do n.iso apagava ativo e plano de tratamento, zerava o aceite e voltava o status para `Open`. `asset` e `threat` deixam de ser obrigatórios no PUT (o POST continua exigindo); `docs/openapi.json` e o contrato do MCP regerados. A ferramenta `niso_update_risk` passa a mandar só o que mudou. `test/risco-put-parcial.test.ts`.
 - **`GET /projects/:id/export/risks` é da faixa n.iso**: projeto só n.privacy, ou pessoa sem o n.iso, recebe 403 (antes o segmento `export` do núcleo deixava baixar os riscos). As demais exportações seguem no núcleo (`SUBROTAS_ISO` em `src/modulos.ts`). `test/export-risks-faixa.test.ts`.
