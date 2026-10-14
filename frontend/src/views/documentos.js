@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
 
 // Documentos do projeto (fatia 3.4 do núcleo): árvore política → norma → procedimento, dono, revisão, versões,
@@ -216,6 +216,8 @@ window.openDocumentoModal = async function (projectId, id) {
     }
     if (editar && d.status === 'vigente') acoes.push(`<button class="btn btn-sm" data-action="mudarStatusDocumento" data-args='${args(projectId, id, 'obsoleto')}'>Aposentar</button>`);
     if (editar && d.status === 'obsoleto') acoes.push(`<button class="btn btn-sm" data-action="mudarStatusDocumento" data-args='${args(projectId, id, 'vigente')}'>Reativar</button>`);
+    // Só o que nunca foi publicado se exclui (o servidor confere pedido e exceção); o resto se aposenta.
+    if (S.user && S.user.role === 'platform_admin' && d.status === 'rascunho') acoes.push(`<button class="btn btn-sm" data-action="excluirDocumento" data-args='${args(projectId, id)}'>Excluir</button>`);
 
     const editor = editar ? `
         <div class="form-group" style="margin-top:1rem"><label class="form-label">Texto (salva como rascunho; publicar é um passo à parte)</label>
@@ -308,6 +310,16 @@ window.publicarVersaoDocumento = (projectId, id, numero) => acao(projectId, id,
 
 window.descartarRascunhoDocumento = (projectId, id) => acao(projectId, id,
     () => api('DELETE', `/api/v1/projects/${projectId}/documentos/${id}/rascunho`), 'Não foi possível descartar o rascunho', 'Rascunho descartado.');
+
+window.excluirDocumento = async function (projectId, id) {
+    if (!(await window.confirmar('O documento e o rascunho somem de vez. Só é possível enquanto ele nunca foi publicado nem teve pedido.', { titulo: 'Excluir documento', rotulo: 'Excluir', perigo: true }))) return;
+    try {
+        await api('DELETE', `/api/v1/projects/${projectId}/documentos/${id}`);
+        closeModal();
+        showToast('Documento excluído.', 'success');
+        window.render();
+    } catch (e) { falha(e, 'Não foi possível excluir o documento'); }
+};
 
 window.marcarDocumentoRevisado = (projectId, id) => acao(projectId, id,
     () => api('POST', `/api/v1/projects/${projectId}/documentos/${id}/revisar`), 'Não foi possível marcar como revisado', 'Documento revisado: a próxima revisão foi renovada.');
