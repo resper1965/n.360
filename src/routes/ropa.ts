@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
-import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema } from '../schemas';
+import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema } from '../schemas';
+import { lerImpacto, salvarImpacto } from '../services/impacto';
 import { criarTransferencia, definirLigacao, diagramaDoTratamento, lerLigacoes, removerTransferencia } from '../services/tratamentos';
 import { aprovacoesDoProjeto } from '../services/documentos';
 import { importarTratamentos } from '../services/tratamentos-importar';
@@ -174,6 +175,31 @@ projectRopaApp.delete('/:recordId/lia', async (c) => {
     const ok = await apagarLia(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'), c.get('user')?.email || 'system');
     return ok ? c.json({ ok: true }) : c.json({ error: 'LIA não encontrada' }, 404);
   } catch (e) { return erro500(c, 'Falha ao apagar a LIA', e); }
+});
+
+// Teste de impacto (0072): fora do conteúdo congelado da aprovação, então não substitui pedido nenhum (sem conferirPedidosDoDocumento).
+projectRopaApp.get('/:recordId/impacto', async (c) => {
+  const r = await lerImpacto(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
+  return r ? c.json(r) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+});
+
+projectRopaApp.put('/:recordId/impacto', async (c) => {
+  try {
+    const v = await validateBody(c, tratamentoImpactoSchema);
+    if (!v.success) return v.response;
+    // O agente (MCP) responde; finalizar o teste é ato de uma pessoa, pela interface.
+    if (c.get('user')?.agente === true && v.data.finalizar !== undefined) {
+      return c.json({ error: 'Forbidden: finalizar o teste de impacto é ato humano, pela interface' }, 403);
+    }
+    const projectId = c.req.param('projectId')!;
+    const ator = c.get('user')?.email || 'system';
+    const r = await salvarImpacto(c.env.DB, projectId, c.req.param('recordId'), ator, v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    // Trilha com os ids das perguntas, nunca texto livre.
+    const fim = v.data.finalizar === undefined ? '' : v.data.finalizar ? '; finalizado' : '; reaberto';
+    await logAudit(c.env.DB, 'ropa.impacto', ator, `ROPA ${c.req.param('recordId')}: teste de impacto (${Object.keys(v.data.respostas).join(', ') || 'sem respostas'})${fim}`, '', '', projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao gravar o teste de impacto', e); }
 });
 
 projectRopaApp.post('/:recordId/dpia', async (c) => {

@@ -42,7 +42,7 @@ const SUBROTAS_ISO: RegExp[] = [/^export\/risks$/];
 /** Sub-rotas de um segmento do núcleo que são do n.privacy (o registro é compartilhado; a camada nova não). */
 const SUBROTAS_PRIVACY: RegExp[] = [
   /^ropa\/(importar|copiloto)$/,
-  /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|lia|sugestao)$/,
+  /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|lia|sugestao|impacto)$/,
   /^incidentes\/[^/]+\/rascunho-comunicacao$/,
   /^documentos\/[^/]+\/requisitos$/,
   /^evidence\/[^/]+\/(requisitos|validade)$/,

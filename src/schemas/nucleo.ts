@@ -64,6 +64,12 @@ export const liaSalvarSchema = z.object({
   status: z.enum(['rascunho', 'concluida']).optional(),
 }).strict();
 
+/** Teste de impacto do tratamento (0072): as respostas que vieram (a pergunta é conferida no serviço contra o catálogo) e, opcional, finalizar. */
+export const tratamentoImpactoSchema = z.object({
+  respostas: z.record(z.string().max(60), z.enum(['sim', 'nao', 'nao_sei'])).refine((r) => Object.keys(r).length <= 40, 'respostas demais'),
+  finalizar: z.boolean().optional(),
+}).strict();
+
 /** Importação do RoPA por planilha (fatia 4.4): o CSV inteiro como texto; as linhas são validadas uma a uma no serviço. */
 export const ropaImportarSchema = z.object({ csv: z.string().min(1).max(300_000) }).strict();
 
