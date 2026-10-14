@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Corrigido (riscos, F0 do legado de privacidade)
+- **`PUT /api/v1/risks/:id` é parcial**: campo ausente mantém o valor gravado, `null` limpa onde a coluna aceita NULL (`asset`, `threat`, `impact`, `probability`, `treatment` e `status` ignoram `null`), e o nível é recalculado com impacto e probabilidade atuais quando só um deles vem. Antes o PUT substituía o registro inteiro: editar um risco pela tela do n.iso apagava ativo e plano de tratamento, zerava o aceite e voltava o status para `Open`. `asset` e `threat` deixam de ser obrigatórios no PUT (o POST continua exigindo); `docs/openapi.json` e o contrato do MCP regerados. A ferramenta `niso_update_risk` passa a mandar só o que mudou. `test/risco-put-parcial.test.ts`.
+- **`GET /projects/:id/export/risks` é da faixa n.iso**: projeto só n.privacy, ou pessoa sem o n.iso, recebe 403 (antes o segmento `export` do núcleo deixava baixar os riscos). As demais exportações seguem no núcleo (`SUBROTAS_ISO` em `src/modulos.ts`). `test/export-risks-faixa.test.ts`.
+
 ### Adicionado (Novo projeto e cadastro da empresa)
 - **Migration 0071, `empresas`**: o cadastro completo da empresa do projeto, 1:1 com `projects` (CNPJ só dígitos com CHECK de 14, documento alternativo para empresa estrangeira ou sem CNPJ, identificação, CNAE, endereço, contato e representante legal; sem CPF de ninguém). Backfill a partir de `projects` sem perder dado (CNPJ com máscara vira dígitos; o que não fecha 14 vai para `documento_alternativo`). As colunas antigas de `projects` ficam e são espelhadas pelas rotas. **Não aplicada em produção**: vai pelo workflow depois do merge (`migrations/README.md`). `test/migration-0071.test.ts`.
 - **`GET/PUT /projects/:id/empresa`** (faixa núcleo): lê quem alcança o projeto; edita a equipe com acesso e o administrador do cliente. CNPJ com dígito verificador, 409 se outro projeto da mesma organização já o tem (com o nome do projeto só para a equipe), trilha `empresa.atualizada` com os nomes dos campos, nunca os valores. `company-profile` espelha no cadastro novo.
