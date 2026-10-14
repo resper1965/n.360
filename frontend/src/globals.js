@@ -1343,6 +1343,12 @@ window.doReauth = async function doReauth() {
         const senha = document.getElementById('reauth-password').value;
         const err = document.getElementById('reauth-error');
         if (err) err.style.display = 'none';
+        // Campo vazio (ou e-mail da sessão perdido) iria ao servidor e voltava como "Payload inválido", que não diz o que fazer.
+        if (!senha || !S.user?.email) {
+            if (err) { err.style.display = 'block'; err.textContent = senha ? 'Não foi possível identificar a conta. Use "Sair e descartar" e entre de novo.' : 'Digite a sua senha para continuar.'; }
+            document.getElementById('reauth-password')?.focus();
+            return;
+        }
         try {
             const res = await api('POST', '/api/v1/auth/login', { email: S.user?.email, password: senha });
             S.token = res.token;
