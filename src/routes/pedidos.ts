@@ -296,11 +296,15 @@ pedidosApp.post('/lote', async (c) => {
           : await assinarEvidencia(c, user, it.id, { password: null, dbUser, fileHash: it.hash_visto });
       } catch (e) {
         registraErro(c, e);
-        r = { status: 403, corpo: { error: (e as { name?: string })?.name === 'ForbiddenError' ? 'Sem acesso a este item' : 'Não foi possível processar este item' } };
+        r = (e as { name?: string })?.name === 'ForbiddenError'
+          ? { status: 404, corpo: {} }
+          : { status: 500, corpo: { error: 'Não foi possível processar este item' } };
       }
+      // Inexistente e de outra organização têm a MESMA resposta: o lote não confirma que o recurso alheio existe.
+      const motivo = r.status === 404 ? 'Item não encontrado ou sem acesso' : String(r.corpo.error ?? 'Não foi possível aprovar');
       resultados.push(r.status === 200
         ? { tipo: it.tipo, id: it.id, resultado: 'aprovado' }
-        : { tipo: it.tipo, id: it.id, resultado: 'ignorado', motivo: String(r.corpo.error ?? 'Não foi possível aprovar') });
+        : { tipo: it.tipo, id: it.id, resultado: 'ignorado', motivo });
     }
     const aprovados = resultados.filter((x) => x.resultado === 'aprovado').length;
     await logAudit(db, 'aprovacao.lote', user.email, `Lote de aprovação: ${resultados.length} itens, ${aprovados} aprovados`,

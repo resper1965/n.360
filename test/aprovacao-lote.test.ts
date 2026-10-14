@@ -51,6 +51,9 @@ beforeAll(async () => {
       ('u-lider', 'lider@ness.lat', ?, 'Lia Lider', 'consultor', NULL, 'org_ness'),
       ('u-cons', 'cons@ness.lat', ?, 'Cons', 'consultor', NULL, 'org_ness'),
       ('u-cli', 'cli@cliente.com', 'x', 'Cli', 'org_user', ?, 'org_ness')`).bind(senha, senha, P),
+    env.DB.prepare(`INSERT OR IGNORE INTO organizations (id, name, slug) VALUES ('org_alheia', 'Outra', 'outra')`),
+    env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('lote-alheio', 'Alheio', 'ISO 27701', 'controller', 'Active', 'org_alheia')`),
+    env.DB.prepare(`INSERT INTO evidence (id, project_id, file_name, file_hash, r2_key, uploaded_by) VALUES ('ev-alheia', 'lote-alheio', 'a.txt', 'abc123', 'k', 'x@outra.lat')`),
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES
       ('g-lider', ?, 'Lia Lider', 'lider@ness.lat', 'consultor', 'Líder do SGSI'),
       ('g-cons', ?, 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`).bind(P, P),
@@ -131,5 +134,16 @@ describe('o que o lote recusa', () => {
     expect(j.aprovados).toBe(0);
     expect(j.resultados.every((x) => x.resultado === 'ignorado')).toBe(true);
     expect(await statusDoPedido(p.id)).toBe('pendente');
+  });
+});
+
+describe('isolamento entre organizações', () => {
+  it('evidência de outra organização e evidência inexistente têm a mesma resposta, e a alheia não é assinada', async () => {
+    const r = await lote(lider, [{ tipo: 'evidencia', id: 'ev-alheia', hash_visto: 'abc123' }, { tipo: 'evidencia', id: 'nao-existe', hash_visto: 'abc123' }]);
+    expect(r.status).toBe(200);
+    const j = await corpoLote(r);
+    expect(j.aprovados).toBe(0);
+    expect(j.resultados.map((x) => x.motivo)).toEqual(['Item não encontrado ou sem acesso', 'Item não encontrado ou sem acesso']);
+    expect(await assinada('ev-alheia')).toBeNull();
   });
 });

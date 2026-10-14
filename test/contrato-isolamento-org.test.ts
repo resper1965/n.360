@@ -139,6 +139,7 @@ const SEM_RECURSO_ALHEIO: Record<string, string> = {
   'POST /api/v1/requisitos/mapeamentos': 'catálogo global de requisitos, só platform_admin; ids são de requisito, não de organização',
   'PUT /api/v1/requisitos/mapeamentos': 'catálogo global de requisitos, só platform_admin',
   'DELETE /api/v1/requisitos/mapeamentos': 'catálogo global de requisitos, só platform_admin',
+  'POST /api/v1/pedidos/lote': 'cada item passa pelas funções da aprovação individual, que recusam recurso de outra organização; o lote responde 200 com o item ignorado, sem confirmar que existe (test/aprovacao-lote.test.ts)',
   'POST /api/v1/auth/login': 'login: identidade global por e-mail e senha',
   'POST /api/v1/auth/reset-password-first': 'troca da senha provisória da própria conta',
   'POST /api/v1/auth/forgot-password': 'pedido de redefinição por e-mail; não devolve dado',
