@@ -6,8 +6,8 @@ import { FAIXA_DA_TABELA, faixaDoCaminho, recusaDeModulo } from '../src/modulos'
 import migration0060 from '../migrations/0060_modulos_do_contrato.sql?raw';
 
 /**
- * n.iso e n.privacy são produtos separados sobre o mesmo cadastro. O que o projeto habilitou (`projeto_modulos`) decide a faixa:
- * núcleo (qualquer produto), só n.iso ou só n.privacy. Toda rota de projeto precisa estar classificada.
+ * n.iso e n.privacy são módulos do n.360 sobre o mesmo cadastro. O que o projeto habilitou (`projeto_modulos`) decide a faixa:
+ * núcleo (qualquer módulo), só n.iso ou só n.privacy. Toda rota de projeto precisa estar classificada.
  */
 const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const rotasDeProjeto = () => [...new Set((app.routes as { method: string; path: string }[])

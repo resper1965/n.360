@@ -1,6 +1,6 @@
 import { parseModulos } from './schemas/nucleo';
 /**
- * n.iso e n.privacy são PRODUTOS separados sobre o mesmo cadastro (decisão do dono de 09/10/2026, modelo A: um Worker, um banco).
+ * n.iso e n.privacy são MÓDULOS do n.360 sobre o mesmo cadastro (decisão do dono de 09/10/2026, modelo A: um Worker, um banco).
  * O que o projeto habilitou (`projeto_modulos`) decide o que a API aceita: cada rota cai numa FAIXA.
  *   - `nucleo`: o cadastro compartilhado (partes, itens, documentos, evidência, RoPA, DPIA, pedidos, incidentes…). Vale com QUALQUER módulo.
  *   - `iso`: o que só o n.iso faz (controles, SoA, riscos, auditorias, certificação…).

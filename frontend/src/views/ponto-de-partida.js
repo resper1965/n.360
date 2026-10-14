@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import { escapeHTML } from '../ui.js';
 
-// Painel "ponto de partida": o que o outro produto já entregou neste projeto. Só lê /ponto-de-partida (faixa núcleo).
+// Painel "ponto de partida": o que o outro módulo já entregou neste projeto. Só lê /ponto-de-partida (faixa núcleo).
 const n = (v) => escapeHTML(String(v ?? 0));
 
 async function renderPontoDePartida(c, projectId, produto) {
