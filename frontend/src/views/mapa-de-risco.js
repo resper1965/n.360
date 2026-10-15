@@ -1,6 +1,6 @@
 import { S } from '../state.js';
-import { api } from '../api.js';
-import { escapeHTML } from '../ui.js';
+import { api, baixarArquivo } from '../api.js';
+import { escapeHTML, showToast } from '../ui.js';
 
 // Mapa de risco do n.privacy (F2): matriz 5x5 de probabilidade por impacto sobre os riscos das atividades de tratamento
 // (`GET /projects/:id/ropa/riscos-mapa`). O registro é o mesmo da matriz do n.iso; aqui entram só os riscos com atividade.
@@ -79,6 +79,8 @@ async function renderMapaDeRisco(c, h, a) {
     // Só risco com atividade: o que é só do n.iso fica na matriz dele.
     riscos = (Array.isArray(riscos) ? riscos : []).filter((r) => r && r.ropa_id);
     estado = { projeto: proj.id, riscos, celula: estado.projeto === proj.id ? estado.celula : null, alvo: c };
+    // Exporta o que a tela mostra: com uma célula escolhida, só os riscos dela.
+    if (riscos.length) a.innerHTML = `<button class="btn" data-action="exportarCsvRiscos">Exportar CSV</button>`;
     if (!riscos.length) {
         c.innerHTML = window.renderEmptyState({ titulo: 'Nenhum risco nas atividades de tratamento',
             texto: 'Registre os riscos de cada atividade nas Ligações do tratamento, na tela de Tratamentos (RoPA).',
@@ -87,6 +89,12 @@ async function renderMapaDeRisco(c, h, a) {
     }
     desenhar();
 }
+
+window.exportarCsvRiscos = function () {
+    const q = estado.celula ? `?probabilidade=${estado.celula[0]}&impacto=${estado.celula[1]}` : '';
+    return baixarArquivo(`/api/v1/projects/${estado.projeto}/export/riscos-atividade${q}`)
+        .catch((e) => showToast(e.message || 'Não foi possível baixar o arquivo', 'error'));
+};
 
 window.mapaCelula = function (p, i) {
     estado.celula = estado.celula && estado.celula[0] === p && estado.celula[1] === i ? null : [p, i];

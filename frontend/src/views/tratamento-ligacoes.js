@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api } from '../api.js';
+import { api, baixarArquivo } from '../api.js';
 import { showToast, openModal, escapeHTML } from '../ui.js';
 import { textoDaBase } from '../bases-legais.js';
 import { NIVEIS } from './mapa-de-risco.js';
@@ -171,7 +171,7 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
             <p><strong>DPIA</strong>: ${lig.dpias.length ? lig.dpias.map((d) => `${escapeHTML(d.nome || 'Sem nome')} (${escapeHTML(d.status || '—')})${d.origem_mudou ? ` <span class="tl-origem">${ORIGEM_MUDOU}</span>` : ''}`).join(', ') + ` <button class="btn btn-ghost btn-sm" data-action="navigate" data-args='["dpia"]'>Abrir a tela de DPIA</button>`
                 : (lig.dpia_pendente ? 'exigida por este registro e ainda não criada.' : 'nenhuma ligada.')}
             ${editar && !lig.dpias.length ? `<button class="btn btn-sm" data-action="criarDpiaDoTratamento" data-args='${args(projectId, ropaId)}'>Criar DPIA a partir do tratamento</button>` : ''}</p>
-            <p><strong>LIA</strong> (teste de legítimo interesse): ${lig.lia.exigida ? 'exigida pela base legal' : 'não exigida pela base legal'}${lig.lia.existe ? ` · ${escapeHTML(lig.lia.status === 'concluida' ? 'concluída' : 'em rascunho')}` : (lig.lia.exigida ? ' · ainda não feita' : '')}.${lig.lia.origem_mudou ? ` <span class="tl-origem">${ORIGEM_MUDOU}</span>` : ''}</p>
+            <p><strong>LIA</strong> (teste de legítimo interesse): ${lig.lia.exigida ? 'exigida pela base legal' : 'não exigida pela base legal'}${lig.lia.existe ? ` · ${escapeHTML(lig.lia.status === 'concluida' ? 'concluída' : 'em rascunho')}` : (lig.lia.exigida ? ' · ainda não feita' : '')}.${lig.lia.origem_mudou ? ` <span class="tl-origem">${ORIGEM_MUDOU}</span>` : ''}${lia ? ` <button class="btn btn-ghost btn-sm" data-action="baixarWordLia" data-args='${args(projectId, ropaId)}'>Baixar Word</button>` : ''}</p>
             ${editar ? formularioLia(lia, projectId, ropaId) : (lia ? `<p style="color:var(--text-dim)">${escapeHTML(lia.finalidade_legitima || '')}</p>` : '')}</div>`)}
         ${secao('Riscos', blocoRiscos(projectId, ropaId, riscos, lig.itens, partes, editar, dono))}
         ${secao('Ações', blocoAcoes(projectId, ropaId, acoes, riscos, partes, editar, dono))}
@@ -297,6 +297,10 @@ window.pedirAprovacaoTratamento = (projectId, ropaId) => window.abrirPedidoAprov
 
 window.criarDpiaDoTratamento = (projectId, ropaId) => acao(projectId, ropaId,
     () => api('POST', `/api/v1/projects/${projectId}/ropa/${ropaId}/dpia`), 'Não foi possível criar a DPIA', 'DPIA criada. Complete-a na tela de DPIA.');
+
+// Word da LIA (F4), pelo caminho autenticado de api.js.
+window.baixarWordLia = (projectId, ropaId) => baixarArquivo(`/api/v1/projects/${projectId}/ropa/${ropaId}/lia/docx`)
+    .catch((e) => showToast(e.message || 'Não foi possível baixar o Word', 'error'));
 
 window.salvarLiaTratamento = (projectId, ropaId, concluir) => acao(projectId, ropaId, () => api('PUT', `/api/v1/projects/${projectId}/ropa/${ropaId}/lia`, {
     finalidade_legitima: el('tl-lia-fin').value.trim() || null, necessidade: el('tl-lia-nec').value.trim() || null,

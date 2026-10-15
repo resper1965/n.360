@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api, API_BASE, cabecalhosAuth } from '../api.js';
+import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
 import { render } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
@@ -62,7 +62,10 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
         if (!Array.isArray(records)) records = [];
         S.ropa = records;
         // O PDF é do projeto inteiro: uma ação no header, não um botão por linha.
-        a.innerHTML = [btnImportar, records.length ? `<button class="btn" data-action="openROPAReport" data-args='["${proj.id}"]'>Exportar RoPA (PDF)</button>` : '', btnNovo('Edição avançada'), btnEntrevista('Nova atividade (entrevista)')].filter(Boolean).join(' ');
+        a.innerHTML = [btnImportar, records.length ? `<button class="btn" data-action="openROPAReport" data-args='["${proj.id}"]'>Exportar RoPA (PDF)</button>` : '',
+            records.length ? `<button class="btn" data-action="exportarCsvAtividades" data-args='["${proj.id}"]'>Exportar CSV</button>` : '',
+            records.length && comPrivacy ? `<button class="btn" data-action="exportarCsvLia" data-args='["${proj.id}"]'>Exportar LIAs (CSV)</button>` : '',
+            btnNovo('Edição avançada'), btnEntrevista('Nova atividade (entrevista)')].filter(Boolean).join(' ');
 
         // A conta de "legítimo interesse sem LIA" é do servidor (visão do encarregado): a lista do RoPA não traz a LIA.
         let liaPendente = null;
@@ -320,6 +323,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
         try { assessments = await api('GET', `/api/v1/projects/${proj.id}/dpia`); } catch(e) {}
         if (!Array.isArray(assessments)) assessments = [];
         S.dpia = assessments;
+        if (assessments.length) a.innerHTML = `<button class="btn" data-action="exportarCsvRipd" data-args='["${proj.id}"]'>Exportar CSV</button> ` + a.innerHTML;
 
         // Sem RIPD, o vazio diz onde ele é exigido: os tratamentos marcados "Exige RIPD" no RoPA.
         let exigem = 0;
@@ -350,7 +354,8 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
                     // Selo "mudou na origem" (F3): só aviso; a aprovação do RIPD não muda por isso.
                     window.renderStatusBadge(dp.status || 'Draft', statusType) + (dp.origem_mudou ? ` ${window.renderStatusBadge('RoPA mudou depois deste RIPD: revise', 'warning')}` : ''),
                     `<button class="btn btn-ghost btn-sm" data-action="openDPIADetailsModal" data-args='["${dp.id}"]'>Detalhes</button>
-                     <button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="openDPIAReport" data-args='["${proj.id}","${dp.id}"]' data-stop>PDF</button>`
+                     <button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="openDPIAReport" data-args='["${proj.id}","${dp.id}"]' data-stop>PDF</button>
+                     <button class="btn btn-ghost btn-sm" data-action="baixarWordRipd" data-args='["${proj.id}","${dp.id}"]' data-stop>Word</button>`
                 ];
             }),
             exigem
@@ -441,7 +446,10 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
             </div>
             
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px">
-                <button class="btn btn-secondary" data-action="openDPIAReport" data-args='["${projectId}","${dp.id}"]'>Exportar RIPD (PDF)</button>
+                <div>
+                    <button class="btn btn-secondary" data-action="openDPIAReport" data-args='["${projectId}","${dp.id}"]'>Exportar RIPD (PDF)</button>
+                    <button class="btn btn-secondary" data-action="baixarWordRipd" data-args='["${projectId}","${dp.id}"]'>Baixar Word</button>
+                </div>
                 <div>
                     <button class="btn" data-action="forceCloseModal">Fechar</button>
                     ${canCrud ? `<button class="btn btn-primary" data-action="openEditDPIAModal" data-args='["${id}"]'>Editar RIPD</button>` : ''}
@@ -581,6 +589,13 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
         setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
     window.openROPAReport = (projectId) => abrirRelatorio(`/api/v1/projects/${projectId}/ropa/report`);
+
+    // Arquivos (F4): CSV que abre no Excel e Word do RIPD, pelo caminho autenticado de api.js. Erro vira aviso na tela.
+    const baixar = (promessa) => promessa.catch((e) => showToast(e.message || 'Não foi possível baixar o arquivo', 'error'));
+    window.exportarCsvAtividades = (projectId) => baixar(baixarArquivo(`/api/v1/projects/${projectId}/export/atividades`));
+    window.exportarCsvLia = (projectId) => baixar(baixarArquivo(`/api/v1/projects/${projectId}/export/lia`));
+    window.exportarCsvRipd = (projectId) => baixar(baixarArquivo(`/api/v1/projects/${projectId}/export/ripd`));
+    window.baixarWordRipd = (projectId, id) => baixar(baixarArquivo(`/api/v1/projects/${projectId}/dpia/${id}/docx`));
 
     // Desaprovar é ato da direção (F6): só platform_admin e org_admin veem o botão; o servidor decide de novo.
     // O motivo é obrigatório e vai para a trilha.

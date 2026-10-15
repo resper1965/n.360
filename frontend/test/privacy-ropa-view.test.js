@@ -236,6 +236,9 @@ describe('lista do RoPA', () => {
         // o PDF é do projeto inteiro: sai da linha e vai para o header
         expect(el('c').querySelector('[data-action="openROPAReport"]')).toBeNull();
         expect(el('a').querySelector('[data-action="openROPAReport"]').textContent).toBe('Exportar RoPA (PDF)');
+        // CSV (F4): as atividades e, no n.privacy, as LIAs
+        expect(el('a').querySelector('[data-action="exportarCsvAtividades"]').textContent).toBe('Exportar CSV');
+        expect(el('a').querySelector('[data-action="exportarCsvLia"]').textContent).toBe('Exportar LIAs (CSV)');
     });
 });
 
@@ -245,6 +248,9 @@ describe('RIPD (DPIA)', () => {
         await window.renderDPIA(el('c'), el('h'), el('a'));
         expect(el('h').textContent).toBe('RIPD (DPIA)');
         expect(el('a').textContent).toContain('Novo RIPD');
+        // F4: CSV da lista e Word por linha
+        expect(el('a').querySelector('[data-action="exportarCsvRipd"]')).not.toBeNull();
+        expect(JSON.parse(el('c').querySelector('[data-action="baixarWordRipd"]').getAttribute('data-args'))).toEqual(['p1', 'd1']);
         expect(el('c').textContent).toContain('Aguardando o encarregado');
         expect(el('c').textContent).not.toContain('CISO');
         window.openEditDPIAModal('d1');
