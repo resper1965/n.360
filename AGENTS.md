@@ -98,6 +98,10 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   novos: o menu le as contagens). Tela: `frontend/src/views/painel.js` (+ `painel-graficos.js`), entrada do n.360 (`inicio`), do
   n.iso (`dashboard`) e do n.privacy (`encarregado`); uma chamada por entrada, cache de 60 s em `S.painel`, selos do menu do
   n.privacy vindos do proprio painel. O funil comercial e a tela `comercial` (`renderComercial`, `views/dashboard.js`).
+  **Filtro por situacao:** o item traz `filtro` (chave fechada de `FILTROS` em `frontend/src/filtro-painel.js`, nunca dado); o botao
+  navega com `{ filtroPainel }`, o `navigate` o apaga na navegacao seguinte e a lista de destino (titular pedidos/incidentes,
+  terceiros, evidencias, CAPA) abre filtrada com o chip "Filtro: ... — limpar" (`filtrarDoPainel`). Do n.360 ao modulo a chave vai no
+  `sessionStorage` (`n360_filtro`), nunca no endereco. Acoes vencidas das atividades abrem a faixa "vencidas" das acoes por prazo.
 - **Pedidos de aprovacao/ciencia (acesso de stakeholders)**: tabelas `pedidos`
   (conteudo congelado + SHA-256) e `pedido_destinatarios` (a prova por pessoa).
   Regras em `src/services/pedidos.ts` (`podePedir`, `autoridadeNoPedido`,

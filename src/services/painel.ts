@@ -15,7 +15,7 @@ import { NOME_DO_PRODUTO, type Modulo } from '../modulos';
 
 export type Tom = Grupo | 'ok' | 'vez';
 export type Saude = { tom: Tom; rotulo: string; frase: string; apoio: string };
-export type ItemFazer = { grupo: Grupo; quando: string; texto: string; contexto: string; acao: string; tela: string; aba?: string; modulo: Modulo };
+export type ItemFazer = { grupo: Grupo; quando: string; texto: string; contexto: string; acao: string; tela: string; aba?: string; filtro?: string; modulo: Modulo };
 export type Tema = { tema: string; feito: number; andamento: number; falta: number; conta: string };
 export type LinhaVencimento = { tipo: string; vencidos: number; itens: { dias: number; rotulo: string }[] };
 export type Passo = { texto: string; contexto: string; feito: boolean; acao: string; tela: string };
@@ -79,7 +79,7 @@ export function estadoDoPrograma(marco: string | null, temCadastro: boolean): { 
 export const emOrdem = (itens: ItemFazer[]) => ORDEM.flatMap((g) => itens.filter((i) => i.grupo === g));
 
 const daPrioridade = (modulo: Modulo) => (p: Prioridade): ItemFazer => ({
-  grupo: p.grupo, quando: p.quando, texto: p.texto, contexto: p.contexto, acao: p.acao, tela: p.tela, ...(p.aba ? { aba: p.aba } : {}), modulo,
+  grupo: p.grupo, quando: p.quando, texto: p.texto, contexto: p.contexto, acao: p.acao, tela: p.tela, ...(p.aba ? { aba: p.aba } : {}), ...(p.filtro ? { filtro: p.filtro } : {}), modulo,
 });
 
 type Contagem = { feito: number | null; andamento: number | null; falta: number | null };
@@ -308,7 +308,7 @@ async function blocoIso(db: D1Database, projectId: string, dia: string) {
   const add = (q: number, item: Omit<ItemFazer, 'modulo'>) => { if (q > 0) itens.push({ ...item, modulo: 'iso' }); };
   const vencidasCapa = capaVencidas.results as { title: string; due: string }[];
   add(vencidasCapa.length, { grupo: 'atraso', quando: `Venceu em ${diaMes(vencidasCapa[0]?.due)}`, texto: plural(vencidasCapa.length, 'ação corretiva passou do prazo', 'ações corretivas passaram do prazo'),
-    contexto: `A mais antiga: ${vencidasCapa[0]?.title ?? ''}`, acao: 'Ver as ações', tela: 'capa' });
+    contexto: `A mais antiga: ${vencidasCapa[0]?.title ?? ''}`, acao: 'Ver as ações', tela: 'capa', filtro: 'vencidas' });
   const aud = auditoria.results[0] as { title: string; data: string } | undefined;
   const emDias = aud ? diasAte(aud.data, dia) : 99;
   add(aud && emDias <= 30 ? 1 : 0, { grupo: emDias <= 7 ? 'semana' : 'plano', quando: emDias === 0 ? 'Hoje' : `Em ${plural(emDias, 'dia', 'dias')}`,
@@ -324,7 +324,7 @@ async function blocoIso(db: D1Database, projectId: string, dia: string) {
     contexto: exemplos(semJust), acao: 'Revisar a SoA', tela: 'soa' });
   const ev = um(evid);
   add(ev?.falta ?? 0, { grupo: 'plano', quando: 'Planejar', texto: plural(ev?.falta ?? 0, 'evidência vencida ou não conforme', 'evidências vencidas ou não conformes'),
-    contexto: 'Renove ou substitua o arquivo', acao: 'Renovar as evidências', tela: 'evidence' });
+    contexto: 'Renove ou substitua o arquivo', acao: 'Renovar as evidências', tela: 'evidence', filtro: 'vencidas_ou_nao_conformes' });
   const v = lerVencimentos(TIPOS_ISO, respostas.slice(0, consultas.length), dia);
   return {
     comecando, controles_avaliados: avaliados,

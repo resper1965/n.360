@@ -5,6 +5,7 @@ import { navigate } from '../router.js';
 import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
+import { filtrarDoPainel } from '../filtro-painel.js';
 
 // S2: wrappers para handlers COMPOSTOS/inline (a delegação chama uma função só).
 window.__grcDeleteRisk = async function (riskId) {
@@ -1148,9 +1149,11 @@ window.__grcCloseExecAudit = function (id) {
             { label: 'Críticas / Alta Severidade', value: criticalCAPA, color: criticalCAPA > 0 ? 'var(--danger)' : 'var(--text)', subtext: 'Prioridade máxima' }
         ]);
 
+        // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
+        const { itens: acoesDaLista, chip: chipFiltro, filtrado } = filtrarDoPainel('capa', null, items);
         const tableHtml = window.renderDataTable(
             ['Título da Ação', 'Responsável', 'Prazo', 'Severidade', 'Status', 'Ações'],
-            items.map(ca => {
+            acoesDaLista.map(ca => {
                 const sevBadgeType = ca.severity === 'Critical' ? 'danger' : ca.severity === 'High' ? 'warning' : 'info';
                 const statusBadgeType = ca.status === 'Closed' ? 'success' : ca.status === 'In Progress' ? 'warning' : 'info';
 
@@ -1165,11 +1168,13 @@ window.__grcCloseExecAudit = function (id) {
             }),
             { emptyState: 'Nenhuma ação corretiva registrada neste projeto.',
               emptyHint: 'Cada não conformidade pede ação para eliminar a causa e o registro do resultado (ISO 27001, 10.2).',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewCAPAModal" data-args='["${proj.id}"]'>Nova ação</button>` : '' }
+              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewCAPAModal" data-args='["${proj.id}"]'>Nova ação</button>` : '',
+              ...(filtrado ? { emptyState: 'Nenhuma ação nesta situação.', emptyHint: 'Limpe o filtro para ver todas.', emptyAction: '' } : {}) }
         );
 
         c.innerHTML = `
             ${statsHtml}
+            ${chipFiltro}
             ${tableHtml}
         `;
     }

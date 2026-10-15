@@ -3,6 +3,7 @@ import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, openModal, showToast, renderEmptyState } from '../ui.js';
 import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, projetosDoProduto } from '../produto.js';
 import { aplicarSelos } from '../selos-menu.js';
+import { filtroValido } from '../filtro-painel.js';
 import { renderPontoDePartida } from './ponto-de-partida.js';
 import { graficoCobertura, graficoMapa, graficoVencimentos, graficoPedidos, ligarDicas } from './painel-graficos.js';
 
@@ -104,7 +105,7 @@ function listaFazer(itens, comModulo) {
         if (!doGrupo.length) return '';
         return `<p class="pn-gt">${estado(g, ROTULO_ESTADO[g])}<span class="pn-num">${doGrupo.length}</span></p><ul class="pn-grupo">${doGrupo.map((i) => `
             <li><span class="pn-meta">${e(i.quando)}</span><div><div class="pn-tx">${comModulo && i.modulo ? `<span class="pn-tag">${e(NOME[i.modulo] || i.modulo)}</span>` : ''}${e(i.texto)}</div>${i.contexto ? `<div class="pn-cx">${e(i.contexto)}</div>` : ''}</div>
-            <button type="button" class="btn btn-sm${g === 'atraso' ? ' btn-primary' : ''}" data-action="painelAbrir" data-args='${args(i.tela, i.aba || null)}' aria-label="${e(`${i.acao}: ${i.texto}${comModulo && i.modulo ? ` (${NOME[i.modulo] || i.modulo})` : ''}`)}">${e(i.acao)}</button></li>`).join('')}</ul>`;
+            <button type="button" class="btn btn-sm${g === 'atraso' ? ' btn-primary' : ''}" data-action="painelAbrir" data-args='${args(i.tela, i.aba || null, i.filtro || null)}' aria-label="${e(`${i.acao}: ${i.texto}${comModulo && i.modulo ? ` (${NOME[i.modulo] || i.modulo})` : ''}`)}">${e(i.acao)}</button></li>`).join('')}</ul>`;
     }).join('');
 }
 
@@ -316,16 +317,23 @@ export async function renderPainel(c, h, a, entrada) {
             : (c.innerHTML = renderEmptyState({ titulo: 'Não foi possível montar o painel', texto: 'Tente de novo em instantes.' }))));
 }
 
-/** Botão de um item: a tela do destino (lista fechada), com a aba quando há; "Indicar o encarregado" abre o modal ali mesmo. */
-window.painelAbrir = function (tela, aba) {
+/**
+ * Botão de um item: a tela do destino (lista fechada), com a aba quando há e a lista já filtrada pela situação do item
+ * (filtro-painel.js; chave desconhecida não filtra). "Indicar o encarregado" abre o modal ali mesmo; as ações vencidas das
+ * atividades abrem a faixa "vencidas" das ações por prazo, que é a lista delas.
+ */
+window.painelAbrir = function (tela, aba, filtro) {
     if (!TELAS_DO_PAINEL.has(tela)) return;
     const proj = S.activeProject;
     if (tela === 'encarregado' && proj && typeof window.abrirIndicarEncarregado === 'function' && window.podeIndicarEncarregado && window.podeIndicarEncarregado()) {
         window.abrirIndicarEncarregado(proj.id);
         return;
     }
+    // As faixas são as do painel do n.privacy desenhado agora (encarregado.js as guarda); em outra entrada, a tela das atividades.
+    if (filtro === 'acoes_vencidas' && proj && S.view === 'encarregado' && typeof window.abrirFaixaPrazo === 'function' && window.abrirFaixaPrazo(proj.id, 'vencidas')) return;
     if (aba === 'pedidos' || aba === 'incidentes' || aba === 'consentimentos') S.titularAba = aba;
-    if (typeof window.navigate === 'function') window.navigate(tela);
+    const filtroPainel = filtro ? filtroValido(tela, aba, filtro) : null;
+    if (typeof window.navigate === 'function') { if (filtroPainel) window.navigate(tela, { filtroPainel }); else window.navigate(tela); }
 };
 
 // Exportar (F4): as listas CSV do n.privacy que a exportação já entrega, num lugar só.

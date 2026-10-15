@@ -1859,3 +1859,6 @@ textarea:focus-visible {
 /* Tela Comercial (o funil que saiu da entrada do n.iso) */
 .comercial-tabelas { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; margin-top: 24px; }
 .comercial-titulo { margin: 0 0 12px; font: 600 16px var(--font-head); color: var(--text); }
+
+/* Filtro com que o painel abre uma lista (filtro-painel.js): o chip diz o filtro e limpa. Quadrado, como o resto. */
+.filtro-painel { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 4px 4px 4px 12px; border: 1px solid var(--accent); border-radius: 0; color: var(--text); font-size: 13px; }

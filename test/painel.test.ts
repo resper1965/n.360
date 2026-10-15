@@ -123,7 +123,9 @@ describe('GET /projects/:id/painel', () => {
     expect(corpo.programa).toMatchObject({ estado: 'operacao', rotulo: 'Em operação desde março de 2026' });
     expect(Object.keys(corpo.modulos)).toEqual(['privacy']);
     const m = corpo.modulos.privacy;
-    expect(m.fazer![0]).toMatchObject({ grupo: 'atraso', texto: '1 pedido do titular atrasado', acao: 'Responder os pedidos', contexto: 'PT-1 (acesso)' });
+    expect(m.fazer![0]).toMatchObject({ grupo: 'atraso', texto: '1 pedido do titular atrasado', acao: 'Responder os pedidos', contexto: 'PT-1 (acesso)', tela: 'titular', aba: 'pedidos', filtro: 'atrasados' });
+    // A lista de destino abre filtrada pela situação do item (chave fechada, nunca dado).
+    expect(m.fazer!.find((i) => i.texto.includes('evidência vencida'))).toMatchObject({ tela: 'evidence', filtro: 'vencidas' });
     expect(m.fazer!.map((i) => i.grupo)).toEqual([...m.fazer!.map((i) => i.grupo)].sort((a, b) => ['atraso', 'semana', 'plano'].indexOf(a) - ['atraso', 'semana', 'plano'].indexOf(b)));
     expect(corpo.saude).toMatchObject({ tom: 'atraso', rotulo: 'Atrasado', frase: '1 pedido do titular atrasado.' });
     // a lista e a frase saem da mesma conta: o primeiro item é o que a frase nomeia
@@ -159,7 +161,8 @@ describe('GET /projects/:id/painel', () => {
     expect(m.cobertura!.find((x) => x.tema === 'Controles organizacionais')).toMatchObject({ feito: 1, andamento: 1, falta: 0 });
     expect(m.cobertura!.find((x) => x.tema === 'Controles físicos')).toMatchObject({ feito: 0, andamento: 0, falta: 0 });
     expect(m.cobertura!.find((x) => x.tema === 'Controles tecnológicos')).toMatchObject({ falta: 1 });
-    expect(m.fazer![0]).toMatchObject({ grupo: 'atraso', texto: '1 ação corretiva passou do prazo', contexto: 'A mais antiga: Revisão de acessos' });
+    expect(m.fazer![0]).toMatchObject({ grupo: 'atraso', texto: '1 ação corretiva passou do prazo', contexto: 'A mais antiga: Revisão de acessos', tela: 'capa', filtro: 'vencidas' });
+    expect(m.fazer!.find((i) => i.tela === 'evidence')).toMatchObject({ filtro: 'vencidas_ou_nao_conformes' });
     expect(m.fazer!.map((i) => i.texto)).toContain('1 exclusão da SoA sem justificativa');
     expect(m.fazer!.map((i) => i.texto)).toContain('1 risco alto sem tratamento definido');
     expect(m.riscos).toEqual([{ p: 4, i: 4, n: 1 }]);

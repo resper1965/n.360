@@ -1,6 +1,7 @@
 import { S } from './state.js';
 import { api } from './api.js';
 import { showToast, openModal, escapeHTML, renderEmptyState } from './ui.js';
+import { filtroValido } from './filtro-painel.js';
 
 // O n.360 é a plataforma-mãe; n.iso e n.privacy são módulos dele sobre o mesmo cadastro (decisão de 11/10/2026). Tudo responde
 // em n360.ness.com.br e o CAMINHO decide a casca: /iso… → n.iso, /privacy… → n.privacy, o resto → o início do n.360. A trava
@@ -112,6 +113,8 @@ export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessment
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
 const CHAVE_AVISO = 'n360_aviso';
+// O filtro do painel (filtro-painel.js) que acompanha a tela: só a chave da lista fechada, no storage e não no endereço.
+const CHAVE_FILTRO = 'n360_filtro';
 const texto = (v) => (typeof v === 'string' ? v : '');
 const avisoLimpo = (x) => (x && typeof x === 'object'
     ? { link: texto(x.link), action_type: texto(x.action_type), target_id: texto(x.target_id), title: texto(x.title), message: texto(x.message) } : null);
@@ -136,6 +139,8 @@ export function enderecoNoModulo(modulo, tela, proj) {
     S.avisoEmCurso = null;
     try {
         if (aviso) sessionStorage.setItem(CHAVE_AVISO, JSON.stringify(aviso));
+        const f = S.filtroPainel && S.filtroPainel.tela === tela ? filtroValido(tela, S.filtroPainel.aba, S.filtroPainel.filtro) : null;
+        if (f) sessionStorage.setItem(CHAVE_FILTRO, JSON.stringify(f)); else sessionStorage.removeItem(CHAVE_FILTRO);
         const p = proj && (S.projects || []).find((x) => x.id === proj.id);
         if (p) localStorage.setItem('niso_activeProject', JSON.stringify(p));
     } catch (e) { /* sem storage: o módulo abre a tela no projeto salvo */ }
@@ -150,11 +155,17 @@ export function pedidoDoHub(loc = window.location) {
     const produto = produtoAtual(loc);
     if (produto === 'n360') return null;
     let aviso = null;
+    let filtro = null;
     try {
         const bruto = sessionStorage.getItem(CHAVE_AVISO);
         sessionStorage.removeItem(CHAVE_AVISO);
         aviso = bruto ? avisoLimpo(JSON.parse(bruto)) : null;
     } catch (e) { aviso = null; }
+    try {
+        const f = JSON.parse(sessionStorage.getItem(CHAVE_FILTRO) || 'null');
+        sessionStorage.removeItem(CHAVE_FILTRO);
+        filtro = f && typeof f === 'object' ? filtroValido(f.tela, f.aba, f.filtro) : null;
+    } catch (e) { filtro = null; }
     const q = new URLSearchParams(loc.search || '');
     if (!q.has('tela')) return null;
     const tela = q.get('tela');
@@ -165,7 +176,7 @@ export function pedidoDoHub(loc = window.location) {
     history.replaceState(history.state, '', `${loc.pathname}${resto ? `?${resto}` : ''}${loc.hash || ''}`);
     if (aviso) return { aviso };
     const dono = moduloDaTela(tela);
-    return TELAS_DOS_MODULOS.includes(tela) && (dono === null || dono === produto || aba) ? { tela, aba } : null;
+    return TELAS_DOS_MODULOS.includes(tela) && (dono === null || dono === produto || aba) ? { tela, aba, ...(filtro && filtro.tela === tela ? { filtro } : {}) } : null;
 }
 
 const rotuloDoGrupo = (doc, grupo) => doc.querySelector(`.sidebar-label[data-args='["${grupo}"]']`);
