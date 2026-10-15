@@ -46,23 +46,37 @@ Para ver os valores: `sed -n '/^:root/,/^}/p' frontend/src/style.css`.
     depois: vence. Os `border-radius: 10px` dessas classes perto do topo do arquivo são **código morto**.
     O CSS do build confirma a ordem (`npm run build --prefix frontend`; em `dist/assets/login-*.css` o
     `.btn{...}` vem antes da regra de sobreposição).
-  - Ainda renderizam com 10px: `.wizard-step`, `.yesno-btn`, `.ness-select-trigger`,
-    `.ness-select-options` e `.dropdown-menu`, que ficaram fora da sobreposição (usados em
-    `commercial.js`, `compliance.js`, `monitor.js` e `globals.js`), e os estilos inline das telas
+  - Ainda renderizam com 10px: `.wizard-step`, `.yesno-btn`, `.ness-select-trigger` e
+    `.ness-select-options`, que ficaram fora da sobreposição (usados em `commercial.js`,
+    `compliance.js` e `globals.js`), e os estilos inline das telas
     (`git grep -c "border-radius:\s*10px" -- 'frontend/src/views/*.js'`: 41 em 4 arquivos em 2026-10-12).
     Regra de CSS não vence atributo `style`; eles vão a 0 conforme cada tela é revisitada.
   - `frontend/test/catracas-visuais.test.js` só aceita `0` ou `10px` inline: o 10px é tolerado até a
     limpeza, não é o padrão. Componente novo nasce quadrado.
 - Login: tela dividida, marca à esquerda e cartão à direita; empilha abaixo de 900px.
+- **Uma ação principal por tela.** No máximo um `.btn-primary` visível por tela (cabeçalho e conteúdo
+  somados; um modal aberto conta como tela). O primário é o próximo passo do papel (PRODUCT.md): o item
+  mais urgente de "O que fazer", o "Abrir" do projeto mais urgente na carteira, a decisão do cliente, o
+  pedido atrasado a responder. Abrir um módulo, exportar, importar e editar são secundários.
+- **Acima de três ações secundárias, elas vão para o "Mais ações"** (`renderMaisAcoes` em `ui.js`).
+  Na linha de tabela: uma ação à vista, com nome único (a ação e o registro, no `aria-label`), e o resto no
+  "Mais ações" da linha; nenhum primário por linha. Destrutivo ("Excluir definitivamente", "Aposentar")
+  nunca é primário nem fica ao lado do primário: vai por último no menu, depois do separador, com a
+  confirmação de sempre.
+- **O projeto ativo mora num lugar só**: o seletor do topo da barra lateral. Nome em até duas linhas, corte
+  só visual (o nome inteiro no `title` e no rótulo do select). Sem selo de projeto no cabeçalho e sem lista
+  de projetos no menu de conta; trocar de projeto é por ele ou pela carteira. "Tenant" não aparece na tela.
 
 ## Utilitários de tela (`frontend/src/ui.js`)
 
-Toda tela usa os mesmos quatro, expostos em `window`:
+Toda tela usa os mesmos, expostos em `window`:
 
 - `renderPageHeader(title, subtitle, actionsHtml)` — cabeçalho da tela.
 - `renderStatCards(statsArray)` — faixa de indicadores.
 - `renderStatusBadge(type, text)` — selo de status (`success`, `warning`, `danger`, `info`, `neutral`).
 - `renderDataTable(columns, rows, options)` — tabela com estado vazio (`emptyMessage`).
+- `renderMaisAcoes(itens, { rotulo, nome })` — o menu "Mais ações" (botão de menu do WAI-ARIA: setas,
+  Home/End, Esc devolve o foco, clique fora fecha); `itens` = `[{ rotulo, action, args, perigo }]`.
 
 Eventos por `data-action` (delegação); nada de handler inline nem `<script>` inline, que o CSP
 (`script-src 'self'`) recusa.

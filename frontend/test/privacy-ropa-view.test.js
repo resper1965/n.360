@@ -241,6 +241,16 @@ describe('lista do RoPA', () => {
         expect(el('a').querySelector('[data-action="exportarCsvAtividades"]').textContent).toBe('Exportar CSV');
         expect(el('a').querySelector('[data-action="exportarCsvLia"]').textContent).toBe('Exportar LIAs (CSV)');
     });
+
+    it('cabeçalho: uma ação principal (a entrevista) e as cinco secundárias no "Mais ações"', async () => {
+        rotas['/ropa'] = [{ id: 'r1', project_id: 'p1', processing_purpose: 'Folha', legal_basis: 'Consentimento' }];
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        const visiveis = [...el('a').querySelectorAll('button')].filter((b) => !b.closest('[role="menu"]'));
+        expect(visiveis.map((b) => b.textContent.trim())).toEqual(['Mais ações', 'Nova atividade (entrevista)']);
+        expect(el('a').querySelectorAll('.btn-primary')).toHaveLength(1);
+        const itens = [...el('a').querySelectorAll('[role="menuitem"]')].map((b) => b.getAttribute('data-action'));
+        expect(itens).toEqual(['openImportarRopaModal', 'openROPAReport', 'exportarCsvAtividades', 'exportarCsvLia', 'openNewROPAModal']);
+    });
 });
 
 describe('RIPD (DPIA)', () => {

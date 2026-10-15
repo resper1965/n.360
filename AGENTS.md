@@ -659,10 +659,11 @@ errar um digito destruia a sessao.
 - Tipografia: Inter no corpo; Montserrat 500 na marca, 600 em títulos.
 - Produtos: `n.360` (a plataforma), `n.iso` e `n.privacy` (os modulos), com o ponto em accent, como a marca `ness.`.
 - Proibido: italicos, emojis/icones, accent como background de area.
+- Uma acao principal por tela (um `.btn-primary` visivel); acima de tres secundarias, `renderMaisAcoes` (`frontend/src/ui.js`); nenhum primario por linha de tabela; destrutivo so no fim do menu. O projeto ativo mora so no seletor da barra lateral. Detalhe em `design.md`.
 - Geometria: o sistema e quadrado (`--radius: 0`). O bloco "Correcoes de superficie herdadas", no fim de
   `frontend/src/style.css`, zera o raio de `.btn*`, `.form-input`, `.form-select`, `.card`, `.modal`, `.badge`,
   `.chip` e afins; os `10px` dessas classes no topo do arquivo sao codigo morto. O 10px que ainda aparece vem do
-  inline das telas e de `.wizard-step`, `.yesno-btn`, `.ness-select-*` e `.dropdown-menu`, fora da sobreposicao
+  inline das telas e de `.wizard-step`, `.yesno-btn` e `.ness-select-*`, fora da sobreposicao
   (detalhe em `design.md`). Inline so `0` ou `10px` (`frontend/test/catracas-visuais.test.js`); novo nasce quadrado.
 - Login: tela dividida — marca à esquerda, cartão à direita; empilha abaixo
   de 900px.

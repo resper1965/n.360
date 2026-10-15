@@ -259,7 +259,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
                         `<strong>${escapeHTML(as.client_name || 'Sem nome')}</strong>`,
                         date,
                         window.renderStatusBadge(as.status || 'Em andamento', statusType),
-                        `<button class="btn btn-primary btn-sm" data-action="openAssessmentDetail" data-args='["${as.id}"]'>Gerenciar Levantamento &rarr;</button>`
+                        `<button class="btn btn-sm" data-action="openAssessmentDetail" data-args='["${as.id}"]'>Gerenciar levantamento</button>`
                     ];
                 }),
                 { emptyState: 'Nenhum levantamento de escopo cadastrado.',

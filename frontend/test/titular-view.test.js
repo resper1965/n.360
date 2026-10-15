@@ -480,6 +480,9 @@ describe('o cliente age: administrador do cliente registra e responde', () => {
         const linhas = [...el('c').querySelectorAll('[data-action="abrirPedidoTitular"]')];
         expect(linhas.map((b) => b.textContent)).toEqual(['Abrir', 'Abrir', 'Responder']);
         expect(linhas[2].className).toContain('btn-primary');
+        // Uma ação principal: com pedido atrasado, responder vence registrar um novo (que fica secundário).
+        expect(document.querySelectorAll('#a .btn-primary, #c .btn-primary')).toHaveLength(1);
+        expect(el('a').querySelector('[data-action="abrirNovoPedidoTitular"]').className).not.toContain('btn-primary');
     });
     it('org_user vê o atrasado só com Abrir', async () => {
         S.user = { role: 'org_user' };

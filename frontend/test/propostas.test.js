@@ -129,6 +129,10 @@ describe('lista', () => {
     expect(linhas[0].querySelector('[data-action="__prpDocumento"]')).toBeTruthy();
     expect(linhas[1].querySelector('[data-action="__prpRevisao"]')).toBeNull();
     expect(linhas[1].querySelector('[data-action="__prpDocumento"]')).toBeNull();
+    // Uma ação à vista por linha (Abrir); enviar, revisar e ver o documento no "Mais ações" da linha.
+    const visiveis = [...linhas[0].querySelectorAll('button')].filter((b) => !b.closest('[role="menu"]')).map((b) => b.textContent.trim());
+    expect(visiveis).toEqual(['Abrir', 'Mais ações']);
+    expect(linhas[0].querySelector('[data-action="__prpDocumento"]').getAttribute('role')).toBe('menuitem');
   });
 });
 

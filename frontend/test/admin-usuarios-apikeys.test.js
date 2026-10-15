@@ -186,6 +186,15 @@ describe('desativar, reativar e excluir definitivamente', () => {
     const [c, h, a] = dom();
     await window.renderUsers(c, h, a);
     expect(c.querySelectorAll('[data-action="confirmarExclusaoDefinitiva"]')).toHaveLength(4);
+    // Linha: "Editar" à vista; Desativar e "Excluir definitivamente" só no "Mais ações" da linha, o destrutivo por último.
+    for (const x of c.querySelectorAll('[data-action="confirmarExclusaoDefinitiva"]')) {
+      expect(x.getAttribute('role')).toBe('menuitem');
+      expect(x.closest('[role="menu"]').lastElementChild).toBe(x);
+    }
+    const primeira = c.querySelector('tbody tr');
+    const visiveis = [...primeira.querySelectorAll('button')].filter((b) => !b.closest('[role="menu"]'));
+    expect(visiveis.map((b) => b.textContent.trim())).toEqual(['Editar', 'Mais ações']);
+    expect(visiveis[1].getAttribute('aria-label')).toMatch(/^Mais ações: /);
     S.user = { role: 'consultoria_admin', email: 'g@exemplo.test' };
     await window.renderUsers(c, h, a);
     expect(c.querySelector('[data-action="confirmarExclusaoDefinitiva"]')).toBeNull();

@@ -63,11 +63,16 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         try { records = await api('GET', `/api/v1/projects/${proj.id}/ropa`); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar o inventário de tratamentos.', e); return; }
         if (!Array.isArray(records)) records = [];
         S.ropa = records;
-        // O PDF é do projeto inteiro: uma ação no header, não um botão por linha.
-        a.innerHTML = [btnImportar, records.length ? `<button class="btn" data-action="openROPAReport" data-args='["${proj.id}"]'>Exportar RoPA (PDF)</button>` : '',
-            records.length ? `<button class="btn" data-action="exportarCsvAtividades" data-args='["${proj.id}"]'>Exportar CSV</button>` : '',
-            records.length && comPrivacy ? `<button class="btn" data-action="exportarCsvLia" data-args='["${proj.id}"]'>Exportar LIAs (CSV)</button>` : '',
-            btnNovo('Edição avançada'), btnEntrevista('Nova atividade (entrevista)')].filter(Boolean).join(' ');
+        // Uma ação principal (a entrevista); importar, exportar (o PDF é do projeto inteiro, não da linha) e a edição avançada
+        // ficam no "Mais ações": seis botões no cabeçalho quebravam o título em 1440px.
+        const args = [proj.id];
+        a.innerHTML = [window.renderMaisAcoes([
+            canCrud && comPrivacy && { rotulo: 'Importar planilha', action: 'openImportarRopaModal', args },
+            records.length && { rotulo: 'Exportar RoPA (PDF)', action: 'openROPAReport', args },
+            records.length && { rotulo: 'Exportar CSV', action: 'exportarCsvAtividades', args },
+            records.length && comPrivacy && { rotulo: 'Exportar LIAs (CSV)', action: 'exportarCsvLia', args },
+            canCrud && { rotulo: 'Edição avançada', action: 'openNewROPAModal', args },
+        ]), btnEntrevista('Nova atividade (entrevista)')].filter(Boolean).join(' ');
 
         // A conta de "legítimo interesse sem LIA" é do servidor (visão do encarregado): a lista do RoPA não traz a LIA.
         let liaPendente = null;

@@ -56,7 +56,7 @@ describe('botão Novo projeto', () => {
             expect($('a').querySelector('[data-action="abrirNovoProjeto"]'), role).toBeNull();
         }
     });
-    it('cada linha tem "Empresa…" para ver os dados', async () => {
+    it('cada linha tem "Dados da empresa" para ver os dados', async () => {
         await lista({ role: 'org_user' });
         expect(JSON.parse(document.querySelector('[data-action="abrirDadosEmpresa"]').getAttribute('data-args'))).toEqual(['p1']);
     });
