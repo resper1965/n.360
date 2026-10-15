@@ -97,7 +97,12 @@ export const etapaDoProximoPasso = (etapas) => etapas.find((e) => e.estado === '
 function acaoDoPasso(e, d, pid, rid) {
     const dpias = lista(d.lig && d.lig.dpias);
     if (e.id === 'dados') return podeEntrevistar() ? { rotulo: 'Continuar a entrevista', action: 'abrirRopaEntrevista', args: [pid, rid] } : null;
-    if (e.id === 'impacto') return podeEntrevistar() && d.impacto ? { rotulo: 'Responder o teste de impacto', action: 'atIrPara', args: ['at-e2', 'at-impacto'] } : null;
+    if (e.id === 'impacto') {
+        if (!podeEntrevistar() || !d.impacto) return null;
+        // O foco vai à primeira pergunta ainda sem resposta gravada.
+        const q = d.impacto.perguntas.find((x) => !x.resposta) || d.impacto.perguntas[0];
+        return { rotulo: 'Responder o teste de impacto', action: 'atIrPara', args: ['at-e2', q ? `at-imp-${q.id}-${q.resposta || q.da_atividade || 'sim'}` : ''] };
+    }
     if (e.id === 'avaliacoes') {
         if (e.aguardaImpacto) return null;
         if (d.lig.lia && d.lig.lia.exigida && !(d.lia && d.lia.status === 'concluida') && podeEditar()) return { rotulo: 'Fazer a LIA', action: 'atIrPara', args: ['at-e3', 'tl-lia-fin'] };
@@ -126,7 +131,7 @@ function desenharProximo(etapas, proxima, d, pid, rid) {
     }
     const a = acaoDoPasso(proxima, d, pid, rid);
     return `<section class="at-proximo" aria-labelledby="at-proximo-t">
-        <h2 class="at-proximo-titulo" id="at-proximo-t">Próximo passo: ${escapeHTML(proxima.nome.toLowerCase())}</h2>
+        <h2 class="at-proximo-titulo" id="at-proximo-t">Próximo passo, etapa ${proxima.n}: ${escapeHTML(proxima.nome)}</h2>
         <p class="at-nota">${escapeHTML(proxima.resumo)}</p>
         ${a ? `<button type="button" class="btn btn-primary" id="at-proximo-acao" data-action="${a.action}" data-args='${args(...a.args)}'>${escapeHTML(a.rotulo)}</button>`
             : '<p class="at-nota">Esta etapa é da equipe da consultoria.</p>'}
@@ -203,7 +208,7 @@ function corpoAvaliacoes(d, pid, rid) {
     const dpias = lista(lig.dpias);
     const editar = podeEditar();
     const ripd = dpias.length
-        ? `<ul class="at-lista">${dpias.map((x) => `<li>RIPD ${escapeHTML(x.nome || 'sem nome')}: ${escapeHTML(window.traduzStatus ? window.traduzStatus(x.status || 'Draft') : x.status)}${x.origem_mudou ? ` <span class="tl-origem">${ORIGEM_MUDOU}</span>` : ''}
+        ? `<ul class="at-lista">${dpias.map((x) => `<li>${escapeHTML(x.nome || 'RIPD sem nome')}: ${escapeHTML(window.traduzStatus ? window.traduzStatus(x.status || 'Draft') : x.status)}${x.origem_mudou ? ` <span class="tl-origem">${ORIGEM_MUDOU}</span>` : ''}
             <button type="button" class="btn btn-sm" data-action="atAbrirRipd" data-args='${args(pid, x.id)}'>Abrir o RIPD</button></li>`).join('')}</ul>
            <p class="at-nota">A aprovação do RIPD é pedida no próprio RIPD, com o conteúdo dele congelado.</p>`
         : `<p class="at-nota">RIPD: ${d.registro.dpia_required ? 'a atividade exige e ele ainda não foi criado.' : 'nenhum criado.'}</p>

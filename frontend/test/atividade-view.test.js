@@ -82,6 +82,10 @@ describe('página da atividade', () => {
         expect(primarios).toHaveLength(1);
         expect(primarios[0].id).toBe('at-proximo-acao');
         expect(primarios[0].textContent).toBe('Responder o teste de impacto');
+        expect(el('at-proximo-t').textContent).toBe('Próximo passo, etapa 2: Teste de impacto');
+        // leva à primeira pergunta sem resposta gravada
+        primarios[0].click();
+        expect(document.activeElement.id).toBe('at-imp-afeta_direitos-sim');
         expect(el('c').querySelector('b')).toBeNull();
         expect(el('c').querySelector('i')).toBeNull();
     });
@@ -255,7 +259,7 @@ describe('etapa 3: RIPD e LIA', () => {
 
     it('RIPD ligado: nome e situação em português, escapados, sem botão de criar', async () => {
         await abrir({ [`GET ${B}/ligacoes`]: LIG({ dpias: [{ id: 'd1', nome: 'Folha <b>x</b>', status: 'Draft' }] }) });
-        expect(el('at-e3').textContent).toContain('RIPD Folha <b>x</b>: Rascunho');
+        expect(el('at-e3').textContent).toContain('Folha <b>x</b>: Rascunho');
         expect(el('at-e3').querySelector('b')).toBeNull();
         expect(el('at-e3').querySelector('[data-action="criarDpiaDoTratamento"]')).toBeNull();
     });
