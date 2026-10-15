@@ -1,6 +1,6 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { requireResourceAccess, genToken, signWebhook, registraErro } from '../helpers';
+import { requireResourceAccess, genToken, signWebhook, registraErro, logAudit } from '../helpers';
 import { validateBody, createWebhookSchema, createApiKeySchema } from '../schemas';
 import { listarAtivos } from '../services/itens';
 import { SQL_VENDORS_VISIVEIS } from './vendors';
@@ -334,6 +334,13 @@ integrations.delete('/api/v1/api-keys/:id', async (c) => {
 });
 
 // ─── 7C. Bulk Export (CSV) ──────────────────────────────────────────────────
+// Trilha como a da F4 (`exportacao.csv`): tipo e contagem, nunca o conteúdo. O formato do arquivo não muda. O agente fica de
+// fora (`FORA_DO_AGENTE`): ele lê os mesmos dados em JSON.
+
+async function csvComTrilha(c: Context<{ Bindings: Bindings; Variables: Variables }>, rotulo: string, total: number, csv: string, arquivo: string) {
+  await logAudit(c.env.DB, 'exportacao.csv', c.get('user')?.email || 'system', `Exportação CSV de ${rotulo}: ${total} linhas`, '', '', c.req.param('projectId'));
+  return new Response(csv, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${arquivo}"` } });
+}
 
 integrations.get('/api/v1/projects/:projectId/export/risks', async (c) => {
   const projectId = c.req.param('projectId');
@@ -343,7 +350,7 @@ integrations.get('/api/v1/projects/:projectId/export/risks', async (c) => {
   const csv = headers + '\n' + rows.map(r => 
     `${safeCsvCell(r.asset)},${safeCsvCell(r.threat)},${safeCsvCell(r.vulnerability)},${safeCsvCell(r.impact)},${safeCsvCell(r.probability)},${safeCsvCell(r.risk_level)},${safeCsvCell(r.treatment)},${safeCsvCell(r.owner)},${safeCsvCell(r.status)}`
   ).join('\n');
-  return new Response(csv, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="risks.csv"' } });
+  return csvComTrilha(c, 'riscos', rows.length, csv, 'risks.csv');
 });
 
 integrations.get('/api/v1/projects/:projectId/export/vendors', async (c) => {
@@ -354,7 +361,7 @@ integrations.get('/api/v1/projects/:projectId/export/vendors', async (c) => {
   const csv = headers + '\n' + rows.map(r => 
     `${safeCsvCell(r.name)},${safeCsvCell(r.category)},${safeCsvCell(r.trust_score)},${safeCsvCell(r.diligence_level)},${safeCsvCell(r.has_iso27001)},${safeCsvCell(r.has_soc2)},${safeCsvCell(r.dpa_signed)}`
   ).join('\n');
-  return new Response(csv, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="vendors.csv"' } });
+  return csvComTrilha(c, 'fornecedores', rows.length, csv, 'vendors.csv');
 });
 
 integrations.get('/api/v1/projects/:projectId/export/training', async (c) => {
@@ -365,7 +372,7 @@ integrations.get('/api/v1/projects/:projectId/export/training', async (c) => {
   const csv = headers + '\n' + rows.map(r => 
     `${safeCsvCell(r.employee_name)},${safeCsvCell(r.training_name)},${safeCsvCell(r.status)},${safeCsvCell(r.score)},${safeCsvCell(r.completion_date)}`
   ).join('\n');
-  return new Response(csv, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="training.csv"' } });
+  return csvComTrilha(c, 'treinamentos', rows.length, csv, 'training.csv');
 });
 
 integrations.get('/api/v1/projects/:projectId/export/audit-log', async (c) => {
@@ -380,7 +387,7 @@ integrations.get('/api/v1/projects/:projectId/export/audit-log', async (c) => {
   const csv = headers + '\n' + rows.map(r => 
     `${safeCsvCell(r.id)},${safeCsvCell(r.action)},${safeCsvCell(r.actor)},${safeCsvCell(r.details)},${safeCsvCell(r.created_at)}`
   ).join('\n');
-  return new Response(csv, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="audit-log.csv"' } });
+  return csvComTrilha(c, 'trilha de auditoria', rows.length, csv, 'audit-log.csv');
 });
 
 integrations.get('/api/v1/projects/:projectId/export/assets', async (c) => {
@@ -390,7 +397,7 @@ integrations.get('/api/v1/projects/:projectId/export/assets', async (c) => {
   const csv = headers + '\n' + rows.map(r => 
     `${safeCsvCell(r.name)},${safeCsvCell(r.category)},${safeCsvCell(r.classification)},${safeCsvCell(r.owner)},${safeCsvCell(r.location)},${safeCsvCell(r.status)},${safeCsvCell(r.description)},${safeCsvCell(r.confidentiality_rating)},${safeCsvCell(r.integrity_rating)},${safeCsvCell(r.availability_rating)}`
   ).join('\n');
-  return new Response(csv, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="assets.csv"' } });
+  return csvComTrilha(c, 'ativos', rows.length, csv, 'assets.csv');
 });
 
 export default integrations;

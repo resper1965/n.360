@@ -292,8 +292,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   aprovacao derivada dos pedidos e o hash do conteudo (nao ha coluna de versao). Rotas em `src/routes/exportacao.ts`, em `FORA_DO_AGENTE`;
   trilha `exportacao.csv`/`exportacao.docx` so com tipo e contagem. O painel do encarregado ganhou `acoes_por_prazo` (vencidas, ate 30,
   31 a 90, 91 a 150, mais de 150 dias, sem prazo; `faixaDePrazo` em `src/services/riscos-atividade.ts`), clicavel na tela. Download no
-  frontend: `baixarArquivo` de `frontend/src/api.js` (token no cabecalho). As `/export/*` antigas do n.iso seguem sem trilha e fora de
-  `FORA_DO_AGENTE`.
+  frontend: `baixarArquivo` de `frontend/src/api.js` (token no cabecalho). As `/export/*` antigas do n.iso (`risks`, `vendors`, `training`, `audit-log`,
+  `assets`, em `src/routes/integrations.ts`) tem a mesma trilha `exportacao.csv` (`csvComTrilha`) e estao em `FORA_DO_AGENTE`; formato
+  e faixas nao mudaram.
 - **Terceiros tipificados (fatia 6, migration 0057)**: o terceiro e uma `partes` do tipo `organizacao` com `terceiro_tipo`
   (`grande_provedor|medio|pequeno|critico`) e `src/services/terceiros.ts` (rotas `/projects/:id/terceiros*`). **O tipo define o
   metodo** (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. `avaliacoes_terceiro`

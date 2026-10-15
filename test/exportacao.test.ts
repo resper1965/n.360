@@ -147,6 +147,19 @@ describe('rotas', () => {
     expect(r.status).toBe(403);
   });
 
+  it('exportações antigas do n.iso: trilha só com tipo e contagem, formato inalterado e fora do agente', async () => {
+    const antigas: Array<[string, string]> = [['risks', 'riscos'], ['vendors', 'fornecedores'], ['training', 'treinamentos'], ['audit-log', 'trilha de auditoria'], ['assets', 'ativos']];
+    for (const [tipo, rotulo] of antigas) {
+      const r = await chamar(consultor, exp(tipo));
+      expect(r.status, tipo).toBe(200);
+      expect(r.headers.get('Content-Disposition'), tipo).toBe(`attachment; filename="${tipo}.csv"`);
+      const linhasCsv = (await r.text()).split('\n').filter(Boolean).length - 1;
+      const t = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'exportacao.csv' AND project_id = ? ORDER BY rowid DESC LIMIT 1`).bind(P).first<{ details: string }>();
+      expect(t!.details, tipo).toBe(`Exportação CSV de ${rotulo}: ${linhasCsv} linhas`);
+      expect((await chamar({}, exp(tipo), { AGENTE })).status, tipo).toBe(403);
+    }
+  });
+
   it('teto de linhas: corta e avisa no cabeçalho', async () => {
     const stmts = Array.from({ length: TETO_LINHAS + 1 }, (_, i) => `('ex-m${i}', '${P}', 'Massa ${i}')`);
     for (let i = 0; i < stmts.length; i += 500) {
