@@ -583,3 +583,21 @@ ligações, o painel do encarregado, o relatório e a DPIA criada do tratamento 
 estiver pendente.
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.
+
+---
+
+## 0075 — homologação de fornecedor por questionário (2026-10-15)
+
+Tabelas novas: `homologacao_perguntas` (o questionário do projeto: `tema` até 80, `texto` até 500, `ordem`, `ativa` 0/1, `origem`
+`padrao` ou `projeto`; o código semeia o modelo padrão na primeira leitura com `INSERT OR IGNORE`) e `homologacoes` (um envio por
+terceiro: `parte_id` para `partes` com `ON DELETE CASCADE`, `token_hash` único, `expira_em`, `status` `aberta`, `respondida`,
+`concluida` ou `cancelada`, `perguntas_json` congelado, `respostas_json`, `resultado` e `avaliacao_id` para `avaliacoes_terceiro` com
+`ON DELETE SET NULL`). Gatilho `homologacao_imutavel`: recusa mudar perguntas, token, terceiro e projeto, mudar respostas fora de
+`aberta` e voltar a `aberta`. Nada existente muda. `test/migration-0075.test.ts` prova sobre o banco de antes: a linha existente fica,
+as tabelas e o gatilho entram, os CHECK valem. **Idempotente** (`IF NOT EXISTS` em tudo), mas aplicar pelo `migrations apply`.
+Conferência depois: `PRAGMA table_info(homologacao_perguntas)`, `PRAGMA table_info(homologacoes)` e `SELECT name FROM sqlite_master
+WHERE name = 'homologacao_imutavel'`. Para desfazer: `DROP TABLE homologacoes; DROP TABLE homologacao_perguntas` (o código anterior não
+as lê). **Esta RODA em produção ANTES do código novo:** as rotas de homologação e a página do fornecedor leem as tabelas; o deploy do
+merge recusa enquanto ela estiver pendente.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
