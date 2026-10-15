@@ -132,6 +132,10 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   proprio statement (a unica excecao e `UPDATE pedidos SET org_id = ?`), sem
   DELETE nem REPLACE; `test/pedidos-prova.test.ts` le o fonte e reprova o que
   fugir disso. Correcao e pedido novo.
+- **E-mail do pedido de aprovacao**: `POST /api/v1/projects/:projectId/pedidos` com papel `ciso`/`ceo` manda a cada destinatario, uma vez, o
+  `emailPedidoAprovacao` (quem pede, tipo e titulo, papel, "sem data marcada", botao para `/?tela=meus-pedidos`, `reply_to` de quem pediu;
+  `telaPedida` em `frontend/src/produto.js` aceita `meus-pedidos` para qualquer papel). Nao ha reenvio para aprovacao (o "Reenviar" e so da
+  ciencia por link). Falha de envio vai ao log (`pedido_aprovacao_email_falhou`) e o pedido continua criado. Teste: `test/emails-avisos.test.ts`.
 - **Aprovacao em lote** (`POST /api/v1/pedidos/lote`): nao e caminho novo de aprovacao. Cada item passa por `decidirPedido` (`src/routes/pedidos.ts`) ou `assinarEvidencia` (`src/routes/evidence.ts`), as mesmas funcoes da rota individual; a senha e conferida uma vez e o `hash_visto` de cada item tem de bater com o conteudo atual. So aprova, ate 50 itens, fora do agente. Mexer na regra de autoridade ou de segregacao e mexer nas duas funcoes, e o lote acompanha.
 - **URL canonica**: `src/config/url.ts` (`appUrl(env)`, var `APP_URL`; o padrao do codigo e o `wrangler.jsonc` sao
   `https://n360.ness.com.br`, desde o #340). Link de e-mail, base do
@@ -146,8 +150,18 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   de volta para `niso` (o Worker e o frontend deixam de redirecionar: o host do `APP_URL` nunca redireciona, e o frontend le o
   `app_url` do `/health`). Sem dado nem migration; o widget do Turnstile precisa ter os dois hostnames.
 - **Nomes padronizados**: `normalizarNome` (`src/services/nomes.ts`) roda ao gravar parte, departamento e ativo (esquemas em `src/schemas/nucleo.ts` e os gravadores que os contornam: `partes.ts`, `vendors.ts`, `encarregado-pessoa.ts`, `importacao.ts`, `itens.ts`). Gravador novo de nome passa por ela. O que ja estava gravado se arruma em Partes > Mais > Padronizar nomes (`src/services/padronizar-nomes.ts`); nada e unido sozinho.
-- **E-mail**: todo e-mail sai de `montarEmail` (`src/services/email-layout.ts`, o invólucro: tabela de 600px, fundo claro, marca do produto e `ness.` com o ponto em #00ade8, "Quem pede", "O que fazer", "Até quando" em dd/mm/aaaa de Brasília, botão #0b1326 com texto branco, link em texto, rodapé com o motivo e o contato, e a versão em texto puro). O texto de cada e-mail mora em `src/services/emails.ts` (o resumo de prazos em `avisos-prazo.ts`); `enviarEmail` exige `{ html, text }`. Remetente sempre `@ness.com.br`: `remetente(produto, quem)` dá "Cliente via n.360" ou "n.360 | ness.", e `replyTo` vai para quem pediu. E-mail novo entra em `emails.ts`, ganha amostra em `scripts/emails-amostra.mjs` (gera `docs/design/emails/`) e teste em `test/emails-marca.test.ts`. Pendência: o convite ainda leva a senha temporária no corpo (não há definição de senha por link).
+- **E-mail**: todo e-mail sai de `montarEmail` (`src/services/email-layout.ts`, o invólucro: tabela de 600px, fundo claro, marca do produto e `ness.` com o ponto em #00ade8, "Quem pede", "O que fazer", "Até quando" em dd/mm/aaaa de Brasília, botão #0b1326 com texto branco, link em texto, rodapé com o motivo e o contato, e a versão em texto puro). O texto de cada e-mail mora em `src/services/emails.ts` (o resumo de prazos em `avisos-prazo.ts`); `enviarEmail` exige `{ html, text }`. Remetente sempre `@ness.com.br`: `remetente(produto, quem)` dá "Cliente via n.360" ou "n.360 | ness.", e `replyTo` vai para quem pediu. E-mail novo entra em `emails.ts`, ganha amostra em `scripts/emails-amostra.mjs` (gera `docs/design/emails/`) e teste em `test/emails-marca.test.ts`. O convite não leva senha: leva o link de criar a senha (ver Contas).
 - **Contas**: conta de usuario se **desativa**, nao se apaga (`PUT /api/v1/users/:id/ativo`; `DELETE /api/v1/users/:id` so desativa). Apagar de verdade e `DELETE ...?definitivo=1`, so `platform_admin`; conta com historico (FK sem cascata, ex. marcacoes de checklist e aceites de termo) e ANONIMIZADA em vez de apagada: fica sem identidade e sem acesso, o e-mail e liberado e a trilha leva `user.anonimizado`. Conta desativada nao entra por senha, SSO, agente MCP nem sessao aberta; chave de API e do projeto, nao da pessoa, e continua valendo ate ser revogada em Chaves de API. Ninguem desativa nem exclui a propria conta (409). Nao reintroduza `DELETE FROM users` fora dessa rota.
+  **Convite com link (15/10/2026, migration 0077):** conta nova (`POST /users`, organizacao nova e seu reenvio, convite de stakeholder) nasce SEM
+  senha utilizavel (`SEM_SENHA` = `convite:sem-senha-local`, que `verifyPassword` nunca casa) e com `requires_password_change = 1`;
+  `enviarBoasVindas` (`src/routes/users.ts`) emite o convite (`src/services/convite.ts`: `genToken`, so o SHA-256 em `convites_senha`, 72 h,
+  uma linha por conta) e o e-mail leva `appUrl/#convite=<token>` (fragmento) e nunca senha. A tela (`consumirConvite`/`doCriarSenha` em
+  `frontend/src/globals.js`, caixa `criar-senha-box` em `login.html`) manda o token no CORPO de `POST /api/v1/auth/criar-senha` (publico,
+  10 por IP a cada 10 min, `criarSenhaSchema` com a politica de senha de sempre) e entra pelo login normal. Uso unico pelo `DELETE ... RETURNING`;
+  reenviar (`POST /users/:id/reenviar-convite`, quem gere a conta, 5/h por conta, so com primeiro acesso pendente) substitui a linha e
+  invalida o link anterior. Token desconhecido, vencido, usado, substituido, de conta desativada ou de SSO/SCIM: a MESMA resposta 400.
+  Dominio de e-mail com SSO ativo (`configPorDominio`) nao ganha link. `password` no `POST /users` e aceito e IGNORADO. Trilha
+  `auth.senha_criada_convite` e `user.convite_reenviado`, sem o token. Anonimizar apaga o convite. Teste: `test/convite-senha.test.ts`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
@@ -193,9 +207,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     com `/api/v1/public/homologacao/*` (`src/routes/public-homologacao.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **92 tabelas** (2026-10-15: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **93 tabelas** (2026-10-15: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0076** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0077** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -348,7 +362,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (so `respondida`, ato humano) chama `registrarAvaliacao` e grava `avaliacoes_terceiro` com metodo `questionario`; a situacao e os avisos
   de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco nao e gravado. O envio do fornecedor avisa no
   sino os consultores designados (sem nenhum, os `consultoria_admin`; `avisarEnvio`, regra de `escolherDestinatarios`), so com o nome da
-  parte; falha do aviso vai ao log e nao derruba o envio.
+  parte, e os MESMOS recebem e-mail (`emailHomologacaoRespondida`: fornecedor, % respondido, link `/privacy?tela=terceiros`; nunca token nem
+  resposta; so a quem o sino acabou de avisar, entao nao repete); falha do aviso ou do e-mail vai ao log e nao derruba o envio.
 - **Titular, incidente e consentimento (fatia 7, migration 0058, SO registro interno)**: `titular_pedidos` (protocolo `PT-AAAA-NNNN` por projeto),
   `incidentes` (`IN-AAAA-NNNN`; encerrar exige risco avaliado e, se `relevante`, a comunicacao a ANPD registrada: CHECK do banco, vale para SQL
   direto) e `consentimentos` (prova ligada ao tratamento; revogar nao apaga). **Nenhum prazo legal mora no codigo nem na migration:**
@@ -359,9 +374,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   incidente, nao revoga consentimento e nao edita prazo. Portal publico e conector externo: fora (decisao de 09/10).
   **Quem grava (o cliente age, 15/10):** equipe e o `org_admin` do PROPRIO projeto registram e respondem o pedido do titular (status e
   resposta, inclusive a partir do rascunho de IA) e registram, avaliam e comunicam o incidente; `org_user` e `client` so leem (o allow-list
-  de so leitura de `src/middleware/auth.ts`, sem entrada para estas rotas). Encerrar incidente, registrar/revogar consentimento e editar
-  prazo legal continuam, na tela, so com a equipe (`podeEditar` em `frontend/src/views/titular.js`; o servidor nao tem corte de papel
-  nessas rotas alem do allow-list, e o CHECK da 0058 segue valendo). Contrato em `test/cliente-titular-incidente.test.ts`.
+  de so leitura de `src/middleware/auth.ts`, sem entrada para estas rotas). **Encerrar incidente e so da equipe da consultoria, no
+  SERVIDOR** (`ehEquipeNess` em `POST .../incidentes/:id/encerrar`; `org_admin`, `org_user` e `client` recebem 403; o agente MCP segue
+  fora por `FORA_DO_AGENTE`; o CHECK da 0058 segue valendo). Registrar/revogar consentimento e editar prazo legal continuam, na tela, so com
+  a equipe (`podeEditar` em `frontend/src/views/titular.js`; o servidor nao tem corte de papel nessas rotas alem do allow-list e, no prazo
+  legal, do `platform_admin`). Contrato em `test/cliente-titular-incidente.test.ts`.
 - **Visoes, evidencia com validade e casca (fatia 8, migration 0059)**: `evidence.valido_ate` (opcional) e `evidencia_requisitos` ligam a
   evidencia a requisito (`/projects/:id/evidence/:eid/{requisitos,validade}`, no router de requisitos, SEM tocar `evidence.ts`). A rotina
   diaria de avisos chama `vencerEvidencias` ANTES de avisar: evidencia vencida volta a `pending` (a assinatura gravada NAO e apagada, ela

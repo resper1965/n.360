@@ -15,7 +15,8 @@ const papel = z.enum(PAPEIS_DE_CONTA, 'Papel inválido');
 // decidida pelo servidor (a de quem cria, ou a do projeto do cliente), nunca pelo corpo.
 export const createUserSchema = z.object({
   email: emailNormalizado(),
-  password: senhaNovaSchema,
+  /** Ignorado desde o convite por link (15/10/2026): a conta nasce sem senha. Aceito para não quebrar cliente antigo da API. */
+  password: senhaNovaSchema.optional(),
   name: z.string().min(1, 'Nome é obrigatório'),
   role: papel,
   client_project_id: z.string().nullable().optional(),

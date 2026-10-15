@@ -187,10 +187,11 @@ window.__adminCopiarApiKey = () => {
                         escapeHTML(projectName),
                         escapeHTML(window.nomeOrgDe?.(u.org) || '—'),
                         escapeHTML(rotuloModulos(u.modulos)),
-                        window.renderStatusBadge(contaAtiva(u) ? 'Ativa' : 'Desativada', contaAtiva(u) ? 'success' : 'info'),
-                        // Uma ação à vista (Editar); desativar e o destrutivo ficam no "Mais ações" da linha, nunca ao lado do Editar.
+                        window.renderStatusBadge(!contaAtiva(u) ? 'Desativada' : u.convite_pendente ? 'Convite pendente' : 'Ativa', contaAtiva(u) && !u.convite_pendente ? 'success' : 'info'),
+                        // Uma ação à vista (Editar); reenviar convite, desativar e o destrutivo ficam no "Mais ações" da linha.
                         `<div class="acoes-linha"><button class="btn btn-ghost btn-sm" data-action="openUserModal" data-args='["${u.id}"]' aria-label="Editar: ${escapeHTML(u.name || u.email || '')}">Editar</button>
                          ${propria(u) ? '' : window.renderMaisAcoes([
+                             u.convite_pendente && { rotulo: 'Reenviar convite', action: 'reenviarConviteUsuario', args: [u.id] },
                              { rotulo: contaAtiva(u) ? 'Desativar' : 'Reativar', action: 'confirmarContaAtiva', args: [u.id] },
                              S.user && S.user.role === 'platform_admin' && { rotulo: 'Excluir definitivamente', action: 'confirmarExclusaoDefinitiva', args: [u.id], perigo: true },
                          ], { nome: u.name || u.email || '' })}</div>`
@@ -312,6 +313,16 @@ window.__adminCopiarApiKey = () => {
         }
     }
 
+    async function reenviarConviteUsuario(id) {
+        try {
+            const r = await api('POST', `/api/v1/users/${id}/reenviar-convite`, {});
+            showToast(r && r.emailEnviado === false ? 'O convite não saiu por e-mail. Tente de novo mais tarde.' : 'Convite reenviado. O link anterior deixou de valer.', r && r.emailEnviado === false ? 'error' : undefined);
+            render();
+        } catch (e) {
+            showToast('Erro ao reenviar o convite: ' + e.message, 'error');
+        }
+    }
+
     async function openUserModal(userId) {
         let user = null;
         let tetoModulos = [];
@@ -429,10 +440,10 @@ window.__adminCopiarApiKey = () => {
                     <label class="form-label">E-mail</label>
                     <input type="email" id="user-m-email" class="form-input" value="${user ? escapeHTML(user.email) : ''}" placeholder="usuario@empresa.com" ${user && S.user?.role !== 'platform_admin' ? 'readonly style="opacity: 0.6"' : ''}>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Senha ${user ? '(Deixe em branco para manter a atual)' : ''}</label>
-                    <input type="password" id="user-m-password" class="form-input" placeholder="••••••••">
-                </div>
+                ${user ? `<div class="form-group">
+                    <label class="form-label" for="user-m-password">Senha (deixe em branco para manter a atual)</label>
+                    <input type="password" id="user-m-password" class="form-input" placeholder="••••••••" autocomplete="new-password">
+                </div>` : '<p class="org-dica" id="user-m-convite-nota">A pessoa recebe um e-mail com o link para criar a própria senha (vale 72 horas). Ninguém mais conhece a senha.</p>'}
                 <div class="form-group">
                     <label class="form-label">Papel (Role)</label>
                     <select id="user-m-role" class="form-input" data-action-change="toggleUserProjectSelect" data-arg-val>
@@ -485,7 +496,8 @@ window.__adminCopiarApiKey = () => {
     window.saveUser = async function(id) {
         const name = document.getElementById('user-m-name').value.trim();
         const email = document.getElementById('user-m-email').value.trim();
-        const password = document.getElementById('user-m-password').value;
+        const campoSenha = document.getElementById('user-m-password');
+        const password = campoSenha ? campoSenha.value : '';
         const role = document.getElementById('user-m-role').value;
         const projectEl = document.getElementById('user-m-project');
         const client_project_id = projectEl ? (projectEl.value || null) : null;
@@ -495,13 +507,9 @@ window.__adminCopiarApiKey = () => {
             return;
         }
 
-        if (!id && !password) {
-            showToast('A senha é obrigatória para novos usuários.', 'error');
-            return;
-        }
-
         const payload = { name, email, role, client_project_id };
-        if (password) {
+        // Só na edição: a conta nova nasce sem senha e a pessoa a cria pelo link do convite.
+        if (id && password) {
             payload.password = password;
         }
         // Caixas de módulo (só as habilitadas, dentro do teto). Na criação vai `modulos` se marcou algum; na edição, o PUT
@@ -517,8 +525,8 @@ window.__adminCopiarApiKey = () => {
                 showToast('Usuário atualizado com sucesso');
             } else {
                 if (marcados.length) payload.modulos = marcados;
-                await api('POST', '/api/v1/users', payload);
-                showToast('Usuário criado com sucesso');
+                const r = await api('POST', '/api/v1/users', payload);
+                showToast(r && r.emailEnviado === false ? 'Usuário criado, mas o e-mail do convite não saiu: use "Reenviar convite".' : 'Usuário criado. O convite foi enviado por e-mail.', r && r.emailEnviado === false ? 'error' : undefined);
             }
             closeModal();
             render();
@@ -660,6 +668,7 @@ window.savePricingConfig = savePricingConfig;
 window.alternarDesativadas = alternarDesativadas;
 window.__usuariosFiltrarOrg = (id) => { filtroOrg = id || ''; render(); };
 window.confirmarContaAtiva = confirmarContaAtiva;
+window.reenviarConviteUsuario = reenviarConviteUsuario;
 window.definirContaAtiva = definirContaAtiva;
 window.confirmarExclusaoDefinitiva = confirmarExclusaoDefinitiva;
 window.excluirContaDefinitiva = excluirContaDefinitiva;

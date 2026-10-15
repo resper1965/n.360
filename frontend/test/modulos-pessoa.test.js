@@ -117,7 +117,7 @@ describe('modal de usuário: módulos', () => {
     await window.openUserModal('');
     expect(caixa('iso').disabled).toBe(false);
     expect(caixa('privacy').disabled).toBe(false);
-    $('user-m-name').value = 'Eva'; $('user-m-email').value = 'eva@exemplo.test'; $('user-m-password').value = 'senha-forte'; $('user-m-role').value = 'org_user';
+    $('user-m-name').value = 'Eva'; $('user-m-email').value = 'eva@exemplo.test'; $('user-m-role').value = 'org_user';
     apiMock.mockReset();
     apiMock.mockResolvedValue({});
     await window.saveUser('');

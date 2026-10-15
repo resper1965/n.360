@@ -36,7 +36,7 @@ function espiarEmail(ok = true) {
   }) as any);
   return enviados;
 }
-const senhaDoEmail = (html: string) => html.match(/Senha temporária<\/td><td[^>]*><strong>([^<]+)<\/strong>/)?.[1] ?? '';
+const tokenDoEmail = (html: string) => html.match(/#convite=([0-9a-f]{64})/)?.[1] ?? '';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -85,7 +85,7 @@ describe('guardas: ehAdminDaOrg e podeAdministrarOrg', () => {
 });
 
 describe('POST /api/v1/platform/orgs: provisionamento', () => {
-  it('cria organização, administrador e trilha num batch; envia o convite; a senha provisória não aparece em resposta nem em log', async () => {
+  it('cria organização, administrador e trilha num batch; envia o convite com link; o token não aparece em resposta nem em log', async () => {
     const enviados = espiarEmail();
     const logs: string[] = [];
     for (const m of ['log', 'info', 'warn', 'error', 'debug'] as const) {
@@ -99,10 +99,11 @@ describe('POST /api/v1/platform/orgs: provisionamento', () => {
 
     expect(enviados).toHaveLength(1);
     expect(enviados[0].to).toEqual(['admin@nova.lat']);
-    const senha = senhaDoEmail(enviados[0].html);
-    expect(senha.length).toBeGreaterThanOrEqual(16);
-    expect(texto).not.toContain(senha);
-    expect(logs.join('\n')).not.toContain(senha);
+    const token = tokenDoEmail(enviados[0].html);
+    expect(token).toHaveLength(64);
+    expect(enviados[0].html + enviados[0].text).not.toMatch(/[Ss]enha tempor/);
+    expect(texto).not.toContain(token);
+    expect(logs.join('\n')).not.toContain(token);
 
     const org = await um<any>('SELECT * FROM organizations WHERE id = ?', 'org_consultoria-nova');
     expect(org).toMatchObject({ name: 'Consultoria Nova', slug: 'consultoria-nova', prefixo_proposta: 'NOVA', cnpj: '11222333000181',
@@ -112,20 +113,21 @@ describe('POST /api/v1/platform/orgs: provisionamento', () => {
     const adm = await um<any>('SELECT * FROM users WHERE email = ?', 'admin@nova.lat');
     expect(adm).toMatchObject({ role: 'consultoria_admin', org_id: 'org_consultoria-nova', requires_password_change: 1, name: 'Admin Nova', client_project_id: null });
     expect(org.owner_id).toBe(adm.id);
-    expect(await verifyPassword(senha, adm.password_hash)).toBe(true);
-    expect(adm.password_hash).not.toContain(senha);
+    expect(adm.password_hash).toBe('convite:sem-senha-local');
 
     const t = await um<any>(`SELECT * FROM audit_logs WHERE action = 'org.criada' AND details LIKE '%org_consultoria-nova%'`);
     expect(t).toMatchObject({ actor: 'pa@ness.lat', project_id: null });
     expect(t.details).toContain('admin@nova.lat');
-    expect(t.details).not.toContain(senha);
+    expect(t.details).not.toContain(token);
 
-    // O administrador entra com a senha do convite e cai no primeiro acesso, na organização nova.
+    // O administrador cria a senha pelo link do convite e entra na organização nova.
     vi.restoreAllMocks();
-    const login = await chamar('POST', '/api/v1/auth/login', {}, { email: 'admin@nova.lat', password: senha });
+    const criada = await chamar('POST', '/api/v1/auth/criar-senha', {}, { token, newPassword: SENHA });
+    expect(criada.status, await criada.clone().text()).toBe(200);
+    const login = await chamar('POST', '/api/v1/auth/login', {}, { email: 'admin@nova.lat', password: SENHA });
     const l = await login.json<any>();
     expect(login.status, JSON.stringify(l)).toBe(200);
-    expect(l).toMatchObject({ requiresPasswordChange: true, user: { role: 'consultoria_admin', org_id: 'org_consultoria-nova' } });
+    expect(l).toMatchObject({ requiresPasswordChange: false, user: { role: 'consultoria_admin', org_id: 'org_consultoria-nova' } });
     // E a configuração comercial é a padrão, sem termos (o administrador escreve os dele).
     const cfg = await (await chamar('GET', '/api/v1/org/config', { Authorization: `Bearer ${l.token}` })).json<any>();
     expect(cfg).toMatchObject({ id: 'org_consultoria-nova', prefixoProposta: 'NOVA', sugestaoNumero: expect.stringMatching(/^NOVA-\d{4}-001$/) });

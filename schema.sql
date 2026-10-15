@@ -1868,3 +1868,12 @@ WHEN NEW.perguntas_json IS NOT OLD.perguntas_json OR NEW.token_hash IS NOT OLD.t
 BEGIN
     SELECT RAISE(ABORT, 'homologacao: perguntas e respostas enviadas sao imutaveis');
 END;
+
+-- Convite com link para criar a senha (migration 0077): só o SHA-256 do token, 72 h, uso único (DELETE condicional), reenviar substitui.
+CREATE TABLE IF NOT EXISTS convites_senha (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expira_em DATETIME NOT NULL,
+    criado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

@@ -95,6 +95,36 @@
                 </div>
             </div>
 
+            <!-- Convite: criar a senha pelo link do e-mail (token no fragmento #convite=, enviado no corpo do POST). -->
+            <div class="login-box" id="criar-senha-box" style="display:none">
+                <form data-action-submit="doCriarSenha" data-prevent novalidate style="display:flex;flex-direction:column;gap:16px">
+                    <div>
+                        <h2 class="login-title">Crie sua senha</h2>
+                        <p class="login-lede">Você foi convidado para o n.360. Defina a senha da sua conta para entrar.</p>
+                    </div>
+                    <div class="login-field">
+                        <label class="login-label" for="convite-senha">Senha</label>
+                        <input type="password" id="convite-senha" class="form-input" autocomplete="new-password" minlength="8" maxlength="200" required aria-describedby="convite-regra convite-senha-erro">
+                        <p class="login-note" id="convite-regra">Pelo menos 8 caracteres.</p>
+                        <p class="login-error" id="convite-senha-erro" role="alert" style="display:none"></p>
+                    </div>
+                    <div class="login-field">
+                        <label class="login-label" for="convite-confirma">Confirme a senha</label>
+                        <input type="password" id="convite-confirma" class="form-input" autocomplete="new-password" maxlength="200" required aria-describedby="convite-confirma-erro">
+                        <p class="login-error" id="convite-confirma-erro" role="alert" style="display:none"></p>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width:100%">Criar senha e entrar</button>
+                    <p id="convite-erro" class="login-error" role="alert" style="display:none"></p>
+                    <div style="text-align:center">
+                        <button type="button" class="login-link" data-action="showStandardLoginForm">Já tenho senha: entrar</button>
+                    </div>
+                </form>
+                <div class="login-sign">
+                    <span class="login-sign-house">ness<span>.</span></span>
+                    <span class="login-sign-links">n.iso 1.8.0</span>
+                </div>
+            </div>
+
             <!-- Segundo fator (TOTP). Sem SMS. -->
             <div class="login-box" id="mfa-login-box" style="display:none">
                 <form data-action-submit="doMfaLogin" data-prevent style="display:flex;flex-direction:column;gap:16px">

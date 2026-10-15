@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { genId, genToken, hashPassword, logAudit, erro500, rateLimitD1, invalidateUserSessions } from '../helpers';
+import { genId, logAudit, erro500, rateLimitD1, invalidateUserSessions } from '../helpers';
 import { validateBody, criarOrgSchema, atualizarOrgSchema, orgModulosSchema, MODULOS, parseModulos } from '../schemas';
 import { ORG_NESS, SQL_EQUIPE } from '../services/organizacao';
 import { enviarBoasVindas } from './users';
+import { SEM_SENHA } from '../services/convite';
 
 /**
  * Organizações (consultorias), fatia 5: só o `platform_admin`. Montado em `/api/v1/platform/orgs`,
@@ -22,10 +23,10 @@ const unico = (e: unknown) => String((e as any)?.message ?? e).includes('UNIQUE'
 /*
  * Cria a organização e o administrador dela num batch só (com a trilha): ou nasce tudo, ou nada.
  * O id é `org_<slug>`: legível na trilha e no X-Org-Id, e único porque o slug é. O administrador
- * entra pelo fluxo de primeiro acesso de `POST /users`: senha provisória aleatória (CSPRNG),
- * `requires_password_change = 1` e o mesmo e-mail de boas-vindas. A senha nunca volta na resposta
- * nem vai para log; se o e-mail falhar, a organização fica e a resposta diz `emailEnviado: false`
- * (o administrador entra por "esqueci a senha", ou o platform_admin redefine a senha dele).
+ * entra pelo fluxo de primeiro acesso de `POST /users`: conta sem senha (`SEM_SENHA`),
+ * `requires_password_change = 1` e o mesmo convite com link para criar a senha. O token nunca volta na
+ * resposta nem vai para log; se o e-mail falhar, a organização fica e a resposta diz `emailEnviado: false`
+ * (o administrador entra por "esqueci a senha", ou o platform_admin reenvia o convite).
  */
 organizacoesApp.post('/', async (c) => {
   try {
@@ -46,14 +47,13 @@ organizacoesApp.post('/', async (c) => {
 
     const ator = c.get('user').email;
     const adminId = genId();
-    const senha = genToken().slice(0, 24); // 96 bits; vale para um login (troca obrigatória)
     try {
       await db.batch([
         db.prepare(`INSERT INTO organizations (id, name, slug, plan, max_projects, max_users, owner_id, status, cnpj, prefixo_proposta,
           proximo_numero, termo_aceito_em, termo_versao) VALUES (?, ?, ?, 'consultoria', ?, ?, ?, 'Active', ?, ?, 1, datetime('now'), ?)`)
           .bind(id, b.nome, b.slug, b.maxProjetos, b.maxUsuarios, adminId, b.cnpj ?? null, b.prefixoProposta, b.termoVersao),
         db.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, requires_password_change)
-          VALUES (?, ?, ?, ?, 'consultoria_admin', NULL, ?, 1)`).bind(adminId, b.adminEmail, await hashPassword(senha), b.adminNome, id),
+          VALUES (?, ?, ?, ?, 'consultoria_admin', NULL, ?, 1)`).bind(adminId, b.adminEmail, SEM_SENHA, b.adminNome, id),
         db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
           VALUES (?, 'org.criada', ?, ?, '', ?, NULL, datetime('now'))`)
           .bind(genId(), ator, `Organização ${id} (${b.slug}) criada por ${ator}; administrador ${b.adminEmail}; termo de uso ${b.termoVersao}`,
@@ -64,7 +64,7 @@ organizacoesApp.post('/', async (c) => {
       if (unico(e)) return c.json({ error: 'Slug, prefixo de proposta ou e-mail já cadastrado' }, 409);
       throw e;
     }
-    const emailEnviado = await enviarBoasVindas(c, b.adminEmail, b.adminNome, senha, b.nome).catch(() => false);
+    const emailEnviado = await enviarBoasVindas(c, { id: adminId, email: b.adminEmail, name: b.adminNome }, b.nome).catch(() => false);
     return c.json({ id, slug: b.slug, adminId, adminEmail: b.adminEmail, emailEnviado }, 201);
   } catch (e) { return erro500(c, 'Erro ao criar a organização', e); }
 });
@@ -141,9 +141,9 @@ organizacoesApp.put('/:id/modulos', async (c) => {
 
 /*
  * Reenvia o convite do administrador que ainda não entrou (o e-mail de boas-vindas falhou ou se
- * perdeu): nova senha provisória (CSPRNG), `requires_password_change = 1`, sessões dele derrubadas e
- * o mesmo e-mail. Quem já entrou usa "Esqueci a senha" (409). A senha nunca vai para a resposta, o
- * log ou a trilha. 5 por hora por organização.
+ * perdeu): convite novo (o link anterior deixa de valer), `requires_password_change = 1`, sessões dele
+ * derrubadas e o mesmo e-mail. Quem já entrou usa "Esqueci a senha" (409). O token nunca vai para a
+ * resposta, o log ou a trilha. 5 por hora por organização.
  */
 organizacoesApp.post('/:id/reenviar-convite', async (c) => {
   try {
@@ -157,11 +157,11 @@ organizacoesApp.post('/:id/reenviar-convite', async (c) => {
         WHERE o.id = ? AND u.role = 'consultoria_admin' AND u.requires_password_change = 1 AND COALESCE(u.ativo, 1) <> 0
         ORDER BY (u.id = o.owner_id) DESC, u.created_at LIMIT 1`).bind(id).first<{ id: string; email: string; name: string }>();
     if (!admin) return c.json({ error: 'O administrador já entrou: para recuperar o acesso, use "Esqueci a senha"' }, 409);
-    const senha = genToken().slice(0, 24); // 96 bits, como na criação
-    await db.prepare('UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE id = ?').bind(await hashPassword(senha), admin.id).run();
+    // Convite novo (o link anterior e a senha provisória de antes do convite por link deixam de valer).
+    await db.prepare('UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE id = ?').bind(SEM_SENHA, admin.id).run();
     await invalidateUserSessions(c.env.SESSIONS, admin.id);
     await logAudit(db, 'org.convite_reenviado', c.get('user').email, `Convite do administrador ${admin.email} da organização ${id} reenviado`);
-    const emailEnviado = await enviarBoasVindas(c, admin.email, admin.name, senha, org.name).catch(() => false);
+    const emailEnviado = await enviarBoasVindas(c, admin, org.name).catch(() => false);
     return c.json({ emailEnviado });
   } catch (e) { return erro500(c, 'Erro ao reenviar o convite', e); }
 });

@@ -147,6 +147,7 @@ const SEM_RECURSO_ALHEIO: Record<string, string> = {
   'POST /api/v1/auth/reset-password-first': 'troca da senha provisória da própria conta',
   'POST /api/v1/auth/forgot-password': 'pedido de redefinição por e-mail; não devolve dado',
   'POST /api/v1/auth/reset-password': 'redefinição por token de uso único da própria conta',
+  'POST /api/v1/auth/criar-senha': 'convite: criar a senha pelo token de uso único do link (no corpo); não recebe id de recurso',
   'POST /api/v1/auth/logout': 'encerra a própria sessão',
   'POST /api/v1/auth/change-password': 'senha da própria conta',
   'POST /api/v1/auth/mfa/setup': 'segundo fator da própria conta',
