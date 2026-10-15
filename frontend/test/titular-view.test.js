@@ -469,3 +469,47 @@ describe('rascunhos de IA no n.privacy', () => {
         expect(el('modal-content').querySelector('[data-action="rascunhoComunicacaoIncidente"]')).toBeNull();
     });
 });
+
+describe('o cliente age: administrador do cliente registra e responde', () => {
+    const PED = { id: 'c', protocolo: 'PT-2026-0003', tipo: 'oposicao', canal: 'outro', titular_nome: null, titular_contato: null, descricao: '', recebido_em: '2026-09-01', prazo_em: '2026-09-16', situacao_prazo: 'atrasado', resposta_texto: null, status: 'recebido' };
+    beforeEach(() => { S.user = { role: 'org_admin' }; });
+
+    it('pedidos: tem Registrar pedido; o atrasado tem "Responder" como ação primária da linha', async () => {
+        await abrir('pedidos');
+        expect(el('a').querySelector('[data-action="abrirNovoPedidoTitular"]')).not.toBeNull();
+        const linhas = [...el('c').querySelectorAll('[data-action="abrirPedidoTitular"]')];
+        expect(linhas.map((b) => b.textContent)).toEqual(['Abrir', 'Abrir', 'Responder']);
+        expect(linhas[2].className).toContain('btn-primary');
+    });
+    it('org_user vê o atrasado só com Abrir', async () => {
+        S.user = { role: 'org_user' };
+        await abrir('pedidos');
+        const linhas = [...el('c').querySelectorAll('[data-action="abrirPedidoTitular"]')];
+        expect(linhas.map((b) => b.textContent)).toEqual(['Abrir', 'Abrir', 'Abrir']);
+    });
+    it('o pedido abre com status e resposta; o rascunho gerado vai para a resposta e é salvo pelo PUT', async () => {
+        const f = await abrir('pedidos', { [`GET ${B}/titular-pedidos/c`]: PED, [`POST ${B}/titular-pedidos/c/rascunho`]: { ok: true, texto: 'Prezado titular' }, [`PUT ${B}/titular-pedidos/c`]: { ok: true } });
+        await window.abrirPedidoTitular('p9', 'c');
+        expect(el('pt-status')).not.toBeNull();
+        await window.rascunhoRespostaTitular('p9', 'c');
+        expect(el('modal-content').querySelector('[data-action="usarRascunhoTitular"]')).not.toBeNull();
+        window.usarRascunhoTitular();
+        el('pt-status').value = 'respondido';
+        await window.salvarPedidoTitular('p9', 'c');
+        expect(corpoDe(f, `PUT ${B}/titular-pedidos/c`)).toEqual({ status: 'respondido', resposta_texto: 'Prezado titular' });
+    });
+    it('incidentes: registra, avalia e registra comunicação; encerrar segue só com a equipe', async () => {
+        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
+        expect(el('a').querySelector('[data-action="abrirNovoIncidente"]')).not.toBeNull();
+        await window.abrirIncidente('p9', 'i1');
+        const m = el('modal-content');
+        expect(m.querySelector('[data-action="avaliarRiscoIncidente"]')).not.toBeNull();
+        expect(m.querySelector('[data-action="registrarComunicacaoIncidente"]')).not.toBeNull();
+        expect(m.querySelector('[data-action="pedirEncerramentoIncidente"]')).toBeNull();
+    });
+    it('consentimento continua com a equipe: sem registrar nem revogar', async () => {
+        await abrir('consentimentos');
+        expect(el('a').innerHTML).toBe('');
+        expect(el('c').querySelector('[data-action="revogarConsentimento"]')).toBeNull();
+    });
+});

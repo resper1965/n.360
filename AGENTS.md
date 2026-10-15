@@ -328,6 +328,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   feriado). Avisos de prazo ganharam as fontes `titular_pedido` e `incidente` (um item por comunicacao pendente). Rotas:
   `/api/v1/parametros-legais`, `/projects/:id/{titular-pedidos,incidentes,consentimentos}`; o agente registra e avalia, mas nao encerra
   incidente, nao revoga consentimento e nao edita prazo. Portal publico e conector externo: fora (decisao de 09/10).
+  **Quem grava (o cliente age, 15/10):** equipe e o `org_admin` do PROPRIO projeto registram e respondem o pedido do titular (status e
+  resposta, inclusive a partir do rascunho de IA) e registram, avaliam e comunicam o incidente; `org_user` e `client` so leem (o allow-list
+  de so leitura de `src/middleware/auth.ts`, sem entrada para estas rotas). Encerrar incidente, registrar/revogar consentimento e editar
+  prazo legal continuam, na tela, so com a equipe (`podeEditar` em `frontend/src/views/titular.js`; o servidor nao tem corte de papel
+  nessas rotas alem do allow-list, e o CHECK da 0058 segue valendo). Contrato em `test/cliente-titular-incidente.test.ts`.
 - **Visoes, evidencia com validade e casca (fatia 8, migration 0059)**: `evidence.valido_ate` (opcional) e `evidencia_requisitos` ligam a
   evidencia a requisito (`/projects/:id/evidence/:eid/{requisitos,validade}`, no router de requisitos, SEM tocar `evidence.ts`). A rotina
   diaria de avisos chama `vencerEvidencias` ANTES de avisar: evidencia vencida volta a `pending` (a assinatura gravada NAO e apagada, ela
@@ -374,7 +379,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (`frontend/src/produto.js`, `produtoAtual`): `/` e o inicio do n.360 (o painel de entrada, `views/painel.js`: uma linha por modulo
   habilitado, "Abrir" vai a `/iso` ou `/privacy`), `/iso*` a casca do n.iso, `/privacy*` a do n.privacy (o n.privacy abre em Encarregado). O servidor
   entrega o mesmo `login.html` para qualquer um (catch-all). Quem tem um modulo so entra direto nele; equipe da ness. sem projeto
-  vai ao n.iso; cliente sem projeto com modulo ve "sem acesso". Nos modulos a casca aplica marca, titulo e menu (`SO_ISO`,
+  vai ao n.iso; cliente sem projeto com modulo ve "sem acesso". O cliente com projeto entra no Painel do n.iso (`dashboard`, visao de
+  cliente: "Esperando a sua decisao", e a direita a fase em curso da jornada, `jornada` do `GET .../painel`, so na visao dele), nao mais
+  na Jornada, que segue no menu (`project-detail`). Nos modulos a casca aplica marca, titulo e menu (`SO_ISO`,
   `SO_PRIVACY`) e filtra os projetos pelo produto. `destinoLegado` (async) leva quem abre `niso`/`nprivacy` ao modulo no `app_url` que o `/health` da mesma origem devolve; se
   ele for o proprio host, ou o `/health` falhar, fica onde esta. O item Inicio do menu so aparece no n.360; nos modulos a volta e
   o link "n.360" do rodape. Login unico (a sessao e por origem: na troca, todos entram de novo uma vez).

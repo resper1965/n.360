@@ -58,7 +58,9 @@ window.renderMeusPedidos = async function renderMeusPedidos(c, h, a) {
         ${pedidos.map((p) => `
         <div style="display:flex;align-items:stretch;gap:10px">
         ${p.meu_status === 'pendente' && p.status === 'aberto'
-            ? `<input type="checkbox" data-pl="${escapeHTML(p.id)}" disabled title="Abra o pedido para poder marcá-lo" aria-label="Selecionar ${escapeHTML(p.titulo)}">` : ''}
+            ? `<span style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:84px">
+                <input type="checkbox" data-pl="${escapeHTML(p.id)}" disabled aria-label="Selecionar ${escapeHTML(p.titulo)}" aria-describedby="pl-motivo-${escapeHTML(p.id)}">
+                <span id="pl-motivo-${escapeHTML(p.id)}" style="font-size:11px;line-height:1.3;color:var(--text-dim);text-align:center">Abra o pedido para marcar</span></span>` : ''}
         <button type="button" class="card" data-action="abrirPedido" data-args='${args(p.id)}'
             style="flex:1;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 18px;cursor:pointer">
             <span>
