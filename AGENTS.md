@@ -102,6 +102,17 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   navega com `{ filtroPainel }`, o `navigate` o apaga na navegacao seguinte e a lista de destino (titular pedidos/incidentes,
   terceiros, evidencias, CAPA) abre filtrada com o chip "Filtro: ... — limpar" (`filtrarDoPainel`). Do n.360 ao modulo a chave vai no
   `sessionStorage` (`n360_filtro`), nunca no endereco. Acoes vencidas das atividades abrem a faixa "vencidas" das acoes por prazo.
+- **Prontidao para a certificacao (n.iso, onda 2 do diagnostico de 15/10)**: `GET /api/v1/projects/:id/prontidao` (faixa `iso`, rota em
+  `src/routes/readiness.ts`, regras em `src/services/prontidao.ts`). `CRITERIOS` e o catalogo: cada um com a clausula da ISO/IEC
+  27001:2022, o estagio (1 documental, 2 operacao; fonte: skill `agent-skills/prontidao-certificacao/`), a tela e a acao; `avaliarProntidao`
+  (funcao pura) da a situacao (atendido, pendente, nao se aplica), o motivo, o numero, o veredito (nunca "conforme"; sempre com a
+  ressalva de pre-avaliacao), o que falta (estagio, depois o que destrava mais) e `do_cliente`. Criterio novo so com clausula de origem e
+  dado verificavel no cadastro. **O indicador de progresso do n.iso e um so**: "X de Y controles aplicaveis implementados", pela
+  `SQL_CLASSE_CONTROLE` de `src/services/painel.ts` (o Painel, a Prontidao, o Monitor e a Jornada mostram o mesmo numero; evidencia
+  vencida ou nao conforme e `SQL_EVIDENCIA_RUIM`, tambem de la). Nao some contagem no cliente nem leia campo que a API nao devolve.
+  Tela: `frontend/src/views/prontidao.js` (a view `certification`, item "Prontidao" no grupo Implementacao). Sem fases, Jornada e
+  Monitor oferecem "Carregar as fases" (`POST /api/v1/projects/:id/phases`, so a equipe, 409 se ja tem) e a prontidao, nunca um ao outro;
+  ligar o n.iso num projeto tambem carrega as fases.
 - **Pedidos de aprovacao/ciencia (acesso de stakeholders)**: tabelas `pedidos`
   (conteudo congelado + SHA-256) e `pedido_destinatarios` (a prova por pessoa).
   Regras em `src/services/pedidos.ts` (`podePedir`, `autoridadeNoPedido`,
@@ -139,7 +150,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 55 arquivos em 2026-10-15: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 56 arquivos em 2026-10-15: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -533,7 +544,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 276 arquivos de teste do backend mocka o D1 inteiro** (2026-10-15;
+- **Nenhum dos 277 arquivos de teste do backend mocka o D1 inteiro** (2026-10-15;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -545,10 +556,10 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~21,8 mil linhas de JS (2026-10-15)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 107 arquivos de teste em jsdom
+- **Frontend com pouco teste por linha.** ~22,0 mil linhas de JS (2026-10-15)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 112 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
-  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 35 telas de `frontend/src/views/` sao
+  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 36 telas de `frontend/src/views/` sao
   importadas por ao menos um teste (2026-10-15: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
   nao imprime nada), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, `project.js`, todas acima de 1.400 linhas)
   tem teste so de fatias.
