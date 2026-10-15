@@ -757,6 +757,14 @@ cobrado, code scanning exige GitHub Advanced Security e ruleset exige plano pago
 
 ### Protecao da `main` e deploy — ja configurados
 
+**Desde 15/10/2026 o repositorio e privado e o portao de PR e o deploy rodam no Workers Builds da Cloudflare**, nao no
+GitHub Actions (o dono nao paga minutos do Actions; os workflows estao desabilitados, nao apagados). Build command
+`bash scripts/ci/build.sh` (na `main` chama `scripts/ci/publicar.sh`: tsc, build, recusa migration pendente; nas outras
+branches chama `scripts/ci/verificar.sh`: a suite inteira e o E2E), deploy command
+`npx wrangler deploy --var VERSAO_SHA:$WORKERS_CI_COMMIT_SHA`, preview command que nao publica nada. O ruleset exige o
+check run do Workers Builds. Migration: backup e `wrangler d1 migrations apply` pelo terminal ANTES do merge. Passo a
+passo e configuracao do painel em `docs/runbook-publicacao.md`, secao 0. O texto abaixo descreve o fluxo pelo Actions.
+
 - **Ruleset "main protegida"**: exige PR, exige os checks **`test` e `e2e`**
   (`gh api repos/resper1965/n.360/rulesets/20312002`), exige branch atualizado com a base,
   bloqueia delecao e force-push. `bypass_actors` vazio — em rulesets, admin do repo **nao**
