@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, registraErro } from '../helpers';
+import { ehEquipeNess, erro500, registraErro } from '../helpers';
 import { lerParametros, removerParametro, salvarParametro } from '../services/parametros-legais';
 import { atualizarPedido, criarPedido, lerPedido, listarPedidos } from '../services/titular-pedidos';
 import { avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
@@ -125,8 +125,11 @@ incidentesApp.post('/:id/rascunho-comunicacao', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao gerar o rascunho da comunicação', e); }
 });
 
+// Encerrar é da equipe da consultoria (decisão do dono, 15/10): o `org_admin` registra, avalia e comunica, mas não encerra.
+// O agente MCP também não (FORA_DO_AGENTE), e o CHECK da 0058 continua valendo para SQL direto.
 incidentesApp.post('/:id/encerrar', async (c) => {
   try {
+    if (!ehEquipeNess(c.get('user'))) return c.json({ error: 'Encerrar o incidente é feito pela equipe da consultoria' }, 403);
     const r = await encerrarIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao encerrar o incidente', e); }

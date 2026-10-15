@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Mudado (decisões do dono de 15/10: incidente, avisos e convite)
+- **Encerrar incidente só pela equipe da consultoria, também no servidor**: `POST .../incidentes/:id/encerrar` recusa com 403 quem não é da equipe (`ehEquipeNess`); o `org_admin` continua registrando, avaliando e comunicando. O agente MCP segue sem encerrar e o CHECK da 0058 continua.
+
 ### Adicionado (prontidão para a certificação, onda 2 do diagnóstico de 15/10, sem migration)
 - **Uma resposta para "estou pronto para o estágio 1?"**: `GET /api/v1/projects/:id/prontidao` (faixa `iso`, `src/services/prontidao.ts`) avalia 19 critérios verificáveis pelo cadastro, cada um com a cláusula da ISO/IEC 27001:2022, o estágio (1, documental; 2, operação, como na skill `prontidao-certificacao`), a situação (atendido, pendente, não se aplica), o motivo, o número que o sustenta e a tela onde se resolve. Devolve o veredito ("Falta 1 item para o estágio 1", "Pronto para o estágio 1. Faltam 3 itens para o estágio 2"; nunca "conforme"), com a ressalva de pré-avaliação, o que falta ordenado por estágio e pelo que destrava mais, o que depende do cliente e os números comuns às telas.
 - **Tela Prontidão** no grupo Implementação do n.iso (a tela `certification`): veredito, indicador, o que falta por estágio com uma ação de nome único que leva à tela (com o filtro do painel quando existe), "O que o cliente precisa decidir ou fornecer" (para o cliente, "O que depende de você", no topo), a tabela de todos os critérios e, para a equipe, as datas do estágio 1 e 2 e o organismo.

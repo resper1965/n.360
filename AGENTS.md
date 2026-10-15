@@ -359,9 +359,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   incidente, nao revoga consentimento e nao edita prazo. Portal publico e conector externo: fora (decisao de 09/10).
   **Quem grava (o cliente age, 15/10):** equipe e o `org_admin` do PROPRIO projeto registram e respondem o pedido do titular (status e
   resposta, inclusive a partir do rascunho de IA) e registram, avaliam e comunicam o incidente; `org_user` e `client` so leem (o allow-list
-  de so leitura de `src/middleware/auth.ts`, sem entrada para estas rotas). Encerrar incidente, registrar/revogar consentimento e editar
-  prazo legal continuam, na tela, so com a equipe (`podeEditar` em `frontend/src/views/titular.js`; o servidor nao tem corte de papel
-  nessas rotas alem do allow-list, e o CHECK da 0058 segue valendo). Contrato em `test/cliente-titular-incidente.test.ts`.
+  de so leitura de `src/middleware/auth.ts`, sem entrada para estas rotas). **Encerrar incidente e so da equipe da consultoria, no
+  SERVIDOR** (`ehEquipeNess` em `POST .../incidentes/:id/encerrar`; `org_admin`, `org_user` e `client` recebem 403; o agente MCP segue
+  fora por `FORA_DO_AGENTE`; o CHECK da 0058 segue valendo). Registrar/revogar consentimento e editar prazo legal continuam, na tela, so com
+  a equipe (`podeEditar` em `frontend/src/views/titular.js`; o servidor nao tem corte de papel nessas rotas alem do allow-list e, no prazo
+  legal, do `platform_admin`). Contrato em `test/cliente-titular-incidente.test.ts`.
 - **Visoes, evidencia com validade e casca (fatia 8, migration 0059)**: `evidence.valido_ate` (opcional) e `evidencia_requisitos` ligam a
   evidencia a requisito (`/projects/:id/evidence/:eid/{requisitos,validade}`, no router de requisitos, SEM tocar `evidence.ts`). A rotina
   diaria de avisos chama `vencerEvidencias` ANTES de avisar: evidencia vencida volta a `pending` (a assinatura gravada NAO e apagada, ela
