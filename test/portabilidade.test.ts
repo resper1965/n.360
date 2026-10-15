@@ -79,6 +79,8 @@ describe('Export de portabilidade', () => {
     const { manifesto, dados } = await exportarProjeto(env as any, A);
 
     expect((dados.risks as any[]).map((r) => r.id)).toEqual(['r-a']);
+    // F2 (0073): as colunas novas viajam com a tabela (o export é SELECT *), sem lista a manter.
+    expect(Object.keys((dados.risks as any[])[0])).toEqual(expect.arrayContaining(['ropa_id', 'residual_impact', 'residual_probability', 'residual_level']));
     expect((dados.vendors as any[]).map((v) => v.id)).toEqual(['v-a']);
     expect((dados.projects as any[])[0].client_name).toBe('Cliente A');
 

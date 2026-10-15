@@ -91,6 +91,13 @@ describe('niso_update_risk: edição parcial sem apagar o resto', () => {
     expect(put?.corpo ?? {}).not.toHaveProperty('accepted_by');
   });
 
+  it('leva a atividade de tratamento e o residual (F2) e não manda o nível residual, que é do servidor', async () => {
+    chamadas.length = 0;
+    const r = await executarFerramenta('niso_update_risk', { projectId: 'p-grande', riskId: 'r-1', ropa_id: 'ropa-1', residual_impact: 2, residual_probability: 3, residual_level: 'Low' }, t, { projetoFixo: 'p-grande', papel: 'consultant' });
+    expect(r.isError, r.content[0].text).toBeFalsy();
+    expect(chamadas.find((c) => c.metodo === 'PUT')!.corpo).toEqual({ ropa_id: 'ropa-1', residual_impact: 2, residual_probability: 3 });
+  });
+
   it('risco de outro projeto é recusado antes de qualquer chamada', async () => {
     chamadas.length = 0;
     const r = await executarFerramenta('niso_update_risk', { projectId: 'p-outro', riskId: 'r-1', status: 'Open' }, t, { projetoFixo: 'p-grande', papel: 'consultant' });

@@ -9,6 +9,7 @@
 import { genId, escapeHtml, enviarEmail } from '../helpers';
 import { appUrl } from '../config/url';
 import { vencerEvidencias } from './evidencia-validade';
+import { modulosDoProjeto, type Modulo } from '../modulos';
 import { log } from '../observability';
 import type { Bindings } from '../index';
 
@@ -244,6 +245,7 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
   // Antes de avisar: a evidência vencida volta a `pending` (fatia 8). Falha aqui não impede os avisos.
   try { await vencerEvidencias(db, hoje); } catch (e) { falhas.push(`evidencia_vencida: ${mensagem(e)}`); }
   const pessoasPorProjeto = new Map<string, Pessoa[]>();
+  const modulosPorProjeto = new Map<string, Modulo[]>();
   const atrasoNovo = new Map<string, { project_id: string; user_id: string; n: number }>();
 
   for (const item of itens) {
@@ -253,6 +255,13 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
       const destinos = escolherDestinatarios(pessoas, item.responsavel);
       if (!destinos.length) { r.sem_destinatario++; continue; }
       const atraso = item.marco.startsWith('atraso-');
+      // Ação (CAPA) de projeto sem o n.iso é ação da atividade de tratamento (F2): o sino leva ao RoPA, que o n.privacy abre.
+      let tela = TELA[item.fonte];
+      if (item.fonte === 'capa') {
+        let m = modulosPorProjeto.get(item.project_id);
+        if (!m) modulosPorProjeto.set(item.project_id, (m = await modulosDoProjeto(db, item.project_id)));
+        if (m.length && !m.includes('iso')) tela = '/ropa';
+      }
       // Atraso na mesma semana do vencimento só sai se o D0 não saiu (a rotina não rodou no dia).
       const guardaD0 = atraso && semanaIso(item.vence_em) === semanaIso(hoje) ? 1 : 0;
       for (const p of destinos) {
@@ -267,7 +276,7 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
           const sino = db.prepare(`INSERT INTO notifications (id, user_id, type, title, message, read, link, created_at)
             SELECT ?, ?, ?, ?, ?, 0, ?, datetime('now') WHERE EXISTS (SELECT 1 FROM avisos_prazo WHERE id = ?)`)
             .bind(genId(), p.id, `prazo_${item.fonte}`, tituloDoAviso(item), `${item.titulo} (prazo ${dataBr(item.vence_em)})`,
-              `/projects/${item.project_id}${TELA[item.fonte]}`, id);
+              `/projects/${item.project_id}${tela}`, id);
           const [aviso] = await db.batch(atraso ? [inserir] : [inserir, sino]);
           const novos = aviso.meta.changes ?? 0;
           r.avisos_criados += novos;

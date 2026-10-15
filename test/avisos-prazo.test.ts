@@ -253,6 +253,20 @@ describe('rotina avisosDePrazo', () => {
     expect(emails).toHaveLength(2);
   });
 
+  it('ação de projeto sem o n.iso leva à atividade no RoPA, não à CAPA (F2)', async () => {
+    await projeto('p-priv');
+    await db().batch([
+      db().prepare(`DELETE FROM projeto_modulos WHERE project_id = 'p-priv'`),
+      db().prepare(`INSERT INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES ('p-priv', 'privacy', 'teste')`),
+      db().prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('p-priv', 'Carla', 'cons@ness.lat', 'consultor', 'Consultor')`),
+      db().prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('rp-1', 'p-priv', 'Folha')`),
+      db().prepare(`INSERT INTO corrective_actions (id, project_id, ropa_id, title, due_date, status) VALUES ('cap-priv', 'p-priv', 'rp-1', 'Ajustar retenção', '2026-10-07', 'Open')`),
+    ]);
+    await avisosDePrazo(SEM_CHAVE(), HOJE);
+    const links = (await notificacoes()).filter((n) => n.type === 'prazo_capa').map((n) => n.link).sort();
+    expect(links).toEqual(['/projects/p-priv/ropa', '/projects/p1/capa', '/projects/p1/capa']);
+  });
+
   it('e-mail recusado: o sino vale, email_enviado_em fica nulo; o dia seguinte reenvia sem notificação nova', async () => {
     resendOk = false;
     const r1 = await avisosDePrazo(COM_CHAVE(), HOJE);

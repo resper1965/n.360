@@ -175,6 +175,9 @@ export const TOOLS: Ferramenta[] = [
         control_id: { type: "string", description: "Linked control ID" },
         owner: { type: "string" },
         status: { type: "string", description: "e.g. Open, Mitigated, Closed" },
+        ropa_id: { type: "string", description: "Processing activity (RoPA record) this risk belongs to (n.privacy)" },
+        residual_impact: { type: "number", minimum: 1, maximum: 5, description: "Residual impact after treatment; the residual level is computed by the server" },
+        residual_probability: { type: "number", minimum: 1, maximum: 5, description: "Residual probability after treatment" },
       },
       required: ["projectId", "riskId"],
     },
@@ -740,6 +743,9 @@ export async function executarFerramenta(
           control_id: z.string().optional(),
           owner: z.string().optional(),
           status: z.string().optional(),
+          ropa_id: z.string().optional(),
+          residual_impact: nota.optional(),
+          residual_probability: nota.optional(),
         }).strip().parse(args); // strip: accepted_by/accepted_at do agente são descartados
         fora(projectId);
         // O PUT da API é parcial (campo ausente mantém o gravado): manda só o pedido.
