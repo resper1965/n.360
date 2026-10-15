@@ -254,7 +254,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (`/risks/:id`, `/capa/:id`) e as listas `/risks` e `/capa` continuam `iso`. Toda consulta filtra `ropa_id` E `project_id`. Apagar o
   risco anula `risk_id` da acao antes (a acao sobrevive). O `PUT /risks/:id` parcial preserva e aceita `ropa_id` e residual. O agente cria
   e edita; aceitar risco (`status: Accepted`) e concluir acao (`Closed`) a rota recusa, e o DELETE esta em `FORA_DO_AGENTE`. Regra R1 do
-  `coherence` ignora risco com `ropa_id`; o aviso de prazo de acao em projeto sem n.iso leva a `/ropa`.
+  `coherence` ignora risco com `ropa_id`; o aviso de prazo de acao em projeto sem n.iso leva a `/ropa`. Telas: secoes Riscos e Acoes nas
+  Ligacoes da atividade (`tratamento-ligacoes.js`; formulario novo ja vem com o sistema ligado e o responsavel da atividade), "Mapa de
+  risco" na secao Avaliar do n.privacy (`views/mapa-de-risco.js`, nivel por texto em cada celula, mesma faixa do `riskLevel`), a
+  entrevista so LE os riscos (bloco H) e tem "Finalizar teste de impacto"/"Reabrir" no bloco I; o painel do encarregado conta riscos
+  altos em aberto e acoes vencidas das atividades (`riscos` em `GET .../encarregado`).
 - **Terceiros tipificados (fatia 6, migration 0057)**: o terceiro e uma `partes` do tipo `organizacao` com `terceiro_tipo`
   (`grande_provedor|medio|pequeno|critico`) e `src/services/terceiros.ts` (rotas `/projects/:id/terceiros*`). **O tipo define o
   metodo** (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. `avaliacoes_terceiro`
@@ -280,7 +284,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy (alternativa A do estudo `docs/design/diagnostico-2026-10-14/menu-privacy.md`;
   `organizarMenuPrivacy` e `SECOES_PRIVACY` em `frontend/src/produto.js`, rotulos so do modulo em `ROTULOS_PRIVACY`): Painel no topo, quatro secoes FIXAS
   (titulo que nao e botao e nao recolhe, itens em `ul`/`li`): Mapear (Tratamentos (RoPA), Pessoas areas e sistemas, Terceiros, Importar programa),
-  Avaliar (RIPD, Cobertura da LGPD), Responder (Pedidos do titular, Incidentes, Consentimentos, os tres abrem a tela titular na aba) e Provar
+  Avaliar (RIPD, Mapa de risco, Cobertura da LGPD), Responder (Pedidos do titular, Incidentes, Consentimentos, os tres abrem a tela titular na aba) e Provar
   (Documentos, Evidencias, Treinamento, Papeis e comite), e o Assistente no fim. Minhas aprovacoes e Trilha de logs ficam no menu de conta
   (`#account-menu`) so no n.privacy (`FORA_DO_MENU_PRIVACY`). Selos de `frontend/src/selos-menu.js`: numero = total a tratar, contorno ambar =
   pendente, fundo vermelho = atraso; o Painel tem selo so com atraso. O n.iso e o n.360 mantem estrutura, rotulos e acordeao
@@ -475,10 +479,10 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~19,9 mil linhas de JS (2026-10-14)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 97 arquivos de teste em jsdom
+- **Frontend com pouco teste por linha.** ~20,9 mil linhas de JS (2026-10-14)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 102 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
-  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 30 telas de `frontend/src/views/` sao
+  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 34 telas de `frontend/src/views/` sao
   importadas por ao menos um teste (2026-10-14: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
   nao imprime nada), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, `project.js`, todas acima de 1.400 linhas)
   tem teste so de fatias.

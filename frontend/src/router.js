@@ -71,6 +71,7 @@ export     function navigate(view, data) {
         else if (S.view === 'documentos') renderDocumentos(c, h, a);
         else if (S.view === 'requisitos') renderRequisitos(c, h, a);
         else if (S.view === 'terceiros') renderTerceiros(c, h, a);
+        else if (S.view === 'mapa-de-risco') renderMapaDeRisco(c, h, a);
         else if (S.view === 'titular') renderTitular(c, h, a);
         else if (S.view === 'encarregado') renderEncarregado(c, h, a);
         else if (S.view === 'importacao') renderImportacao(c, h, a);

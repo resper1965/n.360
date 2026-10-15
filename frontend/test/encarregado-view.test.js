@@ -55,6 +55,16 @@ describe('tela do encarregado', () => {
         expect([...el('c').querySelectorAll('[data-action="navigate"]')].map((b) => JSON.parse(b.getAttribute('data-args'))[0])).toEqual(['titular', 'documentos']);
     });
 
+    it('cartão dos riscos das atividades (F2): riscos altos em aberto e ações vencidas; sem o bloco (servidor antigo), sem cartão', async () => {
+        await abrir(VISAO({ riscos: { altos: 3, acoes_vencidas: 2 } }));
+        const cartao = [...el('c').querySelectorAll('.stat-card')].find((x) => x.textContent.includes('Riscos altos nas atividades'));
+        expect(cartao.textContent).toContain('3');
+        expect(cartao.textContent).toContain('2 ações vencidas');
+        expect(cartao.children[1].getAttribute('style')).toContain('color:var(--danger)');
+        await abrir(VISAO());
+        expect(el('c').textContent).not.toContain('Riscos altos nas atividades');
+    });
+
     it('catálogo da LGPD ainda não carregado: sem cartão LGPD (o banner e a prioridade já dizem), sem número inventado', async () => {
         await abrir(VISAO({ lgpd: { carregada: false } }));
         expect(el('c').textContent).not.toContain('LGPD coberta');
