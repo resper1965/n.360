@@ -30,7 +30,7 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   capa: 'iso', certification: 'iso', checklist: 'iso', 'checklist-progress': 'iso', coherence: 'iso', 'control-adequacao': 'iso',
   controls: 'iso', 'gap-analysis': 'iso', 'generate-document': 'iso', 'generate-policies-bulk': 'iso', 'generate-policy': 'iso',
   interviews: 'iso', 'journey-dossier': 'iso', 'management-reviews': 'iso', metrics: 'iso', 'migrate-27701': 'iso',
-  'migrate-27701-2025': 'iso', 'phase-answers': 'iso', phases: 'iso', policies: 'iso', 'policy-acknowledgments': 'iso',
+  'migrate-27701-2025': 'iso', 'phase-answers': 'iso', phases: 'iso', policies: 'iso', prontidao: 'iso', 'policy-acknowledgments': 'iso',
   'readiness-check': 'iso', 'revoke-approvals': 'iso', 'risk-matrix': 'iso', risks: 'iso', 'scope-changes': 'iso',
   'seed-27001-2022': 'iso', 'seed-27701-2025': 'iso', traceability: 'iso',
   // só n.privacy

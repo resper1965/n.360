@@ -64,6 +64,13 @@ describe('módulos por projeto, com teto na organização', () => {
     expect((await chamar(cadm, 'PUT', `${P}/modulos/iso`, { habilitado: false })).status).toBe(200);
     expect((await chamar(cadm, 'PUT', `${P}/modulos/privacy`, { habilitado: false })).status).toBe(409);
     expect((await chamar(cadm, 'PUT', `${P}/modulos/iso`, { habilitado: true })).status).toBe(200);
+    // Ligar o n.iso carrega as fases da jornada (o projeto deste teste nasceu sem elas); ligar de novo não duplica.
+    const fases = async () => (await env.DB.prepare('SELECT count(*) AS n FROM project_phases WHERE project_id = ?').bind('pm1').first<{ n: number }>())!.n;
+    const n = await fases();
+    expect(n).toBeGreaterThan(0);
+    await chamar(cadm, 'PUT', `${P}/modulos/iso`, { habilitado: false });
+    await chamar(cadm, 'PUT', `${P}/modulos/iso`, { habilitado: true });
+    expect(await fases()).toBe(n);
   });
 
   it('baixar o contrato abaixo do que há habilitado: 409; depois de desligar, passa', async () => {

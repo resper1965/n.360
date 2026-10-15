@@ -166,7 +166,7 @@ describe('GET /projects/:id/painel', () => {
     expect(m.fazer!.map((i) => i.texto)).toContain('1 exclusão da SoA sem justificativa');
     expect(m.fazer!.map((i) => i.texto)).toContain('1 risco alto sem tratamento definido');
     expect(m.riscos).toEqual([{ p: 4, i: 4, n: 1 }]);
-    expect(m.numeros[0]).toEqual(['1 de 3', 'controles implementados']);
+    expect(m.numeros[0]).toEqual(['1 de 3', 'controles aplicáveis implementados']);
   });
 
   it('n.360 (sem ?modulo): os dois módulos; a lista junta os dois em ordem de prazo', async () => {

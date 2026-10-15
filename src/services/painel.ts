@@ -120,12 +120,14 @@ function lerVencimentos(tipos: string[], respostas: D1Result[], dia: string): { 
 /** Mapa de risco 5x5: contagem por probabilidade e impacto. */
 type Celula = { p: number; i: number; n: number };
 
+/** Evidência vencida ou não conforme (?2 = hoje). A mesma regra no Painel e na Prontidão (`prontidao.ts`). */
+export const SQL_EVIDENCIA_RUIM = `((valido_ate IS NOT NULL AND substr(valido_ate, 1, 10) < ?2) OR evaluation_status = 'non_conforming')`;
 // Ordem das colunas de status de evidência, igual nos dois módulos: válida e conforme, em análise, vencida ou não conforme.
 const SQL_EVIDENCIAS = `SELECT
     sum(CASE WHEN (valido_ate IS NULL OR substr(valido_ate, 1, 10) >= ?2) AND evaluation_status = 'conforming' THEN 1 ELSE 0 END) AS feito,
-    sum(CASE WHEN (valido_ate IS NOT NULL AND substr(valido_ate, 1, 10) < ?2) OR evaluation_status = 'non_conforming' THEN 0
+    sum(CASE WHEN ${SQL_EVIDENCIA_RUIM} THEN 0
              WHEN (valido_ate IS NULL OR substr(valido_ate, 1, 10) >= ?2) AND evaluation_status = 'conforming' THEN 0 ELSE 1 END) AS andamento,
-    sum(CASE WHEN (valido_ate IS NOT NULL AND substr(valido_ate, 1, 10) < ?2) OR evaluation_status = 'non_conforming' THEN 1 ELSE 0 END) AS falta
+    sum(CASE WHEN ${SQL_EVIDENCIA_RUIM} THEN 1 ELSE 0 END) AS falta
   FROM evidence WHERE project_id = ?1`;
 const SQL_UNIAO_EVIDENCIAS = `SELECT 'Evidências' AS tipo, file_name AS rotulo, substr(valido_ate, 1, 10) AS data FROM evidence WHERE project_id = ?1 AND valido_ate IS NOT NULL`;
 const SQL_UNIAO_DOCUMENTOS = `SELECT 'Documentos (revisão)', titulo, substr(revisar_ate, 1, 10) FROM documentos WHERE project_id = ?1 AND status = 'vigente' AND revisar_ate IS NOT NULL`;
@@ -255,8 +257,8 @@ const UNIAO_ISO = [
   SQL_UNIAO_DOCUMENTOS,
 ];
 
-/** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA (não aplicável). */
-const SQL_CLASSE_CONTROLE = `CASE WHEN status = 'Not Applicable' THEN 'na'
+/** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA (não aplicável). A Prontidão usa a mesma. */
+export const SQL_CLASSE_CONTROLE = `CASE WHEN status = 'Not Applicable' THEN 'na'
   WHEN upper(status) IN ('APPROVED', 'IMPLEMENTED', 'COMPLETED', 'CONFORME') THEN 'feito'
   WHEN status IS NULL OR trim(status) = '' OR upper(status) IN ('MISSING', 'NOT STARTED', 'NOT_STARTED') THEN 'falta' ELSE 'andamento' END`;
 const TEMAS_ANEXO_A: [string, string][] = [['A.5', 'Controles organizacionais'], ['A.6', 'Controles de pessoas'], ['A.7', 'Controles físicos'], ['A.8', 'Controles tecnológicos']];
@@ -330,7 +332,7 @@ async function blocoIso(db: D1Database, projectId: string, dia: string) {
     comecando, controles_avaliados: avaliados,
     itens: emOrdem(itens), cobertura, vencimentos: v.linhas, proximo: v.proximo, riscos: mapa.results as Celula[],
     numeros: [
-      [`${feitos} de ${aplicaveis}`, 'controles implementados'],
+      [`${feitos} de ${aplicaveis}`, 'controles aplicáveis implementados'],
       [String(vencidasCapa.length), 'ações vencidas'],
       [aud ? diaMes(aud.data) : 'nenhuma', 'próxima auditoria'],
     ] as [string, string][],

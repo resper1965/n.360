@@ -192,7 +192,7 @@ describe('início do n.360', () => {
 
     it('projeto: pede os dois módulos (sem ?modulo), linhas dos módulos com "Abrir" e a lista que junta os dois', async () => {
         const iso = BLOCO({ fazer: [{ grupo: 'atraso', quando: 'Venceu em 01/10', texto: '1 ação corretiva passou do prazo', contexto: '', acao: 'Ver as ações', tela: 'capa', modulo: 'iso' }],
-            numeros: [['31 de 93', 'controles implementados'], ['1', 'ações vencidas'], ['23/10', 'próxima auditoria']] });
+            numeros: [['31 de 93', 'controles aplicáveis implementados'], ['1', 'ações vencidas'], ['23/10', 'próxima auditoria']] });
         const f = servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { privacy: BLOCO(), iso } }), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {}, cobertura: [], iso_ajudados: [] } });
         await abrir('n360');
         expect(el('h').textContent).toBe('Início');
