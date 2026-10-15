@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, ehEquipeNess } from '../helpers';
+import { erro500, ehEquipeNess, logAudit } from '../helpers';
 import { validateBody, importacaoItemSchema, importacaoItensDecidirSchema } from '../schemas';
-import { atualizarItem, cancelarLote, confirmarLote, criarLote, enviarArquivo, lerLote, listarLotes, processarArquivo } from '../services/importacao';
+import { atualizarItem, cancelarLote, confirmarLote, criarLote, enviarArquivo, lerLote, listarLotes, processarArquivo, reconciliacao, reconciliacaoEmCsv } from '../services/importacao';
 
 /**
  * Importação de programa de privacidade (n.privacy, fatia 1). Montado em `/api/v1/projects/:projectId/importacoes` (faixa
@@ -28,6 +28,31 @@ importacaoApp.get('/', async (c) => c.json({ lotes: await listarLotes(c.env.DB, 
 importacaoApp.get('/:id', async (c) => {
   const l = await lerLote(c.env.DB, c.req.param('projectId')!, c.req.param('id'));
   return l ? c.json(l) : c.json({ error: 'Lote não encontrado' }, 404);
+});
+
+// F6: o relatório de reconciliação do lote (critério de aceite da virada do legado). Só contagens e motivos genéricos.
+importacaoApp.get('/:id/reconciliacao', async (c) => {
+  try {
+    const r = await reconciliacao(c.env.DB, c.req.param('projectId')!, c.req.param('id'));
+    return r ? c.json(r) : c.json({ error: 'Lote não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao montar a reconciliação', e); }
+});
+
+importacaoApp.get('/:id/reconciliacao/csv', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const r = await reconciliacao(c.env.DB, projectId, c.req.param('id'));
+    if (!r) return c.json({ error: 'Lote não encontrado' }, 404);
+    await logAudit(c.env.DB, 'importacao.reconciliacao', ator(c),
+      `Reconciliação do lote ${r.lote.id} exportada: ${r.totais.propostos} propostos, ${r.totais.gravados} gravados, ${r.totais.recusados} recusados`, '', '', projectId);
+    return new Response(reconciliacaoEmCsv(r), {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="reconciliacao-${new Date().toISOString().slice(0, 10)}.csv"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  } catch (e) { return erro500(c, 'Falha ao exportar a reconciliação', e); }
 });
 
 importacaoApp.post('/:id/arquivos', async (c) => {

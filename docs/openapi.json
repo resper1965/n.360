@@ -14741,6 +14741,76 @@
                               "minLength": 1,
                               "maxLength": 500
                             }
+                          },
+                          "necessidade": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "medidas": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "risco_residual": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "baixo",
+                                  "medio",
+                                  "alto"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finalidade_legitima": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "balanceamento": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "salvaguardas": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
@@ -14974,6 +15044,555 @@
                           "titular_ref",
                           "finalidade",
                           "obtido_em"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "atividade": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "ameaca": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "vulnerabilidade": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "ativo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "impacto": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "probabilidade": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "nivel": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "baixo",
+                                  "medio",
+                                  "alto",
+                                  "critico"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "estrategia": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "mitigar",
+                                  "aceitar",
+                                  "evitar",
+                                  "transferir"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "plano": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "impacto_residual": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "probabilidade_residual": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "prazo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "responsavel": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "aberto",
+                                  "mitigado",
+                                  "aceito",
+                                  "fechado"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "atividade",
+                          "ameaca"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "atividade": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "titulo": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "descricao": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "prazo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "responsavel": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "aberto",
+                                  "em_andamento",
+                                  "concluido"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "risco": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "atividade",
+                          "titulo"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "atividade": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "afeta_direitos": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "larga_escala": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sensiveis": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "vulneraveis": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finalidade_distinta": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "compartilhamento_novo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "monitoramento": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "perfilizacao": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "combinacao": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "transferencia": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tecnologia_inovadora": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "decisao_automatizada": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "legitimo_interesse": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "sim",
+                                  "nao",
+                                  "nao_sei"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "atividade"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "atividade": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "etapa": {
+                            "type": "string",
+                            "enum": [
+                              "coleta",
+                              "uso",
+                              "compartilhamento_interno",
+                              "compartilhamento_externo",
+                              "armazenamento",
+                              "eliminacao"
+                            ]
+                          },
+                          "situacao": {
+                            "type": "string",
+                            "enum": [
+                              "registrada",
+                              "nao_aplicavel"
+                            ]
+                          },
+                          "item": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "descricao": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "atividade",
+                          "etapa",
+                          "situacao"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "atividade": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "adicionais": {
+                            "maxItems": 20,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            }
+                          },
+                          "base_gdpr": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 300
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "atividade"
                         ],
                         "additionalProperties": false
                       }

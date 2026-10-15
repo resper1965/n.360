@@ -1,4 +1,6 @@
 import { BaseAgent, type AgentContext, type AgentResponse } from './types';
+import { PERGUNTAS_IMPACTO } from '../services/impacto';
+import { IDS_ETAPAS } from '../services/ciclo';
 
 /**
  * Agente da importação de programa de privacidade (n.privacy, fatias 1 a 4). Duas tarefas: CLASSIFICAR o arquivo (que tipo de
@@ -18,7 +20,8 @@ Tipos possíveis:
 - inventario: inventário ou mapeamento de dados / registro de operações de tratamento (RoPA), lista de processos com dados pessoais.
 - terceiros: lista ou avaliação de fornecedores, operadores, contratos com terceiros.
 - documento: política, aviso de privacidade, norma, procedimento.
-- avaliacao: DPIA/RIPD, LIA (teste de legítimo interesse), avaliação de risco de privacidade.
+- avaliacao: DPIA/RIPD, LIA (teste de legítimo interesse), avaliação ou lista de riscos de privacidade, plano de ação (gaps), teste de impacto,
+  ciclo de vida do dado por atividade.
 - historico: registros operacionais (pedidos de titulares, incidentes, consentimentos).
 - desconhecido: nenhum dos anteriores.
 ${DADO_NAO_INSTRUCAO}
@@ -50,13 +53,26 @@ trata, até 3 frases), origem (o trecho literal de onde saiu o título, até 150
 ${DADO_NAO_INSTRUCAO}
 Formato: {"documentos":[{...}]}. Se o texto não for um documento desses: {"documentos":[]}.`;
 
-const PROMPT_EXTRAIR_AVALIACOES = `Você vai EXTRAIR as avaliações de privacidade de um trecho de DPIA/RIPD (relatório de impacto) ou de LIA (teste de
-legítimo interesse). Para cada avaliação encontrada, devolva os campos (omita o que o texto não diz; não invente): tipo ("dpia" para
-DPIA/RIPD, "lia" para teste de legítimo interesse), tratamento (obrigatório, a finalidade/atividade de tratamento avaliada), conclusao
-(a conclusão da avaliação, como está no texto), riscos (lista dos riscos identificados), origem (o trecho literal do texto de onde
+const PROMPT_EXTRAIR_AVALIACOES = `Você vai EXTRAIR registros de avaliação de privacidade (LGPD) de um trecho de documento ou planilha: DPIA/RIPD,
+LIA (teste de legítimo interesse), riscos, ações do plano de ação (gaps), respostas do teste de impacto e etapas do ciclo de vida do dado.
+Para cada registro, devolva "tipo" e os campos abaixo (omita o que o texto não diz; não invente). Datas em AAAA-MM-DD.
+- tipo "dpia" (DPIA/RIPD) ou "lia" (legítimo interesse): tratamento (obrigatório, a finalidade/atividade avaliada), conclusao (como está no
+  texto), riscos (lista dos riscos identificados), necessidade (necessidade e proporcionalidade); só dpia: medidas (medidas de mitigação),
+  risco_residual ("baixo", "medio" ou "alto"); só lia: finalidade_legitima, balanceamento, salvaguardas.
+- tipo "risco": atividade (obrigatória, a finalidade/atividade de tratamento), ameaca (obrigatória, o risco ou motivo), vulnerabilidade,
+  ativo (nome do sistema), impacto e probabilidade (números de 1 a 5), nivel ("baixo", "medio", "alto" ou "critico", se não houver
+  números), estrategia ("mitigar", "aceitar", "evitar" ou "transferir"), plano (o tratamento previsto), impacto_residual e
+  probabilidade_residual (1 a 5), prazo, responsavel (nome da área ou cargo responsável), status ("aberto", "mitigado", "aceito" ou "fechado").
+- tipo "gap": atividade (obrigatória), titulo (obrigatório, a ação ou lacuna), descricao, prazo, responsavel, status ("aberto",
+  "em_andamento" ou "concluido"), risco (a ameaça a que a ação responde).
+- tipo "impacto": atividade (obrigatória) e, para cada pergunta respondida, a chave da pergunta com "sim", "nao" ou "nao_sei". Chaves:
+  ${PERGUNTAS_IMPACTO.map((p) => `${p.id} (${p.texto.split(',')[0].replace(/\?$/, '')})`).join('; ')}.
+- tipo "ciclo": atividade (obrigatória), etapa (uma de ${IDS_ETAPAS.map((e) => `"${e}"`).join(', ')}), situacao ("registrada" ou
+  "nao_aplicavel"), item (nome do sistema ou arquivo da etapa), descricao.
+Nunca devolva nome, CPF, e-mail ou telefone de titular. Em cada registro, devolva também origem (o trecho literal do texto de onde
 saiu, até 150 caracteres) e confianca ("alta", "media" ou "baixa").
 ${DADO_NAO_INSTRUCAO}
-Formato: {"avaliacoes":[{...}]}. Sem avaliação no trecho: {"avaliacoes":[]}.`;
+Formato: {"avaliacoes":[{...}]}. Sem registro no trecho: {"avaliacoes":[]}.`;
 
 /**
  * Fatia 4. O texto chega com e-mail, CPF e telefone já trocados por pseudônimos `tit-...` (services/importacao.ts); o prompt proíbe
