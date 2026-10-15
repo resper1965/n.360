@@ -13,7 +13,7 @@ voltar se o repositório voltar a ser público ou se o Actions passar a ser pago
 
 | Momento | O que roda | Onde está |
 |---|---|---|
-| Push numa branch que não é a `main` (PR) | build command `bash scripts/ci/build.sh`, que chama `verificar.sh`: `tsc`, build e testes do frontend, build do MCP, suíte do Worker, E2E em Chromium | [`scripts/ci/verificar.sh`](../scripts/ci/verificar.sh) |
+| Push numa branch que não é a `main` (PR) | build command `bash scripts/ci/build.sh`, que chama `verificar.sh`: `tsc`, build e testes do frontend, build do MCP, suíte do Worker (o E2E roda localmente, ver abaixo) | [`scripts/ci/verificar.sh`](../scripts/ci/verificar.sh) |
 | Mesmo push, depois do build | preview command que **não publica nada**: `echo "Verificação concluída; esta build não publica Preview"` | configuração do Worker |
 | Merge na `main` | build command `bash scripts/ci/build.sh`, que chama `publicar.sh` (`tsc`, build do frontend, **recusa com migration pendente**) e deploy command `npx wrangler deploy --var VERSAO_SHA:$WORKERS_CI_COMMIT_SHA` | [`scripts/ci/publicar.sh`](../scripts/ci/publicar.sh) |
 
@@ -29,8 +29,9 @@ dado real. O portão de PR só precisa dos testes, que rodam no build command.
 (`npx wrangler d1 migrations apply niso-db --remote`), conferir com `PRAGMA table_info`, e só então mergear. Se a
 build da `main` falhar por migration pendente, aplicar e usar *Retry build* no painel.
 
-**E2E.** Se o ambiente do Workers Builds não conseguir subir o Chromium, defina a variável de build `PULAR_E2E=1` e
-rode o E2E localmente antes do merge (`cd frontend && npm run test:e2e`).
+**E2E.** A imagem do Workers Builds não tem as bibliotecas de sistema do Chromium (`libatk-1.0` e outras; sem root
+para instalar), conferido na primeira build em 15/10/2026. Por isso o `verificar.sh` pula o E2E lá, e o E2E roda na
+máquina de quem mergeia, antes do merge: `cd frontend && npm run build && npm run test:e2e`.
 
 **Backup diário.** O `db-backup.yml` não roda mais. A recuperação de curto prazo fica com o Time Travel do D1
 (restauração para um minuto dos últimos dias, conforme o plano da conta); antes de toda migration, o backup manual
