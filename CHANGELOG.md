@@ -12,6 +12,17 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (acabamento do n.privacy, sem migration)
+- **Listas de destino filtradas pelo painel**: o botão de "O que fazer" abre a lista já filtrada pela situação do item (pedidos do titular atrasados ou vencendo em 7 dias, incidentes com comunicação atrasada ou sem avaliação de risco, terceiros com avaliação vencida ou nunca avaliados, evidências vencidas, ações corretivas vencidas), com o chip "Filtro: ... — limpar". O filtro é uma chave de lista fechada (`frontend/src/filtro-painel.js`), vale só para aquela navegação e passa do n.360 ao módulo pelo `sessionStorage`, nunca pelo endereço. As ações vencidas das atividades abrem a faixa "vencidas" das ações por prazo.
+- **Aviso quando o fornecedor envia a homologação**: sino para os consultores designados do projeto (sem nenhum, os administradores da consultoria), só com o nome da parte; a falha do aviso vai ao log e não impede o envio; reenvio não duplica.
+- **Detalhe do tratamento no agente**: `niso_privacy_ropa_detalhe` passa a trazer o ciclo de vida, as bases adicionais e a do GDPR e o teste de impacto; roteiro e skill de implantação atualizados.
+- **Logo da organização no Word**: o cabeçalho do RIPD e da LIA leva o logo da consultoria (o mesmo da proposta, lido com as mesmas travas); sem logo, o nome.
+
+### Mudado
+- As exportações CSV antigas do n.iso (`/export/risks`, `vendors`, `training`, `audit-log`, `assets`) ganharam a trilha `exportacao.csv` (tipo e contagem) e saíram do alcance do agente MCP, que lê os mesmos dados em JSON. Formato e faixas iguais.
+- A matriz de riscos do n.iso usa a faixa de nível do servidor (`riskLevel`), a mesma do mapa do n.privacy (`frontend/src/nivel-risco.js`): o nível "Muito Baixo", que o servidor não tem, saiu, e a legenda mostra as notas de cada faixa.
+- O aviso de prazo da ação de projeto só do n.privacy diz "Ação da atividade vence..." em vez de "CAPA vence...".
+
 ### Adicionado (painel de entrada do n.360, do n.iso e do n.privacy)
 - **Painel de entrada** (estudo `docs/design/diagnostico-2026-10-14/dashboard-entrada.md`, direção A, sem migration): a empresa como título, o estado do programa (Começando, Em implantação, Em operação desde o mês da primeira aprovação), a frase de saúde (Atrasado, Atenção, Em dia, Começando, Sua vez) montada no servidor sobre a mesma lista de "O que fazer", e à direita a cobertura por tema (barras 100% na mesma escala, inclusive o ciclo de vida documentado), o mapa de risco (riscos do n.iso; no n.privacy, os das atividades) e os pedidos do titular por semana. Todo gráfico com "Ver como tabela"; todo estado escrito; todo item com botão de nome único.
 - **`GET /projects/:id/painel?modulo=iso|privacy`**: uma chamada por entrada, com as contas de cada módulo num `db.batch` (p95 de 45 ms com 500 atividades no D1 de teste, medido por `test/painel.test.ts`); o cliente recebe a frase, as linhas dos módulos e o que espera a decisão dele. **`GET /api/v1/carteira`**: a carteira do consultor, consultas agrupadas por projeto; fora do agente MCP.
