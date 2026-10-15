@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML, showToast } from '../ui.js';
+import { escapeHTML, showToast, tituloDaTela } from '../ui.js';
 
 // Segurança do projeto (SSO, SCIM e política). Só a equipe da consultoria: as rotas são `somenteNess` em src/routes/projects.ts
 // e o servidor recusa o resto com 403; aqui só se decide o que MOSTRAR. O client_secret é só de escrita: a API nunca o devolve
@@ -29,7 +29,7 @@ async function renderSegurancaProjeto(c, h, a) {
         c.innerHTML = window.renderSemProjeto();
         return;
     }
-    h.textContent = `Segurança do projeto: ${proj.project_name || proj.client_name || proj.id}`;
+    h.textContent = tituloDaTela('nav-seguranca-projeto', 'Segurança do projeto');
     c.innerHTML = '<div class="loading"></div>';
     let sso, pol;
     try {
@@ -47,7 +47,8 @@ async function renderSegurancaProjeto(c, h, a) {
     const p = pol?.politica || {};
     const ips = String(p.ip_allowlist || '').split(',').map((x) => x.trim()).filter(Boolean).join(', ');
     const campo = (id, rotulo, valor, extra = '') => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><input class="form-input" id="${id}" value="${e(valor)}" ${extra}></div>`;
-    c.innerHTML = `
+    // O projeto é a primeira linha do conteúdo (o título nomeia a tela, não o cliente).
+    c.innerHTML = `<p class="page-kicker">Projeto: ${e(proj.project_name || proj.client_name || proj.id)}</p>
         <section class="card fade-in" aria-labelledby="sso-titulo" style="margin-bottom:1.5rem;padding:1.25rem">
             <h3 id="sso-titulo" style="margin:0 0 .25rem">Login corporativo (SSO)</h3>
             <p class="form-hint" style="margin:0 0 1rem">Quem controla o issuer controla quem entra. O papel padrão vale para contas criadas no primeiro acesso.</p>

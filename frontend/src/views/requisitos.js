@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, escapeHTML, formatarData } from '../ui.js';
+import { showToast, openModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { produtoAtual } from '../produto.js';
 
 // Catálogo de requisitos (fatia 2 do núcleo): fontes (ISO 27001, ISO 27701, LGPD, GDPR), cada requisito com as
@@ -18,7 +18,7 @@ const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 
 async function renderRequisitos(c, h, a) {
-    h.textContent = 'Requisitos';
+    h.textContent = tituloDaTela('nav-requisitos', 'Requisitos');
     const proj = projetoAtivo();
     let fontes = [];
     try { fontes = lista(await api('GET', '/api/v1/requisitos/fontes')); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar o catálogo de requisitos.', e); return; }

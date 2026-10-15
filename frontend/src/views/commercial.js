@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, formatarData } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
 
 // S2: wrappers para handlers com `this` como PRIMEIRO argumento (a delegação só
@@ -10,7 +10,7 @@ window.__cmSelectNess = function (key, val) { window.selectNessOption(this, key,
 window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
 
     async function renderLeads(c, h, a) {
-        h.textContent = 'Pipeline de Leads & Oportunidades';
+        h.textContent = tituloDaTela('nav-leads', 'Leads');
         a.innerHTML = '<button class="btn btn-primary" data-action="openCreateLeadModal">+ Novo Lead</button>';
         c.innerHTML = '<div class="loading"></div>';
         try {
@@ -232,7 +232,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
     }
 
     async function renderAssessments(c, h, a) {
-        h.textContent = 'Levantamentos de Escopo';
+        h.textContent = tituloDaTela('nav-assessments', 'Levantamentos');
         a.innerHTML = '';
         c.innerHTML = '<div class="loading"></div>';
         try {

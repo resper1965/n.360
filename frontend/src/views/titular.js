@@ -44,7 +44,6 @@ const valorOuNulo = (id) => { const v = el(id).value.trim(); return v || null; }
 const soIncidentes = () => produtoAtual() !== 'privacy';
 
 async function renderTitular(c, h, a) {
-    h.textContent = soIncidentes() ? 'Incidentes' : 'Titular e incidentes';
     const proj = projetoAtivo();
     if (!proj) {
         a.innerHTML = '';
@@ -54,6 +53,8 @@ async function renderTitular(c, h, a) {
     const abasDoProduto = soIncidentes() ? { incidentes: ABAS.incidentes } : ABAS;
     const aba = abasDoProduto[S.titularAba] ? S.titularAba : Object.keys(abasDoProduto)[0];
     S.titularAba = aba;
+    // O título é o rótulo da aba, que é o do item de menu que a abre (Pedidos do titular, Incidentes, Consentimentos).
+    h.textContent = ABAS[aba];
     const editar = podeEditar();
     const registrar = podeRegistrar();
     // Pedidos e incidentes são lidos sempre: a contagem (e o atraso) aparece na aba, sem precisar abri-la. Falha vira `null`:

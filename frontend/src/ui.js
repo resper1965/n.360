@@ -267,6 +267,15 @@ export function renderPageHeader(title, subtitle = '', actionsHtml = '') {
     `;
 }
 
+/**
+ * O título da tela É o rótulo do item de menu que a abre (lido do próprio menu, que a casca do módulo já ajustou:
+ * "Pessoas, áreas e sistemas" no n.privacy, "Partes" no n.iso). Fora do shell (teste, menu ausente) vale o padrão.
+ */
+export function tituloDaTela(navId, padrao) {
+    const t = typeof document !== 'undefined' && document.querySelector(`#${navId} .sidebar-nav-text`);
+    return (t && t.textContent.trim()) || padrao;
+}
+
 export function renderStatCards(statsArray) {
     if (!statsArray || !statsArray.length) return '';
     const cardsHtml = statsArray.map(s => {
@@ -606,6 +615,7 @@ window.pedirFecharModal = pedirFecharModal;
 window.showToast = showToast;
 window.renderPageHeader = renderPageHeader;
 window.renderStatCards = renderStatCards;
+window.tituloDaTela = tituloDaTela;
 window.renderStatusBadge = renderStatusBadge;
 window.traduzStatus = traduzStatus;
 window.formatarData = formatarData;

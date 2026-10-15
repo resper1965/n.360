@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, escapeHTML, tituloDaTela } from '../ui.js';
 import { produtoAtual } from '../produto.js';
 
 // Partes e departamentos do projeto (fatia 1.4 do núcleo). O cadastro existe para o responsável de risco,
@@ -22,7 +22,7 @@ const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const lista = (r) => (Array.isArray(r) ? r : []);
 
 async function renderPartes(c, h, a) {
-    h.textContent = 'Partes e departamentos';
+    h.textContent = tituloDaTela('nav-partes', 'Partes');
     const proj = projetoAtivo();
     if (!proj) {
         a.innerHTML = '';

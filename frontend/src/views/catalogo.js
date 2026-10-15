@@ -2,7 +2,7 @@
 // do `servicoSchema` (src/schemas/domain.ts): união por `tipo`; o avulso se divide por `formaPreco`.
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML, openModal, forceCloseModal } from '../ui.js';
+import { escapeHTML, openModal, forceCloseModal, tituloDaTela } from '../ui.js';
 
 const TIPOS = { projeto: 'Projeto', avulso: 'Avulso', recorrente: 'Recorrente' };
 const FAIXAS = { 1: 'Foundation', 2: 'Standard', 3: 'Enterprise' };
@@ -30,7 +30,7 @@ export function resumoPreco(s) {
 // ——— lista ———
 function desenhar() {
     const { c, h, a } = ultimo;
-    h.textContent = 'Catálogo de serviços';
+    h.textContent = tituloDaTela('nav-catalogo', 'Catálogo');
     a.innerHTML = '';
     // carregar o catálogo inicial: quem administra a organização (podeAdministrarOrg no servidor)
     const admin = S.user?.role === 'platform_admin' || S.user?.role === 'consultoria_admin';

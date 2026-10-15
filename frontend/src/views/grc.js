@@ -1,7 +1,7 @@
 import { rotuloDe } from '../rotulos.js';
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, traduzStatus, formatarData } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, traduzStatus, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
 import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
@@ -466,7 +466,7 @@ window.__grcCloseExecAudit = function (id) {
     };
 
     async function renderVendors(c, h, a) {
-        h.textContent = 'Gestão de Fornecedores (KYV)';
+        h.textContent = tituloDaTela('nav-vendors', 'Fornecedores');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -809,7 +809,7 @@ window.__grcCloseExecAudit = function (id) {
     };
 
     async function renderTraining(c, h, a) {
-        h.textContent = 'Treinamento & Conscientização';
+        h.textContent = tituloDaTela('nav-training', 'Treinamento');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -1119,7 +1119,7 @@ window.__grcCloseExecAudit = function (id) {
     };
 
     async function renderCAPA(c, h, a) {
-        h.textContent = 'Ações Corretivas (CAPA)';
+        h.textContent = tituloDaTela('nav-capa', 'Ações corretivas');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';

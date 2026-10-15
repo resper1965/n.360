@@ -45,7 +45,7 @@ describe('renderProntidao', () => {
     it('a frase-veredito, a ressalva e o indicador único vêm do servidor; nada de "conforme"', async () => {
         servir({ 'GET /api/v1/projects/p9/prontidao': RESPOSTA() });
         await abrir();
-        expect(el('h').textContent).toBe('Prontidão para a certificação');
+        expect(el('h').textContent).toBe('Prontidão');
         expect(el('c').querySelector('.pn-frase').textContent).toBe('Falta 1 item para o estágio 1.');
         expect(el('c').textContent).toContain('Não substitui a auditoria interna');
         expect(el('c').textContent).toContain('31 de 90 controles aplicáveis implementados');

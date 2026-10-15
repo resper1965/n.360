@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, closeModal, forceCloseModal, escapeHTML, formatarData } from '../ui.js';
+import { showToast, openModal, closeModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { render } from '../router.js';
 
 // S2: wrappers para os handlers COMPOSTOS (a delegação chama uma função só).
@@ -218,7 +218,7 @@ window.__adminCopiarApiKey = () => {
     }
 
     async function renderAuditTrail(c, h, a) {
-        h.textContent = 'Trilha de Auditoria & Logs Imutáveis';
+        h.textContent = tituloDaTela('nav-audit-trail', 'Trilha de auditoria');
         a.innerHTML = '';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 

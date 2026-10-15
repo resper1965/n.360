@@ -257,7 +257,7 @@ describe('RIPD (DPIA)', () => {
     it('título, botão e status em PT', async () => {
         rotas['/dpia'] = [{ id: 'd1', system_name: 'CRM', status: 'Under Review' }];
         await window.renderDPIA(el('c'), el('h'), el('a'));
-        expect(el('h').textContent).toBe('RIPD (DPIA)');
+        expect(el('h').textContent).toBe('RIPD');
         expect(el('a').textContent).toContain('Novo RIPD');
         // F4: CSV da lista e Word por linha
         expect(el('a').querySelector('[data-action="exportarCsvRipd"]')).not.toBeNull();

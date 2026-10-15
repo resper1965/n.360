@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro, formatarData } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
 import { temProduto, projetoDoId } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
@@ -662,7 +662,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     window.MIN_NA_JUSTIFICATION = MIN_NA_JUSTIFICATION;
 
     async function renderSoA(c, h, a) {
-        h.textContent = 'Declaração de Aplicabilidade (SoA)';
+        h.textContent = tituloDaTela('nav-soa', 'SoA');
         const proj = S.activeProject || S.projects[0];
         if (!proj) {
             a.innerHTML = '';
@@ -1506,7 +1506,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     }
 
     async function renderEvidence(c, h, a) {
-        h.textContent = 'Central de Evidências';
+        h.textContent = tituloDaTela('nav-evidence', 'Evidências');
         const proj = S.currentProject || S.activeProject || S.projects[0];
         if (!proj) {
             a.innerHTML = '';
@@ -1663,7 +1663,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     }
 
     async function renderPoliciesDashboard(c, h, a) {
-        h.textContent = 'Gestão de Políticas (A.5.1)';
+        h.textContent = tituloDaTela('nav-policies', 'Gestão de políticas');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -2202,7 +2202,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     };
 
     async function renderAcknowledgments(c, h, a) {
-        h.textContent = 'Ciência de Políticas';
+        h.textContent = tituloDaTela('nav-acknowledgments', 'Ciência de políticas');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             c.innerHTML = window.renderSemProjeto(); 

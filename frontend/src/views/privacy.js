@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
-import { showToast, openModal, forceCloseModal, escapeHTML, formatarData } from '../ui.js';
+import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { render } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
@@ -43,7 +43,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
 
     async function renderROPA(c, h, a) {
         // No n.privacy o título é o rótulo do menu (ROTULOS_PRIVACY).
-        h.textContent = produtoAtual() === 'privacy' ? 'Tratamentos (RoPA)' : 'Registro de tratamentos (RoPA)';
+        h.textContent = tituloDaTela('nav-ropa', 'Tratamentos (RoPA)');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -325,7 +325,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
 
     async function renderDPIA(c, h, a) {
         // O termo legal brasileiro vem primeiro (LGPD, art. 5º, XVII).
-        h.textContent = produtoAtual() === 'privacy' ? 'RIPD' : 'RIPD (DPIA)';
+        h.textContent = tituloDaTela('nav-dpia', 'RIPD');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';

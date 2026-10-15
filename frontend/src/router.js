@@ -39,6 +39,7 @@ export     function navigate(view, data) {
         const navId = targetView === 'titular' && produto === 'iso' ? 'nav-incidentes'
             : targetView === 'titular' && produto === 'privacy' ? ({ incidentes: 'nav-incidentes-privacy', consentimentos: 'nav-consentimentos' }[S.titularAba] || 'nav-titular')
             : targetView === 'projects' && produto !== 'n360' ? 'nav-project'
+            : targetView === 'management-review' ? 'nav-mgmt'
             // O id inteiro vence o prefixo: 'audit-trail' é nav-audit-trail (nav-audit não existe).
             : document.getElementById(`nav-${targetView}`) ? `nav-${targetView}` : `nav-${targetView.split('-')[0]}`;
         const el = document.getElementById(navId);

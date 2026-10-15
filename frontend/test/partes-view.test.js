@@ -34,7 +34,7 @@ describe('tela de Partes', () => {
   it('lista partes e departamentos e escapa o nome', async () => {
     const [c, h, a] = montar();
     await window.renderPartes(c, h, a);
-    expect(h.textContent).toBe('Partes e departamentos');
+    expect(h.textContent).toBe('Partes');
     expect(c.textContent).toContain('Ana Exemplo');
     expect(c.textContent).toContain('TI');
     expect(c.querySelector('img')).toBeNull(); // nome de parte não vira HTML

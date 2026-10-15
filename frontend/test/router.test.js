@@ -188,6 +188,11 @@ describe('navigate()', () => {
             expect(itemAtivo().id).toBe('nav-certification');
         });
 
+        it('"management-review" (Análise crítica) destaca nav-mgmt', () => {
+            navigate('management-review');
+            expect(itemAtivo().id).toBe('nav-mgmt');
+        });
+
         it('"audit-trail" destaca nav-audit-trail: o id inteiro vence o prefixo', () => {
             navigate('audit-trail');
             expect(itemAtivo().id).toBe('nav-audit-trail');
@@ -204,7 +209,6 @@ describe('navigate()', () => {
         });
 
         it.each([
-            ['management-review', 'nav-mgmt'],
             ['assessment-detail', 'nav-assessments'],
             ['audit-execution', 'nav-audits'],
         ])('BUG: view "%s" nao destaca item nenhum (esperado: %s)', (view) => {

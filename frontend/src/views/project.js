@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, STATUS_DA_FASE, formatarData, traduzStatus } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, STATUS_DA_FASE, formatarData, traduzStatus, tituloDaTela } from '../ui.js';
 import { vazioSemFases } from './monitor.js';
 import { navigate } from '../router.js';
 import { PRODUTOS, produtoAtual, modulosVisiveis, enderecoDoProduto, irPara } from '../produto.js';
@@ -144,7 +144,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             }
         }
         if (!p || !p.id) { navigate('projects'); return; }
-        h.textContent = p.client_name ? 'Jornada — ' + p.client_name : 'Jornada';
+        h.textContent = tituloDaTela('nav-project', 'Jornada');
         if (!S.expandedJourneys) S.expandedJourneys = {};
         if (!S.expandedPhases) S.expandedPhases = {};
         a.innerHTML = `<button class="btn" style="margin-right:8px" data-action="abrirDadosEmpresa" data-args='${escapeHTML(JSON.stringify([p.id]))}'>Dados da empresa</button><button class="btn" style="margin-right:8px" data-action="openAuditorNotesModal" data-args='["${p.id}"]'>Notas do Auditor</button><button class="btn btn-ghost" data-action="navigate" data-args='["projects"]'>&larr; Voltar</button>`;

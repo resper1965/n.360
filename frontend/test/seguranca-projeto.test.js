@@ -185,7 +185,7 @@ describe('projeto fixado no render', () => {
         await window.renderSegurancaProjeto(el('c'), el('h'), el('a'));
         solta(); await a; await espera();
         expect(el('sso-issuer').value).toBe('https://p2.exemplo.test');
-        expect(el('h').textContent).toContain('Dois');
+        expect(el('c').textContent).toContain('Projeto: Dois');
         el('sso-secret').value = 's';
         await clica('salvarSsoProjeto');
         const puts = f.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([u]) => new URL(u, 'http://localhost').pathname);
@@ -212,10 +212,11 @@ describe('projeto fixado no render', () => {
         expect(el('c').textContent).toContain('Sem projeto ativo');
     });
 
-    it('o título mostra o cliente editado', async () => {
+    it('o título nomeia a tela; o projeto é a primeira linha do conteúdo', async () => {
         S.activeProject = { id: 'p9', project_name: 'Cliente Exemplo' };
         await abrir();
-        expect(el('h').textContent).toContain('Cliente Exemplo');
+        expect(el('h').textContent).toBe('Segurança do projeto');
+        expect(el('c').querySelector('.page-kicker').textContent).toBe('Projeto: Cliente Exemplo');
     });
 });
 

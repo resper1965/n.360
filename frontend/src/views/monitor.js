@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE, formatarData, traduzStatus } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE, formatarData, traduzStatus, tituloDaTela } from '../ui.js';
 import { produtoAtual, projetosDoProduto } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
 
@@ -28,7 +28,7 @@ import { podeIndicar } from './encarregado.js';
     }
 
     async function renderMonitor(c, h, a) {
-        h.textContent = 'Monitor de Adequação';
+        h.textContent = tituloDaTela('nav-monitor', 'Monitor');
         a.innerHTML = '';
 
         // Mesma fonte do Dashboard (/projects, só os projetos deste módulo). Lia /portfolio e, quando ele
@@ -381,7 +381,7 @@ import { podeIndicar } from './encarregado.js';
     const podeConvidarStakeholder = () => !!(S.user && ['platform_admin', 'consultoria_admin', 'consultor', 'consultant', 'org_admin'].includes(S.user.role));
 
     async function renderGovernance(c, h, a) {
-        h.textContent = 'Governança & Equipe';
+        h.textContent = tituloDaTela('nav-governance', 'Governança');
         a.innerHTML = '';
         const p = S.currentProject || S.activeProject;
         if (!p) {
@@ -830,7 +830,7 @@ import { podeIndicar } from './encarregado.js';
     };
 
     async function renderContext(c, h, a) {
-        h.textContent = 'Contexto & Escopo do SGSI (Cláusula 4.1 / 4.3)';
+        h.textContent = tituloDaTela('nav-context', 'Contexto');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -1078,7 +1078,7 @@ import { podeIndicar } from './encarregado.js';
 
 
     async function renderStakeholders(c, h, a) {
-        h.textContent = 'Partes Interessadas (Cláusula 4.2)';
+        h.textContent = tituloDaTela('nav-stakeholders', 'Partes interessadas');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -1275,7 +1275,7 @@ import { podeIndicar } from './encarregado.js';
     }
 
     async function renderManagementReview(c, h, a) {
-        h.textContent = 'Análise Crítica pela Direção (Cláusula 9.3)';
+        h.textContent = tituloDaTela('nav-mgmt', 'Análise crítica');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -1594,7 +1594,7 @@ import { podeIndicar } from './encarregado.js';
     };
 
     async function renderAssets(c, h, a) {
-        h.textContent = 'Ativos de Informação';
+        h.textContent = tituloDaTela('nav-assets', 'Ativos');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
