@@ -17,7 +17,7 @@ const MODULOS = ['iso', 'privacy'];
 export const SO_ISO = ['nav-dashboard', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos'];
+export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
@@ -194,7 +194,7 @@ export const ROTULOS_PRIVACY = {
 export const SECOES_PRIVACY = [
     ['', ['nav-encarregado']],
     ['Mapear', ['nav-ropa', 'nav-partes', 'nav-terceiros', 'nav-importacao']],
-    ['Avaliar', ['nav-dpia', 'nav-requisitos']],
+    ['Avaliar', ['nav-dpia', 'nav-mapa-de-risco', 'nav-requisitos']],
     ['Responder', ['nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos']],
     ['Provar', ['nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance']],
     ['', ['nav-ai']],
