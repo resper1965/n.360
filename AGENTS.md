@@ -268,7 +268,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   e edita; aceitar risco (`status: Accepted`) e concluir acao (`Closed`) a rota recusa, e o DELETE esta em `FORA_DO_AGENTE`. Regra R1 do
   `coherence` ignora risco com `ropa_id`; o aviso de prazo de acao em projeto sem n.iso leva a `/ropa`. Telas: secoes Riscos e Acoes nas
   Ligacoes da atividade (`tratamento-ligacoes.js`; formulario novo ja vem com o sistema ligado e o responsavel da atividade), "Mapa de
-  risco" na secao Avaliar do n.privacy (`views/mapa-de-risco.js`, nivel por texto em cada celula, mesma faixa do `riskLevel`), a
+  risco" na secao Avaliar do n.privacy (`views/mapa-de-risco.js`, nivel por texto em cada celula, mesma faixa do `riskLevel`; ele e a matriz do n.iso, `grc.js`, usam
+  `frontend/src/nivel-risco.js`), a
   entrevista so LE os riscos (bloco H) e tem "Finalizar teste de impacto"/"Reabrir" no bloco I; o painel do encarregado conta riscos
   altos em aberto e acoes vencidas das atividades (`riscos` em `GET .../encarregado`).
 - **Ciclo de vida e bases legais da atividade (F3, migration 0074)**: `tratamento_ciclo` (uma linha por etapa: coleta, uso,

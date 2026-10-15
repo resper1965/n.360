@@ -1,16 +1,14 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, showToast } from '../ui.js';
+import { nivelDaNota } from '../nivel-risco.js';
 
 // Mapa de risco do n.privacy (F2): matriz 5x5 de probabilidade por impacto sobre os riscos das atividades de tratamento
 // (`GET /projects/:id/ropa/riscos-mapa`). O registro é o mesmo da matriz do n.iso; aqui entram só os riscos com atividade.
 // Cada célula diz por TEXTO o nível e quantos riscos tem (a cor só reforça). Todo texto vindo do servidor é escapado.
 
-/** Mesma faixa de nível do servidor (`riskLevel`, src/services/riscos-atividade.ts), para os dois módulos dizerem o mesmo. */
-export function nivelDaNota(probabilidade, impacto) {
-    const s = probabilidade * impacto;
-    return s <= 5 ? 'Low' : s <= 12 ? 'Medium' : s <= 20 ? 'High' : 'Critical';
-}
+// Mesma faixa de nível do servidor, compartilhada com a matriz do n.iso (grc.js).
+export { nivelDaNota };
 export const NIVEIS = { Low: 'Baixo', Medium: 'Médio', High: 'Alto', Critical: 'Crítico' };
 const COR = { Low: 'var(--success)', Medium: 'var(--info)', High: 'var(--warning)', Critical: 'var(--danger)' };
 
