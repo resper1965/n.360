@@ -22,22 +22,22 @@ function logoRun(uri: string | undefined, nome: string): ImageRun | null {
   });
 }
 
-const COR_PADRAO = '00ADE8';
-const TITULO = 'Montserrat';
-const CORPO = 'Inter';
-const TEXTO = '44506A';
+export const COR_PADRAO = '00ADE8';
+export const TITULO = 'Montserrat';
+export const CORPO = 'Inter';
+export const TEXTO = '44506A';
 
 /** Caractere de controle não existe em XML 1.0: o Word recusa o arquivo inteiro. A biblioteca só escapa < > &. */
-const limpo = (t: unknown) => String(t ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+export const limpo = (t: unknown) => String(t ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
 
 /** Linhas por "\n" viram quebras de linha dentro do mesmo parágrafo. */
-function runs(texto: string, o: { bold?: boolean; color?: string; size?: number; font?: string } = {}): TextRun[] {
+export function runs(texto: string, o: { bold?: boolean; color?: string; size?: number; font?: string } = {}): TextRun[] {
   return limpo(texto).split('\n').map((l, i) => new TextRun({ text: l, break: i ? 1 : 0, font: o.font ?? CORPO, ...o }));
 }
-const par = (texto: string, o: Parameters<typeof runs>[1] = {}, extra: { spacing?: number } = {}) =>
+export const par = (texto: string, o: Parameters<typeof runs>[1] = {}, extra: { spacing?: number } = {}) =>
   new Paragraph({ children: runs(texto, { color: TEXTO, ...o }), spacing: { after: extra.spacing ?? 120 } });
 
-function tabela(cab: string[], linhas: string[][], total?: string[]): Table {
+export function tabela(cab: string[], linhas: string[][], total?: string[]): Table {
   const larg = Math.max(cab.length, ...linhas.map((l) => l.length), 1);
   const celula = (t: string, bold = false) => new TableCell({ children: [par(t, { bold, color: bold ? '0F172A' : TEXTO, size: 19 }, { spacing: 40 })] });
   const linha = (l: string[], bold = false) => new TableRow({ children: Array.from({ length: larg }, (_, j) => celula(l[j] ?? '', bold || (!cab.length && j === 0))) });

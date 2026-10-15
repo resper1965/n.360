@@ -121,6 +121,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/projects\/[^/]+\/similares$/, 'parecidos por significado são recurso de IA da tela'],
   // Riscos e ações da atividade (F2): o agente cria e edita rascunho; apagar é ato humano (aceitar e concluir, a rota recusa).
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/(riscos|acoes)\/[^/]+$/, 'apagar risco ou ação da atividade é ato humano, pela interface', ['DELETE']],
+  // Exportação em arquivo (F4): planilha e Word são da tela; o agente lê os mesmos dados em JSON.
+  [/^\/api\/v1\/projects\/[^/]+\/(export\/(atividades|ripd|riscos-atividade|acoes-atividade|lia)|dpia\/[^/]+\/docx|ropa\/[^/]+\/lia\/docx)$/, 'exportação em arquivo é pela interface'],
   [/^\/api\/v1\/management-reviews\/[^/]+$/,'excluir análise crítica destrói registro assinado: use a interface', ['DELETE']],
 ];
 
