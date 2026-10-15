@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api } from '../api.js';
+import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, openModal, showToast } from '../ui.js';
 
 import './ponto-de-partida.js';
@@ -14,6 +14,21 @@ const n = (v) => escapeHTML(String(v ?? 0));
 export const podeIndicar = () => !!S.user && ['platform_admin', 'consultant', 'consultor'].includes(S.user.role);
 // Zero é neutro: o sistema não sabe que está "bom", só que nada foi contado. Cor só quando há alerta.
 const cor = (q, ruim = 'var(--danger)') => (q > 0 ? ruim : 'var(--text)');
+// Faixas de prazo das ações das atividades (F4): o servidor conta e manda até 50 itens por faixa; a tela guarda para abrir a lista.
+let faixasPrazo = [];
+
+/** Seis faixas clicáveis; cada uma abre a lista da faixa. Sem o bloco no servidor, nada. */
+function blocoPrazos(projectId) {
+    if (!faixasPrazo.length) return '';
+    const total = faixasPrazo.reduce((t, f) => t + (f.total || 0), 0);
+    const botoes = faixasPrazo.map((f) => `<button type="button" class="btn" data-action="abrirFaixaPrazo" data-args='${args(projectId, f.faixa)}'
+        aria-label="${escapeHTML(`${f.rotulo}: ${f.total || 0} ações`)}" style="display:flex; flex-direction:column; align-items:flex-start; min-width:9rem; border-radius:0;
+        border-left:4px solid ${f.faixa === 'vencidas' && f.total ? 'var(--danger)' : 'var(--border)'}">
+        <strong style="font-size:1.2rem">${n(f.total)}</strong> <span style="font-size:0.8rem; color:var(--text-dim)">${escapeHTML(f.rotulo)}</span></button>`).join('');
+    return `<h3 style="margin:1.5rem 0 0.5rem">Prazos das ações das atividades</h3>
+        <div id="enc-prazos" role="group" aria-label="Ações abertas por prazo" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:stretch">${botoes}
+        ${total ? `<button type="button" class="btn btn-ghost" data-action="exportarCsvAcoes" data-args='${args(projectId, null)}'>Exportar todas (CSV)</button>` : ''}</div>`;
+}
 
 async function renderEncarregado(c, h, a) {
     h.textContent = 'Painel do encarregado';
@@ -28,6 +43,7 @@ async function renderEncarregado(c, h, a) {
         c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível montar a visão', texto: 'Tente de novo em instantes.' });
         return;
     }
+    faixasPrazo = Array.isArray(v.acoes_por_prazo) ? v.acoes_por_prazo : [];
     const pt = v.pedidos_titular || {}, inc = v.incidentes || {}, tr = v.tratamentos || {}, te = v.terceiros || {}, ev = v.evidencias || {}, lg = v.lgpd || {};
     const pendTrat = (tr.sem_base_legal || 0) + (tr.dpia_pendente || 0) + (tr.lia_pendente || 0);
     // Sem catálogo, não há tile LGPD: o banner do ponto de partida e a prioridade "Catálogo ... não carregado" já dizem isso.
@@ -54,9 +70,32 @@ async function renderEncarregado(c, h, a) {
               <p style="margin:0;color:var(--text)">Nenhum encarregado indicado. A LGPD exige a indicação (art. 41).</p>
               ${podeIndicar() ? `<button class="btn btn-primary" data-action="abrirIndicarEncarregado" data-args='${args(proj.id)}'>Indicar encarregado</button>` : ''}
            </div>`;
-    c.innerHTML = `<div id="ponto-de-partida"></div>${linhaEnc}<h3 style="margin:0 0 0.5rem">O que fazer</h3>${tabela}<div style="margin-top:1.5rem">${cartoes}</div>`;
+    c.innerHTML = `<div id="ponto-de-partida"></div>${linhaEnc}<h3 style="margin:0 0 0.5rem">O que fazer</h3>${tabela}<div style="margin-top:1.5rem">${cartoes}</div>${blocoPrazos(proj.id)}`;
     window.renderPontoDePartida(c.querySelector('#ponto-de-partida'), proj.id, 'privacy');
 }
+
+window.abrirFaixaPrazo = function (projectId, faixa) {
+    const f = faixasPrazo.find((x) => x.faixa === faixa);
+    if (!f) return;
+    const itens = Array.isArray(f.itens) ? f.itens : [];
+    const tabela = window.renderDataTable(['Ação', 'Atividade', 'Prazo', 'Responsável', ''], itens.map((i) => [
+        escapeHTML(i.title), escapeHTML(i.atividade || '—'), escapeHTML(i.due_date ? String(i.due_date).slice(0, 10).split('-').reverse().join('/') : 'Sem prazo'),
+        escapeHTML(i.responsavel || '—'),
+        `<button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='${args(projectId, i.ropa_id)}'>Abrir a atividade</button>`,
+    ]), { emptyState: 'Nenhuma ação aberta nesta faixa.' });
+    openModal(`
+        <div class="modal-header"><span class="modal-title">Ações: ${escapeHTML(f.rotulo)} (${n(f.total)})</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        ${f.total > itens.length ? `<p style="color:var(--text-dim)">Mostrando ${n(itens.length)} de ${n(f.total)}. O CSV traz todas.</p>` : ''}
+        ${tabela}
+        ${f.total ? `<button class="btn" style="margin-top:1rem" data-action="exportarCsvAcoes" data-args='${args(projectId, faixa)}'>Exportar esta faixa (CSV)</button>` : ''}
+    `);
+};
+
+window.exportarCsvAcoes = function (projectId, faixa) {
+    const q = faixa ? `?faixa=${encodeURIComponent(faixa)}` : '';
+    return baixarArquivo(`/api/v1/projects/${projectId}/export/acoes-atividade${q}`)
+        .catch((e) => showToast(e.message || 'Não foi possível baixar o arquivo', 'error'));
+};
 
 window.abrirIndicarEncarregado = async function (projectId) {
     let partes;

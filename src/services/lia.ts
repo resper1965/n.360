@@ -4,7 +4,7 @@ import { lerImpacto, type Recomendacao } from './impacto';
 import { lerCiclo, cicloEmTexto } from './ciclo';
 import { lerBases, basesEmTexto } from './bases';
 
-const RESULTADO_IMPACTO: Record<Recomendacao['resultado'], string> = {
+export const RESULTADO_IMPACTO: Record<Recomendacao['resultado'], string> = {
   recomendado: 'RIPD recomendado', dispensavel_a_confirmar: 'RIPD dispensável, a confirmar', incompleto: 'incompleto',
 };
 

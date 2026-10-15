@@ -198,3 +198,46 @@ export async function riscosDoMapa(db: D1Database, projectId: string) {
   ).bind(projectId).all();
   return results;
 }
+
+/** Faixas de prazo das ações abertas das atividades (F4): painel do encarregado e exportação. A ordem é a da tela. */
+export const FAIXAS_PRAZO = [
+  { id: 'vencidas', rotulo: 'Vencidas' },
+  { id: 'ate_30', rotulo: 'Até 30 dias' },
+  { id: 'de_31_a_90', rotulo: '31 a 90 dias' },
+  { id: 'de_91_a_150', rotulo: '91 a 150 dias' },
+  { id: 'mais_de_150', rotulo: 'Mais de 150 dias' },
+  { id: 'sem_prazo', rotulo: 'Sem prazo' },
+] as const;
+export type FaixaPrazo = (typeof FAIXAS_PRAZO)[number]['id'];
+export const ehFaixaPrazo = (v: unknown): v is FaixaPrazo => FAIXAS_PRAZO.some((f) => f.id === v);
+
+/** Dias corridos de `hoje` (AAAA-MM-DD) até o prazo. Vencida é prazo antes de hoje, a mesma conta de `acoes_vencidas`. */
+export function faixaDePrazo(prazo: string | null | undefined, hoje: string): FaixaPrazo {
+  const d = prazo ? Date.parse(String(prazo).slice(0, 10)) : NaN;
+  if (Number.isNaN(d)) return 'sem_prazo';
+  const dias = Math.round((d - Date.parse(hoje)) / 86_400_000);
+  if (dias < 0) return 'vencidas';
+  if (dias <= 30) return 'ate_30';
+  if (dias <= 90) return 'de_31_a_90';
+  if (dias <= 150) return 'de_91_a_150';
+  return 'mais_de_150';
+}
+
+export type AcaoDaAtividade = {
+  id: string; ropa_id: string; atividade: string; title: string; description: string | null; due_date: string | null; status: string | null;
+  responsavel: string | null; risco: string | null; created_at: string | null; completed_at: string | null;
+};
+
+/** Ações de todas as atividades do projeto (só as que têm `ropa_id`); a CAPA só do n.iso fica de fora. Abertas primeiro, por prazo. */
+export async function acoesDasAtividades(db: D1Database, projectId: string, { soAbertas = false, limite = 10_000 } = {}): Promise<AcaoDaAtividade[]> {
+  const { results } = await db.prepare(
+    `SELECT ca.id, ca.ropa_id, rr.processing_purpose AS atividade, ca.title, ca.description, ca.due_date, ca.status,
+            pa.nome AS responsavel, r.threat AS risco, ca.created_at, ca.completed_at
+       FROM corrective_actions ca JOIN ropa_records rr ON rr.id = ca.ropa_id AND rr.project_id = ca.project_id
+       LEFT JOIN partes pa ON pa.id = ca.assigned_to_parte_id AND pa.project_id = ca.project_id
+       LEFT JOIN risks r ON r.id = ca.risk_id AND r.project_id = ca.project_id
+      WHERE ca.project_id = ?1 ${soAbertas ? `AND COALESCE(ca.status, 'Open') <> 'Closed'` : ''}
+      ORDER BY COALESCE(ca.status, 'Open') = 'Closed', ca.due_date IS NULL, ca.due_date, ca.created_at LIMIT ?2`
+  ).bind(projectId, limite).all<AcaoDaAtividade>();
+  return results;
+}

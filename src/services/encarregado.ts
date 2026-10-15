@@ -5,6 +5,7 @@ import { lacunasDaFonte } from './requisitos';
 import { lerParametros } from './parametros-legais';
 import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
+import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO } from './riscos-atividade';
 
 /**
  * Núcleo do n.privacy, fatia 8: a visão do encarregado. É CONSULTA sobre as tabelas das fatias anteriores, nunca grava: o que está atrasado
@@ -68,6 +69,13 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     acoes_vencidas: await n(db, `SELECT count(*) AS n FROM corrective_actions WHERE project_id = ?1 AND ropa_id IS NOT NULL AND COALESCE(status, 'Open') <> 'Closed' AND due_date IS NOT NULL AND substr(due_date, 1, 10) < ?2`, projectId, dia),
   };
 
+  // Faixas de prazo das ações abertas das atividades (F4): contagem e até 50 itens por faixa, para a tela abrir a lista.
+  const abertas = await acoesDasAtividades(db, projectId, { soAbertas: true });
+  const acoes_por_prazo = FAIXAS_PRAZO.map((f) => {
+    const da = abertas.filter((a) => faixaDePrazo(a.due_date, dia) === f.id);
+    return { faixa: f.id, rotulo: f.rotulo, total: da.length, itens: da.slice(0, 50).map((a) => ({ id: a.id, ropa_id: a.ropa_id, atividade: a.atividade, title: a.title, due_date: a.due_date, responsavel: a.responsavel })) };
+  });
+
   const secao = {
     pedidos_titular: {
       abertos: pedidosAbertos.length,
@@ -98,6 +106,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     documentos: { revisao_vencida: await n(db, `SELECT count(*) AS n FROM documentos WHERE project_id = ?1 AND status = 'vigente' AND revisar_ate IS NOT NULL AND substr(revisar_ate, 1, 10) < ?2`, projectId, dia) },
     evidencias,
     riscos,
+    acoes_por_prazo,
     lgpd: lgpdCarregada
       ? { carregada: true, total: lacunas.length, cobertos: lacunas.filter((l) => l.situacao === 'coberto').length, parciais: lacunas.filter((l) => l.situacao === 'parcial').length, lacunas: lacunas.filter((l) => l.situacao === 'lacuna').length }
       : { carregada: false },

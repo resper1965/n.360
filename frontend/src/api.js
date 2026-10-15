@@ -90,5 +90,27 @@ async function api(m, p, b, extras) {
     return data;
 }
 
-export { api };
+/**
+ * Baixa um arquivo da API (CSV, Word) com o cabeçalho da sessão: o token nunca vai na URL. O nome sai do
+ * Content-Disposition do servidor (já sanitizado lá). Erro vira exceção com a mensagem do servidor quando houver.
+ */
+async function baixarArquivo(p) {
+    const r = await fetch(API_BASE + p, { headers: cabecalhosAuth(), signal: AbortSignal.timeout(60000) });
+    if (!r.ok) {
+        let msg = `Não foi possível baixar o arquivo (erro ${r.status})`;
+        try { const d = await r.json(); if (d && d.error) msg = d.error; } catch (e) { /* corpo sem JSON */ }
+        throw new Error(msg);
+    }
+    const nome = /filename="([^"]+)"/.exec(r.headers.get('content-disposition') || '')?.[1] || 'arquivo';
+    const url = URL.createObjectURL(await r.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export { api, baixarArquivo };
 window.api = api;

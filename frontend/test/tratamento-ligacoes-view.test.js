@@ -57,6 +57,13 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('modal de ligações', () => {
+    it('LIA gravada oferece o Word (F4); sem LIA, não', async () => {
+        await abrir({ [`GET ${B}/lia`]: { lia: { id: 'l1', status: 'rascunho', finalidade_legitima: 'x' } } });
+        expect(JSON.parse(el('modal-content').querySelector('[data-action="baixarWordLia"]').getAttribute('data-args'))).toEqual(['p9', 'r1']);
+        await abrir();
+        expect(el('modal-content').querySelector('[data-action="baixarWordLia"]')).toBeNull();
+    });
+
     it('mostra base legal, itens, departamentos, partes e transferências, tudo escapado', async () => {
         await abrir();
         const m = el('modal-content');
