@@ -861,7 +861,7 @@ window.openSessionTrail = async function openSessionTrail() {
                                 <span style="flex-shrink:0">${badge(r.tipo || 'evento')}</span>
                                 <span style="flex:1;min-width:0;font-size:12.5px;color:var(--text-2);line-height:1.5">
                                     ${escapeHTML(r.descricao || '')}
-                                    <span style="display:block;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px">${escapeHTML(r.quando || '')}</span>
+                                    <span style="display:block;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px">${escapeHTML(formatarData(r.quando, { hora: true, vazio: '' }))}</span>
                                 </span>
                             </div>`).join('')}
                     </div>`
@@ -2191,7 +2191,7 @@ window.PHASE_PLAYBOOKS = {
     1: { obj: "Entrevista Executiva (Cláusula 5.2 & 6.2)", guideline: "Conduzir reuniões com C-Level para entender o apetite de risco da organização, os objetivos estratégicos de negócio e obter inputs diretos para a elaboração da Política de Segurança da Informação." },
     2: { obj: "Entrevistas por Trilha (Cláusula 7.2)", guideline: "Realizar o mapeamento das trilhas de TI, RH, Jurídico e Operações. O objetivo é entender a rotina de cada área e coletar evidências iniciais de procedimentos já existentes." },
     3: { obj: "Definição de Escopo (Cláusula 4.3)", guideline: "Mapear de forma precisa e documentada os limites físicos, organizacionais e tecnológicos do SGSI. Quaisquer exclusões de controles ou áreas devem ser tecnicamente justificadas no documento de escopo." },
-    4: { obj: "Gap Assessment (Cláusula 6.1)", guideline: "Comparar a maturidade atual dos processos internos com os 93 controles da ISO 27001:2022. Identificar 'Quick Wins' (melhorias rápidas e de baixo custo) para iniciar a adequação com impacto." },
+    4: { obj: "Análise de lacunas (Cláusula 6.1)", guideline: "Comparar a maturidade atual dos processos internos com os 93 controles da ISO 27001:2022. Identificar 'Quick Wins' (melhorias rápidas e de baixo custo) para iniciar a adequação com impacto." },
     5: { obj: "Governança e Papéis (Cláusula 5.3)", guideline: "Nomear formalmente os papéis-chave do SGSI, como o DPO (Encarregado) e o CISO (Responsável por Segurança). Criar e publicar a Matriz RACI de responsabilidades de segurança." },
     6: { obj: "Contexto e Partes Interessadas (Cláusula 4.1 & 4.2)", guideline: "Conduzir a análise de ambiente interno e externo (SWOT) e identificar os requisitos legais (ex: LGPD, resoluções ANPD) e contratuais com clientes e parceiros." },
     7: { obj: "Inventário de Ativos e Dados (Controle A.5.9)", guideline: "Listar e classificar todos os ativos de informação, softwares, hardwares e dados pessoais (RoPA). Atribuir owners (proprietários) para cada ativo do SGSI/SGPI." },

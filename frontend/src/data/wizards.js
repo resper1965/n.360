@@ -197,7 +197,7 @@ export     const DOC_WIZARDS = {
         isoRef: 'Cl 6.1.3'
       },
       'p4_4': {
-        title: 'Relatório de Gap Assessment',
+        title: 'Relatório da análise de lacunas',
         fields: [
           { id: 'exec_summary', label: 'Resumo executivo', type: 'textarea', required: true, placeholder: 'Visão geral do estado de conformidade da organização' },
           { id: 'compliance_pct', label: 'Percentual de conformidade atual', type: 'text', required: true, placeholder: 'Ex: 38%' },
@@ -555,7 +555,7 @@ export     const DOC_WIZARDS = {
         { id: 'notes', label: 'Observações gerais', type: 'textarea' }
       ], auditorTip: 'Cl 4.1 — Evidência de que entrevistas foram conduzidas com as áreas relevantes.', isoRef: 'Cl 4.1' },
 
-      'p4_6': { title: 'Registro de Aprovação do Gap Assessment', evidenceOnly: true, fields: [
+      'p4_6': { title: 'Registro de aprovação da análise de lacunas', evidenceOnly: true, fields: [
         { id: 'approver', label: 'Quem aprovou?', type: 'text', required: true },
         { id: 'date', label: 'Data da aprovação', type: 'date', required: true },
         { id: 'method', label: 'Método de aprovação', type: 'select', options: ['Ata de reunião', 'E-mail formal', 'Assinatura em documento', 'Deliberação em comitê'], required: true },

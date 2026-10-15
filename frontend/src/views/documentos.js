@@ -206,7 +206,7 @@ window.openDocumentoModal = async function (projectId, id) {
         : `<div style="font-size:0.85rem; color:var(--text-dim)">${escapeHTML(TIPOS[d.tipo] || d.tipo)} · Dono: ${escapeHTML(nomeDaParte(d.dono_parte_id) || '—')} · Revisão: ${escapeHTML(dataBr(d.revisar_ate))}</div>`;
 
     const aprovacao = d.aprovacao || {};
-    const linhaAprovacao = (rotulo, ap) => `<div style="font-size:0.85rem">${rotulo}: ${ap ? `${escapeHTML(ap.por)} em ${escapeHTML(String(ap.em).slice(0, 10))}` : 'sem aprovação desta versão'}</div>`;
+    const linhaAprovacao = (rotulo, ap) => `<div style="font-size:0.85rem">${rotulo}: ${ap ? `${escapeHTML(ap.por)} em ${escapeHTML(formatarData(ap.em))}` : 'sem aprovação desta versão'}</div>`;
 
     // Uma ação à vista (pedir aprovação, ou a primeira que houver); as outras no "Mais ações", com aposentar e excluir por
     // último e separados: "Marcar como revisado" não fica mais ao lado de "Aposentar".
@@ -249,7 +249,7 @@ window.openDocumentoModal = async function (projectId, id) {
         <h4 style="margin:1.25rem 0 0.5rem">Ciências</h4>
         ${ciencias.length ? `<table class="data-table"><thead><tr><th>Pessoa</th><th>Versão</th><th>Canal</th><th>Quando</th></tr></thead><tbody>
             ${ciencias.map((x) => `<tr><td>${escapeHTML(x.nome || x.email)}${x.nome ? `<div style="font-size:11px;color:var(--text-dim)">${escapeHTML(x.email)}</div>` : ''}</td>
-                <td>${escapeHTML(String(x.numero))}${x.atual ? '' : ' (anterior)'}</td><td>${escapeHTML(CANAIS[x.canal] || x.canal || '')}</td><td>${escapeHTML(String(x.em || ''))}</td></tr>`).join('')}
+                <td>${escapeHTML(String(x.numero))}${x.atual ? '' : ' (anterior)'}</td><td>${escapeHTML(CANAIS[x.canal] || x.canal || '')}</td><td>${escapeHTML(formatarData(x.em, { hora: true, vazio: '' }))}</td></tr>`).join('')}
         </tbody></table>` : '<p style="color:var(--text-dim)">Ninguém deu ciência ainda.</p>'}
         ${comPrivacy ? `<h4 style="margin:1.25rem 0 0.5rem">Requisitos</h4>
         <div id="doc-requisitos">

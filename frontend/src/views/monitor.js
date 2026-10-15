@@ -1633,7 +1633,7 @@ import { podeIndicar } from './encarregado.js';
 
                 return [
                     `<strong>${escapeHTML(ast.name)}</strong>`,
-                    escapeHTML(ast.category || 'Geral'),
+                    escapeHTML(traduzStatus(ast.category || 'Geral')),
                     escapeHTML(ast.location || 'N/A'),
                     escapeHTML(ast.owner || 'N/A'),
                     window.renderStatusBadge(ast.classification || 'Internal', classType),
@@ -1670,7 +1670,7 @@ import { podeIndicar } from './encarregado.js';
                 <div class="bloco grid-2 gap-4">
                     <div>
                         <div class="rotulo-campo">Categoria</div>
-                        <div class="valor-campo">${escapeHTML(ast.category || 'Geral')}</div>
+                        <div class="valor-campo">${escapeHTML(traduzStatus(ast.category || 'Geral'))}</div>
                     </div>
                     <div>
                         <div class="rotulo-campo">Classificação de Segurança</div>
@@ -1713,9 +1713,9 @@ import { podeIndicar } from './encarregado.js';
             <div class="form-group">
                 <label class="form-label">Classificacao</label>
                 <select class="form-input" id="ast-classification">
-                    <option value="Confidential">Confidential (Apenas Alta Lideranca)</option>
+                    <option value="Confidential">Confidencial (só a alta liderança)</option>
                     <option value="Restricted">Restricted (Uso Interno Protegido)</option>
-                    <option value="Internal" selected>Internal (Uso Interno Geral)</option>
+                    <option value="Internal" selected>Interno (uso geral da empresa)</option>
                     <option value="Public">Public (Livre Acesso)</option>
                 </select>
             </div>

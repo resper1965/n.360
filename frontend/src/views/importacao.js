@@ -131,7 +131,7 @@ async function recarrega() {
 
 function htmlLista() {
     const linhas = E.lotes.map((l) => [
-        e(l.created_at), badge([STATUS_LOTE[l.status] || l.status, l.status === 'concluida' ? 'success' : l.status === 'cancelada' ? 'neutral' : 'info']),
+        e(formatarData(l.created_at, { hora: true })), badge([STATUS_LOTE[l.status] || l.status, l.status === 'concluida' ? 'success' : l.status === 'cancelada' ? 'neutral' : 'info']),
         e(l.arquivos), e(l.itens), l.status === 'cancelada' ? '' : `<button class="btn btn-ghost btn-sm" data-action="importacaoAbrir" data-args='${args(l.id)}'>Abrir</button>`,
     ]);
     return `

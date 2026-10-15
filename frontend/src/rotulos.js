@@ -47,6 +47,8 @@ const GERAL = {
     // políticas
     'organizational': 'Organizacional', 'technical': 'Técnica', 'people': 'Pessoas', 'physical': 'Física',
     'standard': 'Padrão', 'advanced': 'Avançado', 'basic': 'Básico',
+    // categoria de ativo gravada sem acento
+    'informacao': 'Informação',
 };
 
 const POR_DOMINIO = {

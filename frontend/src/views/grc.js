@@ -974,11 +974,11 @@ window.__grcCloseExecAudit = function (id) {
             <div class="d-flex gap-2">
                 <div class="form-group flex-1"><label class="form-label">Status</label>
                     <select class="form-input" id="tr-status"><option value="Pending">Pendente</option><option value="Completed">Concluído</option><option value="Expired">Vencido</option></select></div>
-                <div class="form-group flex-1"><label class="form-label">Score (%)</label><input class="form-input" id="tr-score" type="number" min="0" max="100" placeholder="85"></div>
+                <div class="form-group flex-1"><label class="form-label">Pontuação (%)</label><input class="form-input" id="tr-score" type="number" min="0" max="100" placeholder="85"></div>
             </div>
             <div class="form-group"><label class="form-label">Data de Conclusao</label><input class="form-input" id="tr-date" type="date"></div>
             <div class="form-group">
-                <label class="form-label">Evidência / Certificado (Upload ou Link Manual)</label>
+                <label class="form-label">Evidência ou certificado (arquivo ou link)</label>
                 <div class="d-flex gap-2 items-center">
                     <input class="form-input flex-1" id="tr-evidence" placeholder="Ex: Link do certificado ou upload de arquivo">
                     <label class="btn py-25 px-4 m-0 clicavel t-md d-flex items-center justify-center nowrap">
@@ -1016,11 +1016,11 @@ window.__grcCloseExecAudit = function (id) {
             <div class="d-flex gap-2">
                 <div class="form-group flex-1"><label class="form-label">Status</label>
                     <select class="form-input" id="tr-e-status">${['Pending','Completed','Expired'].map(o => `<option ${o===r.status?'selected':''}>${o}</option>`).join('')}</select></div>
-                <div class="form-group flex-1"><label class="form-label">Score (%)</label><input class="form-input" id="tr-e-score" type="number" value="${r.score||''}"></div>
+                <div class="form-group flex-1"><label class="form-label">Pontuação (%)</label><input class="form-input" id="tr-e-score" type="number" value="${r.score||''}"></div>
             </div>
             <div class="form-group"><label class="form-label">Data de Conclusão</label><input class="form-input" id="tr-e-date" type="date" value="${r.completion_date||''}"></div>
             <div class="form-group">
-                <label class="form-label">Evidência / Certificado (Upload ou Link Manual)</label>
+                <label class="form-label">Evidência ou certificado (arquivo ou link)</label>
                 <div class="d-flex gap-2 items-center">
                     <input class="form-input flex-1" id="tr-e-evidence" placeholder="Ex: Link do certificado ou upload de arquivo" value="${escapeHTML(r.evidence_file||'')}">
                     <label class="btn py-25 px-4 m-0 clicavel t-md d-flex items-center justify-center nowrap">
