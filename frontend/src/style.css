@@ -1591,6 +1591,10 @@ textarea:focus-visible {
 /* Ações da linha de Projetos: Módulos… sempre na primeira coluna */
 .acoes-linha { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .doc-acoes { margin-bottom: 1rem; }
+/* Na linha da tabela: a ação e o "Mais ações" lado a lado, sem quebrar, e o botão do menu no tamanho do btn-sm. */
+td .acoes-linha { flex-wrap: nowrap; }
+td .acoes-linha .btn, td .mais-acoes-botao { white-space: nowrap; }
+td .mais-acoes-botao { padding: 4px 10px; }
 
 /* ——— Confirmação na própria tela (confirmar/pedirTexto em ui.js) ———
    Camada acima do #modal (1000) e do drawer de DoD (1500), abaixo do toast (9000): a janela de baixo fica intacta. */
