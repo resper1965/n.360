@@ -845,8 +845,6 @@ window.toggleAccountMenu = function toggleAccountMenu() {
     }
 
 document.addEventListener('click', (e) => {
-        // Menus <details class="menu-mais">: fecham ao clicar fora (ou no item, que abre modal).
-        document.querySelectorAll('details.menu-mais[open]').forEach((d) => { if (!d.contains(e.target) || e.target.closest('.menu-mais-lista')) d.open = false; });
         const box = document.getElementById('account-menu');
         if (!box || box.hidden) return;
         if (e.target.closest('#account-menu') || e.target.closest('#sidebar-user-card')) return;

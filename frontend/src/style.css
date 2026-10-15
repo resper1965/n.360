@@ -1582,13 +1582,17 @@ textarea:focus-visible {
 /* n.iso / n.privacy: item ou grupo que não é do produto deste domínio (frontend/src/produto.js). */
 [data-fora-do-produto="1"], [data-sem-item="1"] { display: none !important; }
 
-/* Menu suspenso nativo (<details>): "Mais" em Partes. Fecha ao clicar fora (globals.js). */
-.menu-mais { position: relative; display: inline-block; }
-.menu-mais > summary { list-style: none; cursor: pointer; }
-.menu-mais > summary::-webkit-details-marker { display: none; }
-.menu-mais-lista { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 220px; background: var(--surface); border: 1px solid var(--border); padding: 0.25rem 0; }
-.menu-mais-lista .btn { display: block; width: 100%; text-align: left; border: 0; margin: 0; }
-/* Selo do projeto ativo no header */
+/* "Mais ações" (renderMaisAcoes em ui.js): as ações secundárias de um cabeçalho ou de uma linha. Lista fixa junto do
+   botão (top/right postos pelo JS), acima do modal (1000) e abaixo da confirmação (2000). Destrutivo por último, em perigo. */
+.mais-acoes { position: relative; display: inline-block; }
+.mais-acoes-lista { position: fixed; z-index: 1100; min-width: 220px; max-width: 320px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg); padding: 4px 0; }
+.mais-acoes-lista[hidden] { display: none; }
+.mais-acoes-item { display: block; width: 100%; background: none; border: 0; padding: 8px 12px; text-align: left; font: 500 12.5px/1.4 var(--font-body); color: var(--text-2); cursor: pointer; }
+.mais-acoes-item:hover, .mais-acoes-item:focus { background: var(--surface-2); color: var(--text); outline: none; }
+.mais-acoes-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.mais-acoes-item.perigo { color: var(--danger); }
+.mais-acoes-sep { height: 1px; margin: 4px 0; background: var(--border); }
+
 .titulo-secao { margin-bottom: 1rem; font-family: var(--font-head); font-weight: 600; font-size: 14px; color: var(--text); }
 /* Ações da linha de Projetos: Módulos… sempre na primeira coluna */
 .acoes-linha { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

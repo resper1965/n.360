@@ -442,7 +442,86 @@ export function renderAbas(abas, ativa, action) {
         `<button type="button" role="tab" class="aba" aria-selected="${v === ativa}" tabindex="${v === ativa ? 0 : -1}" data-action="${escapeHTML(action)}" data-args='${escapeHTML(JSON.stringify([v]))}'><span>${rotulo}</span></button>`).join('')}</div>`;
 }
 
+/**
+ * "Mais ações": o menu das ações secundárias de um cabeçalho ou de uma linha de tabela. Regra do sistema (DESIGN.md):
+ * no máximo um `.btn-primary` por tela; acima de três secundárias, elas vêm para cá. `itens` = [{ rotulo, action,
+ * args, perigo }] (falsy é ignorado); o destrutivo (`perigo`) vai por último, depois de um separador. `nome` dá ao
+ * botão um nome único na linha ("Mais ações: Ana Prado"). Padrão de botão de menu do WAI-ARIA: setas, Home/End,
+ * Esc fecha e devolve o foco ao botão, Tab fecha. A ação do item corre pela delegação (data-action).
+ */
+let maisAcoesSeq = 0;
+export function renderMaisAcoes(itens, { rotulo = 'Mais ações', nome = '' } = {}) {
+    const lista = (itens || []).filter(Boolean);
+    if (!lista.length) return '';
+    const id = `mais-acoes-${++maisAcoesSeq}`;
+    const comuns = lista.filter((i) => !i.perigo);
+    const perigosos = lista.filter((i) => i.perigo);
+    const item = (i) => `<button type="button" role="menuitem" tabindex="-1" class="mais-acoes-item${i.perigo ? ' perigo' : ''}" data-action="${escapeHTML(i.action)}" data-args='${escapeHTML(JSON.stringify(i.args || []))}'>${escapeHTML(i.rotulo)}</button>`;
+    return `<div class="mais-acoes"><button type="button" class="btn mais-acoes-botao" id="${id}-botao" aria-haspopup="menu" aria-expanded="false" aria-controls="${id}"${nome ? ` aria-label="${escapeHTML(`${rotulo}: ${nome}`)}"` : ''} data-action="alternarMaisAcoes" data-arg-el>${escapeHTML(rotulo)}</button>`
+        + `<div class="mais-acoes-lista" id="${id}" role="menu" aria-labelledby="${id}-botao" hidden>${comuns.map(item).join('')}`
+        + `${comuns.length && perigosos.length ? '<div role="separator" class="mais-acoes-sep"></div>' : ''}${perigosos.map(item).join('')}</div></div>`;
+}
+
+function fecharMaisAcoes(devolverFoco = false) {
+    document.querySelectorAll('.mais-acoes-lista:not([hidden])').forEach((l) => {
+        l.hidden = true;
+        const b = document.getElementById(l.getAttribute('aria-labelledby'));
+        if (b) { b.setAttribute('aria-expanded', 'false'); if (devolverFoco) b.focus(); }
+    });
+}
+
+// A lista é `position: fixed` junto do botão: dentro de tabela com rolagem horizontal ela não fica cortada.
+function abrirMaisAcoes(botao, ultimo = false) {
+    const lista = document.getElementById(botao.getAttribute('aria-controls'));
+    if (!lista) return;
+    fecharMaisAcoes();
+    lista.hidden = false;
+    botao.setAttribute('aria-expanded', 'true');
+    const r = botao.getBoundingClientRect();
+    const alto = lista.offsetHeight;
+    const acima = r.bottom + 4 + alto > window.innerHeight && r.top - 4 - alto > 0;
+    lista.style.top = `${acima ? r.top - 4 - alto : r.bottom + 4}px`;
+    lista.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+    const todos = lista.querySelectorAll('[role="menuitem"]');
+    const alvo = ultimo ? todos[todos.length - 1] : todos[0];
+    if (alvo) alvo.focus();
+}
+
+window.alternarMaisAcoes = function alternarMaisAcoes(botao) {
+    if (botao.getAttribute('aria-expanded') === 'true') fecharMaisAcoes();
+    else abrirMaisAcoes(botao);
+};
+
+if (typeof document !== 'undefined') {
+    // Clique fora fecha; clique num item também (a delegação, em captura, já chamou a ação).
+    document.addEventListener('click', (e) => {
+        const t = e.target instanceof Element ? e.target : null;
+        if (!t || !t.closest('.mais-acoes') || t.closest('.mais-acoes-item')) fecharMaisAcoes();
+    });
+    document.addEventListener('keydown', (e) => {
+        const t = e.target instanceof Element ? e.target : null;
+        if (!t) return;
+        if (t.matches('.mais-acoes-botao') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+            e.preventDefault();
+            abrirMaisAcoes(t, e.key === 'ArrowUp');
+            return;
+        }
+        const lista = t.closest('.mais-acoes-lista');
+        if (!lista) return;
+        const todos = [...lista.querySelectorAll('[role="menuitem"]')];
+        const i = todos.indexOf(t);
+        const ir = { ArrowDown: (i + 1) % todos.length, ArrowUp: (i - 1 + todos.length) % todos.length, Home: 0, End: todos.length - 1 }[e.key];
+        if (ir !== undefined) { e.preventDefault(); todos[ir].focus(); }
+        else if (e.key === 'Escape') { e.preventDefault(); fecharMaisAcoes(true); }
+        else if (e.key === 'Tab') fecharMaisAcoes();
+    });
+    const fecharAoRolar = (e) => { if (!(e.target instanceof Element && e.target.closest('.mais-acoes-lista'))) fecharMaisAcoes(); };
+    document.addEventListener('scroll', fecharAoRolar, true);
+    window.addEventListener('resize', () => fecharMaisAcoes());
+}
+
 window.escapeHTML = escapeHTML;
+window.renderMaisAcoes = renderMaisAcoes;
 window.renderAbas = renderAbas;
 window.openModal = openModal;
 window.closeModal = closeModal;
