@@ -24,6 +24,10 @@ risks.post('/api/v1/projects/:projectId/risks', async (c) => {
     const valid = await validateBody(c, createRiskSchema);
     if (!valid.success) return valid.response;
     const body = valid.data as any;
+    // Aceitar risco é ato humano: o agente (MCP) não grava aceite nem status Accepted.
+    if (c.get('user')?.agente === true && (body.status === 'Accepted' || body.accepted_by != null || body.accepted_at != null)) {
+      return c.json({ error: 'Forbidden: aceitar risco é ato humano, pela interface' }, 403);
+    }
     const fora = await refForaDoProjeto(c.env.DB, projectId, body, ['control_id', 'asset_id', 'owner_parte_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
     const id = genId();
@@ -77,6 +81,10 @@ risks.put('/api/v1/risks/:id', async (c) => {
     const v = await validateBody(c, riskUpdateSchema);
     if (!v.success) return v.response;
     const body = v.data as any;
+    // Aceitar risco é ato humano: o agente (MCP) não grava aceite nem status Accepted.
+    if (c.get('user')?.agente === true && (body.status === 'Accepted' || body.accepted_by != null || body.accepted_at != null)) {
+      return c.json({ error: 'Forbidden: aceitar risco é ato humano, pela interface' }, 403);
+    }
 
     // PUT parcial: campo ausente mantém o valor gravado; null limpa onde a coluna aceita NULL.
     const atual = await c.env.DB.prepare(
