@@ -3,9 +3,10 @@ import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
 import { render } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
-import { temProduto, projetoDoId } from '../produto.js';
+import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
 import { podeEntrevistar, confirmaEdicaoAprovada } from './ropa-entrevista.js';
-import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ehLegitimoInteresse, camposDaBase, idsDoCatalogo } from '../bases-legais.js';
+import './atividade.js';
+import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, camposDaBase, idsDoCatalogo } from '../bases-legais.js';
 
     // Base legal: as listas e a coerência texto/catálogo vivem em bases-legais.js (as ligações e a entrevista usam as mesmas).
     let catalogoBases = new Set();
@@ -41,7 +42,8 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
     };
 
     async function renderROPA(c, h, a) {
-        h.textContent = 'Registro de tratamentos (RoPA)';
+        // No n.privacy o título é o rótulo do menu (ROTULOS_PRIVACY).
+        h.textContent = produtoAtual() === 'privacy' ? 'Tratamentos (RoPA)' : 'Registro de tratamentos (RoPA)';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -83,7 +85,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
             { label: 'Atividades ativas', value: activeRecords, color: 'var(--text)', subtext: 'Em operação' },
             { label: 'Exige RIPD', value: dpiaReqCount, color: 'var(--text)', subtext: 'Relatório de impacto' },
             { label: 'Com transferência internacional', value: intlTransCount, color: semSalvaguarda ? 'var(--warning)' : 'var(--text)', subtext: semSalvaguarda ? `${semSalvaguarda} sem salvaguarda` : 'Arts. 33-36' },
-            ...(liaPendente === null ? [] : [{ label: 'Legítimo interesse sem LIA', value: liaPendente, color: liaPendente ? 'var(--warning)' : 'var(--text)', subtext: 'Faça em "Base legal e LIA"' }]),
+            ...(liaPendente === null ? [] : [{ label: 'Legítimo interesse sem LIA', value: liaPendente, color: liaPendente ? 'var(--warning)' : 'var(--text)', subtext: 'Faça na etapa 3 da atividade' }]),
         ]);
 
         const tableHtml = window.renderDataTable(
@@ -97,9 +99,11 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
                     escapeHTML(r.retention_period || 'N/A'),
                     r.dpia_required ? window.renderStatusBadge('Sim', 'warning') : window.renderStatusBadge('Não', 'neutral'),
                     window.renderStatusBadge(r.status || 'Active', statusType),
-                    `<button class="btn btn-ghost btn-sm" data-action="openROPADetailsModal" data-args='["${r.id}"]'>Detalhes</button>
-                     ${entrevista ? `<button class="btn btn-ghost btn-sm" data-action="abrirRopaEntrevista" data-args='["${proj.id}","${r.id}"]'>Continuar entrevista</button>` : ''}
-                     ${comPrivacy ? `<button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='["${proj.id}","${r.id}"]'>${ehLegitimoInteresse(r.legal_basis) ? 'Base legal e LIA' : 'Ligações'}</button>` : ''}`
+                    // n.privacy: a atividade tem página própria, com as etapas (atividade.js). Um botão, um nome.
+                    comPrivacy
+                        ? `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${escapeHTML(JSON.stringify([proj.id, r.id]))}' aria-label="Abrir a atividade: ${escapeHTML(r.processing_purpose)}">Abrir</button>`
+                        : `<button class="btn btn-ghost btn-sm" data-action="openROPADetailsModal" data-args='["${r.id}"]'>Detalhes</button>
+                     ${entrevista ? `<button class="btn btn-ghost btn-sm" data-action="abrirRopaEntrevista" data-args='["${proj.id}","${r.id}"]'>Continuar entrevista</button>` : ''}`
                 ];
             }),
             {

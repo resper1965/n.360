@@ -57,13 +57,6 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('modal de ligações', () => {
-    it('LIA gravada oferece o Word (F4); sem LIA, não', async () => {
-        await abrir({ [`GET ${B}/lia`]: { lia: { id: 'l1', status: 'rascunho', finalidade_legitima: 'x' } } });
-        expect(JSON.parse(el('modal-content').querySelector('[data-action="baixarWordLia"]').getAttribute('data-args'))).toEqual(['p9', 'r1']);
-        await abrir();
-        expect(el('modal-content').querySelector('[data-action="baixarWordLia"]')).toBeNull();
-    });
-
     it('mostra base legal, itens, departamentos, partes e transferências, tudo escapado', async () => {
         await abrir();
         const m = el('modal-content');
@@ -212,55 +205,6 @@ describe('importação do RoPA por planilha', () => {
     });
 });
 
-describe('avaliações: DPIA e LIA', () => {
-    it('DPIA exigida e ausente: aviso e botão de criar; criar chama o POST e reabre', async () => {
-        const f = await abrir({ [`GET ${B}/ligacoes`]: LIG({ dpia_pendente: true }), [`POST ${B}/dpia`]: { ok: true, id: 'd1' } });
-        expect(el('tl-avaliacoes').textContent).toContain('exigida por este registro e ainda não criada');
-        await window.criarDpiaDoTratamento('p9', 'r1');
-        expect(chamadas(f)).toContain(`POST ${B}/dpia`);
-    });
-
-    it('DPIA ligada: lista nome e situação (escapados), sem botão de criar', async () => {
-        await abrir({ [`GET ${B}/ligacoes`]: LIG({ dpias: [{ id: 'd1', nome: 'Folha <b>x</b>', status: 'Draft' }] }) });
-        expect(el('tl-avaliacoes').textContent).toContain('Folha <b>x</b> (Draft)');
-        expect(el('tl-avaliacoes').querySelector('b')).toBeNull();
-        expect(document.querySelector('[data-action="criarDpiaDoTratamento"]')).toBeNull();
-    });
-
-    it('LIA exigida e ausente: avisa; salvar rascunho e concluir mandam os campos e o status certo', async () => {
-        const f = await abrir({ [`GET ${B}/ligacoes`]: LIG({ lia: { exigida: true, existe: false, status: null } }), [`PUT ${B}/lia`]: { ok: true, id: 'l1' } });
-        expect(el('tl-avaliacoes').textContent).toContain('exigida pela base legal');
-        expect(el('tl-avaliacoes').textContent).toContain('ainda não feita');
-        el('tl-lia-fin').value = ' Prevenir fraude ';
-        el('tl-lia-con').value = 'prevalece';
-        await window.salvarLiaTratamento('p9', 'r1', false);
-        expect(corpoDe(f, `PUT ${B}/lia`)).toEqual({ finalidade_legitima: 'Prevenir fraude', necessidade: null, balanceamento: null, salvaguardas: null, conclusao: 'prevalece', status: 'rascunho' });
-        el('tl-lia-fin').value = 'x'; el('tl-lia-nec').value = 'y'; el('tl-lia-bal').value = 'z';
-        await window.salvarLiaTratamento('p9', 'r1', true);
-        const puts = f.mock.calls.filter(([u, o]) => o?.method === 'PUT' && new URL(u, 'http://localhost').pathname === `${B}/lia`);
-        expect(JSON.parse(puts.at(-1)[1].body).status).toBe('concluida');
-    });
-
-    it('LIA concluída: campos travados, texto escapado, só reabrir; reabrir manda status rascunho', async () => {
-        const lia = { id: 'l1', finalidade_legitima: 'Fraude <b>x</b>', necessidade: 'n', balanceamento: 'b', salvaguardas: null, conclusao: 'prevalece', status: 'concluida' };
-        const f = await abrir({ [`GET ${B}/ligacoes`]: LIG({ lia: { exigida: true, existe: true, status: 'concluida' } }), [`GET ${B}/lia`]: { lia }, [`PUT ${B}/lia`]: { ok: true } });
-        expect(el('tl-lia-fin').disabled).toBe(true);
-        expect(el('tl-lia-fin').value).toBe('Fraude <b>x</b>');
-        expect(el('tl-lia').querySelector('b')).toBeNull();
-        expect(document.querySelector('[data-action="salvarLiaTratamento"]')).toBeNull();
-        await window.reabrirLiaTratamento('p9', 'r1');
-        expect(corpoDe(f, `PUT ${B}/lia`)).toEqual({ status: 'rascunho' });
-    });
-
-    it('papel só de leitura vê o estado, sem formulário nem botão de criar', async () => {
-        S.user = { role: 'org_user' };
-        await abrir({ [`GET ${B}/ligacoes`]: LIG({ lia: { exigida: true, existe: true, status: 'rascunho' } }) });
-        expect(el('tl-avaliacoes').textContent).toContain('em rascunho');
-        expect(el('tl-lia')).toBeNull();
-        expect(document.querySelector('[data-action="criarDpiaDoTratamento"]')).toBeNull();
-    });
-});
-
 describe('terceiro com avaliação vencida', () => {
     it('avisa na seção de partes, com o nome escapado; sem vencido não aparece', async () => {
         await abrir({ [`GET ${B}/ligacoes`]: LIG({ terceiros_com_avaliacao_vencida: [{ parte_id: 'pa1', nome: 'Operadora <b>y</b>' }] }) });
@@ -303,109 +247,14 @@ describe('sugestão da IA', () => {
     });
 });
 
-// F2: riscos e ações da atividade, nas sub-rotas do n.privacy (src/routes/ropa.ts: { riscos } e { acoes }). Mesmo cadastro do n.iso.
-describe('riscos e ações da atividade', () => {
-    const RISCOS = { riscos: [{ id: 'k1', threat: 'Acesso <b>indevido</b>', asset: 'ERP', asset_id: 'it1', vulnerability: null, impact: 4, probability: 4, risk_level: 'High',
-        residual_impact: 2, residual_probability: 2, residual_level: 'Low', treatment: 'Mitigate', treatment_plan: 'MFA', status: 'Open', owner_parte_id: 'pa1' }] };
-    const ACOES = { acoes: [{ id: 'a1', title: 'Revisar <i>acessos</i>', due_date: '2026-11-30', assigned_to_parte_nome: 'Operadora', risco_ameaca: 'Acesso indevido', risk_id: 'k1', status: 'Open', description: null, assigned_to_parte_id: 'pa1' }] };
-    const comRiscos = (extra = {}) => abrir({ [`GET ${B}/riscos`]: RISCOS, [`GET ${B}/acoes`]: ACOES, ...extra });
-
-    it('lista o que existe, com nível por texto, tudo escapado', async () => {
-        await comRiscos();
-        const r = el('tl-riscos');
-        expect(r.textContent).toContain('Acesso <b>indevido</b>');
-        expect(r.textContent).toContain('4 x 4');
-        expect(r.textContent).toContain('Alto');
-        expect(r.textContent).toContain('Baixo');
-        expect(el('tl-acoes').textContent).toContain('Revisar <i>acessos</i>');
-        expect(el('tl-acoes').textContent).toContain('30/11/2026');
-        expect(el('modal-content').querySelector('b, i')).toBeNull();
-    });
-
-    it('o formulário novo já vem com o sistema ligado à atividade e o responsável dela (pré-preenchimento)', async () => {
-        S.ropa = [{ id: 'r1', processing_purpose: 'Folha', owner_parte_id: 'pa1' }];
-        await comRiscos();
-        expect(el('tl-rk-ativo').value).toBe('it1');
-        expect([...el('tl-rk-ativo').querySelectorAll('option')].map((o) => o.value)).toEqual(['', 'it1']);
-        expect(el('tl-rk-resp').value).toBe('pa1');
-        expect(el('tl-ac-resp').value).toBe('pa1');
-        expect([...el('tl-ac-risco').querySelectorAll('option')].map((o) => o.value)).toEqual(['', 'k1']);
-    });
-
-    it('registrar risco faz POST com as notas em número; editar preenche o formulário e faz PUT', async () => {
-        const f = await comRiscos({ [`POST ${B}/riscos`]: { ok: true, id: 'k2', risk_level: 'Medium' }, [`PUT ${B}/riscos/k1`]: { ok: true, risk_level: 'Low' } });
-        el('tl-rk-ameaca').value = ' Vazamento ';
-        el('tl-rk-imp').value = '2';
-        el('tl-rk-rimp').value = '1';
-        el('tl-rk-rprob').value = '2';
-        await window.salvarRiscoAtividade('p9', 'r1');
-        expect(corpoDe(f, `POST ${B}/riscos`)).toEqual({ threat: 'Vazamento', vulnerability: null, asset_id: 'it1', impact: 2, probability: 3, treatment: 'Mitigate',
-            treatment_plan: null, residual_impact: 1, residual_probability: 2, owner_parte_id: null, status: 'Open' });
-        window.editarRiscoAtividade('k1');
-        expect(el('tl-rk-ameaca').value).toBe('Acesso <b>indevido</b>');
-        expect(el('tl-rk-titulo').textContent).toBe('Editar risco');
-        el('tl-rk-status').value = 'Accepted';
-        await window.salvarRiscoAtividade('p9', 'r1');
-        expect(corpoDe(f, `PUT ${B}/riscos/k1`)).toMatchObject({ threat: 'Acesso <b>indevido</b>', impact: 4, probability: 4, residual_impact: 2, status: 'Accepted', owner_parte_id: 'pa1' });
-    });
-
-    it('sem ameaça não envia; apagar pede confirmação na linha antes do DELETE', async () => {
-        const f = await comRiscos({ [`DELETE ${B}/riscos/k1`]: { ok: true } });
-        await window.salvarRiscoAtividade('p9', 'r1');
-        expect(chamadas(f)).not.toContain(`POST ${B}/riscos`);
-        window.apagarRiscoAtividade('p9', 'r1', 'k1', false);
-        expect(chamadas(f)).not.toContain(`DELETE ${B}/riscos/k1`);
-        const confirmar = el('tl-riscos').querySelector('[data-action="apagarRiscoAtividade"]');
-        expect(confirmar.textContent).toBe('Confirmar exclusão');
-        expect(JSON.parse(confirmar.getAttribute('data-args'))).toEqual(['p9', 'r1', 'k1', true]);
-        await window.apagarRiscoAtividade('p9', 'r1', 'k1', true);
-        expect(chamadas(f)).toContain(`DELETE ${B}/riscos/k1`);
-    });
-
-    it('ação: registrar com o risco da atividade, concluir e editar', async () => {
-        const f = await comRiscos({ [`POST ${B}/acoes`]: { ok: true, id: 'a2' }, [`PUT ${B}/acoes/a1`]: { ok: true } });
-        el('tl-ac-titulo').value = 'Treinar a equipe';
-        el('tl-ac-prazo').value = '2026-12-15';
-        el('tl-ac-risco').value = 'k1';
-        await window.salvarAcaoAtividade('p9', 'r1');
-        expect(corpoDe(f, `POST ${B}/acoes`)).toEqual({ title: 'Treinar a equipe', description: null, due_date: '2026-12-15', assigned_to_parte_id: null, risk_id: 'k1', status: 'Open' });
-        await window.concluirAcaoAtividade('p9', 'r1', 'a1');
-        expect(corpoDe(f, `PUT ${B}/acoes/a1`)).toEqual({ status: 'Closed' });
-        window.editarAcaoAtividade('a1');
-        expect(el('tl-ac-prazo').value).toBe('2026-11-30');
-        expect(el('tl-ac-risco').value).toBe('k1');
-    });
-
-    it('cliente sem edição só lê; nenhum botão leva ao n.iso (matriz de riscos, CAPA)', async () => {
-        S.user = { role: 'org_user' };
-        await comRiscos();
-        expect(el('tl-riscos').textContent).toContain('Acesso <b>indevido</b>');
-        expect(el('tl-rk-ameaca')).toBeNull();
-        expect(el('modal-content').querySelector('[data-action="apagarRiscoAtividade"]')).toBeNull();
-        S.user = { role: 'consultor' };
-        await comRiscos();
-        const destinos = [...el('modal-content').querySelectorAll('[data-action="navigate"]')].map((b) => b.getAttribute('data-args'));
-        expect(destinos.filter((d) => /risks|capa|soa/.test(d))).toEqual([]);
-        expect(el('modal-content').innerHTML).not.toMatch(/\/iso\b/);
-    });
-
-    it('sub-rota indisponível (projeto sem o n.privacy) não impede abrir as ligações', async () => {
+// Avaliações (RIPD e LIA), riscos e ações e o selo "mudou na origem" saíram deste modal: são etapas da página da atividade
+// (test/atividade-view.test.js). O modal ficou com as ligações: base legal, sugestão da IA, sistemas, áreas, partes, transferências e diagrama.
+describe('o modal ficou só com as ligações', () => {
+    it('não tem mais aprovação, avaliações, riscos nem ações', async () => {
         await abrir();
-        expect(el('tl-riscos').textContent).toContain('Nenhum risco registrado');
-        expect(el('tl-acoes').textContent).toContain('Nenhuma ação registrada');
-    });
-});
-
-describe('selo "mudou na origem" (F3)', () => {
-    it('avisa na DPIA e na LIA que o tratamento mudou depois que nasceram; sem o selo, nada aparece', async () => {
-        await abrir({ [`GET ${B}/ligacoes`]: LIG({
-            dpias: [{ id: 'd1', nome: 'RIPD da folha', status: 'Draft', origem_mudou: true }],
-            lia: { exigida: true, existe: true, status: 'rascunho', origem_mudou: true },
-        }) });
-        const av = el('tl-avaliacoes');
-        expect(av.querySelectorAll('.tl-origem')).toHaveLength(2);
-        expect(av.textContent).toContain('O tratamento mudou depois que esta avaliação nasceu: revise.');
-        await abrir({ [`GET ${B}/ligacoes`]: LIG({ dpias: [{ id: 'd1', nome: 'RIPD', status: 'Draft', origem_mudou: false }] }) });
-        expect(el('tl-avaliacoes').querySelector('.tl-origem')).toBeNull();
+        const m = el('modal-content');
+        expect(m.querySelector('#tl-ligacoes h3').textContent).toBe('Ligações da atividade');
+        for (const id of ['tl-aprovacao', 'tl-avaliacoes', 'tl-riscos', 'tl-acoes', 'tl-lia']) expect(el(id), id).toBeNull();
+        expect(m.textContent).not.toMatch(/Líder SGSI|DPIA/);
     });
 });

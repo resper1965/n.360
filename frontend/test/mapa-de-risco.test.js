@@ -37,7 +37,7 @@ beforeEach(() => {
     S.token = 'tok';
     S.user = { role: 'consultor' };
     S.activeProject = { id: 'p9' };
-    window.openLigacoesTratamento = vi.fn();
+    window.abrirAtividade = vi.fn();
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
@@ -69,10 +69,10 @@ describe('mapa de risco', () => {
         const lista = el('mapa-lista');
         expect(lista.textContent).toContain('Probabilidade 5, impacto 5: 2 riscos');
         expect(lista.textContent).toContain('Médio');
-        const abrirAtv = lista.querySelector('[data-action="openLigacoesTratamento"]');
+        const abrirAtv = lista.querySelector('[data-action="abrirAtividade"]');
         expect(JSON.parse(abrirAtv.getAttribute('data-args'))).toEqual(['p9', 'r1']);
         abrirAtv.click();
-        expect(window.openLigacoesTratamento).toHaveBeenCalledWith('p9', 'r1');
+        expect(window.abrirAtividade).toHaveBeenCalledWith('p9', 'r1');
         celula(5, 5).click();
         expect(el('mapa-lista').textContent).toContain('Escolha uma célula');
     });
