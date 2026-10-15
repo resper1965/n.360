@@ -131,6 +131,24 @@ describe('projeto com pendências', () => {
     expect(v.prioridades.map((p) => p.texto)).not.toContain('Catálogo de requisitos LGPD não carregado');
   });
 
+  it('riscos altos abertos e ações vencidas das atividades (F2); risco só do n.iso e ação concluída não contam', async () => {
+    await db().batch([
+      db().prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, legal_basis, owner) VALUES ('t1', 'e1', 'Folha', 'Obrigação legal', 'DPO'), ('t9', 'e2', 'Do outro', 'Obrigação legal', 'DPO')`),
+      db().prepare(`INSERT INTO risks (id, project_id, ropa_id, asset, threat, impact, probability, risk_level, status) VALUES
+        ('k1', 'e1', 't1', 'ERP', 'Alto aberto', 4, 4, 'High', 'Open'), ('k2', 'e1', 't1', 'ERP', 'Crítico', 5, 5, 'Critical', 'Open'),
+        ('k3', 'e1', 't1', 'ERP', 'Alto aceito', 4, 4, 'High', 'Accepted'), ('k4', 'e1', 't1', 'ERP', 'Baixo', 1, 1, 'Low', 'Open'),
+        ('k5', 'e1', NULL, 'Servidor', 'Só ISO', 5, 5, 'Critical', 'Open'), ('k6', 'e2', 't9', 'ERP', 'Do outro', 5, 5, 'Critical', 'Open')`),
+      db().prepare(`INSERT INTO corrective_actions (id, project_id, ropa_id, title, due_date, status) VALUES
+        ('c1', 'e1', 't1', 'Vencida', ?1, 'Open'), ('c2', 'e1', 't1', 'Concluída', ?1, 'Closed'), ('c3', 'e1', 't1', 'No prazo', ?2, 'Open'),
+        ('c4', 'e1', NULL, 'Só ISO', ?1, 'Open'), ('c5', 'e2', 't9', 'Do outro', ?1, 'Open')`).bind(dias(-3), dias(10)),
+    ]);
+    const v = await ver() as Visao & { riscos: { altos: number; acoes_vencidas: number } };
+    expect(v.riscos).toEqual({ altos: 2, acoes_vencidas: 1 });
+    const prios = v.prioridades.map((p) => `${p.nivel}: ${p.texto} -> ${p.tela}`);
+    expect(prios).toContain('alta: 2 riscos altos ou críticos em aberto nas atividades -> mapa-de-risco');
+    expect(prios).toContain('alta: 1 ação de atividade com prazo vencido -> ropa');
+  });
+
   it('não mistura projetos', async () => {
     await db().batch([
       db().prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em, prazo_em, status) VALUES ('x1', 'e2', 'PT-9', 'acesso', '2026-09-01', ?1, 'recebido')`).bind(dias(-5)),

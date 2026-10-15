@@ -59,6 +59,12 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     vencem_em_7_dias: await n(db, `SELECT count(*) AS n FROM evidence WHERE project_id = ?1 AND valido_ate IS NOT NULL AND valido_ate >= ?2 AND valido_ate <= ?3`, projectId, dia, em7),
   };
 
+  // Riscos e ações das atividades (F2, 0073): só o que tem ropa_id; risco e CAPA só do n.iso ficam na matriz e na CAPA dele.
+  const riscos = {
+    altos: await n(db, `SELECT count(*) AS n FROM risks WHERE project_id = ?1 AND ropa_id IS NOT NULL AND risk_level IN ('High', 'Critical') AND COALESCE(status, 'Open') = 'Open'`, projectId),
+    acoes_vencidas: await n(db, `SELECT count(*) AS n FROM corrective_actions WHERE project_id = ?1 AND ropa_id IS NOT NULL AND COALESCE(status, 'Open') <> 'Closed' AND due_date IS NOT NULL AND substr(due_date, 1, 10) < ?2`, projectId, dia),
+  };
+
   const secao = {
     pedidos_titular: {
       abertos: pedidosAbertos.length,
@@ -88,6 +94,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     },
     documentos: { revisao_vencida: await n(db, `SELECT count(*) AS n FROM documentos WHERE project_id = ?1 AND status = 'vigente' AND revisar_ate IS NOT NULL AND substr(revisar_ate, 1, 10) < ?2`, projectId, dia) },
     evidencias,
+    riscos,
     lgpd: lgpdCarregada
       ? { carregada: true, total: lacunas.length, cobertos: lacunas.filter((l) => l.situacao === 'coberto').length, parciais: lacunas.filter((l) => l.situacao === 'parcial').length, lacunas: lacunas.filter((l) => l.situacao === 'lacuna').length }
       : { carregada: false },
@@ -105,6 +112,8 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   p('alta', secao.terceiros.vencidos, (q) => `${q} ${q === 1 ? 'terceiro com avaliação vencida' : 'terceiros com avaliação vencida'}`, 'terceiros');
   p('alta', secao.tratamentos.dpia_pendente, (q) => `${q} ${q === 1 ? 'tratamento exige DPIA e não tem' : 'tratamentos exigem DPIA e não têm'}`, 'ropa');
   p('alta', secao.tratamentos.lia_pendente, (q) => `${q} ${q === 1 ? 'tratamento por legítimo interesse sem LIA' : 'tratamentos por legítimo interesse sem LIA'}`, 'ropa');
+  p('alta', riscos.altos, (q) => `${q} ${q === 1 ? 'risco alto ou crítico em aberto nas atividades' : 'riscos altos ou críticos em aberto nas atividades'}`, 'mapa-de-risco');
+  p('alta', riscos.acoes_vencidas, (q) => `${q} ${q === 1 ? 'ação de atividade com prazo vencido' : 'ações de atividade com prazo vencido'}`, 'ropa');
   p('media', secao.pedidos_titular.vencem_em_7_dias, (q) => `${q} ${q === 1 ? 'pedido do titular vence' : 'pedidos do titular vencem'} em até 7 dias`, 'titular');
   p('media', secao.evidencias.vencidas, (q) => `${q} ${q === 1 ? 'evidência vencida' : 'evidências vencidas'}`, 'evidence');
   p('media', secao.documentos.revisao_vencida, (q) => `${q} ${q === 1 ? 'documento com revisão vencida' : 'documentos com revisão vencida'}`, 'documentos');
