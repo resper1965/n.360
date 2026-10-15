@@ -12,6 +12,15 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (a atividade de tratamento como um fluxo, onda 2 do diagnóstico de 15/10, sem migration)
+- **Página da atividade (n.privacy)**: "Abrir" na linha do RoPA leva a uma página com a trilha de cinco etapas (Dados da atividade, Teste de impacto, RIPD ou LIA, Riscos e ações, Aprovação), o estado escrito de cada uma (feito, pendente, não se aplica, mudou depois da aprovação, aguardando decisão) e o próximo passo como a única ação primária. Riscos, ações e LIA usam os formulários de sempre; o modal de ligações ficou só com as ligações. O Painel (ações por prazo) e o mapa de risco também abrem a página.
+- **Grava e continua**: a atividade nova, ao gravar a entrevista, segue para o ciclo de vida e termina na página da atividade, sem voltar ao inventário e reabrir.
+- **Nunca perguntar de novo**: o teste de impacto chega com o que a atividade já responde (dados sensíveis, crianças, transferência internacional e legítimo interesse), marcado "Vindo da atividade: confira" até a pessoa salvar; nada é gravado nem muda a regra de recomendação. A entrevista não pergunta mais quantas pessoas, decisão automática nem impacto de vazamento, que só alimentavam uma segunda recomendação de RIPD; fica uma só, a do servidor, com os motivos em português.
+
+### Mudado
+- **Uma aprovação só**: no n.privacy a aprovação da atividade é o pedido de aprovação, na etapa 5 (quem aprovou, quando, se a atividade mudou depois, se há pedido aguardando). O modal Detalhes perde a assinatura direta "Líder SGSI e Direção" (o n.iso a mantém; o `POST .../approve` continua no servidor e a assinatura antiga gravada continua valendo). `GET .../ropa/:rid/ligacoes` passa a trazer `aprovacao_anterior` e `pedidos_abertos`.
+- Vocabulário do n.privacy nas telas tocadas: "RIPD" no lugar de "DPIA", o papel do pedido como encarregado (DPO), títulos iguais aos do menu ("Tratamentos (RoPA)", "RIPD").
+
 ### Mudado (o cliente age, onda 1 do diagnóstico de 15/10/2026, sem migration)
 - **O administrador do cliente registra e responde** no n.privacy: registra o pedido do titular, responde (status e resposta, inclusive com o rascunho de IA, que agora tem onde ir), registra o incidente, avalia o risco e registra a comunicação. O pedido atrasado ganha "Responder" como ação da linha. O servidor já permitia ao `org_admin`; a tela é que escondia. `org_user` e `client` continuam só leitura; encerrar incidente, consentimento e prazo legal seguem com a equipe. Contrato no D1 real (`test/cliente-titular-incidente.test.ts`): grava no próprio projeto, a trilha leva o e-mail dele, e o cliente de outro projeto recebe 403.
 - **O cliente entra no Painel do n.iso**, não mais na Jornada (que segue no menu): o que espera a decisão dele e, à direita, a fase em curso da jornada e quantas já passaram, sem os números da consultoria. Sem decisão pendente, a tela diz o que a consultoria está conduzindo. O painel devolve `jornada` só na visão de cliente do n.iso.

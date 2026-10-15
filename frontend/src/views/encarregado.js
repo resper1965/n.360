@@ -36,7 +36,7 @@ window.abrirFaixaPrazo = function (projectId, faixa) {
     const tabela = window.renderDataTable(['Ação', 'Atividade', 'Prazo', 'Responsável', ''], itens.map((i) => [
         escapeHTML(i.title), escapeHTML(i.atividade || '—'), escapeHTML(i.due_date ? String(i.due_date).slice(0, 10).split('-').reverse().join('/') : 'Sem prazo'),
         escapeHTML(i.responsavel || '—'),
-        `<button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='${args(projectId, i.ropa_id)}'>Abrir a atividade</button>`,
+        `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(projectId, i.ropa_id)}'>Abrir a atividade</button>`,
     ]), { emptyState: 'Nenhuma ação aberta nesta faixa.' });
     openModal(`
         <div class="modal-header"><span class="modal-title">Ações: ${escapeHTML(f.rotulo)} (${n(f.total)})</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>

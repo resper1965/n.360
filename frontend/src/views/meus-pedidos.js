@@ -3,6 +3,8 @@
 // aprova ou recusa com a senha. O hash mostrado é o que vai para a prova: é a versão lida.
 // Também aqui: o modal com que a consultoria pede a aprovação de um documento (DPIA e política).
 import { api } from '../api.js';
+import { S } from '../state.js';
+import { produtoAtual } from '../produto.js';
 import { openModal, forceCloseModal, showToast, escapeHTML } from '../ui.js';
 
 const PAPEIS = {
@@ -10,6 +12,8 @@ const PAPEIS = {
     ceo: 'Aprovação da Direção Executiva',
     ciente: 'Ciência',
 };
+// No n.privacy o papel `ciso` é o do encarregado: o pedido é o mesmo, só o rótulo muda.
+const papeisDoModulo = () => (produtoAtual() === 'privacy' ? { ...PAPEIS, ciso: 'Aprovação do encarregado (DPO)' } : PAPEIS);
 const STATUS = {
     aberto: 'Aberto', aprovado: 'Concluído', recusado: 'Recusado', substituido: 'Substituído', cancelado: 'Cancelado',
     pendente: 'Pendente', ciente: 'Ciente',
@@ -181,7 +185,7 @@ window.abrirPedidoAprovacao = async function abrirPedidoAprovacao(projectId, tip
             <div class="form-group">
                 <label class="form-label" for="pn-papel">O que é pedido</label>
                 <select class="form-input" id="pn-papel">
-                    ${Object.entries(PAPEIS).filter(([v]) => !['politica', 'documento', 'excecao', 'tratamento'].includes(tipo) || v !== 'ciente').map(([v, r]) => `<option value="${v}">${escapeHTML(r)}</option>`).join('')}
+                    ${Object.entries(papeisDoModulo()).filter(([v]) => !['politica', 'documento', 'excecao', 'tratamento'].includes(tipo) || v !== 'ciente').map(([v, r]) => `<option value="${v}">${escapeHTML(r)}</option>`).join('')}
                 </select>
             </div>
             <fieldset class="form-group" style="border:0;padding:0;margin:0 0 12px">
@@ -218,6 +222,8 @@ window.enviarPedidoAprovacao = async function enviarPedidoAprovacao(_evento, pro
     }
     forceCloseModal();
     showToast('Pedido enviado. Os destinatários o veem em Meus pedidos.');
+    // A página da atividade mostra a aprovação na etapa 5: o pedido novo aparece na hora.
+    if (S.view === 'ropa-atividade' && typeof window.render === 'function') window.render();
 };
 
 // ─── Ciência por link com código (fatia 3): lote para quem não tem conta, e acompanhamento ───────

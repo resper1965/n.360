@@ -5,17 +5,18 @@ import { navigate } from '../router.js';
 import { BASES_ART7, BASES_ART11, ART11, normaliza, rotuloBase, ehLegitimoInteresse, ehConsentimento, ehArt11, camposDaBase, idsDoCatalogo, textoDaBase, idDaBase } from '../bases-legais.js';
 import { parecidos, mesmoEmail } from '../similares.js';
 import { podeEditar } from './partes.js';
-import { NIVEIS } from './mapa-de-risco.js';
+import { textoRecomendacao } from '../recomendacao-ripd.js';
 // Quem edita o cadastro nas telas, mais o administrador da consultoria: o servidor aceita as três criações no projeto da organização dele.
 const podeCadastrar = () => podeEditar() || S.user?.role === 'consultoria_admin';
 
 // Entrevista do RoPA (n.privacy): o caminho principal para criar e revisar uma atividade de tratamento, uma pergunta por vez,
 // em linguagem de consultor. Desenho em docs/design/diagnostico-2026-10-13/n-privacy-ropa-entrevista.md (seção 4).
 // Regras que não se quebram aqui: só a finalidade é exigida pelo servidor (a entrevista exige também titulares e categorias);
-// o POST cria sempre rascunho; as respostas sem coluna (volume, decisão automática, impacto) só alimentam a recomendação de RIPD e o
-// resumo; origem e eliminação gravam no ciclo de vida, e as bases adicionais e a do GDPR nas bases da atividade (F3, migration 0074);
-// IA só como proposta em base legal e retenção, nunca em sensíveis, crianças e salvaguarda.
+// o POST cria sempre rascunho; origem e eliminação gravam no ciclo de vida, e as bases adicionais e a do GDPR nas bases da atividade
+// (F3, migration 0074); IA só como proposta em base legal e retenção, nunca em sensíveis, crianças e salvaguarda.
 // As respostas ficam em memória e na sessionStorage da aba: sair e voltar não perde nada. Gravar é no fim, em lote.
+// Onda 2 (atividade como fluxo): o teste de impacto, o RIPD/LIA, os riscos e a aprovação são etapas da página da atividade
+// (atividade.js). A atividade nova grava, segue para o ciclo de vida (que só existe depois de gravar) e termina na página dela.
 
 const NAO_SEI = '__nao_sei';
 const OUTRO = '__outro';
@@ -37,7 +38,7 @@ export async function confirmaEdicaoAprovada(r) {
 
 const op = (v, r = v, dica = '') => ({ v, r, dica });
 const SIM_NAO = [op('sim', 'Sim'), op('nao', 'Não')];
-const BLOCOS = { A: 'A atividade', B: 'De quem são os dados', C: 'Quais dados', D: 'Por que a empresa usa', E: 'De onde vêm e onde passam', F: 'Com quem compartilha', G: 'Quanto tempo ficam', H: 'Transferência e riscos', I: 'Teste de impacto' };
+const BLOCOS = { A: 'A atividade', B: 'De quem são os dados', C: 'Quais dados', D: 'Por que a empresa usa', E: 'De onde vêm e onde passam', F: 'Com quem compartilha', G: 'Quanto tempo ficam', H: 'Transferência e RIPD' };
 const LETRAS = Object.keys(BLOCOS);
 
 const TITULARES = ['Colaboradores', 'Candidatos', 'Ex-colaboradores', 'Dependentes de colaboradores', 'Clientes pessoa física',
@@ -73,7 +74,6 @@ const MECANISMOS = ['País com nível adequado reconhecido pela ANPD', 'Cláusul
 const SEM_MECANISMO = MECANISMOS[4];
 const PAISES = ['Estados Unidos', 'Irlanda', 'Países Baixos', 'Alemanha', 'Reino Unido', 'Singapura'];
 const CONCLUSOES_LIA = [op('prevalece', 'O interesse da empresa prevalece'), op('nao_prevalece', 'Os direitos da pessoa prevalecem')];
-const VOLUME_ALTO = ['10mil-100mil', '100mil+'];
 // Ciclo de vida (F3): origem é a descrição da coleta, eliminação a da etapa de eliminação; "Ainda não definimos" não grava.
 const ORIGENS = ['A própria pessoa', 'Outro sistema da empresa', 'Parceiro ou fornecedor', 'Fonte pública', 'Base comprada ou licenciada'].map((t) => op(t));
 const ELIMINACAO_INDEFINIDA = 'Ainda não definimos';
@@ -118,17 +118,6 @@ const basesPermitidas = (r) => (temSensivel(r) ? BASES_ART11.map((b, i) => op(AR
 /** Outras hipóteses do catálogo carregado (art. 7 e art. 11), menos a principal escolhida. O valor é o id do requisito. */
 const basesAdicionais = (c, r) => [...c.catalogo].filter((id) => textoDaBase(id) && id !== idDaBase(valor(r, 'base') || '')).map((id) => op(id, textoDaBase(id)));
 
-/** Por que recomendar o RIPD (art. 38), a partir das respostas. Vazio: nenhum gatilho de alto risco. */
-export function motivosRipd(r) {
-    return [
-        temSensivel(r) && 'há dado sensível',
-        r.criancas === 'sim' && 'há dados de crianças ou adolescentes',
-        VOLUME_ALTO.includes(r.volume) && 'são mais de 10 mil pessoas',
-        r.decisao_auto === 'sim' && 'há decisão automatizada sobre pessoas',
-        r.impacto === 'alto' && 'um vazamento pode causar dano sério às pessoas',
-    ].filter(Boolean);
-}
-
 const AVISO_ART14 = 'Art. 14 da LGPD: dados de crianças e adolescentes são tratados no melhor interesse deles. Se a base for o consentimento, ele precisa ser dado por um dos pais ou pelo responsável legal, de forma específica e destacada. Recomendamos o RIPD.';
 const AVISO_ART11 = 'Art. 11 da LGPD: dado sensível só pode ser tratado nas hipóteses do art. 11, mais restritas que as do art. 7. Na pergunta da base legal, mostramos só elas. Recomendamos o RIPD.';
 
@@ -162,10 +151,6 @@ const PERGUNTAS = [
         titulo: 'Há crianças ou adolescentes (menores de 18 anos) entre essas pessoas?',
         ajuda: 'Menores têm proteção reforçada na lei. Exemplos: dependentes em plano de saúde, alunos, menores aprendizes.',
         aviso: (r) => (r.criancas === 'sim' ? AVISO_ART14 : '') },
-    { semColuna: true, id: 'volume', bloco: 'B', tipo: 'unica', curto: 'Quantas pessoas',
-        opcoes: () => [op('ate100', 'Até 100'), op('100-10mil', 'De 100 a 10 mil'), op('10mil-100mil', 'De 10 mil a 100 mil'), op('100mil+', 'Mais de 100 mil')],
-        titulo: 'Mais ou menos quantas pessoas?',
-        ajuda: 'Tratamento em larga escala é um dos critérios para o relatório de impacto. Esta resposta não fica gravada: serve à recomendação do RIPD.' },
     { id: 'categorias', bloco: 'C', tipo: 'multipla', obrigatoria: true, curto: 'Tipos de dado', outro: 'Outro tipo', opcoes: () => CATEGORIAS,
         titulo: 'Que tipos de dado a atividade usa?',
         ajuda: 'É o coração do inventário: sem saber quais dados, não há análise de risco. Dados sensíveis vêm na próxima pergunta.' },
@@ -173,9 +158,6 @@ const PERGUNTAS = [
         titulo: 'Algum destes dados sensíveis aparece?',
         ajuda: 'Dado sensível exige base legal mais restrita e quase sempre o relatório de impacto (art. 11).',
         aviso: (r) => (temSensivel(r) ? AVISO_ART11 : '') },
-    { semColuna: true, id: 'decisao_auto', bloco: 'C', tipo: 'unica', curto: 'Decisão automática', opcoes: () => SIM_NAO,
-        titulo: 'A atividade toma decisão automática sobre pessoas?',
-        ajuda: 'Exemplos: pontuação de crédito, triagem automática de candidatos. A pessoa pode pedir revisão (art. 20). Esta resposta serve à recomendação do RIPD.' },
     { id: 'motivo', bloco: 'D', tipo: 'unica', curto: 'Motivo', opcoes: () => MOTIVOS,
         titulo: 'Qual destes motivos descreve melhor por que a empresa usa esses dados?',
         ajuda: 'A base legal responde "com que direito a empresa trata esse dado?" (arts. 7 e 11). O motivo escolhido já marca a hipótese na próxima pergunta, onde você confirma.' },
@@ -220,7 +202,7 @@ const PERGUNTAS = [
         ajuda: 'Compartilhar sem informar o titular é irregular (art. 9, V). Conta contabilidade externa, plano de saúde, órgãos públicos, provedores.' },
     { id: 'destinatarios', bloco: 'F', tipo: 'texto', curto: 'Para quem', max: 500, mostrar: (r) => r.compartilha === 'sim',
         titulo: 'Para quem a empresa envia?',
-        ajuda: 'Operador (trata os dados em nome da empresa) e controlador respondem de forma diferente (arts. 39 e 42). Para ligar as partes do cadastro, use as Ligações depois.',
+        ajuda: 'Operador (trata os dados em nome da empresa) e controlador respondem de forma diferente (arts. 39 e 42). Para ligar as partes do cadastro, use "Editar ligações" na página da atividade.',
         exemplos: ['Contabilidade externa', 'Receita Federal e INSS', 'Operadora do plano de saúde', 'Provedor de nuvem'] },
     { id: 'retencao', bloco: 'G', tipo: 'unica', curto: 'Retenção', outro: 'Outro prazo', opcoes: () => RETENCOES, sugerir: 'retencao',
         titulo: 'Por quanto tempo a empresa guarda esses dados?',
@@ -233,25 +215,17 @@ const PERGUNTAS = [
         ajuda: 'Transferência exige mecanismo legal (arts. 33 a 36). Quase todo provedor de nuvem estrangeiro entra aqui: e-mail em nuvem, sistema de RH hospedado fora, suporte de fornecedor internacional.' },
     { id: 'transf_destino', bloco: 'H', tipo: 'grupo', curto: 'País e salvaguarda', mostrar: (r) => r.transferencia === 'sim',
         titulo: 'Para qual país, e com qual proteção?',
-        ajuda: 'Transferência sem mecanismo registrado é irregular. Para mais de um país, registre os outros nas Ligações depois.',
+        ajuda: 'Transferência sem mecanismo registrado é irregular. Para mais de um país, registre os outros em "Editar ligações", na página da atividade.',
         sub: [
             { id: 'pais', rotulo: 'País', tipo: 'texto', lista: PAISES },
             { id: 'mecanismo', rotulo: 'Mecanismo de proteção (salvaguarda)', tipo: 'select', opcoes: MECANISMOS.map((m) => op(m)) },
         ] },
-    { semColuna: true, id: 'impacto', bloco: 'H', tipo: 'unica', curto: 'Impacto de um vazamento',
-        opcoes: () => [op('baixo', 'Pouco ou nada'), op('medio', 'Constrangimento ou transtorno'), op('alto', 'Prejuízo financeiro, discriminação ou dano à imagem')],
-        titulo: 'Se esses dados vazassem, o que aconteceria com as pessoas?',
-        ajuda: 'Mede o risco ao titular, que decide o relatório de impacto. Esta resposta serve à recomendação do RIPD.' },
     { id: 'ripd', bloco: 'H', tipo: 'unica', curto: 'Exige RIPD', opcoes: () => SIM_NAO,
-        titulo: 'Esta atividade precisa de relatório de impacto, o RIPD (DPIA)?',
-        ajuda: 'O RIPD é exigido em tratamento de alto risco (art. 38). A recomendação abaixo sai das suas respostas; a decisão é sua e fica registrada.' },
+        titulo: 'Esta atividade precisa do relatório de impacto, o RIPD?',
+        ajuda: 'O RIPD é exigido em tratamento de alto risco (art. 38). A recomendação sai do teste de impacto, a etapa seguinte da atividade; a decisão é sua e fica registrada.' },
     { id: 'criar_ripd', bloco: 'H', tipo: 'unica', curto: 'Criar o RIPD agora', opcoes: () => SIM_NAO, mostrar: (r, ctx) => r.ripd === 'sim' && !ctx.temDpia,
         titulo: 'Quer criar o RIPD agora, a partir desta atividade?',
-        ajuda: 'O RIPD nasce como rascunho, já preenchido com o que esta entrevista registrou. Você completa na tela de RIPD.' },
-    // Teste de impacto: as perguntas e a recomendação vêm do servidor (GET .../impacto), que só existe para atividade já gravada.
-    { id: 'teste_impacto', bloco: 'I', tipo: 'impacto', curto: 'Teste de impacto', mostrar: (r, c) => !!(c && c.impacto),
-        titulo: 'Teste de impacto: a atividade pode gerar alto risco ao titular?',
-        ajuda: 'Critérios gerais e específicos de alto risco. Com ao menos um geral e um específico marcados "Sim", o sistema recomenda o RIPD; a decisão de exigir o RIPD continua sua.' },
+        ajuda: 'O RIPD nasce como rascunho, já preenchido com o que esta entrevista registrou. Você completa na etapa 3 da atividade.' },
 ];
 const PERGUNTA = Object.fromEntries(PERGUNTAS.map((p) => [p.id, p]));
 
@@ -281,7 +255,7 @@ const lista = (r) => (Array.isArray(r) ? r : []);
 async function tentar(fazer, padrao) { try { return await fazer(); } catch (e) { return padrao; } }
 
 async function carregar(projectId, recordId) {
-    const c = { pessoas: [], deptos: [], itens: [], catalogo: new Set(), registro: null, ligacoes: null, lia: null, impacto: null, riscos: null, ciclo: null, bases: null, temDpia: false, transferencias: [], inicial: {} };
+    const c = { pessoas: [], deptos: [], itens: [], catalogo: new Set(), registro: null, ligacoes: null, lia: null, impacto: null, ciclo: null, bases: null, temDpia: false, transferencias: [], inicial: {} };
     c.pessoas = lista(await tentar(() => api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`), []));
     c.deptos = lista(await tentar(() => api('GET', `/api/v1/projects/${projectId}/departamentos`), []));
     const ativos = await tentar(() => api('GET', `/api/v1/projects/${projectId}/assets`), []);
@@ -293,10 +267,9 @@ async function carregar(projectId, recordId) {
         c.ligacoes = await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/ligacoes`), null);
         c.lia = (await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/lia`), {}))?.lia || null;
         c.temDpia = !!(c.ligacoes && lista(c.ligacoes.dpias).length);
+        // Só a recomendação do teste (na pergunta do RIPD): responder o teste é na página da atividade.
         c.impacto = await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/impacto`), null);
         if (c.impacto && !Array.isArray(c.impacto.perguntas)) c.impacto = null;
-        // Riscos da atividade (F2): a entrevista só LÊ; registrar e mudar é nas Ligações (um cadastro, uma origem).
-        c.riscos = lista((await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/riscos`), {}))?.riscos);
         c.transferencias = lista(c.ligacoes && c.ligacoes.transferencias);
         // Ciclo de vida e bases adicionais (F3): lidos para nunca perguntar de novo o que já está gravado.
         c.ciclo = lista((await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/ciclo`), {}))?.etapas);
@@ -350,8 +323,6 @@ export function respostasDoRegistro(r, c) {
     out.transferencia = flag('international_transfers');
     if (r.international_transfers && r.transfer_safeguards) out.transf_destino = { pais: '', mecanismo: MECANISMOS.includes(r.transfer_safeguards) ? r.transfer_safeguards : '' };
     out.ripd = r.dpia_required ? 'sim' : 'nao';
-    const imp = respostasDoImpacto(c.impacto);
-    if (Object.keys(imp).length) out.teste_impacto = imp;
     Object.assign(out, respostasDoCiclo(c.ciclo), respostasDasBases(c.bases));
     for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
     return out;
@@ -410,9 +381,6 @@ export function montarBases(r, c) {
     return b;
 }
 
-/** As respostas gravadas do teste de impacto, { pergunta: 'sim' | 'nao' | 'nao_sei' }. */
-const respostasDoImpacto = (imp) => Object.fromEntries((imp && Array.isArray(imp.perguntas) ? imp.perguntas : []).filter((p) => p.resposta).map((p) => [p.id, p.resposta]));
-const IMPACTO_OPCOES = [op('sim', 'Sim'), op('nao', 'Não'), op('nao_sei', 'Não sei agora')];
 
 // ─── O que vai para a API ────────────────────────────────────────────────────────────────────────
 
@@ -460,10 +428,9 @@ export function montarPayload(r, c) {
 
 /** O que falta no resumo: pergunta visível sem resposta ou com "Não sei agora", e as pendências que derivam das respostas. */
 export function pendencias(r, c) {
-    // Fora da lista: o motivo (só prepara a base), "criar o RIPD" (tem pendência própria logo abaixo), as bases adicionais e a do GDPR
-    // (vazias é a resposta comum) e as perguntas sem coluna no registro, que só alimentam a recomendação de RIPD: na revisão de uma
-    // atividade salva elas voltam sempre vazias.
-    const lista = PERGUNTAS.filter((p) => (!p.mostrar || p.mostrar(r, c)) && !p.semColuna && !['para_que', 'motivo', 'criar_ripd', 'bases_adicionais', 'base_gdpr'].includes(p.id) && (r[p.id] === NAO_SEI || vazio(r[p.id])))
+    // Fora da lista: o motivo (só prepara a base), "criar o RIPD" (tem pendência própria logo abaixo) e as bases adicionais e a do
+    // GDPR (vazias é a resposta comum).
+    const lista = PERGUNTAS.filter((p) => (!p.mostrar || p.mostrar(r, c)) && !['para_que', 'motivo', 'criar_ripd', 'bases_adicionais', 'base_gdpr'].includes(p.id) && (r[p.id] === NAO_SEI || vazio(r[p.id])))
         .map((p) => ({ bloco: p.bloco, texto: p.id === 'responsavel' && r.responsavel_texto ? 'Responsável só em texto: escolha ou cadastre a pessoa' : `Sem resposta: ${p.curto}` }));
     const mec = r.transf_destino && r.transf_destino !== NAO_SEI ? r.transf_destino.mecanismo : '';
     if (r.transferencia === 'sim' && mec === SEM_MECANISMO) lista.push({ bloco: 'H', texto: 'Transferência internacional sem salvaguarda definida' });
@@ -486,13 +453,6 @@ function controle(p) {
     if (p.tipo === 'longo') {
         return `<textarea class="form-input" id="re-campo" rows="4" maxlength="${p.max || 5000}" aria-labelledby="re-titulo" aria-describedby="re-erro"
             data-action-input="reTexto" data-args='${args(p.id)}' data-arg-val>${escapeHTML(v || '')}</textarea>${ex}`;
-    }
-    if (p.tipo === 'impacto') {
-        const g = v && typeof v === 'object' ? v : {};
-        return `<div class="re-impacto">${ctx.impacto.perguntas.map((q) => `<fieldset class="re-fieldset" role="radiogroup" aria-labelledby="re-imp-${escapeHTML(q.id)}">
-            <p class="form-label" id="re-imp-${escapeHTML(q.id)}">${escapeHTML(q.texto)}</p><div class="re-opcoes">${IMPACTO_OPCOES.map((o) => `<label class="re-opcao" for="re-imp-${escapeHTML(q.id)}-${o.v}">
-                <input type="radio" id="re-imp-${escapeHTML(q.id)}-${o.v}" name="re-imp-${escapeHTML(q.id)}" value="${o.v}" ${g[q.id] === o.v ? 'checked' : ''}
-                    data-action-change="reImpacto" data-args='${args(q.id)}' data-arg-val><span class="re-opcao-texto">${escapeHTML(o.r)}</span></label>`).join('')}</div></fieldset>`).join('')}</div>`;
     }
     if (p.tipo === 'ciclo') {
         const g = v && typeof v === 'object' ? v : {};
@@ -640,7 +600,7 @@ function extras(p) {
     if (p.id === 'finalidade') {
         const k = normaliza(r.finalidade);
         const dup = k && (S.ropa || []).find((x) => x.id !== st.recordId && normaliza(x.processing_purpose) === k);
-        if (dup) partes.push(`<p class="re-aviso">Já existe uma atividade com essa finalidade no inventário. Se for a mesma, volte e use "Continuar entrevista" nela.</p>`);
+        if (dup) partes.push(`<p class="re-aviso">Já existe uma atividade com essa finalidade no inventário. Se for a mesma, abra-a pela lista de tratamentos.</p>`);
     }
     if (p.id === 'base') {
         if (st.selos.includes('base') && st.motivoBase) partes.push(`<p class="re-nota">Motivo do assistente: ${escapeHTML(st.motivoBase)}</p>`);
@@ -651,34 +611,18 @@ function extras(p) {
     if (p.id === 'responsavel' && r.responsavel_texto && !valor(r, 'responsavel')) {
         partes.push(`<p class="re-aviso">Hoje o responsável está só em texto: ${escapeHTML(r.responsavel_texto)}. Escolha a pessoa na lista ou cadastre agora para ligar ao cadastro; sem escolha, o texto fica como está.</p>`);
     }
-    if (p.id === 'lia' && ctx.lia && ctx.lia.status === 'concluida') partes.push('<p class="re-aviso">A LIA desta atividade já está concluída. Para alterar, reabra nas Ligações; aqui ela não é regravada.</p>');
+    if (p.id === 'lia' && ctx.lia && ctx.lia.status === 'concluida') partes.push('<p class="re-aviso">A LIA desta atividade já está concluída. Para alterar, reabra na etapa 3 da atividade; aqui ela não é regravada.</p>');
     if (p.id === 'transf_destino' && ctx.transferencias.length) {
         partes.push(`<p class="re-nota">Já registradas: ${ctx.transferencias.map((t) => `${escapeHTML(t.pais)}${t.mecanismo ? ` (${escapeHTML(t.mecanismo)})` : ''}`).join('; ')}. Preencha o país só para acrescentar outro.</p>`);
     }
-    if (p.id === 'impacto' && Array.isArray(ctx.riscos)) partes.push(blocoRiscos());
-    if (p.id === 'teste_impacto' && ctx.impacto && podeEntrevistar()) {
-        const fim = ctx.impacto.finalizado_em;
-        partes.push(fim
-            ? `<p class="re-nota" id="re-impacto-final">Teste de impacto finalizado em ${escapeHTML(String(fim).slice(8, 10))}/${escapeHTML(String(fim).slice(5, 7))}/${escapeHTML(String(fim).slice(0, 4))}. <button type="button" class="btn btn-sm" data-action="reFinalizarImpacto" data-args='${args(false)}'>Reabrir</button></p>`
-            : `<p class="re-nota" id="re-impacto-final">Finalizar registra que uma pessoa revisou as respostas; dá para reabrir depois. <button type="button" class="btn btn-sm" data-action="reFinalizarImpacto" data-args='${args(true)}'>Finalizar teste de impacto</button></p>`);
-    }
+    // Uma recomendação só, a do servidor (teste de impacto). Atividade nova ainda não tem teste: ele vem logo depois de salvar.
     if (p.id === 'ripd') {
-        const mot = motivosRipd(r);
-        partes.push(mot.length
-            ? `<p class="re-aviso" id="re-recomendacao">Recomendamos Sim porque ${escapeHTML(mot.join(', '))}.</p>`
-            : '<p class="re-nota" id="re-recomendacao">Nenhum gatilho de alto risco nas suas respostas. A decisão é sua.</p>');
+        partes.push(ctx.impacto
+            ? `<p class="re-aviso" id="re-recomendacao">${escapeHTML(textoRecomendacao(ctx.impacto))}</p>`
+            : '<p class="re-nota" id="re-recomendacao">A recomendação sai do teste de impacto, que vem logo depois de salvar a atividade. Se ainda não sabe, responda "Não sei agora".</p>');
     }
     if (p.sugerir && podeEntrevistar() && (p.sugerir !== 'base' || ctx.catalogo.size)) partes.push(blocoSugestao(p.sugerir));
     return partes.join('');
-}
-
-/** Os riscos que a atividade já tem, só leitura: a entrevista não pergunta de novo o que está registrado. */
-function blocoRiscos() {
-    const linhas = ctx.riscos.map((k) => `<li>${escapeHTML(k.threat)} (nível ${escapeHTML(NIVEIS[k.risk_level] || k.risk_level || '—')}${k.residual_level ? `, residual ${escapeHTML(NIVEIS[k.residual_level] || k.residual_level)}` : ''})</li>`).join('');
-    return `<div class="re-nota" id="re-riscos">${ctx.riscos.length
-        ? `<p>Riscos já registrados nesta atividade:</p><ul>${linhas}</ul>`
-        : '<p>Nenhum risco registrado nesta atividade ainda.</p>'}
-        <p>Registrar ou mudar um risco é nas Ligações da atividade. <button type="button" class="btn btn-sm" data-action="openLigacoesTratamento" data-args='${args(st.projectId, st.recordId)}'>Abrir as ligações</button></p></div>`;
 }
 
 function blocoSugestao(campo) {
@@ -747,7 +691,25 @@ function blocoCopiloto() {
     </section>`;
 }
 
+/** A pergunta do ciclo de vida logo depois do primeiro salvamento (onda 2): grava e segue para a página da atividade. */
+function desenharContinuacao(p) {
+    return `<p class="re-aviso" role="status" id="re-continua">Atividade salva como rascunho. Falta o ciclo de vida, que só aparece depois de salvar; em seguida vem o teste de impacto, na página da atividade.</p>
+    <form class="re-pergunta" data-action-submit="reAvancar" data-prevent novalidate>
+        <fieldset class="re-fieldset">
+            <legend class="re-legend"><h2 class="re-titulo" id="re-titulo" tabindex="-1">${escapeHTML(p.titulo)}</h2></legend>
+            <details class="re-ajuda"><summary>Por que perguntamos</summary><p>${escapeHTML(p.ajuda)}</p></details>
+            ${controle(p)}
+            <p class="re-erro" id="re-erro" aria-live="polite"></p>
+        </fieldset>
+        <div class="re-acoes">
+            <button type="button" class="btn btn-ghost" data-action="reCicloDepois">Responder depois</button>
+            <button type="submit" class="btn btn-primary">Salvar e seguir para o teste de impacto</button>
+        </div>
+    </form>`;
+}
+
 function desenharPergunta(p) {
+    if (st.continuacao) return desenharContinuacao(p);
     const primeira = visiveis()[0] === p;
     return `${topo()}
     ${primeira && st.copiloto ? blocoCopiloto() : ''}
@@ -776,7 +738,6 @@ function textoResposta(p) {
     if (p.id === 'responsavel' && vazio(v) && r.responsavel_texto) return `${r.responsavel_texto} (só texto, sem cadastro)`;
     if (vazio(v)) return '';
     if (p.tipo === 'texto' || p.tipo === 'longo') return v;
-    if (p.tipo === 'impacto') return `${Object.values(v).filter((x) => x === 'sim' || x === 'nao').length} de ${ctx.impacto.perguntas.length} respondidas`;
     if (p.tipo === 'ciclo') return `${ctx.ciclo.filter((e) => v[e.etapa]).length} de ${ctx.ciclo.length} etapas respondidas`;
     if (p.tipo === 'grupo') return p.sub.filter((s) => String(v[s.id] || '').trim()).map((s) => `${s.rotulo} ${s.tipo === 'select' ? (s.opcoes.find((o) => o.v === v[s.id]) || {}).r || v[s.id] : v[s.id]}`).join(' / ');
     const ops = [...opcoesDe(p), ...(p.nenhum ? [op(NENHUM, p.nenhum)] : [])];
@@ -794,14 +755,12 @@ function desenharResumo() {
             const t = textoResposta(p);
             return `<dt>${escapeHTML(p.curto)}</dt><dd>${t ? escapeHTML(t) : '<span class="re-pendente">Sem resposta</span>'}${t && st.selos.includes(p.id) ? ` ${selo()}` : ''}</dd>`;
         }).join('')}</dl></section>`).join('');
-    const mot = motivosRipd(st.respostas);
     return `${topo()}
     <div class="re-resumo">
         <h2 class="re-titulo" id="re-titulo" tabindex="-1">Confira o que você nos contou</h2>
         ${pend.length ? `<div class="re-pendencias" role="note"><h3>O que ficou para depois (${pend.length})</h3><ul>${pend.map((x) => `<li>${escapeHTML(x.texto)}</li>`).join('')}</ul></div>`
             : '<p class="re-nota">Nenhuma pendência nas respostas.</p>'}
-        ${mot.length ? `<p class="re-aviso">Recomendação de RIPD (DPIA): ${escapeHTML(mot.join(', '))}.</p>` : ''}
-        ${seloImpacto()}
+        ${ctx.impacto ? `<p class="re-aviso" id="re-impacto">${escapeHTML(textoRecomendacao(ctx.impacto))}</p>` : ''}
         ${(st.criados || []).length ? `<p class="re-nota" id="re-criados">Cadastrados durante a entrevista: ${st.criados.map((x) => `${escapeHTML(x.tipo)} ${escapeHTML(x.nome)}`).join('; ')}.</p>` : ''}
         ${blocos}
         <p class="re-erro" id="re-erro" aria-live="polite"></p>
@@ -813,28 +772,16 @@ function desenharResumo() {
     </div>`;
 }
 
-/** A recomendação do teste de impacto como o SERVIDOR a calculou, sobre as respostas gravadas (muda depois de salvar). */
-function seloImpacto() {
-    const rec = ctx && ctx.impacto && ctx.impacto.recomendacao;
-    if (!rec) return '';
-    const texto = rec.resultado === 'recomendado' ? `Teste de impacto: RIPD recomendado: ${lista(rec.motivos).map((m) => String(m).replace(/_/g, ' ')).join(', ')}.`
-        : rec.resultado === 'dispensavel_a_confirmar' ? 'Teste de impacto: RIPD dispensável, a confirmar por uma pessoa.'
-            : 'Teste de impacto incompleto: responda as perguntas do bloco "Teste de impacto" para a recomendação.';
-    const abrirRipd = rec.resultado === 'recomendado' && !ctx.temDpia ? ' <button type="button" class="btn btn-sm" data-action="reAbrirRipd">Abrir o RIPD</button>' : '';
-    return `<p class="re-aviso" id="re-impacto">${escapeHTML(texto)}${abrirRipd}</p>`;
-}
-
 function desenharFim() {
     const s = st.salvo;
     return `<div class="re-resumo">
         <h2 class="re-titulo" id="re-titulo" tabindex="-1">Atividade salva</h2>
         <p>${escapeHTML(s.finalidade)} ${s.novo ? 'entrou no inventário como rascunho.' : 'foi atualizada.'}</p>
         ${s.feitos.length ? `<ul>${s.feitos.map((x) => `<li>${escapeHTML(x)}</li>`).join('')}</ul>` : ''}
-        ${s.erros.length ? `<div class="re-pendencias" role="alert"><h3>O que não foi gravado</h3><ul>${s.erros.map((x) => `<li>${escapeHTML(x)}</li>`).join('')}</ul><p class="re-nota">Complete nas Ligações da atividade.</p></div>` : ''}
+        ${s.erros.length ? `<div class="re-pendencias" role="alert"><h3>O que não foi gravado</h3><ul>${s.erros.map((x) => `<li>${escapeHTML(x)}</li>`).join('')}</ul><p class="re-nota">Complete na página da atividade.</p></div>` : ''}
         <div class="re-acoes">
-            <button type="button" class="btn" data-action="openLigacoesTratamento" data-args='${args(st.projectId, s.id)}'>Abrir as ligações</button>
             <button type="button" class="btn" data-action="abrirRopaEntrevista" data-args='${args(st.projectId)}'>Cadastrar outra atividade</button>
-            <button type="button" class="btn btn-primary" data-action="reSair">Voltar ao inventário</button>
+            <button type="button" class="btn btn-primary" data-action="abrirAtividade" data-args='${args(st.projectId, s.id)}'>Abrir a atividade</button>
         </div>
     </div>`;
 }
@@ -897,7 +844,7 @@ async function renderRopaEntrevista(c, h, a) {
     h.textContent = st.recordId ? 'Entrevista do RoPA: revisar atividade' : 'Entrevista do RoPA: nova atividade';
     const avancada = st.recordId && S.user && ['platform_admin', 'consultant', 'consultor'].includes(S.user.role)
         ? `<button class="btn" data-action="reEdicaoAvancada" data-args='${args(st.recordId)}'>Edição avançada</button>` : '';
-    a.innerHTML = `${avancada}<button class="btn" data-action="reSair">Voltar ao inventário</button>`;
+    a.innerHTML = `${avancada}<button class="btn" data-action="reSair">Voltar aos tratamentos</button>`;
     desenhar();
 }
 
@@ -1032,6 +979,7 @@ function validar(p) {
 function irPara(passo, foco) { st.passo = passo; st.copiloto = null; guardar(); desenhar(foco); }
 
 window.reAvancar = function () {
+    if (st.continuacao) return gravarCicloESeguir();
     const p = PERGUNTA[st.passo];
     if (!p) return;
     if (st.cadastro && st.cadastro.pergunta === p.id) { erro('Salve ou cancele o cadastro aberto antes de seguir.'); return; }
@@ -1066,37 +1014,31 @@ window.reAlterar = function (bloco) {
     irPara(p.id);
 };
 window.reSair = function () { S.ropaEntrevista = null; navigate('ropa'); };
+
+/** Sai da entrevista para a página da atividade gravada, onde o fluxo continua (teste de impacto, RIPD ou LIA, riscos, aprovação). */
+function seguirParaAtividade() {
+    const { projectId, recordId } = st;
+    esquecer();
+    S.ropaEntrevista = null;
+    st = null; ctx = null;
+    window.abrirAtividade(projectId, recordId);
+}
+window.reCicloDepois = seguirParaAtividade;
+async function gravarCicloESeguir() {
+    const etapas = montarCiclo(st.respostas);
+    if (etapas.length) {
+        try { await api('PUT', `/api/v1/projects/${st.projectId}/ropa/${st.recordId}/ciclo`, { etapas }); }
+        catch (e) { erro(`Não foi possível gravar o ciclo de vida: ${e.message}`); return; }
+        showToast('Ciclo de vida gravado.', 'success');
+    }
+    seguirParaAtividade();
+}
 window.reCiclo = function (etapa, v) {
     daPessoa('ciclo');
     const atual = st.respostas.ciclo && st.respostas.ciclo !== NAO_SEI && typeof st.respostas.ciclo === 'object' ? { ...st.respostas.ciclo } : {};
     if (v) atual[etapa] = v; else delete atual[etapa];
     st.respostas.ciclo = atual;
     guardar();
-};
-window.reImpacto = function (pergunta, v) {
-    daPessoa('teste_impacto');
-    const atual = st.respostas.teste_impacto;
-    st.respostas.teste_impacto = { ...(atual && typeof atual === 'object' ? atual : {}), [pergunta]: v };
-    guardar();
-};
-// Finalizar ou reabrir o teste de impacto é ato humano (o servidor recusa ao agente). Vai junto o que a pessoa mudou e ainda não salvou.
-window.reFinalizarImpacto = async function (finalizar) {
-    const imp = valor(st.respostas, 'teste_impacto');
-    const antes = respostasDoImpacto(ctx.impacto);
-    const respostas = imp && typeof imp === 'object'
-        ? Object.fromEntries(Object.entries(imp).filter(([k, v]) => v !== antes[k] && IMPACTO_OPCOES.some((o) => o.v === v))) : {};
-    try {
-        await api('PUT', `/api/v1/projects/${st.projectId}/ropa/${st.recordId}/impacto`, { respostas, finalizar });
-        ctx.impacto = await api('GET', `/api/v1/projects/${st.projectId}/ropa/${st.recordId}/impacto`);
-    } catch (e) { erro(`Não foi possível ${finalizar ? 'finalizar' : 'reabrir'} o teste de impacto: ${e.message}`); return; }
-    desenhar();
-};
-// O RIPD nasce do tratamento (herda o que já foi informado) e a pessoa segue para a tela de RIPD.
-window.reAbrirRipd = async function () {
-    try { await api('POST', `/api/v1/projects/${st.projectId}/ropa/${st.recordId}/dpia`); }
-    catch (e) { if (e.status !== 409) { erro(`Não foi possível abrir o RIPD: ${e.message}`); return; } }
-    S.ropaEntrevista = null;
-    navigate('dpia');
 };
 // A edição avançada sai da entrevista (o rascunho da aba fica guardado) e abre o formulário sobre o inventário.
 window.reEdicaoAvancada = async function (id) { window.reSair(); await window.openEditROPAModal(id); };
@@ -1245,12 +1187,6 @@ window.reSalvar = async function () {
             conclusao: lia.conclusao || null, status: completa ? 'concluida' : 'rascunho',
         }), 'LIA');
     }
-    const imp = valor(r, 'teste_impacto');
-    if (ctx.impacto && imp && typeof imp === 'object') {
-        const antes = respostasDoImpacto(ctx.impacto);
-        const mudou = Object.fromEntries(Object.entries(imp).filter(([k, v]) => v !== antes[k]));
-        if (Object.keys(mudou).length) await passo('Teste de impacto gravado.', () => api('PUT', `/api/v1/projects/${pid}/ropa/${id}/impacto`, { respostas: mudou }), 'Teste de impacto');
-    }
     // Ciclo de vida e bases (F3): só o que mudou em relação ao que o servidor já tinha.
     const inicial = ctx.inicial.respostas || {};
     const ciclo = montarCiclo(r);
@@ -1267,6 +1203,22 @@ window.reSalvar = async function () {
         catch (e) { if (e.status === 409) feitos.push('O RIPD desta atividade já existia.'); else erros.push(`RIPD: ${e.message}`); }
     }
     esquecer();
+    if (!erros.length) {
+        // Grava e continua: a atividade nova segue para o ciclo de vida, cujas etapas só existem depois de gravar.
+        const etapas = novo ? lista((await tentar(() => api('GET', `/api/v1/projects/${pid}/ropa/${id}/ciclo`), {}))?.etapas) : [];
+        if (etapas.length) {
+            ctx.ciclo = etapas;
+            Object.assign(st.respostas, respostasDoCiclo(etapas));
+            Object.assign(st, { chave: chaveDe(pid, id), continuacao: true, passo: 'ciclo' });
+            showToast(['Atividade salva como rascunho.', ...feitos].join(' '), 'success');
+            if (alvo) alvo.h.textContent = 'Entrevista do RoPA: ciclo de vida';
+            desenhar();
+            return;
+        }
+        showToast([novo ? 'Atividade salva como rascunho.' : 'Atividade atualizada.', ...feitos].join(' '), 'success');
+        seguirParaAtividade();
+        return;
+    }
     st.salvo = { id, novo, finalidade: corpo.processing_purpose, feitos, erros };
     if (alvo) alvo.h.textContent = 'Entrevista do RoPA: concluída';
     desenhar();

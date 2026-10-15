@@ -5,12 +5,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { servir, resposta } from './servir-api.js';
 
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
+import { navigate } from '../src/router.js';
 
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import { initDelegation } from '../src/delegation.js';
 import '../src/views/privacy.js';
-import { montarPayload, motivosRipd, respostasDoRegistro, montarCiclo, montarBases } from '../src/views/ropa-entrevista.js';
+import { montarPayload, respostasDoRegistro, montarCiclo, montarBases } from '../src/views/ropa-entrevista.js';
 import fonte from '../src/views/ropa-entrevista.js?raw';
 
 initDelegation();
@@ -72,6 +73,7 @@ beforeEach(() => {
     S.activeProject = { id: 'p1', modulos: ['privacy'] };
     S.projects = [S.activeProject];
     S.ropa = [];
+    S.atividade = null;
     window.render = vi.fn();
     window.confirmar = vi.fn(async () => true);
 });
@@ -97,10 +99,9 @@ describe('fluxo feliz de uma atividade nova', () => {
         expect(titulo()).toBe('De quem são os dados que a atividade usa?');
         marcar('Colaboradores'); proxima();
         marcar('nao'); proxima();
-        naoSei(); // volume
+        // Onda 2: volume e decisão automática saíram daqui; o teste de impacto, na página da atividade, pergunta uma vez só.
         marcar('Identificação', 'Financeiro'); proxima();
         marcar('__nenhum'); proxima();
-        naoSei(); // decisão automática
         expect(titulo()).toContain('motivos');
         marcar('lei'); proxima();
         // o motivo marcou a hipótese; a pessoa confirma
@@ -121,13 +122,11 @@ describe('fluxo feliz de uma atividade nova', () => {
         marcar('5 anos (obrigação fiscal e contábil)'); proxima();
         marcar('Exclusão do sistema'); proxima(); // eliminação: vira a descrição da etapa de eliminação
         marcar('nao'); proxima(); // transferência
-        naoSei(); // impacto
-        expect(el('re-recomendacao').textContent).toContain('Nenhum gatilho');
+        // atividade nova ainda não tem teste de impacto: a recomendação vem dele, depois de salvar
+        expect(el('re-recomendacao').textContent).toContain('A recomendação sai do teste de impacto');
         marcar('nao'); proxima(); // RIPD
         expect(titulo()).toBe('Confira o que você nos contou');
         expect(el('c').textContent).toContain('Folha de pagamento');
-        // as perguntas sem coluna (volume, decisão automática, impacto) aparecem no resumo, mas não viram pendência
-        expect(el('c').textContent).toContain('Não sei agora');
         expect(el('c').querySelector('.re-pendencias')).toBeNull();
         expect(el('c').textContent).toContain('Nenhuma pendência nas respostas.');
 
@@ -149,10 +148,51 @@ describe('fluxo feliz de uma atividade nova', () => {
         ] });
         // sem outra base nem GDPR, nada vai para .../bases
         expect(chamadas(f).filter((c) => c.startsWith('POST') || c.startsWith('PUT'))).toHaveLength(4);
-        expect(titulo()).toBe('Atividade salva');
-        expect(el('c').textContent).toContain('entrou no inventário como rascunho');
+        // grava e continua: sem etapas de ciclo para responder, segue direto para a página da atividade
+        expect(S.atividade).toEqual({ projectId: 'p1', ropaId: 'novo1' });
+        expect(navigate).toHaveBeenLastCalledWith('ropa-atividade');
+        expect(document.body.textContent).toContain('Atividade salva como rascunho.');
         // o rascunho da aba some depois de salvar
         expect(sessionStorage.getItem('ropa-entrevista:p1:nova')).toBeNull();
+    });
+
+    it('grava e continua: com o ciclo de vida disponível depois de salvar, pergunta as etapas, grava e segue para a atividade', async () => {
+        rascunho('resumo', { finalidade: 'Cobrança', titulares: ['Clientes pessoa física'], categorias: ['Contato'], origem: ['A própria pessoa'] });
+        const f = await abrir(undefined, {
+            [`GET ${P}/ropa/novo1/ciclo`]: { etapas: [
+                { etapa: 'coleta', rotulo: 'Coleta <b>x</b>', situacao: 'registrada', item_id: null, descricao: 'A própria pessoa' },
+                { etapa: 'eliminacao', rotulo: 'Eliminação', situacao: null, item_id: null, descricao: null },
+            ] },
+        });
+        await window.reSalvar();
+        expect(el('re-continua').textContent).toContain('Atividade salva como rascunho');
+        expect(titulo()).toBe('Em cada etapa da vida do dado, em que sistema ou arquivo ele fica?');
+        expect(el('c').querySelector('b')).toBeNull();
+        expect(el('re-ciclo-coleta').value).toBe('__registrada');
+        expect(document.querySelectorAll('.btn-primary')).toHaveLength(1);
+        const sel = el('re-ciclo-eliminacao');
+        sel.value = '__nao_aplicavel';
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        el('c').querySelector('.re-pergunta button[type="submit"]').click();
+        await vi.waitFor(() => expect(S.atividade).toEqual({ projectId: 'p1', ropaId: 'novo1' }));
+        expect(corpoDe(f, `PUT ${P}/ropa/novo1/ciclo`)).toBeDefined();
+        const puts = f.mock.calls.filter(([u, o]) => o?.method === 'PUT' && u.endsWith('/ropa/novo1/ciclo'));
+        expect(JSON.parse(puts.at(-1)[1].body)).toEqual({ etapas: [
+            { etapa: 'coleta', situacao: 'registrada', item_id: null, descricao: 'A própria pessoa' },
+            { etapa: 'eliminacao', situacao: 'nao_aplicavel' },
+        ] });
+        // o rascunho não volta numa próxima atividade nova
+        expect(sessionStorage.getItem('ropa-entrevista:p1:nova')).toBeNull();
+        expect(sessionStorage.getItem('ropa-entrevista:p1:novo1')).toBeNull();
+    });
+
+    it('"Responder depois" no ciclo segue para a atividade sem gravar o ciclo de novo', async () => {
+        rascunho('resumo', { finalidade: 'Cobrança', titulares: ['Clientes pessoa física'], categorias: ['Contato'] });
+        const f = await abrir(undefined, { [`GET ${P}/ropa/novo1/ciclo`]: { etapas: [{ etapa: 'coleta', rotulo: 'Coleta', situacao: null }] } });
+        await window.reSalvar();
+        el('c').querySelector('[data-action="reCicloDepois"]').click();
+        expect(S.atividade).toEqual({ projectId: 'p1', ropaId: 'novo1' });
+        expect(chamadas(f)).not.toContain(`PUT ${P}/ropa/novo1/ciclo`);
     });
 
     it('Voltar retorna à pergunta anterior sem perder a resposta; o rascunho fica na sessionStorage', async () => {
@@ -224,7 +264,7 @@ describe('perguntas condicionais', () => {
         expect(el('c').querySelector('.re-aviso').textContent).toContain('Art. 11 da LGPD');
         // foco volta à opção marcada depois do redesenho
         expect(document.activeElement.value).toBe('Saúde');
-        proxima(); naoSei(); // decisão automática
+        proxima();
         marcar('interesse');
         expect(el('c').textContent).not.toContain('não serve de base legal'); // aviso só aparece na base
         proxima();
@@ -232,7 +272,6 @@ describe('perguntas condicionais', () => {
         expect(bases).toHaveLength(8);
         expect(bases.every((b) => b.endsWith('(art. 11)'))).toBe(true);
         expect(el('c').textContent).toContain('não serve de base legal');
-        expect(motivosRipd({ sensiveis: ['Saúde'] })).toEqual(['há dado sensível']);
     });
 
     it('base do art. 7 gravada com dado sensível não avança', async () => {
@@ -271,7 +310,7 @@ describe('perguntas condicionais', () => {
         rascunho('transferencia', { ...basico });
         await abrir();
         marcar('nao'); proxima();
-        expect(titulo()).toContain('vazassem');
+        expect(titulo()).toContain('o RIPD?');
         rascunho('transferencia', { ...basico });
         await abrir();
         marcar('sim'); proxima();
@@ -279,13 +318,21 @@ describe('perguntas condicionais', () => {
         expect([...el('re-sub-mecanismo').options].map((o) => o.textContent)).toContain('Cláusulas-padrão contratuais (Res. CD/ANPD 19/2024)');
     });
 
-    it('RIPD: recomenda com o motivo; "Sim" oferece criar o RIPD agora', async () => {
-        rascunho('ripd', { ...basico, criancas: 'sim', volume: '100mil+' });
+    it('RIPD: a recomendação é uma só, a do servidor (teste de impacto), em português; "Sim" oferece criar o RIPD agora', async () => {
+        rascunho('ripd', { ...basico, criancas: 'sim' });
         await abrir();
-        expect(titulo()).toContain('RIPD (DPIA)');
-        expect(el('re-recomendacao').textContent).toBe('Recomendamos Sim porque há dados de crianças ou adolescentes, são mais de 10 mil pessoas.');
+        expect(titulo()).toBe('Esta atividade precisa do relatório de impacto, o RIPD?');
+        expect(el('re-recomendacao').textContent).toContain('A recomendação sai do teste de impacto');
         marcar('sim'); proxima();
         expect(titulo()).toBe('Quer criar o RIPD agora, a partir desta atividade?');
+        // atividade gravada: a recomendação do servidor, com os rótulos curtos
+        S.ropa = [{ id: 'r1', processing_purpose: 'Folha', data_subjects: 'Colaboradores', data_categories: 'Identificação', dpia_required: 0, nao_informado: [], aprovacao_pedido: { ciso: null, ceo: null } }];
+        rascunho('ripd', { ...basico }, 'r1');
+        await abrir('r1', { [`GET ${P}/ropa/r1/impacto`]: { perguntas: [{ id: 'sensiveis', grupo: 'especifico', texto: 't', curto: 'há dados sensíveis', resposta: 'sim', da_atividade: 'sim' },
+            { id: 'larga_escala', grupo: 'geral', texto: 't', curto: 'o tratamento é em larga escala', resposta: 'sim', da_atividade: null }],
+            recomendacao: { resultado: 'recomendado', motivos: ['larga_escala', 'sensiveis'] }, finalizado_em: null } });
+        expect(el('c').querySelectorAll('#re-recomendacao')).toHaveLength(1);
+        expect(el('re-recomendacao').textContent).toBe('RIPD recomendado: o tratamento é em larga escala; há dados sensíveis.');
     });
 
     it('"Alterar" no resumo volta ao bloco e, ao terminar o bloco, retorna ao resumo', async () => {
@@ -293,129 +340,8 @@ describe('perguntas condicionais', () => {
         await abrir();
         el('c').querySelector('[data-action="reAlterar"][data-args=\'["B"]\']').click();
         expect(titulo()).toBe('De quem são os dados que a atividade usa?');
-        proxima(); proxima(); naoSei();
+        proxima(); proxima();
         expect(titulo()).toBe('Confira o que você nos contou');
-    });
-});
-
-describe('teste de impacto (bloco I, catálogo e recomendação do servidor)', () => {
-    const REG = { id: 'r1', project_id: 'p1', processing_purpose: 'Folha', data_subjects: 'Colaboradores', data_categories: 'Identificação',
-        dados_sensiveis: 0, criancas_adolescentes: 0, international_transfers: 0, dpia_required: 0, status: 'Draft', nao_informado: [], aprovacao_pedido: { ciso: null, ceo: null } };
-    // Corpo de GET /projects/:p/ropa/:rid/impacto (src/routes/ropa.ts, lerImpacto de src/services/impacto.ts). Textos fictícios.
-    const IMPACTO = {
-        perguntas: [
-            { id: 'larga_escala', grupo: 'geral', texto: 'Larga escala <b>texto do servidor</b>?', resposta: 'sim' },
-            { id: 'sensiveis', grupo: 'especifico', texto: 'Dados sensíveis?', resposta: 'sim' },
-            { id: 'monitoramento', grupo: 'especifico', texto: 'Monitoramento sistemático?', resposta: null },
-        ],
-        recomendacao: { resultado: 'recomendado', motivos: ['larga_escala', 'sensiveis'] }, finalizado_em: null,
-    };
-    const abrirComImpacto = (extra = {}) => { S.ropa = [REG]; return abrir('r1', { [`GET ${P}/ropa/r1/impacto`]: IMPACTO, [`PUT ${P}/ropa/r1/impacto`]: { ok: true }, ...extra }); };
-    const irAoBlocoI = () => el('c').querySelector('[data-action="reAlterar"][data-args=\'["I"]\']').click();
-    const radio = (pergunta, v) => el(`re-imp-${pergunta}-${v}`);
-
-    it('o resumo mostra a recomendação do servidor; as respostas gravadas vêm marcadas e o texto do servidor vem escapado', async () => {
-        await abrirComImpacto();
-        expect(el('re-impacto').textContent).toContain('RIPD recomendado: larga escala, sensiveis');
-        irAoBlocoI();
-        expect(titulo()).toContain('Teste de impacto');
-        expect(radio('larga_escala', 'sim').checked).toBe(true);
-        expect(radio('sensiveis', 'sim').checked).toBe(true);
-        expect(['sim', 'nao', 'nao_sei'].some((v) => radio('monitoramento', v).checked)).toBe(false);
-        expect(el('c').textContent).toContain('Larga escala <b>texto do servidor</b>?');
-        expect(el('c').querySelector('.re-impacto b')).toBeNull();
-    });
-
-    it('responder grava pelo PUT do teste só o que mudou; "Não sei agora" vai como nao_sei', async () => {
-        const f = await abrirComImpacto();
-        irAoBlocoI();
-        radio('monitoramento', 'nao_sei').click();
-        radio('sensiveis', 'nao').click();
-        proxima();
-        expect(titulo()).toBe('Confira o que você nos contou');
-        await window.reSalvar();
-        expect(corpoDe(f, `PUT ${P}/ropa/r1/impacto`)).toEqual({ respostas: { sensiveis: 'nao', monitoramento: 'nao_sei' } });
-        expect(fonte.match(/ropa\/\$\{id\}\/impacto/g)).toHaveLength(1);
-    });
-
-    it('sem mudança no teste, nada é gravado nele', async () => {
-        const f = await abrirComImpacto();
-        await window.reSalvar();
-        expect(chamadas(f)).not.toContain(`PUT ${P}/ropa/r1/impacto`);
-    });
-
-    it('incompleto aparece como tal; com o RIPD recomendado, "Abrir o RIPD" cria pelo tratamento', async () => {
-        await abrirComImpacto({ [`GET ${P}/ropa/r1/impacto`]: { ...IMPACTO, recomendacao: { resultado: 'incompleto', motivos: [] } } });
-        expect(el('re-impacto').textContent).toContain('incompleto');
-        expect(el('c').querySelector('[data-action="reAbrirRipd"]')).toBeNull();
-        const f = await abrirComImpacto({ [`POST ${P}/ropa/r1/dpia`]: { ok: true, id: 'dp1' } });
-        el('c').querySelector('[data-action="reAbrirRipd"]').click();
-        await vi.waitFor(() => expect(chamadas(f)).toContain(`POST ${P}/ropa/r1/dpia`));
-    });
-
-    it('atividade sem o teste no servidor (nova) não mostra o bloco I', async () => {
-        rascunho('resumo', { finalidade: 'Cobrança', titulares: ['Clientes pessoa física'], categorias: ['Financeiro'] });
-        await abrir();
-        expect(el('re-impacto')).toBeNull();
-        expect(el('c').querySelector('[data-action="reAlterar"][data-args=\'["I"]\']')).toBeNull();
-    });
-
-    it('"Finalizar teste de impacto" é botão humano: grava finalizar (com o que mudou) e relê; finalizado, vira "Reabrir"', async () => {
-        let lido = IMPACTO;
-        const f = await abrirComImpacto();
-        f.mockImplementation(async (url, opts = {}) => {
-            const k = `${opts.method || 'GET'} ${new URL(url, 'http://localhost').pathname}`;
-            if (k === `GET ${P}/ropa/r1/impacto`) return resposta(lido);
-            if (k === `PUT ${P}/ropa/r1/impacto`) {
-                const b = JSON.parse(opts.body);
-                lido = { ...lido, perguntas: lido.perguntas.map((q) => (b.respostas[q.id] ? { ...q, resposta: b.respostas[q.id] } : q)), finalizado_em: b.finalizar ? '2026-10-14T12:00:00.000Z' : null };
-                return resposta({ ok: true });
-            }
-            return resposta({ error: 'não dublado' }, 404);
-        });
-        irAoBlocoI();
-        radio('monitoramento', 'nao').click();
-        el('c').querySelector('[data-action="reFinalizarImpacto"]').click();
-        await vi.waitFor(() => expect(el('re-impacto-final').textContent).toContain('finalizado em 14/10/2026'));
-        expect(corpoDe(f, `PUT ${P}/ropa/r1/impacto`)).toEqual({ respostas: { monitoramento: 'nao' }, finalizar: true });
-        f.mockClear();
-        el('c').querySelector('[data-action="reFinalizarImpacto"]').click();
-        await vi.waitFor(() => expect(el('re-impacto-final').textContent).toContain('Finalizar teste de impacto'));
-        expect(corpoDe(f, `PUT ${P}/ropa/r1/impacto`)).toEqual({ respostas: {}, finalizar: false });
-    });
-
-    it('quem não entrevista (cliente comum) não vê o botão de finalizar', async () => {
-        S.user = { role: 'org_user' };
-        await abrirComImpacto();
-        expect(el('c').querySelector('[data-action="reFinalizarImpacto"]')).toBeNull();
-    });
-});
-
-describe('riscos da atividade na entrevista (F2): só leitura', () => {
-    const REG = { id: 'r1', project_id: 'p1', processing_purpose: 'Folha', data_subjects: 'Colaboradores', data_categories: 'Identificação',
-        dados_sensiveis: 0, criancas_adolescentes: 0, international_transfers: 0, dpia_required: 0, status: 'Draft', nao_informado: [], aprovacao_pedido: { ciso: null, ceo: null } };
-    // Corpo de GET /projects/:p/ropa/:rid/riscos (src/routes/ropa.ts): { riscos: [...] }.
-    const RISCOS = { riscos: [{ id: 'k1', threat: 'Acesso <b>indevido</b>', risk_level: 'High', residual_level: 'Low' }] };
-
-    it('na pergunta de impacto do bloco H, mostra os riscos já registrados, escapados, e leva às ligações; nada é perguntado nem gravado', async () => {
-        S.ropa = [REG];
-        rascunho('impacto', {}, 'r1');
-        const f = await abrir('r1', { [`GET ${P}/ropa/r1/riscos`]: RISCOS });
-        const bloco = el('re-riscos');
-        expect(bloco.textContent).toContain('Acesso <b>indevido</b> (nível Alto, residual Baixo)');
-        expect(bloco.querySelector('b')).toBeNull();
-        expect(JSON.parse(bloco.querySelector('[data-action="openLigacoesTratamento"]').getAttribute('data-args'))).toEqual(['p1', 'r1']);
-        expect(chamadas(f).filter((c) => !c.startsWith('GET'))).toEqual([]);
-    });
-
-    it('sem risco registrado, diz isso; atividade nova não mostra o bloco', async () => {
-        S.ropa = [REG];
-        rascunho('impacto', {}, 'r1');
-        await abrir('r1', { [`GET ${P}/ropa/r1/riscos`]: { riscos: [] } });
-        expect(el('re-riscos').textContent).toContain('Nenhum risco registrado');
-        rascunho('impacto', {});
-        await abrir();
-        expect(el('re-riscos')).toBeNull();
     });
 });
 
@@ -551,7 +477,7 @@ describe('ligações no fim e cópia', () => {
         expect(corpoDe(f, `POST ${P}/ropa/novo1/transferencias`)).toEqual({ pais: 'Irlanda', mecanismo: 'Cláusulas-padrão contratuais (Res. CD/ANPD 19/2024)' });
         expect(corpoDe(f, `PUT ${P}/ropa/novo1/lia`)).toMatchObject({ status: 'concluida', conclusao: 'prevalece', salvaguardas: null });
         expect(corpoDe(f, `POST ${P}/ropa`)).toMatchObject({ legal_basis: 'Legítimo interesse', base_legal_id: 'lgpd:art7:ix', transfer_safeguards: 'Cláusulas-padrão contratuais (Res. CD/ANPD 19/2024)' });
-        expect(el('c').textContent).toContain('O RIPD desta atividade já existia.');
+        expect(document.body.textContent).toContain('O RIPD desta atividade já existia.');
         expect(el('c').querySelector('[role="alert"]')).toBeNull();
     });
 

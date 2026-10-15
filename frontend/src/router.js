@@ -84,6 +84,7 @@ export     function navigate(view, data) {
         else if (S.view === 'training') renderTraining(c, h, a);
         else if (S.view === 'ropa') renderROPA(c, h, a);
         else if (S.view === 'ropa-entrevista') renderRopaEntrevista(c, h, a);
+        else if (S.view === 'ropa-atividade') renderAtividade(c, h, a);
         else if (S.view === 'dpia') renderDPIA(c, h, a);
         else if (S.view === 'audits') renderAudits(c, h, a);
         else if (S.view === 'capa') renderCAPA(c, h, a);

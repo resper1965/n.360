@@ -114,3 +114,50 @@ describe('rota do teste de impacto', () => {
     expect((await json<Lido>(await chamar(consultor, 'GET', `${base(rid)}/impacto`))).finalizado_em).toBeNull();
   });
 });
+
+// Onda 2 (atividade como fluxo): o servidor pré-preenche o que a atividade já garante, sem gravar nada e sem mudar a regra.
+describe('respostas que vêm da atividade (nunca perguntar de novo)', () => {
+  type ComOrigem = { perguntas: { id: string; resposta: RespostaImpacto | null; da_atividade: RespostaImpacto | null; curto: string }[]; recomendacao: { resultado: string } };
+  const ler = async (rid: string) => json<ComOrigem>(await chamar(consultor, 'GET', `${base(rid)}/impacto`));
+  const de = (l: ComOrigem, id: string) => l.perguntas.find((p) => p.id === id)!;
+
+  it('sensível, criança, transferência e legítimo interesse marcados na atividade chegam como "sim", sem gravar e sem mudar a recomendação', async () => {
+    const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/ropa`, {
+      processing_purpose: 'Marketing', data_subjects: 'Clientes', dados_sensiveis: 1, criancas_adolescentes: 1, international_transfers: 1,
+      legal_basis: 'Legítimo interesse do controlador ou de terceiro',
+    });
+    const rid = (await json<{ id: string }>(r)).id;
+    const l = await ler(rid);
+    for (const id of ['sensiveis', 'vulneraveis', 'transferencia', 'legitimo_interesse']) {
+      expect(de(l, id), id).toMatchObject({ resposta: null, da_atividade: 'sim' });
+    }
+    expect(de(l, 'larga_escala').da_atividade).toBeNull();
+    expect(l.recomendacao.resultado).toBe('incompleto');
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM tratamento_impacto WHERE ropa_id = ?').bind(rid).first<{ n: number }>())!.n).toBe(0);
+  });
+
+  it('só o que a origem garante: base sem legítimo interesse vira "não"; sensível e transferência desmarcados ficam sem proposta', async () => {
+    const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/ropa`, { processing_purpose: 'Folha', legal_basis: 'Execução de contrato' });
+    const rid = (await json<{ id: string }>(r)).id;
+    const l = await ler(rid);
+    expect(de(l, 'legitimo_interesse').da_atividade).toBe('nao');
+    for (const id of ['sensiveis', 'vulneraveis', 'transferencia']) expect(de(l, id).da_atividade, id).toBeNull();
+    // Sem base nenhuma, nem o "não" do legítimo interesse é garantido.
+    expect(de(await ler(await novoRegistro('Sem base')), 'legitimo_interesse').da_atividade).toBeNull();
+  });
+
+  it('transferência registrada nas ligações também conta, e a resposta gravada continua sendo a da pessoa', async () => {
+    const rid = await novoRegistro('Com transferência ligada');
+    expect((await chamar(consultor, 'POST', `${base(rid)}/transferencias`, { pais: 'Chile' })).status).toBeLessThan(300);
+    expect(de(await ler(rid), 'transferencia').da_atividade).toBe('sim');
+    await chamar(consultor, 'PUT', `${base(rid)}/impacto`, { respostas: { transferencia: 'nao' } });
+    expect(de(await ler(rid), 'transferencia')).toMatchObject({ resposta: 'nao', da_atividade: 'sim' });
+  });
+
+  it('cada pergunta traz um rótulo curto em português, com acento', async () => {
+    const l = await ler(await novoRegistro('Rótulos'));
+    expect(l.perguntas.every((p) => p.curto.length > 3)).toBe(true);
+    expect(de(l, 'sensiveis').curto).toBe('há dados sensíveis');
+    expect(de(l, 'legitimo_interesse').curto).toBe('a base é o legítimo interesse');
+  });
+});

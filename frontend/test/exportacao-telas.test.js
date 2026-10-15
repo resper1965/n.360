@@ -34,7 +34,7 @@ beforeEach(() => {
     S.user = { role: 'consultor' };
     S.activeProject = { id: 'p9' };
     window.render = vi.fn();
-    window.openLigacoesTratamento = vi.fn();
+    window.abrirAtividade = vi.fn();
     URL.createObjectURL = vi.fn(() => 'blob:x');
     URL.revokeObjectURL = vi.fn();
     cliques = [];
@@ -79,7 +79,7 @@ describe('painel do n.privacy: ações das atividades por faixa de prazo', () =>
         expect(m.textContent).toContain('Folha <b>x</b>');
         expect(m.querySelector('b')).toBeNull();
         expect(m.textContent).toContain('Mostrando 1 de 2');
-        expect(JSON.parse(m.querySelector('[data-action="openLigacoesTratamento"]').getAttribute('data-args'))).toEqual(['p9', 'r1']);
+        expect(JSON.parse(m.querySelector('[data-action="abrirAtividade"]').getAttribute('data-args'))).toEqual(['p9', 'r1']);
 
         const f = dublar();
         await window.exportarCsvAcoes('p9', 'vencidas');

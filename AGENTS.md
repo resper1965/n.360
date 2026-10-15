@@ -245,7 +245,10 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   guardado, com rotulos sanitizados. A aprovacao por pedido (`tipo = 'tratamento'`, 0055 reconstroi `pedidos` no molde da 0051 e ja
   aceita `avaliacao_terceiro` da fatia 6) congela o registro e tudo o que ele liga (o diagrama sai dessas colunas); e DERIVADA
   (`aprovacoesDoProjeto(..., 'tratamento')`), mudar registro, item, departamento, parte ou transferencia invalida e substitui o pedido
-  aberto, status nao. Convive com a aprovacao direta antiga (`POST .../approve`). `POST /projects/:id/ropa/importar` (CSV) cria
+  aberto, status nao. Convive com a aprovacao direta antiga (`POST .../approve`), que no n.privacy saiu da tela (onda 2: a aprovacao da
+  atividade e so o pedido, na etapa 5 da pagina da atividade; o POST segue no servidor por compatibilidade, o n.iso ainda assina no modal
+  Detalhes, e a assinatura antiga gravada conta como aprovacao feita). `GET .../ligacoes` traz `aprovacao_anterior` (a aprovacao mais
+  recente quando nenhuma vale mais, porque a atividade mudou depois) e `pedidos_abertos`. `POST /projects/:id/ropa/importar` (CSV) cria
   `Draft`, devolve as linhas recusadas e nao duplica (chave: finalidade).
 - **DPIA e LIA do tratamento (fatia 5, migration 0056)**: `dpia_assessments.ropa_id` tem integridade no BANCO por tres triggers
   (`dpia_ropa_do_projeto_ins/_upd` recusam registro inexistente OU de outro projeto; `dpia_ropa_apagada` zera a referencia ao apagar o
@@ -262,8 +265,13 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `finalizar`). Fica FORA do conteudo congelado da aprovacao (nada entra em `COLUNAS_DPIA` nem em `DOCUMENTOS.tratamento.colunas`):
   responder nao substitui pedido. A DPIA criada do tratamento herda tambem base legal e retencao (`necessity_proportionality`),
   destinatarios (fluxo), riscos do registro e as respostas "sim" do teste (`risks_identified`); DPIA e LIA guardam `origem_hash`, o hash
-  do conteudo do tratamento quando nasceram. Na tela: bloco "Teste de impacto" da entrevista (so com a atividade gravada; perguntas e
-  recomendacao vem do servidor) e "Novo RIPD" que escolhe a atividade e cria por `POST .../ropa/:rid/dpia`.
+  do conteudo do tratamento quando nasceram. Nunca perguntar de novo: `GET .../impacto` traz por pergunta `curto` (o motivo em portugues
+  da recomendacao) e `da_atividade` (`respostasDaAtividade`): sensivel, crianca e transferencia (coluna ou transferencia ligada) so propoem
+  "sim" (o 0 tambem e o padrao de quem nao respondeu); legitimo interesse propoe "sim" pela base principal, adicional ou GDPR, e "nao" so
+  quando ha base e nenhuma e legitimo interesse. `resposta` continua sendo so o gravado (importacao e RIPD leem assim) e a recomendacao so
+  conta o gravado: a proposta vira resposta quando a pessoa salva. Na tela: etapa 2 da pagina da atividade (proposta marcada "Vindo da
+  atividade: confira", uma recomendacao so, a do servidor, `frontend/src/recomendacao-ripd.js`) e "Novo RIPD" que escolhe a atividade e
+  cria por `POST .../ropa/:rid/dpia`.
 - **Riscos e acoes da atividade (F2, migration 0073)**: `risks.ropa_id` e `corrective_actions.ropa_id` (SET NULL ao apagar a atividade)
   e o risco residual (`residual_impact`, `residual_probability`, `residual_level` calculado no servidor). E o MESMO cadastro do n.iso:
   `src/services/riscos-atividade.ts` (com `riskLevel`, a faixa unica de nivel) serve as sub-rotas `/projects/:id/ropa/:rid/{riscos,acoes}`
@@ -271,11 +279,10 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (`/risks/:id`, `/capa/:id`) e as listas `/risks` e `/capa` continuam `iso`. Toda consulta filtra `ropa_id` E `project_id`. Apagar o
   risco anula `risk_id` da acao antes (a acao sobrevive). O `PUT /risks/:id` parcial preserva e aceita `ropa_id` e residual. O agente cria
   e edita; aceitar risco (`status: Accepted`) e concluir acao (`Closed`) a rota recusa, e o DELETE esta em `FORA_DO_AGENTE`. Regra R1 do
-  `coherence` ignora risco com `ropa_id`; o aviso de prazo de acao em projeto sem n.iso leva a `/ropa`. Telas: secoes Riscos e Acoes nas
-  Ligacoes da atividade (`tratamento-ligacoes.js`; formulario novo ja vem com o sistema ligado e o responsavel da atividade), "Mapa de
+  `coherence` ignora risco com `ropa_id`; o aviso de prazo de acao em projeto sem n.iso leva a `/ropa`. Telas: etapa 4 da pagina da
+  atividade (formularios `blocoRiscos`/`blocoAcoes` de `tratamento-ligacoes.js`; o novo ja vem com o sistema ligado e o responsavel da atividade), "Mapa de
   risco" na secao Avaliar do n.privacy (`views/mapa-de-risco.js`, nivel por texto em cada celula, mesma faixa do `riskLevel`; ele e a matriz do n.iso, `grc.js`, usam
-  `frontend/src/nivel-risco.js`), a
-  entrevista so LE os riscos (bloco H) e tem "Finalizar teste de impacto"/"Reabrir" no bloco I; o painel do encarregado conta riscos
+  `frontend/src/nivel-risco.js`; "Abrir a atividade" leva a pagina dela); o painel do encarregado conta riscos
   altos em aberto e acoes vencidas das atividades (`riscos` em `GET .../encarregado`).
 - **Ciclo de vida e bases legais da atividade (F3, migration 0074)**: `tratamento_ciclo` (uma linha por etapa: coleta, uso,
   compartilhamento interno e externo, armazenamento, eliminacao; `registrada` ou `nao_aplicavel`; um `item_id` opcional, SET NULL; chave
@@ -288,7 +295,18 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (fluxo) e as bases (necessidade); o relatorio do RoPA mostra os dois. Selo "mudou na origem": `origem_mudou` em `GET .../ligacoes`
   (LIA e DPIAs) e em `GET /projects/:id/dpia`, comparando `origem_hash` com o hash atual (`comOrigemMudou` em `src/services/lia.ts`); so
   aviso. Entrevista: origem e eliminacao gravam a descricao da coleta e da eliminacao; a pergunta `ciclo` (so com a atividade gravada,
-  etapas do servidor) e `bases_adicionais`/`base_gdpr` no bloco D; so o que mudou e regravado.
+  etapas do servidor: a atividade nova grava e segue direto para ela) e `bases_adicionais`/`base_gdpr` no bloco D; so o que mudou e regravado.
+- **Pagina da atividade (n.privacy, onda 2 do diagnostico de 15/10, sem migration)**: `frontend/src/views/atividade.js`, tela
+  `ropa-atividade` (`window.abrirAtividade(projectId, ropaId)`; e pagina e nao painel porque o app tem um modal so e dela se abrem o pedido
+  de aprovacao, o RIPD e as ligacoes). Trilha de cinco etapas (Dados da atividade, Teste de impacto, RIPD ou LIA, Riscos e acoes,
+  Aprovacao), cada uma com o estado escrito (`etapasDaAtividade`: feito, pendente, nao se aplica, mudou depois da aprovacao, aguardando
+  decisao) e o proximo passo como a UNICA acao primaria da tela (`etapaDoProximoPasso`; os formularios reaproveitados recebem
+  `primaria = false`). RIPD na etapa 3 quando exigido, recomendado pelo teste ou ja criado (o pedido do RIPD fica no detalhe dele); LIA
+  quando a base e legitimo interesse. A linha do RoPA no n.privacy tem um botao so, "Abrir"; o Painel (acoes por prazo) e o mapa de risco
+  tambem abrem a pagina. O modal de ligacoes (`openLigacoesTratamento`, "Editar ligacoes" na etapa 1) ficou so com base legal, sugestao
+  da IA, sistemas, departamentos, partes, transferencias e diagrama. A entrevista nao pergunta mais volume, decisao automatica nem impacto
+  de vazamento (so alimentavam uma segunda recomendacao de RIPD na tela) nem tem o bloco do teste: a atividade nova grava, segue para o
+  ciclo de vida e termina na pagina. Teste: `frontend/test/atividade-view.test.js`.
 - **Exportacao, Word e faixas de prazo (F4, sem migration)**: CSV que abre no Excel em pt-BR (`src/services/exportacao.ts`: BOM,
   `;`, CRLF, toda celula entre aspas, celula que comeca com `= + - @`, tab ou CR ganha `'`, teto de 5.000 linhas com `X-Exportacao-Truncada`)
   em `GET /projects/:id/export/{atividades,ripd}` (nucleo) e `export/{riscos-atividade,acoes-atividade,lia}` (faixa `privacy`; riscos

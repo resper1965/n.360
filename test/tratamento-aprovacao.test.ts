@@ -253,3 +253,35 @@ describe('riscos do tratamento no conteúdo congelado', () => {
     expect((await registro(id)).aprovacao_pedido.ciso).toBeNull();
   });
 });
+
+// Onda 2 (uma aprovação só): a etapa de aprovação da atividade lê, nas ligações, a aprovação vigente, a que perdeu a validade
+// porque a atividade mudou e se há pedido aguardando. Só leitura: o conteúdo congelado e o hash não mudam.
+describe('situação da aprovação nas ligações (etapa 5 da atividade)', () => {
+  type Sit = { aprovacao: { ciso: { por: string } | null }; aprovacao_anterior: { por: string; em: string } | null; pedidos_abertos: number };
+  const lig = async (id: string) => json<Sit>(await chamar(consultor, 'GET', `/api/v1/projects/${P}/ropa/${id}/ligacoes`));
+
+  it('sem pedido; com pedido aberto; aprovada; e depois de mudar, a aprovação anterior com quem e quando', async () => {
+    const id = await novo('Situação da aprovação');
+    expect(await lig(id)).toMatchObject({ aprovacao: { ciso: null }, aprovacao_anterior: null, pedidos_abertos: 0 });
+    const ped = await pedido(id);
+    expect((await lig(id)).pedidos_abertos).toBe(1);
+    await aprovar(ped);
+    expect(await lig(id)).toMatchObject({ aprovacao: { ciso: { por: 'Cida Matriz' } }, aprovacao_anterior: null, pedidos_abertos: 0 });
+    await chamar(consultor, 'PUT', `/api/v1/ropa/${id}`, { processing_purpose: 'Situação da aprovação', retention_period: '2 anos' });
+    const depois = await lig(id);
+    expect(depois.aprovacao.ciso).toBeNull();
+    expect(depois.aprovacao_anterior).toMatchObject({ por: 'Cida Matriz' });
+    expect(depois.aprovacao_anterior!.em).toBeTruthy();
+  });
+
+  it('uma aprovação feita antes continua valendo: ler a situação não muda o hash nem o pedido', async () => {
+    const id = await novo('Aprovada antes da onda 2');
+    await aprovar(await pedido(id));
+    const antes = await hashConteudo((await documentoAtual(env.DB, 'tratamento', id, P))!.conteudo);
+    await lig(id);
+    await chamar(consultor, 'GET', `/api/v1/projects/${P}/ropa/${id}/impacto`);
+    expect(await hashConteudo((await documentoAtual(env.DB, 'tratamento', id, P))!.conteudo)).toBe(antes);
+    expect((await registro(id)).aprovacao_pedido.ciso).toMatchObject({ por: 'Cida Matriz' });
+    expect(await statusPedidos(id)).toEqual(['aprovado']);
+  });
+});

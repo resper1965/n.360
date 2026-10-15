@@ -6,45 +6,50 @@ import { NIVEIS } from './mapa-de-risco.js';
 
 // Ligações do registro do RoPA (fatia 4.1 e 4.2 do núcleo): base legal do catálogo, itens, departamentos, partes,
 // transferências internacionais e o diagrama derivado. Toda regra é do servidor; aqui só se mostra e se chama.
-// Todo texto vindo do servidor é escapado.
+// Todo texto vindo do servidor é escapado. Avaliações (RIPD e LIA), riscos, ações e aprovação moram nas etapas da página da
+// atividade (views/atividade.js, onda 2); os formulários de lá são os daqui (blocoRiscos, blocoAcoes, formularioLia).
 
 const PAPEIS_PARTE = { operador: 'Operador', cocontrolador: 'Cocontrolador', suboperador: 'Suboperador', terceiro: 'Destinatário', responsavel: 'Responsável' };
 const TIPOS_ITEM = { sistema: 'Sistema', ativo: 'Ativo', base: 'Base', processo: 'Processo' };
 const PAIS_DAS_BASES = ['lgpd:art7', 'lgpd:art11'];
 
-const podePedir = () => typeof window.podePedirAprovacao === 'function' && window.podePedirAprovacao(S.user);
-const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'].includes(S.user.role);
+/** Quem edita ligações, riscos, ações e a LIA (o servidor decide de novo). */
+export const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'].includes(S.user.role);
 // Quem o servidor deixa pedir rascunho de IA (services/rascunhos-privacy.ts): equipe e o administrador do cliente.
 const podeRascunho = () => podeEditar() || (!!S.user && S.user.role === 'org_admin');
 const AVISO_IA = 'Rascunho gerado por IA — revise antes de usar';
-// Selo "mudou na origem" (F3): o tratamento mudou depois que a DPIA/LIA nasceu dele. Só aviso; nada é invalidado.
-const ORIGEM_MUDOU = 'O tratamento mudou depois que esta avaliação nasceu: revise.';
+// Selo "mudou na origem" (F3): a atividade mudou depois que o RIPD/LIA nasceu dela. Só aviso; nada é invalidado.
+export const ORIGEM_MUDOU = 'A atividade mudou depois que esta avaliação nasceu: revise.';
 let basesAbertas = [];
 const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
+/** Depois de gravar: redesenha a página da atividade e reabre o modal de ligações, se era dele que a ação veio. */
+async function atualizar(projectId, ropaId) {
+    const noModal = !!el('tl-ligacoes');
+    if (S.view === 'ropa-atividade') window.render();
+    if (noModal) await window.openLigacoesTratamento(projectId, ropaId);
+}
+window.atualizarTratamento = atualizar;
+
 async function acao(projectId, ropaId, fazer, padrao, sucesso) {
     try {
         await fazer();
         if (sucesso) showToast(sucesso, 'success');
-        await window.openLigacoesTratamento(projectId, ropaId);
+        await atualizar(projectId, ropaId);
     } catch (e) { falha(e, padrao); }
 }
-
-/** Aprovação derivada dos pedidos: vale o pedido aprovado cujo conteúdo é o de hoje; mudar o registro ou uma ligação tira a validade. */
-const textoAprovacao = (ap) => {
-    if (!ap || (!ap.ciso && !ap.ceo)) return 'Sem aprovação por pedido vigente.';
-    const quem = (c) => `${escapeHTML(c.por)} em ${escapeHTML(String(c.em || '').slice(0, 10))}`;
-    return [ap.ciso ? `Líder SGSI: ${quem(ap.ciso)}` : '', ap.ceo ? `Direção: ${quem(ap.ceo)}` : ''].filter(Boolean).join(' · ');
-};
 
 const CONCLUSOES = { prevalece: 'O interesse do controlador prevalece', nao_prevalece: 'Os direitos do titular prevalecem' };
 const campoLia = (id, rotulo, valor, travado) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><textarea class="form-input" id="${id}" rows="2" maxlength="5000" ${travado ? 'disabled' : ''}>${escapeHTML(valor || '')}</textarea></div>`;
 
-/** Formulário da LIA: rascunho salva, concluir exige o conjunto, concluída só reabre. Texto sempre escapado. */
-function formularioLia(lia, projectId, ropaId) {
+/**
+ * Formulário da LIA: rascunho salva, concluir exige o conjunto, concluída só reabre. Texto sempre escapado. `primaria` falso tira o
+ * destaque do Concluir: na página da atividade a única ação primária é o próximo passo.
+ */
+export function formularioLia(lia, projectId, ropaId, primaria = true) {
     const travado = !!lia && lia.status === 'concluida';
     return `<div id="tl-lia">
         ${campoLia('tl-lia-fin', 'Finalidade legítima', lia && lia.finalidade_legitima, travado)}
@@ -57,7 +62,7 @@ function formularioLia(lia, projectId, ropaId) {
         <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
             ${travado ? `<button class="btn btn-sm" data-action="reabrirLiaTratamento" data-args='${args(projectId, ropaId)}'>Reabrir para editar</button>`
                 : `<button class="btn btn-sm" data-action="salvarLiaTratamento" data-args='${args(projectId, ropaId, false)}'>Salvar rascunho</button>
-                   <button class="btn btn-primary btn-sm" data-action="salvarLiaTratamento" data-args='${args(projectId, ropaId, true)}'>Concluir</button>`}
+                   <button class="btn ${primaria ? 'btn-primary ' : ''}btn-sm" data-action="salvarLiaTratamento" data-args='${args(projectId, ropaId, true)}'>Concluir</button>`}
         </div></div>`;
 }
 
@@ -73,7 +78,7 @@ const nivel = (n) => escapeHTML(NIVEIS[n] || n || '—');
 const dataCurta = (d) => (d ? `${escapeHTML(String(d).slice(8, 10))}/${escapeHTML(String(d).slice(5, 7))}/${escapeHTML(String(d).slice(0, 4))}` : '—');
 
 /** Riscos: lista e formulário. O formulário novo já vem com o primeiro sistema ligado à atividade e o responsável dela. */
-function blocoRiscos(projectId, ropaId, riscos, itensLigados, partes, editar, dono) {
+export function blocoRiscos(projectId, ropaId, riscos, itensLigados, partes, editar, dono, primaria = true) {
     const linhas = riscos.length ? `<table class="data-table"><thead><tr><th>Ameaça</th><th>Impacto x probabilidade</th><th>Nível</th><th>Residual</th><th>Tratamento</th><th>Situação</th><th></th></tr></thead><tbody>${riscos.map((k) =>
         `<tr><td>${escapeHTML(k.threat)}${k.asset ? `<div style="color:var(--text-dim); font-size:0.8rem">${escapeHTML(k.asset)}</div>` : ''}</td><td>${escapeHTML(String(k.impact))} x ${escapeHTML(String(k.probability))}</td>
             <td>${nivel(k.risk_level)}</td><td>${k.residual_level ? nivel(k.residual_level) : '—'}</td><td>${escapeHTML(TRATAMENTOS[k.treatment] || k.treatment || '—')}</td>
@@ -100,12 +105,12 @@ function blocoRiscos(projectId, ropaId, riscos, itensLigados, partes, editar, do
             <div class="form-group" style="flex:1"><label class="form-label" for="tl-rk-status">Situação</label><select class="form-input" id="tl-rk-status">${opcoes(SITUACAO_RISCO, 'Open')}</select></div>
         </div>
         <div class="form-group"><label class="form-label" for="tl-rk-resp">Responsável</label><select class="form-input" id="tl-rk-resp">${opcoesPartes(partes, dono)}</select></div>
-        <div style="display:flex; gap:0.5rem"><button class="btn btn-primary btn-sm" data-action="salvarRiscoAtividade" data-args='${args(projectId, ropaId)}'>Salvar risco</button>
-            <button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='${args(projectId, ropaId)}'>Limpar</button></div></div>`;
+        <div style="display:flex; gap:0.5rem"><button class="btn ${primaria ? 'btn-primary ' : ''}btn-sm" data-action="salvarRiscoAtividade" data-args='${args(projectId, ropaId)}'>Salvar risco</button>
+            <button class="btn btn-ghost btn-sm" data-action="atualizarTratamento" data-args='${args(projectId, ropaId)}'>Limpar</button></div></div>`;
 }
 
 /** Ações (gaps): lista e formulário; o responsável novo nasce o da atividade, e o risco só pode ser um desta atividade. */
-function blocoAcoes(projectId, ropaId, acoes, riscos, partes, editar, dono) {
+export function blocoAcoes(projectId, ropaId, acoes, riscos, partes, editar, dono, primaria = true) {
     const linhas = acoes.length ? `<table class="data-table"><thead><tr><th>Ação</th><th>Prazo</th><th>Responsável</th><th>Risco</th><th>Situação</th><th></th></tr></thead><tbody>${acoes.map((x) =>
         `<tr><td>${escapeHTML(x.title)}</td><td>${dataCurta(x.due_date)}</td><td>${escapeHTML(x.assigned_to_parte_nome || x.assigned_to || '—')}</td><td>${escapeHTML(x.risco_ameaca || '—')}</td>
             <td>${escapeHTML(SITUACAO_ACAO[x.status] || x.status || '—')}</td><td style="text-align:right; white-space:nowrap">${editar
@@ -123,8 +128,8 @@ function blocoAcoes(projectId, ropaId, acoes, riscos, partes, editar, dono) {
         <div class="form-group"><label class="form-label" for="tl-ac-resp">Responsável</label><select class="form-input" id="tl-ac-resp">${opcoesPartes(partes, dono)}</select></div>
         <div class="form-group"><label class="form-label" for="tl-ac-risco">Risco que a ação trata</label><select class="form-input" id="tl-ac-risco"><option value="">— nenhum —</option>${riscos.map((k) =>
             `<option value="${escapeHTML(k.id)}">${escapeHTML(k.threat)}</option>`).join('')}</select></div>
-        <div style="display:flex; gap:0.5rem"><button class="btn btn-primary btn-sm" data-action="salvarAcaoAtividade" data-args='${args(projectId, ropaId)}'>Salvar ação</button>
-            <button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='${args(projectId, ropaId)}'>Limpar</button></div></div>`;
+        <div style="display:flex; gap:0.5rem"><button class="btn ${primaria ? 'btn-primary ' : ''}btn-sm" data-action="salvarAcaoAtividade" data-args='${args(projectId, ropaId)}'>Salvar ação</button>
+            <button class="btn btn-ghost btn-sm" data-action="atualizarTratamento" data-args='${args(projectId, ropaId)}'>Limpar</button></div></div>`;
 }
 
 const secao = (titulo, corpo) => `<h4 style="margin:1.25rem 0 0.5rem">${titulo}</h4>${corpo}`;
@@ -134,14 +139,8 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
     let lig;
     try { lig = await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/ligacoes`); } catch (e) { falha(e, 'Não foi possível abrir as ligações'); return; }
     const editar = podeEditar();
-    let itens = [], deptos = [], partes = [], bases = [], diagrama = '', lia = null;
+    let itens = [], deptos = [], partes = [], bases = [], diagrama = '';
     try { diagrama = (await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/diagrama`)).mermaid || ''; } catch (e) { /* abre sem o diagrama */ }
-    try { lia = (await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/lia`)).lia || null; } catch (e) { /* abre sem a LIA */ }
-    let riscos = [], acoes = [];
-    try { riscos = lista((await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/riscos`)).riscos); } catch (e) { /* abre sem os riscos */ }
-    try { acoes = lista((await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/acoes`)).acoes); } catch (e) { /* abre sem as ações */ }
-    S.riscosAtividade = riscos;
-    S.acoesAtividade = acoes;
     if (editar) {
         try { const r = await api('GET', `/api/v1/projects/${projectId}/assets`); itens = Array.isArray(r) ? r : lista(r && r.assets); } catch (e) { /* sem seletor de itens */ }
         try { deptos = lista(await api('GET', `/api/v1/projects/${projectId}/departamentos`)); } catch (e) { /* idem */ }
@@ -152,7 +151,6 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
     S.ligacoesTratamento = { itens: lig.itens.map((i) => i.id), departamentos: lig.departamentos.map((d) => d.id) };
     const registro = (S.ropa || []).find((r) => r.id === ropaId) || {};
     const finalidade = registro.processing_purpose || '';
-    const dono = registro.owner_parte_id || '';
 
     const marcados = (lst, ids, rotulo, tipo) => lst.length
         ? `<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.25rem 1rem">${lst.map((x) =>
@@ -162,19 +160,9 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
     const tabelaItens = lig.itens.length ? lig.itens.map((i) => `${escapeHTML(i.nome)} (${escapeHTML(TIPOS_ITEM[i.tipo] || i.tipo)})`).join(', ') : 'Nenhum';
     const tabelaDeptos = lig.departamentos.length ? lig.departamentos.map((d) => escapeHTML(d.nome)).join(', ') : 'Nenhum';
 
-    openModal(`
-        <h3>Ligações do tratamento</h3>
+    openModal(`<div id="tl-ligacoes">
+        <h3>Ligações da atividade</h3>
         <p style="color:var(--text-dim)">${escapeHTML(finalidade)}</p>
-        ${secao('Aprovação', `<p id="tl-aprovacao">${textoAprovacao(lig.aprovacao)}</p>
-            ${podePedir() ? `<button class="btn btn-sm" data-action="pedirAprovacaoTratamento" data-args='${args(projectId, ropaId)}'>Pedir aprovação</button>` : ''}`)}
-        ${secao('Avaliações', `<div id="tl-avaliacoes">
-            <p><strong>DPIA</strong>: ${lig.dpias.length ? lig.dpias.map((d) => `${escapeHTML(d.nome || 'Sem nome')} (${escapeHTML(d.status || '—')})${d.origem_mudou ? ` <span class="tl-origem">${ORIGEM_MUDOU}</span>` : ''}`).join(', ') + ` <button class="btn btn-ghost btn-sm" data-action="navigate" data-args='["dpia"]'>Abrir a tela de DPIA</button>`
-                : (lig.dpia_pendente ? 'exigida por este registro e ainda não criada.' : 'nenhuma ligada.')}
-            ${editar && !lig.dpias.length ? `<button class="btn btn-sm" data-action="criarDpiaDoTratamento" data-args='${args(projectId, ropaId)}'>Criar DPIA a partir do tratamento</button>` : ''}</p>
-            <p><strong>LIA</strong> (teste de legítimo interesse): ${lig.lia.exigida ? 'exigida pela base legal' : 'não exigida pela base legal'}${lig.lia.existe ? ` · ${escapeHTML(lig.lia.status === 'concluida' ? 'concluída' : 'em rascunho')}` : (lig.lia.exigida ? ' · ainda não feita' : '')}.${lig.lia.origem_mudou ? ` <span class="tl-origem">${ORIGEM_MUDOU}</span>` : ''}${lia ? ` <button class="btn btn-ghost btn-sm" data-action="baixarWordLia" data-args='${args(projectId, ropaId)}'>Baixar Word</button>` : ''}</p>
-            ${editar ? formularioLia(lia, projectId, ropaId) : (lia ? `<p style="color:var(--text-dim)">${escapeHTML(lia.finalidade_legitima || '')}</p>` : '')}</div>`)}
-        ${secao('Riscos', blocoRiscos(projectId, ropaId, riscos, lig.itens, partes, editar, dono))}
-        ${secao('Ações', blocoAcoes(projectId, ropaId, acoes, riscos, partes, editar, dono))}
         ${secao('Base legal', `
             <p id="tl-base-atual">${lig.base_legal ? `${escapeHTML(lig.base_legal.referencia)} — ${escapeHTML(lig.base_legal.titulo)}` : 'Não definida'}</p>
             ${editar && bases.length ? `<div style="display:flex; gap:0.5rem; align-items:flex-end"><div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tl-base">Base legal do catálogo</label>
@@ -182,7 +170,7 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
                     `<option value="${escapeHTML(b.id)}" ${lig.base_legal && lig.base_legal.id === b.id ? 'selected' : ''}>${escapeHTML(b.referencia)} — ${escapeHTML(b.titulo)}</option>`).join('')}</select></div>
                 <button class="btn btn-sm" data-action="salvarBaseLegalTratamento" data-args='${args(projectId, ropaId)}'>Salvar</button></div>`
                 : (editar ? vazio('O catálogo da LGPD ainda não tem as bases legais carregadas; vale o texto livre do registro.') : '')}`)}
-        ${podeRascunho() ? secao('Sugestão da IA', `<p style="color:var(--text-dim)">Base legal, retenção e DPIA sugeridas a partir da descrição do tratamento. Nada muda até você aplicar.</p>
+        ${podeRascunho() ? secao('Sugestão da IA', `<p style="color:var(--text-dim)">Base legal, retenção e RIPD sugeridos a partir da descrição do tratamento. Nada muda até você aplicar.</p>
             <button class="btn btn-sm" data-action="sugerirTratamento" data-args='${args(projectId, ropaId)}'>Sugerir</button>
             <div id="tl-sugestao" style="margin-top:0.75rem"></div>`) : ''}
         ${secao('Sistemas, bases e processos', editar
@@ -216,7 +204,7 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
         ${secao('Diagrama', `<p style="color:var(--text-dim)">Gerado das ligações acima; muda quando elas mudam. Cole em qualquer visualizador de Mermaid.</p>
             <pre id="tl-diagrama" style="white-space:pre-wrap; max-height:240px; overflow:auto; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(diagrama)}</pre>
             ${diagrama ? '<button class="btn btn-ghost btn-sm" data-action="copiarDiagramaTratamento">Copiar diagrama</button>' : ''}`)}
-    `, 'modal-large');
+    </div>`, 'modal-large');
 };
 
 // ─── Riscos e ações: salvar (POST novo, PUT editado), editar (preenche o formulário), apagar com confirmação na linha ───
@@ -295,8 +283,10 @@ const marcadosDe = (tipo) => [...document.querySelectorAll(`input[data-tl="${tip
 
 window.pedirAprovacaoTratamento = (projectId, ropaId) => window.abrirPedidoAprovacao(projectId, 'tratamento', ropaId);
 
-window.criarDpiaDoTratamento = (projectId, ropaId) => acao(projectId, ropaId,
-    () => api('POST', `/api/v1/projects/${projectId}/ropa/${ropaId}/dpia`), 'Não foi possível criar a DPIA', 'DPIA criada. Complete-a na tela de DPIA.');
+// O RIPD nasce da atividade (herda o que já foi informado); 409 = já existia, e a página mostra o existente.
+window.criarDpiaDoTratamento = (projectId, ropaId) => acao(projectId, ropaId, async () => {
+    try { await api('POST', `/api/v1/projects/${projectId}/ropa/${ropaId}/dpia`); } catch (e) { if (e.status !== 409) throw e; }
+}, 'Não foi possível criar o RIPD', 'RIPD criado como rascunho, já com o que a atividade informa.');
 
 // Word da LIA (F4), pelo caminho autenticado de api.js.
 window.baixarWordLia = (projectId, ropaId) => baixarArquivo(`/api/v1/projects/${projectId}/ropa/${ropaId}/lia/docx`)
@@ -338,7 +328,7 @@ window.sugerirTratamento = async function (projectId, ropaId) {
         <div class="form-group"><label class="form-label" for="tl-sug-base">Base legal</label><select class="form-input" id="tl-sug-base">${opcoesBase.map((b) =>
             `<option value="${escapeHTML(b.id)}" ${b.id === s.base_legal ? 'selected' : ''}>${escapeHTML(b.referencia)}${b.titulo ? ` — ${escapeHTML(b.titulo)}` : ''}</option>`).join('')}</select></div>
         <div class="form-group"><label class="form-label" for="tl-sug-ret">Retenção</label><input class="form-input" id="tl-sug-ret" maxlength="500" value="${escapeHTML(s.retencao)}"></div>
-        <label style="display:flex; gap:0.4rem; align-items:center"><input type="checkbox" id="tl-sug-dpia" ${s.dpia_requerido ? 'checked' : ''}> DPIA requerida</label>
+        <label style="display:flex; gap:0.4rem; align-items:center"><input type="checkbox" id="tl-sug-dpia" ${s.dpia_requerido ? 'checked' : ''}> Exige RIPD</label>
         <p id="tl-sug-just" style="color:var(--text-dim); white-space:pre-wrap">${escapeHTML(s.justificativa)}</p>
         <button class="btn btn-primary btn-sm" data-action="aplicarSugestaoTratamento" data-args='${args(projectId, ropaId)}'>Aplicar</button>`;
 };
