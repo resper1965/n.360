@@ -7,8 +7,6 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/ponto-de-partida.js';
-import '../src/views/encarregado.js';
-import '../src/views/dashboard.js';
 
 const PONTO = (extra = {}) => ({
     cadastro: { tratamentos: 2, dpias: 1, documentos_vigentes: 1, evidencias_validas: 1, itens: 1, terceiros: 1, encarregado: true, incidentes: 1, treinamentos_concluidos: 1 },
@@ -53,26 +51,5 @@ describe('renderPontoDePartida', () => {
     });
 });
 
-describe('onde o painel aparece', () => {
-    it('Encarregado (n.privacy) chama o ponto de partida e nada da faixa n.iso', async () => {
-        const f = servir({ 'GET /api/v1/projects/p9/encarregado': { prioridades: [], encarregados: [], lgpd: { carregada: false } }, 'GET /api/v1/projects/p9/ponto-de-partida': PONTO() });
-        const c = novo();
-        await window.renderEncarregado(c, document.getElementById('h'), document.getElementById('a'));
-        await vi.waitFor(() => expect(c.textContent).toContain('Cobertura LGPD'));
-        const rotas = chamadas(f);
-        expect(rotas).toContain('GET /api/v1/projects/p9/ponto-de-partida');
-        expect(rotas.filter((r) => /controls|checklist|policies|gap-analysis/.test(r))).toEqual([]);
-    });
-    it('Dashboard (n.iso) chama o ponto de partida e nada da faixa n.privacy', async () => {
-        const f = servir({
-            'GET /api/v1/assessments': [], 'GET /api/v1/projects': [], 'GET /api/v1/controls': [], 'GET /api/v1/leads': [],
-            'GET /api/v1/projects/p9/ponto-de-partida': PONTO(),
-        });
-        const c = novo();
-        await window.renderDashboard(c, document.getElementById('h'), document.getElementById('a'));
-        await vi.waitFor(() => expect(c.textContent).toContain('A privacidade já adianta estes controles'));
-        const rotas = chamadas(f);
-        expect(rotas).toContain('GET /api/v1/projects/p9/ponto-de-partida');
-        expect(rotas.filter((r) => /encarregado|requisitos|titular|terceiros|incidentes/.test(r))).toEqual([]);
-    });
-});
+// Onde aparece: só no início do n.360 (o painel de entrada o desenha na coluna da direita). As entradas dos módulos não o
+// chamam mais (estudo de 14/10/2026, Fase 1): test/painel-view.test.js confere as duas coisas.

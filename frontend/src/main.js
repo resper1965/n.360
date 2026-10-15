@@ -22,7 +22,7 @@ import './views/titular.js';
 import './views/encarregado.js';
 import './views/importacao.js';
 import './views/ponto-de-partida.js';
-import './views/inicio.js';
+import './views/painel.js';
 import './views/tratamento-ligacoes.js';
 import './views/compliance.js';
 import './views/monitor.js';
