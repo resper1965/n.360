@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0074** (`ls migrations/*.sql | tail -1`). São 72 arquivos
+- Última migration no repositório: **0076** (`ls migrations/*.sql | tail -1`). São 74 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -599,5 +599,21 @@ Conferência depois: `PRAGMA table_info(homologacao_perguntas)`, `PRAGMA table_i
 WHERE name = 'homologacao_imutavel'`. Para desfazer: `DROP TABLE homologacoes; DROP TABLE homologacao_perguntas` (o código anterior não
 as lê). **Esta RODA em produção ANTES do código novo:** as rotas de homologação e a página do fornecedor leem as tabelas; o deploy do
 merge recusa enquanto ela estiver pendente.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+## 0076 — importação do legado (F6, 2026-10-15)
+
+Rebuild de `importacao_itens`, no molde exato da 0067 (CHECK só muda por rebuild no SQLite): `entidade` passa a aceitar `risco`, `gap`,
+`impacto`, `ciclo` e `bases`, e a tabela ganha `aviso` (texto, nulo nas linhas existentes: o aviso da gravação, que antes só voltava na
+resposta da confirmação, para o relatório de reconciliação contar). Só esta tabela muda; nenhuma tabela aponta para ela, então o `DROP`
+não cascateia; as FKs dela para lote, arquivo e projeto e os três índices seguem iguais. A cópia vai para `importacao_itens_new` ANTES do
+`DROP`: se parar no meio, a original fica inteira. `test/migration-0076.test.ts` prova sobre o banco da 0067 com itens de todas as entidades
+antigas: as linhas ficam idênticas, `aviso` nasce nulo, as cinco entidades novas entram, entidade fora da lista é recusada, a cascata do
+lote continua e `importacao_itens_new` não sobra. **NÃO é idempotente** (`CREATE TABLE importacao_itens_new` sem `IF NOT EXISTS`); aplicar
+só uma vez, pelo `migrations apply`. Conferência antes: `SELECT COUNT(*) FROM importacao_itens`; depois: a mesma contagem,
+`PRAGMA table_info(importacao_itens)` com `aviso` e `SELECT sql FROM sqlite_master WHERE name = 'importacao_itens'` com `'bases'` no CHECK.
+Para desfazer: não precisa (o código anterior não lê `aviso` e não grava as entidades novas). **Esta RODA em produção ANTES do código novo:**
+o código grava `aviso` e as entidades novas; o deploy do merge recusa enquanto ela estiver pendente.
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.

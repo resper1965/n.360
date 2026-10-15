@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { CANAIS_PEDIDO, STATUS_PEDIDO, TIPOS_PEDIDO } from '../services/titular-pedidos';
 import { RISCOS } from '../services/incidentes';
+import { PERGUNTAS_IMPACTO } from '../services/impacto';
+import { IDS_ETAPAS } from '../services/ciclo';
 
 /**
  * Importação de programa de privacidade (n.privacy, fatias 1 a 4). O que o agente propõe só chega ao banco por este esquema:
@@ -67,10 +69,18 @@ export type DocumentoProposto = z.infer<typeof documentoPropostoSchema>;
 export const OBRIGATORIOS_DOCUMENTO = ['titulo', 'tipo'] as const;
 
 /** Fatia 3: DPIA ou LIA proposta (a entidade do item diz qual). `tratamento` é a finalidade, casada com o RoPA pelo nome normalizado. */
+const longo = z.string().trim().max(2000).nullish();
 export const avaliacaoPropostaSchema = z.object({
   tratamento: z.string().trim().min(1).max(500),
-  conclusao: z.string().trim().max(2000).nullish(),
+  conclusao: longo,
   riscos: z.array(z.string().trim().min(1).max(500)).max(50).optional(),
+  // F6: as seções do RIPD e da LIA do legado (todas opcionais; o arquivo só com conclusão e riscos continua valendo).
+  necessidade: longo,
+  medidas: longo,
+  risco_residual: z.enum(['baixo', 'medio', 'alto']).nullish(),
+  finalidade_legitima: longo,
+  balanceamento: longo,
+  salvaguardas: longo,
 }).strict();
 export type AvaliacaoProposta = z.infer<typeof avaliacaoPropostaSchema>;
 export const OBRIGATORIOS_AVALIACAO = ['tratamento', 'conclusao', 'riscos'] as const;
@@ -123,6 +133,73 @@ export const consentimentoPropostoSchema = z.object({
 export type ConsentimentoProposto = z.infer<typeof consentimentoPropostoSchema>;
 export const OBRIGATORIOS_CONSENTIMENTO = ['versao_aviso'] as const;
 
+/**
+ * F6 (importação do legado). `atividade` é a finalidade do tratamento, casada com o RoPA pelo nome normalizado (sem ela, o item é
+ * recusado). Responsável é nome de pessoa já cadastrada nas partes e ativo é nome de item; o que não casar vira aviso, nada é criado.
+ * Nenhum campo de titular: o texto livre de risco e ação ainda passa por `mascararPii` no servidor.
+ */
+const atividade = z.string().trim().min(1).max(500);
+const nota = z.number().int().min(1).max(5).nullish();
+const nomeCurto = z.string().trim().max(200).nullish();
+
+export const riscoPropostoSchema = z.object({
+  atividade,
+  ameaca: z.string().trim().min(1).max(500),
+  vulnerabilidade: texto,
+  ativo: nomeCurto,
+  impacto: nota,
+  probabilidade: nota,
+  nivel: z.enum(['baixo', 'medio', 'alto', 'critico']).nullish(),
+  estrategia: z.enum(['mitigar', 'aceitar', 'evitar', 'transferir']).nullish(),
+  plano: texto,
+  impacto_residual: nota,
+  probabilidade_residual: nota,
+  prazo: dia.nullish(),
+  responsavel: nomeCurto,
+  status: z.enum(['aberto', 'mitigado', 'aceito', 'fechado']).nullish(),
+}).strict();
+export type RiscoProposto = z.infer<typeof riscoPropostoSchema>;
+export const OBRIGATORIOS_RISCO = ['atividade', 'ameaca', 'impacto', 'probabilidade', 'estrategia'] as const;
+
+export const gapPropostoSchema = z.object({
+  atividade,
+  titulo: z.string().trim().min(1).max(500),
+  descricao: texto,
+  prazo: dia.nullish(),
+  responsavel: nomeCurto,
+  status: z.enum(['aberto', 'em_andamento', 'concluido']).nullish(),
+  risco: z.string().trim().max(500).nullish(),
+}).strict();
+export type GapProposto = z.infer<typeof gapPropostoSchema>;
+export const OBRIGATORIOS_GAP = ['atividade', 'titulo', 'prazo', 'responsavel'] as const;
+
+const resposta = z.enum(['sim', 'nao', 'nao_sei']).nullish();
+export const impactoPropostoSchema = z.object({
+  atividade,
+  ...Object.fromEntries(PERGUNTAS_IMPACTO.map((p) => [p.id, resposta])) as Record<string, typeof resposta>,
+}).strict();
+export type ImpactoProposto = { atividade: string } & Record<string, 'sim' | 'nao' | 'nao_sei' | null | undefined>;
+export const OBRIGATORIOS_IMPACTO = ['atividade'] as const;
+
+export const cicloPropostoSchema = z.object({
+  atividade,
+  etapa: z.enum(IDS_ETAPAS),
+  situacao: z.enum(['registrada', 'nao_aplicavel']),
+  item: nomeCurto,
+  descricao: texto,
+}).strict();
+export type CicloProposto = z.infer<typeof cicloPropostoSchema>;
+export const OBRIGATORIOS_CICLO = ['atividade', 'etapa', 'situacao'] as const;
+
+/** `adicionais`: texto da base (casado com o catálogo como na fatia 1) ou o id do requisito (`lgpd:art7:ix`). */
+export const basesPropostasSchema = z.object({
+  atividade,
+  adicionais: z.array(z.string().trim().min(1).max(300)).max(20).optional(),
+  base_gdpr: z.string().trim().max(300).nullish(),
+}).strict();
+export type BasesPropostas = z.infer<typeof basesPropostasSchema>;
+export const OBRIGATORIOS_BASES = ['atividade'] as const;
+
 /** `dados` passa por um dos esquemas aqui; o serviço confere que é o da entidade do item. */
 /** Aceitar ou descartar vários itens de uma vez (a gravação continua exigindo "confirmar"). */
 export const importacaoItensDecidirSchema = z.object({
@@ -132,6 +209,7 @@ export const importacaoItensDecidirSchema = z.object({
 
 export const importacaoItemSchema = z.object({
   dados: z.union([tratamentoPropostoSchema, terceiroPropostoSchema, documentoPropostoSchema, avaliacaoPropostaSchema,
-    pedidoPropostoSchema, incidentePropostoSchema, consentimentoPropostoSchema]).optional(),
+    pedidoPropostoSchema, incidentePropostoSchema, consentimentoPropostoSchema, riscoPropostoSchema, gapPropostoSchema, impactoPropostoSchema,
+    cicloPropostoSchema, basesPropostasSchema]).optional(),
   decisao: z.enum(['aceito', 'descartado', 'pendente']).optional(),
 }).strict().refine((b) => b.dados !== undefined || b.decisao !== undefined, { message: 'Informe dados ou decisao' });

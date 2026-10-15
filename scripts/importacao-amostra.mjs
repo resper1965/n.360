@@ -32,4 +32,6 @@ Como usar (ambiente com Workers AI real, projeto com o n.privacy habilitado, usu
   2. Envie os dois arquivos e processe cada um.
   3. Confira os itens propostos, aceite e confirme; os tratamentos aparecem no ROPA.
   4. Cancele o lote ou apague os registros de teste ao final.
-Nada aqui roda no CI: o teste automático usa IA simulada.`);
+Nada aqui roda no CI: o teste automático usa IA simulada.
+
+Migração do sistema anterior sem IA: os modelos de CSV fictícios estão em docs/modelos-importacao/ (ver docs/runbook-migracao-legado.md).`);

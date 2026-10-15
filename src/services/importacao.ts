@@ -5,9 +5,17 @@ import { ImportacaoAgent, type TipoArquivo, type TipoExtraido } from '../agents/
 import {
   OBRIGATORIOS_AVALIACAO, OBRIGATORIOS_CONSENTIMENTO, OBRIGATORIOS_DOCUMENTO, OBRIGATORIOS_INCIDENTE, OBRIGATORIOS_PEDIDO, OBRIGATORIOS_ROPA,
   OBRIGATORIOS_TERCEIRO, PSEUDONIMO, avaliacaoPropostaSchema, consentimentoPropostoSchema, documentoPropostoSchema, incidentePropostoSchema,
-  pedidoPropostoSchema, terceiroPropostoSchema, tratamentoPropostoSchema, type AvaliacaoProposta, type ConsentimentoProposto, type DocumentoProposto,
-  type IncidenteProposto, type PedidoProposto, type TerceiroProposto, type TratamentoProposto,
+  pedidoPropostoSchema, terceiroPropostoSchema, tratamentoPropostoSchema, type ConsentimentoProposto,
+  type IncidenteProposto, type PedidoProposto, type TerceiroProposto,
+  OBRIGATORIOS_BASES, OBRIGATORIOS_CICLO, OBRIGATORIOS_GAP, OBRIGATORIOS_IMPACTO, OBRIGATORIOS_RISCO, basesPropostasSchema, cicloPropostoSchema,
+  gapPropostoSchema, impactoPropostoSchema, riscoPropostoSchema,
 } from '../schemas/importacao';
+import { criarAcao, criarRisco } from './riscos-atividade';
+import { lerImpacto, salvarImpacto, PERGUNTAS_IMPACTO, type RespostaImpacto } from './impacto';
+import { lerCiclo, salvarCiclo } from './ciclo';
+import { lerBases, salvarBases } from './bases';
+import { itensDoModelo, modeloDoCsv, type Modelo } from './importacao-modelos';
+import { montarCsv } from './exportacao';
 import { chave, stmtInserirTratamento, validarTratamento } from './tratamentos-importar';
 import { lerLigacoes, stmtsLigacao } from './tratamentos';
 import { stmtsCriarAtivo } from './itens';
@@ -59,17 +67,28 @@ type LinhaItem = { id: string; entidade: Entidade; dados: string; faltando: stri
  * campo `tipo` da resposta do modelo decide); histórico é `titular_pedido`, `incidente` ou `consentimento` (o campo `registro`). A
  * entidade aqui só marca que o tipo é extraído.
  */
-type Entidade = 'tratamento' | 'terceiro' | 'documento' | 'dpia' | 'lia' | 'titular_pedido' | 'incidente' | 'consentimento';
+export type Entidade = 'tratamento' | 'terceiro' | 'documento' | 'dpia' | 'lia' | 'titular_pedido' | 'incidente' | 'consentimento'
+  | 'risco' | 'gap' | 'impacto' | 'ciclo' | 'bases';
 type EntidadeHistorico = 'titular_pedido' | 'incidente' | 'consentimento';
 const ENTIDADE_DO_TIPO: Partial<Record<TipoArquivo, Entidade>> = { inventario: 'tratamento', terceiros: 'terceiro', documento: 'documento', avaliacao: 'dpia', historico: 'titular_pedido' };
 const DO_REGISTRO: Record<string, EntidadeHistorico> = { pedido: 'titular_pedido', incidente: 'incidente', consentimento: 'consentimento' };
 const ESQUEMA = {
   tratamento: tratamentoPropostoSchema, terceiro: terceiroPropostoSchema, documento: documentoPropostoSchema, dpia: avaliacaoPropostaSchema, lia: avaliacaoPropostaSchema,
   titular_pedido: pedidoPropostoSchema, incidente: incidentePropostoSchema, consentimento: consentimentoPropostoSchema,
+  risco: riscoPropostoSchema, gap: gapPropostoSchema, impacto: impactoPropostoSchema, ciclo: cicloPropostoSchema, bases: basesPropostasSchema,
 };
+/** Entidades que um arquivo de avaliação pode trazer, item a item (o campo `tipo` da resposta do modelo decide). */
+const DA_AVALIACAO = new Set<Entidade>(['dpia', 'lia', 'risco', 'gap', 'impacto', 'ciclo']);
+/** Texto livre de risco e ação: pode citar alguém; e-mail, CPF e telefone viram `[dado pessoal]` antes de ser guardado. */
+const TEXTO_LIVRE: Partial<Record<Entidade, string[]>> = { risco: ['ameaca', 'vulnerabilidade', 'plano'], gap: ['titulo', 'descricao', 'risco'] };
+export async function semPii(entidade: Entidade, o: Record<string, unknown>) {
+  for (const k of TEXTO_LIVRE[entidade] ?? []) if (typeof o[k] === 'string') o[k] = await mascararPii(o[k] as string, () => '[dado pessoal]');
+  return o;
+}
 const OBRIGATORIOS: Record<Entidade, readonly string[]> = {
   tratamento: OBRIGATORIOS_ROPA, terceiro: OBRIGATORIOS_TERCEIRO, documento: OBRIGATORIOS_DOCUMENTO, dpia: OBRIGATORIOS_AVALIACAO, lia: OBRIGATORIOS_AVALIACAO,
   titular_pedido: OBRIGATORIOS_PEDIDO, incidente: OBRIGATORIOS_INCIDENTE, consentimento: OBRIGATORIOS_CONSENTIMENTO,
+  risco: OBRIGATORIOS_RISCO, gap: OBRIGATORIOS_GAP, impacto: OBRIGATORIOS_IMPACTO, ciclo: OBRIGATORIOS_CICLO, bases: OBRIGATORIOS_BASES,
 };
 const campo = (k: string) => (d: Record<string, unknown>) => String(d[k] ?? '');
 const protocoloDe = (d: Record<string, unknown>) => (d.protocolo ? `p ${d.protocolo}` : '');
@@ -83,6 +102,13 @@ const NOME: Record<Entidade, (d: Record<string, unknown>) => string> = {
   titular_pedido: protocoloDe,
   incidente: (d) => protocoloDe(d) || `t ${d.titulo} ${String(d.ciencia_em ?? '').slice(0, 10)}`,
   consentimento: (d) => `${d.titular_ref} ${d.finalidade} ${d.obtido_em}`,
+  // F6: risco por (atividade, ameaça), ação por (atividade, título), ciclo por (atividade, etapa), teste de impacto pela atividade;
+  // bases nunca são duplicata (a gravação só acrescenta o que falta).
+  risco: (d) => `${d.atividade} ${d.ameaca}`,
+  gap: (d) => `${d.atividade} ${d.titulo}`,
+  impacto: campo('atividade'),
+  ciclo: (d) => `${d.atividade} ${d.etapa}`,
+  bases: () => '',
 };
 const nomeDe = (entidade: Entidade, d: Record<string, unknown>) => NOME[entidade](d);
 /** Id do registro já cadastrado com o mesmo nome normalizado; nome vazio (pedido sem protocolo) nunca é duplicata. */
@@ -122,6 +148,11 @@ const SQL_EXISTENTES: Record<Entidade, string> = {
   incidente: `SELECT id, 't ' || titulo || ' ' || substr(ciencia_em, 1, 10) AS nome FROM incidentes WHERE project_id = ?1
     UNION ALL SELECT id, ${PROTOCOLO_ORIGINAL} FROM incidentes WHERE project_id = ?1 AND descricao LIKE 'Protocolo original: %'`,
   consentimento: `SELECT id, titular_ref || ' ' || finalidade || ' ' || substr(obtido_em, 1, 10) AS nome FROM consentimentos WHERE project_id = ? ORDER BY created_at`,
+  risco: `SELECT r.id, a.processing_purpose || ' ' || r.threat AS nome FROM risks r JOIN ropa_records a ON a.id = r.ropa_id AND a.project_id = r.project_id WHERE r.project_id = ? ORDER BY r.created_at`,
+  gap: `SELECT ca.id, a.processing_purpose || ' ' || ca.title AS nome FROM corrective_actions ca JOIN ropa_records a ON a.id = ca.ropa_id AND a.project_id = ca.project_id WHERE ca.project_id = ? ORDER BY ca.created_at`,
+  impacto: `SELECT DISTINCT a.id, a.processing_purpose AS nome FROM tratamento_impacto t JOIN ropa_records a ON a.id = t.ropa_id AND a.project_id = t.project_id WHERE t.project_id = ?`,
+  ciclo: `SELECT a.id, a.processing_purpose || ' ' || c.etapa AS nome FROM tratamento_ciclo c JOIN ropa_records a ON a.id = c.ropa_id AND a.project_id = c.project_id WHERE c.project_id = ?`,
+  bases: `SELECT id, '' AS nome FROM ropa_records WHERE project_id = ? AND 0`,
 };
 const existentes = (db: D1Database, projectId: string, entidade: Entidade) => mapaPorNome(db, SQL_EXISTENTES[entidade], projectId);
 
@@ -379,6 +410,9 @@ async function converter(env: Env, projectId: string, loteId: string, a: Arquivo
 
   const lido = await textoDoArquivo(env, a);
   if ('erro' in lido) return fim('erro', null, lido.erro, null);
+  // F6: CSV com o cabeçalho de um modelo não vai à IA (o caminho da migração do legado não depende de a IA acertar).
+  const modelo = a.mime === 'text/csv' ? modeloDoCsv(lido.texto) : null;
+  if (modelo) return propostosDoModelo(db, projectId, loteId, a, ator, modelo, lido.texto);
   let r: { tipo: TipoArquivo; modelo: string };
   // A classificação não precisa de quem é o titular: e-mail, CPF e telefone não saem para o modelo.
   try { r = await new ImportacaoAgent(env.AI, db, env).classificar(await mascararPii(lido.texto, () => '[dado pessoal]')); } catch (e) {
@@ -397,6 +431,34 @@ async function converter(env: Env, projectId: string, loteId: string, a: Arquivo
   await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: ${r.tipo}, ${total} blocos a extrair`, '', '', projectId);
 }
 
+/**
+ * Modelo de CSV (F6): cada linha vira um item de confiança alta, validado pelo esquema estrito da entidade, SEM IA. A linha inválida
+ * vira item `recusado` com o número do registro e o campo; a duplicata nasce `descartado`. `origem` é só "registro N do modelo X",
+ * nunca o texto da linha. O arquivo fecha num passo (`blocos_total` = 1) e o nome do modelo fica em `modelo`.
+ */
+async function propostosDoModelo(db: D1Database, projectId: string, loteId: string, a: Arquivo, ator: string, m: Modelo, texto: string) {
+  const existentesDaEntidade = await existentes(db, projectId, m.entidade);
+  const stmts: D1PreparedStatement[] = [];
+  let recusados = 0;
+  for (const { linha, dados: bruto } of itensDoModelo(texto, m)) {
+    const origem = `registro ${linha} do modelo ${m.nome}`;
+    const v = ESQUEMA[m.entidade].safeParse(await semPii(m.entidade, bruto));
+    if (!v.success) {
+      const i = v.error.issues[0];
+      recusados++;
+      stmts.push(stmtItem(db, loteId, a.id, projectId, 0, m.entidade, {}, origem, 'alta', [], null, 'recusado', `registro ${linha}: ${i?.path.join('.') || 'linha'}: ${i?.message ?? 'inválido'}`.slice(0, 300)));
+      continue;
+    }
+    const dados = v.data as Record<string, unknown>;
+    const dup = duplicataDe(existentesDaEntidade, m.entidade, dados);
+    stmts.push(stmtItem(db, loteId, a.id, projectId, 0, m.entidade, dados, origem, 'alta', faltandoDe(m.entidade, dados), dup, dup ? 'descartado' : 'pendente', null));
+  }
+  for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50));
+  await db.prepare(`UPDATE importacao_arquivos SET status = 'processado', tipo = ?, modelo = ?, erro = NULL, blocos_total = 1, bloco_atual = 1 WHERE id = ? AND bloco_atual = 0`)
+    .bind(m.tipo, `modelo CSV: ${m.nome}`, a.id).run();
+  await logAudit(db, 'importacao.processada', ator, `Arquivo ${a.id} do lote ${loteId}: modelo CSV ${m.nome}, ${stmts.length} registros, ${recusados} recusados`, '', '', projectId);
+}
+
 /** Um passo: extrai o bloco `bloco_atual`, grava os itens e avança. No último, fecha o arquivo (com a nota dos blocos que falharam). */
 async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arquivo & { blocos_total: number }, ator: string) {
   const db = env.DB;
@@ -412,6 +474,8 @@ async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arqu
   // Histórico: e-mail, CPF e telefone viram pseudônimo ANTES do modelo; ele só vê (e só devolve) `tit-...`.
   const pseud = tipo === 'historico' ? pseudonimizador(env.TOKEN_ENC_KEY, projectId) : null;
   if (pseud) texto = await mascararPii(texto, pseud);
+  // Avaliação (RIPD, LIA, riscos, plano de ação): quem é o titular não importa; e-mail, CPF e telefone não saem para o modelo.
+  else if (tipo === 'avaliacao') texto = await mascararPii(texto, () => '[dado pessoal]');
   const r = await extrairComDivisao(new ImportacaoAgent(env.AI, db, env), tipo, texto);
   const falhos = [...(a.blocos_falhos ? a.blocos_falhos.split(',') : []), ...(r.falhou ? [String(n + 1)] : [])];
 
@@ -427,7 +491,7 @@ async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arqu
     let entidade = ENTIDADE_DO_TIPO[tipo]!;
     let recusa: string | null = null;
     if (tipo === 'avaliacao') {
-      if (o.tipo === 'dpia' || o.tipo === 'lia') entidade = o.tipo; else recusa = 'tipo: informe dpia ou lia';
+      if (DA_AVALIACAO.has(o.tipo as Entidade)) entidade = o.tipo as Entidade; else recusa = 'tipo: informe dpia, lia, risco, gap, impacto ou ciclo';
       delete o.tipo;
     }
     if (pseud) {
@@ -440,6 +504,7 @@ async function extrairBloco(env: Env, projectId: string, loteId: string, a: Arqu
     }
     delete o.confianca;
     delete o.origem;
+    await semPii(entidade, o);
     const v = ESQUEMA[entidade].safeParse(o);
     if (recusa || !v.success) {
       const i = v.success ? null : v.error.issues[0];
@@ -482,7 +547,7 @@ function stmtItem(db: D1Database, loteId: string, arquivoId: string, projectId: 
 // ─── revisão ───────────────────────────────────────────────────────────────────────────────────────
 
 export async function atualizarItem(db: D1Database, projectId: string, loteId: string, itemId: string,
-  b: { dados?: TratamentoProposto | TerceiroProposto | DocumentoProposto | AvaliacaoProposta | PedidoProposto | IncidenteProposto | ConsentimentoProposto; decisao?: 'aceito' | 'descartado' | 'pendente' }): Promise<Falha | { ok: true; item: ReturnType<typeof itemLido> }> {
+  b: { dados?: Record<string, unknown>; decisao?: 'aceito' | 'descartado' | 'pendente' }): Promise<Falha | { ok: true; item: ReturnType<typeof itemLido> }> {
   const lote = await loteDoProjeto(db, projectId, loteId);
   if (!lote) return nf('Lote não encontrado');
   const c = cancelado(lote);
@@ -492,7 +557,7 @@ export async function atualizarItem(db: D1Database, projectId: string, loteId: s
   if (item.decisao === 'gravado') return { ok: false, status: 409, error: 'Item já gravado' };
   const esquema = ESQUEMA[item.entidade];
   // O corpo passou por um dos dois esquemas; aqui ele precisa ser o da entidade do item.
-  const novos = b.dados ? esquema.safeParse(b.dados) : null;
+  const novos = b.dados ? esquema.safeParse(await semPii(item.entidade, { ...b.dados })) : null;
   if (novos && !novos.success) return { ok: false, status: 400, error: `Os dados não são de um ${item.entidade}` };
   const dados = (novos?.data ?? JSON.parse(item.dados)) as Record<string, unknown>;
   // Recusado cujos dados corrigidos agora validam volta à revisão.
@@ -567,9 +632,12 @@ export async function confirmarLote(env: Env, projectId: string, loteId: string,
 
 async function gravarAceitos(env: Env, projectId: string, loteId: string, ator: string): Promise<Resultado[]> {
   const db = env.DB;
-  // Tratamentos primeiro, depois documentos, depois o resto: terceiro, DPIA e LIA da mesma confirmação ligam aos tratamentos e
-  // documentos (DPA) que acabaram de ser gravados.
-  const { results: aceitos } = await db.prepare(`SELECT * FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito' ORDER BY CASE entidade WHEN 'tratamento' THEN 0 WHEN 'documento' THEN 1 ELSE 2 END, created_at, rowid LIMIT ?`)
+  // Tratamentos primeiro (criam os sistemas, áreas e pessoas), depois documentos, depois riscos, ações, teste de impacto, ciclo e
+  // bases (a ação acha o risco gravado antes), depois o resto na ordem de chegada: terceiro, DPIA, LIA e histórico ligam ao que acabou
+  // de ser gravado (a DPIA herda o teste de impacto e o ciclo da mesma confirmação).
+  const { results: aceitos } = await db.prepare(`SELECT * FROM importacao_itens WHERE importacao_id = ? AND decisao = 'aceito'
+    ORDER BY CASE WHEN entidade = 'tratamento' THEN 0 WHEN entidade = 'documento' THEN 1 WHEN entidade = 'risco' THEN 2 WHEN entidade = 'gap' THEN 3
+      WHEN entidade IN ('impacto', 'ciclo', 'bases') THEN 4 ELSE 5 END, created_at, rowid LIMIT ?`)
     .bind(loteId, ITENS_POR_CONFIRMACAO).all<LinhaItem>();
   const { results: catalogo } = await db.prepare(
     `SELECT id, titulo FROM requisitos WHERE pai_id IN ('lgpd:art7', 'lgpd:art11') ORDER BY CASE pai_id WHEN 'lgpd:art7' THEN 0 ELSE 1 END, rowid`
@@ -599,9 +667,11 @@ async function gravarAceitos(env: Env, projectId: string, loteId: string, ator: 
     if (item.entidade !== 'tratamento') {
       let r: Resultado;
       try {
+        const ctx = { finalidades, pessoas, itens, catalogo, loteId, gravados: await gravadosDe(item.entidade) };
         r = item.entidade === 'documento' ? await gravarDocumento(env, projectId, loteId, ator, item, documentos)
           : item.entidade === 'dpia' || item.entidade === 'lia' ? await gravarAvaliacao(db, projectId, loteId, ator, item, finalidades)
-            : await gravarHistorico(db, projectId, loteId, ator, item, finalidades, await gravadosDe(item.entidade));
+            : GRAVAR_DA_ATIVIDADE[item.entidade] ? await GRAVAR_DA_ATIVIDADE[item.entidade]!(db, projectId, ator, item, ctx)
+              : await gravarHistorico(db, projectId, loteId, ator, item, finalidades, ctx.gravados);
       } catch (e) {
         log('error', { msg: 'importacao_gravar_item', item: item.id, entidade: item.entidade, erro: resumoErro(e) });
         // A falha pode ter vindo depois de o serviço criar o registro (a trilha dele, por exemplo): não mandar repetir às cegas.
@@ -657,6 +727,11 @@ async function gravarAceitos(env: Env, projectId: string, loteId: string, ator: 
     await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como tratamento ${rid}`, '', '', projectId);
   }
 
+ // O aviso fica no item, para o relatório de reconciliação contar depois (a resposta some com a tela).
+  const comAviso = resultados.filter((r) => r.aviso);
+  if (comAviso.length) {
+    await db.batch(comAviso.map((r) => db.prepare('UPDATE importacao_itens SET aviso = ? WHERE id = ?').bind(r.aviso!.slice(0, 1000), r.item_id)));
+  }
   return resultados;
 }
 
@@ -765,7 +840,10 @@ const gravado = (item: LinhaItem, registroId: string, avisos: string[]): Resulta
 /** Onde a pessoa confere o registro criado (documento, DPIA, LIA, histórico). */
 const ONDE = {
   documento: 'Documentos', dpia: 'DPIA', lia: 'LIA do tratamento', titular_pedido: 'Pedidos do titular', incidente: 'Incidentes', consentimento: 'Consentimentos',
+  risco: 'Riscos da atividade', gap: 'Ações da atividade', impacto: 'Teste de impacto da atividade', ciclo: 'Ciclo de vida da atividade',
+  bases: 'Bases legais da atividade',
 } as const;
+const FEMININO = new Set(['DPIA', 'LIA', 'ação']);
 
 /**
  * Depois que o serviço criou o registro, o item NUNCA volta como recusado sem dizer qual registro existe: a marca `gravado` que falha
@@ -778,7 +856,7 @@ async function fecharItem(db: D1Database, projectId: string, loteId: string, ato
     await marcarGravado(db, item.id, registroId);
   } catch (e) {
     log('error', { msg: 'importacao_marcar_gravado', item: item.id, registro: registroId, erro: resumoErro(e) });
-    return recusado(item, `${rotulo} ${registroId} ${rotulo === 'DPIA' || rotulo === 'LIA' ? 'criada' : 'criado'}; confira em ${ONDE[entidade]} antes de tentar de novo`);
+    return recusado(item, `${rotulo} ${registroId} ${FEMININO.has(rotulo) ? 'criada' : 'criado'}; confira em ${ONDE[entidade]} antes de tentar de novo`);
   }
   try {
     await logAudit(db, 'importacao.gravada', ator, `Lote ${loteId}: item ${item.id} gravado como ${rotulo} ${registroId}`, '', '', projectId);
@@ -865,8 +943,12 @@ async function gravarAvaliacao(db: D1Database, projectId: string, loteId: string
 
   if (item.entidade === 'lia') {
     if (await lerLia(db, projectId, ropaId)) return recusado(item, 'já existe LIA para este tratamento');
-    const balanceamento = [conclusao, riscos && `Riscos apontados no documento importado:\n${riscos}`].filter(Boolean).join('\n\n') || null;
-    const r = await salvarLia(db, projectId, ropaId, ator, { balanceamento, status: 'rascunho' });
+    const balanceamento = [d.balanceamento, conclusao, riscos && `Riscos apontados no documento importado:\n${riscos}`].filter(Boolean).join('\n\n') || null;
+    // F6: as seções da LIA do legado vão cada uma para o seu campo; a conclusão (prevalece ou não) continua de uma pessoa.
+    const r = await salvarLia(db, projectId, ropaId, ator, {
+      balanceamento, status: 'rascunho', finalidade_legitima: d.finalidade_legitima ?? undefined, necessidade: d.necessidade ?? undefined,
+      salvaguardas: d.salvaguardas ?? undefined,
+    });
     if (!r.ok) return recusado(item, r.error);
     return fecharItem(db, projectId, loteId, ator, item, r.id, 'LIA', []);
   }
@@ -878,16 +960,30 @@ async function gravarAvaliacao(db: D1Database, projectId: string, loteId: string
   const avisos: string[] = [];
   // `dpo_opinion` e `dpo_recommendations` ficam nulos: o relatório os imprime como parecer do encarregado e a tela espera o dele.
   const texto = [conclusao, riscos && `Riscos apontados no documento importado:\n${riscos}`].filter(Boolean).join('\n\n');
-  if (texto) {
+  // F6: necessidade e medidas do RIPD do legado entram DEPOIS do que a DPIA herdou do tratamento (nada herdado se perde).
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  if (texto) { sets.push('risks_identified = ?'); binds.push(texto); }
+  const anexar = (col: string, v: string | null | undefined) => {
+    if (!v) return;
+    sets.push(`${col} = trim(COALESCE(${col}, '') || char(10) || char(10) || ?)`);
+    binds.push(`No documento importado (lote ${loteId}): ${v}`);
+  };
+  anexar('necessity_proportionality', d.necessidade);
+  anexar('mitigation_measures', d.medidas);
+  if (d.risco_residual) { sets.push('residual_risk_level = ?'); binds.push(RESIDUAL_DPIA[d.risco_residual]); }
+  if (sets.length) {
     try {
-      await db.prepare('UPDATE dpia_assessments SET risks_identified = ? WHERE id = ? AND project_id = ?').bind(texto, r.id, projectId).run();
+      await db.prepare(`UPDATE dpia_assessments SET ${sets.join(', ')} WHERE id = ? AND project_id = ?`).bind(...binds, r.id, projectId).run();
     } catch (e) {
       log('error', { msg: 'importacao_dpia_completar', item: item.id, erro: resumoErro(e) });
-      avisos.push('riscos e conclusão não foram copiados para a DPIA; complete na DPIA');
+      avisos.push('riscos e conclusão não foram copiados para a DPIA (nem as seções do arquivo); complete na DPIA');
     }
   }
   return fecharItem(db, projectId, loteId, ator, item, r.id, 'DPIA', avisos);
 }
+
+const RESIDUAL_DPIA = { baixo: 'Low', medio: 'Medium', alto: 'High' } as const;
 
 /** Descrição do registro importado; a primeira linha é o protocolo de origem (é por ela que a duplicata é achada, `PROTOCOLO_ORIGINAL`). */
 const descricaoImportada = (loteId: string, protocolo: string | null | undefined, extra: string[] = []) =>
@@ -946,6 +1042,270 @@ async function gravarHistorico(db: D1Database, projectId: string, loteId: string
   if (!r.ok) return recusado(item, r.error);
   if (k) gravados.set(k, r.id);
   return fecharItem(db, projectId, loteId, ator, item, r.id, rotulo, avisos);
+}
+
+// ─── F6: o que é da atividade (riscos, ações, teste de impacto, ciclo, bases) ─────────────────────
+
+type CtxAtividade = {
+  finalidades: Map<string, string>; pessoas: Map<string, string>; itens: Map<string, string>;
+  catalogo: { id: string; titulo: string }[]; loteId: string; gravados: Map<string, string>;
+};
+type Gravar = (db: D1Database, projectId: string, ator: string, item: LinhaItem, ctx: CtxAtividade) => Promise<Resultado>;
+
+const semAtividade = (item: LinhaItem, nome: string) => recusado(item, `atividade "${nome}" não encontrada no RoPA deste projeto`);
+/** Pessoa das partes pelo nome normalizado; sem ela, aviso (a importação não cria pessoa sozinha). */
+function pessoaDe(ctx: CtxAtividade, nome: string | null | undefined, avisos: string[]) {
+  if (!nome) return null;
+  const id = ctx.pessoas.get(chave(nome));
+  if (!id) avisos.push(`responsável "${nome}" não está nas partes do projeto; ligue na tela da atividade`);
+  return id ?? null;
+}
+const NOTA_DO_NIVEL = { baixo: 2, medio: 3, alto: 4, critico: 5 } as const;
+const ESTRATEGIA = { mitigar: 'Mitigate', aceitar: 'Accept', evitar: 'Avoid', transferir: 'Transfer' } as const;
+// `aceito` do legado entra aberto: aceitar o risco é ato de uma pessoa no n.360 (o aceite gravaria quem confirmou a importação).
+const STATUS_RISCO = { aberto: 'Open', mitigado: 'Mitigated', aceito: 'Open', fechado: 'Closed' } as const;
+const STATUS_ACAO = { aberto: 'Open', em_andamento: 'In Progress', concluido: 'Closed' } as const;
+
+/**
+ * Risco da atividade (F6), pelo `criarRisco` da F2: notas 1 a 5 ou, sem elas, o nível do legado (2, 3, 4 ou 5 nas duas, com aviso).
+ * O prazo do risco vira uma ação ligada a ele (decisão D3: um prazo só, o da ação). Ativo e responsável por nome; sem eles, aviso.
+ */
+const gravarRisco: Gravar = async (db, projectId, ator, item, ctx) => {
+  const p = riscoPropostoSchema.safeParse(JSON.parse(item.dados));
+  if (!p.success) return recusado(item, 'dados do item inválidos');
+  const d = p.data;
+  const ropaId = ctx.finalidades.get(chave(d.atividade));
+  if (!ropaId) return semAtividade(item, d.atividade);
+  const k = chave(nomeDe('risco', d));
+  if (ctx.gravados.has(k)) return recusado(item, 'já existe risco com essa ameaça nesta atividade');
+  const avisos: string[] = [];
+  let impacto = d.impacto ?? null;
+  let prob = d.probabilidade ?? null;
+  if (!impacto || !prob) {
+    const n = d.nivel ? NOTA_DO_NIVEL[d.nivel] : 3;
+    impacto ??= n;
+    prob ??= n;
+    avisos.push(d.nivel ? `impacto e probabilidade derivados do nível ${d.nivel}` : 'impacto ou probabilidade não informados; gravado 3 até a revisão');
+  }
+  let assetId: string | null = null;
+  if (d.ativo) {
+    assetId = ctx.itens.get(chave(d.ativo)) ?? null;
+    if (!assetId) avisos.push(`ativo "${d.ativo}" não está nos itens do projeto; risco gravado sem ele`);
+  }
+  const owner = pessoaDe(ctx, d.responsavel, avisos);
+  if (d.status === 'aceito') avisos.push('o aceite do risco não foi importado: aceitar é ato de uma pessoa, na tela da atividade');
+  const r = await criarRisco(db, projectId, ropaId, ator, {
+    threat: d.ameaca, vulnerability: d.vulnerabilidade ?? null, asset_id: assetId, impact: impacto, probability: prob,
+    treatment: d.estrategia ? ESTRATEGIA[d.estrategia] : 'Mitigate', treatment_plan: d.plano ?? null,
+    residual_impact: d.impacto_residual ?? null, residual_probability: d.probabilidade_residual ?? null, owner_parte_id: owner,
+    status: d.status ? STATUS_RISCO[d.status] : 'Open',
+  });
+  if (!r.ok) return recusado(item, r.error);
+  ctx.gravados.set(k, r.id);
+  if (d.prazo) {
+    try {
+      const a = await criarAcao(db, projectId, ropaId, { title: `Tratar o risco: ${d.ameaca}`.slice(0, 500), due_date: d.prazo, assigned_to_parte_id: owner, risk_id: r.id });
+      if (!a.ok) avisos.push(`a ação do prazo não foi criada: ${a.error}`);
+    } catch (e) {
+      log('error', { msg: 'importacao_risco_prazo', item: item.id, erro: resumoErro(e) });
+      avisos.push('a ação do prazo não foi criada; crie na tela da atividade');
+    }
+  }
+  return fecharItem(db, projectId, ctx.loteId, ator, item, r.id, 'risco', avisos);
+};
+
+/** Ação (gap) da atividade (F6), pelo `criarAcao` da F2; o risco citado é procurado pela ameaça entre os riscos da MESMA atividade. */
+const gravarGap: Gravar = async (db, projectId, ator, item, ctx) => {
+  const p = gapPropostoSchema.safeParse(JSON.parse(item.dados));
+  if (!p.success) return recusado(item, 'dados do item inválidos');
+  const d = p.data;
+  const ropaId = ctx.finalidades.get(chave(d.atividade));
+  if (!ropaId) return semAtividade(item, d.atividade);
+  const k = chave(nomeDe('gap', d));
+  if (ctx.gravados.has(k)) return recusado(item, 'já existe ação com esse título nesta atividade');
+  const avisos: string[] = [];
+  let riskId: string | null = null;
+  if (d.risco) {
+    const alvo = chave(d.risco);
+    const { results } = await db.prepare('SELECT id, threat FROM risks WHERE ropa_id = ? AND project_id = ? ORDER BY created_at')
+      .bind(ropaId, projectId).all<{ id: string; threat: string }>();
+    riskId = results.find((x) => chave(x.threat) === alvo)?.id ?? null;
+    if (!riskId) avisos.push('o risco citado não está entre os riscos desta atividade; ação gravada sem ele');
+  }
+  const owner = pessoaDe(ctx, d.responsavel, avisos);
+  const r = await criarAcao(db, projectId, ropaId, {
+    title: d.titulo, description: d.descricao ?? null, due_date: d.prazo ?? null, assigned_to_parte_id: owner, risk_id: riskId,
+    status: d.status ? STATUS_ACAO[d.status] : 'Open',
+  });
+  if (!r.ok) return recusado(item, r.error);
+  ctx.gravados.set(k, r.id);
+  return fecharItem(db, projectId, ctx.loteId, ator, item, r.id, 'ação', avisos);
+};
+
+/** Teste de impacto (F6): grava só as perguntas ainda sem resposta na atividade; o que já está gravado vence. Não finaliza o teste. */
+const gravarImpacto: Gravar = async (db, projectId, ator, item, ctx) => {
+  const p = impactoPropostoSchema.safeParse(JSON.parse(item.dados));
+  if (!p.success) return recusado(item, 'dados do item inválidos');
+  const d = p.data as Record<string, string | null | undefined>;
+  const nome = String(d.atividade);
+  const ropaId = ctx.finalidades.get(chave(nome));
+  if (!ropaId) return semAtividade(item, nome);
+  const atual = await lerImpacto(db, projectId, ropaId);
+  const respostas: Record<string, RespostaImpacto> = {};
+  let mantidas = 0;
+  for (const q of PERGUNTAS_IMPACTO) {
+    const v = d[q.id] as RespostaImpacto | null | undefined;
+    if (!v) continue;
+    if (atual?.perguntas.find((x) => x.id === q.id)?.resposta) mantidas++; else respostas[q.id] = v;
+  }
+  if (!Object.keys(respostas).length) {
+    return recusado(item, mantidas ? 'nada a gravar: as perguntas do arquivo já estavam respondidas na atividade (mantidas)' : 'nada a gravar: nenhuma resposta no item');
+  }
+  const r = await salvarImpacto(db, projectId, ropaId, ator, { respostas });
+  if (!r.ok) return recusado(item, r.error);
+  return fecharItem(db, projectId, ctx.loteId, ator, item, ropaId, 'teste de impacto da atividade',
+    mantidas ? [`${mantidas} resposta(s) já gravada(s) na atividade foram mantidas`] : []);
+};
+
+/** Uma etapa do ciclo de vida (F6): só a etapa ainda sem registro; o sistema por nome de item (sem ele, aviso). */
+const gravarCiclo: Gravar = async (db, projectId, ator, item, ctx) => {
+  const p = cicloPropostoSchema.safeParse(JSON.parse(item.dados));
+  if (!p.success) return recusado(item, 'dados do item inválidos');
+  const d = p.data;
+  const ropaId = ctx.finalidades.get(chave(d.atividade));
+  if (!ropaId) return semAtividade(item, d.atividade);
+  const atual = await lerCiclo(db, projectId, ropaId);
+  if (atual?.find((e) => e.etapa === d.etapa)?.situacao) return recusado(item, 'etapa já registrada nesta atividade (mantida)');
+  const avisos: string[] = [];
+  let itemId: string | null = null;
+  if (d.item && d.situacao === 'nao_aplicavel') avisos.push('etapa que não se aplica fica sem sistema; o sistema do arquivo foi ignorado');
+  else if (d.item) {
+    itemId = ctx.itens.get(chave(d.item)) ?? null;
+    if (!itemId) avisos.push(`sistema "${d.item}" não está nos itens do projeto; etapa gravada sem ele`);
+  }
+  const r = await salvarCiclo(db, projectId, ropaId, ator, [{ etapa: d.etapa, situacao: d.situacao, item_id: itemId, descricao: d.descricao ?? null }]);
+  if (!r.ok) return recusado(item, r.error);
+  return fecharItem(db, projectId, ctx.loteId, ator, item, ropaId, 'ciclo de vida da atividade', avisos);
+};
+
+/**
+ * Bases adicionais e GDPR (F6): só ACRESCENTA. Texto casado com o catálogo como na fatia 1 (ou o id do requisito); o que não casar vira
+ * aviso; a principal e as já gravadas são puladas; a base do GDPR só entra se a atividade não tiver uma.
+ */
+const gravarBases: Gravar = async (db, projectId, ator, item, ctx) => {
+  const p = basesPropostasSchema.safeParse(JSON.parse(item.dados));
+  if (!p.success) return recusado(item, 'dados do item inválidos');
+  const d = p.data;
+  const ropaId = ctx.finalidades.get(chave(d.atividade));
+  const atual = ropaId ? await lerBases(db, projectId, ropaId) : null;
+  if (!ropaId || !atual) return semAtividade(item, d.atividade);
+  const avisos: string[] = [];
+  const ja = new Set(atual.adicionais.map((a) => a.requisito_id));
+  const novas: string[] = [];
+  for (const t of d.adicionais ?? []) {
+    const id = ctx.catalogo.some((c) => c.id === t) ? t : casarBaseLegal(t, ctx.catalogo);
+    if (!id) { avisos.push(`base "${t}" não casou com o catálogo; registre na tela da atividade`); continue; }
+    if (id === atual.principal?.id || ja.has(id)) continue;
+    ja.add(id);
+    novas.push(id);
+  }
+  let gdpr: string | undefined;
+  if (d.base_gdpr) {
+    if (!atual.base_gdpr) gdpr = d.base_gdpr;
+    else if (chave(atual.base_gdpr) !== chave(d.base_gdpr)) avisos.push('a base do GDPR já gravada na atividade foi mantida');
+  }
+  if (!novas.length && gdpr === undefined) {
+    return recusado(item, `nada a gravar: ${avisos.length ? avisos.join('; ') : 'as bases do arquivo já estavam na atividade'}`);
+  }
+  const r = await salvarBases(db, projectId, ropaId, {
+    ...(novas.length ? { adicionais: [...atual.adicionais.map((a) => ({ requisito_id: a.requisito_id, observacao: a.observacao })),
+      ...novas.map((id) => ({ requisito_id: id, observacao: `Importada no lote ${ctx.loteId}` }))] } : {}),
+    ...(gdpr !== undefined ? { base_gdpr: gdpr } : {}),
+  });
+  if (!r.ok) return recusado(item, r.error);
+  return fecharItem(db, projectId, ctx.loteId, ator, item, ropaId, 'bases legais da atividade', avisos);
+};
+
+const GRAVAR_DA_ATIVIDADE: Partial<Record<Entidade, Gravar>> = { risco: gravarRisco, gap: gravarGap, impacto: gravarImpacto, ciclo: gravarCiclo, bases: gravarBases };
+
+// ─── reconciliação (F6) ────────────────────────────────────────────────────────────────────────────
+
+export const ROTULO_ENTIDADE: Record<Entidade, string> = {
+  tratamento: 'Tratamentos', terceiro: 'Terceiros', documento: 'Documentos', dpia: 'RIPD', lia: 'LIA', risco: 'Riscos', gap: 'Ações (gaps)',
+  impacto: 'Teste de impacto', ciclo: 'Ciclo de vida', bases: 'Bases legais', titular_pedido: 'Pedidos do titular', incidente: 'Incidentes',
+  consentimento: 'Consentimentos',
+};
+const ORDEM_ENTIDADES = Object.keys(ROTULO_ENTIDADE) as Entidade[];
+
+/**
+ * Motivo ou aviso sem dado: o que está entre aspas (nome de atividade, de pessoa, de sistema), ids, datas, número de registro e
+ * e-mail, CPF ou telefone saem; sobra a regra ("atividade "..." não encontrada"), que agrupa e conta.
+ */
+export async function motivoGenerico(t: string): Promise<string> {
+  const s = await mascararPii(t, () => '[dado pessoal]');
+  return s.replace(/"[^"]*"/g, '"..."')
+    .replace(/\b(?=[0-9a-z-]*\d)[0-9a-z-]{16,}\b/gi, '<id>')
+    .replace(/\d{4}-\d{2}-\d{2}([T ][\d:.]+Z?)?/g, '<data>')
+    .replace(/registro \d+/g, 'registro <n>')
+    .trim();
+}
+
+type Numeros = { propostos: number; pendentes: number; aceitos: number; gravados: number; recusados: number; descartados: number; duplicatas: number; com_aviso: number };
+export type Reconciliacao = {
+  lote: { id: string; status: string; created_at: string; updated_at: string };
+  entidades: ({ entidade: Entidade; rotulo: string } & Numeros)[];
+  totais: Numeros;
+  motivos: { entidade: Entidade; rotulo: string; tipo: 'recusa' | 'aviso'; motivo: string; quantidade: number }[];
+  /** Nenhum item pendente, aceito sem gravar ou recusado sem decisão: o critério do roteiro de virada para seguir. */
+  sem_pendencia: boolean;
+};
+const CAMPO_DA_DECISAO: Record<string, keyof Numeros> = { pendente: 'pendentes', aceito: 'aceitos', gravado: 'gravados', recusado: 'recusados', descartado: 'descartados' };
+
+/** O relatório de reconciliação do lote: só contagens e motivos genéricos, nenhum dado de registro. null = lote não é do projeto. */
+export async function reconciliacao(db: D1Database, projectId: string, loteId: string): Promise<Reconciliacao | null> {
+  const lote = await db.prepare('SELECT id, status, created_at, updated_at FROM importacoes WHERE id = ? AND project_id = ?')
+    .bind(loteId, projectId).first<Reconciliacao['lote']>();
+  if (!lote) return null;
+  const { results } = await db.prepare('SELECT entidade, decisao, motivo, aviso, duplicata_de FROM importacao_itens WHERE importacao_id = ? AND project_id = ?')
+    .bind(loteId, projectId).all<{ entidade: Entidade; decisao: string; motivo: string | null; aviso: string | null; duplicata_de: string | null }>();
+  const zero = (): Numeros => ({ propostos: 0, pendentes: 0, aceitos: 0, gravados: 0, recusados: 0, descartados: 0, duplicatas: 0, com_aviso: 0 });
+  const por = new Map<Entidade, Numeros>();
+  const totais = zero();
+  const motivos = new Map<string, Reconciliacao['motivos'][number]>();
+  const conta = async (entidade: Entidade, tipo: 'recusa' | 'aviso', texto: string) => {
+    const motivo = await motivoGenerico(texto);
+    const k = `${entidade}|${tipo}|${motivo}`;
+    const m = motivos.get(k) ?? { entidade, rotulo: ROTULO_ENTIDADE[entidade], tipo, motivo, quantidade: 0 };
+    m.quantidade++;
+    motivos.set(k, m);
+  };
+  for (const r of results) {
+    const c = por.get(r.entidade) ?? por.set(r.entidade, zero()).get(r.entidade)!;
+    for (const alvo of [c, totais]) {
+      alvo.propostos++;
+      if (CAMPO_DA_DECISAO[r.decisao]) alvo[CAMPO_DA_DECISAO[r.decisao]]++;
+      if (r.duplicata_de) alvo.duplicatas++;
+      if (r.aviso) alvo.com_aviso++;
+    }
+    if (r.decisao === 'recusado') await conta(r.entidade, 'recusa', r.motivo || 'sem motivo registrado');
+    for (const a of r.aviso ? r.aviso.split('; ') : []) await conta(r.entidade, 'aviso', a);
+  }
+  return {
+    lote,
+    entidades: ORDEM_ENTIDADES.filter((e) => por.has(e)).map((e) => ({ entidade: e, rotulo: ROTULO_ENTIDADE[e], ...por.get(e)! })),
+    totais,
+    motivos: [...motivos.values()].sort((a, b) => ORDEM_ENTIDADES.indexOf(a.entidade) - ORDEM_ENTIDADES.indexOf(b.entidade) || b.quantidade - a.quantidade),
+    sem_pendencia: totais.pendentes + totais.aceitos + totais.recusados === 0,
+  };
+}
+
+/** O relatório em CSV (BOM, `;`, fórmula neutralizada, como a exportação da F4), com a coluna para a contagem do inventário do legado. */
+export function reconciliacaoEmCsv(r: Reconciliacao): string {
+  const cab = ['Entidade', 'No legado (preencher)', 'Propostos', 'Pendentes', 'Aceitos sem gravar', 'Gravados', 'Recusados', 'Descartados', 'Duplicatas', 'Com aviso'];
+  const linha = (rotulo: string, c: Numeros) => [rotulo, '', c.propostos, c.pendentes, c.aceitos, c.gravados, c.recusados, c.descartados, c.duplicatas, c.com_aviso];
+  const resumo = montarCsv(cab, [...r.entidades.map((c) => linha(c.rotulo, c)), linha('Total', r.totais)]);
+  const detalhe = montarCsv(['Entidade', 'Tipo', 'Motivo', 'Quantidade'], r.motivos.map((m) => [m.rotulo, m.tipo === 'recusa' ? 'Recusa' : 'Aviso', m.motivo, m.quantidade]));
+  return `${resumo}\r\n${detalhe.slice(1)}`; // o detalhe sem o segundo BOM
 }
 
 // ─── cancelar ──────────────────────────────────────────────────────────────────────────────────────

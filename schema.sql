@@ -1746,7 +1746,7 @@ CREATE TABLE IF NOT EXISTS importacao_itens (
     importacao_id TEXT NOT NULL REFERENCES importacoes(id) ON DELETE CASCADE,
     arquivo_id TEXT NOT NULL REFERENCES importacao_arquivos(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento', 'terceiro', 'documento', 'dpia', 'lia', 'titular_pedido', 'incidente', 'consentimento')),
+    entidade TEXT NOT NULL DEFAULT 'tratamento' CHECK (entidade IN ('tratamento', 'terceiro', 'documento', 'dpia', 'lia', 'titular_pedido', 'incidente', 'consentimento', 'risco', 'gap', 'impacto', 'ciclo', 'bases')),
     dados TEXT NOT NULL DEFAULT '{}',
     origem TEXT CHECK (origem IS NULL OR length(origem) <= 500),
     confianca TEXT NOT NULL DEFAULT 'baixa' CHECK (confianca IN ('alta', 'media', 'baixa')),
@@ -1756,6 +1756,8 @@ CREATE TABLE IF NOT EXISTS importacao_itens (
     decisao TEXT NOT NULL DEFAULT 'pendente' CHECK (decisao IN ('pendente', 'aceito', 'descartado', 'gravado', 'recusado')),
     motivo TEXT,
     registro_id TEXT,
+    -- aviso da gravação (migration 0076), contado no relatório de reconciliação
+    aviso TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

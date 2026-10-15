@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api, API_BASE, cabecalhosAuth } from '../api.js';
+import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
 import { escapeHTML, openModal, showToast } from '../ui.js';
 
 // Importar programa (n.privacy, fatias 1 a 4). A regra é do servidor (`/projects/:id/importacoes`); aqui: lotes, envio de arquivos (um
@@ -17,11 +17,11 @@ const lid = () => encodeURIComponent(E.loteId);
 const SESSAO = /Unauthorized|Sessão expirada/;
 
 // Estado da tela (um lote aberto por vez).
-const E = { c: null, h: null, a: null, lotes: null, loteId: null, det: null, msg: '', envios: [], resultados: null, cancelando: false, ocupado: false, aba: 'tratamento' };
+const E = { c: null, h: null, a: null, lotes: null, loteId: null, det: null, msg: '', envios: [], resultados: null, cancelando: false, ocupado: false, aba: 'tratamento', rec: null };
 
 const STATUS_LOTE = { recebendo: 'Recebendo arquivos', processando: 'Processando', em_revisao: 'Em revisão', gravando: 'Gravando', concluida: 'Concluída', cancelada: 'Cancelada' };
 const STATUS_ARQ = { pendente: ['Na fila', 'neutral'], processado: ['Processado', 'success'], aguardando: ['Sem extração', 'info'], erro: ['Erro', 'danger'] };
-const TIPOS = { inventario: 'Inventário de tratamentos', terceiros: 'Lista de terceiros', documento: 'Documento', avaliacao: 'Avaliação (DPIA, LIA)', historico: 'Histórico operacional', desconhecido: 'Não reconhecido' };
+const TIPOS = { inventario: 'Inventário de tratamentos', terceiros: 'Lista de terceiros', documento: 'Documento', avaliacao: 'Avaliação (RIPD, LIA, riscos, ações, impacto, ciclo)', historico: 'Histórico operacional', desconhecido: 'Não reconhecido' };
 const CONF = { alta: ['Alta', 'success'], media: ['Média', 'warning'], baixa: ['Baixa', 'danger'] };
 const DECISAO = { pendente: ['Pendente', 'neutral'], aceito: ['Aceito', 'info'], descartado: ['Descartado', 'neutral'], recusado: ['Recusado', 'danger'], gravado: ['Gravado', 'success'] };
 const CAMPOS = [
@@ -47,11 +47,50 @@ const CANAIS = { email: 'E-mail', telefone: 'Telefone', formulario: 'Formulário
 const STATUS_PEDIDO = { recebido: 'Recebido', em_andamento: 'Em andamento', respondido: 'Respondido', negado: 'Negado', arquivado: 'Arquivado' };
 const RISCOS = { sem_risco: 'Sem risco', baixo: 'Baixo', relevante: 'Relevante' };
 const STATUS_INCIDENTE = { aberto: 'Aberto', avaliado: 'Avaliado', comunicado: 'Comunicado', encerrado: 'Encerrado' };
+// Importação do legado (F6): riscos e ações da atividade numa aba; teste de impacto, ciclo e bases noutra. Rótulos iguais aos das
+// telas da atividade; [campo, rótulo, tipo, opções ou maxlength] são os de src/schemas/importacao.ts.
+const DA_ATIVIDADE = { risco: 'Risco', gap: 'Ação' };
+const COMPLEMENTOS = { impacto: 'Teste de impacto', ciclo: 'Ciclo de vida', bases: 'Bases legais' };
+const NIVEL = { baixo: 'Baixo', medio: 'Médio', alto: 'Alto', critico: 'Crítico' };
+const ESTRATEGIA = { mitigar: 'Mitigar', aceitar: 'Aceitar', evitar: 'Evitar', transferir: 'Transferir' };
+const STATUS_RISCO = { aberto: 'Aberto', mitigado: 'Mitigado', aceito: 'Aceito (entra aberto)', fechado: 'Fechado' };
+const STATUS_GAP = { aberto: 'Aberta', em_andamento: 'Em andamento', concluido: 'Concluída' };
+const ETAPAS = { coleta: 'Coleta', uso: 'Uso', compartilhamento_interno: 'Compartilhamento interno', compartilhamento_externo: 'Compartilhamento externo', armazenamento: 'Armazenamento', eliminacao: 'Eliminação' };
+const SITUACAO_CICLO = { registrada: 'Registrada', nao_aplicavel: 'Não se aplica' };
+const RESPOSTA = { sim: 'Sim', nao: 'Não', nao_sei: 'Não sei' };
+const PERGUNTAS_IMPACTO = {
+    afeta_direitos: 'Afeta direitos dos titulares', larga_escala: 'Larga escala', sensiveis: 'Dados sensíveis', vulneraveis: 'Titulares vulneráveis',
+    finalidade_distinta: 'Finalidade distinta da coleta', compartilhamento_novo: 'Compartilhamento novo', monitoramento: 'Monitoramento sistemático',
+    perfilizacao: 'Perfilização', combinacao: 'Combinação de dados', transferencia: 'Transferência internacional', tecnologia_inovadora: 'Tecnologia inovadora',
+    decisao_automatizada: 'Decisão automatizada', legitimo_interesse: 'Legítimo interesse',
+};
+const ATIVIDADE = ['atividade', 'Atividade (finalidade, como está no RoPA)', 'texto', 500];
+const FORM_F6 = {
+    risco: [ATIVIDADE, ['ameaca', 'Ameaça', 'texto', 500], ['vulnerabilidade', 'Vulnerabilidade', 'texto', 500], ['ativo', 'Ativo ou sistema', 'texto', 200],
+        ['impacto', 'Impacto (1 a 5)', 'nota'], ['probabilidade', 'Probabilidade (1 a 5)', 'nota'], ['nivel', 'Nível (quando não há notas)', 'opcao', NIVEL],
+        ['estrategia', 'Estratégia', 'opcao', ESTRATEGIA], ['plano', 'Plano de tratamento', 'texto', 500], ['impacto_residual', 'Impacto residual (1 a 5)', 'nota'],
+        ['probabilidade_residual', 'Probabilidade residual (1 a 5)', 'nota'], ['prazo', 'Prazo', 'data'], ['responsavel', 'Responsável (nome nas partes)', 'texto', 200],
+        ['status', 'Situação', 'opcao', STATUS_RISCO]],
+    gap: [ATIVIDADE, ['titulo', 'Ação', 'texto', 500], ['descricao', 'Descrição', 'texto', 500], ['prazo', 'Prazo', 'data'],
+        ['responsavel', 'Responsável (nome nas partes)', 'texto', 200], ['status', 'Situação', 'opcao', STATUS_GAP], ['risco', 'Risco (ameaça, como está na atividade)', 'texto', 500]],
+    impacto: [ATIVIDADE, ...Object.entries(PERGUNTAS_IMPACTO).map(([k, r]) => [k, r, 'opcao', RESPOSTA])],
+    ciclo: [ATIVIDADE, ['etapa', 'Etapa', 'opcao', ETAPAS], ['situacao', 'Situação', 'opcao', SITUACAO_CICLO], ['item', 'Sistema ou arquivo', 'texto', 200], ['descricao', 'Descrição', 'texto', 500]],
+    bases: [ATIVIDADE, ['adicionais', 'Bases adicionais (separe por |)', 'lista'], ['base_gdpr', 'Base do GDPR', 'texto', 300]],
+};
+const OBRIG_F6 = { risco: ['atividade', 'ameaca'], gap: ['atividade', 'titulo'], impacto: ['atividade'], ciclo: ['atividade', 'etapa', 'situacao'], bases: ['atividade'] };
+// Seções do RIPD e da LIA com estrutura (F6): só vão no corpo quando preenchidas.
+const SECOES_AVALIACAO = {
+    dpia: [['necessidade', 'Necessidade e proporcionalidade'], ['medidas', 'Medidas de mitigação']],
+    lia: [['finalidade_legitima', 'Finalidade legítima'], ['necessidade', 'Necessidade'], ['balanceamento', 'Balanceamento'], ['salvaguardas', 'Salvaguardas']],
+};
+const RESIDUAL = { baixo: 'Baixo', medio: 'Médio', alto: 'Alto' };
+const ROTULO_F6 = Object.fromEntries(Object.values(FORM_F6).flat().map(([k, r]) => [k, r]));
 // Item sem `entidade` é da fatia 1.
 const entidade = (i) => i.entidade || 'tratamento';
-const abaDe = (i) => (AVALIACAO[entidade(i)] ? 'avaliacao' : HISTORICO[entidade(i)] ? 'historico' : entidade(i));
-const ABAS = [['tratamento', 'Tratamentos'], ['terceiro', 'Terceiros'], ['documento', 'Documentos'], ['avaliacao', 'Avaliações'], ['historico', 'Histórico']];
-const nomeItem = (i) => (i.dados && (i.dados.finalidade || i.dados.nome || i.dados.titulo || i.dados.tratamento || i.dados.protocolo)) || '';
+const abaDe = (i) => (AVALIACAO[entidade(i)] ? 'avaliacao' : HISTORICO[entidade(i)] ? 'historico' : DA_ATIVIDADE[entidade(i)] ? 'atividade' : COMPLEMENTOS[entidade(i)] ? 'complementos' : entidade(i));
+const ABAS = [['tratamento', 'Tratamentos'], ['terceiro', 'Terceiros'], ['documento', 'Documentos'], ['avaliacao', 'Avaliações'], ['atividade', 'Riscos e ações'],
+    ['complementos', 'Impacto, ciclo e bases'], ['historico', 'Histórico']];
+const nomeItem = (i) => (i.dados && (i.dados.finalidade || i.dados.nome || i.dados.titulo || i.dados.tratamento || i.dados.protocolo || i.dados.atividade)) || '';
 
 const badge = (par) => window.renderStatusBadge(par[0], par[1]);
 
@@ -96,11 +135,12 @@ function htmlLista() {
         e(l.arquivos), e(l.itens), l.status === 'cancelada' ? '' : `<button class="btn btn-ghost btn-sm" data-action="importacaoAbrir" data-args='${args(l.id)}'>Abrir</button>`,
     ]);
     return `
-        <p style="margin:0 0 1rem;color:var(--text-dim)">Envie o inventário de tratamentos, a lista de terceiros, as políticas e normas, as DPIAs e LIAs e o histórico de pedidos de titulares, incidentes e consentimentos que o cliente já tem (planilha, documento ou PDF). A IA propõe os itens; você revisa e confirma antes de gravar.</p>
+        <p style="margin:0 0 1rem;color:var(--text-dim)">Envie o inventário de tratamentos, a lista de terceiros, as políticas e normas, as DPIAs e LIAs e os riscos, o plano de ação, o teste de impacto, o ciclo de vida, as bases legais e o histórico de pedidos de titulares, incidentes e consentimentos que o cliente já tem (planilha, documento ou PDF). A IA propõe os itens; você revisa e confirma antes de gravar.</p>
+        <p style="margin:0 0 1rem;color:var(--text-dim)">Migração do sistema anterior: um CSV com o cabeçalho de um dos modelos (tratamentos, terceiros, riscos, gaps, impacto, ciclo, bases, ripd, lia, pedidos) entra direto, sem IA, com a mesma revisão antes de gravar. Os modelos e o roteiro estão no runbook de migração do legado.</p>
         ${window.renderDataTable(['Importação', 'Situação', 'Arquivos', 'Itens propostos', 'Ações'], linhas, { emptyState: 'Nenhuma importação neste projeto.' })}`;
 }
 
-function abreLote(id) { Object.assign(E, { loteId: id, envios: [], resultados: null, msg: '', cancelando: false, aba: 'tratamento' }); return recarrega(); }
+function abreLote(id) { Object.assign(E, { loteId: id, envios: [], resultados: null, msg: '', cancelando: false, aba: 'tratamento', rec: null }); return recarrega(); }
 
 window.importacaoNovo = async function () {
     try { await abreLote((await api('POST', `/api/v1/projects/${pid()}/importacoes`)).id); } catch (err) { showToast((err && err.message) || 'Não foi possível criar o lote', 'error'); }
@@ -119,13 +159,14 @@ function htmlLote() {
     const fila = arquivos.filter((x) => x.status === 'pendente' || x.status === 'erro').length;
     const bloqueado = E.ocupado ? ' disabled' : '';
     const arqs = window.renderDataTable(['Arquivo', 'Situação', 'Tipo detectado', 'Observação'], arquivos.map((x) => [
-        e(x.nome), badge(STATUS_ARQ[x.status] || [x.status, 'neutral']), e(x.tipo ? TIPOS[x.tipo] || x.tipo : ''), e(x.erro || ''),
+        e(x.nome), badge(STATUS_ARQ[x.status] || [x.status, 'neutral']), e(/^modelo CSV/.test(x.modelo || '') ? x.modelo : x.tipo ? TIPOS[x.tipo] || x.tipo : ''), e(x.erro || ''),
     ]), { emptyState: 'Nenhum arquivo enviado ainda.' });
     const envios = E.envios.length ? `<ul style="margin:0.5rem 0;padding-left:1.2rem">${E.envios.map((v) => `<li style="color:${v.ok ? 'var(--text-2)' : 'var(--danger)'}">${e(v.nome)}: ${e(v.ok ? 'enviado' : v.erro)}</li>`).join('')}</ul>` : '';
     return `
         <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem">
             <button class="btn btn-ghost btn-sm" data-action="importacaoVoltar">Voltar aos lotes</button>
             ${badge([STATUS_LOTE[lote.status] || lote.status, 'info'])}
+            <button class="btn btn-ghost btn-sm" data-action="importacaoReconciliacao">${E.rec ? 'Atualizar a reconciliação' : 'Reconciliação'}</button>
         </div>
         <div id="importacao-msg" role="status" style="margin-bottom:1rem;color:var(--text-2)">${e(E.msg)}</div>
         <h3 style="margin:0 0 0.5rem">Arquivos</h3>
@@ -139,6 +180,7 @@ function htmlLote() {
         ${htmlAbas(itens)}
         ${(TABELA[E.aba] || htmlItens)(itens.filter((i) => abaDe(i) === E.aba), ativo)}
         ${E.resultados && E.resultados.length ? htmlResultados(itens) : ''}
+        ${E.rec ? htmlReconciliacao(E.rec) : ''}
         ${ativo ? htmlRodape(itens, lote) : ''}`;
 }
 
@@ -159,7 +201,7 @@ const acoesItem = (i, ativo) => (!ativo || i.decisao === 'gravado' ? '' : `
             ${i.decisao !== 'aceito' && i.decisao !== 'recusado' ? `<button class="btn btn-ghost btn-sm" data-action="importacaoDecidir" data-args='${args(i.id, 'aceito')}'>Aceitar</button>` : ''}
             ${i.decisao !== 'descartado' ? `<button class="btn btn-ghost btn-sm" data-action="importacaoDecidir" data-args='${args(i.id, 'descartado')}'>Descartar</button>` : ''}`);
 const situacaoItem = (i, destino, rotulo) => `${badge(DECISAO[i.decisao] || [i.decisao, 'neutral'])}${i.duplicata_de ? `<div>${badge(['Já existe', 'warning'])} <button class="btn btn-ghost btn-sm" data-action="navigate" data-args='${args(destino)}'>${rotulo}</button></div>` : ''}`;
-const faltaItem = (i) => (i.faltando || []).map((k) => e(ROTULO[k] || k)).join(', ') || 'Nada';
+const faltaItem = (i) => (i.faltando || []).map((k) => e(ROTULO[k] || ROTULO_F6[k] || k)).join(', ') || 'Nada';
 
 function htmlTerceiros(itens, ativo) {
     const linhas = itens.map((i) => {
@@ -189,7 +231,8 @@ function htmlAvaliacoes(itens, ativo) {
     const linhas = itens.map((i) => {
         const d = i.dados || {};
         const resumo = `${badge([AVALIACAO[entidade(i)] || entidade(i), 'info'])} <strong>${e(d.tratamento || '(sem tratamento)')}</strong><div style="color:var(--text-dim)">${[
-            ['Conclusão', d.conclusao], ['Riscos', (d.riscos || []).join('; ')],
+            ['Conclusão', d.conclusao], ['Riscos', (d.riscos || []).join('; ')], ...(SECOES_AVALIACAO[entidade(i)] || []).map(([k, r]) => [r, d[k]]),
+            ['Risco residual', d.risco_residual && (RESIDUAL[d.risco_residual] || d.risco_residual)],
         ].filter(([, v]) => v).map(([k, v]) => `${e(k)}: ${e(v)}`).join(' · ')}</div>${rodapeItem(i)}`;
         const [destino, rotulo] = entidade(i) === 'lia' ? ['ropa', 'Ver no RoPA'] : ['dpia', 'Ver DPIAs'];
         return [resumo, badge(CONF[i.confianca] || [i.confianca, 'neutral']), faltaItem(i), situacaoItem(i, destino, rotulo), acoesItem(i, ativo)];
@@ -236,7 +279,67 @@ function htmlHistorico(itens, ativo) {
         + barraAlta(itens) + window.renderDataTable(['Registro proposto', 'Confiança', 'Faltando', 'Situação', 'Ações'], linhas, { emptyState: 'Nenhum registro proposto. Envie o histórico de pedidos, incidentes ou consentimentos e clique em Processar.' });
 }
 
-const TABELA = { terceiro: htmlTerceiros, documento: htmlDocumentos, avaliacao: htmlAvaliacoes, historico: htmlHistorico };
+// F6: riscos e ações; teste de impacto, ciclo e bases. Tudo ligado à atividade do RoPA com a mesma finalidade.
+const nota = (a, b) => (a && b ? `${a} x ${b}` : '');
+function resumoF6(i) {
+    const d = i.dados || {};
+    const ent = entidade(i);
+    let titulo = d.atividade || '(sem atividade)';
+    let pares;
+    if (ent === 'risco') {
+        titulo = `${titulo}: ${d.ameaca || '(sem ameaça)'}`;
+        pares = [['Impacto x probabilidade', nota(d.impacto, d.probabilidade)], ['Nível', rotulo(NIVEL, d.nivel)], ['Estratégia', rotulo(ESTRATEGIA, d.estrategia)],
+            ['Residual', nota(d.impacto_residual, d.probabilidade_residual)], ['Ativo', d.ativo], ['Prazo', d.prazo], ['Responsável', d.responsavel], ['Situação', rotulo(STATUS_RISCO, d.status)]];
+    } else if (ent === 'gap') {
+        titulo = `${titulo}: ${d.titulo || '(sem título)'}`;
+        pares = [['Prazo', d.prazo], ['Responsável', d.responsavel], ['Situação', rotulo(STATUS_GAP, d.status)], ['Risco', d.risco], ['Descrição', d.descricao]];
+    } else if (ent === 'impacto') {
+        const ids = Object.keys(PERGUNTAS_IMPACTO);
+        pares = [['Respostas', String(ids.filter((k) => d[k]).length)], ['Sim', ids.filter((k) => d[k] === 'sim').map((k) => PERGUNTAS_IMPACTO[k]).join(', ')]];
+    } else if (ent === 'ciclo') {
+        pares = [['Etapa', rotulo(ETAPAS, d.etapa)], ['Situação', rotulo(SITUACAO_CICLO, d.situacao)], ['Sistema', d.item], ['Descrição', d.descricao]];
+    } else {
+        pares = [['Bases adicionais', (d.adicionais || []).join('; ')], ['GDPR', d.base_gdpr]];
+    }
+    const tipo = DA_ATIVIDADE[ent] || COMPLEMENTOS[ent] || ent;
+    return `${badge([tipo, 'info'])} <strong>${e(titulo)}</strong><div style="color:var(--text-dim)">${linhaDados(pares)}</div>${rodapeItem(i)}${i.aviso ? `<div style="color:var(--warning)">${e(i.aviso)}</div>` : ''}`;
+}
+function htmlF6(texto, vazio) {
+    return (itens, ativo) => `<p style="margin:0 0 0.5rem;color:var(--text-dim)">${texto}</p>` + barraAlta(itens)
+        + window.renderDataTable(['Registro proposto', 'Confiança', 'Faltando', 'Situação', 'Ações'],
+            itens.map((i) => [resumoF6(i), badge(CONF[i.confianca] || [i.confianca, 'neutral']), faltaItem(i), situacaoItem(i, 'ropa', 'Ver no RoPA'), acoesItem(i, ativo)]),
+            { emptyState: vazio });
+}
+const htmlAtividade = htmlF6('Riscos e ações entram na atividade do RoPA com a mesma finalidade; sem ela, são recusados. Responsável e ativo são procurados pelo nome; o que não existir vira aviso, nada é criado. O aceite de um risco não é importado: é decisão de uma pessoa na tela da atividade. O prazo de um risco vira uma ação ligada a ele.',
+    'Nenhum risco ou ação proposto. Envie a planilha de riscos ou o plano de ação (ou os modelos de CSV) e clique em Processar.');
+const htmlComplementos = htmlF6('A importação só preenche o que está vazio na atividade: respostas do teste de impacto já dadas, etapas do ciclo já registradas e a base do GDPR já gravada são mantidas. O teste de impacto não é finalizado pela importação.',
+    'Nada proposto. Envie o teste de impacto, o ciclo de vida ou as bases (ou os modelos de CSV) e clique em Processar.');
+
+const TABELA = { terceiro: htmlTerceiros, documento: htmlDocumentos, avaliacao: htmlAvaliacoes, historico: htmlHistorico, atividade: htmlAtividade, complementos: htmlComplementos };
+
+// Reconciliação do lote (F6): o critério de aceite para desligar o sistema anterior. Só contagens e motivos genéricos.
+const COLUNAS_REC = [['propostos', 'Propostos'], ['pendentes', 'Pendentes'], ['aceitos', 'Aceitos sem gravar'], ['gravados', 'Gravados'], ['recusados', 'Recusados'],
+    ['descartados', 'Descartados'], ['duplicatas', 'Duplicatas'], ['com_aviso', 'Com aviso']];
+function htmlReconciliacao(r) {
+    const linha = (rot, c) => [e(rot), ...COLUNAS_REC.map(([k]) => e(c[k]))];
+    const resumo = window.renderDataTable(['Entidade', ...COLUNAS_REC.map(([, t]) => t)], [...r.entidades.map((c) => linha(c.rotulo, c)), linha('Total', r.totais)],
+        { emptyState: 'Nenhum item neste lote.' });
+    const motivos = r.motivos.length ? window.renderDataTable(['Entidade', 'Tipo', 'Motivo', 'Quantidade'],
+        r.motivos.map((m) => [e(m.rotulo), e(m.tipo === 'recusa' ? 'Recusa' : 'Aviso'), e(m.motivo), e(m.quantidade)]), {}) : '';
+    const situacao = r.sem_pendencia
+        ? 'Sem pendência: nenhum item pendente, aceito sem gravar ou recusado sem decisão. Compare os gravados com a contagem do inventário do sistema anterior.'
+        : 'Há itens pendentes, aceitos sem gravar ou recusados sem decisão: resolva (corrija, grave ou descarte) antes de seguir a virada.';
+    return `<h3 style="margin:1.5rem 0 0.5rem">Reconciliação do lote</h3>
+        <p id="importacao-rec-situacao" style="margin:0 0 0.5rem;color:${r.sem_pendencia ? 'var(--success)' : 'var(--warning)'}">${e(situacao)}</p>
+        ${resumo}${motivos}
+        <button class="btn btn-ghost btn-sm" style="margin-top:0.5rem" data-action="importacaoExportarReconciliacao">Exportar CSV</button>`;
+}
+window.importacaoReconciliacao = async function () {
+    try { E.rec = await api('GET', `/api/v1/projects/${pid()}/importacoes/${lid()}/reconciliacao`); } catch (err) { E.msg = (err && err.message) || 'Não foi possível montar a reconciliação'; }
+    pinta();
+};
+window.importacaoExportarReconciliacao = () => baixarArquivo(`/api/v1/projects/${pid()}/importacoes/${lid()}/reconciliacao/csv`)
+    .catch((err) => showToast((err && err.message) || 'Não foi possível baixar o arquivo', 'error'));
 
 function htmlResultados(itens) {
     const nome = (id) => nomeItem(itens.find((i) => i.id === id) || {}) || id;
@@ -366,6 +469,7 @@ window.importacaoEditar = function (iid) {
     if (entidade(i) === 'documento') return editarDocumento(i);
     if (AVALIACAO[entidade(i)]) return editarAvaliacao(i);
     if (HISTORICO[entidade(i)]) return editarHistorico(i);
+    if (FORM_F6[entidade(i)]) return editarF6(i);
     const d = i.dados || {};
     const campo = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="500"></div>`;
     const lista = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)} (separe por vírgula)</label><input class="form-input" id="imp-${k}" value="${e((d[k] || []).join(', '))}"></div>`;
@@ -413,6 +517,8 @@ function editarAvaliacao(i) {
         <div class="form-group"><label class="form-label" for="imp-tratamento">Tratamento (finalidade, como está no RoPA)</label><input class="form-input" id="imp-tratamento" value="${e(d.tratamento)}" maxlength="500"></div>
         <div class="form-group"><label class="form-label" for="imp-conclusao">Conclusão</label><textarea class="form-input" id="imp-conclusao" maxlength="2000" rows="3">${e(d.conclusao)}</textarea></div>
         <div class="form-group"><label class="form-label" for="imp-riscos">Riscos (um por linha)</label><textarea class="form-input" id="imp-riscos" rows="4">${e((d.riscos || []).join('\n'))}</textarea></div>
+        ${(SECOES_AVALIACAO[entidade(i)] || []).map(([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><textarea class="form-input" id="imp-${k}" maxlength="2000" rows="2">${e(d[k])}</textarea></div>`).join('')}
+        ${entidade(i) === 'dpia' ? opcoes('risco_residual', 'Risco residual', RESIDUAL, d.risco_residual) : ''}
         <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
@@ -454,6 +560,35 @@ function dadosHistorico(i, v) {
     return falta ? { erro: `${ROTULO[falta] || falta} é obrigatório.` } : { dados };
 }
 
+// F6: formulário gerado de FORM_F6 (texto, nota, opção, data e lista separada por |).
+function editarF6(i) {
+    const d = i.dados || {};
+    const campo = ([k, r, tipo, extra]) => {
+        if (tipo === 'opcao') return opcoes(k, r, extra, d[k]);
+        const valor = tipo === 'lista' ? (d[k] || []).join(' | ') : d[k];
+        const attrs = tipo === 'data' ? 'type="date"' : tipo === 'nota' ? 'type="number" min="1" max="5"' : `maxlength="${extra || 500}"`;
+        return `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" ${attrs} value="${e(valor)}"></div>`;
+    };
+    const tipo = DA_ATIVIDADE[entidade(i)] || COMPLEMENTOS[entidade(i)];
+    openModal(`
+        <div class="modal-header"><span class="modal-title">Editar ${e(tipo.toLowerCase())}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        ${FORM_F6[entidade(i)].map(campo).join('')}
+        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
+}
+function dadosF6(i, v) {
+    const ent = entidade(i);
+    const dados = {};
+    for (const [k, , tipo] of FORM_F6[ent]) {
+        const t = v(k).trim();
+        if (tipo === 'lista') dados[k] = t.split('|').map((x) => x.trim()).filter(Boolean);
+        else if (tipo === 'nota') dados[k] = t ? Number(t) : null;
+        else dados[k] = t || null;
+    }
+    const falta = OBRIG_F6[ent].find((k) => !dados[k]);
+    return falta ? { erro: `${ROTULO_F6[falta] || falta} é obrigatório.` } : { dados };
+}
+
 // Dados do formulário de documento e de avaliação, ou o motivo de não salvar.
 function dadosDocOuAvaliacao(i, v) {
     const t = (k) => v(k).trim() || null;
@@ -462,6 +597,8 @@ function dadosDocOuAvaliacao(i, v) {
         return dados.titulo ? { dados } : { erro: 'O título é obrigatório.' };
     }
     const dados = { tratamento: v('tratamento').trim(), conclusao: t('conclusao'), riscos: v('riscos').split('\n').map((x) => x.trim()).filter(Boolean) };
+    // Seções do RIPD/LIA (F6) só entram preenchidas: o corpo de quem não as usa fica como antes.
+    for (const [k] of [...(SECOES_AVALIACAO[entidade(i)] || []), ...(entidade(i) === 'dpia' ? [['risco_residual']] : [])]) { const x = t(k); if (x) dados[k] = x; }
     return dados.tratamento ? { dados } : { erro: 'O tratamento é obrigatório.' };
 }
 
@@ -480,8 +617,8 @@ function dadosTerceiro(v) {
 window.importacaoSalvarItem = async function (iid) {
     const v = (k) => document.getElementById(`imp-${k}`)?.value ?? '';
     const item = E.det.itens.find((x) => x.id === iid);
-    if (item && (entidade(item) === 'documento' || AVALIACAO[entidade(item)] || HISTORICO[entidade(item)])) {
-        const r = HISTORICO[entidade(item)] ? dadosHistorico(item, v) : dadosDocOuAvaliacao(item, v);
+    if (item && (entidade(item) === 'documento' || AVALIACAO[entidade(item)] || HISTORICO[entidade(item)] || FORM_F6[entidade(item)])) {
+        const r = FORM_F6[entidade(item)] ? dadosF6(item, v) : HISTORICO[entidade(item)] ? dadosHistorico(item, v) : dadosDocOuAvaliacao(item, v);
         if (r.erro) { document.getElementById('imp-erro').textContent = r.erro; return; }
         try { await atualiza(iid, { dados: r.dados }); } catch (err) { document.getElementById('imp-erro').textContent = (err && err.message) || 'Não foi possível salvar'; return; }
         window.forceCloseModal();

@@ -126,7 +126,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 53 arquivos em 2026-10-15: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 54 arquivos em 2026-10-15: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -170,7 +170,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
 - **Schema**: `schema.sql` — **92 tabelas** (2026-10-15: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0075** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0076** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -424,6 +424,20 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   O pseudonimo usa uma subchave (`HMAC(TOKEN_ENC_KEY, "n.iso/importacao/titular_ref/v1")`), nao a chave de cifra direto. Consentimento exige o tratamento do RoPA de mesma finalidade normalizada (o gravado na mesma confirmacao vale;
   sem ele, `recusado`). Duplicata: pedido pelo protocolo de origem; incidente pelo protocolo de origem ou titulo e dia da ciencia;
   consentimento pelo pseudonimo, finalidade e data.
+  **Legado (F6, migration 0076; plano `docs/superpowers/plans/2026-10-15-f6-importacao-legado.md`):** entidades `risco`, `gap`, `impacto`,
+  `ciclo` e `bases` (CHECK ampliado por rebuild de `importacao_itens`, mais a coluna `aviso`, que guarda o aviso da gravacao). Gravacao por
+  `GRAVAR_DA_ATIVIDADE` com os servicos da F1 a F3 (`criarRisco`, `criarAcao`, `salvarImpacto`, `salvarCiclo`, `salvarBases`); atividade pela
+  finalidade normalizada (sem ela, `recusado`); responsavel (pessoa), ativo e sistema por nome, sem criar nada (aviso). **A importacao nunca
+  sobrescreve:** impacto so as perguntas sem resposta (nao finaliza), ciclo so a etapa sem linha, bases so acrescentam, GDPR so se vazia; aceite
+  de risco nao entra (status `aceito` vira aberto, com aviso); prazo do risco vira acao ligada. Duplicata: risco por (atividade, ameaca), acao
+  por (atividade, titulo), ciclo por (atividade, etapa), impacto pela atividade com teste respondido. Texto livre de risco e acao passa por
+  `mascararPii` (`semPii`). Ordem da confirmacao: tratamentos, documentos, riscos, acoes, impacto/ciclo/bases, depois o resto. Nenhum tipo de
+  arquivo novo (`importacao_arquivos.tipo` tem CHECK): riscos, acoes, impacto e ciclo vem de arquivo `avaliacao`, item a item pelo `tipo`.
+  RIPD e LIA aceitam as secoes do legado (`avaliacaoPropostaSchema`). **Modelos de CSV sem IA** (`src/services/importacao-modelos.ts`,
+  `MODELOS`; exemplos ficticios em `docs/modelos-importacao/`, conferidos por `test/importacao-legado.test.ts`): CSV cujo cabecalho e
+  exatamente o de um modelo vira itens `pendente` de confianca alta sem chamar a IA (`origem` so "registro N do modelo X"); o modelo de pedidos
+  nao tem coluna de titular. **Reconciliacao**: `GET .../importacoes/:id/reconciliacao` (e `/csv`), so contagens e motivos genericos
+  (`motivoGenerico`); `sem_pendencia` e o criterio da virada. Roteiro por cliente: `docs/runbook-migracao-legado.md`.
   Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`), e o GET tambem e
   recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
   prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:
@@ -501,7 +515,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 273 arquivos de teste do backend mocka o D1 inteiro** (2026-10-15;
+- **Nenhum dos 275 arquivos de teste do backend mocka o D1 inteiro** (2026-10-15;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -513,7 +527,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~21,2 mil linhas de JS (2026-10-15)
+- **Frontend com pouco teste por linha.** ~21,3 mil linhas de JS (2026-10-15)
   (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 104 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 34 telas de `frontend/src/views/` sao
@@ -591,6 +605,7 @@ errar um digito destruia a sessao.
 - `CONTRIBUTING.md` — verificacao antes do PR, regras de schema e de teste
 - `SECURITY.md` — invariantes de seguranca que nao podem regredir
 - `backups/README.md` — runbook de backup e restauracao
+- `docs/runbook-migracao-legado.md` — virada de um cliente do sistema anterior para o n.360 (modelos de CSV, reconciliacao, desligamento)
 - `docs/runbook-publicacao.md` — publicacao pelo Actions, plano B local (`scripts/publicar.sh`),
   orcamento de minutos e checklist do repositorio privado
 - `migrations/README.md` — estado real das migrations em producao e como
