@@ -43,6 +43,28 @@ describe('Central de Evidências', () => {
         expect(c.textContent).toContain('Pendente');
     });
 
+    it('linha: uma ação à vista, o próximo passo da evidência, e o resto no "Mais ações"', async () => {
+        f = servir({
+            'GET /api/v1/projects/p1/evidence': { ok: true, evidence: [
+                { id: 'ev-1', file_name: 'politica.pdf', file_hash: 'abc' },
+                { id: 'ev-2', file_name: 'log.txt', file_hash: 'def', ciso_approved_by: 'Ana' },
+                { id: 'ev-3', file_name: 'ata.pdf', file_hash: 'ghi', ciso_approved_by: 'Ana', ceo_approved_by: 'Bia' },
+            ] },
+            'GET /api/v1/projects/p1/controls': { ok: true, controls: [] },
+        });
+        const { c, h, a } = tela();
+        await window.renderEvidence(c, h, a);
+        const linhas = [...c.querySelectorAll('tbody tr')];
+        const visiveis = (tr) => [...tr.querySelectorAll('td:last-child button')].filter((b) => !b.closest('[role="menu"]'));
+        expect(linhas.map((tr) => visiveis(tr).map((b) => b.textContent.trim()))).toEqual([
+            ['Revisar (Líder SGSI)', 'Mais ações'], ['Assinar CEO', 'Mais ações'], ['Baixar', 'Mais ações']]);
+        expect(visiveis(linhas[0])[0].getAttribute('aria-label')).toBe('Revisar (Líder SGSI): politica.pdf');
+        const menu = (tr) => [...tr.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent.trim());
+        expect(menu(linhas[0])).toEqual(['Assinar CEO', 'Baixar', 'Avaliar com IA']);
+        expect(menu(linhas[2])).toEqual(['Avaliar com IA']);
+        expect(c.querySelectorAll('.btn-primary')).toHaveLength(0);
+    });
+
     it('cliente vê o controle, sem seletor', async () => {
         S.user = { role: 'org_user' };
         const { c, h, a } = tela();
