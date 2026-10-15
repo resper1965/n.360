@@ -40,6 +40,14 @@ describe('Raiz e rota desconhecida entregam a tela de entrada', () => {
     expect(pedidos).toEqual(['/auditor']);
   });
 
+  it('/homologacao (questionário do fornecedor) vai ao asset, sem rota do Worker no meio', async () => {
+    const pedidos: string[] = [];
+    const assets = { fetch: async (req: Request) => { pedidos.push(new URL(req.url).pathname); return new Response('questionario'); } };
+    const res = await app.request('/homologacao', {}, { ASSETS: assets } as any);
+    expect(await res.text()).toBe('questionario');
+    expect(pedidos).toEqual(['/homologacao']);
+  });
+
   it('/iso e /privacy/x (módulos do n.360) entregam o shell do app', async () => {
     for (const caminho of ['/iso', '/privacy/x']) {
       const assets = assetsFalso();

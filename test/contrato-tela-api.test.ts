@@ -27,8 +27,8 @@ export function chamadasDoFonte(arquivo: string, src: string): Chamada[] {
     const inicio = m.index ?? 0;
     const antes = src.slice(Math.max(0, inicio - 40), inicio);
     let metodo = /api\(\s*'([A-Z]+)'\s*,\s*$/.exec(antes)?.[1] ?? null;
-    // public/auditor.js: chamar(caminho) faz sempre POST (conferido em teste próprio abaixo).
-    if (!metodo && arquivo.endsWith('frontend/public/auditor.js') && /\bchamar\(\s*$/.test(antes)) metodo = 'POST';
+    // public/auditor.js e public/homologacao.js: chamar(caminho) faz sempre POST (conferido em teste próprio abaixo).
+    if (!metodo && /frontend\/public\/(auditor|homologacao)\.js$/.test(arquivo) &&/\bchamar\(\s*$/.test(antes)) metodo = 'POST';
     if (!metodo && /fetch\(\s*(?:API_BASE\s*\+\s*)?$/.test(antes)) {
       // fetch sem `method:` é GET (padrão do fetch); o init vem logo depois do literal.
       const depois = src.slice(inicio + m[0].length, inicio + m[0].length + 200).split('fetch(')[0];
@@ -137,6 +137,7 @@ describe('contrato tela↔API', () => {
     // Cada uma destas recebe literais /api/v1 que o extrator já pega na origem.
     const PERMITIDAS = [
       'frontend/public/auditor.js: fetch(caminho',
+      'frontend/public/homologacao.js: fetch(caminho',
       'frontend/public/proposta.js: fetch(API + acao',
       'frontend/src/api.js: fetch(API_BASE + p',
       // baixarArquivo(`/api/v1/...`) (F4): CSV e Word; o literal está em cada chamada e o token vai no cabeçalho.
@@ -169,6 +170,15 @@ describe('contrato tela↔API', () => {
     expect(usos.length).toBe(5);
     for (const u of usos) expect(u.startsWith("'/api/v1/public/auditor/"), u).toBe(true);
     expect(/async function chamar[\s\S]*?method:\s*'POST'/.test(src)).toBe(true);
+  });
+
+  it('public/homologacao.js: chamar() recebe o caminho literal, e as três chamadas são vistas, todas POST', () => {
+    expect(CHAMADAS.filter((c) => c.onde.startsWith('frontend/public/homologacao.js:')).map(chave)).toEqual([
+      'POST /api/v1/public/homologacao/ver',
+      'POST /api/v1/public/homologacao/salvar',
+      'POST /api/v1/public/homologacao/enviar',
+    ]);
+    expect(/async function chamar[\s\S]*?method:\s*'POST'/.test(FONTES['../frontend/public/homologacao.js'])).toBe(true);
   });
 
   it('toda chamada do frontend tem rota (ou tolerância com motivo)', () => {

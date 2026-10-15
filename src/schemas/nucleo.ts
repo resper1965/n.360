@@ -145,6 +145,33 @@ export const avaliacaoTerceiroSchema = z.object({
   observacao: z.string().trim().max(2000).nullish(),
 }).strict();
 
+// ─── Homologação de fornecedor por questionário (F5) ─────────────────────────────────────────────────────────────
+const temaPergunta = z.string().trim().min(1).max(80);
+const textoPergunta = z.string().trim().min(1).max(500);
+export const homologacaoPerguntaCriarSchema = z.object({ tema: temaPergunta, texto: textoPergunta, ordem: z.number().int().min(0).max(100_000).optional() }).strict();
+export const homologacaoPerguntaAtualizarSchema = z.object({
+  tema: temaPergunta.optional(), texto: textoPergunta.optional(), ordem: z.number().int().min(0).max(100_000).optional(), ativa: z.boolean().optional(),
+}).strict().refine((d) => Object.keys(d).length > 0, 'Informe ao menos um campo');
+export const homologacaoCriarSchema = z.object({
+  parte_id: z.string().trim().min(1).max(100),
+  dias: z.number().int().min(1).max(60).optional(),
+  /** Se vier, o link vai por e-mail (o endereço não é gravado). */
+  email: z.string().trim().email().max(254).optional(),
+}).strict();
+export const homologacaoConcluirSchema = z.object({
+  resultado: z.enum(['aprovado', 'com_ressalvas', 'reprovado']),
+  valido_ate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD'),
+  observacao: z.string().trim().max(1500).nullish(),
+}).strict();
+const tokenHomologacao = z.string().min(1).max(200);
+const respostasHomologacao = z.record(z.string().min(1).max(200), z.object({
+  resposta: z.enum(['sim', 'nao', 'parcial', 'na']),
+  justificativa: z.string().trim().max(1000).nullish(),
+}).strict()).refine((r) => Object.keys(r).length <= 100, 'No máximo 100 respostas');
+export const homologacaoTokenSchema = z.object({ token: tokenHomologacao }).strict();
+export const homologacaoRespostasSchema = z.object({ token: tokenHomologacao, respostas: respostasHomologacao }).strict();
+export const homologacaoEnviarSchema = z.object({ token: tokenHomologacao, respostas: respostasHomologacao.optional() }).strict();
+
 export const terceiroDocumentoSchema = z.object({
   documento_id: z.string().trim().min(1).max(100),
   papel: z.enum(['dpa', 'contrato', 'outro']).default('dpa'),

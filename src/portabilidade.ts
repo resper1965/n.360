@@ -46,6 +46,7 @@ const SEGREDOS_DE_INTEGRACAO: Record<string, string[]> = {
   webhooks: ['secret'],
   project_sso: ['client_secret'],
   project_scim: ['token_hash'],
+  homologacoes: ['token_hash'],
   projects: ['repository_token'],
 };
 
@@ -225,7 +226,7 @@ export async function exportarProjeto(env: Bindings, projectId: string): Promise
     nao_incluido: [
       'Arquivos de evidência (R2): vão as chaves, os hashes e os tamanhos na tabela `evidence`; o conteúdo sai por download individual.',
       'Chaves de API e tokens de auditor: são credenciais de acesso, não dado do titular.',
-      'Segredos de integração saem em branco: `webhooks.secret`, `project_sso.client_secret`, `project_scim.token_hash` e `projects.repository_token`. Não servem fora daqui, e o do webhook permitiria forjar entregas assinadas.',
+      'Segredos de integração saem em branco: `webhooks.secret`, `project_sso.client_secret`, `project_scim.token_hash`, `homologacoes.token_hash` e `projects.repository_token`. Não servem fora daqui, e o do webhook permitiria forjar entregas assinadas.',
     ],
   };
 

@@ -42,7 +42,7 @@ describe('niso e nprivacy: página de navegador vai ao módulo no n.360', () => 
 describe('niso e nprivacy: exceções respondem no lugar', () => {
   const excecoes = [
     '/health', '/api/v1/auth/me', '/scim/v2/Users', '/mcp', '/oauth/token', '/.well-known/security.txt',
-    '/politicas', '/politicas.html', '/auditor', '/auditor.js', '/auditor.css', '/proposta', '/proposta.html',
+    '/politicas', '/politicas.html', '/auditor', '/auditor.js', '/auditor.css', '/proposta', '/proposta.html', '/homologacao', '/homologacao.js',
   ];
   for (const host of ['niso.ness.com.br', 'nprivacy.ness.com.br']) {
     for (const caminho of excecoes) {
@@ -75,6 +75,7 @@ describe('fica(caminho)', () => {
     expect(fica('/politicas.html')).toBe(true);
     expect(fica('/auditor.js')).toBe(true);
     expect(fica('/proposta.css')).toBe(true);
+    expect(fica('/homologacao.css')).toBe(true);
     expect(fica('/politicas.json')).toBe(false);
     expect(fica('/')).toBe(false);
     expect(fica('/login')).toBe(false);
