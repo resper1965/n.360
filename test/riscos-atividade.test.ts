@@ -183,6 +183,15 @@ describe('faixas e agente', () => {
     expect(await env.DB.prepare('SELECT status FROM risks WHERE id = ?').bind(id).first()).toEqual({ status: 'Open' });
   });
 
+  it('o agente também não aceita risco pela rota do n.iso', async () => {
+    const ag = (metodo: string, caminho: string, corpo?: unknown) => chamar({}, metodo, caminho, corpo, { AGENTE });
+    const id = await novoRisco('ra-r1');
+    expect((await ag('PUT', `/api/v1/risks/${id}`, { status: 'Accepted' })).status).toBe(403);
+    expect((await ag('PUT', `/api/v1/risks/${id}`, { accepted_by: 'x' })).status).toBe(403);
+    expect((await ag('POST', `/api/v1/projects/${P}/risks`, { asset: 'A', threat: 'T', status: 'Accepted' })).status).toBe(403);
+    expect((await ag('PUT', `/api/v1/risks/${id}`, { treatment_plan: 'Rascunho' })).status).toBe(200);
+  });
+
   it('aceite humano grava quem aceitou e quando', async () => {
     const id = await novoRisco('ra-r1', { treatment: 'Accept' });
     expect((await chamar(consultor, 'PUT', `${base('ra-r1')}/riscos/${id}`, { status: 'Accepted' })).status).toBe(200);
