@@ -99,7 +99,12 @@ describe('envio, link e aceite manual', () => {
     const e = corposResend[0];
     expect(e.to).toEqual(['cliente@empresa.com']);
     expect(e.reply_to).toBe('com@ness.lat');
-    expect(e.from).toMatch(/^[^<>"\r\n]+ via n\.iso <noreply@ness\.com\.br>$/);
+    expect(e.from).toMatch(/^[^<>"\r\n]+ via n\.360 <noreply@ness\.com\.br>$/);
+    expect(e.text).toContain(`https://n360.ness.com.br/proposta#${t}`);
+    expect(e.text).toContain('Até quando: 31/12/2099');
+    expect(e.text).toContain('com@ness.lat');
+    expect(e.text).toContain('<b>Oi</b>'); // texto puro não escapa: não é HTML
+    expect(e.html).not.toContain('n.iso');
     expect(e.html).toContain(`https://n360.ness.com.br/proposta#${t}`);
     expect(e.html).toContain('31/12/2099');
     expect(e.html).toContain('Ver e responder a proposta');
@@ -233,7 +238,7 @@ describe('envio, link e aceite manual', () => {
 
   it('sendEmail sem chave (dev): loga domínio e assunto, nunca o endereço nem o HTML', async () => {
     preparar();
-    const ok = await sendEmail({ env: {} }, 'x@y.com', 'Assunto X', '<a href="https://niso.ness.com.br/proposta#SEGREDO123">link</a>');
+    const ok = await sendEmail({ env: {} }, 'x@y.com', 'Assunto X', { html: '<a href="https://niso.ness.com.br/proposta#SEGREDO123">link</a>', text: 'https://niso.ness.com.br/proposta#SEGREDO123' });
     expect(ok).toBe(true);
     expect(logs()).toContain('y.com');
     expect(logs()).not.toContain('x@y.com');

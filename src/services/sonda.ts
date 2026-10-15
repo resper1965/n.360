@@ -17,7 +17,8 @@
  * Sem ela a sonda só grava o log estruturado. Nada de dado pessoal no log: só o nome do binding e
  * a mensagem do erro, cortada.
  */
-import { enviarEmail, escapeHtml } from '../helpers';
+import { enviarEmail } from '../helpers';
+import { emailAlertaSonda } from './emails';
 import { appUrl } from '../config/url';
 import { log } from '../observability';
 import type { Bindings } from '../index';
@@ -71,8 +72,7 @@ async function gravarEstado(env: EnvSonda, falha: boolean): Promise<void> {
 
 async function avisar(env: EnvSonda, assunto: string, linhas: string[]): Promise<boolean> {
   if (!env.ALERTA_EMAIL) return true; // sem destino configurado: o log é o registro
-  const corpo = linhas.map((l) => `<p>${escapeHtml(l)}</p>`).join('');
-  return enviarEmail(env, env.ALERTA_EMAIL, assunto, corpo);
+  return enviarEmail(env, env.ALERTA_EMAIL, assunto, emailAlertaSonda(assunto, linhas));
 }
 
 export async function sondaInterna(env: EnvSonda): Promise<ResultadoSonda> {

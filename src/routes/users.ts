@@ -1,7 +1,9 @@
 import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
 
-import { genId, hashPassword, logAudit, sendEmail, escapeHtml, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, erro500, ehConsultor, ehAdminDaOrg, consultorDesignado, PROJETOS_DO_CONSULTOR_SQL, PAPEIS_EQUIPE_ORG } from '../helpers';
+import { remetente } from '../services/email-layout';
+import { emailBoasVindas } from '../services/emails';
+import { genId, hashPassword, logAudit, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, erro500, ehConsultor, ehAdminDaOrg, consultorDesignado, PROJETOS_DO_CONSULTOR_SQL, PAPEIS_EQUIPE_ORG } from '../helpers';
 import { validateBody, createUserSchema, updateUserSchema, modulosDaContaSchema, ativoDaContaSchema } from '../schemas';
 import { MODULOS_PRODUTO, NOME_DO_PRODUTO, modulosContratados, modulosDaPessoa, modulosDoProjeto, type Modulo } from '../modulos';
 import { appUrl } from '../config/url';
@@ -176,27 +178,13 @@ async function comModulos<T extends { id: string; role: string; client_project_i
  * `requires_password_change = 1`, então ela vale para UM login). Único caminho de boas-vindas: o
  * `POST /users` e o provisionamento de organização (`routes/organizacoes.ts`) usam este. Devolve se o
  * provedor aceitou; a senha nunca vai para log (`sendEmail` só registra destinatário e assunto).
+ * A senha no corpo é pendência conhecida: ver `emailBoasVindas` (services/emails.ts).
  */
 export function enviarBoasVindas(c: any, email: string, name: string, password: string, nomeOrg: string): Promise<boolean> {
-  // O nome da organização de quem convida (a ness. é "ness.", que já termina em ponto).
-  const org = escapeHtml(nomeOrg.endsWith('.') ? nomeOrg : `${nomeOrg}.`);
-  const emailHtml = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e7; border-radius: 10px; color: #333;">
-        <h2 style="color: #00ade8; font-weight: 500; margin-top: 0;">Bem-vindo ao n.iso!</h2>
-        <p>Olá, <strong>${escapeHtml(name)}</strong>,</p>
-        <p>Você foi convidado a acessar o portal de GRC da <strong>${org}</strong></p>
-        <p>Aqui estão suas credenciais temporárias para o primeiro acesso:</p>
-        <div style="background-color: #f4f4f7; padding: 15px; border-radius: 8px; margin: 20px 0; font-family: monospace; font-size: 0.95rem;">
-          <strong>E-mail:</strong> ${escapeHtml(email)}<br/>
-          <strong>Senha Temporária:</strong> ${escapeHtml(password)}
-        </div>
-        <p style="color: #ff3b30; font-size: 0.85rem;">* Por motivos de segurança, você deverá redefinir sua senha obrigatoriamente no primeiro login.</p>
-        <p style="margin-top: 25px;">
-          <a href="${appUrl(c.env)}" style="background-color: #00ade8; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Entrar no n.360</a>
-        </p>
-      </div>
-    `;
-  return sendEmail(c, email, 'Seu acesso ao n.360', emailHtml);
+  const quem = c.get?.('user') as { name?: string; email?: string } | undefined;
+  const convidante = quem?.email ? { nome: quem.name ?? null, email: quem.email, organizacao: nomeOrg } : null;
+  const m = emailBoasVindas({ nome: name, email, senha: password, organizacao: nomeOrg, convidante, url: appUrl(c.env) });
+  return sendEmail(c, email, m.assunto, m, { from: remetente('n.360', nomeOrg), ...(quem?.email ? { replyTo: quem.email } : {}) });
 }
 
 usersApp.post('/', async (c) => {
