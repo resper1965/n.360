@@ -195,6 +195,31 @@ describe('página da atividade', () => {
     });
 });
 
+describe('uma aprovação só (n.privacy)', () => {
+    it('Detalhes da atividade no n.privacy não tem assinatura direta nem "Líder SGSI": leva à etapa de aprovação; no n.iso a assinatura fica', () => {
+        S.ropa = [REG()];
+        window.openROPADetailsModal('r1');
+        const m = el('modal-content');
+        expect(m.querySelector('[data-action="approveROPA"]')).toBeNull();
+        expect(m.textContent).not.toContain('Líder SGSI');
+        expect(el('ropa-aprovacao-pedido').textContent).toContain('etapa 5');
+        expect(JSON.parse(m.querySelector('[data-action="abrirAtividade"]').getAttribute('data-args'))).toEqual(['p9', 'r1']);
+        S.activeProject = { id: 'p9', modulos: ['iso'] };
+        S.projects = [S.activeProject];
+        window.openROPADetailsModal('r1');
+        expect(el('modal-content').querySelectorAll('[data-action="approveROPA"]')).toHaveLength(2);
+    });
+
+    it('o pedido enviado a partir da página redesenha a página (a etapa 5 mostra o pedido na hora)', async () => {
+        servir({ 'GET /api/v1/projects/p9/governance': [{ email: 'cida@cliente.com', name: 'Cida', role_category: 'executivo' }], [`POST ${P}/pedidos`]: { ok: true, id: 'pd1' } });
+        S.view = 'ropa-atividade';
+        await window.abrirPedidoAprovacao('p9', 'tratamento', 'r1');
+        document.querySelector('input[name="pn-dest"]').checked = true;
+        await window.enviarPedidoAprovacao(null, 'p9', 'tratamento', 'r1');
+        expect(window.render).toHaveBeenCalled();
+    });
+});
+
 describe('etapas (conta pura)', () => {
     const base = { registro: REG(), lig: LIG(), impacto: IMPACTO(), ciclo: CICLO.etapas, lia: null, riscos: [], acoes: [] };
     it('dados pendentes dizem o que falta; ciclo sem nenhuma etapa conta como falta', () => {

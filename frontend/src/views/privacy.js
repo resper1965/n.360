@@ -119,10 +119,37 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         `;
     }
 
+    // Assinatura direta do RoPA (n.iso): o modelo antigo, ao lado do pedido de aprovação.
+    const assinaturasDiretas = (r, projectId) => `
+                <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--text-dim); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Assinaturas do RoPA</h4>
+                <div style="display:flex; flex-direction:column; gap:0.75rem">
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
+                        <div>
+                            <strong>Líder SGSI:</strong> 
+                            ${r.ciso_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ciso_approved_by)} em ${new Date(r.ciso_approved_at).toLocaleDateString()}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
+                        </div>
+                        ${!r.ciso_approved_by ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveROPA" data-args='["${projectId}","${r.id}","ciso"]'>Assinar</button>` : podeRevogar() ? `<button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarROPA" data-args='["${projectId}","${r.id}","ciso"]'>Revogar</button>` : ''}
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
+                        <div>
+                            <strong>Direção Executiva:</strong> 
+                            ${r.ceo_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ceo_approved_by)} em ${new Date(r.ceo_approved_at).toLocaleDateString()}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
+                        </div>
+                        ${!r.ceo_approved_by ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveROPA" data-args='["${projectId}","${r.id}","ceo"]'>Assinar</button>` : podeRevogar() ? `<button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarROPA" data-args='["${projectId}","${r.id}","ceo"]'>Revogar</button>` : ''}
+                    </div>
+                </div>`;
+
     window.openROPADetailsModal = function(id) {
         const r = S.ropa.find(x => x.id === id) || {};
         const projectId = S.activeProject ? S.activeProject.id : '';
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
+        // n.privacy (onda 2): uma aprovação só, a do pedido, na etapa 5 da página da atividade. A assinatura direta fica só no n.iso
+        // (o POST .../approve continua no servidor, por compatibilidade).
+        const comPrivacy = temProduto(projetoDoId(projectId), 'privacy');
+        const aprovacao = comPrivacy
+            ? `<p class="at-nota" id="ropa-aprovacao-pedido">A aprovação desta atividade é por pedido, com o conteúdo congelado: veja e peça na etapa 5 da atividade.</p>
+               <button class="btn" data-action="abrirAtividade" data-args='${escapeHTML(JSON.stringify([projectId, id]))}'>Abrir a atividade</button>`
+            : assinaturasDiretas(r, projectId);
         
         openModal(`
             <div class="modal-header">
@@ -176,26 +203,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                     </div>` : ''}
                 </div>
             </div>
-            <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:16px">
-                <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--text-dim); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Assinaturas do RoPA</h4>
-                <div style="display:flex; flex-direction:column; gap:0.75rem">
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
-                        <div>
-                            <strong>Líder SGSI:</strong> 
-                            ${r.ciso_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ciso_approved_by)} em ${new Date(r.ciso_approved_at).toLocaleDateString()}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
-                        </div>
-                        ${!r.ciso_approved_by ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveROPA" data-args='["${projectId}","${r.id}","ciso"]'>Assinar</button>` : podeRevogar() ? `<button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarROPA" data-args='["${projectId}","${r.id}","ciso"]'>Revogar</button>` : ''}
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
-                        <div>
-                            <strong>Direção Executiva:</strong> 
-                            ${r.ceo_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ceo_approved_by)} em ${new Date(r.ceo_approved_at).toLocaleDateString()}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
-                        </div>
-                        ${!r.ceo_approved_by ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveROPA" data-args='["${projectId}","${r.id}","ceo"]'>Assinar</button>` : podeRevogar() ? `<button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarROPA" data-args='["${projectId}","${r.id}","ceo"]'>Revogar</button>` : ''}
-                    </div>
-                </div>
-            </div>
-            
+            <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:16px">${aprovacao}</div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px">
                 <button class="btn btn-secondary" data-action="openROPAReport" data-args='["${projectId}"]'>Exportar RoPA (PDF)</button>
                 <div>
@@ -312,7 +320,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
 
     async function renderDPIA(c, h, a) {
         // O termo legal brasileiro vem primeiro (LGPD, art. 5º, XVII).
-        h.textContent = 'RIPD (DPIA)';
+        h.textContent = produtoAtual() === 'privacy' ? 'RIPD' : 'RIPD (DPIA)';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -381,6 +389,8 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         const projectId = S.activeProject ? S.activeProject.id : '';
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
         const statusColor = s => s === 'Approved' ? 'var(--success)' : s === 'Under Review' ? 'var(--warning)' : 'var(--muted)';
+        // No n.privacy quem assina pelo papel `ciso` é o encarregado (o cargo DPO dá a autoridade, monitor.js).
+        const papelCiso = produtoAtual() === 'privacy' ? 'Encarregado (DPO)' : 'Líder SGSI';
         
         openModal(`
             <div class="modal-header">
@@ -432,7 +442,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                 <div style="display:flex; flex-direction:column; gap:0.75rem">
                     <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
                         <div>
-                            <strong>Líder SGSI:</strong> 
+                            <strong>${papelCiso}:</strong> 
                             ${dp.dpo_signature ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(dp.dpo_signature)}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
                         </div>
                         ${!dp.dpo_signature ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveDPIA" data-args='["${projectId}","${dp.id}","ciso"]'>Assinar</button>` : ''}
@@ -444,8 +454,8 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                         </div>
                         ${!dp.ceo_signature ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveDPIA" data-args='["${projectId}","${dp.id}","ceo"]'>Assinar</button>` : ''}
                     </div>
-                    ${podeRevogar() && (dp.dpo_signature || dp.ceo_signature || dp.status === 'Approved') ? `<div style="text-align:right"><button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarDPIA" data-args='["${projectId}","${dp.id}"]'>Revogar aprovação do DPIA</button></div>` : ''}
-                    ${window.podePedirAprovacao?.(S.user) ? `<div style="text-align:right"><button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="abrirPedidoAprovacao" data-args='${escapeHTML(JSON.stringify([projectId, 'dpia', dp.id]))}'>Pedir aprovação a stakeholders</button></div>` : ''}
+                    ${podeRevogar() && (dp.dpo_signature || dp.ceo_signature || dp.status === 'Approved') ? `<div style="text-align:right"><button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarDPIA" data-args='["${projectId}","${dp.id}"]'>Revogar aprovação do RIPD</button></div>` : ''}
+                    ${window.podePedirAprovacao?.(S.user) ? `<div style="text-align:right"><button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="abrirPedidoAprovacao" data-args='${escapeHTML(JSON.stringify([projectId, 'dpia', dp.id]))}'>Pedir aprovação</button></div>` : ''}
                 </div>
             </div>
             
@@ -645,11 +655,11 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
     };
 
     window.revogarDPIA = async function(projectId, id) {
-        const motivo = await pedeMotivo('a aprovação e as assinaturas do DPIA');
+        const motivo = await pedeMotivo('a aprovação e as assinaturas do RIPD');
         if (!motivo) return;
         try {
             await api('POST', `/api/v1/projects/${projectId}/dpia/${id}/revoke-approval`, { reason: motivo });
-            showToast('Aprovação do DPIA revogada');
+            showToast('Aprovação do RIPD revogada');
             forceCloseModal();
             // Falha na recarga não zera a lista: o render() abaixo refaz a tela e mostra o erro ali.
             try { S.dpia = await api('GET', `/api/v1/projects/${projectId}/dpia`); } catch (e) { /* idem */ }
@@ -681,7 +691,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
     window.approveDPIA = async function(projectId, id, role) {
         try {
             await api('POST', `/api/v1/projects/${projectId}/dpia/${id}/approve`, { role });
-            showToast('DPIA assinado com sucesso!');
+            showToast('RIPD assinado.');
             forceCloseModal();
             setTimeout(async () => {
                 // Falha na recarga não zera a lista: o render() abaixo refaz a tela e mostra o erro ali.
