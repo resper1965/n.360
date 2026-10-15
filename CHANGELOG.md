@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (riscos e ações da atividade, F2 do legado de privacidade)
+- **Migration 0073**: `risks.ropa_id` e `corrective_actions.ropa_id` (apagar a atividade solta o vínculo e mantém o registro) e o risco residual em `risks` (`residual_impact`, `residual_probability`, `residual_level`). Os riscos e ações existentes ficam sem atividade. **Não aplicada em produção**: vai pelo workflow depois do merge (`migrations/README.md`). `test/migration-0073.test.ts`.
+- **`/projects/:id/ropa/:rid/riscos` e `/acoes`** (faixa n.privacy, `src/services/riscos-atividade.ts`): listar, criar, editar e apagar riscos e ações da atividade no MESMO cadastro do n.iso (a matriz e a CAPA veem o que se cria aqui). Nível e residual calculados no servidor; ação só liga a risco da mesma atividade; apagar o risco mantém a ação ligada, sem o `risk_id`. Aceitar o risco grava quem aceitou e quando. O agente cria e edita, mas não aceita, não conclui e não apaga. Quem só tem o n.privacy usa as sub-rotas e continua sem a matriz do n.iso. `test/riscos-atividade.test.ts`.
+- **`GET /projects/:id/ropa/riscos-mapa`** (faixa n.privacy): os riscos do projeto que têm atividade, com notas, nível, residual e o nome da atividade, para o mapa de risco do n.privacy.
+
+### Alterado (riscos, F2)
+- `PUT /api/v1/risks/:id` preserva e aceita `ropa_id` e o residual (nível residual recalculado); `niso_update_risk` passa a levar `ropa_id` e residual. A regra R1 do `coherence` (mitigação sem controle) ignora o risco da atividade. O aviso de prazo de ação em projeto sem o n.iso leva ao RoPA em vez da CAPA. `riskLevel` mudou para `src/services/riscos-atividade.ts`.
+
 ### Adicionado (teste de impacto do tratamento, F1 do legado de privacidade)
 - **Migration 0072**: `tratamento_impacto` (uma resposta `sim`, `nao` ou `nao_sei` por pergunta e tratamento), `ropa_records.impacto_finalizado_em` e `origem_hash` em `dpia_assessments` e `lia_assessments`, todas fora do conteúdo congelado das aprovações. **Não aplicada em produção**: vai pelo workflow depois do merge (`migrations/README.md`). `test/migration-0072.test.ts`.
 - **`GET/PUT /projects/:id/ropa/:rid/impacto`** (faixa n.privacy): as 13 perguntas do teste (2 de critério geral, 11 de específico) e a recomendação de RIPD calculada no servidor (`src/services/impacto.ts`: recomendado com um geral e um específico em "sim"). O agente responde, mas finalizar é de uma pessoa. Responder não mexe no hash da aprovação do tratamento nem substitui pedido (teste de não regressão em `test/tratamento-aprovacao.test.ts`).
