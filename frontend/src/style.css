@@ -1970,6 +1970,9 @@ td .mais-acoes-botao { padding: 4px 10px; }
 .monitor-projeto { margin: 0 0 20px; font: 600 20px/1.3 var(--font-head); color: var(--text); }
 .monitor-card-texto { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; }
 .roadmap-j-pct.roadmap-j-pct { white-space: nowrap; color: var(--text-2); font-weight: 500; }
+/* O título da etapa ocupa o espaço e quebra linha; a contagem nunca encolhe nem encosta nele. */
+.roadmap-j-header > div:first-child { flex: 1 1 auto; min-width: 0; }
+.roadmap-j-pct.roadmap-j-pct { flex: 0 0 auto; }
 .roadmap-legenda { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: -0.75rem 0 1.25rem; font-size: 12.5px; color: var(--text-2); }
 .roadmap-legenda > span { display: inline-flex; align-items: center; gap: 8px; }
 .roadmap-node.roadmap-amostra { width: 14px; height: 14px; cursor: default; animation: none; box-shadow: none; }
