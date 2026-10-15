@@ -37,8 +37,11 @@ describe('lista de projetos no n.360', () => {
         await lista('/', { role: 'platform_admin' });
         // p2 tem um só destino: o nome do cliente é o link, sem botão repetido.
         expect(abrir()).toEqual([[['p1', 'iso'], 'Abrir no n.iso'], [['p1', 'privacy'], 'Abrir no n.privacy'], [['p2', 'privacy'], 'Beta']]);
+        // Uma ação à vista por linha (o primeiro módulo); o outro destino fica no "Mais ações" da linha.
         const botoes = [...document.querySelectorAll('[data-action="abrirProjetoNoModulo"].btn-secondary')];
-        expect(botoes).toHaveLength(2);
+        expect(botoes.map((b) => b.textContent)).toEqual(['Abrir no n.iso']);
+        expect(document.querySelector('[role="menuitem"][data-action="abrirProjetoNoModulo"]').textContent).toBe('Abrir no n.privacy');
+        expect(document.querySelectorAll('tbody .btn-primary')).toHaveLength(0);
         expect(document.querySelector('[data-action="openProjectDetail"]')).toBeNull();
     });
     it('só os módulos que a pessoa também tem', async () => {
@@ -64,10 +67,10 @@ describe('escopo e módulos na lista', () => {
         expect(linhas[1].textContent).not.toContain('ISO 27001');
         expect(document.querySelector('.stat-strip')).toBeNull();
     });
-    it('"Módulos…" só para a equipe da ness.', async () => {
+    it('"Módulos do projeto" só para a equipe da ness.', async () => {
         window.ehEquipeNess = () => true;
         await lista('/', { role: 'platform_admin' });
-        expect(document.querySelector('[data-action="abrirProdutosDoProjeto"]').textContent).toBe('Módulos…');
+        expect(document.querySelector('[data-action="abrirProdutosDoProjeto"]').textContent).toBe('Módulos do projeto');
         window.ehEquipeNess = () => false;
         await lista('/', { role: 'org_admin' });
         expect(document.querySelector('[data-action="abrirProdutosDoProjeto"]')).toBeNull();

@@ -81,7 +81,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                         escapeHTML(p.sector || 'Geral'),
                         window.renderStatusBadge(p.status || 'active', p.status === 'completed' ? 'success' : 'info'),
                         escapeHTML(escopoDe(p)),
-                        `<div class="acoes-linha"><button class="btn btn-ghost btn-sm" data-action="abrirDadosEmpresa" data-args='${escapeHTML(JSON.stringify([p.id]))}'>Empresa…</button>${equipe ? `<button class="btn btn-ghost btn-sm" data-action="abrirProdutosDoProjeto" data-args='["${p.id}"]'>Módulos…</button>` : ''}${jornada ? `<button class="btn btn-primary btn-sm" data-action="openProjectDetail" data-args='["${p.id}"]'>Gerenciar Jornada &rarr;</button>` : ''}${unico ? '' : abrir.map((m) => `<button class="btn btn-secondary btn-sm" data-action="abrirProjetoNoModulo" data-args='${escapeHTML(JSON.stringify([p.id, m]))}'>Abrir no n.${m}</button>`).join('')}</div>`,
+                        acoesDoProjeto(p, abrir, jornada, unico, equipe),
                     ];
                 }),
                 { emptyState: 'Nenhum projeto de implementação ativo no momento.' }
@@ -91,6 +91,18 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         } catch (e) {
             window.falhaDeCarga(c, a, 'Não foi possível carregar os projetos.', e);
         }
+    }
+
+    // Uma ação à vista por linha (a jornada no n.iso, ou abrir no primeiro módulo); dados da empresa, módulos e os outros
+    // destinos no "Mais ações" da linha. Nenhum primário por linha: o primário da tela é "Novo projeto".
+    function acoesDoProjeto(p, abrir, jornada, unico, equipe) {
+        const abrirEm = (m) => ({ rotulo: `Abrir no n.${m}`, action: 'abrirProjetoNoModulo', args: [p.id, m] });
+        const destinos = unico ? [] : abrir.map(abrirEm);
+        const aVista = jornada ? { rotulo: 'Gerenciar jornada', action: 'openProjectDetail', args: [p.id] } : destinos.shift();
+        const botao = aVista ? `<button class="btn btn-secondary btn-sm" data-action="${aVista.action}" data-args='${escapeHTML(JSON.stringify(aVista.args))}'>${aVista.rotulo}</button>` : '';
+        const resto = [...destinos, { rotulo: 'Dados da empresa', action: 'abrirDadosEmpresa', args: [p.id] },
+            equipe && { rotulo: 'Módulos do projeto', action: 'abrirProdutosDoProjeto', args: [p.id] }];
+        return `<div class="acoes-linha">${botao}${window.renderMaisAcoes(resto, { nome: p.client_name || p.project_name || '' })}</div>`;
     }
 
     async function openProjectDetail(id) {
@@ -782,9 +794,10 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const tracksList = ['executiva', 'tecnologia', 'juridico', 'rh', 'operacoes'];
             const allSaved = tracksList.every(tId => S.interviewProgress[projectId + '_' + tId]);
 
-            let rightButtons = `<button class="btn btn-primary" data-action="saveInterviewTrack" data-args='["${projectId}","${track}"]' data-arg-el>Salvar Trilha</button>`;
+            // Uma ação principal: com as cinco trilhas salvas, concluir passa a ser o primário e salvar fica secundário.
+            let rightButtons = `<button class="btn${allSaved ? '' : ' btn-primary'}" data-action="saveInterviewTrack" data-args='["${projectId}","${track}"]' data-arg-el>Salvar Trilha</button>`;
             if (allSaved) {
-                rightButtons += `<button class="btn btn-primary" data-action="completeInterviewsTask" data-args='["${projectId}"]' data-arg-el style="background: var(--success); border-color: var(--success)">Concluir e Registrar</button>`;
+                rightButtons += `<button class="btn btn-primary" data-action="completeInterviewsTask" data-args='["${projectId}"]' data-arg-el>Concluir e Registrar</button>`;
             }
 
             document.getElementById('interview-buttons-right').innerHTML = rightButtons;

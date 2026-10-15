@@ -188,9 +188,12 @@ window.__adminCopiarApiKey = () => {
                         escapeHTML(window.nomeOrgDe?.(u.org) || '—'),
                         escapeHTML(rotuloModulos(u.modulos)),
                         window.renderStatusBadge(contaAtiva(u) ? 'Ativa' : 'Desativada', contaAtiva(u) ? 'success' : 'info'),
-                        `<button class="btn btn-ghost btn-sm" data-action="openUserModal" data-args='["${u.id}"]'>Editar</button>
-                         ${propria(u) ? '' : `<button class="btn btn-ghost btn-sm" data-action="confirmarContaAtiva" data-args='["${u.id}"]'>${contaAtiva(u) ? 'Desativar' : 'Reativar'}</button>`}
-                         ${S.user && S.user.role === 'platform_admin' && !propria(u) ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="confirmarExclusaoDefinitiva" data-args='["${u.id}"]'>Excluir definitivamente</button>` : ''}`
+                        // Uma ação à vista (Editar); desativar e o destrutivo ficam no "Mais ações" da linha, nunca ao lado do Editar.
+                        `<div class="acoes-linha"><button class="btn btn-ghost btn-sm" data-action="openUserModal" data-args='["${u.id}"]' aria-label="Editar: ${escapeHTML(u.name || u.email || '')}">Editar</button>
+                         ${propria(u) ? '' : window.renderMaisAcoes([
+                             { rotulo: contaAtiva(u) ? 'Desativar' : 'Reativar', action: 'confirmarContaAtiva', args: [u.id] },
+                             S.user && S.user.role === 'platform_admin' && { rotulo: 'Excluir definitivamente', action: 'confirmarExclusaoDefinitiva', args: [u.id], perigo: true },
+                         ], { nome: u.name || u.email || '' })}</div>`
                     ];
                 }),
                 { emptyState: 'Nenhum usuário cadastrado ainda. Use "Novo usuário" para convidar a equipe da ness. ou o administrador do cliente.' }

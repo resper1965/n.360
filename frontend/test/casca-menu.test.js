@@ -290,6 +290,12 @@ describe('header', () => {
     it('seletor de organização só aparece com duas ou mais opções', () => {
         expect(css).toMatch(/\.org-seletor:not\(:has\(option \+ option\)\)\s*\{\s*display:\s*none/);
     });
+    it('o projeto ativo mora num lugar só: sem selo no cabeçalho e sem "Tenant" na casca', () => {
+        montarApp();
+        expect(document.getElementById('header-project-badge')).toBeNull();
+        expect(document.getElementById('sidebar-project-select')).toBeTruthy();
+        expect(document.body.textContent).not.toMatch(/tenant/i);
+    });
     it('etiqueta de módulos do projeto em linha própria, abaixo do nome', () => {
         expect(css).toMatch(/\.tenant-face\s*\{[^}]*flex-wrap:\s*wrap/);
         expect(css).toMatch(/\.tenant-norm\s*\{[^}]*flex-basis:\s*100%/);

@@ -96,16 +96,21 @@ function saude(s, geradoEm) {
             mínimo, e projeto vazio nunca é dado como em dia. <b>Sua vez</b>: há pedido de aprovação ou ciência para você.</p></details></section>`;
 }
 
-/** Lista "O que fazer", em grupos de prazo; cada item tem um botão com nome acessível único (a ação e o texto). */
+/**
+ * Lista "O que fazer", em grupos de prazo; cada item tem um botão com nome acessível único (a ação e o texto). Só o
+ * primeiro item (o mais urgente) é primário: uma ação principal por tela (DESIGN.md).
+ */
 function listaFazer(itens, comModulo) {
     const lista = Array.isArray(itens) ? itens : [];
     if (!lista.length) return '<p class="pn-vazio-tx">Nenhuma pendência calculada a partir do que está cadastrado.</p>';
-    return ['atraso', 'semana', 'plano'].map((g) => {
+    const grupos = ['atraso', 'semana', 'plano'];
+    const primeiro = grupos.map((g) => lista.find((i) => i.grupo === g)).find(Boolean);
+    return grupos.map((g) => {
         const doGrupo = lista.filter((i) => i.grupo === g);
         if (!doGrupo.length) return '';
         return `<p class="pn-gt">${estado(g, ROTULO_ESTADO[g])}<span class="pn-num">${doGrupo.length}</span></p><ul class="pn-grupo">${doGrupo.map((i) => `
             <li><span class="pn-meta">${e(i.quando)}</span><div><div class="pn-tx">${comModulo && i.modulo ? `<span class="pn-tag">${e(NOME[i.modulo] || i.modulo)}</span>` : ''}${e(i.texto)}</div>${i.contexto ? `<div class="pn-cx">${e(i.contexto)}</div>` : ''}</div>
-            <button type="button" class="btn btn-sm${g === 'atraso' ? ' btn-primary' : ''}" data-action="painelAbrir" data-args='${args(i.tela, i.aba || null, i.filtro || null)}' aria-label="${e(`${i.acao}: ${i.texto}${comModulo && i.modulo ? ` (${NOME[i.modulo] || i.modulo})` : ''}`)}">${e(i.acao)}</button></li>`).join('')}</ul>`;
+            <button type="button" class="btn btn-sm${i === primeiro ? ' btn-primary' : ''}" data-action="painelAbrir" data-args='${args(i.tela, i.aba || null, i.filtro || null)}' aria-label="${e(`${i.acao}: ${i.texto}${comModulo && i.modulo ? ` (${NOME[i.modulo] || i.modulo})` : ''}`)}">${e(i.acao)}</button></li>`).join('')}</ul>`;
     }).join('');
 }
 
@@ -131,13 +136,14 @@ const DEPOIS = '<p class="pn-vazio-tx">Quando houver o primeiro registro, este l
 function linhaModulo(m, d, proj) {
     const b = d.modulos && d.modulos[m];
     if (b) {
-        // Para o cliente, decidir é o primário (abrir o módulo é secundário), e projeto começando não mostra números zerados.
+        // Abrir o módulo é sempre secundário: o primário é o item mais urgente (equipe) ou a decisão (cliente).
+        // Projeto começando não mostra números zerados ao cliente.
         const cliente = d.visao === 'cliente';
         const numeros = cliente && b.comecando ? '<div></div>'
             : `<dl class="pn-fig">${(Array.isArray(b.numeros) ? b.numeros : []).map(([v, r]) => `<div><dt>${e(r)}</dt><dd class="pn-num">${e(v)}</dd></div>`).join('')}</dl>`;
         return `<div class="pn-m"><h3>${marca(m)}</h3><div>${estado(b.saude.tom, b.saude.rotulo)}<div class="pn-m-frase">${e(b.saude.frase)}</div></div>
             ${numeros}
-            <button type="button" class="btn${cliente ? '' : ' btn-primary'} btn-sm" data-action="abrirModulo" data-args='${args(m)}'>Abrir o ${NOME[m]}</button></div>`;
+            <button type="button" class="btn btn-sm" data-action="abrirModulo" data-args='${args(m)}'>Abrir o ${NOME[m]}</button></div>`;
     }
     const doProjeto = modulosDe(proj).includes(m);
     const texto = doProjeto ? `Você ainda não tem acesso ao ${NOME[m]} neste projeto. Quem administra as contas da consultoria concede em Usuários.`
@@ -242,10 +248,10 @@ function telaDaCarteira(dados) {
     const frase = !lista.length ? 'Nenhum projeto na sua carteira.'
         : `${lista.length} ${lista.length === 1 ? 'projeto' : 'projetos'}. ${atrasados ? `${atrasados === 1 ? 'Um precisa' : `${atrasados} precisam`} de você hoje.` : 'Nenhum com prazo vencido.'}`;
     const tabela = `<table class="pn-tabela pn-carteira"><thead><tr><th scope="col">Empresa</th><th scope="col">Módulos</th><th scope="col">Situação</th><th scope="col">O mais urgente</th>
-        <th scope="col">Último movimento</th><th scope="col"><span class="sr-only">Ação</span></th></tr></thead><tbody>${lista.map((p) => `<tr>
+        <th scope="col">Último movimento</th><th scope="col"><span class="sr-only">Ação</span></th></tr></thead><tbody>${lista.map((p, n) => `<tr>
         <td class="pn-tx">${e(p.nome)}</td><td class="pn-meta">${(p.modulos || []).map((m) => e(NOME[m] || m)).join(', ')}</td><td>${estado(p.tom, p.situacao)}</td>
         <td>${e(p.urgente)}</td><td class="pn-meta">${e(quandoFoi(p.ultimo_movimento))}</td>
-        <td class="n"><button type="button" class="btn btn-sm" data-action="painelAbrirProjeto" data-args='${args(p.id, p.modulo_urgente)}' aria-label="Abrir ${e(p.nome)}">Abrir</button></td></tr>`).join('')}</tbody></table>`;
+        <td class="n"><button type="button" class="btn btn-sm${n === 0 ? ' btn-primary' : ''}" data-action="painelAbrirProjeto" data-args='${args(p.id, p.modulo_urgente)}' aria-label="Abrir ${e(p.nome)}">Abrir</button></td></tr>`).join('')}</tbody></table>`;
     return `<div class="pn"><section class="pn-saude" aria-labelledby="pn-cart-t"><h2 id="pn-cart-t" class="sr-only">Sua carteira</h2>${estado(atrasados ? 'atraso' : 'ok', atrasados ? 'Atenção hoje' : 'Em dia')}
         <p class="pn-frase">${e(frase)}</p><p class="pn-apoio">A lista começa pelo que tem prazo legal vencido. Abrir leva ao projeto, no módulo onde está a pendência.</p></section>
         ${quadro('pn-cart-l', 'Projetos por urgência', lista.length ? tabela : '<p class="pn-vazio-tx">Quando você for designado num projeto, ele aparece aqui.</p>')}</div>`;
