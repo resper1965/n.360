@@ -2,14 +2,13 @@
 // (1) o token sai do fragmento, some da barra e só viaja no CORPO; nunca em URL nem no console;
 // (2) a SoA sai na ordem do Anexo A, com a exclusão justificada e a evidência de cada controle;
 // (3) baixar manda o id no corpo e salva com o nome do arquivo; a prova junta as páginas;
-// (4) nada inline no HTML (CSP script-src 'self'); toda classe pa-* tem regra; tokens do app.
+// (4) nada inline no HTML (CSP script-src 'self'); toda classe pa-* tem regra (os tokens e o comum: publico-css.test.js).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const lido = (glob) => Object.values(glob)[0];
 const HTML = lido(import.meta.glob('../public/auditor.html', { query: '?raw', import: 'default', eager: true }));
 const JS = lido(import.meta.glob('../public/auditor.js', { query: '?raw', import: 'default', eager: true }));
 const CSS = lido(import.meta.glob('../public/auditor.css', { query: '?raw', import: 'default', eager: true }));
-const APP_CSS = lido(import.meta.glob('../src/style.css', { query: '?raw', import: 'default', eager: true }));
 
 const TOKEN = 'b'.repeat(64);
 const EV = (id, nome, avaliacao) => ({ id, file_name: nome, file_type: 'x', file_size: 10, file_hash: id.repeat(32).slice(0, 64), evaluation_status: avaliacao, created_at: '2026-10-01 10:00:00' });
@@ -69,6 +68,7 @@ describe('HTML da página', () => {
         expect(scripts[0][2].trim()).toBe('');
         expect(HTML).not.toMatch(/<style\b/i);
         expect(HTML).not.toMatch(/\sstyle=/i);
+        expect(HTML).toContain('href="/publico.css"');
         expect(HTML).toContain('href="/auditor.css"');
         expect(HTML).toContain('<meta name="robots" content="noindex, nofollow">');
         expect(HTML).toContain('<meta name="referrer" content="no-referrer">');
@@ -85,6 +85,8 @@ describe('abrir o link', () => {
         expect($('pa-cliente').textContent).toBe('Cliente Alfa');
         expect($('pa-escopo').textContent).toBe('Operação de TI da sede');
         expect($('pa-meta').textContent).toContain('06/11/2026');
+        // a pergunta diz de qual projeto é (a resposta pública não traz o nome da consultoria)
+        expect($('pa-nota-rotulo').textContent).toContain('Cliente Alfa');
     });
 
     it('F5: o token fica na sessão da aba', async () => {
@@ -233,26 +235,18 @@ describe('nota do auditor', () => {
 });
 
 describe('auditor.css', () => {
-    const semComentario = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
-    const tokens = (bruto, texto = semComentario(bruto)) => Object.fromEntries([...texto.slice(texto.indexOf(':root'), texto.indexOf('}', texto.indexOf(':root'))).matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
-
     it('toda classe pa-* do HTML e do script tem regra', () => {
         const usadas = new Set([...HTML.matchAll(/class="([^"]*)"/g), ...JS.matchAll(/class="([^"]*)"/g)]
             .flatMap((m) => m[1].split(/\s+/)).filter((c) => c.startsWith('pa-')));
-        expect(usadas.size).toBeGreaterThan(20);
+        expect(usadas.size).toBeGreaterThan(15);
         const sem = [...usadas].filter((cl) => !new RegExp('\\.' + cl + '(?![a-z0-9-])').test(CSS));
         expect(sem, 'classes sem regra no CSS').toEqual([]);
     });
 
-    it('os tokens são os do :root de style.css', () => {
-        const daqui = tokens(CSS);
-        const dele = tokens(APP_CSS);
-        expect(Object.keys(daqui).length).toBeGreaterThan(8);
-        expect(Object.entries(daqui).filter(([k, v]) => dele[k] !== v)).toEqual([]);
-    });
-
-    it('sem itálico e sem accent como fundo', () => {
+    it('sem cópia de tokens (vêm de publico.css), sem itálico, sem accent como fundo e quadrado', () => {
+        expect(CSS.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/:root/);
         expect(CSS).not.toMatch(/font-style:\s*italic/);
         expect(CSS).not.toMatch(/background(-color)?:\s*var\(--accent\)/);
+        expect([...CSS.matchAll(/border-radius:\s*([^;]+);/g)].map((m) => m[1].trim()).filter((v) => v !== '0')).toEqual([]);
     });
 });

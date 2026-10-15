@@ -84,8 +84,8 @@
         return `<li class="pa-ev">
             <span class="pa-ev-nome">${esc(e.file_name)}</span>
             <span class="pa-ev-meta">${esc(data(e.created_at))} · ${esc(rotulo(AVALIACAO, e.evaluation_status))}</span>
-            <code class="pa-hash" title="SHA-256 do arquivo">${esc(e.file_hash)}</code>
-            <button type="button" class="pa-btn" data-baixar="${esc(e.id)}" data-nome="${esc(e.file_name)}">Baixar</button>
+            <code class="pa-hash pub-hash" title="Código de integridade (SHA-256) do arquivo">${esc(e.file_hash)}</code>
+            <button type="button" class="pub-btn pub-btn-contorno pub-btn-pequeno" data-baixar="${esc(e.id)}" data-nome="${esc(e.file_name)}">Baixar</button>
         </li>`;
     }
 
@@ -113,6 +113,8 @@
         $('pa-cliente').textContent = p.client_name || '';
         $('pa-normas').textContent = p.standards || '';
         $('pa-escopo').textContent = p.scope || 'Escopo não registrado.';
+        // A resposta não traz o nome da consultoria: diz de qual projeto é, para não ficar anônimo.
+        if (p.client_name) $('pa-nota-rotulo').textContent = `A consultoria que conduz o projeto de ${p.client_name} responde por aqui; a resposta aparece nesta página.`;
         const porNorma = new Map();
         for (const c of d.controles || []) porNorma.set(c.standard, [...(porNorma.get(c.standard) || []), c]);
         $('pa-soa').innerHTML = [...porNorma.keys()].sort().map((norma) => {
