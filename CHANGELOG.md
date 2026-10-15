@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Mudado (e-mails com marca)
+- **Um invólucro para todo e-mail** (`src/services/email-layout.ts`): HTML de tabela com CSS inline, fundo claro, cabeçalho com a marca do produto (`n.360`; `n.privacy` na homologação de fornecedor) e `ness.`, os blocos "Quem pede", "O que fazer" e "Até quando" (dd/mm/aaaa, fuso de Brasília), botão #0b1326 com texto branco (18,5:1; antes branco sobre #00ade8, 2,6:1), o link também em texto, rodapé com o motivo do envio e o contato, e versão em texto puro em todo envio (`text` no Resend). Todo dado interpolado é escapado no invólucro.
+- **Remetente e resposta**: "Cliente via n.360 <noreply@ness.com.br>" quando há quem pede e "n.360 | ness." no resto (antes "n.iso" em tudo); `reply_to` para quem pediu na ciência, no código de ciência, na homologação, na proposta e no convite.
+- **Textos revisados**: a ciência diz quem pede, o quê e até quando, e só fala de "link anterior" no reenvio; os códigos (políticas, ciência e redefinição de senha) ganharam marca, prazo e código legível (#0f172a, antes ~2,4:1); a homologação ganhou botão e data dd/mm/aaaa; convite e redefinição dizem n.360, sem n.iso; o resumo de prazos e o alerta da sonda usam o mesmo invólucro.
+- Amostras com dados fictícios em `docs/design/emails/` (HTML, texto e PNG), geradas por `node scripts/emails-amostra.mjs`.
+- Pendência: o convite continua levando a senha temporária no corpo; não existe definição de senha por link de uso único.
+
 ### Adicionado (acabamento do n.privacy, sem migration)
 - **Listas de destino filtradas pelo painel**: o botão de "O que fazer" abre a lista já filtrada pela situação do item (pedidos do titular atrasados ou vencendo em 7 dias, incidentes com comunicação atrasada ou sem avaliação de risco, terceiros com avaliação vencida ou nunca avaliados, evidências vencidas, ações corretivas vencidas), com o chip "Filtro: ... — limpar". O filtro é uma chave de lista fechada (`frontend/src/filtro-painel.js`), vale só para aquela navegação e passa do n.360 ao módulo pelo `sessionStorage`, nunca pelo endereço. As ações vencidas das atividades abrem a faixa "vencidas" das ações por prazo.
 - **Aviso quando o fornecedor envia a homologação**: sino para os consultores designados do projeto (sem nenhum, os administradores da consultoria), só com o nome da parte; a falha do aviso vai ao log e não impede o envio; reenvio não duplica.
