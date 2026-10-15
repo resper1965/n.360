@@ -694,3 +694,104 @@ describe('histórico operacional (fatia 4): aba própria na revisão', () => {
         expect(window.__xss4).toBeUndefined();
     });
 });
+
+describe('importação do legado (F6): riscos, ações, impacto, ciclo, bases e reconciliação', () => {
+    const base = { arquivo_id: 'a6', origem: 'registro 1 do modelo riscos', confianca: 'alta', faltando: [], duplicata_de: null, decisao: 'pendente', motivo: null, aviso: null };
+    const risco = (id, extra = {}) => ({ id, entidade: 'risco', ...base, dados: { atividade: 'Folha', ameaca: `Ameaça ${id}`, impacto: 4, probabilidade: 3, estrategia: 'mitigar', prazo: '2099-06-30', responsavel: 'Maria Exemplo', status: 'aceito' }, ...extra });
+    const gap = (id) => ({ id, entidade: 'gap', ...base, dados: { atividade: 'Folha', titulo: `Ação ${id}`, status: 'em_andamento' } });
+    const impacto = (id) => ({ id, entidade: 'impacto', ...base, dados: { atividade: 'Atendimento', afeta_direitos: 'sim', monitoramento: 'sim', larga_escala: 'nao' } });
+    const ciclo = (id) => ({ id, entidade: 'ciclo', ...base, dados: { atividade: 'Folha', etapa: 'coleta', situacao: 'registrada', item: 'Sistema Folha' } });
+    const bases = (id) => ({ id, entidade: 'bases', ...base, dados: { atividade: 'Atendimento', adicionais: ['Consentimento'], base_gdpr: 'Art. 6(1)(f)' } });
+    const puts = (f) => f.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([, o]) => JSON.parse(o.body));
+
+    it('abas próprias com contagem e resumo legível; aviso do item aparece; modelo CSV no tipo do arquivo', async () => {
+        await abrirLote(LOTE({ arquivos: [{ id: 'a6', nome: 'riscos.csv', status: 'processado', tipo: 'avaliacao', modelo: 'modelo CSV: riscos', erro: null }],
+            itens: [risco('r1', { decisao: 'gravado', aviso: 'responsável "Maria Exemplo" não está nas partes do projeto' }), gap('g1'), impacto('m1'), ciclo('c1'), bases('b1')] }));
+        let t = el('c').textContent;
+        expect(t).toContain('modelo CSV: riscos');
+        expect(t).toContain('Riscos e ações (2)');
+        expect(t).toContain('Impacto, ciclo e bases (3)');
+        await clica('importacaoAba', ['atividade']);
+        t = el('c').textContent;
+        expect(t).toContain('Folha: Ameaça r1');
+        expect(t).toContain('Impacto x probabilidade: 4 x 3');
+        expect(t).toContain('Estratégia: Mitigar');
+        expect(t).toContain('Aceito (entra aberto)');
+        expect(t).toContain('não está nas partes do projeto');
+        expect(t).toContain('Folha: Ação g1');
+        expect(t).toContain('Em andamento');
+        await clica('importacaoAba', ['complementos']);
+        t = el('c').textContent;
+        expect(t).toContain('Teste de impacto');
+        expect(t).toContain('Respostas: 3');
+        expect(t).toContain('Sim: Afeta direitos dos titulares, Monitoramento sistemático');
+        expect(t).toContain('Etapa: Coleta');
+        expect(t).toContain('Bases adicionais: Consentimento');
+        expect(t).toContain('só preenche o que está vazio');
+    });
+
+    it('editar risco envia números, opções e data; sem ameaça não salva', async () => {
+        const f = await abrirLote(LOTE({ itens: [risco('r1')] }), { [`PUT ${B}/l1/itens/r1`]: { ok: true } });
+        await clica('importacaoAba', ['atividade']);
+        await clica('importacaoEditar', ['r1']);
+        expect(el('imp-impacto').value).toBe('4');
+        expect(el('imp-estrategia').value).toBe('mitigar');
+        el('imp-probabilidade').value = '5';
+        el('imp-nivel').value = 'alto';
+        await clica('importacaoSalvarItem', ['r1']);
+        await espera();
+        expect(puts(f)[0].dados).toMatchObject({ atividade: 'Folha', ameaca: 'Ameaça r1', impacto: 4, probabilidade: 5, nivel: 'alto', estrategia: 'mitigar', prazo: '2099-06-30', vulnerabilidade: null });
+        await clica('importacaoEditar', ['r1']);
+        el('imp-ameaca').value = ' ';
+        await clica('importacaoSalvarItem', ['r1']);
+        expect(el('imp-erro').textContent).toContain('Ameaça');
+    });
+
+    it('editar bases manda a lista separada por |', async () => {
+        const f = await abrirLote(LOTE({ itens: [bases('b1')] }), { [`PUT ${B}/l1/itens/b1`]: { ok: true } });
+        await clica('importacaoAba', ['complementos']);
+        await clica('importacaoEditar', ['b1']);
+        el('imp-adicionais').value = 'Consentimento | lgpd:art7:ii |';
+        await clica('importacaoSalvarItem', ['b1']);
+        await espera();
+        expect(puts(f)[0]).toEqual({ dados: { atividade: 'Atendimento', adicionais: ['Consentimento', 'lgpd:art7:ii'], base_gdpr: 'Art. 6(1)(f)' } });
+    });
+
+    it('avaliação com seções do RIPD mostra e preserva as seções ao editar', async () => {
+        const dp = { id: 'v1', entidade: 'dpia', ...base, dados: { tratamento: 'Atendimento', conclusao: 'Ok', riscos: [], necessidade: 'Só o necessário', medidas: 'Perfis', risco_residual: 'baixo' } };
+        const f = await abrirLote(LOTE({ itens: [dp] }), { [`PUT ${B}/l1/itens/v1`]: { ok: true } });
+        await clica('importacaoAba', ['avaliacao']);
+        const t = el('c').textContent;
+        expect(t).toContain('Necessidade e proporcionalidade: Só o necessário');
+        expect(t).toContain('Risco residual: Baixo');
+        await clica('importacaoEditar', ['v1']);
+        expect(el('imp-medidas').value).toBe('Perfis');
+        await clica('importacaoSalvarItem', ['v1']);
+        await espera();
+        expect(puts(f)[0]).toEqual({ dados: { tratamento: 'Atendimento', conclusao: 'Ok', riscos: [], necessidade: 'Só o necessário', medidas: 'Perfis', risco_residual: 'baixo' } });
+    });
+
+    it('reconciliação: tabela por entidade, motivos escapados, situação e exportação CSV', async () => {
+        const mal = '<img src=x onerror="window.__xss6=1">';
+        const rec = {
+            lote: { id: 'l1', status: 'concluida' }, sem_pendencia: false,
+            entidades: [{ entidade: 'risco', rotulo: 'Riscos', propostos: 3, pendentes: 0, aceitos: 0, gravados: 1, recusados: 2, descartados: 0, duplicatas: 0, com_aviso: 1 }],
+            totais: { propostos: 3, pendentes: 0, aceitos: 0, gravados: 1, recusados: 2, descartados: 0, duplicatas: 0, com_aviso: 1 },
+            motivos: [{ entidade: 'risco', rotulo: 'Riscos', tipo: 'recusa', motivo: `atividade "..." não encontrada ${mal}`, quantidade: 2 }],
+        };
+        const f = await abrirLote(LOTE(), { [`GET ${B}/l1/reconciliacao`]: rec, [`GET ${B}/l1/reconciliacao/csv`]: { ok: true } });
+        URL.createObjectURL = vi.fn(() => 'blob:x');
+        URL.revokeObjectURL = vi.fn();
+        await clica('importacaoReconciliacao');
+        await espera();
+        const t = el('c').textContent;
+        expect(t).toContain('Reconciliação do lote');
+        expect(t).toContain('Recusa');
+        expect(t).toContain('Há itens pendentes');
+        expect(el('c').querySelector('img')).toBeNull();
+        expect(window.__xss6).toBeUndefined();
+        await clica('importacaoExportarReconciliacao');
+        await espera();
+        expect(chamadas(f)).toContain(`GET ${B}/l1/reconciliacao/csv`);
+    });
+});

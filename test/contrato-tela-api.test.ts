@@ -107,7 +107,8 @@ describe('contrato tela↔API', () => {
   it('a tela de importação tem as chamadas conferidas contra as rotas (nada fica fora por montar o caminho)', () => {
     const minhas = CHAMADAS.filter((c) => c.onde.includes('views/importacao.js')).map(chave);
     for (const k of ['GET /api/v1/projects/:p/importacoes', 'POST /api/v1/projects/:p/importacoes', 'GET /api/v1/projects/:p/importacoes/:p', 'DELETE /api/v1/projects/:p/importacoes/:p',
-      'POST /api/v1/projects/:p/importacoes/:p/arquivos', 'POST /api/v1/projects/:p/importacoes/:p/arquivos/:p/processar', 'PUT /api/v1/projects/:p/importacoes/:p/itens/:p', 'POST /api/v1/projects/:p/importacoes/:p/confirmar']) {
+      'POST /api/v1/projects/:p/importacoes/:p/arquivos', 'POST /api/v1/projects/:p/importacoes/:p/arquivos/:p/processar', 'PUT /api/v1/projects/:p/importacoes/:p/itens/:p', 'POST /api/v1/projects/:p/importacoes/:p/confirmar',
+      'GET /api/v1/projects/:p/importacoes/:p/reconciliacao']) {
       expect(minhas, k).toContain(k);
     }
   });
