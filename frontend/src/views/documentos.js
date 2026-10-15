@@ -77,8 +77,8 @@ async function renderDocumentos(c, h, a) {
         : '';
 
     let docs = [];
-    try { docs = lista(await api('GET', `/api/v1/projects/${proj.id}/documentos`)); } catch (e) { /* tabela vazia e aviso abaixo */ }
-    try { S.partes = lista(await api('GET', `/api/v1/projects/${proj.id}/partes`)); } catch (e) { S.partes = []; }
+    try { docs = lista(await api('GET', `/api/v1/projects/${proj.id}/documentos`)); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os documentos.', e); return; }
+    try { S.partes = lista(await api('GET', `/api/v1/projects/${proj.id}/partes`)); } catch (e) { S.partes = []; /* secundário: só o nome do responsável */ }
     S.documentos = docs;
 
     const linhas = arvore(docs).map(({ doc: d, nivel }) => {

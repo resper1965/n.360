@@ -33,10 +33,12 @@ describe('api()', () => {
         globalThis.fetch = fetchMock;
         S.token = null;
         delete window.doLogout;
+        vi.spyOn(console, 'error').mockImplementation(() => {});
     });
 
     afterEach(() => {
         S.token = null;
+        vi.restoreAllMocks();
     });
 
     describe('montagem da requisicao', () => {
@@ -147,9 +149,15 @@ describe('api()', () => {
             );
         });
 
-        it('cai para "API Error" quando o corpo nao explica nada', async () => {
+        it('corpo que nao explica nada vira mensagem em portugues pelo status, sem codigo HTTP', async () => {
             fetchMock.mockResolvedValue(resposta({}, { status: 500 }));
-            await expect(api('GET', '/api/v1/leads')).rejects.toThrow('API Error');
+            await expect(api('GET', '/api/v1/leads')).rejects.toThrow('O servidor não conseguiu concluir a operação. Tente de novo em instantes.');
+            fetchMock.mockResolvedValue(resposta({ error: 'Internal Server Error' }, { status: 500 }));
+            await expect(api('GET', '/api/v1/leads')).rejects.toThrow('O servidor não conseguiu concluir a operação.');
+            fetchMock.mockResolvedValue(resposta({ error: 'Forbidden' }, { status: 403 }));
+            await expect(api('GET', '/api/v1/leads')).rejects.toMatchObject({ message: 'Você não tem permissão para esta ação.', status: 403 });
+            fetchMock.mockResolvedValue(resposta({ error: 'Not Found' }, { status: 404 }));
+            await expect(api('GET', '/api/v1/leads')).rejects.toThrow(/não foi encontrado/);
         });
 
         it('status de erro vence o desembrulho do envelope', async () => {
@@ -163,16 +171,19 @@ describe('api()', () => {
             fetchMock.mockResolvedValue(
                 resposta('<!DOCTYPE html><html>...', { status: 502, contentType: 'text/html' })
             );
-            await expect(api('GET', '/api/v1/leads')).rejects.toThrow(
-                'Resposta HTTP 502 não é JSON (/api/v1/leads)'
-            );
+            const erro = await api('GET', '/api/v1/leads').catch((e) => e);
+            expect(erro.message).toBe('O servidor respondeu de um jeito inesperado. Tente de novo em instantes.');
+            expect(erro.status).toBe(502);
+            expect(erro.codigo).toBe('formato');
+            // O detalhe técnico fica no console, não na tela.
+            expect(console.error).toHaveBeenCalledWith(expect.stringContaining('502'));
         });
 
         it('timeout de 30s vira mensagem com o caminho chamado', async () => {
             fetchMock.mockRejectedValue(erroDeRede('TimeoutError'));
-            await expect(api('GET', '/api/v1/leads')).rejects.toThrow(
-                'Tempo esgotado ao chamar /api/v1/leads (30s)'
-            );
+            await expect(api('GET', '/api/v1/leads')).rejects.toMatchObject({
+                message: 'O servidor demorou a responder. Tente de novo em instantes.', codigo: 'tempo' });
+            expect(console.error).toHaveBeenCalledWith(expect.stringContaining('/api/v1/leads (30s)'));
         });
 
         it('timeoutMs por chamada vale no lugar dos 30s, não vira cabeçalho e não muda o padrão', async () => {
@@ -186,20 +197,21 @@ describe('api()', () => {
             await api('GET', '/api/v1/leads');
             expect(espia).toHaveBeenLastCalledWith(30000);
             fetchMock.mockRejectedValue(erroDeRede('TimeoutError'));
-            await expect(api('POST', '/api/v1/leads', undefined, { timeoutMs: 150000 })).rejects.toThrow('(150s)');
+            await expect(api('POST', '/api/v1/leads', undefined, { timeoutMs: 150000 })).rejects.toMatchObject({ codigo: 'tempo' });
+            expect(console.error).toHaveBeenLastCalledWith(expect.stringContaining('(150s)'));
             espia.mockRestore();
         });
 
         it('abort vira "Requisicao cancelada"', async () => {
             fetchMock.mockRejectedValue(erroDeRede('AbortError'));
-            await expect(api('GET', '/api/v1/leads')).rejects.toThrow(/cancelada/);
+            await expect(api('GET', '/api/v1/leads')).rejects.toMatchObject({ message: 'A operação foi cancelada.', codigo: 'cancelado' });
         });
 
-        it('qualquer outra falha de fetch vira "Falha de rede"', async () => {
+        it('qualquer outra falha de fetch vira a mensagem de conexao, sem o caminho chamado', async () => {
             fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
-            await expect(api('GET', '/api/v1/leads')).rejects.toThrow(
-                'Falha de rede ao chamar /api/v1/leads'
-            );
+            await expect(api('GET', '/api/v1/leads')).rejects.toMatchObject({
+                message: 'Não foi possível falar com o servidor. Verifique a conexão e tente de novo.', codigo: 'rede' });
+            expect(console.error).toHaveBeenCalledWith(expect.stringContaining('GET /api/v1/leads'));
         });
     });
 
@@ -207,7 +219,7 @@ describe('api()', () => {
         it('desloga em 401 de rota comum', async () => {
             window.doLogout = vi.fn();
             fetchMock.mockResolvedValue(resposta({ error: 'Unauthorized' }, { status: 401 }));
-            await expect(api('GET', '/api/v1/projects')).rejects.toThrow('Unauthorized');
+            await expect(api('GET', '/api/v1/projects')).rejects.toThrow('Sua sessão terminou. Entre de novo para continuar.');
             expect(window.doLogout).toHaveBeenCalledTimes(1);
         });
 
@@ -243,7 +255,7 @@ describe('api()', () => {
 
         it('nao quebra quando window.doLogout ainda nao foi registrado', async () => {
             fetchMock.mockResolvedValue(resposta({ error: 'Unauthorized' }, { status: 401 }));
-            await expect(api('GET', '/api/v1/projects')).rejects.toThrow('Unauthorized');
+            await expect(api('GET', '/api/v1/projects')).rejects.toThrow('Sua sessão terminou. Entre de novo para continuar.');
         });
 
         // Expirar por inatividade NAO e sessao invalida: o usuario continua
@@ -261,7 +273,7 @@ describe('api()', () => {
             window.doLogout = vi.fn();
             delete window.pedirReautenticacao;
             fetchMock.mockResolvedValue(resposta({ error: 'expirou', expired: 'inactivity' }, { status: 401 }));
-            await expect(api('GET', '/api/v1/projects')).rejects.toThrow('Unauthorized');
+            await expect(api('GET', '/api/v1/projects')).rejects.toThrow('Sua sessão terminou. Entre de novo para continuar.');
             expect(window.doLogout).toHaveBeenCalledTimes(1);
         });
 

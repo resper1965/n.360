@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro } from '../ui.js';
 import { navigate } from '../router.js';
 import { temProduto, projetoDoId } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
@@ -34,6 +34,10 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         a.innerHTML = S.currentProject && controls.length
             ? `<button class="btn btn-secondary" data-action="runReadinessCheck" data-args='["${S.currentProject.id}"]'>Diagnóstico de prontidão</button>`
             : '';
+        if (!controls.length && S.controlesErro) {
+            window.falhaDeCarga(c, a, 'Não foi possível carregar os controles.', S.controlesErro, { acao: 'recarregarControles' });
+            return;
+        }
         if (!controls.length) {
             const com27701 = String(S.currentProject?.standards || '').includes('27701');
             c.innerHTML = S.currentProject
@@ -105,26 +109,39 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         }
     };
 
+    // Status que se escolhem no detalhe do controle, com o rótulo de STATUS_DICT (ui.js). "Não aplicável" sai pela SoA, com a
+    // justificativa; "Compliant" e "Approved" são legados. O valor gravado, qualquer que seja, entra na lista e vem
+    // selecionado: abrir e fechar (ou mexer só na maturidade) nunca regride o status.
+    const STATUS_DO_CONTROLE = ['Missing', 'Planned', 'In Progress', 'Partial', 'Implemented'];
+    function opcoesDeStatus(atual) {
+        const valores = atual && !STATUS_DO_CONTROLE.includes(atual) ? [...STATUS_DO_CONTROLE, atual] : STATUS_DO_CONTROLE;
+        const vigente = atual || 'Missing';
+        return valores.map((v) => `<option value="${escapeHTML(v)}" ${v === vigente ? 'selected' : ''}>${escapeHTML(traduzStatus(v))}</option>`).join('');
+    }
+
     function openControlDetail(controlId) {
         const ctrl = S.controls.find(c => c.id === controlId);
         if (!ctrl) return;
+        // Título com o código da norma (A.5.1), nunca o id interno; o código sai do título quando ele já o traz.
+        const codigo = codigoDoControle(ctrl);
+        const titulo = codigo !== ctrl.id && String(ctrl.title || '').startsWith(codigo)
+            ? String(ctrl.title).slice(codigo.length).replace(/^[\s:—–-]+/, '') : ctrl.title;
+        const cabecalho = codigo === ctrl.id ? (ctrl.title || 'Controle') : `${codigo} — ${titulo || ''}`;
 
         openModal(`
             <div class="modal-header">
-                <span class="modal-title">${ctrl.id}: ${escapeHTML(ctrl.title)}</span>
+                <span class="modal-title">${escapeHTML(cabecalho)}</span>
                 <button class="btn-ghost" data-action="closeModal">&times;</button>
             </div>
             <div style="margin-bottom: 1.5rem;">
                 <div class="ctx-label">Descrição</div>
-                <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 1.5rem; line-height: 1.4">${escapeHTML(ctrl.description || 'Nenhuma descrição.')}</div>
+                <div class="controle-descricao">${ctrl.description ? markdownSeguro(ctrl.description) : '<p>Nenhuma descrição.</p>'}</div>
                 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
                     <div>
                         <div class="ctx-label">Status do Controle</div>
-                        <select class="form-input" data-action-change="updateControlStatus" data-args='["${ctrl.id}"]' data-arg-val style="width:100%">
-                            <option value="Missing" ${ctrl.status === 'Missing' ? 'selected' : ''}>Ausente</option>
-                            <option value="Partial" ${ctrl.status === 'Partial' ? 'selected' : ''}>Parcial</option>
-                            <option value="Compliant" ${ctrl.status === 'Compliant' ? 'selected' : ''}>Conforme</option>
+                        <select class="form-input" id="controle-status" aria-label="Status do controle" data-action-change="updateControlStatus" data-args='["${escapeHTML(ctrl.id)}"]' data-arg-val style="width:100%">
+                            ${opcoesDeStatus(ctrl.status)}
                         </select>
                     </div>
                     <div>
@@ -672,6 +689,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         try {
             const [controls, traceData] = await Promise.all([
                 api('GET', `/api/v1/projects/${proj.id}/controls`).then(r => r || []),
+                // Secundário: sem a rastreabilidade a SoA abre sem os chips de ligação.
                 api('GET', `/api/v1/projects/${proj.id}/traceability`).then(r => (Array.isArray(r) ? r : [])).catch(() => [])
             ]);
             
@@ -747,7 +765,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 { label: 'Controles Aplicáveis', value: `${totalApplicable} / ${controls.length}`, color: 'var(--accent)', subtext: `${controls.length > 0 ? ((totalApplicable / controls.length) * 100).toFixed(0) : 0}% de cobertura` },
                 { label: 'Controles Não Aplicáveis', value: totalNA, color: 'var(--text-dim)', subtext: 'Exclusões de escopo' },
                 // Sem exclusão não há o que justificar: "0 / 1 Conforme" em verde era contradição.
-                { label: 'Justificativas de Exclusão', value: totalNA ? `${totalJustified} / ${totalNA}` : '—', color: travado ? 'var(--danger)' : totalNA ? 'var(--success)' : 'var(--text-dim)', subtext: travado ? 'Pendente' : totalNA ? 'Conforme' : 'Nenhum controle excluído' }
+                { label: 'Justificativas de Exclusão', value: totalNA ? `${totalJustified} / ${totalNA}` : '—', color: travado ? 'var(--danger)' : totalNA ? 'var(--success)' : 'var(--text-dim)', subtext: travado ? 'Pendente' : totalNA ? 'Todas justificadas' : 'Nenhum controle excluído' }
             ]);
 
             const faixaBloqueio = travado ? `
@@ -814,7 +832,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                                 </div>
                                 <div class="soa-accordion-meta">
                                     <div class="soa-section-progress-container">
-                                        <span>${compliantSec} / ${totalSec} Conformes</span>
+                                        <span>${compliantSec} / ${totalSec} implementados</span>
                                         <div class="soa-mini-progress">
                                             <div class="soa-mini-progress-fill" style="width: ${pctSec}%"></div>
                                         </div>
@@ -1500,10 +1518,14 @@ import { filtrarDoPainel } from '../filtro-painel.js';
 
         // As duas rotas devolvem {ok, <lista>}; o api() entrega a lista.
         const lista = (r) => (Array.isArray(r) ? r : []);
-        const [evidence, controles] = (await Promise.all([
-            api('GET', `/api/v1/projects/${proj.id}/evidence`).catch(() => []),
-            api('GET', `/api/v1/projects/${proj.id}/controls`).catch(() => []),
-        ])).map(lista);
+        let evidence, controles;
+        try {
+            [evidence, controles] = (await Promise.all([
+                api('GET', `/api/v1/projects/${proj.id}/evidence`),
+                // Secundário: sem os controles, a coluna mostra o id do controle.
+                api('GET', `/api/v1/projects/${proj.id}/controls`).catch(() => []),
+            ])).map(lista);
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as evidências.', e); return; }
         const tituloDoControle = Object.fromEntries(controles.map(ctl => [ctl.id, ctl.title || ctl.id]));
 
         const totalEvidence = evidence.length;
@@ -1733,7 +1755,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 ${tableHtml}
             `;
         } catch(e) {
-            c.innerHTML = `<div class="error">Erro ao carregar Gestão de Políticas: ${escapeHTML(e.message)}</div>`;
+            window.falhaDeCarga(c, a, 'Não foi possível carregar a gestão de políticas.', e);
         }
     }
 
@@ -1900,14 +1922,19 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             let signatureSealHtml = '';
             const evidenceHash = policyRes.hash;
             if (ctrl.ciso_approved_by || ctrl.ceo_approved_by) {
+                // O selo diz o que existe (a versão e a data), não "ISO 27001 CONFORME": conformidade é decisão do auditor.
+                const vigente = versions[0];
+                const fatoDaVersao = vigente
+                    ? `Política publicada, versão ${vigente.version}, em ${new Date(vigente.created_at).toLocaleDateString('pt-BR')}`
+                    : 'Rascunho';
                 signatureSealHtml = `
                     <div style="background: rgba(0, 173, 232, 0.03); border: 1px solid rgba(0, 173, 232, 0.15); padding: 1rem 1.25rem;">
                         <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.5rem; margin-bottom: 0.6rem;">
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <div style="width: 8px; height: 8px; background: var(--accent); "></div>
-                                <span style="font-family: 'Montserrat', sans-serif; font-size:0.75rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.1em;">Selo de Homologação Digital</span>
+                                <span style="font-family: 'Montserrat', sans-serif; font-size:0.75rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.1em;">Integridade da versão</span>
                             </div>
-                            <span style="font-family: 'Montserrat', sans-serif; font-size:0.72rem; font-weight: 700; color: var(--accent); background: rgba(0, 173, 232, 0.1); padding: 2px 6px; border: 1px solid rgba(0, 173, 232, 0.2);">ISO 27001 CONFORME</span>
+                            <span class="selo-fato">${escapeHTML(fatoDaVersao)}</span>
                         </div>
                         <div style="font-size: 0.7rem; font-family: monospace; display: flex; flex-direction: column; gap: 4px; color: rgba(229, 235, 255, 0.75);">
                             <div><span style="color: var(--text-dim);">INTEGRIDADE DO TEXTO DA POLÍTICA (SHA-256 do texto, não do pedido):</span> <span style="color: var(--accent); word-break: break-all;">${escapeHTML(evidenceHash)}</span></div>
@@ -1950,7 +1977,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 `;
             }
 
-            const renderedHtml = window.marked ? window.marked.parse(policyText) : escapeHTML(policyText);
+            const renderedHtml = markdownSeguro(policyText);
             const html = `
                 <div class="modal-header">
                     <span class="modal-title">Política Ativa — ${escapeHTML(codigo)}</span>
@@ -2031,7 +2058,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     const textarea = document.getElementById('policy-editor-textarea');
                     const preview = document.getElementById('policy-editor-preview');
                     textarea.oninput = function() {
-                        preview.innerHTML = window.marked ? window.marked.parse(this.value) : escapeHTML(this.value);
+                        preview.innerHTML = markdownSeguro(this.value);
                     };
                 } else {
                     // Salvar as alterações
@@ -2189,9 +2216,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         let acks = [];
         try {
             acks = await api('GET', `/api/v1/projects/${proj.id}/policy-acknowledgments`);
-        } catch(e) {
-            console.error('Error loading policy acknowledgments', e);
-        }
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as ciências de política.', e); return; }
         if (!Array.isArray(acks)) acks = [];
 
         const totalAcks = acks.length;
