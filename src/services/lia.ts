@@ -1,6 +1,8 @@
 import { logAudit } from '../helpers';
 import { documentoAtual, hashConteudo } from './pedidos';
 import { lerImpacto, type Recomendacao } from './impacto';
+import { lerCiclo, cicloEmTexto } from './ciclo';
+import { lerBases, basesEmTexto } from './bases';
 
 const RESULTADO_IMPACTO: Record<Recomendacao['resultado'], string> = {
   recomendado: 'RIPD recomendado', dispensavel_a_confirmar: 'RIPD dispensável, a confirmar', incompleto: 'incompleto',
@@ -77,7 +79,7 @@ export async function apagarLia(db: D1Database, projectId: string, ropaId: strin
 }
 
 /** Hash do conteúdo do tratamento agora (o mesmo da aprovação): a DPIA/LIA guarda de qual versão do RoPA nasceu. */
-const hashDoTratamento = async (db: D1Database, projectId: string, ropaId: string) => {
+export const hashDoTratamento = async (db: D1Database, projectId: string, ropaId: string) => {
   const doc = await documentoAtual(db, 'tratamento', ropaId, projectId);
   return doc ? hashConteudo(doc.conteudo) : null;
 };
@@ -88,8 +90,22 @@ type RegistroParaDpia = {
 };
 
 /**
+ * Selo "mudou na origem" (F3): a DPIA/LIA guardou em `origem_hash` o hash do tratamento quando nasceu; se o de hoje é outro, o RoPA
+ * mudou depois. Só avisa: nada é invalidado. Sem `origem_hash` (nascida antes da 0072 ou à mão) não há como saber: false.
+ * Um hash por tratamento, calculado uma vez.
+ */
+export async function comOrigemMudou<T extends { ropa_id?: unknown; origem_hash?: unknown }>(db: D1Database, projectId: string, linhas: T[]): Promise<(T & { origem_mudou: boolean })[]> {
+  const atuais = new Map<string, string | null>();
+  for (const l of linhas) {
+    if (typeof l.ropa_id === 'string' && l.origem_hash && !atuais.has(l.ropa_id)) atuais.set(l.ropa_id, await hashDoTratamento(db, projectId, l.ropa_id));
+  }
+  return linhas.map((l) => ({ ...l, origem_mudou: !!l.origem_hash && typeof l.ropa_id === 'string' && atuais.get(l.ropa_id) !== l.origem_hash }));
+}
+
+/**
  * DPIA `Draft` já ligada ao tratamento e pré-preenchida com o que o registro sabe (nada se pergunta de novo): finalidade, titulares,
- * categorias, fluxo (ligações e destinatários), base legal e retenção (necessidade), riscos do registro e o teste de impacto.
+ * categorias, fluxo (ligações, destinatários e ciclo de vida), bases legais (principal, adicionais e GDPR) e retenção (necessidade),
+ * riscos do registro e o teste de impacto.
  * `origem_hash` guarda o hash do tratamento nesse momento. 409 (com o id) se já existe uma.
  */
 export async function criarDpiaDoTratamento(
@@ -111,8 +127,11 @@ export async function criarDpiaDoTratamento(
     lig.transferencias.length ? `Transferências: ${lig.transferencias.map((t) => `${t.pais}${t.destinatario ? ` para ${t.destinatario}` : ''}${t.mecanismo ? ` (${t.mecanismo})` : ''}`).join('; ')}` : '',
     reg.recipients ? `Destinatários: ${reg.recipients}` : '',
   ].filter(Boolean);
+  const ciclo = cicloEmTexto((await lerCiclo(db, projectId, ropaId)) ?? []);
+  if (ciclo.length) linhas.push(`Ciclo de vida: ${ciclo.join('; ')}`);
+  const bases = await lerBases(db, projectId, ropaId);
   const base = [reg.base_legal, reg.legal_basis].filter(Boolean).join('; ');
-  const necessidade = [base ? `Base legal: ${base}.` : '', reg.retention_period ? `Retenção: ${reg.retention_period}.` : ''].filter(Boolean).join(' ');
+  const necessidade = [base ? `Base legal: ${base}.` : '', ...(bases ? basesEmTexto(bases) : []), reg.retention_period ? `Retenção: ${reg.retention_period}.` : ''].filter(Boolean).join(' ');
   const impacto = await lerImpacto(db, projectId, ropaId);
   const sim = impacto?.perguntas.filter((p) => p.resposta === 'sim').map((p) => p.id) ?? [];
   const riscos = [

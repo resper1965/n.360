@@ -388,3 +388,17 @@ describe('riscos e ações da atividade', () => {
         expect(el('tl-acoes').textContent).toContain('Nenhuma ação registrada');
     });
 });
+
+describe('selo "mudou na origem" (F3)', () => {
+    it('avisa na DPIA e na LIA que o tratamento mudou depois que nasceram; sem o selo, nada aparece', async () => {
+        await abrir({ [`GET ${B}/ligacoes`]: LIG({
+            dpias: [{ id: 'd1', nome: 'RIPD da folha', status: 'Draft', origem_mudou: true }],
+            lia: { exigida: true, existe: true, status: 'rascunho', origem_mudou: true },
+        }) });
+        const av = el('tl-avaliacoes');
+        expect(av.querySelectorAll('.tl-origem')).toHaveLength(2);
+        expect(av.textContent).toContain('O tratamento mudou depois que esta avaliação nasceu: revise.');
+        await abrir({ [`GET ${B}/ligacoes`]: LIG({ dpias: [{ id: 'd1', nome: 'RIPD', status: 'Draft', origem_mudou: false }] }) });
+        expect(el('tl-avaliacoes').querySelector('.tl-origem')).toBeNull();
+    });
+});

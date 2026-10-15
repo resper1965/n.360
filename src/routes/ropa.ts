@@ -2,9 +2,11 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
-import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema } from '../schemas';
+import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema } from '../schemas';
 import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa } from '../services/riscos-atividade';
 import { lerImpacto, salvarImpacto } from '../services/impacto';
+import { lerCiclo, salvarCiclo, cicloEmTexto, etapasDe, type EtapaLida } from '../services/ciclo';
+import { lerBases, salvarBases, basesEmTexto, type BaseLida } from '../services/bases';
 import { criarTransferencia, definirLigacao, diagramaDoTratamento, lerLigacoes, removerTransferencia } from '../services/tratamentos';
 import { aprovacoesDoProjeto } from '../services/documentos';
 import { importarTratamentos } from '../services/tratamentos-importar';
@@ -204,6 +206,47 @@ projectRopaApp.put('/:recordId/impacto', async (c) => {
     await logAudit(c.env.DB, 'ropa.impacto', ator, `ROPA ${c.req.param('recordId')}: teste de impacto (${Object.keys(v.data.respostas).join(', ') || 'sem respostas'})${fim}`, '', '', projectId);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao gravar o teste de impacto', e); }
+});
+
+// ─── Ciclo de vida e bases legais da atividade (F3, migration 0074) ───
+// Fora do conteúdo congelado da aprovação: nenhuma das duas rotas substitui pedido (sem conferirPedidosDoDocumento). O agente (MCP)
+// grava as duas, como grava itens e departamentos: nenhuma é ato que a regra reserve a uma pessoa.
+projectRopaApp.get('/:recordId/ciclo', async (c) => {
+  const etapas = await lerCiclo(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
+  return etapas ? c.json({ etapas }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+});
+
+projectRopaApp.put('/:recordId/ciclo', async (c) => {
+  try {
+    const v = await validateBody(c, tratamentoCicloSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const ator = c.get('user')?.email || 'system';
+    const r = await salvarCiclo(c.env.DB, projectId, c.req.param('recordId'), ator, v.data.etapas);
+    if (!r.ok) return c.json({ error: r.error, ...(r.invalidos ? { invalidos: r.invalidos } : {}) }, r.status);
+    // Trilha com as etapas e a situação, nunca a descrição (texto livre).
+    await logAudit(c.env.DB, 'ropa.ciclo', ator, `ROPA ${c.req.param('recordId')}: ciclo de vida (${v.data.etapas.map((e) => `${e.etapa} ${e.situacao}`).join(', ')})`, '', '', projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao gravar o ciclo de vida', e); }
+});
+
+projectRopaApp.get('/:recordId/bases', async (c) => {
+  const r = await lerBases(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
+  return r ? c.json(r) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+});
+
+projectRopaApp.put('/:recordId/bases', async (c) => {
+  try {
+    const v = await validateBody(c, tratamentoBasesSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const r = await salvarBases(c.env.DB, projectId, c.req.param('recordId'), v.data);
+    if (!r.ok) return c.json({ error: r.error, ...(r.invalidos ? { invalidos: r.invalidos } : {}) }, r.status);
+    // Trilha com os nomes dos campos e os ids do catálogo (públicos), nunca o texto livre.
+    const campos = [v.data.adicionais ? `adicionais: ${v.data.adicionais.map((a) => a.requisito_id).join(', ') || 'nenhuma'}` : '', v.data.base_gdpr !== undefined ? 'base_gdpr' : ''].filter(Boolean);
+    await logAudit(c.env.DB, 'ropa.bases', c.get('user')?.email || 'system', `ROPA ${c.req.param('recordId')}: bases legais (${campos.join('; ') || 'sem mudança'})`, '', '', projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao gravar as bases legais', e); }
 });
 
 // ─── Riscos e ações da atividade (F2, migration 0073): o MESMO cadastro do n.iso, filtrado pela atividade ───
@@ -484,9 +527,17 @@ projectRopaApp.get('/report', async (c) => {
     const { results: records } = await c.env.DB.prepare(
       `SELECT r.*, ${SQL_DADOS_IMPORTADOS} FROM ropa_records r WHERE r.project_id = ? ORDER BY r.created_at ASC`
     ).bind(projectId).all<any>();
+    // Bases adicionais e ciclo de vida (F3): uma leitura por tabela para o projeto inteiro.
+    const [basesDoProjeto, ciclosDoProjeto] = await c.env.DB.batch([
+      c.env.DB.prepare(`SELECT b.ropa_id, b.requisito_id, q.referencia, q.titulo, b.observacao FROM tratamento_bases b JOIN requisitos q ON q.id = b.requisito_id WHERE b.project_id = ? ORDER BY q.id`).bind(projectId),
+      c.env.DB.prepare(`SELECT t.ropa_id, t.etapa, t.situacao, t.item_id, i.nome AS item_nome, t.descricao FROM tratamento_ciclo t LEFT JOIN itens i ON i.id = t.item_id WHERE t.project_id = ?`).bind(projectId),
+    ]);
+    const doRegistro = <T extends { ropa_id: string }>(linhas: T[], id: string) => linhas.filter((l) => l.ropa_id === id);
 
     let rowsHtml = '';
     for (const r of (records || [])) {
+      const outrasBases = basesEmTexto({ adicionais: doRegistro(basesDoProjeto.results as (BaseLida & { ropa_id: string })[], r.id), base_gdpr: r.base_gdpr });
+      const ciclo = cicloEmTexto(etapasDe(doRegistro(ciclosDoProjeto.results as (Omit<EtapaLida, 'rotulo'> & { ropa_id: string })[], r.id)));
       const falta = naoInformados(r.dados_importados);
       const simNao = (coluna: string) => (falta.includes(coluna) ? 'Não informado (importado, não revisado)' : r[coluna] ? 'Sim' : 'Não');
       const cisoSig = r.ciso_approved_by ? `<span style="color:#10b981; font-weight:600">✓ Assinado por ${escapeHtml(r.ciso_approved_by)} em ${new Date(r.ciso_approved_at).toLocaleDateString()}</span>` : '<span style="color:#d97706">Aguardando Líder SGSI</span>';
@@ -531,6 +582,14 @@ projectRopaApp.get('/report', async (c) => {
               <div class="ropa-label">Destinatários / Compartilhamento</div>
               <div class="ropa-value">${escapeHtml(r.recipients || '-')}</div>
             </div>
+            ${outrasBases.length ? `<div class="ropa-field full-width">
+              <div class="ropa-label">Outras bases legais</div>
+              <div class="ropa-value">${outrasBases.map((t) => escapeHtml(t)).join('<br>')}</div>
+            </div>` : ''}
+            ${ciclo.length ? `<div class="ropa-field full-width">
+              <div class="ropa-label">Ciclo de vida do dado</div>
+              <div class="ropa-value">${ciclo.map((t) => escapeHtml(t)).join('<br>')}</div>
+            </div>` : ''}
           </div>
           <div class="ropa-card-footer">
             <div><strong>Líder SGSI:</strong> ${cisoSig}</div>

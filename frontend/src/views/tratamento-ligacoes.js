@@ -17,6 +17,8 @@ const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor
 // Quem o servidor deixa pedir rascunho de IA (services/rascunhos-privacy.ts): equipe e o administrador do cliente.
 const podeRascunho = () => podeEditar() || (!!S.user && S.user.role === 'org_admin');
 const AVISO_IA = 'Rascunho gerado por IA — revise antes de usar';
+// Selo "mudou na origem" (F3): o tratamento mudou depois que a DPIA/LIA nasceu dele. Só aviso; nada é invalidado.
+const ORIGEM_MUDOU = 'O tratamento mudou depois que esta avaliação nasceu: revise.';
 let basesAbertas = [];
 const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
@@ -166,10 +168,10 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
         ${secao('Aprovação', `<p id="tl-aprovacao">${textoAprovacao(lig.aprovacao)}</p>
             ${podePedir() ? `<button class="btn btn-sm" data-action="pedirAprovacaoTratamento" data-args='${args(projectId, ropaId)}'>Pedir aprovação</button>` : ''}`)}
         ${secao('Avaliações', `<div id="tl-avaliacoes">
-            <p><strong>DPIA</strong>: ${lig.dpias.length ? lig.dpias.map((d) => `${escapeHTML(d.nome || 'Sem nome')} (${escapeHTML(d.status || '—')})`).join(', ') + ` <button class="btn btn-ghost btn-sm" data-action="navigate" data-args='["dpia"]'>Abrir a tela de DPIA</button>`
+            <p><strong>DPIA</strong>: ${lig.dpias.length ? lig.dpias.map((d) => `${escapeHTML(d.nome || 'Sem nome')} (${escapeHTML(d.status || '—')})${d.origem_mudou ? ` <span class="tl-origem">${ORIGEM_MUDOU}</span>` : ''}`).join(', ') + ` <button class="btn btn-ghost btn-sm" data-action="navigate" data-args='["dpia"]'>Abrir a tela de DPIA</button>`
                 : (lig.dpia_pendente ? 'exigida por este registro e ainda não criada.' : 'nenhuma ligada.')}
             ${editar && !lig.dpias.length ? `<button class="btn btn-sm" data-action="criarDpiaDoTratamento" data-args='${args(projectId, ropaId)}'>Criar DPIA a partir do tratamento</button>` : ''}</p>
-            <p><strong>LIA</strong> (teste de legítimo interesse): ${lig.lia.exigida ? 'exigida pela base legal' : 'não exigida pela base legal'}${lig.lia.existe ? ` · ${escapeHTML(lig.lia.status === 'concluida' ? 'concluída' : 'em rascunho')}` : (lig.lia.exigida ? ' · ainda não feita' : '')}.</p>
+            <p><strong>LIA</strong> (teste de legítimo interesse): ${lig.lia.exigida ? 'exigida pela base legal' : 'não exigida pela base legal'}${lig.lia.existe ? ` · ${escapeHTML(lig.lia.status === 'concluida' ? 'concluída' : 'em rascunho')}` : (lig.lia.exigida ? ' · ainda não feita' : '')}.${lig.lia.origem_mudou ? ` <span class="tl-origem">${ORIGEM_MUDOU}</span>` : ''}</p>
             ${editar ? formularioLia(lia, projectId, ropaId) : (lia ? `<p style="color:var(--text-dim)">${escapeHTML(lia.finalidade_legitima || '')}</p>` : '')}</div>`)}
         ${secao('Riscos', blocoRiscos(projectId, ropaId, riscos, lig.itens, partes, editar, dono))}
         ${secao('Ações', blocoAcoes(projectId, ropaId, acoes, riscos, partes, editar, dono))}

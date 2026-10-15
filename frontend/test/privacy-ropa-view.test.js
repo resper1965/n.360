@@ -258,6 +258,14 @@ describe('RIPD (DPIA)', () => {
         expect(JSON.parse(el('c').querySelector('.empty-state [data-action="navigate"]').getAttribute('data-args'))).toEqual(['ropa']);
     });
 
+    it('selo "mudou na origem" (F3): só no RIPD cujo tratamento mudou depois que ele nasceu', async () => {
+        rotas['/dpia'] = [{ id: 'd1', system_name: 'CRM', status: 'Draft', origem_mudou: true }, { id: 'd2', system_name: 'ERP', status: 'Draft', origem_mudou: false }];
+        await window.renderDPIA(el('c'), el('h'), el('a'));
+        const linhas = [...el('c').querySelectorAll('tr')];
+        expect(linhas.find((l) => l.textContent.includes('CRM')).textContent).toContain('RoPA mudou depois deste RIPD: revise');
+        expect(linhas.find((l) => l.textContent.includes('ERP')).textContent).not.toContain('RoPA mudou');
+    });
+
     it('vazio sem marcação: ensina a marcar', async () => {
         await window.renderDPIA(el('c'), el('h'), el('a'));
         expect(el('c').textContent).toContain('Marque no RoPA os tratamentos de alto risco para saber onde o RIPD é exigido.');

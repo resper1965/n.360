@@ -4,6 +4,7 @@ import { listarTerceiros } from './terceiros';
 import { lacunasDaFonte } from './requisitos';
 import { lerParametros } from './parametros-legais';
 import { ehLegitimoInteresse } from './lia';
+import { SQL_TITULOS_ADICIONAIS } from './bases';
 
 /**
  * Núcleo do n.privacy, fatia 8: a visão do encarregado. É CONSULTA sobre as tabelas das fatias anteriores, nunca grava: o que está atrasado
@@ -32,12 +33,14 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   const comunicacoes = incidentesAbertos.flatMap((i) => [i.situacao_anpd, i.situacao_titular].filter((s) => i.risco_titular !== 'sem_risco' && s !== 'comunicado'));
 
   // Tratamentos: contas que dependem de texto livre (legítimo interesse) são feitas aqui, sobre as poucas linhas do projeto.
+  // Base legal (F3): a principal, uma adicional ou o texto do GDPR; qualquer uma de legítimo interesse pede a LIA.
   const { results: trat } = await db.prepare(
     `SELECT r.id, r.legal_basis, r.base_legal_id, r.owner, r.owner_parte_id, r.dpia_required, q.titulo AS base_titulo,
+            r.base_gdpr, ${SQL_TITULOS_ADICIONAIS} AS adicionais,
             EXISTS (SELECT 1 FROM dpia_assessments d WHERE d.ropa_id = r.id AND d.project_id = r.project_id) AS tem_dpia,
             EXISTS (SELECT 1 FROM lia_assessments l WHERE l.ropa_id = r.id AND l.project_id = r.project_id) AS tem_lia
        FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.project_id = ?`
-  ).bind(projectId).all<{ id: string; legal_basis: string | null; base_legal_id: string | null; owner: string | null; owner_parte_id: string | null; dpia_required: number | null; base_titulo: string | null; tem_dpia: number; tem_lia: number }>();
+  ).bind(projectId).all<{ id: string; legal_basis: string | null; base_legal_id: string | null; owner: string | null; owner_parte_id: string | null; dpia_required: number | null; base_titulo: string | null; base_gdpr: string | null; adicionais: string | null; tem_dpia: number; tem_lia: number }>();
   const comTerceiroVencido = await n(db,
     `SELECT count(DISTINCT v.alvo_id) AS n FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
       WHERE v.project_id = ?1 AND v.alvo_tipo = 'tratamento' AND p.tipo = 'organizacao'
@@ -45,9 +48,9 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
 
   const tratamentos = {
     total: trat.length,
-    sem_base_legal: trat.filter((t) => !t.base_legal_id && !String(t.legal_basis ?? '').trim()).length,
+    sem_base_legal: trat.filter((t) => !t.base_legal_id && !String(t.legal_basis ?? '').trim() && !t.adicionais && !String(t.base_gdpr ?? '').trim()).length,
     dpia_pendente: trat.filter((t) => t.dpia_required && !t.tem_dpia).length,
-    lia_pendente: trat.filter((t) => ehLegitimoInteresse(t.base_titulo, t.legal_basis) && !t.tem_lia).length,
+    lia_pendente: trat.filter((t) => ehLegitimoInteresse(t.base_titulo, t.legal_basis, t.adicionais, t.base_gdpr) && !t.tem_lia).length,
     sem_responsavel: trat.filter((t) => !t.owner_parte_id && !String(t.owner ?? '').trim()).length,
     com_terceiro_vencido: comTerceiroVencido,
   };

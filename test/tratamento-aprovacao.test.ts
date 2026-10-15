@@ -186,6 +186,33 @@ describe('teste de impacto e aprovações (não regressão da 0072)', () => {
   });
 });
 
+// Migration 0074 (F3): ciclo de vida, bases adicionais e a base do GDPR ficam FORA do conteúdo congelado. Aprovação de antes continua valendo.
+describe('ciclo de vida e bases e aprovações (não regressão da 0074)', () => {
+  it('gravar ciclo, bases adicionais e GDPR não derruba a aprovação, não muda o hash nem substitui o pedido aberto', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT OR IGNORE INTO requisito_fontes (id, nome) VALUES ('lgpd', 'LGPD')`),
+      env.DB.prepare(`INSERT OR IGNORE INTO requisitos (id, fonte_id, referencia, titulo) VALUES ('lgpd:art7:ii', 'lgpd', 'art. 7, II', 'Cumprimento de obrigação legal ou regulatória'), ('lgpd:art7:ix', 'lgpd', 'art. 7, IX', 'Legítimo interesse do controlador ou de terceiro')`),
+    ]);
+    const id = await novo('Aprovado antes da 0074');
+    await aprovar(await pedido(id));
+    const aberto = await novo('Pedido aberto antes da 0074');
+    await pedido(aberto);
+    const antes = await hashConteudo((await documentoAtual(env.DB, 'tratamento', id, P))!.conteudo);
+    for (const rid of [id, aberto]) {
+      expect((await chamar(consultor, 'PUT', `/api/v1/projects/${P}/ropa/${rid}/ciclo`, { etapas: [
+        { etapa: 'coleta', situacao: 'registrada', item_id: 'ta-i1', descricao: 'Formulário' }, { etapa: 'eliminacao', situacao: 'nao_aplicavel' },
+      ] })).status).toBe(200);
+      expect((await chamar(consultor, 'PUT', `/api/v1/projects/${P}/ropa/${rid}/bases`, { adicionais: [{ requisito_id: 'lgpd:art7:ii' }, { requisito_id: 'lgpd:art7:ix' }], base_gdpr: 'Art. 6(1)(c)' })).status).toBe(200);
+    }
+    const doc = (await documentoAtual(env.DB, 'tratamento', id, P))!;
+    expect(Object.keys(doc.conteudo)).not.toEqual(expect.arrayContaining(['base_gdpr']));
+    expect(await hashConteudo(doc.conteudo)).toBe(antes);
+    expect((await registro(id)).aprovacao_pedido.ciso).toMatchObject({ por: 'Cida Matriz' });
+    expect(await statusPedidos(id)).toEqual(['aprovado']);
+    expect(await statusPedidos(aberto)).toEqual(['aberto']);
+  });
+});
+
 // Migration 0069: dados sensíveis (art. 11) e crianças e adolescentes (art. 14) entram no conteúdo congelado SÓ quando marcados.
 // Desmarcados (todo registro existente depois da 0069), o conteúdo e o hash ficam byte a byte como antes: nenhum pedido aberto é substituído.
 describe('riscos do tratamento no conteúdo congelado', () => {

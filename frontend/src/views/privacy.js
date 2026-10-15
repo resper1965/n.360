@@ -347,7 +347,8 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
                     `<strong>${escapeHTML(dp.system_name)}</strong>`,
                     escapeHTML(dp.data_subjects_types || 'N/A'),
                     escapeHTML(dp.personal_data_categories || 'N/A'),
-                    window.renderStatusBadge(dp.status || 'Draft', statusType),
+                    // Selo "mudou na origem" (F3): só aviso; a aprovação do RIPD não muda por isso.
+                    window.renderStatusBadge(dp.status || 'Draft', statusType) + (dp.origem_mudou ? ` ${window.renderStatusBadge('RoPA mudou depois deste RIPD: revise', 'warning')}` : ''),
                     `<button class="btn btn-ghost btn-sm" data-action="openDPIADetailsModal" data-args='["${dp.id}"]'>Detalhes</button>
                      <button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="openDPIAReport" data-args='["${proj.id}","${dp.id}"]' data-stop>PDF</button>`
                 ];
