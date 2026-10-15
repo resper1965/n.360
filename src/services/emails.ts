@@ -87,6 +87,52 @@ export function emailCiencia(d: { titulo: string; nome: string | null; link: str
   });
 }
 
+const TIPO_PEDIDO: Record<string, string> = {
+  dpia: 'RIPD (DPIA)', politica: 'Política', documento: 'Documento', excecao: 'Exceção a documento',
+  tratamento: 'Tratamento (RoPA)', avaliacao_terceiro: 'Avaliação de terceiro',
+};
+const PAPEL_PEDIDO: Record<string, string> = { ciso: 'Líder SGSI', ceo: 'Direção (CEO)' };
+
+/**
+ * Pedido de APROVAÇÃO criado (`POST /projects/:id/pedidos`): o destinatário decide em "Minhas aprovações", logado e com senha.
+ * O link só abre o app (nenhuma credencial nele). O pedido não tem data-limite: o e-mail diz isso em vez de inventar uma.
+ */
+export function emailPedidoAprovacao(d: { tipo: string; titulo: string; papel: string; nome: string | null; link: string; quem: QuemPede }): EmailComAssunto {
+  const cliente = nomeDoCliente(d.quem);
+  const tipo = TIPO_PEDIDO[d.tipo] ?? 'Documento';
+  const papel = PAPEL_PEDIDO[d.papel] ?? d.papel;
+  return com(`${cliente} pede a sua aprovação: ${d.titulo}`, {
+    previa: `${tipo} "${d.titulo}" aguarda a sua aprovação como ${papel}.`,
+    titulo: `Aprovação pedida: ${d.titulo}`,
+    saudacao: ola(d.nome),
+    paragrafos: [`${cliente} pede a sua aprovação, como ${papel}, para o item abaixo no n.360.`],
+    quemPede: quemPedeBloco(d.quem),
+    acao: 'Entrar no n.360, abrir Minhas aprovações, ler e aprovar ou recusar com a sua senha',
+    prazo: 'Sem data marcada: o pedido fica aberto até a sua decisão',
+    dados: [['Tipo', tipo], ['Título', d.titulo], ['Papel', papel]],
+    botao: { rotulo: 'Abrir Minhas aprovações', url: d.link },
+    notas: ['A decisão é registrada com a sua senha, no n.360. Este e-mail não aprova nada sozinho.'],
+    motivo: `${cliente} indicou este endereço para aprovar um item como ${papel}.`,
+    contato: d.quem.pessoa,
+  });
+}
+
+/** O fornecedor enviou o questionário de homologação: aviso à equipe (os mesmos do sino). Nunca o token nem as respostas. */
+export function emailHomologacaoRespondida(d: { nome: string | null; fornecedor: string; cliente: string; respondidas: number; total: number; percentual: number; link: string }): EmailComAssunto {
+  return com(`${d.fornecedor} respondeu à homologação`, {
+    produto: 'n.privacy',
+    previa: `${d.fornecedor} enviou o questionário de homologação (${d.percentual}% respondido).`,
+    titulo: 'Questionário de homologação respondido',
+    saudacao: ola(d.nome),
+    paragrafos: [`${d.fornecedor} enviou o questionário de homologação de fornecedor${d.cliente ? ` do projeto ${d.cliente}` : ''}.`],
+    acao: 'Revisar as respostas na ficha do terceiro e concluir a avaliação',
+    dados: [['Fornecedor', d.fornecedor], ['Respondido', `${d.percentual}% (${d.respondidas} de ${d.total} perguntas)`]],
+    botao: { rotulo: 'Abrir Terceiros', url: d.link },
+    notas: ['As respostas não vão por e-mail: leia e conclua no n.privacy.'],
+    motivo: 'você acompanha este projeto na consultoria e o fornecedor enviou o questionário.',
+  });
+}
+
 export function emailCodigoCiencia(d: { titulo: string; nome: string | null; codigo: string; quem: QuemPede }): EmailComAssunto {
   const cliente = nomeDoCliente(d.quem);
   return com(`Seu código para dar ciência: ${d.titulo}`, {

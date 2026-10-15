@@ -132,6 +132,10 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   proprio statement (a unica excecao e `UPDATE pedidos SET org_id = ?`), sem
   DELETE nem REPLACE; `test/pedidos-prova.test.ts` le o fonte e reprova o que
   fugir disso. Correcao e pedido novo.
+- **E-mail do pedido de aprovacao**: `POST /api/v1/projects/:projectId/pedidos` com papel `ciso`/`ceo` manda a cada destinatario, uma vez, o
+  `emailPedidoAprovacao` (quem pede, tipo e titulo, papel, "sem data marcada", botao para `/?tela=meus-pedidos`, `reply_to` de quem pediu;
+  `telaPedida` em `frontend/src/produto.js` aceita `meus-pedidos` para qualquer papel). Nao ha reenvio para aprovacao (o "Reenviar" e so da
+  ciencia por link). Falha de envio vai ao log (`pedido_aprovacao_email_falhou`) e o pedido continua criado. Teste: `test/emails-avisos.test.ts`.
 - **Aprovacao em lote** (`POST /api/v1/pedidos/lote`): nao e caminho novo de aprovacao. Cada item passa por `decidirPedido` (`src/routes/pedidos.ts`) ou `assinarEvidencia` (`src/routes/evidence.ts`), as mesmas funcoes da rota individual; a senha e conferida uma vez e o `hash_visto` de cada item tem de bater com o conteudo atual. So aprova, ate 50 itens, fora do agente. Mexer na regra de autoridade ou de segregacao e mexer nas duas funcoes, e o lote acompanha.
 - **URL canonica**: `src/config/url.ts` (`appUrl(env)`, var `APP_URL`; o padrao do codigo e o `wrangler.jsonc` sao
   `https://n360.ness.com.br`, desde o #340). Link de e-mail, base do
@@ -348,7 +352,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (so `respondida`, ato humano) chama `registrarAvaliacao` e grava `avaliacoes_terceiro` com metodo `questionario`; a situacao e os avisos
   de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco nao e gravado. O envio do fornecedor avisa no
   sino os consultores designados (sem nenhum, os `consultoria_admin`; `avisarEnvio`, regra de `escolherDestinatarios`), so com o nome da
-  parte; falha do aviso vai ao log e nao derruba o envio.
+  parte, e os MESMOS recebem e-mail (`emailHomologacaoRespondida`: fornecedor, % respondido, link `/privacy?tela=terceiros`; nunca token nem
+  resposta; so a quem o sino acabou de avisar, entao nao repete); falha do aviso ou do e-mail vai ao log e nao derruba o envio.
 - **Titular, incidente e consentimento (fatia 7, migration 0058, SO registro interno)**: `titular_pedidos` (protocolo `PT-AAAA-NNNN` por projeto),
   `incidentes` (`IN-AAAA-NNNN`; encerrar exige risco avaliado e, se `relevante`, a comunicacao a ANPD registrada: CHECK do banco, vale para SQL
   direto) e `consentimentos` (prova ligada ao tratamento; revogar nao apaga). **Nenhum prazo legal mora no codigo nem na migration:**

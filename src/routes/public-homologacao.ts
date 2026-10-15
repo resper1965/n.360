@@ -56,8 +56,8 @@ publicHomologacaoApp.post('/enviar', async (c) => {
     const r = await gravarRespostas(c.env.DB, h, v.data.respostas ?? {}, true);
     if (!r) return c.json(INVALIDO, 404);
     if (!r.ok) return c.json({ error: r.error }, r.status);
-    // O aviso à equipe nunca derruba o envio, que já está gravado.
-    try { await avisarEnvio(c.env.DB, h); } catch (e) {
+    // O aviso à equipe (sino e e-mail) nunca derruba o envio, que já está gravado.
+    try { await avisarEnvio(c.env, h, r); } catch (e) {
       log('error', { msg: 'homologacao_aviso_falhou', homologacao_id: h.id, projeto: h.project_id, erro: e instanceof Error ? e.message : String(e) });
     }
     return c.json(r);
