@@ -172,7 +172,7 @@ describe('notificação de prazo (avisos de prazo)', () => {
   it.each([
     ['/projects/p9/capa', 'capa', 'renderCAPA'],
     ['/projects/p9/audits', 'audits', 'renderAudits'],
-    ['/projects/p9/certification', 'certification', 'renderCertification'],
+    ['/projects/p9/certification', 'certification', 'renderProntidao'],
     ['/projects/p9/policies', 'policies-dashboard', 'renderPoliciesDashboard'],
   ])('%s abre %s no projeto do aviso, não no projeto ativo', async (link, view, tela) => {
     const { api } = await import('../src/api.js');

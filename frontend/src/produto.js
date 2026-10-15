@@ -15,7 +15,7 @@ export const PRODUTOS = {
 const MODULOS = ['iso', 'privacy'];
 
 /** Telas que só existem no n.iso e só no n.privacy. O resto (cadastro, sistema) aparece nos dois e no início do n.360. */
-export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-monitor',
+export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco'];
@@ -32,7 +32,7 @@ export const SO_N360 = Object.values(TELAS_DA_CONTA);
 export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail'];
 export const TELAS_DO_HUB = ['inicio', 'meus-pedidos', ...Object.keys(TELAS_DA_CONTA), 'seguranca-projeto', 'audit-trail', 'sem-acesso-produto'];
 // Telas do n.iso sem item próprio no menu (abertas de dentro de outra tela ou por aviso).
-const DO_ISO_SEM_ITEM = ['project-detail', 'controls', 'certification', 'metrics', 'audit-execution', 'assessment-detail', 'management-review', 'policies-dashboard'];
+const DO_ISO_SEM_ITEM = ['project-detail', 'controls', 'metrics', 'audit-execution', 'assessment-detail', 'management-review', 'policies-dashboard'];
 
 /** O produto do caminho (vale igual em localhost). */
 export function produtoAtual(loc = window.location) {

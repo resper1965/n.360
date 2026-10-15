@@ -145,9 +145,8 @@ export function avaliarProntidao(c: Contagens) {
     .sort((a, b) => a.estagio - b.estagio || b.destrava_pendentes - a.destrava_pendentes || CRITERIOS.findIndex((d) => d.id === a.id) - CRITERIOS.findIndex((d) => d.id === b.id));
   const conta = (e: 1 | 2) => faltam.filter((x) => x.estagio === e).length;
   const [f1, f2] = [conta(1), conta(2)];
-  const itens = (n: number) => plural(n, 'item', 'itens');
-  const frase = f1 > 0 ? `Faltam ${itens(f1)} para o estágio 1.`
-    : f2 > 0 ? `Pronto para o estágio 1. Faltam ${itens(f2)} para o estágio 2.` : 'Pronto para os estágios 1 e 2.';
+  const faltam_ = (q: number, e: number) => `${q === 1 ? 'Falta 1 item' : `Faltam ${q} itens`} para o estágio ${e}.`;
+  const frase = f1 > 0 ? faltam_(f1, 1) : f2 > 0 ? `Pronto para o estágio 1. ${faltam_(f2, 2)}` : 'Pronto para os estágios 1 e 2.';
   // O tom é o vocabulário de estado do Painel (`pn-estado`): o rótulo vai escrito, a cor só acompanha.
   const [tom, rotulo] = f1 > 0 ? ['semana', 'Estágio 1 pendente'] : f2 > 0 ? ['semana', 'Estágio 2 pendente'] : ['ok', 'Critérios atendidos'];
   const t = aplicaveis(c);

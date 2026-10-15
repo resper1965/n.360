@@ -11,7 +11,7 @@ import { S } from '../src/state.js';
 // exatamente por isso que a lista fica explicita.
 const IDS_SIDEBAR = [
     'nav-dashboard', 'nav-projects', 'nav-leads', 'nav-assessments', 'nav-proposals',
-    'nav-project', 'nav-monitor', 'nav-soa', 'nav-governance', 'nav-stakeholders',
+    'nav-project', 'nav-certification', 'nav-monitor', 'nav-soa', 'nav-governance', 'nav-stakeholders',
     'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-documentos', 'nav-training',
     'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa', 'nav-mgmt',
     'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-ai',
@@ -26,7 +26,7 @@ const VIEWS = [
     'renderMonitor', 'renderAssets', 'renderMetrics', 'renderAuditTrail', 'renderAcknowledgments',
     'renderPoliciesDashboard', 'renderRisks', 'renderVendors', 'renderTraining', 'renderROPA',
     'renderDPIA', 'renderAudits', 'renderCAPA', 'renderEvidence', 'renderControls',
-    'renderGovernance', 'renderCertification', 'renderAIChat', 'renderSettings',
+    'renderGovernance', 'renderProntidao', 'renderAIChat', 'renderSettings',
     'renderUsers', 'renderAssessmentDetail', 'renderSelfServiceAssessment', 'renderProjectDetail',
     'renderSoA', 'renderStakeholders', 'renderContext', 'renderAuditExecution',
     'renderManagementReview', 'renderPropostas', 'renderDocumentos', 'renderPartes', 'renderTitular', 'renderInicio', 'updateActiveProjectWidget', 'updateHeaderUser',
@@ -180,9 +180,13 @@ describe('navigate()', () => {
         //   'management-review' -> procura 'nav-management'  (existe 'nav-mgmt')
         //   'assessment-detail' -> procura 'nav-assessment'  (existe 'nav-assessments')
         //   'audit-execution'   -> procura 'nav-audit'       (existe 'nav-audits')
-        //   'certification'     -> nao ha item na barra (destino de changeActiveProject)
         // Estes testes fixam o comportamento ATUAL. Ao corrigir, eles falham —
         // e e esse o sinal de que a correcao pegou.
+        it('"certification" (Prontidão) destaca nav-certification: a tela tem item no menu do n.iso', () => {
+            navigate('certification');
+            expect(itemAtivo().id).toBe('nav-certification');
+        });
+
         it('"audit-trail" destaca nav-audit-trail: o id inteiro vence o prefixo', () => {
             navigate('audit-trail');
             expect(itemAtivo().id).toBe('nav-audit-trail');
@@ -202,7 +206,6 @@ describe('navigate()', () => {
             ['management-review', 'nav-mgmt'],
             ['assessment-detail', 'nav-assessments'],
             ['audit-execution', 'nav-audits'],
-            ['certification', null],
         ])('BUG: view "%s" nao destaca item nenhum (esperado: %s)', (view) => {
             navigate('risks');
             navigate(view);

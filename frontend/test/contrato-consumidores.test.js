@@ -88,27 +88,6 @@ describe('consumidores que o desembrulho antigo quebrava', () => {
 });
 
 describe('consumidores que liam campo que a resposta não tem', () => {
-    it('certificação: lê `certification` do envelope (certifications.ts:61)', async () => {
-        S.activeProject = { id: 'p1' };
-        servir({ 'GET /api/v1/projects/p1/certification': { ok: true, certification: {
-            id: 'cert1', project_id: 'p1', standard: 'ISO 27001:2022', stage: 'Remediation',
-            stage1_date: null, stage1_status: null, stage2_date: null, stage2_status: null, registrar: null, target_date: null,
-        } } });
-        const [c, h, a] = tela();
-        await window.renderCertification(c, h, a);
-        expect(c.textContent).toContain('Remediação & Implementação');
-        expect(c.querySelector('[data-action="updateCertStage"]').dataset.args).toBe('["cert1"]');
-    });
-
-    it('certificação ausente: oferece iniciar (certifications.ts:60)', async () => {
-        S.activeProject = { id: 'p1' };
-        servir({ 'GET /api/v1/projects/p1/certification': { ok: true, certification: null } });
-        const [c, h, a] = tela();
-        await window.renderCertification(c, h, a);
-        // O CTA mora no estado vazio, não no header.
-        expect(c.querySelector('.empty-state [data-action="initCertification"]')).not.toBeNull();
-    });
-
     it('notas do auditor: a lista vem desembrulhada (auditor.ts:91)', async () => {
         servir({ 'GET /api/v1/projects/p1/auditor-notes': { ok: true, notes: [{
             id: 'n1', project_id: 'p1', control_id: null, note_type: 'evidence_request',

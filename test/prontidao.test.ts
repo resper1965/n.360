@@ -60,6 +60,7 @@ describe('avaliarProntidao (função pura)', () => {
   it('estágio 1 pronto e estágio 2 não: a frase diz os dois', () => {
     const r = avaliarProntidao({ ...cheio, auditorias_internas: 0, acoes_vencidas: 2 });
     expect(r.veredito.frase).toBe('Pronto para o estágio 1. Faltam 2 itens para o estágio 2.');
+    expect(avaliarProntidao({ ...cheio, escopo: false }).veredito.frase).toBe('Falta 1 item para o estágio 1.');
     const acoes = r.criterios.find((c) => c.id === 'acoes_vencidas')!;
     expect(acoes).toMatchObject({ situacao: 'pendente', numero: '2 vencidas', tela: 'capa', filtro: 'vencidas' });
   });

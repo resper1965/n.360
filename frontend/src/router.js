@@ -89,7 +89,7 @@ export     function navigate(view, data) {
         else if (S.view === 'evidence') renderEvidence(c, h, a);
         else if (S.view === 'controls') renderControls(c, h, a);
         else if (S.view === 'governance') renderGovernance(c, h, a);
-        else if (S.view === 'certification') renderCertification(c, h, a);
+        else if (S.view === 'certification') renderProntidao(c, h, a);
         else if (S.view === 'ai-chat') renderAIChat(c, h, a);
         else if (S.view === 'settings') renderSettings(c, h, a);
         else if (S.view === 'meus-pedidos') renderMeusPedidos(c, h, a);
