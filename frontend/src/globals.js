@@ -68,7 +68,7 @@ window.viewEvidence = async function viewEvidence(id) {
             } else if (ext === 'md') {
                 isLarge = true;
                 const text = await blob.text();
-                const rendered = window.marked ? window.marked.parse(text) : escapeHTML(text);
+                const rendered = window.markdownSeguro(text);
                 previewHtml = `<div style="max-height: 450px; overflow: auto; background: rgba(255,255,255,0.03); padding: 1.25rem; border: 1px solid var(--border); font-family: 'Inter', sans-serif; font-size: 0.8rem; line-height: 1.6; color: var(--text); text-align: left; margin-top: 1rem;" class="markdown-body">${rendered}</div>`;
             } else if (fileType.startsWith('text/') || ['txt', 'csv', 'json', 'xml', 'log'].includes(ext)) {
                 const text = await blob.text();

@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro } from '../ui.js';
 import { navigate } from '../router.js';
 import { temProduto, projetoDoId } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
@@ -109,26 +109,39 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         }
     };
 
+    // Status que se escolhem no detalhe do controle, com o rótulo de STATUS_DICT (ui.js). "Não aplicável" sai pela SoA, com a
+    // justificativa; "Compliant" e "Approved" são legados. O valor gravado, qualquer que seja, entra na lista e vem
+    // selecionado: abrir e fechar (ou mexer só na maturidade) nunca regride o status.
+    const STATUS_DO_CONTROLE = ['Missing', 'Planned', 'In Progress', 'Partial', 'Implemented'];
+    function opcoesDeStatus(atual) {
+        const valores = atual && !STATUS_DO_CONTROLE.includes(atual) ? [...STATUS_DO_CONTROLE, atual] : STATUS_DO_CONTROLE;
+        const vigente = atual || 'Missing';
+        return valores.map((v) => `<option value="${escapeHTML(v)}" ${v === vigente ? 'selected' : ''}>${escapeHTML(traduzStatus(v))}</option>`).join('');
+    }
+
     function openControlDetail(controlId) {
         const ctrl = S.controls.find(c => c.id === controlId);
         if (!ctrl) return;
+        // Título com o código da norma (A.5.1), nunca o id interno; o código sai do título quando ele já o traz.
+        const codigo = codigoDoControle(ctrl);
+        const titulo = codigo !== ctrl.id && String(ctrl.title || '').startsWith(codigo)
+            ? String(ctrl.title).slice(codigo.length).replace(/^[\s:—–-]+/, '') : ctrl.title;
+        const cabecalho = codigo === ctrl.id ? (ctrl.title || 'Controle') : `${codigo} — ${titulo || ''}`;
 
         openModal(`
             <div class="modal-header">
-                <span class="modal-title">${ctrl.id}: ${escapeHTML(ctrl.title)}</span>
+                <span class="modal-title">${escapeHTML(cabecalho)}</span>
                 <button class="btn-ghost" data-action="closeModal">&times;</button>
             </div>
             <div style="margin-bottom: 1.5rem;">
                 <div class="ctx-label">Descrição</div>
-                <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 1.5rem; line-height: 1.4">${escapeHTML(ctrl.description || 'Nenhuma descrição.')}</div>
+                <div class="controle-descricao">${ctrl.description ? markdownSeguro(ctrl.description) : '<p>Nenhuma descrição.</p>'}</div>
                 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
                     <div>
                         <div class="ctx-label">Status do Controle</div>
-                        <select class="form-input" data-action-change="updateControlStatus" data-args='["${ctrl.id}"]' data-arg-val style="width:100%">
-                            <option value="Missing" ${ctrl.status === 'Missing' ? 'selected' : ''}>Ausente</option>
-                            <option value="Partial" ${ctrl.status === 'Partial' ? 'selected' : ''}>Parcial</option>
-                            <option value="Compliant" ${ctrl.status === 'Compliant' ? 'selected' : ''}>Conforme</option>
+                        <select class="form-input" id="controle-status" aria-label="Status do controle" data-action-change="updateControlStatus" data-args='["${escapeHTML(ctrl.id)}"]' data-arg-val style="width:100%">
+                            ${opcoesDeStatus(ctrl.status)}
                         </select>
                     </div>
                     <div>
@@ -1959,7 +1972,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 `;
             }
 
-            const renderedHtml = window.marked ? window.marked.parse(policyText) : escapeHTML(policyText);
+            const renderedHtml = markdownSeguro(policyText);
             const html = `
                 <div class="modal-header">
                     <span class="modal-title">Política Ativa — ${escapeHTML(codigo)}</span>
@@ -2040,7 +2053,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     const textarea = document.getElementById('policy-editor-textarea');
                     const preview = document.getElementById('policy-editor-preview');
                     textarea.oninput = function() {
-                        preview.innerHTML = window.marked ? window.marked.parse(this.value) : escapeHTML(this.value);
+                        preview.innerHTML = markdownSeguro(this.value);
                     };
                 } else {
                     // Salvar as alterações

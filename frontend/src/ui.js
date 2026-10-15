@@ -323,6 +323,38 @@ export function falhaDeCarga(c, a, mensagem, erro, opcoes = {}) {
     c.innerHTML = renderErrorState(mensagem, { ...opcoes, erro });
 }
 
+// Markdown vindo do servidor (descrição de controle, texto de política, evidência .md) vira HTML só por aqui: o `marked`
+// (frontend/public/marked.min.js) não sanitiza, então o resultado passa por uma lista fechada de tags e atributos.
+const MD_TAGS = new Set(['P', 'BR', 'STRONG', 'B', 'EM', 'I', 'DEL', 'UL', 'OL', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+    'BLOCKQUOTE', 'CODE', 'PRE', 'HR', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'A']);
+const MD_FORA = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'IMG', 'SVG', 'MATH', 'FORM', 'INPUT', 'TEXTAREA',
+    'BUTTON', 'SELECT', 'LINK', 'META', 'BASE', 'TEMPLATE', 'NOSCRIPT', 'VIDEO', 'AUDIO', 'SOURCE']);
+export function markdownSeguro(texto) {
+    const t = String(texto ?? '');
+    if (!window.marked) return escapeHTML(t).replace(/\n/g, '<br>');
+    // <template>: o conteúdo é inerte (nada carrega nem executa) enquanto é limpo.
+    const tpl = document.createElement('template');
+    tpl.innerHTML = window.marked.parse(t);
+    const limpar = (no) => {
+        for (const el of [...no.children]) {
+            if (MD_FORA.has(el.tagName)) { el.remove(); continue; }
+            limpar(el);
+            const href = el.tagName === 'A' ? (el.getAttribute('href') || '').trim() : '';
+            const linkSeguro = /^(https?:|mailto:)/i.test(href);
+            // Tag fora da lista e link sem endereço seguro (javascript:, data:) viram só o texto.
+            if (!MD_TAGS.has(el.tagName) || (el.tagName === 'A' && !linkSeguro)) { el.replaceWith(...el.childNodes); continue; }
+            for (const at of [...el.attributes]) el.removeAttribute(at.name);
+            if (el.tagName === 'A') {
+                el.setAttribute('href', href);
+                el.setAttribute('target', '_blank');
+                el.setAttribute('rel', 'noopener noreferrer');
+            }
+        }
+    };
+    limpar(tpl.content);
+    return tpl.innerHTML;
+}
+
 /** O vazio de "nenhum projeto escolhido", repetido em quase toda tela de projeto. */
 export function renderSemProjeto(texto = 'Selecione um projeto para continuar.') {
     return renderEmptyState({ titulo: 'Sem projeto ativo', texto,
@@ -422,5 +454,6 @@ window.renderEmptyState = renderEmptyState;
 window.renderSemProjeto = renderSemProjeto;
 window.renderErrorState = renderErrorState;
 window.falhaDeCarga = falhaDeCarga;
+window.markdownSeguro = markdownSeguro;
 window.confirmar = confirmar;
 window.pedirTexto = pedirTexto;

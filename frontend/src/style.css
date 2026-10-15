@@ -600,6 +600,12 @@
         /* Erro de campo de formulário: junto do campo, ligado por aria-describedby; vazio não ocupa espaço. */
         .campo-erro { margin: 4px 0 0; font-size: 12px; color: var(--danger); }
         .campo-erro:empty { display: none; }
+        /* Descrição do controle (markdownSeguro): texto de leitura, não bloco de código. */
+        .controle-descricao { margin-bottom: 1.5rem; max-height: 320px; overflow-y: auto; font-size: 0.85rem; line-height: 1.55; color: var(--text-2); }
+        .controle-descricao > :first-child { margin-top: 0; }
+        .controle-descricao p, .controle-descricao ul, .controle-descricao ol { margin: 0 0 0.6rem; max-width: 72ch; }
+        .controle-descricao h1, .controle-descricao h2, .controle-descricao h3, .controle-descricao h4 { margin: 1rem 0 0.4rem; font: 600 0.9rem/1.3 var(--font-head); color: var(--text); }
+        .controle-descricao em, .controle-descricao i { font-style: normal; }
         .form-input[aria-invalid="true"] { border-color: var(--danger); }
 
         /* ——— TOAST ———————————————————————————————————————— */
