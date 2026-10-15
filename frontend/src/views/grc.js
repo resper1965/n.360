@@ -532,7 +532,7 @@ window.__grcCloseExecAudit = function (id) {
     window.openVendorDetailsModal = function(id) {
         const v = S.vendors.find(x => x.id === id) || {};
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        const dilColor = d => d === 'Low' ? 'var(--accent)' : d === 'Medium' ? 'var(--info)' : 'var(--danger)';
+        const dilColor = d => d === 'Low' ? 'var(--success)' : d === 'Medium' ? 'var(--warning)' : 'var(--danger)';
         
         openModal(`
             <div class="modal-header">

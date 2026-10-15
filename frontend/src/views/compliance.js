@@ -205,7 +205,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 ${registros.map(r => `
                     <div style="padding:10px 12px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-2)">
                         <div><strong style="color:var(--text);font-weight:500">${escapeHTML(r.campo || 'alteração')}</strong>:
-                            ${escapeHTML(r.antes ?? '—')} <span style="color:var(--text-dim)">→</span> ${escapeHTML(r.depois ?? '—')}</div>
+                            ${escapeHTML(traduzStatus(r.antes ?? '—'))} <span style="color:var(--text-dim)">→</span> ${escapeHTML(traduzStatus(r.depois ?? '—'))}</div>
                         <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-top:4px">
                             ${escapeHTML(r.autor || 'sistema')} · ${escapeHTML(tempoRelativo(r.quando))}${r.itensNaOperacao > 1 ? ` · em lote (${r.itensNaOperacao} campos)` : ''}
                         </div>
@@ -1831,7 +1831,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     <label class="form-label">Método de Geração</label>
                     <select class="form-input" id="policy-gen-method" data-action-change="togglePolicyGenFields">
                         <option value="ai">Inteligência Artificial (PolicyAgent)</option>
-                        ${options.length ? `<option value="template">Template de Política Standard</option>` : ''}
+                        ${options.length ? `<option value="template">Modelo padrão de política</option>` : ''}
                     </select>
                 </div>
 
@@ -2143,7 +2143,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         if (method === 'template') {
             container.style.display = 'block';
             hint.textContent = 'Gere a política a partir de um template standard preenchendo as variáveis do projeto automaticamente.';
-            btn.textContent = 'Gerar a partir de Template';
+            btn.textContent = 'Gerar a partir do modelo';
         } else {
             container.style.display = 'none';
             hint.textContent = 'O PolicyAgent ira gerar uma politica completa usando IA, adaptada ao contexto organizacional deste projeto.';

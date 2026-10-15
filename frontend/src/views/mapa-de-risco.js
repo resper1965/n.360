@@ -10,7 +10,8 @@ import { nivelDaNota } from '../nivel-risco.js';
 // Mesma faixa de nível do servidor, compartilhada com a matriz do n.iso (grc.js).
 export { nivelDaNota };
 export const NIVEIS = { Low: 'Baixo', Medium: 'Médio', High: 'Alto', Critical: 'Crítico' };
-const COR = { Low: 'var(--success)', Medium: 'var(--info)', High: 'var(--warning)', Critical: 'var(--danger)' };
+// Escala do nível: verde, âmbar claro, âmbar, vermelho. O ciano é da marca (interação e foco), não de nível.
+const COR = { Low: 'var(--success)', Medium: 'var(--warning-ink)', High: 'var(--warning)', Critical: 'var(--danger)' };
 
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];

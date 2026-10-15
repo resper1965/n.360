@@ -35,7 +35,7 @@
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
-    --info: #00ade8;
+    --info: #cbd5e1;              /* neutro claro: o ciano da marca não é cor de estado */
     /* Tinta dos estados escritos sobre --surface (rótulo do estado ao lado do quadrado de cor). */
     --danger-ink: #fca5a5;
     --warning-ink: #fcd34d;
@@ -376,7 +376,14 @@
 
         /* ——— BADGES ——————————————————————————————————————— */
         .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: var(--radius); font-size: 0.6rem; font-weight: 500; background: var(--surface); border: 1px solid var(--border); }
-        .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: var(--radius); font-size: 0.65rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid transparent; }
+        /* Selo: uma família só (renderStatusBadge). Inter 500 em caixa de frase, fundo tingido do estado, tinta clara do
+           mesmo estado (>= 4.5:1 sobre surface). Os tipos são semânticos; o accent não pinta estado. */
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 0; font: 500 12px/1.5 var(--font-body); letter-spacing: 0; border: 0; white-space: nowrap; color: var(--text-2); background: color-mix(in oklab, var(--text-dim) 16%, transparent); }
+        .selo-success { color: var(--success-ink); background: color-mix(in oklab, var(--success) 16%, transparent); }
+        .selo-warning { color: var(--warning-ink); background: color-mix(in oklab, var(--warning) 16%, transparent); }
+        .selo-danger { color: var(--danger-ink); background: color-mix(in oklab, var(--danger) 18%, transparent); }
+        .selo-info { color: var(--info); background: color-mix(in oklab, var(--info) 12%, transparent); }
+        .selo-neutral { color: var(--text-dim); background: color-mix(in oklab, var(--text-dim) 14%, transparent); }
         .badge-implemented { background: rgba(34, 197, 94, 0.12); color: var(--success); border-color: rgba(34, 197, 94, 0.25); }
         .badge-pending { background: rgba(245, 158, 11, 0.12); color: var(--warning); border-color: rgba(245, 158, 11, 0.25); }
 

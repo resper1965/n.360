@@ -354,19 +354,9 @@ export function renderStatusBadge(arg1, arg2) {
 
 
     text = traduzStatus(text);
-
-    // Sem borda: o preenchimento por color-mix já separa a badge do fundo, e a
-    // borda somava um terceiro tom de cinza em cada célula da tabela.
-    const COLORS = {
-        success: 'var(--success)',
-        warning: 'var(--warning)',
-        danger: 'var(--danger)',
-        info: 'var(--info)',
-        neutral: 'var(--text-dim)'
-    };
-    const color = COLORS[type] || COLORS.neutral;
-    const bStyle = `background:color-mix(in oklab, ${color} 16%, transparent); color:${color}; border:0; border-radius:0;`;
-    return `<span class="badge" style="${bStyle} padding:1px 8px; font:500 10px/1.7 var(--font-mono); text-transform:uppercase; letter-spacing:0.08em; display:inline-block;">${escapeHTML(text)}</span>`;
+    // Uma família de selo: a aparência vive em `.badge` e `.selo-<tipo>` (style.css), nunca inline. O tipo é semântico;
+    // o ciano da marca não é cor de estado (`--info` é neutro claro, o accent fica para o que se clica).
+    return `<span class="badge selo-${type}">${escapeHTML(text)}</span>`;
 }
 
 /**

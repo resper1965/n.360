@@ -1394,7 +1394,7 @@ import { podeIndicar } from './encarregado.js';
                     if (typeof item.data === 'string') {
                         dataStr = item.data;
                     } else if (Array.isArray(item.data)) {
-                        dataStr = item.data.map(d => `${d.status || 'N/A'}: ${d.cnt}`).join(', ');
+                        dataStr = item.data.map(d => `${traduzStatus(d.status || 'N/A')}: ${d.cnt}`).join(', ');
                     } else {
                         dataStr = JSON.stringify(item.data);
                     }

@@ -58,33 +58,25 @@ describe('renderStatusBadge()', () => {
     it('aceita (tipo, texto)', () => {
         const html = renderStatusBadge('success', 'Tudo certo');
         expect(html).toContain('Tudo certo');
-        expect(html).toContain('var(--success)');
+        expect(html).toContain('selo-success');
     });
 
     it('aceita (texto, tipo) — ordem invertida', () => {
         const html = renderStatusBadge('Tudo certo', 'success');
         expect(html).toContain('Tudo certo');
-        expect(html).toContain('var(--success)');
+        expect(html).toContain('selo-success');
     });
 
     it('sem tipo conhecido cai em neutral', () => {
         const html = renderStatusBadge('Rascunho', 'inexistente');
         expect(html).toContain('Rascunho');
-        expect(html).toContain('var(--text-dim)');
+        expect(html).toContain('selo-neutral');
     });
 
-    it('preenche por color-mix e NAO desenha borda', () => {
-        const html = renderStatusBadge('danger', 'Gap');
-        expect(html).toContain('color-mix(in oklab, var(--danger) 16%, transparent)');
-        expect(html).toContain('border:0');
-        expect(html).not.toMatch(/border:1px/);
-    });
-
-    it('usa a mono em caixa alta, sem raio', () => {
-        const html = renderStatusBadge('info', '');
-        expect(html).toContain('var(--font-mono)');
-        expect(html).toContain('text-transform:uppercase');
-        expect(html).toContain('border-radius:0');
+    it('a aparência é da classe, nunca inline (uma família de selo)', () => {
+        const html = renderStatusBadge('danger', 'Lacuna');
+        expect(html).toBe('<span class="badge selo-danger">Lacuna</span>');
+        expect(html).not.toContain('style=');
     });
 
     it('traduz "na" para N/A — a aplicabilidade tem rotulo proprio', () => {
@@ -122,7 +114,7 @@ describe('renderStatusBadge()', () => {
     // mas o dia em que cair, a celula fica vazia em silencio.
     it('ARESTA: texto que coincide com nome de tipo e lido como tipo', () => {
         const html = renderStatusBadge('info', 'warning');
-        expect(html).toContain('color:var(--info)'); // venceu 'info' como TIPO
+        expect(html).toContain('selo-info'); // venceu 'info' como TIPO
         expect(html).toContain('>warning<'); // e 'warning' virou o TEXTO
     });
 });
