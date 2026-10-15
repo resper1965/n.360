@@ -11,6 +11,7 @@ import { seedPhases, semearControles } from '../services/project-setup';
 import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
 import { controlsForRole, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
 import { checkCoherence } from '../services/coherence';
+import { comOrigemMudou } from '../services/lia';
 import { NA_STATUS } from '../services/soa-logic';
 import { validateBody, checklistProgressSchema, dpiaSchema, projectPhaseSchema, interviewSchema, evidenceMetaSchema, scopeChangeSchema, auditorTokenSchema, politicaTenantSchema, ssoConfigSchema, projetoCriarSchema, projetoAtualizarSchema, revogarAprovacaoSchema, reatribuirResponsavelSchema, cnpjValido } from '../schemas';
 import { camposPresentes, gravacaoDaEmpresa, gravacaoDasPessoas, projetoComCnpj } from '../services/empresas';
@@ -1137,8 +1138,9 @@ projectsApp.get('/:id/coherence', async (c) => {
 // DPIA Assessments inside Project
 projectsApp.get('/:id/dpia', async (c) => {
   const projectId = c.req.param('id');
-  const result = await c.env.DB.prepare('SELECT * FROM dpia_assessments WHERE project_id = ? ORDER BY created_at DESC').bind(projectId).all();
-  return c.json({ ok: true, assessments: semRastros(result.results) });
+  const result = await c.env.DB.prepare('SELECT * FROM dpia_assessments WHERE project_id = ? ORDER BY created_at DESC').bind(projectId).all<Record<string, unknown>>();
+  // F3: `origem_mudou` avisa que o RoPA mudou depois que a DPIA nasceu dele (só aviso; nada é invalidado).
+  return c.json({ ok: true, assessments: await comOrigemMudou(c.env.DB, projectId, semRastros(result.results)) });
 });
 
 projectsApp.post('/:id/dpia', async (c) => {

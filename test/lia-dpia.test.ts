@@ -62,7 +62,7 @@ describe('LIA exigida', () => {
     const catalogo = await novo('Por catálogo', { base_legal_id: 'lgpd:art7:ix' });
     const antigo = await novo('Registro antigo', { legal_basis: 'Interesse legitimo' });
     const consent = await novo('Consentimento', { legal_basis: 'Consentimento', base_legal_id: 'lgpd:art7:i' });
-    expect((await lig(texto)).lia).toEqual({ exigida: true, existe: false, status: null });
+    expect((await lig(texto)).lia).toEqual({ exigida: true, existe: false, status: null, origem_mudou: false });
     expect((await lig(catalogo)).lia.exigida).toBe(true);
     expect((await lig(antigo)).lia.exigida).toBe(true);
     expect((await lig(consent)).lia.exigida).toBe(false);
@@ -74,7 +74,7 @@ describe('LIA: salvar e concluir', () => {
     const rid = await novo('Fraude', { legal_basis: 'legítimo interesse' });
     const r1 = await chamar(consultor, 'PUT', `${base(rid)}/lia`, { finalidade_legitima: 'Prevenir fraude' });
     expect(r1.status, await r1.clone().text()).toBe(201);
-    expect((await lig(rid)).lia).toEqual({ exigida: true, existe: true, status: 'rascunho' });
+    expect((await lig(rid)).lia).toEqual({ exigida: true, existe: true, status: 'rascunho', origem_mudou: false });
     const r2 = await chamar(consultor, 'PUT', `${base(rid)}/lia`, { ...COMPLETA, status: 'concluida' });
     expect(r2.status, await r2.clone().text()).toBe(200);
     const { lia } = await json<{ lia: { status: string; conclusao: string; concluida_por: string; concluida_em: string; finalidade_legitima: string } }>(await chamar(consultor, 'GET', `${base(rid)}/lia`));
@@ -147,7 +147,7 @@ describe('DPIA a partir do tratamento', () => {
     expect(fluxo).toContain('Chile (cláusulas)');
     const l = await lig(rid);
     expect(l.dpia_pendente).toBe(false);
-    expect(l.dpias).toEqual([{ id, nome: 'Folha de pagamento', status: 'Draft' }]);
+    expect(l.dpias).toEqual([{ id, nome: 'Folha de pagamento', status: 'Draft', origem_mudou: false }]);
   });
 
   it('herda base legal, retenção, destinatários, riscos e o teste de impacto, e guarda o hash do tratamento (nada se pergunta de novo)', async () => {

@@ -1,5 +1,6 @@
 import { aprovacoesDoProjeto, type Aprovacao } from './documentos';
-import { ehLegitimoInteresse } from './lia';
+import { ehLegitimoInteresse, hashDoTratamento } from './lia';
+import { SQL_TITULOS_ADICIONAIS } from './bases';
 
 /**
  * Núcleo do n.privacy, fatia 4.1: ligações do registro do RoPA (`ropa_records`, que é o tratamento).
@@ -63,9 +64,12 @@ export async function removerTransferencia(db: D1Database, projectId: string, ro
 
 export type Ligacoes = {
   aprovacao: Aprovacao;
-  /** LIA exigida quando a base é legítimo interesse; DPIA pendente quando o registro a pede e não há nenhuma ligada (fatia 5). */
-  lia: { exigida: boolean; existe: boolean; status: string | null };
-  dpias: { id: string; nome: string | null; status: string | null }[];
+  /**
+   * LIA exigida quando a base é legítimo interesse (a principal, uma adicional ou o texto do GDPR, F3); DPIA pendente quando o registro
+   * a pede e não há nenhuma ligada (fatia 5). `origem_mudou`: o tratamento mudou depois que a LIA/DPIA nasceu dele (só aviso).
+   */
+  lia: { exigida: boolean; existe: boolean; status: string | null; origem_mudou: boolean };
+  dpias: { id: string; nome: string | null; status: string | null; origem_mudou: boolean }[];
   dpia_pendente: boolean;
   /** Partes do tratamento (terceiros) cuja avaliação mais recente já venceu (fatia 6, spec 4.9). */
   terceiros_com_avaliacao_vencida: { parte_id: string; nome: string }[];
@@ -79,9 +83,10 @@ export type Ligacoes = {
 /** Tudo o que o registro usa, numa leitura só. null = registro não é do projeto. */
 export async function lerLigacoes(db: D1Database, projectId: string, ropaId: string): Promise<Ligacoes | null> {
   const base = await db.prepare(
-    `SELECT r.base_legal_id AS id, q.referencia AS referencia, q.titulo AS titulo, r.legal_basis AS legal_basis, r.dpia_required AS dpia_required FROM ropa_records r
+    `SELECT r.base_legal_id AS id, q.referencia AS referencia, q.titulo AS titulo, r.legal_basis AS legal_basis, r.dpia_required AS dpia_required,
+            r.base_gdpr AS base_gdpr, ${SQL_TITULOS_ADICIONAIS} AS adicionais FROM ropa_records r
        LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.id = ? AND r.project_id = ?`
-  ).bind(ropaId, projectId).first<{ id: string | null; referencia: string | null; titulo: string | null; legal_basis: string | null; dpia_required: number | null }>();
+  ).bind(ropaId, projectId).first<{ id: string | null; referencia: string | null; titulo: string | null; legal_basis: string | null; dpia_required: number | null; base_gdpr: string | null; adicionais: string | null }>();
   if (!base) return null;
   const [itens, deptos, partes, transf, dpias, lia, vencidos] = await db.batch([
     db.prepare(`SELECT i.id, i.nome, i.tipo FROM tratamento_itens t JOIN itens i ON i.id = t.item_id WHERE t.ropa_id = ? AND t.project_id = ? ORDER BY i.nome`).bind(ropaId, projectId),
@@ -94,8 +99,8 @@ export async function lerLigacoes(db: D1Database, projectId: string, ropaId: str
       `SELECT t.id, t.pais, t.destinatario_parte_id, p.nome AS destinatario, t.mecanismo, t.observacao FROM tratamento_transferencias t
          LEFT JOIN partes p ON p.id = t.destinatario_parte_id WHERE t.ropa_id = ? AND t.project_id = ? ORDER BY t.created_at, t.rowid`
     ).bind(ropaId, projectId),
-    db.prepare(`SELECT id, COALESCE(processing_name, system_name) AS nome, status FROM dpia_assessments WHERE ropa_id = ? AND project_id = ? ORDER BY created_at, rowid`).bind(ropaId, projectId),
-    db.prepare(`SELECT status FROM lia_assessments WHERE ropa_id = ? AND project_id = ?`).bind(ropaId, projectId),
+    db.prepare(`SELECT id, COALESCE(processing_name, system_name) AS nome, status, origem_hash FROM dpia_assessments WHERE ropa_id = ? AND project_id = ? ORDER BY created_at, rowid`).bind(ropaId, projectId),
+    db.prepare(`SELECT status, origem_hash FROM lia_assessments WHERE ropa_id = ? AND project_id = ?`).bind(ropaId, projectId),
     db.prepare(
       `SELECT DISTINCT p.id AS parte_id, p.nome AS nome FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
         WHERE v.alvo_tipo = 'tratamento' AND v.alvo_id = ? AND v.project_id = ? AND p.tipo = 'organizacao'
@@ -103,11 +108,15 @@ export async function lerLigacoes(db: D1Database, projectId: string, ropaId: str
         ORDER BY p.nome`
     ).bind(ropaId, projectId),
   ]);
-  const liaLinha = (lia.results as { status: string }[])[0];
-  const dpiasLidas = dpias.results as Ligacoes['dpias'];
+  const liaLinha = (lia.results as { status: string; origem_hash: string | null }[])[0];
+  const dpiasGravadas = dpias.results as { id: string; nome: string | null; status: string | null; origem_hash: string | null }[];
+  // Selo "mudou na origem" (F3): um hash do tratamento, só se alguma LIA/DPIA guardou o dela.
+  const atual = liaLinha?.origem_hash || dpiasGravadas.some((d) => d.origem_hash) ? await hashDoTratamento(db, projectId, ropaId) : null;
+  const mudou = (h: string | null | undefined) => !!h && h !== atual;
+  const dpiasLidas = dpiasGravadas.map(({ origem_hash, ...d }) => ({ ...d, origem_mudou: mudou(origem_hash) }));
   return {
     aprovacao: (await aprovacoesDoProjeto(db, projectId, ropaId, 'tratamento')).get(ropaId) ?? { ciso: null, ceo: null },
-    lia: { exigida: ehLegitimoInteresse(base.titulo, base.legal_basis), existe: !!liaLinha, status: liaLinha?.status ?? null },
+    lia: { exigida: ehLegitimoInteresse(base.titulo, base.legal_basis, base.adicionais, base.base_gdpr), existe: !!liaLinha, status: liaLinha?.status ?? null, origem_mudou: mudou(liaLinha?.origem_hash) },
     dpias: dpiasLidas,
     dpia_pendente: !!base.dpia_required && dpiasLidas.length === 0,
     terceiros_com_avaliacao_vencida: vencidos.results as Ligacoes['terceiros_com_avaliacao_vencida'],

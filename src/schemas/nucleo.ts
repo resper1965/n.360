@@ -70,6 +70,22 @@ export const tratamentoImpactoSchema = z.object({
   finalizar: z.boolean().optional(),
 }).strict();
 
+/** Ciclo de vida da atividade (F3, 0074): as etapas que vieram; campo ausente mantém o gravado (a etapa é conferida também no CHECK). */
+export const tratamentoCicloSchema = z.object({
+  etapas: z.array(z.object({
+    etapa: z.enum(['coleta', 'uso', 'compartilhamento_interno', 'compartilhamento_externo', 'armazenamento', 'eliminacao']),
+    situacao: z.enum(['registrada', 'nao_aplicavel']),
+    item_id: idCurto.nullish(),
+    descricao: z.string().trim().max(1000).nullish(),
+  }).strict()).min(1).max(6),
+}).strict();
+
+/** Bases legais da atividade (F3, 0074): `adicionais` troca o conjunto; `base_gdpr` é texto livre até o catálogo do GDPR existir. */
+export const tratamentoBasesSchema = z.object({
+  adicionais: z.array(z.object({ requisito_id: idCurto, observacao: z.string().trim().max(500).nullish() }).strict()).max(20).optional(),
+  base_gdpr: z.string().trim().max(300).nullable().optional(),
+}).strict();
+
 /**
  * Risco e ação da atividade de tratamento (F2, migration 0073). Criação exige ameaça, impacto e probabilidade; edição é parcial
  * (ausente mantém, null limpa onde a coluna aceita). Nível e residual são calculados no servidor. `.strict()`: `ropa_id`, nível e

@@ -44,7 +44,7 @@ const SUBROTAS_PRIVACY: RegExp[] = [
   /^ropa\/(importar|copiloto|riscos-mapa)$/,
   // Riscos e ações da atividade (F2): visão filtrada de `risks` e `corrective_actions`, que por id seguem na faixa iso.
   /^ropa\/[^/]+\/(riscos|acoes)(\/[^/]+)?$/,
-  /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|lia|sugestao|impacto)$/,
+  /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|lia|sugestao|impacto|ciclo|bases)$/,
   /^incidentes\/[^/]+\/rascunho-comunicacao$/,
   /^documentos\/[^/]+\/requisitos$/,
   /^evidence\/[^/]+\/(requisitos|validade)$/,
