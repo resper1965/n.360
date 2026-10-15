@@ -70,6 +70,14 @@ describe('seletor de tenant', () => {
     expect(texto).not.toMatch(/14|62|%|Fase/);
   });
 
+  it('o nome inteiro fica acessível: title da face e rótulo do select (o corte é só visual)', () => {
+    S.activeProject = { id: 'p1', project_name: 'Programa ISO 27001 e LGPD 2026 da Metalúrgica Exemplo' };
+    window.updateSidebarProjectSelector();
+    const nome = 'Programa ISO 27001 e LGPD 2026 da Metalúrgica Exemplo';
+    expect(document.querySelector('.tenant-face').getAttribute('title')).toBe(nome);
+    expect(document.getElementById('sidebar-project-select').getAttribute('aria-label')).toBe(`Projeto ativo: ${nome}. Trocar de projeto`);
+  });
+
   it('sem projeto ativo, convida a escolher', () => {
     S.activeProject = null;
     window.updateSidebarProjectSelector();
@@ -78,21 +86,33 @@ describe('seletor de tenant', () => {
   });
 });
 
+describe('"Selecionar projeto" do vazio', () => {
+  it('sem projeto ativo, leva ao seletor da barra lateral (o lugar canônico), em vez de um aviso', () => {
+    S.activeProject = null;
+    document.getElementById('sidebar').classList.add('collapsed');
+    window.openActiveProjectModal();
+    expect(document.getElementById('sidebar').classList.contains('collapsed')).toBe(false);
+    expect(document.activeElement).toBe(document.getElementById('sidebar-project-select'));
+  });
+});
+
 describe('menu de conta', () => {
-  it('abre pelo card, marca aria-expanded e lista identidade, tenants e encerrar sessão', () => {
+  it('abre pelo card, marca aria-expanded e lista identidade e encerrar sessão', () => {
     window.toggleAccountMenu();
     const box = document.getElementById('account-menu');
     expect(box.hidden).toBe(false);
     expect(document.getElementById('sidebar-user-card').getAttribute('aria-expanded')).toBe('true');
     expect(box.textContent).toContain('ana@acme.com.br');
-    expect(box.textContent).toContain('Acme');
-    expect(box.textContent).toContain('Alup');
     expect(box.textContent).toContain('Minha conta e MFA');
     expect(box.textContent).toContain('Encerrar sessão');
-    // O tenant ativo é o único com check.
-    const marcados = box.querySelectorAll('.account-item[aria-checked="true"]');
-    expect(marcados).toHaveLength(1);
-    expect(marcados[0].textContent).toContain('Acme');
+  });
+
+  it('não repete o projeto: a troca mora só no seletor da barra lateral (sem "Tenant")', () => {
+    window.toggleAccountMenu();
+    const box = document.getElementById('account-menu');
+    expect(box.textContent).not.toMatch(/tenant/i);
+    expect(box.textContent).not.toContain('Alup');
+    expect(box.querySelector('[role="menuitemradio"]')).toBeNull();
   });
 
   it('oferece "Trocar senha", que abre o modal de troca (F7)', () => {

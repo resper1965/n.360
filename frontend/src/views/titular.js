@@ -69,7 +69,7 @@ async function renderTitular(c, h, a) {
         incidentes: contagem(incidentes, (incidentes || []).filter((i) => i.status !== 'encerrado' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado')).length),
     };
     const abas = window.renderAbas(Object.entries(abasDoProduto).map(([v, r]) => [v, escapeHTML(r) + (rotulos[v] || '')]), aba, 'escolherAbaTitular');
-    const novo = (acao, rotulo) => ((acao === 'abrirNovoConsentimento' ? editar : registrar) ? `<button class="btn btn-primary" data-action="${acao}" data-args='${args(proj.id)}'>${rotulo}</button>` : '');
+    const novo = (acao, rotulo, primario = true) => ((acao === 'abrirNovoConsentimento' ? editar : registrar) ? `<button class="btn${primario ? ' btn-primary' : ''}" data-action="${acao}" data-args='${args(proj.id)}'>${rotulo}</button>` : '');
     a.innerHTML = aba === 'pedidos' ? novo('abrirNovoPedidoTitular', '+ Registrar pedido')
         : aba === 'incidentes' ? novo('abrirNovoIncidente', '+ Registrar incidente')
         : aba === 'consentimentos' ? novo('abrirNovoConsentimento', '+ Registrar consentimento') : '';
@@ -93,12 +93,15 @@ async function renderTitular(c, h, a) {
     const vazioFiltrado = { emptyState: 'Nenhum registro nesta situação.', emptyHint: 'Limpe o filtro para ver todos.' };
     if (aba === 'pedidos') {
         const l = doFiltro;
+        // Uma ação principal: com pedido atrasado, responder o primeiro deles vence registrar um novo.
+        const responderPrimeiro = registrar ? l.find((p) => p.situacao_prazo === 'atrasado') : null;
+        if (responderPrimeiro) a.innerHTML = novo('abrirNovoPedidoTitular', '+ Registrar pedido', false);
         corpo = window.renderDataTable(['Protocolo', 'Tipo', 'Recebido em', 'Prazo', 'Situação', 'Status', 'Ações'], l.map((p) => [
             `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(dia(p.recebido_em)), escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'),
             selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
             // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
             registrar && p.situacao_prazo === 'atrasado'
-                ? `<button class="btn btn-primary btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Responder</button>`
+                ? `<button class="btn${p === responderPrimeiro ? ' btn-primary' : ''} btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}' aria-label="Responder: ${escapeHTML(p.protocolo)}">Responder</button>`
                 : `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Abrir</button>`,
         ]), { emptyState: 'Nenhum pedido de titular registrado.', emptyHint: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', emptyAction: novo('abrirNovoPedidoTitular', 'Registrar pedido'), ...(filtrado ? vazioFiltrado : {}) });
     } else if (aba === 'incidentes') {

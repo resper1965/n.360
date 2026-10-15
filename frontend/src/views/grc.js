@@ -880,7 +880,7 @@ window.__grcCloseExecAudit = function (id) {
                 evidenceHtml = `
                     <div style="display:flex; align-items:center; gap:8px">
                         <span style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(evName)}</span>
-                        <button class="btn btn-primary" data-action="downloadEvidenceFile" data-args='["${evId}"]' style="padding:4px 8px; font-size:0.7rem">Download</button>
+                        <button class="btn btn-sm" data-action="downloadEvidenceFile" data-args='["${evId}"]'>Baixar</button>
                     </div>`;
             } else if (r.evidence_file.startsWith('http')) {
                 evidenceHtml = `<a href="${escapeHTML(r.evidence_file)}" target="_blank" class="btn" style="padding:4px 8px; font-size:0.7rem; display:inline-block; border-color:var(--accent); color:var(--accent)">Abrir Link</a>`;
@@ -1456,7 +1456,7 @@ window.__grcCloseExecAudit = function (id) {
             audits.map(au => {
                 const statusBadgeType = au.status === 'Completed' ? 'success' : au.status === 'In Progress' ? 'warning' : 'info';
                 const executeBtn = au.status !== 'Completed' 
-                    ? `<button class="btn btn-primary btn-sm" style="margin-right:0.25rem" data-action="navigate" data-args='["audit-execution",{"activeAuditId":"${au.id}"}]' data-stop>Executar</button>`
+                    ? `<button class="btn btn-sm" style="margin-right:0.25rem" data-action="navigate" data-args='["audit-execution",{"activeAuditId":"${au.id}"}]' data-stop>Executar</button>`
                     : '';
 
                 return [

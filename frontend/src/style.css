@@ -194,13 +194,14 @@
         .sidebar-toggle { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; cursor: pointer; color: var(--text-faint); font-size: 13px; line-height: 1; }
         .sidebar-toggle:hover { color: var(--text); }
 
-        /* Seletor de tenant: uma linha de 34px — nome + norma + caret.
+        /* Seletor do projeto: o ÚNICO lugar do projeto ativo na casca (sem selo no cabeçalho nem lista no menu de conta).
+           Nome em até duas linhas; o corte é só visual, o nome inteiro está no title e no rótulo do select.
            Nada de fase, percentual ou contagem aqui; esse contexto é da
            Jornada e do Dashboard. O <select> nativo fica por cima, invisível:
            preserva teclado e leitor de tela sem reimplementar um combobox. */
         #sidebar-project-selector-container { position: relative; margin: 12px; flex-shrink: 0; }
         .tenant-face { min-height: 34px; padding: 6px 10px; background: var(--surface-2); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; overflow: hidden; }
-        .tenant-name { font-family: var(--font-body); font-weight: 500; font-size: 12.5px; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tenant-name { font-family: var(--font-body); font-weight: 500; font-size: 12.5px; line-height: 1.35; color: var(--text); flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
         /* Os módulos do projeto em linha própria, abaixo do nome: na mesma linha truncavam o nome do cliente. */
         .tenant-norm { order: 3; flex-basis: 100%; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .tenant-norm:empty { display: none; }
@@ -267,14 +268,11 @@
         .account-id-name { font-family: var(--font-body); font-size: 12.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .account-id-mail { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .account-rule { height: 1px; background: var(--border); }
-        .account-group { font-family: var(--font-mono); font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.16em; color: var(--text-faint); }
         .account-item { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 5px 6px; margin: 0 -6px; text-align: left; font-family: var(--font-body); font-size: 12.5px; color: var(--text-2); cursor: pointer; }
         .account-item:hover { background: var(--surface-2); color: var(--text); }
         .account-item svg { width: 12px; height: 12px; stroke-width: 1.5; fill: none; stroke: currentColor; flex-shrink: 0; opacity: 0.7; }
         .account-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .account-item-aside { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
-        .account-item-check { width: 12px; flex-shrink: 0; color: transparent; }
-        .account-item.is-current .account-item-check { color: var(--accent); }
         .account-item.danger { color: var(--danger); }
         .account-item.danger:hover { background: rgba(239, 68, 68, 0.10); color: var(--danger); }
         .account-sign { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
@@ -429,12 +427,6 @@
         .chip-active, .chip.selected { background: rgba(0,173,232,0.12); border-color: var(--accent); color: var(--accent); }
 
         /* ——— DROPDOWN ————————————————————————————————————— */
-        .dropdown-wrap { position: relative; display: inline-block; }
-        .dropdown-trigger { cursor: pointer; }
-        .dropdown-menu { position: absolute; top: 100%; right: 0; background: rgba(12,16,28,0.98); border: 1px solid var(--border); border-radius: 10px; min-width: 160px; z-index: 400; display: none; margin-top: 0.25rem; overflow: hidden; }
-        .dropdown-menu.open { display: block; }
-        .dropdown-item { padding: 0.6rem 1rem; cursor: pointer; font-size: 0.8rem; transition: 0.15s; color: var(--text); }
-        .dropdown-item:hover { background: var(--surface-hover); }
 
         /* ——— STATES ——————————————————————————————————————— */
         .loading { text-align: center; padding: 3rem; color: var(--text-dim); font-size: 0.85rem; }
@@ -1584,17 +1576,25 @@ textarea:focus-visible {
 /* n.iso / n.privacy: item ou grupo que não é do produto deste domínio (frontend/src/produto.js). */
 [data-fora-do-produto="1"], [data-sem-item="1"] { display: none !important; }
 
-/* Menu suspenso nativo (<details>): "Mais" em Partes. Fecha ao clicar fora (globals.js). */
-.menu-mais { position: relative; display: inline-block; }
-.menu-mais > summary { list-style: none; cursor: pointer; }
-.menu-mais > summary::-webkit-details-marker { display: none; }
-.menu-mais-lista { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 220px; background: var(--surface); border: 1px solid var(--border); padding: 0.25rem 0; }
-.menu-mais-lista .btn { display: block; width: 100%; text-align: left; border: 0; margin: 0; }
-/* Selo do projeto ativo no header */
-.header-project-badge { display: none; cursor: pointer; font-size: 12px; padding: 0.2rem 0.6rem; border-radius: 0; background: rgba(0,173,232,0.12); color: var(--accent); border: 1px solid rgba(0,173,232,0.25); white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+/* "Mais ações" (renderMaisAcoes em ui.js): as ações secundárias de um cabeçalho ou de uma linha. Lista fixa junto do
+   botão (top/right postos pelo JS), acima do modal (1000) e abaixo da confirmação (2000). Destrutivo por último, em perigo. */
+.mais-acoes { position: relative; display: inline-block; }
+.mais-acoes-lista { position: fixed; z-index: 1100; min-width: 220px; max-width: 320px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg); padding: 4px 0; }
+.mais-acoes-lista[hidden] { display: none; }
+.mais-acoes-item { display: block; width: 100%; background: none; border: 0; padding: 8px 12px; text-align: left; font: 500 12.5px/1.4 var(--font-body); color: var(--text-2); cursor: pointer; }
+.mais-acoes-item:hover, .mais-acoes-item:focus { background: var(--surface-2); color: var(--text); outline: none; }
+.mais-acoes-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.mais-acoes-item.perigo { color: var(--danger); }
+.mais-acoes-sep { height: 1px; margin: 4px 0; background: var(--border); }
+
 .titulo-secao { margin-bottom: 1rem; font-family: var(--font-head); font-weight: 600; font-size: 14px; color: var(--text); }
 /* Ações da linha de Projetos: Módulos… sempre na primeira coluna */
 .acoes-linha { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.doc-acoes { margin-bottom: 1rem; }
+/* Na linha da tabela: a ação e o "Mais ações" lado a lado, sem quebrar, e o botão do menu no tamanho do btn-sm. */
+td .acoes-linha { flex-wrap: nowrap; }
+td .acoes-linha .btn, td .mais-acoes-botao { white-space: nowrap; }
+td .mais-acoes-botao { padding: 4px 10px; }
 
 /* ——— Confirmação na própria tela (confirmar/pedirTexto em ui.js) ———
    Camada acima do #modal (1000) e do drawer de DoD (1500), abaixo do toast (9000): a janela de baixo fica intacta. */

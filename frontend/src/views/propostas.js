@@ -78,12 +78,13 @@ function desenharLista() {
         const numero = p.numero
             ? `<span class="prp-numero">${escapeHTML(p.numero)}</span> <span class="prp-rev">rev. ${escapeHTML(p.revisao)}</span>`
             : `<span class="prp-vazio">sem número</span>${p.revisao > 1 ? ` <span class="prp-rev">rev. ${escapeHTML(p.revisao)}</span>` : ''}`;
-        const acoes = [
-            `<button type="button" class="btn btn-secondary" data-action="__prpAbrir" data-args='${args(p.id)}'>Abrir</button>`,
-            ENVIAVEL.includes(p.status) ? `<button type="button" class="btn btn-secondary" data-action="__prpEnviar" data-args='${args(p.id)}'>Enviar ao cliente</button>` : '',
-            COM_REVISAO.includes(p.status) ? `<button type="button" class="btn btn-secondary" data-action="__prpRevisao" data-args='${args(p.id)}'>Nova revisão</button>` : '',
-            EDITAVEL.includes(p.status) ? '' : `<button type="button" class="btn btn-secondary" data-action="__prpDocumento" data-args='${args(p.id)}'>Ver documento</button>`,
-        ].join('');
+        // Uma ação à vista (Abrir); o resto no "Mais ações" da linha (eram até quatro botões, quebrando em duas linhas).
+        const acoes = `<button type="button" class="btn btn-secondary" data-action="__prpAbrir" data-args='${args(p.id)}' aria-label="Abrir a proposta: ${escapeHTML(p.cliente)}">Abrir</button>`
+            + window.renderMaisAcoes([
+                ENVIAVEL.includes(p.status) && { rotulo: 'Enviar ao cliente', action: '__prpEnviar', args: [p.id] },
+                COM_REVISAO.includes(p.status) && { rotulo: 'Nova revisão', action: '__prpRevisao', args: [p.id] },
+                !EDITAVEL.includes(p.status) && { rotulo: 'Ver documento', action: '__prpDocumento', args: [p.id] },
+            ], { nome: p.cliente || '' });
         return `<tr>
             <td>${numero}</td>
             <td><span class="prp-cliente">${escapeHTML(p.cliente)}</span></td>

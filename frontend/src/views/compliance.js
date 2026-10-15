@@ -1572,19 +1572,17 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                            ${controles.map(ctl => `<option value="${escapeHTML(ctl.id)}" ${ctl.id === e.control_id ? 'selected' : ''}>${escapeHTML(ctl.title || ctl.id)}</option>`).join('')}
                        </select>`;
 
-                const dpoBtn = (!e.ciso_approved_by && !isOrgUser)
-                    ? `<button class="btn btn-ghost btn-sm" data-action="signEvidence" data-args='["${e.id}","ciso","${escapeHTML(fileHash)}"]'>Revisar (Líder SGSI)</button>`
-                    : '';
-                const ceoBtn = (!e.ceo_approved_by && !isOrgUser)
-                    ? `<button class="btn btn-ghost btn-sm" data-action="signEvidence" data-args='["${e.id}","ceo","${escapeHTML(fileHash)}"]'>Assinar CEO</button>`
-                    : '';
-                const evalBtn = (!isOrgUser)
-                    ? `<button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="evaluateEvidenceAI" data-args='["${e.id}"]'>IA</button>`
-                    : '';
-
-                const reqBtn = comPrivacy
-                    ? `<button class="btn btn-ghost btn-sm" data-action="abrirRequisitosEvidencia" data-args='${escapeHTML(JSON.stringify([proj.id, e.id]))}'>Requisitos e validade</button>`
-                    : '';
+                // Uma ação à vista: o próximo passo da evidência (revisar, assinar, ou baixar quando já está assinada); o resto
+                // vai para o "Mais ações" da linha (eram até cinco botões por linha).
+                const acoes = [
+                    !e.ciso_approved_by && !isOrgUser && { rotulo: 'Revisar (Líder SGSI)', action: 'signEvidence', args: [e.id, 'ciso', fileHash] },
+                    !e.ceo_approved_by && !isOrgUser && { rotulo: 'Assinar CEO', action: 'signEvidence', args: [e.id, 'ceo', fileHash] },
+                    { rotulo: 'Baixar', action: 'downloadEvidenceFile', args: [e.id] },
+                    !isOrgUser && { rotulo: 'Avaliar com IA', action: 'evaluateEvidenceAI', args: [e.id] },
+                    comPrivacy && { rotulo: 'Requisitos e validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id] },
+                ].filter(Boolean);
+                const [proxima, ...demais] = acoes;
+                const acoesDaLinha = `<div class="acoes-linha"><button class="btn btn-ghost btn-sm" data-action="${proxima.action}" data-args='${escapeHTML(JSON.stringify(proxima.args))}' aria-label="${escapeHTML(`${proxima.rotulo}: ${fileName}`)}">${proxima.rotulo}</button>${window.renderMaisAcoes(demais, { nome: fileName })}</div>`;
 
                 return [
                     `<strong>${escapeHTML(fileName)}</strong>`,
@@ -1594,7 +1592,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     dpoBadge,
                     ceoBadge,
                     avaliacaoBadge,
-                    `<button data-action="downloadEvidenceFile" data-args='["${e.id}"]' class="btn btn-ghost btn-sm">Download</button> ${dpoBtn} ${ceoBtn} ${evalBtn} ${reqBtn}`
+                    acoesDaLinha
                 ];
             }),
             { emptyState: 'Nenhuma evidência enviada para este projeto.',
