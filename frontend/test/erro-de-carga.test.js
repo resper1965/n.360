@@ -11,6 +11,7 @@ import { renderErrorState, falhaDeCarga } from '../src/ui.js';
 import '../src/globals.js';
 import '../src/views/grc.js';
 import '../src/views/monitor.js';
+import '../src/views/prontidao.js';
 import '../src/views/compliance.js';
 import '../src/views/privacy.js';
 import '../src/views/terceiros.js';
@@ -60,7 +61,7 @@ const confere = (c, a, { semAcoes = true } = {}) => {
 
 const TELAS = [
     'renderRisks', 'renderVendors', 'renderTraining', 'renderCAPA', 'renderAudits', 'renderMonitor', 'renderPortfolio',
-    'renderCertification', 'renderMetrics', 'renderGovernance', 'renderContext', 'renderStakeholders', 'renderManagementReview',
+    'renderProntidao', 'renderMetrics', 'renderGovernance', 'renderContext', 'renderStakeholders', 'renderManagementReview',
     'renderAssets', 'renderEvidence', 'renderPoliciesDashboard', 'renderAcknowledgments', 'renderROPA', 'renderDPIA',
     'renderTerceiros', 'renderPartes', 'renderDocumentos', 'renderRequisitos', 'renderUsers', 'renderAuditTrail', 'renderApiKeys',
     'renderLeads', 'renderAssessments', 'renderComercial', 'renderProjects',

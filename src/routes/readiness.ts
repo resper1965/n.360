@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { erro500 } from '../helpers';
+import { ehPapelCliente, erro500 } from '../helpers';
+import { prontidaoDoProjeto } from '../services/prontidao';
 import { ReadinessAgent, parseObservacoes } from '../agents/readiness';
 
 // Diagnóstico de Prontidão ("gap em voo") — F1: camada DETERMINÍSTICA.
@@ -170,5 +171,25 @@ readinessApp.get('/', async (c) => {
     });
   } catch (e: any) {
     return erro500(c, 'Falha no diagnóstico de prontidão', e);
+  }
+});
+
+/**
+ * Prontidão para a certificação (Onda 2 do diagnóstico de 15/10/2026): `GET /api/v1/projects/:projectId/prontidao`.
+ * Critérios explícitos por estágio, o que falta em ordem, o veredito e os números comuns às telas (src/services/prontidao.ts).
+ * Rota própria, na faixa `iso` (`src/modulos.ts`), e não dentro do `/painel`: o painel é do núcleo e decide a faixa pelo
+ * `?modulo=`; a prontidão é só do n.iso e é lida também pelo Monitor e pela Jornada, sem o custo do painel inteiro.
+ * O `projectAccessMiddleware` já cortou projeto, organização e módulo.
+ */
+export const prontidaoApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+prontidaoApp.get('/', async (c) => {
+  try {
+    const user = c.get('user');
+    // O agente MCP entra como `client`, mas age pela consultoria que o concedeu: lê a visão da equipe (como no painel).
+    const cliente = ehPapelCliente(user) && user?.agente !== true;
+    return c.json(await prontidaoDoProjeto(c.env.DB, c.req.param('projectId')!, { cliente }));
+  } catch (e) {
+    return erro500(c, 'Falha ao calcular a prontidão', e);
   }
 });

@@ -6,6 +6,7 @@ import { importarPartes, conciliarResponsaveis } from '../services/partes';
 import { importarDocumentos } from '../services/documentos';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { NOME_DO_PRODUTO } from '../modulos';
+import { seedPhases } from '../services/project-setup';
 import {
   validateBody, moduloHabilitarSchema, MODULOS, parseModulos, type Modulo,
   padronizarNomesSchema, departamentoCriarSchema, departamentoAtualizarSchema, parteCriarSchema, parteAtualizarSchema, vinculoCriarSchema,
@@ -61,6 +62,15 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
               '', '', ?, datetime('now'))`)
             .bind(crypto.randomUUID(), user.email, NOME_DO_PRODUTO[modulo as Modulo], projectId, projectId),
         ]);
+        if (modulo === 'iso') {
+          // O projeto criado sem o n.iso nasce sem as fases da jornada: ligar o módulo as carrega (nunca duplica).
+          try {
+            if (!(await db.prepare('SELECT 1 FROM project_phases WHERE project_id = ? LIMIT 1').bind(projectId).first())) await seedPhases(db, projectId);
+          } catch (e) {
+            registraErro(c, e);
+            trazido = { importados: { partes: 0, documentos: 0 }, avisos: ['Não foi possível carregar as fases da jornada; carregue pela Jornada.'] };
+          }
+        }
         if (modulo === 'privacy') {
           // O n.privacy lê o modelo comum (partes, vínculos, documentos); ligar traz o que o n.iso já tem, com as mesmas
           // pontes repetíveis dos botões manuais. Cada uma falha sozinha: o módulo já está ligado e o aviso diz o que refazer.

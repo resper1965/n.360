@@ -26,6 +26,7 @@ import './views/painel.js';
 import './views/tratamento-ligacoes.js';
 import './views/compliance.js';
 import './views/monitor.js';
+import './views/prontidao.js';
 
 // View Modules
 import './views/dashboard.js';

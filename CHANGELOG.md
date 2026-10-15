@@ -12,6 +12,17 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (prontidão para a certificação, onda 2 do diagnóstico de 15/10, sem migration)
+- **Uma resposta para "estou pronto para o estágio 1?"**: `GET /api/v1/projects/:id/prontidao` (faixa `iso`, `src/services/prontidao.ts`) avalia 19 critérios verificáveis pelo cadastro, cada um com a cláusula da ISO/IEC 27001:2022, o estágio (1, documental; 2, operação, como na skill `prontidao-certificacao`), a situação (atendido, pendente, não se aplica), o motivo, o número que o sustenta e a tela onde se resolve. Devolve o veredito ("Falta 1 item para o estágio 1", "Pronto para o estágio 1. Faltam 3 itens para o estágio 2"; nunca "conforme"), com a ressalva de pré-avaliação, o que falta ordenado por estágio e pelo que destrava mais, o que depende do cliente e os números comuns às telas.
+- **Tela Prontidão** no grupo Implementação do n.iso (a tela `certification`): veredito, indicador, o que falta por estágio com uma ação de nome único que leva à tela (com o filtro do painel quando existe), "O que o cliente precisa decidir ou fornecer" (para o cliente, "O que depende de você", no topo), a tabela de todos os critérios e, para a equipe, as datas do estágio 1 e 2 e o organismo.
+- **Começar a jornada**: `POST /api/v1/projects/:id/phases` carrega as fases num projeto sem elas (só a equipe; 409 se já tem). Ligar o n.iso num projeto também as carrega.
+
+### Corrigido (onda 2, n.iso)
+- **O mesmo número nas telas**: o Monitor lia `risk_count` e `evidence_count`, que `GET /projects` não devolve, e mostrava 0 riscos e 0 evidências. Monitor e Jornada leem a prontidão; o indicador de progresso é um só, "X de Y controles aplicáveis implementados", com a mesma expressão do Painel (`SQL_CLASSE_CONTROLE`), e o rótulo do Painel passou a dizer "controles aplicáveis implementados". Saíram o "Score Geral GRC" e o "Progresso Geral" em percentual (fases) e a "completude" da certificação; as fases aparecem como "n de m", o andamento do plano de trabalho.
+- **Fim do laço sem saída**: Jornada vazia e Monitor vazio mandavam um para o outro; agora a equipe carrega as fases ali e todos podem abrir a prontidão.
+- **Jornada para o cliente**: situação das fases e categorias em português, seletor de situação só para a equipe, etapas como "Etapa 1 a 6", a fase bloqueada nomeada; no Monitor, legenda em texto e rótulo acessível em cada fase. Na SoA, "Migrar 27701" e a linha de atalhos ficam só para a equipe.
+- O acompanhamento de certificação antigo (estágio escolhido num select livre) saiu do código: o estágio agora é calculado.
+
 ### Adicionado (a atividade de tratamento como um fluxo, onda 2 do diagnóstico de 15/10, sem migration)
 - **Página da atividade (n.privacy)**: "Abrir" na linha do RoPA leva a uma página com a trilha de cinco etapas (Dados da atividade, Teste de impacto, RIPD ou LIA, Riscos e ações, Aprovação), o estado escrito de cada uma (feito, pendente, não se aplica, mudou depois da aprovação, aguardando decisão) e o próximo passo como a única ação primária. Riscos, ações e LIA usam os formulários de sempre; o modal de ligações ficou só com as ligações. O Painel (ações por prazo) e o mapa de risco também abrem a página.
 - **Grava e continua**: a atividade nova, ao gravar a entrevista, segue para o ciclo de vida e termina na página da atividade, sem voltar ao inventário e reabrir.

@@ -58,7 +58,7 @@ import { dataSubjectApp } from './routes/data-subject';
 import { pedidosApp, projectPedidosApp } from './routes/pedidos';
 
 
-import { readinessApp } from './routes/readiness';
+import { readinessApp, prontidaoApp } from './routes/readiness';
 import { phaseQuestionsApp, projectPhaseAnswersApp } from './routes/phase-questionnaire';
 import { journeyDossierApp } from './routes/journey-dossier';
 import { controlAdequacaoApp } from './routes/control-adequacao';
@@ -387,6 +387,7 @@ app.route('/api/v1/propostas', propostasApp);
 app.route('/api/v1/assessments', assessmentsApp);
 app.route('/api/v1/projects', projectsApp);
 app.route('/api/v1/projects/:projectId/readiness-check', readinessApp);
+app.route('/api/v1/projects/:projectId/prontidao', prontidaoApp);
 app.route('/api/v1/phase-questions', phaseQuestionsApp);
 app.route('/api/v1/projects/:projectId/phase-answers', projectPhaseAnswersApp);
 app.route('/api/v1/projects/:projectId/journey-dossier', journeyDossierApp);

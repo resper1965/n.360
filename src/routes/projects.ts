@@ -637,6 +637,23 @@ projectsApp.get('/:id/phases', async (c) => {
   return c.json({ ok: true, phases: result.results });
 });
 
+// Começar a jornada: carrega as fases num projeto que não as tem (o n.iso ligado depois da criação nascia sem elas, e a
+// Jornada vazia não tinha saída). Só a equipe; com fase já carregada, 409, nunca duplica.
+projectsApp.post('/:id/phases', async (c) => {
+  try {
+    const user = c.get('user');
+    if (!ehEquipeNess(user)) return c.json({ error: 'Forbidden: as fases da jornada são carregadas pela consultoria' }, 403);
+    const projectId = c.req.param('id');
+    const tem = await c.env.DB.prepare('SELECT 1 FROM project_phases WHERE project_id = ? LIMIT 1').bind(projectId).first();
+    if (tem) return c.json({ error: 'A jornada deste projeto já tem fases' }, 409);
+    await seedPhases(c.env.DB, projectId);
+    await logAudit(c.env.DB, 'phase.seeded', user.email, `Fases da jornada carregadas no projeto ${projectId}`, '', '', projectId);
+    return c.json({ ok: true }, 201);
+  } catch (e) {
+    return erro500(c, 'Falha ao carregar as fases da jornada', e);
+  }
+});
+
 projectsApp.put('/:id/phases/:num', async (c) => {
   try {
     const projectId = c.req.param('id');
