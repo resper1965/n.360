@@ -782,9 +782,10 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const tracksList = ['executiva', 'tecnologia', 'juridico', 'rh', 'operacoes'];
             const allSaved = tracksList.every(tId => S.interviewProgress[projectId + '_' + tId]);
 
-            let rightButtons = `<button class="btn btn-primary" data-action="saveInterviewTrack" data-args='["${projectId}","${track}"]' data-arg-el>Salvar Trilha</button>`;
+            // Uma ação principal: com as cinco trilhas salvas, concluir passa a ser o primário e salvar fica secundário.
+            let rightButtons = `<button class="btn${allSaved ? '' : ' btn-primary'}" data-action="saveInterviewTrack" data-args='["${projectId}","${track}"]' data-arg-el>Salvar Trilha</button>`;
             if (allSaved) {
-                rightButtons += `<button class="btn btn-primary" data-action="completeInterviewsTask" data-args='["${projectId}"]' data-arg-el style="background: var(--success); border-color: var(--success)">Concluir e Registrar</button>`;
+                rightButtons += `<button class="btn btn-primary" data-action="completeInterviewsTask" data-args='["${projectId}"]' data-arg-el>Concluir e Registrar</button>`;
             }
 
             document.getElementById('interview-buttons-right').innerHTML = rightButtons;
