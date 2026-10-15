@@ -52,9 +52,9 @@ const estrutura = () => [...document.querySelector('.sidebar-nav-list').children
         : `${n.id}=${n.querySelector('.sidebar-nav-text').textContent.trim()}`));
 const ESTRUTURA_ISO = [
     'nav-meus=Meus pedidos',
-    'nav-dashboard=Dashboard',
+    'nav-dashboard=Painel',
     '[Comercial] true',
-    'group-sales (aberto): nav-leads=Leads, nav-assessments=Levantamentos, nav-proposals=Propostas, nav-catalogo=Catálogo, nav-config=Configuração comercial',
+    'group-sales (aberto): nav-comercial=Comercial, nav-leads=Leads, nav-assessments=Levantamentos, nav-proposals=Propostas, nav-catalogo=Catálogo, nav-config=Configuração comercial',
     '[Implementação] false',
     'group-impl: nav-project=Jornada, nav-monitor=Monitor, nav-soa=SoA, nav-governance=Governança',
     '[Operacional] false',

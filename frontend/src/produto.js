@@ -14,7 +14,7 @@ export const PRODUTOS = {
 const MODULOS = ['iso', 'privacy'];
 
 /** Telas que só existem no n.iso e só no n.privacy. O resto (cadastro, sistema) aparece nos dois e no início do n.360. */
-export const SO_ISO = ['nav-dashboard', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-monitor',
+export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco'];
@@ -106,8 +106,8 @@ export function destinoDoAviso(tela, loc = window.location) {
  * Telas dos módulos (as que o render desenha fora do hub): a lista fechada do `?tela=` com que o n.360 abre um módulo na tela
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
-export const TELAS_DOS_MODULOS = ['dashboard', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
-    'policies-dashboard', 'risks', 'vendors', 'partes', 'documentos', 'requisitos', 'terceiros', 'titular', 'encarregado', 'importacao',
+export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
+    'policies-dashboard', 'risks', 'vendors', 'partes', 'documentos', 'requisitos', 'terceiros', 'titular', 'encarregado', 'mapa-de-risco', 'importacao',
     'training', 'ropa', 'ropa-entrevista', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
