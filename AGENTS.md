@@ -78,8 +78,8 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   Faixa de modulo exige o modulo no projeto (`projeto_modulos`) **e** na pessoa (`usuario_modulos`, migration
   0066); senao 403. Rota nova de projeto sem faixa reprova em `test/modulos-produto.test.ts`.
 - **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
-  `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*` e `/proposta*`
-  ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.
+  `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` e
+  `/homologacao*` ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.
 
 ## Stack
 
@@ -87,7 +87,7 @@ Cloudflare Workers (Hono) + D1 + KV + R2 + Workers AI. Frontend SPA
 Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 - **Backend**: `src/index.ts` e o composition root que monta os sub-routers de
-  dominio: **53 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
+  dominio: **55 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
   2026-10-15). A lista nominal envelhecia a cada PR; leia o diretorio.
 - **Pedidos de aprovacao/ciencia (acesso de stakeholders)**: tabelas `pedidos`
   (conteudo congelado + SHA-256) e `pedido_destinatarios` (a prova por pessoa).
@@ -114,7 +114,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   SCIM e CORS saem dali, nunca do host da requisicao. `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para
   `/iso` e `/privacy` do n.360 (`HOST_DO_MODULO`); `n-iso.ness.com.br` e `niso.ness.workers.dev` tambem, para `/iso`
   (#290). **Ficam no dominio antigo, sem redirecionar** (`fica(caminho)`): `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`,
-  `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` (links ja enviados, IdP de SCIM, conectores MCP, chaves
+  `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*`, `/homologacao*` (links ja enviados, IdP de SCIM, conectores MCP, chaves
   de API). **SSO:** o `redirect_uri` enviado ao IdP e a constante `URL_NISO` (`niso`, o unico que os IdPs dos clientes cadastraram)
   quando o `appUrl` e o padrao de producao (`APP_URL_PADRAO`); com outro `APP_URL`, e o proprio `APP_URL` (`redirectUriDe` em
   `src/routes/public.ts`). Telas: o login pergunta `POST /api/v1/public/sso/iniciar` (`entrarComSso`, `frontend/src/globals.js`) e a equipe configura SSO, SCIM e politica em `frontend/src/views/seguranca-projeto.js`. So o redirecionamento final (`/#sso_token=`, `/#sso_erro=`) e absoluto no `appUrl`. **MCP:** o recurso e `RECURSO_MCP`
@@ -126,7 +126,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 52 arquivos em 2026-10-15: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 53 arquivos em 2026-10-15: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -163,11 +163,14 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     somente leitura. Serve `/auditor`; o link sai de `POST /api/v1/projects/:id/auditor-token` (cartão
     em Auditorias) com o token no fragmento, e a página fala só com `/api/v1/public/auditor/*`
     (`src/routes/public-auditor.ts`), token no corpo, só o hash no banco.
+  - `frontend/public/homologacao.html` (+ `homologacao.js`, `homologacao.css`) — questionário de homologação do fornecedor.
+    Serve `/homologacao`; o link sai de `POST /api/v1/projects/:id/homologacoes` com o token no fragmento, e a página fala só
+    com `/api/v1/public/homologacao/*` (`src/routes/public-homologacao.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **90 tabelas** (2026-10-15: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **92 tabelas** (2026-10-15: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0074** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0075** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -290,6 +293,14 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `documentos.tipo = 'contrato'`; mudar esse CHECK reconstruiria `documentos` e quatro tabelas filhas). Efeitos do vencimento: fonte
   `avaliacao_terceiro` nos avisos de prazo (titulo com o numero de tratamentos que usam o terceiro) e
   `terceiros_com_avaliacao_vencida` em `GET .../ropa/:rid/ligacoes`. Sem pedido de aprovacao da avaliacao ainda (o CHECK da 0055 ja aceita).
+  **Homologacao por questionario (F5, migration 0075):** `homologacao_perguntas` (o questionario do projeto; o modelo padrao generico
+  e semeado na primeira leitura, `origem = 'padrao'` = "a validar pelo consultor"; pergunta nao se apaga, desativa) e `homologacoes`
+  (um envio por terceiro de tipo medio/pequeno: so o SHA-256 do token, `expira_em`, perguntas CONGELADAS, respostas imutaveis depois do
+  envio pelo gatilho `homologacao_imutavel`). Servico `src/services/homologacao.ts`; rotas `/projects/:id/homologacoes*` (faixa privacy;
+  escrever e so da equipe, `ehEquipeNess`; o agente so le, `FORA_DO_AGENTE`) e `POST /api/v1/public/homologacao/{ver,salvar,enviar}`
+  (token no CORPO, 404 igual para inexistente/vencido/enviado/cancelado, limite por IP), pagina `frontend/public/homologacao.*`. Concluir
+  (so `respondida`, ato humano) chama `registrarAvaliacao` e grava `avaliacoes_terceiro` com metodo `questionario`; a situacao e os avisos
+  de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco nao e gravado.
 - **Titular, incidente e consentimento (fatia 7, migration 0058, SO registro interno)**: `titular_pedidos` (protocolo `PT-AAAA-NNNN` por projeto),
   `incidentes` (`IN-AAAA-NNNN`; encerrar exige risco avaliado e, se `relevante`, a comunicacao a ANPD registrada: CHECK do banco, vale para SQL
   direto) e `consentimentos` (prova ligada ao tratamento; revogar nao apaga). **Nenhum prazo legal mora no codigo nem na migration:**
@@ -490,7 +501,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 271 arquivos de teste do backend mocka o D1 inteiro** (2026-10-15;
+- **Nenhum dos 273 arquivos de teste do backend mocka o D1 inteiro** (2026-10-15;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -502,8 +513,8 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~21,1 mil linhas de JS (2026-10-15)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 103 arquivos de teste em jsdom
+- **Frontend com pouco teste por linha.** ~21,2 mil linhas de JS (2026-10-15)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 104 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 34 telas de `frontend/src/views/` sao
   importadas por ao menos um teste (2026-10-14: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`

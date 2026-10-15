@@ -35,14 +35,14 @@ export const HOST_DO_MODULO = new Map([
 export const HOSTS_LEGADOS = ['n-iso.ness.com.br', 'niso.ness.workers.dev'];
 
 const FICAM = ['/api', '/scim', '/mcp', '/oauth', '/.well-known', '/health'];
-const PAGINAS_PUBLICAS = ['/politicas', '/auditor', '/proposta'];
+const PAGINAS_PUBLICAS = ['/politicas', '/auditor', '/proposta', '/homologacao'];
 const EXTENSOES = ['.html', '.js', '.css'];
 
 const casa = (caminho: string, prefixo: string) => caminho === prefixo || caminho.startsWith(`${prefixo}/`);
 
 /**
  * Caminhos que o domínio de módulo serve no lugar, sem redirecionar: integrações já configuradas (chaves de
- * API, SCIM, conectores MCP, links de e-mail do portal de políticas, do auditor e de proposta) não dependem de
+ * API, SCIM, conectores MCP, links de e-mail do portal de políticas, do auditor, de proposta e de homologação de fornecedor) não dependem de
  * cliente que siga 308. Prefixo só em fronteira de segmento (`/api` casa `/api/x`, não `/apix`), sem regex.
  */
 export function fica(caminho: string): boolean {

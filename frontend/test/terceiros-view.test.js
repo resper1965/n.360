@@ -193,3 +193,80 @@ describe('ações', () => {
         expect(document.body.textContent).toContain('API route not found');
     });
 });
+
+describe('homologação por questionário (F5)', () => {
+    const H = '/api/v1/projects/p9/homologacoes';
+    const HOMOLOGACOES = [
+        { id: 'h1', status: 'respondida', expirada: false, percentual: 75, respondidas: 9, total: 12, expira_em: '2026-11-01 10:00:00', resultado: null, created_at: '2026-10-15 10:00:00' },
+        { id: 'h0', status: 'aberta', expirada: true, percentual: 0, respondidas: 0, total: 12, expira_em: '2026-10-01 10:00:00', resultado: null, created_at: '2026-09-15 10:00:00' },
+    ];
+    const DETALHE = {
+        id: 'h1', parte_nome: 'Nuvem <b>Grande</b>', status: 'respondida', expirada: false, percentual: 50, respondidas: 1, total: 2, enviada_em: '2026-10-16 10:00:00',
+        perguntas: [{ id: 'q1', tema: 'Segurança', texto: 'Há <i>política</i>?', resposta: 'parcial', justificativa: 'Em <b>revisão</b>' }, { id: 'q2', tema: 'DPA', texto: 'Assina DPA?', resposta: null, justificativa: null }],
+    };
+
+    it('a ficha de terceiro por questionário lista os envios com situação e %, e oferece "Homologar" a quem edita', async () => {
+        const f = await ficha({ [`GET ${H}`]: HOMOLOGACOES });
+        expect(chamadas(f)).toContain(`GET ${H}?parte_id=a`);
+        const s = el('tc-homologacao');
+        expect(s.textContent).toContain('Respondida');
+        expect(s.textContent).toContain('75% (9 de 12)');
+        expect(s.textContent).toContain('Link vencido');
+        expect(s.querySelector('[data-action="criarHomologacaoTerceiro"]')).not.toBeNull();
+    });
+
+    it('terceiro de outro método não mostra a seção nem busca homologações', async () => {
+        const f = await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'critico', metodo: 'auditoria' }) });
+        expect(el('tc-homologacao')).toBeNull();
+        expect(chamadas(f).some((k) => k.startsWith(`GET ${H}`))).toBe(false);
+    });
+
+    it('homologar manda terceiro, prazo e e-mail (se houver) e mostra o link uma vez', async () => {
+        const f = await ficha({ [`GET ${H}`]: [], [`POST ${H}`]: { id: 'h2', url: 'https://n360.ness.com.br/homologacao#abc', expira_em: '2026-10-30 10:00:00', email_enviado: false } });
+        el('tc-hm-dias').value = '61';
+        await window.criarHomologacaoTerceiro('p9', 'a');
+        expect(chamadas(f).some((k) => k === `POST ${H}`)).toBe(false);
+        el('tc-hm-dias').value = '10';
+        el('tc-hm-email').value = 'contato@fornecedor.exemplo';
+        await window.criarHomologacaoTerceiro('p9', 'a');
+        expect(corpoDe(f, `POST ${H}`)).toEqual({ parte_id: 'a', dias: 10, email: 'contato@fornecedor.exemplo' });
+        expect(el('tc-hm-url').value).toBe('https://n360.ness.com.br/homologacao#abc');
+    });
+
+    it('revisar mostra as respostas escapadas; concluir exige validade e manda resultado, validade e observação', async () => {
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        const f = servir(rotas({ [`GET ${H}/h1`]: DETALHE, [`POST ${H}/h1/concluir`]: { ok: true, avaliacao_id: 'av1' }, [`GET ${H}`]: [] }));
+        await window.revisarHomologacao('p9', 'a', 'h1');
+        const m = el('modal-content');
+        expect(m.textContent).toContain('Nuvem <b>Grande</b>');
+        expect(m.textContent).toContain('Há <i>política</i>?');
+        expect(m.textContent).toContain('Parcial');
+        expect(m.textContent).toContain('Sem resposta');
+        expect(m.querySelector('b, i')).toBeNull();
+        el('tc-hm-val').value = '';
+        await window.concluirHomologacao('p9', 'a', 'h1');
+        expect(chamadas(f)).not.toContain(`POST ${H}/h1/concluir`);
+        el('tc-hm-res').value = 'com_ressalvas'; el('tc-hm-val').value = '2027-10-15'; el('tc-hm-obs').value = 'Falta DPA';
+        await window.concluirHomologacao('p9', 'a', 'h1');
+        expect(corpoDe(f, `POST ${H}/h1/concluir`)).toEqual({ resultado: 'com_ressalvas', valido_ate: '2027-10-15', observacao: 'Falta DPA' });
+    });
+
+    it('perguntas do questionário: botão só para quem edita; avisa o modelo a validar; salvar e adicionar chamam a API', async () => {
+        await lista();
+        expect(JSON.parse(el('a').querySelector('[data-action="abrirPerguntasHomologacao"]').getAttribute('data-args'))).toEqual(['p9']);
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        const f = servir(rotas({
+            [`GET ${H}/perguntas`]: { a_validar: true, perguntas: [{ id: 'q1', tema: 'Segurança', texto: 'Há <b>política</b>?', ordem: 10, ativa: 1, origem: 'padrao' }] },
+            [`PUT ${H}/perguntas/q1`]: { ok: true }, [`POST ${H}/perguntas`]: { id: 'q2' },
+        }));
+        await window.abrirPerguntasHomologacao('p9');
+        expect(el('modal-content').textContent).toContain('modelo genérico');
+        expect(el('modal-content').querySelector('b')).toBeNull();
+        document.querySelector('tr[data-pergunta="q1"] [data-campo="ativa"]').checked = false;
+        await window.salvarPerguntaHomologacao('p9', 'q1');
+        expect(corpoDe(f, `PUT ${H}/perguntas/q1`)).toEqual({ tema: 'Segurança', texto: 'Há <b>política</b>?', ativa: false });
+        el('tc-hp-tema').value = 'Continuidade'; el('tc-hp-texto').value = 'Há plano testado?';
+        await window.criarPerguntaHomologacao('p9');
+        expect(corpoDe(f, `POST ${H}/perguntas`)).toEqual({ tema: 'Continuidade', texto: 'Há plano testado?' });
+    });
+});

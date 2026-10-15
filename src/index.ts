@@ -33,6 +33,7 @@ import { publicApp } from './routes/public';
 import { publicPropostasApp } from './routes/public-propostas';
 import { publicPedidosApp } from './routes/public-pedidos';
 import { publicAuditorApp } from './routes/public-auditor';
+import { publicHomologacaoApp } from './routes/public-homologacao';
 import { scimApp } from './routes/scim';
 import { aiApp } from './routes/ai';
 import { governanceApp } from './routes/governance';
@@ -40,6 +41,7 @@ import { nucleoApp } from './routes/nucleo';
 import { documentosApp } from './routes/documentos';
 import { requisitosApp, projetoRequisitosApp } from './routes/requisitos';
 import { terceirosApp } from './routes/terceiros';
+import { homologacoesApp } from './routes/homologacoes';
 import { importacaoApp } from './routes/importacao';
 import { encarregadoApp } from './routes/encarregado';
 import { pontoDePartidaApp } from './routes/ponto-de-partida';
@@ -340,6 +342,8 @@ app.route('/api/v1/public/propostas', publicPropostasApp);
 app.route('/api/v1/public/pedidos', publicPedidosApp);
 // Portal do auditor externo, sem sessão: token do link no corpo, só o hash no banco, limite por IP.
 app.route('/api/v1/public/auditor', publicAuditorApp);
+// Questionário de homologação para o fornecedor, sem sessão: token do link no corpo, só o hash no banco, limite por IP (F5).
+app.route('/api/v1/public/homologacao', publicHomologacaoApp);
 
 /*
  * SCIM 2.0 (item 4.2). Montado em `/scim/v2/*` — o caminho que a RFC 7644
@@ -425,6 +429,7 @@ app.route('/api/v1/projects/:projectId', exportacaoApp);
 app.route('/api/v1/requisitos', requisitosApp);
 app.route('/api/v1/projects/:projectId', projetoRequisitosApp);
 app.route('/api/v1/projects/:projectId/terceiros', terceirosApp);
+app.route('/api/v1/projects/:projectId/homologacoes', homologacoesApp);
 app.route('/api/v1/projects/:projectId/importacoes', importacaoApp);
 app.route('/api/v1/projects/:projectId/encarregado', encarregadoApp);
 app.route('/api/v1/projects/:projectId/ponto-de-partida', pontoDePartidaApp);
