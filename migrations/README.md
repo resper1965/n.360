@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0073** (`ls migrations/*.sql | tail -1`). São 71 arquivos
+- Última migration no repositório: **0074** (`ls migrations/*.sql | tail -1`). São 72 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -560,5 +560,26 @@ table_info(corrective_actions)` com `ropa_id`, e `SELECT COUNT(*)` de `risks` e 
 nada a fazer no banco (as colunas NULL podem ficar; o código anterior não as lê). **Esta RODA em produção ANTES do código novo:** as
 sub-rotas de riscos e ações da atividade, o mapa de risco e o `PUT /api/v1/risks/:id` leem e gravam as colunas; o deploy do merge
 recusa enquanto ela estiver pendente.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+---
+
+## 0074 — ciclo de vida do dado e bases legais adicionais (2026-10-15)
+
+Tabelas novas: `tratamento_ciclo` (uma linha por etapa da atividade: `coleta`, `uso`, `compartilhamento_interno`,
+`compartilhamento_externo`, `armazenamento`, `eliminacao`; `situacao` `registrada` ou `nao_aplicavel`; `item_id` opcional para `itens`
+com `ON DELETE SET NULL`; `descricao` até 1000; chave `(ropa_id, etapa)`; `nao_aplicavel` sem item por CHECK) com os gatilhos
+`tratamento_ciclo_do_projeto_ins` e `_upd` (tratamento e item têm de ser do projeto da linha), e `tratamento_bases` (bases legais
+adicionais do catálogo de requisitos, chave `(ropa_id, requisito_id)`, `observacao` até 500). As duas somem com o tratamento
+(`ON DELETE CASCADE`). Coluna nova NULL: `ropa_records.base_gdpr` (texto livre). `base_legal_id` continua a base principal, sem cópia
+para a tabela nova. Nada entra no conteúdo congelado das aprovações (`DOCUMENTOS.tratamento.colunas` e `COLUNAS_DPIA` não mudam).
+`test/migration-0074.test.ts` prova sobre o banco de antes: o registro fica, a coluna entra vazia, os CHECK e os gatilhos valem.
+**NÃO é idempotente** (`ADD COLUMN` aborta com "duplicate column"): aplicar uma vez. Conferência depois: `PRAGMA
+table_info(tratamento_ciclo)`, `PRAGMA table_info(tratamento_bases)`, `PRAGMA table_info(ropa_records)` com `base_gdpr` e `SELECT
+COUNT(*) FROM ropa_records` igual ao de antes. Para desfazer: `DROP TABLE tratamento_ciclo; DROP TABLE tratamento_bases` (a coluna
+NULL pode ficar; o código anterior não a lê). **Esta RODA em produção ANTES do código novo:** as sub-rotas de ciclo e bases, as
+ligações, o painel do encarregado, o relatório e a DPIA criada do tratamento leem as tabelas; o deploy do merge recusa enquanto ela
+estiver pendente.
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.
