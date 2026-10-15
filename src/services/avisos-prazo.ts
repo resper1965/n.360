@@ -275,7 +275,9 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
               primeira && atraso ? 1 : 0);
           const sino = db.prepare(`INSERT INTO notifications (id, user_id, type, title, message, read, link, created_at)
             SELECT ?, ?, ?, ?, ?, 0, ?, datetime('now') WHERE EXISTS (SELECT 1 FROM avisos_prazo WHERE id = ?)`)
-            .bind(genId(), p.id, `prazo_${item.fonte}`, tituloDoAviso(item), `${item.titulo} (prazo ${dataBr(item.vence_em)})`,
+            .bind(genId(), p.id, `prazo_${item.fonte}`,
+              tela === '/ropa' ? `Ação da atividade ${quando(item.marco)}` : tituloDoAviso(item),
+              `${item.titulo} (prazo ${dataBr(item.vence_em)})`,
               `/projects/${item.project_id}${tela}`, id);
           const [aviso] = await db.batch(atraso ? [inserir] : [inserir, sino]);
           const novos = aviso.meta.changes ?? 0;
