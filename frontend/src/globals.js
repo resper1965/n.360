@@ -1592,12 +1592,6 @@ window.initApp = async function initApp() {
         }
         // ponytail: poll notifications every 60s
         if (!ehStakeholder) window._notifPoll = setInterval(loadNotifications, 60000);
-        // Close dropdowns on outside click
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.dropdown-wrap')) {
-                document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
-            }
-        });
     }
 
 window.showForgotPasswordForm = function() {

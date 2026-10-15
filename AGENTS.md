@@ -645,7 +645,7 @@ errar um digito destruia a sessao.
 - Geometria: o sistema e quadrado (`--radius: 0`). O bloco "Correcoes de superficie herdadas", no fim de
   `frontend/src/style.css`, zera o raio de `.btn*`, `.form-input`, `.form-select`, `.card`, `.modal`, `.badge`,
   `.chip` e afins; os `10px` dessas classes no topo do arquivo sao codigo morto. O 10px que ainda aparece vem do
-  inline das telas e de `.wizard-step`, `.yesno-btn`, `.ness-select-*` e `.dropdown-menu`, fora da sobreposicao
+  inline das telas e de `.wizard-step`, `.yesno-btn` e `.ness-select-*`, fora da sobreposicao
   (detalhe em `design.md`). Inline so `0` ou `10px` (`frontend/test/catracas-visuais.test.js`); novo nasce quadrado.
 - Login: tela dividida — marca à esquerda, cartão à direita; empilha abaixo
   de 900px.

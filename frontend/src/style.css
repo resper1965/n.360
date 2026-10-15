@@ -427,12 +427,6 @@
         .chip-active, .chip.selected { background: rgba(0,173,232,0.12); border-color: var(--accent); color: var(--accent); }
 
         /* ——— DROPDOWN ————————————————————————————————————— */
-        .dropdown-wrap { position: relative; display: inline-block; }
-        .dropdown-trigger { cursor: pointer; }
-        .dropdown-menu { position: absolute; top: 100%; right: 0; background: rgba(12,16,28,0.98); border: 1px solid var(--border); border-radius: 10px; min-width: 160px; z-index: 400; display: none; margin-top: 0.25rem; overflow: hidden; }
-        .dropdown-menu.open { display: block; }
-        .dropdown-item { padding: 0.6rem 1rem; cursor: pointer; font-size: 0.8rem; transition: 0.15s; color: var(--text); }
-        .dropdown-item:hover { background: var(--surface-hover); }
 
         /* ——— STATES ——————————————————————————————————————— */
         .loading { text-align: center; padding: 3rem; color: var(--text-dim); font-size: 0.85rem; }

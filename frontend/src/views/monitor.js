@@ -106,7 +106,8 @@ import { podeIndicar } from './encarregado.js';
 
     async function renderPortfolio(c, h, a) {
         h.textContent = 'Monitor';
-        a.innerHTML = `<div class="dropdown-wrap"><button class="btn dropdown-trigger" data-action="__monToggleDropdown" data-arg-el>Exportar</button><div class="dropdown-menu"><div class="dropdown-item" data-action="exportCSV" data-args='["risks"]'>Riscos CSV</div><div class="dropdown-item" data-action="exportCSV" data-args='["vendors"]'>Fornecedores CSV</div><div class="dropdown-item" data-action="exportCSV" data-args='["training"]'>Treinamento CSV</div></div></div>`;
+        a.innerHTML = window.renderMaisAcoes([['risks', 'Riscos (CSV)'], ['vendors', 'Fornecedores (CSV)'], ['training', 'Treinamento (CSV)']]
+            .map(([tipo, rotulo]) => ({ rotulo, action: 'exportCSV', args: [tipo] })), { rotulo: 'Exportar' });
         let portfolio = [];
         try { portfolio = (await api('GET', '/api/v1/portfolio'))?.portfolio || []; } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a carteira de projetos.', e); return; }
         c.innerHTML = `<div class="fade-in">${portfolio.length ? portfolio.map(p => {
@@ -1788,7 +1789,6 @@ import { podeIndicar } from './encarregado.js';
     };
 
 // Wrappers S2 (delegação): expressões que antes viviam no onclick inline.
-window.__monToggleDropdown = (el) => { const menu = el && el.nextElementSibling; if (menu) menu.classList.toggle('open'); };
 window.__monDeleteMetric = async (id) => {
     if (!(await window.confirmar('A métrica e o histórico dela saem deste projeto.', { titulo: 'Excluir métrica', perigo: true, rotulo: 'Excluir' }))) return;
     api('DELETE', `/api/v1/metrics/${id}`).then(() => { forceCloseModal(); render(); });

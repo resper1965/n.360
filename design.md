@@ -46,9 +46,9 @@ Para ver os valores: `sed -n '/^:root/,/^}/p' frontend/src/style.css`.
     depois: vence. Os `border-radius: 10px` dessas classes perto do topo do arquivo são **código morto**.
     O CSS do build confirma a ordem (`npm run build --prefix frontend`; em `dist/assets/login-*.css` o
     `.btn{...}` vem antes da regra de sobreposição).
-  - Ainda renderizam com 10px: `.wizard-step`, `.yesno-btn`, `.ness-select-trigger`,
-    `.ness-select-options` e `.dropdown-menu`, que ficaram fora da sobreposição (usados em
-    `commercial.js`, `compliance.js`, `monitor.js` e `globals.js`), e os estilos inline das telas
+  - Ainda renderizam com 10px: `.wizard-step`, `.yesno-btn`, `.ness-select-trigger` e
+    `.ness-select-options`, que ficaram fora da sobreposição (usados em `commercial.js`,
+    `compliance.js` e `globals.js`), e os estilos inline das telas
     (`git grep -c "border-radius:\s*10px" -- 'frontend/src/views/*.js'`: 41 em 4 arquivos em 2026-10-12).
     Regra de CSS não vence atributo `style`; eles vão a 0 conforme cada tela é revisitada.
   - `frontend/test/catracas-visuais.test.js` só aceita `0` ou `10px` inline: o 10px é tolerado até a
