@@ -327,13 +327,13 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                         </div>
                                         <div class="phase-details ${isPhExpanded ? 'expanded' : ''}" id="p-details-${ph.phase_number}">
                                             ${ph.notes ? `
-                                                <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:1rem; padding:0.5rem; background:rgba(255,255,255,0.02); border-left:2px solid var(--accent);">
+                                                <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:1rem; padding:0.5rem; background:rgba(255,255,255,0.02); border:1px solid var(--border);">
                                                     <strong>Notas:</strong> ${escapeHTML(ph.notes)}
                                                 </div>
                                             ` : ''}
                                             
                                             ${(window.PHASE_PLAYBOOKS && window.PHASE_PLAYBOOKS[ph.phase_number]) ? `
-                                                <div class="playbook-card" style="margin-bottom:1.25rem; padding:12px; background:rgba(0,173,232,0.04); border-left:3px solid var(--accent); font-size:0.75rem">
+                                                <div class="playbook-card" style="margin-bottom:1.25rem; padding:12px; background:var(--surface); border:1px solid var(--border); font-size:0.75rem">
                                                     <div style="font-weight:500; color:var(--accent); margin-bottom:4px; font-family:'Montserrat',sans-serif; text-transform:uppercase; letter-spacing:0.5px; font-size:0.7rem">Diretriz do Consultor: ${escapeHTML(window.PHASE_PLAYBOOKS[ph.phase_number].obj)}</div>
                                                     <div style="color:var(--text); line-height:1.4">${escapeHTML(window.PHASE_PLAYBOOKS[ph.phase_number].guideline)}</div>
                                                 </div>
@@ -379,7 +379,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                         }
 
                                                         return `
-                                                            <div class="checklist-item-wrapper" style="margin-bottom: 0.75rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-left: 3px solid ${borderLeftColor}; padding: 0.75rem;">
+                                                            <div class="checklist-item-wrapper" style="margin-bottom: 0.75rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-left: 1px solid ${borderLeftColor}; padding: 0.75rem;">
                                                                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
                                                                     <div class="checklist-left" style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
                                                                         <input type="checkbox" class="checklist-item-checkbox" 
