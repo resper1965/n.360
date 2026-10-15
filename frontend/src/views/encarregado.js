@@ -23,7 +23,7 @@ window.abrirPrazosDasAcoes = function (projectId) {
         <button type="button" class="btn btn-sm" data-action="abrirFaixaPrazo" data-args='${args(projectId, f.faixa)}' aria-label="${escapeHTML(`${f.rotulo}: ${f.total || 0} ações`)}">Ver</button></li>`).join('');
     openModal(`<div class="modal-header"><span class="modal-title">Ações das atividades por prazo</span></div>
         <ul class="pn-export" id="enc-prazos">${botoes}</ul>
-        ${total ? `<button type="button" class="btn" data-action="exportarCsvAcoes" data-args='${args(projectId, null)}'>Exportar todas (CSV)</button>` : '<p class="pn-meta">Nenhuma ação aberta nas atividades.</p>'}`);
+        ${total ? `<button type="button" class="btn" data-action="exportarCsvAcoes" data-args='${args(projectId, null)}'>Exportar todas (CSV)</button>` : window.renderEmptyState({ titulo: 'Nenhuma ação aberta nas atividades.', compacto: true })}`);
 };
 
 /** A entrada do n.privacy. */
@@ -62,7 +62,7 @@ window.abrirIndicarEncarregado = async function (projectId) {
         ${opcoes
             ? `<div class="form-group"><label class="form-label">Pessoa</label><select class="form-input" id="encarregado-parte">${opcoes}</select></div>
                <button class="btn btn-primary" style="width:100%" data-action="indicarEncarregado" data-args='${args(projectId)}'>Indicar</button>`
-            : '<p>Nenhuma pessoa cadastrada. Cadastre em Partes ou na governança (cargo DPO).</p>'}
+            : window.renderEmptyState({ titulo: 'Nenhuma pessoa cadastrada. Cadastre em Partes ou na governança (cargo DPO).', compacto: true })}
     `);
 };
 

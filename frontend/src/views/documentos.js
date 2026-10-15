@@ -245,7 +245,7 @@ window.openDocumentoModal = async function (projectId, id) {
                 <summary>Versão ${escapeHTML(String(v.numero))} · ${escapeHTML(ESTADO_VERSAO[v.estado] || v.estado)} · ${escapeHTML(v.origem || '')} · ${escapeHTML(formatarData(v.criado_em, { hora: true }))}</summary>
                 <div style="font-size:0.7rem; color:var(--text-dim)">SHA-256 ${escapeHTML(v.hash || '')}</div>
                 <div style="white-space:pre-wrap; font-size:0.85rem; margin-top:0.25rem">${escapeHTML(v.texto || '')}</div>
-            </details>`).join('') : '<p style="color:var(--text-dim)">Nenhuma versão.</p>'}
+            </details>`).join('') : window.renderEmptyState({ titulo: 'Nenhuma versão.', compacto: true })}
         <h4 style="margin:1.25rem 0 0.5rem">Ciências</h4>
         ${ciencias.length ? `<table class="data-table"><thead><tr><th>Pessoa</th><th>Versão</th><th>Canal</th><th>Quando</th></tr></thead><tbody>
             ${ciencias.map((x) => `<tr><td>${escapeHTML(x.nome || x.email)}${x.nome ? `<div style="font-size:11px;color:var(--text-dim)">${escapeHTML(x.email)}</div>` : ''}</td>
@@ -254,7 +254,7 @@ window.openDocumentoModal = async function (projectId, id) {
         ${comPrivacy ? `<h4 style="margin:1.25rem 0 0.5rem">Requisitos</h4>
         <div id="doc-requisitos">
             ${requisitos.length ? requisitos.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)}${editar ? ` <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoDocumento" data-args='${args(projectId, id, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">×</button>` : ''}</span>`).join(' ')
-                : '<p style="color:var(--text-dim)">Nenhum requisito ligado a este documento.</p>'}
+                : window.renderEmptyState({ titulo: 'Nenhum requisito ligado a este documento.', compacto: true })}
             ${editar && catalogo.length ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; margin-top:0.75rem">
                 <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="doc-req-add">Ligar requisito</label>
                     <select class="form-input" id="doc-req-add"><option value="">— escolha —</option>${catalogo.filter((r) => !requisitos.some((x) => x.id === r.id))
@@ -275,7 +275,7 @@ window.openDocumentoModal = async function (projectId, id) {
                         ${ativa && editar ? `<button class="btn btn-ghost btn-sm" data-action="revogarExcecaoDocumento" data-args='${args(projectId, id, x.id)}'>Revogar</button>` : ''}
                     </td></tr>`;
                 }).join('')}
-            </tbody></table>` : '<p style="color:var(--text-dim)">Nenhuma exceção registrada.</p>'}
+            </tbody></table>` : window.renderEmptyState({ titulo: 'Nenhuma exceção registrada.', compacto: true })}
             ${editar ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap; margin-top:0.75rem">
                 <div class="form-group" style="flex:2; margin:0"><label class="form-label">A quem ou ao quê vale</label><input class="form-input" id="doc-exc-escopo" maxlength="2000"></div>
                 <div class="form-group" style="flex:3; margin:0"><label class="form-label">Motivo</label><input class="form-input" id="doc-exc-motivo" maxlength="4000"></div>

@@ -131,7 +131,7 @@ window.abrirRequisito = async function (id, mantemRecusa) {
         <p style="color:var(--text-dim)">${escapeHTML(r.fonte_id)}${r.papel ? ' · ' + escapeHTML(r.papel) : ''}</p>
         <h4 style="margin:1rem 0 0.5rem">Equivalências</h4>
         ${mapas ? `<table class="data-table"><thead><tr><th>Requisito</th><th>Tipo</th><th>Validação</th><th>Nota</th></tr></thead><tbody>${mapas}</tbody></table>`
-            : '<p style="color:var(--text-dim)">Nenhuma equivalência registrada.</p>'}
+            : window.renderEmptyState({ titulo: 'Nenhuma equivalência registrada.', compacto: true })}
     `, 'modal-large');
 };
 

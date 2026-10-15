@@ -258,7 +258,7 @@ window.renderCienciaLink = async function renderCienciaLink(alvo, projectId) {
                 <td>${escapeHTML(String(p.nao_abriram ?? 0))}</td>
                 <td style="text-align:right"><button type="button" class="btn-secondary" data-action="abrirAcompanhamento" data-args='${args(projectId, p.id)}'>Acompanhamento</button></td>
             </tr>`).join('')}
-        </tbody></table>` : '<p style="font-size:13px;color:var(--text-dim)">Nenhum pedido de ciência ou de aprovação de política neste projeto.</p>'}
+        </tbody></table>` : window.renderEmptyState({ titulo: 'Nenhum pedido de ciência ou de aprovação de política neste projeto.', compacto: true })}
     </div>`;
 };
 

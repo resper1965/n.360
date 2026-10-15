@@ -551,7 +551,7 @@ import { podeIndicar } from './encarregado.js';
                     <h3 class="gov-section-title gov-agentes-titulo" id="gov-agentes-titulo">Agentes com acesso</h3>
                     <p class="gov-agentes-nota">Agentes de IA que a equipe da consultoria conectou a este cliente, com o papel de cada um: Consultor implementa, Auditor só lê e registra achado e nota. Revogar corta o acesso na próxima chamada.</p>
                 </div>
-                ${linhas || '<div class="gov-empty-list">Nenhum agente conectado a este cliente.</div>'}
+                ${linhas || window.renderEmptyState({ titulo: 'Nenhum agente conectado a este cliente.', compacto: true })}
             </section>`;
     };
 

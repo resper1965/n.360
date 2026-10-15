@@ -464,7 +464,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                         `;
                                                     }).join('')}
                                                 </div>
-                                            ` : '<div style="font-size:0.75rem;color:var(--text-dim)">Nenhum item de checklist para esta fase.</div>'}
+                                            ` : window.renderEmptyState({ titulo: 'Nenhum item de checklist para esta fase.', compacto: true })}
                                         </div>
                                     </div>
                                 `;
@@ -1060,7 +1060,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                             <dd style="font-size:0.82rem; margin:0 0 0.25rem; color:${r.resposta ? 'var(--text)' : 'var(--text-dim)'}">${r.resposta ? escapeHTML(r.resposta) : '— sem resposta —'}</dd>
                         `).join('')}
                     </dl>
-                </section>`).join('') : '<p style="color:var(--text-dim)">Nenhuma resposta registrada na jornada ainda.</p>';
+                </section>`).join('') : window.renderEmptyState({ titulo: 'Nenhuma resposta registrada na jornada ainda.', compacto: true });
 
             const doc = `<div id="dossie-print" style="text-align:left">
                 <div style="border-bottom:2px solid var(--accent); padding-bottom:0.75rem; margin-bottom:1rem">

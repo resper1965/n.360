@@ -19,13 +19,13 @@ async function renderPontoDePartida(c, projectId, produto) {
         return lista.length
             ? `<h4 style="margin:0 0 0.5rem">A privacidade já adianta estes controles</h4><ul style="margin:0;padding-left:1.2rem">${lista.map((i) =>
                 `<li>${escapeHTML(i.referencia)} — ${escapeHTML(i.titulo)} <span style="color:var(--text-dim)">(LGPD/ANPD: ${(i.por || []).map(escapeHTML).join(', ')})</span></li>`).join('')}</ul>`
-            : '<p style="margin:0;color:var(--text-dim)">Nenhum controle ISO adiantado pela privacidade ainda. Documentos e evidências ligados à LGPD e mapeamentos validados aparecem aqui.</p>';
+            : window.renderEmptyState({ titulo: 'Nenhum controle ISO adiantado pela privacidade ainda. Documentos e evidências ligados à LGPD e mapeamentos validados aparecem aqui.', compacto: true });
     };
     // No início do n.360 aparecem os dois lados; em cada módulo, o que o outro já entregou.
     // No n.360, projeto sem nada registrado ganha uma linha só, não um painel de zeros.
     const vazio = Object.values(cad).every((x) => !x) && !Number(lgpd?.cobertos) && !(v.iso_ajudados || []).length;
     if (produto === 'n360' && vazio) {
-        c.innerHTML = '<p class="form-hint fade-in" style="margin:0 0 1.5rem">Ainda não há trabalho registrado neste projeto. Comece pelo n.iso ou pelo n.privacy.</p>';
+        c.innerHTML = window.renderEmptyState({ titulo: 'Ainda não há trabalho registrado neste projeto. Comece pelo n.iso ou pelo n.privacy.', compacto: true });
         return;
     }
     const corpo = produto === 'privacy' ? blocoPrivacy() : produto === 'n360' ? `<h3 style="margin:0 0 0.75rem">O que um módulo já adianta para o outro</h3>${blocoPrivacy()}<div style="margin-top:1rem">${blocoIso()}</div>` : blocoIso();

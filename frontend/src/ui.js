@@ -364,7 +364,12 @@ export function renderStatusBadge(arg1, arg2) {
  * houver) e a ação que o usuário pode tomar. Título e texto são texto (escapados); `acao` é HTML de
  * botão montado por quem chama. A aparência vive em `.empty-state` (style.css), nunca inline.
  */
-export function renderEmptyState({ titulo = '', texto = '', acao = '', id = '', itens = [] } = {}) {
+export function renderEmptyState({ titulo = '', texto = '', acao = '', id = '', itens = [], compacto = false } = {}) {
+    // `compacto`: o vazio de uma seção dentro de cartão, modal ou ficha (uma linha, sem moldura). Mesmo padrão: o que falta,
+    // o que fazer (texto) e a ação.
+    if (compacto) {
+        return `<div class="empty-state empty-state-compacto"${id ? ` id="${escapeHTML(id)}"` : ''}><p>${escapeHTML(titulo)}${texto ? ` <span class="empty-hint">${escapeHTML(texto)}</span>` : ''}</p>${acao ? `<div class="empty-action">${acao}</div>` : ''}</div>`;
+    }
     // `itens`: lista curta de texto (o que a cláusula pede, o que costuma existir); cada um pode trazer a própria ação (HTML).
     const lista = itens.length ? `<ul class="empty-list">${itens.map((it) => {
         const { texto: t, acao: ac } = typeof it === 'string' ? { texto: it } : it;

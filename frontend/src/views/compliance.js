@@ -88,7 +88,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     <div style="border-left:3px dashed ${cor[a.severidade] || 'var(--muted)'};padding:6px 10px;margin:6px 0;background:rgba(255,255,255,0.03)">
                         <div style="font-size:0.68rem;text-transform:uppercase;color:${cor[a.severidade] || 'var(--muted)'}">${escapeHTML(a.severidade)} · ${escapeHTML(a.requisito)} · ${escapeHTML(String(a.referencia))}</div>
                         <div style="font-size:0.85rem;margin-top:2px">${escapeHTML(a.descricao)}</div>
-                    </div>`).join('') : '<p style="color:var(--muted);font-size:0.85rem">Nenhuma inconsistência de conteúdo apontada pela IA.</p>'}` : '';
+                    </div>`).join('') : window.renderEmptyState({ titulo: 'Nenhuma inconsistência de conteúdo apontada pela IA.', compacto: true })}` : '';
             const botaoIA = comIA ? '' : `<button class="btn btn-secondary" style="margin-top:0.8rem" data-action="runReadinessCheck" data-args='["${projectId}",true]'>Analisar com IA</button>`;
             openModal(`
                 <div class="modal-header"><span class="modal-title">Diagnóstico de prontidão</span></div>
@@ -99,7 +99,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                         <span style="color:var(--warning)"><strong>${r.resumo.alto}</strong> alto</span>
                         <span style="color:var(--muted)"><strong>${r.resumo.medio}</strong> médio</span>
                     </div>
-                    ${r.resumo.total ? grupos : '<p style="color:var(--muted)">Nenhum gap encontrado nas verificações automáticas.</p>'}
+                    ${r.resumo.total ? grupos : window.renderEmptyState({ titulo: 'Nenhum gap encontrado nas verificações automáticas.', compacto: true })}
                     ${secaoIA}
                     ${botaoIA}
                 </div>`);
@@ -135,7 +135,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             </div>
             <div style="margin-bottom: 1.5rem;">
                 <div class="ctx-label">Descrição</div>
-                <div class="controle-descricao">${ctrl.description ? markdownSeguro(ctrl.description) : '<p>Nenhuma descrição.</p>'}</div>
+                <div class="controle-descricao">${ctrl.description ? markdownSeguro(ctrl.description) : window.renderEmptyState({ titulo: 'Nenhuma descrição.', compacto: true })}</div>
                 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
                     <div>
@@ -196,7 +196,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         if (rotulo) rotulo.textContent = `Histórico · ${registros.length}`;
 
         if (!registros.length) {
-            alvo.innerHTML = `<div style="font-size:0.75rem;color:var(--text-dim)">Sem alterações registradas neste controle.</div>`;
+            alvo.innerHTML = window.renderEmptyState({ titulo: 'Sem alterações registradas neste controle.', compacto: true });
             return;
         }
 
@@ -260,7 +260,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             const evidences = await api('GET', `/api/v1/projects/${S.currentProject?.id}/evidence`);
             const filtered = evidences.filter(e => e.control_id === controlId);
             if (!filtered.length) {
-                listEl.innerHTML = '<div style="padding:1rem; text-align:center; color:var(--muted); font-size:0.75rem">Nenhuma evidência vinculada.</div>';
+                listEl.innerHTML = window.renderEmptyState({ titulo: 'Nenhuma evidência vinculada.', compacto: true });
                 return;
             }
             listEl.innerHTML = filtered.map(e => `
@@ -1257,7 +1257,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         `;
         
         if (risks.length === 0) {
-            html += `<div style="padding:2rem;text-align:center;color:var(--muted)">Nenhum risco vinculado a este controle.</div>`;
+            html += window.renderEmptyState({ titulo: 'Nenhum risco vinculado a este controle.', compacto: true });
         } else {
             html += `
                 <div class="data-table">
@@ -1322,7 +1322,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         `;
         
         if (evidence.length === 0) {
-            html += `<div style="padding:2rem;text-align:center;color:var(--muted)">Nenhuma evidência vinculada a este controle.</div>`;
+            html += window.renderEmptyState({ titulo: 'Nenhuma evidência vinculada a este controle.', compacto: true });
         } else {
             html += `
                 <div class="data-table">
@@ -2470,7 +2470,7 @@ window.abrirRequisitosEvidencia = async function (projectId, evidenceId) {
         <div class="modal-header"><span class="modal-title">Requisitos e validade</span></div>
         <div id="ev-requisitos">
             ${ligados.length ? ligados.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoEvidencia" data-args='${args(projectId, evidenceId, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">\u00d7</button></span>`).join(' ')
-                : '<p style="color:var(--text-dim)">Nenhum requisito ligado a esta evidência.</p>'}
+                : window.renderEmptyState({ titulo: 'Nenhum requisito ligado a esta evidência.', compacto: true })}
             <div class="form-group" style="margin-top:0.75rem"><select class="form-input" id="ev-req-add"><option value="">Escolha um requisito</option>${catalogo.filter((r) => !S.evRequisitos.includes(r.id))
                 .map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} — ${escapeHTML(r.titulo)}</option>`).join('')}</select></div>
             <button class="btn btn-sm" data-action="salvarRequisitosEvidencia" data-args='${args(projectId, evidenceId)}'>Ligar</button>

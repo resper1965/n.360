@@ -101,13 +101,13 @@ window.abrirTerceiro = async function (projectId, parteId) {
         <h4 style="margin:1.25rem 0 0.5rem">Histórico de avaliações</h4>
         <div id="tc-historico">${hist.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Método</th><th>Resultado</th><th>Vale até</th><th>Evidência</th><th>Por</th></tr></thead><tbody>${hist.map((x) =>
             `<tr><td>${escapeHTML(dataBr(x.created_at))}</td><td>${escapeHTML(METODOS[x.metodo] || x.metodo)}</td><td>${escapeHTML(RESULTADOS[x.resultado] || x.resultado)}</td><td>${escapeHTML(dataBr(x.valido_ate))}</td><td>${linkSeguro(x.evidencia_url)}</td><td>${escapeHTML(x.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
-            : '<p style="color:var(--text-dim)">Nenhuma avaliação registrada.</p>'}</div>
+            : window.renderEmptyState({ titulo: 'Nenhuma avaliação registrada.', compacto: true })}</div>
         ${t.metodo === 'questionario' ? secaoHomologacao(projectId, parteId, homologacoes, editar) : ''}
         <h4 style="margin:1.25rem 0 0.5rem">DPA e contratos</h4>
         <div id="tc-docs">${ligados.length ? `<table class="data-table"><tbody>${ligados.map((d) =>
             `<tr><td>${escapeHTML(d.titulo)}</td><td>${escapeHTML(PAPEIS_DOC[d.papel] || d.papel)}</td><td style="text-align:right">${editar
                 ? `<button class="btn btn-ghost btn-sm" data-action="desligarDocumentoTerceiro" data-args='${args(projectId, parteId, d.id, d.papel)}'>Desligar</button>` : ''}</td></tr>`).join('')}</tbody></table>`
-            : '<p style="color:var(--text-dim)">Nenhum documento ligado.</p>'}
+            : window.renderEmptyState({ titulo: 'Nenhum documento ligado.', compacto: true })}
             ${editar && documentos.length ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; margin-top:0.75rem"><div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-doc">Documento</label>
                 <select class="form-input" id="tc-doc">${documentos.map((d) => `<option value="${escapeHTML(d.id)}">${escapeHTML(d.titulo)}</option>`).join('')}</select></div>
                 <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-doc-papel">Papel</label><select class="form-input" id="tc-doc-papel">${Object.entries(PAPEIS_DOC).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
@@ -129,7 +129,7 @@ window.abrirAdicionarTerceiro = async function (projectId) {
             <div class="form-group"><label class="form-label" for="tc-cand-tipo">Tipo do terceiro</label>
             <select class="form-input" id="tc-cand-tipo">${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
             <button class="btn btn-primary" data-action="adicionarTerceiro" data-args='${args(projectId)}'>Adicionar</button>`
-            : '<p style="color:var(--text-dim)">Nenhuma parte para adicionar: as organizações do projeto já são terceiros.</p>'}
+            : window.renderEmptyState({ titulo: 'Nenhuma parte para adicionar: as organizações do projeto já são terceiros.', compacto: true })}
     `);
 };
 
@@ -185,7 +185,7 @@ function secaoHomologacao(projectId, parteId, homologacoes, editar) {
     return `<h4 style="margin:1.25rem 0 0.5rem">Homologação por questionário</h4>
         <div id="tc-homologacao">${homologacoes.length
             ? `<table class="data-table"><thead><tr><th>Criada em</th><th>Situação</th><th>Respondido</th><th>Link vale até</th><th>Resultado</th><th></th></tr></thead><tbody>${linhas}</tbody></table>`
-            : '<p style="color:var(--text-dim)">Nenhum questionário enviado.</p>'}
+            : window.renderEmptyState({ titulo: 'Nenhum questionário enviado.', compacto: true })}
         ${editar ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap; margin-top:0.75rem">
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-hm-dias">Link vale (dias)</label><input class="form-input" id="tc-hm-dias" type="number" min="1" max="60" value="15"></div>
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-hm-email">E-mail do fornecedor (opcional)</label><input class="form-input" id="tc-hm-email" type="email" maxlength="254"></div>

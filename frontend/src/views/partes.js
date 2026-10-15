@@ -119,7 +119,7 @@ window.openParteModal = async function (projectId, id) {
                 <option value="inativa" ${p.status === 'inativa' ? 'selected' : ''}>Inativa</option>
             </select></div>
         <div class="form-group"><label class="form-label">Papéis</label>
-            ${vinculos ? `<ul style="margin:0;padding-left:1.2rem">${vinculos}</ul>` : '<p style="color:var(--text-dim);margin:0">Nenhum papel registrado.</p>'}</div>
+            ${vinculos ? `<ul style="margin:0;padding-left:1.2rem">${vinculos}</ul>` : window.renderEmptyState({ titulo: 'Nenhum papel registrado.', compacto: true })}</div>
         ${editar ? `<button class="btn btn-primary" style="width:100%" data-action="salvarParte" data-args='["${projectId}","${escapeHTML(p.id)}"]'>Salvar</button>` : ''}
     `);
 };

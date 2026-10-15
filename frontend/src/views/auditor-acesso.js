@@ -26,7 +26,7 @@ async function listar(el, projectId) {
         return;
     }
     if (!tokens.length) {
-        el.innerHTML = '<p class="text-muted">Nenhum link válido agora.</p>';
+        el.innerHTML = window.renderEmptyState({ titulo: 'Nenhum link válido agora.', compacto: true });
         return;
     }
     el.innerHTML = window.renderDataTable(

@@ -204,7 +204,7 @@ window.localizarDadosDoTitular = async function (projectId, id) {
         const r = await api('GET', `/api/v1/projects/${projectId}/data-subject?identificador=${encodeURIComponent(p.titular_contato)}`);
         painelDados(r.encontrado
             ? `<p>${escapeHTML(String(r.total_registros))} registro(s) em ${escapeHTML(String(lista(r.ocorrencias).length))} tabela(s): ${lista(r.ocorrencias).map((o) => escapeHTML(o.tabela)).join(', ')}.</p>`
-            : '<p>Nenhum registro encontrado para este contato neste projeto.</p>');
+            : window.renderEmptyState({ titulo: 'Nenhum registro encontrado para este contato neste projeto.', compacto: true }));
     } catch (e) { falha(e, 'Não foi possível localizar os dados'); }
 };
 
