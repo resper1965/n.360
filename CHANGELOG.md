@@ -12,6 +12,15 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (a atividade de tratamento como um fluxo, onda 2 do diagnóstico de 15/10, sem migration)
+- **Página da atividade (n.privacy)**: "Abrir" na linha do RoPA leva a uma página com a trilha de cinco etapas (Dados da atividade, Teste de impacto, RIPD ou LIA, Riscos e ações, Aprovação), o estado escrito de cada uma (feito, pendente, não se aplica, mudou depois da aprovação, aguardando decisão) e o próximo passo como a única ação primária. Riscos, ações e LIA usam os formulários de sempre; o modal de ligações ficou só com as ligações. O Painel (ações por prazo) e o mapa de risco também abrem a página.
+- **Grava e continua**: a atividade nova, ao gravar a entrevista, segue para o ciclo de vida e termina na página da atividade, sem voltar ao inventário e reabrir.
+- **Nunca perguntar de novo**: o teste de impacto chega com o que a atividade já responde (dados sensíveis, crianças, transferência internacional e legítimo interesse), marcado "Vindo da atividade: confira" até a pessoa salvar; nada é gravado nem muda a regra de recomendação. A entrevista não pergunta mais quantas pessoas, decisão automática nem impacto de vazamento, que só alimentavam uma segunda recomendação de RIPD; fica uma só, a do servidor, com os motivos em português.
+
+### Mudado
+- **Uma aprovação só**: no n.privacy a aprovação da atividade é o pedido de aprovação, na etapa 5 (quem aprovou, quando, se a atividade mudou depois, se há pedido aguardando). O modal Detalhes perde a assinatura direta "Líder SGSI e Direção" (o n.iso a mantém; o `POST .../approve` continua no servidor e a assinatura antiga gravada continua valendo). `GET .../ropa/:rid/ligacoes` passa a trazer `aprovacao_anterior` e `pedidos_abertos`.
+- Vocabulário do n.privacy nas telas tocadas: "RIPD" no lugar de "DPIA", o papel do pedido como encarregado (DPO), títulos iguais aos do menu ("Tratamentos (RoPA)", "RIPD").
+
 ### Corrigido (telas confiáveis, onda 1 do diagnóstico de 15/10, sem migration)
 - **Erro nunca vira vazio**: falha de carga mostra o estado de erro único (`renderErrorState`/`falhaDeCarga` em `frontend/src/ui.js`) com "Tentar de novo", sem o vazio ("Nenhum risco registrado") e sem o "Novo…" do cabeçalho. Vale para Riscos, Ativos, Evidências, Controles, Fornecedores, Treinamento, CAPA, Auditorias, Monitor, Carteira, Certificação, Métricas, Governança, Contexto, Partes interessadas, Análise crítica, Gestão e Ciência de políticas, RoPA, RIPD, Terceiros, Titular (pedidos, incidentes, consentimentos, prazos), Partes, Documentos, Requisitos, Painel, Usuários, Trilha, Chaves de API, Leads, Levantamentos, Comercial, Projetos, Jornada e Importação. Com 403, o erro diz que o acesso não alcança e não oferece tentar de novo. O selo do menu do n.privacy mostra "?" na falha em vez de sumir.
 - **Mensagens de erro para quem usa**: `api()` não mostra mais caminho de API, código HTTP nem "Unauthorized"/"API Error"; o detalhe técnico vai para o console e o erro leva `codigo` (`rede`, `tempo`, `formato`, `sessao`, `cancelado`). Logout em 401 e as isenções (MFA, troca de senha, aprovação) seguem iguais.
