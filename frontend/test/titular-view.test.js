@@ -56,9 +56,9 @@ describe('abas', () => {
     it('mostra as quatro abas e abre em Pedidos; trocar de aba guarda a escolha e redesenha', async () => {
         await abrir(undefined);
         const abas = [...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')];
-        // contagem nas abas, com o atrasado em --danger; role=tab e a ativa marcada por aria-selected (sem preenchimento)
+        // contagem nas abas, com o atrasado em --danger-ink (texto); role=tab e a ativa marcada por aria-selected (sem preenchimento)
         expect(abas.map((b) => b.textContent)).toEqual(['Pedidos do titular (3 · 1 atrasado)', 'Incidentes (1 · 1 atrasado)', 'Consentimentos', 'Prazos legais']);
-        expect(abas[1].querySelector('span span').getAttribute('style')).toContain('var(--danger)');
+        expect(abas[1].querySelector('span span').getAttribute('style')).toContain('var(--danger-ink)');
         expect(el('c').querySelector('[role="tablist"]')).not.toBeNull();
         expect(abas.map((b) => b.getAttribute('role'))).toEqual(['tab', 'tab', 'tab', 'tab']);
         expect(abas.map((b) => b.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false']);
@@ -218,7 +218,7 @@ describe('incidentes', () => {
             servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } })); // atrasado
             await window.abrirIncidente('p9', 'i1');
             expect(el('in-faixa-anpd').textContent).toContain('Comunicação à ANPD atrasada: o prazo era 04/10');
-            expect(el('in-faixa-anpd').getAttribute('style')).toContain('var(--danger)');
+            expect(el('in-faixa-anpd').getAttribute('style')).toContain('var(--danger-ink)');
             servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], comunicacao_anpd_em: '2026-10-03T09:00:00Z', situacao_anpd: 'comunicado' } }));
             await window.abrirIncidente('p9', 'i1');
             expect(el('in-faixa-anpd').textContent).toContain('Comunicado à ANPD em 03/10, dentro do prazo.');

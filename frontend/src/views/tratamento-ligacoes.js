@@ -182,7 +182,7 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
                <button class="btn btn-sm" style="margin-top:0.5rem" data-action="salvarDepartamentosTratamento" data-args='${args(projectId, ropaId)}'>Salvar departamentos</button>`
             : `<p id="tl-deptos">${tabelaDeptos}</p>`)}
         ${secao('Partes', `<div id="tl-partes">
-            ${lista(lig.terceiros_com_avaliacao_vencida).length ? `<p id="tl-vencidos" style="color:var(--danger)">Avaliação vencida: ${lista(lig.terceiros_com_avaliacao_vencida).map((x) => escapeHTML(x.nome)).join(', ')}. Renove na tela Terceiros.</p>` : ''}
+            ${lista(lig.terceiros_com_avaliacao_vencida).length ? `<p id="tl-vencidos" style="color:var(--danger-ink)">Avaliação vencida: ${lista(lig.terceiros_com_avaliacao_vencida).map((x) => escapeHTML(x.nome)).join(', ')}. Renove na tela Terceiros.</p>` : ''}
             ${lig.partes.length ? `<table class="data-table"><thead><tr><th>Parte</th><th>Papel</th><th></th></tr></thead><tbody>${lig.partes.map((p) =>
                 `<tr><td>${escapeHTML(p.nome)}</td><td>${escapeHTML(PAPEIS_PARTE[p.papel] || p.papel)}</td><td style="text-align:right">${editar
                     ? `<button class="btn btn-ghost btn-sm" data-action="removerParteTratamento" data-args='${args(projectId, ropaId, p.parte_id, p.vinculo_id)}'>Remover</button>` : ''}</td></tr>`).join('')}</tbody></table>`
@@ -242,7 +242,7 @@ window.apagarRiscoAtividade = function (projectId, ropaId, id, confirmado) {
         return acao(projectId, ropaId, () => api('DELETE', `/api/v1/projects/${projectId}/ropa/${ropaId}/riscos/${id}`), 'Não foi possível apagar o risco', 'Risco apagado.');
     }
     const lugar = [...document.querySelectorAll('[data-apagar-risco]')].find((n) => n.getAttribute('data-apagar-risco') === id);
-    if (lugar) lugar.innerHTML = `<button class="btn btn-sm" style="color:var(--danger)" data-action="apagarRiscoAtividade" data-args='${args(projectId, ropaId, id, true)}'>Confirmar exclusão</button>`;
+    if (lugar) lugar.innerHTML = `<button class="btn btn-sm" style="color:var(--danger-ink)" data-action="apagarRiscoAtividade" data-args='${args(projectId, ropaId, id, true)}'>Confirmar exclusão</button>`;
 };
 
 window.salvarAcaoAtividade = function (projectId, ropaId) {
@@ -276,7 +276,7 @@ window.apagarAcaoAtividade = function (projectId, ropaId, id, confirmado) {
         return acao(projectId, ropaId, () => api('DELETE', `/api/v1/projects/${projectId}/ropa/${ropaId}/acoes/${id}`), 'Não foi possível apagar a ação', 'Ação apagada.');
     }
     const lugar = [...document.querySelectorAll('[data-apagar-acao]')].find((n) => n.getAttribute('data-apagar-acao') === id);
-    if (lugar) lugar.innerHTML = `<button class="btn btn-sm" style="color:var(--danger)" data-action="apagarAcaoAtividade" data-args='${args(projectId, ropaId, id, true)}'>Confirmar exclusão</button>`;
+    if (lugar) lugar.innerHTML = `<button class="btn btn-sm" style="color:var(--danger-ink)" data-action="apagarAcaoAtividade" data-args='${args(projectId, ropaId, id, true)}'>Confirmar exclusão</button>`;
 };
 
 const marcadosDe = (tipo) => [...document.querySelectorAll(`input[data-tl="${tipo}"]:checked`)].map((i) => i.value);

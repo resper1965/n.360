@@ -36,7 +36,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
 
             let html = `
                 <div class="fade-in" style="max-width:800px; margin:0 auto; padding:2rem 0">
-                    <h2 style="font-family:var(--font-head); font-weight:700; font-size:2rem; margin-bottom:0.5rem; color:var(--text)">Bem-vindo ao n.iso</h2>
+                    <h2 style="font-family:var(--font-head); font-weight:600; font-size:2rem; margin-bottom:0.5rem; color:var(--text)">Bem-vindo ao n.iso</h2>
                     <p style="color:var(--text-dim); font-size:0.95rem; margin-bottom:2.5rem">Seu ambiente de governança de segurança da informação (SGSI) está em fase de preparação.</p>
                     <div style="display:flex; flex-direction:column; gap:1.5rem">
                         <div class="card" style="padding:1.5rem; display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02)">

@@ -195,7 +195,7 @@ function barraAlta(itens) {
     return alta ? `<button class="btn btn-ghost btn-sm" style="margin-bottom:0.75rem" data-action="importacaoAceitarAlta"${E.ocupado ? ' disabled' : ''}>Aceitar os ${alta} de confiança alta (revise antes de confirmar)</button>` : '';
 }
 // Origem, motivo e ações de um item, iguais nas duas abas.
-const rodapeItem = (i) => `${i.origem ? `<details><summary>Origem</summary><div style="white-space:pre-wrap;color:var(--text-dim)">${e(i.origem)}</div></details>` : ''}${i.motivo ? `<div style="color:var(--danger)">${e(i.motivo)}</div>` : ''}`;
+const rodapeItem = (i) => `${i.origem ? `<details><summary>Origem</summary><div style="white-space:pre-wrap;color:var(--text-dim)">${e(i.origem)}</div></details>` : ''}${i.motivo ? `<div style="color:var(--danger-ink)">${e(i.motivo)}</div>` : ''}`;
 const acoesItem = (i, ativo) => (!ativo || i.decisao === 'gravado' ? '' : `
             <button class="btn btn-ghost btn-sm" data-action="importacaoEditar" data-args='${args(i.id)}'>Editar</button>
             ${i.decisao !== 'aceito' && i.decisao !== 'recusado' ? `<button class="btn btn-ghost btn-sm" data-action="importacaoDecidir" data-args='${args(i.id, 'aceito')}'>Aceitar</button>` : ''}
@@ -477,7 +477,7 @@ window.importacaoEditar = function (iid) {
     openModal(`
         <div class="modal-header"><span class="modal-title">Editar tratamento</span></div>
         ${CAMPOS.map(campo).join('')}${tri('transferencia_internacional', 'Transferência internacional')}${tri('dpia_requerido', 'DPIA requerido')}${LISTAS.map(lista).join('')}
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(iid)}'>Salvar</button>`);
 };
 
@@ -494,7 +494,7 @@ function editarTerceiro(i) {
         ${opcoes('aval_resultado', 'Resultado da última avaliação', RESULTADO, av.resultado)}
         <div class="form-group"><label class="form-label" for="imp-aval_valido_ate">Avaliação válida até</label><input type="date" class="form-input" id="imp-aval_valido_ate" value="${e(av.valido_ate)}"></div>
         <div class="form-group"><label class="form-label" for="imp-aval_metodo">Método da avaliação (como está no arquivo)</label><input class="form-input" id="imp-aval_metodo" value="${e(av.metodo)}" maxlength="100"></div>
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 
@@ -506,7 +506,7 @@ function editarDocumento(i) {
         <div class="form-group"><label class="form-label" for="imp-titulo">Título</label><input class="form-input" id="imp-titulo" value="${e(d.titulo)}" maxlength="300"></div>
         ${opcoes('tipo', 'Tipo', TIPO_DOCUMENTO, d.tipo)}
         <div class="form-group"><label class="form-label" for="imp-resumo">Resumo</label><textarea class="form-input" id="imp-resumo" maxlength="2000" rows="3">${e(d.resumo)}</textarea></div>
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 
@@ -519,7 +519,7 @@ function editarAvaliacao(i) {
         <div class="form-group"><label class="form-label" for="imp-riscos">Riscos (um por linha)</label><textarea class="form-input" id="imp-riscos" rows="4">${e((d.riscos || []).join('\n'))}</textarea></div>
         ${(SECOES_AVALIACAO[entidade(i)] || []).map(([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><textarea class="form-input" id="imp-${k}" maxlength="2000" rows="2">${e(d[k])}</textarea></div>`).join('')}
         ${entidade(i) === 'dpia' ? opcoes('risco_residual', 'Risco residual', RESIDUAL, d.risco_residual) : ''}
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 
@@ -547,7 +547,7 @@ function editarHistorico(i) {
         <div class="modal-header"><span class="modal-title">Editar ${e((HISTORICO[entidade(i)] || '').toLowerCase())}</span></div>
         ${f.textos.map(texto).join('')}${f.selects.map(([k, r, mapa]) => opcoes(k, r, mapa, d[k])).join('')}${f.datas.map(data).join('')}
         ${d.titular_ref ? `<p style="color:var(--text-dim)">Titular (pseudônimo): ${e(d.titular_ref)}</p>` : ''}
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 
@@ -573,7 +573,7 @@ function editarF6(i) {
     openModal(`
         <div class="modal-header"><span class="modal-title">Editar ${e(tipo.toLowerCase())}</span></div>
         ${FORM_F6[entidade(i)].map(campo).join('')}
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 function dadosF6(i, v) {

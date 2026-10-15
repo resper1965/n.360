@@ -86,7 +86,7 @@ window.viewEvidence = async function viewEvidence(id) {
                     <div style="background: rgba(0, 173, 232, 0.02); border: 1px solid rgba(0, 173, 232, 0.15); padding: 1rem; margin-top: 1rem;">
                         <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.4rem; margin-bottom: 0.5rem;">
                             <div style="width: 6px; height: 6px; background: var(--accent);"></div>
-                            <span style="font-family: 'Montserrat', sans-serif; font-size: 0.65rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em;">Selo de Assinatura da Evidência</span>
+                            <span style="font-family: 'Montserrat', sans-serif; font-size:var(--fs-xs); font-weight:600; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em;">Selo de Assinatura da Evidência</span>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px;">
                             <div><strong>DPO:</strong> <span style="color: ${ev.ciso_approved_by ? 'var(--success)' : 'var(--text-dim)'}">${cisoText}</span></div>
@@ -98,7 +98,7 @@ window.viewEvidence = async function viewEvidence(id) {
 
             const html = `
                 <div style="padding: 1.5rem">
-                    <h2 style="font-family:'Montserrat',sans-serif; font-weight:700; color:var(--accent); font-size:1.2rem; margin-bottom:0.5rem">Detalhes da Evidência</h2>
+                    <h2 style="font-family:'Montserrat',sans-serif; font-weight:600; color:var(--accent); font-size:1.2rem; margin-bottom:0.5rem">Detalhes da Evidência</h2>
                     <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Arquivo:</strong> ${escapeHTML(fileName)}</p>
                     <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Hash SHA-256:</strong> <code style="word-break: break-all">${escapeHTML(ev.file_hash || ev.sha256_hash || '')}</code></p>
                     <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Data de Envio:</strong> ${formatarData(ev.created_at, { hora: true })}</p>
@@ -861,7 +861,7 @@ window.openSessionTrail = async function openSessionTrail() {
                                 <span style="flex-shrink:0">${badge(r.tipo || 'evento')}</span>
                                 <span style="flex:1;min-width:0;font-size:12.5px;color:var(--text-2);line-height:1.5">
                                     ${escapeHTML(r.descricao || '')}
-                                    <span style="display:block;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-top:2px">${escapeHTML(r.quando || '')}</span>
+                                    <span style="display:block;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px">${escapeHTML(r.quando || '')}</span>
                                 </span>
                             </div>`).join('')}
                     </div>`
@@ -1491,7 +1491,7 @@ function renderLegalAcceptCard() {
                        data-action-change="updateLegalAcceptButton">
                 <span style="font-size:12.5px;color:var(--text-2);line-height:1.5">
                     Li e aceito ${escapeHTML(d.title)}
-                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">${escapeHTML(d.version)}</span>
+                    <span style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-dim)">${escapeHTML(d.version)}</span>
                     ${d.url ? `<br><a href="${escapeHTML(d.url)}" target="_blank" rel="noopener" class="login-link">ler o documento</a>` : ''}
                 </span>
             </label>`).join('');
@@ -1819,16 +1819,16 @@ window.refreshDoDDrawer = function() {
                                 <div class="list-item" style="display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border);">
                                     <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; width: 100%;">
                                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                                            <span class="badge-cat ${item.category}" style="align-self: flex-start; font-size: 0.6rem; font-weight: 500;">${item.category.toUpperCase()}</span>
+                                            <span class="badge-cat ${item.category}" style="align-self: flex-start; font-size:var(--fs-xs); font-weight: 500;">${item.category.toUpperCase()}</span>
                                             <span class="item-name" style="font-size: 0.8rem; color: var(--text); font-weight: 400;">${escapeHTML(item.text)}</span>
                                         </div>
                                     </div>
                                     <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem; width: 100%;">
                                         ${(item.category === 'evidence' || item.category === 'document') ? `
-                                            <button class="btn" style="flex: 1; padding: 0.4rem 0.8rem; font-size: 0.65rem;" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Enviar</button>
+                                            <button class="btn" style="flex: 1; padding: 0.4rem 0.8rem; font-size:var(--fs-xs);" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Enviar</button>
                                         ` : ''}
                                         ${item.category === 'document' ? `
-                                            <button class="btn btn-primary" style="flex: 1; padding: 0.4rem 0.8rem; font-size: 0.65rem;" data-action="openGeneratePolicyModal" data-args='["${projectId}","${controlId}"]'>Gerar Política</button>
+                                            <button class="btn btn-primary" style="flex: 1; padding: 0.4rem 0.8rem; font-size:var(--fs-xs);" data-action="openGeneratePolicyModal" data-args='["${projectId}","${controlId}"]'>Gerar Política</button>
                                         ` : ''}
                                     </div>
                                 </div>
@@ -1944,7 +1944,7 @@ window.openScopeChangeModal = async function(projectId, projData) {
 
             <div style="margin-top:1.5rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem">
                 <h4 style="font-family:'Montserrat',sans-serif;font-size:0.7rem;color:var(--accent);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.05em">Histórico de Alterações de Escopo</h4>
-                <div style="font-size:0.65rem; color:var(--text-dim); max-height:100px; overflow-y:auto; line-height:1.4">
+                <div style="font-size:var(--fs-xs); color:var(--text-dim); max-height:100px; overflow-y:auto; line-height:1.4">
                     ${history.length ? history.map((c, i) => `
                         <div style="padding:0.3rem 0; border-bottom:1px dashed rgba(255,255,255,0.03)">
                             <strong>${escapeHTML(STATUS_ESCOPO[c.status] || c.status || 'Pendente')}</strong> (${formatarData(c.created_at)}) - Solicitado por: ${escapeHTML(c.requested_by)}<br>
@@ -2013,7 +2013,7 @@ window.renderSelfServiceAssessment = async function renderSelfServiceAssessment(
             // ponytail: reuse ASSESSMENT_BLOCKS from the main app
             const blocks = typeof ASSESSMENT_BLOCKS !== 'undefined' ? ASSESSMENT_BLOCKS : [];
             if (!blocks.length) {
-                c.innerHTML = '<div style="max-width:700px;margin:2rem auto;text-align:center;color:var(--danger)">Não foi possível carregar as perguntas do levantamento. Recarregue a página.</div>';
+                c.innerHTML = '<div style="max-width:700px;margin:2rem auto;text-align:center;color:var(--danger-ink)">Não foi possível carregar as perguntas do levantamento. Recarregue a página.</div>';
                 return;
             }
 
@@ -2026,7 +2026,7 @@ window.renderSelfServiceAssessment = async function renderSelfServiceAssessment(
         } catch(e) {
             c.innerHTML = `<div style="max-width:700px;margin:2rem auto;text-align:center">
                 <div class="logo" style="font-size:2rem;margin-bottom:1rem">n<span style="color:var(--accent)">.</span>ISO</div>
-                <div style="color:var(--danger)">${escapeHTML(e.message)}</div>
+                <div style="color:var(--danger-ink)">${escapeHTML(e.message)}</div>
             </div>`;
         }
     }
@@ -2043,7 +2043,7 @@ window.renderSelfServiceBlock = function renderSelfServiceBlock(c, blocks) {
             <div style="text-align:center;margin-bottom:2rem">
                 <div class="logo" style="font-size:1.5rem;margin-bottom:0.5rem">n<span style="color:var(--accent)">.</span>iso</div>
                 <div style="font-size:0.75rem;color:var(--muted)">Assessment Self-Service para ${escapeHTML(window._ssData.client_name)}</div>
-                <div style="margin-top:0.5rem;font-size:0.6rem;color:var(--muted)">Bloco ${idx + 1} de ${total}</div>
+                <div style="margin-top:0.5rem;font-size:var(--fs-xs);color:var(--muted)">Bloco ${idx + 1} de ${total}</div>
                 <div style="height:4px;background:rgba(255,255,255,0.1);margin-top:0.75rem">
                     <div style="width:100%;height:100%;background:var(--accent);transform-origin:left;transform:scaleX(${((idx + 1) / total).toFixed(3)});transition:transform 0.3s"></div>
                 </div>

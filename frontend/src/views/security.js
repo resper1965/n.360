@@ -27,7 +27,7 @@ function qrDataUri(texto) {
 const CAIXA = 'padding:1.5rem;max-width:420px';
 const TITULO = "font-family:'Montserrat',sans-serif;margin-bottom:0.5rem";
 const AJUDA = 'font-size:0.75rem;color:var(--text-dim);line-height:1.5;margin-bottom:1.25rem';
-const ERRO = 'color:var(--danger);font-size:0.75rem;margin-top:0.75rem;min-height:1rem';
+const ERRO = 'color:var(--danger-ink);font-size:0.75rem;margin-top:0.75rem;min-height:1rem';
 
 function mostraErro(id, msg) {
   const el = document.getElementById(id);
@@ -218,7 +218,7 @@ function telaAtivo(restantes) {
     <p style="font-size:0.8rem;color:var(--success);margin-bottom:1rem">● Ativa</p>
     <p style="${AJUDA}">
       Códigos de recuperação restantes: <strong>${restantes ?? 0}</strong>.
-      ${poucos ? '<br><span style="color:var(--danger)">Estão acabando. Desative e ative de novo para gerar uma lista nova.</span>' : ''}
+      ${poucos ? '<br><span style="color:var(--danger-ink)">Estão acabando. Desative e ative de novo para gerar uma lista nova.</span>' : ''}
     </p>
     <div class="form-group">
       <label class="form-label">Para desativar, confirme sua senha</label>

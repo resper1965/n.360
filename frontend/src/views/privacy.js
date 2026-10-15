@@ -287,7 +287,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                     ${r.status==='Approved' ? '<option value="Approved" selected>Aprovado (para reabrir, revogue a aprovação)</option>' : opcoesStatus(STATUS_ROPA, r.status || 'Active')}
                 </select></div>
             <div style="display:flex;gap:0.5rem;justify-content:space-between;margin-top:1rem">
-                <button class="btn" style="color:var(--danger)" data-action="deleteROPA" data-args='["${id}"]'>Excluir</button>
+                <button class="btn" style="color:var(--danger-ink)" data-action="deleteROPA" data-args='["${id}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateROPA" data-args='["${id}"]'>Salvar</button>
             </div>
         `);
@@ -575,7 +575,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                 </select></div>
 
             <div style="display:flex; gap:0.5rem; justify-content:space-between; margin-top:1.5rem">
-                <button class="btn" style="color:var(--danger)" data-action="deleteDPIA" data-args='["${id}"]'>Excluir</button>
+                <button class="btn" style="color:var(--danger-ink)" data-action="deleteDPIA" data-args='["${id}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateDPIA" data-args='["${id}"]'>Salvar</button>
             </div>
         `);

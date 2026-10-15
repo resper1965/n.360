@@ -283,7 +283,7 @@ export function renderStatCards(statsArray) {
         return `
             <div class="stat-card" style="background:var(--surface); border:1px solid var(--border); padding:1.25rem; flex:1; min-width:200px;">
                 <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); margin-bottom:0.5rem; font-weight:500;">${escapeHTML(s.label)}</div>
-                <div style="font-size:1.75rem; font-weight:700; color:${color}; font-family:'Inter',sans-serif; line-height:1.2;">${escapeHTML(String(s.value))}</div>
+                <div style="font-size:1.75rem; font-weight:600; color:${color}; font-family:'Inter',sans-serif; line-height:1.2;">${escapeHTML(String(s.value))}</div>
                 ${s.subtext ? `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:0.4rem;">${escapeHTML(s.subtext)}</div>` : ''}
             </div>
         `;
@@ -475,7 +475,7 @@ export function renderDataTable(columns, rows, options = {}) {
     // vira buraco transparente no cabeçalho fixo.
     const ths = cols.map(c => {
         const sorted = c.sort ? ` aria-sort="${escapeHTML(c.sort)}"` : '';
-        return `<th scope="col"${sorted} style="text-align:${c.align}; position:sticky; top:0; z-index:3; background:var(--bg); padding:14px 10px 10px; color:var(--text-faint); font:500 9px/1 var(--font-mono); text-transform:uppercase; letter-spacing:0.16em; border-bottom:1px solid var(--border);${numCell(c)}">${escapeHTML(c.label)}</th>`;
+        return `<th scope="col"${sorted} style="text-align:${c.align}; position:sticky; top:0; z-index:3; background:var(--bg); padding:14px 10px 10px; color:var(--text-faint); font:500 var(--fs-xs)/1 var(--font-mono); text-transform:uppercase; letter-spacing:0.16em; border-bottom:1px solid var(--border);${numCell(c)}">${escapeHTML(c.label)}</th>`;
     }).join('');
 
     const pad = options.dense ? '7px 10px' : '12px 10px';

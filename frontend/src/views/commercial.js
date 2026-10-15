@@ -189,7 +189,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
 
     async function openLeadDetail(id) {
         const l = await api('GET', '/api/v1/leads/' + id);
-        const cnpjBadge = l.cnpj_fetched_at ? '<span style="display:inline-block;padding:2px 8px;font-size:0.75rem;font-weight:600;background:rgba(0,173,232,0.12);color:var(--accent);margin-left:0.5rem">CNPJ Verificado</span>' : '';
+        const cnpjBadge = l.cnpj_fetched_at ? ` ${window.renderStatusBadge('CNPJ verificado', 'success')}` : '';
         const cnpjInfo = l.razao_social ? `
             <div style="margin:1rem 0;padding:1rem;background:var(--surface);border:1px solid var(--border);">
                 <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem">Dados Receita Federal</div>
@@ -400,7 +400,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
                             <div class="wizard-footer" style="margin-top:0; padding-top:1.5rem">
                                 <button class="btn" data-action="goToBlock" data-args='[${S.currentBlock - 1}]' ${S.currentBlock === 1 ? 'style="display:none"' : ''}>Anterior</button>
                                 <div style="margin-left:auto; display:flex; gap:0.5rem">
-                                    <button class="btn btn-primary" data-action="goToBlock" data-args='[${S.currentBlock + 1}]' style="padding: 0.75rem 2.5rem; font-size: 0.75rem; box-shadow: 0 4px 15px rgba(0,173,232,0.3)">${S.currentBlock === ASSESSMENT_BLOCKS.length ? 'Gravar e Finalizar' : 'Gravar e Continuar'}</button>
+                                    <button class="btn btn-primary" data-action="goToBlock" data-args='[${S.currentBlock + 1}]' style="padding: 0.75rem 2.5rem; font-size: 0.75rem">${S.currentBlock === ASSESSMENT_BLOCKS.length ? 'Gravar e Finalizar' : 'Gravar e Continuar'}</button>
                                 </div>
                             </div>
                         </div>

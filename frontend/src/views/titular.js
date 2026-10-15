@@ -64,7 +64,7 @@ async function renderTitular(c, h, a) {
         soIncidentes() ? [] : ler(api('GET', `/api/v1/projects/${proj.id}/titular-pedidos`)),
         ler(api('GET', `/api/v1/projects/${proj.id}/incidentes`)),
     ]);
-    const contagem = (l, atrasados) => (l && l.length ? ` (${l.length}${atrasados ? ` · <span style="color:var(--danger)">${atrasados} ${atrasados === 1 ? 'atrasado' : 'atrasados'}</span>` : ''})` : '');
+    const contagem = (l, atrasados) => (l && l.length ? ` (${l.length}${atrasados ? ` · <span style="color:var(--danger-ink)">${atrasados} ${atrasados === 1 ? 'atrasado' : 'atrasados'}</span>` : ''})` : '');
     const rotulos = {
         pedidos: contagem(pedidos, (pedidos || []).filter((p) => p.situacao_prazo === 'atrasado').length),
         incidentes: contagem(incidentes, (incidentes || []).filter((i) => i.status !== 'encerrado' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado')).length),
@@ -275,7 +275,7 @@ function diasUteisAte(prazo) {
 }
 /** Faixa fixa do topo do incidente: o prazo da ANPD em contagem, ou a confirmação de que foi comunicado. */
 function faixaAnpd(i) {
-    const faixa = (cor, texto) => `<div id="in-faixa-anpd" role="status" style="position:sticky; top:0; z-index:2; background:var(--surface); border:1px solid ${cor}; color:${cor}; padding:0.6rem 0.9rem; margin:0 0 1rem; font-weight:600">${escapeHTML(texto)}</div>`;
+    const faixa = (cor, texto) => `<div id="in-faixa-anpd" role="status" style="position:sticky; top:0; z-index:2; background:var(--surface); border:1px solid ${cor}; color:${cor.replace(/var\(--(danger|warning)\)/, 'var(--$1-ink)')}; padding:0.6rem 0.9rem; margin:0 0 1rem; font-weight:600">${escapeHTML(texto)}</div>`;
     if (i.comunicacao_anpd_em) {
         const noPrazo = !i.prazo_anpd_em || String(i.comunicacao_anpd_em).slice(0, 10) <= String(i.prazo_anpd_em).slice(0, 10);
         return faixa('var(--text-2)', `Comunicado à ANPD em ${diaMes(i.comunicacao_anpd_em)}, ${noPrazo ? 'dentro do prazo' : 'fora do prazo'}.`);
@@ -332,7 +332,7 @@ window.pedirEncerramentoIncidente = function (projectId, id, semPendenciaAnpd) {
         ? 'Encerrar o incidente? Depois de encerrado, ele não recebe mais avaliação nem comunicação.'
         : 'A ANPD ainda não foi comunicada. Encerrar mesmo assim?'}</p>
         <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem">
-            <button class="btn btn-sm" style="color:var(--danger)" data-action="encerrarIncidente" data-args='${args(projectId, id)}'>Confirmar encerramento</button>
+            <button class="btn btn-sm" style="color:var(--danger-ink)" data-action="encerrarIncidente" data-args='${args(projectId, id)}'>Confirmar encerramento</button>
             <button class="btn btn-ghost btn-sm" data-action="cancelarEncerramentoIncidente">Cancelar</button>
         </div>`;
 };

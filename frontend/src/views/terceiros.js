@@ -40,7 +40,7 @@ async function renderTerceiros(c, h, a) {
     let terceiros = [];
     try { terceiros = lista(await api('GET', `/api/v1/projects/${proj.id}/terceiros`)); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os terceiros.', e); return; }
     const vencidos = terceiros.filter((t) => t.situacao === 'vencida').length;
-    const aviso = vencidos ? `<p style="color:var(--danger)">${escapeHTML(String(vencidos))} ${vencidos === 1 ? 'terceiro com avaliação vencida' : 'terceiros com avaliação vencida'}.</p>` : '';
+    const aviso = vencidos ? `<p style="color:var(--danger-ink)">${escapeHTML(String(vencidos))} ${vencidos === 1 ? 'terceiro com avaliação vencida' : 'terceiros com avaliação vencida'}.</p>` : '';
     // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
     const { itens: doFiltro, chip, filtrado } = filtrarDoPainel('terceiros', null, terceiros);
     const linhas = doFiltro.map((t) => {

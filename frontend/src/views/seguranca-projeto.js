@@ -65,14 +65,14 @@ async function renderSegurancaProjeto(c, h, a) {
                 <select class="form-input" id="sso-papel">${PAPEIS.map(([v, t]) => `<option value="${v}"${(s?.papel_padrao || 'org_user') === v ? ' selected' : ''}>${t}</option>`).join('')}</select>
             </div>
             <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem"><input type="checkbox" id="sso-ativo"${s?.ativo ? ' checked' : ''}> SSO ativo neste projeto</label>
-            <p id="sso-erro" role="alert" style="color:var(--danger);margin:0 0 .5rem"></p>
+            <p id="sso-erro" role="alert" style="color:var(--danger-ink);margin:0 0 .5rem"></p>
             <button class="btn btn-primary" data-action="salvarSsoProjeto">Salvar SSO</button>
         </section>
 
         <section class="card fade-in" aria-labelledby="scim-titulo" style="margin-bottom:1.5rem;padding:1.25rem">
             <h3 id="scim-titulo" style="margin:0 0 .25rem">Provisionamento (SCIM)</h3>
             <p class="form-hint" style="margin:0 0 1rem">Gerar um token novo invalida o anterior. O token aparece uma vez.</p>
-            <p id="scim-erro" role="alert" style="color:var(--danger);margin:0 0 .5rem"></p>
+            <p id="scim-erro" role="alert" style="color:var(--danger-ink);margin:0 0 .5rem"></p>
             <button class="btn btn-primary" data-action="gerarTokenScim">Gerar token SCIM</button>
             <div id="scim-novo" role="status" aria-live="polite"></div>
         </section>
@@ -86,7 +86,7 @@ async function renderSegurancaProjeto(c, h, a) {
                 <label class="form-label" for="pol-ips">IPs permitidos (IPv4 ou CIDR, separados por vírgula ou linha; vazio libera todos)</label>
                 <textarea class="form-input" id="pol-ips" rows="3">${e(ips)}</textarea>
             </div>
-            <p id="pol-erro" role="alert" style="color:var(--danger);margin:0 0 .5rem"></p>
+            <p id="pol-erro" role="alert" style="color:var(--danger-ink);margin:0 0 .5rem"></p>
             <button class="btn btn-primary" data-action="salvarPoliticaProjeto">Salvar política</button>
         </section>`;
 }

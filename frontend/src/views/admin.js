@@ -574,7 +574,7 @@ window.__adminCopiarApiKey = () => {
                             window.renderStatusBadge(k.status, active ? 'success' : 'info'),
                             escapeHTML(formatarData(k.last_used_at, { hora: true })),
                             escapeHTML(formatarData(k.created_at)),
-                            active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="revokeApiKey" data-args='["${k.id}"]'>Revogar</button>` : '',
+                            active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger-ink)" data-action="revokeApiKey" data-args='["${k.id}"]'>Revogar</button>` : '',
                         ];
                     }),
                     { emptyState: 'Nenhuma chave para este projeto.' }
@@ -638,7 +638,7 @@ window.__adminCopiarApiKey = () => {
             openModal(`
                 <div class="modal-header"><span class="modal-title">Chave criada</span><button class="btn-ghost" data-action="__adminFecharConcluir">Fechar</button></div>
                 <div style="padding:1.25rem 0;text-align:left">
-                    <p style="font-size:0.8rem;color:var(--danger);margin-bottom:0.75rem"><strong>Copie agora.</strong> Esta chave não será exibida novamente — só o hash é armazenado.</p>
+                    <p style="font-size:0.8rem;color:var(--danger-ink);margin-bottom:0.75rem"><strong>Copie agora.</strong> Esta chave não será exibida novamente — só o hash é armazenado.</p>
                     <div style="display:flex;gap:8px;align-items:center">
                         <input id="apikey-plain" class="form-input" readonly value="${escapeHTML(key)}" style="font-family:monospace;font-size:0.8rem">
                         <button class="btn" data-action="__adminCopiarApiKey">Copiar</button>
