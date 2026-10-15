@@ -93,7 +93,7 @@ describe('catracas do sistema visual', () => {
     });
 
     // Teto de style="" por arquivo, medido em 15/10/2026 depois da limpeza das quatro telas grandes (eram grc 309,
-    // monitor 279, compliance 251, project 189). Baixou? Baixe o teto aqui. Subiu? Use as classes do fim de style.css.
+    // monitor 242, compliance 248, project 174). Baixou? Baixe o teto aqui. Subiu? Use as classes do fim de style.css.
     const TETO_STYLE = {
         'src/globals.js': 109, 'src/produto.js': 4, 'src/ui.js': 11, 'src/views/admin.js': 45, 'src/views/ai.js': 9,
         'src/views/aprovacao-lote.js': 21, 'src/views/auditor-acesso.js': 11, 'src/views/commercial.js': 27, 'src/views/compliance.js': 98,
