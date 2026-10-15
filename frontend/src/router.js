@@ -1,5 +1,4 @@
 import { S } from './state.js';
-import { atualizarSelos } from './selos-menu.js';
 import { produtoAtual, TELAS_DO_HUB, moduloPara, enderecoNoModulo, irPara, abrirGrupo } from './produto.js';
 
 export     function navigate(view, data) {
@@ -8,6 +7,8 @@ export     function navigate(view, data) {
         if (isClient && (view === 'dashboard' || view === 'projects')) {
             targetView = 'project-detail';
         }
+        // O comercial não alcança projeto: a entrada dele no n.iso é a tela Comercial, não o painel do projeto.
+        if (S.user && S.user.role === 'comercial' && view === 'dashboard') targetView = 'comercial';
         const produto = produtoAtual();
         // O n.360 é o hub: tela de módulo leva ao módulo, na própria tela (`?tela=`, lido no boot dele); a dos dois módulos vai a um
         // que o projeto tem. Sem módulo para ela, fica no início do portal. Nada de tela de módulo desenhada dentro do portal.
@@ -53,8 +54,10 @@ export     function navigate(view, data) {
         const h = document.getElementById('header-title');
         const a = document.getElementById('header-actions');
         
+        // Entradas: o painel (views/painel.js) no n.360 (inicio), no n.iso (dashboard) e no n.privacy (encarregado).
         if (S.view === 'inicio') renderInicio(c, h, a);
         else if (S.view === 'dashboard') renderDashboard(c, h, a);
+        else if (S.view === 'comercial') renderComercial(c, h, a);
         else if (S.view === 'leads') renderLeads(c, h, a);
         else if (S.view === 'assessments') renderAssessments(c, h, a);
         else if (S.view === 'proposals') renderPropostas(c, h, a);  // o fluxo antigo (renderProposals) saiu na fatia 4
@@ -104,7 +107,6 @@ export     function navigate(view, data) {
         else if (S.view === 'management-review') renderManagementReview(c, h, a);
         updateActiveProjectWidget();
         updateHeaderUser();
-        if (S.view === 'encarregado') atualizarSelos(document, true);
     }
 
 window.navigate = navigate;

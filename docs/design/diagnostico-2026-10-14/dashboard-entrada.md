@@ -399,3 +399,31 @@ colunas.
    desenho.
 8. **Ordem:** fazer as fases 1 e 2 antes da F2 do legado (o painel não depende dela) ou depois (o mapa de risco do
    n.privacy já entra junto).
+
+## 10. Decisões adotadas (15/10/2026)
+
+O dono autorizou a Fase 0, a ordem "antes da F2" e a direção A. As demais não foram respondidas: valeu a recomendação deste
+estudo, implementada nas Fases 1 a 4, e cada uma se reverte no lugar indicado.
+
+| # | Decisão | O que foi feito | Onde reverter |
+|---|---|---|---|
+| 1 | Direção A, sem a linha de números sob a frase | Só a frase e a linha de apoio; os três números ficam nas linhas dos módulos do n.360 | `frontend/src/views/painel.js` (`saude`) |
+| 2 | Estados do programa | "Começando" (sem atividade nem controle avaliado), "Em implantação", "Em operação desde <mês>" (primeira aprovação de RoPA ou de controle da SoA) | `estadoDoPrograma` em `src/services/painel.ts` |
+| 3 | Regra da frase | Sua vez (só cliente com pedido para ele), Começando, Atrasado (pedido do titular, comunicação de incidente, ação, avaliação de terceiro), Atenção (até 7 dias ou pendência exigida), Em dia; projeto vazio nunca "Em dia" | `saudeDoProjeto` em `src/services/painel.ts` |
+| 4 | Consultor no n.360 | "Projeto \| Carteira"; a carteira é o padrão com mais de um projeto visível; a escolha fica no `localStorage` (`n360_vista`), lida e gravada em try/catch | `vistaDoN360` em `painel.js` |
+| 5 | Funil comercial | Saiu da entrada do n.iso para a tela "Comercial" (grupo Comercial, só para quem é do comercial); o papel comercial entra nela | `frontend/src/views/dashboard.js` (`renderComercial`) |
+| 6 | O que o cliente vê | "Esperando a sua decisão" e as linhas dos módulos; sem cobertura, mapa, vencimentos nem a lista da consultoria. A visão sai do servidor | `painelDoProjeto` (`quem.cliente`) |
+| 7 e 8 | Fase 0 e ordem | Já decididas | — |
+
+Desvios do estudo, com o motivo:
+
+- **Uma rota, faixa `nucleo`.** A faixa depende do `?modulo=`, que o middleware não lê; a rota faz a mesma recusa (projeto, depois
+  pessoa) e devolve o mesmo 403.
+- **Filtro nas telas de destino.** "Abrir" leva à tela e à aba certas (pedidos ou incidentes), mas as listas de destino não têm
+  filtro por situação; criar esse filtro em cada lista ficou para depois.
+- **Vencimentos.** O D1 recusa SELECT composto com mais de 5 termos, então a união vai em blocos de 4. A linha "Ações das
+  atividades" sai das faixas de prazo da F4 (`acoes_por_prazo`), e o modal das seis faixas continua a um clique ("Ações por prazo").
+- **Cliente no n.iso.** A entrada do cliente no n.iso continua sendo a Jornada (o roteador já o levava para lá e o item Painel é
+  escondido para cliente); o "Sua vez" aparece no n.360 e no n.privacy.
+- **Ponto de partida.** Ficou só no início do n.360, na coluna da direita, como o estudo pede; as entradas dos módulos não o chamam.
+

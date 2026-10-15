@@ -87,8 +87,17 @@ Cloudflare Workers (Hono) + D1 + KV + R2 + Workers AI. Frontend SPA
 Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 - **Backend**: `src/index.ts` e o composition root que monta os sub-routers de
-  dominio: **55 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
+  dominio: **56 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
   2026-10-15). A lista nominal envelhecia a cada PR; leia o diretorio.
+- **Painel de entrada** (estudo `docs/design/diagnostico-2026-10-14/dashboard-entrada.md`, direcao A; decisoes adotadas na secao 10
+  dele): `GET /api/v1/projects/:id/painel?modulo=iso|privacy` (sem `?modulo`, os modulos do projeto que a pessoa tem; faixa `nucleo`
+  com a mesma recusa de modulo feita na rota) e `GET /api/v1/carteira` (projetos de `projetosVisiveis`, consultas agrupadas; fora do
+  agente). A frase de saude e o estado do programa sao funcoes puras (`saudeDoProjeto`, `estadoDoPrograma` em `src/services/painel.ts`)
+  sobre a mesma lista de "O que fazer"; projeto vazio e "Comecando", nunca "Em dia". O cliente recebe so a frase, as linhas dos
+  modulos e `decisoes`. As `prioridades` da visao do encarregado ganharam `grupo`, `quando`, `contexto`, `acao` e `aba` (so campos
+  novos: o menu le as contagens). Tela: `frontend/src/views/painel.js` (+ `painel-graficos.js`), entrada do n.360 (`inicio`), do
+  n.iso (`dashboard`) e do n.privacy (`encarregado`); uma chamada por entrada, cache de 60 s em `S.painel`, selos do menu do
+  n.privacy vindos do proprio painel. O funil comercial e a tela `comercial` (`renderComercial`, `views/dashboard.js`).
 - **Pedidos de aprovacao/ciencia (acesso de stakeholders)**: tabelas `pedidos`
   (conteudo congelado + SHA-256) e `pedido_destinatarios` (a prova por pessoa).
   Regras em `src/services/pedidos.ts` (`podePedir`, `autoridadeNoPedido`,
@@ -126,7 +135,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 54 arquivos em 2026-10-15: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 55 arquivos em 2026-10-15: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -352,8 +361,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   lista de projetos), depois de a organizacao contratar. Ligar o `privacy` (de desligado a ligado) roda `importarPartes`,
   `conciliarResponsaveis` e `importarDocumentos` no projeto, cada uma em try/catch (falha vira `avisos` na resposta, o modulo fica
   ligado; `test/modulos-ligar-privacy.test.ts`). Desligar nao apaga dado. **Frontend (n.360, 11/10/2026):** o n.360 e a plataforma-mae e os dois produtos sao modulos dele; o CAMINHO decide a casca
-  (`frontend/src/produto.js`, `produtoAtual`): `/` e o inicio do n.360 (`views/inicio.js`, um cartao por modulo habilitado, "Abrir"
-  vai a `/iso` ou `/privacy`), `/iso*` a casca do n.iso, `/privacy*` a do n.privacy (o n.privacy abre em Encarregado). O servidor
+  (`frontend/src/produto.js`, `produtoAtual`): `/` e o inicio do n.360 (o painel de entrada, `views/painel.js`: uma linha por modulo
+  habilitado, "Abrir" vai a `/iso` ou `/privacy`), `/iso*` a casca do n.iso, `/privacy*` a do n.privacy (o n.privacy abre em Encarregado). O servidor
   entrega o mesmo `login.html` para qualquer um (catch-all). Quem tem um modulo so entra direto nele; equipe da ness. sem projeto
   vai ao n.iso; cliente sem projeto com modulo ve "sem acesso". Nos modulos a casca aplica marca, titulo e menu (`SO_ISO`,
   `SO_PRIVACY`) e filtra os projetos pelo produto. `destinoLegado` (async) leva quem abre `niso`/`nprivacy` ao modulo no `app_url` que o `/health` da mesma origem devolve; se
@@ -509,13 +518,13 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
 
-- **531 `any` em `src/`** (medido em 2026-10-14, fora `*.test.ts`:
+- **531 `any` em `src/`** (medido em 2026-10-15, fora `*.test.ts`:
   `git grep -ahoE ': any\b|as any\b|<any>' -- 'src/*.ts' ':!*.test.ts' | wc -l`).
   `tsc --noEmit` limpo diz pouco. Tipar o que voce tocar e melhoria barata; nao
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 275 arquivos de teste do backend mocka o D1 inteiro** (2026-10-15;
+- **Nenhum dos 276 arquivos de teste do backend mocka o D1 inteiro** (2026-10-15;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -527,11 +536,11 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~21,3 mil linhas de JS (2026-10-15)
+- **Frontend com pouco teste por linha.** ~21,7 mil linhas de JS (2026-10-15)
   (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 104 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
-  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 34 telas de `frontend/src/views/` sao
-  importadas por ao menos um teste (2026-10-14: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
+  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 35 telas de `frontend/src/views/` sao
+  importadas por ao menos um teste (2026-10-15: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
   nao imprime nada), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, `project.js`, todas acima de 1.400 linhas)
   tem teste so de fatias.
 - **6 leituras de corpo cruas em 4 arquivos** (2026-10-12: `git grep -n "c\.req\.json" -- 'src/routes/*.ts'`

@@ -66,22 +66,13 @@ const FAIXAS = [
     { faixa: 'mais_de_150', rotulo: 'Mais de 150 dias', total: 0, itens: [] },
     { faixa: 'sem_prazo', rotulo: 'Sem prazo', total: 1, itens: [] },
 ];
-const VISAO = (extra = {}) => ({
-    prioridades: [], pedidos_titular: {}, incidentes: {}, tratamentos: {}, terceiros: {}, documentos: {}, evidencias: {}, lgpd: { carregada: false },
-    prazos_legais: { nao_definidos: [] }, encarregados: [], ...extra,
-});
-
-describe('painel do encarregado: faixas de prazo das ações', () => {
-    async function abrir(visao) {
-        document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div><div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
-        dublar({ 'GET /api/v1/projects/p9/encarregado': visao, 'GET /api/v1/projects/p9/ponto-de-partida': {} });
-        await window.renderEncarregado(el('c'), el('h'), el('a'));
-    }
-
-    it('seis faixas clicáveis com a contagem; a faixa abre a lista escapada e exporta só ela', async () => {
-        await abrir(VISAO({ acoes_por_prazo: FAIXAS }));
-        const botoes = [...el('c').querySelectorAll('[data-action="abrirFaixaPrazo"]')];
-        expect(botoes.map((b) => b.textContent.replace(/\s+/g, ' ').trim())).toEqual(['2 Vencidas', '0 Até 30 dias', '0 31 a 90 dias', '0 91 a 150 dias', '0 Mais de 150 dias', '1 Sem prazo']);
+describe('painel do n.privacy: ações das atividades por faixa de prazo', () => {
+    it('as seis faixas, com a contagem, num modal; a faixa abre a lista escapada e exporta só ela', async () => {
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        window.guardarFaixasPrazo(FAIXAS);
+        window.abrirPrazosDasAcoes('p9');
+        const botoes = [...el('modal-content').querySelectorAll('[data-action="abrirFaixaPrazo"]')];
+        expect(botoes.map((b) => b.getAttribute('aria-label'))).toEqual(['Vencidas: 2 ações', 'Até 30 dias: 0 ações', '31 a 90 dias: 0 ações', '91 a 150 dias: 0 ações', 'Mais de 150 dias: 0 ações', 'Sem prazo: 1 ações']);
         window.abrirFaixaPrazo('p9', 'vencidas');
         const m = el('modal-content');
         expect(m.textContent).toContain('Revisar contrato');
@@ -97,9 +88,11 @@ describe('painel do encarregado: faixas de prazo das ações', () => {
         expect(f.mock.calls[1][0]).toMatch(/\/export\/acoes-atividade$/);
     });
 
-    it('servidor sem o bloco: sem a seção', async () => {
-        await abrir(VISAO());
-        expect(el('c').textContent).not.toContain('Prazos das ações');
+    it('Exportar do painel: cada lista pelo caminho autenticado', async () => {
+        const f = dublar();
+        for (const tipo of ['atividades', 'ripd', 'lia', 'riscos-atividade', 'acoes-atividade']) await window.painelBaixar('p9', tipo);
+        expect(f.mock.calls.map(([u]) => new URL(u, 'http://localhost').pathname)).toEqual(['atividades', 'ripd', 'lia', 'riscos-atividade', 'acoes-atividade'].map((t) => `/api/v1/projects/p9/export/${t}`));
+        expect(window.painelBaixar('p9', 'inventado')).toBeUndefined();
     });
 });
 

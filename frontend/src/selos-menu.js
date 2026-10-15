@@ -38,11 +38,29 @@ function mostrar(doc, id, quantos, atrasados, texto) {
 
 let rodada = 0;
 let feito = null; // projeto e pessoa dos selos já carregados: o menu redesenha a cada tela, a chamada não
+const chaveAtual = () => (S.activeProject && S.user ? `${S.activeProject.id}|${S.user.id || S.user.email || S.user.role}` : null);
+
+/**
+ * Os selos com os números que o painel de entrada já trouxe (`selos` de `GET /projects/:id/painel`): no Painel do n.privacy a
+ * visão do encarregado chega junto, sem a segunda chamada.
+ */
+export function aplicarSelos(v, doc = document) {
+    if (produtoAtual() !== 'privacy' || !v || typeof v !== 'object') return;
+    rodada += 1;
+    feito = chaveAtual();
+    SELOS(v).forEach(([id, q, atrasados, texto]) => mostrar(doc, id, q, atrasados, texto));
+}
 /** `forcar` recarrega mesmo para o mesmo projeto (ao voltar ao painel do Encarregado). */
 export async function atualizarSelos(doc = document, forcar = false) {
     const p = S.activeProject;
-    const chave = p && S.user ? `${p.id}|${S.user.id || S.user.email || S.user.role}` : null;
+    const chave = chaveAtual();
     if (!forcar && chave && chave === feito) return;
+    // No Painel, os números chegam com o painel (aplicarSelos): nada de segunda chamada. No boot o menu desenha antes de a tela
+    // ser escolhida, então a decisão espera a volta do laço de eventos.
+    if (!forcar) {
+        await new Promise((r) => setTimeout(r, 0));
+        if (S.view === 'encarregado') return;
+    }
     const eu = ++rodada;
     feito = null;
     const limpar = () => SELOS({}).forEach(([id]) => mostrar(doc, id, 0, 0, () => ''));

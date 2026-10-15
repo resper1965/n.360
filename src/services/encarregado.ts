@@ -12,7 +12,23 @@ import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO } from './riscos-ativida
  * ou faltando num projeto, numa chamada só. Bloco sem dado aparece zerado ou "não carregado", sem número inventado.
  */
 
-export type Prioridade = { nivel: 'alta' | 'media'; texto: string; tela: string };
+/**
+ * `nivel`, `texto` e `tela` são os de sempre (o menu e a tela antiga leem). Os campos seguintes vieram com o painel de entrada
+ * (estudo de 14/10/2026, direção A): `grupo` diz em que bloco de "O que fazer" o item cai (prazo vencido, nesta semana, para
+ * planejar), `quando` é o prazo escrito ("Venceu em 02/10", "Exigido"), `contexto` traz até dois exemplos, `acao` é o rótulo do
+ * botão e `aba`, quando há, a aba da tela de destino.
+ */
+export type Grupo = 'atraso' | 'semana' | 'plano';
+export type Prioridade = { nivel: 'alta' | 'media'; texto: string; tela: string; grupo: Grupo; quando: string; contexto: string; acao: string; aba?: string };
+type Extra = Omit<Prioridade, 'nivel' | 'texto' | 'tela'>;
+
+/** AAAA-MM-DD → DD/MM. */
+export const diaMes = (d: string | null | undefined) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '');
+/** Até dois exemplos, separados por vírgula; o resto vira "e mais N". */
+export const exemplos = (lista: (string | null | undefined)[]) => {
+  const v = lista.filter((x): x is string => !!x && !!String(x).trim());
+  return v.length <= 2 ? v.join(', ') : `${v.slice(0, 2).join(', ')} e mais ${v.length - 2}`;
+};
 
 const hoje = () => new Date().toISOString().slice(0, 10);
 const n = async (db: D1Database, sql: string, ...binds: unknown[]) => (await db.prepare(sql).bind(...binds).first<{ n: number }>())?.n ?? 0;
@@ -36,12 +52,12 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   // Tratamentos: contas que dependem de texto livre (legítimo interesse) são feitas aqui, sobre as poucas linhas do projeto.
   // Base legal (F3): a principal, uma adicional ou o texto do GDPR; qualquer uma de legítimo interesse pede a LIA.
   const { results: trat } = await db.prepare(
-    `SELECT r.id, r.legal_basis, r.base_legal_id, r.owner, r.owner_parte_id, r.dpia_required, q.titulo AS base_titulo,
+    `SELECT r.id, r.processing_purpose AS nome, r.legal_basis, r.base_legal_id, r.owner, r.owner_parte_id, r.dpia_required, q.titulo AS base_titulo,
             r.base_gdpr, ${SQL_TITULOS_ADICIONAIS} AS adicionais,
             EXISTS (SELECT 1 FROM dpia_assessments d WHERE d.ropa_id = r.id AND d.project_id = r.project_id) AS tem_dpia,
             EXISTS (SELECT 1 FROM lia_assessments l WHERE l.ropa_id = r.id AND l.project_id = r.project_id) AS tem_lia
        FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.project_id = ?`
-  ).bind(projectId).all<{ id: string; legal_basis: string | null; base_legal_id: string | null; owner: string | null; owner_parte_id: string | null; dpia_required: number | null; base_titulo: string | null; base_gdpr: string | null; adicionais: string | null; tem_dpia: number; tem_lia: number }>();
+  ).bind(projectId).all<{ id: string; nome: string; legal_basis: string | null; base_legal_id: string | null; owner: string | null; owner_parte_id: string | null; dpia_required: number | null; base_titulo: string | null; base_gdpr: string | null; adicionais: string | null; tem_dpia: number; tem_lia: number }>();
   const comTerceiroVencido = await n(db,
     `SELECT count(DISTINCT v.alvo_id) AS n FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
       WHERE v.project_id = ?1 AND v.alvo_tipo = 'tratamento' AND p.tipo = 'organizacao'
@@ -114,26 +130,49 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   };
 
   const prioridades: Prioridade[] = [];
-  const p = (nivel: Prioridade['nivel'], quantidade: number, texto: (q: number) => string, tela: string) => { if (quantidade > 0) prioridades.push({ nivel, texto: texto(quantidade), tela }); };
-  p('alta', encarregados.length ? 0 : 1, () => 'Nenhum encarregado indicado (LGPD, art. 41)', 'encarregado');
+  const p = (nivel: Prioridade['nivel'], quantidade: number, texto: (q: number) => string, tela: string, extra: Extra) => { if (quantidade > 0) prioridades.push({ nivel, texto: texto(quantidade), tela, ...extra }); };
+  const venceu = (datas: (string | null | undefined)[]) => { const d = datas.filter((x): x is string => !!x).map((x) => x.slice(0, 10)).sort()[0]; return d ? `Venceu em ${diaMes(d)}` : 'Vencido'; };
+  const atrasados = pedidosAbertos.filter((x) => x.situacao_prazo === 'atrasado');
+  const em7dias = pedidosAbertos.filter((x) => x.prazo_em && x.prazo_em.slice(0, 10) >= dia && x.prazo_em.slice(0, 10) <= em7);
+  const comAtraso = incidentesAbertos.filter((i) => i.risco_titular !== 'sem_risco' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado'));
+  const terceirosVencidos = terceiros.filter((t) => t.situacao === 'vencida');
+  const acoesVencidas = abertas.filter((a) => faixaDePrazo(a.due_date, dia) === 'vencidas');
+  const semBase = (t: (typeof trat)[number]) => !t.base_legal_id && !String(t.legal_basis ?? '').trim() && !t.adicionais && !String(t.base_gdpr ?? '').trim();
+  const exigido = (contexto: string, acao: string, aba?: string): Extra => ({ grupo: 'semana', quando: 'Exigido', contexto, acao, ...(aba ? { aba } : {}) });
+  const planejar = (contexto: string, acao: string): Extra => ({ grupo: 'plano', quando: 'Planejar', contexto, acao });
+  p('alta', encarregados.length ? 0 : 1, () => 'Nenhum encarregado indicado (LGPD, art. 41)', 'encarregado', exigido('A LGPD exige a indicação do encarregado', 'Indicar o encarregado'));
   // Projeto vazio não é projeto em dia: sem inventário e sem catálogo, a lista vazia afirmaria conformidade que ninguém verificou.
-  p('alta', tratamentos.total ? 0 : 1, () => 'Nenhum tratamento no RoPA (LGPD, art. 37)', 'ropa');
-  p('alta', secao.pedidos_titular.atrasados, (q) => `${q} ${q === 1 ? 'pedido do titular atrasado' : 'pedidos do titular atrasados'}`, 'titular');
-  p('alta', secao.incidentes.comunicacoes_atrasadas, (q) => `${q} ${q === 1 ? 'comunicação de incidente atrasada' : 'comunicações de incidente atrasadas'}`, 'titular');
-  p('alta', secao.incidentes.sem_avaliacao_de_risco, (q) => `${q} ${q === 1 ? 'incidente sem avaliação de risco' : 'incidentes sem avaliação de risco'}`, 'titular');
-  p('alta', secao.terceiros.vencidos, (q) => `${q} ${q === 1 ? 'terceiro com avaliação vencida' : 'terceiros com avaliação vencida'}`, 'terceiros');
-  p('alta', secao.tratamentos.dpia_pendente, (q) => `${q} ${q === 1 ? 'tratamento exige DPIA e não tem' : 'tratamentos exigem DPIA e não têm'}`, 'ropa');
-  p('alta', secao.tratamentos.lia_pendente, (q) => `${q} ${q === 1 ? 'tratamento por legítimo interesse sem LIA' : 'tratamentos por legítimo interesse sem LIA'}`, 'ropa');
-  p('alta', riscos.altos, (q) => `${q} ${q === 1 ? 'risco alto ou crítico em aberto nas atividades' : 'riscos altos ou críticos em aberto nas atividades'}`, 'mapa-de-risco');
-  p('alta', riscos.acoes_vencidas, (q) => `${q} ${q === 1 ? 'ação de atividade com prazo vencido' : 'ações de atividade com prazo vencido'}`, 'ropa');
-  p('media', secao.pedidos_titular.vencem_em_7_dias, (q) => `${q} ${q === 1 ? 'pedido do titular vence' : 'pedidos do titular vencem'} em até 7 dias`, 'titular');
-  p('media', secao.evidencias.vencidas, (q) => `${q} ${q === 1 ? 'evidência vencida' : 'evidências vencidas'}`, 'evidence');
-  p('media', secao.documentos.revisao_vencida, (q) => `${q} ${q === 1 ? 'documento com revisão vencida' : 'documentos com revisão vencida'}`, 'documentos');
-  p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'terceiro nunca avaliado' : 'terceiros nunca avaliados'}`, 'terceiros');
-  p('media', secao.tratamentos.sem_base_legal, (q) => `${q} ${q === 1 ? 'tratamento sem base legal' : 'tratamentos sem base legal'}`, 'ropa');
-  p('media', lgpdCarregada || cliente ? 0 : 1, () => 'Catálogo de requisitos LGPD não carregado', 'requisitos');
-  if (secao.lgpd.carregada) p('media', secao.lgpd.lacunas ?? 0, (q) => `${q} ${q === 1 ? 'requisito da LGPD sem cobertura' : 'requisitos da LGPD sem cobertura'}`, 'requisitos');
-  p('media', secao.prazos_legais.nao_definidos.length, (q) => `${q} ${q === 1 ? 'prazo legal ainda não cadastrado' : 'prazos legais ainda não cadastrados'} (os prazos ficam "não calculados")`, 'titular');
+  p('alta', tratamentos.total ? 0 : 1, () => 'Nenhum tratamento no RoPA (LGPD, art. 37)', 'ropa', exigido('Importe o programa que já existe ou cadastre a primeira atividade', 'Abrir os tratamentos'));
+  p('alta', secao.pedidos_titular.atrasados, (q) => `${q} ${q === 1 ? 'pedido do titular atrasado' : 'pedidos do titular atrasados'}`, 'titular',
+    { grupo: 'atraso', quando: venceu(atrasados.map((x) => x.prazo_em)), contexto: exemplos(atrasados.map((x) => `${x.protocolo} (${x.tipo})`)), acao: 'Responder os pedidos', aba: 'pedidos' });
+  p('alta', secao.incidentes.comunicacoes_atrasadas, (q) => `${q} ${q === 1 ? 'comunicação de incidente atrasada' : 'comunicações de incidente atrasadas'}`, 'titular',
+    { grupo: 'atraso', quando: venceu(comAtraso.flatMap((i) => [i.situacao_anpd === 'atrasado' ? i.prazo_anpd_em : null, i.situacao_titular === 'atrasado' ? i.prazo_titular_em : null])),
+      contexto: exemplos(comAtraso.map((i) => i.protocolo)), acao: 'Comunicar o incidente', aba: 'incidentes' });
+  p('alta', secao.incidentes.sem_avaliacao_de_risco, (q) => `${q} ${q === 1 ? 'incidente sem avaliação de risco' : 'incidentes sem avaliação de risco'}`, 'titular',
+    exigido(exemplos(incidentesAbertos.filter((i) => !i.risco_titular).map((i) => i.protocolo)), 'Avaliar o risco', 'incidentes'));
+  p('alta', secao.terceiros.vencidos, (q) => `${q} ${q === 1 ? 'terceiro com avaliação vencida' : 'terceiros com avaliação vencida'}`, 'terceiros',
+    { grupo: 'atraso', quando: venceu(terceirosVencidos.map((t) => t.ultima_avaliacao?.valido_ate)), contexto: exemplos(terceirosVencidos.map((t) => t.nome)), acao: 'Reavaliar os terceiros' });
+  p('alta', secao.tratamentos.dpia_pendente, (q) => `${q} ${q === 1 ? 'tratamento exige DPIA e não tem' : 'tratamentos exigem DPIA e não têm'}`, 'ropa',
+    exigido(exemplos(trat.filter((t) => t.dpia_required && !t.tem_dpia).map((t) => t.nome)), 'Criar o RIPD'));
+  p('alta', secao.tratamentos.lia_pendente, (q) => `${q} ${q === 1 ? 'tratamento por legítimo interesse sem LIA' : 'tratamentos por legítimo interesse sem LIA'}`, 'ropa',
+    exigido(exemplos(trat.filter((t) => ehLegitimoInteresse(t.base_titulo, t.legal_basis, t.adicionais, t.base_gdpr) && !t.tem_lia).map((t) => t.nome)), 'Fazer a LIA'));
+  p('alta', riscos.altos, (q) => `${q} ${q === 1 ? 'risco alto ou crítico em aberto nas atividades' : 'riscos altos ou críticos em aberto nas atividades'}`, 'mapa-de-risco',
+    exigido('Defina o tratamento de cada risco', 'Tratar os riscos'));
+  p('alta', riscos.acoes_vencidas, (q) => `${q} ${q === 1 ? 'ação de atividade com prazo vencido' : 'ações de atividade com prazo vencido'}`, 'ropa',
+    { grupo: 'atraso', quando: venceu(acoesVencidas.map((a) => a.due_date)), contexto: exemplos(acoesVencidas.map((a) => a.title)), acao: 'Ver as ações' });
+  p('media', secao.pedidos_titular.vencem_em_7_dias, (q) => `${q} ${q === 1 ? 'pedido do titular vence' : 'pedidos do titular vencem'} em até 7 dias`, 'titular',
+    { grupo: 'semana', quando: `Até ${diaMes(em7dias.map((x) => String(x.prazo_em).slice(0, 10)).sort().pop())}`, contexto: exemplos(em7dias.map((x) => x.protocolo)), acao: 'Ver os pedidos', aba: 'pedidos' });
+  p('media', secao.evidencias.vencidas, (q) => `${q} ${q === 1 ? 'evidência vencida' : 'evidências vencidas'}`, 'evidence', planejar('A validade passou; a evidência volta a pendente', 'Renovar as evidências'));
+  p('media', secao.documentos.revisao_vencida, (q) => `${q} ${q === 1 ? 'documento com revisão vencida' : 'documentos com revisão vencida'}`, 'documentos', planejar('A data de revisão passou', 'Revisar os documentos'));
+  p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'terceiro nunca avaliado' : 'terceiros nunca avaliados'}`, 'terceiros',
+    planejar(exemplos(terceiros.filter((t) => t.terceiro_tipo && t.situacao === 'pendente').map((t) => t.nome)), 'Avaliar os terceiros'));
+  p('media', secao.tratamentos.sem_base_legal, (q) => `${q} ${q === 1 ? 'tratamento sem base legal' : 'tratamentos sem base legal'}`, 'ropa',
+    planejar(exemplos(trat.filter(semBase).map((t) => t.nome)), 'Definir a base legal'));
+  p('media', lgpdCarregada || cliente ? 0 : 1, () => 'Catálogo de requisitos LGPD não carregado', 'requisitos', planejar('Sem o catálogo, a cobertura da LGPD não é calculada', 'Abrir a cobertura'));
+  if (secao.lgpd.carregada) p('media', secao.lgpd.lacunas ?? 0, (q) => `${q} ${q === 1 ? 'requisito da LGPD sem cobertura' : 'requisitos da LGPD sem cobertura'}`, 'requisitos',
+    planejar('Ligue documentos, controles ou evidências aos artigos', 'Ver as lacunas'));
+  p('media', secao.prazos_legais.nao_definidos.length, (q) => `${q} ${q === 1 ? 'prazo legal ainda não cadastrado' : 'prazos legais ainda não cadastrados'} (os prazos ficam "não calculados")`, 'titular',
+    planejar('O administrador da plataforma cadastra os prazos com a fonte', 'Ver os pedidos'));
 
   return { gerado_em: new Date().toISOString(), encarregados, prioridades, ...secao };
 }

@@ -1,18 +1,22 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML } from '../ui.js';
-import './ponto-de-partida.js';
 import { projetosDoProduto } from '../produto.js';
 
 // Espelho de `ehComercial` (src/helpers.ts): o funil de leads é do comercial.
 // Local, e não `window.ehComercial`, para a view não depender da ordem de carga.
 const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role));
 
+    /**
+     * Entrada do n.iso. O painel do projeto (views/painel.js) é a entrada de quem conduz a adequação; o comercial, que não
+     * alcança projeto, entra na tela Comercial; o cliente ainda sem projeto vê as fases da contratação.
+     */
     async function renderDashboard(c, h, a) {
-        h.textContent = 'Dashboard Executivo';
-        a.innerHTML = `${ehComercial() ? '<button class="btn btn-primary" data-action="openCreateLeadModal">+ Novo Lead</button>' : ''}
-                       <button class="btn btn-ghost" data-action="navigate" data-args='["monitor"]'>Monitor</button>`;
-        if (S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client') && !S.user.client_project_id) {
+        if (S.user && S.user.role === 'comercial') return renderComercial(c, h, a);
+        if (!(S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client') && !S.user.client_project_id)) return window.renderPainel(c, h, a, 'iso');
+        h.textContent = 'Bem-vindo';
+        a.innerHTML = '';
+        {
             let assessmentStatus = 'Pending';
             let proposalStatus = 'Pending';
             if (S.clientAssessmentId) assessmentStatus = 'In Progress';
@@ -32,13 +36,13 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
 
             let html = `
                 <div class="fade-in" style="max-width:800px; margin:0 auto; padding:2rem 0">
-                    <h2 style="font-family:'Montserrat'; font-weight:700; font-size:2rem; margin-bottom:0.5rem; color:var(--text)">Bem-vindo ao n.iso</h2>
+                    <h2 style="font-family:var(--font-head); font-weight:700; font-size:2rem; margin-bottom:0.5rem; color:var(--text)">Bem-vindo ao n.iso</h2>
                     <p style="color:var(--text-dim); font-size:0.95rem; margin-bottom:2.5rem">Seu ambiente de governança de segurança da informação (SGSI) está em fase de preparação.</p>
                     <div style="display:flex; flex-direction:column; gap:1.5rem">
                         <div class="card" style="padding:1.5rem; display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02)">
                             <div>
                                 <div style="font-size:0.75rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:0.5px">Fase 1</div>
-                                <h3 style="font-family:'Montserrat'; font-weight:500; font-size:1.15rem; margin:0.25rem 0 0.5rem 0">Levantamento de escopo</h3>
+                                <h3 style="font-family:var(--font-head); font-weight:500; font-size:1.15rem; margin:0.25rem 0 0.5rem 0">Levantamento de escopo</h3>
                                 <p style="color:var(--text-dim); font-size:0.85rem; margin:0">Questionário para mapear as atividades, equipe e tecnologia do seu negócio para cálculo do pricing e maturidade.</p>
                             </div>
                             <div style="text-align:right">
@@ -48,7 +52,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                         <div class="card" style="padding:1.5rem; display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02)">
                             <div>
                                 <div style="font-size:0.75rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:0.5px">Fase 2</div>
-                                <h3 style="font-family:'Montserrat'; font-weight:500; font-size:1.15rem; margin:0.25rem 0 0.5rem 0">Proposta Comercial e Assinatura</h3>
+                                <h3 style="font-family:var(--font-head); font-weight:500; font-size:1.15rem; margin:0.25rem 0 0.5rem 0">Proposta Comercial e Assinatura</h3>
                                 <p style="color:var(--text-dim); font-size:0.85rem; margin:0">Aprovação da proposta comercial baseada no escopo mapeado e assinatura digital para início da adequação.</p>
                             </div>
                             <div style="text-align:right">
@@ -58,7 +62,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                         <div class="card" style="padding:1.5rem; display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02)">
                             <div>
                                 <div style="font-size:0.75rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:0.5px">Fase 3</div>
-                                <h3 style="font-family:'Montserrat'; font-weight:500; font-size:1.15rem; margin:0.25rem 0 0.5rem 0">Início do SGSI & Projetos</h3>
+                                <h3 style="font-family:var(--font-head); font-weight:500; font-size:1.15rem; margin:0.25rem 0 0.5rem 0">Início do SGSI & Projetos</h3>
                                 <p style="color:var(--text-dim); font-size:0.85rem; margin:0">Criação automatizada de todas as 41 fases do projeto no n.iso, checklists de conformidade e ativação dos assistentes de IA.</p>
                             </div>
                             <div style="text-align:right">
@@ -69,73 +73,42 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                 </div>
             `;
             c.innerHTML = html;
-            return;
         }
+    }
+
+    /** Tela Comercial (decisão 5 do estudo do painel): o funil saiu da entrada do n.iso e mora aqui, no grupo Comercial. */
+    async function renderComercial(c, h, a) {
+        h.textContent = 'Comercial';
+        a.innerHTML = ehComercial() ? '<button class="btn btn-primary" data-action="openCreateLeadModal">+ Novo Lead</button>' : '';
         c.innerHTML = '<div class="loading"></div>';
         try {
-            const [leads, assessments, projects, controls] = await Promise.all([
+            const [leads, assessments, projects] = await Promise.all([
                 ehComercial() ? api('GET', '/api/v1/leads').catch(() => []) : [],
                 api('GET', '/api/v1/assessments').catch(() => []),
                 api('GET', '/api/v1/projects').catch(() => []),
-                // Controles do projeto ativo: /api/v1/controls devolve os de todos os projetos visíveis.
-                S.activeProject && S.activeProject.id ? api('GET', `/api/v1/projects/${S.activeProject.id}/controls`).catch(() => []) : []
             ]);
             const activeProjectsList = projetosDoProduto(projects); // só os projetos do módulo deste caminho (/iso ou /privacy)
-            const leadsCount = Array.isArray(leads) ? leads.length : 0;
-            const assessmentsCount = Array.isArray(assessments) ? assessments.length : 0;
-            const projectsCount = activeProjectsList.length;
-
-            const totalControls = Array.isArray(controls) ? controls.length : 0;
-            const approvedControls = Array.isArray(controls) ? controls.filter(ctrl => {
-                const s = String(ctrl.status || '').toUpperCase();
-                return s === 'APPROVED' || s === 'IMPLEMENTED' || s === 'COMPLETED' || s === 'CONFORME';
-            }).length : 0;
-            const gapsControls = Math.max(0, totalControls - approvedControls);
-            const complianceRate = totalControls > 0 ? Math.round((approvedControls / totalControls) * 100) : 0;
-
-            const semControles = totalControls === 0;
             const statsHtml = window.renderStatCards([
                 // Só o comercial vê o funil; para o consultor o cartão mostraria 0 e enganaria.
-                ...(ehComercial() ? [{ label: 'Leads Ativos', value: leadsCount, color: 'var(--text)', subtext: 'Oportunidades em pré-venda' }] : []),
-                // Contagem é neutra (--text); cor só quando o número diz algo (conformidade a partir de 80%).
-                { label: 'Levantamentos', value: assessmentsCount, color: 'var(--text)', subtext: 'Levantamentos de escopo cadastrados' },
-                { label: 'Projetos em Curso', value: projectsCount, color: 'var(--text)', subtext: 'Implementações ISO ativas' },
-                semControles
-                    ? { label: 'Taxa de Conformidade', value: '—', color: 'var(--text)', subtext: S.activeProject && S.activeProject.id ? 'Sem controles neste projeto' : 'Selecione um projeto' }
-                    : { label: 'Taxa de Conformidade', value: `${complianceRate}%`, color: complianceRate >= 80 ? 'var(--success)' : 'var(--text)', subtext: `${approvedControls} de ${totalControls} controles` }
+                ...(ehComercial() ? [{ label: 'Leads Ativos', value: Array.isArray(leads) ? leads.length : 0, color: 'var(--text)', subtext: 'Oportunidades em pré-venda' }] : []),
+                { label: 'Levantamentos', value: Array.isArray(assessments) ? assessments.length : 0, color: 'var(--text)', subtext: 'Levantamentos de escopo cadastrados' },
+                { label: 'Projetos em Curso', value: activeProjectsList.length, color: 'var(--text)', subtext: 'Implementações ISO ativas' },
             ]);
 
             const assessmentsTable = window.renderDataTable(
                 [
                     { label: 'Cliente', key: 'client_name' },
                     { label: 'Status', key: 'status', render: (row) => window.renderStatusBadge(row.status === 'completed' ? 'success' : row.status === 'in_progress' ? 'warning' : 'info', row.status || 'Pendente') },
-                    {
-                        label: 'Ações', align: 'right', render: (row) => `
-                            <button class="btn btn-ghost" style="padding:0.25rem 0.6rem; font-size:0.7rem;" data-action="openAssessmentDetail" data-args='["${row.id}"]'>Ver</button>
-                        `
-                    }
+                    { label: 'Ações', align: 'right', render: (row) => `<button class="btn btn-ghost btn-sm" data-action="openAssessmentDetail" data-args='${escapeHTML(JSON.stringify([row.id]))}'>Ver</button>` },
                 ],
-                assessments.slice(0, 5),
+                (Array.isArray(assessments) ? assessments : []).slice(0, 5),
                 { emptyMessage: 'Nenhum levantamento cadastrado.', emptyHint: 'O levantamento de escopo mapeia atividades, equipe e tecnologia do cliente e é a base da proposta.' }
             );
 
             const projectsTable = window.renderDataTable(
                 [
                     { label: 'Projeto', render: (row) => escapeHTML(row.project_name || row.client_name || 'Sem nome') },
-                    {
-                        label: 'Progresso', render: (row) => {
-                            const doAtivo = S.activeProject && row.id === S.activeProject.id && !semControles;
-                            const progVal = (row.progress !== undefined && row.progress !== null && row.progress > 0) ? row.progress : (doAtivo ? complianceRate : null);
-                            if (progVal === null) return '<span style="color:var(--text-dim)">—</span>';
-                            return `
-                            <div style="display:flex; align-items:center; gap:0.75rem; width:100%;">
-                                <div class="progress-bar" style="flex:1; height:6px; background:var(--surface-2); overflow:hidden;"><div class="progress-fill" style="width:${progVal}%; background:var(--accent); height:100%;"></div></div>
-                                <span style="font-size:0.75rem; font-weight:600; color:var(--text); font-variant-numeric:tabular-nums">${progVal}%</span>
-                            </div>
-                            `;
-                        }
-                    },
-                    { label: 'Ação', align: 'right', render: (row) => `<button class="btn btn-ghost" style="padding:0.25rem 0.6rem; font-size:0.7rem;" data-action="openProjectDetail" data-args='["${row.id}"]'>Gerenciar</button>` }
+                    { label: 'Ação', align: 'right', render: (row) => `<button class="btn btn-ghost btn-sm" data-action="openProjectDetail" data-args='${escapeHTML(JSON.stringify([row.id]))}'>Gerenciar</button>` },
                 ],
                 activeProjectsList.slice(0, 5),
                 { emptyMessage: 'Nenhum projeto ativo.', emptyHint: 'O projeto nasce quando a proposta é aprovada; a jornada de adequação começa por ele.', emptyAction: `<button class="btn" data-action="navigate" data-args='["projects"]'>Ver projetos</button>` }
@@ -143,44 +116,18 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
 
             c.innerHTML = `
                 <div class="fade-in">
-                    <div id="ponto-de-partida"></div>
                     ${statsHtml}
-
-                    <div class="card" id="progresso-controles" style="margin-bottom:1.5rem">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:0.75rem">
-                            <h3 style="font-family:var(--font-head); font-weight:600; font-size:1rem; margin:0; color:var(--text)">Progresso de implementação dos controles</h3>
-                            ${window.renderStatusBadge('info', `${complianceRate}% implementado`)}
-                        </div>
-                        <div class="progress-bar" style="height:8px; background:var(--surface-2); margin-bottom:1rem" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${complianceRate}" aria-label="Controles implementados">
-                            <div class="progress-fill" style="width:${complianceRate}%; background:var(--accent); height:100%"></div>
-                        </div>
-                        <div style="display:flex; gap:1.5rem; font-size:0.8rem; color:var(--text-dim); font-variant-numeric:tabular-nums">
-                            <div><strong style="color:var(--text)">Controles implementados:</strong> ${approvedControls}</div>
-                            <div><strong style="color:var(--text)">Gaps restantes:</strong> ${gapsControls}</div>
-                            <div><strong style="color:var(--text)">Total do SGSI:</strong> ${totalControls}</div>
-                        </div>
-                    </div>
-
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:1.5rem;">
-                        <div>
-                            <h3 style="font-family:'Montserrat',sans-serif; font-weight:500; font-size:1.05rem; margin-bottom:0.8rem; color:var(--text)">Levantamentos recentes</h3>
-                            ${assessmentsTable}
-                        </div>
-                        <div>
-                            <h3 style="font-family:'Montserrat',sans-serif; font-weight:500; font-size:1.05rem; margin-bottom:0.8rem; color:var(--text)">Projetos Ativos</h3>
-                            ${projectsTable}
-                        </div>
+                    <div class="comercial-tabelas">
+                        <section aria-labelledby="com-lev"><h2 id="com-lev" class="comercial-titulo">Levantamentos recentes</h2>${assessmentsTable}</section>
+                        <section aria-labelledby="com-proj"><h2 id="com-proj" class="comercial-titulo">Projetos ativos</h2>${projectsTable}</section>
                     </div>
                 </div>
             `;
-            if (S.activeProject && S.activeProject.id) window.renderPontoDePartida(c.querySelector('#ponto-de-partida'), S.activeProject.id, 'iso');
         } catch (e) {
-            c.innerHTML = '<div class="error">Erro ao carregar dashboard</div>';
+            c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível carregar a tela Comercial', texto: 'Tente de novo em instantes.' });
         }
     }
 
-    async function loadDashboardStats() { try { S.stats = await api('GET', '/api/v1/dashboard/stats'); } catch(e) { S.stats = {}; } }
-
-export { renderDashboard };
+export { renderDashboard, renderComercial };
 window.renderDashboard = renderDashboard;
-window.loadDashboardStats = loadDashboardStats;
+window.renderComercial = renderComercial;

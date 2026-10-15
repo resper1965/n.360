@@ -943,7 +943,7 @@ window.updateHeaderUser = function updateHeaderUser() {
         // Leads e propostas são do comercial (somenteComercial no servidor); o
         // consultor segue com Assessments e o resto do grupo.
         const comercial = window.ehComercial();
-        ['nav-leads', 'nav-proposals', 'nav-catalogo', 'nav-config'].forEach(id => {
+        ['nav-comercial', 'nav-leads', 'nav-proposals', 'nav-catalogo', 'nav-config'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = comercial ? '' : 'none';
         });
@@ -1007,7 +1007,7 @@ window.updateHeaderUser = function updateHeaderUser() {
         // evidência a ele (não é staff em requireProjectAccess). O menu mostra só
         // o que ele alcança, em vez de telas que abririam vazias ou com erro.
         if (S.user && S.user.role === 'comercial') {
-            const doComercial = new Set(['nav-dashboard', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-settings', 'nav-conectar-agente']);
+            const doComercial = new Set(['nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-settings', 'nav-conectar-agente']);
             document.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach(el => {
                 el.style.display = doComercial.has(el.id) ? '' : 'none';
             });

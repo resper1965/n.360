@@ -1,10 +1,7 @@
-// Unidade de `renderDashboard` (src/views/dashboard.js). Dois caminhos reais:
-// (1) onboarding do cliente — três cartões de fase cujo CTA muda conforme
-// `S.clientAssessmentId`/`S.clientProposalId`; (2) visão do consultor — agrega
-// leads/assessments/projects/controls da API (dublada) e calcula a taxa de
-// conformidade (aprovados/total). A matemática de conformidade e a contagem de
-// gaps é a lógica que mais importa aqui; o resto é layout. Os helpers de UI
-// (renderStatCards/renderDataTable/renderStatusBadge) vêm de ui.js.
+// Unidade de `renderDashboard` e `renderComercial` (src/views/dashboard.js). A entrada do n.iso é o painel do projeto
+// (views/painel.js, testado em painel-view.test.js); aqui ficam os desvios dela: o onboarding do cliente ainda sem projeto
+// (três cartões de fase cujo CTA muda conforme `S.clientAssessmentId`/`S.clientProposalId`), o comercial, que entra na
+// tela Comercial, e a própria tela Comercial (o funil que saiu da entrada). Os helpers de UI vêm de ui.js.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
@@ -38,7 +35,7 @@ describe('renderDashboard — onboarding do cliente', () => {
     const { c, h, a } = montaDom();
     S.user = { role: 'client' }; // sem client_project_id → caminho onboarding
     await window.renderDashboard(c, h, a);
-    expect(h.textContent).toBe('Dashboard Executivo');
+    expect(h.textContent).toBe('Bem-vindo');
     expect(a.innerHTML).not.toContain('Novo Lead'); // funil é do comercial
     expect(c.textContent).toContain('Bem-vindo ao n.iso');
     expect(c.textContent).toContain('Aguardando Liberação');
@@ -82,100 +79,61 @@ describe('renderDashboard — onboarding do cliente', () => {
   });
 });
 
-describe('renderDashboard — visão do consultor', () => {
-  it('agrega os contadores e calcula a taxa de conformidade', async () => {
+describe('renderDashboard — quem entra onde', () => {
+  it('equipe com projeto: o painel do n.iso, nada do funil', async () => {
     const { c, h, a } = montaDom();
-    S.user = { role: 'comercial' }; // comercial vê o funil → 4 chamadas
-    S.activeProject = { id: 'p1' };
-    // 4 chamadas na ordem: leads, assessments, projects, controls.
-    apiMock
-      .mockResolvedValueOnce([{ id: 'l1' }, { id: 'l2' }]) // leads
-      .mockResolvedValueOnce([{ id: 'a1', client_name: 'ACME', status: 'completed' }]) // assessments
-      .mockResolvedValueOnce([{ id: 'p1', project_name: 'Proj', progress: 40 }]) // projects
-      .mockResolvedValueOnce([
-        { status: 'APPROVED' },
-        { status: 'implemented' },
-        { status: 'draft' },
-        { status: 'CONFORME' },
-      ]); // controls: 3 de 4 conformes → 75%
+    S.user = { role: 'consultor' };
+    window.renderPainel = vi.fn();
     await window.renderDashboard(c, h, a);
-    expect(apiMock.mock.calls.filter((ch) => !String(ch[1]).includes('ponto-de-partida'))).toHaveLength(4);
-    // 3/4 = 75% de conformidade aparece no burnup.
-    expect(c.textContent).toContain('75%');
-    // Controles implementados = 3, gaps = 1, total = 4.
-    expect(c.textContent).toContain('Controles implementados:');
-    expect(c.innerHTML).toContain('3 de 4 controles');
-    // Cartões de estatística renderizados.
+    expect(window.renderPainel).toHaveBeenCalledWith(c, h, a, 'iso');
+    expect(apiMock).not.toHaveBeenCalled();
+    delete window.renderPainel;
+  });
+  it('comercial: a tela Comercial', async () => {
+    const { c, h, a } = montaDom();
+    S.user = { role: 'comercial' };
+    window.renderPainel = vi.fn();
+    await window.renderDashboard(c, h, a);
+    expect(window.renderPainel).not.toHaveBeenCalled();
+    expect(h.textContent).toBe('Comercial');
+    delete window.renderPainel;
+  });
+});
+
+describe('renderComercial — o funil, fora da entrada', () => {
+  it('comercial: leads, levantamentos e projetos, com "+ Novo Lead"', async () => {
+    const { c, h, a } = montaDom();
+    S.user = { role: 'comercial' };
+    apiMock
+      .mockResolvedValueOnce([{ id: 'l1' }, { id: 'l2' }])
+      .mockResolvedValueOnce([{ id: 'a1', client_name: 'ACME', status: 'completed' }])
+      .mockResolvedValueOnce([{ id: 'p1', project_name: 'Proj' }]);
+    await window.renderComercial(c, h, a);
+    expect(apiMock.mock.calls.map((ch) => ch[1])).toEqual(['/api/v1/leads', '/api/v1/assessments', '/api/v1/projects']);
+    expect(a.innerHTML).toContain('Novo Lead');
     expect(c.textContent).toContain('Leads Ativos');
-    expect(c.textContent).toContain('Taxa de Conformidade');
-    // Tabelas com os dados dublados.
     expect(c.textContent).toContain('ACME');
     expect(c.textContent).toContain('Proj');
+    expect(c.textContent).not.toContain('Taxa de Conformidade');
+    expect(c.innerHTML).not.toMatch(/backdrop-filter|linear-gradient|border-radius:\s*[1-9]|#[0-9a-f]{3,6}\b/i);
   });
-
-  it('consultor não busca nem vê o funil de leads (área do comercial)', async () => {
+  it('consultor: sem leads (área do comercial), sem "+ Novo Lead"', async () => {
     const { c, h, a } = montaDom();
     S.user = { role: 'consultor' };
-    S.activeProject = { id: 'p1' };
-    // 3 chamadas: assessments, projects, controls — leads não é pedido.
-    apiMock
-      .mockResolvedValueOnce([{ id: 'a1', client_name: 'ACME', status: 'completed' }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
-    await window.renderDashboard(c, h, a);
-    expect(apiMock.mock.calls.filter((ch) => !String(ch[1]).includes('ponto-de-partida'))).toHaveLength(3);
+    apiMock.mockResolvedValueOnce([{ id: 'a1', client_name: 'ACME', status: 'completed' }]).mockResolvedValueOnce([]);
+    await window.renderComercial(c, h, a);
     expect(apiMock.mock.calls.map((ch) => ch[1])).not.toContain('/api/v1/leads');
     expect(c.textContent).not.toContain('Leads Ativos');
-    expect(c.textContent).toContain('ACME');
+    expect(a.innerHTML).not.toContain('Novo Lead');
   });
-
-  it('sem projeto ativo não busca controles da carteira nem inventa taxa', async () => {
-    const { c, h, a } = montaDom();
-    S.user = { role: 'consultor' };
-    apiMock.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-    await window.renderDashboard(c, h, a);
-    expect(apiMock.mock.calls.map((ch) => ch[1])).not.toContain('/api/v1/controls');
-    expect(c.textContent).toContain('Selecione um projeto');
-    expect(c.innerHTML).not.toContain('de 93 controles');
-  });
-
-  it('controles vêm do projeto ativo, não da carteira', async () => {
-    const { c, h, a } = montaDom();
-    S.user = { role: 'consultor' };
-    S.activeProject = { id: 'p9' };
-    apiMock.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{ status: 'APPROVED' }, { status: 'draft' }]);
-    await window.renderDashboard(c, h, a);
-    expect(apiMock.mock.calls.map((ch) => ch[1])).toContain('/api/v1/projects/p9/controls');
-    expect(c.innerHTML).toContain('1 de 2 controles');
-  });
-
-  it('cartão de progresso dentro do sistema: sem blur, gradiente, raio nem hex; contagens neutras', async () => {
-    const { c, h, a } = montaDom();
-    S.user = { role: 'consultor' };
-    S.activeProject = { id: 'p1' };
-    apiMock.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'p1', project_name: 'P' }]).mockResolvedValueOnce([{ status: 'draft' }]);
-    await window.renderDashboard(c, h, a);
-    const card = c.querySelector('#progresso-controles');
-    expect(card.textContent).toContain('Progresso de implementação dos controles');
-    expect(c.textContent).not.toContain('Burnup');
-    const html = c.innerHTML;
-    expect(html).not.toMatch(/backdrop-filter|linear-gradient|border-radius:\s*[1-9]|#[0-9a-f]{3,6}\b/i);
-    // "Projetos em Curso 1" não é verde: contagem não é sinal.
-    expect(html).not.toContain('var(--success)');
-  });
-
-  it('mostra estado de erro quando a agregação falha', async () => {
+  it('falha ao montar: estado de erro, não tela quebrada', async () => {
     const { c, h, a } = montaDom();
     S.user = { role: 'admin' };
-    // Promise.all captura .catch por chamada; forçamos erro fora do catch fazendo
-    // renderStatCards indisponível não é possível — em vez disso, rejeitamos a
-    // Promise.all lançando na primeira sem catch interno: api rejeita e o .catch
-    // devolve []. Para exercitar o catch externo, quebramos renderStatCards.
     const orig = window.renderStatCards;
     window.renderStatCards = () => { throw new Error('boom'); };
     apiMock.mockResolvedValue([]);
-    await window.renderDashboard(c, h, a);
-    expect(c.innerHTML).toContain('Erro ao carregar dashboard');
+    await window.renderComercial(c, h, a);
+    expect(c.textContent).toContain('Não foi possível carregar a tela Comercial');
     window.renderStatCards = orig;
   });
 });
