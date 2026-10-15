@@ -75,7 +75,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 const itens = porCat[cat] || [];
                 if (!itens.length) return '';
                 return `<h4 style="margin:1rem 0 0.4rem;font-size:0.9rem">${rotuloCat[cat]} (${itens.length})</h4>` + itens.map(a => `
-                    <div style="border-left:3px solid ${cor[a.severidade] || 'var(--muted)'};padding:6px 10px;margin:6px 0;background:rgba(255,255,255,0.03)">
+                    <div style="border-top:2px solid ${cor[a.severidade] || 'var(--muted)'};padding:6px 10px;margin:6px 0;background:rgba(255,255,255,0.03)">
                         <div style="font-size:var(--fs-xs);text-transform:uppercase;color:${cor[a.severidade] || 'var(--muted)'}">${escapeHTML(a.severidade)} · ${escapeHTML(a.requisito)} · ${escapeHTML(String(a.referencia))}</div>
                         <div class="t-base mt-05">${escapeHTML(a.descricao)}</div>
                     </div>`).join('');

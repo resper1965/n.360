@@ -28,7 +28,7 @@ function celula(p, i) {
     return `<button type="button" class="btn mapa-celula" data-action="mapaCelula" data-args='${args(p, i)}' aria-pressed="${escolhida ? 'true' : 'false'}"
         aria-label="${escapeHTML(rotulo)}" title="${escapeHTML(rotulo)}"
         style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:64px; border-radius:0; background:var(--surface-2);
-            border:${escolhida ? '2px solid var(--accent)' : '1px solid var(--border)'}; border-left:4px solid ${COR[nivel]}">
+            border:${escolhida ? '2px solid var(--accent)' : '1px solid var(--border)'}; border-top:3px solid ${COR[nivel]}">
         <strong style="font-size:1.1rem">${lista.length}</strong> <span style="font-size:0.75rem; color:var(--text-dim)">${NIVEIS[nivel]}</span></button>`;
 }
 

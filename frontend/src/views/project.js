@@ -1005,7 +1005,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                 if (it.resumo) corpo += `<p class="t-base lh-15 mb-4">${escapeHTML(it.resumo)}</p>`;
                 if (it.pontos && it.pontos.length) {
                     corpo += `<div class="fw-500 t-sm mb-2 caixa-alta t-dim">Pontos de atenção</div>`;
-                    corpo += it.pontos.map(pt => `<div style="border-left:3px solid ${sevCor[pt.severidade] || 'var(--text-dim)'}; padding:6px 10px; margin-bottom:8px; background:rgba(255,255,255,0.02);">
+                    corpo += it.pontos.map(pt => `<div style="border-top:2px solid ${sevCor[pt.severidade] || 'var(--text-dim)'}; padding:6px 10px; margin-bottom:8px; background:rgba(255,255,255,0.02);">
                         <div class="t-xs t-dim caixa-alta">${escapeHTML(pt.severidade)} · ${escapeHTML(textoDaPergunta(pt.pergunta_key))}</div>
                         <div style="font-size:0.82rem; line-height:1.45; margin-top:2px">${escapeHTML(pt.observacao)}</div></div>`).join('');
                 }

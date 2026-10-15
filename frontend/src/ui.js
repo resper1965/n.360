@@ -475,7 +475,7 @@ export function renderDataTable(columns, rows, options = {}) {
     // vira buraco transparente no cabeçalho fixo.
     const ths = cols.map(c => {
         const sorted = c.sort ? ` aria-sort="${escapeHTML(c.sort)}"` : '';
-        return `<th scope="col"${sorted} style="text-align:${c.align}; position:sticky; top:0; z-index:3; background:var(--bg); padding:14px 10px 10px; color:var(--text-faint); font:500 var(--fs-xs)/1 var(--font-mono); text-transform:uppercase; letter-spacing:0.16em; border-bottom:1px solid var(--border);${numCell(c)}">${escapeHTML(c.label)}</th>`;
+        return `<th scope="col"${sorted} style="text-align:${c.align}; position:sticky; top:0; z-index:3; background:var(--bg); padding:14px 10px 10px; color:var(--text-faint); font:500 var(--fs-xs)/1 var(--font-mono); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--border);${numCell(c)}">${escapeHTML(c.label)}</th>`;
     }).join('');
 
     const pad = options.dense ? '7px 10px' : '12px 10px';
