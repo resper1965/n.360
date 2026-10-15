@@ -20,8 +20,8 @@ const TELAS = new Set(['context', 'stakeholders', 'governance', 'documentos', 'r
 
 function itemQueFalta(c) {
     const destrava = c.destrava_pendentes > 0 ? ` Resolver este destrava ${c.destrava_pendentes === 1 ? 'outro item' : `outros ${c.destrava_pendentes} itens`}.` : '';
-    return `<li><span class="pn-meta">Cláusula ${e(c.requisito)}</span>
-        <div><div class="pn-tx">${e(c.titulo)}${c.numero ? ` <span class="pn-meta pn-num">(${e(c.numero)})</span>` : ''}</div><div class="pn-cx">${e(c.motivo)}${e(destrava)}</div></div>
+    return `<li><div><div class="pn-meta">Cláusula ${e(c.requisito)}</div>${c.numero ? `<div class="pt-numero pn-num">${e(c.numero)}</div>` : ''}</div>
+        <div><div class="pn-tx">${e(c.titulo)}</div><div class="pn-cx">${e(c.motivo)}${e(destrava)}</div></div>
         <button type="button" class="btn btn-sm" data-action="prontidaoAbrir" data-args='${args(c.tela, c.filtro || null)}' aria-label="${e(`${c.acao}: ${c.titulo}`)}">${e(c.acao)}</button></li>`;
 }
 
@@ -38,7 +38,7 @@ function quadroCliente(d) {
     const lista = Array.isArray(d.do_cliente) ? d.do_cliente : [];
     const titulo = cliente ? 'O que depende de você' : 'O que o cliente precisa decidir ou fornecer';
     const corpo = lista.length ? `<ul class="pn-grupo pt-cliente">${lista.map((c) => `<li><div><div class="pn-tx">${e(c.cliente)}</div><div class="pn-cx">${e(c.titulo)} (cláusula ${e(c.requisito)})</div></div>
-            ${cliente ? `<button type="button" class="btn btn-sm" data-action="prontidaoAbrir" data-args='${args(c.tela, c.filtro || null)}' aria-label="${e(`Abrir: ${c.cliente}`)}">Abrir</button>` : ''}</li>`).join('')}</ul>`
+            ${cliente ? `<button type="button" class="btn btn-sm" data-action="prontidaoAbrir" data-args='${args(c.tela, c.filtro || null)}' aria-label="${e(`${c.acao}: ${c.cliente}`)}">${e(c.acao)}</button>` : ''}</li>`).join('')}</ul>`
         : `<p class="pn-vazio-tx">${cliente ? 'Nada pendente depende de você agora.' : 'Nenhuma pendência depende de decisão ou envio do cliente.'}</p>`;
     return `<section class="pn-quadro" aria-labelledby="pt-cli"><header><h2 id="pt-cli">${titulo}</h2></header>${corpo}</section>`;
 }
@@ -87,10 +87,13 @@ function desenhar(d, proj) {
                 está pendente; o que só uma pessoa confere (imparcialidade do auditor interno, entradas da análise crítica, amostras da operação)
                 fica para a pré-avaliação da consultoria. A lista começa pelo estágio 1 e, dentro dele, pelo que destrava mais itens.</p></details>
         </section>
-        <div class="pn-cols">
+        ${d.visao === 'cliente'
+        // O cliente vê primeiro o que é dele; depois o que falta no programa e a lista inteira.
+        ? `<div class="pn-col pt-uma">${quadroCliente(d)}${quadroEstagio(d, 1)}${quadroEstagio(d, 2)}${tabelaCriterios(d)}</div>`
+        : `<div class="pn-cols">
             <div class="pn-col">${quadroEstagio(d, 1)}${quadroEstagio(d, 2)}</div>
-            <div class="pn-col">${quadroCliente(d)}${tabelaCriterios(d)}${ehEquipe() ? quadroDatas(d, proj) : ''}</div>
-        </div></div>`;
+            <div class="pn-col">${quadroCliente(d)}${ehEquipe() ? quadroDatas(d, proj) : ''}</div>
+        </div><div class="pn-col pt-uma">${tabelaCriterios(d)}</div>`}</div>`;
 }
 
 export async function renderProntidao(c, h, a) {
