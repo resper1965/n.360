@@ -300,6 +300,29 @@ export function renderEmptyState({ titulo = '', texto = '', acao = '', id = '', 
         + '</div>';
 }
 
+const TEXTO_FALHA = 'Nada foi apagado nem alterado: a falha foi ao buscar os dados. Tente de novo; se continuar, avise o suporte da ness.';
+const TEXTO_SEM_ACESSO = 'O seu acesso não alcança estes dados neste projeto. Se precisar deles, fale com quem administra o projeto.';
+
+/**
+ * Estado de erro único do app: a carga falhou, e isso NUNCA se mostra como o estado vazio (o vazio diria "não há riscos"
+ * quando há). `mensagem` diz o que não carregou, em linguagem do usuário; o detalhe técnico fica no console. "Tentar de
+ * novo" é `data-action` (padrão `render`, que refaz a tela atual). Com `erro.status === 403` não há o que tentar de novo.
+ */
+export function renderErrorState(mensagem, { texto = '', acao = 'render', args = null, erro = null } = {}) {
+    const semAcesso = !!erro && erro.status === 403;
+    const botao = semAcesso || !acao ? ''
+        : `<div class="empty-action"><button type="button" class="btn btn-primary" data-action="${escapeHTML(acao)}"${args ? ` data-args='${escapeHTML(JSON.stringify(args))}'` : ''}>Tentar de novo</button></div>`;
+    return `<div class="error-state" role="alert"><h3>${escapeHTML(mensagem)}</h3>`
+        + `<p>${escapeHTML(semAcesso ? TEXTO_SEM_ACESSO : (texto || TEXTO_FALHA))}</p>${botao}</div>`;
+}
+
+/** A carga principal da tela falhou: limpa as ações do cabeçalho ("Novo…" sobre dado que não carregou) e mostra o erro. */
+export function falhaDeCarga(c, a, mensagem, erro, opcoes = {}) {
+    console.error(mensagem, erro);
+    if (a) a.innerHTML = '';
+    c.innerHTML = renderErrorState(mensagem, { ...opcoes, erro });
+}
+
 /** O vazio de "nenhum projeto escolhido", repetido em quase toda tela de projeto. */
 export function renderSemProjeto(texto = 'Selecione um projeto para continuar.') {
     return renderEmptyState({ titulo: 'Sem projeto ativo', texto,
@@ -397,5 +420,7 @@ window.traduzStatus = traduzStatus;
 window.renderDataTable = renderDataTable;
 window.renderEmptyState = renderEmptyState;
 window.renderSemProjeto = renderSemProjeto;
+window.renderErrorState = renderErrorState;
+window.falhaDeCarga = falhaDeCarga;
 window.confirmar = confirmar;
 window.pedirTexto = pedirTexto;

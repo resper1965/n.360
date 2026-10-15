@@ -26,7 +26,7 @@ window.__grcCloseExecAudit = function (id) {
         a.innerHTML = isOrgUser ? '' : `<button class="btn btn-primary" data-action="openNewRiskModal" data-args='["${proj.id}"]'>+ Novo Risco</button>`;
         
         let risks = [];
-        try { risks = await api('GET', `/api/v1/projects/${proj.id}/risks`); } catch(e) {}
+        try { risks = await api('GET', `/api/v1/projects/${proj.id}/risks`); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os riscos.', e); return; }
         if (!Array.isArray(risks)) risks = [];
         S.risks = risks;
         
@@ -262,7 +262,7 @@ window.__grcCloseExecAudit = function (id) {
             const r = await api('GET', `/api/v1/projects/${projectId}/assets`);
             assets = Array.isArray(r) ? r : (r?.assets || []);
             controls = await api('GET', `/api/v1/projects/${projectId}/controls`);
-        } catch(e) {}
+        } catch (e) { /* dado secundário: o formulário abre sem as opções de ativo e controle */ }
         if (!Array.isArray(controls)) controls = [];
         const parteOptions = await opcoesDePartes(projectId, null);
 
@@ -350,7 +350,7 @@ window.__grcCloseExecAudit = function (id) {
         let controls = [];
         try { 
             controls = await api('GET', `/api/v1/projects/${projectId}/controls`);
-        } catch(e) {}
+        } catch (e) { /* dado secundário: o formulário abre sem as opções de controle */ }
         if (!Array.isArray(controls)) controls = [];
         const parteOptions = await opcoesDePartes(projectId, r.owner_parte_id);
 
@@ -480,7 +480,7 @@ window.__grcCloseExecAudit = function (id) {
         try { 
             const res = await api('GET', `/api/v1/projects/${proj.id}/vendors`); 
             vendors = Array.isArray(res) ? res : (res && Array.isArray(res.vendors)) ? res.vendors : [];
-        } catch(e) {}
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os fornecedores.', e); return; }
         S.vendors = vendors;
 
         const totalVendors = vendors.length;
@@ -825,8 +825,8 @@ window.__grcCloseExecAudit = function (id) {
         try { 
             const res = await api('GET', `/api/v1/projects/${proj.id}/training`); 
             records = Array.isArray(res) ? res : (res && Array.isArray(res.records)) ? res.records : [];
-        } catch(e) {}
-        try { summary = await api('GET', `/api/v1/projects/${proj.id}/training/summary`); } catch(e) {}
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os registros de treinamento.', e); return; }
+        try { summary = await api('GET', `/api/v1/projects/${proj.id}/training/summary`); } catch (e) { /* secundário: a cobertura sai dos registros */ }
         S.training = records;
 
         const totalRecords = records.length;
@@ -1134,7 +1134,7 @@ window.__grcCloseExecAudit = function (id) {
         try { 
             const res = await api('GET', `/api/v1/projects/${proj.id}/capa`); 
             items = Array.isArray(res) ? res : (res && Array.isArray(res.actions)) ? res.actions : (res && Array.isArray(res.capa)) ? res.capa : [];
-        } catch(e) {}
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as ações corretivas.', e); return; }
         S.capa = items;
 
         const totalCAPA = items.length;
@@ -1188,8 +1188,9 @@ window.__grcCloseExecAudit = function (id) {
         
         let risks = [];
         let audits = [];
-        try { risks = await api('GET', `/api/v1/projects/${projectId}/risks`); } catch(e) {}
-        try { audits = await api('GET', `/api/v1/projects/${projectId}/audits`); } catch(e) {}
+        // Dado secundário: sem ele o modal abre sem o risco e a auditoria de origem.
+        try { risks = await api('GET', `/api/v1/projects/${projectId}/risks`); } catch (e) { /* idem */ }
+        try { audits = await api('GET', `/api/v1/projects/${projectId}/audits`); } catch (e) { /* idem */ }
 
         const audObj = audits.find(a => a.id === ca.audit_id);
         const riskObj = risks.find(r => r.id === ca.risk_id);
@@ -1260,8 +1261,9 @@ window.__grcCloseExecAudit = function (id) {
     window.openNewCAPAModal = async function(projectId) {
         let risks = [];
         let audits = [];
-        try { risks = await api('GET', `/api/v1/projects/${projectId}/risks`); } catch(e) {}
-        try { audits = await api('GET', `/api/v1/projects/${projectId}/audits`); } catch(e) {}
+        // Dado secundário: sem ele o modal abre sem o risco e a auditoria de origem.
+        try { risks = await api('GET', `/api/v1/projects/${projectId}/risks`); } catch (e) { /* idem */ }
+        try { audits = await api('GET', `/api/v1/projects/${projectId}/audits`); } catch (e) { /* idem */ }
         const projectControls = S.controls.filter(ctrl => ctrl.project_id === projectId);
         const parteOptions = await opcoesDePartes(projectId, null);
 
@@ -1332,8 +1334,9 @@ window.__grcCloseExecAudit = function (id) {
         const projectId = projetoDoAviso || (S.activeProject ? S.activeProject.id : '');
         let risks = [];
         let audits = [];
-        try { risks = await api('GET', `/api/v1/projects/${projectId}/risks`); } catch(e) {}
-        try { audits = await api('GET', `/api/v1/projects/${projectId}/audits`); } catch(e) {}
+        // Dado secundário: sem ele o modal abre sem o risco e a auditoria de origem.
+        try { risks = await api('GET', `/api/v1/projects/${projectId}/risks`); } catch (e) { /* idem */ }
+        try { audits = await api('GET', `/api/v1/projects/${projectId}/audits`); } catch (e) { /* idem */ }
         const projectControls = S.controls.filter(ctrl => ctrl.project_id === projectId);
         const parteOptions = await opcoesDePartes(projectId, ca.assigned_to_parte_id);
 
@@ -1434,7 +1437,7 @@ window.__grcCloseExecAudit = function (id) {
         try { 
             const res = await api('GET', `/api/v1/projects/${proj.id}/audits`); 
             audits = Array.isArray(res) ? res : (res && Array.isArray(res.audits)) ? res.audits : [];
-        } catch(e) {}
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as auditorias.', e); return; }
         S.audits = audits;
 
         const totalAudits = audits.length;
@@ -1725,7 +1728,8 @@ window.__grcCloseExecAudit = function (id) {
             `;
             c.innerHTML = html;
         } catch(e) {
-            c.innerHTML = `<div class="error">Erro ao carregar execução da auditoria: ${escapeHTML(e.message)}</div>`;
+            // `a` fica: "Voltar ao Calendário" continua valendo.
+            window.falhaDeCarga(c, null, 'Não foi possível carregar a execução da auditoria.', e);
         }
     }
 

@@ -21,7 +21,7 @@ async function renderRequisitos(c, h, a) {
     h.textContent = 'Requisitos';
     const proj = projetoAtivo();
     let fontes = [];
-    try { fontes = lista(await api('GET', '/api/v1/requisitos/fontes')); } catch (e) { /* tela vazia e aviso abaixo */ }
+    try { fontes = lista(await api('GET', '/api/v1/requisitos/fontes')); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar o catálogo de requisitos.', e); return; }
     const escolhida = fontes.find((f) => f.id === S.fonteRequisitos && f.requisitos > 0)
         || fontes.find((f) => f.requisitos > 0) || fontes[0];
     const fonteId = escolhida ? escolhida.id : null;
@@ -48,7 +48,7 @@ async function renderRequisitos(c, h, a) {
     }
 
     let reqs = [];
-    try { reqs = lista(await api('GET', `/api/v1/requisitos?fonte=${encodeURIComponent(fonteId)}`)); } catch (e) { /* lista vazia */ }
+    try { reqs = lista(await api('GET', `/api/v1/requisitos?fonte=${encodeURIComponent(fonteId)}`)); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os requisitos.', e); return; }
     const comCobertura = FONTES_COM_COBERTURA.includes(fonteId) && !!proj;
     let cobertura = new Map();
     let resumo = null;

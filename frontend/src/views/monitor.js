@@ -11,7 +11,7 @@ import { podeIndicar } from './encarregado.js';
         // Mesma fonte do Dashboard (/projects, só os projetos deste módulo). Lia /portfolio e, quando ele
         // vinha vazio, o Monitor dizia "nenhum projeto" com o Dashboard mostrando um projeto em curso.
         let portfolio = [];
-        try { portfolio = projetosDoProduto(await api('GET', '/api/v1/projects')); } catch (e) { portfolio = []; }
+        try { portfolio = projetosDoProduto(await api('GET', '/api/v1/projects')); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os projetos.', e); return; }
         if (portfolio.length === 0) {
             c.innerHTML = renderEmptyState({
                 titulo: 'Nenhum projeto do n.iso para monitorar',
@@ -142,7 +142,7 @@ import { podeIndicar } from './encarregado.js';
             `;
             
         } catch (e) {
-            c.innerHTML = `<div class="error">Erro ao carregar monitoramento do projeto: ${escapeHTML(e.message)}</div>`;
+            window.falhaDeCarga(c, a, 'Não foi possível carregar o monitoramento do projeto.', e);
         }
     }
 
@@ -150,7 +150,7 @@ import { podeIndicar } from './encarregado.js';
         h.textContent = 'Monitor';
         a.innerHTML = `<div class="dropdown-wrap"><button class="btn dropdown-trigger" data-action="__monToggleDropdown" data-arg-el>Exportar</button><div class="dropdown-menu"><div class="dropdown-item" data-action="exportCSV" data-args='["risks"]'>Riscos CSV</div><div class="dropdown-item" data-action="exportCSV" data-args='["vendors"]'>Fornecedores CSV</div><div class="dropdown-item" data-action="exportCSV" data-args='["training"]'>Treinamento CSV</div></div></div>`;
         let portfolio = [];
-        try { portfolio = (await api('GET', '/api/v1/portfolio'))?.portfolio || []; } catch(e) {}
+        try { portfolio = (await api('GET', '/api/v1/portfolio'))?.portfolio || []; } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a carteira de projetos.', e); return; }
         c.innerHTML = `<div class="fade-in">${portfolio.length ? portfolio.map(p => {
             const pct = p.overall_progress_pct || 0;
             const semaphore = pct > 70 ? {color:'var(--success)',label:'No prazo'} : pct > 30 ? {color:'var(--warning)',label:'Atencao'} : {color:'var(--danger)',label:'Critico'};
@@ -211,7 +211,7 @@ import { podeIndicar } from './encarregado.js';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
         let cert = null;
-        try { cert = (await api('GET', `/api/v1/projects/${proj.id}/certification`))?.certification ?? null; } catch(e) {}
+        try { cert = (await api('GET', `/api/v1/projects/${proj.id}/certification`))?.certification ?? null; } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a certificação.', e); return; }
         if (!cert || !cert.id) {
             // O CTA mora no vazio: o header repetia a instrução apontando para cima.
             a.innerHTML = '';
@@ -323,7 +323,7 @@ import { podeIndicar } from './encarregado.js';
         a.innerHTML = `<button class="btn btn-primary" data-action="openNewMetricModal" data-args='["${proj.id}"]'>+ Nova Métrica</button>`;
         
         let metrics = [];
-        try { metrics = await api('GET', `/api/v1/projects/${proj.id}/metrics`); } catch(e) {}
+        try { metrics = await api('GET', `/api/v1/projects/${proj.id}/metrics`); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as métricas.', e); return; }
         if (!Array.isArray(metrics)) metrics = [];
 
         const statusColor = st => st === 'Critical' ? 'var(--danger)' : st === 'At Risk' ? 'var(--warning)' : 'var(--success)';
@@ -524,7 +524,7 @@ import { podeIndicar } from './encarregado.js';
             window.carregarAgentesDoProjeto(p.id);
             window.agentesAoVivo(p.id);
         } catch(e) {
-            c.innerHTML = `<div class="error">Erro ao carregar governança: ${escapeHTML(e.message)}</div>`;
+            window.falhaDeCarga(c, a, 'Não foi possível carregar a governança.', e);
         }
     }
 
@@ -908,7 +908,7 @@ import { podeIndicar } from './encarregado.js';
             
             const [members, newProgress] = await Promise.all([
                 api('GET', `/api/v1/projects/${projectId}/governance`),
-                api('GET', `/api/v1/projects/${projectId}/checklist-progress`).catch(() => [])
+                api('GET', `/api/v1/projects/${projectId}/checklist-progress`).catch(() => []) // secundário: só o progresso das fases
             ]);
             S.currentGovernance = members;
             
@@ -942,7 +942,7 @@ import { podeIndicar } from './encarregado.js';
             
             const [members, newProgress] = await Promise.all([
                 api('GET', `/api/v1/projects/${projectId}/governance`),
-                api('GET', `/api/v1/projects/${projectId}/checklist-progress`).catch(() => [])
+                api('GET', `/api/v1/projects/${projectId}/checklist-progress`).catch(() => []) // secundário: só o progresso das fases
             ]);
             S.currentGovernance = members;
             
@@ -1172,7 +1172,7 @@ import { podeIndicar } from './encarregado.js';
                 ${tabBody}
             `;
         } catch(e) {
-            c.innerHTML = `<div class="error">Erro ao carregar contexto: ${escapeHTML(e.message)}</div>`;
+            window.falhaDeCarga(c, a, 'Não foi possível carregar o contexto da organização.', e);
         }
     }
 
@@ -1222,7 +1222,7 @@ import { podeIndicar } from './encarregado.js';
         try {
             const res = await api('GET', `/api/v1/projects/${proj.id}/stakeholders`);
             list = Array.isArray(res) ? res : (res && Array.isArray(res.stakeholders)) ? res.stakeholders : (res && Array.isArray(res.list)) ? res.list : [];
-        } catch(e) {}
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as partes interessadas.', e); return; }
         S.stakeholders = list;
 
         const total = list.length;
@@ -1420,7 +1420,7 @@ import { podeIndicar } from './encarregado.js';
         try {
             const res = await api('GET', `/api/v1/projects/${proj.id}/management-reviews`);
             list = Array.isArray(res) ? res : (res && Array.isArray(res.reviews)) ? res.reviews : (res && Array.isArray(res.list)) ? res.list : [];
-        } catch(e) {}
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as análises críticas.', e); return; }
         S.managementReviews = list;
 
         const totalReviews = list.length;
@@ -1736,7 +1736,7 @@ import { podeIndicar } from './encarregado.js';
         try { 
             const res = await api('GET', `/api/v1/projects/${proj.id}/assets`); 
             assets = Array.isArray(res) ? res : (res && Array.isArray(res.assets)) ? res.assets : [];
-        } catch(e) {}
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os ativos.', e); return; }
         S.assets = assets;
 
         const totalAssets = assets.length;

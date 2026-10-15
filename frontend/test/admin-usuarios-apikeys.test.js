@@ -97,14 +97,17 @@ describe('renderUsers', () => {
     expect(window.loadProjects).toHaveBeenCalledOnce();
   });
 
-  it('falha ao carregar projetos: mensagem de erro escapada', async () => {
+  it('falha ao carregar: estado de erro em português, sem a mensagem técnica na tela', async () => {
     S.projects = [];
     window.loadProjects = vi.fn(async () => { throw new Error('<i id="e">boom</i>'); });
     apiMock.mockResolvedValue([]);
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
     const [c, h, a] = dom();
     await window.renderUsers(c, h, a);
-    expect(c.textContent).toContain('Erro ao carregar usuários: <i id="e">boom</i>');
+    expect(c.querySelector('.error-state').textContent).toContain('Não foi possível carregar os usuários.');
+    expect(c.textContent).not.toContain('boom');
     expect($('e')).toBeNull();
+    erro.mockRestore();
   });
 
   // BUG (admin.js:136): "Administradores & Consultores" só conta platform_admin/admin/consultor;
@@ -367,7 +370,8 @@ describe('renderApiKeys', () => {
     apiMock.mockRejectedValue(new Error('403 Forbidden'));
     const [c, h, a] = dom();
     await window.renderApiKeys(c, h, a);
-    expect(c.textContent).toContain('Erro ao carregar chaves de API: 403 Forbidden');
+    expect(c.querySelector('.error-state').textContent).toContain('Não foi possível carregar as chaves de API.');
+    expect(c.textContent).not.toContain('403');
     expect(c.querySelector('table')).toBeNull();
   });
 });

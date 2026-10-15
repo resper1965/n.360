@@ -593,6 +593,10 @@
         .empty-list { list-style: none; margin: 1rem auto 0; padding: 0; max-width: 65ch; text-align: left; font-size: 0.85rem; line-height: 1.5; color: var(--text); }
         .empty-list li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.5rem 0; border-top: 1px solid var(--border); }
         .empty-list li:first-child { border-top: 0; }
+        /* Estado de erro único (renderErrorState em ui.js): a carga falhou, nunca o vazio; "Tentar de novo" refaz a tela. */
+        .error-state { text-align: center; padding: 3rem 1.5rem; border: 1px solid color-mix(in oklab, var(--danger) 45%, var(--border)); background: color-mix(in oklab, var(--danger) 7%, transparent); }
+        .error-state h3 { font-family: var(--font-head); font-weight: 600; font-size: 1rem; margin: 0; color: var(--text); }
+        .error-state p { margin: 0.5rem auto 0; max-width: 65ch; font-size: 0.85rem; line-height: 1.5; color: var(--text-2); }
 
         /* ——— TOAST ———————————————————————————————————————— */
         /* Toast: canto inferior ESQUERDO, para não disputar espaço com a barra
@@ -1697,6 +1701,8 @@ textarea:focus-visible {
 .sidebar-selo { margin-left: auto; min-width: 18px; height: 16px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; color: var(--warning); border: 1px solid currentColor; border-radius: var(--radius); }
 .sidebar-selo.is-danger { background: var(--danger); border-color: var(--danger); color: var(--accent-ink); }
 .sidebar-selo[hidden] { display: none; }
+/* Falha ao conferir ("?"): neutro, sem cor de pendência nem de atraso. */
+.sidebar-selo.is-falha { color: var(--text-dim); border-color: var(--border); background: none; }
 /* Recolhida: o selo vai para o canto do ícone, e o título de seção vira um fio (o texto continua nomeando a lista). */
 .sidebar.collapsed .sidebar-selo { position: absolute; top: 1px; right: 12px; min-width: 16px; height: 14px; padding: 0 3px; }
 .sidebar.collapsed .sidebar-secao { height: 1px; padding: 0; margin: 8px 18px; background: var(--border); overflow: hidden; color: transparent; }

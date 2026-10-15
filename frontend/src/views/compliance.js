@@ -34,6 +34,10 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         a.innerHTML = S.currentProject && controls.length
             ? `<button class="btn btn-secondary" data-action="runReadinessCheck" data-args='["${S.currentProject.id}"]'>Diagnóstico de prontidão</button>`
             : '';
+        if (!controls.length && S.controlesErro) {
+            window.falhaDeCarga(c, a, 'Não foi possível carregar os controles.', S.controlesErro, { acao: 'recarregarControles' });
+            return;
+        }
         if (!controls.length) {
             const com27701 = String(S.currentProject?.standards || '').includes('27701');
             c.innerHTML = S.currentProject
@@ -672,6 +676,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         try {
             const [controls, traceData] = await Promise.all([
                 api('GET', `/api/v1/projects/${proj.id}/controls`).then(r => r || []),
+                // Secundário: sem a rastreabilidade a SoA abre sem os chips de ligação.
                 api('GET', `/api/v1/projects/${proj.id}/traceability`).then(r => (Array.isArray(r) ? r : [])).catch(() => [])
             ]);
             
@@ -1500,10 +1505,14 @@ import { filtrarDoPainel } from '../filtro-painel.js';
 
         // As duas rotas devolvem {ok, <lista>}; o api() entrega a lista.
         const lista = (r) => (Array.isArray(r) ? r : []);
-        const [evidence, controles] = (await Promise.all([
-            api('GET', `/api/v1/projects/${proj.id}/evidence`).catch(() => []),
-            api('GET', `/api/v1/projects/${proj.id}/controls`).catch(() => []),
-        ])).map(lista);
+        let evidence, controles;
+        try {
+            [evidence, controles] = (await Promise.all([
+                api('GET', `/api/v1/projects/${proj.id}/evidence`),
+                // Secundário: sem os controles, a coluna mostra o id do controle.
+                api('GET', `/api/v1/projects/${proj.id}/controls`).catch(() => []),
+            ])).map(lista);
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as evidências.', e); return; }
         const tituloDoControle = Object.fromEntries(controles.map(ctl => [ctl.id, ctl.title || ctl.id]));
 
         const totalEvidence = evidence.length;
@@ -1733,7 +1742,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 ${tableHtml}
             `;
         } catch(e) {
-            c.innerHTML = `<div class="error">Erro ao carregar Gestão de Políticas: ${escapeHTML(e.message)}</div>`;
+            window.falhaDeCarga(c, a, 'Não foi possível carregar a gestão de políticas.', e);
         }
     }
 
@@ -2189,9 +2198,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         let acks = [];
         try {
             acks = await api('GET', `/api/v1/projects/${proj.id}/policy-acknowledgments`);
-        } catch(e) {
-            console.error('Error loading policy acknowledgments', e);
-        }
+        } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as ciências de política.', e); return; }
         if (!Array.isArray(acks)) acks = [];
 
         const totalAcks = acks.length;

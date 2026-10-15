@@ -38,7 +38,7 @@ async function renderTerceiros(c, h, a) {
         return;
     }
     let terceiros = [];
-    try { terceiros = lista(await api('GET', `/api/v1/projects/${proj.id}/terceiros`)); } catch (e) { /* tabela vazia e aviso abaixo */ }
+    try { terceiros = lista(await api('GET', `/api/v1/projects/${proj.id}/terceiros`)); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os terceiros.', e); return; }
     const vencidos = terceiros.filter((t) => t.situacao === 'vencida').length;
     const aviso = vencidos ? `<p style="color:var(--danger)">${escapeHTML(String(vencidos))} ${vencidos === 1 ? 'terceiro com avaliação vencida' : 'terceiros com avaliação vencida'}.</p>` : '';
     // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.

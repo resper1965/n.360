@@ -4,7 +4,9 @@ import { produtoAtual, temProduto } from './produto.js';
 
 // Selos do menu do n.privacy (Painel, Pedidos do titular, Terceiros, Incidentes). Os números vêm da visão do encarregado
 // (`GET /projects/:id/encarregado`, já calculados no servidor); aqui só se mostram. Carregam depois do menu, sem bloquear
-// tela, e qualquer falha deixa o item sem selo: o menu não pode quebrar por causa de um contador.
+// tela, e o menu não quebra por causa de um contador. Falha não apaga o selo em silêncio (sem selo leria "nada a tratar"):
+// as filas mostram "?" com o motivo para leitor de tela e no title.
+const TEXTO_FALHA = 'Não foi possível conferir os prazos agora. Abra a tela para ver a lista.';
 // O NÚMERO é o total a tratar; a FORMA diz se algo atrasou: contorno âmbar é pendente, fundo vermelho (`is-danger`) é atraso.
 // O Painel só tem selo com atraso, e o número dele é a soma dos atrasados das filas.
 
@@ -29,10 +31,23 @@ function mostrar(doc, id, quantos, atrasados, texto) {
     const el = doc.getElementById(id);
     if (!el) return;
     const q = inteiro(quantos);
+    el.classList.remove('is-falha');
+    el.removeAttribute('title');
     if (q <= 0) { el.hidden = true; el.textContent = ''; el.removeAttribute('aria-label'); return; }
     el.textContent = q > 99 ? '99+' : String(q);
     el.setAttribute('aria-label', texto(q, atrasados));
     el.classList.toggle('is-danger', atrasados > 0);
+    el.hidden = false;
+}
+
+function falhou(doc, id) {
+    const el = doc.getElementById(id);
+    if (!el) return;
+    el.textContent = '?';
+    el.setAttribute('aria-label', TEXTO_FALHA);
+    el.title = TEXTO_FALHA;
+    el.classList.remove('is-danger');
+    el.classList.add('is-falha');
     el.hidden = false;
 }
 
@@ -67,7 +82,12 @@ export async function atualizarSelos(doc = document, forcar = false) {
     // Só no n.privacy, com projeto que tem o módulo e papel que chega à visão (stakeholder e comercial não chegam).
     if (produtoAtual() !== 'privacy' || !p || !temProduto(p) || !S.user || ['stakeholder', 'comercial'].includes(S.user.role)) { limpar(); return; }
     let v;
-    try { v = await api('GET', `/api/v1/projects/${p.id}/encarregado`); } catch (e) { if (eu === rodada) limpar(); return; }
+    try { v = await api('GET', `/api/v1/projects/${p.id}/encarregado`); } catch (e) {
+        if (eu !== rodada) return;
+        limpar();
+        SELOS({}).slice(1).forEach(([id]) => falhou(doc, id));
+        return;
+    }
     if (eu !== rodada || !v || typeof v !== 'object') return;
     feito = chave;
     SELOS(v).forEach(([id, q, atrasados, texto]) => mostrar(doc, id, q, atrasados, texto));
