@@ -17,6 +17,7 @@ import './views/padronizar-nomes.js';
 import './views/documentos.js';
 import './views/requisitos.js';
 import './views/terceiros.js';
+import './views/mapa-de-risco.js';
 import './views/titular.js';
 import './views/encarregado.js';
 import './views/importacao.js';

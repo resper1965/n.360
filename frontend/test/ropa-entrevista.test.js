@@ -345,6 +345,64 @@ describe('teste de impacto (bloco I, catálogo e recomendação do servidor)', (
         expect(el('re-impacto')).toBeNull();
         expect(el('c').querySelector('[data-action="reAlterar"][data-args=\'["I"]\']')).toBeNull();
     });
+
+    it('"Finalizar teste de impacto" é botão humano: grava finalizar (com o que mudou) e relê; finalizado, vira "Reabrir"', async () => {
+        let lido = IMPACTO;
+        const f = await abrirComImpacto();
+        f.mockImplementation(async (url, opts = {}) => {
+            const k = `${opts.method || 'GET'} ${new URL(url, 'http://localhost').pathname}`;
+            if (k === `GET ${P}/ropa/r1/impacto`) return resposta(lido);
+            if (k === `PUT ${P}/ropa/r1/impacto`) {
+                const b = JSON.parse(opts.body);
+                lido = { ...lido, perguntas: lido.perguntas.map((q) => (b.respostas[q.id] ? { ...q, resposta: b.respostas[q.id] } : q)), finalizado_em: b.finalizar ? '2026-10-14T12:00:00.000Z' : null };
+                return resposta({ ok: true });
+            }
+            return resposta({ error: 'não dublado' }, 404);
+        });
+        irAoBlocoI();
+        radio('monitoramento', 'nao').click();
+        el('c').querySelector('[data-action="reFinalizarImpacto"]').click();
+        await vi.waitFor(() => expect(el('re-impacto-final').textContent).toContain('finalizado em 14/10/2026'));
+        expect(corpoDe(f, `PUT ${P}/ropa/r1/impacto`)).toEqual({ respostas: { monitoramento: 'nao' }, finalizar: true });
+        f.mockClear();
+        el('c').querySelector('[data-action="reFinalizarImpacto"]').click();
+        await vi.waitFor(() => expect(el('re-impacto-final').textContent).toContain('Finalizar teste de impacto'));
+        expect(corpoDe(f, `PUT ${P}/ropa/r1/impacto`)).toEqual({ respostas: {}, finalizar: false });
+    });
+
+    it('quem não entrevista (cliente comum) não vê o botão de finalizar', async () => {
+        S.user = { role: 'org_user' };
+        await abrirComImpacto();
+        expect(el('c').querySelector('[data-action="reFinalizarImpacto"]')).toBeNull();
+    });
+});
+
+describe('riscos da atividade na entrevista (F2): só leitura', () => {
+    const REG = { id: 'r1', project_id: 'p1', processing_purpose: 'Folha', data_subjects: 'Colaboradores', data_categories: 'Identificação',
+        dados_sensiveis: 0, criancas_adolescentes: 0, international_transfers: 0, dpia_required: 0, status: 'Draft', nao_informado: [], aprovacao_pedido: { ciso: null, ceo: null } };
+    // Corpo de GET /projects/:p/ropa/:rid/riscos (src/routes/ropa.ts): { riscos: [...] }.
+    const RISCOS = { riscos: [{ id: 'k1', threat: 'Acesso <b>indevido</b>', risk_level: 'High', residual_level: 'Low' }] };
+
+    it('na pergunta de impacto do bloco H, mostra os riscos já registrados, escapados, e leva às ligações; nada é perguntado nem gravado', async () => {
+        S.ropa = [REG];
+        rascunho('impacto', {}, 'r1');
+        const f = await abrir('r1', { [`GET ${P}/ropa/r1/riscos`]: RISCOS });
+        const bloco = el('re-riscos');
+        expect(bloco.textContent).toContain('Acesso <b>indevido</b> (nível Alto, residual Baixo)');
+        expect(bloco.querySelector('b')).toBeNull();
+        expect(JSON.parse(bloco.querySelector('[data-action="openLigacoesTratamento"]').getAttribute('data-args'))).toEqual(['p1', 'r1']);
+        expect(chamadas(f).filter((c) => !c.startsWith('GET'))).toEqual([]);
+    });
+
+    it('sem risco registrado, diz isso; atividade nova não mostra o bloco', async () => {
+        S.ropa = [REG];
+        rascunho('impacto', {}, 'r1');
+        await abrir('r1', { [`GET ${P}/ropa/r1/riscos`]: { riscos: [] } });
+        expect(el('re-riscos').textContent).toContain('Nenhum risco registrado');
+        rascunho('impacto', {});
+        await abrir();
+        expect(el('re-riscos')).toBeNull();
+    });
 });
 
 describe('"Não sei agora"', () => {

@@ -5,6 +5,7 @@ import { navigate } from '../router.js';
 import { BASES_ART7, BASES_ART11, ART11, normaliza, rotuloBase, ehLegitimoInteresse, ehConsentimento, ehArt11, camposDaBase, idsDoCatalogo, textoDaBase } from '../bases-legais.js';
 import { parecidos, mesmoEmail } from '../similares.js';
 import { podeEditar } from './partes.js';
+import { NIVEIS } from './mapa-de-risco.js';
 // Quem edita o cadastro nas telas, mais o administrador da consultoria: o servidor aceita as três criações no projeto da organização dele.
 const podeCadastrar = () => podeEditar() || S.user?.role === 'consultoria_admin';
 
@@ -259,7 +260,7 @@ const lista = (r) => (Array.isArray(r) ? r : []);
 async function tentar(fazer, padrao) { try { return await fazer(); } catch (e) { return padrao; } }
 
 async function carregar(projectId, recordId) {
-    const c = { pessoas: [], deptos: [], itens: [], catalogo: new Set(), registro: null, ligacoes: null, lia: null, impacto: null, temDpia: false, transferencias: [], inicial: {} };
+    const c = { pessoas: [], deptos: [], itens: [], catalogo: new Set(), registro: null, ligacoes: null, lia: null, impacto: null, riscos: null, temDpia: false, transferencias: [], inicial: {} };
     c.pessoas = lista(await tentar(() => api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`), []));
     c.deptos = lista(await tentar(() => api('GET', `/api/v1/projects/${projectId}/departamentos`), []));
     const ativos = await tentar(() => api('GET', `/api/v1/projects/${projectId}/assets`), []);
@@ -273,6 +274,8 @@ async function carregar(projectId, recordId) {
         c.temDpia = !!(c.ligacoes && lista(c.ligacoes.dpias).length);
         c.impacto = await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/impacto`), null);
         if (c.impacto && !Array.isArray(c.impacto.perguntas)) c.impacto = null;
+        // Riscos da atividade (F2): a entrevista só LÊ; registrar e mudar é nas Ligações (um cadastro, uma origem).
+        c.riscos = lista((await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/riscos`), {}))?.riscos);
         c.transferencias = lista(c.ligacoes && c.ligacoes.transferencias);
     }
     return c;
@@ -561,6 +564,13 @@ function extras(p) {
     if (p.id === 'transf_destino' && ctx.transferencias.length) {
         partes.push(`<p class="re-nota">Já registradas: ${ctx.transferencias.map((t) => `${escapeHTML(t.pais)}${t.mecanismo ? ` (${escapeHTML(t.mecanismo)})` : ''}`).join('; ')}. Preencha o país só para acrescentar outro.</p>`);
     }
+    if (p.id === 'impacto' && Array.isArray(ctx.riscos)) partes.push(blocoRiscos());
+    if (p.id === 'teste_impacto' && ctx.impacto && podeEntrevistar()) {
+        const fim = ctx.impacto.finalizado_em;
+        partes.push(fim
+            ? `<p class="re-nota" id="re-impacto-final">Teste de impacto finalizado em ${escapeHTML(String(fim).slice(8, 10))}/${escapeHTML(String(fim).slice(5, 7))}/${escapeHTML(String(fim).slice(0, 4))}. <button type="button" class="btn btn-sm" data-action="reFinalizarImpacto" data-args='${args(false)}'>Reabrir</button></p>`
+            : `<p class="re-nota" id="re-impacto-final">Finalizar registra que uma pessoa revisou as respostas; dá para reabrir depois. <button type="button" class="btn btn-sm" data-action="reFinalizarImpacto" data-args='${args(true)}'>Finalizar teste de impacto</button></p>`);
+    }
     if (p.id === 'ripd') {
         const mot = motivosRipd(r);
         partes.push(mot.length
@@ -569,6 +579,15 @@ function extras(p) {
     }
     if (p.sugerir && podeEntrevistar() && (p.sugerir !== 'base' || ctx.catalogo.size)) partes.push(blocoSugestao(p.sugerir));
     return partes.join('');
+}
+
+/** Os riscos que a atividade já tem, só leitura: a entrevista não pergunta de novo o que está registrado. */
+function blocoRiscos() {
+    const linhas = ctx.riscos.map((k) => `<li>${escapeHTML(k.threat)} (nível ${escapeHTML(NIVEIS[k.risk_level] || k.risk_level || '—')}${k.residual_level ? `, residual ${escapeHTML(NIVEIS[k.residual_level] || k.residual_level)}` : ''})</li>`).join('');
+    return `<div class="re-nota" id="re-riscos">${ctx.riscos.length
+        ? `<p>Riscos já registrados nesta atividade:</p><ul>${linhas}</ul>`
+        : '<p>Nenhum risco registrado nesta atividade ainda.</p>'}
+        <p>Registrar ou mudar um risco é nas Ligações da atividade. <button type="button" class="btn btn-sm" data-action="openLigacoesTratamento" data-args='${args(st.projectId, st.recordId)}'>Abrir as ligações</button></p></div>`;
 }
 
 function blocoSugestao(campo) {
@@ -959,6 +978,18 @@ window.reImpacto = function (pergunta, v) {
     const atual = st.respostas.teste_impacto;
     st.respostas.teste_impacto = { ...(atual && typeof atual === 'object' ? atual : {}), [pergunta]: v };
     guardar();
+};
+// Finalizar ou reabrir o teste de impacto é ato humano (o servidor recusa ao agente). Vai junto o que a pessoa mudou e ainda não salvou.
+window.reFinalizarImpacto = async function (finalizar) {
+    const imp = valor(st.respostas, 'teste_impacto');
+    const antes = respostasDoImpacto(ctx.impacto);
+    const respostas = imp && typeof imp === 'object'
+        ? Object.fromEntries(Object.entries(imp).filter(([k, v]) => v !== antes[k] && IMPACTO_OPCOES.some((o) => o.v === v))) : {};
+    try {
+        await api('PUT', `/api/v1/projects/${st.projectId}/ropa/${st.recordId}/impacto`, { respostas, finalizar });
+        ctx.impacto = await api('GET', `/api/v1/projects/${st.projectId}/ropa/${st.recordId}/impacto`);
+    } catch (e) { erro(`Não foi possível ${finalizar ? 'finalizar' : 'reabrir'} o teste de impacto: ${e.message}`); return; }
+    desenhar();
 };
 // O RIPD nasce do tratamento (herda o que já foi informado) e a pessoa segue para a tela de RIPD.
 window.reAbrirRipd = async function () {

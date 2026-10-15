@@ -37,6 +37,8 @@ async function renderEncarregado(c, h, a) {
         { label: 'Tratamentos com pendência', value: pendTrat, color: cor(pendTrat, 'var(--warning)'), subtext: `de ${n(tr.total)} tratamentos` },
         { label: 'Terceiros vencidos', value: te.vencidos || 0, color: cor(te.vencidos), subtext: `${n(te.pendentes)} nunca avaliados · ${n(te.reprovados)} reprovados` },
         { label: 'Evidências vencidas', value: ev.vencidas || 0, color: cor(ev.vencidas, 'var(--warning)'), subtext: `${n(ev.vencem_em_7_dias)} vencem em 7 dias` },
+        // Riscos e ações das atividades (F2): só quando o servidor manda o bloco.
+        ...(v.riscos ? [{ label: 'Riscos altos nas atividades', value: v.riscos.altos || 0, color: cor(v.riscos.altos), subtext: `${n(v.riscos.acoes_vencidas)} ações vencidas` }] : []),
         ...(lg.carregada ? [{ label: 'LGPD coberta', value: `${lg.cobertos || 0}/${lg.total || 0}`, color: cor(lg.lacunas, 'var(--warning)'), subtext: `${n(lg.parciais)} parciais · ${n(lg.lacunas)} lacunas` }] : []),
     ]);
     const prioridades = Array.isArray(v.prioridades) ? v.prioridades : [];
