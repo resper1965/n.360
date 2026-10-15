@@ -34,7 +34,7 @@ function base64(b: Uint8Array): string {
 
 /**
  * Lê o logo do R2 e devolve o `data:` URI, ou `undefined` (sem logo, objeto sumido, bytes que não
- * são PNG/JPEG, ou falha do R2). Falha NÃO derruba a geração da proposta: sai sem logo e registra.
+ * são PNG/JPEG, ou falha do R2). Falha NÃO derruba a geração da proposta nem do Word (RIPD e LIA): sai sem logo e registra.
  */
 export async function logoComoDataUri(storage: R2Bucket, chave: string | null | undefined, orgId: string): Promise<string | undefined> {
   if (!chave) return undefined;
@@ -48,7 +48,7 @@ export async function logoComoDataUri(storage: R2Bucket, chave: string | null | 
     if (!tipo || bytes.length > LOGO_MAX_BYTES) throw new Error('conteúdo inválido');
     return `data:${MIME_LOGO[tipo]};base64,${base64(bytes)}`;
   } catch (e) {
-    log('error', { msg: 'logo da organização indisponível: proposta gerada sem logo', org: orgId, erro: e instanceof Error ? e.message : 'desconhecido' });
+    log('error', { msg: 'logo da organização indisponível: documento gerado sem logo', org: orgId, erro: e instanceof Error ? e.message : 'desconhecido' });
     return undefined;
   }
 }

@@ -289,7 +289,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   em `GET /projects/:id/export/{atividades,ripd}` (nucleo) e `export/{riscos-atividade,acoes-atividade,lia}` (faixa `privacy`; riscos
   aceitam `probabilidade`/`impacto`, a celula do mapa; acoes aceitam `faixa`). RIPD e LIA em Word (`src/services/documento-word.ts`, com os
   auxiliares de `documento-docx.ts`): `GET .../dpia/:id/docx` (nucleo) e `GET .../ropa/:rid/lia/docx` (privacy), lidos AO VIVO da empresa,
-  do encarregado, da atividade, das bases, do ciclo, do teste de impacto e dos riscos; rascunho com "RASCUNHO" no cabecalho; o RIPD leva a
+  do encarregado, da atividade, das bases, do ciclo, do teste de impacto e dos riscos; rascunho com "RASCUNHO" no cabecalho, que leva o logo da organizacao do projeto (`logoComoDataUri`, o mesmo da
+  proposta; sem logo ou com falha, o nome); o RIPD leva a
   aprovacao derivada dos pedidos e o hash do conteudo (nao ha coluna de versao). Rotas em `src/routes/exportacao.ts`, em `FORA_DO_AGENTE`;
   trilha `exportacao.csv`/`exportacao.docx` so com tipo e contagem. O painel do encarregado ganhou `acoes_por_prazo` (vencidas, ate 30,
   31 a 90, 91 a 150, mais de 150 dias, sem prazo; `faixaDePrazo` em `src/services/riscos-atividade.ts`), clicavel na tela. Download no

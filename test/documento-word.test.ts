@@ -123,3 +123,26 @@ describe('nome do arquivo', () => {
     expect(nomeArquivo('RIPD', 'a'.repeat(200))).toBe(`RIPD-${'a'.repeat(60)}.docx`);
   });
 });
+
+describe('logo da consultoria no cabeçalho', () => {
+  const PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
+  const midias = async (r: Response) => Object.keys((await JSZip.loadAsync(new Uint8Array(await r.arrayBuffer()))).files).filter((f) => f.startsWith('word/media/') && !f.endsWith('/'));
+
+  it('com logo da organização: a imagem vai no cabeçalho do RIPD e da LIA; sem logo, o nome', async () => {
+    await env.STORAGE.put('logos/org_ness/dw-logo.png', PNG);
+    await env.DB.prepare(`UPDATE organizations SET logo_chave = 'logos/org_ness/dw-logo.png' WHERE id = 'org_ness'`).run();
+    try {
+      expect(await midias(await chamar(consultor, `/api/v1/projects/${P}/dpia/dw-d1/docx`))).toHaveLength(1);
+      expect(await midias(await chamar(consultor, `/api/v1/projects/${P}/ropa/dw-r1/lia/docx`))).toHaveLength(1);
+      // Chave fora da pasta da organização ou bytes que não são imagem: sai sem logo, o download não falha.
+      await env.DB.prepare(`UPDATE organizations SET logo_chave = 'logos/org_b/dw-logo.png' WHERE id = 'org_ness'`).run();
+      const r = await chamar(consultor, `/api/v1/projects/${P}/dpia/dw-d1/docx`);
+      expect(r.status).toBe(200);
+      expect(await midias(r)).toHaveLength(0);
+    } finally {
+      await env.DB.prepare(`UPDATE organizations SET logo_chave = NULL WHERE id = 'org_ness'`).run();
+    }
+    const { cab } = await abrir(await chamar(consultor, `/api/v1/projects/${P}/dpia/dw-d1/docx`));
+    expect(cab).toContain('ness.');
+  });
+});

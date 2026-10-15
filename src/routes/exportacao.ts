@@ -59,7 +59,7 @@ async function responderWord(c: Ctx, gerar: () => Promise<{ bytes: Uint8Array; n
 }
 
 exportacaoApp.get('/dpia/:dpiaId/docx', (c) =>
-  responderWord(c, () => ripdEmWord(c.env.DB, c.req.param('projectId')!, c.req.param('dpiaId')), 'RIPD', c.req.param('dpiaId')));
+  responderWord(c, () => ripdEmWord(c.env.DB, c.req.param('projectId')!, c.req.param('dpiaId'), c.env.STORAGE), 'RIPD', c.req.param('dpiaId')));
 
 exportacaoApp.get('/ropa/:recordId/lia/docx', (c) =>
-  responderWord(c, () => liaEmWord(c.env.DB, c.req.param('projectId')!, c.req.param('recordId')), 'LIA', c.req.param('recordId')));
+  responderWord(c, () => liaEmWord(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'), c.env.STORAGE), 'LIA', c.req.param('recordId')));
