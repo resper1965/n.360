@@ -42,14 +42,16 @@ function projetoDaEntrada() {
 
 const CHAVE_VISTA = 'n360_vista';
 const temCarteira = () => ehEquipe() && projetosDoProduto(S.projects || [], 'n360').length > 1;
+let vistaDaSessao = null; // a escolha desta página, para valer mesmo sem storage
 function vistaDoN360() {
     if (!temCarteira()) return 'projeto';
-    let lembrada = null;
-    try { lembrada = localStorage.getItem(CHAVE_VISTA); } catch (err) { lembrada = null; }
+    let lembrada = vistaDaSessao;
+    if (!lembrada) { try { lembrada = localStorage.getItem(CHAVE_VISTA); } catch (err) { lembrada = null; } }
     return lembrada === 'projeto' || lembrada === 'carteira' ? lembrada : 'carteira';
 }
 window.painelVista = function (vista) {
     if (vista !== 'projeto' && vista !== 'carteira') return;
+    vistaDaSessao = vista;
     try { localStorage.setItem(CHAVE_VISTA, vista); } catch (err) { /* sem storage: vale só até recarregar */ }
     if (typeof window.render === 'function') window.render();
 };

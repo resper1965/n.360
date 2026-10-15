@@ -240,9 +240,12 @@ describe('início do n.360', () => {
         // storage indisponível: lê e grava em try/catch
         vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('bloqueado'); });
         vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('bloqueado'); });
-        expect(() => window.painelVista('carteira')).not.toThrow();
+        expect(() => window.painelVista('projeto')).not.toThrow();
         await abrir('n360');
-        expect(el('c').textContent).toContain('projetos');
+        expect(el('c').querySelector('.pn-carteira')).toBeNull();
+        window.painelVista('carteira');
+        await abrir('n360');
+        expect(el('c').querySelector('.pn-carteira')).not.toBeNull();
     });
 
     it('cliente com um projeto: sem alternância e sem carteira', async () => {
