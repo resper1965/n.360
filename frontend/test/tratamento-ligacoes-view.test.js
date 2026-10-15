@@ -295,3 +295,96 @@ describe('sugestão da IA', () => {
         expect(el('modal-content').querySelector('[data-action="sugerirTratamento"]')).toBeNull();
     });
 });
+
+// F2: riscos e ações da atividade, nas sub-rotas do n.privacy (src/routes/ropa.ts: { riscos } e { acoes }). Mesmo cadastro do n.iso.
+describe('riscos e ações da atividade', () => {
+    const RISCOS = { riscos: [{ id: 'k1', threat: 'Acesso <b>indevido</b>', asset: 'ERP', asset_id: 'it1', vulnerability: null, impact: 4, probability: 4, risk_level: 'High',
+        residual_impact: 2, residual_probability: 2, residual_level: 'Low', treatment: 'Mitigate', treatment_plan: 'MFA', status: 'Open', owner_parte_id: 'pa1' }] };
+    const ACOES = { acoes: [{ id: 'a1', title: 'Revisar <i>acessos</i>', due_date: '2026-11-30', assigned_to_parte_nome: 'Operadora', risco_ameaca: 'Acesso indevido', risk_id: 'k1', status: 'Open', description: null, assigned_to_parte_id: 'pa1' }] };
+    const comRiscos = (extra = {}) => abrir({ [`GET ${B}/riscos`]: RISCOS, [`GET ${B}/acoes`]: ACOES, ...extra });
+
+    it('lista o que existe, com nível por texto, tudo escapado', async () => {
+        await comRiscos();
+        const r = el('tl-riscos');
+        expect(r.textContent).toContain('Acesso <b>indevido</b>');
+        expect(r.textContent).toContain('4 x 4');
+        expect(r.textContent).toContain('Alto');
+        expect(r.textContent).toContain('Baixo');
+        expect(el('tl-acoes').textContent).toContain('Revisar <i>acessos</i>');
+        expect(el('tl-acoes').textContent).toContain('30/11/2026');
+        expect(el('modal-content').querySelector('b, i')).toBeNull();
+    });
+
+    it('o formulário novo já vem com o sistema ligado à atividade e o responsável dela (pré-preenchimento)', async () => {
+        S.ropa = [{ id: 'r1', processing_purpose: 'Folha', owner_parte_id: 'pa1' }];
+        await comRiscos();
+        expect(el('tl-rk-ativo').value).toBe('it1');
+        expect([...el('tl-rk-ativo').querySelectorAll('option')].map((o) => o.value)).toEqual(['', 'it1']);
+        expect(el('tl-rk-resp').value).toBe('pa1');
+        expect(el('tl-ac-resp').value).toBe('pa1');
+        expect([...el('tl-ac-risco').querySelectorAll('option')].map((o) => o.value)).toEqual(['', 'k1']);
+    });
+
+    it('registrar risco faz POST com as notas em número; editar preenche o formulário e faz PUT', async () => {
+        const f = await comRiscos({ [`POST ${B}/riscos`]: { ok: true, id: 'k2', risk_level: 'Medium' }, [`PUT ${B}/riscos/k1`]: { ok: true, risk_level: 'Low' } });
+        el('tl-rk-ameaca').value = ' Vazamento ';
+        el('tl-rk-imp').value = '2';
+        el('tl-rk-rimp').value = '1';
+        el('tl-rk-rprob').value = '2';
+        await window.salvarRiscoAtividade('p9', 'r1');
+        expect(corpoDe(f, `POST ${B}/riscos`)).toEqual({ threat: 'Vazamento', vulnerability: null, asset_id: 'it1', impact: 2, probability: 3, treatment: 'Mitigate',
+            treatment_plan: null, residual_impact: 1, residual_probability: 2, owner_parte_id: null, status: 'Open' });
+        window.editarRiscoAtividade('k1');
+        expect(el('tl-rk-ameaca').value).toBe('Acesso <b>indevido</b>');
+        expect(el('tl-rk-titulo').textContent).toBe('Editar risco');
+        el('tl-rk-status').value = 'Accepted';
+        await window.salvarRiscoAtividade('p9', 'r1');
+        expect(corpoDe(f, `PUT ${B}/riscos/k1`)).toMatchObject({ threat: 'Acesso <b>indevido</b>', impact: 4, probability: 4, residual_impact: 2, status: 'Accepted', owner_parte_id: 'pa1' });
+    });
+
+    it('sem ameaça não envia; apagar pede confirmação na linha antes do DELETE', async () => {
+        const f = await comRiscos({ [`DELETE ${B}/riscos/k1`]: { ok: true } });
+        await window.salvarRiscoAtividade('p9', 'r1');
+        expect(chamadas(f)).not.toContain(`POST ${B}/riscos`);
+        window.apagarRiscoAtividade('p9', 'r1', 'k1', false);
+        expect(chamadas(f)).not.toContain(`DELETE ${B}/riscos/k1`);
+        const confirmar = el('tl-riscos').querySelector('[data-action="apagarRiscoAtividade"]');
+        expect(confirmar.textContent).toBe('Confirmar exclusão');
+        expect(JSON.parse(confirmar.getAttribute('data-args'))).toEqual(['p9', 'r1', 'k1', true]);
+        await window.apagarRiscoAtividade('p9', 'r1', 'k1', true);
+        expect(chamadas(f)).toContain(`DELETE ${B}/riscos/k1`);
+    });
+
+    it('ação: registrar com o risco da atividade, concluir e editar', async () => {
+        const f = await comRiscos({ [`POST ${B}/acoes`]: { ok: true, id: 'a2' }, [`PUT ${B}/acoes/a1`]: { ok: true } });
+        el('tl-ac-titulo').value = 'Treinar a equipe';
+        el('tl-ac-prazo').value = '2026-12-15';
+        el('tl-ac-risco').value = 'k1';
+        await window.salvarAcaoAtividade('p9', 'r1');
+        expect(corpoDe(f, `POST ${B}/acoes`)).toEqual({ title: 'Treinar a equipe', description: null, due_date: '2026-12-15', assigned_to_parte_id: null, risk_id: 'k1', status: 'Open' });
+        await window.concluirAcaoAtividade('p9', 'r1', 'a1');
+        expect(corpoDe(f, `PUT ${B}/acoes/a1`)).toEqual({ status: 'Closed' });
+        window.editarAcaoAtividade('a1');
+        expect(el('tl-ac-prazo').value).toBe('2026-11-30');
+        expect(el('tl-ac-risco').value).toBe('k1');
+    });
+
+    it('cliente sem edição só lê; nenhum botão leva ao n.iso (matriz de riscos, CAPA)', async () => {
+        S.user = { role: 'org_user' };
+        await comRiscos();
+        expect(el('tl-riscos').textContent).toContain('Acesso <b>indevido</b>');
+        expect(el('tl-rk-ameaca')).toBeNull();
+        expect(el('modal-content').querySelector('[data-action="apagarRiscoAtividade"]')).toBeNull();
+        S.user = { role: 'consultor' };
+        await comRiscos();
+        const destinos = [...el('modal-content').querySelectorAll('[data-action="navigate"]')].map((b) => b.getAttribute('data-args'));
+        expect(destinos.filter((d) => /risks|capa|soa/.test(d))).toEqual([]);
+        expect(el('modal-content').innerHTML).not.toMatch(/\/iso\b/);
+    });
+
+    it('sub-rota indisponível (projeto sem o n.privacy) não impede abrir as ligações', async () => {
+        await abrir();
+        expect(el('tl-riscos').textContent).toContain('Nenhum risco registrado');
+        expect(el('tl-acoes').textContent).toContain('Nenhuma ação registrada');
+    });
+});

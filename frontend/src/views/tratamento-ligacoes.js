@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML } from '../ui.js';
 import { textoDaBase } from '../bases-legais.js';
+import { NIVEIS } from './mapa-de-risco.js';
 
 // Ligações do registro do RoPA (fatia 4.1 e 4.2 do núcleo): base legal do catálogo, itens, departamentos, partes,
 // transferências internacionais e o diagrama derivado. Toda regra é do servidor; aqui só se mostra e se chama.
@@ -58,6 +59,72 @@ function formularioLia(lia, projectId, ropaId) {
         </div></div>`;
 }
 
+// ─── Riscos e ações da atividade (F2): o MESMO cadastro do n.iso, pelas sub-rotas do n.privacy. Nada aqui leva ao n.iso. ───
+const TRATAMENTOS = { Mitigate: 'Mitigar', Accept: 'Aceitar', Avoid: 'Evitar', Transfer: 'Transferir' };
+const SITUACAO_RISCO = { Open: 'Aberto', Mitigated: 'Mitigado', Accepted: 'Aceito', Closed: 'Encerrado' };
+const SITUACAO_ACAO = { Open: 'Aberta', 'In Progress': 'Em andamento', Closed: 'Concluída' };
+const NOTAS = [1, 2, 3, 4, 5];
+const opcoes = (mapa, atual) => Object.entries(mapa).map(([v, r]) => `<option value="${escapeHTML(v)}" ${v === atual ? 'selected' : ''}>${escapeHTML(r)}</option>`).join('');
+const opcoesNota = (atual, vazioRotulo) => (vazioRotulo ? `<option value="">${vazioRotulo}</option>` : '') + NOTAS.map((n) => `<option value="${n}" ${n === atual ? 'selected' : ''}>${n}</option>`).join('');
+const opcoesPartes = (partes, atual) => `<option value="">— sem responsável —</option>${partes.map((p) => `<option value="${escapeHTML(p.id)}" ${p.id === atual ? 'selected' : ''}>${escapeHTML(p.nome)}</option>`).join('')}`;
+const nivel = (n) => escapeHTML(NIVEIS[n] || n || '—');
+const dataCurta = (d) => (d ? `${escapeHTML(String(d).slice(8, 10))}/${escapeHTML(String(d).slice(5, 7))}/${escapeHTML(String(d).slice(0, 4))}` : '—');
+
+/** Riscos: lista e formulário. O formulário novo já vem com o primeiro sistema ligado à atividade e o responsável dela. */
+function blocoRiscos(projectId, ropaId, riscos, itensLigados, partes, editar, dono) {
+    const linhas = riscos.length ? `<table class="data-table"><thead><tr><th>Ameaça</th><th>Impacto x probabilidade</th><th>Nível</th><th>Residual</th><th>Tratamento</th><th>Situação</th><th></th></tr></thead><tbody>${riscos.map((k) =>
+        `<tr><td>${escapeHTML(k.threat)}${k.asset ? `<div style="color:var(--text-dim); font-size:0.8rem">${escapeHTML(k.asset)}</div>` : ''}</td><td>${escapeHTML(String(k.impact))} x ${escapeHTML(String(k.probability))}</td>
+            <td>${nivel(k.risk_level)}</td><td>${k.residual_level ? nivel(k.residual_level) : '—'}</td><td>${escapeHTML(TRATAMENTOS[k.treatment] || k.treatment || '—')}</td>
+            <td>${escapeHTML(SITUACAO_RISCO[k.status] || k.status || '—')}</td><td style="text-align:right; white-space:nowrap">${editar
+                ? `<button class="btn btn-ghost btn-sm" data-action="editarRiscoAtividade" data-args='${args(k.id)}'>Editar</button><span data-apagar-risco="${escapeHTML(k.id)}"><button class="btn btn-ghost btn-sm" data-action="apagarRiscoAtividade" data-args='${args(projectId, ropaId, k.id, false)}'>Apagar</button></span>` : ''}</td></tr>`).join('')}</tbody></table>`
+        : vazio('Nenhum risco registrado nesta atividade.');
+    if (!editar) return `<div id="tl-riscos">${linhas}</div>`;
+    const ativo = itensLigados.length ? itensLigados[0].id : '';
+    return `<div id="tl-riscos">${linhas}
+        <h5 id="tl-rk-titulo" style="margin:1rem 0 0.5rem">Novo risco</h5><input type="hidden" id="tl-rk-id" value="">
+        <div class="form-group"><label class="form-label" for="tl-rk-ameaca">Ameaça</label><input class="form-input" id="tl-rk-ameaca" maxlength="500"></div>
+        <div class="form-group"><label class="form-label" for="tl-rk-vuln">Vulnerabilidade</label><input class="form-input" id="tl-rk-vuln" maxlength="5000"></div>
+        <div class="form-group"><label class="form-label" for="tl-rk-ativo">Sistema ou base afetado</label><select class="form-input" id="tl-rk-ativo"><option value="">— a atividade como um todo —</option>${itensLigados.map((i) =>
+            `<option value="${escapeHTML(i.id)}" ${i.id === ativo ? 'selected' : ''}>${escapeHTML(i.nome)}</option>`).join('')}</select></div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <div class="form-group" style="flex:1"><label class="form-label" for="tl-rk-imp">Impacto (1 a 5)</label><select class="form-input" id="tl-rk-imp">${opcoesNota(3)}</select></div>
+            <div class="form-group" style="flex:1"><label class="form-label" for="tl-rk-prob">Probabilidade (1 a 5)</label><select class="form-input" id="tl-rk-prob">${opcoesNota(3)}</select></div>
+            <div class="form-group" style="flex:1"><label class="form-label" for="tl-rk-trat">Tratamento</label><select class="form-input" id="tl-rk-trat">${opcoes(TRATAMENTOS, 'Mitigate')}</select></div>
+        </div>
+        <div class="form-group"><label class="form-label" for="tl-rk-plano">Plano de tratamento</label><textarea class="form-input" id="tl-rk-plano" rows="2" maxlength="5000"></textarea></div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <div class="form-group" style="flex:1"><label class="form-label" for="tl-rk-rimp">Impacto residual</label><select class="form-input" id="tl-rk-rimp">${opcoesNota(null, '— não avaliado —')}</select></div>
+            <div class="form-group" style="flex:1"><label class="form-label" for="tl-rk-rprob">Probabilidade residual</label><select class="form-input" id="tl-rk-rprob">${opcoesNota(null, '— não avaliada —')}</select></div>
+            <div class="form-group" style="flex:1"><label class="form-label" for="tl-rk-status">Situação</label><select class="form-input" id="tl-rk-status">${opcoes(SITUACAO_RISCO, 'Open')}</select></div>
+        </div>
+        <div class="form-group"><label class="form-label" for="tl-rk-resp">Responsável</label><select class="form-input" id="tl-rk-resp">${opcoesPartes(partes, dono)}</select></div>
+        <div style="display:flex; gap:0.5rem"><button class="btn btn-primary btn-sm" data-action="salvarRiscoAtividade" data-args='${args(projectId, ropaId)}'>Salvar risco</button>
+            <button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='${args(projectId, ropaId)}'>Limpar</button></div></div>`;
+}
+
+/** Ações (gaps): lista e formulário; o responsável novo nasce o da atividade, e o risco só pode ser um desta atividade. */
+function blocoAcoes(projectId, ropaId, acoes, riscos, partes, editar, dono) {
+    const linhas = acoes.length ? `<table class="data-table"><thead><tr><th>Ação</th><th>Prazo</th><th>Responsável</th><th>Risco</th><th>Situação</th><th></th></tr></thead><tbody>${acoes.map((x) =>
+        `<tr><td>${escapeHTML(x.title)}</td><td>${dataCurta(x.due_date)}</td><td>${escapeHTML(x.assigned_to_parte_nome || x.assigned_to || '—')}</td><td>${escapeHTML(x.risco_ameaca || '—')}</td>
+            <td>${escapeHTML(SITUACAO_ACAO[x.status] || x.status || '—')}</td><td style="text-align:right; white-space:nowrap">${editar
+                ? `<button class="btn btn-ghost btn-sm" data-action="editarAcaoAtividade" data-args='${args(x.id)}'>Editar</button>${x.status === 'Closed' ? '' : `<button class="btn btn-ghost btn-sm" data-action="concluirAcaoAtividade" data-args='${args(projectId, ropaId, x.id)}'>Concluir</button>`}<span data-apagar-acao="${escapeHTML(x.id)}"><button class="btn btn-ghost btn-sm" data-action="apagarAcaoAtividade" data-args='${args(projectId, ropaId, x.id, false)}'>Apagar</button></span>` : ''}</td></tr>`).join('')}</tbody></table>`
+        : vazio('Nenhuma ação registrada nesta atividade.');
+    if (!editar) return `<div id="tl-acoes">${linhas}</div>`;
+    return `<div id="tl-acoes">${linhas}
+        <h5 id="tl-ac-titulo-form" style="margin:1rem 0 0.5rem">Nova ação</h5><input type="hidden" id="tl-ac-id" value="">
+        <div class="form-group"><label class="form-label" for="tl-ac-titulo">Ação</label><input class="form-input" id="tl-ac-titulo" maxlength="500"></div>
+        <div class="form-group"><label class="form-label" for="tl-ac-desc">Descrição</label><textarea class="form-input" id="tl-ac-desc" rows="2" maxlength="5000"></textarea></div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <div class="form-group" style="flex:1"><label class="form-label" for="tl-ac-prazo">Prazo</label><input class="form-input" id="tl-ac-prazo" type="date"></div>
+            <div class="form-group" style="flex:1"><label class="form-label" for="tl-ac-status">Situação</label><select class="form-input" id="tl-ac-status">${opcoes(SITUACAO_ACAO, 'Open')}</select></div>
+        </div>
+        <div class="form-group"><label class="form-label" for="tl-ac-resp">Responsável</label><select class="form-input" id="tl-ac-resp">${opcoesPartes(partes, dono)}</select></div>
+        <div class="form-group"><label class="form-label" for="tl-ac-risco">Risco que a ação trata</label><select class="form-input" id="tl-ac-risco"><option value="">— nenhum —</option>${riscos.map((k) =>
+            `<option value="${escapeHTML(k.id)}">${escapeHTML(k.threat)}</option>`).join('')}</select></div>
+        <div style="display:flex; gap:0.5rem"><button class="btn btn-primary btn-sm" data-action="salvarAcaoAtividade" data-args='${args(projectId, ropaId)}'>Salvar ação</button>
+            <button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='${args(projectId, ropaId)}'>Limpar</button></div></div>`;
+}
+
 const secao = (titulo, corpo) => `<h4 style="margin:1.25rem 0 0.5rem">${titulo}</h4>${corpo}`;
 const vazio = (texto) => `<p style="color:var(--text-dim)">${texto}</p>`;
 
@@ -68,6 +135,11 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
     let itens = [], deptos = [], partes = [], bases = [], diagrama = '', lia = null;
     try { diagrama = (await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/diagrama`)).mermaid || ''; } catch (e) { /* abre sem o diagrama */ }
     try { lia = (await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/lia`)).lia || null; } catch (e) { /* abre sem a LIA */ }
+    let riscos = [], acoes = [];
+    try { riscos = lista((await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/riscos`)).riscos); } catch (e) { /* abre sem os riscos */ }
+    try { acoes = lista((await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/acoes`)).acoes); } catch (e) { /* abre sem as ações */ }
+    S.riscosAtividade = riscos;
+    S.acoesAtividade = acoes;
     if (editar) {
         try { const r = await api('GET', `/api/v1/projects/${projectId}/assets`); itens = Array.isArray(r) ? r : lista(r && r.assets); } catch (e) { /* sem seletor de itens */ }
         try { deptos = lista(await api('GET', `/api/v1/projects/${projectId}/departamentos`)); } catch (e) { /* idem */ }
@@ -76,7 +148,9 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
     try { bases = lista(await api('GET', '/api/v1/requisitos?fonte=lgpd')).filter((r) => PAIS_DAS_BASES.includes(r.pai_id)); } catch (e) { /* sem catálogo */ }
     basesAbertas = bases;
     S.ligacoesTratamento = { itens: lig.itens.map((i) => i.id), departamentos: lig.departamentos.map((d) => d.id) };
-    const finalidade = ((S.ropa || []).find((r) => r.id === ropaId) || {}).processing_purpose || '';
+    const registro = (S.ropa || []).find((r) => r.id === ropaId) || {};
+    const finalidade = registro.processing_purpose || '';
+    const dono = registro.owner_parte_id || '';
 
     const marcados = (lst, ids, rotulo, tipo) => lst.length
         ? `<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.25rem 1rem">${lst.map((x) =>
@@ -97,6 +171,8 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
             ${editar && !lig.dpias.length ? `<button class="btn btn-sm" data-action="criarDpiaDoTratamento" data-args='${args(projectId, ropaId)}'>Criar DPIA a partir do tratamento</button>` : ''}</p>
             <p><strong>LIA</strong> (teste de legítimo interesse): ${lig.lia.exigida ? 'exigida pela base legal' : 'não exigida pela base legal'}${lig.lia.existe ? ` · ${escapeHTML(lig.lia.status === 'concluida' ? 'concluída' : 'em rascunho')}` : (lig.lia.exigida ? ' · ainda não feita' : '')}.</p>
             ${editar ? formularioLia(lia, projectId, ropaId) : (lia ? `<p style="color:var(--text-dim)">${escapeHTML(lia.finalidade_legitima || '')}</p>` : '')}</div>`)}
+        ${secao('Riscos', blocoRiscos(projectId, ropaId, riscos, lig.itens, partes, editar, dono))}
+        ${secao('Ações', blocoAcoes(projectId, ropaId, acoes, riscos, partes, editar, dono))}
         ${secao('Base legal', `
             <p id="tl-base-atual">${lig.base_legal ? `${escapeHTML(lig.base_legal.referencia)} — ${escapeHTML(lig.base_legal.titulo)}` : 'Não definida'}</p>
             ${editar && bases.length ? `<div style="display:flex; gap:0.5rem; align-items:flex-end"><div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tl-base">Base legal do catálogo</label>
@@ -139,6 +215,78 @@ window.openLigacoesTratamento = async function (projectId, ropaId) {
             <pre id="tl-diagrama" style="white-space:pre-wrap; max-height:240px; overflow:auto; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(diagrama)}</pre>
             ${diagrama ? '<button class="btn btn-ghost btn-sm" data-action="copiarDiagramaTratamento">Copiar diagrama</button>' : ''}`)}
     `, 'modal-large');
+};
+
+// ─── Riscos e ações: salvar (POST novo, PUT editado), editar (preenche o formulário), apagar com confirmação na linha ───
+const notaOuNulo = (id) => (el(id).value ? Number(el(id).value) : null);
+const preencher = (campo, v) => { el(campo).value = v === null || v === undefined ? '' : String(v); };
+
+window.salvarRiscoAtividade = function (projectId, ropaId) {
+    const threat = el('tl-rk-ameaca').value.trim();
+    if (!threat) { showToast('Informe a ameaça', 'error'); return; }
+    const corpo = {
+        threat, vulnerability: el('tl-rk-vuln').value.trim() || null, asset_id: el('tl-rk-ativo').value || null,
+        impact: Number(el('tl-rk-imp').value), probability: Number(el('tl-rk-prob').value), treatment: el('tl-rk-trat').value,
+        treatment_plan: el('tl-rk-plano').value.trim() || null, residual_impact: notaOuNulo('tl-rk-rimp'), residual_probability: notaOuNulo('tl-rk-rprob'),
+        owner_parte_id: el('tl-rk-resp').value || null, status: el('tl-rk-status').value,
+    };
+    const id = el('tl-rk-id').value;
+    return acao(projectId, ropaId, () => (id
+        ? api('PUT', `/api/v1/projects/${projectId}/ropa/${ropaId}/riscos/${id}`, corpo)
+        : api('POST', `/api/v1/projects/${projectId}/ropa/${ropaId}/riscos`, corpo)), 'Não foi possível salvar o risco', 'Risco salvo.');
+};
+
+window.editarRiscoAtividade = function (id) {
+    const k = (S.riscosAtividade || []).find((x) => x.id === id);
+    if (!k) return;
+    preencher('tl-rk-id', k.id); preencher('tl-rk-ameaca', k.threat); preencher('tl-rk-vuln', k.vulnerability); preencher('tl-rk-ativo', k.asset_id);
+    preencher('tl-rk-imp', k.impact); preencher('tl-rk-prob', k.probability); preencher('tl-rk-trat', k.treatment); preencher('tl-rk-plano', k.treatment_plan);
+    preencher('tl-rk-rimp', k.residual_impact); preencher('tl-rk-rprob', k.residual_probability); preencher('tl-rk-status', k.status); preencher('tl-rk-resp', k.owner_parte_id);
+    el('tl-rk-titulo').textContent = 'Editar risco';
+    el('tl-rk-ameaca').focus();
+};
+
+/** Apagar pede a confirmação na própria linha (o app não usa confirm()); a ação ligada ao risco continua, sem o vínculo. */
+window.apagarRiscoAtividade = function (projectId, ropaId, id, confirmado) {
+    if (confirmado) {
+        return acao(projectId, ropaId, () => api('DELETE', `/api/v1/projects/${projectId}/ropa/${ropaId}/riscos/${id}`), 'Não foi possível apagar o risco', 'Risco apagado.');
+    }
+    const lugar = [...document.querySelectorAll('[data-apagar-risco]')].find((n) => n.getAttribute('data-apagar-risco') === id);
+    if (lugar) lugar.innerHTML = `<button class="btn btn-sm" style="color:var(--danger)" data-action="apagarRiscoAtividade" data-args='${args(projectId, ropaId, id, true)}'>Confirmar exclusão</button>`;
+};
+
+window.salvarAcaoAtividade = function (projectId, ropaId) {
+    const title = el('tl-ac-titulo').value.trim();
+    if (!title) { showToast('Informe a ação', 'error'); return; }
+    const corpo = {
+        title, description: el('tl-ac-desc').value.trim() || null, due_date: el('tl-ac-prazo').value || null,
+        assigned_to_parte_id: el('tl-ac-resp').value || null, risk_id: el('tl-ac-risco').value || null, status: el('tl-ac-status').value,
+    };
+    const id = el('tl-ac-id').value;
+    return acao(projectId, ropaId, () => (id
+        ? api('PUT', `/api/v1/projects/${projectId}/ropa/${ropaId}/acoes/${id}`, corpo)
+        : api('POST', `/api/v1/projects/${projectId}/ropa/${ropaId}/acoes`, corpo)), 'Não foi possível salvar a ação', 'Ação salva.');
+};
+
+window.editarAcaoAtividade = function (id) {
+    const x = (S.acoesAtividade || []).find((a) => a.id === id);
+    if (!x) return;
+    preencher('tl-ac-id', x.id); preencher('tl-ac-titulo', x.title); preencher('tl-ac-desc', x.description);
+    preencher('tl-ac-prazo', x.due_date ? String(x.due_date).slice(0, 10) : ''); preencher('tl-ac-status', x.status);
+    preencher('tl-ac-resp', x.assigned_to_parte_id); preencher('tl-ac-risco', x.risk_id);
+    el('tl-ac-titulo-form').textContent = 'Editar ação';
+    el('tl-ac-titulo').focus();
+};
+
+window.concluirAcaoAtividade = (projectId, ropaId, id) => acao(projectId, ropaId,
+    () => api('PUT', `/api/v1/projects/${projectId}/ropa/${ropaId}/acoes/${id}`, { status: 'Closed' }), 'Não foi possível concluir a ação', 'Ação concluída.');
+
+window.apagarAcaoAtividade = function (projectId, ropaId, id, confirmado) {
+    if (confirmado) {
+        return acao(projectId, ropaId, () => api('DELETE', `/api/v1/projects/${projectId}/ropa/${ropaId}/acoes/${id}`), 'Não foi possível apagar a ação', 'Ação apagada.');
+    }
+    const lugar = [...document.querySelectorAll('[data-apagar-acao]')].find((n) => n.getAttribute('data-apagar-acao') === id);
+    if (lugar) lugar.innerHTML = `<button class="btn btn-sm" style="color:var(--danger)" data-action="apagarAcaoAtividade" data-args='${args(projectId, ropaId, id, true)}'>Confirmar exclusão</button>`;
 };
 
 const marcadosDe = (tipo) => [...document.querySelectorAll(`input[data-tl="${tipo}"]:checked`)].map((i) => i.value);
