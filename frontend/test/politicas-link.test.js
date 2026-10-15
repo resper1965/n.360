@@ -78,6 +78,25 @@ describe('portal /politicas: ciência por link', () => {
     expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({ token: TOKEN, codigo: '123456', nome: 'Ana' });
     expect(el('link-concluido').classList.contains('hidden')).toBe(false);
     expect(el('link-concluido').textContent).toContain('f'.repeat(64));
+    // o fim diz que terminou e o que acontece depois; o hash sai em fonte mono
+    expect(el('link-concluido').textContent).toContain('Leitura confirmada');
+    expect(el('link-concluido').textContent).toContain('pode fechar esta página');
+    expect(el('link-concluido').querySelector('code.pub-hash').textContent).toBe('f'.repeat(64));
+    expect(el('link-leitura').classList.contains('hidden')).toBe(true);
+  });
+
+  it('o primeiro texto diz de onde veio o link e para onde vai o código', async () => {
+    await abrir('#' + TOKEN);
+    fetchMock.mockResolvedValueOnce(json({
+      estado: 'pendente', tipo: 'politica', titulo: 'Política: Segurança', hash: 'f'.repeat(64), nome: 'Ana', email: 'a*****@c.com',
+      conteudo: { title: 'Segurança', description: 'Texto' },
+    }));
+    iniciar();
+    await espera();
+    expect(el('link-sub').textContent).toContain('recebeu este link por e-mail');
+    expect(el('link-sub').textContent).toContain('código de 6 dígitos para a*****@c.com');
+    expect(document.body.textContent).toContain('Código de integridade do documento');
+    expect(document.body.textContent).not.toContain('SHA-256');
   });
 
   it('link inválido: mensagem, sem formulário', async () => {

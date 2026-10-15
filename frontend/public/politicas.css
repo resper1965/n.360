@@ -1,0 +1,50 @@
+/* Portal de ciência de políticas (politicas.html): só o que é desta página. Tokens, topo, rodapé, botões, campos,
+ * avisos e selos vêm de /publico.css (frontend/test/publico-css.test.js confere os tokens contra o :root do app).
+ *
+ * É a página pública de maior público: todo funcionário do cliente passa por ela, muitos no celular. O documento é
+ * lido no tema da página (sem folha branca dentro do cartão), com medida de linha de leitura.
+ */
+.hidden { display: none !important; }
+
+.pol-etapa { max-width: 560px; }
+.pol-form { margin-top: 24px; }
+.pol-destaque { color: var(--text); font-weight: 500; overflow-wrap: anywhere; }
+.pol-codigo { max-width: 200px; font: 500 22px/1.2 var(--font-mono); letter-spacing: 0.3em; font-variant-numeric: tabular-nums; }
+
+/* ——— Documento ——— */
+.pol-documento { padding: 28px 32px; background: var(--surface); border: 1px solid var(--border); }
+.pol-doc-cabeca { margin: 0 0 20px; padding: 0 0 16px; border-bottom: 1px solid var(--border); }
+.pol-doc-titulo { margin: 0; font: 600 21px/1.3 var(--font-head); color: var(--text); text-wrap: balance; }
+.pol-doc-meta { margin: 4px 0 0; font-size: 13px; color: var(--text-dim); }
+.pol-doc-texto { max-width: 72ch; white-space: pre-wrap; font-size: 15px; line-height: 1.7; color: var(--text-2); overflow-wrap: anywhere; }
+.pol-doc-vazio { margin: 0; color: var(--text-dim); }
+.pol-campo { margin: 0 0 16px; }
+.pol-campo-rotulo { margin: 0 0 2px; font-size: 13px; font-weight: 500; color: var(--text-dim); }
+
+.pol-integridade { display: grid; gap: 2px; margin: 12px 0 0; }
+.pol-integridade-rotulo { font-size: 13px; font-weight: 500; color: var(--text-2); }
+.pol-integridade-ajuda { font-size: 13px; color: var(--text-dim); max-width: 72ch; }
+
+/* ——— Confirmação ——— */
+.pol-confirmar { margin-top: 24px; padding: 20px 24px; border: 1px solid var(--border); background: var(--surface); }
+.pol-confirmar-titulo { margin: 0 0 6px; font: 600 17px/1.3 var(--font-head); color: var(--text); }
+.pol-declaro { margin: 16px 0; max-width: 68ch; }
+.pol-feito { margin-top: 8px; padding: 24px; border: 1px solid var(--success); background: var(--surface); }
+.pol-feito-titulo { margin: 0 0 8px; font: 600 18px/1.3 var(--font-head); color: var(--success-ink); }
+
+/* ——— Leitura depois do código: lista à esquerda, documento à direita ——— */
+.pol-leitor-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.pol-leitor { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; align-items: start; }
+.pol-lista { display: flex; flex-direction: column; gap: 6px; }
+.policy-item { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; min-height: 44px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text); font: 500 14px/1.4 var(--font-body); text-align: left; cursor: pointer; transition: border-color var(--fast) var(--ease-out), background-color var(--fast) var(--ease-out); }
+.policy-item:hover { background: var(--surface); }
+.policy-item.active { border-color: var(--accent); background: var(--surface); }
+.pol-item-titulo { overflow-wrap: anywhere; }
+.pol-antigas { margin: 12px 0 0; font-size: 13px; color: var(--text-dim); }
+.pol-leitura { min-width: 0; }
+
+@media (max-width: 760px) {
+    .pol-leitor { grid-template-columns: 1fr; }
+    .pol-documento { padding: 20px 16px; }
+    .pol-confirmar, .pol-feito { padding: 20px 16px; }
+}

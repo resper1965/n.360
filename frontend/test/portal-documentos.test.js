@@ -1,6 +1,7 @@
 // Portal /politicas, fluxo do código por e-mail (fatia 3.3): lista os DOCUMENTOS vigentes (não mais os
-// controles), a ciência é da versão ("Assinado" na vigente, "Versão anterior (n)" nas passadas), o POST leva só
-// o id do documento e o conteúdo, que vem do servidor, é sempre escapado. Mesmo molde de politicas-link.test.js:
+// controles), a ciência é da versão ("Confirmado" na vigente, "Nova versão para ler" quando a pessoa leu uma passada,
+// em outra cor), o POST leva só o id do documento e o conteúdo, que vem do servidor, é sempre escapado. Erro e aviso
+// ficam na página (nada de alert), e a página diz quantos documentos faltam e quando terminou. Mesmo molde de politicas-link.test.js:
 // o HTML e o script reais, com `fetch` dublado.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import html from '../public/politicas.html?raw';
@@ -72,8 +73,14 @@ describe('portal /politicas: documentos e ciência por versão', () => {
     expect(fetchMock.mock.calls[2][0]).toBe('/api/v1/public/policies/list?token=pubpol_tok');
     const itens = [...document.querySelectorAll('.policy-item')];
     expect(itens.map((i) => i.textContent.replace(/\s+/g, ' ').trim())).toEqual([
-      'Política de Acesso', 'Norma <b>X</b> Assinado', 'Procedimento de Backup Versão anterior (2)',
+      'Política de Acesso A confirmar', 'Norma <b>X</b> Confirmado', 'Procedimento de Backup Nova versão para ler',
     ]);
+    // "nova versão" não tem a cor de "confirmado": diz o oposto
+    expect(document.querySelectorAll('.policy-item')[1].querySelector('.pub-selo-ok')).not.toBeNull();
+    expect(document.querySelectorAll('.policy-item')[2].querySelector('.pub-selo-atencao')).not.toBeNull();
+    expect(el('reader-progresso').textContent).toBe('Faltam 2 de 3 documentos para confirmar.');
+    expect(document.title).toContain('Cliente Portal');
+    expect(el('client-header-tag').textContent).toBe('Ciência de políticas'); // a empresa já está no título, sem repetir
     expect(document.querySelector('.policy-item b')).toBeNull(); // título é texto, não HTML
     expect(el('reader-project-name').textContent).toBe('Cliente Portal');
     // primeiro documento aberto: cabeçalho com tipo e versão
@@ -127,9 +134,27 @@ describe('portal /politicas: documentos e ciência por versão', () => {
     const [url, init] = fetchMock.mock.calls[3];
     expect(url).toBe('/api/v1/public/policies/ack?token=pubpol_tok');
     expect(JSON.parse(init.body)).toEqual({ documento_id: 'd1' }); // sem nome nem e-mail: valem os da sessão
-    expect(document.querySelectorAll('.policy-item')[0].textContent).toContain('Assinado');
+    expect(document.querySelectorAll('.policy-item')[0].textContent).toContain('Confirmado');
     expect(document.querySelector('.policy-item.active').textContent).toContain('Política de Acesso');
     expect(el('ack-completed-box').classList.contains('hidden')).toBe(false);
+    expect(el('reader-progresso').textContent).toBe('Falta 1 de 3 documentos para confirmar.');
+    // ainda há pendente: o botão leva ao próximo
+    expect(el('btn-proximo').classList.contains('hidden')).toBe(false);
+    el('btn-proximo').click();
+    expect(document.querySelector('.policy-item.active').textContent).toContain('Procedimento de Backup');
+  });
+
+  it('confirmado o último, a página diz que terminou e o que acontece depois', async () => {
+    await entrar(lista({ documents: [DOCS[0], DOCS[1]] }));
+    el('chk-accept').checked = true;
+    el('chk-accept').dispatchEvent(new Event('change'));
+    fetchMock.mockResolvedValueOnce(json({ ok: true, documento_id: 'd1', numero: 2, hash: 'f'.repeat(64), acknowledged_at: '2026-10-09T12:00:00.000Z', ja_registrada: false }));
+    el('btn-sign-ack').click();
+    await espera();
+    expect(el('reader-progresso').textContent).toContain('todos os 2 documentos');
+    expect(el('reader-progresso').textContent).toContain('pode fechar esta página');
+    expect(el('reader-progresso').classList.contains('pub-aviso-ok')).toBe(true);
+    expect(el('btn-proximo').classList.contains('hidden')).toBe(true);
   });
 
   it('se saiu versão nova entre a leitura e a confirmação, recarrega e avisa', async () => {
@@ -142,7 +167,9 @@ describe('portal /politicas: documentos e ciência por versão', () => {
     await espera(60);
     expect(fetchMock.mock.calls[4][0]).toBe('/api/v1/public/policies/list?token=pubpol_tok');
     expect(el('document-paper-body').textContent).toContain('Texto v3 do acesso');
-    expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('versão 3'));
+    expect(window.alert).not.toHaveBeenCalled();
+    expect(el('reader-aviso').classList.contains('hidden')).toBe(false);
+    expect(el('reader-aviso').textContent).toContain('versão 3');
   });
 
   it('erro do servidor ao assinar vai para o aviso e não marca nada', async () => {
@@ -152,8 +179,9 @@ describe('portal /politicas: documentos e ciência por versão', () => {
     fetchMock.mockResolvedValueOnce(json({ error: 'Sessão expirada. Por favor, autentique-se novamente.' }, 401));
     el('btn-sign-ack').click();
     await espera();
-    expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('Sessão expirada'));
-    expect(document.querySelectorAll('.policy-item')[0].textContent).not.toContain('Assinado');
+    expect(window.alert).not.toHaveBeenCalled();
+    expect(el('reader-aviso').textContent).toContain('Sessão expirada');
+    expect(document.querySelectorAll('.policy-item')[0].textContent).not.toContain('Confirmado');
   });
 
   it('sem documentos vigentes: mensagem, sem erro', async () => {
