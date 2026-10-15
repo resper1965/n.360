@@ -36,7 +36,7 @@ function espiarEmail(ok = true) {
   }) as any);
   return enviados;
 }
-const senhaDoEmail = (html: string) => html.match(/Senha Temporária:<\/strong>\s*([^<\s]+)/)?.[1] ?? '';
+const senhaDoEmail = (html: string) => html.match(/Senha temporária<\/td><td[^>]*><strong>([^<]+)<\/strong>/)?.[1] ?? '';
 
 afterEach(() => vi.restoreAllMocks());
 

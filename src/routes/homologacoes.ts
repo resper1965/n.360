@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { ehEquipeNess, erro500, escapeHtml, sendEmail } from '../helpers';
+import { ehEquipeNess, erro500, sendEmail } from '../helpers';
+import { remetente } from '../services/email-layout';
+import { emailHomologacao } from '../services/emails';
 import { appUrl } from '../config/url';
 import {
   atualizarPergunta, cancelarHomologacao, concluirHomologacao, criarHomologacao, criarPergunta, lerHomologacao, listarHomologacoes, listarPerguntas,
@@ -56,10 +58,13 @@ homologacoesApp.post('/', async (c) => {
     // Só com o envio configurado de verdade: sem a chave, a tela mostra o link para copiar.
     let email_enviado = false;
     if (v.data.email && c.env.RESEND_API_KEY) {
-      const cliente = await c.env.DB.prepare('SELECT client_name FROM projects WHERE id = ?').bind(pid(c)).first<string>('client_name');
-      email_enviado = await sendEmail(c, v.data.email, `Questionário de homologação de fornecedor${cliente ? ` - ${cliente}` : ''}`,
-        `<p>Olá,</p><p>${escapeHtml(cliente ?? 'Nosso cliente')} pede que ${escapeHtml(r.parte_nome)} responda ao questionário de homologação de fornecedor.</p>
-         <p><a href="${escapeHtml(url)}">Abrir o questionário</a></p><p>O link vale até ${escapeHtml(r.expira_em.slice(0, 10))} e é pessoal: não o encaminhe.</p>`);
+      const db = c.env.DB;
+      const cliente = (await db.prepare('SELECT client_name FROM projects WHERE id = ?').bind(pid(c)).first<string>('client_name')) ?? '';
+      const user = c.get('user');
+      const consultoria = await db.prepare('SELECT o.name FROM users u JOIN organizations o ON o.id = u.org_id WHERE u.id = ?').bind(user.id).first<string>('name');
+      const quem = { nome: user.name ?? null, email: user.email, organizacao: consultoria ?? null };
+      const m = emailHomologacao({ cliente, fornecedor: r.parte_nome, expiraEm: r.expira_em, link: url, quem });
+      email_enviado = await sendEmail(c, v.data.email, m.assunto, m, { from: remetente('n.privacy', cliente), replyTo: user.email });
     }
     return c.json({ id: r.id, url, expira_em: r.expira_em, email_enviado }, 201);
   } catch (e) { return erro500(c, 'Falha ao criar a homologação', e); }
