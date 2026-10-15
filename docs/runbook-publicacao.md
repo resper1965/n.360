@@ -4,7 +4,59 @@ Como o código sai da `main` para `https://n360.ness.com.br`, o que fazer quando
 roda, e o que muda quando o repositório ficar privado. Incidente em produção é o
 [`runbook-incidente.md`](runbook-incidente.md); restauração de banco, o [`backups/README.md`](../backups/README.md).
 
-## 1. Publicação normal (pelo Actions)
+## 0. Publicação pelo Workers Builds (vigente desde 15/10/2026)
+
+O repositório ficou privado em 15/10/2026 e o dono decidiu não pagar minutos do GitHub Actions. O portão de PR e o
+deploy passaram para o **Workers Builds** da Cloudflare, ligado ao Worker `niso`. As seções 1 e 2 abaixo descrevem
+o fluxo antigo pelo Actions; os workflows ficaram desabilitados (`gh workflow disable`), não apagados, e podem
+voltar se o repositório voltar a ser público ou se o Actions passar a ser pago.
+
+| Momento | O que roda | Onde está |
+|---|---|---|
+| Push numa branch que não é a `main` (PR) | build command `bash scripts/ci/build.sh`, que chama `verificar.sh`: `tsc`, build e testes do frontend, build do MCP, suíte do Worker (o E2E roda localmente, ver abaixo) | [`scripts/ci/verificar.sh`](../scripts/ci/verificar.sh) |
+| Mesmo push, depois do build | preview command que **não publica nada**: `echo "Verificação concluída; esta build não publica Preview"` | configuração do Worker |
+| Merge na `main` | build command `bash scripts/ci/build.sh`, que chama `publicar.sh` (`tsc`, build do frontend, **recusa com migration pendente**) e deploy command `npx wrangler deploy --var VERSAO_SHA:$WORKERS_CI_COMMIT_SHA` | [`scripts/ci/publicar.sh`](../scripts/ci/publicar.sh) |
+
+O Workers Builds publica o resultado de cada build como **check run** no commit do GitHub. O ruleset "main protegida"
+exige esse check (no lugar de `test` e `e2e`), PR e branch em dia com a base.
+
+**Por que o preview command não publica.** O padrão do Workers Builds é `npx wrangler preview`, que cria uma Preview
+do Worker. As Previews do `niso` usariam os bindings configurados (D1, KV, R2) e serviriam código de branch sobre
+dado real. O portão de PR só precisa dos testes, que rodam no build command.
+
+**Migration.** O workflow *Apply DB migrations* também deixou de rodar. A ordem passa a ser: backup
+(`npx wrangler d1 export niso-db --remote --output <arquivo fora do repositório>`), aplicar
+(`npx wrangler d1 migrations apply niso-db --remote`), conferir com `PRAGMA table_info`, e só então mergear. Se a
+build da `main` falhar por migration pendente, aplicar e usar *Retry build* no painel.
+
+**E2E.** A imagem do Workers Builds não tem as bibliotecas de sistema do Chromium (`libatk-1.0` e outras; sem root
+para instalar), conferido na primeira build em 15/10/2026. Por isso o `verificar.sh` pula o E2E lá, e o E2E roda na
+máquina de quem mergeia, antes do merge: `cd frontend && npm run build && npm run test:e2e`.
+
+**Backup diário.** O `db-backup.yml` não roda mais. A recuperação de curto prazo fica com o Time Travel do D1
+(restauração para um minuto dos últimos dias, conforme o plano da conta); antes de toda migration, o backup manual
+acima continua obrigatório.
+
+### Configuração no painel da Cloudflare (dono, uma vez)
+
+1. *Workers & Pages* → Worker **niso** → *Settings* → *Build* → **Connect** → GitHub. Instalar o app
+   *Cloudflare Workers & Pages* na conta `resper1965` e dar acesso só ao repositório `n.360`.
+2. *Build configuration*:
+   - Branch de produção: `main`.
+   - Build command: `bash scripts/ci/build.sh` (escolhe `publicar.sh` na `main` e `verificar.sh` nas outras branches).
+   - Deploy command: `npx wrangler deploy --var VERSAO_SHA:$WORKERS_CI_COMMIT_SHA`.
+   - Root directory: vazio (raiz do repositório).
+3. *Branch control*: marcar **Enable Preview Builds** (branches que não são a `main`).
+   - Preview command: `echo "Verificação concluída; esta build não publica Preview"`.
+4. *Build variables*: `NODE_VERSION=22` (mesma versão do CI antigo).
+5. Se a build de produção disser que não consegue listar as migrations, o token automático do Workers Builds não
+   tem acesso ao D1: criar um token com *Workers Scripts: Edit*, *D1: Read* e *Account Settings: Read*, e
+   selecioná-lo em *API token* da build.
+
+O Workers Builds usa **um só build command** para a `main` e para as outras branches; por isso
+[`scripts/ci/build.sh`](../scripts/ci/build.sh) escolhe o script pela variável `WORKERS_CI_BRANCH`.
+
+## 1. Publicação normal (pelo Actions; suspensa desde 15/10/2026)
 
 1. PR para a `main`. O CI (`.github/workflows/ci.yml`) roda **só em `pull_request`**: `tsc`, a suíte do Worker e a
    do frontend com cobertura, o build, o E2E em Chromium e o `npm audit` (informativo). Push novo no PR cancela a
