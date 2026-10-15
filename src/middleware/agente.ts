@@ -83,6 +83,7 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/(users|admin\/users)(\/|$)/, 'gestão de usuários'],
   [/^\/api\/v1\/platform(\/|$)/, 'administração da plataforma (organizações)'],
   [/^\/api\/v1\/dashboard(\/|$)/, 'o painel global agrega todos os clientes'],
+  [/^\/api\/v1\/carteira(\/|$)/, 'a carteira agrega os projetos do consultor; o agente está preso a um projeto'],
   [/^\/api\/v1\/(assessments|leads|proposals|funil)(\/|$)/, 'área comercial'],
   [/^\/api\/v1\/org(\/|$)/, 'área comercial'],
   [/^\/api\/v1\/servicos(\/|$)/, 'área comercial'],

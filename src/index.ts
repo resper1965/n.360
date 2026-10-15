@@ -45,6 +45,7 @@ import { homologacoesApp } from './routes/homologacoes';
 import { importacaoApp } from './routes/importacao';
 import { encarregadoApp } from './routes/encarregado';
 import { pontoDePartidaApp } from './routes/ponto-de-partida';
+import { painelApp, carteiraApp } from './routes/painel';
 import { similaresApp } from './routes/similares';
 import { empresaApp } from './routes/empresa';
 import { parametrosLegaisApp, titularPedidosApp, incidentesApp, consentimentosApp } from './routes/titular';
@@ -433,6 +434,9 @@ app.route('/api/v1/projects/:projectId/homologacoes', homologacoesApp);
 app.route('/api/v1/projects/:projectId/importacoes', importacaoApp);
 app.route('/api/v1/projects/:projectId/encarregado', encarregadoApp);
 app.route('/api/v1/projects/:projectId/ponto-de-partida', pontoDePartidaApp);
+// Painel de entrada (n.360, n.iso, n.privacy) e a carteira de quem cuida de vários projetos.
+app.route('/api/v1/projects/:projectId/painel', painelApp);
+app.route('/api/v1/carteira', carteiraApp);
 app.route('/api/v1/projects/:projectId/similares', similaresApp);
 app.route('/api/v1/projects/:projectId/empresa', empresaApp);
 app.route('/api/v1/parametros-legais', parametrosLegaisApp);
