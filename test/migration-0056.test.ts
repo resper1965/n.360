@@ -21,7 +21,7 @@ describe('migration 0056 — DPIA ligada ao tratamento e LIA', () => {
   it('o schema canônico tem a LIA e os três triggers', async () => {
     expect(await colunas('lia_assessments')).toEqual([
       'id', 'project_id', 'ropa_id', 'finalidade_legitima', 'necessidade', 'balanceamento', 'salvaguardas', 'conclusao', 'status',
-      'concluida_em', 'concluida_por', 'criado_por', 'created_at', 'updated_at',
+      'concluida_em', 'concluida_por', 'criado_por', 'created_at', 'updated_at', 'origem_hash', // origem_hash: migration 0072
     ]);
     for (const t of ['dpia_ropa_do_projeto_ins', 'dpia_ropa_do_projeto_upd', 'dpia_ropa_apagada']) {
       expect(await env.DB.prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?").bind(t).first(), t).toBeTruthy();

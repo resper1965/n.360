@@ -284,6 +284,69 @@ describe('perguntas condicionais', () => {
     });
 });
 
+describe('teste de impacto (bloco I, catálogo e recomendação do servidor)', () => {
+    const REG = { id: 'r1', project_id: 'p1', processing_purpose: 'Folha', data_subjects: 'Colaboradores', data_categories: 'Identificação',
+        dados_sensiveis: 0, criancas_adolescentes: 0, international_transfers: 0, dpia_required: 0, status: 'Draft', nao_informado: [], aprovacao_pedido: { ciso: null, ceo: null } };
+    // Corpo de GET /projects/:p/ropa/:rid/impacto (src/routes/ropa.ts, lerImpacto de src/services/impacto.ts). Textos fictícios.
+    const IMPACTO = {
+        perguntas: [
+            { id: 'larga_escala', grupo: 'geral', texto: 'Larga escala <b>texto do servidor</b>?', resposta: 'sim' },
+            { id: 'sensiveis', grupo: 'especifico', texto: 'Dados sensíveis?', resposta: 'sim' },
+            { id: 'monitoramento', grupo: 'especifico', texto: 'Monitoramento sistemático?', resposta: null },
+        ],
+        recomendacao: { resultado: 'recomendado', motivos: ['larga_escala', 'sensiveis'] }, finalizado_em: null,
+    };
+    const abrirComImpacto = (extra = {}) => { S.ropa = [REG]; return abrir('r1', { [`GET ${P}/ropa/r1/impacto`]: IMPACTO, [`PUT ${P}/ropa/r1/impacto`]: { ok: true }, ...extra }); };
+    const irAoBlocoI = () => el('c').querySelector('[data-action="reAlterar"][data-args=\'["I"]\']').click();
+    const radio = (pergunta, v) => el(`re-imp-${pergunta}-${v}`);
+
+    it('o resumo mostra a recomendação do servidor; as respostas gravadas vêm marcadas e o texto do servidor vem escapado', async () => {
+        await abrirComImpacto();
+        expect(el('re-impacto').textContent).toContain('RIPD recomendado: larga escala, sensiveis');
+        irAoBlocoI();
+        expect(titulo()).toContain('Teste de impacto');
+        expect(radio('larga_escala', 'sim').checked).toBe(true);
+        expect(radio('sensiveis', 'sim').checked).toBe(true);
+        expect(['sim', 'nao', 'nao_sei'].some((v) => radio('monitoramento', v).checked)).toBe(false);
+        expect(el('c').textContent).toContain('Larga escala <b>texto do servidor</b>?');
+        expect(el('c').querySelector('.re-impacto b')).toBeNull();
+    });
+
+    it('responder grava pelo PUT do teste só o que mudou; "Não sei agora" vai como nao_sei', async () => {
+        const f = await abrirComImpacto();
+        irAoBlocoI();
+        radio('monitoramento', 'nao_sei').click();
+        radio('sensiveis', 'nao').click();
+        proxima();
+        expect(titulo()).toBe('Confira o que você nos contou');
+        await window.reSalvar();
+        expect(corpoDe(f, `PUT ${P}/ropa/r1/impacto`)).toEqual({ respostas: { sensiveis: 'nao', monitoramento: 'nao_sei' } });
+        expect(fonte.match(/ropa\/\$\{id\}\/impacto/g)).toHaveLength(1);
+    });
+
+    it('sem mudança no teste, nada é gravado nele', async () => {
+        const f = await abrirComImpacto();
+        await window.reSalvar();
+        expect(chamadas(f)).not.toContain(`PUT ${P}/ropa/r1/impacto`);
+    });
+
+    it('incompleto aparece como tal; com o RIPD recomendado, "Abrir o RIPD" cria pelo tratamento', async () => {
+        await abrirComImpacto({ [`GET ${P}/ropa/r1/impacto`]: { ...IMPACTO, recomendacao: { resultado: 'incompleto', motivos: [] } } });
+        expect(el('re-impacto').textContent).toContain('incompleto');
+        expect(el('c').querySelector('[data-action="reAbrirRipd"]')).toBeNull();
+        const f = await abrirComImpacto({ [`POST ${P}/ropa/r1/dpia`]: { ok: true, id: 'dp1' } });
+        el('c').querySelector('[data-action="reAbrirRipd"]').click();
+        await vi.waitFor(() => expect(chamadas(f)).toContain(`POST ${P}/ropa/r1/dpia`));
+    });
+
+    it('atividade sem o teste no servidor (nova) não mostra o bloco I', async () => {
+        rascunho('resumo', { finalidade: 'Cobrança', titulares: ['Clientes pessoa física'], categorias: ['Financeiro'] });
+        await abrir();
+        expect(el('re-impacto')).toBeNull();
+        expect(el('c').querySelector('[data-action="reAlterar"][data-args=\'["I"]\']')).toBeNull();
+    });
+});
+
 describe('"Não sei agora"', () => {
     it('grava vazio (fica fora do corpo) e vira pendência no resumo', async () => {
         rascunho('retencao', { finalidade: 'Cobrança', titulares: ['Clientes pessoa física'], categorias: ['Financeiro'] });

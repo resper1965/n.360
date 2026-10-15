@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
 import { ehLegitimoInteresse } from '../src/services/lia';
+import { documentoAtual, hashConteudo } from '../src/services/pedidos';
 
 /** Fatia 5: LIA por tratamento (exigida quando a base é legítimo interesse) e DPIA criada a partir do tratamento. */
 const P = 'ld-proj';
@@ -147,6 +148,34 @@ describe('DPIA a partir do tratamento', () => {
     const l = await lig(rid);
     expect(l.dpia_pendente).toBe(false);
     expect(l.dpias).toEqual([{ id, nome: 'Folha de pagamento', status: 'Draft' }]);
+  });
+
+  it('herda base legal, retenção, destinatários, riscos e o teste de impacto, e guarda o hash do tratamento (nada se pergunta de novo)', async () => {
+    const rid = await novo('Folha com impacto', {
+      data_categories: 'Identificação, Financeiro', data_subjects: 'Colaboradores', retention_period: '5 anos', recipients: 'Banco',
+      legal_basis: 'Obrigação legal', dados_sensiveis: 1,
+    });
+    await chamar(consultor, 'PUT', `${base(rid)}/impacto`, { respostas: { sensiveis: 'sim', larga_escala: 'nao' } });
+    const hash = await hashConteudo((await documentoAtual(env.DB, 'tratamento', rid, P))!.conteudo);
+    const r = await chamar(consultor, 'POST', `${base(rid)}/dpia`);
+    expect(r.status, await r.clone().text()).toBe(201);
+    const dpia = await env.DB.prepare('SELECT * FROM dpia_assessments WHERE ropa_id = ?').bind(rid).first<Record<string, string>>();
+    expect(dpia!.necessity_proportionality).toBe('Base legal: Obrigação legal. Retenção: 5 anos.');
+    expect(dpia!.data_flow_description).toContain('Destinatários: Banco');
+    expect(dpia!.risks_identified).toContain('Dados pessoais sensíveis (LGPD art. 11).');
+    expect(dpia!.risks_identified).toContain('Teste de impacto (incompleto), respondidas sim: sensiveis.');
+    expect(dpia!.origem_hash).toBe(hash);
+    // a base do catálogo também entra
+    const cat = await novo('Por catálogo na DPIA', { base_legal_id: 'lgpd:art7:ix' });
+    await chamar(consultor, 'POST', `${base(cat)}/dpia`);
+    expect((await env.DB.prepare('SELECT necessity_proportionality AS n, risks_identified AS r FROM dpia_assessments WHERE ropa_id = ?').bind(cat).first())).toEqual({ n: 'Base legal: art. 7, IX - Legítimo interesse.', r: null });
+  });
+
+  it('a LIA nasce com o hash do tratamento', async () => {
+    const rid = await novo('LIA com origem', { legal_basis: 'legítimo interesse' });
+    const hash = await hashConteudo((await documentoAtual(env.DB, 'tratamento', rid, P))!.conteudo);
+    await chamar(consultor, 'PUT', `${base(rid)}/lia`, { finalidade_legitima: 'x' });
+    expect(await env.DB.prepare('SELECT origem_hash FROM lia_assessments WHERE ropa_id = ?').bind(rid).first()).toEqual({ origem_hash: hash });
   });
 
   it('segunda chamada não duplica: 409 com o id da existente', async () => {

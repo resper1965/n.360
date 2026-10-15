@@ -3,7 +3,7 @@ import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
 import { render } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
-import { temProduto } from '../produto.js';
+import { temProduto, projetoDoId } from '../produto.js';
 import { podeEntrevistar, confirmaEdicaoAprovada } from './ropa-entrevista.js';
 import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ehLegitimoInteresse, camposDaBase, idsDoCatalogo } from '../bases-legais.js';
 
@@ -449,9 +449,23 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
         `);
     };
 
-    window.openNewDPIAModal = function(projectId) {
+    // Novo RIPD (n.privacy): a atividade do RoPA vem primeiro e o RIPD nasce dela, herdando o que já foi informado (finalidade,
+    // titulares, categorias, base legal, retenção, teste de impacto). Sem atividade, ou sem o n.privacy, o formulário à mão de sempre.
+    window.openNewDPIAModal = async function(projectId) {
+        const comPrivacy = temProduto(projetoDoId(projectId), 'privacy');
+        let atividades = [];
+        if (comPrivacy) {
+            try { const r = await api('GET', `/api/v1/projects/${projectId}/ropa`); atividades = Array.isArray(r?.records) ? r.records : []; } catch (e) { atividades = []; }
+        }
+        const escolha = atividades.length ? `<div class="form-group"><label class="form-label" for="dpia-ropa">Atividade do RoPA</label>
+            <select class="form-input" id="dpia-ropa" data-action-change="novoRipdAtividade" data-arg-val>
+                <option value="">Sem atividade: preencher à mão</option>
+                ${atividades.map((x) => `<option value="${escapeHTML(x.id)}">${escapeHTML(x.processing_purpose || x.id)}</option>`).join('')}
+            </select><p class="re-nota" id="dpia-ropa-dica">Com a atividade, o RIPD nasce com o que o RoPA e o teste de impacto já informaram.</p></div>` : '';
         openModal(`
             <div class="modal-header"><span class="modal-title">Novo RIPD</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            ${escolha}
+            <div id="dpia-manual">
             <div class="form-group"><label class="form-label">Nome do Sistema / Processo de Dados</label><input class="form-input" id="dpia-system" placeholder="Ex: CRM Salesforce, Sistema de RH Interno"></div>
             <div class="form-group"><label class="form-label">Descrição do Fluxo de Dados</label><textarea class="form-input" id="dpia-flow" placeholder="Descreva como os dados entram, circulam e saem do sistema..."></textarea></div>
             <div style="display:flex; gap:0.5rem">
@@ -462,12 +476,27 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
             <div class="form-group"><label class="form-label">Riscos Identificados para a Privacidade</label><textarea class="form-input" id="dpia-risks" placeholder="Ex: Vazamento de dados em trânsito, acesso não autorizado..."></textarea></div>
             <div class="form-group"><label class="form-label">Medidas de Mitigação e Salvaguardas</label><textarea class="form-input" id="dpia-mitigations" placeholder="Ex: Uso de criptografia TLS/AES-256, MFA ativo, auditorias..."></textarea></div>
             <div class="form-group"><label class="form-label">Parecer DPO (Opcional)</label><textarea class="form-input" id="dpia-opinion" placeholder="Parecer inicial do encarregado..."></textarea></div>
-            
+            </div>
             <button class="btn btn-primary" style="width:100%; margin-top:1rem" data-action="createDPIA" data-args='["${projectId}"]'>Registrar RIPD</button>
         `);
     };
 
+    window.novoRipdAtividade = function(v) {
+        const manual = document.getElementById('dpia-manual');
+        if (manual) manual.hidden = !!v;
+    };
+
     window.createDPIA = async function(projectId) {
+        const atividade = document.getElementById('dpia-ropa')?.value;
+        if (atividade) {
+            try { await api('POST', `/api/v1/projects/${projectId}/ropa/${atividade}/dpia`); }
+            catch (e) {
+                if (e.status !== 409) { showToast(`Não foi possível criar o RIPD: ${e.message}`, 'error'); return; }
+                showToast('Esta atividade já tem RIPD.', 'info');
+            }
+            forceCloseModal(); render();
+            return;
+        }
         const body = {
             system_name: document.getElementById('dpia-system').value,
             data_flow_description: document.getElementById('dpia-flow').value,

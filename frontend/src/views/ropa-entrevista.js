@@ -35,7 +35,7 @@ export async function confirmaEdicaoAprovada(r) {
 
 const op = (v, r = v, dica = '') => ({ v, r, dica });
 const SIM_NAO = [op('sim', 'Sim'), op('nao', 'Não')];
-const BLOCOS = { A: 'A atividade', B: 'De quem são os dados', C: 'Quais dados', D: 'Por que a empresa usa', E: 'De onde vêm e onde passam', F: 'Com quem compartilha', G: 'Quanto tempo ficam', H: 'Transferência e riscos' };
+const BLOCOS = { A: 'A atividade', B: 'De quem são os dados', C: 'Quais dados', D: 'Por que a empresa usa', E: 'De onde vêm e onde passam', F: 'Com quem compartilha', G: 'Quanto tempo ficam', H: 'Transferência e riscos', I: 'Teste de impacto' };
 const LETRAS = Object.keys(BLOCOS);
 
 const TITULARES = ['Colaboradores', 'Candidatos', 'Ex-colaboradores', 'Dependentes de colaboradores', 'Clientes pessoa física',
@@ -226,6 +226,10 @@ const PERGUNTAS = [
     { id: 'criar_ripd', bloco: 'H', tipo: 'unica', curto: 'Criar o RIPD agora', opcoes: () => SIM_NAO, mostrar: (r, ctx) => r.ripd === 'sim' && !ctx.temDpia,
         titulo: 'Quer criar o RIPD agora, a partir desta atividade?',
         ajuda: 'O RIPD nasce como rascunho, já preenchido com o que esta entrevista registrou. Você completa na tela de RIPD.' },
+    // Teste de impacto: as perguntas e a recomendação vêm do servidor (GET .../impacto), que só existe para atividade já gravada.
+    { id: 'teste_impacto', bloco: 'I', tipo: 'impacto', curto: 'Teste de impacto', mostrar: (r, c) => !!(c && c.impacto),
+        titulo: 'Teste de impacto: a atividade pode gerar alto risco ao titular?',
+        ajuda: 'Critérios gerais e específicos de alto risco. Com ao menos um geral e um específico marcados "Sim", o sistema recomenda o RIPD; a decisão de exigir o RIPD continua sua.' },
 ];
 const PERGUNTA = Object.fromEntries(PERGUNTAS.map((p) => [p.id, p]));
 
@@ -255,7 +259,7 @@ const lista = (r) => (Array.isArray(r) ? r : []);
 async function tentar(fazer, padrao) { try { return await fazer(); } catch (e) { return padrao; } }
 
 async function carregar(projectId, recordId) {
-    const c = { pessoas: [], deptos: [], itens: [], catalogo: new Set(), registro: null, ligacoes: null, lia: null, temDpia: false, transferencias: [], inicial: {} };
+    const c = { pessoas: [], deptos: [], itens: [], catalogo: new Set(), registro: null, ligacoes: null, lia: null, impacto: null, temDpia: false, transferencias: [], inicial: {} };
     c.pessoas = lista(await tentar(() => api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`), []));
     c.deptos = lista(await tentar(() => api('GET', `/api/v1/projects/${projectId}/departamentos`), []));
     const ativos = await tentar(() => api('GET', `/api/v1/projects/${projectId}/assets`), []);
@@ -267,6 +271,8 @@ async function carregar(projectId, recordId) {
         c.ligacoes = await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/ligacoes`), null);
         c.lia = (await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/lia`), {}))?.lia || null;
         c.temDpia = !!(c.ligacoes && lista(c.ligacoes.dpias).length);
+        c.impacto = await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/impacto`), null);
+        if (c.impacto && !Array.isArray(c.impacto.perguntas)) c.impacto = null;
         c.transferencias = lista(c.ligacoes && c.ligacoes.transferencias);
     }
     return c;
@@ -315,9 +321,15 @@ export function respostasDoRegistro(r, c) {
     out.transferencia = flag('international_transfers');
     if (r.international_transfers && r.transfer_safeguards) out.transf_destino = { pais: '', mecanismo: MECANISMOS.includes(r.transfer_safeguards) ? r.transfer_safeguards : '' };
     out.ripd = r.dpia_required ? 'sim' : 'nao';
+    const imp = respostasDoImpacto(c.impacto);
+    if (Object.keys(imp).length) out.teste_impacto = imp;
     for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
     return out;
 }
+
+/** As respostas gravadas do teste de impacto, { pergunta: 'sim' | 'nao' | 'nao_sei' }. */
+const respostasDoImpacto = (imp) => Object.fromEntries((imp && Array.isArray(imp.perguntas) ? imp.perguntas : []).filter((p) => p.resposta).map((p) => [p.id, p.resposta]));
+const IMPACTO_OPCOES = [op('sim', 'Sim'), op('nao', 'Não'), op('nao_sei', 'Não sei agora')];
 
 // ─── O que vai para a API ────────────────────────────────────────────────────────────────────────
 
@@ -390,6 +402,13 @@ function controle(p) {
     if (p.tipo === 'longo') {
         return `<textarea class="form-input" id="re-campo" rows="4" maxlength="${p.max || 5000}" aria-labelledby="re-titulo" aria-describedby="re-erro"
             data-action-input="reTexto" data-args='${args(p.id)}' data-arg-val>${escapeHTML(v || '')}</textarea>${ex}`;
+    }
+    if (p.tipo === 'impacto') {
+        const g = v && typeof v === 'object' ? v : {};
+        return `<div class="re-impacto">${ctx.impacto.perguntas.map((q) => `<fieldset class="re-fieldset" role="radiogroup" aria-labelledby="re-imp-${escapeHTML(q.id)}">
+            <p class="form-label" id="re-imp-${escapeHTML(q.id)}">${escapeHTML(q.texto)}</p><div class="re-opcoes">${IMPACTO_OPCOES.map((o) => `<label class="re-opcao" for="re-imp-${escapeHTML(q.id)}-${o.v}">
+                <input type="radio" id="re-imp-${escapeHTML(q.id)}-${o.v}" name="re-imp-${escapeHTML(q.id)}" value="${o.v}" ${g[q.id] === o.v ? 'checked' : ''}
+                    data-action-change="reImpacto" data-args='${args(q.id)}' data-arg-val><span class="re-opcao-texto">${escapeHTML(o.r)}</span></label>`).join('')}</div></fieldset>`).join('')}</div>`;
     }
     if (p.tipo === 'grupo') {
         const g = v && typeof v === 'object' ? v : {};
@@ -647,6 +666,7 @@ function textoResposta(p) {
     if (p.id === 'responsavel' && vazio(v) && r.responsavel_texto) return `${r.responsavel_texto} (só texto, sem cadastro)`;
     if (vazio(v)) return '';
     if (p.tipo === 'texto' || p.tipo === 'longo') return v;
+    if (p.tipo === 'impacto') return `${Object.values(v).filter((x) => x === 'sim' || x === 'nao').length} de ${ctx.impacto.perguntas.length} respondidas`;
     if (p.tipo === 'grupo') return p.sub.filter((s) => String(v[s.id] || '').trim()).map((s) => `${s.rotulo} ${s.tipo === 'select' ? (s.opcoes.find((o) => o.v === v[s.id]) || {}).r || v[s.id] : v[s.id]}`).join(' / ');
     const ops = [...opcoesDe(p), ...(p.nenhum ? [op(NENHUM, p.nenhum)] : [])];
     const rot = (x) => (x === OUTRO ? String(r[`${p.id}_outro`] || p.outro || 'Outro') : (ops.find((o) => o.v === x) || {}).r || x);
@@ -670,6 +690,7 @@ function desenharResumo() {
         ${pend.length ? `<div class="re-pendencias" role="note"><h3>O que ficou para depois (${pend.length})</h3><ul>${pend.map((x) => `<li>${escapeHTML(x.texto)}</li>`).join('')}</ul></div>`
             : '<p class="re-nota">Nenhuma pendência nas respostas.</p>'}
         ${mot.length ? `<p class="re-aviso">Recomendação de RIPD (DPIA): ${escapeHTML(mot.join(', '))}.</p>` : ''}
+        ${seloImpacto()}
         ${(st.criados || []).length ? `<p class="re-nota" id="re-criados">Cadastrados durante a entrevista: ${st.criados.map((x) => `${escapeHTML(x.tipo)} ${escapeHTML(x.nome)}`).join('; ')}.</p>` : ''}
         ${blocos}
         <p class="re-erro" id="re-erro" aria-live="polite"></p>
@@ -679,6 +700,17 @@ function desenharResumo() {
         </div>
         <p class="re-nota">${st.recordId ? 'O status da atividade não muda por aqui.' : 'A atividade entra no inventário como rascunho.'}</p>
     </div>`;
+}
+
+/** A recomendação do teste de impacto como o SERVIDOR a calculou, sobre as respostas gravadas (muda depois de salvar). */
+function seloImpacto() {
+    const rec = ctx && ctx.impacto && ctx.impacto.recomendacao;
+    if (!rec) return '';
+    const texto = rec.resultado === 'recomendado' ? `Teste de impacto: RIPD recomendado: ${lista(rec.motivos).map((m) => String(m).replace(/_/g, ' ')).join(', ')}.`
+        : rec.resultado === 'dispensavel_a_confirmar' ? 'Teste de impacto: RIPD dispensável, a confirmar por uma pessoa.'
+            : 'Teste de impacto incompleto: responda as perguntas do bloco "Teste de impacto" para a recomendação.';
+    const abrirRipd = rec.resultado === 'recomendado' && !ctx.temDpia ? ' <button type="button" class="btn btn-sm" data-action="reAbrirRipd">Abrir o RIPD</button>' : '';
+    return `<p class="re-aviso" id="re-impacto">${escapeHTML(texto)}${abrirRipd}</p>`;
 }
 
 function desenharFim() {
@@ -922,6 +954,19 @@ window.reAlterar = function (bloco) {
     irPara(p.id);
 };
 window.reSair = function () { S.ropaEntrevista = null; navigate('ropa'); };
+window.reImpacto = function (pergunta, v) {
+    daPessoa('teste_impacto');
+    const atual = st.respostas.teste_impacto;
+    st.respostas.teste_impacto = { ...(atual && typeof atual === 'object' ? atual : {}), [pergunta]: v };
+    guardar();
+};
+// O RIPD nasce do tratamento (herda o que já foi informado) e a pessoa segue para a tela de RIPD.
+window.reAbrirRipd = async function () {
+    try { await api('POST', `/api/v1/projects/${st.projectId}/ropa/${st.recordId}/dpia`); }
+    catch (e) { if (e.status !== 409) { erro(`Não foi possível abrir o RIPD: ${e.message}`); return; } }
+    S.ropaEntrevista = null;
+    navigate('dpia');
+};
 // A edição avançada sai da entrevista (o rascunho da aba fica guardado) e abre o formulário sobre o inventário.
 window.reEdicaoAvancada = async function (id) { window.reSair(); await window.openEditROPAModal(id); };
 
@@ -1068,6 +1113,12 @@ window.reSalvar = async function () {
             finalidade_legitima: t('finalidade_legitima'), necessidade: t('necessidade'), balanceamento: t('balanceamento'), salvaguardas: t('salvaguardas'),
             conclusao: lia.conclusao || null, status: completa ? 'concluida' : 'rascunho',
         }), 'LIA');
+    }
+    const imp = valor(r, 'teste_impacto');
+    if (ctx.impacto && imp && typeof imp === 'object') {
+        const antes = respostasDoImpacto(ctx.impacto);
+        const mudou = Object.fromEntries(Object.entries(imp).filter(([k, v]) => v !== antes[k]));
+        if (Object.keys(mudou).length) await passo('Teste de impacto gravado.', () => api('PUT', `/api/v1/projects/${pid}/ropa/${id}/impacto`, { respostas: mudou }), 'Teste de impacto');
     }
     if (r.ripd === 'sim' && r.criar_ripd === 'sim' && !ctx.temDpia) {
         try { await api('POST', `/api/v1/projects/${pid}/ropa/${id}/dpia`); feitos.push('RIPD criado como rascunho. Complete na tela de RIPD.'); }

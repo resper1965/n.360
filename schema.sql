@@ -597,7 +597,9 @@ CREATE TABLE IF NOT EXISTS ropa_records (
     base_legal_id TEXT REFERENCES requisitos(id) ON DELETE SET NULL,
     -- Riscos do tratamento (migration 0069): LGPD art. 11 e art. 14.
     dados_sensiveis INTEGER NOT NULL DEFAULT 0,
-    criancas_adolescentes INTEGER NOT NULL DEFAULT 0
+    criancas_adolescentes INTEGER NOT NULL DEFAULT 0,
+    -- Teste de impacto finalizado (migration 0072), com as respostas em tratamento_impacto.
+    impacto_finalizado_em DATETIME
 );
 
 CREATE TABLE IF NOT EXISTS audit_schedule (
@@ -942,7 +944,9 @@ CREATE TABLE IF NOT EXISTS dpia_assessments (
     dpo_approved_by TEXT,
     dpo_approved_at TEXT,
     status TEXT DEFAULT 'Draft', -- Draft, Under Review, Approved
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- Hash do conteúdo do tratamento quando a DPIA nasceu dele (migration 0072), fora do conteúdo congelado da DPIA.
+    origem_hash TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_dpia_project ON dpia_assessments(project_id);
 
@@ -1520,9 +1524,24 @@ CREATE TABLE IF NOT EXISTS lia_assessments (
     criado_por TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Hash do conteúdo do tratamento quando a LIA nasceu (migration 0072).
+    origem_hash TEXT,
     CHECK (status = 'rascunho' OR (conclusao IS NOT NULL AND concluida_em IS NOT NULL AND concluida_por IS NOT NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_lia_projeto ON lia_assessments(project_id, status);
+
+-- Teste de impacto do tratamento (migration 0072): uma resposta por pergunta do catálogo de src/services/impacto.ts.
+-- Fora do conteúdo congelado da aprovação do RoPA.
+CREATE TABLE IF NOT EXISTS tratamento_impacto (
+    ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    pergunta TEXT NOT NULL,
+    resposta TEXT NOT NULL CHECK (resposta IN ('sim', 'nao', 'nao_sei')),
+    atualizado_por TEXT,
+    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ropa_id, pergunta)
+);
+CREATE INDEX IF NOT EXISTS idx_tratamento_impacto_projeto ON tratamento_impacto(project_id);
 
 -- Terceiros tipificados (fatia 6, migration 0057)
 CREATE TABLE IF NOT EXISTS avaliacoes_terceiro (

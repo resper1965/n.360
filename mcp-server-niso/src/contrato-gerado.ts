@@ -161,6 +161,7 @@ export const ROTAS = {
   'PUT /api/v1/projects/{projectId}/modulos/{modulo}': { obrigatorios: ['habilitado'] },
   'PUT /api/v1/projects/{projectId}/partes/{id}': { obrigatorios: [] },
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/departamentos': { obrigatorios: ['departamentos'] },
+  'PUT /api/v1/projects/{projectId}/ropa/{recordId}/impacto': { obrigatorios: ['respostas'] },
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/itens': { obrigatorios: ['itens'] },
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/lia': { obrigatorios: [] },
   'PUT /api/v1/projects/{projectId}/security-policy': { obrigatorios: [] },
