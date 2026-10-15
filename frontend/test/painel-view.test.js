@@ -203,6 +203,10 @@ describe('início do n.360', () => {
         const nomes = [...el('c').querySelectorAll('[data-action="painelAbrir"]')].map((b) => b.getAttribute('aria-label'));
         expect(new Set(nomes).size).toBe(nomes.length);
         expect(nomes).toContain('Ver as ações: 1 ação corretiva passou do prazo (n.iso)');
+        // Uma ação principal: só o item mais urgente; "Abrir o n.x" é secundário (eram seis primários).
+        const primarios = [...el('c').querySelectorAll('.btn-primary')];
+        expect(primarios).toHaveLength(1);
+        expect(primarios[0].getAttribute('aria-label')).toBe(nomes[0]);
         await vi.waitFor(() => expect(chamadas(f)).toContain('GET /api/v1/projects/p9/ponto-de-partida'));
         window.abrirModulo('iso');
         expect(irPara).toHaveBeenCalledWith('/iso');
@@ -229,6 +233,9 @@ describe('início do n.360', () => {
         expect(el('c').querySelector('.pn-carteira b')).toBeNull();
         expect([...el('c').querySelectorAll('[data-action="painelAbrirProjeto"]')].map((b) => b.getAttribute('aria-label'))).toEqual(['Abrir Clínica <b>Exemplo</b>', 'Abrir Exemplo']);
         expect(el('a').querySelector('[aria-pressed="true"]').textContent).toBe('Carteira');
+        // O próximo passo da carteira: abrir o projeto mais urgente (a primeira linha) é o único primário.
+        const primarios = [...el('c').querySelectorAll('.btn-primary')];
+        expect(primarios.map((b) => b.getAttribute('aria-label'))).toEqual(['Abrir Clínica <b>Exemplo</b>']);
         window.painelVista('projeto');
         expect(localStorage.getItem('n360_vista')).toBe('projeto');
         await abrir('n360');
