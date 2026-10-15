@@ -210,7 +210,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
                     <button class="btn btn-primary" data-action="enrichLeadCnpj" data-args='["${l.id}"]'>Consultar</button>
                 </div>
             </div>` : '';
-        openModal(`<div class="modal-header"><span class="modal-title">${escapeHTML(l.company_name)}${cnpjBadge}</span><button class="btn-ghost" data-action="forceCloseModal">\u2715</button></div>
+        openModal(`<div class="modal-header"><span class="modal-title">${escapeHTML(l.company_name)}${cnpjBadge}</span></div>
             <p><strong>Contato:</strong> ${escapeHTML(l.contact_name||'---')}</p>
             <p><strong>Status:</strong> ${window.renderStatusBadge(l.status || 'New', 'neutral')}</p>
             ${cnpjInfo}${enrichBtn}

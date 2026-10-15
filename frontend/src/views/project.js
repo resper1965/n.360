@@ -552,7 +552,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">${escapeHTML(wiz.title)}</span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
             <div style="padding:1.5rem 0;">
                 <div style="background:rgba(0,173,232,0.04); border:1px solid rgba(0,173,232,0.1); padding:12px; margin-bottom:1.25rem; font-size:0.75rem;">
@@ -707,7 +707,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Conduzir Entrevistas por Trilha (Mapeamento Inicial)</span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
             <div style="padding: 1.25rem 0; display: flex; gap: 20px; min-height: 480px;">
                 <div style="width: 200px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid var(--border); padding-right: 12px;">
@@ -940,7 +940,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         }).join('');
 
         openModal(`
-            <div class="modal-header"><span class="modal-title">Questionário — ${escapeHTML(titulo)}</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            <div class="modal-header"><span class="modal-title">Questionário — ${escapeHTML(titulo)}</span></div>
             <div style="padding:1.25rem 0; text-align:left; max-height:60vh; overflow-y:auto">${campos}
                 <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:0.5rem">
                     <button class="btn" data-action="forceCloseModal" style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Cancelar</button>
@@ -1030,7 +1030,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             }
             corpo += `</div>`;
 
-            openModal(`<div class="modal-header"><span class="modal-title">Interpretação — ${cab}</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            openModal(`<div class="modal-header"><span class="modal-title">Interpretação — ${cab}</span></div>
                 <div style="padding:1.25rem 0; text-align:left; max-height:65vh; overflow-y:auto">${corpo}
                     <div style="font-size:0.68rem; color:var(--text-dim); margin-top:1rem; font-style:normal">${escapeHTML(r.rotulo || '')}</div>
                 </div>`);
@@ -1078,7 +1078,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             openModal(`<div class="modal-header"><span class="modal-title">Dossiê da Jornada</span>
                     <div style="display:flex; gap:8px">
                         <button class="btn btn-primary" data-action="printDossie">Imprimir / PDF</button>
-                        <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                        
                     </div>
                 </div>
                 <div style="padding:1.25rem 0; max-height:68vh; overflow-y:auto">${doc}</div>`);
@@ -1130,7 +1130,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                 }).join('');
             }
 
-            openModal(`<div class="modal-header"><span class="modal-title">Adequação de controles — ${cab}</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            openModal(`<div class="modal-header"><span class="modal-title">Adequação de controles — ${cab}</span></div>
                 <div style="padding:1.25rem 0; text-align:left; max-height:65vh; overflow-y:auto">${corpo}
                     <div style="font-size:0.68rem; color:var(--text-dim); margin-top:0.75rem">${escapeHTML(r.rotulo || '')}</div>
                 </div>`);
@@ -1173,7 +1173,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Editor de Documento Interno</span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
             <div id="doc-editor-body" style="padding:1.5rem 0;">
                 <div class="loading"></div>

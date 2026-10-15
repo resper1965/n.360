@@ -7,38 +7,128 @@ export     function escapeHTML(str) {
         });
     }
 
-export     function openModal(html, extraClass) {
+/*
+ * O modal único do app. Todo modal ganha o botão "Fechar" (texto visível, no topo), o papel de diálogo com nome (o
+ * primeiro título do conteúdo), o foco ao abrir e de volta ao gatilho ao fechar, e o Tab preso dentro. Esc fecha.
+ * Com campo alterado, o fechamento PEDIDO pela pessoa (Esc, "Fechar", "Cancelar", clique no fundo) pergunta na própria
+ * janela antes de descartar; o fechamento de código (forceCloseModal() depois de salvar) não pergunta. A diferença vem
+ * da delegação, que chama a ação com `this` = o elemento clicado (delegation.js); a chamada direta não tem elemento.
+ */
+let gatilhoModal = null;
+let modalAlterado = false;
+const FOCAVEIS = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const pedidoPelaPessoa = (quem) => typeof Element !== 'undefined' && quem instanceof Element;
+
+export function openModal(html, extraClass) {
+    const overlay = document.getElementById('modal-overlay');
+    const modal = document.getElementById('modal');
+    const modalContent = document.getElementById('modal-content');
+    if (!overlay.classList.contains('open')) gatilhoModal = document.activeElement;
+    modalAlterado = false;
+    modal.classList.remove('modal-large'); // reset
+    if (extraClass) modal.classList.add(extraClass);
+    modal.querySelector(':scope > .modal-descartar')?.remove();
+    modalContent.innerHTML = html;
+    if (!modal.querySelector(':scope > .modal-fechar')) {
+        modal.insertAdjacentHTML('afterbegin', '<button type="button" class="modal-fechar" data-action="forceCloseModal">Fechar</button>');
+    }
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('tabindex', '-1');
+    const titulo = modalContent.querySelector('.modal-title, h1, h2, h3');
+    if (titulo) {
+        if (!titulo.id) titulo.id = 'modal-titulo';
+        modal.setAttribute('aria-labelledby', titulo.id);
+    } else modal.removeAttribute('aria-labelledby');
+    overlay.classList.add('open');
+    const auto = modalContent.querySelector('[autofocus]');
+    (auto || modal).focus();
+}
+
+function fecharDeFato() {
+    // Optional chaining porque o handler global de Esc chama isto em toda tecla: fora do shell (ou num teste) os
+    // elementos podem não existir e a exceção matava o resto da cascata de Esc.
+    const overlay = document.getElementById('modal-overlay');
+    const estavaAberto = !!overlay?.classList.contains('open');
+    overlay?.classList.remove('open');
+    const modal = document.getElementById('modal');
+    modal?.classList.remove('modal-large');
+    modal?.querySelector(':scope > .modal-descartar')?.remove();
+    modalAlterado = false;
+    if (window.refreshDoDDrawer) window.refreshDoDDrawer();
+    if (window.activePreviewUrl) {
+        window.URL.revokeObjectURL(window.activePreviewUrl);
+        window.activePreviewUrl = null;
+    }
+    if (estavaAberto && gatilhoModal && gatilhoModal.isConnected && typeof gatilhoModal.focus === 'function') gatilhoModal.focus();
+    if (estavaAberto) gatilhoModal = null;
+}
+
+/** "Descartar o que foi digitado?" dentro do próprio modal, no topo, com o foco em "Continuar editando". */
+function perguntarDescarte() {
+    const modal = document.getElementById('modal');
+    if (!modal) return;
+    let faixa = modal.querySelector(':scope > .modal-descartar');
+    if (!faixa) {
+        modal.querySelector(':scope > .modal-fechar').insertAdjacentHTML('afterend', `<div class="modal-descartar" role="alertdialog" aria-labelledby="modal-descartar-texto">
+            <p id="modal-descartar-texto">Descartar o que foi digitado?</p>
+            <button type="button" class="btn" data-action="continuarEditandoModal">Continuar editando</button>
+            <button type="button" class="btn btn-perigo" data-action="descartarModal">Descartar</button></div>`);
+        faixa = modal.querySelector(':scope > .modal-descartar');
+    }
+    faixa.querySelector('[data-action="continuarEditandoModal"]').focus();
+}
+
+/** Fechar pedido pela pessoa: pergunta se há campo alterado. */
+export function pedirFecharModal() {
+    if (modalAlterado) perguntarDescarte();
+    else fecharDeFato();
+}
+
+export function closeModal(e) {
+    if (e && e.target !== document.getElementById('modal-overlay')) return;
+    if (pedidoPelaPessoa(this)) pedirFecharModal();
+    else fecharDeFato();
+}
+
+export function forceCloseModal() {
+    if (pedidoPelaPessoa(this)) pedirFecharModal();
+    else fecharDeFato();
+}
+
+window.continuarEditandoModal = function continuarEditandoModal() {
+    document.querySelector('#modal > .modal-descartar')?.remove();
+    const conteudo = document.getElementById('modal-content');
+    (conteudo?.querySelector(FOCAVEIS) || document.getElementById('modal'))?.focus();
+};
+window.descartarModal = function descartarModal() { fecharDeFato(); };
+
+if (typeof document !== 'undefined') {
+    // Campo alterado dentro do modal (o que se perde ao fechar). `data-sem-rascunho` marca filtro/busca, que não conta.
+    const marcar = (e) => {
+        const t = e.target;
+        if (t instanceof Element && t.closest('#modal-content') && !t.closest('[data-sem-rascunho]')) modalAlterado = true;
+    };
+    document.addEventListener('input', marcar, true);
+    document.addEventListener('change', marcar, true);
+    document.addEventListener('keydown', (e) => {
+        const overlay = document.getElementById('modal-overlay');
+        if (!overlay || !overlay.classList.contains('open') || e.defaultPrevented) return;
         const modal = document.getElementById('modal');
-        const modalContent = document.getElementById('modal-content');
-        modal.classList.remove('modal-large'); // reset
-        if (extraClass) modal.classList.add(extraClass);
-        modalContent.innerHTML = html;
-        document.getElementById('modal-overlay').classList.add('open');
-    }
-
-    export function closeModal(e) {
-        if (e && e.target !== document.getElementById('modal-overlay')) return;
-        document.getElementById('modal-overlay').classList.remove('open');
-        document.getElementById('modal').classList.remove('modal-large');
-        if (window.refreshDoDDrawer) window.refreshDoDDrawer();
-        if (window.activePreviewUrl) {
-            window.URL.revokeObjectURL(window.activePreviewUrl);
-            window.activePreviewUrl = null;
+        if (e.key === 'Escape') {
+            // Com a pergunta aberta, Esc é "continuar editando".
+            if (modal.querySelector(':scope > .modal-descartar')) window.continuarEditandoModal();
+            else pedirFecharModal();
+            e.preventDefault();
+        } else if (e.key === 'Tab') {
+            const f = [...modal.querySelectorAll(FOCAVEIS)].filter((x) => !x.closest('[hidden]'));
+            if (!f.length) { e.preventDefault(); modal.focus(); return; }
+            const i = f.indexOf(document.activeElement);
+            if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+            else if (!e.shiftKey && (i === -1 || i === f.length - 1)) { e.preventDefault(); f[0].focus(); }
         }
-    }
-
-    export function forceCloseModal() {
-        // Optional chaining porque o handler global de Esc chama isto em toda
-        // tecla: fora do shell (ou num teste) os elementos podem não existir e a
-        // exceção matava o resto da cascata de Esc.
-        document.getElementById('modal-overlay')?.classList.remove('open');
-        document.getElementById('modal')?.classList.remove('modal-large');
-        if (window.refreshDoDDrawer) window.refreshDoDDrawer();
-        if (window.activePreviewUrl) {
-            window.URL.revokeObjectURL(window.activePreviewUrl);
-            window.activePreviewUrl = null;
-        }
-    }
+    });
+}
 
 /**
  * Pergunta na própria tela, no lugar de window.confirm/prompt (bloqueiam a página, não seguem a
@@ -512,6 +602,7 @@ window.renderAbas = renderAbas;
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.forceCloseModal = forceCloseModal;
+window.pedirFecharModal = pedirFecharModal;
 window.showToast = showToast;
 window.renderPageHeader = renderPageHeader;
 window.renderStatCards = renderStatCards;

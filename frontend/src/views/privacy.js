@@ -159,7 +159,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes da atividade (RoPA)</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:600; font-size:1.3rem; color:var(--text)">
@@ -224,7 +224,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         const parteOptions = await opcoesDePartes(projectId, null);
         catalogoBases = await idsDoCatalogo(api);
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova atividade de tratamento (RoPA), edição avançada</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Nova atividade de tratamento (RoPA), edição avançada</span></div>
             <div class="form-group"><label class="form-label" for="ropa-purpose">Finalidade do tratamento</label><input class="form-input" id="ropa-purpose" placeholder="Ex: Folha de pagamento"></div>
             <div class="form-group"><label class="form-label" for="ropa-categories">Categorias de dados</label><input class="form-input" id="ropa-categories" placeholder="Ex: Dados pessoais, financeiros, biometria"></div>
             <div class="form-group"><label class="form-label" for="ropa-subjects">Titulares</label><input class="form-input" id="ropa-subjects" placeholder="Ex: Colaboradores, Clientes"></div>
@@ -269,7 +269,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         const parteOptions = await opcoesDePartes(r.project_id || (S.activeProject && S.activeProject.id), r.owner_parte_id);
         catalogoBases = await idsDoCatalogo(api);
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar atividade (RoPA), edição avançada</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar atividade (RoPA), edição avançada</span></div>
             <div class="form-group"><label class="form-label" for="ropa-e-purpose">Finalidade</label><input class="form-input" id="ropa-e-purpose" value="${escapeHTML(r.processing_purpose||'')}"></div>
             <div class="form-group"><label class="form-label" for="ropa-e-categories">Categorias de dados</label><input class="form-input" id="ropa-e-categories" value="${escapeHTML(r.data_categories||'')}"></div>
             <div class="form-group"><label class="form-label" for="ropa-e-subjects">Titulares</label><input class="form-input" id="ropa-e-subjects" value="${escapeHTML(r.data_subjects||'')}"></div>
@@ -400,7 +400,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes do RIPD</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:600; font-size:1.3rem; color:var(--text)">
@@ -493,7 +493,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                 ${atividades.map((x) => `<option value="${escapeHTML(x.id)}">${escapeHTML(x.processing_purpose || x.id)}</option>`).join('')}
             </select><p class="re-nota" id="dpia-ropa-dica">Com a atividade, o RIPD nasce com o que o RoPA e o teste de impacto já informaram.</p></div>` : '';
         openModal(`
-            <div class="modal-header"><span class="modal-title">Novo RIPD</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Novo RIPD</span></div>
             ${escolha}
             <div id="dpia-manual">
             <div class="form-group"><label class="form-label" for="dpia-system">Nome do Sistema / Processo de Dados</label><input class="form-input" id="dpia-system" placeholder="Ex: CRM Salesforce, Sistema de RH Interno"><p class="campo-erro" id="dpia-system-erro" aria-live="polite"></p></div>
@@ -556,7 +556,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
     window.openEditDPIAModal = function(id) {
         const dp = S.dpia.find(x => x.id === id) || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar RIPD</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar RIPD</span></div>
             <div class="form-group"><label class="form-label">Nome do Sistema</label><input class="form-input" id="dpia-e-system" value="${escapeHTML(dp.system_name||'')}"></div>
             <div class="form-group"><label class="form-label">Descrição do Fluxo</label><textarea class="form-input" id="dpia-e-flow">${escapeHTML(dp.data_flow_description||'')}</textarea></div>
             <div style="display:flex; gap:0.5rem">

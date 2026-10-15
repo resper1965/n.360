@@ -366,6 +366,12 @@
         .modal-large { max-width: 900px; }
         .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
         .modal-title { font-family: 'Montserrat', sans-serif; font-size: 1.1rem; font-weight: 500; }
+        /* Modal único (openModal em ui.js): o "Fechar" fica no topo, preso ao rolar; a pergunta de descarte mora na própria janela. */
+        .modal { position: relative; }
+        .modal-fechar { position: sticky; top: 0; float: right; z-index: 2; margin: -1rem -1rem 0.5rem 1rem; padding: 6px 12px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 0; font: 500 12px/1.4 var(--font-body); cursor: pointer; }
+        .modal-fechar:hover { border-color: var(--text-dim); }
+        .modal-descartar { clear: both; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; margin-bottom: 16px; background: var(--surface-2); border: 1px solid var(--warning); }
+        .modal-descartar p { margin: 0; flex: 1; color: var(--text); font-size: 14px; }
         @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 
         /* ——— BADGES ——————————————————————————————————————— */

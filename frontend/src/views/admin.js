@@ -261,7 +261,7 @@ window.__adminCopiarApiKey = () => {
     // Confirmação na própria janela da tela (sem window.confirm).
     function janelaConfirmar(titulo, texto, acao, rotulo, perigo) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">${escapeHTML(titulo)}</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            <div class="modal-header"><span class="modal-title">${escapeHTML(titulo)}</span></div>
             <div style="padding:1.25rem 0;text-align:left"><p>${texto}</p>
                 <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:1rem">
                     <button class="btn" data-action="forceCloseModal">Cancelar</button>
@@ -428,7 +428,7 @@ window.__adminCopiarApiKey = () => {
         const html = `
             <div class="modal-header">
                 <span class="modal-title">${user ? 'Editar Usuário' : 'Novo Usuário'}</span>
-                <button class="btn-ghost" data-action="closeModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:1.25rem">
                 ${govImportHtml}
@@ -598,7 +598,7 @@ window.__adminCopiarApiKey = () => {
     window.openApiKeyModal = function () {
         if (!S.apiKeysProjectId) { showToast('Selecione um projeto', 'error'); return; }
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova chave de API</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            <div class="modal-header"><span class="modal-title">Nova chave de API</span></div>
             <div style="padding:1.25rem 0;text-align:left">
                 <div class="form-group"><label class="form-label">Nome</label><input id="apikey-name" class="form-input" placeholder="ex: consultor-clienteX"></div>
                 <div class="form-group"><label class="form-label">Papel</label>

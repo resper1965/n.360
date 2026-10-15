@@ -1918,7 +1918,7 @@ window.openScopeChangeModal = async function(projectId, projData) {
         } catch (e) { /* secundário: o formulário de mudança abre sem o histórico */ }
 
         openModal(`
-            <div class="modal-header"><span class="modal-title">Alteração de Escopo (Cláusula 6.3)</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+            <div class="modal-header"><span class="modal-title">Alteração de Escopo (Cláusula 6.3)</span></div>
             <div class="form-group">
                 <label class="form-label">Escopo Atual do Projeto</label>
                 <textarea class="form-input" readonly rows="2" style="background:rgba(255,255,255,0.02);color:var(--text-dim);resize:none">${escapeHTML(projData.scope || 'Nenhum escopo definido')}</textarea>
@@ -2231,7 +2231,6 @@ window.PHASE_PLAYBOOKS = {
 };
 
 window.initApp = window.initApp || function() {};
-document.addEventListener('keydown', function(e) { if (e.key === 'Escape') forceCloseModal(); });
 new MutationObserver(function() {
     document.querySelectorAll('[onclick]').forEach(function(el) {
         if (!['A','BUTTON','INPUT','SELECT','TEXTAREA'].includes(el.tagName)) {

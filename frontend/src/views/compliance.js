@@ -64,7 +64,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     // painel agrupado por categoria, com severidade. É auto-diagnóstico, não
     // auditoria — o rótulo vem do próprio backend e é exibido aqui.
     window.runReadinessCheck = async function (projectId, comIA = false) {
-        openModal(`<div class="modal-header"><span class="modal-title">Diagnóstico de prontidão</span><button class="btn-ghost" data-action="closeModal">&times;</button></div><div style="padding:1.5rem 0;text-align:center"><div class="loading"></div>${comIA ? '<p style="font-size:0.75rem;color:var(--muted);margin-top:8px">Analisando com IA…</p>' : ''}</div>`);
+        openModal(`<div class="modal-header"><span class="modal-title">Diagnóstico de prontidão</span></div><div style="padding:1.5rem 0;text-align:center"><div class="loading"></div>${comIA ? '<p style="font-size:0.75rem;color:var(--muted);margin-top:8px">Analisando com IA…</p>' : ''}</div>`);
         try {
             const r = await api('GET', `/api/v1/projects/${projectId}/readiness-check${comIA ? '?ai=1' : ''}`);
             const cor = { critico: 'var(--danger)', alto: 'var(--warning)', medio: 'var(--muted)' };
@@ -91,7 +91,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     </div>`).join('') : '<p style="color:var(--muted);font-size:0.85rem">Nenhuma inconsistência de conteúdo apontada pela IA.</p>'}` : '';
             const botaoIA = comIA ? '' : `<button class="btn btn-secondary" style="margin-top:0.8rem" data-action="runReadinessCheck" data-args='["${projectId}",true]'>Analisar com IA</button>`;
             openModal(`
-                <div class="modal-header"><span class="modal-title">Diagnóstico de prontidão</span><button class="btn-ghost" data-action="closeModal">&times;</button></div>
+                <div class="modal-header"><span class="modal-title">Diagnóstico de prontidão</span></div>
                 <div style="padding:0.5rem 0;text-align:left">
                     <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem">${escapeHTML(r.rotulo || '')}</p>
                     <div style="display:flex;gap:16px;margin-bottom:0.4rem;font-size:0.85rem">
@@ -131,7 +131,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">${escapeHTML(cabecalho)}</span>
-                <button class="btn-ghost" data-action="closeModal">&times;</button>
+                
             </div>
             <div style="margin-bottom: 1.5rem;">
                 <div class="ctx-label">Descrição</div>
@@ -1251,7 +1251,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 <span class="modal-title" style="font-family:'Montserrat',sans-serif;font-weight:700;color:var(--accent)">
                     Riscos Vinculados — ${escapeHTML(standard)}
                 </span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
             <div style="margin-top:1rem">
         `;
@@ -1316,7 +1316,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 <span class="modal-title" style="font-family:'Montserrat',sans-serif;font-weight:700;color:var(--accent)">
                     Evidências Vinculadas — ${escapeHTML(standard)}
                 </span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
             <div style="margin-top:1rem">
         `;
@@ -1611,7 +1611,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     function openEvidenceUploadModal(projectId) {
         const comIso = temProduto(projetoDoId(projectId), 'iso');
         openModal(`
-            <div class="modal-header"><span class="modal-title">Enviar evidência</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+            <div class="modal-header"><span class="modal-title">Enviar evidência</span></div>
             ${comIso ? `<div class="form-group">
                 <label class="form-label">Controle ISO (opcional)</label>
                 <input class="form-input" id="ev-control-id" placeholder="Ex: A.5.1, A.8.25">
@@ -1767,7 +1767,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         const controlId = controlIdArg || 'A.5.1';
         
         openModal(`
-            <div class="modal-header"><span class="modal-title">Gestão de Política</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Gestão de Política</span></div>
             <div style="padding: 2rem; text-align: center; color: var(--text-dim);">Carregando detalhes do controle...</div>
         `);
 
@@ -1778,7 +1778,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             policyRes = await api('GET', `/api/v1/projects/${projectId}/controls/${encodeURIComponent(controlId)}/policy`);
         } catch (e) {
             openModal(`
-                <div class="modal-header"><span class="modal-title">Gestão de Política</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+                <div class="modal-header"><span class="modal-title">Gestão de Política</span></div>
                 <div style="padding: 2rem; text-align: center; color: var(--danger);">${escapeHTML(e.message || 'Controle não encontrado neste projeto')}</div>
             `);
             return;
@@ -1820,7 +1820,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
 
         const showGenerationFormHtml = () => {
             const formHtml = `
-                <div class="modal-header"><span class="modal-title">Gerar Política ISO — ${escapeHTML(codigo)}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+                <div class="modal-header"><span class="modal-title">Gerar Política ISO — ${escapeHTML(codigo)}</span></div>
                 ${rascunhoHtml}
                 <div class="form-group" style="display:none">
                     <label class="form-label">Controle ISO</label>
@@ -1979,7 +1979,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             const html = `
                 <div class="modal-header">
                     <span class="modal-title">Política Ativa — ${escapeHTML(codigo)}</span>
-                    <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                    
                 </div>
                 <div style="display:flex; flex-direction:column; gap:16px;">
                     <div style="font-size:0.72rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.2em; font-family:'Montserrat',sans-serif">Título da Política</div>
@@ -2467,7 +2467,7 @@ window.abrirRequisitosEvidencia = async function (projectId, evidenceId) {
     S.evRequisitos = ligados.map((r) => r.id);
     const args = (...v) => escapeHTML(JSON.stringify(v));
     openModal(`
-        <div class="modal-header"><span class="modal-title">Requisitos e validade</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+        <div class="modal-header"><span class="modal-title">Requisitos e validade</span></div>
         <div id="ev-requisitos">
             ${ligados.length ? ligados.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoEvidencia" data-args='${args(projectId, evidenceId, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">\u00d7</button></span>`).join(' ')
                 : '<p style="color:var(--text-dim)">Nenhum requisito ligado a esta evidência.</p>'}
@@ -2557,7 +2557,7 @@ window.vincularEvidenciaControle = async function(evidenceId, controlId) {
 
 window.evaluateEvidenceAI = function(evidenceId) {
     openModal(`
-        <div class="modal-header"><span class="modal-title">Avaliar evidência por IA</span><button class="btn-ghost" data-action="forceCloseModal">×</button></div>
+        <div class="modal-header"><span class="modal-title">Avaliar evidência por IA</span></div>
         <div class="form-group">
             <label class="form-label">Texto do documento</label>
             <textarea class="form-input" id="eval-text" style="min-height:160px" placeholder="Cole aqui o texto extraído da evidência."></textarea>

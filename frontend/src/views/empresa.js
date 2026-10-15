@@ -198,7 +198,7 @@ const erroDoPasso = (texto) => {
 
 function passoHtml() {
     const cab = `<div class="modal-header"><span class="modal-title" id="np-titulo" tabindex="-1">Novo projeto — ${PASSOS[W.passo - 1]}</span>
-        <button class="btn-ghost" data-action="forceCloseModal" aria-label="Fechar">&times;</button></div>
+        </div>
         <ol style="display:flex;gap:16px;list-style:none;padding:0;margin:0 0 1rem;font-size:0.8rem">${PASSOS.map((p, i) =>
             `<li ${i + 1 === W.passo ? 'aria-current="step" style="color:var(--accent);font-weight:600"' : 'style="color:var(--text-dim)"'}>${i + 1}. ${p}</li>`).join('')}</ol>`;
     const erro = '<div id="np-erro" role="alert" aria-live="assertive" style="color:var(--danger);font-size:0.85rem;min-height:1.2em;margin:0.5rem 0"></div>';
@@ -353,7 +353,7 @@ window.abrirDadosEmpresa = async function (projectId) {
     let hist = [];
     try { hist = (await api('GET', `/api/v1/projects/${projectId}/audit-trail`)).filter((l) => l.action === 'empresa.atualizada').slice(0, 10); } catch (e) { /* sem trilha: sem histórico */ }
     openModal(`
-        <div class="modal-header"><span class="modal-title" id="emp-titulo" tabindex="-1">Dados da empresa</span><button class="btn-ghost" data-action="forceCloseModal" aria-label="Fechar">&times;</button></div>
+        <div class="modal-header"><span class="modal-title" id="emp-titulo" tabindex="-1">Dados da empresa</span></div>
         ${editar ? '' : '<p style="color:var(--text-dim);font-size:0.85rem;margin-top:0">Somente leitura: quem edita é a equipe da consultoria e o administrador do cliente.</p>'}
         ${formEmpresaHtml(r.empresa || {}, { editar, consultar: editar && podeCriarProjeto(), representante: true })}
         <div id="emp-erro" role="alert" aria-live="assertive" style="color:var(--danger);font-size:0.85rem;min-height:1.2em"></div>

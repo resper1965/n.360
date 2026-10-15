@@ -153,7 +153,7 @@ import { podeIndicar } from './encarregado.js';
             const pct = data.coverage_pct || 0;
             const barColor = pct > 80 ? 'var(--accent)' : pct > 50 ? 'var(--warning)' : 'var(--danger)';
             openModal(`
-                <div class="modal-header"><span class="modal-title">Análise de lacunas</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+                <div class="modal-header"><span class="modal-title">Análise de lacunas</span></div>
                 <div style="display:flex;gap:2rem;margin-bottom:1.5rem">
                     <div><div class="card-label">Cobertura</div><div style="font-size:2rem;font-weight:600;color:${barColor}">${pct.toFixed(0)}%</div></div>
                     <div><div class="card-label">Implementados</div><div style="font-size:1.2rem">${data.by_status?.Implemented || 0}</div></div>
@@ -251,7 +251,7 @@ import { podeIndicar } from './encarregado.js';
 
     function openNewMetricModal(projectId) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova Métrica de Desempenho</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+            <div class="modal-header"><span class="modal-title">Nova Métrica de Desempenho</span></div>
             <div class="form-group"><label class="form-label">Nome do Indicador</label><input class="form-input" id="met-name" placeholder="Ex: Taxa de Sucesso dos Backups (%), Patches Críticos (%)"></div>
             <div style="display:flex;gap:0.5rem">
                 <div class="form-group" style="flex:1"><label class="form-label">Meta (Alvo)</label><input type="number" step="any" class="form-input" id="met-target" placeholder="99.9"></div>
@@ -305,7 +305,7 @@ import { podeIndicar } from './encarregado.js';
     function openEditMetricModal(id, projectId, data) {
         const m = data || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Métrica</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+            <div class="modal-header"><span class="modal-title">Editar Métrica</span></div>
             <div class="form-group"><label class="form-label">Nome do Indicador</label><input class="form-input" id="met-e-name" value="${escapeHTML(m.metric_name||'')}"></div>
             <div style="display:flex;gap:0.5rem">
                 <div class="form-group" style="flex:1"><label class="form-label">Meta</label><input type="number" step="any" class="form-input" id="met-e-target" value="${m.target_value !== null ? m.target_value : ''}"></div>
@@ -637,7 +637,7 @@ import { podeIndicar } from './encarregado.js';
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Gerenciar Membros da Governança</span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
             <div id="gov-modal-body">
                 <div class="loading"></div>
@@ -1159,7 +1159,7 @@ import { podeIndicar } from './encarregado.js';
                 <span class="modal-title" style="font-family:'Montserrat',sans-serif;font-weight:700;color:var(--accent)">
                     ${isEdit ? 'Editar Parte Interessada' : 'Nova Parte Interessada'}
                 </span>
-                <button class="btn-ghost" data-action="closeModal">&times;</button>
+                
             </div>
             <form id="stakeholder-form" data-action-submit="saveStakeholder" data-arg-event data-args='${escapeHTML(JSON.stringify([isEdit ? s.id : null]))}' style="margin-top:1rem">
                 <div class="form-group" style="margin-bottom:16px">
@@ -1660,7 +1660,7 @@ import { podeIndicar } from './encarregado.js';
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes do Ativo de Informação</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.4rem; color:var(--accent)">
@@ -1699,7 +1699,7 @@ import { podeIndicar } from './encarregado.js';
 
     window.openNewAssetModal = function(projectId) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">Novo Ativo</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Novo Ativo</span></div>
             <div class="form-group"><label class="form-label">Nome do Ativo</label><input class="form-input" id="ast-name" placeholder="Ex: Banco de dados RDS Prod, Código-Fonte GitHub"></div>
             <div class="form-group">
                 <label class="form-label">Categoria</label>
@@ -1737,7 +1737,7 @@ import { podeIndicar } from './encarregado.js';
     window.openEditAssetModal = function(id) {
         const ast = S.assets.find(x => x.id === id) || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Ativo</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar Ativo</span></div>
             <div class="form-group"><label class="form-label">Nome do Ativo</label><input class="form-input" id="ast-e-name" value="${escapeHTML(ast.name||'')}"></div>
             <div class="form-group">
                 <label class="form-label">Categoria</label>

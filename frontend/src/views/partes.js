@@ -83,7 +83,7 @@ const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
 window.openNovaParteModal = function (projectId, tipo = 'pessoa') {
     openModal(`
-        <div class="modal-header"><span class="modal-title">${tipo === 'organizacao' ? 'Novo terceiro (organização)' : 'Nova parte'}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">${tipo === 'organizacao' ? 'Novo terceiro (organização)' : 'Nova parte'}</span></div>
         <div class="form-group"><label class="form-label" for="parte-tipo">Tipo</label>
             <select class="form-input" id="parte-tipo">${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${v === tipo ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="parte-nome" maxlength="200"></div>
@@ -110,7 +110,7 @@ window.openParteModal = async function (projectId, id) {
     const vinculos = lista(p.vinculos).map(v =>
         `<li>${escapeHTML(PAPEIS[v.papel] || v.papel)} — ${escapeHTML(ALVOS[v.alvo_tipo] || v.alvo_tipo)}</li>`).join('');
     openModal(`
-        <div class="modal-header"><span class="modal-title">${escapeHTML(p.nome)}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">${escapeHTML(p.nome)}</span></div>
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="parte-e-nome" maxlength="200" value="${escapeHTML(p.nome)}" ${editar ? '' : 'disabled'}></div>
         <div class="form-group"><label class="form-label">E-mail</label><input class="form-input" id="parte-e-email" type="email" maxlength="320" value="${escapeHTML(p.email || '')}" ${editar ? '' : 'disabled'}></div>
         <div class="form-group"><label class="form-label">Situação</label>
@@ -137,7 +137,7 @@ window.salvarParte = async function (projectId, id) {
 
 window.openNovoDepartamentoModal = function (projectId) {
     openModal(`
-        <div class="modal-header"><span class="modal-title">Novo departamento</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Novo departamento</span></div>
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="depto-nome" maxlength="200"></div>
         <button class="btn btn-primary" style="width:100%" data-action="criarDepartamento" data-args='["${projectId}"]'>Cadastrar</button>
     `);
@@ -172,7 +172,7 @@ window.conciliarPartes = async function (projectId) {
         <p style="color:var(--text-dim);margin:0 0 0.5rem">${dica}</p>
         ${window.renderDataTable(['Onde', 'Texto', 'Linhas'], xs.map(x => [escapeHTML(x.tabela), escapeHTML(x.texto), String(x.n)]))}` : '';
     openModal(`
-        <div class="modal-header"><span class="modal-title">Conciliação de responsáveis</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Conciliação de responsáveis</span></div>
         <p><strong>${ligados}</strong> responsáveis ligados a uma parte. O texto original não foi alterado.</p>
         ${bloco('Sem correspondência', 'Nenhuma parte tem exatamente este nome. Cadastre a parte (ou corrija o nome) e concilie de novo.', sem)}
         ${bloco('Ambíguos', 'Mais de uma parte tem este nome. Deixe só uma ativa com o nome ou renomeie e concilie de novo.', amb)}

@@ -21,7 +21,7 @@ window.abrirPrazosDasAcoes = function (projectId) {
     const total = faixasPrazo.reduce((t, f) => t + (f.total || 0), 0);
     const botoes = faixasPrazo.map((f) => `<li><span>${escapeHTML(f.rotulo)}</span><span class="pn-num">${n(f.total)}</span>
         <button type="button" class="btn btn-sm" data-action="abrirFaixaPrazo" data-args='${args(projectId, f.faixa)}' aria-label="${escapeHTML(`${f.rotulo}: ${f.total || 0} ações`)}">Ver</button></li>`).join('');
-    openModal(`<div class="modal-header"><span class="modal-title">Ações das atividades por prazo</span><button class="btn-ghost" data-action="forceCloseModal" aria-label="Fechar">&times;</button></div>
+    openModal(`<div class="modal-header"><span class="modal-title">Ações das atividades por prazo</span></div>
         <ul class="pn-export" id="enc-prazos">${botoes}</ul>
         ${total ? `<button type="button" class="btn" data-action="exportarCsvAcoes" data-args='${args(projectId, null)}'>Exportar todas (CSV)</button>` : '<p class="pn-meta">Nenhuma ação aberta nas atividades.</p>'}`);
 };
@@ -39,7 +39,7 @@ window.abrirFaixaPrazo = function (projectId, faixa) {
         `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(projectId, i.ropa_id)}'>Abrir a atividade</button>`,
     ]), { emptyState: 'Nenhuma ação aberta nesta faixa.' });
     openModal(`
-        <div class="modal-header"><span class="modal-title">Ações: ${escapeHTML(f.rotulo)} (${n(f.total)})</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Ações: ${escapeHTML(f.rotulo)} (${n(f.total)})</span></div>
         ${f.total > itens.length ? `<p style="color:var(--text-dim)">Mostrando ${n(itens.length)} de ${n(f.total)}. O CSV traz todas.</p>` : ''}
         ${tabela}
         ${f.total ? `<button class="btn" style="margin-top:1rem" data-action="exportarCsvAcoes" data-args='${args(projectId, faixa)}'>Exportar esta faixa (CSV)</button>` : ''}
@@ -58,7 +58,7 @@ window.abrirIndicarEncarregado = async function (projectId) {
     try { partes = await api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`); } catch (e) { return showToast('Não foi possível listar as pessoas', 'error'); }
     const opcoes = (Array.isArray(partes) ? partes : []).map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.nome)}</option>`).join('');
     openModal(`
-        <div class="modal-header"><span class="modal-title">Indicar encarregado</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Indicar encarregado</span></div>
         ${opcoes
             ? `<div class="form-group"><label class="form-label">Pessoa</label><select class="form-input" id="encarregado-parte">${opcoes}</select></div>
                <button class="btn btn-primary" style="width:100%" data-action="indicarEncarregado" data-args='${args(projectId)}'>Indicar</button>`

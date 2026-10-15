@@ -135,7 +135,7 @@ window.importarDocumentos = async function (projectId) {
 
 window.openNovoDocumentoModal = function (projectId, tipo = 'politica', titulo = '') {
     openModal(`
-        <div class="modal-header"><span class="modal-title">Novo documento</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Novo documento</span></div>
         <div class="form-group"><label class="form-label">Tipo</label><select class="form-input" id="doc-novo-tipo">${opcoesTipo(TIPOS[tipo] ? tipo : 'politica')}</select></div>
         <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="doc-novo-titulo" maxlength="300" value="${escapeHTML(titulo)}"></div>
         <div class="form-group"><label class="form-label">Texto (versão 1, em rascunho)</label><textarea class="form-input" id="doc-novo-texto" rows="8"></textarea></div>
@@ -229,7 +229,7 @@ window.openDocumentoModal = async function (projectId, id) {
         <button class="btn btn-sm" data-action="salvarRascunhoDocumento" data-args='${args(projectId, id)}'>Salvar rascunho</button>` : '';
 
     openModal(`
-        <div class="modal-header"><span class="modal-title">${escapeHTML(d.titulo)}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">${escapeHTML(d.titulo)}</span></div>
         <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:0.75rem">${escapeHTML(rotuloStatus)}${d.versao_vigente ? ` · versão vigente ${escapeHTML(String(d.versao_vigente))}` : ''}</div>
         ${aviso}
         ${metadados}

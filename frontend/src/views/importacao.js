@@ -475,7 +475,7 @@ window.importacaoEditar = function (iid) {
     const lista = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)} (separe por vírgula)</label><input class="form-input" id="imp-${k}" value="${e((d[k] || []).join(', '))}"></div>`;
     const tri = (k, r) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><select class="form-input" id="imp-${k}">${[['', 'Não informado'], ['true', 'Sim'], ['false', 'Não']].map(([v, t]) => `<option value="${v}"${String(d[k] ?? '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`;
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar tratamento</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar tratamento</span></div>
         ${CAMPOS.map(campo).join('')}${tri('transferencia_internacional', 'Transferência internacional')}${tri('dpia_requerido', 'DPIA requerido')}${LISTAS.map(lista).join('')}
         <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(iid)}'>Salvar</button>`);
@@ -488,7 +488,7 @@ function editarTerceiro(i) {
     const av = d.ultima_avaliacao || {};
     const campo = ([k, r, max]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="${max}"></div>`;
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar terceiro</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar terceiro</span></div>
         ${CAMPOS_TERCEIRO.map(campo).join('')}${opcoes('tipo', 'Tipo', TIPO_TERCEIRO, d.tipo)}
         <div class="form-group"><label class="form-label" for="imp-tratamentos">Tratamentos (finalidades, separe por vírgula)</label><input class="form-input" id="imp-tratamentos" value="${e((d.tratamentos || []).join(', '))}"></div>
         ${opcoes('aval_resultado', 'Resultado da última avaliação', RESULTADO, av.resultado)}
@@ -502,7 +502,7 @@ function editarTerceiro(i) {
 function editarDocumento(i) {
     const d = i.dados || {};
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar documento</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar documento</span></div>
         <div class="form-group"><label class="form-label" for="imp-titulo">Título</label><input class="form-input" id="imp-titulo" value="${e(d.titulo)}" maxlength="300"></div>
         ${opcoes('tipo', 'Tipo', TIPO_DOCUMENTO, d.tipo)}
         <div class="form-group"><label class="form-label" for="imp-resumo">Resumo</label><textarea class="form-input" id="imp-resumo" maxlength="2000" rows="3">${e(d.resumo)}</textarea></div>
@@ -513,7 +513,7 @@ function editarDocumento(i) {
 function editarAvaliacao(i) {
     const d = i.dados || {};
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar ${e(AVALIACAO[entidade(i)])}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar ${e(AVALIACAO[entidade(i)])}</span></div>
         <div class="form-group"><label class="form-label" for="imp-tratamento">Tratamento (finalidade, como está no RoPA)</label><input class="form-input" id="imp-tratamento" value="${e(d.tratamento)}" maxlength="500"></div>
         <div class="form-group"><label class="form-label" for="imp-conclusao">Conclusão</label><textarea class="form-input" id="imp-conclusao" maxlength="2000" rows="3">${e(d.conclusao)}</textarea></div>
         <div class="form-group"><label class="form-label" for="imp-riscos">Riscos (um por linha)</label><textarea class="form-input" id="imp-riscos" rows="4">${e((d.riscos || []).join('\n'))}</textarea></div>
@@ -544,7 +544,7 @@ function editarHistorico(i) {
     const texto = ([k, r, max]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="${max}"></div>`;
     const data = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input type="date" class="form-input" id="imp-${k}" value="${e(d[k])}"></div>`;
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar ${e((HISTORICO[entidade(i)] || '').toLowerCase())}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar ${e((HISTORICO[entidade(i)] || '').toLowerCase())}</span></div>
         ${f.textos.map(texto).join('')}${f.selects.map(([k, r, mapa]) => opcoes(k, r, mapa, d[k])).join('')}${f.datas.map(data).join('')}
         ${d.titular_ref ? `<p style="color:var(--text-dim)">Titular (pseudônimo): ${e(d.titular_ref)}</p>` : ''}
         <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
@@ -571,7 +571,7 @@ function editarF6(i) {
     };
     const tipo = DA_ATIVIDADE[entidade(i)] || COMPLEMENTOS[entidade(i)];
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar ${e(tipo.toLowerCase())}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar ${e(tipo.toLowerCase())}</span></div>
         ${FORM_F6[entidade(i)].map(campo).join('')}
         <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);

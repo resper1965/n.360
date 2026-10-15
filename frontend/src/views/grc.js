@@ -273,7 +273,7 @@ window.__grcCloseExecAudit = function (id) {
             .join('');
 
         openModal(`
-            <div class="modal-header"><span class="modal-title">Novo Risco</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Novo Risco</span></div>
             <div class="form-group">
                 <label class="form-label">Ativo do Inventário (Opcional)</label>
                 <select class="form-input" id="risk-asset-select" data-action-change="onRiskAssetSelectChange" data-arg-el>
@@ -361,7 +361,7 @@ window.__grcCloseExecAudit = function (id) {
             .join('');
 
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Risco</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar Risco</span></div>
             <div class="form-group"><label class="form-label">Ativo</label><input class="form-input" id="risk-e-asset" value="${escapeHTML(r.asset||'')}"></div>
             <div class="form-group"><label class="form-label">Ameaça</label><input class="form-input" id="risk-e-threat" value="${escapeHTML(r.threat||'')}"></div>
             <div class="form-group"><label class="form-label">Vulnerabilidade</label><input class="form-input" id="risk-e-vuln" value="${escapeHTML(r.vulnerability||'')}"></div>
@@ -412,7 +412,7 @@ window.__grcCloseExecAudit = function (id) {
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes do Risco</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.3rem; color:var(--accent)">
@@ -537,7 +537,7 @@ window.__grcCloseExecAudit = function (id) {
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes do Fornecedor</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.4rem; color:var(--accent)">
@@ -627,7 +627,7 @@ window.__grcCloseExecAudit = function (id) {
 
     window.openNewVendorModal = function(projectId) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">Novo Fornecedor</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Novo Fornecedor</span></div>
             <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="vnd-name" placeholder="Ex: AWS, Cloudflare"></div>
             <div class="form-group"><label class="form-label">Categoria</label><input class="form-input" id="vnd-cat" placeholder="Ex: Cloud, SaaS, Consultoria"></div>
             
@@ -706,7 +706,7 @@ window.__grcCloseExecAudit = function (id) {
     window.openEditVendorModal = function(id) {
         const v = S.vendors.find(x => x.id === id) || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Fornecedor</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar Fornecedor</span></div>
             <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="vnd-e-name" value="${escapeHTML(v.name||'')}"></div>
             <div class="form-group"><label class="form-label">Categoria</label><input class="form-input" id="vnd-e-cat" value="${escapeHTML(v.category||'')}"></div>
             
@@ -893,7 +893,7 @@ window.__grcCloseExecAudit = function (id) {
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes do Treinamento</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.3rem; color:var(--accent)">
@@ -968,7 +968,7 @@ window.__grcCloseExecAudit = function (id) {
 
     window.openNewTrainingModal = function(projectId) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">Novo Registro de Treinamento</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Novo Registro de Treinamento</span></div>
             <div class="form-group"><label class="form-label">Nome do Colaborador</label><input class="form-input" id="tr-name" placeholder="Ex: Ana Silva"></div>
             <div class="form-group"><label class="form-label">Treinamento</label><input class="form-input" id="tr-training" placeholder="Ex: Segurança da Informação Básico"></div>
             <div style="display:flex;gap:0.5rem">
@@ -1010,7 +1010,7 @@ window.__grcCloseExecAudit = function (id) {
         const r = S.training.find(x => x.id === id) || {};
         const projectId = S.activeProject ? S.activeProject.id : '';
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Treinamento</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar Treinamento</span></div>
             <div class="form-group"><label class="form-label">Colaborador</label><input class="form-input" id="tr-e-name" value="${escapeHTML(r.employee_name||'')}"></div>
             <div class="form-group"><label class="form-label">Treinamento</label><input class="form-input" id="tr-e-training" value="${escapeHTML(r.training_name||'')}"></div>
             <div style="display:flex;gap:0.5rem">
@@ -1056,7 +1056,7 @@ window.__grcCloseExecAudit = function (id) {
 
     window.openImportTrainingModal = function(projectId) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">Importar Treinamentos via JSON</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Importar Treinamentos via JSON</span></div>
             <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem">
                 Cole o payload JSON de cobertura de treinamento gerado pelo seu sistema externo para realizar a importação em lote de dados.
             </p>
@@ -1205,7 +1205,7 @@ window.__grcCloseExecAudit = function (id) {
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes da Ação Corretiva</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.3rem; color:var(--accent)">
@@ -1268,7 +1268,7 @@ window.__grcCloseExecAudit = function (id) {
         const parteOptions = await opcoesDePartes(projectId, null);
 
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova Ação Corretiva</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Nova Ação Corretiva</span></div>
             <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="capa-title" placeholder="Ex: Implementar MFA em todos os sistemas"></div>
             <div class="form-group"><label class="form-label">Descrição</label><textarea class="form-input" id="capa-desc" placeholder="Detalhe a acao corretiva..."></textarea></div>
             <div class="form-group"><label class="form-label">Causa Raiz (Root Cause)</label><textarea class="form-input" id="capa-root" placeholder="Causa identificada do problema..."></textarea></div>
@@ -1341,7 +1341,7 @@ window.__grcCloseExecAudit = function (id) {
         const parteOptions = await opcoesDePartes(projectId, ca.assigned_to_parte_id);
 
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Ação Corretiva</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar Ação Corretiva</span></div>
             <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="capa-e-title" value="${escapeHTML(ca.title||'')}"></div>
             <div class="form-group"><label class="form-label">Descrição</label><textarea class="form-input" id="capa-e-desc">${escapeHTML(ca.description||'')}</textarea></div>
             <div class="form-group"><label class="form-label">Causa Raiz (Root Cause)</label><textarea class="form-input" id="capa-e-root">${escapeHTML(ca.root_cause||'')}</textarea></div>
@@ -1491,7 +1491,7 @@ window.__grcCloseExecAudit = function (id) {
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes da Auditoria</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.3rem; color:var(--accent)">
@@ -1543,7 +1543,7 @@ window.__grcCloseExecAudit = function (id) {
 
     window.openNewAuditModal = function(projectId) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova Auditoria</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Nova Auditoria</span></div>
             <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="aud-title" placeholder="Ex: Auditoria Interna Anual"></div>
             <div class="form-group"><label class="form-label">Tipo</label>
                 <select class="form-input" id="aud-type"><option value="Internal">Interna</option><option value="External">Externa</option><option value="Surveillance">Supervisão</option><option value="Certification">Certificação</option></select></div>
@@ -1574,7 +1574,7 @@ window.__grcCloseExecAudit = function (id) {
     window.openEditAuditModal = function(id) {
         const au = S.audits.find(x => x.id === id) || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Auditoria</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar Auditoria</span></div>
             <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="aud-e-title" value="${escapeHTML(au.title||'')}"></div>
             <div class="form-group"><label class="form-label">Tipo</label>
                 <select class="form-input" id="aud-e-type">
