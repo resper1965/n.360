@@ -146,8 +146,6 @@ const UNIAO_PRIVACY = [
     FROM partes p WHERE p.project_id = ?1 AND p.tipo = 'organizacao' AND p.status = 'ativa' AND p.terceiro_tipo IS NOT NULL`,
   SQL_UNIAO_EVIDENCIAS,
   SQL_UNIAO_DOCUMENTOS,
-  `SELECT 'Ações das atividades', title, substr(due_date, 1, 10) FROM corrective_actions
-    WHERE project_id = ?1 AND ropa_id IS NOT NULL AND COALESCE(status, 'Open') <> 'Closed' AND due_date IS NOT NULL`,
 ];
 
 async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean, dia: string) {
@@ -207,7 +205,14 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     tema('Incidentes (12 meses)', um(incidentes12), 'encerrados / abertos com comunicação em dia / comunicação atrasada'),
     tema('Evidências', um(evid), 'válidas e conformes / em análise / vencidas ou não conformes'),
   ];
-  const v = lerVencimentos(TIPOS_PRIVACY, respostas.slice(0, consultas.length), dia);
+  const v = lerVencimentos(TIPOS_PRIVACY.filter((t) => t !== 'Ações das atividades'), respostas.slice(0, consultas.length), dia);
+  // Ações das atividades (F2/F4): a linha sai das faixas de prazo que a visão já monta (acoes_por_prazo), sem consulta nova.
+  const faixa = (id: string) => visao.acoes_por_prazo.find((f) => f.faixa === id);
+  const acoes = ['ate_30', 'de_31_a_90'].flatMap((id) => faixa(id)?.itens ?? [])
+    .map((a) => ({ dias: diasAte(String(a.due_date), dia), rotulo: a.title })).filter((a) => a.dias >= 0 && a.dias <= 90);
+  v.linhas.push({ tipo: 'Ações das atividades', vencidos: faixa('vencidas')?.total ?? 0, itens: acoes });
+  const primeiraAcao = [...acoes].sort((a, b) => a.dias - b.dias)[0];
+  if (primeiraAcao && (!v.proximo || primeiraAcao.dias < v.proximo.dias)) v.proximo = { ...primeiraAcao, tipo: 'Ações das atividades' };
   // Pedidos recebidos por semana, 12 semanas, a mais recente por último.
   const pedidosSemana = Array.from({ length: 12 }, () => 0);
   for (const { d } of semana.results as { d: string }[]) {
@@ -223,7 +228,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     encarregados, comecando, tratamentos: visao.tratamentos.total,
     itens: emOrdem(visao.prioridades.map(daPrioridade('privacy'))),
     cobertura, vencimentos: v.linhas, proximo: v.proximo, pedidos_semana: pedidosSemana,
-    riscos: mapa.results as Celula[],
+    riscos: mapa.results as Celula[], acoes_por_prazo: visao.acoes_por_prazo,
     numeros: [
       [`${atividades?.feito ?? 0} de ${totalAtiv}`, 'atividades aprovadas'],
       [String(visao.pedidos_titular.atrasados), 'pedidos atrasados'],
@@ -383,7 +388,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     modulosResp[m] = quem.cliente
       ? { saude, numeros: b.numeros, comecando: b.comecando }
       : { saude, numeros: b.numeros, comecando: b.comecando, fazer: b.itens, cobertura: b.cobertura, vencimentos: b.vencimentos, riscos: b.riscos, passos: b.passos,
-          ...(m === 'privacy' && privacy ? { pedidos_semana: privacy.pedidos_semana } : {}) };
+          ...(m === 'privacy' && privacy ? { pedidos_semana: privacy.pedidos_semana, acoes_por_prazo: privacy.acoes_por_prazo } : {}) };
   }
   const todos = emOrdem(Object.values(blocos).flatMap((b) => b.itens));
   return {

@@ -103,7 +103,8 @@ async function semear() {
     db().prepare(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by, valido_ate, evaluation_status) VALUES
       ('e1', 'pa', 'ok.pdf', 'k', 'h', 'u', NULL, 'conforming'), ('e2', 'pa', 'pend.pdf', 'k', 'h', 'u', NULL, 'pending'), ('e3', 'pa', 'venc.pdf', 'k', 'h', 'u', ?1, 'conforming')`).bind(dias(-1)),
     db().prepare(`INSERT INTO risks (id, project_id, asset, threat, impact, probability, risk_level, ropa_id) VALUES ('rk1', 'pa', 'a', 'Vazamento', 5, 4, 'High', 'r2'), ('rk2', 'pa', 'a', 'TMS fora', 4, 4, 'High', NULL)`),
-    db().prepare(`INSERT INTO corrective_actions (id, project_id, title, due_date, status) VALUES ('c1', 'pa', 'Revisão de acessos', ?1, 'Open'), ('c2', 'pa', 'Backup', ?2, 'Open')`).bind(dias(-10), dias(30)),
+    db().prepare(`INSERT INTO corrective_actions (id, project_id, title, due_date, status, ropa_id) VALUES ('c1', 'pa', 'Revisão de acessos', ?1, 'Open', NULL),
+      ('c2', 'pa', 'Backup', ?2, 'Open', NULL), ('c3', 'pa', 'Reduzir retenção', ?3, 'Open', 'r2')`).bind(dias(-10), dias(30), dias(15)),
     db().prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status) VALUES ('k1', 'pa', 'ISO 27001:2022', 'A.5.1 Políticas', 'Completed'),
       ('k2', 'pa', 'ISO 27001:2022', 'A.5.2 Papéis', 'In Progress'), ('k3', 'pa', 'ISO 27001:2022', 'A.8.1 Dispositivos', 'Missing'), ('k4', 'pa', 'ISO 27001:2022', 'A.7.5 Ameaças', 'Not Applicable')`),
     db().prepare(`INSERT INTO pedidos (id, org_id, project_id, tipo, ref_id, titulo, papel_exigido, conteudo_json, hash, criado_por) VALUES
@@ -144,6 +145,8 @@ describe('GET /projects/:id/painel', () => {
     expect(pedidos.vencidos).toBe(1);
     expect(pedidos.itens.map((i) => [i.rotulo, i.dias])).toEqual([['PT-2', 0], ['PT-3', 90]]);
     expect(m.vencimentos!.find((l) => l.tipo === 'Evidências')!.vencidos).toBe(1);
+    // ações das atividades: das faixas de prazo que a visão do encarregado já monta
+    expect(m.vencimentos!.find((l) => l.tipo === 'Ações das atividades')).toEqual({ tipo: 'Ações das atividades', vencidos: 0, itens: [{ dias: 15, rotulo: 'Reduzir retenção' }] });
     expect(m.riscos).toEqual([{ p: 4, i: 5, n: 1 }]);
     expect(m.pedidos_semana).toHaveLength(12);
     expect(m.pedidos_semana!.reduce((a, b) => a + b, 0)).toBe(4);
