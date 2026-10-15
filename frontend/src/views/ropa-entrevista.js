@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, escapeHTML, renderEmptyState } from '../ui.js';
 import { navigate } from '../router.js';
-import { BASES_ART7, BASES_ART11, ART11, normaliza, rotuloBase, ehLegitimoInteresse, ehConsentimento, ehArt11, camposDaBase, idsDoCatalogo, textoDaBase } from '../bases-legais.js';
+import { BASES_ART7, BASES_ART11, ART11, normaliza, rotuloBase, ehLegitimoInteresse, ehConsentimento, ehArt11, camposDaBase, idsDoCatalogo, textoDaBase, idDaBase } from '../bases-legais.js';
 import { parecidos, mesmoEmail } from '../similares.js';
 import { podeEditar } from './partes.js';
 import { NIVEIS } from './mapa-de-risco.js';
@@ -12,7 +12,8 @@ const podeCadastrar = () => podeEditar() || S.user?.role === 'consultoria_admin'
 // Entrevista do RoPA (n.privacy): o caminho principal para criar e revisar uma atividade de tratamento, uma pergunta por vez,
 // em linguagem de consultor. Desenho em docs/design/diagnostico-2026-10-13/n-privacy-ropa-entrevista.md (seção 4).
 // Regras que não se quebram aqui: só a finalidade é exigida pelo servidor (a entrevista exige também titulares e categorias);
-// o POST cria sempre rascunho; nada de coluna nova (as respostas sem coluna só alimentam a recomendação de RIPD e o resumo);
+// o POST cria sempre rascunho; as respostas sem coluna (volume, decisão automática, impacto) só alimentam a recomendação de RIPD e o
+// resumo; origem e eliminação gravam no ciclo de vida, e as bases adicionais e a do GDPR nas bases da atividade (F3, migration 0074);
 // IA só como proposta em base legal e retenção, nunca em sensíveis, crianças e salvaguarda.
 // As respostas ficam em memória e na sessionStorage da aba: sair e voltar não perde nada. Gravar é no fim, em lote.
 
@@ -73,6 +74,14 @@ const SEM_MECANISMO = MECANISMOS[4];
 const PAISES = ['Estados Unidos', 'Irlanda', 'Países Baixos', 'Alemanha', 'Reino Unido', 'Singapura'];
 const CONCLUSOES_LIA = [op('prevalece', 'O interesse da empresa prevalece'), op('nao_prevalece', 'Os direitos da pessoa prevalecem')];
 const VOLUME_ALTO = ['10mil-100mil', '100mil+'];
+// Ciclo de vida (F3): origem é a descrição da coleta, eliminação a da etapa de eliminação; "Ainda não definimos" não grava.
+const ORIGENS = ['A própria pessoa', 'Outro sistema da empresa', 'Parceiro ou fornecedor', 'Fonte pública', 'Base comprada ou licenciada'].map((t) => op(t));
+const ELIMINACAO_INDEFINIDA = 'Ainda não definimos';
+const ELIMINACOES = ['Exclusão do sistema', 'Anonimização', 'Descarte físico seguro', ELIMINACAO_INDEFINIDA].map((t) => op(t));
+// Etapa do ciclo sem item: acontece sem sistema cadastrado, ou não se aplica à atividade.
+const CICLO_SEM = '__registrada';
+const CICLO_NA = '__nao_aplicavel';
+const OPCOES_CICLO = [op('', 'Sem resposta'), op(CICLO_SEM, 'Acontece, sem sistema cadastrado'), op(CICLO_NA, 'Não se aplica a esta atividade')];
 // "Cadastrar agora" de sistema ou arquivo: as categorias do inventário de ativos (monitor.js, openNewAssetModal), menos Pessoas.
 const CATEGORIAS_ITEM = [op('Software', 'Sistema (software, aplicativo, API)'), op('Informacao', 'Arquivo ou base de dados'), op('Hardware', 'Equipamento')];
 const ROTULO_CATEGORIA = { Software: 'sistema', Informacao: 'arquivo ou base', Hardware: 'equipamento', Pessoas: 'pessoas' };
@@ -106,6 +115,8 @@ const CADASTROS = {
 const temSensivel = (r) => Array.isArray(r.sensiveis) && r.sensiveis.some((x) => x !== NENHUM);
 const valor = (r, id) => (r[id] === NAO_SEI ? undefined : r[id]);
 const basesPermitidas = (r) => (temSensivel(r) ? BASES_ART11.map((b, i) => op(ART11(b), b, DICAS_ART11[i])) : BASES_ART7.map((b, i) => op(b, b, DICAS_ART7[i])));
+/** Outras hipóteses do catálogo carregado (art. 7 e art. 11), menos a principal escolhida. O valor é o id do requisito. */
+const basesAdicionais = (c, r) => [...c.catalogo].filter((id) => textoDaBase(id) && id !== idDaBase(valor(r, 'base') || '')).map((id) => op(id, textoDaBase(id)));
 
 /** Por que recomendar o RIPD (art. 38), a partir das respostas. Vazio: nenhum gatilho de alto risco. */
 export function motivosRipd(r) {
@@ -185,14 +196,25 @@ const PERGUNTAS = [
             { id: 'salvaguardas', rotulo: 'Que medidas reduzem esse impacto?', tipo: 'longo' },
             { id: 'conclusao', rotulo: 'Conclusão', tipo: 'select', opcoes: CONCLUSOES_LIA },
         ] },
-    { semColuna: true, id: 'origem', bloco: 'E', tipo: 'multipla', curto: 'Origem dos dados',
-        opcoes: () => ['A própria pessoa', 'Outro sistema da empresa', 'Parceiro ou fornecedor', 'Fonte pública', 'Base comprada ou licenciada'].map((t) => op(t)),
+    // Bases adicionais e GDPR (F3): fora do conteúdo aprovado; a principal continua a da pergunta anterior.
+    { id: 'bases_adicionais', bloco: 'D', tipo: 'multipla', curto: 'Outras bases legais', opcoes: (c, r) => basesAdicionais(c, r),
+        mostrar: (r, c) => !!(c && c.catalogo && c.catalogo.size),
+        titulo: 'Alguma outra hipótese legal vale para parte desta atividade?',
+        ajuda: 'Uma atividade pode ter mais de uma base: obrigação legal para os dados fiscais e contrato para o resto, por exemplo. A hipótese confirmada antes continua a principal; marque aqui só as outras. Nenhuma? Siga em frente.' },
+    { id: 'base_gdpr', bloco: 'D', tipo: 'texto', max: 300, curto: 'Base no GDPR',
+        titulo: 'A atividade também está sujeita ao GDPR, a lei europeia? Com qual base?',
+        ajuda: 'Só para quem trata dados de pessoas na União Europeia ou oferece serviço a elas. Escreva o artigo e a alínea, por exemplo: art. 6(1)(b), execução de contrato. É texto livre enquanto o catálogo do GDPR passa por validação jurídica. Não se aplica? Deixe em branco.' },
+    { id: 'origem', bloco: 'E', tipo: 'multipla', curto: 'Origem dos dados', opcoes: () => ORIGENS,
         titulo: 'De onde vêm os dados?',
-        ajuda: 'Dado recebido de terceiro exige conferir a origem e informar o titular (art. 9). Esta resposta não fica gravada: aparece no resumo.' },
+        ajuda: 'Dado recebido de terceiro exige conferir a origem e informar o titular (art. 9). A resposta fica no ciclo de vida da atividade, como a coleta.' },
     { id: 'sistemas', bloco: 'E', tipo: 'multipla', curto: 'Sistemas e arquivos', cadastro: 'item',
         opcoes: (ctx) => ctx.itens.map((i) => op(i.id, i.nome || i.name || '', ROTULO_CATEGORIA[i.category] || '')),
         titulo: 'Em quais sistemas ou arquivos esses dados passam?',
         ajuda: 'Mostra onde procurar o dado e onde aplicar segurança, e desenha o diagrama do tratamento. As opções vêm dos itens do projeto.' },
+    // As etapas vêm do servidor (GET .../ciclo), que só existe para atividade já gravada.
+    { id: 'ciclo', bloco: 'E', tipo: 'ciclo', curto: 'Ciclo de vida', mostrar: (r, c) => !!(c && c.ciclo),
+        titulo: 'Em cada etapa da vida do dado, em que sistema ou arquivo ele fica?',
+        ajuda: 'O ciclo de vida mostra por onde o dado passa, da coleta à eliminação: é o mapa para atender o titular e para o relatório de impacto. Marque "Não se aplica" na etapa que não existe nesta atividade.' },
     { id: 'compartilha', bloco: 'F', tipo: 'unica', curto: 'Compartilha com terceiros', opcoes: () => SIM_NAO,
         titulo: 'A empresa envia esses dados para alguém de fora?',
         ajuda: 'Compartilhar sem informar o titular é irregular (art. 9, V). Conta contabilidade externa, plano de saúde, órgãos públicos, provedores.' },
@@ -203,10 +225,9 @@ const PERGUNTAS = [
     { id: 'retencao', bloco: 'G', tipo: 'unica', curto: 'Retenção', outro: 'Outro prazo', opcoes: () => RETENCOES, sugerir: 'retencao',
         titulo: 'Por quanto tempo a empresa guarda esses dados?',
         ajuda: 'Guardar além do necessário é infração: a lei pede eliminar quando a finalidade acaba (arts. 15 e 16).' },
-    { semColuna: true, id: 'eliminacao', bloco: 'G', tipo: 'unica', curto: 'Como elimina',
-        opcoes: () => ['Exclusão do sistema', 'Anonimização', 'Descarte físico seguro', 'Ainda não definimos'].map((t) => op(t)),
+    { id: 'eliminacao', bloco: 'G', tipo: 'unica', curto: 'Como elimina', opcoes: () => ELIMINACOES,
         titulo: 'Como o dado é eliminado ao fim do prazo?',
-        ajuda: 'O inventário deve mostrar que o prazo é cumprido. Esta resposta não fica gravada: aparece no resumo.' },
+        ajuda: 'O inventário deve mostrar que o prazo é cumprido. A resposta fica no ciclo de vida da atividade, como a eliminação.' },
     { id: 'transferencia', bloco: 'H', tipo: 'unica', curto: 'Transferência internacional', opcoes: () => SIM_NAO,
         titulo: 'Algum desses dados vai para fora do Brasil, ou fica em servidor no exterior?',
         ajuda: 'Transferência exige mecanismo legal (arts. 33 a 36). Quase todo provedor de nuvem estrangeiro entra aqui: e-mail em nuvem, sistema de RH hospedado fora, suporte de fornecedor internacional.' },
@@ -260,7 +281,7 @@ const lista = (r) => (Array.isArray(r) ? r : []);
 async function tentar(fazer, padrao) { try { return await fazer(); } catch (e) { return padrao; } }
 
 async function carregar(projectId, recordId) {
-    const c = { pessoas: [], deptos: [], itens: [], catalogo: new Set(), registro: null, ligacoes: null, lia: null, impacto: null, riscos: null, temDpia: false, transferencias: [], inicial: {} };
+    const c = { pessoas: [], deptos: [], itens: [], catalogo: new Set(), registro: null, ligacoes: null, lia: null, impacto: null, riscos: null, ciclo: null, bases: null, temDpia: false, transferencias: [], inicial: {} };
     c.pessoas = lista(await tentar(() => api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`), []));
     c.deptos = lista(await tentar(() => api('GET', `/api/v1/projects/${projectId}/departamentos`), []));
     const ativos = await tentar(() => api('GET', `/api/v1/projects/${projectId}/assets`), []);
@@ -277,6 +298,11 @@ async function carregar(projectId, recordId) {
         // Riscos da atividade (F2): a entrevista só LÊ; registrar e mudar é nas Ligações (um cadastro, uma origem).
         c.riscos = lista((await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/riscos`), {}))?.riscos);
         c.transferencias = lista(c.ligacoes && c.ligacoes.transferencias);
+        // Ciclo de vida e bases adicionais (F3): lidos para nunca perguntar de novo o que já está gravado.
+        c.ciclo = lista((await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/ciclo`), {}))?.etapas);
+        if (!c.ciclo.length) c.ciclo = null;
+        c.bases = await tentar(() => api('GET', `/api/v1/projects/${projectId}/ropa/${recordId}/bases`), null);
+        if (c.bases && !Array.isArray(c.bases.adicionais)) c.bases = null;
     }
     return c;
 }
@@ -326,8 +352,62 @@ export function respostasDoRegistro(r, c) {
     out.ripd = r.dpia_required ? 'sim' : 'nao';
     const imp = respostasDoImpacto(c.impacto);
     if (Object.keys(imp).length) out.teste_impacto = imp;
+    Object.assign(out, respostasDoCiclo(c.ciclo), respostasDasBases(c.bases));
     for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
     return out;
+}
+
+/** O ciclo gravado como respostas: a seleção por etapa, e origem e eliminação só quando a descrição é uma das opções (senão fica como está). */
+function respostasDoCiclo(etapas) {
+    if (!Array.isArray(etapas)) return {};
+    const out = {};
+    const ciclo = Object.fromEntries(etapas.filter((e) => e.situacao).map((e) => [e.etapa, e.situacao === 'nao_aplicavel' ? CICLO_NA : e.item_id || CICLO_SEM]));
+    if (Object.keys(ciclo).length) out.ciclo = ciclo;
+    const coleta = etapas.find((e) => e.etapa === 'coleta');
+    const o = separar(coleta && coleta.descricao, ORIGENS);
+    if (o.achadas.length && !o.resto.length) out.origem = o.achadas;
+    const elim = etapas.find((e) => e.etapa === 'eliminacao');
+    if (elim && ELIMINACOES.some((x) => x.v === elim.descricao)) out.eliminacao = elim.descricao;
+    return out;
+}
+
+function respostasDasBases(b) {
+    if (!b) return {};
+    const out = {};
+    if (lista(b.adicionais).length) out.bases_adicionais = b.adicionais.map((a) => a.requisito_id);
+    if (b.base_gdpr) out.base_gdpr = b.base_gdpr;
+    return out;
+}
+
+/**
+ * Corpo do PUT .../ciclo: só as etapas com resposta, em ordem de etapa. Origem vira a descrição da coleta e a eliminação a da
+ * eliminação; sem elas, a descrição não vai e o servidor mantém a gravada. Vazio: nada a gravar.
+ */
+export function montarCiclo(r) {
+    const sel = valor(r, 'ciclo');
+    const etapas = {};
+    for (const [etapa, v] of Object.entries(sel && typeof sel === 'object' ? sel : {})) {
+        if (v === CICLO_NA) etapas[etapa] = { etapa, situacao: 'nao_aplicavel' };
+        else if (v === CICLO_SEM) etapas[etapa] = { etapa, situacao: 'registrada', item_id: null };
+        else if (v) etapas[etapa] = { etapa, situacao: 'registrada', item_id: v };
+    }
+    const origem = valor(r, 'origem');
+    if (Array.isArray(origem) && origem.length) etapas.coleta = { etapa: 'coleta', situacao: 'registrada', ...etapas.coleta, descricao: origem.join(', ') };
+    const elim = valor(r, 'eliminacao');
+    if (elim && elim !== ELIMINACAO_INDEFINIDA) etapas.eliminacao = { etapa: 'eliminacao', situacao: 'registrada', ...etapas.eliminacao, descricao: elim };
+    return Object.values(etapas).sort((a, b) => a.etapa.localeCompare(b.etapa));
+}
+
+/** Corpo do PUT .../bases: as adicionais (sem a principal, com a observação já gravada) e o texto do GDPR, só o que foi respondido. */
+export function montarBases(r, c) {
+    const b = {};
+    const obs = Object.fromEntries(lista(c.bases && c.bases.adicionais).map((a) => [a.requisito_id, a.observacao || null]));
+    const ad = valor(r, 'bases_adicionais');
+    const principal = idDaBase(valor(r, 'base') || '');
+    if (Array.isArray(ad)) b.adicionais = ad.filter((id) => id !== principal).map((id) => ({ requisito_id: id, observacao: obs[id] || null }));
+    const g = valor(r, 'base_gdpr');
+    if (typeof g === 'string') b.base_gdpr = g.trim() || null;
+    return b;
 }
 
 /** As respostas gravadas do teste de impacto, { pergunta: 'sim' | 'nao' | 'nao_sei' }. */
@@ -380,9 +460,10 @@ export function montarPayload(r, c) {
 
 /** O que falta no resumo: pergunta visível sem resposta ou com "Não sei agora", e as pendências que derivam das respostas. */
 export function pendencias(r, c) {
-    // Fora da lista: o motivo (só prepara a base), "criar o RIPD" (tem pendência própria logo abaixo) e as perguntas sem coluna no
-    // registro, que só alimentam a recomendação de RIPD: na revisão de uma atividade salva elas voltam sempre vazias.
-    const lista = PERGUNTAS.filter((p) => (!p.mostrar || p.mostrar(r, c)) && !p.semColuna && !['para_que', 'motivo', 'criar_ripd'].includes(p.id) && (r[p.id] === NAO_SEI || vazio(r[p.id])))
+    // Fora da lista: o motivo (só prepara a base), "criar o RIPD" (tem pendência própria logo abaixo), as bases adicionais e a do GDPR
+    // (vazias é a resposta comum) e as perguntas sem coluna no registro, que só alimentam a recomendação de RIPD: na revisão de uma
+    // atividade salva elas voltam sempre vazias.
+    const lista = PERGUNTAS.filter((p) => (!p.mostrar || p.mostrar(r, c)) && !p.semColuna && !['para_que', 'motivo', 'criar_ripd', 'bases_adicionais', 'base_gdpr'].includes(p.id) && (r[p.id] === NAO_SEI || vazio(r[p.id])))
         .map((p) => ({ bloco: p.bloco, texto: p.id === 'responsavel' && r.responsavel_texto ? 'Responsável só em texto: escolha ou cadastre a pessoa' : `Sem resposta: ${p.curto}` }));
     const mec = r.transf_destino && r.transf_destino !== NAO_SEI ? r.transf_destino.mecanismo : '';
     if (r.transferencia === 'sim' && mec === SEM_MECANISMO) lista.push({ bloco: 'H', texto: 'Transferência internacional sem salvaguarda definida' });
@@ -412,6 +493,16 @@ function controle(p) {
             <p class="form-label" id="re-imp-${escapeHTML(q.id)}">${escapeHTML(q.texto)}</p><div class="re-opcoes">${IMPACTO_OPCOES.map((o) => `<label class="re-opcao" for="re-imp-${escapeHTML(q.id)}-${o.v}">
                 <input type="radio" id="re-imp-${escapeHTML(q.id)}-${o.v}" name="re-imp-${escapeHTML(q.id)}" value="${o.v}" ${g[q.id] === o.v ? 'checked' : ''}
                     data-action-change="reImpacto" data-args='${args(q.id)}' data-arg-val><span class="re-opcao-texto">${escapeHTML(o.r)}</span></label>`).join('')}</div></fieldset>`).join('')}</div>`;
+    }
+    if (p.tipo === 'ciclo') {
+        const g = v && typeof v === 'object' ? v : {};
+        const ops = [...OPCOES_CICLO, ...ctx.itens.map((i) => op(i.id, i.nome || i.name || ''))];
+        return `<div class="re-impacto">${ctx.ciclo.map((e) => {
+            const idc = `re-ciclo-${escapeHTML(e.etapa)}`;
+            return `<div class="form-group"><label class="form-label" for="${idc}">${escapeHTML(e.rotulo)}</label>
+                <select class="form-input" id="${idc}" data-action-change="reCiclo" data-args='${args(e.etapa)}' data-arg-val>${ops.map((o) =>
+                    `<option value="${escapeHTML(o.v)}" ${(g[e.etapa] || '') === o.v ? 'selected' : ''}>${escapeHTML(o.r)}</option>`).join('')}</select></div>`;
+        }).join('')}</div>`;
     }
     if (p.tipo === 'grupo') {
         const g = v && typeof v === 'object' ? v : {};
@@ -686,6 +777,7 @@ function textoResposta(p) {
     if (vazio(v)) return '';
     if (p.tipo === 'texto' || p.tipo === 'longo') return v;
     if (p.tipo === 'impacto') return `${Object.values(v).filter((x) => x === 'sim' || x === 'nao').length} de ${ctx.impacto.perguntas.length} respondidas`;
+    if (p.tipo === 'ciclo') return `${ctx.ciclo.filter((e) => v[e.etapa]).length} de ${ctx.ciclo.length} etapas respondidas`;
     if (p.tipo === 'grupo') return p.sub.filter((s) => String(v[s.id] || '').trim()).map((s) => `${s.rotulo} ${s.tipo === 'select' ? (s.opcoes.find((o) => o.v === v[s.id]) || {}).r || v[s.id] : v[s.id]}`).join(' / ');
     const ops = [...opcoesDe(p), ...(p.nenhum ? [op(NENHUM, p.nenhum)] : [])];
     const rot = (x) => (x === OUTRO ? String(r[`${p.id}_outro`] || p.outro || 'Outro') : (ops.find((o) => o.v === x) || {}).r || x);
@@ -792,7 +884,8 @@ async function renderRopaEntrevista(c, h, a) {
         // Rascunho de antes do "Cadastrar agora" com "Outra pessoa" digitada: vira o texto antigo, à espera da pessoa do cadastro.
         if (respostas.responsavel === OUTRO) { respostas.responsavel_texto = respostas.responsavel_outro || ''; delete respostas.responsavel; delete respostas.responsavel_outro; }
         // O que o SERVIDOR já tem ligado (não o rascunho da aba): rascunho retomado de atividade nova também liga no fim.
-        ctx.inicial = { areas: lista(ctx.ligacoes && ctx.ligacoes.departamentos).map((d) => d.id), sistemas: lista(ctx.ligacoes && ctx.ligacoes.itens).map((i) => i.id) };
+        ctx.inicial = { areas: lista(ctx.ligacoes && ctx.ligacoes.departamentos).map((d) => d.id), sistemas: lista(ctx.ligacoes && ctx.ligacoes.itens).map((i) => i.id),
+            respostas: ctx.registro ? respostasDoRegistro(ctx.registro, ctx) : {} };
         st = { chave, projectId: pedido.projectId, recordId: pedido.recordId || (guardado && guardado.recordId) || null, respostas, passo: null, voltarAoResumo: false, sugestao: null, salvo: null,
             criados: Array.isArray(guardado && guardado.criados) ? guardado.criados : [], cadastro: null, busca: {},
             // O copiloto só abre numa atividade nova que ainda não começou (sem rascunho na aba).
@@ -973,6 +1066,13 @@ window.reAlterar = function (bloco) {
     irPara(p.id);
 };
 window.reSair = function () { S.ropaEntrevista = null; navigate('ropa'); };
+window.reCiclo = function (etapa, v) {
+    daPessoa('ciclo');
+    const atual = st.respostas.ciclo && st.respostas.ciclo !== NAO_SEI && typeof st.respostas.ciclo === 'object' ? { ...st.respostas.ciclo } : {};
+    if (v) atual[etapa] = v; else delete atual[etapa];
+    st.respostas.ciclo = atual;
+    guardar();
+};
 window.reImpacto = function (pergunta, v) {
     daPessoa('teste_impacto');
     const atual = st.respostas.teste_impacto;
@@ -1150,6 +1250,17 @@ window.reSalvar = async function () {
         const antes = respostasDoImpacto(ctx.impacto);
         const mudou = Object.fromEntries(Object.entries(imp).filter(([k, v]) => v !== antes[k]));
         if (Object.keys(mudou).length) await passo('Teste de impacto gravado.', () => api('PUT', `/api/v1/projects/${pid}/ropa/${id}/impacto`, { respostas: mudou }), 'Teste de impacto');
+    }
+    // Ciclo de vida e bases (F3): só o que mudou em relação ao que o servidor já tinha.
+    const inicial = ctx.inicial.respostas || {};
+    const ciclo = montarCiclo(r);
+    if (ciclo.length && JSON.stringify(ciclo) !== JSON.stringify(montarCiclo(inicial))) {
+        await passo('Ciclo de vida gravado.', () => api('PUT', `/api/v1/projects/${pid}/ropa/${id}/ciclo`, { etapas: ciclo }), 'Ciclo de vida');
+    }
+    const bases = montarBases(r, ctx);
+    const temBases = Object.values(bases).some((v) => (Array.isArray(v) ? v.length : v));
+    if ((temBases || !novo) && JSON.stringify(bases) !== JSON.stringify(montarBases(inicial, ctx))) {
+        await passo('Outras bases legais gravadas.', () => api('PUT', `/api/v1/projects/${pid}/ropa/${id}/bases`, bases), 'Outras bases legais');
     }
     if (r.ripd === 'sim' && r.criar_ripd === 'sim' && !ctx.temDpia) {
         try { await api('POST', `/api/v1/projects/${pid}/ropa/${id}/dpia`); feitos.push('RIPD criado como rascunho. Complete na tela de RIPD.'); }

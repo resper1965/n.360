@@ -10,7 +10,7 @@ import { S } from '../src/state.js';
 import '../src/ui.js';
 import { initDelegation } from '../src/delegation.js';
 import '../src/views/privacy.js';
-import { montarPayload, motivosRipd, respostasDoRegistro } from '../src/views/ropa-entrevista.js';
+import { montarPayload, motivosRipd, respostasDoRegistro, montarCiclo, montarBases } from '../src/views/ropa-entrevista.js';
 import fonte from '../src/views/ropa-entrevista.js?raw';
 
 initDelegation();
@@ -34,6 +34,8 @@ const rotasBase = (extra = {}) => ({
     'PUT /api/v1/ropa/r1': { ok: true },
     [`PUT ${P}/ropa/novo1/departamentos`]: { ok: true, total: 1 },
     [`PUT ${P}/ropa/novo1/itens`]: { ok: true, total: 1 },
+    [`PUT ${P}/ropa/novo1/ciclo`]: { ok: true },
+    [`PUT ${P}/ropa/novo1/bases`]: { ok: true },
     [`GET ${P}/ropa/r1/ligacoes`]: LIG,
     [`GET ${P}/ropa/r1/lia`]: { lia: null },
     ...extra,
@@ -106,19 +108,25 @@ describe('fluxo feliz de uma atividade nova', () => {
         expect(opcoes().find((i) => i.checked).value).toBe('Cumprimento de obrigação legal ou regulatória');
         expect(opcoes()).toHaveLength(10);
         proxima();
-        naoSei(); // origem
+        // outras bases: o catálogo sem a principal escolhida; nenhuma marcada segue em frente
+        expect(titulo()).toContain('outra hipótese legal');
+        expect(opcoes().map((i) => i.value)).toEqual(['lgpd:art7:i', 'lgpd:art7:ix', 'lgpd:art11:ii-f']);
+        proxima();
+        expect(titulo()).toContain('GDPR');
+        proxima();
+        marcar('A própria pessoa'); proxima(); // origem: vira a descrição da coleta
         marcar('i1'); proxima();
         marcar('sim'); proxima();
         digitar('Contabilidade externa'); proxima();
         marcar('5 anos (obrigação fiscal e contábil)'); proxima();
-        naoSei(); // eliminação
+        marcar('Exclusão do sistema'); proxima(); // eliminação: vira a descrição da etapa de eliminação
         marcar('nao'); proxima(); // transferência
         naoSei(); // impacto
         expect(el('re-recomendacao').textContent).toContain('Nenhum gatilho');
         marcar('nao'); proxima(); // RIPD
         expect(titulo()).toBe('Confira o que você nos contou');
         expect(el('c').textContent).toContain('Folha de pagamento');
-        // as perguntas sem coluna (volume, origem, eliminação, impacto) aparecem no resumo, mas não viram pendência
+        // as perguntas sem coluna (volume, decisão automática, impacto) aparecem no resumo, mas não viram pendência
         expect(el('c').textContent).toContain('Não sei agora');
         expect(el('c').querySelector('.re-pendencias')).toBeNull();
         expect(el('c').textContent).toContain('Nenhuma pendência nas respostas.');
@@ -135,7 +143,12 @@ describe('fluxo feliz de uma atividade nova', () => {
         });
         expect(corpoDe(f, `PUT ${P}/ropa/novo1/departamentos`)).toEqual({ departamentos: ['d1'] });
         expect(corpoDe(f, `PUT ${P}/ropa/novo1/itens`)).toEqual({ itens: ['i1'] });
-        expect(chamadas(f).filter((c) => c.startsWith('POST') || c.startsWith('PUT'))).toHaveLength(3);
+        expect(corpoDe(f, `PUT ${P}/ropa/novo1/ciclo`)).toEqual({ etapas: [
+            { etapa: 'coleta', situacao: 'registrada', descricao: 'A própria pessoa' },
+            { etapa: 'eliminacao', situacao: 'registrada', descricao: 'Exclusão do sistema' },
+        ] });
+        // sem outra base nem GDPR, nada vai para .../bases
+        expect(chamadas(f).filter((c) => c.startsWith('POST') || c.startsWith('PUT'))).toHaveLength(4);
         expect(titulo()).toBe('Atividade salva');
         expect(el('c').textContent).toContain('entrou no inventário como rascunho');
         // o rascunho da aba some depois de salvar
@@ -250,7 +263,8 @@ describe('perguntas condicionais', () => {
         rascunho('base', { ...basico, sensiveis: ['__nenhum'], base: 'Proteção do crédito' });
         await abrir();
         proxima();
-        expect(titulo()).toBe('De onde vêm os dados?');
+        // sem consentimento nem LIA, segue para as outras bases (F3)
+        expect(titulo()).toContain('outra hipótese legal');
     });
 
     it('salvaguarda só com transferência internacional', async () => {
@@ -829,5 +843,95 @@ describe('parecidos por significado (servidor) no "Cadastrar agora"', () => {
         window.reCadastroFechar();
         await vi.advanceTimersByTimeAsync(1000);
         expect(pedidos(f)).toEqual([]);
+    });
+});
+
+describe('ciclo de vida e outras bases (F3): lê o que está gravado e grava só o que mudou', () => {
+    const REG = { id: 'r1', project_id: 'p1', processing_purpose: 'Folha', data_subjects: 'Colaboradores', data_categories: 'Identificação',
+        legal_basis: 'Cumprimento de obrigação legal ou regulatória', base_legal_id: 'lgpd:art7:ii',
+        dados_sensiveis: 0, criancas_adolescentes: 0, international_transfers: 0, dpia_required: 0, status: 'Draft', nao_informado: [], aprovacao_pedido: { ciso: null, ceo: null } };
+    // Corpo de GET .../ciclo (lerCiclo, src/services/ciclo.ts) e de GET .../bases (lerBases, src/services/bases.ts). Textos fictícios.
+    const etapa = (e, rotulo, x = {}) => ({ etapa: e, rotulo, situacao: null, item_id: null, item_nome: null, descricao: null, ...x });
+    const CICLO = { etapas: [
+        etapa('coleta', 'Coleta <b>x</b>', { situacao: 'registrada', item_id: 'i1', descricao: 'A própria pessoa, Fonte pública' }),
+        etapa('uso', 'Uso'), etapa('compartilhamento_interno', 'Compartilhamento interno'),
+        etapa('compartilhamento_externo', 'Compartilhamento externo', { situacao: 'nao_aplicavel' }),
+        etapa('armazenamento', 'Armazenamento'),
+        etapa('eliminacao', 'Eliminação', { situacao: 'registrada', descricao: 'Anonimização' }),
+    ] };
+    const BASES = { principal: { id: 'lgpd:art7:ii' }, adicionais: [{ requisito_id: 'lgpd:art7:i', referencia: 'art. 7, I', titulo: 'Consentimento', observacao: 'Só o benefício opcional' }], base_gdpr: 'Art. 6(1)(c) <i>x</i>' };
+    const abrirF3 = (extra = {}) => {
+        S.ropa = [REG];
+        return abrir('r1', { [`GET ${P}/ropa/r1/ciclo`]: CICLO, [`GET ${P}/ropa/r1/bases`]: BASES,
+            [`PUT ${P}/ropa/r1/ciclo`]: { ok: true }, [`PUT ${P}/ropa/r1/bases`]: { ok: true }, ...extra });
+    };
+    const alterar = (bloco) => el('c').querySelector(`[data-action="reAlterar"][data-args='["${bloco}"]']`).click();
+
+    it('o resumo mostra o que está gravado (escapado) e salvar sem mexer não regrava ciclo nem bases', async () => {
+        const f = await abrirF3();
+        const texto = el('c').textContent;
+        expect(texto).toContain('A própria pessoa, Fonte pública');
+        expect(texto).toContain('3 de 6 etapas respondidas');
+        expect(texto).toContain('Anonimização');
+        expect(texto).toContain('Consentimento');
+        expect(texto).toContain('Art. 6(1)(c) <i>x</i>');
+        expect(el('c').querySelector('i')).toBeNull();
+        expect(el('c').textContent).not.toContain('Sem resposta: Origem');
+        await window.reSalvar();
+        expect(chamadas(f)).not.toContain(`PUT ${P}/ropa/r1/ciclo`);
+        expect(chamadas(f)).not.toContain(`PUT ${P}/ropa/r1/bases`);
+    });
+
+    it('as etapas vêm do servidor, com a seleção gravada; mudar uma etapa grava o ciclo com as descrições de origem e eliminação', async () => {
+        const f = await abrirF3();
+        alterar('E');
+        expect(titulo()).toBe('De onde vêm os dados?');
+        expect(opcoes().filter((i) => i.checked).map((i) => i.value)).toEqual(['A própria pessoa', 'Fonte pública']);
+        proxima(); proxima(); // origem, sistemas
+        expect(titulo()).toContain('Em cada etapa da vida do dado');
+        expect(el('c').querySelector('label[for="re-ciclo-coleta"]').textContent).toBe('Coleta <b>x</b>');
+        expect(el('re-ciclo-coleta').value).toBe('i1');
+        expect(el('re-ciclo-compartilhamento_externo').value).toBe('__nao_aplicavel');
+        expect(el('re-ciclo-uso').value).toBe('');
+        const uso = el('re-ciclo-uso');
+        uso.value = '__registrada';
+        uso.dispatchEvent(new Event('change', { bubbles: true }));
+        proxima();
+        await window.reSalvar();
+        expect(corpoDe(f, `PUT ${P}/ropa/r1/ciclo`)).toEqual({ etapas: [
+            { etapa: 'coleta', situacao: 'registrada', item_id: 'i1', descricao: 'A própria pessoa, Fonte pública' },
+            { etapa: 'compartilhamento_externo', situacao: 'nao_aplicavel' },
+            { etapa: 'eliminacao', situacao: 'registrada', item_id: null, descricao: 'Anonimização' },
+            { etapa: 'uso', situacao: 'registrada', item_id: null },
+        ] });
+        expect(chamadas(f)).not.toContain(`PUT ${P}/ropa/r1/bases`);
+    });
+
+    it('as outras bases vêm marcadas, sem a principal; marcar mais uma grava o conjunto e o GDPR, mantendo a observação', async () => {
+        const f = await abrirF3();
+        alterar('D');
+        while (!titulo().includes('outra hipótese legal')) proxima();
+        expect(opcoes().map((i) => i.value)).not.toContain('lgpd:art7:ii');
+        expect(opcoes().find((i) => i.value === 'lgpd:art7:i').checked).toBe(true);
+        marcar('lgpd:art7:ix'); proxima();
+        expect(el('re-campo').value).toBe('Art. 6(1)(c) <i>x</i>');
+        digitar('Art. 6(1)(c)'); proxima();
+        await window.reSalvar();
+        expect(corpoDe(f, `PUT ${P}/ropa/r1/bases`)).toEqual({
+            adicionais: [{ requisito_id: 'lgpd:art7:i', observacao: 'Só o benefício opcional' }, { requisito_id: 'lgpd:art7:ix', observacao: null }],
+            base_gdpr: 'Art. 6(1)(c)',
+        });
+    });
+
+    it('origem e eliminação fora das opções não são reescritas; "Ainda não definimos" não grava; a principal não vira adicional', () => {
+        const ctx0 = { pessoas: [], ligacoes: null, lia: null, impacto: null, bases: null,
+            ciclo: [etapa('coleta', 'Coleta', { situacao: 'registrada', descricao: 'Planilha do parceiro' }), etapa('eliminacao', 'Eliminação', { situacao: 'registrada', descricao: 'Texto livre' })] };
+        const r = respostasDoRegistro(REG, ctx0);
+        expect(r).not.toHaveProperty('origem');
+        expect(r).not.toHaveProperty('eliminacao');
+        expect(montarCiclo(r)).toEqual([{ etapa: 'coleta', situacao: 'registrada', item_id: null }, { etapa: 'eliminacao', situacao: 'registrada', item_id: null }]);
+        expect(montarCiclo({ eliminacao: 'Ainda não definimos' })).toEqual([]);
+        expect(montarBases({ base: 'Cumprimento de obrigação legal ou regulatória', bases_adicionais: ['lgpd:art7:ii', 'lgpd:art7:i'] }, { bases: null }))
+            .toEqual({ adicionais: [{ requisito_id: 'lgpd:art7:i', observacao: null }] });
     });
 });

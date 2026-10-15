@@ -1620,6 +1620,7 @@ textarea:focus-visible {
 .re-impacto { display: flex; flex-direction: column; gap: 20px; }
 .re-impacto .re-fieldset { gap: 8px; }
 .re-faixa { border: 1px solid var(--warning); }
+.tl-origem { color: var(--warning); font-size: 12px; }
 .re-nota { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
 /* Reserva a linha do "buscando parecidos…": o aviso aparece e some sem empurrar o formulário. */
 .re-similares-busca { min-height: 1.5em; }
