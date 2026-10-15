@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
-import { escapeHTML, openModal, showToast, renderEmptyState } from '../ui.js';
+import { escapeHTML, openModal, showToast, renderEmptyState, renderErrorState } from '../ui.js';
 import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, projetosDoProduto } from '../produto.js';
 import { aplicarSelos } from '../selos-menu.js';
 import { filtroValido } from '../filtro-painel.js';
@@ -279,13 +279,14 @@ async function carregar(c, a, entrada, proj, chave, buscar, desenho) {
         if (eu !== rodada || S.view !== tela) return;
         c.removeAttribute('aria-busy');
         if (err && err.status === 403 && entrada !== 'n360' && proj) { semModulo(c, entrada, proj); return; }
-        c.innerHTML = renderEmptyState({ titulo: 'Não foi possível montar o painel', texto: 'Tente de novo em instantes.' });
+        console.error('Falha ao montar o painel', err);
+        c.innerHTML = renderErrorState('Não foi possível montar o painel.', { erro: err });
         return;
     }
     if (eu !== rodada || S.view !== tela) return;
     c.removeAttribute('aria-busy');
     if (!dados || typeof dados !== 'object' || Array.isArray(dados)) {
-        c.innerHTML = renderEmptyState({ titulo: 'Não foi possível montar o painel', texto: 'Tente de novo em instantes.' });
+        c.innerHTML = renderErrorState('Não foi possível montar o painel.');
         return;
     }
     S.painel[chave] = { t: Date.now(), dados };
@@ -314,7 +315,7 @@ export async function renderPainel(c, h, a, entrada) {
     const q = entrada === 'n360' ? '' : `?modulo=${entrada}`;
     await carregar(c, a, entrada, proj, `${proj.id}|${entrada}`, () => api('GET', `/api/v1/projects/${encodeURIComponent(proj.id)}/painel${q}`),
         (dados) => (dados && dados.modulos ? desenhar(c, a, entrada, proj, dados)
-            : (c.innerHTML = renderEmptyState({ titulo: 'Não foi possível montar o painel', texto: 'Tente de novo em instantes.' }))));
+            : (c.innerHTML = renderErrorState('Não foi possível montar o painel.'))));
 }
 
 /**

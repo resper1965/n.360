@@ -83,9 +83,9 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
         c.innerHTML = '<div class="loading"></div>';
         try {
             const [leads, assessments, projects] = await Promise.all([
-                ehComercial() ? api('GET', '/api/v1/leads').catch(() => []) : [],
-                api('GET', '/api/v1/assessments').catch(() => []),
-                api('GET', '/api/v1/projects').catch(() => []),
+                ehComercial() ? api('GET', '/api/v1/leads') : [],
+                api('GET', '/api/v1/assessments'),
+                api('GET', '/api/v1/projects'),
             ]);
             const activeProjectsList = projetosDoProduto(projects); // só os projetos do módulo deste caminho (/iso ou /privacy)
             const statsHtml = window.renderStatCards([
@@ -124,7 +124,7 @@ const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consulto
                 </div>
             `;
         } catch (e) {
-            c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível carregar a tela Comercial', texto: 'Tente de novo em instantes.' });
+            window.falhaDeCarga(c, a, 'Não foi possível carregar a tela Comercial.', e);
         }
     }
 

@@ -55,7 +55,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         a.innerHTML = podeCriarProjeto() ? '<button class="btn btn-primary" data-action="abrirNovoProjeto">Novo projeto</button>' : '';
         c.innerHTML = '<div class="loading"></div>';
         try {
-            const projects = await api('GET', '/api/v1/projects').catch(() => []);
+            const projects = await api('GET', '/api/v1/projects');
             const projs = window.projetosDoProduto(projects); // só os projetos do módulo do caminho (no início do n.360, todos)
             
             // Sem faixa de KPIs — três contagens da lista que aparece logo abaixo não informam decisão nenhuma.
@@ -88,7 +88,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
 
             c.innerHTML = tableHtml;
         } catch (e) {
-            c.innerHTML = '<div class="error">Erro ao carregar projetos: ' + escapeHTML(e.message) + '</div>';
+            window.falhaDeCarga(c, a, 'Não foi possível carregar os projetos.', e);
         }
     }
 
@@ -116,7 +116,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                         S.activeProject = p;
                         S.currentProject = p;
                     }
-                } catch(err) {}
+                } catch (err) { /* sem projeto: a lista de projetos abaixo mostra a falha */ }
             }
         }
         if (!p || !p.id) { navigate('projects'); return; }
@@ -130,6 +130,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const [phases, config, checklistProgress, governanceMembers, phaseQuestions, phaseAnswers] = await Promise.all([
                 api('GET', `/api/v1/projects/${p.id}/phases`),
                 S.checklistsConfig ? Promise.resolve(S.checklistsConfig) : api('GET', '/api/v1/phases/config'),
+                // Secundários (progresso, governança, perguntas e respostas): sem eles a jornada abre sem as marcas.
                 api('GET', `/api/v1/projects/${p.id}/checklist-progress`).catch(() => []),
                 api('GET', `/api/v1/projects/${p.id}/governance`).catch(() => []),
                 S.phaseQuestions ? Promise.resolve(S.phaseQuestions) : api('GET', '/api/v1/phase-questions').catch(() => ({})),
@@ -483,8 +484,8 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             `;
             if (window.refreshDoDDrawer) window.refreshDoDDrawer();
         } catch (e) {
-            console.error("[nISO Debug] Erro ao carregar fases do projeto:", e);
-            c.innerHTML = `<div class="error">Erro ao carregar fases do projeto: ${escapeHTML(e.message)}</div>`;
+            // `a` fica: "Voltar" e os atalhos do projeto continuam valendo.
+            window.falhaDeCarga(c, null, 'Não foi possível carregar a jornada do projeto.', e);
         }
     }
 
@@ -523,7 +524,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         try {
             const raw = (S.phaseChecksNotes && S.phaseChecksNotes[noteKey]) || '';
             if (raw.trim().startsWith('{') && raw.trim().endsWith('}')) savedAnswers = JSON.parse(raw);
-        } catch(e) {}
+        } catch (e) { /* nota que não é JSON: o assistente abre em branco */ }
 
         let fieldsHtml = wiz.fields.map(f => {
             const val = savedAnswers[f.id] || '';
@@ -896,7 +897,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                     parts.push(`<span style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:3px 8px; margin-right:4px;"><strong>${label}</strong>: ${val}</span>`);
                 }
                 return `<div style="display:flex; flex-wrap:wrap; gap:8px; font-size:0.7rem; color:var(--text-dim); margin-bottom:8px;">${parts.join('')}</div>`;
-            } catch (e) {}
+            } catch (e) { /* metadado que não é JSON: sem as etiquetas */ }
         }
         return '';
     };

@@ -14,7 +14,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
         a.innerHTML = '<button class="btn btn-primary" data-action="openCreateLeadModal">+ Novo Lead</button>';
         c.innerHTML = '<div class="loading"></div>';
         try {
-            const leads = await api('GET', '/api/v1/leads').catch(() => []);
+            const leads = await api('GET', '/api/v1/leads');
             const leadsArr = Array.isArray(leads) ? leads : [];
             
             // Status reais do banco (leads.status): New, Assessment, Proposal, Won, Lost.
@@ -62,7 +62,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             `;
             if (funil) carregarFunil('');
         } catch (e) {
-            c.innerHTML = '<div class="error">Erro ao carregar leads: ' + escapeHTML(e.message) + '</div>';
+            window.falhaDeCarga(c, a, 'Não foi possível carregar os leads.', e);
         }
     }
 
@@ -273,7 +273,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             `;
         } catch (e) {
             console.error('Error rendering assessments:', e);
-            c.innerHTML = '<div class="error">Erro ao carregar assessments: ' + escapeHTML(e.message) + '</div>';
+            window.falhaDeCarga(c, a, 'Não foi possível carregar os levantamentos.', e);
         }
     }
 
@@ -412,7 +412,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             S.blockAnswers = answerMap[currentBlock.block] || {};
 
         } catch(e) {
-            c.innerHTML = '<div class="error">Erro ao carregar detalhes: ' + e.message + '</div>';
+            window.falhaDeCarga(c, null, 'Não foi possível carregar o levantamento.', e);
         }
     }
 
