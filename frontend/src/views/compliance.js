@@ -736,7 +736,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 : `Considera o recorte atual (${controls.length} controles)`;
             a.innerHTML = `
                 <button class="btn btn-secondary" data-action="runReadinessCheck" data-args='["${proj.id}"]' style="margin-right:8px">Diagnóstico de prontidão</button>
-                <button class="btn btn-secondary" data-action="migrate27701" data-args='["${proj.id}"]'>Migrar 27701</button>`;
+                ${window.ehEquipeNess && window.ehEquipeNess() ? `<button class="btn btn-secondary" data-action="migrate27701" data-args='["${proj.id}"]'>Migrar 27701</button>` : ''}`;
 
             const stdGroups = {};
             controls.forEach(ctrl => {
@@ -779,9 +779,9 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             let html = `
                 ${faixaBloqueio}
                 ${statsHtml}
-                <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-bottom:10px;letter-spacing:0.02em">
+                ${window.ehEquipeNess && window.ehEquipeNess() ? `<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-bottom:10px;letter-spacing:0.02em">
                     ${controls.length} controles · j/k navega · x seleciona · a alterna tudo · enter abre · esc fecha · ⌘K busca
-                </div>
+                </div>` : ''}
 
                 <div class="soa-filters fade-in" style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:2rem;align-items:center;background:rgba(15,20,35,0.4);border:1px solid var(--border);padding:16px;backdrop-filter:var(--glass-blur)">
                     <div style="flex:1;min-width:280px;position:relative">
