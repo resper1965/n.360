@@ -5,49 +5,67 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="no-referrer">
-  <title>Questionário de homologação de fornecedor</title>
+  <meta name="theme-color" content="#0b1326">
+  <title>Questionário de homologação | n.360 · ness.</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/publico.css">
   <link rel="stylesheet" href="/homologacao.css">
   <!-- Questionário do fornecedor. Sem script inline (CSP script-src 'self'): tudo está em /homologacao.js. O token vem no
        fragmento (#...), que o navegador não envia ao servidor. -->
   <script src="/homologacao.js" defer></script>
 </head>
 <body>
-  <header class="hq-topo">
-    <div class="hq-topo-int">
-      <span class="hq-org" id="hq-org">Questionário de homologação</span>
-      <span class="hq-meta" id="hq-meta"></span>
+  <header class="pub-topo">
+    <div class="pub-topo-int">
+      <span class="pub-marca"><span class="pub-marca-produto">n<span class="dot">.</span>360</span><span class="pub-marca-ness">ness<span class="dot">.</span></span></span>
+      <span class="pub-contexto" id="hq-org">Questionário de homologação</span>
+      <span class="pub-meta" id="hq-meta"></span>
     </div>
   </header>
 
-  <main class="hq-main" id="hq-main">
-    <section class="hq-estado" id="hq-estado" role="status" aria-live="polite">
-      <h1 class="hq-estado-titulo" id="hq-estado-titulo">Carregando...</h1>
-      <p class="hq-estado-texto" id="hq-estado-texto"></p>
+  <main class="pub-main" id="hq-main">
+    <section class="pub-estado" id="hq-estado" role="status" aria-live="polite">
+      <h1 class="pub-estado-titulo" id="hq-estado-titulo" tabindex="-1">Carregando...</h1>
+      <p class="pub-estado-texto" id="hq-estado-texto"></p>
     </section>
 
-    <form id="hq-conteudo" hidden>
-      <h1 class="hq-titulo">Questionário de homologação de fornecedor</h1>
+    <form id="hq-conteudo" novalidate hidden>
+      <h1 class="pub-titulo">Questionário de homologação de fornecedor</h1>
       <dl class="hq-dados">
         <dt>Cliente</dt><dd id="hq-cliente"></dd>
         <dt>Fornecedor</dt><dd id="hq-fornecedor"></dd>
         <dt>Respondido</dt><dd id="hq-percentual"></dd>
       </dl>
-      <p class="hq-instrucao">Responda cada pergunta com Sim, Não, Parcial ou Não se aplica e, quando ajudar, explique em poucas linhas.
+      <p class="pub-texto">Responda cada pergunta com Sim, Não, Parcial ou Não se aplica e, quando ajudar, explique em poucas linhas.
         Salve o rascunho para continuar depois pelo mesmo link. Depois de enviar, as respostas não podem mais ser alteradas.</p>
       <div id="hq-perguntas"></div>
-      <p class="hq-aviso" id="hq-aviso" role="alert"></p>
-      <div class="hq-acoes">
-        <button type="button" class="hq-btn" id="hq-salvar">Salvar rascunho</button>
-        <button type="button" class="hq-btn hq-btn-primario" id="hq-enviar">Enviar respostas</button>
+      <p class="pub-aviso pub-aviso-erro" id="hq-aviso" role="alert"></p>
+
+      <section class="hq-confirma" id="hq-confirma" aria-labelledby="hq-confirma-titulo" hidden>
+        <h2 class="hq-confirma-titulo" id="hq-confirma-titulo" tabindex="-1"></h2>
+        <p class="hq-confirma-texto" id="hq-confirma-texto"></p>
+        <ul class="hq-faltam" id="hq-faltam"></ul>
+        <div class="pub-acoes">
+          <button type="button" class="pub-btn" id="hq-confirma-voltar">Continuar respondendo</button>
+          <button type="button" class="pub-btn pub-btn-primario" id="hq-confirma-enviar">Enviar mesmo assim</button>
+        </div>
+      </section>
+
+      <div class="pub-acoes hq-acoes" id="hq-acoes">
+        <button type="button" class="pub-btn pub-btn-primario" id="hq-enviar">Enviar respostas</button>
+        <button type="button" class="pub-btn" id="hq-salvar">Salvar rascunho</button>
+        <span class="hq-progresso" id="hq-progresso" aria-live="polite"></span>
         <span class="hq-msg" id="hq-msg" role="status"></span>
       </div>
     </form>
   </main>
 
-  <footer class="hq-rodape-pagina">
-    <p>Link pessoal e com prazo. Não encaminhe este endereço.</p>
+  <footer class="pub-rodape">
+    <div class="pub-rodape-int">
+      <p>Link pessoal e com prazo. Não encaminhe este endereço.</p>
+      <p class="pub-assinatura">n<span class="dot">.</span>360 · plataforma da ness<span class="dot">.</span></p>
+    </div>
   </footer>
 </body>
 </html>
