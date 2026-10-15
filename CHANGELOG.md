@@ -12,6 +12,16 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (painel de entrada do n.360, do n.iso e do n.privacy)
+- **Painel de entrada** (estudo `docs/design/diagnostico-2026-10-14/dashboard-entrada.md`, direção A, sem migration): a empresa como título, o estado do programa (Começando, Em implantação, Em operação desde o mês da primeira aprovação), a frase de saúde (Atrasado, Atenção, Em dia, Começando, Sua vez) montada no servidor sobre a mesma lista de "O que fazer", e à direita a cobertura por tema (barras 100% na mesma escala, inclusive o ciclo de vida documentado), o mapa de risco (riscos do n.iso; no n.privacy, os das atividades) e os pedidos do titular por semana. Todo gráfico com "Ver como tabela"; todo estado escrito; todo item com botão de nome único.
+- **`GET /projects/:id/painel?modulo=iso|privacy`**: uma chamada por entrada, com as contas de cada módulo num `db.batch` (p95 de 45 ms com 500 atividades no D1 de teste, medido por `test/painel.test.ts`); o cliente recebe a frase, as linhas dos módulos e o que espera a decisão dele. **`GET /api/v1/carteira`**: a carteira do consultor, consultas agrupadas por projeto; fora do agente MCP.
+- **n.360**: uma linha por módulo e a lista que junta os dois; com mais de um projeto, o consultor abre na carteira (alternância Projeto | Carteira, lembrada no navegador).
+- **n.privacy**: "Exportar" no cabeçalho reúne os CSV da F4; "Ações por prazo" abre as seis faixas; os selos do menu vêm do próprio painel.
+
+### Mudado
+- A entrada do n.iso deixou de ser o "Dashboard Executivo": o item do menu virou "Painel" e o funil (leads, levantamentos, projetos ativos) foi para a tela **Comercial**, no grupo Comercial, só para quem é do comercial.
+- As `prioridades` da visão do encarregado ganharam `grupo`, `quando`, `contexto`, `acao` e `aba` (só campos novos).
+
 ### Adicionado (importação do legado, F6 do legado de privacidade)
 - **Migration 0076**: reconstrói só `importacao_itens` (molde da 0067): `entidade` aceita `risco`, `gap`, `impacto`, `ciclo` e `bases`, e a coluna `aviso` guarda o aviso da gravação para a reconciliação. **Não aplicada em produção**: vai pelo workflow depois do merge, antes do deploy (`migrations/README.md`). `test/migration-0076.test.ts` prova sobre o banco da 0067 com itens.
 - **Entidades novas na "Importar programa"** (`src/services/importacao.ts`): risco e ação da atividade (pelos serviços da F2; o prazo do risco vira ação ligada; aceite de risco não é importado), teste de impacto (só as perguntas sem resposta; não finaliza), etapa do ciclo de vida (só a etapa sem registro), bases adicionais e GDPR (só acrescentam). Atividade pela finalidade normalizada (sem ela, recusa); responsável, ativo e sistema por nome, sem criar nada (aviso). Duplicata nasce descartada e reimportar não duplica nem sobrescreve. Texto livre de risco e ação passa por `mascararPii`. RIPD e LIA aceitam as seções do legado (necessidade, medidas, risco residual; finalidade legítima, balanceamento, salvaguardas).
