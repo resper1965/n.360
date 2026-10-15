@@ -14,6 +14,29 @@ export function cabecalhosAuth() {
     return h;
 }
 
+// Mensagens que chegam à tela: português de quem usa, sem caminho de API, código HTTP nem termo em inglês. O detalhe técnico
+// vai só para o console. `codigo` deixa quem chama distinguir o caso sem casar texto (a importação repete por tempo esgotado).
+const MSG = {
+    tempo: 'O servidor demorou a responder. Tente de novo em instantes.',
+    cancelado: 'A operação foi cancelada.',
+    rede: 'Não foi possível falar com o servidor. Verifique a conexão e tente de novo.',
+    formato: 'O servidor respondeu de um jeito inesperado. Tente de novo em instantes.',
+    sessao: 'Sua sessão terminou. Entre de novo para continuar.',
+};
+// Texto genérico em inglês que o servidor (ou um proxy) às vezes devolve em `error`: não serve para a tela.
+const ERRO_GENERICO = /^(unauthorized|forbidden|not found|internal server error|bad request|bad gateway|service unavailable|api error)$/i;
+function porStatus(status) {
+    if (status === 403) return 'Você não tem permissão para esta ação.';
+    if (status === 404) return 'O registro não foi encontrado. Ele pode ter sido removido.';
+    if (status === 429) return 'Muitas tentativas seguidas. Aguarde um pouco e tente de novo.';
+    if (status >= 500) return 'O servidor não conseguiu concluir a operação. Tente de novo em instantes.';
+    return 'Não foi possível concluir a operação. Confira os dados e tente de novo.';
+}
+function falha(codigo, detalhe, extra = {}) {
+    console.error(`[api] ${detalhe}`);
+    return Object.assign(new Error(MSG[codigo]), { codigo }, extra);
+}
+
 // `extras` carrega cabeçalho por chamada — hoje só o X-Operacao, que agrupa as
 // linhas da trilha de uma ação em lote. Fica opcional para não tocar nas ~200
 // chamadas existentes.
@@ -31,9 +54,9 @@ async function api(m, p, b, extras) {
     try {
         r = await fetch(API_BASE + p, o);
     } catch (e) {
-        if (e.name === 'TimeoutError') throw new Error(`Tempo esgotado ao chamar ${p} (${Math.round((timeoutMs || 30000) / 1000)}s)`);
-        if (e.name === 'AbortError') throw new Error(`Requisição cancelada (${p})`);
-        throw new Error(`Falha de rede ao chamar ${p}`);
+        if (e.name === 'TimeoutError') throw falha('tempo', `tempo esgotado em ${m} ${p} (${Math.round((timeoutMs || 30000) / 1000)}s)`);
+        if (e.name === 'AbortError') throw falha('cancelado', `requisição cancelada: ${m} ${p}`);
+        throw falha('rede', `falha de rede em ${m} ${p}: ${e && e.message}`);
     }
     // 401 nas rotas de MFA é resposta ESPERADA a erro do usuário: senha errada
     // em /setup e /disable, código errado em /activate e /verify. Deslogar aqui
@@ -55,7 +78,7 @@ async function api(m, p, b, extras) {
         data = await r.json();
     } else {
         await r.text();
-        throw new Error(`Resposta HTTP ${r.status} não é JSON (${p})`);
+        throw falha('formato', `resposta HTTP ${r.status} sem JSON em ${m} ${p}`, { status: r.status });
     }
 
     if (r.status === 401 && p !== '/api/v1/auth/login' && !autoatendimentoMfa) {
@@ -68,10 +91,13 @@ async function api(m, p, b, extras) {
             throw new Error('Sessão expirada por inatividade');
         }
         if (window.doLogout) window.doLogout();
-        throw new Error('Unauthorized');
+        throw falha('sessao', `401 em ${m} ${p}`, { status: 401 });
     }
     if (!r.ok) {
-        const err = new Error(data.error || (data.details ? data.details.map(i => i.message).join(', ') : 'API Error'));
+        const doServidor = data.error && !ERRO_GENERICO.test(String(data.error).trim()) ? data.error
+            : (!data.error && data.details ? data.details.map(i => i.message).join(', ') : '');
+        if (!doServidor) console.error(`[api] HTTP ${r.status} em ${m} ${p}`, data);
+        const err = new Error(doServidor || porStatus(r.status));
         // O corpo inteiro fica pendurado no erro. O login precisa dos campos que
         // acompanham a mensagem (`challengeRequired`, `attemptsRemaining`,
         // `locked`) e antes eles se perdiam: só a string sobrevivia ao throw.
