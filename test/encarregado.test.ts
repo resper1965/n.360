@@ -149,6 +149,22 @@ describe('projeto com pendências', () => {
     expect(prios).toContain('alta: 1 ação de atividade com prazo vencido -> ropa');
   });
 
+  it('faixas de prazo das ações abertas das atividades (F4), com a lista de cada faixa; CAPA só do n.iso, concluída e de outro projeto fora', async () => {
+    await db().batch([
+      db().prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('t1', 'e1', 'Folha'), ('t9', 'e2', 'Do outro')`),
+      db().prepare(`INSERT INTO corrective_actions (id, project_id, ropa_id, title, due_date, status) VALUES
+        ('f1', 'e1', 't1', 'Vencida', ?1, 'Open'), ('f2', 'e1', 't1', 'Em 10 dias', ?2, 'Open'), ('f3', 'e1', 't1', 'Em 60 dias', ?3, 'In Progress'),
+        ('f4', 'e1', 't1', 'Em 120 dias', ?4, 'Open'), ('f5', 'e1', 't1', 'Em 200 dias', ?5, 'Open'), ('f6', 'e1', 't1', 'Sem prazo', NULL, 'Open'),
+        ('f7', 'e1', 't1', 'Concluída', ?1, 'Closed'), ('f8', 'e1', NULL, 'Só ISO', ?1, 'Open'), ('f9', 'e2', 't9', 'Do outro', ?1, 'Open')`)
+        .bind(dias(-3), dias(10), dias(60), dias(120), dias(200)),
+    ]);
+    const v = await ver() as Visao & { acoes_por_prazo: { faixa: string; rotulo: string; total: number; itens: { id: string; ropa_id: string; atividade: string }[] }[] };
+    expect(v.acoes_por_prazo.map((f) => [f.faixa, f.total])).toEqual([
+      ['vencidas', 1], ['ate_30', 1], ['de_31_a_90', 1], ['de_91_a_150', 1], ['mais_de_150', 1], ['sem_prazo', 1],
+    ]);
+    expect(v.acoes_por_prazo[0]).toMatchObject({ rotulo: 'Vencidas', itens: [{ id: 'f1', ropa_id: 't1', atividade: 'Folha' }] });
+  });
+
   it('não mistura projetos', async () => {
     await db().batch([
       db().prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em, prazo_em, status) VALUES ('x1', 'e2', 'PT-9', 'acesso', '2026-09-01', ?1, 'recebido')`).bind(dias(-5)),
