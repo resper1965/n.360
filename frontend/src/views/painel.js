@@ -377,7 +377,7 @@ const EXPORTACOES = [
     ['atividades', 'Atividades de tratamento'], ['ripd', 'RIPD'], ['lia', 'LIA'], ['riscos-atividade', 'Riscos das atividades'], ['acoes-atividade', 'Ações das atividades'],
 ];
 window.painelExportar = function (projectId) {
-    openModal(`<div class="modal-header"><span class="modal-title">Exportar (CSV)</span><button class="btn-ghost" data-action="forceCloseModal" aria-label="Fechar">&times;</button></div>
+    openModal(`<div class="modal-header"><span class="modal-title">Exportar (CSV)</span></div>
         <p class="pn-meta">Cada arquivo traz a lista inteira do projeto, como está agora.</p>
         <ul class="pn-export">${EXPORTACOES.map(([tipo, rotulo]) => `<li><span>${e(rotulo)}</span><button type="button" class="btn btn-sm" data-action="painelBaixar" data-args='${args(projectId, tipo)}' aria-label="Baixar ${e(rotulo)} em CSV">Baixar</button></li>`).join('')}</ul>`);
 };

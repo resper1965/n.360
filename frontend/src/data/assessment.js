@@ -96,7 +96,7 @@ export     const ASSESSMENT_BLOCKS = [
         },
         {
             block: 7,
-            title: 'Gestao de Fornecedores',
+            title: 'Gestão de Fornecedores',
             questions: [
                 { key: 'supplier_count', type: 'select', text: 'Quantidade de fornecedores de TI/cloud?', options: ['0–10', '11–50', '51–200', '200+'] },
                 { key: 'supplier_eval', type: 'select', text: 'Avaliação de segurança de fornecedores?', options: ['Avaliação formal de segurança', 'Checklist básico', 'Sem avaliação'] },

@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML, showToast } from '../ui.js';
+import { escapeHTML, showToast, tituloDaTela } from '../ui.js';
 
 // Segurança do projeto (SSO, SCIM e política). Só a equipe da consultoria: as rotas são `somenteNess` em src/routes/projects.ts
 // e o servidor recusa o resto com 403; aqui só se decide o que MOSTRAR. O client_secret é só de escrita: a API nunca o devolve
@@ -29,7 +29,7 @@ async function renderSegurancaProjeto(c, h, a) {
         c.innerHTML = window.renderSemProjeto();
         return;
     }
-    h.textContent = `Segurança do projeto: ${proj.project_name || proj.client_name || proj.id}`;
+    h.textContent = tituloDaTela('nav-seguranca-projeto', 'Segurança do projeto');
     c.innerHTML = '<div class="loading"></div>';
     let sso, pol;
     try {
@@ -47,7 +47,8 @@ async function renderSegurancaProjeto(c, h, a) {
     const p = pol?.politica || {};
     const ips = String(p.ip_allowlist || '').split(',').map((x) => x.trim()).filter(Boolean).join(', ');
     const campo = (id, rotulo, valor, extra = '') => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><input class="form-input" id="${id}" value="${e(valor)}" ${extra}></div>`;
-    c.innerHTML = `
+    // O projeto é a primeira linha do conteúdo (o título nomeia a tela, não o cliente).
+    c.innerHTML = `<p class="page-kicker">Projeto: ${e(proj.project_name || proj.client_name || proj.id)}</p>
         <section class="card fade-in" aria-labelledby="sso-titulo" style="margin-bottom:1.5rem;padding:1.25rem">
             <h3 id="sso-titulo" style="margin:0 0 .25rem">Login corporativo (SSO)</h3>
             <p class="form-hint" style="margin:0 0 1rem">Quem controla o issuer controla quem entra. O papel padrão vale para contas criadas no primeiro acesso.</p>
@@ -64,14 +65,14 @@ async function renderSegurancaProjeto(c, h, a) {
                 <select class="form-input" id="sso-papel">${PAPEIS.map(([v, t]) => `<option value="${v}"${(s?.papel_padrao || 'org_user') === v ? ' selected' : ''}>${t}</option>`).join('')}</select>
             </div>
             <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem"><input type="checkbox" id="sso-ativo"${s?.ativo ? ' checked' : ''}> SSO ativo neste projeto</label>
-            <p id="sso-erro" role="alert" style="color:var(--danger);margin:0 0 .5rem"></p>
+            <p id="sso-erro" role="alert" style="color:var(--danger-ink);margin:0 0 .5rem"></p>
             <button class="btn btn-primary" data-action="salvarSsoProjeto">Salvar SSO</button>
         </section>
 
         <section class="card fade-in" aria-labelledby="scim-titulo" style="margin-bottom:1.5rem;padding:1.25rem">
             <h3 id="scim-titulo" style="margin:0 0 .25rem">Provisionamento (SCIM)</h3>
             <p class="form-hint" style="margin:0 0 1rem">Gerar um token novo invalida o anterior. O token aparece uma vez.</p>
-            <p id="scim-erro" role="alert" style="color:var(--danger);margin:0 0 .5rem"></p>
+            <p id="scim-erro" role="alert" style="color:var(--danger-ink);margin:0 0 .5rem"></p>
             <button class="btn btn-primary" data-action="gerarTokenScim">Gerar token SCIM</button>
             <div id="scim-novo" role="status" aria-live="polite"></div>
         </section>
@@ -85,7 +86,7 @@ async function renderSegurancaProjeto(c, h, a) {
                 <label class="form-label" for="pol-ips">IPs permitidos (IPv4 ou CIDR, separados por vírgula ou linha; vazio libera todos)</label>
                 <textarea class="form-input" id="pol-ips" rows="3">${e(ips)}</textarea>
             </div>
-            <p id="pol-erro" role="alert" style="color:var(--danger);margin:0 0 .5rem"></p>
+            <p id="pol-erro" role="alert" style="color:var(--danger-ink);margin:0 0 .5rem"></p>
             <button class="btn btn-primary" data-action="salvarPoliticaProjeto">Salvar política</button>
         </section>`;
 }

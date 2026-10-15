@@ -10,7 +10,8 @@ import { nivelDaNota } from '../nivel-risco.js';
 // Mesma faixa de nível do servidor, compartilhada com a matriz do n.iso (grc.js).
 export { nivelDaNota };
 export const NIVEIS = { Low: 'Baixo', Medium: 'Médio', High: 'Alto', Critical: 'Crítico' };
-const COR = { Low: 'var(--success)', Medium: 'var(--info)', High: 'var(--warning)', Critical: 'var(--danger)' };
+// Escala do nível: verde, âmbar claro, âmbar, vermelho. O ciano é da marca (interação e foco), não de nível.
+const COR = { Low: 'var(--success)', Medium: 'var(--warning-ink)', High: 'var(--warning)', Critical: 'var(--danger)' };
 
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
@@ -27,7 +28,7 @@ function celula(p, i) {
     return `<button type="button" class="btn mapa-celula" data-action="mapaCelula" data-args='${args(p, i)}' aria-pressed="${escolhida ? 'true' : 'false'}"
         aria-label="${escapeHTML(rotulo)}" title="${escapeHTML(rotulo)}"
         style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:64px; border-radius:0; background:var(--surface-2);
-            border:${escolhida ? '2px solid var(--accent)' : '1px solid var(--border)'}; border-left:4px solid ${COR[nivel]}">
+            border:${escolhida ? '2px solid var(--accent)' : '1px solid var(--border)'}; border-top:3px solid ${COR[nivel]}">
         <strong style="font-size:1.1rem">${lista.length}</strong> <span style="font-size:0.75rem; color:var(--text-dim)">${NIVEIS[nivel]}</span></button>`;
 }
 

@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
 
 // S2: wrappers para handlers com `this` como PRIMEIRO argumento (a delegação só
@@ -10,7 +10,7 @@ window.__cmSelectNess = function (key, val) { window.selectNessOption(this, key,
 window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
 
     async function renderLeads(c, h, a) {
-        h.textContent = 'Pipeline de Leads & Oportunidades';
+        h.textContent = tituloDaTela('nav-leads', 'Leads');
         a.innerHTML = '<button class="btn btn-primary" data-action="openCreateLeadModal">+ Novo Lead</button>';
         c.innerHTML = '<div class="loading"></div>';
         try {
@@ -189,7 +189,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
 
     async function openLeadDetail(id) {
         const l = await api('GET', '/api/v1/leads/' + id);
-        const cnpjBadge = l.cnpj_fetched_at ? '<span style="display:inline-block;padding:2px 8px;font-size:0.75rem;font-weight:600;background:rgba(0,173,232,0.12);color:var(--accent);margin-left:0.5rem">CNPJ Verificado</span>' : '';
+        const cnpjBadge = l.cnpj_fetched_at ? ` ${window.renderStatusBadge('CNPJ verificado', 'success')}` : '';
         const cnpjInfo = l.razao_social ? `
             <div style="margin:1rem 0;padding:1rem;background:var(--surface);border:1px solid var(--border);">
                 <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem">Dados Receita Federal</div>
@@ -210,9 +210,9 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
                     <button class="btn btn-primary" data-action="enrichLeadCnpj" data-args='["${l.id}"]'>Consultar</button>
                 </div>
             </div>` : '';
-        openModal(`<div class="modal-header"><span class="modal-title">${escapeHTML(l.company_name)}${cnpjBadge}</span><button class="btn-ghost" data-action="forceCloseModal">\u2715</button></div>
+        openModal(`<div class="modal-header"><span class="modal-title">${escapeHTML(l.company_name)}${cnpjBadge}</span></div>
             <p><strong>Contato:</strong> ${escapeHTML(l.contact_name||'---')}</p>
-            <p><strong>Status:</strong> <span class="status-badge status-${l.status}">${l.status}</span></p>
+            <p><strong>Status:</strong> ${window.renderStatusBadge(l.status || 'New', 'neutral')}</p>
             ${cnpjInfo}${enrichBtn}
             <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end">
                 <button class="btn btn-primary" data-action="createAssessmentFromLead" data-args='${escapeHTML(JSON.stringify([l.id, l.razao_social || l.company_name]))}'>Iniciar Levantamento</button>
@@ -232,7 +232,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
     }
 
     async function renderAssessments(c, h, a) {
-        h.textContent = 'Levantamentos de Escopo';
+        h.textContent = tituloDaTela('nav-assessments', 'Levantamentos');
         a.innerHTML = '';
         c.innerHTML = '<div class="loading"></div>';
         try {
@@ -253,7 +253,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             const tableHtml = window.renderDataTable(
                 ['Cliente / Empresa', 'Data de Criação', 'Status', 'Ações'],
                 asArr.map(as => {
-                    const date = as.created_at ? as.created_at.split(' ')[0] : '—';
+                    const date = formatarData(as.created_at);
                     const statusType = as.status === 'completed' || as.status === 'concluido' ? 'success' : 'warning';
                     return [
                         `<strong>${escapeHTML(as.client_name || 'Sem nome')}</strong>`,
@@ -400,7 +400,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
                             <div class="wizard-footer" style="margin-top:0; padding-top:1.5rem">
                                 <button class="btn" data-action="goToBlock" data-args='[${S.currentBlock - 1}]' ${S.currentBlock === 1 ? 'style="display:none"' : ''}>Anterior</button>
                                 <div style="margin-left:auto; display:flex; gap:0.5rem">
-                                    <button class="btn btn-primary" data-action="goToBlock" data-args='[${S.currentBlock + 1}]' style="padding: 0.75rem 2.5rem; font-size: 0.75rem; box-shadow: 0 4px 15px rgba(0,173,232,0.3)">${S.currentBlock === ASSESSMENT_BLOCKS.length ? 'Gravar e Finalizar' : 'Gravar e Continuar'}</button>
+                                    <button class="btn btn-primary" data-action="goToBlock" data-args='[${S.currentBlock + 1}]' style="padding: 0.75rem 2.5rem; font-size: 0.75rem">${S.currentBlock === ASSESSMENT_BLOCKS.length ? 'Gravar e Finalizar' : 'Gravar e Continuar'}</button>
                                 </div>
                             </div>
                         </div>

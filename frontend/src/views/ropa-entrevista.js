@@ -759,7 +759,7 @@ function desenharResumo() {
     <div class="re-resumo">
         <h2 class="re-titulo" id="re-titulo" tabindex="-1">Confira o que você nos contou</h2>
         ${pend.length ? `<div class="re-pendencias" role="note"><h3>O que ficou para depois (${pend.length})</h3><ul>${pend.map((x) => `<li>${escapeHTML(x.texto)}</li>`).join('')}</ul></div>`
-            : '<p class="re-nota">Nenhuma pendência nas respostas.</p>'}
+            : window.renderEmptyState({ titulo: 'Nenhuma pendência nas respostas.', compacto: true })}
         ${ctx.impacto ? `<p class="re-aviso" id="re-impacto">${escapeHTML(textoRecomendacao(ctx.impacto))}</p>` : ''}
         ${(st.criados || []).length ? `<p class="re-nota" id="re-criados">Cadastrados durante a entrevista: ${st.criados.map((x) => `${escapeHTML(x.tipo)} ${escapeHTML(x.nome)}`).join('; ')}.</p>` : ''}
         ${blocos}

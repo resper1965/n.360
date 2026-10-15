@@ -115,6 +115,6 @@ test('gate de papel: conta não-admin vê "Acesso restrito"', async ({ page }) =
   await mockApi(page, leitor);
   await bootAndOpen(page, 'api-keys');
 
-  await expect(page.locator('.error')).toContainText('Acesso restrito ao Platform Admin');
+  await expect(page.locator('.error')).toContainText('Acesso restrito ao administrador da plataforma');
   await expect(page.getByRole('button', { name: 'Nova chave', exact: true })).toHaveCount(0);
 });

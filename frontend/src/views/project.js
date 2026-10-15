@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, STATUS_DA_FASE } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, STATUS_DA_FASE, formatarData, traduzStatus, tituloDaTela } from '../ui.js';
 import { vazioSemFases } from './monitor.js';
 import { navigate } from '../router.js';
 import { PRODUTOS, produtoAtual, modulosVisiveis, enderecoDoProduto, irPara } from '../produto.js';
@@ -144,10 +144,10 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             }
         }
         if (!p || !p.id) { navigate('projects'); return; }
-        h.textContent = p.client_name ? 'Jornada — ' + p.client_name : 'Jornada';
+        h.textContent = tituloDaTela('nav-project', 'Jornada');
         if (!S.expandedJourneys) S.expandedJourneys = {};
         if (!S.expandedPhases) S.expandedPhases = {};
-        a.innerHTML = `<button class="btn" style="margin-right:8px" data-action="abrirDadosEmpresa" data-args='${escapeHTML(JSON.stringify([p.id]))}'>Dados da empresa</button><button class="btn" style="margin-right:8px" data-action="openAuditorNotesModal" data-args='["${p.id}"]'>Notas do Auditor</button><button class="btn btn-ghost" data-action="navigate" data-args='["projects"]'>&larr; Voltar</button>`;
+        a.innerHTML = `<button class="btn mr-2" data-action="abrirDadosEmpresa" data-args='${escapeHTML(JSON.stringify([p.id]))}'>Dados da empresa</button><button class="btn mr-2" data-action="openAuditorNotesModal" data-args='["${p.id}"]'>Notas do Auditor</button><button class="btn btn-ghost" data-action="navigate" data-args='["projects"]'>&larr; Voltar</button>`;
         c.innerHTML = '<div class="loading"></div>';
         
         try {
@@ -232,21 +232,21 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
 
             const filtersHtml = `
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:1.5rem; background:rgba(255,255,255,0.01); padding:10px 16px; border:1px solid var(--border); backdrop-filter: var(--glass-blur);">
-                    <div style="position:relative; flex:1;">
-                        <input type="text" class="form-input" style="width:100%; padding-left:2.25rem; font-size:0.8rem; height:38px; border-radius:10px; background: rgba(255,255,255,0.02); border-color: var(--border);" placeholder="Buscar fase ou atividade..." value="${escapeHTML(S.jornadaSearchQuery || '')}" data-action-input="__setFilter" data-args='["jornadaSearchQuery"]' data-arg-val>
+                    <div class="relativo flex-1">
+                        <input type="text" class="form-input" style="width:100%; padding-left:2.25rem; font-size:0.8rem; height:38px; background: rgba(255,255,255,0.02); border-color: var(--border);" placeholder="Buscar fase ou atividade..." value="${escapeHTML(S.jornadaSearchQuery || '')}" data-action-input="__setFilter" data-args='["jornadaSearchQuery"]' data-arg-val>
                         <svg viewBox="0 0 24 24" style="position:absolute; left:10px; top:10px; width:18px; height:18px; stroke:var(--text-dim); stroke-width:2; fill:none; pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                     </div>
-                    <div style="display:flex; gap:12px;">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <label style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; letter-spacing: 0.5px;">Status</label>
-                            <select class="form-input" style="height:38px; padding:0 12px; font-size:0.8rem; border-radius:10px; background: rgba(255,255,255,0.02); border-color: var(--border);" data-action-change="__setFilter" data-args='["jornadaStatusFilter"]' data-arg-val>
+                    <div class="d-flex gap-3">
+                        <div class="d-flex items-center gap-2">
+                            <label class="t-sm t-dim caixa-alta fw-600">Status</label>
+                            <select class="form-input" style="height:38px; padding:0 12px; font-size:0.8rem; background: rgba(255,255,255,0.02); border-color: var(--border);" data-action-change="__setFilter" data-args='["jornadaStatusFilter"]' data-arg-val>
                                 <option value="all" ${statusFilter === 'all' ? 'selected' : ''}>Todos</option>
                                 ${Object.entries(STATUS_DA_FASE).map(([k, v]) => `<option value="${k}" ${statusFilter === k ? 'selected' : ''}>${v}</option>`).join('')}
                             </select>
                         </div>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <label style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; letter-spacing: 0.5px;">Categoria</label>
-                            <select class="form-input" style="height:38px; padding:0 12px; font-size:0.8rem; border-radius:10px; background: rgba(255,255,255,0.02); border-color: var(--border);" data-action-change="__setFilter" data-args='["jornadaCategoryFilter"]' data-arg-val>
+                        <div class="d-flex items-center gap-2">
+                            <label class="t-sm t-dim caixa-alta fw-600">Categoria</label>
+                            <select class="form-input" style="height:38px; padding:0 12px; font-size:0.8rem; background: rgba(255,255,255,0.02); border-color: var(--border);" data-action-change="__setFilter" data-args='["jornadaCategoryFilter"]' data-arg-val>
                                 <option value="all" ${categoryFilter === 'all' ? 'selected' : ''}>Todas</option>
                                 ${Object.entries(CATEGORIA_DO_ITEM).map(([k, v]) => `<option value="${k}" ${categoryFilter === k ? 'selected' : ''}>${v}</option>`).join('')}
                             </select>
@@ -339,24 +339,24 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                         </div>
                                         <div class="phase-details ${isPhExpanded ? 'expanded' : ''}" id="p-details-${ph.phase_number}">
                                             ${ph.notes ? `
-                                                <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:1rem; padding:0.5rem; background:rgba(255,255,255,0.02); border:1px solid var(--border);">
+                                                <div class="t-sm t-dim mb-4 p-2 bg-sutil borda">
                                                     <strong>Notas:</strong> ${escapeHTML(ph.notes)}
                                                 </div>
                                             ` : ''}
                                             
                                             ${(window.PHASE_PLAYBOOKS && window.PHASE_PLAYBOOKS[ph.phase_number]) ? `
-                                                <div class="playbook-card" style="margin-bottom:1.25rem; padding:12px; background:var(--surface); border:1px solid var(--border); font-size:0.75rem">
-                                                    <div style="font-weight:500; color:var(--accent); margin-bottom:4px; font-family:'Montserrat',sans-serif; text-transform:uppercase; letter-spacing:0.5px; font-size:0.7rem">Diretriz do Consultor: ${escapeHTML(window.PHASE_PLAYBOOKS[ph.phase_number].obj)}</div>
-                                                    <div style="color:var(--text); line-height:1.4">${escapeHTML(window.PHASE_PLAYBOOKS[ph.phase_number].guideline)}</div>
+                                                <div class="playbook-card mb-5 p-3 bg-surface borda t-sm">
+                                                    <div class="fw-500 t-texto mb-1 f-titulo caixa-alta t-xs">Diretriz do Consultor: ${escapeHTML(window.PHASE_PLAYBOOKS[ph.phase_number].obj)}</div>
+                                                    <div class="t-texto lh-14">${escapeHTML(window.PHASE_PLAYBOOKS[ph.phase_number].guideline)}</div>
                                                 </div>
                                             ` : ''}
 
                                             ${(S.phaseQuestions && S.phaseQuestions[ph.phase_number] && S.phaseQuestions[ph.phase_number].length) ? `
                                                 <div style="margin-bottom:1.25rem; padding:12px; background:rgba(255,255,255,0.02); border:1px dashed var(--border); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
-                                                    <div style="font-size:0.72rem; color:var(--text-dim)"><strong>Questionário da fase</strong> — ${Object.values((S.phaseAnswers && S.phaseAnswers[ph.phase_number]) || {}).filter(v => v != null && String(v).trim() !== '').length}/${S.phaseQuestions[ph.phase_number].length} respondidas</div>
-                                                    <div style="display:flex; gap:8px">
+                                                    <div class="t-xs t-dim"><strong>Questionário da fase</strong> — ${Object.values((S.phaseAnswers && S.phaseAnswers[ph.phase_number]) || {}).filter(v => v != null && String(v).trim() !== '').length}/${S.phaseQuestions[ph.phase_number].length} respondidas</div>
+                                                    <div class="d-flex gap-2">
                                                         ${Object.values((S.phaseAnswers && S.phaseAnswers[ph.phase_number]) || {}).filter(v => v != null && String(v).trim() !== '').length > 0 ? `<button class="btn-inline-action" data-action="interpretPhaseAnswers" data-args='["${ph.phase_number}","${p.id}"]'>Interpretar</button><button class="btn-inline-action" data-action="suggestControlAdequacao" data-args='["${ph.phase_number}","${p.id}"]'>Adequar controles</button>` : ''}
-                                                        <button class="btn-inline-action" style="border-color:var(--accent); color:var(--accent); font-weight:600" data-action="openPhaseQuestionnaire" data-args='["${ph.phase_number}","${p.id}"]'>Responder</button>
+                                                        <button class="btn-inline-action borda-accent t-accent fw-600" data-action="openPhaseQuestionnaire" data-args='["${ph.phase_number}","${p.id}"]'>Responder</button>
                                                     </div>
                                                 </div>
                                             ` : ''}
@@ -392,8 +392,8 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
 
                                                         return `
                                                             <div class="checklist-item-wrapper" style="margin-bottom: 0.75rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-left: 1px solid ${borderLeftColor}; padding: 0.75rem;">
-                                                                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
-                                                                    <div class="checklist-left" style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
+                                                                <div class="d-flex items-center justify-between gap-3">
+                                                                    <div class="checklist-left d-flex items-center gap-2 flex-1">
                                                                         <input type="checkbox" class="checklist-item-checkbox" 
                                                                             ${isChecked ? 'checked' : ''} 
                                                                             data-action="toggleChecklistItem" data-args='["${p.id}","${item.id}"]' data-arg-el
@@ -405,12 +405,12 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                                             <button class="btn-ghost" data-action="toggleAuditorTip" data-args='["${item.id}"]' style="font-size:0.85rem; padding:2px 6px; color:var(--accent); line-height:1; display:inline-flex; align-items:center; justify-content:center;" title="Ver dica do auditor">Dica</button>
                                                                         ` : ''}
                                                                     </div>
-                                                                    <div class="checklist-actions" style="display: flex; align-items: center; gap: 0.5rem;">
+                                                                    <div class="checklist-actions d-flex items-center gap-2">
                                                                         ${itemEvidenceId ? `
-                                                                            <button class="btn-inline-action" style="border-color:var(--accent); color:var(--accent);" data-action="openInternalDocumentEditor" data-args='["${itemEvidenceId}"]'>Editar Doc</button>
+                                                                            <button class="btn-inline-action borda-accent t-accent" data-action="openInternalDocumentEditor" data-args='["${itemEvidenceId}"]'>Editar Doc</button>
                                                                         ` : ''}
                                                                         ${(item.category === 'evidence' || item.category === 'document') ? `
-                                                                            <button class="btn-inline-action" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Upload</button>
+                                                                            <button class="btn-inline-action" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Enviar</button>
                                                                         ` : ''}
                                                                         ${(!isChecked && (item.category === 'document' || DOC_WIZARDS[item.id])) ? `
                                                                             <button class="btn-inline-action primary" data-action="openDocWizard" data-args='["${p.id}","${item.id}"]'>${DOC_WIZARDS[item.id] ? (DOC_WIZARDS[item.id].evidenceOnly ? 'Registrar Evidência' : 'Preencher e Gerar') : 'Gerar IA'}</button>
@@ -423,37 +423,37 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                                 </div>
                                                                 ${(hasTip && isTipExpanded) ? `
                                                                     <div style="margin-top:0.6rem; background:rgba(0,173,232,0.03); border:1px solid rgba(0,173,232,0.1); padding:10px; font-size:0.75rem; text-align: left;">
-                                                                        <div style="color:var(--accent); font-weight:700; margin-bottom:4px; text-transform:uppercase; font-size:0.72rem; letter-spacing:0.5px;">Auditoria (${tipInfo.control}) - ${tipInfo.tip}</div>
-                                                                        <div style="color:var(--text); margin-bottom:6px;"><strong style="color:var(--text-dim);">Dica:</strong> ${escapeHTML(tipInfo.advice)}</div>
-                                                                        <div style="color:var(--text-dim);"><strong style="color:var(--text-dim);">Evidência Recomendada:</strong> ${escapeHTML(tipInfo.evidence)}</div>
+                                                                        <div class="t-accent fw-600 mb-1 caixa-alta t-xs">Auditoria (${tipInfo.control}) - ${tipInfo.tip}</div>
+                                                                        <div class="t-texto mb-15"><strong class="t-dim">Dica:</strong> ${escapeHTML(tipInfo.advice)}</div>
+                                                                        <div class="t-dim"><strong class="t-dim">Evidência Recomendada:</strong> ${escapeHTML(tipInfo.evidence)}</div>
                                                                     </div>
                                                                 ` : ''}
                                                                 ${(isChecked && selo.problema && itemEvalNotes) ? `
                                                                     <div style="margin-top:0.6rem; background:rgba(255,77,77,0.03); border:1px solid rgba(255,77,77,0.15); padding:10px; font-size:0.75rem; text-align: left;">
-                                                                        <div style="color:var(--danger); font-weight:700; margin-bottom:4px; text-transform:uppercase; font-size:0.72rem; letter-spacing:0.5px;">Lacunas apontadas na avaliação</div>
-                                                                        <div style="color:var(--text);">${escapeHTML(itemEvalNotes)}</div>
+                                                                        <div class="t-perigo fw-600 mb-1 caixa-alta t-xs">Lacunas apontadas na avaliação</div>
+                                                                        <div class="t-texto">${escapeHTML(itemEvalNotes)}</div>
                                                                     </div>
                                                                 ` : ''}
                                                                 ${isDetailsExpanded ? `
                                                                     <div class="checklist-notes-group" style="margin-top: 0.5rem; border-top: 1px dashed rgba(255,255,255,0.04); padding-top: 0.5rem;">
-                                                                        <div style="font-size:0.75rem; color: var(--text-dim); margin-bottom: 0.25rem;">Anotação / Conteúdo da Atividade</div>
+                                                                        <div class="t-sm t-dim mb-1">Anotação / Conteúdo da Atividade</div>
                                                                         ${itemNotes.trim().startsWith('{') && itemNotes.trim().endsWith('}') ? formatActivityNotes(itemNotes) : ''}
                                                                         <textarea class="form-input" 
                                                                             placeholder="Digite aqui para registrar informações (Ex: nome do sponsor executivo, link do documento, etc.)"
-                                                                            style="width: 100%; height: 50px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius:10px; padding: 6px 10px; color: var(--text); font-size: 0.7rem; font-family: inherit; resize: vertical; margin-bottom: 0.5rem;"
+                                                                            style="width: 100%; height: 50px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 6px 10px; color: var(--text); font-size: 0.7rem; font-family: inherit; resize: vertical; margin-bottom: 0.5rem;"
                                                                             data-action-blur="saveChecklistItemNotes" data-args='["${p.id}","${ph.phase_number}","${item.id}"]' data-arg-val>${itemNotes.trim().startsWith('{') && itemNotes.trim().endsWith('}') ? '' : escapeHTML(itemNotes)}</textarea>
                                                                         
-                                                                        <div style="display: flex; gap: 12px; align-items: center;">
-                                                                            <div style="flex: 1;">
-                                                                                <div style="font-size:0.72rem; color: var(--text-dim); margin-bottom: 0.25rem;">Responsável</div>
-                                                                                <select class="form-input" style="width: 100%; font-size: 0.7rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius:10px; padding: 4px 8px; color: var(--text);"
+                                                                        <div class="d-flex gap-3 items-center">
+                                                                            <div class="flex-1">
+                                                                                <div class="t-xs t-dim mb-1">Responsável</div>
+                                                                                <select class="form-input w-full t-xs bg-fundo borda py-1 px-2 t-texto"
                                                                                     data-action-change="saveChecklistItemAssigned" data-args='["${p.id}","${ph.phase_number}","${item.id}"]' data-arg-val>
                                             ${window.renderGovernanceSelectOptions(S.currentGovernance, itemAssigned)}
                                             </select>
                                                                             </div>
                                                                             <div style="width: 150px;">
-                                                                                <div style="font-size:0.72rem; color: var(--text-dim); margin-bottom: 0.25rem;">Prazo</div>
-                                                                                <input type="date" class="form-input" style="width: 100%; font-size: 0.7rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius:10px; padding: 3px 8px; color: var(--text);"
+                                                                                <div class="t-xs t-dim mb-1">Prazo</div>
+                                                                                <input type="date" class="form-input w-full t-xs bg-fundo borda py-05 px-2 t-texto"
                                                                                     value="${itemDueDate}"
                                                                                     data-action-change="saveChecklistItemDueDate" data-args='["${p.id}","${ph.phase_number}","${item.id}"]' data-arg-val>
                                                                             </div>
@@ -464,7 +464,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                         `;
                                                     }).join('')}
                                                 </div>
-                                            ` : '<div style="font-size:0.75rem;color:var(--text-dim)">Nenhum item de checklist para esta fase.</div>'}
+                                            ` : window.renderEmptyState({ titulo: 'Nenhum item de checklist para esta fase.', compacto: true })}
                                         </div>
                                     </div>
                                 `;
@@ -477,9 +477,9 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             // Sem fases, contadores "0 de 0" e filtros sobre lista vazia não dizem nada: o vazio explica.
             // Sem fases, o primeiro passo real (carregar as fases, ou a prontidão), nunca o Monitor nem a lista de projetos.
             c.innerHTML = totalPhasesCount === 0 ? vazioSemFases(p.id) : `
-                <div style="margin-top: 0.5rem;">
+                <div class="mt-2">
                     ${metricsHtml}
-                    <div style="display:flex; justify-content:flex-end; margin-bottom:0.75rem">
+                    <div class="d-flex justify-end mb-3">
                         <button class="btn" data-action="navigate" data-args='["certification"]'>Ver a prontidão para a certificação</button>
                         <button class="btn" data-action="generateJourneyDossier" data-args='["${p.id}"]'>Gerar dossiê da jornada</button>
                     </div>
@@ -534,36 +534,36 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         let fieldsHtml = wiz.fields.map(f => {
             const val = savedAnswers[f.id] || '';
             const escapedVal = typeof val === 'string' ? val.replace(/"/g, '&quot;').replace(/</g, '&lt;') : val;
-            const req = f.required ? '<span style="color:var(--danger)">*</span>' : '';
+            const req = f.required ? '<span class="t-perigo">*</span>' : '';
             let input = '';
             if (f.type === 'textarea') {
-                input = `<textarea id="wiz-${f.id}" class="form-input" style="width:100%; min-height:80px; font-size:0.8rem; resize:vertical; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:8px 12px; color:var(--text); font-family:inherit;" placeholder="${f.placeholder || ''}">${escapedVal}</textarea>`;
+                input = `<textarea id="wiz-${f.id}" class="form-input" style="width:100%; min-height:80px; font-size:0.8rem; resize:vertical; background:rgba(0,0,0,0.2); border:1px solid var(--border); padding:8px 12px; color:var(--text); font-family:inherit;" placeholder="${f.placeholder || ''}">${escapedVal}</textarea>`;
             } else if (f.type === 'select') {
                 const opts = (f.options || []).map(o => `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`).join('');
-                input = `<select id="wiz-${f.id}" class="form-input" style="width:100%; font-size:0.8rem; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:6px 12px; color:var(--text);"><option value="">Selecionar...</option>${opts}</select>`;
+                input = `<select id="wiz-${f.id}" class="form-input w-full t-md bg-fundo borda py-15 px-3 t-texto"><option value="">Selecionar...</option>${opts}</select>`;
             } else if (f.type === 'date') {
-                input = `<input type="date" id="wiz-${f.id}" class="form-input" style="width:100%; font-size:0.8rem; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:6px 12px; color:var(--text);" value="${escapedVal}">`;
+                input = `<input type="date" id="wiz-${f.id}" class="form-input w-full t-md bg-fundo borda py-15 px-3 t-texto" value="${escapedVal}">`;
             } else {
-                input = `<input type="text" id="wiz-${f.id}" class="form-input" style="width:100%; font-size:0.8rem; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:6px 12px; color:var(--text);" value="${escapedVal}" placeholder="${f.placeholder || ''}">`;
+                input = `<input type="text" id="wiz-${f.id}" class="form-input w-full t-md bg-fundo borda py-15 px-3 t-texto" value="${escapedVal}" placeholder="${f.placeholder || ''}">`;
             }
-            return `<div style="margin-bottom:1rem;"><label style="font-size:0.75rem; color:var(--text-dim); font-weight:500; display:block; margin-bottom:4px;">${f.label} ${req}</label>${input}</div>`;
+            return `<div class="mb-4"><label class="t-sm t-dim fw-500 d-block mb-1">${f.label} ${req}</label>${input}</div>`;
         }).join('');
 
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">${escapeHTML(wiz.title)}</span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
-            <div style="padding:1.5rem 0;">
+            <div class="py-6 px-0">
                 <div style="background:rgba(0,173,232,0.04); border:1px solid rgba(0,173,232,0.1); padding:12px; margin-bottom:1.25rem; font-size:0.75rem;">
-                    <div style="color:var(--accent); font-weight:700; margin-bottom:4px; text-transform:uppercase; font-size:0.75rem; letter-spacing:0.5px;">Dica do Auditor (${wiz.isoRef})</div>
-                    <div style="color:var(--text); line-height:1.4;">${escapeHTML(wiz.auditorTip)}</div>
+                    <div class="t-accent fw-600 mb-1 caixa-alta t-sm">Dica do Auditor (${wiz.isoRef})</div>
+                    <div class="t-texto lh-14">${escapeHTML(wiz.auditorTip)}</div>
                 </div>
                 <div id="wiz-form-fields">${fieldsHtml}</div>
                 <div id="wiz-preview-area" style="display:none;"></div>
-                <div id="wiz-actions" style="display:flex; justify-content:flex-end; gap:10px; margin-top:1.25rem;">
-                    <button class="btn" data-action="forceCloseModal" style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Cancelar</button>
-                    <button class="btn" data-action="wizSaveProgress" data-args='["${projectId}","${itemId}"]' style="border-color:var(--accent); color:var(--accent);">Salvar Rascunho</button>
+                <div id="wiz-actions" class="d-flex justify-end gap-25 mt-5">
+                    <button class="btn bg-sutil-2 borda-cor" data-action="forceCloseModal">Cancelar</button>
+                    <button class="btn borda-accent t-accent" data-action="wizSaveProgress" data-args='["${projectId}","${itemId}"]'>Salvar Rascunho</button>
                     <button class="btn btn-primary" id="wiz-generate-btn" data-action="wizGenerate" data-args='["${projectId}","${itemId}"]' data-arg-el>Gerar Documento</button>
                 </div>
             </div>
@@ -609,7 +609,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             btnEl.textContent = 'Gerando registro...';
             let content = '# ' + wiz.title + '\n\n';
             content += '**Referência ISO:** ' + wiz.isoRef + '\n';
-            content += '**Data de registro:** ' + new Date().toLocaleDateString('pt-BR') + '\n\n';
+            content += '**Data de registro:** ' + formatarData(new Date()) + '\n\n';
             content += '---\n\n';
             wiz.fields.forEach(f => {
                 if (data[f.id]) content += '## ' + f.label + '\n' + data[f.id] + '\n\n';
@@ -621,11 +621,11 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const preview = document.getElementById('wiz-preview-area');
             preview.style.display = 'block';
             preview.innerHTML = `
-                <div style="margin-bottom:0.75rem; font-size:0.75rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Preview do Registro de Evidência</div>
-                <textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border); border-radius:10px;">${escapeHTML(content)}</textarea>
+                <div class="mb-3 t-sm t-accent fw-600 caixa-alta">Preview do Registro de Evidência</div>
+                <textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border);">${escapeHTML(content)}</textarea>
             `;
             document.getElementById('wiz-actions').innerHTML = `
-                <button class="btn" data-action="wizBackToForm" data-args='["${projectId}","${itemId}"]' style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Voltar e Editar</button>
+                <button class="btn bg-sutil-2 borda-cor" data-action="wizBackToForm" data-args='["${projectId}","${itemId}"]'>Voltar e Editar</button>
                 <button class="btn btn-primary" data-action="wizApprove" data-args='["${projectId}","${itemId}"]' data-arg-el>Confirmar e Registrar Evidência</button>
             `;
             btnEl.disabled = false;
@@ -641,12 +641,12 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const preview = document.getElementById('wiz-preview-area');
             preview.style.display = 'block';
             preview.innerHTML = `
-                <div style="margin-bottom:0.75rem; font-size:0.75rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Preview do Documento Gerado</div>
-                <textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border); border-radius:10px;">${escapeHTML(res.content || '')}</textarea>
+                <div class="mb-3 t-sm t-accent fw-600 caixa-alta">Preview do Documento Gerado</div>
+                <textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border);">${escapeHTML(res.content || '')}</textarea>
             `;
             document.getElementById('wiz-actions').innerHTML = `
-                <button class="btn" data-action="wizBackToForm" data-args='["${projectId}","${itemId}"]' style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Voltar e Editar Dados</button>
-                <button class="btn btn-primary" data-action="wizApprove" data-args='["${projectId}","${itemId}"]' data-arg-el>Aprovar e Salvar como Evidencia</button>
+                <button class="btn bg-sutil-2 borda-cor" data-action="wizBackToForm" data-args='["${projectId}","${itemId}"]'>Voltar e Editar Dados</button>
+                <button class="btn btn-primary" data-action="wizApprove" data-args='["${projectId}","${itemId}"]' data-arg-el>Aprovar e Salvar como Evidência</button>
             `;
         } catch(e) {
             showToast('Erro ao gerar documento: ' + e.message, 'error');
@@ -660,8 +660,8 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         document.getElementById('wiz-form-fields').style.display = 'block';
         document.getElementById('wiz-preview-area').style.display = 'none';
         document.getElementById('wiz-actions').innerHTML = `
-            <button class="btn" data-action="forceCloseModal" style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Cancelar</button>
-            <button class="btn" data-action="wizSaveProgress" data-args='["${projectId}","${itemId}"]' style="border-color:var(--accent); color:var(--accent);">Salvar Rascunho</button>
+            <button class="btn bg-sutil-2 borda-cor" data-action="forceCloseModal">Cancelar</button>
+            <button class="btn borda-accent t-accent" data-action="wizSaveProgress" data-args='["${projectId}","${itemId}"]'>Salvar Rascunho</button>
             <button class="btn btn-primary" id="wiz-generate-btn" data-action="wizGenerate" data-args='["${projectId}","${itemId}"]' data-arg-el>Gerar Documento</button>
         `;
     };
@@ -698,7 +698,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
 
         const sidebarHtml = tracks.map(t => {
             const isDone = S.interviewProgress[projectId + '_' + t.id];
-            const check = isDone ? '<span style="color:var(--success); font-weight:bold; margin-right:4px;"></span>' : '';
+            const check = isDone ? '<span class="t-sucesso fw-600 mr-1"></span>' : '';
             return `<div class="wizard-sidebar-item" id="track-tab-${t.id}" data-action="changeInterviewTrack" data-args='["${projectId}","${t.id}"]' style="padding: 10px 12px; font-size: 0.8rem; cursor: pointer; color: var(--text-dim); transition: all 0.2s; border-left: 3px solid transparent; display: flex; align-items: center; justify-content: space-between;">
                 <span>${check}${t.name}</span>
             </div>`;
@@ -707,20 +707,20 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Conduzir Entrevistas por Trilha (Mapeamento Inicial)</span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
             <div style="padding: 1.25rem 0; display: flex; gap: 20px; min-height: 480px;">
                 <div style="width: 200px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid var(--border); padding-right: 12px;">
-                    <div style="font-size:0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Trilhas de Auditoria</div>
+                    <div class="t-sm t-accent fw-600 caixa-alta mb-2">Trilhas de Auditoria</div>
                     ${sidebarHtml}
                 </div>
-                <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding-left: 8px;">
+                <div class="flex-1 d-flex flex-col justify-between pl-2">
                     <div id="interview-questions-container" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
                         ${window.renderEmptyState({ titulo: 'Selecione uma trilha', texto: 'Escolha uma trilha na barra lateral para iniciar a entrevista.' })}
                     </div>
                     <div id="interview-actions-container" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
-                        <button class="btn" data-action="forceCloseModal" style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Fechar</button>
-                        <div id="interview-buttons-right" style="display: flex; gap: 10px;"></div>
+                        <button class="btn bg-sutil-2 borda-cor" data-action="forceCloseModal">Fechar</button>
+                        <div id="interview-buttons-right" class="d-flex gap-25"></div>
                     </div>
                 </div>
             </div>
@@ -766,22 +766,22 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                 const gap = q.gap_detected === 1;
 
                 return `
-                    <div class="list-item" style="display: flex; flex-direction: column; gap: 10px; padding: 1.25rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); margin-bottom: 12px;">
-                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--text); line-height: 1.4;">
+                    <div class="list-item d-flex flex-col gap-25 p-5 bg-sutil borda mb-3">
+                        <div class="t-base fw-600 t-texto lh-14">
                             ${idx + 1}. ${escapeHTML(q.question)}
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
-                            <label style="font-size:0.75rem; color: var(--text-dim); font-weight: 500;">Resposta / Constatação do Auditor</label>
-                            <textarea id="ans-${q.key}" class="form-input" style="width: 100%; min-height: 70px; font-size: 0.8rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius:10px; padding: 8px 12px; color: var(--text); resize: vertical; font-family: inherit;" placeholder="Registre a resposta ou evidências coletadas...">${escapeHTML(ans)}</textarea>
+                        <div class="d-flex flex-col gap-2 mt-1">
+                            <label class="t-sm t-dim fw-500">Resposta / Constatação do Auditor</label>
+                            <textarea id="ans-${q.key}" class="form-input" style="width: 100%; min-height: 70px; font-size: 0.8rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 8px 12px; color: var(--text); resize: vertical; font-family: inherit;" placeholder="Registre a resposta ou evidências coletadas...">${escapeHTML(ans)}</textarea>
                         </div>
-                        <div style="display: flex; gap: 12px; align-items: center; margin-top: 4px;">
-                            <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
-                                <label style="font-size:0.75rem; color: var(--text-dim); font-weight: 500;">Entrevistado (Nome / Cargo)</label>
-                                <input type="text" id="who-${q.key}" class="form-input" style="font-size: 0.8rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius:10px; padding: 6px 12px; color: var(--text);" value="${escapeHTML(who)}" placeholder="Ex: João CISO, Maria DevOps">
+                        <div class="d-flex gap-3 items-center mt-1">
+                            <div class="flex-1 d-flex flex-col gap-1">
+                                <label class="t-sm t-dim fw-500">Entrevistado (Nome / Cargo)</label>
+                                <input type="text" id="who-${q.key}" class="form-input t-md bg-fundo borda py-15 px-3 t-texto" value="${escapeHTML(who)}" placeholder="Ex: João CISO, Maria DevOps">
                             </div>
-                            <div style="display: flex; align-items: center; gap: 8px; padding-top: 16px;">
-                                <input type="checkbox" id="gap-${q.key}" ${gap ? 'checked' : ''} style="cursor: pointer;">
-                                <label for="gap-${q.key}" style="font-size: 0.75rem; color: var(--danger); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <div class="d-flex items-center gap-2 pt-4">
+                                <input type="checkbox" id="gap-${q.key}" ${gap ? 'checked' : ''} class="clicavel">
+                                <label for="gap-${q.key}" class="t-sm t-perigo fw-600 clicavel d-flex items-center gap-1">
                                     Lacuna Detectada
                                 </label>
                             </div>
@@ -803,7 +803,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             document.getElementById('interview-buttons-right').innerHTML = rightButtons;
 
         } catch (e) {
-            container.innerHTML = `<div style="color:var(--danger); text-align:center; padding:3rem;">Erro ao carregar perguntas: ${escapeHTML(e.message)}</div>`;
+            container.innerHTML = `<div style="color:var(--danger-ink); text-align:center; padding:3rem;">Erro ao carregar perguntas: ${escapeHTML(e.message)}</div>`;
         }
     };
 
@@ -902,7 +902,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                     
                     parts.push(`<span style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:3px 8px; margin-right:4px;"><strong>${label}</strong>: ${val}</span>`);
                 }
-                return `<div style="display:flex; flex-wrap:wrap; gap:8px; font-size:0.7rem; color:var(--text-dim); margin-bottom:8px;">${parts.join('')}</div>`;
+                return `<div class="d-flex flex-wrap gap-2 t-xs t-dim mb-2">${parts.join('')}</div>`;
             } catch (e) { /* metadado que não é JSON: sem as etiquetas */ }
         }
         return '';
@@ -926,24 +926,24 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const cur = saved[q.key] || '';
             let input = '';
             if (q.type === 'text') {
-                input = `<textarea id="pq-${q.key}" class="form-input" rows="2" style="width:100%">${escapeHTML(cur)}</textarea>`;
+                input = `<textarea id="pq-${q.key}" class="form-input w-full" rows="2">${escapeHTML(cur)}</textarea>`;
             } else if (q.type === 'multi') {
                 const marcados = String(cur).split('||');
-                input = `<div style="display:flex; flex-wrap:wrap; gap:8px">` + (q.options || []).map(opt =>
-                    `<label style="font-size:0.8rem; display:flex; align-items:center; gap:4px"><input type="checkbox" name="pq-${q.key}" value="${escapeHTML(opt)}" ${marcados.includes(opt) ? 'checked' : ''}> ${escapeHTML(opt)}</label>`
+                input = `<div class="d-flex flex-wrap gap-2">` + (q.options || []).map(opt =>
+                    `<label class="t-md d-flex items-center gap-1"><input type="checkbox" name="pq-${q.key}" value="${escapeHTML(opt)}" ${marcados.includes(opt) ? 'checked' : ''}> ${escapeHTML(opt)}</label>`
                 ).join('') + `</div>`;
             } else {
-                input = `<select id="pq-${q.key}" class="form-input" style="width:100%"><option value="">— selecione —</option>` +
+                input = `<select id="pq-${q.key}" class="form-input w-full"><option value="">— selecione —</option>` +
                     (q.options || []).map(opt => `<option value="${escapeHTML(opt)}" ${cur === opt ? 'selected' : ''}>${escapeHTML(opt)}</option>`).join('') + `</select>`;
             }
-            return `<div style="margin-bottom:1rem"><label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:0.4rem">${escapeHTML(q.question)}</label>${input}</div>`;
+            return `<div class="mb-4"><label class="t-sm t-dim d-block mb-15">${escapeHTML(q.question)}</label>${input}</div>`;
         }).join('');
 
         openModal(`
-            <div class="modal-header"><span class="modal-title">Questionário — ${escapeHTML(titulo)}</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            <div class="modal-header"><span class="modal-title">Questionário — ${escapeHTML(titulo)}</span></div>
             <div style="padding:1.25rem 0; text-align:left; max-height:60vh; overflow-y:auto">${campos}
-                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:0.5rem">
-                    <button class="btn" data-action="forceCloseModal" style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Cancelar</button>
+                <div class="d-flex justify-end gap-25 mt-2">
+                    <button class="btn bg-sutil-2 borda-cor" data-action="forceCloseModal">Cancelar</button>
                     <button class="btn btn-primary" data-action="savePhaseQuestionnaire" data-args='["${phaseNumber}","${projectId}"]'>Salvar</button>
                 </div>
             </div>`);
@@ -986,7 +986,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         const questions = (S.phaseQuestions && S.phaseQuestions[phaseNumber]) || [];
         const textoDaPergunta = k => (questions.find(q => q.key === k) || {}).question || k;
         openModal(`<div class="modal-header"><span class="modal-title">Interpretando a fase…</span></div>
-            <div style="padding:1.5rem 0; text-align:center; color:var(--text-dim)">Analisando as respostas com o agente de conformidade…</div>`);
+            <div class="py-6 px-0 t-center t-dim">Analisando as respostas com o agente de conformidade…</div>`);
         try {
             const r = await api('GET', `/api/v1/projects/${projectId}/phase-answers/${phaseNumber}/interpret`);
             const badge = { em_dia: ['var(--success)', 'Em dia'], atencao: ['var(--warning)', 'Atenção'], critico: ['var(--danger)', 'Crítico'] };
@@ -999,19 +999,19 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             let corpo = '';
             if (it) {
                 const [cor, rotulo] = badge[it.prontidao] || badge.atencao;
-                corpo += `<div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem">
+                corpo += `<div class="d-flex items-center gap-25 mb-4">
                     <span style="background:${cor}; color:var(--bg); padding:3px 12px; font-size:0.72rem; font-weight:500; text-transform:uppercase; letter-spacing:0.5px">${rotulo}</span>
-                    <span style="font-size:0.75rem; color:var(--text-dim)">Prontidão da fase</span></div>`;
-                if (it.resumo) corpo += `<p style="font-size:0.85rem; line-height:1.5; margin-bottom:1rem">${escapeHTML(it.resumo)}</p>`;
+                    <span class="t-sm t-dim">Prontidão da fase</span></div>`;
+                if (it.resumo) corpo += `<p class="t-base lh-15 mb-4">${escapeHTML(it.resumo)}</p>`;
                 if (it.pontos && it.pontos.length) {
-                    corpo += `<div style="font-weight:500; font-size:0.78rem; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim)">Pontos de atenção</div>`;
-                    corpo += it.pontos.map(pt => `<div style="border-left:3px solid ${sevCor[pt.severidade] || 'var(--text-dim)'}; padding:6px 10px; margin-bottom:8px; background:rgba(255,255,255,0.02);">
-                        <div style="font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px">${escapeHTML(pt.severidade)} · ${escapeHTML(textoDaPergunta(pt.pergunta_key))}</div>
+                    corpo += `<div class="fw-500 t-sm mb-2 caixa-alta t-dim">Pontos de atenção</div>`;
+                    corpo += it.pontos.map(pt => `<div style="border-top:2px solid ${sevCor[pt.severidade] || 'var(--text-dim)'}; padding:6px 10px; margin-bottom:8px; background:rgba(255,255,255,0.02);">
+                        <div class="t-xs t-dim caixa-alta">${escapeHTML(pt.severidade)} · ${escapeHTML(textoDaPergunta(pt.pergunta_key))}</div>
                         <div style="font-size:0.82rem; line-height:1.45; margin-top:2px">${escapeHTML(pt.observacao)}</div></div>`).join('');
                 }
                 if (it.proximos_passos && it.proximos_passos.length) {
                     corpo += `<div style="font-weight:500; font-size:0.78rem; margin:1rem 0 0.5rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim)">Próximos passos</div>`;
-                    corpo += `<ol style="font-size:0.82rem; line-height:1.5; padding-left:1.2rem; margin:0">${it.proximos_passos.map(s => `<li>${escapeHTML(s)}</li>`).join('')}</ol>`;
+                    corpo += `<ol class="t-md lh-15 pl-5 m-0">${it.proximos_passos.map(s => `<li>${escapeHTML(s)}</li>`).join('')}</ol>`;
                 }
             } else {
                 // Sem contradição: com a fase completa, dizemos isso em vez de
@@ -1020,19 +1020,19 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                 const abre = completo
                     ? 'As respostas desta fase estão completas, mas a interpretação por IA não pôde ser gerada agora.'
                     : 'A interpretação assistida por IA está indisponível no momento.';
-                corpo += `<p style="font-size:0.83rem; color:var(--text-dim); line-height:1.5">${abre}${motivoSuffix}</p>`;
+                corpo += `<p class="t-md t-dim lh-15">${abre}${motivoSuffix}</p>`;
             }
 
             corpo += `<div style="margin-top:1.25rem; padding-top:1rem; border-top:1px solid var(--border)">
-                <div style="font-size:0.78rem; color:var(--text-dim)"><strong style="font-weight:500">Cobertura</strong> — ${cov.respondidas}/${cov.total} perguntas respondidas</div>`;
+                <div class="t-sm t-dim"><strong class="fw-500">Cobertura</strong> — ${cov.respondidas}/${cov.total} perguntas respondidas</div>`;
             if (cov.sem_resposta && cov.sem_resposta.length) {
                 corpo += `<ul style="font-size:0.78rem; color:var(--text-dim); line-height:1.45; margin:0.5rem 0 0; padding-left:1.2rem">${cov.sem_resposta.map(q => `<li>Sem resposta: ${escapeHTML(q.pergunta)}</li>`).join('')}</ul>`;
             }
             corpo += `</div>`;
 
-            openModal(`<div class="modal-header"><span class="modal-title">Interpretação — ${cab}</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            openModal(`<div class="modal-header"><span class="modal-title">Interpretação — ${cab}</span></div>
                 <div style="padding:1.25rem 0; text-align:left; max-height:65vh; overflow-y:auto">${corpo}
-                    <div style="font-size:0.68rem; color:var(--text-dim); margin-top:1rem; font-style:normal">${escapeHTML(r.rotulo || '')}</div>
+                    <div style="font-size:var(--fs-xs); color:var(--text-dim); margin-top:1rem; font-style:normal">${escapeHTML(r.rotulo || '')}</div>
                 </div>`);
         } catch (e) {
             forceCloseModal();
@@ -1044,7 +1044,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
     // apresentável e imprimível (Salvar como PDF) para compartilhar com stakeholders.
     window.generateJourneyDossier = async function(projectId) {
         openModal(`<div class="modal-header"><span class="modal-title">Gerando dossiê…</span></div>
-            <div style="padding:1.5rem 0; text-align:center; color:var(--text-dim)">Consolidando as respostas da jornada…</div>`);
+            <div class="py-6 px-0 t-center t-dim">Consolidando as respostas da jornada…</div>`);
         try {
             const d = await api('GET', `/api/v1/projects/${projectId}/journey-dossier`);
             const pj = d.projeto || {};
@@ -1052,33 +1052,33 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
 
             const secoesHtml = secoes.length ? secoes.map(s => `
                 <section style="margin-bottom:1.5rem; page-break-inside:avoid">
-                    <h3 style="font-size:0.95rem; margin:0 0 0.25rem">Fase ${s.phase} — ${escapeHTML(s.titulo)}${s.clausula ? ` <span style="font-weight:400; color:var(--text-dim)">· cláusula ${escapeHTML(s.clausula)}</span>` : ''}</h3>
-                    <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.5rem">Status: ${escapeHTML(s.status)} · ${s.cobertura.respondidas}/${s.cobertura.total} respondidas</div>
-                    <dl style="margin:0">
+                    <h3 style="font-size:0.95rem; margin:0 0 0.25rem">Fase ${s.phase} — ${escapeHTML(s.titulo)}${s.clausula ? ` <span class="fw-400 t-dim">· cláusula ${escapeHTML(s.clausula)}</span>` : ''}</h3>
+                    <div class="t-xs t-dim mb-2">Situação: ${escapeHTML(traduzStatus(s.status))} · ${s.cobertura.respondidas}/${s.cobertura.total} respondidas</div>
+                    <dl class="m-0">
                         ${s.respostas.map(r => `
-                            <dt style="font-size:0.8rem; font-weight:600; margin-top:0.5rem">${escapeHTML(r.pergunta)}</dt>
+                            <dt class="t-md fw-600 mt-2">${escapeHTML(r.pergunta)}</dt>
                             <dd style="font-size:0.82rem; margin:0 0 0.25rem; color:${r.resposta ? 'var(--text)' : 'var(--text-dim)'}">${r.resposta ? escapeHTML(r.resposta) : '— sem resposta —'}</dd>
                         `).join('')}
                     </dl>
-                </section>`).join('') : '<p style="color:var(--text-dim)">Nenhuma resposta registrada na jornada ainda.</p>';
+                </section>`).join('') : window.renderEmptyState({ titulo: 'Nenhuma resposta registrada na jornada ainda.', compacto: true });
 
-            const doc = `<div id="dossie-print" style="text-align:left">
+            const doc = `<div id="dossie-print" class="t-left">
                 <div style="border-bottom:2px solid var(--accent); padding-bottom:0.75rem; margin-bottom:1rem">
                     <h2 style="margin:0 0 0.25rem">Dossiê da Jornada — ${escapeHTML(pj.client_name || '')}</h2>
-                    <div style="font-size:0.75rem; color:var(--text-dim)">
-                        Normas: ${escapeHTML(pj.standards || '')} · Papel: ${escapeHTML(pj.org_role || '')} · Status: ${escapeHTML(pj.status || '')}<br>
+                    <div class="t-sm t-dim">
+                        Normas: ${escapeHTML(pj.standards || '')} · Papel: ${escapeHTML(traduzStatus(pj.org_role || ''))} · Situação: ${escapeHTML(traduzStatus(pj.status || ''))}<br>
                         ${pj.scope ? 'Escopo: ' + escapeHTML(pj.scope) + '<br>' : ''}
-                        Gerado em ${new Date(d.generated_at).toLocaleString('pt-BR')} · ${d.resumo.fases_iniciadas} fase(s) iniciada(s) · ${d.resumo.respondidas} resposta(s)
+                        Gerado em ${formatarData(d.generated_at, { hora: true })} · ${d.resumo.fases_iniciadas} fase(s) iniciada(s) · ${d.resumo.respondidas} resposta(s)
                     </div>
                 </div>
                 ${secoesHtml}
-                <div style="font-size:0.68rem; color:var(--text-dim); border-top:1px solid var(--border); padding-top:0.5rem; margin-top:1rem">${escapeHTML(d.rotulo || '')}</div>
+                <div style="font-size:var(--fs-xs); color:var(--text-dim); border-top:1px solid var(--border); padding-top:0.5rem; margin-top:1rem">${escapeHTML(d.rotulo || '')}</div>
             </div>`;
 
             openModal(`<div class="modal-header"><span class="modal-title">Dossiê da Jornada</span>
-                    <div style="display:flex; gap:8px">
+                    <div class="d-flex gap-2">
                         <button class="btn btn-primary" data-action="printDossie">Imprimir / PDF</button>
-                        <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                        
                     </div>
                 </div>
                 <div style="padding:1.25rem 0; max-height:68vh; overflow-y:auto">${doc}</div>`);
@@ -1107,7 +1107,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
     // Nada muda no controle até clicar "Aplicar" (guarda-rail: só status seguros).
     window.suggestControlAdequacao = async function(phaseNumber, projectId) {
         openModal(`<div class="modal-header"><span class="modal-title">Sugerindo adequações…</span></div>
-            <div style="padding:1.5rem 0; text-align:center; color:var(--text-dim)">Analisando as respostas e os controles do projeto…</div>`);
+            <div class="py-6 px-0 t-center t-dim">Analisando as respostas e os controles do projeto…</div>`);
         try {
             const r = await api('GET', `/api/v1/projects/${projectId}/control-adequacao/${phaseNumber}/suggestions`);
             const sugs = r.sugestoes || [];
@@ -1116,23 +1116,23 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
 
             let corpo;
             if (!sugs.length) {
-                corpo = `<p style="font-size:0.83rem; color:var(--text-dim); line-height:1.5">Sem sugestões de adequação para esta fase no momento (sem IA configurada, sem respostas, ou nada que as respostas sustentem com base objetiva).</p>`;
+                corpo = `<p class="t-md t-dim lh-15">Sem sugestões de adequação para esta fase no momento (sem IA configurada, sem respostas, ou nada que as respostas sustentem com base objetiva).</p>`;
             } else {
                 corpo = sugs.map((s, i) => {
                     S._adequacaoSugestoes[i] = { control_id: s.control_id, status: s.sugestao_status, maturity: s.sugestao_maturidade, justificativa: s.justificativa, pergunta_key: s.pergunta_key, phase_number: phaseNumber };
                     const alvo = [s.sugestao_status ? `status: <strong>${escapeHTML(s.sugestao_status)}</strong>` : '', (s.sugestao_maturidade != null) ? `maturidade: <strong>${s.sugestao_maturidade}</strong>` : ''].filter(Boolean).join(' · ');
-                    return `<div id="adeq-item-${i}" style="border:1px solid var(--border); padding:10px; margin-bottom:10px">
-                        <div style="font-size:0.8rem; font-weight:600">${escapeHTML(s.control_id)} — ${escapeHTML(s.control_title || '')}</div>
+                    return `<div id="adeq-item-${i}" class="borda p-25 mb-25">
+                        <div class="t-md fw-600">${escapeHTML(s.control_id)} — ${escapeHTML(s.control_title || '')}</div>
                         <div style="font-size:0.72rem; color:var(--text-dim); margin:2px 0 6px">atual: status ${escapeHTML(String(s.status_atual ?? '—'))} · maturidade ${escapeHTML(String(s.maturidade_atual ?? 0))} → ${alvo}</div>
-                        <div style="font-size:0.8rem; line-height:1.4; margin-bottom:8px">${escapeHTML(s.justificativa)}</div>
-                        <button class="btn-inline-action" style="border-color:var(--accent); color:var(--accent); font-weight:600" data-action="applyControlAdequacao" data-args='["${i}","${projectId}"]'>Aplicar ao controle</button>
+                        <div class="t-md lh-14 mb-2">${escapeHTML(s.justificativa)}</div>
+                        <button class="btn-inline-action borda-accent t-accent fw-600" data-action="applyControlAdequacao" data-args='["${i}","${projectId}"]'>Aplicar ao controle</button>
                     </div>`;
                 }).join('');
             }
 
-            openModal(`<div class="modal-header"><span class="modal-title">Adequação de controles — ${cab}</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            openModal(`<div class="modal-header"><span class="modal-title">Adequação de controles — ${cab}</span></div>
                 <div style="padding:1.25rem 0; text-align:left; max-height:65vh; overflow-y:auto">${corpo}
-                    <div style="font-size:0.68rem; color:var(--text-dim); margin-top:0.75rem">${escapeHTML(r.rotulo || '')}</div>
+                    <div class="t-xs t-dim mt-3">${escapeHTML(r.rotulo || '')}</div>
                 </div>`);
         } catch (e) {
             forceCloseModal();
@@ -1146,7 +1146,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         try {
             await api('POST', `/api/v1/projects/${projectId}/control-adequacao/apply`, s);
             const card = document.getElementById(`adeq-item-${idx}`);
-            if (card) { card.style.opacity = '0.5'; const b = card.querySelector('button'); if (b) b.outerHTML = '<span style="font-size:0.72rem; color:var(--accent); font-weight:600">✓ Aplicado</span>'; }
+            if (card) { card.style.opacity = '0.5'; const b = card.querySelector('button'); if (b) b.outerHTML = '<span class="t-xs t-accent fw-600">✓ Aplicado</span>'; }
             showToast('Adequação aplicada ao controle ' + s.control_id);
         } catch (e) {
             showToast('Falha ao aplicar: ' + e.message, 'error');
@@ -1173,9 +1173,9 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Editor de Documento Interno</span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
-            <div id="doc-editor-body" style="padding:1.5rem 0;">
+            <div id="doc-editor-body" class="py-6 px-0">
                 <div class="loading"></div>
             </div>
         `, 'modal-large');
@@ -1184,24 +1184,24 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const data = await api('GET', `/api/v1/evidence/${evidenceId}/content`);
             
             document.getElementById('doc-editor-body').innerHTML = `
-                <div style="margin-bottom:1rem;">
-                    <label style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; display:block; margin-bottom:0.5rem">Nome do Arquivo</label>
-                    <input type="text" class="form-input" style="width:100%; font-size:0.85rem;" value="${escapeHTML(data.file_name)}" readonly disabled>
+                <div class="mb-4">
+                    <label class="t-sm t-dim caixa-alta fw-600 d-block mb-2">Nome do Arquivo</label>
+                    <input type="text" class="form-input w-full t-base" value="${escapeHTML(data.file_name)}" readonly disabled>
                 </div>
-                <div style="margin-bottom:1.5rem;">
-                    <label style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; display:block; margin-bottom:0.5rem">Conteúdo do Documento (Markdown)</label>
+                <div class="mb-6">
+                    <label class="t-sm t-dim caixa-alta fw-600 d-block mb-2">Conteúdo do Documento (Markdown)</label>
                     <textarea id="internal-doc-text" class="form-input" style="width:100%; height:450px; font-family:monospace; font-size:0.8rem; line-height:1.4; background:rgba(0,0,0,0.35); resize:vertical; padding:12px;">${escapeHTML(data.content || '')}</textarea>
                 </div>
-                <div style="display:flex; justify-content:flex-end; gap:10px;">
-                    <button class="btn" data-action="forceCloseModal" style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Cancelar</button>
+                <div class="d-flex justify-end gap-25">
+                    <button class="btn bg-sutil-2 borda-cor" data-action="forceCloseModal">Cancelar</button>
                     <button class="btn btn-primary" data-action="saveInternalDocument" data-args='["${evidenceId}"]' data-arg-el>Salvar Alterações</button>
                 </div>
             `;
         } catch(e) {
             document.getElementById('doc-editor-body').innerHTML = `
-                <div style="color:var(--danger); padding:1rem; text-align:center;">
+                <div class="t-perigo p-4 t-center">
                     Erro ao carregar documento: ${escapeHTML(e.message)}
-                    <div style="margin-top:1rem; font-size:0.75rem; color:var(--text-dim)">Este arquivo pode ser um anexo binário externo (PDF, imagem, etc.).</div>
+                    <div class="mt-4 t-sm t-dim">Este arquivo pode ser um anexo binário externo (PDF, imagem, etc.).</div>
                 </div>
             `;
         }
@@ -1326,11 +1326,11 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
     }
 
     async function wsUploadEvidence(docType) {
-        const labels = { organograma:'Organograma', policy:'Políticas Existentes', inventory:'Inventario de Ativos', topology:'Topologia de Rede', systems:'Lista de Sistemas', contracts:'Contratos Fornecedores', incidents:'Registro de Incidentes', certifications:'Certificacoes Vigentes', floorplan:'Planta Baixa', audit_report:'Relatório de Auditoria', ropa:'RoPA / Mapeamento Dados', backup_dr:'Backup e DR' };
-        openModal(`<h3 style="margin-bottom:1rem">Upload: ${labels[docType] || docType}</h3>
+        const labels = { organograma:'Organograma', policy:'Políticas Existentes', inventory:'Inventário de Ativos', topology:'Topologia de Rede', systems:'Lista de Sistemas', contracts:'Contratos Fornecedores', incidents:'Registro de Incidentes', certifications:'Certificações Vigentes', floorplan:'Planta Baixa', audit_report:'Relatório de Auditoria', ropa:'RoPA / Mapeamento Dados', backup_dr:'Backup e DR' };
+        openModal(`<h3 class="mb-4">Upload: ${labels[docType] || docType}</h3>
             <div class="form-group"><label class="form-label">Arquivo</label><input type="file" id="doc-file" class="form-input" accept=".pdf,.docx,.xlsx,.txt,.csv,.md,.png,.jpg,.jpeg"></div>
-            <div id="doc-msg" style="font-size:0.7rem;color:var(--muted);margin:0.5rem 0"></div>
-            <div style="display:flex;gap:0.5rem;justify-content:flex-end">
+            <div id="doc-msg" class="t-xs t-dim my-2 mx-0"></div>
+            <div class="d-flex gap-2 justify-end">
                 <button class="btn" data-action="closeModal">Cancelar</button>
                 <button class="btn btn-primary" data-action="doDocUpload" data-args='["${docType}"]'>Upload e Extrair</button>
             </div>`);
@@ -1367,10 +1367,10 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const docs = await api('GET', `/api/v1/projects/${S.currentProject.id}/documents`);
             const doc = (docs || []).find(d => d.id === docId);
             if (!doc) return;
-            openModal(`<h3 style="margin-bottom:1rem">Extracao: ${escapeHTML(doc.filename)}</h3>
-                <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem">Status: ${doc.status} | Tipo: ${doc.document_type}</div>
-                <textarea class="form-input" id="doc-ext-edit" rows="12" style="font-size:0.7rem;font-family:monospace;line-height:1.6">${escapeHTML(doc.extracted_summary || '')}</textarea>
-                <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.75rem">
+            openModal(`<h3 class="mb-4">Extracao: ${escapeHTML(doc.filename)}</h3>
+                <div class="t-xs t-dim mb-2">Situação: ${escapeHTML(traduzStatus(doc.status))} | Tipo: ${escapeHTML(doc.document_type || '')}</div>
+                <textarea class="form-input t-xs f-mono lh-16" id="doc-ext-edit" rows="12">${escapeHTML(doc.extracted_summary || '')}</textarea>
+                <div class="d-flex gap-2 justify-end mt-3">
                     <button class="btn" data-action="forceCloseModal">Fechar</button>
                     <button class="btn btn-primary" data-action="wsConfirmExtraction" data-args='["${docId}"]'>Confirmar e Indexar</button>
                 </div>`);

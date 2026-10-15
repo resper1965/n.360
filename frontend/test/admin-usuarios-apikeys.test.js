@@ -344,7 +344,7 @@ describe('renderApiKeys', () => {
     S.user = { role: papel };
     const [c, h, a] = dom();
     await window.renderApiKeys(c, h, a);
-    expect(c.textContent).toBe('Acesso restrito ao Platform Admin.');
+    expect(c.textContent).toBe('Acesso restrito ao administrador da plataforma.');
     expect(apiMock).not.toHaveBeenCalled();
   });
 
@@ -365,9 +365,9 @@ describe('renderApiKeys', () => {
     expect(linhas[0].querySelector('[data-action="revokeApiKey"]').dataset.args).toBe('["k1"]');
     expect(linhas[0].textContent).toContain('Consultor');
     expect(linhas[0].textContent).not.toContain('consultant');
-    expect(linhas[0].textContent).toContain('2026-10-01');
+    expect(linhas[0].textContent).toContain('01/10/2026');
     expect(linhas[1].querySelector('[data-action="revokeApiKey"]')).toBeNull();
-    expect(linhas[1].textContent).toContain('2026-09-01');
+    expect(linhas[1].textContent).toContain('01/09/2026');
   });
 
   it('sem chaves: linha de vazio; sem projetos: "Nova chave" desabilitado e nenhuma chamada de chaves', async () => {

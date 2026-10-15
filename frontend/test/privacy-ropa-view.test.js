@@ -257,7 +257,7 @@ describe('RIPD (DPIA)', () => {
     it('título, botão e status em PT', async () => {
         rotas['/dpia'] = [{ id: 'd1', system_name: 'CRM', status: 'Under Review' }];
         await window.renderDPIA(el('c'), el('h'), el('a'));
-        expect(el('h').textContent).toBe('RIPD (DPIA)');
+        expect(el('h').textContent).toBe('RIPD');
         expect(el('a').textContent).toContain('Novo RIPD');
         // F4: CSV da lista e Word por linha
         expect(el('a').querySelector('[data-action="exportarCsvRipd"]')).not.toBeNull();
@@ -294,7 +294,7 @@ describe('Fornecedores (vendors) sem fornecedor', () => {
         await import('../src/views/grc.js');
         rotas['/vendors'] = [];
         await window.renderVendors(el('c'), el('h'), el('a'));
-        const card = [...el('c').querySelectorAll('.stat-card')].find((x) => x.textContent.includes('Trust Score'));
+        const card = [...el('c').querySelectorAll('.stat-card')].find((x) => x.textContent.includes('Índice de confiança'));
         expect(card.children[1].textContent).toBe('—');
         expect(card.children[1].getAttribute('style')).toContain('var(--text-dim)');
         expect(el('c').innerHTML).not.toContain('0/100');

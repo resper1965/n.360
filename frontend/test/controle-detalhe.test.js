@@ -39,7 +39,7 @@ describe('status no detalhe do controle', () => {
     it('rótulos em português, sem "Ausente" para um controle implementado', () => {
         const sel = abrir(CTRL());
         expect(sel.selectedOptions[0].textContent).toBe('Implementado');
-        expect([...sel.options].map((o) => o.textContent)).toEqual(['Pendente', 'Planejado', 'Em Andamento', 'Parcial', 'Implementado']);
+        expect([...sel.options].map((o) => o.textContent)).toEqual(['Pendente', 'Planejado', 'Em andamento', 'Parcial', 'Implementado']);
         expect(el('modal-content').textContent).not.toMatch(/Ausente/);
     });
 

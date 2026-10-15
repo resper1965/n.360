@@ -108,7 +108,7 @@ describe('Central de Evidências', () => {
         const input = document.getElementById('ev-file');
         Object.defineProperty(input, 'files', { value: [new File(['x'], 'laudo.pdf')], configurable: true });
         await window.doEvidenceUpload('p1');
-        expect(document.getElementById('ev-msg').textContent).toBe(`Evidencia enviada: laudo.pdf (SHA-256: ${sha.substring(0, 16)}...)`);
+        expect(document.getElementById('ev-msg').textContent).toBe(`Evidência enviada: laudo.pdf (SHA-256: ${sha.substring(0, 16)}...)`);
         expect(f2.mock.calls.some(([u, o]) => (o?.method || 'GET') === 'GET' && String(u).endsWith('/evidence'))).toBe(true);
         expect(document.getElementById('main-content').querySelectorAll('select').length).toBe(2);
         S.view = undefined;

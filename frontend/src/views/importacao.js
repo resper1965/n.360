@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
-import { escapeHTML, openModal, showToast } from '../ui.js';
+import { escapeHTML, openModal, showToast, formatarData } from '../ui.js';
 
 // Importar programa (n.privacy, fatias 1 a 4). A regra é do servidor (`/projects/:id/importacoes`); aqui: lotes, envio de arquivos (um
 // por requisição), processamento arquivo a arquivo, revisão dos itens propostos (uma aba por entidade: tratamentos, terceiros,
@@ -131,7 +131,7 @@ async function recarrega() {
 
 function htmlLista() {
     const linhas = E.lotes.map((l) => [
-        e(l.created_at), badge([STATUS_LOTE[l.status] || l.status, l.status === 'concluida' ? 'success' : l.status === 'cancelada' ? 'neutral' : 'info']),
+        e(formatarData(l.created_at, { hora: true })), badge([STATUS_LOTE[l.status] || l.status, l.status === 'concluida' ? 'success' : l.status === 'cancelada' ? 'neutral' : 'info']),
         e(l.arquivos), e(l.itens), l.status === 'cancelada' ? '' : `<button class="btn btn-ghost btn-sm" data-action="importacaoAbrir" data-args='${args(l.id)}'>Abrir</button>`,
     ]);
     return `
@@ -195,7 +195,7 @@ function barraAlta(itens) {
     return alta ? `<button class="btn btn-ghost btn-sm" style="margin-bottom:0.75rem" data-action="importacaoAceitarAlta"${E.ocupado ? ' disabled' : ''}>Aceitar os ${alta} de confiança alta (revise antes de confirmar)</button>` : '';
 }
 // Origem, motivo e ações de um item, iguais nas duas abas.
-const rodapeItem = (i) => `${i.origem ? `<details><summary>Origem</summary><div style="white-space:pre-wrap;color:var(--text-dim)">${e(i.origem)}</div></details>` : ''}${i.motivo ? `<div style="color:var(--danger)">${e(i.motivo)}</div>` : ''}`;
+const rodapeItem = (i) => `${i.origem ? `<details><summary>Origem</summary><div style="white-space:pre-wrap;color:var(--text-dim)">${e(i.origem)}</div></details>` : ''}${i.motivo ? `<div style="color:var(--danger-ink)">${e(i.motivo)}</div>` : ''}`;
 const acoesItem = (i, ativo) => (!ativo || i.decisao === 'gravado' ? '' : `
             <button class="btn btn-ghost btn-sm" data-action="importacaoEditar" data-args='${args(i.id)}'>Editar</button>
             ${i.decisao !== 'aceito' && i.decisao !== 'recusado' ? `<button class="btn btn-ghost btn-sm" data-action="importacaoDecidir" data-args='${args(i.id, 'aceito')}'>Aceitar</button>` : ''}
@@ -209,7 +209,7 @@ function htmlTerceiros(itens, ativo) {
         const av = d.ultima_avaliacao;
         const resumo = `<strong>${e(d.nome || '(sem nome)')}</strong><div style="color:var(--text-dim)">${[
             ['Tipo', d.tipo && (TIPO_TERCEIRO[d.tipo] || d.tipo)], ['CNPJ', d.cnpj], ['Contato', d.contato],
-            ['Avaliação', av && `${RESULTADO[av.resultado] || av.resultado} até ${av.valido_ate}${av.metodo ? ` (${av.metodo})` : ''}`],
+            ['Avaliação', av && `${RESULTADO[av.resultado] || av.resultado} até ${formatarData(av.valido_ate)}${av.metodo ? ` (${av.metodo})` : ''}`],
             ['DPA', d.dpa], ['Tratamentos', (d.tratamentos || []).join(', ')],
         ].filter(([, v]) => v).map(([k, v]) => `${e(k)}: ${e(v)}`).join(' · ')}</div>${rodapeItem(i)}`;
         return [resumo, badge(CONF[i.confianca] || [i.confianca, 'neutral']), faltaItem(i), situacaoItem(i, 'terceiros', 'Ver terceiros'), acoesItem(i, ativo)];
@@ -262,13 +262,13 @@ function resumoHistorico(i) {
     let pares;
     if (ent === 'titular_pedido') {
         titulo = rotulo(TIPOS_PEDIDO, d.tipo) || '(sem tipo)';
-        pares = [['Protocolo de origem', d.protocolo], ['Recebido em', d.recebido_em], ['Situação', rotulo(STATUS_PEDIDO, d.status)], ['Respondido em', d.respondido_em], ['Canal', rotulo(CANAIS, d.canal)], ['Titular', d.titular_ref]];
+        pares = [['Protocolo de origem', d.protocolo], ['Recebido em', formatarData(d.recebido_em, { vazio: '' })], ['Situação', rotulo(STATUS_PEDIDO, d.status)], ['Respondido em', formatarData(d.respondido_em, { vazio: '' })], ['Canal', rotulo(CANAIS, d.canal)], ['Titular', d.titular_ref]];
     } else if (ent === 'incidente') {
         titulo = d.titulo || '(sem título)';
-        pares = [['Protocolo de origem', d.protocolo], ['Ciência em', d.ciencia_em], ['Risco ao titular', rotulo(RISCOS, d.risco_titular)], ['Comunicação à ANPD', d.comunicacao_anpd_em], ['Comunicação ao titular', d.comunicacao_titular_em], ['Situação', rotulo(STATUS_INCIDENTE, d.status)]];
+        pares = [['Protocolo de origem', d.protocolo], ['Ciência em', formatarData(d.ciencia_em, { vazio: '' })], ['Risco ao titular', rotulo(RISCOS, d.risco_titular)], ['Comunicação à ANPD', formatarData(d.comunicacao_anpd_em, { vazio: '' })], ['Comunicação ao titular', formatarData(d.comunicacao_titular_em, { vazio: '' })], ['Situação', rotulo(STATUS_INCIDENTE, d.status)]];
     } else {
         titulo = d.tratamento || '(sem tratamento)';
-        pares = [['Finalidade', d.finalidade], ['Titular', d.titular_ref], ['Obtido em', d.obtido_em], ['Revogado em', d.revogado_em], ['Versão do aviso', d.versao_aviso], ['Canal', d.canal]];
+        pares = [['Finalidade', d.finalidade], ['Titular', d.titular_ref], ['Obtido em', formatarData(d.obtido_em, { vazio: '' })], ['Revogado em', formatarData(d.revogado_em, { vazio: '' })], ['Versão do aviso', d.versao_aviso], ['Canal', d.canal]];
     }
     return `${badge([HISTORICO[ent] || ent, 'info'])} <strong>${e(titulo)}</strong><div style="color:var(--text-dim)">${linhaDados(pares)}</div>${rodapeItem(i)}`;
 }
@@ -475,9 +475,9 @@ window.importacaoEditar = function (iid) {
     const lista = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)} (separe por vírgula)</label><input class="form-input" id="imp-${k}" value="${e((d[k] || []).join(', '))}"></div>`;
     const tri = (k, r) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><select class="form-input" id="imp-${k}">${[['', 'Não informado'], ['true', 'Sim'], ['false', 'Não']].map(([v, t]) => `<option value="${v}"${String(d[k] ?? '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`;
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar tratamento</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar tratamento</span></div>
         ${CAMPOS.map(campo).join('')}${tri('transferencia_internacional', 'Transferência internacional')}${tri('dpia_requerido', 'DPIA requerido')}${LISTAS.map(lista).join('')}
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(iid)}'>Salvar</button>`);
 };
 
@@ -488,13 +488,13 @@ function editarTerceiro(i) {
     const av = d.ultima_avaliacao || {};
     const campo = ([k, r, max]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="${max}"></div>`;
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar terceiro</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar terceiro</span></div>
         ${CAMPOS_TERCEIRO.map(campo).join('')}${opcoes('tipo', 'Tipo', TIPO_TERCEIRO, d.tipo)}
         <div class="form-group"><label class="form-label" for="imp-tratamentos">Tratamentos (finalidades, separe por vírgula)</label><input class="form-input" id="imp-tratamentos" value="${e((d.tratamentos || []).join(', '))}"></div>
         ${opcoes('aval_resultado', 'Resultado da última avaliação', RESULTADO, av.resultado)}
         <div class="form-group"><label class="form-label" for="imp-aval_valido_ate">Avaliação válida até</label><input type="date" class="form-input" id="imp-aval_valido_ate" value="${e(av.valido_ate)}"></div>
         <div class="form-group"><label class="form-label" for="imp-aval_metodo">Método da avaliação (como está no arquivo)</label><input class="form-input" id="imp-aval_metodo" value="${e(av.metodo)}" maxlength="100"></div>
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 
@@ -502,24 +502,24 @@ function editarTerceiro(i) {
 function editarDocumento(i) {
     const d = i.dados || {};
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar documento</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar documento</span></div>
         <div class="form-group"><label class="form-label" for="imp-titulo">Título</label><input class="form-input" id="imp-titulo" value="${e(d.titulo)}" maxlength="300"></div>
         ${opcoes('tipo', 'Tipo', TIPO_DOCUMENTO, d.tipo)}
         <div class="form-group"><label class="form-label" for="imp-resumo">Resumo</label><textarea class="form-input" id="imp-resumo" maxlength="2000" rows="3">${e(d.resumo)}</textarea></div>
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 
 function editarAvaliacao(i) {
     const d = i.dados || {};
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar ${e(AVALIACAO[entidade(i)])}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar ${e(AVALIACAO[entidade(i)])}</span></div>
         <div class="form-group"><label class="form-label" for="imp-tratamento">Tratamento (finalidade, como está no RoPA)</label><input class="form-input" id="imp-tratamento" value="${e(d.tratamento)}" maxlength="500"></div>
         <div class="form-group"><label class="form-label" for="imp-conclusao">Conclusão</label><textarea class="form-input" id="imp-conclusao" maxlength="2000" rows="3">${e(d.conclusao)}</textarea></div>
         <div class="form-group"><label class="form-label" for="imp-riscos">Riscos (um por linha)</label><textarea class="form-input" id="imp-riscos" rows="4">${e((d.riscos || []).join('\n'))}</textarea></div>
         ${(SECOES_AVALIACAO[entidade(i)] || []).map(([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><textarea class="form-input" id="imp-${k}" maxlength="2000" rows="2">${e(d[k])}</textarea></div>`).join('')}
         ${entidade(i) === 'dpia' ? opcoes('risco_residual', 'Risco residual', RESIDUAL, d.risco_residual) : ''}
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 
@@ -544,10 +544,10 @@ function editarHistorico(i) {
     const texto = ([k, r, max]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input class="form-input" id="imp-${k}" value="${e(d[k])}" maxlength="${max}"></div>`;
     const data = ([k, r]) => `<div class="form-group"><label class="form-label" for="imp-${k}">${e(r)}</label><input type="date" class="form-input" id="imp-${k}" value="${e(d[k])}"></div>`;
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar ${e((HISTORICO[entidade(i)] || '').toLowerCase())}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar ${e((HISTORICO[entidade(i)] || '').toLowerCase())}</span></div>
         ${f.textos.map(texto).join('')}${f.selects.map(([k, r, mapa]) => opcoes(k, r, mapa, d[k])).join('')}${f.datas.map(data).join('')}
         ${d.titular_ref ? `<p style="color:var(--text-dim)">Titular (pseudônimo): ${e(d.titular_ref)}</p>` : ''}
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 
@@ -571,9 +571,9 @@ function editarF6(i) {
     };
     const tipo = DA_ATIVIDADE[entidade(i)] || COMPLEMENTOS[entidade(i)];
     openModal(`
-        <div class="modal-header"><span class="modal-title">Editar ${e(tipo.toLowerCase())}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+        <div class="modal-header"><span class="modal-title">Editar ${e(tipo.toLowerCase())}</span></div>
         ${FORM_F6[entidade(i)].map(campo).join('')}
-        <div id="imp-erro" role="alert" style="color:var(--danger);margin-bottom:0.5rem"></div>
+        <div id="imp-erro" role="alert" style="color:var(--danger-ink);margin-bottom:0.5rem"></div>
         <button class="btn btn-primary" style="width:100%" data-action="importacaoSalvarItem" data-args='${args(i.id)}'>Salvar</button>`);
 }
 function dadosF6(i, v) {

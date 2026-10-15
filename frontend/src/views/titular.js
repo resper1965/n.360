@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, forceCloseModal, escapeHTML, formatarData } from '../ui.js';
 import { navigate } from '../router.js';
 import { produtoAtual, temProduto } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
@@ -34,7 +34,7 @@ const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
-const dia = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}/${String(s).slice(0, 4)}` : '—');
+const dia = (s) => formatarData(s);
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 const selo = (chave) => { const [r, t] = PRAZO[chave] || [chave, 'neutral']; return window.renderStatusBadge(r, t); };
 const opcoes = (mapa, atual) => Object.entries(mapa).map(([v, r]) => `<option value="${v}" ${v === atual ? 'selected' : ''}>${escapeHTML(r)}</option>`).join('');
@@ -44,7 +44,6 @@ const valorOuNulo = (id) => { const v = el(id).value.trim(); return v || null; }
 const soIncidentes = () => produtoAtual() !== 'privacy';
 
 async function renderTitular(c, h, a) {
-    h.textContent = soIncidentes() ? 'Incidentes' : 'Titular e incidentes';
     const proj = projetoAtivo();
     if (!proj) {
         a.innerHTML = '';
@@ -54,6 +53,8 @@ async function renderTitular(c, h, a) {
     const abasDoProduto = soIncidentes() ? { incidentes: ABAS.incidentes } : ABAS;
     const aba = abasDoProduto[S.titularAba] ? S.titularAba : Object.keys(abasDoProduto)[0];
     S.titularAba = aba;
+    // O título é o rótulo da aba, que é o do item de menu que a abre (Pedidos do titular, Incidentes, Consentimentos).
+    h.textContent = ABAS[aba];
     const editar = podeEditar();
     const registrar = podeRegistrar();
     // Pedidos e incidentes são lidos sempre: a contagem (e o atraso) aparece na aba, sem precisar abri-la. Falha vira `null`:
@@ -63,7 +64,7 @@ async function renderTitular(c, h, a) {
         soIncidentes() ? [] : ler(api('GET', `/api/v1/projects/${proj.id}/titular-pedidos`)),
         ler(api('GET', `/api/v1/projects/${proj.id}/incidentes`)),
     ]);
-    const contagem = (l, atrasados) => (l && l.length ? ` (${l.length}${atrasados ? ` · <span style="color:var(--danger)">${atrasados} ${atrasados === 1 ? 'atrasado' : 'atrasados'}</span>` : ''})` : '');
+    const contagem = (l, atrasados) => (l && l.length ? ` (${l.length}${atrasados ? ` · <span style="color:var(--danger-ink)">${atrasados} ${atrasados === 1 ? 'atrasado' : 'atrasados'}</span>` : ''})` : '');
     const rotulos = {
         pedidos: contagem(pedidos, (pedidos || []).filter((p) => p.situacao_prazo === 'atrasado').length),
         incidentes: contagem(incidentes, (incidentes || []).filter((i) => i.status !== 'encerrado' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado')).length),
@@ -203,7 +204,7 @@ window.localizarDadosDoTitular = async function (projectId, id) {
         const r = await api('GET', `/api/v1/projects/${projectId}/data-subject?identificador=${encodeURIComponent(p.titular_contato)}`);
         painelDados(r.encontrado
             ? `<p>${escapeHTML(String(r.total_registros))} registro(s) em ${escapeHTML(String(lista(r.ocorrencias).length))} tabela(s): ${lista(r.ocorrencias).map((o) => escapeHTML(o.tabela)).join(', ')}.</p>`
-            : '<p>Nenhum registro encontrado para este contato neste projeto.</p>');
+            : window.renderEmptyState({ titulo: 'Nenhum registro encontrado para este contato neste projeto.', compacto: true }));
     } catch (e) { falha(e, 'Não foi possível localizar os dados'); }
 };
 
@@ -274,7 +275,7 @@ function diasUteisAte(prazo) {
 }
 /** Faixa fixa do topo do incidente: o prazo da ANPD em contagem, ou a confirmação de que foi comunicado. */
 function faixaAnpd(i) {
-    const faixa = (cor, texto) => `<div id="in-faixa-anpd" role="status" style="position:sticky; top:0; z-index:2; background:var(--surface); border:1px solid ${cor}; color:${cor}; padding:0.6rem 0.9rem; margin:0 0 1rem; font-weight:600">${escapeHTML(texto)}</div>`;
+    const faixa = (cor, texto) => `<div id="in-faixa-anpd" role="status" style="position:sticky; top:0; z-index:2; background:var(--surface); border:1px solid ${cor}; color:${cor.replace(/var\(--(danger|warning)\)/, 'var(--$1-ink)')}; padding:0.6rem 0.9rem; margin:0 0 1rem; font-weight:600">${escapeHTML(texto)}</div>`;
     if (i.comunicacao_anpd_em) {
         const noPrazo = !i.prazo_anpd_em || String(i.comunicacao_anpd_em).slice(0, 10) <= String(i.prazo_anpd_em).slice(0, 10);
         return faixa('var(--text-2)', `Comunicado à ANPD em ${diaMes(i.comunicacao_anpd_em)}, ${noPrazo ? 'dentro do prazo' : 'fora do prazo'}.`);
@@ -331,7 +332,7 @@ window.pedirEncerramentoIncidente = function (projectId, id, semPendenciaAnpd) {
         ? 'Encerrar o incidente? Depois de encerrado, ele não recebe mais avaliação nem comunicação.'
         : 'A ANPD ainda não foi comunicada. Encerrar mesmo assim?'}</p>
         <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem">
-            <button class="btn btn-sm" style="color:var(--danger)" data-action="encerrarIncidente" data-args='${args(projectId, id)}'>Confirmar encerramento</button>
+            <button class="btn btn-sm" style="color:var(--danger-ink)" data-action="encerrarIncidente" data-args='${args(projectId, id)}'>Confirmar encerramento</button>
             <button class="btn btn-ghost btn-sm" data-action="cancelarEncerramentoIncidente">Cancelar</button>
         </div>`;
 };

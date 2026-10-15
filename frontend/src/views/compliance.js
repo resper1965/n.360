@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
 import { temProduto, projetoDoId } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
@@ -50,11 +50,11 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             return;
         }
         c.innerHTML = `<div class="fade-in card" style="padding:0;overflow:hidden">${controls.map(ctrl => `
-            <div class="phase-item" data-action="openControlDetail" data-args='["${ctrl.id}"]' style="cursor:pointer">
+            <div class="phase-item clicavel" data-action="openControlDetail" data-args='["${ctrl.id}"]'>
                 <div class="phase-num" style="width:3.5rem;color:var(--accent)">${escapeHTML(codigoDoControle(ctrl))}</div>
-                <div style="flex:1">
+                <div class="flex-1">
                     <div class="phase-title">${escapeHTML(ctrl.title)}</div>
-                    ${ctrl.maturity ? `<div style="font-size:0.72rem; color:var(--muted)">Maturidade: ${ctrl.maturity}/5</div>` : ''}
+                    ${ctrl.maturity ? `<div class="t-xs t-dim">Maturidade: ${ctrl.maturity}/5</div>` : ''}
                 </div>
                 <div class="phase-status ${ctrl.status==='Compliant'?'status-done':ctrl.status==='Partial'?'status-progress':'status-pending'}">${escapeHTML(traduzStatus(ctrl.status))}</div>
             </div>`).join('')}</div>`;
@@ -64,7 +64,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     // painel agrupado por categoria, com severidade. É auto-diagnóstico, não
     // auditoria — o rótulo vem do próprio backend e é exibido aqui.
     window.runReadinessCheck = async function (projectId, comIA = false) {
-        openModal(`<div class="modal-header"><span class="modal-title">Diagnóstico de prontidão</span><button class="btn-ghost" data-action="closeModal">&times;</button></div><div style="padding:1.5rem 0;text-align:center"><div class="loading"></div>${comIA ? '<p style="font-size:0.75rem;color:var(--muted);margin-top:8px">Analisando com IA…</p>' : ''}</div>`);
+        openModal(`<div class="modal-header"><span class="modal-title">Diagnóstico de prontidão</span></div><div class="py-6 px-0 t-center"><div class="loading"></div>${comIA ? '<p class="t-sm t-dim mt-2">Analisando com IA…</p>' : ''}</div>`);
         try {
             const r = await api('GET', `/api/v1/projects/${projectId}/readiness-check${comIA ? '?ai=1' : ''}`);
             const cor = { critico: 'var(--danger)', alto: 'var(--warning)', medio: 'var(--muted)' };
@@ -75,31 +75,31 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 const itens = porCat[cat] || [];
                 if (!itens.length) return '';
                 return `<h4 style="margin:1rem 0 0.4rem;font-size:0.9rem">${rotuloCat[cat]} (${itens.length})</h4>` + itens.map(a => `
-                    <div style="border-left:3px solid ${cor[a.severidade] || 'var(--muted)'};padding:6px 10px;margin:6px 0;background:rgba(255,255,255,0.03)">
-                        <div style="font-size:0.68rem;text-transform:uppercase;color:${cor[a.severidade] || 'var(--muted)'}">${escapeHTML(a.severidade)} · ${escapeHTML(a.requisito)} · ${escapeHTML(String(a.referencia))}</div>
-                        <div style="font-size:0.85rem;margin-top:2px">${escapeHTML(a.descricao)}</div>
+                    <div style="border-top:2px solid ${cor[a.severidade] || 'var(--muted)'};padding:6px 10px;margin:6px 0;background:rgba(255,255,255,0.03)">
+                        <div style="font-size:var(--fs-xs);text-transform:uppercase;color:${cor[a.severidade] || 'var(--muted)'}">${escapeHTML(a.severidade)} · ${escapeHTML(a.requisito)} · ${escapeHTML(String(a.referencia))}</div>
+                        <div class="t-base mt-05">${escapeHTML(a.descricao)}</div>
                     </div>`).join('');
             }).join('');
             // Seção de IA (F2): só aparece quando pedida. Marcada como assistida — revisar.
             const obsIA = r.ai_observacoes || [];
             const secaoIA = comIA ? `
-                <h4 style="margin:1.2rem 0 0.4rem;font-size:0.9rem">Assistido por IA <span style="font-size:0.75rem;color:var(--muted);text-transform:uppercase">— revisar</span></h4>
+                <h4 style="margin:1.2rem 0 0.4rem;font-size:0.9rem">Assistido por IA <span class="t-sm t-dim caixa-alta">— revisar</span></h4>
                 ${obsIA.length ? obsIA.map(a => `
                     <div style="border-left:3px dashed ${cor[a.severidade] || 'var(--muted)'};padding:6px 10px;margin:6px 0;background:rgba(255,255,255,0.03)">
-                        <div style="font-size:0.68rem;text-transform:uppercase;color:${cor[a.severidade] || 'var(--muted)'}">${escapeHTML(a.severidade)} · ${escapeHTML(a.requisito)} · ${escapeHTML(String(a.referencia))}</div>
-                        <div style="font-size:0.85rem;margin-top:2px">${escapeHTML(a.descricao)}</div>
-                    </div>`).join('') : '<p style="color:var(--muted);font-size:0.85rem">Nenhuma inconsistência de conteúdo apontada pela IA.</p>'}` : '';
-            const botaoIA = comIA ? '' : `<button class="btn btn-secondary" style="margin-top:0.8rem" data-action="runReadinessCheck" data-args='["${projectId}",true]'>Analisar com IA</button>`;
+                        <div style="font-size:var(--fs-xs);text-transform:uppercase;color:${cor[a.severidade] || 'var(--muted)'}">${escapeHTML(a.severidade)} · ${escapeHTML(a.requisito)} · ${escapeHTML(String(a.referencia))}</div>
+                        <div class="t-base mt-05">${escapeHTML(a.descricao)}</div>
+                    </div>`).join('') : window.renderEmptyState({ titulo: 'Nenhuma inconsistência de conteúdo apontada pela IA.', compacto: true })}` : '';
+            const botaoIA = comIA ? '' : `<button class="btn btn-secondary mt-3" data-action="runReadinessCheck" data-args='["${projectId}",true]'>Analisar com IA</button>`;
             openModal(`
-                <div class="modal-header"><span class="modal-title">Diagnóstico de prontidão</span><button class="btn-ghost" data-action="closeModal">&times;</button></div>
-                <div style="padding:0.5rem 0;text-align:left">
-                    <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem">${escapeHTML(r.rotulo || '')}</p>
-                    <div style="display:flex;gap:16px;margin-bottom:0.4rem;font-size:0.85rem">
-                        <span style="color:var(--danger)"><strong>${r.resumo.critico}</strong> crítico</span>
-                        <span style="color:var(--warning)"><strong>${r.resumo.alto}</strong> alto</span>
-                        <span style="color:var(--muted)"><strong>${r.resumo.medio}</strong> médio</span>
+                <div class="modal-header"><span class="modal-title">Diagnóstico de prontidão</span></div>
+                <div class="py-2 px-0 t-left">
+                    <p class="t-xs t-dim mb-25">${escapeHTML(r.rotulo || '')}</p>
+                    <div class="d-flex gap-4 mb-15 t-base">
+                        <span class="t-perigo"><strong>${r.resumo.critico}</strong> crítico</span>
+                        <span class="t-aviso"><strong>${r.resumo.alto}</strong> alto</span>
+                        <span class="t-dim"><strong>${r.resumo.medio}</strong> médio</span>
                     </div>
-                    ${r.resumo.total ? grupos : '<p style="color:var(--muted)">Nenhum gap encontrado nas verificações automáticas.</p>'}
+                    ${r.resumo.total ? grupos : window.renderEmptyState({ titulo: 'Nenhum gap encontrado nas verificações automáticas.', compacto: true })}
                     ${secaoIA}
                     ${botaoIA}
                 </div>`);
@@ -131,44 +131,44 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">${escapeHTML(cabecalho)}</span>
-                <button class="btn-ghost" data-action="closeModal">&times;</button>
-            </div>
-            <div style="margin-bottom: 1.5rem;">
-                <div class="ctx-label">Descrição</div>
-                <div class="controle-descricao">${ctrl.description ? markdownSeguro(ctrl.description) : '<p>Nenhuma descrição.</p>'}</div>
                 
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            </div>
+            <div class="mb-6">
+                <div class="ctx-label">Descrição</div>
+                <div class="controle-descricao">${ctrl.description ? markdownSeguro(ctrl.description) : window.renderEmptyState({ titulo: 'Nenhuma descrição.', compacto: true })}</div>
+                
+                <div class="d-grid grid-2 gap-6 mb-6">
                     <div>
                         <div class="ctx-label">Status do Controle</div>
-                        <select class="form-input" id="controle-status" aria-label="Status do controle" data-action-change="updateControlStatus" data-args='["${escapeHTML(ctrl.id)}"]' data-arg-val style="width:100%">
+                        <select class="form-input w-full" id="controle-status" aria-label="Status do controle" data-action-change="updateControlStatus" data-args='["${escapeHTML(ctrl.id)}"]' data-arg-val>
                             ${opcoesDeStatus(ctrl.status)}
                         </select>
                     </div>
                     <div>
                         <div class="ctx-label">Maturidade (CMM 0-5)</div>
-                        <div style="display:flex; align-items:center; gap: 1rem; background:rgba(255,255,255,0.03); padding:0.5rem;">
+                        <div class="d-flex items-center gap-4 bg-sutil p-2">
                             <input type="range" min="0" max="5" step="1" value="${ctrl.maturity || 0}" 
                                 data-action-input="__syncSiblingText"
                                 data-action-change="updateControlMaturity" data-args='["${ctrl.id}"]' data-arg-val
-                                style="flex:1">
-                            <span style="font-weight:700; color:var(--accent); min-width:1rem">${ctrl.maturity || 0}</span>
+                                class="flex-1">
+                            <span style="font-weight:600; color:var(--accent); min-width:1rem">${ctrl.maturity || 0}</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="ctx-label">Evidências Vinculadas</div>
                 <div id="control-evidence-list" class="card" style="padding:0; margin-bottom: 1.5rem; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.2)">
-                    <div style="padding:1rem; text-align:center; color:var(--muted); font-size:0.75rem">Carregando evidências...</div>
+                    <div class="p-4 t-center t-dim t-sm">Carregando evidências...</div>
                 </div>
                 
                 <div class="ctx-label" id="control-trilha-label">Histórico</div>
-                <div id="control-trilha" style="margin-bottom:1.5rem">
-                    <div style="padding:1rem;text-align:center;color:var(--muted);font-size:0.75rem">Carregando histórico...</div>
+                <div id="control-trilha" class="mb-6">
+                    <div class="p-4 t-center t-dim t-sm">Carregando histórico...</div>
                 </div>
 
-                <div style="display:flex; gap:0.75rem">
-                    <button class="btn btn-primary" style="flex:1" data-action="generatePolicyForControl" data-args='["${ctrl.id}"]'>Gerar Política AI</button>
-                    <button class="btn" style="flex:1" data-action="openEvidenceUploadModal" data-args='["${S.currentProject?.id}","${ctrl.id}"]'>Enviar evidência</button>
+                <div class="d-flex gap-3">
+                    <button class="btn btn-primary flex-1" data-action="generatePolicyForControl" data-args='["${ctrl.id}"]'>Gerar Política AI</button>
+                    <button class="btn flex-1" data-action="openEvidenceUploadModal" data-args='["${S.currentProject?.id}","${ctrl.id}"]'>Enviar evidência</button>
                 </div>
             </div>
         `);
@@ -188,7 +188,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             const res = await api('GET', `/api/v1/controls/${controlId}/trilha`);
             registros = Array.isArray(res) ? res : (res.registros || []);
         } catch (e) {
-            alvo.innerHTML = `<div style="font-size:0.75rem;color:var(--text-dim)">Não foi possível carregar o histórico.</div>`;
+            alvo.innerHTML = `<div class="t-sm t-dim">Não foi possível carregar o histórico.</div>`;
             return;
         }
 
@@ -196,22 +196,22 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         if (rotulo) rotulo.textContent = `Histórico · ${registros.length}`;
 
         if (!registros.length) {
-            alvo.innerHTML = `<div style="font-size:0.75rem;color:var(--text-dim)">Sem alterações registradas neste controle.</div>`;
+            alvo.innerHTML = window.renderEmptyState({ titulo: 'Sem alterações registradas neste controle.', compacto: true });
             return;
         }
 
         alvo.innerHTML = `
-            <div style="border:1px solid var(--border)">
+            <div class="borda">
                 ${registros.map(r => `
                     <div style="padding:10px 12px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-2)">
-                        <div><strong style="color:var(--text);font-weight:500">${escapeHTML(r.campo || 'alteração')}</strong>:
-                            ${escapeHTML(r.antes ?? '—')} <span style="color:var(--text-dim)">→</span> ${escapeHTML(r.depois ?? '—')}</div>
-                        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-top:4px">
+                        <div><strong class="t-texto fw-500">${escapeHTML(r.campo || 'alteração')}</strong>:
+                            ${escapeHTML(traduzStatus(r.antes ?? '—'))} <span class="t-dim">→</span> ${escapeHTML(traduzStatus(r.depois ?? '—'))}</div>
+                        <div class="f-mono t-xs t-dim mt-1">
                             ${escapeHTML(r.autor || 'sistema')} · ${escapeHTML(tempoRelativo(r.quando))}${r.itensNaOperacao > 1 ? ` · em lote (${r.itensNaOperacao} campos)` : ''}
                         </div>
                     </div>`).join('')}
             </div>
-            <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-top:8px">imutável · exportável no relatório de auditoria</div>`;
+            <div class="f-mono t-xs t-dim mt-2">imutável · exportável no relatório de auditoria</div>`;
     }
     window.loadControlTrilha = loadControlTrilha;
 
@@ -260,19 +260,19 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             const evidences = await api('GET', `/api/v1/projects/${S.currentProject?.id}/evidence`);
             const filtered = evidences.filter(e => e.control_id === controlId);
             if (!filtered.length) {
-                listEl.innerHTML = '<div style="padding:1rem; text-align:center; color:var(--muted); font-size:0.75rem">Nenhuma evidência vinculada.</div>';
+                listEl.innerHTML = window.renderEmptyState({ titulo: 'Nenhuma evidência vinculada.', compacto: true });
                 return;
             }
             listEl.innerHTML = filtered.map(e => `
                 <div style="padding:0.6rem 1rem; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; justify-content:space-between; align-items:center">
                     <div>
-                        <div style="font-size:0.8rem; font-weight:500">${escapeHTML(e.filename)}</div>
-                        <div style="font-size:0.72rem; color:var(--muted)">${e.evaluation_status || 'pendente'}</div>
+                        <div class="t-md fw-500">${escapeHTML(e.filename)}</div>
+                        <div class="t-xs t-dim">${e.evaluation_status || 'pendente'}</div>
                     </div>
-                    <button class="btn-ghost" data-action="viewEvidence" data-args='["${e.id}"]' style="padding:0.25rem">Ver</button>
+                    <button class="btn-ghost p-1" data-action="viewEvidence" data-args='["${e.id}"]'>Ver</button>
                 </div>
             `).join('');
-        } catch(e) { listEl.innerHTML = `<div style="padding:1rem; color:var(--danger)">Erro ao carregar.</div>`; }
+        } catch(e) { listEl.innerHTML = `<div class="p-4 t-perigo">Erro ao carregar.</div>`; }
     }
 
     async function generatePolicyForControl(controlId) {
@@ -662,7 +662,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     window.MIN_NA_JUSTIFICATION = MIN_NA_JUSTIFICATION;
 
     async function renderSoA(c, h, a) {
-        h.textContent = 'Declaração de Aplicabilidade (SoA)';
+        h.textContent = tituloDaTela('nav-soa', 'SoA');
         const proj = S.activeProject || S.projects[0];
         if (!proj) {
             a.innerHTML = '';
@@ -674,12 +674,12 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         // Skeleton nas linhas, não spinner: as colunas já entram dimensionadas,
         // então a tabela não pula quando os dados chegam.
         c.innerHTML = `
-            <div style="font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:var(--text-dim);margin-bottom:14px">carregando controles de ${escapeHTML(proj.project_name || proj.client_name || 'projeto')}…</div>
+            <div style="font-family:var(--font-mono);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:0.14em;color:var(--text-dim);margin-bottom:14px">carregando controles de ${escapeHTML(proj.project_name || proj.client_name || 'projeto')}…</div>
             <div class="soa-skeleton">
                 ${Array.from({ length: 8 }, () => `
                     <div style="display:flex;gap:10px;align-items:center;padding:12px 10px;border-bottom:1px solid var(--border)">
                         <span class="sk-bar" style="width:74px"></span>
-                        <span class="sk-bar" style="flex:1"></span>
+                        <span class="sk-bar flex-1"></span>
                         <span class="sk-bar" style="width:116px"></span>
                         <span class="sk-bar" style="width:66px"></span>
                         <span class="sk-bar" style="width:118px"></span>
@@ -735,7 +735,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 ? `${bloqueios.length} ${bloqueios.length === 1 ? 'controle N/A está' : 'controles N/A estão'} sem justificativa de exclusão`
                 : `Considera o recorte atual (${controls.length} controles)`;
             a.innerHTML = `
-                <button class="btn btn-secondary" data-action="runReadinessCheck" data-args='["${proj.id}"]' style="margin-right:8px">Diagnóstico de prontidão</button>
+                <button class="btn btn-secondary mr-2" data-action="runReadinessCheck" data-args='["${proj.id}"]'>Diagnóstico de prontidão</button>
                 ${window.ehEquipeNess && window.ehEquipeNess() ? `<button class="btn btn-secondary" data-action="migrate27701" data-args='["${proj.id}"]'>Migrar 27701</button>` : ''}`;
 
             const stdGroups = {};
@@ -779,28 +779,28 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             let html = `
                 ${faixaBloqueio}
                 ${statsHtml}
-                ${window.ehEquipeNess && window.ehEquipeNess() ? `<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-bottom:10px;letter-spacing:0.02em">
+                ${window.ehEquipeNess && window.ehEquipeNess() ? `<div style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-dim);margin-bottom:10px;letter-spacing:0.02em">
                     ${controls.length} controles · j/k navega · x seleciona · a alterna tudo · enter abre · esc fecha · ⌘K busca
                 </div>` : ''}
 
                 <div class="soa-filters fade-in" style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:2rem;align-items:center;background:rgba(15,20,35,0.4);border:1px solid var(--border);padding:16px;backdrop-filter:var(--glass-blur)">
                     <div style="flex:1;min-width:280px;position:relative">
-                        <input type="text" id="soa-search" placeholder="Buscar por ID ou termo..." data-action-input="filterSoATable" style="width:100%;background:rgba(7,11,20,0.5);border:1px solid var(--border);border-radius:10px;padding:8px 12px 8px 36px;color:var(--text);font-size:0.85rem;outline:none" />
+                        <input type="text" id="soa-search" placeholder="Buscar por ID ou termo..." data-action-input="filterSoATable" style="width:100%;background:rgba(7,11,20,0.5);border:1px solid var(--border);padding:8px 12px 8px 36px;color:var(--text);font-size:0.85rem;outline:none" />
                         <svg viewBox="0 0 24 24" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;stroke:var(--text-dim);fill:none;stroke-width:1.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     </div>
-                    <div style="display:flex;flex-wrap:wrap;gap:8px">
+                    <div class="d-flex flex-wrap gap-2">
                         <button class="btn btn-filter active" data-filter="all" data-action="setSoAFilter" data-args='["all"]' style="font-size:0.75rem;padding:6px 12px;background:rgba(0,173,232,0.15);border-color:var(--accent);color:var(--accent)">Todos</button>
-                        <button class="btn btn-filter" data-filter="applicable" data-action="setSoAFilter" data-args='["applicable"]' style="font-size:0.75rem;padding:6px 12px;background:var(--surface);border-color:var(--border);color:var(--text)">Aplicáveis</button>
-                        <button class="btn btn-filter" data-filter="not_applicable" data-action="setSoAFilter" data-args='["not_applicable"]' style="font-size:0.75rem;padding:6px 12px;background:var(--surface);border-color:var(--border);color:var(--text)">Não Aplicáveis</button>
-                        <button class="btn btn-filter" data-filter="gaps" data-action="setSoAFilter" data-args='["gaps"]' style="font-size:0.75rem;padding:6px 12px;background:var(--surface);border-color:var(--border);color:var(--text)">Gaps</button>
-                        <button class="btn btn-filter" data-filter="approved" data-action="setSoAFilter" data-args='["approved"]' style="font-size:0.75rem;padding:6px 12px;background:var(--surface);border-color:var(--border);color:var(--text)">Aprovados</button>
+                        <button class="btn btn-filter t-sm py-15 px-3 bg-surface borda-cor t-texto" data-filter="applicable" data-action="setSoAFilter" data-args='["applicable"]'>Aplicáveis</button>
+                        <button class="btn btn-filter t-sm py-15 px-3 bg-surface borda-cor t-texto" data-filter="not_applicable" data-action="setSoAFilter" data-args='["not_applicable"]'>Não Aplicáveis</button>
+                        <button class="btn btn-filter t-sm py-15 px-3 bg-surface borda-cor t-texto" data-filter="gaps" data-action="setSoAFilter" data-args='["gaps"]'>Gaps</button>
+                        <button class="btn btn-filter t-sm py-15 px-3 bg-surface borda-cor t-texto" data-filter="approved" data-action="setSoAFilter" data-args='["approved"]'>Aprovados</button>
                     </div>
                 </div>
             `;
 
             for (const [stdName, subGroups] of Object.entries(stdGroups).sort()) {
                 html += `
-                    <div style="margin-top:2rem; margin-bottom:1rem; font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.05rem; color:var(--text); letter-spacing:0.5px; display:flex; align-items:center; gap:8px" class="fade-in">
+                    <div class="fade-in mt-8 mb-4 f-titulo fw-600 t-lg t-texto d-flex items-center gap-2">
                         <span style="width:4px; height:18px; background:var(--accent); display:inline-block"></span>
                         Norma ${escapeHTML(stdName)}
                     </div>
@@ -841,7 +841,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                                 </div>
                             </div>
                             <div class="soa-accordion-content">
-                                <div style="overflow-x:auto; width:100%">
+                                <div class="rola-x w-full">
                                     <table class="data-table" style="width:100%; table-layout:fixed">
                                         <thead>
                                             <tr>
@@ -885,7 +885,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                         html += `
                             <tr id="soa-row-${ctrl.id}" class="soa-row" data-standard="${escapeHTML(ctrl.standard || '')}" data-title="${escapeHTML(ctrl.title || '')}" data-status="${escapeHTML(ctrl.status || 'Missing')}">
                                 <td><input type="checkbox" class="soa-check" data-id="${escapeHTML(String(ctrl.id))}" aria-label="Selecionar ${escapeHTML(parsed.code)}" data-action-change="toggleSoASelection" data-args='["${ctrl.id}"]' data-arg-el></td>
-                                <td style="font-weight:700;color:var(--accent);font-size:0.8rem;white-space:nowrap;font-variant-numeric:tabular-nums">${escapeHTML(parsed.code)}</td>
+                                <td style="font-weight:600;color:var(--accent);font-size:0.8rem;white-space:nowrap;font-variant-numeric:tabular-nums">${escapeHTML(parsed.code)}</td>
                                 <td style="font-weight:400;font-size:0.8rem;line-height:1.45;word-break:break-word">${escapeHTML(parsed.title)}</td>
                                 <td>
                                     <div class="segmented-control ${isNA ? 'not-applicable' : 'applicable'}" id="seg-toggle-${ctrl.id}">
@@ -897,7 +897,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                                     ${window.renderStatusBadge(ctrl.status === 'Implemented' || ctrl.status === 'Approved' ? 'success' : isNA ? 'info' : 'warning', ctrl.status || 'Pendente')}
                                 </td>
                                 <td>
-                                    <div style="display:flex;gap:6px">
+                                    <div class="d-flex gap-15">
                                         <span data-action="showControlRisks" data-args='["${ctrl.id}","${escapeHTML(parsed.code)}"]' class="badge-trace" style="cursor:pointer;background:${risksCount > 0 ? 'rgba(0,173,232,0.12)' : 'rgba(255,255,255,0.02)'};color:${risksCount > 0 ? 'var(--accent)' : 'var(--text-dim)'};border:1px solid ${risksCount > 0 ? 'rgba(0,173,232,0.2)' : 'var(--border)'};padding:3px 7px;font-size:0.7rem;font-weight:600;display:flex;align-items:center;gap:4px" title="${risksCount} risco(s) vinculado(s)">
                                             R: ${risksCount}
                                         </span>
@@ -905,7 +905,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                                             E: ${evidenceCount}
                                         </span>
                                     </div>
-                                    <div style="display:flex;gap:4px;margin-top:4px">
+                                    <div class="d-flex gap-1 mt-1">
                                         ${ctrl.ciso_approved_by ? `<span class="badge" style="font-size:0.72rem;padding:2px 4px;background:rgba(16,185,129,0.08);color:var(--success);border:1px solid rgba(16,185,129,0.15)" title="Assinado por DPO: ${escapeHTML(ctrl.ciso_approved_by)}">DPO</span>` : ''}
                                         ${ctrl.ceo_approved_by ? `<span class="badge" style="font-size:0.72rem;padding:2px 4px;background:rgba(16,185,129,0.08);color:var(--success);border:1px solid rgba(16,185,129,0.15)" title="Assinado por CEO: ${escapeHTML(ctrl.ceo_approved_by)}">CEO</span>` : ''}
                                     </div>
@@ -935,7 +935,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                                         </tbody>
                                     </table>
                                     ${restantes > 0 ? `
-                                        <div style="display:flex;align-items:center;gap:12px;padding:14px 10px">
+                                        <div class="d-flex items-center gap-3 py-35 px-25">
                                             <span style="flex:1;height:1px;background:var(--border)"></span>
                                             <button class="btn btn-secondary" data-action="carregarMaisSoA" data-args='["${sectionId}"]'>
                                                 Carregar mais ${Math.min(SOA_POR_PAGINA, restantes)} · ${restantes} ${restantes === 1 ? 'restante' : 'restantes'}
@@ -968,8 +968,8 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     <p style="font-size:13px;color:var(--text-2);line-height:1.5;margin:0 0 6px">
                         ${escapeHTML(e.message)} — <strong>nada foi gravado</strong>. Seus filtros e sua seleção continuam como estavam.
                     </p>
-                    <p style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin:0 0 14px">${req} · ${hora} BRT</p>
-                    <div style="display:flex;gap:10px;flex-wrap:wrap">
+                    <p style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-dim);margin:0 0 14px">${req} · ${hora} BRT</p>
+                    <div class="d-flex gap-25 flex-wrap">
                         <button class="btn btn-primary" data-action="render">Tentar de novo</button>
                         <button class="btn btn-secondary" data-action="copiarCodigoRequisicao" data-args='["${req}"]'>Copiar código</button>
                     </div>
@@ -1248,16 +1248,16 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         
         let html = `
             <div class="modal-header">
-                <span class="modal-title" style="font-family:'Montserrat',sans-serif;font-weight:700;color:var(--accent)">
+                <span class="modal-title f-titulo fw-600 t-texto">
                     Riscos Vinculados — ${escapeHTML(standard)}
                 </span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
-            <div style="margin-top:1rem">
+            <div class="mt-4">
         `;
         
         if (risks.length === 0) {
-            html += `<div style="padding:2rem;text-align:center;color:var(--muted)">Nenhum risco vinculado a este controle.</div>`;
+            html += window.renderEmptyState({ titulo: 'Nenhum risco vinculado a este controle.', compacto: true });
         } else {
             html += `
                 <div class="data-table">
@@ -1280,11 +1280,11 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 
                 html += `
                     <tr>
-                        <td style="font-weight:500">${escapeHTML(r.asset)}</td>
-                        <td style="color:var(--text-dim)">${escapeHTML(r.threat)}</td>
+                        <td class="fw-500">${escapeHTML(r.asset)}</td>
+                        <td class="t-dim">${escapeHTML(r.threat)}</td>
                         <td>
                             <span class="badge" style="background:${lvlBg};color:${lvlColor};border:1px solid color-mix(in oklab, ${lvlColor} 20%, transparent);text-transform:capitalize">
-                                ${escapeHTML(r.risk_level || 'Low')}
+                                ${escapeHTML(traduzStatus(r.risk_level || 'Low'))}
                             </span>
                         </td>
                     </tr>
@@ -1298,7 +1298,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         }
         
         html += `
-            <div style="margin-top:2rem;display:flex;justify-content:flex-end">
+            <div class="mt-8 d-flex justify-end">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
             </div>
             </div>
@@ -1313,16 +1313,16 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         
         let html = `
             <div class="modal-header">
-                <span class="modal-title" style="font-family:'Montserrat',sans-serif;font-weight:700;color:var(--accent)">
+                <span class="modal-title f-titulo fw-600 t-texto">
                     Evidências Vinculadas — ${escapeHTML(standard)}
                 </span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
-            <div style="margin-top:1rem">
+            <div class="mt-4">
         `;
         
         if (evidence.length === 0) {
-            html += `<div style="padding:2rem;text-align:center;color:var(--muted)">Nenhuma evidência vinculada a este controle.</div>`;
+            html += window.renderEmptyState({ titulo: 'Nenhuma evidência vinculada a este controle.', compacto: true });
         } else {
             html += `
                 <div class="data-table">
@@ -1337,14 +1337,14 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                         <tbody>
             `;
             evidence.forEach(e => {
-                const dateStr = new Date(e.created_at).toLocaleDateString();
+                const dateStr = formatarData(e.created_at);
                 html += `
                     <tr>
-                        <td style="font-weight:500">${escapeHTML(e.file_name)}</td>
-                        <td style="color:var(--text-dim)">${dateStr}</td>
-                        <td style="text-align:right">
-                            <button class="btn btn-ghost" data-action="viewEvidenceDetails" data-args='["${e.id}"]' style="padding:4px 8px;font-size:0.75rem;margin-right:6px">Ver</button>
-                            <button class="btn btn-primary" data-action="downloadEvidenceFile" data-args='["${e.id}"]' style="padding:4px 8px;font-size:0.75rem">Download</button>
+                        <td class="fw-500">${escapeHTML(e.file_name)}</td>
+                        <td class="t-dim">${dateStr}</td>
+                        <td class="t-right">
+                            <button class="btn btn-ghost py-1 px-2 t-sm mr-15" data-action="viewEvidenceDetails" data-args='["${e.id}"]'>Ver</button>
+                            <button class="btn btn-primary py-1 px-2 t-sm" data-action="downloadEvidenceFile" data-args='["${e.id}"]'>Baixar</button>
                         </td>
                     </tr>
                 `;
@@ -1357,7 +1357,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         }
         
         html += `
-            <div style="margin-top:2rem;display:flex;justify-content:flex-end">
+            <div class="mt-8 d-flex justify-end">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
             </div>
             </div>
@@ -1422,18 +1422,18 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         const parsed = ctrl ? parseControlTitle(ctrl) : { code: '', title: '' };
         openModal(`
             <div style="padding:1.5rem 1.75rem;max-width:520px">
-                <div style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:0.14em;color:var(--text-dim);margin-bottom:6px">${escapeHTML(parsed.code)}</div>
+                <div style="font-family:var(--font-mono);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:0.14em;color:var(--text-dim);margin-bottom:6px">${escapeHTML(parsed.code)}</div>
                 <h3 style="font-family:var(--font-head);font-weight:600;font-size:17px;margin:0 0 4px">Excluir do escopo</h3>
                 <p style="color:var(--text-2);font-size:13px;margin:0 0 16px;line-height:1.5">${escapeHTML(parsed.title)}</p>
                 <div style="background:rgba(245,158,11,0.08);border-left:2px solid var(--warning);padding:14px 16px">
-                    <label for="na-why" style="display:block;font-size:12.5px;color:var(--text-2);margin-bottom:8px">Justificativa da exclusão — vai para a SoA e para o relatório de auditoria.</label>
+                    <label for="na-why" class="d-block t-sm t-2 mb-2">Justificativa da exclusão — vai para a SoA e para o relatório de auditoria.</label>
                     <textarea id="na-why" rows="3" data-action-input="updateNACounter"
                         style="width:100%;box-sizing:border-box;min-height:76px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font-body);font-size:13px;padding:8px 10px;resize:vertical"
                         placeholder="Por que este controle não se aplica ao escopo do SGSI?"></textarea>
-                    <div id="na-counter" style="font-family:var(--font-mono);font-size:10px;color:var(--warning);margin-top:6px">0/${MIN_NA_JUSTIFICATION} caracteres mínimos</div>
+                    <div id="na-counter" class="f-mono t-xs t-aviso mt-15">0/${MIN_NA_JUSTIFICATION} caracteres mínimos</div>
                 </div>
                 <p style="color:var(--text-dim);font-size:12px;margin:14px 0 0;line-height:1.5">Confirmar zera a maturidade CMMI e trava o status: um controle fora do escopo não tem grau de implementação.</p>
-                <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
+                <div class="d-flex gap-25 justify-end mt-4">
                     <button class="btn btn-secondary" data-action="closeModal">Cancelar</button>
                     <button class="btn btn-primary" id="na-confirm" disabled
                         title="Escreva ao menos ${MIN_NA_JUSTIFICATION} caracteres de justificativa"
@@ -1506,7 +1506,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     }
 
     async function renderEvidence(c, h, a) {
-        h.textContent = 'Central de Evidências';
+        h.textContent = tituloDaTela('nav-evidence', 'Evidências');
         const proj = S.currentProject || S.activeProject || S.projects[0];
         if (!proj) {
             a.innerHTML = '';
@@ -1588,7 +1588,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     `<strong>${escapeHTML(fileName)}</strong>`,
                     controleCell,
                     sizeKB,
-                    `<code style="font-size:0.75rem;color:var(--text-dim)">${hashShort}</code>`,
+                    `<code class="t-sm t-dim">${hashShort}</code>`,
                     dpoBadge,
                     ceoBadge,
                     avaliacaoBadge,
@@ -1611,17 +1611,17 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     function openEvidenceUploadModal(projectId) {
         const comIso = temProduto(projetoDoId(projectId), 'iso');
         openModal(`
-            <div class="modal-header"><span class="modal-title">Upload de Evidencia</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+            <div class="modal-header"><span class="modal-title">Enviar evidência</span></div>
             ${comIso ? `<div class="form-group">
                 <label class="form-label">Controle ISO (opcional)</label>
                 <input class="form-input" id="ev-control-id" placeholder="Ex: A.5.1, A.8.25">
             </div>` : ''}
             <div class="form-group">
                 <label class="form-label">Arquivo</label>
-                <input type="file" id="ev-file" class="form-input" style="padding:0.5rem">
+                <input type="file" id="ev-file" class="form-input p-2">
             </div>
-            <div id="ev-msg" style="font-size:0.7rem;margin-bottom:0.75rem;color:var(--muted)">Formatos aceitos: PDF, DOCX, XLSX, imagens, logs</div>
-            <button class="btn btn-primary" id="btn-ev-upload" style="width:100%" data-action="doEvidenceUpload" data-args='["${projectId}"]'>Enviar Evidencia</button>
+            <div id="ev-msg" class="t-xs mb-3 t-dim">Formatos aceitos: PDF, DOCX, XLSX, imagens, logs</div>
+            <button class="btn btn-primary w-full" id="btn-ev-upload" data-action="doEvidenceUpload" data-args='["${projectId}"]'>Enviar Evidência</button>
         `);
     }
 
@@ -1649,7 +1649,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             const data = await r.json();
             if (!r.ok) throw new Error(data.error || 'Erro');
             msg.style.color = 'var(--accent)';
-            msg.textContent = `Evidencia enviada: ${arquivo.name} (SHA-256: ${data.sha256.substring(0,16)}...)`;
+            msg.textContent = `Evidência enviada: ${arquivo.name} (SHA-256: ${data.sha256.substring(0,16)}...)`;
             btn.textContent = 'Enviar outra';
             btn.disabled = false;
             fileInput.value = '';
@@ -1663,7 +1663,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     }
 
     async function renderPoliciesDashboard(c, h, a) {
-        h.textContent = 'Gestão de Políticas (A.5.1)';
+        h.textContent = tituloDaTela('nav-policies', 'Gestão de políticas');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -1672,7 +1672,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         }
         
         a.innerHTML = '';
-        c.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">Carregando painel de políticas...</div>';
+        c.innerHTML = '<div class="p-8 t-center t-dim">Carregando painel de políticas...</div>';
         
         try {
             const controls = await api('GET', '/api/v1/controls') || [];
@@ -1707,8 +1707,8 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                         stageType = 'warning';
                     }
                     
-                    const cisoSign = ctrl.ciso_approved_by ? `<span style="color:var(--success)">${escapeHTML(ctrl.ciso_approved_by)}</span>` : '<span style="color:var(--text-dim)">Pendente</span>';
-                    const ceoSign = ctrl.ceo_approved_by ? `<span style="color:var(--success)">${escapeHTML(ctrl.ceo_approved_by)}</span>` : '<span style="color:var(--text-dim)">Pendente</span>';
+                    const cisoSign = ctrl.ciso_approved_by ? `<span class="t-sucesso">${escapeHTML(ctrl.ciso_approved_by)}</span>` : '<span class="t-dim">Pendente</span>';
+                    const ceoSign = ctrl.ceo_approved_by ? `<span class="t-sucesso">${escapeHTML(ctrl.ceo_approved_by)}</span>` : '<span class="t-dim">Pendente</span>';
                     
                     const statusType = (ctrl.status === 'Compliant' || ctrl.status === 'IMPLEMENTED' || ctrl.status === 'Implemented') ? 'success' : (ctrl.status === 'Partial' || ctrl.status === 'PARTIAL') ? 'warning' : 'danger';
 
@@ -1734,8 +1734,8 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     const policyTitle = parsed.title || ctrl.title;
 
                     return [
-                        `<span style="font-weight:600; color:var(--accent)">${escapeHTML(displayId)}</span>`,
-                        `<div><strong>${escapeHTML(policyTitle)}</strong><div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px">${escapeHTML(ctrl.description || '').substring(0, 80)}...</div></div>`,
+                        `<span class="fw-600 t-accent">${escapeHTML(displayId)}</span>`,
+                        `<div><strong>${escapeHTML(policyTitle)}</strong><div class="t-sm t-dim mt-05">${escapeHTML(ctrl.description || '').substring(0, 80)}...</div></div>`,
                         cisoSign,
                         ceoSign,
                         window.renderStatusBadge(stageText, stageType),
@@ -1767,8 +1767,8 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         const controlId = controlIdArg || 'A.5.1';
         
         openModal(`
-            <div class="modal-header"><span class="modal-title">Gestão de Política</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
-            <div style="padding: 2rem; text-align: center; color: var(--text-dim);">Carregando detalhes do controle...</div>
+            <div class="modal-header"><span class="modal-title">Gestão de Política</span></div>
+            <div class="p-8 t-center t-dim">Carregando detalhes do controle...</div>
         `);
 
         // Uma rota só, presa ao projeto: o servidor acha o controle pelo id em qualquer formato ou
@@ -1778,8 +1778,8 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             policyRes = await api('GET', `/api/v1/projects/${projectId}/controls/${encodeURIComponent(controlId)}/policy`);
         } catch (e) {
             openModal(`
-                <div class="modal-header"><span class="modal-title">Gestão de Política</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
-                <div style="padding: 2rem; text-align: center; color: var(--danger);">${escapeHTML(e.message || 'Controle não encontrado neste projeto')}</div>
+                <div class="modal-header"><span class="modal-title">Gestão de Política</span></div>
+                <div class="p-8 t-center t-perigo">${escapeHTML(e.message || 'Controle não encontrado neste projeto')}</div>
             `);
             return;
         }
@@ -1792,12 +1792,12 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         const rasc = policyRes.rascunho;
         const rascunhoHtml = rasc ? `
             <div id="policy-rascunho" style="border:1px solid var(--accent); padding:1rem; margin-bottom:1rem">
-                <div style="font-family:'Montserrat',sans-serif; font-weight:600; margin-bottom:0.25rem">Rascunho ${rasc.origem === 'agente' ? 'do agente ' : ''}aguardando revisão</div>
-                <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem">
-                    Por ${escapeHTML(rasc.criado_por || 'autor não registrado')} em ${escapeHTML(rasc.criado_em || '')}. A política vigente só muda quando você publicar.
+                <div class="f-titulo fw-600 mb-1">Rascunho ${rasc.origem === 'agente' ? 'do agente ' : ''}aguardando revisão</div>
+                <div class="t-sm t-dim mb-2">
+                    Por ${escapeHTML(rasc.criado_por || 'autor não registrado')} em ${escapeHTML(formatarData(rasc.criado_em, { hora: true }))}. A política vigente só muda quando você publicar.
                 </div>
                 <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(rasc.texto || '')}</div>
-                <div style="display:flex; gap:8px; margin-top:0.75rem">
+                <div class="d-flex gap-2 mt-3">
                     <button class="btn btn-primary btn-sm" data-action="publicarRascunhoPolitica" data-args='${escapeHTML(JSON.stringify([projectId, rasc.documento_id, rasc.numero, ctrl.id]))}'>Publicar rascunho</button>
                     <button class="btn btn-sm" data-action="descartarRascunhoPolitica" data-args='${escapeHTML(JSON.stringify([projectId, rasc.documento_id, ctrl.id]))}'>Descartar</button>
                 </div>
@@ -1820,7 +1820,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
 
         const showGenerationFormHtml = () => {
             const formHtml = `
-                <div class="modal-header"><span class="modal-title">Gerar Política ISO — ${escapeHTML(codigo)}</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+                <div class="modal-header"><span class="modal-title">Gerar Política ISO — ${escapeHTML(codigo)}</span></div>
                 ${rascunhoHtml}
                 <div class="form-group" style="display:none">
                     <label class="form-label">Controle ISO</label>
@@ -1831,20 +1831,20 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     <label class="form-label">Método de Geração</label>
                     <select class="form-input" id="policy-gen-method" data-action-change="togglePolicyGenFields">
                         <option value="ai">Inteligência Artificial (PolicyAgent)</option>
-                        ${options.length ? `<option value="template">Template de Política Standard</option>` : ''}
+                        ${options.length ? `<option value="template">Modelo padrão de política</option>` : ''}
                     </select>
                 </div>
 
                 <div class="form-group" id="policy-template-container" style="display:none">
-                    <label class="form-label">Selecione o Template Standard</label>
+                    <label class="form-label">Selecione o modelo</label>
                     <select class="form-input" id="policy-template-select">
                         ${options}
                     </select>
                 </div>
 
-                <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem" id="policy-gen-hint">O PolicyAgent irá gerar uma política completa usando IA, adaptada ao contexto organizacional deste projeto.</p>
-                <button class="btn btn-primary" id="btn-gen-policy" style="width:100%" data-action="doGeneratePolicy" data-args='["${projectId}"]'>Gerar com IA</button>
-                <div id="policy-result" style="margin-top:1rem"></div>
+                <p class="t-sm t-dim mb-4" id="policy-gen-hint">O PolicyAgent irá gerar uma política completa usando IA, adaptada ao contexto organizacional deste projeto.</p>
+                <button class="btn btn-primary w-full" id="btn-gen-policy" data-action="doGeneratePolicy" data-args='["${projectId}"]'>Gerar com IA</button>
+                <div id="policy-result" class="mt-4"></div>
             `;
             const modalContent = document.getElementById('modal-content');
             modalContent.innerHTML = formHtml;
@@ -1859,22 +1859,22 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             let cisoStatusHtml = '';
             if (ctrl.ciso_approved_by) {
                 cisoStatusHtml = `
-                    <div style="width:100%">
+                    <div class="w-full">
                         <div>
                             <strong>Líder SGSI:</strong> 
-                            <span style="color:var(--success)">Aprovado por ${escapeHTML(ctrl.ciso_approved_by)} em ${new Date(ctrl.ciso_approved_at).toLocaleString()}</span>
+                            <span class="t-sucesso">Aprovado por ${escapeHTML(ctrl.ciso_approved_by)} em ${formatarData(ctrl.ciso_approved_at, { hora: true })}</span>
                         </div>
                     </div>
                 `;
             } else {
                 cisoStatusHtml = `
-                    <div style="display:flex; justify-content:space-between; align-items:center; width:100%">
+                    <div class="d-flex justify-between items-center w-full">
                         <div>
                             <strong>Líder SGSI:</strong> 
-                            <span style="color:var(--text-dim)">Aguardando assinatura</span>
+                            <span class="t-dim">Aguardando assinatura</span>
                         </div>
-                        <div style="display:flex; gap:8px">
-                            <button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="signPolicy" data-args='["${projectId}","${escapeHTML(ctrl.id)}","ciso"]'>Assinar</button>
+                        <div class="d-flex gap-2">
+                            <button class="btn py-1 px-25 t-sm" data-action="signPolicy" data-args='["${projectId}","${escapeHTML(ctrl.id)}","ciso"]'>Assinar</button>
                         </div>
                     </div>
                 `;
@@ -1883,22 +1883,22 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             let ceoStatusHtml = '';
             if (ctrl.ceo_approved_by) {
                 ceoStatusHtml = `
-                    <div style="width:100%">
+                    <div class="w-full">
                         <div>
                             <strong>Direção Executiva:</strong> 
-                            <span style="color:var(--success)">Aprovado por ${escapeHTML(ctrl.ceo_approved_by)} em ${new Date(ctrl.ceo_approved_at).toLocaleString()}</span>
+                            <span class="t-sucesso">Aprovado por ${escapeHTML(ctrl.ceo_approved_by)} em ${formatarData(ctrl.ceo_approved_at, { hora: true })}</span>
                         </div>
                     </div>
                 `;
             } else {
                 ceoStatusHtml = `
-                    <div style="display:flex; justify-content:space-between; align-items:center; width:100%">
+                    <div class="d-flex justify-between items-center w-full">
                         <div>
                             <strong>Direção Executiva:</strong> 
-                            <span style="color:var(--text-dim)">Aguardando assinatura</span>
+                            <span class="t-dim">Aguardando assinatura</span>
                         </div>
-                        <div style="display:flex; gap:8px">
-                            <button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="signPolicy" data-args='["${projectId}","${escapeHTML(ctrl.id)}","ceo"]'>Assinar</button>
+                        <div class="d-flex gap-2">
+                            <button class="btn py-1 px-25 t-sm" data-action="signPolicy" data-args='["${projectId}","${escapeHTML(ctrl.id)}","ceo"]'>Assinar</button>
                         </div>
                     </div>
                 `;
@@ -1907,10 +1907,10 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             let versionsSelectHtml = '';
             if (versions.length > 0) {
                 versionsSelectHtml = `
-                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px">
+                    <div class="d-flex items-center gap-2 mb-3">
                         <label style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; min-width:120px">Histórico de Versões:</label>
-                        <select class="form-input" style="height:32px; padding:0 8px; font-size:0.75rem; border-radius:10px; background:rgba(255,255,255,0.02); border-color:var(--border); flex:1" id="policy-version-selector" data-action-change="onPolicyVersionChange" data-args='["${projectId}","${escapeHTML(ctrl.id)}"]' data-arg-val>
-                            ${versions.map((v, index) => `<option value="${v.id}">${index === 0 ? 'v' + v.version + ' (Atual)' : 'v' + v.version} - por ${escapeHTML(v.created_by)} em ${new Date(v.created_at).toLocaleDateString()}</option>`).join('')}
+                        <select class="form-input" style="height:32px; padding:0 8px; font-size:0.75rem; background:rgba(255,255,255,0.02); border-color:var(--border); flex:1" id="policy-version-selector" data-action-change="onPolicyVersionChange" data-args='["${projectId}","${escapeHTML(ctrl.id)}"]' data-arg-val>
+                            ${versions.map((v, index) => `<option value="${v.id}">${index === 0 ? 'v' + v.version + ' (Atual)' : 'v' + v.version} - por ${escapeHTML(v.created_by)} em ${formatarData(v.created_at)}</option>`).join('')}
                         </select>
                         <button class="btn" id="btn-restore-version" style="display:none; padding:4px 10px; font-size:0.7rem; border-color:var(--accent); color:var(--accent);" data-action="doRestorePolicyVersion" data-args='["${projectId}","${escapeHTML(ctrl.id)}"]'>Restaurar vX</button>
                     </div>
@@ -1923,20 +1923,20 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 // O selo diz o que existe (a versão e a data), não "ISO 27001 CONFORME": conformidade é decisão do auditor.
                 const vigente = versions[0];
                 const fatoDaVersao = vigente
-                    ? `Política publicada, versão ${vigente.version}, em ${new Date(vigente.created_at).toLocaleDateString('pt-BR')}`
+                    ? `Política publicada, versão ${vigente.version}, em ${formatarData(vigente.created_at)}`
                     : 'Rascunho';
                 signatureSealHtml = `
                     <div style="background: rgba(0, 173, 232, 0.03); border: 1px solid rgba(0, 173, 232, 0.15); padding: 1rem 1.25rem;">
                         <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.5rem; margin-bottom: 0.6rem;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
+                            <div class="d-flex items-center gap-2">
                                 <div style="width: 8px; height: 8px; background: var(--accent); "></div>
-                                <span style="font-family: 'Montserrat', sans-serif; font-size:0.75rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.1em;">Integridade da versão</span>
+                                <span style="font-family: 'Montserrat', sans-serif; font-size:0.75rem; font-weight:600; color: var(--text); text-transform: uppercase; letter-spacing: 0.1em;">Integridade da versão</span>
                             </div>
                             <span class="selo-fato">${escapeHTML(fatoDaVersao)}</span>
                         </div>
                         <div style="font-size: 0.7rem; font-family: monospace; display: flex; flex-direction: column; gap: 4px; color: rgba(229, 235, 255, 0.75);">
-                            <div><span style="color: var(--text-dim);">INTEGRIDADE DO TEXTO DA POLÍTICA (SHA-256 do texto, não do pedido):</span> <span style="color: var(--accent); word-break: break-all;">${escapeHTML(evidenceHash)}</span></div>
-                            <div><span style="color: var(--text-dim);">MÉTODO:</span> Assinatura Eletrônica Simples (Senha & Autenticação de Sessão via HTTPS)</div>
+                            <div><span class="t-dim">INTEGRIDADE DO TEXTO DA POLÍTICA (SHA-256 do texto, não do pedido):</span> <span style="color: var(--accent); word-break: break-all;">${escapeHTML(evidenceHash)}</span></div>
+                            <div><span class="t-dim">MÉTODO:</span> Assinatura Eletrônica Simples (Senha & Autenticação de Sessão via HTTPS)</div>
                         </div>
                     </div>
                 `;
@@ -1946,25 +1946,25 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             if (versions.length > 0) {
                 versionsTableHtml = `
                     <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:8px">
-                        <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--accent); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Histórico de Alterações & Revisões</h4>
-                        <div style="overflow-x:auto">
+                        <h4 class="f-titulo t-xs t-texto mb-3 caixa-alta">Histórico de Alterações & Revisões</h4>
+                        <div class="rola-x">
                             <table style="width:100%; font-size:0.7rem; border-collapse:collapse; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.05)">
                                 <thead>
                                     <tr style="border-bottom:1px solid rgba(255,255,255,0.08); text-align:left; color:var(--text-dim)">
-                                        <th style="padding:6px 12px">Versão</th>
-                                        <th style="padding:6px 12px">Data</th>
-                                        <th style="padding:6px 12px">Modificado por</th>
-                                        <th style="padding:6px 12px">Ações</th>
+                                        <th class="py-15 px-3">Versão</th>
+                                        <th class="py-15 px-3">Data</th>
+                                        <th class="py-15 px-3">Modificado por</th>
+                                        <th class="py-15 px-3">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     ${versions.map((v, i) => `
                                         <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
-                                            <td style="padding:6px 12px; font-weight:600; color:var(--accent)">v${escapeHTML(v.version)}</td>
-                                            <td style="padding:6px 12px">${new Date(v.created_at).toLocaleDateString()}</td>
-                                            <td style="padding:6px 12px">${escapeHTML(v.created_by)}</td>
-                                            <td style="padding:6px 12px">
-                                                ${i > 0 ? `<button class="btn btn-ghost" style="padding:2px 6px; font-size:0.72rem; margin:0;" data-action="__cmpViewPolicyVersion" data-args='["${projectId}","${escapeHTML(ctrl.id)}","${v.id}"]'>Visualizar</button>` : `<span style="color:var(--success)">Atual (Ativa)</span>`}
+                                            <td class="py-15 px-3 fw-600 t-accent">v${escapeHTML(v.version)}</td>
+                                            <td class="py-15 px-3">${formatarData(v.created_at)}</td>
+                                            <td class="py-15 px-3">${escapeHTML(v.created_by)}</td>
+                                            <td class="py-15 px-3">
+                                                ${i > 0 ? `<button class="btn btn-ghost py-05 px-15 t-xs m-0" data-action="__cmpViewPolicyVersion" data-args='["${projectId}","${escapeHTML(ctrl.id)}","${v.id}"]'>Visualizar</button>` : `<span class="t-sucesso">Atual (Ativa)</span>`}
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -1979,11 +1979,11 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             const html = `
                 <div class="modal-header">
                     <span class="modal-title">Política Ativa — ${escapeHTML(codigo)}</span>
-                    <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                    
                 </div>
-                <div style="display:flex; flex-direction:column; gap:16px;">
+                <div class="d-flex flex-col gap-4">
                     <div style="font-size:0.72rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.2em; font-family:'Montserrat',sans-serif">Título da Política</div>
-                    <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.15rem; color:var(--accent)">
+                    <div class="f-titulo fw-600 t-xl t-texto">
                         ${escapeHTML(ctrl.title)}
                     </div>
                     
@@ -1997,12 +1997,12 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     </div>
                     
                     <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:8px" id="signature-workflow-container">
-                        <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--accent); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Workflow de Assinatura (A.5.1)</h4>
-                        <div style="display:flex; flex-direction:column; gap:0.75rem">
-                            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
+                        <h4 class="f-titulo t-xs t-texto mb-3 caixa-alta">Fluxo de assinatura (A.5.1)</h4>
+                        <div class="d-flex flex-col gap-3">
+                            <div class="d-flex justify-between items-center bg-sutil p-2 t-sm">
                                 ${cisoStatusHtml}
                             </div>
-                            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
+                            <div class="d-flex justify-between items-center bg-sutil p-2 t-sm">
                                 ${ceoStatusHtml}
                             </div>
                         </div>
@@ -2011,13 +2011,13 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     ${versionsTableHtml}
                     
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.5rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem">
-                        <div style="display:flex; gap:8px">
+                        <div class="d-flex gap-2">
                             <button class="btn" data-action="forceCloseModal">Fechar</button>
                             <button class="btn btn-secondary" id="btn-edit-policy">Editar Documento</button>
                             <button class="btn btn-secondary" data-action="openPolicyReport" data-args='["${projectId}","${escapeHTML(ctrl.id)}"]'>Imprimir</button>
                             ${window.podePedirAprovacao?.(S.user) ? `<button class="btn btn-secondary" data-action="abrirPedidoAprovacao" data-args='${escapeHTML(JSON.stringify([projectId, 'politica', ctrl.id]))}'>Pedir aprovação</button>` : ''}
                         </div>
-                        <button class="btn btn-primary" id="btn-regen-trigger">Regerar com IA / Template</button>
+                        <button class="btn btn-primary" id="btn-regen-trigger">Gerar de novo (IA ou modelo)</button>
                     </div>
                 </div>
             `;
@@ -2042,11 +2042,11 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     container.innerHTML = `
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; height:400px; margin-top:10px">
                             <div style="display:flex; flex-direction:column; gap:8px; height:100%">
-                                <label class="form-label" style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em">Editor Markdown</label>
-                                <textarea id="policy-editor-textarea" style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px; color:var(--text); font-family:monospace; font-size:0.75rem; resize:none; outline:none; line-height:1.4;" placeholder="Digite o conteúdo da política em Markdown...">${escapeHTML(originalMarkdown)}</textarea>
+                                <label class="form-label t-sm t-dim caixa-alta">Editor Markdown</label>
+                                <textarea id="policy-editor-textarea" style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); padding:12px; color:var(--text); font-family:monospace; font-size:0.75rem; resize:none; outline:none; line-height:1.4;" placeholder="Digite o conteúdo da política em Markdown...">${escapeHTML(originalMarkdown)}</textarea>
                             </div>
                             <div style="display:flex; flex-direction:column; gap:8px; height:100%">
-                                <label class="form-label" style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em">Preview Renderizado (VSCode Mode)</label>
+                                <label class="form-label t-sm t-dim caixa-alta">Preview Renderizado (VSCode Mode)</label>
                                 <div id="policy-editor-preview" style="flex:1; overflow-y:auto; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.06); padding:12px; font-size:0.8rem; line-height:1.6;" class="markdown-body">${renderedHtml}</div>
                             </div>
                         </div>
@@ -2143,7 +2143,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         if (method === 'template') {
             container.style.display = 'block';
             hint.textContent = 'Gere a política a partir de um template standard preenchendo as variáveis do projeto automaticamente.';
-            btn.textContent = 'Gerar a partir de Template';
+            btn.textContent = 'Gerar a partir do modelo';
         } else {
             container.style.display = 'none';
             hint.textContent = 'O PolicyAgent ira gerar uma politica completa usando IA, adaptada ao contexto organizacional deste projeto.';
@@ -2160,7 +2160,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         
         btn.disabled = true;
         btn.textContent = 'Gerando...';
-        result.innerHTML = '<div style="color:var(--muted);font-size:0.75rem">Processando...</div>';
+        result.innerHTML = '<div class="t-dim t-sm">Processando...</div>';
 
         try {
             let res;
@@ -2180,7 +2180,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 throw new Error(res.error || 'Erro desconhecido');
             }
         } catch(e) {
-            result.innerHTML = `<div style="color:var(--danger);font-size:0.75rem">Erro: ${escapeHTML(e.message)}</div>`;
+            result.innerHTML = `<div class="t-perigo t-sm">Erro: ${escapeHTML(e.message)}</div>`;
             btn.textContent = 'Tentar novamente';
             btn.disabled = false;
         }
@@ -2202,7 +2202,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     };
 
     async function renderAcknowledgments(c, h, a) {
-        h.textContent = 'Ciência de Políticas';
+        h.textContent = tituloDaTela('nav-acknowledgments', 'Ciência de políticas');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             c.innerHTML = window.renderSemProjeto(); 
@@ -2220,16 +2220,16 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         const totalAcks = acks.length;
         
         const policyNames = {
-            'ISP': 'ISP - Politica de Seguranca da Informacao',
-            'AUP': 'AUP - Termo de Uso Aceitavel',
+            'ISP': 'ISP - Política de Segurança da Informação',
+            'AUP': 'AUP - Termo de Uso Aceitável',
             'ACP': 'ACP - Controle de Acesso',
             'IRP': 'IRP - Resposta a Incidentes',
-            'BCP': 'BCP - Continuidade de Negocios',
-            'DPP': 'DPP - Protecao de Dados',
-            'CMP': 'CMP - Gestao de Mudancas',
+            'BCP': 'BCP - Continuidade de Negócios',
+            'DPP': 'DPP - Proteção de Dados',
+            'CMP': 'CMP - Gestão de Mudanças',
             'SDP': 'SDP - Desenvolvimento Seguro',
-            'VMP': 'VMP - Gestao de Vulnerabilidades',
-            'SAP': 'SAP - Conscientizacao em Seguranca'
+            'VMP': 'VMP - Gestão de Vulnerabilidades',
+            'SAP': 'SAP - Conscientização em Segurança'
         };
 
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
@@ -2238,36 +2238,36 @@ import { filtrarDoPainel } from '../filtro-painel.js';
 
         const selfServiceFormHtml = `
             <div class="card" style="flex: 1; min-width: 300px; margin-bottom: 0;">
-                <div class="card-label">Minha Declaracao de Ciencia</div>
-                <p style="font-size:0.75rem; color:var(--text-dim); margin-bottom:1rem">
+                <div class="card-label">Minha Declaração de Ciência</div>
+                <p class="t-sm t-dim mb-4">
                     Declare ciencia de forma eletronica sob as diretrizes vigentes das politicas do projeto.
                 </p>
                 <div class="form-group">
-                    <label class="form-label">Politica</label>
+                    <label class="form-label">Política</label>
                     <select class="form-input" id="ack-self-policy">
                         ${Object.entries(policyNames).map(([key, name]) => `<option value="${key}">${name}</option>`).join('')}
                     </select>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Seu Nome</label>
-                    <input class="form-input" id="ack-self-name" value="${escapeHTML(currentUserName)}" readonly style="background:rgba(255,255,255,0.02)">
+                    <input class="form-input bg-sutil" id="ack-self-name" value="${escapeHTML(currentUserName)}" readonly>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Seu E-mail</label>
-                    <input class="form-input" id="ack-self-email" value="${escapeHTML(currentUserEmail)}" readonly style="background:rgba(255,255,255,0.02)">
+                    <input class="form-input bg-sutil" id="ack-self-email" value="${escapeHTML(currentUserEmail)}" readonly>
                 </div>
-                <button class="btn btn-primary" style="width:100%; margin-top:0.5rem" data-action="submitSelfAcknowledgment" data-args='["${proj.id}"]'>Assinar Ciencia Eletronica</button>
+                <button class="btn btn-primary w-full mt-2" data-action="submitSelfAcknowledgment" data-args='["${proj.id}"]'>Assinar Ciência Eletrônica</button>
             </div>
         `;
 
         const manualFormHtml = canCrud ? `
             <div class="card" style="flex: 1; min-width: 300px; margin-bottom: 0;">
-                <div class="card-label">Registrar Ciencia de Colaborador</div>
-                <p style="font-size:0.75rem; color:var(--text-dim); margin-bottom:1rem">
+                <div class="card-label">Registrar Ciência de Colaborador</div>
+                <p class="t-sm t-dim mb-4">
                     Registrar ciencia eletronica em nome de terceiros ou colaboradores externos.
                 </p>
                 <div class="form-group">
-                    <label class="form-label">Politica</label>
+                    <label class="form-label">Política</label>
                     <select class="form-input" id="ack-manual-policy">
                         ${Object.entries(policyNames).map(([key, name]) => `<option value="${key}">${name}</option>`).join('')}
                     </select>
@@ -2280,35 +2280,35 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     <label class="form-label">E-mail do Colaborador</label>
                     <input class="form-input" id="ack-manual-email" placeholder="Ex: carlos@empresa.com">
                 </div>
-                <button class="btn" style="width:100%; border-color:var(--accent); color:var(--accent); margin-top:0.5rem" data-action="submitManualAcknowledgment" data-args='["${proj.id}"]'>Registrar Aceite</button>
+                <button class="btn w-full borda-accent t-accent mt-2" data-action="submitManualAcknowledgment" data-args='["${proj.id}"]'>Registrar Aceite</button>
             </div>
         ` : '';
 
         const historyRows = acks.length ? acks.map(a => {
             const policyTitle = policyNames[a.policy_type] || a.policy_type;
-            const dateStr = a.acknowledged_at ? new Date(a.acknowledged_at).toLocaleString('pt-BR') : 'N/A';
+            const dateStr = a.acknowledged_at ? formatarData(a.acknowledged_at, { hora: true }) : 'N/A';
             return `
                 <tr>
-                    <td style="font-weight: 500;">${escapeHTML(a.user_name)}</td>
-                    <td style="color: var(--text-dim); font-size: 0.75rem;">${escapeHTML(a.user_email)}</td>
+                    <td class="fw-500">${escapeHTML(a.user_name)}</td>
+                    <td class="t-dim t-sm">${escapeHTML(a.user_email)}</td>
                     <td><span class="ctx-tag" style="color:var(--accent); border-color:var(--accent-glow)">${escapeHTML(policyTitle)}</span></td>
-                    <td style="font-size: 0.75rem; color: var(--text-dim);">${dateStr}</td>
-                    <td style="font-size: 0.7rem; font-family: monospace; color: var(--muted);">${escapeHTML(a.ip_address || 'N/A')}</td>
+                    <td class="t-sm t-dim">${dateStr}</td>
+                    <td class="t-xs f-mono t-dim">${escapeHTML(a.ip_address || 'N/A')}</td>
                 </tr>
             `;
-        }).join('') : `<tr><td colspan="5" style="text-align:center; color:var(--text-dim); padding:2rem;">Nenhum registro de ciência neste projeto. A confirmação de leitura pelo colaborador é a evidência de que a política foi comunicada (ISO 27001, A.5.1 e 7.3).</td></tr>`;
+        }).join('') : `<tr><td colspan="5" class="t-center t-dim p-8">Nenhum registro de ciência neste projeto. A confirmação de leitura pelo colaborador é a evidência de que a política foi comunicada (ISO 27001, A.5.1 e 7.3).</td></tr>`;
 
         c.innerHTML = `
             <div class="fade-in">
                 <div class="card" style="margin-bottom:1.5rem; display:flex; justify-between; align-items:center; flex-wrap:wrap; gap:1.5rem">
-                    <div style="display:flex; gap:2rem; align-items:center">
+                    <div class="d-flex gap-8 items-center">
                         <div>
                             <div class="card-label">Assinaturas Registradas</div>
-                            <div style="font-size:1.8rem; font-weight:600; color:var(--accent)">${totalAcks}</div>
+                            <div class="t-2xl fw-600 t-accent">${totalAcks}</div>
                         </div>
                         <div>
                             <div class="card-label">Projeto Ativo</div>
-                            <div style="font-size:1.1rem; font-weight:500">${escapeHTML(proj.project_name || proj.client_name)}</div>
+                            <div class="t-xl fw-500">${escapeHTML(proj.project_name || proj.client_name)}</div>
                         </div>
                     </div>
                     <div>
@@ -2318,7 +2318,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     </div>
                 </div>
 
-                <div style="display:flex; flex-wrap:wrap; gap:1.5rem; margin-bottom:2rem;">
+                <div class="d-flex flex-wrap gap-6 mb-8">
                     ${selfServiceFormHtml}
                     ${manualFormHtml}
                 </div>
@@ -2326,14 +2326,14 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 <div id="ciencia-link-box"></div>
 
                 <div class="card">
-                    <div class="card-label">Histórico de Ciencia de Políticas</div>
-                    <div style="overflow-x:auto;">
+                    <div class="card-label">Histórico de Ciência de Políticas</div>
+                    <div class="rola-x">
                         <table class="data-table">
                             <thead>
                                 <tr>
                                     <th>Colaborador</th>
                                     <th>E-mail</th>
-                                    <th>Politica</th>
+                                    <th>Política</th>
                                     <th>Data / Hora</th>
                                     <th>Endereco IP / Origem</th>
                                 </tr>
@@ -2378,7 +2378,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 user_email: email
             });
             if (res.ok) {
-                showToast('Ciencia de politica registrada com sucesso!');
+                showToast('Ciência de política registrada.');
                 render();
             } else {
                 throw new Error(res.error || 'Erro desconhecido');
@@ -2405,7 +2405,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 user_email: email
             });
             if (res.ok) {
-                showToast('Ciencia de politica registrada com sucesso!');
+                showToast('Ciência de política registrada.');
                 document.getElementById('ack-manual-name').value = '';
                 document.getElementById('ack-manual-email').value = '';
                 render();
@@ -2467,15 +2467,15 @@ window.abrirRequisitosEvidencia = async function (projectId, evidenceId) {
     S.evRequisitos = ligados.map((r) => r.id);
     const args = (...v) => escapeHTML(JSON.stringify(v));
     openModal(`
-        <div class="modal-header"><span class="modal-title">Requisitos e validade</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+        <div class="modal-header"><span class="modal-title">Requisitos e validade</span></div>
         <div id="ev-requisitos">
             ${ligados.length ? ligados.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoEvidencia" data-args='${args(projectId, evidenceId, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">\u00d7</button></span>`).join(' ')
-                : '<p style="color:var(--text-dim)">Nenhum requisito ligado a esta evidência.</p>'}
-            <div class="form-group" style="margin-top:0.75rem"><select class="form-input" id="ev-req-add"><option value="">Escolha um requisito</option>${catalogo.filter((r) => !S.evRequisitos.includes(r.id))
+                : window.renderEmptyState({ titulo: 'Nenhum requisito ligado a esta evidência.', compacto: true })}
+            <div class="form-group mt-3"><select class="form-input" id="ev-req-add"><option value="">Escolha um requisito</option>${catalogo.filter((r) => !S.evRequisitos.includes(r.id))
                 .map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} — ${escapeHTML(r.titulo)}</option>`).join('')}</select></div>
             <button class="btn btn-sm" data-action="salvarRequisitosEvidencia" data-args='${args(projectId, evidenceId)}'>Ligar</button>
         </div>
-        <div class="form-group" style="margin-top:1.25rem">
+        <div class="form-group mt-5">
             <label class="form-label" for="ev-valido-ate">Válida até</label>
             <input type="date" class="form-input" id="ev-valido-ate" value="${escapeHTML(ev.valido_ate || '')}">
         </div>
@@ -2557,13 +2557,13 @@ window.vincularEvidenciaControle = async function(evidenceId, controlId) {
 
 window.evaluateEvidenceAI = function(evidenceId) {
     openModal(`
-        <div class="modal-header"><span class="modal-title">Avaliar evidência por IA</span><button class="btn-ghost" data-action="forceCloseModal">×</button></div>
+        <div class="modal-header"><span class="modal-title">Avaliar evidência por IA</span></div>
         <div class="form-group">
             <label class="form-label">Texto do documento</label>
             <textarea class="form-input" id="eval-text" style="min-height:160px" placeholder="Cole aqui o texto extraído da evidência."></textarea>
         </div>
-        <button class="btn btn-primary" style="width:100%" data-action="enviarAvaliacaoEvidencia" data-args='${JSON.stringify([evidenceId])}'>Avaliar</button>
-        <div id="eval-result" style="margin-top:1rem;font-size:0.8rem;white-space:pre-wrap"></div>
+        <button class="btn btn-primary w-full" data-action="enviarAvaliacaoEvidencia" data-args='${JSON.stringify([evidenceId])}'>Avaliar</button>
+        <div id="eval-result" class="mt-4 t-md pre"></div>
     `);
 };
 

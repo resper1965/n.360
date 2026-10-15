@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, escapeHTML, renderEmptyState } from '../ui.js';
+import { showToast, escapeHTML, renderEmptyState, formatarData } from '../ui.js';
 import { navigate } from '../router.js';
 import { rotuloBase } from '../bases-legais.js';
 import { textoRecomendacao } from '../recomendacao-ripd.js';
@@ -15,7 +15,7 @@ import { blocoRiscos, blocoAcoes, formularioLia, podeEditar, ORIGEM_MUDOU } from
 
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const lista = (r) => (Array.isArray(r) ? r : []);
-const dataBr = (d) => (d ? `${String(d).slice(8, 10)}/${String(d).slice(5, 7)}/${String(d).slice(0, 4)}` : '');
+const dataBr = (d) => formatarData(d, { vazio: '' });
 const podePedir = () => typeof window.podePedirAprovacao === 'function' && window.podePedirAprovacao(S.user);
 // No n.privacy quem aprova é o encarregado e a direção (o papel `ciso` do pedido vem do cargo: CISO ou DPO).
 const PAPEL = { ciso: 'Encarregado (DPO)', ceo: 'Direção' };

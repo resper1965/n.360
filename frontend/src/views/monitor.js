@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE, formatarData, traduzStatus, tituloDaTela } from '../ui.js';
 import { produtoAtual, projetosDoProduto } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
 
@@ -28,7 +28,7 @@ import { podeIndicar } from './encarregado.js';
     }
 
     async function renderMonitor(c, h, a) {
-        h.textContent = 'Monitor de Adequação';
+        h.textContent = tituloDaTela('nav-monitor', 'Monitor');
         a.innerHTML = '';
 
         // Mesma fonte do Dashboard (/projects, só os projetos deste módulo). Lia /portfolio e, quando ele
@@ -112,17 +112,17 @@ import { podeIndicar } from './encarregado.js';
         try { portfolio = (await api('GET', '/api/v1/portfolio'))?.portfolio || []; } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a carteira de projetos.', e); return; }
         c.innerHTML = `<div class="fade-in">${portfolio.length ? portfolio.map(p => {
             const pct = p.overall_progress_pct || 0;
-            const semaphore = pct > 70 ? {color:'var(--success)',label:'No prazo'} : pct > 30 ? {color:'var(--warning)',label:'Atencao'} : {color:'var(--danger)',label:'Critico'};
+            const semaphore = pct > 70 ? {color:'var(--success)',label:'No prazo'} : pct > 30 ? {color:'var(--warning)',label:'Atenção'} : {color:'var(--danger)',label:'Crítico'};
             return `
-            <div class="list-item" style="cursor:pointer" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${p.id}"}}]'>
-                <div style="display:flex;align-items:center;gap:0.75rem;flex:1">
+            <div class="list-item clicavel" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${p.id}"}}]'>
+                <div class="d-flex items-center gap-3 flex-1">
                     <div style="width:10px;height:10px;background:${semaphore.color};flex-shrink:0" title="${semaphore.label}"></div>
                     <div>
                         <div class="item-name">${escapeHTML(p.project_name || p.client_name)}</div>
-                        <div class="item-meta" style="margin-top:0.25rem">${p.project_name ? escapeHTML(p.client_name) + ' · ' : ''}Fases: ${p.completed_phases}/${p.phase_count} | Riscos: ${p.risk_count} | Evidências: ${p.evidence_count}</div>
+                        <div class="item-meta mt-1">${p.project_name ? escapeHTML(p.client_name) + ' · ' : ''}Fases: ${p.completed_phases}/${p.phase_count} | Riscos: ${p.risk_count} | Evidências: ${p.evidence_count}</div>
                     </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:0.5rem">
+                <div class="d-flex items-center gap-2">
                     <div style="width:80px;height:6px;background:rgba(255,255,255,0.1);overflow:hidden">
                         <div style="width:${pct}%;height:100%;background:${semaphore.color};transition:width 0.3s"></div>
                     </div>
@@ -153,14 +153,14 @@ import { podeIndicar } from './encarregado.js';
             const pct = data.coverage_pct || 0;
             const barColor = pct > 80 ? 'var(--accent)' : pct > 50 ? 'var(--warning)' : 'var(--danger)';
             openModal(`
-                <div class="modal-header"><span class="modal-title">Gap Analysis</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
-                <div style="display:flex;gap:2rem;margin-bottom:1.5rem">
+                <div class="modal-header"><span class="modal-title">Análise de lacunas</span></div>
+                <div class="d-flex gap-8 mb-6">
                     <div><div class="card-label">Cobertura</div><div style="font-size:2rem;font-weight:600;color:${barColor}">${pct.toFixed(0)}%</div></div>
-                    <div><div class="card-label">Implementados</div><div style="font-size:1.2rem">${data.by_status?.Implemented || 0}</div></div>
-                    <div><div class="card-label">Parciais</div><div style="font-size:1.2rem;color:var(--warning)">${data.by_status?.Partial || 0}</div></div>
-                    <div><div class="card-label">Missing</div><div style="font-size:1.2rem;color:var(--danger)">${data.by_status?.Missing || 0}</div></div>
+                    <div><div class="card-label">Implementados</div><div class="t-xl">${data.by_status?.Implemented || 0}</div></div>
+                    <div><div class="card-label">Parciais</div><div class="t-xl t-aviso">${data.by_status?.Partial || 0}</div></div>
+                    <div><div class="card-label">Missing</div><div class="t-xl t-perigo">${data.by_status?.Missing || 0}</div></div>
                 </div>
-                <div style="font-size:0.7rem;color:var(--muted)">Controles com evidencia: ${data.controls_with_evidence || 0} | Controles com risco vinculado: ${data.controls_with_risks || 0}</div>
+                <div class="t-xs t-dim">Controles com evidencia: ${data.controls_with_evidence || 0} | Controles com risco vinculado: ${data.controls_with_risks || 0}</div>
             `);
         } catch(e) { showToast('Erro: ' + e.message, 'error'); }
     }
@@ -204,16 +204,16 @@ import { podeIndicar } from './encarregado.js';
             ${metrics.length ? `
                 <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:16px; margin-bottom:1.5rem">
                     <div class="stat-card">
-                        <div style="font-size:1.8rem; font-weight:700; color:var(--success)">${metrics.filter(m => m.status === 'On Track').length}</div>
-                        <small style="color:var(--text-dim)">Métricas Em Dia</small>
+                        <div class="t-2xl fw-600 t-sucesso">${metrics.filter(m => m.status === 'On Track').length}</div>
+                        <small class="t-dim">Métricas Em Dia</small>
                     </div>
                     <div class="stat-card">
-                        <div style="font-size:1.8rem; font-weight:700; color:var(--warning)">${metrics.filter(m => m.status === 'At Risk').length}</div>
-                        <small style="color:var(--text-dim)">Em Risco</small>
+                        <div class="t-2xl fw-600 t-aviso">${metrics.filter(m => m.status === 'At Risk').length}</div>
+                        <small class="t-dim">Em Risco</small>
                     </div>
                     <div class="stat-card">
-                        <div style="font-size:1.8rem; font-weight:700; color:var(--danger)">${metrics.filter(m => m.status === 'Critical').length}</div>
-                        <small style="color:var(--text-dim)">Críticas</small>
+                        <div class="t-2xl fw-600 t-perigo">${metrics.filter(m => m.status === 'Critical').length}</div>
+                        <small class="t-dim">Críticas</small>
                     </div>
                 </div>
                 
@@ -232,14 +232,14 @@ import { podeIndicar } from './encarregado.js';
                         </thead>
                         <tbody>
                             ${metrics.map(m => `
-                                <tr style="cursor:pointer" data-action="openEditMetricModal" data-args='${escapeHTML(JSON.stringify([m.id, proj.id, m]))}'>
+                                <tr class="clicavel" data-action="openEditMetricModal" data-args='${escapeHTML(JSON.stringify([m.id, proj.id, m]))}'>
                                     <td><strong>${escapeHTML(m.metric_name)}</strong></td>
                                     <td>${m.target_value !== null ? m.target_value : '—'}</td>
                                     <td>${m.current_value !== null ? m.current_value : '—'}</td>
-                                    <td><span class="badge" style="background:rgba(255,255,255,0.05)">${m.frequency}</span></td>
-                                    <td>${m.last_measured_at || '—'}</td>
+                                    <td>${window.renderStatusBadge(m.frequency || '', 'neutral')}</td>
+                                    <td>${formatarData(m.last_measured_at)}</td>
                                     <td>${escapeHTML(m.owner || '—')}</td>
-                                    <td><span class="badge" style="background:color-mix(in oklab, ${statusColor(m.status)} 12%, transparent); color:${statusColor(m.status)}">${m.status}</span></td>
+                                    <td><span class="badge" style="background:color-mix(in oklab, ${statusColor(m.status)} 12%, transparent); color:${statusColor(m.status)}">${escapeHTML(traduzStatus(m.status))}</span></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -251,14 +251,14 @@ import { podeIndicar } from './encarregado.js';
 
     function openNewMetricModal(projectId) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova Métrica de Desempenho</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+            <div class="modal-header"><span class="modal-title">Nova Métrica de Desempenho</span></div>
             <div class="form-group"><label class="form-label">Nome do Indicador</label><input class="form-input" id="met-name" placeholder="Ex: Taxa de Sucesso dos Backups (%), Patches Críticos (%)"></div>
-            <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Meta (Alvo)</label><input type="number" step="any" class="form-input" id="met-target" placeholder="99.9"></div>
-                <div class="form-group" style="flex:1"><label class="form-label">Valor Atual</label><input type="number" step="any" class="form-input" id="met-current" placeholder="98.5"></div>
+            <div class="d-flex gap-2">
+                <div class="form-group flex-1"><label class="form-label">Meta (Alvo)</label><input type="number" step="any" class="form-input" id="met-target" placeholder="99.9"></div>
+                <div class="form-group flex-1"><label class="form-label">Valor Atual</label><input type="number" step="any" class="form-input" id="met-current" placeholder="98.5"></div>
             </div>
-            <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1">
+            <div class="d-flex gap-2">
+                <div class="form-group flex-1">
                     <label class="form-label">Frequência</label>
                     <select class="form-input" id="met-frequency">
                         <option value="Weekly">Semanal</option>
@@ -267,20 +267,20 @@ import { podeIndicar } from './encarregado.js';
                         <option value="Annual">Anual</option>
                     </select>
                 </div>
-                <div class="form-group" style="flex:1"><label class="form-label">Última Medição</label><input type="date" class="form-input" id="met-date"></div>
+                <div class="form-group flex-1"><label class="form-label">Última Medição</label><input type="date" class="form-input" id="met-date"></div>
             </div>
-            <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Responsável (Owner)</label><input class="form-input" id="met-owner" placeholder="Ex: CTO"></div>
-                <div class="form-group" style="flex:1">
+            <div class="d-flex gap-2">
+                <div class="form-group flex-1"><label class="form-label">Responsável</label><input class="form-input" id="met-owner" placeholder="Ex: CTO"></div>
+                <div class="form-group flex-1">
                     <label class="form-label">Status</label>
                     <select class="form-input" id="met-status">
-                        <option value="On Track" selected>On Track (Sob Controle)</option>
-                        <option value="At Risk">At Risk (Em Risco)</option>
-                        <option value="Critical">Critical (Crítico)</option>
+                        <option value="On Track" selected>No rumo</option>
+                        <option value="At Risk">Em risco</option>
+                        <option value="Critical">Crítico</option>
                     </select>
                 </div>
             </div>
-            <button class="btn btn-primary" style="width:100%;margin-top:1rem" data-action="createMetric" data-args='["${projectId}"]'>Registrar Indicador</button>
+            <button class="btn btn-primary w-full mt-4" data-action="createMetric" data-args='["${projectId}"]'>Registrar Indicador</button>
         `);
         document.getElementById('met-date').value = new Date().toISOString().split('T')[0];
     }
@@ -305,14 +305,14 @@ import { podeIndicar } from './encarregado.js';
     function openEditMetricModal(id, projectId, data) {
         const m = data || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Métrica</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+            <div class="modal-header"><span class="modal-title">Editar Métrica</span></div>
             <div class="form-group"><label class="form-label">Nome do Indicador</label><input class="form-input" id="met-e-name" value="${escapeHTML(m.metric_name||'')}"></div>
-            <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Meta</label><input type="number" step="any" class="form-input" id="met-e-target" value="${m.target_value !== null ? m.target_value : ''}"></div>
-                <div class="form-group" style="flex:1"><label class="form-label">Valor Atual</label><input type="number" step="any" class="form-input" id="met-e-current" value="${m.current_value !== null ? m.current_value : ''}"></div>
+            <div class="d-flex gap-2">
+                <div class="form-group flex-1"><label class="form-label">Meta</label><input type="number" step="any" class="form-input" id="met-e-target" value="${m.target_value !== null ? m.target_value : ''}"></div>
+                <div class="form-group flex-1"><label class="form-label">Valor Atual</label><input type="number" step="any" class="form-input" id="met-e-current" value="${m.current_value !== null ? m.current_value : ''}"></div>
             </div>
-            <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1">
+            <div class="d-flex gap-2">
+                <div class="form-group flex-1">
                     <label class="form-label">Frequência</label>
                     <select class="form-input" id="met-e-frequency">
                         <option value="Weekly" ${m.frequency==='Weekly'?'selected':''}>Semanal</option>
@@ -321,21 +321,21 @@ import { podeIndicar } from './encarregado.js';
                         <option value="Annual" ${m.frequency==='Annual'?'selected':''}>Anual</option>
                     </select>
                 </div>
-                <div class="form-group" style="flex:1"><label class="form-label">Última Medição</label><input type="date" class="form-input" id="met-e-date" value="${m.last_measured_at || ''}"></div>
+                <div class="form-group flex-1"><label class="form-label">Última Medição</label><input type="date" class="form-input" id="met-e-date" value="${m.last_measured_at || ''}"></div>
             </div>
-            <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Responsável</label><input class="form-input" id="met-e-owner" value="${escapeHTML(m.owner||'')}"></div>
-                <div class="form-group" style="flex:1">
+            <div class="d-flex gap-2">
+                <div class="form-group flex-1"><label class="form-label">Responsável</label><input class="form-input" id="met-e-owner" value="${escapeHTML(m.owner||'')}"></div>
+                <div class="form-group flex-1">
                     <label class="form-label">Status</label>
                     <select class="form-input" id="met-e-status">
-                        <option value="On Track" ${m.status==='On Track'?'selected':''}>On Track</option>
-                        <option value="At Risk" ${m.status==='At Risk'?'selected':''}>At Risk</option>
-                        <option value="Critical" ${m.status==='Critical'?'selected':''}>Critical</option>
+                        <option value="On Track" ${m.status==='On Track'?'selected':''}>No rumo</option>
+                        <option value="At Risk" ${m.status==='At Risk'?'selected':''}>Em risco</option>
+                        <option value="Critical" ${m.status==='Critical'?'selected':''}>Crítico</option>
                     </select>
                 </div>
             </div>
-            <div style="display:flex;gap:0.5rem;justify-content:space-between;margin-top:1.5rem">
-                <button class="btn" style="color:var(--danger)" data-action="__monDeleteMetric" data-args='["${id}"]'>Excluir</button>
+            <div class="d-flex gap-2 justify-between mt-6">
+                <button class="btn t-perigo" data-action="__monDeleteMetric" data-args='["${id}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateMetric" data-args='["${id}"]'>Salvar</button>
             </div>
         `);
@@ -381,7 +381,7 @@ import { podeIndicar } from './encarregado.js';
     const podeConvidarStakeholder = () => !!(S.user && ['platform_admin', 'consultoria_admin', 'consultor', 'consultant', 'org_admin'].includes(S.user.role));
 
     async function renderGovernance(c, h, a) {
-        h.textContent = 'Governança & Equipe';
+        h.textContent = tituloDaTela('nav-governance', 'Governança');
         a.innerHTML = '';
         const p = S.currentProject || S.activeProject;
         if (!p) {
@@ -512,10 +512,7 @@ import { podeIndicar } from './encarregado.js';
         const d = new Date(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(s) ? s : s.replace(' ', 'T') + 'Z');
         return isNaN(d.getTime()) ? null : d;
     };
-    const dataLocal = (v) => {
-        const d = comoData(v);
-        return d ? d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-    };
+    const dataLocal = (v) => formatarData(comoData(v), { hora: true });
     const haQuanto = (v) => {
         const d = comoData(v);
         if (!d) return '';
@@ -554,7 +551,7 @@ import { podeIndicar } from './encarregado.js';
                     <h3 class="gov-section-title gov-agentes-titulo" id="gov-agentes-titulo">Agentes com acesso</h3>
                     <p class="gov-agentes-nota">Agentes de IA que a equipe da consultoria conectou a este cliente, com o papel de cada um: Consultor implementa, Auditor só lê e registra achado e nota. Revogar corta o acesso na próxima chamada.</p>
                 </div>
-                ${linhas || '<div class="gov-empty-list">Nenhum agente conectado a este cliente.</div>'}
+                ${linhas || window.renderEmptyState({ titulo: 'Nenhum agente conectado a este cliente.', compacto: true })}
             </section>`;
     };
 
@@ -640,7 +637,7 @@ import { podeIndicar } from './encarregado.js';
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Gerenciar Membros da Governança</span>
-                <button class="btn-ghost" data-action="forceCloseModal">Fechar</button>
+                
             </div>
             <div id="gov-modal-body">
                 <div class="loading"></div>
@@ -652,24 +649,24 @@ import { podeIndicar } from './encarregado.js';
             window.renderGovernanceModalContent(projectId, members);
         } catch(e) {
             document.getElementById('gov-modal-body').innerHTML = `
-                <div style="color:var(--danger)">Erro ao carregar governança: ${escapeHTML(e.message)}</div>
+                <div class="t-perigo">Erro ao carregar governança: ${escapeHTML(e.message)}</div>
             `;
         }
     };
 
     window.renderGovernanceModalContent = function(projectId, members) {
         const listHtml = members.map(m => `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:8px 12px; margin-bottom:8px">
+            <div class="d-flex justify-between items-center bg-sutil borda py-2 px-3 mb-2">
                 <div>
-                    <strong style="color:var(--text)">${escapeHTML(m.name)}</strong>
-                    <span style="font-size:0.7rem; color:var(--accent)">- ${escapeHTML(m.job_title)} (${escapeHTML(m.role_category)})</span>
-                    ${m.email ? `<div style="font-size:0.75rem; color:var(--text-dim)">${escapeHTML(m.email)}</div>` : ''}
+                    <strong class="t-texto">${escapeHTML(m.name)}</strong>
+                    <span class="t-xs t-accent">- ${escapeHTML(m.job_title)} (${escapeHTML(m.role_category)})</span>
+                    ${m.email ? `<div class="t-sm t-dim">${escapeHTML(m.email)}</div>` : ''}
                 </div>
                 <div style="display:flex; gap:8px; ${m.role_category === 'consultor' && !podeDesignarConsultor() ? 'visibility:hidden' : ''}">
                     <button class="btn btn-ghost" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--accent); border-color:rgba(0,173,232,0.2)" data-action="editGovernanceMember" data-args='["${m.id}"]'>
                         Editar
                     </button>
-                    <button class="btn btn-ghost" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--danger); border-color:rgba(239,68,68,0.2)" data-action="deleteGovernanceMember" data-args='["${projectId}","${m.id}"]'>
+                    <button class="btn btn-ghost" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--danger-ink); border-color:rgba(239,68,68,0.2)" data-action="deleteGovernanceMember" data-args='["${projectId}","${m.id}"]'>
                         Excluir
                     </button>
                 </div>
@@ -678,13 +675,13 @@ import { podeIndicar } from './encarregado.js';
 
         const formHtml = `
             <div style="border-top:1px solid var(--border); padding-top:16px; margin-top:16px">
-                <h4 style="font-family:'Montserrat',sans-serif; font-size:0.85rem; color:var(--accent); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px" id="gov-form-title">Adicionar Novo Membro</h4>
-                <form id="add-gov-member-form" data-action-submit="saveGovernanceMember" data-arg-event data-args='["${projectId}"]' style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
-                    <div class="form-group" style="grid-column: span 2">
+                <h4 class="f-titulo t-base t-texto mb-3 caixa-alta" id="gov-form-title">Adicionar Novo Membro</h4>
+                <form id="add-gov-member-form" data-action-submit="saveGovernanceMember" data-arg-event data-args='["${projectId}"]' class="d-grid grid-2 gap-3">
+                    <div class="form-group col-span-2">
                         <label class="form-label">Nome Completo</label>
                         <input class="form-input" id="gov-name" required placeholder="Ex: Maria Silva">
                     </div>
-                    <div class="form-group" style="grid-column: span 2">
+                    <div class="form-group col-span-2">
                         <label class="form-label">E-mail</label>
                         <input class="form-input" id="gov-email" type="email" placeholder="Ex: maria@empresa.com.br">
                     </div>
@@ -703,11 +700,11 @@ import { podeIndicar } from './encarregado.js';
                         <input class="form-input" id="gov-title" required placeholder="Ex: CEO, CFO, DPO, Consultor">
                         <p class="gov-empty-list" style="padding:4px 0 0">A autoridade de assinatura vem do cargo: 'CEO', 'Diretor(a)' ou 'Executivo' assina como Direção; 'Líder SGSI', 'CISO' ou 'DPO' assina como Líder SGSI.</p>
                     </div>
-                    <div class="form-group" style="grid-column: span 2; display:flex; align-items:center; gap:8px">
-                        <input type="checkbox" id="gov-primary" style="cursor:pointer">
-                        <label for="gov-primary" class="form-label" style="margin-bottom:0; cursor:pointer">Líder do SGSI (um por projeto; substitui o atual)</label>
+                    <div class="form-group col-span-2 d-flex items-center gap-2">
+                        <input type="checkbox" id="gov-primary" class="clicavel">
+                        <label for="gov-primary" class="form-label mb-0 clicavel">Líder do SGSI (um por projeto; substitui o atual)</label>
                     </div>
-                    <div style="grid-column: span 2; display:flex; justify-content:flex-end; gap:8px; margin-top:8px">
+                    <div class="col-span-2 d-flex justify-end gap-2 mt-2">
                         <button class="btn btn-secondary" type="button" id="btn-cancel-gov-edit" style="display:none" data-action="cancelGovernanceEdit">Cancelar</button>
                         <button class="btn btn-primary" type="submit" id="btn-submit-gov">Adicionar Membro</button>
                     </div>
@@ -718,7 +715,7 @@ import { podeIndicar } from './encarregado.js';
         document.getElementById('gov-modal-body').innerHTML = `
             <div style="display:grid; grid-template-columns: 1fr; gap:16px">
                 <div>
-                    <h4 style="font-family:'Montserrat',sans-serif; font-size:0.85rem; color:var(--text); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px">Membros Atuais</h4>
+                    <h4 class="f-titulo t-base t-texto mb-3 caixa-alta">Membros Atuais</h4>
                     <div style="max-height:200px; overflow-y:auto; padding-right:4px">${listHtml}</div>
                 </div>
                 ${formHtml}
@@ -833,7 +830,7 @@ import { podeIndicar } from './encarregado.js';
     };
 
     async function renderContext(c, h, a) {
-        h.textContent = 'Contexto & Escopo do SGSI (Cláusula 4.1 / 4.3)';
+        h.textContent = tituloDaTela('nav-context', 'Contexto');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -842,7 +839,7 @@ import { podeIndicar } from './encarregado.js';
         }
         
         a.innerHTML = `<button data-action="saveContext" class="btn btn-primary">Salvar Alterações</button>`;
-        c.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">Carregando análise de contexto...</div>';
+        c.innerHTML = '<div class="p-8 t-center t-dim">Carregando análise de contexto...</div>';
         
         try {
             const ctx = await api('GET', `/api/v1/projects/${proj.id}/context`) || {};
@@ -891,64 +888,64 @@ import { podeIndicar } from './encarregado.js';
 
             const tabsHeader = `
                 <div style="display:flex; gap:12px; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px" class="fade-in">
-                    <button data-action="switchContextTab" data-args='["swot"]' class="btn ${activeTab !== 'charter' ? 'btn-primary' : 'btn-ghost'}" style="font-size:0.85rem">Matriz SWOT & Requisitos (Cl. 4.1 / 4.2)</button>
-                    <button data-action="switchContextTab" data-args='["charter"]' class="btn ${activeTab === 'charter' ? 'btn-primary' : 'btn-ghost'}" style="font-size:0.85rem">Charter de Escopo & Fronteiras do SGSI (Cl. 4.3)</button>
+                    <button data-action="switchContextTab" data-args='["swot"]' class="btn ${activeTab !== 'charter' ? 'btn-primary' : 'btn-ghost'} t-base">Matriz SWOT & Requisitos (Cl. 4.1 / 4.2)</button>
+                    <button data-action="switchContextTab" data-args='["charter"]' class="btn ${activeTab === 'charter' ? 'btn-primary' : 'btn-ghost'} t-base">Charter de Escopo & Fronteiras do SGSI (Cl. 4.3)</button>
                 </div>
             `;
 
             let tabBody = '';
             if (activeTab === 'charter') {
                 tabBody = `
-                    <div style="display:grid; grid-template-columns:2fr 1fr; gap:20px; margin-bottom:24px" class="fade-in">
+                    <div class="fade-in d-grid grid-2-1 gap-5 mb-6">
                         <!-- PERÍMETRO & FRONTEIRAS -->
-                        <div style="display:flex; flex-direction:column; gap:16px">
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:20px">
-                                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.9rem; color:var(--accent); text-transform:uppercase; margin-bottom:8px">
+                        <div class="d-flex flex-col gap-4">
+                            <div class="bloco">
+                                <div class="f-titulo fw-600 t-base t-texto caixa-alta mb-2">
                                     1. Perímetro de Negócio, Sistemas & Infraestrutura (Cláusula 4.3.a)
                                 </div>
-                                <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px">Defina os produtos, serviços, plataformas (ex: APIs, biometria), aplicações e ambientes de nuvem/escritórios abrangidos pelo SGSI.</div>
-                                <textarea id="charter-perimeter" class="form-input" style="width:100%; height:100px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px" placeholder="Ex: Plataforma SaaS principal, APIs REST, infraestrutura AWS us-east-1 e repositórios de dados biográficos.">${escapeHTML(scopeCharter.perimeter)}</textarea>
+                                <div class="t-sm t-dim mb-25">Defina os produtos, serviços, plataformas (ex: APIs, biometria), aplicações e ambientes de nuvem/escritórios abrangidos pelo SGSI.</div>
+                                <textarea id="charter-perimeter" class="form-input" style="width:100%; height:100px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:10px 12px" placeholder="Ex: Plataforma SaaS principal, APIs REST, infraestrutura AWS us-east-1 e repositórios de dados biográficos.">${escapeHTML(scopeCharter.perimeter)}</textarea>
                             </div>
 
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:20px">
-                                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.9rem; color:var(--accent); text-transform:uppercase; margin-bottom:8px">
+                            <div class="bloco">
+                                <div class="f-titulo fw-600 t-base t-texto caixa-alta mb-2">
                                     2. Fronteiras Físicas, Lógicas e Organizacionais (Cláusula 4.3.b)
                                 </div>
-                                <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px">Especifique limites de rede (VPCs, firewalls), localidades físicas de escritórios, unidades operacionais e acessos remotos.</div>
-                                <textarea id="charter-boundaries" class="form-input" style="width:100%; height:90px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px" placeholder="Ex: VPCs de Produção na AWS, subredes privadas EKS, escritório central em SP e colaboradores autorizados via VPN ZTNA.">${escapeHTML(scopeCharter.boundaries)}</textarea>
+                                <div class="t-sm t-dim mb-25">Especifique limites de rede (VPCs, firewalls), localidades físicas de escritórios, unidades operacionais e acessos remotos.</div>
+                                <textarea id="charter-boundaries" class="form-input" style="width:100%; height:90px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:10px 12px" placeholder="Ex: VPCs de Produção na AWS, subredes privadas EKS, escritório central em SP e colaboradores autorizados via VPN ZTNA.">${escapeHTML(scopeCharter.boundaries)}</textarea>
                             </div>
 
                             <div style="background:rgba(255,59,48,0.02); border:1px solid rgba(255,59,48,0.2); padding:20px">
-                                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.9rem; color:var(--danger); text-transform:uppercase; margin-bottom:8px">
+                                <div class="f-titulo fw-600 t-base t-perigo caixa-alta mb-2">
                                     3. Exclusões Justificadas de Escopo (Exclusões Aceitas por Auditores)
                                 </div>
-                                <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px">Descreva detalhadamente o que está **fora do escopo** e a justificativa técnica normativamente válida perante o auditor ISO 27001.</div>
-                                <textarea id="charter-exclusions" class="form-input" style="width:100%; height:90px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px" placeholder="Ex: Unidades fabris externas e sistemas legados de RH (mantidos fora do perímetro inicial sem interconexão com a API de produção).">${escapeHTML(scopeCharter.exclusions)}</textarea>
+                                <div class="t-sm t-dim mb-25">Descreva detalhadamente o que está **fora do escopo** e a justificativa técnica normativamente válida perante o auditor ISO 27001.</div>
+                                <textarea id="charter-exclusions" class="form-input" style="width:100%; height:90px; resize:vertical; font-family:inherit; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:10px 12px" placeholder="Ex: Unidades fabris externas e sistemas legados de RH (mantidos fora do perímetro inicial sem interconexão com a API de produção).">${escapeHTML(scopeCharter.exclusions)}</textarea>
                             </div>
                         </div>
 
                         <!-- GOVERNANÇA & APROVAÇÃO EXECUTIVA -->
-                        <div style="display:flex; flex-direction:column; gap:16px">
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:20px">
-                                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.85rem; color:var(--accent); text-transform:uppercase; margin-bottom:8px">
+                        <div class="d-flex flex-col gap-4">
+                            <div class="bloco">
+                                <div class="f-titulo fw-600 t-base t-texto caixa-alta mb-2">
                                     Público & Titulares Impactados
                                 </div>
-                                <textarea id="charter-users" class="form-input" style="width:100%; height:80px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: 150 colaboradores internos, 2M de titulares de dados biométricos LGPD e 12 clientes B2B.">${escapeHTML(scopeCharter.impacted_users)}</textarea>
+                                <textarea id="charter-users" class="form-input" style="width:100%; height:80px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px" placeholder="Ex: 150 colaboradores internos, 2M de titulares de dados biométricos LGPD e 12 clientes B2B.">${escapeHTML(scopeCharter.impacted_users)}</textarea>
                             </div>
 
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:20px">
-                                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.85rem; color:var(--accent); text-transform:uppercase; margin-bottom:12px">
+                            <div class="bloco">
+                                <div class="f-titulo fw-600 t-base t-texto caixa-alta mb-3">
                                     Aprovação do Escopo (Sign-Off Executivo)
                                 </div>
                                 
-                                <div style="margin-bottom:12px">
-                                    <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:4px">Assinatura Líder SGSI / CISO</label>
-                                    <input type="text" id="charter-ciso" class="form-input" style="width:100%; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:6px 10px" value="${escapeHTML(scopeCharter.ciso_approved_by)}" placeholder="Nome do CISO / Responsável" />
+                                <div class="mb-3">
+                                    <label class="t-sm t-dim d-block mb-1">Assinatura Líder SGSI / CISO</label>
+                                    <input type="text" id="charter-ciso" class="form-input w-full t-base bg-fundo borda t-texto py-15 px-25" value="${escapeHTML(scopeCharter.ciso_approved_by)}" placeholder="Nome do CISO / Responsável" />
                                 </div>
 
                                 <div>
-                                    <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:4px">Assinatura Direção Executiva / CEO</label>
-                                    <input type="text" id="charter-ceo" class="form-input" style="width:100%; font-size:0.85rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:6px 10px" value="${escapeHTML(scopeCharter.ceo_approved_by)}" placeholder="Nome do CEO / Direção" />
+                                    <label class="t-sm t-dim d-block mb-1">Assinatura Direção Executiva / CEO</label>
+                                    <input type="text" id="charter-ceo" class="form-input w-full t-base bg-fundo borda t-texto py-15 px-25" value="${escapeHTML(scopeCharter.ceo_approved_by)}" placeholder="Nome do CEO / Direção" />
                                 </div>
                             </div>
                         </div>
@@ -956,83 +953,83 @@ import { podeIndicar } from './encarregado.js';
                 `;
             } else {
                 tabBody = `
-                    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:24px" class="fade-in">
+                    <div class="fade-in d-grid grid-2-1 gap-5 mb-6">
                         <!-- MATRIX SWOT 2x2 CARD -->
-                        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:20px">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
-                                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.95rem; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px">
+                        <div class="bloco">
+                            <div class="d-flex justify-between items-center mb-4">
+                                <div class="f-titulo fw-600 t-base t-texto caixa-alta">
                                     Matriz SWOT de Segurança da Informação (Cláusula 4.1)
                                 </div>
-                                <span style="font-size:0.75rem; color:var(--text-dim)">${totalSwot} Fatores</span>
+                                <span class="t-sm t-dim">${totalSwot} Fatores</span>
                             </div>
                             
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
-                                <div style="background:rgba(0,173,232,0.03); border:1px solid rgba(0,173,232,0.2); padding:14px">
-                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                                        <label style="color:var(--accent); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
+                            <div class="d-grid grid-2 gap-4">
+                                <div class="bloco">
+                                    <div class="cabecalho-secao">
+                                        <label class="t-texto fw-600 t-base d-flex items-center gap-15">
                                             <span style="width:8px; height:8px; background:var(--accent);"></span>
                                             Forças (Strengths)
                                         </label>
                                         ${window.renderStatusBadge(`${sCount} itens`, 'info')}
                                     </div>
-                                    <textarea id="ctx-strengths" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: Criptografia AES-256 no S3, arquitetura isolada via VPC...">${escapeHTML(ctx.internal_strengths || '')}</textarea>
+                                    <textarea id="ctx-strengths" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px" placeholder="Ex: Criptografia AES-256 no S3, arquitetura isolada via VPC...">${escapeHTML(ctx.internal_strengths || '')}</textarea>
                                 </div>
                                 
                                 <div style="background:rgba(254,202,87,0.03); border:1px solid rgba(254,202,87,0.2); padding:14px">
-                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                                        <label style="color:var(--warning); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
+                                    <div class="cabecalho-secao">
+                                        <label class="t-aviso fw-600 t-base d-flex items-center gap-15">
                                             <span style="width:8px; height:8px; background:var(--warning);"></span>
                                             Fraquezas (Weaknesses)
                                         </label>
                                         ${window.renderStatusBadge(`${wCount} itens`, 'warning')}
                                     </div>
-                                    <textarea id="ctx-weaknesses" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: Ausência de GuardDuty, falta de testes de restore...">${escapeHTML(ctx.internal_weaknesses || '')}</textarea>
+                                    <textarea id="ctx-weaknesses" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px" placeholder="Ex: Ausência de GuardDuty, falta de testes de restore...">${escapeHTML(ctx.internal_weaknesses || '')}</textarea>
                                 </div>
 
                                 <div style="background:rgba(52,199,89,0.03); border:1px solid rgba(52,199,89,0.2); padding:14px">
-                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                                        <label style="color:var(--success); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
+                                    <div class="cabecalho-secao">
+                                        <label class="t-sucesso fw-600 t-base d-flex items-center gap-15">
                                             <span style="width:8px; height:8px; background:var(--success);"></span>
                                             Oportunidades (Opportunities)
                                         </label>
                                         ${window.renderStatusBadge(`${oCount} itens`, 'success')}
                                     </div>
-                                    <textarea id="ctx-opportunities" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: Certificação ISO 27001 como diferencial competitivo...">${escapeHTML(ctx.external_opportunities || '')}</textarea>
+                                    <textarea id="ctx-opportunities" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px" placeholder="Ex: Certificação ISO 27001 como diferencial competitivo...">${escapeHTML(ctx.external_opportunities || '')}</textarea>
                                 </div>
 
                                 <div style="background:rgba(255,59,48,0.03); border:1px solid rgba(255,59,48,0.2); padding:14px">
-                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                                        <label style="color:var(--danger); font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:6px">
+                                    <div class="cabecalho-secao">
+                                        <label class="t-perigo fw-600 t-base d-flex items-center gap-15">
                                             <span style="width:8px; height:8px; background:var(--danger);"></span>
                                             Ameaças (Threats)
                                         </label>
                                         ${window.renderStatusBadge(`${tCount} itens`, 'danger')}
                                     </div>
-                                    <textarea id="ctx-threats" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: Ataques cibernéticos no setor, atuações da ANPD...">${escapeHTML(ctx.external_threats || '')}</textarea>
+                                    <textarea id="ctx-threats" class="form-input" style="width:100%; height:110px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px" placeholder="Ex: Ataques cibernéticos no setor, atuações da ANPD...">${escapeHTML(ctx.external_threats || '')}</textarea>
                                 </div>
                             </div>
                         </div>
 
                         <!-- REQUISITOS NORMATIVOS & CONTRATUAIS CARD -->
-                        <div style="display:flex; flex-direction:column; gap:16px">
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:18px; flex:1">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                                    <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.85rem; color:var(--accent); text-transform:uppercase">
+                        <div class="d-flex flex-col gap-4">
+                            <div class="bg-sutil borda p-4 flex-1">
+                                <div class="cabecalho-secao">
+                                    <div class="f-titulo fw-600 t-base t-texto caixa-alta">
                                         Requisitos Legais / Regulatórios
                                     </div>
                                     ${window.renderStatusBadge(`${lCount} req`, 'info')}
                                 </div>
-                                <textarea id="ctx-legal" class="form-input" style="width:100%; height:85px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: LGPD (Lei 13.709), resoluções da ANPD...">${escapeHTML(ctx.legal_requirements || '')}</textarea>
+                                <textarea id="ctx-legal" class="form-input" style="width:100%; height:85px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px" placeholder="Ex: LGPD (Lei 13.709), resoluções da ANPD...">${escapeHTML(ctx.legal_requirements || '')}</textarea>
                             </div>
 
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:18px; flex:1">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-                                    <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:0.85rem; color:var(--accent); text-transform:uppercase">
+                            <div class="bg-sutil borda p-4 flex-1">
+                                <div class="cabecalho-secao">
+                                    <div class="f-titulo fw-600 t-base t-texto caixa-alta">
                                         Requisitos Contratuais / SLAs
                                     </div>
                                     ${window.renderStatusBadge(`${cCount} req`, 'info')}
                                 </div>
-                                <textarea id="ctx-contractual" class="form-input" style="width:100%; height:85px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px" placeholder="Ex: SLAs de segurança exigidos por clientes enterprise...">${escapeHTML(ctx.contractual_requirements || '')}</textarea>
+                                <textarea id="ctx-contractual" class="form-input" style="width:100%; height:85px; resize:vertical; font-family:inherit; font-size:0.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px" placeholder="Ex: SLAs de segurança exigidos por clientes enterprise...">${escapeHTML(ctx.contractual_requirements || '')}</textarea>
                             </div>
                         </div>
                     </div>
@@ -1081,7 +1078,7 @@ import { podeIndicar } from './encarregado.js';
 
 
     async function renderStakeholders(c, h, a) {
-        h.textContent = 'Partes Interessadas (Cláusula 4.2)';
+        h.textContent = tituloDaTela('nav-stakeholders', 'Partes interessadas');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -1136,9 +1133,9 @@ import { podeIndicar } from './encarregado.js';
                     `<div style="font-size:0.8rem; line-height:1.45; max-width:300px">${escapeHTML(s.requirements || '')}</div>`,
                     window.renderStatusBadge(influenceText, influenceType),
                     `<div style="font-size:0.8rem; line-height:1.45">${escapeHTML(s.communication_method || '')}</div>`,
-                    `<div style="display:flex; gap:6px; justify-content:center">
+                    `<div class="d-flex gap-15 justify-center">
                         <button data-action="openStakeholderModal" data-args='["${s.id}"]' class="btn btn-ghost btn-sm">Editar</button>
-                        <button data-action="deleteStakeholder" data-args='["${s.id}"]' class="btn btn-ghost btn-sm" style="color:var(--danger)">Excluir</button>
+                        <button data-action="deleteStakeholder" data-args='["${s.id}"]' class="btn btn-ghost btn-sm t-perigo">Excluir</button>
                     </div>`
                 ];
             }),
@@ -1159,27 +1156,27 @@ import { podeIndicar } from './encarregado.js';
         const isEdit = !!s;
         const html = `
             <div class="modal-header">
-                <span class="modal-title" style="font-family:'Montserrat',sans-serif;font-weight:700;color:var(--accent)">
+                <span class="modal-title f-titulo fw-600 t-texto">
                     ${isEdit ? 'Editar Parte Interessada' : 'Nova Parte Interessada'}
                 </span>
-                <button class="btn-ghost" data-action="closeModal">&times;</button>
+                
             </div>
-            <form id="stakeholder-form" data-action-submit="saveStakeholder" data-arg-event data-args='${escapeHTML(JSON.stringify([isEdit ? s.id : null]))}' style="margin-top:1rem">
-                <div class="form-group" style="margin-bottom:16px">
+            <form id="stakeholder-form" data-action-submit="saveStakeholder" data-arg-event data-args='${escapeHTML(JSON.stringify([isEdit ? s.id : null]))}' class="mt-4">
+                <div class="form-group mb-4">
                     <label class="form-label">Nome / Identificação</label>
-                    <input type="text" name="name" class="form-input" value="${s ? escapeHTML(s.name) : ''}" required style="width:100%" />
+                    <input type="text" name="name" class="form-input w-full" value="${s ? escapeHTML(s.name) : ''}" required />
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+                <div class="d-grid grid-2 gap-4 mb-4">
                     <div class="form-group">
                         <label class="form-label">Tipo</label>
-                        <select name="type" class="form-input" style="width:100%">
+                        <select name="type" class="form-input w-full">
                             <option value="external" ${s && s.type === 'external' ? 'selected' : ''}>Externo</option>
                             <option value="internal" ${s && s.type === 'internal' ? 'selected' : ''}>Interno</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Categoria</label>
-                        <select name="category" class="form-input" style="width:100%">
+                        <select name="category" class="form-input w-full">
                             <option value="client" ${s && s.category === 'client' ? 'selected' : ''}>Cliente</option>
                             <option value="regulator" ${s && s.category === 'regulator' ? 'selected' : ''}>Regulador / Auditor</option>
                             <option value="shareholder" ${s && s.category === 'shareholder' ? 'selected' : ''}>Diretoria / Acionista</option>
@@ -1190,10 +1187,10 @@ import { podeIndicar } from './encarregado.js';
                         </select>
                     </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+                <div class="d-grid grid-2 gap-4 mb-4">
                     <div class="form-group">
                         <label class="form-label">Nível de Influência</label>
-                        <select name="influence" class="form-input" style="width:100%">
+                        <select name="influence" class="form-input w-full">
                             <option value="Low" ${s && s.influence === 'Low' ? 'selected' : ''}>Baixo</option>
                             <option value="Medium" ${s && s.influence === 'Medium' ? 'selected' : ''}>Médio</option>
                             <option value="High" ${s && s.influence === 'High' ? 'selected' : ''}>Alto</option>
@@ -1201,14 +1198,14 @@ import { podeIndicar } from './encarregado.js';
                     </div>
                     <div class="form-group">
                         <label class="form-label">Método de Comunicação</label>
-                        <input type="text" name="communication_method" class="form-input" value="${s ? escapeHTML(s.communication_method || '') : ''}" placeholder="Ex: Email trimestral, Reunião" style="width:100%" />
+                        <input type="text" name="communication_method" class="form-input w-full" value="${s ? escapeHTML(s.communication_method || '') : ''}" placeholder="Ex: Email trimestral, Reunião" />
                     </div>
                 </div>
-                <div class="form-group" style="margin-bottom:24px">
+                <div class="form-group mb-6">
                     <label class="form-label">Expectativas e Requisitos de SI</label>
                     <textarea name="requirements" class="form-input" style="width:100%;height:80px;font-family:inherit">${s ? escapeHTML(s.requirements || '') : ''}</textarea>
                 </div>
-                <div style="display:flex; justify-content:flex-end; gap:8px">
+                <div class="d-flex justify-end gap-2">
                     <button type="button" data-action="closeModal" class="btn">Cancelar</button>
                     <button type="submit" class="btn btn-primary">${isEdit ? 'Salvar Alterações' : 'Criar'}</button>
                 </div>
@@ -1257,9 +1254,9 @@ import { podeIndicar } from './encarregado.js';
     };
 
     function formatAttendees(attendeesStr) {
-        if (!attendeesStr) return '<span style="color:var(--text-dim)">Não definidos</span>';
+        if (!attendeesStr) return '<span class="t-dim">Não definidos</span>';
         const parts = attendeesStr.split(',').map(p => p.trim()).filter(Boolean);
-        return `<div style="display: flex; flex-wrap: wrap; gap: 6px;">` + 
+        return `<div class="d-flex flex-wrap gap-15">` + 
             parts.map(part => {
                 const match = part.match(/^([^(]+)\s*(?:\(([^)]+)\))?$/);
                 if (match) {
@@ -1267,8 +1264,8 @@ import { podeIndicar } from './encarregado.js';
                     const role = match[2] ? match[2].trim() : '';
                     return `
                         <span style="display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); padding: 3px 8px; font-size: 0.75rem; color: var(--text); line-height: 1;">
-                            <span style="font-weight: 400; margin-right: 4px;">${escapeHTML(name)}</span>
-                            ${role ? `<span style="color: var(--accent); font-size:0.75rem; font-weight: 500;">(${escapeHTML(role)})</span>` : ''}
+                            <span class="fw-400 mr-1">${escapeHTML(name)}</span>
+                            ${role ? `<span class="t-accent t-sm fw-500">(${escapeHTML(role)})</span>` : ''}
                         </span>
                     `;
                 }
@@ -1278,7 +1275,7 @@ import { podeIndicar } from './encarregado.js';
     }
 
     async function renderManagementReview(c, h, a) {
-        h.textContent = 'Análise Crítica pela Direção (Cláusula 9.3)';
+        h.textContent = tituloDaTela('nav-mgmt', 'Análise crítica');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -1315,7 +1312,7 @@ import { podeIndicar } from './encarregado.js';
             list.map(m => {
                 const isCompleted = m.status === 'Completed' || m.status === 'concluido';
                 return [
-                    `<span style="font-weight:600;color:var(--accent);font-family:monospace;font-size:0.85rem">${escapeHTML(m.review_date)}</span>`,
+                    `<span class="fw-600 t-accent f-mono t-base">${escapeHTML(formatarData(m.review_date))}</span>`,
                     formatAttendees(m.attendees),
                     window.renderStatusBadge(isCompleted ? 'Concluída' : 'Planejada', isCompleted ? 'success' : 'warning'),
                     `<button data-action="openEditMgmtReviewModal" data-args='["${m.id}"]' class="btn btn-ghost btn-sm">Abrir Pauta / Editar</button>`
@@ -1335,20 +1332,20 @@ import { podeIndicar } from './encarregado.js';
 
     window.openNewMgmtReviewModal = function() {
         const html = `
-            <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:1.25rem;margin-bottom:1.5rem;color:var(--accent)">
+            <div class="f-titulo fw-600 t-xl mb-6 t-texto">
                 Nova Reunião de Análise Crítica (Cláusula 9.3)
             </div>
             <form id="new-mgmt-form" data-action-submit="saveNewMgmtReview" data-arg-event>
-                <div class="form-group" style="margin-bottom:12px">
-                    <label style="display:block;margin-bottom:4px;font-size:0.85rem">Data da Análise</label>
-                    <input type="date" name="review_date" required style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text)" />
+                <div class="form-group mb-3">
+                    <label class="d-block mb-1 t-base">Data da Análise</label>
+                    <input type="date" name="review_date" required class="w-full bg-fundo borda py-2 px-3 t-texto" />
                 </div>
-                <div class="form-group" style="margin-bottom:20px">
-                    <label style="display:block;margin-bottom:4px;font-size:0.85rem">Participantes (C-Level / Sponsor)</label>
-                    <textarea name="attendees" required style="width:100%;height:80px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit" placeholder="Ex: CEO, CISO, DPO, Diretor Jurídico..."></textarea>
+                <div class="form-group mb-5">
+                    <label class="d-block mb-1 t-base">Participantes (C-Level / Sponsor)</label>
+                    <textarea name="attendees" required style="width:100%;height:80px;background:var(--bg);border:1px solid var(--border);padding:8px 12px;color:var(--text);font-family:inherit" placeholder="Ex: CEO, CISO, DPO, Diretor Jurídico..."></textarea>
                 </div>
-                <div style="text-align:right">
-                    <button type="button" data-action="closeModal" class="btn-secondary" style="margin-right:8px">Cancelar</button>
+                <div class="t-right">
+                    <button type="button" data-action="closeModal" class="btn-secondary mr-2">Cancelar</button>
                     <button type="submit" class="btn-primary">Criar Reunião</button>
                 </div>
             </form>
@@ -1397,7 +1394,7 @@ import { podeIndicar } from './encarregado.js';
                     if (typeof item.data === 'string') {
                         dataStr = item.data;
                     } else if (Array.isArray(item.data)) {
-                        dataStr = item.data.map(d => `${d.status || 'N/A'}: ${d.cnt}`).join(', ');
+                        dataStr = item.data.map(d => `${traduzStatus(d.status || 'N/A')}: ${d.cnt}`).join(', ');
                     } else {
                         dataStr = JSON.stringify(item.data);
                     }
@@ -1406,8 +1403,8 @@ import { podeIndicar } from './encarregado.js';
             
             agendaHtml += `
                 <div style="margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:8px">
-                    <div style="font-weight:600;color:var(--accent);font-size:0.85rem">${escapeHTML(topicName)}</div>
-                    ${dataStr ? `<div style="font-size:0.8rem;color:var(--text-dim);margin-top:2px"><strong>Dados consolidados:</strong> ${escapeHTML(dataStr)}</div>` : ''}
+                    <div class="fw-600 t-accent t-base">${escapeHTML(topicName)}</div>
+                    ${dataStr ? `<div class="t-md t-dim mt-05"><strong>Dados consolidados:</strong> ${escapeHTML(dataStr)}</div>` : ''}
                 </div>
             `;
         });
@@ -1418,37 +1415,37 @@ import { podeIndicar } from './encarregado.js';
         const actionItemsText = review.action_items || 'Nenhuma ação corretiva ou oportunidade definida ainda.';
 
         const html = `
-            <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:1.25rem;margin-bottom:1.5rem;color:var(--accent)">
-                Ata da Análise Crítica (${review.review_date})
+            <div class="f-titulo fw-600 t-xl mb-6 t-texto">
+                Ata da Análise Crítica (${formatarData(review.review_date)})
             </div>
             
-            <div style="margin-bottom:16px">
-                <div style="font-weight:600;font-size:0.95rem;margin-bottom:6px;color:var(--text)">Participantes</div>
-                <div style="font-size:0.85rem;color:var(--text-dim);line-height:1.4">${escapeHTML(review.attendees || 'Não definidos')}</div>
+            <div class="mb-4">
+                <div class="fw-600 t-base mb-15 t-texto">Participantes</div>
+                <div class="t-base t-dim lh-14">${escapeHTML(review.attendees || 'Não definidos')}</div>
             </div>
 
-            <div style="margin-bottom:16px">
-                <div style="font-weight:600;font-size:0.95rem;margin-bottom:6px;color:var(--text)">Pauta da Reunião (Cláusula 9.3.2)</div>
+            <div class="mb-4">
+                <div class="fw-600 t-base mb-15 t-texto">Pauta da Reunião (Cláusula 9.3.2)</div>
                 ${agendaHtml}
             </div>
 
-            <div style="margin-bottom:16px; background:rgba(255,255,255,0.01); border:1px solid var(--border); padding:12px">
-                <div style="font-weight:600;font-size:0.95rem;margin-bottom:6px;color:var(--accent)">Decisões Tomadas (Diretrizes, recursos...)</div>
-                <div style="font-size:0.9rem;color:var(--text);white-space:pre-wrap;line-height:1.5">${escapeHTML(decisionsText)}</div>
+            <div class="mb-4 bg-sutil borda p-3">
+                <div class="fw-600 t-base mb-15 t-accent">Decisões Tomadas (Diretrizes, recursos...)</div>
+                <div class="t-base t-texto pre lh-15">${escapeHTML(decisionsText)}</div>
             </div>
 
-            <div style="margin-bottom:20px; background:rgba(255,255,255,0.01); border:1px solid var(--border); padding:12px">
-                <div style="font-weight:600;font-size:0.95rem;margin-bottom:6px;color:var(--accent)">Ações Corretivas / Oportunidades Definidas</div>
-                <div style="font-size:0.9rem;color:var(--text);white-space:pre-wrap;line-height:1.5">${escapeHTML(actionItemsText)}</div>
+            <div class="mb-5 bg-sutil borda p-3">
+                <div class="fw-600 t-base mb-15 t-accent">Ações Corretivas / Oportunidades Definidas</div>
+                <div class="t-base t-texto pre lh-15">${escapeHTML(actionItemsText)}</div>
             </div>
 
-            <div style="margin-bottom:20px; display:flex; align-items:center; gap:8px;">
-                <span style="font-weight:600;font-size:0.9rem">Status:</span>
+            <div class="mb-5 d-flex items-center gap-2">
+                <span class="fw-600 t-base">Status:</span>
                 <span class="badge ${review.status === 'Completed' ? 'badge-implemented' : 'badge-pending'}">${review.status === 'Completed' ? 'Concluída' : 'Planejada'}</span>
             </div>
 
-            <div style="text-align:right">
-                <button data-action="closeModal" class="btn-secondary" style="margin-right:8px">Fechar</button>
+            <div class="t-right">
+                <button data-action="closeModal" class="btn-secondary mr-2">Fechar</button>
                 ${!isOrgUser ? `<button data-action="openEditMgmtReviewForm" data-args='["${review.id}"]' class="btn-primary">Editar Ata</button>` : ''}
             </div>
         `;
@@ -1459,33 +1456,33 @@ import { podeIndicar } from './encarregado.js';
         const review = S.managementReviews.find(x => x.id === id) || {};
         
         const html = `
-            <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:1.25rem;margin-bottom:1.5rem;color:var(--accent)">
-                Editar Ata da Análise Crítica (${review.review_date})
+            <div class="f-titulo fw-600 t-xl mb-6 t-texto">
+                Editar Ata da Análise Crítica (${formatarData(review.review_date)})
             </div>
             <form id="edit-mgmt-form" data-action-submit="saveMgmtReviewDetails" data-arg-event data-args='["${review.id}"]'>
-                <div class="form-group" style="margin-bottom:16px">
-                    <label style="display:block;margin-bottom:4px;font-size:0.85rem;font-weight:600">Participantes</label>
-                    <textarea name="attendees" required style="width:100%;height:60px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit;font-size:0.85rem">${escapeHTML(review.attendees || '')}</textarea>
+                <div class="form-group mb-4">
+                    <label class="d-block mb-1 t-base fw-600">Participantes</label>
+                    <textarea name="attendees" required style="width:100%;height:60px;background:var(--bg);border:1px solid var(--border);padding:8px 12px;color:var(--text);font-family:inherit;font-size:0.85rem">${escapeHTML(review.attendees || '')}</textarea>
                 </div>
                 
-                <div class="form-group" style="margin-bottom:16px">
-                    <label style="display:block;margin-bottom:4px;font-size:0.85rem;font-weight:600">Decisões Tomadas (Diretrizes, recursos...)</label>
-                    <textarea name="decisions" style="width:100%;height:150px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit;font-size:0.9rem">${escapeHTML(review.decisions || '')}</textarea>
+                <div class="form-group mb-4">
+                    <label class="d-block mb-1 t-base fw-600">Decisões Tomadas (Diretrizes, recursos...)</label>
+                    <textarea name="decisions" style="width:100%;height:150px;background:var(--bg);border:1px solid var(--border);padding:8px 12px;color:var(--text);font-family:inherit;font-size:0.9rem">${escapeHTML(review.decisions || '')}</textarea>
                 </div>
-                <div class="form-group" style="margin-bottom:16px">
-                    <label style="display:block;margin-bottom:4px;font-size:0.85rem;font-weight:600">Ações Corretivas / Oportunidades Definidas</label>
-                    <textarea name="action_items" style="width:100%;height:150px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit;font-size:0.9rem">${escapeHTML(review.action_items || '')}</textarea>
+                <div class="form-group mb-4">
+                    <label class="d-block mb-1 t-base fw-600">Ações Corretivas / Oportunidades Definidas</label>
+                    <textarea name="action_items" style="width:100%;height:150px;background:var(--bg);border:1px solid var(--border);padding:8px 12px;color:var(--text);font-family:inherit;font-size:0.9rem">${escapeHTML(review.action_items || '')}</textarea>
                 </div>
-                <div class="form-group" style="margin-bottom:20px">
-                    <label style="display:block;margin-bottom:4px;font-size:0.85rem;font-weight:600">Status da Reunião</label>
-                    <select name="status" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text)">
+                <div class="form-group mb-5">
+                    <label class="d-block mb-1 t-base fw-600">Status da Reunião</label>
+                    <select name="status" class="w-full bg-fundo borda py-2 px-3 t-texto">
                         <option value="Planned" ${review.status === 'Planned' ? 'selected' : ''}>Planejada</option>
                         <option value="Completed" ${review.status === 'Completed' ? 'selected' : ''}>Concluída</option>
                     </select>
                 </div>
-                <div style="text-align:right">
-                    ${S.user && (S.user.role === 'platform_admin' || S.user.role === 'org_admin') ? `<button type="button" data-action="excluirMgmtReview" data-args='["${review.id}"]' class="btn-secondary" style="margin-right:8px">Excluir análise</button>` : ''}
-                    <button type="button" data-action="openEditMgmtReviewModal" data-args='["${review.id}"]' class="btn-secondary" style="margin-right:8px">Voltar</button>
+                <div class="t-right">
+                    ${S.user && (S.user.role === 'platform_admin' || S.user.role === 'org_admin') ? `<button type="button" data-action="excluirMgmtReview" data-args='["${review.id}"]' class="btn-secondary mr-2">Excluir análise</button>` : ''}
+                    <button type="button" data-action="openEditMgmtReviewModal" data-args='["${review.id}"]' class="btn-secondary mr-2">Voltar</button>
                     <button type="submit" class="btn-primary">Salvar Alterações</button>
                 </div>
             </form>
@@ -1528,13 +1525,13 @@ import { podeIndicar } from './encarregado.js';
 
     window.openAuditorNotesModal = async function(projectId) {
         openModal(`
-            <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:1.25rem;margin-bottom:1.5rem;color:var(--accent)">
+            <div class="f-titulo fw-600 t-xl mb-6 t-texto">
                 Notas e Solicitações do Auditor Externo
             </div>
             <div id="auditor-notes-modal-content" style="max-height:400px;overflow-y:auto;margin-bottom:1.5rem">
                 Carregando notas...
             </div>
-            <div style="text-align:right">
+            <div class="t-right">
                 <button type="button" data-action="closeModal" class="btn-secondary">Fechar</button>
             </div>
         `);
@@ -1549,27 +1546,27 @@ import { podeIndicar } from './encarregado.js';
                 return;
             }
             
-            let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+            let html = '<div class="d-flex flex-col gap-3">';
             notes.forEach(n => {
                 const typeLabel = n.note_type === 'question' ? 'Pergunta' : n.note_type === 'evidence_request' ? 'Pedido de Evidência' : 'Observação';
                 const badgeColor = n.note_type === 'evidence_request' ? 'badge-warning' : n.note_type === 'observation' ? 'badge-critical' : 'badge-info';
                 
                 html += `
-                    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);padding:12px">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                    <div class="bg-sutil borda p-3">
+                        <div class="d-flex justify-between mb-2">
                             <span class="badge ${badgeColor}">${typeLabel}</span>
-                            <span style="font-weight:600;color:var(--accent)">${escapeHTML(n.control_standard || 'Geral')}</span>
+                            <span class="fw-600 t-accent">${escapeHTML(n.control_standard || 'Geral')}</span>
                         </div>
-                        <div style="font-size:0.9rem;margin-bottom:8px;color:var(--text)">${escapeHTML(n.content)}</div>
+                        <div class="t-base mb-2 t-texto">${escapeHTML(n.content)}</div>
                         
                         ${n.response ? `
                             <div style="background:rgba(52,199,89,0.05);border:1px solid rgba(52,199,89,0.15);padding:8px;font-size:0.85rem;color:var(--success);margin-top:8px">
                                 <strong>Sua Resposta:</strong> ${escapeHTML(n.response)}
                             </div>
                         ` : `
-                            <div style="margin-top:8px;display:flex;gap:8px">
-                                <input type="text" id="respond-input-${n.id}" placeholder="Escreva a resposta para o auditor..." style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:6px 10px;color:var(--text);font-size:0.85rem" />
-                                <button data-action="submitAuditorResponse" data-args='["${n.id}","${projectId}"]' class="btn-primary" style="padding:6px 12px;font-size:0.85rem;border-radius:10px;border:none;background:var(--accent);color:var(--accent-ink);font-weight:700">Responder</button>
+                            <div class="mt-2 d-flex gap-2">
+                                <input type="text" id="respond-input-${n.id}" placeholder="Escreva a resposta para o auditor..." class="flex-1 bg-fundo borda py-15 px-25 t-texto t-base" />
+                                <button data-action="submitAuditorResponse" data-args='["${n.id}","${projectId}"]' class="btn-primary" style="padding:6px 12px;font-size:0.85rem;border:none;background:var(--accent);color:var(--accent-ink);font-weight:600">Responder</button>
                             </div>
                         `}
                     </div>
@@ -1597,7 +1594,7 @@ import { podeIndicar } from './encarregado.js';
     };
 
     async function renderAssets(c, h, a) {
-        h.textContent = 'Ativos de Informação';
+        h.textContent = tituloDaTela('nav-assets', 'Ativos');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -1606,7 +1603,7 @@ import { podeIndicar } from './encarregado.js';
         }
         
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        a.innerHTML = `<button class="btn" data-action="exportCSV" data-args='["assets"]' style="margin-right:8px">Exportar CSV</button>` + (canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>+ Novo Ativo</button>` : '');
+        a.innerHTML = `<button class="btn mr-2" data-action="exportCSV" data-args='["assets"]'>Exportar CSV</button>` + (canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>+ Novo Ativo</button>` : '');
         
         let assets = [];
         try { 
@@ -1629,14 +1626,14 @@ import { podeIndicar } from './encarregado.js';
         ]);
 
         const tableHtml = window.renderDataTable(
-            ['Nome do Ativo', 'Categoria', 'Localização', 'Proprietário (Owner)', 'Classificação', 'Status', 'Ações'],
+            ['Nome do Ativo', 'Categoria', 'Localização', 'Responsável', 'Classificação', 'Status', 'Ações'],
             assets.map(ast => {
                 const classType = ast.classification === 'Confidential' ? 'danger' : ast.classification === 'Restricted' ? 'warning' : 'info';
                 const statusType = ast.status === 'Active' || !ast.status ? 'success' : 'neutral';
 
                 return [
                     `<strong>${escapeHTML(ast.name)}</strong>`,
-                    escapeHTML(ast.category || 'Geral'),
+                    escapeHTML(traduzStatus(ast.category || 'Geral')),
                     escapeHTML(ast.location || 'N/A'),
                     escapeHTML(ast.owner || 'N/A'),
                     window.renderStatusBadge(ast.classification || 'Internal', classType),
@@ -1663,37 +1660,37 @@ import { podeIndicar } from './encarregado.js';
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes do Ativo de Informação</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
-            <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
-                <div style="font-family:'Montserrat',sans-serif; font-weight:700; font-size:1.4rem; color:var(--accent)">
+            <div class="d-flex flex-col gap-4 f-corpo">
+                <div class="f-titulo fw-600 t-2xl t-texto">
                     ${escapeHTML(ast.name || '')}
                 </div>
                 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px">
+                <div class="bloco grid-2 gap-4">
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Categoria</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(ast.category || 'Geral')}</div>
+                        <div class="rotulo-campo">Categoria</div>
+                        <div class="valor-campo">${escapeHTML(traduzStatus(ast.category || 'Geral'))}</div>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Classificação de Segurança</div>
+                        <div class="rotulo-campo">Classificação de Segurança</div>
                         <span class="ctx-tag" style="background:color-mix(in oklab, ${classColor(ast.classification)} 12%, transparent); color:${classColor(ast.classification)}; font-weight:600">${ast.classification || 'Internal'}</span>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Dono (Owner)</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(ast.owner || 'Não definido')}</div>
+                        <div class="rotulo-campo">Responsável</div>
+                        <div class="valor-campo">${escapeHTML(ast.owner || 'Não definido')}</div>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Localização / Ambiente</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(ast.location || 'Não especificado')}</div>
+                        <div class="rotulo-campo">Localização / Ambiente</div>
+                        <div class="valor-campo">${escapeHTML(ast.location || 'Não especificado')}</div>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Status do Ativo</div>
-                        <span class="ctx-tag" style="background:rgba(255,255,255,0.05); color:var(--text-dim); font-weight:600">${ast.status || 'Active'}</span>
+                        <div class="rotulo-campo">Status do Ativo</div>
+                        <span class="ctx-tag bg-sutil-2 t-dim fw-600">${escapeHTML(traduzStatus(ast.status || 'Active'))}</span>
                     </div>
                 </div>
             </div>
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px">
+            <div class="acoes-rodape">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
                 ${canCrud ? `<button class="btn btn-primary" data-action="openEditAssetModal" data-args='["${id}"]'>Editar Ativo</button>` : ''}
             </div>
@@ -1702,12 +1699,12 @@ import { podeIndicar } from './encarregado.js';
 
     window.openNewAssetModal = function(projectId) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">Novo Ativo</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Novo Ativo</span></div>
             <div class="form-group"><label class="form-label">Nome do Ativo</label><input class="form-input" id="ast-name" placeholder="Ex: Banco de dados RDS Prod, Código-Fonte GitHub"></div>
             <div class="form-group">
                 <label class="form-label">Categoria</label>
                 <select class="form-input" id="ast-category">
-                    <option value="Informacao">Informacao (Dados, Documentos, Segredos)</option>
+                    <option value="Informacao">Informação (Dados, Documentos, Segredos)</option>
                     <option value="Software">Software (APIs, Sistemas, Apps, Scripts)</option>
                     <option value="Hardware">Hardware (Servidores, Computadores, Dispositivos)</option>
                     <option value="Pessoas">Pessoas (Colaboradores, Terceiros, Donos)</option>
@@ -1716,17 +1713,17 @@ import { podeIndicar } from './encarregado.js';
             <div class="form-group">
                 <label class="form-label">Classificacao</label>
                 <select class="form-input" id="ast-classification">
-                    <option value="Confidential">Confidential (Apenas Alta Lideranca)</option>
+                    <option value="Confidential">Confidencial (só a alta liderança)</option>
                     <option value="Restricted">Restricted (Uso Interno Protegido)</option>
-                    <option value="Internal" selected>Internal (Uso Interno Geral)</option>
+                    <option value="Internal" selected>Interno (uso geral da empresa)</option>
                     <option value="Public">Public (Livre Acesso)</option>
                 </select>
             </div>
-            <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Dono (Owner)</label><input class="form-input" id="ast-owner" placeholder="Ex: IT Manager"></div>
-                <div class="form-group" style="flex:1"><label class="form-label">Localizacao</label><input class="form-input" id="ast-location" placeholder="Ex: AWS us-east-1"></div>
+            <div class="d-flex gap-2">
+                <div class="form-group flex-1"><label class="form-label">Responsável</label><input class="form-input" id="ast-owner" placeholder="Ex.: gerente de TI"></div>
+                <div class="form-group flex-1"><label class="form-label">Localizacao</label><input class="form-input" id="ast-location" placeholder="Ex: AWS us-east-1"></div>
             </div>
-            <button class="btn btn-primary" style="width:100%;margin-top:1rem" data-action="createAsset" data-args='["${projectId}"]'>Registrar Ativo</button>
+            <button class="btn btn-primary w-full mt-4" data-action="createAsset" data-args='["${projectId}"]'>Registrar Ativo</button>
         `);
     };
 
@@ -1740,12 +1737,12 @@ import { podeIndicar } from './encarregado.js';
     window.openEditAssetModal = function(id) {
         const ast = S.assets.find(x => x.id === id) || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Ativo</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar Ativo</span></div>
             <div class="form-group"><label class="form-label">Nome do Ativo</label><input class="form-input" id="ast-e-name" value="${escapeHTML(ast.name||'')}"></div>
             <div class="form-group">
                 <label class="form-label">Categoria</label>
                 <select class="form-input" id="ast-e-category">
-                    <option value="Informacao" ${ast.category==='Informacao'?'selected':''}>Informacao (Dados, Documentos)</option>
+                    <option value="Informacao" ${ast.category==='Informacao'?'selected':''}>Informação (Dados, Documentos)</option>
                     <option value="Software" ${ast.category==='Software'?'selected':''}>Software (APIs, Sistemas)</option>
                     <option value="Hardware" ${ast.category==='Hardware'?'selected':''}>Hardware (Servidores, Computadores)</option>
                     <option value="Pessoas" ${ast.category==='Pessoas'?'selected':''}>Pessoas (Colaboradores)</option>
@@ -1760,9 +1757,9 @@ import { podeIndicar } from './encarregado.js';
                     <option value="Public" ${ast.classification==='Public'?'selected':''}>Público</option>
                 </select>
             </div>
-            <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Dono</label><input class="form-input" id="ast-e-owner" value="${escapeHTML(ast.owner||'')}"></div>
-                <div class="form-group" style="flex:1"><label class="form-label">Localização</label><input class="form-input" id="ast-e-location" value="${escapeHTML(ast.location||'')}"></div>
+            <div class="d-flex gap-2">
+                <div class="form-group flex-1"><label class="form-label">Dono</label><input class="form-input" id="ast-e-owner" value="${escapeHTML(ast.owner||'')}"></div>
+                <div class="form-group flex-1"><label class="form-label">Localização</label><input class="form-input" id="ast-e-location" value="${escapeHTML(ast.location||'')}"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Status</label>
@@ -1771,8 +1768,8 @@ import { podeIndicar } from './encarregado.js';
                     <option value="Inactive" ${ast.status==='Inactive'?'selected':''}>Inativo</option>
                 </select>
             </div>
-            <div style="display:flex;gap:0.5rem;justify-content:space-between;margin-top:1.5rem">
-                <button class="btn" style="color:var(--danger)" data-action="deleteAsset" data-args='["${id}"]'>Excluir</button>
+            <div class="d-flex gap-2 justify-between mt-6">
+                <button class="btn t-perigo" data-action="deleteAsset" data-args='["${id}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateAsset" data-args='["${id}"]'>Salvar</button>
             </div>
         `);

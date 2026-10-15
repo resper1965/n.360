@@ -4,7 +4,10 @@
 // 2. window.confirm/alert/prompt: bloqueiam a página, não seguem a marca e o prompt mostra senha em
 //    claro. A pergunta é na própria tela (confirmar/pedirTexto em ui.js).
 // 3. Estado vazio montado à mão: o único é renderEmptyState (ui.js).
+// 4. style="" inline (onda 3, 15/10/2026): teto por arquivo; o número só desce. Raio inline só 0. Nada abaixo de 11px
+//    (--fs-xs) nem peso fora da marca (300, 700) no CSS e nas telas.
 import { describe, it, expect } from 'vitest';
+import css from '../src/style.css?raw';
 
 const FONTES = Object.fromEntries(Object.entries(
     import.meta.glob('../src/**/*.js', { query: '?raw', import: 'default', eager: true }),
@@ -52,13 +55,13 @@ describe('catracas do sistema visual', () => {
         expect(ALFA_COLADO.test('color-mix(in oklab, ${cor} 12%, transparent);')).toBe(false);
     });
 
-    it('nenhum border-radius inline fora de 0 e 10px (sistema quadrado)', () => {
+    it('nenhum border-radius inline fora de 0 (sistema quadrado)', () => {
         const achados = [];
         for (const [arq, src] of Object.entries(FONTES)) {
             if (!COM_COR(arq)) continue;
             semComentario(src).split('\n').forEach((linha, i) => {
                 for (const m of linha.matchAll(/border-radius:\s*([^;"'`]+)/g)) {
-                    if (!['0', '0px', '10px'].includes(m[1].trim())) achados.push(`${arq}:${i + 1}`);
+                    if (!['0', '0px', 'var(--radius)'].includes(m[1].trim())) achados.push(`${arq}:${i + 1}`);
                 }
             });
         }
@@ -87,5 +90,43 @@ describe('catracas do sistema visual', () => {
             .map(([arq]) => arq);
         expect(achados).toEqual([]);
         for (const amostra of ['<div class="empty-state">', "<div class='x empty-state'>", "el.className = 'empty-state'", "el.classList.add('empty-state')"]) expect(VAZIO_A_MAO.test(amostra)).toBe(true);
+    });
+
+    // Teto de style="" por arquivo, medido em 15/10/2026 depois da limpeza das quatro telas grandes (eram grc 309,
+    // monitor 242, compliance 248, project 174). Baixou? Baixe o teto aqui. Subiu? Use as classes do fim de style.css.
+    const TETO_STYLE = {
+        'src/globals.js': 109, 'src/produto.js': 4, 'src/ui.js': 11, 'src/views/admin.js': 45, 'src/views/ai.js': 9,
+        'src/views/aprovacao-lote.js': 21, 'src/views/auditor-acesso.js': 11, 'src/views/commercial.js': 27, 'src/views/compliance.js': 98,
+        'src/views/dashboard.js': 26, 'src/views/documentos.js': 35, 'src/views/empresa.js': 37, 'src/views/encarregado.js': 3,
+        'src/views/grc.js': 45, 'src/views/importacao.js': 45, 'src/views/mapa-de-risco.js': 11, 'src/views/meus-pedidos.js': 47,
+        'src/views/monitor.js': 55, 'src/views/padronizar-nomes.js': 4, 'src/views/painel-graficos.js': 1, 'src/views/partes.js': 9,
+        'src/views/ponto-de-partida.js': 8, 'src/views/privacy.js': 102, 'src/views/project.js': 51, 'src/views/requisitos.js': 4,
+        'src/views/security.js': 41, 'src/views/seguranca-projeto.js': 19, 'src/views/terceiros.js': 43, 'src/views/titular.js': 27,
+        'src/views/tratamento-ligacoes.js': 49, 'src/views/trocar-senha.js': 5,
+    };
+    it('style="" inline não passa do teto de cada arquivo', () => {
+        const acima = [];
+        for (const [arq, src] of Object.entries(FONTES)) {
+            const n = (src.match(/style=/g) || []).length;
+            if (n > (TETO_STYLE[arq] ?? 0)) acima.push(`${arq}: ${n} > ${TETO_STYLE[arq] ?? 0}`);
+        }
+        expect(acima).toEqual([]);
+    });
+
+    const PEQUENA = /font-size:\s*(?:\d(?:\.\d+)?px|10(?:\.\d+)?px|0\.[0-6]\d*rem)|font:\s*\d{3}\s+(?:\d(?:\.\d+)?px|10(?:\.\d+)?px)/;
+    const PESO_FORA = /font-weight:\s*(?:300|700|800|bold)\b/;
+    it('nada abaixo de 11px nem peso fora da marca, no CSS e nas telas', () => {
+        const achados = [];
+        for (const [arq, src] of Object.entries({ ...FONTES, 'src/style.css': css })) {
+            if (arq.startsWith('src/data/')) continue;
+            semComentario(src).split('\n').forEach((linha, i) => {
+                if (PEQUENA.test(linha) || PESO_FORA.test(linha)) achados.push(`${arq}:${i + 1} ${linha.trim().slice(0, 80)}`);
+            });
+        }
+        expect(achados).toEqual([]);
+        expect(PEQUENA.test('font-size:0.6rem')).toBe(true);
+        expect(PEQUENA.test('font:500 9px/1 var(--font-mono)')).toBe(true);
+        expect(PEQUENA.test('font-size:0.7rem')).toBe(false);
+        expect(PEQUENA.test('font-size:12px')).toBe(false);
     });
 });

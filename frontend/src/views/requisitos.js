@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { produtoAtual } from '../produto.js';
 
 // Catálogo de requisitos (fatia 2 do núcleo): fontes (ISO 27001, ISO 27701, LGPD, GDPR), cada requisito com as
@@ -18,7 +18,7 @@ const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 
 async function renderRequisitos(c, h, a) {
-    h.textContent = 'Requisitos';
+    h.textContent = tituloDaTela('nav-requisitos', 'Requisitos');
     const proj = projetoAtivo();
     let fontes = [];
     try { fontes = lista(await api('GET', '/api/v1/requisitos/fontes')); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar o catálogo de requisitos.', e); return; }
@@ -100,7 +100,7 @@ window.semearRequisitos = async function () {
 
 // Data de hoje no Brasil (AAAA-MM-DD), não em UTC: à noite o UTC já é o dia seguinte.
 const hojeBr = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-const dataBr = (d) => String(d || '').slice(0, 10).split('-').reverse().join('/');
+const dataBr = (d) => formatarData(d, { vazio: '' });
 // Recusa em duas etapas dentro da própria janela (o app não usa confirm()): guarda qual mapeamento espera confirmação.
 let recusando = null;
 
@@ -131,7 +131,7 @@ window.abrirRequisito = async function (id, mantemRecusa) {
         <p style="color:var(--text-dim)">${escapeHTML(r.fonte_id)}${r.papel ? ' · ' + escapeHTML(r.papel) : ''}</p>
         <h4 style="margin:1rem 0 0.5rem">Equivalências</h4>
         ${mapas ? `<table class="data-table"><thead><tr><th>Requisito</th><th>Tipo</th><th>Validação</th><th>Nota</th></tr></thead><tbody>${mapas}</tbody></table>`
-            : '<p style="color:var(--text-dim)">Nenhuma equivalência registrada.</p>'}
+            : window.renderEmptyState({ titulo: 'Nenhuma equivalência registrada.', compacto: true })}
     `, 'modal-large');
 };
 

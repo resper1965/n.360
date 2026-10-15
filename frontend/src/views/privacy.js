@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
-import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { render } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
@@ -43,7 +43,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
 
     async function renderROPA(c, h, a) {
         // No n.privacy o título é o rótulo do menu (ROTULOS_PRIVACY).
-        h.textContent = produtoAtual() === 'privacy' ? 'Tratamentos (RoPA)' : 'Registro de tratamentos (RoPA)';
+        h.textContent = tituloDaTela('nav-ropa', 'Tratamentos (RoPA)');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -131,14 +131,14 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                     <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
                         <div>
                             <strong>Líder SGSI:</strong> 
-                            ${r.ciso_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ciso_approved_by)} em ${new Date(r.ciso_approved_at).toLocaleDateString()}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
+                            ${r.ciso_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ciso_approved_by)} em ${formatarData(r.ciso_approved_at)}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
                         </div>
                         ${!r.ciso_approved_by ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveROPA" data-args='["${projectId}","${r.id}","ciso"]'>Assinar</button>` : podeRevogar() ? `<button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarROPA" data-args='["${projectId}","${r.id}","ciso"]'>Revogar</button>` : ''}
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
                         <div>
                             <strong>Direção Executiva:</strong> 
-                            ${r.ceo_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ceo_approved_by)} em ${new Date(r.ceo_approved_at).toLocaleDateString()}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
+                            ${r.ceo_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ceo_approved_by)} em ${formatarData(r.ceo_approved_at)}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
                         </div>
                         ${!r.ceo_approved_by ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveROPA" data-args='["${projectId}","${r.id}","ceo"]'>Assinar</button>` : podeRevogar() ? `<button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarROPA" data-args='["${projectId}","${r.id}","ceo"]'>Revogar</button>` : ''}
                     </div>
@@ -159,7 +159,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes da atividade (RoPA)</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:600; font-size:1.3rem; color:var(--text)">
@@ -224,7 +224,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         const parteOptions = await opcoesDePartes(projectId, null);
         catalogoBases = await idsDoCatalogo(api);
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova atividade de tratamento (RoPA), edição avançada</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Nova atividade de tratamento (RoPA), edição avançada</span></div>
             <div class="form-group"><label class="form-label" for="ropa-purpose">Finalidade do tratamento</label><input class="form-input" id="ropa-purpose" placeholder="Ex: Folha de pagamento"></div>
             <div class="form-group"><label class="form-label" for="ropa-categories">Categorias de dados</label><input class="form-input" id="ropa-categories" placeholder="Ex: Dados pessoais, financeiros, biometria"></div>
             <div class="form-group"><label class="form-label" for="ropa-subjects">Titulares</label><input class="form-input" id="ropa-subjects" placeholder="Ex: Colaboradores, Clientes"></div>
@@ -269,7 +269,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         const parteOptions = await opcoesDePartes(r.project_id || (S.activeProject && S.activeProject.id), r.owner_parte_id);
         catalogoBases = await idsDoCatalogo(api);
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar atividade (RoPA), edição avançada</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar atividade (RoPA), edição avançada</span></div>
             <div class="form-group"><label class="form-label" for="ropa-e-purpose">Finalidade</label><input class="form-input" id="ropa-e-purpose" value="${escapeHTML(r.processing_purpose||'')}"></div>
             <div class="form-group"><label class="form-label" for="ropa-e-categories">Categorias de dados</label><input class="form-input" id="ropa-e-categories" value="${escapeHTML(r.data_categories||'')}"></div>
             <div class="form-group"><label class="form-label" for="ropa-e-subjects">Titulares</label><input class="form-input" id="ropa-e-subjects" value="${escapeHTML(r.data_subjects||'')}"></div>
@@ -287,7 +287,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                     ${r.status==='Approved' ? '<option value="Approved" selected>Aprovado (para reabrir, revogue a aprovação)</option>' : opcoesStatus(STATUS_ROPA, r.status || 'Active')}
                 </select></div>
             <div style="display:flex;gap:0.5rem;justify-content:space-between;margin-top:1rem">
-                <button class="btn" style="color:var(--danger)" data-action="deleteROPA" data-args='["${id}"]'>Excluir</button>
+                <button class="btn" style="color:var(--danger-ink)" data-action="deleteROPA" data-args='["${id}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateROPA" data-args='["${id}"]'>Salvar</button>
             </div>
         `);
@@ -325,7 +325,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
 
     async function renderDPIA(c, h, a) {
         // O termo legal brasileiro vem primeiro (LGPD, art. 5º, XVII).
-        h.textContent = produtoAtual() === 'privacy' ? 'RIPD' : 'RIPD (DPIA)';
+        h.textContent = tituloDaTela('nav-dpia', 'RIPD');
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
             a.innerHTML = '';
@@ -400,7 +400,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Detalhes do RIPD</span>
-                <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:600; font-size:1.3rem; color:var(--text)">
@@ -493,7 +493,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                 ${atividades.map((x) => `<option value="${escapeHTML(x.id)}">${escapeHTML(x.processing_purpose || x.id)}</option>`).join('')}
             </select><p class="re-nota" id="dpia-ropa-dica">Com a atividade, o RIPD nasce com o que o RoPA e o teste de impacto já informaram.</p></div>` : '';
         openModal(`
-            <div class="modal-header"><span class="modal-title">Novo RIPD</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Novo RIPD</span></div>
             ${escolha}
             <div id="dpia-manual">
             <div class="form-group"><label class="form-label" for="dpia-system">Nome do Sistema / Processo de Dados</label><input class="form-input" id="dpia-system" placeholder="Ex: CRM Salesforce, Sistema de RH Interno"><p class="campo-erro" id="dpia-system-erro" aria-live="polite"></p></div>
@@ -556,7 +556,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
     window.openEditDPIAModal = function(id) {
         const dp = S.dpia.find(x => x.id === id) || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar RIPD</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar RIPD</span></div>
             <div class="form-group"><label class="form-label">Nome do Sistema</label><input class="form-input" id="dpia-e-system" value="${escapeHTML(dp.system_name||'')}"></div>
             <div class="form-group"><label class="form-label">Descrição do Fluxo</label><textarea class="form-input" id="dpia-e-flow">${escapeHTML(dp.data_flow_description||'')}</textarea></div>
             <div style="display:flex; gap:0.5rem">
@@ -575,7 +575,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                 </select></div>
 
             <div style="display:flex; gap:0.5rem; justify-content:space-between; margin-top:1.5rem">
-                <button class="btn" style="color:var(--danger)" data-action="deleteDPIA" data-args='["${id}"]'>Excluir</button>
+                <button class="btn" style="color:var(--danger-ink)" data-action="deleteDPIA" data-args='["${id}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateDPIA" data-args='["${id}"]'>Salvar</button>
             </div>
         `);

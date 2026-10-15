@@ -26,7 +26,7 @@ async function listar(el, projectId) {
         return;
     }
     if (!tokens.length) {
-        el.innerHTML = '<p class="text-muted">Nenhum link válido agora.</p>';
+        el.innerHTML = window.renderEmptyState({ titulo: 'Nenhum link válido agora.', compacto: true });
         return;
     }
     el.innerHTML = window.renderDataTable(
@@ -54,7 +54,7 @@ export async function renderAcessoAuditor(el, projectId, role) {
                 </div>
                 <button class="btn btn-primary" data-action="gerarAcessoAuditor" data-args='${args(projectId)}'>Gerar link</button>
             </div>
-            <p id="aud-ext-erro" role="alert" style="color:var(--danger);margin:.5rem 0 0"></p>
+            <p id="aud-ext-erro" role="alert" style="color:var(--danger-ink);margin:.5rem 0 0"></p>
             <div id="aud-ext-novo" role="status" aria-live="polite"></div>
             <h4 style="margin:1.25rem 0 .5rem">Links válidos</h4>
             <div id="aud-ext-lista"></div>

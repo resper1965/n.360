@@ -3,7 +3,7 @@ import { S } from './state.js';
 import { atualizarSelos } from './selos-menu.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
-import { showToast, openModal, escapeHTML } from './ui.js';
+import { showToast, openModal, escapeHTML, formatarData } from './ui.js';
 
 // ponytail: o toggle de tema foi removido — o design system da ness. é OLED Dark
 // nativo (design.md §2) e não havia CSS [data-theme], então o controle não fazia
@@ -79,14 +79,14 @@ window.viewEvidence = async function viewEvidence(id) {
             
             let sealHtml = '';
             if (ev.ciso_approved_by || ev.ceo_approved_by) {
-                const cisoText = ev.ciso_approved_by ? `Assinado por ${escapeHTML(ev.ciso_approved_by)} em ${new Date(ev.ciso_approved_at).toLocaleString()}` : 'Pendente';
-                const ceoText = ev.ceo_approved_by ? `Assinado por ${escapeHTML(ev.ceo_approved_by)} em ${new Date(ev.ceo_approved_at).toLocaleString()}` : 'Pendente';
+                const cisoText = ev.ciso_approved_by ? `Assinado por ${escapeHTML(ev.ciso_approved_by)} em ${formatarData(ev.ciso_approved_at, { hora: true })}` : 'Pendente';
+                const ceoText = ev.ceo_approved_by ? `Assinado por ${escapeHTML(ev.ceo_approved_by)} em ${formatarData(ev.ceo_approved_at, { hora: true })}` : 'Pendente';
                 
                 sealHtml = `
                     <div style="background: rgba(0, 173, 232, 0.02); border: 1px solid rgba(0, 173, 232, 0.15); padding: 1rem; margin-top: 1rem;">
                         <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.4rem; margin-bottom: 0.5rem;">
                             <div style="width: 6px; height: 6px; background: var(--accent);"></div>
-                            <span style="font-family: 'Montserrat', sans-serif; font-size: 0.65rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em;">Selo de Assinatura da Evidência</span>
+                            <span style="font-family: 'Montserrat', sans-serif; font-size:var(--fs-xs); font-weight:600; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em;">Selo de Assinatura da Evidência</span>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px;">
                             <div><strong>DPO:</strong> <span style="color: ${ev.ciso_approved_by ? 'var(--success)' : 'var(--text-dim)'}">${cisoText}</span></div>
@@ -98,10 +98,10 @@ window.viewEvidence = async function viewEvidence(id) {
 
             const html = `
                 <div style="padding: 1.5rem">
-                    <h2 style="font-family:'Montserrat',sans-serif; font-weight:700; color:var(--accent); font-size:1.2rem; margin-bottom:0.5rem">Detalhes da Evidência</h2>
+                    <h2 style="font-family:'Montserrat',sans-serif; font-weight:600; color:var(--accent); font-size:1.2rem; margin-bottom:0.5rem">Detalhes da Evidência</h2>
                     <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Arquivo:</strong> ${escapeHTML(fileName)}</p>
                     <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Hash SHA-256:</strong> <code style="word-break: break-all">${escapeHTML(ev.file_hash || ev.sha256_hash || '')}</code></p>
-                    <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Data de Envio:</strong> ${new Date(ev.created_at).toLocaleString()}</p>
+                    <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Data de Envio:</strong> ${formatarData(ev.created_at, { hora: true })}</p>
                     
                     ${previewHtml}
                     ${sealHtml}
@@ -861,7 +861,7 @@ window.openSessionTrail = async function openSessionTrail() {
                                 <span style="flex-shrink:0">${badge(r.tipo || 'evento')}</span>
                                 <span style="flex:1;min-width:0;font-size:12.5px;color:var(--text-2);line-height:1.5">
                                     ${escapeHTML(r.descricao || '')}
-                                    <span style="display:block;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);margin-top:2px">${escapeHTML(r.quando || '')}</span>
+                                    <span style="display:block;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px">${escapeHTML(formatarData(r.quando, { hora: true, vazio: '' }))}</span>
                                 </span>
                             </div>`).join('')}
                     </div>`
@@ -1119,7 +1119,7 @@ window.renderNotifDropdown = function renderNotifDropdown() {
             <div class="notif-item ${n.read ? '' : 'unread'}" data-action="handleNotificationClick" data-args='["${n.id}"]'>
                 <div style="font-weight:${n.read ? '400' : '600'}">${escapeHTML(n.title)}</div>
                 <div style="font-size:0.7rem; color:var(--text-dim); margin-top:0.2rem">${escapeHTML(n.message || '')}</div>
-                <div class="notif-time">${n.created_at ? n.created_at.split('T')[0] : ''}</div>
+                <div class="notif-time">${escapeHTML(formatarData(n.created_at, { hora: true, vazio: '' }))}</div>
             </div>
         `).join('');
     }
@@ -1491,7 +1491,7 @@ function renderLegalAcceptCard() {
                        data-action-change="updateLegalAcceptButton">
                 <span style="font-size:12.5px;color:var(--text-2);line-height:1.5">
                     Li e aceito ${escapeHTML(d.title)}
-                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">${escapeHTML(d.version)}</span>
+                    <span style="font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-dim)">${escapeHTML(d.version)}</span>
                     ${d.url ? `<br><a href="${escapeHTML(d.url)}" target="_blank" rel="noopener" class="login-link">ler o documento</a>` : ''}
                 </span>
             </label>`).join('');
@@ -1819,16 +1819,16 @@ window.refreshDoDDrawer = function() {
                                 <div class="list-item" style="display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border);">
                                     <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; width: 100%;">
                                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                                            <span class="badge-cat ${item.category}" style="align-self: flex-start; font-size: 0.6rem; font-weight: 500;">${item.category.toUpperCase()}</span>
+                                            <span class="badge-cat ${item.category}" style="align-self: flex-start; font-size:var(--fs-xs); font-weight: 500;">${item.category.toUpperCase()}</span>
                                             <span class="item-name" style="font-size: 0.8rem; color: var(--text); font-weight: 400;">${escapeHTML(item.text)}</span>
                                         </div>
                                     </div>
                                     <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem; width: 100%;">
                                         ${(item.category === 'evidence' || item.category === 'document') ? `
-                                            <button class="btn" style="flex: 1; padding: 0.4rem 0.8rem; font-size: 0.65rem;" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Upload</button>
+                                            <button class="btn" style="flex: 1; padding: 0.4rem 0.8rem; font-size:var(--fs-xs);" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Enviar</button>
                                         ` : ''}
                                         ${item.category === 'document' ? `
-                                            <button class="btn btn-primary" style="flex: 1; padding: 0.4rem 0.8rem; font-size: 0.65rem;" data-action="openGeneratePolicyModal" data-args='["${projectId}","${controlId}"]'>Gerar Política</button>
+                                            <button class="btn btn-primary" style="flex: 1; padding: 0.4rem 0.8rem; font-size:var(--fs-xs);" data-action="openGeneratePolicyModal" data-args='["${projectId}","${controlId}"]'>Gerar Política</button>
                                         ` : ''}
                                     </div>
                                 </div>
@@ -1918,7 +1918,7 @@ window.openScopeChangeModal = async function(projectId, projData) {
         } catch (e) { /* secundário: o formulário de mudança abre sem o histórico */ }
 
         openModal(`
-            <div class="modal-header"><span class="modal-title">Alteração de Escopo (Cláusula 6.3)</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+            <div class="modal-header"><span class="modal-title">Alteração de Escopo (Cláusula 6.3)</span></div>
             <div class="form-group">
                 <label class="form-label">Escopo Atual do Projeto</label>
                 <textarea class="form-input" readonly rows="2" style="background:rgba(255,255,255,0.02);color:var(--text-dim);resize:none">${escapeHTML(projData.scope || 'Nenhum escopo definido')}</textarea>
@@ -1944,10 +1944,10 @@ window.openScopeChangeModal = async function(projectId, projData) {
 
             <div style="margin-top:1.5rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem">
                 <h4 style="font-family:'Montserrat',sans-serif;font-size:0.7rem;color:var(--accent);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.05em">Histórico de Alterações de Escopo</h4>
-                <div style="font-size:0.65rem; color:var(--text-dim); max-height:100px; overflow-y:auto; line-height:1.4">
+                <div style="font-size:var(--fs-xs); color:var(--text-dim); max-height:100px; overflow-y:auto; line-height:1.4">
                     ${history.length ? history.map((c, i) => `
                         <div style="padding:0.3rem 0; border-bottom:1px dashed rgba(255,255,255,0.03)">
-                            <strong>${escapeHTML(STATUS_ESCOPO[c.status] || c.status || 'Pendente')}</strong> (${new Date(c.created_at).toLocaleDateString()}) - Solicitado por: ${escapeHTML(c.requested_by)}<br>
+                            <strong>${escapeHTML(STATUS_ESCOPO[c.status] || c.status || 'Pendente')}</strong> (${formatarData(c.created_at)}) - Solicitado por: ${escapeHTML(c.requested_by)}<br>
                             <strong>Motivo:</strong> ${escapeHTML(c.reason)}<br>
                             <strong>Impacto de Seg.:</strong> ${escapeHTML(c.impact_analysis)}<br>
                             <strong>Novo Escopo:</strong> ${escapeHTML(c.change_description)}
@@ -2013,7 +2013,7 @@ window.renderSelfServiceAssessment = async function renderSelfServiceAssessment(
             // ponytail: reuse ASSESSMENT_BLOCKS from the main app
             const blocks = typeof ASSESSMENT_BLOCKS !== 'undefined' ? ASSESSMENT_BLOCKS : [];
             if (!blocks.length) {
-                c.innerHTML = '<div style="max-width:700px;margin:2rem auto;text-align:center;color:var(--danger)">Erro: Assessment blocks not loaded.</div>';
+                c.innerHTML = '<div style="max-width:700px;margin:2rem auto;text-align:center;color:var(--danger-ink)">Não foi possível carregar as perguntas do levantamento. Recarregue a página.</div>';
                 return;
             }
 
@@ -2026,7 +2026,7 @@ window.renderSelfServiceAssessment = async function renderSelfServiceAssessment(
         } catch(e) {
             c.innerHTML = `<div style="max-width:700px;margin:2rem auto;text-align:center">
                 <div class="logo" style="font-size:2rem;margin-bottom:1rem">n<span style="color:var(--accent)">.</span>ISO</div>
-                <div style="color:var(--danger)">${escapeHTML(e.message)}</div>
+                <div style="color:var(--danger-ink)">${escapeHTML(e.message)}</div>
             </div>`;
         }
     }
@@ -2043,7 +2043,7 @@ window.renderSelfServiceBlock = function renderSelfServiceBlock(c, blocks) {
             <div style="text-align:center;margin-bottom:2rem">
                 <div class="logo" style="font-size:1.5rem;margin-bottom:0.5rem">n<span style="color:var(--accent)">.</span>iso</div>
                 <div style="font-size:0.75rem;color:var(--muted)">Assessment Self-Service para ${escapeHTML(window._ssData.client_name)}</div>
-                <div style="margin-top:0.5rem;font-size:0.6rem;color:var(--muted)">Bloco ${idx + 1} de ${total}</div>
+                <div style="margin-top:0.5rem;font-size:var(--fs-xs);color:var(--muted)">Bloco ${idx + 1} de ${total}</div>
                 <div style="height:4px;background:rgba(255,255,255,0.1);margin-top:0.75rem">
                     <div style="width:100%;height:100%;background:var(--accent);transform-origin:left;transform:scaleX(${((idx + 1) / total).toFixed(3)});transition:transform 0.3s"></div>
                 </div>
@@ -2057,7 +2057,7 @@ window.renderSelfServiceBlock = function renderSelfServiceBlock(c, blocks) {
                             <select class="form-input ss-answer" data-key="${q.key}">
                                 <option value="">Selecione</option>
                                 <option value="yes" ${val === 'yes' ? 'selected' : ''}>Sim</option>
-                                <option value="no" ${val === 'no' ? 'selected' : ''}>Nao</option>
+                                <option value="no" ${val === 'no' ? 'selected' : ''}>Não</option>
                             </select></div>`;
                     } else if (q.type === 'select' && q.options) {
                         return `<div class="form-group"><label class="form-label">${escapeHTML(q.text)}</label>
@@ -2114,7 +2114,7 @@ window.ssNext = async function() {
         } else {
             document.getElementById('content').innerHTML = `<div style="max-width:700px;margin:3rem auto;text-align:center" class="fade-in">
                 <div class="logo" style="font-size:2rem;margin-bottom:1rem">n<span style="color:var(--accent)">.</span>ISO</div>
-                <div style="font-size:1.2rem;font-weight:500;color:var(--success);margin-bottom:0.5rem">Assessment Concluido!</div>
+                <div style="font-size:1.2rem;font-weight:500;color:var(--success);margin-bottom:0.5rem">Levantamento concluído</div>
                 <div style="color:var(--muted);font-size:0.75rem">Obrigado por completar o assessment. Seu consultor entrara em contato com os proximos passos.</div>
             </div>`;
         }
@@ -2191,7 +2191,7 @@ window.PHASE_PLAYBOOKS = {
     1: { obj: "Entrevista Executiva (Cláusula 5.2 & 6.2)", guideline: "Conduzir reuniões com C-Level para entender o apetite de risco da organização, os objetivos estratégicos de negócio e obter inputs diretos para a elaboração da Política de Segurança da Informação." },
     2: { obj: "Entrevistas por Trilha (Cláusula 7.2)", guideline: "Realizar o mapeamento das trilhas de TI, RH, Jurídico e Operações. O objetivo é entender a rotina de cada área e coletar evidências iniciais de procedimentos já existentes." },
     3: { obj: "Definição de Escopo (Cláusula 4.3)", guideline: "Mapear de forma precisa e documentada os limites físicos, organizacionais e tecnológicos do SGSI. Quaisquer exclusões de controles ou áreas devem ser tecnicamente justificadas no documento de escopo." },
-    4: { obj: "Gap Assessment (Cláusula 6.1)", guideline: "Comparar a maturidade atual dos processos internos com os 93 controles da ISO 27001:2022. Identificar 'Quick Wins' (melhorias rápidas e de baixo custo) para iniciar a adequação com impacto." },
+    4: { obj: "Análise de lacunas (Cláusula 6.1)", guideline: "Comparar a maturidade atual dos processos internos com os 93 controles da ISO 27001:2022. Identificar 'Quick Wins' (melhorias rápidas e de baixo custo) para iniciar a adequação com impacto." },
     5: { obj: "Governança e Papéis (Cláusula 5.3)", guideline: "Nomear formalmente os papéis-chave do SGSI, como o DPO (Encarregado) e o CISO (Responsável por Segurança). Criar e publicar a Matriz RACI de responsabilidades de segurança." },
     6: { obj: "Contexto e Partes Interessadas (Cláusula 4.1 & 4.2)", guideline: "Conduzir a análise de ambiente interno e externo (SWOT) e identificar os requisitos legais (ex: LGPD, resoluções ANPD) e contratuais com clientes e parceiros." },
     7: { obj: "Inventário de Ativos e Dados (Controle A.5.9)", guideline: "Listar e classificar todos os ativos de informação, softwares, hardwares e dados pessoais (RoPA). Atribuir owners (proprietários) para cada ativo do SGSI/SGPI." },
@@ -2231,7 +2231,6 @@ window.PHASE_PLAYBOOKS = {
 };
 
 window.initApp = window.initApp || function() {};
-document.addEventListener('keydown', function(e) { if (e.key === 'Escape') forceCloseModal(); });
 new MutationObserver(function() {
     document.querySelectorAll('[onclick]').forEach(function(el) {
         if (!['A','BUTTON','INPUT','SELECT','TEXTAREA'].includes(el.tagName)) {

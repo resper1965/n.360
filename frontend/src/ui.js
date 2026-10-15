@@ -1,3 +1,5 @@
+import { rotuloDe } from './rotulos.js';
+
 export     function escapeHTML(str) {
         if (str === null || str === undefined) return '';
         return String(str).replace(/[&<>"']/g, function(m) {
@@ -5,38 +7,128 @@ export     function escapeHTML(str) {
         });
     }
 
-export     function openModal(html, extraClass) {
+/*
+ * O modal único do app. Todo modal ganha o botão "Fechar" (texto visível, no topo), o papel de diálogo com nome (o
+ * primeiro título do conteúdo), o foco ao abrir e de volta ao gatilho ao fechar, e o Tab preso dentro. Esc fecha.
+ * Com campo alterado, o fechamento PEDIDO pela pessoa (Esc, "Fechar", "Cancelar", clique no fundo) pergunta na própria
+ * janela antes de descartar; o fechamento de código (forceCloseModal() depois de salvar) não pergunta. A diferença vem
+ * da delegação, que chama a ação com `this` = o elemento clicado (delegation.js); a chamada direta não tem elemento.
+ */
+let gatilhoModal = null;
+let modalAlterado = false;
+const FOCAVEIS = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const pedidoPelaPessoa = (quem) => typeof Element !== 'undefined' && quem instanceof Element;
+
+export function openModal(html, extraClass) {
+    const overlay = document.getElementById('modal-overlay');
+    const modal = document.getElementById('modal');
+    const modalContent = document.getElementById('modal-content');
+    if (!overlay.classList.contains('open')) gatilhoModal = document.activeElement;
+    modalAlterado = false;
+    modal.classList.remove('modal-large'); // reset
+    if (extraClass) modal.classList.add(extraClass);
+    modal.querySelector(':scope > .modal-descartar')?.remove();
+    modalContent.innerHTML = html;
+    if (!modal.querySelector(':scope > .modal-fechar')) {
+        modal.insertAdjacentHTML('afterbegin', '<button type="button" class="modal-fechar" data-action="forceCloseModal">Fechar</button>');
+    }
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('tabindex', '-1');
+    const titulo = modalContent.querySelector('.modal-title, h1, h2, h3');
+    if (titulo) {
+        if (!titulo.id) titulo.id = 'modal-titulo';
+        modal.setAttribute('aria-labelledby', titulo.id);
+    } else modal.removeAttribute('aria-labelledby');
+    overlay.classList.add('open');
+    const auto = modalContent.querySelector('[autofocus]');
+    (auto || modal).focus();
+}
+
+function fecharDeFato() {
+    // Optional chaining porque o handler global de Esc chama isto em toda tecla: fora do shell (ou num teste) os
+    // elementos podem não existir e a exceção matava o resto da cascata de Esc.
+    const overlay = document.getElementById('modal-overlay');
+    const estavaAberto = !!overlay?.classList.contains('open');
+    overlay?.classList.remove('open');
+    const modal = document.getElementById('modal');
+    modal?.classList.remove('modal-large');
+    modal?.querySelector(':scope > .modal-descartar')?.remove();
+    modalAlterado = false;
+    if (window.refreshDoDDrawer) window.refreshDoDDrawer();
+    if (window.activePreviewUrl) {
+        window.URL.revokeObjectURL(window.activePreviewUrl);
+        window.activePreviewUrl = null;
+    }
+    if (estavaAberto && gatilhoModal && gatilhoModal.isConnected && typeof gatilhoModal.focus === 'function') gatilhoModal.focus();
+    if (estavaAberto) gatilhoModal = null;
+}
+
+/** "Descartar o que foi digitado?" dentro do próprio modal, no topo, com o foco em "Continuar editando". */
+function perguntarDescarte() {
+    const modal = document.getElementById('modal');
+    if (!modal) return;
+    let faixa = modal.querySelector(':scope > .modal-descartar');
+    if (!faixa) {
+        modal.querySelector(':scope > .modal-fechar').insertAdjacentHTML('afterend', `<div class="modal-descartar" role="alertdialog" aria-labelledby="modal-descartar-texto">
+            <p id="modal-descartar-texto">Descartar o que foi digitado?</p>
+            <button type="button" class="btn" data-action="continuarEditandoModal">Continuar editando</button>
+            <button type="button" class="btn btn-perigo" data-action="descartarModal">Descartar</button></div>`);
+        faixa = modal.querySelector(':scope > .modal-descartar');
+    }
+    faixa.querySelector('[data-action="continuarEditandoModal"]').focus();
+}
+
+/** Fechar pedido pela pessoa: pergunta se há campo alterado. */
+export function pedirFecharModal() {
+    if (modalAlterado) perguntarDescarte();
+    else fecharDeFato();
+}
+
+export function closeModal(e) {
+    if (e && e.target !== document.getElementById('modal-overlay')) return;
+    if (pedidoPelaPessoa(this)) pedirFecharModal();
+    else fecharDeFato();
+}
+
+export function forceCloseModal() {
+    if (pedidoPelaPessoa(this)) pedirFecharModal();
+    else fecharDeFato();
+}
+
+window.continuarEditandoModal = function continuarEditandoModal() {
+    document.querySelector('#modal > .modal-descartar')?.remove();
+    const conteudo = document.getElementById('modal-content');
+    (conteudo?.querySelector(FOCAVEIS) || document.getElementById('modal'))?.focus();
+};
+window.descartarModal = function descartarModal() { fecharDeFato(); };
+
+if (typeof document !== 'undefined') {
+    // Campo alterado dentro do modal (o que se perde ao fechar). `data-sem-rascunho` marca filtro/busca, que não conta.
+    const marcar = (e) => {
+        const t = e.target;
+        if (t instanceof Element && t.closest('#modal-content') && !t.closest('[data-sem-rascunho]')) modalAlterado = true;
+    };
+    document.addEventListener('input', marcar, true);
+    document.addEventListener('change', marcar, true);
+    document.addEventListener('keydown', (e) => {
+        const overlay = document.getElementById('modal-overlay');
+        if (!overlay || !overlay.classList.contains('open') || e.defaultPrevented) return;
         const modal = document.getElementById('modal');
-        const modalContent = document.getElementById('modal-content');
-        modal.classList.remove('modal-large'); // reset
-        if (extraClass) modal.classList.add(extraClass);
-        modalContent.innerHTML = html;
-        document.getElementById('modal-overlay').classList.add('open');
-    }
-
-    export function closeModal(e) {
-        if (e && e.target !== document.getElementById('modal-overlay')) return;
-        document.getElementById('modal-overlay').classList.remove('open');
-        document.getElementById('modal').classList.remove('modal-large');
-        if (window.refreshDoDDrawer) window.refreshDoDDrawer();
-        if (window.activePreviewUrl) {
-            window.URL.revokeObjectURL(window.activePreviewUrl);
-            window.activePreviewUrl = null;
+        if (e.key === 'Escape') {
+            // Com a pergunta aberta, Esc é "continuar editando".
+            if (modal.querySelector(':scope > .modal-descartar')) window.continuarEditandoModal();
+            else pedirFecharModal();
+            e.preventDefault();
+        } else if (e.key === 'Tab') {
+            const f = [...modal.querySelectorAll(FOCAVEIS)].filter((x) => !x.closest('[hidden]'));
+            if (!f.length) { e.preventDefault(); modal.focus(); return; }
+            const i = f.indexOf(document.activeElement);
+            if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+            else if (!e.shiftKey && (i === -1 || i === f.length - 1)) { e.preventDefault(); f[0].focus(); }
         }
-    }
-
-    export function forceCloseModal() {
-        // Optional chaining porque o handler global de Esc chama isto em toda
-        // tecla: fora do shell (ou num teste) os elementos podem não existir e a
-        // exceção matava o resto da cascata de Esc.
-        document.getElementById('modal-overlay')?.classList.remove('open');
-        document.getElementById('modal')?.classList.remove('modal-large');
-        if (window.refreshDoDDrawer) window.refreshDoDDrawer();
-        if (window.activePreviewUrl) {
-            window.URL.revokeObjectURL(window.activePreviewUrl);
-            window.activePreviewUrl = null;
-        }
-    }
+    });
+}
 
 /**
  * Pergunta na própria tela, no lugar de window.confirm/prompt (bloqueiam a página, não seguem a
@@ -175,6 +267,15 @@ export function renderPageHeader(title, subtitle = '', actionsHtml = '') {
     `;
 }
 
+/**
+ * O título da tela É o rótulo do item de menu que a abre (lido do próprio menu, que a casca do módulo já ajustou:
+ * "Pessoas, áreas e sistemas" no n.privacy, "Partes" no n.iso). Fora do shell (teste, menu ausente) vale o padrão.
+ */
+export function tituloDaTela(navId, padrao) {
+    const t = typeof document !== 'undefined' && document.querySelector(`#${navId} .sidebar-nav-text`);
+    return (t && t.textContent.trim()) || padrao;
+}
+
 export function renderStatCards(statsArray) {
     if (!statsArray || !statsArray.length) return '';
     const cardsHtml = statsArray.map(s => {
@@ -182,7 +283,7 @@ export function renderStatCards(statsArray) {
         return `
             <div class="stat-card" style="background:var(--surface); border:1px solid var(--border); padding:1.25rem; flex:1; min-width:200px;">
                 <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); margin-bottom:0.5rem; font-weight:500;">${escapeHTML(s.label)}</div>
-                <div style="font-size:1.75rem; font-weight:700; color:${color}; font-family:'Inter',sans-serif; line-height:1.2;">${escapeHTML(String(s.value))}</div>
+                <div style="font-size:1.75rem; font-weight:600; color:${color}; font-family:'Inter',sans-serif; line-height:1.2;">${escapeHTML(String(s.value))}</div>
                 ${s.subtext ? `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:0.4rem;">${escapeHTML(s.subtext)}</div>` : ''}
             </div>
         `;
@@ -200,55 +301,39 @@ export function renderStatCards(statsArray) {
  * por aqui, mostravam "High", "Medium", "Completed" e "In Progress" crus ao
  * usuário. Uma tabela só, para as duas formas de exibir não divergirem.
  */
-const STATUS_DICT = {
-    'implemented': 'Implementado',
-    'not applicable': 'Não Aplicável',
-    'approved': 'Aprovado',
-    'compliant': 'Conforme',
-    'missing': 'Pendente',
-    'partial': 'Parcial',
-    'conforming': 'Conforme',
-    'non_conforming': 'Não Conforme',
-    'draft': 'Rascunho',
-    'under review': 'Em Revisão',
-    'active': 'Ativo',
-    'pending': 'Pendente',
-    'open': 'Aberto',
-    'closed': 'Fechado',
-    'low': 'Baixo',
-    'medium': 'Médio',
-    'high': 'Alto',
-    'critical': 'Crítico',
-    'planned': 'Planejado',
-    'completed': 'Concluído',
-    'in_progress': 'Em Andamento',
-    'in progress': 'Em Andamento',
-    'na': 'N/A',
-    'gap': 'Gap',
-    // Faltavam: são valores que o backend grava e que apareciam em inglês.
-    'treated': 'Tratado',
-    'mitigate': 'Mitigar',
-    'accept': 'Aceitar',
-    'transfer': 'Transferir',
-    'avoid': 'Evitar',
-    'scheduled': 'Agendado',
-    'very low': 'Muito Baixo',
-    'rejected': 'Rejeitado',
-    'revoked': 'Revogado',
-    'inactive': 'Inativo'
-};
-
 /** Situação de uma fase da jornada (`project_phases.status`), em português. Jornada e Monitor usam a mesma. */
 export const STATUS_DA_FASE = { pending: 'Não iniciada', in_progress: 'Em andamento', completed: 'Concluída', blocked: 'Bloqueada', skipped: 'Dispensada' };
 
 /**
- * Traduz um valor de status/severidade para PT-BR. Valor desconhecido volta
- * COMO VEIO — melhor mostrar o termo cru do banco do que apagar a informação.
+ * Traduz um valor de status/severidade para PT-BR pelo mapa geral de `rotulos.js` (a tabela única). Valor
+ * desconhecido volta COMO VEIO. Para um valor cujo rótulo depende do domínio, use `rotuloDe(dominio, valor)`.
  */
-export function traduzStatus(valor) {
-    if (valor === null || valor === undefined || valor === '') return '';
-    const chave = valor.toString().toLowerCase().trim();
-    return STATUS_DICT[chave] || valor;
+export function traduzStatus(valor) { return rotuloDe('', valor); }
+
+/**
+ * Data na tela, sempre dd/mm/aaaa (e hh:mm com `{ hora: true }`). Aceita o que o banco devolve: "2026-10-15",
+ * "2026-10-15 10:15:00" (UTC do SQLite, sem fuso), ISO com Z, Date ou milissegundos. Data só de dia não passa por
+ * fuso (não vira o dia anterior em Brasília), nem a meia-noite UTC exata ("2026-10-16T00:00:00.000Z", como os prazos
+ * são gravados); data com hora é convertida para o fuso do navegador. Vazio vira
+ * `vazio` ('—'); texto que não é data volta como veio.
+ */
+export function formatarData(valor, { hora = false, vazio = '—' } = {}) {
+    if (valor === null || valor === undefined || valor === '') return vazio;
+    const dd = (n) => String(n).padStart(2, '0');
+    if (typeof valor === 'string') {
+        const s = valor.trim();
+        // Meia-noite UTC exata é um dia gravado como instante (os prazos legais): não passa por fuso.
+        const soDia = /^(\d{4})-(\d{2})-(\d{2})(?:T00:00(?::00(?:\.0+)?)?Z)?$/.exec(s);
+        if (soDia) return `${soDia[3]}/${soDia[2]}/${soDia[1]}`;
+        // "AAAA-MM-DD HH:MM:SS" do SQLite é UTC sem marca de fuso.
+        const sqlite = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(s) ? `${s.replace(' ', 'T')}Z` : s;
+        valor = /^\d{4}-\d{2}-\d{2}T/.test(sqlite) ? new Date(sqlite) : null;
+        if (!valor) return s;
+    }
+    const d = valor instanceof Date ? valor : new Date(valor);
+    if (Number.isNaN(d.getTime())) return vazio;
+    const dia = `${dd(d.getDate())}/${dd(d.getMonth() + 1)}/${d.getFullYear()}`;
+    return hora ? `${dia} ${dd(d.getHours())}:${dd(d.getMinutes())}` : dia;
 }
 
 export function renderStatusBadge(arg1, arg2) {
@@ -269,19 +354,9 @@ export function renderStatusBadge(arg1, arg2) {
 
 
     text = traduzStatus(text);
-
-    // Sem borda: o preenchimento por color-mix já separa a badge do fundo, e a
-    // borda somava um terceiro tom de cinza em cada célula da tabela.
-    const COLORS = {
-        success: 'var(--success)',
-        warning: 'var(--warning)',
-        danger: 'var(--danger)',
-        info: 'var(--info)',
-        neutral: 'var(--text-dim)'
-    };
-    const color = COLORS[type] || COLORS.neutral;
-    const bStyle = `background:color-mix(in oklab, ${color} 16%, transparent); color:${color}; border:0; border-radius:0;`;
-    return `<span class="badge" style="${bStyle} padding:1px 8px; font:500 10px/1.7 var(--font-mono); text-transform:uppercase; letter-spacing:0.08em; display:inline-block;">${escapeHTML(text)}</span>`;
+    // Uma família de selo: a aparência vive em `.badge` e `.selo-<tipo>` (style.css), nunca inline. O tipo é semântico;
+    // o ciano da marca não é cor de estado (`--info` é neutro claro, o accent fica para o que se clica).
+    return `<span class="badge selo-${type}">${escapeHTML(text)}</span>`;
 }
 
 /**
@@ -289,7 +364,12 @@ export function renderStatusBadge(arg1, arg2) {
  * houver) e a ação que o usuário pode tomar. Título e texto são texto (escapados); `acao` é HTML de
  * botão montado por quem chama. A aparência vive em `.empty-state` (style.css), nunca inline.
  */
-export function renderEmptyState({ titulo = '', texto = '', acao = '', id = '', itens = [] } = {}) {
+export function renderEmptyState({ titulo = '', texto = '', acao = '', id = '', itens = [], compacto = false } = {}) {
+    // `compacto`: o vazio de uma seção dentro de cartão, modal ou ficha (uma linha, sem moldura). Mesmo padrão: o que falta,
+    // o que fazer (texto) e a ação.
+    if (compacto) {
+        return `<div class="empty-state empty-state-compacto"${id ? ` id="${escapeHTML(id)}"` : ''}><p>${escapeHTML(titulo)}${texto ? ` <span class="empty-hint">${escapeHTML(texto)}</span>` : ''}</p>${acao ? `<div class="empty-action">${acao}</div>` : ''}</div>`;
+    }
     // `itens`: lista curta de texto (o que a cláusula pede, o que costuma existir); cada um pode trazer a própria ação (HTML).
     const lista = itens.length ? `<ul class="empty-list">${itens.map((it) => {
         const { texto: t, acao: ac } = typeof it === 'string' ? { texto: it } : it;
@@ -395,7 +475,7 @@ export function renderDataTable(columns, rows, options = {}) {
     // vira buraco transparente no cabeçalho fixo.
     const ths = cols.map(c => {
         const sorted = c.sort ? ` aria-sort="${escapeHTML(c.sort)}"` : '';
-        return `<th scope="col"${sorted} style="text-align:${c.align}; position:sticky; top:0; z-index:3; background:var(--bg); padding:14px 10px 10px; color:var(--text-faint); font:500 9px/1 var(--font-mono); text-transform:uppercase; letter-spacing:0.16em; border-bottom:1px solid var(--border);${numCell(c)}">${escapeHTML(c.label)}</th>`;
+        return `<th scope="col"${sorted} style="text-align:${c.align}; position:sticky; top:0; z-index:3; background:var(--bg); padding:14px 10px 10px; color:var(--text-faint); font:500 var(--fs-xs)/1 var(--font-mono); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--border);${numCell(c)}">${escapeHTML(c.label)}</th>`;
     }).join('');
 
     const pad = options.dense ? '7px 10px' : '12px 10px';
@@ -526,11 +606,14 @@ window.renderAbas = renderAbas;
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.forceCloseModal = forceCloseModal;
+window.pedirFecharModal = pedirFecharModal;
 window.showToast = showToast;
 window.renderPageHeader = renderPageHeader;
 window.renderStatCards = renderStatCards;
+window.tituloDaTela = tituloDaTela;
 window.renderStatusBadge = renderStatusBadge;
 window.traduzStatus = traduzStatus;
+window.formatarData = formatarData;
 window.renderDataTable = renderDataTable;
 window.renderEmptyState = renderEmptyState;
 window.renderSemProjeto = renderSemProjeto;

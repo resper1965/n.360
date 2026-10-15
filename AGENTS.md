@@ -599,10 +599,10 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~22,0 mil linhas de JS (2026-10-15)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 112 arquivos de teste em jsdom
+- **Frontend com pouco teste por linha.** ~22,6 mil linhas de JS (2026-10-15)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 117 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
-  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 36 telas de `frontend/src/views/` sao
+  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 37 telas de `frontend/src/views/` sao
   importadas por ao menos um teste (2026-10-15: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
   nao imprime nada), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, `project.js`, todas acima de 1.400 linhas)
   tem teste so de fatias.
@@ -656,15 +656,21 @@ errar um digito destruia a sessao.
   valores aqui — a cópia anterior (#070b14, "proibido peso 600") envelheceu e
   a landing antiga seguiu a cópia, não o app. Hoje: `--bg #0b1326`,
   `--surface #162244`, `--accent #00ade8`, `--text #f1f5f9`.
-- Tipografia: Inter no corpo; Montserrat 500 na marca, 600 em títulos.
+- Tipografia: Inter no corpo; Montserrat 500 na marca, 600 em títulos; JetBrains Mono para hash e código (carregada no
+  `login.html`). Escala em tokens `--fs-xs` (11px, o piso) a `--fs-2xl`; nada abaixo de 11px, nada de peso 300 ou 700.
+- Uma lingua na tela: valor do banco por `rotuloDe` (`frontend/src/rotulos.js`), data por `formatarData` (`ui.js`,
+  dd/mm/aaaa), titulo da tela = rotulo do menu (`tituloDaTela`). Modal so por `openModal` (Fechar, foco preso, pergunta
+  antes de descartar), selo so por `renderStatusBadge`, vazio so por `renderEmptyState`. Detalhe em `design.md`.
 - Produtos: `n.360` (a plataforma), `n.iso` e `n.privacy` (os modulos), com o ponto em accent, como a marca `ness.`.
 - Proibido: italicos, emojis/icones, accent como background de area.
 - Uma acao principal por tela (um `.btn-primary` visivel); acima de tres secundarias, `renderMaisAcoes` (`frontend/src/ui.js`); nenhum primario por linha de tabela; destrutivo so no fim do menu. O projeto ativo mora so no seletor da barra lateral. Detalhe em `design.md`.
-- Geometria: o sistema e quadrado (`--radius: 0`). O bloco "Correcoes de superficie herdadas", no fim de
-  `frontend/src/style.css`, zera o raio de `.btn*`, `.form-input`, `.form-select`, `.card`, `.modal`, `.badge`,
-  `.chip` e afins; os `10px` dessas classes no topo do arquivo sao codigo morto. O 10px que ainda aparece vem do
-  inline das telas e de `.wizard-step`, `.yesno-btn` e `.ness-select-*`, fora da sobreposicao
-  (detalhe em `design.md`). Inline so `0` ou `10px` (`frontend/test/catracas-visuais.test.js`); novo nasce quadrado.
+- Geometria: o sistema e quadrado (`--radius: 0`). Desde a onda 3 (15/10/2026) nao sobra raio em px no CSS nem
+  inline (`git grep -nE "border-radius:\s*[1-9][0-9.]*(px|rem)" -- frontend/src` nao imprime nada); so os circulos de
+  50%. Inline so `0` (`frontend/test/catracas-visuais.test.js`); novo nasce quadrado.
+- Estilo inline so para valor calculado; o resto usa as classes do fim de `frontend/src/style.css` (componentes e
+  utilitarios sobre tokens). A catraca trava o teto de `style=` por arquivo: 1.002 no frontend em 2026-10-15
+  (`git grep -o "style=" -- 'frontend/src/*.js' 'frontend/src/views/*.js' | wc -l`), eram 1.740; nas quatro telas
+  grandes, 249 (eram 973).
 - Login: tela dividida — marca à esquerda, cartão à direita; empilha abaixo
   de 900px.
 

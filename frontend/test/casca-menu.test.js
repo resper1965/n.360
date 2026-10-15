@@ -58,13 +58,13 @@ const ESTRUTURA_ISO = [
     '[Implementação] false',
     'group-impl: nav-project=Jornada, nav-certification=Prontidão, nav-monitor=Monitor, nav-soa=SoA, nav-governance=Governança',
     '[Operacional] false',
-    'group-ops: nav-stakeholders=Partes Interessadas, nav-context=Contexto, nav-assets=Ativos, nav-risks=Riscos, nav-vendors=Fornecedores, nav-partes=Partes, nav-documentos=Documentos, nav-training=Treinamento, nav-acknowledgments=Ciência de Políticas, nav-policies=Gestão de Políticas, nav-audits=Auditorias, nav-capa=CAPA, nav-incidentes=Incidentes, nav-mgmt=Análise Crítica, nav-evidence=Evidências',
+    'group-ops: nav-stakeholders=Partes interessadas, nav-context=Contexto, nav-assets=Ativos, nav-risks=Riscos, nav-vendors=Fornecedores, nav-partes=Partes, nav-documentos=Documentos, nav-training=Treinamento, nav-acknowledgments=Ciência de políticas, nav-policies=Gestão de políticas, nav-audits=Auditorias, nav-capa=Ações corretivas, nav-incidentes=Incidentes, nav-mgmt=Análise crítica, nav-evidence=Evidências',
     '[Privacidade] false',
-    'group-privacy: nav-ropa=ROPA, nav-dpia=DPIA / RIPD',
+    'group-privacy: nav-ropa=Tratamentos (RoPA), nav-dpia=RIPD',
     '[Inteligência] false',
     'group-intel: nav-ai=Assistente',
     '[Sistema] false',
-    'group-system-config: nav-audit-trail=Trilha de Logs, nav-settings=Preços e margens',
+    'group-system-config: nav-audit-trail=Trilha de auditoria, nav-settings=Preços e margens',
 ];
 const ESTRUTURA_N360 = [
     'nav-inicio=Início',
@@ -72,7 +72,7 @@ const ESTRUTURA_N360 = [
     '[Conta e acessos] true',
     'group-conta (aberto): nav-projects=Projetos, nav-users=Usuários, nav-organizacoes=Organizações, nav-seguranca-projeto=Segurança do projeto, nav-api-keys=Chaves de API, nav-conectar-agente=Agentes',
     '[Sistema] false',
-    'group-system-config: nav-audit-trail=Trilha de Logs',
+    'group-system-config: nav-audit-trail=Trilha de auditoria',
 ];
 
 describe('n.iso e n.360: o menu não muda com a alternativa A do n.privacy', () => {
@@ -171,7 +171,7 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
             montarApp();
             aplicarCasca(produto);
             expect([texto('nav-governance'), texto('nav-partes'), texto('nav-ropa'), texto('nav-dpia'), texto('nav-requisitos'), texto('nav-meus')], produto)
-                .toEqual(['Governança', 'Partes', 'ROPA', 'DPIA / RIPD', 'Requisitos', 'Meus pedidos']);
+                .toEqual(['Governança', 'Partes', 'Tratamentos (RoPA)', 'RIPD', 'Requisitos', 'Meus pedidos']);
         }
     });
     it('rótulo de item numa linha só: o CSS não deixa o texto quebrar', () => {

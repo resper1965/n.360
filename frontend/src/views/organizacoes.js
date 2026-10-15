@@ -5,7 +5,7 @@
 // X-Org-Id enquanto o platform_admin atua em outra organização que não a ness.
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML, openModal, forceCloseModal } from '../ui.js';
+import { escapeHTML, openModal, forceCloseModal, formatarData } from '../ui.js';
 
 const ORG_NESS = 'org_ness';
 const CHAVE = 'niso_orgAtuacao';
@@ -25,7 +25,7 @@ const ehPlatformAdmin = () => S.user?.role === 'platform_admin';
 const nomeDe = (id) => orgs.find((o) => o.id === id)?.nome || id;
 // fim de frase com o nome: "ness." não ganha um segundo ponto
 const fimDe = (nome) => (nome.endsWith('.') ? nome : nome + '.');
-const data = (s) => (s ? new Date(String(s).replace(' ', 'T') + (String(s).includes('Z') ? '' : 'Z')).toLocaleDateString('pt-BR') : '');
+const data = (s) => formatarData(s, { vazio: '' });
 
 // ——— organização em que o platform_admin atua (memória + sessionStorage) ———
 function lerSalva() {

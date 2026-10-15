@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML, showToast } from '../ui.js';
+import { escapeHTML, showToast, tituloDaTela } from '../ui.js';
 import { filtroValido } from '../filtro-painel.js';
 
 // Prontidão para a certificação (Onda 2 do diagnóstico de 15/10/2026): uma tela que responde "estou pronto para o estágio 1?".
@@ -97,7 +97,7 @@ function desenhar(d, proj) {
 }
 
 export async function renderProntidao(c, h, a) {
-    h.textContent = 'Prontidão para a certificação';
+    h.textContent = tituloDaTela('nav-certification', 'Prontidão');
     a.innerHTML = '';
     const proj = S.activeProject || (Array.isArray(S.projects) ? S.projects[0] : null);
     if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }

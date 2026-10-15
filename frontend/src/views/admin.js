@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, closeModal, forceCloseModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, closeModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { render } from '../router.js';
 
 // S2: wrappers para os handlers COMPOSTOS (a delegação chama uma função só).
@@ -170,7 +170,7 @@ window.__adminCopiarApiKey = () => {
             ]);
 
             const tableHtml = window.renderDataTable(
-                ['Nome', 'E-mail', 'Papel (Role)', 'Projeto', 'Organização', 'Módulos', 'Situação', 'Ações'],
+                ['Nome', 'E-mail', 'Papel', 'Projeto', 'Organização', 'Módulos', 'Situação', 'Ações'],
                 userArr.map(u => {
                     const projectName = u.client_project_id ? (projMap[u.client_project_id] || u.client_project_id) : '—';
                     const roleLabel = u.role === 'platform_admin' ? 'Admin Plataforma' : 
@@ -218,7 +218,7 @@ window.__adminCopiarApiKey = () => {
     }
 
     async function renderAuditTrail(c, h, a) {
-        h.textContent = 'Trilha de Auditoria & Logs Imutáveis';
+        h.textContent = tituloDaTela('nav-audit-trail', 'Trilha de auditoria');
         a.innerHTML = '';
         const proj = S.activeProject || S.projects[0];
         if (!proj) { 
@@ -239,7 +239,7 @@ window.__adminCopiarApiKey = () => {
         const tableHtml = window.renderDataTable(
             ['Data / Hora', 'Usuário / Ator', 'Ação Realizada', 'Detalhes'],
             logs.map(l => [
-                `<span style="white-space:nowrap;color:var(--text-dim);font-size:0.75rem">${new Date(l.created_at || l.timestamp).toLocaleString()}</span>`,
+                `<span style="white-space:nowrap;color:var(--text-dim);font-size:0.75rem">${escapeHTML(formatarData(l.created_at || l.timestamp, { hora: true }))}</span>`,
                 `<strong>${escapeHTML(l.actor || l.user_email || 'System')}</strong>`,
                 window.renderStatusBadge(l.action, 'info'),
                 `<span style="font-size:0.75rem;color:var(--text-dim)">${escapeHTML(l.details || '—')}</span>`
@@ -261,7 +261,7 @@ window.__adminCopiarApiKey = () => {
     // Confirmação na própria janela da tela (sem window.confirm).
     function janelaConfirmar(titulo, texto, acao, rotulo, perigo) {
         openModal(`
-            <div class="modal-header"><span class="modal-title">${escapeHTML(titulo)}</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            <div class="modal-header"><span class="modal-title">${escapeHTML(titulo)}</span></div>
             <div style="padding:1.25rem 0;text-align:left"><p>${texto}</p>
                 <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:1rem">
                     <button class="btn" data-action="forceCloseModal">Cancelar</button>
@@ -428,7 +428,7 @@ window.__adminCopiarApiKey = () => {
         const html = `
             <div class="modal-header">
                 <span class="modal-title">${user ? 'Editar Usuário' : 'Novo Usuário'}</span>
-                <button class="btn-ghost" data-action="closeModal">&times;</button>
+                
             </div>
             <div style="display:flex; flex-direction:column; gap:1.25rem">
                 ${govImportHtml}
@@ -445,7 +445,7 @@ window.__adminCopiarApiKey = () => {
                     <input type="password" id="user-m-password" class="form-input" placeholder="••••••••" autocomplete="new-password">
                 </div>` : '<p class="org-dica" id="user-m-convite-nota">A pessoa recebe um e-mail com o link para criar a própria senha (vale 72 horas). Ninguém mais conhece a senha.</p>'}
                 <div class="form-group">
-                    <label class="form-label">Papel (Role)</label>
+                    <label class="form-label">Papel</label>
                     <select id="user-m-role" class="form-input" data-action-change="toggleUserProjectSelect" data-arg-val>
                         ${roleOptions}
                     </select>
@@ -544,7 +544,7 @@ window.__adminCopiarApiKey = () => {
         h.textContent = 'Chaves de API';
         a.innerHTML = '';
         if (!S.user || S.user.role !== 'platform_admin') {
-            c.innerHTML = '<div class="error">Acesso restrito ao Platform Admin.</div>';
+            c.innerHTML = '<div class="error">Acesso restrito ao administrador da plataforma.</div>';
             return;
         }
         c.innerHTML = '<div class="loading"></div>';
@@ -572,9 +572,9 @@ window.__adminCopiarApiKey = () => {
                             escapeHTML(k.name || ''),
                             escapeHTML(rotuloPapelChave(k.permissions)),
                             window.renderStatusBadge(k.status, active ? 'success' : 'info'),
-                            k.last_used_at ? escapeHTML(String(k.last_used_at)) : '—',
-                            escapeHTML(String(k.created_at || '').slice(0, 10)),
-                            active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="revokeApiKey" data-args='["${k.id}"]'>Revogar</button>` : '',
+                            escapeHTML(formatarData(k.last_used_at, { hora: true })),
+                            escapeHTML(formatarData(k.created_at)),
+                            active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger-ink)" data-action="revokeApiKey" data-args='["${k.id}"]'>Revogar</button>` : '',
                         ];
                     }),
                     { emptyState: 'Nenhuma chave para este projeto.' }
@@ -598,7 +598,7 @@ window.__adminCopiarApiKey = () => {
     window.openApiKeyModal = function () {
         if (!S.apiKeysProjectId) { showToast('Selecione um projeto', 'error'); return; }
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova chave de API</span><button class="btn-ghost" data-action="forceCloseModal">Fechar</button></div>
+            <div class="modal-header"><span class="modal-title">Nova chave de API</span></div>
             <div style="padding:1.25rem 0;text-align:left">
                 <div class="form-group"><label class="form-label">Nome</label><input id="apikey-name" class="form-input" placeholder="ex: consultor-clienteX"></div>
                 <div class="form-group"><label class="form-label">Papel</label>
@@ -638,7 +638,7 @@ window.__adminCopiarApiKey = () => {
             openModal(`
                 <div class="modal-header"><span class="modal-title">Chave criada</span><button class="btn-ghost" data-action="__adminFecharConcluir">Fechar</button></div>
                 <div style="padding:1.25rem 0;text-align:left">
-                    <p style="font-size:0.8rem;color:var(--danger);margin-bottom:0.75rem"><strong>Copie agora.</strong> Esta chave não será exibida novamente — só o hash é armazenado.</p>
+                    <p style="font-size:0.8rem;color:var(--danger-ink);margin-bottom:0.75rem"><strong>Copie agora.</strong> Esta chave não será exibida novamente — só o hash é armazenado.</p>
                     <div style="display:flex;gap:8px;align-items:center">
                         <input id="apikey-plain" class="form-input" readonly value="${escapeHTML(key)}" style="font-family:monospace;font-size:0.8rem">
                         <button class="btn" data-action="__adminCopiarApiKey">Copiar</button>

@@ -5,7 +5,7 @@
 import { api } from '../api.js';
 import { S } from '../state.js';
 import { produtoAtual } from '../produto.js';
-import { openModal, forceCloseModal, showToast, escapeHTML } from '../ui.js';
+import { openModal, forceCloseModal, showToast, escapeHTML, formatarData } from '../ui.js';
 
 const PAPEIS = {
     ciso: 'Aprovação do Líder SGSI / DPO',
@@ -39,7 +39,7 @@ const CAMPOS_TRATAMENTO = [['finalidade', 'Finalidade'], ['titulares', 'Titulare
 const SIM_NAO = ['transferencia_internacional', 'dpia_requerido', 'dados_sensiveis', 'criancas_adolescentes'];
 const textoDoCampo = (k, v) => (Array.isArray(v) ? v.join('\n') : SIM_NAO.includes(k) ? (v ? 'Sim' : 'Não') : String(v));
 
-const data = (s) => (s ? new Date(s).toLocaleString('pt-BR') : '');
+const data = (s) => formatarData(s, { hora: true, vazio: '' });
 const el = (id) => document.getElementById(id);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 
@@ -258,7 +258,7 @@ window.renderCienciaLink = async function renderCienciaLink(alvo, projectId) {
                 <td>${escapeHTML(String(p.nao_abriram ?? 0))}</td>
                 <td style="text-align:right"><button type="button" class="btn-secondary" data-action="abrirAcompanhamento" data-args='${args(projectId, p.id)}'>Acompanhamento</button></td>
             </tr>`).join('')}
-        </tbody></table>` : '<p style="font-size:13px;color:var(--text-dim)">Nenhum pedido de ciência ou de aprovação de política neste projeto.</p>'}
+        </tbody></table>` : window.renderEmptyState({ titulo: 'Nenhum pedido de ciência ou de aprovação de política neste projeto.', compacto: true })}
     </div>`;
 };
 
