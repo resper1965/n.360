@@ -765,7 +765,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 { label: 'Controles Aplicáveis', value: `${totalApplicable} / ${controls.length}`, color: 'var(--accent)', subtext: `${controls.length > 0 ? ((totalApplicable / controls.length) * 100).toFixed(0) : 0}% de cobertura` },
                 { label: 'Controles Não Aplicáveis', value: totalNA, color: 'var(--text-dim)', subtext: 'Exclusões de escopo' },
                 // Sem exclusão não há o que justificar: "0 / 1 Conforme" em verde era contradição.
-                { label: 'Justificativas de Exclusão', value: totalNA ? `${totalJustified} / ${totalNA}` : '—', color: travado ? 'var(--danger)' : totalNA ? 'var(--success)' : 'var(--text-dim)', subtext: travado ? 'Pendente' : totalNA ? 'Conforme' : 'Nenhum controle excluído' }
+                { label: 'Justificativas de Exclusão', value: totalNA ? `${totalJustified} / ${totalNA}` : '—', color: travado ? 'var(--danger)' : totalNA ? 'var(--success)' : 'var(--text-dim)', subtext: travado ? 'Pendente' : totalNA ? 'Todas justificadas' : 'Nenhum controle excluído' }
             ]);
 
             const faixaBloqueio = travado ? `
@@ -832,7 +832,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                                 </div>
                                 <div class="soa-accordion-meta">
                                     <div class="soa-section-progress-container">
-                                        <span>${compliantSec} / ${totalSec} Conformes</span>
+                                        <span>${compliantSec} / ${totalSec} implementados</span>
                                         <div class="soa-mini-progress">
                                             <div class="soa-mini-progress-fill" style="width: ${pctSec}%"></div>
                                         </div>
@@ -1922,14 +1922,19 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             let signatureSealHtml = '';
             const evidenceHash = policyRes.hash;
             if (ctrl.ciso_approved_by || ctrl.ceo_approved_by) {
+                // O selo diz o que existe (a versão e a data), não "ISO 27001 CONFORME": conformidade é decisão do auditor.
+                const vigente = versions[0];
+                const fatoDaVersao = vigente
+                    ? `Política publicada, versão ${vigente.version}, em ${new Date(vigente.created_at).toLocaleDateString('pt-BR')}`
+                    : 'Rascunho';
                 signatureSealHtml = `
                     <div style="background: rgba(0, 173, 232, 0.03); border: 1px solid rgba(0, 173, 232, 0.15); padding: 1rem 1.25rem;">
                         <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.5rem; margin-bottom: 0.6rem;">
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <div style="width: 8px; height: 8px; background: var(--accent); "></div>
-                                <span style="font-family: 'Montserrat', sans-serif; font-size:0.75rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.1em;">Selo de Homologação Digital</span>
+                                <span style="font-family: 'Montserrat', sans-serif; font-size:0.75rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.1em;">Integridade da versão</span>
                             </div>
-                            <span style="font-family: 'Montserrat', sans-serif; font-size:0.72rem; font-weight: 700; color: var(--accent); background: rgba(0, 173, 232, 0.1); padding: 2px 6px; border: 1px solid rgba(0, 173, 232, 0.2);">ISO 27001 CONFORME</span>
+                            <span class="selo-fato">${escapeHTML(fatoDaVersao)}</span>
                         </div>
                         <div style="font-size: 0.7rem; font-family: monospace; display: flex; flex-direction: column; gap: 4px; color: rgba(229, 235, 255, 0.75);">
                             <div><span style="color: var(--text-dim);">INTEGRIDADE DO TEXTO DA POLÍTICA (SHA-256 do texto, não do pedido):</span> <span style="color: var(--accent); word-break: break-all;">${escapeHTML(evidenceHash)}</span></div>

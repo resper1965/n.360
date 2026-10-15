@@ -1004,8 +1004,9 @@ import { podeIndicar } from './encarregado.js';
             const totalSwot = sCount + wCount + oCount + tCount;
             const totalReqs = lCount + cCount;
             const totalFatores = totalSwot + totalReqs;
-            const maturityScore = totalFatores > 0 ? 100 : 0;
-            const maturityStatus = maturityScore >= 80 ? 'CONFORME' : maturityScore > 0 ? 'EM CONSTRUÇÃO' : 'PENDENTE';
+            // O que foi registrado, não um "% de maturidade": categorias (forças, fraquezas, oportunidades, ameaças, requisitos
+            // legais e contratuais) com ao menos um fator. Adequação à 4.1-4.3 é decisão de quem audita.
+            const categoriasPreenchidas = [sCount, wCount, oCount, tCount, lCount, cCount].filter(n => n > 0).length;
 
             const activeTab = S.contextTab || 'swot';
 
@@ -1013,7 +1014,7 @@ import { podeIndicar } from './encarregado.js';
                 { label: 'Total Fatores de Contexto', value: totalFatores, color: 'var(--text)', subtext: 'Mapeados ISO 27001' },
                 { label: 'Forças & Oportunidades', value: sCount + oCount, color: 'var(--text)', subtext: 'Fatores positivos' },
                 { label: 'Fraquezas & Ameaças', value: wCount + tCount, color: (wCount + tCount) > 0 ? 'var(--danger)' : 'var(--text-dim)', subtext: 'Pontos de atenção / Risco' },
-                { label: 'Maturidade Cláusula 4.3', value: `${maturityScore}%`, color: maturityScore >= 80 ? 'var(--success)' : 'var(--warning)', subtext: maturityStatus }
+                { label: 'Categorias registradas', value: `${categoriasPreenchidas} de 6`, color: 'var(--text)', subtext: 'SWOT e requisitos legais e contratuais com ao menos um fator' }
             ]);
 
             const tabsHeader = `
@@ -1426,12 +1427,15 @@ import { podeIndicar } from './encarregado.js';
         const totalReviews = list.length;
         const completedReviews = list.filter(m => m.status === 'Completed' || m.status === 'concluido').length;
         const plannedReviews = totalReviews - completedReviews;
+        // O fato, não um veredito: conformidade com a 9.3 é decisão do auditor; aqui só a data da última análise concluída.
+        const ultimaConcluida = list.filter(m => m.status === 'Completed' || m.status === 'concluido').map(m => String(m.review_date || '')).sort().pop();
+        const dataBr = (s) => (/^\d{4}-\d{2}-\d{2}/.test(s) ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : s);
 
         const statsHtml = window.renderStatCards([
             { label: 'Total de Análises Críticas', value: totalReviews, color: 'var(--text)', subtext: 'Reuniões registradas' },
             { label: 'Reuniões Concluídas', value: completedReviews, color: 'var(--text)', subtext: 'Ata & decisões emitidas' },
             { label: 'Reuniões Planejadas', value: plannedReviews, color: plannedReviews > 0 ? 'var(--warning)' : 'var(--text-dim)', subtext: 'Em agendamento' },
-            { label: 'Conformidade Cl. 9.3', value: totalReviews > 0 ? 'Conforme' : 'Pendente', color: totalReviews > 0 ? 'var(--success)' : 'var(--danger)', subtext: 'Requisito ISO 27001' }
+            { label: 'Análise crítica (Cl. 9.3)', value: ultimaConcluida ? dataBr(ultimaConcluida) : '—', color: 'var(--text)', subtext: ultimaConcluida ? `Análise crítica registrada em ${dataBr(ultimaConcluida)}` : 'Nenhuma análise crítica registrada' }
         ]);
 
         const tableHtml = window.renderDataTable(

@@ -832,14 +832,13 @@ window.__grcCloseExecAudit = function (id) {
         const totalRecords = records.length;
         const completedRecords = records.filter(r => r.status === 'Completed').length;
         const coveragePct = summary.coverage_percent || (totalRecords ? Math.round((completedRecords / totalRecords) * 100) : 0);
-        const compStatus = summary.compliance_status || (coveragePct >= 80 ? 'Compliant' : 'Non-Compliant');
 
         const statsHtml = window.renderStatCards([
             // Sem registro não há cobertura a medir: "—", nunca "0%" e "Non-Compliant" em vermelho.
             { label: 'Cobertura de Treinamento', value: totalRecords ? `${coveragePct}%` : '—', color: !totalRecords ? 'var(--text-dim)' : coveragePct >= 80 ? 'var(--success)' : 'var(--warning)', subtext: 'Meta ISO 27001' },
-            { label: 'Concluídos', value: `${completedRecords}/${totalRecords}`, color: 'var(--text)', subtext: 'Colaboradores aptos' },
             { label: 'Pendentes / Expirados', value: totalRecords - completedRecords, color: totalRecords - completedRecords > 0 ? 'var(--warning)' : 'var(--text)', subtext: 'Requer atenção' },
-            { label: 'Status Global', value: !totalRecords ? '—' : compStatus === 'Compliant' ? 'Conforme' : 'Não conforme', color: !totalRecords ? 'var(--text-dim)' : compStatus === 'Compliant' ? 'var(--success)' : 'var(--danger)', subtext: 'Avaliação SGSI' }
+            // O fato registrado, sem veredito de conformidade (é decisão do auditor).
+            { label: 'Concluíram', value: totalRecords ? `${completedRecords} de ${totalRecords}` : '—', color: 'var(--text)', subtext: totalRecords ? 'registros de treinamento concluídos' : 'Nenhum registro de treinamento' }
         ]);
 
         const tableHtml = window.renderDataTable(
