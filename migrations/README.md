@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0072** (`ls migrations/*.sql | tail -1`). São 70 arquivos
+- Última migration no repositório: **0073** (`ls migrations/*.sql | tail -1`). São 71 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -542,5 +542,23 @@ table_info(ropa_records)` com `impacto_finalizado_em` e `PRAGMA table_info(dpia_
 `DROP TABLE tratamento_impacto` (as colunas NULL podem ficar; o código anterior não as lê). **Esta RODA em produção ANTES do código
 novo:** o código lê e grava as colunas e a tabela (teste de impacto, DPIA e LIA criadas do tratamento); o deploy do merge recusa
 enquanto ela estiver pendente.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+---
+
+## 0073 — risco e ação da atividade de tratamento (2026-10-14)
+
+Colunas novas, todas NULL: `risks.ropa_id` e `corrective_actions.ropa_id` (FK para `ropa_records`, `ON DELETE SET NULL`: apagar a
+atividade solta o vínculo e mantém o risco e a ação), `risks.residual_impact` e `risks.residual_probability` (CHECK 1..5) e
+`risks.residual_level` (calculado no servidor, como `risk_level`). Índices `idx_risks_ropa` e `idx_capa_ropa`. Os riscos e ações que já
+existem ficam com `ropa_id` vazio (sem backfill: não há como saber a que atividade um risco ISO pertence). Nada entra no conteúdo
+congelado das aprovações. `test/migration-0073.test.ts` prova sobre as tabelas antigas com linha: as linhas ficam, as colunas entram
+vazias, o CHECK do residual vale e o SET NULL solta o vínculo. **NÃO é idempotente** (`ADD COLUMN` aborta com "duplicate column"):
+aplicar uma vez. Conferência depois: `PRAGMA table_info(risks)` com `ropa_id` e os três `residual_*`, `PRAGMA
+table_info(corrective_actions)` com `ropa_id`, e `SELECT COUNT(*)` de `risks` e `corrective_actions` igual ao de antes. Para desfazer:
+nada a fazer no banco (as colunas NULL podem ficar; o código anterior não as lê). **Esta RODA em produção ANTES do código novo:** as
+sub-rotas de riscos e ações da atividade, o mapa de risco e o `PUT /api/v1/risks/:id` leem e gravam as colunas; o deploy do merge
+recusa enquanto ela estiver pendente.
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.

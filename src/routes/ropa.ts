@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
-import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema } from '../schemas';
+import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema } from '../schemas';
+import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa } from '../services/riscos-atividade';
 import { lerImpacto, salvarImpacto } from '../services/impacto';
 import { criarTransferencia, definirLigacao, diagramaDoTratamento, lerLigacoes, removerTransferencia } from '../services/tratamentos';
 import { aprovacoesDoProjeto } from '../services/documentos';
@@ -139,6 +140,9 @@ projectRopaApp.post('/importar', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao importar o RoPA', e); }
 });
 
+// Mapa de risco do n.privacy (F2): todos os riscos do projeto que têm atividade. Antes das rotas `/:recordId/...`.
+projectRopaApp.get('/riscos-mapa', async (c) => c.json({ riscos: await riscosDoMapa(c.env.DB, c.req.param('projectId')!) }));
+
 // ─── LIA e DPIA do tratamento (fatia 5) ───────────────────────────────────────────────────────────
 
 // Copiloto da entrevista (atividade nova): proposta de respostas a partir de uma descrição livre. Nada é gravado; faixa privacy.
@@ -200,6 +204,95 @@ projectRopaApp.put('/:recordId/impacto', async (c) => {
     await logAudit(c.env.DB, 'ropa.impacto', ator, `ROPA ${c.req.param('recordId')}: teste de impacto (${Object.keys(v.data.respostas).join(', ') || 'sem respostas'})${fim}`, '', '', projectId);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao gravar o teste de impacto', e); }
+});
+
+// ─── Riscos e ações da atividade (F2, migration 0073): o MESMO cadastro do n.iso, filtrado pela atividade ───
+// O agente (MCP) cria e edita rascunho; aceitar risco, concluir ação e apagar são atos humanos (o DELETE está em FORA_DO_AGENTE).
+const ATO_HUMANO = { risco: 'aceitar risco é ato humano, pela interface', acao: 'concluir ação é ato humano, pela interface' };
+
+projectRopaApp.get('/:recordId/riscos', async (c) => {
+  const r = await listarRiscos(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
+  return r ? c.json({ riscos: r }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+});
+
+projectRopaApp.post('/:recordId/riscos', async (c) => {
+  try {
+    const v = await validateBody(c, riscoAtividadeCriarSchema);
+    if (!v.success) return v.response;
+    if (c.get('user')?.agente === true && v.data.status === 'Accepted') return c.json({ error: `Forbidden: ${ATO_HUMANO.risco}` }, 403);
+    const projectId = c.req.param('projectId')!;
+    const ator = c.get('user')?.email || 'system';
+    const r = await criarRisco(c.env.DB, projectId, c.req.param('recordId'), ator, v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await logAudit(c.env.DB, 'ropa.risco', ator, `ROPA ${c.req.param('recordId')}: risco ${r.id} criado`, '', '', projectId);
+    return c.json({ ok: true, id: r.id, risk_level: r.risk_level }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar o risco da atividade', e); }
+});
+
+projectRopaApp.put('/:recordId/riscos/:riscoId', async (c) => {
+  try {
+    const v = await validateBody(c, riscoAtividadeAtualizarSchema);
+    if (!v.success) return v.response;
+    if (c.get('user')?.agente === true && v.data.status === 'Accepted') return c.json({ error: `Forbidden: ${ATO_HUMANO.risco}` }, 403);
+    const projectId = c.req.param('projectId')!;
+    const ator = c.get('user')?.email || 'system';
+    const r = await atualizarRisco(c.env.DB, projectId, c.req.param('recordId'), c.req.param('riscoId'), ator, v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    // Trilha com os nomes dos campos, nunca os valores.
+    await logAudit(c.env.DB, 'ropa.risco', ator, `ROPA ${c.req.param('recordId')}: risco ${c.req.param('riscoId')} alterado (${Object.keys(v.data).join(', ')})`, '', '', projectId);
+    return c.json({ ok: true, risk_level: r.risk_level });
+  } catch (e) { return erro500(c, 'Falha ao atualizar o risco da atividade', e); }
+});
+
+projectRopaApp.delete('/:recordId/riscos/:riscoId', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const ok = await apagarRisco(c.env.DB, projectId, c.req.param('recordId'), c.req.param('riscoId'));
+    if (!ok) return c.json({ error: 'Risco da atividade não encontrado' }, 404);
+    await logAudit(c.env.DB, 'ropa.risco', c.get('user')?.email || 'system', `ROPA ${c.req.param('recordId')}: risco ${c.req.param('riscoId')} apagado (ações ligadas mantidas)`, '', '', projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao apagar o risco da atividade', e); }
+});
+
+projectRopaApp.get('/:recordId/acoes', async (c) => {
+  const r = await listarAcoes(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
+  return r ? c.json({ acoes: r }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+});
+
+projectRopaApp.post('/:recordId/acoes', async (c) => {
+  try {
+    const v = await validateBody(c, acaoAtividadeCriarSchema);
+    if (!v.success) return v.response;
+    if (c.get('user')?.agente === true && v.data.status === 'Closed') return c.json({ error: `Forbidden: ${ATO_HUMANO.acao}` }, 403);
+    const projectId = c.req.param('projectId')!;
+    const r = await criarAcao(c.env.DB, projectId, c.req.param('recordId'), v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await logAudit(c.env.DB, 'ropa.acao', c.get('user')?.email || 'system', `ROPA ${c.req.param('recordId')}: ação ${r.id} criada`, '', '', projectId);
+    return c.json({ ok: true, id: r.id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar a ação da atividade', e); }
+});
+
+projectRopaApp.put('/:recordId/acoes/:acaoId', async (c) => {
+  try {
+    const v = await validateBody(c, acaoAtividadeAtualizarSchema);
+    if (!v.success) return v.response;
+    if (c.get('user')?.agente === true && v.data.status === 'Closed') return c.json({ error: `Forbidden: ${ATO_HUMANO.acao}` }, 403);
+    const projectId = c.req.param('projectId')!;
+    const r = await atualizarAcao(c.env.DB, projectId, c.req.param('recordId'), c.req.param('acaoId'), v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await logAudit(c.env.DB, 'ropa.acao', c.get('user')?.email || 'system', `ROPA ${c.req.param('recordId')}: ação ${c.req.param('acaoId')} alterada (${Object.keys(v.data).join(', ')})`, '', '', projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao atualizar a ação da atividade', e); }
+});
+
+projectRopaApp.delete('/:recordId/acoes/:acaoId', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const ok = await apagarAcao(c.env.DB, projectId, c.req.param('recordId'), c.req.param('acaoId'));
+    if (!ok) return c.json({ error: 'Ação da atividade não encontrada' }, 404);
+    await logAudit(c.env.DB, 'ropa.acao', c.get('user')?.email || 'system', `ROPA ${c.req.param('recordId')}: ação ${c.req.param('acaoId')} apagada`, '', '', projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao apagar a ação da atividade', e); }
 });
 
 projectRopaApp.post('/:recordId/dpia', async (c) => {

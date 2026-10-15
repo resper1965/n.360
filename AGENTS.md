@@ -87,7 +87,7 @@ Cloudflare Workers (Hono) + D1 + KV + R2 + Workers AI. Frontend SPA
 Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 - **Backend**: `src/index.ts` e o composition root que monta os sub-routers de
-  dominio: **51 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
+  dominio: **52 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
   2026-10-14). A lista nominal envelhecia a cada PR; leia o diretorio.
 - **Pedidos de aprovacao/ciencia (acesso de stakeholders)**: tabelas `pedidos`
   (conteudo congelado + SHA-256) e `pedido_destinatarios` (a prova por pessoa).
@@ -126,7 +126,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 43 arquivos em 2026-10-14: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 48 arquivos em 2026-10-14: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -167,7 +167,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
 - **Schema**: `schema.sql` — **88 tabelas** (2026-10-14: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0072** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0073** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -247,6 +247,14 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   destinatarios (fluxo), riscos do registro e as respostas "sim" do teste (`risks_identified`); DPIA e LIA guardam `origem_hash`, o hash
   do conteudo do tratamento quando nasceram. Na tela: bloco "Teste de impacto" da entrevista (so com a atividade gravada; perguntas e
   recomendacao vem do servidor) e "Novo RIPD" que escolhe a atividade e cria por `POST .../ropa/:rid/dpia`.
+- **Riscos e acoes da atividade (F2, migration 0073)**: `risks.ropa_id` e `corrective_actions.ropa_id` (SET NULL ao apagar a atividade)
+  e o risco residual (`residual_impact`, `residual_probability`, `residual_level` calculado no servidor). E o MESMO cadastro do n.iso:
+  `src/services/riscos-atividade.ts` (com `riskLevel`, a faixa unica de nivel) serve as sub-rotas `/projects/:id/ropa/:rid/{riscos,acoes}`
+  e o mapa `GET /projects/:id/ropa/riscos-mapa` (so riscos com atividade), todos na faixa `privacy` (`SUBROTAS_PRIVACY`); as rotas por id
+  (`/risks/:id`, `/capa/:id`) e as listas `/risks` e `/capa` continuam `iso`. Toda consulta filtra `ropa_id` E `project_id`. Apagar o
+  risco anula `risk_id` da acao antes (a acao sobrevive). O `PUT /risks/:id` parcial preserva e aceita `ropa_id` e residual. O agente cria
+  e edita; aceitar risco (`status: Accepted`) e concluir acao (`Closed`) a rota recusa, e o DELETE esta em `FORA_DO_AGENTE`. Regra R1 do
+  `coherence` ignora risco com `ropa_id`; o aviso de prazo de acao em projeto sem n.iso leva a `/ropa`.
 - **Terceiros tipificados (fatia 6, migration 0057)**: o terceiro e uma `partes` do tipo `organizacao` com `terceiro_tipo`
   (`grande_provedor|medio|pequeno|critico`) e `src/services/terceiros.ts` (rotas `/projects/:id/terceiros*`). **O tipo define o
   metodo** (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. `avaliacoes_terceiro`
@@ -455,7 +463,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 254 arquivos de teste do backend mocka o D1 inteiro** (2026-10-14;
+- **Nenhum dos 267 arquivos de teste do backend mocka o D1 inteiro** (2026-10-14;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual

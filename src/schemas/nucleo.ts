@@ -70,6 +70,42 @@ export const tratamentoImpactoSchema = z.object({
   finalizar: z.boolean().optional(),
 }).strict();
 
+/**
+ * Risco e ação da atividade de tratamento (F2, migration 0073). Criação exige ameaça, impacto e probabilidade; edição é parcial
+ * (ausente mantém, null limpa onde a coluna aceita). Nível e residual são calculados no servidor. `.strict()`: `ropa_id`, nível e
+ * aceite não vêm do corpo (a atividade é a da rota; o aceite é carimbado pelo servidor).
+ */
+const nota = z.number().int().min(1, 'Mínimo 1').max(5, 'Máximo 5');
+const textoRisco = z.string().trim().max(5000);
+const riscoAtividadeCampos = {
+  threat: z.string().trim().min(1, 'Ameaça é obrigatória').max(500),
+  vulnerability: textoRisco.nullish(),
+  asset_id: idCurto.nullish(),
+  impact: nota,
+  probability: nota,
+  treatment: z.enum(['Mitigate', 'Accept', 'Avoid', 'Transfer']),
+  treatment_plan: textoRisco.nullish(),
+  residual_impact: nota.nullish(),
+  residual_probability: nota.nullish(),
+  owner_parte_id: idCurto.nullish(),
+  control_id: idCurto.nullish(),
+  status: z.enum(['Open', 'Mitigated', 'Accepted', 'Closed']),
+};
+export const riscoAtividadeCriarSchema = z.object({
+  ...riscoAtividadeCampos, treatment: riscoAtividadeCampos.treatment.optional(), status: riscoAtividadeCampos.status.optional(),
+}).strict();
+export const riscoAtividadeAtualizarSchema = z.object(riscoAtividadeCampos).partial().strict();
+const acaoAtividadeCampos = {
+  title: z.string().trim().min(1, 'Título é obrigatório').max(500),
+  description: textoRisco.nullish(),
+  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD').nullish(),
+  assigned_to_parte_id: idCurto.nullish(),
+  status: z.enum(['Open', 'In Progress', 'Closed']),
+  risk_id: idCurto.nullish(),
+};
+export const acaoAtividadeCriarSchema = z.object({ ...acaoAtividadeCampos, status: acaoAtividadeCampos.status.optional() }).strict();
+export const acaoAtividadeAtualizarSchema = z.object(acaoAtividadeCampos).partial().strict();
+
 /** Importação do RoPA por planilha (fatia 4.4): o CSV inteiro como texto; as linhas são validadas uma a uma no serviço. */
 export const ropaImportarSchema = z.object({ csv: z.string().min(1).max(300_000) }).strict();
 

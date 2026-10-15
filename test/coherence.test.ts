@@ -29,6 +29,10 @@ describe('GET /api/v1/projects/:id/coherence', () => {
       // R1: risco em mitigação, aberto, sem controle vinculado.
       env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat, treatment, status, control_id) VALUES (?,?,?,?,?,?,?)`)
         .bind('risk-sem-controle', PROJ, 'Banco de dados', 'Vazamento', 'Mitigate', 'Open', null),
+      // Risco da atividade de tratamento (n.privacy, 0073): mitigação sem controle Annex A não é erro, a medida vive no RoPA.
+      env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('ropa-coer', ?, 'Folha')`).bind(PROJ),
+      env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat, treatment, status, control_id, ropa_id) VALUES (?,?,?,?,?,?,?,?)`)
+        .bind('risk-privacidade', PROJ, 'Folha', 'Uso indevido', 'Mitigate', 'Open', null, 'ropa-coer'),
 
       // R3: controle aprovado sem evidência (mas com política, pra isolar a regra).
       env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, description) VALUES (?,?,?,?,?,?)`)

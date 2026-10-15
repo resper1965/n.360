@@ -506,7 +506,12 @@ CREATE TABLE IF NOT EXISTS risks (
     accepted_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    owner_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL
+    owner_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    -- Risco da atividade de tratamento do n.privacy e risco residual, migration 0073. residual_level calculado no servidor.
+    ropa_id TEXT REFERENCES ropa_records(id) ON DELETE SET NULL,
+    residual_impact INTEGER CHECK (residual_impact IS NULL OR residual_impact BETWEEN 1 AND 5),
+    residual_probability INTEGER CHECK (residual_probability IS NULL OR residual_probability BETWEEN 1 AND 5),
+    residual_level TEXT
 );
 
 CREATE TABLE IF NOT EXISTS risk_history (
@@ -635,7 +640,9 @@ CREATE TABLE IF NOT EXISTS corrective_actions (
     completed_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     assigned_to_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
-    incidente_id TEXT REFERENCES incidentes(id) ON DELETE SET NULL
+    incidente_id TEXT REFERENCES incidentes(id) ON DELETE SET NULL,
+    -- Ação da atividade de tratamento do n.privacy, migration 0073
+    ropa_id TEXT REFERENCES ropa_records(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -675,6 +682,8 @@ CREATE INDEX IF NOT EXISTS idx_ropa_project ON ropa_records(project_id);
 CREATE INDEX IF NOT EXISTS idx_audit_schedule_project ON audit_schedule(project_id);
 CREATE INDEX IF NOT EXISTS idx_capa_project ON corrective_actions(project_id);
 CREATE INDEX IF NOT EXISTS idx_capa_incidente ON corrective_actions(incidente_id);
+CREATE INDEX IF NOT EXISTS idx_capa_ropa ON corrective_actions(ropa_id);
+CREATE INDEX IF NOT EXISTS idx_risks_ropa ON risks(ropa_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_project ON api_keys(project_id);
 -- Unicidade do hash de API key (o lookup de autenticação depende disso).
 -- Precisa vir DEPOIS do CREATE TABLE acima — em banco limpo, um índice declarado
