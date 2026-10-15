@@ -68,7 +68,7 @@ window.viewEvidence = async function viewEvidence(id) {
             } else if (ext === 'md') {
                 isLarge = true;
                 const text = await blob.text();
-                const rendered = window.marked ? window.marked.parse(text) : escapeHTML(text);
+                const rendered = window.markdownSeguro(text);
                 previewHtml = `<div style="max-height: 450px; overflow: auto; background: rgba(255,255,255,0.03); padding: 1.25rem; border: 1px solid var(--border); font-family: 'Inter', sans-serif; font-size: 0.8rem; line-height: 1.6; color: var(--text); text-align: left; margin-top: 1rem;" class="markdown-body">${rendered}</div>`;
             } else if (fileType.startsWith('text/') || ['txt', 'csv', 'json', 'xml', 'log'].includes(ext)) {
                 const text = await blob.text();
@@ -1091,7 +1091,7 @@ window.renderNotifDropdown = function renderNotifDropdown() {
     }
 
 window.markNotifRead = async function markNotifRead(id) {
-        try { await api('PUT', `/api/v1/notifications/${id}/read`); } catch(e) {}
+        try { await api('PUT', `/api/v1/notifications/${id}/read`); } catch (e) { /* marcar como lida é acessório: o aviso abre igual */ }
         await loadNotifications();
         renderNotifDropdown();
     }
@@ -1104,7 +1104,7 @@ window.handleNotificationClick = async function handleNotificationClick(id) {
         const n = (S.notifications || []).find(x => x.id === id);
         
         // 1. Mark as read and reload list
-        try { await api('PUT', `/api/v1/notifications/${id}/read`); } catch(e) {}
+        try { await api('PUT', `/api/v1/notifications/${id}/read`); } catch (e) { /* marcar como lida é acessório: o aviso abre igual */ }
         await loadNotifications();
         renderNotifDropdown();
         
@@ -1139,7 +1139,7 @@ window.abrirAviso = async function abrirAviso(n) {
                                 openEditCAPAModal(targetId, projectId, ca);
                             }, 150);
                         }
-                    } catch (e) {}
+                    } catch (e) { /* o aviso só não abre o modal: a lista de CAPA já está na tela */ }
                 }
                 return;
             } else if (actionType === 'open_soa') {
@@ -1305,12 +1305,16 @@ window.loadProjects = async function loadProjects() {
         S.totalProjetos = Array.isArray(todos) ? todos.length : undefined; // zero de verdade: a entrada guiada do semAcesso
         // O projeto ativo guardado sai só se ele existe e é de OUTRO módulo (lista vazia ou com falha não apaga a escolha).
         const ativo = S.activeProject && Array.isArray(todos) ? todos.find((p) => p.id === S.activeProject.id) : null;
-        if (ativo && !S.projects.some((p) => p.id === ativo.id)) { S.activeProject = null; S.currentProject = null; try { localStorage.removeItem('niso_activeProject'); } catch (e) {} }
+        if (ativo && !S.projects.some((p) => p.id === ativo.id)) { S.activeProject = null; S.currentProject = null; try { localStorage.removeItem('niso_activeProject'); } catch (e) { /* sem storage */ } }
         if (typeof updateSidebarProjectSelector === 'function') { updateSidebarProjectSelector(); }
     } catch(e) { S.projects = []; S.totalProjetos = undefined; } // falha não é zero: nada de "Nenhum projeto ainda"
 }
 
-window.loadControls = async function loadControls() { try { S.controls = await api('GET', '/api/v1/controls'); } catch(e) { S.controls = []; } }
+// A falha fica em S.controlesErro: a tela Controles mostra o erro, não "Nenhum controle carregado" com "Carregar catálogo".
+window.loadControls = async function loadControls() {
+    try { S.controls = await api('GET', '/api/v1/controls'); S.controlesErro = null; } catch (e) { S.controls = []; S.controlesErro = e; }
+};
+window.recarregarControles = async function recarregarControles() { await window.loadControls(); window.render(); };
 
 window.loadDashboardStats = async function loadDashboardStats() { try { S.stats = await api('GET', '/api/v1/dashboard/stats'); } catch(e) { S.stats = {}; } }
 
@@ -1320,12 +1324,12 @@ window.loadAll = async function loadAll() {
             try {
                 const resA = await api('GET', '/api/v1/client/assessment');
                 S.clientAssessmentId = resA.assessment_id;
-            } catch(e) {}
+            } catch (e) { /* secundário: o atalho do levantamento do cliente não aparece */ }
             try {
                 const resP = await api('GET', '/api/v1/client/proposal');
                 S.clientProposalId = resP.proposal_id;
                 S.clientProposalStatus = resP.status;
-            } catch(e) {}
+            } catch (e) { /* secundário: o atalho da proposta do cliente não aparece */ }
         }
     }
 
@@ -1873,7 +1877,7 @@ window.openScopeChangeModal = async function(projectId, projData) {
             // A rota devolve a lista crua de scope_changes (projects.ts:746-750).
             const res = await api('GET', `/api/v1/projects/${projectId}/scope-changes`);
             if (Array.isArray(res)) history = res;
-        } catch(e) {}
+        } catch (e) { /* secundário: o formulário de mudança abre sem o histórico */ }
 
         openModal(`
             <div class="modal-header"><span class="modal-title">Alteração de Escopo (Cláusula 6.3)</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>

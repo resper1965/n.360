@@ -145,7 +145,7 @@ window.__adminCopiarApiKey = () => {
         c.innerHTML = '<div class="loading"></div>';
         try {
             const souPA = S.user?.role === 'platform_admin';
-            const users = await (filtroOrg && souPA ? api('GET', '/api/v1/users', undefined, { 'X-Org-Id': filtroOrg }) : api('GET', '/api/v1/users')).catch(() => []);
+            const users = await (filtroOrg && souPA ? api('GET', '/api/v1/users', undefined, { 'X-Org-Id': filtroOrg }) : api('GET', '/api/v1/users'));
             const todas = Array.isArray(users) ? users : [];
             contasListadas = todas;
             const desativadas = todas.filter(u => !contaAtiva(u)).length;
@@ -209,7 +209,7 @@ window.__adminCopiarApiKey = () => {
                 ${tableHtml}
             `;
         } catch (e) {
-            c.innerHTML = '<div class="error">Erro ao carregar usuários: ' + escapeHTML(e.message) + '</div>';
+            window.falhaDeCarga(c, a, 'Não foi possível carregar os usuários.', e);
         }
     }
 
@@ -224,7 +224,7 @@ window.__adminCopiarApiKey = () => {
 
         c.innerHTML = '<div class="loading"></div>';
         let logs = [];
-        try { logs = await api('GET', `/api/v1/projects/${proj.id}/audit-trail`); } catch(e) {}
+        try { logs = await api('GET', `/api/v1/projects/${proj.id}/audit-trail`); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a trilha de auditoria.', e); return; }
         if (!Array.isArray(logs)) logs = [];
 
         const statsHtml = window.renderStatCards([
@@ -323,14 +323,14 @@ window.__adminCopiarApiKey = () => {
             }
         } else {
             // Conta nova: o teto de quem cria é o maior teto das contas que ele enxerga (platform_admin, todos).
-            const lista = await api('GET', '/api/v1/users').catch(() => []);
+            const lista = await api('GET', '/api/v1/users').catch(() => []); // secundário: sem a lista, o formulário abre sem teto de módulos
             tetoModulos = [...new Set((Array.isArray(lista) ? lista : []).flatMap(u => u.teto_modulos || []))];
         }
 
         if (!S.projects || S.projects.length === 0) {
             try {
                 await loadProjects();
-            } catch(e) {}
+            } catch (e) { /* secundário: o seletor de projeto abre vazio */ }
         }
 
         const projectSelectOptions = (S.projects || []).map(p => `
@@ -580,7 +580,7 @@ window.__adminCopiarApiKey = () => {
             </div>
             ${tabela}`;
         } catch (e) {
-            c.innerHTML = '<div class="error">Erro ao carregar chaves de API: ' + escapeHTML(e.message) + '</div>';
+            window.falhaDeCarga(c, a, 'Não foi possível carregar as chaves de API.', e);
         }
     }
 

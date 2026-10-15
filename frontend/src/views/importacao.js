@@ -14,7 +14,7 @@ const e = (v) => escapeHTML(String(v ?? ''));
 // Caminhos escritos por extenso em cada chamada: test/contrato-tela-api.test.ts só confere o que é literal /api/v1/...
 const pid = () => projetoAtivo().id;
 const lid = () => encodeURIComponent(E.loteId);
-const SESSAO = /Unauthorized|Sessão expirada/;
+const SESSAO = /Sua sessão terminou|Sessão expirada/;
 
 // Estado da tela (um lote aberto por vez).
 const E = { c: null, h: null, a: null, lotes: null, loteId: null, det: null, msg: '', envios: [], resultados: null, cancelando: false, ocupado: false, aba: 'tratamento', rec: null };
@@ -112,7 +112,7 @@ async function renderImportacao(c, h, a) {
     if (E.loteId) return recarrega();
     E.det = null;
     try { E.lotes = (await api('GET', `/api/v1/projects/${pid()}/importacoes`)).lotes || []; } catch (err) {
-        c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível listar os lotes', texto: err.message });
+        window.falhaDeCarga(c, a, 'Não foi possível listar os lotes de importação.', err);
         return;
     }
     pinta();
@@ -412,7 +412,7 @@ window.importacaoProcessar = async function () {
             try { r = await api('POST', `/api/v1/projects/${pid()}/importacoes/${lid()}/arquivos/${encodeURIComponent(x.id)}/processar`, undefined, { timeoutMs: TEMPO_PROCESSAR }); } catch (err) {
                 const m = (err && err.message) || 'falha';
                 if (SESSAO.test(m)) { sessao = true; parou = m; break arquivos; }
-                if (/^Tempo esgotado/.test(m)) {
+                if (err && err.codigo === 'tempo') {
                     // O Worker pode ter terminado depois do corte: o servidor é quem sabe a situação do arquivo.
                     try { E.det = await api('GET', `/api/v1/projects/${pid()}/importacoes/${lid()}`); } catch (e2) { falhas.push(`${x.nome}: ${m}`); break arquivos; }
                     const atual = E.det.arquivos.find((a) => a.id === x.id);
@@ -422,7 +422,7 @@ window.importacaoProcessar = async function () {
                 }
                 // Falha da IA fica gravada no arquivo (status erro); 409 (gravação/cancelamento) e rede param o laço.
                 falhas.push(`${x.nome}: ${m}`);
-                if (/em gravação|em processamento|cancelado|cancelada|Falha de rede/.test(m)) break arquivos;
+                if ((err && err.codigo === 'rede') || /em gravação|em processamento|cancelado|cancelada/.test(m)) break arquivos;
                 break;
             }
             const a = (r && r.arquivo) || {};

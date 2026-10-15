@@ -46,8 +46,10 @@ async function renderPartes(c, h, a) {
 
     let partes = [];
     let departamentos = [];
-    try { partes = lista(await api('GET', `/api/v1/projects/${proj.id}/partes`)); } catch (e) { /* tabela vazia e aviso abaixo */ }
-    try { departamentos = lista(await api('GET', `/api/v1/projects/${proj.id}/departamentos`)); } catch (e) { /* idem */ }
+    try {
+        partes = lista(await api('GET', `/api/v1/projects/${proj.id}/partes`));
+        departamentos = lista(await api('GET', `/api/v1/projects/${proj.id}/departamentos`));
+    } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as partes e os departamentos.', e); return; }
     S.partes = partes;
 
     const tabelaPartes = window.renderDataTable(

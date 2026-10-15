@@ -56,16 +56,17 @@ async function renderTitular(c, h, a) {
     S.titularAba = aba;
     const editar = podeEditar();
     const registrar = podeRegistrar();
-    // Pedidos e incidentes são lidos sempre: a contagem (e o atraso) aparece na aba, sem precisar abri-la.
-    const ler = (pedido) => pedido.then(lista, () => []);
+    // Pedidos e incidentes são lidos sempre: a contagem (e o atraso) aparece na aba, sem precisar abri-la. Falha vira `null`:
+    // na aba aberta, é o estado de erro (nunca "nenhum pedido", com prazo correndo); na outra, só some a contagem.
+    const ler = (pedido) => pedido.then(lista, (e) => { console.error('Falha ao carregar a lista', e); return null; });
     const [pedidos, incidentes] = await Promise.all([
         soIncidentes() ? [] : ler(api('GET', `/api/v1/projects/${proj.id}/titular-pedidos`)),
         ler(api('GET', `/api/v1/projects/${proj.id}/incidentes`)),
     ]);
-    const contagem = (l, atrasados) => (l.length ? ` (${l.length}${atrasados ? ` · <span style="color:var(--danger)">${atrasados} ${atrasados === 1 ? 'atrasado' : 'atrasados'}</span>` : ''})` : '');
+    const contagem = (l, atrasados) => (l && l.length ? ` (${l.length}${atrasados ? ` · <span style="color:var(--danger)">${atrasados} ${atrasados === 1 ? 'atrasado' : 'atrasados'}</span>` : ''})` : '');
     const rotulos = {
-        pedidos: contagem(pedidos, pedidos.filter((p) => p.situacao_prazo === 'atrasado').length),
-        incidentes: contagem(incidentes, incidentes.filter((i) => i.status !== 'encerrado' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado')).length),
+        pedidos: contagem(pedidos, (pedidos || []).filter((p) => p.situacao_prazo === 'atrasado').length),
+        incidentes: contagem(incidentes, (incidentes || []).filter((i) => i.status !== 'encerrado' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado')).length),
     };
     const abas = window.renderAbas(Object.entries(abasDoProduto).map(([v, r]) => [v, escapeHTML(r) + (rotulos[v] || '')]), aba, 'escolherAbaTitular');
     const novo = (acao, rotulo) => ((acao === 'abrirNovoConsentimento' ? editar : registrar) ? `<button class="btn btn-primary" data-action="${acao}" data-args='${args(proj.id)}'>${rotulo}</button>` : '');
@@ -77,11 +78,15 @@ async function renderTitular(c, h, a) {
     let aviso = '';
     if (!soIncidentes() && (aba === 'pedidos' || aba === 'incidentes')) {
         const chaves = aba === 'pedidos' ? ['titular.resposta'] : ['incidente.comunicacao_anpd', 'incidente.comunicacao_titular'];
-        const faltam = (await ler(api('GET', '/api/v1/parametros-legais'))).filter((p) => chaves.includes(p.chave) && !p.definido);
+        // Secundário: sem a lista de parâmetros, o aviso não aparece.
+        const faltam = ((await ler(api('GET', '/api/v1/parametros-legais'))) || []).filter((p) => chaves.includes(p.chave) && !p.definido);
         if (faltam.length) aviso = `<p id="titular-aviso-prazos" style="color:var(--warning); margin:0 0 1rem">Prazos legais não cadastrados: ${aba === 'pedidos' ? 'novos pedidos ficarão sem prazo' : 'novos incidentes ficarão sem prazo de comunicação'}. Fale com o administrador.
             <button class="btn btn-ghost btn-sm" data-action="escolherAbaTitular" data-args='${args('prazos')}'>Ver prazos legais</button></p>`;
     }
 
+    const falhou = (mensagem) => { a.innerHTML = ''; c.innerHTML = abas + window.renderErrorState(mensagem, { texto: 'Nada foi apagado nem alterado, e os prazos continuam correndo. Tente de novo; se continuar, avise o suporte da ness.' }); };
+    if (aba === 'pedidos' && !pedidos) return falhou('Não foi possível carregar os pedidos do titular.');
+    if (aba === 'incidentes' && !incidentes) return falhou('Não foi possível carregar os incidentes.');
     let corpo = '';
     // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
     const { itens: doFiltro, chip, filtrado } = filtrarDoPainel('titular', aba, aba === 'pedidos' ? pedidos : aba === 'incidentes' ? incidentes : []);
@@ -104,14 +109,14 @@ async function renderTitular(c, h, a) {
             `<button class="btn btn-ghost btn-sm" data-action="abrirIncidente" data-args='${args(proj.id, i.id)}'>Abrir</button>`,
         ]), { emptyState: 'Nenhum incidente registrado.', emptyHint: soIncidentes() ? '' : 'LGPD, art. 48. Registre o incidente com a data da ciência: é dela que contam os prazos de comunicação.', emptyAction: novo('abrirNovoIncidente', 'Registrar incidente'), ...(filtrado ? vazioFiltrado : {}) });
     } else if (aba === 'consentimentos') {
-        let l = []; try { l = lista(await api('GET', `/api/v1/projects/${proj.id}/consentimentos`)); } catch (e) { /* tabela vazia */ }
+        let l = []; try { l = lista(await api('GET', `/api/v1/projects/${proj.id}/consentimentos`)); } catch (e) { console.error(e); return falhou('Não foi possível carregar os consentimentos.'); }
         corpo = `<p style="color:var(--text-dim)">Use uma referência pseudonimizada do titular. Não registre CPF.</p>` + window.renderDataTable(['Tratamento', 'Referência', 'Finalidade', 'Aviso', 'Obtido em', 'Situação', 'Ações'], l.map((x) => [
             escapeHTML(x.tratamento), escapeHTML(x.titular_ref), escapeHTML(x.finalidade), escapeHTML(x.versao_aviso), escapeHTML(dia(x.obtido_em)),
             x.vigente ? window.renderStatusBadge('Vigente', 'success') : window.renderStatusBadge(`Revogado em ${dia(x.revogado_em)}`, 'neutral'),
             x.vigente && editar ? `<button class="btn btn-ghost btn-sm" data-action="revogarConsentimento" data-args='${args(proj.id, x.id)}'>Revogar</button>` : '',
         ]), { emptyState: 'Nenhum consentimento registrado.' });
     } else {
-        let l = []; try { l = lista(await api('GET', '/api/v1/parametros-legais')); } catch (e) { /* tabela vazia */ }
+        let l = []; try { l = lista(await api('GET', '/api/v1/parametros-legais')); } catch (e) { console.error(e); return falhou('Não foi possível carregar os prazos legais.'); }
         corpo = `<p style="color:var(--text-dim)">O prazo legal não vem do código: o administrador da plataforma cadastra cada valor com a fonte e a data da revisão do jurídico. Sem o valor, o prazo fica "não calculado".</p>`
             + window.renderDataTable(['Prazo', 'Valor', 'Fonte', 'Revisado', 'Ações'], l.map((p) => [
                 `<strong>${escapeHTML(p.descricao)}</strong>`, p.definido ? escapeHTML(`${p.valor} ${UNIDADES[p.unidade] || p.unidade}`) : 'Não definido',

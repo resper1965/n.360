@@ -1,4 +1,4 @@
-// Selos de vencimento do menu do n.privacy: carregam depois do menu, falham em silêncio e respeitam papel e projeto.
+// Selos de vencimento do menu do n.privacy: carregam depois do menu, mostram "?" na falha e respeitam papel e projeto.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const apiMock = vi.hoisted(() => vi.fn());
@@ -60,13 +60,24 @@ describe('selos do menu do n.privacy', () => {
         await atualizarSelos(document, true);
         for (const id of ['selo-painel', 'selo-titular', 'selo-terceiros', 'selo-incidentes']) expect(el(id).hidden, id).toBe(true);
     });
-    it('falha silenciosa: sem selo e sem exceção, e tira o selo antigo', async () => {
+    it('falha não some em silêncio: sem exceção, o número antigo sai e as filas mostram "?" com o motivo', async () => {
         apiMock.mockResolvedValueOnce(VISAO);
         await atualizarSelos(document, true);
         expect(el('selo-titular').hidden).toBe(false);
         apiMock.mockRejectedValueOnce(new Error('Falha de rede'));
         await expect(atualizarSelos(document, true)).resolves.toBeUndefined();
-        expect(el('selo-titular').hidden).toBe(true);
+        for (const id of ['selo-titular', 'selo-terceiros', 'selo-incidentes']) {
+            expect(el(id).hidden, id).toBe(false);
+            expect(el(id).textContent).toBe('?');
+            expect(el(id).getAttribute('aria-label')).toMatch(/Não foi possível conferir/);
+            expect(el(id).classList.contains('is-danger')).toBe(false);
+        }
+        expect(el('selo-painel').hidden).toBe(true);
+        apiMock.mockResolvedValueOnce(VISAO);
+        await atualizarSelos(document, true);
+        expect(el('selo-titular').textContent).toBe('3');
+        expect(el('selo-titular').classList.contains('is-falha')).toBe(false);
+        expect(el('selo-titular').hasAttribute('title')).toBe(false);
     });
     it('sem chamada para papel sem acesso à visão, sem projeto ou projeto sem o n.privacy', async () => {
         for (const [user, proj] of [[{ id: 'u2', role: 'stakeholder' }, PROJ], [{ id: 'u3', role: 'comercial' }, PROJ], [S.user, null], [S.user, { id: 'p2', modulos: ['iso'] }]]) {

@@ -8,6 +8,7 @@ vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://localhost', ca
 vi.mock('../src/router.js', () => ({ render: vi.fn(), navigate: vi.fn() }));
 
 import { S } from '../src/state.js';
+import { render as renderTela } from '../src/router.js';
 import '../src/ui.js';
 import '../src/views/privacy.js';
 
@@ -15,7 +16,9 @@ const el = (id) => document.getElementById(id);
 const REGISTROS = [{ id: 'r1', processing_purpose: 'Folha <b>de pagamento</b>' }, { id: 'r2', processing_purpose: 'Cobrança' }];
 beforeEach(() => {
     apiMock.mockReset();
-    apiMock.mockImplementation((m, url) => Promise.resolve(m === 'GET' && url.endsWith('/ropa') ? { ok: true, records: REGISTROS } : { ok: true, id: 'dp1' }));
+    renderTela.mockClear();
+    // api() real já desembrulha `{ ok, records }` na lista: o dublê devolve o que a tela recebe de verdade.
+    apiMock.mockImplementation((m, url) => Promise.resolve(m === 'GET' && url.endsWith('/ropa') ? REGISTROS : { ok: true, id: 'dp1' }));
     document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div><div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
     S.user = { role: 'consultor' };
     S.activeProject = { id: 'p1', modulos: ['privacy'] };
@@ -47,6 +50,31 @@ describe('Novo RIPD a partir da atividade', () => {
         const post = apiMock.mock.calls.find((c) => c[0] === 'POST');
         expect(post[1]).toBe('/api/v1/projects/p1/dpia');
         expect(post[2].system_name).toBe('Sistema X');
+    });
+
+    it('sem atividade e sem nome: o erro aparece no campo e o modal não fecha', async () => {
+        await window.openNewDPIAModal('p1');
+        escolher('');
+        await window.createDPIA('p1');
+        expect(apiMock.mock.calls.some((c) => c[0] === 'POST')).toBe(false);
+        expect(el('dpia-system').getAttribute('aria-invalid')).toBe('true');
+        expect(el('dpia-system-erro').textContent).toMatch(/Informe o sistema ou processo/);
+        expect(el('dpia-system').getAttribute('aria-describedby')).toBe('dpia-system-erro');
+        expect(el('modal-content').textContent).toMatch(/Novo RIPD/);
+        expect(renderTela).not.toHaveBeenCalled();
+        el('dpia-system').value = 'Sistema X';
+        await window.createDPIA('p1');
+        expect(apiMock.mock.calls.some((c) => c[0] === 'POST')).toBe(true);
+    });
+
+    it('a atividade já tem RIPD (409): avisa, fecha e recarrega a lista', async () => {
+        apiMock.mockImplementation((m, url) => (m === 'GET' ? Promise.resolve(REGISTROS)
+            : Promise.reject(Object.assign(new Error('Este tratamento já tem RIPD'), { status: 409, body: { id: 'dp9' } }))));
+        await window.openNewDPIAModal('p1');
+        escolher('r2');
+        await window.createDPIA('p1');
+        expect(document.querySelector('.toast').textContent).toMatch(/já tem RIPD/);
+        expect(renderTela).toHaveBeenCalled();
     });
 
     it('projeto sem n.privacy: só o formulário à mão, sem ler o RoPA pela sub-rota do n.privacy', async () => {

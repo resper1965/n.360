@@ -300,6 +300,61 @@ export function renderEmptyState({ titulo = '', texto = '', acao = '', id = '', 
         + '</div>';
 }
 
+const TEXTO_FALHA = 'Nada foi apagado nem alterado: a falha foi ao buscar os dados. Tente de novo; se continuar, avise o suporte da ness.';
+const TEXTO_SEM_ACESSO = 'O seu acesso não alcança estes dados neste projeto. Se precisar deles, fale com quem administra o projeto.';
+
+/**
+ * Estado de erro único do app: a carga falhou, e isso NUNCA se mostra como o estado vazio (o vazio diria "não há riscos"
+ * quando há). `mensagem` diz o que não carregou, em linguagem do usuário; o detalhe técnico fica no console. "Tentar de
+ * novo" é `data-action` (padrão `render`, que refaz a tela atual). Com `erro.status === 403` não há o que tentar de novo.
+ */
+export function renderErrorState(mensagem, { texto = '', acao = 'render', args = null, erro = null } = {}) {
+    const semAcesso = !!erro && erro.status === 403;
+    const botao = semAcesso || !acao ? ''
+        : `<div class="empty-action"><button type="button" class="btn btn-primary" data-action="${escapeHTML(acao)}"${args ? ` data-args='${escapeHTML(JSON.stringify(args))}'` : ''}>Tentar de novo</button></div>`;
+    return `<div class="error-state" role="alert"><h3>${escapeHTML(mensagem)}</h3>`
+        + `<p>${escapeHTML(semAcesso ? TEXTO_SEM_ACESSO : (texto || TEXTO_FALHA))}</p>${botao}</div>`;
+}
+
+/** A carga principal da tela falhou: limpa as ações do cabeçalho ("Novo…" sobre dado que não carregou) e mostra o erro. */
+export function falhaDeCarga(c, a, mensagem, erro, opcoes = {}) {
+    console.error(mensagem, erro);
+    if (a) a.innerHTML = '';
+    c.innerHTML = renderErrorState(mensagem, { ...opcoes, erro });
+}
+
+// Markdown vindo do servidor (descrição de controle, texto de política, evidência .md) vira HTML só por aqui: o `marked`
+// (frontend/public/marked.min.js) não sanitiza, então o resultado passa por uma lista fechada de tags e atributos.
+const MD_TAGS = new Set(['P', 'BR', 'STRONG', 'B', 'EM', 'I', 'DEL', 'UL', 'OL', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+    'BLOCKQUOTE', 'CODE', 'PRE', 'HR', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'A']);
+const MD_FORA = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'IMG', 'SVG', 'MATH', 'FORM', 'INPUT', 'TEXTAREA',
+    'BUTTON', 'SELECT', 'LINK', 'META', 'BASE', 'TEMPLATE', 'NOSCRIPT', 'VIDEO', 'AUDIO', 'SOURCE']);
+export function markdownSeguro(texto) {
+    const t = String(texto ?? '');
+    if (!window.marked) return escapeHTML(t).replace(/\n/g, '<br>');
+    // <template>: o conteúdo é inerte (nada carrega nem executa) enquanto é limpo.
+    const tpl = document.createElement('template');
+    tpl.innerHTML = window.marked.parse(t);
+    const limpar = (no) => {
+        for (const el of [...no.children]) {
+            if (MD_FORA.has(el.tagName)) { el.remove(); continue; }
+            limpar(el);
+            const href = el.tagName === 'A' ? (el.getAttribute('href') || '').trim() : '';
+            const linkSeguro = /^(https?:|mailto:)/i.test(href);
+            // Tag fora da lista e link sem endereço seguro (javascript:, data:) viram só o texto.
+            if (!MD_TAGS.has(el.tagName) || (el.tagName === 'A' && !linkSeguro)) { el.replaceWith(...el.childNodes); continue; }
+            for (const at of [...el.attributes]) el.removeAttribute(at.name);
+            if (el.tagName === 'A') {
+                el.setAttribute('href', href);
+                el.setAttribute('target', '_blank');
+                el.setAttribute('rel', 'noopener noreferrer');
+            }
+        }
+    };
+    limpar(tpl.content);
+    return tpl.innerHTML;
+}
+
 /** O vazio de "nenhum projeto escolhido", repetido em quase toda tela de projeto. */
 export function renderSemProjeto(texto = 'Selecione um projeto para continuar.') {
     return renderEmptyState({ titulo: 'Sem projeto ativo', texto,
@@ -397,5 +452,8 @@ window.traduzStatus = traduzStatus;
 window.renderDataTable = renderDataTable;
 window.renderEmptyState = renderEmptyState;
 window.renderSemProjeto = renderSemProjeto;
+window.renderErrorState = renderErrorState;
+window.falhaDeCarga = falhaDeCarga;
+window.markdownSeguro = markdownSeguro;
 window.confirmar = confirmar;
 window.pedirTexto = pedirTexto;
