@@ -15,8 +15,13 @@ const tela = () => {
     return [document.getElementById('c'), document.getElementById('h'), document.getElementById('a')];
 };
 
+const PRONTIDAO = { indicador: { implementados: 31, aplicaveis: 90, texto: '31 de 90 controles aplicáveis implementados' },
+    numeros: { controles: { implementados: 31, aplicaveis: 90 }, riscos: 12, evidencias: 40, fases: { concluidas: 11, total: 41 } } };
+
 beforeEach(() => {
     apiMock.mockReset();
+    S.user = { id: 'u1', role: 'consultor' };
+    window.ehEquipeNess = () => ['consultor', 'platform_admin'].includes(S.user && S.user.role);
     S.currentProject = null; S.activeProject = null;
     history.replaceState(null, '', '/iso');
 });
@@ -26,13 +31,47 @@ describe('renderMonitor', () => {
         apiMock.mockImplementation(async (m, url) => {
             if (url === '/api/v1/projects') return [{ id: 'p1', project_name: 'Adequação', modulos: ['iso'] }];
             if (url === '/api/v1/projects/p1/phases') return [{ phase_number: 1, status: 'completed' }, { phase_number: 2, status: 'pending' }];
+            if (url === '/api/v1/projects/p1/prontidao') return PRONTIDAO;
             return [];
         });
         const [c, h, a] = tela();
         await window.renderMonitor(c, h, a);
         expect(apiMock.mock.calls.map(([, u]) => u)).not.toContain('/api/v1/portfolio');
         expect(c.textContent).not.toContain('Nenhum projeto');
-        expect(c.textContent).toContain('1 / 2');
+        expect(c.textContent).toContain('1 de 2');
+    });
+
+    it('os números vêm da prontidão (os mesmos do Painel): nada de campo que /projects não devolve nem percentual concorrente', async () => {
+        apiMock.mockImplementation(async (m, url) => {
+            // risk_count e evidence_count no projeto eram lidos e /projects não os devolve: o Monitor mostrava 0.
+            if (url === '/api/v1/projects') return [{ id: 'p1', project_name: 'Adequação', modulos: ['iso'], risk_count: 999, evidence_count: 999 }];
+            if (url === '/api/v1/projects/p1/phases') return [{ phase_number: 1, status: 'completed', title: 'Kickoff' }, { phase_number: 2, status: 'blocked', title: 'Escopo' }];
+            if (url === '/api/v1/projects/p1/prontidao') return PRONTIDAO;
+            return [];
+        });
+        const [c, h, a] = tela();
+        await window.renderMonitor(c, h, a);
+        const cartoes = Object.fromEntries([...c.querySelectorAll('.monitor-card')].map((k) => [k.querySelector('.monitor-card-title').textContent, k.querySelector('.monitor-card-value').textContent]));
+        expect(cartoes).toEqual({ 'Controles aplicáveis implementados': '31 de 90', 'Fases da jornada concluídas': '11 de 41', 'Riscos avaliados': '12', 'Evidências enviadas': '40' });
+        expect(c.textContent).not.toContain('999');
+        expect(c.textContent).not.toMatch(/Score|\d+%/);
+        // A situação das fases vai em texto (legenda e rótulo), não só em cor.
+        expect(c.querySelector('.roadmap-legenda').textContent).toContain('Bloqueada');
+        expect(c.querySelector('.roadmap-nodes-row .roadmap-node.blocked').getAttribute('aria-label')).toBe('Fase 2: Escopo (Bloqueada)');
+    });
+
+    it('cliente não vê as ações de operador; vê a prontidão', async () => {
+        S.user = { id: 'u2', role: 'org_user' };
+        apiMock.mockImplementation(async (m, url) => {
+            if (url === '/api/v1/projects') return [{ id: 'p1', project_name: 'Adequação', modulos: ['iso'] }];
+            if (url === '/api/v1/projects/p1/phases') return [{ phase_number: 1, status: 'completed', title: 'Kickoff' }];
+            if (url === '/api/v1/projects/p1/prontidao') return PRONTIDAO;
+            return [];
+        });
+        const [c, h, a] = tela();
+        await window.renderMonitor(c, h, a);
+        expect(a.textContent).toContain('Ver a prontidão');
+        expect(a.textContent).not.toMatch(/Abrir a jornada|Exportar|Gerenciar/);
     });
 
     it('sem projeto no módulo: vazio que diz o critério e oferece a lista de projetos', async () => {
@@ -53,5 +92,8 @@ describe('renderMonitor', () => {
         await window.renderMonitor(c, h, a);
         expect(c.querySelector('.empty-state h3').textContent).toBe('Fases da jornada ainda não carregadas');
         expect(c.textContent).not.toContain('0 / 0');
+        // O vazio leva ao primeiro passo real (carregar as fases; a prontidão), nunca à Jornada vazia.
+        const acoes = [...c.querySelectorAll('.empty-state button')].map((b) => [b.dataset.action, b.dataset.args]);
+        expect(acoes).toEqual([['carregarFases', '["p1"]'], ['navigate', '["certification"]']]);
     });
 });

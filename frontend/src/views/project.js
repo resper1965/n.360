@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, STATUS_DA_FASE } from '../ui.js';
+import { vazioSemFases } from './monitor.js';
 import { navigate } from '../router.js';
 import { PRODUTOS, produtoAtual, modulosVisiveis, enderecoDoProduto, irPara } from '../produto.js';
 import { podeCriarProjeto } from './empresa.js';
@@ -101,6 +102,17 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         } catch(e) { showToast('Erro ao carregar projeto', 'error'); }
     }
 
+    const CATEGORIA_DO_ITEM = { task: 'Tarefa', document: 'Documento', evidence: 'Evidência' };
+
+    /** Começar a jornada: carrega as fases num projeto sem elas (só a equipe; o servidor recusa o resto e não duplica). */
+    window.carregarFases = async function (projectId) {
+        try {
+            await api('POST', `/api/v1/projects/${projectId}/phases`);
+            showToast('Fases da jornada carregadas', 'success');
+            navigate('project-detail');
+        } catch (e) { showToast(`Não foi possível carregar as fases: ${e.message}`, 'error'); }
+    };
+
     async function renderProjectDetail(c, h, a) {
         let p = S.currentProject || S.activeProject;
         if (!p || !p.id) {
@@ -127,14 +139,16 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         c.innerHTML = '<div class="loading"></div>';
         
         try {
-            const [phases, config, checklistProgress, governanceMembers, phaseQuestions, phaseAnswers] = await Promise.all([
+            const [phases, config, checklistProgress, governanceMembers, phaseQuestions, phaseAnswers, prontidao] = await Promise.all([
                 api('GET', `/api/v1/projects/${p.id}/phases`),
                 S.checklistsConfig ? Promise.resolve(S.checklistsConfig) : api('GET', '/api/v1/phases/config'),
                 // Secundários (progresso, governança, perguntas e respostas): sem eles a jornada abre sem as marcas.
                 api('GET', `/api/v1/projects/${p.id}/checklist-progress`).catch(() => []),
                 api('GET', `/api/v1/projects/${p.id}/governance`).catch(() => []),
                 S.phaseQuestions ? Promise.resolve(S.phaseQuestions) : api('GET', '/api/v1/phase-questions').catch(() => ({})),
-                api('GET', `/api/v1/projects/${p.id}/phase-answers`).catch(() => [])
+                api('GET', `/api/v1/projects/${p.id}/phase-answers`).catch(() => []),
+                // O indicador de progresso (controles aplicáveis implementados) é o da prontidão: o mesmo do Painel e do Monitor.
+                api('GET', `/api/v1/projects/${p.id}/prontidao`).catch(() => null),
             ]);
             // Banco de perguntas por fase (cacheado) + respostas do projeto (mapa fase→{key:answer}).
             S.phaseQuestions = phaseQuestions || {};
@@ -172,43 +186,35 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             }
             
             const JOURNEYS = [
-                { name: "Jornada 1: Mobilização e Diagnóstico", range: [0, 6], desc: "Planejamento inicial, entrevistas, escopo e diagnóstico GRC" },
-                { name: "Jornada 2: Mapeamento e Riscos", range: [7, 13], desc: "Ativos, processos, riscos de segurança/privacidade e SoA" },
-                { name: "Jornada 3: Implementação SGSI (ISO 27001)", range: [14, 20], desc: "Desenho da arquitetura documental e implementação de controles práticos" },
-                { name: "Jornada 4: Implementação SGPI (ISO 27701)", range: [21, 28], desc: "Implementação prática do programa de privacidade e direitos de titulares" },
-                { name: "Jornada 5: Operação e Auditoria", range: [29, 33], desc: "Treinamentos, métricas operacionais, auditoria interna e revisão pela direção" },
-                { name: "Jornada 6: Certificação Oficial", range: [34, 40], desc: "Melhorias contínuas, auditorias de certificação estágio 1 e 2" }
+                { name: "Etapa 1: Mobilização e Diagnóstico", range: [0, 6], desc: "Planejamento inicial, entrevistas, escopo e diagnóstico GRC" },
+                { name: "Etapa 2: Mapeamento e Riscos", range: [7, 13], desc: "Ativos, processos, riscos de segurança/privacidade e SoA" },
+                { name: "Etapa 3: Implementação SGSI (ISO 27001)", range: [14, 20], desc: "Desenho da arquitetura documental e implementação de controles práticos" },
+                { name: "Etapa 4: Implementação SGPI (ISO 27701)", range: [21, 28], desc: "Implementação prática do programa de privacidade e direitos de titulares" },
+                { name: "Etapa 5: Operação e Auditoria", range: [29, 33], desc: "Treinamentos, métricas operacionais, auditoria interna e revisão pela direção" },
+                { name: "Etapa 6: Certificação Oficial", range: [34, 40], desc: "Melhorias contínuas, auditorias de certificação estágio 1 e 2" }
             ];
 
             const allPhases = Array.isArray(phases) ? phases : [];
             const totalPhasesCount = allPhases.length;
             const completedPhasesCount = allPhases.filter(ph => ph.status === 'completed').length;
             const blockedPhasesCount = allPhases.filter(ph => ph.status === 'blocked').length;
-            const overallPercent = totalPhasesCount > 0 ? Math.round((completedPhasesCount / totalPhasesCount) * 100) : 0;
 
             const statusFilter = S.jornadaStatusFilter || 'all';
             const categoryFilter = S.jornadaCategoryFilter || 'all';
             const searchQuery = (S.jornadaSearchQuery || '').toLowerCase().trim();
 
+            const equipe = typeof window.ehEquipeNess === 'function' && window.ehEquipeNess();
+            const bloqueadas = allPhases.filter(ph => ph.status === 'blocked');
+            const ind = prontidao && prontidao.indicador;
+            // Um indicador de progresso só, com a definição escrita; as fases medem o plano de trabalho, não a conformidade.
             const metricsHtml = `
-                <div class="stat-card" style="margin-bottom:1.5rem; padding:16px; background:rgba(255,255,255,0.01); border:1px solid var(--border);">
-                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
-                        <div style="background:rgba(0,0,0,0.2); padding:12px; border:1px solid rgba(255,255,255,0.02)">
-                            <div style="font-size:0.75rem; color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px">Progresso Geral</div>
-                            <div style="display:flex; align-items:center; gap:10px;">
-                                <div style="font-size:1.5rem; font-weight:700; color:var(--text)">${overallPercent}%</div>
-                                <div class="progress-bar" style="flex:1; height:8px;">
-                                    <div class="progress-fill" style="width: ${overallPercent}%"></div>
-                                </div>
-                            </div>
-                            <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px">${completedPhasesCount} de ${totalPhasesCount} fases concluídas</div>
-                        </div>
-                        <div style="background:rgba(0,0,0,0.2); padding:12px; border:1px solid rgba(255,255,255,0.02)">
-                            <div style="font-size:0.75rem; color:${blockedPhasesCount > 0 ? 'var(--danger)' : 'var(--text-dim)'}; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px">Impedimentos / Bloqueios</div>
-                            <div style="font-size:1.5rem; font-weight:700; color:${blockedPhasesCount > 0 ? 'var(--danger)' : 'var(--text)'}">${blockedPhasesCount}</div>
-                            <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px">Fases necessitando de intervenção</div>
-                        </div>
-                    </div>
+                <div class="jornada-numeros">
+                    <div><div class="jornada-numero">${ind ? `${ind.implementados} de ${ind.aplicaveis}` : '—'}</div>
+                        <div class="jornada-rotulo">${ind ? 'controles aplicáveis implementados' : 'Não foi possível carregar o indicador de controles; tente de novo em instantes.'}</div></div>
+                    <div><div class="jornada-numero">${completedPhasesCount} de ${totalPhasesCount}</div>
+                        <div class="jornada-rotulo">fases da jornada concluídas (o andamento do plano de trabalho)</div></div>
+                    <div><div class="jornada-numero">${blockedPhasesCount}</div>
+                        <div class="jornada-rotulo">${blockedPhasesCount ? `${blockedPhasesCount === 1 ? 'fase bloqueada' : 'fases bloqueadas'}: ${escapeHTML(bloqueadas.map(ph => `Fase ${ph.phase_number}`).join(', '))}` : 'fases bloqueadas'}</div></div>
                 </div>
             `;
 
@@ -223,20 +229,14 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                             <label style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; letter-spacing: 0.5px;">Status</label>
                             <select class="form-input" style="height:38px; padding:0 12px; font-size:0.8rem; border-radius:10px; background: rgba(255,255,255,0.02); border-color: var(--border);" data-action-change="__setFilter" data-args='["jornadaStatusFilter"]' data-arg-val>
                                 <option value="all" ${statusFilter === 'all' ? 'selected' : ''}>Todos</option>
-                                <option value="pending" ${statusFilter === 'pending' ? 'selected' : ''}>Pending</option>
-                                <option value="in_progress" ${statusFilter === 'in_progress' ? 'selected' : ''}>In Progress</option>
-                                <option value="completed" ${statusFilter === 'completed' ? 'selected' : ''}>Completed</option>
-                                <option value="blocked" ${statusFilter === 'blocked' ? 'selected' : ''}>Blocked</option>
-                                <option value="skipped" ${statusFilter === 'skipped' ? 'selected' : ''}>Skipped</option>
+                                ${Object.entries(STATUS_DA_FASE).map(([k, v]) => `<option value="${k}" ${statusFilter === k ? 'selected' : ''}>${v}</option>`).join('')}
                             </select>
                         </div>
                         <div style="display:flex; align-items:center; gap:8px;">
                             <label style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; letter-spacing: 0.5px;">Categoria</label>
                             <select class="form-input" style="height:38px; padding:0 12px; font-size:0.8rem; border-radius:10px; background: rgba(255,255,255,0.02); border-color: var(--border);" data-action-change="__setFilter" data-args='["jornadaCategoryFilter"]' data-arg-val>
                                 <option value="all" ${categoryFilter === 'all' ? 'selected' : ''}>Todas</option>
-                                <option value="task" ${categoryFilter === 'task' ? 'selected' : ''}>Task</option>
-                                <option value="document" ${categoryFilter === 'document' ? 'selected' : ''}>Document</option>
-                                <option value="evidence" ${categoryFilter === 'evidence' ? 'selected' : ''}>Evidence</option>
+                                ${Object.entries(CATEGORIA_DO_ITEM).map(([k, v]) => `<option value="${k}" ${categoryFilter === k ? 'selected' : ''}>${v}</option>`).join('')}
                             </select>
                         </div>
                     </div>
@@ -289,11 +289,10 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                 <div class="journey-meta">${escapeHTML(journeyItem.desc)}</div>
                             </div>
                             <div class="journey-prog-wrapper">
-                                <div class="journey-meta">${completedCount}/${totalCount} Fases</div>
+                                <div class="journey-meta">${completedCount} de ${totalCount} fases</div>
                                 <div class="progress-bar" style="flex:1; max-width: 120px">
                                     <div class="progress-fill" style="width: ${percent}%"></div>
                                 </div>
-                                <div class="journey-meta" style="font-weight:500; min-width:35px">${percent}%</div>
                             </div>
                             <div class="journey-toggle-icon ${isJExpanded ? 'expanded' : ''}">&darr;</div>
                         </div>
@@ -320,13 +319,9 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                 <div class="title-text">${escapeHTML(ph.title)}</div>
                                             </div>
                                             <div class="phase-actions-wrapper" data-action="__noop">
-                                                <select class="phase-status-select" data-action-change="changePhaseStatus" data-args='["${p.id}","${ph.phase_number}"]' data-arg-el>
-                                                    <option value="pending" ${ph.status === 'pending' ? 'selected' : ''}>Pending</option>
-                                                    <option value="in_progress" ${ph.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
-                                                    <option value="completed" ${ph.status === 'completed' ? 'selected' : ''}>Completed</option>
-                                                    <option value="blocked" ${ph.status === 'blocked' ? 'selected' : ''}>Blocked</option>
-                                                    <option value="skipped" ${ph.status === 'skipped' ? 'selected' : ''}>Skipped</option>
-                                                </select>
+                                                ${equipe ? `<select class="phase-status-select" aria-label="Situação da fase ${ph.phase_number}" data-action-change="changePhaseStatus" data-args='["${p.id}","${ph.phase_number}"]' data-arg-el>
+                                                    ${Object.entries(STATUS_DA_FASE).map(([k, v]) => `<option value="${k}" ${ph.status === k ? 'selected' : ''}>${v}</option>`).join('')}
+                                                </select>` : `<span class="phase-status-texto">${escapeHTML(STATUS_DA_FASE[ph.status] || ph.status || '')}</span>`}
                                                 <div class="phase-toggle-icon ${isPhExpanded ? 'expanded' : ''}" data-action="togglePhase" data-args='["${ph.phase_number}"]'>&darr;</div>
                                             </div>
                                         </div>
@@ -391,7 +386,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                                             ${isChecked ? 'checked' : ''} 
                                                                             data-action="toggleChecklistItem" data-args='["${p.id}","${item.id}"]' data-arg-el
                                                                             ${(!isChecked && item.id === 'p2_2') ? 'disabled' : ''}>
-                                                                        <span class="badge-cat ${item.category}">${item.category}</span>
+                                                                        <span class="badge-cat ${item.category}">${CATEGORIA_DO_ITEM[item.category] || escapeHTML(item.category || '')}</span>
                                                                         <span class="checklist-text ${isChecked ? 'checked' : ''}">${escapeHTML(item.text)}</span>
                                                                         ${badgeHtml}
                                                                         ${hasTip ? `
@@ -468,14 +463,12 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             });
             
             // Sem fases, contadores "0 de 0" e filtros sobre lista vazia não dizem nada: o vazio explica.
-            c.innerHTML = totalPhasesCount === 0 ? window.renderEmptyState({
-                titulo: 'Fases da jornada ainda não carregadas',
-                texto: 'Este projeto não tem as fases da jornada de adequação. Sem elas não há checklist, responsável, prazo nem progresso para acompanhar.',
-                acao: `<button class="btn" data-action="navigate" data-args='["projects"]'>Voltar aos projetos</button>`,
-            }) : `
+            // Sem fases, o primeiro passo real (carregar as fases, ou a prontidão), nunca o Monitor nem a lista de projetos.
+            c.innerHTML = totalPhasesCount === 0 ? vazioSemFases(p.id) : `
                 <div style="margin-top: 0.5rem;">
                     ${metricsHtml}
                     <div style="display:flex; justify-content:flex-end; margin-bottom:0.75rem">
+                        <button class="btn" data-action="navigate" data-args='["certification"]'>Ver a prontidão para a certificação</button>
                         <button class="btn" data-action="generateJourneyDossier" data-args='["${p.id}"]'>Gerar dossiê da jornada</button>
                     </div>
                     ${filtersHtml}

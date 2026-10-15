@@ -1,13 +1,36 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE } from '../ui.js';
 import { produtoAtual, projetosDoProduto } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
 
+    // As fases agrupadas em etapas da jornada (os números são os de `project_phases.phase_number`).
+    const ETAPAS = [
+        { name: 'Etapa 1: Mobilização e diagnóstico', subtitle: 'Entrevistas, escopo e diagnóstico inicial', range: [0, 6] },
+        { name: 'Etapa 2: Mapeamento e riscos', subtitle: 'Ativos, riscos de segurança e privacidade e SoA', range: [7, 13] },
+        { name: 'Etapa 3: Implementação do SGSI (ISO 27001)', subtitle: 'Documentação e implementação dos controles', range: [14, 20] },
+        { name: 'Etapa 4: Implementação do SGPI (ISO 27701)', subtitle: 'Programa de privacidade e dados pessoais', range: [21, 28] },
+        { name: 'Etapa 5: Operação e auditoria', subtitle: 'Treinamentos, métricas, auditoria interna e análise crítica', range: [29, 33] },
+        { name: 'Etapa 6: Certificação', subtitle: 'Melhoria contínua e auditorias de estágio 1 e 2', range: [34, 40] },
+    ];
+
+    /** Vazio sem fases: o primeiro passo real (carregar as fases, para a equipe) e a prontidão, nunca a Jornada vazia. */
+    export function vazioSemFases(projectId) {
+        const equipe = typeof window.ehEquipeNess === 'function' && window.ehEquipeNess();
+        return renderEmptyState({
+            titulo: 'Fases da jornada ainda não carregadas',
+            texto: equipe
+                ? 'Este projeto não tem as fases da jornada de adequação. Carregue as fases para acompanhar checklist, responsável e prazo; a prontidão para a certificação já funciona sem elas.'
+                : 'A consultoria ainda não carregou as fases da jornada deste projeto. A prontidão para a certificação mostra o que falta para o estágio 1.',
+            acao: (equipe ? `<button class="btn btn-primary" data-action="carregarFases" data-args='${escapeHTML(JSON.stringify([projectId]))}'>Carregar as fases da jornada</button> ` : '')
+                + `<button class="btn" data-action="navigate" data-args='["certification"]'>Ver a prontidão para a certificação</button>`,
+        });
+    }
+
     async function renderMonitor(c, h, a) {
         h.textContent = 'Monitor de Adequação';
-        a.innerHTML = ''; // Clear actions
-        
+        a.innerHTML = '';
+
         // Mesma fonte do Dashboard (/projects, só os projetos deste módulo). Lia /portfolio e, quando ele
         // vinha vazio, o Monitor dizia "nenhum projeto" com o Dashboard mostrando um projeto em curso.
         let portfolio = [];
@@ -20,127 +43,62 @@ import { podeIndicar } from './encarregado.js';
             });
             return;
         }
-        
-        // Pega o projeto ativo atual
+
         const p = S.currentProject || S.activeProject || portfolio[0];
-        
+        const equipe = typeof window.ehEquipeNess === 'function' && window.ehEquipeNess();
         c.innerHTML = '<div class="loading"></div>';
-        
+
         try {
-            // Puxar as fases detalhadas
-            const phases = await api('GET', `/api/v1/projects/${p.id}/phases`);
-            
-            // Sem fases, "0 / 0" e jornadas vazias não dizem nada: o vazio explica.
-            if (!phases.length) {
-                c.innerHTML = renderEmptyState({
-                    titulo: 'Fases da jornada ainda não carregadas',
-                    texto: 'Este projeto não tem as fases da jornada de adequação. Sem elas não há progresso para acompanhar.',
-                    acao: `<button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${escapeHTML(String(p.id))}"}}]'>Abrir o projeto</button>`,
-                });
-                return;
-            }
+            // Os números vêm da prontidão (GET /prontidao): os mesmos do Painel, da Jornada e da tela de prontidão.
+            const [phases, pr] = await Promise.all([
+                api('GET', `/api/v1/projects/${p.id}/phases`),
+                api('GET', `/api/v1/projects/${p.id}/prontidao`),
+            ]);
+            if (!phases.length) { c.innerHTML = vazioSemFases(p.id); return; }
 
-            // Desenhar os cards de métricas (Dashboard)
-            const completedPhases = phases.filter(ph => ph.status === 'completed').length;
-            const totalPhases = phases.length;
-            const progressPct = totalPhases > 0 ? Math.round((completedPhases / totalPhases) * 100) : 0;
-            
-            const metricsHtml = `
-                <div class="monitor-grid fade-in">
-                    <div class="monitor-card">
-                        <div class="monitor-card-title">Score Geral GRC</div>
-                        <div class="monitor-card-value">${progressPct}%</div>
-                        <div class="progress-bar" style="margin-top:0.25rem">
-                            <div class="progress-fill" style="width: ${progressPct}%"></div>
-                        </div>
-                    </div>
-                    <div class="monitor-card">
-                        <div class="monitor-card-title">Fases Concluídas</div>
-                        <div class="monitor-card-value">${completedPhases} / ${totalPhases}</div>
-                        <div style="font-size:0.75rem; color:var(--text-dim)">Fases da jornada de adequação</div>
-                    </div>
-                    <div class="monitor-card">
-                        <div class="monitor-card-title">Riscos Mapeados</div>
-                        <div class="monitor-card-value">${p.risk_count || 0}</div>
-                        <div style="font-size:0.75rem; color:var(--text-dim)">Identificados e mitigados</div>
-                    </div>
-                    <div class="monitor-card">
-                        <div class="monitor-card-title">Evidências Coletadas</div>
-                        <div class="monitor-card-value">${p.evidence_count || 0}</div>
-                        <div style="font-size:0.75rem; color:var(--text-dim)">Arquivos enviados</div>
-                    </div>
-                </div>
-            `;
-            
-            // 2. Definir Jornadas (agrupamento de fases)
-            const JOURNEYS = [
-                { name: "Jornada 1: Mobilização e Diagnóstico", subtitle: "Entrevistas, escopo e diagnóstico inicial GRC", range: [0, 6] },
-                { name: "Jornada 2: Mapeamento e Riscos", subtitle: "Ativos, riscos de segurança/privacidade e SoA", range: [7, 13] },
-                { name: "Jornada 3: Implementação SGSI (ISO 27001)", subtitle: "Desenho documental e implementação de controles práticos", range: [14, 20] },
-                { name: "Jornada 4: Implementação SGPI (ISO 27701)", subtitle: "Programa de privacidade e conformidade de dados pessoais", range: [21, 28] },
-                { name: "Jornada 5: Operação e Auditoria", subtitle: "Treinamentos, métricas, auditoria interna e revisão", range: [29, 33] },
-                { name: "Jornada 6: Certificação Oficial", subtitle: "Melhoria contínua e auditoria externa estágio 1 e 2", range: [34, 40] }
-            ];
+            const n = pr.numeros || {};
+            const ctrl = n.controles || { implementados: 0, aplicaveis: 0 };
+            const fases = n.fases || { concluidas: phases.filter(ph => ph.status === 'completed').length, total: phases.length };
+            const cartao = (titulo, valor, texto) => `<div class="monitor-card"><div class="monitor-card-title">${escapeHTML(titulo)}</div>
+                <div class="monitor-card-value">${escapeHTML(String(valor))}</div><div class="monitor-card-texto">${escapeHTML(texto)}</div></div>`;
+            const metricsHtml = `<div class="monitor-grid fade-in">
+                ${cartao('Controles aplicáveis implementados', `${ctrl.implementados} de ${ctrl.aplicaveis}`, 'O indicador de progresso do n.iso: controles da SoA implementados, sem os não aplicáveis.')}
+                ${cartao('Fases da jornada concluídas', `${fases.concluidas} de ${fases.total}`, 'Andamento do plano de trabalho, não da conformidade.')}
+                ${cartao('Riscos avaliados', n.riscos ?? 0, 'Riscos do n.iso no registro, o mesmo número do Painel.')}
+                ${cartao('Evidências enviadas', n.evidencias ?? 0, 'Arquivos de evidência do projeto, de qualquer situação.')}
+            </div>`;
 
-            let roadmapCardsHtml = '';
-            
-            JOURNEYS.forEach(journeyItem => {
-                const jPhases = phases.filter(ph => ph.phase_number >= journeyItem.range[0] && ph.phase_number <= journeyItem.range[1]);
-                const completedCount = jPhases.filter(ph => ph.status === 'completed').length;
-                const totalCount = jPhases.length;
-                const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-                
-                roadmapCardsHtml += `
-                    <div class="roadmap-j-card">
-                        <div class="roadmap-j-header">
-                            <div>
-                                <div class="roadmap-j-name">${escapeHTML(journeyItem.name)}</div>
-                                <div class="roadmap-j-desc">${escapeHTML(journeyItem.subtitle)}</div>
-                            </div>
-                            <div class="roadmap-j-pct">${percent}%</div>
-                        </div>
-                        <div class="progress-bar" style="height:4px">
-                            <div class="progress-fill" style="width: ${percent}%"></div>
-                        </div>
-                        <div class="roadmap-nodes-row">
-                            ${jPhases.map(ph => `
-                                <div class="roadmap-node ${ph.status}" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${p.id}"}}]'>
-                                    ${ph.phase_number}
-                                    <div class="tooltip">
-                                        <strong>Fase ${ph.phase_number}:</strong> ${escapeHTML(ph.title)}
-                                        <br>Status: <span style="text-transform: capitalize">${ph.status}</span>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
+            const etapasHtml = ETAPAS.map(etapa => {
+                const doGrupo = phases.filter(ph => ph.phase_number >= etapa.range[0] && ph.phase_number <= etapa.range[1]);
+                const feitas = doGrupo.filter(ph => ph.status === 'completed').length;
+                const pct = doGrupo.length ? Math.round((feitas / doGrupo.length) * 100) : 0;
+                return `<div class="roadmap-j-card">
+                    <div class="roadmap-j-header">
+                        <div><div class="roadmap-j-name">${escapeHTML(etapa.name)}</div><div class="roadmap-j-desc">${escapeHTML(etapa.subtitle)}</div></div>
+                        <div class="roadmap-j-pct">${feitas} de ${doGrupo.length} fases</div>
                     </div>
-                `;
-            });
-            
-            c.innerHTML = `
-                <div class="fade-in">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem">
-                        <div>
-                            <div style="font-size:0.75rem; color:var(--text-dim)">Dashboard de Acompanhamento</div>
-                            <h2 style="font-family:'Montserrat'; font-weight:500; font-size:1.4rem; margin-top:0.25rem">Projeto: ${escapeHTML(p.project_name || p.client_name)}</h2>
-                        </div>
-                        <div style="display:flex; gap:0.5rem">
-                            <button class="btn" data-action="exportCSV" data-args='["risks"]' style="font-size:0.7rem; padding:0.4rem 0.8rem">Exportar Riscos</button>
-                            <button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${p.id}"}}]' style="background:var(--accent); color:var(--accent-ink); font-size:0.7rem; padding:0.4rem 0.8rem">Gerenciar Fases</button>
-                        </div>
-                    </div>
-                    
+                    <div class="progress-bar" style="height:4px"><div class="progress-fill" style="width: ${pct}%"></div></div>
+                    <div class="roadmap-nodes-row">${doGrupo.map(ph => {
+                        const situacao = STATUS_DA_FASE[ph.status] || ph.status;
+                        return `<div class="roadmap-node ${escapeHTML(String(ph.status))}" role="link" tabindex="0" aria-label="${escapeHTML(`Fase ${ph.phase_number}: ${ph.title} (${situacao})`)}" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${escapeHTML(String(p.id))}"}}]'>
+                            ${ph.phase_number}<div class="tooltip"><strong>Fase ${ph.phase_number}:</strong> ${escapeHTML(ph.title)}<br>Situação: ${escapeHTML(situacao)}</div></div>`;
+                    }).join('')}</div>
+                </div>`;
+            }).join('');
+            const legenda = `<p class="roadmap-legenda">${Object.entries(STATUS_DA_FASE).map(([k, v]) => `<span><span class="roadmap-node roadmap-amostra ${k}" aria-hidden="true"></span>${escapeHTML(v)}</span>`).join('')}</p>`;
+
+            // Ações de operador só para a equipe; a prontidão vale para todos.
+            a.innerHTML = `<button class="btn" data-action="navigate" data-args='["certification"]'>Ver a prontidão</button>`
+                + (equipe ? ` <button class="btn" data-action="exportCSV" data-args='["risks"]'>Exportar riscos</button> <button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${escapeHTML(String(p.id))}"}}]'>Abrir a jornada</button>` : '');
+            c.innerHTML = `<div class="fade-in">
+                    <h2 class="monitor-projeto">${escapeHTML(p.project_name || p.client_name)}</h2>
                     ${metricsHtml}
-                    
                     <div class="roadmap-container fade-in">
-                        <div class="roadmap-title">Roadmap de Adequação — Trilha de Conformidade</div>
-                        <div class="roadmap-grid">
-                            ${roadmapCardsHtml}
-                        </div>
+                        <div class="roadmap-title">Jornada de adequação por etapa</div>
+                        ${legenda}
+                        <div class="roadmap-grid">${etapasHtml}</div>
                     </div>
-                </div>
-            `;
-            
+                </div>`;
         } catch (e) {
             window.falhaDeCarga(c, a, 'Não foi possível carregar o monitoramento do projeto.', e);
         }
@@ -204,93 +162,6 @@ import { podeIndicar } from './encarregado.js';
                 <div style="font-size:0.7rem;color:var(--muted)">Controles com evidencia: ${data.controls_with_evidence || 0} | Controles com risco vinculado: ${data.controls_with_risks || 0}</div>
             `);
         } catch(e) { showToast('Erro: ' + e.message, 'error'); }
-    }
-
-    async function renderCertification(c, h, a) {
-        h.textContent = 'Acompanhamento de Certificação';
-        const proj = S.activeProject || S.projects[0];
-        if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
-        let cert = null;
-        try { cert = (await api('GET', `/api/v1/projects/${proj.id}/certification`))?.certification ?? null; } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a certificação.', e); return; }
-        if (!cert || !cert.id) {
-            // O CTA mora no vazio: o header repetia a instrução apontando para cima.
-            a.innerHTML = '';
-            c.innerHTML = renderEmptyState({
-                titulo: 'Certificação ainda não acompanhada',
-                texto: 'O acompanhamento registra as etapas até o certificado: avaliação de gaps, remediação, auditoria interna, estágios 1 e 2 e manutenção.',
-                acao: `<button class="btn btn-primary" data-action="initCertification" data-args='["${proj.id}"]'>Iniciar acompanhamento de certificação</button>`,
-            });
-            return;
-        }
-        a.innerHTML = '';
-        const stages = ['Gap Assessment','Remediation','Internal Audit','Stage 1 Audit','Stage 2 Audit','Certified','Surveillance'];
-        const STAGE_MAP_PT = {
-            'Gap Assessment': 'Avaliação de Gaps',
-            'Remediation': 'Remediação & Implementação',
-            'Internal Audit': 'Auditoria Interna',
-            'Stage 1 Audit': 'Auditoria Estágio 1 (Documental)',
-            'Stage 2 Audit': 'Auditoria Estágio 2 (Certificação)',
-            'Certified': 'Certificado ISO 27001',
-            'Surveillance': 'Manutenção & Vigilância'
-        };
-        const si = stages.indexOf(cert.stage);
-        const pct = Math.round(((si + 1) / stages.length) * 100);
-        c.innerHTML = `<div class="fade-in">
-            <div class="card" style="padding:2.5rem;margin-bottom:1.5rem">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem">
-                    <div>
-                        <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.2em;margin-bottom:0.5rem">Estágio Atual</div>
-                        <div style="font-size:1.8rem;font-weight:500;font-family:'Montserrat',sans-serif;color:var(--text)">${STAGE_MAP_PT[cert.stage] || cert.stage}</div>
-                    </div>
-                    <div style="text-align:right">
-                        <div style="font-size:2.5rem;font-weight:300;color:var(--accent);letter-spacing:-0.05em">${pct}%</div>
-                        <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em">Completude</div>
-                    </div>
-                </div>
-                <div style="height:4px;background:rgba(255,255,255,0.05);margin-bottom:2rem;position:relative;overflow:hidden">
-                    <div style="width:${pct}%;height:100%;background:var(--accent);transition:width 0.8s"></div>
-                </div>
-                <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-                    ${stages.map((s, i) => `<span style="font-size:0.72rem;padding:0.35rem 0.75rem;font-weight:600;letter-spacing:0.05em;background:${i <= si ? 'var(--accent-dim)' : 'var(--surface)'};border:1px solid ${i <= si ? 'var(--accent)' : 'var(--border)'};color:${i <= si ? 'var(--accent)' : 'var(--muted)'}">${STAGE_MAP_PT[s] || s}</span>`).join('')}
-                </div>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem">
-                <div class="card" style="padding:1.25rem">
-                    <div class="card-label">Auditoria Estágio 1</div>
-                    <div style="font-size:0.8rem;font-weight:500">${cert.stage1_date || 'A definir'}</div>
-                    <div style="font-size:0.72rem;margin-top:0.25rem;color:${cert.stage1_status==='Passed'?'var(--success)':'var(--muted)'}">${cert.stage1_status==='Passed'?'Aprovado':'Pendente'}</div>
-                </div>
-                <div class="card" style="padding:1.25rem">
-                    <div class="card-label">Auditoria Estágio 2</div>
-                    <div style="font-size:0.8rem;font-weight:500">${cert.stage2_date || 'A definir'}</div>
-                    <div style="font-size:0.72rem;margin-top:0.25rem;color:${cert.stage2_status==='Passed'?'var(--success)':'var(--muted)'}">${cert.stage2_status==='Passed'?'Aprovado':'Pendente'}</div>
-                </div>
-                <div class="card" style="padding:1.25rem">
-                    <div class="card-label">Organismo Certificador</div>
-                    <div style="font-size:0.8rem;font-weight:500">${escapeHTML(cert.registrar || 'Não definido')}</div>
-                </div>
-                <div class="card" style="padding:1.25rem">
-                    <div class="card-label">Data Meta</div>
-                    <div style="font-size:0.8rem;font-weight:500">${cert.target_date || 'Não definida'}</div>
-                </div>
-            </div>
-            <div style="margin-top:2rem;display:flex;gap:0.75rem;align-items:center;background:rgba(255,255,255,0.02);padding:1.25rem;border:1px solid rgba(255,255,255,0.04)">
-                <div style="font-size:0.7rem;color:var(--muted);white-space:nowrap">Mudar estágio para:</div>
-                <select class="form-select" id="cert-stage" style="max-width:260px;font-size:0.75rem">${stages.map(s => `<option value="${s}" ${s===cert.stage?'selected':''}>${STAGE_MAP_PT[s] || s}</option>`).join('')}</select>
-                <button class="btn btn-primary" data-action="updateCertStage" data-args='["${cert.id}"]'>Atualizar</button>
-            </div>
-        </div>`;
-    }
-
-    async function initCertification(projectId) {
-        await api('POST', `/api/v1/projects/${projectId}/certification`, { standard: 'ISO 27001:2022' });
-        render();
-    }
-
-    async function updateCertStage(certId) {
-        const stage = document.getElementById('cert-stage').value;
-        await api('PUT', `/api/v1/certification/${certId}`, { stage });
-        render();
     }
 
     // O que cada cláusula pede, na redação da ISO/IEC 27001:2022 em linguagem simples (vazio das telas 4.2, 9.1 e 9.3).
@@ -1927,9 +1798,6 @@ window.renderMonitor = renderMonitor;
 window.renderPortfolio = renderPortfolio;
 window.exportCSV = exportCSV;
 window.showGapAnalysis = showGapAnalysis;
-window.renderCertification = renderCertification;
-window.initCertification = initCertification;
-window.updateCertStage = updateCertStage;
 window.renderMetrics = renderMetrics;
 window.openNewMetricModal = openNewMetricModal;
 window.createMetric = createMetric;

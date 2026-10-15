@@ -238,6 +238,9 @@ const STATUS_DICT = {
     'inactive': 'Inativo'
 };
 
+/** Situação de uma fase da jornada (`project_phases.status`), em português. Jornada e Monitor usam a mesma. */
+export const STATUS_DA_FASE = { pending: 'Não iniciada', in_progress: 'Em andamento', completed: 'Concluída', blocked: 'Bloqueada', skipped: 'Dispensada' };
+
 /**
  * Traduz um valor de status/severidade para PT-BR. Valor desconhecido volta
  * COMO VEIO — melhor mostrar o termo cru do banco do que apagar a informação.
