@@ -6,7 +6,8 @@ import { Hono } from 'hono';
 import type { Bindings } from '../index';
 import { rateLimitD1, erro500 } from '../helpers';
 import { validateBody, homologacaoEnviarSchema, homologacaoRespostasSchema, homologacaoTokenSchema } from '../schemas';
-import { gravarRespostas, homologacaoDoToken, visaoDoFornecedor } from '../services/homologacao';
+import { avisarEnvio, gravarRespostas, homologacaoDoToken, visaoDoFornecedor } from '../services/homologacao';
+import { log } from '../observability';
 
 export const publicHomologacaoApp = new Hono<{ Bindings: Bindings }>();
 
@@ -54,6 +55,11 @@ publicHomologacaoApp.post('/enviar', async (c) => {
     if (!h) return c.json(INVALIDO, 404);
     const r = await gravarRespostas(c.env.DB, h, v.data.respostas ?? {}, true);
     if (!r) return c.json(INVALIDO, 404);
-    return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    // O aviso à equipe nunca derruba o envio, que já está gravado.
+    try { await avisarEnvio(c.env.DB, h); } catch (e) {
+      log('error', { msg: 'homologacao_aviso_falhou', homologacao_id: h.id, projeto: h.project_id, erro: e instanceof Error ? e.message : String(e) });
+    }
+    return c.json(r);
   } catch (e) { return erro500(c, 'Falha ao enviar as respostas', e); }
 });

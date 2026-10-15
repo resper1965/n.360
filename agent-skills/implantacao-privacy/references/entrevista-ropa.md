@@ -88,7 +88,7 @@ decisão é da pessoa; registre o motivo da recomendação no resumo.
 
 ## Fecho do tratamento
 
-1. `niso_privacy_ropa_detalhe`: confira ligações, LIA, DPIAs e pendências.
+1. `niso_privacy_ropa_detalhe`: confira ligações, LIA, DPIAs, ciclo de vida, bases adicionais e teste de impacto, e as pendências.
 2. Mostre ao usuário o resumo e as pendências (sem base, sem responsável, sem mecanismo de transferência, LIA em rascunho, RIPD
    pendente, terceiro sem avaliação vigente).
 3. Pedir aprovação é da interface (pedido de aprovação do tratamento). Você não aprova.

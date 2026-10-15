@@ -98,6 +98,10 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   novos: o menu le as contagens). Tela: `frontend/src/views/painel.js` (+ `painel-graficos.js`), entrada do n.360 (`inicio`), do
   n.iso (`dashboard`) e do n.privacy (`encarregado`); uma chamada por entrada, cache de 60 s em `S.painel`, selos do menu do
   n.privacy vindos do proprio painel. O funil comercial e a tela `comercial` (`renderComercial`, `views/dashboard.js`).
+  **Filtro por situacao:** o item traz `filtro` (chave fechada de `FILTROS` em `frontend/src/filtro-painel.js`, nunca dado); o botao
+  navega com `{ filtroPainel }`, o `navigate` o apaga na navegacao seguinte e a lista de destino (titular pedidos/incidentes,
+  terceiros, evidencias, CAPA) abre filtrada com o chip "Filtro: ... — limpar" (`filtrarDoPainel`). Do n.360 ao modulo a chave vai no
+  `sessionStorage` (`n360_filtro`), nunca no endereco. Acoes vencidas das atividades abrem a faixa "vencidas" das acoes por prazo.
 - **Pedidos de aprovacao/ciencia (acesso de stakeholders)**: tabelas `pedidos`
   (conteudo congelado + SHA-256) e `pedido_destinatarios` (a prova por pessoa).
   Regras em `src/services/pedidos.ts` (`podePedir`, `autoridadeNoPedido`,
@@ -268,7 +272,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   e edita; aceitar risco (`status: Accepted`) e concluir acao (`Closed`) a rota recusa, e o DELETE esta em `FORA_DO_AGENTE`. Regra R1 do
   `coherence` ignora risco com `ropa_id`; o aviso de prazo de acao em projeto sem n.iso leva a `/ropa`. Telas: secoes Riscos e Acoes nas
   Ligacoes da atividade (`tratamento-ligacoes.js`; formulario novo ja vem com o sistema ligado e o responsavel da atividade), "Mapa de
-  risco" na secao Avaliar do n.privacy (`views/mapa-de-risco.js`, nivel por texto em cada celula, mesma faixa do `riskLevel`), a
+  risco" na secao Avaliar do n.privacy (`views/mapa-de-risco.js`, nivel por texto em cada celula, mesma faixa do `riskLevel`; ele e a matriz do n.iso, `grc.js`, usam
+  `frontend/src/nivel-risco.js`), a
   entrevista so LE os riscos (bloco H) e tem "Finalizar teste de impacto"/"Reabrir" no bloco I; o painel do encarregado conta riscos
   altos em aberto e acoes vencidas das atividades (`riscos` em `GET .../encarregado`).
 - **Ciclo de vida e bases legais da atividade (F3, migration 0074)**: `tratamento_ciclo` (uma linha por etapa: coleta, uso,
@@ -288,12 +293,14 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   em `GET /projects/:id/export/{atividades,ripd}` (nucleo) e `export/{riscos-atividade,acoes-atividade,lia}` (faixa `privacy`; riscos
   aceitam `probabilidade`/`impacto`, a celula do mapa; acoes aceitam `faixa`). RIPD e LIA em Word (`src/services/documento-word.ts`, com os
   auxiliares de `documento-docx.ts`): `GET .../dpia/:id/docx` (nucleo) e `GET .../ropa/:rid/lia/docx` (privacy), lidos AO VIVO da empresa,
-  do encarregado, da atividade, das bases, do ciclo, do teste de impacto e dos riscos; rascunho com "RASCUNHO" no cabecalho; o RIPD leva a
+  do encarregado, da atividade, das bases, do ciclo, do teste de impacto e dos riscos; rascunho com "RASCUNHO" no cabecalho, que leva o logo da organizacao do projeto (`logoComoDataUri`, o mesmo da
+  proposta; sem logo ou com falha, o nome); o RIPD leva a
   aprovacao derivada dos pedidos e o hash do conteudo (nao ha coluna de versao). Rotas em `src/routes/exportacao.ts`, em `FORA_DO_AGENTE`;
   trilha `exportacao.csv`/`exportacao.docx` so com tipo e contagem. O painel do encarregado ganhou `acoes_por_prazo` (vencidas, ate 30,
   31 a 90, 91 a 150, mais de 150 dias, sem prazo; `faixaDePrazo` em `src/services/riscos-atividade.ts`), clicavel na tela. Download no
-  frontend: `baixarArquivo` de `frontend/src/api.js` (token no cabecalho). As `/export/*` antigas do n.iso seguem sem trilha e fora de
-  `FORA_DO_AGENTE`.
+  frontend: `baixarArquivo` de `frontend/src/api.js` (token no cabecalho). As `/export/*` antigas do n.iso (`risks`, `vendors`, `training`, `audit-log`,
+  `assets`, em `src/routes/integrations.ts`) tem a mesma trilha `exportacao.csv` (`csvComTrilha`) e estao em `FORA_DO_AGENTE`; formato
+  e faixas nao mudaram.
 - **Terceiros tipificados (fatia 6, migration 0057)**: o terceiro e uma `partes` do tipo `organizacao` com `terceiro_tipo`
   (`grande_provedor|medio|pequeno|critico`) e `src/services/terceiros.ts` (rotas `/projects/:id/terceiros*`). **O tipo define o
   metodo** (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. `avaliacoes_terceiro`
@@ -309,7 +316,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   escrever e so da equipe, `ehEquipeNess`; o agente so le, `FORA_DO_AGENTE`) e `POST /api/v1/public/homologacao/{ver,salvar,enviar}`
   (token no CORPO, 404 igual para inexistente/vencido/enviado/cancelado, limite por IP), pagina `frontend/public/homologacao.*`. Concluir
   (so `respondida`, ato humano) chama `registrarAvaliacao` e grava `avaliacoes_terceiro` com metodo `questionario`; a situacao e os avisos
-  de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco nao e gravado.
+  de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco nao e gravado. O envio do fornecedor avisa no
+  sino os consultores designados (sem nenhum, os `consultoria_admin`; `avisarEnvio`, regra de `escolherDestinatarios`), so com o nome da
+  parte; falha do aviso vai ao log e nao derruba o envio.
 - **Titular, incidente e consentimento (fatia 7, migration 0058, SO registro interno)**: `titular_pedidos` (protocolo `PT-AAAA-NNNN` por projeto),
   `incidentes` (`IN-AAAA-NNNN`; encerrar exige risco avaliado e, se `relevante`, a comunicacao a ANPD registrada: CHECK do banco, vale para SQL
   direto) e `consentimentos` (prova ligada ao tratamento; revogar nao apaga). **Nenhum prazo legal mora no codigo nem na migration:**
@@ -536,8 +545,8 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~21,7 mil linhas de JS (2026-10-15)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 104 arquivos de teste em jsdom
+- **Frontend com pouco teste por linha.** ~21,8 mil linhas de JS (2026-10-15)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 107 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 35 telas de `frontend/src/views/` sao
   importadas por ao menos um teste (2026-10-15: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`

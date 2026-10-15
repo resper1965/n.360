@@ -1,5 +1,5 @@
 import { AlignmentType, Document, Footer, Header, HeadingLevel, Packer, Paragraph, type Table } from 'docx';
-import { CORPO, TITULO, limpo, par, runs, tabela } from './documento-docx';
+import { CORPO, TITULO, limpo, logoRun, par, runs, tabela } from './documento-docx';
 import { dataBr } from './documento-proposta';
 import { lerEmpresa } from './empresas';
 import { lerBases, basesEmTexto } from './bases';
@@ -10,6 +10,7 @@ import { listarRiscos } from './riscos-atividade';
 import { aprovacoesDoProjeto } from './documentos';
 import { documentoAtual, hashConteudo } from './pedidos';
 import { ORG_NESS } from './organizacao';
+import { logoComoDataUri } from './logo-org';
 import { ESTRATEGIA, NIVEL, STATUS, traduz } from './exportacao';
 
 /**
@@ -84,15 +85,21 @@ async function atividade(db: D1Database, projectId: string, ropaId: string | nul
   return { blocos, finalidade: txt(r.processing_purpose) || null };
 }
 
-/** A marca da consultoria do projeto, como na capa da proposta sem logo. */
-async function marca(db: D1Database, projectId: string) {
-  const o = await db.prepare('SELECT o.id, o.name FROM projects p JOIN organizations o ON o.id = p.org_id WHERE p.id = ?').bind(projectId).first<{ id: string; name: string }>();
-  return !o || o.id === ORG_NESS ? 'ness.' : o.name;
+/**
+ * A marca da consultoria do projeto, como na capa da proposta: o logo da organização (lido do R2 por `logoComoDataUri`, que só
+ * aceita a pasta da própria organização, PNG/JPEG até 200 KB, e cai para sem logo em qualquer falha) ou o nome.
+ */
+async function marca(db: D1Database, projectId: string, storage?: R2Bucket) {
+  const o = await db.prepare('SELECT o.id, o.name, o.logo_chave FROM projects p JOIN organizations o ON o.id = p.org_id WHERE p.id = ?')
+    .bind(projectId).first<{ id: string; name: string; logo_chave: string | null }>();
+  const nome = !o || o.id === ORG_NESS ? 'ness.' : o.name;
+  const logo = o && storage ? logoRun(await logoComoDataUri(storage, o.logo_chave, o.id), nome) : null;
+  return logo ? [logo] : runs(nome, { bold: true, font: TITULO, size: 18, color: '0F172A' });
 }
 
-async function montar(db: D1Database, projectId: string, o: { nome: string; titulo: string; rascunho: boolean; corpo: Bloco[]; rodape: string }): Promise<Gerado> {
+async function montar(db: D1Database, projectId: string, o: { nome: string; titulo: string; rascunho: boolean; corpo: Bloco[]; rodape: string }, storage?: R2Bucket): Promise<Gerado> {
   const cab = new Header({ children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [
-    ...runs(await marca(db, projectId), { bold: true, font: TITULO, size: 18, color: '0F172A' }),
+    ...(await marca(db, projectId, storage)),
     ...(o.rascunho ? runs('   RASCUNHO', { bold: true, font: TITULO, size: 18, color: 'B45309' }) : []),
   ] })] });
   const nota = new Paragraph({ children: runs(o.rodape, { size: 16, color: '8A94A6' }) });
@@ -113,7 +120,7 @@ async function montar(db: D1Database, projectId: string, o: { nome: string; titu
 }
 
 /** O RIPD do projeto em Word, ou null se não é do projeto. */
-export async function ripdEmWord(db: D1Database, projectId: string, dpiaId: string): Promise<Gerado | null> {
+export async function ripdEmWord(db: D1Database, projectId: string, dpiaId: string, storage?: R2Bucket): Promise<Gerado | null> {
   const d = await db.prepare('SELECT * FROM dpia_assessments WHERE id = ? AND project_id = ?').bind(dpiaId, projectId).first<Linha>();
   if (!d) return null;
   const ropaId = typeof d.ropa_id === 'string' ? d.ropa_id : null;
@@ -147,13 +154,13 @@ export async function ripdEmWord(db: D1Database, projectId: string, dpiaId: stri
   return montar(db, projectId, {
     nome: nomeArquivo('RIPD', nomeTratamento), titulo: 'Relatório de Impacto à Proteção de Dados Pessoais (RIPD)', rascunho: status !== 'Approved', corpo,
     rodape: `Gerado pelo n.privacy em ${dataBr(new Date().toISOString())}.${hash ? ` Versão do conteúdo: ${hash}.` : ''}`,
-  });
+  }, storage);
 }
 
 const CONCLUSAO_LIA: Record<string, string> = { prevalece: 'O legítimo interesse prevalece', nao_prevalece: 'O legítimo interesse não prevalece' };
 
 /** A LIA da atividade em Word, ou null se a atividade não é do projeto ou não tem LIA. */
-export async function liaEmWord(db: D1Database, projectId: string, ropaId: string): Promise<Gerado | null> {
+export async function liaEmWord(db: D1Database, projectId: string, ropaId: string, storage?: R2Bucket): Promise<Gerado | null> {
   const l = await lerLia(db, projectId, ropaId);
   if (!l) return null;
   const [ident, ativ] = await Promise.all([identificacao(db, projectId), atividade(db, projectId, ropaId)]);
@@ -172,5 +179,5 @@ export async function liaEmWord(db: D1Database, projectId: string, ropaId: strin
   return montar(db, projectId, {
     nome: nomeArquivo('LIA', ativ.finalidade), titulo: 'Teste de Legítimo Interesse (LIA)', rascunho: !concluida, corpo,
     rodape: `Gerado pelo n.privacy em ${dataBr(new Date().toISOString())}. Versão gravada em ${dataBr(l.updated_at)}.`,
-  });
+  }, storage);
 }

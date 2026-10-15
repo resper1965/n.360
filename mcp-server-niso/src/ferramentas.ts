@@ -467,7 +467,7 @@ export const TOOLS: Ferramenta[] = [
   {
     name: "niso_privacy_ropa_detalhe",
     description:
-      "n.privacy: um tratamento do RoPA por inteiro: o registro, as ligações (base legal do catálogo, itens, departamentos, partes, transferências, DPIAs, dpia_pendente, aprovação) e a LIA. Só leitura.",
+      "n.privacy: um tratamento do RoPA por inteiro: o registro, as ligações (base legal do catálogo, itens, departamentos, partes, transferências, DPIAs, dpia_pendente, aprovação), a LIA, o ciclo de vida (etapas), as bases adicionais e a do GDPR e o teste de impacto (respostas e recomendação). Só leitura.",
     inputSchema: { type: "object", properties: P_ROPA, required: ["projectId", "ropaId"], additionalProperties: false },
   },
   {
@@ -1038,8 +1038,12 @@ export async function executarFerramenta(
         fora(projectId);
         const registro = await tratamento(projectId, ropaId);
         const ligacoes = await ler(`${projeto(projectId)}/ropa/${enc(ropaId)}/ligacoes`);
-        const { lia } = (await ler(`${projeto(projectId)}/ropa/${enc(ropaId)}/lia`)) as { lia: unknown };
-        return { registro, ligacoes, lia };
+        const base = `${projeto(projectId)}/ropa/${enc(ropaId)}`;
+        const { lia } = (await ler(`${base}/lia`)) as { lia: unknown };
+        const { etapas: ciclo } = (await ler(`${base}/ciclo`)) as { etapas: unknown };
+        const bases = await ler(`${base}/bases`);
+        const impacto = await ler(`${base}/impacto`);
+        return { registro, ligacoes, lia, ciclo, bases, impacto };
       }
 
       case "niso_privacy_requisitos_lacunas": {

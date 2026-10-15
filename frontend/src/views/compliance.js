@@ -3,6 +3,7 @@ import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto } from '../ui.js';
 import { navigate } from '../router.js';
 import { temProduto, projetoDoId } from '../produto.js';
+import { filtrarDoPainel } from '../filtro-painel.js';
 
     // O id varia por projeto (ctrl-a51, A.5.1, gerado); o código estável é o primeiro token do título.
     function codigoDoControle(ctrl) {
@@ -1520,9 +1521,11 @@ import { temProduto, projetoDoId } from '../produto.js';
         const isOrgUser = S.user && S.user.role === 'org_user';
         const comPrivacy = temProduto(proj, 'privacy');
 
+        // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
+        const { itens: evidenciasDaLista, chip: chipFiltro, filtrado } = filtrarDoPainel('evidence', null, evidence);
         const tableHtml = window.renderDataTable(
             ['Arquivo Evidência', 'Controle', 'Tamanho', 'Hash (SHA-256)', 'Revisão Líder SGSI', 'Assinatura CEO', 'Avaliação', 'Ações'],
-            evidence.map(e => {
+            evidenciasDaLista.map(e => {
                 const fileName = e.file_name || e.filename || 'Evidência sem nome';
                 const fileHash = e.file_hash || e.sha256_hash || '';
                 const hashShort = fileHash ? fileHash.substring(0, 16) + '...' : '—';
@@ -1574,11 +1577,13 @@ import { temProduto, projetoDoId } from '../produto.js';
             }),
             { emptyState: 'Nenhuma evidência enviada para este projeto.',
               emptyHint: 'A evidência é o que o auditor confere para dar o controle como implementado (ISO 27001, 7.5: informação documentada). Envie o arquivo e ligue-o ao controle.',
-              emptyAction: `<button class="btn btn-primary" data-action="openEvidenceUploadModal" data-args='["${proj.id}"]'>Enviar evidência</button>` }
+              emptyAction: `<button class="btn btn-primary" data-action="openEvidenceUploadModal" data-args='["${proj.id}"]'>Enviar evidência</button>`,
+              ...(filtrado ? { emptyState: 'Nenhuma evidência nesta situação.', emptyHint: 'Limpe o filtro para ver todas.', emptyAction: '' } : {}) }
         );
 
         c.innerHTML = `
             ${statsHtml}
+            ${chipFiltro}
             ${tableHtml}
         `;
     }

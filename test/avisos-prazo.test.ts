@@ -265,6 +265,11 @@ describe('rotina avisosDePrazo', () => {
     await avisosDePrazo(SEM_CHAVE(), HOJE);
     const links = (await notificacoes()).filter((n) => n.type === 'prazo_capa').map((n) => n.link).sort();
     expect(links).toEqual(['/projects/p-priv/ropa', '/projects/p1/capa', '/projects/p1/capa']);
+    // O título acompanha o destino: no projeto só do n.privacy a CAPA é a ação da atividade.
+    const titulos = (await notificacoes()).filter((n) => n.type === 'prazo_capa')
+      .map((n) => `${n.link.includes('p-priv') ? 'priv' : 'iso'}:${n.title}`).sort();
+    expect(titulos[0]).toMatch(/^iso:CAPA /);
+    expect(titulos[2]).toBe('priv:Ação da atividade vence hoje');
   });
 
   it('e-mail recusado: o sino vale, email_enviado_em fica nulo; o dia seguinte reenvia sem notificação nova', async () => {

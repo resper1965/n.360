@@ -419,8 +419,8 @@ Desvios do estudo, com o motivo:
 
 - **Uma rota, faixa `nucleo`.** A faixa depende do `?modulo=`, que o middleware não lê; a rota faz a mesma recusa (projeto, depois
   pessoa) e devolve o mesmo 403.
-- **Filtro nas telas de destino.** "Abrir" leva à tela e à aba certas (pedidos ou incidentes), mas as listas de destino não têm
-  filtro por situação; criar esse filtro em cada lista ficou para depois.
+- **Filtro nas telas de destino.** "Abrir" leva à tela e à aba certas (pedidos ou incidentes); desde 15/10 as listas de destino abrem
+  já filtradas pela situação do item, com o chip "Filtro: ... — limpar" (`frontend/src/filtro-painel.js`).
 - **Vencimentos.** O D1 recusa SELECT composto com mais de 5 termos, então a união vai em blocos de 4. A linha "Ações das
   atividades" sai das faixas de prazo da F4 (`acoes_por_prazo`), e o modal das seis faixas continua a um clique ("Ações por prazo").
 - **Cliente no n.iso.** A entrada do cliente no n.iso continua sendo a Jornada (o roteador já o levava para lá e o item Painel é

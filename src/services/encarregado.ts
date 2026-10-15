@@ -19,7 +19,9 @@ import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO } from './riscos-ativida
  * botão e `aba`, quando há, a aba da tela de destino.
  */
 export type Grupo = 'atraso' | 'semana' | 'plano';
-export type Prioridade = { nivel: 'alta' | 'media'; texto: string; tela: string; grupo: Grupo; quando: string; contexto: string; acao: string; aba?: string };
+export type Prioridade = { nivel: 'alta' | 'media'; texto: string; tela: string; grupo: Grupo; quando: string; contexto: string; acao: string; aba?: string;
+  /** Situação com que a lista de destino abre filtrada (chave fechada de frontend/src/filtro-painel.js; nunca dado). */
+  filtro?: string };
 type Extra = Omit<Prioridade, 'nivel' | 'texto' | 'tela'>;
 
 /** AAAA-MM-DD → DD/MM. */
@@ -138,20 +140,20 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   const terceirosVencidos = terceiros.filter((t) => t.situacao === 'vencida');
   const acoesVencidas = abertas.filter((a) => faixaDePrazo(a.due_date, dia) === 'vencidas');
   const semBase = (t: (typeof trat)[number]) => !t.base_legal_id && !String(t.legal_basis ?? '').trim() && !t.adicionais && !String(t.base_gdpr ?? '').trim();
-  const exigido = (contexto: string, acao: string, aba?: string): Extra => ({ grupo: 'semana', quando: 'Exigido', contexto, acao, ...(aba ? { aba } : {}) });
-  const planejar = (contexto: string, acao: string): Extra => ({ grupo: 'plano', quando: 'Planejar', contexto, acao });
+  const exigido = (contexto: string, acao: string, aba?: string, filtro?: string): Extra => ({ grupo: 'semana', quando: 'Exigido', contexto, acao, ...(aba ? { aba } : {}), ...(filtro ? { filtro } : {}) });
+  const planejar = (contexto: string, acao: string, filtro?: string): Extra => ({ grupo: 'plano', quando: 'Planejar', contexto, acao, ...(filtro ? { filtro } : {}) });
   p('alta', encarregados.length ? 0 : 1, () => 'Nenhum encarregado indicado (LGPD, art. 41)', 'encarregado', exigido('A LGPD exige a indicação do encarregado', 'Indicar o encarregado'));
   // Projeto vazio não é projeto em dia: sem inventário e sem catálogo, a lista vazia afirmaria conformidade que ninguém verificou.
   p('alta', tratamentos.total ? 0 : 1, () => 'Nenhum tratamento no RoPA (LGPD, art. 37)', 'ropa', exigido('Importe o programa que já existe ou cadastre a primeira atividade', 'Abrir os tratamentos'));
   p('alta', secao.pedidos_titular.atrasados, (q) => `${q} ${q === 1 ? 'pedido do titular atrasado' : 'pedidos do titular atrasados'}`, 'titular',
-    { grupo: 'atraso', quando: venceu(atrasados.map((x) => x.prazo_em)), contexto: exemplos(atrasados.map((x) => `${x.protocolo} (${x.tipo})`)), acao: 'Responder os pedidos', aba: 'pedidos' });
+    { grupo: 'atraso', quando: venceu(atrasados.map((x) => x.prazo_em)), contexto: exemplos(atrasados.map((x) => `${x.protocolo} (${x.tipo})`)), acao: 'Responder os pedidos', aba: 'pedidos', filtro: 'atrasados' });
   p('alta', secao.incidentes.comunicacoes_atrasadas, (q) => `${q} ${q === 1 ? 'comunicação de incidente atrasada' : 'comunicações de incidente atrasadas'}`, 'titular',
     { grupo: 'atraso', quando: venceu(comAtraso.flatMap((i) => [i.situacao_anpd === 'atrasado' ? i.prazo_anpd_em : null, i.situacao_titular === 'atrasado' ? i.prazo_titular_em : null])),
-      contexto: exemplos(comAtraso.map((i) => i.protocolo)), acao: 'Comunicar o incidente', aba: 'incidentes' });
+      contexto: exemplos(comAtraso.map((i) => i.protocolo)), acao: 'Comunicar o incidente', aba: 'incidentes', filtro: 'comunicacao_atrasada' });
   p('alta', secao.incidentes.sem_avaliacao_de_risco, (q) => `${q} ${q === 1 ? 'incidente sem avaliação de risco' : 'incidentes sem avaliação de risco'}`, 'titular',
-    exigido(exemplos(incidentesAbertos.filter((i) => !i.risco_titular).map((i) => i.protocolo)), 'Avaliar o risco', 'incidentes'));
+    exigido(exemplos(incidentesAbertos.filter((i) => !i.risco_titular).map((i) => i.protocolo)), 'Avaliar o risco', 'incidentes', 'sem_avaliacao'));
   p('alta', secao.terceiros.vencidos, (q) => `${q} ${q === 1 ? 'terceiro com avaliação vencida' : 'terceiros com avaliação vencida'}`, 'terceiros',
-    { grupo: 'atraso', quando: venceu(terceirosVencidos.map((t) => t.ultima_avaliacao?.valido_ate)), contexto: exemplos(terceirosVencidos.map((t) => t.nome)), acao: 'Reavaliar os terceiros' });
+    { grupo: 'atraso', quando: venceu(terceirosVencidos.map((t) => t.ultima_avaliacao?.valido_ate)), contexto: exemplos(terceirosVencidos.map((t) => t.nome)), acao: 'Reavaliar os terceiros', filtro: 'vencidos' });
   p('alta', secao.tratamentos.dpia_pendente, (q) => `${q} ${q === 1 ? 'tratamento exige DPIA e não tem' : 'tratamentos exigem DPIA e não têm'}`, 'ropa',
     exigido(exemplos(trat.filter((t) => t.dpia_required && !t.tem_dpia).map((t) => t.nome)), 'Criar o RIPD'));
   p('alta', secao.tratamentos.lia_pendente, (q) => `${q} ${q === 1 ? 'tratamento por legítimo interesse sem LIA' : 'tratamentos por legítimo interesse sem LIA'}`, 'ropa',
@@ -159,13 +161,13 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   p('alta', riscos.altos, (q) => `${q} ${q === 1 ? 'risco alto ou crítico em aberto nas atividades' : 'riscos altos ou críticos em aberto nas atividades'}`, 'mapa-de-risco',
     exigido('Defina o tratamento de cada risco', 'Tratar os riscos'));
   p('alta', riscos.acoes_vencidas, (q) => `${q} ${q === 1 ? 'ação de atividade com prazo vencido' : 'ações de atividade com prazo vencido'}`, 'ropa',
-    { grupo: 'atraso', quando: venceu(acoesVencidas.map((a) => a.due_date)), contexto: exemplos(acoesVencidas.map((a) => a.title)), acao: 'Ver as ações' });
+    { grupo: 'atraso', quando: venceu(acoesVencidas.map((a) => a.due_date)), contexto: exemplos(acoesVencidas.map((a) => a.title)), acao: 'Ver as ações', filtro: 'acoes_vencidas' });
   p('media', secao.pedidos_titular.vencem_em_7_dias, (q) => `${q} ${q === 1 ? 'pedido do titular vence' : 'pedidos do titular vencem'} em até 7 dias`, 'titular',
-    { grupo: 'semana', quando: `Até ${diaMes(em7dias.map((x) => String(x.prazo_em).slice(0, 10)).sort().pop())}`, contexto: exemplos(em7dias.map((x) => x.protocolo)), acao: 'Ver os pedidos', aba: 'pedidos' });
-  p('media', secao.evidencias.vencidas, (q) => `${q} ${q === 1 ? 'evidência vencida' : 'evidências vencidas'}`, 'evidence', planejar('A validade passou; a evidência volta a pendente', 'Renovar as evidências'));
+    { grupo: 'semana', quando: `Até ${diaMes(em7dias.map((x) => String(x.prazo_em).slice(0, 10)).sort().pop())}`, contexto: exemplos(em7dias.map((x) => x.protocolo)), acao: 'Ver os pedidos', aba: 'pedidos', filtro: 'vencem_7_dias' });
+  p('media', secao.evidencias.vencidas, (q) => `${q} ${q === 1 ? 'evidência vencida' : 'evidências vencidas'}`, 'evidence', planejar('A validade passou; a evidência volta a pendente', 'Renovar as evidências', 'vencidas'));
   p('media', secao.documentos.revisao_vencida, (q) => `${q} ${q === 1 ? 'documento com revisão vencida' : 'documentos com revisão vencida'}`, 'documentos', planejar('A data de revisão passou', 'Revisar os documentos'));
   p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'terceiro nunca avaliado' : 'terceiros nunca avaliados'}`, 'terceiros',
-    planejar(exemplos(terceiros.filter((t) => t.terceiro_tipo && t.situacao === 'pendente').map((t) => t.nome)), 'Avaliar os terceiros'));
+    planejar(exemplos(terceiros.filter((t) => t.terceiro_tipo && t.situacao === 'pendente').map((t) => t.nome)), 'Avaliar os terceiros', 'pendentes'));
   p('media', secao.tratamentos.sem_base_legal, (q) => `${q} ${q === 1 ? 'tratamento sem base legal' : 'tratamentos sem base legal'}`, 'ropa',
     planejar(exemplos(trat.filter(semBase).map((t) => t.nome)), 'Definir a base legal'));
   p('media', lgpdCarregada || cliente ? 0 : 1, () => 'Catálogo de requisitos LGPD não carregado', 'requisitos', planejar('Sem o catálogo, a cobertura da LGPD não é calculada', 'Abrir a cobertura'));

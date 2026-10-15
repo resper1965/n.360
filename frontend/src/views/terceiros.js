@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
+import { filtrarDoPainel } from '../filtro-painel.js';
 
 // Terceiros (fatia 6 do núcleo): organizações com tipo, o método que o tipo define, a avaliação com validade e o DPA ligado.
 // Toda regra é do servidor; aqui só se mostra e se chama. Todo texto vindo do servidor é escapado.
@@ -40,7 +41,9 @@ async function renderTerceiros(c, h, a) {
     try { terceiros = lista(await api('GET', `/api/v1/projects/${proj.id}/terceiros`)); } catch (e) { /* tabela vazia e aviso abaixo */ }
     const vencidos = terceiros.filter((t) => t.situacao === 'vencida').length;
     const aviso = vencidos ? `<p style="color:var(--danger)">${escapeHTML(String(vencidos))} ${vencidos === 1 ? 'terceiro com avaliação vencida' : 'terceiros com avaliação vencida'}.</p>` : '';
-    const linhas = terceiros.map((t) => {
+    // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
+    const { itens: doFiltro, chip, filtrado } = filtrarDoPainel('terceiros', null, terceiros);
+    const linhas = doFiltro.map((t) => {
         const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
         return [
             `<strong>${escapeHTML(t.nome)}</strong>`,
@@ -53,13 +56,14 @@ async function renderTerceiros(c, h, a) {
             `<button class="btn btn-ghost btn-sm" data-action="abrirTerceiro" data-args='${args(proj.id, t.id)}'>Abrir</button>`,
         ];
     });
-    c.innerHTML = aviso + window.renderDataTable(
+    c.innerHTML = aviso + chip + window.renderDataTable(
         ['Terceiro', 'Tipo', 'Método', 'Avaliação', 'Vale até', 'Tratamentos', 'Documentos', 'Ações'],
         linhas,
         {
             emptyState: 'Nenhuma organização cadastrada em Partes.',
             emptyHint: 'Cadastre os fornecedores e operadores que tratam dados para o cliente, ou traga os que já estão no projeto pela tela Partes.',
             emptyAction: `${cadastrar}<button class="btn" data-action="navigate" data-args='${args('partes')}'>Abrir Partes</button>`,
+            ...(filtrado ? { emptyState: 'Nenhum terceiro nesta situação.', emptyHint: 'Limpe o filtro para ver todos.', emptyAction: '' } : {}),
         },
     );
 }

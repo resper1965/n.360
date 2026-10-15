@@ -3,6 +3,8 @@ import { produtoAtual, TELAS_DO_HUB, moduloPara, enderecoNoModulo, irPara, abrir
 
 export     function navigate(view, data) {
         let targetView = view;
+        // O filtro do painel (filtro-painel.js) vale só para a navegação que o trouxe: qualquer outra o apaga.
+        S.filtroPainel = (data && data.filtroPainel) || null;
         const isClient = S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client');
         if (isClient && (view === 'dashboard' || view === 'projects')) {
             targetView = 'project-detail';

@@ -20,7 +20,7 @@ description: Use ao implantar o n.privacy num cliente novo, do zero: ordem de tr
 | 0. Partida | `niso_privacy_encarregado`, `niso_privacy_ponto_de_partida` | Nada | Plano de trabalho para o consultor validar |
 | 1. Encarregado | `niso_privacy_encarregado` (encarregados) | Nada: a designação é na Governança, pela interface | Quem é o encarregado e o canal do titular |
 | 2. Inventário | `niso_privacy_ropa`, `/assets`, `/departamentos`, `/partes` | `niso_privacy_propor_tratamento`, `niso_privacy_atualizar_tratamento`, `niso_privacy_ligar_tratamento` | Cada tratamento, antes de gravar; e ao fim, a lista para aprovação |
-| 3. Bases e riscos | `niso_privacy_ropa_detalhe` (LIA exigida, `dpia_pendente`) | `niso_privacy_rascunhar_lia`, `niso_privacy_criar_dpia_do_tratamento` | Conclusão da LIA e análise do RIPD são de pessoas |
+| 3. Bases e riscos | `niso_privacy_ropa_detalhe` (LIA exigida, `dpia_pendente`, bases adicionais, teste de impacto) | `niso_privacy_rascunhar_lia`, `niso_privacy_criar_dpia_do_tratamento` | Conclusão da LIA e análise do RIPD são de pessoas |
 | 4. Terceiros | `niso_privacy_terceiros` | Tipo, avaliação e DPA (skill `avaliacao-terceiros`) | Cada terceiro |
 | 5. Titular e incidentes | `niso_privacy_titular_pedidos`, `niso_privacy_incidentes` | Procedimentos (documento) e registros que já existam | Prazos são parâmetro; não invente número |
 | 6. Documentos e cobertura | `niso_privacy_requisitos_lacunas`, `/documentos` | `niso_privacy_ligar_documento_requisito` | Publicar documento é humano |

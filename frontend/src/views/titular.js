@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
 import { navigate } from '../router.js';
 import { produtoAtual, temProduto } from '../produto.js';
+import { filtrarDoPainel } from '../filtro-painel.js';
 
 // Titular e incidentes (fatia 7 do núcleo, só registro interno): pedidos do titular, incidentes, consentimentos e prazos legais.
 // Toda regra é do servidor (protocolo, prazo congelado, encerramento do incidente); aqui só se mostra e se chama. Texto escapado.
@@ -78,20 +79,23 @@ async function renderTitular(c, h, a) {
     }
 
     let corpo = '';
+    // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
+    const { itens: doFiltro, chip, filtrado } = filtrarDoPainel('titular', aba, aba === 'pedidos' ? pedidos : aba === 'incidentes' ? incidentes : []);
+    const vazioFiltrado = { emptyState: 'Nenhum registro nesta situação.', emptyHint: 'Limpe o filtro para ver todos.' };
     if (aba === 'pedidos') {
-        const l = pedidos;
+        const l = doFiltro;
         corpo = window.renderDataTable(['Protocolo', 'Tipo', 'Recebido em', 'Prazo', 'Situação', 'Status', 'Ações'], l.map((p) => [
             `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(dia(p.recebido_em)), escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'),
             selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
             `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Abrir</button>`,
-        ]), { emptyState: 'Nenhum pedido de titular registrado.', emptyHint: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', emptyAction: novo('abrirNovoPedidoTitular', 'Registrar pedido') });
+        ]), { emptyState: 'Nenhum pedido de titular registrado.', emptyHint: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', emptyAction: novo('abrirNovoPedidoTitular', 'Registrar pedido'), ...(filtrado ? vazioFiltrado : {}) });
     } else if (aba === 'incidentes') {
-        const l = incidentes;
+        const l = doFiltro;
         corpo = window.renderDataTable(['Protocolo', 'Incidente', 'Ciência', 'Risco', 'ANPD', 'Titular', 'Status', 'Ações'], l.map((i) => [
             `<strong>${escapeHTML(i.protocolo)}</strong>`, escapeHTML(i.titulo), escapeHTML(dia(i.ciencia_em)), escapeHTML(RISCOS[i.risco_titular] || 'Não avaliado'),
             selo(i.situacao_anpd), selo(i.situacao_titular), escapeHTML(STATUS_INCIDENTE[i.status] || i.status),
             `<button class="btn btn-ghost btn-sm" data-action="abrirIncidente" data-args='${args(proj.id, i.id)}'>Abrir</button>`,
-        ]), { emptyState: 'Nenhum incidente registrado.', emptyHint: soIncidentes() ? '' : 'LGPD, art. 48. Registre o incidente com a data da ciência: é dela que contam os prazos de comunicação.', emptyAction: novo('abrirNovoIncidente', 'Registrar incidente') });
+        ]), { emptyState: 'Nenhum incidente registrado.', emptyHint: soIncidentes() ? '' : 'LGPD, art. 48. Registre o incidente com a data da ciência: é dela que contam os prazos de comunicação.', emptyAction: novo('abrirNovoIncidente', 'Registrar incidente'), ...(filtrado ? vazioFiltrado : {}) });
     } else if (aba === 'consentimentos') {
         let l = []; try { l = lista(await api('GET', `/api/v1/projects/${proj.id}/consentimentos`)); } catch (e) { /* tabela vazia */ }
         corpo = `<p style="color:var(--text-dim)">Use uma referência pseudonimizada do titular. Não registre CPF.</p>` + window.renderDataTable(['Tratamento', 'Referência', 'Finalidade', 'Aviso', 'Obtido em', 'Situação', 'Ações'], l.map((x) => [
@@ -108,7 +112,7 @@ async function renderTitular(c, h, a) {
                 ehAdmin() ? `<button class="btn btn-ghost btn-sm" data-action="editarParametroLegal" data-args='${args(p.chave, p.descricao, p.valor ?? '', p.unidade || 'dias_corridos', p.fonte || '', p.revisado_em || '', p.revisado_por || '', !!p.definido)}'>${p.definido ? 'Editar' : 'Definir'}</button>` : '',
             ]), { emptyState: 'Sem parâmetros.' });
     }
-    c.innerHTML = abas + aviso + corpo;
+    c.innerHTML = abas + aviso + chip + corpo;
 }
 
 window.abrirIncidentesIso = function () { S.titularAba = 'incidentes'; navigate('titular'); };

@@ -9,7 +9,7 @@ import { dataBr, type Bloco, type ConteudoDocumento } from './documento-proposta
 import { bytesDoDataUri, dimensoes } from './logo-org';
 
 /** Logo na capa, dentro de 240 x 80 px, mantendo a proporção. URI ruim ou bytes que não são PNG/JPEG: sem logo. */
-function logoRun(uri: string | undefined, nome: string): ImageRun | null {
+export function logoRun(uri: string | undefined, nome: string): ImageRun | null {
   const img = bytesDoDataUri(uri);
   if (!img) return null;
   const d = dimensoes(img.tipo, img.bytes) ?? { w: 240, h: 80 };

@@ -1593,7 +1593,11 @@ window.initApp = async function initApp() {
         } else if (doHub) {
             if (!S.activeProject && (S.projects || []).length) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             if (doHub.aviso) await window.abrirAviso(doHub.aviso);
-            else { if (doHub.aba) S.titularAba = doHub.aba; navigate(doHub.tela); }
+            else {
+                if (doHub.aba) S.titularAba = doHub.aba;
+                if (doHub.filtro && doHub.filtro.aba) S.titularAba = doHub.filtro.aba;
+                if (doHub.filtro) navigate(doHub.tela, { filtroPainel: doHub.filtro }); else navigate(doHub.tela);
+            }
         } else if (produto === 'privacy') {
             if (!S.activeProject) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             navigate('encarregado');

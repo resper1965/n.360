@@ -31,7 +31,7 @@ function renderEncarregado(c, h, a) { return window.renderPainel(c, h, a, 'priva
 
 window.abrirFaixaPrazo = function (projectId, faixa) {
     const f = faixasPrazo.find((x) => x.faixa === faixa);
-    if (!f) return;
+    if (!f) return false;
     const itens = Array.isArray(f.itens) ? f.itens : [];
     const tabela = window.renderDataTable(['Ação', 'Atividade', 'Prazo', 'Responsável', ''], itens.map((i) => [
         escapeHTML(i.title), escapeHTML(i.atividade || '—'), escapeHTML(i.due_date ? String(i.due_date).slice(0, 10).split('-').reverse().join('/') : 'Sem prazo'),
@@ -44,6 +44,7 @@ window.abrirFaixaPrazo = function (projectId, faixa) {
         ${tabela}
         ${f.total ? `<button class="btn" style="margin-top:1rem" data-action="exportarCsvAcoes" data-args='${args(projectId, faixa)}'>Exportar esta faixa (CSV)</button>` : ''}
     `);
+    return true;
 };
 
 window.exportarCsvAcoes = function (projectId, faixa) {
