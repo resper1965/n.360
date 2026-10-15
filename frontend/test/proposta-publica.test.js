@@ -90,6 +90,21 @@ describe('abertura', () => {
     expect($('pp-ir').hidden).toBe(false);
   });
 
+  it('organização "ness.": o ponto do topo sai em accent (span .dot), e o título da aba leva número, organização e n.360', async () => {
+    servidor({ '/api/v1/public/propostas/ver': json({ ...VER, html: DOC.replace('Consultoria Alfa', 'ness.') }) });
+    await abre();
+    expect($('pp-org').textContent).toBe('ness.');
+    expect($('pp-org').querySelector('.dot').textContent).toBe('.');
+    expect(document.title).toBe('Proposta ALF-2026-004 · ness. | n.360');
+  });
+
+  it('nome comum fica como texto, sem marcação', async () => {
+    servidor({ '/api/v1/public/propostas/ver': json({ ...VER, html: DOC.replace('Consultoria Alfa', 'Alfa &lt;b&gt;S.A.&lt;/b&gt;') }) });
+    await abre();
+    expect($('pp-org').textContent).toBe('Alfa <b>S.A.</b>');
+    expect($('pp-org').querySelector('.dot, b')).toBeNull();
+  });
+
   it('"Ir para a resposta" é botão que rola até a resposta sem tocar no hash', async () => {
     servidor({ '/api/v1/public/propostas/ver': json(VER) });
     await abre();
@@ -189,6 +204,9 @@ describe('aceitar', () => {
     expect(corpo('/aceitar')).toEqual({ token: TOKEN, nome: 'Maria Souza', cargo: 'Diretora', email: 'maria@cliente.com.br', poderes: true });
     expect($('pp-proposta').hidden).toBe(true);
     expect($('pp-estado').textContent).toMatch(/Proposta aceita em 05\/10\/2026 por Maria Souza/);
+    // o topo continua com a organização e o número, sem a validade
+    expect($('pp-org').textContent).toBe('Consultoria Alfa');
+    expect($('pp-meta').textContent).toBe('ALF-2026-004 rev. 2');
   });
 
   it('sem a caixa de poderes: não envia e diz o motivo junto da caixa', async () => {

@@ -11,6 +11,8 @@
     const INVALIDO = 'Link inválido ou expirado';
     let token = '';
     let ocupado = false;
+    // número e revisão da proposta aberta: ficam no topo quando a tela vira aceita, recusada ou fora da validade
+    let identificacao = '';
     // F5 sem o hash (que saiu da barra): o token fica na sessão desta aba, que some ao fechá-la
     const GUARDA = 'proposta-token';
     const guardar = (t) => { try { sessionStorage.setItem(GUARDA, t); } catch { /* sem storage: F5 pede o link de novo */ } };
@@ -63,6 +65,7 @@
     }
 
     function telaDoEstado(v, aviso) {
+        if (identificacao) $('pp-meta').textContent = identificacao;
         switch (v.estado) {
             case 'aceita':
                 return estado(`Proposta aceita em ${data(v.aceitaEm)} por ${v.aceitaPor || ''}`.trim(), 'O aceite está registrado. O comercial vai entrar em contato para os próximos passos.', aviso);
@@ -77,13 +80,25 @@
         }
     }
 
+    /** Nome de marca em minúsculas com ponto final (ness., trustness.): o ponto sai em accent, como na marca. */
+    function marcaDaOrg(nome) {
+        const el = $('pp-org');
+        const m = /^([a-z0-9]+)\.$/.exec(nome);
+        if (!m) { el.textContent = nome || 'Proposta comercial'; return; }
+        const ponto = document.createElement('span');
+        ponto.className = 'dot';
+        ponto.textContent = '.';
+        el.replaceChildren(m[1], ponto);
+    }
+
     function mostrarProposta(v) {
         // nome da organização: o que o documento congelado mostra no cabeçalho (DOMParser não executa nada)
         const doc = new DOMParser().parseFromString(v.html || '', 'text/html');
         const org = (doc.querySelector('.run span')?.textContent || '').trim();
-        $('pp-org').textContent = org || 'Proposta comercial';
-        document.title = `Proposta ${v.numero}${org ? ' · ' + org : ''}`;
-        $('pp-meta').textContent = `${v.numero} rev. ${v.revisao}${v.validaAte ? ` · válida até ${data(v.validaAte)}` : ''}`;
+        marcaDaOrg(org);
+        document.title = `Proposta ${v.numero}${org ? ' · ' + org : ''} | n.360`;
+        identificacao = `${v.numero} rev. ${v.revisao}`;
+        $('pp-meta').textContent = `${identificacao}${v.validaAte ? ` · válida até ${data(v.validaAte)}` : ''}`;
         $('pp-titulo').textContent = `Proposta ${v.numero} rev. ${v.revisao}`;
         $('pp-estado').hidden = true;
         $('pp-proposta').hidden = false;
@@ -205,6 +220,7 @@
     function iniciar() {
         if (!$('pp-main')) return;
         ocupado = false;
+        identificacao = '';
         token = location.hash.slice(1);
         if (token) guardar(token); else token = guardado();
         // some da barra, do histórico e de qualquer cópia do endereço

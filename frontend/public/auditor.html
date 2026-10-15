@@ -5,51 +5,71 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="no-referrer">
-  <title>Portal do auditor</title>
+  <meta name="theme-color" content="#0b1326">
+  <title>Portal do auditor | n.360 · ness.</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/publico.css">
   <link rel="stylesheet" href="/auditor.css">
   <!-- Portal do auditor externo, só leitura. Sem script inline (CSP script-src 'self'): tudo está em
        /auditor.js. O token vem no fragmento (#...), que o navegador não envia ao servidor. -->
   <script src="/auditor.js" defer></script>
 </head>
-<body>
-  <header class="pa-topo">
-    <div class="pa-topo-int">
-      <span class="pa-org" id="pa-org">Portal do auditor</span>
-      <span class="pa-meta" id="pa-meta"></span>
+<body class="pa-pagina">
+  <header class="pub-topo">
+    <div class="pub-topo-int">
+      <span class="pub-marca"><span class="pub-marca-produto">n<span class="dot">.</span>360</span><span class="pub-marca-ness">ness<span class="dot">.</span></span></span>
+      <span class="pub-contexto" id="pa-org">Portal do auditor</span>
+      <span class="pub-meta" id="pa-meta"></span>
     </div>
   </header>
 
-  <main class="pa-main" id="pa-main">
-    <section class="pa-estado" id="pa-estado" role="status" aria-live="polite">
-      <h1 class="pa-estado-titulo" id="pa-estado-titulo">Carregando...</h1>
-      <p class="pa-estado-texto" id="pa-estado-texto"></p>
+  <main class="pub-main" id="pa-main">
+    <section class="pub-estado" id="pa-estado" role="status" aria-live="polite">
+      <h1 class="pub-estado-titulo" id="pa-estado-titulo">Carregando...</h1>
+      <p class="pub-estado-texto" id="pa-estado-texto"></p>
     </section>
 
     <div id="pa-conteudo" hidden>
-      <h1 class="pa-titulo">Declaração de Aplicabilidade e evidências</h1>
+      <h1 class="pub-titulo">Declaração de Aplicabilidade e evidências</h1>
+      <p class="pub-texto">Acesso somente leitura, preparado pela consultoria que conduz o projeto. Cada evidência traz o código de
+        integridade (SHA-256) do arquivo: depois de baixar, confira com <code>sha256sum</code> ou <code>Get-FileHash</code>.</p>
       <dl class="pa-projeto">
         <dt>Cliente</dt><dd id="pa-cliente"></dd>
         <dt>Normas</dt><dd id="pa-normas"></dd>
         <dt>Escopo</dt><dd id="pa-escopo"></dd>
       </dl>
-      <p class="pa-aviso" id="pa-aviso" role="alert"></p>
-      <div class="pa-acoes">
-        <button type="button" class="pa-btn" id="pa-prova">Baixar a prova dos pedidos de aprovação e ciência (JSON)</button>
-      </div>
-      <h2 class="pa-secao">SoA</h2>
+      <p class="pub-aviso pub-aviso-erro" id="pa-aviso" role="alert"></p>
+
+      <section aria-labelledby="pa-prova-titulo">
+        <h2 class="pub-secao" id="pa-prova-titulo">Prova das aprovações e ciências</h2>
+        <p class="pub-texto">Arquivo JSON com cada pedido de aprovação e de ciência do projeto: quem decidiu, quando, por qual canal e o
+          código de integridade do conteúdo que a pessoa viu. Serve para conferir as assinaturas citadas nas evidências e para arquivar com o relatório.</p>
+        <div class="pub-acoes">
+          <button type="button" class="pub-btn pub-btn-contorno" id="pa-prova">Baixar a prova (JSON)</button>
+        </div>
+      </section>
+
+      <h2 class="pub-secao">SoA</h2>
+      <dl class="pa-legenda" aria-label="Legenda do status e da maturidade">
+        <div><dt>Implementado</dt><dd>controle em operação</dd></div>
+        <div><dt>Aprovado</dt><dd>política do controle aprovada pela direção</dd></div>
+        <div><dt>Em andamento</dt><dd>implantação começou</dd></div>
+        <div><dt>Parcial</dt><dd>atende parte do requisito</dd></div>
+        <div><dt>Pendente</dt><dd>ainda não implementado</dd></div>
+        <div><dt>Maturidade</dt><dd>escala de 0 (inexistente) a 5 (otimizado)</dd></div>
+      </dl>
       <div id="pa-soa"></div>
       <section id="pa-sem-controle" aria-labelledby="pa-sem-controle-titulo" hidden>
-        <h2 class="pa-secao" id="pa-sem-controle-titulo">Evidências sem controle ligado</h2>
+        <h2 class="pub-secao" id="pa-sem-controle-titulo">Evidências sem controle ligado</h2>
         <ul class="pa-evs" id="pa-sem-controle-lista"></ul>
       </section>
       <section class="pa-nota" aria-labelledby="pa-nota-titulo">
-        <h2 class="pa-secao" id="pa-nota-titulo">Pergunta à consultoria</h2>
-        <label class="pa-nota-rotulo" for="pa-nota-texto">A consultoria responde por aqui; a resposta aparece nesta página.</label>
-        <textarea class="pa-nota-texto" id="pa-nota-texto" rows="4" maxlength="20000"></textarea>
-        <div class="pa-acoes">
-          <button type="button" class="pa-btn" id="pa-nota-enviar">Registrar pergunta</button>
+        <h2 class="pub-secao" id="pa-nota-titulo">Perguntas à consultoria</h2>
+        <label class="pub-rotulo" for="pa-nota-texto" id="pa-nota-rotulo">A consultoria que conduz o projeto responde por aqui; a resposta aparece nesta página.</label>
+        <textarea class="pub-input" id="pa-nota-texto" rows="4" maxlength="20000"></textarea>
+        <div class="pub-acoes pa-nota-acoes">
+          <button type="button" class="pub-btn pub-btn-primario" id="pa-nota-enviar">Registrar pergunta</button>
           <span class="pa-nota-msg" id="pa-nota-msg" role="status"></span>
         </div>
         <ul class="pa-nota-lista" id="pa-nota-lista"></ul>
@@ -57,8 +77,11 @@
     </div>
   </main>
 
-  <footer class="pa-rodape-pagina">
-    <p>Acesso somente leitura e com prazo. Não encaminhe este link.</p>
+  <footer class="pub-rodape">
+    <div class="pub-rodape-int">
+      <p>Acesso somente leitura e com prazo. Não encaminhe este link.</p>
+      <p class="pub-assinatura">n<span class="dot">.</span>360 · plataforma da ness<span class="dot">.</span></p>
+    </div>
   </footer>
 </body>
 </html>

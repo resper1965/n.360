@@ -66,6 +66,11 @@ Para ver os valores: `sed -n '/^:root/,/^}/p' frontend/src/style.css`.
 - **O projeto ativo mora num lugar só**: o seletor do topo da barra lateral. Nome em até duas linhas, corte
   só visual (o nome inteiro no `title` e no rótulo do select). Sem selo de projeto no cabeçalho e sem lista
   de projetos no menu de conta; trocar de projeto é por ele ou pela carteira. "Tenant" não aparece na tela.
+- **Páginas públicas** (`/politicas`, `/auditor`, `/homologacao`, `/proposta`): usam `frontend/public/publico.css`
+  (tokens copiados do `:root`, conferidos por `frontend/test/publico-css.test.js`; topo com `n.360` e `ness.`, rodapé,
+  botões, campos, avisos) e uma folha própria só com o que é da página. **São responsivas** (de 390 px ao desktop:
+  alvos de 44 px, campos de 16 px), ao contrário do app: quem as abre é gente de fora, pelo link do e-mail, muitas
+  vezes no celular. Sem `<style>`, `style=` nem diálogo nativo (`alert`/`confirm`); título da aba "Ação | n.360 · ness.".
 
 ## Utilitários de tela (`frontend/src/ui.js`)
 

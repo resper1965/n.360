@@ -1,364 +1,164 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <meta name="theme-color" content="#00ade8">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Portal de Ciência de Políticas - n.iso / ness.</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Montserrat:wght@500;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #070b14;
-      --surface: rgba(15, 20, 35, 0.6);
-      --surface-hover: rgba(25, 35, 55, 0.8);
-      --accent: #00ade8;
-      --text: #f5f5f7;
-      --text-dim: rgba(229, 235, 255, 0.5);
-      --muted: rgba(229, 235, 255, 0.6);
-      --border: rgba(255, 255, 255, 0.08);
-      --success: #22c55e;
-      --glass-blur: blur(24px);
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    header {
-      height: 60px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 2rem;
-      background: rgba(7, 11, 20, 0.8);
-      backdrop-filter: var(--glass-blur);
-    }
-    .brand {
-      font-family: 'Montserrat', sans-serif;
-      font-weight: 700;
-      font-size: 1.2rem;
-      color: var(--text);
-    }
-    .brand span { color: var(--accent); }
-    .header-tag {
-      font-size: 0.75rem;
-      color: var(--text-dim);
-      background: rgba(0, 173, 232, 0.1);
-      border: 1px solid rgba(0, 173, 232, 0.2);
-      padding: 4px 10px;
-      border-radius: 6px;
-    }
-    main {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-    }
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      backdrop-filter: var(--glass-blur);
-      padding: 2.5rem;
-      width: 100%;
-      max-width: 520px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    }
-    .card-reader {
-      max-width: 900px;
-    }
-    .title {
-      font-family: 'Montserrat', sans-serif;
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 0.5rem;
-    }
-    .subtitle {
-      font-size: 0.85rem;
-      color: var(--text-dim);
-      margin-bottom: 1.5rem;
-      line-height: 1.5;
-    }
-    .form-group {
-      margin-bottom: 1.25rem;
-    }
-    label {
-      display: block;
-      font-size: 0.8rem;
-      font-weight: 500;
-      color: var(--text-dim);
-      margin-bottom: 6px;
-    }
-    input[type="text"], input[type="email"] {
-      width: 100%;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 16px;
-      color: var(--text);
-      font-family: inherit;
-      font-size: 0.9rem;
-      transition: border-color 0.2s;
-    }
-    input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-    .btn-primary {
-      width: 100%;
-      background: var(--accent);
-      color: #070b14;
-      border: none;
-      border-radius: 10px;
-      padding: 12px;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-      margin-top: 0.5rem;
-    }
-    .btn-primary:hover { opacity: 0.9; }
-    .btn-secondary {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-      border-radius: 10px;
-      padding: 8px 16px;
-      font-size: 0.8rem;
-      cursor: pointer;
-    }
-    .btn-secondary:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
-    .alert-box {
-      background: rgba(0, 173, 232, 0.1);
-      border: 1px solid rgba(0, 173, 232, 0.2);
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 0.8rem;
-      color: var(--accent);
-      margin-bottom: 1.25rem;
-    }
-    .alert-error {
-      background: rgba(239, 68, 68, 0.1);
-      border-color: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
-    }
-    .otp-inputs {
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-      margin: 1.5rem 0;
-    }
-    .otp-input {
-      width: 100%;
-      text-align: center;
-      font-size: 1.5rem;
-      font-weight: 700;
-      letter-spacing: 4px;
-      font-family: monospace;
-    }
-    /* Reader Layout */
-    .reader-grid {
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      gap: 1.5rem;
-      margin-top: 1.5rem;
-    }
-    .policy-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .policy-item {
-      padding: 12px 14px;
-      border-radius: 8px;
-      background: rgba(255,255,255,0.02);
-      border: 1px solid var(--border);
-      cursor: pointer;
-      font-size: 0.85rem;
-      transition: all 0.2s;
-    }
-    .policy-item:hover {
-      background: var(--surface-hover);
-    }
-    .policy-item.active {
-      border-color: var(--accent);
-      background: rgba(0, 173, 232, 0.1);
-      color: var(--accent);
-      font-weight: 500;
-    }
-    .policy-item .ack-badge {
-      float: right;
-      font-size: 0.7rem;
-      color: var(--success);
-    }
-    .document-paper {
-      background: #ffffff;
-      color: #070b14;
-      border-radius: 12px;
-      padding: 2rem;
-      min-height: 400px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    }
-    .document-paper h1, .document-paper h2, .document-paper h3 {
-      font-family: 'Montserrat', sans-serif;
-      margin-top: 0;
-      color: #070b14;
-    }
-    .ack-section {
-      margin-top: 1.5rem;
-      background: rgba(255,255,255,0.02);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1.25rem;
-    }
-    .ack-checkbox {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-size: 0.85rem;
-      line-height: 1.4;
-      cursor: pointer;
-      margin-bottom: 1rem;
-    }
-    .ack-checkbox input { margin-top: 3px; cursor: pointer; }
-    .signed-banner {
-      background: rgba(34, 197, 94, 0.1);
-      border: 1px solid rgba(34, 197, 94, 0.3);
-      color: #22c55e;
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 0.85rem;
-      font-weight: 500;
-    }
-    .hidden { display: none !important; }
-  </style>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#0b1326">
+  <title>Ciência de políticas | n.360 · ness.</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/publico.css">
+  <link rel="stylesheet" href="/politicas.css">
+  <!-- Portal de ciência de políticas. Sem script nem estilo inline (CSP script-src 'self'): tudo está em
+       /politicas.js e nas duas folhas acima. -->
+  <script src="/politicas.js" defer></script>
 </head>
 <body>
-  <header>
-    <div class="brand">n<span>.</span>iso</div>
-    <div class="header-tag" id="client-header-tag">Portal de Ciência de Políticas</div>
+  <header class="pub-topo">
+    <div class="pub-topo-int">
+      <span class="pub-marca"><span class="pub-marca-produto">n<span class="dot">.</span>360</span><span class="pub-marca-ness">ness<span class="dot">.</span></span></span>
+      <span class="pub-contexto" id="client-header-tag">Ciência de políticas</span>
+    </div>
   </header>
 
-  <main>
-    <!-- ETAPA 1: SOLICITAR OTP -->
-    <div class="card" id="step-request-otp">
-      <div class="title">Ciência Eletrônica de Políticas</div>
-      <div class="subtitle">Informe seu nome e e-mail corporativo para receber um código de acesso e visualizar as diretrizes vigentes de sua organização.</div>
-      
-      <div class="alert-box hidden" id="msg-request"></div>
+  <main class="pub-main">
+    <!-- Entrada pelo endereço da empresa (/politicas?project=...): nome e e-mail, depois o código -->
+    <section class="pol-etapa" id="step-request-otp" aria-labelledby="req-titulo">
+      <h1 class="pub-titulo" id="req-titulo">Políticas para ler e confirmar</h1>
+      <p class="pub-texto">Sua empresa usa esta página para que cada pessoa leia as políticas internas e confirme a leitura.
+        Informe o seu nome e o e-mail corporativo: enviamos um código de 6 dígitos para você entrar.</p>
+      <p class="pub-texto-dim">A página faz parte do n.360, a plataforma da ness. que apoia a sua empresa no programa de segurança da informação e privacidade.
+        Ela nunca pede a sua senha.</p>
 
-      <form id="form-request-otp">
-        <div class="form-group">
-          <label>Seu Nome Completo</label>
-          <input type="text" id="req-name" required placeholder="Ex: Maria Silva" />
-        </div>
-        <div class="form-group">
-          <label>Seu E-mail Corporativo</label>
-          <input type="email" id="req-email" required placeholder="Ex: maria.silva@suaempresa.com" />
-        </div>
-        <button type="submit" class="btn-primary">Enviar Código por E-mail</button>
-      </form>
-    </div>
+      <p class="pub-aviso hidden" id="msg-request" role="status" aria-live="polite"></p>
 
-    <!-- ETAPA 2: VALIDAR OTP -->
-    <div class="card hidden" id="step-verify-otp">
-      <div class="title">Verificação de E-mail</div>
-      <div class="subtitle">Digitamos o código OTP de 6 dígitos enviado para <strong id="sent-email-display" style="color:var(--text)"></strong>:</div>
-      
-      <div class="alert-box hidden" id="msg-verify"></div>
-
-      <form id="form-verify-otp">
-        <div class="form-group">
-          <input type="text" id="otp-code" class="otp-input" maxlength="6" required placeholder="000000" />
+      <form id="form-request-otp" class="pol-form">
+        <div class="pub-campo">
+          <label class="pub-rotulo" for="req-name">Nome completo</label>
+          <input class="pub-input" type="text" id="req-name" required maxlength="200" autocomplete="name">
         </div>
-        <button type="submit" class="btn-primary">Validar Código e Acessar</button>
-        <div style="margin-top: 1rem; text-align: center;">
-          <button type="button" id="btn-back-email" class="btn-secondary">Voltar / Alterar E-mail</button>
+        <div class="pub-campo">
+          <label class="pub-rotulo" for="req-email">E-mail corporativo</label>
+          <input class="pub-input" type="email" id="req-email" required maxlength="200" autocomplete="email" placeholder="nome@suaempresa.com.br">
+        </div>
+        <div class="pub-acoes">
+          <button type="submit" class="pub-btn pub-btn-primario">Enviar o código</button>
         </div>
       </form>
-    </div>
+    </section>
 
-    <!-- CIÊNCIA POR LINK PESSOAL (#token): ler o documento, receber o código e confirmar -->
-    <div class="card card-reader hidden" id="step-link">
-      <div class="title" id="link-titulo">Ciência de documento</div>
-      <div class="subtitle" id="link-sub"></div>
-      <div class="alert-box hidden" id="msg-link" role="status" aria-live="polite"></div>
+    <section class="pol-etapa hidden" id="step-verify-otp" aria-labelledby="otp-titulo">
+      <h1 class="pub-titulo" id="otp-titulo">Confira o seu e-mail</h1>
+      <p class="pub-texto">Enviamos um código de 6 dígitos para o seu e-mail, <strong class="pol-destaque" id="sent-email-display"></strong>.
+        Ele vale por 15 minutos. Se não chegar em alguns instantes, olhe a caixa de spam.</p>
+
+      <p class="pub-aviso hidden" id="msg-verify" role="alert"></p>
+
+      <form id="form-verify-otp" class="pol-form">
+        <div class="pub-campo">
+          <label class="pub-rotulo" for="otp-code">Código de 6 dígitos</label>
+          <input class="pub-input pol-codigo" type="text" id="otp-code" inputmode="numeric" maxlength="6" required autocomplete="one-time-code">
+        </div>
+        <div class="pub-acoes">
+          <button type="submit" class="pub-btn pub-btn-primario">Entrar</button>
+          <button type="button" id="btn-back-email" class="pub-btn">Usar outro e-mail</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Ciência por link pessoal (#token): ler o documento, receber o código e confirmar -->
+    <section class="hidden" id="step-link" aria-labelledby="link-titulo">
+      <h1 class="pub-titulo" id="link-titulo">Ciência de documento</h1>
+      <p class="pub-texto" id="link-sub">Você recebeu este link por e-mail para ler um documento da sua empresa e confirmar a leitura.</p>
+      <p class="pub-aviso hidden" id="msg-link" role="status" aria-live="polite"></p>
 
       <div id="link-leitura" class="hidden">
-        <div class="document-paper" id="link-documento"></div>
-        <div style="font-size: 0.75rem; color: var(--text-dim); margin: 0.75rem 0 0; word-break: break-all;">Versão (SHA-256): <span id="link-hash"></span></div>
+        <article class="pol-documento" id="link-documento"></article>
+        <p class="pol-integridade">
+          <span class="pol-integridade-rotulo">Código de integridade do documento</span>
+          <code class="pub-hash" id="link-hash"></code>
+          <span class="pol-integridade-ajuda">Identifica exatamente o texto acima. Se o documento mudar, o código muda e a confirmação vale só para esta versão.</span>
+        </p>
 
-        <div class="ack-section" id="link-pendente">
-          <button type="button" class="btn-secondary" id="btn-link-codigo">Enviar código ao meu e-mail</button>
-          <form id="form-link-ciencia" class="hidden" style="margin-top: 1rem;" novalidate>
-            <div class="form-group">
-              <label for="link-nome">Seu nome completo</label>
-              <input type="text" id="link-nome" required maxlength="200" autocomplete="name" />
+        <section class="pol-confirmar" id="link-pendente" aria-labelledby="link-confirmar-titulo">
+          <h2 class="pol-confirmar-titulo" id="link-confirmar-titulo">Confirmar a leitura</h2>
+          <p class="pub-texto">Para confirmar que foi você quem leu, enviamos um código ao seu e-mail.</p>
+          <p class="pub-aviso hidden" id="link-msg" role="status" aria-live="polite"></p>
+          <div class="pub-acoes">
+            <button type="button" class="pub-btn pub-btn-contorno" id="btn-link-codigo">Enviar o código ao meu e-mail</button>
+          </div>
+          <form id="form-link-ciencia" class="pol-form hidden" novalidate>
+            <div class="pub-campo">
+              <label class="pub-rotulo" for="link-nome">Nome completo</label>
+              <input class="pub-input" type="text" id="link-nome" required maxlength="200" autocomplete="name">
             </div>
-            <div class="form-group">
-              <label for="link-codigo">Código de 6 dígitos enviado ao seu e-mail</label>
-              <input type="text" id="link-codigo" class="otp-input" inputmode="numeric" maxlength="6" required placeholder="000000" autocomplete="one-time-code" />
+            <div class="pub-campo">
+              <label class="pub-rotulo" for="link-codigo">Código de 6 dígitos enviado ao seu e-mail</label>
+              <input class="pub-input pol-codigo" type="text" id="link-codigo" inputmode="numeric" maxlength="6" required autocomplete="one-time-code">
             </div>
-            <label class="ack-checkbox">
-              <input type="checkbox" id="link-aceite" />
-              <span>Declaro que li integralmente, compreendi e concordo em cumprir este documento.</span>
+            <label class="pub-caixa pol-declaro">
+              <input type="checkbox" id="link-aceite">
+              <span>Declaro que li o documento por inteiro, compreendi e vou cumpri-lo.</span>
             </label>
-            <button type="submit" class="btn-primary" id="btn-link-confirmar" disabled style="opacity: 0.5;">Confirmar ciência</button>
+            <div class="pub-acoes">
+              <button type="submit" class="pub-btn pub-btn-primario" id="btn-link-confirmar" disabled>Confirmar a leitura</button>
+            </div>
           </form>
-        </div>
+        </section>
       </div>
-      <div class="signed-banner hidden" id="link-concluido"></div>
-    </div>
+      <section class="pol-feito hidden" id="link-concluido" role="status" aria-live="polite"></section>
+    </section>
 
-    <!-- ETAPA 3: CENTRAL DE LEITURA & CIÊNCIA -->
-    <div class="card card-reader hidden" id="step-reader">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1rem;">
+    <!-- Leitura depois do código: a lista dos documentos vigentes e a confirmação de cada um -->
+    <section class="hidden" id="step-reader" aria-labelledby="reader-project-name">
+      <div class="pol-leitor-topo">
         <div>
-          <div class="title" id="reader-project-name">Diretrizes da Organização</div>
-          <div style="font-size: 0.8rem; color: var(--text-dim);" id="reader-user-info">Colaborador Autenticado</div>
+          <h1 class="pub-titulo" id="reader-project-name">Políticas da empresa</h1>
+          <p class="pub-texto-dim" id="reader-user-info"></p>
         </div>
-        <button id="btn-logout" class="btn-secondary">Sair</button>
+        <button type="button" id="btn-logout" class="pub-btn pub-btn-pequeno">Sair</button>
       </div>
+      <p class="pub-aviso" id="reader-progresso" role="status" aria-live="polite"></p>
+      <p class="pub-aviso pub-aviso-erro hidden" id="reader-aviso" role="alert"></p>
 
-      <div class="reader-grid">
-        <div class="policy-list" id="policy-list-container">
-          <!-- Lista de políticas injetada via JS -->
-        </div>
-        <div>
-          <div class="document-paper" id="document-paper-body">
-            <h3>Selecione um documento ao lado para realizar a leitura.</h3>
-          </div>
+      <div class="pol-leitor">
+        <nav class="pol-lista" id="policy-list-container" aria-label="Documentos para ler"></nav>
+        <div class="pol-leitura">
+          <article class="pol-documento" id="document-paper-body">
+            <p class="pol-doc-vazio">Escolha um documento na lista para ler.</p>
+          </article>
 
-          <div class="ack-section hidden" id="ack-controls">
+          <section class="pol-confirmar hidden" id="ack-controls" aria-label="Confirmar a leitura">
             <div id="ack-pending-box">
-              <div id="ack-prev-note" class="hidden" style="font-size: 0.8rem; color: #475569; margin-bottom: 0.75rem;"></div>
-              <label class="ack-checkbox">
-                <input type="checkbox" id="chk-accept" />
-                <span>Declaro que li integralmente, compreendi e concordo em cumprir todas as diretrizes deste documento.</span>
+              <p class="pub-aviso pub-aviso-atencao hidden" id="ack-prev-note"></p>
+              <label class="pub-caixa pol-declaro">
+                <input type="checkbox" id="chk-accept">
+                <span>Declaro que li o documento por inteiro, compreendi e vou cumprir todas as diretrizes dele.</span>
               </label>
-              <button class="btn-primary" id="btn-sign-ack" disabled style="opacity: 0.5;">Assinar Ciência Eletrônica</button>
+              <div class="pub-acoes">
+                <button type="button" class="pub-btn pub-btn-primario" id="btn-sign-ack" disabled>Confirmar a leitura</button>
+              </div>
             </div>
-            <div class="signed-banner hidden" id="ack-completed-box">
-              Ciência registrada eletronicamente neste documento.
-              <div style="font-size: 0.75rem; color: #475569; margin-top: 4px;" id="ack-details-hash"></div>
+            <div class="hidden" id="ack-completed-box">
+              <p class="pol-feito-titulo">Leitura confirmada</p>
+              <p class="pub-texto-dim" id="ack-details-hash"></p>
+              <div class="pub-acoes">
+                <button type="button" class="pub-btn pub-btn-contorno hidden" id="btn-proximo">Ler o próximo documento</button>
+              </div>
             </div>
-          </div>
+          </section>
         </div>
       </div>
-    </div>
+    </section>
   </main>
 
-  <!-- S2/CSP: script externalizado (era inline) para permitir remover
-       'unsafe-inline' de script-src. Servido como 'self'. -->
-  <script src="/politicas.js"></script>
+  <footer class="pub-rodape">
+    <div class="pub-rodape-int">
+      <p>A confirmação fica registrada com o seu nome, a data e a versão do documento.</p>
+      <p class="pub-assinatura">n<span class="dot">.</span>360 · plataforma da ness<span class="dot">.</span></p>
+    </div>
+  </footer>
 </body>
 </html>

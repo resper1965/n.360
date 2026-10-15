@@ -1,0 +1,139 @@
+/* Folha comum das páginas públicas: politicas.html, auditor.html, homologacao.html e proposta.html.
+ *
+ * São abertas por gente de fora, por link de e-mail: funcionário do cliente, auditor, fornecedor, diretor que
+ * recebe a proposta. Não carregam o style.css do app (~1.500 linhas do painel): os tokens abaixo são cópia do
+ * :root de src/style.css (a fonte única), e frontend/test/publico-css.test.js compara os valores. Mudou lá, muda
+ * aqui. Cada página tem a sua folha só com o que é dela (prefixo pa-, hq-, pp-, ou as classes do portal de
+ * políticas); o que é comum (topo, rodapé, botões, campos, avisos) mora aqui, com o prefixo pub-.
+ *
+ * Responsividade: a regra "responsividade fora de escopo" (AGENTS.md) vale para o app interno, usado no
+ * computador pela equipe. Estas páginas são abertas no celular com frequência, então funcionam de 360 px ao
+ * desktop: coluna única no estreito, alvos de toque de 44 px e campos com 16 px (sem o zoom do iOS).
+ */
+:root {
+    --accent: #00ade8;
+    --accent-hover: #008ebf;
+    --accent-dim: rgba(0, 173, 232, 0.12);
+    --accent-ink: #04121c;
+    --bg: #0b1326;
+    --surface: #162244;
+    --surface-2: #1e2d52;
+    --border: rgba(255, 255, 255, 0.10);
+    --text: #f1f5f9;
+    --text-2: #cbd5e1;
+    --text-dim: #94a3b8;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --danger-ink: #fca5a5;
+    --warning-ink: #fcd34d;
+    --success-ink: #6ee7b7;
+    --font-head: 'Montserrat', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --radius: 0;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --fast: 150ms;
+    color-scheme: dark;
+}
+
+/* ——— Base ——— */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scrollbar-color: var(--surface-2) var(--bg); }
+body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--text); font: 400 15px/1.55 var(--font-body); caret-color: var(--accent); }
+[hidden] { display: none !important; }
+::selection { background: var(--accent-dim); color: var(--text); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: var(--accent); text-underline-offset: 3px; }
+code, .pub-mono { font-family: var(--font-mono); }
+.dot { color: var(--accent); }
+.pub-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ——— Topo: a marca do produto, quem pede e o prazo do link ——— */
+.pub-topo { border-bottom: 1px solid var(--border); background: var(--bg); }
+.pub-topo-int { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; max-width: var(--pub-largura, 920px); margin: 0 auto; padding: 14px 24px; }
+.pub-marca { display: inline-flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+.pub-marca-produto { font: 500 19px/1.2 var(--font-head); letter-spacing: -0.01em; color: var(--text); }
+.pub-marca-ness { font: 500 13px/1.2 var(--font-head); color: var(--text-dim); }
+.pub-contexto { flex: 1 1 auto; min-width: 0; padding-left: 16px; border-left: 1px solid var(--border); font: 500 16px/1.3 var(--font-head); color: var(--text); overflow-wrap: anywhere; }
+.pub-meta { font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+/* ——— Corpo ——— */
+.pub-main { flex: 1; width: 100%; max-width: var(--pub-largura, 920px); margin: 0 auto; padding: 32px 24px 40px; }
+.pub-titulo { margin: 0 0 12px; font: 600 24px/1.25 var(--font-head); color: var(--text); text-wrap: balance; }
+.pub-secao { margin: 40px 0 12px; font: 600 18px/1.3 var(--font-head); color: var(--text); text-wrap: balance; }
+.pub-texto { margin: 0 0 16px; max-width: 68ch; color: var(--text-2); }
+.pub-texto-dim { margin: 0 0 12px; max-width: 68ch; font-size: 13px; color: var(--text-dim); }
+
+/* Estado da página inteira: carregando, link inválido, enviado. */
+.pub-estado { max-width: 560px; margin: 48px auto; padding: 32px; background: var(--surface); border: 1px solid var(--border); }
+.pub-estado-titulo { margin: 0 0 8px; font: 600 20px/1.35 var(--font-head); color: var(--text); text-wrap: balance; }
+.pub-estado-titulo:focus { outline: none; }
+.pub-estado-texto { margin: 0; color: var(--text-2); }
+.pub-estado-texto:empty { display: none; }
+
+/* ——— Botões ——— */
+.pub-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.pub-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); color: var(--text); font: 500 14px var(--font-body); text-align: center; cursor: pointer; transition: border-color var(--fast) var(--ease-out), background-color var(--fast) var(--ease-out); }
+.pub-btn:hover { border-color: var(--text-dim); }
+.pub-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.pub-btn-primario { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.pub-btn-primario:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
+.pub-btn-contorno { border-color: var(--accent); background: transparent; color: var(--accent); }
+.pub-btn-contorno:hover { border-color: var(--accent); background: var(--accent-dim); }
+.pub-btn-perigo { border-color: var(--danger); background: transparent; color: var(--danger-ink); }
+.pub-btn-perigo:hover { border-color: var(--danger); background: var(--surface-2); }
+.pub-btn-pequeno { min-height: 36px; padding: 0 14px; font-size: 13px; }
+.pub-link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* ——— Campos ——— */
+.pub-campo { margin: 0 0 16px; max-width: 520px; }
+.pub-rotulo { display: block; margin: 0 0 6px; font-size: 13px; font-weight: 500; color: var(--text-2); }
+.pub-input { display: block; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: rgba(255, 255, 255, 0.03); color: var(--text); font: 400 16px/1.4 var(--font-body); }
+.pub-input::placeholder { color: var(--text-dim); }
+.pub-input:hover { border-color: rgba(255, 255, 255, 0.2); }
+.pub-input:focus { border-color: var(--accent); }
+textarea.pub-input { resize: vertical; line-height: 1.5; }
+.pub-input[aria-invalid="true"] { border-color: var(--danger); }
+.pub-erro { margin: 6px 0 0; font-size: 13px; color: var(--danger-ink); }
+.pub-erro:empty { display: none; }
+.pub-caixa { display: flex; align-items: flex-start; gap: 10px; }
+.pub-caixa input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: var(--accent); cursor: pointer; }
+.pub-caixa input[aria-invalid="true"] { outline: 2px solid var(--danger); outline-offset: 2px; }
+.pub-caixa label, .pub-caixa span { color: var(--text); cursor: pointer; }
+
+/* ——— Avisos: o estado diz o que é pela palavra e pela cor da borda inteira (nada de faixa lateral) ——— */
+.pub-aviso { margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; }
+.pub-aviso:empty { display: none; }
+.pub-aviso-erro { border-color: var(--danger); color: var(--danger-ink); }
+.pub-aviso-ok { border-color: var(--success); color: var(--success-ink); }
+.pub-aviso-atencao { border-color: var(--warning); color: var(--warning-ink); }
+
+/* Selos de estado (lista de documentos, status) */
+.pub-selo { display: inline-block; padding: 1px 8px; border: 1px solid currentColor; font-size: 12px; font-weight: 500; line-height: 1.6; white-space: nowrap; }
+.pub-selo-ok { color: var(--success-ink); }
+.pub-selo-atencao { color: var(--warning-ink); }
+.pub-selo-neutro { color: var(--text-dim); }
+
+/* Código de integridade (SHA-256): mono, pequeno, quebra em qualquer ponto. */
+.pub-hash { font: 400 12px/1.5 var(--font-mono); color: var(--text-dim); overflow-wrap: anywhere; }
+
+/* ——— Rodapé: o aviso do link e a assinatura da plataforma ——— */
+.pub-rodape { border-top: 1px solid var(--border); }
+.pub-rodape-int { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; max-width: var(--pub-largura, 920px); margin: 0 auto; padding: 16px 24px 28px; font-size: 13px; color: var(--text-dim); }
+.pub-rodape-int p { margin: 0; }
+.pub-assinatura { font-family: var(--font-head); font-weight: 500; white-space: nowrap; }
+
+@media (max-width: 600px) {
+    .pub-topo-int { padding: 12px 16px; }
+    .pub-contexto { flex-basis: 100%; padding-left: 0; border-left: 0; }
+    .pub-main { padding: 24px 16px 32px; }
+    .pub-titulo { font-size: 21px; }
+    .pub-estado { margin: 16px 0; padding: 24px 20px; }
+    .pub-rodape-int { padding: 16px; }
+    .pub-acoes .pub-btn { flex: 1 1 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
