@@ -6,7 +6,8 @@
  * estiver vencido. O dia é o de São Paulo; item resolvido não gera aviso.
  */
 
-import { genId, escapeHtml, enviarEmail } from '../helpers';
+import { genId, enviarEmail } from '../helpers';
+import { montarEmail, type EmailMontado } from './email-layout';
 import { appUrl } from '../config/url';
 import { vencerEvidencias } from './evidencia-validade';
 import { modulosDoProjeto, type Modulo } from '../modulos';
@@ -323,13 +324,13 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
   return r;
 }
 
-type LinhaEmail = { id: string; user_id: string; email: string; projeto: string; fonte: Fonte; marco: string; vence_em: string; titulo: string };
+type LinhaEmail = { id: string; user_id: string; email: string; nome: string | null; projeto: string; fonte: Fonte; marco: string; vence_em: string; titulo: string };
 
 /** Um e-mail por pessoa com tudo o que está pendente dos últimos 7 dias; marca só o que saiu. */
 async function enviarResumos(env: EnvAvisos, r: ResultadoAvisos): Promise<void> {
   // Refiltra o acesso: quem perdeu a designação ou foi desativado desde o aviso não recebe o resumo.
   const { results } = await env.DB.prepare(
-    `SELECT a.id, a.user_id, u.email, COALESCE(p.project_name, p.client_name) AS projeto, a.fonte, a.marco, a.vence_em, a.titulo
+    `SELECT a.id, a.user_id, u.email, u.name AS nome, COALESCE(p.project_name, p.client_name) AS projeto, a.fonte, a.marco, a.vence_em, a.titulo
        FROM avisos_prazo a JOIN users u ON u.id = a.user_id JOIN projects p ON p.id = a.project_id
       WHERE a.email_enviado_em IS NULL AND a.criado_em >= datetime('now', '-7 days') AND ${ALCANCA_O_PROJETO}
       ORDER BY a.user_id, projeto, a.vence_em, a.titulo`
@@ -353,17 +354,27 @@ async function enviarResumos(env: EnvAvisos, r: ResultadoAvisos): Promise<void> 
   }
 }
 
-/** HTML simples, todo dado escapado, agrupado por projeto. Link único para o app: o SPA não roteia por URL. */
-function emailResumo(linhas: LinhaEmail[], base: string): string {
-  const e = escapeHtml;
+/** Resumo agrupado por projeto, no invólucro único. Link único para o app: o SPA não roteia por URL. */
+export function emailResumo(linhas: LinhaEmail[], base: string): EmailMontado {
+  const n = linhas.length;
   const porProjeto = new Map<string, LinhaEmail[]>();
   for (const l of linhas) porProjeto.set(l.projeto, [...(porProjeto.get(l.projeto) ?? []), l]);
-  const blocos = [...porProjeto].map(([projeto, ls]) =>
-    `<h3 style="font-size: 15px; margin: 20px 0 8px;">${e(projeto)}</h3><ul>${ls.map((l) =>
-      `<li>${e(ROTULO[l.fonte])}: ${e(l.titulo)} (${e(quando(l.marco))}, ${dataBr(l.vence_em)})</li>`).join('')}</ul>`).join('');
-  return `<div style="font-family: Arial, sans-serif; max-width: 560px; color: #1e293b;">
-    <p>Estes prazos precisam da sua atenção:</p>${blocos}
-    <p><a href="${e(base)}" style="background-color: #00ade8; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Abrir o n.360</a></p>
-    <p style="font-size: 12px; color: #64748b;">Os mesmos avisos estão no sino do n.360, com o link de cada item.</p>
-  </div>`;
+  const primeiro = linhas.map((l) => l.vence_em).sort()[0];
+  const assunto = `n.360: ${n} ${n === 1 ? 'prazo' : 'prazos'} para acompanhar`;
+  return montarEmail({
+    assunto,
+    previa: `${n} ${n === 1 ? 'prazo precisa' : 'prazos precisam'} da sua atenção. O mais antigo: ${dataBr(primeiro)}.`,
+    titulo: `${n} ${n === 1 ? 'prazo para acompanhar' : 'prazos para acompanhar'}`,
+    saudacao: linhas[0].nome ? `Olá, ${linhas[0].nome},` : 'Olá,',
+    paragrafos: ['Estes prazos dos seus projetos vencem em breve ou já venceram.'],
+    acao: 'Abrir o n.360 e tratar cada item, ou renegociar o prazo com o responsável',
+    prazo: `${dataBr(primeiro)} (o prazo mais antigo da lista)`,
+    listas: [...porProjeto].map(([projeto, ls]) => ({
+      titulo: projeto,
+      itens: ls.map((l) => `${ROTULO[l.fonte]}: ${l.titulo} (${quando(l.marco)}, ${dataBr(l.vence_em)})`),
+    })),
+    botao: { rotulo: 'Abrir o n.360', url: base },
+    notas: ['Os mesmos avisos estão no sino do n.360, com o link de cada item.'],
+    motivo: 'você participa destes projetos no n.360 e recebe um resumo diário dos prazos.',
+  });
 }

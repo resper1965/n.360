@@ -4,10 +4,12 @@ import { Bindings, Variables } from '../index';
 import {
   logAudit, verifyPassword, erro500, requireProjectAccess, projetosVisiveis, idDoControle,
   type PapelAssinatura,
-  sendEmail, escapeHtml, genToken, sha256Hex, registraErro,
+  sendEmail, genToken, sha256Hex, registraErro,
 } from '../helpers';
 import { validateBody, aprovacaoLoteSchema, pedidoCriarSchema, pedidoDecisaoSchema, pedidoCienciaLoteSchema, pedidoReenvioSchema } from '../schemas';
 import { appUrl } from '../config/url';
+import { remetente } from '../services/email-layout';
+import { emailCiencia, type QuemPede } from '../services/emails';
 import { assinarEvidencia } from './evidence';
 import {
   criarPedido, recusaDeDestinatarios, politicaVazia, conferirVigencia, registrarDecisao, podePedir, autoridadeNoPedido, DIAS_LINK, type PedidoRow,
@@ -66,7 +68,7 @@ async function avisarSubstituicao(c: any, antigo: PedidoRow, vig: Vigencia): Pro
     if (!results.length || !c.env.RESEND_API_KEY) return;
     const links = await emitirLinks(db, vig.substituido_por, new Set(results.map((r) => r.email)));
     const titulo = (await db.prepare('SELECT titulo FROM pedidos WHERE id = ?').bind(vig.substituido_por).first<{ titulo: string }>())?.titulo ?? antigo.titulo;
-    const falhas = await enviarLinks(c, titulo, links);
+    const falhas = await enviarLinks(c, vig.substituido_por, titulo, links, true);
     await logAudit(db, 'pedido.ciencia_substituida', 'sistema',
       `Pedido ${antigo.id} substituído por ${vig.substituido_por} (documento alterado): link novo a ${links.length} pendente(s), ${falhas.length} falha(s) de envio`,
       '', '', antigo.project_id);
@@ -321,14 +323,17 @@ pedidosApp.post('/lote', async (c) => {
 const SEM_EMAIL = { error: 'Envio de e-mail não configurado' };
 type Link = { email: string; nome: string | null; token: string };
 
-function emailCiencia(titulo: string, nome: string | null, link: string): string {
-  const e = escapeHtml;
-  return `<div style="font-family: Arial, sans-serif; max-width: 560px; color: #1e293b;">
-    <p>Olá${nome ? ` ${e(nome)}` : ''},</p>
-    <p>Pedimos a sua ciência do documento <strong>${e(titulo)}</strong>. O link é pessoal: leia o documento e confirme com o código que enviaremos ao seu e-mail.</p>
-    <p><a href="${e(link)}" style="background-color: #00ade8; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Ler e dar ciência</a></p>
-    <p style="font-size: 12px; color: #64748b;">O link vale por ${DIAS_LINK} dias. Se você recebeu um link anterior para este documento, ele deixou de valer.</p>
-  </div>`;
+/** Quem pede a ciência: o cliente do projeto e quem criou o pedido (nome, e-mail e a organização dele). */
+export async function quemPedeCiencia(db: D1Database, pedidoId: string): Promise<QuemPede> {
+  const r = await db.prepare(
+    `SELECT pr.client_name AS cliente, p.criado_por AS email, u.name AS nome, o.name AS organizacao
+       FROM pedidos p JOIN projects pr ON pr.id = p.project_id
+       LEFT JOIN users u ON lower(u.email) = lower(p.criado_por)
+       LEFT JOIN organizations o ON o.id = pr.org_id
+      WHERE p.id = ?`
+  ).bind(pedidoId).first<{ cliente: string; email: string; nome: string | null; organizacao: string | null }>();
+  const email = r?.email?.includes('@') ? r.email : null;
+  return { cliente: r?.cliente ?? '', pessoa: email ? { nome: r?.nome ?? null, email, organizacao: r?.organizacao ?? null } : null };
 }
 
 /** Token novo aos pendentes do pedido (todos, ou só os de `so`); devolve os links em claro, para o e-mail. */
@@ -353,8 +358,14 @@ const ENVIOS_SIMULTANEOS = 5;
 const PAUSA_RETENTATIVA_MS = 300;
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function enviarLinks(c: any, titulo: string, links: Link[]): Promise<string[]> {
-  const enviar = (l: Link) => sendEmail(c, l.email, `Ciência de documento: ${titulo}`, emailCiencia(titulo, l.nome, `${appUrl(c.env)}/politicas#${l.token}`));
+async function enviarLinks(c: any, pedidoId: string, titulo: string, links: Link[], reenvio: boolean): Promise<string[]> {
+  if (!links.length) return [];
+  const q = await quemPedeCiencia(c.env.DB, pedidoId);
+  const opcoes = { from: remetente('n.360', q.cliente), ...(q.pessoa?.email ? { replyTo: q.pessoa.email } : {}) };
+  const enviar = (l: Link) => {
+    const m = emailCiencia({ titulo, nome: l.nome, link: `${appUrl(c.env)}/politicas#${l.token}`, quem: q, reenvio, validoAte: new Date(Date.now() + DIAS_LINK * 86_400_000) });
+    return sendEmail(c, l.email, m.assunto, m, opcoes);
+  };
   const falhas: string[] = [];
   for (let i = 0; i < links.length; i += ENVIOS_SIMULTANEOS) {
     const grupo = links.slice(i, i + ENVIOS_SIMULTANEOS);
@@ -390,7 +401,7 @@ projectPedidosApp.post('/ciencia', async (c) => {
     });
     if (!criado) return c.json({ error: 'Documento não encontrado neste projeto' }, 404);
     const p = await c.env.DB.prepare('SELECT titulo FROM pedidos WHERE id = ?').bind(criado.id).first<{ titulo: string }>();
-    const falhas = await enviarLinks(c, p?.titulo ?? '', criado.links);
+    const falhas = await enviarLinks(c, criado.id, p?.titulo ?? '', criado.links, false);
     await logAudit(c.env.DB, 'pedido.ciencia_lote', user.email,
       `Pedido ${criado.id} (${b.tipo} ${b.ref_id}, ciência por link) para ${criado.links.length} destinatário(s), ${falhas.length} falha(s) de envio; hash ${criado.hash}`,
       '', c.req.header('CF-Connecting-IP') ?? '', projectId);
@@ -509,7 +520,7 @@ projectPedidosApp.post('/:id/reenviar', async (c) => {
       return c.json({ error: 'Este pedido não está mais aberto.', status: vig.status, substituido_por: vig.substituido_por ?? null }, 409);
     }
     const links = await emitirLinks(db, p.id, so);
-    const falhas = await enviarLinks(c, p.titulo, links);
+    const falhas = await enviarLinks(c, p.id, p.titulo, links, true);
     await logAudit(db, 'pedido.lembrete', user.email,
       `Pedido ${p.id}: lembrete a ${links.length} pendente(s), ${falhas.length} falha(s) de envio`, '', c.req.header('CF-Connecting-IP') ?? '', p.project_id);
     return c.json({ enviados: links.length - falhas.length, falhas }); // sem `ok: true`: ver POST /ciencia

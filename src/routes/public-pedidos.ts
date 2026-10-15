@@ -9,10 +9,12 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { Bindings } from '../index';
-import { sha256Hex, rateLimitD1, erro500, genNumericCode, sendEmail, escapeHtml, constantTimeEqual, logAudit } from '../helpers';
+import { sha256Hex, rateLimitD1, erro500, genNumericCode, sendEmail, constantTimeEqual, logAudit } from '../helpers';
 import { validateBody, pedidoTokenSchema, pedidoCienciaLinkSchema } from '../schemas';
 import { registrarDecisao, type PedidoRow } from '../services/pedidos';
-import { conferirEAvisar } from './pedidos';
+import { conferirEAvisar, quemPedeCiencia } from './pedidos';
+import { remetente } from '../services/email-layout';
+import { emailCodigoCiencia } from '../services/emails';
 
 export const publicPedidosApp = new Hono<{ Bindings: Bindings }>();
 type Ctx = Context<{ Bindings: Bindings }>;
@@ -99,8 +101,9 @@ publicPedidosApp.post('/codigo', async (c) => {
     // Código novo, tentativas novas (o envio já tem teto próprio: 5 por hora).
     await c.env.DB.prepare('DELETE FROM rate_limits WHERE key = ?').bind(chaveTentativas(d.id)).run();
     await c.env.SESSIONS.put(chaveOtp(d.id), JSON.stringify({ h: await sha256Hex(codigo), exp: Date.now() + OTP_SEG * 1000 }), { expirationTtl: OTP_SEG });
-    const enviado = await sendEmail(c, d.email, 'Seu código para dar ciência',
-      `<p>Seu código para confirmar a ciência de <strong>${escapeHtml(p.titulo)}</strong>:</p><p><strong>${codigo}</strong></p><p>Ele expira em 15 minutos. Se você não pediu, ignore este e-mail.</p>`);
+    const q = await quemPedeCiencia(c.env.DB, p.id);
+    const m = emailCodigoCiencia({ titulo: p.titulo, nome: d.nome, codigo, quem: q });
+    const enviado = await sendEmail(c, d.email, m.assunto, m, { from: remetente('n.360', q.cliente), ...(q.pessoa?.email ? { replyTo: q.pessoa.email } : {}) });
     if (!enviado) return c.json({ error: 'Não foi possível enviar o código no momento. Tente novamente.' }, 502);
     return c.json({ ok: true, enviado_para: mascarar(d.email) });
   } catch (e) { return erro500(c, 'Erro ao enviar o código', e); }

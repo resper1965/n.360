@@ -256,7 +256,7 @@ describe('início do n.360', () => {
         await abrir('n360');
         expect(chamadas(f)).toEqual(['GET /api/v1/projects/p9/painel']);
         expect(el('a').querySelector('.pn-alterna')).toBeNull();
-        expect(el('c').textContent).toContain('Nada espera a sua decisão agora.');
+        expect(el('c').textContent).toContain('Nada esperando a sua decisão agora.');
     });
 
     it('sem projeto: diz isso, sem chamar a API', async () => {
@@ -296,5 +296,70 @@ describe('gráficos', () => {
         expect(document.querySelector('.pn-spark-n').textContent).toContain('4');
         expect(document.body.textContent).toContain('média de 3,3 por semana');
         expect(graficoPedidos([1])).toBe('');
+    });
+});
+
+describe('o cliente age: a entrada do cliente', () => {
+    const DECISOES = [
+        { id: 'pd1', titulo: 'Aprovar "Folha"', tipo: 'tratamento', papel: 'ciso', desde: '2026-10-10', acao: 'Ler e aprovar' },
+        { id: 'pd2', titulo: 'Política de acesso', tipo: 'documento', papel: 'ciente', desde: '2026-10-11', acao: 'Ler e dar ciência' },
+    ];
+    const ISO = (extra = {}) => ({ saude: { tom: 'ok', rotulo: 'Em dia', frase: 'Nada vencido.' }, numeros: [['3 de 90', 'controles implementados'], ['2', 'ações vencidas'], ['nenhuma', 'próxima auditoria']], comecando: false,
+        jornada: { atual: { numero: 3, titulo: 'Entrevistas <b>por</b> Trilha', status: 'in_progress' }, concluidas: 2, total: 41 }, ...extra });
+    const CLIENTE = (extra = {}) => PAINEL({ visao: 'cliente', modulos_pedidos: ['iso'], saude: { tom: 'ok', rotulo: 'Em dia', frase: 'Nada vencido.', apoio: '' }, modulos: { iso: ISO() }, decisoes: [], ...extra });
+    beforeEach(() => {
+        S.user = { id: 'u2', role: 'org_admin' };
+        window.ehEquipeNess = () => false;
+        S.view = 'dashboard';
+        history.replaceState(null, '', '/iso');
+    });
+
+    it('n.iso: a decisão é o primário; nada de "Abrir o n.iso" nem números da consultoria; o próximo marco da jornada com "Ver a jornada"', async () => {
+        servir({ 'GET /api/v1/projects/p9/painel': CLIENTE({ decisoes: DECISOES }) });
+        await abrir('iso');
+        const c = el('c');
+        const decidir = [...c.querySelectorAll('[data-action="abrirPedido"]')];
+        expect(decidir.map((b) => b.textContent)).toEqual(['Ler e aprovar', 'Ler e dar ciência']);
+        expect(decidir[0].className).toContain('btn-primary');
+        expect(decidir[1].className).not.toContain('btn-primary');
+        expect(c.querySelector('[data-action="abrirModulo"]')).toBeNull();
+        expect(c.textContent).not.toContain('ações vencidas');
+        expect(c.textContent).not.toContain('controles implementados');
+        const j = c.querySelector('#pn-jornada').closest('section');
+        expect(j.textContent).toContain('Fase 3 de 41: Entrevistas <b>por</b> Trilha');
+        expect(j.querySelector('b')).toBeNull();
+        expect(j.textContent).toContain('2 de 41 fases concluídas');
+        expect(JSON.parse(j.querySelector('[data-action="painelAbrir"]').getAttribute('data-args'))).toEqual(['project-detail', null]);
+    });
+    it('n.iso sem decisão: diz que nada espera e o que a consultoria está fazendo', async () => {
+        servir({ 'GET /api/v1/projects/p9/painel': CLIENTE() });
+        await abrir('iso');
+        const c = el('c');
+        expect(c.textContent).toContain('Nada esperando a sua decisão agora.');
+        expect(c.textContent).toContain('A consultoria está conduzindo a fase 3: Entrevistas <b>por</b> Trilha.');
+    });
+    it('n.iso sem jornada aberta: diz isso, sem número', async () => {
+        servir({ 'GET /api/v1/projects/p9/painel': CLIENTE({ modulos: { iso: ISO({ jornada: null }) } }) });
+        await abrir('iso');
+        expect(el('c').textContent).toContain('A jornada deste projeto ainda não foi aberta pela consultoria.');
+    });
+    it('Início do n.360: decisões antes das linhas, "Ler e aprovar" primário e "Abrir o n.x" secundário', async () => {
+        history.replaceState(null, '', '/');
+        servir({ 'GET /api/v1/projects/p9/painel': CLIENTE({ decisoes: DECISOES, modulos: { iso: ISO(), privacy: { saude: { tom: 'ok', rotulo: 'Em dia', frase: 'x' }, numeros: [['1', 'y']], comecando: false } } }) });
+        await abrir('n360');
+        const c = el('c');
+        const decidir = c.querySelector('[data-action="abrirPedido"]');
+        const abrirModulo = [...c.querySelectorAll('[data-action="abrirModulo"]')];
+        expect(decidir.className).toContain('btn-primary');
+        expect(abrirModulo).toHaveLength(2);
+        for (const b of abrirModulo) expect(b.className).not.toContain('btn-primary');
+        expect(decidir.compareDocumentPosition(abrirModulo[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+    it('Início do cliente com projeto começando: sem números zerados nas linhas dos módulos', async () => {
+        history.replaceState(null, '', '/');
+        servir({ 'GET /api/v1/projects/p9/painel': CLIENTE({ modulos: { iso: ISO({ comecando: true, numeros: [['0 de 0', 'controles implementados']] }) } }) });
+        await abrir('n360');
+        expect(el('c').querySelector('.pn-fig')).toBeNull();
+        expect(el('c').textContent).not.toContain('0 de 0');
     });
 });

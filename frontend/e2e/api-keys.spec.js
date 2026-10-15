@@ -20,7 +20,7 @@ async function seedSession(page, user) {
 }
 
 // Carrega o app, ESPERA o boot assentar e então força a view. O boot faz sua
-// própria navegação inicial (ex.: org_user cai em project-detail); sem esperar,
+// própria navegação inicial (ex.: org_user cai no Painel); sem esperar,
 // o `navigate` corre com ela e a view certa é sobrescrita. `networkidle` garante
 // que as chamadas de boot (auth/me, projects) terminaram antes de navegar.
 async function bootAndOpen(page, view) {
