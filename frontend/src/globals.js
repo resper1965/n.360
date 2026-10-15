@@ -919,13 +919,11 @@ window.updateHeaderUser = function updateHeaderUser() {
         
         const isClient = S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client');
         
-        // Ocultar Dashboard e Projetos para clientes
-        const navDashboard = document.getElementById('nav-dashboard');
+        // Ocultar Projetos para clientes. O Painel fica: no n.iso ele é a entrada do cliente ("Esperando a sua decisão").
         const navProjects = document.getElementById('nav-projects');
         const selectorContainer = document.getElementById('sidebar-project-selector-container');
         const projectSelect = document.getElementById('sidebar-project-select');
         
-        if (navDashboard) navDashboard.style.display = isClient ? 'none' : '';
         if (navProjects) navProjects.style.display = isClient ? 'none' : '';
         if (selectorContainer) {
             const manageLink = selectorContainer.querySelector('a');
@@ -1601,8 +1599,6 @@ window.initApp = async function initApp() {
         } else if (produto === 'privacy') {
             if (!S.activeProject) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             navigate('encarregado');
-        } else if (isClient && S.user.client_project_id) {
-            navigate('project-detail');
         } else {
             navigate('dashboard');
         }

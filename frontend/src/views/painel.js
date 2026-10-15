@@ -109,12 +109,13 @@ function listaFazer(itens, comModulo) {
     }).join('');
 }
 
-function listaDecisoes(decisoes) {
+/** O que espera a decisão do cliente; a primeira decisão é a ação primária da tela. `semNada` completa o vazio. */
+function listaDecisoes(decisoes, semNada = '') {
     const lista = Array.isArray(decisoes) ? decisoes : [];
-    if (!lista.length) return '<p class="pn-vazio-tx">Nada espera a sua decisão agora.</p>';
-    return `<ul class="pn-grupo">${lista.map((p) => `<li><span class="pn-meta">Desde ${e(String(p.desde || '').split('-').reverse().join('/'))}</span>
+    if (!lista.length) return `<p class="pn-vazio-tx">Nada esperando a sua decisão agora.</p>${semNada}`;
+    return `<ul class="pn-grupo">${lista.map((p, n) => `<li><span class="pn-meta">Desde ${e(String(p.desde || '').split('-').reverse().join('/'))}</span>
         <div><div class="pn-tx">${e(p.titulo)}</div><div class="pn-cx">${p.papel === 'ciente' ? 'Ciência' : `Aprovação (${e(String(p.papel || '').toUpperCase())})`}</div></div>
-        <button type="button" class="btn btn-sm" data-action="abrirPedido" data-args='${args(p.id)}' aria-label="${e(`${p.acao}: ${p.titulo}`)}">${e(p.acao)}</button></li>`).join('')}</ul>`;
+        <button type="button" class="btn btn-sm${n === 0 ? ' btn-primary' : ''}" data-action="abrirPedido" data-args='${args(p.id)}' aria-label="${e(`${p.acao}: ${p.titulo}`)}">${e(p.acao)}</button></li>`).join('')}</ul>`;
 }
 
 function passos(lista) {
@@ -130,9 +131,13 @@ const DEPOIS = '<p class="pn-vazio-tx">Quando houver o primeiro registro, este l
 function linhaModulo(m, d, proj) {
     const b = d.modulos && d.modulos[m];
     if (b) {
+        // Para o cliente, decidir é o primário (abrir o módulo é secundário), e projeto começando não mostra números zerados.
+        const cliente = d.visao === 'cliente';
+        const numeros = cliente && b.comecando ? '<div></div>'
+            : `<dl class="pn-fig">${(Array.isArray(b.numeros) ? b.numeros : []).map(([v, r]) => `<div><dt>${e(r)}</dt><dd class="pn-num">${e(v)}</dd></div>`).join('')}</dl>`;
         return `<div class="pn-m"><h3>${marca(m)}</h3><div>${estado(b.saude.tom, b.saude.rotulo)}<div class="pn-m-frase">${e(b.saude.frase)}</div></div>
-            <dl class="pn-fig">${(Array.isArray(b.numeros) ? b.numeros : []).map(([v, r]) => `<div><dt>${e(r)}</dt><dd class="pn-num">${e(v)}</dd></div>`).join('')}</dl>
-            <button type="button" class="btn btn-primary btn-sm" data-action="abrirModulo" data-args='${args(m)}'>Abrir o ${NOME[m]}</button></div>`;
+            ${numeros}
+            <button type="button" class="btn${cliente ? '' : ' btn-primary'} btn-sm" data-action="abrirModulo" data-args='${args(m)}'>Abrir o ${NOME[m]}</button></div>`;
     }
     const doProjeto = modulosDe(proj).includes(m);
     const texto = doProjeto ? `Você ainda não tem acesso ao ${NOME[m]} neste projeto. Quem administra as contas da consultoria concede em Usuários.`
@@ -146,11 +151,34 @@ function colunas(esquerda, direita) {
     return `<div class="pn-cols"><div class="pn-col">${esquerda.join('')}</div><div class="pn-col">${direita.join('')}</div></div>`;
 }
 
+/**
+ * A jornada como o cliente a lê no n.iso (o servidor manda `jornada` só na visão dele): a fase em curso e quantas passaram,
+ * sem os números da consultoria. `fazendo` é a frase curta para o vazio de "Esperando a sua decisão".
+ */
+function jornadaDoCliente(j) {
+    if (!j || !j.atual) {
+        const texto = !j ? 'A jornada deste projeto ainda não foi aberta pela consultoria.' : 'Todas as fases da jornada estão concluídas.';
+        return { fazendo: `<p class="pn-vazio-tx pn-meta">${e(texto)}</p>`, quadro: `<p class="pn-vazio-tx">${e(texto)}</p>` };
+    }
+    const fase = `Fase ${j.atual.numero} de ${j.total}: ${j.atual.titulo}`;
+    return {
+        fazendo: `<p class="pn-vazio-tx pn-meta">${e(`A consultoria está conduzindo a fase ${j.atual.numero}: ${j.atual.titulo}.`)}</p>`,
+        quadro: `<p class="pn-tx">${e(fase)}</p><p class="pn-meta">${e(`${j.concluidas} de ${j.total} fases concluídas`)}</p>
+            <p><button type="button" class="btn btn-sm" data-action="painelAbrir" data-args='${args('project-detail', null)}'>Ver a jornada</button></p>`,
+    };
+}
+
 /** Entrada de um módulo (n.iso ou n.privacy). */
 function telaDoModulo(d, m, proj) {
     const b = (d.modulos && d.modulos[m]) || {};
     const topo = `${identidade(d, proj)}${saude(d.saude, d.gerado_em)}`;
     if (d.visao === 'cliente') {
+        // Dentro do módulo não há "Abrir o módulo"; no n.iso o lado direito é a jornada (o próximo marco), não números.
+        if (m === 'iso') {
+            const j = jornadaDoCliente(b.jornada);
+            return `${topo}${colunas([quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes, j.fazendo))],
+                [quadro('pn-jornada', 'Onde o programa está', j.quadro)])}`;
+        }
         return `${topo}${colunas([quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes))],
             [`<section class="pn-modulos" aria-label="Este módulo">${linhaModulo(m, d, proj)}</section>`])}`;
     }
@@ -176,7 +204,8 @@ function telaDoModulo(d, m, proj) {
 function telaDoN360(d, proj) {
     const topo = `${identidade(d, proj)}${saude(d.saude, d.gerado_em)}`;
     const linhas = `<section class="pn-modulos" aria-label="Módulos deste projeto">${MODULOS.map((m) => linhaModulo(m, d, proj)).join('')}</section>`;
-    if (d.visao === 'cliente') return `${topo}${linhas}${colunas([quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes))], [])}`;
+    // Para o cliente, a decisão vem antes das linhas dos módulos: é a ação dele.
+    if (d.visao === 'cliente') return `${topo}${colunas([quadro('pn-dec', 'Esperando a sua decisão', listaDecisoes(d.decisoes))], [])}${linhas}`;
     // A mesma ordem da frase do servidor: o n.privacy primeiro em cada grupo (o prazo dele é legal).
     const blocos = ['privacy', 'iso'].map((m) => d.modulos && d.modulos[m]).filter(Boolean);
     const juntos = ['atraso', 'semana', 'plano'].flatMap((g) => blocos.flatMap((b) => (Array.isArray(b.fazer) ? b.fazer : []).filter((i) => i.grupo === g)));
