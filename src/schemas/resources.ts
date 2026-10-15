@@ -150,4 +150,9 @@ export const vendorUpdateSchema = z.object({
  * (ausente mantém o gravado); o POST segue exigindo os dois. A nota fora de
  * 1..5 continua recusada.
  */
-export const riskUpdateSchema = createRiskSchema.partial();
+export const riskUpdateSchema = createRiskSchema.partial().extend({
+  // F2 (0073): ligar o risco à atividade de tratamento e o risco residual (o nível residual é do servidor).
+  ropa_id: z.string().optional().nullable(),
+  residual_impact: score1to5.optional().nullable(),
+  residual_probability: score1to5.optional().nullable(),
+});
