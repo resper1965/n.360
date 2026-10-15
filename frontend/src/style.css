@@ -194,13 +194,14 @@
         .sidebar-toggle { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; cursor: pointer; color: var(--text-faint); font-size: 13px; line-height: 1; }
         .sidebar-toggle:hover { color: var(--text); }
 
-        /* Seletor de tenant: uma linha de 34px — nome + norma + caret.
+        /* Seletor do projeto: o ÚNICO lugar do projeto ativo na casca (sem selo no cabeçalho nem lista no menu de conta).
+           Nome em até duas linhas; o corte é só visual, o nome inteiro está no title e no rótulo do select.
            Nada de fase, percentual ou contagem aqui; esse contexto é da
            Jornada e do Dashboard. O <select> nativo fica por cima, invisível:
            preserva teclado e leitor de tela sem reimplementar um combobox. */
         #sidebar-project-selector-container { position: relative; margin: 12px; flex-shrink: 0; }
         .tenant-face { min-height: 34px; padding: 6px 10px; background: var(--surface-2); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; overflow: hidden; }
-        .tenant-name { font-family: var(--font-body); font-weight: 500; font-size: 12.5px; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tenant-name { font-family: var(--font-body); font-weight: 500; font-size: 12.5px; line-height: 1.35; color: var(--text); flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
         /* Os módulos do projeto em linha própria, abaixo do nome: na mesma linha truncavam o nome do cliente. */
         .tenant-norm { order: 3; flex-basis: 100%; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .tenant-norm:empty { display: none; }
@@ -267,14 +268,11 @@
         .account-id-name { font-family: var(--font-body); font-size: 12.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .account-id-mail { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .account-rule { height: 1px; background: var(--border); }
-        .account-group { font-family: var(--font-mono); font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.16em; color: var(--text-faint); }
         .account-item { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 5px 6px; margin: 0 -6px; text-align: left; font-family: var(--font-body); font-size: 12.5px; color: var(--text-2); cursor: pointer; }
         .account-item:hover { background: var(--surface-2); color: var(--text); }
         .account-item svg { width: 12px; height: 12px; stroke-width: 1.5; fill: none; stroke: currentColor; flex-shrink: 0; opacity: 0.7; }
         .account-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .account-item-aside { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
-        .account-item-check { width: 12px; flex-shrink: 0; color: transparent; }
-        .account-item.is-current .account-item-check { color: var(--accent); }
         .account-item.danger { color: var(--danger); }
         .account-item.danger:hover { background: rgba(239, 68, 68, 0.10); color: var(--danger); }
         .account-sign { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
@@ -1591,7 +1589,6 @@ textarea:focus-visible {
 .menu-mais-lista { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 220px; background: var(--surface); border: 1px solid var(--border); padding: 0.25rem 0; }
 .menu-mais-lista .btn { display: block; width: 100%; text-align: left; border: 0; margin: 0; }
 /* Selo do projeto ativo no header */
-.header-project-badge { display: none; cursor: pointer; font-size: 12px; padding: 0.2rem 0.6rem; border-radius: 0; background: rgba(0,173,232,0.12); color: var(--accent); border: 1px solid rgba(0,173,232,0.25); white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
 .titulo-secao { margin-bottom: 1rem; font-family: var(--font-head); font-weight: 600; font-size: 14px; color: var(--text); }
 /* Ações da linha de Projetos: Módulos… sempre na primeira coluna */
 .acoes-linha { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

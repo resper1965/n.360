@@ -653,22 +653,11 @@ window.toggleContext = function toggleContext() {
         ctx.classList.toggle('collapsed');
     }
 
+// O projeto ativo mora num lugar só: o seletor do topo da barra lateral. O selo do cabeçalho e o grupo "Tenant" do menu de
+// conta repetiam o mesmo nome, truncado, e eram mais dois jeitos de trocar de projeto (diagnóstico de 15/10, P1 4).
 window.updateActiveProjectWidget = function updateActiveProjectWidget() {
-        const badge = document.getElementById('header-project-badge');
-        if (!badge) return;
-        
-        const grcItems = document.querySelectorAll('.group-project-only');
+        document.querySelectorAll('.group-project-only').forEach(el => { el.style.display = S.activeProject ? '' : 'none'; });
 
-        if (S.activeProject) {
-            badge.textContent = S.activeProject.project_name || S.activeProject.client_name || 'Projeto';
-            // Pedidos são da pessoa, não do projeto: o selo não se aplica à tela.
-            badge.style.display = S.view === 'meus-pedidos' ? 'none' : 'block';
-            grcItems.forEach(el => el.style.display = '');
-        } else {
-            badge.style.display = 'none';
-            grcItems.forEach(el => el.style.display = 'none');
-        }
-        
         if (typeof updateSidebarProjectSelector === 'function') {
             updateSidebarProjectSelector();
         }
@@ -707,6 +696,11 @@ window.updateTenantFace = function updateTenantFace() {
         const p = S.activeProject;
         const name = p ? (p.project_name || p.client_name || 'Projeto') : 'Selecione um projeto';
         nameEl.textContent = name;
+        // O corte do nome é só visual (duas linhas no CSS): o nome inteiro fica no title e no rótulo do select.
+        const face = nameEl.closest('.tenant-face');
+        if (face) { if (p) face.setAttribute('title', name); else face.removeAttribute('title'); }
+        const sel = document.getElementById('sidebar-project-select');
+        if (sel) sel.setAttribute('aria-label', p ? `Projeto ativo: ${name}. Trocar de projeto` : 'Escolher o projeto');
         // Só no n.iso a norma do projeto diz algo; no n.privacy mostra o módulo e no início do n.360 os módulos do projeto.
         const prod = produtoAtual();
         if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod === 'privacy' ? 'n.privacy' : modulosVisiveis(p).map((m) => `n.${m}`).join(' · ');
@@ -728,7 +722,6 @@ const ICON_KEY = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" c
 const ICON_LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 const ICON_HISTORY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>';
 const ICON_LOGOUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
-const ICON_CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
 const ICON_APROVACOES = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>';
 const ICON_TRILHA = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="11" y2="17"/></svg>';
 // No n.privacy, Minhas aprovações e Trilha de logs moram no menu de conta (fora do menu do módulo). Quem vê cada um é o papel,
@@ -741,23 +734,10 @@ window.renderAccountMenu = function renderAccountMenu() {
         const u = S.user || {};
         const name = u.name || u.email || 'Consultor';
         const initials = name.trim().slice(0, 2).toUpperCase();
-        const tenants = Array.isArray(S.projects) ? S.projects : [];
-        const activeId = S.activeProject ? S.activeProject.id : '';
         const doModulo = produtoAtual() !== 'privacy' ? '' : NO_MENU_DE_CONTA.filter(([id]) => { const el = document.getElementById(id); return el && el.style.display !== 'none'; })
             .map(([, tela, rotulo, icone]) => `<button type="button" role="menuitem" class="account-item" id="conta-${tela}" data-action="accountMenuAction" data-args='${escapeHTML(JSON.stringify(['navigate', tela]))}'>
                 ${icone}<span class="account-item-label">${rotulo}</span>
             </button>`).join('');
-
-        const tenantRows = tenants.map(p => {
-            const label = p.project_name || p.client_name || p.id;
-            const norm = p.standard || p.standards || '';
-            const current = String(p.id) === String(activeId);
-            return `<button type="button" role="menuitemradio" aria-checked="${current}" class="account-item${current ? ' is-current' : ''}" data-action="accountMenuAction" data-args='["changeActiveProject","${escapeHTML(String(p.id))}"]'>
-                <span class="account-item-check">${current ? ICON_CHECK : ''}</span>
-                <span class="account-item-label">${escapeHTML(label)}</span>
-                <span class="account-item-aside">${escapeHTML(norm)}</span>
-            </button>`;
-        }).join('');
 
         box.innerHTML = `
             <div class="account-id">
@@ -768,7 +748,6 @@ window.renderAccountMenu = function renderAccountMenu() {
                 </span>
             </div>
             <div class="account-rule"></div>
-            ${tenantRows ? `<div class="account-group">Tenant</div>${tenantRows}<div class="account-rule"></div>` : ''}
             ${doModulo ? `${doModulo}<div class="account-rule"></div>` : ''}
             <button type="button" role="menuitem" class="account-item" data-action="accountMenuAction" data-args='["openProfileModal"]'>
                 ${ICON_KEY}<span class="account-item-label">Minha conta e MFA</span>
@@ -1277,7 +1256,14 @@ window.openProfileModal = function openProfileModal() {
 
 window.openActiveProjectModal = function openActiveProjectModal() {
         var p = S.activeProject;
-        if (!p) { showToast('Nenhum projeto ativo'); return; }
+        if (!p) {
+            // Sem projeto, "Selecionar projeto" leva ao único lugar onde se escolhe: o seletor da barra lateral.
+            const sb = document.getElementById('sidebar');
+            if (sb && sb.classList.contains('collapsed') && typeof window.toggleSidebar === 'function') window.toggleSidebar();
+            const sel = document.getElementById('sidebar-project-select');
+            if (sel) { sel.focus(); try { sel.showPicker && sel.showPicker(); } catch (e) { /* sem gesto do usuário: o foco basta */ } }
+            return;
+        }
         navigate('project-detail', { currentProject: p });
     }
 
