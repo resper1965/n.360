@@ -597,6 +597,10 @@
         .error-state { text-align: center; padding: 3rem 1.5rem; border: 1px solid color-mix(in oklab, var(--danger) 45%, var(--border)); background: color-mix(in oklab, var(--danger) 7%, transparent); }
         .error-state h3 { font-family: var(--font-head); font-weight: 600; font-size: 1rem; margin: 0; color: var(--text); }
         .error-state p { margin: 0.5rem auto 0; max-width: 65ch; font-size: 0.85rem; line-height: 1.5; color: var(--text-2); }
+        /* Erro de campo de formulário: junto do campo, ligado por aria-describedby; vazio não ocupa espaço. */
+        .campo-erro { margin: 4px 0 0; font-size: 12px; color: var(--danger); }
+        .campo-erro:empty { display: none; }
+        .form-input[aria-invalid="true"] { border-color: var(--danger); }
 
         /* ——— TOAST ———————————————————————————————————————— */
         /* Toast: canto inferior ESQUERDO, para não disputar espaço com a barra

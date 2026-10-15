@@ -464,7 +464,9 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
         const comPrivacy = temProduto(projetoDoId(projectId), 'privacy');
         let atividades = [];
         if (comPrivacy) {
-            try { const r = await api('GET', `/api/v1/projects/${projectId}/ropa`); atividades = Array.isArray(r?.records) ? r.records : []; } catch (e) { atividades = []; }
+            // api() já desembrulha `{ ok, records }` na lista; o objeto inteiro só chega se a rota mudar de forma.
+            try { const r = await api('GET', `/api/v1/projects/${projectId}/ropa`); atividades = Array.isArray(r) ? r : (Array.isArray(r?.records) ? r.records : []); }
+            catch (e) { atividades = []; /* secundário: sem a lista, o formulário à mão */ }
         }
         const escolha = atividades.length ? `<div class="form-group"><label class="form-label" for="dpia-ropa">Atividade do RoPA</label>
             <select class="form-input" id="dpia-ropa" data-action-change="novoRipdAtividade" data-arg-val>
@@ -475,7 +477,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
             <div class="modal-header"><span class="modal-title">Novo RIPD</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             ${escolha}
             <div id="dpia-manual">
-            <div class="form-group"><label class="form-label">Nome do Sistema / Processo de Dados</label><input class="form-input" id="dpia-system" placeholder="Ex: CRM Salesforce, Sistema de RH Interno"></div>
+            <div class="form-group"><label class="form-label" for="dpia-system">Nome do Sistema / Processo de Dados</label><input class="form-input" id="dpia-system" placeholder="Ex: CRM Salesforce, Sistema de RH Interno"><p class="campo-erro" id="dpia-system-erro" aria-live="polite"></p></div>
             <div class="form-group"><label class="form-label">Descrição do Fluxo de Dados</label><textarea class="form-input" id="dpia-flow" placeholder="Descreva como os dados entram, circulam e saem do sistema..."></textarea></div>
             <div style="display:flex; gap:0.5rem">
                 <div class="form-group" style="flex:1"><label class="form-label">Tipos de Titulares</label><input class="form-input" id="dpia-subjects" placeholder="Ex: Clientes, Colaboradores"></div>
@@ -516,8 +518,19 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, eh
             mitigation_measures: document.getElementById('dpia-mitigations').value,
             dpo_opinion: document.getElementById('dpia-opinion').value
         };
-        if (!body.system_name) return;
-        await api('POST', `/api/v1/projects/${projectId}/dpia`, body);
+        const nome = document.getElementById('dpia-system');
+        const erroNome = document.getElementById('dpia-system-erro');
+        if (!body.system_name.trim()) {
+            nome.setAttribute('aria-invalid', 'true');
+            nome.setAttribute('aria-describedby', 'dpia-system-erro');
+            erroNome.textContent = 'Informe o sistema ou processo avaliado, ou escolha uma atividade do RoPA.';
+            nome.focus();
+            return;
+        }
+        nome.removeAttribute('aria-invalid');
+        erroNome.textContent = '';
+        try { await api('POST', `/api/v1/projects/${projectId}/dpia`, body); }
+        catch (e) { showToast(`Não foi possível registrar o RIPD: ${e.message}`, 'error'); return; }
         forceCloseModal(); render();
     };
 
