@@ -159,6 +159,27 @@ describe('fluxo da homologação', () => {
     }
   });
 
+  it('enviar avisa no sino o consultor designado, uma vez só, com o nome da parte e sem o token', async () => {
+    const sinos = (await env.DB.prepare(`SELECT user_id, title, message, link, target_id FROM notifications WHERE type = 'homologacao_enviada'`).all<Record<string, string>>()).results;
+    expect(sinos).toHaveLength(1); // o reenvio do teste anterior (404) não duplicou
+    expect(sinos[0]).toMatchObject({ user_id: 'hm-cons', title: 'Homologação respondida', link: `/projects/${P}/terceiros`, target_id: id });
+    expect(sinos[0].message).toContain('Fornecedor Medio');
+    expect(JSON.stringify(sinos)).not.toContain(token);
+    expect(JSON.stringify(sinos)).not.toContain(await sha256Hex(token));
+  });
+
+  it('falha do aviso não impede o envio', async () => {
+    const r = await criar({ dias: 5 });
+    const outro = tokenDe((await json<{ url: string }>(r)).url);
+    await env.DB.prepare('ALTER TABLE notifications RENAME TO notifications_fora').run();
+    try {
+      const x = await publico('enviar', { token: outro, respostas: {} });
+      expect(x.status, await x.clone().text()).toBe(200);
+    } finally {
+      await env.DB.prepare('ALTER TABLE notifications_fora RENAME TO notifications').run();
+    }
+  });
+
   it('concluir é da equipe; o agente e o cliente não concluem; data no passado volta o status', async () => {
     expect((await chamar(cliente, 'POST', `${base}/${id}/concluir`, { resultado: 'aprovado', valido_ate: dias(365) })).status).toBe(403);
     expect((await chamar({ 'X-Agente-Confirmado': '1' }, 'POST', `${base}/${id}/concluir`, { resultado: 'aprovado', valido_ate: dias(365) }, AGENTE)).status).toBe(403);

@@ -310,7 +310,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   escrever e so da equipe, `ehEquipeNess`; o agente so le, `FORA_DO_AGENTE`) e `POST /api/v1/public/homologacao/{ver,salvar,enviar}`
   (token no CORPO, 404 igual para inexistente/vencido/enviado/cancelado, limite por IP), pagina `frontend/public/homologacao.*`. Concluir
   (so `respondida`, ato humano) chama `registrarAvaliacao` e grava `avaliacoes_terceiro` com metodo `questionario`; a situacao e os avisos
-  de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco nao e gravado.
+  de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco nao e gravado. O envio do fornecedor avisa no
+  sino os consultores designados (sem nenhum, os `consultoria_admin`; `avisarEnvio`, regra de `escolherDestinatarios`), so com o nome da
+  parte; falha do aviso vai ao log e nao derruba o envio.
 - **Titular, incidente e consentimento (fatia 7, migration 0058, SO registro interno)**: `titular_pedidos` (protocolo `PT-AAAA-NNNN` por projeto),
   `incidentes` (`IN-AAAA-NNNN`; encerrar exige risco avaliado e, se `relevante`, a comunicacao a ANPD registrada: CHECK do banco, vale para SQL
   direto) e `consentimentos` (prova ligada ao tratamento; revogar nao apaga). **Nenhum prazo legal mora no codigo nem na migration:**
