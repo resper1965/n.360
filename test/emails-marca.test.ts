@@ -189,7 +189,10 @@ describe('cada e-mail', () => {
     const r = await chamar(admin, 'POST', '/api/v1/users', { email: 'nova@cliente.lat', password: 'Senha-Temporaria-123', name: 'Nova <b>Pessoa</b>', role: 'org_user', client_project_id: P });
     expect(r.status, await r.clone().text()).toBe(201);
     const e = ultimo('nova@cliente.lat');
-    confere(e, { produto: 'n.360', quem: ['Adm Fictício (adm@ness.lat), da ness.'], acao: 'Entrar com a senha temporária', link: 'https://n360.ness.com.br', resposta: 'adm@ness.lat' });
+    const link = /https:\/\/n360\.ness\.com\.br\/#convite=[0-9a-f]{64}/.exec(e.text)![0];
+    confere(e, { produto: 'n.360', quem: ['Adm Fictício (adm@ness.lat), da ness.'], acao: 'Abrir o link abaixo e criar a sua senha', prazo: '72 horas', link, resposta: 'adm@ness.lat' });
+    expect(e.html + e.text).not.toContain('Senha-Temporaria-123');
+    expect(e.html + e.text).not.toMatch(/[Ss]enha tempor/);
     expect(e.html).toContain('Nova &lt;b&gt;Pessoa&lt;/b&gt;');
     expect(e.subject).toBe('Seu acesso ao n.360 (ness.)');
   });

@@ -9,15 +9,14 @@ Olá, Bruno Lima,
 Você tem uma conta nova no n.360 (organização: ness.), a plataforma de governança, risco e conformidade da ness.
 
 Quem pede: Ana Souza (ana.souza@ness.example), da ness.
-O que fazer: Entrar com a senha temporária abaixo e criar a sua senha
-Até quando: No primeiro acesso: a senha temporária vale para um login
+O que fazer: Abrir o link abaixo e criar a sua senha
+Até quando: 72 horas a partir do envio deste e-mail
 
 E-mail: bruno.lima@cliente.example
-Senha temporária: Tq7-exemplo-provisorio
 
-Entrar no n.360: https://n360.ness.com.br
+Criar minha senha: https://n360.ness.com.br/#convite=exemplo
 
-No primeiro login o n.360 pede uma senha nova. Não encaminhe este e-mail.
+O link é pessoal e vale uma vez: não encaminhe este e-mail. Se ele vencer, peça um convite novo a quem convidou ou use "Esqueci a senha".
 
 --
 Você recebeu este e-mail porque uma conta com este endereço foi criada no n.360 (organização: ness.).

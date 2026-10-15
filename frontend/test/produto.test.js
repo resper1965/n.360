@@ -254,6 +254,13 @@ describe('telaPedida (?tela= no boot do n.360)', () => {
         ir('/');
         expect(telaPedida()).toBeNull();
     });
+    it('meus-pedidos (link do e-mail de aprovação) vale para qualquer papel logado', () => {
+        montar();
+        S.user = { role: 'org_user' };
+        ir('/?tela=meus-pedidos');
+        expect(telaPedida()).toBe('meus-pedidos');
+        expect(location.search).toBe('');
+    });
     it('item que o papel não vê não abre', () => {
         montar();
         el('nav-api-keys').style.display = 'none';

@@ -135,7 +135,7 @@ describe('allow-list do papel stakeholder', () => {
       if (!r.path.startsWith('/api/v1/') || livre.some((re) => re.test(r.path))) continue;
       // rotas públicas e de token são montadas antes do authMiddleware
       if (r.path.startsWith('/api/v1/public/') || r.path.startsWith('/api/v1/assessments/public/')
-        || /^\/api\/v1\/auth\/(setup|login|forgot-password|reset-password)$/.test(r.path)) continue;
+        || /^\/api\/v1\/auth\/(setup|login|forgot-password|reset-password|criar-senha)$/.test(r.path)) continue;
       const chave = `${r.method} ${r.path}`;
       if (vistas.has(chave)) continue;
       vistas.add(chave);
@@ -179,7 +179,7 @@ describe('revogação', () => {
     expect((await revogar(orgAdmin, 'g-cons')).status).toBe(404);
   });
 
-  it('convidar de novo reativa a conta, com senha provisória nova', async () => {
+  it('convidar de novo reativa a conta, sem senha e com convite novo', async () => {
     const r = await convidar(orgAdmin, 'g-ciso');
     expect(r.status, await r.clone().text()).toBe(200);
     const c = await contas('beto@cliente.com');

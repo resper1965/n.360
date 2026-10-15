@@ -66,6 +66,7 @@ Invariantes de segurança que o código mantém e que **não devem regredir**:
 | Busca ao IdP do SSO só em host público e sem seguir redirecionamento (SSRF) | `exigirHostPublico` e `buscarNoIdp` (`redirect: 'manual'`) em `src/sso.ts` — `test/sso.test.ts` |
 | Rascunho de IA do n.privacy não leva dado do titular ao modelo e não grava nada no registro | `mascararPii` e esquema estrito em `src/services/rascunhos-privacy.ts` — `test/agentes-privacy.test.ts` |
 | Importação de histórico: e-mail, CPF e telefone viram pseudônimo por projeto antes da IA; sem a chave, nada vai ao modelo | `pseudonimizador` (HMAC com subchave da `TOKEN_ENC_KEY`) e `mascararPii` em `src/services/importacao.ts` — `test/importacao.test.ts` |
+| Nenhum e-mail leva senha: conta nova nasce sem senha utilizável e o convite traz link de uso único (token CSPRNG no fragmento, só o SHA-256 no banco, 72 h, reenviar invalida o anterior); link inválido, vencido, usado ou de conta desativada dá a mesma resposta | `src/services/convite.ts`, `POST /api/v1/auth/criar-senha` em `src/routes/auth.ts` — `test/convite-senha.test.ts` |
 | 500 não devolve o interior do banco | `erro500` em `src/helpers.ts`: detalhe do D1 vai ao log, cliente recebe `request_id` — `test/erro-sem-vazamento.test.ts` |
 
 Ao alterar qualquer um destes pontos, o PR precisa explicar por quê.

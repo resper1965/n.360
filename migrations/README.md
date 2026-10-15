@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0076** (`ls migrations/*.sql | tail -1`). São 74 arquivos
+- Última migration no repositório: **0077** (`ls migrations/*.sql | tail -1`). São 75 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -615,5 +615,16 @@ só uma vez, pelo `migrations apply`. Conferência antes: `SELECT COUNT(*) FROM 
 `PRAGMA table_info(importacao_itens)` com `aviso` e `SELECT sql FROM sqlite_master WHERE name = 'importacao_itens'` com `'bases'` no CHECK.
 Para desfazer: não precisa (o código anterior não lê `aviso` e não grava as entidades novas). **Esta RODA em produção ANTES do código novo:**
 o código grava `aviso` e as entidades novas; o deploy do merge recusa enquanto ela estiver pendente.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+## 0077 — convite com link para criar a senha (2026-10-15)
+
+Tabela nova `convites_senha`: uma linha por conta com convite pendente (`user_id` chave primária, FK para `users` com `ON DELETE CASCADE`),
+`token_hash` único (SHA-256 do token CSPRNG; o token só existe no e-mail), `expira_em` (72 h), `criado_por` e `created_at`. Reenviar o
+convite substitui a linha (o link anterior deixa de valer); usar o link apaga a linha no mesmo statement que a confere (uso único).
+Nada existente muda. **Idempotente** (`IF NOT EXISTS`), mas aplicar pelo `migrations apply`. Conferência depois:
+`PRAGMA table_info(convites_senha)`. Para desfazer: `DROP TABLE convites_senha` (o código anterior não a lê). **Esta RODA em produção
+ANTES do código novo:** criar conta grava o convite nela; o deploy do merge recusa enquanto ela estiver pendente.
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.

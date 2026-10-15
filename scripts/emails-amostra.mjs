@@ -29,7 +29,7 @@ const ana = { nome: 'Ana Souza', email: 'ana.souza@ness.example', organizacao: '
 const quem = { cliente: 'Metalúrgica Exemplo Ltda', pessoa: ana };
 const daqui = (dias) => new Date(Date.now() + dias * 86_400_000);
 const amostras = {
-  'convite': m.emailBoasVindas({ nome: 'Bruno Lima', email: 'bruno.lima@cliente.example', senha: 'Tq7-exemplo-provisorio', organizacao: 'ness.', convidante: ana, url: 'https://n360.ness.com.br' }),
+  'convite': m.emailBoasVindas({ nome: 'Bruno Lima', email: 'bruno.lima@cliente.example', organizacao: 'ness.', convidante: ana, url: 'https://n360.ness.com.br', link: 'https://n360.ness.com.br/#convite=exemplo', horas: 72 }),
   'redefinicao-senha': m.emailRedefinicaoSenha({ nome: 'Bruno Lima', codigo: '482913' }),
   'codigo-politicas': m.emailCodigoPoliticas({ nome: 'Carla Dias', cliente: 'Metalúrgica Exemplo Ltda', codigo: '705218' }),
   'ciencia': m.emailCiencia({ titulo: 'Política de Segurança da Informação', nome: 'Carla Dias', link: 'https://n360.ness.com.br/politicas#exemplo', quem, reenvio: false, validoAte: daqui(30) }),
@@ -38,6 +38,8 @@ const amostras = {
   'proposta': m.emailProposta({ organizacao: 'ness.', numero: 'NESS-2026-014', revisao: 1, validaAte: '2026-11-30', link: 'https://n360.ness.com.br/proposta#exemplo',
     quem: { nome: 'Diego Ramos', email: 'diego.ramos@ness.example', organizacao: 'ness.' }, mensagem: 'Conforme conversamos na reunião de terça.\nFico à disposição para ajustar o escopo.' }),
   'homologacao': m.emailHomologacao({ cliente: 'Metalúrgica Exemplo Ltda', fornecedor: 'Transportes Exemplo S.A.', expiraEm: '2026-10-30 14:00:00', link: 'https://n360.ness.com.br/homologacao#exemplo', quem: ana }),
+  'pedido-aprovacao': m.emailPedidoAprovacao({ tipo: 'politica', titulo: 'Política: Política de Segurança da Informação', papel: 'ciso', nome: 'Carla Dias', link: 'https://n360.ness.com.br/?tela=meus-pedidos', quem }),
+  'homologacao-respondida': m.emailHomologacaoRespondida({ nome: 'Ana Souza', fornecedor: 'Transportes Exemplo S.A.', cliente: 'Metalúrgica Exemplo Ltda', respondidas: 9, total: 12, percentual: 75, link: 'https://n360.ness.com.br/privacy?tela=terceiros' }),
   'resumo-prazos': m.emailResumo([
     { id: '1', user_id: 'u', email: 'ana.souza@ness.example', nome: 'Ana Souza', projeto: 'Metalúrgica Exemplo', fonte: 'capa', marco: 'D-7', vence_em: '2026-10-22', titulo: 'Revisar acessos de terceiros' },
     { id: '2', user_id: 'u', email: 'ana.souza@ness.example', nome: 'Ana Souza', projeto: 'Metalúrgica Exemplo', fonte: 'documento', marco: 'atraso', vence_em: '2026-10-08', titulo: 'Política de Backup' },

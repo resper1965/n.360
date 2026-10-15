@@ -1,4 +1,9 @@
-import { genId, genToken, logAudit, sha256Hex } from '../helpers';
+import type { Bindings } from '../index';
+import { enviarEmail, genId, genToken, logAudit, sha256Hex } from '../helpers';
+import { appUrl } from '../config/url';
+import { remetente } from './email-layout';
+import { emailHomologacaoRespondida } from './emails';
+import { log } from '../observability';
 import { METODO_DO_TIPO, registrarAvaliacao, type Avaliacao, type TipoTerceiro } from './terceiros';
 import { escolherDestinatarios, pessoasDoProjeto } from './avisos-prazo';
 
@@ -216,17 +221,31 @@ export async function gravarRespostas(db: D1Database, h: Aberta, novas: Resposta
 }
 
 /**
- * Sino da equipe quando o fornecedor envia: os consultores designados (sem nenhum, os consultoria_admin da organização), pela
- * regra dos avisos de prazo. Só o nome da parte, nunca resposta nem token. Chamada só depois do UPDATE condicional que fechou o
- * envio, então reenvio da página (404) não avisa de novo; o NOT EXISTS segura a mesma pessoa duas vezes no mesmo envio.
+ * Sino e e-mail da equipe quando o fornecedor envia: os consultores designados (sem nenhum, os consultoria_admin da organização),
+ * pela regra dos avisos de prazo. Só o nome da parte e o percentual respondido, nunca resposta nem token. Chamada só depois do
+ * UPDATE condicional que fechou o envio, então reenvio da página (404) não avisa de novo; o NOT EXISTS segura a mesma pessoa duas
+ * vezes no mesmo envio, e o e-mail só vai a quem o sino acabou de avisar. E-mail que falha vai ao log e não derruba nada.
  */
-export async function avisarEnvio(db: D1Database, h: Aberta): Promise<number> {
-  const parte = await db.prepare('SELECT nome FROM partes WHERE id = ? AND project_id = ?').bind(h.parte_id, h.project_id).first<string>('nome');
+export async function avisarEnvio(env: Pick<Bindings, 'DB' | 'RESEND_API_KEY' | 'APP_URL'>, h: Aberta, p: { respondidas: number; total: number; percentual: number }): Promise<number> {
+  const db = env.DB;
+  const [parte, cliente] = await Promise.all([
+    db.prepare('SELECT nome FROM partes WHERE id = ? AND project_id = ?').bind(h.parte_id, h.project_id).first<string>('nome'),
+    db.prepare('SELECT client_name FROM projects WHERE id = ?').bind(h.project_id).first<string>('client_name'),
+  ]);
   const destinos = escolherDestinatarios(await pessoasDoProjeto(db, h.project_id), null);
   if (!destinos.length) return 0;
   const r = await db.batch(destinos.map((p) => db.prepare(`INSERT INTO notifications (id, user_id, type, title, message, read, link, target_id, created_at)
       SELECT ?1, ?2, 'homologacao_enviada', 'Homologação respondida', ?3, 0, ?4, ?5, datetime('now')
        WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE type = 'homologacao_enviada' AND target_id = ?5 AND user_id = ?2)`)
     .bind(genId(), p.id, `${parte ?? 'O fornecedor'} enviou o questionário de homologação. Revise e conclua.`, `/projects/${h.project_id}/terceiros`, h.id)));
-  return r.reduce((n, x) => n + (x.meta.changes ?? 0), 0);
+  const novos = destinos.filter((_, i) => r[i]?.meta.changes);
+  let falhas = 0;
+  for (const d of novos) {
+    try {
+      const m = emailHomologacaoRespondida({ nome: d.name ?? null, fornecedor: parte ?? 'O fornecedor', cliente: cliente ?? '', ...p, link: `${appUrl(env)}/privacy?tela=terceiros` });
+      if (!(await enviarEmail(env, d.email, m.assunto, m, { from: remetente('n.privacy') }))) falhas++;
+    } catch { falhas++; }
+  }
+  if (falhas) log('error', { msg: 'homologacao_email_falhou', homologacao_id: h.id, projeto: h.project_id, falhas });
+  return novos.length;
 }

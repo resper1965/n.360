@@ -3,7 +3,9 @@ import { Bindings, Variables } from '../index';
 
 import { remetente } from '../services/email-layout';
 import { emailBoasVindas } from '../services/emails';
-import { genId, hashPassword, logAudit, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, erro500, ehConsultor, ehAdminDaOrg, consultorDesignado, PROJETOS_DO_CONSULTOR_SQL, PAPEIS_EQUIPE_ORG } from '../helpers';
+import { emitirConvite, linkDoConvite, SEM_SENHA, HORAS_CONVITE } from '../services/convite';
+import { configPorDominio } from '../sso';
+import { genId, hashPassword, logAudit, rateLimitD1, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, erro500, ehConsultor, ehAdminDaOrg, consultorDesignado, PROJETOS_DO_CONSULTOR_SQL, PAPEIS_EQUIPE_ORG } from '../helpers';
 import { validateBody, createUserSchema, updateUserSchema, modulosDaContaSchema, ativoDaContaSchema } from '../schemas';
 import { MODULOS_PRODUTO, NOME_DO_PRODUTO, modulosContratados, modulosDaPessoa, modulosDoProjeto, type Modulo } from '../modulos';
 import { appUrl } from '../config/url';
@@ -30,28 +32,30 @@ usersApp.get('/', async (c) => {
   }
   
   try {
-    let stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.ativo, u.created_at, ${ORG_DA_CONTA_SQL} AS org FROM users u ORDER BY u.created_at DESC`);
+    let stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.ativo, u.requires_password_change, u.created_at, ${ORG_DA_CONTA_SQL} AS org FROM users u ORDER BY u.created_at DESC`);
     if (user.role === 'platform_admin' && c.req.header('X-Org-Id')?.trim()) {
       // A organização em que o platform_admin atua (a tela de organizações manda o cabeçalho);
       // sem ele, todas as contas. Organização inexistente → 403, como em `exigirOrg`.
       const org = await resolverOrg(c);
       if (!org) return c.json(SEM_ORG, 403);
-      stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.ativo, u.created_at FROM users u WHERE ${ORG_DA_CONTA_SQL} = ? ORDER BY u.created_at DESC`).bind(org);
+      stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.ativo, u.requires_password_change, u.created_at FROM users u WHERE ${ORG_DA_CONTA_SQL} = ? ORDER BY u.created_at DESC`).bind(org);
     } else if (ehAdminDaOrg(user)) {
       // Todas as contas da organização (equipe e clientes dos projetos dela), nenhuma de fora.
-      stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.ativo, u.created_at FROM users u WHERE ${ORG_DA_CONTA_SQL} = ? ORDER BY u.created_at DESC`).bind(orgDoUsuario(user) ?? '');
+      stmt = c.env.DB.prepare(`SELECT u.id, u.email, u.name, u.role, u.client_project_id, u.ativo, u.requires_password_change, u.created_at FROM users u WHERE ${ORG_DA_CONTA_SQL} = ? ORDER BY u.created_at DESC`).bind(orgDoUsuario(user) ?? '');
     } else if (user.role === 'org_admin') {
-      stmt = c.env.DB.prepare('SELECT id, email, name, role, client_project_id, ativo, created_at FROM users WHERE client_project_id = ? ORDER BY created_at DESC').bind(user.client_project_id || '');
+      stmt = c.env.DB.prepare('SELECT id, email, name, role, client_project_id, ativo, requires_password_change, created_at FROM users WHERE client_project_id = ? ORDER BY created_at DESC').bind(user.client_project_id || '');
     } else if (ehConsultor(user)) {
       // D5: só as contas de cliente dos projetos em que o consultor está designado.
-      stmt = c.env.DB.prepare(`SELECT id, email, name, role, client_project_id, ativo, created_at FROM users WHERE client_project_id IN (${PROJETOS_DO_CONSULTOR_SQL}) ORDER BY created_at DESC`).bind(user.email);
+      stmt = c.env.DB.prepare(`SELECT id, email, name, role, client_project_id, ativo, requires_password_change, created_at FROM users WHERE client_project_id IN (${PROJETOS_DO_CONSULTOR_SQL}) ORDER BY created_at DESC`).bind(user.email);
     }
     const { results } = await stmt.all();
     const mapped = (results || []).map((u: any) => {
       let r = u.role;
       if (r === 'admin') r = 'platform_admin';
       if (r === 'consultant') r = 'consultor';
-      return { ...u, role: r, ativo: u.ativo !== 0 };
+      // Convite pendente: primeiro acesso por fazer (conta sem senha, ou senha provisória de antes do convite por link). Nunca o hash.
+      const { requires_password_change, ...resto } = u;
+      return { ...resto, role: r, ativo: u.ativo !== 0, convite_pendente: requires_password_change === 1 && u.ativo !== 0 };
     });
     return c.json(await comModulos(c.env.DB, mapped, user.role === 'platform_admin'));
   } catch (e: any) {
@@ -174,17 +178,18 @@ async function comModulos<T extends { id: string; role: string; client_project_i
 }
 
 /**
- * Convite de primeiro acesso: e-mail com a senha provisória (a conta nasce com
- * `requires_password_change = 1`, então ela vale para UM login). Único caminho de boas-vindas: o
- * `POST /users` e o provisionamento de organização (`routes/organizacoes.ts`) usam este. Devolve se o
- * provedor aceitou; a senha nunca vai para log (`sendEmail` só registra destinatário e assunto).
- * A senha no corpo é pendência conhecida: ver `emailBoasVindas` (services/emails.ts).
+ * Convite de primeiro acesso, o único caminho de boas-vindas (`POST /users`, provisionamento e reenvio de organização, convite de
+ * stakeholder): a conta já existe sem senha utilizável (`SEM_SENHA`) e com `requires_password_change = 1`. Emite o convite (token de
+ * uso único, só o hash no banco) e manda o link de criar a senha; o token nunca vai para log, trilha nem resposta. Domínio de e-mail
+ * com SSO ativo não ganha link (a pessoa entra pelo IdP). Devolve se o provedor aceitou.
  */
-export function enviarBoasVindas(c: any, email: string, name: string, password: string, nomeOrg: string): Promise<boolean> {
+export async function enviarBoasVindas(c: any, conta: { id: string; email: string; name: string }, nomeOrg: string): Promise<boolean> {
   const quem = c.get?.('user') as { name?: string; email?: string } | undefined;
   const convidante = quem?.email ? { nome: quem.name ?? null, email: quem.email, organizacao: nomeOrg } : null;
-  const m = emailBoasVindas({ nome: name, email, senha: password, organizacao: nomeOrg, convidante, url: appUrl(c.env) });
-  return sendEmail(c, email, m.assunto, m, { from: remetente('n.360', nomeOrg), ...(quem?.email ? { replyTo: quem.email } : {}) });
+  const sso = await configPorDominio(c.env, conta.email);
+  const link = sso ? null : linkDoConvite(c.env, await emitirConvite(c.env.DB, conta.id, quem?.email ?? 'sistema'));
+  const m = emailBoasVindas({ nome: conta.name, email: conta.email, organizacao: nomeOrg, convidante, url: appUrl(c.env), link, horas: HORAS_CONVITE });
+  return sendEmail(c, conta.email, m.assunto, m, { from: remetente('n.360', nomeOrg), ...(quem?.email ? { replyTo: quem.email } : {}) });
 }
 
 usersApp.post('/', async (c) => {
@@ -196,7 +201,8 @@ usersApp.post('/', async (c) => {
   try {
     const valid = await validateBody(c, createUserSchema);
     if (!valid.success) return valid.response;
-    const { email, password, name, role, client_project_id } = valid.data;
+    // `password`, se vier, é ignorado: a conta nasce sem senha e a pessoa a cria pelo link do convite (ninguém mais a conhece).
+    const { email, name, role, client_project_id } = valid.data;
 
     // Conta de equipe não tem `client_project_id`: o acesso dela vem da organização. Aceitar o
     // campo deixava o consultoria_admin da org B prender um comercial a projeto da ness.
@@ -237,20 +243,19 @@ usersApp.post('/', async (c) => {
     }
 
     const id = genId();
-    const hash = await hashPassword(password);
 
     await c.env.DB.batch([
       c.env.DB.prepare(
         `INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, requires_password_change) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`
-      ).bind(id, email, hash, name, targetRole, targetProject || null, orgNovo),
+      ).bind(id, email, SEM_SENHA, name, targetRole, targetProject || null, orgNovo),
       ...(pedido ? gravarModulos(c.env.DB, id, pedido, admin.email) : []),
     ]);
 
     await logAudit(c.env.DB, 'user.created', admin.email, `Usuário ${email} criado como ${targetRole}`);
 
-    await enviarBoasVindas(c, email, name, password, await nomeDaOrg(c.env.DB, orgNovo));
+    const emailEnviado = await enviarBoasVindas(c, { id, email, name }, await nomeDaOrg(c.env.DB, orgNovo)).catch(() => false);
 
-    return c.json({ id, email, name, role: targetRole, client_project_id: targetProject }, 201);
+    return c.json({ id, email, name, role: targetRole, client_project_id: targetProject, emailEnviado }, 201);
   } catch (e: any) {
     if (e.message.includes('UNIQUE')) return c.json({ error: 'Email já cadastrado' }, 400);
     return erro500(c, 'Falha ao criar usuário', e);
@@ -540,6 +545,37 @@ usersApp.put('/:id/ativo', async (c) => {
 });
 
 /**
+ * Reenvia o convite de quem ainda não criou a senha (o e-mail se perdeu ou o link venceu): token novo, o anterior deixa de valer.
+ * Quem pode é quem já gere a conta (`recusaDaGestao`). Conta que já entrou (409: use "Esqueci a senha"), desativada ou de SSO/SCIM
+ * não recebe. 5 por hora por conta. O token nunca vai para a resposta nem para a trilha.
+ */
+usersApp.post('/:id/reenviar-convite', async (c) => {
+  if (!GESTORES.has(c.get('user').role)) return c.json({ error: 'Unauthorized' }, 403);
+  try {
+    const db = c.env.DB;
+    const user = await contaAlvo(db, c.req.param('id'));
+    if (!user) return c.json(NAO_ENCONTRADO, 404);
+    const recusa = await recusaDaGestao(c, user, 'reativar');
+    if (recusa) return recusa;
+    const conta = await db.prepare('SELECT name, password_hash, requires_password_change, ativo FROM users WHERE id = ?').bind(user.id)
+      .first<{ name: string | null; password_hash: string; requires_password_change: number | null; ativo: number | null }>();
+    if (!conta || conta.ativo === 0 || /^(sso|scim):/.test(conta.password_hash) || conta.requires_password_change !== 1) {
+      return c.json({ error: 'Esta conta não tem convite pendente: se ela já entrou, use "Esqueci a senha"' }, 409);
+    }
+    if (!(await rateLimitD1(db, `reenviar_convite_usuario:${user.id}`, 5, 3600))) return c.json({ error: 'Muitos reenvios para esta conta; tente mais tarde' }, 429);
+    // A senha provisória de antes do convite por link deixa de valer junto com o link anterior.
+    await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(SEM_SENHA, user.id).run();
+    await invalidateUserSessions(c.env.SESSIONS, user.id);
+    const emailEnviado = await enviarBoasVindas(c, { id: user.id, email: user.email, name: conta.name ?? '' }, await nomeDaOrg(db, user.org)).catch(() => false);
+    await logAudit(db, 'user.convite_reenviado', c.get('user').email, `Convite da conta ${user.email} (${user.id}) reenviado`, '', c.req.header('CF-Connecting-IP') ?? '',
+      user.client_project_id ?? undefined);
+    return c.json({ ok: true, emailEnviado });
+  } catch (e) {
+    return erro500(c, 'Falha ao reenviar o convite', e);
+  }
+});
+
+/**
  * Excluir conta DESATIVA: a linha fica, e a trilha e as decisões dela continuam apontando para alguém. Apagar de fato,
  * só o platform_admin com `?definitivo=1`, sob as travas de sempre.
  */
@@ -576,6 +612,7 @@ usersApp.delete('/:id', async (c) => {
       // A conta fica, sem identidade e sem acesso, e o e-mail volta a ficar livre.
       await c.env.DB.prepare(`UPDATE users SET email = 'removida+' || id || '@invalido.local', name = 'Conta removida', password_hash = '!',
         ativo = 0, totp_enabled = 0, totp_secret = NULL, totp_recovery_hashes = NULL, requires_password_change = 0 WHERE id = ?`).bind(id).run();
+      await c.env.DB.prepare('DELETE FROM convites_senha WHERE user_id = ?').bind(id).run();
       anonimizado = true;
     }
     // Usuário excluído com sessão aberta continuaria navegando: o middleware

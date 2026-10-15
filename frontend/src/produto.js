@@ -387,7 +387,8 @@ export function atualizarLinkCruzado(doc = document) {
 
 /**
  * O `?tela=` com que o rodapé de um módulo abre o n.360, lido uma vez no boot. Só no n.360; sai do endereço (o resto da
- * query e o fragmento ficam); só vale tela da lista fechada cujo item o papel vê. Fora disso, null: a entrada normal.
+ * query e o fragmento ficam); só vale tela da lista fechada cujo item o papel vê, ou `meus-pedidos` (link do e-mail de aprovação).
+ * Fora disso, null: a entrada normal.
  */
 export function telaPedida(loc = window.location, doc = document) {
     if (produtoAtual(loc) !== 'n360') return null;
@@ -397,6 +398,8 @@ export function telaPedida(loc = window.location, doc = document) {
     q.delete('tela');
     const resto = q.toString();
     history.replaceState(history.state, '', `${loc.pathname}${resto ? `?${resto}` : ''}${loc.hash || ''}`);
+    // "Minhas aprovações" é de todo papel logado: é o destino do e-mail de pedido de aprovação.
+    if (tela === 'meus-pedidos') return tela;
     return Object.hasOwn(TELAS_DA_CONTA, tela) && itemVisivel(doc, TELAS_DA_CONTA[tela]) ? tela : null;
 }
 

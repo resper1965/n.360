@@ -240,6 +240,15 @@ describe('desativar, reativar e excluir definitivamente', () => {
   });
 });
 
+describe('reenviar convite', () => {
+  it('POST na rota da conta e a tela se redesenha', async () => {
+    apiMock.mockResolvedValue({ ok: true, emailEnviado: true });
+    await window.reenviarConviteUsuario('u-9');
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/users/u-9/reenviar-convite', {});
+    expect(renderMock).toHaveBeenCalledOnce();
+  });
+});
+
 describe('saveUser', () => {
   function formulario({ name = 'Ana', email = 'ana@exemplo.test', password = 'senha-forte', role = 'org_user', projeto = '' } = {}) {
     dom();
@@ -263,11 +272,12 @@ describe('saveUser', () => {
     expect(document.body.textContent).toContain('Preencha os campos obrigatórios');
   });
 
-  it('usuário novo exige senha', async () => {
-    formulario({ password: '' });
+  it('usuário novo não leva senha: o convite por e-mail traz o link para criá-la', async () => {
+    formulario({ password: 'ignorada' });
+    apiMock.mockResolvedValue({ emailEnviado: true });
     await window.saveUser('');
-    expect(apiMock).not.toHaveBeenCalled();
-    expect(document.body.textContent).toContain('A senha é obrigatória para novos usuários.');
+    expect(apiMock.mock.calls[0][2]).not.toHaveProperty('password');
+    expect(document.body.textContent).not.toContain('A senha é obrigatória');
   });
 
   it('criar: POST com projeto nulo quando vazio, e re-render', async () => {
@@ -275,7 +285,7 @@ describe('saveUser', () => {
     apiMock.mockResolvedValue({});
     await window.saveUser('');
     expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/users', {
-      name: 'Ana', email: 'ana@exemplo.test', role: 'org_user', client_project_id: null, password: 'senha-forte',
+      name: 'Ana', email: 'ana@exemplo.test', role: 'org_user', client_project_id: null,
     });
     expect(renderMock).toHaveBeenCalledOnce();
   });

@@ -9,7 +9,8 @@ import {
 import { validateBody, aprovacaoLoteSchema, pedidoCriarSchema, pedidoDecisaoSchema, pedidoCienciaLoteSchema, pedidoReenvioSchema } from '../schemas';
 import { appUrl } from '../config/url';
 import { remetente } from '../services/email-layout';
-import { emailCiencia, type QuemPede } from '../services/emails';
+import { emailCiencia, emailPedidoAprovacao, type QuemPede } from '../services/emails';
+import { log } from '../observability';
 import { assinarEvidencia } from './evidence';
 import {
   criarPedido, recusaDeDestinatarios, politicaVazia, conferirVigencia, registrarDecisao, podePedir, autoridadeNoPedido, DIAS_LINK, type PedidoRow,
@@ -120,11 +121,36 @@ projectPedidosApp.post('/', async (c) => {
     await logAudit(c.env.DB, 'pedido.criado', user.email,
       `Pedido ${criado.id} (${b.tipo} ${refId}, papel ${b.papel_exigido}) para ${b.destinatarios.length} destinatário(s); hash ${criado.hash}`,
       '', c.req.header('CF-Connecting-IP') ?? '', projectId);
+    if (b.papel_exigido !== 'ciente') await avisarAprovacao(c, criado.id);
     return c.json({ ok: true, ...criado }, 201);
   } catch (e: any) {
     return erro500(c, 'Erro ao criar pedido', e);
   }
 });
+
+/**
+ * E-mail a cada destinatário de um pedido de APROVAÇÃO, uma vez, na criação (o pedido novo é outro id: não há reenvio aqui).
+ * Falha de envio não desfaz o pedido, que já está gravado: vai ao log estruturado, sem o endereço.
+ */
+async function avisarAprovacao(c: Context<Ctx>, pedidoId: string): Promise<void> {
+  try {
+    const db = c.env.DB;
+    const p = await db.prepare('SELECT tipo, titulo, papel_exigido FROM pedidos WHERE id = ?').bind(pedidoId).first<{ tipo: string; titulo: string; papel_exigido: string }>();
+    if (!p) return;
+    const { results } = await db.prepare('SELECT email, nome FROM pedido_destinatarios WHERE pedido_id = ?').bind(pedidoId).all<{ email: string; nome: string | null }>();
+    const q = await quemPedeCiencia(db, pedidoId);
+    const opcoes = { from: remetente('n.360', q.cliente), ...(q.pessoa?.email ? { replyTo: q.pessoa.email } : {}) };
+    const link = `${appUrl(c.env)}/?tela=meus-pedidos`;
+    let falhas = 0;
+    for (const d of results) {
+      const m = emailPedidoAprovacao({ tipo: p.tipo, titulo: p.titulo, papel: p.papel_exigido, nome: d.nome, link, quem: q });
+      if (!(await sendEmail(c, d.email, m.assunto, m, opcoes))) falhas++;
+    }
+    if (falhas) log('error', { msg: 'pedido_aprovacao_email_falhou', pedido_id: pedidoId, falhas });
+  } catch (e) {
+    log('error', { msg: 'pedido_aprovacao_email_falhou', pedido_id: pedidoId, erro: e instanceof Error ? e.message : String(e) });
+  }
+}
 
 /** O usuário alcança o projeto do pedido? Stakeholder: só o próprio `client_project_id`. */
 async function alcancaProjeto(db: D1Database, user: Usuario, projectId: string): Promise<boolean> {

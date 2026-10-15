@@ -30,7 +30,7 @@ function espiarEmail(ok = true) {
   }) as any);
   return enviados;
 }
-const senhaDoEmail = (html: string) => html.match(/Senha temporária<\/td><td[^>]*><strong>([^<]+)<\/strong>/)?.[1] ?? '';
+const tokenDoEmail = (html: string) => html.match(/#convite=([0-9a-f]{64})/)?.[1] ?? '';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -76,7 +76,7 @@ describe('a) GET /users do platform_admin', () => {
 });
 
 describe('b) reenviar convite', () => {
-  it('nova senha provisória, sessões derrubadas, e-mail com a senha nova; resposta e trilha sem senha', async () => {
+  it('convite novo, sessões derrubadas, e-mail com o link novo; resposta e trilha sem token', async () => {
     const sessaoAntiga = await sessionFor({ id: 'u-ab', email: 'ab@b.lat', role: 'consultoria_admin', org_id: 'org_b' });
     const antes = (await env.DB.prepare(`SELECT password_hash AS h FROM users WHERE id = 'u-ab'`).first<any>()).h;
     const enviados = espiarEmail();
@@ -86,12 +86,12 @@ describe('b) reenviar convite', () => {
     expect(JSON.parse(texto)).toEqual({ emailEnviado: true });
     expect(enviados).toHaveLength(1);
     expect(enviados[0].to).toEqual(['ab@b.lat']);
-    const senha = senhaDoEmail(enviados[0].html);
-    expect(senha.length).toBeGreaterThanOrEqual(20);
+    const senha = tokenDoEmail(enviados[0].html);
+    expect(senha).toHaveLength(64);
     const conta = await env.DB.prepare(`SELECT password_hash AS h, requires_password_change AS r FROM users WHERE id = 'u-ab'`).first<any>();
     expect(conta.h).not.toBe(antes);
+    expect(conta.h).toBe('convite:sem-senha-local');
     expect(conta.r).toBe(1);
-    expect(await verifyPassword(senha, conta.h)).toBe(true);
     expect(texto).not.toContain(senha);
     const trilha = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'org.convite_reenviado' ORDER BY rowid DESC LIMIT 1`).first<any>();
     expect(trilha.details).toContain('ab@b.lat');
