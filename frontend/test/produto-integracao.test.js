@@ -48,12 +48,12 @@ describe('produtoDaTela e destinoDoAviso', () => {
 describe('RoPA', () => {
     const REG = [{ id: 'r1', processing_purpose: 'Folha', status: 'Active' }];
     for (const [modulos, tem] of [[['iso'], false], [['iso', 'privacy'], true]]) {
-        it(`com ${modulos.join('+')} ${tem ? 'mostra' : 'esconde'} importar e ligações`, async () => {
+        it(`com ${modulos.join('+')} ${tem ? 'mostra' : 'esconde'} importar e a página da atividade`, async () => {
             S.activeProject = { id: 'p9', modulos };
             servir({ 'GET /api/v1/projects/p9/ropa': REG });
             await window.renderROPA(el('c'), el('h'), el('a'));
             expect(!!document.querySelector('[data-action="openImportarRopaModal"]')).toBe(tem);
-            expect(!!document.querySelector('[data-action="openLigacoesTratamento"]')).toBe(tem);
+            expect(!!document.querySelector('[data-action="abrirAtividade"]')).toBe(tem);
         });
     }
 });

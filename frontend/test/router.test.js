@@ -51,14 +51,15 @@ describe('navigate()', () => {
     afterEach(() => history.replaceState(null, '', '/'));
 
     describe('desvio por papel — o que o usuario PODE ver', () => {
+        // O cliente entra no Painel do n.iso (a visão dele: o que espera a sua decisão); a Jornada fica no menu.
         it.each(['org_admin', 'org_user', 'client'])(
-            'papel %s pedindo "dashboard" cai em project-detail',
+            'papel %s pedindo "dashboard" fica no Painel',
             (role) => {
                 S.user = { role };
                 navigate('dashboard');
-                expect(S.view).toBe('project-detail');
-                expect(globalThis.renderProjectDetail).toHaveBeenCalledTimes(1);
-                expect(globalThis.renderDashboard).not.toHaveBeenCalled();
+                expect(S.view).toBe('dashboard');
+                expect(globalThis.renderDashboard).toHaveBeenCalledTimes(1);
+                expect(globalThis.renderProjectDetail).not.toHaveBeenCalled();
             }
         );
 

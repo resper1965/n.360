@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { Bindings } from '../index';
-import { logAudit, genNumericCode, erro500, sendEmail, escapeHtml, rateLimit, rateLimitD1 } from '../helpers';
+import { logAudit, genNumericCode, erro500, sendEmail, rateLimit, rateLimitD1 } from '../helpers';
+import { remetente } from '../services/email-layout';
+import { emailCodigoPoliticas } from '../services/emails';
 import { validateBody, otpPedidoSchema, otpVerificacaoSchema, aceiteDeDocumentoSchema, ssoInicioSchema } from '../schemas';
 import {
   configPorDominio, descobrir, iniciarLogin, consumirState, trocarCodigo,
@@ -81,14 +83,11 @@ publicApp.post('/policies/request-otp', async (c) => {
     // só ao dono do e-mail — nunca no corpo da resposta (isso derrubaria o 2º
     // fator: qualquer um que conheça o project_id leria as políticas do tenant).
     // Entrega por e-mail; o eco em `demo_otp` fica restrito a dev/test.
-    // `cleanName` é controlado pelo chamador e vai no HTML enviado da identidade
-    // confiável noreply@ness.lat → escapar para não virar relay de injeção/phishing.
-    const enviado = await sendEmail(
-      c,
-      cleanEmail,
-      'Seu código de acesso às políticas',
-      `<p>Olá ${escapeHtml(cleanName)},</p><p>Seu código de verificação é <strong>${otp}</strong>. Ele expira em 15 minutos.</p>`
-    );
+    // `cleanName` é controlado pelo chamador e vai no e-mail enviado da identidade
+    // confiável noreply@ness.com.br: o invólucro (montarEmail) escapa, para não virar relay de injeção/phishing.
+    const cliente = String((project as { client_name?: string }).client_name ?? '');
+    const m = emailCodigoPoliticas({ nome: cleanName, cliente, codigo: otp });
+    const enviado = await sendEmail(c, cleanEmail, m.assunto, m, { from: remetente('n.360', cliente) });
     await logAudit(c.env.DB, 'policy.otp_requested', cleanEmail, `OTP de acesso às políticas solicitado para projeto ${project_id}`);
 
     const isDevOrTest = c.env.ENVIRONMENT === 'development' || c.env.ENVIRONMENT === 'test';

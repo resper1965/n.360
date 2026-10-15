@@ -6,7 +6,8 @@ export     function navigate(view, data) {
         // O filtro do painel (filtro-painel.js) vale só para a navegação que o trouxe: qualquer outra o apaga.
         S.filtroPainel = (data && data.filtroPainel) || null;
         const isClient = S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client');
-        if (isClient && (view === 'dashboard' || view === 'projects')) {
+        // O cliente não vê a lista de projetos (só tem o dele): vai à Jornada. O Painel ele vê, na visão de cliente.
+        if (isClient && view === 'projects') {
             targetView = 'project-detail';
         }
         // O comercial não alcança projeto: a entrada dele no n.iso é a tela Comercial, não o painel do projeto.
@@ -83,6 +84,7 @@ export     function navigate(view, data) {
         else if (S.view === 'training') renderTraining(c, h, a);
         else if (S.view === 'ropa') renderROPA(c, h, a);
         else if (S.view === 'ropa-entrevista') renderRopaEntrevista(c, h, a);
+        else if (S.view === 'ropa-atividade') renderAtividade(c, h, a);
         else if (S.view === 'dpia') renderDPIA(c, h, a);
         else if (S.view === 'audits') renderAudits(c, h, a);
         else if (S.view === 'capa') renderCAPA(c, h, a);

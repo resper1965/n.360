@@ -201,8 +201,8 @@ describe('correções P0 do RoPA', () => {
         const linhas = [...el('c').querySelectorAll('tbody tr')].map((tr) => tr.textContent);
         expect(linhas.find((t) => t.includes('Visitantes'))).toContain('Importado: revisar');
         expect(linhas.find((t) => t.includes('Folha'))).not.toContain('Importado');
-        // cada linha oferece continuar a entrevista
-        expect(el('c').querySelectorAll('[data-action="abrirRopaEntrevista"]')).toHaveLength(2);
+        // n.privacy: cada linha abre a página da atividade (onda 2), por um botão só
+        expect(el('c').querySelectorAll('tbody [data-action="abrirAtividade"]')).toHaveLength(2);
         expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade (entrevista)');
     });
 });
@@ -219,17 +219,18 @@ describe('lista do RoPA', () => {
         expect(el('c').querySelector('.empty-state [data-action="openNewROPAModal"]').textContent).toBe('Edição avançada');
     });
 
-    it('legítimo interesse: botão "Base legal e LIA" e cartão de LIA pendente vindo da visão do encarregado', async () => {
+    it('legítimo interesse: o mesmo "Abrir" em toda linha e cartão de LIA pendente vindo da visão do encarregado', async () => {
         rotas['/ropa'] = [
             { id: 'r1', project_id: 'p1', processing_purpose: 'Fraude', legal_basis: 'Legítimo interesse', international_transfers: 1, transfer_safeguards: '' },
             { id: 'r2', project_id: 'p1', processing_purpose: 'Folha', legal_basis: 'Consentimento' },
         ];
         rotas['/encarregado'] = { tratamentos: { lia_pendente: 1 } };
         await window.renderROPA(el('c'), el('h'), el('a'));
-        const botoes = [...el('c').querySelectorAll('[data-action="openLigacoesTratamento"]')].map((b) => b.textContent.trim());
-        expect(botoes).toEqual(['Base legal e LIA', 'Ligações']);
+        const botoes = [...el('c').querySelectorAll('tbody button')].map((b) => b.textContent.trim());
+        expect(botoes).toEqual(['Abrir', 'Abrir']);
         const card = [...el('c').querySelectorAll('.stat-card')].find((x) => x.textContent.includes('Legítimo interesse sem LIA'));
         expect(card.textContent).toContain('1');
+        expect(card.textContent).toContain('Faça na etapa 3 da atividade');
         // transferência sem salvaguarda é aviso, não violação
         const transf = [...el('c').querySelectorAll('.stat-card')].find((x) => x.textContent.includes('Com transferência internacional'));
         expect(transf.innerHTML).toContain('var(--warning)');

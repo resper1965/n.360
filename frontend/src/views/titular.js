@@ -19,11 +19,14 @@ const UNIDADES = { horas: 'horas', dias_corridos: 'dias corridos', dias_uteis: '
 const ABAS = { pedidos: 'Pedidos do titular', incidentes: 'Incidentes', consentimentos: 'Consentimentos', prazos: 'Prazos legais' };
 
 const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'].includes(S.user.role);
+// O administrador do cliente registra e responde pedido do titular e registra e avalia incidente (o servidor já o deixa: o allow-list
+// de só leitura cobre org_user e client). Encerrar incidente, consentimento e prazo legal seguem com `podeEditar`.
+const podeRegistrar = () => podeEditar() || (!!S.user && S.user.role === 'org_admin');
 // Papéis que a rota /data-subject aceita (expõe PII).
 const podeDados = () => !!S.user && ['platform_admin', 'consultor', 'org_admin'].includes(S.user.role);
 const ehAdmin = () => !!S.user && S.user.role === 'platform_admin';
 // Rascunho de IA (services/rascunhos-privacy.ts): equipe e o administrador do cliente; só no n.privacy.
-const podeRascunho = () => (podeEditar() || (!!S.user && S.user.role === 'org_admin')) && produtoAtual() === 'privacy';
+const podeRascunho = () => podeRegistrar() && produtoAtual() === 'privacy';
 const AVISO_IA = 'Rascunho gerado por IA — revise antes de usar';
 const caixaRascunho = (id, texto) => `<p><strong>${escapeHTML(AVISO_IA)}</strong></p>
     <textarea class="form-input" id="${id}" rows="8" maxlength="8000" aria-label="${escapeHTML(AVISO_IA)}">${escapeHTML(texto)}</textarea>`;
@@ -52,6 +55,7 @@ async function renderTitular(c, h, a) {
     const aba = abasDoProduto[S.titularAba] ? S.titularAba : Object.keys(abasDoProduto)[0];
     S.titularAba = aba;
     const editar = podeEditar();
+    const registrar = podeRegistrar();
     // Pedidos e incidentes são lidos sempre: a contagem (e o atraso) aparece na aba, sem precisar abri-la. Falha vira `null`:
     // na aba aberta, é o estado de erro (nunca "nenhum pedido", com prazo correndo); na outra, só some a contagem.
     const ler = (pedido) => pedido.then(lista, (e) => { console.error('Falha ao carregar a lista', e); return null; });
@@ -65,7 +69,7 @@ async function renderTitular(c, h, a) {
         incidentes: contagem(incidentes, (incidentes || []).filter((i) => i.status !== 'encerrado' && (i.situacao_anpd === 'atrasado' || i.situacao_titular === 'atrasado')).length),
     };
     const abas = window.renderAbas(Object.entries(abasDoProduto).map(([v, r]) => [v, escapeHTML(r) + (rotulos[v] || '')]), aba, 'escolherAbaTitular');
-    const novo = (acao, rotulo) => (editar ? `<button class="btn btn-primary" data-action="${acao}" data-args='${args(proj.id)}'>${rotulo}</button>` : '');
+    const novo = (acao, rotulo) => ((acao === 'abrirNovoConsentimento' ? editar : registrar) ? `<button class="btn btn-primary" data-action="${acao}" data-args='${args(proj.id)}'>${rotulo}</button>` : '');
     a.innerHTML = aba === 'pedidos' ? novo('abrirNovoPedidoTitular', '+ Registrar pedido')
         : aba === 'incidentes' ? novo('abrirNovoIncidente', '+ Registrar incidente')
         : aba === 'consentimentos' ? novo('abrirNovoConsentimento', '+ Registrar consentimento') : '';
@@ -92,7 +96,10 @@ async function renderTitular(c, h, a) {
         corpo = window.renderDataTable(['Protocolo', 'Tipo', 'Recebido em', 'Prazo', 'Situação', 'Status', 'Ações'], l.map((p) => [
             `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(dia(p.recebido_em)), escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'),
             selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
-            `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Abrir</button>`,
+            // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
+            registrar && p.situacao_prazo === 'atrasado'
+                ? `<button class="btn btn-primary btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Responder</button>`
+                : `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Abrir</button>`,
         ]), { emptyState: 'Nenhum pedido de titular registrado.', emptyHint: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', emptyAction: novo('abrirNovoPedidoTitular', 'Registrar pedido'), ...(filtrado ? vazioFiltrado : {}) });
     } else if (aba === 'incidentes') {
         const l = doFiltro;
@@ -158,7 +165,7 @@ window.salvarNovoPedidoTitular = (projectId) => acao(async () => {
 window.abrirPedidoTitular = async function (projectId, id) {
     let p;
     try { p = await api('GET', `/api/v1/projects/${projectId}/titular-pedidos/${id}`); } catch (e) { falha(e, 'Não foi possível abrir o pedido'); return; }
-    const editar = podeEditar();
+    const editar = podeRegistrar();
     const final = p.status === 'respondido' || p.status === 'negado';
     openModal(`<h3>${escapeHTML(p.protocolo)} — ${escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo)}</h3>
         <p>${selo(p.situacao_prazo)} Recebido em ${escapeHTML(dia(p.recebido_em))}; prazo ${escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'não calculado')}.</p>
@@ -282,7 +289,8 @@ function faixaAnpd(i) {
 window.abrirIncidente = async function (projectId, id) {
     let i;
     try { i = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}`); } catch (e) { falha(e, 'Não foi possível abrir o incidente'); return; }
-    const editar = podeEditar() && i.status !== 'encerrado';
+    const editar = podeRegistrar() && i.status !== 'encerrado';
+    const encerrar = podeEditar() && i.status !== 'encerrado';
     // A ação primária é a próxima comunicação devida; encerrar é secundário e fica no fim, com confirmação.
     // Sem risco ao titular não há comunicação devida (nem à ANPD): nenhuma vira a ação primária, e encerrar não alerta da ANPD.
     const semRisco = i.risco_titular === 'sem_risco';
@@ -308,7 +316,7 @@ window.abrirIncidente = async function (projectId, id) {
             </div><div id="in-rascunho" style="margin-top:0.75rem"></div>` : ''}
         ${podeEditar() && produtoAtual() === 'iso' && temProduto(projetoAtivo(), 'iso') ? `<h4 style="margin:1rem 0 0.5rem">Ação corretiva</h4>
             <button class="btn btn-sm" data-action="abrirCapaDoIncidente" data-args='${args(projectId, id)}'>Abrir CAPA</button>` : ''}
-        ${editar ? `<div style="border-top:1px solid var(--border); margin-top:1.5rem; padding-top:1rem">
+        ${encerrar ? `<div style="border-top:1px solid var(--border); margin-top:1.5rem; padding-top:1rem">
             <div id="in-encerrar"></div>
             <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco)}'>Encerrar incidente</button>
         </div>` : ''}`, 'modal-large');

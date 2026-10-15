@@ -41,7 +41,7 @@ function listaDaCelula(projectId) {
         escapeHTML(r.atividade || '—'),
         rotuloNivel(r.risk_level),
         r.residual_level ? rotuloNivel(r.residual_level) : '—',
-        `<button class="btn btn-ghost btn-sm" data-action="openLigacoesTratamento" data-args='${args(projectId, r.ropa_id)}'>Abrir a atividade</button>`,
+        `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(projectId, r.ropa_id)}'>Abrir a atividade</button>`,
     ]), { emptyState: 'Nenhum risco nesta célula.' });
 }
 

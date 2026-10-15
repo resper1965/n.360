@@ -65,6 +65,12 @@ export async function removerTransferencia(db: D1Database, projectId: string, ro
 export type Ligacoes = {
   aprovacao: Aprovacao;
   /**
+   * Para a etapa de aprovação da atividade (onda 2): a aprovação mais recente quando nenhuma vale mais (a atividade mudou depois
+   * dela; a prova fica no pedido antigo) e quantos pedidos esperam decisão. Só leitura, fora do conteúdo congelado.
+   */
+  aprovacao_anterior: { por: string; em: string } | null;
+  pedidos_abertos: number;
+  /**
    * LIA exigida quando a base é legítimo interesse (a principal, uma adicional ou o texto do GDPR, F3); DPIA pendente quando o registro
    * a pede e não há nenhuma ligada (fatia 5). `origem_mudou`: o tratamento mudou depois que a LIA/DPIA nasceu dele (só aviso).
    */
@@ -88,7 +94,7 @@ export async function lerLigacoes(db: D1Database, projectId: string, ropaId: str
        LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.id = ? AND r.project_id = ?`
   ).bind(ropaId, projectId).first<{ id: string | null; referencia: string | null; titulo: string | null; legal_basis: string | null; dpia_required: number | null; base_gdpr: string | null; adicionais: string | null }>();
   if (!base) return null;
-  const [itens, deptos, partes, transf, dpias, lia, vencidos] = await db.batch([
+  const [itens, deptos, partes, transf, dpias, lia, vencidos, ultima, abertos] = await db.batch([
     db.prepare(`SELECT i.id, i.nome, i.tipo FROM tratamento_itens t JOIN itens i ON i.id = t.item_id WHERE t.ropa_id = ? AND t.project_id = ? ORDER BY i.nome`).bind(ropaId, projectId),
     db.prepare(`SELECT d.id, d.nome FROM tratamento_departamentos t JOIN departamentos d ON d.id = t.departamento_id WHERE t.ropa_id = ? AND t.project_id = ? ORDER BY d.nome`).bind(ropaId, projectId),
     db.prepare(
@@ -107,6 +113,11 @@ export async function lerLigacoes(db: D1Database, projectId: string, ropaId: str
           AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN a.valido_ate END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < date('now')
         ORDER BY p.nome`
     ).bind(ropaId, projectId),
+    db.prepare(
+      `SELECT COALESCE(NULLIF(pd.nome, ''), pd.email) AS por, pd.decidido_em AS em FROM pedido_destinatarios pd JOIN pedidos p ON p.id = pd.pedido_id
+        WHERE p.project_id = ? AND p.tipo = 'tratamento' AND p.ref_id = ? AND pd.status = 'aprovado' ORDER BY pd.decidido_em DESC, pd.rowid DESC LIMIT 1`
+    ).bind(projectId, ropaId),
+    db.prepare(`SELECT count(*) AS n FROM pedidos WHERE project_id = ? AND tipo = 'tratamento' AND ref_id = ? AND status = 'aberto'`).bind(projectId, ropaId),
   ]);
   const liaLinha = (lia.results as { status: string; origem_hash: string | null }[])[0];
   const dpiasGravadas = dpias.results as { id: string; nome: string | null; status: string | null; origem_hash: string | null }[];
@@ -114,8 +125,12 @@ export async function lerLigacoes(db: D1Database, projectId: string, ropaId: str
   const atual = liaLinha?.origem_hash || dpiasGravadas.some((d) => d.origem_hash) ? await hashDoTratamento(db, projectId, ropaId) : null;
   const mudou = (h: string | null | undefined) => !!h && h !== atual;
   const dpiasLidas = dpiasGravadas.map(({ origem_hash, ...d }) => ({ ...d, origem_mudou: mudou(origem_hash) }));
+  const aprovacao = (await aprovacoesDoProjeto(db, projectId, ropaId, 'tratamento')).get(ropaId) ?? { ciso: null, ceo: null };
+  const ultimaAprovacao = (ultima.results as { por: string; em: string }[])[0] ?? null;
   return {
-    aprovacao: (await aprovacoesDoProjeto(db, projectId, ropaId, 'tratamento')).get(ropaId) ?? { ciso: null, ceo: null },
+    aprovacao,
+    aprovacao_anterior: aprovacao.ciso || aprovacao.ceo ? null : ultimaAprovacao,
+    pedidos_abertos: Number((abertos.results as { n: number }[])[0]?.n ?? 0),
     lia: { exigida: ehLegitimoInteresse(base.titulo, base.legal_basis, base.adicionais, base.base_gdpr), existe: !!liaLinha, status: liaLinha?.status ?? null, origem_mudou: mudou(liaLinha?.origem_hash) },
     dpias: dpiasLidas,
     dpia_pendente: !!base.dpia_required && dpiasLidas.length === 0,

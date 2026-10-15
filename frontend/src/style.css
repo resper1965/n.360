@@ -1696,6 +1696,60 @@ textarea:focus-visible {
     .re-acoes .btn-primary { margin-left: 0; }
 }
 
+/* Página da atividade (n.privacy, onda 2): trilha de cinco etapas com o estado escrito, o próximo passo como a única ação
+   primária e uma seção por etapa. O estado vai em texto; a cor da borda do número só reforça. */
+.at { max-width: 1040px; display: flex; flex-direction: column; gap: 24px; }
+.at-trilha { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.at-etapa-link { width: 100%; height: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color var(--fast) var(--ease-out); }
+.at-etapa-link:hover { border-color: var(--text-dim); }
+.at-etapa-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.at-etapa[aria-current="step"] .at-etapa-link { border-color: var(--accent); }
+.at-etapa-n { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--border); font: 600 12px/1 var(--font-head); font-variant-numeric: tabular-nums; color: var(--text-2); }
+.at-etapa-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.at-etapa-nome { font-size: 13px; font-weight: 500; line-height: 1.35; }
+.at-etapa-estado { font-size: 12px; color: var(--text-dim); line-height: 1.35; }
+.at-etapa[data-estado="feito"] .at-etapa-n, .at-selo[data-estado="feito"] { border-color: var(--success); color: var(--success-ink); }
+.at-etapa[data-estado="pendente"] .at-etapa-n, .at-selo[data-estado="pendente"] { border-color: var(--warning); color: var(--warning-ink); }
+.at-etapa[data-estado="mudou"] .at-etapa-n, .at-selo[data-estado="mudou"] { border-color: var(--danger); color: var(--danger-ink); }
+.at-etapa[data-estado="na"] .at-etapa-n, .at-selo[data-estado="na"] { border-style: dashed; color: var(--text-faint); }
+.at-etapa[data-estado="feito"] .at-etapa-estado { color: var(--success-ink); }
+.at-etapa[data-estado="pendente"] .at-etapa-estado { color: var(--warning-ink); }
+.at-etapa[data-estado="mudou"] .at-etapa-estado { color: var(--danger-ink); }
+.at-proximo { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 20px 24px; background: var(--surface); border: 1px solid var(--border); }
+.at-proximo-titulo { margin: 0; font: 600 18px/1.35 var(--font-head); color: var(--text); text-wrap: balance; }
+.at-proximo .btn-primary { margin-top: 8px; }
+.at-nota { margin: 0; max-width: 75ch; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.at-secao { display: flex; flex-direction: column; gap: 12px; padding: 20px 24px; background: var(--surface); border: 1px solid var(--border); scroll-margin-top: calc(var(--hdr-h) + 16px); }
+.at-secao-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.at-secao-titulo { margin: 0; font: 600 16px/1.35 var(--font-head); color: var(--text); }
+.at-secao-titulo:focus { outline: none; }
+.at-secao-titulo:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.at-selo { flex: none; padding: 2px 8px; border: 1px solid var(--border); font-size: 12px; line-height: 1.5; color: var(--text-2); white-space: nowrap; }
+.at-sub { margin: 12px 0 0; font: 600 14px var(--font-head); color: var(--text); }
+.at-dados { display: grid; grid-template-columns: minmax(160px, 240px) 1fr; gap: 6px 16px; margin: 0; font-size: 13px; }
+.at-dados dt { color: var(--text-dim); }
+.at-dados dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.at-vazio { color: var(--text-faint); }
+.at-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.at-lista { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text); }
+.at-lista li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.at-recomendacao { margin: 0; padding: 10px 12px; border: 1px solid var(--warning); background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+.at-impacto { display: flex; flex-direction: column; gap: 20px; }
+.at-grupo { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.at-grupo-titulo { padding: 0; margin-bottom: 4px; font: 600 14px var(--font-head); color: var(--text); }
+.at-pergunta { border: 0; border-bottom: 1px solid var(--border); margin: 0; padding: 0 0 16px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.at-pergunta-texto { margin: 0; max-width: 75ch; font-size: 14px; line-height: 1.5; color: var(--text); }
+.at-origem { margin: 0; }
+.at-opcoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.at-opcoes .re-opcao { padding: 8px 12px; }
+.at-opcoes .re-opcao:has(input:disabled) { cursor: default; color: var(--text-2); }
+@media (max-width: 900px) {
+    .at-trilha { grid-template-columns: 1fr; }
+    .at-dados { grid-template-columns: 1fr; gap: 2px; }
+    .at-dados dd { margin-bottom: 8px; }
+    .at-secao, .at-proximo { padding: 16px; }
+}
+
 /* Menu do n.privacy (alternativa A): Painel, quatro seções fixas (título que não é botão e não recolhe) e o Assistente.
    Item com o mesmo peso em todo lugar; quem chama atenção é o selo. Abaixo de 820px de altura o n.privacy fica compacto
    (itens de 28px) para caber a 1024x768; o n.iso e o n.360 não mudam.

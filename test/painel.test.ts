@@ -31,6 +31,13 @@ describe('frase de saúde (função pura)', () => {
     expect(ok).toMatchObject({ tom: 'ok', rotulo: 'Em dia' });
     expect(ok.apoio).toContain('PT-1 (pedidos do titular), em 12 dias');
   });
+  it('cliente num projeto começando: a frase não promete passos que a visão dele não mostra', () => {
+    const s = saudeDoProjeto({ itens: [], comecando: true, cliente: true, decisoes: 0 });
+    expect(s.rotulo).toBe('Começando');
+    expect(s.apoio).not.toContain('passos');
+    expect(s.apoio).toContain('consultoria');
+    expect(saudeDoProjeto({ itens: [], comecando: true }).apoio).toContain('Os primeiros passos estão abaixo');
+  });
   it('projeto vazio NUNCA está em dia, nem com a lista vazia', () => {
     expect(saudeDoProjeto({ itens: [], comecando: true })).toMatchObject({ tom: 'plano', rotulo: 'Começando' });
     expect(saudeDoProjeto({ itens: [], comecando: true }).rotulo).not.toBe('Em dia');
@@ -195,6 +202,19 @@ describe('GET /projects/:id/painel', () => {
     const m = corpo.modulos.privacy;
     for (const k of ['fazer', 'cobertura', 'riscos', 'vencimentos', 'pedidos_semana']) expect(m, k).not.toHaveProperty(k);
     expect(corpo.modulos.privacy.numeros).toHaveLength(3);
+  });
+
+  it('cliente no n.iso: o próximo marco da jornada (a primeira fase não concluída), sem a lista da consultoria', async () => {
+    await semear();
+    await db().prepare(`INSERT INTO project_phases (id, project_id, phase_number, title, status) VALUES
+      ('f0', 'pa', 0, 'Mobilização', 'completed'), ('f1', 'pa', 1, 'Entrevista Executiva', 'skipped'), ('f2', 'pa', 2, 'Entrevistas por Trilha', 'in_progress'),
+      ('f3', 'pa', 3, 'Diagnóstico', 'pending'), ('fb', 'pb', 0, 'Fase zzb', 'in_progress')`).run();
+    const iso = (await painel(cliente, 'pa', 'iso')).corpo.modulos.iso as Painel['modulos'][string] & { jornada?: unknown };
+    expect(iso.jornada).toEqual({ atual: { numero: 3, titulo: 'Entrevistas por Trilha', status: 'in_progress' }, concluidas: 2, total: 4 });
+    expect(iso).not.toHaveProperty('fazer');
+    // a equipe não recebe o bloco (ela tem a lista inteira), e o n.privacy não tem jornada
+    expect((await painel(consultor, 'pa', 'iso')).corpo.modulos.iso).not.toHaveProperty('jornada');
+    expect((await painel(cliente, 'pa', 'privacy')).corpo.modulos.privacy).not.toHaveProperty('jornada');
   });
 
   it('módulo: projeto sem o módulo = 403; pessoa sem o módulo = 403; módulo inventado = 400', async () => {

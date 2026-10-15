@@ -46,8 +46,11 @@ export function saudeDoProjeto(e: { itens: ItemFazer[]; comecando: boolean; deci
       apoio: 'São aprovações ou ciências pedidas a você neste projeto. A consultoria cuida do resto do programa.' };
   }
   if (e.comecando) {
+    // A visão do cliente não desenha os passos (são da consultoria): a frase não os promete.
     return { tom: 'plano', rotulo: 'Começando', frase: 'O programa ainda não começou: falta o cadastro mínimo.',
-      apoio: 'Os primeiros passos estão abaixo. Sem cadastro, não há como dizer que o programa está em dia.' };
+      apoio: e.cliente
+        ? 'A consultoria está montando o cadastro do programa. Quando houver um pedido de aprovação ou ciência para você, ele aparece aqui.'
+        : 'Os primeiros passos estão abaixo. Sem cadastro, não há como dizer que o programa está em dia.' };
   }
   if (atraso.length) {
     const resto = [semana.length ? plural(semana.length, 'item para esta semana', 'itens para esta semana') : '', plano.length ? plural(plano.length, 'para planejar', 'para planejar') : ''].filter(Boolean);
@@ -344,6 +347,19 @@ async function blocoIso(db: D1Database, projectId: string, dia: string) {
   };
 }
 
+type Fase = { phase_number: number; title: string; status: string | null };
+const FASE_FEITA = new Set(['completed', 'skipped']);
+/** A jornada como o cliente a lê: a fase em curso (o próximo marco) e quantas já passaram. Sem fases, nulo. */
+function jornadaDoCliente(fases: Fase[]) {
+  if (!fases.length) return null;
+  const atual = fases.find((f) => !FASE_FEITA.has(f.status ?? ''));
+  return {
+    atual: atual ? { numero: atual.phase_number + 1, titulo: atual.title, status: atual.status ?? 'pending' } : null,
+    concluidas: fases.filter((f) => FASE_FEITA.has(f.status ?? '')).length,
+    total: fases.length,
+  };
+}
+
 // ─── O painel ───────────────────────────────────────────────────────────────────────────────────────────
 
 /** Quem pede: a visão de cliente sai para papel de cliente; o agente MCP (que entra como `client`) lê como a consultoria que o concedeu. */
@@ -368,9 +384,13 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
         : db.prepare('SELECT 1 WHERE 0'),
       db.prepare(`SELECT p.nome FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
           WHERE v.project_id = ?1 AND v.papel = 'encarregado' AND v.alvo_tipo = 'projeto' AND p.status = 'ativa' ORDER BY p.nome`).bind(projectId),
+      // Para o cliente no n.iso: a jornada (o próximo marco é a primeira fase não concluída nem pulada).
+      quem.cliente && modulos.includes('iso')
+        ? db.prepare('SELECT phase_number, title, status FROM project_phases WHERE project_id = ? ORDER BY phase_number').bind(projectId)
+        : db.prepare('SELECT 1 WHERE 0'),
     ]),
   ]);
-  const [marco, cadastro, pedidos, encs] = base;
+  const [marco, cadastro, pedidos, encs, fases] = base;
   const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia) : null;
   const privacy = modulos.includes('privacy') ? await blocoPrivacy(db, projectId, quem.cliente, dia) : null;
   const c = cadastro.results[0] as { tratamentos: number; controles: number };
@@ -388,7 +408,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     const saude = saudeDoProjeto({ itens: b.itens, comecando: b.comecando, decisoes: decisoes.length, cliente: quem.cliente, proximo: b.proximo });
     // O cliente vê a frase e os números da linha do módulo; a lista, a cobertura, o mapa e os vencimentos são da consultoria.
     modulosResp[m] = quem.cliente
-      ? { saude, numeros: b.numeros, comecando: b.comecando }
+      ? { saude, numeros: b.numeros, comecando: b.comecando, ...(m === 'iso' ? { jornada: jornadaDoCliente(fases.results as Fase[]) } : {}) }
       : { saude, numeros: b.numeros, comecando: b.comecando, fazer: b.itens, cobertura: b.cobertura, vencimentos: b.vencimentos, riscos: b.riscos, passos: b.passos,
           ...(m === 'privacy' && privacy ? { pedidos_semana: privacy.pedidos_semana, acoes_por_prazo: privacy.acoes_por_prazo } : {}) };
   }

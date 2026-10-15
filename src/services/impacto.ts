@@ -3,26 +3,30 @@
  * servidor, para tela, relatório, painel e agente lerem o mesmo resultado. As respostas ficam em `tratamento_impacto`, fora do
  * conteúdo congelado da aprovação do RoPA. `dpia_required` continua decisão humana: aqui só se recomenda.
  */
+import { ehLegitimoInteresse } from './lia';
+import { SQL_TITULOS_ADICIONAIS } from './bases';
+
 export type RespostaImpacto = 'sim' | 'nao' | 'nao_sei';
 export type GrupoImpacto = 'geral' | 'especifico';
-export type PerguntaImpacto = { id: string; grupo: GrupoImpacto; texto: string };
+/** `curto` é o motivo em português, para a recomendação na tela ("há dados sensíveis"). */
+export type PerguntaImpacto = { id: string; grupo: GrupoImpacto; texto: string; curto: string };
 export type Recomendacao = { resultado: 'recomendado' | 'dispensavel_a_confirmar' | 'incompleto'; motivos: string[] };
 
 /** 2 perguntas de critério geral e 11 de critério específico. Texto fiel ao legado; a revisão jurídica é do dono. */
 export const PERGUNTAS_IMPACTO: readonly PerguntaImpacto[] = [
-  { id: 'afeta_direitos', grupo: 'geral', texto: 'O tratamento pode afetar significativamente interesses e direitos dos titulares?' },
-  { id: 'larga_escala', grupo: 'geral', texto: 'Será realizado o tratamento de qualquer tipo de dados pessoais em larga escala?' },
-  { id: 'sensiveis', grupo: 'especifico', texto: 'Será realizado o tratamento de dados pessoais sensíveis dos titulares, ou seja, informações sobre origem racial ou étnica, convicção religiosa, opinião política, filiação a sindicato ou a organização de caráter religioso, filosófico ou político, dado referente à saúde ou à vida sexual, dado genético ou biométrico, quando vinculado a uma pessoa natural?' },
-  { id: 'vulneraveis', grupo: 'especifico', texto: 'Será realizado o tratamento de dados pessoais sobre indivíduos vulneráveis?' },
-  { id: 'finalidade_distinta', grupo: 'especifico', texto: 'O projeto envolve a utilização de dados pessoais para finalidade distinta daquela pela qual foi coletado?' },
-  { id: 'compartilhamento_novo', grupo: 'especifico', texto: 'O projeto envolve o compartilhamento de dados pessoais com terceiros que não tinham acesso aos dados anteriormente?' },
-  { id: 'monitoramento', grupo: 'especifico', texto: 'Será realizado o monitoramento sistemático de titulares de dados pessoais?' },
-  { id: 'perfilizacao', grupo: 'especifico', texto: 'O projeto incluirá a avaliação (perfilização) ou pontuação (scoring) dos titulares de dados pessoais?' },
-  { id: 'combinacao', grupo: 'especifico', texto: 'Conjuntos de dados pessoais serão combinados ou enriquecidos?' },
-  { id: 'transferencia', grupo: 'especifico', texto: 'Existirá transferência de dados pessoais para fora do território nacional brasileiro?' },
-  { id: 'tecnologia_inovadora', grupo: 'especifico', texto: 'Durante o tratamento de dados pessoais serão empregadas soluções tecnológicas ou organizacionais inovadoras?' },
-  { id: 'decisao_automatizada', grupo: 'especifico', texto: 'O projeto incluirá o uso de dados pessoais para tomada de decisão automatizada com efeito legal ou significativamente similar?' },
-  { id: 'legitimo_interesse', grupo: 'especifico', texto: 'O fundamento legal para o tratamento de dados é legítimo interesse?' },
+  { id: 'afeta_direitos', grupo: 'geral', texto: 'O tratamento pode afetar significativamente interesses e direitos dos titulares?', curto: 'pode afetar significativamente os direitos dos titulares' },
+  { id: 'larga_escala', grupo: 'geral', texto: 'Será realizado o tratamento de qualquer tipo de dados pessoais em larga escala?', curto: 'o tratamento é em larga escala' },
+  { id: 'sensiveis', grupo: 'especifico', texto: 'Será realizado o tratamento de dados pessoais sensíveis dos titulares, ou seja, informações sobre origem racial ou étnica, convicção religiosa, opinião política, filiação a sindicato ou a organização de caráter religioso, filosófico ou político, dado referente à saúde ou à vida sexual, dado genético ou biométrico, quando vinculado a uma pessoa natural?', curto: 'há dados sensíveis' },
+  { id: 'vulneraveis', grupo: 'especifico', texto: 'Será realizado o tratamento de dados pessoais sobre indivíduos vulneráveis?', curto: 'há dados de pessoas vulneráveis' },
+  { id: 'finalidade_distinta', grupo: 'especifico', texto: 'O projeto envolve a utilização de dados pessoais para finalidade distinta daquela pela qual foi coletado?', curto: 'os dados são usados para finalidade distinta da coleta' },
+  { id: 'compartilhamento_novo', grupo: 'especifico', texto: 'O projeto envolve o compartilhamento de dados pessoais com terceiros que não tinham acesso aos dados anteriormente?', curto: 'há compartilhamento com terceiros que não tinham acesso' },
+  { id: 'monitoramento', grupo: 'especifico', texto: 'Será realizado o monitoramento sistemático de titulares de dados pessoais?', curto: 'há monitoramento sistemático' },
+  { id: 'perfilizacao', grupo: 'especifico', texto: 'O projeto incluirá a avaliação (perfilização) ou pontuação (scoring) dos titulares de dados pessoais?', curto: 'há perfilização ou pontuação dos titulares' },
+  { id: 'combinacao', grupo: 'especifico', texto: 'Conjuntos de dados pessoais serão combinados ou enriquecidos?', curto: 'conjuntos de dados são combinados ou enriquecidos' },
+  { id: 'transferencia', grupo: 'especifico', texto: 'Existirá transferência de dados pessoais para fora do território nacional brasileiro?', curto: 'há transferência internacional' },
+  { id: 'tecnologia_inovadora', grupo: 'especifico', texto: 'Durante o tratamento de dados pessoais serão empregadas soluções tecnológicas ou organizacionais inovadoras?', curto: 'há tecnologia ou solução inovadora' },
+  { id: 'decisao_automatizada', grupo: 'especifico', texto: 'O projeto incluirá o uso de dados pessoais para tomada de decisão automatizada com efeito legal ou significativamente similar?', curto: 'há decisão automatizada com efeito relevante' },
+  { id: 'legitimo_interesse', grupo: 'especifico', texto: 'O fundamento legal para o tratamento de dados é legítimo interesse?', curto: 'a base é o legítimo interesse' },
 ];
 const IDS = new Set(PERGUNTAS_IMPACTO.map((p) => p.id));
 export const ehPerguntaDeImpacto = (id: string) => IDS.has(id);
@@ -41,22 +45,49 @@ export function recomendarRipd(respostas: Record<string, RespostaImpacto | undef
 }
 
 export type Impacto = {
-  perguntas: { id: string; grupo: GrupoImpacto; texto: string; resposta: RespostaImpacto | null }[];
+  perguntas: { id: string; grupo: GrupoImpacto; texto: string; curto: string; resposta: RespostaImpacto | null; da_atividade: RespostaImpacto | null }[];
   recomendacao: Recomendacao;
   finalizado_em: string | null;
 };
 
-/** O teste do tratamento (catálogo com as respostas gravadas), ou null se o registro não é do projeto. */
+type DadosDaAtividade = {
+  dados_sensiveis: number | null; criancas_adolescentes: number | null; international_transfers: number | null; transferencias: number;
+  legal_basis: string | null; base_titulo: string | null; adicionais: string | null; base_gdpr: string | null;
+};
+
+/**
+ * O que a atividade já responde do teste, para a tela não perguntar de novo. Só o que a origem GARANTE: a marca 1 é sempre escolha
+ * de alguém, mas o 0 também é o padrão de quem não respondeu (importação, edição avançada), então sensível, criança e transferência
+ * só propõem "sim". O legítimo interesse propõe "não" quando há base e nenhuma delas é legítimo interesse. Larga escala, decisão
+ * automatizada e as demais não têm coluna: ficam com a pessoa. Nada disso é gravado nem entra na recomendação até a pessoa confirmar.
+ */
+export function respostasDaAtividade(a: DadosDaAtividade): Record<string, RespostaImpacto> {
+  const out: Record<string, RespostaImpacto> = {};
+  if (a.dados_sensiveis) out.sensiveis = 'sim';
+  if (a.criancas_adolescentes) out.vulneraveis = 'sim';
+  if (a.international_transfers || a.transferencias > 0) out.transferencia = 'sim';
+  if (ehLegitimoInteresse(a.legal_basis, a.base_titulo, a.adicionais, a.base_gdpr)) out.legitimo_interesse = 'sim';
+  else if (String(a.legal_basis || a.base_titulo || '').trim()) out.legitimo_interesse = 'nao';
+  return out;
+}
+
+/** O teste do tratamento (catálogo com as respostas gravadas e o que a atividade já responde), ou null se o registro não é do projeto. */
 export async function lerImpacto(db: D1Database, projectId: string, ropaId: string): Promise<Impacto | null> {
-  const rec = await db.prepare('SELECT impacto_finalizado_em FROM ropa_records WHERE id = ? AND project_id = ?')
-    .bind(ropaId, projectId).first<{ impacto_finalizado_em: string | null }>();
+  const rec = await db.prepare(
+    `SELECT r.impacto_finalizado_em, r.dados_sensiveis, r.criancas_adolescentes, r.international_transfers, r.legal_basis, r.base_gdpr,
+            q.titulo AS base_titulo, ${SQL_TITULOS_ADICIONAIS} AS adicionais,
+            (SELECT count(*) FROM tratamento_transferencias t WHERE t.ropa_id = r.id AND t.project_id = r.project_id) AS transferencias
+       FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.id = ? AND r.project_id = ?`
+  ).bind(ropaId, projectId).first<DadosDaAtividade & { impacto_finalizado_em: string | null }>();
   if (!rec) return null;
   const { results } = await db.prepare('SELECT pergunta, resposta FROM tratamento_impacto WHERE ropa_id = ? AND project_id = ?')
     .bind(ropaId, projectId).all<{ pergunta: string; resposta: RespostaImpacto }>();
   // Pergunta que saiu do catálogo fica no banco, mas não conta nem aparece.
   const respostas: Record<string, RespostaImpacto> = Object.fromEntries(results.filter((l) => IDS.has(l.pergunta)).map((l) => [l.pergunta, l.resposta]));
+  const daAtividade = respostasDaAtividade(rec);
   return {
-    perguntas: PERGUNTAS_IMPACTO.map((p) => ({ ...p, resposta: respostas[p.id] ?? null })),
+    // `resposta` é só o gravado (a importação e o RIPD leem assim); `da_atividade` é proposta, à espera da pessoa.
+    perguntas: PERGUNTAS_IMPACTO.map((p) => ({ ...p, resposta: respostas[p.id] ?? null, da_atividade: daAtividade[p.id] ?? null })),
     recomendacao: recomendarRipd(respostas),
     finalizado_em: rec.impacto_finalizado_em,
   };
