@@ -1590,6 +1590,7 @@ textarea:focus-visible {
 .titulo-secao { margin-bottom: 1rem; font-family: var(--font-head); font-weight: 600; font-size: 14px; color: var(--text); }
 /* Ações da linha de Projetos: Módulos… sempre na primeira coluna */
 .acoes-linha { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.doc-acoes { margin-bottom: 1rem; }
 
 /* ——— Confirmação na própria tela (confirmar/pedirTexto em ui.js) ———
    Camada acima do #modal (1000) e do drawer de DoD (1500), abaixo do toast (9000): a janela de baixo fica intacta. */

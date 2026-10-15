@@ -248,6 +248,18 @@ describe('ações do detalhe', () => {
         expect(chamadas(f).some((k) => k === 'POST /api/v1/projects/p9/documentos/p1/versoes')).toBe(false);
     });
 
+    it('ações do documento: uma à vista (pedir aprovação), o resto no "Mais ações"; aposentar por último, separado', async () => {
+        S.user = { role: 'consultor' };
+        await abrirDetalhe();
+        const caixa = el('modal-content').querySelector('.doc-acoes');
+        const visiveis = [...caixa.querySelectorAll('button')].filter((b) => !b.closest('[role="menu"]'));
+        expect(visiveis.map((b) => b.textContent.trim())).toEqual(['Pedir aprovação', 'Mais ações']);
+        const itens = [...caixa.querySelectorAll('[role="menuitem"]')];
+        expect(itens.map((b) => b.textContent.trim())).toEqual(['Marcar como revisado', 'Pedir ciência por link', 'Aposentar']);
+        expect(itens[2].classList.contains('perigo')).toBe(true);
+        expect(caixa.querySelector('[role="separator"]').nextElementSibling).toBe(itens[2]);
+    });
+
     it('pedir aprovação abre o pedido de documento; só quem pede vê o botão', async () => {
         await abrirDetalhe();
         window.abrirPedidoAprovacao = vi.fn();

@@ -208,16 +208,20 @@ window.openDocumentoModal = async function (projectId, id) {
     const aprovacao = d.aprovacao || {};
     const linhaAprovacao = (rotulo, ap) => `<div style="font-size:0.85rem">${rotulo}: ${ap ? `${escapeHTML(ap.por)} em ${escapeHTML(String(ap.em).slice(0, 10))}` : 'sem aprovação desta versão'}</div>`;
 
-    const acoes = [];
-    if (editar && d.status === 'vigente' && d.revisar_a_cada_meses) acoes.push(`<button class="btn btn-sm" data-action="marcarDocumentoRevisado" data-args='${args(projectId, id)}'>Marcar como revisado</button>`);
-    if (podePedir() && d.status === 'vigente') {
-        acoes.push(`<button class="btn btn-sm" data-action="pedirAprovacaoDocumento" data-args='${args(projectId, id)}'>Pedir aprovação</button>`);
-        acoes.push(`<button class="btn btn-sm" data-action="abrirCienciaLink" data-args='${args(projectId)}'>Pedir ciência por link</button>`);
-    }
-    if (editar && d.status === 'vigente') acoes.push(`<button class="btn btn-sm" data-action="mudarStatusDocumento" data-args='${args(projectId, id, 'obsoleto')}'>Aposentar</button>`);
-    if (editar && d.status === 'obsoleto') acoes.push(`<button class="btn btn-sm" data-action="mudarStatusDocumento" data-args='${args(projectId, id, 'vigente')}'>Reativar</button>`);
-    // Só o que nunca foi publicado se exclui (o servidor confere pedido e exceção); o resto se aposenta.
-    if (S.user && S.user.role === 'platform_admin' && d.status === 'rascunho') acoes.push(`<button class="btn btn-sm" data-action="excluirDocumento" data-args='${args(projectId, id)}'>Excluir</button>`);
+    // Uma ação à vista (pedir aprovação, ou a primeira que houver); as outras no "Mais ações", com aposentar e excluir por
+    // último e separados: "Marcar como revisado" não fica mais ao lado de "Aposentar".
+    const emVigor = d.status === 'vigente';
+    const itensAcao = [
+        podePedir() && emVigor && { rotulo: 'Pedir aprovação', action: 'pedirAprovacaoDocumento', args: [projectId, id] },
+        editar && emVigor && d.revisar_a_cada_meses && { rotulo: 'Marcar como revisado', action: 'marcarDocumentoRevisado', args: [projectId, id] },
+        podePedir() && emVigor && { rotulo: 'Pedir ciência por link', action: 'abrirCienciaLink', args: [projectId] },
+        editar && d.status === 'obsoleto' && { rotulo: 'Reativar', action: 'mudarStatusDocumento', args: [projectId, id, 'vigente'] },
+        editar && emVigor && { rotulo: 'Aposentar', action: 'mudarStatusDocumento', args: [projectId, id, 'obsoleto'], perigo: true },
+        // Só o que nunca foi publicado se exclui (o servidor confere pedido e exceção); o resto se aposenta.
+        S.user && S.user.role === 'platform_admin' && d.status === 'rascunho' && { rotulo: 'Excluir', action: 'excluirDocumento', args: [projectId, id], perigo: true },
+    ].filter(Boolean);
+    const aVista = itensAcao.find((i) => !i.perigo);
+    const acoes = itensAcao.length ? `<div class="doc-acoes acoes-linha">${aVista ? `<button class="btn btn-sm" data-action="${aVista.action}" data-args='${escapeHTML(JSON.stringify(aVista.args))}'>${aVista.rotulo}</button>` : ''}${window.renderMaisAcoes(itensAcao.filter((i) => i !== aVista))}</div>` : '';
 
     const editor = editar ? `
         <div class="form-group" style="margin-top:1rem"><label class="form-label">Texto (salva como rascunho; publicar é um passo à parte)</label>
@@ -233,7 +237,7 @@ window.openDocumentoModal = async function (projectId, id) {
             ${linhaAprovacao('Líder SGSI', aprovacao.ciso)}
             ${linhaAprovacao('Direção', aprovacao.ceo)}
         </div>
-        ${acoes.length ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1rem">${acoes.join('')}</div>` : ''}
+        ${acoes}
         ${editor}
         <h4 style="margin:1.25rem 0 0.5rem">Versões</h4>
         ${versoes.length ? versoes.map((v) => `
