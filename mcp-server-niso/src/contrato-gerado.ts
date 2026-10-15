@@ -10,12 +10,13 @@
 
 export const ROTAS = {
   'PATCH /api/v1/projects/{id}/controls': { obrigatorios: [] },
-  'POST /api/v1/admin/users': { obrigatorios: ['email', 'name', 'password', 'role'] },
+  'POST /api/v1/admin/users': { obrigatorios: ['email', 'name', 'role'] },
   'POST /api/v1/assessments': { obrigatorios: [] },
   'POST /api/v1/assessments/{id}/block/{num}': { obrigatorios: ['answers'] },
   'POST /api/v1/assessments/public/{token}/answers': { obrigatorios: ['answers', 'block'] },
   'POST /api/v1/audits/{auditId}/findings': { obrigatorios: ['description', 'finding_type', 'project_id'] },
   'POST /api/v1/auth/change-password': { obrigatorios: ['newPassword', 'oldPassword'] },
+  'POST /api/v1/auth/criar-senha': { obrigatorios: ['newPassword', 'token'] },
   'POST /api/v1/auth/forgot-password': { obrigatorios: ['email'] },
   'POST /api/v1/auth/login': { obrigatorios: ['email', 'password'] },
   'POST /api/v1/auth/mfa/activate': { obrigatorios: ['codigo'] },

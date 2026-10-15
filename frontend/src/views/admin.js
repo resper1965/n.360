@@ -187,8 +187,9 @@ window.__adminCopiarApiKey = () => {
                         escapeHTML(projectName),
                         escapeHTML(window.nomeOrgDe?.(u.org) || '—'),
                         escapeHTML(rotuloModulos(u.modulos)),
-                        window.renderStatusBadge(contaAtiva(u) ? 'Ativa' : 'Desativada', contaAtiva(u) ? 'success' : 'info'),
+                        window.renderStatusBadge(!contaAtiva(u) ? 'Desativada' : u.convite_pendente ? 'Convite pendente' : 'Ativa', contaAtiva(u) && !u.convite_pendente ? 'success' : 'info'),
                         `<button class="btn btn-ghost btn-sm" data-action="openUserModal" data-args='["${u.id}"]'>Editar</button>
+                         ${u.convite_pendente ? `<button class="btn btn-ghost btn-sm" data-action="reenviarConviteUsuario" data-args='["${u.id}"]'>Reenviar convite</button>` : ''}
                          ${propria(u) ? '' : `<button class="btn btn-ghost btn-sm" data-action="confirmarContaAtiva" data-args='["${u.id}"]'>${contaAtiva(u) ? 'Desativar' : 'Reativar'}</button>`}
                          ${S.user && S.user.role === 'platform_admin' && !propria(u) ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="confirmarExclusaoDefinitiva" data-args='["${u.id}"]'>Excluir definitivamente</button>` : ''}`
                     ];
@@ -309,6 +310,16 @@ window.__adminCopiarApiKey = () => {
         }
     }
 
+    async function reenviarConviteUsuario(id) {
+        try {
+            const r = await api('POST', `/api/v1/users/${id}/reenviar-convite`, {});
+            showToast(r && r.emailEnviado === false ? 'O convite não saiu por e-mail. Tente de novo mais tarde.' : 'Convite reenviado. O link anterior deixou de valer.', r && r.emailEnviado === false ? 'error' : undefined);
+            render();
+        } catch (e) {
+            showToast('Erro ao reenviar o convite: ' + e.message, 'error');
+        }
+    }
+
     async function openUserModal(userId) {
         let user = null;
         let tetoModulos = [];
@@ -426,10 +437,10 @@ window.__adminCopiarApiKey = () => {
                     <label class="form-label">E-mail</label>
                     <input type="email" id="user-m-email" class="form-input" value="${user ? escapeHTML(user.email) : ''}" placeholder="usuario@empresa.com" ${user && S.user?.role !== 'platform_admin' ? 'readonly style="opacity: 0.6"' : ''}>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Senha ${user ? '(Deixe em branco para manter a atual)' : ''}</label>
-                    <input type="password" id="user-m-password" class="form-input" placeholder="••••••••">
-                </div>
+                ${user ? `<div class="form-group">
+                    <label class="form-label" for="user-m-password">Senha (deixe em branco para manter a atual)</label>
+                    <input type="password" id="user-m-password" class="form-input" placeholder="••••••••" autocomplete="new-password">
+                </div>` : '<p class="org-dica" id="user-m-convite-nota">A pessoa recebe um e-mail com o link para criar a própria senha (vale 72 horas). Ninguém mais conhece a senha.</p>'}
                 <div class="form-group">
                     <label class="form-label">Papel (Role)</label>
                     <select id="user-m-role" class="form-input" data-action-change="toggleUserProjectSelect" data-arg-val>
@@ -482,7 +493,8 @@ window.__adminCopiarApiKey = () => {
     window.saveUser = async function(id) {
         const name = document.getElementById('user-m-name').value.trim();
         const email = document.getElementById('user-m-email').value.trim();
-        const password = document.getElementById('user-m-password').value;
+        const campoSenha = document.getElementById('user-m-password');
+        const password = campoSenha ? campoSenha.value : '';
         const role = document.getElementById('user-m-role').value;
         const projectEl = document.getElementById('user-m-project');
         const client_project_id = projectEl ? (projectEl.value || null) : null;
@@ -492,13 +504,9 @@ window.__adminCopiarApiKey = () => {
             return;
         }
 
-        if (!id && !password) {
-            showToast('A senha é obrigatória para novos usuários.', 'error');
-            return;
-        }
-
         const payload = { name, email, role, client_project_id };
-        if (password) {
+        // Só na edição: a conta nova nasce sem senha e a pessoa a cria pelo link do convite.
+        if (id && password) {
             payload.password = password;
         }
         // Caixas de módulo (só as habilitadas, dentro do teto). Na criação vai `modulos` se marcou algum; na edição, o PUT
@@ -514,8 +522,8 @@ window.__adminCopiarApiKey = () => {
                 showToast('Usuário atualizado com sucesso');
             } else {
                 if (marcados.length) payload.modulos = marcados;
-                await api('POST', '/api/v1/users', payload);
-                showToast('Usuário criado com sucesso');
+                const r = await api('POST', '/api/v1/users', payload);
+                showToast(r && r.emailEnviado === false ? 'Usuário criado, mas o e-mail do convite não saiu: use "Reenviar convite".' : 'Usuário criado. O convite foi enviado por e-mail.', r && r.emailEnviado === false ? 'error' : undefined);
             }
             closeModal();
             render();
@@ -657,6 +665,7 @@ window.savePricingConfig = savePricingConfig;
 window.alternarDesativadas = alternarDesativadas;
 window.__usuariosFiltrarOrg = (id) => { filtroOrg = id || ''; render(); };
 window.confirmarContaAtiva = confirmarContaAtiva;
+window.reenviarConviteUsuario = reenviarConviteUsuario;
 window.definirContaAtiva = definirContaAtiva;
 window.confirmarExclusaoDefinitiva = confirmarExclusaoDefinitiva;
 window.excluirContaDefinitiva = excluirContaDefinitiva;

@@ -150,8 +150,18 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   de volta para `niso` (o Worker e o frontend deixam de redirecionar: o host do `APP_URL` nunca redireciona, e o frontend le o
   `app_url` do `/health`). Sem dado nem migration; o widget do Turnstile precisa ter os dois hostnames.
 - **Nomes padronizados**: `normalizarNome` (`src/services/nomes.ts`) roda ao gravar parte, departamento e ativo (esquemas em `src/schemas/nucleo.ts` e os gravadores que os contornam: `partes.ts`, `vendors.ts`, `encarregado-pessoa.ts`, `importacao.ts`, `itens.ts`). Gravador novo de nome passa por ela. O que ja estava gravado se arruma em Partes > Mais > Padronizar nomes (`src/services/padronizar-nomes.ts`); nada e unido sozinho.
-- **E-mail**: todo e-mail sai de `montarEmail` (`src/services/email-layout.ts`, o invólucro: tabela de 600px, fundo claro, marca do produto e `ness.` com o ponto em #00ade8, "Quem pede", "O que fazer", "Até quando" em dd/mm/aaaa de Brasília, botão #0b1326 com texto branco, link em texto, rodapé com o motivo e o contato, e a versão em texto puro). O texto de cada e-mail mora em `src/services/emails.ts` (o resumo de prazos em `avisos-prazo.ts`); `enviarEmail` exige `{ html, text }`. Remetente sempre `@ness.com.br`: `remetente(produto, quem)` dá "Cliente via n.360" ou "n.360 | ness.", e `replyTo` vai para quem pediu. E-mail novo entra em `emails.ts`, ganha amostra em `scripts/emails-amostra.mjs` (gera `docs/design/emails/`) e teste em `test/emails-marca.test.ts`. Pendência: o convite ainda leva a senha temporária no corpo (não há definição de senha por link).
+- **E-mail**: todo e-mail sai de `montarEmail` (`src/services/email-layout.ts`, o invólucro: tabela de 600px, fundo claro, marca do produto e `ness.` com o ponto em #00ade8, "Quem pede", "O que fazer", "Até quando" em dd/mm/aaaa de Brasília, botão #0b1326 com texto branco, link em texto, rodapé com o motivo e o contato, e a versão em texto puro). O texto de cada e-mail mora em `src/services/emails.ts` (o resumo de prazos em `avisos-prazo.ts`); `enviarEmail` exige `{ html, text }`. Remetente sempre `@ness.com.br`: `remetente(produto, quem)` dá "Cliente via n.360" ou "n.360 | ness.", e `replyTo` vai para quem pediu. E-mail novo entra em `emails.ts`, ganha amostra em `scripts/emails-amostra.mjs` (gera `docs/design/emails/`) e teste em `test/emails-marca.test.ts`. O convite não leva senha: leva o link de criar a senha (ver Contas).
 - **Contas**: conta de usuario se **desativa**, nao se apaga (`PUT /api/v1/users/:id/ativo`; `DELETE /api/v1/users/:id` so desativa). Apagar de verdade e `DELETE ...?definitivo=1`, so `platform_admin`; conta com historico (FK sem cascata, ex. marcacoes de checklist e aceites de termo) e ANONIMIZADA em vez de apagada: fica sem identidade e sem acesso, o e-mail e liberado e a trilha leva `user.anonimizado`. Conta desativada nao entra por senha, SSO, agente MCP nem sessao aberta; chave de API e do projeto, nao da pessoa, e continua valendo ate ser revogada em Chaves de API. Ninguem desativa nem exclui a propria conta (409). Nao reintroduza `DELETE FROM users` fora dessa rota.
+  **Convite com link (15/10/2026, migration 0077):** conta nova (`POST /users`, organizacao nova e seu reenvio, convite de stakeholder) nasce SEM
+  senha utilizavel (`SEM_SENHA` = `convite:sem-senha-local`, que `verifyPassword` nunca casa) e com `requires_password_change = 1`;
+  `enviarBoasVindas` (`src/routes/users.ts`) emite o convite (`src/services/convite.ts`: `genToken`, so o SHA-256 em `convites_senha`, 72 h,
+  uma linha por conta) e o e-mail leva `appUrl/#convite=<token>` (fragmento) e nunca senha. A tela (`consumirConvite`/`doCriarSenha` em
+  `frontend/src/globals.js`, caixa `criar-senha-box` em `login.html`) manda o token no CORPO de `POST /api/v1/auth/criar-senha` (publico,
+  10 por IP a cada 10 min, `criarSenhaSchema` com a politica de senha de sempre) e entra pelo login normal. Uso unico pelo `DELETE ... RETURNING`;
+  reenviar (`POST /users/:id/reenviar-convite`, quem gere a conta, 5/h por conta, so com primeiro acesso pendente) substitui a linha e
+  invalida o link anterior. Token desconhecido, vencido, usado, substituido, de conta desativada ou de SSO/SCIM: a MESMA resposta 400.
+  Dominio de e-mail com SSO ativo (`configPorDominio`) nao ganha link. `password` no `POST /users` e aceito e IGNORADO. Trilha
+  `auth.senha_criada_convite` e `user.convite_reenviado`, sem o token. Anonimizar apaga o convite. Teste: `test/convite-senha.test.ts`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
@@ -197,9 +207,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     com `/api/v1/public/homologacao/*` (`src/routes/public-homologacao.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **92 tabelas** (2026-10-15: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **93 tabelas** (2026-10-15: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0076** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0077** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`

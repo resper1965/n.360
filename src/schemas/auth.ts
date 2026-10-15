@@ -47,6 +47,12 @@ export const resetRequestSchema = z.object({
   email: emailNormalizado()
 });
 
+/** Criar a senha pelo link do convite: o token (hex de `genToken`) vem no CORPO, nunca na URL. Mesma política de senha. */
+export const criarSenhaSchema = z.object({
+  token: z.string().regex(/^[0-9a-f]{64}$/, 'Link inválido ou expirado'),
+  newPassword: senhaNovaSchema,
+}).strict();
+
 export const resetConfirmSchema = z.object({
   token: z.string().min(1, 'Token é obrigatório'),
   newPassword: senhaNovaSchema

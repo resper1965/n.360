@@ -31,6 +31,14 @@ const ok = async (r: Response, status = 200) => { expect(r.status, await r.clone
 
 /** Login real; no primeiro acesso, define a senha nova pela rota obrigatória. */
 async function entrar(email: string, senha: string): Promise<Cab> {
+  // Conta convidada: a senha nasce pelo link do convite (o token sai do banco por ser teste; em produção, do e-mail).
+  const convite = await db().prepare('SELECT 1 FROM convites_senha c JOIN users u ON u.id = c.user_id WHERE u.email = ?').bind(email).first();
+  if (convite) {
+    const token = 'f'.repeat(64);
+    await db().prepare(`UPDATE convites_senha SET token_hash = ? WHERE user_id = (SELECT id FROM users WHERE email = ?)`).bind(await sha256Hex(token), email).run();
+    await ok(await chamar({}, 'POST', '/api/v1/auth/criar-senha', { token, newPassword: SENHA_NOVA }));
+    senha = SENHA_NOVA;
+  }
   const login = await ok(await chamar({}, 'POST', '/api/v1/auth/login', { email, password: senha }));
   const h = { Authorization: `Bearer ${login.token}` };
   if (login.requiresPasswordChange) await ok(await chamar(h, 'POST', '/api/v1/auth/reset-password-first', { newPassword: SENHA_NOVA }));

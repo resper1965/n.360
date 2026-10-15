@@ -12,21 +12,23 @@ const com = (assunto: string, m: Omit<Parameters<typeof montarEmail>[0], 'assunt
 const ola = (nome?: string | null) => (nome ? `Olá, ${nome},` : 'Olá,');
 
 /**
- * Convite de primeiro acesso. ponytail: a senha temporária ainda vai no corpo porque não existe
- * definição de senha por link de uso único; quando existir, o e-mail leva o link e a senha sai daqui.
+ * Convite de primeiro acesso. Nunca leva senha: com `link`, o botão "Criar minha senha" (token de uso único no fragmento, 72 h);
+ * sem `link` (o domínio do e-mail entra por SSO), a pessoa entra pelo login único da empresa.
  */
-export function emailBoasVindas(d: { nome: string; email: string; senha: string; organizacao: string; convidante: Pessoa | null; url: string }): EmailComAssunto {
+export function emailBoasVindas(d: { nome: string; email: string; organizacao: string; convidante: Pessoa | null; url: string; link: string | null; horas: number }): EmailComAssunto {
   return com(`Seu acesso ao n.360 (${d.organizacao})`, {
     previa: `Sua conta no n.360 foi criada (organização: ${d.organizacao}).`,
     titulo: 'Seu acesso ao n.360 está pronto',
     saudacao: ola(d.nome),
     paragrafos: [`Você tem uma conta nova no n.360 (organização: ${d.organizacao}), a plataforma de governança, risco e conformidade da ness.`],
     quemPede: d.convidante ?? { organizacao: d.organizacao },
-    acao: 'Entrar com a senha temporária abaixo e criar a sua senha',
-    prazo: 'No primeiro acesso: a senha temporária vale para um login',
-    dados: [['E-mail', d.email], ['Senha temporária', d.senha]],
-    botao: { rotulo: 'Entrar no n.360', url: d.url },
-    notas: ['No primeiro login o n.360 pede uma senha nova. Não encaminhe este e-mail.'],
+    acao: d.link ? 'Abrir o link abaixo e criar a sua senha' : 'Entrar com o login único (SSO) da sua empresa, usando este e-mail',
+    prazo: d.link ? `${d.horas} horas a partir do envio deste e-mail` : null,
+    dados: [['E-mail', d.email]],
+    botao: d.link ? { rotulo: 'Criar minha senha', url: d.link } : { rotulo: 'Entrar no n.360', url: d.url },
+    notas: d.link
+      ? ['O link é pessoal e vale uma vez: não encaminhe este e-mail. Se ele vencer, peça um convite novo a quem convidou ou use "Esqueci a senha".']
+      : ['Sua empresa usa login único: não há senha do n.360 para criar.'],
     motivo: `uma conta com este endereço foi criada no n.360 (organização: ${d.organizacao}).`,
     contato: d.convidante?.email ? d.convidante : null,
   });

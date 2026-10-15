@@ -1,8 +1,9 @@
 import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
 
-import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, genToken, hashPassword, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto } from '../helpers';
+import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto } from '../helpers';
 import { enviarBoasVindas, nomeDaOrg } from './users';
+import { SEM_SENHA } from '../services/convite';
 import { ehDpo, garantirEncarregado, desfazerEncarregado } from '../services/encarregado-pessoa';
 import { validateBody, stakeholderSchema, governanceMemberSchema, companyProfileSchema, contextSchema, auditFindingSchema, auditFindingUpdateSchema, stakeholderAtualizarSchema, revisaoCriarSchema, revisaoAtualizarSchema, metricaCriarSchema, metricaAtualizarSchema, cienciaPoliticaSchema } from '../schemas';
 import { espelhoDoPerfilAntigo } from '../services/empresas';
@@ -272,18 +273,17 @@ governanceApp.post('/projects/:id/governance/:memberId/convidar', async (c) => {
 
     const org = (await c.env.DB.prepare('SELECT org_id FROM projects WHERE id = ?').bind(projectId).first<{ org_id: string }>())?.org_id;
     if (!org) return c.json({ error: 'Projeto não encontrado' }, 404);
-    const senha = genToken().slice(0, 24); // vale para um login: a troca é obrigatória
-    const hash = await hashPassword(senha);
-    // Reativação (conta revogada): senha provisória nova e troca obrigatória de novo.
+    // Sem senha até o link do convite ser usado. Reativação (conta revogada): convite novo e primeiro acesso de novo.
+    const id = conta?.id ?? genId();
     if (conta) {
-      await c.env.DB.prepare('UPDATE users SET ativo = 1, password_hash = ?, requires_password_change = 1 WHERE id = ?').bind(hash, conta.id).run();
+      await c.env.DB.prepare('UPDATE users SET ativo = 1, password_hash = ?, requires_password_change = 1 WHERE id = ?').bind(SEM_SENHA, conta.id).run();
     } else {
       await c.env.DB.prepare(
         `INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, requires_password_change) VALUES (?, ?, ?, ?, 'stakeholder', ?, ?, 1)`
-      ).bind(genId(), email, hash, membro.name, projectId, org).run();
+      ).bind(id, email, SEM_SENHA, membro.name, projectId, org).run();
     }
     await logAudit(c.env.DB, 'stakeholder.convidado', ator.email, `Acesso de stakeholder para ${email} no projeto ${projectId}`, '', '', projectId);
-    const emailEnviado = await enviarBoasVindas(c, email, membro.name, senha, await nomeDaOrg(c.env.DB, org)).catch(() => false);
+    const emailEnviado = await enviarBoasVindas(c, { id, email, name: membro.name }, await nomeDaOrg(c.env.DB, org)).catch(() => false);
     return c.json({ ok: true, emailEnviado }, conta ? 200 : 201);
   } catch (e: any) {
     if (String(e?.message).includes('UNIQUE')) return c.json({ error: 'Este e-mail já tem conta no n.iso' }, 409);

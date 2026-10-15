@@ -376,6 +376,63 @@ window.consumirRetornoSso = function consumirRetornoSso() {
     }
 };
 
+// ——— Convite: criar a senha pelo link do e-mail ————————————————————————————————
+// O token chega no FRAGMENTO (`#convite=`), que o navegador não manda ao servidor nem no Referer; sai do endereço na hora e vai
+// só no corpo do POST /auth/criar-senha. Depois de criar, entra pelo login normal (MFA, termos e o resto seguem valendo).
+let tokenConvite = null;
+
+/** Boot: com `#convite=<token>` no endereço, mostra o formulário de criar senha. Devolve true se mostrou. */
+window.consumirConvite = function consumirConvite() {
+    const m = (location.hash || '').match(/^#convite=([0-9a-f]{64})$/);
+    if (!m) return false;
+    history.replaceState(null, '', location.pathname + location.search);
+    tokenConvite = m[1];
+    ['standard-login-box', 'first-login-reset-box', 'mfa-login-box', 'forgot-password-box', 'legal-accept-box', 'reauth-box']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    document.getElementById('criar-senha-box').style.display = 'flex';
+    mostrarEntrada(true);
+    document.getElementById('convite-senha')?.focus();
+    return true;
+};
+
+function erroNoCampo(campoId, erroId, msg) {
+    const campo = document.getElementById(campoId);
+    const erro = document.getElementById(erroId);
+    if (campo) { if (msg) campo.setAttribute('aria-invalid', 'true'); else campo.removeAttribute('aria-invalid'); }
+    if (erro) { erro.textContent = msg || ''; erro.style.display = msg ? 'block' : 'none'; }
+}
+
+window.doCriarSenha = async function doCriarSenha() {
+    const senha = document.getElementById('convite-senha').value;
+    const confirma = document.getElementById('convite-confirma').value;
+    const geral = document.getElementById('convite-erro');
+    geral.style.display = 'none';
+    // A mesma política do servidor (senhaNovaSchema): de 8 a 200 caracteres.
+    const erroSenha = senha.length < 8 ? 'A senha precisa de pelo menos 8 caracteres.' : senha.length > 200 ? 'Senha longa demais.' : '';
+    const erroConfirma = !erroSenha && senha !== confirma ? 'As senhas não coincidem.' : '';
+    erroNoCampo('convite-senha', 'convite-senha-erro', erroSenha);
+    erroNoCampo('convite-confirma', 'convite-confirma-erro', erroConfirma);
+    if (erroSenha) { document.getElementById('convite-senha').focus(); return; }
+    if (erroConfirma) { document.getElementById('convite-confirma').focus(); return; }
+    if (!tokenConvite) { geral.textContent = 'Este link não vale mais. Peça um convite novo a quem convidou ou use "Esqueci a senha".'; geral.style.display = 'block'; return; }
+    let res;
+    try {
+        res = await api('POST', '/api/v1/auth/criar-senha', { token: tokenConvite, newPassword: senha });
+    } catch (e) {
+        geral.textContent = e.message || 'Não foi possível criar a senha.';
+        geral.style.display = 'block';
+        return;
+    }
+    tokenConvite = null;
+    document.getElementById('criar-senha-box').style.display = 'none';
+    document.getElementById('standard-login-box').style.display = 'flex';
+    document.getElementById('login-email').value = (res && res.email) || '';
+    document.getElementById('login-password').value = senha;
+    document.getElementById('convite-senha').value = '';
+    document.getElementById('convite-confirma').value = '';
+    await window.doLogin();
+};
+
 window.doLogin = async function doLogin() {
         const email = document.getElementById('login-email').value;
         const pass = document.getElementById('login-password').value;
@@ -1513,6 +1570,7 @@ window.initApp = async function initApp() {
         if (legado) { irPara(legado, true); return; }
 
         window.consumirRetornoSso();
+        if (window.consumirConvite()) return;
 
         // Sprint C: Check for public assessment self-service link
         const assessmentToken = new URLSearchParams(location.search).get('assessment');
@@ -1628,6 +1686,8 @@ window.showForgotPasswordForm = function() {
 
 window.showStandardLoginForm = function() {
         document.getElementById('standard-login-box').style.display = 'flex';
+        const convite = document.getElementById('criar-senha-box');
+        if (convite) convite.style.display = 'none';
         document.getElementById('first-login-reset-box').style.display = 'none';
         document.getElementById('forgot-password-box').style.display = 'none';
         document.getElementById('login-error').style.display = 'none';

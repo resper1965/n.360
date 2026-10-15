@@ -10,7 +10,8 @@ export function clientIp(c: any): string {
 }
 import { authMiddleware } from '../middleware/auth';
 import { modulosDaPessoa } from '../modulos';
-import { validateBody, loginSchema, setupSchema, resetRequestSchema, resetConfirmSchema, primeiroAcessoSchema, mudarSenhaSchema } from '../schemas';
+import { validateBody, loginSchema, setupSchema, resetRequestSchema, resetConfirmSchema, primeiroAcessoSchema, mudarSenhaSchema, criarSenhaSchema } from '../schemas';
+import { usarConvite } from '../services/convite';
 import {
   decisaoLogin, mensagemCredencialInvalida, mensagemBloqueio,
   BLOQUEIO_SEG, JANELA_FALHAS_SEG, type DecisaoLogin,
@@ -419,6 +420,34 @@ authApp.post('/reset-password', async (c) => {
     return c.json({ ok: true, message: 'Senha redefinida com sucesso.' });
   } catch (e: any) {
     return erro500(c, 'Erro ao redefinir senha', e);
+  }
+});
+
+/**
+ * Criar a senha pelo link do convite (público, sem sessão). Token no CORPO; desconhecido, vencido, usado, substituído ou de conta
+ * desativada/SSO dão a MESMA resposta (400), sem dizer se a conta existe. Limite por IP antes de ler o corpo. Depois de criar, a
+ * tela entra pelo login normal (MFA, aceite de termos e tudo o mais seguem valendo); a resposta leva só o e-mail da conta do token.
+ */
+const CONVITE_INVALIDO = { error: 'Este link não vale mais. Peça um convite novo a quem convidou ou use "Esqueci a senha".' };
+authApp.post('/criar-senha', async (c) => {
+  try {
+    if (!(await rateLimitD1(c.env.DB, `criar-senha:ip:${clientIp(c)}`, 10, 600))) {
+      return c.json({ error: 'Muitas tentativas. Tente novamente mais tarde.' }, 429);
+    }
+    const v = await validateBody(c, criarSenhaSchema);
+    if (!v.success) {
+      // Token fora do formato é o mesmo link inválido; senha fora da política devolve o erro do campo.
+      const body = await c.req.json().catch(() => ({}));
+      if (typeof body?.token !== 'string' || !/^[0-9a-f]{64}$/.test(body.token)) return c.json(CONVITE_INVALIDO, 400);
+      return v.response;
+    }
+    const conta = await usarConvite(c.env.DB, v.data.token, v.data.newPassword);
+    if (!conta) return c.json(CONVITE_INVALIDO, 400);
+    await invalidateUserSessions(c.env.SESSIONS, conta.id);
+    await logAudit(c.env.DB, 'auth.senha_criada_convite', conta.email, 'Senha criada pelo link do convite');
+    return c.json({ ok: true, email: conta.email });
+  } catch (e) {
+    return erro500(c, 'Erro ao criar a senha', e);
   }
 });
 
