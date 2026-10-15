@@ -1,6 +1,7 @@
 import { FAIXA_DA_TABELA, modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo, type Modulo } from './modulos';
 import { log, requestId, resumoErro } from './observability';
 import { orgDoUsuario } from './services/organizacao';
+import { REMETENTE_PADRAO, type EmailMontado } from './services/email-layout';
 
 /**
  * Negação de acesso — um TIPO, não um prefixo de mensagem.
@@ -710,8 +711,9 @@ export async function rateLimitD1(db: D1Database, key: string, max: number, wind
  * Sem RESEND_API_KEY, simula em log (dev) só com o domínio do destinatário e o assunto: o corpo leva link de convite,
  * código e token de proposta. A simulação devolve `true`; quem precisa saber se o e-mail saiu de
  * verdade confere a chave antes (propostas, avisos de prazo).
+ * O corpo sai sempre de `montarEmail` (services/email-layout.ts): HTML e texto puro, com marca e rodapé.
  */
-export async function enviarEmail(env: { RESEND_API_KEY?: string }, to: string, subject: string, html: string, opcoes?: { from?: string; replyTo?: string }): Promise<boolean> {
+export async function enviarEmail(env: { RESEND_API_KEY?: string }, to: string, subject: string, corpo: EmailMontado, opcoes?: { from?: string; replyTo?: string }): Promise<boolean> {
   const apiKey = env.RESEND_API_KEY;
   if (!apiKey) {
     console.log(`[EMAIL SIMULATION] Envio para o domínio: ${to.split('@')[1] ?? '?'}
@@ -726,10 +728,11 @@ Assunto: ${subject}`);
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: opcoes?.from ?? 'n.iso <noreply@ness.com.br>',
+        from: opcoes?.from ?? REMETENTE_PADRAO,
         to: [to],
         subject: subject,
-        html: html,
+        html: corpo.html,
+        text: corpo.text,
         ...(opcoes?.replyTo ? { reply_to: opcoes.replyTo } : {}),
       })
     });
@@ -747,8 +750,8 @@ Assunto: ${subject}`);
 }
 
 /** O mesmo envio a partir do contexto da requisição (as rotas). */
-export function sendEmail(c: { env: { RESEND_API_KEY?: string } }, to: string, subject: string, html: string, opcoes?: { from?: string; replyTo?: string }): Promise<boolean> {
-  return enviarEmail(c.env, to, subject, html, opcoes);
+export function sendEmail(c: { env: { RESEND_API_KEY?: string } }, to: string, subject: string, corpo: EmailMontado, opcoes?: { from?: string; replyTo?: string }): Promise<boolean> {
+  return enviarEmail(c.env, to, subject, corpo, opcoes);
 }
 
 export async function hashPassword(password: string, salt?: string): Promise<string> {

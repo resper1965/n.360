@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { genId, genToken, genNumericCode, rateLimit, rateLimitD1, hashPassword, verifyPassword, logAudit, sendEmail, escapeHtml, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, SESSION_TTL_SEC, erro500 } from '../helpers';
+import { emailRedefinicaoSenha } from '../services/emails';
+import { genId, genToken, genNumericCode, rateLimit, rateLimitD1, hashPassword, verifyPassword, logAudit, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, SESSION_TTL_SEC, erro500 } from '../helpers';
 import { equipeDeOrgSuspensa, ORG_SUSPENSA } from '../services/organizacao';
 
 /** IP do cliente para rate limiting (Cloudflare popula CF-Connecting-IP) */
@@ -361,19 +362,8 @@ authApp.post('/forgot-password', async (c) => {
     // O código NÃO vai para o log: com a observabilidade ligada, quem lê os logs
     // trocaria a senha de qualquer conta. Falha de envio é registrada no sendEmail.
 
-    const emailHtml = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e7; border-radius: 10px; color: #333;">
-        <h2 style="color: #00ade8; font-weight: 500; margin-top: 0; text-align: center;">Recuperação de senha · n.iso</h2>
-        <p>Olá, <strong>${escapeHtml(user.name)}</strong>,</p>
-        <p>Você solicitou a redefinição de sua senha de acesso ao portal do <strong>n.iso</strong>.</p>
-        <p>Use o código de verificação de 6 dígitos abaixo para concluir a alteração (válido por 1 hora):</p>
-        <div style="background-color: #f4f4f7; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center; font-family: monospace; font-size: 2rem; letter-spacing: 5px; font-weight: bold; color: #00ade8;">
-          ${token}
-        </div>
-        <p style="color: #8e8e93; font-size: 0.85rem; text-align: center;">Se você não solicitou esta redefinição, por favor desconsidere este e-mail de forma segura.</p>
-      </div>
-    `;
-    await sendEmail(c, user.email, 'Recuperação de senha · n.iso', emailHtml);
+    const m = emailRedefinicaoSenha({ nome: user.name ?? null, codigo: token });
+    await sendEmail(c, user.email, m.assunto, m);
 
     if (c.env.ENVIRONMENT === 'development' || c.env.ENVIRONMENT === 'test') {
       return c.json({ ok: true, reset_token: token, message: 'Código de recuperação gerado (Desenvolvimento)' });

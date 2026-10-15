@@ -4,7 +4,9 @@
 // e nunca é remontado; mudança depois da geração só por revisão.
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { ehComercial, podeAdministrarOrg, genId, genToken, sha256Hex, escapeHtml, sendEmail, logAudit, erro500 } from '../helpers';
+import { ehComercial, podeAdministrarOrg, genId, genToken, sha256Hex, sendEmail, logAudit, erro500 } from '../helpers';
+import { remetente, nomeSeguro } from '../services/email-layout';
+import { emailProposta } from '../services/emails';
 import { validateBody, propostaCriarSchema, propostaEditarSchema, propostaGerarSchema, propostaEnviarSchema, propostaAceiteManualSchema } from '../schemas';
 import type { Servico } from '../schemas';
 import { exigirOrg, lerConfigOrg, formatarNumeroProposta, type ConfigOrg } from '../services/organizacao';
@@ -433,19 +435,6 @@ const NAO_ENVIAVEL = (status: string) => ({ error: `Proposta em "${status}" não
 /** Link novo não nasce vencido: validade passada (expirada ou não) pede revisão. */
 const VENCIDA = { error: 'A validade passou: gere uma revisão com nova validade' };
 const vencida = (p: any) => !!p.valida_ate && String(p.valida_ate).slice(0, 10) < diaEmBrasilia();
-const dataBr = (dia: string | null) => (dia ? dia.slice(0, 10).split('-').reverse().join('/') : '');
-/** Nome de organização no cabeçalho From: sem <, >, aspas nem quebra de linha. */
-const nomeSeguro = (n: string) => n.replace(/[<>"\r\n]/g, ' ').replace(/\s+/g, ' ').trim() || 'ness.';
-
-function emailProposta(nome: string, p: any, link: string, mensagem?: string): string {
-  const e = escapeHtml;
-  return `<div style="font-family: Arial, sans-serif; max-width: 560px; color: #1e293b;">
-    <h2 style="margin: 0 0 12px;">${e(nome)}</h2>
-    <p>Segue a proposta <strong>${e(p.numero)}</strong> (revisão ${e(String(p.revisao))}), válida até <strong>${e(dataBr(p.valida_ate))}</strong>.</p>
-    ${mensagem ? `<p style="white-space: pre-wrap;">${e(mensagem)}</p>` : ''}
-    <p><a href="${e(link)}" style="background-color: #00ade8; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Ver e responder a proposta</a></p>
-  </div>`;
-}
 
 /** Troca o token da proposta (o anterior morre) e põe a proposta em 'enviada'. false: o estado mudou no meio. */
 async function gravarToken(db: D1Database, p: any, hash: string, enviadaPara?: string) {
@@ -470,11 +459,11 @@ propostasApp.post('/:id/enviar', async (c) => {
     // sem a chave, o sendEmail só simula: marcar enviada com um link que ninguém recebeu engana o comercial
     if (!c.env.RESEND_API_KEY) return c.json({ error: 'Envio de e-mail não configurado' }, 503);
     const token = genToken();
-    const nome = nomeSeguro((await lerConfigOrg(db, p.org_id)).nome);
+    const nome = nomeSeguro((await lerConfigOrg(db, p.org_id)).nome) || 'ness.';
     // e-mail primeiro: se falhar, nada foi gravado e o link anterior continua valendo
-    const ok = await sendEmail(c, v.data.email, `Proposta ${p.numero} - ${nome}`,
-      emailProposta(nome, p, `${appUrl(c.env)}/proposta#${token}`, v.data.mensagem),
-      { from: `${nome} via n.iso <noreply@ness.com.br>`, replyTo: user.email });
+    const m = emailProposta({ organizacao: nome, numero: p.numero, revisao: p.revisao, validaAte: p.valida_ate ?? null, link: `${appUrl(c.env)}/proposta#${token}`,
+      quem: { nome: user.name ?? null, email: user.email, organizacao: nome }, mensagem: v.data.mensagem });
+    const ok = await sendEmail(c, v.data.email, m.assunto, m, { from: remetente('n.360', nome), replyTo: user.email });
     if (!ok) return c.json({ error: 'Não foi possível enviar o e-mail: nada foi alterado, tente de novo' }, 502);
     if (!(await gravarToken(db, p, await sha256Hex(token), v.data.email))) return c.json({ error: 'A proposta mudou de estado durante o envio: confira e envie de novo' }, 409);
     await logAudit(db, 'proposta.enviada', user.email ?? 'system', `Proposta ${p.id} (${p.numero} rev. ${p.revisao}) enviada para ${v.data.email}`);
