@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE, formatarData, traduzStatus } from '../ui.js';
 import { produtoAtual, projetosDoProduto } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
 
@@ -112,7 +112,7 @@ import { podeIndicar } from './encarregado.js';
         try { portfolio = (await api('GET', '/api/v1/portfolio'))?.portfolio || []; } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a carteira de projetos.', e); return; }
         c.innerHTML = `<div class="fade-in">${portfolio.length ? portfolio.map(p => {
             const pct = p.overall_progress_pct || 0;
-            const semaphore = pct > 70 ? {color:'var(--success)',label:'No prazo'} : pct > 30 ? {color:'var(--warning)',label:'Atencao'} : {color:'var(--danger)',label:'Critico'};
+            const semaphore = pct > 70 ? {color:'var(--success)',label:'No prazo'} : pct > 30 ? {color:'var(--warning)',label:'Atenção'} : {color:'var(--danger)',label:'Crítico'};
             return `
             <div class="list-item" style="cursor:pointer" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${p.id}"}}]'>
                 <div style="display:flex;align-items:center;gap:0.75rem;flex:1">
@@ -153,7 +153,7 @@ import { podeIndicar } from './encarregado.js';
             const pct = data.coverage_pct || 0;
             const barColor = pct > 80 ? 'var(--accent)' : pct > 50 ? 'var(--warning)' : 'var(--danger)';
             openModal(`
-                <div class="modal-header"><span class="modal-title">Gap Analysis</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+                <div class="modal-header"><span class="modal-title">Análise de lacunas</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
                 <div style="display:flex;gap:2rem;margin-bottom:1.5rem">
                     <div><div class="card-label">Cobertura</div><div style="font-size:2rem;font-weight:600;color:${barColor}">${pct.toFixed(0)}%</div></div>
                     <div><div class="card-label">Implementados</div><div style="font-size:1.2rem">${data.by_status?.Implemented || 0}</div></div>
@@ -236,10 +236,10 @@ import { podeIndicar } from './encarregado.js';
                                     <td><strong>${escapeHTML(m.metric_name)}</strong></td>
                                     <td>${m.target_value !== null ? m.target_value : '—'}</td>
                                     <td>${m.current_value !== null ? m.current_value : '—'}</td>
-                                    <td><span class="badge" style="background:rgba(255,255,255,0.05)">${m.frequency}</span></td>
-                                    <td>${m.last_measured_at || '—'}</td>
+                                    <td>${window.renderStatusBadge(m.frequency || '', 'neutral')}</td>
+                                    <td>${formatarData(m.last_measured_at)}</td>
                                     <td>${escapeHTML(m.owner || '—')}</td>
-                                    <td><span class="badge" style="background:color-mix(in oklab, ${statusColor(m.status)} 12%, transparent); color:${statusColor(m.status)}">${m.status}</span></td>
+                                    <td><span class="badge" style="background:color-mix(in oklab, ${statusColor(m.status)} 12%, transparent); color:${statusColor(m.status)}">${escapeHTML(traduzStatus(m.status))}</span></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -270,13 +270,13 @@ import { podeIndicar } from './encarregado.js';
                 <div class="form-group" style="flex:1"><label class="form-label">Última Medição</label><input type="date" class="form-input" id="met-date"></div>
             </div>
             <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Responsável (Owner)</label><input class="form-input" id="met-owner" placeholder="Ex: CTO"></div>
+                <div class="form-group" style="flex:1"><label class="form-label">Responsável</label><input class="form-input" id="met-owner" placeholder="Ex: CTO"></div>
                 <div class="form-group" style="flex:1">
                     <label class="form-label">Status</label>
                     <select class="form-input" id="met-status">
-                        <option value="On Track" selected>On Track (Sob Controle)</option>
-                        <option value="At Risk">At Risk (Em Risco)</option>
-                        <option value="Critical">Critical (Crítico)</option>
+                        <option value="On Track" selected>No rumo</option>
+                        <option value="At Risk">Em risco</option>
+                        <option value="Critical">Crítico</option>
                     </select>
                 </div>
             </div>
@@ -328,9 +328,9 @@ import { podeIndicar } from './encarregado.js';
                 <div class="form-group" style="flex:1">
                     <label class="form-label">Status</label>
                     <select class="form-input" id="met-e-status">
-                        <option value="On Track" ${m.status==='On Track'?'selected':''}>On Track</option>
-                        <option value="At Risk" ${m.status==='At Risk'?'selected':''}>At Risk</option>
-                        <option value="Critical" ${m.status==='Critical'?'selected':''}>Critical</option>
+                        <option value="On Track" ${m.status==='On Track'?'selected':''}>No rumo</option>
+                        <option value="At Risk" ${m.status==='At Risk'?'selected':''}>Em risco</option>
+                        <option value="Critical" ${m.status==='Critical'?'selected':''}>Crítico</option>
                     </select>
                 </div>
             </div>
@@ -512,10 +512,7 @@ import { podeIndicar } from './encarregado.js';
         const d = new Date(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(s) ? s : s.replace(' ', 'T') + 'Z');
         return isNaN(d.getTime()) ? null : d;
     };
-    const dataLocal = (v) => {
-        const d = comoData(v);
-        return d ? d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-    };
+    const dataLocal = (v) => formatarData(comoData(v), { hora: true });
     const haQuanto = (v) => {
         const d = comoData(v);
         if (!d) return '';
@@ -1315,7 +1312,7 @@ import { podeIndicar } from './encarregado.js';
             list.map(m => {
                 const isCompleted = m.status === 'Completed' || m.status === 'concluido';
                 return [
-                    `<span style="font-weight:600;color:var(--accent);font-family:monospace;font-size:0.85rem">${escapeHTML(m.review_date)}</span>`,
+                    `<span style="font-weight:600;color:var(--accent);font-family:monospace;font-size:0.85rem">${escapeHTML(formatarData(m.review_date))}</span>`,
                     formatAttendees(m.attendees),
                     window.renderStatusBadge(isCompleted ? 'Concluída' : 'Planejada', isCompleted ? 'success' : 'warning'),
                     `<button data-action="openEditMgmtReviewModal" data-args='["${m.id}"]' class="btn btn-ghost btn-sm">Abrir Pauta / Editar</button>`
@@ -1419,7 +1416,7 @@ import { podeIndicar } from './encarregado.js';
 
         const html = `
             <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:1.25rem;margin-bottom:1.5rem;color:var(--accent)">
-                Ata da Análise Crítica (${review.review_date})
+                Ata da Análise Crítica (${formatarData(review.review_date)})
             </div>
             
             <div style="margin-bottom:16px">
@@ -1460,7 +1457,7 @@ import { podeIndicar } from './encarregado.js';
         
         const html = `
             <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:1.25rem;margin-bottom:1.5rem;color:var(--accent)">
-                Editar Ata da Análise Crítica (${review.review_date})
+                Editar Ata da Análise Crítica (${formatarData(review.review_date)})
             </div>
             <form id="edit-mgmt-form" data-action-submit="saveMgmtReviewDetails" data-arg-event data-args='["${review.id}"]'>
                 <div class="form-group" style="margin-bottom:16px">
@@ -1629,7 +1626,7 @@ import { podeIndicar } from './encarregado.js';
         ]);
 
         const tableHtml = window.renderDataTable(
-            ['Nome do Ativo', 'Categoria', 'Localização', 'Proprietário (Owner)', 'Classificação', 'Status', 'Ações'],
+            ['Nome do Ativo', 'Categoria', 'Localização', 'Responsável', 'Classificação', 'Status', 'Ações'],
             assets.map(ast => {
                 const classType = ast.classification === 'Confidential' ? 'danger' : ast.classification === 'Restricted' ? 'warning' : 'info';
                 const statusType = ast.status === 'Active' || !ast.status ? 'success' : 'neutral';
@@ -1680,7 +1677,7 @@ import { podeIndicar } from './encarregado.js';
                         <span class="ctx-tag" style="background:color-mix(in oklab, ${classColor(ast.classification)} 12%, transparent); color:${classColor(ast.classification)}; font-weight:600">${ast.classification || 'Internal'}</span>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Dono (Owner)</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Responsável</div>
                         <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(ast.owner || 'Não definido')}</div>
                     </div>
                     <div>
@@ -1689,7 +1686,7 @@ import { podeIndicar } from './encarregado.js';
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Status do Ativo</div>
-                        <span class="ctx-tag" style="background:rgba(255,255,255,0.05); color:var(--text-dim); font-weight:600">${ast.status || 'Active'}</span>
+                        <span class="ctx-tag" style="background:rgba(255,255,255,0.05); color:var(--text-dim); font-weight:600">${escapeHTML(traduzStatus(ast.status || 'Active'))}</span>
                     </div>
                 </div>
             </div>
@@ -1707,7 +1704,7 @@ import { podeIndicar } from './encarregado.js';
             <div class="form-group">
                 <label class="form-label">Categoria</label>
                 <select class="form-input" id="ast-category">
-                    <option value="Informacao">Informacao (Dados, Documentos, Segredos)</option>
+                    <option value="Informacao">Informação (Dados, Documentos, Segredos)</option>
                     <option value="Software">Software (APIs, Sistemas, Apps, Scripts)</option>
                     <option value="Hardware">Hardware (Servidores, Computadores, Dispositivos)</option>
                     <option value="Pessoas">Pessoas (Colaboradores, Terceiros, Donos)</option>
@@ -1723,7 +1720,7 @@ import { podeIndicar } from './encarregado.js';
                 </select>
             </div>
             <div style="display:flex;gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Dono (Owner)</label><input class="form-input" id="ast-owner" placeholder="Ex: IT Manager"></div>
+                <div class="form-group" style="flex:1"><label class="form-label">Responsável</label><input class="form-input" id="ast-owner" placeholder="Ex.: gerente de TI"></div>
                 <div class="form-group" style="flex:1"><label class="form-label">Localizacao</label><input class="form-input" id="ast-location" placeholder="Ex: AWS us-east-1"></div>
             </div>
             <button class="btn btn-primary" style="width:100%;margin-top:1rem" data-action="createAsset" data-args='["${projectId}"]'>Registrar Ativo</button>
@@ -1745,7 +1742,7 @@ import { podeIndicar } from './encarregado.js';
             <div class="form-group">
                 <label class="form-label">Categoria</label>
                 <select class="form-input" id="ast-e-category">
-                    <option value="Informacao" ${ast.category==='Informacao'?'selected':''}>Informacao (Dados, Documentos)</option>
+                    <option value="Informacao" ${ast.category==='Informacao'?'selected':''}>Informação (Dados, Documentos)</option>
                     <option value="Software" ${ast.category==='Software'?'selected':''}>Software (APIs, Sistemas)</option>
                     <option value="Hardware" ${ast.category==='Hardware'?'selected':''}>Hardware (Servidores, Computadores)</option>
                     <option value="Pessoas" ${ast.category==='Pessoas'?'selected':''}>Pessoas (Colaboradores)</option>

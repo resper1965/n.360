@@ -5,7 +5,7 @@
 import { api } from '../api.js';
 import { S } from '../state.js';
 import { produtoAtual } from '../produto.js';
-import { openModal, forceCloseModal, showToast, escapeHTML } from '../ui.js';
+import { openModal, forceCloseModal, showToast, escapeHTML, formatarData } from '../ui.js';
 
 const PAPEIS = {
     ciso: 'Aprovação do Líder SGSI / DPO',
@@ -39,7 +39,7 @@ const CAMPOS_TRATAMENTO = [['finalidade', 'Finalidade'], ['titulares', 'Titulare
 const SIM_NAO = ['transferencia_internacional', 'dpia_requerido', 'dados_sensiveis', 'criancas_adolescentes'];
 const textoDoCampo = (k, v) => (Array.isArray(v) ? v.join('\n') : SIM_NAO.includes(k) ? (v ? 'Sim' : 'Não') : String(v));
 
-const data = (s) => (s ? new Date(s).toLocaleString('pt-BR') : '');
+const data = (s) => formatarData(s, { hora: true, vazio: '' });
 const el = (id) => document.getElementById(id);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 

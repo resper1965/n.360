@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, forceCloseModal, escapeHTML, formatarData } from '../ui.js';
 import { navigate } from '../router.js';
 import { produtoAtual, temProduto } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
@@ -34,7 +34,7 @@ const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
-const dia = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}/${String(s).slice(0, 4)}` : '—');
+const dia = (s) => formatarData(s);
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 const selo = (chave) => { const [r, t] = PRAZO[chave] || [chave, 'neutral']; return window.renderStatusBadge(r, t); };
 const opcoes = (mapa, atual) => Object.entries(mapa).map(([v, r]) => `<option value="${v}" ${v === atual ? 'selected' : ''}>${escapeHTML(r)}</option>`).join('');

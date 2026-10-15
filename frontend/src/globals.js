@@ -3,7 +3,7 @@ import { S } from './state.js';
 import { atualizarSelos } from './selos-menu.js';
 import { api, API_BASE } from './api.js';
 import { render, navigate } from './router.js';
-import { showToast, openModal, escapeHTML } from './ui.js';
+import { showToast, openModal, escapeHTML, formatarData } from './ui.js';
 
 // ponytail: o toggle de tema foi removido — o design system da ness. é OLED Dark
 // nativo (design.md §2) e não havia CSS [data-theme], então o controle não fazia
@@ -79,8 +79,8 @@ window.viewEvidence = async function viewEvidence(id) {
             
             let sealHtml = '';
             if (ev.ciso_approved_by || ev.ceo_approved_by) {
-                const cisoText = ev.ciso_approved_by ? `Assinado por ${escapeHTML(ev.ciso_approved_by)} em ${new Date(ev.ciso_approved_at).toLocaleString()}` : 'Pendente';
-                const ceoText = ev.ceo_approved_by ? `Assinado por ${escapeHTML(ev.ceo_approved_by)} em ${new Date(ev.ceo_approved_at).toLocaleString()}` : 'Pendente';
+                const cisoText = ev.ciso_approved_by ? `Assinado por ${escapeHTML(ev.ciso_approved_by)} em ${formatarData(ev.ciso_approved_at, { hora: true })}` : 'Pendente';
+                const ceoText = ev.ceo_approved_by ? `Assinado por ${escapeHTML(ev.ceo_approved_by)} em ${formatarData(ev.ceo_approved_at, { hora: true })}` : 'Pendente';
                 
                 sealHtml = `
                     <div style="background: rgba(0, 173, 232, 0.02); border: 1px solid rgba(0, 173, 232, 0.15); padding: 1rem; margin-top: 1rem;">
@@ -101,7 +101,7 @@ window.viewEvidence = async function viewEvidence(id) {
                     <h2 style="font-family:'Montserrat',sans-serif; font-weight:700; color:var(--accent); font-size:1.2rem; margin-bottom:0.5rem">Detalhes da Evidência</h2>
                     <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Arquivo:</strong> ${escapeHTML(fileName)}</p>
                     <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Hash SHA-256:</strong> <code style="word-break: break-all">${escapeHTML(ev.file_hash || ev.sha256_hash || '')}</code></p>
-                    <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Data de Envio:</strong> ${new Date(ev.created_at).toLocaleString()}</p>
+                    <p style="font-size:0.85rem; margin:0.25rem 0;"><strong>Data de Envio:</strong> ${formatarData(ev.created_at, { hora: true })}</p>
                     
                     ${previewHtml}
                     ${sealHtml}
@@ -1119,7 +1119,7 @@ window.renderNotifDropdown = function renderNotifDropdown() {
             <div class="notif-item ${n.read ? '' : 'unread'}" data-action="handleNotificationClick" data-args='["${n.id}"]'>
                 <div style="font-weight:${n.read ? '400' : '600'}">${escapeHTML(n.title)}</div>
                 <div style="font-size:0.7rem; color:var(--text-dim); margin-top:0.2rem">${escapeHTML(n.message || '')}</div>
-                <div class="notif-time">${n.created_at ? n.created_at.split('T')[0] : ''}</div>
+                <div class="notif-time">${escapeHTML(formatarData(n.created_at, { hora: true, vazio: '' }))}</div>
             </div>
         `).join('');
     }
@@ -1825,7 +1825,7 @@ window.refreshDoDDrawer = function() {
                                     </div>
                                     <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem; width: 100%;">
                                         ${(item.category === 'evidence' || item.category === 'document') ? `
-                                            <button class="btn" style="flex: 1; padding: 0.4rem 0.8rem; font-size: 0.65rem;" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Upload</button>
+                                            <button class="btn" style="flex: 1; padding: 0.4rem 0.8rem; font-size: 0.65rem;" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Enviar</button>
                                         ` : ''}
                                         ${item.category === 'document' ? `
                                             <button class="btn btn-primary" style="flex: 1; padding: 0.4rem 0.8rem; font-size: 0.65rem;" data-action="openGeneratePolicyModal" data-args='["${projectId}","${controlId}"]'>Gerar Política</button>
@@ -1947,7 +1947,7 @@ window.openScopeChangeModal = async function(projectId, projData) {
                 <div style="font-size:0.65rem; color:var(--text-dim); max-height:100px; overflow-y:auto; line-height:1.4">
                     ${history.length ? history.map((c, i) => `
                         <div style="padding:0.3rem 0; border-bottom:1px dashed rgba(255,255,255,0.03)">
-                            <strong>${escapeHTML(STATUS_ESCOPO[c.status] || c.status || 'Pendente')}</strong> (${new Date(c.created_at).toLocaleDateString()}) - Solicitado por: ${escapeHTML(c.requested_by)}<br>
+                            <strong>${escapeHTML(STATUS_ESCOPO[c.status] || c.status || 'Pendente')}</strong> (${formatarData(c.created_at)}) - Solicitado por: ${escapeHTML(c.requested_by)}<br>
                             <strong>Motivo:</strong> ${escapeHTML(c.reason)}<br>
                             <strong>Impacto de Seg.:</strong> ${escapeHTML(c.impact_analysis)}<br>
                             <strong>Novo Escopo:</strong> ${escapeHTML(c.change_description)}
@@ -2013,7 +2013,7 @@ window.renderSelfServiceAssessment = async function renderSelfServiceAssessment(
             // ponytail: reuse ASSESSMENT_BLOCKS from the main app
             const blocks = typeof ASSESSMENT_BLOCKS !== 'undefined' ? ASSESSMENT_BLOCKS : [];
             if (!blocks.length) {
-                c.innerHTML = '<div style="max-width:700px;margin:2rem auto;text-align:center;color:var(--danger)">Erro: Assessment blocks not loaded.</div>';
+                c.innerHTML = '<div style="max-width:700px;margin:2rem auto;text-align:center;color:var(--danger)">Não foi possível carregar as perguntas do levantamento. Recarregue a página.</div>';
                 return;
             }
 
@@ -2057,7 +2057,7 @@ window.renderSelfServiceBlock = function renderSelfServiceBlock(c, blocks) {
                             <select class="form-input ss-answer" data-key="${q.key}">
                                 <option value="">Selecione</option>
                                 <option value="yes" ${val === 'yes' ? 'selected' : ''}>Sim</option>
-                                <option value="no" ${val === 'no' ? 'selected' : ''}>Nao</option>
+                                <option value="no" ${val === 'no' ? 'selected' : ''}>Não</option>
                             </select></div>`;
                     } else if (q.type === 'select' && q.options) {
                         return `<div class="form-group"><label class="form-label">${escapeHTML(q.text)}</label>
@@ -2114,7 +2114,7 @@ window.ssNext = async function() {
         } else {
             document.getElementById('content').innerHTML = `<div style="max-width:700px;margin:3rem auto;text-align:center" class="fade-in">
                 <div class="logo" style="font-size:2rem;margin-bottom:1rem">n<span style="color:var(--accent)">.</span>ISO</div>
-                <div style="font-size:1.2rem;font-weight:500;color:var(--success);margin-bottom:0.5rem">Assessment Concluido!</div>
+                <div style="font-size:1.2rem;font-weight:500;color:var(--success);margin-bottom:0.5rem">Levantamento concluído</div>
                 <div style="color:var(--muted);font-size:0.75rem">Obrigado por completar o assessment. Seu consultor entrara em contato com os proximos passos.</div>
             </div>`;
         }

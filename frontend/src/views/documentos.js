@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, formatarData } from '../ui.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
 
 // Documentos do projeto (fatia 3.4 do núcleo): árvore política → norma → procedimento, dono, revisão, versões,
@@ -20,7 +20,7 @@ const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
-const dataBr = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}/${String(s).slice(0, 4)}` : '—');
+const dataBr = (s) => formatarData(s);
 const hoje = () => new Date().toISOString().slice(0, 10);
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
@@ -184,7 +184,7 @@ window.openDocumentoModal = async function (projectId, id) {
     const aviso = rascunho ? `
         <div id="doc-rascunho" style="border:1px solid var(--accent); padding:1rem; margin-bottom:1rem">
             <div style="font-family:'Montserrat',sans-serif; font-weight:600; margin-bottom:0.25rem">Rascunho ${rascunho.origem === 'agente' ? 'do agente ' : ''}aguardando revisão</div>
-            <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem">Por ${escapeHTML(rascunho.criado_por || 'autor não registrado')} em ${escapeHTML(rascunho.criado_em || '')}. O documento vigente só muda quando você publicar.</div>
+            <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem">Por ${escapeHTML(rascunho.criado_por || 'autor não registrado')} em ${escapeHTML(formatarData(rascunho.criado_em, { hora: true }))}. O documento vigente só muda quando você publicar.</div>
             <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(rascunho.texto || '')}</div>
             ${editar ? `<div style="display:flex; gap:8px; margin-top:0.75rem">
                 <button class="btn btn-primary btn-sm" data-action="publicarVersaoDocumento" data-args='${args(projectId, id, rascunho.numero)}'>Publicar rascunho</button>
@@ -242,7 +242,7 @@ window.openDocumentoModal = async function (projectId, id) {
         <h4 style="margin:1.25rem 0 0.5rem">Versões</h4>
         ${versoes.length ? versoes.map((v) => `
             <details style="margin-bottom:0.5rem">
-                <summary>Versão ${escapeHTML(String(v.numero))} · ${escapeHTML(ESTADO_VERSAO[v.estado] || v.estado)} · ${escapeHTML(v.origem || '')} · ${escapeHTML(v.criado_em || '')}</summary>
+                <summary>Versão ${escapeHTML(String(v.numero))} · ${escapeHTML(ESTADO_VERSAO[v.estado] || v.estado)} · ${escapeHTML(v.origem || '')} · ${escapeHTML(formatarData(v.criado_em, { hora: true }))}</summary>
                 <div style="font-size:0.7rem; color:var(--text-dim)">SHA-256 ${escapeHTML(v.hash || '')}</div>
                 <div style="white-space:pre-wrap; font-size:0.85rem; margin-top:0.25rem">${escapeHTML(v.texto || '')}</div>
             </details>`).join('') : '<p style="color:var(--text-dim)">Nenhuma versão.</p>'}

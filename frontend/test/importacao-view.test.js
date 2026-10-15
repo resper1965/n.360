@@ -431,7 +431,7 @@ describe('terceiros (fatia 2): aba própria na revisão', () => {
         expect(t).not.toContain('Finalidade i1');
         expect(t).toContain('Fornecedor t1');
         expect(t).toContain('Tipo: Médio');
-        expect(t).toContain('Aprovado com ressalvas até 2027-06-30');
+        expect(t).toContain('Aprovado com ressalvas até 30/06/2027');
         expect(t).toContain('DPA Fornecedor');
         expect(t).toContain('Folha');
         expect(t).toContain('Já existe');
@@ -612,7 +612,7 @@ describe('histórico operacional (fatia 4): aba própria na revisão', () => {
         expect(t).toContain('Pedido');
         expect(t).toContain('Acesso aos dados');
         expect(t).toContain('ANT-p1');
-        expect(t).toContain('2026-01-10');
+        expect(t).toContain('10/01/2026');
         expect(t).toContain('Respondido');
         expect(t).toContain('Incidente n1');
         expect(t).toContain('Relevante');

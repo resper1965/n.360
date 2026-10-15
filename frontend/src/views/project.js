@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, STATUS_DA_FASE } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, STATUS_DA_FASE, formatarData, traduzStatus } from '../ui.js';
 import { vazioSemFases } from './monitor.js';
 import { navigate } from '../router.js';
 import { PRODUTOS, produtoAtual, modulosVisiveis, enderecoDoProduto, irPara } from '../produto.js';
@@ -410,7 +410,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                                             <button class="btn-inline-action" style="border-color:var(--accent); color:var(--accent);" data-action="openInternalDocumentEditor" data-args='["${itemEvidenceId}"]'>Editar Doc</button>
                                                                         ` : ''}
                                                                         ${(item.category === 'evidence' || item.category === 'document') ? `
-                                                                            <button class="btn-inline-action" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Upload</button>
+                                                                            <button class="btn-inline-action" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Enviar</button>
                                                                         ` : ''}
                                                                         ${(!isChecked && (item.category === 'document' || DOC_WIZARDS[item.id])) ? `
                                                                             <button class="btn-inline-action primary" data-action="openDocWizard" data-args='["${p.id}","${item.id}"]'>${DOC_WIZARDS[item.id] ? (DOC_WIZARDS[item.id].evidenceOnly ? 'Registrar Evidência' : 'Preencher e Gerar') : 'Gerar IA'}</button>
@@ -609,7 +609,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             btnEl.textContent = 'Gerando registro...';
             let content = '# ' + wiz.title + '\n\n';
             content += '**Referência ISO:** ' + wiz.isoRef + '\n';
-            content += '**Data de registro:** ' + new Date().toLocaleDateString('pt-BR') + '\n\n';
+            content += '**Data de registro:** ' + formatarData(new Date()) + '\n\n';
             content += '---\n\n';
             wiz.fields.forEach(f => {
                 if (data[f.id]) content += '## ' + f.label + '\n' + data[f.id] + '\n\n';
@@ -646,7 +646,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             `;
             document.getElementById('wiz-actions').innerHTML = `
                 <button class="btn" data-action="wizBackToForm" data-args='["${projectId}","${itemId}"]' style="background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1)">Voltar e Editar Dados</button>
-                <button class="btn btn-primary" data-action="wizApprove" data-args='["${projectId}","${itemId}"]' data-arg-el>Aprovar e Salvar como Evidencia</button>
+                <button class="btn btn-primary" data-action="wizApprove" data-args='["${projectId}","${itemId}"]' data-arg-el>Aprovar e Salvar como Evidência</button>
             `;
         } catch(e) {
             showToast('Erro ao gerar documento: ' + e.message, 'error');
@@ -1053,7 +1053,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const secoesHtml = secoes.length ? secoes.map(s => `
                 <section style="margin-bottom:1.5rem; page-break-inside:avoid">
                     <h3 style="font-size:0.95rem; margin:0 0 0.25rem">Fase ${s.phase} — ${escapeHTML(s.titulo)}${s.clausula ? ` <span style="font-weight:400; color:var(--text-dim)">· cláusula ${escapeHTML(s.clausula)}</span>` : ''}</h3>
-                    <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.5rem">Status: ${escapeHTML(s.status)} · ${s.cobertura.respondidas}/${s.cobertura.total} respondidas</div>
+                    <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.5rem">Situação: ${escapeHTML(traduzStatus(s.status))} · ${s.cobertura.respondidas}/${s.cobertura.total} respondidas</div>
                     <dl style="margin:0">
                         ${s.respostas.map(r => `
                             <dt style="font-size:0.8rem; font-weight:600; margin-top:0.5rem">${escapeHTML(r.pergunta)}</dt>
@@ -1066,9 +1066,9 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                 <div style="border-bottom:2px solid var(--accent); padding-bottom:0.75rem; margin-bottom:1rem">
                     <h2 style="margin:0 0 0.25rem">Dossiê da Jornada — ${escapeHTML(pj.client_name || '')}</h2>
                     <div style="font-size:0.75rem; color:var(--text-dim)">
-                        Normas: ${escapeHTML(pj.standards || '')} · Papel: ${escapeHTML(pj.org_role || '')} · Status: ${escapeHTML(pj.status || '')}<br>
+                        Normas: ${escapeHTML(pj.standards || '')} · Papel: ${escapeHTML(traduzStatus(pj.org_role || ''))} · Situação: ${escapeHTML(traduzStatus(pj.status || ''))}<br>
                         ${pj.scope ? 'Escopo: ' + escapeHTML(pj.scope) + '<br>' : ''}
-                        Gerado em ${new Date(d.generated_at).toLocaleString('pt-BR')} · ${d.resumo.fases_iniciadas} fase(s) iniciada(s) · ${d.resumo.respondidas} resposta(s)
+                        Gerado em ${formatarData(d.generated_at, { hora: true })} · ${d.resumo.fases_iniciadas} fase(s) iniciada(s) · ${d.resumo.respondidas} resposta(s)
                     </div>
                 </div>
                 ${secoesHtml}
@@ -1326,7 +1326,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
     }
 
     async function wsUploadEvidence(docType) {
-        const labels = { organograma:'Organograma', policy:'Políticas Existentes', inventory:'Inventario de Ativos', topology:'Topologia de Rede', systems:'Lista de Sistemas', contracts:'Contratos Fornecedores', incidents:'Registro de Incidentes', certifications:'Certificacoes Vigentes', floorplan:'Planta Baixa', audit_report:'Relatório de Auditoria', ropa:'RoPA / Mapeamento Dados', backup_dr:'Backup e DR' };
+        const labels = { organograma:'Organograma', policy:'Políticas Existentes', inventory:'Inventário de Ativos', topology:'Topologia de Rede', systems:'Lista de Sistemas', contracts:'Contratos Fornecedores', incidents:'Registro de Incidentes', certifications:'Certificações Vigentes', floorplan:'Planta Baixa', audit_report:'Relatório de Auditoria', ropa:'RoPA / Mapeamento Dados', backup_dr:'Backup e DR' };
         openModal(`<h3 style="margin-bottom:1rem">Upload: ${labels[docType] || docType}</h3>
             <div class="form-group"><label class="form-label">Arquivo</label><input type="file" id="doc-file" class="form-input" accept=".pdf,.docx,.xlsx,.txt,.csv,.md,.png,.jpg,.jpeg"></div>
             <div id="doc-msg" style="font-size:0.7rem;color:var(--muted);margin:0.5rem 0"></div>
@@ -1368,7 +1368,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             const doc = (docs || []).find(d => d.id === docId);
             if (!doc) return;
             openModal(`<h3 style="margin-bottom:1rem">Extracao: ${escapeHTML(doc.filename)}</h3>
-                <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem">Status: ${doc.status} | Tipo: ${doc.document_type}</div>
+                <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem">Situação: ${escapeHTML(traduzStatus(doc.status))} | Tipo: ${escapeHTML(doc.document_type || '')}</div>
                 <textarea class="form-input" id="doc-ext-edit" rows="12" style="font-size:0.7rem;font-family:monospace;line-height:1.6">${escapeHTML(doc.extracted_summary || '')}</textarea>
                 <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.75rem">
                     <button class="btn" data-action="forceCloseModal">Fechar</button>

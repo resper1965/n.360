@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, escapeHTML, formatarData } from '../ui.js';
 import { produtoAtual } from '../produto.js';
 
 // Catálogo de requisitos (fatia 2 do núcleo): fontes (ISO 27001, ISO 27701, LGPD, GDPR), cada requisito com as
@@ -100,7 +100,7 @@ window.semearRequisitos = async function () {
 
 // Data de hoje no Brasil (AAAA-MM-DD), não em UTC: à noite o UTC já é o dia seguinte.
 const hojeBr = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-const dataBr = (d) => String(d || '').slice(0, 10).split('-').reverse().join('/');
+const dataBr = (d) => formatarData(d, { vazio: '' });
 // Recusa em duas etapas dentro da própria janela (o app não usa confirm()): guarda qual mapeamento espera confirmação.
 let recusando = null;
 

@@ -93,9 +93,9 @@ describe('renderStatusBadge()', () => {
 
     it.each([
         ['implemented', 'Implementado'],
-        ['not applicable', 'Não Aplicável'],
-        ['in_progress', 'Em Andamento'],
-        ['in progress', 'Em Andamento'],
+        ['not applicable', 'Não aplicável'],
+        ['in_progress', 'Em andamento'],
+        ['in progress', 'Em andamento'],
         ['critical', 'Crítico'],
         ['pending', 'Pendente'],
     ])('traduz "%s" para "%s"', (entrada, esperado) => {
@@ -373,7 +373,7 @@ describe('traduzStatus()', () => {
         expect(traduzStatus('High')).toBe('Alto');
         expect(traduzStatus('Medium')).toBe('Médio');
         expect(traduzStatus('Completed')).toBe('Concluído');
-        expect(traduzStatus('In Progress')).toBe('Em Andamento');
+        expect(traduzStatus('In Progress')).toBe('Em andamento');
         expect(traduzStatus('Treated')).toBe('Tratado');
         expect(traduzStatus('Mitigate')).toBe('Mitigar');
     });

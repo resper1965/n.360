@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, escapeHTML, formatarData } from '../ui.js';
 import { modulosDaPessoa } from '../produto.js';
 
 // Cadastro da empresa do projeto (migration 0071) e o assistente "Novo projeto". O servidor decide tudo de novo:
@@ -359,7 +359,7 @@ window.abrirDadosEmpresa = async function (projectId) {
         <div id="emp-erro" role="alert" aria-live="assertive" style="color:var(--danger);font-size:0.85rem;min-height:1.2em"></div>
         ${editar ? `<button class="btn btn-primary" data-action="salvarDadosEmpresa" data-args='${escapeHTML(JSON.stringify([projectId]))}'>Salvar</button>` : ''}
         ${hist.length ? `<h4 style="margin:1.25rem 0 0.5rem">Histórico</h4><ul style="margin:0;padding-left:1.2rem;font-size:0.8rem;color:var(--text-dim)">${hist.map((l) =>
-            `<li>${escapeHTML(String(l.created_at || '').slice(0, 16).replace('T', ' '))} · ${escapeHTML(l.actor || '')} · ${escapeHTML(String(l.details || '').replace(/^.*?:\s*/, ''))}</li>`).join('')}</ul>` : ''}
+            `<li>${escapeHTML(formatarData(l.created_at, { hora: true }))} · ${escapeHTML(l.actor || '')} · ${escapeHTML(String(l.details || '').replace(/^.*?:\s*/, ''))}</li>`).join('')}</ul>` : ''}
     `, 'modal-large');
     document.getElementById('emp-titulo')?.focus();
 };

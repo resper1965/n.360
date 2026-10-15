@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
-import { escapeHTML, openModal, showToast } from '../ui.js';
+import { escapeHTML, openModal, showToast, formatarData } from '../ui.js';
 
 import './painel.js';
 // O Painel do n.privacy é o painel de entrada (views/painel.js, estudo de 14/10/2026); aqui ficam o que ele abre: indicar o
@@ -34,7 +34,7 @@ window.abrirFaixaPrazo = function (projectId, faixa) {
     if (!f) return false;
     const itens = Array.isArray(f.itens) ? f.itens : [];
     const tabela = window.renderDataTable(['Ação', 'Atividade', 'Prazo', 'Responsável', ''], itens.map((i) => [
-        escapeHTML(i.title), escapeHTML(i.atividade || '—'), escapeHTML(i.due_date ? String(i.due_date).slice(0, 10).split('-').reverse().join('/') : 'Sem prazo'),
+        escapeHTML(i.title), escapeHTML(i.atividade || '—'), escapeHTML(formatarData(i.due_date, { vazio: 'Sem prazo' })),
         escapeHTML(i.responsavel || '—'),
         `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(projectId, i.ropa_id)}'>Abrir a atividade</button>`,
     ]), { emptyState: 'Nenhuma ação aberta nesta faixa.' });

@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
-import { escapeHTML, openModal, showToast } from '../ui.js';
+import { escapeHTML, openModal, showToast, formatarData } from '../ui.js';
 
 // Importar programa (n.privacy, fatias 1 a 4). A regra é do servidor (`/projects/:id/importacoes`); aqui: lotes, envio de arquivos (um
 // por requisição), processamento arquivo a arquivo, revisão dos itens propostos (uma aba por entidade: tratamentos, terceiros,
@@ -209,7 +209,7 @@ function htmlTerceiros(itens, ativo) {
         const av = d.ultima_avaliacao;
         const resumo = `<strong>${e(d.nome || '(sem nome)')}</strong><div style="color:var(--text-dim)">${[
             ['Tipo', d.tipo && (TIPO_TERCEIRO[d.tipo] || d.tipo)], ['CNPJ', d.cnpj], ['Contato', d.contato],
-            ['Avaliação', av && `${RESULTADO[av.resultado] || av.resultado} até ${av.valido_ate}${av.metodo ? ` (${av.metodo})` : ''}`],
+            ['Avaliação', av && `${RESULTADO[av.resultado] || av.resultado} até ${formatarData(av.valido_ate)}${av.metodo ? ` (${av.metodo})` : ''}`],
             ['DPA', d.dpa], ['Tratamentos', (d.tratamentos || []).join(', ')],
         ].filter(([, v]) => v).map(([k, v]) => `${e(k)}: ${e(v)}`).join(' · ')}</div>${rodapeItem(i)}`;
         return [resumo, badge(CONF[i.confianca] || [i.confianca, 'neutral']), faltaItem(i), situacaoItem(i, 'terceiros', 'Ver terceiros'), acoesItem(i, ativo)];
@@ -262,13 +262,13 @@ function resumoHistorico(i) {
     let pares;
     if (ent === 'titular_pedido') {
         titulo = rotulo(TIPOS_PEDIDO, d.tipo) || '(sem tipo)';
-        pares = [['Protocolo de origem', d.protocolo], ['Recebido em', d.recebido_em], ['Situação', rotulo(STATUS_PEDIDO, d.status)], ['Respondido em', d.respondido_em], ['Canal', rotulo(CANAIS, d.canal)], ['Titular', d.titular_ref]];
+        pares = [['Protocolo de origem', d.protocolo], ['Recebido em', formatarData(d.recebido_em, { vazio: '' })], ['Situação', rotulo(STATUS_PEDIDO, d.status)], ['Respondido em', formatarData(d.respondido_em, { vazio: '' })], ['Canal', rotulo(CANAIS, d.canal)], ['Titular', d.titular_ref]];
     } else if (ent === 'incidente') {
         titulo = d.titulo || '(sem título)';
-        pares = [['Protocolo de origem', d.protocolo], ['Ciência em', d.ciencia_em], ['Risco ao titular', rotulo(RISCOS, d.risco_titular)], ['Comunicação à ANPD', d.comunicacao_anpd_em], ['Comunicação ao titular', d.comunicacao_titular_em], ['Situação', rotulo(STATUS_INCIDENTE, d.status)]];
+        pares = [['Protocolo de origem', d.protocolo], ['Ciência em', formatarData(d.ciencia_em, { vazio: '' })], ['Risco ao titular', rotulo(RISCOS, d.risco_titular)], ['Comunicação à ANPD', formatarData(d.comunicacao_anpd_em, { vazio: '' })], ['Comunicação ao titular', formatarData(d.comunicacao_titular_em, { vazio: '' })], ['Situação', rotulo(STATUS_INCIDENTE, d.status)]];
     } else {
         titulo = d.tratamento || '(sem tratamento)';
-        pares = [['Finalidade', d.finalidade], ['Titular', d.titular_ref], ['Obtido em', d.obtido_em], ['Revogado em', d.revogado_em], ['Versão do aviso', d.versao_aviso], ['Canal', d.canal]];
+        pares = [['Finalidade', d.finalidade], ['Titular', d.titular_ref], ['Obtido em', formatarData(d.obtido_em, { vazio: '' })], ['Revogado em', formatarData(d.revogado_em, { vazio: '' })], ['Versão do aviso', d.versao_aviso], ['Canal', d.canal]];
     }
     return `${badge([HISTORICO[ent] || ent, 'info'])} <strong>${e(titulo)}</strong><div style="color:var(--text-dim)">${linhaDados(pares)}</div>${rodapeItem(i)}`;
 }

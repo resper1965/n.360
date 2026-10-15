@@ -68,8 +68,9 @@ describe('renderNotifDropdown', () => {
     // Título perigoso foi escapado (não virou elemento <b> real).
     expect(dd.querySelector('b')).toBeNull();
     expect(dd.innerHTML).toContain('&lt;b&gt;Alerta&lt;/b&gt;');
-    // A data é cortada no 'T'.
-    expect(dd.textContent).toContain('2026-08-14');
+    // A data sai em dd/mm/aaaa, nunca ISO.
+    expect(dd.textContent).toContain('/08/2026');
+    expect(dd.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     // Duas notificações → dois itens; uma marcada como unread.
     expect(dd.querySelectorAll('.notif-item').length).toBe(2);
     expect(dd.querySelectorAll('.notif-item.unread').length).toBe(1);
@@ -182,7 +183,7 @@ describe('renderSelfServiceBlock / ssPrev / ssNext', () => {
     window._ssAnswers = {};
     await window.ssNext();
     expect(window._ssBlock).toBe(BLOCKS.length - 1);
-    expect(document.getElementById('content').textContent).not.toContain('Assessment Concluido');
+    expect(document.getElementById('content').textContent).not.toContain('Levantamento concluído');
     expect(document.querySelector('.toast-error')?.textContent).toContain('Assessment ja foi convertido');
     delete window.ASSESSMENT_BLOCKS;
     vi.unstubAllGlobals();
@@ -195,7 +196,7 @@ describe('renderSelfServiceBlock / ssPrev / ssNext', () => {
     window._ssBlock = BLOCKS.length - 1; // último bloco
     window._ssAnswers = {};
     await window.ssNext();
-    expect(document.getElementById('content').textContent).toContain('Assessment Concluido');
+    expect(document.getElementById('content').textContent).toContain('Levantamento concluído');
     delete window.ASSESSMENT_BLOCKS;
     vi.unstubAllGlobals();
   });

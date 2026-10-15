@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
-import { showToast, openModal, forceCloseModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, forceCloseModal, escapeHTML, formatarData } from '../ui.js';
 import { render } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
@@ -131,14 +131,14 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                     <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
                         <div>
                             <strong>Líder SGSI:</strong> 
-                            ${r.ciso_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ciso_approved_by)} em ${new Date(r.ciso_approved_at).toLocaleDateString()}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
+                            ${r.ciso_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ciso_approved_by)} em ${formatarData(r.ciso_approved_at)}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
                         </div>
                         ${!r.ciso_approved_by ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveROPA" data-args='["${projectId}","${r.id}","ciso"]'>Assinar</button>` : podeRevogar() ? `<button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarROPA" data-args='["${projectId}","${r.id}","ciso"]'>Revogar</button>` : ''}
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
                         <div>
                             <strong>Direção Executiva:</strong> 
-                            ${r.ceo_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ceo_approved_by)} em ${new Date(r.ceo_approved_at).toLocaleDateString()}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
+                            ${r.ceo_approved_by ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(r.ceo_approved_by)} em ${formatarData(r.ceo_approved_at)}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
                         </div>
                         ${!r.ceo_approved_by ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveROPA" data-args='["${projectId}","${r.id}","ceo"]'>Assinar</button>` : podeRevogar() ? `<button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarROPA" data-args='["${projectId}","${r.id}","ceo"]'>Revogar</button>` : ''}
                     </div>

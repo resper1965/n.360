@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, closeModal, forceCloseModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, closeModal, forceCloseModal, escapeHTML, formatarData } from '../ui.js';
 import { render } from '../router.js';
 
 // S2: wrappers para os handlers COMPOSTOS (a delegação chama uma função só).
@@ -170,7 +170,7 @@ window.__adminCopiarApiKey = () => {
             ]);
 
             const tableHtml = window.renderDataTable(
-                ['Nome', 'E-mail', 'Papel (Role)', 'Projeto', 'Organização', 'Módulos', 'Situação', 'Ações'],
+                ['Nome', 'E-mail', 'Papel', 'Projeto', 'Organização', 'Módulos', 'Situação', 'Ações'],
                 userArr.map(u => {
                     const projectName = u.client_project_id ? (projMap[u.client_project_id] || u.client_project_id) : '—';
                     const roleLabel = u.role === 'platform_admin' ? 'Admin Plataforma' : 
@@ -239,7 +239,7 @@ window.__adminCopiarApiKey = () => {
         const tableHtml = window.renderDataTable(
             ['Data / Hora', 'Usuário / Ator', 'Ação Realizada', 'Detalhes'],
             logs.map(l => [
-                `<span style="white-space:nowrap;color:var(--text-dim);font-size:0.75rem">${new Date(l.created_at || l.timestamp).toLocaleString()}</span>`,
+                `<span style="white-space:nowrap;color:var(--text-dim);font-size:0.75rem">${escapeHTML(formatarData(l.created_at || l.timestamp, { hora: true }))}</span>`,
                 `<strong>${escapeHTML(l.actor || l.user_email || 'System')}</strong>`,
                 window.renderStatusBadge(l.action, 'info'),
                 `<span style="font-size:0.75rem;color:var(--text-dim)">${escapeHTML(l.details || '—')}</span>`
@@ -445,7 +445,7 @@ window.__adminCopiarApiKey = () => {
                     <input type="password" id="user-m-password" class="form-input" placeholder="••••••••" autocomplete="new-password">
                 </div>` : '<p class="org-dica" id="user-m-convite-nota">A pessoa recebe um e-mail com o link para criar a própria senha (vale 72 horas). Ninguém mais conhece a senha.</p>'}
                 <div class="form-group">
-                    <label class="form-label">Papel (Role)</label>
+                    <label class="form-label">Papel</label>
                     <select id="user-m-role" class="form-input" data-action-change="toggleUserProjectSelect" data-arg-val>
                         ${roleOptions}
                     </select>
@@ -544,7 +544,7 @@ window.__adminCopiarApiKey = () => {
         h.textContent = 'Chaves de API';
         a.innerHTML = '';
         if (!S.user || S.user.role !== 'platform_admin') {
-            c.innerHTML = '<div class="error">Acesso restrito ao Platform Admin.</div>';
+            c.innerHTML = '<div class="error">Acesso restrito ao administrador da plataforma.</div>';
             return;
         }
         c.innerHTML = '<div class="loading"></div>';
@@ -572,8 +572,8 @@ window.__adminCopiarApiKey = () => {
                             escapeHTML(k.name || ''),
                             escapeHTML(rotuloPapelChave(k.permissions)),
                             window.renderStatusBadge(k.status, active ? 'success' : 'info'),
-                            k.last_used_at ? escapeHTML(String(k.last_used_at)) : '—',
-                            escapeHTML(String(k.created_at || '').slice(0, 10)),
+                            escapeHTML(formatarData(k.last_used_at, { hora: true })),
+                            escapeHTML(formatarData(k.created_at)),
                             active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-action="revokeApiKey" data-args='["${k.id}"]'>Revogar</button>` : '',
                         ];
                     }),

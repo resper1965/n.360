@@ -1,3 +1,5 @@
+import { rotuloDe } from './rotulos.js';
+
 export     function escapeHTML(str) {
         if (str === null || str === undefined) return '';
         return String(str).replace(/[&<>"']/g, function(m) {
@@ -200,55 +202,39 @@ export function renderStatCards(statsArray) {
  * por aqui, mostravam "High", "Medium", "Completed" e "In Progress" crus ao
  * usuário. Uma tabela só, para as duas formas de exibir não divergirem.
  */
-const STATUS_DICT = {
-    'implemented': 'Implementado',
-    'not applicable': 'Não Aplicável',
-    'approved': 'Aprovado',
-    'compliant': 'Conforme',
-    'missing': 'Pendente',
-    'partial': 'Parcial',
-    'conforming': 'Conforme',
-    'non_conforming': 'Não Conforme',
-    'draft': 'Rascunho',
-    'under review': 'Em Revisão',
-    'active': 'Ativo',
-    'pending': 'Pendente',
-    'open': 'Aberto',
-    'closed': 'Fechado',
-    'low': 'Baixo',
-    'medium': 'Médio',
-    'high': 'Alto',
-    'critical': 'Crítico',
-    'planned': 'Planejado',
-    'completed': 'Concluído',
-    'in_progress': 'Em Andamento',
-    'in progress': 'Em Andamento',
-    'na': 'N/A',
-    'gap': 'Gap',
-    // Faltavam: são valores que o backend grava e que apareciam em inglês.
-    'treated': 'Tratado',
-    'mitigate': 'Mitigar',
-    'accept': 'Aceitar',
-    'transfer': 'Transferir',
-    'avoid': 'Evitar',
-    'scheduled': 'Agendado',
-    'very low': 'Muito Baixo',
-    'rejected': 'Rejeitado',
-    'revoked': 'Revogado',
-    'inactive': 'Inativo'
-};
-
 /** Situação de uma fase da jornada (`project_phases.status`), em português. Jornada e Monitor usam a mesma. */
 export const STATUS_DA_FASE = { pending: 'Não iniciada', in_progress: 'Em andamento', completed: 'Concluída', blocked: 'Bloqueada', skipped: 'Dispensada' };
 
 /**
- * Traduz um valor de status/severidade para PT-BR. Valor desconhecido volta
- * COMO VEIO — melhor mostrar o termo cru do banco do que apagar a informação.
+ * Traduz um valor de status/severidade para PT-BR pelo mapa geral de `rotulos.js` (a tabela única). Valor
+ * desconhecido volta COMO VEIO. Para um valor cujo rótulo depende do domínio, use `rotuloDe(dominio, valor)`.
  */
-export function traduzStatus(valor) {
-    if (valor === null || valor === undefined || valor === '') return '';
-    const chave = valor.toString().toLowerCase().trim();
-    return STATUS_DICT[chave] || valor;
+export function traduzStatus(valor) { return rotuloDe('', valor); }
+
+/**
+ * Data na tela, sempre dd/mm/aaaa (e hh:mm com `{ hora: true }`). Aceita o que o banco devolve: "2026-10-15",
+ * "2026-10-15 10:15:00" (UTC do SQLite, sem fuso), ISO com Z, Date ou milissegundos. Data só de dia não passa por
+ * fuso (não vira o dia anterior em Brasília), nem a meia-noite UTC exata ("2026-10-16T00:00:00.000Z", como os prazos
+ * são gravados); data com hora é convertida para o fuso do navegador. Vazio vira
+ * `vazio` ('—'); texto que não é data volta como veio.
+ */
+export function formatarData(valor, { hora = false, vazio = '—' } = {}) {
+    if (valor === null || valor === undefined || valor === '') return vazio;
+    const dd = (n) => String(n).padStart(2, '0');
+    if (typeof valor === 'string') {
+        const s = valor.trim();
+        // Meia-noite UTC exata é um dia gravado como instante (os prazos legais): não passa por fuso.
+        const soDia = /^(\d{4})-(\d{2})-(\d{2})(?:T00:00(?::00(?:\.0+)?)?Z)?$/.exec(s);
+        if (soDia) return `${soDia[3]}/${soDia[2]}/${soDia[1]}`;
+        // "AAAA-MM-DD HH:MM:SS" do SQLite é UTC sem marca de fuso.
+        const sqlite = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(s) ? `${s.replace(' ', 'T')}Z` : s;
+        valor = /^\d{4}-\d{2}-\d{2}T/.test(sqlite) ? new Date(sqlite) : null;
+        if (!valor) return s;
+    }
+    const d = valor instanceof Date ? valor : new Date(valor);
+    if (Number.isNaN(d.getTime())) return vazio;
+    const dia = `${dd(d.getDate())}/${dd(d.getMonth() + 1)}/${d.getFullYear()}`;
+    return hora ? `${dia} ${dd(d.getHours())}:${dd(d.getMinutes())}` : dia;
 }
 
 export function renderStatusBadge(arg1, arg2) {
@@ -531,6 +517,7 @@ window.renderPageHeader = renderPageHeader;
 window.renderStatCards = renderStatCards;
 window.renderStatusBadge = renderStatusBadge;
 window.traduzStatus = traduzStatus;
+window.formatarData = formatarData;
 window.renderDataTable = renderDataTable;
 window.renderEmptyState = renderEmptyState;
 window.renderSemProjeto = renderSemProjeto;

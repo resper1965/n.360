@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
-import { showToast, openModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, escapeHTML, formatarData } from '../ui.js';
 import { textoDaBase } from '../bases-legais.js';
 import { NIVEIS } from './mapa-de-risco.js';
 
@@ -75,7 +75,7 @@ const opcoes = (mapa, atual) => Object.entries(mapa).map(([v, r]) => `<option va
 const opcoesNota = (atual, vazioRotulo) => (vazioRotulo ? `<option value="">${vazioRotulo}</option>` : '') + NOTAS.map((n) => `<option value="${n}" ${n === atual ? 'selected' : ''}>${n}</option>`).join('');
 const opcoesPartes = (partes, atual) => `<option value="">— sem responsável —</option>${partes.map((p) => `<option value="${escapeHTML(p.id)}" ${p.id === atual ? 'selected' : ''}>${escapeHTML(p.nome)}</option>`).join('')}`;
 const nivel = (n) => escapeHTML(NIVEIS[n] || n || '—');
-const dataCurta = (d) => (d ? `${escapeHTML(String(d).slice(8, 10))}/${escapeHTML(String(d).slice(5, 7))}/${escapeHTML(String(d).slice(0, 4))}` : '—');
+const dataCurta = (d) => escapeHTML(formatarData(d));
 
 /** Riscos: lista e formulário. O formulário novo já vem com o primeiro sistema ligado à atividade e o responsável dela. */
 export function blocoRiscos(projectId, ropaId, riscos, itensLigados, partes, editar, dono, primaria = true) {

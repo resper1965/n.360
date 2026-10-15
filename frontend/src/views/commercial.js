@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, formatarData } from '../ui.js';
 import { navigate } from '../router.js';
 
 // S2: wrappers para handlers com `this` como PRIMEIRO argumento (a delegação só
@@ -212,7 +212,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             </div>` : '';
         openModal(`<div class="modal-header"><span class="modal-title">${escapeHTML(l.company_name)}${cnpjBadge}</span><button class="btn-ghost" data-action="forceCloseModal">\u2715</button></div>
             <p><strong>Contato:</strong> ${escapeHTML(l.contact_name||'---')}</p>
-            <p><strong>Status:</strong> <span class="status-badge status-${l.status}">${l.status}</span></p>
+            <p><strong>Status:</strong> ${window.renderStatusBadge(l.status || 'New', 'neutral')}</p>
             ${cnpjInfo}${enrichBtn}
             <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end">
                 <button class="btn btn-primary" data-action="createAssessmentFromLead" data-args='${escapeHTML(JSON.stringify([l.id, l.razao_social || l.company_name]))}'>Iniciar Levantamento</button>
@@ -253,7 +253,7 @@ window.__cmToggleChip = function (key) { window.toggleWizardChip(this, key); };
             const tableHtml = window.renderDataTable(
                 ['Cliente / Empresa', 'Data de Criação', 'Status', 'Ações'],
                 asArr.map(as => {
-                    const date = as.created_at ? as.created_at.split(' ')[0] : '—';
+                    const date = formatarData(as.created_at);
                     const statusType = as.status === 'completed' || as.status === 'concluido' ? 'success' : 'warning';
                     return [
                         `<strong>${escapeHTML(as.client_name || 'Sem nome')}</strong>`,

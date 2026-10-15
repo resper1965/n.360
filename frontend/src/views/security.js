@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { S } from '../state.js';
-import { openModal, forceCloseModal, showToast, escapeHTML } from '../ui.js';
+import { openModal, forceCloseModal, showToast, escapeHTML, formatarData } from '../ui.js';
 import qrcode from 'qrcode-generator';
 
 /**
@@ -195,7 +195,7 @@ window.baixarCodigosMfa = function baixarCodigosMfa() {
   const texto = [
     'n.iso — códigos de recuperação do segundo fator',
     `Conta: ${S.user?.email || ''}`,
-    `Gerados em: ${new Date().toLocaleString('pt-BR')}`,
+    `Gerados em: ${formatarData(new Date(), { hora: true })}`,
     '',
     'Cada código serve UMA única vez. Guarde em local seguro.',
     '',

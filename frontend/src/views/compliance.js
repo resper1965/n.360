@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro, formatarData } from '../ui.js';
 import { navigate } from '../router.js';
 import { temProduto, projetoDoId } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
@@ -1284,7 +1284,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                         <td style="color:var(--text-dim)">${escapeHTML(r.threat)}</td>
                         <td>
                             <span class="badge" style="background:${lvlBg};color:${lvlColor};border:1px solid color-mix(in oklab, ${lvlColor} 20%, transparent);text-transform:capitalize">
-                                ${escapeHTML(r.risk_level || 'Low')}
+                                ${escapeHTML(traduzStatus(r.risk_level || 'Low'))}
                             </span>
                         </td>
                     </tr>
@@ -1337,14 +1337,14 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                         <tbody>
             `;
             evidence.forEach(e => {
-                const dateStr = new Date(e.created_at).toLocaleDateString();
+                const dateStr = formatarData(e.created_at);
                 html += `
                     <tr>
                         <td style="font-weight:500">${escapeHTML(e.file_name)}</td>
                         <td style="color:var(--text-dim)">${dateStr}</td>
                         <td style="text-align:right">
                             <button class="btn btn-ghost" data-action="viewEvidenceDetails" data-args='["${e.id}"]' style="padding:4px 8px;font-size:0.75rem;margin-right:6px">Ver</button>
-                            <button class="btn btn-primary" data-action="downloadEvidenceFile" data-args='["${e.id}"]' style="padding:4px 8px;font-size:0.75rem">Download</button>
+                            <button class="btn btn-primary" data-action="downloadEvidenceFile" data-args='["${e.id}"]' style="padding:4px 8px;font-size:0.75rem">Baixar</button>
                         </td>
                     </tr>
                 `;
@@ -1611,7 +1611,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     function openEvidenceUploadModal(projectId) {
         const comIso = temProduto(projetoDoId(projectId), 'iso');
         openModal(`
-            <div class="modal-header"><span class="modal-title">Upload de Evidencia</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
+            <div class="modal-header"><span class="modal-title">Enviar evidência</span><button class="btn-ghost" data-action="forceCloseModal">\u00d7</button></div>
             ${comIso ? `<div class="form-group">
                 <label class="form-label">Controle ISO (opcional)</label>
                 <input class="form-input" id="ev-control-id" placeholder="Ex: A.5.1, A.8.25">
@@ -1621,7 +1621,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 <input type="file" id="ev-file" class="form-input" style="padding:0.5rem">
             </div>
             <div id="ev-msg" style="font-size:0.7rem;margin-bottom:0.75rem;color:var(--muted)">Formatos aceitos: PDF, DOCX, XLSX, imagens, logs</div>
-            <button class="btn btn-primary" id="btn-ev-upload" style="width:100%" data-action="doEvidenceUpload" data-args='["${projectId}"]'>Enviar Evidencia</button>
+            <button class="btn btn-primary" id="btn-ev-upload" style="width:100%" data-action="doEvidenceUpload" data-args='["${projectId}"]'>Enviar Evidência</button>
         `);
     }
 
@@ -1649,7 +1649,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             const data = await r.json();
             if (!r.ok) throw new Error(data.error || 'Erro');
             msg.style.color = 'var(--accent)';
-            msg.textContent = `Evidencia enviada: ${arquivo.name} (SHA-256: ${data.sha256.substring(0,16)}...)`;
+            msg.textContent = `Evidência enviada: ${arquivo.name} (SHA-256: ${data.sha256.substring(0,16)}...)`;
             btn.textContent = 'Enviar outra';
             btn.disabled = false;
             fileInput.value = '';
@@ -1794,7 +1794,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
             <div id="policy-rascunho" style="border:1px solid var(--accent); padding:1rem; margin-bottom:1rem">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:600; margin-bottom:0.25rem">Rascunho ${rasc.origem === 'agente' ? 'do agente ' : ''}aguardando revisão</div>
                 <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem">
-                    Por ${escapeHTML(rasc.criado_por || 'autor não registrado')} em ${escapeHTML(rasc.criado_em || '')}. A política vigente só muda quando você publicar.
+                    Por ${escapeHTML(rasc.criado_por || 'autor não registrado')} em ${escapeHTML(formatarData(rasc.criado_em, { hora: true }))}. A política vigente só muda quando você publicar.
                 </div>
                 <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(rasc.texto || '')}</div>
                 <div style="display:flex; gap:8px; margin-top:0.75rem">
@@ -1836,7 +1836,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 </div>
 
                 <div class="form-group" id="policy-template-container" style="display:none">
-                    <label class="form-label">Selecione o Template Standard</label>
+                    <label class="form-label">Selecione o modelo</label>
                     <select class="form-input" id="policy-template-select">
                         ${options}
                     </select>
@@ -1862,7 +1862,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     <div style="width:100%">
                         <div>
                             <strong>Líder SGSI:</strong> 
-                            <span style="color:var(--success)">Aprovado por ${escapeHTML(ctrl.ciso_approved_by)} em ${new Date(ctrl.ciso_approved_at).toLocaleString()}</span>
+                            <span style="color:var(--success)">Aprovado por ${escapeHTML(ctrl.ciso_approved_by)} em ${formatarData(ctrl.ciso_approved_at, { hora: true })}</span>
                         </div>
                     </div>
                 `;
@@ -1886,7 +1886,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     <div style="width:100%">
                         <div>
                             <strong>Direção Executiva:</strong> 
-                            <span style="color:var(--success)">Aprovado por ${escapeHTML(ctrl.ceo_approved_by)} em ${new Date(ctrl.ceo_approved_at).toLocaleString()}</span>
+                            <span style="color:var(--success)">Aprovado por ${escapeHTML(ctrl.ceo_approved_by)} em ${formatarData(ctrl.ceo_approved_at, { hora: true })}</span>
                         </div>
                     </div>
                 `;
@@ -1910,7 +1910,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px">
                         <label style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; min-width:120px">Histórico de Versões:</label>
                         <select class="form-input" style="height:32px; padding:0 8px; font-size:0.75rem; border-radius:10px; background:rgba(255,255,255,0.02); border-color:var(--border); flex:1" id="policy-version-selector" data-action-change="onPolicyVersionChange" data-args='["${projectId}","${escapeHTML(ctrl.id)}"]' data-arg-val>
-                            ${versions.map((v, index) => `<option value="${v.id}">${index === 0 ? 'v' + v.version + ' (Atual)' : 'v' + v.version} - por ${escapeHTML(v.created_by)} em ${new Date(v.created_at).toLocaleDateString()}</option>`).join('')}
+                            ${versions.map((v, index) => `<option value="${v.id}">${index === 0 ? 'v' + v.version + ' (Atual)' : 'v' + v.version} - por ${escapeHTML(v.created_by)} em ${formatarData(v.created_at)}</option>`).join('')}
                         </select>
                         <button class="btn" id="btn-restore-version" style="display:none; padding:4px 10px; font-size:0.7rem; border-color:var(--accent); color:var(--accent);" data-action="doRestorePolicyVersion" data-args='["${projectId}","${escapeHTML(ctrl.id)}"]'>Restaurar vX</button>
                     </div>
@@ -1923,7 +1923,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 // O selo diz o que existe (a versão e a data), não "ISO 27001 CONFORME": conformidade é decisão do auditor.
                 const vigente = versions[0];
                 const fatoDaVersao = vigente
-                    ? `Política publicada, versão ${vigente.version}, em ${new Date(vigente.created_at).toLocaleDateString('pt-BR')}`
+                    ? `Política publicada, versão ${vigente.version}, em ${formatarData(vigente.created_at)}`
                     : 'Rascunho';
                 signatureSealHtml = `
                     <div style="background: rgba(0, 173, 232, 0.03); border: 1px solid rgba(0, 173, 232, 0.15); padding: 1rem 1.25rem;">
@@ -1961,7 +1961,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                                     ${versions.map((v, i) => `
                                         <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
                                             <td style="padding:6px 12px; font-weight:600; color:var(--accent)">v${escapeHTML(v.version)}</td>
-                                            <td style="padding:6px 12px">${new Date(v.created_at).toLocaleDateString()}</td>
+                                            <td style="padding:6px 12px">${formatarData(v.created_at)}</td>
                                             <td style="padding:6px 12px">${escapeHTML(v.created_by)}</td>
                                             <td style="padding:6px 12px">
                                                 ${i > 0 ? `<button class="btn btn-ghost" style="padding:2px 6px; font-size:0.72rem; margin:0;" data-action="__cmpViewPolicyVersion" data-args='["${projectId}","${escapeHTML(ctrl.id)}","${v.id}"]'>Visualizar</button>` : `<span style="color:var(--success)">Atual (Ativa)</span>`}
@@ -1997,7 +1997,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     </div>
                     
                     <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:8px" id="signature-workflow-container">
-                        <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--accent); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Workflow de Assinatura (A.5.1)</h4>
+                        <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--accent); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Fluxo de assinatura (A.5.1)</h4>
                         <div style="display:flex; flex-direction:column; gap:0.75rem">
                             <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
                                 ${cisoStatusHtml}
@@ -2017,7 +2017,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                             <button class="btn btn-secondary" data-action="openPolicyReport" data-args='["${projectId}","${escapeHTML(ctrl.id)}"]'>Imprimir</button>
                             ${window.podePedirAprovacao?.(S.user) ? `<button class="btn btn-secondary" data-action="abrirPedidoAprovacao" data-args='${escapeHTML(JSON.stringify([projectId, 'politica', ctrl.id]))}'>Pedir aprovação</button>` : ''}
                         </div>
-                        <button class="btn btn-primary" id="btn-regen-trigger">Regerar com IA / Template</button>
+                        <button class="btn btn-primary" id="btn-regen-trigger">Gerar de novo (IA ou modelo)</button>
                     </div>
                 </div>
             `;
@@ -2220,16 +2220,16 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         const totalAcks = acks.length;
         
         const policyNames = {
-            'ISP': 'ISP - Politica de Seguranca da Informacao',
-            'AUP': 'AUP - Termo de Uso Aceitavel',
+            'ISP': 'ISP - Política de Segurança da Informação',
+            'AUP': 'AUP - Termo de Uso Aceitável',
             'ACP': 'ACP - Controle de Acesso',
             'IRP': 'IRP - Resposta a Incidentes',
-            'BCP': 'BCP - Continuidade de Negocios',
-            'DPP': 'DPP - Protecao de Dados',
-            'CMP': 'CMP - Gestao de Mudancas',
+            'BCP': 'BCP - Continuidade de Negócios',
+            'DPP': 'DPP - Proteção de Dados',
+            'CMP': 'CMP - Gestão de Mudanças',
             'SDP': 'SDP - Desenvolvimento Seguro',
-            'VMP': 'VMP - Gestao de Vulnerabilidades',
-            'SAP': 'SAP - Conscientizacao em Seguranca'
+            'VMP': 'VMP - Gestão de Vulnerabilidades',
+            'SAP': 'SAP - Conscientização em Segurança'
         };
 
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
@@ -2238,12 +2238,12 @@ import { filtrarDoPainel } from '../filtro-painel.js';
 
         const selfServiceFormHtml = `
             <div class="card" style="flex: 1; min-width: 300px; margin-bottom: 0;">
-                <div class="card-label">Minha Declaracao de Ciencia</div>
+                <div class="card-label">Minha Declaração de Ciência</div>
                 <p style="font-size:0.75rem; color:var(--text-dim); margin-bottom:1rem">
                     Declare ciencia de forma eletronica sob as diretrizes vigentes das politicas do projeto.
                 </p>
                 <div class="form-group">
-                    <label class="form-label">Politica</label>
+                    <label class="form-label">Política</label>
                     <select class="form-input" id="ack-self-policy">
                         ${Object.entries(policyNames).map(([key, name]) => `<option value="${key}">${name}</option>`).join('')}
                     </select>
@@ -2256,18 +2256,18 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     <label class="form-label">Seu E-mail</label>
                     <input class="form-input" id="ack-self-email" value="${escapeHTML(currentUserEmail)}" readonly style="background:rgba(255,255,255,0.02)">
                 </div>
-                <button class="btn btn-primary" style="width:100%; margin-top:0.5rem" data-action="submitSelfAcknowledgment" data-args='["${proj.id}"]'>Assinar Ciencia Eletronica</button>
+                <button class="btn btn-primary" style="width:100%; margin-top:0.5rem" data-action="submitSelfAcknowledgment" data-args='["${proj.id}"]'>Assinar Ciência Eletrônica</button>
             </div>
         `;
 
         const manualFormHtml = canCrud ? `
             <div class="card" style="flex: 1; min-width: 300px; margin-bottom: 0;">
-                <div class="card-label">Registrar Ciencia de Colaborador</div>
+                <div class="card-label">Registrar Ciência de Colaborador</div>
                 <p style="font-size:0.75rem; color:var(--text-dim); margin-bottom:1rem">
                     Registrar ciencia eletronica em nome de terceiros ou colaboradores externos.
                 </p>
                 <div class="form-group">
-                    <label class="form-label">Politica</label>
+                    <label class="form-label">Política</label>
                     <select class="form-input" id="ack-manual-policy">
                         ${Object.entries(policyNames).map(([key, name]) => `<option value="${key}">${name}</option>`).join('')}
                     </select>
@@ -2286,7 +2286,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
 
         const historyRows = acks.length ? acks.map(a => {
             const policyTitle = policyNames[a.policy_type] || a.policy_type;
-            const dateStr = a.acknowledged_at ? new Date(a.acknowledged_at).toLocaleString('pt-BR') : 'N/A';
+            const dateStr = a.acknowledged_at ? formatarData(a.acknowledged_at, { hora: true }) : 'N/A';
             return `
                 <tr>
                     <td style="font-weight: 500;">${escapeHTML(a.user_name)}</td>
@@ -2326,14 +2326,14 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 <div id="ciencia-link-box"></div>
 
                 <div class="card">
-                    <div class="card-label">Histórico de Ciencia de Políticas</div>
+                    <div class="card-label">Histórico de Ciência de Políticas</div>
                     <div style="overflow-x:auto;">
                         <table class="data-table">
                             <thead>
                                 <tr>
                                     <th>Colaborador</th>
                                     <th>E-mail</th>
-                                    <th>Politica</th>
+                                    <th>Política</th>
                                     <th>Data / Hora</th>
                                     <th>Endereco IP / Origem</th>
                                 </tr>
@@ -2378,7 +2378,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 user_email: email
             });
             if (res.ok) {
-                showToast('Ciencia de politica registrada com sucesso!');
+                showToast('Ciência de política registrada.');
                 render();
             } else {
                 throw new Error(res.error || 'Erro desconhecido');
@@ -2405,7 +2405,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 user_email: email
             });
             if (res.ok) {
-                showToast('Ciencia de politica registrada com sucesso!');
+                showToast('Ciência de política registrada.');
                 document.getElementById('ack-manual-name').value = '';
                 document.getElementById('ack-manual-email').value = '';
                 render();

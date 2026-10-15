@@ -1,6 +1,7 @@
+import { rotuloDe } from '../rotulos.js';
 import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, traduzStatus } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, traduzStatus, formatarData } from '../ui.js';
 import { navigate } from '../router.js';
 import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
@@ -274,7 +275,7 @@ window.__grcCloseExecAudit = function (id) {
         openModal(`
             <div class="modal-header"><span class="modal-title">Novo Risco</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             <div class="form-group">
-                <label class="form-label">Ativo do Inventario (Opcional)</label>
+                <label class="form-label">Ativo do Inventário (Opcional)</label>
                 <select class="form-input" id="risk-asset-select" data-action-change="onRiskAssetSelectChange" data-arg-el>
                     <option value="">-- Escolha um ativo --</option>
                     ${assets.map(a => `<option value="${a.id}" data-name="${escapeHTML(a.name)}">${escapeHTML(a.name)} (${a.category})</option>`).join('')}
@@ -285,7 +286,7 @@ window.__grcCloseExecAudit = function (id) {
                 <label class="form-label">Nome do Ativo</label>
                 <input class="form-input" id="risk-asset" placeholder="Ex: Servidor de producao">
             </div>
-            <div class="form-group"><label class="form-label">Ameaca</label><input class="form-input" id="risk-threat" placeholder="Ex: Acesso nao autorizado"></div>
+            <div class="form-group"><label class="form-label">Ameaça</label><input class="form-input" id="risk-threat" placeholder="Ex.: acesso não autorizado"></div>
             <div class="form-group"><label class="form-label">Vulnerabilidade</label><input class="form-input" id="risk-vuln" placeholder="Ex: Falta de MFA"></div>
             <div style="display:flex;gap:0.5rem">
                 <div class="form-group" style="flex:1"><label class="form-label">Impacto (1-5)</label><input class="form-input" id="risk-impact" type="number" min="1" max="5" value="3"></div>
@@ -362,7 +363,7 @@ window.__grcCloseExecAudit = function (id) {
         openModal(`
             <div class="modal-header"><span class="modal-title">Editar Risco</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             <div class="form-group"><label class="form-label">Ativo</label><input class="form-input" id="risk-e-asset" value="${escapeHTML(r.asset||'')}"></div>
-            <div class="form-group"><label class="form-label">Ameaca</label><input class="form-input" id="risk-e-threat" value="${escapeHTML(r.threat||'')}"></div>
+            <div class="form-group"><label class="form-label">Ameaça</label><input class="form-input" id="risk-e-threat" value="${escapeHTML(r.threat||'')}"></div>
             <div class="form-group"><label class="form-label">Vulnerabilidade</label><input class="form-input" id="risk-e-vuln" value="${escapeHTML(r.vulnerability||'')}"></div>
             <div style="display:flex;gap:0.5rem">
                 <div class="form-group" style="flex:1"><label class="form-label">Impacto (1-5)</label><input class="form-input" id="risk-e-impact" type="number" min="1" max="5" value="${r.impact||3}"></div>
@@ -437,10 +438,10 @@ window.__grcCloseExecAudit = function (id) {
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Estratégia de Tratamento</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(r.treatment || '')}</div>
+                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(traduzStatus(r.treatment || ''))}</div>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Responsável (Owner)</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Responsável</div>
                         <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(r.owner_parte_nome || r.owner || 'Sem dono')}</div>
                     </div>
                     ${r.control_standard ? `
@@ -453,7 +454,7 @@ window.__grcCloseExecAudit = function (id) {
                     ${r.treatment === 'Accept' && r.accepted_by ? `
                     <div style="grid-column:span 2">
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Risco Aceito por</div>
-                        <div style="font-size:0.85rem; font-weight:500; color:var(--text)">${escapeHTML(r.accepted_by)} em ${r.accepted_at || 'data desconhecida'}</div>
+                        <div style="font-size:0.85rem; font-weight:500; color:var(--text)">${escapeHTML(r.accepted_by)} em ${formatarData(r.accepted_at, { vazio: 'data desconhecida' })}</div>
                     </div>` : ''}
                 </div>
             </div>
@@ -491,13 +492,13 @@ window.__grcCloseExecAudit = function (id) {
         const statsHtml = window.renderStatCards([
             { label: 'Total Fornecedores', value: totalVendors, color: 'var(--text)', subtext: 'Terceiros mapeados' },
             // Sem fornecedor não há postura a medir: "—", nunca "0/100" em vermelho.
-            { label: 'Trust Score Médio', value: totalVendors ? `${avgScore}/100` : '—', color: !totalVendors ? 'var(--text-dim)' : avgScore >= 80 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : 'var(--danger)', subtext: 'Postura global' },
+            { label: 'Índice de confiança médio', value: totalVendors ? `${avgScore}/100` : '—', color: !totalVendors ? 'var(--text-dim)' : avgScore >= 80 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : 'var(--danger)', subtext: 'Postura global' },
             { label: 'DPAs Assinados', value: dpaSignedCount, color: 'var(--text)', subtext: 'Proteção de dados' },
             { label: 'Alta Diligência', value: highDilCount, color: highDilCount ? 'var(--warning)' : 'var(--text)', subtext: 'Acompanhamento rigoroso' }
         ]);
 
         const tableHtml = window.renderDataTable(
-            ['Fornecedor', 'Categoria', 'Trust Score', 'DPA Assinado', 'Certificações', 'Nível Diligência', 'Ações'],
+            ['Fornecedor', 'Categoria', 'Índice de confiança', 'DPA assinado', 'Certificações', 'Nível de diligência', 'Ações'],
             vendors.map(v => {
                 const certs = [];
                 if (v.has_iso27001) certs.push('ISO 27001');
@@ -550,42 +551,42 @@ window.__grcCloseExecAudit = function (id) {
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Nível de Diligencia</div>
-                        <span class="ctx-tag" style="color:${dilColor(v.diligence_level)}; font-weight:600">${v.diligence_level || 'Low'}</span>
+                        <span class="ctx-tag" style="color:${dilColor(v.diligence_level)}; font-weight:600">${escapeHTML(traduzStatus(v.diligence_level || 'Low'))}</span>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Trust Score (Calculado)</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Índice de confiança (calculado)</div>
                         <span style="font-size:1.1rem; font-weight:700; color:${v.trust_score >= 80 ? 'var(--success)' : v.trust_score >= 50 ? 'var(--warning)' : 'var(--danger)'}">${v.trust_score || 0} / 100</span>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">DPA Assinado</div>
-                        <span class="ctx-tag" style="background:${v.dpa_signed ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.05)'}; color:${v.dpa_signed ? 'var(--success)' : 'var(--text-dim)'}; font-weight:600">${v.dpa_signed ? 'Sim' : 'Nao'}</span>
+                        <span class="ctx-tag" style="background:${v.dpa_signed ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.05)'}; color:${v.dpa_signed ? 'var(--success)' : 'var(--text-dim)'}; font-weight:600">${v.dpa_signed ? 'Sim' : 'Não'}</span>
                     </div>
                     
                     <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Postura de Seguranca</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Postura de Segurança</div>
                         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px">
-                            <span class="ctx-tag" style="color:${v.has_mfa ? 'var(--success)' : 'var(--text-dim)'}; border-color:${v.has_mfa ? 'var(--success)' : 'var(--border)'}">MFA Habilitado: ${v.has_mfa ? 'Sim' : 'Nao'}</span>
-                            <span class="ctx-tag" style="color:${v.has_encryption ? 'var(--success)' : 'var(--text-dim)'}; border-color:${v.has_encryption ? 'var(--success)' : 'var(--border)'}">Criptografia: ${v.has_encryption ? 'Sim' : 'Nao'}</span>
-                            <span class="ctx-tag" style="color:${v.has_backup ? 'var(--success)' : 'var(--text-dim)'}; border-color:${v.has_backup ? 'var(--success)' : 'var(--border)'}">Backup Ativo: ${v.has_backup ? 'Sim' : 'Nao'}</span>
-                            <span class="ctx-tag" style="color:${v.has_incident_plan ? 'var(--success)' : 'var(--text-dim)'}; border-color:${v.has_incident_plan ? 'var(--success)' : 'var(--border)'}">Resposta a Incidentes: ${v.has_incident_plan ? 'Sim' : 'Nao'}</span>
-                            <span class="ctx-tag" style="color:${v.has_pentest ? 'var(--success)' : 'var(--text-dim)'}; border-color:${v.has_pentest ? 'var(--success)' : 'var(--border)'}">Pentest Recente: ${v.has_pentest ? 'Sim' : 'Nao'}</span>
+                            <span class="ctx-tag" style="color:${v.has_mfa ? 'var(--success)' : 'var(--text-dim)'}; border-color:${v.has_mfa ? 'var(--success)' : 'var(--border)'}">MFA Habilitado: ${v.has_mfa ? 'Sim' : 'Não'}</span>
+                            <span class="ctx-tag" style="color:${v.has_encryption ? 'var(--success)' : 'var(--text-dim)'}; border-color:${v.has_encryption ? 'var(--success)' : 'var(--border)'}">Criptografia: ${v.has_encryption ? 'Sim' : 'Não'}</span>
+                            <span class="ctx-tag" style="color:${v.has_backup ? 'var(--success)' : 'var(--text-dim)'}; border-color:${v.has_backup ? 'var(--success)' : 'var(--border)'}">Backup Ativo: ${v.has_backup ? 'Sim' : 'Não'}</span>
+                            <span class="ctx-tag" style="color:${v.has_incident_plan ? 'var(--success)' : 'var(--text-dim)'}; border-color:${v.has_incident_plan ? 'var(--success)' : 'var(--border)'}">Resposta a Incidentes: ${v.has_incident_plan ? 'Sim' : 'Não'}</span>
+                            <span class="ctx-tag" style="color:${v.has_pentest ? 'var(--success)' : 'var(--text-dim)'}; border-color:${v.has_pentest ? 'var(--success)' : 'var(--border)'}">Pentest Recente: ${v.has_pentest ? 'Sim' : 'Não'}</span>
                         </div>
                     </div>
 
                     ${v.trust_center_url ? `
                     <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Trust Center / Security Portal</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Portal de segurança (Trust Center)</div>
                         <a href="${escapeHTML(v.trust_center_url)}" target="_blank" style="color:var(--accent); font-size:0.85rem; text-decoration:none">${escapeHTML(v.trust_center_url)} &nearr;</a>
                     </div>` : ''}
 
                     ${v.dpa_url ? `
                     <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">DPA Padrao / Termos de Privacidade</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">DPA Padrão / Termos de Privacidade</div>
                         <a href="${escapeHTML(v.dpa_url)}" target="_blank" style="color:var(--accent); font-size:0.85rem; text-decoration:none">${escapeHTML(v.dpa_url)} &nearr;</a>
                     </div>` : ''}
 
                     <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Certificacoes e Padroes Publicos</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Certificações e Padrões Públicos</div>
                         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px">
                             ${v.has_iso27001 ? '<span class="ctx-tag ctx-tag-green">ISO 27001</span>' : ''}
                             ${v.has_iso27701 ? '<span class="ctx-tag ctx-tag-green">ISO 27701</span>' : ''}
@@ -630,7 +631,7 @@ window.__grcCloseExecAudit = function (id) {
             <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="vnd-name" placeholder="Ex: AWS, Cloudflare"></div>
             <div class="form-group"><label class="form-label">Categoria</label><input class="form-input" id="vnd-cat" placeholder="Ex: Cloud, SaaS, Consultoria"></div>
             
-            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Certificacoes Conhecidas</div>
+            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Certificações Conhecidas</div>
             <div style="display:flex; gap:1rem; margin-bottom:1rem">
                 <label style="font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.25rem"><input type="checkbox" id="vnd-iso27001" data-action-change="previewVendorScore"> ISO 27001</label>
                 <label style="font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.25rem"><input type="checkbox" id="vnd-iso27701" data-action-change="previewVendorScore"> ISO 27701</label>
@@ -642,7 +643,7 @@ window.__grcCloseExecAudit = function (id) {
                 <input class="form-input" id="vnd-attached-certs" placeholder="Ex: PCI-DSS, HIPAA, ISO 27017">
             </div>
 
-            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Postura de Seguranca (Se houver questionario/dados)</div>
+            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Postura de Segurança (se houver questionário ou dados)</div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:1rem">
                 <label style="font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.25rem"><input type="checkbox" id="vnd-mfa" data-action-change="previewVendorScore"> MFA Habilitado</label>
                 <label style="font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.25rem"><input type="checkbox" id="vnd-enc" data-action-change="previewVendorScore"> Criptografia Ativa</label>
@@ -651,27 +652,27 @@ window.__grcCloseExecAudit = function (id) {
                 <label style="font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.25rem; grid-column:span 2"><input type="checkbox" id="vnd-pen" data-action-change="previewVendorScore"> Testes de Invasao (Pentest)</label>
             </div>
 
-            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Canais Publicos (Trust Center / DPA Padrao)</div>
+            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Canais públicos (portal de segurança e DPA padrão)</div>
             <div class="form-group">
-                <label class="form-label">Trust Center / Security Portal (URL)</label>
+                <label class="form-label">Portal de segurança (URL)</label>
                 <input class="form-input" id="vnd-tc-url" placeholder="Ex: https://aws.amazon.com/compliance/" data-action-input="previewVendorScore">
             </div>
             <div style="display:flex; gap:0.5rem">
                 <div class="form-group" style="flex:1">
                     <label class="form-label">DPA Assinado?</label>
                     <select class="form-input" id="vnd-dpa" data-action-change="previewVendorScore">
-                        <option value="0">Nao</option>
+                        <option value="0">Não</option>
                         <option value="1">Sim</option>
                     </select>
                 </div>
                 <div class="form-group" style="flex:2">
-                    <label class="form-label">DPA URL (Padrao do Site)</label>
+                    <label class="form-label">DPA URL (Padrão do Site)</label>
                     <input class="form-input" id="vnd-dpa-url" placeholder="Ex: https://aws.amazon.com/dpa/" data-action-input="previewVendorScore">
                 </div>
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; margin-bottom:1rem; background:rgba(255,255,255,0.01); border:1px solid var(--border); padding:12px">
-                <span style="font-size:0.8rem; font-weight:600">Trust Score Estimado:</span>
+                <span style="font-size:0.8rem; font-weight:600">Índice de confiança estimado:</span>
                 <span id="vnd-score-preview" style="font-size:1.1rem; font-weight:700; color:var(--danger)">0 / 100</span>
             </div>
 
@@ -709,7 +710,7 @@ window.__grcCloseExecAudit = function (id) {
             <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="vnd-e-name" value="${escapeHTML(v.name||'')}"></div>
             <div class="form-group"><label class="form-label">Categoria</label><input class="form-input" id="vnd-e-cat" value="${escapeHTML(v.category||'')}"></div>
             
-            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Certificacoes Conhecidas</div>
+            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Certificações Conhecidas</div>
             <div style="display:flex; gap:1rem; margin-bottom:1rem">
                 <label style="font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.25rem"><input type="checkbox" id="vnd-iso27001" ${v.has_iso27001?'checked':''} data-action-change="previewVendorScore"> ISO 27001</label>
                 <label style="font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.25rem"><input type="checkbox" id="vnd-iso27701" ${v.has_iso27701?'checked':''} data-action-change="previewVendorScore"> ISO 27701</label>
@@ -721,7 +722,7 @@ window.__grcCloseExecAudit = function (id) {
                 <input class="form-input" id="vnd-attached-certs" value="${escapeHTML(v.attached_certifications||'')}" placeholder="Ex: PCI-DSS, HIPAA, ISO 27017">
             </div>
 
-            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Postura de Seguranca</div>
+            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Postura de Segurança</div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:1rem">
                 <label style="font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.25rem"><input type="checkbox" id="vnd-mfa" ${v.has_mfa?'checked':''} data-action-change="previewVendorScore"> MFA Habilitado</label>
                 <label style="font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.25rem"><input type="checkbox" id="vnd-enc" ${v.has_encryption?'checked':''} data-action-change="previewVendorScore"> Criptografia Ativa</label>
@@ -730,16 +731,16 @@ window.__grcCloseExecAudit = function (id) {
                 <label style="font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.25rem; grid-column:span 2"><input type="checkbox" id="vnd-pen" ${v.has_pentest?'checked':''} data-action-change="previewVendorScore"> Testes de Invasao (Pentest)</label>
             </div>
 
-            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Canais Publicos</div>
+            <div class="card-label" style="margin-top:1rem; margin-bottom:0.5rem">Canais Públicos</div>
             <div class="form-group">
-                <label class="form-label">Trust Center / Security Portal (URL)</label>
+                <label class="form-label">Portal de segurança (URL)</label>
                 <input class="form-input" id="vnd-tc-url" value="${escapeHTML(v.trust_center_url||'')}" placeholder="Ex: https://aws.amazon.com/compliance/" data-action-input="previewVendorScore">
             </div>
             <div style="display:flex; gap:0.5rem">
                 <div class="form-group" style="flex:1">
                     <label class="form-label">DPA Assinado?</label>
                     <select class="form-input" id="vnd-dpa" data-action-change="previewVendorScore">
-                        <option value="0" ${!v.dpa_signed?'selected':''}>Nao</option>
+                        <option value="0" ${!v.dpa_signed?'selected':''}>Não</option>
                         <option value="1" ${v.dpa_signed?'selected':''}>Sim</option>
                     </select>
                 </div>
@@ -750,7 +751,7 @@ window.__grcCloseExecAudit = function (id) {
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; margin-bottom:1rem; background:rgba(255,255,255,0.01); border:1px solid var(--border); padding:12px">
-                <span style="font-size:0.8rem; font-weight:600">Trust Score Estimado:</span>
+                <span style="font-size:0.8rem; font-weight:600">Índice de confiança estimado:</span>
                 <span id="vnd-score-preview" style="font-size:1.1rem; font-weight:700; color:var(--danger)">${v.trust_score||0} / 100</span>
             </div>
 
@@ -842,7 +843,7 @@ window.__grcCloseExecAudit = function (id) {
         ]);
 
         const tableHtml = window.renderDataTable(
-            ['Treinamento', 'Colaborador', 'Score (%)', 'Data Conclusão', 'Evidência', 'Status', 'Ações'],
+            ['Treinamento', 'Colaborador', 'Pontuação (%)', 'Data de conclusão', 'Evidência', 'Status', 'Ações'],
             records.map(r => {
                 const hasEvidence = !!r.evidence_file;
                 const statusType = r.status === 'Completed' ? 'success' : r.status === 'Expired' ? 'danger' : 'warning';
@@ -851,7 +852,7 @@ window.__grcCloseExecAudit = function (id) {
                     `<strong>${escapeHTML(r.training_name)}</strong>`,
                     escapeHTML(r.employee_name),
                     r.score ? `<strong>${r.score}%</strong>` : '—',
-                    r.completion_date || '—',
+                    formatarData(r.completion_date),
                     hasEvidence ? '<span style="color:var(--success)"> Anexada</span>' : '<span style="color:var(--text-dim)"> Ausente</span>',
                     window.renderStatusBadge(r.status || 'Pending', statusType),
                     `<button class="btn btn-ghost btn-sm" data-action="openTrainingDetailsModal" data-args='["${r.id}"]'>Detalhes</button>`
@@ -906,15 +907,15 @@ window.__grcCloseExecAudit = function (id) {
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Status</div>
-                        <span class="ctx-tag" style="color:${statusColor(r.status)}; font-weight:600">${r.status || 'Pending'}</span>
+                        <span class="ctx-tag" style="color:${statusColor(r.status)}; font-weight:600">${escapeHTML(traduzStatus(r.status || 'Pending'))}</span>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Score</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Pontuação</div>
                         <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${r.score ? r.score + '%' : 'N/A'}</div>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Data de Conclusão</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${r.completion_date || 'N/A'}</div>
+                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${formatarData(r.completion_date)}</div>
                     </div>
                     <div style="grid-column:span 2">
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Evidência de Participação</div>
@@ -969,10 +970,10 @@ window.__grcCloseExecAudit = function (id) {
         openModal(`
             <div class="modal-header"><span class="modal-title">Novo Registro de Treinamento</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             <div class="form-group"><label class="form-label">Nome do Colaborador</label><input class="form-input" id="tr-name" placeholder="Ex: Ana Silva"></div>
-            <div class="form-group"><label class="form-label">Treinamento</label><input class="form-input" id="tr-training" placeholder="Ex: Seguranca da Informacao Básico"></div>
+            <div class="form-group"><label class="form-label">Treinamento</label><input class="form-input" id="tr-training" placeholder="Ex: Segurança da Informação Básico"></div>
             <div style="display:flex;gap:0.5rem">
                 <div class="form-group" style="flex:1"><label class="form-label">Status</label>
-                    <select class="form-input" id="tr-status"><option>Pending</option><option>Completed</option><option>Expired</option></select></div>
+                    <select class="form-input" id="tr-status"><option value="Pending">Pendente</option><option value="Completed">Concluído</option><option value="Expired">Vencido</option></select></div>
                 <div class="form-group" style="flex:1"><label class="form-label">Score (%)</label><input class="form-input" id="tr-score" type="number" min="0" max="100" placeholder="85"></div>
             </div>
             <div class="form-group"><label class="form-label">Data de Conclusao</label><input class="form-input" id="tr-date" type="date"></div>
@@ -1159,7 +1160,7 @@ window.__grcCloseExecAudit = function (id) {
                 return [
                     `<strong>${escapeHTML(ca.title)}</strong>`,
                     escapeHTML(ca.assigned_to_parte_nome || ca.assigned_to || 'Sem responsável'),
-                    ca.due_date || '—',
+                    formatarData(ca.due_date),
                     window.renderStatusBadge(ca.severity || 'Medium', sevBadgeType),
                     window.renderStatusBadge(ca.status || 'Open', statusBadgeType),
                     `<button class="btn btn-ghost btn-sm" data-action="openCAPADetailsModal" data-args='["${ca.id}"]'>Detalhes</button>`
@@ -1203,7 +1204,7 @@ window.__grcCloseExecAudit = function (id) {
 
         openModal(`
             <div class="modal-header">
-                <span class="modal-title">Detalhes da Acao Corretiva</span>
+                <span class="modal-title">Detalhes da Ação Corretiva</span>
                 <button class="btn-ghost" data-action="forceCloseModal">&times;</button>
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
@@ -1218,11 +1219,11 @@ window.__grcCloseExecAudit = function (id) {
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Severidade</div>
-                        <span class="ctx-tag" style="color:${sevColor(ca.severity)}; font-weight:600">${ca.severity || 'Low'}</span>
+                        <span class="ctx-tag" style="color:${sevColor(ca.severity)}; font-weight:600">${escapeHTML(traduzStatus(ca.severity || 'Low'))}</span>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Status</div>
-                        <span class="ctx-tag" style="color:${statusColor(ca.status)}; font-weight:600">${ca.status || 'Open'}</span>
+                        <span class="ctx-tag" style="color:${statusColor(ca.status)}; font-weight:600">${escapeHTML(traduzStatus(ca.status || 'Open'))}</span>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Responsável</div>
@@ -1230,18 +1231,18 @@ window.__grcCloseExecAudit = function (id) {
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Prazo de Conclusao</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${ca.due_date || 'N/A'}</div>
+                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${formatarData(ca.due_date)}</div>
                     </div>
                     <div style="grid-column:span 2">
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Causa Raiz (Root Cause)</div>
-                        <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(ca.root_cause || 'Nao analisada')}</div>
+                        <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(ca.root_cause || 'Não analisada')}</div>
                     </div>
                     <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Plano de Acao (Action Plan)</div>
-                        <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(ca.action_plan || 'Nao definido')}</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Plano de ação</div>
+                        <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(ca.action_plan || 'Não definido')}</div>
                     </div>
                     <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Resolucao / Evidencia de Fechamento</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Resolução / Evidência de Fechamento</div>
                         <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(ca.resolution || 'Nenhuma resolução cadastrada')}</div>
                     </div>
                     <div style="grid-column:span 2">
@@ -1252,7 +1253,7 @@ window.__grcCloseExecAudit = function (id) {
             </div>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
-                ${canCrud ? `<button class="btn btn-primary" data-action="openEditCAPAModal" data-args='["${id}"]'>Editar Acao</button>` : ''}
+                ${canCrud ? `<button class="btn btn-primary" data-action="openEditCAPAModal" data-args='["${id}"]'>Editar Ação</button>` : ''}
             </div>
         `);
     };
@@ -1267,11 +1268,11 @@ window.__grcCloseExecAudit = function (id) {
         const parteOptions = await opcoesDePartes(projectId, null);
 
         openModal(`
-            <div class="modal-header"><span class="modal-title">Nova Acao Corretiva</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Nova Ação Corretiva</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="capa-title" placeholder="Ex: Implementar MFA em todos os sistemas"></div>
             <div class="form-group"><label class="form-label">Descrição</label><textarea class="form-input" id="capa-desc" placeholder="Detalhe a acao corretiva..."></textarea></div>
             <div class="form-group"><label class="form-label">Causa Raiz (Root Cause)</label><textarea class="form-input" id="capa-root" placeholder="Causa identificada do problema..."></textarea></div>
-            <div class="form-group"><label class="form-label">Plano de Acao (Action Plan)</label><textarea class="form-input" id="capa-plan" placeholder="Passos a serem tomados..."></textarea></div>
+            <div class="form-group"><label class="form-label">Plano de ação</label><textarea class="form-input" id="capa-plan" placeholder="Passos a serem tomados..."></textarea></div>
             <div style="display:flex;gap:0.5rem">
                 <div class="form-group" style="flex:1"><label class="form-label">Severidade</label>
                     <select class="form-input" id="capa-sev"><option value="Low">Baixo</option><option value="Medium" selected>Médio</option><option value="High">Alto</option><option value="Critical">Crítico</option></select></div>
@@ -1340,11 +1341,11 @@ window.__grcCloseExecAudit = function (id) {
         const parteOptions = await opcoesDePartes(projectId, ca.assigned_to_parte_id);
 
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Acao Corretiva</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
+            <div class="modal-header"><span class="modal-title">Editar Ação Corretiva</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="capa-e-title" value="${escapeHTML(ca.title||'')}"></div>
             <div class="form-group"><label class="form-label">Descrição</label><textarea class="form-input" id="capa-e-desc">${escapeHTML(ca.description||'')}</textarea></div>
             <div class="form-group"><label class="form-label">Causa Raiz (Root Cause)</label><textarea class="form-input" id="capa-e-root">${escapeHTML(ca.root_cause||'')}</textarea></div>
-            <div class="form-group"><label class="form-label">Plano de Acao (Action Plan)</label><textarea class="form-input" id="capa-e-plan">${escapeHTML(ca.action_plan||'')}</textarea></div>
+            <div class="form-group"><label class="form-label">Plano de ação</label><textarea class="form-input" id="capa-e-plan">${escapeHTML(ca.action_plan||'')}</textarea></div>
             <div style="display:flex;gap:0.5rem">
                 <div class="form-group" style="flex:1"><label class="form-label">Severidade</label>
                     <select class="form-input" id="capa-e-sev">
@@ -1360,7 +1361,7 @@ window.__grcCloseExecAudit = function (id) {
                 <div class="form-group" style="flex:1"><label class="form-label">Responsável (cadastro de partes)</label><select class="form-input" id="capa-e-assigned-parte">${parteOptions}</select></div>
             </div>
             <div class="form-group"><label class="form-label">Responsável (texto livre)</label><input class="form-input" id="capa-e-assigned" value="${escapeHTML(ca.assigned_to||'')}"></div>
-            <div class="form-group"><label class="form-label">Resolucao (Se fechada)</label><textarea class="form-input" id="capa-e-resolution">${escapeHTML(ca.resolution||'')}</textarea></div>
+            <div class="form-group"><label class="form-label">Resolução (se fechada)</label><textarea class="form-input" id="capa-e-resolution">${escapeHTML(ca.resolution||'')}</textarea></div>
             
             <div class="card-label" style="margin-top:1rem;margin-bottom:0.5rem">Vinculos e Associacao</div>
             <div class="form-group">
@@ -1461,11 +1462,11 @@ window.__grcCloseExecAudit = function (id) {
 
                 return [
                     `<strong>${escapeHTML(au.title)}</strong>`,
-                    escapeHTML(au.audit_type || 'Interna'),
+                    escapeHTML(rotuloDe('auditoria', au.audit_type || 'Internal')),
                     escapeHTML(au.auditor_name || 'TBD'),
-                    au.scheduled_date || '—',
+                    formatarData(au.scheduled_date),
                     au.findings_count ? `<span style="color:var(--danger);font-weight:600">${au.findings_count} achados</span>` : '—',
-                    window.renderStatusBadge(au.status || 'Planned', statusBadgeType),
+                    window.renderStatusBadge(rotuloDe('auditoria', au.status || 'Planned'), statusBadgeType),
                     `${executeBtn}<button class="btn btn-ghost btn-sm" data-action="openAuditDetailsModal" data-args='["${au.id}"]'>Detalhes</button>`
                 ];
             }),
@@ -1500,31 +1501,31 @@ window.__grcCloseExecAudit = function (id) {
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px">
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Tipo de Auditoria</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(au.audit_type || '')}</div>
+                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(rotuloDe('auditoria', au.audit_type || ''))}</div>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Status</div>
-                        <span class="ctx-tag" style="color:${statusColor(au.status)}; font-weight:600">${au.status || 'Planned'}</span>
+                        <span class="ctx-tag" style="color:${statusColor(au.status)}; font-weight:600">${escapeHTML(rotuloDe('auditoria', au.status || 'Planned'))}</span>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Auditor / Organismo</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(au.auditor_name || 'Nao definido')}</div>
+                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(au.auditor_name || 'Não definido')}</div>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Data Agendada</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${au.scheduled_date || ''}</div>
+                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${formatarData(au.scheduled_date, { vazio: '' })}</div>
                     </div>
                     <div style="grid-column:span 2">
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Escopo</div>
                         <div style="font-size:0.85rem; font-weight:500; color:var(--text)">${escapeHTML(au.scope || 'Geral')}</div>
                     </div>
                     <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Nao Conformidades / Achados</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Não Conformidades / Achados</div>
                         <div style="font-size:0.85rem; font-weight:600; color:${au.findings_count ? 'var(--danger)' : 'var(--text)'}">${au.findings_count || 0} achados</div>
                     </div>
                     <div>
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Data de Conclusao</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${au.completed_at ? new Date(au.completed_at).toLocaleDateString('pt-BR') : 'Nao concluida'}</div>
+                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${au.completed_at ? formatarData(au.completed_at) : 'Não concluída'}</div>
                     </div>
                     <div style="grid-column:span 2">
                         <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Notas / Observacoes</div>
@@ -1545,7 +1546,7 @@ window.__grcCloseExecAudit = function (id) {
             <div class="modal-header"><span class="modal-title">Nova Auditoria</span><button class="btn-ghost" data-action="forceCloseModal">&times;</button></div>
             <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="aud-title" placeholder="Ex: Auditoria Interna Anual"></div>
             <div class="form-group"><label class="form-label">Tipo</label>
-                <select class="form-input" id="aud-type"><option>Internal</option><option>External</option><option>Surveillance</option><option>Certification</option></select></div>
+                <select class="form-input" id="aud-type"><option value="Internal">Interna</option><option value="External">Externa</option><option value="Surveillance">Supervisão</option><option value="Certification">Certificação</option></select></div>
             <div style="display:flex;gap:0.5rem">
                 <div class="form-group" style="flex:1"><label class="form-label">Data</label><input class="form-input" id="aud-date" type="date"></div>
                 <div class="form-group" style="flex:1"><label class="form-label">Auditor</label><input class="form-input" id="aud-auditor" placeholder="Ex: BSI, SGS"></div>
@@ -1646,7 +1647,7 @@ window.__grcCloseExecAudit = function (id) {
                     <div style="font-size:0.85rem;color:var(--muted)">
                         <strong>Auditor:</strong> ${escapeHTML(currentAudit.auditor_name || 'TBD')} | 
                         <strong>Escopo:</strong> ${escapeHTML(currentAudit.scope || 'Todo o ISMS')} | 
-                        <strong>Data:</strong> ${currentAudit.scheduled_date}
+                        <strong>Data:</strong> ${formatarData(currentAudit.scheduled_date)}
                     </div>
                 </div>
                 
@@ -1674,7 +1675,7 @@ window.__grcCloseExecAudit = function (id) {
                         <td style="font-size:0.85rem;font-weight:500">${escapeHTML(ctrl.title)}</td>
                         <td>
                             <span class="badge badge-${(ctrl.status || 'missing').toLowerCase().replace(/\s/g,'-')}">
-                                ${escapeHTML(ctrl.status || 'Missing')}
+                                ${escapeHTML(traduzStatus(ctrl.status || 'Missing'))}
                             </span>
                         </td>
                         <td style="text-align:center">
@@ -1712,7 +1713,7 @@ window.__grcCloseExecAudit = function (id) {
                             <div style="font-size:0.85rem;margin-bottom:8px">${escapeHTML(f.description)}</div>
                             ${f.auditor_notes ? `<div style="font-size:0.75rem;color:var(--muted);background:rgba(255,255,255,0.02);padding:6px 10px;margin-bottom:8px"><strong>Notas:</strong> ${escapeHTML(f.auditor_notes)}</div>` : ''}
                             <div style="display:flex;justify-content:space-between;align-items:center">
-                                <span style="font-size:0.7rem;color:var(--muted)">Registrado em: ${f.created_at.split('T')[0]}</span>
+                                <span style="font-size:0.7rem;color:var(--muted)">Registrado em: ${formatarData(f.created_at)}</span>
                                 ${podeRegistrarAchado ? `<button data-action="deleteFinding" data-args='["${f.id}"]' class="btn" style="padding:2px 6px;font-size:0.7rem;color:red;border-color:rgba(255,0,0,0.15)">Deletar</button>` : ''}
                             </div>
                         </div>
