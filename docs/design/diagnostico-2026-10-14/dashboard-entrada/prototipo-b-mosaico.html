@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel de entrada, direção B</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="prototipo-base.css">
+<style>
+  main { container-type: inline-size; }
+  /* Faixa de saúde: identidade, frase e quatro números que levam a algum lugar */
+  .faixa { background: var(--surface); border: 1px solid var(--border); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+  .faixa .id { padding: 20px 22px; border-right: 1px solid var(--border); }
+  .faixa .id h2 { font-size: 19px; }
+  .faixa .id p { margin: 6px 0 0; color: var(--text-2); font-size: 13px; }
+  .faixa .id p span + span::before { content: ' · '; color: var(--text-dim); }
+  .faixa .sd { padding: 20px 22px; }
+  .faixa .sd .frase { font: 600 19px/1.35 var(--font-head); margin: 6px 0 0; text-wrap: balance; }
+  .faixa .nums { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--border); }
+  .faixa .nums a { padding: 14px 22px; text-decoration: none; color: var(--text-2); font-size: 12.5px; border-right: 1px solid var(--border); transition: background var(--fast) var(--ease-out); }
+  .faixa .nums a:last-child { border-right: 0; }
+  .faixa .nums a:hover { background: var(--surface-2); }
+  .faixa .nums b { display: block; font-size: 24px; font-weight: 600; color: var(--text); line-height: 1.2; }
+  .faixa .nums .estado { display: flex; width: max-content; margin-top: 4px; }
+  .mosaico { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; margin-top: 16px; align-items: start; }
+  .s7 { grid-column: span 7; } .s5 { grid-column: span 5; }
+  .pilha { display: grid; gap: 16px; }
+  @container (max-width: 900px) { .faixa { grid-template-columns: 1fr; } .faixa .id { border-right: 0; border-bottom: 1px solid var(--border); } .faixa .nums { grid-template-columns: repeat(2, 1fr); } .s7, .s5 { grid-column: 1 / -1; } }
+  .fz { margin: 0; padding: 0; list-style: none; }
+  .fz li { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); }
+  .fz .tx { color: var(--text); } .fz .cx { font-size: 12.5px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="proto-bar" role="toolbar" aria-label="Controles do protótipo">
+  <fieldset data-k="barra"><legend><b>Barra</b></legend><button data-v="aberta">Aberta</button><button data-v="recolhida">Recolhida</button></fieldset>
+  <span>Só a entrada do n.privacy, papel consultor, com dados. Papéis, estados e o n.360 estão na direção A.</span>
+  <span class="aviso">Protótipo da direção B. Dados fictícios de exemplo.</span>
+</div>
+<div class="app" id="app">
+  <aside class="side" aria-label="Menu"><div class="marca" id="marca"></div><div class="proj">Exemplo Log<small>n.iso · n.privacy</small></div><nav id="nav" aria-label="Navegação principal"></nav></aside>
+  <div style="min-width:0">
+    <header class="topo"><h1>Painel</h1><span class="chip">Programa de privacidade e segurança</span><div class="dir"><button class="btn">Avisos</button></div></header>
+    <main id="main"></main>
+  </div>
+</div>
+<div class="tip" role="tooltip"></div>
+<script src="prototipo-dados.js"></script>
+<script src="prototipo-graficos.js"></script>
+<script>
+const E = window.EXEMPLO, { esc } = window.U;
+const st = { barra: 'aberta' };
+if (location.hash.length > 1) Object.assign(st, Object.fromEntries(new URLSearchParams(location.hash.slice(1))));
+const itens = [['Painel', 1], ['Tratamentos (RoPA)'], ['Pessoas, áreas e sistemas'], ['Terceiros'], ['RIPD'], ['Cobertura da LGPD'], ['Mapa de risco'], ['Pedidos do titular'], ['Incidentes'], ['Documentos'], ['Evidências']];
+const estado = (tom, txt) => `<span class="estado ${tom}">${esc(txt)}</span>`;
+const painel = (id, t, c, x = '') => `<section class="painel" aria-labelledby="${id}"><header><h2 id="${id}">${esc(t)}</h2>${x}</header>${c}</section>`;
+function render() {
+  document.querySelectorAll('.proto-bar button').forEach((b) => b.setAttribute('aria-pressed', String(st.barra === b.dataset.v)));
+  document.getElementById('app').classList.toggle('recolhida', st.barra === 'recolhida');
+  document.getElementById('marca').innerHTML = st.barra === 'recolhida' ? 'n<i>.</i>' : 'n<i>.</i>privacy';
+  document.getElementById('nav').innerHTML = itens.map(([n, a]) => `<a class="item" href="#" ${a ? 'aria-current="page"' : ''} title="${esc(n)}"><span class="ic" aria-hidden="true"></span><span class="rot">${esc(n)}</span></a>`).join('');
+  const e = E.empresa, s = E.saude.privacy;
+  const faixa = `<section class="faixa" aria-label="Empresa e situação do programa">
+    <div class="id"><h2>${esc(e.razao)}</h2><p><span>CNPJ ${esc(e.cnpj)}</span><span>${esc(e.setor)}</span><span>${esc(e.porte)}, ${e.funcionarios} pessoas</span></p><p><span>Encarregado: ${esc(e.encarregado)}</span><span>${esc(e.programa)}</span></p></div>
+    <div class="sd">${estado(s.tom, s.rotulo)}<p class="frase">${esc(s.frase)}</p><p class="meta" style="margin:6px 0 0">${esc(s.apoio)}</p></div>
+    <div class="nums">
+      <a href="#"><b class="num">2</b>prazos legais vencidos${estado('atraso', 'Atrasado')}</a>
+      <a href="#"><b class="num">4</b>vencem nesta semana${estado('semana', 'Até 21/10')}</a>
+      <a href="#"><b class="num">3</b>atividades sem o RIPD exigido${estado('semana', 'Exigido')}</a>
+      <a href="#"><b class="num">41 de 65</b>artigos da LGPD cobertos${estado('plano', '12 sem cobertura')}</a>
+    </div></section>`;
+  const fazer = `<ul class="fz">${E.fazer.privacy.map((i) => `<li>${estado(i.tom, i.quando)}<div><div class="tx">${esc(i.texto)}</div><div class="cx">${esc(i.ctx)}</div></div><a class="btn${i.tom === 'atraso' ? ' prim' : ''}" href="#" aria-label="${esc(i.acao)}: ${esc(i.texto)}">${esc(i.acao)}</a></li>`).join('')}</ul>`;
+  document.getElementById('main').innerHTML = `${faixa}<div class="mosaico">
+    <div class="s7 pilha">${painel('f', 'O que fazer agora', fazer, '<a class="btn link" href="#">Ver as 12</a>')}${painel('v', 'Próximos vencimentos, 90 dias', G.vencimentos(E.vencimentos.privacy))}</div>
+    <div class="s5 pilha">${painel('c', 'Cobertura do programa', G.cobertura(E.cobertura.privacy))}${painel('m', 'Mapa de risco', G.mapaDeRisco(E.riscos), '<span class="meta">fase F2</span>')}${painel('p', 'Pedidos do titular recebidos', G.sparkline(E.pedidosSemana))}</div>
+  </div>`;
+}
+document.querySelector('.proto-bar').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { st.barra = b.dataset.v; render(); } });
+U.ligarDicas();
+render();
+</script>
+</body>
+</html>
