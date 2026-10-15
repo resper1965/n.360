@@ -132,7 +132,7 @@ colunas da planilha do RoPA, o questionário base de terceiro, a verificação d
 
 | | Consultor | Auditor |
 |---|---|---|
-| Leitura | `niso_privacy_ropa` (todos os tratamentos, com `nao_informado` e ligações resumidas), `niso_privacy_ropa_detalhe` (um tratamento com ligações, LIA e DPIAs), `niso_privacy_requisitos_lacunas` (LGPD e ANPD), `niso_privacy_titular_pedidos` (com `situacao_prazo`), `niso_privacy_incidentes` (com `situacao_anpd` e `situacao_titular`), `niso_privacy_terceiros` (com a situação da avaliação), `niso_privacy_encarregado` (o painel e as prioridades), `niso_privacy_ponto_de_partida` | As mesmas 8 |
+| Leitura | `niso_privacy_ropa` (todos os tratamentos, com `nao_informado` e ligações resumidas), `niso_privacy_ropa_detalhe` (um tratamento com ligações, LIA, DPIAs, ciclo de vida, bases adicionais e teste de impacto), `niso_privacy_requisitos_lacunas` (LGPD e ANPD), `niso_privacy_titular_pedidos` (com `situacao_prazo`), `niso_privacy_incidentes` (com `situacao_anpd` e `situacao_titular`), `niso_privacy_terceiros` (com a situação da avaliação), `niso_privacy_encarregado` (o painel e as prioridades), `niso_privacy_ponto_de_partida` | As mesmas 8 |
 | Escrita (rascunho) | `niso_privacy_propor_tratamento` (`Draft`), `niso_privacy_atualizar_tratamento` (sem status), `niso_privacy_ligar_tratamento` (soma itens e departamentos; base do catálogo), `niso_privacy_criar_dpia_do_tratamento` (`Draft`), `niso_privacy_rascunhar_lia` (nunca conclui), `niso_privacy_registrar_pedido_titular`, `niso_privacy_registrar_incidente` (com avaliação de risco opcional), `niso_privacy_ligar_documento_requisito` (soma) | Nenhuma |
 
 Cada uma é fina sobre uma rota que o consultor já usa na interface; nenhuma rota nova. Exigem o módulo n.privacy no projeto e na

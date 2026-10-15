@@ -216,6 +216,11 @@ describe('ferramentas nomeadas do n.privacy (MCP remoto)', () => {
     expect(det.registro.id).toBe(ropaId);
     expect(det.ligacoes.itens.map((i: any) => i.id).sort()).toEqual(['it-a', 'it-b']);
     expect(det.lia.status).toBe('concluida');
+    // Ciclo de vida, bases adicionais/GDPR e teste de impacto (F3 e 0072) também vêm no detalhe.
+    expect(det.ciclo.map((e: any) => e.etapa)).toContain('coleta');
+    expect(det.bases).toMatchObject({ adicionais: [], base_gdpr: null });
+    expect(det.impacto.recomendacao).toBeTruthy();
+    expect(Array.isArray(det.impacto.perguntas)).toBe(true);
     const lac = dados(await chamarFerramenta(token, 'niso_privacy_requisitos_lacunas', { projectId: P }));
     expect(Object.keys(lac)).toEqual(['lgpd', 'anpd']);
     expect(dados(await chamarFerramenta(token, 'niso_privacy_requisitos_lacunas', { projectId: P, fonte: 'anpd' })).fonte).toBe('anpd');
