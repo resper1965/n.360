@@ -54,6 +54,11 @@ Para ver os valores: `sed -n '/^:root/,/^}/p' frontend/src/style.css`.
   - `frontend/test/catracas-visuais.test.js` só aceita `0` ou `10px` inline: o 10px é tolerado até a
     limpeza, não é o padrão. Componente novo nasce quadrado.
 - Login: tela dividida, marca à esquerda e cartão à direita; empilha abaixo de 900px.
+- **Páginas públicas** (`/politicas`, `/auditor`, `/homologacao`, `/proposta`): usam `frontend/public/publico.css`
+  (tokens copiados do `:root`, conferidos por `frontend/test/publico-css.test.js`; topo com `n.360` e `ness.`, rodapé,
+  botões, campos, avisos) e uma folha própria só com o que é da página. **São responsivas** (de 390 px ao desktop:
+  alvos de 44 px, campos de 16 px), ao contrário do app: quem as abre é gente de fora, pelo link do e-mail, muitas
+  vezes no celular. Sem `<style>`, `style=` nem diálogo nativo (`alert`/`confirm`); título da aba "Ação | n.360 · ness.".
 
 ## Utilitários de tela (`frontend/src/ui.js`)
 
