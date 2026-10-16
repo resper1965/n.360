@@ -2,7 +2,8 @@ import { env } from 'cloudflare:test';
 import worker from '../../src/index';
 import { applySchema, workerEnv, sessionFor, concederModulos, designarConsultor } from './d1';
 import { seedPhases } from '../../src/services/project-setup';
-import { ENTIDADES } from '../../src/data/passos/tipos';
+import { ENTIDADES, catalogoSchema, type Catalogo } from '../../src/data/passos/tipos';
+import catalogoJson from '../../contracts/bancada/catalogo.json';
 import type { ContextoProjeto, LinhaProgresso } from '../../src/services/passos/contexto';
 
 export const linha = (o: Partial<LinhaProgresso> = {}): LinhaProgresso => ({
@@ -40,3 +41,23 @@ export const chamar = (metodo: string, caminho: string, headers: Record<string, 
   worker.fetch(new Request(`http://localhost${caminho}`, {
     method: metodo, headers: { 'Content-Type': 'application/json', ...headers }, body: corpo === undefined ? undefined : JSON.stringify(corpo),
   }), { ...workerEnv(), ...ambiente } as never);
+
+
+/** O catálogo do contrato (p3_3, p3_4) mais: `p3_3.pergunta_antiga` (substitui p3_q1) e p2_1 (exige as trilhas executiva e rh). */
+export function catalogoDeTeste(): Catalogo {
+  const { ok: _ok, ...cru } = catalogoJson as Record<string, unknown>;
+  const c = catalogoSchema.parse(cru);
+  c.passos[0].campos.push({ id: 'escopo_antigo', rotulo: 'Escopo (pergunta antiga)', tipo: 'texto_longo', obrigatorio: false, exemplo: 'Todo o escritório.', pergunta: 'p3_q1' });
+  c.fases.push({ numero: 2, etapa: 1, titulo: 'Entrevistas', clausula: 'Cl 4.1', objetivo: 'Ouvir as áreas.' });
+  c.etapas[0].fases.push(2);
+  c.passos.push({
+    id: 'p2_1', fase: 2, ordem: 1, titulo: 'Fazer as entrevistas', clausula: 'Cl 4.1', porQue: 'O auditor quer ver quem foi ouvido.',
+    campos: [{ id: 'resumo', rotulo: 'Resumo', tipo: 'texto', obrigatorio: true, exemplo: 'Cinco áreas ouvidas.' }],
+    prova: { descricao: 'Nenhuma.', obrigatoria: false, aceita: 'arquivo' }, ondeVive: [],
+    concluidoQuando: [
+      { tipo: 'campos_preenchidos', rotulo: 'Resumo escrito' },
+      { tipo: 'entrevistas_concluidas', rotulo: 'Executiva e RH ouvidas', trilhas: ['executiva', 'rh'] },
+    ],
+  });
+  return catalogoSchema.parse(c);
+}
