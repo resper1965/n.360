@@ -5,7 +5,6 @@ import './ui.js';
 import { navigate } from './router.js';
 import { initDelegation } from './delegation.js';
 import { aplicarCasca } from './produto.js';
-import './data/wizards.js';
 import './data/assessment.js';
 
 import './views/commercial.js';
