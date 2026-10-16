@@ -41,7 +41,7 @@ export const htmlDosCriterios = (avaliacao) => avaliacao.criterios.map((c) =>
     `<li class="${c.ok ? 'ok' : 'falta'}"><span class="bancada-selo">${c.ok ? 'Feito' : 'Falta'}</span>${escapeHTML(c.rotulo)}${!c.ok && c.detalhe ? ` <span class="bancada-nota">(${escapeHTML(c.detalhe)})</span>` : ''}</li>`).join('');
 
 /** O cartão do passo (coluna do meio). Puro: tudo o que decide o que aparece entra por parâmetro. */
-export function htmlDoCartao({ ind, passo, detalhe, equipe, podeAdmin, ultimo, opcoesResponsavel, salvo }) {
+export function htmlDoCartao({ ind, passo, detalhe, equipe, podeAdmin, ultimo, opcoesResponsavel, salvo, projectId = '' }) {
     const fase = ind.fase(passo.fase);
     const pos = posicaoNaFase(ind, passo.id);
     const estado = detalhe.passo.estado;
@@ -58,8 +58,12 @@ export function htmlDoCartao({ ind, passo, detalhe, equipe, podeAdmin, ultimo, o
         <p><button type="button" class="btn" id="bancada-prova" data-action="bancadaEnviarProva">Enviar arquivo</button>
         ${passo.gera ? '<button type="button" class="btn" data-action="bancadaGerarDocumento">Gerar o documento</button>' : '<button type="button" class="btn" data-action="bancadaRegistrarProva">Registrar como prova</button>'}</p>
         <div id="bancada-rascunho"></div>`;
-    const onde = passo.ondeVive.length
-        ? `<h4>Onde isto vive</h4><p>${passo.ondeVive.map((o) => `<button type="button" class="bancada-link" data-action="bancadaAbrirTela" data-args='${arg(o.tela)}'>${escapeHTML(o.rotulo)}</button>`).join(' · ')}</p>` : '';
+    // O passo cujo critério são as trilhas de entrevista abre o diálogo das entrevistas (project.js), que grava em project_interviews.
+    const entrevistas = passo.concluidoQuando.some((c) => c.tipo === 'entrevistas_concluidas')
+        ? `<button type="button" class="bancada-link" data-action="openInterviewWizard" data-args='${arg(projectId)}'>Conduzir as entrevistas por trilha</button>` : '';
+    const lugares = passo.ondeVive.map((o) => `<button type="button" class="bancada-link" data-action="bancadaAbrirTela" data-args='${arg(o.tela)}'>${escapeHTML(o.rotulo)}</button>`);
+    if (entrevistas) lugares.unshift(entrevistas);
+    const onde = lugares.length ? `<h4>Onde isto vive</h4><p>${lugares.join(' · ')}</p>` : '';
     const anotacao = detalhe.anotacao_anterior
         ? `<div class="bancada-aviso"><strong>Anotação anterior</strong> (do campo livre antigo, só leitura)<p>${escapeHTML(detalhe.anotacao_anterior)}</p>
            <button type="button" class="bancada-link" data-action="bancadaCopiarAnotacao">Copiar para o primeiro campo de texto</button> · <button type="button" class="bancada-link" data-action="bancadaDescartarAnotacao">Já usei</button></div>` : '';

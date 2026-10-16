@@ -776,18 +776,8 @@ import { podeIndicar } from './encarregado.js';
             
             window.editingMemberId = null;
             
-            const [members, newProgress] = await Promise.all([
-                api('GET', `/api/v1/projects/${projectId}/governance`),
-                api('GET', `/api/v1/projects/${projectId}/checklist-progress`).catch(() => []) // secundário: só o progresso das fases
-            ]);
+            const members = await api('GET', `/api/v1/projects/${projectId}/governance`);
             S.currentGovernance = members;
-            
-            if (Array.isArray(newProgress)) {
-                if (!S.phaseChecksAssigned) S.phaseChecksAssigned = {};
-                newProgress.forEach(row => {
-                    S.phaseChecksAssigned[projectId + '_' + row.item_id] = row.assigned_to || '';
-                });
-            }
 
             window.renderGovernanceModalContent(projectId, members);
             render(); 
@@ -810,18 +800,8 @@ import { podeIndicar } from './encarregado.js';
                 window.cancelGovernanceEdit();
             }
             
-            const [members, newProgress] = await Promise.all([
-                api('GET', `/api/v1/projects/${projectId}/governance`),
-                api('GET', `/api/v1/projects/${projectId}/checklist-progress`).catch(() => []) // secundário: só o progresso das fases
-            ]);
+            const members = await api('GET', `/api/v1/projects/${projectId}/governance`);
             S.currentGovernance = members;
-            
-            if (Array.isArray(newProgress)) {
-                if (!S.phaseChecksAssigned) S.phaseChecksAssigned = {};
-                newProgress.forEach(row => {
-                    S.phaseChecksAssigned[projectId + '_' + row.item_id] = row.assigned_to || '';
-                });
-            }
 
             window.renderGovernanceModalContent(projectId, members);
             render();

@@ -42,7 +42,7 @@ function desenharTudo() {
     cols.trilha.innerHTML = htmlDaTrilha(ind, S.bancada, S.bancadaPasso, S.bancadaAbertura || {});
     cols.cartao.innerHTML = htmlDoCartao({
         ind, passo, detalhe: det, equipe: equipe(), podeAdmin: podeAdmin(), ultimo: vizinhos(ind, passo.id).proximo === null,
-        opcoesResponsavel: opcoesDeResponsavel(det.responsavel), salvo: S.bancadaSalvo || '',
+        opcoesResponsavel: opcoesDeResponsavel(det.responsavel), salvo: S.bancadaSalvo || '', projectId: idDoProjeto(),
     });
     montarCopiloto({
         el: cols.copiloto, projectId: idDoProjeto(), passo, podeUsar: podeAdmin(),
@@ -97,7 +97,7 @@ export async function renderBancada(c, h, a) {
     const p = await projetoAtivo();
     if (!p) { navigate('projects'); return; }
     h.textContent = p.project_name || p.client_name;    // #header-title é o h1 da página (login.html)
-    a.innerHTML = '';
+    a.innerHTML = `<button type="button" class="btn" data-action="navigate" data-args='["projects"]'>Voltar</button>`;   // fica também quando a carga falha
     c.innerHTML = '<div class="loading"></div>';
     try {
         const [banc, gov, pront] = await Promise.all([
@@ -151,6 +151,8 @@ window.bancadaMarcou = (campo) => {
 window.bancadaSaiuDoCampo = () => { if (aut && aut.temPendente()) aut.esvaziar().catch(() => {}); };
 window.bancadaTentarAgora = () => { if (aut) aut.tentarAgora(); };
 window.bancadaIrParaPasso = (id) => abrirPasso(id, true).catch((e) => showToast(e.message, 'error'));
+/** Quem muda o que o passo mede por fora (as entrevistas) pede a releitura do passo e do resumo. */
+window.bancadaRecarregarPasso = async () => { try { await recarregarEstado(); await abrirPasso(S.bancadaPasso); desenharTopo(); } catch (e) { showToast(e.message, 'error'); } };
 window.bancadaContinuar = () => window.bancadaIrParaPasso(S.bancada.continuar.passo);
 window.bancadaPular = async () => { const { proximo } = vizinhos(ind, S.bancadaPasso); if (proximo) await abrirPasso(proximo, true); };
 window.bancadaAbrirEtapa = (n) => { S.bancadaAbertura = { etapa: n, fase: ind.etapa(n).fases[0] }; cols.trilha.innerHTML = htmlDaTrilha(ind, S.bancada, S.bancadaPasso, S.bancadaAbertura); };
@@ -405,7 +407,7 @@ window.interpretPhaseAnswers = async function (phaseNumber, projectId) {
             const motivo = r.motivo ? ` (${escapeHTML(r.motivo)})` : '';
             corpo += `<p class="bancada-nota">${completo ? 'As respostas desta fase estão completas, mas a interpretação por IA não pôde ser gerada agora.' : 'A interpretação assistida por IA está indisponível no momento.'}${motivo}</p>`;
         }
-        corpo += `<p class="bancada-nota"><strong>Cobertura:</strong> ${cov.respondidas} de ${cov.total} perguntas respondidas</p>`;
+        corpo += `<p class="bancada-nota"><strong>Cobertura:</strong> ${cov.respondidas}/${cov.total} perguntas respondidas</p>`;
         if (cov.sem_resposta && cov.sem_resposta.length) corpo += `<ul>${cov.sem_resposta.map((q) => `<li>Sem resposta: ${escapeHTML(q.pergunta)}</li>`).join('')}</ul>`;
         openModal(`<div class="modal-header"><span class="modal-title">Interpretação — ${cab}</span></div>
             <div class="bancada-rolagem">${corpo}<p class="bancada-nota">${escapeHTML(r.rotulo || '')}</p></div>`);

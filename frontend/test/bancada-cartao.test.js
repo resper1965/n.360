@@ -60,4 +60,19 @@ describe('cartão do passo', () => {
     expect(t).toContain('Bloqueado por Maria Souza: Aguardando a diretoria');
     expect(t).toContain('Desbloquear este passo');
   });
+  it('passo medido pelas entrevistas oferece o diálogo das trilhas; os outros, não', () => {
+    const ind2 = indexarCatalogo({ ...catalogo, passos: [{ ...catalogo.passos[0], concluidoQuando: [{ tipo: 'entrevistas_concluidas', rotulo: 'Trilhas entrevistadas' }] }, catalogo.passos[1]] });
+    const el = document.createElement('div');
+    el.innerHTML = htmlDoCartao({ ind: ind2, passo: ind2.passo('p3_3'), detalhe: passoJson, equipe: true, podeAdmin: true, ultimo: false, opcoesResponsavel: '', salvo: '', projectId: 'p1' });
+    const b = el.querySelector('[data-action="openInterviewWizard"]');
+    expect(b.textContent).toBe('Conduzir as entrevistas por trilha');
+    expect(JSON.parse(b.getAttribute('data-args'))).toEqual(['p1']);
+    expect(monta().querySelector('[data-action="openInterviewWizard"]')).toBeNull();
+  });
+  it('o campo de texto grava ao sair (blur) e o aviso de erro oferece "Tentar agora"', () => {
+    const el = monta();
+    expect(el.querySelector('#campo-justificativas').getAttribute('data-action-blur')).toBe('bancadaSaiuDoCampo');
+    expect(el.querySelector('#bancada-tentar').hidden).toBe(true);
+    expect(el.querySelector('h3').getAttribute('tabindex')).toBe('-1');
+  });
 });
