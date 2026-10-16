@@ -6,7 +6,9 @@ import { conferirPedidosDoDocumento } from './pedidos';
 import { lerLogs, registrarSecao } from '../services/ropa-abas/logs';
 import { salvarEscopo } from '../services/ropa-abas/escopo';
 import { salvarAgentes } from '../services/ropa-abas/agentes';
-import { escopoSchema, agentesSchema } from '../schemas/ropa-abas';
+import { listarMedidas, criarMedida, atualizarMedida, apagarMedida, controlesImplementados, sugestoesDeMedida } from '../services/ropa-abas/medidas';
+import { atividadeDoProjeto } from '../services/ropa-abas/comum';
+import { escopoSchema, agentesSchema, medidaCriarSchema, medidaAtualizarSchema } from '../schemas/ropa-abas';
 import type { Falha, Gravado } from '../services/ropa-abas/comum';
 
 type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
@@ -39,6 +41,66 @@ function putAba<T extends object>(caminho: string, schema: Parameters<typeof val
 }
 putAba('/escopo', escopoSchema, 'Escopo', 'Falha ao gravar o escopo', salvarEscopo);
 putAba('/agentes', agentesSchema, 'Agentes de Tratamento', 'Falha ao gravar os agentes de tratamento', salvarAgentes);
+
+// Medidas de Segurança: nada aqui toca o conteúdo congelado, então nenhuma escrita chama conferirPedidosDoDocumento.
+const NAO_ENCONTRADA = { error: 'Registro do RoPA não encontrado' };
+ropaAbasApp.get('/medidas', async (c) => {
+  try {
+    const r = await listarMedidas(c.env.DB, c.req.param('projectId')!, c.req.param('recordId')!);
+    return r ? c.json(r) : c.json(NAO_ENCONTRADA, 404);
+  } catch (e) { return erro500(c, 'Falha ao listar as medidas', e); }
+});
+ropaAbasApp.get('/medidas/controles', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    if (!(await atividadeDoProjeto(c.env.DB, projectId, c.req.param('recordId')!))) return c.json(NAO_ENCONTRADA, 404);
+    return c.json(await controlesImplementados(c.env.DB, projectId));
+  } catch (e) { return erro500(c, 'Falha ao listar os controles implementados', e); }
+});
+ropaAbasApp.get('/medidas/sugestoes', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    if (!(await atividadeDoProjeto(c.env.DB, projectId, c.req.param('recordId')!))) return c.json(NAO_ENCONTRADA, 404);
+    return c.json(await sugestoesDeMedida(c.env.DB, projectId));
+  } catch (e) { return erro500(c, 'Falha ao listar as sugestões de medida', e); }
+});
+ropaAbasApp.post('/medidas', async (c) => {
+  try {
+    const v = await validateBody(c, medidaCriarSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const recordId = c.req.param('recordId')!;
+    const ator = c.get('user')?.email || 'system';
+    const r = await criarMedida(c.env.DB, projectId, recordId, ator, v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await registrarSecao(c.env.DB, ator, projectId, recordId, 'Medidas de Segurança', 'Inclusão');
+    return c.json({ ok: true, id: r.id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar a medida', e); }
+});
+ropaAbasApp.put('/medidas/:id', async (c) => {
+  try {
+    const v = await validateBody(c, medidaAtualizarSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const recordId = c.req.param('recordId')!;
+    const ator = c.get('user')?.email || 'system';
+    const r = await atualizarMedida(c.env.DB, projectId, recordId, c.req.param('id')!, v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await registrarSecao(c.env.DB, ator, projectId, recordId, 'Medidas de Segurança', 'Alteração');
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao atualizar a medida', e); }
+});
+// Apagar é ato humano: o agente é recusado por FORA_DO_AGENTE (src/middleware/agente.ts).
+ropaAbasApp.delete('/medidas/:id', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const recordId = c.req.param('recordId')!;
+    const r = await apagarMedida(c.env.DB, projectId, recordId, c.req.param('id')!);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await registrarSecao(c.env.DB, c.get('user')?.email || 'system', projectId, recordId, 'Medidas de Segurança', 'Exclusão');
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao apagar a medida', e); }
+});
 
 const LOGS_DATA = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/;
 ropaAbasApp.get('/logs', async (c) => {
