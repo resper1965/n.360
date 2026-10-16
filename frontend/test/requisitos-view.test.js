@@ -7,7 +7,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
 import { S } from '../src/state.js';
 import '../src/ui.js';
-import '../src/views/requisitos.js';
+import { selecionarLinhas, filtroEfetivo } from '../src/views/requisitos.js';
 
 const FONTES = [
     { id: 'iso27001:2022', nome: 'ISO/IEC 27001:2022', versao: '2022', vigente_desde: null, requisitos: 93 },
@@ -59,14 +59,18 @@ describe('lista', () => {
         expect(el('c').textContent).toContain('A.5.1');
         expect(el('c').textContent).not.toContain('Cobertura');
         expect(chamadas(f).some((k) => k.includes('/lacunas'))).toBe(false);
+        // o n.iso segue catálogo puro: as mesmas quatro colunas de sempre, sem situação, filtro, busca nem explicação
+        expect([...el('c').querySelectorAll('th')].map((t) => t.textContent)).toEqual(['Referência', 'Título', 'Papel', 'Ações']);
+        expect(el('c').querySelector('.cob-resumo, .cob-como, #req-busca, #req-lista')).toBeNull();
     });
 
     it('na LGPD mostra a cobertura do projeto, o resumo e a origem, tudo escapado', async () => {
-        S.fonteRequisitos = 'lgpd';
+        S.fonteRequisitos = 'lgpd'; S.reqFiltro = 'todas';
         servir(rotas());
         await abrir();
         const t = el('c').textContent;
-        expect(t).toContain('1 cobertos');
+        expect(t).toContain('1 de 3 requisitos cobertos (33%)');
+        expect(t).toContain('Como a cobertura é calculada');
         expect(t).toContain('Lacuna');
         expect(t).toContain('Parcial');
         expect(t).toContain('Coberto');
@@ -130,6 +134,105 @@ describe('lista', () => {
         await abrir();
         expect(el('c').textContent).toContain('art. 37');
         expect(el('c').textContent).not.toContain('Cobertura');
+        expect(el('c').textContent).toContain('Selecione um projeto');
+    });
+});
+
+describe('cobertura: filtro, busca e próximo passo', () => {
+    const abrirLgpd = async () => { S.fonteRequisitos = 'lgpd'; await abrir(); };
+    const refs = () => [...el('c').querySelectorAll('tbody th')].map((t) => t.textContent);
+    beforeEach(() => { S.reqFiltro = undefined; S.reqBusca = ''; });
+
+    it('abre nas lacunas, com o filtro marcado e o passo de cada lacuna', async () => {
+        servir(rotas());
+        await abrirLgpd();
+        expect(refs()).toEqual(['art. 7']);
+        expect(el('c').querySelector('.cob-cartao[aria-pressed="true"]').textContent).toContain('Lacunas');
+        expect(el('c').querySelector('tbody [data-action="irParaDocumentos"]')).not.toBeNull();
+        expect(el('c').querySelector('tbody').textContent).toContain('Nada ligado ainda');
+        expect(el('c').textContent).toContain('Para cobrir uma lacuna, ligue a ela um documento vigente');
+    });
+
+    it('sem lacuna abre em Total; coberto não tem passo, parcial tem', async () => {
+        servir(rotas({ 'GET /api/v1/projects/p9/requisitos/lacunas': { ...LACUNAS, resumo: { total: 3, cobertos: 2, parciais: 1, lacunas: 0 }, itens: LACUNAS.itens.map((i) => (i.situacao === 'lacuna' ? { ...i, situacao: 'coberto' } : i)) } }));
+        await abrirLgpd();
+        expect(el('c').querySelector('.cob-cartao[aria-pressed="true"]').textContent).toContain('Total');
+        const linhas = [...el('c').querySelectorAll('tbody tr')];
+        expect(linhas.map((l) => !!l.querySelector('[data-action="irParaDocumentos"]'))).toEqual([true, false, false]);
+    });
+
+    it('escolher a situação filtra sem nova chamada, guarda a escolha e marca só o cartão escolhido', async () => {
+        const f = servir(rotas());
+        await abrirLgpd();
+        const n = f.mock.calls.length;
+        window.filtrarRequisitos('parcial');
+        expect(refs()).toEqual(['art. 37']);
+        expect(S.reqFiltro).toBe('parcial');
+        expect(el('c').querySelectorAll('.cob-cartao[aria-pressed="true"]').length).toBe(1);
+        window.filtrarRequisitos('todas');
+        expect(refs()).toEqual(['art. 7', 'art. 37', 'art. 46']);
+        expect(f.mock.calls.length).toBe(n);
+    });
+
+    it('a busca ignora caixa e acento, olha o título da origem e não troca o campo de busca', async () => {
+        servir(rotas());
+        S.reqFiltro = 'todas';
+        await abrirLgpd();
+        const campo = el('req-busca');
+        window.buscarRequisitos('SEGURANCA');
+        expect(refs()).toEqual(['art. 46']);
+        window.buscarRequisitos('registro');
+        expect(refs()).toEqual(['art. 37']);
+        window.buscarRequisitos('ACESSO');
+        expect(refs()).toEqual(['art. 46']);
+        expect(el('req-busca')).toBe(campo);
+    });
+
+    it('sem resultado: mensagem e "Limpar filtros" volta a lista inteira', async () => {
+        servir(rotas());
+        await abrirLgpd();
+        window.buscarRequisitos('zzz');
+        expect(el('c').textContent).toContain('Nenhum requisito com este filtro');
+        window.limparFiltrosRequisitos();
+        expect(refs()).toEqual(['art. 7', 'art. 37', 'art. 46']);
+        expect(el('req-busca').value).toBe('');
+    });
+
+    it('a lei sem lacuna celebra em vez de mostrar tabela vazia', async () => {
+        const todas = LACUNAS.itens.map((i) => ({ ...i, situacao: 'coberto' }));
+        servir(rotas({ 'GET /api/v1/projects/p9/requisitos/lacunas': { ...LACUNAS, resumo: { total: 3, cobertos: 3, parciais: 0, lacunas: 0 }, itens: todas } }));
+        await abrirLgpd();
+        window.filtrarRequisitos('lacuna');
+        expect(el('c').textContent).toContain('Nenhuma lacuna');
+        expect(el('c').querySelector('table')).toBeNull();
+    });
+
+    it('falha ao carregar a cobertura mostra o erro com "Tentar de novo"', async () => {
+        const { 'GET /api/v1/projects/p9/requisitos/lacunas': _fora, ...semLacunas } = rotas();
+        servir(semLacunas);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        await abrirLgpd();
+        expect(el('c').textContent).toContain('Não foi possível carregar a cobertura do projeto.');
+        expect(el('c').textContent).toContain('Tentar de novo');
+    });
+});
+
+describe('selecionarLinhas e filtroEfetivo', () => {
+    const reqs = [{ id: 'a', referencia: 'art. 1', titulo: 'A' }, { id: 'b', referencia: 'art. 2', titulo: 'B' }, { id: 'c', referencia: 'art. 3', titulo: 'C' }, { id: 'd', referencia: 'art. 4', titulo: 'D' }];
+    const cob = new Map([['a', { situacao: 'coberto', origens: [] }], ['b', { situacao: 'lacuna', origens: [] }], ['c', { situacao: 'parcial', origens: [] }], ['d', { situacao: 'lacuna', origens: [] }]]);
+    it('ordena lacuna, parcial, coberto e mantém a ordem do catálogo no empate', () => {
+        expect(selecionarLinhas(reqs, cob, 'todas', '').map((l) => l.r.id)).toEqual(['b', 'd', 'c', 'a']);
+    });
+    it('requisito sem cobertura só aparece em todas, no fim', () => {
+        const so = new Map([['b', { situacao: 'lacuna', origens: [] }]]);
+        expect(selecionarLinhas(reqs, so, 'todas', '').map((l) => l.r.id)).toEqual(['b', 'a', 'c', 'd']);
+        expect(selecionarLinhas(reqs, so, 'lacuna', '').map((l) => l.r.id)).toEqual(['b']);
+    });
+    it('filtroEfetivo: o escolhido vale; senão lacunas se houver, senão todas; valor estranho é ignorado', () => {
+        expect(filtroEfetivo('coberto', { lacunas: 5 })).toBe('coberto');
+        expect(filtroEfetivo(undefined, { lacunas: 5 })).toBe('lacuna');
+        expect(filtroEfetivo(undefined, { lacunas: 0 })).toBe('todas');
+        expect(filtroEfetivo('xyz', { lacunas: 0 })).toBe('todas');
     });
 });
 
