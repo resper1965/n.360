@@ -23,7 +23,7 @@ function controle(campo, v) {
         return `<input type="date" id="${id}" name="${campo.id}" class="form-input" value="${escapeHTML(valor)}" ${desc} data-action-change="bancadaDigitou" ${evento} data-arg-val>`;
     }
     const linhas = campo.tipo === 'texto_longo' ? 8 : 3;
-    return `<textarea id="${id}" name="${campo.id}" class="form-input${campo.tipo === 'texto' ? ' curto' : ''}" rows="${linhas}" maxlength="${TETO[campo.tipo]}" placeholder="${escapeHTML(campo.exemplo ? `Ex.: ${campo.exemplo}` : '')}" ${desc} data-action-input="bancadaDigitou" ${evento} data-arg-val>${escapeHTML(valor)}</textarea>`;
+    return `<textarea id="${id}" name="${campo.id}" class="form-input${campo.tipo === 'texto' ? ' curto' : ''}" rows="${linhas}" maxlength="${TETO[campo.tipo]}" placeholder="${escapeHTML(campo.exemplo ? `Ex.: ${campo.exemplo}` : '')}" ${desc} data-action-input="bancadaDigitou" data-action-blur="bancadaSaiuDoCampo" ${evento} data-arg-val>${escapeHTML(valor)}</textarea>`;
 }
 
 function blocoDoCampo(campo, v) {
@@ -71,7 +71,7 @@ export function htmlDoCartao({ ind, passo, detalhe, equipe, podeAdmin, ultimo, o
         ${concluido ? '<button type="button" class="bancada-link" data-action="bancadaReabrir">Reabrir este passo</button>' : ''}</div>`;
     return `<article class="bancada-cartao" aria-labelledby="bancada-h3">
         <h2>Fase ${passo.fase} · ${escapeHTML(fase ? fase.titulo : '')}</h2>
-        <h3 id="bancada-h3">Passo ${pos.n} de ${pos.total} · ${escapeHTML(passo.clausula)} · ${escapeHTML(passo.titulo)}</h3>
+        <h3 id="bancada-h3" tabindex="-1">Passo ${pos.n} de ${pos.total} · ${escapeHTML(passo.clausula)} · ${escapeHTML(passo.titulo)}</h3>
         ${aviso}${anotacao}
         <div class="bancada-meta">
             <div><label for="bancada-responsavel" class="rotulo-campo">Responsável</label>
@@ -79,11 +79,12 @@ export function htmlDoCartao({ ind, passo, detalhe, equipe, podeAdmin, ultimo, o
             <div><label for="bancada-prazo" class="rotulo-campo">Prazo</label>
                 <input type="date" id="bancada-prazo" class="form-input" value="${escapeHTML(detalhe.prazo || '')}" data-action-change="bancadaMeta" data-args='${arg('due_date')}' data-arg-val></div>
             <p class="bancada-salvo" id="bancada-salvo" aria-live="polite">${escapeHTML(salvo)}</p>
+            <button type="button" class="bancada-link" id="bancada-tentar" data-action="bancadaTentarAgora" hidden>Tentar agora</button>
         </div>
         <h4>O que o auditor vai pedir</h4><p>${escapeHTML(passo.porQue)}</p>
         <h4>Escreva</h4>${passo.campos.map((c) => blocoDoCampo(c, detalhe.valores[c.id])).join('')}
         ${prova}${onde}
-        <h4>Concluído quando</h4><ul class="bancada-criterios" id="bancada-criterios">${htmlDosCriterios(detalhe.avaliacao)}</ul>
+        <h4>Concluído quando</h4><ul class="bancada-criterios" id="bancada-criterios" role="list">${htmlDosCriterios(detalhe.avaliacao)}</ul>
         <p class="bancada-nota" id="bancada-faltas" role="status"></p>
         ${rodape}</article>`;
 }
