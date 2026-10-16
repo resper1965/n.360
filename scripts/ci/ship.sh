@@ -24,7 +24,7 @@ trap 'git -C "$RAIZ" worktree remove --force "$WT" 2>/dev/null' EXIT
 cd "$WT"
 
 # Dependências: junção para as da máquina principal (instalar de novo custa minutos).
-juntar() { [ -e "$2" ] || [ ! -d "$1" ] || cmd //c "mklink /J $(cygpath -w "$2") $(cygpath -w "$1")" >/dev/null; }
+juntar() { [ -e "$2" ] || [ ! -d "$1" ] || powershell -NoProfile -Command "New-Item -ItemType Junction -Path '$(cygpath -w "$PWD/$2")' -Target '$(cygpath -w "$1")' | Out-Null"; }
 juntar "$RAIZ/node_modules" node_modules
 juntar "$RAIZ/frontend/node_modules" frontend/node_modules
 juntar "$RAIZ/mcp-server-niso/node_modules" mcp-server-niso/node_modules
