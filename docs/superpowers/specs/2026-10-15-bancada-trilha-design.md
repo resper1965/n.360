@@ -528,11 +528,12 @@ específica de cada passo (PR3 refina); notificação de passo atribuído; expor
 aprovação por passo (o critério lê o projeto, não cria o pedido); dossiê da jornada com campos novos (PR3); métricas de uso da
 tela (não existem coletas, `PRODUCT.md`).
 
-## 13. Decisões que precisam do dono
+## 13. Decisões do dono (decididas em 16/10/2026)
 
-1. **"Dispensada" vira "concluída com exceção"** para as fases hoje em `skipped` (seção 6). Aceitar, ou preservar como situação?
-2. **Motivo de exceção visível só à equipe**, o cliente vê "concluído com justificativa registrada". Confirmar.
-3. **`org_user` e `client` concluem passo** (paridade com marcar item hoje) ou só equipe e `org_admin`?
-4. **`pedido_de_aprovacao` é indicador do projeto**, não do passo (não há tabela de pedido por item). Aceitável no PR1, ou o dono
-   quer o pedido criado a partir do passo no PR2?
-5. **Fase `in_progress` manual sem dado volta a "não iniciada".** Aceitar a mudança visível em projetos existentes.
+1. **Decidido: "Dispensada" vira "concluída com exceção"** para as fases hoje em `skipped` (seção 6).
+2. **Decidido: o motivo da exceção é visível só à equipe da ness.**; o cliente vê "concluído com justificativa registrada".
+3. **Decidido: paridade com a marcação de item de hoje.** Quem hoje marca item do checklist (`org_user` e `client` entre eles) conclui
+   passo; não se alarga nem se estreita o acesso. Bloquear e exceção seguem os papéis da seção 5.
+4. **Decidido: `pedido_de_aprovacao` mede o projeto**, não o passo (não há tabela de pedido por item). Criar o pedido a partir do passo
+   fica fora do PR1.
+5. **Decidido: fase `in_progress` manual sem dado volta a "não iniciada".** A mudança visível em projetos existentes está aceita.
