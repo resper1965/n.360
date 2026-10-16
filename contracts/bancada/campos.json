@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "salvo_em": "2026-10-15 14:02:11",
+  "gravados": { "justificativas": "2026-10-15 14:02:11" },
+  "avaliacao": { "ok": false, "faltam": 1, "criterios": [] },
+  "fase": { "numero": 3, "situacao": "in_progress" },
+  "conflito_exemplo": {
+    "error": "Outra pessoa alterou este campo",
+    "conflitos": [ { "campo": "justificativas", "valor_atual": "A.7.4: escritório sem acesso físico.", "atualizado_em": "2026-10-15 14:05:00", "por": "consultor@exemplo.test" } ]
+  }
+}
