@@ -59,7 +59,7 @@ se dividiu:
   (`SELECT 1`), os KV `SESSIONS` e `OAUTH_KV` (leitura) e os R2 `STORAGE` e `TRILHA` (`head`). Falha grava
   `{"msg":"sonda_interna",...}` no log e manda **um** e-mail para `ALERTA_EMAIL`; a volta manda outro. O estado fica
   nos dois KV. **Limite:** com o Worker fora do ar o cron não roda e a sonda fica calada — por isso o monitor externo.
-  Sem `ALERTA_EMAIL` em `vars` do `wrangler.jsonc`, ela só grava log.
+  `ALERTA_EMAIL` está em `vars` do `wrangler.jsonc` (desde 16/10/2026); sem ele, a sonda só grava log.
 - **`uptime.yml` manual** (aba Actions, *Run workflow*): as duas verificações da seção 0 (`/health` e o envelope do
   login) nos dois domínios, três tentativas cada, com issue (label `uptime`). Use para confirmar uma suspeita ou
   depois de um deploy feito fora do Actions.
