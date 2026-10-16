@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub } from './produto.js';
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
 import { S } from './state.js';
 import { atualizarSelos } from './selos-menu.js';
 import { api, API_BASE } from './api.js';
@@ -1615,6 +1615,8 @@ window.initApp = async function initApp() {
         const tela = produto === 'n360' && !ehStakeholder ? telaPedida() : null;
         // Vindo do n.360 numa tela de módulo (o router ou o sino de lá): a tela pedida, ou o aviso reaberto aqui.
         const doHub = produto !== 'n360' && !ehStakeholder ? pedidoDoHub() : null;
+        // A Bancada abre no passo do endereço (`?fase=&passo=`); a própria tela o consome e mantém o endereço em dia.
+        S.bancadaAlvo = produto === 'iso' && !ehStakeholder ? alvoDaBancada() : null;
         if (ehStakeholder) {
             navigate('meus-pedidos');
         } else if (tela) {
@@ -1642,6 +1644,9 @@ window.initApp = async function initApp() {
                 if (doHub.filtro && doHub.filtro.aba) S.titularAba = doHub.filtro.aba;
                 if (doHub.filtro) navigate(doHub.tela, { filtroPainel: doHub.filtro }); else navigate(doHub.tela);
             }
+        } else if (S.bancadaAlvo) {
+            if (!S.activeProject && (S.projects || []).length) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
+            navigate('project-detail');
         } else if (produto === 'privacy') {
             if (!S.activeProject) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             navigate('encarregado');

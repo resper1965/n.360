@@ -17,6 +17,7 @@ export     function navigate(view, data) {
         // que o projeto tem. Sem módulo para ela, fica no início do portal. Nada de tela de módulo desenhada dentro do portal.
         if (produto === 'n360' && !TELAS_DO_HUB.includes(targetView)) {
             const proj = (data && (data.activeProject || data.currentProject)) || S.activeProject;
+            if (data && data.bancadaAlvo) S.bancadaAlvo = data.bancadaAlvo; // o endereço no módulo leva o passo da Bancada
             const modulo = moduloPara(targetView, proj);
             if (modulo) { irPara(enderecoNoModulo(modulo, targetView, proj)); return; }
             targetView = 'inicio';

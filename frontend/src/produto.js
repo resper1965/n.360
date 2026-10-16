@@ -144,7 +144,26 @@ export function enderecoNoModulo(modulo, tela, proj) {
         const p = proj && (S.projects || []).find((x) => x.id === proj.id);
         if (p) localStorage.setItem('niso_activeProject', JSON.stringify(p));
     } catch (e) { /* sem storage: o módulo abre a tela no projeto salvo */ }
-    return `${enderecoDoProduto(modulo)}?tela=${encodeURIComponent(tela)}${ehIncidentes(tela) ? '&aba=incidentes' : ''}`;
+    return `${enderecoDoProduto(modulo)}?tela=${encodeURIComponent(tela)}${ehIncidentes(tela) ? '&aba=incidentes' : ''}${alvoNoEndereco(tela)}`;
+}
+
+/** O passo ou a fase da Bancada que o n.360 leva ao módulo (`&fase=3&passo=p3_3`); só na tela da jornada. */
+function alvoNoEndereco(tela) {
+    const alvo = tela === 'project-detail' ? S.bancadaAlvo : null;
+    if (!alvo) return '';
+    const par = (k, v) => (v !== undefined && v !== null && v !== '' ? `&${k}=${encodeURIComponent(v)}` : '');
+    return `${par('fase', alvo.fase)}${par('passo', alvo.passo)}`;
+}
+
+/**
+ * O alvo da Bancada no endereço (`?fase=3&passo=p3_3`), lido no boot. Não tira nada do endereço: a própria Bancada o mantém em dia
+ * a cada passo, então recarregar a página ou copiar o link volta ao mesmo passo. Null sem nenhum dos dois.
+ */
+export function alvoDaBancada(loc = window.location) {
+    const q = new URLSearchParams(loc.search || '');
+    const fase = q.get('fase');
+    const passo = q.get('passo');
+    return fase || passo ? { fase, passo } : null;
 }
 
 /**
