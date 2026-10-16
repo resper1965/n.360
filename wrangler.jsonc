@@ -127,6 +127,8 @@
 		// "false" (ou ausente): a interface esconde a área e as rotas dão 404 a pessoa e chave de API; nada é
 		// apagado e o agente MCP segue com a matriz dele (docs/agente/seguranca.md). "true" religa tudo como era.
 		"COMERCIAL_ATIVO": "false",
+		// Destino dos alertas da sonda interna (src/services/sonda.ts): um e-mail na queda de D1, KV ou R2 e outro na volta.
+		"ALERTA_EMAIL": "resper+n360@ness.com.br",
 		// Chave PÚBLICA de verificação dos exports de portabilidade (item 4.6).
 		// É `var` e não `secret` DE PROPÓSITO: ela existe para ser publicada — o
 		// Worker a serve em `GET /api/v1/public/export-public-key`, e quem recebe
