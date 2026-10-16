@@ -7,8 +7,9 @@ import { lerLogs, registrarSecao } from '../services/ropa-abas/logs';
 import { salvarEscopo } from '../services/ropa-abas/escopo';
 import { salvarAgentes } from '../services/ropa-abas/agentes';
 import { listarMedidas, criarMedida, atualizarMedida, apagarMedida, controlesImplementados, sugestoesDeMedida } from '../services/ropa-abas/medidas';
+import { salvarBaseJuridica, lerBaseJuridica } from '../services/ropa-abas/base-juridica';
 import { atividadeDoProjeto } from '../services/ropa-abas/comum';
-import { escopoSchema, agentesSchema, medidaCriarSchema, medidaAtualizarSchema } from '../schemas/ropa-abas';
+import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema } from '../schemas/ropa-abas';
 import type { Falha, Gravado } from '../services/ropa-abas/comum';
 
 type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
@@ -100,6 +101,13 @@ ropaAbasApp.delete('/medidas/:id', async (c) => {
     await registrarSecao(c.env.DB, c.get('user')?.email || 'system', projectId, recordId, 'Medidas de Segurança', 'Exclusão');
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao apagar a medida', e); }
+});
+putAba('/base-juridica', baseJuridicaSchema, 'Base Jurídica', 'Falha ao gravar a base jurídica', salvarBaseJuridica);
+ropaAbasApp.get('/base-juridica', async (c) => {
+  try {
+    const r = await lerBaseJuridica(c.env.DB, c.req.param('projectId')!, c.req.param('recordId')!);
+    return r ? c.json({ ok: true, ...r }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao ler a base jurídica', e); }
 });
 
 const LOGS_DATA = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/;
