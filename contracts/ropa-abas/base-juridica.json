@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "previsao_legal": "Consolidação das Leis do Trabalho (exemplo)",
+  "lgpd": [
+    { "requisito_id": "lgpd:art7:ii", "referencia": "LGPD art. 7º, II", "titulo": "Cumprimento de obrigação legal ou regulatória", "finalidade": "Cumprir a obrigação de registro (exemplo).", "principal": true, "finalidade_pendente": false },
+    { "requisito_id": "lgpd:art7:v", "referencia": "LGPD art. 7º, V", "titulo": "Execução de contrato ou de procedimentos preliminares a pedido do titular", "finalidade": "", "principal": false, "finalidade_pendente": true }
+  ],
+  "art11": { "nao_aplicavel": true, "incisos": [] },
+  "gdpr": [{ "base": "contrato", "rotulo": "Contrato", "finalidade": "Executar o contrato (exemplo)." }],
+  "lia_exigida": false,
+  "base_gdpr_texto_anterior": null,
+  "legal_basis_texto": "Cumprimento de obrigação legal ou regulatória"
+}

@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "gaps": [{
+    "id": "g1", "gap": "Ausência de exclusão dos dados após a finalidade (exemplo)", "recomendacao": null, "plano_acao": null,
+    "responsavel": { "id": "pt-1", "nome": "Responsável exemplo" }, "prazo": "2026-12-01", "status": "Open",
+    "anexos": [{ "id": "an1", "file_name": "plano.pdf", "file_type": "pdf", "file_size": 20480 }]
+  }],
+  "nao_aplicavel": false
+}

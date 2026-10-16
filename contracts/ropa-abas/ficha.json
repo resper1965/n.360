@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "registro": {
+    "id": "ra-1", "nome": "Desligamento de colaborador (exemplo)", "finalidade": "Formalizar a rescisão do contrato de trabalho.",
+    "descricao_atividade": "Descrição fictícia da atividade.",
+    "responsavel": { "id": "pt-1", "nome": "Responsável exemplo" },
+    "areas": [{ "id": "dp-1", "nome": "Recursos Humanos" }],
+    "empresa": "Empresa exemplo Ltda."
+  },
+  "situacao": { "codigo": "em_revisao", "rotulo": "Em Revisão", "aprovacao_desatualizada": false, "em_nova_revisao": false },
+  "acoes": {
+    "conferir_aprovar": { "habilitada": false, "motivo": "Há 2 pendências: Tratamento de Dados, Teste de Impacto." },
+    "alterar_para_em_revisao": { "habilitada": false, "motivo": "A atividade já está em revisão." },
+    "imprimir": { "habilitada": true, "motivo": null },
+    "reabrir": { "habilitada": false, "motivo": "A atividade não está aprovada." },
+    "reativar": { "habilitada": false, "motivo": "A atividade não está cancelada." },
+    "cancelar": { "habilitada": true, "motivo": null },
+    "excluir": { "habilitada": true, "motivo": null }
+  },
+  "abas": {
+    "escopo": { "estado": "feito", "resumo": "Finalidade preenchida." },
+    "tratamento": { "estado": "pendente", "resumo": "3 de 6 etapas concluídas." },
+    "agentes": { "estado": "pendente", "resumo": "Papel não informado." },
+    "medidas": { "estado": "vazio", "resumo": "Nenhuma medida registrada." },
+    "base_juridica": { "estado": "feito", "resumo": "2 incisos do art. 7º." },
+    "gaps": { "estado": "vazio", "resumo": "Nenhum gap registrado." },
+    "impacto": { "estado": "pendente", "resumo": "9 de 14 respondidas." },
+    "riscos": { "estado": "feito", "resumo": "3 riscos, 1 ação aberta." },
+    "logs": { "estado": "feito", "resumo": "5 registros." }
+  },
+  "modulos": { "iso": true },
+  "proxima_pergunta": null
+}
