@@ -39,7 +39,7 @@ function ultimoToastDeErro() {
     return toasts.length ? toasts[toasts.length - 1].textContent : null;
 }
 
-// 'p0_1' (Sponsor Executivo): 2 obrigatorios + 1 select opcional.
+// 'p0_1' (Sponsor e Equipe): 2 obrigatorios + 1 select opcional + 1 textarea opcional.
 const WIZ_COM_SELECT = 'p0_1';
 // 'p38_4' (Encerramento da Auditoria): evidenceOnly, gera markdown local.
 const WIZ_EVIDENCIA = 'p38_4';
@@ -112,15 +112,20 @@ describe('wizard de documentos', () => {
             // Sem `DOC_WIZARDS[id]`, `openDocWizard` delega a
             // `generateDocumentNatively` — que le `event.target`. Aqui so
             // interessa que NAO monte formulario nenhum.
+            const original = globalThis.generateDocumentNatively;
             globalThis.generateDocumentNatively = vi.fn();
             globalThis.event = { target: botaoFalso() };
-            window.openDocWizard('proj-1', 'nao_existe');
-            expect(globalThis.generateDocumentNatively).toHaveBeenCalledWith(
-                'proj-1',
-                'nao_existe',
-                expect.anything()
-            );
-            expect(document.getElementById('wiz-form-fields')).toBeNull();
+            try {
+                window.openDocWizard('proj-1', 'nao_existe');
+                expect(globalThis.generateDocumentNatively).toHaveBeenCalledWith(
+                    'proj-1',
+                    'nao_existe',
+                    expect.anything()
+                );
+                expect(document.getElementById('wiz-form-fields')).toBeNull();
+            } finally {
+                globalThis.generateDocumentNatively = original;
+            }
         });
     });
 
@@ -220,7 +225,7 @@ describe('wizard de documentos', () => {
             expect(url).toContain('/api/v1/projects/proj-1/generate-document');
             expect(JSON.parse(opcoes.body)).toEqual({
                 itemId: WIZ_COM_SELECT,
-                fields: { sponsor_name: 'Joao Silva', sponsor_role: 'CEO', sponsor_authority: '' },
+                fields: { sponsor_name: 'Joao Silva', sponsor_role: 'CEO', sponsor_authority: '', team_members: '' },
             });
         });
 
@@ -310,6 +315,59 @@ describe('wizard de documentos', () => {
             window.wizBackToForm('proj-1', WIZ_EVIDENCIA);
             expect(document.getElementById('wiz-form-fields').style.display).toBe('block');
             expect(document.getElementById('wiz-preview-area').style.display).toBe('none');
+        });
+    });
+
+    // "A máquina propõe, a pessoa decide" (PRODUCT.md): gerar por IA abre o rascunho para revisão; o item só é
+    // concluído no aprovar, que é o approve-document (o servidor marca o item ali, e só ali).
+    const resposta = (corpo) => ({
+        status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => corpo, text: async () => '',
+    });
+
+    describe('gerar por IA sem assistente (generateDocumentNatively)', () => {
+        it('abre o rascunho para revisão e não aprova sozinho', async () => {
+            S.checklistsConfig = { 1: [{ id: 'p1_2', text: 'Identificar Objetivos de Negócio e Segurança', category: 'document' }] };
+            fetchMock.mockResolvedValue(resposta({ ok: true, content: '# Objetivos' }));
+            await window.generateDocumentNatively('proj-1', 'p1_2', botaoFalso());
+
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+            expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/projects/proj-1/checklist/p1_2/generate');
+            expect(document.getElementById('wiz-doc-content').value).toBe('# Objetivos');
+            const html = document.getElementById('modal-content').innerHTML;
+            expect(html).toContain('Identificar Objetivos de Negócio e Segurança');
+            expect(html).toContain('data-action="wizApprove"');
+        });
+
+        it('só o aprovar grava, com o texto que a pessoa editou', async () => {
+            fetchMock.mockResolvedValue(resposta({ ok: true, content: '# Objetivos' }));
+            await window.generateDocumentNatively('proj-1', 'p1_2', botaoFalso());
+            document.getElementById('wiz-doc-content').value = '# Objetivos revisados';
+            await window.wizApprove('proj-1', 'p1_2', botaoFalso());
+
+            const [url, opcoes] = fetchMock.mock.calls[1];
+            expect(url).toContain('/api/v1/projects/proj-1/approve-document');
+            expect(JSON.parse(opcoes.body)).toEqual({ itemId: 'p1_2', content: '# Objetivos revisados' });
+        });
+    });
+
+    describe('textos da trilha', () => {
+        it('o envio de arquivo mostra o texto do item, não o id', () => {
+            S.checklistsConfig = { 3: [{ id: 'p3_1', text: 'Documentar Escopo do SGSI e SGPI (Cl 4.3)', category: 'document' }] };
+            window.wsUploadEvidence('p3_1');
+            const titulo = document.querySelector('#modal-content h3').textContent;
+            expect(titulo).toContain('Documentar Escopo do SGSI e SGPI');
+            expect(titulo).not.toContain('p3_1');
+        });
+
+        it('o aviso de mudança de fase usa o rótulo em português', async () => {
+            fetchMock.mockResolvedValue(resposta({ ok: true }));
+            const sel = document.createElement('select');
+            sel.innerHTML = '<option value="in_progress" selected>Em andamento</option>';
+            document.body.appendChild(sel);
+            await window.changePhaseStatus('proj-1', 3, sel);
+            const toasts = [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' ');
+            expect(toasts).toContain('Em andamento');
+            expect(toasts).not.toContain('in_progress');
         });
     });
 });
