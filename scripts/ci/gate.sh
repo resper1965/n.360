@@ -30,6 +30,22 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
 marcar pending "rodando em $(hostname)"
 inicio=$(date +%s)
+# Roda o vitest. Se ele sair com erro, mas SÓ porque um worker não subiu ('Failed to start forks worker', timeout de carga: todos os
+# testes passaram e nenhum falhou), repete apenas esses arquivos, sozinhos. Falha de teste de verdade continua reprovando.
+rodar_vitest() { # diretorio args...
+  local dir=$1; shift
+  local saida; saida=$(mktemp)
+  (cd "$dir" && npx vitest run "$@") >"$saida" 2>&1; local rc=$?
+  cat "$saida"
+  if [ $rc -ne 0 ] && grep -q "Failed to start forks worker" "$saida" && ! grep -qE "^ FAIL |Tests +[0-9]+ failed|[0-9]+ failed" "$saida"; then
+    local arquivos; arquivos=$(grep -oE "(test|src)/[^ ]+.test.(js|ts)" "$saida" | sort -u | tr '
+' ' ')
+    echo ">> worker que não subiu por carga da máquina; repetindo sozinhos: $arquivos"
+    (cd "$dir" && npx vitest run $arquivos "$@"); rc=$?
+  fi
+  rm -f "$saida"; return $rc
+}
+
 passo() { # nome comando...
   local nome=$1; shift
   echo "== $nome"
@@ -44,10 +60,10 @@ passo() { # nome comando...
 passo "Tipos" npx tsc --noEmit
 [ -d frontend/node_modules ] || passo "Frontend: instalar" bash -c "cd frontend && npm ci --include=dev"
 passo "Frontend: build" bash -c "cd frontend && npm run build"
-passo "Frontend: testes" bash -c "cd frontend && npx vitest run --maxWorkers=3 --testTimeout=30000 --retry=1"
+passo "Frontend: testes" rodar_vitest frontend --maxWorkers=3 --testTimeout=30000 --retry=1
 [ -d mcp-server-niso/node_modules ] || passo "MCP: instalar" bash -c "cd mcp-server-niso && npm ci"
 passo "MCP: build" bash -c "cd mcp-server-niso && npm run build"
-passo "Backend: testes" npx vitest run --exclude "nISO/**" --retry=1
+passo "Backend: testes" rodar_vitest . --exclude "nISO/**" --retry=1
 passo "E2E (Chromium)" bash -c "cd frontend && npx playwright test --workers=2"
 
 dur=$(( $(date +%s) - inicio ))
