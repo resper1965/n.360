@@ -820,6 +820,12 @@ cobrado, code scanning exige GitHub Advanced Security e ruleset exige plano pago
 
 ### Protecao da `main` e deploy — ja configurados
 
+**Desde 16/10/2026 o portao de PR e LOCAL**: `bash scripts/ci/ship.sh <PR>` atualiza o PR com a main, roda `scripts/ci/gate.sh` (tipos,
+build e testes do frontend, build do MCP, testes do backend e E2E, uma suite por vez, `--retry=1`), grava o status `gate/local` no commit,
+mergeia e espera o `/health` com o SHA. O ruleset exige PR, branch em dia e esse status; os builds de branch da Cloudflare ficam desligados
+e so a `main` builda e publica (`publicar.sh`). Detalhe em `docs/runbook-publicacao.md`, secao 0. O que segue descreve o arranjo de
+15/10/2026.
+
 **Desde 15/10/2026 o repositorio e privado e o portao de PR e o deploy rodam no Workers Builds da Cloudflare**, nao no
 GitHub Actions (o dono nao paga minutos do Actions; os workflows estao desabilitados, nao apagados). Build command
 `bash scripts/ci/build.sh` (na `main` chama `scripts/ci/publicar.sh`: tsc, build, recusa migration pendente; nas outras

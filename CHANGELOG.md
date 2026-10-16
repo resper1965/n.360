@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Alterado (pipeline: portão de PR local, 16/10/2026)
+- **`scripts/ci/gate.sh` e `scripts/ci/ship.sh <PR>`**: o portão de PR roda na máquina de quem mergeia (tipos, build e testes do frontend, build do MCP, testes do backend e E2E, uma suíte por vez, com `--retry=1`) e grava o status `gate/local` no commit; o `ship.sh` atualiza o PR, passa o portão, mergeia e confere o `/health`. A regra da `main` passa a exigir esse status e os builds de branch da Cloudflare ficam desligados (só a `main` builda). Motivo: o build de branch levava ~14 min por PR, falhava sem log legível por linha de comando e não rodava o E2E. Documentado em `docs/runbook-publicacao.md`, seção 0.
+
 ### Corrigido (cobertura do catálogo de requisitos só conta controle implementado, decisão do dono de 16/10, sem migration)
 - **A cobertura de um requisito (`lacunasDaFonte`, tela Requisitos, painel do encarregado, ponto de partida e MCP) não conta mais controle planejado ou em andamento como coberto.** Antes, qualquer controle fora de `Missing`/`Not Applicable` ligado por equivalência validada cobria; agora só `Implemented` (e `Compliant`, grafia legada) com mapeamento `equivalente` cobre, `Implemented` com `parcial` e `Partial`/`In Progress` dão parcial, e `Planned`, `Missing`, `Not Applicable` e sem status não contam. **Os números mostrados aos clientes podem CAIR** (menos "coberto", mais "parcial" ou "lacuna"): o valor anterior estava inflado. Documento vigente e evidência seguem como estavam. O formato da resposta não mudou.
 
