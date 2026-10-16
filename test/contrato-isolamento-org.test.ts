@@ -3,6 +3,9 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { hashPassword, sha256Hex } from '../src/helpers';
 import { applySchema, sessionFor, workerEnv } from './helpers/d1';
+import { CORPOS_A, VINCULOS_A, NAO_PROVADAS_A } from './helpers/isolamento-ropa-abas-a';
+import { CORPOS_S, VINCULOS_S, NAO_PROVADAS_S } from './helpers/isolamento-ropa-abas-s';
+import { CORPOS_A2, VINCULOS_A2, NAO_PROVADAS_A2 } from './helpers/isolamento-ropa-abas-a2';
 
 /**
  * Fatia 5, tarefa 3: a rede de proteção do isolamento entre ORGANIZAÇÕES (consultorias).
@@ -89,13 +92,15 @@ const CORPOS: Record<string, (alvo: Org) => unknown> = {
   'POST /api/v1/projects/:projectId/partes/:id/vinculos': (alvo) => ({ papel: 'responsavel', alvo_tipo: 'departamento', alvo_id: alvo.rec }),
   // tenta trazer o projeto alheio para a organização de quem chama: só platform_admin transfere
   'POST /api/v1/platform/projects/:id/transferir': (alvo) => ({ orgDestinoId: alvo === B ? NESS.org : B.org, motivo: 'varredura de isolamento' }),
+  // Ficha em abas (spec 2026-10-16): cada pacote registra os seus em test/helpers/isolamento-ropa-abas-*.ts.
+  ...CORPOS_A, ...CORPOS_S, ...CORPOS_A2,
 };
 
 /**
  * Rotas que param no 400 e para as quais não há corpo simples que chegue à guarda. Cada uma com o
  * motivo; o relatório da tarefa as lista como "não provadas por corpo".
  */
-const NAO_PROVADAS_POR_CORPO: Record<string, string> = {};
+const NAO_PROVADAS_POR_CORPO: Record<string, string> = { ...NAO_PROVADAS_A, ...NAO_PROVADAS_S, ...NAO_PROVADAS_A2 };
 
 /** Rota sem parâmetro, não GET, que recebe referência ALHEIA no corpo e precisa recusar. */
 const CRIA_COM_REFERENCIA: Record<string, (alvo: Org) => unknown> = {
@@ -133,6 +138,8 @@ const VINCULO_ALHEIO: [string, (p: Ctx) => string, (p: Ctx) => unknown][] = [
   ['POST', (p) => `/api/v1/audits/${p.de.rec}/findings`, (p) => ({ project_id: p.de.proj, finding_type: 'observation', description: 'd', control_id: p.alheio.rec })],
   ['POST', () => '/api/v1/public/auditor/notas/criar', (p) => ({ token: p.token ?? 'token-forjado-inexistente', content: 'n', control_id: p.alheio.rec })],
   ['POST', (p) => `/api/v1/projects/${p.de.proj}/dpia`, (p) => ({ processing_name: 'P', data_category_risk: 'r', necessity_proportionality: 'n', technical_measures: 't', ropa_id: p.alheio.rec })],
+  // Ficha em abas (spec 2026-10-16): test/helpers/isolamento-ropa-abas-*.ts.
+  ...VINCULOS_A, ...VINCULOS_S, ...VINCULOS_A2,
 ];
 
 /** Rota sem parâmetro, não GET, que não recebe nem devolve recurso de outra organização. */
@@ -199,6 +206,10 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   parte_vinculos: { papel: 'responsavel', alvo_tipo: 'projeto' },
   avaliacoes_terceiro: { metodo: 'auditoria', resultado: 'aprovado' },
   titular_pedidos: { tipo: 'acesso' },
+  // Ficha em abas (0079)
+  catalogo_itens: { tipo: 'titular' },
+  tratamento_medidas: { status: 'ativa' },
+  acao_anexos: { file_type: 'pdf', file_size: 1 },
 };
 
 /**

@@ -95,7 +95,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/projects\/[^/]+\/auditor-token(\/|$)/, 'credencial de auditor externo'],
   [/^\/api\/v1\/projects\/?$/, 'o agente está preso a um projeto', ['POST']],
   [/^\/api\/v1\/projects\/consulta-cnpj(\/|$)/, 'consulta de CNPJ é do assistente de criação de projeto, pela interface'],
-  [/\/agentes(\/|$)/, 'o agente não gere o próprio acesso'],
+  // `ropa/:id/agentes` é a aba "Agentes de Tratamento" (controlador e operador), não a gestão de concessões: exceção explícita.
+  [/^(?!\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/agentes$).*\/agentes(\/|$)/, 'o agente não gere o próprio acesso'],
   // Desaprovar é ato da direção, pela interface (F6, decisão D1): o agente não revoga a aprovação de
   // ROPA nem de DPIA, e não apaga análise crítica, que é registro assinado. Revogar aprovação de
   // CONTROLE segue possível, com confirmação (acaoDestrutiva).
@@ -134,6 +135,12 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/anotacao-anterior$/, 'descartar a anotação antiga é ato humano da equipe, pela interface', ['DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/bancada\/fases\/[^/]+\/situacao-antiga$/, 'encerrar a situação anterior da fase é ato humano da equipe, pela interface', ['DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/copiloto\/[a-z-]+$/, 'rascunho de IA da trilha é pela interface; o agente já é a IA', ['POST']],
+  // Ficha em abas (spec 2026-10-16): situação e anexos são atos humanos; o agente grava campos e rascunha, nada mais.
+  [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/situacao$/, 'cancelar, reativar, reabrir e enviar a atividade para revisão é ato humano, pela interface', ['POST']],
+  [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/gaps\/[^/]+\/anexos(\/[^/]+)?$/, 'anexo de gap é arquivo enviado por uma pessoa, pela interface'],
+  [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/(medidas|gaps)\/[^/]+$/, 'apagar medida ou gap é ato humano, pela interface', ['DELETE']],
+  [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/relatorio$/, 'impressão da atividade é pela interface'],
+  [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/etapas\/[^/]+\/rascunho$/, 'rascunho de IA da etapa é pela interface; o agente já é a IA', ['POST']],
 ];
 
 /**
