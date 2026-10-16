@@ -54,7 +54,7 @@ test('sugere adequação de controle e aplica com aprovação', async ({ page })
 
   // Aplica (aprovação humana) → confirma o POST e o feedback "Aplicado".
   await page.getByRole('button', { name: 'Aplicar ao controle', exact: true }).click();
-  await expect(page.locator('.modal')).toContainText('✓ Aplicado');
+  await expect(page.locator('.modal')).toContainText('Aplicado');
   await expect.poll(() => applyBody && applyBody.control_id).toBe('A.5.1');
   expect(applyBody.status).toBe('In Progress');
   expect(applyBody.maturity).toBe(2);

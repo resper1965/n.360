@@ -1,58 +1,48 @@
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
 import { servirShell } from './shell.js';
 
-// Questionário por fase — navegador real. Exercita o modal (render dos campos por
-// tipo) e o salvar (PUT), com a API mockada. O banco de perguntas é injetado em
-// S.phaseQuestions (o que o render da jornada faz ao carregar), evitando montar a
-// árvore pesada da jornada só para chegar no botão.
+// Respostas da fase e interpretação — navegador real. A tela de respostas agora é a Bancada (cartão do passo com autosave no
+// servidor); a API é mockada com os JSON de contracts/bancada. A interpretação e o dossiê seguem como eram.
+
+const contrato = (nome) => JSON.parse(fs.readFileSync(new URL(`../../contracts/bancada/${nome}.json`, import.meta.url), 'utf8'));
 
 const USER = { id: 'u1', email: 'consultor@ness.io', name: 'Consultor', role: 'consultor', client_project_id: 'proj-e2e' };
 
-test('abre o questionário da fase, preenche e salva', async ({ page }) => {
+test('abre o passo pelo endereço, escreve e o texto é salvo no servidor', async ({ page }) => {
   await page.addInitScript((u) => {
     localStorage.setItem('niso_token', 'e2e-fake-token');
     localStorage.setItem('niso_user', JSON.stringify(u));
-    localStorage.setItem('niso_activeProject', JSON.stringify({ id: 'proj-e2e', project_name: 'Projeto E2E' }));
+    localStorage.setItem('niso_activeProject', JSON.stringify({ id: 'proj-e2e', project_name: 'Projeto E2E', modulos: ['iso'] }));
   }, USER);
 
   let putBody = null;
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url());
+    const metodo = route.request().method();
     const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
     if (url.pathname === '/api/v1/auth/me') return json({ user: USER });
-    if (/\/phase-answers$/.test(url.pathname) && route.request().method() === 'PUT') {
+    if (url.pathname === '/api/v1/passos/catalogo') return json(contrato('catalogo'));
+    if (url.pathname === '/api/v1/projects/proj-e2e/bancada') return json(contrato('bancada'));
+    if (url.pathname === '/api/v1/projects/proj-e2e/prontidao') return json({ indicador: { implementados: 31, aplicaveis: 90 } });
+    if (url.pathname === '/api/v1/projects/proj-e2e/passos/p3_3' && metodo === 'GET') return json(contrato('passo'));
+    if (/\/passos\/p3_3\/campos$/.test(url.pathname) && metodo === 'PUT') {
       putBody = route.request().postDataJSON();
-      return json({ ok: true, saved: 2 });
+      return json(contrato('campos'));
     }
-    return json(route.request().method() === 'GET' ? [] : { ok: true });
+    return json(metodo === 'GET' ? [] : { ok: true });
   });
 
-  await servirShell(page).then(() => page.goto('/iso'));
-  await page.waitForFunction(() => typeof window.navigate === 'function' && !!window.S);
+  await servirShell(page).then(() => page.goto('/iso?tela=project-detail&fase=3&passo=p3_3'));
 
-  // Injeta o banco (como o load da jornada faria) e abre o questionário da fase 1.
-  await page.evaluate(() => {
-    window.S.phaseQuestions = { 1: [
-      { key: 'p1_q1', type: 'select', question: 'Apetite de risco declarado pela direção?', options: ['Baixo', 'Moderado', 'Alto'] },
-      { key: 'p1_q2', type: 'text', question: 'Quais os 3 principais objetivos de negócio?' },
-    ] };
-    window.S.phaseAnswers = {};
-    window.openPhaseQuestionnaire(1, 'proj-e2e');
-  });
+  // O endereço leva ao passo: h2 da fase e h3 do passo.
+  await expect(page.locator('.bancada-cartao').getByRole('heading', { level: 3 })).toContainText('Passo 1 de 2');
+  await expect(page.locator('.bancada-cartao').getByRole('heading', { level: 2 })).toContainText('Fase 3');
 
-  // O modal mostra as perguntas especializadas.
-  await expect(page.locator('.modal')).toContainText('Apetite de risco');
-  await expect(page.locator('.modal')).toContainText('principais objetivos de negócio');
-
-  // Preenche e salva.
-  await page.selectOption('#pq-p1_q1', 'Moderado');
-  await page.fill('#pq-p1_q2', 'Proteger receita, marca e dados de clientes');
-  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
-
-  // O PUT saiu com as respostas da fase.
-  await expect.poll(() => putBody && putBody.phase_number).toBe(1);
-  expect(putBody.answers.p1_q1).toBe('Moderado');
-  expect(putBody.answers.p1_q2).toContain('Proteger receita');
+  // Escreve e espera o autosave (800 ms): o PUT sai com o campo e o aviso "Salvo às" aparece.
+  await page.fill('#campo-justificativas', 'A.7.4: sem acesso físico ao escritório.');
+  await expect.poll(() => putBody && putBody.campos.justificativas).toContain('sem acesso físico');
+  await expect(page.locator('#bancada-salvo')).toContainText(/Salvo às \d{2}:\d{2}/);
 });
 
 test('interpreta a fase e mostra o diagnóstico específico', async ({ page }) => {

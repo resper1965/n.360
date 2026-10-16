@@ -84,14 +84,11 @@ describe('state.js — hidratacao a partir do localStorage', () => {
         expect(S.currentProject.id).toBe('p1');
     });
 
-    it('phaseChecks corrompido vira objeto vazio, nao null', async () => {
-        localStorage.setItem('niso_phaseChecks', 'nao-e-json');
-        expect((await carregaEstado()).phaseChecks).toEqual({});
-    });
-
-    it('phaseChecks valido e preservado', async () => {
-        localStorage.setItem('niso_phaseChecks', JSON.stringify({ p1_0: ['a'] }));
-        expect((await carregaEstado()).phaseChecks).toEqual({ p1_0: ['a'] });
+    it('apaga as chaves antigas da trilha e do progresso de entrevista (hoje vivem no servidor)', async () => {
+        for (const k of ['niso_phaseChecks', 'niso_phaseChecksNotes', 'niso_phaseChecksAssigned', 'niso_phaseChecksDueDate', 'niso_interviewProgress']) localStorage.setItem(k, '{"p1_0":true}');
+        const S = await carregaEstado();
+        for (const k of ['niso_phaseChecks', 'niso_phaseChecksNotes', 'niso_phaseChecksAssigned', 'niso_phaseChecksDueDate', 'niso_interviewProgress']) expect(localStorage.getItem(k)).toBeNull();
+        expect(S.phaseChecks).toBeUndefined();
     });
 
     it('expoe S em window para o codigo global legado', async () => {
