@@ -144,6 +144,17 @@ describe('POST /api/v1/platform/orgs: provisionamento', () => {
     expect(await um('SELECT id FROM users WHERE email = ?', 'adm@semem.lat')).not.toBeNull();
   });
 
+  // Com a área comercial desligada, organização nova não precisa de numeração de proposta: o prefixo vira opcional.
+  it('sem prefixo de proposta: nasce sem numeração, e duas sem prefixo não conflitam', async () => {
+    espiarEmail();
+    for (const [slug, adminEmail] of [['sem-prefixo-a', 'a@semprefixo.lat'], ['sem-prefixo-b', 'b@semprefixo.lat']]) {
+      const { prefixoProposta: _p, ...corpo } = novaOrg({ slug, adminEmail });
+      const res = await chamar('POST', '/api/v1/platform/orgs', S.pa, corpo, comEmail);
+      expect(res.status, await res.clone().text()).toBe(201);
+      expect(await um('SELECT prefixo_proposta FROM organizations WHERE id = ?', `org_${slug}`)).toEqual({ prefixo_proposta: null });
+    }
+  });
+
   it('slug, prefixo ou e-mail repetidos → 409, e nada é gravado', async () => {
     const antes = await um<{ n: number }>('SELECT (SELECT COUNT(*) FROM organizations) + (SELECT COUNT(*) FROM users) AS n');
     for (const [corpo, msg] of [

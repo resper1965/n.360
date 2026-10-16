@@ -38,7 +38,7 @@ export const ROTAS = {
   'POST /api/v1/pedidos/{id}/aprovar': { obrigatorios: ['senha'] },
   'POST /api/v1/pedidos/{id}/recusar': { obrigatorios: ['senha'] },
   'POST /api/v1/pedidos/lote': { obrigatorios: ['itens', 'senha'] },
-  'POST /api/v1/platform/orgs': { obrigatorios: ['adminEmail', 'adminNome', 'maxProjetos', 'maxUsuarios', 'nome', 'prefixoProposta', 'slug', 'termoVersao'] },
+  'POST /api/v1/platform/orgs': { obrigatorios: ['adminEmail', 'adminNome', 'maxProjetos', 'maxUsuarios', 'nome', 'slug', 'termoVersao'] },
   'POST /api/v1/platform/projects/{id}/transferir': { obrigatorios: ['motivo', 'orgDestinoId'] },
   'POST /api/v1/projects': { obrigatorios: [] },
   'POST /api/v1/projects/{id}/auditor-token': { obrigatorios: [] },
