@@ -300,3 +300,55 @@ describe('Fornecedores (vendors) sem fornecedor', () => {
         expect(el('c').innerHTML).not.toContain('0/100');
     });
 });
+
+describe('lista com a situação derivada (ficha em abas)', () => {
+    const linhas = () => [...el('c').querySelectorAll('tbody tr')];
+    beforeEach(() => {
+        rotas['/ropa'] = [
+            { id: 'r1', project_id: 'p1', processing_purpose: 'Finalidade da primeira', nome: 'Desligamento de colaborador (exemplo)', dpia_required: 1, situacao: { codigo: 'em_revisao', rotulo: 'Em Revisão' } },
+            { id: 'r2', project_id: 'p1', processing_purpose: 'Finalidade sem nome', dpia_required: 1, situacao: { codigo: 'aprovada', rotulo: 'Aprovada' } },
+            { id: 'r3', project_id: 'p1', processing_purpose: 'Finalidade cancelada', dpia_required: 1, situacao: { codigo: 'cancelada', rotulo: 'Cancelada' } },
+        ];
+    });
+
+    it('a coluna é "Situação", com o texto derivado, e a linha mostra nome ou, sem nome, a finalidade', async () => {
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        expect([...el('c').querySelectorAll('thead th')].map((t) => t.textContent)).toContain('Situação');
+        expect([...el('c').querySelectorAll('thead th')].map((t) => t.textContent)).not.toContain('Status');
+        expect(linhas()[0].textContent).toContain('Desligamento de colaborador (exemplo)');
+        expect(linhas()[0].textContent).toContain('Em Revisão');
+        expect(linhas()[1].textContent).toContain('Finalidade sem nome');
+        expect(linhas()[1].textContent).toContain('Aprovada');
+    });
+
+    it('clicar abre a ficha pelo botão Abrir (abrirAtividade), com o nome no nome acessível', async () => {
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        const abrir = linhas()[0].querySelector('[data-action="abrirAtividade"]');
+        expect(JSON.parse(abrir.dataset.args)).toEqual(['p1', 'r1']);
+        expect(abrir.getAttribute('aria-label')).toBe('Abrir a atividade: Desligamento de colaborador (exemplo)');
+    });
+
+    it('atividade cancelada aparece esmaecida, escrita como "Cancelada", e fica fora dos cartões de contagem', async () => {
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        expect(linhas()).toHaveLength(3);
+        expect(linhas()[2].textContent).toContain('Cancelada');
+        expect(linhas()[2].querySelector('strong').classList.contains('at-esmaecida')).toBe(true);
+        expect(linhas()[0].querySelector('strong').classList.contains('at-esmaecida')).toBe(false);
+        const total = [...el('c').querySelectorAll('.stat-card, .stat')].find((x) => x.textContent.includes('Tratamentos'));
+        expect(total.textContent).toContain('2');
+        expect(total.textContent).not.toContain('3');
+    });
+
+    it('Nova atividade (entrevista) continua o único primário e a Edição avançada continua no Mais ações', async () => {
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        expect(el('a').querySelectorAll('.btn-primary')).toHaveLength(1);
+        expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade (entrevista)');
+        expect([...el('a').querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toContain('Edição avançada');
+    });
+
+    it('sem a situação no servidor (versão anterior), cai no status antigo sem quebrar', async () => {
+        rotas['/ropa'] = [{ id: 'r1', project_id: 'p1', processing_purpose: 'Folha', status: 'Draft' }];
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        expect(linhas()[0].textContent).toContain('Folha');
+    });
+});
