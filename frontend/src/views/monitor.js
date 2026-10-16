@@ -4,16 +4,6 @@ import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderS
 import { produtoAtual, projetosDoProduto } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
 
-    // As fases agrupadas em etapas da jornada (os números são os de `project_phases.phase_number`).
-    const ETAPAS = [
-        { name: 'Etapa 1: Mobilização e diagnóstico', subtitle: 'Entrevistas, escopo e diagnóstico inicial', range: [0, 6] },
-        { name: 'Etapa 2: Mapeamento e riscos', subtitle: 'Ativos, riscos de segurança e privacidade e SoA', range: [7, 13] },
-        { name: 'Etapa 3: Implementação do SGSI (ISO 27001)', subtitle: 'Documentação e implementação dos controles', range: [14, 20] },
-        { name: 'Etapa 4: Implementação do SGPI (ISO 27701)', subtitle: 'Programa de privacidade e dados pessoais', range: [21, 28] },
-        { name: 'Etapa 5: Operação e auditoria', subtitle: 'Treinamentos, métricas, auditoria interna e análise crítica', range: [29, 33] },
-        { name: 'Etapa 6: Certificação', subtitle: 'Melhoria contínua e auditorias de estágio 1 e 2', range: [34, 40] },
-    ];
-
     /** Vazio sem fases: o primeiro passo real (carregar as fases, para a equipe) e a prontidão, nunca a Jornada vazia. */
     export function vazioSemFases(projectId) {
         const equipe = typeof window.ehEquipeNess === 'function' && window.ehEquipeNess();
@@ -50,15 +40,20 @@ import { podeIndicar } from './encarregado.js';
 
         try {
             // Os números vêm da prontidão (GET /prontidao): os mesmos do Painel, da Jornada e da tela de prontidão.
-            const [phases, pr] = await Promise.all([
-                api('GET', `/api/v1/projects/${p.id}/phases`),
+            // O estado de cada fase vem da Bancada (já derivado dos passos) e os títulos, do catálogo de passos.
+            const [banc, pr] = await Promise.all([
+                api('GET', `/api/v1/projects/${p.id}/bancada`),
                 api('GET', `/api/v1/projects/${p.id}/prontidao`),
             ]);
-            if (!phases.length) { c.innerHTML = vazioSemFases(p.id); return; }
+            if (!banc.tem_fases) { c.innerHTML = vazioSemFases(p.id); return; }
+            if (!S.passosCatalogo || S.passosCatalogo.versao !== banc.catalogo_versao) S.passosCatalogo = await api('GET', '/api/v1/passos/catalogo');
+            const catalogo = S.passosCatalogo;
+            const porFase = new Map(banc.fases.map((f) => [f.numero, f]));
+            const phases = banc.fases;
 
             const n = pr.numeros || {};
             const ctrl = n.controles || { implementados: 0, aplicaveis: 0 };
-            const fases = n.fases || { concluidas: phases.filter(ph => ph.status === 'completed').length, total: phases.length };
+            const fases = n.fases || { concluidas: phases.filter(ph => ph.situacao === 'completed').length, total: phases.length };
             const cartao = (titulo, valor, texto) => `<div class="monitor-card"><div class="monitor-card-title">${escapeHTML(titulo)}</div>
                 <div class="monitor-card-value">${escapeHTML(String(valor))}</div><div class="monitor-card-texto">${escapeHTML(texto)}</div></div>`;
             const metricsHtml = `<div class="monitor-grid fade-in">
@@ -68,20 +63,26 @@ import { podeIndicar } from './encarregado.js';
                 ${cartao('Evidências enviadas', n.evidencias ?? 0, 'Arquivos de evidência do projeto, de qualquer situação.')}
             </div>`;
 
-            const etapasHtml = ETAPAS.map(etapa => {
-                const doGrupo = phases.filter(ph => ph.phase_number >= etapa.range[0] && ph.phase_number <= etapa.range[1]);
-                const feitas = doGrupo.filter(ph => ph.status === 'completed').length;
+            const etapasHtml = catalogo.etapas.map(etapa => {
+                const doGrupo = etapa.fases;
+                const feitas = doGrupo.filter(n => (porFase.get(n) || {}).situacao === 'completed').length;
                 const pct = doGrupo.length ? Math.round((feitas / doGrupo.length) * 100) : 0;
                 return `<div class="roadmap-j-card">
                     <div class="roadmap-j-header">
-                        <div><div class="roadmap-j-name">${escapeHTML(etapa.name)}</div><div class="roadmap-j-desc">${escapeHTML(etapa.subtitle)}</div></div>
+                        <div><div class="roadmap-j-name">${escapeHTML(etapa.nome)}</div><div class="roadmap-j-desc">${escapeHTML(etapa.resumo)}</div></div>
                         <div class="roadmap-j-pct">${feitas} de ${doGrupo.length} fases</div>
                     </div>
                     <div class="progress-bar" style="height:4px"><div class="progress-fill" style="width: ${pct}%"></div></div>
-                    <div class="roadmap-nodes-row">${doGrupo.map(ph => {
-                        const situacao = STATUS_DA_FASE[ph.status] || ph.status;
-                        return `<div class="roadmap-node ${escapeHTML(String(ph.status))}" role="link" tabindex="0" aria-label="${escapeHTML(`Fase ${ph.phase_number}: ${ph.title} (${situacao})`)}" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${escapeHTML(String(p.id))}"}}]'>
-                            ${ph.phase_number}<div class="tooltip"><strong>Fase ${ph.phase_number}:</strong> ${escapeHTML(ph.title)}<br>Situação: ${escapeHTML(situacao)}</div></div>`;
+                    <div class="roadmap-nodes-row">${doGrupo.map(n => {
+                        const f = porFase.get(n) || { numero: n, situacao: 'pending', bloqueio: null };
+                        const titulo = (catalogo.fases.find(x => x.numero === n) || {}).titulo || `Fase ${n}`;
+                        const base = STATUS_DA_FASE[f.situacao] || f.situacao;
+                        // Fase bloqueada diz por que e quem resolve, no tooltip e no nome acessível.
+                        const situacao = f.situacao === 'blocked'
+                            ? `${base}${f.bloqueio ? `: ${f.bloqueio.motivo}, responsável ${f.bloqueio.responsavel}` : ''}`
+                            : base;
+                        return `<button type="button" class="roadmap-node ${escapeHTML(String(f.situacao))}" aria-label="${escapeHTML(`Fase ${n}: ${titulo} (${situacao})`)}" data-action="monitorAbrirFase" data-args='${escapeHTML(JSON.stringify([p.id, n]))}'>
+                            ${n}<span class="tooltip"><strong>Fase ${n}:</strong> ${escapeHTML(titulo)}<br>Situação: ${escapeHTML(situacao)}</span></button>`;
                     }).join('')}</div>
                 </div>`;
             }).join('');
@@ -1805,3 +1806,5 @@ window.renderContext = renderContext;
 window.renderStakeholders = renderStakeholders;
 window.renderManagementReview = renderManagementReview;
 window.renderAssets = renderAssets;
+/** O nó da fase no Monitor abre a Bancada na fase (no primeiro passo ainda aberto dela). */
+window.monitorAbrirFase = (projectId, fase) => window.navigate('project-detail', { currentProject: { id: projectId }, bancadaAlvo: { fase } });

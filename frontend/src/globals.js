@@ -1201,14 +1201,18 @@ window.abrirAviso = async function abrirAviso(n) {
         if (link) {
             const parts = link.split('/');
             if (parts[1] === 'projects') {
-                const projectId = parts[2];
-                const subview = parts[3];
+                const projectId = parts[2].split('?')[0];
+                const subview = (parts[3] || '').split('?')[0] || undefined;
+                // Aviso de prazo de passo da trilha (`...?passo=p3_3`): abre a Bancada naquele passo.
+                const passo = (/[?&]passo=([A-Za-z0-9_]+)/.exec(link) || [])[1];
                 
                 let proj = S.projects.find(p => p.id === projectId);
                 if (!proj && S.currentProject && S.currentProject.id === projectId) proj = S.currentProject;
                 if (!proj) proj = { id: projectId };
                 
-                if (subview === 'evidence') {
+                if (passo && modulosVisiveis(proj).includes('iso')) {
+                    navigate('project-detail', { currentProject: proj, bancadaAlvo: { passo } });
+                } else if (subview === 'evidence') {
                     navigate('evidence', { currentProject: proj });
                 } else if (subview === 'controls') {
                     navigate('controls', { currentProject: proj });
