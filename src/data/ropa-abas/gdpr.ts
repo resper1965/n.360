@@ -1,3 +1,4 @@
+// Literais do legado (captura 29, modal "Base Legal GDPR"); o legado grafa "Tarefas pública", aqui corrigido para "Tarefa pública".
 import type { GDPR_BASES } from '../../schemas/ropa-abas';
 export const BASES_GDPR: Record<(typeof GDPR_BASES)[number], { rotulo: string; texto: string }> = {
   consentimento: { rotulo: 'Consentimento', texto: 'A obtenção do consentimento do titular para que seus dados pessoais sejam processados. Deve haver uma ação deliberada por parte do titular dos dados para aderir ou dar seu consentimento.' },
