@@ -1,13 +1,12 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { validateBody } from '../schemas';
-import { copilotoCampoSchema, copilotoConversaSchema } from '../schemas/passos';
+import { copilotoCampoSchema, copilotoConversaSchema, copilotoRevisaoSchema } from '../schemas/passos';
 import { erro500 } from '../helpers';
 import { passoPorId } from '../data/passos/catalogo';
-import { escreverDaConversa, podePedirCopilotoDoPasso, rascunharCampo } from '../services/copiloto-passo';
+import { escreverDaConversa, podePedirCopilotoDoPasso, rascunharCampo, revisaoDeAuditor } from '../services/copiloto-passo';
 
 type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
-const aindaNao = (c: { json: (b: unknown, s: 501) => Response }) => c.json({ error: 'Ainda não implementado' }, 501);
 const NEGADO = 'O copiloto é pedido pela equipe da consultoria ou pelo administrador do cliente';
 
 /**
@@ -39,4 +38,19 @@ projectCopilotoApp.post('/da-conversa', async (c) => {
     return c.json('indisponivel' in r ? r : { ok: true, ...r });
   } catch (e) { return erro500(c, 'Falha no copiloto do passo', e); }
 });
-projectCopilotoApp.post('/revisao', aindaNao);
+// Sem corpo: aceita o vazio ou `{}`; qualquer outra coisa é 400 (o esquema é estrito).
+projectCopilotoApp.post('/revisao', async (c) => {
+  try {
+    if (!podePedirCopilotoDoPasso(c.get('user'))) return c.json({ error: NEGADO }, 403);
+    const passo = passoPorId(c.req.param('itemId')!);
+    if (!passo) return c.json({ error: 'Passo não encontrado' }, 404);
+    const bruto = (await c.req.text()).trim();
+    if (bruto) {
+      let corpo: unknown;
+      try { corpo = JSON.parse(bruto); } catch { return c.json({ error: 'Formato JSON inválido' }, 400); }
+      if (!copilotoRevisaoSchema.safeParse(corpo).success) return c.json({ error: 'Payload inválido' }, 400);
+    }
+    const r = await revisaoDeAuditor(c.env as never, c.req.param('projectId')!, passo, c.get('user'));
+    return c.json('indisponivel' in r ? r : { ok: true, ...r });
+  } catch (e) { return erro500(c, 'Falha no copiloto do passo', e); }
+});

@@ -6,6 +6,7 @@ import { __usarCatalogoDeTeste } from '../src/data/passos/catalogo';
 import type { Catalogo, Passo } from '../src/data/passos/tipos';
 import campoJson from '../contracts/bancada/copiloto-campo.json';
 import conversaJson from '../contracts/bancada/copiloto-conversa.json';
+import revisaoJson from '../contracts/bancada/copiloto-revisao.json';
 
 /** Rotas do copiloto do passo. D1 real; o binding AI é um dublê pontual. A regra de negócio está em copiloto-passo.test.ts. */
 const P = 'cpr-p';
@@ -153,6 +154,50 @@ describe('POST .../copiloto/da-conversa', () => {
     expect(ia.chamadas).toBe(0);
     const sem = await rota(consultor, P, 'p3_3', 'da-conversa', { conversa: CONVERSA }, { ...env, AI: undefined });
     expect(sem.status).toBe(200);
+    expect(await sem.json()).toEqual({ indisponivel: true });
+  });
+});
+
+const revisao = (h: Record<string, string>, corpo: unknown = undefined, projeto = P) => rota(h, projeto, 'p3_3', 'revisao', corpo);
+
+describe('POST .../copiloto/revisao', () => {
+  beforeAll(async () => {
+    await env.DB.prepare(`INSERT INTO project_phase_answers (id, project_id, phase_number, question_key, answer) VALUES ('cpr-a1', ?, 3, 'p3_3.justificativas', 'A.7.4: sem acesso físico.')`).bind(P).run();
+  });
+  beforeEach(() => {
+    ia.resposta = { resumo: 'Falta data.', pontos: [{ severidade: 'alto', alvo: { tipo: 'campo', id: 'justificativas' }, o_que_o_auditor_questionaria: 'Quem revisou?', por_que: 'Sem data.' }, { severidade: 'alto', alvo: { tipo: 'campo', id: 'zzz' }, o_que_o_auditor_questionaria: 'x', por_que: 'y' }] };
+  });
+
+  it('sem corpo ou com {}: equipe e org_admin recebem a revisão, com as mesmas chaves do contrato, e nada é gravado', async () => {
+    const antes = await gravacoes();
+    for (const [h, corpo] of [[consultor, undefined], [orgAdmin, {}]] as const) {
+      const r = await revisao(h, corpo);
+      expect(r.status).toBe(200);
+      const b = await r.json() as Record<string, unknown>;
+      const { indisponivel_exemplo: _ex, ...contrato } = revisaoJson as Record<string, unknown>;
+      expect(Object.keys(b).sort()).toEqual(Object.keys(contrato).sort());
+      expect(Object.keys((b.pontos as object[])[0]).sort()).toEqual(Object.keys((contrato as { pontos: object[] }).pontos[0]).sort());
+      expect(b.rotulo).toBe('Revisão assistida; não é parecer de certificação');
+      expect(b.pontos).toHaveLength(1);
+    }
+    expect(await gravacoes()).toBe(antes);
+  });
+
+  it('corpo com chave ou JSON inválido: 400; org_user 403; agente MCP 403; passo inexistente 404; outro tenant 403 ou 404; modelo ausente 200', async () => {
+    expect((await revisao(consultor, { campo: 'x' })).status).toBe(400);
+    const ruim = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/passos/p3_3/copiloto/revisao`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...consultor }, body: '{nao' }), { ...env, AI } as never);
+    expect(ruim.status).toBe(400);
+    expect((await revisao(orgUser)).status).toBe(403);
+    const ag = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/passos/p3_3/copiloto/revisao`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Agente-Confirmado': '1' }, body: '{}',
+    }), { ...workerEnv(), AI, AGENTE: { userId: 'cpr-c', email: 'cons@ness.lat', projectId: P, concessaoId: 'cpr-conc' } } as never);
+    expect(ag.status).toBe(403);
+    expect((await ag.json() as { error: string }).error).toContain('fora do alcance do agente');
+    expect((await rota(consultor, P, 'p9_9', 'revisao', undefined)).status).toBe(404);
+    expect([403, 404]).toContain((await revisao(outro)).status);
+    expect([403, 404]).toContain((await revisao(orgAdmin, undefined, OUTRA)).status);
+    expect(ia.chamadas).toBe(0);
+    const sem = await rota(consultor, P, 'p3_3', 'revisao', undefined, { ...env, AI: undefined });
     expect(await sem.json()).toEqual({ indisponivel: true });
   });
 });
