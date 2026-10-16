@@ -52,6 +52,27 @@ describe('renderMaisAcoes', () => {
     });
 });
 
+describe('item desabilitado e linha de apoio', () => {
+    it('fica à vista com o motivo em texto, focável, aria-disabled e sem ação; o motivo vale mais que o apoio', () => {
+        window.__acaoD = vi.fn();
+        document.body.innerHTML = renderMaisAcoes([
+            { rotulo: 'Reabrir', sub: 'Volta à análise.', action: '__acaoD', desabilitado: true, motivo: 'A atividade não está aprovada.' },
+            { rotulo: 'Imprimir', sub: 'Gera a versão para impressão.', action: '__acaoD' },
+        ], { rotulo: 'Ações' });
+        const [off, on] = itens();
+        expect(off.getAttribute('aria-disabled')).toBe('true');
+        expect(off.hasAttribute('data-action')).toBe(false);
+        expect(off.getAttribute('title')).toBe('A atividade não está aprovada.');
+        expect(off.querySelector('.mais-acoes-sub').textContent).toBe('A atividade não está aprovada.');
+        expect(on.querySelector('.mais-acoes-sub').textContent).toBe('Gera a versão para impressão.');
+        botao().click();
+        off.click();
+        expect(window.__acaoD).not.toHaveBeenCalled();
+        on.click();
+        expect(window.__acaoD).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('comportamento', () => {
     it('clique abre, marca aria-expanded e leva o foco ao primeiro item', () => {
         botao().click();

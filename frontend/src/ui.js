@@ -535,7 +535,15 @@ export function renderMaisAcoes(itens, { rotulo = 'Mais ações', nome = '' } = 
     const id = `mais-acoes-${++maisAcoesSeq}`;
     const comuns = lista.filter((i) => !i.perigo);
     const perigosos = lista.filter((i) => i.perigo);
-    const item = (i) => `<button type="button" role="menuitem" tabindex="-1" class="mais-acoes-item${i.perigo ? ' perigo' : ''}" data-action="${escapeHTML(i.action)}" data-args='${escapeHTML(JSON.stringify(i.args || []))}'>${escapeHTML(i.rotulo)}</button>`;
+    // `desabilitado`: o item fica à vista e esmaecido, com o motivo em texto (`motivo`), e não faz nada (sem data-action). Segue
+    // focável (aria-disabled, não disabled) para quem navega por teclado ler o motivo. `sub` é a linha de apoio do item.
+    const item = (i) => {
+        const sub = i.desabilitado ? i.motivo : i.sub;
+        const corpo = `${escapeHTML(i.rotulo)}${sub ? `<span class="mais-acoes-sub">${escapeHTML(sub)}</span>` : ''}`;
+        const classe = `mais-acoes-item${i.perigo ? ' perigo' : ''}`;
+        if (i.desabilitado) return `<button type="button" role="menuitem" tabindex="-1" class="${classe} desabilitado" aria-disabled="true"${i.motivo ? ` title="${escapeHTML(i.motivo)}"` : ''}>${corpo}</button>`;
+        return `<button type="button" role="menuitem" tabindex="-1" class="${classe}" data-action="${escapeHTML(i.action)}" data-args='${escapeHTML(JSON.stringify(i.args || []))}'>${corpo}</button>`;
+    };
     return `<div class="mais-acoes"><button type="button" class="btn mais-acoes-botao" id="${id}-botao" aria-haspopup="menu" aria-expanded="false" aria-controls="${id}"${nome ? ` aria-label="${escapeHTML(`${rotulo}: ${nome}`)}"` : ''} data-action="alternarMaisAcoes" data-arg-el>${escapeHTML(rotulo)}</button>`
         + `<div class="mais-acoes-lista" id="${id}" role="menu" aria-labelledby="${id}-botao" hidden>${comuns.map(item).join('')}`
         + `${comuns.length && perigosos.length ? '<div role="separator" class="mais-acoes-sep"></div>' : ''}${perigosos.map(item).join('')}</div></div>`;
