@@ -38,7 +38,7 @@ function blocoDoCampo(campo, v) {
 }
 
 export const htmlDosCriterios = (avaliacao) => avaliacao.criterios.map((c) =>
-    `<li class="${c.ok ? 'ok' : 'falta'}"><span class="bancada-selo">${c.ok ? 'Feito' : 'Falta'}</span>${escapeHTML(c.rotulo)}${!c.ok && c.detalhe ? ` <span class="bancada-nota">(${escapeHTML(c.detalhe)})</span>` : ''}</li>`).join('');
+    `<li class="${c.ok ? 'ok' : 'falta'}" id="bancada-criterio-${escapeHTML(c.tipo)}" tabindex="-1"><span class="bancada-selo">${c.ok ? 'Feito' : 'Falta'}</span>${escapeHTML(c.rotulo)}${!c.ok && c.detalhe ? ` <span class="bancada-nota">(${escapeHTML(c.detalhe)})</span>` : ''}</li>`).join('');
 
 /** O cartão do passo (coluna do meio). Puro: tudo o que decide o que aparece entra por parâmetro. */
 export function htmlDoCartao({ ind, passo, detalhe, equipe, podeAdmin, ultimo, opcoesResponsavel, salvo, projectId = '' }) {
@@ -52,7 +52,7 @@ export function htmlDoCartao({ ind, passo, detalhe, equipe, podeAdmin, ultimo, o
         : concluido
             ? `<p class="bancada-aviso" role="status">${detalhe.excecao ? (detalhe.excecao.motivo ? `Concluído com justificativa registrada: ${escapeHTML(detalhe.excecao.motivo)}` : 'Concluído com justificativa registrada') : 'Passo concluído'}</p>${!detalhe.avaliacao.ok && !detalhe.excecao ? '<p class="bancada-aviso" role="status">Desde a conclusão, algo mudou: confira o "Concluído quando".</p>' : ''}`
             : '';
-    const prova = `<h4>Prova esperada</h4>
+    const prova = `<h4 id="bancada-prova-titulo">Prova esperada</h4>
         <p>${escapeHTML(passo.prova.descricao)} <span class="bancada-nota">(${passo.prova.obrigatoria ? 'obrigatória' : 'opcional'})</span></p>
         ${detalhe.prova.arquivo ? `<p>Anexada: ${escapeHTML(detalhe.prova.arquivo)}${detalhe.prova.avaliacao ? ` · ${escapeHTML(rotuloAvaliacao(detalhe.prova.avaliacao))}` : ''}</p>` : '<p class="bancada-nota">Nenhum arquivo ligado a este passo.</p>'}
         <p><button type="button" class="btn" id="bancada-prova" data-action="bancadaEnviarProva">Enviar arquivo</button>
@@ -82,7 +82,7 @@ export function htmlDoCartao({ ind, passo, detalhe, equipe, podeAdmin, ultimo, o
                 <select id="bancada-responsavel" class="form-select" data-action-change="bancadaMeta" data-args='${arg('assigned_to')}' data-arg-val>${opcoesResponsavel}</select></div>
             <div><label for="bancada-prazo" class="rotulo-campo">Prazo</label>
                 <input type="date" id="bancada-prazo" class="form-input" value="${escapeHTML(detalhe.prazo || '')}" data-action-change="bancadaMeta" data-args='${arg('due_date')}' data-arg-val></div>
-            <p class="bancada-salvo" id="bancada-salvo" aria-live="polite">${escapeHTML(salvo)}</p>
+            <p class="bancada-salvo" id="bancada-salvo" role="status">${escapeHTML(salvo)}</p>
             <button type="button" class="bancada-link" id="bancada-tentar" data-action="bancadaTentarAgora" hidden>Tentar agora</button>
         </div>
         <h4>O que o auditor vai pedir</h4><p>${escapeHTML(passo.porQue)}</p>

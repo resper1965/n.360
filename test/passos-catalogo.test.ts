@@ -85,4 +85,11 @@ describe('catálogo: editorial (o trabalho do pacote B; vermelho até acabar)', 
     const categoria = new Map(itens.map((i) => [i.id, i.category]));
     expect(cat.passos.filter((p) => categoria.get(p.id) !== 'task' && !p.prova.obrigatoria).map((p) => p.id)).toEqual([]);
   });
+  // Os pares que, na crítica de design (2026-10-15), abriam o assistente de outro tema: o passo tem de tratar do item certo.
+  it.each([
+    ['p0_5', /comunica/i], ['p3_3', /exclus/i], ['p4_2', /lacuna/i], ['p11_1', /tratamento de riscos/i], ['p14_2', /codifica/i],
+    ['p14_3', /vers/i], ['p18_4', /vulnerabilidade/i], ['p18_5', /criptografia/i], ['p21_2', /RoPA/], ['p21_4', /RIPD/],
+  ])('%s trata do próprio tema', (id, tema) => {
+    expect(cat.passos.find((p) => p.id === id)!.titulo).toMatch(tema);
+  });
 });

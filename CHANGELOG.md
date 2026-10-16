@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (trilha de implementação do n.iso, "Bancada"; migration 0078)
+- **Uma tela só para implantar o SGSI**: trilha à esquerda, cartão do passo no meio e assistente à direita, no lugar do select manual de situação da fase e do campo livre de anotação. 132 passos, um por item do checklist (`src/data/passos/etapa-1.ts` a `etapa-6.ts`), cada um com campos guiados, a prova esperada, onde o dado vive no produto e o "Concluído quando", conferido no servidor. A situação da fase é derivada dos passos; o autosave grava no servidor ("Salvo às HH:MM") com aviso de edição concorrente. Bloqueio (motivo e responsável) e conclusão com exceção (só equipe, motivo obrigatório) deixam trilha. Rotas `GET /api/v1/passos/catalogo`, `/projects/:id/bancada` e `/projects/:id/passos/...`; migration 0078 aditiva (`checklist_progress`, `project_phase_answers.updated_by`, `project_phases.legado_status`). Detalhe em AGENTS.md.
+- **Assistente** com três modos (rascunhar um campo, escrever a partir da conversa com o cliente, revisão de auditor). Só propõe; campos `semIA` nunca vão ao modelo; o agente MCP não o usa. Os pontos da revisão levam o foco ao campo, à prova ou ao critério.
+- Acessibilidade da tela: um h1 (projeto), h2 por fase, h3 por passo e h3 do assistente; `aria-current`, nome acessível nos botões do passo e status do salvamento em região `role="status"`.
+
+### Removido
+- `frontend/src/data/wizards.js` (os assistentes por item e `ISO_GUIDELINES`), seus testes e `scripts/passos-esqueleto.mjs`: o catálogo de passos os substituiu. A guarda do tema de cada passo está em `test/passos-catalogo.test.ts`.
+
 ### Adicionado (área comercial desligável, Novo projeto completo e agente comercial; decisão do dono de 15/10, sem migration)
 - **Interruptor `COMERCIAL_ATIVO`** (`wrangler.jsonc`, `"false"` em produção; ausente desliga): a interface esconde o grupo Comercial (leads, levantamentos, propostas, catálogo, configuração comercial), Preços e margens, o "+ Novo Lead", as fases de levantamento e proposta do cliente sem projeto e o "Criar projeto" do funil; tela comercial pedida por link ou aviso cai no painel. As rotas da área respondem 404 a pessoa e chave de API, inclusive a página pública da proposta. Nada é apagado; `"true"` religa como era. `GET /auth/me` devolve `comercial_ativo`.
 - **Identidade da organização** em Conta e acessos (com a área desligada, para `platform_admin` e `consultoria_admin`): nome, CNPJ, cor e logo, que vão também nos documentos Word do projeto. `/api/v1/org` segue no ar.
