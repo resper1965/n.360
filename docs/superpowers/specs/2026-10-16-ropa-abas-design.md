@@ -238,11 +238,11 @@ Rotas que **ficam e a tela usa**: `/impacto`, `/riscos`, `/acoes`, `/ligacoes`, 
 | `POST .../etapas/:etapa/rascunho` | copiloto: rascunha a descrição da etapa (**fora do agente**) |
 | `GET/POST /api/v1/projects/:p/catalogos/:tipo`, `PUT .../:id` | tipos `titulares`, `dados`, `medidas`, `motivos-risco`; `?q=` busca; sem DELETE (inativa por `status`) |
 
-`/catalogos` entra em `FAIXA_DO_SEGMENTO` como `privacy`. As sementes (8.3) nascem na primeira leitura.
+`/catalogos` entra em `FAIXA_DO_SEGMENTO` como `privacy`. **Os catálogos nascem vazios** (decisão do dono de 16/10/2026, seção 15): nada é semeado; o `GET` do projeto novo devolve `[]` e a tela oferece o "+" inline.
 
-### 8.3 Sementes e conteúdo (pacote B, texto do dono)
+### 8.3 Conteúdo fixo (pacote B, texto do dono); sem semente de catálogo
 
-Escritas **em código** (`src/data/ropa-abas/`), com revisão jurídica do dono (`AGENTS.md`: material de terceiro não é texto normativo): títulos dos incisos (já em `src/data/lgpd.ts:36-58`), as seis bases do GDPR (texto das capturas 28 e 29), a lista de origens dos dados, os motivos de risco com descrição padrão (três vistos no legado), as escalas de probabilidade e de impacto e os níveis de risco, os dados sensíveis conhecidos, titulares e dados pessoais iniciais, medidas de segurança iniciais, status de medida e de gap. **O que as capturas não mostram** (opções de listas que o legado só exibe abertas) fica em proposta marcada e entra na seção 15.
+Escritas **em código** (`src/data/ropa-abas/`), com revisão jurídica do dono (`AGENTS.md`: material de terceiro não é texto normativo): títulos dos incisos (já em `src/data/lgpd.ts:36-58`), as seis bases do GDPR (texto das capturas 28 e 29), a lista de origens dos dados, os motivos de risco com descrição padrão (três vistos no legado), as escalas de probabilidade e de impacto e os níveis de risco, os dados sensíveis conhecidos (só uma sugestão de marca ao criar um dado pelo "+"), status de medida e de gap. **Fora do código, por decisão do dono (16/10/2026): titulares, dados pessoais, medidas de segurança e motivos de risco.** Eles são catálogo do projeto, nascem vazios e são criados pela pessoa (ou, numa etapa futura e separada, pela importação do legado). **O que as capturas não mostram** (opções de listas que o legado só exibe abertas) fica em proposta marcada e entra na seção 15.
 
 ## 9. Agente de IA, copiloto e PII
 
@@ -315,9 +315,11 @@ Mapeamento dos blocos da entrevista para as abas, na ordem:
 
 ## 15. Decisões em aberto (só o que muda o trabalho)
 
-1. **Opções que as capturas não mostram.** O legado só exibe abertas algumas listas: as **opções de Origem dos Dados** (além de "Outra área de negócio da organização", "Direto do Titular", "Aplicação ou Sistema"), os **status de Medida** e de Gap além de Pendente e Concluído, as **opções de "processamento automatizado"** além de "Não, não são submetidos.", as **escalas de Probabilidade e Impacto** (só um rótulo de cada visto) e o texto da **descrição padrão dos motivos** de risco. Proponho valores (seção 8.3) e o pacote B os escreve; **o dono confirma ou manda as capturas das listas abertas** antes do merge da PR1 (muda o texto, não o desenho).
-2. **Edição na Coleta derruba a aprovação.** Mudar titular, dado ou ativo de uma atividade aprovada escreve nas colunas do hash e substitui o pedido, como o formulário antigo já fazia (seção 4.4). Alternativa: não derivar para o hash e deixar a aprovação cobrir só o texto antigo. Escolhi derivar (o RoPA aprovado é o registro do art. 37 e precisa refletir o que a empresa trata). Se o dono preferir a outra, a seção 4.4 inteira muda e a Coleta passa a avisar "a aprovação vigente não cobre esta edição".
-3. **Catálogo inicial de dados pessoais, titulares e medidas.** Semeamos uma lista curta própria (seção 8.3) ou esperamos o **export do catálogo do cliente legado** (a memória do dono diz que faltam os exports)? Muda o pacote B e a necessidade de um importador de catálogo (não está nesta fase).
+Decididas pelo dono em **16/10/2026** (nenhuma está mais em aberto):
+
+1. **DECIDIDA (16/10/2026): opções que as capturas não mostram.** Os valores que esta spec propõe para o que o legado só exibe aberto (as **opções de Origem dos Dados**, os **status** de Medida e de Gap, as **opções de "processamento automatizado"**, as **escalas de Probabilidade e Impacto** e a **descrição padrão dos motivos** de risco) estão **aceitos**. O dono os **confirma antes do merge da PR1** (muda o texto, não o desenho). Os motivos de risco não são mais conteúdo em código (item 3).
+2. **DECIDIDA (16/10/2026): edição na Coleta derruba a aprovação.** Mudar titular, dado ou ativo de uma atividade aprovada escreve nas colunas do hash e substitui o pedido, como o formulário antigo já fazia (seção 4.4). Fica o desenho da spec: derivar para o hash (o RoPA aprovado é o registro do art. 37 e precisa refletir o que a empresa trata).
+3. **DECIDIDA (16/10/2026): sistema vazio primeiro; catálogos sem semente.** Nenhuma importação de dados do legado faz parte deste trabalho (é uma etapa separada, depois). Os catálogos (**tipos de titular, dados pessoais com a marca de sensível, medidas, motivos de risco**) e os cadastros que a ficha usa (**ativos, áreas, parceiros**) **começam VAZIOS**: **nenhuma lista é semeada** em migration nem em código, e nenhum teste depende de dado preexistente. Todo estado vazio explica o que a coisa é e oferece o "+" para criar ali mesmo (inline). A materialização preguiçosa (seção 4.5) fica só como compatibilidade dos registros planos que o próprio n.360 já tem; **nada é desenhado para importar o legado**. Isto substitui a alternativa "semeamos uma lista curta própria" e a espera pelo export do legado.
 
 Não são decisões em aberto, ficam decididas aqui: sem feature flag (seção 17), "Logs ROPA" com o rótulo do legado, menu sem item novo, Word da atividade fora, aviso de prazo de risco e de gap em projeto só n.privacy fora (seção 17).
 
