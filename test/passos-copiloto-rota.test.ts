@@ -201,3 +201,12 @@ describe('POST .../copiloto/revisao', () => {
     expect(await sem.json()).toEqual({ indisponivel: true });
   });
 });
+
+describe('limite de uso do copiloto do passo', () => {
+  it('429 quando a janela do usuário estoura, sem chamar o modelo', async () => {
+    ia.chamadas = 0;
+    await env.SESSIONS.put('ratelimit:copiloto-passo:cpr-adm', '30', { expirationTtl: 600 });
+    expect((await campo(orgAdmin)).status).toBe(429);
+    expect(ia.chamadas).toBe(0);
+  });
+});
