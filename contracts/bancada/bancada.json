@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "projeto": { "id": "proj-e2e", "nome": "Adequação Cliente Fictício" },
+  "catalogo_versao": "0123456789abcdef",
+  "tem_fases": true,
+  "continuar": { "fase": 3, "passo": "p3_3" },
+  "totais": { "passos": 132, "concluidos": 2, "bloqueados": 0 },
+  "fases": [
+    { "numero": 3, "situacao": "in_progress", "situacao_antiga": null, "concluidos": 2, "total": 4, "bloqueados": 0, "bloqueio": null }
+  ],
+  "passos": [
+    { "id": "p3_3", "fase": 3, "estado": "em_andamento", "concluido_por_excecao": false, "responsavel": "Maria Souza", "prazo": "2026-11-05",
+      "atividade_em": "2026-10-15 14:02:11", "bloqueio": null, "avaliacao_ok": false, "faltam": 2 }
+  ]
+}

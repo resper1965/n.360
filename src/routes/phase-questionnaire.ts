@@ -154,8 +154,12 @@ projectPhaseAnswersApp.get('/:phase/interpret', async (c) => {
     const { results } = await c.env.DB.prepare(
       'SELECT question_key, answer FROM project_phase_answers WHERE project_id = ? AND phase_number = ?'
     ).bind(projectId, phase).all();
+    // Só as chaves do questionário entram no resumo e no hash: campo novo da Bancada (`p3_3.xxx`) não
+    // marca a interpretação como desatualizada.
+    const chaves = new Set(perguntas.map((q) => q.key));
     const respostas = new Map<string, string>();
     for (const r of (results ?? []) as any[]) {
+      if (!chaves.has(r.question_key)) continue;
       const v = (r.answer ?? '').toString().trim();
       if (v) respostas.set(r.question_key, v);
     }

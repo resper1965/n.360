@@ -1,0 +1,102 @@
+{
+  "ok": true,
+  "versao": "0123456789abcdef",
+  "etapas": [
+    {
+      "id": 1,
+      "nome": "Mobilização e diagnóstico",
+      "resumo": "Planejamento, entrevistas, escopo e diagnóstico inicial",
+      "fases": [
+        3
+      ]
+    }
+  ],
+  "fases": [
+    {
+      "numero": 3,
+      "etapa": 1,
+      "titulo": "Declaração de aplicabilidade",
+      "clausula": "Cl 6.1.3",
+      "objetivo": "Decidir quais controles se aplicam e justificar os que ficam de fora."
+    }
+  ],
+  "passos": [
+    {
+      "ordem": 3,
+      "fase": 3,
+      "id": "p3_3",
+      "titulo": "Justificar as exclusões de controles",
+      "clausula": "Cl 6.1.3",
+      "porQue": "O auditor confere se cada controle excluído tem justificativa aprovada.",
+      "campos": [
+        {
+          "id": "justificativas",
+          "rotulo": "Quais controles ficam de fora e por quê?",
+          "tipo": "texto_longo",
+          "obrigatorio": true,
+          "exemplo": "A.7.4: não há acesso físico ao escritório, o time é remoto."
+        }
+      ],
+      "prova": {
+        "descricao": "Declaração de aplicabilidade com as justificativas.",
+        "obrigatoria": true,
+        "aceita": "ambos"
+      },
+      "ondeVive": [
+        {
+          "tela": "soa",
+          "rotulo": "Abrir a declaração de aplicabilidade"
+        }
+      ],
+      "concluidoQuando": [
+        {
+          "tipo": "campos_preenchidos",
+          "rotulo": "Justificativas escritas"
+        },
+        {
+          "tipo": "evidencia_anexada",
+          "rotulo": "Prova anexada"
+        }
+      ]
+    },
+    {
+      "id": "p3_4",
+      "fase": 3,
+      "ordem": 4,
+      "titulo": "Aprovar a declaração de aplicabilidade",
+      "clausula": "Cl 6.1.3",
+      "porQue": "A direção precisa aprovar a declaração antes da certificação.",
+      "campos": [
+        {
+          "id": "aprovador",
+          "rotulo": "Quem aprova a declaração?",
+          "tipo": "escolha",
+          "obrigatorio": true,
+          "exemplo": "",
+          "opcoes": [
+            "CEO",
+            "CISO"
+          ]
+        }
+      ],
+      "prova": {
+        "descricao": "Registro da aprovação.",
+        "obrigatoria": false,
+        "aceita": "arquivo"
+      },
+      "ondeVive": [],
+      "concluidoQuando": [
+        {
+          "tipo": "campos_preenchidos",
+          "rotulo": "Aprovador escolhido"
+        },
+        {
+          "tipo": "pedido_de_aprovacao",
+          "rotulo": "Aprovação registrada",
+          "pedidoTipo": "politica",
+          "situacao": "aprovado"
+        }
+      ]
+    }
+  ]
+}

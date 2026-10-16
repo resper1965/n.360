@@ -17,9 +17,9 @@ const semComentario = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:]
 
 // Linhas com cor literal de propósito: o trecho que identifica a linha e o motivo.
 const HEX_PERMITIDO = [
-    ['src/views/project.js', "<style>body{font-family:'Segoe UI'", 'janela de impressão do dossiê: abre fora do CSS do app'],
-    ['src/views/project.js', 'h2{color:#00ade8}', 'janela de impressão do dossiê'],
-    ['src/views/project.js', ':root{--text:#111', 'janela de impressão do dossiê: tokens próprios, em papel'],
+    ['src/views/bancada.js', "<style>body{font-family:'Segoe UI'", 'janela de impressão do dossiê: abre fora do CSS do app'],
+    ['src/views/bancada.js', 'h2{color:#00ade8}', 'janela de impressão do dossiê'],
+    ['src/views/bancada.js', ':root{--text:#111', 'janela de impressão do dossiê: tokens próprios, em papel'],
     ['src/views/security.js', 'style="background:#fff;padding:8px', 'QR do MFA: o leitor precisa de fundo branco'],
 ];
 const HEX = /(?<!&)#[0-9a-fA-F]{3,8}\b/;
@@ -95,12 +95,12 @@ describe('catracas do sistema visual', () => {
     // Teto de style="" por arquivo, medido em 15/10/2026 depois da limpeza das quatro telas grandes (eram grc 309,
     // monitor 242, compliance 248, project 174). Baixou? Baixe o teto aqui. Subiu? Use as classes do fim de style.css.
     const TETO_STYLE = {
-        'src/globals.js': 109, 'src/produto.js': 4, 'src/ui.js': 11, 'src/views/admin.js': 45, 'src/views/ai.js': 9,
+        'src/globals.js': 84, 'src/produto.js': 4, 'src/ui.js': 11, 'src/views/admin.js': 45, 'src/views/ai.js': 9,
         'src/views/aprovacao-lote.js': 21, 'src/views/auditor-acesso.js': 11, 'src/views/commercial.js': 27, 'src/views/compliance.js': 98,
         'src/views/dashboard.js': 26, 'src/views/documentos.js': 35, 'src/views/empresa.js': 37, 'src/views/encarregado.js': 3,
         'src/views/grc.js': 45, 'src/views/importacao.js': 45, 'src/views/mapa-de-risco.js': 11, 'src/views/meus-pedidos.js': 47,
         'src/views/monitor.js': 55, 'src/views/padronizar-nomes.js': 4, 'src/views/painel-graficos.js': 1, 'src/views/partes.js': 9,
-        'src/views/ponto-de-partida.js': 8, 'src/views/privacy.js': 102, 'src/views/project.js': 50, 'src/views/requisitos.js': 4,
+        'src/views/ponto-de-partida.js': 8, 'src/views/privacy.js': 102, 'src/views/project.js': 9, 'src/views/requisitos.js': 4,
         'src/views/security.js': 41, 'src/views/seguranca-projeto.js': 19, 'src/views/terceiros.js': 43, 'src/views/titular.js': 27,
         'src/views/tratamento-ligacoes.js': 49, 'src/views/trocar-senha.js': 5,
     };

@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "passo": { "id": "p3_3", "estado": "em_andamento" },
+  "valores": { "justificativas": { "valor": "A.7.4: escritório sem acesso físico.", "atualizado_em": "2026-10-15 14:02:11", "por": "consultor@exemplo.test", "herdado": false } },
+  "avaliacao": { "ok": false, "faltam": 1, "criterios": [
+    { "tipo": "campos_preenchidos", "rotulo": "Campos obrigatórios preenchidos", "ok": true },
+    { "tipo": "evidencia_anexada", "rotulo": "Prova anexada", "ok": false, "detalhe": "nenhum arquivo ligado a este passo" } ] },
+  "prova": { "evidence_id": null, "arquivo": null, "avaliacao": null },
+  "responsavel": "Maria Souza", "prazo": "2026-11-05",
+  "bloqueio": null, "excecao": null, "anotacao_anterior": null
+}

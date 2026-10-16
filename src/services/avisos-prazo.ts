@@ -12,6 +12,7 @@ import { appUrl } from '../config/url';
 import { vencerEvidencias } from './evidencia-validade';
 import { modulosDoProjeto, type Modulo } from '../modulos';
 import { log } from '../observability';
+import { passoPorId } from '../data/passos/catalogo';
 import type { Bindings } from '../index';
 
 export type Fonte = 'capa' | 'checklist' | 'auditoria' | 'certificado' | 'link_auditor' | 'politica' | 'documento' | 'excecao' | 'avaliacao_terceiro' | 'titular_pedido' | 'incidente' | 'evidencia';
@@ -25,6 +26,8 @@ export type ItemPrazo = {
   titulo: string;
   /** Texto livre do campo de responsável (e-mail ou nome), quando a fonte tem um. */
   responsavel: string | null;
+  /** Só a fonte `checklist`: id do passo da trilha (o título e o link da Bancada saem do catálogo). */
+  passo_id?: string;
 };
 export type ItemDoDia = ItemPrazo & { marco: string };
 
@@ -91,7 +94,7 @@ const FONTES: Record<Fonte, string> = {
   capa: `SELECT c.id AS item_id, c.project_id, date(substr(c.due_date, 1, 10)) AS vence_em, c.title AS titulo, c.assigned_to AS responsavel
     FROM corrective_actions c JOIN projects p ON p.id = c.project_id WHERE COALESCE(c.status, 'Open') <> 'Closed'`,
   checklist: `SELECT k.id AS item_id, k.project_id, date(substr(k.due_date, 1, 10)) AS vence_em,
-      'Item ' || k.item_id || ' da fase ' || k.phase_number AS titulo, k.assigned_to AS responsavel
+      'Item ' || k.item_id || ' da fase ' || k.phase_number AS titulo, k.assigned_to AS responsavel, k.item_id AS passo_id
     FROM checklist_progress k JOIN projects p ON p.id = k.project_id WHERE COALESCE(k.is_checked, 0) = 0`,
   auditoria: `SELECT a.id AS item_id, a.project_id, date(substr(a.scheduled_date, 1, 10)) AS vence_em, a.title AS titulo, NULL AS responsavel
     FROM audit_schedule a JOIN projects p ON p.id = a.project_id WHERE COALESCE(a.status, 'Planned') <> 'Completed'`,
@@ -152,7 +155,10 @@ export async function itensDoDia(db: D1Database, hoje: string): Promise<{ itens:
         const marco = marcoDoDia(r.vence_em, hoje);
         // Carência (pedido e incidente): prazo que nasceu vencido não gera atraso na semana ISO em que o registro foi criado.
         if (marco?.startsWith('atraso-') && criado_em && r.vence_em < criado_em && semanaIso(hoje) === semanaIso(criado_em)) continue;
-        if (marco) itens.push({ fonte, ...r, marco });
+        if (!marco) continue;
+        // Passo da trilha: o título do passo no lugar de "Item p3_3 da fase 3". Id fora do catálogo mantém o texto antigo.
+        const passo = fonte === 'checklist' && r.passo_id ? passoPorId(r.passo_id) : undefined;
+        itens.push({ fonte, ...r, ...(passo ? { titulo: `Passo: ${passo.titulo}` } : { passo_id: undefined }), marco });
       }
     } catch (e) {
       falhas.push(`${fonte}: ${mensagem(e)}`);
@@ -207,7 +213,7 @@ type EnvAvisos = Pick<Bindings, 'DB' | 'RESEND_API_KEY' | 'APP_URL'>;
 export type ResultadoAvisos = { avisos_criados: number; emails_enviados: number; sem_destinatario: number; falhas: string[] };
 
 const ROTULO: Record<Fonte, string> = {
-  capa: 'CAPA', checklist: 'Item do checklist', auditoria: 'Auditoria', certificado: 'Certificado',
+  capa: 'CAPA', checklist: 'Passo da trilha', auditoria: 'Auditoria', certificado: 'Certificado',
   link_auditor: 'Link do auditor', politica: 'Política', documento: 'Documento', excecao: 'Exceção', avaliacao_terceiro: 'Avaliação de terceiro', titular_pedido: 'Pedido do titular', incidente: 'Incidente', evidencia: 'Evidência',
 };
 
@@ -279,7 +285,7 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
             .bind(genId(), p.id, `prazo_${item.fonte}`,
               tela === '/ropa' ? `Ação da atividade ${quando(item.marco)}` : tituloDoAviso(item),
               `${item.titulo} (prazo ${dataBr(item.vence_em)})`,
-              `/projects/${item.project_id}${tela}`, id);
+              `/projects/${item.project_id}${item.passo_id ? `?passo=${item.passo_id}` : tela}`, id);
           const [aviso] = await db.batch(atraso ? [inserir] : [inserir, sino]);
           const novos = aviso.meta.changes ?? 0;
           r.avisos_criados += novos;

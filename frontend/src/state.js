@@ -37,8 +37,10 @@ export     const S = {
         currentBlock: 1, blockAnswers: {},
         editingPhase: null,
         phaseConfig: null,
-        phaseChecks: safeParse('niso_phaseChecks') || {},
         generatingProposal: false
     };
+
+// A trilha vive no servidor (Bancada): o navegador não guarda mais marcas de passo nem progresso de entrevista.
+try { for (const k of ['niso_phaseChecks', 'niso_phaseChecksNotes', 'niso_phaseChecksAssigned', 'niso_phaseChecksDueDate', 'niso_interviewProgress']) localStorage.removeItem(k); } catch (e) { /* sem storage: nada a limpar */ }
 
 window.S = S;

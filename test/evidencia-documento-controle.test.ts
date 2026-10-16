@@ -87,11 +87,11 @@ describe('documento do assistente aprovado', () => {
   const aprovar = (itemId: string, content = '# Documento') =>
     chamar(`/api/v1/projects/${P}/approve-document`, { method: 'POST', headers: json(consultor), body: JSON.stringify({ itemId, content }) });
 
-  it('aceitar o rascunho é o que marca o item, com a evidência aceita', async () => {
+  it('aceitar o rascunho liga a evidência ao item, sem concluí-lo', async () => {
     const res = await aprovar('p15_1');
     const { evidence_id } = await res.json<{ evidence_id: string }>();
     const prog = await progresso('p15_1');
-    expect(prog!.is_checked).toBe(1);
+    expect(prog!.is_checked).toBe(0);
     expect(prog!.evidence_id).toBe(evidence_id);
   });
 
@@ -119,7 +119,7 @@ describe('documento do assistente aprovado', () => {
 });
 
 describe('upload de documento', () => {
-  it('pelo checklist (cliente): pendente, ligado ao controle, e o item fica marcado', async () => {
+  it('pelo checklist (cliente): pendente, ligado ao controle e ao item (que não é concluído por isso)', async () => {
     const res = await enviar(cliente, 'p15_1');
     const body = await res.json<{ id: string }>();
     expect(res.status, JSON.stringify(body)).toBe(201);
@@ -164,6 +164,6 @@ describe('upload de documento', () => {
     expect((await enviar(cliente, 'p15_2')).status).toBe(201);
     const prog = await progresso('p15_2');
     expect(prog!.notes).toBe('minha anotação');
-    expect(prog!.is_checked).toBe(1);
+    expect(prog!.is_checked).toBe(0);
   });
 });

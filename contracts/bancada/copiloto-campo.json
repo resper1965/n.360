@@ -1,0 +1,6 @@
+{
+  "ok": true,
+  "proposta": { "campo": "justificativas", "valor": "A.7.4: escritório sem acesso físico; o time é remoto.", "fontes": [ { "id": "emp", "rotulo": "Dados da empresa" } ] },
+  "avisos": [],
+  "indisponivel_exemplo": { "indisponivel": true }
+}

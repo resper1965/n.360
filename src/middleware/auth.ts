@@ -338,6 +338,10 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
     // sempre bloqueadas (antes vazavam via path.includes('/evidence')).
     const allowedWrites: Array<{ methods: string[]; test: (p: string) => boolean }> = [
       { methods: ['PUT', 'POST'], test: p => p.endsWith('/checklist-progress') },
+      // Bancada: preencher campos, definir responsável e prazo, concluir e reabrir passo (paridade com marcar item). Bloquear e exceção a rota decide.
+      { methods: ['PUT'], test: p => /\/passos\/[^/]+\/campos$/.test(p) },
+      { methods: ['PATCH'], test: p => /\/passos\/[^/]+$/.test(p) },
+      { methods: ['POST'], test: p => /\/passos\/[^/]+\/(concluir|reabrir)$/.test(p) },
       { methods: ['POST'], test: p => p.endsWith('/evidence/upload') },
       { methods: ['PUT'], test: p => /\/evidence\/[^/]+\/content$/.test(p) },
       { methods: ['POST'], test: p => p.endsWith('/documents/upload') },

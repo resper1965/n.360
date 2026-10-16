@@ -56,7 +56,7 @@ describe('Geração e persistência de documento (D1 + R2 reais)', () => {
     testEnv()
   );
 
-  it('gera o rascunho sem gravar; o aceite grava no R2 e persiste evidence + checklist_progress', async () => {
+  it('gera o rascunho sem gravar; o aceite grava no R2 e persiste evidence + a ligação em checklist_progress, sem concluir o passo', async () => {
     const gen = await worker.fetch(
       new Request('http://localhost/api/v1/projects/proj-123/checklist/p3_1/generate', { method: 'POST', headers }),
       testEnv()
@@ -91,7 +91,7 @@ describe('Geração e persistência de documento (D1 + R2 reais)', () => {
     const prog = await env.DB.prepare(
       'SELECT is_checked, evidence_id FROM checklist_progress WHERE project_id = ? AND item_id = ?'
     ).bind('proj-123', 'p3_1').first<any>();
-    expect(prog.is_checked).toBe(1);
+    expect(prog.is_checked).toBe(0); // o aceite só liga a evidência ao passo; concluir é ato da pessoa
     expect(prog.evidence_id).toBe(body.evidence_id);
   });
 
