@@ -4,6 +4,9 @@ version: 2
 # acusa vulnerabilidades críticas cuja correção exige bump major de
 # @cloudflare/vitest-pool-workers — o Dependabot abre o PR e o CI diz se quebra.
 #
+# Frequência MENSAL (era semanal): cada PR custa uma verificação completa na Cloudflare (~14 min) e, com a regra de
+# branch atualizado, cada merge refaz a dos outros. Alerta de segurança do Dependabot não segue esta agenda.
+#
 # Cada diretório agrupa as atualizações de patch e minor num PR só. Sem isso, cada
 # merge desatualiza os demais PRs e o ciclo atualizar-esperar o CI-mergear custa
 # ~12 min por dependência. Versão MAIOR continua em PR separado: exige decisão.
@@ -16,10 +19,10 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 5
     groups:
-      # Agrupa o que quase sempre sobe junto, para não gerar 5 PRs por semana.
+      # Agrupa o que quase sempre sobe junto, para não gerar 5 PRs por mês.
       dev-tooling:
         patterns: ["vitest", "@vitest/*", "@cloudflare/vitest-pool-workers", "typescript", "wrangler"]
         update-types: ["minor", "patch"]
@@ -36,7 +39,7 @@ updates:
   - package-ecosystem: npm
     directory: /frontend
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 3
     groups:
       menores-e-patches:
@@ -51,7 +54,7 @@ updates:
   - package-ecosystem: npm
     directory: /mcp-server-niso
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 3
     groups:
       menores-e-patches:
