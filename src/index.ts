@@ -60,6 +60,8 @@ import { pedidosApp, projectPedidosApp } from './routes/pedidos';
 
 import { readinessApp, prontidaoApp } from './routes/readiness';
 import { phaseQuestionsApp, projectPhaseAnswersApp } from './routes/phase-questionnaire';
+import { passosCatalogoApp, projectPassosApp, projectBancadaApp } from './routes/passos';
+import { projectCopilotoApp } from './routes/passos-copiloto';
 import { journeyDossierApp } from './routes/journey-dossier';
 import { controlAdequacaoApp } from './routes/control-adequacao';
 import risks from './routes/risks';
@@ -390,6 +392,11 @@ app.route('/api/v1/projects/:projectId/readiness-check', readinessApp);
 app.route('/api/v1/projects/:projectId/prontidao', prontidaoApp);
 app.route('/api/v1/phase-questions', phaseQuestionsApp);
 app.route('/api/v1/projects/:projectId/phase-answers', projectPhaseAnswersApp);
+// Bancada da trilha (spec 2026-10-15). O copiloto vem antes: o caminho mais longo precisa casar primeiro.
+app.route('/api/v1/passos', passosCatalogoApp);
+app.route('/api/v1/projects/:projectId/passos/:itemId/copiloto', projectCopilotoApp);
+app.route('/api/v1/projects/:projectId/passos', projectPassosApp);
+app.route('/api/v1/projects/:projectId/bancada', projectBancadaApp);
 app.route('/api/v1/projects/:projectId/journey-dossier', journeyDossierApp);
 app.route('/api/v1/projects/:projectId/control-adequacao', controlAdequacaoApp);
 app.route('/api/v1/controls', controlsApp);

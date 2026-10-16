@@ -129,6 +129,11 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   // Homologação de fornecedor (F5): o link é credencial emitida pela consultoria e concluir grava a avaliação do terceiro; o agente só lê.
   [/^\/api\/v1\/projects\/[^/]+\/homologacoes(\/|$)/, 'homologação de fornecedor é conduzida pela equipe, pela interface; o agente só lê', ['POST', 'PUT', 'DELETE']],
   [/^\/api\/v1\/management-reviews\/[^/]+$/,'excluir análise crítica destrói registro assinado: use a interface', ['DELETE']],
+  // Bancada da trilha (spec 2026-10-15): concluir, reabrir e bloquear passo são atos humanos (como aceitar documento); o rascunho de IA é da tela.
+  [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/(concluir|reabrir|bloquear|desbloquear)$/, 'concluir, reabrir e bloquear passo da trilha é ato humano, pela interface', ['POST']],
+  [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/anotacao-anterior$/, 'descartar a anotação antiga é ato humano da equipe, pela interface', ['DELETE']],
+  [/^\/api\/v1\/projects\/[^/]+\/bancada\/fases\/[^/]+\/situacao-antiga$/, 'encerrar a situação anterior da fase é ato humano da equipe, pela interface', ['DELETE']],
+  [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/copiloto\/[a-z-]+$/, 'rascunho de IA da trilha é pela interface; o agente já é a IA', ['POST']],
 ];
 
 /**
