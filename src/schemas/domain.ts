@@ -544,7 +544,8 @@ export const configOrgSchema = z.object({
 export const criarOrgSchema = z.object({
   nome: z.string().trim().min(1).max(120),
   slug: z.string().regex(/^[a-z0-9-]{3,40}$/, 'Slug com 3 a 40 letras minúsculas, números ou hífen'),
-  prefixoProposta: z.string().regex(/^[A-Z0-9]{2,10}$/, 'Prefixo com 2 a 10 letras maiúsculas ou números'),
+  // Opcional desde 15/10/2026 (área comercial desligável): sem ele a organização não gera proposta até configurar o prefixo.
+  prefixoProposta: z.string().regex(/^[A-Z0-9]{2,10}$/, 'Prefixo com 2 a 10 letras maiúsculas ou números').optional(),
   cnpj: z.string().regex(/^\d{14}$/, 'CNPJ com 14 dígitos, só números').optional(),
   adminEmail: z.string().trim().toLowerCase().email('E-mail inválido').max(254),
   adminNome: z.string().trim().min(1).max(120),

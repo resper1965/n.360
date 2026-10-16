@@ -177,6 +177,7 @@ describe('notificação de proposta (fatia 4)', () => {
       ? { id: 'p1', numero: 'N-1', revisao: 1, status: 'visualizada', cliente: 'Acme', itens: [] }
       : []));
     S.notifications = [{ id: 'n1', read: 0, title: 'Proposta visualizada: Acme', link: '/propostas/p1', action_type: 'proposta_visualizada', target_id: 'p1' }];
+    S.user = { ...S.user, comercial_ativo: true };
     // Propostas é tela do n.iso: no n.360 o aviso levaria ao módulo (test/casca-router.test.js).
     history.replaceState(null, '', '/iso');
     try {
@@ -185,6 +186,20 @@ describe('notificação de proposta (fatia 4)', () => {
       expect(S.view).toBe('proposals');
       await vi.waitFor(() => expect(document.querySelector('[data-action="__prpEnviar"]')).toBeTruthy());
     } finally { history.replaceState(null, '', '/'); }
+  });
+  // Área comercial desligada: o aviso antigo não abre tela comercial (o servidor daria 404); cai no painel.
+  it('área comercial desligada: o aviso da proposta leva ao painel', async () => {
+    document.body.innerHTML += '<div id="notif-dropdown"></div><h1 id="header-title"></h1><div id="header-actions"></div><div id="content"></div>';
+    S.notifications = [{ id: 'n2', read: 0, title: 'Proposta visualizada: Acme', link: '/propostas/p1', action_type: 'proposta_visualizada', target_id: 'p1' }];
+    S.user = { ...S.user, comercial_ativo: false };
+    history.replaceState(null, '', '/iso');
+    const antes = window.renderDashboard;
+    window.renderDashboard = vi.fn();
+    try {
+      await window.handleNotificationClick('n2');
+      expect(S.view).toBe('dashboard');
+      expect(window.renderDashboard).toHaveBeenCalled();
+    } finally { window.renderDashboard = antes; history.replaceState(null, '', '/'); }
   });
 });
 

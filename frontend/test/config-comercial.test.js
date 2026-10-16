@@ -268,3 +268,21 @@ describe('configuração incompleta', () => {
     expect($('content').querySelector('[data-action="navigate"]').dataset.args).toBe('["config-comercial"]');
   });
 });
+
+// Área comercial desligada: a mesma tela, em Conta e acessos, só com a identidade (nome, CNPJ, cor) e o logo, que vão também
+// nos documentos Word do projeto. Numeração, preço e textos ficam de fora, e o PUT (parcial) não os toca.
+describe('identidade da organização (identidade-org)', () => {
+  it('mostra só identidade e logo, e grava só nome, CNPJ e cor', async () => {
+    S.view = 'identidade-org';
+    try {
+      const c = await monta('consultoria_admin');
+      expect($('hdr').textContent).toBe('Identidade da organização');
+      expect([...c.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Logo', 'Identidade']);
+      for (const id of ['cfg-prefixoProposta', 'cfg-preco-diaria-1', 'cfg-textos-sobre', 'cfg-seloNiso']) expect($(id), id).toBeNull();
+      digita('cfg-nome', 'Consultoria X');
+      envia();
+      await espera();
+      expect(JSON.parse(put()[1].body)).toEqual({ nome: 'Consultoria X', cnpj: '12345678000199', corDestaque: '#00ade8' });
+    } finally { S.view = null; }
+  });
+});

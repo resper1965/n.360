@@ -1,21 +1,34 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML } from '../ui.js';
+import { escapeHTML, renderEmptyState } from '../ui.js';
 import { projetosDoProduto } from '../produto.js';
 
 // Espelho de `ehComercial` (src/helpers.ts): o funil de leads é do comercial.
 // Local, e não `window.ehComercial`, para a view não depender da ordem de carga.
-const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role));
+const ehComercial = () => !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role) && S.user.comercial_ativo === true);
+const comercialAtivo = () => !!(S.user && S.user.comercial_ativo === true);
 
     /**
      * Entrada do n.iso. O painel do projeto (views/painel.js) é a entrada de quem conduz a adequação; o comercial, que não
      * alcança projeto, entra na tela Comercial; o cliente ainda sem projeto vê as fases da contratação.
      */
     async function renderDashboard(c, h, a) {
-        if (S.user && S.user.role === 'comercial') return renderComercial(c, h, a);
+        if (S.user && S.user.role === 'comercial') {
+            if (comercialAtivo()) return renderComercial(c, h, a);
+            h.textContent = 'Comercial';
+            a.innerHTML = '';
+            c.innerHTML = renderEmptyState({ titulo: 'A área comercial está desligada', texto: 'Leads, levantamentos e propostas não estão disponíveis nesta instalação. Fale com o administrador da consultoria.' });
+            return;
+        }
         if (!(S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client') && !S.user.client_project_id)) return window.renderPainel(c, h, a, 'iso');
         h.textContent = 'Bem-vindo';
         a.innerHTML = '';
+        // Sem a área comercial, o cliente sem projeto não tem levantamento nem proposta a acompanhar: só o aviso de acesso.
+        if (!comercialAtivo()) {
+            c.innerHTML = renderEmptyState({ titulo: 'Você ainda não tem acesso a um projeto',
+                texto: 'Peça à consultoria que conduz o trabalho, ou ao administrador da sua organização, para incluir você no projeto.' });
+            return;
+        }
         {
             let assessmentStatus = 'Pending';
             let proposalStatus = 'Pending';

@@ -39,7 +39,7 @@ organizacoesApp.post('/', async (c) => {
         EXISTS (SELECT 1 FROM organizations WHERE slug = ? OR id = ?) AS slug,
         EXISTS (SELECT 1 FROM organizations WHERE upper(prefixo_proposta) = ?) AS prefixo,
         EXISTS (SELECT 1 FROM users WHERE lower(email) = lower(?)) AS email`)
-      .bind(b.slug, id, b.prefixoProposta, b.adminEmail).first<{ slug: number; prefixo: number; email: number }>();
+      .bind(b.slug, id, b.prefixoProposta ?? null, b.adminEmail).first<{ slug: number; prefixo: number; email: number }>();
     if (conflito?.slug) return c.json({ error: 'Slug já usado por outra organização' }, 409);
     if (conflito?.prefixo) return c.json({ error: 'Prefixo de proposta já usado por outra organização' }, 409);
     // Qualquer organização: o e-mail é a identidade de login, global.
@@ -51,7 +51,8 @@ organizacoesApp.post('/', async (c) => {
       await db.batch([
         db.prepare(`INSERT INTO organizations (id, name, slug, plan, max_projects, max_users, owner_id, status, cnpj, prefixo_proposta,
           proximo_numero, termo_aceito_em, termo_versao) VALUES (?, ?, ?, 'consultoria', ?, ?, ?, 'Active', ?, ?, 1, datetime('now'), ?)`)
-          .bind(id, b.nome, b.slug, b.maxProjetos, b.maxUsuarios, adminId, b.cnpj ?? null, b.prefixoProposta, b.termoVersao),
+          // Sem prefixo grava NULL: o índice único parcial deixa várias organizações sem prefixo.
+          .bind(id, b.nome, b.slug, b.maxProjetos, b.maxUsuarios, adminId, b.cnpj ?? null, b.prefixoProposta ?? null, b.termoVersao),
         db.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, requires_password_change)
           VALUES (?, ?, ?, ?, 'consultoria_admin', NULL, ?, 1)`).bind(adminId, b.adminEmail, SEM_SENHA, b.adminNome, id),
         db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)

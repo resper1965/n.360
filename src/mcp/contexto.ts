@@ -51,7 +51,7 @@ n.privacy:
 - Consentimentos: /api/v1/projects/{p}/consentimentos · Encarregado: /api/v1/projects/{p}/encarregado
 - Ligações e LIA de um tratamento do RoPA: /api/v1/projects/{p}/ropa/{id}/ligacoes · /api/v1/projects/{p}/ropa/{id}/lia
 
-Fora do seu alcance (use a interface): usuários, SSO, política de segurança, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificações), criar projeto, painel global, área comercial, importação de programa e /agentes.`;
+Fora do seu alcance (use a interface): usuários, SSO, política de segurança, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificações), criar projeto, painel global, área comercial (salvo leitura e rascunho pelas niso_comercial_*, quando você as tiver), importação de programa e /agentes.`;
 
 export const ROTEIROS = `Roteiros de trabalho:
 
@@ -92,7 +92,9 @@ n.privacy (só com o módulo no projeto). Leitura nomeada: niso_privacy_encarreg
 export function montarContexto(
   projeto: { id: string; client_name: string; project_name?: string | null; standards?: string | null; status?: string | null; modulos?: string[] | null },
   email: string,
-  papel: PapelAgente = 'consultor'
+  papel: PapelAgente = 'consultor',
+  /** Quem concedeu é do comercial (`ehComercial`): o agente lê e rascunha a área comercial da organização dele. */
+  comercial = false
 ): string {
   // `modulos` vem de GET /projects/:id já como lista ordenada (redactProject).
   const modulos = (projeto.modulos ?? []).map((m) => NOME_DO_PRODUTO[m as Modulo] ?? m);
@@ -127,6 +129,9 @@ export function montarContexto(
     'Com confirmação do usuário (confirmado_pelo_usuario: true): apagar; gerar políticas em lote; eliminar dados do titular; revogar aprovações de controle.',
     'Não pode: registrar achado de auditoria; aprovar tratamento ou DPIA, concluir LIA, encerrar incidente, revogar consentimento, editar prazo legal (são de uma pessoa, pela interface); sair deste projeto.',
     'O administrador do cliente vê este acesso e pode revogá-lo a qualquer momento.',
+    ...(comercial ? [
+      'Área comercial da sua organização (fora deste projeto): niso_comercial_listar e niso_comercial_ler leem leads, funil, levantamentos, propostas e serviços; niso_comercial_criar_lead, niso_comercial_status_lead e niso_comercial_rascunhar_proposta gravam lead e proposta em rascunho, com aprovação humana. Gerar, enviar, aceitar, recusar, marcar ganho, fechar venda, preço e catálogo são de uma pessoa, pela interface.',
+    ] : []),
     '',
     MAPA_DA_APP.replaceAll('{p}', projeto.id),
     '',

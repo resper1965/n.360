@@ -33,9 +33,11 @@ const espera = () => new Promise((r) => setTimeout(r, 30));
 const $ = (id) => document.getElementById(id);
 const visivel = (id) => $(id).style.display !== 'none';
 
-async function menu(papel) {
+// `comercial`: o interruptor da área comercial (`comercial_ativo` do /auth/me). Os quadros abaixo são do LIGADO; o desligado
+// tem quadro próprio no fim.
+async function menu(papel, comercial = true) {
   document.body.innerHTML = corpo;
-  S.user = { role: papel, email: 'x@exemplo.test', name: 'X' };
+  S.user = { role: papel, email: 'x@exemplo.test', name: 'X', comercial_ativo: comercial };
   S.orgAtuacao = null;
   window.updateHeaderUser();
   await espera();
@@ -94,6 +96,31 @@ describe('grupo Conta e acessos por papel', () => {
     expect(vistos).toEqual(itens);
     expect(visivel('group-conta')).toBe(itens.length > 0);
     expect(visivel('label-group-conta')).toBe(itens.length > 0);
+  });
+});
+
+// Área comercial desligada (COMERCIAL_ATIVO): o grupo Comercial e Preços e margens somem para todos; a identidade da
+// organização vai para Conta e acessos, para quem a administra.
+describe('área comercial desligada', () => {
+  it.each(MATRIZ.map(([p]) => p))('%s: nada da área comercial', async (papel) => {
+    await menu(papel, false);
+    for (const id of ['group-sales', 'label-group-sales', 'nav-catalogo', 'nav-config', 'nav-proposals', 'nav-leads', 'nav-assessments', 'nav-settings']) {
+      expect(visivel(id), id).toBe(false);
+    }
+  });
+
+  it.each([
+    ['platform_admin', ['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-identidade', 'nav-seguranca-projeto', 'nav-api-keys', 'nav-conectar-agente']],
+    ['consultoria_admin', ['nav-projects', 'nav-users', 'nav-identidade', 'nav-seguranca-projeto', 'nav-conectar-agente']],
+    ['consultor', ['nav-projects', 'nav-users', 'nav-seguranca-projeto', 'nav-conectar-agente']],
+  ])('%s: Conta e acessos', async (papel, itens) => {
+    await menu(papel, false);
+    expect([...$('group-conta').querySelectorAll('.sidebar-nav')].filter((el) => el.style.display !== 'none').map((el) => el.id)).toEqual(itens);
+  });
+
+  it('o item de identidade abre a tela própria', () => {
+    document.body.innerHTML = corpo;
+    expect($('nav-identidade').getAttribute('data-args')).toBe('["identidade-org"]');
   });
 });
 
