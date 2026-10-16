@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "resumo": "A justificativa não diz quem revisou nem quando.",
+  "pontos": [
+    { "severidade": "alto", "alvo": { "tipo": "campo", "id": "justificativas" }, "o_que_o_auditor_questionaria": "Quem revisou estas justificativas e em que data?", "por_que": "O texto não cita data nem responsável." }
+  ],
+  "rotulo": "Revisão assistida; não é parecer de certificação",
+  "indisponivel_exemplo": { "indisponivel": true }
+}

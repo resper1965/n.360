@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "propostas": { "justificativas": "A.7.4: escritório sem acesso físico; o time é remoto." },
+  "nao_encontrado": ["aprovado_em"],
+  "avisos": [],
+  "indisponivel_exemplo": { "indisponivel": true }
+}
