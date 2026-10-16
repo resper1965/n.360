@@ -43,8 +43,9 @@ export async function marcarItemComEvidencia(
 }
 
 /**
- * Documento em texto (assistente ou geração por IA) vira evidência `pending` ligada ao controle do
- * item, e o item fica marcado. Chave do R2 por evidência: com a chave por item, gerar de novo
+ * Documento em texto que a pessoa ACEITOU (approve-document: o do assistente ou o rascunho de IA, depois
+ * de lido) vira evidência `pending` ligada ao controle do item, e o item fica marcado. A geração por IA
+ * não chama isto: ela só devolve o rascunho. Chave do R2 por evidência: com a chave por item, gerar de novo
  * sobrescrevia o arquivo da evidência anterior e o hash gravado nela deixava de bater.
  */
 export async function registrarDocumentoDoItem(

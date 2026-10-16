@@ -132,6 +132,7 @@ quê (mesma regra do [`SECURITY.md`](../../SECURITY.md)).
 | `/projects/:id/{ropa,dpia}/:id/revoke-approval` | Desaprovar ROPA e DPIA é ato da direção, pela interface (F6, decisão D1). Revogar aprovação de **controle** segue possível, com confirmação. |
 | `DELETE /management-reviews/:id` | Excluir análise crítica destrói registro assinado: só pela interface. |
 | `POST`/`PUT /evidence/:id/approve`, `/controls/:id/approve` e `.../signatures/approve` | Assinatura eletrônica é ato humano, com a senha de quem assina. |
+| `POST /projects/:id/approve-document` | Aceitar o documento gerado no checklist grava a evidência e conclui o item: é a pessoa que decide, depois de ler o rascunho. Gerar (`POST /projects/:id/checklist/:item/generate` e `.../generate-document`) só devolve o texto, sem gravar nada. |
 | `PUT`/`DELETE /parametros-legais*` | Prazo legal é parâmetro revisado pelo jurídico e editado pelo administrador da plataforma; o agente só lê. |
 | `POST /projects/:id/incidentes/:id/encerrar`, `POST /projects/:id/consentimentos/:id/revogar` | Encerrar incidente e revogar consentimento são atos humanos, pela interface. O agente registra e avalia. |
 | `DELETE /projects/:id/ropa/:id/{riscos,acoes}/:id` | Apagar risco ou ação da atividade de tratamento é ato humano, pela interface. O agente cria e edita; aceitar o risco (`status: Accepted`) e concluir a ação (`status: Closed`) a própria rota recusa ao agente. |

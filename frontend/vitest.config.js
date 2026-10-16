@@ -10,6 +10,8 @@ import { defineConfig } from 'vitest/config';
 const ci = !!process.env.GITHUB_ACTIONS;
 
 export default defineConfig({
+  // test/trilha-mapa.test.js le o checklist do backend (../src/constants.ts), fora da raiz do frontend. So o teste usa.
+  server: { fs: { allow: ['..'] } },
   test: {
     // jsdom porque o codigo do frontend e ESM que se pendura em `window` no
     // topo do modulo. Sem `window`/`document`, importar qualquer arquivo de

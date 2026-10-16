@@ -287,7 +287,7 @@ export const PHASE_CHECKLISTS: Record<number, { id: string; text: string; catego
     { id: 'p17_4', text: 'Segurança de Equipamentos e Ativos (A.7.8)', category: 'evidence' },
   ],
   18: [
-    { id: 'p18_1', text: 'Política de Controle de Acesso (A.8.3)', category: 'document' },
+    { id: 'p18_1', text: 'Política de Controle de Acesso (A.5.15)', category: 'document' },
     { id: 'p18_2', text: 'Gestão de Privilégios e Senhas (A.8.2)', category: 'evidence' },
     { id: 'p18_3', text: 'Implementar Log e Monitoramento (A.8.15)', category: 'evidence' },
     { id: 'p18_4', text: 'Gestão de Vulnerabilidades Técnicas (A.8.8)', category: 'evidence' },
@@ -296,8 +296,8 @@ export const PHASE_CHECKLISTS: Record<number, { id: string; text: string; catego
   ],
   19: [
     { id: 'p19_1', text: 'Política de Desenvolvimento Seguro (A.8.25)', category: 'document' },
-    { id: 'p19_2', text: 'Ciclo de Vida de Desenvolvimento (A.8.29)', category: 'task' },
-    { id: 'p19_3', text: 'Testes de Segurança em Software (A.8.27)', category: 'evidence' },
+    { id: 'p19_2', text: 'Ciclo de Vida de Desenvolvimento (A.8.25)', category: 'task' },
+    { id: 'p19_3', text: 'Testes de Segurança em Software (A.8.29)', category: 'evidence' },
   ],
   20: [
     { id: 'p20_1', text: 'Segregação de Ambientes (Dev/Prod) (A.8.31)', category: 'evidence' },

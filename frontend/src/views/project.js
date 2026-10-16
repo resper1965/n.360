@@ -3,6 +3,7 @@ import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, STATUS_DA_FASE, formatarData, traduzStatus, tituloDaTela } from '../ui.js';
 import { vazioSemFases } from './monitor.js';
 import { navigate } from '../router.js';
+import { DOC_WIZARDS } from '../data/wizards.js';
 import { PRODUTOS, produtoAtual, modulosVisiveis, enderecoDoProduto, irPara } from '../produto.js';
 import { podeCriarProjeto } from './empresa.js';
 
@@ -16,26 +17,25 @@ const SELO_AVALIACAO = {
 };
 window.seloDaAvaliacao = (status) => SELO_AVALIACAO[status] || { rotulo: 'Aguarda revisão', cor: 'var(--text-dim)', problema: false };
 
-const ISO_GUIDELINES = {
-    'p0_1': { control: 'Cl 5.1', tip: 'Definir sponsor executivo', advice: 'O auditor vai buscar atas de reuniões ou nomeações formais assinadas pela diretoria definindo a liderança do SGSI.', evidence: 'Termo de Compromisso assinado ou Ata de Reunião Executiva.' },
-    'p0_3': { control: 'Cl 7.4', tip: 'Ata do Kick-off', advice: 'A ata deve conter a pauta, lista de participantes assinada e a formalização das responsabilidades de segurança.', evidence: 'Ata de reunião em PDF ou Documento Interno com participantes.' },
-    'p0_5': { control: 'Cl 5.2', tip: 'Carta de Mandato', advice: 'A política geral de segurança da informação (mandato) deve estar assinada e aprovada pela alta administração.', evidence: 'Carta de Mandato assinada digitalmente.' },
-    'p3_1': { control: 'Cl 4.3', tip: 'Escopo do SGSI', advice: 'A definição de escopo deve ser clara, justificar exclusões e delimitar perfeitamente o perímetro de infraestrutura/serviços.', evidence: 'Documento de Escopo (Cláusula 4.3).' },
-    'p5_5': { control: 'A.5.15', tip: 'Controle de Acesso', advice: 'O auditor quer ver as regras de concessão, revisão periódica e revogação de acessos de usuários e administradores.', evidence: 'Política de Controle de Acesso.' },
-    'p7_2': { control: 'A.5.9', tip: 'Inventário de Ativos', advice: 'O auditor deve listar proprietários de ativos, localização física/em nuvem e nível de classificação da informação.', evidence: 'Inventário de Ativos de Informação.' },
-    'p11_1': { control: 'A.5.7', tip: 'Intel de Ameaças', advice: 'Mapeamento de fontes de inteligência de ameaças externas utilizadas para mitigar vulnerabilidades ativamente.', evidence: 'Procedimento de Threat Intelligence.' },
-    'p14_1': { control: 'A.5.1', tip: 'Políticas de Segurança', advice: 'Conjunto formalizado de diretrizes de segurança da informação revisadas anualmente.', evidence: 'Manual de Políticas do SGSI.' },
-    'p14_2': { control: 'A.7.7', tip: 'Mesa Limpa / Tela Limpa', advice: 'Definição de bloqueio automático de tela (máx 5min) e política de mesa limpa nos escritórios.', evidence: 'Política de Mesa Limpa e Tela Limpa.' },
-    'p14_3': { control: 'A.5.10', tip: 'Uso Aceitável', advice: 'Os termos de uso aceitável de ativos devem ser assinados por todos os funcionários na contratação.', evidence: 'Política de Uso Aceitável (AUP).' },
-    'p14_4': { control: 'A.8.24', tip: 'Criptografia', advice: 'Regras para uso de chaves criptográficas, SSH, algoritmos permitidos (mínimo AES-256) e SSL/TLS.', evidence: 'Política de Criptografia.' },
-    'p14_5': { control: 'A.5.24', tip: 'Gestão de Incidentes', advice: 'Fluxo claro de reporte de incidentes, canais de denúncia e registro cronológico dos eventos de segurança.', evidence: 'Plano de Resposta a Incidentes.' },
-    'p14_6': { control: 'A.5.29', tip: 'Continuidade de Negócios', advice: 'Procedimentos de recuperação de desastres (DRP) e testes de backup anuais documentados.', evidence: 'Plano de Continuidade de Negócios (BCP).' },
-    'p14_7': { control: 'A.8.11', tip: 'Mascaramento de Dados', advice: 'Regras de anonimização e minimização de dados sensíveis em ambientes de testes e produção.', evidence: 'Política de Privacidade e Mascaramento.' },
-    'p14_8': { control: 'A.8.28', tip: 'Desenvolvimento Seguro', advice: 'Políticas de ciclo de vida seguro (SDLC), testes de vulnerabilidade SAST/DAST e revisão de código.', evidence: 'Política de Desenvolvimento Seguro (SDLC).' },
-    'p14_9': { control: 'A.8.9', tip: 'Gerenciamento de Configuração', advice: 'Padrões de hardening de servidores e auditoria de alterações de infraestrutura.', evidence: 'Política de Configuração e Hardening.' },
-    'p14_10': { control: 'A.5.19', tip: 'Segurança de Fornecedores', advice: 'Processo de avaliação de fornecedores críticos de nuvem/software e cláusulas de segurança padrão.', evidence: 'Política de Segurança de Fornecedores.' },
-    'p21_1': { control: 'Cl 6.1.3', tip: 'Declaração de Aplicabilidade (SoA)', advice: 'O SoA deve conter todos os 93 controles da Annex A com justificativa explícita de inclusão ou exclusão.', evidence: 'Statement of Applicability (SoA) gerado.' }
-};
+// A "Dica" de cada item sai do assistente do próprio item (frontend/src/data/wizards.js): antes eram duas listas
+// separadas e as duas derivaram para itens errados. Uma fonte só, chaveada pelo id do checklist.
+export const ISO_GUIDELINES = Object.fromEntries(Object.entries(DOC_WIZARDS).map(([id, w]) =>
+    [id, { control: w.isoRef, tip: w.title, advice: w.auditorTip, evidence: w.evidence }]));
+
+// Item do checklist que as entrevistas por trilha concluem: "Conduzir Entrevistas com Gestores".
+const ITEM_ENTREVISTAS = 'p2_1';
+
+/** Área de texto do rascunho (do assistente ou da IA) que a pessoa revisa antes de aprovar. */
+const campoDoRascunho = (texto) => `<textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border);">${escapeHTML(texto || '')}</textarea>`;
+
+/** Texto do item do checklist (S.checklistsConfig, servido por /phases/config); o id só se o item não estiver carregado. */
+function textoDoItem(itemId) {
+    for (const itens of Object.values(S.checklistsConfig || {})) {
+        const item = (itens || []).find((i) => i.id === itemId);
+        if (item) return item.text;
+    }
+    return itemId;
+}
 
 // Os módulos (do projeto E da pessoa) em que a lista oferece "Abrir no": fora o do caminho, onde já se está.
 const modulosParaAbrir = (p) => modulosVisiveis(p).filter((m) => (m === 'iso' || m === 'privacy') && m !== produtoAtual());
@@ -168,9 +168,6 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             (Array.isArray(phaseAnswers) ? phaseAnswers : []).forEach(r => {
                 (S.phaseAnswers[r.phase_number] = S.phaseAnswers[r.phase_number] || {})[r.question_key] = r.answer;
             });
-            console.log("[nISO Debug] phases:", phases);
-            console.log("[nISO Debug] config:", config);
-            console.log("[nISO Debug] checklistProgress:", checklistProgress);
             
             S.checklistsConfig = (config && config.checklists) ? config.checklists : (config || {});
             S.currentGovernance = governanceMembers || [];
@@ -397,7 +394,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                                         <input type="checkbox" class="checklist-item-checkbox" 
                                                                             ${isChecked ? 'checked' : ''} 
                                                                             data-action="toggleChecklistItem" data-args='["${p.id}","${item.id}"]' data-arg-el
-                                                                            ${(!isChecked && item.id === 'p2_2') ? 'disabled' : ''}>
+                                                                            ${(!isChecked && item.id === ITEM_ENTREVISTAS) ? 'disabled' : ''}>
                                                                         <span class="badge-cat ${item.category}">${CATEGORIA_DO_ITEM[item.category] || escapeHTML(item.category || '')}</span>
                                                                         <span class="checklist-text ${isChecked ? 'checked' : ''}">${escapeHTML(item.text)}</span>
                                                                         ${badgeHtml}
@@ -415,7 +412,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                                         ${(!isChecked && (item.category === 'document' || DOC_WIZARDS[item.id])) ? `
                                                                             <button class="btn-inline-action primary" data-action="openDocWizard" data-args='["${p.id}","${item.id}"]'>${DOC_WIZARDS[item.id] ? (DOC_WIZARDS[item.id].evidenceOnly ? 'Registrar Evidência' : 'Preencher e Gerar') : 'Gerar IA'}</button>
                                                                         ` : ''}
-                                                                        ${(item.id === 'p2_2') ? `
+                                                                        ${(item.id === ITEM_ENTREVISTAS) ? `
                                                                             <button class="btn-inline-action primary" data-action="openInterviewWizard" data-args='["${p.id}"]'>${isChecked ? 'Ver Entrevistas' : 'Conduzir Entrevistas'}</button>
                                                                         ` : ''}
                                                                         <button class="btn-ghost" data-action="toggleChecklistDetails" data-args='["${item.id}"]' style="font-size:0.75rem; color:${isDetailsExpanded ? 'var(--accent)' : 'var(--text-dim)'}; padding:4px 6px; display:inline-flex; align-items:center;" title="Editar detalhes, responsável e prazo">Editar</button>
@@ -423,7 +420,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
                                                                 </div>
                                                                 ${(hasTip && isTipExpanded) ? `
                                                                     <div style="margin-top:0.6rem; background:rgba(0,173,232,0.03); border:1px solid rgba(0,173,232,0.1); padding:10px; font-size:0.75rem; text-align: left;">
-                                                                        <div class="t-accent fw-600 mb-1 caixa-alta t-xs">Auditoria (${tipInfo.control}) - ${tipInfo.tip}</div>
+                                                                        <div class="t-accent fw-600 mb-1 caixa-alta t-xs">Auditoria (${escapeHTML(tipInfo.control)}) - ${escapeHTML(tipInfo.tip)}</div>
                                                                         <div class="t-texto mb-15"><strong class="t-dim">Dica:</strong> ${escapeHTML(tipInfo.advice)}</div>
                                                                         <div class="t-dim"><strong class="t-dim">Evidência Recomendada:</strong> ${escapeHTML(tipInfo.evidence)}</div>
                                                                     </div>
@@ -622,7 +619,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             preview.style.display = 'block';
             preview.innerHTML = `
                 <div class="mb-3 t-sm t-accent fw-600 caixa-alta">Preview do Registro de Evidência</div>
-                <textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border);">${escapeHTML(content)}</textarea>
+                ${campoDoRascunho(content)}
             `;
             document.getElementById('wiz-actions').innerHTML = `
                 <button class="btn bg-sutil-2 borda-cor" data-action="wizBackToForm" data-args='["${projectId}","${itemId}"]'>Voltar e Editar</button>
@@ -642,7 +639,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
             preview.style.display = 'block';
             preview.innerHTML = `
                 <div class="mb-3 t-sm t-accent fw-600 caixa-alta">Preview do Documento Gerado</div>
-                <textarea id="wiz-doc-content" class="form-input" style="width:100%; height:350px; font-family:monospace; font-size:0.8rem; line-height:1.5; background:rgba(0,0,0,0.3); resize:vertical; padding:12px; color:var(--text); border:1px solid var(--border);">${escapeHTML(res.content || '')}</textarea>
+                ${campoDoRascunho(res.content)}
             `;
             document.getElementById('wiz-actions').innerHTML = `
                 <button class="btn bg-sutil-2 borda-cor" data-action="wizBackToForm" data-args='["${projectId}","${itemId}"]'>Voltar e Editar Dados</button>
@@ -853,14 +850,14 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         btnEl.textContent = 'Concluindo...';
 
         try {
-            const checkKey = `${projectId}_p2_2`;
+            const checkKey = `${projectId}_${ITEM_ENTREVISTAS}`;
             S.phaseChecks[checkKey] = true;
             localStorage.setItem('niso_phaseChecks', JSON.stringify(S.phaseChecks));
 
             await api('PUT', `/api/v1/projects/${projectId}/checklist-progress`, {
                 items: [{
                     phase_number: 2,
-                    item_id: 'p2_2',
+                    item_id: ITEM_ENTREVISTAS,
                     is_checked: true,
                     notes: 'Entrevistas por trilha (Executiva, Tecnologia, Jurídico, RH, Operações) concluídas e registradas.',
                     assigned_to: S.user ? S.user.id : null,
@@ -1146,21 +1143,34 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         try {
             await api('POST', `/api/v1/projects/${projectId}/control-adequacao/apply`, s);
             const card = document.getElementById(`adeq-item-${idx}`);
-            if (card) { card.style.opacity = '0.5'; const b = card.querySelector('button'); if (b) b.outerHTML = '<span class="t-xs t-accent fw-600">✓ Aplicado</span>'; }
+            if (card) { card.style.opacity = '0.5'; const b = card.querySelector('button'); if (b) b.outerHTML = '<span class="t-xs t-accent fw-600">Aplicado</span>'; }
             showToast('Adequação aplicada ao controle ' + s.control_id);
         } catch (e) {
             showToast('Falha ao aplicar: ' + e.message, 'error');
         }
     };
 
+    // "Gerar IA" de item sem assistente: a IA só devolve o rascunho. Ele abre para leitura e edição, e o item
+    // só é concluído quando a pessoa aprova (wizApprove → approve-document, a mesma porta do assistente).
     window.generateDocumentNatively = async function(projectId, itemId, btnEl) {
         const prevText = btnEl.textContent;
         btnEl.disabled = true;
         btnEl.textContent = 'Gerando...';
         try {
-            await api('POST', `/api/v1/projects/${projectId}/checklist/${itemId}/generate`);
-            showToast('Documento gerado com sucesso!');
-            render();
+            const res = await api('POST', `/api/v1/projects/${projectId}/checklist/${itemId}/generate`);
+            openModal(`
+                <div class="modal-header">
+                    <span class="modal-title">${escapeHTML(textoDoItem(itemId))}</span>
+                </div>
+                <div class="py-6 px-0">
+                    <div class="mb-3 t-sm t-accent fw-600 caixa-alta">Rascunho gerado por IA: revise antes de aprovar</div>
+                    ${campoDoRascunho(res.content)}
+                    <div id="wiz-actions" class="d-flex justify-end gap-25 mt-5">
+                        <button class="btn bg-sutil-2 borda-cor" data-action="forceCloseModal">Descartar</button>
+                        <button class="btn btn-primary" data-action="wizApprove" data-args='["${projectId}","${itemId}"]' data-arg-el>Aprovar e Salvar como Evidência</button>
+                    </div>
+                </div>
+            `, 'modal-large');
         } catch(e) {
             showToast('Erro ao gerar documento: ' + e.message, 'error');
         } finally {
@@ -1269,7 +1279,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
         try {
             await api('PUT', `/api/v1/projects/${projectId}/phases/${phaseNum}`, { status: newStatus });
             selectEl.setAttribute('data-prev', newStatus);
-            showToast(`Fase ${phaseNum} atualizada para ${newStatus}`);
+            showToast(`Fase ${phaseNum}: ${STATUS_DA_FASE[newStatus] || traduzStatus(newStatus)}`);
             render();
         } catch (e) {
             showToast(`Erro ao atualizar fase: ${e.message}`);
@@ -1327,7 +1337,7 @@ window.abrirProjetoNoModulo = function abrirProjetoNoModulo(projectId, modulo) {
 
     async function wsUploadEvidence(docType) {
         const labels = { organograma:'Organograma', policy:'Políticas Existentes', inventory:'Inventário de Ativos', topology:'Topologia de Rede', systems:'Lista de Sistemas', contracts:'Contratos Fornecedores', incidents:'Registro de Incidentes', certifications:'Certificações Vigentes', floorplan:'Planta Baixa', audit_report:'Relatório de Auditoria', ropa:'RoPA / Mapeamento Dados', backup_dr:'Backup e DR' };
-        openModal(`<h3 class="mb-4">Upload: ${labels[docType] || docType}</h3>
+        openModal(`<h3 class="mb-4">Enviar: ${escapeHTML(labels[docType] || textoDoItem(docType))}</h3>
             <div class="form-group"><label class="form-label">Arquivo</label><input type="file" id="doc-file" class="form-input" accept=".pdf,.docx,.xlsx,.txt,.csv,.md,.png,.jpg,.jpeg"></div>
             <div id="doc-msg" class="t-xs t-dim my-2 mx-0"></div>
             <div class="d-flex gap-2 justify-end">

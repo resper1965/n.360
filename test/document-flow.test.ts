@@ -11,6 +11,7 @@ import { applySchema, sessionFor } from './helpers/d1';
  * teste passar mesmo que o INSERT citasse coluna inexistente — que é justamente
  * a classe de defeito que já chegou em produção neste repositório.
  *
+ * Gerar devolve só o rascunho; quem grava é o aceite humano (approve-document).
  * Aqui o INSERT de `evidence` (10 colunas) e o UPSERT de `checklist_progress`
  * (que depende de um índice único em project_id+phase_number+item_id) rodam
  * de verdade. Se o schema divergir do código, o teste quebra.
@@ -48,11 +49,25 @@ describe('Geração e persistência de documento (D1 + R2 reais)', () => {
     };
   });
 
-  it('gera o documento, grava no R2 e persiste evidence + checklist_progress', async () => {
-    const res = await worker.fetch(
+  const aprovar = (itemId: string, content: string) => worker.fetch(
+    new Request('http://localhost/api/v1/projects/proj-123/approve-document', {
+      method: 'POST', headers, body: JSON.stringify({ itemId, content }),
+    }),
+    testEnv()
+  );
+
+  it('gera o rascunho sem gravar; o aceite grava no R2 e persiste evidence + checklist_progress', async () => {
+    const gen = await worker.fetch(
       new Request('http://localhost/api/v1/projects/proj-123/checklist/p3_1/generate', { method: 'POST', headers }),
       testEnv()
     );
+    const rascunho = await gen.json() as any;
+    expect(gen.status, JSON.stringify(rascunho)).toBe(200);
+    expect(rascunho.content).toContain('#');
+    expect(rascunho.evidence_id).toBeUndefined();
+    expect(await env.DB.prepare('SELECT 1 FROM checklist_progress WHERE project_id = ? AND item_id = ?').bind('proj-123', 'p3_1').first()).toBeNull();
+
+    const res = await aprovar('p3_1', rascunho.content);
     const body = await res.json() as any;
     expect(res.status, JSON.stringify(body)).toBe(200);
     expect(body.ok).toBe(true);
@@ -80,11 +95,8 @@ describe('Geração e persistência de documento (D1 + R2 reais)', () => {
     expect(prog.evidence_id).toBe(body.evidence_id);
   });
 
-  it('gerar o mesmo item duas vezes atualiza o progresso em vez de duplicar', async () => {
-    const req = () => worker.fetch(
-      new Request('http://localhost/api/v1/projects/proj-123/checklist/p3_2/generate', { method: 'POST', headers }),
-      testEnv()
-    );
+  it('aceitar o mesmo item duas vezes atualiza o progresso em vez de duplicar', async () => {
+    const req = () => aprovar('p3_2', '# Limites');
     expect((await req()).status).toBe(200);
     const segunda = await req();
     expect(segunda.status).toBe(200);
@@ -96,10 +108,7 @@ describe('Geração e persistência de documento (D1 + R2 reais)', () => {
   });
 
   it('lê e atualiza o conteúdo da evidência pelo R2', async () => {
-    const gen = await worker.fetch(
-      new Request('http://localhost/api/v1/projects/proj-123/checklist/p3_3/generate', { method: 'POST', headers }),
-      testEnv()
-    );
+    const gen = await aprovar('p3_3', '# Exclusões');
     const { evidence_id } = await gen.json() as any;
 
     const getRes = await worker.fetch(
