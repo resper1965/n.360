@@ -114,6 +114,19 @@ describe('Interpretação da fase (F2)', () => {
     expect(aiRun).toHaveBeenCalledTimes(2);              // respostas mudaram → re-rodou
   });
 
+  it('cache: campo novo da Bancada (chave fora do questionário) não invalida a interpretação', async () => {
+    const k1 = PHASE_QUESTIONS[1][0].key;
+    const aiRun = vi.fn(async () => ({
+      response: JSON.stringify({ prontidao: 'atencao', resumo: 'ok', pontos: [], proximos_passos: [] }),
+    }));
+    await put('/api/v1/projects/p1/phase-answers', { phase_number: 1, answers: { [k1]: 'Não definido' } });
+    await interpret(1, { aiRun });                        // gera + cacheia
+    await env.DB.prepare(`INSERT INTO project_phase_answers (id, project_id, phase_number, question_key, answer) VALUES ('a-novo','p1',1,'p1_1.campo_novo','Texto novo da Bancada')`).run();
+    const b = (await (await interpret(1, { aiRun })).json()) as any;
+    expect(b.from_cache).toBe(true);
+    expect(aiRun).toHaveBeenCalledTimes(1);              // o hash só considera as chaves do questionário
+  });
+
   it('cache: IA falha depois de haver cache — serve o salvo, marcado desatualizado', async () => {
     const k1 = PHASE_QUESTIONS[1][0].key;
     const ok = JSON.stringify({

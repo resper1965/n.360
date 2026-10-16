@@ -35,7 +35,7 @@ Cadastro compartilhado (vale com qualquer módulo):
 - Treinamento: /api/v1/projects/{p}/training · Ponto de partida (o que cada módulo aproveita do outro): /api/v1/projects/{p}/ponto-de-partida
 
 n.iso:
-- Projeto e fases: /api/v1/projects/{p} · /api/v1/projects/{p}/phases · /api/v1/projects/{p}/checklist-progress (PUT grava o progresso por item: { items: [{ phase_number, item_id, is_checked, notes, assigned_to, due_date }] })
+- Projeto e fases: /api/v1/projects/{p} · /api/v1/projects/{p}/phases · /api/v1/projects/{p}/checklist-progress (PUT grava o progresso por item: { items: [{ phase_number, item_id, is_checked, notes, assigned_to, due_date }] }). Marcar is_checked: true só passa quando o passo cumpre o "concluído quando" (409 com a lista do que falta) e o agente não conclui passo: concluir, reabrir e bloquear são da interface. Escrever os campos do passo: PUT /api/v1/projects/{p}/passos/{id}/campos
 - Trilhas de entrevista: /api/v1/projects/{p}/interviews/summary · /api/v1/projects/{p}/interviews/{trilha} (POST /api/v1/projects/{p}/interviews grava)
 - Respostas das fases: /api/v1/projects/{p}/phase-answers · dossiê da jornada: /api/v1/projects/{p}/journey-dossier
 - Controles e SoA: /api/v1/projects/{p}/controls · versões de política do controle: /api/v1/projects/{p}/controls/{controle}/versions

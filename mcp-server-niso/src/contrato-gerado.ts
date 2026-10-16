@@ -10,6 +10,7 @@
 
 export const ROTAS = {
   'PATCH /api/v1/projects/{id}/controls': { obrigatorios: [] },
+  'PATCH /api/v1/projects/{projectId}/passos/{itemId}': { obrigatorios: [] },
   'POST /api/v1/admin/users': { obrigatorios: ['email', 'name', 'role'] },
   'POST /api/v1/assessments': { obrigatorios: [] },
   'POST /api/v1/assessments/{id}/block/{num}': { obrigatorios: ['answers'] },
@@ -80,6 +81,10 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/padronizar-nomes': { obrigatorios: ['itens'] },
   'POST /api/v1/projects/{projectId}/partes': { obrigatorios: ['nome'] },
   'POST /api/v1/projects/{projectId}/partes/{id}/vinculos': { obrigatorios: ['alvo_id', 'alvo_tipo', 'papel'] },
+  'POST /api/v1/projects/{projectId}/passos/{itemId}/bloquear': { obrigatorios: ['motivo', 'responsavel'] },
+  'POST /api/v1/projects/{projectId}/passos/{itemId}/concluir': { obrigatorios: [] },
+  'POST /api/v1/projects/{projectId}/passos/{itemId}/desbloquear': { obrigatorios: [] },
+  'POST /api/v1/projects/{projectId}/passos/{itemId}/reabrir': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/pedidos': { obrigatorios: ['destinatarios', 'papel_exigido', 'ref_id', 'tipo'] },
   'POST /api/v1/projects/{projectId}/pedidos/{id}/reenviar': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/pedidos/ciencia': { obrigatorios: ['destinatarios', 'ref_id', 'tipo'] },
@@ -170,6 +175,7 @@ export const ROTAS = {
   'PUT /api/v1/projects/{projectId}/incidentes/{id}/risco': { obrigatorios: ['risco_titular'] },
   'PUT /api/v1/projects/{projectId}/modulos/{modulo}': { obrigatorios: ['habilitado'] },
   'PUT /api/v1/projects/{projectId}/partes/{id}': { obrigatorios: [] },
+  'PUT /api/v1/projects/{projectId}/passos/{itemId}/campos': { obrigatorios: ['campos'] },
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/acoes/{acaoId}': { obrigatorios: [] },
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/bases': { obrigatorios: [] },
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/ciclo': { obrigatorios: ['etapas'] },

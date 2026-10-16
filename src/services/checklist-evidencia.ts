@@ -26,25 +26,22 @@ export async function controleDoItem(db: D1Database, projectId: string, item: It
 }
 
 /**
- * Marca o item com a evidência. Não toca `notes`: é a anotação que o consultor escreveu no item
- * (antes a geração gravava um texto fixo por cima dela).
+ * Liga a evidência ao item. NÃO marca o item: concluir o passo é ato da pessoa (`POST /passos/:id/concluir`), medido
+ * pelo "concluído quando". Não toca `notes`: é a anotação que o consultor escreveu no item.
  */
 export async function marcarItemComEvidencia(
-  db: D1Database, projectId: string, item: ItemDoChecklist, evidenceId: string, user: { id?: string } | null | undefined,
+  db: D1Database, projectId: string, item: ItemDoChecklist, evidenceId: string, _user?: { id?: string } | null,
 ): Promise<void> {
-  // `checked_by` referencia users(id): chave de API não tem linha lá (id `apikey:…`).
-  const quem = user?.id && !user.id.startsWith('apikey:') ? user.id : null;
   await db.prepare(
-    `INSERT INTO checklist_progress (id, project_id, phase_number, item_id, is_checked, checked_by, checked_at, evidence_id)
-     VALUES (lower(hex(randomblob(16))), ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, ?)
-     ON CONFLICT(project_id, phase_number, item_id) DO UPDATE SET
-       is_checked = 1, checked_by = excluded.checked_by, checked_at = CURRENT_TIMESTAMP, evidence_id = excluded.evidence_id`
-  ).bind(projectId, item.phaseNumber, item.id, quem, evidenceId).run();
+    `INSERT INTO checklist_progress (id, project_id, phase_number, item_id, is_checked, evidence_id)
+     VALUES (lower(hex(randomblob(16))), ?, ?, ?, 0, ?)
+     ON CONFLICT(project_id, phase_number, item_id) DO UPDATE SET evidence_id = excluded.evidence_id`
+  ).bind(projectId, item.phaseNumber, item.id, evidenceId).run();
 }
 
 /**
  * Documento em texto que a pessoa ACEITOU (approve-document: o do assistente ou o rascunho de IA, depois
- * de lido) vira evidência `pending` ligada ao controle do item, e o item fica marcado. A geração por IA
+ * de lido) vira evidência `pending` ligada ao controle do item e ao passo (o passo não é concluído por isso). A geração por IA
  * não chama isto: ela só devolve o rascunho. Chave do R2 por evidência: com a chave por item, gerar de novo
  * sobrescrevia o arquivo da evidência anterior e o hash gravado nela deixava de bater.
  */

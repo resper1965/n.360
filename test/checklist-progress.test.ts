@@ -98,11 +98,13 @@ describe('PUT /projects/:id/checklist-progress', () => {
   });
 
   it('o agente grava no próprio projeto, com a autoria do consultor, e não no outro', async () => {
-    const r = await comoAgente('p-a', { items: [{ phase_number: 4, item_id: 'p4_a', is_checked: true }] });
+    const r = await comoAgente('p-a', { items: [{ phase_number: 4, item_id: 'p4_a', is_checked: false, notes: 'rascunho' }] });
     expect(r.status, await r.clone().text()).toBe(200);
     const linha = await env.DB.prepare(`SELECT checked_by FROM checklist_progress WHERE item_id='p4_a'`).first<any>();
     expect(linha.checked_by).toBe('u-cons');
-    expect((await comoAgente('p-b', { items: [{ phase_number: 4, item_id: 'p4_b', is_checked: true }] })).status).toBe(403);
+    expect((await comoAgente('p-b', { items: [{ phase_number: 4, item_id: 'p4_b', is_checked: false }] })).status).toBe(403);
+    // marcar item concluído é ato humano: o agente toma 403 (concluir passo é pela interface)
+    expect((await comoAgente('p-a', { items: [{ phase_number: 4, item_id: 'p4_a', is_checked: true }] })).status).toBe(403);
   });
 
   it('chave de API grava sem violar a chave estrangeira de checked_by', async () => {
