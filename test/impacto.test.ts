@@ -6,7 +6,10 @@ import { PERGUNTAS_IMPACTO, recomendarRipd, type RespostaImpacto } from '../src/
 import { documentoAtual, hashConteudo } from '../src/services/pedidos';
 
 describe('catálogo do teste de impacto', () => {
-  it('tem 2 perguntas de critério geral e 11 de critério específico, com id estável e texto', () => {
+  it('tem 14 perguntas: a de alto risco primeiro, 2 de critério geral e 11 de critério específico', () => {
+    expect(PERGUNTAS_IMPACTO).toHaveLength(14);
+    expect(PERGUNTAS_IMPACTO[0]).toMatchObject({ id: 'alto_risco', grupo: 'alto_risco' });
+    expect(PERGUNTAS_IMPACTO.filter((p) => p.grupo === 'alto_risco')).toHaveLength(1);
     expect(PERGUNTAS_IMPACTO.filter((p) => p.grupo === 'geral').map((p) => p.id)).toEqual(['afeta_direitos', 'larga_escala']);
     expect(PERGUNTAS_IMPACTO.filter((p) => p.grupo === 'especifico').map((p) => p.id)).toEqual([
       'sensiveis', 'vulneraveis', 'finalidade_distinta', 'compartilhamento_novo', 'monitoramento', 'perfilizacao',
@@ -17,6 +20,16 @@ describe('catálogo do teste de impacto', () => {
 });
 
 describe('recomendarRipd', () => {
+  const treze = () => Object.fromEntries(PERGUNTAS_IMPACTO.filter((p) => p.grupo !== 'alto_risco').map((p) => [p.id, 'nao'])) as Record<string, RespostaImpacto>;
+  it('alto risco sim recomenda o RIPD sozinho, com o motivo alto_risco', () => {
+    expect(recomendarRipd({ alto_risco: 'sim' })).toEqual({ resultado: 'recomendado', motivos: ['alto_risco'] });
+    expect(recomendarRipd({ ...treze(), alto_risco: 'sim', larga_escala: 'sim', sensiveis: 'sim' }).motivos).toEqual(['alto_risco', 'larga_escala', 'sensiveis']);
+  });
+  it('a pergunta nova é opcional na conta: as 13 em não sem ela continuam dispensável; não sei nela também', () => {
+    expect(recomendarRipd(treze()).resultado).toBe('dispensavel_a_confirmar');
+    expect(recomendarRipd({ ...treze(), alto_risco: 'nao_sei' }).resultado).toBe('dispensavel_a_confirmar');
+    expect(recomendarRipd({ ...treze(), alto_risco: 'nao' }).resultado).toBe('dispensavel_a_confirmar');
+  });
   const todas = (v: RespostaImpacto) => Object.fromEntries(PERGUNTAS_IMPACTO.map((p) => [p.id, v])) as Record<string, RespostaImpacto>;
   it('um critério geral E um específico marcados recomendam o RIPD e listam os motivos', () => {
     const r = recomendarRipd({ ...todas('nao'), larga_escala: 'sim', sensiveis: 'sim', monitoramento: 'sim' });
@@ -81,7 +94,7 @@ describe('rota do teste de impacto', () => {
     const get = await json<Lido>(await chamar(consultor, 'GET', `${base(rid)}/impacto`));
     expect(get.recomendacao).toEqual({ resultado: 'recomendado', motivos: ['larga_escala', 'sensiveis'] });
     expect(get.perguntas.find((p) => p.id === 'monitoramento')!.resposta).toBe('nao');
-    expect(get.perguntas).toHaveLength(13);
+    expect(get.perguntas).toHaveLength(14);
     expect(get.finalizado_em).toBeNull();
     expect((await chamar(consultor, 'PUT', `${base(rid)}/impacto`, { respostas: {}, finalizar: true })).status).toBe(200);
     expect((await json<Lido>(await chamar(consultor, 'GET', `${base(rid)}/impacto`))).finalizado_em).not.toBeNull();
@@ -159,5 +172,33 @@ describe('respostas que vêm da atividade (nunca perguntar de novo)', () => {
     expect(l.perguntas.every((p) => p.curto.length > 3)).toBe(true);
     expect(de(l, 'sensiveis').curto).toBe('há dados sensíveis');
     expect(de(l, 'legitimo_interesse').curto).toBe('a base é o legítimo interesse');
+  });
+});
+
+describe('pergunta de alto risco pela rota', () => {
+  it('salvarImpacto aceita alto_risco, o GET a devolve primeiro com grupo alto_risco e a recomendação segue a regra', async () => {
+    const rid = await novoRegistro('Alto risco exemplo');
+    expect((await chamar(consultor, 'PUT', `${base(rid)}/impacto`, { respostas: { alto_risco: 'sim' } })).status).toBe(200);
+    const get = await json<any>(await chamar(consultor, 'GET', `${base(rid)}/impacto`));
+    expect(get.perguntas[0]).toMatchObject({ id: 'alto_risco', grupo: 'alto_risco', resposta: 'sim' });
+    expect(get.recomendacao).toEqual({ resultado: 'recomendado', motivos: ['alto_risco'] });
+  });
+
+  it('processamento automatizado decisao propõe decisao_automatizada sim, sem gravar', async () => {
+    const rid = await novoRegistro('Decisão automatizada exemplo');
+    await env.DB.prepare(`UPDATE ropa_records SET processamento_automatizado = 'decisao' WHERE id = ?`).bind(rid).run();
+    const get = await json<any>(await chamar(consultor, 'GET', `${base(rid)}/impacto`));
+    expect(get.perguntas.find((p: any) => p.id === 'decisao_automatizada')).toMatchObject({ resposta: null, da_atividade: 'sim' });
+    const apoio = await novoRegistro('Apoio exemplo');
+    await env.DB.prepare(`UPDATE ropa_records SET processamento_automatizado = 'apoio' WHERE id = ?`).bind(apoio).run();
+    const g2 = await json<any>(await chamar(consultor, 'GET', `${base(apoio)}/impacto`));
+    expect(g2.perguntas.find((p: any) => p.id === 'decisao_automatizada').da_atividade).toBeNull();
+  });
+
+  it('atividade nova e vazia: o teste responde com as 14 perguntas sem resposta', async () => {
+    const get = await json<any>(await chamar(consultor, 'GET', `${base(await novoRegistro('Vazia exemplo'))}/impacto`));
+    expect(get.perguntas).toHaveLength(14);
+    expect(get.perguntas.every((p: any) => p.resposta === null)).toBe(true);
+    expect(get.recomendacao.resultado).toBe('incompleto');
   });
 });
