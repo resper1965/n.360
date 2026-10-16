@@ -31,6 +31,11 @@ describe('cartão do passo', () => {
     expect(itens.some((t) => t.includes('Feito'))).toBe(true);
     expect(itens.some((t) => t.includes('Falta') && t.includes('nenhum arquivo ligado a este passo'))).toBe(true);
   });
+  it('cada critério e a prova são alvos focáveis estáveis', () => {
+    const el = monta();
+    for (const t of ['campos_preenchidos', 'evidencia_anexada']) expect(el.querySelector(`#bancada-criterio-${t}`).getAttribute('tabindex')).toBe('-1');
+    expect(el.querySelector('#bancada-prova').tagName).toBe('BUTTON');
+  });
   it('um só primário; último passo troca o texto; sem estilo inline', () => {
     expect(monta().querySelectorAll('.btn-primary')).toHaveLength(1);
     expect(monta().querySelector('.btn-primary').textContent).toBe('Salvar e ir ao próximo passo');

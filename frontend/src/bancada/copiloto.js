@@ -112,12 +112,12 @@ function secaoRevisao(passo) {
 function desenhar() {
     const { el, passo, podeUsar, valoresAtuais } = ctx;
     if (!podeUsar) {
-        el.innerHTML = '<h2 class="bancada-copiloto-titulo">Assistente</h2><p class="bancada-nota">O assistente é pedido pela equipe da consultoria ou pelo administrador do cliente.</p>';
+        el.innerHTML = '<h3 id="bancada-copiloto-titulo" class="bancada-copiloto-titulo">Assistente</h3><p class="bancada-nota">O assistente é pedido pela equipe da consultoria ou pelo administrador do cliente.</p>';
         return;
     }
     lembrar();
     const atual = valoresAtuais();
-    el.innerHTML = `<h2 class="bancada-copiloto-titulo">Assistente</h2>
+    el.innerHTML = `<h3 id="bancada-copiloto-titulo" class="bancada-copiloto-titulo">Assistente</h3>
         <p class="bancada-nota">Ele só propõe. Nada é salvo nem concluído sem você aceitar.</p>
         <div role="group" aria-label="Rascunhar um campo">${secaoCampo(passo, atual)}</div>
         <div role="group" aria-label="Escrever a partir da conversa">${secaoConversa(passo, atual)}</div>
