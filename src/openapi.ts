@@ -137,7 +137,7 @@ import {
   parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
-import { passoCamposSchema, passoMetaSchema, passoConcluirSchema, passoReabrirSchema, passoBloquearSchema, passoDesbloquearSchema } from './schemas/passos';
+import { passoCamposSchema, passoMetaSchema, passoConcluirSchema, passoReabrirSchema, passoBloquearSchema, passoDesbloquearSchema, copilotoCampoSchema, copilotoConversaSchema } from './schemas/passos';
 
 /**
  * Contrato da API, gerado dos schemas Zod que as rotas JÁ usam (item 3.1 do
@@ -295,6 +295,8 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/passos/:itemId/bloquear', schema: passoBloquearSchema, nome: 'passoBloquearSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/passos/:itemId/campos', schema: passoCamposSchema, nome: 'passoCamposSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/passos/:itemId/concluir', schema: passoConcluirSchema, nome: 'passoConcluirSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/passos/:itemId/copiloto/da-conversa', schema: copilotoConversaSchema, nome: 'copilotoConversaSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/passos/:itemId/copiloto/rascunhar-campo', schema: copilotoCampoSchema, nome: 'copilotoCampoSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/passos/:itemId/desbloquear', schema: passoDesbloquearSchema, nome: 'passoDesbloquearSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/passos/:itemId/reabrir', schema: passoReabrirSchema, nome: 'passoReabrirSchema' },
   { metodo: 'PATCH', caminho: '/api/v1/projects/:projectId/passos/:itemId', schema: passoMetaSchema, nome: 'passoMetaSchema' },

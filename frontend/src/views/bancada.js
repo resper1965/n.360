@@ -17,7 +17,6 @@ let cols = null;      // { trilha, cartao, copiloto }
 const equipe = () => typeof window.ehEquipeNess === 'function' && window.ehEquipeNess();
 const podeAdmin = () => equipe() || (S.user && S.user.role === 'org_admin');
 const idDoProjeto = () => (S.currentProject || S.activeProject || {}).id;
-const base = () => `/api/v1/projects/${idDoProjeto()}`;
 /** "14:02" a partir do carimbo do servidor (SQLite, UTC): `formatarData` converte para o fuso da pessoa; fica só a hora. */
 const hora = (iso) => { const m = /(\d{2}:\d{2})\s*$/.exec(formatarData(iso, { hora: true })); return m ? m[1] : ''; };
 const argsDe = (...a) => escapeHTML(JSON.stringify(a));
@@ -63,7 +62,7 @@ function refletirStatus(e) {
 }
 
 async function salvarCampos(mapa) {
-    const r = await api('PUT', `${base()}/passos/${S.bancadaPasso}/campos`, { campos: mapa, vistos: Object.fromEntries(Object.keys(mapa).map((k) => [k, vistos[k] ?? null])) });
+    const r = await api('PUT', `/api/v1/projects/${idDoProjeto()}/passos/${S.bancadaPasso}/campos`, { campos: mapa, vistos: Object.fromEntries(Object.keys(mapa).map((k) => [k, vistos[k] ?? null])) });
     Object.assign(vistos, r.gravados);
     for (const k of Object.keys(mapa)) if (mapa[k] === '') vistos[k] = null;
     S.bancadaDetalhe.avaliacao = r.avaliacao;
@@ -75,7 +74,7 @@ async function salvarCampos(mapa) {
 /** `levarFoco`: quem navega pelo teclado ou pelo botão cai no título do passo novo (o leitor de tela o anuncia). */
 async function abrirPasso(id, levarFoco = false) {
     if (aut) await aut.esvaziar();
-    const det = await api('GET', `${base()}/passos/${id}`);
+    const det = await api('GET', `/api/v1/projects/${idDoProjeto()}/passos/${id}`);
     S.bancadaPasso = id;
     S.bancadaDetalhe = det;
     S.bancadaSalvo = '';
@@ -90,7 +89,7 @@ async function abrirPasso(id, levarFoco = false) {
 }
 
 async function recarregarEstado() {
-    S.bancada = await api('GET', `${base()}/bancada`);
+    S.bancada = await api('GET', `/api/v1/projects/${idDoProjeto()}/bancada`);
 }
 
 export async function renderBancada(c, h, a) {
@@ -184,7 +183,7 @@ window.bancadaSalvarEIr = async () => {
         await aut.esvaziar();
         if (S.bancadaDetalhe.passo.estado !== 'concluido') {
             if (!S.bancadaDetalhe.avaliacao.ok) { destacarFaltas(S.bancadaDetalhe.avaliacao.criterios); return; }
-            try { await api('POST', `${base()}/passos/${S.bancadaPasso}/concluir`, {}); }
+            try { await api('POST', `/api/v1/projects/${idDoProjeto()}/passos/${S.bancadaPasso}/concluir`, {}); }
             catch (e) { if (e.status === 409 && e.body && e.body.faltam) { destacarFaltas(e.body.faltam); return; } throw e; }
         }
         await recarregarEstado();
@@ -203,7 +202,7 @@ window.bancadaBloquear = () => openModal(`<div class="modal-header"><span class=
 /** Responsável e prazo (saem do "Editar" antigo): um PATCH por mudança. */
 window.bancadaMeta = async (campo, valor) => {
     try {
-        const r = await api('PATCH', `${base()}/passos/${S.bancadaPasso}`, { [campo]: valor || null });
+        const r = await api('PATCH', `/api/v1/projects/${idDoProjeto()}/passos/${S.bancadaPasso}`, { [campo]: valor || null });
         S.bancadaDetalhe.avaliacao = r.avaliacao;
         const lista = document.getElementById('bancada-criterios');
         if (lista) lista.innerHTML = htmlDosCriterios(r.avaliacao);
@@ -212,7 +211,9 @@ window.bancadaMeta = async (campo, valor) => {
 const mudarEstado = (acao, corpo = {}) => async () => {
     try {
         await aut.esvaziar();
-        await api('POST', `${base()}/passos/${S.bancadaPasso}/${acao}`, corpo);
+        // Caminhos literais (o teste de contrato tela↔API só enxerga /api/v1 escrito por extenso).
+        if (acao === 'reabrir') await api('POST', `/api/v1/projects/${idDoProjeto()}/passos/${S.bancadaPasso}/reabrir`, corpo);
+        else await api('POST', `/api/v1/projects/${idDoProjeto()}/passos/${S.bancadaPasso}/desbloquear`, corpo);
         await recarregarEstado();
         await abrirPasso(S.bancadaPasso);
         desenharTopo();
@@ -221,7 +222,7 @@ const mudarEstado = (acao, corpo = {}) => async () => {
 window.bancadaDesbloquear = mudarEstado('desbloquear');
 window.bancadaReabrir = mudarEstado('reabrir');
 window.bancadaLiberarFase = async (n) => {
-    try { await api('DELETE', `${base()}/bancada/fases/${n}/situacao-antiga`); await recarregarEstado(); desenharTudo(); desenharTopo(); }
+    try { await api('DELETE', `/api/v1/projects/${idDoProjeto()}/bancada/fases/${n}/situacao-antiga`); await recarregarEstado(); desenharTudo(); desenharTopo(); }
     catch (e) { showToast(e.message, 'error'); }
 };
 window.bancadaCopiarAnotacao = () => {
@@ -232,7 +233,7 @@ window.bancadaCopiarAnotacao = () => {
     window.bancadaDigitou(alvo.id, el.value);
 };
 window.bancadaDescartarAnotacao = async () => {
-    try { await api('DELETE', `${base()}/passos/${S.bancadaPasso}/anotacao-anterior`); await abrirPasso(S.bancadaPasso); }
+    try { await api('DELETE', `/api/v1/projects/${idDoProjeto()}/passos/${S.bancadaPasso}/anotacao-anterior`); await abrirPasso(S.bancadaPasso); }
     catch (e) { showToast(e.message, 'error'); }
 };
 
@@ -241,7 +242,7 @@ window.bancadaConfirmarBloqueio = async () => {
     const responsavel = (document.getElementById('bloq-resp').value || '').trim();
     if (motivo.length < 5 || !responsavel) { document.getElementById('bloq-erro').textContent = 'Informe o motivo (ao menos 5 letras) e escolha o responsável.'; return; }
     try {
-        await api('POST', `${base()}/passos/${S.bancadaPasso}/bloquear`, { motivo, responsavel });
+        await api('POST', `/api/v1/projects/${idDoProjeto()}/passos/${S.bancadaPasso}/bloquear`, { motivo, responsavel });
         forceCloseModal();
         await recarregarEstado();
         await abrirPasso(S.bancadaPasso);
@@ -259,7 +260,7 @@ window.bancadaConfirmarExcecao = async () => {
     if (motivo.length < 10) { document.getElementById('exc-erro').textContent = 'Explique o motivo com ao menos 10 letras.'; return; }
     try {
         await aut.esvaziar();
-        await api('POST', `${base()}/passos/${S.bancadaPasso}/concluir`, { excecao: { motivo } });
+        await api('POST', `/api/v1/projects/${idDoProjeto()}/passos/${S.bancadaPasso}/concluir`, { excecao: { motivo } });
         forceCloseModal();
         await recarregarEstado();
         await abrirPasso(S.bancadaPasso);
@@ -352,7 +353,7 @@ function valoresDaTela() {
 window.bancadaGerarDocumento = async () => {
     try {
         await aut.esvaziar();
-        const r = await api('POST', `${base()}/generate-document`, { itemId: S.bancadaPasso, fields: valoresDaTela() });
+        const r = await api('POST', `/api/v1/projects/${idDoProjeto()}/generate-document`, { itemId: S.bancadaPasso, fields: valoresDaTela() });
         mostrarProposta(r.content, 'Proposta do assistente');
     } catch (e) { showToast('Não foi possível gerar o documento: ' + e.message, 'error'); }
 };
@@ -369,7 +370,7 @@ window.bancadaRegistrarProva = () => {
 window.bancadaAceitarProposta = async () => {
     const content = (document.getElementById('bancada-rascunho-texto') || {}).value || '';
     try {
-        await api('POST', `${base()}/approve-document`, { itemId: S.bancadaPasso, content });
+        await api('POST', `/api/v1/projects/${idDoProjeto()}/approve-document`, { itemId: S.bancadaPasso, content });
         showToast('Prova anexada ao passo');
         await aposProva();
     } catch (e) { showToast('Não foi possível anexar: ' + e.message, 'error'); }
@@ -561,7 +562,7 @@ window.generateDocumentNatively = async function (projectId, itemId, btnEl) {
 
 async function wsViewExtraction(docId) {
     try {
-        const docs = await api('GET', `${base()}/documents`);
+        const docs = await api('GET', `/api/v1/projects/${idDoProjeto()}/documents`);
         const doc = (docs || []).find((d) => d.id === docId);
         if (!doc) return;
         openModal(`<div class="modal-header"><span class="modal-title">Texto extraído: ${escapeHTML(doc.filename)}</span></div>
@@ -576,7 +577,7 @@ async function wsViewExtraction(docId) {
 async function wsConfirmExtraction(docId) {
     const summary = document.getElementById('doc-ext-edit')?.value;
     if (!summary) return;
-    await api('PUT', `${base()}/documents/${docId}`, { extracted_summary: summary, status: 'confirmed' });
+    await api('PUT', `/api/v1/projects/${idDoProjeto()}/documents/${docId}`, { extracted_summary: summary, status: 'confirmed' });
     forceCloseModal();
     await aposProva();
 }

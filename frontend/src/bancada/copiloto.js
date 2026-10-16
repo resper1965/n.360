@@ -131,7 +131,6 @@ export function montarCopiloto(p) {
     desenhar();
 }
 
-const url = (modo) => `/api/v1/projects/${ctx.projectId}/passos/${ctx.passo.id}/copiloto/${modo}`;
 const doModelo = () => ctx.passo.campos.filter((c) => !c.semIA).map((c) => c.id);
 
 window.bancadaCopilotoRascunhar = async () => {
@@ -140,7 +139,7 @@ window.bancadaCopilotoRascunhar = async () => {
     const instrucao = document.getElementById('copiloto-instrucao').value.trim();
     estado.campo = { ...vazio(), carregando: true }; proposta = null; desenhar();
     try {
-        const r = await api('POST', url('rascunhar-campo'), { campo, ...(instrucao ? { instrucao } : {}) }, { timeoutMs: 60000 });
+        const r = await api('POST', `/api/v1/projects/${ctx.projectId}/passos/${ctx.passo.id}/copiloto/rascunhar-campo`, { campo, ...(instrucao ? { instrucao } : {}) }, { timeoutMs: 60000 });
         if (r.indisponivel) estado.campo = { ...vazio(), indisponivel: true };
         else if (r.proposta) { proposta = { ...r.proposta, avisos: r.avisos || [] }; estado.campo = vazio(); }
         else estado.campo = { ...vazio(), erro: (r.avisos || [])[0] || 'O assistente não conseguiu uma proposta. Escreva você.' };
@@ -163,7 +162,7 @@ window.bancadaCopilotoConversa = async () => {
     if (conversa.length > MAX_CONVERSA) { estado.conversa = { ...vazio(), erro: `A conversa passa de ${milhar(MAX_CONVERSA)} caracteres. Reduza o texto.` }; desenhar(); return; }
     estado.conversa = { ...vazio(), carregando: true }; lote = null; desenhar();
     try {
-        const r = await api('POST', url('da-conversa'), { conversa }, { timeoutMs: 60000 });
+        const r = await api('POST', `/api/v1/projects/${ctx.projectId}/passos/${ctx.passo.id}/copiloto/da-conversa`, { conversa }, { timeoutMs: 60000 });
         if (r.indisponivel) estado.conversa = { ...vazio(), indisponivel: true };
         else {
             // Defesa em profundidade: só campo do passo que não é semIA, e só texto.
@@ -195,7 +194,7 @@ window.bancadaCopilotoRevisao = async () => {
     lembrar();
     estado.revisao = { ...vazio(), carregando: true }; revisao = null; desenhar();
     try {
-        const r = await api('POST', url('revisao'), {}, { timeoutMs: 60000 });
+        const r = await api('POST', `/api/v1/projects/${ctx.projectId}/passos/${ctx.passo.id}/copiloto/revisao`, {}, { timeoutMs: 60000 });
         if (r.indisponivel) estado.revisao = { ...vazio(), indisponivel: true };
         else {
             const ids = doModelo();

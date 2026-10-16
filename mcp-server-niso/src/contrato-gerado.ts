@@ -83,6 +83,8 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/partes/{id}/vinculos': { obrigatorios: ['alvo_id', 'alvo_tipo', 'papel'] },
   'POST /api/v1/projects/{projectId}/passos/{itemId}/bloquear': { obrigatorios: ['motivo', 'responsavel'] },
   'POST /api/v1/projects/{projectId}/passos/{itemId}/concluir': { obrigatorios: [] },
+  'POST /api/v1/projects/{projectId}/passos/{itemId}/copiloto/da-conversa': { obrigatorios: ['conversa'] },
+  'POST /api/v1/projects/{projectId}/passos/{itemId}/copiloto/rascunhar-campo': { obrigatorios: ['campo'] },
   'POST /api/v1/projects/{projectId}/passos/{itemId}/desbloquear': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/passos/{itemId}/reabrir': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/pedidos': { obrigatorios: ['destinatarios', 'papel_exigido', 'ref_id', 'tipo'] },
