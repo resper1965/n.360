@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub } from './produto.js';
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
 import { S } from './state.js';
 import { atualizarSelos } from './selos-menu.js';
 import { api, API_BASE } from './api.js';
@@ -967,11 +967,12 @@ window.updateHeaderUser = function updateHeaderUser() {
             projectSelect.disabled = isClient;
         }
 
-        // Ocultar grupo comercial para clientes
+        // Ocultar grupo comercial para clientes, e para todos com a área comercial desligada (COMERCIAL_ATIVO).
         const labelSales = document.getElementById('label-group-sales');
         const groupSales = document.getElementById('group-sales');
-        if (labelSales) labelSales.style.display = isClient ? 'none' : '';
-        if (groupSales) groupSales.style.display = isClient ? 'none' : '';
+        const semComercial = isClient || !window.comercialAtivo();
+        if (labelSales) labelSales.style.display = semComercial ? 'none' : '';
+        if (groupSales) groupSales.style.display = semComercial ? 'none' : '';
         // Leads e propostas são do comercial (somenteComercial no servidor); o
         // consultor segue com Assessments e o resto do grupo.
         const comercial = window.ehComercial();
@@ -979,6 +980,8 @@ window.updateHeaderUser = function updateHeaderUser() {
             const el = document.getElementById(id);
             if (el) el.style.display = comercial ? '' : 'none';
         });
+        const navLevantamentos = document.getElementById('nav-assessments');
+        if (navLevantamentos) navLevantamentos.style.display = window.comercialAtivo() ? '' : 'none';
 
         // Configurações do grupo de sistema
         const labelSystem = document.getElementById('label-group-system');
@@ -1011,6 +1014,10 @@ window.updateHeaderUser = function updateHeaderUser() {
             // Configurações é a tabela de preços (custo interno, margem) da ness. (somenteOrgNess no
             // servidor): comercial e platform_admin, não o administrador de outra consultoria.
             if (navSettings) navSettings.style.display = window.ehComercial() && S.user.role !== 'consultoria_admin' ? '' : 'none';
+            // Área comercial desligada: a identidade da organização (nome, CNPJ, cor, logo, que vão também nos documentos Word do
+            // projeto) sai da Configuração comercial e fica em Conta e acessos, para quem a administra.
+            const navIdentidade = document.getElementById('nav-identidade');
+            if (navIdentidade) navIdentidade.style.display = !window.comercialAtivo() && ['platform_admin', 'consultoria_admin'].includes(S.user?.role) ? '' : 'none';
             // Organizações: exclusivo do platform_admin (rotas /platform/orgs).
             const navOrgs = document.getElementById('nav-organizacoes');
             if (navOrgs) navOrgs.style.display = (S.user && S.user.role === 'platform_admin') ? '' : 'none';
@@ -1039,7 +1046,10 @@ window.updateHeaderUser = function updateHeaderUser() {
         // evidência a ele (não é staff em requireProjectAccess). O menu mostra só
         // o que ele alcança, em vez de telas que abririam vazias ou com erro.
         if (S.user && S.user.role === 'comercial') {
-            const doComercial = new Set(['nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-settings', 'nav-conectar-agente']);
+            // Com a área desligada, o comercial não tem tela (o servidor dá 404): sobra o que não é da área.
+            const doComercial = new Set(window.comercialAtivo()
+                ? ['nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-settings', 'nav-conectar-agente']
+                : ['nav-conectar-agente']);
             document.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach(el => {
                 el.style.display = doComercial.has(el.id) ? '' : 'none';
             });
@@ -1201,14 +1211,18 @@ window.abrirAviso = async function abrirAviso(n) {
         if (link) {
             const parts = link.split('/');
             if (parts[1] === 'projects') {
-                const projectId = parts[2];
-                const subview = parts[3];
+                const projectId = parts[2].split('?')[0];
+                const subview = (parts[3] || '').split('?')[0] || undefined;
+                // Aviso de prazo de passo da trilha (`...?passo=p3_3`): abre a Bancada naquele passo.
+                const passo = (/[?&]passo=([A-Za-z0-9_]+)/.exec(link) || [])[1];
                 
                 let proj = S.projects.find(p => p.id === projectId);
                 if (!proj && S.currentProject && S.currentProject.id === projectId) proj = S.currentProject;
                 if (!proj) proj = { id: projectId };
                 
-                if (subview === 'evidence') {
+                if (passo && modulosVisiveis(proj).includes('iso')) {
+                    navigate('project-detail', { currentProject: proj, bancadaAlvo: { passo } });
+                } else if (subview === 'evidence') {
                     navigate('evidence', { currentProject: proj });
                 } else if (subview === 'controls') {
                     navigate('controls', { currentProject: proj });
@@ -1328,7 +1342,9 @@ window.updateContextPanel = function updateContextPanel() {
 
 // Espelho de `ehComercial` (src/helpers.ts). Só decide o que MOSTRAR; quem
 // barra de verdade é o servidor.
-window.ehComercial = function ehComercial() { return !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role)); }
+window.ehComercial = function ehComercial() { return !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role)) && window.comercialAtivo(); }
+// Interruptor da área comercial (`comercial_ativo` do /auth/me; servidor: `comercialAtivo`, src/helpers.ts). Sem o campo, desligada.
+window.comercialAtivo = function comercialAtivo() { return !!(S.user && S.user.comercial_ativo === true); }
 // Espelho de `ehEquipeNess` (src/helpers.ts, PAPEIS_NESS): equipe da consultoria, não cliente. Só decide o que MOSTRAR; o servidor barra.
 window.ehEquipeNess = function ehEquipeNess() { return !!(S.user && ['consultor', 'consultant', 'platform_admin', 'consultoria_admin'].includes(S.user.role)); }
 
@@ -1336,7 +1352,7 @@ window.ehEquipeNess = function ehEquipeNess() { return !!(S.user && ['consultor'
 // não pede — evita o 403 a cada login do consultor.
 window.loadLeads = async function loadLeads() { if (!window.ehComercial()) { S.leads = []; return; } try { S.leads = await api('GET', '/api/v1/leads'); } catch(e) { S.leads = []; } }
 
-window.loadAssessments = async function loadAssessments() { try { S.assessments = await api('GET', '/api/v1/assessments'); } catch(e) { S.assessments = []; } }
+window.loadAssessments = async function loadAssessments() { if (!window.comercialAtivo()) { S.assessments = []; return; } try { S.assessments = await api('GET', '/api/v1/assessments'); } catch(e) { S.assessments = []; } }
 
 window.loadProjects = async function loadProjects() {
     try {
@@ -1361,7 +1377,7 @@ window.loadDashboardStats = async function loadDashboardStats() { try { S.stats 
 
 window.loadAll = async function loadAll() {
         await Promise.allSettled([loadLeads(), loadAssessments(), loadProjects(), loadControls(), loadNotifications(), loadDashboardStats()]);
-        if (S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client') && !S.user.client_project_id) {
+        if (window.comercialAtivo() && S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client') && !S.user.client_project_id) {
             try {
                 const resA = await api('GET', '/api/v1/client/assessment');
                 S.clientAssessmentId = resA.assessment_id;
@@ -1615,6 +1631,8 @@ window.initApp = async function initApp() {
         const tela = produto === 'n360' && !ehStakeholder ? telaPedida() : null;
         // Vindo do n.360 numa tela de módulo (o router ou o sino de lá): a tela pedida, ou o aviso reaberto aqui.
         const doHub = produto !== 'n360' && !ehStakeholder ? pedidoDoHub() : null;
+        // A Bancada abre no passo do endereço (`?fase=&passo=`); a própria tela o consome e mantém o endereço em dia.
+        S.bancadaAlvo = produto === 'iso' && !ehStakeholder ? alvoDaBancada() : null;
         if (ehStakeholder) {
             navigate('meus-pedidos');
         } else if (tela) {
@@ -1642,6 +1660,9 @@ window.initApp = async function initApp() {
                 if (doHub.filtro && doHub.filtro.aba) S.titularAba = doHub.filtro.aba;
                 if (doHub.filtro) navigate(doHub.tela, { filtroPainel: doHub.filtro }); else navigate(doHub.tela);
             }
+        } else if (S.bancadaAlvo) {
+            if (!S.activeProject && (S.projects || []).length) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
+            navigate('project-detail');
         } else if (produto === 'privacy') {
             if (!S.activeProject) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             navigate('encarregado');
@@ -1754,132 +1775,6 @@ window.doForgotPasswordReset = async function() {
             err.textContent = e.message || 'Falha ao redefinir senha';
             err.style.display = 'block';
         }
-    }
-
-window.openDoDDrawer = function(projectId, phaseNum, selectEl, pendingItens) {
-        S.activeDoD = { projectId, phaseNum, selectEl };
-        document.getElementById('dod-drawer-overlay').classList.add('open');
-        window.refreshDoDDrawer();
-    }
-
-window.refreshDoDDrawer = function() {
-        if (!S.activeDoD) return;
-        const { projectId, phaseNum } = S.activeDoD;
-        
-        // Re-evaluate pending items based on current S.phaseChecks
-        const phChecklist = S.checklistsConfig[phaseNum] || [];
-        const pendingItens = phChecklist.filter(item => {
-            const checkKey = `${projectId}_${item.id}`;
-            return S.phaseChecks[checkKey] !== true;
-        });
-        
-        const drawerContent = document.getElementById('dod-drawer-content');
-        if (!drawerContent) return;
-        
-        if (pendingItens.length === 0) {
-            drawerContent.innerHTML = `
-                <div style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
-                    <div>
-                        <h2 style="font-family: 'Montserrat', sans-serif; font-weight: 500; font-size: 1.25rem; color: var(--text); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Definition of Done (DoD)</h2>
-                        <p style="font-family: 'Inter', sans-serif; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 1.5rem; line-height: 1.5;">
-                            Todos os itens obrigatórios da fase foram concluídos! A fase está pronta para ser finalizada em conformidade com as diretrizes ISO 27001/27701.
-                        </p>
-                        <div style="text-align: center; padding: 2rem 0;">
-                            <svg viewBox="0 0 24 24" style="width: 48px; height: 48px; stroke: var(--success); fill: none; stroke-width: 1.5; margin: 0 auto;">
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                            <p style="font-size: 0.85rem; color: var(--success); margin-top: 1rem; font-weight: 500;">Pronto para conformidade</p>
-                        </div>
-                    </div>
-                    <div style="display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 1.5rem;">
-                        <button class="btn btn-primary" style="width: 100%; justify-content: center; font-weight: 500; font-size: 0.8rem; padding: 0.75rem;" data-action="confirmDoDCompletion">Concluir Fase</button>
-                        <button class="btn" style="width: 100%; justify-content: center; font-size: 0.8rem; padding: 0.75rem;" data-action="cancelDoDCompletion">Fechar</button>
-                    </div>
-                </div>
-            `;
-            return;
-        }
-        
-        drawerContent.innerHTML = `
-            <div style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
-                <div>
-                    <h2 style="font-family: 'Montserrat', sans-serif; font-weight: 500; font-size: 1.25rem; color: var(--text); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Definition of Done (DoD)</h2>
-                    <p style="font-family: 'Inter', sans-serif; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 1.5rem; line-height: 1.5;">
-                        Existem itens pendentes no checklist de conformidade desta fase. Para garantir a aderência às normas ISO 27001/27701, resolva as pendências abaixo ou escolha prosseguir mesmo assim.
-                    </p>
-                    
-                    <div style="font-family: 'Montserrat', sans-serif; font-weight: 500; font-size: 0.7rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem;">Pendências (${pendingItens.length})</div>
-                    
-                    <div style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 55vh; overflow-y: auto; padding-right: 0.5rem;">
-                        ${pendingItens.map(item => {
-                            const match = item.text.match(/(A\.\d+\.\d+|Cl\s+\d+\.\d+|A\.\d+|Cl\s+\d+)/i);
-                            const controlId = match ? match[0] : 'A.5.1';
-                            
-                            return `
-                                <div class="list-item" style="display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border);">
-                                    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; width: 100%;">
-                                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                                            <span class="badge-cat ${item.category}" style="align-self: flex-start; font-size:var(--fs-xs); font-weight: 500;">${item.category.toUpperCase()}</span>
-                                            <span class="item-name" style="font-size: 0.8rem; color: var(--text); font-weight: 400;">${escapeHTML(item.text)}</span>
-                                        </div>
-                                    </div>
-                                    <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem; width: 100%;">
-                                        ${(item.category === 'evidence' || item.category === 'document') ? `
-                                            <button class="btn" style="flex: 1; padding: 0.4rem 0.8rem; font-size:var(--fs-xs);" data-action="wsUploadEvidence" data-args='["${item.id}"]'>Enviar</button>
-                                        ` : ''}
-                                        ${item.category === 'document' ? `
-                                            <button class="btn btn-primary" style="flex: 1; padding: 0.4rem 0.8rem; font-size:var(--fs-xs);" data-action="openGeneratePolicyModal" data-args='["${projectId}","${controlId}"]'>Gerar Política</button>
-                                        ` : ''}
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-                
-                <div style="display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 1.5rem;">
-                    <button class="btn btn-primary" style="width: 100%; justify-content: center; font-weight: 500; font-size: 0.8rem; padding: 0.75rem;" data-action="confirmDoDCompletion">Concluir Fase mesmo assim</button>
-                    <button class="btn" style="width: 100%; justify-content: center; font-size: 0.8rem; padding: 0.75rem;" data-action="cancelDoDCompletion">Cancelar</button>
-                </div>
-            </div>
-        `;
-    }
-
-window.confirmDoDCompletion = async function() {
-        if (!S.activeDoD) return;
-        const { projectId, phaseNum, selectEl } = S.activeDoD;
-        const newStatus = selectEl.value;
-        window.closeDoDDrawer();
-        selectEl.disabled = true;
-        try {
-            await api('PUT', `/api/v1/projects/${projectId}/phases/${phaseNum}`, { status: newStatus });
-            selectEl.setAttribute('data-prev', newStatus);
-            showToast(`Fase ${phaseNum} atualizada para ${newStatus}`);
-            render();
-        } catch (e) {
-            showToast(`Erro ao atualizar fase: ${e.message}`);
-            selectEl.value = selectEl.getAttribute('data-prev') || selectEl.value;
-        } finally {
-            selectEl.disabled = false;
-            S.activeDoD = null;
-        }
-    }
-
-window.cancelDoDCompletion = function() {
-        if (!S.activeDoD) return;
-        const { selectEl } = S.activeDoD;
-        selectEl.value = selectEl.getAttribute('data-prev') || 'in_progress';
-        window.closeDoDDrawer();
-        S.activeDoD = null;
-    }
-
-window.closeDoDDrawer = function() {
-        document.getElementById('dod-drawer-overlay').classList.remove('open');
-    }
-
-window.closeDoDDrawerEl = function(e) {
-        if (e && e.target !== document.getElementById('dod-drawer-overlay')) return;
-        window.cancelDoDCompletion();
     }
 
 window.signEvidence = async function(evidenceId, role, fileHash) {
@@ -2119,72 +2014,6 @@ window.ssNext = async function() {
             </div>`;
         }
     }
-
-window.saveChecklistItemMetadata = function(projectId, phaseNum, itemId) {
-        const key = projectId + '_' + itemId;
-        const isChecked = S.phaseChecks[key] === true;
-        
-        if (window._checklistSaveTimer) clearTimeout(window._checklistSaveTimer);
-        window._checklistSaveTimer = setTimeout(async () => {
-            const items = [];
-            for (const k in S.phaseChecks) {
-                if (k.startsWith(projectId + '_')) {
-                    const id = k.replace(projectId + '_', '');
-                    const match = id.match(/^p(\d+)_/);
-                    if (match) {
-                        items.push({
-                            phase_number: parseInt(match[1]),
-                            item_id: id,
-                            is_checked: !!S.phaseChecks[k],
-                            notes: S.phaseChecksNotes[k] || null,
-                            assigned_to: S.phaseChecksAssigned[k] || null,
-                            due_date: S.phaseChecksDueDate[k] || null
-                        });
-                    }
-                }
-            }
-            if (!items.some(i => i.item_id === itemId)) {
-                items.push({
-                    phase_number: phaseNum,
-                    item_id: itemId,
-                    is_checked: isChecked,
-                    notes: S.phaseChecksNotes[key] || null,
-                    assigned_to: S.phaseChecksAssigned[key] || null,
-                    due_date: S.phaseChecksDueDate[key] || null
-                });
-            }
-            if (items.length > 0) {
-                try {
-                    await api('PUT', `/api/v1/projects/${projectId}/checklist-progress`, { items });
-                } catch(e) {
-                    console.error('Error saving checklist progress metadata:', e);
-                }
-            }
-        }, 800);
-    }
-
-window.saveChecklistItemNotes = async function(projectId, phaseNum, itemId, value) {
-        if (!S.phaseChecksNotes) S.phaseChecksNotes = {};
-        S.phaseChecksNotes[projectId + '_' + itemId] = value;
-        localStorage.setItem('niso_phaseChecksNotes', JSON.stringify(S.phaseChecksNotes));
-        window.saveChecklistItemMetadata(projectId, phaseNum, itemId);
-    }
-
-window.saveChecklistItemAssigned = async function(projectId, phaseNum, itemId, value) {
-        if (!S.phaseChecksAssigned) S.phaseChecksAssigned = {};
-        S.phaseChecksAssigned[projectId + '_' + itemId] = value;
-        localStorage.setItem('niso_phaseChecksAssigned', JSON.stringify(S.phaseChecksAssigned));
-        window.saveChecklistItemMetadata(projectId, phaseNum, itemId);
-    }
-
-window.saveChecklistItemDueDate = async function(projectId, phaseNum, itemId, value) {
-        if (!S.phaseChecksDueDate) S.phaseChecksDueDate = {};
-        S.phaseChecksDueDate[projectId + '_' + itemId] = value;
-        localStorage.setItem('niso_phaseChecksDueDate', JSON.stringify(S.phaseChecksDueDate));
-        window.saveChecklistItemMetadata(projectId, phaseNum, itemId);
-    }
-
-
 
 window.PHASE_PLAYBOOKS = {
     0: { obj: "Mobilização e Mandato (Cláusula 5.1)", guideline: "Definir o patrocinador do projeto (Executive Sponsor), formalizar a equipe de implementação e assinar a Carta de Mandato. O kick-off formaliza o comprometimento da alta direção com o SGSI." },

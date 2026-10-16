@@ -55,7 +55,6 @@ function fecharDeFato() {
     modal?.classList.remove('modal-large');
     modal?.querySelector(':scope > .modal-descartar')?.remove();
     modalAlterado = false;
-    if (window.refreshDoDDrawer) window.refreshDoDDrawer();
     if (window.activePreviewUrl) {
         window.URL.revokeObjectURL(window.activePreviewUrl);
         window.activePreviewUrl = null;

@@ -43,6 +43,8 @@ describe('navigate()', () => {
             ${IDS_SIDEBAR.map((id) => `<div class="sidebar-nav" id="${id}"></div>`).join('')}
         `;
         for (const nome of VIEWS) globalThis[nome] = vi.fn();
+        // Área comercial LIGADA, como sempre foi (globals.js lê o `comercial_ativo` do /auth/me); o desligado tem teste próprio.
+        window.comercialAtivo = () => true;
         S.user = null;
         S.view = 'dashboard';
         // Casca do n.iso: no n.360 (o caminho '/') tela de módulo sai para o módulo (test/casca-router.test.js).
@@ -89,6 +91,16 @@ describe('navigate()', () => {
             expect(globalThis.renderPropostas).toHaveBeenCalledTimes(1);
             expect(globalThis.renderProposals).not.toHaveBeenCalled();
             expect(itemAtivo().id).toBe('nav-proposals');
+        });
+
+        it('área comercial desligada: tela comercial (link, aviso, atalho antigo) cai no painel', () => {
+            window.comercialAtivo = () => false;
+            S.user = { role: 'platform_admin' };
+            for (const tela of ['comercial', 'leads', 'assessments', 'assessment-detail', 'proposals', 'catalogo', 'config-comercial', 'settings']) {
+                navigate(tela);
+                expect(S.view, tela).toBe('dashboard');
+            }
+            for (const nome of ['renderLeads', 'renderAssessments', 'renderPropostas', 'renderSettings']) expect(globalThis[nome], nome).not.toHaveBeenCalled();
         });
 
         it('sem usuario nao ha desvio (boot antes do login)', () => {

@@ -583,6 +583,14 @@ export function ehComercial(user: { role?: string | null } | null | undefined): 
   return PAPEIS_COMERCIAL.has(user?.role ?? '');
 }
 
+/**
+ * Interruptor da área comercial (var `COMERCIAL_ATIVO`, decisão do dono de 15/10/2026). Só a string "true" liga;
+ * ausente ou qualquer outra coisa desliga. Desligada, as rotas comerciais respondem 404 a pessoa e chave de API
+ * (`src/index.ts`) e a interface esconde a área; tabelas e código ficam. O agente MCP não passa pelo interruptor:
+ * o que ele alcança da área é a matriz de `src/middleware/agente.ts`.
+ */
+export const comercialAtivo = (env: { COMERCIAL_ATIVO?: string }): boolean => env.COMERCIAL_ATIVO === 'true';
+
 export async function somenteComercial(
   c: { get: (k: 'user') => AtorAutorizado | undefined; json: (b: unknown, s: 403) => Response },
   next: () => Promise<void>

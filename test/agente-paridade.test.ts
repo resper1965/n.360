@@ -102,6 +102,13 @@ describe('Agente com paridade de consultor, preso ao projeto', () => {
     }
   });
 
+  it('aceitar documento gerado (e concluir o item) é ato humano: recusado ao agente, mesmo confirmado', async () => {
+    const r = await comoAgente('/api/v1/projects/p-a/approve-document', { method: 'POST', headers: { ...confirmado, ...json }, body: JSON.stringify({ itemId: 'p15_1', content: '# Política' }) });
+    expect(r.status).toBe(403);
+    expect((await r.json<any>()).error).toContain('fora do alcance do agente');
+    expect(await env.DB.prepare(`SELECT 1 FROM checklist_progress WHERE project_id='p-a' AND item_id='p15_1'`).first()).toBeNull();
+  });
+
   it('eliminar titular (anonimização) exige confirmação', async () => {
     const corpo = JSON.stringify({ identificador: 'x@y.lat', justificativa: 'pedido do titular' });
     const sem = await comoAgente('/api/v1/projects/p-a/data-subject/erase', { method: 'POST', headers: json, body: corpo });

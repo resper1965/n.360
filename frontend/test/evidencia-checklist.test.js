@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '../src/ui.js';
 import '../src/views/project.js';
+import '../src/views/bancada.js';
 import '../src/views/grc.js';
 import { S } from '../src/state.js';
 import { servir } from './servir-api.js';

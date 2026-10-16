@@ -33,7 +33,7 @@ beforeEach(() => {
 describe('renderDashboard — onboarding do cliente', () => {
   it('define título e ações e mostra "Aguardando Liberação" sem assessment', async () => {
     const { c, h, a } = montaDom();
-    S.user = { role: 'client' }; // sem client_project_id → caminho onboarding
+    S.user = { role: 'client', comercial_ativo: true }; // sem client_project_id → caminho onboarding
     await window.renderDashboard(c, h, a);
     expect(h.textContent).toBe('Bem-vindo');
     expect(a.innerHTML).not.toContain('Novo Lead'); // funil é do comercial
@@ -47,7 +47,7 @@ describe('renderDashboard — onboarding do cliente', () => {
   // o token (e devolve 410 depois da venda). O questionário fica só no link público ?assessment=.
   it('assessment liberado: mostra "Em andamento", sem atalho para a tela self-service', async () => {
     const { c, h, a } = montaDom();
-    S.user = { role: 'org_admin' };
+    S.user = { role: 'org_admin', comercial_ativo: true };
     S.clientAssessmentId = 'as-1';
     await window.renderDashboard(c, h, a);
     expect(c.textContent).toContain('Em andamento');
@@ -56,7 +56,7 @@ describe('renderDashboard — onboarding do cliente', () => {
 
   it('marca a fase de assessment como Concluído quando já existe proposta', async () => {
     const { c, h, a } = montaDom();
-    S.user = { role: 'org_user' };
+    S.user = { role: 'org_user', comercial_ativo: true };
     S.clientAssessmentId = 'as-1';
     S.clientProposalId = 'pr-1';
     S.clientProposalStatus = 'Approved';
@@ -68,7 +68,7 @@ describe('renderDashboard — onboarding do cliente', () => {
 
   it('proposta em andamento: sem o link do gerador antigo (410), só o aviso de que o comercial envia', async () => {
     const { c, h, a } = montaDom();
-    S.user = { role: 'org_user' };
+    S.user = { role: 'org_user', comercial_ativo: true };
     S.clientAssessmentId = 'as-1';
     S.clientProposalId = 'pr-1';
     S.clientProposalStatus = 'Draft';
@@ -76,6 +76,17 @@ describe('renderDashboard — onboarding do cliente', () => {
     expect(c.innerHTML).not.toContain('generate-proposal');
     expect(c.textContent).not.toContain('Revisar e Assinar');
     expect(c.textContent).toContain('Proposta enviada pelo comercial');
+  });
+
+  // Área comercial desligada (COMERCIAL_ATIVO): nada de levantamento nem proposta; só o aviso de a quem pedir acesso.
+  it('área comercial desligada: só o aviso de acesso, sem as fases da contratação', async () => {
+    const { c, h, a } = montaDom();
+    S.user = { role: 'client', comercial_ativo: false };
+    S.clientAssessmentId = 'as-1';
+    await window.renderDashboard(c, h, a);
+    expect(c.textContent).toContain('Você ainda não tem acesso a um projeto');
+    expect(c.textContent).not.toMatch(/Levantamento|Proposta/);
+    expect(apiMock).not.toHaveBeenCalled();
   });
 });
 
@@ -91,19 +102,27 @@ describe('renderDashboard — quem entra onde', () => {
   });
   it('comercial: a tela Comercial', async () => {
     const { c, h, a } = montaDom();
-    S.user = { role: 'comercial' };
+    S.user = { role: 'comercial', comercial_ativo: true };
     window.renderPainel = vi.fn();
     await window.renderDashboard(c, h, a);
     expect(window.renderPainel).not.toHaveBeenCalled();
     expect(h.textContent).toBe('Comercial');
     delete window.renderPainel;
   });
+  it('comercial com a área desligada: aviso, sem pedir o funil', async () => {
+    const { c, h, a } = montaDom();
+    S.user = { role: 'comercial', comercial_ativo: false };
+    await window.renderDashboard(c, h, a);
+    expect(c.textContent).toContain('A área comercial está desligada');
+    expect(a.innerHTML).not.toContain('Novo Lead');
+    expect(apiMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('renderComercial — o funil, fora da entrada', () => {
   it('comercial: leads, levantamentos e projetos, com "+ Novo Lead"', async () => {
     const { c, h, a } = montaDom();
-    S.user = { role: 'comercial' };
+    S.user = { role: 'comercial', comercial_ativo: true };
     apiMock
       .mockResolvedValueOnce([{ id: 'l1' }, { id: 'l2' }])
       .mockResolvedValueOnce([{ id: 'a1', client_name: 'ACME', status: 'completed' }])

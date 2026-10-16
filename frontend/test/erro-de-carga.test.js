@@ -23,6 +23,7 @@ import '../src/views/admin.js';
 import '../src/views/commercial.js';
 import '../src/views/dashboard.js';
 import '../src/views/project.js';
+import '../src/views/bancada.js';
 import { renderPainel } from '../src/views/painel.js';
 
 const falha = (status = 500) => Object.assign(new Error('Internal Server Error'), { status });

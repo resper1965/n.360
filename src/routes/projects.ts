@@ -4,10 +4,14 @@ import { Bindings, Variables } from '../index';
 
 import { redactProject, semRastros, genId, genToken, logAudit, validateUpload, erro500, somenteNess, ehEquipeNess, sha256Hex, projetosVisiveis, designacaoDoCriador, refForaDoProjeto } from '../helpers';
 import { itemDoChecklist, controleDoItem, marcarItemComEvidencia } from '../services/checklist-evidencia';
+import { passoPorId } from '../data/passos/catalogo';
+import { carregarContexto } from '../services/passos/contexto';
+import { avaliarPasso } from '../services/passos/avaliar';
+import { gravarSituacoes } from '../services/passos/fase';
 import { resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_PROJETOS } from '../services/organizacao';
 import { INTERVIEW_TRACKS } from '../constants';
 import { MigrationService } from '../services/migration-service';
-import { seedPhases, semearControles } from '../services/project-setup';
+import { seedPhases, semearControles, stmtsFases, stmtControles, catalogosDoProjeto } from '../services/project-setup';
 import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
 import { controlsForRole, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
 import { checkCoherence } from '../services/coherence';
@@ -364,9 +368,12 @@ projectsApp.post('/', async (c) => {
     ]);
 
     const modulos = (await c.env.DB.prepare('SELECT modulo FROM projeto_modulos WHERE project_id = ?').bind(id).all<{ modulo: string }>()).results.map((r) => r.modulo);
-    // A trilha de fases é a jornada da ISO: projeto só de n.privacy nasce sem ela.
-    if (modulos.includes('iso')) await seedPhases(c.env.DB, id);
-    await logAudit(c.env.DB, 'project.created', user?.email ?? 'system', `Projeto ${id} criado para ${body.client_name}`, '', '', id);
+    // A trilha de fases e os controles das normas são a jornada da ISO: projeto só de n.privacy nasce sem eles. O mesmo
+    // conjunto do projeto que nasce do aceite da proposta (fecharVenda), para o projeto criado à mão nascer completo.
+    const catalogos = modulos.includes('iso') ? catalogosDoProjeto(body.standards ?? 'ISO 27001', body.org_role ?? '') : [];
+    if (modulos.includes('iso')) await c.env.DB.batch([...stmtsFases(c.env.DB, id), ...catalogos.map((k) => stmtControles(c.env.DB, id, k.standard, k.lista))]);
+    const resumo = catalogos.map((k) => `${k.lista.length} ${k.standard}`).join(', ');
+    await logAudit(c.env.DB, 'project.created', user?.email ?? 'system', `Projeto ${id} criado para ${body.client_name}${resumo ? ` com os controles (${resumo})` : ''}`, '', '', id);
     if (designa) {
       await logAudit(c.env.DB, 'governance.created', user.email, `Consultor ${user.email} designado no projeto ${id} que criou`, '', '', id);
     }
@@ -661,6 +668,7 @@ projectsApp.put('/:id/phases/:num', async (c) => {
     const v = await validateBody(c, projectPhaseSchema);
     if (!v.success) return v.response;
     const { status, notes } = v.data as any;
+    if (status) return c.json({ error: 'A situação da fase é calculada pelos passos da trilha; ajuste os passos (concluir, bloquear) e ela se atualiza.' }, 409);
     const updates: string[] = [];
     const values: any[] = [];
     if (status) { updates.push('status = ?'); values.push(status); }
@@ -773,6 +781,7 @@ projectsApp.post('/:id/documents/upload', async (c) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'Documento enviado; aguarda revisão.', ?, datetime('now'))`
     ).bind(docId, projectId, controlId, file.name, file.size, file.type || 'application/octet-stream', r2Key, realSha256, user?.email || 'system').run();
 
+    // Só liga a evidência ao passo; concluir é ato da pessoa (POST /passos/:id/concluir).
     if (item) await marcarItemComEvidencia(c.env.DB, projectId, item, docId, user);
 
     await logAudit(c.env.DB, 'document.uploaded', user?.email || 'system', `Documento ${file.name} carregado para projeto ${projectId}`, '', '', projectId);
@@ -849,6 +858,26 @@ projectsApp.put('/:id/checklist-progress', async (c) => {
     const user = c.get('user');
     // `checked_by` referencia users(id): chave de API não tem linha lá (id `apikey:…`).
     const quem = user?.id && !user.id.startsWith('apikey:') ? user.id : null;
+    // Marcar passo da trilha passa pelo mesmo avaliador da Bancada: sem o "concluído quando" cumprido, 409 e nada é gravado.
+    const abrindo = items.filter((i) => i.is_checked);
+    if (abrindo.length) {
+      if (user?.agente) return c.json({ error: 'Forbidden: concluir passo da trilha é ato humano, pela interface' }, 403);
+      const ctx = await carregarContexto(c.env.DB, projectId);
+      const recusados: Array<{ item_id: string; faltam: string[] }> = [];
+      for (const i of abrindo) {
+        const passo = passoPorId(i.item_id);
+        const atual = ctx.progresso.get(i.item_id);
+        if (!passo || atual?.is_checked) continue; // fora do catálogo ou já marcado (aba antiga): sem critério novo
+        ctx.progresso.set(i.item_id, {
+          ...(atual ?? { phase_number: i.phase_number, item_id: i.item_id, is_checked: 0, checked_at: null, evidence_id: null, notes: null, assigned_to: null, due_date: null, bloqueio_motivo: null, bloqueio_responsavel: null, bloqueado_em: null, excecao_motivo: null, excecao_por: null, excecao_em: null }),
+          evidence_id: i.evidence_id ?? atual?.evidence_id ?? null, notes: i.notes ?? atual?.notes ?? null,
+        });
+        const av = avaliarPasso(passo, ctx);
+        if (!av.ok) recusados.push({ item_id: i.item_id, faltam: av.criterios.filter((x) => !x.ok).map((x) => x.rotulo) });
+      }
+      if (recusados.length) return c.json({ error: 'Há passos que ainda não cumprem o "concluído quando"; nada foi gravado', itens: recusados }, 409);
+    }
+
     const stmt = c.env.DB.prepare(
       `INSERT INTO checklist_progress (id, project_id, phase_number, item_id, is_checked, checked_by, checked_at, evidence_id, notes, assigned_to, due_date)
        VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
@@ -857,6 +886,7 @@ projectsApp.put('/:id/checklist-progress', async (c) => {
     await c.env.DB.batch(items.map((i) =>
       stmt.bind(projectId, i.phase_number, i.item_id, i.is_checked ? 1 : 0, quem, i.evidence_id ?? null, i.notes ?? null, i.assigned_to ?? null, i.due_date ?? null)
     ));
+    await gravarSituacoes(c.env.DB, projectId, await carregarContexto(c.env.DB, projectId)); // o cache da fase acompanha
     await logAudit(c.env.DB, 'checklist.updated', user?.email ?? 'system', `${items.length} item(ns) do checklist atualizado(s)`, '', '', projectId);
     return c.json({ ok: true, count: items.length });
   } catch (e: any) {

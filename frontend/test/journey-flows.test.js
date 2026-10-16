@@ -1,5 +1,5 @@
-// Unit tests dos fluxos da jornada em `src/views/project.js` — questionário por
-// fase (salvar), interpretação, dossiê e adequação de controles. Os módulos se
+// Unit tests dos fluxos da jornada em `src/views/bancada.js` — interpretação,
+// dossiê e adequação de controles (salvar respostas agora é o autosave, em bancada-view.test.js). Os módulos se
 // penduram em `window`; importamos por efeito colateral e chamamos pelas globais,
 // com `api()` dublado. Complementa os E2E (Playwright) no nível de unidade e
 // tranca a lógica que mais dói se regredir (filtro de resposta vazia, corpo do
@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
 vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://localhost' }));
 
-import '../src/views/project.js';
+import '../src/views/bancada.js';
 import { S } from '../src/state.js';
 
 function montaDom() {
@@ -28,44 +28,6 @@ const ultimoToast = () => {
 beforeEach(() => {
   montaDom();
   apiMock.mockReset();
-});
-
-describe('savePhaseQuestionnaire', () => {
-  beforeEach(() => {
-    S.phaseQuestions = { 1: [
-      { key: 'p1_q1', type: 'select', question: 'Apetite?', options: ['Baixo', 'Alto'] },
-      { key: 'p1_q2', type: 'text', question: 'Objetivos?' },
-      { key: 'p1_q3', type: 'text', question: 'Vazia?' },
-    ] };
-    S.phaseAnswers = {};
-    // Campos como o modal renderizaria.
-    document.getElementById('content').innerHTML = `
-      <select id="pq-p1_q1"><option value="Alto" selected>Alto</option></select>
-      <textarea id="pq-p1_q2">Proteger receita</textarea>
-      <textarea id="pq-p1_q3"></textarea>`;
-  });
-
-  it('envia o PUT com as respostas e reflete só as não-vazias em S.phaseAnswers', async () => {
-    apiMock.mockResolvedValue({ ok: true, saved: 2 });
-    await window.savePhaseQuestionnaire(1, 'proj-1');
-
-    expect(apiMock).toHaveBeenCalledTimes(1);
-    const [metodo, rota, corpo] = apiMock.mock.calls[0];
-    expect(metodo).toBe('PUT');
-    expect(rota).toBe('/api/v1/projects/proj-1/phase-answers');
-    expect(corpo.phase_number).toBe(1);
-    expect(corpo.answers.p1_q1).toBe('Alto');
-    // O contador local não conta pergunta vazia (correção do F1).
-    expect(S.phaseAnswers[1]).toEqual({ p1_q1: 'Alto', p1_q2: 'Proteger receita' });
-    expect(S.phaseAnswers[1].p1_q3).toBeUndefined();
-  });
-
-  it('em falha do PUT, mostra toast de erro e não muda o estado', async () => {
-    apiMock.mockRejectedValue(new Error('boom'));
-    await window.savePhaseQuestionnaire(1, 'proj-1');
-    expect(ultimoToast()).toMatch(/Falha ao salvar/i);
-    expect(S.phaseAnswers[1]).toBeUndefined();
-  });
 });
 
 describe('interpretPhaseAnswers', () => {
@@ -161,7 +123,8 @@ describe('suggestControlAdequacao / applyControlAdequacao', () => {
     expect(metodo).toBe('POST');
     expect(rota).toBe('/api/v1/projects/proj-1/control-adequacao/apply');
     expect(corpo).toMatchObject({ control_id: 'A.5.1', status: 'In Progress', maturity: 2, pergunta_key: 'p15_q1' });
-    expect(modalText()).toContain('✓ Aplicado');
+    expect(modalText()).toContain('Aplicado');
+    expect(modalText()).not.toContain('✓'); // sem ícone: estado em texto
   });
 
   it('sem sugestões, mostra a mensagem vazia', async () => {

@@ -15,6 +15,10 @@ const tela = () => {
     return [document.getElementById('c'), document.getElementById('h'), document.getElementById('a')];
 };
 
+// Catálogo e estado no formato do contrato (contracts/bancada), só com as fases que o teste usa.
+const CATALOGO = { versao: 'v1', etapas: [{ id: 1, nome: 'Mobilização e diagnóstico', resumo: 'Entrevistas e escopo', fases: [1, 2] }],
+    fases: [{ numero: 1, etapa: 1, titulo: 'Entrevistas' }, { numero: 2, etapa: 1, titulo: 'Escopo' }], passos: [] };
+const bancada = (fases) => ({ tem_fases: true, catalogo_versao: 'v1', fases });
 const PRONTIDAO = { indicador: { implementados: 31, aplicaveis: 90, texto: '31 de 90 controles aplicáveis implementados' },
     numeros: { controles: { implementados: 31, aplicaveis: 90 }, riscos: 12, evidencias: 40, fases: { concluidas: 11, total: 41 } } };
 
@@ -30,7 +34,8 @@ describe('renderMonitor', () => {
     it('usa /projects do módulo, como o Dashboard, e não /portfolio', async () => {
         apiMock.mockImplementation(async (m, url) => {
             if (url === '/api/v1/projects') return [{ id: 'p1', project_name: 'Adequação', modulos: ['iso'] }];
-            if (url === '/api/v1/projects/p1/phases') return [{ phase_number: 1, status: 'completed' }, { phase_number: 2, status: 'pending' }];
+            if (url === '/api/v1/projects/p1/bancada') return bancada([{ numero: 1, situacao: 'completed' }, { numero: 2, situacao: 'pending' }]);
+            if (url === '/api/v1/passos/catalogo') return CATALOGO;
             if (url === '/api/v1/projects/p1/prontidao') return PRONTIDAO;
             return [];
         });
@@ -45,7 +50,8 @@ describe('renderMonitor', () => {
         apiMock.mockImplementation(async (m, url) => {
             // risk_count e evidence_count no projeto eram lidos e /projects não os devolve: o Monitor mostrava 0.
             if (url === '/api/v1/projects') return [{ id: 'p1', project_name: 'Adequação', modulos: ['iso'], risk_count: 999, evidence_count: 999 }];
-            if (url === '/api/v1/projects/p1/phases') return [{ phase_number: 1, status: 'completed', title: 'Kickoff' }, { phase_number: 2, status: 'blocked', title: 'Escopo' }];
+            if (url === '/api/v1/projects/p1/bancada') return bancada([{ numero: 1, situacao: 'completed' }, { numero: 2, situacao: 'blocked', bloqueio: { motivo: 'Aguardando a diretoria', responsavel: 'Maria Souza' } }]);
+            if (url === '/api/v1/passos/catalogo') return CATALOGO;
             if (url === '/api/v1/projects/p1/prontidao') return PRONTIDAO;
             return [];
         });
@@ -57,14 +63,18 @@ describe('renderMonitor', () => {
         expect(c.textContent).not.toMatch(/Score|\d+%/);
         // A situação das fases vai em texto (legenda e rótulo), não só em cor.
         expect(c.querySelector('.roadmap-legenda').textContent).toContain('Bloqueada');
-        expect(c.querySelector('.roadmap-nodes-row .roadmap-node.blocked').getAttribute('aria-label')).toBe('Fase 2: Escopo (Bloqueada)');
+        expect(c.querySelector('.roadmap-nodes-row .roadmap-node.blocked').getAttribute('aria-label')).toBe('Fase 2: Escopo (Bloqueada: Aguardando a diretoria, responsável Maria Souza)');
+        // O nó é botão de verdade, e o Monitor não guarda mais lista própria de etapas.
+        expect(c.querySelector('.roadmap-nodes-row .roadmap-node').tagName).toBe('BUTTON');
+        expect(c.textContent).toContain('Mobilização e diagnóstico');
     });
 
     it('cliente não vê as ações de operador; vê a prontidão', async () => {
         S.user = { id: 'u2', role: 'org_user' };
         apiMock.mockImplementation(async (m, url) => {
             if (url === '/api/v1/projects') return [{ id: 'p1', project_name: 'Adequação', modulos: ['iso'] }];
-            if (url === '/api/v1/projects/p1/phases') return [{ phase_number: 1, status: 'completed', title: 'Kickoff' }];
+            if (url === '/api/v1/projects/p1/bancada') return bancada([{ numero: 1, situacao: 'completed' }]);
+            if (url === '/api/v1/passos/catalogo') return CATALOGO;
             if (url === '/api/v1/projects/p1/prontidao') return PRONTIDAO;
             return [];
         });
@@ -95,5 +105,12 @@ describe('renderMonitor', () => {
         // O vazio leva ao primeiro passo real (carregar as fases; a prontidão), nunca à Jornada vazia.
         const acoes = [...c.querySelectorAll('.empty-state button')].map((b) => [b.dataset.action, b.dataset.args]);
         expect(acoes).toEqual([['carregarFases', '["p1"]'], ['navigate', '["certification"]']]);
+    });
+
+    it('clicar no nó da fase abre a Bancada naquela fase', () => {
+        const navigate = vi.fn();
+        window.navigate = navigate;
+        window.monitorAbrirFase('p1', 2);
+        expect(navigate).toHaveBeenCalledWith('project-detail', { currentProject: { id: 'p1' }, bancadaAlvo: { fase: 2 } });
     });
 });

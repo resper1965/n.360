@@ -176,8 +176,8 @@ describe('casca', () => {
 });
 
 describe('conta e acessos', () => {
-    const CONTA = ['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-api-keys', 'nav-conectar-agente'];
-    it('no n.360 o grupo "Conta e acessos" traz projetos, usuários, organizações, chaves de API e conectar agente', () => {
+    const CONTA = ['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-identidade', 'nav-api-keys', 'nav-conectar-agente'];
+    it('no n.360 o grupo "Conta e acessos" traz projetos, usuários, organizações, identidade, chaves de API e conectar agente', () => {
         montarApp();
         aplicarCasca('n360');
         expect(SO_N360).toEqual(CONTA);
@@ -185,7 +185,7 @@ describe('conta e acessos', () => {
         for (const id of CONTA) expect(v, id).toContain(id);
         const grupo = el('group-conta');
         // Segurança do projeto (SSO/SCIM do projeto) mora em Conta e acessos, logo depois de Organizações
-        expect([...grupo.querySelectorAll('.sidebar-nav')].map((n) => n.id)).toEqual(['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-seguranca-projeto', 'nav-api-keys', 'nav-conectar-agente']);
+        expect([...grupo.querySelectorAll('.sidebar-nav')].map((n) => n.id)).toEqual(['nav-projects', 'nav-users', 'nav-organizacoes', 'nav-identidade', 'nav-seguranca-projeto', 'nav-api-keys', 'nav-conectar-agente']);
         expect(grupo.dataset.foraDoProduto).toBe('');
         expect(el('label-group-conta').textContent).toBe('Conta e acessos');
         expect(el('nav-api-keys').textContent.trim()).toBe('Chaves de API');
@@ -237,12 +237,12 @@ describe('telaPedida (?tela= no boot do n.360)', () => {
     };
     it('aceita só a lista fechada e tira o parâmetro do endereço, sem mexer no resto', () => {
         montar();
-        for (const t of ['projects', 'users', 'organizacoes', 'api-keys', 'conectar-agente']) {
+        for (const t of ['projects', 'users', 'organizacoes', 'identidade-org', 'api-keys', 'conectar-agente']) {
             ir(`/?tela=${t}&x=1#frag`);
             expect(telaPedida(), t).toBe(t);
             expect(location.pathname + location.search + location.hash).toBe('/?x=1#frag');
         }
-        expect(Object.keys(TELAS_DA_CONTA)).toEqual(['projects', 'users', 'organizacoes', 'api-keys', 'conectar-agente']);
+        expect(Object.keys(TELAS_DA_CONTA)).toEqual(['projects', 'users', 'organizacoes', 'identidade-org', 'api-keys', 'conectar-agente']);
     });
     it('valor fora da lista é ignorado (e sai do endereço do mesmo jeito)', () => {
         montar();
@@ -337,12 +337,13 @@ describe('sem acesso e links entre módulos', () => {
     });
     it('ninguém com projeto nenhum: equipe da ness. tem o caminho para criar; cliente sabe a quem pedir', () => {
         document.body.innerHTML = '<div id="c"></div>';
-        const antes = [window.ehEquipeNess, window.ehComercial];
+        const antes = [window.ehEquipeNess, window.ehComercial, window.comercialAtivo];
         window.ehEquipeNess = () => ['consultor', 'consultant', 'platform_admin', 'consultoria_admin'].includes(S.user.role);
         window.ehComercial = () => ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role);
+        window.comercialAtivo = () => S.user.comercial_ativo === true;
         S.totalProjetos = 0;
         try {
-            S.user = { role: 'platform_admin' };
+            S.user = { role: 'platform_admin', comercial_ativo: true };
             semAcesso(el('c'), 'privacy');
             expect(el('c').querySelector('h3').textContent).toBe('Nenhum projeto ainda');
             const links = [...el('c').querySelectorAll('.empty-action a')];
@@ -358,7 +359,19 @@ describe('sem acesso e links entre módulos', () => {
             expect(el('c').querySelector('h3').textContent).toBe('Você ainda não tem acesso a um projeto');
             expect(el('c').textContent).toMatch(/consultoria|administrador/);
             expect(el('c').querySelector('a, button')).toBeNull();
-        } finally { delete S.totalProjetos; [window.ehEquipeNess, window.ehComercial] = antes; }
+            // Área comercial desligada: o caminho é o "Novo projeto" da tela Projetos, para quem cria projeto.
+            for (const role of ['platform_admin', 'consultoria_admin']) {
+                S.user = { role, comercial_ativo: false };
+                semAcesso(el('c'), 'n360');
+                const [novo] = el('c').querySelectorAll('.empty-action a');
+                expect([novo.textContent, novo.getAttribute('href')], role).toEqual(['Novo projeto', '/?tela=projects']);
+                expect(el('c').innerHTML).not.toContain('tela=leads');
+            }
+            S.user = { role: 'consultor', comercial_ativo: false };
+            semAcesso(el('c'), 'n360');
+            expect(el('c').querySelector('a')).toBeNull();
+            expect(el('c').textContent).toMatch(/administra a consultoria/);
+        } finally { delete S.totalProjetos; [window.ehEquipeNess, window.ehComercial, window.comercialAtivo] = antes; }
     });
     it('num módulo: "n.360" volta ao início; o link para o outro módulo só quando o projeto tem os dois', () => {
         document.body.innerHTML = '<nav id="sidebar"></nav>';

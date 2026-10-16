@@ -23,7 +23,7 @@ export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos'
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
  */
-export const TELAS_DA_CONTA = { projects: 'nav-projects', users: 'nav-users', organizacoes: 'nav-organizacoes', 'api-keys': 'nav-api-keys', 'conectar-agente': 'nav-conectar-agente' };
+export const TELAS_DA_CONTA = { projects: 'nav-projects', users: 'nav-users', organizacoes: 'nav-organizacoes', 'identidade-org': 'nav-identidade', 'api-keys': 'nav-api-keys', 'conectar-agente': 'nav-conectar-agente' };
 export const SO_N360 = Object.values(TELAS_DA_CONTA);
 /**
  * O n.360 é o hub, não um terceiro módulo: o menu dele tem só isto (a conta, os pedidos da pessoa, o acesso do projeto e a
@@ -144,7 +144,26 @@ export function enderecoNoModulo(modulo, tela, proj) {
         const p = proj && (S.projects || []).find((x) => x.id === proj.id);
         if (p) localStorage.setItem('niso_activeProject', JSON.stringify(p));
     } catch (e) { /* sem storage: o módulo abre a tela no projeto salvo */ }
-    return `${enderecoDoProduto(modulo)}?tela=${encodeURIComponent(tela)}${ehIncidentes(tela) ? '&aba=incidentes' : ''}`;
+    return `${enderecoDoProduto(modulo)}?tela=${encodeURIComponent(tela)}${ehIncidentes(tela) ? '&aba=incidentes' : ''}${alvoNoEndereco(tela)}`;
+}
+
+/** O passo ou a fase da Bancada que o n.360 leva ao módulo (`&fase=3&passo=p3_3`); só na tela da jornada. */
+function alvoNoEndereco(tela) {
+    const alvo = tela === 'project-detail' ? S.bancadaAlvo : null;
+    if (!alvo) return '';
+    const par = (k, v) => (v !== undefined && v !== null && v !== '' ? `&${k}=${encodeURIComponent(v)}` : '');
+    return `${par('fase', alvo.fase)}${par('passo', alvo.passo)}`;
+}
+
+/**
+ * O alvo da Bancada no endereço (`?fase=3&passo=p3_3`), lido no boot. Não tira nada do endereço: a própria Bancada o mantém em dia
+ * a cada passo, então recarregar a página ou copiar o link volta ao mesmo passo. Null sem nenhum dos dois.
+ */
+export function alvoDaBancada(loc = window.location) {
+    const q = new URLSearchParams(loc.search || '');
+    const fase = q.get('fase');
+    const passo = q.get('passo');
+    return fase || passo ? { fase, passo } : null;
 }
 
 /**
@@ -308,12 +327,17 @@ function semProjetoNenhum() {
         return renderEmptyState({ id, titulo: 'Você ainda não tem acesso a um projeto',
             texto: 'Peça à consultoria que conduz o trabalho, ou ao administrador da sua organização, para incluir você no projeto.' });
     }
+    // Área comercial desligada: o projeto nasce pelo "Novo projeto" da tela Projetos (platform_admin e consultoria_admin).
+    const comercial = typeof window.comercialAtivo === 'function' && window.comercialAtivo();
+    const criaProjeto = S.user && ['platform_admin', 'consultoria_admin'].includes(S.user.role);
     const acao = [
-        typeof window.ehComercial === 'function' && window.ehComercial() ? `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
+        comercial && typeof window.ehComercial === 'function' && window.ehComercial() ? `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
+        !comercial && criaProjeto ? '<a class="btn btn-primary" href="/?tela=projects">Novo projeto</a>' : '',
         S.user && S.user.role === 'platform_admin' ? '<a class="btn btn-secondary" href="/?tela=organizacoes">Ver organizações</a>' : '',
     ].join('');
     return renderEmptyState({ id, titulo: 'Nenhum projeto ainda',
-        texto: 'O projeto nasce quando a proposta é aprovada, no funil comercial do n.iso: lead, diagnóstico e proposta.', acao });
+        texto: comercial ? 'O projeto nasce quando a proposta é aprovada, no funil comercial do n.iso: lead, diagnóstico e proposta.'
+            : criaProjeto ? 'Crie o primeiro em Conta e acessos, Projetos: "Novo projeto".' : 'Quem administra a consultoria cria o projeto e designa você nele.', acao });
 }
 
 /** Tela de quem entrou num módulo que nenhum projeto seu tem (ou no n.360 sem módulo em projeto nenhum). */

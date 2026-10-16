@@ -8,7 +8,11 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
 import { S } from '../src/state.js';
 import '../src/views/project.js';
+import '../src/views/bancada.js';
 import '../src/views/monitor.js';
+import catalogo from '../../contracts/bancada/catalogo.json';
+import bancada from '../../contracts/bancada/bancada.json';
+import passoJson from '../../contracts/bancada/passo.json';
 import '../src/views/compliance.js';
 
 const $ = (id) => document.getElementById(id);
@@ -28,22 +32,25 @@ describe('consumidores que o desembrulho antigo quebrava', () => {
             ok: true, interviews: [],
             questions: [{ key: 'exec_vision', question: 'Qual a visão estratégica para segurança?' }],
         } });
-        S.interviewProgress = {};
         document.body.insertAdjacentHTML('beforeend', '<div id="interview-questions-container"></div><div id="interview-buttons-right"></div>');
         await window.changeInterviewTrack('p1', 'executiva');
         expect($('interview-questions-container').textContent).toContain('Qual a visão estratégica para segurança?');
     });
 
-    it('jornada: S.checklistsConfig recebe `checklists`, não `titles` (platform.ts:554)', async () => {
+    it('jornada: o catálogo vem de /api/v1/passos/catalogo (objeto inteiro, não lista desembrulhada)', async () => {
         S.currentProject = { id: 'p1' };
-        S.checklistsConfig = null;
-        S.phaseQuestions = null;
+        S.passosCatalogo = null;
         servir({
-            'GET /api/v1/projects/p1/phases': { ok: true, phases: [{ phase_number: 0, status: 'in_progress' }] },
-            'GET /api/v1/phases/config': { ok: true, titles: ['Fase 0'], checklists: { 0: [{ id: 'p0_1', text: 'Definir sponsor', category: 'Governança' }] } },
+            'GET /api/v1/projects/p1/bancada': bancada,
+            'GET /api/v1/passos/catalogo': catalogo,
+            'GET /api/v1/projects/p1/governance': [],
+            'GET /api/v1/projects/p1/prontidao': { indicador: { implementados: 1, aplicaveis: 2 } },
+            'GET /api/v1/projects/p1/passos/p3_3': passoJson,
         });
         await window.renderProjectDetail(...tela());
-        expect(S.checklistsConfig[0][0].id).toBe('p0_1');
+        expect(S.passosCatalogo.passos[0].id).toBe('p3_3');
+        expect(S.passosCatalogo.etapas[0].fases).toContain(3);
+        expect($('content').querySelector('h3').textContent).toMatch(/Passo 1 de 2/);
     });
 
     it('análise de lacunas: lê coverage_pct e by_status (projects.ts:1042)', async () => {

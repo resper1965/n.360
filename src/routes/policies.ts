@@ -106,9 +106,9 @@ policies.post('/api/v1/projects/:projectId/generate-document', async (c) => {
       .map(([k, v]) => `${k}: ${v}`)
       .join('\n');
 
-    // ponytail: load answers from project_interviews to feed into the prompt context for p2_3 and p2_4
+    // ponytail: as respostas das entrevistas por trilha alimentam o relatório consolidado (p2_3)
     let interviewsSummary = '';
-    if (itemId === 'p2_3' || itemId === 'p2_4') {
+    if (itemId === 'p2_3') {
       try {
         const { results: interviews } = await c.env.DB.prepare(
           'SELECT track, question, answer, interviewee, gap_detected FROM project_interviews WHERE project_id = ?'
@@ -196,20 +196,13 @@ policies.post('/api/v1/projects/:projectId/checklist/:itemId/generate', async (c
     const prompt = `Gere um documento ou política detalhada em formato markdown para atender ao item de checklist "${item.text}" do projeto "${project.client_name}" (setor: ${project.sector || 'não especificado'}, escopo: ${project.scope || 'ISO 27001:2022'}). O documento deve ser completo, profissional, prático e pronto para auditoria, sem placeholders e com formatação markdown limpa.`;
 
     const result = await agent.run(prompt, { organizationId: projectId });
-    const docContent = result.success ? result.content : `# ${item.text}\n\nEste documento foi criado automaticamente para fins de conformidade.\n\nOrganização: ${project.client_name}`;
+    const docContent = result.success ? result.content : `# ${item.text}\n\nRascunho a completar pela equipe.\n\nOrganização: ${project.client_name}`;
 
-    // Rascunho de IA entra pendente de revisão, ligado ao controle do item quando ele tem um.
-    const { evidenceId, fileName, r2Key } = await registrarDocumentoDoItem(
-      c.env, projectId, item, docContent, c.get('user'), 'Rascunho gerado pelo assistente de IA; aguarda revisão.');
+    // "A máquina propõe, a pessoa decide": gerar devolve só o RASCUNHO. Não grava evidência nem marca o
+    // item; quem faz isso é o aceite da pessoa (approve-document), depois de ler e editar o texto.
+    await logAudit(c.env.DB, 'document.draft_generated', userEmail, `Rascunho de IA gerado para o item ${itemId} (não gravado)`);
 
-    await logAudit(c.env.DB, 'document.generated', userEmail, `Documento ${fileName} gerado internamente para o item ${itemId}`);
-
-    return c.json({
-      ok: true,
-      evidence_id: evidenceId,
-      file_name: fileName,
-      r2_key: r2Key
-    });
+    return c.json({ ok: true, content: docContent });
   } catch (e: any) {
     return erro500(c, 'Erro ao gerar documento', e);
   }

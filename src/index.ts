@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 
@@ -60,6 +60,8 @@ import { pedidosApp, projectPedidosApp } from './routes/pedidos';
 
 import { readinessApp, prontidaoApp } from './routes/readiness';
 import { phaseQuestionsApp, projectPhaseAnswersApp } from './routes/phase-questionnaire';
+import { passosCatalogoApp, projectPassosApp, projectBancadaApp } from './routes/passos';
+import { projectCopilotoApp } from './routes/passos-copiloto';
 import { journeyDossierApp } from './routes/journey-dossier';
 import { controlAdequacaoApp } from './routes/control-adequacao';
 import risks from './routes/risks';
@@ -72,6 +74,7 @@ import { sondaInterna, CRON_SONDA } from './services/sonda';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handlerMcp } from './mcp/servidor';
+import { comercialAtivo } from './helpers';
 import { appUrl, fica, HOST_DO_MODULO, HOSTS_LEGADOS, ORIGENS_EXTRAS, RECURSO_MCP, URL_NISO } from './config/url';
 
 export type Bindings = {
@@ -110,6 +113,8 @@ export type Bindings = {
   ENVIRONMENT?: string;
   /** Endereço canônico deste ambiente (`src/config/url.ts`). Sem ele, o de produção. */
   APP_URL?: string;
+  /** Interruptor da área comercial (`comercialAtivo`, src/helpers.ts): só "true" liga. */
+  COMERCIAL_ATIVO?: string;
   ASSETS?: Fetcher;
   /** Conta/gateway do AI Gateway (opcionais: há default em agents/types.ts).
    *  Os agentes roteiam pelo binding (env.AI.run + gateway n-iso) — sem secret;
@@ -335,6 +340,13 @@ app.use('*', bodyGuard);
 // 3. Auth sub-router (público)
 app.route('/api/v1/auth', authApp);
 
+// Área comercial desligada (`COMERCIAL_ATIVO`, decisão do dono de 15/10/2026): 404 como rota inexistente, para pessoa e
+// chave de API. O agente MCP passa: o que ele alcança da área é a matriz de src/middleware/agente.ts. Nada é apagado.
+const NAO_ENCONTRADO = { error: 'Não encontrado' } as const;
+const comercialDesligado: MiddlewareHandler<{ Bindings: Bindings; Variables: Variables }> = async (c, next) =>
+  (comercialAtivo(c.env) || c.get('user')?.agente === true ? next() : c.json(NAO_ENCONTRADO, 404));
+app.use('/api/v1/public/propostas/*', comercialDesligado);
+
 // 4. Public sub-router (público)
 app.route('/api/v1/public', publicApp);
 // Link da proposta para o cliente, sem sessão: limite de taxa próprio por IP e por token (rateLimitD1).
@@ -368,6 +380,11 @@ app.use('/api/v1/projects/:projectId/*', projectAccessMiddleware);
 // porque o limite é por usuário, não por IP.
 app.use('/api/v1/*', rateLimitMiddleware);
 
+// 5d. Área comercial desligada (acima). `/api/v1/org` fica: é também a identidade da organização (nome, CNPJ, logo).
+for (const rota of ['leads', 'funil', 'proposals', 'servicos', 'propostas', 'assessments', 'pricing-config', 'client/proposal', 'client/assessment']) {
+  app.use(`/api/v1/${rota}/*`, comercialDesligado);
+}
+
 // 6. Sub-rotas montadas
 app.route('/api/v1/users', usersApp);
 app.route('/api/v1/admin/users', usersApp);
@@ -390,6 +407,11 @@ app.route('/api/v1/projects/:projectId/readiness-check', readinessApp);
 app.route('/api/v1/projects/:projectId/prontidao', prontidaoApp);
 app.route('/api/v1/phase-questions', phaseQuestionsApp);
 app.route('/api/v1/projects/:projectId/phase-answers', projectPhaseAnswersApp);
+// Bancada da trilha (spec 2026-10-15). O copiloto vem antes: o caminho mais longo precisa casar primeiro.
+app.route('/api/v1/passos', passosCatalogoApp);
+app.route('/api/v1/projects/:projectId/passos/:itemId/copiloto', projectCopilotoApp);
+app.route('/api/v1/projects/:projectId/passos', projectPassosApp);
+app.route('/api/v1/projects/:projectId/bancada', projectBancadaApp);
 app.route('/api/v1/projects/:projectId/journey-dossier', journeyDossierApp);
 app.route('/api/v1/projects/:projectId/control-adequacao', controlAdequacaoApp);
 app.route('/api/v1/controls', controlsApp);

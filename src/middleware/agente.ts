@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { apiKeyRoleViolation } from '../auth-policy';
-import { consultorDesignado, projetosDoAgente } from '../helpers';
+import { consultorDesignado, projetosDoAgente, ehComercial } from '../helpers';
 
 /**
  * Identidade de um agente de IA conectado pelo MCP remoto (spec
@@ -39,7 +39,7 @@ export const NOME_CLIENTE_SQL = `COALESCE(NULLIF(trim(p.client_name), ''), p.pro
 export async function concessaoValida(
   db: D1Database,
   p: PropsAgente
-): Promise<{ email: string; client_name: string; project_name: string; papel: PapelAgente } | null> {
+): Promise<{ email: string; client_name: string; project_name: string; papel: PapelAgente; role: string; org_id: string | null } | null> {
   const row = await db.prepare(
     `SELECT u.email, u.role, u.org_id, u.ativo, ac.papel, ${NOME_CLIENTE_SQL} AS client_name,
             COALESCE(NULLIF(trim(p.project_name), ''), p.id) AS project_name
@@ -66,7 +66,7 @@ export async function concessaoValida(
   // Mesma regra do consultor humano (D5): uma fonte só.
   // consultoria_admin: o projeto da própria organização (p.org_id = u.org_id, acima) basta, sem designação.
   const alcanca = row.role === 'consultoria_admin' || await consultorDesignado(db, row.email, p.projectId);
-  return alcanca ? { email: row.email, client_name: row.client_name, project_name: row.project_name, papel: row.papel } : null;
+  return alcanca ? { email: row.email, client_name: row.client_name, project_name: row.project_name, papel: row.papel, role: row.role, org_id: row.org_id } : null;
 }
 
 /** Só `resolverAgente` lê; ele só roda com `env.AGENTE`, então de fora o cabeçalho é inerte. */
@@ -106,6 +106,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/versoes\/[^/]+\/publicar$/, 'publicar versão de documento é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/rascunho$/, 'descartar rascunho de documento é ato humano, pela interface', ['DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+$/, 'excluir documento é ato humano do administrador da plataforma, pela interface', ['DELETE']],
+  // Aceitar o documento gerado grava a evidência e conclui o item do checklist: é a pessoa que decide.
+  [/^\/api\/v1\/projects\/[^/]+\/approve-document$/, 'aceitar documento e concluir item do checklist é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/pedidos\/lote$/, 'aprovar em lote é ato humano, com a senha de quem aprova', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/padronizar-nomes$/, 'padronizar nomes é ato humano da equipe, pela interface', ['POST']],
   [/^\/api\/v1\/parametros-legais(\/|$)/, 'prazo legal é parâmetro revisado pelo jurídico, edição do administrador da plataforma; o agente só lê', ['PUT', 'DELETE']],
@@ -127,7 +129,31 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   // Homologação de fornecedor (F5): o link é credencial emitida pela consultoria e concluir grava a avaliação do terceiro; o agente só lê.
   [/^\/api\/v1\/projects\/[^/]+\/homologacoes(\/|$)/, 'homologação de fornecedor é conduzida pela equipe, pela interface; o agente só lê', ['POST', 'PUT', 'DELETE']],
   [/^\/api\/v1\/management-reviews\/[^/]+$/,'excluir análise crítica destrói registro assinado: use a interface', ['DELETE']],
+  // Bancada da trilha (spec 2026-10-15): concluir, reabrir e bloquear passo são atos humanos (como aceitar documento); o rascunho de IA é da tela.
+  [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/(concluir|reabrir|bloquear|desbloquear)$/, 'concluir, reabrir e bloquear passo da trilha é ato humano, pela interface', ['POST']],
+  [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/anotacao-anterior$/, 'descartar a anotação antiga é ato humano da equipe, pela interface', ['DELETE']],
+  [/^\/api\/v1\/projects\/[^/]+\/bancada\/fases\/[^/]+\/situacao-antiga$/, 'encerrar a situação anterior da fase é ato humano da equipe, pela interface', ['DELETE']],
+  [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/copiloto\/[a-z-]+$/, 'rascunho de IA da trilha é pela interface; o agente já é a IA', ['POST']],
 ];
+
+/**
+ * Área comercial para o agente (decisão do dono de 15/10/2026): LÊ e RASCUNHA. Lista e lê leads, funil, levantamentos,
+ * propostas e serviços; cria lead e muda o status dele (a rota recusa "ganho" ao agente); cria proposta (nasce rascunho) e
+ * edita a que está em rascunho (a rota confere). Gerar, enviar, link, aceite manual, desconto, revisão, documento, preço,
+ * catálogo, `/org`, o fluxo antigo `/proposals` e apagar seguem fora (`FORA_DO_AGENTE`). Allow-list: rota comercial que não
+ * está aqui é recusada, inclusive rota nova. Vale só para o agente consultor de quem é do comercial (`ehComercial`, relido).
+ */
+const COMERCIAL_DO_AGENTE: Array<[string, RegExp]> = [
+  ['GET', /^\/api\/v1\/(leads|funil|propostas|servicos|assessments)$/],
+  ['GET', /^\/api\/v1\/(leads|propostas|servicos)\/[^/]+$/],
+  ['GET', /^\/api\/v1\/propostas\/[^/]+\/previa$/],
+  ['GET', /^\/api\/v1\/assessments\/(?!public$)[^/]+(\/answers|\/block\/[^/]+)?$/],
+  ['POST', /^\/api\/v1\/(leads|propostas)$/],
+  ['PUT', /^\/api\/v1\/leads\/[^/]+\/status$/],
+  ['PUT', /^\/api\/v1\/propostas\/[^/]+$/],
+];
+export const comercialDoAgente = (method: string, path: string): boolean =>
+  COMERCIAL_DO_AGENTE.some(([m, re]) => m === method && re.test(path));
 
 /**
  * O auditor só LÊ, e só o projeto da concessão, mais as duas escritas de auditoria. Allow-list: rota que não está
@@ -173,8 +199,11 @@ export async function resolverAgente(
 
   // Paridade com o consultor, preso ao projeto: `role: 'client'` + `client_project_id`
   // herda o isolamento de tenant; o que é destrutivo exige confirmação.
+  // Área comercial (allow-list): só o agente consultor de quem É do comercial agora; o de quem não é segue recusado por
+  // `FORA_DO_AGENTE`, como sempre foi.
+  const comercial = row.papel === 'consultor' && comercialDoAgente(method, path) && ehComercial({ role: row.role });
   for (const [re, motivo, metodos] of FORA_DO_AGENTE) {
-    if (re.test(path) && (!metodos || metodos.includes(method))) return c.json({ error: `Forbidden: fora do alcance do agente (${motivo}) — use a interface` }, 403);
+    if (!comercial && re.test(path) && (!metodos || metodos.includes(method))) return c.json({ error: `Forbidden: fora do alcance do agente (${motivo}) — use a interface` }, 403);
   }
   if (row.papel === 'auditor') {
     const motivo = foraDoAuditor(method, path, p.projectId);
@@ -196,9 +225,13 @@ export async function resolverAgente(
   const rotulo = row.client_name === row.project_name ? row.client_name : `${row.client_name} / ${row.project_name}`;
   // `id` é o users.id REAL do consultor: os módulos da pessoa (`modulosDaPessoa`) saem dele, então o agente alcança
   // só o n.iso/n.privacy que o consultor que concedeu tem, e tirar o módulo dele vale na chamada seguinte.
+  const email = `${row.papel === 'auditor' ? 'agente auditor' : 'agente'} de ${row.email} (${rotulo})`;
+  // Área comercial (allow-list acima): o papel e a organização REAIS de quem concedeu, relidos agora, para `somenteComercial` e
+  // `exigirOrg` cortarem pela organização dela. Só nestas rotas: no resto o agente segue `client` preso ao projeto.
+  if (comercial) return { id: p.userId, email, role: row.role, org_id: row.org_id ?? undefined, client_project_id: null, agente: true, agente_papel: row.papel };
   return {
     id: p.userId,
-    email: `${row.papel === 'auditor' ? 'agente auditor' : 'agente'} de ${row.email} (${rotulo})`,
+    email,
     role: 'client',
     client_project_id: p.projectId,
     agente: true,

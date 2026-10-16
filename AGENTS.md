@@ -87,8 +87,8 @@ Cloudflare Workers (Hono) + D1 + KV + R2 + Workers AI. Frontend SPA
 Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 - **Backend**: `src/index.ts` e o composition root que monta os sub-routers de
-  dominio: **56 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
-  2026-10-15). A lista nominal envelhecia a cada PR; leia o diretorio.
+  dominio: **58 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
+  2026-10-16). A lista nominal envelhecia a cada PR; leia o diretorio.
 - **Painel de entrada** (estudo `docs/design/diagnostico-2026-10-14/dashboard-entrada.md`, direcao A; decisoes adotadas na secao 10
   dele): `GET /api/v1/projects/:id/painel?modulo=iso|privacy` (sem `?modulo`, os modulos do projeto que a pessoa tem; faixa `nucleo`
   com a mesma recusa de modulo feita na rota) e `GET /api/v1/carteira` (projetos de `projetosVisiveis`, consultas agrupadas; fora do
@@ -165,7 +165,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 56 arquivos em 2026-10-15: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 60 arquivos em 2026-10-16: `ls src/services/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -207,9 +207,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     com `/api/v1/public/homologacao/*` (`src/routes/public-homologacao.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **93 tabelas** (2026-10-15: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **93 tabelas** (2026-10-16: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0077** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0078** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -514,6 +514,19 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
   prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:
   `node scripts/importacao-amostra.mjs` gera CSV e HTML ficticios e diz como subir pela tela num ambiente com a IA real.
+- **Área comercial desligável (decisão do dono de 15/10/2026).** A var `COMERCIAL_ATIVO` (`wrangler.jsonc`, hoje `"false"`;
+  ausente também desliga; `comercialAtivo` em `src/helpers.ts`) esconde na interface leads, levantamentos, propostas, catálogo,
+  configuração comercial e preços, e faz as rotas deles (`/leads`, `/funil`, `/proposals`, `/servicos`, `/propostas`,
+  `/assessments`, `/pricing-config`, `/client/{proposal,assessment}`, `/public/propostas`) responderem 404 a pessoa e chave de
+  API (`src/index.ts`). Nada é apagado; `"true"` religa tudo como era (a suíte roda ligada, `wrangler.test.jsonc`; o desligado
+  em `test/comercial-desligado.test.ts`). `/api/v1/org` fica: com a área desligada, nome, CNPJ, cor e logo (que vão nos
+  documentos Word do projeto) estão em Conta e acessos, "Identidade da organização" (`identidade-org`, a tela de
+  `config-comercial.js` só com identidade), para `platform_admin` e `consultoria_admin`. O projeto nasce pelo "Novo projeto" da
+  tela Projetos (`POST /projects`), que para o n.iso semeia fases e controles com as mesmas funções do aceite da proposta
+  (`stmtsFases`, `stmtControles`, `catalogosDoProjeto` em `src/services/project-setup.ts`); o prefixo de proposta é opcional na
+  criação da organização. O agente MCP NÃO passa pelo interruptor: lê e rascunha a área comercial da organização de quem
+  concedeu, se essa pessoa é do comercial (`COMERCIAL_DO_AGENTE` em `src/middleware/agente.ts`, as `niso_comercial_*`;
+  matriz em `docs/agente/seguranca.md`).
 - **Bindings** (`grep '"binding"' wrangler.jsonc`): DB (D1), SESSIONS e OAUTH_KV (KV),
   STORAGE e TRILHA (R2), AI, ANALYTICS (Analytics Engine), CF_VERSION_METADATA, ASSETS.
 - **Rotinas agendadas** (`grep -A2 '"triggers"' wrangler.jsonc`): `10 4 * * *` roda a manutencao
@@ -529,6 +542,32 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `atendimento-titular`, `implantacao-privacy`, `migracao-programa` e `avaliacao-terceiros`), entao `npm run skills:gerar` escreve `src/mcp/skills-gerado.ts` (commitado; o
   `test/agente-skills.test.ts` falha se ficar velho). O agente as le pelo MCP com `niso_skill`,
   atras do login. Skill nova = pasta nova + gerar + roteiro em `src/mcp/contexto.ts`.
+- **Trilha de implementacao do n.iso (faixa `iso`; spec `docs/superpowers/specs/2026-10-15-bancada-trilha-design.md`, codinome interno "Bancada").**
+  Tela de tres colunas (trilha, cartao do passo, assistente) em `frontend/src/views/bancada.js` e `frontend/src/bancada/*`; e a unica
+  tela de jornada: o select manual de situacao da fase e o campo livre de anotacao sairam. **O passo e o modelo:** 132 passos, um por item de
+  `PHASE_CHECKLISTS`, em `src/data/passos/etapa-1.ts` a `etapa-6.ts` (6 etapas, 41 fases; contagem:
+  `grep -c "^    id: 'p" src/data/passos/etapa-*.ts`, soma 132), com tipos e validacao em `tipos.ts`/`catalogo.ts` e o contrato em
+  `contracts/bancada/*.json`. Cada passo tem `campos` (texto, escolha, data...), `prova` (descricao e se e obrigatoria),
+  `ondeVive` e `concluidoQuando`. O catalogo sai de `GET /api/v1/passos/catalogo` (versionado: o frontend refaz a busca quando
+  `catalogo_versao` muda). Rotas, em `src/routes/passos.ts`: `GET /projects/:id/bancada` (retrato: estado de cada passo e de cada fase),
+  `GET /projects/:id/passos/:itemId`, `PUT .../campos` (autosave no servidor, com `vistos` para o aviso de edicao concorrente),
+  `POST .../{concluir,reabrir,bloquear,desbloquear}`, `DELETE .../anotacao-anterior` e `DELETE /projects/:id/bancada/fases/:n/situacao-antiga`;
+  os servicos puros ficam em `src/services/passos/` (`estado`, `avaliar`, `detalhe`, `fase`, `contexto`, `valores`, `legado`).
+  **O estado e derivado, o servidor avalia:** o "Concluido quando" (`avaliar.ts`; tipos `campos_preenchidos`, `evidencia_anexada`,
+  `registro_vinculado`, `pedido_de_aprovacao`, `entrevistas_concluidas`, `responsavel_e_prazo`) e conferido no servidor em
+  `concluir` (409 com os criterios que faltam), nunca pelo frontend; a situacao da fase (`situacaoDaFase`, `project_phases.status`
+  e so cache gravado por `gravarSituacoes`) sai dos passos: algum bloqueado = `blocked`, todos concluidos = `completed`, algum mexido =
+  `in_progress`. **Excecao e bloqueio:** concluir sem cumprir os criterios so com excecao (motivo obrigatorio, so equipe da consultoria,
+  trilha `passo.concluido_com_excecao`); bloquear exige motivo e responsavel, nao vale em passo concluido, e concluir passo bloqueado
+  da 409; bloquear e desbloquear sao de quem administra o projeto. Concluir, reabrir e bloquear sao atos humanos (`FORA_DO_AGENTE`).
+  **Migration 0078** (aditiva): `checklist_progress` ganha `bloqueio_motivo`, `bloqueio_responsavel`, `bloqueado_em`, `excecao_motivo`,
+  `excecao_por`, `excecao_em`; `project_phase_answers.updated_by`; `project_phases.legado_status` congela a situacao manual
+  antiga ate a trilha assumir a fase. Conferir: `PRAGMA table_info(checklist_progress)`.
+  **Assistente (IA, `src/routes/passos-copiloto.ts`, `src/services/copiloto-passo.ts`, `frontend/src/bancada/copiloto.js`):** tres modos,
+  `rascunhar-campo`, `da-conversa` (o que o cliente disse vira propostas por campo) e `revisao` (pontos que o auditor questionaria, nunca
+  parecer de certificacao). So PROPOE: nenhuma rota grava resposta ou progresso, a pessoa aceita na tela e o autosave grava. Campo com
+  `semIA: true` (decisao e nome de pessoa) nunca e enviado nem proposto. E pedido pela equipe da consultoria ou pelo administrador do cliente;
+  o agente MCP e recusado (`FORA_DO_AGENTE`: ele ja e a IA).
 - **Documentacao do agente**: `docs/agente/` (uso, arquitetura com diagramas, seguranca e o
   checklist de PR). Leia `docs/agente/seguranca.md` antes de criar rota nova: o principal do
   agente carrega o `users.id` real do consultor, e rota de "minha conta" entra em
@@ -587,7 +626,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 277 arquivos de teste do backend mocka o D1 inteiro** (2026-10-15;
+- **Nenhum dos 299 arquivos de teste do backend mocka o D1 inteiro** (2026-10-16;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -599,10 +638,10 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~22,6 mil linhas de JS (2026-10-15)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 117 arquivos de teste em jsdom
+- **Frontend com pouco teste por linha.** ~22,0 mil linhas de JS (2026-10-16)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 125 arquivos de teste em jsdom
   (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
-  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 37 telas de `frontend/src/views/` sao
+  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 38 telas de `frontend/src/views/` sao
   importadas por ao menos um teste (2026-10-15: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
   nao imprime nada), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, `project.js`, todas acima de 1.400 linhas)
   tem teste so de fatias.

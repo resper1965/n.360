@@ -1,0 +1,5 @@
+{
+  "error": "O passo ainda não cumpre o \"concluído quando\"",
+  "faltam": [ { "tipo": "evidencia_anexada", "rotulo": "Prova anexada", "ok": false, "detalhe": "nenhum arquivo ligado a este passo" } ],
+  "sucesso_exemplo": { "ok": true, "estado": "concluido", "concluido_por_excecao": false, "fase": { "numero": 3, "situacao": "in_progress" } }
+}

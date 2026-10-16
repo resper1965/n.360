@@ -41,41 +41,31 @@ beforeAll(async () => {
 });
 
 describe('geração por IA a partir do checklist', () => {
-  it('grava pendente, ligada ao controle do item, e marca o item', async () => {
-    const res = await chamar(`/api/v1/projects/${P}/checklist/p15_1/generate`, { method: 'POST', headers: json(consultor) });
-    const body = await res.json<{ evidence_id: string }>();
+  // "A máquina propõe, a pessoa decide" (PRODUCT.md): gerar devolve só o rascunho. Nada vira evidência e o
+  // item não é marcado até a pessoa aceitar o texto (approve-document).
+  it('devolve o rascunho e não grava evidência, não toca o R2 nem marca o item', async () => {
+    const conta = async () => (await env.DB.prepare('SELECT COUNT(*) AS n FROM evidence WHERE project_id = ?').bind(P).first<{ n: number }>())!.n;
+    const antesEv = await conta();
+    const antesR2 = (await env.STORAGE.list({ prefix: `projects/${P}/` })).objects.length;
+    const res = await chamar(`/api/v1/projects/${P}/checklist/p15_5/generate`, { method: 'POST', headers: json(consultor) });
+    const body = await res.json<{ content: string; evidence_id?: string }>();
     expect(res.status, JSON.stringify(body)).toBe(200);
-    const ev = await evidencia(body.evidence_id);
-    expect(ev!.evaluation_status).toBe('pending');
-    expect(ev!.control_id).toBe('ctl-a51');
-    const prog = await progresso('p15_1');
+    expect(body.content).toBeTruthy();
+    expect(body.evidence_id).toBeUndefined();
+    expect(await conta()).toBe(antesEv);
+    expect((await env.STORAGE.list({ prefix: `projects/${P}/` })).objects.length).toBe(antesR2);
+    expect(await progresso('p15_5')).toBeNull();
+  });
+
+  it('não desmarca nem troca a evidência de item já concluído', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by) VALUES ('ev-antiga', ?, 'a.md', 'x/a.md', 'h', 'x')`).bind(P),
+      env.DB.prepare(`INSERT INTO checklist_progress (id, project_id, phase_number, item_id, is_checked, evidence_id) VALUES ('cp-gerar', ?, 15, 'p15_6', 1, 'ev-antiga')`).bind(P),
+    ]);
+    expect((await chamar(`/api/v1/projects/${P}/checklist/p15_6/generate`, { method: 'POST', headers: json(consultor) })).status).toBe(200);
+    const prog = await progresso('p15_6');
     expect(prog!.is_checked).toBe(1);
-    expect(prog!.evidence_id).toBe(body.evidence_id);
-  });
-
-  it('file_hash é o SHA-256 do que está no R2', async () => {
-    const res = await chamar(`/api/v1/projects/${P}/checklist/p15_1/generate`, { method: 'POST', headers: json(consultor) });
-    const { evidence_id } = await res.json<{ evidence_id: string }>();
-    const ev = await evidencia(evidence_id);
-    const obj = await env.STORAGE.get(String(ev!.r2_key));
-    expect(await sha256Hex(await obj!.text())).toBe(ev!.file_hash);
-  });
-
-  it('item sem controle no texto grava sem controle', async () => {
-    const res = await chamar(`/api/v1/projects/${P}/checklist/p3_1/generate`, { method: 'POST', headers: json(consultor) });
-    const { evidence_id } = await res.json<{ evidence_id: string }>();
-    expect((await evidencia(evidence_id))!.control_id).toBeNull();
-  });
-
-  // Review Focus 2
-  it('gerar de novo não sobrescreve o arquivo da evidência anterior', async () => {
-    const gerar = async () => (await (await chamar(`/api/v1/projects/${P}/checklist/p3_2/generate`, { method: 'POST', headers: json(consultor) })).json<{ evidence_id: string }>()).evidence_id;
-    const primeira = await gerar();
-    const segunda = await gerar();
-    const a = await evidencia(primeira);
-    const b = await evidencia(segunda);
-    expect(a!.r2_key).not.toBe(b!.r2_key);
-    expect(await env.STORAGE.get(String(a!.r2_key))).not.toBeNull();
+    expect(prog!.evidence_id).toBe('ev-antiga');
   });
 });
 
@@ -93,10 +83,43 @@ describe('documento do assistente aprovado', () => {
     // O projeto não tem A.5.10: fica sem controle.
     expect((await evidencia((await antes404.json<{ evidence_id: string }>()).evidence_id))!.control_id).toBeNull();
   });
+
+  const aprovar = (itemId: string, content = '# Documento') =>
+    chamar(`/api/v1/projects/${P}/approve-document`, { method: 'POST', headers: json(consultor), body: JSON.stringify({ itemId, content }) });
+
+  it('aceitar o rascunho liga a evidência ao item, sem concluí-lo', async () => {
+    const res = await aprovar('p15_1');
+    const { evidence_id } = await res.json<{ evidence_id: string }>();
+    const prog = await progresso('p15_1');
+    expect(prog!.is_checked).toBe(0);
+    expect(prog!.evidence_id).toBe(evidence_id);
+  });
+
+  it('file_hash é o SHA-256 do que está no R2', async () => {
+    const { evidence_id } = await (await aprovar('p15_1', '# Política\n\nTexto revisado.')).json<{ evidence_id: string }>();
+    const ev = await evidencia(evidence_id);
+    const obj = await env.STORAGE.get(String(ev!.r2_key));
+    expect(await sha256Hex(await obj!.text())).toBe(ev!.file_hash);
+  });
+
+  it('item sem controle no texto grava sem controle', async () => {
+    const { evidence_id } = await (await aprovar('p3_1')).json<{ evidence_id: string }>();
+    expect((await evidencia(evidence_id))!.control_id).toBeNull();
+  });
+
+  // Review Focus 2
+  it('aceitar de novo não sobrescreve o arquivo da evidência anterior', async () => {
+    const primeira = (await (await aprovar('p3_2')).json<{ evidence_id: string }>()).evidence_id;
+    const segunda = (await (await aprovar('p3_2')).json<{ evidence_id: string }>()).evidence_id;
+    const a = await evidencia(primeira);
+    const b = await evidencia(segunda);
+    expect(a!.r2_key).not.toBe(b!.r2_key);
+    expect(await env.STORAGE.get(String(a!.r2_key))).not.toBeNull();
+  });
 });
 
 describe('upload de documento', () => {
-  it('pelo checklist (cliente): pendente, ligado ao controle, e o item fica marcado', async () => {
+  it('pelo checklist (cliente): pendente, ligado ao controle e ao item (que não é concluído por isso)', async () => {
     const res = await enviar(cliente, 'p15_1');
     const body = await res.json<{ id: string }>();
     expect(res.status, JSON.stringify(body)).toBe(201);
@@ -141,6 +164,6 @@ describe('upload de documento', () => {
     expect((await enviar(cliente, 'p15_2')).status).toBe(201);
     const prog = await progresso('p15_2');
     expect(prog!.notes).toBe('minha anotação');
-    expect(prog!.is_checked).toBe(1);
+    expect(prog!.is_checked).toBe(0);
   });
 });

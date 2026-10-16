@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0077** (`ls migrations/*.sql | tail -1`). São 75 arquivos
+- Última migration no repositório: **0078** (`ls migrations/*.sql | tail -1`). São 76 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -626,5 +626,17 @@ convite substitui a linha (o link anterior deixa de valer); usar o link apaga a 
 Nada existente muda. **Idempotente** (`IF NOT EXISTS`), mas aplicar pelo `migrations apply`. Conferência depois:
 `PRAGMA table_info(convites_senha)`. Para desfazer: `DROP TABLE convites_senha` (o código anterior não a lê). **Esta RODA em produção
 ANTES do código novo:** criar conta grava o convite nela; o deploy do merge recusa enquanto ela estiver pendente.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+## 0078 — Bancada da trilha (2026-10-15)
+
+Aditiva, só `ALTER TABLE ... ADD COLUMN` (spec `docs/superpowers/specs/2026-10-15-bancada-trilha-design.md`). `checklist_progress` ganha o bloqueio do passo
+(`bloqueio_motivo`, `bloqueio_responsavel`, `bloqueado_em`) e a conclusão com exceção (`excecao_motivo`, `excecao_por`, `excecao_em`);
+`project_phase_answers` ganha `updated_by` (quem gravou); `project_phases` ganha `legado_status`, que congela a situação que o select manual
+mostrava (`completed`, `blocked`, `skipped`) até a Bancada assumir a fase. O `UPDATE` final só copia `status` para `legado_status`.
+**Não é idempotente** (SQLite não tem `ADD COLUMN IF NOT EXISTS`): aplicar só pelo `migrations apply`. Conferência depois:
+`PRAGMA table_info(checklist_progress)` mostra `bloqueio_motivo`; `SELECT count(*) FROM project_phases WHERE legado_status IS NOT NULL`.
+Para desfazer: não precisa (o código anterior ignora as colunas). **Esta RODA em produção ANTES do código novo.**
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.

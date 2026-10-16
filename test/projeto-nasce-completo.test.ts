@@ -4,7 +4,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
-import { applySchema, workerEnv } from './helpers/d1';
+import { applySchema, workerEnv, sessionFor } from './helpers/d1';
+import { PHASE_TITLES } from '../src/constants';
 import { sha256Hex, genToken, autoridadeDeAssinatura, recusaDeAssinatura, requireProjectAccess } from '../src/helpers';
 import { CARGO_CONTATO_ACEITE } from '../src/services/fechar-venda';
 
@@ -63,5 +64,20 @@ describe('projeto nasce completo do aceite da proposta', () => {
     expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ?`, projetoId)).toBe(124);
     expect(await conta(`SELECT COUNT(*) n FROM project_governance WHERE project_id = ?`, projetoId)).toBe(1);
     expect(await conta(`SELECT COUNT(*) n FROM notifications WHERE type = 'projeto_sem_consultor' AND target_id = 'pp-1'`)).toBe(1);
+  }, 60_000);
+
+  // Com a área comercial desligada, o projeto nasce pelo "Novo projeto": o mesmo conjunto do aceite (fases, controles).
+  it('criado à mão (POST /projects) com o n.iso: fases e controles das normas; só n.privacy, nenhum', async () => {
+    await db().prepare(`UPDATE organizations SET modulos_contratados = '["iso","privacy"]' WHERE id = 'org_ness'`).run();
+    const s = await sessionFor({ id: 'u-cadm', email: 'cadm@ness.lat', role: 'consultoria_admin', org_id: 'org_ness' });
+    const criar = async (corpo: unknown) => (await (await app.fetch(new Request('http://localhost/api/v1/projects', {
+      method: 'POST', headers: { ...s, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }), workerEnv() as any)).json<any>()).id as string;
+    const iso = await criar({ client_name: 'Manual', standards: 'ISO 27001, ISO 27701:2025', org_role: 'Controller', modulos: ['iso'] });
+    expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27001:2022'`, iso)).toBe(93);
+    expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27701:2025'`, iso)).toBe(31);
+    expect(await conta(`SELECT COUNT(*) n FROM project_phases WHERE project_id = ?`, iso)).toBe(PHASE_TITLES.length);
+    const priv = await criar({ client_name: 'Só privacidade', standards: 'LGPD', modulos: ['privacy'] });
+    expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ?`, priv)).toBe(0);
+    expect(await conta(`SELECT COUNT(*) n FROM project_phases WHERE project_id = ?`, priv)).toBe(0);
   }, 60_000);
 });

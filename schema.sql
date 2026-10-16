@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS project_phase_answers (
     question_key TEXT NOT NULL,
     answer TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_by TEXT,
     UNIQUE(project_id, phase_number, question_key)
 );
 
@@ -222,7 +223,8 @@ CREATE TABLE IF NOT EXISTS project_phases (
     status TEXT DEFAULT 'Pending',
     notes TEXT,
     completed_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    legado_status TEXT
 );
 
 CREATE TABLE IF NOT EXISTS project_scope_changes (
@@ -802,6 +804,12 @@ CREATE TABLE IF NOT EXISTS checklist_progress (
     assigned_to TEXT,
     due_date TEXT,
     assigned_to_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    bloqueio_motivo TEXT,
+    bloqueio_responsavel TEXT,
+    bloqueado_em DATETIME,
+    excecao_motivo TEXT,
+    excecao_por TEXT,
+    excecao_em DATETIME,
     UNIQUE(project_id, phase_number, item_id)
 );
 CREATE INDEX IF NOT EXISTS idx_checklist_progress_project ON checklist_progress(project_id);
