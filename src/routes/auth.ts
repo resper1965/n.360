@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { emailRedefinicaoSenha } from '../services/emails';
-import { genId, genToken, genNumericCode, rateLimit, rateLimitD1, hashPassword, verifyPassword, logAudit, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, SESSION_TTL_SEC, erro500 } from '../helpers';
+import { genId, genToken, genNumericCode, rateLimit, rateLimitD1, hashPassword, verifyPassword, logAudit, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, SESSION_TTL_SEC, erro500, comercialAtivo } from '../helpers';
 import { equipeDeOrgSuspensa, ORG_SUSPENSA } from '../services/organizacao';
 
 /** IP do cliente para rate limiting (Cloudflare popula CF-Connecting-IP) */
@@ -463,7 +463,8 @@ authApp.post('/logout', async (c) => {
 // `modulos`: os da PESSOA (fatia 3 do n.360), lidos do banco a cada chamada; a tela cruza com os do projeto.
 authApp.get('/me', async (c) => {
   const user = c.get('user');
-  return c.json({ user: { ...user, modulos: await modulosDaPessoa(c.env.DB, user) } });
+  // `comercial_ativo`: a interface esconde a área comercial quando o interruptor está desligado (o servidor já dá 404).
+  return c.json({ user: { ...user, modulos: await modulosDaPessoa(c.env.DB, user), comercial_ativo: comercialAtivo(c.env) } });
 });
 
 authApp.post('/change-password', async (c) => {

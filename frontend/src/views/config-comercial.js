@@ -1,6 +1,8 @@
 // Configuração comercial da organização (GET/PUT /api/v1/org/config). O comercial só lê; quem grava
 // é o platform_admin ou o consultoria_admin (o servidor recusa o resto, a tela só espelha: campos
 // readonly, sem Salvar). O logo (GET/POST /api/v1/org/logo) é binário: fetch direto, fora do api().
+// Tela `identidade-org` (Conta e acessos, com a área comercial desligada): a mesma, só com logo e identidade (nome, CNPJ,
+// cor), que vão também nos documentos Word do projeto. Numeração, preço e textos são da proposta e ficam de fora.
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML } from '../ui.js';
@@ -18,6 +20,8 @@ let podeEditar = false;
 let logoAtualUrl = null;     // Blob URL do logo gravado
 let logoNovoUrl = null;      // Blob URL da pré-visualização do arquivo escolhido
 let logoArquivo = null;
+const soIdentidade = () => S.view === 'identidade-org';
+const tituloDaTela = () => (soIdentidade() ? 'Identidade da organização' : 'Configuração comercial');
 
 const LOGO_TIPOS = ['image/png', 'image/jpeg'];
 const LOGO_MAX = 200 * 1024;   // o mesmo LOGO_MAX_BYTES do servidor
@@ -71,7 +75,7 @@ function lerPorte() {
 
 function desenhar() {
     const { c, h, a } = ultimo;
-    h.textContent = 'Configuração comercial';
+    h.textContent = tituloDaTela();
     a.innerHTML = '';
     const p = cfg.preco;
     const t = cfg.textos;
@@ -91,9 +95,10 @@ function desenhar() {
                 </div>
                 <div class="cfg-grade2">
                     ${campo('corDestaque', 'Cor de destaque', cfg.corDestaque, { tipo: 'color' })}
-                    <div class="form-group">${marca('cfg-seloNiso', 'Mostrar o selo n.iso nas propostas', cfg.seloNiso)}</div>
+                    ${soIdentidade() ? '' : `<div class="form-group">${marca('cfg-seloNiso', 'Mostrar o selo n.iso nas propostas', cfg.seloNiso)}</div>`}
                 </div>
             </section>
+${soIdentidade() ? '' : `
 
             <section class="cfg-bloco" aria-labelledby="cfg-t-num">
                 <h2 class="cfg-titulo" id="cfg-t-num">Numeração</h2>
@@ -134,6 +139,7 @@ function desenhar() {
                     <p class="cfg-erro" id="cfg-secoesDesligadas-erro" role="alert"></p>
                 </fieldset>
             </section>
+`}
 
             ${podeEditar ? '<div class="cfg-rodape"><button type="submit" class="btn btn-primary" id="cfg-salvar">Salvar</button></div>' : ''}
         </form>`;
@@ -141,11 +147,11 @@ function desenhar() {
     carregarLogo();
 }
 
-const vazioConfig = (titulo, texto) => window.renderEmptyState({ titulo, texto, acao: `<button class="btn btn-secondary" data-action="navigate" data-args='["config-comercial"]'>Tentar de novo</button>` });
+const vazioConfig = (titulo, texto) => window.renderEmptyState({ titulo, texto, acao: `<button class="btn btn-secondary" data-action="navigate" data-args='["${soIdentidade() ? 'identidade-org' : 'config-comercial'}"]'>Tentar de novo</button>` });
 
 async function renderConfigComercial(c, h, a) {
     ultimo = { c, h, a };
-    h.textContent = 'Configuração comercial';
+    h.textContent = tituloDaTela();
     a.innerHTML = '';
     c.innerHTML = '<div class="loading"></div>';
     podeEditar = S.user?.role === 'platform_admin' || S.user?.role === 'consultoria_admin';
@@ -157,7 +163,7 @@ async function renderConfigComercial(c, h, a) {
         return;
     }
     // Resposta sem preço/textos (organização sem configuração gravada): estado próprio, não tela quebrada.
-    if (!cfg || typeof cfg !== 'object' || !cfg.preco || !cfg.textos) {
+    if (!cfg || typeof cfg !== 'object' || (!soIdentidade() && (!cfg.preco || !cfg.textos))) {
         c.innerHTML = vazioConfig('A configuração comercial ainda não está disponível', 'Esta organização não tem preços e textos de proposta gravados. Tente de novo ou avise o suporte.');
         return;
     }
@@ -190,6 +196,8 @@ window.__cfgPorteDel = (i) => {
 // Mesmo formato do configOrgSchema. Campo vazio vai como ausente (o servidor mantém o atual).
 function montarCorpo() {
     const cnpj = val('cfg-cnpj').trim();
+    // Só identidade: o PUT é parcial, o resto da configuração fica como está.
+    if (soIdentidade()) return { nome: val('cfg-nome'), cnpj: cnpj === '' ? null : cnpj, corDestaque: val('cfg-corDestaque') };
     const porte = lerPorte().map((l, i) => {
         const max = num(`cfg-preco-porte-${i}-maxPessoas`);
         return { maxPessoas: max === undefined ? null : max, fator: num(`cfg-preco-porte-${i}-fator`) };
@@ -261,7 +269,7 @@ function blocoLogo() {
         <div class="form-group">
             <label class="form-label" for="cfg-logo-arquivo">Novo logo</label>
             <input class="form-input" id="cfg-logo-arquivo" type="file" accept="image/png,image/jpeg" aria-describedby="cfg-logo-regras cfg-logo-arquivo-erro" data-action-change="__cfgLogoEscolher" data-arg-el>
-            <p class="cfg-dica" id="cfg-logo-regras">PNG ou JPEG, até 200 KB. SVG não é aceito. O logo entra nas propostas geradas a partir de agora; as já geradas não mudam.</p>
+            <p class="cfg-dica" id="cfg-logo-regras">PNG ou JPEG, até 200 KB. SVG não é aceito. O logo entra nos documentos gerados a partir de agora; os já gerados não mudam.</p>
             <p class="cfg-erro" id="cfg-logo-arquivo-erro" role="alert"></p>
         </div>
         <div class="cfg-logo-novo" id="cfg-logo-novo" hidden>

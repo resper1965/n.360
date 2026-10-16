@@ -7333,7 +7333,6 @@
                 "required": [
                   "nome",
                   "slug",
-                  "prefixoProposta",
                   "adminEmail",
                   "adminNome",
                   "maxProjetos",

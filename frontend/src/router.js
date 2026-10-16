@@ -1,6 +1,9 @@
 import { S } from './state.js';
 import { produtoAtual, TELAS_DO_HUB, moduloPara, enderecoNoModulo, irPara, abrirGrupo } from './produto.js';
 
+/** Telas da área comercial: somem com o interruptor desligado (o servidor responde 404 às rotas delas). */
+export const TELAS_COMERCIAIS = ['comercial', 'leads', 'assessments', 'assessment-detail', 'proposals', 'catalogo', 'config-comercial', 'settings'];
+
 export     function navigate(view, data) {
         let targetView = view;
         // O filtro do painel (filtro-painel.js) vale só para a navegação que o trouxe: qualquer outra o apaga.
@@ -12,6 +15,8 @@ export     function navigate(view, data) {
         }
         // O comercial não alcança projeto: a entrada dele no n.iso é a tela Comercial, não o painel do projeto.
         if (S.user && S.user.role === 'comercial' && view === 'dashboard') targetView = 'comercial';
+        // Área comercial desligada (COMERCIAL_ATIVO): tela comercial pedida por link, aviso ou atalho antigo cai no painel.
+        if (TELAS_COMERCIAIS.includes(targetView) && !(typeof window.comercialAtivo === 'function' && window.comercialAtivo())) targetView = 'dashboard';
         const produto = produtoAtual();
         // O n.360 é o hub: tela de módulo leva ao módulo, na própria tela (`?tela=`, lido no boot dele); a dos dois módulos vai a um
         // que o projeto tem. Sem módulo para ela, fica no início do portal. Nada de tela de módulo desenhada dentro do portal.
@@ -102,7 +107,7 @@ export     function navigate(view, data) {
         else if (S.view === 'conectar-agente') renderConectarAgente(c, h, a);
         else if (S.view === 'seguranca-projeto') renderSegurancaProjeto(c, h, a);
         else if (S.view === 'catalogo') renderCatalogo(c, h, a);
-        else if (S.view === 'config-comercial') renderConfigComercial(c, h, a);
+        else if (S.view === 'config-comercial' || S.view === 'identidade-org') renderConfigComercial(c, h, a);
         else if (S.view === 'organizacoes') renderOrganizacoes(c, h, a);
         else if (S.view === 'assessment-detail') renderAssessmentDetail(c, h, a);
         else if (S.view === 'project-detail') renderProjectDetail(c, h, a);

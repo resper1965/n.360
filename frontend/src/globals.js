@@ -967,11 +967,12 @@ window.updateHeaderUser = function updateHeaderUser() {
             projectSelect.disabled = isClient;
         }
 
-        // Ocultar grupo comercial para clientes
+        // Ocultar grupo comercial para clientes, e para todos com a área comercial desligada (COMERCIAL_ATIVO).
         const labelSales = document.getElementById('label-group-sales');
         const groupSales = document.getElementById('group-sales');
-        if (labelSales) labelSales.style.display = isClient ? 'none' : '';
-        if (groupSales) groupSales.style.display = isClient ? 'none' : '';
+        const semComercial = isClient || !window.comercialAtivo();
+        if (labelSales) labelSales.style.display = semComercial ? 'none' : '';
+        if (groupSales) groupSales.style.display = semComercial ? 'none' : '';
         // Leads e propostas são do comercial (somenteComercial no servidor); o
         // consultor segue com Assessments e o resto do grupo.
         const comercial = window.ehComercial();
@@ -979,6 +980,8 @@ window.updateHeaderUser = function updateHeaderUser() {
             const el = document.getElementById(id);
             if (el) el.style.display = comercial ? '' : 'none';
         });
+        const navLevantamentos = document.getElementById('nav-assessments');
+        if (navLevantamentos) navLevantamentos.style.display = window.comercialAtivo() ? '' : 'none';
 
         // Configurações do grupo de sistema
         const labelSystem = document.getElementById('label-group-system');
@@ -1011,6 +1014,10 @@ window.updateHeaderUser = function updateHeaderUser() {
             // Configurações é a tabela de preços (custo interno, margem) da ness. (somenteOrgNess no
             // servidor): comercial e platform_admin, não o administrador de outra consultoria.
             if (navSettings) navSettings.style.display = window.ehComercial() && S.user.role !== 'consultoria_admin' ? '' : 'none';
+            // Área comercial desligada: a identidade da organização (nome, CNPJ, cor, logo, que vão também nos documentos Word do
+            // projeto) sai da Configuração comercial e fica em Conta e acessos, para quem a administra.
+            const navIdentidade = document.getElementById('nav-identidade');
+            if (navIdentidade) navIdentidade.style.display = !window.comercialAtivo() && ['platform_admin', 'consultoria_admin'].includes(S.user?.role) ? '' : 'none';
             // Organizações: exclusivo do platform_admin (rotas /platform/orgs).
             const navOrgs = document.getElementById('nav-organizacoes');
             if (navOrgs) navOrgs.style.display = (S.user && S.user.role === 'platform_admin') ? '' : 'none';
@@ -1039,7 +1046,10 @@ window.updateHeaderUser = function updateHeaderUser() {
         // evidência a ele (não é staff em requireProjectAccess). O menu mostra só
         // o que ele alcança, em vez de telas que abririam vazias ou com erro.
         if (S.user && S.user.role === 'comercial') {
-            const doComercial = new Set(['nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-settings', 'nav-conectar-agente']);
+            // Com a área desligada, o comercial não tem tela (o servidor dá 404): sobra o que não é da área.
+            const doComercial = new Set(window.comercialAtivo()
+                ? ['nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-settings', 'nav-conectar-agente']
+                : ['nav-conectar-agente']);
             document.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach(el => {
                 el.style.display = doComercial.has(el.id) ? '' : 'none';
             });
@@ -1332,7 +1342,9 @@ window.updateContextPanel = function updateContextPanel() {
 
 // Espelho de `ehComercial` (src/helpers.ts). Só decide o que MOSTRAR; quem
 // barra de verdade é o servidor.
-window.ehComercial = function ehComercial() { return !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role)); }
+window.ehComercial = function ehComercial() { return !!(S.user && ['platform_admin', 'comercial', 'consultoria_admin'].includes(S.user.role)) && window.comercialAtivo(); }
+// Interruptor da área comercial (`comercial_ativo` do /auth/me; servidor: `comercialAtivo`, src/helpers.ts). Sem o campo, desligada.
+window.comercialAtivo = function comercialAtivo() { return !!(S.user && S.user.comercial_ativo === true); }
 // Espelho de `ehEquipeNess` (src/helpers.ts, PAPEIS_NESS): equipe da consultoria, não cliente. Só decide o que MOSTRAR; o servidor barra.
 window.ehEquipeNess = function ehEquipeNess() { return !!(S.user && ['consultor', 'consultant', 'platform_admin', 'consultoria_admin'].includes(S.user.role)); }
 
@@ -1340,7 +1352,7 @@ window.ehEquipeNess = function ehEquipeNess() { return !!(S.user && ['consultor'
 // não pede — evita o 403 a cada login do consultor.
 window.loadLeads = async function loadLeads() { if (!window.ehComercial()) { S.leads = []; return; } try { S.leads = await api('GET', '/api/v1/leads'); } catch(e) { S.leads = []; } }
 
-window.loadAssessments = async function loadAssessments() { try { S.assessments = await api('GET', '/api/v1/assessments'); } catch(e) { S.assessments = []; } }
+window.loadAssessments = async function loadAssessments() { if (!window.comercialAtivo()) { S.assessments = []; return; } try { S.assessments = await api('GET', '/api/v1/assessments'); } catch(e) { S.assessments = []; } }
 
 window.loadProjects = async function loadProjects() {
     try {
@@ -1365,7 +1377,7 @@ window.loadDashboardStats = async function loadDashboardStats() { try { S.stats 
 
 window.loadAll = async function loadAll() {
         await Promise.allSettled([loadLeads(), loadAssessments(), loadProjects(), loadControls(), loadNotifications(), loadDashboardStats()]);
-        if (S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client') && !S.user.client_project_id) {
+        if (window.comercialAtivo() && S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client') && !S.user.client_project_id) {
             try {
                 const resA = await api('GET', '/api/v1/client/assessment');
                 S.clientAssessmentId = resA.assessment_id;

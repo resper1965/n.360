@@ -11,7 +11,7 @@ import { gravarSituacoes } from '../services/passos/fase';
 import { resolverOrg, SEM_ORG, limiteDoPlanoAtingido, LIMITE_PROJETOS } from '../services/organizacao';
 import { INTERVIEW_TRACKS } from '../constants';
 import { MigrationService } from '../services/migration-service';
-import { seedPhases, semearControles } from '../services/project-setup';
+import { seedPhases, semearControles, stmtsFases, stmtControles, catalogosDoProjeto } from '../services/project-setup';
 import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
 import { controlsForRole, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
 import { checkCoherence } from '../services/coherence';
@@ -368,9 +368,12 @@ projectsApp.post('/', async (c) => {
     ]);
 
     const modulos = (await c.env.DB.prepare('SELECT modulo FROM projeto_modulos WHERE project_id = ?').bind(id).all<{ modulo: string }>()).results.map((r) => r.modulo);
-    // A trilha de fases é a jornada da ISO: projeto só de n.privacy nasce sem ela.
-    if (modulos.includes('iso')) await seedPhases(c.env.DB, id);
-    await logAudit(c.env.DB, 'project.created', user?.email ?? 'system', `Projeto ${id} criado para ${body.client_name}`, '', '', id);
+    // A trilha de fases e os controles das normas são a jornada da ISO: projeto só de n.privacy nasce sem eles. O mesmo
+    // conjunto do projeto que nasce do aceite da proposta (fecharVenda), para o projeto criado à mão nascer completo.
+    const catalogos = modulos.includes('iso') ? catalogosDoProjeto(body.standards ?? 'ISO 27001', body.org_role ?? '') : [];
+    if (modulos.includes('iso')) await c.env.DB.batch([...stmtsFases(c.env.DB, id), ...catalogos.map((k) => stmtControles(c.env.DB, id, k.standard, k.lista))]);
+    const resumo = catalogos.map((k) => `${k.lista.length} ${k.standard}`).join(', ');
+    await logAudit(c.env.DB, 'project.created', user?.email ?? 'system', `Projeto ${id} criado para ${body.client_name}${resumo ? ` com os controles (${resumo})` : ''}`, '', '', id);
     if (designa) {
       await logAudit(c.env.DB, 'governance.created', user.email, `Consultor ${user.email} designado no projeto ${id} que criou`, '', '', id);
     }

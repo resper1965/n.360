@@ -5,6 +5,7 @@ import { concessaoValida, CABECALHO_CONFIRMADO, type PropsAgente, type PapelAgen
 import { INSTRUCOES, INSTRUCOES_AUDITOR, montarContexto } from './contexto';
 import { SKILLS } from './skills-gerado';
 import { appUrl, RECURSO_MCP } from '../config/url';
+import { ehComercial } from '../helpers';
 
 type FetchHono = (r: Request, e: any, c?: any) => Response | Promise<Response>;
 
@@ -72,6 +73,101 @@ const NOTA_AUDITOR: Ferramenta = {
     required: ['projectId', 'content'],
   },
 };
+
+/**
+ * Área comercial da organização de quem concedeu (decisão do dono de 15/10/2026): só leitura e rascunho. Aparecem só para o
+ * agente consultor de quem é do comercial (`concessaoValida().role`, relido a cada requisição). Quem impõe é o servidor:
+ * `COMERCIAL_DO_AGENTE` em src/middleware/agente.ts (allow-list) e as próprias rotas (organização, rascunho, "ganho").
+ */
+const AREAS_LISTA: Record<string, string> = { leads: 'leads', funil: 'funil', levantamentos: 'assessments', propostas: 'propostas', servicos: 'servicos' };
+const AREAS_ITEM: Record<string, string> = { lead: 'leads', levantamento: 'assessments', proposta: 'propostas', servico: 'servicos' };
+const textoP = { type: 'string' };
+const COMERCIAL: Ferramenta[] = [
+  {
+    name: 'niso_comercial_listar',
+    description: 'Lista uma área comercial da sua organização: leads, funil, levantamentos, propostas ou serviços (catálogo). Só leitura.',
+    inputSchema: { type: 'object', properties: { area: { type: 'string', enum: Object.keys(AREAS_LISTA) } }, required: ['area'], additionalProperties: false },
+  },
+  {
+    name: 'niso_comercial_ler',
+    description: 'Lê um registro comercial da sua organização. detalhe: "respostas" (levantamento) ou "previa" (proposta, o documento montado). Só leitura.',
+    inputSchema: {
+      type: 'object',
+      properties: { area: { type: 'string', enum: Object.keys(AREAS_ITEM) }, id: textoP, detalhe: { type: 'string', enum: ['respostas', 'previa'] } },
+      required: ['area', 'id'], additionalProperties: false,
+    },
+  },
+  {
+    name: 'niso_comercial_criar_lead',
+    description: 'Cria um lead (status New) na sua organização. Mostre os dados ao usuário e PEÇA APROVAÇÃO HUMANA antes de gravar.',
+    inputSchema: {
+      type: 'object',
+      properties: { company_name: textoP, contact_name: textoP, contact_email: textoP, source: textoP, cnpj: textoP },
+      required: ['company_name'], additionalProperties: false,
+    },
+  },
+  {
+    name: 'niso_comercial_status_lead',
+    description: 'Muda o status de um lead: Assessment, Proposal, Lost ou New (de Lost). "Ganho" é humano, pela interface. PEÇA APROVAÇÃO HUMANA.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: textoP, status: { type: 'string', enum: ['New', 'Assessment', 'Proposal', 'Lost'] } },
+      required: ['id', 'status'], additionalProperties: false,
+    },
+  },
+  {
+    name: 'niso_comercial_rascunhar_proposta',
+    description:
+      'Sem id: cria proposta em RASCUNHO para o lead (leadId). Com id: edita a proposta, só se estiver em rascunho. Itens são serviços do catálogo (servicoId). Gerar, enviar e aceitar são de uma pessoa, pela interface. PEÇA APROVAÇÃO HUMANA.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: textoP, leadId: textoP, contexto: textoP, escopo: textoP, observacoes: textoP, pagamento: textoP, consultorEmail: textoP,
+        validadeDias: { type: 'number' },
+        itens: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { servicoId: textoP, dias: { type: 'number' }, meses: { type: 'number' }, descontoPct: { type: 'number' }, textoCliente: textoP },
+            required: ['servicoId'], additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+];
+const NOMES_COMERCIAL = new Set(COMERCIAL.map((x) => x.name));
+
+/** Ferramentas comerciais: monta o caminho e repassa; esquema estrito aqui, o resto a rota decide. */
+async function comercial(nome: string, args: Record<string, unknown> | undefined, t: Transporte): Promise<CallToolResult> {
+  const a = args ?? {};
+  const falha = (text: string): CallToolResult => ({ isError: true, content: [{ type: 'text', text }] });
+  const ok = (dados: unknown): CallToolResult => ({ content: [{ type: 'text', text: JSON.stringify(dados, null, 2) }] });
+  const permitidos = Object.keys((COMERCIAL.find((x) => x.name === nome)!.inputSchema as { properties: object }).properties);
+  const extra = Object.keys(a).filter((k) => !permitidos.includes(k));
+  if (extra.length) return falha(`Erro: campo fora do esquema: ${extra.join(', ')}`);
+  const id = typeof a.id === 'string' && a.id ? encodeURIComponent(a.id) : '';
+  if (nome === 'niso_comercial_listar') {
+    const area = AREAS_LISTA[String(a.area)];
+    return area ? ok(await t.get(`/api/v1/${area}`)) : falha('Erro: area inválida');
+  }
+  if (nome === 'niso_comercial_ler') {
+    const area = AREAS_ITEM[String(a.area)];
+    if (!area || !id) return falha('Erro: area e id são obrigatórios');
+    const sufixo = a.detalhe === 'respostas' && area === 'assessments' ? '/answers' : a.detalhe === 'previa' && area === 'propostas' ? '/previa' : '';
+    return ok(await t.get(`/api/v1/${area}/${id}${sufixo}`));
+  }
+  if (nome === 'niso_comercial_criar_lead') return ok(await t.enviar('/api/v1/leads', a));
+  if (nome === 'niso_comercial_status_lead') {
+    if (!id) return falha('Erro: id é obrigatório');
+    return ok(await t.enviar(`/api/v1/leads/${id}/status`, { status: a.status }, 'PUT'));
+  }
+  const { id: _id, leadId, ...campos } = a;
+  if (id) return ok(await t.enviar(`/api/v1/propostas/${id}`, campos, 'PUT'));
+  if (typeof leadId !== 'string' || !leadId) return falha('Erro: leadId é obrigatório para criar a proposta');
+  return ok(await t.enviar('/api/v1/propostas', { leadId, ...campos }));
+}
 
 /**
  * Ferramentas por papel. O filtro é conveniência: quem impõe o papel é o servidor (resolverAgente), que recusa
@@ -258,22 +354,26 @@ export async function handlerMcp(req: Request, env: any, ctx: any, fetchHono: Fe
   }
   // Papel relido do banco agora (e de novo em cada chamada interna, por resolverAgente).
   const papel = concessao.papel;
+  // Comercial: o agente consultor de quem é do comercial vê as niso_comercial_* (o servidor confere de novo a cada chamada).
+  const comComercial = papel === 'consultor' && ehComercial({ role: concessao.role });
+  const ferramentas = comComercial ? [...DISPONIVEIS[papel], ...COMERCIAL] : DISPONIVEIS[papel];
   const bruto = requisicaoInterna(req, env, ctx, props, fetchHono);
   const t = transporteInterno(bruto);
 
   const criar = () => {
     const server = new Server({ name: 'niso', version: '2.0.0' }, { capabilities: { tools: {} }, instructions: papel === 'auditor' ? INSTRUCOES_AUDITOR : INSTRUCOES });
-    server.setRequestHandler('tools/list', async () => ({ tools: DISPONIVEIS[papel] as any }));
+    server.setRequestHandler('tools/list', async () => ({ tools: ferramentas as any }));
     server.setRequestHandler('tools/call', async (r) => {
       const { name, arguments: args } = r.params;
       try {
+        if (comComercial && NOMES_COMERCIAL.has(name)) return await comercial(name, args, t);
         if (!NOMES[papel].has(name)) {
           return { isError: true, content: [{ type: 'text', text: `Ferramenta ${name} indisponível para o agente ${papel}` }] };
         }
         if (name === 'niso_contexto') {
           // GET /projects/:id devolve o projeto na raiz (redactProject), sem envelope.
           const projeto = (await t.get(`/api/v1/projects/${encodeURIComponent(props.projectId)}`)) as any;
-          return { content: [{ type: 'text', text: montarContexto({ ...projeto, id: props.projectId }, props.email, papel) }] };
+          return { content: [{ type: 'text', text: montarContexto({ ...projeto, id: props.projectId }, props.email, papel, comComercial) }] };
         }
         if (name === 'niso_skill') return skill(args);
         if (name === 'niso_ler' || name === 'niso_executar') return await genericas(name, args, bruto);

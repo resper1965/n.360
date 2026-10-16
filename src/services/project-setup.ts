@@ -1,6 +1,8 @@
 import { fonteDaNorma } from './requisitos';
 import { genId } from '../helpers';
 import { PHASE_TITLES } from '../constants';
+import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
+import { ISO_27701_2025_STANDARD, controlsForRole } from '../data/iso27701-2025';
 
 /**
  * INSERTs das fases da trilha de adequação de um projeto, para entrar num batch.
@@ -53,4 +55,22 @@ export async function semearControles(
 ): Promise<{ created: number; total: number }> {
   const r = await stmtControles(db, projectId, standard, lista).run();
   return { created: r.meta.changes ?? 0, total: lista.length };
+}
+
+type Catalogo = { standard: string; lista: readonly { code: string; title: string }[] };
+
+/**
+ * Catálogos que o projeto ganha (o vendido, por fecharVenda, e o criado à mão, por `POST /projects`), pelo rótulo de normas do projeto e pela norma e nome dos
+ * serviços de projeto. O 27701 estende o SGSI e traz o 27001 junto. Texto sem nenhuma das duas
+ * ("Adequação LGPD") não semeia nada. Papel 27701 não mapeado cai no Controlador, como o papel vazio.
+ */
+export function catalogosDoProjeto(texto: string, orgRole: string): Catalogo[] {
+  const com27701 = /27701/.test(texto);
+  const out: Catalogo[] = [];
+  if (com27701 || /27001/.test(texto)) out.push({ standard: ISO_27001_2022_STANDARD, lista: ISO_27001_2022 });
+  if (com27701) {
+    const porPapel = controlsForRole(orgRole);
+    out.push({ standard: ISO_27701_2025_STANDARD, lista: porPapel.length ? porPapel : controlsForRole('') });
+  }
+  return out;
 }
