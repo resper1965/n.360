@@ -258,8 +258,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (`/api/v1/requisitos*`, e `/projects/:id/requisitos/lacunas` e `/documentos/:id/requisitos`). Depois do seed o BANCO e a fonte da
   verdade: titulo e mapeamento sao dado editavel so pelo `platform_admin`, com `logAudit`; o seed e `INSERT OR IGNORE` e nunca
   sobrescreve edicao. Mapeamento `proposto` so aparece para consultor e administrador; `validado_juridico` exige `validado_por` e
-  `validado_em` (CHECK). A cobertura de um artigo (`lacunasDaFonte`) conta documento VIGENTE ligado ou controle implementado ligado por
-  mapeamento validado `equivalente` (`parcial` e parcial; `relacionado`, `proposto` e controle N/A nao cobrem). LGPD e GDPR entram por
+  `validado_em` (CHECK). A cobertura de um artigo (`lacunasDaFonte`) conta documento VIGENTE ligado ou controle `Implemented` (ou `Compliant`, legado) ligado por
+  mapeamento validado `equivalente`; `Implemented` com mapeamento `parcial` e parcial, e `Partial`/`In Progress` dao no maximo parcial
+  (`equivalente` ou `parcial`); `Planned`, `Missing`, N/A e sem status, `relacionado` e `proposto` nao cobrem (`test/requisitos-cobertura-status.test.ts`). LGPD e GDPR entram por
   material juridico revisado, nao por codigo. O agente so le (`FORA_DO_AGENTE`).
 - **RoPA como tratamento ligado (fatia 4, migrations 0054 e 0055)**: `ropa_records` CONTINUA sendo a tabela do tratamento (sem rename:
   a spec diz `tratamentos`, mas renomear tocaria 30+ arquivos por so um nome). `src/services/tratamentos.ts` e as rotas
