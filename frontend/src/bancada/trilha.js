@@ -7,12 +7,12 @@ function htmlDaFase(ind, n, estado, porPasso, atual, faseAberta) {
     const f = ind.fase(n);
     const situacao = estado ? (STATUS_DA_FASE[estado.situacao] || estado.situacao) : '';
     const motivo = estado && estado.situacao === 'blocked'
-        ? `<span class="bancada-motivo">${escapeHTML(estado.bloqueio ? `${estado.bloqueio.motivo} (responsável: ${estado.bloqueio.responsavel})` : 'Bloqueada antes da Bancada, sem motivo registrado')}</span>`
+        ? `<span class="bancada-motivo">${escapeHTML(estado.bloqueio ? `${estado.bloqueio.motivo} (responsável: ${estado.bloqueio.responsavel})` : 'Bloqueada antes desta trilha, sem motivo registrado')}</span>`
         : '';
     const passos = n === faseAberta
         ? ind.passosDaFase(n).map((p) => {
             const l = porPasso.get(p.id) || { estado: 'nao_iniciado' };
-            return `<button type="button" class="bancada-passo" data-passo="${p.id}" data-action="bancadaIrParaPasso" data-args='${arg(p.id)}'${p.id === atual ? ' aria-current="step"' : ''}>${escapeHTML(p.titulo)}<span class="bancada-estado">${escapeHTML(textoDoEstado(l))}</span></button>`;
+            return `<button type="button" class="bancada-passo" data-passo="${p.id}" data-action="bancadaIrParaPasso" data-args='${arg(p.id)}' aria-label="${escapeHTML(`${p.titulo}, ${textoDoEstado(l)}`)}"${p.id === atual ? ' aria-current="step"' : ''}>${escapeHTML(p.titulo)}<span class="bancada-estado">${escapeHTML(textoDoEstado(l))}</span></button>`;
         }).join('')
         : '';
     return `<button type="button" class="bancada-fase" data-fase="${n}" aria-expanded="${n === faseAberta}" data-action="bancadaAbrirFase" data-args='${arg(n)}'>Fase ${n} · ${escapeHTML(f ? f.titulo : '')}<span class="bancada-estado">${escapeHTML(situacao)}</span></button>${motivo}${passos}`;

@@ -82,6 +82,17 @@ Para ver os valores: `sed -n '/^:root/,/^}/p' frontend/src/style.css`.
   botões, campos, avisos) e uma folha própria só com o que é da página. **São responsivas** (de 390 px ao desktop:
   alvos de 44 px, campos de 16 px), ao contrário do app: quem as abre é gente de fora, pelo link do e-mail, muitas
   vezes no celular. Sem `<style>`, `style=` nem diálogo nativo (`alert`/`confirm`); título da aba "Ação | n.360 · ness.".
+- **Trilha de implementação do n.iso** (`frontend/src/views/bancada.js`, `frontend/src/bancada/*`; "Bancada" é só o
+  codinome interno, nunca texto de tela). Três colunas: a trilha à esquerda (etapa, fase, passo), o cartão do passo no
+  meio e o assistente à direita; a ordem do DOM é a do Tab. **Uma ação principal por passo**: "Salvar e ir ao próximo
+  passo" (ou "Salvar e ver a prontidão" no último) é o único `.btn-primary`; pular, bloquear, concluir com exceção e
+  reabrir são links secundários. Hierarquia de títulos: h1 é o projeto (`#header-title`), h2 a fase, h3 o passo e h3 o
+  assistente (região `aria-labelledby`, sem h2 concorrente), h4 as seções do cartão. O que o servidor guarda é anunciado em
+  `role="status"` ("Salvo às HH:MM", "Não foi possível salvar. Tentando de novo...", com `aria-busy` enquanto salva, para o
+  leitor de tela só ouvir o resultado). O passo atual leva `aria-current="step"`; os botões do passo têm nome acessível
+  "título, estado"; estado nunca só por cor. Os pontos da "Revisão de auditor" levam o foco ao campo, à prova ou ao
+  critério ("Concluído quando"). Texto em português claro para o cliente, sem termo em inglês (guarda em
+  `test/passos-catalogo.test.ts`) e sem prometer parecer de certificação.
 
 ## Utilitários de tela (`frontend/src/ui.js`)
 

@@ -48,6 +48,48 @@ describe('Bancada', () => {
     expect(document.getElementById('bancada-topo').textContent).toContain('31 de 90 controles aplicáveis implementados');
     expect(document.getElementById('bancada-topo').textContent).toContain('andamento do plano de trabalho');
   });
+  it('os pontos da revisão levam o foco à prova e ao critério', async () => {
+    servir();
+    const [c, h, a] = tela();
+    await renderBancada(c, h, a);
+    const rolagens = [];
+    window.HTMLElement.prototype.scrollIntoView = function () { rolagens.push(this.id); };
+    apiMock.mockResolvedValueOnce({ ok: true, resumo: '', pontos: [
+      { severidade: 'alto', alvo: { tipo: 'prova', id: 'prova' }, o_que_o_auditor_questionaria: 'Onde está o arquivo?' },
+      { severidade: 'medio', alvo: { tipo: 'criterio', id: 'evidencia_anexada' }, o_que_o_auditor_questionaria: 'Falta a prova?' }] });
+    await window.bancadaCopilotoRevisao();
+    const botoes = [...c.querySelectorAll('[data-action="bancadaCopilotoIrAo"]')];
+    expect(botoes).toHaveLength(2);
+    window.bancadaCopilotoIrAo('prova', 'prova');
+    expect(document.activeElement.id).toBe('bancada-prova');
+    window.bancadaCopilotoIrAo('criterio', 'evidencia_anexada');
+    expect(document.activeElement.id).toBe('bancada-criterio-evidencia_anexada');
+    expect(rolagens).toEqual(['bancada-prova', 'bancada-criterio-evidencia_anexada']);
+  });
+  it('acessibilidade: um h1, h2 da fase, h3 do passo e h3 do assistente; região e status', async () => {
+    servir();
+    const [c, h, a] = tela();
+    await renderBancada(c, h, a);
+    const titulos = [...document.querySelectorAll('h1,h2,h3')].map((e) => e.tagName);
+    expect(titulos).toEqual(['H1', 'H2', 'H3', 'H3']);
+    const aside = c.querySelector('aside.bancada-copiloto');
+    expect(aside.getAttribute('aria-labelledby')).toBe('bancada-copiloto-titulo');
+    expect(c.querySelector('#bancada-copiloto-titulo').tagName).toBe('H3');
+    const salvo = c.querySelector('#bancada-salvo');
+    expect(salvo.getAttribute('role')).toBe('status');
+    expect(c.querySelector('.bancada-passo[aria-current="step"]').getAttribute('aria-label')).toMatch(/^.+, .+/);
+    // ordem de tabulação: trilha, passo, assistente
+    const ordem = [...c.querySelectorAll('#bancada-trilha, #bancada-cartao, #bancada-copiloto')].map((e) => e.id);
+    expect(ordem).toEqual(['bancada-trilha', 'bancada-cartao', 'bancada-copiloto']);
+  });
+  it('o autosave só anuncia o resultado: ocupado enquanto salva', async () => {
+    servir();
+    const [c, h, a] = tela();
+    await renderBancada(c, h, a);
+    window.bancadaDigitou('justificativas', 'x');
+    await vi.advanceTimersByTimeAsync(800);
+    expect(c.querySelector('#bancada-salvo').getAttribute('aria-busy')).toBe('false');
+  });
   it('o deep link manda no continuar', async () => {
     servir();
     S.bancadaAlvo = { passo: 'p3_4' };

@@ -35,6 +35,16 @@ function opcoesDeResponsavel(atual) {
     return window.renderGovernanceSelectOptions ? window.renderGovernanceSelectOptions(S.currentGovernance || [], atual || '') : '';
 }
 
+/** Alvo dos pontos da revisão: id de campo, `prova` (primeiro controle da prova) ou `criterio:<tipo>` (a linha do critério). */
+function focarAlvo(alvo) {
+    const el = alvo === 'prova' ? document.getElementById('bancada-prova')
+        : alvo.startsWith('criterio:') ? document.getElementById(`bancada-criterio-${alvo.slice(9)}`)
+            : document.getElementById(`campo-${alvo}`);
+    if (!el) return;
+    if (el.scrollIntoView) el.scrollIntoView({ block: 'center' });
+    el.focus();
+}
+
 function desenharTudo() {
     const passo = ind.passo(S.bancadaPasso);
     const det = S.bancadaDetalhe;
@@ -47,7 +57,7 @@ function desenharTudo() {
         el: cols.copiloto, projectId: idDoProjeto(), passo, podeUsar: podeAdmin(),
         valoresAtuais: () => Object.fromEntries(passo.campos.map((c) => [c.id, (document.getElementById(`campo-${c.id}`) || {}).value || ''])),
         aoAceitar: (campo, valor) => { const el = document.getElementById(`campo-${campo}`); if (el) { el.value = valor; window.bancadaDigitou(campo, valor); } },
-        focarCampo: (campo) => { const el = document.getElementById(`campo-${campo}`); if (el) el.focus(); },
+        focarCampo: focarAlvo,
     });
 }
 
@@ -55,7 +65,7 @@ function refletirStatus(e) {
     S.bancadaSalvo = e.situacao === 'salvo' ? `Salvo às ${hora(e.salvoEm)}`
         : e.situacao === 'salvando' ? 'Salvando...' : e.situacao === 'repetindo' ? 'Não foi possível salvar. Tentando de novo...' : e.situacao === 'erro' ? e.mensagem : '';
     const el = document.getElementById('bancada-salvo');
-    if (el) el.textContent = S.bancadaSalvo;
+    if (el) { el.setAttribute('aria-busy', String(e.situacao === 'salvando')); el.textContent = S.bancadaSalvo; }   // busy: o leitor de tela só anuncia o resultado, não cada tecla
     const tentar = document.getElementById('bancada-tentar');
     if (tentar) tentar.hidden = e.situacao !== 'erro';
     if (e.situacao === 'conflito') mostrarConflito(e.conflitos);
@@ -113,7 +123,7 @@ export async function renderBancada(c, h, a) {
         const alvo = resolverAlvo(ind, banc, S.bancadaAlvo);
         S.bancadaAlvo = null;
         S.bancadaAbertura = {};
-        c.innerHTML = '<div class="bancada-topo" id="bancada-topo"></div><div class="bancada"><div id="bancada-trilha"></div><div id="bancada-cartao"></div><aside class="bancada-copiloto" id="bancada-copiloto" aria-label="Assistente"></aside></div>';
+        c.innerHTML = '<div class="bancada-topo" id="bancada-topo"></div><div class="bancada"><div id="bancada-trilha"></div><div id="bancada-cartao"></div><aside class="bancada-copiloto" id="bancada-copiloto" aria-labelledby="bancada-copiloto-titulo"></aside></div>';
         cols = { trilha: document.getElementById('bancada-trilha'), cartao: document.getElementById('bancada-cartao'), copiloto: document.getElementById('bancada-copiloto') };
         desenharTopo();
         await abrirPasso(alvo);
