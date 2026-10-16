@@ -4,6 +4,7 @@ import { showToast, openModal, forceCloseModal, escapeHTML, formatarData } from 
 import { navigate } from '../router.js';
 import { produtoAtual, temProduto } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
+import { carregarConsentimentos, telaConsentimentos } from './consentimentos.js';
 
 // Titular e incidentes (fatia 7 do núcleo, só registro interno): pedidos do titular, incidentes, consentimentos e prazos legais.
 // Toda regra é do servidor (protocolo, prazo congelado, encerramento do incidente); aqui só se mostra e se chama. Texto escapado.
@@ -113,12 +114,9 @@ async function renderTitular(c, h, a) {
             `<button class="btn btn-ghost btn-sm" data-action="abrirIncidente" data-args='${args(proj.id, i.id)}'>Abrir</button>`,
         ]), { emptyState: 'Nenhum incidente registrado.', emptyHint: soIncidentes() ? '' : 'LGPD, art. 48. Registre o incidente com a data da ciência: é dela que contam os prazos de comunicação.', emptyAction: novo('abrirNovoIncidente', 'Registrar incidente'), ...(filtrado ? vazioFiltrado : {}) });
     } else if (aba === 'consentimentos') {
-        let l = []; try { l = lista(await api('GET', `/api/v1/projects/${proj.id}/consentimentos`)); } catch (e) { console.error(e); return falhou('Não foi possível carregar os consentimentos.'); }
-        corpo = `<p style="color:var(--text-dim)">Use uma referência pseudonimizada do titular. Não registre CPF.</p>` + window.renderDataTable(['Tratamento', 'Referência', 'Finalidade', 'Aviso', 'Obtido em', 'Situação', 'Ações'], l.map((x) => [
-            escapeHTML(x.tratamento), escapeHTML(x.titular_ref), escapeHTML(x.finalidade), escapeHTML(x.versao_aviso), escapeHTML(dia(x.obtido_em)),
-            x.vigente ? window.renderStatusBadge('Vigente', 'success') : window.renderStatusBadge(`Revogado em ${dia(x.revogado_em)}`, 'neutral'),
-            x.vigente && editar ? `<button class="btn btn-ghost btn-sm" data-action="revogarConsentimento" data-args='${args(proj.id, x.id)}'>Revogar</button>` : '',
-        ]), { emptyState: 'Nenhum consentimento registrado.' });
+        c.innerHTML = `${abas}<p class="co-carregando" role="status">Carregando os consentimentos…</p>`;
+        let l; try { l = await carregarConsentimentos(proj.id); } catch (e) { console.error(e); return falhou('Não foi possível carregar os consentimentos.'); }
+        corpo = telaConsentimentos(proj.id, l, editar);
     } else {
         let l = []; try { l = lista(await api('GET', '/api/v1/parametros-legais')); } catch (e) { console.error(e); return falhou('Não foi possível carregar os prazos legais.'); }
         corpo = `<p style="color:var(--text-dim)">O prazo legal não vem do código: o administrador da plataforma cadastra cada valor com a fonte e a data da revisão do jurídico. Sem o valor, o prazo fica "não calculado".</p>`
@@ -365,33 +363,6 @@ window.rascunhoComunicacaoIncidente = async function (projectId, id, destino) {
 
 window.encerrarIncidente = (projectId, id) => acao(
     () => api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/encerrar`), 'Não foi possível encerrar o incidente', 'Incidente encerrado.', reabrirIncidente(projectId, id));
-
-// ─── Consentimentos ───────────────────────────────────────────────────────────────────────────────
-window.abrirNovoConsentimento = async function (projectId) {
-    let tratamentos = [];
-    try { const r = await api('GET', `/api/v1/projects/${projectId}/ropa`); tratamentos = Array.isArray(r) ? r : lista(r && r.records); } catch (e) { /* sem seletor */ }
-    if (!tratamentos.length) { showToast('Consentimento é ligado a um tratamento. Cadastre o tratamento no RoPA primeiro.', 'error'); return; }
-    openModal(`<h3>Registrar consentimento</h3>
-        <div class="form-group"><label class="form-label" for="co-ropa">Tratamento</label><select class="form-input" id="co-ropa">${tratamentos.map((t) => `<option value="${escapeHTML(t.id)}">${escapeHTML(t.processing_purpose)}</option>`).join('')}</select></div>
-        <div class="form-group"><label class="form-label" for="co-ref">Referência do titular (pseudonimizada, sem CPF)</label><input class="form-input" id="co-ref" maxlength="500"></div>
-        <div class="form-group"><label class="form-label" for="co-fin">Finalidade</label><input class="form-input" id="co-fin" maxlength="500"></div>
-        <div class="form-group"><label class="form-label" for="co-aviso">Versão do aviso</label><input class="form-input" id="co-aviso" maxlength="500" placeholder="Ex.: Política de Privacidade v3"></div>
-        <div class="form-group"><label class="form-label" for="co-data">Obtido em</label><input class="form-input" id="co-data" type="date"></div>
-        <div class="form-group"><label class="form-label" for="co-canal">Canal (opcional)</label><input class="form-input" id="co-canal" maxlength="100"></div>
-        <button class="btn btn-primary" data-action="salvarNovoConsentimento" data-args='${args(projectId)}'>Registrar</button>`);
-};
-
-window.salvarNovoConsentimento = function (projectId) {
-    const campos = { titular_ref: valorOuNulo('co-ref'), finalidade: valorOuNulo('co-fin'), versao_aviso: valorOuNulo('co-aviso'), obtido_em: el('co-data').value };
-    if (Object.values(campos).some((v) => !v)) { showToast('Preencha referência, finalidade, versão do aviso e data', 'error'); return; }
-    return acao(async () => {
-        await api('POST', `/api/v1/projects/${projectId}/consentimentos`, { ropa_id: el('co-ropa').value, canal: valorOuNulo('co-canal'), ...campos });
-        forceCloseModal();
-    }, 'Não foi possível registrar o consentimento', 'Consentimento registrado.');
-};
-
-window.revogarConsentimento = (projectId, id) => acao(
-    () => api('POST', `/api/v1/projects/${projectId}/consentimentos/${id}/revogar`), 'Não foi possível revogar o consentimento', 'Consentimento revogado.');
 
 // ─── Prazos legais (só o administrador da plataforma) ─────────────────────────────────────────────
 window.editarParametroLegal = function (chave, descricao, valor, unidade, fonte, revisadoEm, revisadoPor, definido) {
