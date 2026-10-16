@@ -4,7 +4,7 @@ import worker from '../src/index';
 import { applySchema, workerEnv, sessionFor } from './helpers/d1';
 
 // Montagem da Bancada: as rotas existem nos caminhos finais, exigem sessão e o agente MCP não conclui passo.
-// Só o copiloto segue em esqueleto (501) até o pacote D.
+// O copiloto (pacote D) também está montado: nenhum caminho final responde 501.
 const json = { 'Content-Type': 'application/json' };
 const chamar = (metodo: string, caminho: string, headers: Record<string, string> = {}, ambiente: object = {}) =>
   worker.fetch(new Request(`http://localhost${caminho}`, { method: metodo, headers: { ...json, ...headers }, body: metodo === 'GET' || metodo === 'DELETE' ? undefined : '{}' }),
@@ -30,13 +30,13 @@ describe('Bancada: montagem das rotas', () => {
     expect((await chamar('GET', '/api/v1/passos/catalogo')).status).toBe(401);
     expect((await chamar('GET', '/api/v1/passos/catalogo', adm)).status).toBe(200);
   });
-  it('os caminhos finais existem (nem 404 de rota nem 501) para quem pode; o copiloto segue 501', async () => {
+  it('os caminhos finais existem (nem 404 de rota nem 501) para quem pode', async () => {
     for (const [m, c] of [['GET', '/bancada'], ['GET', '/passos/p3_3'], ['PUT', '/passos/p3_3/campos'], ['PATCH', '/passos/p3_3'], ['POST', '/passos/p3_3/concluir'],
       ['DELETE', '/bancada/fases/3/situacao-antiga']]) {
       const st = (await chamar(m, `/api/v1/projects/p-a${c}`, adm)).status;
       expect([501, 404], `${m} ${c}`).not.toContain(st);
     }
-    expect((await chamar('POST', '/api/v1/projects/p-a/passos/p3_3/copiloto/rascunhar-campo', adm)).status).toBe(501);
+    for (const c of ["rascunhar-campo", "da-conversa", "revisao"]) expect((await chamar("POST", `/api/v1/projects/p-a/passos/p3_3/copiloto/${c}`, adm)).status, c).not.toBe(501);
   });
   it('org_user preenche e conclui (paridade com marcar item), mas não bloqueia', async () => {
     expect((await chamar('PUT', '/api/v1/projects/p-a/passos/p3_3/campos', leitura)).status).toBe(400); // passou do RBAC; o corpo vazio é que não vale
