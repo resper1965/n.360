@@ -37,11 +37,12 @@ rodar_vitest() { # diretorio args...
   local saida; saida=$(mktemp)
   (cd "$dir" && npx vitest run "$@") >"$saida" 2>&1; local rc=$?
   cat "$saida"
-  if [ $rc -ne 0 ] && grep -q "Failed to start forks worker" "$saida" && ! grep -qE "^ FAIL |Tests +[0-9]+ failed|[0-9]+ failed" "$saida"; then
-    local arquivos; arquivos=$(grep -oE "(test|src)/[^ ]+.test.(js|ts)" "$saida" | sort -u | tr '
-' ' ')
-    echo ">> worker que não subiu por carga da máquina; repetindo sozinhos: $arquivos"
-    (cd "$dir" && npx vitest run $arquivos "$@"); rc=$?
+  # O pool do backend (cloudflare-pool) diz "Failed to start cloudflare-pool worker" / "Timeout starting cloudflare-pool runner" e, ao
+  # morrer, deixa arquivos sem rodar e outros com falha de tabela: lista de arquivos não basta. Repete a suíte inteira, uma vez, com menos workers.
+  # Falha de verdade falha de novo e reprova.
+  if [ $rc -ne 0 ] && grep -qE "Failed to start (forks|cloudflare-pool) worker|Timeout starting cloudflare-pool" "$saida"; then
+    echo ">> worker que não subiu por carga da máquina; repetindo a suíte com menos workers"
+    (cd "$dir" && npx vitest run "$@" --maxWorkers=2); rc=$?
   fi
   rm -f "$saida"; return $rc
 }
@@ -63,7 +64,7 @@ passo "Frontend: build" bash -c "cd frontend && npm run build"
 passo "Frontend: testes" rodar_vitest frontend --maxWorkers=3 --testTimeout=30000 --retry=1
 [ -d mcp-server-niso/node_modules ] || passo "MCP: instalar" bash -c "cd mcp-server-niso && npm ci"
 passo "MCP: build" bash -c "cd mcp-server-niso && npm run build"
-passo "Backend: testes" rodar_vitest . --exclude "nISO/**" --retry=1
+passo "Backend: testes" rodar_vitest . --exclude "nISO/**" --retry=1 ${GATE_BACKEND_WORKERS:+--maxWorkers=$GATE_BACKEND_WORKERS}
 passo "E2E (Chromium)" bash -c "cd frontend && npx playwright test --workers=2"
 
 dur=$(( $(date +%s) - inicio ))
