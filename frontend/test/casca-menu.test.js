@@ -35,11 +35,13 @@ describe('n.360: menu de hub', () => {
 });
 
 describe('Segurança do projeto', () => {
-    it('um item só, em Conta e acessos, logo depois de Organizações', () => {
+    // Entre os dois, a Identidade da organização (só com a área comercial desligada; ver papeis-admin.test.js).
+    it('um item só, em Conta e acessos, logo depois de Organizações e da Identidade da organização', () => {
         montarApp();
         expect(document.querySelectorAll('#nav-seguranca-projeto').length).toBe(1);
         expect(el('nav-seguranca-projeto').parentElement.id).toBe('group-conta');
-        expect(el('nav-organizacoes').nextElementSibling.id).toBe('nav-seguranca-projeto');
+        expect(el('nav-organizacoes').nextElementSibling.id).toBe('nav-identidade');
+        expect(el('nav-identidade').nextElementSibling.id).toBe('nav-seguranca-projeto');
     });
 });
 
@@ -70,7 +72,7 @@ const ESTRUTURA_N360 = [
     'nav-inicio=Início',
     'nav-meus=Meus pedidos',
     '[Conta e acessos] true',
-    'group-conta (aberto): nav-projects=Projetos, nav-users=Usuários, nav-organizacoes=Organizações, nav-seguranca-projeto=Segurança do projeto, nav-api-keys=Chaves de API, nav-conectar-agente=Agentes',
+    'group-conta (aberto): nav-projects=Projetos, nav-users=Usuários, nav-organizacoes=Organizações, nav-identidade=Identidade da organização, nav-seguranca-projeto=Segurança do projeto, nav-api-keys=Chaves de API, nav-conectar-agente=Agentes',
     '[Sistema] false',
     'group-system-config: nav-audit-trail=Trilha de auditoria',
 ];
