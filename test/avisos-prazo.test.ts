@@ -5,6 +5,7 @@ import { hojeEmSaoPaulo, semanaIso, marcoDoDia, itensDoDia, pessoasDoProjeto, es
 import worker, { CRON_AVISOS } from '../src/index';
 import wrangler from '../wrangler.jsonc?raw';
 import { requireProjectAccess } from '../src/helpers';
+import { passoPorId } from '../src/data/passos/catalogo';
 
 /**
  * Avisos de prazo (spec 2026-10-07-avisos-de-prazo-design). D1 real; a data é simulada pelo
@@ -227,6 +228,21 @@ describe('rotina avisosDePrazo', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
   afterEach(() => vi.restoreAllMocks());
+
+  it('passo da trilha atrasado: o aviso leva o título do passo do catálogo e o link da Bancada; id fora do catálogo mantém o texto antigo', async () => {
+    await db().batch([
+      db().prepare(`INSERT INTO checklist_progress (id, project_id, phase_number, item_id, is_checked, due_date, assigned_to) VALUES ('cp-1', 'p1', 3, 'p3_3', 0, '2026-10-07', 'Ana Souza')`),
+      db().prepare(`INSERT INTO checklist_progress (id, project_id, phase_number, item_id, is_checked, due_date, assigned_to) VALUES ('cp-2', 'p1', 1, 'p1_zzz', 0, '2026-10-07', 'Ana Souza')`),
+    ]);
+    await avisosDePrazo(COM_CHAVE(), HOJE);
+    const n = (await notificacoes()).filter((x) => x.type === 'prazo_checklist' && x.user_id === 'u-ana');
+    const doPasso = n.find((x) => x.link.includes('passo=p3_3'))!;
+    expect(doPasso.message).toBe(`Passo: ${passoPorId('p3_3')!.titulo} (prazo 07/10/2026)`);
+    expect(doPasso.link).toBe('/projects/p1?passo=p3_3');
+    const antigo = n.find((x) => !x.link.includes('passo='))!;
+    expect(antigo.message).toBe('Item p1_zzz da fase 1 (prazo 07/10/2026)');
+    expect(antigo.link).toBe('/projects/p1');
+  });
 
   it('cria o sino com título curto e link da tela; um e-mail-resumo por pessoa; rodar de novo no mesmo dia não duplica nada', async () => {
     const r1 = await avisosDePrazo(COM_CHAVE(), HOJE);

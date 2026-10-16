@@ -3,7 +3,8 @@ import { env } from 'cloudflare:test';
 import worker from '../src/index';
 import { applySchema, workerEnv, sessionFor } from './helpers/d1';
 
-// Pacote 0 da Bancada: as rotas existem nos caminhos finais (501 até o pacote A), exigem sessão e o agente MCP não conclui passo.
+// Montagem da Bancada: as rotas existem nos caminhos finais, exigem sessão e o agente MCP não conclui passo.
+// Só o copiloto segue em esqueleto (501) até o pacote D.
 const json = { 'Content-Type': 'application/json' };
 const chamar = (metodo: string, caminho: string, headers: Record<string, string> = {}, ambiente: object = {}) =>
   worker.fetch(new Request(`http://localhost${caminho}`, { method: metodo, headers: { ...json, ...headers }, body: metodo === 'GET' || metodo === 'DELETE' ? undefined : '{}' }),
@@ -27,21 +28,23 @@ describe('Bancada: montagem das rotas', () => {
 
   it('o catálogo exige sessão', async () => {
     expect((await chamar('GET', '/api/v1/passos/catalogo')).status).toBe(401);
-    expect((await chamar('GET', '/api/v1/passos/catalogo', adm)).status).toBe(501);
+    expect((await chamar('GET', '/api/v1/passos/catalogo', adm)).status).toBe(200);
   });
-  it('os caminhos finais respondem 501 a quem pode', async () => {
+  it('os caminhos finais existem (nem 404 de rota nem 501) para quem pode; o copiloto segue 501', async () => {
     for (const [m, c] of [['GET', '/bancada'], ['GET', '/passos/p3_3'], ['PUT', '/passos/p3_3/campos'], ['PATCH', '/passos/p3_3'], ['POST', '/passos/p3_3/concluir'],
-      ['POST', '/passos/p3_3/copiloto/rascunhar-campo'], ['DELETE', '/bancada/fases/3/situacao-antiga']]) {
-      expect((await chamar(m, `/api/v1/projects/p-a${c}`, adm)).status, `${m} ${c}`).toBe(501);
+      ['DELETE', '/bancada/fases/3/situacao-antiga']]) {
+      const st = (await chamar(m, `/api/v1/projects/p-a${c}`, adm)).status;
+      expect([501, 404], `${m} ${c}`).not.toContain(st);
     }
+    expect((await chamar('POST', '/api/v1/projects/p-a/passos/p3_3/copiloto/rascunhar-campo', adm)).status).toBe(501);
   });
   it('org_user preenche e conclui (paridade com marcar item), mas não bloqueia', async () => {
-    expect((await chamar('PUT', '/api/v1/projects/p-a/passos/p3_3/campos', leitura)).status).toBe(501);
-    expect((await chamar('POST', '/api/v1/projects/p-a/passos/p3_3/concluir', leitura)).status).toBe(501);
+    expect((await chamar('PUT', '/api/v1/projects/p-a/passos/p3_3/campos', leitura)).status).toBe(400); // passou do RBAC; o corpo vazio é que não vale
+    expect((await chamar('POST', '/api/v1/projects/p-a/passos/p3_3/concluir', leitura)).status).toBe(409); // passou do RBAC; o critério ainda não passa
     expect((await chamar('POST', '/api/v1/projects/p-a/passos/p3_3/bloquear', leitura)).status).toBe(403);
   });
   it('o agente MCP grava campos, mas não conclui, reabre, bloqueia nem pede rascunho', async () => {
-    expect((await chamar('PUT', '/api/v1/projects/p-a/passos/p3_3/campos', {}, { AGENTE })).status).toBe(501);
+    expect((await chamar('PUT', '/api/v1/projects/p-a/passos/p3_3/campos', {}, { AGENTE })).status).toBe(400); // passou do corte do agente
     for (const c of ['concluir', 'reabrir', 'bloquear', 'desbloquear', 'copiloto/rascunhar-campo']) {
       expect((await chamar('POST', `/api/v1/projects/p-a/passos/p3_3/${c}`, {}, { AGENTE })).status, c).toBe(403);
     }

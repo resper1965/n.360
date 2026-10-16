@@ -137,6 +137,7 @@ import {
   parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
+import { passoCamposSchema, passoMetaSchema, passoConcluirSchema, passoReabrirSchema, passoBloquearSchema, passoDesbloquearSchema } from './schemas/passos';
 
 /**
  * Contrato da API, gerado dos schemas Zod que as rotas JÁ usam (item 3.1 do
@@ -291,6 +292,12 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/partes/:id/vinculos', schema: vinculoCriarSchema, nome: 'vinculoCriarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/partes/:id', schema: parteAtualizarSchema, nome: 'parteAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/partes', schema: parteCriarSchema, nome: 'parteCriarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/passos/:itemId/bloquear', schema: passoBloquearSchema, nome: 'passoBloquearSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/passos/:itemId/campos', schema: passoCamposSchema, nome: 'passoCamposSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/passos/:itemId/concluir', schema: passoConcluirSchema, nome: 'passoConcluirSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/passos/:itemId/desbloquear', schema: passoDesbloquearSchema, nome: 'passoDesbloquearSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/passos/:itemId/reabrir', schema: passoReabrirSchema, nome: 'passoReabrirSchema' },
+  { metodo: 'PATCH', caminho: '/api/v1/projects/:projectId/passos/:itemId', schema: passoMetaSchema, nome: 'passoMetaSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/pedidos/:id/reenviar', schema: pedidoReenvioSchema, nome: 'pedidoReenvioSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/pedidos/ciencia', schema: pedidoCienciaLoteSchema, nome: 'pedidoCienciaLoteSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/pedidos', schema: pedidoCriarSchema, nome: 'pedidoCriarSchema' },
