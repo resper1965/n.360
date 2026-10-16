@@ -5,6 +5,7 @@ import { applySchema, sessionFor, concederModulos, workerEnv } from './helpers/d
 import { __usarCatalogoDeTeste } from '../src/data/passos/catalogo';
 import type { Catalogo, Passo } from '../src/data/passos/tipos';
 import campoJson from '../contracts/bancada/copiloto-campo.json';
+import conversaJson from '../contracts/bancada/copiloto-conversa.json';
 
 /** Rotas do copiloto do passo. D1 real; o binding AI é um dublê pontual. A regra de negócio está em copiloto-passo.test.ts. */
 const P = 'cpr-p';
@@ -109,5 +110,49 @@ describe('POST .../copiloto/rascunhar-campo', () => {
     const r = await rota(consultor, P, 'p3_3', 'rascunhar-campo', { campo: 'justificativas' }, { ...env, AI: undefined });
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ indisponivel: true });
+  });
+});
+
+const CONVERSA = 'O cliente disse que a revisão acontece todo trimestre e que o time é remoto, sem acesso físico.';
+const conversa = (h: Record<string, string>, corpo: unknown = { conversa: CONVERSA }, projeto = P) => rota(h, projeto, 'p3_3', 'da-conversa', corpo);
+
+describe('POST .../copiloto/da-conversa', () => {
+  beforeEach(() => { ia.resposta = { campos: { justificativas: 'Revisão trimestral; time remoto.', aprovado_por: 'Maria' } }; });
+
+  it('equipe e org_admin recebem as propostas, com as mesmas chaves do contrato, e nada é gravado', async () => {
+    const antes = await gravacoes();
+    for (const h of [consultor, orgAdmin]) {
+      const r = await conversa(h);
+      expect(r.status).toBe(200);
+      const b = await r.json() as Record<string, unknown>;
+      const { indisponivel_exemplo: _ex, ...contrato } = conversaJson as Record<string, unknown>;
+      expect(Object.keys(b).sort()).toEqual(Object.keys(contrato).sort());
+      expect(b).toMatchObject({ ok: true, propostas: { justificativas: 'Revisão trimestral; time remoto.' }, nao_encontrado: [], avisos: [] });
+      expect(b.propostas).not.toHaveProperty('aprovado_por');
+    }
+    expect(await gravacoes()).toBe(antes);
+  });
+
+  it('conversa com menos de 20 ou mais de 8.000 caracteres, sem conversa ou com chave a mais: 400 sem chamar o modelo', async () => {
+    for (const corpo of [{ conversa: 'curta demais' }, { conversa: 'a'.repeat(8001) }, {}, { conversa: CONVERSA, campo: 'justificativas' }, { conversa: 42 }]) {
+      expect((await conversa(consultor, corpo)).status, JSON.stringify(corpo).slice(0, 40)).toBe(400);
+    }
+    expect(ia.chamadas).toBe(0);
+  });
+
+  it('org_user 403; agente MCP 403 fora do alcance; passo inexistente 404; outro tenant 403 ou 404; modelo ausente 200 indisponível', async () => {
+    expect((await conversa(orgUser)).status).toBe(403);
+    const ag = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/passos/p3_3/copiloto/da-conversa`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Agente-Confirmado': '1' }, body: JSON.stringify({ conversa: CONVERSA }),
+    }), { ...workerEnv(), AI, AGENTE: { userId: 'cpr-c', email: 'cons@ness.lat', projectId: P, concessaoId: 'cpr-conc' } } as never);
+    expect(ag.status).toBe(403);
+    expect((await ag.json() as { error: string }).error).toContain('fora do alcance do agente');
+    expect((await rota(consultor, P, 'p9_9', 'da-conversa', { conversa: CONVERSA })).status).toBe(404);
+    expect([403, 404]).toContain((await conversa(outro)).status);
+    expect([403, 404]).toContain((await conversa(orgAdmin, { conversa: CONVERSA }, OUTRA)).status);
+    expect(ia.chamadas).toBe(0);
+    const sem = await rota(consultor, P, 'p3_3', 'da-conversa', { conversa: CONVERSA }, { ...env, AI: undefined });
+    expect(sem.status).toBe(200);
+    expect(await sem.json()).toEqual({ indisponivel: true });
   });
 });
