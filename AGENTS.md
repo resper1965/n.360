@@ -514,6 +514,19 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
   prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:
   `node scripts/importacao-amostra.mjs` gera CSV e HTML ficticios e diz como subir pela tela num ambiente com a IA real.
+- **Área comercial desligável (decisão do dono de 15/10/2026).** A var `COMERCIAL_ATIVO` (`wrangler.jsonc`, hoje `"false"`;
+  ausente também desliga; `comercialAtivo` em `src/helpers.ts`) esconde na interface leads, levantamentos, propostas, catálogo,
+  configuração comercial e preços, e faz as rotas deles (`/leads`, `/funil`, `/proposals`, `/servicos`, `/propostas`,
+  `/assessments`, `/pricing-config`, `/client/{proposal,assessment}`, `/public/propostas`) responderem 404 a pessoa e chave de
+  API (`src/index.ts`). Nada é apagado; `"true"` religa tudo como era (a suíte roda ligada, `wrangler.test.jsonc`; o desligado
+  em `test/comercial-desligado.test.ts`). `/api/v1/org` fica: com a área desligada, nome, CNPJ, cor e logo (que vão nos
+  documentos Word do projeto) estão em Conta e acessos, "Identidade da organização" (`identidade-org`, a tela de
+  `config-comercial.js` só com identidade), para `platform_admin` e `consultoria_admin`. O projeto nasce pelo "Novo projeto" da
+  tela Projetos (`POST /projects`), que para o n.iso semeia fases e controles com as mesmas funções do aceite da proposta
+  (`stmtsFases`, `stmtControles`, `catalogosDoProjeto` em `src/services/project-setup.ts`); o prefixo de proposta é opcional na
+  criação da organização. O agente MCP NÃO passa pelo interruptor: lê e rascunha a área comercial da organização de quem
+  concedeu, se essa pessoa é do comercial (`COMERCIAL_DO_AGENTE` em `src/middleware/agente.ts`, as `niso_comercial_*`;
+  matriz em `docs/agente/seguranca.md`).
 - **Bindings** (`grep '"binding"' wrangler.jsonc`): DB (D1), SESSIONS e OAUTH_KV (KV),
   STORAGE e TRILHA (R2), AI, ANALYTICS (Analytics Engine), CF_VERSION_METADATA, ASSETS.
 - **Rotinas agendadas** (`grep -A2 '"triggers"' wrangler.jsonc`): `10 4 * * *` roda a manutencao
