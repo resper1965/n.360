@@ -161,7 +161,8 @@ describe('suggestControlAdequacao / applyControlAdequacao', () => {
     expect(metodo).toBe('POST');
     expect(rota).toBe('/api/v1/projects/proj-1/control-adequacao/apply');
     expect(corpo).toMatchObject({ control_id: 'A.5.1', status: 'In Progress', maturity: 2, pergunta_key: 'p15_q1' });
-    expect(modalText()).toContain('✓ Aplicado');
+    expect(modalText()).toContain('Aplicado');
+    expect(modalText()).not.toContain('✓'); // sem ícone: estado em texto
   });
 
   it('sem sugestões, mostra a mensagem vazia', async () => {

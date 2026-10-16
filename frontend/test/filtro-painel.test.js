@@ -21,7 +21,8 @@ initDelegation();
 
 const B = '/api/v1/projects/p9';
 const el = (id) => document.getElementById(id);
-const ontem = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+// Dia local, como a tela (filtro-painel.js `hoje`): em UTC, entre 21h e meia-noite de Brasília "ontem" é hoje.
+const ontem = new Date(Date.now() - 86400000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const daqui30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
 const linhas = () => [...el('c').querySelectorAll('tbody tr')].map((tr) => tr.textContent);

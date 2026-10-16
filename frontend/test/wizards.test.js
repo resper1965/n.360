@@ -1,10 +1,10 @@
-// Contrato de dados de `src/data/wizards.js` (170 wizards, 999 linhas).
+// Contrato de dados de `src/data/wizards.js` (um assistente por item do checklist).
 // Nada valida essa estrutura em tempo de execucao: `openDocWizard` le
 // `wiz.title`, `wiz.isoRef`, `wiz.auditorTip` e `wiz.fields[].{id,label,type}`
 // e interpola direto no HTML. Um campo faltando nao da erro — imprime
 // "undefined" na tela do cliente. Estes testes sao a barreira que falta.
 //
-// Cada teste varre os 170 wizards e ACUMULA os infratores em uma lista, em vez
+// Cada teste varre todos os wizards e ACUMULA os infratores em uma lista, em vez
 // de usar `it.each` por wizard: um `expect(lista).toEqual([])` que falha nomeia
 // todos os culpados de uma vez, e a suite nao vira 1.400 casos de ruido.
 import { describe, it, expect } from 'vitest';
@@ -45,12 +45,12 @@ describe('DOC_WIZARDS — contrato de estrutura', () => {
         expect(fora).toEqual([]);
     });
 
-    it('todo wizard tem title, isoRef e auditorTip nao vazios', () => {
+    it('todo wizard tem title, isoRef, auditorTip e evidence nao vazios', () => {
         // O modal imprime `Dica do Auditor (${wiz.isoRef})` sem fallback: um
         // campo ausente vira a palavra "undefined" na tela do cliente.
         const faltando = [];
         for (const [chave, wiz] of CASOS) {
-            for (const prop of ['title', 'isoRef', 'auditorTip']) {
+            for (const prop of ['title', 'isoRef', 'auditorTip', 'evidence']) {
                 if (typeof wiz[prop] !== 'string' || wiz[prop].trim() === '') {
                     faltando.push(`${chave}.${prop}`);
                 }
@@ -153,8 +153,8 @@ describe('DOC_WIZARDS — contrato de estrutura', () => {
     // BUG REAL, documentado e nao corrigido (corrigir logica do frontend esta
     // fora do escopo desta tarefa). `openDocWizard` monta as opcoes assim:
     //     `<option value="${o}" ...>${o}</option>`
-    // sem passar por escapeHTML. Doze opcoes ja carregam '<' ou '>' no texto
-    // (ex.: "Parcialmente vinculada (<80%)", ">90% assinaram"). O parser de
+    // sem passar por escapeHTML. Uma opcao ja carrega '<' ou '>' no texto
+    // (">90% assinaram", em p16_2). O parser de
     // HTML tolera '<' seguido de digito, entao hoje a tela nao quebra
     // visivelmente — mas basta uma opcao futura comecando com letra ('<a'...)
     // ou com aspa dupla para virar injecao a partir de dado estatico.
@@ -178,6 +178,6 @@ describe('DOC_WIZARDS — contrato de estrutura', () => {
                 ? 'option com caractere HTML'
                 : null
         );
-        expect(suspeitos).toHaveLength(6);
+        expect(suspeitos).toHaveLength(1);
     });
 });
