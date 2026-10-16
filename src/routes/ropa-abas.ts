@@ -5,7 +5,8 @@ import { validateBody } from '../schemas';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { lerLogs, registrarSecao } from '../services/ropa-abas/logs';
 import { salvarEscopo } from '../services/ropa-abas/escopo';
-import { escopoSchema } from '../schemas/ropa-abas';
+import { salvarAgentes } from '../services/ropa-abas/agentes';
+import { escopoSchema, agentesSchema } from '../schemas/ropa-abas';
 import type { Falha, Gravado } from '../services/ropa-abas/comum';
 
 type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
@@ -37,6 +38,7 @@ function putAba<T extends object>(caminho: string, schema: Parameters<typeof val
   });
 }
 putAba('/escopo', escopoSchema, 'Escopo', 'Falha ao gravar o escopo', salvarEscopo);
+putAba('/agentes', agentesSchema, 'Agentes de Tratamento', 'Falha ao gravar os agentes de tratamento', salvarAgentes);
 
 const LOGS_DATA = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/;
 ropaAbasApp.get('/logs', async (c) => {
