@@ -22,10 +22,31 @@ O agente remoto tem dois papéis, escolhidos no consentimento OAuth e gravados n
 | Escrita | Adequação; destrutivo com confirmação (I5) | **Só** `POST /audits/:id/findings` e `POST /projects/<projeto>/auditor-notes`. Qualquer outro método/rota: 403 |
 | Achado e nota de auditor | Recusados (I6) | Permitidos |
 | Trilha | `agente de <email> (<cliente> / <projeto>)` | `agente auditor de <email> (<cliente> / <projeto>)` |
-| Ferramentas (`tools/list`) | 40: leitura (n.iso e n.privacy), `niso_ler`, `niso_executar`, escrita do consultor (inclusive as 8 `niso_privacy_*` de rascunho) | 22: leitura (inclusive as 8 `niso_privacy_*` de leitura), `niso_ler`, `niso_create_audit_finding`, `niso_create_auditor_note`, `niso_contexto`, `niso_skill` |
+| Área comercial | Só se quem concedeu é do comercial (`ehComercial`, relido a cada chamada; na prática o `consultoria_admin`), e só a organização dele: lê e rascunha (quadro abaixo). Vale com o interruptor `COMERCIAL_ATIVO` desligado | Nenhuma |
+| Ferramentas (`tools/list`) | 40: leitura (n.iso e n.privacy), `niso_ler`, `niso_executar`, escrita do consultor (inclusive as 8 `niso_privacy_*` de rascunho); 45 com as 5 `niso_comercial_*`, se quem concedeu é do comercial | 22: leitura (inclusive as 8 `niso_privacy_*` de leitura), `niso_ler`, `niso_create_audit_finding`, `niso_create_auditor_note`, `niso_contexto`, `niso_skill` |
 
 O filtro de ferramentas é conveniência. Quem impõe o papel é o servidor: `foraDoAuditor` em
 `src/middleware/agente.ts` (allow-list) e, como segunda camada, `apiKeyRoleViolation('auditor' | 'consultant')`.
+
+### Área comercial do agente (decisão do dono de 15/10/2026)
+
+O agente **lê e rascunha**; o que tem efeito com o cliente ou com o preço é de uma pessoa, pela interface. A área é da
+organização (não tem `project_id`), então a fronteira é outra: a organização de quem concedeu. Allow-list em
+`COMERCIAL_DO_AGENTE` (`src/middleware/agente.ts`): nessas rotas, e só nelas, o principal leva o papel e a `org_id` reais de
+quem concedeu, para `somenteComercial` e `exigirOrg` cortarem como cortam para a pessoa. Fora delas o agente segue `client`
+preso ao projeto. Agente de quem não é do comercial cai em `FORA_DO_AGENTE`, como antes.
+
+| Pode | Rota | Fica com a pessoa |
+|---|---|---|
+| Listar e ler leads, funil, levantamentos (respostas e blocos), propostas (com a prévia) e serviços | `GET /leads`, `/leads/:id`, `/funil`, `/assessments`, `/assessments/:id{,/answers,/block/:n}`, `/propostas`, `/propostas/:id{,/previa}`, `/servicos`, `/servicos/:id` | Preço de levantamento (`/assessments/:id/pricing`), documento e Word da proposta, consulta e enriquecimento de CNPJ |
+| Criar lead e mudar o status dele | `POST /leads`, `PUT /leads/:id/status` | Marcar ganho (`Won`, a rota recusa ao agente), apagar lead |
+| Criar proposta (nasce rascunho) e editar a que está em rascunho | `POST /propostas`, `PUT /propostas/:id` (a rota recusa ao agente o que não é `rascunho`) | Gerar, enviar, link, aceite manual, aprovar desconto, revisão, aceite e recusa do cliente (fechar venda) |
+| — | — | Configuração comercial e preço (`/org`, `/pricing-config`, `/proposals/config/pricing`), catálogo (escrita em `/servicos`), o fluxo antigo `/proposals` |
+
+Ferramentas: `niso_comercial_listar`, `niso_comercial_ler`, `niso_comercial_criar_lead`, `niso_comercial_status_lead` e
+`niso_comercial_rascunhar_proposta` (`src/mcp/servidor.ts`), só no `tools/list` do agente consultor de quem é do comercial,
+com esquema estrito. A trilha leva `agente de <email> (<cliente> / <projeto>)`: o projeto é o da conexão, não o da proposta.
+Teste: `test/agente-comercial.test.ts`.
 
 **Separação de funções (I13).** A mesma conta não tem, no mesmo projeto, concessão ativa de consultor **e** de
 auditor. O consentimento recusa o segundo papel (409, "revogue o outro acesso"); se os dois coexistirem por
@@ -100,7 +121,7 @@ quê (mesma regra do [`SECURITY.md`](../../SECURITY.md)).
 | `/users`, `/admin/users` | Gestão de usuários: controle de acesso, não conteúdo do SGSI. |
 | `/platform` | Administração da plataforma (organizações). |
 | `/dashboard` | Agrega todos os clientes. |
-| `/assessments`, `/leads`, `/proposals`, `/funil`, `/org`, `/servicos`, `/propostas` | Área comercial. |
+| `/assessments`, `/leads`, `/proposals`, `/funil`, `/org`, `/servicos`, `/propostas` | Área comercial, salvo a allow-list de leitura e rascunho acima (`COMERCIAL_DO_AGENTE`), para o agente de quem é do comercial. |
 | `/projects/:id/{sso,security-policy,scim-token,api-keys,webhooks}` e `/webhooks` | Configuração de segurança do cliente. O agente não amplia acesso. |
 | `/auth/*`, `/legal/*`, `/notifications` | **Conta pessoal do consultor** (veja a terceira linha do primeiro quadro). |
 | `/projects/:id/auditor-token` | Emitiria uma credencial externa de até 365 dias e permitiria forjar nota de auditor. |
@@ -235,6 +256,7 @@ segundo não aparece.
 | `test/agentes-acesso.test.ts` | Revogação, expiração, designação, listagem para o cliente. |
 | `test/oauth-autorizacao.test.ts` | Login OAuth, MFA, bloqueio, escopo, texto do consentimento. |
 | `test/mcp-remoto.test.ts` | Handshake, ferramentas listadas, 401 após revogar. |
+| `test/agente-comercial.test.ts` | Área comercial: leitura e rascunho da própria organização com o interruptor desligado, nada de gerar, enviar, aceitar, ganho, preço ou catálogo, outra organização 404, agente de quem não é do comercial recusado (papel relido), `tools/list` e as `niso_comercial_*`. |
 | `test/agente-auditor.test.ts` | Papel auditor: leitura nos dois módulos, 403 em toda escrita do consultor (forjada na API e pelo MCP), achado e nota com a trilha, papel relido do banco, separação de funções, `tools/list` por papel, platform_admin e comercial recusados. |
 | `test/agente-skills.test.ts` | Módulo embutido em dia, `niso_skill` sem vazamento, roteiro 4, as quatro skills do n.privacy. |
 | `test/agente-privacy-ferramentas.test.ts` | As 16 `niso_privacy_*`: esquema estrito, escrita em `Draft` e rascunho sem aprovar, faixa do módulo (projeto e pessoa), projeto de outra organização, auditor só lê, `FORA_DO_AGENTE` mantido, contagem do `tools/list` por papel. |

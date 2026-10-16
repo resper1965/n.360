@@ -138,6 +138,8 @@ leadsApp.put('/:id/status', async (c) => {
     const valid = await validateBody(c, leadStatusSchema);
     if (!valid.success) return valid.response;
     const { status } = valid.data;
+    // "Ganho" é o fechamento da venda: ato humano. O agente MCP lê e rascunha (src/middleware/agente.ts).
+    if (status === 'Won' && c.get('user')?.agente) return c.json({ error: 'Forbidden: marcar lead como ganho é ato humano, pela interface' }, 403);
     const orgId = c.get('orgId');
     const lead = await c.env.DB.prepare('SELECT status FROM leads WHERE id = ? AND org_id = ?').bind(id, orgId).first<{ status: string | null }>();
     if (!lead) return c.json({ error: 'Lead não encontrado' }, 404);

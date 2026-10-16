@@ -206,6 +206,9 @@ propostasApp.put('/:id', async (c) => {
     const p = await achar(db, orgId, id);
     if (!p) return c.json(NAO_ACHADA, 404);
     if (!['rascunho', 'aguardando_aprovacao'].includes(p.status)) return c.json(JA_GERADA, 409);
+    // O agente MCP edita só rascunho: a que espera aprovação de desconto é da pessoa (src/middleware/agente.ts).
+    // ponytail: conferido na leitura; a janela até o batch é a mesma que a regra acima já aceita.
+    if (user.agente && p.status !== 'rascunho') return c.json({ error: 'O agente edita só proposta em rascunho' }, 409);
     const v = await validateBody(c, propostaEditarSchema);
     if (!v.success) return v.response;
     const b = v.data;

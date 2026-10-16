@@ -35,7 +35,7 @@ interface Pedido { oauth: unknown; clientName: string; destino: string; userId?:
 const ALCANCE_PAPEL: Record<PapelAgente, { nome: string; texto: string }> = {
   consultor: {
     nome: 'Consultor (implementa)',
-    texto: 'O agente tem o mesmo alcance que você tem neste cliente: lê tudo e grava adequação (políticas, SoA, evidências, controles, riscos). Com a sua confirmação a cada vez, também apaga registros, gera políticas em lote, elimina dados de titular e revoga aprovações de controle. Aprovação de ROPA e DPIA e análise crítica assinada só se desfazem pela interface, por quem administra. Não registra achado de auditoria, não gerencia usuários, SSO, chaves de API nem webhooks.',
+    texto: 'O agente tem o mesmo alcance que você tem neste cliente: lê tudo e grava adequação (políticas, SoA, evidências, controles, riscos). Com a sua confirmação a cada vez, também apaga registros, gera políticas em lote, elimina dados de titular e revoga aprovações de controle. Aprovação de ROPA e DPIA e análise crítica assinada só se desfazem pela interface, por quem administra. Não registra achado de auditoria, não gerencia usuários, SSO, chaves de API nem webhooks. Se você é administrador da consultoria, ele também lê o funil comercial da sua organização (leads, levantamentos, propostas, serviços) e rascunha lead e proposta; gerar, enviar, aceitar e fechar venda seguem com você, pela interface.',
   },
   auditor: {
     nome: 'Auditor (só lê e audita)',
