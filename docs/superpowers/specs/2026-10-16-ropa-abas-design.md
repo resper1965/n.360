@@ -214,6 +214,9 @@ Prefixo: `/api/v1/projects/:projectId/ropa/:recordId/...`, montado em `src/route
 | `GET/POST .../medidas`, `PUT/DELETE .../medidas/:medidaId` | lista própria; `controle_id` opcional | grava; apagar é humano |
 | `GET .../medidas/controles`, `GET .../medidas/sugestoes` | controles implementados do projeto, só se o projeto tem n.iso (senão `[]`), e as medidas sugeridas | lê |
 | `GET .../riscos/motivos` | motivos de risco com a descrição padrão (PR1: do código; PR2: do catálogo do projeto, mesma forma) | lê |
+
+> Decisão da integração (17/10): `GET .../riscos/motivos` cai na faixa `privacy`, junto de `riscos` e `acoes` (a regex `ropa/:id/(riscos|acoes)/:x` o alcança); `test/ropa-abas-montagem.test.ts` fixa. Atividade cancelada recusa escrita (409) também nas sub-rotas antigas de `src/routes/ropa.ts`, por uma guarda única no router (`projectRopaApp.use('/:recordId/*')`) e na edição direta `PUT /ropa/:id`.
+
 | `GET/PUT .../base-juridica` | `{ previsao_legal?, lgpd?: [{requisito_id, finalidade}], art11?: {nao_aplicavel, incisos}, gdpr?: [{base, finalidade}] }`; cada lista, se vier, **substitui** | grava |
 | `GET/POST .../gaps`, `PUT/DELETE .../gaps/:id`, `PUT .../gaps/nao-aplicavel` | gap = `corrective_actions` + `recomendacao`; Responsável obrigatório | grava; apagar é humano |
 | `POST/GET/DELETE .../gaps/:id/anexos[/:anexoId]` | PDF/DOC/DOCX até 5 MiB, conferido pelo conteúdo | **fora** |

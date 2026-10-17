@@ -16,9 +16,22 @@ import { sugerirTratamento } from '../services/rascunhos-privacy';
 import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
 import { lerEmpresa } from '../services/empresas';
 import { situacaoDaAtividade } from '../services/ropa-abas/situacao';
+import { atividadeDoProjeto } from '../services/ropa-abas/comum';
 
 export const ropaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectRopaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+/**
+ * Atividade cancelada não recebe escrita por nenhuma sub-rota antiga (impacto, riscos, ações, ciclo, bases, itens...): a ficha em abas já
+ * recusa com 409 e as duas portas têm de fechar igual. Só reativar (POST /situacao, no router da ficha) e revogar a aprovação passam.
+ * Id que não é de atividade do projeto (`importar`, `copiloto`) segue para o handler.
+ */
+projectRopaApp.use('/:recordId/*', async (c, next) => {
+  if (c.req.method === 'GET' || c.req.path.endsWith('/revoke-approval')) return next();
+  const a = await atividadeDoProjeto(c.env.DB, c.req.param('projectId')!, c.req.param('recordId')!);
+  if (a?.status === 'Inactive') return c.json({ error: 'Atividade cancelada: reative para editar' }, 409);
+  return next();
+});
 
 /** A base legal é um requisito do catálogo global (fatia 4.1): existe ou não, sem tenant. */
 const baseLegalInexistente = async (db: D1Database, id: unknown) =>
@@ -50,6 +63,7 @@ ropaApp.put('/:id', async (c) => {
     // Ausente preserva o valor gravado (setParcial); o transform de boolLike deixa a chave com undefined.
     const body = Object.fromEntries(Object.entries(valid.data as Record<string, unknown>).filter(([, v]) => v !== undefined)) as any;
     const atual = await c.env.DB.prepare('SELECT status, project_id FROM ropa_records WHERE id = ?').bind(id).first<{ status: string | null; project_id: string | null }>();
+    if (atual?.status === 'Inactive') return c.json({ error: 'Atividade cancelada: reative para editar' }, 409);
     // O projeto vem do ROPA gravado, nunca do corpo.
     const fora = await refForaDoProjeto(c.env.DB, atual?.project_id, body, ['owner_parte_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);

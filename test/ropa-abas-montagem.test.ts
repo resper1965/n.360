@@ -37,7 +37,7 @@ describe('ficha em abas: montagem das rotas', () => {
 
   it('a faixa das rotas novas é do n.privacy; o registro antigo segue no núcleo', () => {
     const r = '/api/v1/projects/:projectId/ropa/:recordId';
-    for (const sufixo of ['ficha', 'escopo', 'agentes', 'base-juridica', 'logs', 'conferencia', 'situacao', 'relatorio', 'medidas', 'medidas/:id', 'gaps', 'gaps/:id/anexos/:aid', 'etapas', 'etapas/coleta/titulares/:t']) {
+    for (const sufixo of ['ficha', 'escopo', 'agentes', 'base-juridica', 'logs', 'conferencia', 'situacao', 'relatorio', 'medidas', 'medidas/:id', 'gaps', 'gaps/:id/anexos/:aid', 'riscos/motivos', 'etapas', 'etapas/coleta/titulares/:t']) {
       expect(faixaDoCaminho(`${r}/${sufixo}`), sufixo).toBe('privacy');
     }
     expect(faixaDoCaminho('/api/v1/projects/:projectId/catalogos/titulares')).toBe('privacy');
