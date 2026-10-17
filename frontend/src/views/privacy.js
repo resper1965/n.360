@@ -78,11 +78,14 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         let liaPendente = null;
         if (comPrivacy) { try { const v = await api('GET', `/api/v1/projects/${proj.id}/encarregado`); if (v && v.tratamentos) liaPendente = v.tratamentos.lia_pendente || 0; } catch (e) { /* sem o cartão */ } }
 
-        const totalRecords = records.length;
-        const dpiaReqCount = records.filter(r => r.dpia_required).length;
-        const intlTransCount = records.filter(r => r.international_transfers).length;
-        const semSalvaguarda = records.filter(r => r.international_transfers && !String(r.transfer_safeguards || '').trim()).length;
-        const activeRecords = records.filter(r => r.status === 'Active' || !r.status).length;
+        // Atividade cancelada (situação derivada no servidor) continua na lista, esmaecida, mas fica fora dos cartões de contagem.
+        const cancelada = (r) => !!(r.situacao && r.situacao.codigo === 'cancelada');
+        const contaveis = records.filter((r) => !cancelada(r));
+        const totalRecords = contaveis.length;
+        const dpiaReqCount = contaveis.filter(r => r.dpia_required).length;
+        const intlTransCount = contaveis.filter(r => r.international_transfers).length;
+        const semSalvaguarda = contaveis.filter(r => r.international_transfers && !String(r.transfer_safeguards || '').trim()).length;
+        const activeRecords = contaveis.filter(r => r.status === 'Active' || !r.status).length;
 
         // Número em var(--text); cor só quando há alerta (transferência sem salvaguarda, LIA pendente).
         const statsHtml = window.renderStatCards([
@@ -94,19 +97,22 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         ]);
 
         const tableHtml = window.renderDataTable(
-            ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Status', 'Ações'],
+            ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Situação', 'Ações'],
             records.map(r => {
                 const statusType = r.status === 'Active' || !r.status ? 'success' : 'info';
                 return [
-                    `<strong>${escapeHTML(r.processing_purpose)}</strong>${Array.isArray(r.nao_informado) && r.nao_informado.length ? ` ${window.renderStatusBadge('Importado: revisar', 'warning')}` : ''}`,
+                    `<strong${cancelada(r) ? ' class="at-esmaecida"' : ''}>${escapeHTML(r.nome || r.processing_purpose)}</strong>${Array.isArray(r.nao_informado) && r.nao_informado.length ? ` ${window.renderStatusBadge('Importado: revisar', 'warning')}` : ''}`,
                     escapeHTML(rotuloBase(r.legal_basis) || 'N/A'),
                     escapeHTML(r.data_subjects || 'N/A'),
                     escapeHTML(r.retention_period || 'N/A'),
                     r.dpia_required ? window.renderStatusBadge('Sim', 'warning') : window.renderStatusBadge('Não', 'neutral'),
-                    window.renderStatusBadge(r.status || 'Active', statusType),
+                    // Situação derivada do servidor (Rascunho, Em Revisão, Aprovada, Cancelada), escrita; sem ela, o status antigo.
+                    r.situacao && r.situacao.rotulo
+                        ? window.renderStatusBadge(r.situacao.rotulo, { aprovada: 'success', cancelada: 'neutral', em_revisao: 'warning', rascunho: 'info' }[r.situacao.codigo] || 'info')
+                        : window.renderStatusBadge(r.status || 'Active', statusType),
                     // n.privacy: a atividade tem página própria, com as etapas (atividade.js). Um botão, um nome.
                     comPrivacy
-                        ? `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${escapeHTML(JSON.stringify([proj.id, r.id]))}' aria-label="Abrir a atividade: ${escapeHTML(r.processing_purpose)}">Abrir</button>`
+                        ? `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${escapeHTML(JSON.stringify([proj.id, r.id]))}' aria-label="Abrir a atividade: ${escapeHTML(r.nome || r.processing_purpose)}">Abrir</button>`
                         : `<button class="btn btn-ghost btn-sm" data-action="openROPADetailsModal" data-args='["${r.id}"]'>Detalhes</button>
                      ${entrevista ? `<button class="btn btn-ghost btn-sm" data-action="abrirRopaEntrevista" data-args='["${proj.id}","${r.id}"]'>Continuar entrevista</button>` : ''}`
                 ];
