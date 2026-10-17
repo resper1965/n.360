@@ -17,9 +17,8 @@ const linha = (m, editavel) => `<li class="at-item" data-id="${escapeHTML(m.id)}
 
 export async function montar(painel, ctx) {
     const { projectId: pid, ropaId: rid, editavel, ficha } = ctx;
-    const base = (s = '') => url(pid, rid, `/medidas${s}`);
     let medidas;
-    try { medidas = lista(await api('GET', base())); } catch (e) { painel.innerHTML = renderEmptyState({ titulo: 'Não foi possível carregar as medidas', texto: (e && e.message) || 'Tente de novo em instantes.' }); return; }
+    try { medidas = lista(await api('GET', url(pid, rid, '/medidas'))); } catch (e) { painel.innerHTML = renderEmptyState({ titulo: 'Não foi possível carregar as medidas', texto: (e && e.message) || 'Tente de novo em instantes.' }); return; }
 
     const novo = '<button type="button" class="btn btn-sm" id="at-nova-medida">+ Medidas de Segurança</button>';
     painel.innerHTML = `<div class="at-aba-corpo">${faixaSalvo()}${editavel && medidas.length ? `<div class="at-acoes">${novo}</div>` : ''}
@@ -31,18 +30,18 @@ export async function montar(painel, ctx) {
 
     painel.querySelectorAll('[data-excluir]').forEach((b) => b.addEventListener('click', async () => {
         if (!(await confirmar('Excluir esta medida de segurança?', { rotulo: 'Excluir', perigo: true }))) return;
-        try { await api('DELETE', base(`/${b.dataset.excluir}`)); } catch (e) { showToast((e && e.message) || 'Não foi possível excluir.', 'error'); return; }
+        try { await api('DELETE', url(pid, rid, `/medidas/${b.dataset.excluir}`)); } catch (e) { showToast((e && e.message) || 'Não foi possível excluir.', 'error'); return; }
         await montar(painel, ctx);
     }));
     const abrir = painel.querySelector('#at-nova-medida');
-    if (abrir) abrir.addEventListener('click', () => abrirModal({ pid, rid, base, ficha, aoGravar: () => montar(painel, ctx) }));
+    if (abrir) abrir.addEventListener('click', () => abrirModal({ pid, rid, ficha, aoGravar: () => montar(painel, ctx) }));
 }
 
-async function abrirModal({ base, ficha, aoGravar }) {
+async function abrirModal({ pid, rid, ficha, aoGravar }) {
     const comIso = !!(ficha && ficha.modulos && ficha.modulos.iso);
     let sugestoes = []; let controles = [];
-    try { sugestoes = lista(await api('GET', base('/sugestoes'))); } catch (e) { /* sem sugestões */ }
-    if (comIso) { try { controles = lista(await api('GET', base('/controles'))); } catch (e) { /* sem controles */ } }
+    try { sugestoes = lista(await api('GET', url(pid, rid, '/medidas/sugestoes'))); } catch (e) { /* sem sugestões */ }
+    if (comIso) { try { controles = lista(await api('GET', url(pid, rid, '/medidas/controles'))); } catch (e) { /* sem controles */ } }
     const nomeDe = (s) => (typeof s === 'string' ? s : s && (s.medida || s.nome)) || '';
     openModal(`<h2 class="modal-title">Medidas de Segurança</h2>
         ${comIso ? `<div class="form-group"><label class="form-label" for="at-m-controle">Ligar a um controle implementado</label>
@@ -76,7 +75,7 @@ async function abrirModal({ base, ficha, aoGravar }) {
         if (d) corpo.descricao = d;
         if (ctl && ctl.value) corpo.controle_id = ctl.value;
         botao.disabled = true;
-        try { await api('POST', base(), corpo); } catch (e) { showToast((e && e.message) || 'Não foi possível adicionar a medida.', 'error'); botao.disabled = false; return; }
+        try { await api('POST', url(pid, rid, '/medidas'), corpo); } catch (e) { showToast((e && e.message) || 'Não foi possível adicionar a medida.', 'error'); botao.disabled = false; return; }
         forceCloseModal();
         await aoGravar();
     });

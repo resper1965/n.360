@@ -73,7 +73,6 @@ async function escolher({ pid, titulo, ajuda, vazioTexto, rotuloNovo, buscar, cr
 export function montarCabecalho(raiz, ctx) {
     const { projectId: pid, ropaId: rid, ficha, editavel, recarregarFicha } = ctx;
     const ligar = (id, fn) => { const b = raiz.querySelector(id); if (b) b.addEventListener('click', fn); };
-    const base = `/api/v1/projects/${pid}`;
 
     const area = raiz.querySelector('#at-descricao');
     if (area && editavel) {
@@ -92,8 +91,8 @@ export function montarCabecalho(raiz, ctx) {
     ligar('#at-editar-responsavel', () => escolher({
         pid, titulo: 'Responsável pela atividade', ajuda: 'Escolha a pessoa responsável pela atividade.', multiplo: false,
         vazioTexto: 'Nenhuma pessoa cadastrada neste projeto. Crie a primeira abaixo para indicar o responsável.', rotuloNovo: 'Nova pessoa',
-        buscar: async () => lista(await api('GET', `${base}/partes?tipo=pessoa&status=ativa`)),
-        criar: async (nome) => { const r = await api('POST', `${base}/partes`, { tipo: 'pessoa', nome }); return { id: r.id }; },
+        buscar: async () => lista(await api('GET', `/api/v1/projects/${pid}/partes?tipo=pessoa&status=ativa`)),
+        criar: async (nome) => { const r = await api('POST', `/api/v1/projects/${pid}/partes`, { tipo: 'pessoa', nome }); return { id: r.id }; },
         selecionados: ficha.registro.responsavel ? [ficha.registro.responsavel.id] : [],
         aoConfirmar: async (ids) => { await gravar(pid, rid, { owner_parte_id: ids[0] || null }); await recarregarFicha(); },
     }));
@@ -101,8 +100,8 @@ export function montarCabecalho(raiz, ctx) {
     ligar('#at-editar-areas', () => escolher({
         pid, titulo: 'Áreas da atividade', ajuda: 'Marque as áreas da empresa que participam desta atividade.', multiplo: true,
         vazioTexto: 'Nenhuma área cadastrada neste projeto. Uma área é um setor da empresa, como Recursos Humanos. Crie a primeira abaixo.', rotuloNovo: 'Nova área',
-        buscar: async () => lista(await api('GET', `${base}/departamentos`)).filter((d) => d.status !== 'inativa' && d.status !== 'inativo'),
-        criar: async (nome) => { const r = await api('POST', `${base}/departamentos`, { nome }); return { id: r.id }; },
+        buscar: async () => lista(await api('GET', `/api/v1/projects/${pid}/departamentos`)).filter((d) => d.status !== 'inativa' && d.status !== 'inativo'),
+        criar: async (nome) => { const r = await api('POST', `/api/v1/projects/${pid}/departamentos`, { nome }); return { id: r.id }; },
         selecionados: lista(ficha.registro.areas).map((a) => a.id),
         aoConfirmar: async (ids) => { await gravar(pid, rid, { areas_ids: ids }); await recarregarFicha(); },
     }));

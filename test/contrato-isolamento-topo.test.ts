@@ -240,6 +240,9 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   parte_vinculos: { papel: 'responsavel', alvo_tipo: 'projeto' },
   avaliacoes_terceiro: { metodo: 'auditoria', resultado: 'aprovado' },
   titular_pedidos: { tipo: 'acesso' },
+  catalogo_itens: { tipo: 'titular' },
+  tratamento_medidas: { status: 'ativa' },
+  acao_anexos: { file_type: 'pdf', file_size: 1 },
 };
 
 async function semearTenantAlheio(id: string, projeto: string): Promise<void> {
