@@ -8,8 +8,16 @@ export type Alvo = { org: string; m: string; proj: string; rec: string };
 export type Contexto = { de: Alvo; alheio: Alvo; token?: string };
 
 /** Corpos que passam na validação, para a guarda de organização ser o que recusa. */
-export const CORPOS_S: Record<string, (alvo: Alvo) => unknown> = {};
+const R = '/api/v1/projects/:projectId/ropa/:recordId';
+export const CORPOS_S: Record<string, (alvo: Alvo) => unknown> = {
+  [`POST ${R}/situacao`]: () => ({ acao: 'enviar_revisao' }),
+  [`POST ${R}/gaps`]: (alvo) => ({ gap: 'Gap exemplo', responsavel_parte_id: alvo.rec }),
+  [`PUT ${R}/gaps/nao-aplicavel`]: () => ({ valor: true }),
+  [`PUT ${R}/gaps/:id`]: () => ({ status: 'Closed' }),
+};
 /** Rota do PRÓPRIO projeto com id de recurso alheio no corpo (`owner_parte_id`, `controle_id`, `responsavel_parte_id`...): deve ser 4xx. */
-export const VINCULOS_S: [string, (p: Contexto) => string, (p: Contexto) => unknown][] = [];
+export const VINCULOS_S: [string, (p: Contexto) => string, (p: Contexto) => unknown][] = [
+  ['POST', (p) => `/api/v1/projects/${p.de.proj}/ropa/${p.de.rec}/gaps`, (p) => ({ gap: 'Gap exemplo', responsavel_parte_id: p.alheio.rec })],
+];
 /** Rotas que param no 400 e não têm corpo simples que chegue à guarda, cada uma com o motivo. */
 export const NAO_PROVADAS_S: Record<string, string> = {};
