@@ -42,7 +42,8 @@ rodar_vitest() { # diretorio args...
   # Falha de verdade falha de novo e reprova.
   if [ $rc -ne 0 ] && grep -qE "Failed to start (forks|cloudflare-pool) worker|Timeout starting cloudflare-pool" "$saida"; then
     echo ">> worker que não subiu por carga da máquina; repetindo a suíte com menos workers"
-    (cd "$dir" && npx vitest run "$@" --maxWorkers=2); rc=$?
+    local resto=(); for a in "$@"; do case "$a" in --maxWorkers=*) ;; *) resto+=("$a");; esac; done
+    (cd "$dir" && npx vitest run "${resto[@]}" --maxWorkers=2); rc=$?
   fi
   rm -f "$saida"; return $rc
 }
