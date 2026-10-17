@@ -98,7 +98,7 @@ describe('dentro da etapa', () => {
 
 describe('ponte descartável', () => {
   it('o arquivo começa com o comentário que o marca para sair na PR2', () => {
-    expect(fonte.split('\n')[0]).toBe('// PONTE: sai na PR2 (aba-tratamento.js)');
+    expect(fonte.split(/\r?\n/)[0]).toBe('// PONTE: sai na PR2 (aba-tratamento.js)');
   });
 
   it('na PR2 a ponte some: se aba-tratamento.js existir, a ponte não pode existir (tarefa Z2)', () => {
