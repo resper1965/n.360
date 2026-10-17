@@ -1,5 +1,5 @@
 import { BaseAgent, type AgentContext, type AgentResponse } from './types';
-import { PERGUNTAS_IMPACTO } from '../services/impacto';
+import { PERGUNTAS_IMPORTAVEIS } from '../services/impacto';
 import { IDS_ETAPAS } from '../services/ciclo';
 
 /**
@@ -66,7 +66,7 @@ Para cada registro, devolva "tipo" e os campos abaixo (omita o que o texto não 
 - tipo "gap": atividade (obrigatória), titulo (obrigatório, a ação ou lacuna), descricao, prazo, responsavel, status ("aberto",
   "em_andamento" ou "concluido"), risco (a ameaça a que a ação responde).
 - tipo "impacto": atividade (obrigatória) e, para cada pergunta respondida, a chave da pergunta com "sim", "nao" ou "nao_sei". Chaves:
-  ${PERGUNTAS_IMPACTO.map((p) => `${p.id} (${p.texto.split(',')[0].replace(/\?$/, '')})`).join('; ')}.
+  ${PERGUNTAS_IMPORTAVEIS().map((p) => `${p.id} (${p.texto.split(',')[0].replace(/\?$/, '')})`).join('; ')}.
 - tipo "ciclo": atividade (obrigatória), etapa (uma de ${IDS_ETAPAS.map((e) => `"${e}"`).join(', ')}), situacao ("registrada" ou
   "nao_aplicavel"), item (nome do sistema ou arquivo da etapa), descricao.
 Nunca devolva nome, CPF, e-mail ou telefone de titular. Em cada registro, devolva também origem (o trecho literal do texto de onde

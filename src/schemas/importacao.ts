@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { CANAIS_PEDIDO, STATUS_PEDIDO, TIPOS_PEDIDO } from '../services/titular-pedidos';
 import { RISCOS } from '../services/incidentes';
-import { PERGUNTAS_IMPACTO } from '../services/impacto';
+import { PERGUNTAS_IMPORTAVEIS } from '../services/impacto';
 import { IDS_ETAPAS } from '../services/ciclo';
 
 /**
@@ -176,7 +176,7 @@ export const OBRIGATORIOS_GAP = ['atividade', 'titulo', 'prazo', 'responsavel'] 
 const resposta = z.enum(['sim', 'nao', 'nao_sei']).nullish();
 export const impactoPropostoSchema = z.object({
   atividade,
-  ...Object.fromEntries(PERGUNTAS_IMPACTO.map((p) => [p.id, resposta])) as Record<string, typeof resposta>,
+  ...Object.fromEntries(PERGUNTAS_IMPORTAVEIS().map((p) => [p.id, resposta])) as Record<string, typeof resposta>,
 }).strict();
 export type ImpactoProposto = { atividade: string } & Record<string, 'sim' | 'nao' | 'nao_sei' | null | undefined>;
 export const OBRIGATORIOS_IMPACTO = ['atividade'] as const;

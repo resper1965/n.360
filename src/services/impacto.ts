@@ -29,6 +29,8 @@ export const PERGUNTAS_IMPACTO: readonly PerguntaImpacto[] = [
   { id: 'decisao_automatizada', grupo: 'especifico', texto: 'O projeto incluirá o uso de dados pessoais para tomada de decisão automatizada com efeito legal ou significativamente similar?', curto: 'há decisão automatizada com efeito relevante' },
   { id: 'legitimo_interesse', grupo: 'especifico', texto: 'O fundamento legal para o tratamento de dados é legítimo interesse?', curto: 'a base é o legítimo interesse' },
 ];
+/** O modelo de importação segue as perguntas de antes: a de alto risco é da ficha, importar é outra etapa. */
+export const PERGUNTAS_IMPORTAVEIS = () => PERGUNTAS_IMPACTO.filter((p) => p.grupo !== 'alto_risco');
 const IDS = new Set(PERGUNTAS_IMPACTO.map((p) => p.id));
 export const ehPerguntaDeImpacto = (id: string) => IDS.has(id);
 

@@ -3,8 +3,8 @@ import { prepararProjeto, chamar, comoAgente, json, base, novaAtividade, P, type
 import { faixaDoCaminho } from '../src/modulos';
 
 /**
- * Pacote 0: a montagem do esqueleto. Nenhum handler da ficha existe ainda (os pacotes A e S os preenchem), então aqui se prova só
- * o que o pacote 0 entrega: a rota existe na cadeia (401/403/404, nunca 500), a faixa é do n.privacy e o agente é recusado onde deve.
+ * Pacote 0: a montagem do esqueleto. Os handlers da PR1 existem (A e S); aqui se prova só
+ * a montagem: a rota existe na cadeia (401/403/404, nunca 500), a faixa é do n.privacy e o agente é recusado onde deve.
  */
 describe('ficha em abas: montagem das rotas', () => {
   let s: Sessoes;
@@ -18,11 +18,12 @@ describe('ficha em abas: montagem das rotas', () => {
     expect((await chamar({}, 'GET', `${base(rid)}/ficha`)).status).toBe(401);
   });
 
-  it('consultor: o esqueleto responde 404 (sem handler ainda), nunca 500', async () => {
-    for (const [m, c] of [['GET', 'ficha'], ['PUT', 'escopo'], ['GET', 'conferencia'], ['POST', 'situacao'], ['GET', 'medidas'], ['GET', 'gaps/x/anexos']] as const) {
-      const r = await chamar(s.consultor, m, `${base(rid)}/${c}`);
-      expect(r.status, `${m} ${c}`).toBe(404);
+  it('consultor: as rotas da PR1 respondem (validam, nunca 500); os catálogos e as etapas são da PR2 (404)', async () => {
+    for (const [m, c] of [['GET', 'ficha'], ['GET', 'conferencia'], ['GET', 'medidas'], ['GET', 'gaps'], ['PUT', 'escopo'], ['PUT', 'agentes']] as const) {
+      expect((await chamar(s.consultor, m, `${base(rid)}/${c}`, m === 'PUT' ? {} : undefined)).status, `${m} ${c}`).toBe(200);
     }
+    expect((await chamar(s.consultor, 'POST', `${base(rid)}/situacao`, {})).status).toBe(400);
+    expect((await chamar(s.consultor, 'GET', `${base(rid)}/gaps/x/anexos`)).status).toBe(404);
     expect((await chamar(s.consultor, 'GET', `/api/v1/projects/${P}/catalogos/titulares`)).status).toBe(404);
   });
 
@@ -55,7 +56,7 @@ describe('ficha em abas: montagem das rotas', () => {
     }
     // `.../agentes` aqui é a aba (controlador/operador), não a gestão de concessões do agente.
     const ok = await comoAgente('PUT', `${base(rid)}/agentes`, {});
-    expect(ok.status).toBe(404);
+    expect(ok.status).toBe(200); // passou do corte do agente
     // a rota de gestão de concessões continua fora do alcance
     const gestao = await comoAgente('GET', '/api/v1/agentes');
     expect(gestao.status).toBe(403);

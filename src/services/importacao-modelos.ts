@@ -1,5 +1,5 @@
 import { chave, lerCsv } from './tratamentos-importar';
-import { PERGUNTAS_IMPACTO } from './impacto';
+import { PERGUNTAS_IMPORTAVEIS } from './impacto';
 import type { Entidade } from './importacao';
 
 /**
@@ -37,7 +37,7 @@ export const MODELOS: Modelo[] = [
     },
   },
   { nome: 'gaps', entidade: 'gap', tipo: 'avaliacao', colunas: { atividade: T, titulo: T, descricao: T, prazo: 'dia', responsavel: T, status: 'opcao', risco: T } },
-  { nome: 'impacto', entidade: 'impacto', tipo: 'avaliacao', colunas: { atividade: T, ...Object.fromEntries(PERGUNTAS_IMPACTO.map((p) => [p.id, 'opcao' as const])) } },
+  { nome: 'impacto', entidade: 'impacto', tipo: 'avaliacao', colunas: { atividade: T, ...Object.fromEntries(PERGUNTAS_IMPORTAVEIS().map((p) => [p.id, 'opcao' as const])) } },
   { nome: 'ciclo', entidade: 'ciclo', tipo: 'avaliacao', colunas: { atividade: T, etapa: 'opcao', situacao: 'opcao', item: T, descricao: T } },
   { nome: 'bases', entidade: 'bases', tipo: 'avaliacao', colunas: { atividade: T, adicionais: 'lista', base_gdpr: T } },
   {
