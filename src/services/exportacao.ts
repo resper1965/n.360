@@ -1,5 +1,7 @@
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { cicloEmTexto, etapasDe, type EtapaLida } from './ciclo';
+import { aprovacoesDoProjeto } from './documentos';
+import { situacaoDaAtividade } from './ropa-abas/situacao';
 import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO, type FaixaPrazo } from './riscos-atividade';
 
 /**
@@ -38,11 +40,12 @@ const todas = async (db: D1Database, sql: string, ...binds: unknown[]) => (await
 const hoje = () => new Date().toISOString().slice(0, 10);
 
 async function atividades(db: D1Database, projectId: string): Promise<Tabela> {
+  const aprovacoes = await aprovacoesDoProjeto(db, projectId, undefined, 'tratamento');
   const [regs, ciclos] = await Promise.all([
     todas(db, `SELECT r.*, q.referencia AS base_ref, q.titulo AS base_titulo, ${SQL_TITULOS_ADICIONAIS} AS adicionais, pa.nome AS responsavel
                  FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id
                  LEFT JOIN partes pa ON pa.id = r.owner_parte_id AND pa.project_id = r.project_id
-                WHERE r.project_id = ? ORDER BY r.created_at, r.id LIMIT ?`, projectId, TETO_LINHAS + 1),
+                WHERE r.project_id = ? AND COALESCE(r.status, '') <> 'Inactive' ORDER BY r.created_at, r.id LIMIT ?`, projectId, TETO_LINHAS + 1),
     todas(db, `SELECT c.ropa_id, c.etapa, c.situacao, c.item_id, i.nome AS item_nome, c.descricao FROM tratamento_ciclo c
                  LEFT JOIN itens i ON i.id = c.item_id WHERE c.project_id = ?`, projectId),
   ]);
@@ -50,12 +53,13 @@ async function atividades(db: D1Database, projectId: string): Promise<Tabela> {
   return {
     cabecalho: ['Finalidade', 'Base legal principal', 'Bases adicionais', 'Base GDPR', 'Titulares', 'Categorias de dados', 'Dados sensíveis',
       'Crianças e adolescentes', 'Transferência internacional', 'Salvaguarda da transferência', 'Destinatários', 'Retenção', 'Ciclo de vida',
-      'Responsável', 'Exige RIPD', 'Situação', 'Criado em', 'Atualizado em'],
+      'Responsável', 'Exige RIPD', 'Situação', 'Criado em', 'Atualizado em', 'Nome', 'Situação da atividade'],
     linhas: regs.map((r) => [
       r.processing_purpose, r.base_ref ? `${r.base_ref} - ${r.base_titulo}` : r.legal_basis, r.adicionais, r.base_gdpr, r.data_subjects,
       r.data_categories, simNao(r.dados_sensiveis), simNao(r.criancas_adolescentes), simNao(r.international_transfers), r.transfer_safeguards,
       r.recipients, r.retention_period, cicloDe(r.id), r.responsavel || r.owner, simNao(r.dpia_required), traduz(STATUS, r.status || 'Active'),
-      r.created_at, r.updated_at,
+      r.created_at, r.updated_at, r.nome,
+      situacaoDaAtividade({ status: r.status as string | null, reaberta_em: r.reaberta_em as string | null, aprovacao: aprovacoes.get(String(r.id)) ?? null, aprovacao_anterior: null }).rotulo,
     ]),
   };
 }

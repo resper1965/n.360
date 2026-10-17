@@ -26,10 +26,11 @@ const refRecusada = (campo: string): Falha => ({ ok: false, status: 400, error: 
 export type RiscoCorpo = {
   threat?: string; vulnerability?: string | null; asset_id?: string | null; impact?: number; probability?: number;
   treatment?: string; treatment_plan?: string | null; residual_impact?: number | null; residual_probability?: number | null;
-  owner_parte_id?: string | null; control_id?: string | null; status?: string;
+  owner_parte_id?: string | null; control_id?: string | null; status?: string; treatment_due_date?: string | null;
 };
 export type AcaoCorpo = {
   title?: string; description?: string | null; due_date?: string | null; assigned_to_parte_id?: string | null; status?: string; risk_id?: string | null;
+  recomendacao?: string | null; action_plan?: string | null;
 };
 
 async function atividade(db: D1Database, projectId: string, ropaId: string) {
@@ -48,7 +49,7 @@ export async function listarRiscos(db: D1Database, projectId: string, ropaId: st
   const { results } = await db.prepare(
     `SELECT r.*, pa.nome AS owner_parte_nome FROM risks r
        LEFT JOIN partes pa ON pa.id = r.owner_parte_id AND pa.project_id = r.project_id
-      WHERE r.ropa_id = ? AND r.project_id = ? ORDER BY r.impact * r.probability DESC, r.created_at`
+      WHERE r.ropa_id = ? AND r.project_id = ? ORDER BY r.idr IS NULL, r.idr, r.created_at`
   ).bind(ropaId, projectId).all();
   return results;
 }
@@ -69,12 +70,13 @@ export async function criarRisco(db: D1Database, projectId: string, ropaId: stri
   await db.batch([
     db.prepare(
       `INSERT INTO risks (id, project_id, ropa_id, asset_id, asset, threat, vulnerability, impact, probability, risk_level, treatment, treatment_plan,
-         residual_impact, residual_probability, residual_level, owner_parte_id, control_id, status, accepted_by, accepted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         residual_impact, residual_probability, residual_level, owner_parte_id, control_id, status, accepted_by, accepted_at, idr, treatment_due_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(idr), 0) + 1 FROM risks WHERE ropa_id = ?), ?)`
     ).bind(id, projectId, ropaId, corpo.asset_id || null, await textoDoAtivo(db, corpo.asset_id, at.processing_purpose), corpo.threat,
       corpo.vulnerability ?? null, impacto, prob, nivel, corpo.treatment ?? 'Mitigate', corpo.treatment_plan ?? null,
       corpo.residual_impact ?? null, corpo.residual_probability ?? null, residualLevel(corpo.residual_impact, corpo.residual_probability),
-      corpo.owner_parte_id || null, corpo.control_id || null, status, aceite ? ator : null, aceite ? new Date().toISOString() : null),
+      corpo.owner_parte_id || null, corpo.control_id || null, status, aceite ? ator : null, aceite ? new Date().toISOString() : null,
+      ropaId, corpo.treatment_due_date ?? null),
     db.prepare('INSERT INTO risk_history (id, risk_id, project_id, impact, probability, risk_level) VALUES (?, ?, ?, ?, ?, ?)')
       .bind(genId(), id, projectId, impacto, prob, nivel),
   ]);
@@ -100,7 +102,7 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
   const aceiteNovo = corpo.status === 'Accepted' && atual.status !== 'Accepted';
   const p = setParcial(corpo, {
     threat: null, vulnerability: null, asset_id: null, treatment: 'Mitigate', treatment_plan: null, residual_impact: null,
-    residual_probability: null, owner_parte_id: null, control_id: null, status: 'Open',
+    residual_probability: null, owner_parte_id: null, control_id: null, status: 'Open', treatment_due_date: null,
   });
   const extra: string[] = [];
   const binds: unknown[] = [];
@@ -158,10 +160,10 @@ export async function criarAcao(db: D1Database, projectId: string, ropaId: strin
   const status = corpo.status ?? 'Open';
   const agora = new Date().toISOString();
   await db.prepare(
-    `INSERT INTO corrective_actions (id, project_id, ropa_id, risk_id, title, description, due_date, assigned_to_parte_id, status, completed_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO corrective_actions (id, project_id, ropa_id, risk_id, title, description, due_date, assigned_to_parte_id, status, completed_at, created_at, recomendacao, action_plan)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, projectId, ropaId, corpo.risk_id || null, corpo.title, corpo.description ?? null, corpo.due_date ?? null,
-    corpo.assigned_to_parte_id || null, status, status === 'Closed' ? agora : null, agora).run();
+    corpo.assigned_to_parte_id || null, status, status === 'Closed' ? agora : null, agora, corpo.recomendacao ?? null, corpo.action_plan ?? null).run();
   return { ok: true, id };
 }
 
@@ -172,7 +174,7 @@ export async function atualizarAcao(db: D1Database, projectId: string, ropaId: s
   if (await riscoForaDaAtividade(db, projectId, ropaId, corpo.risk_id)) return { ok: false, status: 400, error: 'risk_id não é risco desta atividade' };
   const fora = await refForaDoProjeto(db, projectId, corpo, ['assigned_to_parte_id']);
   if (fora) return refRecusada(fora);
-  const p = setParcial(corpo, { title: null, description: null, due_date: null, assigned_to_parte_id: null, status: 'Open', risk_id: null });
+  const p = setParcial(corpo, { title: null, description: null, due_date: null, assigned_to_parte_id: null, status: 'Open', risk_id: null, recomendacao: null, action_plan: null });
   // Concluir carimba a data; reabrir a limpa. Status ausente não mexe.
   const sets = p.sql ? [p.sql] : [];
   const binds = [...p.binds];
@@ -239,5 +241,13 @@ export async function acoesDasAtividades(db: D1Database, projectId: string, { so
       WHERE ca.project_id = ?1 ${soAbertas ? `AND COALESCE(ca.status, 'Open') <> 'Closed'` : ''}
       ORDER BY COALESCE(ca.status, 'Open') = 'Closed', ca.due_date IS NULL, ca.due_date, ca.created_at LIMIT ?2`
   ).bind(projectId, limite).all<AcaoDaAtividade>();
+  return results;
+}
+
+/** Pares motivo/descrição já usados nos riscos de atividade DESTE projeto (PR1: o catálogo de motivos é da PR2). Vazio no projeto novo. */
+export async function motivosDeRisco(db: D1Database, projectId: string): Promise<{ nome: string; descricao_padrao: string | null }[]> {
+  const { results } = await db.prepare(
+    `SELECT DISTINCT threat AS nome, vulnerability AS descricao_padrao FROM risks WHERE project_id = ? AND ropa_id IS NOT NULL AND threat <> '' ORDER BY threat, vulnerability`
+  ).bind(projectId).all<{ nome: string; descricao_padrao: string | null }>();
   return results;
 }

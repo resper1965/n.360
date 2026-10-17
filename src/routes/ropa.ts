@@ -15,6 +15,7 @@ import { conferirPedidosDoDocumento } from './pedidos';
 import { sugerirTratamento } from '../services/rascunhos-privacy';
 import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
 import { lerEmpresa } from '../services/empresas';
+import { situacaoDaAtividade } from '../services/ropa-abas/situacao';
 
 export const ropaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectRopaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -99,7 +100,11 @@ projectRopaApp.get('/', async (c) => {
      WHERE r.project_id = ? ORDER BY r.created_at DESC`
   ).bind(projectId).all();
   const aprovacoes = await aprovacoesDoProjeto(c.env.DB, projectId!, undefined, 'tratamento');
-  const records = semRastros(result.results as Record<string, unknown>[]).map(comNaoInformados).map((r) => ({ ...r, aprovacao_pedido: aprovacoes.get(String(r.id)) ?? { ciso: null, ceo: null } }));
+  const records = semRastros(result.results as Record<string, unknown>[]).map(comNaoInformados).map((r) => {
+    const aprovacao_pedido = aprovacoes.get(String(r.id)) ?? { ciso: null, ceo: null };
+    const { codigo, rotulo } = situacaoDaAtividade({ status: r.status as string | null, reaberta_em: r.reaberta_em as string | null, aprovacao: aprovacao_pedido, aprovacao_anterior: null });
+    return { ...r, aprovacao_pedido, situacao: { codigo, rotulo } };
+  });
   return c.json({ ok: true, records });
 });
 
@@ -525,7 +530,7 @@ projectRopaApp.get('/report', async (c) => {
     ].filter(Boolean).join('<br>');
 
     const { results: records } = await c.env.DB.prepare(
-      `SELECT r.*, ${SQL_DADOS_IMPORTADOS} FROM ropa_records r WHERE r.project_id = ? ORDER BY r.created_at ASC`
+      `SELECT r.*, ${SQL_DADOS_IMPORTADOS} FROM ropa_records r WHERE r.project_id = ? AND COALESCE(r.status, '') <> 'Inactive' ORDER BY r.created_at ASC`
     ).bind(projectId).all<any>();
     // Bases adicionais e ciclo de vida (F3): uma leitura por tabela para o projeto inteiro.
     const [basesDoProjeto, ciclosDoProjeto] = await c.env.DB.batch([
