@@ -27,6 +27,8 @@ const montadores = () => ({
 const voltar = '<button type="button" class="btn" data-action="atVoltar">Voltar aos tratamentos</button>';
 let sequencia = 0;
 let ultimo = null;
+// O que a aba montada devolveu ({ esvaziar }): a casca o chama antes de trocar de aba, além dos autosaves registrados.
+let abaMontada = null;
 
 export async function renderAtividade(c, h, a) {
     ultimo = { c, h, a };
@@ -41,6 +43,7 @@ export async function renderAtividade(c, h, a) {
     const { projectId: pid, ropaId: rid } = pedido;
     const minha = ++sequencia;
     const viva = () => minha === sequencia && S.view === 'ropa-atividade';
+    await esvaziarAba();
     await esvaziarTudo();
     limparAutosaves();
     if (!c.querySelector('.at')) c.innerHTML = '<p class="at-nota" role="status">Carregando a atividade...</p>';
@@ -71,7 +74,7 @@ export async function renderAtividade(c, h, a) {
     montarCabecalho(c, ctx);
     const montar = montadores()[aba];
     const corpo = c.querySelector('#at-corpo');
-    if (montar) await montar(corpo, ctx);
+    if (montar) abaMontada = (await montar(corpo, ctx)) || null;
     else corpo.innerHTML = renderEmptyState({ titulo: 'Esta aba ainda não está disponível', texto: 'Ela chega na próxima atualização. Os dados desta atividade não são afetados.' });
 }
 
@@ -89,7 +92,13 @@ window.abrirAtividade = function (projectId, ropaId) {
 window.atVoltar = function () { S.atividade = null; navigate('ropa'); };
 
 // Aba: o id vem do `data-aba` do botão (a delegação chama a função com `this` = o botão). Antes de trocar, o que estiver pendente grava.
+async function esvaziarAba() {
+    const a = abaMontada;
+    abaMontada = null;
+    if (a && typeof a.esvaziar === 'function') await a.esvaziar();
+}
 async function irParaAba(id) {
+    await esvaziarAba();
     await esvaziarTudo();
     gravarAbaNoEndereco(id);
     await repintar();
