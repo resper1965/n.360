@@ -58,7 +58,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
             r.base_gdpr, ${SQL_TITULOS_ADICIONAIS} AS adicionais,
             EXISTS (SELECT 1 FROM dpia_assessments d WHERE d.ropa_id = r.id AND d.project_id = r.project_id) AS tem_dpia,
             EXISTS (SELECT 1 FROM lia_assessments l WHERE l.ropa_id = r.id AND l.project_id = r.project_id) AS tem_lia
-       FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.project_id = ?`
+       FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.project_id = ? AND COALESCE(r.status, '') <> 'Inactive'`
   ).bind(projectId).all<{ id: string; nome: string; legal_basis: string | null; base_legal_id: string | null; owner: string | null; owner_parte_id: string | null; dpia_required: number | null; base_titulo: string | null; base_gdpr: string | null; adicionais: string | null; tem_dpia: number; tem_lia: number }>();
   const comTerceiroVencido = await n(db,
     `SELECT count(DISTINCT v.alvo_id) AS n FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
