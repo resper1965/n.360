@@ -106,6 +106,7 @@ const riscoAtividadeCampos = {
   owner_parte_id: idCurto.nullish(),
   control_id: idCurto.nullish(),
   status: z.enum(['Open', 'Mitigated', 'Accepted', 'Closed']),
+  treatment_due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD').nullish(),
 };
 export const riscoAtividadeCriarSchema = z.object({
   ...riscoAtividadeCampos, treatment: riscoAtividadeCampos.treatment.optional(), status: riscoAtividadeCampos.status.optional(),
@@ -118,6 +119,8 @@ const acaoAtividadeCampos = {
   assigned_to_parte_id: idCurto.nullish(),
   status: z.enum(['Open', 'In Progress', 'Closed']),
   risk_id: idCurto.nullish(),
+  recomendacao: textoRisco.nullish(),
+  action_plan: textoRisco.nullish(),
 };
 export const acaoAtividadeCriarSchema = z.object({ ...acaoAtividadeCampos, status: acaoAtividadeCampos.status.optional() }).strict();
 export const acaoAtividadeAtualizarSchema = z.object(acaoAtividadeCampos).partial().strict();

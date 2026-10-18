@@ -115,3 +115,13 @@ Toda tela usa os mesmos, expostos em `window`:
 
 Eventos por `data-action` (delegação); nada de handler inline nem `<script>` inline, que o CSP
 (`script-src 'self'`) recusa.
+
+## Ficha da atividade (n.privacy, `frontend/src/views/atividade.js`)
+
+Cabeçalho com nome, responsável, áreas e descrição; abaixo, nove abas livres na ordem do legado (WAI-ARIA tabs com ativação
+automática: setas, Home e End; só a aba atual no Tab; o estado vai escrito no rótulo, nunca só em cor) e o menu "Ações" com o motivo
+escrito de cada item desabilitado. Uma aba por vez no painel (`role="tabpanel"`, um h2 com o nome da aba). Sem botão "Salvar": a aba
+grava sozinha e diz "Salvo às HH:MM" numa região `role="status"`; o que é confirmação (modal) tem um único `btn-primary`, e a ficha
+em si não tem nenhum. Todo vazio explica o que a coisa é e o que fazer (`renderEmptyState`), porque os catálogos nascem vazios.
+Atividade cancelada mostra a faixa "Atividade cancelada. Reative para editar." e deixa os campos `disabled`. Estilos `.at-*` no fim de
+`frontend/src/style.css`; `test/catracas-visuais.test.js` fixa zero `style=` nos arquivos de `frontend/src/atividade/`.

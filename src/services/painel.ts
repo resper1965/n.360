@@ -374,7 +374,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
       db.prepare(`SELECT min(d) AS d FROM (
           SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) AS d FROM ropa_records WHERE project_id = ?1 AND COALESCE(ciso_approved_at, ceo_approved_at) IS NOT NULL
           UNION ALL SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) FROM compliance_controls WHERE project_id = ?1 AND COALESCE(ciso_approved_at, ceo_approved_at) IS NOT NULL)`).bind(projectId),
-      db.prepare(`SELECT (SELECT count(*) FROM ropa_records WHERE project_id = ?1) AS tratamentos,
+      db.prepare(`SELECT (SELECT count(*) FROM ropa_records WHERE project_id = ?1 AND COALESCE(status, '') <> 'Inactive') AS tratamentos,
           (SELECT count(*) FROM compliance_controls WHERE project_id = ?1 AND (${SQL_CLASSE_CONTROLE}) <> 'falta') AS controles`).bind(projectId),
       // Para o cliente: o que espera a decisão DELE neste projeto (a mesma leitura de GET /api/v1/pedidos).
       quem.cliente
@@ -487,7 +487,7 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
          (SELECT count(*) FROM incidentes i WHERE i.project_id = p.id AND i.status <> 'encerrado' AND COALESCE(i.risco_titular, '') <> 'sem_risco'
             AND ((i.comunicacao_anpd_em IS NULL AND substr(i.prazo_anpd_em, 1, 10) < ?1) OR (i.comunicacao_titular_em IS NULL AND substr(i.prazo_titular_em, 1, 10) < ?1))) AS comunicacoes_atrasadas,
          (SELECT count(*) FROM corrective_actions a WHERE a.project_id = p.id AND COALESCE(a.status, 'Open') <> 'Closed' AND substr(a.due_date, 1, 10) < ?1) AS acoes_vencidas,
-         (SELECT count(*) FROM ropa_records r WHERE r.project_id = p.id) AS tratamentos,
+         (SELECT count(*) FROM ropa_records r WHERE r.project_id = p.id AND COALESCE(r.status, '') <> 'Inactive') AS tratamentos,
          (SELECT count(*) FROM compliance_controls c WHERE c.project_id = p.id AND (${SQL_CLASSE_CONTROLE.replace(/status/g, 'c.status')}) <> 'falta') AS controles
        FROM projects p WHERE p.id ${escopo}`),
     b(`SELECT p.project_id, count(*) AS n FROM partes p WHERE p.project_id ${escopo} AND p.tipo = 'organizacao' AND p.status = 'ativa' AND p.terceiro_tipo IS NOT NULL

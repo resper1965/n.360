@@ -67,6 +67,7 @@ passo "Frontend: testes" rodar_vitest frontend --maxWorkers=3 --testTimeout=3000
 [ -d mcp-server-niso/node_modules ] || passo "MCP: instalar" bash -c "cd mcp-server-niso && npm ci"
 passo "MCP: build" bash -c "cd mcp-server-niso && npm run build"
 passo "Backend: testes" rodar_vitest . --exclude "nISO/**" --retry=1 ${GATE_BACKEND_WORKERS:+--maxWorkers=$GATE_BACKEND_WORKERS}
+passo "E2E: navegador" bash -c "cd frontend && npx playwright install chromium"
 passo "E2E (Chromium)" bash -c "cd frontend && npx playwright test --workers=2"
 
 dur=$(( $(date +%s) - inicio ))

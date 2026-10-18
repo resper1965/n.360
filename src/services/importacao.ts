@@ -11,7 +11,7 @@ import {
   gapPropostoSchema, impactoPropostoSchema, riscoPropostoSchema,
 } from '../schemas/importacao';
 import { criarAcao, criarRisco } from './riscos-atividade';
-import { lerImpacto, salvarImpacto, PERGUNTAS_IMPACTO, type RespostaImpacto } from './impacto';
+import { lerImpacto, salvarImpacto, PERGUNTAS_IMPORTAVEIS, type RespostaImpacto } from './impacto';
 import { lerCiclo, salvarCiclo } from './ciclo';
 import { lerBases, salvarBases } from './bases';
 import { itensDoModelo, modeloDoCsv, type Modelo } from './importacao-modelos';
@@ -1153,7 +1153,7 @@ const gravarImpacto: Gravar = async (db, projectId, ator, item, ctx) => {
   const atual = await lerImpacto(db, projectId, ropaId);
   const respostas: Record<string, RespostaImpacto> = {};
   let mantidas = 0;
-  for (const q of PERGUNTAS_IMPACTO) {
+  for (const q of PERGUNTAS_IMPORTAVEIS()) {
     const v = d[q.id] as RespostaImpacto | null | undefined;
     if (!v) continue;
     if (atual?.perguntas.find((x) => x.id === q.id)?.resposta) mantidas++; else respostas[q.id] = v;

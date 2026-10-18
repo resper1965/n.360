@@ -7,13 +7,14 @@ import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 
 export type RespostaImpacto = 'sim' | 'nao' | 'nao_sei';
-export type GrupoImpacto = 'geral' | 'especifico';
+export type GrupoImpacto = 'geral' | 'especifico' | 'alto_risco';
 /** `curto` é o motivo em português, para a recomendação na tela ("há dados sensíveis"). */
 export type PerguntaImpacto = { id: string; grupo: GrupoImpacto; texto: string; curto: string };
 export type Recomendacao = { resultado: 'recomendado' | 'dispensavel_a_confirmar' | 'incompleto'; motivos: string[] };
 
-/** 2 perguntas de critério geral e 11 de critério específico. Texto fiel ao legado; a revisão jurídica é do dono. */
+/** 1 pergunta de alto risco (opcional na conta de respondidas), 2 de critério geral e 11 de critério específico. Texto fiel ao legado; a revisão jurídica é do dono. */
 export const PERGUNTAS_IMPACTO: readonly PerguntaImpacto[] = [
+  { id: 'alto_risco', grupo: 'alto_risco', texto: 'A atividade pode gerar alto risco ao titular de dados?', curto: 'a atividade pode gerar alto risco ao titular' },
   { id: 'afeta_direitos', grupo: 'geral', texto: 'O tratamento pode afetar significativamente interesses e direitos dos titulares?', curto: 'pode afetar significativamente os direitos dos titulares' },
   { id: 'larga_escala', grupo: 'geral', texto: 'Será realizado o tratamento de qualquer tipo de dados pessoais em larga escala?', curto: 'o tratamento é em larga escala' },
   { id: 'sensiveis', grupo: 'especifico', texto: 'Será realizado o tratamento de dados pessoais sensíveis dos titulares, ou seja, informações sobre origem racial ou étnica, convicção religiosa, opinião política, filiação a sindicato ou a organização de caráter religioso, filosófico ou político, dado referente à saúde ou à vida sexual, dado genético ou biométrico, quando vinculado a uma pessoa natural?', curto: 'há dados sensíveis' },
@@ -28,19 +29,23 @@ export const PERGUNTAS_IMPACTO: readonly PerguntaImpacto[] = [
   { id: 'decisao_automatizada', grupo: 'especifico', texto: 'O projeto incluirá o uso de dados pessoais para tomada de decisão automatizada com efeito legal ou significativamente similar?', curto: 'há decisão automatizada com efeito relevante' },
   { id: 'legitimo_interesse', grupo: 'especifico', texto: 'O fundamento legal para o tratamento de dados é legítimo interesse?', curto: 'a base é o legítimo interesse' },
 ];
+/** O modelo de importação segue as perguntas de antes: a de alto risco é da ficha, importar é outra etapa. */
+export const PERGUNTAS_IMPORTAVEIS = () => PERGUNTAS_IMPACTO.filter((p) => p.grupo !== 'alto_risco');
 const IDS = new Set(PERGUNTAS_IMPACTO.map((p) => p.id));
 export const ehPerguntaDeImpacto = (id: string) => IDS.has(id);
 
 /**
  * Regra do legado: RIPD recomendado quando há pelo menos um critério GERAL e pelo menos um ESPECÍFICO marcados "sim".
- * Sem isso, só fica dispensável (a confirmar por uma pessoa) com as 13 respondidas sim ou não; qualquer falta ou "não sei" é incompleto.
+ * Alto risco sim recomenda sozinho. Sem isso, só fica dispensável (a confirmar por uma pessoa) com as 13 respondidas sim ou não; qualquer falta ou "não sei" é incompleto.
  */
 export function recomendarRipd(respostas: Record<string, RespostaImpacto | undefined>): Recomendacao {
   const sim = (g: GrupoImpacto) => PERGUNTAS_IMPACTO.filter((p) => p.grupo === g && respostas[p.id] === 'sim').map((p) => p.id);
   const gerais = sim('geral');
   const especificos = sim('especifico');
-  if (gerais.length && especificos.length) return { resultado: 'recomendado', motivos: [...gerais, ...especificos] };
-  const todasRespondidas = PERGUNTAS_IMPACTO.every((p) => respostas[p.id] === 'sim' || respostas[p.id] === 'nao');
+  const alto = respostas.alto_risco === 'sim';
+  if (alto || (gerais.length && especificos.length)) return { resultado: 'recomendado', motivos: [...(alto ? ['alto_risco'] : []), ...gerais, ...especificos] };
+  // `alto_risco` é opcional na conta: as 13 do legado respondidas continuam bastando para "dispensável".
+  const todasRespondidas = PERGUNTAS_IMPACTO.filter((p) => p.grupo !== 'alto_risco').every((p) => respostas[p.id] === 'sim' || respostas[p.id] === 'nao');
   return { resultado: todasRespondidas ? 'dispensavel_a_confirmar' : 'incompleto', motivos: [] };
 }
 
@@ -53,6 +58,7 @@ export type Impacto = {
 type DadosDaAtividade = {
   dados_sensiveis: number | null; criancas_adolescentes: number | null; international_transfers: number | null; transferencias: number;
   legal_basis: string | null; base_titulo: string | null; adicionais: string | null; base_gdpr: string | null;
+  processamento_automatizado?: string | null;
 };
 
 /**
@@ -66,6 +72,7 @@ export function respostasDaAtividade(a: DadosDaAtividade): Record<string, Respos
   if (a.dados_sensiveis) out.sensiveis = 'sim';
   if (a.criancas_adolescentes) out.vulneraveis = 'sim';
   if (a.international_transfers || a.transferencias > 0) out.transferencia = 'sim';
+  if (a.processamento_automatizado === 'decisao') out.decisao_automatizada = 'sim';
   if (ehLegitimoInteresse(a.legal_basis, a.base_titulo, a.adicionais, a.base_gdpr)) out.legitimo_interesse = 'sim';
   else if (String(a.legal_basis || a.base_titulo || '').trim()) out.legitimo_interesse = 'nao';
   return out;
@@ -74,7 +81,7 @@ export function respostasDaAtividade(a: DadosDaAtividade): Record<string, Respos
 /** O teste do tratamento (catálogo com as respostas gravadas e o que a atividade já responde), ou null se o registro não é do projeto. */
 export async function lerImpacto(db: D1Database, projectId: string, ropaId: string): Promise<Impacto | null> {
   const rec = await db.prepare(
-    `SELECT r.impacto_finalizado_em, r.dados_sensiveis, r.criancas_adolescentes, r.international_transfers, r.legal_basis, r.base_gdpr,
+    `SELECT r.impacto_finalizado_em, r.dados_sensiveis, r.criancas_adolescentes, r.international_transfers, r.legal_basis, r.base_gdpr, r.processamento_automatizado,
             q.titulo AS base_titulo, ${SQL_TITULOS_ADICIONAIS} AS adicionais,
             (SELECT count(*) FROM tratamento_transferencias t WHERE t.ropa_id = r.id AND t.project_id = r.project_id) AS transferencias
        FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id WHERE r.id = ? AND r.project_id = ?`

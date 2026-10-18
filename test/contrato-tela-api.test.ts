@@ -25,6 +25,8 @@ export function chamadasDoFonte(arquivo: string, src: string): Chamada[] {
   const out: Chamada[] = [];
   for (const m of src.matchAll(LITERAL)) {
     const inicio = m.index ?? 0;
+    // A definição do auxiliar `url` (ficha da atividade) não é chamada: os usos dele são lidos no fim.
+    if (/\burl\s*=\s*\([^)]*\)\s*=>\s*$/.test(src.slice(Math.max(0, inicio - 60), inicio))) continue;
     const antes = src.slice(Math.max(0, inicio - 40), inicio);
     let metodo = /api\(\s*'([A-Z]+)'\s*,\s*$/.exec(antes)?.[1] ?? null;
     // public/auditor.js e public/homologacao.js: chamar(caminho) faz sempre POST (conferido em teste próprio abaixo).
@@ -59,6 +61,19 @@ export function chamadasDoFonte(arquivo: string, src: string): Chamada[] {
     if (caminho.endsWith('/')) caminho += ':p';
     out.push({ onde: `${arquivo}:${src.slice(0, inicio).split('\n').length}`, metodo, caminho });
   }
+  // Ficha da atividade (frontend/src/atividade/): `url(pid, rid, '/sufixo')` ou `url(ctx, '/sufixo')` monta
+  // /api/v1/projects/:p/ropa/:p + sufixo. O sufixo tem de ser literal (senão a chamada some deste teste).
+  if (/\burl\s*=\s*\([^)]*\)\s*=>\s*`\/api\/v1\/projects\/\$\{[^}]*\}\/ropa\/\$\{[^}]*\}\$\{/.test(src)) {
+    for (const m of src.matchAll(/(?<![\w$.])url\(([^()]*)\)/g)) {
+      const inicio = m.index ?? 0;
+      const args = m[1].split(',').map((x) => x.trim());
+      const suf = /^(['`])(.*)\1$/.exec(args[args.length - 1]);
+      const sufixo = suf ? suf[2].replace(/\$\{[^}]*\}/g, (_x: string, pos: number) => (suf[2][pos - 1] === '/' ? ':p' : '')) : '';
+      const antes = src.slice(Math.max(0, inicio - 40), inicio);
+      const metodo = /api\(\s*'([A-Z]+)'\s*,\s*$/.exec(antes)?.[1] ?? (/fetch\(/.test(antes) ? 'GET' : null);
+      out.push({ onde: `${arquivo}:${src.slice(0, inicio).split('\n').length}`, metodo, caminho: `/api/v1/projects/:p/ropa/:p${sufixo}` });
+    }
+  }
   return out;
 }
 
@@ -90,6 +105,8 @@ const TOLERADAS: { chave: string; motivo: string; expande: string[] }[] = [
   { chave: '* /api/v1/public/propostas/:p', motivo: "public/proposta.js: const API = '/api/v1/public/propostas/'; chamar(acao)", expande: ['POST /api/v1/public/propostas/ver', 'POST /api/v1/public/propostas/aceitar', 'POST /api/v1/public/propostas/ajuste', 'POST /api/v1/public/propostas/recusar'] },
   { chave: 'GET /api/v1/projects/:p/export/:p', motivo: 'monitor.js exportCSV(type)', expande: ['GET /api/v1/projects/:p/export/risks', 'GET /api/v1/projects/:p/export/vendors', 'GET /api/v1/projects/:p/export/training', 'GET /api/v1/projects/:p/export/assets'] },
   { chave: '* /api/v1/auth/mfa/:p', motivo: 'api.js: prefixo de startsWith que isenta o 401 do MFA; não é chamada', expande: ['POST /api/v1/auth/mfa/verify'] },
+  { chave: '* /api/v1/projects/:p/ropa/:p', motivo: 'atividade/estado.js novoAutosave({ rota }): o sufixo vem do chamador (PUT)', expande: ['PUT /api/v1/projects/:p/ropa/:p/escopo', 'PUT /api/v1/projects/:p/ropa/:p/agentes', 'PUT /api/v1/projects/:p/ropa/:p/ciclo'] },
+  { chave: 'PUT /api/v1/projects/:p/ropa/:p', motivo: 'atividade/estado.js gravarAgora({ rota }): idem', expande: ['PUT /api/v1/projects/:p/ropa/:p/agentes', 'PUT /api/v1/projects/:p/ropa/:p/ciclo'] },
   // Temporárias deste plano: cada tarefa que corrige a chamada apaga a entrada.
 ];
 
@@ -144,13 +161,15 @@ describe('contrato tela↔API', () => {
       // baixarArquivo(`/api/v1/...`) (F4): CSV e Word; o literal está em cada chamada e o token vai no cabeçalho.
       'frontend/src/api.js: fetch(API_BASE + p',
       // /health fica fora de /api/v1 por desenho: o domínio antigo pergunta o endereço canônico (n.360, fatia 1).
+      // Ficha da atividade: o `rota`/`caminho` dos autosaves vem dos chamadores (literais), tolerado acima.
+      "frontend/src/atividade/estado.js: api('PUT', caminho || url(pid",
       'frontend/src/produto.js: fetch(\'/health\'',
       // Relatórios do RoPA e do RIPD: abrirRelatorio(`/api/v1/...`) recebe o literal; o fetch leva o token no cabeçalho, não na URL.
       'frontend/src/views/privacy.js: fetch(API_BASE + caminho',
       'frontend/src/views/propostas.js: api(\'GET\', caminho',
       'frontend/src/views/propostas.js: fetch(API_BASE + caminho',
     ];
-    const DINAMICA = /\b(?:api\(\s*'[A-Z]+'\s*,|fetch\()\s*(?!\s)(?!(?:API_BASE\s*\+\s*)?['"`](?:\$\{API_BASE\})?\/api\/v1)[^,)\n]*/g;
+    const DINAMICA = /\b(?:api\(\s*'[A-Z]+'\s*,|fetch\()\s*(?!\s)(?!(?:API_BASE\s*\+\s*|`\$\{API_BASE\}\$\{|`\$\{)?url\()(?!(?:API_BASE\s*\+\s*)?['"`](?:\$\{API_BASE\})?\/api\/v1)[^,)\n]*/g;
     const achadas = Object.entries(FONTES)
       .flatMap(([arq, src]) => [...src.matchAll(DINAMICA)].map((m) => `${arq.replace(/^\.\.\//, '')}: ${m[0].trim()}`))
       .sort();

@@ -35,7 +35,7 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   'readiness-check': 'iso', 'revoke-approvals': 'iso', 'risk-matrix': 'iso', risks: 'iso', 'scope-changes': 'iso',
   'seed-27001-2022': 'iso', 'seed-27701-2025': 'iso', traceability: 'iso',
   // só n.privacy
-  consentimentos: 'privacy', encarregado: 'privacy', importacoes: 'privacy', requisitos: 'privacy', terceiros: 'privacy', homologacoes: 'privacy',
+  catalogos: 'privacy', consentimentos: 'privacy', encarregado: 'privacy', importacoes: 'privacy', requisitos: 'privacy', terceiros: 'privacy', homologacoes: 'privacy',
   'titular-pedidos': 'privacy',
 };
 
@@ -54,6 +54,9 @@ const SUBROTAS_PRIVACY: RegExp[] = [
   /^incidentes\/[^/]+\/rascunho-comunicacao$/,
   /^documentos\/[^/]+\/requisitos$/,
   /^evidence\/[^/]+\/(requisitos|validade)$/,
+  // Ficha em abas (spec 2026-10-16): o registro segue no núcleo; a camada nova é do n.privacy.
+  /^ropa\/[^/]+\/(ficha|escopo|agentes|base-juridica|logs|conferencia|situacao|relatorio)$/,
+  /^ropa\/[^/]+\/(medidas|gaps|etapas)(\/.*)?$/,
 ];
 
 /** Resto do caminho depois de `/api/v1/projects/:id/`, ou null se o caminho não é de projeto. */

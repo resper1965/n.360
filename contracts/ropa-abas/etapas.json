@@ -1,0 +1,152 @@
+{
+  "ok": true,
+  "materializada": true,
+  "etapas": [
+    {
+      "etapa": "coleta",
+      "rotulo": "Coleta",
+      "situacao": "pendente",
+      "faltas": [
+        "descrição"
+      ],
+      "nao_aplicavel": false,
+      "descricao": null,
+      "origem": [],
+      "solicita_consentimento": null,
+      "criancas_adolescentes": false,
+      "ativos": [
+        {
+          "item_id": "i1",
+          "nome": "Sistema exemplo",
+          "local_armazenamento": null,
+          "travado": false
+        }
+      ],
+      "areas": [],
+      "parceiros": [],
+      "titulares": [
+        {
+          "titular_id": "t1",
+          "nome": "Titular exemplo A",
+          "situacao": "definido",
+          "dados": [
+            {
+              "id": "d1",
+              "nome": "Dado exemplo 1",
+              "sensivel": false
+            }
+          ]
+        }
+      ],
+      "prazo": null,
+      "descarte": null,
+      "migrado": false,
+      "bloqueada": false
+    },
+    {
+      "etapa": "uso",
+      "rotulo": "Uso ou Processamento",
+      "situacao": "pendente",
+      "faltas": [
+        "descrição"
+      ],
+      "nao_aplicavel": false,
+      "descricao": null,
+      "origem": [],
+      "solicita_consentimento": null,
+      "criancas_adolescentes": false,
+      "ativos": [],
+      "areas": [],
+      "parceiros": [],
+      "titulares": [],
+      "prazo": null,
+      "descarte": null,
+      "migrado": false,
+      "bloqueada": false
+    },
+    {
+      "etapa": "compartilhamento_interno",
+      "rotulo": "Compartilhamento Interno",
+      "situacao": "pendente",
+      "faltas": [
+        "descrição"
+      ],
+      "nao_aplicavel": false,
+      "descricao": null,
+      "origem": [],
+      "solicita_consentimento": null,
+      "criancas_adolescentes": false,
+      "ativos": [],
+      "areas": [],
+      "parceiros": [],
+      "titulares": [],
+      "prazo": null,
+      "descarte": null,
+      "migrado": false,
+      "bloqueada": false
+    },
+    {
+      "etapa": "compartilhamento_externo",
+      "rotulo": "Compartilhamento Externo",
+      "situacao": "pendente",
+      "faltas": [
+        "descrição"
+      ],
+      "nao_aplicavel": false,
+      "descricao": null,
+      "origem": [],
+      "solicita_consentimento": null,
+      "criancas_adolescentes": false,
+      "ativos": [],
+      "areas": [],
+      "parceiros": [],
+      "titulares": [],
+      "prazo": null,
+      "descarte": null,
+      "migrado": false,
+      "bloqueada": false
+    },
+    {
+      "etapa": "armazenamento",
+      "rotulo": "Armazenamento",
+      "situacao": "pendente",
+      "faltas": [
+        "descrição"
+      ],
+      "nao_aplicavel": false,
+      "descricao": null,
+      "origem": [],
+      "solicita_consentimento": null,
+      "criancas_adolescentes": false,
+      "ativos": [],
+      "areas": [],
+      "parceiros": [],
+      "titulares": [],
+      "prazo": null,
+      "descarte": null,
+      "migrado": false,
+      "bloqueada": false
+    },
+    {
+      "etapa": "eliminacao",
+      "rotulo": "Eliminação",
+      "situacao": "pendente",
+      "faltas": [
+        "descrição"
+      ],
+      "nao_aplicavel": false,
+      "descricao": null,
+      "origem": [],
+      "solicita_consentimento": null,
+      "criancas_adolescentes": false,
+      "ativos": [],
+      "areas": [],
+      "parceiros": [],
+      "titulares": [],
+      "prazo": null,
+      "descarte": null,
+      "migrado": false,
+      "bloqueada": false
+    }
+  ]
+}

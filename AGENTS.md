@@ -87,8 +87,8 @@ Cloudflare Workers (Hono) + D1 + KV + R2 + Workers AI. Frontend SPA
 Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 - **Backend**: `src/index.ts` e o composition root que monta os sub-routers de
-  dominio: **58 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
-  2026-10-16). A lista nominal envelhecia a cada PR; leia o diretorio.
+  dominio: **59 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
+  2026-10-17). A lista nominal envelhecia a cada PR; leia o diretorio.
 - **Painel de entrada** (estudo `docs/design/diagnostico-2026-10-14/dashboard-entrada.md`, direcao A; decisoes adotadas na secao 10
   dele): `GET /api/v1/projects/:id/painel?modulo=iso|privacy` (sem `?modulo`, os modulos do projeto que a pessoa tem; faixa `nucleo`
   com a mesma recusa de modulo feita na rota) e `GET /api/v1/carteira` (projetos de `projetosVisiveis`, consultas agrupadas; fora do
@@ -165,7 +165,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 60 arquivos em 2026-10-16: `ls src/services/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 60 arquivos em 2026-10-17: `ls src/services/*.ts | wc -l`; mais 14 em `src/services/ropa-abas/`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -207,9 +207,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     com `/api/v1/public/homologacao/*` (`src/routes/public-homologacao.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **93 tabelas** (2026-10-16: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **102 tabelas** (2026-10-17: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0078** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0079** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -276,6 +276,26 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   Detalhes, e a assinatura antiga gravada conta como aprovacao feita). `GET .../ligacoes` traz `aprovacao_anterior` (a aprovacao mais
   recente quando nenhuma vale mais, porque a atividade mudou depois) e `pedidos_abertos`. `POST /projects/:id/ropa/importar` (CSV) cria
   `Draft`, devolve as linhas recusadas e nao duplica (chave: finalidade).
+- **Ficha da atividade em abas (n.privacy, migration 0079, PR1; spec `docs/superpowers/specs/2026-10-16-ropa-abas-design.md`).** A atividade de
+  tratamento abre em `frontend/src/views/atividade.js` como cabecalho (nome, responsavel, areas, descricao), nove abas livres na ordem e com os
+  rotulos do legado (Escopo, Tratamento de Dados, Agentes de Tratamento, Medidas de Seguranca, Base Juridica, Controle de GAPs, Teste de Impacto,
+  Riscos, Logs ROPA) e o menu "Acoes". Um modulo por aba em `frontend/src/atividade/` (`montar(painel, ctx)` devolve `{ esvaziar }`, que a casca chama
+  antes de trocar de aba); nao ha botao "Salvar" global: cada aba grava sozinha ("Salvo as HH:MM") ou ao confirmar o proprio modal. A aba Tratamento
+  de Dados ainda e a ponte descartavel `aba-tratamento-ponte.js` (as seis etapas por etapa chegam na PR2). **Rotas** em `src/routes/ropa-abas.ts`
+  (`/projects/:id/ropa/:rid/{ficha,escopo,agentes,medidas,base-juridica,gaps,logs,conferencia,situacao,relatorio,riscos/motivos}`), faixa `privacy`;
+  os esquemas ficam em `src/schemas/ropa-abas.ts`, os servicos em `src/services/ropa-abas/` e o conteudo fixo em `src/data/ropa-abas/` (as opcoes
+  marcadas `// proposta:` esperam a confirmacao do dono). **A situacao e DERIVADA, nunca gravada** (`situacaoDaAtividade`): Rascunho, Em Revisao,
+  Aprovada (vem dos pedidos de aprovacao com o hash vigente) e Cancelada (`status = 'Inactive'`); `POST .../situacao` so envia para revisao, reabre,
+  cancela e reativa, e aprovar continua sendo o pedido (`src/services/pedidos.ts`). `GET .../conferencia` lista bloqueios e avisos e o menu "Acoes"
+  devolve o motivo de cada item desabilitado, em texto. Atividade cancelada recusa escrita (409) pelas abas e tambem pelas sub-rotas antigas
+  (`projectRopaApp.use('/:recordId/*')` e `PUT /ropa/:id` em `src/routes/ropa.ts`). **O hash dos pedidos nao mudou** (`pedidos.ts`, `documentos.ts` e as
+  migrations 0001 a 0078 estao congelados): so escrita que toca coluna congelada (`finalidade`, `international_transfers`, `transfer_safeguards`,
+  principal da base) chama `conferirPedidosDoDocumento`; volume, descricao, nome, papeis, medidas, gaps, riscos, impacto e situacao mantem a aprovacao.
+  **Os catalogos nascem VAZIOS** (decisao do dono de 16/10): nenhuma lista de titulares, dados, medidas ou motivos de risco e semeada; cada tela explica o
+  vazio e oferece criar ali mesmo. Gap e a mesma `corrective_actions` do n.iso (com `recomendacao` e anexos PDF/DOC de ate 5 MiB, conferidos pelo
+  conteudo); o agente MCP escreve nas abas, mas nao apaga, nao anexa, nao muda a situacao nem imprime o relatorio (`FORA_DO_AGENTE`). Importar do
+  legado e etapa separada: o modelo de importacao segue sem a pergunta `alto_risco` (`PERGUNTAS_IMPORTAVEIS`). E2E do sistema vazio em
+  `frontend/e2e/ropa-abas.spec.js`; formas de resposta que a tela le em `test/ropa-abas-formas-front.test.ts`.
 - **DPIA e LIA do tratamento (fatia 5, migration 0056)**: `dpia_assessments.ropa_id` tem integridade no BANCO por tres triggers
   (`dpia_ropa_do_projeto_ins/_upd` recusam registro inexistente OU de outro projeto; `dpia_ropa_apagada` zera a referencia ao apagar o
   tratamento), sem reconstruir a tabela (assinatura e deriva historica). `lia_assessments` e a LIA (uma por tratamento, `ropa_id`
@@ -621,13 +641,13 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
 
-- **531 `any` em `src/`** (medido em 2026-10-15, fora `*.test.ts`:
+- **530 `any` em `src/`** (medido em 2026-10-17, fora `*.test.ts`:
   `git grep -ahoE ': any\b|as any\b|<any>' -- 'src/*.ts' ':!*.test.ts' | wc -l`).
   `tsc --noEmit` limpo diz pouco. Tipar o que voce tocar e melhoria barata; nao
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 299 arquivos de teste do backend mocka o D1 inteiro** (2026-10-16;
+- **Nenhum dos 318 arquivos de teste do backend mocka o D1 inteiro** (2026-10-17;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -639,9 +659,9 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~22,0 mil linhas de JS (2026-10-16)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 125 arquivos de teste em jsdom
-  (`ls frontend/test/*.test.js | wc -l`) e 6 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
+- **Frontend com pouco teste por linha.** ~21,8 mil linhas de JS (2026-10-17)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 137 arquivos de teste em jsdom
+  (`ls frontend/test/*.test.js | wc -l`) e 7 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
   que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 38 telas de `frontend/src/views/` sao
   importadas por ao menos um teste (2026-10-15: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
   nao imprime nada), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, `project.js`, todas acima de 1.400 linhas)

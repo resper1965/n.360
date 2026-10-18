@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0078** (`ls migrations/*.sql | tail -1`). São 76 arquivos
+- Última migration no repositório: **0079** (`ls migrations/*.sql | tail -1`). São 77 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -638,5 +638,20 @@ mostrava (`completed`, `blocked`, `skipped`) até a Bancada assumir a fase. O `U
 **Não é idempotente** (SQLite não tem `ADD COLUMN IF NOT EXISTS`): aplicar só pelo `migrations apply`. Conferência depois:
 `PRAGMA table_info(checklist_progress)` mostra `bloqueio_motivo`; `SELECT count(*) FROM project_phases WHERE legado_status IS NOT NULL`.
 Para desfazer: não precisa (o código anterior ignora as colunas). **Esta RODA em produção ANTES do código novo.**
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+## 0079 — RoPA em abas (2026-10-16)
+
+Aditiva (spec `docs/superpowers/specs/2026-10-16-ropa-abas-design.md`). `ropa_records` ganha 12 colunas nulas (cabeçalho, escopo, agentes, base jurídica,
+gaps, `etapas_materializadas_em`, `reaberta_em`); `tratamento_ciclo`, `tratamento_bases`, `corrective_actions` e `risks` ganham colunas (em `risks`, `idr` e
+`treatment_due_date`); nascem `catalogo_itens`, `tratamento_etapa_itens`, `tratamento_interno_areas`, `tratamento_externo_parceiros`, `tratamento_etapa_titulares`,
+`tratamento_etapa_dados`, `tratamento_medidas`, `tratamento_bases_gdpr` e `acao_anexos`, com gatilhos de tenant. **Nenhuma tabela nova é semeada**: os catálogos
+nascem vazios. Nada entra no conteúdo congelado da aprovação do tratamento: a aprovação de antes continua valendo. A única escrita em linha existente é o
+`UPDATE` do `idr` dos riscos que já tinham atividade (sequencial por criação) e o índice único parcial `idx_risks_ropa_idr`.
+**Não é idempotente** (SQLite não tem `ADD COLUMN IF NOT EXISTS`): aplicar só pelo `migrations apply`. Conferência depois:
+`PRAGMA table_info(ropa_records)` mostra `volume_mensal`; `SELECT count(*) FROM risks WHERE ropa_id IS NOT NULL AND idr IS NULL` (esperado 0).
+Para desfazer: não precisa (o código anterior ignora as colunas e as tabelas). **Esta RODA em produção ANTES do código novo; a 0079 inteira vai na PR1.**
+**Não aplicada em lugar nenhum** até o líder do projeto aplicar.
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.

@@ -1,0 +1,5 @@
+{
+  "pronta": false,
+  "bloqueios": [{ "id": "etapa_pendente", "aba": "tratamento", "texto": "Tratamento de Dados: 2 etapas pendentes." }],
+  "avisos": [{ "id": "sem_medidas", "aba": "medidas", "texto": "Nenhuma medida de segurança registrada." }]
+}

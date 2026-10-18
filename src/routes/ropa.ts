@@ -15,9 +15,23 @@ import { conferirPedidosDoDocumento } from './pedidos';
 import { sugerirTratamento } from '../services/rascunhos-privacy';
 import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
 import { lerEmpresa } from '../services/empresas';
+import { situacaoDaAtividade } from '../services/ropa-abas/situacao';
+import { atividadeDoProjeto } from '../services/ropa-abas/comum';
 
 export const ropaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectRopaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+/**
+ * Atividade cancelada não recebe escrita por nenhuma sub-rota antiga (impacto, riscos, ações, ciclo, bases, itens...): a ficha em abas já
+ * recusa com 409 e as duas portas têm de fechar igual. Só reativar (POST /situacao, no router da ficha) e revogar a aprovação passam.
+ * Id que não é de atividade do projeto (`importar`, `copiloto`) segue para o handler.
+ */
+projectRopaApp.use('/:recordId/*', async (c, next) => {
+  if (c.req.method === 'GET' || c.req.path.endsWith('/revoke-approval')) return next();
+  const a = await atividadeDoProjeto(c.env.DB, c.req.param('projectId')!, c.req.param('recordId')!);
+  if (a?.status === 'Inactive') return c.json({ error: 'Atividade cancelada: reative para editar' }, 409);
+  return next();
+});
 
 /** A base legal é um requisito do catálogo global (fatia 4.1): existe ou não, sem tenant. */
 const baseLegalInexistente = async (db: D1Database, id: unknown) =>
@@ -49,6 +63,7 @@ ropaApp.put('/:id', async (c) => {
     // Ausente preserva o valor gravado (setParcial); o transform de boolLike deixa a chave com undefined.
     const body = Object.fromEntries(Object.entries(valid.data as Record<string, unknown>).filter(([, v]) => v !== undefined)) as any;
     const atual = await c.env.DB.prepare('SELECT status, project_id FROM ropa_records WHERE id = ?').bind(id).first<{ status: string | null; project_id: string | null }>();
+    if (atual?.status === 'Inactive') return c.json({ error: 'Atividade cancelada: reative para editar' }, 409);
     // O projeto vem do ROPA gravado, nunca do corpo.
     const fora = await refForaDoProjeto(c.env.DB, atual?.project_id, body, ['owner_parte_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
@@ -99,7 +114,11 @@ projectRopaApp.get('/', async (c) => {
      WHERE r.project_id = ? ORDER BY r.created_at DESC`
   ).bind(projectId).all();
   const aprovacoes = await aprovacoesDoProjeto(c.env.DB, projectId!, undefined, 'tratamento');
-  const records = semRastros(result.results as Record<string, unknown>[]).map(comNaoInformados).map((r) => ({ ...r, aprovacao_pedido: aprovacoes.get(String(r.id)) ?? { ciso: null, ceo: null } }));
+  const records = semRastros(result.results as Record<string, unknown>[]).map(comNaoInformados).map((r) => {
+    const aprovacao_pedido = aprovacoes.get(String(r.id)) ?? { ciso: null, ceo: null };
+    const { codigo, rotulo } = situacaoDaAtividade({ status: r.status as string | null, reaberta_em: r.reaberta_em as string | null, aprovacao: aprovacao_pedido, aprovacao_anterior: null });
+    return { ...r, aprovacao_pedido, situacao: { codigo, rotulo } };
+  });
   return c.json({ ok: true, records });
 });
 
@@ -525,7 +544,7 @@ projectRopaApp.get('/report', async (c) => {
     ].filter(Boolean).join('<br>');
 
     const { results: records } = await c.env.DB.prepare(
-      `SELECT r.*, ${SQL_DADOS_IMPORTADOS} FROM ropa_records r WHERE r.project_id = ? ORDER BY r.created_at ASC`
+      `SELECT r.*, ${SQL_DADOS_IMPORTADOS} FROM ropa_records r WHERE r.project_id = ? AND COALESCE(r.status, '') <> 'Inactive' ORDER BY r.created_at ASC`
     ).bind(projectId).all<any>();
     // Bases adicionais e ciclo de vida (F3): uma leitura por tabela para o projeto inteiro.
     const [basesDoProjeto, ciclosDoProjeto] = await c.env.DB.batch([
