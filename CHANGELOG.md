@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (Tratamento de Dados por etapa, n.privacy; PR2, sem migration)
+- **A aba Tratamento de Dados tem as seis etapas** (Coleta, Uso ou Processamento, Compartilhamento Interno, Compartilhamento Externo, Armazenamento, Eliminação) em acordeões. A Coleta define os titulares e os dados; cada etapa seguinte diz, por titular, se usa os dados definidos ou se não usa nenhum. Etapas 2 a 6 ficam travadas até a Coleta ser concluída ou marcada Não Aplicável.
+- **Situação derivada por etapa** (concluída, pendente com o que falta, não aplicável), sem gravar nada além do conteúdo. Não Aplicável apaga o conteúdo da etapa, com confirmação quando havia algo.
+- **Catálogos do projeto** (titulares, dados pessoais, medidas e motivos de risco) começam vazios e se criam ali mesmo, com aviso de duplicata. Ativo, área e parceiro reusam os cadastros que já existem. `GET/POST/PUT /projects/:id/catalogos/:tipo`.
+- **"Ver o fluxo"** mostra o diagrama Mermaid do tratamento, derivado no servidor. O copiloto da descrição por etapa segue na fatia seguinte.
+- Atividades já aprovadas continuam aprovadas até a primeira edição na Coleta, que muda o texto congelado e pede nova aprovação (decisão em aberto para o dono).
+
 ### Adicionado (ficha da atividade em abas, n.privacy; migration 0079, PR1)
 - **A atividade de tratamento abre como ficha em abas**, clone do legado: cabeçalho (nome, responsável, áreas, descrição) e nove abas livres (Escopo, Tratamento de Dados, Agentes de Tratamento, Medidas de Segurança, Base Jurídica, Controle de GAPs, Teste de Impacto, Riscos, Logs ROPA) com o menu "Ações" (Conferir / Aprovar, Alterar para "Em revisão", Imprimir, Reabrir, Reativar, Cancelar, Excluir; o motivo de cada bloqueio vem escrito do servidor). Sem botão "Salvar" global: cada aba grava sozinha ("Salvo às HH:MM"). Rotas em `/api/v1/projects/:id/ropa/:rid/{ficha,escopo,agentes,medidas,base-juridica,gaps,logs,conferencia,situacao,relatorio,riscos/motivos}`.
 - **Situação derivada, nunca gravada**: Rascunho, Em Revisão, Aprovada (dos pedidos de aprovação com o hash vigente) e Cancelada. O hash dos pedidos não mudou: só escrever finalidade, transferência internacional, salvaguardas ou a base principal derruba a aprovação; volume, descrição, medidas, gaps, riscos, impacto e situação a mantêm. Atividade aprovada antes da migration continua aprovada.

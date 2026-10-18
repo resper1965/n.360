@@ -165,7 +165,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 60 arquivos em 2026-10-17: `ls src/services/*.ts | wc -l`; mais 14 em `src/services/ropa-abas/`): entre eles
+- **Services** (`src/services/`, 60 arquivos em 2026-10-18: `ls src/services/*.ts | wc -l`; mais 18 em `src/services/ropa-abas/`, `ls src/services/ropa-abas/*.ts | wc -l`): entre eles
   `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
   `policy-generator.ts`, `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
@@ -281,7 +281,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   rotulos do legado (Escopo, Tratamento de Dados, Agentes de Tratamento, Medidas de Seguranca, Base Juridica, Controle de GAPs, Teste de Impacto,
   Riscos, Logs ROPA) e o menu "Acoes". Um modulo por aba em `frontend/src/atividade/` (`montar(painel, ctx)` devolve `{ esvaziar }`, que a casca chama
   antes de trocar de aba); nao ha botao "Salvar" global: cada aba grava sozinha ("Salvo as HH:MM") ou ao confirmar o proprio modal. A aba Tratamento
-  de Dados ainda e a ponte descartavel `aba-tratamento-ponte.js` (as seis etapas por etapa chegam na PR2). **Rotas** em `src/routes/ropa-abas.ts`
+  de Dados e as seis etapas (PR2, abaixo). **Rotas** em `src/routes/ropa-abas.ts`
   (`/projects/:id/ropa/:rid/{ficha,escopo,agentes,medidas,base-juridica,gaps,logs,conferencia,situacao,relatorio,riscos/motivos}`), faixa `privacy`;
   os esquemas ficam em `src/schemas/ropa-abas.ts`, os servicos em `src/services/ropa-abas/` e o conteudo fixo em `src/data/ropa-abas/` (as opcoes
   marcadas `// proposta:` esperam a confirmacao do dono). **A situacao e DERIVADA, nunca gravada** (`situacaoDaAtividade`): Rascunho, Em Revisao,
@@ -296,6 +296,17 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   conteudo); o agente MCP escreve nas abas, mas nao apaga, nao anexa, nao muda a situacao nem imprime o relatorio (`FORA_DO_AGENTE`). Importar do
   legado e etapa separada: o modelo de importacao segue sem a pergunta `alto_risco` (`PERGUNTAS_IMPORTAVEIS`). E2E do sistema vazio em
   `frontend/e2e/ropa-abas.spec.js`; formas de resposta que a tela le em `test/ropa-abas-formas-front.test.ts`.
+- **Tratamento de Dados por etapa (PR2, sem migration; plano `docs/superpowers/plans/2026-10-16-ropa-abas.md`).** A aba tem seis etapas em ordem
+  (`ETAPAS` em `src/schemas/ropa-abas.ts`). A Coleta define titulares e dados; as outras usam so o que ela definiu, e cada titular tem situacao
+  por etapa (`definido` ou `nao_usa`). As etapas 2 a 6 travam (409 no servidor) enquanto a Coleta estiver pendente. A situacao de cada etapa e
+  DERIVADA (`situacaoDaEtapa`, `src/services/ropa-abas/etapas.ts`: concluida, pendente com `faltas`, ou nao aplicavel). Escrita que muda o texto
+  congelado (titulares, dados, sensivel, ativos, prazo, descarte) reescreve o hash em `src/services/ropa-abas/derivada.ts` e so ai chama
+  `conferirPedidosDoDocumento`. Catalogos do projeto (`catalogo_itens`: titulares e dados; medidas e motivos de risco) nascem vazios e se criam na
+  tela (`GET/POST/PUT /projects/:id/catalogos/:tipo`, `src/services/ropa-abas/catalogos.ts`); ativo, area e parceiro reusam `/assets`,
+  `/departamentos` e `/partes`. Contagens (2026-10-18): 6 etapas (`ETAPAS`); 7 rotas de etapa e 3 de catalogo em `src/routes/ropa-abas.ts`
+  (`grep -c "ropaAbasApp\.\(get\|put\|post\)('/etapas" src/routes/ropa-abas.ts`; `grep -c "catalogosApp\.\(get\|put\|post\)(" src/routes/ropa-abas.ts`);
+  18 modulos em `frontend/src/atividade/` (`ls frontend/src/atividade/*.js | wc -l`); 28 testes de backend `ropa-*` (`ls test/ropa-*.test.ts | wc -l`).
+  E2E das etapas vazias em `frontend/e2e/ropa-etapas.spec.js`.
 - **DPIA e LIA do tratamento (fatia 5, migration 0056)**: `dpia_assessments.ropa_id` tem integridade no BANCO por tres triggers
   (`dpia_ropa_do_projeto_ins/_upd` recusam registro inexistente OU de outro projeto; `dpia_ropa_apagada` zera a referencia ao apagar o
   tratamento), sem reconstruir a tabela (assinatura e deriva historica). `lia_assessments` e a LIA (uma por tratamento, `ropa_id`
