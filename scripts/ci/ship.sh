@@ -23,15 +23,8 @@ git worktree add -q --detach "$WT" "origin/$BR" || exit 1
 trap 'git -C "$RAIZ" worktree remove --force "$WT" 2>/dev/null' EXIT
 cd "$WT"
 
-# Dependências: junção para as da máquina principal (instalar de novo custa minutos).
-juntar() { # destino origem: cria a junção; NUNCA apaga o destino (rm -rf seguiria a junção e apagaria a raiz)
-  [ -d "$1" ] || return 0
-  [ -e "$2" ] && return 0
-  powershell -NoProfile -Command "New-Item -ItemType Junction -Path '$(cygpath -w "$PWD/$2")' -Target '$(cygpath -w "$1")' | Out-Null"
-}
-juntar "$RAIZ/node_modules" node_modules
-juntar "$RAIZ/frontend/node_modules" frontend/node_modules
-juntar "$RAIZ/mcp-server-niso/node_modules" mcp-server-niso/node_modules
+# Dependências: NÃO há junção. Uma junção no temporário fazia o `git worktree remove --force` seguir para a raiz e apagar
+# node_modules da máquina principal (ocorreu duas vezes). O gate instala de novo dentro do temporário (mais lento, mas seguro).
 
 SHA=$(git rev-parse HEAD); echo "== PR $PR em ${SHA:0:10} ($BR)"
 bash scripts/ci/gate.sh || { echo "PR $PR: o portão não passou; nada foi mergeado."; exit 1; }
