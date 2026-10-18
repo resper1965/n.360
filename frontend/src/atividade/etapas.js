@@ -4,6 +4,7 @@ import { url, novoAutosave, gravarAgora } from './estado.js';
 import { abrirSelecao } from './modal-selecao.js';
 import { listarItens, TEXTO_VAZIO, ORIGENS } from './catalogo-inline.js';
 import { abrirTitularNaColeta, abrirTitularNaEtapa } from './modal-titular.js';
+import { botaoRascunho, ligarRascunho } from './copiloto-etapa.js';
 
 // Corpo de cada etapa do Tratamento de Dados (spec 2026-10-16, seção 5). Toda regra (situação, faltas, bloqueio, subconjunto de
 // dados) vem do servidor (`GET .../etapas`); aqui se mostra, se escolhe e se envia. Texto grava sozinho (800 ms), caixa e escolha
@@ -118,6 +119,7 @@ export function corpoDaEtapa(id, ctx) {
         <div class="form-group"><label class="form-label" for="et-desc-${id}">Descrição do tratamento</label>
             <textarea class="form-input" id="et-desc-${id}" data-campo="descricao" rows="3" maxlength="${MAX.descricao}"${off}>${txt(e.descricao)}</textarea>
             <p class="at-ajuda">Descreva como esta etapa acontece na prática. Até 4.000 caracteres.</p></div>
+        ${botaoRascunho(id, { editavel: ctx.editavel, nao_aplicavel: !!e.nao_aplicavel })}
         ${extrasColeta}
         ${paineis}
     </div>`;
@@ -163,6 +165,8 @@ export function ligarEtapa(secao, id, ctx) {
         }
         return undefined;
     });
+
+    ligarRascunho(corpo, id, { pid, rid });
 
     corpo.addEventListener('click', (ev) => {
         const b = ev.target.closest('[data-acao]');

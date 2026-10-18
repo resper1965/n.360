@@ -184,6 +184,19 @@ describe('Não Aplicável', () => {
     expect(bloco('uso').querySelector('[data-acao="add-ativo"]').disabled).toBe(true);
   });
 
+  it('copiloto da descrição: botão de rascunho numa etapa editável e nenhum numa etapa Não Aplicável', async () => {
+    await abrirTab(ETAPAS((x) => { x.etapas.forEach((y) => { y.bloqueada = false; }); return x; }));
+    botao('uso').click();
+    expect(bloco('uso').querySelector('[data-copiloto="rascunhar"]')).not.toBeNull();
+    expect(bloco('uso').querySelector('[data-campo="descricao"]').disabled).toBe(false);
+  });
+
+  it('copiloto da descrição: sem botão na etapa que o servidor diz Não Aplicável', async () => {
+    await abrirTab(ETAPAS((x) => { x.etapas.forEach((y) => { y.bloqueada = false; }); const u = porEtapa(x, 'uso'); u.nao_aplicavel = true; u.situacao = 'nao_aplicavel'; u.faltas = []; return x; }));
+    botao('uso').click();
+    expect(bloco('uso').querySelector('[data-copiloto="rascunhar"]')).toBeNull();
+  });
+
   it('cancelar a confirmação não grava nada', async () => {
     const e = ETAPAS((x) => { x.etapas.forEach((y) => { y.bloqueada = false; }); porEtapa(x, 'uso').descricao = 'Uso no sistema.'; return x; });
     const f = await abrirTab(e);
