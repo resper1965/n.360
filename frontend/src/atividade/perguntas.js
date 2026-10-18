@@ -1,5 +1,5 @@
 // Catálogo do modo guiado (PR3): a ajuda e o exemplo de cada pergunta, na chave `aba/campo` que o servidor devolve em
-// `ficha.proxima_pergunta`. Os textos de Escopo, Titulares, Dados, Base e Sistemas são os da entrevista antiga (ropa-entrevista.js),
+// `ficha.proxima_pergunta`. Os textos de Escopo, Titulares, Dados, Base e Sistemas são os da entrevista antiga (já removida do frontend),
 // sem mudança. O que não existia nela (agentes, medidas, coleta da descrição, impacto) é texto novo, a revisar pelo dono.
 
 export const PERGUNTAS_GUIADAS = {

@@ -1,10 +1,10 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
-import { render } from '../router.js';
+import { render, navigate } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
-import { podeEntrevistar, confirmaEdicaoAprovada } from './ropa-entrevista.js';
+import { podeEntrevistar, confirmaEdicaoAprovada } from '../atividade/estado.js';
 import { listarItens, criarItem } from '../atividade/catalogo-inline.js';
 import './atividade.js';
 import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, camposDaBase, idsDoCatalogo } from '../bases-legais.js';
@@ -230,6 +230,12 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
     // "Nova atividade" (PR3): nome, área e responsável, e a escolha de como preencher. A equipe da ness. que migra cliente
     // começa no direto; o cliente, na entrevista guiada. O nome vira a finalidade provisória (editável na aba Escopo).
     const EQUIPE_NESS = ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'];
+    // Continuar entrevista e a escolha guiada da Nova atividade: a atividade abre no modo guiado (`?modo=guiado`, lido pela casca).
+    window.abrirRopaEntrevista = function (projectId, recordId) {
+        if (!recordId) return window.abrirNovaAtividade(projectId);
+        S.atividade = { projectId, ropaId: recordId, modo: 'guiado', avancou: true };
+        navigate('ropa-atividade');
+    };
     window.abrirNovaAtividade = async function(projectId) {
         const [parteOptions, areas] = await Promise.all([opcoesDePartes(projectId, null), listarItens(projectId, 'area').catch(() => [])]);
         const equipe = EQUIPE_NESS.includes(S.user && S.user.role);

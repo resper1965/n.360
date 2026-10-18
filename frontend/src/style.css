@@ -1499,7 +1499,7 @@ td .mais-acoes-botao { padding: 4px 10px; }
 .btn-perigo:hover { filter: brightness(1.1); }
 .aba .ca-selo { padding: 1px 6px; font-size: var(--fs-xs); letter-spacing: 0.02em; }
 
-/* ——— Entrevista do RoPA (views/ropa-entrevista.js) ———
+/* ——— Modo guiado do RoPA (atividade/guiado.js) ———
    Uma pergunta por vez, coluna de leitura estreita. Quadrado, só tokens. Accent apenas no que se clica e no foco:
    a opção marcada ganha contorno accent; a barra de progresso é tinta neutra. */
 .re { max-width: 760px; display: flex; flex-direction: column; gap: 20px; }

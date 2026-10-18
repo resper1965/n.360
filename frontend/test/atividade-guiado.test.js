@@ -9,7 +9,7 @@ vi.mock('../src/router.js', () => ({ render: vi.fn(), navigate: navigateMock }))
 import { S } from '../src/state.js';
 import { painelGuiado, adiadas, chaveDaPergunta, gravarModoNoEndereco, modoDoEndereco, focarCampo } from '../src/atividade/guiado.js';
 import { PERGUNTAS_GUIADAS, textoDaPergunta } from '../src/atividade/perguntas.js';
-import * as entrevista from '../src/views/ropa-entrevista.js';
+import * as entrevista from '../src/atividade/estado.js';
 
 const ficha = (proxima, abas = {}) => ({
     proxima_pergunta: proxima,
@@ -103,8 +103,8 @@ describe('painel guiado', () => {
     });
 });
 
-describe('rota da entrevista antiga', () => {
-    it('reexporta as permissões que a tela de RoPA usa', () => {
+describe('permissões da atividade (antes no motor da entrevista)', () => {
+    it('quem pode abrir o guiado e o aviso de atividade aprovada', () => {
         expect(typeof entrevista.podeEntrevistar).toBe('function');
         expect(typeof entrevista.temAprovacao).toBe('function');
         expect(typeof entrevista.confirmaEdicaoAprovada).toBe('function');
@@ -112,16 +112,5 @@ describe('rota da entrevista antiga', () => {
         expect(entrevista.podeEntrevistar()).toBe(false);
         S.user = { role: 'consultor' };
         expect(entrevista.podeEntrevistar()).toBe(true);
-    });
-
-    it('abre a atividade em modo guiado e a rota antiga leva à atividade aberta', () => {
-        entrevista.abrirNoGuiado('p1', 'r1');
-        expect(S.atividade).toMatchObject({ projectId: 'p1', ropaId: 'r1', modo: 'guiado' });
-        expect(navigateMock).toHaveBeenLastCalledWith('ropa-atividade');
-        entrevista.renderRopaEntrevista();
-        expect(navigateMock).toHaveBeenLastCalledWith('ropa-atividade');
-        S.atividade = null;
-        entrevista.renderRopaEntrevista();
-        expect(navigateMock).toHaveBeenLastCalledWith('ropa');
     });
 });
