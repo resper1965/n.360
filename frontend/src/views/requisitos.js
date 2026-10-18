@@ -68,11 +68,11 @@ function resumoHtml(resumo, filtro) {
 const COMO_CALCULA = `<details class="cob-como"><summary>Como a cobertura é calculada</summary>
     <p>Cada requisito da lei fica em uma de três situações, conforme o que o projeto já tem ligado a ele.</p>
     <ul>
-        <li><strong>Coberto:</strong> há um documento vigente ligado ao requisito, ou um controle do projeto ligado por equivalência validada pelo jurídico, ou uma evidência conforme e dentro da validade.</li>
-        <li><strong>Parcial:</strong> só há um controle ligado por equivalência parcial validada, ou uma evidência parcial.</li>
+        <li><strong>Coberto:</strong> há um documento vigente ligado ao requisito, ou um controle IMPLEMENTADO ligado por equivalência validada pelo jurídico, ou uma evidência conforme e dentro da validade.</li>
+        <li><strong>Parcial:</strong> o controle ligado ainda está parcial ou em andamento, ou só é equivalente em parte, ou a evidência é parcial.</li>
         <li><strong>Lacuna:</strong> nada disso existe ainda.</li>
     </ul>
-    <p>Não contam: documento em rascunho, controle ausente ou não aplicável, e equivalência apenas relacionada ou ainda proposta.
+    <p>Não contam: documento em rascunho, controle apenas planejado, ausente ou não aplicável, e equivalência apenas relacionada ou ainda proposta.
     Para cobrir um requisito, ligue a ele um documento vigente (em Documentos, na ficha do documento).</p></details>`;
 
 function origensHtml(cob) {
