@@ -1,15 +1,18 @@
-import { lerCiclo, ETAPAS_CICLO } from '../ciclo';
+import { ETAPAS } from '../../schemas/ropa-abas';
+import { lerEtapas, situacaoDaEtapa, type DadosDaEtapa } from './etapas';
 import type { EstadoEtapa } from './tipos';
 
+const VAZIA = (etapa: DadosDaEtapa['etapa']): DadosDaEtapa => ({
+  etapa, naoAplicavel: false, descricao: null, ativos: [], areas: 0, parceiros: 0, titularesDaColeta: [], titularesDaEtapa: [],
+  prazo: null, descarte: null, armazenamento: { naoAplicavel: false, ativos: 0 },
+});
+
 /**
- * Situação de cada etapa do Tratamento de Dados. PR1: lida do ciclo da F3 (`registrada` conta como concluída, `nao_aplicavel` como tal, sem
- * linha é pendente). PR2: o pacote A2 troca o corpo pela derivação por etapa (spec 5) sem mudar a assinatura.
+ * Situação de cada etapa do Tratamento de Dados, DERIVADA do modelo por etapa (spec 5). Registro que não é do projeto: todas
+ * pendentes e vazias (a conferência e a ficha não falham por isso).
  */
 export async function estadoDasEtapas(db: D1Database, projectId: string, ropaId: string): Promise<EstadoEtapa[]> {
-  const ciclo = (await lerCiclo(db, projectId, ropaId)) ?? [];
-  return ETAPAS_CICLO.map((e) => {
-    const l = ciclo.find((x) => x.etapa === e.id);
-    const situacao = l?.situacao === 'registrada' ? 'concluida' : l?.situacao === 'nao_aplicavel' ? 'nao_aplicavel' : 'pendente';
-    return { etapa: e.id, situacao, faltas: situacao === 'pendente' ? ['etapa ainda não respondida'] : [] };
-  });
+  const etapas = await lerEtapas(db, projectId, ropaId);
+  if (!etapas) return ETAPAS.map((e) => situacaoDaEtapa(VAZIA(e)));
+  return etapas.map((e) => ({ etapa: e.etapa, situacao: e.situacao, faltas: e.faltas }));
 }

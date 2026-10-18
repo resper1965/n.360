@@ -1,7 +1,11 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500 } from '../helpers';
+import { erro500, ehEquipeNess } from '../helpers';
 import { validateBody } from '../schemas';
+import { ETAPAS, type Etapa, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema } from '../schemas/ropa-abas';
+import { lerEtapas, salvarCabecalhoDaEtapa, salvarAtivos, salvarAreas, salvarParceiros, salvarTitularesDaColeta, salvarTitularDaEtapa } from '../services/ropa-abas/etapas';
+import { listarCatalogo, criarNoCatalogo, atualizarCatalogo, registrarCatalogo, TIPO_DO_CAMINHO } from '../services/ropa-abas/catalogos';
+import { chaveNome } from '../services/nomes';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { lerLogs, registrarSecao } from '../services/ropa-abas/logs';
 import { salvarEscopo } from '../services/ropa-abas/escopo';
@@ -20,6 +24,8 @@ import { guardarAnexo, listarAnexos, baixarAnexo, apagarAnexo, MAX_ANEXO } from 
 import { exigirEditavel } from '../services/ropa-abas/comum';
 import { montarRelatorio } from '../services/ropa-abas/relatorio';
 import { motivosDeRisco } from '../services/riscos-atividade';
+// D2: copiloto da descrição por etapa (propõe; a pessoa aceita).
+import { rascunharEtapa } from '../services/copiloto-etapa';
 
 type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
 /** /api/v1/projects/:projectId/ropa/:recordId/...: a ficha em abas (spec 2026-10-16). Parâmetros `:projectId` e `:recordId`. */
@@ -172,12 +178,16 @@ ropaAbasApp.get('/relatorio', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao gerar o relatório da atividade', e); }
 });
 
-// PR1: os motivos já usados nos riscos deste projeto (vazio no projeto novo). A PR2 redireciona ao catálogo `motivos-risco`.
+// Motivos: o catálogo do projeto (`motivos-risco`) primeiro; os já usados em riscos e fora do catálogo continuam aparecendo (sem perder a sugestão).
 ropaAbasApp.get('/riscos/motivos', async (c) => {
   try {
     const { projectId, recordId } = ids(c);
     const ok = await c.env.DB.prepare('SELECT 1 FROM ropa_records WHERE id = ? AND project_id = ?').bind(recordId, projectId).first();
-    return ok ? c.json({ motivos: await motivosDeRisco(c.env.DB, projectId) }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+    if (!ok) return c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+    const catalogo = await listarCatalogo(c.env.DB, projectId, 'motivo_risco');
+    const chaves = new Set(catalogo.map((m) => chaveNome(m.nome)));
+    const usados = (await motivosDeRisco(c.env.DB, projectId)).filter((u) => !chaves.has(chaveNome(u.nome)));
+    return c.json({ motivos: [...catalogo.map((m) => ({ nome: m.nome, descricao_padrao: m.descricao_padrao })), ...usados] });
   } catch (e) { return erro500(c, 'Falha ao listar os motivos', e); }
 });
 
@@ -272,5 +282,140 @@ ropaAbasApp.delete('/gaps/:id/anexos/:anexoId', async (c) => {
     return ok ? c.json({ ok: true }) : c.json({ error: 'Anexo não encontrado' }, 404);
   } catch (e) { return erro500(c, 'Falha ao apagar o anexo', e); }
 });
-// A2: etapas, catalogos
+// A2: etapas (spec 8.2) e catálogos do projeto (vazios; criação inline). A escrita de etapa que mexe no hash confere os pedidos.
+const ehEtapa = (s: string | undefined): s is Etapa => (ETAPAS as readonly string[]).includes(s ?? '');
+/** Resposta comum das escritas de etapa: trilha sem texto (seção e etapa), e a conferência só se o conteúdo congelado mudou. */
+async function responderEtapa(c: Context<{ Bindings: Bindings; Variables: Variables }>, r: { ok: true; mudouHash: boolean } | { ok: false; status: 400 | 403 | 404 | 409; error: string; invalidos?: string[] }, etapa: string) {
+  if (!r.ok) return c.json({ error: r.error, ...(r.invalidos ? { invalidos: r.invalidos } : {}) }, r.status);
+  const { projectId, recordId } = ids(c);
+  const ator = quem(c);
+  await registrarSecao(c.env.DB, ator, projectId, recordId, 'Tratamento de Dados', `Alteração (${etapa})`);
+  if (r.mudouHash) await conferirPedidosDoDocumento(c, 'tratamento', recordId, projectId);
+  return c.json({ ok: true, mudou_hash: r.mudouHash });
+}
+
+ropaAbasApp.get('/etapas', async (c) => {
+  try {
+    const { projectId, recordId } = ids(c);
+    const etapas = await lerEtapas(c.env.DB, projectId, recordId);
+    return etapas ? c.json({ ok: true, materializada: true, etapas }) : c.json(NAO_ENCONTRADA, 404);
+  } catch (e) { return erro500(c, 'Falha ao ler as etapas', e); }
+});
+
+ropaAbasApp.put('/etapas/:etapa', async (c) => {
+  try {
+    const etapa = c.req.param('etapa');
+    if (!ehEtapa(etapa)) return c.json({ error: 'Etapa inexistente' }, 404);
+    const v = await validateBody(c, etapaCabecalhoSchema);
+    if (!v.success) return v.response;
+    const { projectId, recordId } = ids(c);
+    return responderEtapa(c, await salvarCabecalhoDaEtapa(c.env.DB, projectId, recordId, etapa, quem(c), v.data), etapa);
+  } catch (e) { return erro500(c, 'Falha ao gravar a etapa', e); }
+});
+
+ropaAbasApp.put('/etapas/:etapa/ativos', async (c) => {
+  try {
+    const etapa = c.req.param('etapa');
+    if (!ehEtapa(etapa)) return c.json({ error: 'Etapa inexistente' }, 404);
+    const v = await validateBody(c, etapaAtivosSchema);
+    if (!v.success) return v.response;
+    const { projectId, recordId } = ids(c);
+    return responderEtapa(c, await salvarAtivos(c.env.DB, projectId, recordId, etapa, quem(c), v.data.ativos), etapa);
+  } catch (e) { return erro500(c, 'Falha ao gravar os ativos da etapa', e); }
+});
+
+ropaAbasApp.put('/etapas/compartilhamento_interno/areas', async (c) => {
+  try {
+    const v = await validateBody(c, etapaAreasSchema);
+    if (!v.success) return v.response;
+    const { projectId, recordId } = ids(c);
+    return responderEtapa(c, await salvarAreas(c.env.DB, projectId, recordId, quem(c), v.data.departamentos_ids), 'compartilhamento_interno');
+  } catch (e) { return erro500(c, 'Falha ao gravar as áreas', e); }
+});
+
+ropaAbasApp.put('/etapas/compartilhamento_externo/parceiros', async (c) => {
+  try {
+    const v = await validateBody(c, etapaParceirosSchema);
+    if (!v.success) return v.response;
+    const { projectId, recordId } = ids(c);
+    return responderEtapa(c, await salvarParceiros(c.env.DB, projectId, recordId, quem(c), v.data.partes_ids), 'compartilhamento_externo');
+  } catch (e) { return erro500(c, 'Falha ao gravar os parceiros', e); }
+});
+
+ropaAbasApp.put('/etapas/coleta/titulares', async (c) => {
+  try {
+    const v = await validateBody(c, etapaTitularesColetaSchema);
+    if (!v.success) return v.response;
+    const { projectId, recordId } = ids(c);
+    return responderEtapa(c, await salvarTitularesDaColeta(c.env.DB, projectId, recordId, quem(c), v.data.titulares), 'coleta');
+  } catch (e) { return erro500(c, 'Falha ao gravar os titulares da Coleta', e); }
+});
+
+ropaAbasApp.put('/etapas/:etapa/titulares/:titularId', async (c) => {
+  try {
+    const etapa = c.req.param('etapa');
+    if (!ehEtapa(etapa)) return c.json({ error: 'Etapa inexistente' }, 404);
+    const v = await validateBody(c, etapaTitularSchema);
+    if (!v.success) return v.response;
+    const { projectId, recordId } = ids(c);
+    return responderEtapa(c, await salvarTitularDaEtapa(c.env.DB, projectId, recordId, etapa, quem(c), c.req.param('titularId')!, v.data), etapa);
+  } catch (e) { return erro500(c, 'Falha ao gravar o titular da etapa', e); }
+});
+
+// Catálogos do projeto: lista vazia no projeto novo; criação inline pelo "+". Tipo fora da lista fixa é 404.
+const tipoDoCaminho = (c: { req: { param: (n: string) => string | undefined } }) => {
+  const t = c.req.param('tipo') ?? '';
+  return Object.hasOwn(TIPO_DO_CAMINHO, t) ? TIPO_DO_CAMINHO[t as keyof typeof TIPO_DO_CAMINHO] : null;
+};
+
+catalogosApp.get('/:tipo', async (c) => {
+  try {
+    const tipo = tipoDoCaminho(c);
+    if (!tipo) return c.json({ error: 'Catálogo inexistente' }, 404);
+    const itens = await listarCatalogo(c.env.DB, c.req.param('projectId')!, tipo, { q: c.req.query('q') ?? '', inativos: c.req.query('inativos') === '1' });
+    return c.json({ ok: true, itens });
+  } catch (e) { return erro500(c, 'Falha ao listar o catálogo', e); }
+});
+
+catalogosApp.post('/:tipo', async (c) => {
+  try {
+    const tipo = tipoDoCaminho(c);
+    if (!tipo) return c.json({ error: 'Catálogo inexistente' }, 404);
+    const v = await validateBody(c, catalogoCriarSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const r = await criarNoCatalogo(c.env.DB, projectId, tipo, v.data);
+    if (!r.ok) return c.json({ error: r.error, ...(r.existente ? { existente: r.existente } : {}) }, r.status);
+    await registrarCatalogo(c.env.DB, quem(c), projectId, tipo, 'criado');
+    return c.json({ ok: true, item: r.item }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar o item do catálogo', e); }
+});
+
+// Editar o catálogo é da equipe da ness e do administrador do cliente (spec 8.2). Criar, qualquer um que escreve no projeto.
+catalogosApp.put('/:tipo/:id', async (c) => {
+  try {
+    const u = c.get('user');
+    if (!ehEquipeNess(u) && u?.role !== 'org_admin') return c.json({ error: 'Só a equipe da ness e o administrador do cliente editam o catálogo' }, 403);
+    const tipo = tipoDoCaminho(c);
+    if (!tipo) return c.json({ error: 'Catálogo inexistente' }, 404);
+    const v = await validateBody(c, catalogoAtualizarSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const r = await atualizarCatalogo(c.env.DB, projectId, tipo, c.req.param('id')!, v.data);
+    if (!r.ok) return c.json({ error: r.error, ...(r.existente ? { existente: r.existente } : {}) }, r.status);
+    await registrarCatalogo(c.env.DB, quem(c), projectId, tipo, 'alterado');
+    return c.json({ ok: true, item: r.item });
+  } catch (e) { return erro500(c, 'Falha ao alterar o item do catálogo', e); }
+});
 // D2: etapas/:etapa/rascunho
+ropaAbasApp.post('/etapas/:etapa/rascunho', async (c) => {
+  try {
+    const etapa = c.req.param('etapa');
+    if (!ehEtapa(etapa)) return c.json({ error: 'Etapa inexistente' }, 404);
+    const v = await validateBody(c, etapaRascunhoSchema);
+    if (!v.success) return v.response;
+    const { projectId, recordId } = ids(c);
+    const r = await rascunharEtapa(c.env as unknown as Parameters<typeof rascunharEtapa>[0], projectId, recordId, etapa, v.data, c.get('user'));
+    return r.ok ? c.json(r.resposta) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha no copiloto da etapa', e); }
+});

@@ -18,13 +18,15 @@ describe('ficha em abas: montagem das rotas', () => {
     expect((await chamar({}, 'GET', `${base(rid)}/ficha`)).status).toBe(401);
   });
 
-  it('consultor: as rotas da PR1 respondem (validam, nunca 500); os catálogos e as etapas são da PR2 (404)', async () => {
+  it('consultor: as rotas da PR1 respondem (validam, nunca 500); catálogos e etapas (PR2) existem e respondem', async () => {
     for (const [m, c] of [['GET', 'ficha'], ['GET', 'conferencia'], ['GET', 'medidas'], ['GET', 'gaps'], ['PUT', 'escopo'], ['PUT', 'agentes']] as const) {
       expect((await chamar(s.consultor, m, `${base(rid)}/${c}`, m === 'PUT' ? {} : undefined)).status, `${m} ${c}`).toBe(200);
     }
     expect((await chamar(s.consultor, 'POST', `${base(rid)}/situacao`, {})).status).toBe(400);
     expect((await chamar(s.consultor, 'GET', `${base(rid)}/gaps/x/anexos`)).status).toBe(404);
-    expect((await chamar(s.consultor, 'GET', `/api/v1/projects/${P}/catalogos/titulares`)).status).toBe(404);
+    expect((await chamar(s.consultor, 'GET', `/api/v1/projects/${P}/catalogos/titulares`)).status).toBe(200);
+    expect((await chamar(s.consultor, 'GET', `/api/v1/projects/${P}/catalogos/xyz`)).status).toBe(404);
+    expect((await chamar(s.consultor, 'GET', `${base(rid)}/etapas`)).status).toBe(200);
   });
 
   it('pessoa sem o n.privacy: 403 na ficha, nas abas e nos catálogos', async () => {

@@ -137,7 +137,7 @@ import {
   parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
-import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema } from './schemas/ropa-abas';
+import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema } from './schemas/ropa-abas';
 import { passoCamposSchema, passoMetaSchema, passoConcluirSchema, passoReabrirSchema, passoBloquearSchema, passoDesbloquearSchema, copilotoCampoSchema, copilotoConversaSchema } from './schemas/passos';
 
 /**
@@ -260,6 +260,8 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/auditor-notes', schema: auditorNoteSchema, nome: 'auditorNoteSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/audits', schema: auditScheduleSchema, nome: 'auditScheduleSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/capa', schema: createCapaSchema, nome: 'createCapaSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/catalogos/:tipo/:id', schema: catalogoAtualizarSchema, nome: 'catalogoAtualizarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/catalogos/:tipo', schema: catalogoCriarSchema, nome: 'catalogoCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/certification', schema: certificationSchema, nome: 'certificationSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/consentimentos', schema: consentimentoCriarSchema, nome: 'consentimentoCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/controls/:controlId/policy', schema: politicaTextoSchema, nome: 'politicaTextoSchema' },
@@ -312,6 +314,13 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/bases', schema: tratamentoBasesSchema, nome: 'tratamentoBasesSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/ciclo', schema: tratamentoCicloSchema, nome: 'tratamentoCicloSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/departamentos', schema: tratamentoDepartamentosSchema, nome: 'tratamentoDepartamentosSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/:etapa/ativos', schema: etapaAtivosSchema, nome: 'etapaAtivosSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/:etapa/rascunho', schema: etapaRascunhoSchema, nome: 'etapaRascunhoSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/:etapa/titulares/:titularId', schema: etapaTitularSchema, nome: 'etapaTitularSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/:etapa', schema: etapaCabecalhoSchema, nome: 'etapaCabecalhoSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/coleta/titulares', schema: etapaTitularesColetaSchema, nome: 'etapaTitularesColetaSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/compartilhamento_externo/parceiros', schema: etapaParceirosSchema, nome: 'etapaParceirosSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/compartilhamento_interno/areas', schema: etapaAreasSchema, nome: 'etapaAreasSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/gaps/:id', schema: gapAtualizarSchema, nome: 'gapAtualizarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/gaps/nao-aplicavel', schema: gapsNaoAplicavelSchema, nome: 'gapsNaoAplicavelSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/gaps', schema: gapCriarSchema, nome: 'gapCriarSchema' },

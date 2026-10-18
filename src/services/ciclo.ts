@@ -28,7 +28,7 @@ const registroDoProjeto = (db: D1Database, projectId: string, ropaId: string) =>
 export async function lerCiclo(db: D1Database, projectId: string, ropaId: string): Promise<EtapaLida[] | null> {
   if (!(await registroDoProjeto(db, projectId, ropaId))) return null;
   const { results } = await db.prepare(
-    `SELECT c.etapa, c.situacao, c.item_id, i.nome AS item_nome, c.descricao FROM tratamento_ciclo c LEFT JOIN itens i ON i.id = c.item_id
+    `SELECT c.etapa, c.situacao, c.item_id, i.nome AS item_nome, COALESCE(c.descricao_etapa, c.descricao) AS descricao FROM tratamento_ciclo c LEFT JOIN itens i ON i.id = c.item_id
       WHERE c.ropa_id = ? AND c.project_id = ?`
   ).bind(ropaId, projectId).all<Omit<EtapaLida, 'rotulo'>>();
   return etapasDe(results);
@@ -72,6 +72,12 @@ export async function salvarCiclo(db: D1Database, projectId: string, ropaId: str
     ).bind(ropaId, projectId, e.etapa, e.situacao, item ?? null, descricao || null, ator);
   });
   if (stmts.length) await db.batch(stmts);
+  // A2: o item da F3 também vira ativo da etapa (modelo por etapa). Fica FORA do hash, como sempre foi a F3: tratamento_itens só muda
+  // quando a etapa é editada (ativos da etapa, sincronizarItens). Assim a aprovação de antes não cai por gravar a F3 (0074).
+  const novos = etapas.filter((e) => e.situacao === 'registrada' && e.item_id);
+  if (novos.length) {
+    await db.batch(novos.map((e) => db.prepare('INSERT OR IGNORE INTO tratamento_etapa_itens (ropa_id, etapa, item_id, project_id) VALUES (?, ?, ?, ?)').bind(ropaId, e.etapa, e.item_id, projectId)));
+  }
   return { ok: true };
 }
 
