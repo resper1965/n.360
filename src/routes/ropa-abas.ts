@@ -24,6 +24,8 @@ import { guardarAnexo, listarAnexos, baixarAnexo, apagarAnexo, MAX_ANEXO } from 
 import { exigirEditavel } from '../services/ropa-abas/comum';
 import { montarRelatorio } from '../services/ropa-abas/relatorio';
 import { motivosDeRisco } from '../services/riscos-atividade';
+// D2: copiloto da descrição por etapa (propõe; a pessoa aceita).
+import { rascunharEtapa, etapaRascunhoSchema } from '../services/copiloto-etapa';
 
 type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
 /** /api/v1/projects/:projectId/ropa/:recordId/...: a ficha em abas (spec 2026-10-16). Parâmetros `:projectId` e `:recordId`. */
@@ -406,3 +408,14 @@ catalogosApp.put('/:tipo/:id', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao alterar o item do catálogo', e); }
 });
 // D2: etapas/:etapa/rascunho
+ropaAbasApp.post('/etapas/:etapa/rascunho', async (c) => {
+  try {
+    const etapa = c.req.param('etapa');
+    if (!ehEtapa(etapa)) return c.json({ error: 'Etapa inexistente' }, 404);
+    const v = await validateBody(c, etapaRascunhoSchema);
+    if (!v.success) return v.response;
+    const { projectId, recordId } = ids(c);
+    const r = await rascunharEtapa(c.env as unknown as Parameters<typeof rascunharEtapa>[0], projectId, recordId, etapa, v.data, c.get('user'));
+    return r.ok ? c.json(r.resposta) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha no copiloto da etapa', e); }
+});
