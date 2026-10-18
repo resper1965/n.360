@@ -16,7 +16,8 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **A aba Tratamento de Dados tem as seis etapas** (Coleta, Uso ou Processamento, Compartilhamento Interno, Compartilhamento Externo, Armazenamento, Eliminação) em acordeões. A Coleta define os titulares e os dados; cada etapa seguinte diz, por titular, se usa os dados definidos ou se não usa nenhum. Etapas 2 a 6 ficam travadas até a Coleta ser concluída ou marcada Não Aplicável.
 - **Situação derivada por etapa** (concluída, pendente com o que falta, não aplicável), sem gravar nada além do conteúdo. Não Aplicável apaga o conteúdo da etapa, com confirmação quando havia algo.
 - **Catálogos do projeto** (titulares, dados pessoais, medidas e motivos de risco) começam vazios e se criam ali mesmo, com aviso de duplicata. Ativo, área e parceiro reusam os cadastros que já existem. `GET/POST/PUT /projects/:id/catalogos/:tipo`.
-- **"Ver o fluxo"** mostra o diagrama Mermaid do tratamento, derivado no servidor. O copiloto da descrição por etapa segue na fatia seguinte.
+- **"Ver o fluxo"** mostra o diagrama Mermaid do tratamento, derivado no servidor.
+- **Copiloto da descrição por etapa**: cada etapa editável tem o botão "Rascunhar a descrição desta etapa". O rascunho é **proposta**: a tela mostra "Proposta do assistente: confira", com Aceitar (copia o texto para o campo, e o autosave grava como qualquer digitação) ou Descartar. Nada é gravado sozinho. Quem pode pedir é a equipe da consultoria e o administrador do cliente.
 - Atividades já aprovadas continuam aprovadas até a primeira edição na Coleta, que muda o texto congelado e pede nova aprovação (decisão em aberto para o dono).
 
 ### Adicionado (ficha da atividade em abas, n.privacy; migration 0079, PR1)

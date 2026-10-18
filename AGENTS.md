@@ -303,9 +303,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   congelado (titulares, dados, sensivel, ativos, prazo, descarte) reescreve o hash em `src/services/ropa-abas/derivada.ts` e so ai chama
   `conferirPedidosDoDocumento`. Catalogos do projeto (`catalogo_itens`: titulares e dados; medidas e motivos de risco) nascem vazios e se criam na
   tela (`GET/POST/PUT /projects/:id/catalogos/:tipo`, `src/services/ropa-abas/catalogos.ts`); ativo, area e parceiro reusam `/assets`,
-  `/departamentos` e `/partes`. Contagens (2026-10-18): 6 etapas (`ETAPAS`); 7 rotas de etapa e 3 de catalogo em `src/routes/ropa-abas.ts`
+  `/departamentos` e `/partes`. Contagens (2026-10-18): 6 etapas (`ETAPAS`); 8 rotas de etapa e 3 de catalogo em `src/routes/ropa-abas.ts`
   (`grep -c "ropaAbasApp\.\(get\|put\|post\)('/etapas" src/routes/ropa-abas.ts`; `grep -c "catalogosApp\.\(get\|put\|post\)(" src/routes/ropa-abas.ts`);
-  18 modulos em `frontend/src/atividade/` (`ls frontend/src/atividade/*.js | wc -l`); 28 testes de backend `ropa-*` (`ls test/ropa-*.test.ts | wc -l`).
+  19 modulos em `frontend/src/atividade/` (`ls frontend/src/atividade/*.js | wc -l`); 29 testes de backend `ropa-*` (`ls test/ropa-*.test.ts | wc -l`).
+  Copiloto por etapa (`POST .../ropa/:rid/etapas/:etapa/rascunho`, `src/services/copiloto-etapa.ts`, botao em cada etapa editavel): PROPOE a
+  descricao a partir da ficha e de uma nota opcional; a pessoa aceita (Aceitar copia o texto para o campo e o autosave grava), nada grava sozinho.
   E2E das etapas vazias em `frontend/e2e/ropa-etapas.spec.js`.
 - **DPIA e LIA do tratamento (fatia 5, migration 0056)**: `dpia_assessments.ropa_id` tem integridade no BANCO por tres triggers
   (`dpia_ropa_do_projeto_ins/_upd` recusam registro inexistente OU de outro projeto; `dpia_ropa_apagada` zera a referencia ao apagar o
