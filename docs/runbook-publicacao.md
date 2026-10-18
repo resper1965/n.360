@@ -4,7 +4,23 @@ Como o código sai da `main` para `https://n360.ness.com.br`, o que fazer quando
 roda, e o que muda quando o repositório ficar privado. Incidente em produção é o
 [`runbook-incidente.md`](runbook-incidente.md); restauração de banco, o [`backups/README.md`](../backups/README.md).
 
-## 0. Publicação pelo Workers Builds (vigente desde 15/10/2026)
+## 0. Portão local e deploy pelo Workers Builds (vigente desde 16/10/2026)
+
+**Desde 16/10/2026 o portão de PR é LOCAL.** O build de branch do Workers Builds levava ~14 min por PR (e de novo a cada merge, pela
+regra de branch em dia), falhava sem log legível pela linha de comando e nunca rodava o E2E. Agora:
+
+- `bash scripts/ci/ship.sh <numero-do-pr>` faz tudo: atualiza o PR com a `main`, roda `scripts/ci/gate.sh` num worktree temporário no
+  commit do PR, mergeia (squash) e espera o `/health` mostrar o SHA do merge.
+- `scripts/ci/gate.sh` roda tipos, build e testes do frontend, build do MCP, testes do backend e o **E2E**, uma suíte por vez, com
+  `--retry=1` (um teste que falhou uma vez é repetido; a repetição aparece no log). Passando, grava o status `gate/local` no commit
+  (`gh api .../statuses/<sha>`). O log inteiro fica em `$TEMP/gate-<sha>.log`. `GATE_SEM_STATUS=1` roda sem marcar o commit.
+- O ruleset exige PR, branch em dia e o status **`gate/local`** (no lugar do check do Workers Builds). O status vale o que vale quem tem
+  o token do GitHub: num repositório de uma pessoa só é o mesmo nível de confiança de antes, com o E2E a mais.
+- Na Cloudflare, os **builds de branch ficam desligados** (Settings > Builds > Branch control). Só a `main` builda: `publicar.sh` (tipos,
+  build do frontend, recusa com migration pendente) e o deploy, em 2 a 3 min.
+- Migration pendente: aplique antes do merge (backup + `wrangler d1 migrations apply`), como na seção abaixo.
+
+O que segue descreve o Workers Builds como estava de 15 a 16/10/2026; a coluna "PR" da tabela deixou de valer.
 
 O repositório ficou privado em 15/10/2026 e o dono decidiu não pagar minutos do GitHub Actions. O portão de PR e o
 deploy passaram para o **Workers Builds** da Cloudflare, ligado ao Worker `niso`. As seções 1 e 2 abaixo descrevem
