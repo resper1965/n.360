@@ -294,7 +294,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   **Os catalogos nascem VAZIOS** (decisao do dono de 16/10): nenhuma lista de titulares, dados, medidas ou motivos de risco e semeada; cada tela explica o
   vazio e oferece criar ali mesmo. Gap e a mesma `corrective_actions` do n.iso (com `recomendacao` e anexos PDF/DOC de ate 5 MiB, conferidos pelo
   conteudo); o agente MCP escreve nas abas, mas nao apaga, nao anexa, nao muda a situacao nem imprime o relatorio (`FORA_DO_AGENTE`). Importar do
-  legado e etapa separada: o modelo de importacao segue sem a pergunta `alto_risco` (`PERGUNTAS_IMPORTAVEIS`). E2E do sistema vazio em
+  legado e etapa separada: o modelo de importacao segue sem a pergunta `alto_risco` (`PERGUNTAS_IMPORTAVEIS`). **Remocoes (PR3, pacote R):** o
+  modal "Ligacoes da atividade" (`frontend/src/views/tratamento-ligacoes.js`) saiu; a API dos seus blocos continua (partes, transferencias, LIA, RIPD,
+  Word da LIA, pedido de aprovacao e importacao de planilha). A rota `ropa-entrevista` redireciona para a ficha (com `?modo=guiado` quando ha atividade
+  gravada; sem ela, a lista do RoPA), e o consentimento abre a ficha. `niso_privacy_ropa_detalhe` devolve situacao, etapas e medidas. Pendente do pacote
+  G: o painel do modo guiado (`frontend/src/atividade/guiado.js`) e a retirada do motor da entrevista em `ropa-entrevista.js`. E2E do sistema vazio em
   `frontend/e2e/ropa-abas.spec.js`; formas de resposta que a tela le em `test/ropa-abas-formas-front.test.ts`.
 - **Tratamento de Dados por etapa (PR2, sem migration; plano `docs/superpowers/plans/2026-10-16-ropa-abas.md`).** A aba tem seis etapas em ordem
   (`ETAPAS` em `src/schemas/ropa-abas.ts`). A Coleta define titulares e dados; as outras usam so o que ela definiu, e cada titular tem situacao
