@@ -6,6 +6,7 @@ import { carregarFicha, carregarRegistro, abaDoEndereco, gravarAbaNoEndereco, po
 import { desenharAbas, abaParaTecla } from '../atividade/abas.js';
 import { desenharCabecalho, montarCabecalho } from '../atividade/cabecalho.js';
 import { itensDoMenu } from '../atividade/acoes.js';
+import { modoDoEndereco, gravarModoNoEndereco, painelGuiado, focarCampo } from '../atividade/guiado.js';
 import { montar as montarEscopo } from '../atividade/aba-escopo.js';
 import { montar as montarTratamento } from '../atividade/aba-tratamento.js';
 import { montar as montarAgentes } from '../atividade/aba-agentes.js';
@@ -58,6 +59,16 @@ export async function renderAtividade(c, h, a) {
         return;
     }
     if (!viva()) return;
+    // Modo guiado (PR3): o painel é uma segunda porta para as mesmas abas. A aba segue a próxima pergunta ao entrar e a cada
+    // "Continuar" (`avancou`); entre um e outro, a pessoa navega pelas abas livremente.
+    const guiado = modoDoEndereco() || pedido.modo === 'guiado';
+    const avancou = !!pedido.avancou;
+    pedido.avancou = false;
+    pedido.ficha = ficha;
+    if (guiado) {
+        gravarModoNoEndereco(true);
+        if (ficha.proxima_pergunta && (avancou || !new URLSearchParams(window.location.search).has('aba'))) gravarAbaNoEndereco(ficha.proxima_pergunta.aba);
+    }
     const aba = abaDoEndereco();
     const editavel = podeEscrever(ficha);
     const cancelada = ficha.situacao.codigo === 'cancelada';
@@ -69,6 +80,7 @@ export async function renderAtividade(c, h, a) {
         ${desenharCabecalho(ficha, editavel)}
         ${desenharAbas(ficha, aba)}
         <div role="tabpanel" id="at-painel" aria-labelledby="at-aba-${aba}" tabindex="0"><h2 class="at-painel-titulo">${escapeHTML(rotulo)}</h2><div id="at-corpo"></div></div>
+        ${guiado ? painelGuiado(ficha, rid) : ''}
     </div>`;
     const ctx = { projectId: pid, ropaId: rid, ficha, registro: registro || {}, editavel, recarregarFicha: repintar };
     montarCabecalho(c, ctx);
@@ -76,6 +88,7 @@ export async function renderAtividade(c, h, a) {
     const corpo = c.querySelector('#at-corpo');
     if (montar) abaMontada = (await montar(corpo, ctx)) || null;
     else corpo.innerHTML = renderEmptyState({ titulo: 'Esta aba ainda não está disponível', texto: 'Ela chega na próxima atualização. Os dados desta atividade não são afetados.' });
+    if (guiado && avancou) focarCampo(corpo);
 }
 
 const repintar = () => (ultimo ? renderAtividade(ultimo.c, ultimo.h, ultimo.a) : undefined);

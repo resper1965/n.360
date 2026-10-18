@@ -103,3 +103,14 @@ export function campo({ id, rotulo, ajuda = '', tipo = 'input', valor = '', opco
 
 /** Cabeça padrão de cada aba: o `role="status"` onde "Salvo às HH:MM" aparece. */
 export const faixaSalvo = () => '<p class="at-salvo" id="at-salvo" role="status"></p>';
+
+// Permissões e aprovação de uma atividade (movidas da entrevista, PR3): quem pode abrir o guiado e o aviso antes de alterar uma atividade aprovada.
+export const podeEntrevistar = () => !!S.user && ['platform_admin', 'consultant', 'consultor', 'consultoria_admin', 'org_admin'].includes(S.user.role);
+
+/** Registro aprovado, ou com aprovação por pedido vigente: gravar substitui o pedido (ropa.ts, conferirPedidosDoDocumento). */
+export const temAprovacao = (r) => !!r && (r.status === 'Approved' || !!(r.aprovacao_pedido && (r.aprovacao_pedido.ciso || r.aprovacao_pedido.ceo)));
+export async function confirmaEdicaoAprovada(r) {
+    if (!temAprovacao(r)) return true;
+    return window.confirmar('Esta atividade tem aprovação. Salvar a alteração substitui o pedido de aprovação vigente: a aprovação perde a validade e precisa ser pedida de novo.',
+        { titulo: 'Alterar atividade aprovada', rotulo: 'Salvar mesmo assim' });
+}
