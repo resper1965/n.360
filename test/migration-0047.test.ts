@@ -55,7 +55,9 @@ describe('migration 0047 — módulos, partes, vínculos e departamentos', () =>
 
   it('aplicada sobre o banco ANTERIOR, a migration dá iso aos projetos que já existiam', async () => {
     await applySchema();
-    await execSql(`DROP TRIGGER IF EXISTS projeto_modulo_iso_padrao; DROP TRIGGER IF EXISTS projeto_modulos_do_contrato; DROP TRIGGER IF EXISTS usuario_modulos_padrao;
+    // Tabelas da 0079 que apontam para departamentos e partes: o banco antigo não as tem, então saem antes das pais.
+    await execSql(`DROP TABLE IF EXISTS tratamento_interno_areas; DROP TABLE IF EXISTS tratamento_externo_parceiros;
+      DROP TRIGGER IF EXISTS projeto_modulo_iso_padrao; DROP TRIGGER IF EXISTS projeto_modulos_do_contrato; DROP TRIGGER IF EXISTS usuario_modulos_padrao;
       DROP TABLE IF EXISTS parte_vinculos; DROP TABLE IF EXISTS partes; DROP TABLE IF EXISTS departamentos; DROP TABLE IF EXISTS projeto_modulos;
       ALTER TABLE organizations DROP COLUMN modulos_contratados;`);
     expect(await colunas('partes')).toEqual([]);

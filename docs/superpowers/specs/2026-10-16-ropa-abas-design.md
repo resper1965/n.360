@@ -26,7 +26,7 @@ A F1-F6 trouxe ao n.privacy as **capacidades** do legado (teste de impacto, risc
 6. **Teste de Impacto, Riscos, Logs**: reaproveitam F1/F2 e a trilha; rótulos e layout alinhados ao legado.
 7. **Status e Ações** no cabeçalho, mapeados sobre a aprovação por pedido **sem enfraquecê-la** (seção 6). O agente de IA (MCP) nunca aprova.
 8. **A entrevista fica**, realinhada às mesmas abas e na mesma ordem, gravando **nos mesmos campos**; "sem entrevista" = abrir a atividade e preencher as abas livremente. Duas portas para um modelo só.
-9. **Compatibilidade**: atividades existentes (o cliente real Twyn) e suas ligações, ciclo, impacto, riscos, bases e **aprovações com hash** continuam valendo. Migration só aditiva.
+9. **Compatibilidade**: atividades existentes (o cliente em produção) e suas ligações, ciclo, impacto, riscos, bases e **aprovações com hash** continuam valendo. Migration só aditiva.
 
 Decisão tomada neste texto, para revisão do dono na seção 15: mudar um dado de etapa que alimenta o conteúdo congelado **substitui o pedido aberto e derruba a aprovação**, como mudar o mesmo dado pelo formulário antigo (seção 4.4).
 
