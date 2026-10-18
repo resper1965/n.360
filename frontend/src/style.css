@@ -1963,7 +1963,6 @@ button.roadmap-node { padding: 0; font-family: inherit; }
 .co-par dt { color: var(--text-dim); font-size: var(--fs-md); }
 .co-par dd { margin: 0; }
 .co-historico { margin: 0 0 16px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
-=======
 /* Cobertura da LGPD (views/requisitos.js): resumo que filtra, explicação recolhível e tabela legível. */
 .cob-fonte { max-width: 360px; }
 .cob-mudo { color: var(--text-dim); }
