@@ -7,7 +7,7 @@ import { desenharAbas, abaParaTecla } from '../atividade/abas.js';
 import { desenharCabecalho, montarCabecalho } from '../atividade/cabecalho.js';
 import { itensDoMenu } from '../atividade/acoes.js';
 import { montar as montarEscopo } from '../atividade/aba-escopo.js';
-import { montar as montarPonte } from '../atividade/aba-tratamento-ponte.js';
+import { montar as montarTratamento } from '../atividade/aba-tratamento.js';
 import { montar as montarAgentes } from '../atividade/aba-agentes.js';
 import { montar as montarMedidas } from '../atividade/aba-medidas.js';
 import { montar as montarLogs } from '../atividade/aba-logs.js';
@@ -20,7 +20,7 @@ import { montar as montarLogs } from '../atividade/aba-logs.js';
 const DO_PACOTE_D = import.meta.glob('../atividade/aba-{base,gaps,impacto,riscos}.js', { eager: true });
 const externa = (arq) => { const m = DO_PACOTE_D[`../atividade/${arq}.js`]; return m && m.montar; };
 const montadores = () => ({
-    escopo: montarEscopo, tratamento: montarPonte, agentes: montarAgentes, medidas: montarMedidas, logs: montarLogs,
+    escopo: montarEscopo, tratamento: montarTratamento, agentes: montarAgentes, medidas: montarMedidas, logs: montarLogs,
     base_juridica: externa('aba-base'), gaps: externa('aba-gaps'), impacto: externa('aba-impacto'), riscos: externa('aba-riscos'),
 });
 
