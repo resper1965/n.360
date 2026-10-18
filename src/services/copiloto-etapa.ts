@@ -7,7 +7,7 @@ import { mascararPii, podePedirRascunho } from './rascunhos-privacy';
 import { corta, INDICIOS, normaliza } from './copiloto-ropa';
 import { lerEtapas, ROTULOS } from './ropa-abas/etapas';
 import { ORIGENS_DOS_DADOS } from '../data/ropa-abas/origens';
-import { type Etapa } from '../schemas/ropa-abas';
+import { type Etapa, etapaRascunhoSchema, type CorpoRascunhoEtapa } from '../schemas/ropa-abas';
 import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo } from '../modulos';
 
 /**
@@ -28,10 +28,6 @@ import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo } fro
 type Env = { DB: D1Database; AI?: unknown } & Record<string, unknown>;
 export type Ator = { id?: string; role?: string; email?: string; client_project_id?: string | null } | undefined;
 type Modelo = { run: (modelo: string, entrada: Record<string, unknown>) => Promise<unknown> };
-
-/** Corpo do POST: uma nota opcional da pessoa (dado). Campo a mais é 400. */
-export const etapaRascunhoSchema = z.strictObject({ nota: z.string().trim().max(2000).optional() });
-export type CorpoRascunhoEtapa = z.infer<typeof etapaRascunhoSchema>;
 
 export type RespostaEtapa = { descricao?: string; origem?: string[]; avisos: string[]; perguntas_a_confirmar: string[] } | { indisponivel: true };
 export type ResultadoEtapa = { ok: true; resposta: RespostaEtapa } | { ok: false; status: 403 | 404; error: string };

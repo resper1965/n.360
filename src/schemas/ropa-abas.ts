@@ -110,3 +110,7 @@ export const catalogoCriarSchema = z.strictObject({
 export const catalogoAtualizarSchema = z.strictObject({
   nome: texto(200).min(1).optional(), sensivel: z.boolean().optional(), descricao_padrao: textoOuNulo(2000).optional(), status: z.enum(['ativo', 'inativo']).optional(),
 });
+
+/** Corpo do POST de rascunho da etapa: uma nota opcional da pessoa (dado). Campo a mais é 400. */
+export const etapaRascunhoSchema = z.strictObject({ nota: z.string().trim().max(2000).optional() });
+export type CorpoRascunhoEtapa = z.infer<typeof etapaRascunhoSchema>;

@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500, ehEquipeNess } from '../helpers';
 import { validateBody } from '../schemas';
-import { ETAPAS, type Etapa, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, catalogoCriarSchema, catalogoAtualizarSchema } from '../schemas/ropa-abas';
+import { ETAPAS, type Etapa, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema } from '../schemas/ropa-abas';
 import { lerEtapas, salvarCabecalhoDaEtapa, salvarAtivos, salvarAreas, salvarParceiros, salvarTitularesDaColeta, salvarTitularDaEtapa } from '../services/ropa-abas/etapas';
 import { listarCatalogo, criarNoCatalogo, atualizarCatalogo, registrarCatalogo, TIPO_DO_CAMINHO } from '../services/ropa-abas/catalogos';
 import { chaveNome } from '../services/nomes';
@@ -25,7 +25,7 @@ import { exigirEditavel } from '../services/ropa-abas/comum';
 import { montarRelatorio } from '../services/ropa-abas/relatorio';
 import { motivosDeRisco } from '../services/riscos-atividade';
 // D2: copiloto da descrição por etapa (propõe; a pessoa aceita).
-import { rascunharEtapa, etapaRascunhoSchema } from '../services/copiloto-etapa';
+import { rascunharEtapa } from '../services/copiloto-etapa';
 
 type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
 /** /api/v1/projects/:projectId/ropa/:recordId/...: a ficha em abas (spec 2026-10-16). Parâmetros `:projectId` e `:recordId`. */

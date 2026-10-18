@@ -96,6 +96,7 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/ropa': { obrigatorios: ['processing_purpose'] },
   'POST /api/v1/projects/{projectId}/ropa/{recordId}/acoes': { obrigatorios: ['title'] },
   'POST /api/v1/projects/{projectId}/ropa/{recordId}/approve': { obrigatorios: ['role'] },
+  'POST /api/v1/projects/{projectId}/ropa/{recordId}/etapas/{etapa}/rascunho': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/ropa/{recordId}/gaps': { obrigatorios: ['gap', 'responsavel_parte_id'] },
   'POST /api/v1/projects/{projectId}/ropa/{recordId}/medidas': { obrigatorios: ['medida', 'status'] },
   'POST /api/v1/projects/{projectId}/ropa/{recordId}/revoke-approval': { obrigatorios: ['reason', 'role'] },

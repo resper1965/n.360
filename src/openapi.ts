@@ -137,7 +137,7 @@ import {
   parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
-import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, catalogoCriarSchema, catalogoAtualizarSchema } from './schemas/ropa-abas';
+import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema } from './schemas/ropa-abas';
 import { passoCamposSchema, passoMetaSchema, passoConcluirSchema, passoReabrirSchema, passoBloquearSchema, passoDesbloquearSchema, copilotoCampoSchema, copilotoConversaSchema } from './schemas/passos';
 
 /**
@@ -315,6 +315,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/ciclo', schema: tratamentoCicloSchema, nome: 'tratamentoCicloSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/departamentos', schema: tratamentoDepartamentosSchema, nome: 'tratamentoDepartamentosSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/:etapa/ativos', schema: etapaAtivosSchema, nome: 'etapaAtivosSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/:etapa/rascunho', schema: etapaRascunhoSchema, nome: 'etapaRascunhoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/:etapa/titulares/:titularId', schema: etapaTitularSchema, nome: 'etapaTitularSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/:etapa', schema: etapaCabecalhoSchema, nome: 'etapaCabecalhoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/etapas/coleta/titulares', schema: etapaTitularesColetaSchema, nome: 'etapaTitularesColetaSchema' },
