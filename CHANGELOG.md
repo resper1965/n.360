@@ -12,6 +12,15 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Alterado (RoPA em abas, PR3: entrevista vira modo guiado, sem migration)
+- **A entrevista em passos saiu.** O modo guiado é um painel sobre as mesmas abas e grava nos mesmos campos. A pergunta vem do servidor (`ficha.proxima_pergunta`, na ordem das abas), sem estado de entrevista no navegador. "Não sei agora" guarda só a lista de adiadas no navegador.
+- **Modal "Ligações da atividade" removido.** A API dos seus blocos continua (partes, transferências, LIA, RIPD, Word da LIA, pedido de aprovação, importação de planilha); a tela é a aba da ficha.
+- **Rota `ropa-entrevista` redireciona** para a ficha: no modo guiado quando há atividade gravada, senão para a lista do RoPA. O motor da entrevista (`frontend/src/views/ropa-entrevista.js`) foi apagado; as permissões de atividade aprovada ficaram em `frontend/src/atividade/estado.js`.
+- **Detalhe do MCP** (`niso_privacy_ropa_detalhe`) traz situação, etapas e medidas, e o roteiro do agente segue as abas.
+
+### Adicionado (RoPA: Nova atividade com escolha de modo, PR3; sem migration)
+- **"Nova atividade" pede nome, área e responsável e pergunta como preencher**: pela entrevista guiada ou direto nas abas. A equipe da ness. começa no direto; o cliente, na guiada. O nome vira a finalidade provisória, editável na aba Escopo.
+
 ### Adicionado (Tratamento de Dados por etapa, n.privacy; PR2, sem migration)
 - **A aba Tratamento de Dados tem as seis etapas** (Coleta, Uso ou Processamento, Compartilhamento Interno, Compartilhamento Externo, Armazenamento, Eliminação) em acordeões. A Coleta define os titulares e os dados; cada etapa seguinte diz, por titular, se usa os dados definidos ou se não usa nenhum. Etapas 2 a 6 ficam travadas até a Coleta ser concluída ou marcada Não Aplicável.
 - **Situação derivada por etapa** (concluída, pendente com o que falta, não aplicável), sem gravar nada além do conteúdo. Não Aplicável apaga o conteúdo da etapa, com confirmação quando havia algo.

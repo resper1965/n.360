@@ -92,7 +92,7 @@ describe('GET /ficha', () => {
     expect(f.situacao).toEqual({ codigo: 'rascunho', rotulo: 'Rascunho', aprovacao_desatualizada: false, em_nova_revisao: false });
     expect(f.registro.areas).toEqual([]);
     expect(f.registro.responsavel).toBeNull();
-    expect(f.proxima_pergunta).toBeNull();
+    expect(f.proxima_pergunta).toEqual({ aba: 'escopo', campo: 'responsavel' }); // a finalidade veio do POST; o responsável é a próxima
   });
 
   it('registro: nome cai na finalidade; empresa do cadastro e, sem ele, do cliente do projeto; responsável e áreas', async () => {

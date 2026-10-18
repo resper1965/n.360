@@ -65,9 +65,11 @@ describe('ferramentas nomeadas do n.privacy (definições)', () => {
     expect(INSTRUCOES).toContain('niso_privacy_');
     for (const x of ['niso_privacy_propor_tratamento', 'niso_privacy_ligar_tratamento', 'niso_privacy_rascunhar_lia', 'implantacao-privacy',
       'migracao-programa', 'avaliacao-terceiros', 'atendimento-titular']) expect(ROTEIROS, x).toContain(x);
-    // Roteiro 5 segue os 8 blocos da entrevista de RoPA.
+    // Roteiro 5 segue as abas da atividade, na ordem, e diz o que é da pessoa.
     const r5 = ROTEIROS.split('\n').find((l) => l.startsWith('5.'))!;
-    for (const b of ['A atividade', 'B titulares', 'C categorias', 'D base legal', 'E sistemas', 'F com quem', 'G retenção', 'H transferência']) expect(r5, b).toContain(b);
+    for (const b of ['Escopo', 'Tratamento de Dados', 'Agentes de Tratamento', 'Medidas de Segurança', 'Base Jurídica', 'Controle de GAPs', 'Teste de Impacto', 'Riscos', 'Logs']) expect(r5, b).toContain(b);
+    expect(r5.indexOf('Escopo')).toBeLessThan(r5.indexOf('Logs'));
+    expect(r5).toContain('Situação, anexos, relatório, apagar medida ou gap e aprovação são de uma pessoa');
     for (const n of LEITURA) expect(ROTEIROS_AUDITOR, n).toContain(n);
   });
 });

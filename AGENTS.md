@@ -294,7 +294,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   **Os catalogos nascem VAZIOS** (decisao do dono de 16/10): nenhuma lista de titulares, dados, medidas ou motivos de risco e semeada; cada tela explica o
   vazio e oferece criar ali mesmo. Gap e a mesma `corrective_actions` do n.iso (com `recomendacao` e anexos PDF/DOC de ate 5 MiB, conferidos pelo
   conteudo); o agente MCP escreve nas abas, mas nao apaga, nao anexa, nao muda a situacao nem imprime o relatorio (`FORA_DO_AGENTE`). Importar do
-  legado e etapa separada: o modelo de importacao segue sem a pergunta `alto_risco` (`PERGUNTAS_IMPORTAVEIS`). E2E do sistema vazio em
+  legado e etapa separada: o modelo de importacao segue sem a pergunta `alto_risco` (`PERGUNTAS_IMPORTAVEIS`). **Remocoes (PR3, pacote R):** o
+  modal "Ligacoes da atividade" (`frontend/src/views/tratamento-ligacoes.js`) saiu; a API dos seus blocos continua (partes, transferencias, LIA, RIPD,
+  Word da LIA, pedido de aprovacao e importacao de planilha). A rota `ropa-entrevista` redireciona para a ficha (com `?modo=guiado` quando ha atividade
+  gravada; sem ela, a lista do RoPA), e o consentimento abre a ficha. `niso_privacy_ropa_detalhe` devolve situacao, etapas e medidas. O modo guiado e o painel
+  `frontend/src/atividade/guiado.js` sobre as abas (a pergunta vem de `ficha.proxima_pergunta`); o motor da entrevista em `ropa-entrevista.js` saiu. E2E do sistema vazio em
   `frontend/e2e/ropa-abas.spec.js`; formas de resposta que a tela le em `test/ropa-abas-formas-front.test.ts`.
 - **Tratamento de Dados por etapa (PR2, sem migration; plano `docs/superpowers/plans/2026-10-16-ropa-abas.md`).** A aba tem seis etapas em ordem
   (`ETAPAS` em `src/schemas/ropa-abas.ts`). A Coleta define titulares e dados; as outras usam so o que ela definiu, e cada titular tem situacao
@@ -660,7 +664,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 318 arquivos de teste do backend mocka o D1 inteiro** (2026-10-17;
+- **Nenhum dos 328 arquivos de teste do backend mocka o D1 inteiro** (2026-10-18;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
@@ -672,10 +676,10 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~21,8 mil linhas de JS (2026-10-17)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 137 arquivos de teste em jsdom
-  (`ls frontend/test/*.test.js | wc -l`) e 7 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
-  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 38 telas de `frontend/src/views/` sao
+- **Frontend com pouco teste por linha.** ~20,7 mil linhas de JS (2026-10-18)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 142 arquivos de teste em jsdom
+  (`ls frontend/test/*.test.js | wc -l`) e 8 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
+  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 38 telas de `frontend/src/views/` (2026-10-18) sao
   importadas por ao menos um teste (2026-10-15: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
   nao imprime nada), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, `project.js`, todas acima de 1.400 linhas)
   tem teste so de fatias.

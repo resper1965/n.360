@@ -158,10 +158,10 @@ window.limparFiltrosConsentimentos = function () {
     if (b) b.focus();
 };
 
-// O tratamento abre onde o resto do n.privacy o abre (ligações do RoPA). Janela única: uma que esteja aberta fecha antes.
+// O tratamento abre na ficha em abas (a atividade), onde o resto do n.privacy o abre. Janela única: uma que esteja aberta fecha antes.
 window.abrirTratamentoDoConsentimento = function (projectId, ropaId) {
     forceCloseModal();
-    if (typeof window.openLigacoesTratamento === 'function') return window.openLigacoesTratamento(projectId, ropaId);
+    if (typeof window.abrirAtividade === 'function') return window.abrirAtividade(projectId, ropaId);
     return window.navigate && window.navigate('ropa');
 };
 

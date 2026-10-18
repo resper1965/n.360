@@ -1,7 +1,8 @@
 import { aprovacoesDoProjeto } from '../documentos';
 import { PERGUNTAS_IMPACTO } from '../impacto';
 import { entradaDaConferencia, lerDadosAtividade, montarConferencia, type DadosAtividade } from './conferencia';
-import { estadoDasEtapas } from './etapas-estado';
+import { lerEtapas, type EtapaDetalhe } from './etapas';
+import { proximaPergunta, type EntradaProxima } from './proxima-pergunta';
 import { acoesDoMenu, papelDe, podePedirAprovacao, situacaoDaAtividade } from './situacao';
 import type { AbaId } from '../../schemas/ropa-abas';
 import type { EstadoAba, EstadoEtapa, Ficha } from './tipos';
@@ -45,9 +46,13 @@ export function estadoDasAbas(d: DadosAtividade, etapas: EstadoEtapa[]): Record<
 export async function montarFicha(db: D1Database, projectId: string, ropaId: string, user: { email?: string; role?: string; client_project_id?: string | null; org_id?: string | null }): Promise<Ficha | null> {
   const d = await lerDadosAtividade(db, projectId, ropaId);
   if (!d) return null;
-  const [etapas, aprovacoes, podePedir] = await Promise.all([
-    estadoDasEtapas(db, projectId, ropaId), aprovacoesDoProjeto(db, projectId, ropaId, 'tratamento'), podePedirAprovacao(db, user, projectId),
+  const [detalhe, aprovacoes, podePedir, respondidas] = await Promise.all([
+    lerEtapas(db, projectId, ropaId), aprovacoesDoProjeto(db, projectId, ropaId, 'tratamento'), podePedirAprovacao(db, user, projectId),
+    // ponytail: sem resposta de impacto (sistema vazio) não há o que ler; a consulta só roda quando há uma resposta.
+    d.respondidas ? db.prepare(`SELECT pergunta FROM tratamento_impacto WHERE ropa_id = ? AND project_id = ?`).bind(ropaId, projectId).all<{ pergunta: string }>() : Promise.resolve({ results: [] as { pergunta: string }[] }),
   ]);
+  // Uma leitura das etapas serve à situação, à conferência e à próxima pergunta (sem consulta extra).
+  const etapas: EstadoEtapa[] = (detalhe ?? []).map((e) => ({ etapa: e.etapa, situacao: e.situacao, faltas: e.faltas }));
   const aprovacao = aprovacoes.get(ropaId) ?? { ciso: null, ceo: null };
   const vigente = !!(aprovacao.ciso || aprovacao.ceo);
   const anterior = !vigente && d.ultima_aprovacao_em ? { por: d.ultima_aprovacao_por ?? '', em: d.ultima_aprovacao_em } : null;
@@ -65,7 +70,32 @@ export async function montarFicha(db: D1Database, projectId: string, ropaId: str
     acoes: acoesDoMenu(situacao, papelDe(user, podePedir, bloqueios)),
     abas: estadoDasAbas(d, etapas),
     modulos: { iso: d.iso > 0 },
-    proxima_pergunta: null,
+    proxima_pergunta: proximaPergunta(entradaDaProxima(d, detalhe ?? [], respondidas.results.map((r) => r.pergunta), etapas)),
+  };
+}
+
+/** Lê da atividade, já lida pela ficha, o que a ordem das abas olha. Sem consulta própria. */
+export function entradaDaProxima(d: DadosAtividade, detalhe: EtapaDetalhe[], respondidas: string[], etapas: EstadoEtapa[]): EntradaProxima {
+  const coleta = detalhe.find((e) => e.etapa === 'coleta');
+  let areas = 0;
+  try { areas = d.areas_json ? (JSON.parse(d.areas_json) as unknown[]).length : 0; } catch { areas = 0; }
+  return {
+    finalidade: d.finalidade,
+    responsavel: !!d.owner_parte_id,
+    areas,
+    coleta: {
+      titulares: (coleta?.titulares ?? []).map((t) => ({ dados: t.dados.length })),
+      solicitaConsentimento: coleta?.solicita_consentimento ?? null,
+      descricao: coleta?.descricao ?? null,
+      ativos: coleta?.ativos.length ?? 0,
+    },
+    etapas,
+    papelRespondido: d.papel_controlador != null || d.papel_operador != null,
+    temBase: entradaDaConferencia(d, etapas).temBase,
+    art11Na: !!d.base_art11_na,
+    medidas: d.medidas,
+    impactoRespondidas: respondidas,
+    impactoFinalizado: !!d.impacto_finalizado_em,
   };
 }
 

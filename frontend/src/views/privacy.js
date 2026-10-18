@@ -1,10 +1,11 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
-import { render } from '../router.js';
+import { render, navigate } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
-import { podeEntrevistar, confirmaEdicaoAprovada } from './ropa-entrevista.js';
+import { podeEntrevistar, confirmaEdicaoAprovada } from '../atividade/estado.js';
+import { listarItens, criarItem } from '../atividade/catalogo-inline.js';
 import './atividade.js';
 import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, camposDaBase, idsDoCatalogo } from '../bases-legais.js';
 
@@ -56,7 +57,8 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         const btnImportar = canCrud && comPrivacy ? `<button class="btn" data-action="openImportarRopaModal" data-args='["${proj.id}"]'>Importar planilha</button>` : '';
         // A entrevista é o caminho principal (equipe e administrador do cliente); o formulário inteiro fica como edição avançada da equipe.
         const entrevista = podeEntrevistar();
-        const btnEntrevista = (rotulo) => (entrevista ? `<button class="btn btn-primary" data-action="abrirRopaEntrevista" data-args='["${proj.id}"]'>${rotulo}</button>` : '');
+        // Uma ação principal: "Nova atividade" abre a escolha entre a entrevista guiada e o preenchimento direto nas abas.
+        const btnNova = () => (entrevista || canCrud ? `<button class="btn btn-primary" data-action="abrirNovaAtividade" data-args='["${proj.id}"]'>Nova atividade</button>` : '');
         const btnNovo = (rotulo) => (canCrud ? `<button class="btn" data-action="openNewROPAModal" data-args='["${proj.id}"]'>${rotulo}</button>` : '');
 
         let records = [];
@@ -72,7 +74,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             records.length && { rotulo: 'Exportar CSV', action: 'exportarCsvAtividades', args },
             records.length && comPrivacy && { rotulo: 'Exportar LIAs (CSV)', action: 'exportarCsvLia', args },
             canCrud && { rotulo: 'Edição avançada', action: 'openNewROPAModal', args },
-        ]), btnEntrevista('Nova atividade (entrevista)')].filter(Boolean).join(' ');
+        ]), btnNova()].filter(Boolean).join(' ');
 
         // A conta de "legítimo interesse sem LIA" é do servidor (visão do encarregado): a lista do RoPA não traz a LIA.
         let liaPendente = null;
@@ -120,7 +122,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             {
                 emptyState: 'O inventário de tratamentos (art. 37) está vazio.',
                 emptyHint: 'Registre a primeira atividade ou importe a planilha que o cliente já tem.',
-                emptyAction: btnEntrevista('Registrar atividade (entrevista)') + btnNovo('Edição avançada') + btnImportar,
+                emptyAction: btnNova() + btnNovo('Edição avançada') + btnImportar,
             }
         );
 
@@ -220,10 +222,71 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                 <div>
                     <button class="btn" data-action="forceCloseModal">Fechar</button>
                     ${podeEntrevistar() ? `<button class="btn btn-primary" data-action="abrirRopaEntrevista" data-args='${escapeHTML(JSON.stringify([projectId, id]))}'>Continuar entrevista</button>` : ''}
-                    ${canCrud ? `<button class="btn" data-action="openEditROPAModal" data-args='["${id}"]'>Edição avançada</button>` : ''}
                 </div>
             </div>
         `);
+    };
+
+    // "Nova atividade" (PR3): nome, área e responsável, e a escolha de como preencher. A equipe da ness. que migra cliente
+    // começa no direto; o cliente, na entrevista guiada. O nome vira a finalidade provisória (editável na aba Escopo).
+    const EQUIPE_NESS = ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'];
+    // Continuar entrevista e a escolha guiada da Nova atividade: a atividade abre no modo guiado (`?modo=guiado`, lido pela casca).
+    window.abrirRopaEntrevista = function (projectId, recordId) {
+        if (!recordId) return window.abrirNovaAtividade(projectId);
+        S.atividade = { projectId, ropaId: recordId, modo: 'guiado', avancou: true };
+        navigate('ropa-atividade');
+    };
+    window.abrirNovaAtividade = async function(projectId) {
+        const [parteOptions, areas] = await Promise.all([opcoesDePartes(projectId, null), listarItens(projectId, 'area').catch(() => [])]);
+        const equipe = EQUIPE_NESS.includes(S.user && S.user.role);
+        const opcoesAreas = ['<option value="">Sem área</option>', ...areas.map((a) => `<option value="${escapeHTML(a.id)}">${escapeHTML(a.nome)}</option>`)].join('');
+        openModal(`
+            <div class="modal-header"><span class="modal-title">Nova atividade</span></div>
+            <div class="form-group"><label class="form-label" for="ra-nome">Nome da atividade (obrigatório)</label><input class="form-input" id="ra-nome" maxlength="200" placeholder="Ex: Folha de pagamento"></div>
+            <div class="form-group"><label class="form-label" for="ra-area">Área</label><select class="form-input" id="ra-area">${opcoesAreas}</select>
+                <div class="form-group"><label class="form-label" for="ra-nova-area">Nova área</label><input class="form-input" id="ra-nova-area" maxlength="200"></div>
+                <button type="button" class="btn btn-ghost btn-sm" data-action="criarAreaNaAtividade" data-args='["${projectId}"]'>+ Criar área</button></div>
+            <div class="form-group"><label class="form-label" for="ra-responsavel">Responsável</label><select class="form-input" id="ra-responsavel">${parteOptions}</select></div>
+            <fieldset class="form-group"><legend class="form-label">Como quer preencher?</legend>
+                <label><input type="radio" name="ra-modo" value="guiada" ${equipe ? '' : 'checked'}> Entrevista guiada</label>
+                <label><input type="radio" name="ra-modo" value="direta" ${equipe ? 'checked' : ''}> Direto nas abas</label>
+            </fieldset>
+            <p class="form-label" id="ra-erro" role="alert"></p>
+            <button class="btn btn-primary" data-action="criarNovaAtividade" data-args='["${projectId}"]'>Criar</button>
+        `);
+    };
+
+    window.criarAreaNaAtividade = async function(projectId) {
+        const campo = document.getElementById('ra-nova-area');
+        const nome = (campo && campo.value || '').trim();
+        if (!nome) return;
+        try {
+            const r = await criarItem(projectId, 'area', { nome }, await listarItens(projectId, 'area'));
+            if (r && r.item) {
+                const sel = document.getElementById('ra-area');
+                sel.insertAdjacentHTML('beforeend', `<option value="${escapeHTML(r.item.id)}">${escapeHTML(r.item.nome || nome)}</option>`);
+                sel.value = r.item.id;
+                campo.value = '';
+            } else document.getElementById('ra-erro').textContent = 'Já existe uma área com esse nome. Escolha-a na lista.';
+        } catch (e) { document.getElementById('ra-erro').textContent = 'Não foi possível criar a área.'; }
+    };
+
+    window.criarNovaAtividade = async function(projectId) {
+        const nomeCampo = document.getElementById('ra-nome');
+        const nome = (nomeCampo.value || '').trim();
+        const erro = document.getElementById('ra-erro');
+        if (!nome) { erro.textContent = 'Dê um nome à atividade.'; nomeCampo.focus(); return; }
+        const area = document.getElementById('ra-area').value;
+        const responsavel = document.getElementById('ra-responsavel').value;
+        const guiada = (document.querySelector('input[name="ra-modo"]:checked') || {}).value === 'guiada';
+        let criada;
+        try {
+            criada = await api('POST', `/api/v1/projects/${projectId}/ropa`, { processing_purpose: nome });
+            await api('PUT', `/api/v1/projects/${projectId}/ropa/${criada.id}/escopo`, { nome, owner_parte_id: responsavel || null, areas_ids: area ? [area] : [] });
+        } catch (e) { erro.textContent = 'Não foi possível criar a atividade. Tente de novo.'; return; }
+        forceCloseModal();
+        if (guiada) window.abrirRopaEntrevista(projectId, criada.id);
+        else window.abrirAtividade(projectId, criada.id);
     };
 
     window.openNewROPAModal = async function(projectId) {

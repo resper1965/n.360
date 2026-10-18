@@ -6,6 +6,19 @@ export const TELAS_COMERCIAIS = ['comercial', 'leads', 'assessments', 'assessmen
 
 export     function navigate(view, data) {
         let targetView = view;
+        // A entrevista em passos saiu (spec 2026-10-16, PR3): o endereço dela cai na ficha em abas, no modo guiado. Sem registro
+        // gravado (Nova atividade ainda não criou a atividade), volta à lista do RoPA.
+        if (view === 'ropa-entrevista') {
+            const e = S.ropaEntrevista || {};
+            S.ropaEntrevista = null;
+            if (!e.projectId || !e.recordId) return navigate('ropa');
+            S.atividade = { projectId: e.projectId, ropaId: e.recordId };
+            const u = new URL(window.location.href);
+            u.searchParams.delete('aba');
+            u.searchParams.set('modo', 'guiado');
+            window.history.replaceState(null, '', u);
+            return navigate('ropa-atividade');
+        }
         // O filtro do painel (filtro-painel.js) vale só para a navegação que o trouxe: qualquer outra o apaga.
         S.filtroPainel = (data && data.filtroPainel) || null;
         const isClient = S.user && (S.user.role === 'org_admin' || S.user.role === 'org_user' || S.user.role === 'client');
@@ -90,7 +103,6 @@ export     function navigate(view, data) {
         else if (S.view === 'importacao') renderImportacao(c, h, a);
         else if (S.view === 'training') renderTraining(c, h, a);
         else if (S.view === 'ropa') renderROPA(c, h, a);
-        else if (S.view === 'ropa-entrevista') renderRopaEntrevista(c, h, a);
         else if (S.view === 'ropa-atividade') renderAtividade(c, h, a);
         else if (S.view === 'dpia') renderDPIA(c, h, a);
         else if (S.view === 'audits') renderAudits(c, h, a);
