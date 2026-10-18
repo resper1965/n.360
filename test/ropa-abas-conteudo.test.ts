@@ -45,10 +45,10 @@ describe('conteúdo fixo da ficha em abas', () => {
     const rotulos = [...ORIGENS_DOS_DADOS.map((o) => o.rotulo), ...PROBABILIDADE.map((x) => x.rotulo), ...IMPACTO.map((x) => x.rotulo), ...Object.values(ROTULO_MEDIDA_STATUS), ...Object.values(ROTULO_GAP_STATUS), ...Object.values(PROCESSAMENTO_AUTOMATIZADO), ...Object.values(BASES_GDPR).map((b) => b.texto)];
     expect(new Set(rotulos).size).toBe(rotulos.length);
   });
-  it('toda lista com valor proposto leva o comentário de confirmação do dono (o líder os lista)', () => {
+  it('nenhuma lista traz marca de proposta: as opções foram aprovadas pelo dono em 18/10/2026', () => {
     const fontes = import.meta.glob('../src/data/ropa-abas/{origens,escalas,status,sensiveis}.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
-    const marcados = Object.entries(fontes).filter(([, t]) => t.includes('// proposta: o dono confirma antes do merge do PR1')).map(([k]) => k.split('/').pop());
-    expect(marcados.sort()).toEqual(['escalas.ts', 'origens.ts', 'sensiveis.ts', 'status.ts']);
+    const marcados = Object.entries(fontes).filter(([, t]) => t.includes('// proposta:')).map(([k]) => k.split('/').pop());
+    expect(marcados).toEqual([]);
   });
   it('não existe semente de catálogo no código: o diretório de dados não exporta lista de titulares, dados, medidas nem motivos', async () => {
     const mods = import.meta.glob('../src/data/ropa-abas/*.ts');
