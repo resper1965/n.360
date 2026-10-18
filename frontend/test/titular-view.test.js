@@ -333,7 +333,7 @@ describe('consentimentos', () => {
         expect(t).toContain('Marketing <i>x</i>');
         expect(t).toContain('Vigente');
         expect(t).toContain('Revogado em 05/10/2026');
-        expect(t).toContain('Não registre CPF');
+        expect(t).toContain('sem CPF');
         expect([...el('c').querySelectorAll('[data-action="revogarConsentimento"]')].map((b) => JSON.parse(b.getAttribute('data-args'))[1])).toEqual(['k1']);
         expect(el('c').querySelector('i')).toBeNull();
     });
@@ -345,6 +345,7 @@ describe('consentimentos', () => {
         el('co-ref').value = 'ref-9'; el('co-fin').value = 'Newsletter'; el('co-aviso').value = 'Aviso v4'; el('co-data').value = '2026-10-08'; el('co-canal').value = '';
         await window.salvarNovoConsentimento('p9');
         expect(corpoDe(f, `POST ${B}/consentimentos`)).toEqual({ ropa_id: 'r1', canal: null, titular_ref: 'ref-9', finalidade: 'Newsletter', versao_aviso: 'Aviso v4', obtido_em: '2026-10-08' });
+        vi.spyOn(window, 'confirmar').mockResolvedValue(true);
         await window.revogarConsentimento('p9', 'k1');
         expect(chamadas(f)).toContain(`POST ${B}/consentimentos/k1/revogar`);
     });

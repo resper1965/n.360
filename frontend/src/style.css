@@ -1,4 +1,4 @@
-/* ============================================================
+/* =====================================================
    Tokens ness. — base do design system (Industry).
    Os nomes existentes (--bg, --text, --text-dim, --surface, --border,
    --accent, --muted, --surface-hover) são preservados: o restante do CSS
@@ -1939,6 +1939,30 @@ td .mais-acoes-botao { padding: 4px 10px; }
 button.roadmap-node { padding: 0; font-family: inherit; }
 @media (prefers-reduced-motion: no-preference) { .bancada-passo, .bancada-fase, .bancada-etapa { transition: background .15s; } }
 
+/* Consentimentos (views/consentimentos.js): resumo, filtros, tabela e detalhe */
+.co-resumo { display: flex; flex-wrap: wrap; gap: 0; margin: 0 0 16px; border: 1px solid var(--border); }
+.co-resumo-item { flex: 1 1 160px; padding: 12px 16px; border-right: 1px solid var(--border); display: grid; grid-template-areas: "n" "r" "s"; align-content: start; gap: 2px; }
+.co-resumo-item:last-child { border-right: 0; }
+.co-resumo dt { grid-area: r; font-size: var(--fs-sm); color: var(--text-dim); }
+.co-resumo dd { grid-area: n; margin: 0; font-size: var(--fs-2xl); font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.co-resumo-item .co-sub { grid-area: s; }
+.co-sub { display: block; font-size: var(--fs-sm); color: var(--text-dim); margin-top: 2px; }
+.co-nota { margin: 0 0 12px; color: var(--text-dim); font-size: var(--fs-md); max-width: 72ch; }
+.co-controles { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin: 0 0 12px; }
+.co-campo { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+.co-campo:has(input[type="search"]) { flex: 1 1 320px; max-width: 420px; }
+.co-campo-rotulo { font-size: var(--fs-sm); color: var(--text-dim); }
+.co-contagem { margin: 0 0 8px; font-size: var(--fs-sm); color: var(--text-dim); }
+.co-ref { font-family: var(--font-mono); font-size: var(--fs-md); overflow-wrap: anywhere; }
+.co-trat { text-align: left; white-space: normal; height: auto; min-height: 0; padding: 2px 0; font-size: inherit; }
+.co-carregando { color: var(--text-dim); margin: 16px 0; }
+.co-pares, .co-historico { font-size: var(--fs-base); }
+.co-pares { margin: 12px 0 16px; }
+.co-h4 { margin: 0 0 8px; font-size: var(--fs-base); }
+.co-par { display: grid; grid-template-columns: 9rem 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.co-par dt { color: var(--text-dim); font-size: var(--fs-md); }
+.co-par dd { margin: 0; }
+.co-historico { margin: 0 0 16px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 /* Cobertura da LGPD (views/requisitos.js): resumo que filtra, explicação recolhível e tabela legível. */
 .cob-fonte { max-width: 360px; }
 .cob-mudo { color: var(--text-dim); }

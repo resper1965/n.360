@@ -59,6 +59,7 @@ passo() { # nome comando...
   fi
 }
 
+[ -d node_modules/@types/node ] || passo "Raiz: instalar" npm ci
 passo "Tipos" npx tsc --noEmit
 [ -d frontend/node_modules ] || passo "Frontend: instalar" bash -c "cd frontend && npm ci --include=dev"
 passo "Frontend: build" bash -c "cd frontend && npm run build"
