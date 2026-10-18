@@ -203,7 +203,7 @@ describe('correções P0 do RoPA', () => {
         expect(linhas.find((t) => t.includes('Folha'))).not.toContain('Importado');
         // n.privacy: cada linha abre a página da atividade (onda 2), por um botão só
         expect(el('c').querySelectorAll('tbody [data-action="abrirAtividade"]')).toHaveLength(2);
-        expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade (entrevista)');
+        expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade');
     });
 });
 
@@ -213,9 +213,9 @@ describe('lista do RoPA', () => {
         expect(el('h').textContent).toContain('RoPA');
         expect(el('c').textContent).toContain('O inventário de tratamentos (art. 37) está vazio.');
         const acoes = [...el('c').querySelectorAll('.empty-state [data-action]')].map((b) => b.getAttribute('data-action'));
-        expect(acoes).toEqual(['abrirRopaEntrevista', 'openNewROPAModal', 'openImportarRopaModal']);
+        expect(acoes).toEqual(['abrirNovaAtividade', 'openNewROPAModal', 'openImportarRopaModal']);
         // a entrevista é o botão principal; o formulário inteiro fica como edição avançada
-        expect(el('c').querySelector('.empty-state [data-action="abrirRopaEntrevista"]').className).toContain('btn-primary');
+        expect(el('c').querySelector('.empty-state [data-action="abrirNovaAtividade"]').className).toContain('btn-primary');
         expect(el('c').querySelector('.empty-state [data-action="openNewROPAModal"]').textContent).toBe('Edição avançada');
     });
 
@@ -246,7 +246,7 @@ describe('lista do RoPA', () => {
         rotas['/ropa'] = [{ id: 'r1', project_id: 'p1', processing_purpose: 'Folha', legal_basis: 'Consentimento' }];
         await window.renderROPA(el('c'), el('h'), el('a'));
         const visiveis = [...el('a').querySelectorAll('button')].filter((b) => !b.closest('[role="menu"]'));
-        expect(visiveis.map((b) => b.textContent.trim())).toEqual(['Mais ações', 'Nova atividade (entrevista)']);
+        expect(visiveis.map((b) => b.textContent.trim())).toEqual(['Mais ações', 'Nova atividade']);
         expect(el('a').querySelectorAll('.btn-primary')).toHaveLength(1);
         const itens = [...el('a').querySelectorAll('[role="menuitem"]')].map((b) => b.getAttribute('data-action'));
         expect(itens).toEqual(['openImportarRopaModal', 'openROPAReport', 'exportarCsvAtividades', 'exportarCsvLia', 'openNewROPAModal']);
@@ -339,10 +339,10 @@ describe('lista com a situação derivada (ficha em abas)', () => {
         expect(total.textContent).not.toContain('3');
     });
 
-    it('Nova atividade (entrevista) continua o único primário e a Edição avançada continua no Mais ações', async () => {
+    it('Nova atividade continua o único primário e a Edição avançada continua no Mais ações', async () => {
         await window.renderROPA(el('c'), el('h'), el('a'));
         expect(el('a').querySelectorAll('.btn-primary')).toHaveLength(1);
-        expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade (entrevista)');
+        expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade');
         expect([...el('a').querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toContain('Edição avançada');
     });
 
@@ -350,5 +350,70 @@ describe('lista com a situação derivada (ficha em abas)', () => {
         rotas['/ropa'] = [{ id: 'r1', project_id: 'p1', processing_purpose: 'Folha', status: 'Draft' }];
         await window.renderROPA(el('c'), el('h'), el('a'));
         expect(linhas()[0].textContent).toContain('Folha');
+    });
+});
+
+describe('Nova atividade: guiada ou direta (PR3)', () => {
+    const modal = () => el('modal-content');
+    const criarPelo = async (nome, modo) => {
+        document.getElementById('ra-nome') && (document.getElementById('ra-nome').value = nome);
+        const radio = modal().querySelector(`input[name="ra-modo"][value="${modo}"]`);
+        if (radio) radio.checked = true;
+        await window.criarNovaAtividade('p1');
+    };
+    beforeEach(() => {
+        window.abrirAtividade = vi.fn();
+        window.abrirRopaEntrevista = vi.fn();
+        rotas['/partes?status=ativa'] = [{ id: 'par1', nome: 'Responsável exemplo', tipo: 'pessoa' }];
+        rotas['/departamentos'] = [{ id: 'd1', nome: 'Financeiro' }];
+    });
+
+    it('o diálogo tem Nome, Área (com criação inline), Responsável e a escolha de modo', async () => {
+        await window.abrirNovaAtividade('p1');
+        expect(modal().querySelector('label[for="ra-nome"]').textContent).toContain('Nome da atividade');
+        expect(modal().querySelector('select#ra-area')).not.toBeNull();
+        expect(modal().querySelector('select#ra-responsavel')).not.toBeNull();
+        expect([...modal().querySelectorAll('input[name="ra-modo"]')].map((i) => i.value)).toEqual(['guiada', 'direta']);
+    });
+
+    it('o padrão é a entrevista guiada para o cliente e o direto para a equipe da ness.', async () => {
+        S.user = { role: 'org_admin' };
+        await window.abrirNovaAtividade('p1');
+        expect(modal().querySelector('input[value="guiada"]').checked).toBe(true);
+        S.user = { role: 'consultor' };
+        await window.abrirNovaAtividade('p1');
+        expect(modal().querySelector('input[value="direta"]').checked).toBe(true);
+    });
+
+    it('nome vazio não cria nada', async () => {
+        await window.abrirNovaAtividade('p1');
+        await criarPelo('   ', 'direta');
+        expect(apiMock.mock.calls.filter(([m]) => m === 'POST')).toHaveLength(0);
+        expect(el('ra-erro').textContent).toBe('Dê um nome à atividade.');
+    });
+
+    it('criar: POST com o nome como finalidade, PUT do escopo com nome, responsável e área, e abre no modo escolhido', async () => {
+        apiMock.mockImplementation((m, url) => Promise.resolve(m === 'POST' ? { id: 'r9' } : m === 'PUT' ? { ok: true } : (Object.entries(rotas).find(([k]) => url.endsWith(k)) || [])[1] ?? []));
+        S.user = { role: 'consultor' };
+        await window.abrirNovaAtividade('p1');
+        document.getElementById('ra-area').value = 'd1';
+        document.getElementById('ra-responsavel').value = 'par1';
+        await criarPelo('Folha de pagamento', 'guiada');
+        const posts = apiMock.mock.calls.filter(([m]) => m === 'POST');
+        expect(posts[0][1]).toBe('/api/v1/projects/p1/ropa');
+        expect(posts[0][2]).toEqual({ processing_purpose: 'Folha de pagamento' });
+        const put = apiMock.mock.calls.find(([m]) => m === 'PUT');
+        expect(put[1]).toBe('/api/v1/projects/p1/ropa/r9/escopo');
+        expect(put[2]).toEqual({ nome: 'Folha de pagamento', owner_parte_id: 'par1', areas_ids: ['d1'] });
+        expect(window.abrirRopaEntrevista).toHaveBeenCalledWith('p1', 'r9');
+        expect(window.abrirAtividade).not.toHaveBeenCalled();
+    });
+
+    it('modo direto abre a atividade nas abas, sem o guiado', async () => {
+        apiMock.mockImplementation((m) => Promise.resolve(m === 'POST' ? { id: 'r8' } : { ok: true }));
+        await window.abrirNovaAtividade('p1');
+        await criarPelo('Cobrança', 'direta');
+        expect(window.abrirAtividade).toHaveBeenCalledWith('p1', 'r8');
+        expect(window.abrirRopaEntrevista).not.toHaveBeenCalled();
     });
 });
