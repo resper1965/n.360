@@ -467,7 +467,7 @@ export const TOOLS: Ferramenta[] = [
   {
     name: "niso_privacy_ropa_detalhe",
     description:
-      "n.privacy: um tratamento do RoPA por inteiro: o registro, as ligações (base legal do catálogo, itens, departamentos, partes, transferências, DPIAs, dpia_pendente, aprovação), a LIA, o ciclo de vida (etapas), as bases adicionais e a do GDPR e o teste de impacto (respostas e recomendação). Só leitura.",
+      "n.privacy: um tratamento do RoPA por inteiro: o registro, as ligações (base legal do catálogo, itens, departamentos, partes, transferências, DPIAs, dpia_pendente, aprovação), a LIA, a situação e as etapas da ficha em abas (Tratamento de Dados), as medidas de segurança, o ciclo de vida, as bases adicionais e a do GDPR e o teste de impacto (respostas e recomendação). Só leitura.",
     inputSchema: { type: "object", properties: P_ROPA, required: ["projectId", "ropaId"], additionalProperties: false },
   },
   {
@@ -520,7 +520,7 @@ export const TOOLS: Ferramenta[] = [
   },
   {
     name: "niso_privacy_atualizar_tratamento",
-    description: `n.privacy: altera campos de um tratamento do RoPA (só os enviados; o resto fica). Não muda status nem aprovação. Tratamento aprovado: a edição substitui o pedido de aprovação aberto; avise o usuário antes. ${RASCUNHO_PRIVACY}`,
+    description: `n.privacy: altera campos de um tratamento do RoPA (só os enviados; o resto fica). Não muda status nem aprovação. Tratamento aprovado: a edição substitui o pedido de aprovação aberto; avise o usuário antes. Com titulares ou dados registrados na etapa Coleta, a API recusa (409) a mudança solta: a mensagem da recusa diz o caminho (a aba Tratamento de Dados); repasse-a ao usuário. ${RASCUNHO_PRIVACY}`,
     inputSchema: { type: "object", properties: { ...P_ROPA, ...CAMPOS_TRATAMENTO }, required: ["projectId", "ropaId"], additionalProperties: false },
   },
   {
@@ -1043,7 +1043,11 @@ export async function executarFerramenta(
         const { etapas: ciclo } = (await ler(`${base}/ciclo`)) as { etapas: unknown };
         const bases = await ler(`${base}/bases`);
         const impacto = await ler(`${base}/impacto`);
-        return { registro, ligacoes, lia, ciclo, bases, impacto };
+        // A ficha em abas (a mesma que a tela lê): a situação; a ficha materializa as etapas antes de `etapas` ser lida.
+        const { situacao } = (await ler(`${base}/ficha`)) as { situacao: unknown };
+        const { etapas } = (await ler(`${base}/etapas`)) as { etapas: unknown };
+        const medidas = await ler(`${base}/medidas`);
+        return { registro, ligacoes, lia, ciclo, bases, impacto, situacao, etapas, medidas };
       }
 
       case "niso_privacy_requisitos_lacunas": {

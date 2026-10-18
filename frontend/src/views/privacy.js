@@ -222,7 +222,6 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                 <div>
                     <button class="btn" data-action="forceCloseModal">Fechar</button>
                     ${podeEntrevistar() ? `<button class="btn btn-primary" data-action="abrirRopaEntrevista" data-args='${escapeHTML(JSON.stringify([projectId, id]))}'>Continuar entrevista</button>` : ''}
-                    ${canCrud ? `<button class="btn" data-action="openEditROPAModal" data-args='["${id}"]'>Edição avançada</button>` : ''}
                 </div>
             </div>
         `);

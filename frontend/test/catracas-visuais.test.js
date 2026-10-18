@@ -102,7 +102,7 @@ describe('catracas do sistema visual', () => {
         'src/views/monitor.js': 55, 'src/views/padronizar-nomes.js': 4, 'src/views/painel-graficos.js': 1, 'src/views/partes.js': 9,
         'src/views/ponto-de-partida.js': 8, 'src/views/privacy.js': 102, 'src/views/project.js': 9, 'src/views/requisitos.js': 0,
         'src/views/security.js': 41, 'src/views/seguranca-projeto.js': 19, 'src/views/terceiros.js': 43, 'src/views/titular.js': 26,
-        'src/views/tratamento-ligacoes.js': 49, 'src/views/trocar-senha.js': 5,
+        'src/views/tratamento-ligacoes.js': 4, 'src/views/trocar-senha.js': 5,
     };
     it('style="" inline não passa do teto de cada arquivo', () => {
         const acima = [];
