@@ -258,8 +258,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (`/api/v1/requisitos*`, e `/projects/:id/requisitos/lacunas` e `/documentos/:id/requisitos`). Depois do seed o BANCO e a fonte da
   verdade: titulo e mapeamento sao dado editavel so pelo `platform_admin`, com `logAudit`; o seed e `INSERT OR IGNORE` e nunca
   sobrescreve edicao. Mapeamento `proposto` so aparece para consultor e administrador; `validado_juridico` exige `validado_por` e
-  `validado_em` (CHECK). A cobertura de um artigo (`lacunasDaFonte`) conta documento VIGENTE ligado ou controle implementado ligado por
-  mapeamento validado `equivalente` (`parcial` e parcial; `relacionado`, `proposto` e controle N/A nao cobrem). LGPD e GDPR entram por
+  `validado_em` (CHECK). A cobertura de um artigo (`lacunasDaFonte`) conta documento VIGENTE ligado ou controle `Implemented` (ou `Compliant`, legado) ligado por
+  mapeamento validado `equivalente`; `Implemented` com mapeamento `parcial` e parcial, e `Partial`/`In Progress` dao no maximo parcial
+  (`equivalente` ou `parcial`); `Planned`, `Missing`, N/A e sem status, `relacionado` e `proposto` nao cobrem (`test/requisitos-cobertura-status.test.ts`). LGPD e GDPR entram por
   material juridico revisado, nao por codigo. O agente so le (`FORA_DO_AGENTE`).
 - **RoPA como tratamento ligado (fatia 4, migrations 0054 e 0055)**: `ropa_records` CONTINUA sendo a tabela do tratamento (sem rename:
   a spec diz `tratamentos`, mas renomear tocaria 30+ arquivos por so um nome). `src/services/tratamentos.ts` e as rotas
@@ -838,6 +839,12 @@ cobrado, code scanning exige GitHub Advanced Security e ruleset exige plano pago
   `ALERTA_EMAIL`) e `slo.yml` a cada 6 h. O `uptime.yml` ficou só manual.
 
 ### Protecao da `main` e deploy — ja configurados
+
+**Desde 16/10/2026 o portao de PR e LOCAL**: `bash scripts/ci/ship.sh <PR>` atualiza o PR com a main, roda `scripts/ci/gate.sh` (tipos,
+build e testes do frontend, build do MCP, testes do backend e E2E, uma suite por vez, `--retry=1`), grava o status `gate/local` no commit,
+mergeia e espera o `/health` com o SHA. O ruleset exige PR, branch em dia e esse status; os builds de branch da Cloudflare ficam desligados
+e so a `main` builda e publica (`publicar.sh`). Detalhe em `docs/runbook-publicacao.md`, secao 0. O que segue descreve o arranjo de
+15/10/2026.
 
 **Desde 15/10/2026 o repositorio e privado e o portao de PR e o deploy rodam no Workers Builds da Cloudflare**, nao no
 GitHub Actions (o dono nao paga minutos do Actions; os workflows estao desabilitados, nao apagados). Build command

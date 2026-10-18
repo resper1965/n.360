@@ -59,6 +59,8 @@ const POR_DOMINIO = {
     // propostas e avaliações
     proposta: { 'draft': 'Rascunho', 'sent': 'Enviada', 'approved': 'Aprovada', 'rejected': 'Rejeitada', 'won': 'Ganha', 'lost': 'Perdida' },
     // training_records.status
+    // consentimentos.vigente (calculado pela API): vigente ou revogado
+    consentimento: { 'vigente': 'Vigente', 'revogado': 'Revogado' },
     treinamento: { 'pending': 'Pendente', 'completed': 'Concluído', 'expired': 'Vencido' },
 };
 

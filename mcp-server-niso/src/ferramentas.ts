@@ -473,7 +473,7 @@ export const TOOLS: Ferramenta[] = [
   {
     name: "niso_privacy_requisitos_lacunas",
     description:
-      "n.privacy: cobertura dos requisitos da LGPD e da ANPD no projeto (resumo e cada requisito: coberto, parcial ou lacuna, com o documento, controle ou evidência que cobre). Sem fonte traz as duas. Só leitura.",
+      "n.privacy: cobertura dos requisitos da LGPD e da ANPD no projeto (resumo e cada requisito: coberto, parcial ou lacuna, com o documento, controle ou evidência que cobre; controle só cobre se implementado, planejado não conta). Sem fonte traz as duas. Só leitura.",
     inputSchema: {
       type: "object",
       properties: { ...P_PROJETO, fonte: { type: "string", enum: ["lgpd", "anpd"], description: "Uma fonte só (opcional)" } },

@@ -1,4 +1,4 @@
-/* ============================================================
+/* =====================================================
    Tokens ness. — base do design system (Industry).
    Os nomes existentes (--bg, --text, --text-dim, --surface, --border,
    --accent, --muted, --surface-hover) são preservados: o restante do CSS
@@ -1983,3 +1983,64 @@ button.roadmap-node { padding: 0; font-family: inherit; }
 .at-etapa-corpo { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 .at-etapa-corpo[hidden] { display: none; }
 .at-esmaecida { color: var(--text-dim); }
+/* Consentimentos (views/consentimentos.js): resumo, filtros, tabela e detalhe */
+.co-resumo { display: flex; flex-wrap: wrap; gap: 0; margin: 0 0 16px; border: 1px solid var(--border); }
+.co-resumo-item { flex: 1 1 160px; padding: 12px 16px; border-right: 1px solid var(--border); display: grid; grid-template-areas: "n" "r" "s"; align-content: start; gap: 2px; }
+.co-resumo-item:last-child { border-right: 0; }
+.co-resumo dt { grid-area: r; font-size: var(--fs-sm); color: var(--text-dim); }
+.co-resumo dd { grid-area: n; margin: 0; font-size: var(--fs-2xl); font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.co-resumo-item .co-sub { grid-area: s; }
+.co-sub { display: block; font-size: var(--fs-sm); color: var(--text-dim); margin-top: 2px; }
+.co-nota { margin: 0 0 12px; color: var(--text-dim); font-size: var(--fs-md); max-width: 72ch; }
+.co-controles { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin: 0 0 12px; }
+.co-campo { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+.co-campo:has(input[type="search"]) { flex: 1 1 320px; max-width: 420px; }
+.co-campo-rotulo { font-size: var(--fs-sm); color: var(--text-dim); }
+.co-contagem { margin: 0 0 8px; font-size: var(--fs-sm); color: var(--text-dim); }
+.co-ref { font-family: var(--font-mono); font-size: var(--fs-md); overflow-wrap: anywhere; }
+.co-trat { text-align: left; white-space: normal; height: auto; min-height: 0; padding: 2px 0; font-size: inherit; }
+.co-carregando { color: var(--text-dim); margin: 16px 0; }
+.co-pares, .co-historico { font-size: var(--fs-base); }
+.co-pares { margin: 12px 0 16px; }
+.co-h4 { margin: 0 0 8px; font-size: var(--fs-base); }
+.co-par { display: grid; grid-template-columns: 9rem 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.co-par dt { color: var(--text-dim); font-size: var(--fs-md); }
+.co-par dd { margin: 0; }
+.co-historico { margin: 0 0 16px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+/* Cobertura da LGPD (views/requisitos.js): resumo que filtra, explicação recolhível e tabela legível. */
+.cob-fonte { max-width: 360px; }
+.cob-mudo { color: var(--text-dim); }
+.cob-subtitulo { margin: 16px 0 8px; }
+.cob-titulo { font: 600 var(--fs-lg) var(--font-head); margin: 0 0 12px; }
+.cob-cartoes { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.cob-cartao { appearance: none; display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); color: var(--text); font: inherit; cursor: pointer; transition: border-color var(--fast) var(--ease-out), background var(--fast) var(--ease-out); }
+.cob-cartao:hover { background: var(--surface-2); }
+.cob-cartao[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); }
+.cob-cartao:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cob-num { font: 600 var(--fs-2xl) var(--font-head); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.cob-lacuna .cob-num { font-size: 32px; color: var(--danger-ink); }
+.cob-parcial .cob-num { color: var(--warning-ink); }
+.cob-coberto .cob-num { color: var(--success-ink); }
+.cob-rot { font-weight: 600; font-size: var(--fs-md); }
+.cob-dica { color: var(--text-dim); font-size: var(--fs-sm); }
+.cob-como { margin: 0 0 16px; max-width: 75ch; }
+.cob-como summary { cursor: pointer; color: var(--text-2); font-size: var(--fs-md); width: max-content; }
+.cob-como summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cob-como p, .cob-como ul { color: var(--text-2); font-size: var(--fs-md); line-height: 1.5; }
+.cob-como ul { padding-left: 20px; }
+.cob-busca { max-width: 360px; }
+.cob-contagem { color: var(--text-dim); font-size: var(--fs-sm); margin: 0 0 8px; }
+.cob-tabela { width: 100%; border-collapse: collapse; font-size: var(--fs-md); border: 1px solid var(--border); }
+.cob-tabela th, .cob-tabela td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.cob-tabela thead th { color: var(--text-dim); font-weight: 500; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.08em; vertical-align: bottom; }
+.cob-tabela tbody tr:last-child > * { border-bottom: 0; }
+.cob-ref { white-space: nowrap; font-weight: 600; color: var(--text); width: 1%; }
+.cob-tabela td:nth-child(2) { min-width: 240px; max-width: 46ch; }
+.cob-tabela td:nth-child(4) { min-width: 220px; max-width: 42ch; }
+.cob-origens { list-style: none; margin: 0; padding: 0; }
+
+
+.cob-acoes { white-space: nowrap; text-align: right; }
+.cob-acoes .btn + .btn { margin-left: 4px; }
+.cob-guia { margin: 0 0 12px; color: var(--text-2); font-size: var(--fs-md); max-width: 75ch; }
+.cob-como summary + p { margin-top: 8px; }
