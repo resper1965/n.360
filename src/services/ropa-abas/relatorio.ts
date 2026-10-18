@@ -1,10 +1,10 @@
 import { escapeHtml } from '../../helpers';
-import { cicloEmTexto, lerCiclo } from '../ciclo';
 import { lerEmpresa } from '../empresas';
 import { lerImpacto } from '../impacto';
 import { listarRiscos } from '../riscos-atividade';
 import { lerDadosAtividade } from './conferencia';
 import { listarGaps } from './gaps';
+import { lerEtapas, type EtapaDetalhe } from './etapas';
 
 const e = (v: unknown) => escapeHtml(String(v ?? ''));
 const vazio = (v: unknown) => (String(v ?? '').trim() ? e(v) : '-');
@@ -15,6 +15,26 @@ const PROC: Record<string, string> = { nao: 'Não, não são submetidos.', apoio
 const ESTRATEGIA: Record<string, string> = { Mitigate: 'Mitigar', Accept: 'Aceitar', Avoid: 'Evitar', Transfer: 'Transferir' };
 const STATUS_GAP: Record<string, string> = { Open: 'Pendente', 'In Progress': 'Em andamento', Closed: 'Concluído' };
 const STATUS_MEDIDA: Record<string, string> = { ativa: 'Ativa', em_implantacao: 'Em implantação', planejada: 'Planejada' };
+const SITUACAO_ETAPA: Record<string, string> = { concluida: 'Concluída', pendente: 'Pendente', nao_aplicavel: 'Não aplicável' };
+
+/** As seis etapas do tratamento, com o que cada uma registra (spec 5). Só o que está gravado; o dado sensível aparece marcado. */
+function etapasEmHtml(etapas: EtapaDetalhe[]): string {
+  return etapas.map((x) => {
+    const cab = `<h3>${e(x.rotulo)} (${e(SITUACAO_ETAPA[x.situacao] ?? x.situacao)})</h3>`;
+    if (x.nao_aplicavel) return `${cab}<p>Não se aplica a esta atividade.</p>`;
+    const titulares = x.titulares.map((t) => `<li>${e(t.nome)}${t.situacao === 'nao_usa' ? ' (dados não usados nesta etapa)' : ''}: ${t.dados.map((d) => (d.sensivel ? `${e(d.nome)} (dado sensível)` : e(d.nome))).join(', ') || '-'}</li>`);
+    const ativos = x.ativos.map((a) => `<li>${e(a.nome)}${a.local_armazenamento ? ` (local: ${e(a.local_armazenamento)})` : ''}</li>`);
+    const partes = [
+      campo('Descrição', vazio(x.descricao)),
+      campo('Ativos', ativos.length ? `<ul>${ativos.join('')}</ul>` : '-'),
+      ...(x.areas.length ? [campo('Áreas', e(x.areas.map((a) => a.nome).join(', ')))] : []),
+      ...(x.parceiros.length ? [campo('Parceiros', e(x.parceiros.map((p) => p.nome).join(', ')))] : []),
+      campo('Titulares e dados', titulares.length ? `<ul>${titulares.join('')}</ul>` : '-'),
+      ...(x.etapa === 'eliminacao' ? [campo('Prazo', vazio(x.prazo)), campo('Descarte', vazio(x.descarte))] : []),
+    ];
+    return `${cab}${partes.join('')}`;
+  }).join('');
+}
 
 /**
  * HTML de impressão da atividade: as nove abas na ordem, autossuficiente (sem script, sem `style=` fora do `<style>` do documento) e
@@ -23,13 +43,13 @@ const STATUS_MEDIDA: Record<string, string> = { ativa: 'Ativa', em_implantacao: 
 export async function montarRelatorio(db: D1Database, projectId: string, ropaId: string): Promise<string | null> {
   const d = await lerDadosAtividade(db, projectId, ropaId);
   if (!d) return null;
-  const [empresa, dpo, ciclo, medidas, bases, gdpr, impacto, riscos, gaps, logs, transf] = await Promise.all([
+  const [empresa, dpo, etapas, medidas, bases, gdpr, impacto, riscos, gaps, logs, transf] = await Promise.all([
     lerEmpresa(db, projectId),
     db.prepare(
       `SELECT p.nome, p.email FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
         WHERE v.project_id = ? AND v.papel = 'encarregado' AND v.alvo_tipo = 'projeto' AND p.status = 'ativa' ORDER BY v.created_at LIMIT 1`
     ).bind(projectId).first<{ nome: string; email: string | null }>(),
-    lerCiclo(db, projectId, ropaId),
+    lerEtapas(db, projectId, ropaId),
     db.prepare('SELECT medida, status, descricao FROM tratamento_medidas WHERE ropa_id = ? AND project_id = ? ORDER BY created_at, rowid').bind(ropaId, projectId)
       .all<{ medida: string; status: string; descricao: string | null }>(),
     db.prepare(
@@ -65,7 +85,7 @@ export async function montarRelatorio(db: D1Database, projectId: string, ropaId:
       campo('Processamento automatizado', d.processamento_automatizado ? e(PROC[d.processamento_automatizado] ?? d.processamento_automatizado) : '-'),
       campo('Responsável', vazio(d.owner_nome)), campo('Áreas', areas.length ? areas.map((a) => e(a.nome)).join(', ') : '-'),
     ].join('')),
-    secao('Tratamento de Dados', lista(cicloEmTexto(ciclo ?? []).map(e))),
+    secao('Tratamento de Dados', etapasEmHtml(etapas ?? [])),
     secao('Agentes de Tratamento', [
       campo('Controlador dos dados', d.papel_controlador ? 'Sim' : 'Não'), campo('Operador dos dados', d.papel_operador ? 'Sim' : 'Não'),
       campo('Transferência internacional', d.international_transfers ? 'Sim' : 'Não'), campo('Salvaguarda', vazio(d.transfer_safeguards)),

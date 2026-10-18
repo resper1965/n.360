@@ -17,6 +17,7 @@ import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
 import { lerEmpresa } from '../services/empresas';
 import { situacaoDaAtividade } from '../services/ropa-abas/situacao';
 import { atividadeDoProjeto } from '../services/ropa-abas/comum';
+import { textosDaColeta, mesmosNomes } from '../services/ropa-abas/derivada';
 
 export const ropaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectRopaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -65,6 +66,13 @@ ropaApp.put('/:id', async (c) => {
     const atual = await c.env.DB.prepare('SELECT status, project_id FROM ropa_records WHERE id = ?').bind(id).first<{ status: string | null; project_id: string | null }>();
     if (atual?.status === 'Inactive') return c.json({ error: 'Atividade cancelada: reative para editar' }, 409);
     // O projeto vem do ROPA gravado, nunca do corpo.
+    // A2: com titulares na Coleta, o texto deles é derivado: só o valor derivado passa (spec 4.4).
+    if (atual?.project_id && (Object.hasOwn(body, 'data_subjects') || Object.hasOwn(body, 'data_categories'))) {
+      const coleta = await textosDaColeta(c.env.DB, atual.project_id, id);
+      const divergente = (Object.hasOwn(body, 'data_subjects') && !mesmosNomes(body.data_subjects, coleta.data_subjects))
+        || (Object.hasOwn(body, 'data_categories') && !mesmosNomes(body.data_categories, coleta.data_categories));
+      if (coleta.temTitulares && divergente) return c.json({ error: 'Titulares e dados desta atividade são registrados na etapa Coleta' }, 409);
+    }
     const fora = await refForaDoProjeto(c.env.DB, atual?.project_id, body, ['owner_parte_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
     if (await baseLegalInexistente(c.env.DB, body.base_legal_id)) return c.json({ error: 'base_legal_id inexistente no catálogo de requisitos' }, 400);
@@ -79,6 +87,10 @@ ropaApp.put('/:id', async (c) => {
       transfer_safeguards: null, dpia_required: 0, dados_sensiveis: 0, criancas_adolescentes: 0, status: 'Draft', owner: null, owner_parte_id: null, base_legal_id: null,
     });
     if (p.sql) await c.env.DB.prepare(`UPDATE ropa_records SET ${p.sql}, updated_at=? WHERE id=?`).bind(...p.binds, new Date().toISOString(), id).run();
+    // A2: texto plano gravado agora precisa ser materializado de novo na próxima leitura das etapas (a marca de materialização sai).
+    if (atual?.project_id && (Object.hasOwn(body, 'data_subjects') || Object.hasOwn(body, 'data_categories'))) {
+      await c.env.DB.prepare('UPDATE ropa_records SET etapas_materializadas_em = NULL WHERE id = ? AND project_id = ?').bind(id, atual.project_id).run();
+    }
     const user = c.get('user');
     await logAudit(c.env.DB, 'ropa_updated', user?.email || 'system', `ROPA ${id} updated`);
     if (atual?.project_id) await conferirPedidosDoDocumento(c, 'tratamento', id, atual.project_id);
