@@ -25,8 +25,8 @@ const DADOS = [
   { id: 'd3', nome: 'Saúde exemplo', sensivel: true },
 ];
 const catalogo = () => ({
-  [`GET ${P}/catalogos/titulares`]: TITULARES,
-  [`GET ${P}/catalogos/dados`]: DADOS,
+  [`GET ${P}/catalogos/titulares`]: { ok: true, itens: TITULARES },
+  [`GET ${P}/catalogos/dados`]: { ok: true, itens: DADOS },
   [`PUT ${B}/etapas/coleta/titulares`]: { ok: true },
   [`PUT ${B}/etapas/uso/titulares/t1`]: { ok: true },
 });

@@ -17,8 +17,8 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); limparAutosaves()
 const rotas = (extra = {}) => ({
   [`GET ${B}/etapas`]: structuredClone(contrato),
   [`GET ${P}/assets`]: [],
-  [`GET ${P}/catalogos/titulares`]: [],
-  [`GET ${P}/catalogos/dados`]: [],
+  [`GET ${P}/catalogos/titulares`]: { ok: true, itens: [] },
+  [`GET ${P}/catalogos/dados`]: { ok: true, itens: [] },
   [`GET ${P}/departamentos`]: [],
   [`GET ${P}/partes`]: [],
   ...extra,

@@ -37,7 +37,8 @@ const CATEGORIAS_ATIVO = [['Software', 'Sistema (software, aplicativo, API)'], [
 export const chave = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
 
 const caminho = (pid, tipo) => `/api/v1/projects/${pid}/${TIPOS[tipo].caminho}`;
-const extrair = (r) => (Array.isArray(r) ? r : (r && Array.isArray(r.assets) ? r.assets : []));
+// Formas reais: catálogo `{ ok, itens }`, ativos `{ ok, assets }`, área e parceiro lista pura. Lista pura também serve (testes e leitura antiga).
+const extrair = (r) => (Array.isArray(r) ? r : (r && (Array.isArray(r.itens) ? r.itens : Array.isArray(r.assets) ? r.assets : [])));
 
 /** Lista do catálogo, já na forma comum `{ id, nome, sensivel }`. Parceiro é só organização; área inativa some. */
 export async function listarItens(pid, tipo) {
@@ -63,7 +64,9 @@ export async function criarItem(pid, tipo, { nome, sensivel = false, categoria =
         if (e && e.status === 409) return { duplicata: (e.body && e.body.existente) || { id: null, nome } };
         throw e;
     }
-    return { item: { id: r.id, nome: r.nome || r.name || nome.trim(), sensivel: tipo === 'dado' ? !!(r.sensivel ?? sensivel) : false } };
+    // Catálogo responde `{ ok, item }`; ativo, área e parceiro respondem `{ ok, id }` (o nome é o que a pessoa digitou, já padronizado no servidor).
+    const novo = r.item || r;
+    return { item: { id: novo.id ?? r.id, nome: novo.nome || novo.name || nome.trim(), sensivel: tipo === 'dado' ? !!(novo.sensivel ?? sensivel) : false } };
 }
 
 /**

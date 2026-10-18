@@ -107,6 +107,7 @@ const TOLERADAS: { chave: string; motivo: string; expande: string[] }[] = [
   { chave: '* /api/v1/auth/mfa/:p', motivo: 'api.js: prefixo de startsWith que isenta o 401 do MFA; não é chamada', expande: ['POST /api/v1/auth/mfa/verify'] },
   { chave: '* /api/v1/projects/:p/ropa/:p', motivo: 'atividade/estado.js novoAutosave({ rota }): o sufixo vem do chamador (PUT)', expande: ['PUT /api/v1/projects/:p/ropa/:p/escopo', 'PUT /api/v1/projects/:p/ropa/:p/agentes', 'PUT /api/v1/projects/:p/ropa/:p/ciclo'] },
   { chave: 'PUT /api/v1/projects/:p/ropa/:p', motivo: 'atividade/estado.js gravarAgora({ rota }): idem', expande: ['PUT /api/v1/projects/:p/ropa/:p/agentes', 'PUT /api/v1/projects/:p/ropa/:p/ciclo'] },
+  { chave: '* /api/v1/projects/:p/:p', motivo: 'atividade/catalogo-inline.js api(…, caminho(pid, tipo)): TIPOS escolhe catálogo, ativos, áreas ou parceiros', expande: ['GET /api/v1/projects/:p/catalogos/:p', 'GET /api/v1/projects/:p/assets', 'GET /api/v1/projects/:p/departamentos', 'GET /api/v1/projects/:p/partes', 'POST /api/v1/projects/:p/catalogos/:p', 'POST /api/v1/projects/:p/assets', 'POST /api/v1/projects/:p/departamentos', 'POST /api/v1/projects/:p/partes'] },
   // Temporárias deste plano: cada tarefa que corrige a chamada apaga a entrada.
 ];
 
@@ -162,6 +163,9 @@ describe('contrato tela↔API', () => {
       'frontend/src/api.js: fetch(API_BASE + p',
       // /health fica fora de /api/v1 por desenho: o domínio antigo pergunta o endereço canônico (n.360, fatia 1).
       // Ficha da atividade: o `rota`/`caminho` dos autosaves vem dos chamadores (literais), tolerado acima.
+      // catalogo-inline.js: caminho(pid, tipo) começa com o literal /api/v1 (quem escolhe o catálogo é TIPOS, lista fixa).
+      "frontend/src/atividade/catalogo-inline.js: api('GET', caminho(pid",
+      "frontend/src/atividade/catalogo-inline.js: api('POST', caminho(pid",
       "frontend/src/atividade/estado.js: api('PUT', caminho || url(pid",
       'frontend/src/produto.js: fetch(\'/health\'',
       // Relatórios do RoPA e do RIPD: abrirRelatorio(`/api/v1/...`) recebe o literal; o fetch leva o token no cabeçalho, não na URL.

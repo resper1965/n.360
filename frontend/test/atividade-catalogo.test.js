@@ -20,8 +20,19 @@ const ITENS = [{ id: 'a1', nome: 'Sistema exemplo' }, { id: 'a2', nome: 'Planilh
 const base = (extra = {}) => ({ pid: 'p9', selecionados: [], titulo: 'Ativos', tipo: 'ativo', buscaRotulo: 'Buscar ativo', ...extra });
 
 describe('catálogo do projeto', () => {
+  it('lê a forma real do catálogo { ok, itens } e devolve id, nome e sensível', async () => {
+    servir({ [`GET ${P}/catalogos/dados`]: { ok: true, itens: [{ id: 'd1', nome: 'Saúde exemplo', sensivel: 1, descricao_padrao: null, status: 'ativo' }] } });
+    expect(await listarItens('p9', 'dado')).toEqual([{ id: 'd1', nome: 'Saúde exemplo', sensivel: true }]);
+  });
+
+  it('criação de catálogo responde { ok, item }: o id e o nome vêm de dentro de item (antes ficavam undefined)', async () => {
+    servir({ [`POST ${P}/catalogos/titulares`]: { ok: true, item: { id: 't7', nome: 'Cliente exemplo', sensivel: false, descricao_padrao: null, status: 'ativo' } } });
+    const r = await criarItem('p9', 'titular', { nome: 'cliente exemplo' }, []);
+    expect(r.item).toEqual({ id: 't7', nome: 'Cliente exemplo', sensivel: false });
+  });
+
   it('projeto novo: a lista vem vazia e a leitura não grava nada', async () => {
-    const f = servir({ [`GET ${P}/catalogos/titulares`]: [] });
+    const f = servir({ [`GET ${P}/catalogos/titulares`]: { ok: true, itens: [] } });
     expect(await listarItens('p9', 'titular')).toEqual([]);
     expect(chamadas(f)).toEqual([`GET ${P}/catalogos/titulares`]);
   });
@@ -44,7 +55,7 @@ describe('catálogo do projeto', () => {
   });
 
   it('dado: POST com o nome e a marca de sensível; o servidor padroniza o nome', async () => {
-    const f = servir({ [`POST ${P}/catalogos/dados`]: { id: 'd9', nome: 'Dado exemplo novo', sensivel: true } });
+    const f = servir({ [`POST ${P}/catalogos/dados`]: { ok: true, item: { id: 'd9', nome: 'Dado exemplo novo', sensivel: true } } });
     const r = await criarItem('p9', 'dado', { nome: 'dado exemplo novo', sensivel: true }, []);
     expect(corpoDe(f, `POST ${P}/catalogos/dados`)).toEqual({ nome: 'dado exemplo novo', sensivel: true });
     expect(r.item).toEqual({ id: 'd9', nome: 'Dado exemplo novo', sensivel: true });
