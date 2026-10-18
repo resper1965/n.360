@@ -31,6 +31,10 @@ export async function definirLigacao(db: D1Database, projectId: string, ropaId: 
   const invalidos = unicos.filter((x) => !validos.has(x));
   if (invalidos.length) return { ok: false as const, invalidos };
   await db.batch(stmtsLigacao(db, projectId, ropaId, tipo, unicos));
+  // A2: item ligado pela rota antiga também entra na Coleta (acrescenta, nunca remove: spec 4.3).
+  if (tipo === 'itens' && unicos.length) {
+    await db.batch(unicos.map((i) => db.prepare(`INSERT OR IGNORE INTO tratamento_etapa_itens (ropa_id, etapa, item_id, project_id) VALUES (?, 'coleta', ?, ?)`).bind(ropaId, i, projectId)));
+  }
   return { ok: true as const, total: unicos.length };
 }
 
