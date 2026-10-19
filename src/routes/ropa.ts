@@ -3,14 +3,14 @@ import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
 import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema } from '../schemas';
-import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa } from '../services/riscos-atividade';
+import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa, gapsDoProjeto } from '../services/riscos-atividade';
 import { lerImpacto, salvarImpacto } from '../services/impacto';
 import { lerCiclo, salvarCiclo, cicloEmTexto, etapasDe, type EtapaLida } from '../services/ciclo';
 import { lerBases, salvarBases, basesEmTexto, type BaseLida } from '../services/bases';
 import { criarTransferencia, definirLigacao, diagramaDoTratamento, lerLigacoes, removerTransferencia } from '../services/tratamentos';
 import { aprovacoesDoProjeto } from '../services/documentos';
 import { importarTratamentos } from '../services/tratamentos-importar';
-import { apagarLia, criarDpiaDoTratamento, lerLia, salvarLia } from '../services/lia';
+import { apagarLia, criarDpiaDoTratamento, lerLia, liasDoProjeto, salvarLia } from '../services/lia';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { sugerirTratamento } from '../services/rascunhos-privacy';
 import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
@@ -175,6 +175,9 @@ projectRopaApp.post('/importar', async (c) => {
 
 // Mapa de risco do n.privacy (F2): todos os riscos do projeto que têm atividade. Antes das rotas `/:recordId/...`.
 projectRopaApp.get('/riscos-mapa', async (c) => c.json({ riscos: await riscosDoMapa(c.env.DB, c.req.param('projectId')!) }));
+// Listas do legado (spec 2026-10-19): Gaps e LIA do projeto. Só leitura; o agente lê.
+projectRopaApp.get('/gaps', async (c) => c.json({ gaps: await gapsDoProjeto(c.env.DB, c.req.param('projectId')!) }));
+projectRopaApp.get('/lias', async (c) => c.json({ lias: await liasDoProjeto(c.env.DB, c.req.param('projectId')!) }));
 
 // ─── LIA e DPIA do tratamento (fatia 5) ───────────────────────────────────────────────────────────
 

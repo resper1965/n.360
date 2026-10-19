@@ -74,10 +74,10 @@ async function riscos(db: D1Database, projectId: string, f: FiltroExportacao): P
     projectId, f.probabilidade ?? null, f.impacto ?? null, TETO_LINHAS + 1);
   return {
     cabecalho: ['Atividade', 'Ameaça', 'Vulnerabilidade', 'Ativo', 'Impacto', 'Probabilidade', 'Nível', 'Estratégia', 'Plano de tratamento',
-      'Impacto residual', 'Probabilidade residual', 'Nível residual', 'Responsável', 'Situação', 'Criado em'],
+      'Impacto residual', 'Probabilidade residual', 'Nível residual', 'Prazo', 'Responsável', 'Situação', 'Criado em'],
     linhas: regs.map((r) => [
       r.atividade, r.threat, r.vulnerability, r.asset, r.impact, r.probability, traduz(NIVEL, r.risk_level), traduz(ESTRATEGIA, r.treatment),
-      r.treatment_plan, r.residual_impact, r.residual_probability, traduz(NIVEL, r.residual_level), r.responsavel, traduz(STATUS, r.status || 'Open'),
+      r.treatment_plan, r.residual_impact, r.residual_probability, traduz(NIVEL, r.residual_level), r.treatment_due_date, r.responsavel, traduz(STATUS, r.status || 'Open'),
       r.created_at,
     ]),
   };
