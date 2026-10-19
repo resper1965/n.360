@@ -14,7 +14,7 @@ export function desenharCabecalho(ficha, editavel) {
     const areas = lista(r.areas).length ? lista(r.areas).map((x) => escapeHTML(x.nome)).join(', ') : vazio;
     const trava = editavel ? '' : ' disabled';
     return `<section class="at-cabecalho" aria-label="Dados da atividade">
-        <div class="at-cab-topo"><p class="at-nota">Nome da atividade: <strong>${escapeHTML(r.nome)}</strong></p>
+        <div class="at-cab-topo"><p class="at-nota">Dados da atividade</p>
             <button type="button" class="btn btn-sm" id="at-editar-nome" aria-label="Editar o nome da atividade"${trava}>Editar nome</button></div>
         <dl class="at-cab-grade">
             <div><dt>Empresa</dt><dd>${r.empresa ? escapeHTML(r.empresa) : vazio}</dd></div>

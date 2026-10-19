@@ -53,7 +53,7 @@ function desenhar(foco) {
     const respondidas = perguntas.filter((q) => q.resposta).length;
     I.painel.innerHTML = `<div class="at-impacto">
         <div class="at-acoes">
-            <button type="button" role="switch" id="at-imp-final" class="btn btn-sm" aria-checked="${finalizado}" ${ctx.editavel ? 'data-action="atImpFinalizar"' : 'disabled'}>Teste de impacto finalizado? ${finalizado ? 'Sim' : 'Não'}</button>
+            <button type="button" role="switch" id="at-imp-final" class="btn btn-sm" aria-checked="${finalizado}" aria-label="Teste de impacto finalizado" ${ctx.editavel ? 'data-action="atImpFinalizar"' : 'disabled'}>${finalizado ? 'Finalizado. Reabrir o teste' : 'Marcar o teste como finalizado'}</button>
             <span class="t-dim">${finalizado ? `Finalizado em ${escapeHTML(formatarData(imp.finalizado_em))}.` : `${respondidas} de ${perguntas.length} respondidas.`}</span>
             ${finalizado && ctx.editavel ? '<button type="button" class="btn btn-sm" data-action="atImpFinalizar">Reabrir o teste</button>' : ''}</div>
         <p class="re-erro" id="at-imp-erro" role="alert"></p>

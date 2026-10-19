@@ -89,7 +89,7 @@ describe('operadores e destinatários', () => {
 
   it('sem partes cadastradas: o vazio explica; com partes: seletor e "Ligar parte"', async () => {
     await abrir(renderAtividade, base());
-    expect(el('c').textContent).toContain('Nenhuma parte cadastrada ainda');
+    expect(el('c').textContent).toContain('Nenhuma empresa cadastrada ainda. Cadastre-as em Fornecedores');
     await abrir(renderAtividade, base({ [`GET ${P}/partes`]: [{ id: 'pa1', nome: 'Empresa exemplo', status: 'ativa' }] }));
     expect(el('tl-parte').options[0].textContent).toBe('Empresa exemplo');
     expect(el('c').querySelector('[data-action="adicionarParteTratamento"]').textContent).toBe('Ligar parte');

@@ -73,7 +73,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             records.length && { rotulo: 'Exportar RoPA (PDF)', action: 'openROPAReport', args },
             records.length && { rotulo: 'Exportar CSV', action: 'exportarCsvAtividades', args },
             records.length && comPrivacy && { rotulo: 'Exportar LIAs (CSV)', action: 'exportarCsvLia', args },
-            canCrud && { rotulo: 'Edição avançada', action: 'openNewROPAModal', args },
+            canCrud && !comPrivacy && { rotulo: 'Edição avançada', action: 'openNewROPAModal', args },
         ]), btnNova()].filter(Boolean).join(' ');
 
         // A conta de "legítimo interesse sem LIA" é do servidor (visão do encarregado): a lista do RoPA não traz a LIA.
@@ -90,24 +90,35 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         const activeRecords = contaveis.filter(r => r.status === 'Active' || !r.status).length;
 
         // Número em var(--text); cor só quando há alerta (transferência sem salvaguarda, LIA pendente).
+        const naSituacao = (codigo) => contaveis.filter((r) => r.situacao && r.situacao.codigo === codigo).length;
         const statsHtml = window.renderStatCards([
-            { label: 'Tratamentos', value: totalRecords, color: 'var(--text)', subtext: 'Atividades mapeadas' },
-            { label: 'Atividades ativas', value: activeRecords, color: 'var(--text)', subtext: 'Em operação' },
-            { label: 'Exige RIPD', value: dpiaReqCount, color: 'var(--text)', subtext: 'Relatório de impacto' },
+            ...(comPrivacy ? [
+                { label: 'Atividades', value: totalRecords, color: 'var(--text)', subtext: 'No inventário, sem as canceladas' },
+                { label: 'Aprovadas', value: naSituacao('aprovada'), color: 'var(--text)', subtext: 'Com a aprovação em dia' },
+                { label: 'Em revisão', value: naSituacao('em_revisao'), color: 'var(--text)', subtext: 'Prontas para conferir' },
+            ] : [
+                { label: 'Tratamentos', value: totalRecords, color: 'var(--text)', subtext: 'Atividades mapeadas' },
+                { label: 'Atividades ativas', value: activeRecords, color: 'var(--text)', subtext: 'Em operação' },
+                { label: 'Exige RIPD', value: dpiaReqCount, color: 'var(--text)', subtext: 'Relatório de impacto' },
+            ]),
             { label: 'Com transferência internacional', value: intlTransCount, color: semSalvaguarda ? 'var(--warning)' : 'var(--text)', subtext: semSalvaguarda ? `${semSalvaguarda} sem salvaguarda` : 'Arts. 33-36' },
             ...(liaPendente === null ? [] : [{ label: 'Legítimo interesse sem LIA', value: liaPendente, color: liaPendente ? 'var(--warning)' : 'var(--text)', subtext: 'Faça na etapa 3 da atividade' }]),
         ]);
 
+        // n.privacy: a lista mostra o que a atividade é e em que pé está; titulares, retenção e RIPD vivem nas abas.
+        const colunas = comPrivacy ? ['Atividade', 'Base legal', 'Situação', 'Ações'] : ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Situação', 'Ações'];
         const tableHtml = window.renderDataTable(
-            ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Situação', 'Ações'],
+            colunas,
             records.map(r => {
                 const statusType = r.status === 'Active' || !r.status ? 'success' : 'info';
                 return [
                     `<strong${cancelada(r) ? ' class="at-esmaecida"' : ''}>${escapeHTML(r.nome || r.processing_purpose)}</strong>${Array.isArray(r.nao_informado) && r.nao_informado.length ? ` ${window.renderStatusBadge('Importado: revisar', 'warning')}` : ''}`,
-                    escapeHTML(rotuloBase(r.legal_basis) || 'N/A'),
-                    escapeHTML(r.data_subjects || 'N/A'),
-                    escapeHTML(r.retention_period || 'N/A'),
-                    r.dpia_required ? window.renderStatusBadge('Sim', 'warning') : window.renderStatusBadge('Não', 'neutral'),
+                    escapeHTML(rotuloBase(r.legal_basis) || (comPrivacy ? 'Não informada' : 'N/A')),
+                    ...(comPrivacy ? [] : [
+                        escapeHTML(r.data_subjects || 'N/A'),
+                        escapeHTML(r.retention_period || 'N/A'),
+                        r.dpia_required ? window.renderStatusBadge('Sim', 'warning') : window.renderStatusBadge('Não', 'neutral'),
+                    ]),
                     // Situação derivada do servidor (Rascunho, Em Revisão, Aprovada, Cancelada), escrita; sem ela, o status antigo.
                     r.situacao && r.situacao.rotulo
                         ? window.renderStatusBadge(r.situacao.rotulo, { aprovada: 'success', cancelada: 'neutral', em_revisao: 'warning', rascunho: 'info' }[r.situacao.codigo] || 'info')
@@ -120,9 +131,9 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                 ];
             }),
             {
-                emptyState: 'O inventário de tratamentos (art. 37) está vazio.',
-                emptyHint: 'Registre a primeira atividade ou importe a planilha que o cliente já tem.',
-                emptyAction: btnNova() + btnNovo('Edição avançada') + btnImportar,
+                emptyState: comPrivacy ? 'Nenhuma atividade de tratamento registrada.' : 'O inventário de tratamentos (art. 37) está vazio.',
+                emptyHint: comPrivacy ? 'O inventário (art. 37 da LGPD) começa pela primeira atividade. Crie uma ou importe a planilha que o cliente já tem.' : 'Registre a primeira atividade ou importe a planilha que o cliente já tem.',
+                emptyAction: btnNova() + (comPrivacy ? '' : btnNovo('Edição avançada')) + btnImportar,
             }
         );
 
@@ -244,16 +255,26 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             <div class="modal-header"><span class="modal-title">Nova atividade</span></div>
             <div class="form-group"><label class="form-label" for="ra-nome">Nome da atividade (obrigatório)</label><input class="form-input" id="ra-nome" maxlength="200" placeholder="Ex: Folha de pagamento"></div>
             <div class="form-group"><label class="form-label" for="ra-area">Área</label><select class="form-input" id="ra-area">${opcoesAreas}</select>
-                <div class="form-group"><label class="form-label" for="ra-nova-area">Nova área</label><input class="form-input" id="ra-nova-area" maxlength="200"></div>
-                <button type="button" class="btn btn-ghost btn-sm" data-action="criarAreaNaAtividade" data-args='["${projectId}"]'>+ Criar área</button></div>
+                <button type="button" class="btn btn-ghost btn-sm ra-mostrar-area" data-action="mostrarNovaArea">+ Criar área</button>
+                <div class="ra-nova-area" id="ra-nova-area-caixa" hidden><label class="form-label" for="ra-nova-area">Nome da nova área</label>
+                    <div class="ra-nova-area-linha"><input class="form-input" id="ra-nova-area" maxlength="200" placeholder="Ex: Recursos Humanos">
+                    <button type="button" class="btn btn-sm" data-action="criarAreaNaAtividade" data-args='["${projectId}"]'>Criar área</button></div></div></div>
             <div class="form-group"><label class="form-label" for="ra-responsavel">Responsável</label><select class="form-input" id="ra-responsavel">${parteOptions}</select></div>
-            <fieldset class="form-group"><legend class="form-label">Como quer preencher?</legend>
-                <label><input type="radio" name="ra-modo" value="guiada" ${equipe ? '' : 'checked'}> Entrevista guiada</label>
-                <label><input type="radio" name="ra-modo" value="direta" ${equipe ? 'checked' : ''}> Direto nas abas</label>
+            <fieldset class="form-group ra-modo"><legend class="form-label">Como quer preencher?</legend>
+                <label class="ra-modo-opcao"><input type="radio" name="ra-modo" value="guiada" ${equipe ? '' : 'checked'}><span><strong>Entrevista guiada</strong>Uma pergunta por vez, na ordem das abas.</span></label>
+                <label class="ra-modo-opcao"><input type="radio" name="ra-modo" value="direta" ${equipe ? 'checked' : ''}><span><strong>Direto nas abas</strong>Os campos todos à vista, para quem já conhece a atividade.</span></label>
             </fieldset>
             <p class="form-label" id="ra-erro" role="alert"></p>
             <button class="btn btn-primary" data-action="criarNovaAtividade" data-args='["${projectId}"]'>Criar</button>
         `);
+    };
+
+    window.mostrarNovaArea = function() {
+        const caixa = document.getElementById('ra-nova-area-caixa');
+        if (!caixa) return;
+        caixa.hidden = false;
+        if (this && this.hidden !== undefined) this.hidden = true;
+        document.getElementById('ra-nova-area').focus();
     };
 
     window.criarAreaNaAtividade = async function(projectId) {

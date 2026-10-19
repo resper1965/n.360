@@ -13,6 +13,8 @@ import './views/bancada.js';
 import './views/empresa.js';
 import './views/grc.js';
 import './views/partes.js';
+import './views/areas.js';
+import './views/sistemas.js';
 import './views/padronizar-nomes.js';
 import './views/documentos.js';
 import './views/requisitos.js';

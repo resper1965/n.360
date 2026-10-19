@@ -94,11 +94,12 @@ async function entrarEAbrirAtividade(page) {
   await page.click('#login-submit');
   await expect(page).toHaveURL(/\/privacy$/);
   await page.locator('#nav-ropa').click();
-  await expect(page.locator('#content')).toContainText('O inventário de tratamentos (art. 37) está vazio.');
-  await page.getByRole('button', { name: 'Edição avançada' }).first().click();
-  await page.fill('#ropa-purpose', NOME);
-  await page.getByRole('button', { name: 'Registrar', exact: true }).click();
-  await page.getByRole('button', { name: `Abrir a atividade: ${NOME}` }).click();
+  await expect(page.locator('#content')).toContainText('Nenhuma atividade de tratamento registrada.');
+  // a atividade nasce por "Nova atividade", direto nas abas (o formulário antigo não existe no n.privacy)
+  await page.locator('#content').getByRole('button', { name: 'Nova atividade' }).click();
+  await page.fill('#ra-nome', NOME);
+  await page.getByRole('radio', { name: /Direto nas abas/ }).check();
+  await page.getByRole('button', { name: 'Criar', exact: true }).click();
   await expect(page.locator('#header-title')).toHaveText(NOME);
 }
 

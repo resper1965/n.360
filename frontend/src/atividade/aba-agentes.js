@@ -39,7 +39,7 @@ function blocoPartes(pid, rid, lig, partes, editavel, registro) {
             <div class="form-group"><label class="form-label" for="tl-parte">Parte</label><select class="form-input" id="tl-parte">${partes.map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.nome)}</option>`).join('')}</select></div>
             <div class="form-group"><label class="form-label" for="tl-papel">Papel</label><select class="form-input" id="tl-papel">${Object.entries(PAPEIS_PARTE).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
             <button type="button" class="btn btn-sm" data-action="adicionarParteTratamento" data-args='${args(pid, rid)}'>Ligar parte</button></div>`
-            : (editavel ? '<p class="at-nota">Nenhuma parte cadastrada ainda. Cadastre as empresas em Pessoas, áreas e sistemas para ligá-las aqui.</p>' : '')}
+            : (editavel ? '<p class="at-nota">Nenhuma empresa cadastrada ainda. Cadastre-as em Fornecedores para ligá-las aqui.</p>' : '')}
         ${campo({ id: 'at-destinatarios', rotulo: 'Outros destinatários (texto livre)', tipo: 'textarea', max: 2000, valor: registro.recipients || '', travado: !editavel,
             ajuda: 'Quem mais recebe os dados e não está cadastrado como parte.' })}`;
 }

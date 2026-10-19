@@ -110,7 +110,7 @@ function corpoModal(g) {
                 <div class="form-group"><label class="form-label" for="at-gap-resp">Responsável ${obrigatorio}</label>
                     <select class="form-input" id="at-gap-resp" required aria-required="true" ${semPessoa ? 'aria-describedby="at-gap-resp-d"' : ''}><option value="">Selecione uma pessoa</option>${pessoas.map((p) =>
                         `<option value="${escapeHTML(p.id)}" ${g.responsavel && g.responsavel.id === p.id ? 'selected' : ''}>${escapeHTML(p.nome)}</option>`).join('')}</select>
-                    ${semPessoa ? '<p class="at-nota" id="at-gap-resp-d">Nenhuma pessoa cadastrada ainda. Cadastre quem responde pelo gap em Pessoas, áreas e sistemas.</p>' : ''}</div>
+                    ${semPessoa ? '<p class="at-nota" id="at-gap-resp-d">Nenhuma pessoa cadastrada ainda. Cadastre quem responde pelo gap em Pessoas.</p>' : ''}</div>
                 <div class="form-group"><label class="form-label" for="at-gap-prazo">Prazo</label><input class="form-input" type="date" id="at-gap-prazo" value="${escapeHTML(g.prazo ? String(g.prazo).slice(0, 10) : '')}"></div>
                 <div class="form-group"><label class="form-label" for="at-gap-status">Status ${obrigatorio}</label><select class="form-input" id="at-gap-status" required aria-required="true">${opcoes(STATUS, g.status || 'Open')}</select></div></div>
             <div role="tabpanel" id="at-gap-p-anexo" aria-labelledby="at-gap-sub-anexo" ${m.sub === 'anexo' ? '' : 'hidden'} class="d-flex flex-col gap-3">

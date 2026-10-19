@@ -116,7 +116,7 @@ describe('lista', () => {
         await lista({ [`GET ${B}`]: [] });
         expect(el('c').textContent).toContain('Nenhuma organização cadastrada');
         const vazio = el('c').querySelector('.empty-state');
-        expect(JSON.parse(vazio.querySelector('[data-action="navigate"]').getAttribute('data-args'))).toEqual(['partes']);
+        expect(JSON.parse(vazio.querySelector('[data-action="importarPartes"]').getAttribute('data-args'))).toEqual(['p9']);
         expect(vazio.querySelector('[data-action="openNovaParteModal"]')).not.toBeNull();
     });
 
@@ -176,7 +176,7 @@ describe('ficha: abas', () => {
         expect(p.textContent).toContain('Nuvem <b>Grande</b>');
         expect(p.textContent).toContain('contato@fornecedor.exemplo');
         expect(p.querySelector('b')).toBeNull();
-        expect(JSON.parse(p.querySelector('[data-action="navigate"]').getAttribute('data-args'))).toEqual(['partes']);
+        expect(JSON.parse(p.querySelector('[data-action="openParteModal"]').getAttribute('data-args'))).toEqual(['p9', 'a']);
         expect(p.querySelector('input')).toBeNull();
         el('tc-tipo-sel').value = 'critico';
         await window.salvarTipoTerceiro('p9', 'a');

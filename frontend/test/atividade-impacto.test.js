@@ -137,7 +137,9 @@ describe('aba Teste de Impacto', () => {
         const sw = el('at-imp-final');
         expect(sw.getAttribute('role')).toBe('switch');
         expect(sw.getAttribute('aria-checked')).toBe('false');
-        expect(sw.textContent).toContain('Teste de impacto finalizado?');
+        // o rótulo diz a ação; o nome acessível e o aria-checked dizem o estado
+        expect(sw.textContent).toBe('Marcar o teste como finalizado');
+        expect(sw.getAttribute('aria-label')).toBe('Teste de impacto finalizado');
         sw.click();
         await esperar(() => puts.length === 1);
         expect(puts[0]).toEqual({ respostas: {}, finalizar: true });
@@ -187,7 +189,7 @@ describe('aba Teste de Impacto', () => {
         const { painel } = await abrir(imp, { editavel: false });
         expect([...painel.querySelectorAll('input')].every((i) => i.disabled)).toBe(true);
         expect(el('at-imp-final').disabled).toBe(true);
-        expect([...painel.querySelectorAll('button')].map((b) => b.textContent).filter((t) => !t.startsWith('Teste de impacto'))).toEqual([]);
+        expect([...painel.querySelectorAll('button')].map((b) => b.textContent).filter((t) => t !== 'Marcar o teste como finalizado')).toEqual([]);
         expect(painel.textContent).toContain('A atividade já indica: Sim.');
     });
 
