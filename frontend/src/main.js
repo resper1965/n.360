@@ -20,6 +20,7 @@ import './views/documentos.js';
 import './views/requisitos.js';
 import './views/terceiros.js';
 import './views/catalogos.js';
+import './views/parceiros.js';
 import './views/mapa-de-risco.js';
 import './views/gaps.js';
 import './views/lia.js';

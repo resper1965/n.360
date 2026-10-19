@@ -380,3 +380,22 @@ window.salvarDadosEmpresa = async function (projectId) {
     if (typeof window.loadProjects === 'function') await window.loadProjects();
     if (typeof window.render === 'function') window.render();
 };
+
+// ─── Empresas (n.privacy, menu do legado; spec 2026-10-19) ──────────────────────────────────────────────────
+// A empresa do projeto numa lista de uma linha, como no legado; "Ver/Editar" abre o mesmo modal do "Dados da empresa" do painel.
+window.renderEmpresas = async function (c, h, a) {
+    h.textContent = 'Empresas';
+    a.innerHTML = '';
+    const proj = S.activeProject || (S.projects || [])[0];
+    if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
+    let r;
+    try { r = await api('GET', `/api/v1/projects/${proj.id}/empresa`); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a empresa.', e); return; }
+    const e = (r && r.empresa) || {};
+    const cidade = [e.municipio, e.uf].filter(Boolean).join('/');
+    c.innerHTML = window.renderDataTable(['Empresa', 'CNPJ', 'Cidade', 'Ações'], [[
+        `<strong>${escapeHTML(e.nome_fantasia || e.razao_social || proj.client_name || '—')}</strong>`,
+        escapeHTML(e.cnpj ? mascaraCnpj(e.cnpj) : e.documento_alternativo || '—'),
+        escapeHTML(cidade || '—'),
+        `<button class="btn btn-ghost btn-sm" data-action="abrirDadosEmpresa" data-args='${escapeHTML(JSON.stringify([proj.id]))}'>Ver/Editar</button>`,
+    ]]);
+};

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { servirShell } from './shell.js';
 
-// Listas do legado no n.privacy (spec 2026-10-19): menu Avaliar → Gaps → filtro de status → Abrir leva à atividade na aba Controle
+// Listas do legado no n.privacy (spec 2026-10-19): menu Diagnóstico → Gaps → filtro de status → Abrir leva à atividade na aba Controle
 // de GAPs. A API é dublada com as formas do contrato (contracts/ropa-abas). Dados fictícios.
 
 const USER = { id: 'u1', email: 'consultor@ness.io', name: 'Consultor', role: 'consultor' };
@@ -47,7 +47,7 @@ test('Gaps: lista → filtro de status → Abrir leva à atividade na aba Contro
   await expect(page).toHaveURL(/\/privacy$/);
 
   const menu = page.locator('#sidebar');
-  await expect(menu.getByText('Avaliar', { exact: true })).toBeVisible();
+  await expect(menu.getByText('Diagnóstico', { exact: true })).toBeVisible();
   await menu.locator('#nav-gaps').click();
   await expect(page.locator('#header-title')).toHaveText('Gaps');
   await expect(page.locator('#gp-lista tbody tr')).toHaveCount(2);

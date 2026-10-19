@@ -96,11 +96,11 @@ describe('mapa de risco', () => {
         expect(el('c').querySelector('[data-action="navigate"]').getAttribute('data-args')).toBe('["ropa"]');
     });
 
-    it('a tela está ligada: item no menu do n.privacy (Avaliar), rota no router e módulo no main', () => {
+    it('a tela está ligada: item no menu do n.privacy (Diagnóstico), rota no router e módulo no main', () => {
         expect(html).toContain(`id="nav-mapa-de-risco" data-action="navigate" data-args='["mapa-de-risco"]'`);
         expect(rota).toContain("S.view === 'mapa-de-risco') renderMapaDeRisco(");
         expect(main).toContain("import './views/mapa-de-risco.js';");
-        expect(SECOES_PRIVACY.find(([t]) => t === 'Avaliar')[1]).toContain('nav-mapa-de-risco');
+        expect(SECOES_PRIVACY.find(([t]) => t === 'Diagnóstico')[1]).toContain('nav-mapa-de-risco');
         expect(SO_PRIVACY).toContain('nav-mapa-de-risco');
     });
 
