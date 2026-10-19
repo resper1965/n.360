@@ -15,7 +15,7 @@ import { log } from '../observability';
 import { passoPorId } from '../data/passos/catalogo';
 import type { Bindings } from '../index';
 
-export type Fonte = 'capa' | 'checklist' | 'auditoria' | 'certificado' | 'link_auditor' | 'politica' | 'documento' | 'excecao' | 'avaliacao_terceiro' | 'titular_pedido' | 'incidente' | 'evidencia';
+export type Fonte = 'capa' | 'checklist' | 'auditoria' | 'certificado' | 'link_auditor' | 'politica' | 'documento' | 'excecao' | 'avaliacao_terceiro' | 'titular_pedido' | 'incidente' | 'evidencia' | 'documento_arquivo';
 
 export type ItemPrazo = {
   fonte: Fonte;
@@ -87,6 +87,8 @@ export function marcoDoDia(vence: string, hoje: string): string | null {
  * ponytail: a carência é a semana ISO da criação (pode ser 1 dia, se o registro nasce num domingo); se precisar de prazo fixo, contar dias.
  * Evidência (fatia 8): `valido_ate` da evidência que tem validade; renovar a data (reavaliar com validade nova) tira o item. Sem responsável: vai
  * aos consultores. A rotina `vencerEvidencias` devolve a avaliação a `pending` antes de avisar.
+ * Documento em arquivo (0081): `vencimento` do documento do legado que não está obsoleto nem marcado "sem vencimento"; data nova ou
+ * obsoleto tira o item. Responsável = a parte responsável do documento.
  * ponytail: '-3 hours' é o fuso de São Paulo fixo (sem horário de verão desde 2019); se voltar, troca
  * por conversão no TypeScript.
  */
@@ -139,6 +141,10 @@ const FONTES: Record<Fonte, string> = {
     WHERE i.status <> 'encerrado' AND i.prazo_titular_em IS NOT NULL AND i.comunicacao_titular_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'`,
   evidencia: `SELECT e.id AS item_id, e.project_id, date(substr(e.valido_ate, 1, 10)) AS vence_em, 'Evidência ' || e.file_name AS titulo, NULL AS responsavel
     FROM evidence e JOIN projects p ON p.id = e.project_id WHERE e.valido_ate IS NOT NULL`,
+  documento_arquivo: `SELECT d.id AS item_id, d.project_id, date(substr(d.vencimento, 1, 10)) AS vence_em, 'Documento ' || d.nome AS titulo,
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel
+    FROM documentos_arquivo d JOIN projects p ON p.id = d.project_id LEFT JOIN partes pa ON pa.id = d.responsavel_parte_id AND pa.project_id = d.project_id
+    WHERE d.status <> 'obsoleto' AND d.sem_vencimento = 0 AND d.vencimento IS NOT NULL`,
 };
 
 /** Os itens que têm marco hoje. Uma fonte que falha vai para `falhas` e as outras seguem. */
@@ -214,12 +220,12 @@ export type ResultadoAvisos = { avisos_criados: number; emails_enviados: number;
 
 const ROTULO: Record<Fonte, string> = {
   capa: 'CAPA', checklist: 'Passo da trilha', auditoria: 'Auditoria', certificado: 'Certificado',
-  link_auditor: 'Link do auditor', politica: 'Política', documento: 'Documento', excecao: 'Exceção', avaliacao_terceiro: 'Avaliação de terceiro', titular_pedido: 'Pedido do titular', incidente: 'Incidente', evidencia: 'Evidência',
+  link_auditor: 'Link do auditor', politica: 'Política', documento: 'Documento', excecao: 'Exceção', avaliacao_terceiro: 'Avaliação de terceiro', titular_pedido: 'Pedido do titular', incidente: 'Incidente', evidencia: 'Evidência', documento_arquivo: 'Documento',
 };
 
 /** Tela de cada fonte no clique do sino (frontend/src/globals.js, handleNotificationClick). */
 const TELA: Record<Fonte, string> = {
-  capa: '/capa', checklist: '', auditoria: '/audits', certificado: '/certification', link_auditor: '/audits', politica: '/policies', documento: '/documentos', excecao: '/documentos', avaliacao_terceiro: '/terceiros', titular_pedido: '/titular', incidente: '/incidentes', evidencia: '/evidence',
+  capa: '/capa', checklist: '', auditoria: '/audits', certificado: '/certification', link_auditor: '/audits', politica: '/policies', documento: '/documentos', excecao: '/documentos', avaliacao_terceiro: '/terceiros', titular_pedido: '/titular', incidente: '/incidentes', evidencia: '/evidence', documento_arquivo: '/documentos-arquivo',
 };
 
 const dataBr = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;
@@ -230,7 +236,7 @@ export function tituloDoAviso(item: Pick<ItemDoDia, 'fonte' | 'marco' | 'titulo'
   const d7 = item.marco === 'D-7';
   if (item.fonte === 'politica') return `Política ${item.titulo.split(' ')[0]} precisa de revisão${d7 ? ' em 7 dias' : ''}`;
   if (item.fonte === 'documento') return `Documento ${item.titulo} precisa de revisão${d7 ? ' em 7 dias' : ''}`;
-  if (item.fonte === 'excecao' || item.fonte === 'avaliacao_terceiro' || item.fonte === 'titular_pedido' || item.fonte === 'incidente' || item.fonte === 'evidencia') return `${item.titulo} ${quando(item.marco)}`;
+  if (item.fonte === 'excecao' || item.fonte === 'avaliacao_terceiro' || item.fonte === 'titular_pedido' || item.fonte === 'incidente' || item.fonte === 'evidencia' || item.fonte === 'documento_arquivo') return `${item.titulo} ${quando(item.marco)}`;
   if (item.fonte === 'auditoria') return `Auditoria ${d7 ? 'em 7 dias' : 'hoje'}`;
   return `${ROTULO[item.fonte]} ${quando(item.marco)}`;
 }

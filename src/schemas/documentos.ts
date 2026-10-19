@@ -40,3 +40,16 @@ const motivo = z.string().trim().min(1).max(4000);
 /** Exceção a documento (fatia 3.5): a quem vale, por quê e até quando. `.strict()`: campo desconhecido é 400. */
 export const excecaoCriarSchema = z.object({ escopo, motivo, vence_em: dia }).strict();
 export const excecaoAtualizarSchema = z.object({ escopo: escopo.optional(), motivo: motivo.optional(), vence_em: dia.optional() }).strict();
+
+/** Documento do legado (0081, `documentos_arquivo`): arquivo com metadados. PUT e POST mandam o registro inteiro (o modal tem tudo). */
+export const TIPOS_DOCUMENTO_ARQUIVO = ['politica', 'norma', 'procedimento', 'termo', 'contrato', 'aditivo', 'relatorio', 'outro'] as const;
+export const STATUS_DOCUMENTO_ARQUIVO = ['rascunho', 'publicado', 'obsoleto'] as const;
+export const documentoArquivoSchema = z.object({
+  nome: titulo,
+  tipo: z.enum(TIPOS_DOCUMENTO_ARQUIVO),
+  status: z.enum(STATUS_DOCUMENTO_ARQUIVO),
+  vencimento: dia.nullish(),
+  sem_vencimento: z.boolean().optional(),
+  responsavel_parte_id: z.string().trim().min(1).max(100).nullish(),
+}).strict().refine((d) => !(d.sem_vencimento && d.vencimento), { message: 'Documento sem vencimento não leva data', path: ['vencimento'] });
+export type DocumentoArquivo = z.infer<typeof documentoArquivoSchema>;

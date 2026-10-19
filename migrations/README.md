@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0080** (`ls migrations/*.sql | tail -1`). São 78 arquivos
+- Última migration no repositório: **0081** (`ls migrations/*.sql | tail -1`). São 79 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -662,6 +662,17 @@ Aditiva (spec `docs/superpowers/specs/2026-10-18-criticidade-fornecedor-design.m
 `project_id` e `parte_id`, histórico append-only: as cinco respostas, o `nivel` derivado no servidor e `avaliado_por`). Nenhuma tabela existente
 muda e nenhuma linha é escrita: sem carga. Não é executada por nada além do `migrations apply`.
 Conferência depois: `PRAGMA table_info(criticidades_terceiro)` e `SELECT count(*) FROM criticidades_terceiro` (esperado 0).
+**Não aplicada em lugar nenhum** até o líder do projeto aplicar.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+## 0081 — paridade com o legado: descrição da área e documentos em arquivo (2026-10-19)
+
+Aditiva (spec `docs/superpowers/specs/2026-10-19-paridade-legado-menu-design.md`, frente B). `departamentos` ganha `descricao` (texto, nula nas
+linhas existentes) e nasce `documentos_arquivo` (`IF NOT EXISTS`, com `project_id`, CHECK de `tipo`, `status`, `arquivo_tipo` e de
+`sem_vencimento` sem data, índice por projeto). Nenhuma linha é escrita: sem carga. **Não é idempotente** (`ADD COLUMN`): aplicar só pelo
+`migrations apply`. Conferência depois: `PRAGMA table_info(departamentos)` mostra `descricao`; `SELECT count(*) FROM documentos_arquivo` (esperado 0).
+Para desfazer: não precisa (o código anterior ignora a coluna e a tabela). **Esta RODA em produção ANTES do código novo.**
 **Não aplicada em lugar nenhum** até o líder do projeto aplicar.
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.

@@ -19,7 +19,7 @@ export const NOME_DO_PRODUTO: Record<Modulo, string> = { iso: 'n.iso', privacy: 
 export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   // núcleo: o cadastro compartilhado e a administração do projeto
   '': 'nucleo', agentes: 'nucleo', 'api-keys': 'nucleo', assets: 'nucleo', 'audit-trail': 'nucleo', chat: 'nucleo',
-  'company-profile': 'nucleo', context: 'nucleo', 'data-subject': 'nucleo', departamentos: 'nucleo', documentos: 'nucleo',
+  'company-profile': 'nucleo', context: 'nucleo', 'data-subject': 'nucleo', departamentos: 'nucleo', documentos: 'nucleo', 'documentos-arquivo': 'nucleo',
   documents: 'nucleo', dpia: 'nucleo', empresa: 'nucleo', evidence: 'nucleo', export: 'nucleo', governance: 'nucleo', modulos: 'nucleo',
   partes: 'nucleo', 'padronizar-nomes': 'nucleo', pedidos: 'nucleo',
   // painel: a faixa depende do `?modulo=` (iso ou privacy), que o middleware não lê; a rota faz a mesma recusa (routes/painel.ts).

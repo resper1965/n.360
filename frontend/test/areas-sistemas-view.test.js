@@ -10,7 +10,7 @@ import '../src/views/areas.js';
 import '../src/views/sistemas.js';
 
 const DEPTOS = [
-    { id: 'd1', nome: 'Recursos <b>Humanos</b>', status: 'ativo' },
+    { id: 'd1', nome: 'Recursos <b>Humanos</b>', status: 'ativo', descricao: 'Folha e <i>admissão</i>' },
     { id: 'd2', nome: 'Jurídico', status: 'inativo' },
 ];
 const ATIVOS = [
@@ -31,21 +31,24 @@ beforeEach(() => {
         return Promise.resolve({ ok: true });
     });
     window.render = vi.fn();
-    S.activeProject = { id: 'p1' };
+    S.activeProject = { id: 'p1', client_name: 'Empresa Exemplo <s>Ltda</s>' };
     S.user = { role: 'consultor' };
 });
 
 describe('Áreas', () => {
-    it('lista os departamentos com a situação, escapando o nome', async () => {
+    it('lista Área (com a descrição) e Empresa, marca a inativa e escapa o texto', async () => {
         const [c, h, a] = montar();
         await window.renderAreas(c, h, a);
         expect(h.textContent).toBe('Áreas');
         expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/projects/p1/departamentos');
         const linhas = [...c.querySelectorAll('tbody tr')].map((tr) => tr.textContent);
+        expect([...c.querySelectorAll('thead th')].map((th) => th.textContent.trim())).toEqual(['Área', 'Empresa', 'Ações']);
         expect(linhas[0]).toContain('Recursos <b>Humanos</b>');
-        expect(linhas[0]).toContain('Ativa');
-        expect(linhas[1]).toContain('Inativa');
-        expect(c.querySelector('tbody b')).toBeNull();
+        expect(linhas[0]).toContain('Folha e <i>admissão</i>');
+        expect(linhas[0]).toContain('Empresa Exemplo <s>Ltda</s>');
+        const selos = [...c.querySelectorAll('tbody tr')].map((tr) => tr.querySelector('.badge')?.textContent ?? null);
+        expect(selos).toEqual([null, 'Inativa']);
+        expect(c.querySelector('tbody b, tbody i, tbody s')).toBeNull();
         expect(a.querySelector('.btn-primary').textContent.trim()).toBe('+ Nova área');
     });
 
@@ -57,19 +60,26 @@ describe('Áreas', () => {
         expect(c.textContent).toContain('Compartilhamento Interno');
     });
 
-    it('criar, renomear e inativar mandam o corpo que o servidor aceita', async () => {
+    it('criar, editar (nome e descrição) e inativar mandam o corpo que o servidor aceita', async () => {
         const [c, h, a] = montar();
         await window.renderAreas(c, h, a);
         window.openNovaAreaModal('p1');
         el('area-nome').value = '  Marketing ';
         await window.criarArea('p1');
         expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/departamentos', { nome: 'Marketing' });
+        window.openNovaAreaModal('p1');
+        el('area-nome').value = 'Vendas';
+        el('area-descricao').value = ' Time comercial ';
+        await window.criarArea('p1');
+        expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/departamentos', { nome: 'Vendas', descricao: 'Time comercial' });
 
         window.openAreaModal('p1', 'd1');
         expect(el('area-e-nome').value).toBe('Recursos <b>Humanos</b>');
+        expect(el('area-e-descricao').value).toBe('Folha e <i>admissão</i>');
         el('area-e-nome').value = 'Pessoas e Cultura';
+        el('area-e-descricao').value = '';
         await window.salvarArea('p1', 'd1');
-        expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/projects/p1/departamentos/d1', { nome: 'Pessoas e Cultura' });
+        expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/projects/p1/departamentos/d1', { nome: 'Pessoas e Cultura', descricao: null });
 
         await window.mudarSituacaoArea('p1', 'd1', 'inativo');
         expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/projects/p1/departamentos/d1', { status: 'inativo' });
