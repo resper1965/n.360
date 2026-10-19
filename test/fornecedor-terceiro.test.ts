@@ -74,6 +74,15 @@ describe('rotas de vendors sobre a parte', () => {
     expect(await env.DB.prepare('SELECT name FROM vendors WHERE id = ?').bind(gama).first()).toEqual({ name: 'Gama Nova' });
   });
 
+  it('PUT sem observações nem status mantém os gravados (a tela do n.iso não os envia)', async () => {
+    await env.DB.prepare("UPDATE vendors SET notes = 'nota antiga', status = 'Inactive' WHERE id = ?").bind(gama).run();
+    expect((await chamar(consultor, 'PUT', `/api/v1/vendors/${gama}`, { name: 'Gama Nova', has_mfa: 1 })).status).toBe(200);
+    expect(await env.DB.prepare('SELECT notes, status, has_mfa FROM vendors WHERE id = ?').bind(gama).first()).toEqual({ notes: 'nota antiga', status: 'Inactive', has_mfa: 1 });
+    // enviados, valem
+    expect((await chamar(consultor, 'PUT', `/api/v1/vendors/${gama}`, { name: 'Gama Nova', notes: 'nova', status: 'Active' })).status).toBe(200);
+    expect(await env.DB.prepare('SELECT notes, status FROM vendors WHERE id = ?').bind(gama).first()).toEqual({ notes: 'nova', status: 'Active' });
+  });
+
   it('POST de fornecedor que já tem perfil é 409 e não mexe no perfil', async () => {
     const r1 = await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Zeta', notes: 'primeira' });
     expect(r1.status).toBe(201);

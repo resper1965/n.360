@@ -141,7 +141,7 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         expect(linhas().map((t) => t.includes('Fornecedor Vencido'))).toEqual([true]);
         S.filtroPainel = filtroValido('terceiros', null, 'pendentes');
         await window.renderTerceiros(el('c'), el('h'), el('a'));
-        expect(el('c').textContent).toContain('Nenhum terceiro nesta situação.');
+        expect(el('c').textContent).toContain('Nenhum fornecedor nesta situação.');
     });
 
     it('evidências vencidas e ações corretivas vencidas', async () => {

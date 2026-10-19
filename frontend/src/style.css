@@ -2115,3 +2115,15 @@ button.roadmap-node { padding: 0; font-family: inherit; }
 .modulo-seletor a + a { border-left: 1px solid var(--border); }
 .modulo-seletor a:hover, .modulo-seletor a:focus-visible { color: var(--text); }
 .modulo-seletor a[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Ficha do fornecedor (views/terceiros.js): página com abas, no molde da atividade do RoPA. */
+.tc { max-width: 1040px; display: flex; flex-direction: column; gap: 16px; }
+.tc-resumo { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-2); }
+.tc-painel { display: flex; flex-direction: column; gap: 16px; padding: 20px; background: var(--surface); border: 1px solid var(--border); font-size: var(--fs-md); color: var(--text); }
+.tc-painel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tc-painel h3, .tc-painel h4 { margin: 0; font: 600 var(--fs-md) var(--font-head); color: var(--text); }
+.tc-painel p { margin: 0; }
+.tc-painel fieldset { margin: 0; padding: 12px 14px; border: 1px solid var(--border); min-width: 0; }
+.tc-painel fieldset legend { padding: 0 6px; }
+.tc-painel fieldset label { display: inline-flex; align-items: center; gap: 8px; padding: 3px 0; font-size: var(--fs-md); color: var(--text-2); cursor: pointer; }
+.tc-painel .data-table { margin-top: 4px; }

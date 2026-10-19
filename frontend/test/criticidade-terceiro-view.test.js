@@ -1,4 +1,4 @@
-// Bloco "Avaliação de criticidade" na ficha do terceiro (spec 2026-10-18). api() REAL; só o fetch é dublado.
+// Aba Criticidade da ficha do fornecedor (spec 2026-10-18 e 2026-10-19). api() REAL; só o fetch é dublado.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { servir } from './servir-api.js';
 
@@ -9,7 +9,8 @@ import '../src/ui.js';
 import '../src/views/terceiros.js';
 
 const B = '/api/v1/projects/p9/terceiros';
-const FICHA = { id: 'a', nome: 'Nuvem Grande', terceiro_tipo: 'pequeno', metodo: 'questionario', situacao: 'pendente', ultima_avaliacao: null, tratamentos: 0, documentos: 0, historico: [], documentos_ligados: [], suboperadores: [], tratamentos_afetados: [] };
+const FICHA = { id: 'a', nome: 'Nuvem Grande', terceiro_tipo: 'pequeno', metodo: 'questionario', situacao: 'pendente', ultima_avaliacao: null, tratamentos: 0, documentos: 0, nivel: null, dpa: false, atividades: 0,
+    email: null, seguranca: null, historico: [], documentos_ligados: [], suboperadores: [], tratamentos_afetados: [] };
 const CRIT_VAZIO = { atual: null, historico: [] };
 const CRIT_ALTO = {
     atual: { id: 'c2', impacto: 'baixo', exclusividade: 'varias_alternativas', risco_financeiro: 'baixo', conformidade: 'sem_regulamentacao', risco_reputacional: 'alto', nivel: 'alto', avaliado_por: 'cons@ness.lat', created_at: '2026-10-18 10:00:00' },
@@ -31,9 +32,10 @@ const corpoDe = (f, chave) => {
 };
 const el = (id) => document.getElementById(id);
 const ficha = async (extra = {}) => {
-    document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+    document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div><div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+    history.replaceState(null, '', '/privacy?tela=terceiro&parte=a&aba=criticidade');
     const f = servir(rotas(extra));
-    await window.abrirTerceiro('p9', 'a');
+    await window.renderTerceiro(el('c'), el('h'), el('a'));
     return f;
 };
 const marcar = (chave, valor) => { document.querySelector(`input[name="tc-crit-${chave}"][value="${valor}"]`).checked = true; };
@@ -46,9 +48,10 @@ beforeEach(() => {
     S.token = 'tok';
     S.user = { role: 'consultor' };
     S.activeProject = { id: 'p9' };
+    S.terceiro = null;
     window.render = vi.fn();
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); history.replaceState(null, '', '/'); });
 
 describe('bloco de criticidade', () => {
     it('sem avaliação: diz isso, explica e tem o botão Confirmar avaliação', async () => {
@@ -90,6 +93,22 @@ describe('bloco de criticidade', () => {
         expect(bloco).toContain('Crítico');
         expect(bloco).toContain('Auditoria');
         expect(el('tc-crit-historico').querySelectorAll('tbody tr').length).toBe(2);
+    });
+
+    it('o histórico mostra as cinco respostas de cada linha, em texto', async () => {
+        await ficha({ [`GET ${B}/a/criticidades`]: CRIT_ALTO });
+        const [recente] = el('tc-crit-historico').querySelectorAll('tbody tr');
+        for (const t of ['Baixo (impacto mínimo ou inexistente)', 'Várias alternativas (fácil de substituir)', 'Baixo (financeiramente sólido)',
+            'Não há Regulamentação Específica no setor de atuação', 'Alto (relação direta de reconhecimento da marca entre as empresas)']) expect(recente.textContent).toContain(t);
+    });
+
+    it('confirmar repinta a aba com o nível novo', async () => {
+        const f = await ficha({ [`POST ${B}/a/criticidades`]: { ok: true, id: 'c2', nivel: 'alto', tipo: 'critico' } });
+        marcarTudo();
+        f.mockClear();
+        await window.confirmarCriticidadeTerceiro('p9', 'a');
+        expect(chamadas(f)).toContain(`GET ${B}/a/criticidades`);
+        expect(el('tc-crit')).not.toBeNull();
     });
 
     it('grande provedor: avisa que a avaliação não troca o tipo', async () => {

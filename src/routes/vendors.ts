@@ -44,9 +44,11 @@ vendorsApp.put('/:id', async (c) => {
     const dl = diligenceLevel(ts);
 
     await c.env.DB.prepare(
-      `UPDATE vendors SET name=?, category=?, has_iso27001=?, has_iso27701=?, has_soc2=?, trust_score=?, diligence_level=?, dpa_signed=?, notes=?, status=?, has_mfa=?, has_encryption=?, has_backup=?, has_incident_plan=?, has_pentest=?, trust_center_url=?, dpa_url=?, attached_certifications=? WHERE id=?`
+      `UPDATE vendors SET name=?, category=?, has_iso27001=?, has_iso27701=?, has_soc2=?, trust_score=?, diligence_level=?, dpa_signed=?, notes=CASE WHEN ? THEN ? ELSE notes END, status=CASE WHEN ? THEN ? ELSE status END, has_mfa=?, has_encryption=?, has_backup=?, has_incident_plan=?, has_pentest=?, trust_center_url=?, dpa_url=?, attached_certifications=? WHERE id=?`
     ).bind(
-      nome, body.category ?? null, body.has_iso27001 ?? 0, body.has_iso27701 ?? 0, body.has_soc2 ?? 0, ts, dl, body.dpa_signed ?? 0, body.notes ?? null, body.status ?? 'Active',
+      // observações e status ausentes no corpo ficam como estão: a edição do n.iso não os envia
+      nome, body.category ?? null, body.has_iso27001 ?? 0, body.has_iso27701 ?? 0, body.has_soc2 ?? 0, ts, dl, body.dpa_signed ?? 0,
+      body.notes !== undefined ? 1 : 0, body.notes ?? null, body.status !== undefined ? 1 : 0, body.status ?? 'Active',
       body.has_mfa ?? 0, body.has_encryption ?? 0, body.has_backup ?? 0, body.has_incident_plan ?? 0, body.has_pentest ?? 0, body.trust_center_url ?? null, body.dpa_url ?? null, body.attached_certifications ?? null,
       id
     ).run();
