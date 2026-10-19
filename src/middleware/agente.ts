@@ -117,7 +117,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   // A importação de programa grava no RoPA depois da revisão de uma pessoa da equipe (spec 2026-10-11). A leitura também é recusada, pela rota (papel de equipe).
   [/^\/api\/v1\/projects\/[^/]+\/importacoes(\/|$)/, 'importação de programa é feita pela equipe, pela interface', ['POST', 'PUT', 'DELETE']],
   [/^\/api\/v1\/requisitos(\/|$)/, 'o catálogo de requisitos é edição do administrador da plataforma; o agente só lê', ['POST', 'PUT', 'DELETE']],
-  [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/revisar$/, 'marcar documento como revisado é ato humano, pela interface', ['POST']],
+  [/^\/api\/v1\/projects\/[^/]+\/documentos-arquivo(\/|$)/, 'documento em arquivo (cadastro, envio e exclusão) é feito pela interface; o agente só lê', ['POST', 'PUT', 'DELETE']],
+  [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/revisar$/,'marcar documento como revisado é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/excecoes\/[^/]+\/revogar$/, 'revogar exceção a documento é ato humano, pela interface', ['POST']],
   // Rascunho de IA do n.privacy é da tela, para a pessoa revisar (fatia 5.3); o agente já é a IA.
   [/^\/api\/v1\/projects\/[^/]+\/(ropa\/copiloto|ropa\/[^/]+\/sugestao|titular-pedidos\/[^/]+\/rascunho|incidentes\/[^/]+\/rascunho-comunicacao)$/, 'rascunho de IA do n.privacy é pela interface'],

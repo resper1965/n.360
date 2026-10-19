@@ -2,9 +2,10 @@ import { genId } from '../../helpers';
 import { falha, type Falha } from './comum';
 
 export const MAX_ANEXO = 5 * 1024 * 1024;
-type Tipo = 'pdf' | 'doc' | 'docx';
+export type TipoAnexo = 'pdf' | 'doc' | 'docx';
+type Tipo = TipoAnexo;
 const MAGIA: Record<Tipo, number[]> = { pdf: [0x25, 0x50, 0x44, 0x46], doc: [0xd0, 0xcf, 0x11, 0xe0], docx: [0x50, 0x4b, 0x03, 0x04] };
-const MIME: Record<Tipo, string> = { pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+export const MIME_ANEXO: Record<Tipo, string> = { pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
 
 /** O tipo pelo CONTEÚDO (os primeiros bytes), conferido com a extensão: renomear um executável para .pdf não passa. */
 export function tipoDoAnexo(nome: string, bytes: Uint8Array): Tipo | null {
@@ -30,7 +31,7 @@ export async function guardarAnexo(env: Env, projectId: string, ropaId: string, 
   if (!acao) return falha(404, 'Gap não encontrado');
   const id = genId();
   const chave = `acoes/${projectId}/${acaoId}/${id}`;
-  await env.STORAGE.put(chave, arq.bytes, { httpMetadata: { contentType: MIME[tipo] } });
+  await env.STORAGE.put(chave, arq.bytes, { httpMetadata: { contentType: MIME_ANEXO[tipo] } });
   try {
     await env.DB.prepare('INSERT INTO acao_anexos (id, project_id, acao_id, file_name, r2_key, file_hash, file_type, file_size, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .bind(id, projectId, acaoId, arq.name.slice(0, 255), chave, await sha256Bytes(arq.bytes), tipo, arq.bytes.byteLength, ator).run();
@@ -58,7 +59,7 @@ export async function baixarAnexo(env: Env, projectId: string, ropaId: string, a
   if (!obj) return null;
   return new Response(obj.body, {
     headers: {
-      'Content-Type': MIME[l.file_type] ?? 'application/octet-stream',
+      'Content-Type': MIME_ANEXO[l.file_type] ?? 'application/octet-stream',
       // O nome do arquivo só entra no cabeçalho codificado.
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(l.file_name)}`,
       'X-Content-Type-Options': 'nosniff',
