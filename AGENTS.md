@@ -425,11 +425,17 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   evidencia `conforming` em dia (cobre) ou `partial` (parcial). `GET /projects/:id/encarregado` (`src/services/encarregado.ts`) e SO consulta:
   pedidos do titular, incidentes, tratamentos sem base/DPIA/LIA, terceiros, documentos, evidencias, LGPD e prazos legais nao cadastrados, com a
   lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy (alternativa A do estudo `docs/design/diagnostico-2026-10-14/menu-privacy.md`;
-  `organizarMenuPrivacy` e `SECOES_PRIVACY` em `frontend/src/produto.js`, rotulos so do modulo em `ROTULOS_PRIVACY`): Painel no topo, quatro secoes FIXAS
-  (titulo que nao e botao e nao recolhe, itens em `ul`/`li`): Mapear (Tratamentos (RoPA), Pessoas areas e sistemas, Terceiros, Importar programa),
-  Avaliar (RIPD, Mapa de risco, Cobertura da LGPD), Responder (Pedidos do titular, Incidentes, Consentimentos, os tres abrem a tela titular na aba) e Provar
+  `organizarMenuPrivacy` e `SECOES_PRIVACY` em `frontend/src/produto.js`, rotulos so do modulo em `ROTULOS_PRIVACY`): Painel no topo, cinco secoes FIXAS
+  (titulo que nao e botao e nao recolhe, itens em `ul`/`li`): Mapear (Tratamentos (RoPA), Importar programa), Cadastros (Pessoas areas e sistemas,
+  Fornecedores, Titulares e dados pessoais), Avaliar (RIPD, LIA, Riscos, Gaps, Cobertura da LGPD), Responder (Pedidos do titular, Incidentes, Consentimentos, os tres abrem a tela titular na aba) e Provar
   (Documentos, Evidencias, Treinamento, Papeis e comite), e o Assistente no fim. Minhas aprovacoes e Trilha de logs ficam no menu de conta
-  (`#account-menu`) so no n.privacy (`FORA_DO_MENU_PRIVACY`). Selos de `frontend/src/selos-menu.js`: numero = total a tratar, contorno ambar =
+  (`#account-menu`) so no n.privacy (`FORA_DO_MENU_PRIVACY`). **Telas do legado (19/10/2026, sem migration):** Fornecedores (`views/terceiros.js`)
+  e a lista dos terceiros com nivel de criticidade, DPA e atividades (vinculo ao tratamento e etapa Compartilhamento Externo, sem
+  duplicar) e a ficha em pagina propria (`?tela=terceiro&parte=&aba=`) com sete abas; a aba Seguranca edita o perfil de `vendors`
+  (o mesmo do n.iso; o PUT mantem `notes` e `status` ausentes no corpo). Titulares e dados pessoais (`views/catalogos.js`) gere os
+  catalogos do RoPA. Gaps (`views/gaps.js`, `GET .../ropa/gaps`) e LIA (`views/lia.js`, `GET .../ropa/lias`, inclui a atividade de
+  legitimo interesse sem LIA) listam o projeto inteiro; Riscos tem a vista Mapa | Lista (`?vista=lista`). Os "Abrir" levam a atividade
+  na aba certa (`abrirAtividade(projectId, ropaId, aba)`). Selos de `frontend/src/selos-menu.js`: numero = total a tratar, contorno ambar =
   pendente, fundo vermelho = atraso; o Painel tem selo so com atraso. O n.iso e o n.360 mantem estrutura, rotulos e acordeao
   (`frontend/test/casca-menu.test.js` fixa a estrutura); a barra dos tres e acessivel: grupo fechado fora do Tab (`visibility`), recolhida com o
   texto so visualmente escondido e a dica `#sidebar-dica` ao passar e ao focar. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
