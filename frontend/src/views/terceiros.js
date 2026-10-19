@@ -171,12 +171,12 @@ async function renderTerceiro(c, h, a) {
     const corpo = { cadastro: abaCadastro, criticidade: abaCriticidade, avaliacoes: abaAvaliacoes, seguranca: abaSeguranca,
         documentos: abaDocumentos, atividades: abaAtividades, suboperadores: abaSuboperadores }[aba](projectId, parteId, t, editar, extra);
     h.textContent = t.nome;
-    c.innerHTML = `<p>${window.renderStatusBadge(rotulo, tom)} ${t.ultima_avaliacao ? `avaliação válida até ${escapeHTML(dataBr(t.ultima_avaliacao.valido_ate))}` : 'nunca avaliado'}
+    c.innerHTML = `<div class="tc"><p class="tc-resumo">${window.renderStatusBadge(rotulo, tom)} ${t.ultima_avaliacao ? `avaliação válida até ${escapeHTML(dataBr(t.ultima_avaliacao.valido_ate))}` : 'nunca avaliado'}
             · Criticidade: ${escapeHTML(NIVEIS_CRITICIDADE[t.nivel] || 'Não avaliada')}</p>
         <div class="at-abas" role="tablist" aria-label="Abas do fornecedor">${ABAS.map(([id, r]) =>
             `<button type="button" role="tab" class="at-aba" id="tc-aba-${id}" aria-controls="tc-painel" aria-selected="${id === aba}" tabindex="${id === aba ? 0 : -1}"
                 data-action="tcIrParaAba" data-action-keydown="tcTeclaAba" data-arg-event data-args='${args(id)}'>${escapeHTML(r)}</button>`).join('')}</div>
-        <div role="tabpanel" id="tc-painel" aria-labelledby="tc-aba-${aba}" tabindex="0" style="padding-top:1rem">${corpo}</div>`;
+        <div role="tabpanel" class="tc-painel" id="tc-painel" aria-labelledby="tc-aba-${aba}" tabindex="0">${corpo}</div></div>`;
 }
 
 const repintar = () => (ultimo ? renderTerceiro(ultimo.c, ultimo.h, ultimo.a) : undefined);
