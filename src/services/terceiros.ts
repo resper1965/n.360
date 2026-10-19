@@ -34,7 +34,13 @@ export function situacaoDe(ultima: Pick<Avaliacao, 'resultado' | 'valido_ate'> |
 export type Terceiro = {
   id: string; nome: string; terceiro_tipo: TipoTerceiro | null; metodo: Metodo | null; situacao: Situacao;
   ultima_avaliacao: Avaliacao | null; tratamentos: number; documentos: number;
+  /** nível da criticidade mais recente; null = nunca avaliada */
+  nivel: NivelCriticidade | null; dpa: boolean; atividades: number;
 };
+
+/** Atividades que usam a parte, pelas duas origens: vínculo (`parte_vinculos`) e compartilhamento externo da atividade. */
+const SQL_ATIVIDADES = `SELECT parte_id, alvo_id AS ropa_id, 'vinculo' AS origem FROM parte_vinculos WHERE project_id = ?1 AND alvo_tipo = 'tratamento'
+  UNION ALL SELECT parte_id, ropa_id, 'compartilhamento_externo' FROM tratamento_externo_parceiros WHERE project_id = ?1`;
 
 const COLS_AVALIACAO = 'id, parte_id, metodo, resultado, valido_ate, evidencia_url, observacao, avaliado_por, created_at';
 
@@ -51,20 +57,27 @@ const SO_PARTE_INTERESSADA = `EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.par
 
 /** Terceiros do projeto (partes organização ativas, menos as que são só parte interessada) com tipo, situação, nº de tratamentos que os usam e nº de documentos (DPA). */
 export async function listarTerceiros(db: D1Database, projectId: string): Promise<Terceiro[]> {
-  const [partes, avals, trat, docs] = await db.batch([
+  const [partes, avals, trat, docs, crits, dpas] = await db.batch([
     db.prepare(`SELECT id, nome, terceiro_tipo FROM partes p WHERE project_id = ?1 AND tipo = 'organizacao' AND status = 'ativa'
       AND NOT (${SO_PARTE_INTERESSADA}) ORDER BY nome`).bind(projectId),
     db.prepare(`SELECT ${COLS_AVALIACAO} FROM avaliacoes_terceiro WHERE project_id = ? ORDER BY created_at, rowid`).bind(projectId),
-    db.prepare(`SELECT parte_id, count(DISTINCT alvo_id) AS n FROM parte_vinculos WHERE project_id = ? AND alvo_tipo = 'tratamento' GROUP BY parte_id`).bind(projectId),
+    db.prepare(`SELECT parte_id, count(DISTINCT ropa_id) AS n FROM (${SQL_ATIVIDADES}) GROUP BY parte_id`).bind(projectId),
     db.prepare(`SELECT parte_id, count(DISTINCT documento_id) AS n FROM documento_partes WHERE project_id = ? GROUP BY parte_id`).bind(projectId),
+    db.prepare(`SELECT parte_id, nivel FROM criticidades_terceiro WHERE project_id = ? ORDER BY created_at, rowid`).bind(projectId),
+    db.prepare(`SELECT DISTINCT parte_id FROM documento_partes WHERE project_id = ? AND papel = 'dpa'`).bind(projectId),
   ]);
+  const nivel = new Map<string, NivelCriticidade>();
+  for (const c of crits.results as { parte_id: string; nivel: NivelCriticidade }[]) nivel.set(c.parte_id, c.nivel); // ordenado: a última sobrescreve
+  const comDpa = new Set((dpas.results as { parte_id: string }[]).map((d) => d.parte_id));
   const ultima = new Map<string, Avaliacao>();
   for (const a of avals.results as (Avaliacao & { parte_id: string })[]) ultima.set(a.parte_id, a); // ordenado: a última sobrescreve
   const n = (r: { results: unknown[] }) => new Map((r.results as { parte_id: string; n: number }[]).map((x) => [x.parte_id, x.n]));
   const nt = n(trat), nd = n(docs);
   return (partes.results as { id: string; nome: string; terceiro_tipo: TipoTerceiro | null }[]).map((p) => {
     const u = ultima.get(p.id) ?? null;
-    return { id: p.id, nome: p.nome, terceiro_tipo: p.terceiro_tipo, metodo: p.terceiro_tipo ? METODO_DO_TIPO[p.terceiro_tipo] : null, situacao: situacaoDe(u), ultima_avaliacao: u, tratamentos: nt.get(p.id) ?? 0, documentos: nd.get(p.id) ?? 0 };
+    const atividades = nt.get(p.id) ?? 0;
+    return { id: p.id, nome: p.nome, terceiro_tipo: p.terceiro_tipo, metodo: p.terceiro_tipo ? METODO_DO_TIPO[p.terceiro_tipo] : null, situacao: situacaoDe(u), ultima_avaliacao: u,
+      tratamentos: atividades, documentos: nd.get(p.id) ?? 0, nivel: nivel.get(p.id) ?? null, dpa: comDpa.has(p.id), atividades };
   });
 }
 
@@ -75,18 +88,25 @@ export async function listarCandidatos(db: D1Database, projectId: string): Promi
   return r.results;
 }
 
-/** A ficha do terceiro: dados, histórico, documentos ligados, suboperadores e os tratamentos que o usam. null = não é do projeto. */
+/** A ficha do terceiro: dados, e-mail, perfil de segurança (`vendors`, as colunas de GET .../vendors), histórico, documentos ligados,
+ * suboperadores e as atividades que o usam (o mesmo tratamento pelas duas origens aparece uma vez, como vínculo). null = não é do projeto. */
 export async function lerTerceiro(db: D1Database, projectId: string, parteId: string) {
   const todos = await listarTerceiros(db, projectId);
   const t = todos.find((x) => x.id === parteId);
   if (!t) return null;
-  const [hist, docs, subs, trat] = await db.batch([
+  const [hist, docs, subs, trat, parte, seg] = await db.batch([
     db.prepare(`SELECT ${COLS_AVALIACAO} FROM avaliacoes_terceiro WHERE parte_id = ? AND project_id = ? ORDER BY created_at DESC, rowid DESC`).bind(parteId, projectId),
     db.prepare(`SELECT d.id, d.titulo, d.status, dp.papel FROM documento_partes dp JOIN documentos d ON d.id = dp.documento_id WHERE dp.parte_id = ? AND dp.project_id = ? ORDER BY d.titulo`).bind(parteId, projectId),
     db.prepare(`SELECT p.id, p.nome FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id WHERE v.papel = 'suboperador' AND v.alvo_tipo = 'parte' AND v.alvo_id = ? AND v.project_id = ? ORDER BY p.nome`).bind(parteId, projectId),
-    db.prepare(`SELECT DISTINCT r.id, r.processing_purpose AS finalidade FROM parte_vinculos v JOIN ropa_records r ON r.id = v.alvo_id WHERE v.parte_id = ? AND v.alvo_tipo = 'tratamento' AND v.project_id = ? ORDER BY r.processing_purpose`).bind(parteId, projectId),
+    // 'compartilhamento_externo' < 'vinculo': o MAX dá vínculo quando o tratamento vem pelas duas origens
+    db.prepare(`SELECT r.id, r.processing_purpose AS finalidade, MAX(a.origem) AS origem FROM (${SQL_ATIVIDADES}) a JOIN ropa_records r ON r.id = a.ropa_id
+      WHERE a.parte_id = ?2 GROUP BY r.id ORDER BY r.processing_purpose`).bind(projectId, parteId),
+    db.prepare(`SELECT email FROM partes WHERE id = ? AND project_id = ?`).bind(parteId, projectId),
+    db.prepare(`SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.parte_id = ?1 AND v.project_id = ?2
+      AND EXISTS (SELECT 1 FROM parte_vinculos pv WHERE pv.parte_id = v.parte_id AND pv.papel = 'terceiro' AND pv.alvo_tipo = 'projeto' AND pv.alvo_id = v.project_id)`).bind(parteId, projectId),
   ]);
-  return { ...t, historico: hist.results as Avaliacao[], documentos_ligados: docs.results, suboperadores: subs.results, tratamentos_afetados: trat.results };
+  return { ...t, email: (parte.results[0] as { email: string | null } | undefined)?.email ?? null, seguranca: seg.results[0] ?? null,
+    historico: hist.results as Avaliacao[], documentos_ligados: docs.results, suboperadores: subs.results, tratamentos_afetados: trat.results };
 }
 
 const parteDoProjeto = (db: D1Database, projectId: string, parteId: string) =>
