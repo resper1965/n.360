@@ -83,3 +83,18 @@ describe('criticidade do fornecedor', () => {
     expect((await chamar(consultor, 'POST', `${base}/nao-existe/criticidades`, todosBaixo)).status).toBe(404);
   });
 });
+
+describe('criticidade: atomicidade', () => {
+  it('se a troca do tipo falha, o histórico não fica gravado com o tipo antigo', async () => {
+    await env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('cr-c', ?, 'organizacao', 'Atomico')`).bind(P).run();
+    await env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS cr_falha_tipo BEFORE UPDATE OF terceiro_tipo ON partes WHEN NEW.id = 'cr-c' BEGIN SELECT RAISE(ABORT, 'falha injetada'); END`).run();
+    try {
+      const r = await chamar(consultor, 'POST', `${base}/cr-c/criticidades`, algoAlto);
+      expect(r.status).toBe(500);
+      const n = await env.DB.prepare(`SELECT count(*) AS n FROM criticidades_terceiro WHERE parte_id = 'cr-c'`).first<{ n: number }>();
+      expect(n!.n).toBe(0);
+    } finally {
+      await env.DB.prepare(`DROP TRIGGER IF EXISTS cr_falha_tipo`).run();
+    }
+  });
+});

@@ -161,9 +161,15 @@ export async function registrarCriticidade(db: D1Database, projectId: string, pa
   const nivel = nivelDaCriticidade(r);
   const tipo = tipoDaCriticidade(nivel, p.terceiro_tipo);
   const id = crypto.randomUUID();
-  await db.prepare(`INSERT INTO criticidades_terceiro (id, project_id, parte_id, impacto, exclusividade, risco_financeiro, conformidade, risco_reputacional, nivel, avaliado_por)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, projectId, parteId, r.impacto, r.exclusividade, r.risco_financeiro, r.conformidade, r.risco_reputacional, nivel, ator).run();
-  if (tipo !== p.terceiro_tipo) await definirTipo(db, projectId, parteId, ator, tipo);
+  // Histórico e troca do tipo no MESMO batch (transação no D1): ou gravam os dois, ou nenhum.
+  const gravacoes = [db.prepare(`INSERT INTO criticidades_terceiro (id, project_id, parte_id, impacto, exclusividade, risco_financeiro, conformidade, risco_reputacional, nivel, avaliado_por)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, projectId, parteId, r.impacto, r.exclusividade, r.risco_financeiro, r.conformidade, r.risco_reputacional, nivel, ator)];
+  if (tipo !== p.terceiro_tipo) gravacoes.push(
+    db.prepare(`UPDATE partes SET terceiro_tipo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`).bind(tipo, parteId, projectId),
+    // mesmo vínculo que definirTipo grava: é ele que faz o gatilho criar o perfil de segurança do n.iso
+    db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, 'terceiro', 'projeto', ?)`).bind(crypto.randomUUID(), projectId, parteId, projectId),
+  );
+  await db.batch(gravacoes);
   await logAudit(db, 'terceiro.criticidade', ator, `Parte ${parteId}: criticidade ${nivel} (tipo ${tipo})`, '', '', projectId);
   return { ok: true, id, nivel, tipo };
 }
