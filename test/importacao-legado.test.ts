@@ -182,7 +182,7 @@ describe('migração do legado pelos modelos, sem IA', () => {
       salvaguardas: 'Opção de não receber contato', status: 'rascunho', conclusao: null });
     expect(String(lia!.balanceamento)).toContain('Expectativa razoável');
     expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM titular_pedidos WHERE project_id = ?`).bind(P).first<{ n: number }>())!.n).toBe(2);
-  });
+  }, 30_000); // dez arquivos num lote: sob carga passa dos 5 s, e a segunda tentativa acharia os tratamentos da primeira
 
   it('reimportar os mesmos arquivos não duplica nem sobrescreve: tudo nasce descartado como duplicata', async () => {
     // Uma pessoa mudou uma resposta do teste de impacto depois da importação.
