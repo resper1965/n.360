@@ -8,7 +8,7 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import '../src/ui.js';
 import html from '../login.html?raw';
-import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, SO_ISO, SO_PRIVACY, SO_N360, TELAS_DA_CONTA, telaPedida, pedidoDoHub, TELAS_DOS_MODULOS, TELAS_DO_HUB } from '../src/produto.js';
+import { produtoAtual, destinoLegado, aplicarCasca, projetosDoProduto, temProduto, enderecoDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, SO_ISO, SO_PRIVACY, SO_N360, TELAS_DA_CONTA, telaPedida, pedidoDoHub, TELAS_DOS_MODULOS, TELAS_DO_HUB } from '../src/produto.js';
 import fonteRouter from '../src/router.js?raw';
 
 const loc = (url) => { const u = new URL(url); return { hostname: u.hostname, pathname: u.pathname, search: u.search, hash: u.hash, origin: u.origin }; };
@@ -389,6 +389,30 @@ describe('sem acesso e links entre módulos', () => {
         S.activeProject = { id: 'a', modulos: ['iso'] };
         atualizarLinkCruzado();
         expect(el('link-outro-produto')).toBeNull();
+    });
+    it('seletor de módulo no cabeçalho: só com dois módulos visíveis, o atual marcado, e some no n.360', () => {
+        document.body.innerHTML = '<div class="header-left"><h1 id="header-title"></h1></div>';
+        const itens = () => [...document.querySelectorAll('#modulo-seletor a')].map((a) => [a.textContent, a.getAttribute('href'), a.getAttribute('aria-current')]);
+        ir('/privacy');
+        S.activeProject = { id: 'c', modulos: ['iso', 'privacy'] };
+        atualizarSeletorDeModulo();
+        expect(el('modulo-seletor').hidden).toBe(false);
+        expect(el('modulo-seletor').getAttribute('aria-label')).toBe('Módulo');
+        expect(itens()).toEqual([['n.iso', '/iso', null], ['n.privacy', '/privacy', 'page']]);
+        atualizarSeletorDeModulo();
+        expect(document.querySelectorAll('#modulo-seletor').length).toBe(1);
+        // a pessoa só tem o n.privacy: nada a escolher
+        S.user = { role: 'consultor', modulos: ['privacy'] };
+        atualizarSeletorDeModulo();
+        expect(el('modulo-seletor').hidden).toBe(true);
+        S.user = { role: 'platform_admin' };
+        S.activeProject = { id: 'a', modulos: ['privacy'] };
+        atualizarSeletorDeModulo();
+        expect(el('modulo-seletor').hidden).toBe(true);
+        S.activeProject = { id: 'c', modulos: ['iso', 'privacy'] };
+        ir('/');
+        atualizarSeletorDeModulo();
+        expect(el('modulo-seletor').hidden).toBe(true);
     });
     it('no início do n.360 não há link de módulo nem de volta', () => {
         document.body.innerHTML = '<nav id="sidebar"></nav>';

@@ -199,6 +199,9 @@ describe('início do n.360', () => {
         expect(chamadas(f)).toContain('GET /api/v1/projects/p9/painel');
         expect(chamadas(f).filter((x) => x.includes('/painel'))).toHaveLength(1);
         expect([...el('c').querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toEqual(['Abrir o n.iso', 'Abrir o n.privacy']);
+        // Cada linha diz o que o módulo é: a escolha entre os dois não depende de conhecer o nome.
+        expect([...el('c').querySelectorAll('.pn-m .pn-m-desc')].map((p) => p.textContent))
+            .toEqual(['ISO 27001 e 27701: controles, riscos e auditoria', 'LGPD: tratamentos, titulares, incidentes e terceiros']);
         expect(el('c').textContent).toContain('O que fazer agora, nos dois módulos');
         const nomes = [...el('c').querySelectorAll('[data-action="painelAbrir"]')].map((b) => b.getAttribute('aria-label'));
         expect(new Set(nomes).size).toBe(nomes.length);
@@ -220,6 +223,7 @@ describe('início do n.360', () => {
         await abrir('n360');
         expect(el('c').textContent).toContain('Não habilitado neste projeto');
         expect([...el('c').querySelectorAll('[data-action="abrirModulo"]')].map((b) => b.textContent)).toEqual(['Abrir o n.iso']);
+        expect(el('c').querySelectorAll('.pn-m .pn-m-desc')).toHaveLength(2);
     });
 
     it('consultor com mais de um projeto: a carteira é o padrão; a escolha fica lembrada, e sem storage tudo funciona', async () => {
