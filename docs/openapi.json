@@ -24304,6 +24304,164 @@
         }
       }
     },
+    "/api/v1/projects/{projectId}/terceiros/{parteId}/criticidades": {
+      "post": {
+        "operationId": "post_api_v1_projects__projectId__terceiros__parteId__criticidades",
+        "tags": [
+          "projects"
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "parteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "impacto": {
+                    "type": "string",
+                    "enum": [
+                      "alto",
+                      "medio",
+                      "baixo"
+                    ]
+                  },
+                  "exclusividade": {
+                    "type": "string",
+                    "enum": [
+                      "sem_alternativas",
+                      "poucas_alternativas",
+                      "varias_alternativas"
+                    ]
+                  },
+                  "risco_financeiro": {
+                    "type": "string",
+                    "enum": [
+                      "alto",
+                      "medio",
+                      "baixo"
+                    ]
+                  },
+                  "conformidade": {
+                    "type": "string",
+                    "enum": [
+                      "regulamentado",
+                      "sem_regulamentacao"
+                    ]
+                  },
+                  "risco_reputacional": {
+                    "type": "string",
+                    "enum": [
+                      "alto",
+                      "medio",
+                      "baixo"
+                    ]
+                  }
+                },
+                "required": [
+                  "impacto",
+                  "exclusividade",
+                  "risco_financeiro",
+                  "conformidade",
+                  "risco_reputacional"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Payload inválido — corpo recusado pelo schema, com `details` por campo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "request_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sem sessão válida"
+          },
+          "403": {
+            "description": "Sessão válida, sem acesso ao recurso ou ao projeto"
+          },
+          "500": {
+            "description": "Erro de servidor. `request_id` correlaciona com o log estruturado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "request_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{projectId}/terceiros/{parteId}/documentos": {
       "post": {
         "operationId": "post_api_v1_projects__projectId__terceiros__parteId__documentos",

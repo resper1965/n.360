@@ -1657,6 +1657,23 @@ CREATE TABLE IF NOT EXISTS documento_partes (
 );
 CREATE INDEX IF NOT EXISTS idx_doc_partes_parte ON documento_partes(parte_id);
 
+-- Avaliação de criticidade do fornecedor (migration 0080): histórico; o nível é derivado no servidor
+CREATE TABLE IF NOT EXISTS criticidades_terceiro (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    parte_id TEXT NOT NULL REFERENCES partes(id) ON DELETE CASCADE,
+    impacto TEXT NOT NULL CHECK (impacto IN ('alto', 'medio', 'baixo')),
+    exclusividade TEXT NOT NULL CHECK (exclusividade IN ('sem_alternativas', 'poucas_alternativas', 'varias_alternativas')),
+    risco_financeiro TEXT NOT NULL CHECK (risco_financeiro IN ('alto', 'medio', 'baixo')),
+    conformidade TEXT NOT NULL CHECK (conformidade IN ('regulamentado', 'sem_regulamentacao')),
+    risco_reputacional TEXT NOT NULL CHECK (risco_reputacional IN ('alto', 'medio', 'baixo')),
+    nivel TEXT NOT NULL CHECK (nivel IN ('alto', 'medio', 'baixo')),
+    avaliado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_criticidade_terceiro_parte ON criticidades_terceiro(parte_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_criticidade_terceiro_projeto ON criticidades_terceiro(project_id);
+
 -- Titular, incidente e consentimento (fatia 7, migration 0058)
 CREATE TABLE IF NOT EXISTS parametros_legais (
     chave TEXT PRIMARY KEY,

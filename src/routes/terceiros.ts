@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500 } from '../helpers';
-import { definirTipo, desligarDocumento, lerTerceiro, ligarDocumento, listarCandidatos, listarTerceiros, registrarAvaliacao, type PapelDocumento } from '../services/terceiros';
-import { validateBody, avaliacaoTerceiroSchema, terceiroDocumentoSchema, terceiroTipoSchema } from '../schemas';
+import { definirTipo, desligarDocumento, lerCriticidades, lerTerceiro, ligarDocumento, listarCandidatos, listarTerceiros, registrarAvaliacao, registrarCriticidade, type PapelDocumento } from '../services/terceiros';
+import { validateBody, avaliacaoTerceiroSchema, criticidadeTerceiroSchema, terceiroDocumentoSchema, terceiroTipoSchema } from '../schemas';
 
 /**
  * Núcleo do n.privacy, fatia 6: terceiros tipificados. Montado em `/api/v1/projects/:projectId/terceiros`, então o
@@ -35,6 +35,20 @@ terceirosApp.post('/:parteId/avaliacoes', async (c) => {
     const r = await registrarAvaliacao(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'), c.get('user').email, v.data);
     return r.ok ? c.json({ ok: true, id: r.id, metodo: r.metodo }, 201) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao registrar a avaliação', e); }
+});
+
+terceirosApp.get('/:parteId/criticidades', async (c) => {
+  const r = await lerCriticidades(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'));
+  return r ? c.json(r) : c.json({ error: 'Terceiro não encontrado' }, 404);
+});
+
+terceirosApp.post('/:parteId/criticidades', async (c) => {
+  try {
+    const v = await validateBody(c, criticidadeTerceiroSchema);
+    if (!v.success) return v.response;
+    const r = await registrarCriticidade(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'), c.get('user').email, v.data);
+    return r.ok ? c.json({ ok: true, id: r.id, nivel: r.nivel, tipo: r.tipo }, 201) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao registrar a criticidade', e); }
 });
 
 terceirosApp.post('/:parteId/documentos', async (c) => {

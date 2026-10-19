@@ -133,7 +133,7 @@ import {
   documentoRequisitosSchema, requisitoAtualizarSchema, mapeamentoSchema,
   tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema,
   riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema,
-  terceiroTipoSchema, avaliacaoTerceiroSchema, terceiroDocumentoSchema,
+  terceiroTipoSchema, avaliacaoTerceiroSchema, terceiroDocumentoSchema, criticidadeTerceiroSchema,
   parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
@@ -341,6 +341,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/similares', schema: similaresSchema, nome: 'similaresSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/sso', schema: ssoConfigSchema, nome: 'ssoConfigSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/avaliacoes', schema: avaliacaoTerceiroSchema, nome: 'avaliacaoTerceiroSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/criticidades', schema: criticidadeTerceiroSchema, nome: 'criticidadeTerceiroSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/documentos', schema: terceiroDocumentoSchema, nome: 'terceiroDocumentoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/tipo', schema: terceiroTipoSchema, nome: 'terceiroTipoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/titular-pedidos/:id', schema: titularPedidoAtualizarSchema, nome: 'titularPedidoAtualizarSchema' },

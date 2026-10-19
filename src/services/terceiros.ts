@@ -1,4 +1,5 @@
 import { logAudit } from '../helpers';
+import { nivelDaCriticidade, tipoDaCriticidade, type NivelCriticidade, type RespostasCriticidade } from './criticidade';
 
 /**
  * Núcleo do n.privacy, fatia 6: terceiros (TPRM) tipificados. O terceiro é uma parte do tipo `organizacao`; o tipo define o
@@ -140,4 +141,35 @@ export async function desligarDocumento(db: D1Database, projectId: string, parte
   const r = await db.prepare('DELETE FROM documento_partes WHERE documento_id = ? AND parte_id = ? AND papel = ? AND project_id = ?').bind(documentoId, parteId, papel, projectId).run();
   if (r.meta.changes) await logAudit(db, 'terceiro.documento', ator, `Parte ${parteId}: documento ${documentoId} desligado (${papel})`, '', '', projectId);
   return (r.meta.changes ?? 0) > 0;
+}
+
+export type Criticidade = RespostasCriticidade & { id: string; nivel: NivelCriticidade; avaliado_por: string | null; created_at: string };
+
+/** Histórico de criticidade do fornecedor, o mais recente primeiro. `atual` é null enquanto nunca foi avaliado. */
+export async function lerCriticidades(db: D1Database, projectId: string, parteId: string): Promise<{ atual: Criticidade | null; historico: Criticidade[] } | null> {
+  if (!(await parteDoProjeto(db, projectId, parteId))) return null;
+  const r = await db.prepare(`SELECT id, impacto, exclusividade, risco_financeiro, conformidade, risco_reputacional, nivel, avaliado_por, created_at
+    FROM criticidades_terceiro WHERE parte_id = ? AND project_id = ? ORDER BY created_at DESC, rowid DESC`).bind(parteId, projectId).all<Criticidade>();
+  return { atual: r.results[0] ?? null, historico: r.results };
+}
+
+/** Grava a avaliação e ajusta o tipo pelo nível (grande_provedor fica). O nível é derivado aqui, nunca vem do cliente. */
+export async function registrarCriticidade(db: D1Database, projectId: string, parteId: string, ator: string, r: RespostasCriticidade): Promise<Falha | { ok: true; id: string; nivel: NivelCriticidade; tipo: TipoTerceiro }> {
+  const p = await parteDoProjeto(db, projectId, parteId);
+  if (!p) return falha(404, 'Parte não encontrada');
+  if (p.tipo !== 'organizacao') return falha(400, 'Só organização é terceiro');
+  const nivel = nivelDaCriticidade(r);
+  const tipo = tipoDaCriticidade(nivel, p.terceiro_tipo);
+  const id = crypto.randomUUID();
+  // Histórico e troca do tipo no MESMO batch (transação no D1): ou gravam os dois, ou nenhum.
+  const gravacoes = [db.prepare(`INSERT INTO criticidades_terceiro (id, project_id, parte_id, impacto, exclusividade, risco_financeiro, conformidade, risco_reputacional, nivel, avaliado_por)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, projectId, parteId, r.impacto, r.exclusividade, r.risco_financeiro, r.conformidade, r.risco_reputacional, nivel, ator)];
+  if (tipo !== p.terceiro_tipo) gravacoes.push(
+    db.prepare(`UPDATE partes SET terceiro_tipo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`).bind(tipo, parteId, projectId),
+    // mesmo vínculo que definirTipo grava: é ele que faz o gatilho criar o perfil de segurança do n.iso
+    db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, 'terceiro', 'projeto', ?)`).bind(crypto.randomUUID(), projectId, parteId, projectId),
+  );
+  await db.batch(gravacoes);
+  await logAudit(db, 'terceiro.criticidade', ator, `Parte ${parteId}: criticidade ${nivel} (tipo ${tipo})`, '', '', projectId);
+  return { ok: true, id, nivel, tipo };
 }

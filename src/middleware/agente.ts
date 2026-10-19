@@ -129,6 +129,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/projects\/[^/]+\/(export\/(atividades|ripd|riscos-atividade|acoes-atividade|lia|risks|vendors|training|audit-log|assets)|dpia\/[^/]+\/docx|ropa\/[^/]+\/lia\/docx)$/, 'exportação em arquivo é pela interface'],
   // Homologação de fornecedor (F5): o link é credencial emitida pela consultoria e concluir grava a avaliação do terceiro; o agente só lê.
   [/^\/api\/v1\/projects\/[^/]+\/homologacoes(\/|$)/, 'homologação de fornecedor é conduzida pela equipe, pela interface; o agente só lê', ['POST', 'PUT', 'DELETE']],
+  // Criticidade do fornecedor (spec 2026-10-18): a avaliação define o tipo, e com ele o método de due diligence; o agente só lê.
+  [/^\/api\/v1\/projects\/[^/]+\/terceiros\/[^/]+\/criticidades$/, 'avaliação de criticidade do fornecedor é ato humano, pela interface; o agente só lê', ['POST']],
   [/^\/api\/v1\/management-reviews\/[^/]+$/,'excluir análise crítica destrói registro assinado: use a interface', ['DELETE']],
   // Bancada da trilha (spec 2026-10-15): concluir, reabrir e bloquear passo são atos humanos (como aceitar documento); o rascunho de IA é da tela.
   [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/(concluir|reabrir|bloquear|desbloquear)$/, 'concluir, reabrir e bloquear passo da trilha é ato humano, pela interface', ['POST']],

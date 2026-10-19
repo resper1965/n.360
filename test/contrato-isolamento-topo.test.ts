@@ -243,6 +243,10 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   catalogo_itens: { tipo: 'titular' },
   tratamento_medidas: { status: 'ativa' },
   acao_anexos: { file_type: 'pdf', file_size: 1 },
+
+  // Criticidade do fornecedor (0080): enums do CHECK
+
+  criticidades_terceiro: { impacto: 'alto', exclusividade: 'sem_alternativas', risco_financeiro: 'alto', conformidade: 'regulamentado', risco_reputacional: 'alto', nivel: 'alto' },
 };
 
 async function semearTenantAlheio(id: string, projeto: string): Promise<void> {
