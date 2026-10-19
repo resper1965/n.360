@@ -99,7 +99,7 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
             'nav-encarregado',
             '# Mapear', 'nav-ropa nav-importacao',
             '# Cadastros', 'nav-partes nav-terceiros nav-catalogos',
-            '# Avaliar', 'nav-dpia nav-mapa-de-risco nav-requisitos',
+            '# Avaliar', 'nav-dpia nav-lia nav-mapa-de-risco nav-gaps nav-requisitos',
             '# Responder', 'nav-titular nav-incidentes-privacy nav-consentimentos',
             '# Provar', 'nav-documentos nav-evidence nav-training nav-governance',
             'nav-ai',
@@ -125,11 +125,11 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
         const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
         expect(rotulos.map((r) => r.textContent)).toEqual([]);
     });
-    it('17 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
+    it('19 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
         montarApp();
         aplicarCasca('privacy');
         const destinos = [...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => n.id);
-        expect(destinos.length).toBe(17);
+        expect(destinos.length).toBe(19);
         expect(new Set(visiveis())).toEqual(new Set(destinos));
         for (const id of ['nav-meus', 'nav-audit-trail', 'nav-settings']) expect(el(id).dataset.foraDoProduto, id).toBe('1');
         expect(el('group-system-config').dataset.foraDoProduto).toBe('1');
@@ -147,6 +147,8 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
         expect(el('group-implantacao').dataset.foraDoProduto).toBe('1');
         expect(rotuloDe('group-implantacao').dataset.foraDoProduto).toBe('1');
         expect(visiveis()).not.toContain('nav-consentimentos');
+        expect(visiveis()).not.toContain('nav-gaps');
+        expect(visiveis()).not.toContain('nav-lia');
     });
     it('rótulos de uma linha, nome do objeto antes da sigla; ids, rotas e ações não mudam', () => {
         montarApp();
@@ -154,7 +156,7 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
         const texto = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
         expect(Object.fromEntries([...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => [n.id, texto(n.id)]))).toEqual({
             'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas, áreas e sistemas', 'nav-terceiros': 'Fornecedores',
-            'nav-catalogos': 'Titulares e dados pessoais', 'nav-importacao': 'Importar programa', 'nav-dpia': 'RIPD', 'nav-mapa-de-risco': 'Mapa de risco', 'nav-requisitos': 'Cobertura da LGPD', 'nav-titular': 'Pedidos do titular',
+            'nav-catalogos': 'Titulares e dados pessoais', 'nav-importacao': 'Importar programa', 'nav-dpia': 'RIPD', 'nav-lia': 'LIA', 'nav-mapa-de-risco': 'Riscos', 'nav-gaps': 'Gaps', 'nav-requisitos': 'Cobertura da LGPD', 'nav-titular': 'Pedidos do titular',
             'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-documentos': 'Documentos', 'nav-evidence': 'Evidências',
             'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-ai': 'Assistente',
         });
@@ -183,7 +185,7 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
     });
     it('os itens com projeto seguem o projeto: sem projeto somem, e as seções também', () => {
         montarApp();
-        for (const id of ['nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-catalogos', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco']) {
+        for (const id of ['nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-catalogos', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps']) {
             expect(el(id).classList.contains('group-project-only'), id).toBe(true);
             expect(el(id).style.display, id).toBe('none');
         }
