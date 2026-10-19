@@ -120,7 +120,7 @@ describe('skills do n.privacy para o consultor', () => {
       expect(texto, nome).toContain('PEÇA APROVAÇÃO HUMANA');
       expect(Object.keys(SKILLS[nome].arquivos).some((a) => a.startsWith('references/')), nome).toBe(true);
     }
-    expect(SKILLS['implantacao-privacy'].arquivos['references/entrevista-ropa.md']).toMatch(/## A\.[\s\S]*## H\./);
+    expect(SKILLS['implantacao-privacy'].arquivos['references/entrevista-ropa.md']).toMatch(/Escopo[\s\S]*Teste de Impacto/);
     const titular = SKILLS['atendimento-titular'].arquivos['SKILL.md'];
     expect(titular).toContain('parametros_legais');
     expect(titular).not.toMatch(/\b\d+\s+dias\b/);
