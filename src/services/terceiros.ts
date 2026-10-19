@@ -141,3 +141,37 @@ export async function desligarDocumento(db: D1Database, projectId: string, parte
   if (r.meta.changes) await logAudit(db, 'terceiro.documento', ator, `Parte ${parteId}: documento ${documentoId} desligado (${papel})`, '', '', projectId);
   return (r.meta.changes ?? 0) > 0;
 }
+
+/** Criticidade (spec 2026-10-18): cinco blocos, cada um com uma resposta. As opções são gravadas como estão; o nível é derivado. */
+export const RESPOSTAS_CRITICIDADE = {
+  impacto: ['alto', 'medio', 'baixo'],
+  exclusividade: ['sem_alternativas', 'poucas_alternativas', 'varias_alternativas'],
+  risco_financeiro: ['alto', 'medio', 'baixo'],
+  conformidade: ['regulamentado', 'sem_regulamentacao'],
+  risco_reputacional: ['alto', 'medio', 'baixo'],
+} as const;
+export type RespostasCriticidade = { [K in keyof typeof RESPOSTAS_CRITICIDADE]: (typeof RESPOSTAS_CRITICIDADE)[K][number] };
+export type NivelCriticidade = 'alto' | 'medio' | 'baixo';
+
+/** Cada resposta vira um nível de risco; o pior critério manda (qualquer Alto → Alto; senão qualquer Médio → Médio). */
+const NIVEL_DA_RESPOSTA: { [K in keyof RespostasCriticidade]: Record<RespostasCriticidade[K], NivelCriticidade> } = {
+  impacto: { alto: 'alto', medio: 'medio', baixo: 'baixo' },
+  exclusividade: { sem_alternativas: 'alto', poucas_alternativas: 'medio', varias_alternativas: 'baixo' },
+  risco_financeiro: { alto: 'alto', medio: 'medio', baixo: 'baixo' },
+  conformidade: { regulamentado: 'alto', sem_regulamentacao: 'baixo' },
+  risco_reputacional: { alto: 'alto', medio: 'medio', baixo: 'baixo' },
+};
+
+export function nivelDaCriticidade(r: RespostasCriticidade): NivelCriticidade {
+  const niveis = (Object.keys(NIVEL_DA_RESPOSTA) as (keyof RespostasCriticidade)[]).map((k) => NIVEL_DA_RESPOSTA[k][r[k]]);
+  if (niveis.includes('alto')) return 'alto';
+  return niveis.includes('medio') ? 'medio' : 'baixo';
+}
+
+const TIPO_DO_NIVEL: Record<NivelCriticidade, TipoTerceiro> = { alto: 'critico', medio: 'medio', baixo: 'pequeno' };
+
+/** O nível define o tipo; grande_provedor é escolha manual e nunca é trocado aqui. */
+export function tipoDaCriticidade(nivel: NivelCriticidade, tipoAtual: TipoTerceiro | null): TipoTerceiro {
+  if (tipoAtual === 'grande_provedor') return tipoAtual;
+  return TIPO_DO_NIVEL[nivel];
+}
