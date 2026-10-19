@@ -31,7 +31,7 @@ description: Use ao trazer para o n.privacy um programa de privacidade que o cli
 3. **Escolha o caminho** pela tabela acima e diga ao consultor qual e por quê.
 4. **Depois da importação** (qualquer caminho), confira:
    - `niso_privacy_ropa`: registros com `nao_informado` (a importação de programa não trouxe dado sensível, menores ou
-     transferência); complete pela entrevista (`niso_skill nome=implantacao-privacy arquivo=references/entrevista-ropa.md`), só os
+     transferência); complete pelo modo guiado (`niso_skill nome=implantacao-privacy arquivo=references/entrevista-ropa.md`), só os
      blocos que faltam. A planilha CSV **não** marca `nao_informado`: se ela não tinha essas colunas, pergunte de todos os registros.
    - Base legal só em texto: proponha o `base_legal_id` do catálogo (`niso_privacy_ligar_tratamento`), mantendo o texto.
    - Duplicatas por nome parecido (finalidades quase iguais): liste para o consultor decidir; não apague.

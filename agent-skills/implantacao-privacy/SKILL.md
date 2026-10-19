@@ -1,6 +1,6 @@
 ---
 name: implantacao-privacy
-description: Use ao implantar o n.privacy num cliente novo, do zero: ordem de trabalho, inventário (RoPA) pela entrevista de 8 blocos, o que pedir ao cliente e o critério de pronto de cada etapa, sempre propondo rascunho e parando para aprovação humana
+description: Use ao implantar o n.privacy num cliente novo, do zero: ordem de trabalho, inventário (RoPA) pelo modo guiado, na ordem das abas, o que pedir ao cliente e o critério de pronto de cada etapa, sempre propondo rascunho e parando para aprovação humana
 ---
 
 # Implantação do programa de privacidade em cliente novo (n.privacy)
@@ -29,7 +29,7 @@ description: Use ao implantar o n.privacy num cliente novo, do zero: ordem de tr
 
 1. **Partida.** Leia o encarregado e o ponto de partida. Anote o que o n.iso já entrega (partes, documentos, itens, fornecedores) para não pedir de novo ao cliente.
 2. **Encarregado e canal do titular.** Sem encarregado designado, o primeiro pedido ao cliente é esse. A designação é feita na Governança, pela interface.
-3. **Inventário (RoPA).** Um tratamento por vez, pela entrevista de 8 blocos (`references/entrevista-ropa.md`). Comece pelas áreas com mais dado pessoal (Pessoas, Comercial, Atendimento, TI). Crie o registro ao fim do bloco A e complete os demais com `niso_privacy_atualizar_tratamento` e `niso_privacy_ligar_tratamento`.
+3. **Inventário (RoPA).** Um tratamento por vez, pelo modo guiado do registro de atividade, na ordem das abas (`references/entrevista-ropa.md`). Comece pelas áreas com mais dado pessoal (Pessoas, Comercial, Atendimento, TI). Crie o registro ao fim do bloco A e complete os demais com `niso_privacy_atualizar_tratamento` e `niso_privacy_ligar_tratamento`.
 4. **Bases e riscos.** Para cada tratamento com legítimo interesse, rascunhe a LIA. Para cada um com `dpia_required` ou com dado sensível, menores, larga escala ou decisão automatizada, proponha o RIPD (`niso_privacy_criar_dpia_do_tratamento`).
 5. **Terceiros.** Todo operador citado no bloco F vira terceiro avaliado (skill `avaliacao-terceiros`).
 6. **Titular e incidentes.** Confira com o encarregado se os prazos estão cadastrados (`/api/v1/parametros-legais`). Sem o parâmetro, o prazo sai "não calculado": registre a pendência, não um número.
