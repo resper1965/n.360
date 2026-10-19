@@ -7,7 +7,7 @@ vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://localhost', ca
 vi.mock('../src/router.js', () => ({ render: vi.fn(), navigate: navigateMock }));
 
 import { S } from '../src/state.js';
-import { painelGuiado, adiadas, chaveDaPergunta, gravarModoNoEndereco, modoDoEndereco, focarCampo } from '../src/atividade/guiado.js';
+import { painelGuiado, adiadas, chaveDaPergunta, gravarModoNoEndereco, modoDoEndereco, focarCampo, perguntaAtual } from '../src/atividade/guiado.js';
 import { PERGUNTAS_GUIADAS, textoDaPergunta } from '../src/atividade/perguntas.js';
 import * as entrevista from '../src/atividade/estado.js';
 
@@ -60,8 +60,46 @@ describe('painel guiado', () => {
         expect(window.sessionStorage.length).toBe(1);
         expect(window.sessionStorage.key(0)).toBe('ra.adiadas.r1');
         expect(window.sessionStorage.getItem('ra.adiadas.r1')).toBe('["tratamento/coleta.titulares"]');
+        // era a única lacuna: o guiado não trava nela, lista a pendência
         const aside = painel(painelGuiado(ficha(p), 'r1'));
-        expect(aside.textContent).toContain('Pergunta adiada nesta sessão.');
+        expect(aside.querySelector('.at-guiado-pergunta').textContent).toBe('Falta 1 resposta que você deixou para depois.');
+    });
+
+    it('"Não sei agora" pula para a lacuna seguinte; a aba segue a pergunta da tela, não a do servidor', () => {
+        const a = { aba: 'escopo', campo: 'responsavel' };
+        const b = { aba: 'agentes', campo: 'papel' };
+        const f = { ...ficha(a), lacunas: [a, b] };
+        expect(perguntaAtual(f, 'r1')).toEqual(a);
+        S.atividade = { projectId: 'p1', ropaId: 'r1', ficha: f };
+        window.atRepintar = vi.fn();
+        window.atGuiadoAdiar();
+        expect(window.atRepintar).toHaveBeenCalledTimes(1);
+        expect(perguntaAtual(f, 'r1')).toEqual(b);
+        const aside = painel(painelGuiado(f, 'r1'));
+        expect(aside.querySelector('.at-guiado-pergunta').textContent).toBe(textoDaPergunta(b).titulo);
+        // o segundo "Não sei agora" adia a da tela (b), não a primeira do servidor
+        window.atGuiadoAdiar();
+        expect(adiadas('r1')).toEqual(['escopo/responsavel', 'agentes/papel']);
+    });
+
+    it('só restam adiadas: a lista de pendências, cada uma com "Responder agora", que a traz de volta', async () => {
+        const a = { aba: 'escopo', campo: 'responsavel' };
+        const b = { aba: 'agentes', campo: 'papel' };
+        const f = { ...ficha(a), lacunas: [a, b] };
+        window.sessionStorage.setItem('ra.adiadas.r1', JSON.stringify(['escopo/responsavel', 'agentes/papel', 'medidas/medida']));
+        expect(perguntaAtual(f, 'r1')).toBeNull();
+        const aside = painel(painelGuiado(f, 'r1'));
+        expect(aside.querySelector('.at-guiado-pergunta').textContent).toBe('Faltam 2 respostas que você deixou para depois.');
+        expect(aside.textContent).not.toContain('Tudo respondido');
+        const botoes = [...aside.querySelectorAll('button[data-action="atGuiadoRetomar"]')];
+        expect(botoes.map((x) => [x.dataset.chave, x.textContent])).toEqual([['escopo/responsavel', 'Responder agora'], ['agentes/papel', 'Responder agora']]);
+        expect(aside.textContent).toContain(textoDaPergunta(b).titulo);
+        S.atividade = { projectId: 'p1', ropaId: 'r1', ficha: f };
+        window.atRepintar = vi.fn(async () => {});
+        await window.atGuiadoRetomar.call(botoes[1]);
+        expect(adiadas('r1')).toEqual(['escopo/responsavel', 'medidas/medida']);
+        expect(S.atividade.avancou).toBe(true);
+        expect(perguntaAtual(f, 'r1')).toEqual(b);
     });
 
     it('"Continuar" grava o pendente e volta à ficha; se a mesma pergunta voltar, pede a resposta', async () => {

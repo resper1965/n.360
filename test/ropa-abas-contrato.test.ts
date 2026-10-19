@@ -31,6 +31,7 @@ const FORMAS: [string, unknown, z.ZodTypeAny][] = [
     abas: S(ABAS),
     modulos: S({ iso: z.boolean() }),
     proxima_pergunta: S({ aba: z.enum(ABAS_IDS), campo: z.string() }).nullable(),
+    lacunas: z.array(S({ aba: z.enum(ABAS_IDS), campo: z.string() })),
   })],
   ['escopo', escopo, S({ ok: z.literal(true), mudou_hash: z.boolean() })],
   ['base-juridica', baseJuridica, S({

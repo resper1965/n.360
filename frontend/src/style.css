@@ -1502,6 +1502,9 @@ td .mais-acoes-botao { padding: 4px 10px; }
 /* ——— Modo guiado do RoPA (atividade/guiado.js) ———
    Uma pergunta por vez, coluna de leitura estreita. Quadrado, só tokens. Accent apenas no que se clica e no foco:
    a opção marcada ganha contorno accent; a barra de progresso é tinta neutra. */
+.at-guiado-pendencias { display: flex; flex-direction: column; margin: 0 0 12px; padding: 0; list-style: none; }
+.at-guiado-pendencias li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; color: var(--text); }
+.at-guiado-pendencias .at-guiado-onde { color: var(--text-dim); }
 .re { max-width: 760px; display: flex; flex-direction: column; gap: 20px; }
 .re-topo { display: flex; flex-direction: column; gap: 8px; }
 .re-legenda { margin: 0; font-size: 13px; color: var(--text-dim); }

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { PERGUNTAS_IMPACTO } from '../src/services/impacto';
 import { ETAPAS } from '../src/schemas/ropa-abas';
 import { situacaoDaEtapa, type DadosDaEtapa } from '../src/services/ropa-abas/etapas';
-import { FALTA_CAMPO, proximaPergunta, type EntradaProxima } from '../src/services/ropa-abas/proxima-pergunta';
+import { FALTA_CAMPO, lacunas, proximaPergunta, type EntradaProxima } from '../src/services/ropa-abas/proxima-pergunta';
 import { prepararProjeto, chamar, json, base, novaAtividade, P, type Sessoes } from './helpers/ropa-abas';
 
 /** Atividade completa em tudo que a pergunta olha: a resposta de cada teste é a primeira lacuna que ele deixa aberta. */
@@ -60,6 +60,15 @@ describe('proximaPergunta (função pura, primeira lacuna na ordem das abas)', (
     const e = com({ papelRespondido: false, medidas: 0 });
     expect(proximaPergunta(e)).toEqual(proximaPergunta({ ...e }));
   });
+  it('lacunas: todas, na ordem das abas, a primeira é a proximaPergunta; tudo respondido, vazia', () => {
+    const e = com({ responsavel: false, papelRespondido: false, medidas: 0 });
+    expect(lacunas(e)).toEqual([{ aba: 'escopo', campo: 'responsavel' }, { aba: 'agentes', campo: 'papel' }, { aba: 'medidas', campo: 'medida' }]);
+    expect(proximaPergunta(e)).toEqual(lacunas(e)[0]);
+    expect(lacunas(completa())).toEqual([]);
+    // "Não sei agora" não trava: a tela tem sempre a lacuna seguinte para mostrar
+    const todasImpacto = lacunas(com({ impactoRespondidas: [], impactoFinalizado: false }));
+    expect(todasImpacto.map((p) => p.campo)).toEqual([...PERGUNTAS_IMPACTO.map((p) => p.id), 'finalizado']);
+  });
   it('toda falta que a situação da etapa produz tem campo mapeado', () => {
     const todas = new Set<string>();
     for (const etapa of ETAPAS) {
@@ -87,6 +96,13 @@ describe('GET /ficha: proxima_pergunta vem do servidor', () => {
     const r = await chamar(s.consultor, 'PUT', `${base(rid)}/escopo`, { finalidade: 'Finalidade revista exemplo' });
     expect(r.status).toBe(200);
     expect(await proxima(rid)).toEqual({ aba: 'escopo', campo: 'responsavel' });
+  });
+  it('a ficha traz as lacunas em ordem, com a proxima_pergunta na frente', async () => {
+    const rid = await novaAtividade(s.consultor);
+    const f = await json<any>(await chamar(s.consultor, 'GET', `${base(rid)}/ficha`));
+    expect(f.lacunas[0]).toEqual(f.proxima_pergunta);
+    expect(f.lacunas.length).toBeGreaterThan(1);
+    expect(f.lacunas.map((p: any) => p.aba)).toContain('agentes');
   });
   it('a resposta sai da ficha de outra pessoa do projeto (mesma pergunta)', async () => {
     const rid = await novaAtividade(s.consultor);

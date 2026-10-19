@@ -6,7 +6,7 @@ import { carregarFicha, carregarRegistro, abaDoEndereco, gravarAbaNoEndereco, po
 import { desenharAbas, abaParaTecla } from '../atividade/abas.js';
 import { desenharCabecalho, montarCabecalho } from '../atividade/cabecalho.js';
 import { itensDoMenu } from '../atividade/acoes.js';
-import { modoDoEndereco, gravarModoNoEndereco, painelGuiado, focarCampo } from '../atividade/guiado.js';
+import { modoDoEndereco, gravarModoNoEndereco, painelGuiado, focarCampo, perguntaAtual } from '../atividade/guiado.js';
 import { montar as montarEscopo } from '../atividade/aba-escopo.js';
 import { montar as montarTratamento } from '../atividade/aba-tratamento.js';
 import { montar as montarAgentes } from '../atividade/aba-agentes.js';
@@ -67,7 +67,8 @@ export async function renderAtividade(c, h, a) {
     pedido.ficha = ficha;
     if (guiado) {
         gravarModoNoEndereco(true);
-        if (ficha.proxima_pergunta && (avancou || !new URLSearchParams(window.location.search).has('aba'))) gravarAbaNoEndereco(ficha.proxima_pergunta.aba);
+        const atual = perguntaAtual(ficha, pedido.ropaId);
+        if (atual && (avancou || !new URLSearchParams(window.location.search).has('aba'))) gravarAbaNoEndereco(atual.aba);
     }
     const aba = abaDoEndereco();
     const editavel = podeEscrever(ficha);

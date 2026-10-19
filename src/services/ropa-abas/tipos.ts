@@ -16,4 +16,5 @@ export type Ficha = {
   abas: Record<AbaId, { estado: EstadoAba; resumo: string }>;
   modulos: { iso: boolean };
   proxima_pergunta: { aba: AbaId; campo: string } | null; // PR3 (modo guiado); null até lá
+  lacunas: { aba: AbaId; campo: string }[]; // todas, em ordem; a primeira é a proxima_pergunta
 };
