@@ -2,15 +2,23 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, formatarData } from '../ui.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
+import { navigate } from '../router.js';
+import { limparFichaDoEndereco } from '../produto.js';
 
-// Terceiros (fatia 6 do núcleo): organizações com tipo, o método que o tipo define, a avaliação com validade e o DPA ligado.
-// Toda regra é do servidor; aqui só se mostra e se chama. Todo texto vindo do servidor é escapado.
+// Fornecedores (n.privacy; antes "Terceiros", fatia 6 do núcleo): organizações com tipo, o método que o tipo define, a avaliação
+// com validade, a criticidade e o DPA ligado. A lista filtra na própria tela; a ficha é uma página em abas, com a parte e a aba no
+// endereço (spec 2026-10-19). Toda regra é do servidor; aqui só se mostra e se chama. Todo texto vindo do servidor é escapado.
 
 const TIPOS = { grande_provedor: 'Grande provedor', medio: 'Médio', pequeno: 'Pequeno', critico: 'Crítico' };
 const METODOS = { trust_center: 'Trust center', questionario: 'Questionário', auditoria: 'Auditoria' };
 const RESULTADOS = { aprovado: 'Aprovado', com_ressalvas: 'Aprovado com ressalvas', reprovado: 'Reprovado' };
 const SITUACOES = { pendente: ['Pendente', 'neutral'], vigente: ['Vigente', 'success'], vencida: ['Vencida', 'danger'], reprovada: ['Reprovada', 'danger'] };
 const PAPEIS_DOC = { dpa: 'DPA', contrato: 'Contrato', outro: 'Outro' };
+const STATUS_DOC = { rascunho: 'Rascunho', vigente: 'Vigente', obsoleto: 'Obsoleto' };
+const ORIGENS = { vinculo: 'Vínculo', compartilhamento_externo: 'Compartilhamento externo' };
+const NIVEIS_CRITICIDADE = { alto: 'Alto', medio: 'Médio', baixo: 'Baixo' };
+const ABAS = [['cadastro', 'Cadastro'], ['criticidade', 'Criticidade'], ['avaliacoes', 'Avaliações'], ['seguranca', 'Segurança'],
+    ['documentos', 'Documentos'], ['atividades', 'Atividades de tratamento'], ['suboperadores', 'Suboperadores']];
 
 const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'].includes(S.user.role);
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
@@ -19,121 +27,282 @@ const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
 const dataBr = (s) => formatarData(s);
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
+const opcoes = (mapa, atual) => Object.entries(mapa).map(([v, r]) => `<option value="${v}" ${atual === v ? 'selected' : ''}>${escapeHTML(r)}</option>`).join('');
+const titulo = (t) => `<h4 style="margin:1.25rem 0 0.5rem">${t}</h4>`;
+const vazio = (t) => window.renderEmptyState({ titulo: t, compacto: true });
+const parteDoEndereco = () => new URLSearchParams(window.location.search).get('parte') || (S.terceiro && S.terceiro.parteId);
 
 /** Só link http(s) vira âncora; qualquer outra coisa (javascript:, data:) aparece como texto. */
 const linkSeguro = (u) => (/^https?:\/\/\S+$/i.test(String(u || '')) ? `<a href="${escapeHTML(u)}" target="_blank" rel="noopener noreferrer">${escapeHTML(u)}</a>` : escapeHTML(u || ''));
 
+// ─── Lista ──────────────────────────────────────────────────────────────────────────────────────────────────────
+
+let daLista = null; // o que a lista carregou: os filtros da tela refazem a tabela sem ir ao servidor
+
 async function renderTerceiros(c, h, a) {
-    h.textContent = 'Terceiros';
+    h.textContent = 'Fornecedores';
     const proj = projetoAtivo();
-    // Terceiro é parte do tipo organização: cadastrar daqui abre o formulário de Partes já como organização.
-    const cadastrar = podeEditar() && proj ? `<button class="btn btn-primary" data-action="openNovaParteModal" data-args='${args(proj.id, 'organizacao')}'>Cadastrar terceiro</button>` : '';
-    // Regulador e cliente (só parte interessada no n.iso) não entram na lista; quem quiser tratá-los como terceiro os adiciona aqui.
+    // Fornecedor é parte do tipo organização: cadastrar daqui abre o formulário de Partes já como organização.
+    const cadastrar = podeEditar() && proj ? `<button class="btn btn-primary" data-action="openNovaParteModal" data-args='${args(proj.id, 'organizacao')}'>Cadastrar fornecedor</button>` : '';
+    // Regulador e cliente (só parte interessada no n.iso) não entram na lista; quem quiser tratá-los como fornecedor os adiciona aqui.
     const adicionar = podeEditar() && proj ? `<button class="btn" data-action="abrirAdicionarTerceiro" data-args='${args(proj.id)}'>Adicionar parte existente</button>` : '';
     // O questionário de homologação (F5) é do projeto: a equipe revisa e edita as perguntas antes de enviar.
     const perguntas = podeEditar() && proj ? `<button class="btn" data-action="abrirPerguntasHomologacao" data-args='${args(proj.id)}'>Perguntas do questionário</button>` : '';
     a.innerHTML = perguntas + adicionar + cadastrar;
+    daLista = null;
     if (!proj) {
         c.innerHTML = window.renderSemProjeto();
         return;
     }
     let terceiros = [];
-    try { terceiros = lista(await api('GET', `/api/v1/projects/${proj.id}/terceiros`)); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os terceiros.', e); return; }
+    try { terceiros = lista(await api('GET', `/api/v1/projects/${proj.id}/terceiros`)); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os fornecedores.', e); return; }
     const vencidos = terceiros.filter((t) => t.situacao === 'vencida').length;
-    const aviso = vencidos ? `<p style="color:var(--danger-ink)">${escapeHTML(String(vencidos))} ${vencidos === 1 ? 'terceiro com avaliação vencida' : 'terceiros com avaliação vencida'}.</p>` : '';
+    const aviso = vencidos ? `<p class="t-perigo">${escapeHTML(String(vencidos))} ${vencidos === 1 ? 'fornecedor com avaliação vencida' : 'fornecedores com avaliação vencida'}.</p>` : '';
     // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
-    const { itens: doFiltro, chip, filtrado } = filtrarDoPainel('terceiros', null, terceiros);
-    const linhas = doFiltro.map((t) => {
+    const { itens, chip, filtrado } = filtrarDoPainel('terceiros', null, terceiros);
+    daLista = { proj, itens, filtrado, cadastrar };
+    const filtro = (id, rotulo, mapa) => `<div class="form-group" style="margin:0"><label class="form-label" for="${id}">${rotulo}</label>
+        <select class="form-input" id="${id}" data-action-change="filtrarFornecedores"><option value="">Todas</option>${opcoes(mapa)}</select></div>`;
+    const filtros = terceiros.length ? `<div style="display:flex; gap:0.75rem; align-items:flex-end; margin-bottom:0.75rem">
+        ${filtro('tc-filtro-nivel', 'Criticidade', { ...NIVEIS_CRITICIDADE, nao_avaliada: 'Não avaliada' })}
+        ${filtro('tc-filtro-situacao', 'Situação', Object.fromEntries(Object.entries(SITUACOES).map(([k, [r]]) => [k, r])))}</div>` : '';
+    c.innerHTML = `${aviso}${chip}${filtros}<div id="tc-lista"></div>`;
+    desenharLista();
+}
+
+function desenharLista() {
+    const alvo = el('tc-lista');
+    if (!daLista || !alvo) return;
+    const { proj, cadastrar } = daLista;
+    const nivel = el('tc-filtro-nivel') ? el('tc-filtro-nivel').value : '';
+    const situacao = el('tc-filtro-situacao') ? el('tc-filtro-situacao').value : '';
+    const itens = daLista.itens.filter((t) => (!nivel || (t.nivel || 'nao_avaliada') === nivel) && (!situacao || t.situacao === situacao));
+    const linhas = itens.map((t) => {
         const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
         return [
             `<strong>${escapeHTML(t.nome)}</strong>`,
+            escapeHTML(NIVEIS_CRITICIDADE[t.nivel] || 'Não avaliada'),
             escapeHTML(TIPOS[t.terceiro_tipo] || '—'),
-            escapeHTML(METODOS[t.metodo] || '—'),
             window.renderStatusBadge(rotulo, tom),
             escapeHTML(t.ultima_avaliacao ? dataBr(t.ultima_avaliacao.valido_ate) : '—'),
-            escapeHTML(String(t.tratamentos)),
-            escapeHTML(String(t.documentos)),
+            t.dpa ? 'Sim' : 'Não',
+            escapeHTML(String(t.atividades ?? t.tratamentos ?? 0)),
             `<button class="btn btn-ghost btn-sm" data-action="abrirTerceiro" data-args='${args(proj.id, t.id)}'>Abrir</button>`,
         ];
     });
-    c.innerHTML = aviso + chip + window.renderDataTable(
-        ['Terceiro', 'Tipo', 'Método', 'Avaliação', 'Vale até', 'Tratamentos', 'Documentos', 'Ações'],
+    alvo.innerHTML = window.renderDataTable(
+        ['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'DPA', 'Atividades', 'Ações'],
         linhas,
-        {
-            emptyState: 'Nenhuma organização cadastrada em Partes.',
-            emptyHint: 'Cadastre os fornecedores e operadores que tratam dados para o cliente, ou traga os que já estão no projeto pela tela Partes.',
-            emptyAction: `${cadastrar}<button class="btn" data-action="navigate" data-args='${args('partes')}'>Abrir Partes</button>`,
-            ...(filtrado ? { emptyState: 'Nenhum terceiro nesta situação.', emptyHint: 'Limpe o filtro para ver todos.', emptyAction: '' } : {}),
-        },
+        daLista.filtrado || nivel || situacao
+            ? { emptyState: 'Nenhum fornecedor nesta situação.', emptyHint: 'Limpe o filtro para ver todos.', emptyAction: '' }
+            : {
+                emptyState: 'Nenhuma organização cadastrada em Partes.',
+                emptyHint: 'Cadastre os fornecedores e operadores que tratam dados para o cliente, ou traga os que já estão no projeto pela tela Partes.',
+                emptyAction: `${cadastrar}<button class="btn" data-action="navigate" data-args='${args('partes')}'>Abrir Partes</button>`,
+            },
     );
 }
+window.filtrarFornecedores = desenharLista;
 
-window.abrirTerceiro = async function (projectId, parteId) {
-    let t;
-    try { t = await api('GET', `/api/v1/projects/${projectId}/terceiros/${parteId}`); } catch (e) { falha(e, 'Não foi possível abrir o terceiro'); return; }
+// ─── Ficha (página em abas) ─────────────────────────────────────────────────────────────────────────────────────
+
+const abaDoEndereco = () => {
+    const id = new URLSearchParams(window.location.search).get('aba');
+    return ABAS.some(([x]) => x === id) ? id : 'cadastro';
+};
+/** `replaceState`: abrir e trocar de aba não empilham histórico; recarregar volta à mesma ficha e aba. */
+function gravarNoEndereco(parteId, aba) {
+    const u = new URL(window.location.href);
+    u.searchParams.set('tela', 'terceiro');
+    u.searchParams.set('parte', parteId);
+    u.searchParams.set('aba', aba);
+    window.history.replaceState(null, '', u);
+}
+
+window.abrirTerceiro = function (projectId, parteId, aba = 'cadastro') {
+    if (typeof window.forceCloseModal === 'function') window.forceCloseModal();
+    S.terceiro = { projectId, parteId };
+    gravarNoEndereco(parteId, aba);
+    navigate('terceiro');
+};
+window.tcVoltar = function () {
+    S.terceiro = null;
+    limparFichaDoEndereco();
+    navigate('terceiros');
+};
+
+let ultimo = null;
+let sequencia = 0;
+const voltar = '<button type="button" class="btn" data-action="tcVoltar">Voltar aos fornecedores</button>';
+
+async function renderTerceiro(c, h, a) {
+    ultimo = { c, h, a };
+    a.innerHTML = voltar;
+    const parteId = parteDoEndereco();
+    const projectId = (S.terceiro && S.terceiro.parteId === parteId && S.terceiro.projectId) || (projetoAtivo() || {}).id;
+    if (!parteId || !projectId) {
+        h.textContent = 'Fornecedor';
+        c.innerHTML = window.renderEmptyState({ titulo: 'Nenhum fornecedor aberto', texto: 'Abra um fornecedor pela lista.', acao: voltar });
+        return;
+    }
+    const minha = ++sequencia;
+    const aba = abaDoEndereco();
     const editar = podeEditar();
-    let documentos = [];
-    if (editar) { try { documentos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos`)); } catch (e) { /* sem seletor de documento */ } }
-    const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
-    const hist = lista(t.historico);
-    const ligados = lista(t.documentos_ligados);
-    // Criticidade (spec 2026-10-18): falha aqui não derruba a ficha; a seção mostra que não carregou.
-    let criticidade = null;
-    try { criticidade = await api('GET', `/api/v1/projects/${projectId}/terceiros/${parteId}/criticidades`); } catch (e) { /* seção diz que não carregou */ }
-    // Homologação por questionário (F5): só para o tipo cujo método é questionário. Falha aqui não derruba a ficha.
-    let homologacoes = [];
-    if (t.metodo === 'questionario') { try { homologacoes = lista(await api('GET', `/api/v1/projects/${projectId}/homologacoes?parte_id=${encodeURIComponent(parteId)}`)); } catch (e) { /* seção vazia */ } }
+    const base = `/api/v1/projects/${projectId}/terceiros/${parteId}`;
+    let t;
+    try { t = await api('GET', base); } catch (e) {
+        if (minha !== sequencia) return;
+        if (e && e.status === 404) {
+            h.textContent = 'Fornecedor';
+            c.innerHTML = window.renderEmptyState({ titulo: 'Fornecedor não encontrado', texto: 'Ele pode ter saído da lista de fornecedores.', acao: voltar });
+        } else window.falhaDeCarga(c, a, 'Não foi possível abrir o fornecedor.', e);
+        return;
+    }
+    // O que só a aba aberta usa. Falha aqui não derruba a ficha: a aba diz que não carregou ou fica vazia.
+    const extra = {};
+    if (aba === 'criticidade') { try { extra.crit = await api('GET', `${base}/criticidades`); } catch (e) { extra.crit = null; } }
+    if (aba === 'avaliacoes' && t.metodo === 'questionario') {
+        try { extra.homologacoes = lista(await api('GET', `/api/v1/projects/${projectId}/homologacoes?parte_id=${encodeURIComponent(parteId)}`)); } catch (e) { extra.homologacoes = []; }
+    }
+    if (aba === 'documentos' && editar) { try { extra.documentos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos`)); } catch (e) { extra.documentos = []; } }
+    if (minha !== sequencia) return;
 
-    openModal(`
-        <h3>${escapeHTML(t.nome)}</h3>
-        <p>${window.renderStatusBadge(rotulo, tom)} ${t.ultima_avaliacao ? `válida até ${escapeHTML(dataBr(t.ultima_avaliacao.valido_ate))}` : 'nunca avaliado'}</p>
-        <h4 style="margin:1.25rem 0 0.5rem">Tipo e método</h4>
+    const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
+    const corpo = { cadastro: abaCadastro, criticidade: abaCriticidade, avaliacoes: abaAvaliacoes, seguranca: abaSeguranca,
+        documentos: abaDocumentos, atividades: abaAtividades, suboperadores: abaSuboperadores }[aba](projectId, parteId, t, editar, extra);
+    h.textContent = t.nome;
+    c.innerHTML = `<p>${window.renderStatusBadge(rotulo, tom)} ${t.ultima_avaliacao ? `avaliação válida até ${escapeHTML(dataBr(t.ultima_avaliacao.valido_ate))}` : 'nunca avaliado'}
+            · Criticidade: ${escapeHTML(NIVEIS_CRITICIDADE[t.nivel] || 'Não avaliada')}</p>
+        <div class="at-abas" role="tablist" aria-label="Abas do fornecedor">${ABAS.map(([id, r]) =>
+            `<button type="button" role="tab" class="at-aba" id="tc-aba-${id}" aria-controls="tc-painel" aria-selected="${id === aba}" tabindex="${id === aba ? 0 : -1}"
+                data-action="tcIrParaAba" data-action-keydown="tcTeclaAba" data-arg-event data-args='${args(id)}'>${escapeHTML(r)}</button>`).join('')}</div>
+        <div role="tabpanel" id="tc-painel" aria-labelledby="tc-aba-${aba}" tabindex="0" style="padding-top:1rem">${corpo}</div>`;
+}
+
+const repintar = () => (ultimo ? renderTerceiro(ultimo.c, ultimo.h, ultimo.a) : undefined);
+
+async function irParaAba(id) {
+    const parteId = parteDoEndereco();
+    if (!parteId) return;
+    gravarNoEndereco(parteId, id);
+    await repintar();
+    const botao = el(`tc-aba-${id}`);
+    if (botao) botao.focus();
+}
+// Clique e teclado passam pela delegação com o evento primeiro (`data-arg-event`) e a aba depois.
+window.tcIrParaAba = (_e, id) => irParaAba(id);
+window.tcTeclaAba = function (e, atual) {
+    const i = ABAS.findIndex(([x]) => x === atual);
+    const n = ABAS.length;
+    const proxima = { ArrowRight: (i + 1) % n, ArrowLeft: (i + n - 1) % n, Home: 0, End: n - 1 }[e.key];
+    if (proxima === undefined) return;
+    e.preventDefault();
+    return irParaAba(ABAS[proxima][0]);
+};
+
+const linhaMetodo = (t) => `<p class="t-dim">${t.metodo ? `O tipo define o método de avaliação: <strong>${escapeHTML(METODOS[t.metodo])}</strong>.` : 'Defina o tipo para saber o método de avaliação.'}</p>`;
+const dl = (pares) => `<dl style="display:grid; grid-template-columns:max-content 1fr; gap:0.5rem 1.5rem; margin:0">${pares.map(([k, v]) => `<dt>${k}</dt><dd style="margin:0">${v}</dd>`).join('')}</dl>`;
+
+function abaCadastro(projectId, parteId, t, editar) {
+    return `${dl([['Nome', escapeHTML(t.nome)], ['E-mail', escapeHTML(t.email || '—')]])}
+        ${editar ? `<p class="t-dim">Nome e e-mail se editam no cadastro da parte. <button class="btn btn-ghost btn-sm" data-action="navigate" data-args='${args('partes')}'>Abrir Pessoas, áreas e sistemas</button></p>` : ''}
+        ${titulo('Tipo e método')}
         <div id="tc-tipo">
-            ${editar ? `<div style="display:flex; gap:0.5rem; align-items:flex-end"><div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-tipo-sel">Tipo do terceiro</label>
-                <select class="form-input" id="tc-tipo-sel"><option value="">— sem tipo —</option>${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${t.terceiro_tipo === v ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+            ${editar ? `<div style="display:flex; gap:0.5rem; align-items:flex-end"><div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-tipo-sel">Tipo do fornecedor</label>
+                <select class="form-input" id="tc-tipo-sel"><option value="">— sem tipo —</option>${opcoes(TIPOS, t.terceiro_tipo)}</select></div>
                 <button class="btn btn-sm" data-action="salvarTipoTerceiro" data-args='${args(projectId, parteId)}'>Salvar</button></div>`
                 : `<p>${escapeHTML(TIPOS[t.terceiro_tipo] || 'Sem tipo')}</p>`}
-            <p style="color:var(--text-dim)">${t.metodo ? `O tipo define o método de avaliação: <strong>${escapeHTML(METODOS[t.metodo])}</strong>.` : 'Defina o tipo para saber o método de avaliação.'}</p>
-        </div>
-        ${secaoCriticidade(projectId, parteId, t, criticidade, editar)}
-        ${editar && t.terceiro_tipo ? `<h4 style="margin:1.25rem 0 0.5rem">Nova avaliação</h4><div id="tc-nova" style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap">
-            <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-res">Resultado</label><select class="form-input" id="tc-res">${Object.entries(RESULTADOS).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
+            ${linhaMetodo(t)}
+        </div>`;
+}
+
+function abaAvaliacoes(projectId, parteId, t, editar, extra) {
+    const hist = lista(t.historico);
+    return `${linhaMetodo(t)}
+        ${editar && t.terceiro_tipo ? `${titulo('Nova avaliação')}<div id="tc-nova" style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap">
+            <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-res">Resultado</label><select class="form-input" id="tc-res">${opcoes(RESULTADOS)}</select></div>
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-val">Vale até</label><input class="form-input" id="tc-val" type="date"></div>
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-url">Evidência (link)</label><input class="form-input" id="tc-url" maxlength="2000" placeholder="https://"></div>
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-obs">Observação</label><input class="form-input" id="tc-obs" maxlength="2000"></div>
             <button class="btn btn-primary btn-sm" data-action="registrarAvaliacaoTerceiro" data-args='${args(projectId, parteId)}'>Registrar</button></div>` : ''}
-        <h4 style="margin:1.25rem 0 0.5rem">Histórico de avaliações</h4>
-        <div id="tc-historico">${hist.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Método</th><th>Resultado</th><th>Vale até</th><th>Evidência</th><th>Por</th></tr></thead><tbody>${hist.map((x) =>
-            `<tr><td>${escapeHTML(dataBr(x.created_at))}</td><td>${escapeHTML(METODOS[x.metodo] || x.metodo)}</td><td>${escapeHTML(RESULTADOS[x.resultado] || x.resultado)}</td><td>${escapeHTML(dataBr(x.valido_ate))}</td><td>${linkSeguro(x.evidencia_url)}</td><td>${escapeHTML(x.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
-            : window.renderEmptyState({ titulo: 'Nenhuma avaliação registrada.', compacto: true })}</div>
-        ${t.metodo === 'questionario' ? secaoHomologacao(projectId, parteId, homologacoes, editar) : ''}
-        <h4 style="margin:1.25rem 0 0.5rem">DPA e contratos</h4>
-        <div id="tc-docs">${ligados.length ? `<table class="data-table"><tbody>${ligados.map((d) =>
-            `<tr><td>${escapeHTML(d.titulo)}</td><td>${escapeHTML(PAPEIS_DOC[d.papel] || d.papel)}</td><td style="text-align:right">${editar
+        ${titulo('Histórico de avaliações')}
+        <div id="tc-historico">${hist.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Método</th><th>Resultado</th><th>Vale até</th><th>Evidência</th><th>Observação</th><th>Por</th></tr></thead><tbody>${hist.map((x) =>
+            `<tr><td>${escapeHTML(dataBr(x.created_at))}</td><td>${escapeHTML(METODOS[x.metodo] || x.metodo)}</td><td>${escapeHTML(RESULTADOS[x.resultado] || x.resultado)}</td><td>${escapeHTML(dataBr(x.valido_ate))}</td><td>${linkSeguro(x.evidencia_url)}</td><td>${escapeHTML(x.observacao || '')}</td><td>${escapeHTML(x.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
+            : vazio('Nenhuma avaliação registrada.')}</div>
+        ${t.metodo === 'questionario' ? secaoHomologacao(projectId, parteId, extra.homologacoes || [], editar) : ''}`;
+}
+
+// Perfil de segurança: a linha de `vendors` da parte (o mesmo perfil da tela Fornecedores do n.iso), salvo pelo PUT dela.
+const SEG_MARCAS = [['iso27001', 'has_iso27001', 'ISO 27001'], ['iso27701', 'has_iso27701', 'ISO 27701'], ['soc2', 'has_soc2', 'SOC 2'],
+    ['mfa', 'has_mfa', 'MFA habilitado'], ['cripto', 'has_encryption', 'Criptografia ativa'], ['backup', 'has_backup', 'Backups regulares'],
+    ['incidente', 'has_incident_plan', 'Plano de incidentes'], ['pentest', 'has_pentest', 'Testes de invasão (pentest)'], ['dpa', 'dpa_signed', 'DPA assinado']];
+const SEG_TEXTOS = [['tc-url', 'trust_center_url', 'Trust center (link)'], ['dpa-url', 'dpa_url', 'DPA (link)'],
+    ['certs', 'attached_certifications', 'Outras certificações (separadas por vírgula)'], ['notas', 'notes', 'Observações']];
+
+function abaSeguranca(projectId, parteId, t, editar) {
+    const v = t.seguranca;
+    if (!v) return '<p>Sem perfil de segurança.</p>';
+    if (!editar) {
+        return dl([...SEG_MARCAS.map(([, campo, r]) => [r, v[campo] ? 'Sim' : 'Não']),
+            ...SEG_TEXTOS.map(([, campo, r]) => [r, campo.endsWith('url') ? (linkSeguro(v[campo]) || '—') : escapeHTML(v[campo] || '—')])]);
+    }
+    return `<fieldset class="form-group"><legend class="form-label">Certificações e postura de segurança</legend>
+            <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.5rem">
+            ${SEG_MARCAS.map(([id, campo, r]) => `<label class="opcao-check"><input type="checkbox" id="tc-seg-${id}" ${v[campo] ? 'checked' : ''}> ${r}</label>`).join('')}</div></fieldset>
+        ${SEG_TEXTOS.map(([id, campo, r]) => `<div class="form-group"><label class="form-label" for="tc-seg-${id}">${r}</label>${campo === 'notes'
+            ? `<textarea class="form-input" id="tc-seg-${id}" rows="3" maxlength="4000">${escapeHTML(v[campo] || '')}</textarea>`
+            : `<input class="form-input" id="tc-seg-${id}" maxlength="2000" value="${escapeHTML(v[campo] || '')}">`}</div>`).join('')}
+        <button class="btn btn-primary" data-action="salvarSegurancaTerceiro" data-args='${args(projectId, parteId, v.id)}'>Salvar perfil de segurança</button>`;
+}
+
+window.salvarSegurancaTerceiro = async function (projectId, parteId, vendorId) {
+    let atual;
+    try { atual = (await api('GET', `/api/v1/projects/${projectId}/terceiros/${parteId}`)).seguranca; } catch (e) { falha(e, 'Não foi possível ler o perfil'); return; }
+    if (!atual) return;
+    // O PUT grava o perfil inteiro: nome, categoria e status seguem os gravados (o nome é o da parte).
+    const corpo = { name: atual.name, category: atual.category ?? null, status: atual.status || 'Active' };
+    for (const [id, campo] of SEG_MARCAS) corpo[campo] = el(`tc-seg-${id}`).checked ? 1 : 0;
+    for (const [id, campo] of SEG_TEXTOS) corpo[campo] = el(`tc-seg-${id}`).value.trim() || null;
+    return acao(() => api('PUT', `/api/v1/vendors/${vendorId}`, corpo), 'Não foi possível salvar o perfil de segurança', 'Perfil de segurança salvo.');
+};
+
+function abaDocumentos(projectId, parteId, t, editar, extra) {
+    const ligados = lista(t.documentos_ligados);
+    const documentos = extra.documentos || [];
+    return `<div id="tc-docs">${ligados.length ? `<table class="data-table"><thead><tr><th>Documento</th><th>Papel</th><th>Situação</th><th></th></tr></thead><tbody>${ligados.map((d) =>
+            `<tr><td>${escapeHTML(d.titulo)}</td><td>${escapeHTML(PAPEIS_DOC[d.papel] || d.papel)}</td><td>${escapeHTML(STATUS_DOC[d.status] || d.status || '')}</td><td class="t-right">${editar
                 ? `<button class="btn btn-ghost btn-sm" data-action="desligarDocumentoTerceiro" data-args='${args(projectId, parteId, d.id, d.papel)}'>Desligar</button>` : ''}</td></tr>`).join('')}</tbody></table>`
-            : window.renderEmptyState({ titulo: 'Nenhum documento ligado.', compacto: true })}
+            : vazio('Nenhum documento ligado.')}
             ${editar && documentos.length ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; margin-top:0.75rem"><div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-doc">Documento</label>
                 <select class="form-input" id="tc-doc">${documentos.map((d) => `<option value="${escapeHTML(d.id)}">${escapeHTML(d.titulo)}</option>`).join('')}</select></div>
-                <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-doc-papel">Papel</label><select class="form-input" id="tc-doc-papel">${Object.entries(PAPEIS_DOC).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
-                <button class="btn btn-sm" data-action="ligarDocumentoTerceiro" data-args='${args(projectId, parteId)}'>Ligar</button></div>` : ''}</div>
-        <h4 style="margin:1.25rem 0 0.5rem">Suboperadores</h4>
-        <div id="tc-subs">${lista(t.suboperadores).length ? lista(t.suboperadores).map((s) => escapeHTML(s.nome)).join(', ') : '<span style="color:var(--text-dim)">Nenhum.</span>'}</div>
-        <h4 style="margin:1.25rem 0 0.5rem">Tratamentos que usam este terceiro</h4>
-        <div id="tc-trat">${lista(t.tratamentos_afetados).length ? lista(t.tratamentos_afetados).map((r) => escapeHTML(r.finalidade)).join('; ') : '<span style="color:var(--text-dim)">Nenhum.</span>'}</div>
-    `, 'modal-large');
-};
+                <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-doc-papel">Papel</label><select class="form-input" id="tc-doc-papel">${opcoes(PAPEIS_DOC)}</select></div>
+                <button class="btn btn-sm" data-action="ligarDocumentoTerceiro" data-args='${args(projectId, parteId)}'>Ligar</button></div>` : ''}</div>`;
+}
+
+function abaAtividades(projectId, parteId, t) {
+    const itens = lista(t.tratamentos_afetados);
+    return `<div id="tc-trat">${itens.length ? `<table class="data-table"><thead><tr><th>Atividade</th><th>Origem</th><th></th></tr></thead><tbody>${itens.map((r) =>
+        `<tr><td>${escapeHTML(r.finalidade)}</td><td>${escapeHTML(ORIGENS[r.origem] || r.origem || '')}</td>
+            <td class="t-right"><button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(projectId, r.id)}'>Abrir atividade</button></td></tr>`).join('')}</tbody></table>`
+        : vazio('Nenhuma atividade de tratamento usa este fornecedor.')}</div>`;
+}
+
+function abaSuboperadores(projectId, parteId, t) {
+    const subs = lista(t.suboperadores);
+    return `<div id="tc-subs">${subs.length ? `<ul>${subs.map((s) => `<li>${escapeHTML(s.nome)}</li>`).join('')}</ul>` : vazio('Nenhum suboperador.')}</div>`;
+}
 
 window.abrirAdicionarTerceiro = async function (projectId) {
     let cand;
     try { cand = lista(await api('GET', `/api/v1/projects/${projectId}/terceiros/candidatos`)); } catch (e) { falha(e, 'Não foi possível listar as partes'); return; }
     openModal(`
-        <h3>Adicionar parte existente como terceiro</h3>
+        <h3>Adicionar parte existente como fornecedor</h3>
         ${cand.length ? `<div class="form-group"><label class="form-label" for="tc-cand">Parte</label>
             <select class="form-input" id="tc-cand">${cand.map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.nome)}</option>`).join('')}</select></div>
-            <div class="form-group"><label class="form-label" for="tc-cand-tipo">Tipo do terceiro</label>
-            <select class="form-input" id="tc-cand-tipo">${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
+            <div class="form-group"><label class="form-label" for="tc-cand-tipo">Tipo do fornecedor</label>
+            <select class="form-input" id="tc-cand-tipo">${opcoes(TIPOS)}</select></div>
             <button class="btn btn-primary" data-action="adicionarTerceiro" data-args='${args(projectId)}'>Adicionar</button>`
-            : window.renderEmptyState({ titulo: 'Nenhuma parte para adicionar: as organizações do projeto já são terceiros.', compacto: true })}
+            : vazio('Nenhuma parte para adicionar: as organizações do projeto já são fornecedores.')}
     `);
 };
 
@@ -141,35 +310,34 @@ window.adicionarTerceiro = async function (projectId) {
     try {
         await api('PUT', `/api/v1/projects/${projectId}/terceiros/${el('tc-cand').value}/tipo`, { terceiro_tipo: el('tc-cand-tipo').value });
         closeModal();
-        showToast('Terceiro adicionado.', 'success');
+        showToast('Fornecedor adicionado.', 'success');
         window.render();
-    } catch (e) { falha(e, 'Não foi possível adicionar o terceiro'); }
+    } catch (e) { falha(e, 'Não foi possível adicionar o fornecedor'); }
 };
 
-async function acao(projectId, parteId, fazer, padrao, sucesso) {
+async function acao(fazer, padrao, sucesso) {
     try {
         await fazer();
         if (sucesso) showToast(sucesso, 'success');
-        await window.abrirTerceiro(projectId, parteId);
-        window.render();
+        await repintar();
     } catch (e) { falha(e, padrao); }
 }
 
-window.salvarTipoTerceiro = (projectId, parteId) => acao(projectId, parteId,
+window.salvarTipoTerceiro = (projectId, parteId) => acao(
     () => api('PUT', `/api/v1/projects/${projectId}/terceiros/${parteId}/tipo`, { terceiro_tipo: el('tc-tipo-sel').value || null }), 'Não foi possível salvar o tipo', 'Tipo salvo.');
 
 window.registrarAvaliacaoTerceiro = function (projectId, parteId) {
     const validoAte = el('tc-val').value;
     if (!validoAte) { showToast('Informe até quando a avaliação vale', 'error'); return; }
-    return acao(projectId, parteId, () => api('POST', `/api/v1/projects/${projectId}/terceiros/${parteId}/avaliacoes`, {
+    return acao(() => api('POST', `/api/v1/projects/${projectId}/terceiros/${parteId}/avaliacoes`, {
         resultado: el('tc-res').value, valido_ate: validoAte, evidencia_url: el('tc-url').value.trim() || null, observacao: el('tc-obs').value.trim() || null,
     }), 'Não foi possível registrar a avaliação', 'Avaliação registrada.');
 };
 
-window.ligarDocumentoTerceiro = (projectId, parteId) => acao(projectId, parteId,
+window.ligarDocumentoTerceiro = (projectId, parteId) => acao(
     () => api('POST', `/api/v1/projects/${projectId}/terceiros/${parteId}/documentos`, { documento_id: el('tc-doc').value, papel: el('tc-doc-papel').value }), 'Não foi possível ligar o documento', 'Documento ligado.');
 
-window.desligarDocumentoTerceiro = (projectId, parteId, documentoId, papel) => acao(projectId, parteId,
+window.desligarDocumentoTerceiro = (projectId, parteId, documentoId, papel) => acao(
     () => api('DELETE', `/api/v1/projects/${projectId}/terceiros/${parteId}/documentos/${documentoId}?papel=${encodeURIComponent(papel)}`), 'Não foi possível desligar o documento', 'Documento desligado.');
 
 // ─── Avaliação de criticidade (spec 2026-10-18) ─────────────────────────────────────────────────────────────────
@@ -182,7 +350,9 @@ const CRITERIOS_CRITICIDADE = [
     { chave: 'conformidade', titulo: 'Conformidade', opcoes: [['regulamentado', 'Está sujeito à Regulamentação Específica no setor de atuação'], ['sem_regulamentacao', 'Não há Regulamentação Específica no setor de atuação']] },
     { chave: 'risco_reputacional', titulo: 'Risco Reputacional', opcoes: [['alto', 'Alto (relação direta de reconhecimento da marca entre as empresas)'], ['medio', 'Médio (algum conhecimento da dependência)'], ['baixo', 'Baixo (risco mínimo)']] },
 ];
-const NIVEIS_CRITICIDADE = { alto: 'Alto', medio: 'Médio', baixo: 'Baixo' };
+const respostaEmTexto = (c, v) => (c.opcoes.find(([x]) => x === v) || [v, v || ''])[1];
+
+const abaCriticidade = (projectId, parteId, t, editar, extra) => secaoCriticidade(projectId, parteId, t, extra.crit, editar);
 
 function secaoCriticidade(projectId, parteId, t, crit, editar) {
     const cabeca = '<h4>Avaliação de criticidade</h4>';
@@ -198,9 +368,9 @@ function secaoCriticidade(projectId, parteId, t, crit, editar) {
             ${c.opcoes.map(([v, r]) => `<label><input type="radio" name="tc-crit-${c.chave}" value="${v}"> ${escapeHTML(r)}</label>`).join('<br>')}</fieldset>`).join('')}
         <button class="btn btn-primary" data-action="confirmarCriticidadeTerceiro" data-args='${args(projectId, parteId)}'>Confirmar avaliação</button>` : '';
     const historico = lista(crit.historico);
-    const tabela = historico.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Nível</th><th>Por</th></tr></thead><tbody>${historico.map((h) =>
-        `<tr><td>${escapeHTML(dataBr(h.created_at))}</td><td>${escapeHTML(NIVEIS_CRITICIDADE[h.nivel] || h.nivel)}</td><td>${escapeHTML(h.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
-        : window.renderEmptyState({ titulo: 'Nenhuma avaliação de criticidade registrada.', compacto: true });
+    const tabela = historico.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Nível</th>${CRITERIOS_CRITICIDADE.map((c) => `<th>${escapeHTML(c.titulo)}</th>`).join('')}<th>Por</th></tr></thead><tbody>${historico.map((h) =>
+        `<tr><td>${escapeHTML(dataBr(h.created_at))}</td><td>${escapeHTML(NIVEIS_CRITICIDADE[h.nivel] || h.nivel)}</td>${CRITERIOS_CRITICIDADE.map((c) => `<td>${escapeHTML(respostaEmTexto(c, h[c.chave]))}</td>`).join('')}<td>${escapeHTML(h.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
+        : vazio('Nenhuma avaliação de criticidade registrada.');
     return `${cabeca}<div id="tc-crit">${resumo}${tipo}${perguntas}</div>
         <h5>Histórico de criticidade</h5><div id="tc-crit-historico">${tabela}</div>`;
 }
@@ -212,7 +382,7 @@ window.confirmarCriticidadeTerceiro = function (projectId, parteId) {
         if (!marcado) { showToast('Responda as cinco perguntas da avaliação de criticidade', 'error'); return; }
         resposta[c.chave] = marcado.value;
     }
-    return acao(projectId, parteId, () => api('POST', `/api/v1/projects/${projectId}/terceiros/${parteId}/criticidades`, resposta),
+    return acao(() => api('POST', `/api/v1/projects/${projectId}/terceiros/${parteId}/criticidades`, resposta),
         'Não foi possível registrar a avaliação de criticidade', 'Avaliação de criticidade registrada.');
 };
 
@@ -249,7 +419,7 @@ window.criarHomologacaoTerceiro = async function (projectId, parteId) {
     try {
         r = await api('POST', `/api/v1/projects/${projectId}/homologacoes`, email ? { parte_id: parteId, dias, email } : { parte_id: parteId, dias });
     } catch (e) { falha(e, 'Não foi possível criar a homologação'); return; }
-    await window.abrirTerceiro(projectId, parteId);
+    await repintar();
     const alvo = el('tc-hm-link');
     if (!alvo) return;
     alvo.innerHTML = `<div style="margin-top:1rem; padding:1rem; border:1px solid var(--border)">
@@ -288,7 +458,7 @@ window.revisarHomologacao = async function (projectId, parteId, id) {
             <div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-hm-obs">Observação</label><input class="form-input" id="tc-hm-obs" maxlength="1500"></div>
             <button class="btn btn-primary btn-sm" data-action="concluirHomologacao" data-args='${args(projectId, parteId, id)}'>Concluir</button></div>` : ''}
         ${['aberta', 'respondida'].includes(h.status) ? `<div style="margin-top:1rem"><button class="btn btn-ghost btn-sm" data-action="cancelarHomologacao" data-args='${args(projectId, parteId, id)}'>Cancelar homologação</button></div>` : ''}
-        <div style="margin-top:1rem"><button class="btn btn-ghost btn-sm" data-action="abrirTerceiro" data-args='${args(projectId, parteId)}'>Voltar ao terceiro</button></div>
+        <div style="margin-top:1rem"><button class="btn btn-ghost btn-sm" data-action="abrirTerceiro" data-args='${args(projectId, parteId, 'avaliacoes')}'>Voltar ao fornecedor</button></div>
     `, 'modal-large');
 };
 
@@ -298,8 +468,7 @@ window.concluirHomologacao = async function (projectId, parteId, id) {
     try {
         await api('POST', `/api/v1/projects/${projectId}/homologacoes/${id}/concluir`, { resultado: el('tc-hm-res').value, valido_ate: validoAte, observacao: el('tc-hm-obs').value.trim() || null });
         showToast('Homologação concluída e avaliação registrada.', 'success');
-        await window.abrirTerceiro(projectId, parteId);
-        window.render();
+        window.abrirTerceiro(projectId, parteId, 'avaliacoes');
     } catch (e) { falha(e, 'Não foi possível concluir a homologação'); }
 };
 
@@ -308,7 +477,7 @@ window.cancelarHomologacao = async function (projectId, parteId, id) {
     try {
         await api('POST', `/api/v1/projects/${projectId}/homologacoes/${id}/cancelar`);
         showToast('Homologação cancelada.');
-        await window.abrirTerceiro(projectId, parteId);
+        window.abrirTerceiro(projectId, parteId, 'avaliacoes');
     } catch (e) { falha(e, 'Não foi possível cancelar a homologação'); }
 };
 
@@ -358,3 +527,4 @@ window.criarPerguntaHomologacao = async function (projectId) {
 };
 
 window.renderTerceiros = renderTerceiros;
+window.renderTerceiro = renderTerceiro;
