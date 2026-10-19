@@ -2,10 +2,13 @@ import { aprovacoesDoProjeto } from '../documentos';
 import { PERGUNTAS_IMPACTO } from '../impacto';
 import { entradaDaConferencia, lerDadosAtividade, montarConferencia, type DadosAtividade } from './conferencia';
 import { lerEtapas, type EtapaDetalhe } from './etapas';
-import { proximaPergunta, type EntradaProxima } from './proxima-pergunta';
+import { lacunas, type EntradaProxima, type ProximaPergunta } from './proxima-pergunta';
 import { acoesDoMenu, papelDe, podePedirAprovacao, situacaoDaAtividade } from './situacao';
 import type { AbaId } from '../../schemas/ropa-abas';
 import type { EstadoAba, EstadoEtapa, Ficha } from './tipos';
+
+/** A primeira lacuna e todas, em ordem: a tela pula as adiadas ("Não sei agora"). */
+const comLacunas = (l: ProximaPergunta[]) => ({ proxima_pergunta: l[0] ?? null, lacunas: l });
 
 type Estado = { estado: EstadoAba; resumo: string };
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
@@ -70,7 +73,7 @@ export async function montarFicha(db: D1Database, projectId: string, ropaId: str
     acoes: acoesDoMenu(situacao, papelDe(user, podePedir, bloqueios)),
     abas: estadoDasAbas(d, etapas),
     modulos: { iso: d.iso > 0 },
-    proxima_pergunta: proximaPergunta(entradaDaProxima(d, detalhe ?? [], respondidas.results.map((r) => r.pergunta), etapas)),
+    ...comLacunas(lacunas(entradaDaProxima(d, detalhe ?? [], respondidas.results.map((r) => r.pergunta), etapas))),
   };
 }
 

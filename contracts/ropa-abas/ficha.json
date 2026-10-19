@@ -29,5 +29,6 @@
     "logs": { "estado": "feito", "resumo": "5 registros." }
   },
   "modulos": { "iso": true },
-  "proxima_pergunta": null
+  "proxima_pergunta": null,
+  "lacunas": []
 }

@@ -38,29 +38,32 @@ export const FALTA_CAMPO: Record<string, string> = {
 const tratamento = (campo: string): ProximaPergunta => ({ aba: 'tratamento', campo });
 
 /**
- * A próxima pergunta do modo guiado: a primeira lacuna na ordem das abas (spec 14). Gaps e riscos nunca entram: o guiado
- * os sugere por fora, quando faltam. `null`: tudo respondido. Mesma entrada, mesma saída.
+ * As lacunas do modo guiado, na ordem das abas (spec 14): a tela pula as que a pessoa adiou com "Não sei agora" e, quando só
+ * restam adiadas, lista-as como pendências. Gaps e riscos nunca entram. Vazia: tudo respondido. Mesma entrada, mesma saída.
  */
-export function proximaPergunta(e: EntradaProxima): ProximaPergunta | null {
-  if (!String(e.finalidade ?? '').trim()) return { aba: 'escopo', campo: 'finalidade' };
-  if (!e.responsavel) return { aba: 'escopo', campo: 'responsavel' };
-  if (!e.areas) return { aba: 'escopo', campo: 'areas' };
+export function lacunas(e: EntradaProxima): ProximaPergunta[] {
+  const l: ProximaPergunta[] = [];
+  if (!String(e.finalidade ?? '').trim()) l.push({ aba: 'escopo', campo: 'finalidade' });
+  if (!e.responsavel) l.push({ aba: 'escopo', campo: 'responsavel' });
+  if (!e.areas) l.push({ aba: 'escopo', campo: 'areas' });
   const c = e.coleta;
-  if (!c.titulares.length) return tratamento('coleta.titulares');
-  if (c.titulares.some((t) => !t.dados)) return tratamento('coleta.dados');
-  if (c.solicitaConsentimento === null) return tratamento('coleta.consentimento_e_criancas');
-  if (!String(c.descricao ?? '').trim()) return tratamento('coleta.descricao');
-  if (!c.ativos) return tratamento('coleta.ativos');
+  if (!c.titulares.length) l.push(tratamento('coleta.titulares'));
+  if (c.titulares.some((t) => !t.dados)) l.push(tratamento('coleta.dados'));
+  if (c.solicitaConsentimento === null) l.push(tratamento('coleta.consentimento_e_criancas'));
+  if (!String(c.descricao ?? '').trim()) l.push(tratamento('coleta.descricao'));
+  if (!c.ativos) l.push(tratamento('coleta.ativos'));
   for (const x of e.etapas) {
     if (x.situacao !== 'pendente' || !x.faltas.length) continue;
-    return tratamento(`${x.etapa}.${FALTA_CAMPO[x.faltas[0]] ?? x.faltas[0]}`);
+    l.push(tratamento(`${x.etapa}.${FALTA_CAMPO[x.faltas[0]] ?? x.faltas[0]}`));
   }
-  if (!e.papelRespondido) return { aba: 'agentes', campo: 'papel' };
-  if (!e.temBase && !e.art11Na) return { aba: 'base_juridica', campo: 'base' };
-  if (!e.medidas) return { aba: 'medidas', campo: 'medida' };
+  if (!e.papelRespondido) l.push({ aba: 'agentes', campo: 'papel' });
+  if (!e.temBase && !e.art11Na) l.push({ aba: 'base_juridica', campo: 'base' });
+  if (!e.medidas) l.push({ aba: 'medidas', campo: 'medida' });
   const respondidas = new Set(e.impactoRespondidas);
-  const sem = PERGUNTAS_IMPACTO.find((p) => !respondidas.has(p.id));
-  if (sem) return { aba: 'impacto', campo: sem.id };
-  if (!e.impactoFinalizado) return { aba: 'impacto', campo: 'finalizado' };
-  return null;
+  for (const p of PERGUNTAS_IMPACTO) if (!respondidas.has(p.id)) l.push({ aba: 'impacto', campo: p.id });
+  if (!e.impactoFinalizado) l.push({ aba: 'impacto', campo: 'finalizado' });
+  return l;
 }
+
+/** A primeira lacuna; `null`: tudo respondido. */
+export const proximaPergunta = (e: EntradaProxima): ProximaPergunta | null => lacunas(e)[0] ?? null;
