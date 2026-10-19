@@ -207,9 +207,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     com `/api/v1/public/homologacao/*` (`src/routes/public-homologacao.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **102 tabelas** (2026-10-17: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **103 tabelas** (2026-10-18: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0079** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0080** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -402,6 +402,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   sino os consultores designados (sem nenhum, os `consultoria_admin`; `avisarEnvio`, regra de `escolherDestinatarios`), so com o nome da
   parte, e os MESMOS recebem e-mail (`emailHomologacaoRespondida`: fornecedor, % respondido, link `/privacy?tela=terceiros`; nunca token nem
   resposta; so a quem o sino acabou de avisar, entao nao repete); falha do aviso ou do e-mail vai ao log e nao derruba o envio.
+- **Criticidade do fornecedor (migration 0080, spec `docs/superpowers/specs/2026-10-18-criticidade-fornecedor-design.md`)**: cinco respostas (impacto, exclusividade, risco financeiro, conformidade, risco reputacional) gravadas em `criticidades_terceiro` (histórico append-only, a última é a atual). O NÍVEL é derivado no servidor (`nivelDaCriticidade` em `src/services/criticidade.ts`: qualquer Alto → Alto, senão qualquer Médio → Médio, senão Baixo) e o tipo segue o nível (`tipoDaCriticidade`: Alto → crítico, Médio → médio, Baixo → pequeno), salvo `grande_provedor`, que é escolha manual. Rotas `GET|POST /projects/:id/terceiros/:parteId/criticidades`, faixa `privacy` pelo segmento `terceiros`; o agente só lê (`FORA_DO_AGENTE`). Bloco na ficha do terceiro (`frontend/src/views/terceiros.js`). Contagens de 2026-10-18: `npx vitest` nos arquivos `test/criticidade-terceiro*.test.ts` (16 testes) e `frontend/test/criticidade-terceiro-view.test.js` (7 testes).
 - **Titular, incidente e consentimento (fatia 7, migration 0058, SO registro interno)**: `titular_pedidos` (protocolo `PT-AAAA-NNNN` por projeto),
   `incidentes` (`IN-AAAA-NNNN`; encerrar exige risco avaliado e, se `relevante`, a comunicacao a ANPD registrada: CHECK do banco, vale para SQL
   direto) e `consentimentos` (prova ligada ao tratamento; revogar nao apaga). **Nenhum prazo legal mora no codigo nem na migration:**

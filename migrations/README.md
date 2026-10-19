@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0079** (`ls migrations/*.sql | tail -1`). São 77 arquivos
+- Última migration no repositório: **0080** (`ls migrations/*.sql | tail -1`). São 78 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -652,6 +652,16 @@ nascem vazios. Nada entra no conteúdo congelado da aprovação do tratamento: a
 **Não é idempotente** (SQLite não tem `ADD COLUMN IF NOT EXISTS`): aplicar só pelo `migrations apply`. Conferência depois:
 `PRAGMA table_info(ropa_records)` mostra `volume_mensal`; `SELECT count(*) FROM risks WHERE ropa_id IS NOT NULL AND idr IS NULL` (esperado 0).
 Para desfazer: não precisa (o código anterior ignora as colunas e as tabelas). **Esta RODA em produção ANTES do código novo; a 0079 inteira vai na PR1.**
+**Não aplicada em lugar nenhum** até o líder do projeto aplicar.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+## 0080 — criticidade do fornecedor (2026-10-18)
+
+Aditiva (spec `docs/superpowers/specs/2026-10-18-criticidade-fornecedor-design.md`). Cria `criticidades_terceiro` (`IF NOT EXISTS`, com
+`project_id` e `parte_id`, histórico append-only: as cinco respostas, o `nivel` derivado no servidor e `avaliado_por`). Nenhuma tabela existente
+muda e nenhuma linha é escrita: sem carga. Não é executada por nada além do `migrations apply`.
+Conferência depois: `PRAGMA table_info(criticidades_terceiro)` e `SELECT count(*) FROM criticidades_terceiro` (esperado 0).
 **Não aplicada em lugar nenhum** até o líder do projeto aplicar.
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.

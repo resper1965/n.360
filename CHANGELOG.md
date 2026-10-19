@@ -18,6 +18,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Rota `ropa-entrevista` redireciona** para a ficha: no modo guiado quando há atividade gravada, senão para a lista do RoPA. O motor da entrevista (`frontend/src/views/ropa-entrevista.js`) foi apagado; as permissões de atividade aprovada ficaram em `frontend/src/atividade/estado.js`.
 - **Detalhe do MCP** (`niso_privacy_ropa_detalhe`) traz situação, etapas e medidas, e o roteiro do agente segue as abas.
 
+### Adicionado (criticidade do fornecedor, n.privacy; migration 0080)
+- **Avaliação de criticidade na ficha do terceiro.** Cinco perguntas (impacto, exclusividade e alternativas, risco financeiro, conformidade, risco reputacional) com as opções do legado. O nível (Alto, Médio ou Baixo) é o pior critério e é calculado no servidor; o tipo do fornecedor segue o nível (Alto vira crítico, Médio vira médio, Baixo vira pequeno), e grande provedor não é trocado. O histórico guarda cada avaliação. Nova tabela `criticidades_terceiro` (migration 0080, aditiva, não aplicada).
+
 ### Adicionado (RoPA: Nova atividade com escolha de modo, PR3; sem migration)
 - **"Nova atividade" pede nome, área e responsável e pergunta como preencher**: pela entrevista guiada ou direto nas abas. A equipe da ness. começa no direto; o cliente, na guiada. O nome vira a finalidade provisória, editável na aba Escopo.
 
