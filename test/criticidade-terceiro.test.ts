@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nivelDaCriticidade, tipoDaCriticidade, RESPOSTAS_CRITICIDADE, type RespostasCriticidade } from '../src/services/terceiros';
+import { nivelDaCriticidade, tipoDaCriticidade, RESPOSTAS_CRITICIDADE, type RespostasCriticidade } from '../src/services/criticidade';
 
 /** Criticidade do fornecedor: o pior critério manda; o nível define o tipo, exceto grande_provedor (escolha manual). */
 const base: RespostasCriticidade = {

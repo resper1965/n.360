@@ -1,4 +1,5 @@
 import { logAudit } from '../helpers';
+import { nivelDaCriticidade, tipoDaCriticidade, type NivelCriticidade, type RespostasCriticidade } from './criticidade';
 
 /**
  * Núcleo do n.privacy, fatia 6: terceiros (TPRM) tipificados. O terceiro é uma parte do tipo `organizacao`; o tipo define o
@@ -142,36 +143,27 @@ export async function desligarDocumento(db: D1Database, projectId: string, parte
   return (r.meta.changes ?? 0) > 0;
 }
 
-/** Criticidade (spec 2026-10-18): cinco blocos, cada um com uma resposta. As opções são gravadas como estão; o nível é derivado. */
-export const RESPOSTAS_CRITICIDADE = {
-  impacto: ['alto', 'medio', 'baixo'],
-  exclusividade: ['sem_alternativas', 'poucas_alternativas', 'varias_alternativas'],
-  risco_financeiro: ['alto', 'medio', 'baixo'],
-  conformidade: ['regulamentado', 'sem_regulamentacao'],
-  risco_reputacional: ['alto', 'medio', 'baixo'],
-} as const;
-export type RespostasCriticidade = { [K in keyof typeof RESPOSTAS_CRITICIDADE]: (typeof RESPOSTAS_CRITICIDADE)[K][number] };
-export type NivelCriticidade = 'alto' | 'medio' | 'baixo';
+export type Criticidade = RespostasCriticidade & { id: string; nivel: NivelCriticidade; avaliado_por: string | null; created_at: string };
 
-/** Cada resposta vira um nível de risco; o pior critério manda (qualquer Alto → Alto; senão qualquer Médio → Médio). */
-const NIVEL_DA_RESPOSTA: { [K in keyof RespostasCriticidade]: Record<RespostasCriticidade[K], NivelCriticidade> } = {
-  impacto: { alto: 'alto', medio: 'medio', baixo: 'baixo' },
-  exclusividade: { sem_alternativas: 'alto', poucas_alternativas: 'medio', varias_alternativas: 'baixo' },
-  risco_financeiro: { alto: 'alto', medio: 'medio', baixo: 'baixo' },
-  conformidade: { regulamentado: 'alto', sem_regulamentacao: 'baixo' },
-  risco_reputacional: { alto: 'alto', medio: 'medio', baixo: 'baixo' },
-};
-
-export function nivelDaCriticidade(r: RespostasCriticidade): NivelCriticidade {
-  const niveis = (Object.keys(NIVEL_DA_RESPOSTA) as (keyof RespostasCriticidade)[]).map((k) => NIVEL_DA_RESPOSTA[k][r[k]]);
-  if (niveis.includes('alto')) return 'alto';
-  return niveis.includes('medio') ? 'medio' : 'baixo';
+/** Histórico de criticidade do fornecedor, o mais recente primeiro. `atual` é null enquanto nunca foi avaliado. */
+export async function lerCriticidades(db: D1Database, projectId: string, parteId: string): Promise<{ atual: Criticidade | null; historico: Criticidade[] } | null> {
+  if (!(await parteDoProjeto(db, projectId, parteId))) return null;
+  const r = await db.prepare(`SELECT id, impacto, exclusividade, risco_financeiro, conformidade, risco_reputacional, nivel, avaliado_por, created_at
+    FROM criticidades_terceiro WHERE parte_id = ? AND project_id = ? ORDER BY created_at DESC, rowid DESC`).bind(parteId, projectId).all<Criticidade>();
+  return { atual: r.results[0] ?? null, historico: r.results };
 }
 
-const TIPO_DO_NIVEL: Record<NivelCriticidade, TipoTerceiro> = { alto: 'critico', medio: 'medio', baixo: 'pequeno' };
-
-/** O nível define o tipo; grande_provedor é escolha manual e nunca é trocado aqui. */
-export function tipoDaCriticidade(nivel: NivelCriticidade, tipoAtual: TipoTerceiro | null): TipoTerceiro {
-  if (tipoAtual === 'grande_provedor') return tipoAtual;
-  return TIPO_DO_NIVEL[nivel];
+/** Grava a avaliação e ajusta o tipo pelo nível (grande_provedor fica). O nível é derivado aqui, nunca vem do cliente. */
+export async function registrarCriticidade(db: D1Database, projectId: string, parteId: string, ator: string, r: RespostasCriticidade): Promise<Falha | { ok: true; id: string; nivel: NivelCriticidade; tipo: TipoTerceiro }> {
+  const p = await parteDoProjeto(db, projectId, parteId);
+  if (!p) return falha(404, 'Parte não encontrada');
+  if (p.tipo !== 'organizacao') return falha(400, 'Só organização é terceiro');
+  const nivel = nivelDaCriticidade(r);
+  const tipo = tipoDaCriticidade(nivel, p.terceiro_tipo);
+  const id = crypto.randomUUID();
+  await db.prepare(`INSERT INTO criticidades_terceiro (id, project_id, parte_id, impacto, exclusividade, risco_financeiro, conformidade, risco_reputacional, nivel, avaliado_por)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, projectId, parteId, r.impacto, r.exclusividade, r.risco_financeiro, r.conformidade, r.risco_reputacional, nivel, ator).run();
+  if (tipo !== p.terceiro_tipo) await definirTipo(db, projectId, parteId, ator, tipo);
+  await logAudit(db, 'terceiro.criticidade', ator, `Parte ${parteId}: criticidade ${nivel} (tipo ${tipo})`, '', '', projectId);
+  return { ok: true, id, nivel, tipo };
 }

@@ -107,6 +107,7 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/ropa/importar': { obrigatorios: ['csv'] },
   'POST /api/v1/projects/{projectId}/similares': { obrigatorios: ['nome', 'tipo'] },
   'POST /api/v1/projects/{projectId}/terceiros/{parteId}/avaliacoes': { obrigatorios: ['resultado', 'valido_ate'] },
+  'POST /api/v1/projects/{projectId}/terceiros/{parteId}/criticidades': { obrigatorios: ['conformidade', 'exclusividade', 'impacto', 'risco_financeiro', 'risco_reputacional'] },
   'POST /api/v1/projects/{projectId}/terceiros/{parteId}/documentos': { obrigatorios: ['documento_id'] },
   'POST /api/v1/projects/{projectId}/titular-pedidos': { obrigatorios: ['tipo'] },
   'POST /api/v1/projects/{projectId}/training': { obrigatorios: ['employee_name', 'training_name'] },

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { normalizarNome } from '../services/nomes';
+import { RESPOSTAS_CRITICIDADE } from '../services/criticidade';
 
 export const MODULOS = ['iso', 'privacy'] as const;
 export type Modulo = (typeof MODULOS)[number];
@@ -141,6 +142,14 @@ export const terceiroTipoSchema = z.object({ terceiro_tipo: z.enum(['grande_prov
 
 /** A evidência vira link na tela: só http(s), nunca `javascript:` nem `data:`. */
 const urlWeb = z.string().trim().max(2000).regex(/^https?:\/\/\S+$/i, 'Use um link http ou https');
+/** Criticidade (spec 2026-10-18): cinco respostas, uma por bloco. O nível NÃO entra no corpo: o servidor deriva. */
+export const criticidadeTerceiroSchema = z.object({
+  impacto: z.enum(RESPOSTAS_CRITICIDADE.impacto),
+  exclusividade: z.enum(RESPOSTAS_CRITICIDADE.exclusividade),
+  risco_financeiro: z.enum(RESPOSTAS_CRITICIDADE.risco_financeiro),
+  conformidade: z.enum(RESPOSTAS_CRITICIDADE.conformidade),
+  risco_reputacional: z.enum(RESPOSTAS_CRITICIDADE.risco_reputacional),
+}).strict();
 export const avaliacaoTerceiroSchema = z.object({
   resultado: z.enum(['aprovado', 'com_ressalvas', 'reprovado']),
   valido_ate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD'),
