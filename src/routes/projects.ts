@@ -1185,7 +1185,12 @@ projectsApp.get('/:id/coherence', async (c) => {
 // DPIA Assessments inside Project
 projectsApp.get('/:id/dpia', async (c) => {
   const projectId = c.req.param('id');
-  const result = await c.env.DB.prepare('SELECT * FROM dpia_assessments WHERE project_id = ? ORDER BY created_at DESC').bind(projectId).all<Record<string, unknown>>();
+  // `atividade`: a finalidade do RoPA ligado, para a coluna da lista (spec 2026-10-19).
+  const result = await c.env.DB.prepare(
+    `SELECT d.*, rr.processing_purpose AS atividade FROM dpia_assessments d
+       LEFT JOIN ropa_records rr ON rr.id = d.ropa_id AND rr.project_id = d.project_id
+      WHERE d.project_id = ? ORDER BY d.created_at DESC`
+  ).bind(projectId).all<Record<string, unknown>>();
   // F3: `origem_mudou` avisa que o RoPA mudou depois que a DPIA nasceu dele (só aviso; nada é invalidado).
   return c.json({ ok: true, assessments: await comOrigemMudou(c.env.DB, projectId, semRastros(result.results)) });
 });

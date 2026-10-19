@@ -8,8 +8,11 @@ vi.mock('../src/router.js', () => ({ render: vi.fn(), navigate: vi.fn() }));
 
 import { S } from '../src/state.js';
 import '../src/ui.js';
+import { initDelegation } from '../src/delegation.js';
 import '../src/views/privacy.js';
 import fonte from '../src/views/privacy.js?raw';
+
+initDelegation();
 
 const el = (id) => document.getElementById(id);
 let rotas;
@@ -281,6 +284,21 @@ describe('RIPD (DPIA)', () => {
         const linhas = [...el('c').querySelectorAll('tr')];
         expect(linhas.find((l) => l.textContent.includes('CRM')).textContent).toContain('RoPA mudou depois deste RIPD: revise');
         expect(linhas.find((l) => l.textContent.includes('ERP')).textContent).not.toContain('RoPA mudou');
+    });
+
+    it('colunas Atividade e Risco residual e filtro de status (spec 2026-10-19)', async () => {
+        rotas['/dpia'] = [{ id: 'd1', system_name: 'CRM', status: 'Approved', atividade: 'Atividade <b>Exemplo</b>', residual_risk_level: 'Baixo' },
+            { id: 'd2', system_name: 'ERP', status: 'Draft', atividade: null, residual_risk_level: null }];
+        await window.renderDPIA(el('c'), el('h'), el('a'));
+        const cab = [...el('c').querySelectorAll('thead th')].map((t) => t.textContent.trim());
+        expect(cab.slice(0, 2)).toEqual(['Atividade', 'Sistema ou operação']);
+        expect(cab).toContain('Risco residual');
+        const linhas = () => [...el('ripd-lista').querySelectorAll('tbody tr')];
+        expect(linhas()[0].textContent).toContain('Baixo');
+        expect(el('c').innerHTML).not.toContain('<b>Exemplo</b>');
+        el('ripd-filtro-status').value = 'Draft';
+        el('ripd-filtro-status').dispatchEvent(new Event('change', { bubbles: true }));
+        expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('ERP')]);
     });
 
     it('vazio sem marcação: ensina a marcar', async () => {

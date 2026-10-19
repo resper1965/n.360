@@ -88,6 +88,15 @@ describe('GET /ropa/lias', () => {
   });
 });
 
+describe('GET /dpia (coluna Atividade)', () => {
+  it('traz a finalidade do RoPA ligado; RIPD sem atividade vem com null', async () => {
+    await env.DB.prepare(`INSERT INTO dpia_assessments (id, project_id, ropa_id, system_name, status) VALUES ('lp-d1', ?1, 'lp-r1', 'Sistema Exemplo', 'Draft'), ('lp-d2', ?1, NULL, 'Sem atividade', 'Draft')`).bind(P).run();
+    const corpo = await json<{ assessments: Record<string, unknown>[] }>(await chamar(consultor, `/api/v1/projects/${P}/dpia`));
+    expect(corpo.assessments.find((d) => d.id === 'lp-d1')).toMatchObject({ atividade: 'Atividade Exemplo', ropa_id: 'lp-r1' });
+    expect(corpo.assessments.find((d) => d.id === 'lp-d2')).toMatchObject({ atividade: null });
+  });
+});
+
 describe('agente MCP', () => {
   it('lê as três listas, só do projeto da concessão', async () => {
     for (const s of ['gaps', 'riscos-mapa', 'lias']) {

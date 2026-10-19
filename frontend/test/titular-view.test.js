@@ -7,8 +7,10 @@ vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 import { S } from '../src/state.js';
 import { navigate } from '../src/router.js';
 import '../src/ui.js';
+import { initDelegation } from '../src/delegation.js';
 import '../src/views/titular.js';
 
+initDelegation();
 const B = '/api/v1/projects/p9';
 const PEDIDOS = [
     { id: 'a', protocolo: 'PT-2026-0001', tipo: 'acesso', canal: 'email', recebido_em: '2026-10-01', prazo_em: '2026-10-16T00:00:00.000Z', status: 'recebido', situacao_prazo: 'no_prazo' },
@@ -515,5 +517,29 @@ describe('o cliente age: administrador do cliente registra e responde', () => {
         await abrir('consentimentos');
         expect(el('a').innerHTML).toBe('');
         expect(el('c').querySelector('[data-action="revogarConsentimento"]')).toBeNull();
+    });
+});
+
+describe('pedidos: colunas e filtros da lista (spec 2026-10-19)', () => {
+    const linhas = () => [...el('pt-lista').querySelectorAll('tbody tr')];
+    const filtrar = (id, v) => { el(id).value = v; el(id).dispatchEvent(new Event('change', { bubbles: true })); };
+    it('mostra Canal e Respondido em', async () => {
+        await abrir('pedidos', { [`GET ${B}/titular-pedidos`]: [...PEDIDOS, { ...PEDIDOS[0], id: 'd', protocolo: 'PT-2026-0004', status: 'respondido', respondido_em: '2026-10-05T12:00:00Z', situacao_prazo: 'encerrado' }] });
+        const cab = [...el('pt-lista').querySelectorAll('thead th')].map((t) => t.textContent.trim());
+        expect(cab).toEqual(['Protocolo', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações']);
+        expect(linhas()[0].textContent).toContain('E-mail');
+        expect(linhas()[3].textContent).toContain('05/10/2026');
+    });
+    it('filtra por tipo e por status sem ir ao servidor', async () => {
+        const f = await abrir('pedidos');
+        const antes = f.mock.calls.length;
+        filtrar('pt-filtro-tipo', 'correcao');
+        expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('PT-2026-0002')]);
+        filtrar('pt-filtro-tipo', '');
+        filtrar('pt-filtro-status', 'recebido');
+        expect(linhas()).toHaveLength(2);
+        filtrar('pt-filtro-status', 'negado');
+        expect(el('pt-lista').textContent).toContain('Nenhum pedido com estes filtros');
+        expect(f.mock.calls.length).toBe(antes);
     });
 });
