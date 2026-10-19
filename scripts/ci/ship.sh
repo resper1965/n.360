@@ -3,7 +3,8 @@
 #
 #   bash scripts/ci/ship.sh <numero-do-pr>
 #
-# Funciona para qualquer PR (inclusive de bot), sem precisar de worktree: cria um temporário no commit do PR.
+# Funciona para qualquer PR (inclusive de bot). Roda num worktree fixo ($GATE_WT, padrão ~/worktrees/ship), reaproveitado de um
+# PR para o outro: o node_modules fica (o gate só reinstala quando o package-lock muda).
 # Migration pendente: aplique ANTES (backup + `wrangler d1 migrations apply`); o build de produção recusa o deploy.
 set -uo pipefail
 PR=${1:?uso: ship.sh <numero-do-pr>}
@@ -13,18 +14,22 @@ RAIZ=$(cd "$(git rev-parse --git-common-dir)/.." && pwd)
 cd "$RAIZ"
 
 echo "== PR $PR: atualizar com a main"
-gh pr update-branch "$PR" >/dev/null 2>&1 || echo "(já estava atualizado, ou há conflito: o gate avisa)"
+gh pr update-branch "$PR" >/dev/null 2>&1
 BR=$(gh pr view "$PR" --json headRefName -q .headRefName) || exit 1
+# Conflito com a main: parar ANTES do portão (antes rodava 30 min sobre a versão velha e o merge era recusado no fim).
+for i in 1 2 3 4 5 6; do
+  estado=$(gh pr view "$PR" --json mergeable -q .mergeable)
+  [ "$estado" != UNKNOWN ] && break; sleep 5
+done
+[ "$estado" = CONFLICTING ] && { echo "PR $PR: conflito com a main. Resolva na branch e rode de novo; nada foi testado."; exit 1; }
 git fetch -q origin "$BR" main
 
-WT="${TMPDIR:-${TEMP:-/tmp}}/ship-wt-$PR"
-git worktree remove --force "$WT" 2>/dev/null
-git worktree add -q --detach "$WT" "origin/$BR" || exit 1
-trap 'git -C "$RAIZ" worktree remove --force "$WT" 2>/dev/null' EXIT
+# Worktree fixo, sem junção (uma junção fazia o `worktree remove --force` apagar o node_modules da raiz) e sem remover no fim.
+# `git clean` sem -x preserva o que o .gitignore cobre (node_modules, dist).
+WT=${GATE_WT:-$HOME/worktrees/ship}
+[ -e "$WT/.git" ] || git worktree add -q --detach "$WT" "origin/$BR" || exit 1
 cd "$WT"
-
-# Dependências: NÃO há junção. Uma junção no temporário fazia o `git worktree remove --force` seguir para a raiz e apagar
-# node_modules da máquina principal (ocorreu duas vezes). O gate instala de novo dentro do temporário (mais lento, mas seguro).
+git checkout -q -f --detach "origin/$BR" && git clean -fdq || exit 1
 
 SHA=$(git rev-parse HEAD); echo "== PR $PR em ${SHA:0:10} ($BR)"
 bash scripts/ci/gate.sh || { echo "PR $PR: o portão não passou; nada foi mergeado."; exit 1; }
