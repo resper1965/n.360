@@ -1,4 +1,4 @@
-// Lista de Gaps do projeto (n.privacy, spec 2026-10-19): GET /projects/:id/ropa/gaps. api() REAL; só o fetch é dublado.
+// Gestão de GAPs do projeto (n.privacy, spec 2026-10-19): GET /projects/:id/ropa/gaps. api() REAL; só o fetch é dublado.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { servir } from './servir-api.js';
 
@@ -18,21 +18,24 @@ initDelegation();
 const hoje = new Date();
 const emDias = (n) => new Date(hoje.getTime() + n * 86_400_000).toISOString().slice(0, 10);
 // Corpo como o handler devolve (src/routes/ropa.ts, `gaps`): { gaps: [...] }.
-const G = (id, extra = {}) => ({ id, ropa_id: 'r1', atividade: 'Atividade Exemplo', titulo: `Gap ${id}`, recomendacao: null, plano: null, responsavel: null,
+const G = (id, extra = {}) => ({ id, ropa_id: 'r1', atividade: 'Atividade Exemplo', area: null, titulo: `Gap ${id}`, recomendacao: null, plano: null, responsavel: null,
     prazo: null, faixa: 'sem_prazo', status: 'Open', anexos: 0, ...extra });
 const GAPS = [
-    G('a', { titulo: 'Sem <b>política</b>', recomendacao: 'Criar política', plano: 'Redigir', responsavel: 'Responsável Exemplo', prazo: emDias(-3), faixa: 'vencidas', anexos: 2 }),
-    G('b', { ropa_id: 'r2', atividade: 'Outra Atividade', prazo: emDias(5), faixa: 'ate_30', status: 'In Progress' }),
+    G('a', { titulo: 'Sem <b>política</b>', area: 'Recursos Humanos', recomendacao: 'Criar política', plano: 'Redigir', responsavel: 'Responsável Exemplo', prazo: emDias(-3), faixa: 'vencidas', anexos: 2 }),
+    G('b', { ropa_id: 'r2', atividade: 'Outra Atividade', area: 'Jurídico', prazo: emDias(5), faixa: 'ate_30', status: 'In Progress' }),
     G('c', { prazo: emDias(20), faixa: 'ate_30', responsavel: 'Responsável Exemplo' }),
     G('d', { status: 'Closed', faixa: null, prazo: emDias(-30) }),
 ];
+// Corpo de GET /ropa/:rid/gaps (src/routes/ropa-abas.ts), o que o modal "Controle de GAPs" usa.
+const DA_ATIVIDADE = { ok: true, nao_aplicavel: false, gaps: [{ id: 'a', gap: 'Sem política', recomendacao: 'Criar política', plano_acao: 'Redigir',
+    responsavel: { id: 'pa1', nome: 'Responsável Exemplo' }, prazo: emDias(-3), status: 'Open', anexos: [] }] };
 const el = (id) => document.getElementById(id);
 const linhas = () => [...el('gp-lista').querySelectorAll('tbody tr')];
 const filtrar = (id, v) => { el(id).value = v; el(id).dispatchEvent(new Event('change', { bubbles: true })); };
 
-async function abrir(gaps = GAPS) {
-    document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div>';
-    const f = servir({ 'GET /api/v1/projects/p9/ropa/gaps': { gaps } });
+async function abrir(gaps = GAPS, extra = {}) {
+    document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div><div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+    const f = servir({ 'GET /api/v1/projects/p9/ropa/gaps': { gaps }, ...extra });
     await window.renderGaps(el('c'), el('h'), el('a'));
     return f;
 }
@@ -45,44 +48,67 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-describe('Gaps', () => {
-    it('colunas da lista e texto escapado', async () => {
+describe('Gestão de GAPs', () => {
+    it('colunas do legado, "Em atraso" derivado e texto escapado', async () => {
         const f = await abrir();
-        expect(el('h').textContent).toBe('Gaps');
+        expect(el('h').textContent).toBe('Gestão de GAPs');
         expect([...el('c').querySelectorAll('thead th')].map((t) => t.textContent.trim()))
-            .toEqual(['Atividade', 'Gap', 'Recomendação', 'Plano', 'Responsável', 'Prazo', 'Status', 'Anexos', 'Ações']);
+            .toEqual(['Gap', 'Atividade', 'Área', 'Responsável', 'Prazo', 'Status']);
         expect(linhas()).toHaveLength(4);
-        const a = linhas()[0].textContent;
-        expect(a).toContain('Criar política');
+        const [a, b, , d] = linhas().map((l) => l.textContent);
+        expect(a).toContain('Recursos Humanos');
         expect(a).toContain('Responsável Exemplo');
-        expect(a).toContain('Pendente');
-        expect(el('c').innerHTML).not.toContain('<b>política</b>');
+        expect(a).toContain('Em atraso');
+        expect(b).toContain('Em andamento');
+        // concluído com prazo passado não está em atraso
+        expect(d).toContain('Concluído');
+        expect(el('c').querySelector('tbody b')).toBeNull();
+        expect(a).toContain('Sem <b>política</b>');
         expect(f.mock.calls.map(([u]) => new URL(u, 'http://localhost').pathname)).toEqual(['/api/v1/projects/p9/ropa/gaps']);
     });
 
-    it('filtra por status, responsável e faixa de prazo, sem ir ao servidor', async () => {
+    it('busca e filtro de Status (com "Em atraso"), sem ir ao servidor', async () => {
         const f = await abrir();
         filtrar('gp-filtro-status', 'In Progress');
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Outra Atividade')]);
+        filtrar('gp-filtro-status', 'atraso');
+        expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Recursos Humanos')]);
+        filtrar('gp-filtro-status', 'Open');
+        expect(linhas()).toHaveLength(2);
         filtrar('gp-filtro-status', '');
-        filtrar('gp-filtro-responsavel', 'Responsável Exemplo');
-        expect(linhas()).toHaveLength(2);
-        filtrar('gp-filtro-responsavel', '');
-        filtrar('gp-filtro-prazo', 'vencido');
-        // o concluído com prazo passado não é vencido
-        expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Criar política')]);
-        filtrar('gp-filtro-prazo', '7');
+        el('gp-busca').value = 'juridico';
+        el('gp-busca').dispatchEvent(new Event('input', { bubbles: true }));
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Outra Atividade')]);
-        filtrar('gp-filtro-prazo', '30');
-        expect(linhas()).toHaveLength(2);
-        filtrar('gp-filtro-prazo', 'sem_prazo');
-        expect(linhas()).toHaveLength(0);
+        el('gp-busca').value = 'nada assim';
+        el('gp-busca').dispatchEvent(new Event('input', { bubbles: true }));
         expect(el('gp-lista').textContent).toContain('Nenhum gap com estes filtros');
         expect(f).toHaveBeenCalledTimes(1);
     });
 
-    it('"Abrir" leva à atividade na aba Gaps', async () => {
+    it('"Exportar" baixa o CSV das ações das atividades', async () => {
+        const f = await abrir(GAPS, { 'GET /api/v1/projects/p9/export/acoes-atividade': 'csv' });
+        const b = el('a').querySelector('[data-action="exportarGaps"]');
+        expect(b.textContent.trim()).toBe('Exportar');
+        await window.exportarGaps();
+        expect(f.mock.calls.map(([u]) => new URL(u, 'http://localhost').pathname)).toContain('/api/v1/projects/p9/export/acoes-atividade');
+    });
+
+    it('o Gap abre o modal "Controle de GAPs" da atividade, com as abas Gap, Plano de Ação e Anexo', async () => {
+        const f = await abrir(GAPS, { 'GET /api/v1/projects/p9/ropa/r1/gaps': DA_ATIVIDADE, 'GET /api/v1/projects/p9/partes': [{ id: 'pa1', tipo: 'pessoa', nome: 'Responsável Exemplo', status: 'ativa' }] });
+        const b = linhas()[0].querySelector('[data-action="gpAbrir"]');
+        expect(JSON.parse(b.getAttribute('data-args'))).toEqual(['r1', 'a']);
+        await window.gpAbrir('r1', 'a');
+        expect(el('modal-content').textContent).toContain('Controle de GAPs');
+        expect([...document.querySelectorAll('#modal-content [role="tab"]')].map((t) => t.textContent.trim())).toEqual(['Gap', 'Plano de Ação', 'Anexo']);
+        expect(el('at-gap-gap').value).toBe('Sem política');
+        expect(el('at-gap-resp').value).toBe('pa1');
+        expect(f.mock.calls.map(([u]) => new URL(u, 'http://localhost').pathname)).toContain('/api/v1/projects/p9/ropa/r1/gaps');
+    });
+
+    it('a Atividade leva à ficha na aba Gaps; quem só lê não abre o modal', async () => {
+        S.user = { role: 'org_user' };
         await abrir();
+        expect(el('gp-lista').querySelector('[data-action="gpAbrir"]')).toBeNull();
         const b = linhas()[1].querySelector('[data-action="abrirAtividade"]');
         expect(JSON.parse(b.getAttribute('data-args'))).toEqual(['p9', 'r2', 'gaps']);
         b.click();

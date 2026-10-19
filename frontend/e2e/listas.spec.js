@@ -3,16 +3,16 @@ import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { servirShell } from './shell.js';
 
-// Listas do legado no n.privacy (spec 2026-10-19): menu Diagnóstico → Gaps → filtro de status → Abrir leva à atividade na aba Controle
+// Listas do legado no n.privacy (spec 2026-10-19): menu Diagnóstico → Gestão de GAPs → filtro de status → o Gap abre o modal; a Atividade leva à ficha na aba Controle
 // de GAPs. A API é dublada com as formas do contrato (contracts/ropa-abas). Dados fictícios.
 
 const USER = { id: 'u1', email: 'consultor@ness.io', name: 'Consultor', role: 'consultor' };
 const P = 'proj-e2e';
 const FICHA = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../contracts/ropa-abas/ficha.json'), 'utf8'));
 const GAPS = [
-  { id: 'g1', ropa_id: 'r1', atividade: 'Atividade Exemplo', titulo: 'Sem política de retenção', recomendacao: 'Criar a política', plano: 'Redigir e aprovar',
+  { id: 'g1', ropa_id: 'r1', atividade: 'Atividade Exemplo', area: 'Recursos Humanos', titulo: 'Sem política de retenção', recomendacao: 'Criar a política', plano: 'Redigir e aprovar',
     responsavel: 'Responsável Exemplo', prazo: '2026-12-31', faixa: 'mais_de_150', status: 'Open', anexos: 1 },
-  { id: 'g2', ropa_id: 'r2', atividade: 'Outra Atividade', titulo: 'Contrato sem cláusula', recomendacao: null, plano: null,
+  { id: 'g2', ropa_id: 'r2', atividade: 'Outra Atividade', area: null, titulo: 'Contrato sem cláusula', recomendacao: null, plano: null,
     responsavel: null, prazo: null, faixa: null, status: 'Closed', anexos: 0 },
 ];
 
@@ -38,7 +38,7 @@ async function mockApi(page) {
   });
 }
 
-test('Gaps: lista → filtro de status → Abrir leva à atividade na aba Controle de GAPs', async ({ page }) => {
+test('Gestão de GAPs: lista → filtro de status → o Gap abre o Controle de GAPs → a Atividade leva à ficha na aba', async ({ page }) => {
   await mockApi(page);
   await page.goto('/login.html');
   await page.fill('#login-email', USER.email);
@@ -49,13 +49,20 @@ test('Gaps: lista → filtro de status → Abrir leva à atividade na aba Contro
   const menu = page.locator('#sidebar');
   await expect(menu.getByText('Diagnóstico', { exact: true })).toBeVisible();
   await menu.locator('#nav-gaps').click();
-  await expect(page.locator('#header-title')).toHaveText('Gaps');
+  await expect(page.locator('#header-title')).toHaveText('Gestão de GAPs');
   await expect(page.locator('#gp-lista tbody tr')).toHaveCount(2);
 
   await page.getByLabel('Status').selectOption('Open');
   await expect(page.locator('#gp-lista tbody tr')).toHaveCount(1);
   const linha = page.locator('#gp-lista tbody tr', { hasText: 'Sem política de retenção' });
   await expect(linha).toContainText('Responsável Exemplo');
+  await expect(linha).toContainText('Recursos Humanos');
+
+  await linha.getByRole('button', { name: 'Controle do gap: Sem política de retenção' }).click();
+  await expect(page.locator('#modal-content')).toContainText('Controle de GAPs');
+  await expect(page.locator('#at-gap-gap')).toHaveValue('Sem política de retenção');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#at-gap-gap')).toBeHidden();
 
   await linha.getByRole('button', { name: 'Abrir a atividade: Atividade Exemplo' }).click();
   await expect(page).toHaveURL(/aba=gaps/);

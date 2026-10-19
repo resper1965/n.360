@@ -1,39 +1,28 @@
 import { S } from '../state.js';
-import { api } from '../api.js';
-import { escapeHTML, formatarData } from '../ui.js';
-import { STATUS } from '../atividade/aba-gaps.js';
+import { api, baixarArquivo } from '../api.js';
+import { escapeHTML, formatarData, showToast } from '../ui.js';
+import { STATUS, abrirGapDaAtividade } from '../atividade/aba-gaps.js';
+import { podeEditar } from './partes.js';
 
-// Gaps do projeto (n.privacy, spec 2026-10-19): a lista do legado, sobre `GET /projects/:id/ropa/gaps` (as ações das atividades,
-// o mesmo cadastro da aba Controle de GAPs). Só leitura; os filtros refazem a tabela sem ir ao servidor. Texto do servidor escapado.
+// Gestão de GAPs do projeto (n.privacy, spec 2026-10-19): a lista do legado sobre `GET /projects/:id/ropa/gaps` (as ações das
+// atividades, o mesmo cadastro da aba Controle de GAPs). Busca e Status filtram na tela; "Em atraso" é derivado (prazo passado e não
+// concluído). O Gap abre o modal "Controle de GAPs" da atividade, pelas rotas dela; a Atividade abre a ficha. Texto do servidor escapado.
 
 const ROTULO_STATUS = Object.fromEntries(STATUS);
-const PRAZOS = [['vencido', 'Vencido'], ['7', 'Próximos 7 dias'], ['30', 'Próximos 30 dias'], ['sem_prazo', 'Sem prazo']];
-const SEM_RESPONSAVEL = '__sem__';
+const ATRASO = 'atraso';
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
-const opcoes = (pares) => pares.map(([v, r]) => `<option value="${escapeHTML(v)}">${escapeHTML(r)}</option>`).join('');
-const select = (id, rotulo, pares, todos) => `<label class="co-campo"><span class="co-campo-rotulo">${rotulo}</span>
-    <select class="form-select" id="${id}" data-action-change="filtrarGaps"><option value="">${todos}</option>${opcoes(pares)}</select></label>`;
+const chave = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** Dias corridos de hoje até o prazo (AAAA-MM-DD); null sem prazo. */
-const diasAte = (prazo) => {
-    const d = prazo ? Date.parse(String(prazo).slice(0, 10)) : NaN;
-    return Number.isNaN(d) ? null : Math.round((d - Date.parse(new Date().toISOString().slice(0, 10))) / 86_400_000);
-};
-/** Faixa da tela: vencido e "próximos N dias" valem só para gap aberto (concluído com prazo passado não está vencido). */
-export function naFaixa(g, faixa) {
-    if (!faixa) return true;
-    const dias = diasAte(g.prazo);
-    if (faixa === 'sem_prazo') return dias === null;
-    if (g.status === 'Closed' || dias === null) return false;
-    return faixa === 'vencido' ? dias < 0 : dias >= 0 && dias <= Number(faixa);
-}
+/** Prazo antes de hoje (AAAA-MM-DD) e gap não concluído. */
+export const emAtraso = (g) => g.status !== 'Closed' && !!g.prazo && String(g.prazo).slice(0, 10) < new Date().toISOString().slice(0, 10);
+const rotuloStatus = (g) => (emAtraso(g) ? 'Em atraso' : ROTULO_STATUS[g.status] || g.status);
 
 let daLista = null;
 
 async function renderGaps(c, h, a) {
-    h.textContent = 'Gaps';
+    h.textContent = 'Gestão de GAPs';
     a.innerHTML = '';
     daLista = null;
     const proj = projetoAtivo();
@@ -48,11 +37,13 @@ async function renderGaps(c, h, a) {
         return;
     }
     daLista = { projeto: proj.id, gaps };
-    const responsaveis = [...new Set(gaps.map((g) => g.responsavel).filter(Boolean))].sort().map((r) => [r, r]);
+    a.innerHTML = '<button class="btn" data-action="exportarGaps">Exportar</button>';
+    const opcoes = [...STATUS, [ATRASO, 'Em atraso']].map(([v, r]) => `<option value="${escapeHTML(v)}">${escapeHTML(r)}</option>`).join('');
     c.innerHTML = `<div class="co-controles">
-            ${select('gp-filtro-status', 'Status', STATUS, 'Todos')}
-            ${select('gp-filtro-responsavel', 'Responsável', [...responsaveis, [SEM_RESPONSAVEL, 'Sem responsável']], 'Todos')}
-            ${select('gp-filtro-prazo', 'Prazo', PRAZOS, 'Todos')}
+            <label class="co-campo"><span class="co-campo-rotulo">Buscar</span>
+                <input class="form-input" type="search" id="gp-busca" maxlength="120" placeholder="Gap, atividade, área ou responsável" data-action-input="filtrarGaps"></label>
+            <label class="co-campo"><span class="co-campo-rotulo">Status</span>
+                <select class="form-select" id="gp-filtro-status" data-action-change="filtrarGaps"><option value="">Todos</option>${opcoes}</select></label>
         </div><div id="gp-lista"></div>`;
     desenhar();
 }
@@ -61,21 +52,30 @@ function desenhar() {
     const alvo = el('gp-lista');
     if (!daLista || !alvo) return;
     const status = el('gp-filtro-status').value;
-    const resp = el('gp-filtro-responsavel').value;
-    const prazo = el('gp-filtro-prazo').value;
-    const itens = daLista.gaps.filter((g) => (!status || g.status === status)
-        && (!resp || (resp === SEM_RESPONSAVEL ? !g.responsavel : g.responsavel === resp)) && naFaixa(g, prazo));
-    alvo.innerHTML = window.renderDataTable(['Atividade', 'Gap', 'Recomendação', 'Plano', 'Responsável', 'Prazo', 'Status', 'Anexos', 'Ações'], itens.map((g) => [
-        escapeHTML(g.atividade || '—'),
-        `<strong>${escapeHTML(g.titulo)}</strong>`,
-        escapeHTML(g.recomendacao || '—'),
-        escapeHTML(g.plano || '—'),
+    const busca = chave(el('gp-busca').value.trim());
+    const ed = podeEditar();
+    const itens = daLista.gaps.filter((g) => (!status || (status === ATRASO ? emAtraso(g) : g.status === status))
+        && (!busca || [g.titulo, g.atividade, g.area, g.responsavel].some((t) => chave(t).includes(busca))));
+    alvo.innerHTML = window.renderDataTable(['Gap', 'Atividade', 'Área', 'Responsável', 'Prazo', 'Status'], itens.map((g) => [
+        ed ? `<button type="button" class="btn btn-ghost btn-sm" data-action="gpAbrir" data-args='${args(g.ropa_id, g.id)}' aria-label="${escapeHTML(`Controle do gap: ${g.titulo}`)}">${escapeHTML(g.titulo)}</button>`
+            : `<strong>${escapeHTML(g.titulo)}</strong>`,
+        `<button type="button" class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(daLista.projeto, g.ropa_id, 'gaps')}' aria-label="Abrir a atividade: ${escapeHTML(g.atividade || '')}">${escapeHTML(g.atividade || '—')}</button>`,
+        escapeHTML(g.area || '—'),
         escapeHTML(g.responsavel || '—'),
         escapeHTML(formatarData(g.prazo)),
-        escapeHTML(ROTULO_STATUS[g.status] || g.status),
-        escapeHTML(String(g.anexos ?? 0)),
-        `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(daLista.projeto, g.ropa_id, 'gaps')}' aria-label="Abrir a atividade: ${escapeHTML(g.atividade || '')}">Abrir</button>`,
-    ]), { emptyState: 'Nenhum gap com estes filtros.', emptyHint: 'Limpe os filtros para ver todos.' });
+        emAtraso(g) ? window.renderStatusBadge('Em atraso', 'danger') : escapeHTML(rotuloStatus(g)),
+    ]), { emptyState: 'Nenhum gap com estes filtros.', emptyHint: 'Limpe a busca e os filtros para ver todos.' });
 }
+
 window.filtrarGaps = desenhar;
 window.renderGaps = renderGaps;
+
+/** Abre o "Controle de GAPs" da atividade; ao gravar, a lista do projeto se refaz. */
+window.gpAbrir = async function (ropaId, gapId) {
+    if (!daLista) return;
+    try { await abrirGapDaAtividade(daLista.projeto, ropaId, gapId, () => (typeof window.render === 'function' ? window.render() : undefined)); }
+    catch (e) { showToast((e && e.message) || 'Não foi possível abrir o gap', 'error'); }
+};
+
+window.exportarGaps = () => (daLista ? baixarArquivo(`/api/v1/projects/${daLista.projeto}/export/acoes-atividade`)
+    .catch((e) => showToast((e && e.message) || 'Não foi possível baixar o arquivo', 'error')) : undefined);
