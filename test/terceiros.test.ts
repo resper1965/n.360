@@ -166,7 +166,7 @@ describe('documentos, tratamentos e ficha', () => {
     ]);
     const ficha = await json<{ tratamentos: number; tratamentos_afetados: { id: string; finalidade: string }[]; suboperadores: { id: string; nome: string }[] }>(await chamar(consultor, 'GET', `${base}/tc-a`));
     expect(ficha.tratamentos).toBe(1);
-    expect(ficha.tratamentos_afetados).toEqual([{ id: 'tc-r1', finalidade: 'Folha de pagamento' }]);
+    expect(ficha.tratamentos_afetados).toEqual([{ id: 'tc-r1', finalidade: 'Folha de pagamento', origem: 'vinculo' }]);
     expect(ficha.suboperadores).toEqual([{ id: 'tc-b', nome: 'Fornecedor Médio' }]);
   });
 

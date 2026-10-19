@@ -18,7 +18,7 @@ const MODULOS = ['iso', 'privacy'];
 export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco'];
+export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-catalogos', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
@@ -33,6 +33,8 @@ export const NAV_DO_HUB = ['nav-inicio', 'nav-meus', ...SO_N360, 'nav-seguranca-
 export const TELAS_DO_HUB = ['inicio', 'meus-pedidos', ...Object.keys(TELAS_DA_CONTA), 'seguranca-projeto', 'audit-trail', 'sem-acesso-produto'];
 // Telas do n.iso sem item próprio no menu (abertas de dentro de outra tela ou por aviso).
 const DO_ISO_SEM_ITEM = ['project-detail', 'controls', 'metrics', 'audit-execution', 'assessment-detail', 'management-review', 'policies-dashboard'];
+// Do n.privacy sem item próprio: a ficha do fornecedor (aberta pela lista de Fornecedores).
+const DO_PRIVACY_SEM_ITEM = ['terceiro'];
 
 /** O produto do caminho (vale igual em localhost). */
 export function produtoAtual(loc = window.location) {
@@ -65,6 +67,14 @@ export async function destinoLegado(loc = window.location) {
     return `${base.origin}${prefixo}${resto}${loc.search || ''}${loc.hash || ''}`;
 }
 
+/** A ficha do fornecedor vive no endereço (`?tela=terceiro&parte=&aba=`); fora dela, esses parâmetros saem. */
+export function limparFichaDoEndereco() {
+    if (new URLSearchParams(window.location.search).get('tela') !== 'terceiro') return;
+    const u = new URL(window.location.href);
+    for (const k of ['tela', 'parte', 'aba']) u.searchParams.delete(k);
+    window.history.replaceState(null, '', u);
+}
+
 /** Navegação de página (um ponto só, para os testes dublarem: o jsdom não navega). `trocar` não deixa a página no histórico. */
 export function irPara(url, trocar = false) {
     if (trocar) window.location.replace(url); else window.location.assign(url);
@@ -91,7 +101,7 @@ export function produtoDaTela(tela) {
 }
 
 /** O módulo de uma tela, para o hub: o do item do menu, ou o n.iso nas telas dele sem item; null nas do cadastro (dos dois). */
-export const moduloDaTela = (tela) => (DO_ISO_SEM_ITEM.includes(tela) ? 'iso' : produtoDaTela(tela));
+export const moduloDaTela = (tela) => (DO_ISO_SEM_ITEM.includes(tela) ? 'iso' : DO_PRIVACY_SEM_ITEM.includes(tela) ? 'privacy' : produtoDaTela(tela));
 
 /** Caminho do produto na mesma origem: '/', '/iso' ou '/privacy'. */
 export const enderecoDoProduto = (produto) => (MODULOS.includes(produto) ? `/${produto}` : '/');
@@ -108,7 +118,7 @@ export function destinoDoAviso(tela, loc = window.location) {
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
 export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
-    'policies-dashboard', 'risks', 'vendors', 'partes', 'documentos', 'requisitos', 'terceiros', 'titular', 'encarregado', 'mapa-de-risco', 'importacao',
+    'policies-dashboard', 'risks', 'vendors', 'partes', 'documentos', 'requisitos', 'terceiros', 'terceiro', 'catalogos', 'titular', 'encarregado', 'mapa-de-risco', 'importacao',
     'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
@@ -189,8 +199,8 @@ export function pedidoDoHub(loc = window.location) {
     if (!q.has('tela')) return null;
     const tela = q.get('tela');
     const aba = q.get('aba') === 'incidentes' && tela === 'titular' ? 'incidentes' : null;
-    q.delete('tela');
-    q.delete('aba');
+    // A ficha do fornecedor vive no endereço (?tela=terceiro&parte=&aba=): recarregar volta a ela, na mesma aba.
+    if (tela !== 'terceiro') { q.delete('tela'); q.delete('aba'); }
     const resto = q.toString();
     history.replaceState(history.state, '', `${loc.pathname}${resto ? `?${resto}` : ''}${loc.hash || ''}`);
     if (aviso) return { aviso };
@@ -213,17 +223,18 @@ const marca = (produto) => `n<span style="color:var(--accent)">.</span><span cla
 // com os deles; os ids nav-* e as rotas não mudam.
 export const ROTULOS_PRIVACY = {
     'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas, áreas e sistemas', 'nav-requisitos': 'Cobertura da LGPD',
-    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Pedidos do titular', 'nav-dpia': 'RIPD', 'nav-terceiros': 'Terceiros',
+    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Pedidos do titular', 'nav-dpia': 'RIPD', 'nav-terceiros': 'Fornecedores',
 };
 
 /**
- * Menu do n.privacy (alternativa A do estudo de 14/10/2026; só aqui, o n.iso e o n.360 não mudam): Painel no topo, quatro
- * seções FIXAS na ordem do programa e o Assistente no fim. O título de seção não é botão e não recolhe: tudo fica à vista.
+ * Menu do n.privacy (alternativa A do estudo de 14/10/2026; só aqui, o n.iso e o n.360 não mudam): Painel no topo, cinco
+ * seções FIXAS na ordem do programa e o Assistente no fim (Cadastros entrou em 19/10/2026). O título de seção não é botão e não recolhe: tudo fica à vista.
  * Os itens são os mesmos `.sidebar-nav` de sempre, movidos para `ul`/`li`; os grupos de onde saíram ficam vazios e somem.
  */
 export const SECOES_PRIVACY = [
     ['', ['nav-encarregado']],
-    ['Mapear', ['nav-ropa', 'nav-partes', 'nav-terceiros', 'nav-importacao']],
+    ['Mapear', ['nav-ropa', 'nav-importacao']],
+    ['Cadastros', ['nav-partes', 'nav-terceiros', 'nav-catalogos']],
     ['Avaliar', ['nav-dpia', 'nav-mapa-de-risco', 'nav-requisitos']],
     ['Responder', ['nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos']],
     ['Provar', ['nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance']],
