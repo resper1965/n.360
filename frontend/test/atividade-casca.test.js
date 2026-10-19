@@ -166,3 +166,17 @@ describe('estados', () => {
     expect(el('at-corpo').textContent.length).toBeGreaterThan(0);
   });
 });
+
+describe('abrir a atividade numa aba (listas do n.privacy)', () => {
+  it('abrirAtividade(projeto, atividade, aba) grava a aba no endereço; sem aba, ou aba desconhecida, limpa', () => {
+    history.replaceState(null, '', '/privacy?aba=logs');
+    window.abrirAtividade('p1', 'r1', 'gaps');
+    expect(new URLSearchParams(window.location.search).get('aba')).toBe('gaps');
+    expect(S.atividade).toEqual({ projectId: 'p1', ropaId: 'r1' });
+    window.abrirAtividade('p1', 'r1', 'inexistente');
+    expect(new URLSearchParams(window.location.search).has('aba')).toBe(false);
+    history.replaceState(null, '', '/privacy?aba=logs');
+    window.abrirAtividade('p1', 'r1');
+    expect(new URLSearchParams(window.location.search).has('aba')).toBe(false);
+  });
+});

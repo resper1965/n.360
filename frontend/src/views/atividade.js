@@ -95,12 +95,13 @@ export async function renderAtividade(c, h, a) {
 const repintar = () => (ultimo ? renderAtividade(ultimo.c, ultimo.h, ultimo.a) : undefined);
 window.atRepintar = repintar;
 
-window.abrirAtividade = function (projectId, ropaId) {
+window.abrirAtividade = function (projectId, ropaId, aba) {
     if (typeof window.forceCloseModal === 'function') window.forceCloseModal();
     S.atividade = { projectId, ropaId };
-    // Uma atividade nova abre no Escopo, não na aba em que a anterior ficou.
+    // Uma atividade nova abre no Escopo, não na aba em que a anterior ficou; as listas do n.privacy (Gaps, Riscos, LIA) pedem a aba delas.
     const u = new URL(window.location.href);
-    if (u.searchParams.has('aba')) { u.searchParams.delete('aba'); window.history.replaceState(null, '', u); }
+    if (ABAS.some((x) => x.id === aba)) { u.searchParams.set('aba', aba); window.history.replaceState(null, '', u); }
+    else if (u.searchParams.has('aba')) { u.searchParams.delete('aba'); window.history.replaceState(null, '', u); }
     navigate('ropa-atividade');
 };
 window.atVoltar = function () { S.atividade = null; navigate('ropa'); };

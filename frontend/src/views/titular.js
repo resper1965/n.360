@@ -98,14 +98,12 @@ async function renderTitular(c, h, a) {
         // Uma ação principal: com pedido atrasado, responder o primeiro deles vence registrar um novo.
         const responderPrimeiro = registrar ? l.find((p) => p.situacao_prazo === 'atrasado') : null;
         if (responderPrimeiro) a.innerHTML = novo('abrirNovoPedidoTitular', '+ Registrar pedido', false);
-        corpo = window.renderDataTable(['Protocolo', 'Tipo', 'Recebido em', 'Prazo', 'Situação', 'Status', 'Ações'], l.map((p) => [
-            `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(dia(p.recebido_em)), escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'),
-            selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
-            // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
-            registrar && p.situacao_prazo === 'atrasado'
-                ? `<button class="btn${p === responderPrimeiro ? ' btn-primary' : ''} btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}' aria-label="Responder: ${escapeHTML(p.protocolo)}">Responder</button>`
-                : `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Abrir</button>`,
-        ]), { emptyState: 'Nenhum pedido de titular registrado.', emptyHint: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', emptyAction: novo('abrirNovoPedidoTitular', 'Registrar pedido'), ...(filtrado ? vazioFiltrado : {}) });
+        // Filtros de tipo e status (spec 2026-10-19): na tela, sobre a lista já carregada.
+        listaPedidos = { l, projectId: proj.id, registrar, responderPrimeiro, vazio: { emptyState: 'Nenhum pedido de titular registrado.', emptyHint: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', emptyAction: novo('abrirNovoPedidoTitular', 'Registrar pedido'), ...(filtrado ? vazioFiltrado : {}) } };
+        const filtroPedido = (id, rotulo, mapa) => `<label class="co-campo"><span class="co-campo-rotulo">${rotulo}</span>
+            <select class="form-select" id="${id}" data-action-change="filtrarPedidosTitular"><option value="">Todos</option>${opcoes(mapa)}</select></label>`;
+        corpo = (l.length ? `<div class="co-controles">${filtroPedido('pt-filtro-tipo', 'Tipo', TIPOS_PEDIDO)}${filtroPedido('pt-filtro-status', 'Status', STATUS_PEDIDO)}</div>` : '')
+            + `<div id="pt-lista">${tabelaPedidos(false)}</div>`;
     } else if (aba === 'incidentes') {
         const l = doFiltro;
         corpo = window.renderDataTable(['Protocolo', 'Incidente', 'Ciência', 'Risco', 'ANPD', 'Titular', 'Status', 'Ações'], l.map((i) => [
@@ -128,6 +126,25 @@ async function renderTitular(c, h, a) {
     }
     c.innerHTML = abas + aviso + chip + corpo;
 }
+
+let listaPedidos = null;
+/** `filtrar` falso no primeiro desenho: os selects ainda são os da tela anterior. */
+function tabelaPedidos(filtrar = true) {
+    const { l, projectId, registrar, responderPrimeiro, vazio } = listaPedidos;
+    const tipo = filtrar && el('pt-filtro-tipo') ? el('pt-filtro-tipo').value : '';
+    const status = filtrar && el('pt-filtro-status') ? el('pt-filtro-status').value : '';
+    const itens = l.filter((p) => (!tipo || p.tipo === tipo) && (!status || p.status === status));
+    return window.renderDataTable(['Protocolo', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações'], itens.map((p) => [
+        `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(CANAIS[p.canal] || p.canal || '—'), escapeHTML(dia(p.recebido_em)),
+        escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'), escapeHTML(dia(p.respondido_em)),
+        selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
+        // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
+        registrar && p.situacao_prazo === 'atrasado'
+            ? `<button class="btn${p === responderPrimeiro ? ' btn-primary' : ''} btn-sm" data-action="abrirPedidoTitular" data-args='${args(projectId, p.id)}' aria-label="Responder: ${escapeHTML(p.protocolo)}">Responder</button>`
+            : `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(projectId, p.id)}'>Abrir</button>`,
+    ]), tipo || status ? { emptyState: 'Nenhum pedido com estes filtros.', emptyHint: 'Limpe os filtros para ver todos.' } : vazio);
+}
+window.filtrarPedidosTitular = function () { if (listaPedidos && el('pt-lista')) el('pt-lista').innerHTML = tabelaPedidos(); };
 
 window.abrirIncidentesIso = function () { S.titularAba = 'incidentes'; navigate('titular'); };
 

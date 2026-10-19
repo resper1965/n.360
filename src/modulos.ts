@@ -44,7 +44,7 @@ const SUBROTAS_ISO: RegExp[] = [/^export\/risks$/];
 
 /** Sub-rotas de um segmento do núcleo que são do n.privacy (o registro é compartilhado; a camada nova não). */
 const SUBROTAS_PRIVACY: RegExp[] = [
-  /^ropa\/(importar|copiloto|riscos-mapa)$/,
+  /^ropa\/(importar|copiloto|riscos-mapa|gaps|lias)$/,
   // Riscos e ações da atividade (F2): visão filtrada de `risks` e `corrective_actions`, que por id seguem na faixa iso.
   /^ropa\/[^/]+\/(riscos|acoes)(\/[^/]+)?$/,
   /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|lia|sugestao|impacto|ciclo|bases)$/,

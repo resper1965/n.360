@@ -12,6 +12,17 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (paridade com o legado no n.privacy, 19/10/2026; sem migration)
+- **Entrada:** no início do n.360 cada módulo diz o que cobre; dentro de `/iso` e `/privacy` o cabeçalho troca de módulo.
+- **Modo guiado:** "Não sei agora" pula a pergunta; no fim, as adiadas viram a lista de pendências com "Responder agora". A ficha devolve `lacunas` (todas, em ordem).
+- **Menu Cadastros:** Pessoas, áreas e sistemas; Fornecedores; Titulares e dados pessoais.
+- **Fornecedores:** lista com criticidade, DPA e atividades (incluindo o Compartilhamento Externo do RoPA) e ficha em página própria com sete abas, inclusive o perfil de segurança do n.iso.
+- **Listas do projeto:** Gaps e LIA (rotas `GET .../ropa/gaps` e `.../ropa/lias`), Riscos em lista, colunas e filtros novos em Pedidos do titular e RIPD.
+
+### Corrigido
+- `PUT /api/v1/vendors/:id` apagava observações e reativava o status quando a tela do n.iso não os enviava.
+- Testes instáveis: o lote com os dez modelos do legado ganhou tempo próprio; o desempenho do painel passou a usar a mediana.
+
 ### Alterado (RoPA em abas, PR3: entrevista vira modo guiado, sem migration)
 - **A entrevista em passos saiu.** O modo guiado é um painel sobre as mesmas abas e grava nos mesmos campos. A pergunta vem do servidor (`ficha.proxima_pergunta`, na ordem das abas), sem estado de entrevista no navegador. "Não sei agora" guarda só a lista de adiadas no navegador.
 - **Modal "Ligações da atividade" removido.** A API dos seus blocos continua (partes, transferências, LIA, RIPD, Word da LIA, pedido de aprovação, importação de planilha); a tela é a aba da ficha.

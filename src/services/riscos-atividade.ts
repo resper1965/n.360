@@ -194,8 +194,10 @@ export async function apagarAcao(db: D1Database, projectId: string, ropaId: stri
 export async function riscosDoMapa(db: D1Database, projectId: string) {
   const { results } = await db.prepare(
     `SELECT r.id, r.ropa_id, r.asset, r.threat, r.probability, r.impact, r.risk_level, r.residual_impact, r.residual_probability,
-            r.residual_level, r.treatment, r.status, rr.processing_purpose AS atividade
+            r.residual_level, r.treatment, r.status, rr.processing_purpose AS atividade, r.vulnerability AS vulnerabilidade,
+            r.treatment_plan AS plano, r.treatment_due_date AS prazo, pa.nome AS responsavel, r.idr
        FROM risks r JOIN ropa_records rr ON rr.id = r.ropa_id AND rr.project_id = r.project_id
+       LEFT JOIN partes pa ON pa.id = r.owner_parte_id AND pa.project_id = r.project_id
       WHERE r.project_id = ? ORDER BY r.impact * r.probability DESC, rr.processing_purpose`
   ).bind(projectId).all();
   return results;
@@ -228,13 +230,15 @@ export function faixaDePrazo(prazo: string | null | undefined, hoje: string): Fa
 export type AcaoDaAtividade = {
   id: string; ropa_id: string; atividade: string; title: string; description: string | null; due_date: string | null; status: string | null;
   responsavel: string | null; risco: string | null; created_at: string | null; completed_at: string | null;
+  recomendacao: string | null; action_plan: string | null; anexos: number;
 };
 
 /** Ações de todas as atividades do projeto (só as que têm `ropa_id`); a CAPA só do n.iso fica de fora. Abertas primeiro, por prazo. */
 export async function acoesDasAtividades(db: D1Database, projectId: string, { soAbertas = false, limite = 10_000 } = {}): Promise<AcaoDaAtividade[]> {
   const { results } = await db.prepare(
     `SELECT ca.id, ca.ropa_id, rr.processing_purpose AS atividade, ca.title, ca.description, ca.due_date, ca.status,
-            pa.nome AS responsavel, r.threat AS risco, ca.created_at, ca.completed_at
+            pa.nome AS responsavel, r.threat AS risco, ca.created_at, ca.completed_at, ca.recomendacao, ca.action_plan,
+            (SELECT count(*) FROM acao_anexos x WHERE x.acao_id = ca.id AND x.project_id = ca.project_id) AS anexos
        FROM corrective_actions ca JOIN ropa_records rr ON rr.id = ca.ropa_id AND rr.project_id = ca.project_id
        LEFT JOIN partes pa ON pa.id = ca.assigned_to_parte_id AND pa.project_id = ca.project_id
        LEFT JOIN risks r ON r.id = ca.risk_id AND r.project_id = ca.project_id
@@ -242,6 +246,16 @@ export async function acoesDasAtividades(db: D1Database, projectId: string, { so
       ORDER BY COALESCE(ca.status, 'Open') = 'Closed', ca.due_date IS NULL, ca.due_date, ca.created_at LIMIT ?2`
   ).bind(projectId, limite).all<AcaoDaAtividade>();
   return results;
+}
+
+/** A lista de Gaps do projeto (spec 2026-10-19): as ações das atividades no formato da tela. Faixa só para gap aberto. */
+export async function gapsDoProjeto(db: D1Database, projectId: string) {
+  const dia = new Date().toISOString().slice(0, 10);
+  return (await acoesDasAtividades(db, projectId)).map((a) => ({
+    id: a.id, ropa_id: a.ropa_id, atividade: a.atividade, titulo: a.description || a.title, recomendacao: a.recomendacao, plano: a.action_plan,
+    responsavel: a.responsavel, prazo: a.due_date, faixa: (a.status || 'Open') === 'Closed' ? null : faixaDePrazo(a.due_date, dia),
+    status: a.status || 'Open', anexos: a.anexos,
+  }));
 }
 
 /** Pares motivo/descrição já usados nos riscos de atividade DESTE projeto (PR1: o catálogo de motivos é da PR2). Vazio no projeto novo. */
