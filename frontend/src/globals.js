@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
+import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
 import { S } from './state.js';
 import { atualizarSelos } from './selos-menu.js';
 import { api, API_BASE } from './api.js';
@@ -719,6 +719,7 @@ window.updateActiveProjectWidget = function updateActiveProjectWidget() {
             updateSidebarProjectSelector();
         }
         atualizarLinkCruzado();
+        atualizarSeletorDeModulo();
         atualizarSelos();
     }
 

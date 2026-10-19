@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, openModal, showToast, renderEmptyState, renderErrorState } from '../ui.js';
-import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, projetosDoProduto } from '../produto.js';
+import { modulosDe, modulosVisiveis, enderecoDoProduto, irPara, projetosDoProduto, DESCRICAO_DO_MODULO } from '../produto.js';
 import { aplicarSelos } from '../selos-menu.js';
 import { filtroValido } from '../filtro-painel.js';
 import { renderPontoDePartida } from './ponto-de-partida.js';
@@ -19,6 +19,8 @@ const ROTULO_ESTADO = { atraso: 'Atrasado', semana: 'Nesta semana', plano: 'Para
 const e = (v) => escapeHTML(String(v ?? ''));
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const marca = (m) => `n<span class="pn-ponto">.</span>${m === 'iso' ? 'iso' : 'privacy'}`;
+/** Nome do módulo com o que ele é, na primeira coluna da linha. */
+const nomeDoModulo = (m) => `<div><h3>${marca(m)}</h3><p class="pn-m-desc pn-meta">${e(DESCRICAO_DO_MODULO[m])}</p></div>`;
 const estado = (tom, texto) => `<span class="pn-estado pn-${e(tom)}">${e(texto)}</span>`;
 const quadro = (id, titulo, corpo, extra = '') => `<section class="pn-quadro" aria-labelledby="${id}"><header><h2 id="${id}">${e(titulo)}</h2>${extra}</header>${corpo}</section>`;
 const ehEquipe = () => typeof window.ehEquipeNess === 'function' && window.ehEquipeNess();
@@ -141,7 +143,7 @@ function linhaModulo(m, d, proj) {
         const cliente = d.visao === 'cliente';
         const numeros = cliente && b.comecando ? '<div></div>'
             : `<dl class="pn-fig">${(Array.isArray(b.numeros) ? b.numeros : []).map(([v, r]) => `<div><dt>${e(r)}</dt><dd class="pn-num">${e(v)}</dd></div>`).join('')}</dl>`;
-        return `<div class="pn-m"><h3>${marca(m)}</h3><div>${estado(b.saude.tom, b.saude.rotulo)}<div class="pn-m-frase">${e(b.saude.frase)}</div></div>
+        return `<div class="pn-m">${nomeDoModulo(m)}<div>${estado(b.saude.tom, b.saude.rotulo)}<div class="pn-m-frase">${e(b.saude.frase)}</div></div>
             ${numeros}
             <button type="button" class="btn btn-sm" data-action="abrirModulo" data-args='${args(m)}'>Abrir o ${NOME[m]}</button></div>`;
     }
@@ -150,7 +152,7 @@ function linhaModulo(m, d, proj) {
         : ehEquipe() ? `O ${NOME[m]} não está habilitado neste projeto. Ao habilitar, o que já está no cadastro (pessoas, sistemas, documentos) entra pronto.`
             : `O ${NOME[m]} não está habilitado neste projeto. Fale com a ness. para contratar; o que já está no cadastro entra pronto.`;
     const acao = !doProjeto && podeGerirModulos() ? `<button type="button" class="btn btn-sm" data-action="abrirProdutosDoProjeto" data-args='${args(proj.id)}'>Habilitar no projeto</button>` : '';
-    return `<div class="pn-m"><h3>${marca(m)}</h3><div>${estado('plano', doProjeto ? 'Sem acesso' : 'Não habilitado neste projeto')}<div class="pn-m-frase pn-meta">${e(texto)}</div></div><div></div>${acao || '<div></div>'}</div>`;
+    return `<div class="pn-m">${nomeDoModulo(m)}<div>${estado('plano', doProjeto ? 'Sem acesso' : 'Não habilitado neste projeto')}<div class="pn-m-frase pn-meta">${e(texto)}</div></div><div></div>${acao || '<div></div>'}</div>`;
 }
 
 function colunas(esquerda, direita) {
