@@ -88,13 +88,12 @@ async function carregar() {
 }
 
 const repintar = () => (ultimo ? renderCatalogos(ultimo.c, ultimo.h, ultimo.a) : undefined);
-const caminho = (id = '') => `/api/v1/projects/${projetoAtivo().id}/catalogos/${abaAtual()}${id ? `/${id}` : ''}`;
 // 409: o servidor devolve o item com o mesmo nome (padronizado), para a pessoa saber qual é.
 const falha = (e, padrao) => showToast(e && e.status === 409 && e.body && e.body.existente ? `Já existe: ${e.body.existente.nome}` : (e && e.message) || padrao, 'error');
 
 async function mudar(id, corpo, sucesso) {
     try {
-        await api('PUT', caminho(id), corpo);
+        await api('PUT', `/api/v1/projects/${projetoAtivo().id}/catalogos/${abaAtual()}/${id}`, corpo);
         showToast(sucesso, 'success');
         await carregar();
     } catch (e) { falha(e, 'Não foi possível alterar o item'); }
@@ -121,7 +120,7 @@ window.catCriar = async function () {
     if (!nome) { showToast('Informe o nome', 'error'); return; }
     const sens = el('cat-novo-sensivel');
     try {
-        await api('POST', caminho(), sens ? { nome, sensivel: sens.checked } : { nome });
+        await api('POST', `/api/v1/projects/${projetoAtivo().id}/catalogos/${abaAtual()}`, sens ? { nome, sensivel: sens.checked } : { nome });
         showToast('Item criado.', 'success');
         el('cat-novo-nome').value = '';
         if (sens) sens.checked = false;

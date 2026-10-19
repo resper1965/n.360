@@ -148,9 +148,8 @@ async function renderTerceiro(c, h, a) {
     const minha = ++sequencia;
     const aba = abaDoEndereco();
     const editar = podeEditar();
-    const base = `/api/v1/projects/${projectId}/terceiros/${parteId}`;
     let t;
-    try { t = await api('GET', base); } catch (e) {
+    try { t = await api('GET', `/api/v1/projects/${projectId}/terceiros/${parteId}`); } catch (e) {
         if (minha !== sequencia) return;
         if (e && e.status === 404) {
             h.textContent = 'Fornecedor';
@@ -160,7 +159,7 @@ async function renderTerceiro(c, h, a) {
     }
     // O que só a aba aberta usa. Falha aqui não derruba a ficha: a aba diz que não carregou ou fica vazia.
     const extra = {};
-    if (aba === 'criticidade') { try { extra.crit = await api('GET', `${base}/criticidades`); } catch (e) { extra.crit = null; } }
+    if (aba === 'criticidade') { try { extra.crit = await api('GET', `/api/v1/projects/${projectId}/terceiros/${parteId}/criticidades`); } catch (e) { extra.crit = null; } }
     if (aba === 'avaliacoes' && t.metodo === 'questionario') {
         try { extra.homologacoes = lista(await api('GET', `/api/v1/projects/${projectId}/homologacoes?parte_id=${encodeURIComponent(parteId)}`)); } catch (e) { extra.homologacoes = []; }
     }
