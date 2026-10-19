@@ -61,6 +61,13 @@ test('dois módulos: início do n.360 e "Abrir" leva à casca de cada módulo', 
   await expect(page).toHaveURL(/\/iso$/);
   await expect(page).toHaveTitle('n.iso | ness. Agentic GRC');
 
+  // No módulo, o seletor do cabeçalho troca para o outro sem voltar ao início.
+  const seletor = page.getByRole('navigation', { name: 'Módulo' });
+  await expect(seletor.getByRole('link', { name: 'n.iso' })).toHaveAttribute('aria-current', 'page');
+  await seletor.getByRole('link', { name: 'n.privacy' }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole('navigation', { name: 'Módulo' }).getByRole('link', { name: 'n.privacy' })).toHaveAttribute('aria-current', 'page');
+
   await page.goto('/login.html');
   await expect(page.getByRole('button', { name: /^Abrir o n\./ })).toHaveCount(2);
   await page.getByRole('button', { name: /^Abrir o n\./ }).nth(1).click();

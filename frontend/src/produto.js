@@ -409,6 +409,36 @@ export function atualizarLinkCruzado(doc = document) {
     el.textContent = `Abrir este projeto no n.${outro}`;
 }
 
+/** O que cada módulo é, numa linha: no início do n.360, a escolha não depende de conhecer o nome. */
+export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos e auditoria', privacy: 'LGPD: tratamentos, titulares, incidentes e terceiros' };
+
+/**
+ * Num módulo, ao lado do título do cabeçalho: um link por módulo que a pessoa vê no projeto ativo, o atual marcado. Com um
+ * módulo só, ou no início do n.360 (que já tem uma linha por módulo), fica escondido.
+ */
+export function atualizarSeletorDeModulo(doc = document) {
+    const caixa = doc.querySelector('.header-left');
+    if (!caixa) return;
+    let nav = doc.getElementById('modulo-seletor');
+    if (!nav) {
+        nav = doc.createElement('nav');
+        nav.id = 'modulo-seletor';
+        nav.className = 'modulo-seletor';
+        nav.setAttribute('aria-label', 'Módulo');
+        caixa.appendChild(nav);
+    }
+    const produto = produtoAtual();
+    const mods = S.activeProject ? MODULOS.filter((m) => modulosVisiveis(S.activeProject).includes(m)) : [];
+    nav.hidden = produto === 'n360' || mods.length < 2;
+    nav.replaceChildren(...(nav.hidden ? [] : mods.map((m) => {
+        const a = doc.createElement('a');
+        a.href = enderecoDoProduto(m);
+        a.textContent = `n.${m}`;
+        if (m === produto) a.setAttribute('aria-current', 'page');
+        return a;
+    })));
+}
+
 /**
  * O `?tela=` com que o rodapé de um módulo abre o n.360, lido uma vez no boot. Só no n.360; sai do endereço (o resto da
  * query e o fragmento ficam); só vale tela da lista fechada cujo item o papel vê, ou `meus-pedidos` (link do e-mail de aprovação).
