@@ -214,12 +214,12 @@ describe('lista do RoPA', () => {
     it('vazia: explica o art. 37 e oferece registrar e importar', async () => {
         await window.renderROPA(el('c'), el('h'), el('a'));
         expect(el('h').textContent).toContain('RoPA');
-        expect(el('c').textContent).toContain('O inventário de tratamentos (art. 37) está vazio.');
+        expect(el('c').textContent).toContain('Nenhuma atividade de tratamento registrada.');
+        expect(el('c').textContent).toContain('art. 37 da LGPD');
+        // n.privacy: a atividade nasce por "Nova atividade"; o formulário antigo (edição avançada) não aparece
         const acoes = [...el('c').querySelectorAll('.empty-state [data-action]')].map((b) => b.getAttribute('data-action'));
-        expect(acoes).toEqual(['abrirNovaAtividade', 'openNewROPAModal', 'openImportarRopaModal']);
-        // a entrevista é o botão principal; o formulário inteiro fica como edição avançada
+        expect(acoes).toEqual(['abrirNovaAtividade', 'openImportarRopaModal']);
         expect(el('c').querySelector('.empty-state [data-action="abrirNovaAtividade"]').className).toContain('btn-primary');
-        expect(el('c').querySelector('.empty-state [data-action="openNewROPAModal"]').textContent).toBe('Edição avançada');
     });
 
     it('legítimo interesse: o mesmo "Abrir" em toda linha e cartão de LIA pendente vindo da visão do encarregado', async () => {
@@ -252,7 +252,7 @@ describe('lista do RoPA', () => {
         expect(visiveis.map((b) => b.textContent.trim())).toEqual(['Mais ações', 'Nova atividade']);
         expect(el('a').querySelectorAll('.btn-primary')).toHaveLength(1);
         const itens = [...el('a').querySelectorAll('[role="menuitem"]')].map((b) => b.getAttribute('data-action'));
-        expect(itens).toEqual(['openImportarRopaModal', 'openROPAReport', 'exportarCsvAtividades', 'exportarCsvLia', 'openNewROPAModal']);
+        expect(itens).toEqual(['openImportarRopaModal', 'openROPAReport', 'exportarCsvAtividades', 'exportarCsvLia']);
     });
 });
 
@@ -352,16 +352,18 @@ describe('lista com a situação derivada (ficha em abas)', () => {
         expect(linhas()[2].textContent).toContain('Cancelada');
         expect(linhas()[2].querySelector('strong').classList.contains('at-esmaecida')).toBe(true);
         expect(linhas()[0].querySelector('strong').classList.contains('at-esmaecida')).toBe(false);
-        const total = [...el('c').querySelectorAll('.stat-card, .stat')].find((x) => x.textContent.includes('Tratamentos'));
+        const total = [...el('c').querySelectorAll('.stat-card, .stat')].find((x) => x.textContent.includes('Atividades'));
         expect(total.textContent).toContain('2');
         expect(total.textContent).not.toContain('3');
     });
 
-    it('Nova atividade continua o único primário e a Edição avançada continua no Mais ações', async () => {
+    it('Nova atividade é o único primário, e a Edição avançada (modelo antigo) não aparece no n.privacy', async () => {
         await window.renderROPA(el('c'), el('h'), el('a'));
         expect(el('a').querySelectorAll('.btn-primary')).toHaveLength(1);
         expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade');
-        expect([...el('a').querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toContain('Edição avançada');
+        expect([...el('a').querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).not.toContain('Edição avançada');
+        // colunas no vocabulário das abas, sem os campos do modelo antigo
+        expect([...el('c').querySelectorAll('thead th')].map((th) => th.textContent.trim())).toEqual(['Atividade', 'Base legal', 'Situação', 'Ações']);
     });
 
     it('sem a situação no servidor (versão anterior), cai no status antigo sem quebrar', async () => {
