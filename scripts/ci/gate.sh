@@ -68,7 +68,8 @@ passo "Frontend: testes" rodar_vitest frontend --maxWorkers=3 --testTimeout=3000
 passo "MCP: build" bash -c "cd mcp-server-niso && npm run build"
 passo "Backend: testes" rodar_vitest . --exclude "nISO/**" --retry=1 ${GATE_BACKEND_WORKERS:+--maxWorkers=$GATE_BACKEND_WORKERS}
 passo "E2E: navegador" bash -c "cd frontend && npx playwright install chromium"
-passo "E2E (Chromium)" bash -c "cd frontend && npx playwright test --workers=2"
+# CI=1: uma nova tentativa por teste (playwright.config.js), como o --retry=1 do backend; sob carga o mesmo teste falha num e passa no outro
+passo "E2E (Chromium)" bash -c "cd frontend && CI=1 npx playwright test --workers=2"
 
 dur=$(( $(date +%s) - inicio ))
 marcar success "tipos, testes, build e E2E em $((dur/60)) min"
