@@ -79,7 +79,11 @@ instalar mcp-server-niso "MCP: instalar" ci --no-audit --no-fund
 passo "MCP: build" bash -c "cd mcp-server-niso && npm run build"
 # Workers fixos (o padrão do vitest é núcleos - 1, e 19 workerd ao mesmo tempo estouram tempo nesta máquina) e 30 s por teste,
 # como o frontend: sob carga, teste de login e de lote passava dos 5 s e a repetição achava o banco da primeira tentativa.
-passo "Backend: testes" rodar_vitest . --exclude "nISO/**" --retry=1 --testTimeout=30000 --maxWorkers=${GATE_BACKEND_WORKERS:-8}
+# O teste de desempenho do painel mede tempo de relógio: no meio da suíte paralela ele mede a carga da máquina, não o painel.
+# Sai da rodada principal (filtro por nome, regex) e roda sozinho, com um worker, logo depois.
+DESEMPENHO='mediana do painel abaixo de 300 ms'
+passo "Backend: testes" rodar_vitest . --exclude "nISO/**" --retry=1 --testTimeout=30000 --maxWorkers=${GATE_BACKEND_WORKERS:-8} -t "^(?!.*$DESEMPENHO)"
+passo "Backend: desempenho do painel" npx vitest run test/painel.test.ts -t "$DESEMPENHO" --maxWorkers=1
 passo "E2E: navegador" bash -c "cd frontend && npx playwright install chromium"
 # CI=1: uma nova tentativa por teste (playwright.config.js), como o --retry=1 do backend
 passo "E2E (Chromium)" bash -c "cd frontend && CI=1 npx playwright test --workers=2"
