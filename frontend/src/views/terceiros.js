@@ -77,6 +77,9 @@ window.abrirTerceiro = async function (projectId, parteId) {
     const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
     const hist = lista(t.historico);
     const ligados = lista(t.documentos_ligados);
+    // Criticidade (spec 2026-10-18): falha aqui não derruba a ficha; a seção mostra que não carregou.
+    let criticidade = null;
+    try { criticidade = await api('GET', `/api/v1/projects/${projectId}/terceiros/${parteId}/criticidades`); } catch (e) { /* seção diz que não carregou */ }
     // Homologação por questionário (F5): só para o tipo cujo método é questionário. Falha aqui não derruba a ficha.
     let homologacoes = [];
     if (t.metodo === 'questionario') { try { homologacoes = lista(await api('GET', `/api/v1/projects/${projectId}/homologacoes?parte_id=${encodeURIComponent(parteId)}`)); } catch (e) { /* seção vazia */ } }
@@ -92,6 +95,7 @@ window.abrirTerceiro = async function (projectId, parteId) {
                 : `<p>${escapeHTML(TIPOS[t.terceiro_tipo] || 'Sem tipo')}</p>`}
             <p style="color:var(--text-dim)">${t.metodo ? `O tipo define o método de avaliação: <strong>${escapeHTML(METODOS[t.metodo])}</strong>.` : 'Defina o tipo para saber o método de avaliação.'}</p>
         </div>
+        ${secaoCriticidade(projectId, parteId, t, criticidade, editar)}
         ${editar && t.terceiro_tipo ? `<h4 style="margin:1.25rem 0 0.5rem">Nova avaliação</h4><div id="tc-nova" style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap">
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-res">Resultado</label><select class="form-input" id="tc-res">${Object.entries(RESULTADOS).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
             <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-val">Vale até</label><input class="form-input" id="tc-val" type="date"></div>
@@ -167,6 +171,50 @@ window.ligarDocumentoTerceiro = (projectId, parteId) => acao(projectId, parteId,
 
 window.desligarDocumentoTerceiro = (projectId, parteId, documentoId, papel) => acao(projectId, parteId,
     () => api('DELETE', `/api/v1/projects/${projectId}/terceiros/${parteId}/documentos/${documentoId}?papel=${encodeURIComponent(papel)}`), 'Não foi possível desligar o documento', 'Documento desligado.');
+
+// ─── Avaliação de criticidade (spec 2026-10-18) ─────────────────────────────────────────────────────────────────
+// Cinco blocos, uma resposta cada. O nível é derivado no servidor (pior critério); o tipo segue o nível, salvo grande provedor.
+
+const CRITERIOS_CRITICIDADE = [
+    { chave: 'impacto', titulo: 'Impacto no Negócio', opcoes: [['alto', 'Alto (interrupção total ou significativa)'], ['medio', 'Médio (impacto relevante, com soluções paliativas)'], ['baixo', 'Baixo (impacto mínimo ou inexistente)']] },
+    { chave: 'exclusividade', titulo: 'Exclusividade e Alternativas', opcoes: [['sem_alternativas', 'Sem alternativas (fornecedor único ou substituição muito difícil)'], ['poucas_alternativas', 'Poucas alternativas (existem, com dificuldades técnicas ou financeiras)'], ['varias_alternativas', 'Várias alternativas (fácil de substituir)']] },
+    { chave: 'risco_financeiro', titulo: 'Risco Financeiro', opcoes: [['alto', 'Alto (histórico de instabilidade ou inadimplência)'], ['medio', 'Médio (algumas oscilações)'], ['baixo', 'Baixo (financeiramente sólido)']] },
+    { chave: 'conformidade', titulo: 'Conformidade', opcoes: [['regulamentado', 'Está sujeito à Regulamentação Específica no setor de atuação'], ['sem_regulamentacao', 'Não há Regulamentação Específica no setor de atuação']] },
+    { chave: 'risco_reputacional', titulo: 'Risco Reputacional', opcoes: [['alto', 'Alto (relação direta de reconhecimento da marca entre as empresas)'], ['medio', 'Médio (algum conhecimento da dependência)'], ['baixo', 'Baixo (risco mínimo)']] },
+];
+const NIVEIS_CRITICIDADE = { alto: 'Alto', medio: 'Médio', baixo: 'Baixo' };
+
+function secaoCriticidade(projectId, parteId, t, crit, editar) {
+    const cabeca = '<h4>Avaliação de criticidade</h4>';
+    if (!crit) return `${cabeca}<p>Não foi possível carregar a avaliação de criticidade.</p>`;
+    const atual = crit.atual;
+    const resumo = atual
+        ? `<p>Nível atual: <strong>${escapeHTML(NIVEIS_CRITICIDADE[atual.nivel] || atual.nivel)}</strong> · avaliado em ${escapeHTML(dataBr(atual.created_at))}${atual.avaliado_por ? ` por ${escapeHTML(atual.avaliado_por)}` : ''}.</p>`
+        : '<p><strong>Sem avaliação de criticidade.</strong> Responda as cinco perguntas para definir o tipo deste fornecedor.</p>';
+    const tipo = t.terceiro_tipo === 'grande_provedor'
+        ? `<p>Tipo: ${escapeHTML(TIPOS[t.terceiro_tipo])}. Grande provedor é mantido: a avaliação não troca o tipo.</p>`
+        : `<p>Tipo resultante: ${escapeHTML(TIPOS[t.terceiro_tipo] || 'Sem tipo')}${t.metodo ? ` (método: ${escapeHTML(METODOS[t.metodo])})` : ''}.</p>`;
+    const perguntas = editar ? `${CRITERIOS_CRITICIDADE.map((c) => `<fieldset class="form-group"><legend class="form-label">${escapeHTML(c.titulo)}</legend>
+            ${c.opcoes.map(([v, r]) => `<label><input type="radio" name="tc-crit-${c.chave}" value="${v}"> ${escapeHTML(r)}</label>`).join('<br>')}</fieldset>`).join('')}
+        <button class="btn btn-primary" data-action="confirmarCriticidadeTerceiro" data-args='${args(projectId, parteId)}'>Confirmar avaliação</button>` : '';
+    const historico = lista(crit.historico);
+    const tabela = historico.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Nível</th><th>Por</th></tr></thead><tbody>${historico.map((h) =>
+        `<tr><td>${escapeHTML(dataBr(h.created_at))}</td><td>${escapeHTML(NIVEIS_CRITICIDADE[h.nivel] || h.nivel)}</td><td>${escapeHTML(h.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
+        : window.renderEmptyState({ titulo: 'Nenhuma avaliação de criticidade registrada.', compacto: true });
+    return `${cabeca}<div id="tc-crit">${resumo}${tipo}${perguntas}</div>
+        <h5>Histórico de criticidade</h5><div id="tc-crit-historico">${tabela}</div>`;
+}
+
+window.confirmarCriticidadeTerceiro = function (projectId, parteId) {
+    const resposta = {};
+    for (const c of CRITERIOS_CRITICIDADE) {
+        const marcado = document.querySelector(`input[name="tc-crit-${c.chave}"]:checked`);
+        if (!marcado) { showToast('Responda as cinco perguntas da avaliação de criticidade', 'error'); return; }
+        resposta[c.chave] = marcado.value;
+    }
+    return acao(projectId, parteId, () => api('POST', `/api/v1/projects/${projectId}/terceiros/${parteId}/criticidades`, resposta),
+        'Não foi possível registrar a avaliação de criticidade', 'Avaliação de criticidade registrada.');
+};
 
 // ─── Homologação por questionário (F5) ──────────────────────────────────────────────────────────────────────────
 // O link para o fornecedor sai uma vez, na criação; concluir é ato humano e grava a avaliação acima (método questionário).
