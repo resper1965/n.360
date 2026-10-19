@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (paridade com o legado, 19/10/2026, a partir das capturas do dono; migration 0081)
+- **Menu do n.privacy na ordem do legado:** Dashboard, Empresas, Cadastros (Áreas, Ativos, Titulares, Dados de titular, Parceiros, Pessoas), Mapeamento (Atividades, DPIA, LIA), Diagnóstico (Gaps, Riscos), Fornecedores, Documentos, Solicitações e "Mais" com o que só o n.360 tem.
+- **Documentos em arquivo** (tabela `documentos_arquivo`): tipo, status, vencimento ou sem vencimento, responsável e o PDF/DOC no R2, com aviso de vencimento. As políticas versionadas continuam em Mais, Políticas.
+- **Áreas** com descrição; **Titulares** com descrição (`catalogo_itens.descricao`) e **Dados de titular** com o filtro Sensíveis; **Ativos** com descrição; **Parceiros** como cadastro.
+- **Gestão de GAPs** (Área, Status "Em atraso", modal Gap, Plano de Ação e Anexo) e **Gestão de Riscos** (filtros Motivo, Área, Risco e Status; modal "Tratar Risco" em três abas).
+- **Criticidade:** a pergunta do legado sob cada critério.
+- **Migration 0081**, aditiva: `departamentos.descricao`, `catalogo_itens.descricao` e a tabela `documentos_arquivo`.
+
 ### Adicionado (paridade com o legado no n.privacy, 19/10/2026; sem migration)
 - **Entrada:** no início do n.360 cada módulo diz o que cobre; dentro de `/iso` e `/privacy` o cabeçalho troca de módulo.
 - **Modo guiado:** "Não sei agora" pula a pergunta; no fim, as adiadas viram a lista de pendências com "Responder agora". A ficha devolve `lacunas` (todas, em ordem).

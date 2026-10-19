@@ -79,6 +79,17 @@ describe('catálogos do projeto: vazios, criação inline e isolamento', () => {
     expect((await json(r)).item.descricao_padrao).toBe('Descrição padrão exemplo');
     expect((await criar('titulares', { nome: 'Titular com descrição', descricao_padrao: 'nao' })).status).toBe(400);
   });
+  it('titular aceita "descricao" (0081); só o titular, e o texto volta na listagem e na edição', async () => {
+    const r = await criar('titulares', { nome: 'Titular exemplo com descrição', descricao: 'Pessoa que se candidata a uma vaga' });
+    expect(r.status).toBe(201);
+    const item = (await json(r)).item;
+    expect(item.descricao).toBe('Pessoa que se candidata a uma vaga');
+    const lista = (await json(await chamar(s.consultor, 'GET', `/api/v1/projects/${P}/catalogos/titulares`))).itens;
+    expect(lista.find((x: any) => x.id === item.id).descricao).toBe('Pessoa que se candidata a uma vaga');
+    const e = await json(await chamar(s.consultor, 'PUT', `/api/v1/projects/${P}/catalogos/titulares/${item.id}`, { descricao: 'Outra' }));
+    expect(e.item.descricao).toBe('Outra');
+    expect((await criar('dados', { nome: 'Dado exemplo com descrição', descricao: 'nao' })).status).toBe(400);
+  });
   it('motivo criado no catálogo com descrição padrão é sugerido em GET /riscos/motivos', async () => {
     const rid = await novaAtividade(s.consultor);
     const criado = await criar('motivos-risco', { nome: 'Motivo exemplo de sugestão', descricao_padrao: 'Descrição padrão exemplo' });

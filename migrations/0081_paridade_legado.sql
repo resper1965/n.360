@@ -5,6 +5,8 @@
 -- Conferir depois: PRAGMA table_info(departamentos) mostra descricao; PRAGMA table_info(documentos_arquivo); SELECT count(*) (esperado 0).
 
 ALTER TABLE departamentos ADD COLUMN descricao TEXT;
+-- catalogo_itens ganha a descrição do titular (nula nas linhas existentes). Coluna nova, sem mexer no CHECK de descricao_padrao.
+ALTER TABLE catalogo_itens ADD COLUMN descricao TEXT CHECK (descricao IS NULL OR (tipo = 'titular' AND length(descricao) <= 2000));
 
 CREATE TABLE IF NOT EXISTS documentos_arquivo (
     id TEXT PRIMARY KEY,

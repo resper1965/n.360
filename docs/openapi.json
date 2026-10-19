@@ -11332,6 +11332,17 @@
                       }
                     ]
                   },
+                  "descricao": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "status": {
                     "type": "string",
                     "enum": [
@@ -11460,6 +11471,17 @@
                     "type": "boolean"
                   },
                   "descricao_padrao": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "descricao": {
                     "anyOf": [
                       {
                         "type": "string",

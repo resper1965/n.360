@@ -109,7 +109,6 @@ export     function navigate(view, data) {
         else if (S.view === 'dados-titular') renderDadosTitular(c, h, a);
         else if (S.view === 'parceiros') renderParceiros(c, h, a);
         else if (S.view === 'empresas') renderEmpresas(c, h, a);
-        else if (S.view === 'documentos-arquivo') renderDocumentosArquivoOuEmBreve(c, h, a);
         else if (S.view === 'mapa-de-risco') renderMapaDeRisco(c, h, a);
         else if (S.view === 'gaps') renderGaps(c, h, a);
         else if (S.view === 'lia') renderLia(c, h, a);
@@ -146,14 +145,6 @@ export     function navigate(view, data) {
         updateActiveProjectWidget();
         updateHeaderUser();
     }
-
-/** Documentos do legado (n.privacy): a tela vem da Frente B (views/documentos-arquivo.js); sem ela, o vazio "Em breve". */
-function renderDocumentosArquivoOuEmBreve(c, h, a) {
-    if (typeof window.renderDocumentosArquivo === 'function') return window.renderDocumentosArquivo(c, h, a);
-    h.textContent = 'Documentos';
-    a.innerHTML = '';
-    c.innerHTML = window.renderEmptyState({ titulo: 'Em breve', texto: 'Os documentos do programa (contratos, termos, relatórios) com vencimento e arquivo chegam aqui. As políticas estão em Mais, Políticas.' });
-}
 
 window.navigate = navigate;
 window.render = render;

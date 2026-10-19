@@ -10,16 +10,21 @@ describe('migration 0081: paridade com o legado (descrição da área e document
   it('sobre o formato anterior: acrescenta departamentos.descricao, preserva as linhas e cria documentos_arquivo', async () => {
     await applySchema();
     // O formato anterior: sem a coluna e sem a tabela (DROP COLUMN em vez de recriar departamentos, que outras tabelas referenciam).
-    await execSql(`DROP TABLE IF EXISTS documentos_arquivo; ALTER TABLE departamentos DROP COLUMN descricao;`);
+    await execSql(`DROP TABLE IF EXISTS documentos_arquivo; ALTER TABLE departamentos DROP COLUMN descricao; ALTER TABLE catalogo_itens DROP COLUMN descricao;`);
     await env.DB.batch([
       env.DB.prepare(`INSERT OR IGNORE INTO projects (id, client_name, standards, org_role, status) VALUES ('p81', 'Cliente Ficticio', 'ISO 27001', 'controller', 'Active')`),
       env.DB.prepare(`INSERT INTO departamentos (id, project_id, nome) VALUES ('d81', 'p81', 'Financeiro')`),
+      env.DB.prepare(`INSERT INTO catalogo_itens (id, project_id, tipo, nome) VALUES ('c81', 'p81', 'titular', 'Titular Ficticio')`),
     ]);
 
     await execSql(migration0081);
 
     expect(await colunas('departamentos')).toContain('descricao');
     expect(await env.DB.prepare(`SELECT nome, descricao FROM departamentos WHERE id = 'd81'`).first()).toEqual({ nome: 'Financeiro', descricao: null });
+    expect(await colunas('catalogo_itens')).toContain('descricao');
+    expect(await env.DB.prepare(`SELECT nome, descricao FROM catalogo_itens WHERE id = 'c81'`).first()).toEqual({ nome: 'Titular Ficticio', descricao: null });
+    await expect(env.DB.prepare(`UPDATE catalogo_itens SET descricao = 'x' WHERE id = 'c81'`).run()).resolves.toBeTruthy();
+    await recusa(`INSERT INTO catalogo_itens (id, project_id, tipo, nome, descricao) VALUES ('c82', 'p81', 'dado', 'Dado Ficticio', 'nao')`); // só titular
     expect(await colunas('documentos_arquivo')).toEqual(['id', 'project_id', 'nome', 'tipo', 'status', 'vencimento', 'sem_vencimento', 'responsavel_parte_id',
       'r2_key', 'arquivo_nome', 'arquivo_tipo', 'criado_por', 'created_at', 'updated_at']);
 

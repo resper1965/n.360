@@ -1962,6 +1962,7 @@ CREATE TABLE IF NOT EXISTS catalogo_itens (
     descricao_padrao TEXT CHECK (descricao_padrao IS NULL OR (tipo = 'motivo_risco' AND length(descricao_padrao) <= 2000)),
     status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'inativo')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    descricao TEXT CHECK (descricao IS NULL OR (tipo = 'titular' AND length(descricao) <= 2000)),
     UNIQUE (project_id, tipo, nome)
 );
 

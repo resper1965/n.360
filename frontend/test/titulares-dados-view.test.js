@@ -46,7 +46,7 @@ describe('Titulares', () => {
         const f = await tela('titulares');
         expect(el('h').textContent).toBe('Titulares');
         expect(document.querySelector('[role="tab"]')).toBeNull();
-        expect(cabecalho()).toEqual(['Titular', 'Empresa', 'Ações']);
+        expect(cabecalho()).toEqual(['Titular', 'Descrição', 'Empresa', 'Ações']);
         expect(linhas()[0]).toContain('Clientes <b>PF</b>');
         expect(linhas()[0]).toContain('Empresa Exemplo');
         expect(el('c').querySelector('tbody b')).toBeNull();
@@ -59,8 +59,9 @@ describe('Titulares', () => {
         expect(el('cat-nome').value).toBe('Clientes <b>PF</b>');
         expect(el('cat-sensivel')).toBeNull();
         el('cat-nome').value = 'Clientes pessoa física';
+        el('cat-descricao').value = ' Pessoas que compram do cliente ';
         await window.catSalvar('t1');
-        expect(corpoDe(f, `PUT ${B}/titulares/t1`)).toEqual({ nome: 'Clientes pessoa física' });
+        expect(corpoDe(f, `PUT ${B}/titulares/t1`)).toEqual({ nome: 'Clientes pessoa física', descricao: 'Pessoas que compram do cliente' });
     });
 
     it('"Novo titular" cria pelo mesmo modal', async () => {
@@ -69,7 +70,7 @@ describe('Titulares', () => {
         window.catAbrir(null);
         el('cat-nome').value = '  Fornecedores PF ';
         await window.catSalvar(null);
-        expect(corpoDe(f, `POST ${B}/titulares`)).toEqual({ nome: 'Fornecedores PF' });
+        expect(corpoDe(f, `POST ${B}/titulares`)).toEqual({ nome: 'Fornecedores PF', descricao: null });
     });
 
     it('busca vai ao servidor como q', async () => {
@@ -134,6 +135,15 @@ describe('Dados de titular', () => {
         window.catAbrir('d2');
         await window.catExcluir('d2');
         expect(corpoDe(f, `PUT ${B}/dados/d2`)).toEqual({ status: 'inativo' });
+    });
+
+    it('Mostrar inativos vai ao servidor como inativos=1; o item inativo traz o selo e Reativar', async () => {
+        const f = await tela('titulares', { [`PUT ${B}/titulares/t9`]: { ok: true, item: {} } });
+        el('cat-inativos').checked = true;
+        await window.catRecarregar();
+        expect(chamadas(f)).toContain(`GET ${B}/titulares?inativos=1`);
+        await window.catReativar('t9');
+        expect(corpoDe(f, `PUT ${B}/titulares/t9`)).toEqual({ status: 'ativo' });
     });
 
     it('409 de nome repetido mostra o nome que já existe', async () => {

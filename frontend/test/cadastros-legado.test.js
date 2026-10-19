@@ -118,14 +118,6 @@ describe('Parceiros', () => {
 });
 
 describe('Documentos (Frente B)', () => {
-    it('sem a tela da Frente B, o router mostra "Em breve"', () => {
-        montar();
-        delete window.renderDocumentosArquivo;
-        S.view = 'documentos-arquivo';
-        render();
-        expect(el('header-title').textContent).toBe('Documentos');
-        expect(el('content').textContent).toContain('Em breve');
-    });
     it('com ela, o router a chama', () => {
         montar();
         window.renderDocumentosArquivo = vi.fn();
