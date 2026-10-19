@@ -425,7 +425,8 @@ export function atualizarLinkCruzado(doc = document) {
 export const DESCRICAO_DO_MODULO = { iso: 'ISO 27001 e 27701: controles, riscos e auditoria', privacy: 'LGPD: tratamentos, titulares, incidentes e terceiros' };
 
 /**
- * Num módulo, ao lado do título do cabeçalho: um link por módulo que a pessoa vê no projeto ativo, o atual marcado. Com um
+ * No Painel de um módulo, ao lado do título do cabeçalho: um link por módulo que a pessoa vê no projeto ativo, o atual marcado.
+ * Só no Painel (decisão do dono, 19/10/2026: em toda tela confundia); nas outras, a troca é pelo link do rodapé do menu. Com um
  * módulo só, ou no início do n.360 (que já tem uma linha por módulo), fica escondido.
  */
 export function atualizarSeletorDeModulo(doc = document) {
@@ -441,7 +442,7 @@ export function atualizarSeletorDeModulo(doc = document) {
     }
     const produto = produtoAtual();
     const mods = S.activeProject ? MODULOS.filter((m) => modulosVisiveis(S.activeProject).includes(m)) : [];
-    nav.hidden = produto === 'n360' || mods.length < 2;
+    nav.hidden = produto === 'n360' || mods.length < 2 || S.view !== PRODUTOS[produto].inicio;
     nav.replaceChildren(...(nav.hidden ? [] : mods.map((m) => {
         const a = doc.createElement('a');
         a.href = enderecoDoProduto(m);

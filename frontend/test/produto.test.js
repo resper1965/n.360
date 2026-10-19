@@ -395,12 +395,18 @@ describe('sem acesso e links entre módulos', () => {
         const itens = () => [...document.querySelectorAll('#modulo-seletor a')].map((a) => [a.textContent, a.getAttribute('href'), a.getAttribute('aria-current')]);
         ir('/privacy');
         S.activeProject = { id: 'c', modulos: ['iso', 'privacy'] };
+        S.view = 'encarregado'; // o Painel do n.privacy
         atualizarSeletorDeModulo();
         expect(el('modulo-seletor').hidden).toBe(false);
         expect(el('modulo-seletor').getAttribute('aria-label')).toBe('Módulo');
         expect(itens()).toEqual([['n.iso', '/iso', null], ['n.privacy', '/privacy', 'page']]);
         atualizarSeletorDeModulo();
         expect(document.querySelectorAll('#modulo-seletor').length).toBe(1);
+        // fora do Painel some (em toda tela confundia)
+        S.view = 'ropa';
+        atualizarSeletorDeModulo();
+        expect(el('modulo-seletor').hidden).toBe(true);
+        S.view = 'encarregado';
         // a pessoa só tem o n.privacy: nada a escolher
         S.user = { role: 'consultor', modulos: ['privacy'] };
         atualizarSeletorDeModulo();
