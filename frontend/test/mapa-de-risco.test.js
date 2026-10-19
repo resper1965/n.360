@@ -38,8 +38,9 @@ beforeEach(() => {
     S.user = { role: 'consultor' };
     S.activeProject = { id: 'p9' };
     window.abrirAtividade = vi.fn();
+    history.replaceState(null, '', '/privacy');
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); history.replaceState(null, '', '/'); });
 
 describe('mapa de risco', () => {
     it('a faixa de nível é a do servidor (riskLevel)', () => {
@@ -70,9 +71,9 @@ describe('mapa de risco', () => {
         expect(lista.textContent).toContain('Probabilidade 5, impacto 5: 2 riscos');
         expect(lista.textContent).toContain('Médio');
         const abrirAtv = lista.querySelector('[data-action="abrirAtividade"]');
-        expect(JSON.parse(abrirAtv.getAttribute('data-args'))).toEqual(['p9', 'r1']);
+        expect(JSON.parse(abrirAtv.getAttribute('data-args'))).toEqual(['p9', 'r1', 'riscos']);
         abrirAtv.click();
-        expect(window.abrirAtividade).toHaveBeenCalledWith('p9', 'r1');
+        expect(window.abrirAtividade).toHaveBeenCalledWith('p9', 'r1', 'riscos');
         celula(5, 5).click();
         expect(el('mapa-lista').textContent).toContain('Escolha uma célula');
     });
@@ -106,5 +107,49 @@ describe('mapa de risco', () => {
     it('um literal de rota por chamada', async () => {
         const f = await abrir();
         expect(f.mock.calls.map(([u]) => new URL(u, 'http://localhost').pathname)).toEqual(['/api/v1/projects/p9/ropa/riscos-mapa']);
+    });
+});
+
+describe('riscos em lista', () => {
+    const LISTA = [
+        R('a', 5, 5, { atividade: 'Atividade Exemplo', vulnerabilidade: 'Senha <b>fraca</b>', treatment: 'Mitigate', residual_level: 'Medium', prazo: '2026-12-31', responsavel: 'Responsável Exemplo' }),
+        R('b', 1, 2, { treatment: 'Accept' }),
+    ];
+    const linhas = () => [...el('mapa-lista').querySelectorAll('tbody tr')];
+    const filtrar = (id, v) => { el(id).value = v; el(id).dispatchEvent(new Event('change', { bubbles: true })); };
+
+    it('alterna Mapa | Lista e guarda a escolha no endereço', async () => {
+        await abrir(LISTA);
+        const vista = (v) => el('c').querySelector(`[data-action="mapaVista"][data-args='["${v}"]']`);
+        expect(vista('mapa').getAttribute('aria-pressed')).toBe('true');
+        vista('lista').click();
+        expect(new URLSearchParams(window.location.search).get('vista')).toBe('lista');
+        expect(el('mapa-grade')).toBeNull();
+        expect(vista('lista').getAttribute('aria-pressed')).toBe('true');
+        // recarregar volta à lista
+        await abrir(LISTA);
+        expect(el('mapa-grade')).toBeNull();
+        expect(linhas()).toHaveLength(2);
+        el('c').querySelector(`[data-action="mapaVista"][data-args='["mapa"]']`).click();
+        expect(new URLSearchParams(window.location.search).has('vista')).toBe(false);
+        expect(el('mapa-grade')).not.toBeNull();
+    });
+
+    it('colunas, filtros de nível e estratégia e "Abrir" na aba Riscos', async () => {
+        history.replaceState(null, '', '/privacy?vista=lista');
+        await abrir(LISTA);
+        expect([...el('mapa-lista').querySelectorAll('thead th')].map((t) => t.textContent.trim()))
+            .toEqual(['Atividade', 'Ameaça', 'Vulnerabilidade', 'Nível', 'Estratégia', 'Residual', 'Prazo', 'Responsável', 'Ações']);
+        const t = linhas()[0].textContent;
+        for (const x of ['Atividade Exemplo', 'Crítico', 'Mitigar', 'Médio', '31/12/2026', 'Responsável Exemplo']) expect(t).toContain(x);
+        expect(el('mapa-lista').innerHTML).not.toContain('<b>fraca</b>');
+        filtrar('mr-filtro-nivel', 'Low');
+        expect(linhas()).toHaveLength(1);
+        filtrar('mr-filtro-nivel', '');
+        filtrar('mr-filtro-estrategia', 'Mitigate');
+        expect(linhas()).toHaveLength(1);
+        const b = linhas()[0].querySelector('[data-action="abrirAtividade"]');
+        b.click();
+        expect(window.abrirAtividade).toHaveBeenCalledWith('p9', 'r1', 'riscos');
     });
 });
