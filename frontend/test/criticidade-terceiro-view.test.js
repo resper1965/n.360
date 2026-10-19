@@ -70,6 +70,14 @@ describe('bloco de criticidade', () => {
             'Não há Regulamentação Específica no setor de atuação', 'Baixo (risco mínimo)']) expect(bloco).toContain(t);
     });
 
+    it('cada critério traz a pergunta do legado, ligada ao grupo', async () => {
+        await ficha();
+        const perguntas = ['Qual o impacto da falha deste fornecedor nas operações da empresa?', 'Quão fácil é substituir este fornecedor?',
+            'Qual o nível de risco financeiro deste fornecedor?', 'Quanto à conformidade regulatória:', 'Falhas deste fornecedor poderiam causar danos à imagem da empresa?'];
+        const grupos = [...el('tc-crit').querySelectorAll('fieldset')];
+        expect(grupos.map((g) => document.getElementById(g.getAttribute('aria-describedby')).textContent.trim())).toEqual(perguntas);
+    });
+
     it('incompleto não grava e avisa qual falta', async () => {
         const f = await ficha();
         marcarTudo();

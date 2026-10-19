@@ -1,4 +1,4 @@
-// Áreas e Sistemas (n.privacy, Cadastros): departamentos e ativos do projeto, em listas leves.
+// Áreas e Ativos (n.privacy, Cadastros): departamentos e ativos do projeto, em listas leves.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
@@ -14,7 +14,7 @@ const DEPTOS = [
     { id: 'd2', nome: 'Jurídico', status: 'inativo' },
 ];
 const ATIVOS = [
-    { id: 'a1', name: 'ERP <img src=x onerror=alert(1)>', category: 'Software', owner: 'Gerente de TI', location: 'Nuvem', status: 'Active' },
+    { id: 'a1', name: 'ERP <img src=x onerror=alert(1)>', description: 'Sistema de gestão', category: 'Software', owner: 'Gerente de TI', location: 'Nuvem', status: 'Active' },
 ];
 
 function montar() {
@@ -84,19 +84,20 @@ describe('Áreas', () => {
     });
 });
 
-describe('Sistemas', () => {
-    it('lista os ativos (nome, tipo, responsável, local, situação), escapando o nome', async () => {
+describe('Ativos (a tela Sistemas)', () => {
+    it('lista Ativo, Descrição e Empresa, escapando o nome', async () => {
+        S.activeProject = { id: 'p1', client_name: 'Empresa Exemplo' };
         const [c, h, a] = montar();
         await window.renderSistemas(c, h, a);
-        expect(h.textContent).toBe('Sistemas');
+        expect(h.textContent).toBe('Ativos');
         expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/projects/p1/assets');
-        expect([...c.querySelectorAll('thead th')].map((t) => t.textContent.trim())).toEqual(['Sistema/ativo', 'Tipo', 'Responsável', 'Local de armazenamento', 'Situação', 'Ações']);
+        expect([...c.querySelectorAll('thead th')].map((t) => t.textContent.trim())).toEqual(['Ativo', 'Descrição', 'Empresa', 'Ações']);
         const linha = c.querySelector('tbody tr').textContent;
         expect(linha).toContain('ERP <img src=x onerror=alert(1)>');
-        expect(linha).toContain('Software');
-        expect(linha).toContain('Gerente de TI');
-        expect(linha).toContain('Nuvem');
+        expect(linha).toContain('Sistema de gestão');
+        expect(linha).toContain('Empresa Exemplo');
         expect(c.querySelector('tbody img')).toBeNull();
+        expect(a.querySelector('.btn-primary').textContent.trim()).toBe('+ Novo ativo');
     });
 
     it('aceita a resposta embrulhada { ok, assets }', async () => {
@@ -106,31 +107,34 @@ describe('Sistemas', () => {
         expect(c.querySelectorAll('tbody tr').length).toBe(1);
     });
 
-    it('vazio explica que o sistema é usado nas etapas da atividade do RoPA', async () => {
+    it('vazio explica que o ativo é usado nas etapas da atividade do RoPA', async () => {
         apiMock.mockImplementation(() => Promise.resolve([]));
         const [c, h, a] = montar();
         await window.renderSistemas(c, h, a);
-        expect(c.textContent).toContain('Nenhum sistema cadastrado.');
+        expect(c.textContent).toContain('Nenhum ativo cadastrado.');
         expect(c.textContent).toContain('etapa');
     });
 
-    it('criar e editar mandam só os campos leves, sem os de segurança do n.iso', async () => {
+    it('modal com Ativo e Descrição do ativo primeiro; os campos leves de antes ficam abaixo', async () => {
         const [c, h, a] = montar();
         await window.renderSistemas(c, h, a);
         window.openNovoSistemaModal('p1');
-        expect(el('sis-nome')).not.toBeNull();
+        const rotulos = [...document.querySelectorAll('#modal-content .form-label')].map((l) => l.textContent.trim());
+        expect(rotulos).toEqual(['Ativo', 'Descrição do ativo', 'Tipo', 'Responsável', 'Local de armazenamento']);
         el('sis-nome').value = '  CRM ';
+        el('sis-descricao').value = ' Relacionamento com clientes ';
         el('sis-tipo').value = 'Software';
         el('sis-responsavel').value = 'Comercial';
         el('sis-local').value = '';
         await window.salvarSistema('p1', '');
-        expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/assets', { name: 'CRM', category: 'Software', owner: 'Comercial', location: '' });
+        expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/assets', { name: 'CRM', description: 'Relacionamento com clientes', category: 'Software', owner: 'Comercial', location: '' });
 
         window.openNovoSistemaModal('p1', 'a1');
         expect(el('sis-nome').value).toBe('ERP <img src=x onerror=alert(1)>');
+        expect(el('sis-descricao').value).toBe('Sistema de gestão');
         el('sis-nome').value = 'ERP';
         await window.salvarSistema('p1', 'a1');
-        expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/projects/p1/assets/a1', { name: 'ERP', category: 'Software', owner: 'Gerente de TI', location: 'Nuvem' });
+        expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/projects/p1/assets/a1', { name: 'ERP', description: 'Sistema de gestão', category: 'Software', owner: 'Gerente de TI', location: 'Nuvem' });
     });
 
     it('sem nome não envia', async () => {
