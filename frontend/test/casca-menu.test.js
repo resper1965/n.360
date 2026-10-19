@@ -98,7 +98,7 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
         expect(partes).toEqual([
             'nav-encarregado',
             '# Mapear', 'nav-ropa nav-importacao',
-            '# Cadastros', 'nav-partes nav-terceiros nav-catalogos',
+            '# Cadastros', 'nav-partes nav-areas nav-sistemas nav-terceiros nav-catalogos',
             '# Avaliar', 'nav-dpia nav-lia nav-mapa-de-risco nav-gaps nav-requisitos',
             '# Responder', 'nav-titular nav-incidentes-privacy nav-consentimentos',
             '# Provar', 'nav-documentos nav-evidence nav-training nav-governance',
@@ -125,11 +125,11 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
         const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
         expect(rotulos.map((r) => r.textContent)).toEqual([]);
     });
-    it('19 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
+    it('21 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
         montarApp();
         aplicarCasca('privacy');
         const destinos = [...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => n.id);
-        expect(destinos.length).toBe(19);
+        expect(destinos.length).toBe(21);
         expect(new Set(visiveis())).toEqual(new Set(destinos));
         for (const id of ['nav-meus', 'nav-audit-trail', 'nav-settings']) expect(el(id).dataset.foraDoProduto, id).toBe('1');
         expect(el('group-system-config').dataset.foraDoProduto).toBe('1');
@@ -149,13 +149,15 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
         expect(visiveis()).not.toContain('nav-consentimentos');
         expect(visiveis()).not.toContain('nav-gaps');
         expect(visiveis()).not.toContain('nav-lia');
+        expect(visiveis()).not.toContain('nav-areas');
+        expect(visiveis()).not.toContain('nav-sistemas');
     });
     it('rótulos de uma linha, nome do objeto antes da sigla; ids, rotas e ações não mudam', () => {
         montarApp();
         aplicarCasca('privacy');
         const texto = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
         expect(Object.fromEntries([...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => [n.id, texto(n.id)]))).toEqual({
-            'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas, áreas e sistemas', 'nav-terceiros': 'Fornecedores',
+            'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas', 'nav-areas': 'Áreas', 'nav-sistemas': 'Sistemas', 'nav-terceiros': 'Fornecedores',
             'nav-catalogos': 'Titulares e dados pessoais', 'nav-importacao': 'Importar programa', 'nav-dpia': 'RIPD', 'nav-lia': 'LIA', 'nav-mapa-de-risco': 'Riscos', 'nav-gaps': 'Gaps', 'nav-requisitos': 'Cobertura da LGPD', 'nav-titular': 'Pedidos do titular',
             'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-documentos': 'Documentos', 'nav-evidence': 'Evidências',
             'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-ai': 'Assistente',
@@ -168,6 +170,8 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
         expect(document.querySelector('.sidebar-nav-destaque')).toBeNull();
         expect(JSON.parse(el('nav-ropa').getAttribute('data-args'))).toEqual(['ropa']);
         expect(JSON.parse(el('nav-terceiros').getAttribute('data-args'))).toEqual(['terceiros']);
+        expect(JSON.parse(el('nav-areas').getAttribute('data-args'))).toEqual(['areas']);
+        expect(JSON.parse(el('nav-sistemas').getAttribute('data-args'))).toEqual(['sistemas']);
         expect(JSON.parse(el('nav-mapa-de-risco').getAttribute('data-args'))).toEqual(['mapa-de-risco']);
     });
     it('os rótulos novos ficam só no n.privacy: n.iso e n.360 mantêm os deles', () => {
@@ -185,7 +189,7 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
     });
     it('os itens com projeto seguem o projeto: sem projeto somem, e as seções também', () => {
         montarApp();
-        for (const id of ['nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-catalogos', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps']) {
+        for (const id of ['nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-areas', 'nav-sistemas', 'nav-catalogos', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps']) {
             expect(el(id).classList.contains('group-project-only'), id).toBe(true);
             expect(el(id).style.display, id).toBe('none');
         }

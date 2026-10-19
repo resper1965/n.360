@@ -27,7 +27,7 @@ O `version` deve ser o SHA do último merge na `main`.
 
 | # | Faça | Esperado |
 |---|---|---|
-| 2.1 | Olhe o menu | Painel; Mapear (Tratamentos, Importar programa); Cadastros (Pessoas, áreas e sistemas; Fornecedores; Titulares e dados pessoais); Avaliar; Responder; Provar. |
+| 2.1 | Olhe o menu | Painel; Mapear (Tratamentos, Importar programa); Cadastros (Pessoas; Áreas; Sistemas; Fornecedores; Titulares e dados pessoais); Avaliar; Responder; Provar. |
 
 ## 3. n.privacy: cadastros
 
@@ -37,7 +37,7 @@ O `version` deve ser o SHA do último merge na `main`.
 | 3.2 | Crie "colaborador" de novo | O sistema recusa e mostra que já existe "Colaborador". |
 | 3.3 | Aba Dados pessoais: crie "Saúde" | Nasce marcado como Sensível. |
 | 3.4 | Inative "Saúde", depois marque "Mostrar inativos" | Some da lista; volta com o filtro. Reative. |
-| 3.5 | Pessoas, áreas e sistemas: crie a pessoa "Responsável Exemplo", a área "RH" e a organização "Fornecedor Exemplo" | Os três aparecem. |
+| 3.5 | Crie a pessoa "Responsável Exemplo" em Pessoas, a área "RH" em Áreas, o sistema "ERP Exemplo" em Sistemas e a organização "Fornecedor Exemplo" em Fornecedores | Cada um aparece na sua lista. |
 | 3.6 | Fornecedores: "Adicionar parte existente" com "Fornecedor Exemplo" | O fornecedor entra na lista com a criticidade "Não avaliada". |
 | 3.7 | Abra o fornecedor, aba Criticidade: responda as 5 perguntas, com uma em "Alto", e confirme | O nível é Alto e o tipo vira Crítico. A lista mostra Alto. |
 | 3.8 | Aba Avaliações: registre uma avaliação aprovada, com validade daqui a 1 ano e uma observação | A situação fica Vigente, e a observação aparece no histórico. |

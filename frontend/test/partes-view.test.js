@@ -1,5 +1,5 @@
 // Tela de Partes e departamentos (fatia 1.4): lista, importa, concilia e escapa o que vem do banco.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
 vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://localhost' }));
@@ -81,7 +81,7 @@ describe('tela de Partes', () => {
   });
 });
 
-describe('Partes no n.privacy', () => {
+describe('Partes no n.iso: tudo como antes', () => {
   it('header: só "+ Nova parte" é primário; os outros quatro ficam no menu "Mais"', async () => {
     const [c, h, a] = montar();
     await window.renderPartes(c, h, a);
@@ -91,20 +91,58 @@ describe('Partes no n.privacy', () => {
     expect([...mais.querySelectorAll('[role="menuitem"]')].map((b) => b.getAttribute('data-action'))).toEqual(['importarPartes', 'conciliarPartes', 'abrirPadronizarNomes', 'openNovoDepartamentoModal']);
   });
 
-  it('vazio no n.privacy fala de encarregado, operadores e fornecedores, sem vocabulário ISO', async () => {
-    history.replaceState(null, '', '/privacy');
-    try {
-      apiMock.mockImplementation(() => Promise.resolve([]));
-      const [c, h, a] = montar();
-      await window.renderPartes(c, h, a);
-      expect(c.textContent).toContain('Nenhuma pessoa ou organização. Cadastre o encarregado, os operadores e os fornecedores que tratam dados, ou traga quem já está no projeto.');
-      expect(c.textContent).not.toContain('partes interessadas');
-    } finally { history.replaceState(null, '', '/'); }
-  });
-
-  it('nova parte pode nascer com o tipo já escolhido (Terceiros abre como organização)', () => {
+  it('nova parte pode nascer com o tipo já escolhido', () => {
     montar();
     window.openNovaParteModal('p1', 'organizacao');
     expect(document.getElementById('parte-tipo').value).toBe('organizacao');
+  });
+});
+
+describe('Pessoas no n.privacy', () => {
+  beforeEach(() => history.replaceState(null, '', '/privacy'));
+  afterEach(() => history.replaceState(null, '', '/'));
+
+  it('só pessoas, título Pessoas e nenhuma tabela de departamentos', async () => {
+    const [c, h, a] = montar();
+    await window.renderPartes(c, h, a);
+    expect(h.textContent).toBe('Pessoas');
+    expect(c.textContent).toContain('Ana Exemplo');
+    expect(c.querySelectorAll('tbody tr').length).toBe(1); // a organização fica em Fornecedores
+    expect(c.textContent).not.toContain('Departamento');
+    expect(c.textContent).not.toContain('TI');
+    expect(apiMock.mock.calls.map(([, u]) => u)).not.toContain('/api/v1/projects/p1/departamentos');
+  });
+
+  it('header: "+ Nova pessoa" primário; o menu "Mais" sem "+ Departamento"', async () => {
+    const [c, h, a] = montar();
+    await window.renderPartes(c, h, a);
+    expect([...a.querySelectorAll('.btn-primary')].map((b) => b.textContent.trim())).toEqual(['+ Nova pessoa']);
+    expect([...a.querySelectorAll('[role="menuitem"]')].map((b) => b.getAttribute('data-action'))).toEqual(['importarPartes', 'conciliarPartes', 'abrirPadronizarNomes']);
+  });
+
+  it('nova pessoa nasce pessoa, sem escolher tipo', async () => {
+    montar();
+    window.openNovaParteModal('p1');
+    expect(document.querySelector('#modal-content select')).toBeNull();
+    expect(document.querySelector('.modal-title').textContent).toBe('Nova pessoa');
+    document.getElementById('parte-nome').value = 'Bruno Exemplo';
+    await window.criarParte('p1');
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/partes', { tipo: 'pessoa', nome: 'Bruno Exemplo', email: null });
+  });
+
+  it('Fornecedores abre a nova parte como organização (sem select, tipo guardado)', async () => {
+    montar();
+    window.openNovaParteModal('p1', 'organizacao');
+    document.getElementById('parte-nome').value = 'Fornecedora Exemplo';
+    await window.criarParte('p1');
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/partes', { tipo: 'organizacao', nome: 'Fornecedora Exemplo', email: null });
+  });
+
+  it('vazio fala de encarregado e de quem trata dados, sem vocabulário ISO', async () => {
+    apiMock.mockImplementation(() => Promise.resolve([]));
+    const [c, h, a] = montar();
+    await window.renderPartes(c, h, a);
+    expect(c.textContent).toContain('Nenhuma pessoa cadastrada.');
+    expect(c.textContent).not.toContain('partes interessadas');
   });
 });

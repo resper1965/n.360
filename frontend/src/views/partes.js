@@ -21,8 +21,11 @@ export const podeEditar = () =>!!S.user && ['platform_admin', 'consultant', 'con
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const lista = (r) => (Array.isArray(r) ? r : []);
 
+// No n.privacy a tela é Pessoas (Cadastros: Pessoas, Áreas, Sistemas, Fornecedores): só partes do tipo pessoa, sem a tabela de
+// departamentos (Áreas, views/areas.js); as organizações ficam em Fornecedores. No n.iso, partes dos dois tipos e departamentos.
 async function renderPartes(c, h, a) {
-    h.textContent = tituloDaTela('nav-partes', 'Partes');
+    const privacy = produtoAtual() === 'privacy';
+    h.textContent = tituloDaTela('nav-partes', privacy ? 'Pessoas' : 'Partes');
     const proj = projetoAtivo();
     if (!proj) {
         a.innerHTML = '';
@@ -37,18 +40,19 @@ async function renderPartes(c, h, a) {
             { rotulo: 'Importar do projeto', action: 'importarPartes', args },
             { rotulo: 'Conciliar responsáveis', action: 'conciliarPartes', args },
             { rotulo: 'Padronizar nomes', action: 'abrirPadronizarNomes', args },
-            { rotulo: '+ Departamento', action: 'openNovoDepartamentoModal', args },
+            ...(privacy ? [] : [{ rotulo: '+ Departamento', action: 'openNovoDepartamentoModal', args }]),
         ])}
-           <button class="btn btn-primary" data-action="openNovaParteModal" data-args='["${proj.id}"]'>+ Nova parte</button>`
+           <button class="btn btn-primary" data-action="openNovaParteModal" data-args='["${proj.id}"]'>${privacy ? '+ Nova pessoa' : '+ Nova parte'}</button>`
         : '';
 
     let partes = [];
     let departamentos = [];
     try {
         partes = lista(await api('GET', `/api/v1/projects/${proj.id}/partes`));
-        departamentos = lista(await api('GET', `/api/v1/projects/${proj.id}/departamentos`));
+        if (!privacy) departamentos = lista(await api('GET', `/api/v1/projects/${proj.id}/departamentos`));
     } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as partes e os departamentos.', e); return; }
     S.partes = partes;
+    if (privacy) partes = partes.filter(p => p.tipo === 'pessoa');
 
     const tabelaPartes = window.renderDataTable(
         ['Nome', 'Tipo', 'E-mail', 'Situação', 'Ações'],
@@ -59,8 +63,8 @@ async function renderPartes(c, h, a) {
             window.renderStatusBadge(p.status === 'ativa' ? 'Ativa' : 'Inativa', p.status === 'ativa' ? 'success' : 'info'),
             `<button class="btn btn-ghost btn-sm" data-action="openParteModal" data-args='["${proj.id}","${escapeHTML(p.id)}"]'>${editar ? 'Abrir' : 'Detalhes'}</button>`,
         ]),
-        { emptyState: produtoAtual() === 'privacy'
-            ? 'Nenhuma pessoa ou organização. Cadastre o encarregado, os operadores e os fornecedores que tratam dados, ou traga quem já está no projeto.'
+        { emptyState: privacy
+            ? 'Nenhuma pessoa cadastrada. Cadastre o encarregado e quem responde pelos tratamentos, ou traga quem já está no projeto.'
             : 'Nenhuma parte cadastrada. Use "Importar do projeto" para trazer governança e partes interessadas.' }
     );
     const tabelaDeptos = window.renderDataTable(
@@ -71,6 +75,7 @@ async function renderPartes(c, h, a) {
         ]),
         { emptyState: 'Nenhum departamento cadastrado.' }
     );
+    if (privacy) { c.innerHTML = tabelaPartes; return; }
     c.innerHTML = `
         <h3 style="margin-bottom:0.75rem">Partes</h3>
         ${tabelaPartes}
@@ -81,11 +86,14 @@ async function renderPartes(c, h, a) {
 // Mensagem do servidor quando existe (409 de duplicata, 400 de validação), senão a genérica.
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
+// No n.privacy o tipo vem de quem abre (Pessoas: pessoa; Fornecedores: organização), sem select.
 window.openNovaParteModal = function (projectId, tipo = 'pessoa') {
+    const privacy = produtoAtual() === 'privacy';
+    const tipoEscolhido = TIPOS[tipo] ? tipo : 'pessoa';
     openModal(`
-        <div class="modal-header"><span class="modal-title">${tipo === 'organizacao' ? 'Novo terceiro (organização)' : 'Nova parte'}</span></div>
-        <div class="form-group"><label class="form-label" for="parte-tipo">Tipo</label>
-            <select class="form-input" id="parte-tipo">${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${v === tipo ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+        <div class="modal-header"><span class="modal-title">${tipoEscolhido === 'organizacao' ? 'Novo terceiro (organização)' : privacy ? 'Nova pessoa' : 'Nova parte'}</span></div>
+        ${privacy ? `<input type="hidden" id="parte-tipo" value="${tipoEscolhido}">` : `<div class="form-group"><label class="form-label" for="parte-tipo">Tipo</label>
+            <select class="form-input" id="parte-tipo">${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${v === tipoEscolhido ? 'selected' : ''}>${r}</option>`).join('')}</select></div>`}
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="parte-nome" maxlength="200"></div>
         <div class="form-group"><label class="form-label">E-mail (opcional)</label><input class="form-input" id="parte-email" type="email" maxlength="320"></div>
         <button class="btn btn-primary" style="width:100%" data-action="criarParte" data-args='["${projectId}"]'>Cadastrar</button>

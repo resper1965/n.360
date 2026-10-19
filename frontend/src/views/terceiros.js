@@ -96,9 +96,10 @@ function desenharLista() {
         daLista.filtrado || nivel || situacao
             ? { emptyState: 'Nenhum fornecedor nesta situação.', emptyHint: 'Limpe o filtro para ver todos.', emptyAction: '' }
             : {
-                emptyState: 'Nenhuma organização cadastrada em Partes.',
-                emptyHint: 'Cadastre os fornecedores e operadores que tratam dados para o cliente, ou traga os que já estão no projeto pela tela Partes.',
-                emptyAction: `${cadastrar}<button class="btn" data-action="navigate" data-args='${args('partes')}'>Abrir Partes</button>`,
+                emptyState: 'Nenhuma organização cadastrada.',
+                emptyHint: 'Cadastre os fornecedores e operadores que tratam dados para o cliente, ou traga os que já estão no projeto.',
+                // Pessoas mostra só pessoas: a importação das organizações do projeto se dispara daqui.
+                emptyAction: `${cadastrar}${cadastrar ? `<button class="btn" data-action="importarPartes" data-args='${args(proj.id)}'>Importar do projeto</button>` : ''}`,
             },
     );
 }
@@ -204,7 +205,7 @@ const dl = (pares) => `<dl style="display:grid; grid-template-columns:max-conten
 
 function abaCadastro(projectId, parteId, t, editar) {
     return `${dl([['Nome', escapeHTML(t.nome)], ['E-mail', escapeHTML(t.email || '—')]])}
-        ${editar ? `<p class="t-dim">Nome e e-mail se editam no cadastro da parte. <button class="btn btn-ghost btn-sm" data-action="navigate" data-args='${args('partes')}'>Abrir Pessoas, áreas e sistemas</button></p>` : ''}
+        ${editar ? `<p class="t-dim"><button class="btn btn-ghost btn-sm" data-action="openParteModal" data-args='${args(projectId, parteId)}'>Editar nome e e-mail</button></p>` : ''}
         ${titulo('Tipo e método')}
         <div id="tc-tipo">
             ${editar ? `<div style="display:flex; gap:0.5rem; align-items:flex-end"><div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-tipo-sel">Tipo do fornecedor</label>

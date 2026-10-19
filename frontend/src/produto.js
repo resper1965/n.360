@@ -18,7 +18,7 @@ const MODULOS = ['iso', 'privacy'];
 export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-terceiros', 'nav-catalogos', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
+export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-areas', 'nav-sistemas', 'nav-terceiros', 'nav-catalogos', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
@@ -118,7 +118,7 @@ export function destinoDoAviso(tela, loc = window.location) {
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
 export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
-    'policies-dashboard', 'risks', 'vendors', 'partes', 'documentos', 'requisitos', 'terceiros', 'terceiro', 'catalogos', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
+    'policies-dashboard', 'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'requisitos', 'terceiros', 'terceiro', 'catalogos', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
     'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
@@ -222,7 +222,7 @@ const marca = (produto) => `n<span style="color:var(--accent)">.</span><span cla
 // Rótulos do n.privacy, uma linha cada, nome do objeto antes da sigla (decisão de 14/10/2026). Só aqui: o n.iso e o n.360 ficam
 // com os deles; os ids nav-* e as rotas não mudam.
 export const ROTULOS_PRIVACY = {
-    'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas, áreas e sistemas', 'nav-requisitos': 'Cobertura da LGPD',
+    'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
     'nav-governance': 'Papéis e comitê', 'nav-titular': 'Pedidos do titular', 'nav-dpia': 'RIPD', 'nav-terceiros': 'Fornecedores',
     'nav-mapa-de-risco': 'Riscos',
 };
@@ -235,7 +235,7 @@ export const ROTULOS_PRIVACY = {
 export const SECOES_PRIVACY = [
     ['', ['nav-encarregado']],
     ['Mapear', ['nav-ropa', 'nav-importacao']],
-    ['Cadastros', ['nav-partes', 'nav-terceiros', 'nav-catalogos']],
+    ['Cadastros', ['nav-partes', 'nav-areas', 'nav-sistemas', 'nav-terceiros', 'nav-catalogos']],
     ['Avaliar', ['nav-dpia', 'nav-lia', 'nav-mapa-de-risco', 'nav-gaps', 'nav-requisitos']],
     ['Responder', ['nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos']],
     ['Provar', ['nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance']],
