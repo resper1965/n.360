@@ -1,5 +1,5 @@
 import { S } from './state.js';
-import { produtoAtual, TELAS_DO_HUB, moduloPara, enderecoNoModulo, irPara, abrirGrupo, limparFichaDoEndereco } from './produto.js';
+import { produtoAtual, TELAS_DO_HUB, moduloPara, enderecoNoModulo, irPara, abrirGrupo, limparFichaDoEndereco, atualizarSeletorDeModulo } from './produto.js';
 
 /** Telas da área comercial: somem com o interruptor desligado (o servidor responde 404 às rotas delas). */
 export const TELAS_COMERCIAIS = ['comercial', 'leads', 'assessments', 'assessment-detail', 'proposals', 'catalogo', 'config-comercial', 'settings'];
@@ -47,6 +47,7 @@ export     function navigate(view, data) {
         if (targetView !== 'terceiro') limparFichaDoEndereco();
         S.view = targetView;
         if (data) Object.assign(S, data);
+        atualizarSeletorDeModulo(); // só aparece no Painel do módulo
         
         // Update active states in sidebar. aria-current expõe a página atual a
         // leitores de tela — antes o estado ativo era só cor (invisível para AT).
