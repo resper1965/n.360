@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, resetData, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
+import { aprovarTratamentoDeTeste } from './helpers/ropa-abas';
 import { saudeDoProjeto, estadoDoPrograma, situacaoNaCarteira, type ItemFazer } from '../src/services/painel';
 
 /**
@@ -121,6 +122,15 @@ async function semear() {
 }
 
 describe('GET /projects/:id/painel', () => {
+  it('atividade aprovada por pedido (sem status Approved gravado) conta como aprovada', async () => {
+    await semear();
+    const rid = await aprovarTratamentoDeTeste(db(), 'pa'); // status fica nulo; a aprovação vem do pedido com o hash atual
+    const m = (await painel(consultor, 'pa', 'privacy')).corpo.modulos.privacy;
+    const t = m.cobertura!.find((x) => x.tema === 'Atividades (RoPA)');
+    expect(rid).toBe('pa-r');
+    expect(t).toMatchObject({ feito: 2, andamento: 1, falta: 1 });
+  });
+
   it('n.privacy: empresa, estado do programa, frase e "O que fazer" com o mais grave primeiro', async () => {
     await semear();
     const { status, corpo } = await painel(consultor, 'pa', 'privacy');
