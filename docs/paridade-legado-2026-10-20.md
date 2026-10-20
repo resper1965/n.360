@@ -113,6 +113,12 @@ descrição do tratamento pode ser.
 O CNPJ de **empresa** fornecedora não é dado pessoal. O "Sem CPF" protege a pessoa física. Vale separar as duas coisas
 na decisão.
 
+**Escopo (decisão do dono, 20/10/2026):** a gestão de terceiros completa será o **n.tprm**, um produto futuro com módulos
+próprios e o portal do fornecedor. Plano de ações, aprovações, assunção de risco e classificação por perfil de evidência
+ficam para ele e **não** são lacunas do n.privacy. O desenho discutido em 20/10 (criticidade e perfil de evidência,
+catálogo global de provedores, questionário curto e assistido) é ilustrativo e ainda não tem spec. Para não fechar a
+porta ao n.tprm, o fornecedor deve continuar sendo a `partes` do núcleo, sem cadastro paralelo dentro de um módulo.
+
 ## Lacunas de tela (o dado existe, falta mostrar ou agir)
 
 ### 5. Colunas, busca e filtros nas listas
@@ -204,6 +210,6 @@ etapas do Tratamento de Dados (titulares e dados por etapa, "Não aplicável", c
    várias estão cortadas nas capturas.
 2. **LIA com as 12 perguntas:** pode seguir sem a restrição do hash. Confirmar se ela ganha página própria com abas.
 3. **Logs com antes e depois:** aceita valor anterior e novo na trilha da atividade?
-4. **Fornecedor:** entram CNPJ (só de pessoa jurídica) e Responsável? Plano de Ações, Aprovações e Assunção de risco
-   entram agora ou ficam para depois (estão vazios no legado desta cliente)?
+4. **Fornecedor:** plano de ações, aprovações e assunção de risco ficam para o n.tprm (decidido em 20/10). Falta
+   decidir só se CNPJ (de pessoa jurídica) e responsável entram já no núcleo, ou se esperam o n.tprm também.
 5. **Mesclar ativos e parceiros:** entra?
