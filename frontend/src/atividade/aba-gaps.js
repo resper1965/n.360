@@ -1,5 +1,5 @@
 import { api, baixarArquivo, API_BASE, cabecalhosAuth } from '../api.js';
-import { showToast, openModal, forceCloseModal, confirmar, escapeHTML, renderEmptyState } from '../ui.js';
+import { showToast, openModal, forceCloseModal, confirmar, escapeHTML, renderEmptyState, formatarData } from '../ui.js';
 
 // Aba Controle de GAPs da ficha da atividade (spec 2026-10-16, seção 7). Contrato de aba da casca: montar(painel, ctx) com
 // ctx = { projectId, ropaId, ficha, editavel, recarregarFicha }; devolve { esvaziar }. O gap é uma ação corretiva da atividade
@@ -8,6 +8,7 @@ import { showToast, openModal, forceCloseModal, confirmar, escapeHTML, renderEmp
 
 export const STATUS = [['Open', 'Pendente'], ['In Progress', 'Em andamento'], ['Closed', 'Concluído']];
 const ROTULO_STATUS = Object.fromEntries(STATUS);
+export const emAtraso = (g) => g.status !== 'Closed' && !!g.prazo && String(g.prazo).slice(0, 10) < new Date().toISOString().slice(0, 10);
 const MAX_ANEXO = 5 * 1024 * 1024;
 const EXTENSOES = ['pdf', 'doc', 'docx'];
 const SUBABAS = [['gap', 'Gap'], ['plano', 'Plano de Ação'], ['anexo', 'Anexo']];
@@ -38,7 +39,8 @@ function desenhar() {
         ? `<ul class="at-lista">${gaps.map((g) => `<li class="d-flex flex-col gap-1" data-gap="${escapeHTML(g.id)}">
             <span><strong>Gap:</strong> ${escapeHTML(g.gap)}</span>
             <span class="d-flex items-center flex-wrap gap-4"><span><span class="t-dim">Responsável:</span> ${escapeHTML(g.responsavel ? g.responsavel.nome : 'sem responsável')}</span>
-                <span><span class="t-dim">Status:</span> ${escapeHTML(ROTULO_STATUS[g.status] || g.status)}</span>
+                <span><span class="t-dim">Prazo:</span> ${escapeHTML(g.prazo ? formatarData(g.prazo) : 'sem prazo')}</span>
+                <span><span class="t-dim">Status:</span> ${emAtraso(g) ? window.renderStatusBadge('Em atraso', 'danger') : escapeHTML(ROTULO_STATUS[g.status] || g.status)}</span>
                 ${lista(g.anexos).length ? `<span class="t-dim">${lista(g.anexos).length} anexo${lista(g.anexos).length > 1 ? 's' : ''}</span>` : ''}${ed ? `
                 <button type="button" class="btn btn-sm" data-action="atGapAbrir" data-args='${args(g.id)}' aria-label="${escapeHTML(`Editar o gap: ${g.gap.slice(0, 80)}`)}">Editar</button>
                 <button type="button" class="btn btn-sm btn-ghost t-perigo" data-action="atGapRemover" data-args='${args(g.id)}' aria-label="${escapeHTML(`Remover o gap: ${g.gap.slice(0, 80)}`)}">Remover</button>` : ''}</span></li>`).join('')}</ul>`

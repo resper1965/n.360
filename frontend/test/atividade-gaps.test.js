@@ -295,4 +295,16 @@ describe('aba Controle de GAPs', () => {
         expect(fonteDaAba).not.toMatch(/style=/);
         expect(fonteDaAba).not.toMatch(/\son(click|change|input|submit)=/);
     });
+    it('mostra o prazo e marca "Em atraso" só no gap aberto com prazo vencido', async () => {
+        const g = clone(contrato.gaps[0]);
+        const abertoVencido = { ...g, id: 'ga', prazo: '2020-01-02', status: 'Open' };
+        const fechadoVencido = { ...g, id: 'gb', prazo: '2020-01-02', status: 'Closed' };
+        const { painel } = await abrir({ ...clone(contrato), gaps: [abertoVencido, fechadoVencido] });
+        const a = painel.querySelector('[data-gap="ga"]').textContent;
+        expect(a).toContain('Prazo: 02/01/2020');
+        expect(a).toContain('Em atraso');
+        const b = painel.querySelector('[data-gap="gb"]').textContent;
+        expect(b).toContain('Concluído');
+        expect(b).not.toContain('Em atraso');
+    });
 });

@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, formatarData, showToast } from '../ui.js';
-import { STATUS, abrirGapDaAtividade } from '../atividade/aba-gaps.js';
+import { STATUS, abrirGapDaAtividade, emAtraso } from '../atividade/aba-gaps.js';
 import { podeEditar } from './partes.js';
 
 // Gestão de GAPs do projeto (n.privacy, spec 2026-10-19): a lista do legado sobre `GET /projects/:id/ropa/gaps` (as ações das
@@ -15,8 +15,6 @@ const el = (id) => document.getElementById(id);
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const chave = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** Prazo antes de hoje (AAAA-MM-DD) e gap não concluído. */
-export const emAtraso = (g) => g.status !== 'Closed' && !!g.prazo && String(g.prazo).slice(0, 10) < new Date().toISOString().slice(0, 10);
 const rotuloStatus = (g) => (emAtraso(g) ? 'Em atraso' : ROTULO_STATUS[g.status] || g.status);
 
 let daLista = null;
