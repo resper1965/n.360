@@ -437,8 +437,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   catalogos do RoPA. Gaps (`views/gaps.js`, `GET .../ropa/gaps`) e LIA (`views/lia.js`, `GET .../ropa/lias`, inclui a atividade de
   legitimo interesse sem LIA) listam o projeto inteiro; Riscos tem a vista Mapa | Lista (`?vista=lista`). Fornecedores segue a rotina de TPRM: `pendencias` em `GET .../terceiros` (tipo, criticidade, avaliacao, DPA) e a fila `avaliacoes-terceiros`. A Referencia juridica (`referencia-juridica`, em Mais) le `GET /requisitos?fonte=` e `GET /requisitos/gdpr-bases`; a validacao em lote (`POST /requisitos/mapeamentos/validar`) e do platform_admin e grava o e-mail da sessao. Os "Abrir" levam a atividade
   na aba certa (`abrirAtividade(projectId, ropaId, aba)`). Selos de `frontend/src/selos-menu.js`: numero = total a tratar, contorno ambar =
-  pendente, fundo vermelho = atraso; o Painel tem selo so com atraso. O n.iso e o n.360 mantem estrutura, rotulos e acordeao
-  (`frontend/test/casca-menu.test.js` fixa a estrutura); a barra dos tres e acessivel: grupo fechado fora do Tab (`visibility`), recolhida com o
+  pendente, fundo vermelho = atraso; o Painel tem selo so com atraso. O n.iso e o n.360 mantem estrutura de menu e acordeao
+  (`frontend/test/casca-menu.test.js` fixa a estrutura), mas as telas do n.iso NAO estao mais congeladas (decisao de 20/10/2026, abaixo); a barra dos tres e acessivel: grupo fechado fora do Tab (`visibility`), recolhida com o
   texto so visualmente escondido e a dica `#sidebar-dica` ao passar e ao focar. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
   abaixo (Frontend, n.360).
 - **n.iso e n.privacy sao MODULOS do n.360 sobre o mesmo cadastro (decisao de 09/10/2026, migration 0060; casca n.360 em 11/10).**
@@ -635,6 +635,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Sem alternancia de tema.** Um tema so, o escuro da marca.
 - **Sem framework no frontend.** Vanilla e decisao, nao divida.
 - **Responsividade fora de escopo** ate segunda ordem.
+- **Equalizacao n.iso x n.privacy (20/10/2026, `docs/equalizacao-modulos-2026-10-20.md`).** A mesma entidade segue a mesma regra e
+  aparece do mesmo jeito nos dois modulos: (1) RIPD aprovado PERDE a aprovacao quando o conteudo muda, como atividade e documento;
+  (2) aceite de risco e um modelo so, `status = Accepted` carimbado no servidor (quem e quando), nos dois modulos; (3) o DPA do
+  fornecedor tem fonte unica, o documento ligado em `documento_partes` (papel `dpa`), e `vendors.dpa_signed` passa a ser derivado
+  dele; (4) as telas do n.iso deixam de ser congeladas: listas, rotulos e vocabulario de status sao os mesmos dos dois modulos.
 
 ## Restricoes Tecnicas
 

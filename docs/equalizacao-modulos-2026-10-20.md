@@ -41,7 +41,7 @@ O resultado é a mesma linha do banco tratada de dois jeitos, conforme a tela po
 | 5 | **O agente MCP consegue concluir gap.** `PUT /ropa/:rid/gaps/:id` com `Closed` não é recusado, e `PUT /capa/:id` também não. Só `/acoes` recusa. Contraria "concluir ação é ato humano". **[conferido]** | `src/routes/ropa-abas.ts` (`put('/gaps/:id')`), `src/routes/capa.ts` |
 | 6 | **Token de sessão na URL** no relatório de política do n.iso. O n.privacy abre os relatórios com cabeçalho e blob. **[conferido]** | `frontend/src/views/compliance.js` (`policy/report?token=`) |
 | 7 | **O aviso de prazo da ação não chega ao responsável.** A fonte `capa` lê `assigned_to` (texto), e gaps e ações das atividades só gravam `assigned_to_parte_id`. **[conferido]** | `src/services/avisos-prazo.ts` (fonte `capa`) |
-| 8 | **A trilha do projeto devolve `SELECT *`:** IP, justificativa e e-mails. A guarda de papel no servidor ainda está a conferir; a aba Logs ROPA é minimizada. | `src/routes/projects.ts` (`audit-trail`), `src/services/ropa-abas/logs.ts` |
+| 8 | **A trilha do projeto devolve `SELECT *`:** IP, justificativa e e-mails, para qualquer pessoa com acesso ao projeto, inclusive o cliente: não há corte de papel. A aba Logs ROPA é minimizada. **[conferido]** | `src/routes/projects.ts` (`audit-trail`), `src/services/ropa-abas/logs.ts` |
 
 ## P1: a mesma regra calculada de jeitos diferentes
 
@@ -101,6 +101,16 @@ Estas diferenças são escolhas registradas, não defeitos:
 - a faixa de cada rota;
 - o lote de aprovações que reaproveita a decisão individual;
 - trust score e avaliação de terceiro como métodos distintos (spec de integração de 10/10).
+
+## Decisões do dono (20/10/2026)
+
+1. **RIPD:** o RIPD aprovado perde a aprovação quando o conteúdo muda, como a atividade e o documento.
+2. **Aceite de risco:** um modelo só, `status = Accepted` com carimbo no servidor, nos dois módulos.
+3. **DPA:** fonte única, o documento ligado ao fornecedor; `vendors.dpa_signed` passa a ser derivado dele.
+4. **n.iso:** deixa de ser congelado; as telas seguem o mesmo padrão de lista, os mesmos rótulos e o mesmo vocabulário.
+
+Item 8 do P0 conferido: `GET /projects/:id/audit-trail` não tem corte de papel na rota nem no middleware; quem acessa o projeto
+(inclusive o cliente) lê IP e justificativa de toda a trilha.
 
 ## Recomendação
 
