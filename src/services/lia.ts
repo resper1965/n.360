@@ -2,6 +2,7 @@ import { logAudit } from '../helpers';
 import { documentoAtual, hashConteudo } from './pedidos';
 import { lerImpacto, type Recomendacao } from './impacto';
 import { lerCiclo, cicloEmTexto } from './ciclo';
+import { sqlAreaDaAtividade } from './riscos-atividade';
 import { lerBases, basesEmTexto, SQL_TITULOS_ADICIONAIS } from './bases';
 
 export const RESULTADO_IMPACTO: Record<Recomendacao['resultado'], string> = {
@@ -30,7 +31,7 @@ const COLUNAS = 'id, ropa_id, finalidade_legitima, necessidade, balanceamento, s
 const CAMPOS_TEXTO = ['finalidade_legitima', 'necessidade', 'balanceamento', 'salvaguardas'] as const;
 const OBRIGATORIOS = ['finalidade_legitima', 'necessidade', 'balanceamento'] as const;
 
-export type LiaDaLista = { ropa_id: string; atividade: string; status: 'faltando' | 'rascunho' | 'concluida'; conclusao: Lia['conclusao']; concluida_por: string | null; concluida_em: string | null };
+export type LiaDaLista = { ropa_id: string; atividade: string; status: 'faltando' | 'rascunho' | 'concluida'; conclusao: Lia['conclusao']; concluida_por: string | null; concluida_em: string | null; area: string | null };
 
 /**
  * A lista de LIAs do projeto (spec 2026-10-19): as LIAs gravadas (a consulta do export `lia`) e, com `status: 'faltando'`, as atividades
@@ -41,15 +42,15 @@ export async function liasDoProjeto(db: D1Database, projectId: string): Promise<
     `SELECT r.id AS ropa_id, r.processing_purpose AS atividade, r.status AS ropa_status, r.legal_basis, r.base_gdpr, q.titulo AS base_titulo,
             ${SQL_TITULOS_ADICIONAIS} AS adicionais,
             EXISTS (SELECT 1 FROM tratamento_bases_gdpr g WHERE g.ropa_id = r.id AND g.project_id = r.project_id AND g.base = 'interesses_legitimos') AS gdpr_li,
-            l.id AS lia_id, l.status, l.conclusao, l.concluida_por, l.concluida_em
+            l.id AS lia_id, l.status, l.conclusao, l.concluida_por, l.concluida_em, ${sqlAreaDaAtividade('r.id', 'r.project_id')} AS area
        FROM ropa_records r LEFT JOIN requisitos q ON q.id = r.base_legal_id
        LEFT JOIN lia_assessments l ON l.ropa_id = r.id AND l.project_id = r.project_id
       WHERE r.project_id = ? ORDER BY r.processing_purpose, r.id`
   ).bind(projectId).all<{ ropa_id: string; atividade: string; ropa_status: string | null; legal_basis: string | null; base_gdpr: string | null; base_titulo: string | null;
-    adicionais: string | null; gdpr_li: number; lia_id: string | null; status: 'rascunho' | 'concluida' | null; conclusao: Lia['conclusao']; concluida_por: string | null; concluida_em: string | null }>();
+    adicionais: string | null; gdpr_li: number; lia_id: string | null; status: 'rascunho' | 'concluida' | null; conclusao: Lia['conclusao']; concluida_por: string | null; concluida_em: string | null; area: string | null }>();
   return results
     .filter((r) => r.lia_id || (r.ropa_status !== 'Inactive' && (r.gdpr_li || ehLegitimoInteresse(r.legal_basis, r.base_titulo, r.adicionais, r.base_gdpr))))
-    .map((r) => ({ ropa_id: r.ropa_id, atividade: r.atividade, status: r.status ?? 'faltando', conclusao: r.conclusao ?? null, concluida_por: r.concluida_por ?? null, concluida_em: r.concluida_em ?? null }));
+    .map((r) => ({ ropa_id: r.ropa_id, atividade: r.atividade, status: r.status ?? 'faltando', conclusao: r.conclusao ?? null, concluida_por: r.concluida_por ?? null, concluida_em: r.concluida_em ?? null, area: r.area ?? null }));
 }
 
 export async function lerLia(db: D1Database, projectId: string, ropaId: string): Promise<Lia | null> {

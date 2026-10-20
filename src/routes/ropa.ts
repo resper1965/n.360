@@ -3,7 +3,7 @@ import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
 import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema } from '../schemas';
-import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa, gapsDoProjeto } from '../services/riscos-atividade';
+import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa, gapsDoProjeto, sqlAreaDaAtividade } from '../services/riscos-atividade';
 import { lerImpacto, salvarImpacto } from '../services/impacto';
 import { lerCiclo, salvarCiclo, cicloEmTexto, etapasDe, type EtapaLida } from '../services/ciclo';
 import { lerBases, salvarBases, basesEmTexto, type BaseLida } from '../services/bases';
@@ -121,7 +121,7 @@ ropaApp.delete('/:id', async (c) => {
 projectRopaApp.get('/', async (c) => {
   const projectId = c.req.param('projectId');
   const result = await c.env.DB.prepare(
-    `SELECT r.*, pa.nome AS owner_parte_nome, ${SQL_DADOS_IMPORTADOS} FROM ropa_records r
+    `SELECT r.*, pa.nome AS owner_parte_nome, ${sqlAreaDaAtividade('r.id', 'r.project_id')} AS area, ${SQL_DADOS_IMPORTADOS} FROM ropa_records r
      LEFT JOIN partes pa ON pa.id = r.owner_parte_id AND pa.project_id = r.project_id
      WHERE r.project_id = ? ORDER BY r.created_at DESC`
   ).bind(projectId).all();
