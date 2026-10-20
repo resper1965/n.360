@@ -5,6 +5,7 @@ import { navigate } from '../router.js';
 import { produtoAtual, temProduto } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
 import { carregarConsentimentos, telaConsentimentos } from './consentimentos.js';
+import { hojeSP } from '../hoje.js';
 
 // Titular e incidentes (fatia 7 do núcleo, só registro interno): pedidos do titular, incidentes, consentimentos e prazos legais.
 // Toda regra é do servidor (protocolo, prazo congelado, encerramento do incidente); aqui só se mostra e se chama. Texto escapado.
@@ -283,7 +284,7 @@ const diaMes = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}` 
 // Dias úteis (seg. a sex.) depois de hoje até o prazo, inclusive. ponytail: sem feriados; a contagem oficial é a do servidor.
 function diasUteisAte(prazo) {
     const fim = new Date(`${String(prazo).slice(0, 10)}T00:00:00Z`);
-    const d = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+    const d = new Date(`${hojeSP()}T00:00:00Z`);
     let n = 0;
     while (d < fim) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() % 6 !== 0) n++; }
     return n;
@@ -298,7 +299,7 @@ function faixaAnpd(i) {
     if (i.status === 'encerrado' || i.risco_titular === 'sem_risco') return '';
     if (!i.prazo_anpd_em) return faixa('var(--warning)', 'Prazo da ANPD não calculado: cadastre os prazos legais.');
     // A data do prazo também decide (o servidor pode ainda dizer "no_prazo" no dia): nunca "faltam 0 dias úteis".
-    const hoje = new Date().toISOString().slice(0, 10), prazo = String(i.prazo_anpd_em).slice(0, 10);
+    const hoje = hojeSP(), prazo = String(i.prazo_anpd_em).slice(0, 10);
     if (i.situacao_anpd === 'atrasado' || prazo < hoje) return faixa('var(--danger)', `Comunicação à ANPD atrasada: o prazo era ${diaMes(i.prazo_anpd_em)}.`);
     if (i.situacao_anpd === 'vence_hoje' || prazo === hoje) return faixa('var(--danger)', `Comunicar à ANPD até hoje, ${diaMes(i.prazo_anpd_em)}.`);
     const n = diasUteisAte(i.prazo_anpd_em);

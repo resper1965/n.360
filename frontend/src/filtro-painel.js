@@ -1,14 +1,15 @@
 import { S } from './state.js';
 import { escapeHTML } from './ui.js';
+import { hojeSP, emDiasSP } from './hoje.js';
 
 // Filtro por situação com que o painel abre uma lista de destino ("O que fazer" > botão). O estado é só uma chave desta lista
 // fechada, em memória (`S.filtroPainel`, gravado pelo `navigate` e apagado na navegação seguinte); do n.360 para um módulo vai
 // pelo sessionStorage (produto.js), nunca pelo endereço. Nada de dado: a chave diz "atrasados", não quem nem o quê.
 
 const dia = (v) => String(v || '').slice(0, 10);
-/** Hoje no fuso de quem usa (o servidor conta em São Paulo; a diferença é de horas na virada do dia). */
-const hoje = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-const emDias = (n) => new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + n * 86400000).toISOString().slice(0, 10);
+/** Hoje em São Paulo: o mesmo dia do servidor. */
+const hoje = () => hojeSP();
+const emDias = (n) => emDiasSP(n);
 const PEDIDO_ABERTO = ['recebido', 'em_andamento'];
 const vencida = (d) => !!d && dia(d) < hoje();
 

@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, formatarData } from '../ui.js';
+import { hojeSP } from '../hoje.js';
 
 // Avaliações de fornecedores (n.privacy, spec 2026-10-20): a FILA de reavaliação da rotina de TPRM, sobre a mesma lista de
 // `GET /projects/:id/terceiros`. Só agrupa e ordena por urgência (críticos primeiro); a situação e o método vêm do servidor.
@@ -20,7 +21,7 @@ const DIA = 86_400_000;
 
 /** Dias de hoje até `valido_ate` (negativo = vencida); null sem avaliação. */
 const diasAte = (t) => (t.ultima_avaliacao && t.ultima_avaliacao.valido_ate
-    ? Math.round((Date.parse(`${String(t.ultima_avaliacao.valido_ate).slice(0, 10)}T00:00:00Z`) - Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`)) / DIA) : null);
+    ? Math.round((Date.parse(`${String(t.ultima_avaliacao.valido_ate).slice(0, 10)}T00:00:00Z`) - Date.parse(`${hojeSP()}T00:00:00Z`)) / DIA) : null);
 
 /** O grupo da fila: vigente com validade em até 30 dias vira "vence". */
 const grupoDe = (t) => (t.situacao === 'vigente' && (diasAte(t) ?? Infinity) <= JANELA_DIAS ? 'vence' : t.situacao);

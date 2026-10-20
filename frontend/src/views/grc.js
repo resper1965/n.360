@@ -7,6 +7,7 @@ import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
+import { hojeSP } from '../hoje.js';
 
 // S2: wrappers para handlers COMPOSTOS/inline (a delegação chama uma função só).
 window.__grcDeleteRisk = async function (riskId) {
@@ -250,7 +251,7 @@ window.__grcCloseExecAudit = function (id) {
         if (select.value === 'Accept') {
             acceptGroup.style.display = '';
             const dtInput = document.getElementById('risk-accepted-at');
-            if (!dtInput.value) dtInput.value = new Date().toISOString().split('T')[0];
+            if (!dtInput.value) dtInput.value = hojeSP();
         } else {
             acceptGroup.style.display = 'none';
         }

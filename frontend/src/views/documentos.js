@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, formatarData } from '../ui.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
+import { hojeSP } from '../hoje.js';
 
 // Documentos do projeto (fatia 3.4 do núcleo): árvore política → norma → procedimento, dono, revisão, versões,
 // rascunho (inclusive o do agente), ciências e aprovação por versão. Toda regra é do servidor; aqui só se mostra
@@ -21,7 +22,7 @@ const lista = (r) => (Array.isArray(r) ? r : []);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
 const dataBr = (s) => formatarData(s);
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeSP();
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
 /** Selo de aprovação por versão (derivada dos pedidos): quem aprovou a versão vigente, ou nada. */

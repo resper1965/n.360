@@ -3,6 +3,7 @@ import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE, formatarData, traduzStatus, tituloDaTela } from '../ui.js';
 import { produtoAtual, projetosDoProduto } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
+import { hojeSP } from '../hoje.js';
 
     /** Vazio sem fases: o primeiro passo real (carregar as fases, para a equipe) e a prontidão, nunca a Jornada vazia. */
     export function vazioSemFases(projectId) {
@@ -283,7 +284,7 @@ import { podeIndicar } from './encarregado.js';
             </div>
             <button class="btn btn-primary w-full mt-4" data-action="createMetric" data-args='["${projectId}"]'>Registrar Indicador</button>
         `);
-        document.getElementById('met-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('met-date').value = hojeSP();
     }
 
     async function createMetric(projectId) {
