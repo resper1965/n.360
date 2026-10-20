@@ -1,4 +1,5 @@
 import { SQL_CLASSE_CONTROLE } from '../classe-controle';
+import { SQL_EH_FORNECEDOR } from '../terceiros';
 import { ENTIDADES, type Entidade } from '../../data/passos/tipos';
 
 /** Uma consulta por entidade, todas com `project_id = ?`. Lista fechada: o catálogo só cita as chaves daqui. */
@@ -9,7 +10,7 @@ export const CONSULTAS_ENTIDADE: Record<Entidade, string> = {
   documentos_vigentes: `SELECT COUNT(*) AS n FROM documentos WHERE project_id = ? AND status = 'vigente'`,
   atividades_ropa: `SELECT COUNT(*) AS n FROM ropa_records WHERE project_id = ?`,
   ripd: `SELECT COUNT(*) AS n FROM dpia_assessments WHERE project_id = ?`,
-  fornecedores: `SELECT COUNT(*) AS n FROM vendors WHERE project_id = ?`,
+  fornecedores: `SELECT COUNT(*) AS n FROM partes p WHERE project_id = ? AND ${SQL_EH_FORNECEDOR}`,
   treinamentos: `SELECT COUNT(*) AS n FROM training_records WHERE project_id = ?`,
   auditorias: `SELECT COUNT(*) AS n FROM audit_schedule WHERE project_id = ?`,
   analises_criticas: `SELECT COUNT(*) AS n FROM management_reviews WHERE project_id = ?`,

@@ -63,11 +63,13 @@ const SO_PARTE_INTERESSADA = `EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.par
   AND NOT EXISTS (SELECT 1 FROM documento_partes d WHERE d.parte_id = p.id)
   AND NOT EXISTS (SELECT 1 FROM vendors f WHERE f.parte_id = p.id)`;
 
+/** Quem é fornecedor, igual nos dois módulos e em toda contagem: organização ativa que não é só parte interessada. Alias `p` = partes. */
+export const SQL_EH_FORNECEDOR = `p.tipo = 'organizacao' AND p.status = 'ativa' AND NOT (${SO_PARTE_INTERESSADA})`;
+
 /** Terceiros do projeto (partes organização ativas, menos as que são só parte interessada) com tipo, situação, nº de tratamentos que os usam e nº de documentos (DPA). */
 export async function listarTerceiros(db: D1Database, projectId: string): Promise<Terceiro[]> {
   const [partes, avals, trat, docs, crits, dpas] = await db.batch([
-    db.prepare(`SELECT id, nome, terceiro_tipo FROM partes p WHERE project_id = ?1 AND tipo = 'organizacao' AND status = 'ativa'
-      AND NOT (${SO_PARTE_INTERESSADA}) ORDER BY nome`).bind(projectId),
+    db.prepare(`SELECT id, nome, terceiro_tipo FROM partes p WHERE project_id = ?1 AND ${SQL_EH_FORNECEDOR} ORDER BY nome`).bind(projectId),
     db.prepare(`SELECT ${COLS_AVALIACAO} FROM avaliacoes_terceiro WHERE project_id = ? ORDER BY created_at, rowid`).bind(projectId),
     db.prepare(`SELECT parte_id, count(DISTINCT ropa_id) AS n FROM (${SQL_ATIVIDADES}) GROUP BY parte_id`).bind(projectId),
     db.prepare(`SELECT parte_id, count(DISTINCT documento_id) AS n FROM documento_partes WHERE project_id = ? GROUP BY parte_id`).bind(projectId),
@@ -111,8 +113,8 @@ export async function lerTerceiro(db: D1Database, projectId: string, parteId: st
     db.prepare(`SELECT r.id, r.processing_purpose AS finalidade, MAX(a.origem) AS origem FROM (${SQL_ATIVIDADES}) a JOIN ropa_records r ON r.id = a.ropa_id
       WHERE a.parte_id = ?2 GROUP BY r.id ORDER BY r.processing_purpose`).bind(projectId, parteId),
     db.prepare(`SELECT email FROM partes WHERE id = ? AND project_id = ?`).bind(parteId, projectId),
-    db.prepare(`SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.parte_id = ?1 AND v.project_id = ?2
-      AND EXISTS (SELECT 1 FROM parte_vinculos pv WHERE pv.parte_id = v.parte_id AND pv.papel = 'terceiro' AND pv.alvo_tipo = 'projeto' AND pv.alvo_id = v.project_id)`).bind(parteId, projectId),
+    // o perfil de segurança é opcional: o terceiro já passou pelo critério de fornecedor (`listarTerceiros`)
+    db.prepare(`SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.parte_id = ?1 AND v.project_id = ?2`).bind(parteId, projectId),
   ]);
   return { ...t, email: (parte.results[0] as { email: string | null } | undefined)?.email ?? null, seguranca: seg.results[0] ?? null,
     historico: hist.results as Avaliacao[], documentos_ligados: docs.results, suboperadores: subs.results, tratamentos_afetados: trat.results };

@@ -4,6 +4,7 @@ import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { NOME_DO_PRODUTO, type Modulo } from '../modulos';
 import { hojeEmSaoPaulo } from './hoje';
+import { SQL_EH_FORNECEDOR } from './terceiros';
 import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
 
 /** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA. A regra mora em classe-controle.ts. */
@@ -153,7 +154,7 @@ const UNIAO_PRIVACY = [
   // A avaliação que vale é a mais recente (a mesma regra de `situacaoDe`): reprovada não tem validade.
   `SELECT 'Terceiros', p.nome, (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a
       WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) AS data
-    FROM partes p WHERE p.project_id = ?1 AND p.tipo = 'organizacao' AND p.status = 'ativa' AND p.terceiro_tipo IS NOT NULL`,
+    FROM partes p WHERE p.project_id = ?1 AND ${SQL_EH_FORNECEDOR}`,
   SQL_UNIAO_EVIDENCIAS,
   SQL_UNIAO_DOCUMENTOS,
 ];
@@ -496,7 +497,7 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
          (SELECT count(*) FROM ropa_records r WHERE r.project_id = p.id AND COALESCE(r.status, '') <> 'Inactive') AS tratamentos,
          (SELECT count(*) FROM compliance_controls c WHERE c.project_id = p.id AND (${sqlClasseControle('c.status')}) <> 'falta') AS controles
        FROM projects p WHERE p.id ${escopo}`),
-    b(`SELECT p.project_id, count(*) AS n FROM partes p WHERE p.project_id ${escopo} AND p.tipo = 'organizacao' AND p.status = 'ativa' AND p.terceiro_tipo IS NOT NULL
+    b(`SELECT p.project_id, count(*) AS n FROM partes p WHERE p.project_id ${escopo} AND ${SQL_EH_FORNECEDOR}
          AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?1
        GROUP BY p.project_id`),
     b(`SELECT project_id, tipo, rotulo, data FROM (

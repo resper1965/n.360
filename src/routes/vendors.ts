@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { normalizarNome } from '../services/nomes';
+import { SQL_EH_FORNECEDOR } from '../services/terceiros';
 import { Bindings, Variables } from '../index';
 
 import { genId, logAudit, requireResourceAccess, erro500 } from '../helpers';
@@ -70,13 +71,10 @@ vendorsApp.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'vendors', id, c.get('user'));
-    const v = await c.env.DB.prepare('SELECT project_id, parte_id, name FROM vendors WHERE id = ?').bind(id).first<{ project_id: string | null; parte_id: string | null; name: string }>();
-    // sai o perfil e o papel de terceiro no projeto; a parte (e a avaliação do n.privacy) fica
-    await c.env.DB.batch([
-      c.env.DB.prepare(`DELETE FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro' AND alvo_tipo = 'projeto' AND alvo_id = ?`).bind(v?.parte_id ?? null, v?.project_id ?? null),
-      c.env.DB.prepare('DELETE FROM vendors WHERE id = ?').bind(id),
-    ]);
-    await logAudit(c.env.DB, 'vendor.deleted', c.get('user')?.email ?? 'system', `Vendor ${v?.name ?? id} excluído`, '', '', v?.project_id ?? undefined);
+    const v = await c.env.DB.prepare('SELECT project_id, name FROM vendors WHERE id = ?').bind(id).first<{ project_id: string | null; name: string }>();
+    // sai só o perfil de segurança: a parte segue fornecedor nos dois módulos até ser inativada em Partes
+    await c.env.DB.prepare('DELETE FROM vendors WHERE id = ?').bind(id).run();
+    await logAudit(c.env.DB, 'vendor.deleted', c.get('user')?.email ?? 'system', `Avaliação de segurança de ${v?.name ?? id} removida`, '', '', v?.project_id ?? undefined);
     return c.json({ ok: true });
   } catch (e: any) {
     if (e.message && e.message.startsWith('Forbidden')) return c.json({ error: e.message }, 403);
@@ -86,14 +84,19 @@ vendorsApp.delete('/:id', async (c) => {
 
 // ─── Project Vendor Operations (/api/v1/projects/:projectId/vendors) ──────
 
-/** Fornecedor listado = perfil de parte ATIVA com vínculo `terceiro` no projeto. A lista e o CSV usam a mesma consulta. */
-export const SQL_VENDORS_VISIVEIS = `SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.project_id = ? AND p.status = 'ativa'
-        AND EXISTS (SELECT 1 FROM parte_vinculos pv WHERE pv.parte_id = v.parte_id AND pv.papel = 'terceiro' AND pv.alvo_tipo = 'projeto' AND pv.alvo_id = v.project_id)`;
+/**
+ * Fornecedor listado = parte que é fornecedor (`SQL_EH_FORNECEDOR`), com o perfil de segurança (`vendors`) quando houver: sem perfil, `id` e as
+ * colunas do perfil vêm NULL. Colunas listadas uma a uma para não haver nome repetido no resultado. A lista e o CSV usam a mesma consulta.
+ */
+export const SQL_VENDORS_VISIVEIS = `SELECT v.id, p.project_id, p.nome AS name, v.category, v.has_iso27001, v.has_iso27701, v.has_soc2, v.trust_score,
+    v.diligence_level, v.dpa_signed, v.last_assessment_date, v.notes, v.status, v.has_mfa, v.has_encryption, v.has_backup, v.has_incident_plan,
+    v.has_pentest, v.trust_center_url, v.dpa_url, v.attached_certifications, v.created_at, p.id AS parte_id
+  FROM partes p LEFT JOIN vendors v ON v.parte_id = p.id WHERE p.project_id = ? AND ${SQL_EH_FORNECEDOR}`;
 
 projectVendorsApp.get('/', async (c) => {
   const projectId = c.req.param('projectId');
   const { results } = await c.env.DB.prepare(
-    `${SQL_VENDORS_VISIVEIS} ORDER BY v.created_at DESC`
+    `${SQL_VENDORS_VISIVEIS} ORDER BY p.nome`
   ).bind(projectId).all();
   return c.json({ ok: true, vendors: results });
 });
@@ -114,15 +117,7 @@ projectVendorsApp.post('/', async (c) => {
       .bind(projectId, body.name).first<{ id: string }>();
     // perfil que já existe não é sobrescrito pelo POST (corpo parcial zeraria os campos): edição é pelo PUT
     const existente = achada ? await db.prepare('SELECT id FROM vendors WHERE parte_id = ?').bind(achada.id).first<{ id: string }>() : null;
-    if (existente) {
-      // Perfil escondido por ter perdido o vínculo terceiro: o cadastro o traz de volta, com os dados de antes.
-      const r = await db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id)
-        SELECT ?, ?, ?, 'terceiro', 'projeto', ? WHERE NOT EXISTS (SELECT 1 FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro' AND alvo_tipo = 'projeto' AND alvo_id = ?)`)
-        .bind(crypto.randomUUID(), projectId, achada!.id, projectId, achada!.id, projectId).run();
-      if (!r.meta.changes) return c.json({ error: 'Fornecedor já cadastrado neste projeto', id: existente.id }, 409);
-      await logAudit(db, 'vendor.restored', c.get('user')?.email ?? 'system', `Vendor ${body.name} restaurado no projeto ${projectId}`, '', '', projectId);
-      return c.json({ ok: true, id: existente.id }, 200);
-    }
+    if (existente) return c.json({ error: 'Fornecedor já cadastrado neste projeto', id: existente.id }, 409);
     const parteId = achada?.id ?? crypto.randomUUID();
     const r = await db.batch([
       ...(achada ? [] : [db.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES (?, ?, 'organizacao', ?)`).bind(parteId, projectId, normalizarNome(body.name))]),

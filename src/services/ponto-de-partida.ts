@@ -1,5 +1,6 @@
 import { lacunasDaFonte, resumoDeLacunas } from './requisitos';
 import { hojeEmSaoPaulo } from './hoje';
+import { SQL_EH_FORNECEDOR } from './terceiros';
 
 /**
  * Painel "ponto de partida": o que o projeto já tem no cadastro compartilhado, a cobertura da LGPD/ANPD e os controles ISO que a
@@ -26,8 +27,7 @@ export async function pontoDePartida(db: D1Database, projectId: string): Promise
     db.prepare(`SELECT count(*) AS n FROM evidence WHERE project_id = ? AND evaluation_status = 'conforming' AND (valido_ate IS NULL OR substr(valido_ate, 1, 10) >= ?)`)
       .bind(projectId, hojeEmSaoPaulo()),
     c(`SELECT count(*) AS n FROM itens WHERE project_id = ? AND status = 'ativo'`),
-    c(`SELECT count(DISTINCT p.id) AS n FROM partes p JOIN parte_vinculos v ON v.parte_id = p.id
-        WHERE p.project_id = ? AND p.tipo = 'organizacao' AND p.status = 'ativa' AND v.papel = 'terceiro' AND v.alvo_tipo = 'projeto'`),
+    c(`SELECT count(*) AS n FROM partes p WHERE p.project_id = ? AND ${SQL_EH_FORNECEDOR}`),
     c(`SELECT count(DISTINCT p.id) AS n FROM partes p JOIN parte_vinculos v ON v.parte_id = p.id
         WHERE p.project_id = ? AND p.status = 'ativa' AND v.papel = 'encarregado' AND v.alvo_tipo = 'projeto'`),
     c('SELECT count(*) AS n FROM incidentes WHERE project_id = ?'),

@@ -486,14 +486,16 @@ window.__grcCloseExecAudit = function (id) {
         S.vendors = vendors;
 
         const totalVendors = vendors.length;
-        const avgScore = totalVendors ? Math.round(vendors.reduce((acc, v) => acc + (v.trust_score || 0), 0) / totalVendors) : 0;
+        // o índice médio só conta quem tem avaliação de segurança (perfil); fornecedor sem perfil não vale 0
+        const avaliados = vendors.filter(v => v.id);
+        const avgScore = avaliados.length ? Math.round(avaliados.reduce((acc, v) => acc + (v.trust_score || 0), 0) / avaliados.length) : 0;
         const dpaSignedCount = vendors.filter(v => v.dpa_signed).length;
         const highDilCount = vendors.filter(v => v.diligence_level === 'High' || v.diligence_level === 'Critical').length;
 
         const statsHtml = window.renderStatCards([
             { label: 'Total Fornecedores', value: totalVendors, color: 'var(--text)', subtext: 'Terceiros mapeados' },
             // Sem fornecedor não há postura a medir: "—", nunca "0/100" em vermelho.
-            { label: 'Índice de confiança médio', value: totalVendors ? `${avgScore}/100` : '—', color: !totalVendors ? 'var(--text-dim)' : avgScore >= 80 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : 'var(--danger)', subtext: 'Postura global' },
+            { label: 'Índice de confiança médio', value: avaliados.length ? `${avgScore}/100` : '—', color: !avaliados.length ? 'var(--text-dim)' : avgScore >= 80 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : 'var(--danger)', subtext: 'Postura global' },
             { label: 'DPAs Assinados', value: dpaSignedCount, color: 'var(--text)', subtext: 'Proteção de dados' },
             { label: 'Alta Diligência', value: highDilCount, color: highDilCount ? 'var(--warning)' : 'var(--text)', subtext: 'Acompanhamento rigoroso' }
         ]);
@@ -508,6 +510,14 @@ window.__grcCloseExecAudit = function (id) {
                 if (v.attached_certifications) certs.push(v.attached_certifications);
                 const certStr = certs.length ? certs.join(', ') : '—';
                 const scoreColor = (v.trust_score || 0) >= 80 ? 'var(--success)' : (v.trust_score || 0) >= 50 ? 'var(--warning)' : 'var(--danger)';
+                // fornecedor sem perfil de segurança: a primeira edição cria a avaliação (POST com o nome da parte)
+                if (!v.id) return [
+                    `<strong>${escapeHTML(v.name)}</strong>`,
+                    '—',
+                    '<span class="t-sm t-dim">Sem avaliação de segurança</span>',
+                    '—', '—', '—',
+                    canCrud ? `<button class="btn btn-ghost btn-sm" data-action="openEditVendorModal" data-args='["${v.parte_id}"]'>Avaliar</button>` : ''
+                ];
 
                 return [
                     `<strong>${escapeHTML(v.name)}</strong>`,
@@ -516,7 +526,7 @@ window.__grcCloseExecAudit = function (id) {
                     v.dpa_signed ? window.renderStatusBadge('Sim', 'success') : window.renderStatusBadge('Não', 'danger'),
                     `<span class="t-sm t-dim">${escapeHTML(certStr)}</span>`,
                     window.renderStatusBadge(v.diligence_level || 'Low', v.diligence_level === 'High' ? 'danger' : 'info'),
-                    `<button class="btn btn-ghost btn-sm" data-action="openVendorDetailsModal" data-args='["${v.id}"]'>Detalhes</button>`
+                    `<button class="btn btn-ghost btn-sm" data-action="openVendorDetailsModal" data-args='["${v.parte_id}"]'>Detalhes</button>`
                 ];
             }),
             { emptyState: 'Nenhum fornecedor registrado neste projeto.',
@@ -530,8 +540,9 @@ window.__grcCloseExecAudit = function (id) {
         `;
     }
 
-    window.openVendorDetailsModal = function(id) {
-        const v = S.vendors.find(x => x.id === id) || {};
+    // fornecedores são identificados pela parte (`parte_id`): o perfil de segurança (`id`) é opcional
+    window.openVendorDetailsModal = function(parteId) {
+        const v = S.vendors.find(x => x.parte_id === parteId) || {};
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
         const dilColor = d => d === 'Low' ? 'var(--success)' : d === 'Medium' ? 'var(--warning)' : 'var(--danger)';
         
@@ -600,7 +611,7 @@ window.__grcCloseExecAudit = function (id) {
             </div>
             <div class="acoes-rodape">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
-                ${canCrud ? `<button class="btn btn-primary" data-action="openEditVendorModal" data-args='["${id}"]'>Editar Fornecedor</button>` : ''}
+                ${canCrud ? `<button class="btn btn-primary" data-action="openEditVendorModal" data-args='["${parteId}"]'>Editar Fornecedor</button>` : ''}
             </div>
         `);
     };
@@ -704,11 +715,11 @@ window.__grcCloseExecAudit = function (id) {
         forceCloseModal(); render();
     };
 
-    window.openEditVendorModal = function(id) {
-        const v = S.vendors.find(x => x.id === id) || {};
+    window.openEditVendorModal = function(parteId) {
+        const v = S.vendors.find(x => x.parte_id === parteId) || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Fornecedor</span></div>
-            <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="vnd-e-name" value="${escapeHTML(v.name||'')}"></div>
+            <div class="modal-header"><span class="modal-title">${v.id ? 'Editar Fornecedor' : 'Avaliação de segurança'}</span></div>
+            <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="vnd-e-name" value="${escapeHTML(v.name||'')}"${v.id ? '' : ' disabled'}></div>
             <div class="form-group"><label class="form-label">Categoria</label><input class="form-input" id="vnd-e-cat" value="${escapeHTML(v.category||'')}"></div>
             
             <div class="card-label mt-4 mb-2">Certificações Conhecidas</div>
@@ -757,8 +768,8 @@ window.__grcCloseExecAudit = function (id) {
             </div>
 
             <div class="d-flex gap-2 justify-between mt-6">
-                <button class="btn t-perigo" data-action="deleteVendor" data-args='["${id}"]'>Excluir</button>
-                <button class="btn btn-primary" data-action="updateVendor" data-args='["${id}"]'>Salvar</button>
+                ${v.id ? `<button class="btn t-perigo" data-action="deleteVendor" data-args='["${v.id}"]'>Remover avaliação de segurança</button>` : '<span></span>'}
+                <button class="btn btn-primary" data-action="updateVendor" data-args='["${parteId}"]'>Salvar</button>
             </div>
         `);
         window.previewVendorScore = function() {
@@ -784,9 +795,10 @@ window.__grcCloseExecAudit = function (id) {
         window.previewVendorScore();
     };
 
-    window.updateVendor = async function(id) {
+    window.updateVendor = async function(parteId) {
+        const v = S.vendors.find(x => x.parte_id === parteId) || {};
         const body = { 
-            name: document.getElementById('vnd-e-name').value, 
+            name: v.id ? document.getElementById('vnd-e-name').value : v.name, 
             category: document.getElementById('vnd-e-cat').value, 
             dpa_signed: +document.getElementById('vnd-dpa').value, 
             has_iso27001: document.getElementById('vnd-iso27001').checked ? 1 : 0, 
@@ -801,12 +813,14 @@ window.__grcCloseExecAudit = function (id) {
             dpa_url: document.getElementById('vnd-dpa-url').value,
             attached_certifications: document.getElementById('vnd-attached-certs').value
         };
-        await api('PUT', `/api/v1/vendors/${id}`, body);
+        // sem perfil, o POST reaproveita a parte de mesmo nome e cria a avaliação
+        if (v.id) await api('PUT', `/api/v1/vendors/${v.id}`, body);
+        else await api('POST', `/api/v1/projects/${v.project_id}/vendors`, body);
         forceCloseModal(); render();
     };
 
     window.deleteVendor = async function(id) {
-        if (await window.confirmar('O fornecedor e a avaliação dele saem deste projeto.', { titulo: 'Excluir fornecedor', perigo: true, rotulo: 'Excluir' })) { await api('DELETE', `/api/v1/vendors/${id}`); render(); }
+        if (await window.confirmar('A avaliação de segurança sai; o fornecedor continua cadastrado neste projeto (para tirá-lo, inative a organização em Partes).', { titulo: 'Remover avaliação de segurança', perigo: true, rotulo: 'Remover' })) { await api('DELETE', `/api/v1/vendors/${id}`); render(); }
     };
 
     async function renderTraining(c, h, a) {
