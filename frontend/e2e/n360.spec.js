@@ -90,16 +90,18 @@ test('n.privacy: menu em seções fixas, rótulos de uma linha, selos (total a t
   await entrar(page);
   await expect(page).toHaveURL(/\/privacy$/);
   const menu = page.locator('#sidebar');
-  await expect(menu.locator('#nav-titular')).toContainText('Pedidos do titular');
-  await expect(menu.locator('#nav-encarregado')).toContainText('Painel');
+  await expect(menu.locator('#nav-titular')).toContainText('Solicitações');
+  await expect(menu.locator('#nav-encarregado')).toContainText('Dashboard');
   await expect(menu.locator('#selo-titular')).toHaveAttribute('aria-label', '4 pedidos vencidos ou a vencer em 7 dias, 1 atrasado');
   await expect(menu.locator('#selo-painel')).toHaveText('1');
   await expect(menu.locator('#selo-terceiros')).toHaveText('2');
   await expect(menu.locator('#selo-incidentes')).toBeHidden();
   expect(visao).toEqual([]);
-  for (const secao of ['Mapear', 'Avaliar', 'Responder', 'Provar']) await expect(menu.getByText(secao, { exact: true })).toBeVisible();
-  // tudo à vista, sem abrir grupo: Documentos e Consentimentos a um clique
-  await expect(menu.locator('#nav-documentos')).toBeVisible();
+  for (const secao of ['Cadastros', 'Mapeamento', 'Diagnóstico', 'Mais']) await expect(menu.getByText(secao, { exact: true })).toBeVisible();
+  await expect(menu.locator('#secao-fornecedores')).toHaveText('Fornecedores');
+  // tudo à vista, sem abrir grupo: Documentos, Políticas e Consentimentos a um clique
+  await expect(menu.locator('#nav-documentos-arquivo')).toContainText('Documentos');
+  await expect(menu.locator('#nav-documentos')).toContainText('Políticas');
   await expect(menu.locator('#nav-consentimentos')).toBeVisible();
   await expect(menu.locator('#nav-meus')).toBeHidden();
   await expect(menu.locator('#nav-audit-trail')).toBeHidden();
@@ -112,11 +114,11 @@ test('n.privacy: menu em seções fixas, rótulos de uma linha, selos (total a t
   await page.click('#toggle-sidebar');
   // o ponteiro sai de cima do conteúdo: a barra encolhendo passa elementos sob ele, e cada mouseover fecha a dica
   await page.mouse.move(2, 2);
-  await expect(menu.getByRole('link', { name: /^Pedidos do titular/ })).toBeVisible();
+  await expect(menu.getByRole('link', { name: /^Solicitações/ })).toBeVisible();
   await expect(menu.getByRole('link', { name: /^Consentimentos/ })).toBeVisible();
   await expect(menu.locator('#selo-titular')).toBeVisible();
   await menu.locator('#nav-ropa').focus();
-  await expect(page.locator('#sidebar-dica')).toHaveText('Tratamentos (RoPA)');
+  await expect(page.locator('#sidebar-dica')).toHaveText('Atividades');
   await expect(page.locator('#sidebar-dica')).toBeVisible();
 });
 

@@ -247,6 +247,8 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   // Criticidade do fornecedor (0080): enums do CHECK
 
   criticidades_terceiro: { impacto: 'alto', exclusividade: 'sem_alternativas', risco_financeiro: 'alto', conformidade: 'regulamentado', risco_reputacional: 'alto', nivel: 'alto' },
+  // Documentos do legado (0081): enums do CHECK; sem vencimento = 0 para o CHECK do vencimento valer com data
+  documentos_arquivo: { tipo: 'outro', status: 'rascunho', sem_vencimento: 0, arquivo_tipo: 'pdf' },
 };
 
 async function semearTenantAlheio(id: string, projeto: string): Promise<void> {

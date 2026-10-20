@@ -341,14 +341,14 @@ window.desligarDocumentoTerceiro = (projectId, parteId, documentoId, papel) => a
     () => api('DELETE', `/api/v1/projects/${projectId}/terceiros/${parteId}/documentos/${documentoId}?papel=${encodeURIComponent(papel)}`), 'Não foi possível desligar o documento', 'Documento desligado.');
 
 // ─── Avaliação de criticidade (spec 2026-10-18) ─────────────────────────────────────────────────────────────────
-// Cinco blocos, uma resposta cada. O nível é derivado no servidor (pior critério); o tipo segue o nível, salvo grande provedor.
+// Cinco blocos, uma resposta cada, com a pergunta do legado (spec 2026-10-19). O nível é derivado no servidor (pior critério); o tipo segue o nível, salvo grande provedor.
 
 const CRITERIOS_CRITICIDADE = [
-    { chave: 'impacto', titulo: 'Impacto no Negócio', opcoes: [['alto', 'Alto (interrupção total ou significativa)'], ['medio', 'Médio (impacto relevante, com soluções paliativas)'], ['baixo', 'Baixo (impacto mínimo ou inexistente)']] },
-    { chave: 'exclusividade', titulo: 'Exclusividade e Alternativas', opcoes: [['sem_alternativas', 'Sem alternativas (fornecedor único ou substituição muito difícil)'], ['poucas_alternativas', 'Poucas alternativas (existem, com dificuldades técnicas ou financeiras)'], ['varias_alternativas', 'Várias alternativas (fácil de substituir)']] },
-    { chave: 'risco_financeiro', titulo: 'Risco Financeiro', opcoes: [['alto', 'Alto (histórico de instabilidade ou inadimplência)'], ['medio', 'Médio (algumas oscilações)'], ['baixo', 'Baixo (financeiramente sólido)']] },
-    { chave: 'conformidade', titulo: 'Conformidade', opcoes: [['regulamentado', 'Está sujeito à Regulamentação Específica no setor de atuação'], ['sem_regulamentacao', 'Não há Regulamentação Específica no setor de atuação']] },
-    { chave: 'risco_reputacional', titulo: 'Risco Reputacional', opcoes: [['alto', 'Alto (relação direta de reconhecimento da marca entre as empresas)'], ['medio', 'Médio (algum conhecimento da dependência)'], ['baixo', 'Baixo (risco mínimo)']] },
+    { chave: 'impacto', pergunta: 'Qual o impacto da falha deste fornecedor nas operações da empresa?', titulo: 'Impacto no Negócio', opcoes: [['alto', 'Alto (interrupção total ou significativa)'], ['medio', 'Médio (impacto relevante, com soluções paliativas)'], ['baixo', 'Baixo (impacto mínimo ou inexistente)']] },
+    { chave: 'exclusividade', pergunta: 'Quão fácil é substituir este fornecedor?', titulo: 'Exclusividade e Alternativas', opcoes: [['sem_alternativas', 'Sem alternativas (fornecedor único ou substituição muito difícil)'], ['poucas_alternativas', 'Poucas alternativas (existem, com dificuldades técnicas ou financeiras)'], ['varias_alternativas', 'Várias alternativas (fácil de substituir)']] },
+    { chave: 'risco_financeiro', pergunta: 'Qual o nível de risco financeiro deste fornecedor?', titulo: 'Risco Financeiro', opcoes: [['alto', 'Alto (histórico de instabilidade ou inadimplência)'], ['medio', 'Médio (algumas oscilações)'], ['baixo', 'Baixo (financeiramente sólido)']] },
+    { chave: 'conformidade', pergunta: 'Quanto à conformidade regulatória:', titulo: 'Conformidade', opcoes: [['regulamentado', 'Está sujeito à Regulamentação Específica no setor de atuação'], ['sem_regulamentacao', 'Não há Regulamentação Específica no setor de atuação']] },
+    { chave: 'risco_reputacional', pergunta: 'Falhas deste fornecedor poderiam causar danos à imagem da empresa?', titulo: 'Risco Reputacional', opcoes: [['alto', 'Alto (relação direta de reconhecimento da marca entre as empresas)'], ['medio', 'Médio (algum conhecimento da dependência)'], ['baixo', 'Baixo (risco mínimo)']] },
 ];
 const respostaEmTexto = (c, v) => (c.opcoes.find(([x]) => x === v) || [v, v || ''])[1];
 
@@ -364,7 +364,8 @@ function secaoCriticidade(projectId, parteId, t, crit, editar) {
     const tipo = t.terceiro_tipo === 'grande_provedor'
         ? `<p>Tipo: ${escapeHTML(TIPOS[t.terceiro_tipo])}. Grande provedor é mantido: a avaliação não troca o tipo.</p>`
         : `<p>Tipo resultante: ${escapeHTML(TIPOS[t.terceiro_tipo] || 'Sem tipo')}${t.metodo ? ` (método: ${escapeHTML(METODOS[t.metodo])})` : ''}.</p>`;
-    const perguntas = editar ? `${CRITERIOS_CRITICIDADE.map((c) => `<fieldset class="form-group"><legend class="form-label">${escapeHTML(c.titulo)}</legend>
+    const perguntas = editar ? `${CRITERIOS_CRITICIDADE.map((c) => `<fieldset class="form-group" aria-describedby="tc-crit-p-${c.chave}"><legend class="form-label">${escapeHTML(c.titulo)}</legend>
+            <p class="at-nota" id="tc-crit-p-${c.chave}">${escapeHTML(c.pergunta)}</p>
             ${c.opcoes.map(([v, r]) => `<label><input type="radio" name="tc-crit-${c.chave}" value="${v}"> ${escapeHTML(r)}</label>`).join('<br>')}</fieldset>`).join('')}
         <button class="btn btn-primary" data-action="confirmarCriticidadeTerceiro" data-args='${args(projectId, parteId)}'>Confirmar avaliação</button>` : '';
     const historico = lista(crit.historico);

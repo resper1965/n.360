@@ -15,7 +15,7 @@ export const NIVEL_ROTULO = { Low: 'Baixo', Medium: 'Médio', High: 'Alto', Crit
 export const ESTRATEGIA_ROTULO = { Accept: 'Aceitar', Mitigate: 'Mitigar', Avoid: 'Evitar', Transfer: 'Transferir' };
 const SELO = { Low: 'selo-success', Medium: 'selo-warning', High: 'selo-danger', Critical: 'selo-danger' };
 
-let R = null; // { painel, ctx, riscos, motivos, m }  (m = estado do modal aberto)
+let R = null; // { painel, ctx, riscos, motivos, partes, m }  (m = estado do modal aberto)
 const el = (id) => document.getElementById(id);
 const url = (c, sufixo = '') => `/api/v1/projects/${c.projectId}/ropa/${c.ropaId}${sufixo}`;
 const lista = (r, chave) => (Array.isArray(r) ? r : (r && Array.isArray(r[chave]) ? r[chave] : []));
@@ -32,7 +32,9 @@ const tratado = (r) => !!(r.treatment_due_date || r.residual_level || (r.residua
 
 async function carregar() {
     const c = R.ctx;
-    const [riscos, motivos] = await Promise.all([api('GET', url(c, '/riscos')), opcional(() => api('GET', url(c, '/riscos/motivos')), [])]);
+    const [riscos, motivos, partes] = await Promise.all([api('GET', url(c, '/riscos')), opcional(() => api('GET', url(c, '/riscos/motivos')), []),
+        R.partes ? Promise.resolve(R.partes) : opcional(() => api('GET', `/api/v1/projects/${c.projectId}/partes`), [])]);
+    R.partes = lista(partes, 'partes');
     R.riscos = lista(riscos, 'riscos').slice().sort((a, b) => (a.idr ?? 1e9) - (b.idr ?? 1e9));
     R.motivos = lista(motivos, 'motivos').filter((m) => m && m.nome);
 }
@@ -123,43 +125,101 @@ window.atRiscoGravar = async function () {
     try { await recarregar(); } catch (e) { falha(e, 'Não foi possível atualizar a lista'); }
 };
 
-// ─── Tratar: estratégia, risco residual e prazo ───
+// ─── Tratar Risco (spec 2026-10-19): o modal do legado em três abas, também aberto pela lista de Riscos do projeto ───
+// Risco (só leitura), Tratamento (Estratégia, Descrição, Responsável, Status e Data prevista, todos obrigatórios) e Risco residual
+// (calculado ao vivo e por "Recalcular"; o servidor recalcula e é a verdade). Status: Pendente é o risco aberto, Concluído o fechado
+// (`Closed`); o status só vai no corpo quando muda, para não desfazer um aceite (`Accepted`) que a tela não mostra.
+const SUBABAS_TR = [['risco', 'Risco'], ['tratamento', 'Tratamento'], ['residual', 'Risco residual']];
+const STATUS_TR = [['Open', 'Pendente'], ['Closed', 'Concluído']];
+let T = null; // { projectId, risco, aoGravar, sub }
+const statusTr = (r) => (r.status === 'Closed' ? 'Closed' : 'Open');
+const rotuloDe = (escala, n) => (escala.find(([v]) => v === Number(n)) || [0, '—'])[1];
+const leitura = (rotulo, valor) => `<div class="form-group"><span class="form-label">${rotulo}</span><p class="at-nota">${valor}</p></div>`;
+const opcoesTr = (pares, atual) => pares.map(([v, rot]) => `<option value="${escapeHTML(v)}" ${v === atual ? 'selected' : ''}>${escapeHTML(rot)}</option>`).join('');
+
+/** `risco` no formato de GET /riscos (com `ropa_id`); `partes` do projeto (só pessoas entram); `aoGravar` depois do PUT. */
+export function abrirTratarRisco({ projectId, risco: r, partes = [], aoGravar }) {
+    T = { projectId, risco: r, aoGravar, sub: 'risco' };
+    const pessoas = partes.filter((p) => p && p.status !== 'inativa' && (!p.tipo || p.tipo === 'pessoa'));
+    const painel = (id, corpo) => `<div role="tabpanel" id="at-rk-p-${id}" aria-labelledby="at-rk-sub-${id}" ${id === T.sub ? '' : 'hidden'} class="d-flex flex-col gap-3">${corpo}</div>`;
+    const semPessoa = pessoas.length ? '' : '<p class="at-nota" id="at-rk-resp-d">Nenhuma pessoa cadastrada ainda. Cadastre quem responde pelo risco em Pessoas.</p>';
+    const nivel = r.risk_level || (r.probability && r.impact ? nivelDaNota(r.probability, r.impact) : null);
+    openModal(`<h2 class="modal-title" id="at-rk-modal-t">Tratar Risco ${escapeHTML(idr(r.idr))}</h2>
+        <div class="abas" role="tablist" aria-label="Seções do tratamento">${SUBABAS_TR.map(([id, rot]) =>
+            `<button type="button" role="tab" class="aba" id="at-rk-sub-${id}" aria-controls="at-rk-p-${id}" aria-selected="${id === T.sub}" tabindex="${id === T.sub ? 0 : -1}"
+                data-action="atRiscoSub" data-args='${args(id)}' data-action-keydown="atRiscoSubTecla" data-arg-event><span>${rot}</span></button>`).join('')}</div>
+        <form id="at-rk-form" data-action-submit="atRiscoTratarGravar" data-prevent novalidate class="d-flex flex-col gap-3 mt-3" data-action-input="atRiscoTratarMudou" data-action-change="atRiscoTratarMudou">
+            ${painel('risco', `${leitura('Motivo', escapeHTML(r.threat || '—'))}${leitura('Descrição', escapeHTML(r.vulnerability || '—'))}
+                ${leitura('Probabilidade', escapeHTML(rotuloDe(PROBABILIDADE, r.probability)))}${leitura('Impacto', escapeHTML(rotuloDe(IMPACTO, r.impact)))}
+                ${leitura('Risco', selo(nivel))}`)}
+            ${painel('tratamento', `<div class="form-group"><label class="form-label" for="at-rk-estr">Estratégia ${obrigatorio}</label>
+                    <select class="form-input" id="at-rk-estr" required aria-required="true"><option value="">Selecione uma opção</option>${opcoesTr(Object.entries(ESTRATEGIA_ROTULO), tratado(r) ? r.treatment : '')}</select></div>
+                <div class="form-group"><label class="form-label" for="at-rk-plano">Descrição ${obrigatorio}</label>
+                    <textarea class="form-input" id="at-rk-plano" rows="4" maxlength="5000" required aria-required="true">${escapeHTML(r.treatment_plan || '')}</textarea></div>
+                <div class="form-group"><label class="form-label" for="at-rk-resp">Responsável ${obrigatorio}</label>
+                    <select class="form-input" id="at-rk-resp" required aria-required="true" ${semPessoa ? 'aria-describedby="at-rk-resp-d"' : ''}><option value="">Selecione uma pessoa</option>${opcoesTr(pessoas.map((p) => [p.id, p.nome]), r.owner_parte_id || '')}</select>${semPessoa}</div>
+                <div class="form-group"><label class="form-label" for="at-rk-status">Status ${obrigatorio}</label>
+                    <select class="form-input" id="at-rk-status" required aria-required="true">${opcoesTr(STATUS_TR, statusTr(r))}</select></div>
+                <div class="form-group"><label class="form-label" for="at-rk-prazo">Data prevista para conclusão ${obrigatorio}</label>
+                    <input class="form-input" type="date" id="at-rk-prazo" required aria-required="true" value="${escapeHTML(r.treatment_due_date ? String(r.treatment_due_date).slice(0, 10) : '')}"></div>`)}
+            ${painel('residual', `<div class="form-group"><label class="form-label" for="at-rk-rprob">Probabilidade</label><select class="form-input" id="at-rk-rprob">${opcoesNota(PROBABILIDADE, r.residual_probability, 'Não avaliada')}</select></div>
+                <div class="form-group"><label class="form-label" for="at-rk-rimp">Impacto</label><select class="form-input" id="at-rk-rimp">${opcoesNota(IMPACTO, r.residual_impact, 'Não avaliado')}</select></div>
+                <p class="form-label">Risco residual: <span id="at-rk-residual" role="status"></span></p>
+                <div><button type="button" class="btn btn-sm" data-action="atRiscoRecalcular">Recalcular</button></div>`)}
+            <p class="re-erro" id="at-rk-erro" role="alert"></p>
+            <div class="acoes-rodape"><button type="submit" class="btn btn-primary" id="at-rk-gravar" disabled>Gravar</button></div></form>`, 'modal-large');
+    window.atRiscoTratarMudou();
+}
+
 window.atRiscoTratar = function (id) {
     const r = R.riscos.find((x) => x.id === id);
-    if (!r) return;
-    R.m = { editId: id };
-    openModal(`<h2 class="modal-title" id="at-rk-modal-t">Tratar o risco ${escapeHTML(idr(r.idr))}</h2>
-        <form id="at-rk-form" data-action-submit="atRiscoTratarGravar" data-prevent novalidate class="d-flex flex-col gap-3" data-action-change="atRiscoTratarMudou">
-            <p class="at-nota">${escapeHTML(r.threat)}. Risco inerente: ${selo(r.risk_level)}</p>
-            <div class="form-group"><label class="form-label" for="at-rk-estr">Estratégia ${obrigatorio}</label><select class="form-input" id="at-rk-estr" required aria-required="true"><option value="">Selecione uma opção</option>${Object.entries(ESTRATEGIA_ROTULO).map(([v, rot]) =>
-                `<option value="${v}" ${tratado(r) && r.treatment === v ? 'selected' : ''}>${rot}</option>`).join('')}</select></div>
-            <div class="form-group"><label class="form-label" for="at-rk-rprob">Probabilidade residual</label><select class="form-input" id="at-rk-rprob">${opcoesNota(PROBABILIDADE, r.residual_probability, 'Não avaliada')}</select></div>
-            <div class="form-group"><label class="form-label" for="at-rk-rimp">Impacto residual</label><select class="form-input" id="at-rk-rimp">${opcoesNota(IMPACTO, r.residual_impact, 'Não avaliado')}</select></div>
-            <p class="form-label">Risco residual: <span id="at-rk-residual" role="status"></span></p>
-            <div class="form-group"><label class="form-label" for="at-rk-prazo">Prazo</label><input class="form-input" type="date" id="at-rk-prazo" value="${escapeHTML(r.treatment_due_date ? String(r.treatment_due_date).slice(0, 10) : '')}"></div>
-            <p class="re-erro" id="at-rk-erro" role="alert"></p>
-            <div class="acoes-rodape"><button type="submit" class="btn btn-primary" id="at-rk-gravar" disabled>Gravar</button></div></form>`);
-    window.atRiscoTratarMudou();
+    if (r) abrirTratarRisco({ projectId: R.ctx.projectId, risco: { ...r, ropa_id: R.ctx.ropaId }, partes: R.partes, aoGravar: recarregar });
 };
-window.atRiscoTratarMudou = function () {
+// Delegação do clique com o evento antes (o par clique+teclado compartilha data-arg-event): o id é sempre o último argumento.
+window.atRiscoSub = function (...a) {
+    const id = a[a.length - 1];
+    T.sub = id;
+    for (const [s] of SUBABAS_TR) {
+        const aba = el(`at-rk-sub-${s}`);
+        aba.setAttribute('aria-selected', String(s === id));
+        aba.tabIndex = s === id ? 0 : -1;
+        el(`at-rk-p-${s}`).hidden = s !== id;
+    }
+};
+window.atRiscoSubTecla = function (e, id) {
+    const i = SUBABAS_TR.findIndex(([s]) => s === id);
+    const n = SUBABAS_TR.length;
+    const prox = { ArrowRight: (i + 1) % n, ArrowLeft: (i + n - 1) % n, Home: 0, End: n - 1 }[e.key];
+    if (prox === undefined) return;
+    e.preventDefault();
+    window.atRiscoSub(SUBABAS_TR[prox][0]);
+    el(`at-rk-sub-${SUBABAS_TR[prox][0]}`).focus();
+};
+window.atRiscoRecalcular = function () {
     const p = Number(el('at-rk-rprob').value);
     const i = Number(el('at-rk-rimp').value);
     el('at-rk-residual').innerHTML = p && i ? selo(nivelDoEscore(p * i)) : '<span class="t-dim">a calcular...</span>';
-    el('at-rk-gravar').disabled = !el('at-rk-estr').value;
+};
+window.atRiscoTratarMudou = function () {
+    window.atRiscoRecalcular();
+    el('at-rk-gravar').disabled = !(el('at-rk-estr').value && el('at-rk-plano').value.trim() && el('at-rk-resp').value && el('at-rk-status').value && el('at-rk-prazo').value);
 };
 window.atRiscoTratarGravar = async function () {
     const botao = el('at-rk-gravar');
-    if (!botao || botao.disabled) return;
+    if (!botao || botao.disabled || !T) return;
     const p = Number(el('at-rk-rprob').value);
     const i = Number(el('at-rk-rimp').value);
     if (!!p !== !!i) { el('at-rk-erro').textContent = 'Informe a probabilidade e o impacto residuais, ou deixe as duas em branco.'; return; }
-    const corpo = { treatment: el('at-rk-estr').value, residual_probability: p || null, residual_impact: i || null, treatment_due_date: el('at-rk-prazo').value || null };
+    const status = el('at-rk-status').value;
+    const corpo = { treatment: el('at-rk-estr').value, treatment_plan: el('at-rk-plano').value.trim(), owner_parte_id: el('at-rk-resp').value,
+        treatment_due_date: el('at-rk-prazo').value, residual_probability: p || null, residual_impact: i || null,
+        ...(status !== statusTr(T.risco) ? { status } : {}) };
     botao.disabled = true;
-    try { await api('PUT', url(R.ctx, `/riscos/${R.m.editId}`), corpo); }
+    try { await api('PUT', `/api/v1/projects/${T.projectId}/ropa/${T.risco.ropa_id}/riscos/${T.risco.id}`, corpo); }
     catch (e) { el('at-rk-erro').textContent = (e && e.message) || 'Não foi possível gravar o tratamento.'; botao.disabled = false; return; }
     forceCloseModal();
     showToast('Tratamento registrado.', 'success');
-    try { await recarregar(); } catch (e) { falha(e, 'Não foi possível atualizar a lista'); }
+    try { if (T.aoGravar) await T.aoGravar(); } catch (e) { falha(e, 'Não foi possível atualizar a lista'); }
 };
 
 window.atRiscoExcluir = async function (id) {
@@ -171,7 +231,7 @@ window.atRiscoExcluir = async function (id) {
 };
 
 export async function montar(painel, ctx) {
-    R = { painel, ctx, riscos: [], motivos: [], m: null };
+    R = { painel, ctx, riscos: [], motivos: [], partes: null, m: null };
     painel.innerHTML = '<p class="at-nota" role="status">Carregando os riscos...</p>';
     try { await carregar(); desenhar(); }
     catch (e) { painel.innerHTML = `<p class="re-erro" role="alert">Não foi possível carregar os riscos. ${escapeHTML((e && e.message) || '')}</p>`; }

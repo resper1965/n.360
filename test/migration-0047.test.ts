@@ -18,7 +18,7 @@ describe('migration 0047 — módulos, partes, vínculos e departamentos', () =>
     await applySchema();
     expect(await colunas('partes')).toEqual(['id', 'project_id', 'tipo', 'nome', 'email', 'user_id', 'status', 'created_at', 'updated_at', 'terceiro_tipo']); // terceiro_tipo: migration 0057 (fatia 6)
     expect(await colunas('parte_vinculos')).toEqual(['id', 'project_id', 'parte_id', 'papel', 'alvo_tipo', 'alvo_id', 'created_at']);
-    expect(await colunas('departamentos')).toEqual(['id', 'project_id', 'nome', 'status', 'created_at', 'updated_at']);
+    expect(await colunas('departamentos')).toEqual(['id', 'project_id', 'nome', 'status', 'created_at', 'updated_at', 'descricao']); // descricao: migration 0081
     expect(await colunas('projeto_modulos')).toEqual(['project_id', 'modulo', 'habilitado_em', 'habilitado_por']);
     expect(await colunas('organizations')).toContain('modulos_contratados');
     // O gatilho da 0047 (sempre `iso`) foi trocado na 0060 pelo que lê o contrato da organização.

@@ -1332,6 +1332,7 @@ CREATE TABLE IF NOT EXISTS departamentos (
     status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'inativo')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    descricao TEXT, -- 0081: descrição da área (tela Áreas do n.privacy)
     UNIQUE (project_id, nome)
 );
 
@@ -1674,6 +1675,26 @@ CREATE TABLE IF NOT EXISTS criticidades_terceiro (
 CREATE INDEX IF NOT EXISTS idx_criticidade_terceiro_parte ON criticidades_terceiro(parte_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_criticidade_terceiro_projeto ON criticidades_terceiro(project_id);
 
+-- Documento do legado (0081): arquivo com metadados (tipo, situação, vencimento, responsável), separado dos documentos versionados.
+CREATE TABLE IF NOT EXISTS documentos_arquivo (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    nome TEXT NOT NULL,
+    tipo TEXT NOT NULL CHECK (tipo IN ('politica', 'norma', 'procedimento', 'termo', 'contrato', 'aditivo', 'relatorio', 'outro')),
+    status TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho', 'publicado', 'obsoleto')),
+    vencimento DATE,
+    sem_vencimento INTEGER NOT NULL DEFAULT 0 CHECK (sem_vencimento IN (0, 1)),
+    responsavel_parte_id TEXT REFERENCES partes(id) ON DELETE SET NULL,
+    r2_key TEXT,
+    arquivo_nome TEXT,
+    arquivo_tipo TEXT CHECK (arquivo_tipo IS NULL OR arquivo_tipo IN ('pdf', 'doc', 'docx')),
+    criado_por TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (sem_vencimento = 0 OR vencimento IS NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_documentos_arquivo_projeto ON documentos_arquivo(project_id, nome);
+
 -- Titular, incidente e consentimento (fatia 7, migration 0058)
 CREATE TABLE IF NOT EXISTS parametros_legais (
     chave TEXT PRIMARY KEY,
@@ -1941,6 +1962,7 @@ CREATE TABLE IF NOT EXISTS catalogo_itens (
     descricao_padrao TEXT CHECK (descricao_padrao IS NULL OR (tipo = 'motivo_risco' AND length(descricao_padrao) <= 2000)),
     status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'inativo')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    descricao TEXT CHECK (descricao IS NULL OR (tipo = 'titular' AND length(descricao) <= 2000)),
     UNIQUE (project_id, tipo, nome)
 );
 

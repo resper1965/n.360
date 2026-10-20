@@ -16,6 +16,7 @@ const P = '/api/v1/projects/p9/ropa/r1';
 const risco = (extra = {}) => ({ id: 'k1', idr: 1, threat: 'Acesso não autorizado (exemplo)', vulnerability: 'Descrição do risco (exemplo).', impact: 3, probability: 3, risk_level: 'Medium',
     treatment: 'Mitigate', treatment_due_date: null, residual_impact: null, residual_probability: null, residual_level: null, status: 'Open', ...extra });
 const MOTIVOS = [{ nome: 'Acesso não autorizado (exemplo)', descricao_padrao: 'Não há garantia de que o acesso é limitado (exemplo).' }, { nome: 'Retenção prolongada (exemplo)', descricao_padrao: 'Dados guardados além do necessário (exemplo).' }];
+const PARTES = [{ id: 'pa1', tipo: 'pessoa', nome: 'Pessoa Exemplo', status: 'ativa' }, { id: 'o1', tipo: 'organizacao', nome: 'Empresa Exemplo', status: 'ativa' }];
 const el = (id) => document.getElementById(id);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const tudo = () => new Promise((ok) => setTimeout(ok, 0));
@@ -33,6 +34,7 @@ function servidor(inicial, motivos = MOTIVOS) {
         reqs.push({ k, corpo });
         if (k === `GET ${P}/riscos`) return resposta({ riscos: atual });
         if (k === `GET ${P}/riscos/motivos`) return resposta({ motivos });
+        if (k === 'GET /api/v1/projects/p9/partes') return resposta(PARTES);
         if (k === `POST ${P}/riscos`) { atual.push(risco({ id: `k${atual.length + 1}`, idr: atual.length + 1, threat: corpo.threat, vulnerability: corpo.vulnerability, impact: corpo.impact, probability: corpo.probability })); return resposta({ ok: true, id: 'novo', risk_level: 'Medium' }, 201); }
         if (k.startsWith(`PUT ${P}/riscos/`)) { const r = atual.find((x) => k.endsWith(`/${x.id}`)); Object.assign(r, corpo); if (corpo.residual_impact && corpo.residual_probability) r.residual_level = 'Low'; return resposta({ ok: true }); }
         if (k.startsWith(`DELETE ${P}/riscos/`)) { atual.splice(atual.findIndex((x) => k.endsWith(`/${x.id}`)), 1); return resposta({ ok: true }); }
@@ -194,34 +196,62 @@ describe('aba Riscos', () => {
         expect(escritas(reqs)[0].corpo.probability).toBe(5);
     });
 
-    it('Tratar: estratégia obrigatória, residual calculado ("a calcular" sem as duas notas) e prazo; grava por PUT', async () => {
+    it('Tratar Risco: abas Risco (só leitura), Tratamento (tudo obrigatório) e Risco residual (calculado, com Recalcular); grava por PUT', async () => {
         const { painel, reqs } = await abrir();
         botao('Tratar').click();
         const modal = el('modal-content');
-        expect(modal.querySelector('h2').textContent).toBe('Tratar o risco 01');
+        expect(modal.querySelector('h2').textContent).toBe('Tratar Risco 01');
+        expect([...modal.querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim())).toEqual(['Risco', 'Tratamento', 'Risco residual']);
+        // Risco: motivo, descrição, probabilidade e impacto, sem campo editável
+        const risco = el('at-rk-p-risco');
+        for (const t of ['Acesso não autorizado (exemplo)', 'Descrição do risco (exemplo).', 'Ocorrência possível', 'Impacto com efeitos moderados para titulares']) expect(risco.textContent).toContain(t);
+        expect(risco.querySelector('input, select, textarea')).toBeNull();
         expect([...el('at-rk-estr').options].map((o) => o.textContent)).toEqual(['Selecione uma opção', 'Aceitar', 'Mitigar', 'Evitar', 'Transferir']);
         expect(el('at-rk-estr').value).toBe(''); // o padrão do servidor (Mitigar) não conta como escolha
+        // só pessoas no Responsável
+        expect([...el('at-rk-resp').options].map((o) => o.textContent)).toEqual(['Selecione uma pessoa', 'Pessoa Exemplo']);
+        expect([...el('at-rk-status').options].map((o) => o.textContent)).toEqual(['Pendente', 'Concluído']);
         expect(el('at-rk-gravar').disabled).toBe(true);
-        expect(el('at-rk-residual').textContent).toBe('a calcular...');
         escolher('at-rk-estr', 'Mitigate');
+        digitar('at-rk-plano', 'Revisar os acessos (exemplo)');
+        escolher('at-rk-resp', 'pa1');
+        expect(el('at-rk-gravar').disabled).toBe(true); // falta a data
+        digitar('at-rk-prazo', '2026-12-01');
         expect(el('at-rk-gravar').disabled).toBe(false);
+        expect(el('at-rk-residual').textContent).toBe('a calcular...');
         escolher('at-rk-rprob', '2');
         expect(el('at-rk-residual').textContent).toBe('a calcular...');
-        escolher('at-rk-rimp', '2');
+        el('at-rk-rimp').value = '2';
+        botao('Recalcular').click();
         expect(el('at-rk-residual').textContent).toBe('Baixo');
-        digitar('at-rk-prazo', '2026-12-01');
         el('at-rk-gravar').click();
         await esperar(() => escritas(reqs).length === 1);
-        expect(escritas(reqs)[0]).toEqual({ k: `PUT ${P}/riscos/k1`, corpo: { treatment: 'Mitigate', residual_probability: 2, residual_impact: 2, treatment_due_date: '2026-12-01' } });
+        // o status não muda (Pendente já era o do risco aberto): não vai no corpo
+        expect(escritas(reqs)[0]).toEqual({ k: `PUT ${P}/riscos/k1`, corpo: { treatment: 'Mitigate', treatment_plan: 'Revisar os acessos (exemplo)', owner_parte_id: 'pa1',
+            treatment_due_date: '2026-12-01', residual_probability: 2, residual_impact: 2 } });
         await esperar(() => painel.querySelector('tbody tr').textContent.includes('Mitigar'));
         const c = [...painel.querySelector('tbody tr').querySelectorAll('td')].map((t) => t.textContent.trim());
         expect(c.slice(3, 6)).toEqual(['Mitigar', 'Baixo', '01/12/2026']);
     });
 
+    it('Tratar Risco: Concluído grava o status fechado do risco', async () => {
+        const { reqs } = await abrir([risco({ treatment: 'Accept', treatment_plan: 'Aceito (exemplo)', owner_parte_id: 'pa1', treatment_due_date: '2026-11-01' })]);
+        botao('Tratar').click();
+        expect(el('at-rk-estr').value).toBe('Accept');
+        expect(el('at-rk-plano').value).toBe('Aceito (exemplo)');
+        expect(el('at-rk-resp').value).toBe('pa1');
+        expect(el('at-rk-status').value).toBe('Open');
+        escolher('at-rk-status', 'Closed');
+        el('at-rk-gravar').click();
+        await esperar(() => escritas(reqs).length === 1);
+        expect(escritas(reqs)[0].corpo).toMatchObject({ status: 'Closed', treatment: 'Accept', owner_parte_id: 'pa1' });
+    });
+
     it('Tratar com só uma das notas residuais é recusado na tela, em texto', async () => {
         const { reqs } = await abrir();
         botao('Tratar').click();
-        escolher('at-rk-estr', 'Avoid'); escolher('at-rk-rprob', '3');
+        escolher('at-rk-estr', 'Avoid'); digitar('at-rk-plano', 'Plano (exemplo)'); escolher('at-rk-resp', 'pa1'); digitar('at-rk-prazo', '2026-12-01');
+        escolher('at-rk-rprob', '3');
         el('at-rk-gravar').click();
         await tudo();
         expect(el('at-rk-erro').textContent).toContain('probabilidade e o impacto residuais');

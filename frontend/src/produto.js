@@ -18,7 +18,8 @@ const MODULOS = ['iso', 'privacy'];
 export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-importacao', 'nav-requisitos', 'nav-areas', 'nav-sistemas', 'nav-terceiros', 'nav-catalogos', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
+export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-areas', 'nav-sistemas', 'nav-terceiros', 'nav-titulares', 'nav-dados-titular',
+    'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
  * fechada do `?tela=` com que o rodapé de um módulo abre o n.360 (`telaPedida`).
@@ -118,7 +119,7 @@ export function destinoDoAviso(tela, loc = window.location) {
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
 export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
-    'policies-dashboard', 'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'requisitos', 'terceiros', 'terceiro', 'catalogos', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
+    'policies-dashboard', 'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'requisitos', 'terceiros', 'terceiro', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
     'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
@@ -219,26 +220,28 @@ export function abrirGrupo(grupo, doc = document) {
 
 const marca = (produto) => `n<span style="color:var(--accent)">.</span><span class="brand-tail">${PRODUTOS[produto].nome}</span>`;
 
-// Rótulos do n.privacy, uma linha cada, nome do objeto antes da sigla (decisão de 14/10/2026). Só aqui: o n.iso e o n.360 ficam
-// com os deles; os ids nav-* e as rotas não mudam.
+// Rótulos do n.privacy, uma linha cada, os do legado (decisão de 19/10/2026). Só aqui: o n.iso e o n.360 ficam com os deles; os
+// ids nav-* e as rotas não mudam.
 export const ROTULOS_PRIVACY = {
-    'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
-    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Pedidos do titular', 'nav-dpia': 'RIPD', 'nav-terceiros': 'Fornecedores',
-    'nav-mapa-de-risco': 'Riscos',
+    'nav-encarregado': 'Dashboard', 'nav-ropa': 'Atividades', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
+    'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'DPIA', 'nav-terceiros': 'Fornecedores',
+    'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos', 'nav-documentos': 'Políticas',
 };
 
 /**
- * Menu do n.privacy (alternativa A do estudo de 14/10/2026; só aqui, o n.iso e o n.360 não mudam): Painel no topo, cinco
- * seções FIXAS na ordem do programa e o Assistente no fim (Cadastros entrou em 19/10/2026). O título de seção não é botão e não recolhe: tudo fica à vista.
- * Os itens são os mesmos `.sidebar-nav` de sempre, movidos para `ul`/`li`; os grupos de onde saíram ficam vazios e somem.
+ * Menu do n.privacy na ordem do legado (spec 2026-10-19; só aqui, o n.iso e o n.360 não mudam): Dashboard e Empresas no topo,
+ * cinco seções FIXAS, Documentos e Solicitações soltos antes do "Mais" e o Assistente no fim. O título de seção não é botão e não
+ * recolhe: tudo fica à vista. Os itens são os mesmos `.sidebar-nav` de sempre, movidos para `ul`/`li`; os grupos de onde saíram
+ * ficam vazios e somem.
  */
 export const SECOES_PRIVACY = [
-    ['', ['nav-encarregado']],
-    ['Mapear', ['nav-ropa', 'nav-importacao']],
-    ['Cadastros', ['nav-partes', 'nav-areas', 'nav-sistemas', 'nav-terceiros', 'nav-catalogos']],
-    ['Avaliar', ['nav-dpia', 'nav-lia', 'nav-mapa-de-risco', 'nav-gaps', 'nav-requisitos']],
-    ['Responder', ['nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos']],
-    ['Provar', ['nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance']],
+    ['', ['nav-encarregado', 'nav-empresas']],
+    ['Cadastros', ['nav-areas', 'nav-sistemas', 'nav-titulares', 'nav-dados-titular', 'nav-parceiros', 'nav-partes']],
+    ['Mapeamento', ['nav-ropa', 'nav-dpia', 'nav-lia']],
+    ['Diagnóstico', ['nav-gaps', 'nav-mapa-de-risco']],
+    ['Fornecedores', ['nav-terceiros']],
+    ['', ['nav-documentos-arquivo', 'nav-titular']],
+    ['Mais', ['nav-incidentes-privacy', 'nav-consentimentos', 'nav-requisitos', 'nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance', 'nav-importacao']],
     ['', ['nav-ai']],
 ];
 /** Fora do menu do n.privacy: Minhas aprovações e Trilha de logs vão para o menu de conta; Preços e margens é do comercial do n.iso. */
@@ -255,7 +258,7 @@ function organizarMenuPrivacy(doc) {
             if (titulo) {
                 const t = doc.createElement('div');
                 t.className = 'sidebar-secao group-project-only';
-                t.id = `secao-${titulo.toLowerCase()}`;
+                t.id = `secao-${titulo.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()}`;
                 t.textContent = titulo;
                 caixa.appendChild(t);
                 ul.classList.add('group-project-only');

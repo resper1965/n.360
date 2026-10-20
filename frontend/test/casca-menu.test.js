@@ -87,23 +87,25 @@ describe('n.iso e n.360: o menu não muda com a alternativa A do n.privacy', () 
     });
 });
 
-describe('n.privacy: menu (alternativa A, seções fixas)', () => {
+describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
     const itensDe = (ul) => [...ul.querySelectorAll(':scope > li > .sidebar-nav')].map((n) => n.id);
-    it('Painel no topo, Mapear, Cadastros, Avaliar, Responder e Provar, e o Assistente no fim', () => {
+    it('na ordem do legado: Dashboard e Empresas, Cadastros, Mapeamento, Diagnóstico, Fornecedores, Documentos e Solicitações, Mais e o Assistente no fim', () => {
         montarApp();
         aplicarCasca('privacy');
         const caixa = el('secoes-privacy');
         expect(caixa.previousElementSibling).toBe(el('nav-dashboard'));
         const partes = [...caixa.children].map((n) => (n.matches('.sidebar-secao') ? `# ${n.textContent}` : itensDe(n).join(' ')));
         expect(partes).toEqual([
-            'nav-encarregado',
-            '# Mapear', 'nav-ropa nav-importacao',
-            '# Cadastros', 'nav-partes nav-areas nav-sistemas nav-terceiros nav-catalogos',
-            '# Avaliar', 'nav-dpia nav-lia nav-mapa-de-risco nav-gaps nav-requisitos',
-            '# Responder', 'nav-titular nav-incidentes-privacy nav-consentimentos',
-            '# Provar', 'nav-documentos nav-evidence nav-training nav-governance',
+            'nav-encarregado nav-empresas',
+            '# Cadastros', 'nav-areas nav-sistemas nav-titulares nav-dados-titular nav-parceiros nav-partes',
+            '# Mapeamento', 'nav-ropa nav-dpia nav-lia',
+            '# Diagnóstico', 'nav-gaps nav-mapa-de-risco',
+            '# Fornecedores', 'nav-terceiros',
+            'nav-documentos-arquivo nav-titular',
+            '# Mais', 'nav-incidentes-privacy nav-consentimentos nav-requisitos nav-documentos nav-evidence nav-training nav-governance nav-importacao',
             'nav-ai',
         ]);
+        expect(el('secao-diagnostico').textContent).toBe('Diagnóstico');
         expect(caixa.lastElementChild.classList.contains('sidebar-secao-fim')).toBe(true);
         for (const ul of caixa.querySelectorAll('ul')) {
             expect(ul.className).toContain('sidebar-secao-lista');
@@ -125,11 +127,11 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
         const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
         expect(rotulos.map((r) => r.textContent)).toEqual([]);
     });
-    it('21 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
+    it('25 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
         montarApp();
         aplicarCasca('privacy');
         const destinos = [...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => n.id);
-        expect(destinos.length).toBe(21);
+        expect(destinos.length).toBe(25);
         expect(new Set(visiveis())).toEqual(new Set(destinos));
         for (const id of ['nav-meus', 'nav-audit-trail', 'nav-settings']) expect(el(id).dataset.foraDoProduto, id).toBe('1');
         expect(el('group-system-config').dataset.foraDoProduto).toBe('1');
@@ -157,10 +159,11 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
         aplicarCasca('privacy');
         const texto = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
         expect(Object.fromEntries([...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => [n.id, texto(n.id)]))).toEqual({
-            'nav-encarregado': 'Painel', 'nav-ropa': 'Tratamentos (RoPA)', 'nav-partes': 'Pessoas', 'nav-areas': 'Áreas', 'nav-sistemas': 'Sistemas', 'nav-terceiros': 'Fornecedores',
-            'nav-catalogos': 'Titulares e dados pessoais', 'nav-importacao': 'Importar programa', 'nav-dpia': 'RIPD', 'nav-lia': 'LIA', 'nav-mapa-de-risco': 'Riscos', 'nav-gaps': 'Gaps', 'nav-requisitos': 'Cobertura da LGPD', 'nav-titular': 'Pedidos do titular',
-            'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-documentos': 'Documentos', 'nav-evidence': 'Evidências',
-            'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-ai': 'Assistente',
+            'nav-encarregado': 'Dashboard', 'nav-empresas': 'Empresas', 'nav-areas': 'Áreas', 'nav-sistemas': 'Ativos', 'nav-titulares': 'Titulares',
+            'nav-dados-titular': 'Dados de titular', 'nav-parceiros': 'Parceiros', 'nav-partes': 'Pessoas', 'nav-ropa': 'Atividades', 'nav-dpia': 'DPIA', 'nav-lia': 'LIA',
+            'nav-gaps': 'Gaps', 'nav-mapa-de-risco': 'Riscos', 'nav-terceiros': 'Fornecedores', 'nav-documentos-arquivo': 'Documentos', 'nav-titular': 'Solicitações',
+            'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas',
+            'nav-evidence': 'Evidências', 'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-importacao': 'Importar programa', 'nav-ai': 'Assistente',
         });
         for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes'], ['nav-encarregado', 'selo-painel']]) {
             expect(el(id).contains(el(selo)), selo).toBe(true);
@@ -173,6 +176,11 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
         expect(JSON.parse(el('nav-areas').getAttribute('data-args'))).toEqual(['areas']);
         expect(JSON.parse(el('nav-sistemas').getAttribute('data-args'))).toEqual(['sistemas']);
         expect(JSON.parse(el('nav-mapa-de-risco').getAttribute('data-args'))).toEqual(['mapa-de-risco']);
+        for (const t of ['empresas', 'titulares', 'dados-titular', 'parceiros', 'documentos-arquivo']) {
+            expect(el(`nav-${t}`).getAttribute('data-action'), t).toBe('navigate');
+            expect(JSON.parse(el(`nav-${t}`).getAttribute('data-args')), t).toEqual([t]);
+        }
+        expect(el('nav-catalogos')).toBeNull();
     });
     it('os rótulos novos ficam só no n.privacy: n.iso e n.360 mantêm os deles', () => {
         const texto = (id) => el(id).querySelector('.sidebar-nav-text').textContent.trim();
@@ -189,7 +197,7 @@ describe('n.privacy: menu (alternativa A, seções fixas)', () => {
     });
     it('os itens com projeto seguem o projeto: sem projeto somem, e as seções também', () => {
         montarApp();
-        for (const id of ['nav-encarregado', 'nav-titular', 'nav-terceiros', 'nav-areas', 'nav-sistemas', 'nav-catalogos', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps']) {
+        for (const id of ['nav-encarregado', 'nav-empresas', 'nav-titulares', 'nav-dados-titular', 'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-terceiros', 'nav-areas', 'nav-sistemas', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps']) {
             expect(el(id).classList.contains('group-project-only'), id).toBe(true);
             expect(el(id).style.display, id).toBe('none');
         }

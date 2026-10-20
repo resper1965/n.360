@@ -125,7 +125,7 @@ nucleoApp.post('/departamentos', async (c) => {
     if (!v.success) return v.response;
     const id = crypto.randomUUID();
     try {
-      await c.env.DB.prepare('INSERT INTO departamentos (id, project_id, nome) VALUES (?, ?, ?)').bind(id, projectId, v.data.nome).run();
+      await c.env.DB.prepare('INSERT INTO departamentos (id, project_id, nome, descricao) VALUES (?, ?, ?, ?)').bind(id, projectId, v.data.nome, v.data.descricao || null).run();
     } catch (e) {
       if (unico(e)) return c.json({ error: 'Já existe um departamento com esse nome neste projeto' }, 409);
       throw e;
@@ -142,8 +142,10 @@ nucleoApp.put('/departamentos/:id', async (c) => {
     if (!v.success) return v.response;
     try {
       const r = await c.env.DB.prepare(
-        `UPDATE departamentos SET nome = COALESCE(?, nome), status = COALESCE(?, status), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`
-      ).bind(v.data.nome ?? null, v.data.status ?? null, c.req.param('id'), projectId).run();
+        // descricao: ausente mantém; null ou vazia limpa.
+        `UPDATE departamentos SET nome = COALESCE(?, nome), status = COALESCE(?, status), descricao = CASE WHEN ? THEN ? ELSE descricao END,
+           updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`
+      ).bind(v.data.nome ?? null, v.data.status ?? null, v.data.descricao !== undefined ? 1 : 0, v.data.descricao || null, c.req.param('id'), projectId).run();
       if (!r.meta.changes) return c.json({ error: 'Departamento não encontrado' }, 404);
     } catch (e) {
       if (unico(e)) return c.json({ error: 'Já existe um departamento com esse nome neste projeto' }, 409);

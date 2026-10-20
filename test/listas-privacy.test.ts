@@ -28,6 +28,8 @@ beforeAll(async () => {
       ('lp-r1', ?1, 'Atividade Exemplo', 'Legítimo interesse'), ('lp-r2', ?1, 'Atividade Sem LIA', 'Interesse legitimo do controlador'),
       ('lp-r3', ?1, 'Atividade Consentimento', 'Consentimento'), ('lp-alheio', ?2, 'Atividade Alheia', 'Legítimo interesse')`).bind(P, OUTRO),
     env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('lp-pa', ?, 'pessoa', 'Responsável Exemplo')`).bind(P),
+    env.DB.prepare(`INSERT INTO departamentos (id, project_id, nome) VALUES ('lp-d1', ?1, 'Recursos Humanos'), ('lp-d2', ?1, 'Jurídico'), ('lp-d9', ?2, 'Área Alheia')`).bind(P, OUTRO),
+    env.DB.prepare(`INSERT INTO tratamento_departamentos (ropa_id, departamento_id, project_id) VALUES ('lp-r1', 'lp-d2', ?1), ('lp-r1', 'lp-d1', ?1), ('lp-alheio', 'lp-d9', ?2)`).bind(P, OUTRO),
     env.DB.prepare(`INSERT INTO corrective_actions (id, project_id, ropa_id, title, description, recomendacao, action_plan, due_date, assigned_to_parte_id, status) VALUES
       ('lp-g1', ?1, 'lp-r1', 'Sem política', 'Sem política de retenção', 'Criar política', 'Redigir e aprovar', '2020-01-01', 'lp-pa', 'Open'),
       ('lp-g2', ?1, 'lp-r3', 'Gap fechado', NULL, NULL, NULL, NULL, NULL, 'Closed'),
@@ -46,24 +48,25 @@ beforeAll(async () => {
 });
 
 describe('GET /ropa/gaps', () => {
-  it('lista os gaps do projeto com recomendação, plano, responsável, faixa e contagem de anexos', async () => {
+  it('lista os gaps do projeto com área, recomendação, plano, responsável, faixa e contagem de anexos', async () => {
     const r = await chamar(consultor, rota('gaps'));
     expect(r.status, await r.clone().text()).toBe(200);
     const { gaps } = await json<{ gaps: Record<string, unknown>[] }>(r);
     expect(gaps.map((g) => g.id).sort()).toEqual(['lp-g1', 'lp-g2']);
     expect(gaps.find((g) => g.id === 'lp-g1')).toEqual({
-      id: 'lp-g1', ropa_id: 'lp-r1', atividade: 'Atividade Exemplo', titulo: 'Sem política de retenção', recomendacao: 'Criar política',
+      id: 'lp-g1', ropa_id: 'lp-r1', atividade: 'Atividade Exemplo', area: 'Jurídico, Recursos Humanos', titulo: 'Sem política de retenção', recomendacao: 'Criar política',
       plano: 'Redigir e aprovar', responsavel: 'Responsável Exemplo', prazo: '2020-01-01', faixa: 'vencidas', status: 'Open', anexos: 2,
     });
-    expect(gaps.find((g) => g.id === 'lp-g2')).toMatchObject({ titulo: 'Gap fechado', faixa: null, status: 'Closed', anexos: 0 });
+    expect(gaps.find((g) => g.id === 'lp-g2')).toMatchObject({ titulo: 'Gap fechado', area: null, faixa: null, status: 'Closed', anexos: 0 });
   });
 });
 
 describe('GET /ropa/riscos-mapa (campos da lista)', () => {
-  it('traz vulnerabilidade, plano, prazo, responsável e idr', async () => {
+  it('traz vulnerabilidade, plano, prazo, responsável (nome e id), área e idr', async () => {
     const { riscos } = await json<{ riscos: Record<string, unknown>[] }>(await chamar(consultor, rota('riscos-mapa')));
     expect(riscos.map((x) => x.id)).toEqual(['lp-k1']);
-    expect(riscos[0]).toMatchObject({ vulnerabilidade: 'Senha fraca', plano: 'Ativar MFA', prazo: '2026-12-31', responsavel: 'Responsável Exemplo', idr: 1 });
+    expect(riscos[0]).toMatchObject({ vulnerabilidade: 'Senha fraca', plano: 'Ativar MFA', prazo: '2026-12-31', responsavel: 'Responsável Exemplo',
+      owner_parte_id: 'lp-pa', area: 'Jurídico, Recursos Humanos', idr: 1 });
   });
 
   it('o CSV de riscos das atividades ganha a coluna Prazo', async () => {

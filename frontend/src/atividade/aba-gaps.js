@@ -245,6 +245,16 @@ window.atGapConfirmar = async function () {
     forceCloseModal();
 };
 
+/**
+ * O mesmo modal fora da ficha (Gestão de GAPs do projeto, spec 2026-10-19): carrega os gaps da atividade e abre o do id; ao gravar,
+ * `aoMudar` (a lista do projeto se refaz). O painel é um nó solto: a ficha não está na tela.
+ */
+export async function abrirGapDaAtividade(projectId, ropaId, gapId, aoMudar) {
+    G = { painel: document.createElement('div'), ctx: { projectId, ropaId, editavel: true, recarregarFicha: aoMudar }, dados: null, partes: null, m: null };
+    await carregar();
+    window.atGapAbrir(gapId);
+}
+
 export async function montar(painel, ctx) {
     G = { painel, ctx, dados: null, partes: null, m: null };
     painel.innerHTML = '<p class="at-nota" role="status">Carregando os gaps...</p>';

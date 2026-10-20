@@ -40,8 +40,9 @@ export const padronizarNomesSchema = z.object({
   itens: z.array(z.object({ tabela: z.enum(['partes', 'departamentos', 'itens']), id: z.string().min(1).max(100), antes: z.string().max(500) }).strict()).min(1).max(200),
 }).strict();
 
-export const departamentoCriarSchema = z.object({ nome });
-export const departamentoAtualizarSchema = z.object({ nome: nome.optional(), status: z.enum(['ativo', 'inativo']).optional() });
+const descricaoArea = z.string().trim().max(2000).nullish();
+export const departamentoCriarSchema = z.object({ nome, descricao: descricaoArea });
+export const departamentoAtualizarSchema = z.object({ nome: nome.optional(), status: z.enum(['ativo', 'inativo']).optional(), descricao: descricaoArea });
 export const parteCriarSchema = z.object({ tipo: z.enum(['pessoa', 'organizacao']).default('pessoa'), nome, email: email.optional().nullable() });
 export const parteAtualizarSchema = z.object({ nome: nome.optional(), email: email.optional().nullable(), status: z.enum(['ativa', 'inativa']).optional() });
 export const vinculoCriarSchema = z.object({ papel: z.enum(PAPEIS_VINCULO), alvo_tipo: z.enum(ALVOS_VINCULO), alvo_id: z.string().trim().min(1).max(100) });

@@ -101,10 +101,14 @@ export     function navigate(view, data) {
         else if (S.view === 'areas') renderAreas(c, h, a);
         else if (S.view === 'sistemas') renderSistemas(c, h, a);
         else if (S.view === 'documentos') renderDocumentos(c, h, a);
+        else if (S.view === 'documentos-arquivo') renderDocumentosArquivo(c, h, a);
         else if (S.view === 'requisitos') renderRequisitos(c, h, a);
         else if (S.view === 'terceiros') renderTerceiros(c, h, a);
         else if (S.view === 'terceiro') renderTerceiro(c, h, a);
-        else if (S.view === 'catalogos') renderCatalogos(c, h, a);
+        else if (S.view === 'titulares') renderTitulares(c, h, a);
+        else if (S.view === 'dados-titular') renderDadosTitular(c, h, a);
+        else if (S.view === 'parceiros') renderParceiros(c, h, a);
+        else if (S.view === 'empresas') renderEmpresas(c, h, a);
         else if (S.view === 'mapa-de-risco') renderMapaDeRisco(c, h, a);
         else if (S.view === 'gaps') renderGaps(c, h, a);
         else if (S.view === 'lia') renderLia(c, h, a);

@@ -2,11 +2,14 @@ import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, showToast, formatarData } from '../ui.js';
 import { nivelDaNota } from '../nivel-risco.js';
+import { abrirTratarRisco } from '../atividade/aba-riscos.js';
+import { podeEditar } from './partes.js';
 
 // Mapa de risco do n.privacy (F2): matriz 5x5 de probabilidade por impacto sobre os riscos das atividades de tratamento
 // (`GET /projects/:id/ropa/riscos-mapa`). O registro é o mesmo da matriz do n.iso; aqui entram só os riscos com atividade.
 // Cada célula diz por TEXTO o nível e quantos riscos tem (a cor só reforça). Todo texto vindo do servidor é escapado.
-// Desde a spec 2026-10-19 há também a vista em lista ("Mapa | Lista"; a escolha fica no endereço, `?vista=lista`), com filtros na tela.
+// Desde a spec 2026-10-19 a tela é a Gestão de Riscos do legado: a vista em lista é a padrão ("Lista | Mapa"; o mapa fica no
+// endereço, `?vista=mapa`), com filtros Motivo, Área, Risco e Status na tela e "Tratar Risco" (o modal da aba Riscos da atividade).
 
 // Mesma faixa de nível do servidor, compartilhada com a matriz do n.iso (grc.js).
 export { nivelDaNota };
@@ -14,12 +17,15 @@ export const NIVEIS = { Low: 'Baixo', Medium: 'Médio', High: 'Alto', Critical: 
 // Escala do nível: verde, âmbar claro, âmbar, vermelho. O ciano é da marca (interação e foco), não de nível.
 const COR = { Low: 'var(--success)', Medium: 'var(--warning-ink)', High: 'var(--warning)', Critical: 'var(--danger)' };
 
-export const ESTRATEGIAS = { Mitigate: 'Mitigar', Accept: 'Aceitar', Transfer: 'Transferir', Avoid: 'Evitar' };
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
-const vistaDoEndereco = () => (new URLSearchParams(window.location.search).get('vista') === 'lista' ? 'lista' : 'mapa');
-let estado = { projeto: null, riscos: [], celula: null, alvo: null };
+const vistaDoEndereco = () => (new URLSearchParams(window.location.search).get('vista') === 'mapa' ? 'mapa' : 'lista');
+let estado = { projeto: null, riscos: [], celula: null, alvo: null, tela: null, partes: null };
+// Status do legado: Concluído é o risco fechado; o resto (aberto, mitigado, aceito) está Pendente.
+const STATUS = { Open: 'Pendente', Closed: 'Concluído' };
+const statusDe = (r) => (r.status === 'Closed' ? 'Closed' : 'Open');
+const areasDe = (r) => String(r.area || '').split(', ').filter(Boolean);
 
 const plural = (n) => `${n} ${n === 1 ? 'risco' : 'riscos'}`;
 const rotuloNivel = (n) => escapeHTML(NIVEIS[n] || n || '—');
@@ -50,30 +56,32 @@ function listaDaCelula(projectId) {
     ]), { emptyState: 'Nenhum risco nesta célula.' });
 }
 
-const alternador = (vista) => `<div class="co-controles" role="group" aria-label="Vista">${[['mapa', 'Mapa'], ['lista', 'Lista']].map(([v, r]) =>
+const alternador = (vista) => `<div class="co-controles" role="group" aria-label="Vista">${[['lista', 'Lista'], ['mapa', 'Mapa']].map(([v, r]) =>
     `<button type="button" class="btn btn-sm" data-action="mapaVista" data-args='${args(v)}' aria-pressed="${vista === v}">${r}</button>`).join('')}</div>`;
 
-const filtroLista = (id, rotulo, mapa) => `<label class="co-campo"><span class="co-campo-rotulo">${rotulo}</span>
-    <select class="form-select" id="${id}" data-action-change="mapaFiltrar"><option value="">Todas</option>
-    ${Object.entries(mapa).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></label>`;
+const filtroLista = (id, rotulo, pares, todos = 'Todas') => `<label class="co-campo"><span class="co-campo-rotulo">${rotulo}</span>
+    <select class="form-select" id="${id}" data-action-change="mapaFiltrar"><option value="">${todos}</option>
+    ${pares.map(([v, r]) => `<option value="${escapeHTML(v)}">${escapeHTML(r)}</option>`).join('')}</select></label>`;
+const distintos = (xs) => [...new Set(xs.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((x) => [x, x]);
+const valor = (id) => (el(id) ? el(id).value : '');
 
-/** A lista filtrada por nível e estratégia (selects da tela); só redesenha a tabela. */
+/** A lista filtrada por motivo, área, nível e status (selects da tela); só redesenha a tabela. */
 function desenharLista() {
     const alvo = el('mapa-lista');
     if (!alvo) return;
-    const nivel = el('mr-filtro-nivel') ? el('mr-filtro-nivel').value : '';
-    const estrategia = el('mr-filtro-estrategia') ? el('mr-filtro-estrategia').value : '';
-    const itens = estado.riscos.filter((r) => (!nivel || r.risk_level === nivel) && (!estrategia || r.treatment === estrategia));
-    alvo.innerHTML = window.renderDataTable(['Atividade', 'Ameaça', 'Vulnerabilidade', 'Nível', 'Estratégia', 'Residual', 'Prazo', 'Responsável', 'Ações'], itens.map((r) => [
+    const [motivo, area, nivel, status] = ['mr-filtro-motivo', 'mr-filtro-area', 'mr-filtro-nivel', 'mr-filtro-status'].map(valor);
+    const ed = podeEditar();
+    const itens = estado.riscos.filter((r) => (!motivo || r.threat === motivo) && (!area || areasDe(r).includes(area))
+        && (!nivel || r.risk_level === nivel) && (!status || statusDe(r) === status));
+    alvo.innerHTML = window.renderDataTable(['Atividade', 'Motivo', 'Risco', 'Responsável', 'Prazo', 'Status', 'Ações'], itens.map((r) => [
         escapeHTML(r.atividade || '—'),
         `<strong>${escapeHTML(r.threat)}</strong>`,
-        escapeHTML(r.vulnerabilidade || '—'),
         rotuloNivel(r.risk_level),
-        escapeHTML(ESTRATEGIAS[r.treatment] || r.treatment || '—'),
-        r.residual_level ? rotuloNivel(r.residual_level) : '—',
-        escapeHTML(formatarData(r.prazo)),
         escapeHTML(r.responsavel || '—'),
-        `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(estado.projeto, r.ropa_id, 'riscos')}' aria-label="Abrir a atividade: ${escapeHTML(r.atividade || '')}">Abrir</button>`,
+        escapeHTML(formatarData(r.prazo)),
+        escapeHTML(STATUS[statusDe(r)]),
+        `<div class="acoes-linha">${ed ? `<button class="btn btn-sm" data-action="mapaTratar" data-args='${args(r.id)}' aria-label="${escapeHTML(`Tratar Risco: ${r.threat}`)}">Tratar Risco</button>` : ''}
+            <button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(estado.projeto, r.ropa_id, 'riscos')}' aria-label="Abrir a atividade: ${escapeHTML(r.atividade || '')}">Abrir</button></div>`,
     ]), { emptyState: 'Nenhum risco com estes filtros.', emptyHint: 'Limpe os filtros para ver todos.' });
 }
 
@@ -81,7 +89,10 @@ function desenhar() {
     const { alvo, projeto } = estado;
     if (!alvo) return;
     if (vistaDoEndereco() === 'lista') {
-        alvo.innerHTML = `${alternador('lista')}<div class="co-controles">${filtroLista('mr-filtro-nivel', 'Nível', NIVEIS)}${filtroLista('mr-filtro-estrategia', 'Estratégia', ESTRATEGIAS)}</div>
+        const r = estado.riscos;
+        alvo.innerHTML = `${alternador('lista')}<div class="co-controles">${filtroLista('mr-filtro-motivo', 'Motivo', distintos(r.map((x) => x.threat)), 'Todos')}
+            ${filtroLista('mr-filtro-area', 'Área', distintos(r.flatMap(areasDe)))}${filtroLista('mr-filtro-nivel', 'Risco', Object.entries(NIVEIS), 'Todos')}
+            ${filtroLista('mr-filtro-status', 'Status', Object.entries(STATUS), 'Todos')}</div>
             <div id="mapa-lista"></div>`;
         desenharLista();
         return;
@@ -103,7 +114,7 @@ function desenhar() {
 }
 
 async function renderMapaDeRisco(c, h, a) {
-    h.textContent = 'Riscos';
+    h.textContent = 'Gestão de Riscos';
     a.innerHTML = '';
     const proj = projetoAtivo();
     if (!proj) { c.innerHTML = window.renderSemProjeto(); return; }
@@ -114,7 +125,7 @@ async function renderMapaDeRisco(c, h, a) {
     }
     // Só risco com atividade: o que é só do n.iso fica na matriz dele.
     riscos = (Array.isArray(riscos) ? riscos : []).filter((r) => r && r.ropa_id);
-    estado = { projeto: proj.id, riscos, celula: estado.projeto === proj.id ? estado.celula : null, alvo: c };
+    estado = { projeto: proj.id, riscos, celula: estado.projeto === proj.id ? estado.celula : null, alvo: c, tela: [c, h, a], partes: estado.projeto === proj.id ? estado.partes : null };
     // Exporta o que a tela mostra: com uma célula escolhida, só os riscos dela.
     if (riscos.length) a.innerHTML = `<button class="btn" data-action="exportarCsvRiscos">Exportar CSV</button>`;
     if (!riscos.length) {
@@ -133,12 +144,24 @@ window.exportarCsvRiscos = function () {
 };
 
 window.mapaFiltrar = desenharLista;
-/** "Mapa | Lista": `replaceState`, recarregar volta à mesma vista. */
+/** "Lista | Mapa": `replaceState`, recarregar volta à mesma vista. */
 window.mapaVista = function (vista) {
     const u = new URL(window.location.href);
-    if (vista === 'lista') u.searchParams.set('vista', 'lista'); else u.searchParams.delete('vista');
+    if (vista === 'mapa') u.searchParams.set('vista', 'mapa'); else u.searchParams.delete('vista');
     window.history.replaceState(null, '', u);
     desenhar();
+};
+
+/** "Tratar Risco": o modal da aba Riscos da atividade, com o risco da linha; ao gravar, a lista se refaz. */
+window.mapaTratar = async function (id) {
+    const r = estado.riscos.find((x) => x.id === id);
+    if (!r) return;
+    if (!estado.partes) {
+        try { const p = await api('GET', `/api/v1/projects/${estado.projeto}/partes`); estado.partes = Array.isArray(p) ? p : []; }
+        catch (e) { showToast((e && e.message) || 'Não foi possível carregar as pessoas', 'error'); return; }
+    }
+    abrirTratarRisco({ projectId: estado.projeto, partes: estado.partes, aoGravar: () => renderMapaDeRisco(...estado.tela), risco: {
+        ...r, vulnerability: r.vulnerabilidade, treatment_plan: r.plano, treatment_due_date: r.prazo } });
 };
 
 window.mapaCelula = function (p, i) {
