@@ -216,7 +216,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
 - **Schema**: `schema.sql` — **104 tabelas** (2026-10-19: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0081** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0082** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -642,6 +642,16 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Sem alternancia de tema.** Um tema so, o escuro da marca.
 - **Sem framework no frontend.** Vanilla e decisao, nao divida.
 - **Responsividade fora de escopo** ate segunda ordem.
+- **Decisoes de 20/10/2026 (Frente 2B da equalizacao n.iso x n.privacy; spec `docs/superpowers/specs/2026-10-20-frente2-regras-unicas-design.md`).**
+  (1) RIPD: uma assinatura (DPO ou Direcao) aprova (`assinaturaDpia`); mudar coluna de conteudo (`COLUNAS_DPIA`) num RIPD assinado zera as
+  assinaturas, volta a `Draft` e grava `dpia.aprovacao_invalidada` (`PUT /dpia/:id`, `src/routes/platform.ts`). (2) Aceite de risco e um
+  modelo so: `status = Accepted`, com `accepted_by`/`accepted_at` carimbados pela sessao na transicao (`carimboDeAceite` em
+  `src/services/riscos-atividade.ts`, usado por `/risks` e pelas sub-rotas da atividade); o corpo nunca define quem nem quando; botao
+  "Aceitar risco" nos dois modulos (`frontend/src/aceite-risco.js`); a migration 0082 levou o aceite digitado antigo a `Accepted` com
+  `risks.aceite_manual = 1` ("Aceite registrado a mao"). (3) DPA: a fonte e o documento ligado ao fornecedor (`documento_partes`, papel
+  `dpa`; `SQL_TEM_DPA` em `src/services/terceiros.ts`); o indice de confianca, a lista, a ficha e o CSV leem dali; `vendors.dpa_signed`/
+  `dpa_url` ficam so como historico ("DPA declarado, sem documento", sem os 10 pontos); ligar e desligar documento do terceiro
+  (`/terceiros/:parteId/documentos*`) e faixa `nucleo` (`SUBROTAS_NUCLEO` em `src/modulos.ts`) e recalcula o indice.
 
 ## Restricoes Tecnicas
 
@@ -673,7 +683,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
 
-- **530 `any` em `src/`** (medido em 2026-10-17, fora `*.test.ts`:
+- **529 `any` em `src/`** (medido em 2026-10-20, fora `*.test.ts`:
   `git grep -ahoE ': any\b|as any\b|<any>' -- 'src/*.ts' ':!*.test.ts' | wc -l`).
   `tsc --noEmit` limpo diz pouco. Tipar o que voce tocar e melhoria barata; nao
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o

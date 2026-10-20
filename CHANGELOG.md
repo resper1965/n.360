@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Alterado (Frente 2B da equalização: decisões do dono de 20/10/2026; migration 0082)
+- **RIPD aprovado por uma assinatura** (DPO ou Direção), e **mudar o conteúdo de um RIPD assinado derruba a aprovação**: as assinaturas são zeradas, ele volta a rascunho e a trilha registra `dpia.aprovacao_invalidada` (só os nomes das colunas). A tela avisa antes de salvar.
+- **Aceite de risco num modelo só:** `Accepted`, com quem e quando carimbados pelo servidor nos dois módulos; o formulário do n.iso perdeu os campos digitados de quem e quando, e os dois módulos ganharam o botão "Aceitar risco". **Migration 0082** (`risks.aceite_manual`): o aceite digitado antigo (tratamento Aceitar com nome) passa a `Accepted`, guardando nome e data, marcado "Aceite registrado à mão". **Aplicar em produção só com o "sim" do dono e `npm run db:backup` antes.**
+- **DPA pela fonte única, o documento ligado ao fornecedor.** Índice de confiança, lista, ficha e CSV leem dali; a caixa "DPA assinado" e o link saíram dos formulários. Fornecedor só com a caixa antiga aparece "DPA declarado, sem documento" e perde os 10 pontos de confiança na próxima edição ou ligação. O n.iso liga o documento sem precisar do n.privacy (rotas de documento do terceiro na faixa núcleo).
+
 ### Corrigido (Frente 2A da equalização: uma regra por conceito, 20/10/2026; sem migration)
 - **"Hoje" é o dia de São Paulo** em todo prazo e vencimento, no servidor e nas telas. Entre 21h e 24h de Brasília, "vencido" deixava de valer no dia certo (o servidor contava em UTC; o chip do painel, no fuso do navegador).
 - **"Controle implementado" tem uma regra só.** Gap-analysis, Bancada, readiness, coherence, medidas do RoPA, cobertura da LGPD e a SoA passam a usar a regra do Painel, e `Compliant` (legado) conta como implementado. **Muda número:** a cobertura sobe onde havia `Compliant`, `Approved` ou `Completed`.
