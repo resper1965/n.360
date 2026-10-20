@@ -3,9 +3,10 @@ import type { Bindings, Variables } from '../index';
 import { erro500, logAudit } from '../helpers';
 import {
   definirRequisitosDaEvidencia, definirRequisitosDoDocumento, lacunasDaFonte, resumoDeLacunas, lerRequisito, ligarControles, listarFontes, listarRequisitos,
-  requisitosDaEvidencia, requisitosDoDocumento, semearCatalogo, veMapeamentoProposto,
+  requisitosDaEvidencia, requisitosDoDocumento, resumoDeMapeamentos, semearCatalogo, validarMapeamentosPropostos, veMapeamentoProposto,
 } from '../services/requisitos';
-import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, requisitoAtualizarSchema, validateBody } from '../schemas';
+import { documentoRequisitosSchema, evidenciaValidadeSchema, mapeamentoSchema, requisitoAtualizarSchema, validarMapeamentosSchema, validateBody } from '../schemas';
+import { BASES_GDPR } from '../data/ropa-abas/gdpr';
 import { definirValidade } from '../services/evidencia-validade';
 
 type Ctx = { Bindings: Bindings; Variables: Variables };
@@ -20,6 +21,9 @@ const soAdmin = (c: { get: (k: 'user') => Variables['user'] }) => c.get('user')?
 const NEGADO = { error: 'Forbidden: só o administrador da plataforma edita o catálogo de requisitos' };
 
 requisitosApp.get('/fontes', async (c) => c.json(await listarFontes(c.env.DB)));
+
+// As seis bases legais do GDPR (art. 6), só leitura, para a Referência jurídica.
+requisitosApp.get('/gdpr-bases', (c) => c.json(Object.entries(BASES_GDPR).map(([id, b]) => ({ id, ...b }))));
 
 requisitosApp.get('/', async (c) => c.json(await listarRequisitos(c.env.DB, c.req.query('fonte') || undefined)));
 
@@ -36,6 +40,29 @@ requisitosApp.post('/semear', async (c) => {
 // ─── Mapeamentos (declaradas antes de `/:id`, que casaria qualquer segmento) ───────────────────────────
 
 const existe = async (db: D1Database, id: string) => !!(await db.prepare('SELECT 1 FROM requisitos WHERE id = ?').bind(id).first());
+
+// Contagem para o botão "Validar mapeamentos propostos"; quem não vê `proposto` não vê nem a contagem.
+requisitosApp.get('/mapeamentos/resumo', async (c) => {
+  if (!veMapeamentoProposto(c.get('user')?.role)) return c.json(NEGADO, 403);
+  return c.json(await resumoDeMapeamentos(c.env.DB, c.req.query('fonte') || undefined));
+});
+
+/**
+ * Validação jurídica em lote. É um ato de QUEM ESTÁ LOGADO: `validado_por` é o e-mail da sessão, nunca algo do corpo
+ * (o esquema é estrito e recusa o campo). Só o platform_admin; o agente não chama (`FORA_DO_AGENTE`).
+ */
+requisitosApp.post('/mapeamentos/validar', async (c) => {
+  try {
+    if (!soAdmin(c)) return c.json(NEGADO, 403);
+    const v = await validateBody(c, validarMapeamentosSchema);
+    if (!v.success) return v.response;
+    const email = c.get('user').email;
+    const validados = await validarMapeamentosPropostos(c.env.DB, email, v.data.fonte);
+    await logAudit(c.env.DB, 'requisitos.mapeamento', email, `Validação jurídica de ${validados} mapeamentos propostos${v.data.fonte ? ` (fonte ${v.data.fonte})` : ''}`);
+    const depois = await resumoDeMapeamentos(c.env.DB, v.data.fonte);
+    return c.json({ ok: true, validados, propostos_restantes: depois.propostos, validados_total: depois.validados });
+  } catch (e) { return erro500(c, 'Falha ao validar os mapeamentos', e); }
+});
 
 requisitosApp.post('/mapeamentos', async (c) => {
   try {
