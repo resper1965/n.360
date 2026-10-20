@@ -102,7 +102,8 @@ async function renderTitular(c, h, a) {
         listaPedidos = { l, projectId: proj.id, registrar, responderPrimeiro, vazio: { emptyState: 'Nenhum pedido de titular registrado.', emptyHint: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', emptyAction: novo('abrirNovoPedidoTitular', 'Registrar pedido'), ...(filtrado ? vazioFiltrado : {}) } };
         const filtroPedido = (id, rotulo, mapa) => `<label class="co-campo"><span class="co-campo-rotulo">${rotulo}</span>
             <select class="form-select" id="${id}" data-action-change="filtrarPedidosTitular"><option value="">Todos</option>${opcoes(mapa)}</select></label>`;
-        corpo = (l.length ? `<div class="co-controles">${filtroPedido('pt-filtro-tipo', 'Tipo', TIPOS_PEDIDO)}${filtroPedido('pt-filtro-status', 'Status', STATUS_PEDIDO)}</div>` : '')
+        const buscaPedido = '<label class="co-campo"><span class="co-campo-rotulo">Buscar</span><input class="form-input" type="search" id="pt-busca" maxlength="120" placeholder="Protocolo ou titular" data-action-input="filtrarPedidosTitular"></label>';
+        corpo = (l.length ? `<div class="co-controles">${buscaPedido}${filtroPedido('pt-filtro-tipo', 'Tipo', TIPOS_PEDIDO)}${filtroPedido('pt-filtro-status', 'Status', STATUS_PEDIDO)}</div>` : '')
             + `<div id="pt-lista">${tabelaPedidos(false)}</div>`;
     } else if (aba === 'incidentes') {
         const l = doFiltro;
@@ -127,22 +128,25 @@ async function renderTitular(c, h, a) {
     c.innerHTML = abas + aviso + chip + corpo;
 }
 
+const chaveBusca = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 let listaPedidos = null;
 /** `filtrar` falso no primeiro desenho: os selects ainda são os da tela anterior. */
 function tabelaPedidos(filtrar = true) {
     const { l, projectId, registrar, responderPrimeiro, vazio } = listaPedidos;
     const tipo = filtrar && el('pt-filtro-tipo') ? el('pt-filtro-tipo').value : '';
     const status = filtrar && el('pt-filtro-status') ? el('pt-filtro-status').value : '';
-    const itens = l.filter((p) => (!tipo || p.tipo === tipo) && (!status || p.status === status));
-    return window.renderDataTable(['Protocolo', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações'], itens.map((p) => [
-        `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(CANAIS[p.canal] || p.canal || '—'), escapeHTML(dia(p.recebido_em)),
+    const busca = filtrar && el('pt-busca') ? chaveBusca(el('pt-busca').value.trim()) : '';
+    const itens = l.filter((p) => (!tipo || p.tipo === tipo) && (!status || p.status === status)
+        && (!busca || [p.protocolo, p.titular_nome].some((t) => chaveBusca(t).includes(busca))));
+    return window.renderDataTable(['Protocolo', 'Titular', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações'], itens.map((p) => [
+        `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(p.titular_nome || '—'), escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(CANAIS[p.canal] || p.canal || '—'), escapeHTML(dia(p.recebido_em)),
         escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'), escapeHTML(dia(p.respondido_em)),
         selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
         // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
         registrar && p.situacao_prazo === 'atrasado'
             ? `<button class="btn${p === responderPrimeiro ? ' btn-primary' : ''} btn-sm" data-action="abrirPedidoTitular" data-args='${args(projectId, p.id)}' aria-label="Responder: ${escapeHTML(p.protocolo)}">Responder</button>`
             : `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(projectId, p.id)}'>Abrir</button>`,
-    ]), tipo || status ? { emptyState: 'Nenhum pedido com estes filtros.', emptyHint: 'Limpe os filtros para ver todos.' } : vazio);
+    ]), tipo || status || busca ? { emptyState: 'Nenhum pedido com estes filtros.', emptyHint: 'Limpe os filtros para ver todos.' } : vazio);
 }
 window.filtrarPedidosTitular = function () { if (listaPedidos && el('pt-lista')) el('pt-lista').innerHTML = tabelaPedidos(); };
 
