@@ -106,6 +106,7 @@ export     function navigate(view, data) {
         else if (S.view === 'referencia-juridica') renderReferenciaJuridica(c, h, a);
         else if (S.view === 'terceiros') renderTerceiros(c, h, a);
         else if (S.view === 'terceiro') renderTerceiro(c, h, a);
+        else if (S.view === 'avaliacoes-terceiros') renderAvaliacoesTerceiros(c, h, a);
         else if (S.view === 'titulares') renderTitulares(c, h, a);
         else if (S.view === 'dados-titular') renderDadosTitular(c, h, a);
         else if (S.view === 'parceiros') renderParceiros(c, h, a);

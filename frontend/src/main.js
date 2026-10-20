@@ -21,6 +21,7 @@ import './views/documentos.js';
 import './views/requisitos.js';
 import './views/referencia-juridica.js';
 import './views/terceiros.js';
+import './views/avaliacoes-terceiros.js';
 import './views/catalogos.js';
 import './views/parceiros.js';
 import './views/mapa-de-risco.js';

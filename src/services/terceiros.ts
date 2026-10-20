@@ -36,7 +36,14 @@ export type Terceiro = {
   ultima_avaliacao: Avaliacao | null; tratamentos: number; documentos: number;
   /** nível da criticidade mais recente; null = nunca avaliada */
   nivel: NivelCriticidade | null; dpa: boolean; atividades: number;
+  /** o que falta para o critério de pronto da rotina de TPRM, na ordem Tipo, Criticidade, Avaliação, DPA; vazia = completo */
+  pendencias: string[];
 };
+
+/** Critério de pronto da skill avaliacao-terceiros: tipo, criticidade, avaliação vigente e DPA ligado. Pura. */
+export function pendenciasDe(t: Pick<Terceiro, 'terceiro_tipo' | 'nivel' | 'situacao' | 'dpa'>): string[] {
+  return [!t.terceiro_tipo && 'Tipo', !t.nivel && 'Criticidade', t.situacao !== 'vigente' && 'Avaliação', !t.dpa && 'DPA'].filter((x): x is string => !!x);
+}
 
 /** Atividades que usam a parte, pelas duas origens: vínculo (`parte_vinculos`) e compartilhamento externo da atividade. */
 const SQL_ATIVIDADES = `SELECT parte_id, alvo_id AS ropa_id, 'vinculo' AS origem FROM parte_vinculos WHERE project_id = ?1 AND alvo_tipo = 'tratamento'
@@ -76,8 +83,9 @@ export async function listarTerceiros(db: D1Database, projectId: string): Promis
   return (partes.results as { id: string; nome: string; terceiro_tipo: TipoTerceiro | null }[]).map((p) => {
     const u = ultima.get(p.id) ?? null;
     const atividades = nt.get(p.id) ?? 0;
-    return { id: p.id, nome: p.nome, terceiro_tipo: p.terceiro_tipo, metodo: p.terceiro_tipo ? METODO_DO_TIPO[p.terceiro_tipo] : null, situacao: situacaoDe(u), ultima_avaliacao: u,
+    const t = { id: p.id, nome: p.nome, terceiro_tipo: p.terceiro_tipo, metodo: p.terceiro_tipo ? METODO_DO_TIPO[p.terceiro_tipo] : null, situacao: situacaoDe(u), ultima_avaliacao: u,
       tratamentos: atividades, documentos: nd.get(p.id) ?? 0, nivel: nivel.get(p.id) ?? null, dpa: comDpa.has(p.id), atividades };
+    return { ...t, pendencias: pendenciasDe(t) };
   });
 }
 
