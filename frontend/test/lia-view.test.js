@@ -40,6 +40,13 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('LIA', () => {
+    it('Word só na linha com LIA gravada', async () => {
+        await abrir([{ ropa_id: 'r1', atividade: 'A', status: 'concluida' }, { ropa_id: 'r2', atividade: 'B', status: 'faltando' }]);
+        const bs = el('lia-lista').querySelectorAll('[data-action="baixarWordLia"]');
+        expect(bs.length).toBe(1);
+        expect(JSON.parse(bs[0].dataset.args)).toEqual(['p9', 'r1']);
+        expect(linhas()[0].contains(bs[0])).toBe(true);
+    });
     it('colunas, situação em texto e conclusão resumida', async () => {
         await abrir();
         expect(el('h').textContent).toBe('LIA');

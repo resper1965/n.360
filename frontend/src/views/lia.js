@@ -47,7 +47,8 @@ function desenhar() {
         window.renderStatusBadge(ROTULO[l.status] || l.status, TOM[l.status] || 'neutral'),
         escapeHTML(CONCLUSAO[l.conclusao] || '—'),
         escapeHTML(formatarData(l.concluida_em)),
-        `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(daLista.projeto, l.ropa_id, 'base_juridica')}' aria-label="Abrir a atividade: ${escapeHTML(l.atividade)}">Abrir</button>`,
+        `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(daLista.projeto, l.ropa_id, 'base_juridica')}' aria-label="Abrir a atividade: ${escapeHTML(l.atividade)}">Abrir</button>`
+            + (l.status !== 'faltando' ? ` <button class="btn btn-ghost btn-sm" data-action="baixarWordLia" data-args='${args(daLista.projeto, l.ropa_id)}' aria-label="Baixar o Word da LIA: ${escapeHTML(l.atividade)}">Word</button>` : ''),
     ]), { emptyState: 'Nenhuma LIA nesta situação.', emptyHint: 'Limpe o filtro para ver todas.' });
 }
 window.filtrarLias = desenhar;

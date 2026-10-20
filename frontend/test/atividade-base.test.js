@@ -252,6 +252,18 @@ describe('aba Base Jurídica', () => {
         expect(puts[0]).toEqual({ lgpd: [{ requisito_id: 'lgpd:art7:ii', finalidade: 'Cumprir a obrigação de registro (exemplo).' }] });
     });
 
+    it('LIA gravada mostra "Baixar Word" com o projeto e a atividade', async () => {
+        const li = { ...SEM_PENDENCIA(), lia_exigida: true };
+        const { painel } = await abrir(li, { extra: { [`GET ${P}/lia`]: { lia: { status: 'rascunho', finalidade_legitima: 'x' } } } });
+        const b = painel.querySelector('[data-action="baixarWordLia"]');
+        expect(b).not.toBeNull();
+        expect(b.textContent).toBe('Baixar Word');
+        expect(JSON.parse(b.dataset.args)).toEqual(['p9', 'r1']);
+    });
+    it('sem LIA gravada não há botão de Word', async () => {
+        const { painel } = await abrir({ ...SEM_PENDENCIA(), lia_exigida: true }, { extra: { [`GET ${P}/lia`]: { lia: null } } });
+        expect(painel.querySelector('[data-action="baixarWordLia"]')).toBeNull();
+    });
     it('LIA aparece no fim quando exigida, sem botão primário', async () => {
         const li = { ...SEM_PENDENCIA(), lia_exigida: true };
         const { painel } = await abrir(li, { extra: { [`GET ${P}/lia`]: { lia: null } } });
