@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 
 import { redactProject, semRastros, logAudit, requireResourceAccess, escapeHtml, erro500, registraErro, autoridadeDeAssinatura, recusaDeAssinatura, ehComercial, projetosVisiveis, somenteNess, somenteComercial, PODE_REVOGAR_APROVACAO, refForaDoProjeto, setParcial, valoresParciais } from '../helpers';
-import { atualizarAtivo } from '../services/itens';
+import { atualizarAtivo, removerAtivo } from '../services/itens';
 import { validateBody, assetSchema, dpiaSchema, revogarDpiaSchema, dpiaApprovalSchema, transferirProjetoSchema, precificacaoConfigSchema } from '../schemas';
 import { transferirProjeto, MSG_CORRIDA } from '../services/transferencia-projeto';
 import { verificarCadeia } from '../trilha';
@@ -60,8 +60,13 @@ platformApp.delete('/assets/:id', async (c) => {
     if (user && user.role === 'org_user') {
       return c.json({ error: 'Forbidden: Cannot delete asset' }, 403);
     }
-    await c.env.DB.prepare('DELETE FROM itens WHERE id = ?').bind(id).run();
-    await logAudit(c.env.DB, 'asset.deleted', user?.email || 'system', `Asset ${id} deleted`);
+    // Soft delete, como DELETE /projects/:id/assets/:assetId: o DELETE físico
+    // levava junto as ligações do ativo com as atividades de tratamento.
+    const item = await c.env.DB.prepare(`SELECT project_id FROM itens WHERE id = ? AND tipo = 'ativo'`).bind(id).first<{ project_id: string }>();
+    if (!item || !(await removerAtivo(c.env.DB, id, item.project_id))) {
+      return c.json({ error: 'Ativo não encontrado' }, 404);
+    }
+    await logAudit(c.env.DB, 'asset.removed', user?.email || 'system', `Ativo ${id} removido do projeto ${item.project_id}`, '', '', item.project_id);
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Falha ao deletar ativo', e);

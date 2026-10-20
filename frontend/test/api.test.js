@@ -4,7 +4,7 @@
 //   2. qual mensagem de erro chega na tela;
 //   3. qual pedaco do envelope `{ ok:true, X:[...] }` a view enxerga.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { api, API_BASE } from '../src/api.js';
+import { api, API_BASE, abrirRelatorio } from '../src/api.js';
 import { S } from '../src/state.js';
 
 /** Resposta minima com a superficie que `api()` consome de fetch. */
@@ -283,5 +283,33 @@ describe('api()', () => {
             await expect(api('POST', '/api/v1/projects', {})).rejects.toThrow('Somente leitura');
             expect(window.doLogout).not.toHaveBeenCalled();
         });
+    });
+});
+
+describe('abrirRelatorio()', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('busca com o cabeçalho da sessão e abre o blob; o token nunca vai na URL', async () => {
+        const f = vi.fn(async () => resposta('<html>relatório</html>', { contentType: 'text/html' }));
+        vi.stubGlobal('fetch', f);
+        const abre = vi.fn(() => ({}));
+        vi.stubGlobal('open', abre);
+        URL.createObjectURL = vi.fn(() => 'blob:relatorio');
+        URL.revokeObjectURL = vi.fn();
+        S.token = 'tok-sessao';
+        await abrirRelatorio('/api/v1/projects/p1/controls/A.5.1/policy/report');
+        expect(f.mock.calls[0][0]).toBe(API_BASE + '/api/v1/projects/p1/controls/A.5.1/policy/report');
+        expect(f.mock.calls[0][1].headers).toMatchObject({ Authorization: 'Bearer tok-sessao' });
+        expect(abre).toHaveBeenCalledWith('blob:relatorio', '_blank');
+    });
+
+    it('erro do servidor e pop-up bloqueado viram mensagem', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => resposta({ error: 'x' }, { status: 403 })));
+        await expect(abrirRelatorio('/r')).rejects.toThrow('Não foi possível gerar o relatório (erro 403)');
+        vi.stubGlobal('fetch', vi.fn(async () => resposta('<html></html>', { contentType: 'text/html' })));
+        vi.stubGlobal('open', vi.fn(() => null));
+        URL.createObjectURL = vi.fn(() => 'blob:x');
+        URL.revokeObjectURL = vi.fn();
+        await expect(abrirRelatorio('/r')).rejects.toThrow('bloqueou a nova janela');
     });
 });

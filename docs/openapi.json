@@ -3304,6 +3304,18 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "root_cause": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "action_plan": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
@@ -11179,6 +11191,18 @@
                     ]
                   },
                   "due_date": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "root_cause": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "action_plan": {
                     "type": [
                       "string",
                       "null"
