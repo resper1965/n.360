@@ -114,10 +114,10 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         const colunas = comPrivacy ? ['Atividade', 'Área', 'Responsável', 'Base legal', 'Situação', 'Ações'] : ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Situação', 'Ações'];
         const tabelaRopa = (filtrar = true) => {
             const el = (id) => document.getElementById(id);
-            const busca = filtrar && comPrivacy ? chaveBusca(el('ropa-busca')?.value) : '';
+            const busca = filtrar && comPrivacy ? chaveBusca(String(el('ropa-busca')?.value ?? '').trim()) : '';
             const area = filtrar && comPrivacy ? el('ropa-filtro-area')?.value || '' : '';
             const sit = filtrar && comPrivacy ? el('ropa-filtro-situacao')?.value || '' : '';
-            const filtrados = records.filter((r) => (!busca || chaveBusca(`${r.nome} ${r.processing_purpose}`).includes(busca))
+            const filtrados = records.filter((r) => (!busca || [r.nome, r.processing_purpose].some((t) => chaveBusca(t).includes(busca)))
                 && (!area || areasDe(r).includes(area)) && (!sit || r.situacao?.codigo === sit));
             const filtrando = !!(busca || area || sit);
             return window.renderDataTable(
@@ -444,10 +444,10 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
     function tabelaRipd(filtrar = true) {
         const { assessments, projectId, vazio } = listaRipd;
         const st = filtrar && document.getElementById('ripd-filtro-status') ? document.getElementById('ripd-filtro-status').value : '';
-        const busca = filtrar ? chaveBusca(document.getElementById('ripd-busca')?.value) : '';
+        const busca = filtrar ? chaveBusca(String(document.getElementById('ripd-busca')?.value ?? '').trim()) : '';
         const area = filtrar ? document.getElementById('ripd-filtro-area')?.value || '' : '';
         const itens = assessments.filter(dp => (!st || (dp.status || 'Draft') === st)
-            && (!busca || chaveBusca(`${dp.atividade} ${dp.system_name}`).includes(busca)) && (!area || areasDe(dp).includes(area)));
+            && (!busca || [dp.atividade, dp.system_name].some((t) => chaveBusca(t).includes(busca))) && (!area || areasDe(dp).includes(area)));
         const filtrando = st || busca || area;
         return window.renderDataTable(
             ['Atividade', 'Área', 'Responsável', 'Sistema ou operação', 'Titulares', 'Categorias de dados', 'Risco residual', 'Status', 'Ações'],

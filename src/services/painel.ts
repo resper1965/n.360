@@ -156,7 +156,7 @@ const UNIAO_PRIVACY = [
 ];
 
 async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean, dia: string) {
-  const visao = await visaoDoEncarregado(db, projectId, { cliente });
+  const [visao, aprovacoes] = await Promise.all([visaoDoEncarregado(db, projectId, { cliente }), aprovacoesDoProjeto(db, projectId, undefined, 'tratamento')]);
   const consultas = consultasDeVencimento(db, UNIAO_PRIVACY, projectId, dia);
   const respostas = await db.batch([
     ...consultas,
@@ -194,7 +194,6 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
   ]);
   const [ativ, ripd, lias, pedidos90, incidentes12, evid, ciclo, semana, mapa] = respostas.slice(consultas.length);
   const um = (r: D1Result) => r.results[0] as Contagem | undefined;
-  const aprovacoes = await aprovacoesDoProjeto(db, projectId, undefined, 'tratamento');
   const linhasAtiv = ativ.results as { id: string; status: string | null; reaberta_em: string | null; sem_base: number }[];
   const contaAtiv = { feito: 0, andamento: 0, falta: 0 };
   for (const r of linhasAtiv) {
@@ -232,8 +231,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     const idx = 11 - Math.floor(diasAte(dia, d) / 7);
     if (idx >= 0 && idx < 12) pedidosSemana[idx] += 1;
   }
-  const atividades = contaAtiv;
-  const totalAtiv = (atividades?.feito ?? 0) + (atividades?.andamento ?? 0) + (atividades?.falta ?? 0);
+  const totalAtiv = contaAtiv.feito + contaAtiv.andamento + contaAtiv.falta;
   const lg = visao.lgpd;
   const encarregados = visao.encarregados;
   const comecando = visao.tratamentos.total === 0;
@@ -243,7 +241,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     cobertura, vencimentos: v.linhas, proximo: v.proximo, pedidos_semana: pedidosSemana,
     riscos: mapa.results as Celula[], acoes_por_prazo: visao.acoes_por_prazo,
     numeros: [
-      [`${atividades?.feito ?? 0} de ${totalAtiv}`, 'atividades aprovadas'],
+      [`${contaAtiv.feito} de ${totalAtiv}`, 'atividades aprovadas'],
       [String(visao.pedidos_titular.atrasados), 'pedidos atrasados'],
       lg.carregada ? [`${lg.cobertos ?? 0} de ${lg.total ?? 0}`, 'artigos da LGPD cobertos'] : [String(te.vencidos), 'terceiros vencidos'],
     ] as [string, string][],

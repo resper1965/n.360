@@ -190,12 +190,12 @@ export async function apagarAcao(db: D1Database, projectId: string, ropaId: stri
   return (r.meta.changes ?? 0) > 0;
 }
 
-/** O mapa de risco do n.privacy: todos os riscos do projeto que têm atividade (risco só do n.iso fica de fora). */
 /** As áreas (escopo) da atividade, em ordem de nome e separadas por vírgula; null sem área. Listas do n.privacy filtram por ela. */
 export const sqlAreaDaAtividade = (ropaId: string, projectId: string) => `(SELECT group_concat(d.nome, ', ' ORDER BY d.nome) FROM tratamento_departamentos td
   JOIN departamentos d ON d.id = td.departamento_id AND d.project_id = td.project_id WHERE td.ropa_id = ${ropaId} AND td.project_id = ${projectId})`;
 const AREA = (t: string) => `${sqlAreaDaAtividade(`${t}.ropa_id`, `${t}.project_id`)} AS area`;
 
+/** O mapa de risco do n.privacy: todos os riscos do projeto que têm atividade (risco só do n.iso fica de fora). */
 export async function riscosDoMapa(db: D1Database, projectId: string) {
   const { results } = await db.prepare(
     `SELECT r.id, r.ropa_id, r.asset, r.threat, r.probability, r.impact, r.risk_level, r.residual_impact, r.residual_probability,

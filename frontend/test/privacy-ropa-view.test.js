@@ -303,13 +303,19 @@ describe('RIPD (DPIA)', () => {
 
     it('Área, Responsável, busca e filtro de área na lista do RIPD', async () => {
         rotas['/dpia'] = [{ id: 'd1', system_name: 'CRM', status: 'Draft', atividade: 'Admissão', area: 'Gestão', responsavel: 'Pessoa A' },
-            { id: 'd2', system_name: 'ERP', status: 'Draft', atividade: 'Câmeras', area: 'Comercial' }];
+            { id: 'd2', system_name: null, status: 'Draft', atividade: 'Câmeras', area: 'Comercial' }];
         await window.renderDPIA(el('c'), el('h'), el('a'));
         const linhas = () => [...el('ripd-lista').querySelectorAll('tbody tr')].map((l) => l.textContent);
         expect(linhas()[0]).toContain('Pessoa A');
         el('ripd-busca').value = 'camera';
         el('ripd-busca').dispatchEvent(new Event('input', { bubbles: true }));
         expect(linhas()).toEqual([expect.stringContaining('Câmeras')]);
+        el('ripd-busca').value = 'camera ';
+        el('ripd-busca').dispatchEvent(new Event('input', { bubbles: true }));
+        expect(linhas()).toEqual([expect.stringContaining('Câmeras')]);
+        el('ripd-busca').value = 'null';
+        el('ripd-busca').dispatchEvent(new Event('input', { bubbles: true }));
+        expect(linhas().join('')).not.toContain('Câmeras');
         el('ripd-busca').value = '';
         el('ripd-filtro-area').value = 'Gestão';
         el('ripd-filtro-area').dispatchEvent(new Event('change', { bubbles: true }));
@@ -470,6 +476,8 @@ describe('lista do RoPA no n.privacy', () => {
         el('ropa-busca').value = 'camera'; window.filtrarRopa();
         expect(el('ropa-lista').textContent).toContain('Câmeras');
         expect(el('ropa-lista').textContent).not.toContain('Admissão');
+        el('ropa-busca').value = 'camera '; window.filtrarRopa();
+        expect(el('ropa-lista').textContent).toContain('Câmeras');
         el('ropa-busca').value = ''; el('ropa-filtro-area').value = 'Comercial'; window.filtrarRopa();
         expect(el('ropa-lista').textContent).not.toContain('Admissão');
         el('ropa-filtro-area').value = ''; el('ropa-filtro-situacao').value = 'aprovada'; window.filtrarRopa();
