@@ -116,7 +116,7 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
     extra.push('asset = ?');
     binds.push(await textoDoAtivo(db, corpo.asset_id, at.processing_purpose));
   }
-  if (aceite) { extra.push('accepted_by = ?', 'accepted_at = ?'); binds.push(aceite.accepted_by, aceite.accepted_at); }
+  if (aceite) { extra.push('accepted_by = ?', 'accepted_at = ?', 'aceite_manual = 0'); binds.push(aceite.accepted_by, aceite.accepted_at); }
   await db.batch([
     db.prepare(
       `UPDATE risks SET impact = ?, probability = ?, risk_level = ?, residual_level = ?${p.sql ? ', ' + p.sql : ''}${extra.length ? ', ' + extra.join(', ') : ''},

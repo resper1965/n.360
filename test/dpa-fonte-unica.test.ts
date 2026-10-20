@@ -51,7 +51,9 @@ describe('DPA pela fonte única', () => {
   });
 
   it('legado sem documento: dpa 0, declarado 1 com o link antigo; o PUT recalcula sem os 10 pontos e não mexe nas colunas antigas', async () => {
-    expect(await linha('dpa-leg')).toMatchObject({ dpa: 0, dpa_declarado: 1, dpa_url_antigo: 'https://dpa.exemplo.com', dpa_documentos: [] });
+    // o índice da lista já sai sem os 10 pontos do legado (calculado na leitura), antes de qualquer edição; o gravado ainda é 30
+    expect(await linha('dpa-leg')).toMatchObject({ dpa: 0, dpa_declarado: 1, dpa_url_antigo: 'https://dpa.exemplo.com', dpa_documentos: [], trust_score: 20 });
+    expect(await perfil('dpa-leg')).toMatchObject({ trust_score: 30 });
     expect((await editar('dpa-leg')).trust_score).toBe(20);
     expect(await perfil('dpa-leg')).toMatchObject({ trust_score: 20, dpa_signed: 1, dpa_url: 'https://dpa.exemplo.com' });
     // dpa_signed: 0 e dpa_url: null no corpo também são ignorados: as colunas são histórico

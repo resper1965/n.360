@@ -119,7 +119,7 @@ risks.put('/api/v1/risks/:id', async (c) => {
     const aceite = carimboDeAceite(atual.status, status, email);
 
     await c.env.DB.prepare(
-      `UPDATE risks SET asset_id=?, asset=?, threat=?, vulnerability=?, impact=?, probability=?, risk_level=?, treatment=?, treatment_plan=?, control_id=?, owner=?, owner_parte_id=?, status=?, accepted_by=?, accepted_at=?, ropa_id=?, residual_impact=?, residual_probability=?, residual_level=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
+      `UPDATE risks SET asset_id=?, asset=?, threat=?, vulnerability=?, impact=?, probability=?, risk_level=?, treatment=?, treatment_plan=?, control_id=?, owner=?, owner_parte_id=?, status=?, accepted_by=?, accepted_at=?, aceite_manual=CASE WHEN ? THEN 0 ELSE aceite_manual END, ropa_id=?, residual_impact=?, residual_probability=?, residual_level=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
     ).bind(
       anulavel('asset_id', true),
       obrigatoria('asset'),
@@ -136,6 +136,7 @@ risks.put('/api/v1/risks/:id', async (c) => {
       status,
       aceite?.accepted_by ?? atual.accepted_by,
       aceite?.accepted_at ?? atual.accepted_at,
+      aceite ? 1 : 0, // aceite novo pelo servidor deixa de ser "registrado à mão"
       anulavel('ropa_id', true),
       residualImpact,
       residualProbability,

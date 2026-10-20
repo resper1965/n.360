@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { normalizarNome } from '../services/nomes';
-import { SQL_EH_FORNECEDOR, SQL_TEM_DPA, indiceDeConfianca, nivelDeDiligencia, temDpa } from '../services/terceiros';
+import { SQL_EH_FORNECEDOR, SQL_TEM_DPA, indiceDeConfianca, nivelDeDiligencia, temDpa, type PerfilDoIndice } from '../services/terceiros';
 import { Bindings, Variables } from '../index';
 
 import { genId, logAudit, requireResourceAccess, erro500 } from '../helpers';
@@ -80,12 +80,24 @@ export const SQL_VENDORS_VISIVEIS = `SELECT v.id, p.project_id, p.nome AS name, 
       WHERE dp.parte_id = p.id AND dp.project_id = p.project_id AND dp.papel = 'dpa') AS dpa_documentos
   FROM partes p LEFT JOIN vendors v ON v.parte_id = p.id WHERE p.project_id = ? AND ${SQL_EH_FORNECEDOR}`;
 
+type LinhaFornecedor = PerfilDoIndice & { id: string | null; dpa: number; trust_score: number | null; diligence_level: string | null };
+
+/**
+ * Índice e diligência calculados na leitura, a partir do perfil e do DPA ligado AGORA: o gravado envelhece quando um documento é
+ * apagado ou quando o legado (`dpa_signed`) deixou de valer. Sem perfil, ficam como vêm (nulos).
+ */
+export function comIndiceAtual<T extends LinhaFornecedor>(v: T): T {
+  if (!v.id) return v;
+  const indice = indiceDeConfianca(v, !!v.dpa);
+  return { ...v, trust_score: indice, diligence_level: nivelDeDiligencia(indice) };
+}
+
 projectVendorsApp.get('/', async (c) => {
   const projectId = c.req.param('projectId');
   const { results } = await c.env.DB.prepare(
     `${SQL_VENDORS_VISIVEIS} ORDER BY p.nome`
-  ).bind(projectId).all<{ dpa_documentos: string }>();
-  return c.json({ ok: true, vendors: results.map((v) => ({ ...v, dpa_documentos: JSON.parse(v.dpa_documentos) })) });
+  ).bind(projectId).all<LinhaFornecedor & { dpa_documentos: string }>();
+  return c.json({ ok: true, vendors: results.map((v) => ({ ...comIndiceAtual(v), dpa_documentos: JSON.parse(v.dpa_documentos) })) });
 });
 
 projectVendorsApp.post('/', async (c) => {

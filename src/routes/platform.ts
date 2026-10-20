@@ -69,6 +69,14 @@ platformApp.delete('/assets/:id', async (c) => {
 });
 
 // DPIA standalone CRUD
+// Colunas que o PUT do DPIA grava e o "vazio" de cada uma. Inclui as da tela: sem elas, o texto editado era descartado em silêncio.
+const VAZIOS_DPIA: Record<string, unknown> = {
+  ropa_id: null, processing_name: null, data_category_risk: null, necessity_proportionality: null,
+  technical_measures: null, residual_risk_level: 'Medium', dpo_recommendations: null, status: 'Draft',
+  system_name: null, data_flow_description: null, data_subjects_types: null, personal_data_categories: null,
+  risks_identified: null, mitigation_measures: null, dpo_opinion: null,
+};
+
 platformApp.put('/dpia/:id', async (c) => {
   try {
     const id = c.req.param('id');
@@ -79,19 +87,17 @@ platformApp.put('/dpia/:id', async (c) => {
     const atual = await c.env.DB.prepare(`SELECT project_id, status, dpo_signature, ceo_signature, ${COLUNAS_DPIA.join(', ')} FROM dpia_assessments WHERE id = ?`)
       .bind(id).first<Record<string, unknown> & { project_id: string | null; status: string | null }>();
     // Uma assinatura aprova o RIPD; mudar o conteúdo assinado derruba a aprovação (decisão do dono de 20/10/2026).
-    const mudaram = atual ? COLUNAS_DPIA.filter((col) => Object.hasOwn(body, col) && (body[col] ?? null) !== (atual[col] ?? null)) : [];
+    // Compara o valor que SERIA gravado (vazio vira NULL ou o padrão da coluna; quebra de linha normalizada): a tela manda todos os
+    // campos a cada salvar, e um campo vazio não pode contar como mudança.
+    const gravar = valoresParciais(body, VAZIOS_DPIA);
+    const texto = (x: unknown) => (typeof x === 'string' ? x.replace(/\r\n/g, '\n') : x ?? null);
+    const mudaram = atual ? COLUNAS_DPIA.filter((col) => Object.hasOwn(gravar, col) && texto(gravar[col]) !== texto(atual[col])) : [];
     const assinado = !!(atual?.dpo_signature || atual?.ceo_signature);
     // Sem mudança de conteúdo, o status de um RIPD aprovado não sai pelo PUT: reabrir é revogar, com motivo.
     if (atual?.status === 'Approved' && !mudaram.length) delete body.status;
     const fora = await refForaDoProjeto(c.env.DB, atual?.project_id, body, ['ropa_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
-    const p = setParcial(body, {
-      ropa_id: null, processing_name: null, data_category_risk: null, necessity_proportionality: null,
-      technical_measures: null, residual_risk_level: 'Medium', dpo_recommendations: null, status: 'Draft',
-      // Colunas da tela de DPIA: sem elas aqui, o texto editado pela tela era descartado em silêncio.
-      system_name: null, data_flow_description: null, data_subjects_types: null, personal_data_categories: null,
-      risks_identified: null, mitigation_measures: null, dpo_opinion: null,
-    });
+    const p = setParcial(body, VAZIOS_DPIA);
     if (p.sql) await c.env.DB.prepare(`UPDATE dpia_assessments SET ${p.sql} WHERE id=?`).bind(...p.binds, id).run();
     const user = c.get('user');
     const email = user?.email || 'system';

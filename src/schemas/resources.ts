@@ -24,7 +24,9 @@ export const createRiskSchema = z.object({
   owner: z.string().optional().nullable(),
   owner_parte_id: z.string().optional().nullable(),
   accepted_by: z.string().optional().nullable(),
-  accepted_at: z.string().optional().nullable()
+  accepted_at: z.string().optional().nullable(),
+  // a mesma lista fechada do risco da atividade (src/schemas/nucleo.ts)
+  status: z.enum(['Open', 'Mitigated', 'Accepted', 'Closed']).optional()
 }).passthrough();
 
 /**

@@ -3,7 +3,7 @@ import type { Bindings, Variables } from '../index';
 import { requireResourceAccess, genToken, signWebhook, registraErro, logAudit } from '../helpers';
 import { validateBody, createWebhookSchema, createApiKeySchema } from '../schemas';
 import { listarAtivos } from '../services/itens';
-import { SQL_VENDORS_VISIVEIS } from './vendors';
+import { SQL_VENDORS_VISIVEIS, comIndiceAtual } from './vendors';
 
 const integrations = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -356,7 +356,7 @@ integrations.get('/api/v1/projects/:projectId/export/risks', async (c) => {
 integrations.get('/api/v1/projects/:projectId/export/vendors', async (c) => {
   const projectId = c.req.param('projectId');
   const result = await c.env.DB.prepare(SQL_VENDORS_VISIVEIS).bind(projectId).all();
-  const rows = (result.results || []) as any[];
+  const rows = ((result.results || []) as any[]).map(comIndiceAtual);
   const headers = 'name,category,trust_score,diligence_level,has_iso27001,has_soc2,dpa';
   // DPA pela fonte única (o documento ligado); o legado do perfil aparece como declarado
   const dpa = (r: { dpa?: unknown; dpa_declarado?: unknown }) => (r.dpa ? 'Sim' : r.dpa_declarado ? 'Declarado, sem documento' : 'Não');

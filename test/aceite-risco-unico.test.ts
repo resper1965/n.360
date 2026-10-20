@@ -34,4 +34,17 @@ describe('aceite de risco: um modelo só', () => {
     await chamar(consultor, 'PUT', `/api/v1/risks/${id}`, { treatment_plan: 'Plano' });
     expect(await env.DB.prepare('SELECT accepted_at FROM risks WHERE id = ?').bind(id).first()).toEqual(antes);
   });
+
+  it('status fora da lista é recusado no POST', async () => {
+    expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/risks`, { asset: 'ERP', threat: 'X', status: 'accepted' })).status).toBe(400);
+  });
+
+  it('aceite refeito pelo botão deixa de ser "registrado à mão"', async () => {
+    const { id } = await (await chamar(consultor, 'POST', `/api/v1/projects/${P}/risks`, { asset: 'ERP', threat: 'Legado', treatment: 'Accept' })).json<{ id: string }>();
+    await env.DB.prepare(`UPDATE risks SET status = 'Accepted', accepted_by = 'Digitado', aceite_manual = 1 WHERE id = ?`).bind(id).run();
+    await chamar(consultor, 'PUT', `/api/v1/risks/${id}`, { status: 'Open' });
+    await chamar(consultor, 'PUT', `/api/v1/risks/${id}`, { status: 'Accepted' });
+    expect(await env.DB.prepare('SELECT accepted_by, aceite_manual FROM risks WHERE id = ?').bind(id).first()).toEqual({ accepted_by: 'cons@ness.lat', aceite_manual: 0 });
+  });
 });
+

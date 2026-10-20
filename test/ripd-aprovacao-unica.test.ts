@@ -52,4 +52,14 @@ describe('RIPD: uma assinatura basta e mudar conteúdo invalida', () => {
     const n = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'dpia.aprovacao_invalidada' AND details LIKE '%ru-4%'`).first<{ n: number }>();
     expect(n!.n).toBe(0);
   });
+
+  it('salvar pela tela sem mudar nada (campos vazios chegam como texto vazio) mantém a aprovação', async () => {
+    await env.DB.prepare(`INSERT INTO dpia_assessments (id, project_id, processing_name, status) VALUES ('ru-5', ?, 'Visitas', 'Draft')`).bind(P).run();
+    await (await assinaturaDpia(env.DB, P, 'ru-5', 'ceo', 'Diretora'))!.run();
+    const vazio = { system_name: '', data_flow_description: '', data_subjects_types: '', personal_data_categories: '', risks_identified: '',
+      mitigation_measures: '', dpo_opinion: '', necessity_proportionality: '' }; // os campos que a tela (updateDPIA) manda
+    const r = await chamar(consultor, 'PUT', '/api/v1/dpia/ru-5', { processing_name: 'Visitas', ...vazio });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await ler('ru-5')).toMatchObject({ status: 'Approved', ceo_signature: 'Diretora' });
+  });
 });
