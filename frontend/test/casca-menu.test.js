@@ -127,11 +127,11 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
         expect(rotulos.map((r) => r.textContent)).toEqual([]);
     });
-    it('26 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
+    it('27 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
         montarApp();
         aplicarCasca('privacy');
         const destinos = [...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => n.id);
-        expect(destinos.length).toBe(26);
+        expect(destinos.length).toBe(27);
         expect(new Set(visiveis())).toEqual(new Set(destinos));
         for (const id of ['nav-meus', 'nav-audit-trail', 'nav-settings']) expect(el(id).dataset.foraDoProduto, id).toBe('1');
         expect(el('group-system-config').dataset.foraDoProduto).toBe('1');
