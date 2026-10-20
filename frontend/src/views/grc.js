@@ -7,7 +7,7 @@ import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
-import { hojeSP } from '../hoje.js';
+import { podeAceitar, linhaDeAceite, aceitarRisco } from '../aceite-risco.js';
 
 // S2: wrappers para handlers COMPOSTOS/inline (a delegação chama uma função só).
 window.__grcDeleteRisk = async function (riskId) {
@@ -210,7 +210,7 @@ window.__grcCloseExecAudit = function (id) {
                                     <strong>Probabilidade:</strong> ${r.probability} | <strong>Impacto:</strong> ${r.impact} | 
                                     <strong>Tratamento:</strong> ${escapeHTML(traduzStatus(r.treatment) || 'Não definido')} | <strong>Responsável:</strong> ${escapeHTML(r.owner_parte_nome || r.owner || 'Sem dono')}
                                     ${r.control_standard ? ` | <strong>Controle:</strong> <span class="badge badge-implemented py-05 px-15 t-sm">${escapeHTML(r.control_standard)}</span>` : ''}
-                                    ${r.treatment === 'Accept' && r.accepted_by ? ` | <strong>Aceito por:</strong> ${escapeHTML(r.accepted_by)}` : ''}
+                                    ${linhaDeAceite(r) ? ` | ${linhaDeAceite(r)}` : ''}
                                 </div>
                             </div>
                             <div class="d-flex items-center gap-2">
@@ -243,17 +243,6 @@ window.__grcCloseExecAudit = function (id) {
             manualGroup.style.display = 'none';
             const opt = select.options[select.selectedIndex];
             manualInput.value = opt.getAttribute('data-name');
-        }
-    };
-
-    window.onRiskTreatmentChange = function(select) {
-        const acceptGroup = document.getElementById('risk-accept-group');
-        if (select.value === 'Accept') {
-            acceptGroup.style.display = '';
-            const dtInput = document.getElementById('risk-accepted-at');
-            if (!dtInput.value) dtInput.value = hojeSP();
-        } else {
-            acceptGroup.style.display = 'none';
         }
     };
 
@@ -295,7 +284,7 @@ window.__grcCloseExecAudit = function (id) {
             </div>
             <div class="form-group">
                 <label class="form-label">Tratamento</label>
-                <select class="form-input" id="risk-treatment" data-action-change="onRiskTreatmentChange" data-arg-el>
+                <select class="form-input" id="risk-treatment">
                     <option value="Mitigate">Mitigar</option>
                     <option value="Accept">Aceitar</option>
                     <option value="Transfer">Transferir</option>
@@ -309,10 +298,6 @@ window.__grcCloseExecAudit = function (id) {
                     ${controlOptions}
                 </select>
             </div>
-            <div id="risk-accept-group" style="display:none">
-                <div class="form-group"><label class="form-label">Assinado/Aceito por</label><input class="form-input" id="risk-accepted-by" placeholder="Ex: Maria Silva (CEO)"></div>
-                <div class="form-group"><label class="form-label">Data do Aceite</label><input class="form-input" id="risk-accepted-at" type="date"></div>
-            </div>
             <div class="form-group"><label class="form-label">Responsável (cadastro de partes)</label><select class="form-input" id="risk-owner-parte">${parteOptions}</select></div>
             <div class="form-group"><label class="form-label">Responsável (texto livre)</label><input class="form-input" id="risk-owner" placeholder="Ex: CISO"></div>
             <div class="form-group"><label class="form-label">Plano de Tratamento</label><textarea class="form-input" id="risk-plan" rows="2" placeholder="Descreva as acoes..."></textarea></div>
@@ -324,7 +309,6 @@ window.__grcCloseExecAudit = function (id) {
         const select = document.getElementById('risk-asset-select');
         const assetId = select.value && select.value !== '__manual__' ? select.value : null;
         const assetName = document.getElementById('risk-asset').value;
-        const treatment = document.getElementById('risk-treatment').value;
 
         const body = {
             asset_id: assetId,
@@ -333,13 +317,11 @@ window.__grcCloseExecAudit = function (id) {
             vulnerability: document.getElementById('risk-vuln').value,
             impact: +document.getElementById('risk-impact').value,
             probability: +document.getElementById('risk-prob').value,
-            treatment: treatment,
+            treatment: document.getElementById('risk-treatment').value,
             control_id: document.getElementById('risk-control').value || null,
             owner: document.getElementById('risk-owner').value,
             owner_parte_id: document.getElementById('risk-owner-parte').value || null,
-            treatment_plan: document.getElementById('risk-plan').value,
-            accepted_by: treatment === 'Accept' ? document.getElementById('risk-accepted-by').value : null,
-            accepted_at: treatment === 'Accept' ? document.getElementById('risk-accepted-at').value : null
+            treatment_plan: document.getElementById('risk-plan').value
         };
         if (!body.asset || !body.threat) return;
         await api('POST', `/api/v1/projects/${projectId}/risks`, body);
@@ -452,18 +434,26 @@ window.__grcCloseExecAudit = function (id) {
                             <span class="badge badge-implemented py-1 px-2 t-sm">${escapeHTML(r.control_standard)}</span>
                         </div>
                     </div>` : ''}
-                    ${r.treatment === 'Accept' && r.accepted_by ? `
+                    ${linhaDeAceite(r) ? `
                     <div class="col-span-2">
-                        <div class="rotulo-campo">Risco Aceito por</div>
-                        <div class="t-base fw-500 t-texto">${escapeHTML(r.accepted_by)} em ${formatarData(r.accepted_at, { vazio: 'data desconhecida' })}</div>
+                        <div class="rotulo-campo">Aceite do risco</div>
+                        <div class="t-base fw-500 t-texto">${linhaDeAceite(r)}</div>
                     </div>` : ''}
                 </div>
             </div>
             <div class="acoes-rodape">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
+                ${canCrud && podeAceitar(r) ? `<button class="btn" data-action="aceitarRiscoIso" data-args='["${id}"]'>Aceitar risco</button>` : ''}
                 ${canCrud ? `<button class="btn btn-primary" data-action="openEditRiskModal" data-args='["${id}"]'>Editar Risco</button>` : ''}
             </div>
         `);
+    };
+
+    window.aceitarRiscoIso = async function(id) {
+        try { if (!(await aceitarRisco(api, `/api/v1/risks/${id}`))) return; }
+        catch (e) { showToast((e && e.message) || 'Não foi possível aceitar o risco', 'error'); return; }
+        showToast('Risco aceito.', 'success');
+        forceCloseModal(); render();
     };
 
     async function renderVendors(c, h, a) {
