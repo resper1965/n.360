@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0081** (`ls migrations/*.sql | tail -1`). São 79 arquivos
+- Última migration no repositório: **0082** (`ls migrations/*.sql | tail -1`). São 80 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -674,5 +674,16 @@ linhas existentes) e nasce `documentos_arquivo` (`IF NOT EXISTS`, com `project_i
 `migrations apply`. Conferência depois: `PRAGMA table_info(departamentos)` mostra `descricao`; `SELECT count(*) FROM documentos_arquivo` (esperado 0).
 Para desfazer: não precisa (o código anterior ignora a coluna e a tabela). **Esta RODA em produção ANTES do código novo.**
 **Não aplicada em lugar nenhum** até o líder do projeto aplicar.
+Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
+(esperado: "No migrations to apply") → workflow *Deploy*.
+
+## 0082 — aceite de risco num modelo só (2026-10-20)
+
+Spec `docs/superpowers/specs/2026-10-20-frente2-regras-unicas-design.md` (B2). `risks` ganha `aceite_manual INTEGER NOT NULL DEFAULT 0`, e o
+`UPDATE` leva a `Accepted` (com `aceite_manual = 1`) o risco com tratamento `Accept`, nome digitado em `accepted_by` e status ainda aberto
+(fora de `Accepted`, `Closed` e `Mitigated`); nome e data digitados ficam. **Escreve em linha existente**: antes, conferir quantas mudam com a
+consulta do cabeçalho do arquivo. **Não é idempotente** (`ADD COLUMN`): aplicar só pelo `migrations apply`. Conferência depois:
+`PRAGMA table_info(risks)` mostra `aceite_manual`; `SELECT count(*) FROM risks WHERE aceite_manual = 1` igual à contagem de antes.
+**Produção só com o "sim" explícito do dono e `npm run db:backup` antes. Não aplicada em lugar nenhum.**
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.
