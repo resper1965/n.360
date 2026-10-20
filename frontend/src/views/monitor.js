@@ -1610,7 +1610,9 @@ import { hojeSP } from '../hoje.js';
         const tableHtml = window.renderDataTable(
             ['Nome do Ativo', 'Categoria', 'Localização', 'Responsável', 'Classificação', 'Status', 'Ações'],
             assets.map(ast => {
-                const classType = ast.classification === 'Confidential' ? 'danger' : ast.classification === 'Restricted' ? 'warning' : 'info';
+                // sem classificação = Confidencial, o padrão que o servidor grava
+                const classe = ast.classification || 'Confidential';
+                const classType = classe === 'Confidential' ? 'danger' : classe === 'Restricted' ? 'warning' : 'info';
                 const statusType = ast.status === 'Active' || !ast.status ? 'success' : 'neutral';
 
                 return [
@@ -1618,7 +1620,7 @@ import { hojeSP } from '../hoje.js';
                     escapeHTML(traduzStatus(ast.category || 'Geral')),
                     escapeHTML(ast.location || 'N/A'),
                     escapeHTML(ast.owner || 'N/A'),
-                    window.renderStatusBadge(ast.classification || 'Internal', classType),
+                    window.renderStatusBadge(classe, classType),
                     window.renderStatusBadge(ast.status || 'Active', statusType),
                     `<button class="btn btn-ghost btn-sm" data-action="openAssetDetailsModal" data-args='["${ast.id}"]'>Detalhes</button>`
                 ];
@@ -1637,7 +1639,7 @@ import { hojeSP } from '../hoje.js';
     window.openAssetDetailsModal = function(id) {
         const ast = S.assets.find(x => x.id === id) || {};
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        const classColor = cl => cl === 'Confidential' ? 'var(--danger)' : cl === 'Restricted' ? 'var(--warning)' : cl === 'Internal' ? 'var(--info)' : 'var(--accent)';
+        const classColor = cl => (cl || 'Confidential') === 'Confidential' ? 'var(--danger)' : cl === 'Restricted' ? 'var(--warning)' : cl === 'Internal' ? 'var(--info)' : 'var(--accent)';
         
         openModal(`
             <div class="modal-header">
@@ -1656,7 +1658,7 @@ import { hojeSP } from '../hoje.js';
                     </div>
                     <div>
                         <div class="rotulo-campo">Classificação de Segurança</div>
-                        <span class="ctx-tag" style="background:color-mix(in oklab, ${classColor(ast.classification)} 12%, transparent); color:${classColor(ast.classification)}; font-weight:600">${ast.classification || 'Internal'}</span>
+                        <span class="ctx-tag" style="background:color-mix(in oklab, ${classColor(ast.classification)} 12%, transparent); color:${classColor(ast.classification)}; font-weight:600">${ast.classification || 'Confidential'}</span>
                     </div>
                     <div>
                         <div class="rotulo-campo">Responsável</div>
@@ -1695,9 +1697,9 @@ import { hojeSP } from '../hoje.js';
             <div class="form-group">
                 <label class="form-label">Classificacao</label>
                 <select class="form-input" id="ast-classification">
-                    <option value="Confidential">Confidencial (só a alta liderança)</option>
+                    <option value="Confidential" selected>Confidencial (só a alta liderança)</option>
                     <option value="Restricted">Restricted (Uso Interno Protegido)</option>
-                    <option value="Internal" selected>Interno (uso geral da empresa)</option>
+                    <option value="Internal">Interno (uso geral da empresa)</option>
                     <option value="Public">Public (Livre Acesso)</option>
                 </select>
             </div>
@@ -1743,13 +1745,6 @@ import { hojeSP } from '../hoje.js';
                 <div class="form-group flex-1"><label class="form-label">Dono</label><input class="form-input" id="ast-e-owner" value="${escapeHTML(ast.owner||'')}"></div>
                 <div class="form-group flex-1"><label class="form-label">Localização</label><input class="form-input" id="ast-e-location" value="${escapeHTML(ast.location||'')}"></div>
             </div>
-            <div class="form-group">
-                <label class="form-label">Status</label>
-                <select class="form-input" id="ast-e-status">
-                    <option value="Active" ${ast.status==='Active'?'selected':''}>Ativo</option>
-                    <option value="Inactive" ${ast.status==='Inactive'?'selected':''}>Inativo</option>
-                </select>
-            </div>
             <div class="d-flex gap-2 justify-between mt-6">
                 <button class="btn t-perigo" data-action="deleteAsset" data-args='["${id}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateAsset" data-args='["${id}"]'>Salvar</button>
@@ -1758,7 +1753,7 @@ import { hojeSP } from '../hoje.js';
     };
 
     window.updateAsset = async function(id) {
-        const body = { name: document.getElementById('ast-e-name').value, category: document.getElementById('ast-e-category').value, classification: document.getElementById('ast-e-classification').value, owner: document.getElementById('ast-e-owner').value, location: document.getElementById('ast-e-location').value, status: document.getElementById('ast-e-status').value };
+        const body = { name: document.getElementById('ast-e-name').value, category: document.getElementById('ast-e-category').value, classification: document.getElementById('ast-e-classification').value, owner: document.getElementById('ast-e-owner').value, location: document.getElementById('ast-e-location').value };
         await api('PUT', `/api/v1/assets/${id}`, body);
         forceCloseModal(); render();
     };
