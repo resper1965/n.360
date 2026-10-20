@@ -58,9 +58,10 @@ function desenhar() {
     const status = el('da-filtro-status').value;
     const itens = lista.docs.filter((d) => (!busca || semAcento(d.nome).includes(busca)) && (!tipo || d.tipo === tipo) && (!status || d.status === status));
     const editar = podeEditar();
-    alvo.innerHTML = window.renderDataTable(['Nome', 'Tipo', 'Vencimento', 'Status', 'Ações'], itens.map((d) => [
+    alvo.innerHTML = window.renderDataTable(['Nome', 'Tipo', 'Responsável', 'Vencimento', 'Status', 'Ações'], itens.map((d) => [
         `<strong>${escapeHTML(d.nome)}</strong>`,
         escapeHTML(ROTULO_TIPO[d.tipo] || d.tipo),
+        escapeHTML(d.responsavel_nome || '—'),
         escapeHTML(vencimentoDe(d)),
         window.renderStatusBadge(ROTULO_SITUACAO[d.status] || d.status, COR_SITUACAO[d.status] || 'info'),
         [editar ? `<button class="btn btn-ghost btn-sm" data-action="daAbrir" data-args='${args(d.id)}' aria-label="Editar: ${escapeHTML(d.nome)}">Editar</button>` : '',

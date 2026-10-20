@@ -9,6 +9,8 @@ import { podeEditar } from './partes.js';
 
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const args = (...v) => escapeHTML(JSON.stringify(v));
+const chave = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+let daLista = null; // { proj, areas, editar }
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
 async function renderAreas(c, h, a) {
@@ -23,10 +25,24 @@ async function renderAreas(c, h, a) {
         areas = Array.isArray(r) ? r : [];
     } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as áreas.', e); return; }
     S.areas = areas;
+    daLista = { proj, areas, editar };
+    c.innerHTML = areas.length
+        ? '<div class="co-controles"><label class="co-campo"><span class="co-campo-rotulo">Buscar</span><input class="form-input" type="search" id="ar-busca" maxlength="120" placeholder="Área ou descrição" data-action-input="filtrarAreas"></label></div><div id="ar-lista"></div>'
+        : '<div id="ar-lista"></div>';
+    window.filtrarAreas();
+}
+
+window.filtrarAreas = function () {
+    const alvo = document.getElementById('ar-lista');
+    if (!daLista || !alvo) return;
+    const { proj, areas, editar } = daLista;
+    const campo = document.getElementById('ar-busca');
+    const busca = campo ? chave(campo.value.trim()) : '';
+    const itens = areas.filter((d) => !busca || [d.nome, d.descricao].some((t) => chave(t).includes(busca)));
     const empresa = escapeHTML(proj.client_name || proj.project_name || '—');
-    c.innerHTML = window.renderDataTable(
+    alvo.innerHTML = window.renderDataTable(
         editar ? ['Área', 'Empresa', 'Ações'] : ['Área', 'Empresa'],
-        areas.map((d) => {
+        itens.map((d) => {
             const ativa = d.status === 'ativo';
             const linha = [
                 `<strong>${escapeHTML(d.nome)}</strong>${ativa ? '' : ` ${window.renderStatusBadge('Inativa', 'info')}`}`
@@ -37,10 +53,12 @@ async function renderAreas(c, h, a) {
                 <button class="btn btn-ghost btn-sm" data-action="mudarSituacaoArea" data-args='${args(proj.id, d.id, ativa ? 'inativo' : 'ativo')}'>${ativa ? 'Inativar' : 'Reativar'}</button>`);
             return linha;
         }),
-        { emptyState: 'Nenhuma área cadastrada.',
-            emptyHint: 'As áreas da empresa entram na atividade de tratamento do RoPA, no Escopo e no Compartilhamento Interno.' },
+        busca ? { emptyState: 'Nenhuma área com esta busca.', emptyHint: 'Limpe a busca para ver todas.' }
+            : { emptyState: 'Nenhuma área cadastrada.',
+                emptyHint: 'As áreas da empresa entram na atividade de tratamento do RoPA, no Escopo e no Compartilhamento Interno.' },
     );
-}
+};
+
 
 window.openNovaAreaModal = function (projectId) {
     openModal(`

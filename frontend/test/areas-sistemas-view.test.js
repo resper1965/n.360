@@ -52,6 +52,18 @@ describe('Áreas', () => {
         expect(a.querySelector('.btn-primary').textContent.trim()).toBe('+ Nova área');
     });
 
+    it('busca no nome e na descrição, sem acento', async () => {
+        const [c, h, a] = montar();
+        await window.renderAreas(c, h, a);
+        const busca = (v) => { el('ar-busca').value = v; window.filtrarAreas(); };
+        busca('ADMISSAO');
+        expect([...c.querySelectorAll('tbody tr')]).toHaveLength(1);
+        busca('juri');
+        expect(c.querySelector('tbody tr').textContent).toContain('Jurídico');
+        busca('zzz');
+        expect(c.textContent).toContain('Nenhuma área com esta busca.');
+    });
+
     it('vazio explica que a área é usada na atividade do RoPA', async () => {
         apiMock.mockImplementation(() => Promise.resolve([]));
         const [c, h, a] = montar();
@@ -108,6 +120,16 @@ describe('Ativos (a tela Sistemas)', () => {
         expect(linha).toContain('Empresa Exemplo');
         expect(c.querySelector('tbody img')).toBeNull();
         expect(a.querySelector('.btn-primary').textContent.trim()).toBe('+ Novo ativo');
+    });
+
+    it('busca no nome e na descrição do ativo', async () => {
+        const [c, h, a] = montar();
+        await window.renderSistemas(c, h, a);
+        const busca = (v) => { el('si-busca').value = v; window.filtrarSistemas(); };
+        busca('GESTAO');
+        expect(c.querySelectorAll('tbody tr')).toHaveLength(1);
+        busca('zzz');
+        expect(c.textContent).toContain('Nenhum ativo com esta busca.');
     });
 
     it('aceita a resposta embrulhada { ok, assets }', async () => {
