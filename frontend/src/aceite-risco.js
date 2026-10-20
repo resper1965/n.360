@@ -14,7 +14,7 @@ export function linhaDeAceite(r) {
 
 /** Confirma e manda só `status: 'Accepted'` para `caminho` (PUT); devolve true se aceitou. */
 export async function aceitarRisco(api, caminho) {
-    if (!(await window.confirmar('O risco fica aceito em seu nome, com a data de hoje. Para desfazer, edite o status do risco.', { titulo: 'Aceitar risco', rotulo: 'Aceitar' }))) return false;
+    if (!(await window.confirmar('O risco fica aceito em seu nome, com a data de hoje.', { titulo: 'Aceitar risco', rotulo: 'Aceitar' }))) return false;
     await api('PUT', caminho, { status: 'Accepted' });
     return true;
 }
