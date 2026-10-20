@@ -103,6 +103,7 @@ export     function navigate(view, data) {
         else if (S.view === 'documentos') renderDocumentos(c, h, a);
         else if (S.view === 'documentos-arquivo') renderDocumentosArquivo(c, h, a);
         else if (S.view === 'requisitos') renderRequisitos(c, h, a);
+        else if (S.view === 'referencia-juridica') renderReferenciaJuridica(c, h, a);
         else if (S.view === 'terceiros') renderTerceiros(c, h, a);
         else if (S.view === 'terceiro') renderTerceiro(c, h, a);
         else if (S.view === 'titulares') renderTitulares(c, h, a);

@@ -19,6 +19,7 @@ import './views/sistemas.js';
 import './views/padronizar-nomes.js';
 import './views/documentos.js';
 import './views/requisitos.js';
+import './views/referencia-juridica.js';
 import './views/terceiros.js';
 import './views/catalogos.js';
 import './views/parceiros.js';

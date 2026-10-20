@@ -18,7 +18,7 @@ const MODULOS = ['iso', 'privacy'];
 export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-areas', 'nav-sistemas', 'nav-terceiros', 'nav-titulares', 'nav-dados-titular',
+export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-areas', 'nav-sistemas', 'nav-terceiros', 'nav-titulares', 'nav-dados-titular',
     'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
@@ -119,7 +119,7 @@ export function destinoDoAviso(tela, loc = window.location) {
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
 export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
-    'policies-dashboard', 'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'requisitos', 'terceiros', 'terceiro', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
+    'policies-dashboard', 'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
     'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
@@ -241,7 +241,7 @@ export const SECOES_PRIVACY = [
     ['Diagnóstico', ['nav-gaps', 'nav-mapa-de-risco']],
     ['Fornecedores', ['nav-terceiros']],
     ['', ['nav-documentos-arquivo', 'nav-titular']],
-    ['Mais', ['nav-incidentes-privacy', 'nav-consentimentos', 'nav-requisitos', 'nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance', 'nav-importacao']],
+    ['Mais', ['nav-referencia-juridica', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-requisitos', 'nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance', 'nav-importacao']],
     ['', ['nav-ai']],
 ];
 /** Fora do menu do n.privacy: Minhas aprovações e Trilha de logs vão para o menu de conta; Preços e margens é do comercial do n.iso. */

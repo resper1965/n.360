@@ -102,7 +102,7 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
             '# Diagnóstico', 'nav-gaps nav-mapa-de-risco',
             '# Fornecedores', 'nav-terceiros',
             'nav-documentos-arquivo nav-titular',
-            '# Mais', 'nav-incidentes-privacy nav-consentimentos nav-requisitos nav-documentos nav-evidence nav-training nav-governance nav-importacao',
+            '# Mais', 'nav-referencia-juridica nav-incidentes-privacy nav-consentimentos nav-requisitos nav-documentos nav-evidence nav-training nav-governance nav-importacao',
             'nav-ai',
         ]);
         expect(el('secao-diagnostico').textContent).toBe('Diagnóstico');
@@ -127,11 +127,11 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
         expect(rotulos.map((r) => r.textContent)).toEqual([]);
     });
-    it('25 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
+    it('26 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
         montarApp();
         aplicarCasca('privacy');
         const destinos = [...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => n.id);
-        expect(destinos.length).toBe(25);
+        expect(destinos.length).toBe(26);
         expect(new Set(visiveis())).toEqual(new Set(destinos));
         for (const id of ['nav-meus', 'nav-audit-trail', 'nav-settings']) expect(el(id).dataset.foraDoProduto, id).toBe('1');
         expect(el('group-system-config').dataset.foraDoProduto).toBe('1');
@@ -162,7 +162,7 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
             'nav-encarregado': 'Dashboard', 'nav-empresas': 'Empresas', 'nav-areas': 'Áreas', 'nav-sistemas': 'Ativos', 'nav-titulares': 'Titulares',
             'nav-dados-titular': 'Dados de titular', 'nav-parceiros': 'Parceiros', 'nav-partes': 'Pessoas', 'nav-ropa': 'Atividades', 'nav-dpia': 'DPIA', 'nav-lia': 'LIA',
             'nav-gaps': 'Gaps', 'nav-mapa-de-risco': 'Riscos', 'nav-terceiros': 'Fornecedores', 'nav-documentos-arquivo': 'Documentos', 'nav-titular': 'Solicitações',
-            'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas',
+            'nav-referencia-juridica': 'Referência jurídica', 'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas',
             'nav-evidence': 'Evidências', 'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-importacao': 'Importar programa', 'nav-ai': 'Assistente',
         });
         for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes'], ['nav-encarregado', 'selo-painel']]) {
