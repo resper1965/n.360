@@ -67,6 +67,14 @@ describe('Gestão de GAPs', () => {
         expect(f.mock.calls.map(([u]) => new URL(u, 'http://localhost').pathname)).toEqual(['/api/v1/projects/p9/ropa/gaps']);
     });
 
+    it('filtro de Área com as áreas distintas', async () => {
+        await abrir();
+        expect([...el('gp-filtro-area').options].map((o) => o.textContent)).toEqual(['Todas', 'Jurídico', 'Recursos Humanos']);
+        filtrar('gp-filtro-area', 'Jurídico');
+        expect(linhas()).toHaveLength(1);
+        expect(linhas()[0].textContent).toContain('Outra Atividade');
+    });
+
     it('busca e filtro de Status (com "Em atraso"), sem ir ao servidor', async () => {
         const f = await abrir();
         filtrar('gp-filtro-status', 'In Progress');

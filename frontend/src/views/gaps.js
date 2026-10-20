@@ -39,9 +39,13 @@ async function renderGaps(c, h, a) {
     daLista = { projeto: proj.id, gaps };
     a.innerHTML = '<button class="btn" data-action="exportarGaps">Exportar</button>';
     const opcoes = [...STATUS, [ATRASO, 'Em atraso']].map(([v, r]) => `<option value="${escapeHTML(v)}">${escapeHTML(r)}</option>`).join('');
+    const areas = [...new Set(gaps.flatMap((g) => String(g.area || '').split(', ').filter(Boolean)))].sort((x, y) => x.localeCompare(y, 'pt-BR'))
+        .map((n) => `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`).join('');
     c.innerHTML = `<div class="co-controles">
             <label class="co-campo"><span class="co-campo-rotulo">Buscar</span>
                 <input class="form-input" type="search" id="gp-busca" maxlength="120" placeholder="Gap, atividade, área ou responsável" data-action-input="filtrarGaps"></label>
+            <label class="co-campo"><span class="co-campo-rotulo">Área</span>
+                <select class="form-select" id="gp-filtro-area" data-action-change="filtrarGaps"><option value="">Todas</option>${areas}</select></label>
             <label class="co-campo"><span class="co-campo-rotulo">Status</span>
                 <select class="form-select" id="gp-filtro-status" data-action-change="filtrarGaps"><option value="">Todos</option>${opcoes}</select></label>
         </div><div id="gp-lista"></div>`;
@@ -53,8 +57,10 @@ function desenhar() {
     if (!daLista || !alvo) return;
     const status = el('gp-filtro-status').value;
     const busca = chave(el('gp-busca').value.trim());
+    const area = el('gp-filtro-area').value;
     const ed = podeEditar();
     const itens = daLista.gaps.filter((g) => (!status || (status === ATRASO ? emAtraso(g) : g.status === status))
+        && (!area || String(g.area || '').split(', ').includes(area))
         && (!busca || [g.titulo, g.atividade, g.area, g.responsavel].some((t) => chave(t).includes(busca))));
     alvo.innerHTML = window.renderDataTable(['Gap', 'Atividade', 'Área', 'Responsável', 'Prazo', 'Status'], itens.map((g) => [
         ed ? `<button type="button" class="btn btn-ghost btn-sm" data-action="gpAbrir" data-args='${args(g.ropa_id, g.id)}' aria-label="${escapeHTML(`Controle do gap: ${g.titulo}`)}">${escapeHTML(g.titulo)}</button>`

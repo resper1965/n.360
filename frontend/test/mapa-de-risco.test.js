@@ -143,11 +143,13 @@ describe('Gestão de Riscos (lista, a vista padrão)', () => {
     it('colunas do legado; Status Pendente ou Concluído; texto escapado', async () => {
         await abrir(LISTA);
         expect([...el('mapa-lista').querySelectorAll('thead th')].map((t) => t.textContent.trim()))
-            .toEqual(['Atividade', 'Motivo', 'Risco', 'Responsável', 'Prazo', 'Status', 'Ações']);
+            .toEqual(['Atividade', 'Motivo', 'Risco', 'Estratégia', 'Responsável', 'Prazo', 'Status', 'Ações']);
         const [a, b, c] = linhas().map((l) => l.textContent);
         for (const x of ['Atividade Exemplo', 'Vazamento', 'Crítico', 'Responsável Exemplo', 'Pendente']) expect(a).toContain(x);
         expect(b).toContain('Concluído');
         expect(b).toContain('10/01/2026');
+        expect(b).toContain('Aceitar');
+        expect(linhas()[2].querySelectorAll('td')[3].textContent.trim()).toBe('—'); // sem sinal de tratamento
         expect(c).toContain('Pendente'); // aceito, mas não fechado
         expect(el('mapa-lista').querySelector('tbody b')).toBeNull();
     });

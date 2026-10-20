@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, showToast, formatarData } from '../ui.js';
 import { nivelDaNota } from '../nivel-risco.js';
-import { abrirTratarRisco } from '../atividade/aba-riscos.js';
+import { abrirTratarRisco, ESTRATEGIA_ROTULO, tratado } from '../atividade/aba-riscos.js';
 import { podeEditar } from './partes.js';
 
 // Mapa de risco do n.privacy (F2): matriz 5x5 de probabilidade por impacto sobre os riscos das atividades de tratamento
@@ -73,10 +73,11 @@ function desenharLista() {
     const ed = podeEditar();
     const itens = estado.riscos.filter((r) => (!motivo || r.threat === motivo) && (!area || areasDe(r).includes(area))
         && (!nivel || r.risk_level === nivel) && (!status || statusDe(r) === status));
-    alvo.innerHTML = window.renderDataTable(['Atividade', 'Motivo', 'Risco', 'Responsável', 'Prazo', 'Status', 'Ações'], itens.map((r) => [
+    alvo.innerHTML = window.renderDataTable(['Atividade', 'Motivo', 'Risco', 'Estratégia', 'Responsável', 'Prazo', 'Status', 'Ações'], itens.map((r) => [
         escapeHTML(r.atividade || '—'),
         `<strong>${escapeHTML(r.threat)}</strong>`,
         rotuloNivel(r.risk_level),
+        tratado({ ...r, treatment_due_date: r.prazo }) ? escapeHTML(ESTRATEGIA_ROTULO[r.treatment] || r.treatment || '—') : '—',
         escapeHTML(r.responsavel || '—'),
         escapeHTML(formatarData(r.prazo)),
         escapeHTML(STATUS[statusDe(r)]),
