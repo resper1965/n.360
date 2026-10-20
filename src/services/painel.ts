@@ -124,10 +124,8 @@ function lerVencimentos(tipos: string[], respostas: D1Result[], dia: string): { 
 /** Mapa de risco 5x5: contagem por probabilidade e impacto. */
 type Celula = { p: number; i: number; n: number };
 
-/** Evidência com validade anterior a hoje (?2, o dia de São Paulo). Comparação pelo dia: `valido_ate` pode vir com hora. */
-export const SQL_EVIDENCIA_VENCIDA = `(valido_ate IS NOT NULL AND substr(valido_ate, 1, 10) < ?2)`;
-/** Evidência vencida ou não conforme (?2 = hoje). A mesma regra no Painel e na Prontidão (`prontidao.ts`). */
-export const SQL_EVIDENCIA_RUIM = `(${SQL_EVIDENCIA_VENCIDA} OR evaluation_status = 'non_conforming')`;
+export { SQL_EVIDENCIA_VENCIDA, SQL_EVIDENCIA_RUIM } from './evidencia-regras';
+import { SQL_EVIDENCIA_RUIM } from './evidencia-regras';
 // Ordem das colunas de status de evidência, igual nos dois módulos: válida e conforme, em análise, vencida ou não conforme.
 const SQL_EVIDENCIAS = `SELECT
     sum(CASE WHEN (valido_ate IS NULL OR substr(valido_ate, 1, 10) >= ?2) AND evaluation_status = 'conforming' THEN 1 ELSE 0 END) AS feito,

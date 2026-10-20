@@ -7,7 +7,7 @@ import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO } from './riscos-atividade';
 import { hojeEmSaoPaulo, diaMaisSP } from './hoje';
-import { SQL_EVIDENCIA_VENCIDA } from './painel';
+import { SQL_EVIDENCIA_VENCIDA } from './evidencia-regras';
 
 /**
  * Núcleo do n.privacy, fatia 8: a visão do encarregado. É CONSULTA sobre as tabelas das fatias anteriores, nunca grava: o que está atrasado
