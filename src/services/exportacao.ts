@@ -3,6 +3,7 @@ import { cicloEmTexto, etapasDe, type EtapaLida } from './ciclo';
 import { aprovacoesDoProjeto } from './documentos';
 import { situacaoDaAtividade } from './ropa-abas/situacao';
 import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO, type FaixaPrazo } from './riscos-atividade';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Exportação CSV do n.privacy (F4): listas de atividades, riscos e ações das atividades, RIPD e LIA, num arquivo que abre no Excel em
@@ -37,7 +38,7 @@ type Tabela = { cabecalho: string[]; linhas: unknown[][] };
 type Linha = Record<string, unknown>;
 
 const todas = async (db: D1Database, sql: string, ...binds: unknown[]) => (await db.prepare(sql).bind(...binds).all<Linha>()).results;
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
 
 async function atividades(db: D1Database, projectId: string): Promise<Tabela> {
   const aprovacoes = await aprovacoesDoProjeto(db, projectId, undefined, 'tratamento');

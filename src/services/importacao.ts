@@ -25,6 +25,7 @@ import { definirTipo, ligarDocumento, registrarAvaliacao } from './terceiros';
 import { importarPedido } from './titular-pedidos';
 import { importarIncidente } from './incidentes';
 import { importarConsentimento } from './consentimentos';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Importação de programa de privacidade (n.privacy, fatias 1 a 4; spec docs/superpowers/specs/2026-10-11-importacao-privacy-design.md).
@@ -801,7 +802,7 @@ async function completarTerceiro(db: D1Database, projectId: string, loteId: stri
 
   const av = d.ultima_avaliacao;
   if (av) {
-    if (av.valido_ate < new Date().toISOString().slice(0, 10)) avisos.push(`avaliação vencida (${av.valido_ate}) não registrada`);
+    if (av.valido_ate < hojeEmSaoPaulo()) avisos.push(`avaliação vencida (${av.valido_ate}) não registrada`);
     else if (!tipo) avisos.push('avaliação não registrada: o terceiro está sem tipo');
     else if (!(await db.prepare('SELECT 1 FROM avaliacoes_terceiro WHERE parte_id = ? AND resultado = ? AND valido_ate = ?').bind(parteId, av.resultado, av.valido_ate).first())) {
       const r = await registrarAvaliacao(db, projectId, parteId, ator, {

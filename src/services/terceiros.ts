@@ -1,5 +1,6 @@
 import { logAudit } from '../helpers';
 import { nivelDaCriticidade, tipoDaCriticidade, type NivelCriticidade, type RespostasCriticidade } from './criticidade';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 6: terceiros (TPRM) tipificados. O terceiro é uma parte do tipo `organizacao`; o tipo define o
@@ -16,7 +17,7 @@ export const METODO_DO_TIPO: Record<TipoTerceiro, Metodo> = { grande_provedor: '
 
 type Falha = { ok: false; status: 400 | 404 | 409; error: string };
 const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, status, error });
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
 const dataValida = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`)) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
 
 export type Avaliacao = {

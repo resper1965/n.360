@@ -1,4 +1,5 @@
 import { genId, refForaDoProjeto, setParcial } from '../helpers';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Riscos e ações da atividade de tratamento (n.privacy, F2; migration 0073). O registro é o MESMO do n.iso (`risks` e
@@ -254,7 +255,7 @@ export async function acoesDasAtividades(db: D1Database, projectId: string, { so
 
 /** A lista de Gaps do projeto (spec 2026-10-19): as ações das atividades no formato da tela. Faixa só para gap aberto. */
 export async function gapsDoProjeto(db: D1Database, projectId: string) {
-  const dia = new Date().toISOString().slice(0, 10);
+  const dia = hojeEmSaoPaulo();
   return (await acoesDasAtividades(db, projectId)).map((a) => ({
     id: a.id, ropa_id: a.ropa_id, atividade: a.atividade, area: a.area, titulo: a.description || a.title, recomendacao: a.recomendacao, plano: a.action_plan,
     responsavel: a.responsavel, prazo: a.due_date, faixa: (a.status || 'Open') === 'Closed' ? null : faixaDePrazo(a.due_date, dia),

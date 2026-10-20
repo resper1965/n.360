@@ -3,6 +3,7 @@ import { ISO_27701_2025_CONTROLLER, ISO_27701_2025_PROCESSOR, ISO_27701_2025_STA
 import { LGPD, LGPD_VERSAO } from '../data/lgpd';
 import { ANPD, ANPD_VERSAO } from '../data/anpd';
 import { MAPEAMENTOS } from '../data/mapeamento-privacidade-iso';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Catálogo de requisitos (fatia 2 do núcleo do n.privacy, spec 4.5). Global: sem project_id.
@@ -240,8 +241,8 @@ export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: s
       `SELECT er.requisito_id AS requisito_id, e.id AS id, e.file_name AS titulo, e.evaluation_status AS status
          FROM evidencia_requisitos er JOIN evidence e ON e.id = er.evidencia_id
         WHERE er.project_id = ?1 AND e.project_id = ?1 AND e.evaluation_status IN ('conforming', 'partial')
-          AND (e.valido_ate IS NULL OR e.valido_ate >= date('now')) AND er.requisito_id IN (SELECT id FROM requisitos WHERE fonte_id = ?2)`
-    ).bind(projectId, fonte),
+          AND (e.valido_ate IS NULL OR substr(e.valido_ate, 1, 10) >= ?3) AND er.requisito_id IN (SELECT id FROM requisitos WHERE fonte_id = ?2)`
+    ).bind(projectId, fonte, hojeEmSaoPaulo()),
   ]);
   const origens = new Map<string, OrigemCobertura[]>();
   const somar = (rid: string, o: OrigemCobertura) => origens.set(rid, [...(origens.get(rid) ?? []), o]);
@@ -278,6 +279,6 @@ export async function validarMapeamentosPropostos(db: D1Database, validadoPor: s
   const r = await db.prepare(
     `UPDATE requisito_mapeamentos AS m SET estado = 'validado_juridico', validado_por = ?2, validado_em = ?3
       WHERE m.estado = 'proposto' AND ${DA_FONTE}`
-  ).bind(fonte ?? null, validadoPor, new Date().toISOString().slice(0, 10)).run();
+  ).bind(fonte ?? null, validadoPor, hojeEmSaoPaulo()).run();
   return r.meta.changes ?? 0;
 }

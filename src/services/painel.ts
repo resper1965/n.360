@@ -3,6 +3,7 @@ import { lerEmpresa } from './empresas';
 import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { NOME_DO_PRODUTO, type Modulo } from '../modulos';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Painel de entrada do n.360, do n.iso e do n.privacy (estudo `docs/design/diagnostico-2026-10-14/dashboard-entrada.md`,
@@ -22,7 +23,7 @@ export type Passo = { texto: string; contexto: string; feito: boolean; acao: str
 export type Proximo = { dias: number; rotulo: string; tipo: string } | null;
 
 const DIA = 86_400_000;
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
 const somarDias = (d: string, n: number) => new Date(Date.parse(d) + n * DIA).toISOString().slice(0, 10);
 const diasAte = (d: string, de: string) => Math.round((Date.parse(d.slice(0, 10)) - Date.parse(de)) / DIA);
 const plural = (q: number, um: string, varios: string) => `${q} ${q === 1 ? um : varios}`;
@@ -123,8 +124,10 @@ function lerVencimentos(tipos: string[], respostas: D1Result[], dia: string): { 
 /** Mapa de risco 5x5: contagem por probabilidade e impacto. */
 type Celula = { p: number; i: number; n: number };
 
+/** Evidência com validade anterior a hoje (?2, o dia de São Paulo). Comparação pelo dia: `valido_ate` pode vir com hora. */
+export const SQL_EVIDENCIA_VENCIDA = `(valido_ate IS NOT NULL AND substr(valido_ate, 1, 10) < ?2)`;
 /** Evidência vencida ou não conforme (?2 = hoje). A mesma regra no Painel e na Prontidão (`prontidao.ts`). */
-export const SQL_EVIDENCIA_RUIM = `((valido_ate IS NOT NULL AND substr(valido_ate, 1, 10) < ?2) OR evaluation_status = 'non_conforming')`;
+export const SQL_EVIDENCIA_RUIM = `(${SQL_EVIDENCIA_VENCIDA} OR evaluation_status = 'non_conforming')`;
 // Ordem das colunas de status de evidência, igual nos dois módulos: válida e conforme, em análise, vencida ou não conforme.
 const SQL_EVIDENCIAS = `SELECT
     sum(CASE WHEN (valido_ate IS NULL OR substr(valido_ate, 1, 10) >= ?2) AND evaluation_status = 'conforming' THEN 1 ELSE 0 END) AS feito,
