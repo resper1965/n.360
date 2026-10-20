@@ -498,6 +498,17 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         `;
     }
 
+    // Uma assinatura, do encarregado/Líder SGSI ou da Direção, aprova o RIPD (decisão do dono de 20/10/2026).
+    const linhaAssinatura = (conteudo) => `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">${conteudo}</div>`;
+    const assinaturasRipd = (dp, projectId, papelCiso) => {
+        const feitas = [[dp.dpo_signature, papelCiso], [dp.ceo_signature, 'Direção Executiva']].filter(([nome]) => nome);
+        if (feitas.length) {
+            return feitas.map(([nome, papel]) => linhaAssinatura(`<div><span style="color:var(--success)">Aprovado por ${escapeHTML(nome)}</span> (${papel})</div>`)).join('');
+        }
+        const assinar = (papel, role) => linhaAssinatura(`<div><strong>${papel}</strong></div><button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveDPIA" data-args='["${projectId}","${dp.id}","${role}"]'>Assinar</button>`);
+        return `<p style="font-size:0.75rem; color:var(--text-dim); margin:0">Uma assinatura, do ${papelCiso} ou da Direção Executiva, aprova o RIPD.</p>${assinar(papelCiso, 'ciso')}${assinar('Direção Executiva', 'ceo')}`;
+    };
+
     window.openDPIADetailsModal = function(id) {
         const dp = S.dpia.find(x => x.id === id) || {};
         const projectId = S.activeProject ? S.activeProject.id : '';
@@ -554,20 +565,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:16px">
                 <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--text-dim); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Assinaturas do RIPD</h4>
                 <div style="display:flex; flex-direction:column; gap:0.75rem">
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
-                        <div>
-                            <strong>${papelCiso}:</strong> 
-                            ${dp.dpo_signature ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(dp.dpo_signature)}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
-                        </div>
-                        ${!dp.dpo_signature ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveDPIA" data-args='["${projectId}","${dp.id}","ciso"]'>Assinar</button>` : ''}
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
-                        <div>
-                            <strong>Direção Executiva:</strong> 
-                            ${dp.ceo_signature ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(dp.ceo_signature)}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
-                        </div>
-                        ${!dp.ceo_signature ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveDPIA" data-args='["${projectId}","${dp.id}","ceo"]'>Assinar</button>` : ''}
-                    </div>
+                    ${assinaturasRipd(dp, projectId, papelCiso)}
                     ${podeRevogar() && (dp.dpo_signature || dp.ceo_signature || dp.status === 'Approved') ? `<div style="text-align:right"><button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarDPIA" data-args='["${projectId}","${dp.id}"]'>Revogar aprovação do RIPD</button></div>` : ''}
                     ${window.podePedirAprovacao?.(S.user) ? `<div style="text-align:right"><button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="abrirPedidoAprovacao" data-args='${escapeHTML(JSON.stringify([projectId, 'dpia', dp.id]))}'>Pedir aprovação</button></div>` : ''}
                 </div>
@@ -701,10 +699,14 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             mitigation_measures: document.getElementById('dpia-e-mitigations').value,
             dpo_opinion: document.getElementById('dpia-e-opinion').value
         };
-        // Aprovar é pelo fluxo de assinatura; o PUT só move entre Draft e Under Review e recusa
+        // Aprovar é pelo fluxo de assinatura; o PUT só move entre Draft e Under Review e ignora
         // status em DPIA já aprovada.
         const st = document.getElementById('dpia-e-status');
         if (!st.disabled) body.status = st.value;
+        // Mudar o conteúdo de um RIPD aprovado derruba a aprovação no servidor (PUT /dpia/:id).
+        const dp = S.dpia.find(x => x.id === id) || {};
+        const mudou = Object.keys(body).some(k => k !== 'status' && (body[k] || '') !== (dp[k] || ''));
+        if (dp.status === 'Approved' && mudou && !(await window.confirmar('A aprovação do RIPD cai e ele volta a rascunho.', { titulo: 'Editar RIPD aprovado', rotulo: 'Editar' }))) return;
         await api('PUT', `/api/v1/dpia/${id}`, body);
         forceCloseModal(); render();
     };

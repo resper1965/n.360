@@ -9,7 +9,7 @@ import { applySchema, workerEnv, sessionFor } from './helpers/d1';
  * Regra: pelo PUT o status só transita entre 'Draft' e 'Under Review'. 'Approved' só pelas rotas de
  * aprovação (POST .../approve e pedidos). DPIA já aprovada não muda de status pelo PUT: sair de
  * 'Approved' é revogar (POST .../revoke-approval, com motivo e trilha). Editar o CONTEÚDO de DPIA
- * aprovada segue como antes: grava e substitui o pedido aberto; o status não é tocado.
+ * aprovada derruba a aprovação: assinaturas zeradas e volta a 'Draft' (decisão do dono de 20/10/2026).
  */
 const json = { 'Content-Type': 'application/json' };
 const chamar = (metodo: string, caminho: string, headers: Record<string, string>, corpo?: unknown) =>
@@ -63,19 +63,19 @@ describe('PUT /dpia/:id não aprova', () => {
     expect((await linha()).status).toBe('Draft');
   }, 30_000);
 
-  it('DPIA aprovada: mudar status pelo PUT é 400 (sair de Approved é revogar); assinaturas intactas', async () => {
+  it('DPIA aprovada: status no corpo sem mudança de conteúdo é ignorado; assinaturas intactas', async () => {
     await semear('Approved', true);
     for (const status of ['Draft', 'Under Review', null]) {
       const r = await chamar('PUT', URL_PUT, editor, { status });
-      expect(r.status, `status ${status}: ${await r.clone().text()}`).toBe(400);
+      expect(r.status, `status ${status}: ${await r.clone().text()}`).toBe(200);
     }
     expect(await linha()).toMatchObject({ status: 'Approved', dpo_signature: 'Ana DPO', ceo_signature: 'Beto CEO', dpo_approved_by: 'Ana DPO' });
   }, 30_000);
 
-  it('DPIA aprovada: editar só o conteúdo segue a regra de antes (grava; status e assinaturas não mudam)', async () => {
+  it('DPIA aprovada: editar o conteúdo grava, zera as assinaturas e volta a rascunho', async () => {
     await semear('Approved', true);
     const r = await chamar('PUT', URL_PUT, editor, { processing_name: 'Folha v3' });
     expect(r.status, await r.clone().text()).toBe(200);
-    expect(await linha()).toMatchObject({ status: 'Approved', dpo_signature: 'Ana DPO', ceo_signature: 'Beto CEO', processing_name: 'Folha v3' });
+    expect(await linha()).toEqual({ status: 'Draft', dpo_signature: null, ceo_signature: null, dpo_approved_by: null, dpo_approved_at: null, processing_name: 'Folha v3' });
   }, 30_000);
 });
