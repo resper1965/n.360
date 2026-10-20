@@ -90,7 +90,7 @@ function desenhar() {
                 <button type="button" class="btn btn-sm" data-action="atBaseFinalidade" data-args='${args('gdpr', g.base)}' aria-label="${escapeHTML(`Editar a finalidade de ${g.rotulo}`)}">Editar finalidade</button>
                 <button type="button" class="btn btn-sm btn-ghost t-perigo" data-action="atBaseRemover" data-args='${args('gdpr', g.base)}' aria-label="${escapeHTML(`Remover ${g.rotulo}`)}">Remover</button>` : ''}</span></li>`).join('')}</ul>`
         : renderEmptyState({ titulo: 'Nenhuma base do GDPR registrada.', texto: 'Só se aplica quando a atividade trata dados de pessoas na União Europeia.', compacto: true })}
-            ${ed ? '<div class="at-acoes mt-3"><button type="button" class="btn btn-sm" data-action="atBaseAdicionar" data-args=\'["gdpr"]\'>+ Adicionar Inciso</button></div>' : ''}</section>
+            ${ed ? '<div class="at-acoes mt-3"><button type="button" class="btn btn-sm" data-action="atBaseAdicionar" data-args=\'["gdpr"]\'>+ Base Legal</button></div>' : ''}</section>
         ${dados.lia_exigida ? `<section aria-labelledby="at-base-lia-t" class="d-flex flex-col gap-2"><h3 class="at-sub" id="at-base-lia-t">LIA (teste de legítimo interesse)</h3>
             <p class="at-nota">A base é legítimo interesse: a LIA é exigida.</p>${ed ? formularioLia(E.lia, ctx.projectId, ctx.ropaId, false) : `<p class="at-nota">${escapeHTML((E.lia && E.lia.finalidade_legitima) || 'LIA ainda não preenchida.')}</p>`}</section>` : ''}
     </div>`;

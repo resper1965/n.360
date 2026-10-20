@@ -84,7 +84,8 @@ describe('aba Base Jurídica', () => {
         // art. 11 Não Aplicável: marcada e o + Adicionar Inciso desse bloco desabilitado
         expect(el('at-base-art11-na').checked).toBe(true);
         const botoes = [...painel.querySelectorAll('button')].filter((b) => b.textContent === '+ Adicionar Inciso');
-        expect(botoes.map((b) => b.disabled)).toEqual([false, true, false]);
+        expect(botoes.map((b) => b.disabled)).toEqual([false, true]);
+        expect([...painel.querySelectorAll('button')].filter((b) => b.textContent === '+ Base Legal')).toHaveLength(1);
         // GDPR gravado
         expect(painel.querySelector('[data-gdpr="contrato"]').textContent).toContain('Executar o contrato (exemplo).');
         // nenhum primário na aba
@@ -222,7 +223,7 @@ describe('aba Base Jurídica', () => {
 
     it('GDPR: as seis bases com rótulo e texto, usada travada, Confirmar só com marca e finalidade', async () => {
         const { painel, puts } = await abrir(SEM_PENDENCIA());
-        [...painel.querySelectorAll('button')].filter((b) => b.textContent === '+ Adicionar Inciso')[2].click();
+        [...painel.querySelectorAll('button')].find((b) => b.textContent === '+ Base Legal').click();
         const modal = el('modal-content');
         expect(modal.querySelector('h2').textContent).toBe('Base Legal GDPR');
         const caixas = [...modal.querySelectorAll('input[type="checkbox"]')];
