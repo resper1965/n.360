@@ -12,6 +12,15 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Corrigido e adicionado (fechamento de telas do n.privacy e do Painel, 20/10/2026; sem migration)
+- **Painel:** a atividade aprovada por pedido passa a contar como aprovada (a regra é a da situação derivada, não a coluna `status`).
+- **LIA:** botão de Word na ficha e na lista.
+- **Listas:** RoPA com Área, Responsável, busca e filtros de Área e situação; RIPD com Área, Responsável, busca e filtro de Área; LIA com Área, busca e filtro de Área. O servidor devolve `area` nessas listas e `responsavel` no RIPD.
+- **Diagnóstico:** coluna Estratégia na lista de riscos e filtro de Área nos gaps; a aba de gaps da atividade mostra Prazo e "Em atraso".
+- **Cadastros:** Solicitações com a coluna do titular e busca; busca em Áreas e Ativos; coluna Responsável em Documentos.
+- **Ficha da atividade:** editar medida de segurança; o botão do GDPR diz "+ Base Legal".
+- **Ficam de fora:** paginação, exportação CSV de Solicitações (decisão do dono), mesclar, excluir ativo, percentuais do Painel e os demais rótulos; lista em `docs/paridade-legado-2026-10-20.md`.
+
 ### Adicionado (TPRM, referência jurídica e Empresas no n.privacy, 20/10/2026; sem migration)
 - **Fornecedores pela rotina de TPRM:** cada fornecedor mostra o que falta pelo critério da skill de avaliação de terceiros (tipo, criticidade, avaliação vigente, DPA), com filtro de pendência, e uma tela **Avaliações** com a fila de reavaliação (vencidas, vencem em 30 dias, sem avaliação, reprovadas, em dia), os críticos primeiro.
 - **Referência jurídica** (Mais): consulta aberta a todo usuário do módulo com a LGPD (art. 7 e art. 11 como bases legais), a ANPD e as seis bases do GDPR, com busca e o selo "Validado juridicamente". O `platform_admin` valida os mapeamentos propostos em lote (`POST /requisitos/mapeamentos/validar`): o validador é sempre o e-mail de quem está logado, nunca vem do corpo, e o agente MCP não chama.

@@ -22,6 +22,8 @@ Não são lacunas, mesmo que a tela seja diferente:
 
 ## Defeito encontrado (não é paridade, é erro)
 
+**Resolvido em 270dd59:** o Painel conta a atividade aprovada pela aprovação derivada dos pedidos. O texto abaixo descreve o defeito como foi achado.
+
 O Painel do n.privacy conta "atividades aprovadas" pela coluna `ropa_records.status = 'Approved'`
 (`src/services/painel.ts:162`). A aprovação por pedido, porém, não grava essa coluna: `pedidos.ts` só muda o status do
 RIPD (`src/services/pedidos.ts:314-315`). A situação "Aprovada" é derivada dos pedidos (`src/services/ropa-abas/situacao.ts:24-25`).
@@ -84,7 +86,7 @@ A LIA é uma seção da aba Base Jurídica, não uma ficha com abas (`frontend/s
 A LIA **não tem pedido nem hash**: não há entrada `lia` em `DOCUMENTOS` (`src/services/pedidos.ts:106-144`). Acrescentar
 as perguntas não tem a restrição do RIPD.
 
-Defeito à parte: o Word da LIA existe (`GET .../ropa/:rid/lia/docx`), mas **nenhum botão o chama**.
+**Resolvido em 55cb8fc** (botão de Word na ficha e na lista da LIA). Defeito à parte: o Word da LIA existia (`GET .../ropa/:rid/lia/docx`), mas **nenhum botão o chama**.
 `window.baixarWordLia` (`frontend/src/views/tratamento-ligacoes.js:64`) não tem `data-action` em lugar nenhum.
 
 ### 3. Logs: o legado mostra antes e depois, o n.360 não
@@ -123,17 +125,19 @@ porta ao n.tprm, o fornecedor deve continuar sendo a `partes` do núcleo, sem ca
 
 ### 5. Colunas, busca e filtros nas listas
 
+Resolvido nesta rodada (a coluna Evidência abaixo descreve o estado de antes): RoPA, RIPD e LIA, Riscos e Gaps, Solicitações (sem a exportação), Áreas, Ativos e Documentos. O servidor passou a devolver `area` nas listas de RoPA, RIPD e LIA e `responsavel` no RIPD (e2dc65c). Segue em aberto: busca, Data de envio e % do questionário em Fornecedores; exportação CSV de Solicitações (decisão do dono: não entra); CSVs de gaps e riscos que ignoram filtros.
+
 | Lista | Falta | Evidência |
 |---|---|---|
-| Atividades (RoPA) | colunas Área e Responsável; busca; filtros Área e Status | `frontend/src/views/privacy.js:109` (só Atividade, Base legal, Situação, Ações) |
-| RIPD | colunas Área e Responsável; busca; filtro Área | `privacy.js:424,490-492` |
-| LIA | coluna Área; busca; filtro Área | `frontend/src/views/lia.js:34-46` |
-| Gestão de Riscos | coluna Estratégia (o dado vem em `treatment`) | `frontend/src/views/mapa-de-risco.js:76` |
-| Gestão de GAPs | filtro Área (o servidor já devolve `area`) | `frontend/src/views/gaps.js:42-47` |
+| Atividades (RoPA) | Resolvido em cd2feaf: colunas Área e Responsável; busca; filtros Área e Status | `frontend/src/views/privacy.js:109` (só Atividade, Base legal, Situação, Ações) |
+| RIPD | Resolvido em d8829ca: colunas Área e Responsável; busca; filtro Área | `privacy.js:424,490-492` |
+| LIA | Resolvido em 5427659: coluna Área; busca; filtro Área | `frontend/src/views/lia.js:34-46` |
+| Gestão de Riscos | Resolvido em 4f046bd: coluna Estratégia (o dado vem em `treatment`) | `frontend/src/views/mapa-de-risco.js:76` |
+| Gestão de GAPs | Resolvido em 4f046bd: filtro Área (o servidor já devolve `area`) | `frontend/src/views/gaps.js:42-47` |
 | Fornecedores | busca; colunas Data de envio e % do questionário (hoje só na ficha) | `frontend/src/views/terceiros.js:67-75,409-416` |
-| Solicitações | coluna Nome do titular (existe em `titular_nome`); busca; exportação CSV (não existe `titular-pedidos` em `EXPORTACOES`) | `frontend/src/views/titular.js:96-137`, `src/services/exportacao.ts` |
-| Áreas, Ativos | busca | `frontend/src/views/areas.js`, `frontend/src/views/sistemas.js` |
-| Documentos | coluna Responsável (o campo está no modal) | `frontend/src/views/documentos-arquivo.js:61` |
+| Solicitações | Resolvido em bf571fc: coluna Nome do titular e busca. **Em aberto por decisão do dono:** exportação CSV (não existe `titular-pedidos` em `EXPORTACOES`) | `frontend/src/views/titular.js:96-137`, `src/services/exportacao.ts` |
+| Áreas, Ativos | Resolvido em 0ce2f8c: busca | `frontend/src/views/areas.js`, `frontend/src/views/sistemas.js` |
+| Documentos | Resolvido em 0ce2f8c: coluna Responsável (o campo está no modal) | `frontend/src/views/documentos-arquivo.js:61` |
 
 Os CSVs de gaps e de riscos ignoram os filtros da tela, e o de gaps não traz Área, Recomendação nem Plano
 (`src/services/exportacao.ts:76,93-97`).
@@ -145,9 +149,9 @@ pagina Ativos, Dados do titular, Parceiros, Gaps e Riscos. Isso pesa em cliente 
 
 ### 7. Ficha da atividade
 
-- **Medidas de Segurança sem "editar":** só há excluir. A rota `PUT /medidas/:id` existe (`src/routes/ropa-abas.ts:96`),
+- **Medidas de Segurança sem "editar":** *Resolvido em 2f0c4f1.* Só havia excluir. A rota `PUT /medidas/:id` existe (`src/routes/ropa-abas.ts:96`),
   mas falta o botão (`frontend/src/atividade/aba-medidas.js:201`).
-- **Controle de GAPs na ficha:** não mostra a coluna Prazo nem o status "Em atraso". A regra existe na tela do projeto
+- **Controle de GAPs na ficha:** *Resolvido em 1d555e0.* Não mostrava a coluna Prazo nem o status "Em atraso". A regra existe na tela do projeto
   (`frontend/src/views/gaps.js:12-20`) e não é usada na ficha (`frontend/src/atividade/aba-gaps.js:37-44`).
 - **Eliminação:** os ativos vêm herdados do Armazenamento, só leitura, sem escolha própria
   (`frontend/src/atividade/etapas.js:79-85`).
@@ -184,7 +188,7 @@ Não bloqueiam a virada, mas o usuário do legado vai notar:
 - **Teste de impacto:** no legado é caixa de marcar. No n.360 é Sim / Não / "Não sei agora", e o alto risco tem a
   **polaridade invertida**: "Sim, há alto risco" contra "Não há alto risco" (`frontend/src/atividade/aba-impacto.js:11,62`).
   Conferir no modelo de importação.
-- **GDPR:** o botão diz "+ Adicionar Inciso" (`frontend/src/atividade/aba-base.js:93`). O certo é "+ Base Legal".
+- **GDPR:** *Resolvido em 2f0c4f1.* O botão dizia "+ Adicionar Inciso" (`frontend/src/atividade/aba-base.js:93`); agora diz "+ Base Legal".
 - **Compartilhamento externo:** diz "Parceiros". O legado diz "Organização/Instituição".
 - **Medidas:** o botão diz "+ Medidas de Segurança" (o legado diz "+ Medida"). A tela mostra "Ativa" e o servidor
   grava "Ativo".
