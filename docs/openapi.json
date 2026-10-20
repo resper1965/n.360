@@ -19439,6 +19439,15 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Open",
+                      "Mitigated",
+                      "Accepted",
+                      "Closed"
+                    ]
                   }
                 },
                 "required": [
@@ -30423,6 +30432,15 @@
                     "type": [
                       "string",
                       "null"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Open",
+                      "Mitigated",
+                      "Accepted",
+                      "Closed"
                     ]
                   },
                   "ropa_id": {
