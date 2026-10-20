@@ -363,6 +363,14 @@ function jornadaDoCliente(fases: Fase[]) {
 
 // ─── O painel ───────────────────────────────────────────────────────────────────────────────────────────
 
+/** Marco do programa: a primeira aprovação registrada, de qualquer fonte (colunas gravadas ou pedido aprovado pelo CISO/CEO). */
+export const SQL_MARCO_DO_PROGRAMA = `SELECT min(d) AS d FROM (
+    SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) AS d FROM ropa_records WHERE project_id = ?1
+    UNION ALL SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) FROM compliance_controls WHERE project_id = ?1
+    UNION ALL SELECT min(dpo_approved_at) FROM dpia_assessments WHERE project_id = ?1
+    UNION ALL SELECT min(pd.decidido_em) FROM pedido_destinatarios pd JOIN pedidos pe ON pe.id = pd.pedido_id
+      WHERE pe.project_id = ?1 AND pe.papel_exigido IN ('ciso', 'ceo') AND pd.status = 'aprovado')`;
+
 /** Quem pede: a visão de cliente sai para papel de cliente; o agente MCP (que entra como `client`) lê como a consultoria que o concedeu. */
 export type QuemPede = { id?: string; email?: string; cliente: boolean };
 
@@ -371,10 +379,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
   const [empresa, base] = await Promise.all([
     lerEmpresa(db, projectId),
     db.batch([
-      // Marco do programa: a primeira aprovação de RoPA ou de controle (a SoA é aprovada controle a controle).
-      db.prepare(`SELECT min(d) AS d FROM (
-          SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) AS d FROM ropa_records WHERE project_id = ?1 AND COALESCE(ciso_approved_at, ceo_approved_at) IS NOT NULL
-          UNION ALL SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) FROM compliance_controls WHERE project_id = ?1 AND COALESCE(ciso_approved_at, ceo_approved_at) IS NOT NULL)`).bind(projectId),
+      db.prepare(SQL_MARCO_DO_PROGRAMA).bind(projectId),
       db.prepare(`SELECT (SELECT count(*) FROM ropa_records WHERE project_id = ?1 AND COALESCE(status, '') <> 'Inactive') AS tratamentos,
           (SELECT count(*) FROM compliance_controls WHERE project_id = ?1 AND (${SQL_CLASSE_CONTROLE}) <> 'falta') AS controles`).bind(projectId),
       // Para o cliente: o que espera a decisão DELE neste projeto (a mesma leitura de GET /api/v1/pedidos).
