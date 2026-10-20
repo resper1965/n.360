@@ -291,7 +291,7 @@ describe('RIPD (DPIA)', () => {
             { id: 'd2', system_name: 'ERP', status: 'Draft', atividade: null, residual_risk_level: null }];
         await window.renderDPIA(el('c'), el('h'), el('a'));
         const cab = [...el('c').querySelectorAll('thead th')].map((t) => t.textContent.trim());
-        expect(cab.slice(0, 2)).toEqual(['Atividade', 'Sistema ou operação']);
+        expect(cab.slice(0, 4)).toEqual(['Atividade', 'Área', 'Responsável', 'Sistema ou operação']);
         expect(cab).toContain('Risco residual');
         const linhas = () => [...el('ripd-lista').querySelectorAll('tbody tr')];
         expect(linhas()[0].textContent).toContain('Baixo');
@@ -299,6 +299,21 @@ describe('RIPD (DPIA)', () => {
         el('ripd-filtro-status').value = 'Draft';
         el('ripd-filtro-status').dispatchEvent(new Event('change', { bubbles: true }));
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('ERP')]);
+    });
+
+    it('Área, Responsável, busca e filtro de área na lista do RIPD', async () => {
+        rotas['/dpia'] = [{ id: 'd1', system_name: 'CRM', status: 'Draft', atividade: 'Admissão', area: 'Gestão', responsavel: 'Pessoa A' },
+            { id: 'd2', system_name: 'ERP', status: 'Draft', atividade: 'Câmeras', area: 'Comercial' }];
+        await window.renderDPIA(el('c'), el('h'), el('a'));
+        const linhas = () => [...el('ripd-lista').querySelectorAll('tbody tr')].map((l) => l.textContent);
+        expect(linhas()[0]).toContain('Pessoa A');
+        el('ripd-busca').value = 'camera';
+        el('ripd-busca').dispatchEvent(new Event('input', { bubbles: true }));
+        expect(linhas()).toEqual([expect.stringContaining('Câmeras')]);
+        el('ripd-busca').value = '';
+        el('ripd-filtro-area').value = 'Gestão';
+        el('ripd-filtro-area').dispatchEvent(new Event('change', { bubbles: true }));
+        expect(linhas()).toEqual([expect.stringContaining('Admissão')]);
     });
 
     it('vazio sem marcação: ensina a marcar', async () => {

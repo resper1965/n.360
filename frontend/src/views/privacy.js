@@ -444,13 +444,19 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
     function tabelaRipd(filtrar = true) {
         const { assessments, projectId, vazio } = listaRipd;
         const st = filtrar && document.getElementById('ripd-filtro-status') ? document.getElementById('ripd-filtro-status').value : '';
-        const itens = assessments.filter(dp => !st || (dp.status || 'Draft') === st);
+        const busca = filtrar ? chaveBusca(document.getElementById('ripd-busca')?.value) : '';
+        const area = filtrar ? document.getElementById('ripd-filtro-area')?.value || '' : '';
+        const itens = assessments.filter(dp => (!st || (dp.status || 'Draft') === st)
+            && (!busca || chaveBusca(`${dp.atividade} ${dp.system_name}`).includes(busca)) && (!area || areasDe(dp).includes(area)));
+        const filtrando = st || busca || area;
         return window.renderDataTable(
-            ['Atividade', 'Sistema ou operação', 'Titulares', 'Categorias de dados', 'Risco residual', 'Status', 'Ações'],
+            ['Atividade', 'Área', 'Responsável', 'Sistema ou operação', 'Titulares', 'Categorias de dados', 'Risco residual', 'Status', 'Ações'],
             itens.map(dp => {
                 const statusType = dp.status === 'Approved' ? 'success' : dp.status === 'Under Review' ? 'warning' : 'info';
                 return [
                     escapeHTML(dp.atividade || '—'),
+                    escapeHTML(dp.area || '—'),
+                    escapeHTML(dp.responsavel || '—'),
                     `<strong>${escapeHTML(dp.system_name)}</strong>`,
                     escapeHTML(dp.data_subjects_types || 'N/A'),
                     escapeHTML(dp.personal_data_categories || 'N/A'),
@@ -462,7 +468,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                      <button class="btn btn-ghost btn-sm" data-action="baixarWordRipd" data-args='["${projectId}","${dp.id}"]' data-stop>Word</button>`
                 ];
             }),
-            st ? { emptyState: 'Nenhum RIPD com este status.', emptyHint: 'Limpe o filtro para ver todos.' } : vazio
+            filtrando ? { emptyState: 'Nenhum RIPD com este filtro.', emptyHint: 'Limpe o filtro para ver todos.' } : vazio
         );
     }
     window.filtrarRipd = function () { if (listaRipd && document.getElementById('ripd-lista')) document.getElementById('ripd-lista').innerHTML = tabelaRipd(); };
@@ -512,7 +518,12 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                 emptyAction: `<button class="btn" data-action="navigate" data-args='["ropa"]'>Abrir o RoPA</button>` };
         listaRipd = { assessments, projectId: proj.id, vazio: vazioRipd };
         // Atividade (finalidade do RoPA ligado) e risco residual na lista; filtro de status na tela (spec 2026-10-19).
-        const filtroRipd = assessments.length ? `<div class="co-controles"><label class="co-campo"><span class="co-campo-rotulo">Status</span>
+        const opcoesAreaRipd = [...new Set(assessments.flatMap(areasDe))].sort((x, y) => x.localeCompare(y, 'pt-BR'))
+            .map((n) => `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`).join('');
+        const filtroRipd = assessments.length ? `<div class="co-controles">
+            <label class="co-campo"><span class="co-campo-rotulo">Buscar</span><input class="form-input" type="search" id="ripd-busca" maxlength="120" placeholder="Atividade ou sistema" data-action-input="filtrarRipd"></label>
+            <label class="co-campo"><span class="co-campo-rotulo">Área</span><select class="form-select" id="ripd-filtro-area" data-action-change="filtrarRipd"><option value="">Todas</option>${opcoesAreaRipd}</select></label>
+            <label class="co-campo"><span class="co-campo-rotulo">Status</span>
             <select class="form-select" id="ripd-filtro-status" data-action-change="filtrarRipd"><option value="">Todos</option>
             ${Object.entries(STATUS_RIPD).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></label></div>` : '';
         const tableHtml = `${filtroRipd}<div id="ripd-lista">${tabelaRipd(false)}</div>`;
