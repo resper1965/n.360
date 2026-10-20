@@ -1256,7 +1256,7 @@ projectsApp.get('/:id/audit-trail', async (c) => {
   ).bind(projectId, `%${projectId}%`).all();
   // IP de quem agiu é dado pessoal da equipe e de outras pessoas: só a consultoria o vê.
   if (ehEquipeNess(c.get('user'))) return c.json(results || []);
-  return c.json((results || []).map(({ ip_address, ...l }: any) => l));
+  return c.json((results || []).map(({ ip_address: _ip, ...l }) => l));
 });
 
 // Acesso do auditor externo. O token sai UMA vez, dentro da URL (fragmento, que o navegador não
