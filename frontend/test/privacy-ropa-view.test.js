@@ -363,7 +363,7 @@ describe('lista com a situação derivada (ficha em abas)', () => {
         expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade');
         expect([...el('a').querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).not.toContain('Edição avançada');
         // colunas no vocabulário das abas, sem os campos do modelo antigo
-        expect([...el('c').querySelectorAll('thead th')].map((th) => th.textContent.trim())).toEqual(['Atividade', 'Base legal', 'Situação', 'Ações']);
+        expect([...el('c').querySelectorAll('thead th')].map((th) => th.textContent.trim())).toEqual(['Atividade', 'Área', 'Responsável', 'Base legal', 'Situação', 'Ações']);
     });
 
     it('sem a situação no servidor (versão anterior), cai no status antigo sem quebrar', async () => {
@@ -435,5 +435,30 @@ describe('Nova atividade: guiada ou direta (PR3)', () => {
         await criarPelo('Cobrança', 'direta');
         expect(window.abrirAtividade).toHaveBeenCalledWith('p1', 'r8');
         expect(window.abrirRopaEntrevista).not.toHaveBeenCalled();
+    });
+});
+
+describe('lista do RoPA no n.privacy', () => {
+    const LISTA = [
+        { id: 'r1', nome: 'Admissão', processing_purpose: 'Admissão', area: 'Gestão', owner_parte_nome: 'Pessoa A', situacao: { codigo: 'aprovada', rotulo: 'Aprovada' } },
+        { id: 'r2', nome: 'Câmeras', processing_purpose: 'Câmeras', area: 'Comercial, Gestão', owner_parte_nome: null, situacao: { codigo: 'rascunho', rotulo: 'Rascunho' } },
+    ];
+    it('colunas Atividade, Área, Responsável, Base legal, Situação, Ações', async () => {
+        rotas['/ropa'] = LISTA;
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        expect([...el('c').querySelectorAll('th')].map((x) => x.textContent.trim())).toEqual(['Atividade', 'Área', 'Responsável', 'Base legal', 'Situação', 'Ações']);
+        expect(el('c').textContent).toContain('Pessoa A');
+    });
+    it('busca sem acento e filtros de área e situação', async () => {
+        rotas['/ropa'] = LISTA;
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        el('ropa-busca').value = 'camera'; window.filtrarRopa();
+        expect(el('ropa-lista').textContent).toContain('Câmeras');
+        expect(el('ropa-lista').textContent).not.toContain('Admissão');
+        el('ropa-busca').value = ''; el('ropa-filtro-area').value = 'Comercial'; window.filtrarRopa();
+        expect(el('ropa-lista').textContent).not.toContain('Admissão');
+        el('ropa-filtro-area').value = ''; el('ropa-filtro-situacao').value = 'aprovada'; window.filtrarRopa();
+        expect(el('ropa-lista').textContent).toContain('Admissão');
+        expect(el('ropa-lista').textContent).not.toContain('Câmeras');
     });
 });

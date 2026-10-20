@@ -9,6 +9,11 @@ import { listarItens, criarItem } from '../atividade/catalogo-inline.js';
 import './atividade.js';
 import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, camposDaBase, idsDoCatalogo } from '../bases-legais.js';
 
+    // Busca sem acento nem caixa e áreas de uma atividade ("Comercial, Gestão"); a lista do RIPD reaproveita.
+    const chaveBusca = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const areasDe = (r) => String(r.area || '').split(', ').filter(Boolean);
+    let listaRopa = null; // refaz a tabela do RoPA com os filtros da tela
+
     // Base legal: as listas e a coerência texto/catálogo vivem em bases-legais.js (as ligações e a entrevista usam as mesmas).
     let catalogoBases = new Set();
     function opcoesBase(atual) {
@@ -106,13 +111,22 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         ]);
 
         // n.privacy: a lista mostra o que a atividade é e em que pé está; titulares, retenção e RIPD vivem nas abas.
-        const colunas = comPrivacy ? ['Atividade', 'Base legal', 'Situação', 'Ações'] : ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Situação', 'Ações'];
-        const tableHtml = window.renderDataTable(
+        const colunas = comPrivacy ? ['Atividade', 'Área', 'Responsável', 'Base legal', 'Situação', 'Ações'] : ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Situação', 'Ações'];
+        const tabelaRopa = (filtrar = true) => {
+            const el = (id) => document.getElementById(id);
+            const busca = filtrar && comPrivacy ? chaveBusca(el('ropa-busca')?.value) : '';
+            const area = filtrar && comPrivacy ? el('ropa-filtro-area')?.value || '' : '';
+            const sit = filtrar && comPrivacy ? el('ropa-filtro-situacao')?.value || '' : '';
+            const filtrados = records.filter((r) => (!busca || chaveBusca(`${r.nome} ${r.processing_purpose}`).includes(busca))
+                && (!area || areasDe(r).includes(area)) && (!sit || r.situacao?.codigo === sit));
+            const filtrando = !!(busca || area || sit);
+            return window.renderDataTable(
             colunas,
-            records.map(r => {
+            filtrados.map(r => {
                 const statusType = r.status === 'Active' || !r.status ? 'success' : 'info';
                 return [
                     `<strong${cancelada(r) ? ' class="at-esmaecida"' : ''}>${escapeHTML(r.nome || r.processing_purpose)}</strong>${Array.isArray(r.nao_informado) && r.nao_informado.length ? ` ${window.renderStatusBadge('Importado: revisar', 'warning')}` : ''}`,
+                    ...(comPrivacy ? [escapeHTML(r.area || '—'), escapeHTML(r.owner_parte_nome || '—')] : []),
                     escapeHTML(rotuloBase(r.legal_basis) || (comPrivacy ? 'Não informada' : 'N/A')),
                     ...(comPrivacy ? [] : [
                         escapeHTML(r.data_subjects || 'N/A'),
@@ -131,17 +145,28 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
                 ];
             }),
             {
-                emptyState: comPrivacy ? 'Nenhuma atividade de tratamento registrada.' : 'O inventário de tratamentos (art. 37) está vazio.',
+                emptyState: filtrando ? 'Nenhuma atividade com estes filtros.' : comPrivacy ? 'Nenhuma atividade de tratamento registrada.' : 'O inventário de tratamentos (art. 37) está vazio.',
                 emptyHint: comPrivacy ? 'O inventário (art. 37 da LGPD) começa pela primeira atividade. Crie uma ou importe a planilha que o cliente já tem.' : 'Registre a primeira atividade ou importe a planilha que o cliente já tem.',
-                emptyAction: btnNova() + (comPrivacy ? '' : btnNovo('Edição avançada')) + btnImportar,
+                emptyAction: filtrando ? '' : btnNova() + (comPrivacy ? '' : btnNovo('Edição avançada')) + btnImportar,
             }
-        );
+            );
+        };
 
-        c.innerHTML = `
-            ${statsHtml}
-            ${tableHtml}
-        `;
+        let controles = '';
+        if (comPrivacy && records.length) {
+            const opcoesArea = [...new Set(records.flatMap(areasDe))].sort((x, y) => x.localeCompare(y, 'pt-BR'))
+                .map((n) => `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`).join('');
+            controles = `<div class="co-controles">
+            <label class="co-campo"><span class="co-campo-rotulo">Buscar</span><input class="form-input" type="search" id="ropa-busca" maxlength="120" placeholder="Atividade" data-action-input="filtrarRopa"></label>
+            <label class="co-campo"><span class="co-campo-rotulo">Área</span><select class="form-select" id="ropa-filtro-area" data-action-change="filtrarRopa"><option value="">Todas</option>${opcoesArea}</select></label>
+            <label class="co-campo"><span class="co-campo-rotulo">Situação</span><select class="form-select" id="ropa-filtro-situacao" data-action-change="filtrarRopa"><option value="">Todas</option>
+                <option value="rascunho">Rascunho</option><option value="em_revisao">Em Revisão</option><option value="aprovada">Aprovada</option><option value="cancelada">Cancelada</option></select></label></div>`;
+        }
+        listaRopa = tabelaRopa;
+        c.innerHTML = `${statsHtml}${controles}<div id="ropa-lista">${tabelaRopa(false)}</div>`;
     }
+
+    window.filtrarRopa = () => { const l = document.getElementById('ropa-lista'); if (listaRopa && l) l.innerHTML = listaRopa(); };
 
     // Assinatura direta do RoPA (n.iso): o modelo antigo, ao lado do pedido de aprovação.
     const assinaturasDiretas = (r, projectId) => `
