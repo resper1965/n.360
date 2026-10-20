@@ -10,11 +10,11 @@ import '../src/ui.js';
 import '../src/views/terceiros.js';
 
 const B = '/api/v1/projects/p9/terceiros';
-const T = (id, extra = {}) => ({ id, nome: `Terceiro ${id}`, terceiro_tipo: 'medio', metodo: 'questionario', situacao: 'vigente', ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2027-01-31', metodo: 'questionario' }, tratamentos: 2, documentos: 1, nivel: 'medio', dpa: true, atividades: 2, ...extra });
+const T = (id, extra = {}) => ({ id, nome: `Terceiro ${id}`, terceiro_tipo: 'medio', metodo: 'questionario', situacao: 'vigente', ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2027-01-31', metodo: 'questionario' }, tratamentos: 2, documentos: 1, nivel: 'medio', dpa: true, atividades: 2, pendencias: [], ...extra });
 const LISTA = [
     T('a', { nome: 'Nuvem <b>Grande</b>' }),
-    T('b', { situacao: 'vencida', nivel: 'alto', dpa: false, ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2025-01-01', metodo: 'questionario' } }),
-    T('c', { terceiro_tipo: null, metodo: null, situacao: 'pendente', ultima_avaliacao: null, tratamentos: 0, documentos: 0, nivel: null, dpa: false, atividades: 0 }),
+    T('b', { situacao: 'vencida', nivel: 'alto', dpa: false, pendencias: ['Avaliação', 'DPA'], ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2025-01-01', metodo: 'questionario' } }),
+    T('c', { terceiro_tipo: null, metodo: null, situacao: 'pendente', ultima_avaliacao: null, tratamentos: 0, documentos: 0, nivel: null, dpa: false, atividades: 0, pendencias: ['Tipo', 'Criticidade', 'Avaliação', 'DPA'] }),
 ];
 const SEGURANCA = { id: 'v1', name: 'Nuvem <b>Grande</b>', category: 'Nuvem', status: 'Active', has_iso27001: 1, has_iso27701: 0, has_soc2: 0, has_mfa: 1, has_encryption: 0, has_backup: 0, has_incident_plan: 0, has_pentest: 0, dpa_signed: 0, trust_center_url: 'https://trust.exemplo.com', dpa_url: null, attached_certifications: 'PCI-DSS', notes: 'Obs <i>x</i>' };
 const FICHA = (extra = {}) => ({
@@ -73,7 +73,7 @@ describe('lista', () => {
         await lista();
         expect(el('h').textContent).toBe('Fornecedores');
         expect([...el('c').querySelectorAll('thead th')].map((th) => th.textContent.trim()))
-            .toEqual(['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'DPA', 'Atividades', 'Ações']);
+            .toEqual(['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações']);
         const [a, b, c] = linhas();
         expect(a).toContain('Nuvem <b>Grande</b>');
         expect(a).toContain('Médio');
@@ -87,6 +87,23 @@ describe('lista', () => {
         expect(c).toContain('Pendente');
         expect(el('c').textContent).toContain('1 fornecedor com avaliação vencida');
         expect(el('c').querySelector('tbody b')).toBeNull();
+    });
+
+    it('coluna Situação do TPRM: Completo ou Falta: ...; filtro Pendência na própria tela', async () => {
+        const f = await lista();
+        const [a, b, c] = linhas();
+        expect(a).toContain('Completo');
+        expect(b).toContain('Falta: Avaliação, DPA');
+        expect(c).toContain('Falta: Tipo, Criticidade, Avaliação, DPA');
+        const antes = f.mock.calls.length;
+        const filtra = (v) => { el('tc-filtro-pendencia').value = v; window.filtrarFornecedores(); return linhas(); };
+        expect(filtra('completo')).toHaveLength(1);
+        expect(filtra('pendente')).toHaveLength(2);
+        expect(filtra('DPA')).toHaveLength(2);
+        expect(filtra('Tipo')[0]).toContain('Terceiro c');
+        expect(filtra('Criticidade')).toHaveLength(1);
+        expect(f.mock.calls.length).toBe(antes);
+        expect(el('tc-filtro-pendencia').getAttribute('data-action-change')).toBe('filtrarFornecedores');
     });
 
     it('filtros de criticidade e de situação, na própria tela e sem servidor', async () => {
@@ -155,6 +172,13 @@ describe('ficha: abas', () => {
         expect(document.querySelector('[role="tab"][aria-selected="true"]').textContent.trim()).toBe('Documentos');
         await ficha({}, 'inexistente');
         expect(document.querySelector('[role="tab"][aria-selected="true"]').textContent.trim()).toBe('Cadastro');
+    });
+
+    it('a ficha mostra a linha Situação do TPRM no topo', async () => {
+        await ficha();
+        expect(el('tc-tprm').textContent).toBe('Situação do TPRM: Completo');
+        await ficha({ [`GET ${B}/a`]: FICHA({ pendencias: ['Tipo', 'DPA'] }) });
+        expect(el('tc-tprm').textContent).toBe('Situação do TPRM: Falta: Tipo, DPA');
     });
 
     it('trocar de aba grava a aba no endereço e repinta', async () => {
