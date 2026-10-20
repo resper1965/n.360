@@ -813,9 +813,9 @@ window.__grcCloseExecAudit = function (id) {
             dpa_url: document.getElementById('vnd-dpa-url').value,
             attached_certifications: document.getElementById('vnd-attached-certs').value
         };
-        // sem perfil, o POST reaproveita a parte de mesmo nome e cria a avaliação
+        // sem perfil, o POST cria a avaliação na parte desta linha (pelo id: dois fornecedores podem ter o mesmo nome)
         if (v.id) await api('PUT', `/api/v1/vendors/${v.id}`, body);
-        else await api('POST', `/api/v1/projects/${v.project_id}/vendors`, body);
+        else await api('POST', `/api/v1/projects/${v.project_id}/vendors`, { ...body, parte_id: v.parte_id });
         forceCloseModal(); render();
     };
 

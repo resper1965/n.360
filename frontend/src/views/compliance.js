@@ -57,7 +57,7 @@ import { classeDoControle } from '../classe-controle.js';
                     <div class="phase-title">${escapeHTML(ctrl.title)}</div>
                     ${ctrl.maturity ? `<div class="t-xs t-dim">Maturidade: ${ctrl.maturity}/5</div>` : ''}
                 </div>
-                <div class="phase-status ${ctrl.status==='Compliant'?'status-done':ctrl.status==='Partial'?'status-progress':'status-pending'}">${escapeHTML(traduzStatus(ctrl.status))}</div>
+                <div class="phase-status ${{ feito: 'status-done', andamento: 'status-progress' }[classeDoControle(ctrl.status)] || 'status-pending'}">${escapeHTML(traduzStatus(ctrl.status))}</div>
             </div>`).join('')}</div>`;
     }
 
@@ -895,7 +895,7 @@ import { classeDoControle } from '../classe-controle.js';
                                     </div>
                                 </td>
                                 <td>
-                                    ${window.renderStatusBadge(ctrl.status === 'Implemented' || ctrl.status === 'Approved' ? 'success' : isNA ? 'info' : 'warning', ctrl.status || 'Pendente')}
+                                    ${window.renderStatusBadge(classeDoControle(ctrl.status) === 'feito' ? 'success' : isNA ? 'info' : 'warning', ctrl.status || 'Pendente')}
                                 </td>
                                 <td>
                                     <div class="d-flex gap-15">

@@ -57,4 +57,13 @@ describe('fornecedor: o mesmo critério nos dois módulos', () => {
     expect(await lista()).toEqual([expect.objectContaining({ id: null, parte_id: 'fc-org' })]);
     expect((await listarTerceiros(env.DB, P)).map((t) => t.id)).toEqual(['fc-org']);
   });
+
+  it('com parte_id, a avaliação vai para a parte da linha, mesmo com outra de mesmo nome', async () => {
+    await env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('fc-org2', ?, 'organizacao', 'nuvem exemplo')`).bind(P).run();
+    const r = await chamar(consultor, `/api/v1/projects/${P}/vendors`, 'POST', { name: 'nuvem exemplo', parte_id: 'fc-org2' });
+    expect(r.status, await r.clone().text()).toBe(201);
+    expect(await env.DB.prepare('SELECT parte_id FROM vendors WHERE id = ?').bind((await r.json<{ id: string }>()).id).first()).toEqual({ parte_id: 'fc-org2' });
+    // parte de outro projeto, ou que não é fornecedor, não serve
+    expect((await chamar(consultor, `/api/v1/projects/${P}/vendors`, 'POST', { name: 'x', parte_id: 'fc-pi' })).status).toBe(404);
+  });
 });

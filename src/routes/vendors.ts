@@ -113,8 +113,13 @@ projectVendorsApp.post('/', async (c) => {
 
     // O fornecedor é a parte organização ATIVA do projeto: reaproveita a de mesmo nome (sem caixa e sem espaço nas pontas) ou cria.
     // Parte inativa de mesmo nome não serve: o perfil ficaria invisível na lista.
-    const achada = await db.prepare(`SELECT id FROM partes WHERE project_id = ? AND tipo = 'organizacao' AND status = 'ativa' AND lower(trim(nome)) = lower(trim(?)) ORDER BY created_at, rowid LIMIT 1`)
-      .bind(projectId, body.name).first<{ id: string }>();
+    // Com `parte_id` (a tela, na linha do fornecedor sem avaliação), a parte é essa, conferida no projeto; sem ele, a de mesmo nome.
+    if (body.parte_id !== undefined && typeof body.parte_id !== 'string') return c.json({ error: 'parte_id inválido' }, 400);
+    const achada = body.parte_id
+      ? await db.prepare(`SELECT p.id FROM partes p WHERE p.id = ? AND p.project_id = ? AND ${SQL_EH_FORNECEDOR}`).bind(body.parte_id, projectId).first<{ id: string }>()
+      : await db.prepare(`SELECT id FROM partes WHERE project_id = ? AND tipo = 'organizacao' AND status = 'ativa' AND lower(trim(nome)) = lower(trim(?)) ORDER BY created_at, rowid LIMIT 1`)
+        .bind(projectId, body.name).first<{ id: string }>();
+    if (body.parte_id && !achada) return c.json({ error: 'Fornecedor não encontrado neste projeto' }, 404);
     // perfil que já existe não é sobrescrito pelo POST (corpo parcial zeraria os campos): edição é pelo PUT
     const existente = achada ? await db.prepare('SELECT id FROM vendors WHERE parte_id = ?').bind(achada.id).first<{ id: string }>() : null;
     if (existente) return c.json({ error: 'Fornecedor já cadastrado neste projeto', id: existente.id }, 409);

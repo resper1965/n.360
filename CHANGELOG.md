@@ -16,7 +16,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **"Hoje" é o dia de São Paulo** em todo prazo e vencimento, no servidor e nas telas. Entre 21h e 24h de Brasília, "vencido" deixava de valer no dia certo (o servidor contava em UTC; o chip do painel, no fuso do navegador).
 - **"Controle implementado" tem uma regra só.** Gap-analysis, Bancada, readiness, coherence, medidas do RoPA, cobertura da LGPD e a SoA passam a usar a regra do Painel, e `Compliant` (legado) conta como implementado. **Muda número:** a cobertura sobe onde havia `Compliant`, `Approved` ou `Completed`.
 - **Marco "Em operação desde"** conta também a aprovação por pedido e o RIPD aprovado. Um programa só do n.privacy saía "Em implantação" para sempre.
-- **Fornecedor tem um critério só:** organização ativa que não é só parte interessada. A lista do n.iso passa a mostrar a organização criada em Partes ("Sem avaliação de segurança", com "Avaliar"). "Excluir" virou "Remover avaliação de segurança" e apaga só o perfil. **Muda número** no Painel, na Bancada e no ponto de partida.
+- **Fornecedor tem um critério só:** organização ativa que não é só parte interessada. A lista do n.iso passa a mostrar a organização criada em Partes ("Sem avaliação de segurança", com "Avaliar"). "Excluir" virou "Remover avaliação de segurança" e apaga só o perfil; tirar o fornecedor de vez é inativar a organização em Partes, o que vale nos dois módulos. **Muda número** no Painel, na Bancada e no ponto de partida.
 - **Evidência vencida** compara pelo dia também no encarregado.
 - **Ativo nasce Confidencial** nos dois módulos. O select "Status" do n.iso, que o servidor ignorava, saiu.
 
