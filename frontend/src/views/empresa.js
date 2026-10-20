@@ -151,8 +151,8 @@ async function consultar(d) {
     ultimaConsulta = d;
     if (caixa) caixa.innerHTML = '<p style="color:var(--text-dim);font-size:0.85rem">Consultando a Receita Federal...</p>';
     let r;
-    try { r = await api('GET', `/api/v1/projects/consulta-cnpj/${d}`); } catch (e) {
-        if (caixa) caixa.innerHTML = `<p style="color:var(--warning);font-size:0.85rem">${escapeHTML((e && e.message) || 'Não foi possível consultar o CNPJ')}. Preencha à mão.</p>`;
+    try { r = await api('GET', `/api/v1/projects/consulta-cnpj/${d}`); } catch { // falha nunca bloqueia salvar: a pessoa preenche à mão
+        if (caixa) caixa.innerHTML = `<p style="color:var(--text-dim);font-size:0.85rem">A consulta de CNPJ está indisponível. Preencha os dados à mão.</p>`;
         return;
     }
     const partes = [];
@@ -162,7 +162,7 @@ async function consultar(d) {
             <button type="button" class="btn btn-ghost btn-sm" data-action="abrirProjetoExistente" data-args='${escapeHTML(JSON.stringify([r.existente.id]))}'>Abrir?</button></p>`);
     }
     if (r.indisponivel || !r.proposta) {
-        partes.push('<p style="color:var(--text-dim);font-size:0.85rem">A consulta à Receita está indisponível agora. Preencha os dados à mão.</p>');
+        partes.push('<p style="color:var(--text-dim);font-size:0.85rem">A consulta de CNPJ está indisponível. Preencha os dados à mão.</p>');
     } else {
         const p = r.proposta;
         for (const k of [...CAMPOS_TEXTO]) {

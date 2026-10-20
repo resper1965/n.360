@@ -14,6 +14,7 @@ async function mockApi(page) {
   const fornecedor = () => ({
     id: 'f1', nome: 'Fornecedor Exemplo', terceiro_tipo: criticidade ? 'pequeno' : null, metodo: criticidade ? 'questionario' : null,
     situacao: 'pendente', ultima_avaliacao: null, tratamentos: 1, documentos: 0, nivel: criticidade && criticidade.nivel, dpa: false, atividades: 1,
+    pendencias: criticidade ? ['Avaliação', 'DPA'] : ['Tipo', 'Criticidade', 'Avaliação', 'DPA'],
   });
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -66,4 +67,23 @@ test('lista → ficha → aba Criticidade → confirmar → o nível aparece na 
   await page.getByRole('button', { name: 'Voltar aos fornecedores' }).click();
   await expect(page).not.toHaveURL(/parte=/);
   await expect(page.locator('#content tbody tr', { hasText: 'Fornecedor Exemplo' })).toContainText('Baixo');
+});
+
+test('lista com a pendência → fila de avaliações → Abrir leva à aba Avaliações', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/login.html');
+  await page.fill('#login-email', USER.email);
+  await page.fill('#login-password', 'senha-e2e');
+  await page.click('#login-submit');
+  await expect(page).toHaveURL(/\/privacy$/);
+
+  await page.locator('#sidebar #nav-terceiros').click();
+  await expect(page.locator('#content tbody tr', { hasText: 'Fornecedor Exemplo' })).toContainText('Falta: Tipo, Criticidade, Avaliação, DPA');
+
+  await page.locator('#sidebar #nav-avaliacoes-terceiros').click();
+  await expect(page.locator('#header-title')).toHaveText('Avaliações de fornecedores');
+  await expect(page.getByRole('heading', { name: 'Sem avaliação (1)' })).toBeVisible();
+  await page.getByRole('button', { name: 'Abrir Fornecedor Exemplo' }).click();
+  await expect(page).toHaveURL(/tela=terceiro&parte=f1&aba=avaliacoes/);
+  await expect(page.getByRole('tab', { name: 'Avaliações' })).toHaveAttribute('aria-selected', 'true');
 });

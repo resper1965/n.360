@@ -435,7 +435,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   duplicar) e a ficha em pagina propria (`?tela=terceiro&parte=&aba=`) com sete abas; a aba Seguranca edita o perfil de `vendors`
   (o mesmo do n.iso; o PUT mantem `notes` e `status` ausentes no corpo). Titulares e dados pessoais (`views/catalogos.js`) gere os
   catalogos do RoPA. Gaps (`views/gaps.js`, `GET .../ropa/gaps`) e LIA (`views/lia.js`, `GET .../ropa/lias`, inclui a atividade de
-  legitimo interesse sem LIA) listam o projeto inteiro; Riscos tem a vista Mapa | Lista (`?vista=lista`). Os "Abrir" levam a atividade
+  legitimo interesse sem LIA) listam o projeto inteiro; Riscos tem a vista Mapa | Lista (`?vista=lista`). Fornecedores segue a rotina de TPRM: `pendencias` em `GET .../terceiros` (tipo, criticidade, avaliacao, DPA) e a fila `avaliacoes-terceiros`. A Referencia juridica (`referencia-juridica`, em Mais) le `GET /requisitos?fonte=` e `GET /requisitos/gdpr-bases`; a validacao em lote (`POST /requisitos/mapeamentos/validar`) e do platform_admin e grava o e-mail da sessao. Os "Abrir" levam a atividade
   na aba certa (`abrirAtividade(projectId, ropaId, aba)`). Selos de `frontend/src/selos-menu.js`: numero = total a tratar, contorno ambar =
   pendente, fundo vermelho = atraso; o Painel tem selo so com atraso. O n.iso e o n.360 mantem estrutura, rotulos e acordeao
   (`frontend/test/casca-menu.test.js` fixa a estrutura); a barra dos tres e acessivel: grupo fechado fora do Tab (`visibility`), recolhida com o

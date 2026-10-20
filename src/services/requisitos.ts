@@ -121,10 +121,14 @@ export async function listarFontes(db: D1Database) {
   return results;
 }
 
-export async function listarRequisitos(db: D1Database, fonte?: string): Promise<Requisito[]> {
+export async function listarRequisitos(db: D1Database, fonte?: string) {
   const { results } = await db.prepare(
-    `SELECT id, fonte_id, referencia, titulo, pai_id, papel FROM requisitos WHERE (?1 IS NULL OR fonte_id = ?1) ORDER BY fonte_id, rowid`
-  ).bind(fonte ?? null).all<Requisito>();
+    // `validado_*`: o mapeamento validado mais recente do requisito (só o validado, que todo papel pode ver).
+    `SELECT r.id, r.fonte_id, r.referencia, r.titulo, r.pai_id, r.papel,
+            (SELECT m.validado_por FROM requisito_mapeamentos m WHERE r.id IN (m.de_id, m.para_id) AND m.estado = 'validado_juridico' ORDER BY m.validado_em DESC LIMIT 1) AS validado_por,
+            (SELECT max(m.validado_em) FROM requisito_mapeamentos m WHERE r.id IN (m.de_id, m.para_id) AND m.estado = 'validado_juridico') AS validado_em
+       FROM requisitos r WHERE (?1 IS NULL OR r.fonte_id = ?1) ORDER BY r.fonte_id, r.rowid`
+  ).bind(fonte ?? null).all<Requisito & { validado_por: string | null; validado_em: string | null }>();
   return results;
 }
 
@@ -251,4 +255,29 @@ export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: s
     const cobre = o.some((x) => x.tipo === 'documento' || (x.tipo === 'evidencia' && x.status === 'conforming') || (x.tipo === 'controle' && x.mapeamento === 'equivalente' && IMPLEMENTADO.includes(x.status ?? '')));
     return { requisito_id: r.id, referencia: r.referencia, titulo: r.titulo, pai_id: r.pai_id, situacao: cobre ? 'coberto' : o.length ? 'parcial' : 'lacuna', origens: o };
   });
+}
+
+// ─── Referência jurídica: contagem e validação dos mapeamentos ───────────────────────────────────────
+
+const DA_FONTE = `(?1 IS NULL OR EXISTS (SELECT 1 FROM requisitos r WHERE r.id IN (m.de_id, m.para_id) AND r.fonte_id = ?1))`;
+
+/** Quantos mapeamentos estão propostos e quantos validados (de uma fonte, ou de todas). */
+export async function resumoDeMapeamentos(db: D1Database, fonte?: string) {
+  const r = await db.prepare(
+    `SELECT coalesce(sum(m.estado = 'proposto'), 0) AS propostos, coalesce(sum(m.estado = 'validado_juridico'), 0) AS validados
+       FROM requisito_mapeamentos m WHERE ${DA_FONTE}`
+  ).bind(fonte ?? null).first<{ propostos: number; validados: number }>();
+  return { propostos: r?.propostos ?? 0, validados: r?.validados ?? 0 };
+}
+
+/**
+ * Valida os mapeamentos `proposto` em nome de QUEM ESTÁ LOGADO: `validadoPor` vem da sessão, nunca do corpo.
+ * Só toca `proposto`, então repetir não muda nada (idempotente). Devolve quantos foram validados.
+ */
+export async function validarMapeamentosPropostos(db: D1Database, validadoPor: string, fonte?: string): Promise<number> {
+  const r = await db.prepare(
+    `UPDATE requisito_mapeamentos AS m SET estado = 'validado_juridico', validado_por = ?2, validado_em = ?3
+      WHERE m.estado = 'proposto' AND ${DA_FONTE}`
+  ).bind(fonte ?? null, validadoPor, new Date().toISOString().slice(0, 10)).run();
+  return r.meta.changes ?? 0;
 }

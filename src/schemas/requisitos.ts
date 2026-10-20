@@ -30,6 +30,11 @@ export const mapeamentoSchema = z.object({
 });
 export type Mapeamento = z.infer<typeof mapeamentoSchema>;
 
+/** Validar os mapeamentos propostos: só o recorte por fonte. Quem valida é quem está logado, nunca vem do corpo (`strict`). */
+export const validarMapeamentosSchema = z.object({
+  fonte: id.optional(),
+}).strict();
+
 export const documentoRequisitosSchema = z.object({
   requisitos: z.array(id).max(100),
 }).strict();

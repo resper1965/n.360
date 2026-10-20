@@ -16,6 +16,9 @@ const SITUACOES = { pendente: ['Pendente', 'neutral'], vigente: ['Vigente', 'suc
 const PAPEIS_DOC = { dpa: 'DPA', contrato: 'Contrato', outro: 'Outro' };
 const STATUS_DOC = { rascunho: 'Rascunho', vigente: 'Vigente', obsoleto: 'Obsoleto' };
 const ORIGENS = { vinculo: 'Vínculo', compartilhamento_externo: 'Compartilhamento externo' };
+const PENDENCIAS = ['Tipo', 'Criticidade', 'Avaliação', 'DPA'];
+/** "Completo" ou "Falta: Tipo, DPA", do `pendencias` que o servidor manda (a ficha e a lista usam a mesma linha). */
+const situacaoTprm = (t) => (lista(t.pendencias).length ? `Falta: ${lista(t.pendencias).join(', ')}` : 'Completo');
 const NIVEIS_CRITICIDADE = { alto: 'Alto', medio: 'Médio', baixo: 'Baixo' };
 const ABAS = [['cadastro', 'Cadastro'], ['criticidade', 'Criticidade'], ['avaliacoes', 'Avaliações'], ['seguranca', 'Segurança'],
     ['documentos', 'Documentos'], ['atividades', 'Atividades de tratamento'], ['suboperadores', 'Suboperadores']];
@@ -61,11 +64,14 @@ async function renderTerceiros(c, h, a) {
     // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
     const { itens, chip, filtrado } = filtrarDoPainel('terceiros', null, terceiros);
     daLista = { proj, itens, filtrado, cadastrar };
-    const filtro = (id, rotulo, mapa) => `<div class="form-group" style="margin:0"><label class="form-label" for="${id}">${rotulo}</label>
+    const filtro = (id, rotulo, mapa) => `<div class="form-group tc-filtro"><label class="form-label" for="${id}">${rotulo}</label>
         <select class="form-input" id="${id}" data-action-change="filtrarFornecedores"><option value="">Todas</option>${opcoes(mapa)}</select></div>`;
-    const filtros = terceiros.length ? `<div style="display:flex; gap:0.75rem; align-items:flex-end; margin-bottom:0.75rem">
+    const filtros = terceiros.length ? `<div class="tc-filtros">
         ${filtro('tc-filtro-nivel', 'Criticidade', { ...NIVEIS_CRITICIDADE, nao_avaliada: 'Não avaliada' })}
-        ${filtro('tc-filtro-situacao', 'Situação', Object.fromEntries(Object.entries(SITUACOES).map(([k, [r]]) => [k, r])))}</div>` : '';
+        ${filtro('tc-filtro-situacao', 'Situação', Object.fromEntries(Object.entries(SITUACOES).map(([k, [r]]) => [k, r])))}
+        <div class="form-group tc-filtro"><label class="form-label" for="tc-filtro-pendencia">Pendência</label>
+        <select class="form-input" id="tc-filtro-pendencia" data-action-change="filtrarFornecedores"><option value="">Todas</option><option value="completo">Completos</option>
+        <option value="pendente">Com pendência</option>${PENDENCIAS.map((x) => `<option value="${x}">Falta ${escapeHTML(x)}</option>`).join('')}</select></div></div>` : '';
     c.innerHTML = `${aviso}${chip}${filtros}<div id="tc-lista"></div>`;
     desenharLista();
 }
@@ -76,7 +82,9 @@ function desenharLista() {
     const { proj, cadastrar } = daLista;
     const nivel = el('tc-filtro-nivel') ? el('tc-filtro-nivel').value : '';
     const situacao = el('tc-filtro-situacao') ? el('tc-filtro-situacao').value : '';
-    const itens = daLista.itens.filter((t) => (!nivel || (t.nivel || 'nao_avaliada') === nivel) && (!situacao || t.situacao === situacao));
+    const pend = el('tc-filtro-pendencia') ? el('tc-filtro-pendencia').value : '';
+    const passaPend = (t) => !pend || (pend === 'completo' ? !lista(t.pendencias).length : pend === 'pendente' ? lista(t.pendencias).length > 0 : lista(t.pendencias).includes(pend));
+    const itens = daLista.itens.filter((t) => (!nivel || (t.nivel || 'nao_avaliada') === nivel) && (!situacao || t.situacao === situacao) && passaPend(t));
     const linhas = itens.map((t) => {
         const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
         return [
@@ -86,14 +94,15 @@ function desenharLista() {
             window.renderStatusBadge(rotulo, tom),
             escapeHTML(t.ultima_avaliacao ? dataBr(t.ultima_avaliacao.valido_ate) : '—'),
             t.dpa ? 'Sim' : 'Não',
+            escapeHTML(situacaoTprm(t)),
             escapeHTML(String(t.atividades ?? t.tratamentos ?? 0)),
             `<button class="btn btn-ghost btn-sm" data-action="abrirTerceiro" data-args='${args(proj.id, t.id)}'>Abrir</button>`,
         ];
     });
     alvo.innerHTML = window.renderDataTable(
-        ['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'DPA', 'Atividades', 'Ações'],
+        ['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações'],
         linhas,
-        daLista.filtrado || nivel || situacao
+        daLista.filtrado || nivel || situacao || pend
             ? { emptyState: 'Nenhum fornecedor nesta situação.', emptyHint: 'Limpe o filtro para ver todos.', emptyAction: '' }
             : {
                 emptyState: 'Nenhuma organização cadastrada.',
@@ -173,6 +182,7 @@ async function renderTerceiro(c, h, a) {
     h.textContent = t.nome;
     c.innerHTML = `<div class="tc"><p class="tc-resumo">${window.renderStatusBadge(rotulo, tom)} ${t.ultima_avaliacao ? `avaliação válida até ${escapeHTML(dataBr(t.ultima_avaliacao.valido_ate))}` : 'nunca avaliado'}
             · Criticidade: ${escapeHTML(NIVEIS_CRITICIDADE[t.nivel] || 'Não avaliada')}</p>
+        <p class="tc-resumo" id="tc-tprm">Situação do TPRM: ${escapeHTML(situacaoTprm(t))}</p>
         <div class="at-abas" role="tablist" aria-label="Abas do fornecedor">${ABAS.map(([id, r]) =>
             `<button type="button" role="tab" class="at-aba" id="tc-aba-${id}" aria-controls="tc-painel" aria-selected="${id === aba}" tabindex="${id === aba ? 0 : -1}"
                 data-action="tcIrParaAba" data-action-keydown="tcTeclaAba" data-arg-event data-args='${args(id)}'>${escapeHTML(r)}</button>`).join('')}</div>

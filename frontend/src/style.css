@@ -2116,6 +2116,13 @@ button.roadmap-node { padding: 0; font-family: inherit; }
 .modulo-seletor a:hover, .modulo-seletor a:focus-visible { color: var(--text); }
 .modulo-seletor a[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
 
+/* Filtros da lista de fornecedores e a fila de avaliações (views/avaliacoes-terceiros.js). */
+.tc-filtros { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 12px; }
+.tc-filtro { margin: 0; }
+.av-grupo { margin: 0 0 20px; }
+.av-grupo h3 { margin: 0 0 8px; font: 600 var(--fs-md) var(--font-head); color: var(--text); }
+.av-metodos { margin: 8px 0 0; padding-left: 20px; color: var(--text-2); }
+
 /* Ficha do fornecedor (views/terceiros.js): página com abas, no molde da atividade do RoPA. */
 .tc { max-width: 1040px; display: flex; flex-direction: column; gap: 16px; }
 .tc-resumo { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-2); }
@@ -2138,3 +2145,20 @@ button.roadmap-node { padding: 0; font-family: inherit; }
 .ra-modo-opcao input { margin-top: 3px; }
 .ra-modo-opcao strong { display: block; color: var(--text); font-weight: 600; margin-bottom: 2px; }
 .ra-modo-opcao:has(input:checked) { border-color: var(--accent); }
+
+/* Referência jurídica (n.privacy): consulta da LGPD, ANPD e GDPR */
+.rj-aviso { color: var(--text-dim); font-size: var(--fs-md); max-width: 75ch; margin: 0 0 12px; }
+.rj-validacao { margin: 0 0 16px; }
+.rj-confirma { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 16px; background: var(--surface); border: 1px solid var(--accent); }
+.rj-confirma p { flex-basis: 100%; margin: 0 0 4px; }
+.rj-tabela { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+.rj-tabela th, .rj-tabela td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.rj-tabela thead th { color: var(--text-dim); font-size: var(--fs-sm); font-weight: 600; }
+.rj-ref { white-space: nowrap; font-weight: 600; }
+.rj-filho .rj-ref { padding-left: 28px; font-weight: 400; }
+.rj-quem { display: block; color: var(--text-dim); font-size: var(--fs-sm); }
+.rj-bases-legais { border-left: 2px solid var(--accent); padding-left: 16px; margin-bottom: 24px; }
+.rj-bases { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.rj-base { padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); }
+.rj-base-t { font: 600 var(--fs-lg) var(--font-head); margin: 0 0 6px; }
+.rj-base p { margin: 0; color: var(--text-2); font-size: var(--fs-md); line-height: 1.5; }

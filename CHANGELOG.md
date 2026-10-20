@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Adicionado (TPRM, referência jurídica e Empresas no n.privacy, 20/10/2026; sem migration)
+- **Fornecedores pela rotina de TPRM:** cada fornecedor mostra o que falta pelo critério da skill de avaliação de terceiros (tipo, criticidade, avaliação vigente, DPA), com filtro de pendência, e uma tela **Avaliações** com a fila de reavaliação (vencidas, vencem em 30 dias, sem avaliação, reprovadas, em dia), os críticos primeiro.
+- **Referência jurídica** (Mais): consulta aberta a todo usuário do módulo com a LGPD (art. 7 e art. 11 como bases legais), a ANPD e as seis bases do GDPR, com busca e o selo "Validado juridicamente". O `platform_admin` valida os mapeamentos propostos em lote (`POST /requisitos/mapeamentos/validar`): o validador é sempre o e-mail de quem está logado, nunca vem do corpo, e o agente MCP não chama.
+- **Empresas:** a falha da consulta de CNPJ (BrasilAPI) não bloqueia mais o cadastro; a mensagem pede o preenchimento à mão.
+
 ### Adicionado (paridade com o legado, 19/10/2026, a partir das capturas do dono; migration 0081)
 - **Menu do n.privacy na ordem do legado:** Dashboard, Empresas, Cadastros (Áreas, Ativos, Titulares, Dados de titular, Parceiros, Pessoas), Mapeamento (Atividades, DPIA, LIA), Diagnóstico (Gaps, Riscos), Fornecedores, Documentos, Solicitações e "Mais" com o que só o n.360 tem.
 - **Documentos em arquivo** (tabela `documentos_arquivo`): tipo, status, vencimento ou sem vencimento, responsável e o PDF/DOC no R2, com aviso de vencimento. As políticas versionadas continuam em Mais, Políticas.

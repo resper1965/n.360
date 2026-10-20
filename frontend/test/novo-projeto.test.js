@@ -93,6 +93,17 @@ describe('assistente', () => {
         expect($('np-titulo').textContent).toContain('Programa');
     });
 
+    it('consulta de CNPJ fora do ar: mensagem fixa, campos seguem editáveis e o passo avança', async () => {
+        apiMock.mockImplementation(async (m, url) => { if (url.includes('consulta-cnpj')) throw new Error('502 BrasilAPI'); return {}; });
+        window.mascararCnpjCampo(digitar('emp-cnpj', CNPJ));
+        await window.buscarDadosDoCnpj();
+        expect($('emp-consulta').textContent).toBe('A consulta de CNPJ está indisponível. Preencha os dados à mão.');
+        expect($('emp-razao_social').disabled).toBe(false);
+        digitar('emp-razao_social', 'Teta à mão');
+        window.novoProjetoIr(2);
+        expect($('np-titulo').textContent).toContain('Programa');
+    });
+
     it('sair do campo com CNPJ válido consulta uma vez; CNPJ já usado na organização oferece abrir', async () => {
         apiMock.mockImplementation(async (m, url) => (url.includes('consulta-cnpj') ? { ...PROPOSTA, existente: { id: 'p9', nome: '<b>Gama</b>' } } : {}));
         window.mascararCnpjCampo(digitar('emp-cnpj', CNPJ));

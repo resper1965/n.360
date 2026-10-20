@@ -100,9 +100,9 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
             '# Cadastros', 'nav-areas nav-sistemas nav-titulares nav-dados-titular nav-parceiros nav-partes',
             '# Mapeamento', 'nav-ropa nav-dpia nav-lia',
             '# Diagnóstico', 'nav-gaps nav-mapa-de-risco',
-            '# Fornecedores', 'nav-terceiros',
+            '# Fornecedores', 'nav-terceiros nav-avaliacoes-terceiros',
             'nav-documentos-arquivo nav-titular',
-            '# Mais', 'nav-incidentes-privacy nav-consentimentos nav-requisitos nav-documentos nav-evidence nav-training nav-governance nav-importacao',
+            '# Mais', 'nav-referencia-juridica nav-incidentes-privacy nav-consentimentos nav-requisitos nav-documentos nav-evidence nav-training nav-governance nav-importacao',
             'nav-ai',
         ]);
         expect(el('secao-diagnostico').textContent).toBe('Diagnóstico');
@@ -127,11 +127,11 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
         expect(rotulos.map((r) => r.textContent)).toEqual([]);
     });
-    it('25 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
+    it('27 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
         montarApp();
         aplicarCasca('privacy');
         const destinos = [...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => n.id);
-        expect(destinos.length).toBe(25);
+        expect(destinos.length).toBe(27);
         expect(new Set(visiveis())).toEqual(new Set(destinos));
         for (const id of ['nav-meus', 'nav-audit-trail', 'nav-settings']) expect(el(id).dataset.foraDoProduto, id).toBe('1');
         expect(el('group-system-config').dataset.foraDoProduto).toBe('1');
@@ -161,8 +161,8 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         expect(Object.fromEntries([...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => [n.id, texto(n.id)]))).toEqual({
             'nav-encarregado': 'Dashboard', 'nav-empresas': 'Empresas', 'nav-areas': 'Áreas', 'nav-sistemas': 'Ativos', 'nav-titulares': 'Titulares',
             'nav-dados-titular': 'Dados de titular', 'nav-parceiros': 'Parceiros', 'nav-partes': 'Pessoas', 'nav-ropa': 'Atividades', 'nav-dpia': 'DPIA', 'nav-lia': 'LIA',
-            'nav-gaps': 'Gaps', 'nav-mapa-de-risco': 'Riscos', 'nav-terceiros': 'Fornecedores', 'nav-documentos-arquivo': 'Documentos', 'nav-titular': 'Solicitações',
-            'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas',
+            'nav-gaps': 'Gaps', 'nav-mapa-de-risco': 'Riscos', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-documentos-arquivo': 'Documentos', 'nav-titular': 'Solicitações',
+            'nav-referencia-juridica': 'Referência jurídica', 'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas',
             'nav-evidence': 'Evidências', 'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-importacao': 'Importar programa', 'nav-ai': 'Assistente',
         });
         for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes'], ['nav-encarregado', 'selo-painel']]) {
@@ -197,7 +197,7 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
     });
     it('os itens com projeto seguem o projeto: sem projeto somem, e as seções também', () => {
         montarApp();
-        for (const id of ['nav-encarregado', 'nav-empresas', 'nav-titulares', 'nav-dados-titular', 'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-terceiros', 'nav-areas', 'nav-sistemas', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps']) {
+        for (const id of ['nav-encarregado', 'nav-empresas', 'nav-titulares', 'nav-dados-titular', 'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-areas', 'nav-sistemas', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps']) {
             expect(el(id).classList.contains('group-project-only'), id).toBe(true);
             expect(el(id).style.display, id).toBe('none');
         }
