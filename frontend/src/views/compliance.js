@@ -4,6 +4,7 @@ import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmpty
 import { navigate } from '../router.js';
 import { temProduto, projetoDoId } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
+import { classeDoControle } from '../classe-controle.js';
 
     // O id varia por projeto (ctrl-a51, A.5.1, gerado); o código estável é o primeiro token do título.
     function codigoDoControle(ctrl) {
@@ -812,7 +813,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     const totalSec = subData.controls.length;
                     let compliantSec = 0;
                     subData.controls.forEach(c => {
-                        if (c.status === 'Implemented' || c.status === 'Compliant' || c.status === 'Approved') {
+                        if (classeDoControle(c.status) === 'feito') {
                             compliantSec++;
                         }
                     });
@@ -1221,9 +1222,9 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 } else if (filter === 'not_applicable') {
                     matchesFilter = status === 'Not Applicable';
                 } else if (filter === 'gaps') {
-                    matchesFilter = status === 'Missing';
+                    matchesFilter = classeDoControle(status) === 'falta';
                 } else if (filter === 'approved') {
-                    matchesFilter = status === 'Approved' || status === 'Implemented';
+                    matchesFilter = classeDoControle(status) === 'feito';
                 }
                 
                 if (matchesSearch && matchesFilter) {
@@ -1710,7 +1711,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     const cisoSign = ctrl.ciso_approved_by ? `<span class="t-sucesso">${escapeHTML(ctrl.ciso_approved_by)}</span>` : '<span class="t-dim">Pendente</span>';
                     const ceoSign = ctrl.ceo_approved_by ? `<span class="t-sucesso">${escapeHTML(ctrl.ceo_approved_by)}</span>` : '<span class="t-dim">Pendente</span>';
                     
-                    const statusType = (ctrl.status === 'Compliant' || ctrl.status === 'IMPLEMENTED' || ctrl.status === 'Implemented') ? 'success' : (ctrl.status === 'Partial' || ctrl.status === 'PARTIAL') ? 'warning' : 'danger';
+                    const classe = classeDoControle(ctrl.status); const statusType = classe === 'feito' ? 'success' : classe === 'andamento' ? 'warning' : 'danger';
 
                     // Map DB ID back to formatted display ID (e.g. ctrl-a51 -> A.5.1)
                     let displayId = ctrl.id || '';
