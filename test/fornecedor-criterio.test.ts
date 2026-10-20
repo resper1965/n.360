@@ -43,9 +43,9 @@ describe('fornecedor: o mesmo critério nos dois módulos', () => {
     expect((await pontoDePartida(env.DB, P)).cadastro.terceiros).toBe(1);
   });
 
-  it('CSV: fornecedor sem perfil sai com as células do perfil vazias, nunca "null"', async () => {
+  it('CSV: fornecedor sem perfil sai com as células do perfil vazias, nunca "null"; o DPA (da parte) diz Não', async () => {
     const csv = await (await chamar(consultor, `/api/v1/projects/${P}/export/vendors`)).text();
-    expect(csv.split('\n')[1]).toBe('"Nuvem Exemplo","","","","","",""');
+    expect(csv.split('\n')[1]).toBe('"Nuvem Exemplo","","","","","","Não"'); // o DPA é da parte (documento ligado), não do perfil
   });
 
   it('criar a avaliação pelo POST reaproveita a parte; remover a avaliação deixa o fornecedor na lista', async () => {

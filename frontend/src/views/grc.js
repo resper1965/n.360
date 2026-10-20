@@ -479,7 +479,8 @@ window.__grcCloseExecAudit = function (id) {
         // o índice médio só conta quem tem avaliação de segurança (perfil); fornecedor sem perfil não vale 0
         const avaliados = vendors.filter(v => v.id);
         const avgScore = avaliados.length ? Math.round(avaliados.reduce((acc, v) => acc + (v.trust_score || 0), 0) / avaliados.length) : 0;
-        const dpaSignedCount = vendors.filter(v => v.dpa_signed).length;
+        // DPA é o documento ligado (fonte única, 20/10/2026); o "declarado" do perfil antigo não conta
+        const dpaSignedCount = vendors.filter(v => v.dpa).length;
         const highDilCount = vendors.filter(v => v.diligence_level === 'High' || v.diligence_level === 'Critical').length;
 
         const statsHtml = window.renderStatCards([
@@ -491,7 +492,7 @@ window.__grcCloseExecAudit = function (id) {
         ]);
 
         const tableHtml = window.renderDataTable(
-            ['Fornecedor', 'Categoria', 'Índice de confiança', 'DPA assinado', 'Certificações', 'Nível de diligência', 'Ações'],
+            ['Fornecedor', 'Categoria', 'Índice de confiança', 'DPA', 'Certificações', 'Nível de diligência', 'Ações'],
             vendors.map(v => {
                 const certs = [];
                 if (v.has_iso27001) certs.push('ISO 27001');
@@ -505,7 +506,7 @@ window.__grcCloseExecAudit = function (id) {
                     `<strong>${escapeHTML(v.name)}</strong>`,
                     '—',
                     '<span class="t-sm t-dim">Sem avaliação de segurança</span>',
-                    '—', '—', '—',
+                    seloDpa(v), '—', '—',
                     canCrud ? `<button class="btn btn-ghost btn-sm" data-action="openEditVendorModal" data-args='["${v.parte_id}"]'>Avaliar</button>` : ''
                 ];
 
@@ -513,7 +514,7 @@ window.__grcCloseExecAudit = function (id) {
                     `<strong>${escapeHTML(v.name)}</strong>`,
                     escapeHTML(v.category || 'Geral'),
                     `<span style="font-weight:600;color:${scoreColor}">${v.trust_score || 0}/100</span>`,
-                    v.dpa_signed ? window.renderStatusBadge('Sim', 'success') : window.renderStatusBadge('Não', 'danger'),
+                    seloDpa(v),
                     `<span class="t-sm t-dim">${escapeHTML(certStr)}</span>`,
                     window.renderStatusBadge(v.diligence_level || 'Low', v.diligence_level === 'High' ? 'danger' : 'info'),
                     `<button class="btn btn-ghost btn-sm" data-action="openVendorDetailsModal" data-args='["${v.parte_id}"]'>Detalhes</button>`
@@ -530,10 +531,20 @@ window.__grcCloseExecAudit = function (id) {
         `;
     }
 
+    // DPA pela fonte única: "Sim" só com documento ligado; o legado do perfil (caixa marcada ou link) é "Declarado, sem documento"
+    const textoDpa = v => v.dpa ? 'Sim' : v.dpa_declarado ? 'Declarado, sem documento' : 'Não';
+    const seloDpa = v => window.renderStatusBadge(textoDpa(v), v.dpa ? 'success' : v.dpa_declarado ? 'warning' : 'danger');
+
     // fornecedores são identificados pela parte (`parte_id`): o perfil de segurança (`id`) é opcional
-    window.openVendorDetailsModal = function(parteId) {
+    window.openVendorDetailsModal = async function(parteId) {
         const v = S.vendors.find(x => x.parte_id === parteId) || {};
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
+        const ligados = Array.isArray(v.dpa_documentos) ? v.dpa_documentos : [];
+        let documentos = [];
+        if (canCrud) {
+            try { const r = await api('GET', `/api/v1/projects/${v.project_id}/documentos`); documentos = Array.isArray(r) ? r : []; } catch (e) { documentos = []; }
+            documentos = documentos.filter(d => !ligados.some(l => l.id === d.id));
+        }
         const dilColor = d => d === 'Low' ? 'var(--success)' : d === 'Medium' ? 'var(--warning)' : 'var(--danger)';
         
         openModal(`
@@ -560,8 +571,8 @@ window.__grcCloseExecAudit = function (id) {
                         <span style="font-size:1.1rem; font-weight:600; color:${v.trust_score >= 80 ? 'var(--success)' : v.trust_score >= 50 ? 'var(--warning)' : 'var(--danger)'}">${v.trust_score || 0} / 100</span>
                     </div>
                     <div>
-                        <div class="rotulo-campo">DPA Assinado</div>
-                        <span class="ctx-tag" style="background:${v.dpa_signed ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.05)'}; color:${v.dpa_signed ? 'var(--success)' : 'var(--text-dim)'}; font-weight:600">${v.dpa_signed ? 'Sim' : 'Não'}</span>
+                        <div class="rotulo-campo">DPA</div>
+                        ${seloDpa(v)}
                     </div>
                     
                     <div class="col-span-2">
@@ -581,10 +592,20 @@ window.__grcCloseExecAudit = function (id) {
                         <a href="${escapeHTML(v.trust_center_url)}" target="_blank" class="t-accent t-base sem-sublinhado">${escapeHTML(v.trust_center_url)} &nearr;</a>
                     </div>` : ''}
 
-                    ${v.dpa_url ? `
+                    <div class="col-span-2" id="vnd-dpa-docs">
+                        <div class="rotulo-campo">Documentos DPA ligados</div>
+                        ${ligados.length ? `<ul>${ligados.map(d => `<li>${escapeHTML(d.titulo)}</li>`).join('')}</ul>` : '<span class="t-md t-dim">Nenhum documento ligado</span>'}
+                        ${canCrud && documentos.length ? `<div class="d-flex gap-2 items-center mt-1">
+                            <label class="form-label" for="vnd-dpa-doc">Documento</label>
+                            <select class="form-input" id="vnd-dpa-doc">${documentos.map(d => `<option value="${escapeHTML(d.id)}">${escapeHTML(d.titulo)}</option>`).join('')}</select>
+                            <button class="btn btn-sm" data-action="ligarDpaFornecedor" data-args='${escapeHTML(JSON.stringify([v.project_id, parteId]))}'>Ligar documento</button>
+                        </div>` : ''}
+                    </div>
+
+                    ${v.dpa_declarado && v.dpa_url_antigo ? `
                     <div class="col-span-2">
-                        <div class="rotulo-campo">DPA Padrão / Termos de Privacidade</div>
-                        <a href="${escapeHTML(v.dpa_url)}" target="_blank" class="t-accent t-base sem-sublinhado">${escapeHTML(v.dpa_url)} &nearr;</a>
+                        <div class="rotulo-campo">DPA declarado, sem documento (link antigo)</div>
+                        <span class="t-base">${escapeHTML(v.dpa_url_antigo)}</span>
                     </div>` : ''}
 
                     <div class="col-span-2">
@@ -606,6 +627,15 @@ window.__grcCloseExecAudit = function (id) {
         `);
     };
 
+    window.ligarDpaFornecedor = async function(projectId, parteId) {
+        const documentoId = document.getElementById('vnd-dpa-doc')?.value;
+        if (!documentoId) return;
+        try { await api('POST', `/api/v1/projects/${projectId}/terceiros/${parteId}/documentos`, { documento_id: documentoId, papel: 'dpa' }); }
+        catch (e) { showToast(e.message || 'Não foi possível ligar o documento.', 'error'); return; }
+        showToast('Documento ligado como DPA.', 'success');
+        forceCloseModal(); render();
+    };
+
     window.previewVendorScore = function() {
         let score = 0;
         if (document.getElementById('vnd-iso27001')?.checked) score += 20;
@@ -617,7 +647,6 @@ window.__grcCloseExecAudit = function (id) {
         if (document.getElementById('vnd-inc')?.checked) score += 10;
         if (document.getElementById('vnd-pen')?.checked) score += 10;
         if (document.getElementById('vnd-tc-url')?.value.trim().length > 0) score += 5;
-        if (document.getElementById('vnd-dpa')?.value === '1' || document.getElementById('vnd-dpa-url')?.value.trim().length > 0) score += 10;
         
         const finalScore = Math.min(100, score);
         const scorePreviewEl = document.getElementById('vnd-score-preview');
@@ -654,24 +683,12 @@ window.__grcCloseExecAudit = function (id) {
                 <label class="t-xs t-dim d-flex items-center gap-1 col-span-2"><input type="checkbox" id="vnd-pen" data-action-change="previewVendorScore"> Testes de Invasao (Pentest)</label>
             </div>
 
-            <div class="card-label mt-4 mb-2">Canais públicos (portal de segurança e DPA padrão)</div>
+            <div class="card-label mt-4 mb-2">Canais públicos (portal de segurança)</div>
             <div class="form-group">
                 <label class="form-label">Portal de segurança (URL)</label>
                 <input class="form-input" id="vnd-tc-url" placeholder="Ex: https://aws.amazon.com/compliance/" data-action-input="previewVendorScore">
             </div>
-            <div class="d-flex gap-2">
-                <div class="form-group flex-1">
-                    <label class="form-label">DPA Assinado?</label>
-                    <select class="form-input" id="vnd-dpa" data-action-change="previewVendorScore">
-                        <option value="0">Não</option>
-                        <option value="1">Sim</option>
-                    </select>
-                </div>
-                <div class="form-group flex-2">
-                    <label class="form-label">DPA URL (Padrão do Site)</label>
-                    <input class="form-input" id="vnd-dpa-url" placeholder="Ex: https://aws.amazon.com/dpa/" data-action-input="previewVendorScore">
-                </div>
-            </div>
+            <p class="t-sm t-dim">O DPA se registra ligando o documento na ficha do fornecedor (Detalhes).</p>
 
             <div class="d-flex justify-between items-center mt-4 mb-4 bg-sutil borda p-3">
                 <span class="t-md fw-600">Índice de confiança estimado:</span>
@@ -687,7 +704,6 @@ window.__grcCloseExecAudit = function (id) {
         const body = { 
             name: document.getElementById('vnd-name').value, 
             category: document.getElementById('vnd-cat').value, 
-            dpa_signed: +document.getElementById('vnd-dpa').value, 
             has_iso27001: document.getElementById('vnd-iso27001').checked ? 1 : 0, 
             has_iso27701: document.getElementById('vnd-iso27701').checked ? 1 : 0, 
             has_soc2: document.getElementById('vnd-soc2').checked ? 1 : 0,
@@ -697,7 +713,6 @@ window.__grcCloseExecAudit = function (id) {
             has_incident_plan: document.getElementById('vnd-inc').checked ? 1 : 0,
             has_pentest: document.getElementById('vnd-pen').checked ? 1 : 0,
             trust_center_url: document.getElementById('vnd-tc-url').value,
-            dpa_url: document.getElementById('vnd-dpa-url').value,
             attached_certifications: document.getElementById('vnd-attached-certs').value
         };
         if (!body.name) return;
@@ -738,19 +753,7 @@ window.__grcCloseExecAudit = function (id) {
                 <label class="form-label">Portal de segurança (URL)</label>
                 <input class="form-input" id="vnd-tc-url" value="${escapeHTML(v.trust_center_url||'')}" placeholder="Ex: https://aws.amazon.com/compliance/" data-action-input="previewVendorScore">
             </div>
-            <div class="d-flex gap-2">
-                <div class="form-group flex-1">
-                    <label class="form-label">DPA Assinado?</label>
-                    <select class="form-input" id="vnd-dpa" data-action-change="previewVendorScore">
-                        <option value="0" ${!v.dpa_signed?'selected':''}>Não</option>
-                        <option value="1" ${v.dpa_signed?'selected':''}>Sim</option>
-                    </select>
-                </div>
-                <div class="form-group flex-2">
-                    <label class="form-label">DPA URL</label>
-                    <input class="form-input" id="vnd-dpa-url" value="${escapeHTML(v.dpa_url||'')}" placeholder="Ex: https://aws.amazon.com/dpa/" data-action-input="previewVendorScore">
-                </div>
-            </div>
+            <p class="t-sm t-dim">DPA: ${escapeHTML(textoDpa(v))}. O DPA se registra ligando o documento na ficha do fornecedor (Detalhes).</p>
 
             <div class="d-flex justify-between items-center mt-4 mb-4 bg-sutil borda p-3">
                 <span class="t-md fw-600">Índice de confiança estimado:</span>
@@ -773,7 +776,8 @@ window.__grcCloseExecAudit = function (id) {
             if (document.getElementById('vnd-inc')?.checked) score += 10;
             if (document.getElementById('vnd-pen')?.checked) score += 10;
             if (document.getElementById('vnd-tc-url')?.value.trim().length > 0) score += 5;
-            if (document.getElementById('vnd-dpa')?.value === '1' || document.getElementById('vnd-dpa-url')?.value.trim().length > 0) score += 10;
+            // o DPA conta pelo documento ligado (a ficha liga), não por campo deste formulário
+            if (v.dpa) score += 10;
             
             const finalScore = Math.min(100, score);
             const scorePreviewEl = document.getElementById('vnd-score-preview');
@@ -790,7 +794,6 @@ window.__grcCloseExecAudit = function (id) {
         const body = { 
             name: v.id ? document.getElementById('vnd-e-name').value : v.name, 
             category: document.getElementById('vnd-e-cat').value, 
-            dpa_signed: +document.getElementById('vnd-dpa').value, 
             has_iso27001: document.getElementById('vnd-iso27001').checked ? 1 : 0, 
             has_iso27701: document.getElementById('vnd-iso27701').checked ? 1 : 0, 
             has_soc2: document.getElementById('vnd-soc2').checked ? 1 : 0,
@@ -800,7 +803,6 @@ window.__grcCloseExecAudit = function (id) {
             has_incident_plan: document.getElementById('vnd-inc').checked ? 1 : 0,
             has_pentest: document.getElementById('vnd-pen').checked ? 1 : 0,
             trust_center_url: document.getElementById('vnd-tc-url').value,
-            dpa_url: document.getElementById('vnd-dpa-url').value,
             attached_certifications: document.getElementById('vnd-attached-certs').value
         };
         // sem perfil, o POST cria a avaliação na parte desta linha (pelo id: dois fornecedores podem ter o mesmo nome)

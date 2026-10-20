@@ -357,9 +357,11 @@ integrations.get('/api/v1/projects/:projectId/export/vendors', async (c) => {
   const projectId = c.req.param('projectId');
   const result = await c.env.DB.prepare(SQL_VENDORS_VISIVEIS).bind(projectId).all();
   const rows = (result.results || []) as any[];
-  const headers = 'name,category,trust_score,diligence_level,has_iso27001,has_soc2,dpa_signed';
+  const headers = 'name,category,trust_score,diligence_level,has_iso27001,has_soc2,dpa';
+  // DPA pela fonte única (o documento ligado); o legado do perfil aparece como declarado
+  const dpa = (r: { dpa?: unknown; dpa_declarado?: unknown }) => (r.dpa ? 'Sim' : r.dpa_declarado ? 'Declarado, sem documento' : 'Não');
   const csv = headers + '\n' + rows.map(r => 
-    `${safeCsvCell(r.name)},${safeCsvCell(r.category)},${safeCsvCell(r.trust_score)},${safeCsvCell(r.diligence_level)},${safeCsvCell(r.has_iso27001)},${safeCsvCell(r.has_soc2)},${safeCsvCell(r.dpa_signed)}`
+    `${safeCsvCell(r.name)},${safeCsvCell(r.category)},${safeCsvCell(r.trust_score)},${safeCsvCell(r.diligence_level)},${safeCsvCell(r.has_iso27001)},${safeCsvCell(r.has_soc2)},${safeCsvCell(dpa(r))}`
   ).join('\n');
   return csvComTrilha(c, 'fornecedores', rows.length, csv, 'vendors.csv');
 });

@@ -245,18 +245,23 @@ function abaAvaliacoes(projectId, parteId, t, editar, extra) {
 // Perfil de segurança: a linha de `vendors` da parte (o mesmo perfil da tela Fornecedores do n.iso), salvo pelo PUT dela.
 const SEG_MARCAS = [['iso27001', 'has_iso27001', 'ISO 27001'], ['iso27701', 'has_iso27701', 'ISO 27701'], ['soc2', 'has_soc2', 'SOC 2'],
     ['mfa', 'has_mfa', 'MFA habilitado'], ['cripto', 'has_encryption', 'Criptografia ativa'], ['backup', 'has_backup', 'Backups regulares'],
-    ['incidente', 'has_incident_plan', 'Plano de incidentes'], ['pentest', 'has_pentest', 'Testes de invasão (pentest)'], ['dpa', 'dpa_signed', 'DPA assinado']];
-const SEG_TEXTOS = [['tc-url', 'trust_center_url', 'Trust center (link)'], ['dpa-url', 'dpa_url', 'DPA (link)'],
+    ['incidente', 'has_incident_plan', 'Plano de incidentes'], ['pentest', 'has_pentest', 'Testes de invasão (pentest)']];
+const SEG_TEXTOS = [['tc-url', 'trust_center_url', 'Trust center (link)'],
     ['certs', 'attached_certifications', 'Outras certificações (separadas por vírgula)'], ['notas', 'notes', 'Observações']];
+
+// O DPA é o documento ligado (aba Documentos, fonte única de 20/10/2026). O legado do perfil (caixa marcada ou link) só aparece,
+// só leitura, enquanto nenhum documento DPA estiver ligado.
+const dpaDeclarado = (t, v) => (!t.dpa && (v.dpa_signed || String(v.dpa_url || '').trim())
+    ? `<p class="t-sm">DPA declarado, sem documento (link antigo): ${linkSeguro(v.dpa_url) || '—'}. Ligue o documento na aba Documentos.</p>` : '');
 
 function abaSeguranca(projectId, parteId, t, editar) {
     const v = t.seguranca;
     if (!v) return '<p>Sem perfil de segurança.</p>';
     if (!editar) {
-        return dl([...SEG_MARCAS.map(([, campo, r]) => [r, v[campo] ? 'Sim' : 'Não']),
+        return dpaDeclarado(t, v) + dl([...SEG_MARCAS.map(([, campo, r]) => [r, v[campo] ? 'Sim' : 'Não']),
             ...SEG_TEXTOS.map(([, campo, r]) => [r, campo.endsWith('url') ? (linkSeguro(v[campo]) || '—') : escapeHTML(v[campo] || '—')])]);
     }
-    return `<fieldset class="form-group"><legend class="form-label">Certificações e postura de segurança</legend>
+    return `${dpaDeclarado(t, v)}<fieldset class="form-group"><legend class="form-label">Certificações e postura de segurança</legend>
             <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.5rem">
             ${SEG_MARCAS.map(([id, campo, r]) => `<label class="opcao-check"><input type="checkbox" id="tc-seg-${id}" ${v[campo] ? 'checked' : ''}> ${r}</label>`).join('')}</div></fieldset>
         ${SEG_TEXTOS.map(([id, campo, r]) => `<div class="form-group"><label class="form-label" for="tc-seg-${id}">${r}</label>${campo === 'notes'

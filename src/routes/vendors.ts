@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { normalizarNome } from '../services/nomes';
-import { SQL_EH_FORNECEDOR } from '../services/terceiros';
+import { SQL_EH_FORNECEDOR, SQL_TEM_DPA, indiceDeConfianca, nivelDeDiligencia, temDpa } from '../services/terceiros';
 import { Bindings, Variables } from '../index';
 
 import { genId, logAudit, requireResourceAccess, erro500 } from '../helpers';
@@ -9,27 +9,6 @@ import { validateBody, createVendorSchema, vendorUpdateSchema } from '../schemas
 export const vendorsApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectVendorsApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-
-function calculateTrustScore(body: any): number {
-  let score = 0;
-  if (body.has_iso27001) score += 20;
-  if (body.has_iso27701) score += 15;
-  if (body.has_soc2) score += 15;
-  if (body.has_mfa) score += 10;
-  if (body.has_encryption) score += 15;
-  if (body.has_backup) score += 10;
-  if (body.has_incident_plan) score += 10;
-  if (body.has_pentest) score += 10;
-  if (body.trust_center_url && body.trust_center_url.trim().length > 0) score += 5;
-  if (body.dpa_signed || (body.dpa_url && body.dpa_url.trim().length > 0)) score += 10;
-  return Math.min(100, score);
-}
-
-function diligenceLevel(trustScore: number): string {
-  if (trustScore > 90) return 'Low';
-  if (trustScore > 60) return 'Medium';
-  return 'High';
-}
 
 // ─── Direct Vendor Operations (/api/v1/vendors) ────────────────────────────
 
@@ -41,16 +20,18 @@ vendorsApp.put('/:id', async (c) => {
     if (!v.success) return v.response;
     const body = v.data as any;
     const nome = String(body.name).trim();
-    const ts = calculateTrustScore(body);
-    const dl = diligenceLevel(ts);
+    // DPA é o documento ligado (`SQL_TEM_DPA`): `dpa_signed` e `dpa_url` do corpo são ignorados, as colunas ficam como histórico
+    const parte = await c.env.DB.prepare('SELECT parte_id FROM vendors WHERE id = ?').bind(id).first<{ parte_id: string | null }>();
+    const ts = indiceDeConfianca(body, !!parte?.parte_id && await temDpa(c.env.DB, parte.parte_id));
+    const dl = nivelDeDiligencia(ts);
 
     await c.env.DB.prepare(
-      `UPDATE vendors SET name=?, category=?, has_iso27001=?, has_iso27701=?, has_soc2=?, trust_score=?, diligence_level=?, dpa_signed=?, notes=CASE WHEN ? THEN ? ELSE notes END, status=CASE WHEN ? THEN ? ELSE status END, has_mfa=?, has_encryption=?, has_backup=?, has_incident_plan=?, has_pentest=?, trust_center_url=?, dpa_url=?, attached_certifications=? WHERE id=?`
+      `UPDATE vendors SET name=?, category=?, has_iso27001=?, has_iso27701=?, has_soc2=?, trust_score=?, diligence_level=?, notes=CASE WHEN ? THEN ? ELSE notes END, status=CASE WHEN ? THEN ? ELSE status END, has_mfa=?, has_encryption=?, has_backup=?, has_incident_plan=?, has_pentest=?, trust_center_url=?, attached_certifications=? WHERE id=?`
     ).bind(
       // observações e status ausentes no corpo ficam como estão: a edição do n.iso não os envia
-      nome, body.category ?? null, body.has_iso27001 ?? 0, body.has_iso27701 ?? 0, body.has_soc2 ?? 0, ts, dl, body.dpa_signed ?? 0,
+      nome, body.category ?? null, body.has_iso27001 ?? 0, body.has_iso27701 ?? 0, body.has_soc2 ?? 0, ts, dl,
       body.notes !== undefined ? 1 : 0, body.notes ?? null, body.status !== undefined ? 1 : 0, body.status ?? 'Active',
-      body.has_mfa ?? 0, body.has_encryption ?? 0, body.has_backup ?? 0, body.has_incident_plan ?? 0, body.has_pentest ?? 0, body.trust_center_url ?? null, body.dpa_url ?? null, body.attached_certifications ?? null,
+      body.has_mfa ?? 0, body.has_encryption ?? 0, body.has_backup ?? 0, body.has_incident_plan ?? 0, body.has_pentest ?? 0, body.trust_center_url ?? null, body.attached_certifications ?? null,
       id
     ).run();
     // o nome é da parte (o gatilho vendor_nome_da_parte devolve o mesmo nome ao perfil)
@@ -87,18 +68,24 @@ vendorsApp.delete('/:id', async (c) => {
 /**
  * Fornecedor listado = parte que é fornecedor (`SQL_EH_FORNECEDOR`), com o perfil de segurança (`vendors`) quando houver: sem perfil, `id` e as
  * colunas do perfil vêm NULL. Colunas listadas uma a uma para não haver nome repetido no resultado. A lista e o CSV usam a mesma consulta.
+ * DPA (decisão de 20/10/2026): `dpa` é o documento ligado com papel `dpa` (`SQL_TEM_DPA`, a fonte única); `dpa_declarado` e
+ * `dpa_url_antigo` são o legado do perfil (só leitura); `dpa_documentos` é JSON com id e título dos documentos ligados.
  */
 export const SQL_VENDORS_VISIVEIS = `SELECT v.id, p.project_id, p.nome AS name, v.category, v.has_iso27001, v.has_iso27701, v.has_soc2, v.trust_score,
-    v.diligence_level, v.dpa_signed, v.last_assessment_date, v.notes, v.status, v.has_mfa, v.has_encryption, v.has_backup, v.has_incident_plan,
-    v.has_pentest, v.trust_center_url, v.dpa_url, v.attached_certifications, v.created_at, p.id AS parte_id
+    v.diligence_level, v.last_assessment_date, v.notes, v.status, v.has_mfa, v.has_encryption, v.has_backup, v.has_incident_plan,
+    v.has_pentest, v.trust_center_url, v.attached_certifications, v.created_at, p.id AS parte_id,
+    (${SQL_TEM_DPA}) AS dpa,
+    CASE WHEN COALESCE(v.dpa_signed, 0) = 1 OR trim(COALESCE(v.dpa_url, '')) <> '' THEN 1 ELSE 0 END AS dpa_declarado, v.dpa_url AS dpa_url_antigo,
+    (SELECT json_group_array(json_object('id', d.id, 'titulo', d.titulo)) FROM documento_partes dp JOIN documentos d ON d.id = dp.documento_id
+      WHERE dp.parte_id = p.id AND dp.project_id = p.project_id AND dp.papel = 'dpa') AS dpa_documentos
   FROM partes p LEFT JOIN vendors v ON v.parte_id = p.id WHERE p.project_id = ? AND ${SQL_EH_FORNECEDOR}`;
 
 projectVendorsApp.get('/', async (c) => {
   const projectId = c.req.param('projectId');
   const { results } = await c.env.DB.prepare(
     `${SQL_VENDORS_VISIVEIS} ORDER BY p.nome`
-  ).bind(projectId).all();
-  return c.json({ ok: true, vendors: results });
+  ).bind(projectId).all<{ dpa_documentos: string }>();
+  return c.json({ ok: true, vendors: results.map((v) => ({ ...v, dpa_documentos: JSON.parse(v.dpa_documentos) })) });
 });
 
 projectVendorsApp.post('/', async (c) => {
@@ -107,8 +94,6 @@ projectVendorsApp.post('/', async (c) => {
     const valid = await validateBody(c, createVendorSchema);
     if (!valid.success) return valid.response;
     const body = valid.data as any;
-    const ts = calculateTrustScore(body);
-    const dl = diligenceLevel(ts);
     const db = c.env.DB;
 
     // O fornecedor é a parte organização ATIVA do projeto: reaproveita a de mesmo nome (sem caixa e sem espaço nas pontas) ou cria.
@@ -124,16 +109,19 @@ projectVendorsApp.post('/', async (c) => {
     const existente = achada ? await db.prepare('SELECT id FROM vendors WHERE parte_id = ?').bind(achada.id).first<{ id: string }>() : null;
     if (existente) return c.json({ error: 'Fornecedor já cadastrado neste projeto', id: existente.id }, 409);
     const parteId = achada?.id ?? crypto.randomUUID();
+    // DPA é o documento ligado (parte nova não tem nenhum); `dpa_signed`/`dpa_url` do corpo são ignorados
+    const ts = indiceDeConfianca(body, !!achada && await temDpa(db, parteId));
+    const dl = nivelDeDiligencia(ts);
     const r = await db.batch([
       ...(achada ? [] : [db.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES (?, ?, 'organizacao', ?)`).bind(parteId, projectId, normalizarNome(body.name))]),
       db.prepare(`INSERT OR IGNORE INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, 'terceiro', 'projeto', ?)`).bind(crypto.randomUUID(), projectId, parteId, projectId),
       // o gatilho vendor_perfil_do_terceiro já cria o perfil; isto cobre o vínculo que já existia sem perfil
       db.prepare('INSERT OR IGNORE INTO vendors (id, project_id, name, parte_id) VALUES (?, ?, ?, ?)').bind(genId(), projectId, body.name.trim(), parteId),
       db.prepare(
-        `UPDATE vendors SET category=?, has_iso27001=?, has_iso27701=?, has_soc2=?, trust_score=?, diligence_level=?, dpa_signed=?, notes=?, has_mfa=?, has_encryption=?, has_backup=?, has_incident_plan=?, has_pentest=?, trust_center_url=?, dpa_url=?, attached_certifications=? WHERE parte_id=?`
+        `UPDATE vendors SET category=?, has_iso27001=?, has_iso27701=?, has_soc2=?, trust_score=?, diligence_level=?, notes=?, has_mfa=?, has_encryption=?, has_backup=?, has_incident_plan=?, has_pentest=?, trust_center_url=?, attached_certifications=? WHERE parte_id=?`
       ).bind(
-        body.category ?? null, body.has_iso27001 ?? 0, body.has_iso27701 ?? 0, body.has_soc2 ?? 0, ts, dl, body.dpa_signed ?? 0, body.notes ?? null,
-        body.has_mfa ?? 0, body.has_encryption ?? 0, body.has_backup ?? 0, body.has_incident_plan ?? 0, body.has_pentest ?? 0, body.trust_center_url ?? null, body.dpa_url ?? null, body.attached_certifications ?? null,
+        body.category ?? null, body.has_iso27001 ?? 0, body.has_iso27701 ?? 0, body.has_soc2 ?? 0, ts, dl, body.notes ?? null,
+        body.has_mfa ?? 0, body.has_encryption ?? 0, body.has_backup ?? 0, body.has_incident_plan ?? 0, body.has_pentest ?? 0, body.trust_center_url ?? null, body.attached_certifications ?? null,
         parteId
       ),
       db.prepare('SELECT id FROM vendors WHERE parte_id = ?').bind(parteId),

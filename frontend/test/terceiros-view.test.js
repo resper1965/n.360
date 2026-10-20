@@ -248,14 +248,23 @@ describe('ficha: abas', () => {
         expect(el('tc-seg-notas').value).toBe('Obs <i>x</i>');
         expect(p.querySelector('i')).toBeNull();
         el('tc-seg-pentest').checked = true;
-        el('tc-seg-dpa').checked = true;
-        el('tc-seg-dpa-url').value = ' https://dpa.exemplo.com ';
+        // DPA é o documento ligado (fonte única, 20/10/2026): o perfil não tem mais "DPA assinado" nem link editáveis
+        expect(el('tc-seg-dpa')).toBeNull();
+        expect(el('tc-seg-dpa-url')).toBeNull();
         await window.salvarSegurancaTerceiro('p9', 'a', 'v1');
         expect(corpoDe(f, 'PUT /api/v1/vendors/v1')).toEqual({
             name: 'Nuvem <b>Grande</b>', category: 'Nuvem', status: 'Active',
-            has_iso27001: 1, has_iso27701: 0, has_soc2: 0, has_mfa: 1, has_encryption: 0, has_backup: 0, has_incident_plan: 0, has_pentest: 1, dpa_signed: 1,
-            trust_center_url: 'https://trust.exemplo.com', dpa_url: 'https://dpa.exemplo.com', attached_certifications: 'PCI-DSS', notes: 'Obs <i>x</i>',
+            has_iso27001: 1, has_iso27701: 0, has_soc2: 0, has_mfa: 1, has_encryption: 0, has_backup: 0, has_incident_plan: 0, has_pentest: 1,
+            trust_center_url: 'https://trust.exemplo.com', attached_certifications: 'PCI-DSS', notes: 'Obs <i>x</i>',
         });
+    });
+
+    it('Segurança: DPA declarado no perfil antigo e nenhum documento DPA ligado aparece só leitura, com o link antigo', async () => {
+        const legado = { ...SEGURANCA, dpa_signed: 1, dpa_url: 'https://dpa.exemplo.com' };
+        await ficha({ [`GET ${B}/a`]: FICHA({ dpa: false, seguranca: legado }) }, 'seguranca');
+        expect(el('tc-painel').textContent).toContain('DPA declarado, sem documento (link antigo): https://dpa.exemplo.com');
+        await ficha({ [`GET ${B}/a`]: FICHA({ seguranca: legado }) }, 'seguranca');
+        expect(el('tc-painel').textContent).not.toContain('DPA declarado');
     });
 
     it('Segurança sem perfil: "Sem perfil de segurança" e nada mais', async () => {

@@ -39,6 +39,9 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   'titular-pedidos': 'privacy',
 };
 
+/** Sub-rotas de um segmento do n.privacy que são do núcleo. DPA é dado comum: o n.iso liga o documento sem ter o n.privacy (decisão de 20/10/2026). */
+const SUBROTAS_NUCLEO: RegExp[] = [/^terceiros\/[^/]+\/documentos(\/[^/]+)?$/];
+
 /** Sub-rotas de um segmento do núcleo que são do n.iso (a exportação de riscos lê a matriz ISO; as outras exportações seguem no núcleo). */
 const SUBROTAS_ISO: RegExp[] = [/^export\/risks$/];
 
@@ -69,6 +72,7 @@ export function restoDoCaminho(caminho: string): string | null {
 export function faixaDoCaminho(caminho: string): Faixa | null {
   const resto = restoDoCaminho(caminho);
   if (resto === null) return null;
+  if (SUBROTAS_NUCLEO.some((re) => re.test(resto))) return 'nucleo';
   if (SUBROTAS_ISO.some((re) => re.test(resto))) return 'iso';
   if (SUBROTAS_PRIVACY.some((re) => re.test(resto))) return 'privacy';
   const seg = resto.split('/')[0];
