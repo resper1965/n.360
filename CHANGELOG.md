@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Corrigido (Frente 2A da equalização: uma regra por conceito, 20/10/2026; sem migration)
+- **"Hoje" é o dia de São Paulo** em todo prazo e vencimento, no servidor e nas telas. Entre 21h e 24h de Brasília, "vencido" deixava de valer no dia certo (o servidor contava em UTC; o chip do painel, no fuso do navegador).
+- **"Controle implementado" tem uma regra só.** Gap-analysis, Bancada, readiness, coherence, medidas do RoPA, cobertura da LGPD e a SoA passam a usar a regra do Painel, e `Compliant` (legado) conta como implementado. **Muda número:** a cobertura sobe onde havia `Compliant`, `Approved` ou `Completed`.
+- **Marco "Em operação desde"** conta também a aprovação por pedido e o RIPD aprovado. Um programa só do n.privacy saía "Em implantação" para sempre.
+- **Fornecedor tem um critério só:** organização ativa que não é só parte interessada. A lista do n.iso passa a mostrar a organização criada em Partes ("Sem avaliação de segurança", com "Avaliar"). "Excluir" virou "Remover avaliação de segurança" e apaga só o perfil. **Muda número** no Painel, na Bancada e no ponto de partida.
+- **Evidência vencida** compara pelo dia também no encarregado.
+- **Ativo nasce Confidencial** nos dois módulos. O select "Status" do n.iso, que o servidor ignorava, saiu.
+
 ### Adicionado (TPRM, referência jurídica e Empresas no n.privacy, 20/10/2026; sem migration)
 - **Fornecedores pela rotina de TPRM:** cada fornecedor mostra o que falta pelo critério da skill de avaliação de terceiros (tipo, criticidade, avaliação vigente, DPA), com filtro de pendência, e uma tela **Avaliações** com a fila de reavaliação (vencidas, vencem em 30 dias, sem avaliação, reprovadas, em dia), os críticos primeiro.
 - **Referência jurídica** (Mais): consulta aberta a todo usuário do módulo com a LGPD (art. 7 e art. 11 como bases legais), a ANPD e as seis bases do GDPR, com busca e o selo "Validado juridicamente". O `platform_admin` valida os mapeamentos propostos em lote (`POST /requisitos/mapeamentos/validar`): o validador é sempre o e-mail de quem está logado, nunca vem do corpo, e o agente MCP não chama.

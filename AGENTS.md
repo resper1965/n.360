@@ -108,8 +108,15 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (funcao pura) da a situacao (atendido, pendente, nao se aplica), o motivo, o numero, o veredito (nunca "conforme"; sempre com a
   ressalva de pre-avaliacao), o que falta (estagio, depois o que destrava mais) e `do_cliente`. Criterio novo so com clausula de origem e
   dado verificavel no cadastro. **O indicador de progresso do n.iso e um so**: "X de Y controles aplicaveis implementados", pela
-  `SQL_CLASSE_CONTROLE` de `src/services/painel.ts` (o Painel, a Prontidao, o Monitor e a Jornada mostram o mesmo numero; evidencia
-  vencida ou nao conforme e `SQL_EVIDENCIA_RUIM`, tambem de la). Nao some contagem no cliente nem leia campo que a API nao devolve.
+  `SQL_CLASSE_CONTROLE` de `src/services/classe-controle.ts` (Painel, Prontidao, Monitor, Jornada, gap-analysis, Bancada, readiness,
+  coherence, medidas do RoPA e cobertura da LGPD; `Compliant` legado conta como feito; a SoA na tela usa o espelho
+  `frontend/src/classe-controle.js`, conferido por teste); evidencia vencida e `SQL_EVIDENCIA_VENCIDA` e vencida ou nao conforme e
+  `SQL_EVIDENCIA_RUIM`, de `src/services/evidencia-regras.ts`. Nao some contagem no cliente nem leia campo que a API nao devolve.
+  **Regras unicas (Frente 2A, 20/10/2026):** "hoje" e o dia de Sao Paulo em todo prazo e vencimento (`hojeEmSaoPaulo`/`diaMaisSP` em
+  `src/services/hoje.ts`; `hojeSP`/`emDiasSP` em `frontend/src/hoje.js`; teste que varre o fonte em `test/hoje-sp.test.ts` e
+  `frontend/test/hoje-sp.test.js`); o marco "Em operacao desde" e `SQL_MARCO_DO_PROGRAMA` (`painel.ts`: colunas gravadas, RIPD e pedido
+  aprovado); fornecedor e `SQL_EH_FORNECEDOR` (`src/services/terceiros.ts`: organizacao ativa que nao e so parte interessada), o mesmo
+  na lista do n.iso, no n.privacy, no Painel, na Bancada e no ponto de partida.
   Tela: `frontend/src/views/prontidao.js` (a view `certification`, item "Prontidao" no grupo Implementacao). Sem fases, Jornada e
   Monitor oferecem "Carregar as fases" (`POST /api/v1/projects/:id/phases`, so a equipe, 409 se ja tem) e a prontidao, nunca um ao outro;
   ligar o n.iso num projeto tambem carrega as fases.
@@ -343,7 +350,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   risco anula `risk_id` da acao antes (a acao sobrevive). O `PUT /risks/:id` parcial preserva e aceita `ropa_id` e residual. O agente cria
   e edita; aceitar risco (`status: Accepted`) e concluir acao (`Closed`) a rota recusa, e o DELETE esta em `FORA_DO_AGENTE`. Regra R1 do
   `coherence` ignora risco com `ropa_id`; o aviso de prazo de acao em projeto sem n.iso leva a `/ropa`. Telas: etapa 4 da pagina da
-  atividade (formularios `blocoRiscos`/`blocoAcoes` de `tratamento-ligacoes.js`; o novo ja vem com o sistema ligado e o responsavel da atividade), "Mapa de
+  atividade (aba Riscos, `frontend/src/atividade/aba-riscos.js`), "Mapa de
   risco" na secao Avaliar do n.privacy (`views/mapa-de-risco.js`, nivel por texto em cada celula, mesma faixa do `riskLevel`; ele e a matriz do n.iso, `grc.js`, usam
   `frontend/src/nivel-risco.js`; "Abrir a atividade" leva a pagina dela); o painel do encarregado conta riscos
   altos em aberto e acoes vencidas das atividades (`riscos` em `GET .../encarregado`).
@@ -488,7 +495,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   Playwright nao faz fallback de SPA). Testes de backend que usam rota do
   n.privacy chamam `habilitarPrivacy(...)` de `test/helpers/d1.ts`.
   **Integracao (0061-0063):** fornecedor e terceiro sao a mesma parte (`vendors.parte_id`; `vendors` e o perfil de seguranca da parte,
-  nao um cadastro paralelo); o DPO da governanca e o encarregado (vinculo `encarregado` em `parte_vinculos`, 0062); incidente vive no
+  nao um cadastro paralelo, e e opcional: a lista do n.iso mostra todo fornecedor e "Remover avaliacao de seguranca" apaga so o perfil); o DPO da governanca e o encarregado (vinculo `encarregado` em `parte_vinculos`, 0062); incidente vive no
   nucleo e gera CAPA (`corrective_actions.incidente_id`, 0063). O catalogo LGPD/ANPD (`src/data/lgpd.ts`, `src/data/anpd.ts`) traz um
   mapeamento proposto para a ISO (`src/data/mapeamento-privacidade-iso.ts`) que so conta como cobertura depois de validado por
   humano. O painel `GET /projects/:id/ponto-de-partida` (`src/routes/ponto-de-partida.ts`) mostra o que cada produto ja aproveita do outro.
