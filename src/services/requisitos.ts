@@ -4,6 +4,7 @@ import { LGPD, LGPD_VERSAO } from '../data/lgpd';
 import { ANPD, ANPD_VERSAO } from '../data/anpd';
 import { MAPEAMENTOS } from '../data/mapeamento-privacidade-iso';
 import { hojeEmSaoPaulo } from './hoje';
+import { sqlClasseControle, classeDoControle } from './classe-controle';
 
 /**
  * Catálogo de requisitos (fatia 2 do núcleo do n.privacy, spec 4.5). Global: sem project_id.
@@ -205,12 +206,9 @@ export function resumoDeLacunas(itens: Lacuna[]) {
   return { total: itens.length, cobertos: total('coberto'), parciais: total('parcial'), lacunas: total('lacuna') };
 }
 
-// `Compliant` é grafia legada de `Implemented` (readiness.ts os trata igual).
-const IMPLEMENTADO = ['Implemented', 'Compliant'];
-
 /**
  * Cobertura de uma fonte no projeto (spec 4.9, escopo da fatia 2). Um requisito está **coberto** se há documento
- * VIGENTE ligado a ele, ou controle IMPLEMENTADO (`Implemented`) ligado por mapeamento `validado_juridico` do tipo
+ * VIGENTE ligado a ele, ou controle IMPLEMENTADO (classe `feito` de classe-controle.ts) ligado por mapeamento `validado_juridico` do tipo
  * `equivalente`; **parcial** se só há controle implementado com mapeamento `parcial`, ou controle `Partial`/`In Progress`
  * (com `equivalente` ou `parcial`; nunca coberto); senão é **lacuna**. `Planned`, `Missing`, `Not Applicable` e sem status não contam.
  * Mapeamento `relacionado` e `proposto` nunca cobrem. Evidência (fatia 8) ligada ao requisito cobre se `conforming` e dentro da validade
@@ -228,13 +226,13 @@ export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: s
       `SELECT m.para_id AS requisito_id, c.id AS id, c.title AS titulo, c.status AS status, m.tipo AS tipo
          FROM requisito_mapeamentos m JOIN compliance_controls c ON c.requisito_id = m.de_id
         WHERE c.project_id = ?1 AND m.estado = 'validado_juridico' AND m.tipo IN ('equivalente', 'parcial')
-          AND c.status IN ('Implemented', 'Compliant', 'Partial', 'In Progress')
+          AND ((${sqlClasseControle('c.status')}) = 'feito' OR c.status IN ('Partial', 'In Progress'))
           AND m.para_id IN (SELECT id FROM requisitos WHERE fonte_id = ?2)
         UNION ALL
        SELECT m.de_id, c.id, c.title, c.status, m.tipo
          FROM requisito_mapeamentos m JOIN compliance_controls c ON c.requisito_id = m.para_id
         WHERE c.project_id = ?1 AND m.estado = 'validado_juridico' AND m.tipo IN ('equivalente', 'parcial')
-          AND c.status IN ('Implemented', 'Compliant', 'Partial', 'In Progress')
+          AND ((${sqlClasseControle('c.status')}) = 'feito' OR c.status IN ('Partial', 'In Progress'))
           AND m.de_id IN (SELECT id FROM requisitos WHERE fonte_id = ?2)`
     ).bind(projectId, fonte),
     db.prepare(
@@ -253,7 +251,7 @@ export async function lacunasDaFonte(db: D1Database, projectId: string, fonte: s
   }
   return (reqs.results as { id: string; referencia: string; titulo: string; pai_id: string | null }[]).map((r) => {
     const o = origens.get(r.id) ?? [];
-    const cobre = o.some((x) => x.tipo === 'documento' || (x.tipo === 'evidencia' && x.status === 'conforming') || (x.tipo === 'controle' && x.mapeamento === 'equivalente' && IMPLEMENTADO.includes(x.status ?? '')));
+    const cobre = o.some((x) => x.tipo === 'documento' || (x.tipo === 'evidencia' && x.status === 'conforming') || (x.tipo === 'controle' && x.mapeamento === 'equivalente' && classeDoControle(x.status) === 'feito'));
     return { requisito_id: r.id, referencia: r.referencia, titulo: r.titulo, pai_id: r.pai_id, situacao: cobre ? 'coberto' : o.length ? 'parcial' : 'lacuna', origens: o };
   });
 }

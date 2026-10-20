@@ -1,10 +1,11 @@
+import { SQL_CLASSE_CONTROLE } from '../classe-controle';
 import { ENTIDADES, type Entidade } from '../../data/passos/tipos';
 
 /** Uma consulta por entidade, todas com `project_id = ?`. Lista fechada: o catálogo só cita as chaves daqui. */
 export const CONSULTAS_ENTIDADE: Record<Entidade, string> = {
   riscos: `SELECT COUNT(*) AS n FROM risks WHERE project_id = ?`,
   ativos: `SELECT COUNT(*) AS n FROM itens WHERE project_id = ? AND status = 'ativo'`,
-  controles_implementados: `SELECT COUNT(*) AS n FROM compliance_controls WHERE project_id = ? AND status IN ('Implemented', 'Compliant')`,
+  controles_implementados: `SELECT COUNT(*) AS n FROM compliance_controls WHERE project_id = ? AND (${SQL_CLASSE_CONTROLE}) = 'feito'`,
   documentos_vigentes: `SELECT COUNT(*) AS n FROM documentos WHERE project_id = ? AND status = 'vigente'`,
   atividades_ropa: `SELECT COUNT(*) AS n FROM ropa_records WHERE project_id = ?`,
   ripd: `SELECT COUNT(*) AS n FROM dpia_assessments WHERE project_id = ?`,

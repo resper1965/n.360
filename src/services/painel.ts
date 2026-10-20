@@ -4,6 +4,10 @@ import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { NOME_DO_PRODUTO, type Modulo } from '../modulos';
 import { hojeEmSaoPaulo } from './hoje';
+import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
+
+/** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA. A regra mora em classe-controle.ts. */
+export { SQL_CLASSE_CONTROLE } from './classe-controle';
 
 /**
  * Painel de entrada do n.360, do n.iso e do n.privacy (estudo `docs/design/diagnostico-2026-10-14/dashboard-entrada.md`,
@@ -261,10 +265,6 @@ const UNIAO_ISO = [
   SQL_UNIAO_DOCUMENTOS,
 ];
 
-/** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA (não aplicável). A Prontidão usa a mesma. */
-export const SQL_CLASSE_CONTROLE = `CASE WHEN status = 'Not Applicable' THEN 'na'
-  WHEN upper(status) IN ('APPROVED', 'IMPLEMENTED', 'COMPLETED', 'CONFORME') THEN 'feito'
-  WHEN status IS NULL OR trim(status) = '' OR upper(status) IN ('MISSING', 'NOT STARTED', 'NOT_STARTED') THEN 'falta' ELSE 'andamento' END`;
 const TEMAS_ANEXO_A: [string, string][] = [['A.5', 'Controles organizacionais'], ['A.6', 'Controles de pessoas'], ['A.7', 'Controles físicos'], ['A.8', 'Controles tecnológicos']];
 
 async function blocoIso(db: D1Database, projectId: string, dia: string) {
@@ -489,7 +489,7 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
             AND ((i.comunicacao_anpd_em IS NULL AND substr(i.prazo_anpd_em, 1, 10) < ?1) OR (i.comunicacao_titular_em IS NULL AND substr(i.prazo_titular_em, 1, 10) < ?1))) AS comunicacoes_atrasadas,
          (SELECT count(*) FROM corrective_actions a WHERE a.project_id = p.id AND COALESCE(a.status, 'Open') <> 'Closed' AND substr(a.due_date, 1, 10) < ?1) AS acoes_vencidas,
          (SELECT count(*) FROM ropa_records r WHERE r.project_id = p.id AND COALESCE(r.status, '') <> 'Inactive') AS tratamentos,
-         (SELECT count(*) FROM compliance_controls c WHERE c.project_id = p.id AND (${SQL_CLASSE_CONTROLE.replace(/status/g, 'c.status')}) <> 'falta') AS controles
+         (SELECT count(*) FROM compliance_controls c WHERE c.project_id = p.id AND (${sqlClasseControle('c.status')}) <> 'falta') AS controles
        FROM projects p WHERE p.id ${escopo}`),
     b(`SELECT p.project_id, count(*) AS n FROM partes p WHERE p.project_id ${escopo} AND p.tipo = 'organizacao' AND p.status = 'ativa' AND p.terceiro_tipo IS NOT NULL
          AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?1

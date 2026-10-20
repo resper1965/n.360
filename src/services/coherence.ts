@@ -3,6 +3,8 @@
 // evidence, policy_versions) — nada de heurística de mapeamento 27001<->27701 sem tabela de
 // dados real por trás (ver AGENTS.md: não afirme sem evidência).
 
+import { classeDoControle } from './classe-controle';
+
 export type CoherenceSeverity = 'error' | 'warning';
 
 export interface CoherenceIssue {
@@ -20,8 +22,6 @@ export interface CoherenceReport {
   issue_count: number;
   issues: CoherenceIssue[];
 }
-
-const APROVADOS = ['Approved', 'Implemented'];
 
 export async function checkCoherence(db: D1Database, projectId: string): Promise<CoherenceReport> {
   const issues: CoherenceIssue[] = [];
@@ -52,7 +52,7 @@ export async function checkCoherence(db: D1Database, projectId: string): Promise
   }
 
   if (controls && controls.length) {
-    const controlIdsAprovados = (controls as any[]).filter(c => APROVADOS.includes(c.status)).map(c => c.id);
+    const controlIdsAprovados = (controls as any[]).filter(c => classeDoControle(c.status) === 'feito').map(c => c.id);
     if (controlIdsAprovados.length) {
       // Subconsulta por projeto, não um `?` por controle: passa do teto de 100
       // parâmetros do D1 quando há mais de 100 aprovados. O laço abaixo já
@@ -69,7 +69,7 @@ export async function checkCoherence(db: D1Database, projectId: string): Promise
       const comPolitica = new Set((versions || []).map((v: any) => v.control_id));
 
       for (const control of controls as any[]) {
-        if (!APROVADOS.includes(control.status)) continue;
+        if (classeDoControle(control.status) !== 'feito') continue;
         // R3: controle aprovado/implementado sem nenhuma evidência anexada.
         if (!comEvidencia.has(control.id)) {
           issues.push({
