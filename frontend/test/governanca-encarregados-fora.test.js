@@ -38,4 +38,17 @@ describe('encarregados fora do comitê', () => {
     expect(document.getElementById('gov-email').value).toBe('rita@c.com');
     expect(document.getElementById('gov-title').value).toBe('DPO');
   });
+  it('id de uma edição anterior não vaza: salvar posta sem id', async () => {
+    S.user = { role: 'consultor', email: 'x@n.com' };
+    const { api } = await import('../src/api.js');
+    api.mockResolvedValue([]);
+    document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+    window.editingMemberId = 'g-velho';
+    await window.adicionarEncarregadoAoComite('p1', 'Rita Exemplo', 'rita@c.com');
+    api.mockClear();
+    await window.saveGovernanceMember({ preventDefault() {} }, 'p1');
+    const post = api.mock.calls.find((c) => c[0] === 'POST');
+    expect(post[2].id).toBeUndefined();
+    expect(post[2].name).toBe('Rita Exemplo');
+  });
 });

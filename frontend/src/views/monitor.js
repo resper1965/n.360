@@ -731,6 +731,7 @@ import { montarLista, colunasDe } from '../lista.js';
 
     // Abre o formulário de membro já com o encarregado do n.privacy; salvar com cargo DPO mantém a parte (casa por e-mail ou nome).
     window.adicionarEncarregadoAoComite = async function(projectId, nome, email) {
+        window.editingMemberId = null; // id de edição anterior não pode sobrescrever o membro
         await window.openGovernanceModal(projectId);
         if (!document.getElementById('gov-name')) return;
         document.getElementById('gov-name').value = nome || '';
