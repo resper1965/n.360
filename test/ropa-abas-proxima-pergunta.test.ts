@@ -7,10 +7,10 @@ import { prepararProjeto, chamar, json, base, novaAtividade, P, type Sessoes } f
 
 /** Atividade completa em tudo que a pergunta olha: a resposta de cada teste é a primeira lacuna que ele deixa aberta. */
 const completa = (): EntradaProxima => ({
-  finalidade: 'Folha de pagamento', responsavel: true, areas: 1,
+  finalidade: 'Folha de pagamento', responsavel: true, areas: 1, volumeOuDescricao: true,
   coleta: { titulares: [{ dados: 2 }], solicitaConsentimento: false, descricao: 'Coleta do cadastro', ativos: 1 },
   etapas: ETAPAS.map((etapa) => ({ etapa, situacao: 'concluida' as const, faltas: [] })),
-  papelRespondido: true, temBase: true, art11Na: false, medidas: 1,
+  papelRespondido: true, temBase: true, art11Na: false, sensivelSemArt11: false, medidas: 1,
   impactoRespondidas: PERGUNTAS_IMPACTO.map((p) => p.id), impactoFinalizado: true,
 });
 const com = (o: Partial<EntradaProxima>): EntradaProxima => ({ ...completa(), ...o });
@@ -24,6 +24,14 @@ describe('proximaPergunta (função pura, primeira lacuna na ordem das abas)', (
   it('só com finalidade: responsável, depois áreas (cabeçalho, que vive no Escopo)', () => {
     expect(proximaPergunta(com({ responsavel: false }))).toEqual({ aba: 'escopo', campo: 'responsavel' });
     expect(proximaPergunta(com({ areas: 0 }))).toEqual({ aba: 'escopo', campo: 'areas' });
+  });
+  it('Escopo sem volume mensal nem descrição: volume, depois das áreas (o que a aba Escopo cobra)', () => {
+    expect(proximaPergunta(com({ volumeOuDescricao: false }))).toEqual({ aba: 'escopo', campo: 'volume_mensal' });
+    expect(lacunas(com({ areas: 0, volumeOuDescricao: false })).slice(0, 2)).toEqual([{ aba: 'escopo', campo: 'areas' }, { aba: 'escopo', campo: 'volume_mensal' }]);
+  });
+  it('dado sensível sem art. 11: pergunta o art. 11, mesmo com outra base registrada', () => {
+    expect(proximaPergunta(com({ sensivelSemArt11: true }))).toEqual({ aba: 'base_juridica', campo: 'art11' });
+    expect(lacunas(com({ sensivelSemArt11: true, temBase: false })).filter((x) => x.aba === 'base_juridica')).toEqual([{ aba: 'base_juridica', campo: 'art11' }]);
   });
   it('Coleta: titulares, depois dados de cada titular, consentimento (grupo), descrição e ativos', () => {
     expect(proximaPergunta(com({ coleta: { titulares: [], solicitaConsentimento: false, descricao: 'x', ativos: 1 } }))).toEqual({ aba: 'tratamento', campo: 'coleta.titulares' });

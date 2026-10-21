@@ -261,5 +261,11 @@ export async function montar(painel, ctx) {
     } catch (e) {
         painel.innerHTML = `<p class="re-erro" role="alert">Não foi possível carregar a base jurídica. ${escapeHTML((e && e.message) || '')}</p>`;
     }
-    return { esvaziar: () => (E && E.autosave ? E.autosave.esvaziar() : Promise.resolve()) };
+    // Guiado: a pergunta do art. 11 vai à seção dele (primeiro campo: Não Aplicável).
+    const focar = (campo) => {
+        const alvo = campo === 'art11' && painel.querySelector('#at-base-art11-na');
+        if (alvo) alvo.focus();
+        return !!alvo;
+    };
+    return { esvaziar: () => (E && E.autosave ? E.autosave.esvaziar() : Promise.resolve()), focar };
 }

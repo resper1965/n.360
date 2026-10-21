@@ -16,6 +16,11 @@ export const PERGUNTAS_GUIADAS = {
         titulo: 'Qual área executa a atividade?',
         ajuda: 'Delimita quem acessa os dados e quem precisa de treinamento. As áreas vêm do cadastro de departamentos.',
     },
+    'escopo/volume_mensal': {
+        titulo: 'Quantas pessoas, ou quantos registros, passam por esta atividade em um mês?',
+        ajuda: 'Dá a escala do tratamento, que pesa no risco e na decisão sobre o RIPD. Uma estimativa serve.',
+        exemplos: ['Cerca de 300 colaboradores', '5 mil cadastros por mês'],
+    },
     'tratamento/coleta.titulares': {
         titulo: 'De quem são os dados que a atividade usa?',
         ajuda: 'Os direitos e os prazos mudam conforme a pessoa (art. 18). Marque todos os grupos.',
@@ -43,6 +48,10 @@ export const PERGUNTAS_GUIADAS = {
     'base_juridica/base': {
         titulo: 'Confirme a hipótese legal',
         ajuda: 'É o texto que vai para o relatório do RoPA e para os pedidos de aprovação. Com dado sensível, só as hipóteses do art. 11 aparecem.',
+    },
+    'base_juridica/art11': {
+        titulo: 'Qual hipótese do art. 11 permite tratar o dado sensível?',
+        ajuda: 'A atividade tem dado sensível, e ele só pode ser tratado nas hipóteses do art. 11 da LGPD. Se o dado sensível não entra nesta atividade, marque Não Aplicável.',
     },
     'medidas/medida': {
         titulo: 'Quais medidas de segurança protegem esses dados?',

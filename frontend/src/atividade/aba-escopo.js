@@ -39,4 +39,5 @@ export function montar(painel, ctx) {
     const proc = painel.querySelector('#at-processamento');
     proc.addEventListener('change', () => salvo.agendar('processamento_automatizado', proc.value || null));
     painel.addEventListener('focusout', () => salvo.esvaziar());
+    return { focar: (c) => (c === 'volume_mensal' ? (volume.focus(), true) : false) };
 }
