@@ -10,6 +10,7 @@ import { S } from '../src/state.js';
 import '../src/ui.js';
 import { initDelegation } from '../src/delegation.js';
 import { FILTROS, filtroValido, filtrarDoPainel } from '../src/filtro-painel.js';
+import { emDiasSP } from '../src/hoje.js';
 import '../src/views/painel.js';
 import '../src/views/encarregado.js';
 import '../src/views/titular.js';
@@ -21,10 +22,10 @@ initDelegation();
 
 const B = '/api/v1/projects/p9';
 const el = (id) => document.getElementById(id);
-// Dia local, como a tela (filtro-painel.js `hoje`): em UTC, entre 21h e meia-noite de Brasília "ontem" é hoje.
-const ontem = new Date(Date.now() - 86400000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-const daqui30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+// Dia de São Paulo, como a tela (filtro-painel.js `hoje`).
+const ontem = emDiasSP(-1);
+const amanha = emDiasSP(1);
+const daqui30 = emDiasSP(30);
 const linhas = () => [...el('c').querySelectorAll('tbody tr')].map((tr) => tr.textContent);
 const chip = () => el('c').querySelector('.filtro-painel');
 

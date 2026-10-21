@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { hojeEmSaoPaulo, diaMaisSP } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
@@ -17,8 +18,8 @@ const chamar = (h: Record<string, string>, metodo: string, caminho: string, corp
     body: metodo === 'GET' || metodo === 'DELETE' ? undefined : JSON.stringify(corpo ?? {}),
   }), { ...workerEnv(), ...extra } as any);
 const json = async <T>(r: Response) => (await r.json()) as T;
-const hoje = () => new Date().toISOString().slice(0, 10);
-const dias = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
+const dias = (n: number) => diaMaisSP(n);
 
 let admin: Record<string, string>, consultor: Record<string, string>, cliente: Record<string, string>;
 const AGENTE = { userId: 'u-cons', email: 'cons@ness.lat', projectId: P, concessaoId: 'c-tr' };
