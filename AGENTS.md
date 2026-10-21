@@ -760,7 +760,7 @@ errar um digito destruia a sessao.
   `--surface #162244`, `--accent #00ade8`, `--text #f1f5f9`.
 - Tipografia: Inter no corpo; Montserrat 500 na marca, 600 em títulos; JetBrains Mono para hash e código (carregada no
   `login.html`). Escala em tokens `--fs-xs` (11px, o piso) a `--fs-2xl`; nada abaixo de 11px, nada de peso 300 ou 700.
-- Uma lingua na tela: valor do banco por `rotuloDe` (`frontend/src/rotulos.js`), data por `formatarData` (`ui.js`,
+- Uma lingua na tela: valor do banco por `rotuloDe` (`frontend/src/rotulos.js`, a tabela unica de status dos dois modulos: acao Aberto / Em andamento / Concluido, risco Aberto / Mitigado / Aceito / Concluido; o CSV usa os mesmos rotulos em `src/services/exportacao.ts`, conferidos por `frontend/test/rotulos-csv.test.js`; nada de mapa local de status), data por `formatarData` (`ui.js`,
   dd/mm/aaaa), titulo da tela = rotulo do menu (`tituloDaTela`). Modal so por `openModal` (Fechar, foco preso, pergunta
   antes de descartar), selo so por `renderStatusBadge`, vazio so por `renderEmptyState`. Detalhe em `design.md`.
 - Produtos: `n.360` (a plataforma), `n.iso` e `n.privacy` (os modulos), com o ponto em accent, como a marca `ness.`.

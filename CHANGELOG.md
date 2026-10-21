@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Alterado (Frente 3B: vocabulário único nos dois módulos, 21/10/2026; sem migration)
+- **Um rótulo por status**, o mesmo no n.iso, no n.privacy e no CSV: ação **Aberto / Em andamento / Concluído** (antes "Fechado" no n.iso e "Pendente" no n.privacy); risco **Aberto / Mitigado / Aceito / Concluído** (o mapa de risco dobrava Mitigado e Aceito em "Pendente"). O documento em arquivo aparece **Vigente**, como o versionado.
+- **Nomes de tela iguais ao menu**, nos dois módulos: **Trilha de auditoria** (era "Trilha de logs" no menu do n.privacy), **Minhas aprovações** (era "Meus pedidos"), **Políticas e normas** (o documento versionado; era "Documentos" no n.iso e "Políticas" no n.privacy). O documento em arquivo segue **Documentos**. Gaps e Solicitações do titular também passaram a ter o título do menu.
+- **Testes de data no dia de São Paulo:** 14 do backend e 3 do frontend calculavam "hoje" em UTC e falhavam entre 21h e 24h de Brasília (correção na 2A, `4ee7c40`).
+
 ### Alterado (Frente 2B da equalização: decisões do dono de 20/10/2026; migration 0082)
 - **RIPD aprovado por uma assinatura** (DPO ou Direção), e **mudar o conteúdo de um RIPD assinado derruba a aprovação**: as assinaturas são zeradas, ele volta a rascunho e a trilha registra `dpia.aprovacao_invalidada` (só os nomes das colunas). A tela avisa antes de salvar.
 - **Aceite de risco num modelo só:** `Accepted`, com quem e quando carimbados pelo servidor nos dois módulos; o formulário do n.iso perdeu os campos digitados de quem e quando, e os dois módulos ganharam o botão "Aceitar risco". **Migration 0082** (`risks.aceite_manual`): o aceite digitado antigo (tratamento Aceitar com nome) passa a `Accepted`, guardando nome e data, marcado "Aceite registrado à mão". **Aplicar em produção só com o "sim" do dono e `npm run db:backup` antes.**
