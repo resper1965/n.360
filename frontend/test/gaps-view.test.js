@@ -51,7 +51,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe('Gestão de GAPs', () => {
     it('colunas do legado, "Em atraso" derivado e texto escapado', async () => {
         const f = await abrir();
-        expect(el('h').textContent).toBe('Gestão de GAPs');
+        expect(el('h').textContent).toBe('Gaps');
         expect([...el('c').querySelectorAll('thead th')].map((t) => t.textContent.trim()))
             .toEqual(['Gap', 'Atividade', 'Área', 'Responsável', 'Prazo', 'Status']);
         expect(linhas()).toHaveLength(4);

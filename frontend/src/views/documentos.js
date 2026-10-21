@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, closeModal, escapeHTML, formatarData } from '../ui.js';
+import { showToast, openModal, closeModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
 import { hojeSP } from '../hoje.js';
 
@@ -65,7 +65,7 @@ const faltandoLgpd = (docs) => DOCS_LGPD.filter((m) => !docs.some((d) => normal(
 const nomeDaParte = (id) => ((S.partes || []).find((p) => p.id === id) || {}).nome || '';
 
 async function renderDocumentos(c, h, a) {
-    h.textContent = 'Documentos';
+    h.textContent = tituloDaTela('nav-documentos', 'Políticas e normas');
     const proj = projetoAtivo();
     if (!proj) {
         a.innerHTML = '';

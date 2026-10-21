@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
-import { escapeHTML, formatarData, showToast } from '../ui.js';
+import { escapeHTML, formatarData, showToast, tituloDaTela } from '../ui.js';
 import { STATUS, abrirGapDaAtividade } from '../atividade/aba-gaps.js';
 import { podeEditar } from './partes.js';
 import { hojeSP } from '../hoje.js';
@@ -23,7 +23,7 @@ const rotuloStatus = (g) => (emAtraso(g) ? 'Em atraso' : ROTULO_STATUS[g.status]
 let daLista = null;
 
 async function renderGaps(c, h, a) {
-    h.textContent = 'Gestão de GAPs';
+    h.textContent = tituloDaTela('nav-gaps', 'Gaps');
     a.innerHTML = '';
     daLista = null;
     const proj = projetoAtivo();

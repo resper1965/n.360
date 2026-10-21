@@ -225,7 +225,7 @@ const marca = (produto) => `n<span style="color:var(--accent)">.</span><span cla
 export const ROTULOS_PRIVACY = {
     'nav-encarregado': 'Dashboard', 'nav-ropa': 'Atividades', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
     'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'DPIA', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações',
-    'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos', 'nav-documentos': 'Políticas',
+    'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos',
 };
 
 /**
@@ -244,7 +244,7 @@ export const SECOES_PRIVACY = [
     ['Mais', ['nav-referencia-juridica', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-requisitos', 'nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance', 'nav-importacao']],
     ['', ['nav-ai']],
 ];
-/** Fora do menu do n.privacy: Minhas aprovações e Trilha de logs vão para o menu de conta; Preços e margens é do comercial do n.iso. */
+/** Fora do menu do n.privacy: Minhas aprovações e Trilha de auditoria vão para o menu de conta; Preços e margens é do comercial do n.iso. */
 export const FORA_DO_MENU_PRIVACY = ['nav-meus', 'nav-audit-trail', 'nav-settings'];
 
 function organizarMenuPrivacy(doc) {

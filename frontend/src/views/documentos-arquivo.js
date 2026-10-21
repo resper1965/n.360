@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, baixarArquivo, cabecalhosAuth, API_BASE } from '../api.js';
-import { showToast, openModal, escapeHTML, formatarData, confirmar } from '../ui.js';
+import { showToast, openModal, escapeHTML, formatarData, confirmar, tituloDaTela } from '../ui.js';
 import { rotuloDe } from '../rotulos.js';
 
 // Documentos (n.privacy; spec 2026-10-19, frente B): os documentos do legado, um arquivo (PDF/DOC/DOCX até 10 MB) com tipo,
@@ -27,7 +27,7 @@ const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 let lista = null; // { projeto, docs }
 
 async function renderDocumentosArquivo(c, h, a) {
-    h.textContent = 'Documentos';
+    h.textContent = tituloDaTela('nav-documentos-arquivo', 'Documentos');
     lista = null;
     const proj = projetoAtivo();
     if (!proj) { a.innerHTML = ''; c.innerHTML = window.renderSemProjeto(); return; }

@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, forceCloseModal, escapeHTML, formatarData } from '../ui.js';
+import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
 import { produtoAtual, temProduto } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
@@ -19,6 +19,7 @@ const RISCOS = { sem_risco: 'Sem risco', baixo: 'Baixo', relevante: 'Relevante' 
 const STATUS_INCIDENTE = { aberto: 'Aberto', avaliado: 'Avaliado', comunicado: 'Comunicado', encerrado: 'Encerrado' };
 const UNIDADES = { horas: 'horas', dias_corridos: 'dias corridos', dias_uteis: 'dias úteis' };
 const ABAS = { pedidos: 'Pedidos do titular', incidentes: 'Incidentes', consentimentos: 'Consentimentos', prazos: 'Prazos legais' };
+const MENU_DA_ABA = { pedidos: 'nav-titular', incidentes: 'nav-incidentes-privacy', consentimentos: 'nav-consentimentos' };
 
 const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'].includes(S.user.role);
 // O administrador do cliente registra e responde pedido do titular e registra e avalia incidente (o servidor já o deixa: o allow-list
@@ -55,8 +56,8 @@ async function renderTitular(c, h, a) {
     const abasDoProduto = soIncidentes() ? { incidentes: ABAS.incidentes } : ABAS;
     const aba = abasDoProduto[S.titularAba] ? S.titularAba : Object.keys(abasDoProduto)[0];
     S.titularAba = aba;
-    // O título é o rótulo da aba, que é o do item de menu que a abre (Pedidos do titular, Incidentes, Consentimentos).
-    h.textContent = ABAS[aba];
+    // O título é o rótulo do item de menu que abre a aba (no n.privacy, "Solicitações" para os pedidos); sem item, o da aba.
+    h.textContent = MENU_DA_ABA[aba] ? tituloDaTela(MENU_DA_ABA[aba], ABAS[aba]) : ABAS[aba];
     const editar = podeEditar();
     const registrar = podeRegistrar();
     // Pedidos e incidentes são lidos sempre: a contagem (e o atraso) aparece na aba, sem precisar abri-la. Falha vira `null`:

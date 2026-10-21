@@ -34,7 +34,7 @@ describe('lista de Meus pedidos', () => {
   it('mostra os pedidos atribuídos, escapados, sem handler inline', async () => {
     fetchMock.mockResolvedValueOnce(json({ pedidos: [{ ...PEDIDO, meu_status: 'pendente' }] }));
     await window.renderMeusPedidos(el('c'), el('h'), el('a'));
-    expect(el('h').textContent).toBe('Meus pedidos');
+    expect(el('h').textContent).toBe('Minhas aprovações');
     const html = el('c').innerHTML;
     expect(html).toContain('Aguardando você');
     expect(html).toContain('&lt;b&gt;x&lt;/b&gt;');
