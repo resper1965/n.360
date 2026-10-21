@@ -7,6 +7,8 @@ import { rotuloDe } from './rotulos.js';
 import { filtrarDoPainel } from './filtro-painel.js';
 
 const LISTAS = new Map();
+/** Colunas do componente a partir das células de cada linha (a ordem dos rótulos é a das células). */
+export const colunasDe = (rotulos, celulas) => rotulos.map((label, i) => ({ label, render: (l) => celulas(l)[i] }));
 const semAcento = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function opcoesDe(f, linhas) {
@@ -30,19 +32,20 @@ function visiveis(L) {
 }
 
 function desenharCorpo(L) {
-    const corpo = document.getElementById(`${L.cfg.id}-corpo`);
+    // Pelo alvo, não pelo document: a tela pode montar a lista num nó ainda fora da página.
+    const corpo = L.alvo.querySelector(`[id="${L.cfg.id}-corpo"]`);
     if (!corpo) return;
     const { itens, chip } = visiveis(L);
     const total = L.linhas.length;
     const mostrar = itens.slice(0, L.mostrando);
     const resto = itens.length - mostrar.length;
-    const contagem = document.getElementById(`${L.cfg.id}-contagem`);
+    const contagem = L.alvo.querySelector(`[id="${L.cfg.id}-contagem"]`);
     if (contagem) contagem.textContent = itens.length !== total ? `${itens.length} de ${total}` : `${total}`;
     const vazio = L.cfg.vazio || { titulo: 'Nenhum registro encontrado.' };
     let tabela;
     if (itens.length) tabela = renderDataTable(L.cfg.colunas, mostrar);
     else if (total) tabela = renderEmptyState({ titulo: 'Nada encontrado com a busca ou o filtro.', texto: 'Limpe a busca ou escolha "Todos" no filtro.' });
-    else tabela = renderEmptyState({ titulo: vazio.titulo, texto: vazio.dica, acao: vazio.acao });
+    else tabela = renderEmptyState({ titulo: vazio.titulo, texto: vazio.dica, acao: vazio.acao, itens: vazio.itens });
     const botaoMais = resto > 0
         ? `<button type="button" class="btn btn-secondary btn-sm" data-action="listaMais" data-args='${escapeHTML(JSON.stringify([L.cfg.id]))}'>Carregar mais ${Math.min(resto, L.porPagina)} · ${resto} restantes</button>`
         : '';
@@ -56,7 +59,7 @@ function desenharCorpo(L) {
  */
 export function montarLista(alvo, cfg) {
     const porPagina = cfg.porPagina || 25;
-    const L = { cfg, linhas: cfg.linhas || [], busca: '', filtros: {}, porPagina, mostrando: porPagina };
+    const L = { alvo, cfg, linhas: cfg.linhas || [], busca: '', filtros: {}, porPagina, mostrando: porPagina };
     LISTAS.set(cfg.id, L);
     const args = (...v) => escapeHTML(JSON.stringify(v));
     const campos = [

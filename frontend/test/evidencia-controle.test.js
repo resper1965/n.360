@@ -110,7 +110,7 @@ describe('Central de Evidências', () => {
         await window.doEvidenceUpload('p1');
         expect(document.getElementById('ev-msg').textContent).toBe(`Evidência enviada: laudo.pdf (SHA-256: ${sha.substring(0, 16)}...)`);
         expect(f2.mock.calls.some(([u, o]) => (o?.method || 'GET') === 'GET' && String(u).endsWith('/evidence'))).toBe(true);
-        expect(document.getElementById('main-content').querySelectorAll('select').length).toBe(2);
+        expect(document.getElementById('main-content').querySelectorAll('select[data-action-change="vincularEvidenciaControle"]').length).toBe(2);
         S.view = undefined;
     });
 });

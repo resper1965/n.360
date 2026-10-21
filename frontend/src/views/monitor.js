@@ -4,6 +4,7 @@ import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderS
 import { produtoAtual, projetosDoProduto } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
 import { hojeSP } from '../hoje.js';
+import { montarLista, colunasDe } from '../lista.js';
 
     /** Vazio sem fases: o primeiro passo real (carregar as fases, para a equipe) e a prontidão, nunca a Jornada vazia. */
     export function vazioSemFases(projectId) {
@@ -1585,7 +1586,7 @@ import { hojeSP } from '../hoje.js';
         }
         
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        a.innerHTML = `<button class="btn mr-2" data-action="exportCSV" data-args='["assets"]'>Exportar CSV</button>` + (canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>+ Novo Ativo</button>` : '');
+        a.innerHTML = (canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>+ Novo Ativo</button>` : '');
         
         let assets = [];
         try { 
@@ -1607,9 +1608,7 @@ import { hojeSP } from '../hoje.js';
             { label: 'Ativos Operacionais', value: activeCount, color: 'var(--text)', subtext: 'Em uso ativo' }
         ]);
 
-        const tableHtml = window.renderDataTable(
-            ['Nome do Ativo', 'Categoria', 'Localização', 'Responsável', 'Classificação', 'Status', 'Ações'],
-            assets.map(ast => {
+        const celulas = ast => {
                 // sem classificação = Confidencial, o padrão que o servidor grava
                 const classe = ast.classification || 'Confidential';
                 const classType = classe === 'Confidential' ? 'danger' : classe === 'Restricted' ? 'warning' : 'info';
@@ -1624,16 +1623,27 @@ import { hojeSP } from '../hoje.js';
                     window.renderStatusBadge(ast.status || 'Active', statusType),
                     `<button class="btn btn-ghost btn-sm" data-action="openAssetDetailsModal" data-args='["${ast.id}"]'>Detalhes</button>`
                 ];
-            }),
-            { emptyState: 'Nenhum ativo de informação registrado neste projeto.',
-              emptyHint: 'O inventário de ativos, com dono e classificação, é a base da apreciação de riscos (ISO 27001, A.5.9 e A.5.12).',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>Novo ativo</button>` : '' }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${tableHtml}
+            <div id="ativos-lista"></div>
         `;
+        montarLista(c.querySelector('#ativos-lista'), {
+            id: 'ativos',
+            linhas: assets,
+            colunas: colunasDe(['Nome do Ativo', 'Categoria', 'Localização', 'Responsável', 'Classificação', 'Status', 'Ações'], celulas),
+            busca: ast => `${ast.name} ${ast.owner || ''}`,
+            filtros: [
+                { chave: 'categoria', rotulo: 'Categoria', valor: ast => ast.category },
+                { chave: 'classificacao', rotulo: 'Classificação', valor: ast => ast.classification || 'Confidential' },
+                { chave: 'criticidade', rotulo: 'Criticidade', valor: ast => ast.criticality },
+            ],
+            exportar: { caminho: `/api/v1/projects/${proj.id}/export/assets` },
+            vazio: { titulo: 'Nenhum ativo de informação registrado neste projeto.',
+                dica: 'O inventário de ativos, com dono e classificação, é a base da apreciação de riscos (ISO 27001, A.5.9 e A.5.12).',
+                acao: canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>Novo ativo</button>` : '' },
+        });
     }
 
     window.openAssetDetailsModal = function(id) {

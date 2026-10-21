@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
 import { hojeSP } from '../hoje.js';
+import { montarLista, colunasDe } from '../lista.js';
 
 // Documentos do projeto (fatia 3.4 do núcleo): árvore política → norma → procedimento, dono, revisão, versões,
 // rascunho (inclusive o do agente), ciências e aprovação por versão. Toda regra é do servidor; aqui só se mostra
@@ -82,7 +83,9 @@ async function renderDocumentos(c, h, a) {
     try { S.partes = lista(await api('GET', `/api/v1/projects/${proj.id}/partes`)); } catch (e) { S.partes = []; /* secundário: só o nome do responsável */ }
     S.documentos = docs;
 
-    const linhas = arvore(docs).map(({ doc: d, nivel }) => {
+    // A lista segue a ordem da árvore, com o recuo na coluna do título; com busca ou filtro ela fica plana (a filha sem a mãe
+    // aparece com o mesmo recuo).
+    const celulas = ({ doc: d, nivel }) => {
         const [rotuloStatus, tomStatus] = STATUS[d.status] || [d.status, 'info'];
         const vencida = d.status === 'vigente' && d.revisar_ate && String(d.revisar_ate).slice(0, 10) < hoje();
         return [
@@ -95,23 +98,30 @@ async function renderDocumentos(c, h, a) {
             escapeHTML(aprovacaoTexto(d.aprovacao)),
             `<button class="btn btn-ghost btn-sm" data-action="openDocumentoModal" data-args='${args(proj.id, d.id)}'>Abrir</button>`,
         ];
-    });
+    };
     const privacy = produtoAtual() === 'privacy';
     const faltam = privacy ? faltandoLgpd(docs) : [];
     const criar = (m) => (podeEditar() ? `<button class="btn btn-ghost btn-sm" data-action="openNovoDocumentoModal" data-args='${args(proj.id, m.tipo, m.titulo)}'>Criar</button>` : '');
     const vazio = privacy
-        ? { emptyState: 'Nenhum documento neste projeto',
-            emptyHint: 'Um programa de adequação à LGPD costuma ter os documentos abaixo. Comece por um deles, ou use "Importar políticas" para trazer os que já existem.',
-            emptyItens: faltam.map((m) => ({ texto: `${m.titulo} (${m.ref})`, acao: criar(m) })) }
-        : { emptyState: 'Nenhum documento neste projeto. Use "Importar políticas" para trazer as que já existem, ou crie um novo.' };
+        ? { titulo: 'Nenhum documento neste projeto',
+            dica: 'Um programa de adequação à LGPD costuma ter os documentos abaixo. Comece por um deles, ou use "Importar políticas" para trazer os que já existem.',
+            itens: faltam.map((m) => ({ texto: `${m.titulo} (${m.ref})`, acao: criar(m) })) }
+        : { titulo: 'Nenhum documento neste projeto. Use "Importar políticas" para trazer as que já existem, ou crie um novo.' };
     const aviso = docs.length && faltam.length
-        ? `<p id="docs-lgpd-faltando" style="margin:0 0 1rem; font-size:0.85rem; color:var(--text-dim)">Costuma existir num programa LGPD e não encontramos pelo título: ${escapeHTML(faltam.map((m) => m.titulo).join('; '))}.</p>`
+        ? `<p id="docs-lgpd-faltando" class="mt-0 mb-4 t-sm t-dim">Costuma existir num programa LGPD e não encontramos pelo título: ${escapeHTML(faltam.map((m) => m.titulo).join('; '))}.</p>`
         : '';
-    c.innerHTML = aviso + window.renderDataTable(
-        ['Documento', 'Tipo', 'Situação', 'Versão', 'Revisão', 'Dono', 'Aprovação', 'Ações'],
-        linhas,
+    c.innerHTML = aviso + '<div id="documentos-lista"></div>';
+    montarLista(c.querySelector('#documentos-lista'), {
+        id: 'documentos',
+        linhas: arvore(docs),
+        colunas: colunasDe(['Documento', 'Tipo', 'Situação', 'Versão', 'Revisão', 'Dono', 'Aprovação', 'Ações'], celulas),
+        busca: ({ doc: d }) => `${d.titulo} ${nomeDaParte(d.dono_parte_id)}`,
+        filtros: [
+            { chave: 'tipo', rotulo: 'Tipo', valor: ({ doc: d }) => d.tipo, opcoes: Object.entries(TIPOS).filter(([v]) => docs.some((d) => d.tipo === v)).sort((x, y) => x[1].localeCompare(y[1], 'pt-BR')) },
+            { chave: 'situacao', rotulo: 'Situação', valor: ({ doc: d }) => d.status, opcoes: Object.entries(STATUS).filter(([v]) => docs.some((d) => d.status === v)).map(([v, [r]]) => [v, r]) },
+        ],
         vazio,
-    );
+    });
 }
 
 const opcoesPartes = (selecionada) => '<option value="">— sem dono —</option>' + (S.partes || [])

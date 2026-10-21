@@ -7,10 +7,8 @@ import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
 import { podeAceitar, linhaDeAceite, aceitarRisco } from '../aceite-risco.js';
-import { montarLista } from '../lista.js';
+import { montarLista, colunasDe } from '../lista.js';
 
-// Colunas do componente de lista a partir das células de cada linha (a ordem dos rótulos é a das células).
-const colunasDe = (rotulos, celulas) => rotulos.map((label, i) => ({ label, render: (l) => celulas(l)[i] }));
 // Opções de filtro tiradas dos dados, com o rótulo de um domínio (`rotuloDe`).
 const opcoesDe = (linhas, valor, dominio) => [...new Set(linhas.map(valor).filter(Boolean))]
     .map((v) => [v, rotuloDe(dominio, v)]).sort((x, y) => x[1].localeCompare(y[1], 'pt-BR'));

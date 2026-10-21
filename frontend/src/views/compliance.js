@@ -3,7 +3,8 @@ import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
 import { temProduto, projetoDoId } from '../produto.js';
-import { filtrarDoPainel } from '../filtro-painel.js';
+import { montarLista, colunasDe } from '../lista.js';
+import { hojeSP } from '../hoje.js';
 import { classeDoControle } from '../classe-controle.js';
 
     // O id varia por projeto (ctrl-a51, A.5.1, gerado); o código estável é o primeiro token do título.
@@ -1544,11 +1545,7 @@ import { classeDoControle } from '../classe-controle.js';
         const isOrgUser = S.user && S.user.role === 'org_user';
         const comPrivacy = temProduto(proj, 'privacy');
 
-        // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
-        const { itens: evidenciasDaLista, chip: chipFiltro, filtrado } = filtrarDoPainel('evidence', null, evidence);
-        const tableHtml = window.renderDataTable(
-            ['Arquivo Evidência', 'Controle', 'Tamanho', 'Hash (SHA-256)', 'Revisão Líder SGSI', 'Assinatura CEO', 'Avaliação', 'Ações'],
-            evidenciasDaLista.map(e => {
+        const celulas = e => {
                 const fileName = e.file_name || e.filename || 'Evidência sem nome';
                 const fileHash = e.file_hash || e.sha256_hash || '';
                 const hashShort = fileHash ? fileHash.substring(0, 16) + '...' : '—';
@@ -1595,18 +1592,28 @@ import { classeDoControle } from '../classe-controle.js';
                     avaliacaoBadge,
                     acoesDaLinha
                 ];
-            }),
-            { emptyState: 'Nenhuma evidência enviada para este projeto.',
-              emptyHint: 'A evidência é o que o auditor confere para dar o controle como implementado (ISO 27001, 7.5: informação documentada). Envie o arquivo e ligue-o ao controle.',
-              emptyAction: `<button class="btn btn-primary" data-action="openEvidenceUploadModal" data-args='["${proj.id}"]'>Enviar evidência</button>`,
-              ...(filtrado ? { emptyState: 'Nenhuma evidência nesta situação.', emptyHint: 'Limpe o filtro para ver todas.', emptyAction: '' } : {}) }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${chipFiltro}
-            ${tableHtml}
+            <div id="evidencias-lista"></div>
         `;
+        const validade = e => !e.valido_ate ? 'sem' : String(e.valido_ate).slice(0, 10) < hojeSP() ? 'vencida' : 'em_dia';
+        montarLista(c.querySelector('#evidencias-lista'), {
+            id: 'evidencias',
+            linhas: evidence,
+            colunas: colunasDe(['Arquivo Evidência', 'Controle', 'Tamanho', 'Hash (SHA-256)', 'Revisão Líder SGSI', 'Assinatura CEO', 'Avaliação', 'Ações'], celulas),
+            busca: e => `${e.file_name || e.filename || ''} ${e.control_id ? (tituloDoControle[e.control_id] || e.control_id) : ''}`,
+            filtros: [
+                { chave: 'avaliacao', rotulo: 'Avaliação', valor: e => e.evaluation_status || 'pending' },
+                { chave: 'validade', rotulo: 'Validade', valor: validade, opcoes: [['em_dia', 'Em dia'], ['vencida', 'Vencida'], ['sem', 'Sem validade']] },
+            ],
+            // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
+            filtroPainel: { tela: 'evidence' },
+            vazio: { titulo: 'Nenhuma evidência enviada para este projeto.',
+                dica: 'A evidência é o que o auditor confere para dar o controle como implementado (ISO 27001, 7.5: informação documentada). Envie o arquivo e ligue-o ao controle.',
+                acao: `<button class="btn btn-primary" data-action="openEvidenceUploadModal" data-args='["${proj.id}"]'>Enviar evidência</button>` },
+        });
     }
 
     function openEvidenceUploadModal(projectId) {
