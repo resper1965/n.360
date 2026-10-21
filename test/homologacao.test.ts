@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { diaMaisSP } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
@@ -17,7 +18,7 @@ const chamar = (h: Record<string, string>, metodo: string, caminho: string, corp
     body: metodo === 'GET' ? undefined : JSON.stringify(corpo ?? {}),
   }), { ...workerEnv(), ...extraEnv });
 const json = async <T>(r: Response) => (await r.json()) as T;
-const dias = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+const dias = (n: number) => diaMaisSP(n);
 const publico = (acao: string, corpo: unknown, ip = '203.0.113.7') => chamar({ 'CF-Connecting-IP': ip }, 'POST', `/api/v1/public/homologacao/${acao}`, corpo);
 const tokenDe = (url: string) => url.split('#')[1];
 
