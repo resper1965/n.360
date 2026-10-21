@@ -22,8 +22,8 @@ import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo } fro
  *    Indício no texto da pessoa vira só `avisos` (regex do servidor).
  *  - Saída validada campo a campo; texto cortado no teto da etapa (4.000). Origem só na Coleta, só ids de ORIGENS_DOS_DADOS.
  *  - Modelo ausente, falhando ou fora do formato: `{ indisponivel: true }`, sem trilha e sem erro.
- *  - Sem base (nenhum titular na Coleta, ativo, área, parceiro, descrição atual nem nota), o modelo NÃO é chamado: só a finalidade
- *    não sustenta texto e ele inventava. Volta `sem_base: true` com o que falta, sem trilha (nada foi gerado).
+ *  - Sem base (nenhum titular na Coleta, ativo, área, descrição atual nem nota), o modelo NÃO é chamado: só a finalidade
+ *    não sustenta texto e ele inventava. Parceiro não conta como base: o nome dele não vai ao modelo. Volta `sem_base: true` com o que falta, sem trilha (nada foi gerado).
  *  - Com base, a resposta diz de onde veio (`fontes`, só o que foi enviado e não está vazio).
  */
 

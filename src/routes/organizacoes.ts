@@ -65,7 +65,7 @@ organizacoesApp.post('/', async (c) => {
       if (unico(e)) return c.json({ error: 'Slug, prefixo de proposta ou e-mail já cadastrado' }, 409);
       throw e;
     }
-    const emailEnviado = await enviarBoasVindas(c, { id: adminId, email: b.adminEmail, name: b.adminNome }, b.nome).catch(() => false);
+    const emailEnviado = await enviarBoasVindas(c, { id: adminId, email: b.adminEmail, name: b.adminNome, role: 'consultoria_admin' }, b.nome).catch(() => false);
     return c.json({ id, slug: b.slug, adminId, adminEmail: b.adminEmail, emailEnviado }, 201);
   } catch (e) { return erro500(c, 'Erro ao criar a consultoria', e); }
 });
@@ -162,7 +162,7 @@ organizacoesApp.post('/:id/reenviar-convite', async (c) => {
     await db.prepare('UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE id = ?').bind(SEM_SENHA, admin.id).run();
     await invalidateUserSessions(c.env.SESSIONS, admin.id);
     await logAudit(db, 'org.convite_reenviado', c.get('user').email, `Convite do administrador ${admin.email} da organização ${id} reenviado`);
-    const emailEnviado = await enviarBoasVindas(c, admin, org.name).catch(() => false);
+    const emailEnviado = await enviarBoasVindas(c, { ...admin, role: 'consultoria_admin' }, org.name).catch(() => false);
     return c.json({ emailEnviado });
   } catch (e) { return erro500(c, 'Erro ao reenviar o convite', e); }
 });

@@ -10,13 +10,19 @@ export type EntradaConferencia = {
 };
 
 /** Função pura: o que impede (bloqueios) e o que só avisa (avisos) antes de pedir a aprovação. Sistema vazio: bloqueia e avisa, nunca quebra. */
+/** Dado sensível sem inciso do art. 11 nem "Não Aplicável": a regra única da conferência, das abas e da próxima pergunta. */
+export const sensivelSemArt11 = (sensivel: unknown, art11Incisos: number, art11Na: unknown) => !!sensivel && !art11Incisos && !art11Na;
+/** O Escopo pede volume mensal OU descrição, além da finalidade. */
+export const temVolumeOuDescricao = (d: { volume_mensal?: unknown; descricao_atividade?: unknown }) =>
+  !!(String(d.volume_mensal ?? '').trim() || String(d.descricao_atividade ?? '').trim());
+
 export function montarConferencia(e: EntradaConferencia): Conferencia {
   const bloqueios: ItemConferencia[] = [];
   const avisos: ItemConferencia[] = [];
   const pendentes = e.etapas.filter((x) => x.situacao === 'pendente').length;
   if (!String(e.finalidade ?? '').trim()) bloqueios.push({ id: 'sem_finalidade', aba: 'escopo', texto: 'Escopo: preencha a finalidade.' });
   if (pendentes) bloqueios.push({ id: 'etapa_pendente', aba: 'tratamento', texto: `Tratamento de Dados: ${pendentes} ${pendentes === 1 ? 'etapa pendente' : 'etapas pendentes'}.` });
-  if (e.dadosSensiveis && !e.art11Incisos && !e.art11Na) bloqueios.push({ id: 'sensivel_sem_art11', aba: 'base_juridica', texto: 'Base Jurídica: há dado sensível; informe o inciso do art. 11 ou marque Não Aplicável.' });
+  if (sensivelSemArt11(e.dadosSensiveis, e.art11Incisos, e.art11Na)) bloqueios.push({ id: 'sensivel_sem_art11', aba: 'base_juridica', texto: 'Base Jurídica: há dado sensível; informe o inciso do art. 11 ou marque Não Aplicável.' });
   if (!e.impactoFinalizado) bloqueios.push({ id: 'impacto_nao_finalizado', aba: 'impacto', texto: 'Teste de Impacto: finalize o teste.' });
   if (e.gapsAbertosSemResponsavel) bloqueios.push({ id: 'gap_sem_responsavel', aba: 'gaps', texto: `Controle de GAPs: ${e.gapsAbertosSemResponsavel} ${e.gapsAbertosSemResponsavel === 1 ? 'gap sem responsável' : 'gaps sem responsável'}.` });
   if (!e.medidas) avisos.push({ id: 'sem_medidas', aba: 'medidas', texto: 'Nenhuma medida de segurança registrada.' });

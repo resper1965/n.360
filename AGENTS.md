@@ -316,9 +316,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   congelado (titulares, dados, sensivel, ativos, prazo, descarte) reescreve o hash em `src/services/ropa-abas/derivada.ts` e so ai chama
   `conferirPedidosDoDocumento`. Catalogos do projeto (`catalogo_itens`: titulares e dados; medidas e motivos de risco) nascem vazios e se criam na
   tela (`GET/POST/PUT /projects/:id/catalogos/:tipo`, `src/services/ropa-abas/catalogos.ts`); ativo, area e parceiro reusam `/assets`,
-  `/departamentos` e `/partes`. Contagens (2026-10-18): 6 etapas (`ETAPAS`); 8 rotas de etapa e 3 de catalogo em `src/routes/ropa-abas.ts`
+  `/departamentos` e `/partes`. Contagens (2026-10-18, salvo onde marcado): 6 etapas (`ETAPAS`); 8 rotas de etapa e 3 de catalogo em `src/routes/ropa-abas.ts`
   (`grep -c "ropaAbasApp\.\(get\|put\|post\)('/etapas" src/routes/ropa-abas.ts`; `grep -c "catalogosApp\.\(get\|put\|post\)(" src/routes/ropa-abas.ts`);
-  19 modulos em `frontend/src/atividade/` (`ls frontend/src/atividade/*.js | wc -l`); 29 testes de backend `ropa-*` (`ls test/ropa-*.test.ts | wc -l`).
+  21 modulos em `frontend/src/atividade/` (2026-10-21, `ls frontend/src/atividade/*.js | wc -l`); 30 testes de backend `ropa-*` (2026-10-21, `ls test/ropa-*.test.ts | wc -l`).
   Copiloto por etapa (`POST .../ropa/:rid/etapas/:etapa/rascunho`, `src/services/copiloto-etapa.ts`, botao em cada etapa editavel): PROPOE a
   descricao a partir da ficha e de uma nota opcional; a pessoa aceita (Aceitar copia o texto para o campo e o autosave grava), nada grava sozinho.
   Sem base (nenhum titular na Coleta, ativo, area, descricao nem nota) o modelo nao e chamado (`sem_base: true`, sem trilha); com base, a resposta traz `fontes` (o que foi enviado).
@@ -778,7 +778,7 @@ errar um digito destruia a sessao.
   do Painel (`filtroPainel`) e o predicado extra (`filtrarPor`, a celula da matriz de riscos) passam por ela. As listas do n.iso e do
   n.privacy usam o componente; Consentimentos ainda nao (botoes de situacao com contagem). Nao recrie busca ou filtro a mao na tela.
 - Produtos: `n.360` (a plataforma), `n.iso` e `n.privacy` (os modulos), com o ponto em accent, como a marca `ness.`.
-- Proibido: italicos, emojis/icones, accent como background de area.
+- Proibido: italicos, emojis/icones (excecao: a seta funcional das etapas da ficha, `at-chevron`, que mostra aberto/fechado), accent como background de area.
 - Uma acao principal por tela (um `.btn-primary` visivel); acima de tres secundarias, `renderMaisAcoes` (`frontend/src/ui.js`); nenhum primario por linha de tabela; destrutivo so no fim do menu. O projeto ativo mora so no seletor da barra lateral. Detalhe em `design.md`.
 - Geometria: o sistema e quadrado (`--radius: 0`). Desde a onda 3 (15/10/2026) nao sobra raio em px no CSS nem
   inline (`git grep -nE "border-radius:\s*[1-9][0-9.]*(px|rem)" -- frontend/src` nao imprime nada); so os circulos de

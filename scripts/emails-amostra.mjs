@@ -29,7 +29,7 @@ const ana = { nome: 'Ana Souza', email: 'ana.souza@ness.example', organizacao: '
 const quem = { cliente: 'Metalúrgica Exemplo Ltda', pessoa: ana };
 const daqui = (dias) => new Date(Date.now() + dias * 86_400_000);
 const amostras = {
-  'convite': m.emailBoasVindas({ nome: 'Bruno Lima', email: 'bruno.lima@cliente.example', organizacao: 'ness.', convidante: ana, url: 'https://n360.ness.com.br', link: 'https://n360.ness.com.br/#convite=exemplo', horas: 72 }),
+  'convite': m.emailBoasVindas({ nome: 'Bruno Lima', email: 'bruno.lima@cliente.example', organizacao: 'ness.', equipe: false, convidante: ana, url: 'https://n360.ness.com.br', link: 'https://n360.ness.com.br/#convite=exemplo', horas: 72 }),
   'redefinicao-senha': m.emailRedefinicaoSenha({ nome: 'Bruno Lima', codigo: '482913' }),
   'codigo-politicas': m.emailCodigoPoliticas({ nome: 'Carla Dias', cliente: 'Metalúrgica Exemplo Ltda', codigo: '705218' }),
   'ciencia': m.emailCiencia({ titulo: 'Política de Segurança da Informação', nome: 'Carla Dias', link: 'https://n360.ness.com.br/politicas#exemplo', quem, reenvio: false, validoAte: daqui(30) }),

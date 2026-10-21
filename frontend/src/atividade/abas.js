@@ -5,16 +5,18 @@ const ESTADO = { feito: 'feito', pendente: 'pendente', na: 'não se aplica', vaz
 // Logs ROPA é histórico, nunca uma parte a concluir: fica sem número e sem estado de feito/pendente.
 const PARTES = ABAS.filter((a) => a.id !== 'logs');
 const numeroDa = (id) => PARTES.findIndex((a) => a.id === id) + 1;
+// Gaps e Riscos são sugestão, não pendência (como no guiado): mostram o estado na barra, mas ficam fora da conta e do "Próximo".
+const CONTAM = PARTES.filter((a) => a.id !== 'gaps' && a.id !== 'riscos');
 
 /**
- * Onde a atividade está: quantas das 8 partes estão concluídas e qual é a próxima (a primeira pendente ou vazia, na ordem).
+ * Onde a atividade está: quantas das 6 partes (sem Gaps e Riscos) estão concluídas e qual é a próxima (a primeira pendente ou vazia, na ordem).
  * "Não se aplica" conta como concluída: a parte foi resolvida e nunca vira "feito".
  */
 export function progressoDaFicha(ficha) {
     const est = (id) => ((ficha.abas || {})[id] || { estado: 'vazio' }).estado;
-    const feitas = PARTES.filter((a) => est(a.id) === 'feito' || est(a.id) === 'na').length;
-    const proxima = PARTES.find((a) => est(a.id) === 'pendente' || est(a.id) === 'vazio') || null;
-    return { feitas, total: PARTES.length, proxima };
+    const feitas = CONTAM.filter((a) => est(a.id) === 'feito' || est(a.id) === 'na').length;
+    const proxima = CONTAM.find((a) => est(a.id) === 'pendente' || est(a.id) === 'vazio') || null;
+    return { feitas, total: CONTAM.length, proxima };
 }
 
 /** A linha de progresso acima das abas. O botão é secundário: a ficha não tem ação principal. */

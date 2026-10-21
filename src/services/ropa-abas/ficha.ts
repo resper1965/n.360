@@ -1,6 +1,6 @@
 import { aprovacoesDoProjeto } from '../documentos';
 import { PERGUNTAS_IMPACTO } from '../impacto';
-import { entradaDaConferencia, lerDadosAtividade, montarConferencia, type DadosAtividade } from './conferencia';
+import { entradaDaConferencia, lerDadosAtividade, montarConferencia, sensivelSemArt11, temVolumeOuDescricao, type DadosAtividade } from './conferencia';
 import { lerEtapas, type EtapaDetalhe } from './etapas';
 import { lacunas, type EntradaProxima, type ProximaPergunta } from './proxima-pergunta';
 import { acoesDoMenu, papelDe, podePedirAprovacao, situacaoDaAtividade } from './situacao';
@@ -17,12 +17,12 @@ const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
 export function estadoDasAbas(d: DadosAtividade, etapas: EstadoEtapa[]): Record<AbaId, Estado> {
   const feitas = etapas.filter((e) => e.situacao !== 'pendente').length;
   const total = Math.max(etapas.length, 1);
-  const sensivelSemArt11 = !!d.dados_sensiveis && !d.art11 && !d.base_art11_na;
+  const semArt11 = sensivelSemArt11(d.dados_sensiveis, d.art11, d.base_art11_na);
   const temBase = !!(d.base_legal_id || d.art7 || d.art11 || d.gdpr || String(d.legal_basis ?? '').trim());
   const perguntas = PERGUNTAS_IMPACTO.length;
   const respondidas = Math.min(d.respondidas, perguntas);
   return {
-    escopo: String(d.finalidade ?? '').trim() && (String(d.volume_mensal ?? '').trim() || String(d.descricao_atividade ?? '').trim())
+    escopo: String(d.finalidade ?? '').trim() && temVolumeOuDescricao(d)
       ? { estado: 'feito', resumo: 'Finalidade preenchida.' }
       : { estado: 'pendente', resumo: String(d.finalidade ?? '').trim() ? 'Falta o volume mensal ou a descrição.' : 'Falta a finalidade.' },
     tratamento: feitas === etapas.length && etapas.length
@@ -32,7 +32,7 @@ export function estadoDasAbas(d: DadosAtividade, etapas: EstadoEtapa[]): Record<
       ? { estado: 'feito', resumo: [d.papel_controlador ? 'Controlador' : '', d.papel_operador ? 'Operador' : ''].filter(Boolean).join(' e ') + '.' }
       : { estado: 'pendente', resumo: 'Papel não informado.' },
     medidas: d.medidas ? { estado: 'feito', resumo: plural(d.medidas, 'medida', 'medidas') + '.' } : { estado: 'vazio', resumo: 'Nenhuma medida registrada.' },
-    base_juridica: sensivelSemArt11 ? { estado: 'pendente', resumo: 'Dado sensível: falta o inciso do art. 11 ou Não Aplicável.' }
+    base_juridica: semArt11 ? { estado: 'pendente', resumo: 'Dado sensível: falta o inciso do art. 11 ou Não Aplicável.' }
       : temBase ? { estado: 'feito', resumo: [d.art7 ? plural(d.art7, 'inciso do art. 7º', 'incisos do art. 7º') : '', d.art11 ? plural(d.art11, 'inciso do art. 11', 'incisos do art. 11') : '', d.gdpr ? 'GDPR' : ''].filter(Boolean).join(', ') || 'Base registrada.' }
       : { estado: 'vazio', resumo: 'Nenhuma base jurídica registrada.' },
     gaps: d.gaps_nao_aplicavel ? { estado: 'na', resumo: 'Não Aplicável.' }
@@ -86,7 +86,7 @@ export function entradaDaProxima(d: DadosAtividade, detalhe: EtapaDetalhe[], res
     finalidade: d.finalidade,
     responsavel: !!d.owner_parte_id,
     areas,
-    volumeOuDescricao: !!(String(d.volume_mensal ?? '').trim() || String(d.descricao_atividade ?? '').trim()),
+    volumeOuDescricao: temVolumeOuDescricao(d),
     coleta: {
       titulares: (coleta?.titulares ?? []).map((t) => ({ dados: t.dados.length })),
       solicitaConsentimento: coleta?.solicita_consentimento ?? null,
@@ -97,7 +97,7 @@ export function entradaDaProxima(d: DadosAtividade, detalhe: EtapaDetalhe[], res
     papelRespondido: d.papel_controlador != null || d.papel_operador != null,
     temBase: entradaDaConferencia(d, etapas).temBase,
     art11Na: !!d.base_art11_na,
-    sensivelSemArt11: !!d.dados_sensiveis && !d.art11 && !d.base_art11_na,
+    sensivelSemArt11: sensivelSemArt11(d.dados_sensiveis, d.art11, d.base_art11_na),
     medidas: d.medidas,
     impactoRespondidas: respondidas,
     impactoFinalizado: !!d.impacto_finalizado_em,

@@ -5,7 +5,7 @@ import { remetente } from '../services/email-layout';
 import { emailBoasVindas } from '../services/emails';
 import { emitirConvite, linkDoConvite, SEM_SENHA, HORAS_CONVITE } from '../services/convite';
 import { configPorDominio } from '../sso';
-import { genId, hashPassword, logAudit, rateLimitD1, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, erro500, ehConsultor, ehAdminDaOrg, consultorDesignado, PROJETOS_DO_CONSULTOR_SQL, PAPEIS_EQUIPE_ORG } from '../helpers';
+import { genId, hashPassword, logAudit, rateLimitD1, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, erro500, ehConsultor, ehAdminDaOrg, ehEquipeNess, consultorDesignado, PROJETOS_DO_CONSULTOR_SQL, PAPEIS_EQUIPE_ORG } from '../helpers';
 import { validateBody, createUserSchema, updateUserSchema, modulosDaContaSchema, ativoDaContaSchema } from '../schemas';
 import { MODULOS_PRODUTO, NOME_DO_PRODUTO, modulosContratados, modulosDaPessoa, modulosDoProjeto, type Modulo } from '../modulos';
 import { appUrl } from '../config/url';
@@ -183,12 +183,12 @@ async function comModulos<T extends { id: string; role: string; client_project_i
  * uso único, só o hash no banco) e manda o link de criar a senha; o token nunca vai para log, trilha nem resposta. Domínio de e-mail
  * com SSO ativo não ganha link (a pessoa entra pelo IdP). Devolve se o provedor aceitou.
  */
-export async function enviarBoasVindas(c: any, conta: { id: string; email: string; name: string }, nomeOrg: string): Promise<boolean> {
+export async function enviarBoasVindas(c: any, conta: { id: string; email: string; name: string; role: string }, nomeOrg: string): Promise<boolean> {
   const quem = c.get?.('user') as { name?: string; email?: string } | undefined;
   const convidante = quem?.email ? { nome: quem.name ?? null, email: quem.email, organizacao: nomeOrg } : null;
   const sso = await configPorDominio(c.env, conta.email);
   const link = sso ? null : linkDoConvite(c.env, await emitirConvite(c.env.DB, conta.id, quem?.email ?? 'sistema'));
-  const m = emailBoasVindas({ nome: conta.name, email: conta.email, organizacao: nomeOrg, convidante, url: appUrl(c.env), link, horas: HORAS_CONVITE });
+  const m = emailBoasVindas({ nome: conta.name, email: conta.email, organizacao: nomeOrg, equipe: ehEquipeNess(conta), convidante, url: appUrl(c.env), link, horas: HORAS_CONVITE });
   return sendEmail(c, conta.email, m.assunto, m, { from: remetente('n.360', nomeOrg), ...(quem?.email ? { replyTo: quem.email } : {}) });
 }
 
@@ -253,7 +253,7 @@ usersApp.post('/', async (c) => {
 
     await logAudit(c.env.DB, 'user.created', admin.email, `Usuário ${email} criado como ${targetRole}`);
 
-    const emailEnviado = await enviarBoasVindas(c, { id, email, name }, await nomeDaOrg(c.env.DB, orgNovo)).catch(() => false);
+    const emailEnviado = await enviarBoasVindas(c, { id, email, name, role: targetRole }, await nomeDaOrg(c.env.DB, orgNovo)).catch(() => false);
 
     return c.json({ id, email, name, role: targetRole, client_project_id: targetProject, emailEnviado }, 201);
   } catch (e: any) {
@@ -566,7 +566,7 @@ usersApp.post('/:id/reenviar-convite', async (c) => {
     // A senha provisória de antes do convite por link deixa de valer junto com o link anterior.
     await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(SEM_SENHA, user.id).run();
     await invalidateUserSessions(c.env.SESSIONS, user.id);
-    const emailEnviado = await enviarBoasVindas(c, { id: user.id, email: user.email, name: conta.name ?? '' }, await nomeDaOrg(db, user.org)).catch(() => false);
+    const emailEnviado = await enviarBoasVindas(c, { id: user.id, email: user.email, name: conta.name ?? '', role: user.role }, await nomeDaOrg(db, user.org)).catch(() => false);
     await logAudit(db, 'user.convite_reenviado', c.get('user').email, `Convite da conta ${user.email} (${user.id}) reenviado`, '', c.req.header('CF-Connecting-IP') ?? '',
       user.client_project_id ?? undefined);
     return c.json({ ok: true, emailEnviado });

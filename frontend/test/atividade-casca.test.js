@@ -102,28 +102,35 @@ describe('faixa de abas', () => {
 describe('progresso (onde estou)', () => {
   const progresso = () => el('c').querySelector('.at-progresso');
 
-  it('conta as 8 partes feitas (não se aplica conta; Logs fica fora) e aponta a primeira pendente ou vazia', async () => {
+  it('conta as 6 partes feitas (não se aplica conta; Logs, Gaps e Riscos ficam fora) e aponta a primeira pendente ou vazia', async () => {
     await abrir(renderAtividade);
-    expect(progresso().textContent.replace(/\s+/g, ' ').trim()).toContain('3 de 8 partes concluídas · Próximo: Tratamento de Dados');
+    expect(progresso().textContent.replace(/\s+/g, ' ').trim()).toContain('2 de 6 partes concluídas · Próximo: Tratamento de Dados');
     const ir = progresso().querySelector('[data-action="atIrParaPendencia"]');
     expect(ir.textContent).toBe('Ir para a próxima pendência');
     expect(ir.classList.contains('btn-primary')).toBe(false);
     expect(ir.dataset.aba).toBe('tratamento');
   });
 
-  it('Logs pendente não conta nem vira a próxima; gaps "não se aplica" conta como concluída', async () => {
+  it('Logs, Gaps e Riscos pendentes não contam nem viram a próxima; "não se aplica" conta como concluída', async () => {
     await abrir(renderAtividade, {}, FICHA((f) => {
       Object.keys(f.abas).forEach((k) => { f.abas[k].estado = 'feito'; });
-      f.abas.gaps.estado = 'na'; f.abas.riscos.estado = 'vazio'; f.abas.logs.estado = 'pendente';
+      f.abas.medidas.estado = 'na'; f.abas.impacto.estado = 'vazio';
+      f.abas.gaps.estado = 'pendente'; f.abas.riscos.estado = 'vazio'; f.abas.logs.estado = 'pendente';
       return f;
     }));
-    expect(progresso().textContent).toContain('7 de 8 partes concluídas');
-    expect(progresso().textContent).toContain('Próximo: Riscos');
+    expect(progresso().textContent).toContain('5 de 6 partes concluídas');
+    expect(progresso().textContent).toContain('Próximo: Teste de Impacto');
+    expect(progresso().querySelector('[data-action="atIrParaPendencia"]').dataset.aba).toBe('impacto');
+    expect(el('c').querySelector('#at-aba-riscos').dataset.estado).toBe('vazio');
   });
 
-  it('tudo feito: "Todas as 8 partes concluídas" e o próximo passo é a aprovação, sem botão', async () => {
-    await abrir(renderAtividade, {}, FICHA((f) => { Object.keys(f.abas).forEach((k) => { f.abas[k].estado = 'feito'; }); return f; }));
-    expect(progresso().textContent).toContain('Todas as 8 partes concluídas');
+  it('as 6 feitas (Gaps e Riscos vazios): "Todas as 6 partes concluídas" e o próximo passo é a aprovação, sem botão', async () => {
+    await abrir(renderAtividade, {}, FICHA((f) => {
+      Object.keys(f.abas).forEach((k) => { f.abas[k].estado = 'feito'; });
+      f.abas.gaps.estado = 'vazio'; f.abas.riscos.estado = 'vazio';
+      return f;
+    }));
+    expect(progresso().textContent).toContain('Todas as 6 partes concluídas');
     expect(progresso().textContent).toContain('Próximo: enviar para aprovação no menu Ações');
     expect(progresso().querySelector('button')).toBeNull();
   });

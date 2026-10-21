@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Corrigido (ajustes da revisão da ficha da atividade, 21/10/2026; sem migration)
+- **Progresso da ficha em "N de 6 partes":** Controle de GAPs e Riscos mostram o estado na barra, mas saem da conta e do "Ir para a próxima pendência" (são sugestão, como no guiado); a numeração das abas não muda. O guiado conta só as perguntas não adiadas; a aba Agentes avisa a falha ao carregar as partes em vez de dizer "nenhum parceiro"; a regra do art. 11 e a do volume ou descrição viraram funções únicas (`conferencia.ts`); o e-mail de boas-vindas só diz "(consultoria: X)" para a equipe da consultoria.
+
 ### Corrigido (rascunho da etapa do Tratamento de Dados, 21/10/2026; sem migration)
 - **O assistente não inventa mais a etapa vazia:** sem titular na Coleta, ativo, área, descrição nem nota, `POST .../ropa/:rid/etapas/:etapa/rascunho` não chama o modelo e devolve `sem_base: true` (sem trilha); com base, a resposta traz `fontes` ("finalidade", "2 titulares", "sua nota"...). A tela ganhou o campo opcional "O que você sabe desta etapa", a proposta em caixa própria com "Feito a partir de", deixou de repetir o "Falta preencher" e perdeu a faixa vazia do topo do corpo da etapa (padding duplo e a linha vazia do "Salvo às").
 

@@ -194,7 +194,7 @@ describe('cada e-mail', () => {
     expect(e.html + e.text).not.toContain('Senha-Temporaria-123');
     expect(e.html + e.text).not.toMatch(/[Ss]enha tempor/);
     expect(e.html).toContain('Nova &lt;b&gt;Pessoa&lt;/b&gt;');
-    expect(e.subject).toBe('Seu acesso ao n.360 (ness.)');
+    expect(e.subject).toBe('Seu acesso ao n.360'); // conta de cliente: sem o nome da consultoria
   });
 
   it('homologação ao fornecedor: n.privacy, botão, data dd/mm/aaaa e resposta ao consultor', async () => {
