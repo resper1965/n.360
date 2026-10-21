@@ -98,6 +98,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   novos: o menu le as contagens). Tela: `frontend/src/views/painel.js` (+ `painel-graficos.js`), entrada do n.360 (`inicio`), do
   n.iso (`dashboard`) e do n.privacy (`encarregado`); uma chamada por entrada, cache de 60 s em `S.painel`, selos do menu do
   n.privacy vindos do proprio painel. O funil comercial e a tela `comercial` (`renderComercial`, `views/dashboard.js`).
+  **Painel do n.iso (Frente 4):** a lista "O que fazer" traz tambem fornecedor com avaliacao vencida (filtro `vendors::vencidos`; `situacao` em `GET /vendors`) e pedido esperando decisao (so a equipe ve); os selos do menu do n.iso vem do painel (`modulos.iso.selos`, `frontend/src/selos-menu.js`).
   **Filtro por situacao:** o item traz `filtro` (chave fechada de `FILTROS` em `frontend/src/filtro-painel.js`, nunca dado); o botao
   navega com `{ filtroPainel }`, o `navigate` o apaga na navegacao seguinte e a lista de destino (titular pedidos/incidentes,
   terceiros, evidencias, CAPA) abre filtrada com o chip "Filtro: ... — limpar" (`filtrarDoPainel`). Do n.360 ao modulo a chave vai no
@@ -112,6 +113,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   coherence, medidas do RoPA e cobertura da LGPD; `Compliant` legado conta como feito; a SoA na tela usa o espelho
   `frontend/src/classe-controle.js`, conferido por teste); evidencia vencida e `SQL_EVIDENCIA_VENCIDA` e vencida ou nao conforme e
   `SQL_EVIDENCIA_RUIM`, de `src/services/evidencia-regras.ts`. Nao some contagem no cliente nem leia campo que a API nao devolve.
+  **Controle e atividade (Frente 4):** `GET /api/v1/controls/:id/atividades` lista as atividades do RoPA que usam o controle como medida; a tela de controles mostra "Usado em N atividades" e pede confirmacao antes de mudar o controle para nao implementado.
   **Regras unicas (Frente 2A, 20/10/2026):** "hoje" e o dia de Sao Paulo em todo prazo e vencimento (`hojeEmSaoPaulo`/`diaMaisSP` em
   `src/services/hoje.ts`; `hojeSP`/`emDiasSP` em `frontend/src/hoje.js`; teste que varre o fonte em `test/hoje-sp.test.ts` e
   `frontend/test/hoje-sp.test.js`); o marco "Em operacao desde" e `SQL_MARCO_DO_PROGRAMA` (`painel.ts`: colunas gravadas, RIPD e pedido
@@ -445,7 +447,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   catalogos do RoPA. Gaps (`views/gaps.js`, `GET .../ropa/gaps`) e LIA (`views/lia.js`, `GET .../ropa/lias`, inclui a atividade de
   legitimo interesse sem LIA) listam o projeto inteiro; Riscos tem a vista Mapa | Lista (`?vista=lista`). Fornecedores segue a rotina de TPRM: `pendencias` em `GET .../terceiros` (tipo, criticidade, avaliacao, DPA) e a fila `avaliacoes-terceiros`. A Referencia juridica (`referencia-juridica`, em Mais) le `GET /requisitos?fonte=` e `GET /requisitos/gdpr-bases`; a validacao em lote (`POST /requisitos/mapeamentos/validar`) e do platform_admin e grava o e-mail da sessao. Os "Abrir" levam a atividade
   na aba certa (`abrirAtividade(projectId, ropaId, aba)`). Selos de `frontend/src/selos-menu.js`: numero = total a tratar, contorno ambar =
-  pendente, fundo vermelho = atraso; o Painel tem selo so com atraso. O n.iso e o n.360 mantem estrutura, rotulos e acordeao
+  pendente, fundo vermelho = atraso; o Painel tem selo so com atraso. Areas esta nos dois menus (no n.iso e o cadastro de departamentos; Partes so remete a ela). O n.iso e o n.360 mantem estrutura, rotulos e acordeao
   (`frontend/test/casca-menu.test.js` fixa a estrutura); a barra dos tres e acessivel: grupo fechado fora do Tab (`visibility`), recolhida com o
   texto so visualmente escondido e a dica `#sidebar-dica` ao passar e ao focar. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
   abaixo (Frontend, n.360).
@@ -495,6 +497,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   E2E em `frontend/e2e/n360.spec.js`; `frontend/e2e/shell.js` entrega `dist/login.html` em `/iso` e `/privacy` (o servidor do
   Playwright nao faz fallback de SPA). Testes de backend que usam rota do
   n.privacy chamam `habilitarPrivacy(...)` de `test/helpers/d1.ts`.
+  **DPO e encarregado (Frente 4):** a governanca e o cadastro de partes ficam em sincronia nos dois sentidos (`atualizarEncarregado`, `sincronizarDpoDaParte` em `src/services/encarregado-pessoa.ts`); `GET /projects/:id/governance/encarregados-fora` lista o encarregado que ainda nao esta no comite (botao "Adicionar ao comite" no Monitor).
   **Integracao (0061-0063):** fornecedor e terceiro sao a mesma parte (`vendors.parte_id`; `vendors` e o perfil de seguranca da parte,
   nao um cadastro paralelo, e e opcional: a lista do n.iso mostra todo fornecedor e "Remover avaliacao de seguranca" apaga so o perfil); o DPO da governanca e o encarregado (vinculo `encarregado` em `parte_vinculos`, 0062); incidente vive no
   nucleo e gera CAPA (`corrective_actions.incidente_id`, 0063). O catalogo LGPD/ANPD (`src/data/lgpd.ts`, `src/data/anpd.ts`) traz um

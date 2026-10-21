@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Alterado (Frente 4: ligações entre controle, governança, painel e Áreas, 21/10/2026; sem migration)
+- **Controle e atividade:** `GET /api/v1/controls/:id/atividades`; a tela de controles mostra "Usado em N atividades" e confirma antes de tirar o controle de implementado. O aviso de medida na aba Medidas da atividade foi corrigido.
+- **DPO e encarregado em sincronia nos dois sentidos** (governança e Partes); `GET /projects/:id/governance/encarregados-fora` e o botão "Adicionar ao comitê" no Monitor.
+- **Painel do n.iso:** fornecedor com avaliação vencida e pedido esperando decisão (só a equipe) entram em "O que fazer"; `GET /vendors` devolve `situacao`; filtro `vendors::vencidos`; o menu do n.iso ganha selos (`modulos.iso.selos`).
+- **Áreas** passam a ter item no menu do n.iso; Partes só remete a elas.
+
 ### Alterado (Frente 3C: itens soltos do n.iso, 21/10/2026; sem migration)
 - **CSV do n.iso em pt-BR:** riscos, fornecedores, treinamento, trilha e ativos saem com BOM, `;`, CRLF, cabeçalho em português e os mesmos rótulos da tela (abrem certo no Excel). **Muda o formato** para quem consumia o CSV antigo (vírgula, cabeçalho em inglês, valores do banco). O download avisa o erro na tela em vez de salvar a resposta de erro como `.csv`.
 - **Ação corretiva:** o prazo passa a ser data válida (AAAA-MM-DD), como no gap; o formulário do n.iso exige responsável.
