@@ -1,8 +1,10 @@
 import { S } from '../state.js';
-import { api, API_BASE } from '../api.js';
+import { api, baixarArquivo } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE, formatarData, traduzStatus, tituloDaTela } from '../ui.js';
 import { produtoAtual, projetosDoProduto } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
+import { hojeSP } from '../hoje.js';
+import { montarLista, colunasDe } from '../lista.js';
 
     /** Vazio sem fases: o primeiro passo real (carregar as fases, para a equipe) e a prontidão, nunca a Jornada vazia. */
     export function vazioSemFases(projectId) {
@@ -90,7 +92,7 @@ import { podeIndicar } from './encarregado.js';
 
             // Ações de operador só para a equipe; a prontidão vale para todos.
             a.innerHTML = `<button class="btn" data-action="navigate" data-args='["certification"]'>Ver a prontidão</button>`
-                + (equipe ? ` <button class="btn" data-action="exportCSV" data-args='["risks"]'>Exportar riscos</button> <button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${escapeHTML(String(p.id))}"}}]'>Abrir a jornada</button>` : '');
+                + (equipe ? ` <button class="btn" data-action="exportarCsvNiso" data-args='["risks"]'>Exportar riscos</button> <button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${escapeHTML(String(p.id))}"}}]'>Abrir a jornada</button>` : '');
             c.innerHTML = `<div class="fade-in">
                     <h2 class="monitor-projeto">${escapeHTML(p.project_name || p.client_name)}</h2>
                     ${metricsHtml}
@@ -108,7 +110,7 @@ import { podeIndicar } from './encarregado.js';
     async function renderPortfolio(c, h, a) {
         h.textContent = 'Monitor';
         a.innerHTML = window.renderMaisAcoes([['risks', 'Riscos (CSV)'], ['vendors', 'Fornecedores (CSV)'], ['training', 'Treinamento (CSV)']]
-            .map(([tipo, rotulo]) => ({ rotulo, action: 'exportCSV', args: [tipo] })), { rotulo: 'Exportar' });
+            .map(([tipo, rotulo]) => ({ rotulo, action: 'exportarCsvNiso', args: [tipo] })), { rotulo: 'Exportar' });
         let portfolio = [];
         try { portfolio = (await api('GET', '/api/v1/portfolio'))?.portfolio || []; } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a carteira de projetos.', e); return; }
         c.innerHTML = `<div class="fade-in">${portfolio.length ? portfolio.map(p => {
@@ -133,19 +135,11 @@ import { podeIndicar } from './encarregado.js';
         }).join('') : renderEmptyState({ titulo: 'Nenhum projeto no portfólio', texto: 'Os projetos em que você está designado aparecem aqui com o andamento das fases.' })}</div>`;
     }
 
-    async function exportCSV(type) {
-        const proj = S.activeProject || S.projects[0];
+    // Download pelo servidor (nome do arquivo e formato pt-BR dele); o erro vira aviso, nunca um arquivo com o JSON do erro.
+    function exportarCsvNiso(tipo) {
+        const proj = S.activeProject || (S.projects || [])[0];
         if (!proj) { showToast('Selecione um projeto primeiro', 'error'); return; }
-        try {
-            const headers = {};
-            if (S.token) headers['Authorization'] = `Bearer ${S.token}`;
-            const r = await fetch(API_BASE + `/api/v1/projects/${proj.id}/export/${type}`, { headers });
-            const blob = await r.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = `${type}-${proj.id}.csv`; a.click();
-            URL.revokeObjectURL(url);
-        } catch(e) { showToast('Erro: ' + e.message, 'error'); }
+        return baixarArquivo(`/api/v1/projects/${proj.id}/export/${tipo}`).catch((e) => showToast(e.message || 'Não foi possível exportar.', 'error'));
     }
 
     async function showGapAnalysis(projectId) {
@@ -283,7 +277,7 @@ import { podeIndicar } from './encarregado.js';
             </div>
             <button class="btn btn-primary w-full mt-4" data-action="createMetric" data-args='["${projectId}"]'>Registrar Indicador</button>
         `);
-        document.getElementById('met-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('met-date').value = hojeSP();
     }
 
     async function createMetric(projectId) {
@@ -393,7 +387,9 @@ import { podeIndicar } from './encarregado.js';
         try {
             const members = await api('GET', `/api/v1/projects/${p.id}/governance`);
             S.currentGovernance = members || [];
-            c.innerHTML = `<div class="fade-in">${window.renderProjectGovernance(S.currentGovernance, p.id)}<div id="gov-agentes"></div></div>`;
+            // O encarregado indicado no n.privacy que ainda não está no comitê; falha não esconde a matriz.
+            const fora = await api('GET', `/api/v1/projects/${p.id}/governance/encarregados-fora`).catch(() => []);
+            c.innerHTML = `<div class="fade-in">${window.renderProjectGovernance(S.currentGovernance, p.id, Array.isArray(fora) ? fora : [])}<div id="gov-agentes"></div></div>`;
             window.carregarAgentesDoProjeto(p.id);
             window.agentesAoVivo(p.id);
         } catch(e) {
@@ -401,7 +397,7 @@ import { podeIndicar } from './encarregado.js';
         }
     }
 
-    window.renderProjectGovernance = function(members, projectId) {
+    window.renderProjectGovernance = function(members, projectId, encarregadosFora = []) {
         // Organograma (D6): o Líder do SGSI (is_primary, um por projeto) é a
         // ÂNCORA no topo; abaixo, um tronco desce para uma coluna por área.
         // A âncora não se repete nas colunas.
@@ -470,6 +466,12 @@ import { podeIndicar } from './encarregado.js';
                 <div class="org-anchor-title">A autoridade vem do cargo (Líder SGSI, CISO ou DPO), não de marcação. Cadastre o responsável em “Gerenciar governança”.</div>
             </div>`;
 
+        const foraHtml = podeEditarGovernanca() ? encarregadosFora.map(e => `
+            <div class="gov-empty-list d-flex justify-between items-center">
+                <span>Encarregado indicado no n.privacy: ${escapeHTML(e.nome)}${e.email ? ` (${escapeHTML(e.email)})` : ''}</span>
+                <button class="btn btn-secondary" data-action="adicionarEncarregadoAoComite" data-args='${escapeHTML(JSON.stringify([projectId, e.nome, e.email || '']))}'>Adicionar ao comitê</button>
+            </div>`).join('') : '';
+
         const aut = autoridadeDosCargos(members);
         const avisos = [
             aut.direcao ? '' : 'Nenhum membro tem cargo de Direção (CEO, Diretor(a) ou Executivo): ninguém poderá assinar como Direção.',
@@ -497,6 +499,7 @@ import { podeIndicar } from './encarregado.js';
                     ${manageBtn}
                 </div>
                 ${avisoHtml}
+                ${foraHtml}
                 ${anchorHtml}
                 <div class="org-trunk" aria-hidden="true"></div>
                 <div class="org-branches">${branchesHtml}</div>
@@ -635,6 +638,7 @@ import { podeIndicar } from './encarregado.js';
     };
 
     window.openGovernanceModal = async function(projectId) {
+        window.editingMemberId = null; // o modal abre limpo; editGovernanceMember define o id depois, já com ele aberto
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Gerenciar Membros da Governança</span>
@@ -725,6 +729,16 @@ import { podeIndicar } from './encarregado.js';
     };
 
     window.editingMemberId = null;
+
+    // Abre o formulário de membro já com o encarregado do n.privacy; salvar com cargo DPO mantém a parte (casa por e-mail ou nome).
+    window.adicionarEncarregadoAoComite = async function(projectId, nome, email) {
+        await window.openGovernanceModal(projectId); // abre com editingMemberId zerado
+        if (!document.getElementById('gov-name')) return;
+        document.getElementById('gov-name').value = nome || '';
+        document.getElementById('gov-email').value = email || '';
+        document.getElementById('gov-role').value = 'operacoes';
+        document.getElementById('gov-title').value = 'DPO';
+    };
 
     window.editGovernanceMember = function(memberId) {
         const member = (S.currentGovernance || []).find(m => m.id === memberId);
@@ -1584,7 +1598,7 @@ import { podeIndicar } from './encarregado.js';
         }
         
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        a.innerHTML = `<button class="btn mr-2" data-action="exportCSV" data-args='["assets"]'>Exportar CSV</button>` + (canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>+ Novo Ativo</button>` : '');
+        a.innerHTML = (canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>+ Novo Ativo</button>` : '');
         
         let assets = [];
         try { 
@@ -1606,10 +1620,10 @@ import { podeIndicar } from './encarregado.js';
             { label: 'Ativos Operacionais', value: activeCount, color: 'var(--text)', subtext: 'Em uso ativo' }
         ]);
 
-        const tableHtml = window.renderDataTable(
-            ['Nome do Ativo', 'Categoria', 'Localização', 'Responsável', 'Classificação', 'Status', 'Ações'],
-            assets.map(ast => {
-                const classType = ast.classification === 'Confidential' ? 'danger' : ast.classification === 'Restricted' ? 'warning' : 'info';
+        const celulas = ast => {
+                // sem classificação = Confidencial, o padrão que o servidor grava
+                const classe = ast.classification || 'Confidential';
+                const classType = classe === 'Confidential' ? 'danger' : classe === 'Restricted' ? 'warning' : 'info';
                 const statusType = ast.status === 'Active' || !ast.status ? 'success' : 'neutral';
 
                 return [
@@ -1617,26 +1631,37 @@ import { podeIndicar } from './encarregado.js';
                     escapeHTML(traduzStatus(ast.category || 'Geral')),
                     escapeHTML(ast.location || 'N/A'),
                     escapeHTML(ast.owner || 'N/A'),
-                    window.renderStatusBadge(ast.classification || 'Internal', classType),
+                    window.renderStatusBadge(classe, classType),
                     window.renderStatusBadge(ast.status || 'Active', statusType),
                     `<button class="btn btn-ghost btn-sm" data-action="openAssetDetailsModal" data-args='["${ast.id}"]'>Detalhes</button>`
                 ];
-            }),
-            { emptyState: 'Nenhum ativo de informação registrado neste projeto.',
-              emptyHint: 'O inventário de ativos, com dono e classificação, é a base da apreciação de riscos (ISO 27001, A.5.9 e A.5.12).',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>Novo ativo</button>` : '' }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${tableHtml}
+            <div id="ativos-lista"></div>
         `;
+        montarLista(c.querySelector('#ativos-lista'), {
+            id: 'ativos',
+            linhas: assets,
+            colunas: colunasDe(['Nome do Ativo', 'Categoria', 'Localização', 'Responsável', 'Classificação', 'Status', 'Ações'], celulas),
+            busca: ast => `${ast.name} ${ast.owner || ''}`,
+            filtros: [
+                { chave: 'categoria', rotulo: 'Categoria', valor: ast => ast.category },
+                { chave: 'classificacao', rotulo: 'Classificação', valor: ast => ast.classification || 'Confidential' },
+                { chave: 'criticidade', rotulo: 'Criticidade', valor: ast => ast.criticality },
+            ],
+            exportar: { caminho: `/api/v1/projects/${proj.id}/export/assets` },
+            vazio: { titulo: 'Nenhum ativo de informação registrado neste projeto.',
+                dica: 'O inventário de ativos, com dono e classificação, é a base da apreciação de riscos (ISO 27001, A.5.9 e A.5.12).',
+                acao: canCrud ? `<button class="btn btn-primary" data-action="openNewAssetModal" data-args='["${proj.id}"]'>Novo ativo</button>` : '' },
+        });
     }
 
     window.openAssetDetailsModal = function(id) {
         const ast = S.assets.find(x => x.id === id) || {};
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        const classColor = cl => cl === 'Confidential' ? 'var(--danger)' : cl === 'Restricted' ? 'var(--warning)' : cl === 'Internal' ? 'var(--info)' : 'var(--accent)';
+        const classColor = cl => (cl || 'Confidential') === 'Confidential' ? 'var(--danger)' : cl === 'Restricted' ? 'var(--warning)' : cl === 'Internal' ? 'var(--info)' : 'var(--accent)';
         
         openModal(`
             <div class="modal-header">
@@ -1655,7 +1680,7 @@ import { podeIndicar } from './encarregado.js';
                     </div>
                     <div>
                         <div class="rotulo-campo">Classificação de Segurança</div>
-                        <span class="ctx-tag" style="background:color-mix(in oklab, ${classColor(ast.classification)} 12%, transparent); color:${classColor(ast.classification)}; font-weight:600">${ast.classification || 'Internal'}</span>
+                        <span class="ctx-tag" style="background:color-mix(in oklab, ${classColor(ast.classification)} 12%, transparent); color:${classColor(ast.classification)}; font-weight:600">${ast.classification || 'Confidential'}</span>
                     </div>
                     <div>
                         <div class="rotulo-campo">Responsável</div>
@@ -1694,9 +1719,9 @@ import { podeIndicar } from './encarregado.js';
             <div class="form-group">
                 <label class="form-label">Classificacao</label>
                 <select class="form-input" id="ast-classification">
-                    <option value="Confidential">Confidencial (só a alta liderança)</option>
+                    <option value="Confidential" selected>Confidencial (só a alta liderança)</option>
                     <option value="Restricted">Restricted (Uso Interno Protegido)</option>
-                    <option value="Internal" selected>Interno (uso geral da empresa)</option>
+                    <option value="Internal">Interno (uso geral da empresa)</option>
                     <option value="Public">Public (Livre Acesso)</option>
                 </select>
             </div>
@@ -1742,13 +1767,6 @@ import { podeIndicar } from './encarregado.js';
                 <div class="form-group flex-1"><label class="form-label">Dono</label><input class="form-input" id="ast-e-owner" value="${escapeHTML(ast.owner||'')}"></div>
                 <div class="form-group flex-1"><label class="form-label">Localização</label><input class="form-input" id="ast-e-location" value="${escapeHTML(ast.location||'')}"></div>
             </div>
-            <div class="form-group">
-                <label class="form-label">Status</label>
-                <select class="form-input" id="ast-e-status">
-                    <option value="Active" ${ast.status==='Active'?'selected':''}>Ativo</option>
-                    <option value="Inactive" ${ast.status==='Inactive'?'selected':''}>Inativo</option>
-                </select>
-            </div>
             <div class="d-flex gap-2 justify-between mt-6">
                 <button class="btn t-perigo" data-action="deleteAsset" data-args='["${id}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateAsset" data-args='["${id}"]'>Salvar</button>
@@ -1757,7 +1775,7 @@ import { podeIndicar } from './encarregado.js';
     };
 
     window.updateAsset = async function(id) {
-        const body = { name: document.getElementById('ast-e-name').value, category: document.getElementById('ast-e-category').value, classification: document.getElementById('ast-e-classification').value, owner: document.getElementById('ast-e-owner').value, location: document.getElementById('ast-e-location').value, status: document.getElementById('ast-e-status').value };
+        const body = { name: document.getElementById('ast-e-name').value, category: document.getElementById('ast-e-category').value, classification: document.getElementById('ast-e-classification').value, owner: document.getElementById('ast-e-owner').value, location: document.getElementById('ast-e-location').value };
         await api('PUT', `/api/v1/assets/${id}`, body);
         forceCloseModal(); render();
     };
@@ -1774,7 +1792,7 @@ window.__monDeleteMetric = async (id) => {
 
 window.renderMonitor = renderMonitor;
 window.renderPortfolio = renderPortfolio;
-window.exportCSV = exportCSV;
+window.exportarCsvNiso = exportarCsvNiso;
 window.showGapAnalysis = showGapAnalysis;
 window.renderMetrics = renderMetrics;
 window.openNewMetricModal = openNewMetricModal;

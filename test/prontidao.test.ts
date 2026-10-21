@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { diaMaisSP } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, resetData, sessionFor, workerEnv } from './helpers/d1';
@@ -10,7 +11,7 @@ import { avaliarProntidao, CRITERIOS, type Contagens } from '../src/services/pro
  */
 const db = () => env.DB;
 const chamar = (h: Record<string, string>, caminho: string) => app.fetch(new Request('http://localhost' + caminho, { headers: h }), workerEnv() as any);
-const dias = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+const dias = (n: number) => diaMaisSP(n);
 
 const vazio: Contagens = {
   escopo: false, contexto: false, partes: 0, papeis: 0, politica_vigente: 0, politica_a51_aprovada: 0,

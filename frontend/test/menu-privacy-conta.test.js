@@ -1,4 +1,4 @@
-// Menu do n.privacy (alternativa A) com o globals.js de verdade: o menu de conta recebe Minhas aprovações e Trilha de logs só
+// Menu do n.privacy (alternativa A) com o globals.js de verdade: o menu de conta recebe Minhas aprovações e Trilha de auditoria só
 // no n.privacy, seção sem item do papel some, e o acordeão do n.iso continua o mesmo. Preâmbulo de papeis-admin.test.js:
 // globals.js roda initApp() no import.
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
@@ -38,7 +38,7 @@ describe('n.iso: acordeão', () => {
     });
 });
 
-describe('n.privacy: Minhas aprovações e Trilha de logs no menu de conta', () => {
+describe('n.privacy: Minhas aprovações e Trilha de auditoria no menu de conta', () => {
     const montarComConta = async (role, caminho) => {
         ir(caminho);
         document.body.innerHTML = corpo;
@@ -51,24 +51,24 @@ describe('n.privacy: Minhas aprovações e Trilha de logs no menu de conta', () 
     };
     it('consultor: os dois no menu de conta, levando às telas', async () => {
         const itens = await montarComConta('consultor', '/privacy');
-        expect(itens.slice(0, 2)).toEqual(['Minhas aprovações', 'Trilha de logs']);
+        expect(itens.slice(0, 2)).toEqual(['Minhas aprovações', 'Trilha de auditoria']);
         expect(JSON.parse(el('conta-meus-pedidos').getAttribute('data-args'))).toEqual(['navigate', 'meus-pedidos']);
         expect(JSON.parse(el('conta-audit-trail').getAttribute('data-args'))).toEqual(['navigate', 'audit-trail']);
         expect(el('conta-meus-pedidos').getAttribute('data-action')).toBe('accountMenuAction');
         expect(el('conta-meus-pedidos').querySelector('.sidebar-selo')).toBeNull();
     });
-    it('cliente: Minhas aprovações sem Trilha de logs; platform_admin: Trilha sem Minhas aprovações (a regra do papel é a de sempre)', async () => {
-        expect(await montarComConta('org_user', '/privacy')).not.toContain('Trilha de logs');
+    it('cliente: Minhas aprovações sem Trilha de auditoria; platform_admin: Trilha sem Minhas aprovações (a regra do papel é a de sempre)', async () => {
+        expect(await montarComConta('org_user', '/privacy')).not.toContain('Trilha de auditoria');
         expect(await montarComConta('org_user', '/privacy')).toContain('Minhas aprovações');
         const admin = await montarComConta('platform_admin', '/privacy');
-        expect(admin).toContain('Trilha de logs');
+        expect(admin).toContain('Trilha de auditoria');
         expect(admin).not.toContain('Minhas aprovações');
     });
     it('no n.iso e no n.360 o menu de conta não muda (os dois continuam no menu lateral)', async () => {
         for (const caminho of ['/iso', '/']) {
             const itens = await montarComConta('consultor', caminho);
             expect(itens, caminho).not.toContain('Minhas aprovações');
-            expect(itens, caminho).not.toContain('Trilha de logs');
+            expect(itens, caminho).not.toContain('Trilha de auditoria');
         }
     });
     it('seção sem item do papel some com o título (comercial)', async () => {

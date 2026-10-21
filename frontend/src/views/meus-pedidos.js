@@ -1,11 +1,11 @@
-// "Meus pedidos": única tela do papel `stakeholder` (e de quem mais for destinatário). Lista os
+// "Minhas aprovações": única tela do papel `stakeholder` (e de quem mais for destinatário). Lista os
 // pedidos atribuídos (`GET /api/v1/pedidos`), abre o conteúdo CONGELADO no momento do pedido e
 // aprova ou recusa com a senha. O hash mostrado é o que vai para a prova: é a versão lida.
 // Também aqui: o modal com que a consultoria pede a aprovação de um documento (DPIA e política).
 import { api } from '../api.js';
 import { S } from '../state.js';
 import { produtoAtual } from '../produto.js';
-import { openModal, forceCloseModal, showToast, escapeHTML, formatarData } from '../ui.js';
+import { openModal, forceCloseModal, showToast, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 
 const PAPEIS = {
     ciso: 'Aprovação do Líder SGSI / DPO',
@@ -44,7 +44,7 @@ const el = (id) => document.getElementById(id);
 const args = (...v) => escapeHTML(JSON.stringify(v));
 
 window.renderMeusPedidos = async function renderMeusPedidos(c, h, a) {
-    h.textContent = 'Meus pedidos';
+    h.textContent = tituloDaTela('nav-meus', 'Minhas aprovações');
     a.innerHTML = '';
     c.innerHTML = '<div class="loading"></div>';
     let pedidos = [];
@@ -99,7 +99,7 @@ window.abrirPedido = async function abrirPedido(id) {
     const decide = p.status === 'aberto' && d.status === 'pendente';
     if (decide && typeof window.lotePedidoVisto === 'function') window.lotePedidoVisto(p.id, p.hash); // libera a caixa do lote
     const aviso = p.status === 'substituido'
-        ? '<p class="login-error" role="status">O documento mudou depois deste pedido. Um pedido novo, com o texto atual, está em Meus pedidos.</p>'
+        ? '<p class="login-error" role="status">O documento mudou depois deste pedido. Um pedido novo, com o texto atual, está em Minhas aprovações.</p>'
         : '';
     openModal(`
         <div style="padding:1.5rem 1.75rem;max-width:720px">
@@ -221,7 +221,7 @@ window.enviarPedidoAprovacao = async function enviarPedidoAprovacao(_evento, pro
         return;
     }
     forceCloseModal();
-    showToast('Pedido enviado. Os destinatários o veem em Meus pedidos.');
+    showToast('Pedido enviado. Os destinatários o veem em Minhas aprovações.');
     // A página da atividade mostra a aprovação na etapa 5: o pedido novo aparece na hora.
     if (S.view === 'ropa-atividade' && typeof window.render === 'function') window.render();
 };

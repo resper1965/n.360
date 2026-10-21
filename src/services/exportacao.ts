@@ -3,6 +3,7 @@ import { cicloEmTexto, etapasDe, type EtapaLida } from './ciclo';
 import { aprovacoesDoProjeto } from './documentos';
 import { situacaoDaAtividade } from './ropa-abas/situacao';
 import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO, type FaixaPrazo } from './riscos-atividade';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Exportação CSV do n.privacy (F4): listas de atividades, riscos e ações das atividades, RIPD e LIA, num arquivo que abre no Excel em
@@ -24,12 +25,15 @@ export const montarCsv = (cabecalho: string[], linhas: unknown[][]) =>
 
 export const STATUS: Record<string, string> = {
   Active: 'Ativo', Inactive: 'Inativo', Draft: 'Rascunho', 'Under Review': 'Em revisão', Approved: 'Aprovado',
-  Open: 'Aberto', Closed: 'Concluído', Accepted: 'Aceito', 'In Progress': 'Em andamento', rascunho: 'Rascunho', concluida: 'Concluída',
+  Open: 'Aberto', Closed: 'Concluído', Mitigated: 'Mitigado', Accepted: 'Aceito', 'In Progress': 'Em andamento', rascunho: 'Rascunho', concluida: 'Concluída',
 };
 export const NIVEL: Record<string, string> = { Low: 'Baixo', Medium: 'Médio', High: 'Alto', Critical: 'Crítico' };
 export const ESTRATEGIA: Record<string, string> = { Mitigate: 'Mitigar', Accept: 'Aceitar', Transfer: 'Transferir', Avoid: 'Evitar' };
+export const CLASSIFICACAO: Record<string, string> = { Confidential: 'Confidencial', Internal: 'Interno', Public: 'Público', Restricted: 'Restrito' };
+/** training_records.status (o rótulo do domínio `treinamento` da tela). */
+export const TREINAMENTO: Record<string, string> = { Pending: 'Pendente', Completed: 'Concluído', Expired: 'Vencido' };
 export const traduz = (mapa: Record<string, string>, v: unknown) => (v == null || v === '' ? '' : mapa[String(v)] ?? String(v));
-const simNao = (v: unknown) => (v ? 'Sim' : 'Não');
+export const simNao = (v: unknown) => (v ? 'Sim' : 'Não');
 const ROTULO_FAIXA = Object.fromEntries(FAIXAS_PRAZO.map((f) => [f.id, f.rotulo])) as Record<FaixaPrazo, string>;
 
 export type FiltroExportacao = { probabilidade?: number; impacto?: number; faixa?: FaixaPrazo };
@@ -37,7 +41,7 @@ type Tabela = { cabecalho: string[]; linhas: unknown[][] };
 type Linha = Record<string, unknown>;
 
 const todas = async (db: D1Database, sql: string, ...binds: unknown[]) => (await db.prepare(sql).bind(...binds).all<Linha>()).results;
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
 
 async function atividades(db: D1Database, projectId: string): Promise<Tabela> {
   const aprovacoes = await aprovacoesDoProjeto(db, projectId, undefined, 'tratamento');

@@ -48,7 +48,7 @@ describe('Documentos', () => {
         expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/projects/p1/documentos-arquivo');
         expect([...c.querySelectorAll('thead th')].map((th) => th.textContent.trim())).toEqual(['Nome', 'Tipo', 'Vencimento', 'Status', 'Ações']);
         const l = linhas(c);
-        expect(l[0].slice(0, 4)).toEqual(['Contrato <b>Fornecedor</b>', 'Contrato', '31/03/2027', 'Publicado']);
+        expect(l[0].slice(0, 4)).toEqual(['Contrato <b>Fornecedor</b>', 'Contrato', '31/03/2027', 'Vigente']);
         expect(l[1].slice(0, 4)).toEqual(['Política de Privacidade', 'Política', 'Sem vencimento', 'Rascunho']);
         expect(c.querySelector('tbody b')).toBeNull();
         expect(a.querySelector('.btn-primary').textContent.trim()).toBe('+ Novo documento');
@@ -57,17 +57,21 @@ describe('Documentos', () => {
     it('busca (sem acento) e filtros de Tipo e Status refazem a lista na tela', async () => {
         const [c, h, a] = montar();
         await window.renderDocumentosArquivo(c, h, a);
-        el('da-busca').value = 'politica';
-        window.daFiltrar();
+        expect(el('da-contagem').textContent).toBe('2');
+        expect(el('da-busca').getAttribute('data-action-input')).toBe('listaBuscar');
+        expect(el('da-busca').getAttribute('placeholder')).toBe('Nome do documento');
+        expect(el('da-busca').getAttribute('maxlength')).toBe('120');
+        window.listaBuscar('da', 'politica');
         expect(linhas(c).map((x) => x[0])).toEqual(['Política de Privacidade']);
-        el('da-busca').value = '';
-        el('da-filtro-tipo').value = 'contrato';
-        window.daFiltrar();
+        expect(el('da-contagem').textContent).toBe('1 de 2');
+        window.listaBuscar('da', '');
+        expect([...el('da-f-tipo').options].map((o) => o.value)).toEqual(['', 'politica', 'norma', 'procedimento', 'termo', 'contrato', 'aditivo', 'relatorio', 'outro']);
+        window.listaFiltrar('da', 'tipo', 'contrato');
         expect(linhas(c).map((x) => x[0])).toEqual(['Contrato <b>Fornecedor</b>']);
-        el('da-filtro-tipo').value = '';
-        el('da-filtro-status').value = 'obsoleto';
-        window.daFiltrar();
-        expect(c.textContent).toContain('Nenhum documento com estes filtros.');
+        window.listaFiltrar('da', 'tipo', '');
+        expect([...el('da-f-status').options].map((o) => o.value)).toEqual(['', 'rascunho', 'publicado', 'obsoleto']);
+        window.listaFiltrar('da', 'status', 'obsoleto');
+        expect(c.textContent).toContain('Nada encontrado com a busca ou o filtro.');
         expect(apiMock.mock.calls.filter(([m]) => m === 'GET')).toHaveLength(1);
     });
 

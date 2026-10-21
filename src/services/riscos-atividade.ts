@@ -1,4 +1,5 @@
 import { genId, refForaDoProjeto, setParcial } from '../helpers';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Riscos e ações da atividade de tratamento (n.privacy, F2; migration 0073). O registro é o MESMO do n.iso (`risks` e
@@ -18,6 +19,11 @@ export function riskLevel(score: number): string {
 /** Nível residual: só com as duas notas residuais; faltando uma, não há nível. */
 export const residualLevel = (impacto: number | null | undefined, probabilidade: number | null | undefined) =>
   impacto && probabilidade ? riskLevel(impacto * probabilidade) : null;
+
+/** Aceite feito agora (transição para `Accepted`) grava quem aceitou e quando, pela sessão. Fora da transição, nada muda. */
+export function carimboDeAceite(antes: string | null | undefined, depois: string | null | undefined, ator: string) {
+  return depois === 'Accepted' && antes !== 'Accepted' ? { accepted_by: ator, accepted_at: new Date().toISOString() } : null;
+}
 
 type Falha = { ok: false; status: 400 | 403 | 404; error: string };
 const naoAchou = (o: string): Falha => ({ ok: false, status: 404, error: `${o} não encontrado` });
@@ -66,7 +72,7 @@ export async function criarRisco(db: D1Database, projectId: string, ropaId: stri
   const prob = corpo.probability ?? 3;
   const nivel = riskLevel(impacto * prob);
   const status = corpo.status ?? 'Open';
-  const aceite = status === 'Accepted';
+  const aceite = carimboDeAceite(null, status, ator);
   await db.batch([
     db.prepare(
       `INSERT INTO risks (id, project_id, ropa_id, asset_id, asset, threat, vulnerability, impact, probability, risk_level, treatment, treatment_plan,
@@ -75,7 +81,7 @@ export async function criarRisco(db: D1Database, projectId: string, ropaId: stri
     ).bind(id, projectId, ropaId, corpo.asset_id || null, await textoDoAtivo(db, corpo.asset_id, at.processing_purpose), corpo.threat,
       corpo.vulnerability ?? null, impacto, prob, nivel, corpo.treatment ?? 'Mitigate', corpo.treatment_plan ?? null,
       corpo.residual_impact ?? null, corpo.residual_probability ?? null, residualLevel(corpo.residual_impact, corpo.residual_probability),
-      corpo.owner_parte_id || null, corpo.control_id || null, status, aceite ? ator : null, aceite ? new Date().toISOString() : null,
+      corpo.owner_parte_id || null, corpo.control_id || null, status, aceite?.accepted_by ?? null, aceite?.accepted_at ?? null,
       ropaId, corpo.treatment_due_date ?? null),
     db.prepare('INSERT INTO risk_history (id, risk_id, project_id, impact, probability, risk_level) VALUES (?, ?, ?, ?, ?, ?)')
       .bind(genId(), id, projectId, impacto, prob, nivel),
@@ -99,7 +105,7 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
   const nivel = riskLevel(impacto * prob);
   const resI = corpo.residual_impact === undefined ? atual.residual_impact : corpo.residual_impact;
   const resP = corpo.residual_probability === undefined ? atual.residual_probability : corpo.residual_probability;
-  const aceiteNovo = corpo.status === 'Accepted' && atual.status !== 'Accepted';
+  const aceite = carimboDeAceite(atual.status, corpo.status, ator);
   const p = setParcial(corpo, {
     threat: null, vulnerability: null, asset_id: null, treatment: 'Mitigate', treatment_plan: null, residual_impact: null,
     residual_probability: null, owner_parte_id: null, control_id: null, status: 'Open', treatment_due_date: null,
@@ -110,7 +116,7 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
     extra.push('asset = ?');
     binds.push(await textoDoAtivo(db, corpo.asset_id, at.processing_purpose));
   }
-  if (aceiteNovo) { extra.push('accepted_by = ?', 'accepted_at = ?'); binds.push(ator, new Date().toISOString()); }
+  if (aceite) { extra.push('accepted_by = ?', 'accepted_at = ?', 'aceite_manual = 0'); binds.push(aceite.accepted_by, aceite.accepted_at); }
   await db.batch([
     db.prepare(
       `UPDATE risks SET impact = ?, probability = ?, risk_level = ?, residual_level = ?${p.sql ? ', ' + p.sql : ''}${extra.length ? ', ' + extra.join(', ') : ''},
@@ -254,7 +260,7 @@ export async function acoesDasAtividades(db: D1Database, projectId: string, { so
 
 /** A lista de Gaps do projeto (spec 2026-10-19): as ações das atividades no formato da tela. Faixa só para gap aberto. */
 export async function gapsDoProjeto(db: D1Database, projectId: string) {
-  const dia = new Date().toISOString().slice(0, 10);
+  const dia = hojeEmSaoPaulo();
   return (await acoesDasAtividades(db, projectId)).map((a) => ({
     id: a.id, ropa_id: a.ropa_id, atividade: a.atividade, area: a.area, titulo: a.description || a.title, recomendacao: a.recomendacao, plano: a.action_plan,
     responsavel: a.responsavel, prazo: a.due_date, faixa: (a.status || 'Open') === 'Closed' ? null : faixaDePrazo(a.due_date, dia),

@@ -6,6 +6,7 @@ import { opcoesDePartes } from '../partes-opcoes.js';
 import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
 import { podeEntrevistar, confirmaEdicaoAprovada } from '../atividade/estado.js';
 import { listarItens, criarItem } from '../atividade/catalogo-inline.js';
+import { montarLista, colunasDe } from '../lista.js';
 import './atividade.js';
 import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, camposDaBase, idsDoCatalogo } from '../bases-legais.js';
 
@@ -107,40 +108,39 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
 
         // n.privacy: a lista mostra o que a atividade é e em que pé está; titulares, retenção e RIPD vivem nas abas.
         const colunas = comPrivacy ? ['Atividade', 'Base legal', 'Situação', 'Ações'] : ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Situação', 'Ações'];
-        const tableHtml = window.renderDataTable(
-            colunas,
-            records.map(r => {
-                const statusType = r.status === 'Active' || !r.status ? 'success' : 'info';
-                return [
-                    `<strong${cancelada(r) ? ' class="at-esmaecida"' : ''}>${escapeHTML(r.nome || r.processing_purpose)}</strong>${Array.isArray(r.nao_informado) && r.nao_informado.length ? ` ${window.renderStatusBadge('Importado: revisar', 'warning')}` : ''}`,
-                    escapeHTML(rotuloBase(r.legal_basis) || (comPrivacy ? 'Não informada' : 'N/A')),
-                    ...(comPrivacy ? [] : [
-                        escapeHTML(r.data_subjects || 'N/A'),
-                        escapeHTML(r.retention_period || 'N/A'),
-                        r.dpia_required ? window.renderStatusBadge('Sim', 'warning') : window.renderStatusBadge('Não', 'neutral'),
-                    ]),
-                    // Situação derivada do servidor (Rascunho, Em Revisão, Aprovada, Cancelada), escrita; sem ela, o status antigo.
-                    r.situacao && r.situacao.rotulo
-                        ? window.renderStatusBadge(r.situacao.rotulo, { aprovada: 'success', cancelada: 'neutral', em_revisao: 'warning', rascunho: 'info' }[r.situacao.codigo] || 'info')
-                        : window.renderStatusBadge(r.status || 'Active', statusType),
-                    // n.privacy: a atividade tem página própria, com as etapas (atividade.js). Um botão, um nome.
-                    comPrivacy
-                        ? `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${escapeHTML(JSON.stringify([proj.id, r.id]))}' aria-label="Abrir a atividade: ${escapeHTML(r.nome || r.processing_purpose)}">Abrir</button>`
-                        : `<button class="btn btn-ghost btn-sm" data-action="openROPADetailsModal" data-args='["${r.id}"]'>Detalhes</button>
-                     ${entrevista ? `<button class="btn btn-ghost btn-sm" data-action="abrirRopaEntrevista" data-args='["${proj.id}","${r.id}"]'>Continuar entrevista</button>` : ''}`
-                ];
-            }),
-            {
-                emptyState: comPrivacy ? 'Nenhuma atividade de tratamento registrada.' : 'O inventário de tratamentos (art. 37) está vazio.',
-                emptyHint: comPrivacy ? 'O inventário (art. 37 da LGPD) começa pela primeira atividade. Crie uma ou importe a planilha que o cliente já tem.' : 'Registre a primeira atividade ou importe a planilha que o cliente já tem.',
-                emptyAction: btnNova() + (comPrivacy ? '' : btnNovo('Edição avançada')) + btnImportar,
-            }
-        );
-
-        c.innerHTML = `
-            ${statsHtml}
-            ${tableHtml}
-        `;
+        const celulas = (r) => {
+            const statusType = r.status === 'Active' || !r.status ? 'success' : 'info';
+            return [
+                `<strong${cancelada(r) ? ' class="at-esmaecida"' : ''}>${escapeHTML(r.nome || r.processing_purpose)}</strong>${Array.isArray(r.nao_informado) && r.nao_informado.length ? ` ${window.renderStatusBadge('Importado: revisar', 'warning')}` : ''}`,
+                escapeHTML(rotuloBase(r.legal_basis) || (comPrivacy ? 'Não informada' : 'N/A')),
+                ...(comPrivacy ? [] : [
+                    escapeHTML(r.data_subjects || 'N/A'),
+                    escapeHTML(r.retention_period || 'N/A'),
+                    r.dpia_required ? window.renderStatusBadge('Sim', 'warning') : window.renderStatusBadge('Não', 'neutral'),
+                ]),
+                // Situação derivada do servidor (Rascunho, Em Revisão, Aprovada, Cancelada), escrita; sem ela, o status antigo.
+                r.situacao && r.situacao.rotulo
+                    ? window.renderStatusBadge(r.situacao.rotulo, { aprovada: 'success', cancelada: 'neutral', em_revisao: 'warning', rascunho: 'info' }[r.situacao.codigo] || 'info')
+                    : window.renderStatusBadge(r.status || 'Active', statusType),
+                // n.privacy: a atividade tem página própria, com as etapas (atividade.js). Um botão, um nome.
+                comPrivacy
+                    ? `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${escapeHTML(JSON.stringify([proj.id, r.id]))}' aria-label="Abrir a atividade: ${escapeHTML(r.nome || r.processing_purpose)}">Abrir</button>`
+                    : `<button class="btn btn-ghost btn-sm" data-action="openROPADetailsModal" data-args='["${r.id}"]'>Detalhes</button>
+                 ${entrevista ? `<button class="btn btn-ghost btn-sm" data-action="abrirRopaEntrevista" data-args='["${proj.id}","${r.id}"]'>Continuar entrevista</button>` : ''}`
+            ];
+        };
+        // A lista é a do componente (contagem e "Carregar mais"); o CSV e o PDF seguem no "Mais ações".
+        c.innerHTML = `${statsHtml}<div id="ropa-lista"></div>`;
+        montarLista(c.querySelector('#ropa-lista'), {
+            id: 'ropa',
+            linhas: records,
+            colunas: colunasDe(colunas, celulas),
+            vazio: {
+                titulo: comPrivacy ? 'Nenhuma atividade de tratamento registrada.' : 'O inventário de tratamentos (art. 37) está vazio.',
+                dica: comPrivacy ? 'O inventário (art. 37 da LGPD) começa pela primeira atividade. Crie uma ou importe a planilha que o cliente já tem.' : 'Registre a primeira atividade ou importe a planilha que o cliente já tem.',
+                acao: btnNova() + (comPrivacy ? '' : btnNovo('Edição avançada')) + btnImportar,
+            },
+        });
     }
 
     // Assinatura direta do RoPA (n.iso): o modelo antigo, ao lado do pedido de aprovação.
@@ -414,33 +414,21 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
     };
 
     const STATUS_RIPD = { Draft: 'Rascunho', 'Under Review': 'Em revisão', Approved: 'Aprovado' };
-    let listaRipd = null;
-    /** `filtrar` falso no primeiro desenho: o select ainda é o da tela anterior. */
-    function tabelaRipd(filtrar = true) {
-        const { assessments, projectId, vazio } = listaRipd;
-        const st = filtrar && document.getElementById('ripd-filtro-status') ? document.getElementById('ripd-filtro-status').value : '';
-        const itens = assessments.filter(dp => !st || (dp.status || 'Draft') === st);
-        return window.renderDataTable(
-            ['Atividade', 'Sistema ou operação', 'Titulares', 'Categorias de dados', 'Risco residual', 'Status', 'Ações'],
-            itens.map(dp => {
-                const statusType = dp.status === 'Approved' ? 'success' : dp.status === 'Under Review' ? 'warning' : 'info';
-                return [
-                    escapeHTML(dp.atividade || '—'),
-                    `<strong>${escapeHTML(dp.system_name)}</strong>`,
-                    escapeHTML(dp.data_subjects_types || 'N/A'),
-                    escapeHTML(dp.personal_data_categories || 'N/A'),
-                    escapeHTML(dp.residual_risk_level || '—'),
-                    // Selo "mudou na origem" (F3): só aviso; a aprovação do RIPD não muda por isso.
-                    window.renderStatusBadge(dp.status || 'Draft', statusType) + (dp.origem_mudou ? ` ${window.renderStatusBadge('RoPA mudou depois deste RIPD: revise', 'warning')}` : ''),
-                    `<button class="btn btn-ghost btn-sm" data-action="openDPIADetailsModal" data-args='["${dp.id}"]'>Detalhes</button>
-                     <button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="openDPIAReport" data-args='["${projectId}","${dp.id}"]' data-stop>PDF</button>
-                     <button class="btn btn-ghost btn-sm" data-action="baixarWordRipd" data-args='["${projectId}","${dp.id}"]' data-stop>Word</button>`
-                ];
-            }),
-            st ? { emptyState: 'Nenhum RIPD com este status.', emptyHint: 'Limpe o filtro para ver todos.' } : vazio
-        );
-    }
-    window.filtrarRipd = function () { if (listaRipd && document.getElementById('ripd-lista')) document.getElementById('ripd-lista').innerHTML = tabelaRipd(); };
+    const celulasRipd = (projectId) => (dp) => {
+        const statusType = dp.status === 'Approved' ? 'success' : dp.status === 'Under Review' ? 'warning' : 'info';
+        return [
+            escapeHTML(dp.atividade || '—'),
+            `<strong>${escapeHTML(dp.system_name)}</strong>`,
+            escapeHTML(dp.data_subjects_types || 'N/A'),
+            escapeHTML(dp.personal_data_categories || 'N/A'),
+            escapeHTML(dp.residual_risk_level || '—'),
+            // Selo "mudou na origem" (F3): só aviso; a aprovação do RIPD não muda por isso.
+            window.renderStatusBadge(dp.status || 'Draft', statusType) + (dp.origem_mudou ? ` ${window.renderStatusBadge('RoPA mudou depois deste RIPD: revise', 'warning')}` : ''),
+            `<button class="btn btn-ghost btn-sm" data-action="openDPIADetailsModal" data-args='["${dp.id}"]'>Detalhes</button>
+             <button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="openDPIAReport" data-args='["${projectId}","${dp.id}"]' data-stop>PDF</button>
+             <button class="btn btn-ghost btn-sm" data-action="baixarWordRipd" data-args='["${projectId}","${dp.id}"]' data-stop>Word</button>`
+        ];
+    };
 
     async function renderDPIA(c, h, a) {
         // O termo legal brasileiro vem primeiro (LGPD, art. 5º, XVII).
@@ -459,7 +447,6 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         try { assessments = await api('GET', `/api/v1/projects/${proj.id}/dpia`); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os RIPDs.', e); return; }
         if (!Array.isArray(assessments)) assessments = [];
         S.dpia = assessments;
-        if (assessments.length) a.innerHTML = `<button class="btn" data-action="exportarCsvRipd" data-args='["${proj.id}"]'>Exportar CSV</button> ` + a.innerHTML;
 
         // Sem RIPD, o vazio diz onde ele é exigido: os tratamentos marcados "Exige RIPD" no RoPA.
         let exigem = 0;
@@ -480,23 +467,36 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         ]);
 
         const vazioRipd = exigem
-            ? { emptyState: `Nenhum RIPD. ${exigem} ${exigem === 1 ? 'tratamento do RoPA está marcado' : 'tratamentos do RoPA estão marcados'} como "Exige RIPD".`,
-                emptyAction: `<button class="btn" data-action="navigate" data-args='["ropa"]'>Abrir o RoPA</button>${canCrud ? `<button class="btn btn-primary" data-action="openNewDPIAModal" data-args='["${proj.id}"]'>Novo RIPD</button>` : ''}` }
-            : { emptyState: 'Nenhum RIPD registrado.',
-                emptyHint: 'Marque no RoPA os tratamentos de alto risco para saber onde o RIPD é exigido.',
-                emptyAction: `<button class="btn" data-action="navigate" data-args='["ropa"]'>Abrir o RoPA</button>` };
-        listaRipd = { assessments, projectId: proj.id, vazio: vazioRipd };
-        // Atividade (finalidade do RoPA ligado) e risco residual na lista; filtro de status na tela (spec 2026-10-19).
-        const filtroRipd = assessments.length ? `<div class="co-controles"><label class="co-campo"><span class="co-campo-rotulo">Status</span>
-            <select class="form-select" id="ripd-filtro-status" data-action-change="filtrarRipd"><option value="">Todos</option>
-            ${Object.entries(STATUS_RIPD).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></label></div>` : '';
-        const tableHtml = `${filtroRipd}<div id="ripd-lista">${tabelaRipd(false)}</div>`;
-
-        c.innerHTML = `
-            ${statsHtml}
-            ${tableHtml}
-        `;
+            ? { titulo: `Nenhum RIPD. ${exigem} ${exigem === 1 ? 'tratamento do RoPA está marcado' : 'tratamentos do RoPA estão marcados'} como "Exige RIPD".`,
+                acao: `<button class="btn" data-action="navigate" data-args='["ropa"]'>Abrir o RoPA</button>${canCrud ? `<button class="btn btn-primary" data-action="openNewDPIAModal" data-args='["${proj.id}"]'>Novo RIPD</button>` : ''}` }
+            : { titulo: 'Nenhum RIPD registrado.',
+                dica: 'Marque no RoPA os tratamentos de alto risco para saber onde o RIPD é exigido.',
+                acao: `<button class="btn" data-action="navigate" data-args='["ropa"]'>Abrir o RoPA</button>` };
+        // Atividade (finalidade do RoPA ligado) e risco residual na lista; filtro de status e exportar pelo componente de lista.
+        c.innerHTML = `${statsHtml}<div id="ripd-lista"></div>`;
+        montarLista(c.querySelector('#ripd-lista'), {
+            id: 'ripd',
+            linhas: assessments,
+            colunas: colunasDe(['Atividade', 'Sistema ou operação', 'Titulares', 'Categorias de dados', 'Risco residual', 'Status', 'Ações'], celulasRipd(proj.id)),
+            // Sem RIPD, sem filtro nem exportar: o vazio diz o que fazer.
+            ...(assessments.length ? {
+                filtros: [{ chave: 'status', rotulo: 'Status', valor: (dp) => dp.status || 'Draft', opcoes: Object.entries(STATUS_RIPD) }],
+                exportar: { caminho: `/api/v1/projects/${proj.id}/export/ripd` },
+            } : {}),
+            vazio: vazioRipd,
+        });
     }
+
+    // Uma assinatura, do encarregado/Líder SGSI ou da Direção, aprova o RIPD (decisão do dono de 20/10/2026).
+    const linhaAssinatura = (conteudo) => `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">${conteudo}</div>`;
+    const assinaturasRipd = (dp, projectId, papelCiso) => {
+        const feitas = [[dp.dpo_signature, papelCiso], [dp.ceo_signature, 'Direção Executiva']].filter(([nome]) => nome);
+        if (feitas.length) {
+            return feitas.map(([nome, papel]) => linhaAssinatura(`<div><span style="color:var(--success)">Aprovado por ${escapeHTML(nome)}</span> (${papel})</div>`)).join('');
+        }
+        const assinar = (papel, role) => linhaAssinatura(`<div><strong>${papel}</strong></div><button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveDPIA" data-args='["${projectId}","${dp.id}","${role}"]'>Assinar</button>`);
+        return `<p style="font-size:0.75rem; color:var(--text-dim); margin:0">Uma assinatura, do ${papelCiso} ou da Direção Executiva, aprova o RIPD.</p>${assinar(papelCiso, 'ciso')}${assinar('Direção Executiva', 'ceo')}`;
+    };
 
     window.openDPIADetailsModal = function(id) {
         const dp = S.dpia.find(x => x.id === id) || {};
@@ -554,20 +554,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:16px">
                 <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--text-dim); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Assinaturas do RIPD</h4>
                 <div style="display:flex; flex-direction:column; gap:0.75rem">
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
-                        <div>
-                            <strong>${papelCiso}:</strong> 
-                            ${dp.dpo_signature ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(dp.dpo_signature)}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
-                        </div>
-                        ${!dp.dpo_signature ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveDPIA" data-args='["${projectId}","${dp.id}","ciso"]'>Assinar</button>` : ''}
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">
-                        <div>
-                            <strong>Direção Executiva:</strong> 
-                            ${dp.ceo_signature ? `<span style="color:var(--success)">Aprovado por ${escapeHTML(dp.ceo_signature)}</span>` : `<span style="color:var(--text-dim)">Aguardando assinatura</span>`}
-                        </div>
-                        ${!dp.ceo_signature ? `<button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveDPIA" data-args='["${projectId}","${dp.id}","ceo"]'>Assinar</button>` : ''}
-                    </div>
+                    ${assinaturasRipd(dp, projectId, papelCiso)}
                     ${podeRevogar() && (dp.dpo_signature || dp.ceo_signature || dp.status === 'Approved') ? `<div style="text-align:right"><button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarDPIA" data-args='["${projectId}","${dp.id}"]'>Revogar aprovação do RIPD</button></div>` : ''}
                     ${window.podePedirAprovacao?.(S.user) ? `<div style="text-align:right"><button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="abrirPedidoAprovacao" data-args='${escapeHTML(JSON.stringify([projectId, 'dpia', dp.id]))}'>Pedir aprovação</button></div>` : ''}
                 </div>
@@ -701,10 +688,14 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             mitigation_measures: document.getElementById('dpia-e-mitigations').value,
             dpo_opinion: document.getElementById('dpia-e-opinion').value
         };
-        // Aprovar é pelo fluxo de assinatura; o PUT só move entre Draft e Under Review e recusa
+        // Aprovar é pelo fluxo de assinatura; o PUT só move entre Draft e Under Review e ignora
         // status em DPIA já aprovada.
         const st = document.getElementById('dpia-e-status');
         if (!st.disabled) body.status = st.value;
+        // Mudar o conteúdo de um RIPD aprovado derruba a aprovação no servidor (PUT /dpia/:id).
+        const dp = S.dpia.find(x => x.id === id) || {};
+        const mudou = Object.keys(body).some(k => k !== 'status' && (body[k] || '') !== (dp[k] || ''));
+        if (dp.status === 'Approved' && mudou && !(await window.confirmar('A aprovação do RIPD cai e ele volta a rascunho.', { titulo: 'Editar RIPD aprovado', rotulo: 'Editar' }))) return;
         await api('PUT', `/api/v1/dpia/${id}`, body);
         forceCloseModal(); render();
     };
@@ -727,7 +718,6 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
     const baixar = (promessa) => promessa.catch((e) => showToast(e.message || 'Não foi possível baixar o arquivo', 'error'));
     window.exportarCsvAtividades = (projectId) => baixar(baixarArquivo(`/api/v1/projects/${projectId}/export/atividades`));
     window.exportarCsvLia = (projectId) => baixar(baixarArquivo(`/api/v1/projects/${projectId}/export/lia`));
-    window.exportarCsvRipd = (projectId) => baixar(baixarArquivo(`/api/v1/projects/${projectId}/export/ripd`));
     window.baixarWordRipd = (projectId, id) => baixar(baixarArquivo(`/api/v1/projects/${projectId}/dpia/${id}/docx`));
 
     // Desaprovar é ato da direção (F6): só platform_admin e org_admin veem o botão; o servidor decide de novo.

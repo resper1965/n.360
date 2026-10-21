@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML, tituloDaTela } from '../ui.js';
 import { podeEditar } from './partes.js';
+import { montarLista, colunasDe } from '../lista.js';
 
 // Ativos (n.privacy, Cadastros; a tela "Sistemas" com o nome do legado, spec 2026-10-19): os ativos do projeto
 // (`/projects/:id/assets`), os mesmos do inventário do n.iso, numa lista leve como a do legado: Ativo, Descrição e Empresa. O modal
@@ -26,17 +27,18 @@ async function renderSistemas(c, h, a) {
     } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os ativos.', e); return; }
     S.sistemas = sistemas;
     const empresa = escapeHTML(proj.client_name || '—');
-    c.innerHTML = window.renderDataTable(
-        ['Ativo', 'Descrição', 'Empresa', 'Ações'],
-        sistemas.map((s) => [
+    montarLista(c, {
+        id: 'sistemas',
+        linhas: sistemas,
+        colunas: colunasDe(['Ativo', 'Descrição', 'Empresa', 'Ações'], (s) => [
             `<strong>${escapeHTML(s.name)}</strong>`,
             escapeHTML(s.description || '—'),
             empresa,
             `<button class="btn btn-ghost btn-sm" data-action="openNovoSistemaModal" data-args='${args(proj.id, s.id)}'>${editar ? 'Ver/Editar' : 'Ver'}</button>`,
         ]),
-        { emptyState: 'Nenhum ativo cadastrado.',
-            emptyHint: 'Sistemas, bases e arquivos onde os dados ficam: cada etapa da atividade de tratamento do RoPA aponta para eles.' },
-    );
+        vazio: { titulo: 'Nenhum ativo cadastrado.',
+            dica: 'Sistemas, bases e arquivos onde os dados ficam: cada etapa da atividade de tratamento do RoPA aponta para eles.' },
+    });
 }
 
 /** Um modal para criar (sem id), ver e editar (com id). Quem só lê vê os campos desligados, sem gravar. */

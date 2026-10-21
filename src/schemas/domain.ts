@@ -399,7 +399,7 @@ export const dpiaSchema = z.object({
   // segregação, e isso só existe em POST .../approve e nos pedidos de aprovação. Assinaturas
   // (dpo_signature, ceo_signature, dpo_approved_*) passam pelo passthrough mas a rota não as grava.
   status: z.enum(['Draft', 'Under Review'], {
-    error: "status aceita 'Draft' ou 'Under Review'. Aprovar a DPIA é pelo fluxo de aprovação (assinatura do DPO e da Direção), não pela edição.",
+    error: "status aceita 'Draft' ou 'Under Review'. Aprovar a DPIA é pelo fluxo de aprovação (assinatura do DPO ou da Direção), não pela edição.",
   }).optional().nullable(),
 }).passthrough();
 

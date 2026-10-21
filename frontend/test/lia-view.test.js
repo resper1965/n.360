@@ -56,9 +56,12 @@ describe('LIA', () => {
 
     it('filtra por situação e "Abrir" leva à atividade na aba Base Jurídica', async () => {
         await abrir();
-        el('lia-filtro-situacao').value = 'faltando';
-        el('lia-filtro-situacao').dispatchEvent(new Event('change', { bubbles: true }));
+        expect(el('lia-contagem').textContent).toBe('3');
+        expect([...el('lia-f-situacao').options].map((o) => o.textContent)).toEqual(['Todos', 'Faltando', 'Rascunho', 'Concluída']);
+        el('lia-f-situacao').value = 'faltando';
+        el('lia-f-situacao').dispatchEvent(new Event('change', { bubbles: true }));
         expect(linhas()).toHaveLength(1);
+        expect(el('lia-contagem').textContent).toBe('1 de 3');
         const b = linhas()[0].querySelector('[data-action="abrirAtividade"]');
         expect(JSON.parse(b.getAttribute('data-args'))).toEqual(['p9', 'r2', 'base_juridica']);
         b.click();

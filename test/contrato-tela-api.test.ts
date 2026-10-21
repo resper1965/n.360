@@ -103,7 +103,7 @@ const TOLERADAS: { chave: string; motivo: string; expande: string[] }[] = [
   { chave: 'POST /api/v1/pedidos/:p/:p', motivo: 'meus-pedidos.js enviarDecisao(id, acao)', expande: ['POST /api/v1/pedidos/:p/aprovar', 'POST /api/v1/pedidos/:p/recusar'] },
   { chave: 'POST /api/v1/public/pedidos/:p', motivo: 'public/politicas.js postLink(acao)', expande: ['POST /api/v1/public/pedidos/ver', 'POST /api/v1/public/pedidos/codigo', 'POST /api/v1/public/pedidos/ciencia'] },
   { chave: '* /api/v1/public/propostas/:p', motivo: "public/proposta.js: const API = '/api/v1/public/propostas/'; chamar(acao)", expande: ['POST /api/v1/public/propostas/ver', 'POST /api/v1/public/propostas/aceitar', 'POST /api/v1/public/propostas/ajuste', 'POST /api/v1/public/propostas/recusar'] },
-  { chave: 'GET /api/v1/projects/:p/export/:p', motivo: 'monitor.js exportCSV(type)', expande: ['GET /api/v1/projects/:p/export/risks', 'GET /api/v1/projects/:p/export/vendors', 'GET /api/v1/projects/:p/export/training', 'GET /api/v1/projects/:p/export/assets'] },
+  { chave: '* /api/v1/projects/:p/export/:p', motivo: 'monitor.js exportarCsvNiso(tipo): risks, vendors e training', expande: ['GET /api/v1/projects/:p/export/risks', 'GET /api/v1/projects/:p/export/vendors', 'GET /api/v1/projects/:p/export/training'] },
   { chave: '* /api/v1/auth/mfa/:p', motivo: 'api.js: prefixo de startsWith que isenta o 401 do MFA; não é chamada', expande: ['POST /api/v1/auth/mfa/verify'] },
   { chave: '* /api/v1/projects/:p/ropa/:p', motivo: 'atividade/estado.js novoAutosave({ rota }): o sufixo vem do chamador (PUT)', expande: ['PUT /api/v1/projects/:p/ropa/:p/escopo', 'PUT /api/v1/projects/:p/ropa/:p/agentes', 'PUT /api/v1/projects/:p/ropa/:p/ciclo'] },
   { chave: 'PUT /api/v1/projects/:p/ropa/:p', motivo: 'atividade/estado.js gravarAgora({ rota }): idem', expande: ['PUT /api/v1/projects/:p/ropa/:p/agentes', 'PUT /api/v1/projects/:p/ropa/:p/ciclo'] },
@@ -158,6 +158,8 @@ describe('contrato tela↔API', () => {
       'frontend/public/auditor.js: fetch(caminho',
       'frontend/public/homologacao.js: fetch(caminho',
       'frontend/public/proposta.js: fetch(API + acao',
+      // aceite-risco.js: aceitarRisco(api, caminho) recebe o literal de quem chama (grc.js `/api/v1/risks/${id}`, aba-riscos.js url(ctx, '/riscos/:id')).
+      "frontend/src/aceite-risco.js: api('PUT', caminho",
       'frontend/src/api.js: fetch(API_BASE + p',
       // baixarArquivo(`/api/v1/...`) (F4): CSV e Word; o literal está em cada chamada e o token vai no cabeçalho.
       'frontend/src/api.js: fetch(API_BASE + p',

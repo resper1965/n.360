@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML, tituloDaTela } from '../ui.js';
 import { podeEditar } from './partes.js';
+import { montarLista, colunasDe } from '../lista.js';
 
 // Áreas (n.privacy, Cadastros): os departamentos do projeto (`/projects/:id/departamentos`), que a atividade do RoPA usa no
 // Escopo e no Compartilhamento Interno. O servidor aceita nome, descrição e situação (ativo|inativo); nome repetido volta 409.
@@ -24,9 +25,10 @@ async function renderAreas(c, h, a) {
     } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as áreas.', e); return; }
     S.areas = areas;
     const empresa = escapeHTML(proj.client_name || proj.project_name || '—');
-    c.innerHTML = window.renderDataTable(
-        editar ? ['Área', 'Empresa', 'Ações'] : ['Área', 'Empresa'],
-        areas.map((d) => {
+    montarLista(c, {
+        id: 'areas',
+        linhas: areas,
+        colunas: colunasDe(editar ? ['Área', 'Empresa', 'Ações'] : ['Área', 'Empresa'], (d) => {
             const ativa = d.status === 'ativo';
             const linha = [
                 `<strong>${escapeHTML(d.nome)}</strong>${ativa ? '' : ` ${window.renderStatusBadge('Inativa', 'info')}`}`
@@ -37,9 +39,9 @@ async function renderAreas(c, h, a) {
                 <button class="btn btn-ghost btn-sm" data-action="mudarSituacaoArea" data-args='${args(proj.id, d.id, ativa ? 'inativo' : 'ativo')}'>${ativa ? 'Inativar' : 'Reativar'}</button>`);
             return linha;
         }),
-        { emptyState: 'Nenhuma área cadastrada.',
-            emptyHint: 'As áreas da empresa entram na atividade de tratamento do RoPA, no Escopo e no Compartilhamento Interno.' },
-    );
+        vazio: { titulo: 'Nenhuma área cadastrada.',
+            dica: 'As áreas da empresa entram na atividade de tratamento do RoPA, no Escopo e no Compartilhamento Interno.' },
+    });
 }
 
 window.openNovaAreaModal = function (projectId) {

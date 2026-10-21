@@ -31,21 +31,25 @@ beforeEach(() => {
 });
 
 describe('tela de Partes', () => {
-  it('lista partes e departamentos e escapa o nome', async () => {
+  it('lista partes, sem departamentos, e escapa o nome', async () => {
     const [c, h, a] = montar();
     await window.renderPartes(c, h, a);
     expect(h.textContent).toBe('Partes');
     expect(c.textContent).toContain('Ana Exemplo');
-    expect(c.textContent).toContain('TI');
+    expect(c.textContent).not.toContain('Departamentos'); // as áreas têm tela própria
+    expect(apiMock.mock.calls.map(([, u]) => u)).not.toContain('/api/v1/projects/p1/departamentos');
     expect(c.querySelector('img')).toBeNull(); // nome de parte não vira HTML
-    expect(a.querySelectorAll('[role="menuitem"], .btn-primary').length).toBe(5); // quatro no "Mais ações" e o primário
+    expect(a.querySelectorAll('[role="menuitem"], .btn-primary').length).toBe(4); // três no "Mais ações" e o primário
+    const areas = [...a.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Áreas');
+    expect(areas.getAttribute('data-action')).toBe('navigate');
+    expect(JSON.parse(areas.getAttribute('data-args'))).toEqual(['areas']);
   });
 
   it('papel só de leitura não vê os botões de escrita', async () => {
     S.user = { role: 'org_user' };
     const [c, h, a] = montar();
     await window.renderPartes(c, h, a);
-    expect(a.innerHTML).toBe('');
+    expect(a.querySelectorAll('.btn-primary, [role="menuitem"]').length).toBe(0); // só o link Áreas, que é leitura
   });
 
   it('importar chama a rota do projeto e avisa o resumo', async () => {
@@ -82,13 +86,13 @@ describe('tela de Partes', () => {
 });
 
 describe('Partes no n.iso: tudo como antes', () => {
-  it('header: só "+ Nova parte" é primário; os outros quatro ficam no menu "Mais"', async () => {
+  it('header: só "+ Nova parte" é primário; os outros três ficam no menu "Mais"', async () => {
     const [c, h, a] = montar();
     await window.renderPartes(c, h, a);
     expect([...a.querySelectorAll('.btn-primary')].map((b) => b.textContent.trim())).toEqual(['+ Nova parte']);
     const mais = a.querySelector('.mais-acoes');
     expect(mais.querySelector('[aria-haspopup="menu"]').textContent.trim()).toBe('Mais ações');
-    expect([...mais.querySelectorAll('[role="menuitem"]')].map((b) => b.getAttribute('data-action'))).toEqual(['importarPartes', 'conciliarPartes', 'abrirPadronizarNomes', 'openNovoDepartamentoModal']);
+    expect([...mais.querySelectorAll('[role="menuitem"]')].map((b) => b.getAttribute('data-action'))).toEqual(['importarPartes', 'conciliarPartes', 'abrirPadronizarNomes']);
   });
 
   it('nova parte pode nascer com o tipo já escolhido', () => {

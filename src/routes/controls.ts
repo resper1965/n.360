@@ -55,6 +55,23 @@ controlsApp.get('/', async (c) => {
   return c.json(semRastros(results));
 });
 
+// Atividades do n.privacy que têm medida ligada a este controle (a medida aponta para o controle; aqui o caminho inverso).
+controlsApp.get('/:id/atividades', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await requireResourceAccess(c.env.DB, 'compliance_controls', id, c.get('user'));
+    const ctrl = await c.env.DB.prepare('SELECT id, project_id FROM compliance_controls WHERE id = ?').bind(id).first<{ id: string; project_id: string }>();
+    if (!ctrl) return c.json({ error: 'Controle não encontrado' }, 404);
+    const { results } = await c.env.DB.prepare(
+      `SELECT r.id AS ropa_id, COALESCE(NULLIF(trim(r.nome), ''), r.processing_purpose) AS atividade, m.medida
+         FROM tratamento_medidas m JOIN ropa_records r ON r.id = m.ropa_id AND r.project_id = m.project_id
+        WHERE m.controle_id = ? AND m.project_id = ? AND COALESCE(r.status, '') <> 'Inactive'
+        ORDER BY atividade, m.medida`
+    ).bind(ctrl.id, ctrl.project_id).all<{ ropa_id: string; atividade: string; medida: string }>();
+    return c.json({ atividades: results });
+  } catch (e) { return erro500(c, 'Falha ao listar as atividades do controle', e); }
+});
+
 controlsApp.put('/:id', async (c) => {
   try {
     const id = c.req.param('id');

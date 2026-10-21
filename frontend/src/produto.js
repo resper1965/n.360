@@ -18,7 +18,7 @@ const MODULOS = ['iso', 'privacy'];
 export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-assessments', 'nav-proposals', 'nav-catalogo', 'nav-config', 'nav-project', 'nav-certification', 'nav-monitor',
     'nav-soa', 'nav-stakeholders', 'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa',
     'nav-incidentes', 'nav-mgmt'];
-export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-areas', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-titulares', 'nav-dados-titular',
+export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-titulares', 'nav-dados-titular',
     'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
@@ -225,7 +225,7 @@ const marca = (produto) => `n<span style="color:var(--accent)">.</span><span cla
 export const ROTULOS_PRIVACY = {
     'nav-encarregado': 'Dashboard', 'nav-ropa': 'Atividades', 'nav-partes': 'Pessoas', 'nav-requisitos': 'Cobertura da LGPD',
     'nav-governance': 'Papéis e comitê', 'nav-titular': 'Solicitações', 'nav-dpia': 'DPIA', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações',
-    'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos', 'nav-documentos': 'Políticas',
+    'nav-mapa-de-risco': 'Riscos', 'nav-sistemas': 'Ativos',
 };
 
 /**
@@ -244,7 +244,7 @@ export const SECOES_PRIVACY = [
     ['Mais', ['nav-referencia-juridica', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-requisitos', 'nav-documentos', 'nav-evidence', 'nav-training', 'nav-governance', 'nav-importacao']],
     ['', ['nav-ai']],
 ];
-/** Fora do menu do n.privacy: Minhas aprovações e Trilha de logs vão para o menu de conta; Preços e margens é do comercial do n.iso. */
+/** Fora do menu do n.privacy: Minhas aprovações e Trilha de auditoria vão para o menu de conta; Preços e margens é do comercial do n.iso. */
 export const FORA_DO_MENU_PRIVACY = ['nav-meus', 'nav-audit-trail', 'nav-settings'];
 
 function organizarMenuPrivacy(doc) {

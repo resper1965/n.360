@@ -40,6 +40,7 @@ describe('responsável da CAPA', () => {
     await window.openEditCAPAModal('c1');
     expect(val('capa-e-assigned-parte').value).toBe('pt2');
     val('capa-e-assigned-parte').value = '';
+    val('capa-e-assigned').value = 'CISO'; // o formulário exige um responsável (spec 3C, C2)
     await window.updateCAPA('c1');
     const put = apiMock.mock.calls.find(c => c[0] === 'PUT');
     expect(put[2].assigned_to_parte_id).toBeNull();

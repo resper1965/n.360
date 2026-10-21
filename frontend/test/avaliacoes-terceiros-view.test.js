@@ -11,8 +11,9 @@ import html from '../login.html?raw';
 import rota from '../src/router.js?raw';
 import main from '../src/main.js?raw';
 import { SO_PRIVACY, TELAS_DOS_MODULOS } from '../src/produto.js';
+import { emDiasSP } from '../src/hoje.js';
 
-const emDias = (n) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+const emDias = (n) => emDiasSP(n);
 const T = (id, situacao, dias, extra = {}) => ({ id, nome: `Fornecedor ${id}`, terceiro_tipo: 'medio', metodo: 'questionario', situacao, nivel: 'medio',
     ultima_avaliacao: dias === null ? null : { resultado: situacao === 'reprovada' ? 'reprovado' : 'aprovado', valido_ate: emDias(dias) }, ...extra });
 const LISTA = [

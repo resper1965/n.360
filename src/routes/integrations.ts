@@ -3,7 +3,8 @@ import type { Bindings, Variables } from '../index';
 import { requireResourceAccess, genToken, signWebhook, registraErro, logAudit } from '../helpers';
 import { validateBody, createWebhookSchema, createApiKeySchema } from '../schemas';
 import { listarAtivos } from '../services/itens';
-import { SQL_VENDORS_VISIVEIS } from './vendors';
+import { SQL_VENDORS_VISIVEIS, comIndiceAtual } from './vendors';
+import { montarCsv, traduz, simNao, STATUS, NIVEL, ESTRATEGIA, CLASSIFICACAO, TREINAMENTO } from '../services/exportacao';
 
 const integrations = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -171,17 +172,6 @@ export async function resolveHostIsPublic(hostname: string, fetchImpl: typeof fe
   }
 }
 
-/** Previne CSV Injection (Formula Injection) e escapa aspas */
-function safeCsvCell(val: any): string {
-  let s = String(val ?? '');
-  s = s.replace(/"/g, '""');
-  // Se começar com =, +, -, @, injetar um ' na frente para evitar execução de fórmulas
-  if (s.startsWith('=') || s.startsWith('+') || s.startsWith('-') || s.startsWith('@')) {
-    s = "'" + s;
-  }
-  return `"${s}"`;
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 //  SPRINT 7: INTEGRATION & SCALE
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -334,70 +324,56 @@ integrations.delete('/api/v1/api-keys/:id', async (c) => {
 });
 
 // ─── 7C. Bulk Export (CSV) ──────────────────────────────────────────────────
-// Trilha como a da F4 (`exportacao.csv`): tipo e contagem, nunca o conteúdo. O formato do arquivo não muda. O agente fica de
-// fora (`FORA_DO_AGENTE`): ele lê os mesmos dados em JSON.
+// Trilha como a da F4 (`exportacao.csv`): tipo e contagem, nunca o conteúdo. Formato pt-BR por `montarCsv` (spec 3C, C1). O agente fica
+// de fora (`FORA_DO_AGENTE`): ele lê os mesmos dados em JSON.
 
-async function csvComTrilha(c: Context<{ Bindings: Bindings; Variables: Variables }>, rotulo: string, total: number, csv: string, arquivo: string) {
-  await logAudit(c.env.DB, 'exportacao.csv', c.get('user')?.email || 'system', `Exportação CSV de ${rotulo}: ${total} linhas`, '', '', c.req.param('projectId'));
-  return new Response(csv, { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${arquivo}"` } });
+async function csvComTrilha(c: Context<{ Bindings: Bindings; Variables: Variables }>, rotulo: string, cabecalho: string[], linhas: unknown[][], arquivo: string) {
+  await logAudit(c.env.DB, 'exportacao.csv', c.get('user')?.email || 'system', `Exportação CSV de ${rotulo}: ${linhas.length} linhas`, '', '', c.req.param('projectId'));
+  return new Response(montarCsv(cabecalho, linhas), { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${arquivo}"` } });
 }
+type Linha = Record<string, unknown>;
 
 integrations.get('/api/v1/projects/:projectId/export/risks', async (c) => {
-  const projectId = c.req.param('projectId');
-  const result = await c.env.DB.prepare('SELECT * FROM risks WHERE project_id = ?').bind(projectId).all();
-  const rows = (result.results || []) as any[];
-  const headers = 'asset,threat,vulnerability,impact,probability,risk_level,treatment,owner,status';
-  const csv = headers + '\n' + rows.map(r => 
-    `${safeCsvCell(r.asset)},${safeCsvCell(r.threat)},${safeCsvCell(r.vulnerability)},${safeCsvCell(r.impact)},${safeCsvCell(r.probability)},${safeCsvCell(r.risk_level)},${safeCsvCell(r.treatment)},${safeCsvCell(r.owner)},${safeCsvCell(r.status)}`
-  ).join('\n');
-  return csvComTrilha(c, 'riscos', rows.length, csv, 'risks.csv');
+  const { results } = await c.env.DB.prepare(
+    `SELECT r.*, pa.nome AS responsavel FROM risks r LEFT JOIN partes pa ON pa.id = r.owner_parte_id AND pa.project_id = r.project_id
+      WHERE r.project_id = ?`).bind(c.req.param('projectId')).all<Linha>();
+  return csvComTrilha(c, 'riscos', ['Ativo', 'Ameaça', 'Vulnerabilidade', 'Impacto', 'Probabilidade', 'Nível', 'Tratamento', 'Responsável', 'Status'],
+    results.map((r) => [r.asset, r.threat, r.vulnerability, r.impact, r.probability, traduz(NIVEL, r.risk_level), traduz(ESTRATEGIA, r.treatment),
+      r.responsavel || r.owner, traduz(STATUS, r.status)]), 'risks.csv');
 });
 
 integrations.get('/api/v1/projects/:projectId/export/vendors', async (c) => {
-  const projectId = c.req.param('projectId');
-  const result = await c.env.DB.prepare(SQL_VENDORS_VISIVEIS).bind(projectId).all();
-  const rows = (result.results || []) as any[];
-  const headers = 'name,category,trust_score,diligence_level,has_iso27001,has_soc2,dpa_signed';
-  const csv = headers + '\n' + rows.map(r => 
-    `${safeCsvCell(r.name)},${safeCsvCell(r.category)},${safeCsvCell(r.trust_score)},${safeCsvCell(r.diligence_level)},${safeCsvCell(r.has_iso27001)},${safeCsvCell(r.has_soc2)},${safeCsvCell(r.dpa_signed)}`
-  ).join('\n');
-  return csvComTrilha(c, 'fornecedores', rows.length, csv, 'vendors.csv');
+  const { results } = await c.env.DB.prepare(SQL_VENDORS_VISIVEIS).bind(c.req.param('projectId')).all();
+  const rows = (results as Parameters<typeof comIndiceAtual>[0][]).map(comIndiceAtual) as Linha[];
+  // Fornecedor sem perfil de segurança: células do perfil vazias. DPA pela fonte única (o documento ligado); o legado aparece como declarado.
+  const perfil = (v: unknown) => (v == null ? '' : simNao(v));
+  const dpa = (r: Linha) => (r.dpa ? 'Sim' : r.dpa_declarado ? 'Declarado, sem documento' : 'Não');
+  return csvComTrilha(c, 'fornecedores', ['Nome', 'Categoria', 'Índice de confiança', 'Nível de diligência', 'ISO 27001', 'SOC 2', 'DPA'],
+    rows.map((r) => [r.name, r.category, r.trust_score, traduz(NIVEL, r.diligence_level), perfil(r.has_iso27001), perfil(r.has_soc2), dpa(r)]), 'vendors.csv');
 });
 
 integrations.get('/api/v1/projects/:projectId/export/training', async (c) => {
-  const projectId = c.req.param('projectId');
-  const result = await c.env.DB.prepare('SELECT * FROM training_records WHERE project_id = ?').bind(projectId).all();
-  const rows = (result.results || []) as any[];
-  const headers = 'employee_name,training_name,status,score,completion_date';
-  const csv = headers + '\n' + rows.map(r => 
-    `${safeCsvCell(r.employee_name)},${safeCsvCell(r.training_name)},${safeCsvCell(r.status)},${safeCsvCell(r.score)},${safeCsvCell(r.completion_date)}`
-  ).join('\n');
-  return csvComTrilha(c, 'treinamentos', rows.length, csv, 'training.csv');
+  const { results } = await c.env.DB.prepare('SELECT * FROM training_records WHERE project_id = ?').bind(c.req.param('projectId')).all<Linha>();
+  return csvComTrilha(c, 'treinamentos', ['Colaborador', 'Treinamento', 'Status', 'Nota', 'Data de conclusão'],
+    results.map((r) => [r.employee_name, r.training_name, traduz(TREINAMENTO, r.status), r.score, r.completion_date]), 'training.csv');
 });
 
 integrations.get('/api/v1/projects/:projectId/export/audit-log', async (c) => {
   const projectId = c.req.param('projectId');
   // Escopado ao PROJETO (antes filtrava por actor, exportando as ações do próprio
   // requisitante). Fallback LIKE cobre linhas legadas sem project_id populado.
-  const result = await c.env.DB.prepare(
+  const { results } = await c.env.DB.prepare(
     'SELECT * FROM audit_logs WHERE project_id = ? OR (project_id IS NULL AND details LIKE ?) ORDER BY created_at DESC LIMIT 500'
-  ).bind(projectId, `%${projectId}%`).all();
-  const rows = (result.results || []) as any[];
-  const headers = 'id,action,actor,details,created_at';
-  const csv = headers + '\n' + rows.map(r => 
-    `${safeCsvCell(r.id)},${safeCsvCell(r.action)},${safeCsvCell(r.actor)},${safeCsvCell(r.details)},${safeCsvCell(r.created_at)}`
-  ).join('\n');
-  return csvComTrilha(c, 'trilha de auditoria', rows.length, csv, 'audit-log.csv');
+  ).bind(projectId, `%${projectId}%`).all<Linha>();
+  return csvComTrilha(c, 'trilha de auditoria', ['ID', 'Ação', 'Quem', 'Detalhes', 'Quando'],
+    results.map((r) => [r.id, r.action, r.actor, r.details, r.created_at]), 'audit-log.csv');
 });
 
 integrations.get('/api/v1/projects/:projectId/export/assets', async (c) => {
-  const projectId = c.req.param('projectId');
-  const rows = (await listarAtivos(c.env.DB, projectId)) as Record<string, string>[];
-  const headers = 'name,category,classification,owner,location,status,description,confidentiality_rating,integrity_rating,availability_rating';
-  const csv = headers + '\n' + rows.map(r => 
-    `${safeCsvCell(r.name)},${safeCsvCell(r.category)},${safeCsvCell(r.classification)},${safeCsvCell(r.owner)},${safeCsvCell(r.location)},${safeCsvCell(r.status)},${safeCsvCell(r.description)},${safeCsvCell(r.confidentiality_rating)},${safeCsvCell(r.integrity_rating)},${safeCsvCell(r.availability_rating)}`
-  ).join('\n');
-  return csvComTrilha(c, 'ativos', rows.length, csv, 'assets.csv');
+  const rows = (await listarAtivos(c.env.DB, c.req.param('projectId'))) as Linha[];
+  return csvComTrilha(c, 'ativos', ['Nome', 'Categoria', 'Classificação', 'Responsável', 'Local', 'Status', 'Descrição', 'Confidencialidade', 'Integridade', 'Disponibilidade'],
+    rows.map((r) => [r.name, r.category, traduz(CLASSIFICACAO, r.classification), r.owner, r.location, traduz(STATUS, r.status), r.description,
+      r.confidentiality_rating, r.integrity_rating, r.availability_rating]), 'assets.csv');
 });
 
 export default integrations;

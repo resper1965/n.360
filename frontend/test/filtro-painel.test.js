@@ -10,6 +10,7 @@ import { S } from '../src/state.js';
 import '../src/ui.js';
 import { initDelegation } from '../src/delegation.js';
 import { FILTROS, filtroValido, filtrarDoPainel } from '../src/filtro-painel.js';
+import { emDiasSP } from '../src/hoje.js';
 import '../src/views/painel.js';
 import '../src/views/encarregado.js';
 import '../src/views/titular.js';
@@ -21,10 +22,10 @@ initDelegation();
 
 const B = '/api/v1/projects/p9';
 const el = (id) => document.getElementById(id);
-// Dia local, como a tela (filtro-painel.js `hoje`): em UTC, entre 21h e meia-noite de Brasília "ontem" é hoje.
-const ontem = new Date(Date.now() - 86400000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-const daqui30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+// Dia de São Paulo, como a tela (filtro-painel.js `hoje`).
+const ontem = emDiasSP(-1);
+const amanha = emDiasSP(1);
+const daqui30 = emDiasSP(30);
 const linhas = () => [...el('c').querySelectorAll('tbody tr')].map((tr) => tr.textContent);
 const chip = () => el('c').querySelector('.filtro-painel');
 
@@ -93,6 +94,7 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         await window.renderTitular(el('c'), el('h'), el('a'));
         expect(linhas()).toHaveLength(1);
         expect(linhas()[0]).toContain('PT-2');
+        expect(el('pt-contagem').textContent).toBe('1 de 2');
         expect(chip().getAttribute('role')).toBe('status');
         expect(chip().textContent.replace(/\s+/g, ' ')).toContain('Filtro: atrasados — limpar');
         const limpar = chip().querySelector('[data-action="limparFiltroPainel"]');
@@ -127,6 +129,7 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         ], 'GET /api/v1/parametros-legais': [] });
         await window.renderTitular(el('c'), el('h'), el('a'));
         expect(linhas().map((t) => t.includes('IN-2'))).toEqual([true]);
+        expect(el('in-contagem').textContent).toBe('1 de 2');
         expect(chip().textContent).toContain('comunicação atrasada');
     });
 
@@ -141,7 +144,8 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         expect(linhas().map((t) => t.includes('Fornecedor Vencido'))).toEqual([true]);
         S.filtroPainel = filtroValido('terceiros', null, 'pendentes');
         await window.renderTerceiros(el('c'), el('h'), el('a'));
-        expect(el('c').textContent).toContain('Nenhum fornecedor nesta situação.');
+        expect(el('c').textContent).toContain('Nada encontrado com a busca ou o filtro.');
+        expect(chip().textContent).toContain('nunca avaliados');
     });
 
     it('evidências vencidas e ações corretivas vencidas', async () => {
@@ -169,5 +173,14 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         expect(filtroValido('titular', 'pedidos', '__proto__')).toBe(null);
         expect(filtroValido('ropa', null, 'atrasados')).toBe(null);
         expect(Object.keys(FILTROS).every((k) => /^[a-z]+:[a-z]*:[a-z_0-9]+$/.test(k))).toBe(true);
+    });
+});
+
+describe('fornecedores do n.iso', () => {
+    it('vendors::vencidos fica só com a avaliação vencida', () => {
+        expect(filtroValido('vendors', null, 'vencidos')).toEqual({ tela: 'vendors', aba: null, filtro: 'vencidos' });
+        const [rotulo, quem] = FILTROS['vendors::vencidos'];
+        expect(rotulo).toBe('avaliação vencida');
+        expect([{ situacao: 'vencida' }, { situacao: 'vigente' }, { situacao: 'pendente' }].filter(quem)).toEqual([{ situacao: 'vencida' }]);
     });
 });

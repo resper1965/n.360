@@ -10,7 +10,7 @@
  */
 const GERAL = {
     // estado de trabalho
-    'open': 'Aberto', 'closed': 'Fechado', 'pending': 'Pendente', 'planned': 'Planejado', 'scheduled': 'Agendado',
+    'open': 'Aberto', 'closed': 'Concluído', 'pending': 'Pendente', 'planned': 'Planejado', 'scheduled': 'Agendado',
     'in progress': 'Em andamento', 'in_progress': 'Em andamento', 'completed': 'Concluído', 'done': 'Concluído',
     'blocked': 'Bloqueado', 'skipped': 'Dispensado', 'cancelled': 'Cancelado', 'canceled': 'Cancelado',
     'overdue': 'Atrasado', 'expired': 'Vencido', 'valid': 'Válido', 'signed': 'Assinado', 'sent': 'Enviado',
@@ -18,6 +18,8 @@ const GERAL = {
     'draft': 'Rascunho', 'under review': 'Em revisão', 'in review': 'Em revisão', 'approved': 'Aprovado',
     'rejected': 'Rejeitado', 'revoked': 'Revogado', 'active': 'Ativo', 'inactive': 'Inativo', 'archived': 'Arquivado',
     'retired': 'Aposentado', 'published': 'Publicado',
+    // gravados em português (LIA, documento em arquivo): o documento em vigor é "Vigente" nos dois módulos
+    'rascunho': 'Rascunho', 'concluida': 'Concluída', 'publicado': 'Vigente', 'obsoleto': 'Obsoleto',
     // conformidade
     'implemented': 'Implementado', 'compliant': 'Conforme', 'conforming': 'Conforme', 'non_conforming': 'Não conforme',
     'non-compliant': 'Não conforme', 'non compliant': 'Não conforme', 'partial': 'Parcial', 'missing': 'Pendente',

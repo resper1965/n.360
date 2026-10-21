@@ -3,6 +3,12 @@ import { lerEmpresa } from './empresas';
 import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { NOME_DO_PRODUTO, type Modulo } from '../modulos';
+import { hojeEmSaoPaulo } from './hoje';
+import { SQL_EH_FORNECEDOR, listarTerceiros } from './terceiros';
+import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
+
+/** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA. A regra mora em classe-controle.ts. */
+export { SQL_CLASSE_CONTROLE } from './classe-controle';
 
 /**
  * Painel de entrada do n.360, do n.iso e do n.privacy (estudo `docs/design/diagnostico-2026-10-14/dashboard-entrada.md`,
@@ -22,7 +28,7 @@ export type Passo = { texto: string; contexto: string; feito: boolean; acao: str
 export type Proximo = { dias: number; rotulo: string; tipo: string } | null;
 
 const DIA = 86_400_000;
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
 const somarDias = (d: string, n: number) => new Date(Date.parse(d) + n * DIA).toISOString().slice(0, 10);
 const diasAte = (d: string, de: string) => Math.round((Date.parse(d.slice(0, 10)) - Date.parse(de)) / DIA);
 const plural = (q: number, um: string, varios: string) => `${q} ${q === 1 ? um : varios}`;
@@ -123,8 +129,8 @@ function lerVencimentos(tipos: string[], respostas: D1Result[], dia: string): { 
 /** Mapa de risco 5x5: contagem por probabilidade e impacto. */
 type Celula = { p: number; i: number; n: number };
 
-/** Evidência vencida ou não conforme (?2 = hoje). A mesma regra no Painel e na Prontidão (`prontidao.ts`). */
-export const SQL_EVIDENCIA_RUIM = `((valido_ate IS NOT NULL AND substr(valido_ate, 1, 10) < ?2) OR evaluation_status = 'non_conforming')`;
+export { SQL_EVIDENCIA_VENCIDA, SQL_EVIDENCIA_RUIM } from './evidencia-regras';
+import { SQL_EVIDENCIA_RUIM } from './evidencia-regras';
 // Ordem das colunas de status de evidência, igual nos dois módulos: válida e conforme, em análise, vencida ou não conforme.
 const SQL_EVIDENCIAS = `SELECT
     sum(CASE WHEN (valido_ate IS NULL OR substr(valido_ate, 1, 10) >= ?2) AND evaluation_status = 'conforming' THEN 1 ELSE 0 END) AS feito,
@@ -148,7 +154,7 @@ const UNIAO_PRIVACY = [
   // A avaliação que vale é a mais recente (a mesma regra de `situacaoDe`): reprovada não tem validade.
   `SELECT 'Terceiros', p.nome, (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a
       WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) AS data
-    FROM partes p WHERE p.project_id = ?1 AND p.tipo = 'organizacao' AND p.status = 'ativa' AND p.terceiro_tipo IS NOT NULL`,
+    FROM partes p WHERE p.project_id = ?1 AND ${SQL_EH_FORNECEDOR}`,
   SQL_UNIAO_EVIDENCIAS,
   SQL_UNIAO_DOCUMENTOS,
 ];
@@ -260,15 +266,11 @@ const UNIAO_ISO = [
   SQL_UNIAO_DOCUMENTOS,
 ];
 
-/** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA (não aplicável). A Prontidão usa a mesma. */
-export const SQL_CLASSE_CONTROLE = `CASE WHEN status = 'Not Applicable' THEN 'na'
-  WHEN upper(status) IN ('APPROVED', 'IMPLEMENTED', 'COMPLETED', 'CONFORME') THEN 'feito'
-  WHEN status IS NULL OR trim(status) = '' OR upper(status) IN ('MISSING', 'NOT STARTED', 'NOT_STARTED') THEN 'falta' ELSE 'andamento' END`;
 const TEMAS_ANEXO_A: [string, string][] = [['A.5', 'Controles organizacionais'], ['A.6', 'Controles de pessoas'], ['A.7', 'Controles físicos'], ['A.8', 'Controles tecnológicos']];
 
-async function blocoIso(db: D1Database, projectId: string, dia: string) {
+async function blocoIso(db: D1Database, projectId: string, dia: string, quem: QuemPede) {
   const consultas = consultasDeVencimento(db, UNIAO_ISO, projectId, dia);
-  const respostas = await db.batch([
+  const [terceiros, respostas] = await Promise.all([listarTerceiros(db, projectId), db.batch([
     ...consultas,
     db.prepare(`SELECT substr(title, 1, 3) AS tema, ${SQL_CLASSE_CONTROLE} AS classe, count(*) AS n FROM compliance_controls
       WHERE project_id = ?1 GROUP BY 1, 2`).bind(projectId),
@@ -293,8 +295,12 @@ async function blocoIso(db: D1Database, projectId: string, dia: string) {
     // Exclusão da SoA sem justificativa: a justificativa do N/A mora em `description` (soa-logic.ts).
     db.prepare(`SELECT title FROM compliance_controls WHERE project_id = ?1 AND status = 'Not Applicable' AND trim(COALESCE(description, '')) = '' ORDER BY title`).bind(projectId),
     db.prepare(`SELECT probability AS p, impact AS i, count(*) AS n FROM risks WHERE project_id = ?1 AND ropa_id IS NULL GROUP BY probability, impact`).bind(projectId),
-  ]);
-  const [controles, riscos, altos, capa, capaVencidas, evid, auditoria, parados, soa, mapa] = respostas.slice(consultas.length);
+    // Pedidos à espera da decisão DESTA pessoa (o mesmo destinatário de GET /api/v1/pedidos, que "meus-pedidos" lista).
+    db.prepare(`SELECT count(DISTINCT p.id) AS n FROM pedidos p JOIN pedido_destinatarios d ON d.pedido_id = p.id
+      WHERE p.project_id = ?1 AND p.status = 'aberto' AND d.status = 'pendente' AND (d.user_id = ?2 OR (d.user_id IS NULL AND d.email = lower(?3)))`)
+      .bind(projectId, quem.id ?? '', quem.email ?? ''),
+  ])]);
+  const [controles, riscos, altos, capa, capaVencidas, evid, auditoria, parados, soa, mapa, pedidosAb] = respostas.slice(consultas.length);
   const ctrl = controles.results as { tema: string; classe: string; n: number }[];
   const soma = (f: (c: { tema: string; classe: string }) => boolean) => ctrl.filter(f).reduce((t, c) => t + c.n, 0);
   const um = (r: D1Result) => r.results[0] as Contagem | undefined;
@@ -330,8 +336,23 @@ async function blocoIso(db: D1Database, projectId: string, dia: string) {
   const ev = um(evid);
   add(ev?.falta ?? 0, { grupo: 'plano', quando: 'Planejar', texto: plural(ev?.falta ?? 0, 'evidência vencida ou não conforme', 'evidências vencidas ou não conformes'),
     contexto: 'Renove ou substitua o arquivo', acao: 'Renovar as evidências', tela: 'evidence', filtro: 'vencidas_ou_nao_conformes' });
+  const vencidos = terceiros.filter((t) => t.situacao === 'vencida');
+  add(vencidos.length, { grupo: 'atraso', quando: 'Vencida', texto: plural(vencidos.length, 'fornecedor com avaliação vencida', 'fornecedores com avaliação vencida'),
+    contexto: exemplos(vencidos.map((t) => t.nome)), acao: 'Ver os fornecedores', tela: 'vendors', filtro: 'vencidos' });
+  const pedidosAbertos = (pedidosAb.results[0] as { n: number } | undefined)?.n ?? 0;
+  // O cliente já tem "Esperando a sua decisão" (`decisoes`): o item é só das outras visões.
+  add(quem.cliente ? 0 : pedidosAbertos, { grupo: 'semana', quando: 'Aguardando', texto: plural(pedidosAbertos, 'pedido esperando decisão', 'pedidos esperando decisão'),
+    contexto: 'Aprovação ou ciência pendente', acao: 'Ver os pedidos', tela: 'meus-pedidos' });
   const v = lerVencimentos(TIPOS_ISO, respostas.slice(0, consultas.length), dia);
+  const capaAbertas = ((capa.results[0] as Contagem | undefined)?.andamento ?? 0) + vencidasCapa.length;
   return {
+    // Números dos selos do menu do n.iso (`selos-menu.js`), a mesma conta do painel.
+    selos: {
+      capa: { abertas: capaAbertas, vencidas: vencidasCapa.length },
+      evidencias: { em_analise: ev?.andamento ?? 0, ruins: ev?.falta ?? 0 },
+      fornecedores: { pendentes: terceiros.filter((t) => t.situacao === 'pendente').length, vencidos: vencidos.length, reprovados: terceiros.filter((t) => t.situacao === 'reprovada').length },
+      pedidos: { abertos: pedidosAbertos },
+    },
     comecando, controles_avaliados: avaliados,
     itens: emOrdem(itens), cobertura, vencimentos: v.linhas, proximo: v.proximo, riscos: mapa.results as Celula[],
     numeros: [
@@ -362,6 +383,16 @@ function jornadaDoCliente(fases: Fase[]) {
 
 // ─── O painel ───────────────────────────────────────────────────────────────────────────────────────────
 
+/** Marco do programa: a primeira aprovação registrada, de qualquer fonte (colunas gravadas ou pedido aprovado pelo CISO/CEO). */
+export const SQL_MARCO_DO_PROGRAMA = `SELECT min(d) AS d FROM (
+    SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) AS d FROM ropa_records WHERE project_id = ?1
+    UNION ALL SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) FROM compliance_controls WHERE project_id = ?1
+    UNION ALL SELECT min(dpo_approved_at) FROM dpia_assessments WHERE project_id = ?1
+    -- RIPD aprovado só pela Direção não tem data própria: a aprovação direta fica na trilha.
+    UNION ALL SELECT min(created_at) FROM audit_logs WHERE project_id = ?1 AND action = 'dpia.approved'
+    UNION ALL SELECT min(pd.decidido_em) FROM pedido_destinatarios pd JOIN pedidos pe ON pe.id = pd.pedido_id
+      WHERE pe.project_id = ?1 AND pe.papel_exigido IN ('ciso', 'ceo') AND pd.status = 'aprovado')`;
+
 /** Quem pede: a visão de cliente sai para papel de cliente; o agente MCP (que entra como `client`) lê como a consultoria que o concedeu. */
 export type QuemPede = { id?: string; email?: string; cliente: boolean };
 
@@ -370,10 +401,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
   const [empresa, base] = await Promise.all([
     lerEmpresa(db, projectId),
     db.batch([
-      // Marco do programa: a primeira aprovação de RoPA ou de controle (a SoA é aprovada controle a controle).
-      db.prepare(`SELECT min(d) AS d FROM (
-          SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) AS d FROM ropa_records WHERE project_id = ?1 AND COALESCE(ciso_approved_at, ceo_approved_at) IS NOT NULL
-          UNION ALL SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) FROM compliance_controls WHERE project_id = ?1 AND COALESCE(ciso_approved_at, ceo_approved_at) IS NOT NULL)`).bind(projectId),
+      db.prepare(SQL_MARCO_DO_PROGRAMA).bind(projectId),
       db.prepare(`SELECT (SELECT count(*) FROM ropa_records WHERE project_id = ?1 AND COALESCE(status, '') <> 'Inactive') AS tratamentos,
           (SELECT count(*) FROM compliance_controls WHERE project_id = ?1 AND (${SQL_CLASSE_CONTROLE}) <> 'falta') AS controles`).bind(projectId),
       // Para o cliente: o que espera a decisão DELE neste projeto (a mesma leitura de GET /api/v1/pedidos).
@@ -391,7 +419,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     ]),
   ]);
   const [marco, cadastro, pedidos, encs, fases] = base;
-  const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia) : null;
+  const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia, quem) : null;
   const privacy = modulos.includes('privacy') ? await blocoPrivacy(db, projectId, quem.cliente, dia) : null;
   const c = cadastro.results[0] as { tratamentos: number; controles: number };
   const programa = estadoDoPrograma((marco.results[0] as { d: string | null } | undefined)?.d ?? null, c.tratamentos > 0 || c.controles > 0);
@@ -408,8 +436,8 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     const saude = saudeDoProjeto({ itens: b.itens, comecando: b.comecando, decisoes: decisoes.length, cliente: quem.cliente, proximo: b.proximo });
     // O cliente vê a frase e os números da linha do módulo; a lista, a cobertura, o mapa e os vencimentos são da consultoria.
     modulosResp[m] = quem.cliente
-      ? { saude, numeros: b.numeros, comecando: b.comecando, ...(m === 'iso' ? { jornada: jornadaDoCliente(fases.results as Fase[]) } : {}) }
-      : { saude, numeros: b.numeros, comecando: b.comecando, fazer: b.itens, cobertura: b.cobertura, vencimentos: b.vencimentos, riscos: b.riscos, passos: b.passos,
+      ? { saude, numeros: b.numeros, comecando: b.comecando, ...(m === 'iso' && iso ? { selos: iso.selos } : {}), ...(m === 'iso' ? { jornada: jornadaDoCliente(fases.results as Fase[]) } : {}) }
+      : { saude, numeros: b.numeros, comecando: b.comecando, ...(m === 'iso' && iso ? { selos: iso.selos } : {}), fazer: b.itens, cobertura: b.cobertura, vencimentos: b.vencimentos, riscos: b.riscos, passos: b.passos,
           ...(m === 'privacy' && privacy ? { pedidos_semana: privacy.pedidos_semana, acoes_por_prazo: privacy.acoes_por_prazo } : {}) };
   }
   const todos = emOrdem(Object.values(blocos).flatMap((b) => b.itens));
@@ -488,9 +516,9 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
             AND ((i.comunicacao_anpd_em IS NULL AND substr(i.prazo_anpd_em, 1, 10) < ?1) OR (i.comunicacao_titular_em IS NULL AND substr(i.prazo_titular_em, 1, 10) < ?1))) AS comunicacoes_atrasadas,
          (SELECT count(*) FROM corrective_actions a WHERE a.project_id = p.id AND COALESCE(a.status, 'Open') <> 'Closed' AND substr(a.due_date, 1, 10) < ?1) AS acoes_vencidas,
          (SELECT count(*) FROM ropa_records r WHERE r.project_id = p.id AND COALESCE(r.status, '') <> 'Inactive') AS tratamentos,
-         (SELECT count(*) FROM compliance_controls c WHERE c.project_id = p.id AND (${SQL_CLASSE_CONTROLE.replace(/status/g, 'c.status')}) <> 'falta') AS controles
+         (SELECT count(*) FROM compliance_controls c WHERE c.project_id = p.id AND (${sqlClasseControle('c.status')}) <> 'falta') AS controles
        FROM projects p WHERE p.id ${escopo}`),
-    b(`SELECT p.project_id, count(*) AS n FROM partes p WHERE p.project_id ${escopo} AND p.tipo = 'organizacao' AND p.status = 'ativa' AND p.terceiro_tipo IS NOT NULL
+    b(`SELECT p.project_id, count(*) AS n FROM partes p WHERE p.project_id ${escopo} AND ${SQL_EH_FORNECEDOR}
          AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN substr(a.valido_ate, 1, 10) END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?1
        GROUP BY p.project_id`),
     b(`SELECT project_id, tipo, rotulo, data FROM (

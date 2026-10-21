@@ -6,6 +6,8 @@ import { lerParametros } from './parametros-legais';
 import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO } from './riscos-atividade';
+import { hojeEmSaoPaulo, diaMaisSP } from './hoje';
+import { SQL_EVIDENCIA_VENCIDA } from './evidencia-regras';
 
 /**
  * Núcleo do n.privacy, fatia 8: a visão do encarregado. É CONSULTA sobre as tabelas das fatias anteriores, nunca grava: o que está atrasado
@@ -32,13 +34,13 @@ export const exemplos = (lista: (string | null | undefined)[]) => {
   return v.length <= 2 ? v.join(', ') : `${v.slice(0, 2).join(', ')} e mais ${v.length - 2}`;
 };
 
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
 const n = async (db: D1Database, sql: string, ...binds: unknown[]) => (await db.prepare(sql).bind(...binds).first<{ n: number }>())?.n ?? 0;
 
 /** `cliente`: quem pede é papel de cliente; o que é assunto da ness. (catálogo não carregado) sai das prioridades dele. */
 export async function visaoDoEncarregado(db: D1Database, projectId: string, { cliente = false } = {}) {
   const dia = hoje();
-  const em7 = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+  const em7 = diaMaisSP(7);
   const [pedidos, incidentes, terceiros, parametros, fontes, encarregados] = await Promise.all([
     listarPedidos(db, projectId), listarIncidentes(db, projectId), listarTerceiros(db, projectId), lerParametros(db),
     db.prepare(`SELECT count(*) AS n FROM requisitos WHERE fonte_id = 'lgpd'`).first<{ n: number }>(),
@@ -77,8 +79,8 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   const lgpdCarregada = (fontes?.n ?? 0) > 0;
   const lacunas = lgpdCarregada ? await lacunasDaFonte(db, projectId, 'lgpd') : [];
   const evidencias = {
-    vencidas: await n(db, `SELECT count(*) AS n FROM evidence WHERE project_id = ?1 AND valido_ate IS NOT NULL AND valido_ate < ?2`, projectId, dia),
-    vencem_em_7_dias: await n(db, `SELECT count(*) AS n FROM evidence WHERE project_id = ?1 AND valido_ate IS NOT NULL AND valido_ate >= ?2 AND valido_ate <= ?3`, projectId, dia, em7),
+    vencidas: await n(db, `SELECT count(*) AS n FROM evidence WHERE project_id = ?1 AND ${SQL_EVIDENCIA_VENCIDA}`, projectId, dia),
+    vencem_em_7_dias: await n(db, `SELECT count(*) AS n FROM evidence WHERE project_id = ?1 AND valido_ate IS NOT NULL AND substr(valido_ate, 1, 10) >= ?2 AND substr(valido_ate, 1, 10) <= ?3`, projectId, dia, em7),
   };
 
   // Riscos e ações das atividades (F2, 0073): só o que tem ropa_id; risco e CAPA só do n.iso ficam na matriz e na CAPA dele.

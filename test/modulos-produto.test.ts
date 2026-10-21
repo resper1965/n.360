@@ -25,9 +25,14 @@ describe('classificação', () => {
     for (const p of ['', 'partes', 'documentos', 'documentos/d1', 'evidence', 'ropa', 'ropa/r1/approve', 'dpia', 'assets', 'governance', 'modulos', 'empresa']) expect(f(p), p).toBe('nucleo');
     expect(f('incidentes'), 'incidentes').toBe('nucleo');
     expect(f('incidentes/i1/encerrar')).toBe('nucleo');
+    // DPA é dado comum (20/10/2026): ligar e desligar documento ao terceiro vale sem o n.privacy; o resto de terceiros segue privacy
+    for (const p of ['terceiros/pa1/documentos', 'terceiros/pa1/documentos/d1', 'terceiros/:parteId/documentos/:documentoId']) expect(f(p), p).toBe('nucleo');
+    // Validade da evidência (spec 3C, C4): o n.iso define sem o n.privacy; a ligação a requisito segue privacy
+    for (const p of ['evidence/e1/validade', 'evidence/:evidenceId/validade']) expect(f(p), p).toBe('nucleo');
+    expect(f('terceiros/pa1/avaliacoes')).toBe('privacy');
     for (const p of ['controls', 'risks', 'audits', 'capa', 'certification', 'phases', 'checklist-progress', 'readiness-check', 'auditor-token']) expect(f(p), p).toBe('iso');
     for (const p of ['terceiros', 'encarregado', 'titular-pedidos', 'consentimentos', 'requisitos/lacunas', 'ropa/importar',
-      'ropa/r1/ligacoes', 'ropa/r1/lia', 'ropa/r1/dpia', 'documentos/d1/requisitos', 'evidence/e1/validade', 'evidence/e1/requisitos']) expect(f(p), p).toBe('privacy');
+      'ropa/r1/ligacoes', 'ropa/r1/lia', 'ropa/r1/dpia', 'documentos/d1/requisitos', 'evidence/e1/requisitos']) expect(f(p), p).toBe('privacy');
     expect(faixaDoCaminho('/api/v1/requisitos')).toBeNull(); // catálogo global: fora da trava de projeto
   });
 

@@ -18,7 +18,7 @@ beforeEach(() => { S.user = { role: 'platform_admin' }; S.activeProject = null; 
 afterEach(() => ir('/'));
 
 describe('n.360: menu de hub', () => {
-    it('só Início, Meus pedidos, Conta e acessos, Segurança do projeto e Trilha de Logs', () => {
+    it('só Início, Minhas aprovações, Conta e acessos, Segurança do projeto e Trilha de auditoria', () => {
         montarApp();
         aplicarCasca('n360');
         expect(new Set(visiveis())).toEqual(new Set(['nav-inicio', 'nav-meus', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail']));
@@ -53,14 +53,14 @@ const estrutura = () => [...document.querySelector('.sidebar-nav-list').children
         : n.matches('.sidebar-group') ? `${n.id}${n.classList.contains('expanded') ? ' (aberto)' : ''}: ${[...n.querySelectorAll('.sidebar-nav')].filter((i) => i.dataset.foraDoProduto !== '1').map((i) => `${i.id}=${i.querySelector('.sidebar-nav-text').textContent.trim()}`).join(', ')}`
         : `${n.id}=${n.querySelector('.sidebar-nav-text').textContent.trim()}`));
 const ESTRUTURA_ISO = [
-    'nav-meus=Meus pedidos',
+    'nav-meus=Minhas aprovações',
     'nav-dashboard=Painel',
     '[Comercial] true',
     'group-sales (aberto): nav-comercial=Comercial, nav-leads=Leads, nav-assessments=Levantamentos, nav-proposals=Propostas, nav-catalogo=Catálogo, nav-config=Configuração comercial',
     '[Implementação] false',
     'group-impl: nav-project=Jornada, nav-certification=Prontidão, nav-monitor=Monitor, nav-soa=SoA, nav-governance=Governança',
     '[Operacional] false',
-    'group-ops: nav-stakeholders=Partes interessadas, nav-context=Contexto, nav-assets=Ativos, nav-risks=Riscos, nav-vendors=Fornecedores, nav-partes=Partes, nav-documentos=Documentos, nav-training=Treinamento, nav-acknowledgments=Ciência de políticas, nav-policies=Gestão de políticas, nav-audits=Auditorias, nav-capa=Ações corretivas, nav-incidentes=Incidentes, nav-mgmt=Análise crítica, nav-evidence=Evidências',
+    'group-ops: nav-stakeholders=Partes interessadas, nav-context=Contexto, nav-assets=Ativos, nav-risks=Riscos, nav-vendors=Fornecedores, nav-partes=Partes, nav-areas=Áreas, nav-documentos=Políticas e normas, nav-training=Treinamento, nav-acknowledgments=Ciência de políticas, nav-policies=Gestão de políticas, nav-audits=Auditorias, nav-capa=Ações corretivas, nav-incidentes=Incidentes, nav-mgmt=Análise crítica, nav-evidence=Evidências',
     '[Privacidade] false',
     'group-privacy: nav-ropa=Tratamentos (RoPA), nav-dpia=RIPD',
     '[Inteligência] false',
@@ -70,7 +70,7 @@ const ESTRUTURA_ISO = [
 ];
 const ESTRUTURA_N360 = [
     'nav-inicio=Início',
-    'nav-meus=Meus pedidos',
+    'nav-meus=Minhas aprovações',
     '[Conta e acessos] true',
     'group-conta (aberto): nav-projects=Projetos, nav-users=Usuários, nav-organizacoes=Organizações, nav-identidade=Identidade da organização, nav-seguranca-projeto=Segurança do projeto, nav-api-keys=Chaves de API, nav-conectar-agente=Agentes',
     '[Sistema] false',
@@ -127,7 +127,7 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         const rotulos = [...document.querySelectorAll('.sidebar-label')].filter((r) => r.dataset.foraDoProduto !== '1');
         expect(rotulos.map((r) => r.textContent)).toEqual([]);
     });
-    it('27 destinos, todos à vista; Minhas aprovações, Trilha de logs e Preços e margens ficam fora do menu do módulo', () => {
+    it('27 destinos, todos à vista; Minhas aprovações, Trilha de auditoria e Preços e margens ficam fora do menu do módulo', () => {
         montarApp();
         aplicarCasca('privacy');
         const destinos = [...el('secoes-privacy').querySelectorAll('.sidebar-nav')].map((n) => n.id);
@@ -151,7 +151,6 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         expect(visiveis()).not.toContain('nav-consentimentos');
         expect(visiveis()).not.toContain('nav-gaps');
         expect(visiveis()).not.toContain('nav-lia');
-        expect(visiveis()).not.toContain('nav-areas');
         expect(visiveis()).not.toContain('nav-sistemas');
     });
     it('rótulos de uma linha, nome do objeto antes da sigla; ids, rotas e ações não mudam', () => {
@@ -162,7 +161,7 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
             'nav-encarregado': 'Dashboard', 'nav-empresas': 'Empresas', 'nav-areas': 'Áreas', 'nav-sistemas': 'Ativos', 'nav-titulares': 'Titulares',
             'nav-dados-titular': 'Dados de titular', 'nav-parceiros': 'Parceiros', 'nav-partes': 'Pessoas', 'nav-ropa': 'Atividades', 'nav-dpia': 'DPIA', 'nav-lia': 'LIA',
             'nav-gaps': 'Gaps', 'nav-mapa-de-risco': 'Riscos', 'nav-terceiros': 'Fornecedores', 'nav-avaliacoes-terceiros': 'Avaliações', 'nav-documentos-arquivo': 'Documentos', 'nav-titular': 'Solicitações',
-            'nav-referencia-juridica': 'Referência jurídica', 'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas',
+            'nav-referencia-juridica': 'Referência jurídica', 'nav-incidentes-privacy': 'Incidentes', 'nav-consentimentos': 'Consentimentos', 'nav-requisitos': 'Cobertura da LGPD', 'nav-documentos': 'Políticas e normas',
             'nav-evidence': 'Evidências', 'nav-training': 'Treinamento', 'nav-governance': 'Papéis e comitê', 'nav-importacao': 'Importar programa', 'nav-ai': 'Assistente',
         });
         for (const [id, selo] of [['nav-titular', 'selo-titular'], ['nav-terceiros', 'selo-terceiros'], ['nav-incidentes-privacy', 'selo-incidentes'], ['nav-encarregado', 'selo-painel']]) {
@@ -188,7 +187,7 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
             montarApp();
             aplicarCasca(produto);
             expect([texto('nav-governance'), texto('nav-partes'), texto('nav-ropa'), texto('nav-dpia'), texto('nav-requisitos'), texto('nav-meus')], produto)
-                .toEqual(['Governança', 'Partes', 'Tratamentos (RoPA)', 'RIPD', 'Requisitos', 'Meus pedidos']);
+                .toEqual(['Governança', 'Partes', 'Tratamentos (RoPA)', 'RIPD', 'Requisitos', 'Minhas aprovações']);
         }
     });
     it('rótulo de item numa linha só: o CSS não deixa o texto quebrar', () => {

@@ -35,7 +35,7 @@ describe('aprovação de DPIA grava o papel que assinou', () => {
     admin = await sessionFor({ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin' });
   });
 
-  it('role ciso grava dpo_signature e dpo_approved_by/at; o status segue Under Review', async () => {
+  it('role ciso grava dpo_signature e dpo_approved_by/at; uma assinatura já aprova (decisão de 20/10/2026)', async () => {
     await semear();
     const r = await chamar('POST', URL_DP, dpo, { role: 'ciso' });
     expect(r.status, await r.clone().text()).toBe(200);
@@ -44,7 +44,7 @@ describe('aprovação de DPIA grava o papel que assinou', () => {
     expect(l.dpo_approved_by).toBe('Ana DPO');
     expect(l.dpo_approved_at).toBeTruthy();
     expect(l.ceo_signature).toBeNull();
-    expect(l.status).toBe('Under Review');
+    expect(l.status).toBe('Approved');
   }, 30_000);
 
   it('depois role ceo grava ceo_signature e o status vira Approved', async () => {

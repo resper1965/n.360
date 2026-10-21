@@ -46,7 +46,7 @@ describe('lista', () => {
   });
 
   it('controle que deixou de estar implementado: aviso em texto', async () => {
-    await abrir(renderAtividade, base([M({ controle_id: 'c1', controle: { id: 'c1', titulo: 'Controle exemplo', implementado: false } })]));
+    await abrir(renderAtividade, base([M({ controle_id: 'c1', controle: { id: 'c1', titulo: 'Controle exemplo', implementado: false }, controle_deixou_de_estar_implementado: true })]));
     expect(el('at-medidas').textContent).toContain('O controle deixou de estar implementado');
   });
 });

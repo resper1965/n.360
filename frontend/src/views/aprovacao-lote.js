@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { S } from '../state.js';
 import { openModal, showToast, escapeHTML } from '../ui.js';
 
-// Aprovação em lote em "Meus pedidos" (spec 2026-10-14). A tela só junta cliques e a senha: o servidor aplica a MESMA regra
+// Aprovação em lote em "Minhas aprovações" (spec 2026-10-14). A tela só junta cliques e a senha: o servidor aplica a MESMA regra
 // da aprovação individual a cada item. A caixa só libera depois de a pessoa abrir o pedido; o hash que ela viu ao abrir é
 // o `hash_visto` do envio, e o servidor ignora o item cujo conteúdo mudou. O modal lista o que será assinado, separando
 // aprovação de ciência, e o resultado leva de volta ao pedido que ficou de fora.
@@ -38,7 +38,7 @@ function atualizarBotao() {
     areaAcoes.innerHTML = `<button class="btn btn-primary" data-action="abrirLoteAprovacao">${verbo} (${ids.length})</button>`;
 }
 
-/** Chamado por "Meus pedidos" ao desenhar a lista: guarda a área de ações e esquece o visto de pedido cujo conteúdo mudou. */
+/** Chamado por "Minhas aprovações" ao desenhar a lista: guarda a área de ações e esquece o visto de pedido cujo conteúdo mudou. */
 window.lotePedidosRender = function (a, pedidos) {
     areaAcoes = a;
     const projetos = Array.isArray(S.projects) ? S.projects : [];

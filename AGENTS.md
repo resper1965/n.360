@@ -98,6 +98,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   novos: o menu le as contagens). Tela: `frontend/src/views/painel.js` (+ `painel-graficos.js`), entrada do n.360 (`inicio`), do
   n.iso (`dashboard`) e do n.privacy (`encarregado`); uma chamada por entrada, cache de 60 s em `S.painel`, selos do menu do
   n.privacy vindos do proprio painel. O funil comercial e a tela `comercial` (`renderComercial`, `views/dashboard.js`).
+  **Painel do n.iso (Frente 4):** a lista "O que fazer" traz tambem fornecedor com avaliacao vencida (filtro `vendors::vencidos`; `situacao` em `GET /vendors`) e pedido esperando decisao (conta so os pedidos abertos do projeto em que a pessoa e destinataria pendente, o mesmo casamento de `GET /api/v1/pedidos`; o item fica fora da visao do cliente, que tem `decisoes`); os selos do menu do n.iso vem do painel (`modulos.iso.selos`, `frontend/src/selos-menu.js`) e chegam tambem a visao do cliente; fornecedor reprovado conta como atraso, como no n.privacy.
   **Filtro por situacao:** o item traz `filtro` (chave fechada de `FILTROS` em `frontend/src/filtro-painel.js`, nunca dado); o botao
   navega com `{ filtroPainel }`, o `navigate` o apaga na navegacao seguinte e a lista de destino (titular pedidos/incidentes,
   terceiros, evidencias, CAPA) abre filtrada com o chip "Filtro: ... — limpar" (`filtrarDoPainel`). Do n.360 ao modulo a chave vai no
@@ -108,8 +109,16 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (funcao pura) da a situacao (atendido, pendente, nao se aplica), o motivo, o numero, o veredito (nunca "conforme"; sempre com a
   ressalva de pre-avaliacao), o que falta (estagio, depois o que destrava mais) e `do_cliente`. Criterio novo so com clausula de origem e
   dado verificavel no cadastro. **O indicador de progresso do n.iso e um so**: "X de Y controles aplicaveis implementados", pela
-  `SQL_CLASSE_CONTROLE` de `src/services/painel.ts` (o Painel, a Prontidao, o Monitor e a Jornada mostram o mesmo numero; evidencia
-  vencida ou nao conforme e `SQL_EVIDENCIA_RUIM`, tambem de la). Nao some contagem no cliente nem leia campo que a API nao devolve.
+  `SQL_CLASSE_CONTROLE` de `src/services/classe-controle.ts` (Painel, Prontidao, Monitor, Jornada, gap-analysis, Bancada, readiness,
+  coherence, medidas do RoPA e cobertura da LGPD; `Compliant` legado conta como feito; a SoA na tela usa o espelho
+  `frontend/src/classe-controle.js`, conferido por teste); evidencia vencida e `SQL_EVIDENCIA_VENCIDA` e vencida ou nao conforme e
+  `SQL_EVIDENCIA_RUIM`, de `src/services/evidencia-regras.ts`. Nao some contagem no cliente nem leia campo que a API nao devolve.
+  **Controle e atividade (Frente 4):** `GET /api/v1/controls/:id/atividades` lista as atividades do RoPA que usam o controle como medida; a tela de controles mostra "Usado em N atividades" e pede confirmacao antes de mudar o controle para nao implementado.
+  **Regras unicas (Frente 2A, 20/10/2026):** "hoje" e o dia de Sao Paulo em todo prazo e vencimento (`hojeEmSaoPaulo`/`diaMaisSP` em
+  `src/services/hoje.ts`; `hojeSP`/`emDiasSP` em `frontend/src/hoje.js`; teste que varre o fonte em `test/hoje-sp.test.ts` e
+  `frontend/test/hoje-sp.test.js`); o marco "Em operacao desde" e `SQL_MARCO_DO_PROGRAMA` (`painel.ts`: colunas gravadas, RIPD e pedido
+  aprovado); fornecedor e `SQL_EH_FORNECEDOR` (`src/services/terceiros.ts`: organizacao ativa que nao e so parte interessada), o mesmo
+  na lista do n.iso, no n.privacy, no Painel, na Bancada e no ponto de partida.
   Tela: `frontend/src/views/prontidao.js` (a view `certification`, item "Prontidao" no grupo Implementacao). Sem fases, Jornada e
   Monitor oferecem "Carregar as fases" (`POST /api/v1/projects/:id/phases`, so a equipe, 409 se ja tem) e a prontidao, nunca um ao outro;
   ligar o n.iso num projeto tambem carrega as fases.
@@ -209,7 +218,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
 - **Schema**: `schema.sql` — **104 tabelas** (2026-10-19: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0081** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0082** (`ls migrations/*.sql | tail -1`). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -343,7 +352,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   risco anula `risk_id` da acao antes (a acao sobrevive). O `PUT /risks/:id` parcial preserva e aceita `ropa_id` e residual. O agente cria
   e edita; aceitar risco (`status: Accepted`) e concluir acao (`Closed`) a rota recusa, e o DELETE esta em `FORA_DO_AGENTE`. Regra R1 do
   `coherence` ignora risco com `ropa_id`; o aviso de prazo de acao em projeto sem n.iso leva a `/ropa`. Telas: etapa 4 da pagina da
-  atividade (formularios `blocoRiscos`/`blocoAcoes` de `tratamento-ligacoes.js`; o novo ja vem com o sistema ligado e o responsavel da atividade), "Mapa de
+  atividade (aba Riscos, `frontend/src/atividade/aba-riscos.js`), "Mapa de
   risco" na secao Avaliar do n.privacy (`views/mapa-de-risco.js`, nivel por texto em cada celula, mesma faixa do `riskLevel`; ele e a matriz do n.iso, `grc.js`, usam
   `frontend/src/nivel-risco.js`; "Abrir a atividade" leva a pagina dela); o painel do encarregado conta riscos
   altos em aberto e acoes vencidas das atividades (`riscos` em `GET .../encarregado`).
@@ -380,9 +389,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   aprovacao derivada dos pedidos e o hash do conteudo (nao ha coluna de versao). Rotas em `src/routes/exportacao.ts`, em `FORA_DO_AGENTE`;
   trilha `exportacao.csv`/`exportacao.docx` so com tipo e contagem. O painel do encarregado ganhou `acoes_por_prazo` (vencidas, ate 30,
   31 a 90, 91 a 150, mais de 150 dias, sem prazo; `faixaDePrazo` em `src/services/riscos-atividade.ts`), clicavel na tela. Download no
-  frontend: `baixarArquivo` de `frontend/src/api.js` (token no cabecalho). As `/export/*` antigas do n.iso (`risks`, `vendors`, `training`, `audit-log`,
-  `assets`, em `src/routes/integrations.ts`) tem a mesma trilha `exportacao.csv` (`csvComTrilha`) e estao em `FORA_DO_AGENTE`; formato
-  e faixas nao mudaram.
+  frontend: `baixarArquivo` de `frontend/src/api.js` (token no cabecalho). As `/export/*` do n.iso (`risks`, `vendors`, `training`, `audit-log`,
+  `assets`, em `src/routes/integrations.ts`) tem a mesma trilha `exportacao.csv` (`csvComTrilha`), estao em `FORA_DO_AGENTE` e, desde a
+  Frente 3C (21/10/2026), saem no mesmo formato pt-BR (`montarCsv`: BOM, `;`, CRLF, cabecalho em portugues, rotulos de `exportacao.ts`).
 - **Terceiros tipificados (fatia 6, migration 0057)**: o terceiro e uma `partes` do tipo `organizacao` com `terceiro_tipo`
   (`grande_provedor|medio|pequeno|critico`) e `src/services/terceiros.ts` (rotas `/projects/:id/terceiros*`). **O tipo define o
   metodo** (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. `avaliacoes_terceiro`
@@ -420,7 +429,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   a equipe (`podeEditar` em `frontend/src/views/titular.js`; o servidor nao tem corte de papel nessas rotas alem do allow-list e, no prazo
   legal, do `platform_admin`). Contrato em `test/cliente-titular-incidente.test.ts`.
 - **Visoes, evidencia com validade e casca (fatia 8, migration 0059)**: `evidence.valido_ate` (opcional) e `evidencia_requisitos` ligam a
-  evidencia a requisito (`/projects/:id/evidence/:eid/{requisitos,validade}`, no router de requisitos, SEM tocar `evidence.ts`). A rotina
+  evidencia a requisito (`/projects/:id/evidence/:eid/{requisitos,validade}`, no router de requisitos, SEM tocar `evidence.ts`; a `validade` e faixa `nucleo`
+  desde a Frente 3C, entao o n.iso a define na lista de Evidencias; `requisitos` segue `privacy`). A rotina
   diaria de avisos chama `vencerEvidencias` ANTES de avisar: evidencia vencida volta a `pending` (a assinatura gravada NAO e apagada, ela
   atesta o conteudo), uma linha de trilha por evidencia, idempotente; fonte `evidencia` nos avisos. A cobertura da LGPD (`lacunasDaFonte`) conta
   evidencia `conforming` em dia (cobre) ou `partial` (parcial). `GET /projects/:id/encarregado` (`src/services/encarregado.ts`) e SO consulta:
@@ -437,7 +447,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   catalogos do RoPA. Gaps (`views/gaps.js`, `GET .../ropa/gaps`) e LIA (`views/lia.js`, `GET .../ropa/lias`, inclui a atividade de
   legitimo interesse sem LIA) listam o projeto inteiro; Riscos tem a vista Mapa | Lista (`?vista=lista`). Fornecedores segue a rotina de TPRM: `pendencias` em `GET .../terceiros` (tipo, criticidade, avaliacao, DPA) e a fila `avaliacoes-terceiros`. A Referencia juridica (`referencia-juridica`, em Mais) le `GET /requisitos?fonte=` e `GET /requisitos/gdpr-bases`; a validacao em lote (`POST /requisitos/mapeamentos/validar`) e do platform_admin e grava o e-mail da sessao. Os "Abrir" levam a atividade
   na aba certa (`abrirAtividade(projectId, ropaId, aba)`). Selos de `frontend/src/selos-menu.js`: numero = total a tratar, contorno ambar =
-  pendente, fundo vermelho = atraso; o Painel tem selo so com atraso. O n.iso e o n.360 mantem estrutura, rotulos e acordeao
+  pendente, fundo vermelho = atraso; o Painel tem selo so com atraso. Areas esta nos dois menus (no n.iso e o cadastro de departamentos; Partes so remete a ela). O n.iso e o n.360 mantem estrutura, rotulos e acordeao
   (`frontend/test/casca-menu.test.js` fixa a estrutura); a barra dos tres e acessivel: grupo fechado fora do Tab (`visibility`), recolhida com o
   texto so visualmente escondido e a dica `#sidebar-dica` ao passar e ao focar. A casca de cada modulo e a entrada do n.360 estao no paragrafo de produtos
   abaixo (Frontend, n.360).
@@ -487,8 +497,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   E2E em `frontend/e2e/n360.spec.js`; `frontend/e2e/shell.js` entrega `dist/login.html` em `/iso` e `/privacy` (o servidor do
   Playwright nao faz fallback de SPA). Testes de backend que usam rota do
   n.privacy chamam `habilitarPrivacy(...)` de `test/helpers/d1.ts`.
+  **DPO e encarregado (Frente 4):** a governanca e o cadastro de partes ficam em sincronia nos dois sentidos (`atualizarEncarregado`, `sincronizarDpoDaParte` em `src/services/encarregado-pessoa.ts`; a parte nunca muda linha de consultor e, se o e-mail antigo sai da matriz, a conta de stakeholder dele e revogada como no POST da governanca); `GET /projects/:id/governance/encarregados-fora` lista o encarregado que ainda nao esta no comite (botao "Adicionar ao comite" no Monitor).
   **Integracao (0061-0063):** fornecedor e terceiro sao a mesma parte (`vendors.parte_id`; `vendors` e o perfil de seguranca da parte,
-  nao um cadastro paralelo); o DPO da governanca e o encarregado (vinculo `encarregado` em `parte_vinculos`, 0062); incidente vive no
+  nao um cadastro paralelo, e e opcional: a lista do n.iso mostra todo fornecedor e "Remover avaliacao de seguranca" apaga so o perfil); o DPO da governanca e o encarregado (vinculo `encarregado` em `parte_vinculos`, 0062); incidente vive no
   nucleo e gera CAPA (`corrective_actions.incidente_id`, 0063). O catalogo LGPD/ANPD (`src/data/lgpd.ts`, `src/data/anpd.ts`) traz um
   mapeamento proposto para a ISO (`src/data/mapeamento-privacidade-iso.ts`) que so conta como cobertura depois de validado por
   humano. O painel `GET /projects/:id/ponto-de-partida` (`src/routes/ponto-de-partida.ts`) mostra o que cada produto ja aproveita do outro.
@@ -635,6 +646,16 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Sem alternancia de tema.** Um tema so, o escuro da marca.
 - **Sem framework no frontend.** Vanilla e decisao, nao divida.
 - **Responsividade fora de escopo** ate segunda ordem.
+- **Decisoes de 20/10/2026 (Frente 2B da equalizacao n.iso x n.privacy; spec `docs/superpowers/specs/2026-10-20-frente2-regras-unicas-design.md`).**
+  (1) RIPD: uma assinatura (DPO ou Direcao) aprova (`assinaturaDpia`); mudar coluna de conteudo (`COLUNAS_DPIA`) num RIPD assinado zera as
+  assinaturas, volta a `Draft` e grava `dpia.aprovacao_invalidada` (`PUT /dpia/:id`, `src/routes/platform.ts`). (2) Aceite de risco e um
+  modelo so: `status = Accepted`, com `accepted_by`/`accepted_at` carimbados pela sessao na transicao (`carimboDeAceite` em
+  `src/services/riscos-atividade.ts`, usado por `/risks` e pelas sub-rotas da atividade); o corpo nunca define quem nem quando; botao
+  "Aceitar risco" nos dois modulos (`frontend/src/aceite-risco.js`); a migration 0082 levou o aceite digitado antigo a `Accepted` com
+  `risks.aceite_manual = 1` ("Aceite registrado a mao"). (3) DPA: a fonte e o documento ligado ao fornecedor (`documento_partes`, papel
+  `dpa`; `SQL_TEM_DPA` em `src/services/terceiros.ts`); o indice de confianca, a lista, a ficha e o CSV leem dali; `vendors.dpa_signed`/
+  `dpa_url` ficam so como historico ("DPA declarado, sem documento", sem os 10 pontos); ligar e desligar documento do terceiro
+  (`/terceiros/:parteId/documentos*`) e faixa `nucleo` (`SUBROTAS_NUCLEO` em `src/modulos.ts`) e recalcula o indice.
 
 ## Restricoes Tecnicas
 
@@ -666,7 +687,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
 
-- **530 `any` em `src/`** (medido em 2026-10-17, fora `*.test.ts`:
+- **524 `any` em `src/`** (medido em 2026-10-21, fora `*.test.ts`:
   `git grep -ahoE ': any\b|as any\b|<any>' -- 'src/*.ts' ':!*.test.ts' | wc -l`).
   `tsc --noEmit` limpo diz pouco. Tipar o que voce tocar e melhoria barata; nao
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
@@ -743,9 +764,13 @@ errar um digito destruia a sessao.
   `--surface #162244`, `--accent #00ade8`, `--text #f1f5f9`.
 - Tipografia: Inter no corpo; Montserrat 500 na marca, 600 em títulos; JetBrains Mono para hash e código (carregada no
   `login.html`). Escala em tokens `--fs-xs` (11px, o piso) a `--fs-2xl`; nada abaixo de 11px, nada de peso 300 ou 700.
-- Uma lingua na tela: valor do banco por `rotuloDe` (`frontend/src/rotulos.js`), data por `formatarData` (`ui.js`,
+- Uma lingua na tela: valor do banco por `rotuloDe` (`frontend/src/rotulos.js`, a tabela unica de status dos dois modulos: acao Aberto / Em andamento / Concluido, risco Aberto / Mitigado / Aceito / Concluido; o CSV usa os mesmos rotulos em `src/services/exportacao.ts`, conferidos por `frontend/test/rotulos-csv.test.js`; nada de mapa local de status), data por `formatarData` (`ui.js`,
   dd/mm/aaaa), titulo da tela = rotulo do menu (`tituloDaTela`). Modal so por `openModal` (Fechar, foco preso, pergunta
   antes de descartar), selo so por `renderStatusBadge`, vazio so por `renderEmptyState`. Detalhe em `design.md`.
+- Lista so por `montarLista` (`frontend/src/lista.js`, Frente 3A): a lista inteira vem do servidor e a tela busca (sem acento), filtra,
+  conta ("N de M"), mostra 25 por vez ("Carregar mais") e exporta pela rota CSV do servidor (`baixarArquivo`, erro avisado); o filtro
+  do Painel (`filtroPainel`) e o predicado extra (`filtrarPor`, a celula da matriz de riscos) passam por ela. As listas do n.iso e do
+  n.privacy usam o componente; Consentimentos ainda nao (botoes de situacao com contagem). Nao recrie busca ou filtro a mao na tela.
 - Produtos: `n.360` (a plataforma), `n.iso` e `n.privacy` (os modulos), com o ponto em accent, como a marca `ness.`.
 - Proibido: italicos, emojis/icones, accent como background de area.
 - Uma acao principal por tela (um `.btn-primary` visivel); acima de tres secundarias, `renderMaisAcoes` (`frontend/src/ui.js`); nenhum primario por linha de tabela; destrutivo so no fim do menu. O projeto ativo mora so no seletor da barra lateral. Detalhe em `design.md`.

@@ -477,15 +477,27 @@ describe('o cliente age: administrador do cliente registra e responde', () => {
     const PED = { id: 'c', protocolo: 'PT-2026-0003', tipo: 'oposicao', canal: 'outro', titular_nome: null, titular_contato: null, descricao: '', recebido_em: '2026-09-01', prazo_em: '2026-09-16', situacao_prazo: 'atrasado', resposta_texto: null, status: 'recebido' };
     beforeEach(() => { S.user = { role: 'org_admin' }; });
 
-    it('pedidos: tem Registrar pedido; o atrasado tem "Responder" como ação primária da linha', async () => {
+    it('pedidos: tem Registrar pedido; o atrasado tem "Responder" na linha e a ação primária no cabeçalho', async () => {
         await abrir('pedidos');
         expect(el('a').querySelector('[data-action="abrirNovoPedidoTitular"]')).not.toBeNull();
         const linhas = [...el('c').querySelectorAll('[data-action="abrirPedidoTitular"]')];
         expect(linhas.map((b) => b.textContent)).toEqual(['Abrir', 'Abrir', 'Responder']);
-        expect(linhas[2].className).toContain('btn-primary');
-        // Uma ação principal: com pedido atrasado, responder vence registrar um novo (que fica secundário).
-        expect(document.querySelectorAll('#a .btn-primary, #c .btn-primary')).toHaveLength(1);
+        expect(linhas[2].className).not.toContain('btn-primary');
+        // Uma ação principal: com pedido atrasado, responder vence registrar um novo (que fica secundário). Fica no cabeçalho,
+        // à vista mesmo com a linha escondida pela busca.
+        const primarios = document.querySelectorAll('#a .btn-primary, #c .btn-primary');
+        expect(primarios).toHaveLength(1);
+        expect(primarios[0].closest('#a')).not.toBeNull();
+        expect(primarios[0].getAttribute('data-action')).toBe('abrirPedidoTitular');
+        expect(JSON.parse(primarios[0].getAttribute('data-args'))).toEqual(['p9', 'c']);
+        expect(primarios[0].textContent).toBe('Responder PT-2026-0003');
         expect(el('a').querySelector('[data-action="abrirNovoPedidoTitular"]').className).not.toContain('btn-primary');
+        // O filtro esconde a linha do atrasado; a ação principal continua na tela.
+        const status = el('pt-f-status');
+        status.value = 'em_andamento';
+        status.dispatchEvent(new Event('change', { bubbles: true }));
+        expect([...el('c').querySelectorAll('[data-action="abrirPedidoTitular"]')].map((b) => b.textContent)).toEqual(['Abrir']);
+        expect(document.querySelectorAll('#a .btn-primary, #c .btn-primary')).toHaveLength(1);
     });
     it('org_user vê o atrasado só com Abrir', async () => {
         S.user = { role: 'org_user' };
@@ -533,13 +545,15 @@ describe('pedidos: colunas e filtros da lista (spec 2026-10-19)', () => {
     it('filtra por tipo e por status sem ir ao servidor', async () => {
         const f = await abrir('pedidos');
         const antes = f.mock.calls.length;
-        filtrar('pt-filtro-tipo', 'correcao');
+        expect(el('pt-contagem').textContent).toBe(String(PEDIDOS.length));
+        filtrar('pt-f-tipo', 'correcao');
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('PT-2026-0002')]);
-        filtrar('pt-filtro-tipo', '');
-        filtrar('pt-filtro-status', 'recebido');
+        expect(el('pt-contagem').textContent).toBe(`1 de ${PEDIDOS.length}`);
+        filtrar('pt-f-tipo', '');
+        filtrar('pt-f-status', 'recebido');
         expect(linhas()).toHaveLength(2);
-        filtrar('pt-filtro-status', 'negado');
-        expect(el('pt-lista').textContent).toContain('Nenhum pedido com estes filtros');
+        filtrar('pt-f-status', 'negado');
+        expect(el('pt-lista').textContent).toContain('Nada encontrado com a busca ou o filtro');
         expect(f.mock.calls.length).toBe(antes);
     });
 });

@@ -782,9 +782,9 @@ const ICON_HISTORY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12
 const ICON_LOGOUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
 const ICON_APROVACOES = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>';
 const ICON_TRILHA = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="11" y2="17"/></svg>';
-// No n.privacy, Minhas aprovações e Trilha de logs moram no menu de conta (fora do menu do módulo). Quem vê cada um é o papel,
+// No n.privacy, Minhas aprovações e Trilha de auditoria moram no menu de conta (fora do menu do módulo). Quem vê cada um é o papel,
 // a mesma regra do item escondido do menu (updateHeaderUser): aqui só se lê o estilo dele.
-const NO_MENU_DE_CONTA = [['nav-meus', 'meus-pedidos', 'Minhas aprovações', ICON_APROVACOES], ['nav-audit-trail', 'audit-trail', 'Trilha de logs', ICON_TRILHA]];
+const NO_MENU_DE_CONTA = [['nav-meus', 'meus-pedidos', 'Minhas aprovações', ICON_APROVACOES], ['nav-audit-trail', 'audit-trail', 'Trilha de auditoria', ICON_TRILHA]];
 
 window.renderAccountMenu = function renderAccountMenu() {
         const box = document.getElementById('account-menu');
@@ -1062,7 +1062,7 @@ window.updateHeaderUser = function updateHeaderUser() {
             });
         }
 
-        // "Meus pedidos" para quem pode ser destinatário de pedido de aprovação/ciência (lista vazia mostra
+        // "Minhas aprovações" para quem pode ser destinatário de pedido de aprovação/ciência (lista vazia mostra
         // o estado vazio). platform_admin e comercial não decidem pedido de cliente.
         const navMeus = document.getElementById('nav-meus');
         if (navMeus) navMeus.style.display = ['org_admin', 'org_user', 'client', 'consultor', 'consultant', 'consultoria_admin'].includes(S.user?.role) ? '' : 'none';
@@ -1076,7 +1076,7 @@ window.updateHeaderUser = function updateHeaderUser() {
             if (rotuloConta) rotuloConta.style.display = algum ? '' : 'none';
         }
 
-        // Stakeholder (mínimo privilégio): só "Meus pedidos" e o cartão de perfil (senha e MFA). O
+        // Stakeholder (mínimo privilégio): só "Minhas aprovações" e o cartão de perfil (senha e MFA). O
         // servidor já recusa o resto (allow-list de caminhos); o menu só não oferece o que daria 403.
         if (S.user && S.user.role === 'stakeholder') {
             document.querySelectorAll('.sidebar-nav[id^="nav-"]').forEach(el => { el.style.display = el.id === 'nav-meus' ? '' : 'none'; });

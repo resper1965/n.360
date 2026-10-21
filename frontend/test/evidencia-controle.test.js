@@ -60,8 +60,9 @@ describe('Central de Evidências', () => {
             ['Revisar (Líder SGSI)', 'Mais ações'], ['Assinar CEO', 'Mais ações'], ['Baixar', 'Mais ações']]);
         expect(visiveis(linhas[0])[0].getAttribute('aria-label')).toBe('Revisar (Líder SGSI): politica.pdf');
         const menu = (tr) => [...tr.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent.trim());
-        expect(menu(linhas[0])).toEqual(['Assinar CEO', 'Baixar', 'Avaliar com IA']);
-        expect(menu(linhas[2])).toEqual(['Avaliar com IA']);
+        // "Definir validade" (spec 3C, C4): o projeto do teste é só do n.iso
+        expect(menu(linhas[0])).toEqual(['Assinar CEO', 'Baixar', 'Avaliar com IA', 'Definir validade']);
+        expect(menu(linhas[2])).toEqual(['Avaliar com IA', 'Definir validade']);
         expect(c.querySelectorAll('.btn-primary')).toHaveLength(0);
     });
 
@@ -110,7 +111,7 @@ describe('Central de Evidências', () => {
         await window.doEvidenceUpload('p1');
         expect(document.getElementById('ev-msg').textContent).toBe(`Evidência enviada: laudo.pdf (SHA-256: ${sha.substring(0, 16)}...)`);
         expect(f2.mock.calls.some(([u, o]) => (o?.method || 'GET') === 'GET' && String(u).endsWith('/evidence'))).toBe(true);
-        expect(document.getElementById('main-content').querySelectorAll('select').length).toBe(2);
+        expect(document.getElementById('main-content').querySelectorAll('select[data-action-change="vincularEvidenciaControle"]').length).toBe(2);
         S.view = undefined;
     });
 });

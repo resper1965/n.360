@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { genId, logAudit, requireResourceAccess, erro500, ForbiddenError, refForaDoProjeto } from '../helpers';
 import { validateBody, createRiskSchema, riskUpdateSchema } from '../schemas';
-import { riskLevel, residualLevel } from '../services/riscos-atividade';
+import { riskLevel, residualLevel, carimboDeAceite } from '../services/riscos-atividade';
 
 const risks = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -34,10 +34,14 @@ risks.post('/api/v1/projects/:projectId/risks', async (c) => {
     const impact = body.impact ?? 3;
     const probability = body.probability ?? 3;
     const level = riskLevel(impact * probability);
+    // Quem aceitou e quando vêm da sessão (carimbo do servidor); accepted_by/accepted_at do corpo são ignorados.
+    const email = c.get('user')?.email ?? 'system';
+    const status = body.status ?? 'Open';
+    const aceite = carimboDeAceite(null, status, email);
 
     await c.env.DB.prepare(
-      `INSERT INTO risks (id, project_id, asset_id, asset, threat, vulnerability, impact, probability, risk_level, treatment, treatment_plan, control_id, owner, owner_parte_id, accepted_by, accepted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO risks (id, project_id, asset_id, asset, threat, vulnerability, impact, probability, risk_level, treatment, treatment_plan, control_id, owner, owner_parte_id, status, accepted_by, accepted_at, treatment_due_date, residual_impact, residual_probability, residual_level)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       id,
       projectId,
@@ -53,8 +57,13 @@ risks.post('/api/v1/projects/:projectId/risks', async (c) => {
       body.control_id || null,
       body.owner ?? null,
       body.owner_parte_id || null,
-      body.accepted_by ?? null,
-      body.accepted_at ?? null
+      status,
+      aceite?.accepted_by ?? null,
+      aceite?.accepted_at ?? null,
+      body.treatment_due_date ?? null,
+      body.residual_impact ?? null,
+      body.residual_probability ?? null,
+      residualLevel(body.residual_impact ?? null, body.residual_probability ?? null)
     ).run();
 
     // Gravar no histórico de riscos (Cláusula 6.1.2)
@@ -64,7 +73,8 @@ risks.post('/api/v1/projects/:projectId/risks', async (c) => {
        VALUES (?, ?, ?, ?, ?, ?)`
     ).bind(histId, id, projectId, impact, probability, level).run();
 
-    await logAudit(c.env.DB, 'risk.created', c.get('user')?.email ?? 'system', `Risk ${id} created for project ${projectId}`);
+    await logAudit(c.env.DB, 'risk.created', email, `Risk ${id} created for project ${projectId}`, '', '', projectId);
+    if (aceite) await logAudit(c.env.DB, 'risk.aceito', email, `Risco ${id} aceito`, '', '', projectId);
     return c.json({ ok: true, id, risk_level: level }, 201);
   } catch (e: any) {
     if (e instanceof ForbiddenError) {
@@ -88,7 +98,7 @@ risks.put('/api/v1/risks/:id', async (c) => {
 
     // PUT parcial: campo ausente mantém o valor gravado; null limpa onde a coluna aceita NULL.
     const atual = await c.env.DB.prepare(
-      'SELECT project_id, asset_id, asset, threat, vulnerability, impact, probability, treatment, treatment_plan, control_id, owner, owner_parte_id, status, accepted_by, accepted_at, ropa_id, residual_impact, residual_probability FROM risks WHERE id = ?'
+      'SELECT project_id, asset_id, asset, threat, vulnerability, impact, probability, treatment, treatment_plan, control_id, owner, owner_parte_id, status, accepted_by, accepted_at, ropa_id, residual_impact, residual_probability, treatment_due_date FROM risks WHERE id = ?'
     ).bind(id).first<Record<string, any>>();
     if (!atual) return c.json({ error: 'Risco não encontrado' }, 404);
     const projectId = atual.project_id;
@@ -107,9 +117,13 @@ risks.put('/api/v1/risks/:id', async (c) => {
     // F2 (0073): atividade e residual também são parciais; o nível residual é recalculado com o que fica gravado.
     const residualImpact = anulavel('residual_impact');
     const residualProbability = anulavel('residual_probability');
+    // Aceite carimbado pelo servidor só na transição para Accepted; accepted_by/accepted_at do corpo são ignorados.
+    const email = c.get('user')?.email ?? 'system';
+    const status = obrigatoria('status');
+    const aceite = carimboDeAceite(atual.status, status, email);
 
     await c.env.DB.prepare(
-      `UPDATE risks SET asset_id=?, asset=?, threat=?, vulnerability=?, impact=?, probability=?, risk_level=?, treatment=?, treatment_plan=?, control_id=?, owner=?, owner_parte_id=?, status=?, accepted_by=?, accepted_at=?, ropa_id=?, residual_impact=?, residual_probability=?, residual_level=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
+      `UPDATE risks SET asset_id=?, asset=?, threat=?, vulnerability=?, impact=?, probability=?, risk_level=?, treatment=?, treatment_plan=?, control_id=?, owner=?, owner_parte_id=?, status=?, accepted_by=?, accepted_at=?, aceite_manual=CASE WHEN ? THEN 0 ELSE aceite_manual END, ropa_id=?, residual_impact=?, residual_probability=?, residual_level=?, treatment_due_date=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
     ).bind(
       anulavel('asset_id', true),
       obrigatoria('asset'),
@@ -123,13 +137,15 @@ risks.put('/api/v1/risks/:id', async (c) => {
       anulavel('control_id', true),
       anulavel('owner'),
       anulavel('owner_parte_id', true),
-      obrigatoria('status'),
-      anulavel('accepted_by'),
-      anulavel('accepted_at'),
+      status,
+      aceite?.accepted_by ?? atual.accepted_by,
+      aceite?.accepted_at ?? atual.accepted_at,
+      aceite ? 1 : 0, // aceite novo pelo servidor deixa de ser "registrado à mão"
       anulavel('ropa_id', true),
       residualImpact,
       residualProbability,
       residualLevel(residualImpact, residualProbability),
+      anulavel('treatment_due_date', true),
       id
     ).run();
 
@@ -141,6 +157,7 @@ risks.put('/api/v1/risks/:id', async (c) => {
          VALUES (?, ?, ?, ?, ?, ?)`
       ).bind(histId, id, projectId, impact, probability, level).run();
     }
+    if (aceite) await logAudit(c.env.DB, 'risk.aceito', email, `Risco ${id} aceito`, '', '', projectId);
 
     return c.json({ ok: true, id, risk_level: level });
   } catch (e: any) {

@@ -12,6 +12,42 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Alterado (Frente 4: ligações entre controle, governança, painel e Áreas, 21/10/2026; sem migration)
+- **Controle e atividade:** `GET /api/v1/controls/:id/atividades`; a tela de controles mostra "Usado em N atividades" e confirma antes de tirar o controle de implementado. O aviso de medida na aba Medidas da atividade foi corrigido.
+- **DPO e encarregado em sincronia nos dois sentidos** (governança e Partes); `GET /projects/:id/governance/encarregados-fora` e o botão "Adicionar ao comitê" no Monitor.
+- **Painel do n.iso:** fornecedor com avaliação vencida e pedido esperando decisão (só a equipe) entram em "O que fazer"; `GET /vendors` devolve `situacao`; filtro `vendors::vencidos`; o menu do n.iso ganha selos (`modulos.iso.selos`).
+- **Áreas** passam a ter item no menu do n.iso; Partes só remete a elas.
+
+### Alterado (Frente 3C: itens soltos do n.iso, 21/10/2026; sem migration)
+- **CSV do n.iso em pt-BR:** riscos, fornecedores, treinamento, trilha e ativos saem com BOM, `;`, CRLF, cabeçalho em português e os mesmos rótulos da tela (abrem certo no Excel). **Muda o formato** para quem consumia o CSV antigo (vírgula, cabeçalho em inglês, valores do banco). O download avisa o erro na tela em vez de salvar a resposta de erro como `.csv`.
+- **Ação corretiva:** o prazo passa a ser data válida (AAAA-MM-DD), como no gap; o formulário do n.iso exige responsável.
+- **Risco no n.iso:** o formulário ganha impacto e probabilidade residuais (nível calculado pelo servidor) e prazo de tratamento.
+- **Validade da evidência** definida pelo n.iso ("Definir validade" e coluna Validade na lista), sem precisar do n.privacy.
+- **Nome do fornecedor** padronizado também na edição (`normalizarNome` no `PUT /vendors`).
+
+### Alterado (Frente 3A: listas com busca, filtros e carregar mais nos dois módulos, 21/10/2026; sem migration)
+- **As listas do n.iso** (ações corretivas, riscos, fornecedores, treinamento, auditorias, ativos, evidências, políticas e normas, partes e áreas) **ganharam busca, filtros, contagem e "Carregar mais 25"**; riscos, fornecedores, treinamento e ativos exportam pela própria lista. A lista de riscos deixou de ser cartões e virou tabela (com residual e status); clicar numa célula da matriz filtra a lista sem recarregar a tela.
+- **As listas do n.privacy** passaram ao mesmo componente (`frontend/src/lista.js`), com o mesmo comportamento. Mudanças pequenas: no filtro de status dos Gaps, o gap aberto com prazo vencido aparece em "Em atraso"; o vazio da busca é a mesma frase em toda tela; o botão de exportar some quando a lista está vazia.
+- **Titular:** o botão principal "Responder" fica no cabeçalho e abre o pedido mais urgente, para não sumir quando a linha está além das 25 primeiras.
+
+### Alterado (Frente 3B: vocabulário único nos dois módulos, 21/10/2026; sem migration)
+- **Um rótulo por status**, o mesmo no n.iso, no n.privacy e no CSV: ação **Aberto / Em andamento / Concluído** (antes "Fechado" no n.iso e "Pendente" no n.privacy); risco **Aberto / Mitigado / Aceito / Concluído** (o mapa de risco dobrava Mitigado e Aceito em "Pendente"). O documento em arquivo aparece **Vigente**, como o versionado.
+- **Nomes de tela iguais ao menu**, nos dois módulos: **Trilha de auditoria** (era "Trilha de logs" no menu do n.privacy), **Minhas aprovações** (era "Meus pedidos"), **Políticas e normas** (o documento versionado; era "Documentos" no n.iso e "Políticas" no n.privacy). O documento em arquivo segue **Documentos**. Gaps e Solicitações do titular também passaram a ter o título do menu.
+- **Testes de data no dia de São Paulo:** 14 do backend e 3 do frontend calculavam "hoje" em UTC e falhavam entre 21h e 24h de Brasília (correção na 2A, `4ee7c40`).
+
+### Alterado (Frente 2B da equalização: decisões do dono de 20/10/2026; migration 0082)
+- **RIPD aprovado por uma assinatura** (DPO ou Direção), e **mudar o conteúdo de um RIPD assinado derruba a aprovação**: as assinaturas são zeradas, ele volta a rascunho e a trilha registra `dpia.aprovacao_invalidada` (só os nomes das colunas). A tela avisa antes de salvar.
+- **Aceite de risco num modelo só:** `Accepted`, com quem e quando carimbados pelo servidor nos dois módulos; o formulário do n.iso perdeu os campos digitados de quem e quando, e os dois módulos ganharam o botão "Aceitar risco". **Migration 0082** (`risks.aceite_manual`): o aceite digitado antigo (tratamento Aceitar com nome) passa a `Accepted`, guardando nome e data, marcado "Aceite registrado à mão". **Aplicar em produção só com o "sim" do dono e `npm run db:backup` antes.**
+- **DPA pela fonte única, o documento ligado ao fornecedor.** Índice de confiança, lista, ficha e CSV leem dali; a caixa "DPA assinado" e o link saíram dos formulários. Fornecedor só com a caixa antiga aparece "DPA declarado, sem documento" e perde os 10 pontos de confiança. O índice da lista e do CSV é calculado na leitura, então o legado já sai sem os 10 pontos. O n.iso liga o documento sem precisar do n.privacy (rotas de documento do terceiro na faixa núcleo). **O CSV de fornecedores muda:** a coluna `dpa_signed` (0/1) virou `dpa` (Sim / Declarado, sem documento / Não).
+
+### Corrigido (Frente 2A da equalização: uma regra por conceito, 20/10/2026; sem migration)
+- **"Hoje" é o dia de São Paulo** em todo prazo e vencimento, no servidor e nas telas. Entre 21h e 24h de Brasília, "vencido" deixava de valer no dia certo (o servidor contava em UTC; o chip do painel, no fuso do navegador).
+- **"Controle implementado" tem uma regra só.** Gap-analysis, Bancada, readiness, coherence, medidas do RoPA, cobertura da LGPD e a SoA passam a usar a regra do Painel, e `Compliant` (legado) conta como implementado. **Muda número:** a cobertura sobe onde havia `Compliant`, `Approved` ou `Completed`.
+- **Marco "Em operação desde"** conta também a aprovação por pedido e o RIPD aprovado. Um programa só do n.privacy saía "Em implantação" para sempre.
+- **Fornecedor tem um critério só:** organização ativa que não é só parte interessada. A lista do n.iso passa a mostrar a organização criada em Partes ("Sem avaliação de segurança", com "Avaliar"). "Excluir" virou "Remover avaliação de segurança" e apaga só o perfil; tirar o fornecedor de vez é inativar a organização em Partes, o que vale nos dois módulos. **Muda número** no Painel, na Bancada e no ponto de partida.
+- **Evidência vencida** compara pelo dia também no encarregado.
+- **Ativo nasce Confidencial** nos dois módulos. O select "Status" do n.iso, que o servidor ignorava, saiu.
+
 ### Corrigido (Frente 1 da equalização n.iso x n.privacy, 20/10/2026; sem migration)
 - **Excluir risco pelo n.iso não apaga mais as ações corretivas ligadas** (o FK é `ON DELETE CASCADE`): a ação fica, sem o vínculo, como já fazia o risco da atividade.
 - **Excluir ativo pela rota de topo (`DELETE /api/v1/assets/:id`, a do Monitor) virou soft delete**, como a rota do projeto: o DELETE físico levava junto as ligações do ativo com as atividades de tratamento.

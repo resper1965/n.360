@@ -1,5 +1,6 @@
 import { logAudit } from '../helpers';
 import { nivelDaCriticidade, tipoDaCriticidade, type NivelCriticidade, type RespostasCriticidade } from './criticidade';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 6: terceiros (TPRM) tipificados. O terceiro é uma parte do tipo `organizacao`; o tipo define o
@@ -16,7 +17,7 @@ export const METODO_DO_TIPO: Record<TipoTerceiro, Metodo> = { grande_provedor: '
 
 type Falha = { ok: false; status: 400 | 404 | 409; error: string };
 const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, status, error });
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
 const dataValida = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`)) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
 
 export type Avaliacao = {
@@ -62,11 +63,48 @@ const SO_PARTE_INTERESSADA = `EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.par
   AND NOT EXISTS (SELECT 1 FROM documento_partes d WHERE d.parte_id = p.id)
   AND NOT EXISTS (SELECT 1 FROM vendors f WHERE f.parte_id = p.id)`;
 
+/** Quem é fornecedor, igual nos dois módulos e em toda contagem: organização ativa que não é só parte interessada. Alias `p` = partes. */
+export const SQL_EH_FORNECEDOR = `p.tipo = 'organizacao' AND p.status = 'ativa' AND NOT (${SO_PARTE_INTERESSADA})`;
+
+/**
+ * O fornecedor tem DPA: documento ligado com papel `dpa` (decisão de 20/10/2026, fonte única nos dois módulos). `vendors.dpa_signed`
+ * e `dpa_url` são histórico ("declarado, sem documento") e não contam. Alias `p` = partes.
+ */
+export const SQL_TEM_DPA = `EXISTS (SELECT 1 FROM documento_partes d WHERE d.parte_id = p.id AND d.project_id = p.project_id AND d.papel = 'dpa')`;
+
+/** As colunas do perfil de segurança (`vendors`) que entram no índice de confiança. */
+export type PerfilDoIndice = Partial<Record<'has_iso27001' | 'has_iso27701' | 'has_soc2' | 'has_mfa' | 'has_encryption' | 'has_backup' | 'has_incident_plan' | 'has_pentest', unknown>>
+  & { trust_center_url?: string | null };
+
+/** Índice de confiança do fornecedor (0 a 100). O DPA vale 10 pontos só com documento ligado (`SQL_TEM_DPA`). */
+export function indiceDeConfianca(v: PerfilDoIndice, temDpa: boolean): number {
+  const pontos: [unknown, number][] = [[v.has_iso27001, 20], [v.has_iso27701, 15], [v.has_soc2, 15], [v.has_mfa, 10], [v.has_encryption, 15],
+    [v.has_backup, 10], [v.has_incident_plan, 10], [v.has_pentest, 10], [v.trust_center_url?.trim(), 5], [temDpa, 10]];
+  return Math.min(100, pontos.reduce((s, [tem, n]) => s + (tem ? n : 0), 0));
+}
+
+export function nivelDeDiligencia(indice: number): string {
+  if (indice > 90) return 'Low';
+  if (indice > 60) return 'Medium';
+  return 'High';
+}
+
+export async function temDpa(db: D1Database, parteId: string): Promise<boolean> {
+  return !!(await db.prepare(`SELECT 1 FROM partes p WHERE p.id = ? AND ${SQL_TEM_DPA}`).bind(parteId).first());
+}
+
+/** Recalcula o índice e a diligência do perfil de segurança da parte (se houver) quando o DPA é ligado ou desligado. */
+async function recalcularIndice(db: D1Database, parteId: string): Promise<void> {
+  const v = await db.prepare('SELECT * FROM vendors WHERE parte_id = ?').bind(parteId).first<PerfilDoIndice>();
+  if (!v) return;
+  const indice = indiceDeConfianca(v, await temDpa(db, parteId));
+  await db.prepare('UPDATE vendors SET trust_score = ?, diligence_level = ? WHERE parte_id = ?').bind(indice, nivelDeDiligencia(indice), parteId).run();
+}
+
 /** Terceiros do projeto (partes organização ativas, menos as que são só parte interessada) com tipo, situação, nº de tratamentos que os usam e nº de documentos (DPA). */
 export async function listarTerceiros(db: D1Database, projectId: string): Promise<Terceiro[]> {
   const [partes, avals, trat, docs, crits, dpas] = await db.batch([
-    db.prepare(`SELECT id, nome, terceiro_tipo FROM partes p WHERE project_id = ?1 AND tipo = 'organizacao' AND status = 'ativa'
-      AND NOT (${SO_PARTE_INTERESSADA}) ORDER BY nome`).bind(projectId),
+    db.prepare(`SELECT id, nome, terceiro_tipo FROM partes p WHERE project_id = ?1 AND ${SQL_EH_FORNECEDOR} ORDER BY nome`).bind(projectId),
     db.prepare(`SELECT ${COLS_AVALIACAO} FROM avaliacoes_terceiro WHERE project_id = ? ORDER BY created_at, rowid`).bind(projectId),
     db.prepare(`SELECT parte_id, count(DISTINCT ropa_id) AS n FROM (${SQL_ATIVIDADES}) GROUP BY parte_id`).bind(projectId),
     db.prepare(`SELECT parte_id, count(DISTINCT documento_id) AS n FROM documento_partes WHERE project_id = ? GROUP BY parte_id`).bind(projectId),
@@ -110,8 +148,8 @@ export async function lerTerceiro(db: D1Database, projectId: string, parteId: st
     db.prepare(`SELECT r.id, r.processing_purpose AS finalidade, MAX(a.origem) AS origem FROM (${SQL_ATIVIDADES}) a JOIN ropa_records r ON r.id = a.ropa_id
       WHERE a.parte_id = ?2 GROUP BY r.id ORDER BY r.processing_purpose`).bind(projectId, parteId),
     db.prepare(`SELECT email FROM partes WHERE id = ? AND project_id = ?`).bind(parteId, projectId),
-    db.prepare(`SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.parte_id = ?1 AND v.project_id = ?2
-      AND EXISTS (SELECT 1 FROM parte_vinculos pv WHERE pv.parte_id = v.parte_id AND pv.papel = 'terceiro' AND pv.alvo_tipo = 'projeto' AND pv.alvo_id = v.project_id)`).bind(parteId, projectId),
+    // o perfil de segurança é opcional: o terceiro já passou pelo critério de fornecedor (`listarTerceiros`)
+    db.prepare(`SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.parte_id = ?1 AND v.project_id = ?2`).bind(parteId, projectId),
   ]);
   return { ...t, email: (parte.results[0] as { email: string | null } | undefined)?.email ?? null, seguranca: seg.results[0] ?? null,
     historico: hist.results as Avaliacao[], documentos_ligados: docs.results, suboperadores: subs.results, tratamentos_afetados: trat.results };
@@ -161,14 +199,17 @@ export async function ligarDocumento(db: D1Database, projectId: string, parteId:
     if (/UNIQUE|PRIMARY KEY/i.test(String((e as Error)?.message))) return falha(409, 'Esse documento já está ligado a este terceiro com esse papel');
     throw e;
   }
+  if (papel === 'dpa') await recalcularIndice(db, parteId);
   await logAudit(db, 'terceiro.documento', ator, `Parte ${parteId}: documento ${documentoId} ligado como ${papel}`, '', '', projectId);
   return { ok: true };
 }
 
 export async function desligarDocumento(db: D1Database, projectId: string, parteId: string, ator: string, documentoId: string, papel: PapelDocumento): Promise<boolean> {
   const r = await db.prepare('DELETE FROM documento_partes WHERE documento_id = ? AND parte_id = ? AND papel = ? AND project_id = ?').bind(documentoId, parteId, papel, projectId).run();
-  if (r.meta.changes) await logAudit(db, 'terceiro.documento', ator, `Parte ${parteId}: documento ${documentoId} desligado (${papel})`, '', '', projectId);
-  return (r.meta.changes ?? 0) > 0;
+  if (!r.meta.changes) return false;
+  if (papel === 'dpa') await recalcularIndice(db, parteId);
+  await logAudit(db, 'terceiro.documento', ator, `Parte ${parteId}: documento ${documentoId} desligado (${papel})`, '', '', projectId);
+  return true;
 }
 
 export type Criticidade = RespostasCriticidade & { id: string; nivel: NivelCriticidade; avaliado_por: string | null; created_at: string };

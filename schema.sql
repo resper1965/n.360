@@ -516,7 +516,9 @@ CREATE TABLE IF NOT EXISTS risks (
     residual_level TEXT,
     -- Ficha em abas (migration 0079): IDR sequencial por atividade e prazo de tratamento.
     idr INTEGER,
-    treatment_due_date TEXT CHECK (treatment_due_date IS NULL OR treatment_due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
+    treatment_due_date TEXT CHECK (treatment_due_date IS NULL OR treatment_due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    -- Migration 0082: 1 = aceite legado digitado no n.iso (nome e data à mão), levado a Accepted; o aceite novo é carimbado pelo servidor.
+    aceite_manual INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_risks_ropa_idr ON risks(ropa_id, idr) WHERE ropa_id IS NOT NULL AND idr IS NOT NULL;
 

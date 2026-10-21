@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dataIso } from './ropa-abas';
 
 /**
  * Schemas dos recursos de negócio. O foco é o trust boundary: campos que
@@ -24,7 +25,13 @@ export const createRiskSchema = z.object({
   owner: z.string().optional().nullable(),
   owner_parte_id: z.string().optional().nullable(),
   accepted_by: z.string().optional().nullable(),
-  accepted_at: z.string().optional().nullable()
+  accepted_at: z.string().optional().nullable(),
+  // spec 3C (C3): prazo de tratamento e risco residual também pelo n.iso (o nível residual é do servidor)
+  treatment_due_date: dataIso.nullish(),
+  residual_impact: score1to5.optional().nullable(),
+  residual_probability: score1to5.optional().nullable(),
+  // a mesma lista fechada do risco da atividade (src/schemas/nucleo.ts)
+  status: z.enum(['Open', 'Mitigated', 'Accepted', 'Closed']).optional()
 }).passthrough();
 
 /**
@@ -63,7 +70,8 @@ export const createCapaSchema = z.object({
   severity: z.string().optional().nullable(),
   assigned_to: z.string().optional().nullable(),
   assigned_to_parte_id: z.string().optional().nullable(),
-  due_date: z.string().optional().nullable(),
+  // AAAA-MM-DD, como o prazo do gap; valor antigo fora do formato segue legível (a validação é só na escrita)
+  due_date: dataIso.nullish(),
   root_cause: z.string().optional().nullable(),
   action_plan: z.string().optional().nullable(),
   status: z.string().optional().nullable()
@@ -121,7 +129,7 @@ export const capaUpdateSchema = z.object({
   assigned_to: parcial,
   assigned_to_parte_id: parcial,
   incidente_id: parcial,
-  due_date: parcial,
+  due_date: dataIso.nullish(),
   status: z.string().min(1, 'Status é obrigatório'),
   resolution: parcial,
   root_cause: parcial,
@@ -157,6 +165,4 @@ export const vendorUpdateSchema = z.object({
 export const riskUpdateSchema = createRiskSchema.partial().extend({
   // F2 (0073): ligar o risco à atividade de tratamento e o risco residual (o nível residual é do servidor).
   ropa_id: z.string().optional().nullable(),
-  residual_impact: score1to5.optional().nullable(),
-  residual_probability: score1to5.optional().nullable(),
 });

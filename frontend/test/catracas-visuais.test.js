@@ -97,9 +97,9 @@ describe('catracas do sistema visual', () => {
     const TETO_STYLE = {
         'src/globals.js': 84, 'src/produto.js': 4, 'src/ui.js': 11, 'src/views/admin.js': 45, 'src/views/ai.js': 9,
         'src/views/aprovacao-lote.js': 21, 'src/views/auditor-acesso.js': 11, 'src/views/commercial.js': 27, 'src/views/compliance.js': 98,
-        'src/views/dashboard.js': 26, 'src/views/documentos.js': 35, 'src/views/empresa.js': 37, 'src/views/encarregado.js': 3,
-        'src/views/grc.js': 45, 'src/views/importacao.js': 45, 'src/views/mapa-de-risco.js': 11, 'src/views/meus-pedidos.js': 47,
-        'src/views/monitor.js': 55, 'src/views/padronizar-nomes.js': 4, 'src/views/painel-graficos.js': 1, 'src/views/partes.js': 9,
+        'src/views/dashboard.js': 26, 'src/views/documentos.js': 34, 'src/views/empresa.js': 37, 'src/views/encarregado.js': 3,
+        'src/views/grc.js': 41, 'src/views/importacao.js': 45, 'src/views/mapa-de-risco.js': 11, 'src/views/meus-pedidos.js': 47,
+        'src/views/monitor.js': 55, 'src/views/padronizar-nomes.js': 4, 'src/views/painel-graficos.js': 1, 'src/views/partes.js': 7,
         'src/views/ponto-de-partida.js': 8, 'src/views/privacy.js': 102, 'src/views/project.js': 9, 'src/views/requisitos.js': 0,
         'src/views/security.js': 41, 'src/views/seguranca-projeto.js': 19, 'src/views/terceiros.js': 43, 'src/views/titular.js': 26,
         'src/views/tratamento-ligacoes.js': 4, 'src/views/trocar-senha.js': 5,

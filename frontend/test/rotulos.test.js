@@ -6,7 +6,7 @@ import { formatarData, traduzStatus } from '../src/ui.js';
 describe('rotuloDe()', () => {
     it.each([
         ['', 'Implemented', 'Implementado'], ['', 'Partial', 'Parcial'], ['', 'Compliant', 'Conforme'],
-        ['', 'Not Applicable', 'Não aplicável'], ['', 'Open', 'Aberto'], ['', 'Closed', 'Fechado'],
+        ['', 'Not Applicable', 'Não aplicável'], ['', 'Open', 'Aberto'], ['', 'Closed', 'Concluído'],
         ['', 'In Progress', 'Em andamento'], ['', 'AT RISK', 'Em risco'], ['', 'EXPIRED', 'Vencido'],
         ['', 'WON', 'Ganho'], ['', 'LOST', 'Perdido'], ['', 'Pending', 'Pendente'], ['', 'Draft', 'Rascunho'],
         ['', 'Approved', 'Aprovado'], ['', 'Active', 'Ativo'], ['', 'Controller', 'Controlador'],

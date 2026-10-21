@@ -47,12 +47,12 @@ describe('PUT /risks/:id parcial', () => {
     expect(depois.n).toBe(antes.n + 1);
   });
 
-  it('null limpa o campo; impacto e probabilidade recalculam o nível', async () => {
+  it('null limpa o campo; aceite do corpo é ignorado (carimbo do servidor); impacto e probabilidade recalculam o nível', async () => {
     const r = await chamar(consultor, 'PUT', '/api/v1/risks/rp-r1', { treatment_plan: null, accepted_by: null, impact: 1, probability: 1 });
     expect(r.status).toBe(200);
     const linha = await ler();
     expect(linha.treatment_plan).toBeNull();
-    expect(linha.accepted_by).toBeNull();
+    expect(linha.accepted_by).toBe('Diretoria');
     expect(linha).toMatchObject({ impact: 1, probability: 1, risk_level: 'Low', status: 'Accepted' });
   });
 

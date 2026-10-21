@@ -1,10 +1,12 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, forceCloseModal, escapeHTML, formatarData } from '../ui.js';
+import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
 import { produtoAtual, temProduto } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
+import { montarLista, colunasDe } from '../lista.js';
 import { carregarConsentimentos, telaConsentimentos } from './consentimentos.js';
+import { hojeSP } from '../hoje.js';
 
 // Titular e incidentes (fatia 7 do núcleo, só registro interno): pedidos do titular, incidentes, consentimentos e prazos legais.
 // Toda regra é do servidor (protocolo, prazo congelado, encerramento do incidente); aqui só se mostra e se chama. Texto escapado.
@@ -18,6 +20,7 @@ const RISCOS = { sem_risco: 'Sem risco', baixo: 'Baixo', relevante: 'Relevante' 
 const STATUS_INCIDENTE = { aberto: 'Aberto', avaliado: 'Avaliado', comunicado: 'Comunicado', encerrado: 'Encerrado' };
 const UNIDADES = { horas: 'horas', dias_corridos: 'dias corridos', dias_uteis: 'dias úteis' };
 const ABAS = { pedidos: 'Pedidos do titular', incidentes: 'Incidentes', consentimentos: 'Consentimentos', prazos: 'Prazos legais' };
+const MENU_DA_ABA = { pedidos: 'nav-titular', incidentes: 'nav-incidentes-privacy', consentimentos: 'nav-consentimentos' };
 
 const podeEditar = () => !!S.user && ['platform_admin', 'consultant', 'consultor', 'consultoria_admin'].includes(S.user.role);
 // O administrador do cliente registra e responde pedido do titular e registra e avalia incidente (o servidor já o deixa: o allow-list
@@ -54,8 +57,8 @@ async function renderTitular(c, h, a) {
     const abasDoProduto = soIncidentes() ? { incidentes: ABAS.incidentes } : ABAS;
     const aba = abasDoProduto[S.titularAba] ? S.titularAba : Object.keys(abasDoProduto)[0];
     S.titularAba = aba;
-    // O título é o rótulo da aba, que é o do item de menu que a abre (Pedidos do titular, Incidentes, Consentimentos).
-    h.textContent = ABAS[aba];
+    // O título é o rótulo do item de menu que abre a aba (no n.privacy, "Solicitações" para os pedidos); sem item, o da aba.
+    h.textContent = MENU_DA_ABA[aba] ? tituloDaTela(MENU_DA_ABA[aba], ABAS[aba]) : ABAS[aba];
     const editar = podeEditar();
     const registrar = podeRegistrar();
     // Pedidos e incidentes são lidos sempre: a contagem (e o atraso) aparece na aba, sem precisar abri-la. Falha vira `null`:
@@ -90,27 +93,50 @@ async function renderTitular(c, h, a) {
     if (aba === 'pedidos' && !pedidos) return falhou('Não foi possível carregar os pedidos do titular.');
     if (aba === 'incidentes' && !incidentes) return falhou('Não foi possível carregar os incidentes.');
     let corpo = '';
-    // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
-    const { itens: doFiltro, chip, filtrado } = filtrarDoPainel('titular', aba, aba === 'pedidos' ? pedidos : aba === 'incidentes' ? incidentes : []);
-    const vazioFiltrado = { emptyState: 'Nenhum registro nesta situação.', emptyHint: 'Limpe o filtro para ver todos.' };
+    let montar = null;
+    // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar (o componente aplica o filtro e mostra o chip).
+    const filtroPainel = { tela: 'titular', aba };
     if (aba === 'pedidos') {
-        const l = doFiltro;
-        // Uma ação principal: com pedido atrasado, responder o primeiro deles vence registrar um novo.
-        const responderPrimeiro = registrar ? l.find((p) => p.situacao_prazo === 'atrasado') : null;
-        if (responderPrimeiro) a.innerHTML = novo('abrirNovoPedidoTitular', '+ Registrar pedido', false);
+        // Uma ação principal: com pedido atrasado à vista, responder o primeiro deles vence registrar um novo. Fica no cabeçalho,
+        // não na linha: a linha pode estar além das 25 carregadas ou escondida pela busca, e a tela ficaria sem ação principal.
+        const { itens: visiveis } = filtrarDoPainel('titular', aba, pedidos);
+        const responderPrimeiro = registrar ? visiveis.find((p) => p.situacao_prazo === 'atrasado') : null;
+        if (responderPrimeiro) {
+            a.innerHTML = novo('abrirNovoPedidoTitular', '+ Registrar pedido', false)
+                + ` <button class="btn btn-primary" data-action="abrirPedidoTitular" data-args='${args(proj.id, responderPrimeiro.id)}'>Responder ${escapeHTML(responderPrimeiro.protocolo)}</button>`;
+        }
         // Filtros de tipo e status (spec 2026-10-19): na tela, sobre a lista já carregada.
-        listaPedidos = { l, projectId: proj.id, registrar, responderPrimeiro, vazio: { emptyState: 'Nenhum pedido de titular registrado.', emptyHint: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', emptyAction: novo('abrirNovoPedidoTitular', 'Registrar pedido'), ...(filtrado ? vazioFiltrado : {}) } };
-        const filtroPedido = (id, rotulo, mapa) => `<label class="co-campo"><span class="co-campo-rotulo">${rotulo}</span>
-            <select class="form-select" id="${id}" data-action-change="filtrarPedidosTitular"><option value="">Todos</option>${opcoes(mapa)}</select></label>`;
-        corpo = (l.length ? `<div class="co-controles">${filtroPedido('pt-filtro-tipo', 'Tipo', TIPOS_PEDIDO)}${filtroPedido('pt-filtro-status', 'Status', STATUS_PEDIDO)}</div>` : '')
-            + `<div id="pt-lista">${tabelaPedidos(false)}</div>`;
+        corpo = '<div id="pt-lista"></div>';
+        montar = () => montarLista(el('pt-lista'), {
+            id: 'pt',
+            linhas: pedidos,
+            filtroPainel,
+            colunas: colunasDe(['Protocolo', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações'], (p) => [
+                `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(CANAIS[p.canal] || p.canal || '—'), escapeHTML(dia(p.recebido_em)),
+                escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'), escapeHTML(dia(p.respondido_em)),
+                selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
+                // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
+                registrar && p.situacao_prazo === 'atrasado'
+                    ? `<button class="btn btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}' aria-label="Responder: ${escapeHTML(p.protocolo)}">Responder</button>`
+                    : `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Abrir</button>`,
+            ]),
+            filtros: [{ chave: 'tipo', rotulo: 'Tipo', valor: (p) => p.tipo, opcoes: Object.entries(TIPOS_PEDIDO) },
+                { chave: 'status', rotulo: 'Status', valor: (p) => p.status, opcoes: Object.entries(STATUS_PEDIDO) }],
+            vazio: { titulo: 'Nenhum pedido de titular registrado.', dica: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', acao: novo('abrirNovoPedidoTitular', 'Registrar pedido') },
+        });
     } else if (aba === 'incidentes') {
-        const l = doFiltro;
-        corpo = window.renderDataTable(['Protocolo', 'Incidente', 'Ciência', 'Risco', 'ANPD', 'Titular', 'Status', 'Ações'], l.map((i) => [
-            `<strong>${escapeHTML(i.protocolo)}</strong>`, escapeHTML(i.titulo), escapeHTML(dia(i.ciencia_em)), escapeHTML(RISCOS[i.risco_titular] || 'Não avaliado'),
-            selo(i.situacao_anpd), selo(i.situacao_titular), escapeHTML(STATUS_INCIDENTE[i.status] || i.status),
-            `<button class="btn btn-ghost btn-sm" data-action="abrirIncidente" data-args='${args(proj.id, i.id)}'>Abrir</button>`,
-        ]), { emptyState: 'Nenhum incidente registrado.', emptyHint: soIncidentes() ? '' : 'LGPD, art. 48. Registre o incidente com a data da ciência: é dela que contam os prazos de comunicação.', emptyAction: novo('abrirNovoIncidente', 'Registrar incidente'), ...(filtrado ? vazioFiltrado : {}) });
+        corpo = '<div id="in-lista"></div>';
+        montar = () => montarLista(el('in-lista'), {
+            id: 'in',
+            linhas: incidentes,
+            filtroPainel,
+            colunas: colunasDe(['Protocolo', 'Incidente', 'Ciência', 'Risco', 'ANPD', 'Titular', 'Status', 'Ações'], (i) => [
+                `<strong>${escapeHTML(i.protocolo)}</strong>`, escapeHTML(i.titulo), escapeHTML(dia(i.ciencia_em)), escapeHTML(RISCOS[i.risco_titular] || 'Não avaliado'),
+                selo(i.situacao_anpd), selo(i.situacao_titular), escapeHTML(STATUS_INCIDENTE[i.status] || i.status),
+                `<button class="btn btn-ghost btn-sm" data-action="abrirIncidente" data-args='${args(proj.id, i.id)}'>Abrir</button>`,
+            ]),
+            vazio: { titulo: 'Nenhum incidente registrado.', dica: soIncidentes() ? '' : 'LGPD, art. 48. Registre o incidente com a data da ciência: é dela que contam os prazos de comunicação.', acao: novo('abrirNovoIncidente', 'Registrar incidente') },
+        });
     } else if (aba === 'consentimentos') {
         c.innerHTML = `${abas}<p class="co-carregando" role="status">Carregando os consentimentos…</p>`;
         let l; try { l = await carregarConsentimentos(proj.id); } catch (e) { console.error(e); return falhou('Não foi possível carregar os consentimentos.'); }
@@ -124,27 +150,9 @@ async function renderTitular(c, h, a) {
                 ehAdmin() ? `<button class="btn btn-ghost btn-sm" data-action="editarParametroLegal" data-args='${args(p.chave, p.descricao, p.valor ?? '', p.unidade || 'dias_corridos', p.fonte || '', p.revisado_em || '', p.revisado_por || '', !!p.definido)}'>${p.definido ? 'Editar' : 'Definir'}</button>` : '',
             ]), { emptyState: 'Sem parâmetros.' });
     }
-    c.innerHTML = abas + aviso + chip + corpo;
+    c.innerHTML = abas + aviso + corpo;
+    if (montar) montar();
 }
-
-let listaPedidos = null;
-/** `filtrar` falso no primeiro desenho: os selects ainda são os da tela anterior. */
-function tabelaPedidos(filtrar = true) {
-    const { l, projectId, registrar, responderPrimeiro, vazio } = listaPedidos;
-    const tipo = filtrar && el('pt-filtro-tipo') ? el('pt-filtro-tipo').value : '';
-    const status = filtrar && el('pt-filtro-status') ? el('pt-filtro-status').value : '';
-    const itens = l.filter((p) => (!tipo || p.tipo === tipo) && (!status || p.status === status));
-    return window.renderDataTable(['Protocolo', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações'], itens.map((p) => [
-        `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(CANAIS[p.canal] || p.canal || '—'), escapeHTML(dia(p.recebido_em)),
-        escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'), escapeHTML(dia(p.respondido_em)),
-        selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
-        // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
-        registrar && p.situacao_prazo === 'atrasado'
-            ? `<button class="btn${p === responderPrimeiro ? ' btn-primary' : ''} btn-sm" data-action="abrirPedidoTitular" data-args='${args(projectId, p.id)}' aria-label="Responder: ${escapeHTML(p.protocolo)}">Responder</button>`
-            : `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(projectId, p.id)}'>Abrir</button>`,
-    ]), tipo || status ? { emptyState: 'Nenhum pedido com estes filtros.', emptyHint: 'Limpe os filtros para ver todos.' } : vazio);
-}
-window.filtrarPedidosTitular = function () { if (listaPedidos && el('pt-lista')) el('pt-lista').innerHTML = tabelaPedidos(); };
 
 window.abrirIncidentesIso = function () { S.titularAba = 'incidentes'; navigate('titular'); };
 
@@ -283,7 +291,7 @@ const diaMes = (s) => (s ? `${String(s).slice(8, 10)}/${String(s).slice(5, 7)}` 
 // Dias úteis (seg. a sex.) depois de hoje até o prazo, inclusive. ponytail: sem feriados; a contagem oficial é a do servidor.
 function diasUteisAte(prazo) {
     const fim = new Date(`${String(prazo).slice(0, 10)}T00:00:00Z`);
-    const d = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+    const d = new Date(`${hojeSP()}T00:00:00Z`);
     let n = 0;
     while (d < fim) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() % 6 !== 0) n++; }
     return n;
@@ -298,7 +306,7 @@ function faixaAnpd(i) {
     if (i.status === 'encerrado' || i.risco_titular === 'sem_risco') return '';
     if (!i.prazo_anpd_em) return faixa('var(--warning)', 'Prazo da ANPD não calculado: cadastre os prazos legais.');
     // A data do prazo também decide (o servidor pode ainda dizer "no_prazo" no dia): nunca "faltam 0 dias úteis".
-    const hoje = new Date().toISOString().slice(0, 10), prazo = String(i.prazo_anpd_em).slice(0, 10);
+    const hoje = hojeSP(), prazo = String(i.prazo_anpd_em).slice(0, 10);
     if (i.situacao_anpd === 'atrasado' || prazo < hoje) return faixa('var(--danger)', `Comunicação à ANPD atrasada: o prazo era ${diaMes(i.prazo_anpd_em)}.`);
     if (i.situacao_anpd === 'vence_hoje' || prazo === hoje) return faixa('var(--danger)', `Comunicar à ANPD até hoje, ${diaMes(i.prazo_anpd_em)}.`);
     const n = diasUteisAte(i.prazo_anpd_em);
