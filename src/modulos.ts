@@ -40,7 +40,11 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
 };
 
 /** Sub-rotas de um segmento do n.privacy que são do núcleo. DPA é dado comum: o n.iso liga o documento sem ter o n.privacy (decisão de 20/10/2026). */
-const SUBROTAS_NUCLEO: RegExp[] = [/^terceiros\/[^/]+\/documentos(\/[^/]+)?$/];
+const SUBROTAS_NUCLEO: RegExp[] = [
+  /^terceiros\/[^/]+\/documentos(\/[^/]+)?$/,
+  // Validade da evidência (spec 3C, C4): o n.iso define sem o n.privacy; ligar requisito segue privacy.
+  /^evidence\/[^/]+\/validade$/,
+];
 
 /** Sub-rotas de um segmento do núcleo que são do n.iso (a exportação de riscos lê a matriz ISO; as outras exportações seguem no núcleo). */
 const SUBROTAS_ISO: RegExp[] = [/^export\/risks$/];
@@ -56,7 +60,7 @@ const SUBROTAS_PRIVACY: RegExp[] = [
   /^ropa\/[^/]+\/lia\/docx$/,
   /^incidentes\/[^/]+\/rascunho-comunicacao$/,
   /^documentos\/[^/]+\/requisitos$/,
-  /^evidence\/[^/]+\/(requisitos|validade)$/,
+  /^evidence\/[^/]+\/requisitos$/,
   // Ficha em abas (spec 2026-10-16): o registro segue no núcleo; a camada nova é do n.privacy.
   /^ropa\/[^/]+\/(ficha|escopo|agentes|base-juridica|logs|conferencia|situacao|relatorio)$/,
   /^ropa\/[^/]+\/(medidas|gaps|etapas)(\/.*)?$/,

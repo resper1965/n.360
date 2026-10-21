@@ -1545,6 +1545,10 @@ import { classeDoControle } from '../classe-controle.js';
         const isOrgUser = S.user && S.user.role === 'org_user';
         const comPrivacy = temProduto(proj, 'privacy');
 
+        const validade = e => !e.valido_ate ? 'sem' : String(e.valido_ate).slice(0, 10) < hojeSP() ? 'vencida' : 'em_dia';
+        const validadeCelula = e => !e.valido_ate ? '<span class="t-dim">Sem validade</span>'
+            : `${formatarData(e.valido_ate)}${validade(e) === 'vencida' ? ` ${window.renderStatusBadge('Vencida', 'danger')}` : ''}`;
+
         const celulas = e => {
                 const fileName = e.file_name || e.filename || 'Evidência sem nome';
                 const fileHash = e.file_hash || e.sha256_hash || '';
@@ -1578,6 +1582,8 @@ import { classeDoControle } from '../classe-controle.js';
                     { rotulo: 'Baixar', action: 'downloadEvidenceFile', args: [e.id] },
                     !isOrgUser && { rotulo: 'Avaliar com IA', action: 'evaluateEvidenceAI', args: [e.id] },
                     comPrivacy && { rotulo: 'Requisitos e validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id] },
+                    // Sem o n.privacy, o mesmo modal só com a validade (rota do núcleo), para quem edita evidência.
+                    !comPrivacy && !isOrgUser && { rotulo: 'Definir validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id, { valido_ate: e.valido_ate || null }] },
                 ].filter(Boolean);
                 const [proxima, ...demais] = acoes;
                 const acoesDaLinha = `<div class="acoes-linha"><button class="btn btn-ghost btn-sm" data-action="${proxima.action}" data-args='${escapeHTML(JSON.stringify(proxima.args))}' aria-label="${escapeHTML(`${proxima.rotulo}: ${fileName}`)}">${proxima.rotulo}</button>${window.renderMaisAcoes(demais, { nome: fileName })}</div>`;
@@ -1590,6 +1596,7 @@ import { classeDoControle } from '../classe-controle.js';
                     dpoBadge,
                     ceoBadge,
                     avaliacaoBadge,
+                    validadeCelula(e),
                     acoesDaLinha
                 ];
         };
@@ -1598,11 +1605,10 @@ import { classeDoControle } from '../classe-controle.js';
             ${statsHtml}
             <div id="evidencias-lista"></div>
         `;
-        const validade = e => !e.valido_ate ? 'sem' : String(e.valido_ate).slice(0, 10) < hojeSP() ? 'vencida' : 'em_dia';
         montarLista(c.querySelector('#evidencias-lista'), {
             id: 'evidencias',
             linhas: evidence,
-            colunas: colunasDe(['Arquivo Evidência', 'Controle', 'Tamanho', 'Hash (SHA-256)', 'Revisão Líder SGSI', 'Assinatura CEO', 'Avaliação', 'Ações'], celulas),
+            colunas: colunasDe(['Arquivo Evidência', 'Controle', 'Tamanho', 'Hash (SHA-256)', 'Revisão Líder SGSI', 'Assinatura CEO', 'Avaliação', 'Validade', 'Ações'], celulas),
             busca: e => `${e.file_name || e.filename || ''} ${e.control_id ? (tituloDoControle[e.control_id] || e.control_id) : ''}`,
             filtros: [
                 { chave: 'avaliacao', rotulo: 'Avaliação', valor: e => e.evaluation_status || 'pending' },
@@ -2466,23 +2472,26 @@ window.renderEvidence = renderEvidence;
 window.openEvidenceUploadModal = openEvidenceUploadModal;
 
 // Requisitos (n.privacy) e validade de uma evidência; mesmo modelo da seção de requisitos do documento.
-window.abrirRequisitosEvidencia = async function (projectId, evidenceId) {
+// `soValidade` ({ valido_ate }) vem do n.iso sem o n.privacy: o modal abre só com a validade, sem ler os requisitos (faixa privacy).
+window.abrirRequisitosEvidencia = async function (projectId, evidenceId, soValidade = null) {
     const lista = (r) => (Array.isArray(r) ? r : []);
-    let ev = { requisitos: [], valido_ate: null }, catalogo = [];
-    try { ev = await api('GET', `/api/v1/projects/${projectId}/evidence/${evidenceId}/requisitos`); } catch (e) { showToast((e && e.message) || 'Não foi possível abrir os requisitos da evidência', 'error'); return; }
-    try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ }
+    let ev = { requisitos: [], valido_ate: soValidade ? soValidade.valido_ate : null }, catalogo = [];
+    if (!soValidade) {
+        try { ev = await api('GET', `/api/v1/projects/${projectId}/evidence/${evidenceId}/requisitos`); } catch (e) { showToast((e && e.message) || 'Não foi possível abrir os requisitos da evidência', 'error'); return; }
+        try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ }
+    }
     const ligados = lista(ev.requisitos);
     S.evRequisitos = ligados.map((r) => r.id);
     const args = (...v) => escapeHTML(JSON.stringify(v));
     openModal(`
-        <div class="modal-header"><span class="modal-title">Requisitos e validade</span></div>
-        <div id="ev-requisitos">
+        <div class="modal-header"><span class="modal-title">${soValidade ? 'Validade da evidência' : 'Requisitos e validade'}</span></div>
+        ${soValidade ? '' : `<div id="ev-requisitos">
             ${ligados.length ? ligados.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoEvidencia" data-args='${args(projectId, evidenceId, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">\u00d7</button></span>`).join(' ')
                 : window.renderEmptyState({ titulo: 'Nenhum requisito ligado a esta evidência.', compacto: true })}
             <div class="form-group mt-3"><select class="form-input" id="ev-req-add"><option value="">Escolha um requisito</option>${catalogo.filter((r) => !S.evRequisitos.includes(r.id))
                 .map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} — ${escapeHTML(r.titulo)}</option>`).join('')}</select></div>
             <button class="btn btn-sm" data-action="salvarRequisitosEvidencia" data-args='${args(projectId, evidenceId)}'>Ligar</button>
-        </div>
+        </div>`}
         <div class="form-group mt-5">
             <label class="form-label" for="ev-valido-ate">Válida até</label>
             <input type="date" class="form-input" id="ev-valido-ate" value="${escapeHTML(ev.valido_ate || '')}">
@@ -2513,6 +2522,7 @@ window.salvarValidadeEvidencia = async function (projectId, evidenceId) {
     try {
         await api('PUT', `/api/v1/projects/${projectId}/evidence/${evidenceId}/validade`, { valido_ate });
         showToast('Validade salva.', 'success');
+        await recarregaEvidencias(); // a coluna Validade da lista acompanha
     } catch (e) { showToast((e && e.message) || 'Não foi possível salvar a validade', 'error'); }
 };
 window.doEvidenceUpload = doEvidenceUpload;
