@@ -52,11 +52,6 @@ function desenhar(foco) {
     const aberto = dpias[0];
     const respondidas = perguntas.filter((q) => q.resposta).length;
     I.painel.innerHTML = `<div class="at-impacto">
-        <div class="at-acoes">
-            <button type="button" role="switch" id="at-imp-final" class="btn btn-sm" aria-checked="${finalizado}" aria-label="Teste de impacto finalizado" ${ctx.editavel ? 'data-action="atImpFinalizar"' : 'disabled'}>${finalizado ? 'Finalizado. Reabrir o teste' : 'Marcar o teste como finalizado'}</button>
-            <span class="t-dim">${finalizado ? `Finalizado em ${escapeHTML(formatarData(imp.finalizado_em))}.` : `${respondidas} de ${perguntas.length} respondidas.`}</span>
-            ${finalizado && ctx.editavel ? '<button type="button" class="btn btn-sm" data-action="atImpFinalizar">Reabrir o teste</button>' : ''}</div>
-        <p class="re-erro" id="at-imp-erro" role="alert"></p>
         ${alto ? `<fieldset class="at-grupo"><legend class="at-grupo-titulo">A atividade pode gerar alto risco ao titular de dados?</legend>
             <label class="re-opcao" for="at-imp-alto"><input type="checkbox" id="at-imp-alto" ${alto.resposta === 'sim' ? 'checked' : ''} ${pode ? 'data-action-change="atImpAlto" data-arg-el' : 'disabled'}>
                 <span class="re-opcao-texto">Sim, há alto risco para o titular.</span></label>
@@ -68,6 +63,10 @@ function desenhar(foco) {
             <div class="at-acoes">${aberto
                 ? `<button type="button" class="btn btn-sm" data-action="atAbrirRipd" data-args='${args(ctx.projectId, aberto.id)}'>Abrir o RIPD</button>`
                 : (ctx.editavel ? '<button type="button" class="btn btn-sm" data-action="atImpCriarRipd">Criar o RIPD a partir da atividade</button>' : '')}</div></section>
+        <section class="d-flex flex-col gap-2" aria-labelledby="at-imp-fim-t"><h3 class="at-sub" id="at-imp-fim-t">Validar o teste de impacto</h3>
+            <p class="at-nota">${finalizado ? `Finalizado em ${escapeHTML(formatarData(imp.finalizado_em))}. Para mudar uma resposta, reabra o teste.` : `${respondidas} de ${perguntas.length} respondidas. Com todas respondidas, finalize o teste para registrar a validação.`}</p>
+            <p class="re-erro" id="at-imp-erro" role="alert"></p>
+            <div class="at-acoes"><button type="button" role="switch" id="at-imp-final" class="btn btn-sm" aria-checked="${finalizado}" aria-label="Teste de impacto finalizado" ${ctx.editavel ? 'data-action="atImpFinalizar"' : 'disabled'}>${finalizado ? 'Reabrir o teste' : 'Finalizar o teste de impacto'}</button></div></section>
     </div>`;
     if (foco && el(foco)) el(foco).focus();
 }

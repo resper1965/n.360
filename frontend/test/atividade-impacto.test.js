@@ -138,7 +138,9 @@ describe('aba Teste de Impacto', () => {
         expect(sw.getAttribute('role')).toBe('switch');
         expect(sw.getAttribute('aria-checked')).toBe('false');
         // o rótulo diz a ação; o nome acessível e o aria-checked dizem o estado
-        expect(sw.textContent).toBe('Marcar o teste como finalizado');
+        expect(sw.textContent).toBe('Finalizar o teste de impacto');
+        // a validação fica no fim da aba, depois da recomendação de RIPD
+        expect(el('at-recomendacao').compareDocumentPosition(sw) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(sw.getAttribute('aria-label')).toBe('Teste de impacto finalizado');
         sw.click();
         await esperar(() => puts.length === 1);
@@ -155,7 +157,9 @@ describe('aba Teste de Impacto', () => {
         expect(el('at-imp-final').getAttribute('aria-checked')).toBe('true');
         expect(painel.textContent).toContain('Finalizado em 16/10/2026');
         expect([...painel.querySelectorAll('input')].every((i) => i.disabled)).toBe(true);
-        const reabrir = [...painel.querySelectorAll('button')].find((b) => b.textContent === 'Reabrir o teste');
+        expect([...painel.querySelectorAll('button')].filter((b) => b.textContent === 'Reabrir o teste')).toHaveLength(1);
+        const reabrir = el('at-imp-final');
+        expect(reabrir.textContent).toBe('Reabrir o teste');
         reabrir.click();
         await esperar(() => puts.length === 1);
         expect(puts[0]).toEqual({ respostas: {}, finalizar: false });
@@ -189,7 +193,7 @@ describe('aba Teste de Impacto', () => {
         const { painel } = await abrir(imp, { editavel: false });
         expect([...painel.querySelectorAll('input')].every((i) => i.disabled)).toBe(true);
         expect(el('at-imp-final').disabled).toBe(true);
-        expect([...painel.querySelectorAll('button')].map((b) => b.textContent).filter((t) => t !== 'Marcar o teste como finalizado')).toEqual([]);
+        expect([...painel.querySelectorAll('button')].map((b) => b.textContent).filter((t) => t !== 'Finalizar o teste de impacto')).toEqual([]);
         expect(painel.textContent).toContain('A atividade já indica: Sim.');
     });
 
