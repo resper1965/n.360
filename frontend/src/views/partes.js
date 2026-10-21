@@ -23,7 +23,7 @@ const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const lista = (r) => (Array.isArray(r) ? r : []);
 
 // No n.privacy a tela é Pessoas (Cadastros: Pessoas, Áreas, Sistemas, Fornecedores): só partes do tipo pessoa, sem a tabela de
-// departamentos (Áreas, views/areas.js); as organizações ficam em Fornecedores. No n.iso, partes dos dois tipos e departamentos.
+// departamentos (Áreas, views/areas.js); as organizações ficam em Fornecedores. No n.iso, partes dos dois tipos; as áreas têm tela própria.
 async function renderPartes(c, h, a) {
     const privacy = produtoAtual() === 'privacy';
     h.textContent = tituloDaTela('nav-partes', privacy ? 'Pessoas' : 'Partes');
@@ -36,30 +36,26 @@ async function renderPartes(c, h, a) {
     const editar = podeEditar();
     // Uma ação primária; as secundárias no menu "Mais ações" (renderMaisAcoes), para o header não virar uma fila de 5 botões.
     const args = [proj.id];
-    a.innerHTML = editar
+    const linkAreas = privacy ? '' : `<button class="btn btn-secondary" data-action="navigate" data-args='["areas"]'>Áreas</button>`;
+    a.innerHTML = linkAreas + (editar
         ? `${window.renderMaisAcoes([
             { rotulo: 'Importar do projeto', action: 'importarPartes', args },
             { rotulo: 'Conciliar responsáveis', action: 'conciliarPartes', args },
             { rotulo: 'Padronizar nomes', action: 'abrirPadronizarNomes', args },
-            ...(privacy ? [] : [{ rotulo: '+ Departamento', action: 'openNovoDepartamentoModal', args }]),
         ])}
            <button class="btn btn-primary" data-action="openNovaParteModal" data-args='["${proj.id}"]'>${privacy ? '+ Nova pessoa' : '+ Nova parte'}</button>`
-        : '';
+        : '');
 
     let partes = [];
-    let departamentos = [];
     try {
         partes = lista(await api('GET', `/api/v1/projects/${proj.id}/partes`));
-        if (!privacy) departamentos = lista(await api('GET', `/api/v1/projects/${proj.id}/departamentos`));
-    } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as partes e os departamentos.', e); return; }
+    } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as partes.', e); return; }
     S.partes = partes;
     if (privacy) partes = partes.filter(p => p.tipo === 'pessoa');
 
     c.innerHTML = privacy ? '<div id="partes-lista"></div>' : `
         <h3 class="mb-3">Partes</h3>
-        <div id="partes-lista"></div>
-        <h3 class="mt-6 mb-3">Departamentos</h3>
-        <div id="departamentos-lista"></div>`;
+        <div id="partes-lista"></div>`;
     montarLista(c.querySelector('#partes-lista'), {
         id: 'partes',
         linhas: partes,
@@ -78,17 +74,6 @@ async function renderPartes(c, h, a) {
         vazio: { titulo: privacy
             ? 'Nenhuma pessoa cadastrada. Cadastre o encarregado e quem responde pelos tratamentos, ou traga quem já está no projeto.'
             : 'Nenhuma parte cadastrada. Use "Importar do projeto" para trazer governança e partes interessadas.' },
-    });
-    if (privacy) return;
-    montarLista(c.querySelector('#departamentos-lista'), {
-        id: 'departamentos',
-        linhas: departamentos,
-        colunas: colunasDe(['Departamento', 'Situação'], d => [
-            `<strong>${escapeHTML(d.nome)}</strong>`,
-            window.renderStatusBadge(d.status === 'ativo' ? 'Ativo' : 'Inativo', d.status === 'ativo' ? 'success' : 'info'),
-        ]),
-        busca: d => d.nome,
-        vazio: { titulo: 'Nenhum departamento cadastrado.' },
     });
 }
 
@@ -150,24 +135,6 @@ window.salvarParte = async function (projectId, id) {
         window.forceCloseModal();
         window.render();
     } catch (e) { falha(e, 'Não foi possível salvar a parte'); }
-};
-
-window.openNovoDepartamentoModal = function (projectId) {
-    openModal(`
-        <div class="modal-header"><span class="modal-title">Novo departamento</span></div>
-        <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="depto-nome" maxlength="200"></div>
-        <button class="btn btn-primary" style="width:100%" data-action="criarDepartamento" data-args='["${projectId}"]'>Cadastrar</button>
-    `);
-};
-
-window.criarDepartamento = async function (projectId) {
-    const nome = document.getElementById('depto-nome').value.trim();
-    if (!nome) return;
-    try {
-        await api('POST', `/api/v1/projects/${projectId}/departamentos`, { nome });
-        window.forceCloseModal();
-        window.render();
-    } catch (e) { falha(e, 'Não foi possível cadastrar o departamento'); }
 };
 
 window.importarPartes = async function (projectId) {

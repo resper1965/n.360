@@ -60,7 +60,7 @@ const ESTRUTURA_ISO = [
     '[Implementação] false',
     'group-impl: nav-project=Jornada, nav-certification=Prontidão, nav-monitor=Monitor, nav-soa=SoA, nav-governance=Governança',
     '[Operacional] false',
-    'group-ops: nav-stakeholders=Partes interessadas, nav-context=Contexto, nav-assets=Ativos, nav-risks=Riscos, nav-vendors=Fornecedores, nav-partes=Partes, nav-documentos=Políticas e normas, nav-training=Treinamento, nav-acknowledgments=Ciência de políticas, nav-policies=Gestão de políticas, nav-audits=Auditorias, nav-capa=Ações corretivas, nav-incidentes=Incidentes, nav-mgmt=Análise crítica, nav-evidence=Evidências',
+    'group-ops: nav-stakeholders=Partes interessadas, nav-context=Contexto, nav-assets=Ativos, nav-risks=Riscos, nav-vendors=Fornecedores, nav-partes=Partes, nav-areas=Áreas, nav-documentos=Políticas e normas, nav-training=Treinamento, nav-acknowledgments=Ciência de políticas, nav-policies=Gestão de políticas, nav-audits=Auditorias, nav-capa=Ações corretivas, nav-incidentes=Incidentes, nav-mgmt=Análise crítica, nav-evidence=Evidências',
     '[Privacidade] false',
     'group-privacy: nav-ropa=Tratamentos (RoPA), nav-dpia=RIPD',
     '[Inteligência] false',
@@ -151,7 +151,6 @@ describe('n.privacy: menu do legado (seções fixas, 19/10/2026)', () => {
         expect(visiveis()).not.toContain('nav-consentimentos');
         expect(visiveis()).not.toContain('nav-gaps');
         expect(visiveis()).not.toContain('nav-lia');
-        expect(visiveis()).not.toContain('nav-areas');
         expect(visiveis()).not.toContain('nav-sistemas');
     });
     it('rótulos de uma linha, nome do objeto antes da sigla; ids, rotas e ações não mudam', () => {

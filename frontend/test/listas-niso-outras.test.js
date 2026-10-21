@@ -113,7 +113,7 @@ describe('outras listas do n.iso', () => {
         expect(document.getElementById('c').textContent).toContain('Nada encontrado com a busca ou o filtro.');
     });
 
-    it('Partes: duas listas, partes com busca pelo e-mail e filtros, departamentos com busca', async () => {
+    it('Partes: partes com busca pelo e-mail e filtros', async () => {
         await tela('renderPartes');
         expect(contagem('partes')).toBe('2');
         digitar('#partes-busca', 'ana@');
@@ -122,8 +122,5 @@ describe('outras listas do n.iso', () => {
         expect(opcoes('#partes-f-tipo')).toEqual(['Todos', 'Organização', 'Pessoa']);
         escolher('#partes-f-situacao', 'inativa');
         expect(linhas('#partes-corpo')).toEqual([expect.stringContaining('Fornecedor Ficticio')]);
-        expect(contagem('departamentos')).toBe('2');
-        digitar('#departamentos-busca', 'juridico');
-        expect(linhas('#departamentos-corpo')).toEqual([expect.stringContaining('Jurídico')]);
     });
 });
