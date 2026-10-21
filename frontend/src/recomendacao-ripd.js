@@ -11,5 +11,10 @@ export function textoRecomendacao(impacto) {
         return `RIPD recomendado: ${(Array.isArray(rec.motivos) ? rec.motivos : []).map((m) => curto[m] || m).join('; ')}.`;
     }
     if (rec.resultado === 'dispensavel_a_confirmar') return 'RIPD dispensável pelo teste de impacto, a confirmar por uma pessoa.';
-    return 'Teste de impacto incompleto: a recomendação sai quando as perguntas estiverem respondidas.';
+    // Falta o que o servidor conta como falta: pergunta do teste (fora o alto risco, opcional) sem "Sim" nem "Não".
+    const faltam = (Array.isArray(impacto.perguntas) ? impacto.perguntas : [])
+        .filter((p) => p.grupo !== 'alto_risco' && p.resposta !== 'sim' && p.resposta !== 'nao').length;
+    return faltam
+        ? `Teste de impacto incompleto: falta responder "Sim" ou "Não" em ${faltam} ${faltam === 1 ? 'pergunta' : 'perguntas'} ("Não sei" conta como falta).`
+        : 'Teste de impacto incompleto.';
 }

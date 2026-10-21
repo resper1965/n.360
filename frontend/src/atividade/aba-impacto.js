@@ -52,10 +52,6 @@ function desenhar(foco) {
     const aberto = dpias[0];
     const respondidas = perguntas.filter((q) => q.resposta).length;
     I.painel.innerHTML = `<div class="at-impacto">
-        <div class="at-acoes">
-            <button type="button" role="switch" id="at-imp-final" class="btn btn-sm" aria-checked="${finalizado}" aria-label="Teste de impacto finalizado" ${ctx.editavel ? 'data-action="atImpFinalizar"' : 'disabled'}>${finalizado ? 'Finalizado. Reabrir o teste' : 'Marcar o teste como finalizado'}</button>
-            <span class="t-dim">${finalizado ? `Finalizado em ${escapeHTML(formatarData(imp.finalizado_em))}.` : `${respondidas} de ${perguntas.length} respondidas.`}</span>
-            ${finalizado && ctx.editavel ? '<button type="button" class="btn btn-sm" data-action="atImpFinalizar">Reabrir o teste</button>' : ''}</div>
         <p class="re-erro" id="at-imp-erro" role="alert"></p>
         ${alto ? `<fieldset class="at-grupo"><legend class="at-grupo-titulo">A atividade pode gerar alto risco ao titular de dados?</legend>
             <label class="re-opcao" for="at-imp-alto"><input type="checkbox" id="at-imp-alto" ${alto.resposta === 'sim' ? 'checked' : ''} ${pode ? 'data-action-change="atImpAlto" data-arg-el' : 'disabled'}>
@@ -64,22 +60,26 @@ function desenhar(foco) {
         ${grupo('geral', 'Critério Geral')}${grupo('especifico', 'Critério Específico')}
         <section class="d-flex flex-col gap-2" aria-labelledby="at-imp-rec-t"><h3 class="at-sub" id="at-imp-rec-t">Recomendação de RIPD</h3>
             <p class="at-recomendacao" id="at-recomendacao" role="status">${escapeHTML(textoRecomendacao(imp))}</p>
-            <p class="at-nota">Com ao menos um critério geral e um específico marcados "Sim", o sistema recomenda o RIPD. A decisão de exigir o RIPD continua de uma pessoa.</p>
+            <p class="at-nota">O sistema recomenda o RIPD com "Sim" no alto risco, ou com ao menos um critério geral e um específico em "Sim". Sem isso, com todas respondidas "Sim" ou "Não", o RIPD fica dispensável, a confirmar por uma pessoa. Exigir ou não o RIPD é sempre decisão de uma pessoa.</p>
             <div class="at-acoes">${aberto
                 ? `<button type="button" class="btn btn-sm" data-action="atAbrirRipd" data-args='${args(ctx.projectId, aberto.id)}'>Abrir o RIPD</button>`
                 : (ctx.editavel ? '<button type="button" class="btn btn-sm" data-action="atImpCriarRipd">Criar o RIPD a partir da atividade</button>' : '')}</div></section>
+        <section class="d-flex flex-col gap-2" aria-labelledby="at-imp-fim-t"><h3 class="at-sub" id="at-imp-fim-t">Validar o teste de impacto</h3>
+            <p class="at-nota">${finalizado ? `Finalizado em ${escapeHTML(formatarData(imp.finalizado_em))}. Para mudar uma resposta, reabra o teste.` : `${respondidas} de ${perguntas.length} respondidas. Com todas respondidas, finalize o teste para registrar a validação.`}</p>
+            <p class="re-erro" id="at-imp-erro-final" role="alert"></p>
+            <div class="at-acoes"><button type="button" role="switch" id="at-imp-final" class="btn btn-sm" aria-checked="${finalizado}" aria-label="Teste de impacto finalizado" ${ctx.editavel ? 'data-action="atImpFinalizar"' : 'disabled'}>${finalizado ? 'Reabrir o teste' : 'Finalizar o teste de impacto'}</button></div></section>
     </div>`;
     if (foco && el(foco)) el(foco).focus();
 }
 
 /** Grava o que veio, relê do servidor (a recomendação é dele) e devolve o foco ao controle de onde a pessoa veio. */
-async function gravar(corpo, foco) {
-    const erro = el('at-imp-erro');
+async function gravar(corpo, foco, erroId = 'at-imp-erro') {
+    const erro = el(erroId);
     if (erro) erro.textContent = '';
     try {
         await api('PUT', url(I.ctx, '/impacto'), corpo);
     } catch (e) {
-        const n = el('at-imp-erro');
+        const n = el(erroId);
         if (n) n.textContent = (e && e.message) || 'Não foi possível gravar o teste de impacto.';
         return false;
     }
@@ -92,7 +92,7 @@ async function gravar(corpo, foco) {
 // Rádio: a delegação manda (id, valor); o botão "Confirmar" da proposta manda (id, valor) de dois args.
 window.atImpResponder = (id, valor) => (I ? gravar({ respostas: { [id]: valor } }, `at-imp-${id}-${valor}`) : undefined);
 window.atImpAlto = (caixa) => gravar({ respostas: { alto_risco: caixa.checked ? 'sim' : 'nao' } }, 'at-imp-alto');
-window.atImpFinalizar = () => gravar({ respostas: {}, finalizar: !I.imp.finalizado_em }, 'at-imp-final');
+window.atImpFinalizar = () => gravar({ respostas: {}, finalizar: !I.imp.finalizado_em }, 'at-imp-final', 'at-imp-erro-final');
 
 // O RIPD nasce da atividade (herda o que já foi informado); 409 = já existia, e a aba passa a mostrar "Abrir o RIPD".
 window.atImpCriarRipd = async function () {
