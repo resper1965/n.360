@@ -57,7 +57,7 @@ export const baseJuridicaSchema = z.strictObject({
 export type BaseJuridicaCorpo = z.infer<typeof baseJuridicaSchema>;
 
 export const GAP_STATUS = ['Open', 'In Progress', 'Closed'] as const;
-const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD');
+export const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD');
 export const gapCriarSchema = z.strictObject({
   gap: texto(4000).min(1, 'O gap é obrigatório'),
   recomendacao: textoOuNulo(4000).optional(),

@@ -19,7 +19,7 @@ vendorsApp.put('/:id', async (c) => {
     const v = await validateBody(c, vendorUpdateSchema);
     if (!v.success) return v.response;
     const body = v.data as any;
-    const nome = String(body.name).trim();
+    const nome = normalizarNome(String(body.name));
     // DPA é o documento ligado (`SQL_TEM_DPA`): `dpa_signed` e `dpa_url` do corpo são ignorados, as colunas ficam como histórico
     const parte = await c.env.DB.prepare('SELECT parte_id FROM vendors WHERE id = ?').bind(id).first<{ parte_id: string | null }>();
     const ts = indiceDeConfianca(body, !!parte?.parte_id && await temDpa(c.env.DB, parte.parte_id));

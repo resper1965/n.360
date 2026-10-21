@@ -40,8 +40,8 @@ risks.post('/api/v1/projects/:projectId/risks', async (c) => {
     const aceite = carimboDeAceite(null, status, email);
 
     await c.env.DB.prepare(
-      `INSERT INTO risks (id, project_id, asset_id, asset, threat, vulnerability, impact, probability, risk_level, treatment, treatment_plan, control_id, owner, owner_parte_id, status, accepted_by, accepted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO risks (id, project_id, asset_id, asset, threat, vulnerability, impact, probability, risk_level, treatment, treatment_plan, control_id, owner, owner_parte_id, status, accepted_by, accepted_at, treatment_due_date, residual_impact, residual_probability, residual_level)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       id,
       projectId,
@@ -59,7 +59,11 @@ risks.post('/api/v1/projects/:projectId/risks', async (c) => {
       body.owner_parte_id || null,
       status,
       aceite?.accepted_by ?? null,
-      aceite?.accepted_at ?? null
+      aceite?.accepted_at ?? null,
+      body.treatment_due_date ?? null,
+      body.residual_impact ?? null,
+      body.residual_probability ?? null,
+      residualLevel(body.residual_impact ?? null, body.residual_probability ?? null)
     ).run();
 
     // Gravar no histórico de riscos (Cláusula 6.1.2)
@@ -94,7 +98,7 @@ risks.put('/api/v1/risks/:id', async (c) => {
 
     // PUT parcial: campo ausente mantém o valor gravado; null limpa onde a coluna aceita NULL.
     const atual = await c.env.DB.prepare(
-      'SELECT project_id, asset_id, asset, threat, vulnerability, impact, probability, treatment, treatment_plan, control_id, owner, owner_parte_id, status, accepted_by, accepted_at, ropa_id, residual_impact, residual_probability FROM risks WHERE id = ?'
+      'SELECT project_id, asset_id, asset, threat, vulnerability, impact, probability, treatment, treatment_plan, control_id, owner, owner_parte_id, status, accepted_by, accepted_at, ropa_id, residual_impact, residual_probability, treatment_due_date FROM risks WHERE id = ?'
     ).bind(id).first<Record<string, any>>();
     if (!atual) return c.json({ error: 'Risco não encontrado' }, 404);
     const projectId = atual.project_id;
@@ -119,7 +123,7 @@ risks.put('/api/v1/risks/:id', async (c) => {
     const aceite = carimboDeAceite(atual.status, status, email);
 
     await c.env.DB.prepare(
-      `UPDATE risks SET asset_id=?, asset=?, threat=?, vulnerability=?, impact=?, probability=?, risk_level=?, treatment=?, treatment_plan=?, control_id=?, owner=?, owner_parte_id=?, status=?, accepted_by=?, accepted_at=?, aceite_manual=CASE WHEN ? THEN 0 ELSE aceite_manual END, ropa_id=?, residual_impact=?, residual_probability=?, residual_level=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
+      `UPDATE risks SET asset_id=?, asset=?, threat=?, vulnerability=?, impact=?, probability=?, risk_level=?, treatment=?, treatment_plan=?, control_id=?, owner=?, owner_parte_id=?, status=?, accepted_by=?, accepted_at=?, aceite_manual=CASE WHEN ? THEN 0 ELSE aceite_manual END, ropa_id=?, residual_impact=?, residual_probability=?, residual_level=?, treatment_due_date=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
     ).bind(
       anulavel('asset_id', true),
       obrigatoria('asset'),
@@ -141,6 +145,7 @@ risks.put('/api/v1/risks/:id', async (c) => {
       residualImpact,
       residualProbability,
       residualLevel(residualImpact, residualProbability),
+      anulavel('treatment_due_date', true),
       id
     ).run();
 

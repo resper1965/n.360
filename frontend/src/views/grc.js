@@ -252,6 +252,17 @@ window.__grcCloseExecAudit = function (id) {
         }
     };
 
+    // Risco residual (1 a 5, vazio = sem avaliação) e prazo de tratamento; o nível residual é calculado pelo servidor.
+    function camposResiduais(pre, r = {}) {
+        const sel = (id, rotulo, v) => `<div class="form-group flex-1"><label class="form-label" for="${pre}-${id}">${rotulo}</label><select class="form-input" id="${pre}-${id}"><option value="">Sem avaliação</option>${[1, 2, 3, 4, 5].map((n) => `<option value="${n}" ${n === Number(v) ? 'selected' : ''}>${n}</option>`).join('')}</select></div>`;
+        return `<div class="d-flex gap-2">${sel('res-impact', 'Impacto residual', r.residual_impact)}${sel('res-prob', 'Probabilidade residual', r.residual_probability)}</div>
+            <div class="form-group"><label class="form-label" for="${pre}-due">Prazo de tratamento</label><input class="form-input" id="${pre}-due" type="date" value="${escapeHTML(r.treatment_due_date || '')}"></div>`;
+    }
+    function lerResiduais(pre) {
+        const n = (id) => { const v = document.getElementById(`${pre}-${id}`).value; return v ? +v : null; };
+        return { residual_impact: n('res-impact'), residual_probability: n('res-prob'), treatment_due_date: document.getElementById(`${pre}-due`).value || null };
+    }
+
     window.openNewRiskModal = async function(projectId) {
         let assets = [];
         let controls = [];
@@ -307,6 +318,7 @@ window.__grcCloseExecAudit = function (id) {
             <div class="form-group"><label class="form-label">Responsável (cadastro de partes)</label><select class="form-input" id="risk-owner-parte">${parteOptions}</select></div>
             <div class="form-group"><label class="form-label">Responsável (texto livre)</label><input class="form-input" id="risk-owner" placeholder="Ex: CISO"></div>
             <div class="form-group"><label class="form-label">Plano de Tratamento</label><textarea class="form-input" id="risk-plan" rows="2" placeholder="Descreva as acoes..."></textarea></div>
+            ${camposResiduais('risk')}
             <button class="btn btn-primary w-full" data-action="createRisk" data-args='["${projectId}"]'>Registrar Risco</button>
         `);
     };
@@ -327,7 +339,8 @@ window.__grcCloseExecAudit = function (id) {
             control_id: document.getElementById('risk-control').value || null,
             owner: document.getElementById('risk-owner').value,
             owner_parte_id: document.getElementById('risk-owner-parte').value || null,
-            treatment_plan: document.getElementById('risk-plan').value
+            treatment_plan: document.getElementById('risk-plan').value,
+            ...lerResiduais('risk'),
         };
         if (!body.asset || !body.threat) return;
         await api('POST', `/api/v1/projects/${projectId}/risks`, body);
@@ -369,6 +382,7 @@ window.__grcCloseExecAudit = function (id) {
             </div>
             <div class="form-group"><label class="form-label">Responsável (cadastro de partes)</label><select class="form-input" id="risk-e-owner-parte">${parteOptions}</select></div>
             <div class="form-group"><label class="form-label">Responsável (texto livre)</label><input class="form-input" id="risk-e-owner" value="${escapeHTML(r.owner||'')}"></div>
+            ${camposResiduais('risk-e', r)}
             <div class="d-flex gap-2 justify-between mt-4">
                 <button class="btn t-perigo" data-action="__grcDeleteRisk" data-args='["${riskId}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateRisk" data-args='["${riskId}"]'>Salvar</button>
@@ -386,7 +400,8 @@ window.__grcCloseExecAudit = function (id) {
             treatment: document.getElementById('risk-e-treatment').value, 
             control_id: document.getElementById('risk-e-control').value || null,
             owner: document.getElementById('risk-e-owner').value,
-            owner_parte_id: document.getElementById('risk-e-owner-parte').value || null
+            owner_parte_id: document.getElementById('risk-e-owner-parte').value || null,
+            ...lerResiduais('risk-e'),
         };
         await api('PUT', `/api/v1/risks/${id}`, body);
         forceCloseModal(); render();
@@ -1343,6 +1358,13 @@ window.__grcCloseExecAudit = function (id) {
         `);
     };
 
+    // O formulário do n.iso exige responsável, como o gap; no servidor ele segue opcional (CAPA de incidente e importação nascem sem).
+    function semResponsavel(body) {
+        if (body.assigned_to_parte_id || String(body.assigned_to || '').trim()) return false;
+        showToast('Indique o responsável pela ação (cadastro de partes ou texto livre).', 'error');
+        return true;
+    }
+
     window.createCAPA = async function(projectId) {
         const body = { 
             title: document.getElementById('capa-title').value, 
@@ -1358,6 +1380,7 @@ window.__grcCloseExecAudit = function (id) {
             control_id: document.getElementById('capa-control').value || null
         };
         if (!body.title) return;
+        if (semResponsavel(body)) return;
         await api('POST', `/api/v1/projects/${projectId}/capa`, body);
         forceCloseModal(); render();
     };
@@ -1444,6 +1467,7 @@ window.__grcCloseExecAudit = function (id) {
             risk_id: document.getElementById('capa-e-risk').value || null,
             control_id: document.getElementById('capa-e-control').value || null
         };
+        if (semResponsavel(body)) return;
         await api('PUT', `/api/v1/capa/${id}`, body);
         forceCloseModal(); render();
     };
