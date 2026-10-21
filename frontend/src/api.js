@@ -141,13 +141,16 @@ async function baixarArquivo(p) {
 // Relatório HTML autenticado: busca com o cabeçalho da sessão e abre o blob. O token nunca vai na URL
 // (fica no histórico, no Referer e nos logs). Erro vira exceção com a mensagem para a tela.
 async function abrirRelatorio(p) {
+    // A aba abre antes do fetch: depois de um await o clique já não conta e o bloqueador de pop-up recusa a janela.
+    const aba = window.open('', '_blank');
+    if (!aba) throw new Error('O navegador bloqueou a nova janela. Permita pop-ups para este endereço.');
     let r;
     try { r = await fetch(API_BASE + p, { headers: cabecalhosAuth(), signal: AbortSignal.timeout(30000) }); }
-    catch (e) { throw new Error('Não foi possível gerar o relatório'); }
-    if (!r.ok) throw new Error(`Não foi possível gerar o relatório (erro ${r.status})`);
+    catch (e) { aba.close(); throw new Error('Não foi possível gerar o relatório'); }
+    if (!r.ok) { aba.close(); throw new Error(`Não foi possível gerar o relatório (erro ${r.status})`); }
     const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html;charset=utf-8' }));
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    if (!window.open(url, '_blank')) throw new Error('O navegador bloqueou a nova janela. Permita pop-ups para este endereço.');
+    aba.location.href = url;
 }
 
 export { api, baixarArquivo, abrirRelatorio };

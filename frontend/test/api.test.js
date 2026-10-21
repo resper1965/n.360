@@ -292,7 +292,8 @@ describe('abrirRelatorio()', () => {
     it('busca com o cabeçalho da sessão e abre o blob; o token nunca vai na URL', async () => {
         const f = vi.fn(async () => resposta('<html>relatório</html>', { contentType: 'text/html' }));
         vi.stubGlobal('fetch', f);
-        const abre = vi.fn(() => ({}));
+        const aba = { location: { href: '' }, close: vi.fn() };
+        const abre = vi.fn(() => aba);
         vi.stubGlobal('open', abre);
         URL.createObjectURL = vi.fn(() => 'blob:relatorio');
         URL.revokeObjectURL = vi.fn();
@@ -300,16 +301,28 @@ describe('abrirRelatorio()', () => {
         await abrirRelatorio('/api/v1/projects/p1/controls/A.5.1/policy/report');
         expect(f.mock.calls[0][0]).toBe(API_BASE + '/api/v1/projects/p1/controls/A.5.1/policy/report');
         expect(f.mock.calls[0][1].headers).toMatchObject({ Authorization: 'Bearer tok-sessao' });
-        expect(abre).toHaveBeenCalledWith('blob:relatorio', '_blank');
+        expect(abre).toHaveBeenCalledWith('', '_blank');
+        expect(aba.location.href).toBe('blob:relatorio');
+    });
+
+    it('a aba abre antes do fetch (ainda dentro do clique) e fecha se o relatório falha', async () => {
+        const ordem = [];
+        const aba = { location: { href: '' }, close: vi.fn() };
+        vi.stubGlobal('open', vi.fn(() => { ordem.push('open'); return aba; }));
+        vi.stubGlobal('fetch', vi.fn(async () => { ordem.push('fetch'); return resposta({ error: 'x' }, { status: 500 }); }));
+        await expect(abrirRelatorio('/r')).rejects.toThrow('erro 500');
+        expect(ordem).toEqual(['open', 'fetch']);
+        expect(aba.close).toHaveBeenCalled();
     });
 
     it('erro do servidor e pop-up bloqueado viram mensagem', async () => {
+        vi.stubGlobal('open', vi.fn(() => ({ location: {}, close: vi.fn() })));
         vi.stubGlobal('fetch', vi.fn(async () => resposta({ error: 'x' }, { status: 403 })));
         await expect(abrirRelatorio('/r')).rejects.toThrow('Não foi possível gerar o relatório (erro 403)');
-        vi.stubGlobal('fetch', vi.fn(async () => resposta('<html></html>', { contentType: 'text/html' })));
+        const f = vi.fn();
+        vi.stubGlobal('fetch', f);
         vi.stubGlobal('open', vi.fn(() => null));
-        URL.createObjectURL = vi.fn(() => 'blob:x');
-        URL.revokeObjectURL = vi.fn();
         await expect(abrirRelatorio('/r')).rejects.toThrow('bloqueou a nova janela');
+        expect(f).not.toHaveBeenCalled();
     });
 });
