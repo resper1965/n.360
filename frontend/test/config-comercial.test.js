@@ -101,7 +101,7 @@ describe('logo', () => {
     i.dispatchEvent(new Event('change', { bubbles: true }));
   };
   const posts = () => fetchMock.mock.calls.filter(([u, o = {}]) => String(u).endsWith('/api/v1/org/logo') && o.method === 'POST');
-  const semLogo = { get: () => json({ error: 'Organização sem logo' }, 404), post: () => json({ ok: true }) };
+  const semLogo = { get: () => json({ error: 'Consultoria sem logo' }, 404), post: () => json({ ok: true }) };
 
   it('mostra o logo atual (fetch com o token, Blob URL) e as regras', async () => {
     await montaLogo('consultoria_admin', { get: () => new Response(PNG, { headers: { 'content-type': 'image/png' } }) });
@@ -276,7 +276,7 @@ describe('identidade da organização (identidade-org)', () => {
     S.view = 'identidade-org';
     try {
       const c = await monta('consultoria_admin');
-      expect($('hdr').textContent).toBe('Identidade da organização');
+      expect($('hdr').textContent).toBe('Identidade da consultoria');
       expect([...c.querySelectorAll('h2')].map((h) => h.textContent)).toEqual(['Logo', 'Identidade']);
       for (const id of ['cfg-prefixoProposta', 'cfg-preco-diaria-1', 'cfg-textos-sobre', 'cfg-seloNiso']) expect($(id), id).toBeNull();
       digita('cfg-nome', 'Consultoria X');

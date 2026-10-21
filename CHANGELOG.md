@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Alterado (nome do tenant na tela, 21/10/2026; sem migration)
+- **"Organização" (o tenant: ness., Bekaa...) passa a se chamar "Consultoria" na tela**, nas mensagens de erro da API, no e-mail de boas-vindas e nos textos do agente MCP (tela "Consultorias", "Identidade da consultoria"); onde o texto falava da empresa cliente, virou "empresa". Sem mudança de dado, rota, coluna ou identificador; o vocabulário normativo (ISO/LGPD) e o tipo de parte "Organização" ficam como estavam.
+
 ### Alterado (Frente 4: ligações entre controle, governança, painel e Áreas, 21/10/2026; sem migration)
 - **Controle e atividade:** `GET /api/v1/controls/:id/atividades`; a tela de controles mostra "Usado em N atividades" e confirma antes de tirar o controle de implementado. O aviso de medida na aba Medidas da atividade foi corrigido.
 - **DPO e encarregado em sincronia nos dois sentidos** (governança e Partes); `GET /projects/:id/governance/encarregados-fora` e o botão "Adicionar ao comitê" no Monitor.

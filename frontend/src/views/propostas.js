@@ -101,7 +101,7 @@ function desenharLista() {
                 <button type="button" class="btn btn-primary" data-action="__prpNova">Nova proposta</button>
             </div>
             ${lista.length ? `<div class="prp-tabela-caixa"><table class="prp-tabela">
-                <caption class="prp-sr">Propostas da organização</caption>
+                <caption class="prp-sr">Propostas da consultoria</caption>
                 <thead><tr><th scope="col">Número</th><th scope="col">Cliente</th><th scope="col">Status</th><th scope="col">Projeto</th><th scope="col">Mensalidade</th><th scope="col"><span class="prp-sr">Ações</span></th></tr></thead>
                 <tbody>${linhas}</tbody>
             </table></div>` : '<div class="prp-estado"><p class="prp-nota">Nenhuma proposta ainda.</p></div>'}
@@ -251,7 +251,7 @@ function passoAjustes() {
 function passoCondicoes() {
     const provisorio = prop.numero
         ? `A revisão mantém o número ${prop.numero}.`
-        : 'Número provisório: a sugestão segue a sequência da organização e só é reservada ao gerar. Pode trocar por outro no formato PREFIXO-AAAA-NNN.';
+        : 'Número provisório: a sugestão segue a sequência da consultoria e só é reservada ao gerar. Pode trocar por outro no formato PREFIXO-AAAA-NNN.';
     return `<div class="prp-grade3">
             ${campo('numero', 'Número', numeroEscolhido, { ro: !!prop.numero, dica: provisorio })}
             ${campo('validade', 'Validade (dias)', prop.validade_dias, { tipo: 'number' })}
@@ -293,7 +293,7 @@ function bannerAprovacao() {
     return ehAdmin()
         ? `<div class="prp-aprovacao" role="status"><p>Desconto acima do teto de ${escapeHTML(teto())}%: a proposta aguarda a sua aprovação.</p>
             <button type="button" class="btn btn-primary" data-action="__prpAprovar">Aprovar desconto</button></div>`
-        : `<div class="prp-aprovacao" role="status"><p>Desconto acima do teto de ${escapeHTML(teto())}%: a proposta aguarda a aprovação do administrador da organização. Reduza o desconto ou espere a aprovação para gerar.</p></div>`;
+        : `<div class="prp-aprovacao" role="status"><p>Desconto acima do teto de ${escapeHTML(teto())}%: a proposta aguarda a aprovação do administrador da consultoria. Reduza o desconto ou espere a aprovação para gerar.</p></div>`;
 }
 
 function desenharAssistente() {

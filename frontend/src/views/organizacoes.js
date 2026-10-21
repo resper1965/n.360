@@ -69,7 +69,7 @@ function atualizarSeletorOrg() {
     if (S.orgAtuacao && !orgs.some((o) => o.id === S.orgAtuacao)) gravar(null);
     const atual = S.orgAtuacao || ORG_NESS;
     caixa.hidden = false;
-    caixa.innerHTML = `<label class="org-sel-rotulo" for="org-sel">Organização</label>
+    caixa.innerHTML = `<label class="org-sel-rotulo" for="org-sel">Consultoria</label>
         <select class="org-sel" id="org-sel" data-action-change="__orgEscolher" data-arg-val>
             ${orgs.map((o) => `<option value="${escapeHTML(o.id)}"${o.id === atual ? ' selected' : ''}>${escapeHTML(o.nome)}${o.status === 'Suspended' ? ' (suspensa)' : ''}</option>`).join('')}
         </select>`;
@@ -81,7 +81,7 @@ function desenharFaixa() {
     if (!faixa) return;
     if (!S.orgAtuacao) { faixa.innerHTML = ''; faixa.hidden = true; return; }
     faixa.hidden = false;
-    faixa.innerHTML = `<p class="org-faixa-texto">Atuando em <strong>${escapeHTML(nomeDe(S.orgAtuacao))}</strong>. O que você vê e grava nas telas da equipe é desta organização.</p>
+    faixa.innerHTML = `<p class="org-faixa-texto">Atuando em <strong>${escapeHTML(nomeDe(S.orgAtuacao))}</strong>. O que você vê e grava nas telas da equipe é desta consultoria.</p>
         <button type="button" class="btn btn-secondary" data-action="__orgVoltar">Voltar à ness.</button>`;
 }
 
@@ -96,9 +96,9 @@ window.__orgVoltar = () => window.__orgEscolher(ORG_NESS);
 // ——— lista ———
 function desenhar() {
     const { c, h, a } = ultimo;
-    h.textContent = 'Organizações';
+    h.textContent = 'Consultorias';
     a.innerHTML = `<button type="button" class="btn btn-ghost" data-action="__orgTransferir">Transferir projeto</button>
-        <button type="button" class="btn btn-primary" data-action="__orgNova">Nova organização</button>`;
+        <button type="button" class="btn btn-primary" data-action="__orgNova">Nova consultoria</button>`;
     const linhas = orgs.map((o) => {
         const id = escapeHTML(o.id);
         const susp = o.status === 'Suspended';
@@ -133,13 +133,13 @@ function desenhar() {
         </tr>`;
     }).join('');
     if (!orgs.length) {
-        c.innerHTML = window.renderEmptyState({ titulo: 'Nenhuma organização', texto: 'A ness. aparece aqui depois do primeiro acesso. Use "Nova organização" para cadastrar uma consultoria parceira.' });
+        c.innerHTML = window.renderEmptyState({ titulo: 'Nenhuma consultoria', texto: 'A ness. aparece aqui depois do primeiro acesso. Use "Nova consultoria" para cadastrar uma consultoria parceira.' });
         return;
     }
     c.innerHTML = `<div class="org fade-in">
         <div class="org-tabela-caixa"><table class="org-tabela">
-            <caption class="org-sr">Organizações da plataforma</caption>
-            <thead><tr><th scope="col">Organização</th><th scope="col">Plano</th><th scope="col">Projetos</th><th scope="col">Usuários</th><th scope="col">Situação</th><th scope="col">Termo de uso</th><th scope="col"><span class="org-sr">Ações</span></th></tr></thead>
+            <caption class="org-sr">Consultorias da plataforma</caption>
+            <thead><tr><th scope="col">Consultoria</th><th scope="col">Plano</th><th scope="col">Projetos</th><th scope="col">Usuários</th><th scope="col">Situação</th><th scope="col">Termo de uso</th><th scope="col"><span class="org-sr">Ações</span></th></tr></thead>
             <tbody>${linhas}</tbody>
         </table></div>
     </div>`;
@@ -149,7 +149,7 @@ async function renderOrganizacoes(c, h, a) {
     ultimo = { c, h, a };
     confirmando = null;
     if (!ehPlatformAdmin()) {
-        h.textContent = 'Organizações';
+        h.textContent = 'Consultorias';
         a.innerHTML = '';
         c.innerHTML = '<p class="org-nota" role="alert">Acesso restrito ao administrador da plataforma.</p>';
         return;
@@ -157,8 +157,8 @@ async function renderOrganizacoes(c, h, a) {
     try {
         await carregarOrgs(true);
     } catch (e) {
-        c.innerHTML = '<p class="org-nota" role="alert">Não foi possível carregar as organizações.</p>';
-        window.showToast(e.message || 'Erro ao carregar as organizações', 'error');
+        c.innerHTML = '<p class="org-nota" role="alert">Não foi possível carregar as consultorias.</p>';
+        window.showToast(e.message || 'Erro ao carregar as consultorias', 'error');
         return;
     }
     desenhar();
@@ -184,7 +184,7 @@ window.__orgConfirmarStatus = async () => {
     const { id, status } = confirmando;
     try {
         await api('PUT', `/api/v1/platform/orgs/${encodeURIComponent(id)}`, { status });
-        window.showToast(status === 'Suspended' ? 'Organização suspensa' : 'Organização reativada');
+        window.showToast(status === 'Suspended' ? 'Consultoria suspensa' : 'Consultoria reativada');
         confirmando = null;
         await carregarOrgs(true);
         desenhar();
@@ -228,17 +228,17 @@ function mostrarErros(pref, e) {
 
 window.__orgNova = () => {
     openModal(`<form class="org-form" id="org-n-form" data-action-submit="__orgCriar" data-arg-event data-prevent novalidate>
-        <h2 class="org-form-titulo">Nova organização</h2>
+        <h2 class="org-form-titulo">Nova consultoria</h2>
         <p class="org-nota">Cria a consultoria e o administrador dela. O administrador recebe por e-mail o convite com a senha provisória, que ele troca no primeiro acesso; a senha não aparece aqui.</p>
         <div class="org-grade2">
-            ${campo('org-n', 'nome', 'Nome da organização', '')}
+            ${campo('org-n', 'nome', 'Nome da consultoria', '')}
             ${campo('org-n', 'slug', 'Identificador (slug)', '', { dica: '3 a 40 letras minúsculas, números ou hífen. Vira o id org_<slug>.' })}
         </div>
         <div class="org-grade2">
             ${campo('org-n', 'prefixoProposta', 'Prefixo das propostas', '', { dica: '2 a 10 letras maiúsculas ou números, único na plataforma.' })}
             ${campo('org-n', 'cnpj', 'CNPJ (opcional)', '', { dica: '14 dígitos, só números.' })}
         </div>
-        <h3 class="org-sub">Administrador da organização</h3>
+        <h3 class="org-sub">Administrador da consultoria</h3>
         <div class="org-grade2">
             ${campo('org-n', 'adminNome', 'Nome', '')}
             ${campo('org-n', 'adminEmail', 'E-mail', '', { tipo: 'email' })}
@@ -252,7 +252,7 @@ window.__orgNova = () => {
         <p class="org-erro" id="org-n-erro" role="alert"></p>
         <div class="org-form-rodape">
             <button type="button" class="btn btn-secondary" data-action="forceCloseModal">Cancelar</button>
-            <button type="submit" class="btn btn-primary" id="org-n-criar">Criar organização</button>
+            <button type="submit" class="btn btn-primary" id="org-n-criar">Criar consultoria</button>
         </div>
     </form>`, 'modal-large');
     $('org-n-nome')?.focus();
@@ -280,10 +280,10 @@ window.__orgCriar = async () => {
     }
     // só os campos que a tela precisa: nada do corpo da resposta além disto chega ao DOM
     const aviso = r.emailEnviado === false
-        ? `<p class="org-aviso" role="alert">O convite para ${escapeHTML(r.adminEmail)} NÃO foi enviado: o e-mail falhou. Use "Reenviar convite" na linha da organização para tentar de novo.</p>`
+        ? `<p class="org-aviso" role="alert">O convite para ${escapeHTML(r.adminEmail)} NÃO foi enviado: o e-mail falhou. Use "Reenviar convite" na linha da consultoria para tentar de novo.</p>`
         : `<p class="org-nota" role="status">Convite enviado para ${escapeHTML(r.adminEmail)}. O administrador troca a senha provisória no primeiro acesso.</p>`;
     $('modal-content').innerHTML = `<div class="org-form org-resultado" id="org-n-resultado">
-        <h2 class="org-form-titulo">Organização criada</h2>
+        <h2 class="org-form-titulo">Consultoria criada</h2>
         <p class="org-nota">${escapeHTML(corpo.nome)} (${escapeHTML(r.id)}) está ativa.</p>
         ${aviso}
         <div class="org-form-rodape"><button type="button" class="btn btn-primary" data-action="forceCloseModal">Fechar</button></div>
@@ -298,7 +298,7 @@ window.__orgEditar = (id) => {
     if (!o) return;
     openModal(`<form class="org-form" id="org-e-form" data-action-submit="__orgSalvar" data-args='${escapeHTML(JSON.stringify([id]))}' data-prevent novalidate>
         <h2 class="org-form-titulo">Editar ${escapeHTML(o.nome)}</h2>
-        ${campo('org-e', 'nome', 'Nome da organização', o.nome)}
+        ${campo('org-e', 'nome', 'Nome da consultoria', o.nome)}
         <div class="org-grade2">
             ${campo('org-e', 'maxProjetos', `Máximo de projetos (em uso: ${o.projetos})`, o.maxProjetos, { tipo: 'number' })}
             ${campo('org-e', 'maxUsuarios', `Máximo de usuários (em uso: ${o.usuarios})`, o.maxUsuarios, { tipo: 'number' })}
@@ -332,7 +332,7 @@ window.__orgSalvar = async (id) => {
         return mostrarErros('org-e', e);
     }
     forceCloseModal();
-    window.showToast('Organização atualizada');
+    window.showToast('Consultoria atualizada');
     await carregarOrgs(true).catch(() => {});
     desenhar();
     atualizarSeletorOrg();
@@ -349,21 +349,21 @@ function formTransferencia() {
     const destinos = orgs.filter((o) => o.id !== t.origem && o.status !== 'Suspended');
     $('modal-content').innerHTML = `<form class="org-form" id="org-t-form" data-action-submit="__orgTRevisar" data-arg-event data-prevent novalidate>
         <h2 class="org-form-titulo">Transferir projeto</h2>
-        <p class="org-nota">Passa um projeto para outra organização, por exemplo quando o cliente contrata outra consultoria.</p>
+        <p class="org-nota">Passa um projeto para outra consultoria, por exemplo quando o cliente contrata outra consultoria.</p>
         <div class="form-group">
-            <label class="form-label" for="org-t-origem">Organização de origem</label>
-            <select class="form-input" id="org-t-origem" data-action-change="__orgTOrigem" data-arg-val aria-describedby="org-t-origem-erro">${opcoes(orgs.map((o) => [o.id, o.nome]), t.origem, 'Escolha a organização')}</select>
+            <label class="form-label" for="org-t-origem">Consultoria de origem</label>
+            <select class="form-input" id="org-t-origem" data-action-change="__orgTOrigem" data-arg-val aria-describedby="org-t-origem-erro">${opcoes(orgs.map((o) => [o.id, o.nome]), t.origem, 'Escolha a consultoria')}</select>
             <p class="org-erro" id="org-t-origem-erro" role="alert"></p>
         </div>
         <div class="form-group">
             <label class="form-label" for="org-t-projeto">Projeto</label>
-            <select class="form-input" id="org-t-projeto" aria-describedby="org-t-projeto-erro"${t.origem ? '' : ' disabled'}>${opcoes(doOrigem.map((p) => [p.id, nomeProjeto(p)]), t.projeto, t.origem && !doOrigem.length ? 'Nenhum projeto nesta organização' : 'Escolha o projeto')}</select>
+            <select class="form-input" id="org-t-projeto" aria-describedby="org-t-projeto-erro"${t.origem ? '' : ' disabled'}>${opcoes(doOrigem.map((p) => [p.id, nomeProjeto(p)]), t.projeto, t.origem && !doOrigem.length ? 'Nenhum projeto nesta consultoria' : 'Escolha o projeto')}</select>
             <p class="org-erro" id="org-t-projeto-erro" role="alert"></p>
         </div>
         <div class="form-group">
-            <label class="form-label" for="org-t-destino">Organização de destino</label>
+            <label class="form-label" for="org-t-destino">Consultoria de destino</label>
             <select class="form-input" id="org-t-destino" aria-describedby="org-t-destino-dica org-t-destino-erro"${t.origem ? '' : ' disabled'}>${opcoes(destinos.map((o) => [o.id, o.nome]), t.destino, 'Escolha o destino')}</select>
-            <p class="org-dica" id="org-t-destino-dica">Organizações suspensas não aparecem.</p>
+            <p class="org-dica" id="org-t-destino-dica">Consultorias suspensas não aparecem.</p>
             <p class="org-erro" id="org-t-destino-erro" role="alert"></p>
         </div>
         <div class="form-group">
@@ -412,9 +412,9 @@ window.__orgTRevisar = () => {
     lerTransferencia();
     const t = transf;
     const erros = [];
-    if (!t.origem) erros.push(['origem', 'Escolha a organização de origem.']);
+    if (!t.origem) erros.push(['origem', 'Escolha a consultoria de origem.']);
     if (!t.projeto) erros.push(['projeto', 'Escolha o projeto.']);
-    if (!t.destino) erros.push(['destino', 'Escolha a organização de destino.']);
+    if (!t.destino) erros.push(['destino', 'Escolha a consultoria de destino.']);
     const m = t.motivo.trim().length;
     if (m < 5 || m > 500) erros.push(['motivo', 'Motivo com 5 a 500 caracteres.']);
     if (erros.length) {
@@ -441,7 +441,7 @@ function desenharConfirmacao(erro) {
             <li>O projeto passa para ${destino}</li>
             <li>Os consultores de ${origem} perdem o acesso ao projeto na hora.</li>
             <li>Os agentes conectados ao projeto são desconectados.</li>
-            <li>Chaves de API, webhooks, SSO e SCIM do projeto são desativados: o administrador da organização de destino precisa reconfigurá-los.</li>
+            <li>Chaves de API, webhooks, SSO e SCIM do projeto são desativados: o administrador da consultoria de destino precisa reconfigurá-los.</li>
             <li>Propostas e contratos continuam com ${origemFim}</li>
             <li>Os usuários do cliente continuam entrando normalmente.</li>
         </ul>

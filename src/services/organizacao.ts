@@ -36,7 +36,7 @@ export function orgDoUsuario(
  */
 export const SESSAO_COM_ORG_DESDE = Date.parse('2026-10-03T00:00:00Z');
 
-export const SEM_ORG = { error: 'Organização não identificada' } as const;
+export const SEM_ORG = { error: 'Consultoria não identificada' } as const;
 
 /** `orgDoUsuario` da requisição, com o `X-Org-Id` do `platform_admin` conferido no banco; `null` = nega. */
 export async function resolverOrg(c: any): Promise<string | null> {
@@ -110,7 +110,7 @@ export async function equipeDeOrgSuspensa(db: D1Database, user: { role?: string 
   const r = await db.prepare('SELECT status FROM organizations WHERE id = ?').bind(org).first<{ status: string | null }>();
   return r?.status !== 'Active';
 }
-export const ORG_SUSPENSA = { error: 'Organização suspensa: o acesso da equipe está bloqueado. Fale com o administrador da plataforma.' } as const;
+export const ORG_SUSPENSA = { error: 'Consultoria suspensa: o acesso da equipe está bloqueado. Fale com o administrador da plataforma.' } as const;
 
 export type SecaoDesligavel = 'como_trabalhamos' | 'responsabilidades';
 type PorFaixa = Record<'1' | '2' | '3', number>;

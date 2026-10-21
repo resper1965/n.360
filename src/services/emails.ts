@@ -17,10 +17,10 @@ const ola = (nome?: string | null) => (nome ? `Olá, ${nome},` : 'Olá,');
  */
 export function emailBoasVindas(d: { nome: string; email: string; organizacao: string; convidante: Pessoa | null; url: string; link: string | null; horas: number }): EmailComAssunto {
   return com(`Seu acesso ao n.360 (${d.organizacao})`, {
-    previa: `Sua conta no n.360 foi criada (organização: ${d.organizacao}).`,
+    previa: `Sua conta no n.360 foi criada (consultoria: ${d.organizacao}).`,
     titulo: 'Seu acesso ao n.360 está pronto',
     saudacao: ola(d.nome),
-    paragrafos: [`Você tem uma conta nova no n.360 (organização: ${d.organizacao}), a plataforma de governança, risco e conformidade da ness.`],
+    paragrafos: [`Você tem uma conta nova no n.360 (consultoria: ${d.organizacao}), a plataforma de governança, risco e conformidade da ness.`],
     quemPede: d.convidante ?? { organizacao: d.organizacao },
     acao: d.link ? 'Abrir o link abaixo e criar a sua senha' : 'Entrar com o login único (SSO) da sua empresa, usando este e-mail',
     prazo: d.link ? `${d.horas} horas a partir do envio deste e-mail` : null,
@@ -29,7 +29,7 @@ export function emailBoasVindas(d: { nome: string; email: string; organizacao: s
     notas: d.link
       ? ['O link é pessoal e vale uma vez: não encaminhe este e-mail. Se ele vencer, peça um convite novo a quem convidou ou use "Esqueci a senha".']
       : ['Sua empresa usa login único: não há senha do n.360 para criar.'],
-    motivo: `uma conta com este endereço foi criada no n.360 (organização: ${d.organizacao}).`,
+    motivo: `uma conta com este endereço foi criada no n.360 (consultoria: ${d.organizacao}).`,
     contato: d.convidante?.email ? d.convidante : null,
   });
 }
@@ -66,7 +66,7 @@ export function emailCodigoPoliticas(d: { nome: string; cliente: string; codigo:
 /** Quem pede a ciência: o cliente do projeto e quem criou o pedido (com a organização dele). */
 export type QuemPede = { cliente: string; pessoa: Pessoa | null };
 const quemPedeBloco = (q: QuemPede): Pessoa => (q.pessoa ? { ...q.pessoa, organizacao: q.pessoa.organizacao ?? q.cliente } : { organizacao: q.cliente });
-const nomeDoCliente = (q: QuemPede) => q.cliente || q.pessoa?.organizacao || 'A organização';
+const nomeDoCliente = (q: QuemPede) => q.cliente || q.pessoa?.organizacao || 'A empresa';
 
 /** Link pessoal de ciência. `reenvio`: o link anterior desta pessoa deixou de valer (lembrete ou documento alterado). */
 export function emailCiencia(d: { titulo: string; nome: string | null; link: string; quem: QuemPede; reenvio: boolean; validoAte: Date }): EmailComAssunto {

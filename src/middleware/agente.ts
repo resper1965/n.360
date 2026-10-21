@@ -81,7 +81,7 @@ export const CABECALHO_CONFIRMADO = 'X-Agente-Confirmado';
 /** Terceiro campo opcional: só estes métodos são recusados (GET /projects segue valendo, escopado). */
 const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/(users|admin\/users)(\/|$)/, 'gestão de usuários'],
-  [/^\/api\/v1\/platform(\/|$)/, 'administração da plataforma (organizações)'],
+  [/^\/api\/v1\/platform(\/|$)/, 'administração da plataforma (consultorias)'],
   [/^\/api\/v1\/dashboard(\/|$)/, 'o painel global agrega todos os clientes'],
   [/^\/api\/v1\/carteira(\/|$)/, 'a carteira agrega os projetos do consultor; o agente está preso a um projeto'],
   [/^\/api\/v1\/(assessments|leads|proposals|funil)(\/|$)/, 'área comercial'],

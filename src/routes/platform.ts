@@ -250,7 +250,7 @@ platformApp.get('/projects/:id/dpia/:assessmentId/report', async (c) => {
       <body>
         <div class="container">
           <h1>Relatório de Impacto à Proteção de Dados (RIPD / DPIA)</h1>
-          <p style="color: #64748b;"><strong>Organização:</strong> ${escapeHtml(project.client_name)}</p>
+          <p style="color: #64748b;"><strong>Empresa:</strong> ${escapeHtml(project.client_name)}</p>
           
           ${campos}
 
@@ -308,9 +308,9 @@ platformApp.post('/platform/projects/:id/transferir', async (c) => {
     });
     if (r.ok) return c.json(r);
     switch (r.motivo) {
-      case 'nao_encontrado': return c.json({ error: 'Projeto ou organização de destino não encontrado' }, 404);
-      case 'destino_invalido': return c.json({ error: 'A organização de destino não está ativa' }, 409);
-      case 'mesma_org': return c.json({ error: 'O projeto já é dessa organização' }, 409);
+      case 'nao_encontrado': return c.json({ error: 'Projeto ou consultoria de destino não encontrado' }, 404);
+      case 'destino_invalido': return c.json({ error: 'A consultoria de destino não está ativa' }, 409);
+      case 'mesma_org': return c.json({ error: 'O projeto já é dessa consultoria' }, 409);
       case 'corrida': return c.json(MSG_CORRIDA, 409);
     }
   } catch (e: any) {

@@ -292,7 +292,7 @@ function semModulo(c, entrada, proj) {
     const nome = NOME[entrada];
     const acao = podeGerirModulos() ? `<button type="button" class="btn btn-primary" data-action="abrirProdutosDoProjeto" data-args='${args(proj.id)}'>Habilitar no projeto</button>` : '';
     c.innerHTML = renderEmptyState({ id: 'pn-sem-modulo', titulo: `O ${nome} não está habilitado neste projeto`,
-        texto: ehEquipe() ? 'A organização habilita o módulo no projeto; o que já está no cadastro (pessoas, sistemas, documentos) entra pronto.'
+        texto: ehEquipe() ? 'A consultoria habilita o módulo no projeto; o que já está no cadastro (pessoas, sistemas, documentos) entra pronto.'
             : 'Fale com a ness. para contratar. O que já está no cadastro entra pronto quando o módulo for habilitado.',
         acao: `${acao}<a class="btn" href="${e(enderecoDoProduto('n360'))}">Voltar ao início do n.360</a>` });
 }

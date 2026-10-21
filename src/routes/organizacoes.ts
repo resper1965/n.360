@@ -14,7 +14,7 @@ import { SEM_SENHA } from '../services/convite';
 export const organizacoesApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 organizacoesApp.use('*', async (c, next) => {
-  if (c.get('user')?.role !== 'platform_admin') return c.json({ error: 'Forbidden: só o administrador da plataforma gere organizações' }, 403);
+  if (c.get('user')?.role !== 'platform_admin') return c.json({ error: 'Forbidden: só o administrador da plataforma gere consultorias' }, 403);
   await next();
 });
 
@@ -40,8 +40,8 @@ organizacoesApp.post('/', async (c) => {
         EXISTS (SELECT 1 FROM organizations WHERE upper(prefixo_proposta) = ?) AS prefixo,
         EXISTS (SELECT 1 FROM users WHERE lower(email) = lower(?)) AS email`)
       .bind(b.slug, id, b.prefixoProposta ?? null, b.adminEmail).first<{ slug: number; prefixo: number; email: number }>();
-    if (conflito?.slug) return c.json({ error: 'Slug já usado por outra organização' }, 409);
-    if (conflito?.prefixo) return c.json({ error: 'Prefixo de proposta já usado por outra organização' }, 409);
+    if (conflito?.slug) return c.json({ error: 'Slug já usado por outra consultoria' }, 409);
+    if (conflito?.prefixo) return c.json({ error: 'Prefixo de proposta já usado por outra consultoria' }, 409);
     // Qualquer organização: o e-mail é a identidade de login, global.
     if (conflito?.email) return c.json({ error: 'E-mail do administrador já cadastrado' }, 409);
 
@@ -67,7 +67,7 @@ organizacoesApp.post('/', async (c) => {
     }
     const emailEnviado = await enviarBoasVindas(c, { id: adminId, email: b.adminEmail, name: b.adminNome }, b.nome).catch(() => false);
     return c.json({ id, slug: b.slug, adminId, adminEmail: b.adminEmail, emailEnviado }, 201);
-  } catch (e) { return erro500(c, 'Erro ao criar a organização', e); }
+  } catch (e) { return erro500(c, 'Erro ao criar a consultoria', e); }
 });
 
 /** Administrador da organização `o` que ainda não entrou (senha provisória pendente), ativo. */
@@ -97,7 +97,7 @@ organizacoesApp.get('/', async (c) => {
       criadaEm: o.created_at, projetos: o.projetos, usuarios: o.usuarios, propostas: porOrg[o.id] ?? {},
       adminPendente: !!o.admin_pendente, modulosContratados: parseModulos(o.modulos_contratados),
     })));
-  } catch (e) { return erro500(c, 'Erro ao listar as organizações', e); }
+  } catch (e) { return erro500(c, 'Erro ao listar as consultorias', e); }
 });
 
 /** Limites, nome e status. `Suspended` bloqueia a equipe da organização (login e sessão aberta). */
@@ -108,15 +108,15 @@ organizacoesApp.put('/:id', async (c) => {
     if (!v.success) return v.response;
     const b = v.data;
     const db = c.env.DB;
-    if (!(await db.prepare('SELECT 1 FROM organizations WHERE id = ?').bind(id).first())) return c.json({ error: 'Organização não encontrada' }, 404);
+    if (!(await db.prepare('SELECT 1 FROM organizations WHERE id = ?').bind(id).first())) return c.json({ error: 'Consultoria não encontrada' }, 404);
     // A ness. opera a plataforma: suspendê-la trancaria a própria equipe que desfaria a suspensão.
-    if (id === ORG_NESS && b.status === 'Suspended') return c.json({ error: 'A organização da ness. não pode ser suspensa' }, 409);
+    if (id === ORG_NESS && b.status === 'Suspended') return c.json({ error: 'A ness. não pode ser suspensa' }, 409);
     await db.prepare(`UPDATE organizations SET name = COALESCE(?, name), max_projects = COALESCE(?, max_projects),
       max_users = COALESCE(?, max_users), status = COALESCE(?, status) WHERE id = ?`)
       .bind(b.nome ?? null, b.maxProjetos ?? null, b.maxUsuarios ?? null, b.status ?? null, id).run();
     await logAudit(db, 'org.atualizada', c.get('user').email, `Organização ${id} atualizada: ${JSON.stringify(b)}`);
     return c.json({ ok: true });
-  } catch (e) { return erro500(c, 'Erro ao atualizar a organização', e); }
+  } catch (e) { return erro500(c, 'Erro ao atualizar a consultoria', e); }
 });
 
 /** Módulos que a consultoria contratou: o teto do que cada projeto dela pode habilitar. */
@@ -126,13 +126,13 @@ organizacoesApp.put('/:id/modulos', async (c) => {
     const v = await validateBody(c, orgModulosSchema);
     if (!v.success) return v.response;
     const db = c.env.DB;
-    if (!(await db.prepare('SELECT 1 FROM organizations WHERE id = ?').bind(id).first())) return c.json({ error: 'Organização não encontrada' }, 404);
+    if (!(await db.prepare('SELECT 1 FROM organizations WHERE id = ?').bind(id).first())) return c.json({ error: 'Consultoria não encontrada' }, 404);
     const modulos = MODULOS.filter((m) => v.data.modulos.includes(m));
     for (const m of MODULOS.filter((x) => !modulos.includes(x))) {
       const em = await db.prepare(
         `SELECT count(*) AS n FROM projeto_modulos pm JOIN projects p ON p.id = pm.project_id WHERE p.org_id = ? AND pm.modulo = ?`
       ).bind(id, m).first<{ n: number }>();
-      if (em && em.n > 0) return c.json({ error: `O módulo ${m} está habilitado em ${em.n} projeto(s) da organização` }, 409);
+      if (em && em.n > 0) return c.json({ error: `O módulo ${m} está habilitado em ${em.n} projeto(s) da consultoria` }, 409);
     }
     await db.prepare('UPDATE organizations SET modulos_contratados = ? WHERE id = ?').bind(JSON.stringify(modulos), id).run();
     await logAudit(db, 'org.modulos', c.get('user').email, `Organização ${id}: módulos contratados ${JSON.stringify(modulos)}`);
@@ -151,8 +151,8 @@ organizacoesApp.post('/:id/reenviar-convite', async (c) => {
     const id = c.req.param('id');
     const db = c.env.DB;
     const org = await db.prepare('SELECT name FROM organizations WHERE id = ?').bind(id).first<{ name: string }>();
-    if (!org) return c.json({ error: 'Organização não encontrada' }, 404);
-    if (!(await rateLimitD1(db, `reenviar_convite:${id}`, 5, 3600))) return c.json({ error: 'Muitos reenvios para esta organização; tente mais tarde' }, 429);
+    if (!org) return c.json({ error: 'Consultoria não encontrada' }, 404);
+    if (!(await rateLimitD1(db, `reenviar_convite:${id}`, 5, 3600))) return c.json({ error: 'Muitos reenvios para esta consultoria; tente mais tarde' }, 429);
     // O dono (quem a criação convidou) primeiro; senão o administrador pendente mais antigo.
     const admin = await db.prepare(`SELECT u.id, u.email, u.name FROM organizations o JOIN users u ON u.org_id = o.id
         WHERE o.id = ? AND u.role = 'consultoria_admin' AND u.requires_password_change = 1 AND COALESCE(u.ativo, 1) <> 0

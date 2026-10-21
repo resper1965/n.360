@@ -130,7 +130,7 @@ export function montarContexto(
     'Não pode: registrar achado de auditoria; aprovar tratamento ou DPIA, concluir LIA, encerrar incidente, revogar consentimento, editar prazo legal (são de uma pessoa, pela interface); sair deste projeto.',
     'O administrador do cliente vê este acesso e pode revogá-lo a qualquer momento.',
     ...(comercial ? [
-      'Área comercial da sua organização (fora deste projeto): niso_comercial_listar e niso_comercial_ler leem leads, funil, levantamentos, propostas e serviços; niso_comercial_criar_lead, niso_comercial_status_lead e niso_comercial_rascunhar_proposta gravam lead e proposta em rascunho, com aprovação humana. Gerar, enviar, aceitar, recusar, marcar ganho, fechar venda, preço e catálogo são de uma pessoa, pela interface.',
+      'Área comercial da sua consultoria (fora deste projeto): niso_comercial_listar e niso_comercial_ler leem leads, funil, levantamentos, propostas e serviços; niso_comercial_criar_lead, niso_comercial_status_lead e niso_comercial_rascunhar_proposta gravam lead e proposta em rascunho, com aprovação humana. Gerar, enviar, aceitar, recusar, marcar ganho, fechar venda, preço e catálogo são de uma pessoa, pela interface.',
     ] : []),
     '',
     MAPA_DA_APP.replaceAll('{p}', projeto.id),

@@ -351,7 +351,7 @@ projectsApp.post('/', async (c) => {
     const contratados = await modulosContratados(c.env.DB, orgId);
     const escolhidos = body.modulos?.length ? [...new Set(body.modulos)] : null;
     const fora = (escolhidos ?? []).filter((m) => !contratados.includes(m));
-    if (fora.length) return c.json({ error: `Produto não contratado pela organização: ${fora.join(', ')}` }, 409);
+    if (fora.length) return c.json({ error: `Produto não contratado pela consultoria: ${fora.join(', ')}` }, 409);
     // CNPJ repetido na organização: 409 com o projeto que já o tem (só equipe chega aqui com empresa; o cliente não cria).
     if (empresa?.cnpj) {
       const outro = await projetoComCnpj(c.env.DB, orgId, empresa.cnpj, id);

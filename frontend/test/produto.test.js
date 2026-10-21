@@ -347,7 +347,7 @@ describe('sem acesso e links entre módulos', () => {
             semAcesso(el('c'), 'privacy');
             expect(el('c').querySelector('h3').textContent).toBe('Nenhum projeto ainda');
             const links = [...el('c').querySelectorAll('.empty-action a')];
-            expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Criar projeto', '/iso?tela=leads'], ['Ver organizações', '/?tela=organizacoes']]);
+            expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Criar projeto', '/iso?tela=leads'], ['Ver consultorias', '/?tela=organizacoes']]);
             expect(links[0].className).toContain('btn-primary');
             // consultor: não abre o funil comercial nem as organizações; fica o texto
             S.user = { role: 'consultor' };
@@ -445,7 +445,7 @@ describe('produtos do projeto', () => {
 
     it('mostra os dois produtos; habilita o contratado e desliga o ligado; o não contratado não tem botão', async () => {
         await abrir({ habilitados: ['iso'], contratados: ['iso'] });
-        expect(el('produtos-do-projeto').textContent).toContain('não contratado pela organização');
+        expect(el('produtos-do-projeto').textContent).toContain('não contratado pela consultoria');
         expect(acoes()).toEqual([['iso', false]]);
         await abrir({ habilitados: ['iso'], contratados: ['iso', 'privacy'] });
         expect(acoes()).toEqual([['iso', false], ['privacy', true]]);

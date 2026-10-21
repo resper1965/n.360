@@ -133,7 +133,7 @@ const unico = (e: unknown) => /UNIQUE constraint failed/i.test(String((e as any)
 /** consultorEmail informado precisa ser de consultor ativo da organização: é quem o fechamento designa no projeto. */
 async function conferirConsultor(db: D1Database, orgId: string, email: string | null | undefined) {
   if (email && !(await consultorValido(db, orgId, email))) {
-    throw new Recusa(`Consultor responsável: ${email} não é consultor ativo desta organização`);
+    throw new Recusa(`Consultor responsável: ${email} não é consultor ativo desta consultoria`);
   }
 }
 
@@ -291,7 +291,7 @@ propostasApp.post('/:id/gerar', async (c) => {
       await db.prepare(`UPDATE propostas SET status = 'aguardando_aprovacao', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status IN ${EDITAVEIS}`).bind(p.id).run();
       return c.json({ error: `Desconto acima do teto de ${cfg.preco.tetoDesconto}%: a proposta aguarda a aprovação do administrador` }, 409);
     }
-    if (!cfg.textos.termos.trim()) return c.json({ error: 'A organização não tem termos e condições: configure-os antes de gerar' }, 409);
+    if (!cfg.textos.termos.trim()) return c.json({ error: 'A consultoria não tem termos e condições: configure-os antes de gerar' }, 409);
 
     // Número: a revisão mantém o da original; senão o manual (validado) ou o próximo da sequência.
     const ano = Number(diaEmBrasilia().slice(0, 4));
@@ -304,12 +304,12 @@ propostasApp.post('/:id/gerar', async (c) => {
       const m = new RegExp(`^${cfg.prefixoProposta}-(\\d{4})-(\\d{3,})$`).exec(numero);
       if (!cfg.prefixoProposta || !m) return c.json({ error: `Número fora do formato ${cfg.prefixoProposta || 'PREFIXO'}-AAAA-NNN` }, 400);
       if (await db.prepare('SELECT 1 FROM propostas WHERE org_id = ? AND numero = ?').bind(orgId, numero).first()) {
-        return c.json({ error: `Número ${numero} já usado nesta organização` }, 409);
+        return c.json({ error: `Número ${numero} já usado nesta consultoria` }, 409);
       }
       // manual à frente da sequência do ano: a automática continua depois dele, sem colidir
       if (Number(m[1]) === ano) proximo = Number(m[2]) + 1;
     } else {
-      if (!cfg.prefixoProposta) return c.json({ error: 'Configure o prefixo das propostas da organização antes de gerar' }, 409);
+      if (!cfg.prefixoProposta) return c.json({ error: 'Configure o prefixo das propostas da consultoria antes de gerar' }, 409);
       numero = formatarNumeroProposta(cfg.prefixoProposta, ano, cfg.proximoNumero);
       proximo = cfg.proximoNumero + 1;
     }
@@ -347,7 +347,7 @@ propostasApp.post('/:id/gerar', async (c) => {
     if (!res[0].meta.changes) return c.json(JA_GERADA, 409);
     return c.json(await saida(db, orgId, p.id));
   } catch (e) {
-    if (unico(e)) return c.json({ error: `Número ${numero} já usado nesta organização: escolha outro ou ajuste o próximo número na configuração` }, 409);
+    if (unico(e)) return c.json({ error: `Número ${numero} já usado nesta consultoria: escolha outro ou ajuste o próximo número na configuração` }, 409);
     return falha(c, e, 'Erro ao gerar a proposta');
   }
 });
@@ -357,7 +357,7 @@ propostasApp.post('/:id/aprovar-desconto', async (c) => {
     const user = c.get('user');
     const db = c.env.DB;
     const orgId = c.get('orgId');
-    if (!podeAdministrarOrg(user, orgId)) return c.json({ error: 'Forbidden: só o administrador da organização aprova desconto acima do teto' }, 403);
+    if (!podeAdministrarOrg(user, orgId)) return c.json({ error: 'Forbidden: só o administrador da consultoria aprova desconto acima do teto' }, 403);
     const p = await achar(db, orgId, c.req.param('id'));
     if (!p) return c.json(NAO_ACHADA, 404);
     if (p.status !== 'aguardando_aprovacao') return c.json({ error: 'A proposta não está aguardando aprovação de desconto' }, 409);

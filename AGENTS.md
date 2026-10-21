@@ -469,7 +469,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `PUT /users/:id/modulos`, trilha `usuario.modulos` com antes e depois; `POST /users` aceita `modulos`. O gatilho
   `usuario_modulos_padrao` da a conta nova o padrao (cliente: modulos do projeto; equipe: contrato). Habilitar um modulo num projeto
   concede aos clientes dele na hora; a equipe da consultoria recebe pela tela Usuarios. Tirar modulo do contrato da organizacao
-  (`PUT /platform/orgs/:id/modulos`, tela Organizacoes) nao tira de pessoas nem de projetos, so limita o que se concede depois. **Papeis
+  (`PUT /platform/orgs/:id/modulos`, tela Consultorias) nao tira de pessoas nem de projetos, so limita o que se concede depois. **Papeis
   normalizados:** a 0066 gravou `admin`→`platform_admin`, `consultant`→`consultor`, `client_admin`→`client`, `user`/`employee`→`org_user`
   (o mapa de `src/middleware/auth.ts` continua para sessoes antigas); confira com `SELECT role, count(*) FROM users GROUP BY role`.
   O gatilho `projeto_modulos_do_contrato` (0060) da ao projeto novo o que a organizacao contratou (`modulos_contratados`, padrao
@@ -487,7 +487,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `SO_PRIVACY`) e filtra os projetos pelo produto. `destinoLegado` (async) leva quem abre `niso`/`nprivacy` ao modulo no `app_url` que o `/health` da mesma origem devolve; se
   ele for o proprio host, ou o `/health` falhar, fica onde esta. O item Inicio do menu so aparece no n.360; nos modulos a volta e
   o link "n.360" do rodape. Login unico (a sessao e por origem: na troca, todos entram de novo uma vez).
-  **Conta e acessos (n.360, fatia 2):** Projetos (com o cartao Produtos), Usuarios, Organizacoes, Chaves de API e Conectar agente
+  **Conta e acessos (n.360, fatia 2):** Projetos (com o cartao Produtos), Usuarios, Consultorias (o tenant; view `organizacoes`), Chaves de API e Conectar agente
   ficam no grupo "Conta e acessos" (`group-conta` em `login.html`), que so o n.360 mostra (`SO_N360`); o papel continua decidindo
   cada item (`updateHeaderUser`), e o grupo sem item do papel some. Nos modulos o rodape traz "Conta e acessos (n.360)", que leva a
   `/?tela=<primeira tela da conta que o papel ve>`. O boot do n.360 le o `?tela=` uma vez (`telaPedida`): so valores de
@@ -577,7 +577,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `/assessments`, `/pricing-config`, `/client/{proposal,assessment}`, `/public/propostas`) responderem 404 a pessoa e chave de
   API (`src/index.ts`). Nada é apagado; `"true"` religa tudo como era (a suíte roda ligada, `wrangler.test.jsonc`; o desligado
   em `test/comercial-desligado.test.ts`). `/api/v1/org` fica: com a área desligada, nome, CNPJ, cor e logo (que vão nos
-  documentos Word do projeto) estão em Conta e acessos, "Identidade da organização" (`identidade-org`, a tela de
+  documentos Word do projeto) estão em Conta e acessos, "Identidade da consultoria" (`identidade-org`, a tela de
   `config-comercial.js` só com identidade), para `platform_admin` e `consultoria_admin`. O projeto nasce pelo "Novo projeto" da
   tela Projetos (`POST /projects`), que para o n.iso semeia fases e controles com as mesmas funções do aceite da proposta
   (`stmtsFases`, `stmtControles`, `catalogosDoProjeto` em `src/services/project-setup.ts`); o prefixo de proposta é opcional na

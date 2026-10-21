@@ -49,7 +49,7 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
     const ligado = est.habilitados.includes(modulo);
     let trazido: { importados: { partes: number; documentos: number }; avisos: string[] } | undefined;
     if (v.data.habilitado) {
-      if (!est.contratados.includes(modulo as Modulo)) return c.json({ error: 'Módulo não contratado pela organização' }, 409);
+      if (!est.contratados.includes(modulo as Modulo)) return c.json({ error: 'Módulo não contratado pela consultoria' }, 409);
       if (!ligado) {
         // Módulos por pessoa (fatia 3 do n.360): ligar o módulo no projeto o concede às contas de CLIENTE dele, no mesmo
         // batch. Equipe e stakeholder não: a equipe recebe pelo contrato da organização (ou por PUT /users/:id/modulos).

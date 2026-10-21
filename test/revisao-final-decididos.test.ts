@@ -205,11 +205,11 @@ describe('e) e-mail de boas-vindas com o nome da organização', () => {
     const enviados = espiarEmail();
     let res = await chamar('POST', '/api/v1/users', S.ab, { email: 'cli-novo@b.lat', password: SENHA, name: 'N', role: 'org_user', client_project_id: 'p-b' }, comEmail);
     expect(res.status, await res.clone().text()).toBe(201);
-    expect(enviados[0].html).toContain('(organização: Consultoria &lt;B&gt;)');
+    expect(enviados[0].html).toContain('(consultoria: Consultoria &lt;B&gt;)');
     expect(enviados[0].html).not.toContain('<strong>ness.</strong>');
     res = await chamar('POST', '/api/v1/users', S.pa, { email: 'cli-n@n.lat', password: SENHA, name: 'N', role: 'org_user', client_project_id: 'p-n' }, comEmail);
     expect(res.status).toBe(201);
-    expect(enviados[1].html).toContain('(organização: ness.)');
+    expect(enviados[1].html).toContain('(consultoria: ness.)');
   });
 
   it('provisionamento de organização: o nome da organização nova', async () => {
@@ -218,6 +218,6 @@ describe('e) e-mail de boas-vindas com o nome da organização', () => {
       nome: 'Gama Seg', slug: 'gama', prefixoProposta: 'GAMA', adminEmail: 'adm@gama.lat', adminNome: 'Adm', maxProjetos: 5, maxUsuarios: 5, termoVersao: 'v1',
     }, comEmail);
     expect(res.status, await res.clone().text()).toBe(201);
-    expect(enviados[0].html).toContain('(organização: Gama Seg)');
+    expect(enviados[0].html).toContain('(consultoria: Gama Seg)');
   });
 });
