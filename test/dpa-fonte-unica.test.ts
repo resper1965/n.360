@@ -89,9 +89,9 @@ describe('DPA pela fonte única', () => {
 
   it('CSV: Sim (documento ligado), Declarado, sem documento (legado) e Não', async () => {
     const csv = await (await chamar(admin, 'GET', `/api/v1/projects/${P}/export/vendors`)).text();
-    const [cab, ...linhas] = csv.split('\n');
-    expect(cab.split(',').at(-1)).toBe('dpa');
-    const dpaDe = (nome: string) => linhas.find((l) => l.startsWith(`"${nome}"`))!.split('","').at(-1)!.replace(/"$/, '');
+    const [cab, ...linhas] = csv.slice(1).split('\r\n');
+    expect(cab.split(';').at(-1)).toBe('"DPA"');
+    const dpaDe = (nome: string) => linhas.find((l) => l.startsWith(`"${nome}"`))!.split('";"').at(-1)!.replace(/"$/, '');
     expect(dpaDe('Com Documento')).toBe('Sim');
     expect(dpaDe('Nuvem Legada')).toBe('Declarado, sem documento');
     expect(dpaDe('Sem Nada')).toBe('Não');

@@ -29,8 +29,11 @@ export const STATUS: Record<string, string> = {
 };
 export const NIVEL: Record<string, string> = { Low: 'Baixo', Medium: 'Médio', High: 'Alto', Critical: 'Crítico' };
 export const ESTRATEGIA: Record<string, string> = { Mitigate: 'Mitigar', Accept: 'Aceitar', Transfer: 'Transferir', Avoid: 'Evitar' };
+export const CLASSIFICACAO: Record<string, string> = { Confidential: 'Confidencial', Internal: 'Interno', Public: 'Público', Restricted: 'Restrito' };
+/** training_records.status (o rótulo do domínio `treinamento` da tela). */
+export const TREINAMENTO: Record<string, string> = { Pending: 'Pendente', Completed: 'Concluído', Expired: 'Vencido' };
 export const traduz = (mapa: Record<string, string>, v: unknown) => (v == null || v === '' ? '' : mapa[String(v)] ?? String(v));
-const simNao = (v: unknown) => (v ? 'Sim' : 'Não');
+export const simNao = (v: unknown) => (v ? 'Sim' : 'Não');
 const ROTULO_FAIXA = Object.fromEntries(FAIXAS_PRAZO.map((f) => [f.id, f.rotulo])) as Record<FaixaPrazo, string>;
 
 export type FiltroExportacao = { probabilidade?: number; impacto?: number; faixa?: FaixaPrazo };

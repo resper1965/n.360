@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api, API_BASE } from '../api.js';
+import { api, baixarArquivo } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, renderEmptyState, renderSemProjeto, STATUS_DA_FASE, formatarData, traduzStatus, tituloDaTela } from '../ui.js';
 import { produtoAtual, projetosDoProduto } from '../produto.js';
 import { podeIndicar } from './encarregado.js';
@@ -92,7 +92,7 @@ import { montarLista, colunasDe } from '../lista.js';
 
             // Ações de operador só para a equipe; a prontidão vale para todos.
             a.innerHTML = `<button class="btn" data-action="navigate" data-args='["certification"]'>Ver a prontidão</button>`
-                + (equipe ? ` <button class="btn" data-action="exportCSV" data-args='["risks"]'>Exportar riscos</button> <button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${escapeHTML(String(p.id))}"}}]'>Abrir a jornada</button>` : '');
+                + (equipe ? ` <button class="btn" data-action="exportarCsvNiso" data-args='["risks"]'>Exportar riscos</button> <button class="btn" data-action="navigate" data-args='["project-detail",{"currentProject":{"id":"${escapeHTML(String(p.id))}"}}]'>Abrir a jornada</button>` : '');
             c.innerHTML = `<div class="fade-in">
                     <h2 class="monitor-projeto">${escapeHTML(p.project_name || p.client_name)}</h2>
                     ${metricsHtml}
@@ -110,7 +110,7 @@ import { montarLista, colunasDe } from '../lista.js';
     async function renderPortfolio(c, h, a) {
         h.textContent = 'Monitor';
         a.innerHTML = window.renderMaisAcoes([['risks', 'Riscos (CSV)'], ['vendors', 'Fornecedores (CSV)'], ['training', 'Treinamento (CSV)']]
-            .map(([tipo, rotulo]) => ({ rotulo, action: 'exportCSV', args: [tipo] })), { rotulo: 'Exportar' });
+            .map(([tipo, rotulo]) => ({ rotulo, action: 'exportarCsvNiso', args: [tipo] })), { rotulo: 'Exportar' });
         let portfolio = [];
         try { portfolio = (await api('GET', '/api/v1/portfolio'))?.portfolio || []; } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a carteira de projetos.', e); return; }
         c.innerHTML = `<div class="fade-in">${portfolio.length ? portfolio.map(p => {
@@ -135,19 +135,11 @@ import { montarLista, colunasDe } from '../lista.js';
         }).join('') : renderEmptyState({ titulo: 'Nenhum projeto no portfólio', texto: 'Os projetos em que você está designado aparecem aqui com o andamento das fases.' })}</div>`;
     }
 
-    async function exportCSV(type) {
-        const proj = S.activeProject || S.projects[0];
+    // Download pelo servidor (nome do arquivo e formato pt-BR dele); o erro vira aviso, nunca um arquivo com o JSON do erro.
+    function exportarCsvNiso(tipo) {
+        const proj = S.activeProject || (S.projects || [])[0];
         if (!proj) { showToast('Selecione um projeto primeiro', 'error'); return; }
-        try {
-            const headers = {};
-            if (S.token) headers['Authorization'] = `Bearer ${S.token}`;
-            const r = await fetch(API_BASE + `/api/v1/projects/${proj.id}/export/${type}`, { headers });
-            const blob = await r.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = `${type}-${proj.id}.csv`; a.click();
-            URL.revokeObjectURL(url);
-        } catch(e) { showToast('Erro: ' + e.message, 'error'); }
+        return baixarArquivo(`/api/v1/projects/${proj.id}/export/${tipo}`).catch((e) => showToast(e.message || 'Não foi possível exportar.', 'error'));
     }
 
     async function showGapAnalysis(projectId) {
@@ -1780,7 +1772,7 @@ window.__monDeleteMetric = async (id) => {
 
 window.renderMonitor = renderMonitor;
 window.renderPortfolio = renderPortfolio;
-window.exportCSV = exportCSV;
+window.exportarCsvNiso = exportarCsvNiso;
 window.showGapAnalysis = showGapAnalysis;
 window.renderMetrics = renderMetrics;
 window.openNewMetricModal = openNewMetricModal;

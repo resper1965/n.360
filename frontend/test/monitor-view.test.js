@@ -3,8 +3,8 @@
 // mostrava um projeto em curso.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
-vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://api.test' }));
+const { apiMock, baixarArquivo } = vi.hoisted(() => ({ apiMock: vi.fn(), baixarArquivo: vi.fn() }));
+vi.mock('../src/api.js', () => ({ api: apiMock, baixarArquivo, API_BASE: 'http://api.test' }));
 
 import '../src/ui.js';
 import '../src/views/monitor.js';
@@ -112,5 +112,19 @@ describe('renderMonitor', () => {
         window.navigate = navigate;
         window.monitorAbrirFase('p1', 2);
         expect(navigate).toHaveBeenCalledWith('project-detail', { currentProject: { id: 'p1' }, bancadaAlvo: { fase: 2 } });
+    });
+});
+
+describe('exportar CSV do Monitor', () => {
+    it('baixa pelo baixarArquivo (nome do servidor) e avisa o erro; o exportCSV antigo saiu', async () => {
+        expect(window.exportCSV).toBeUndefined();
+        document.body.innerHTML = '';
+        S.activeProject = { id: 'p1' };
+        baixarArquivo.mockResolvedValueOnce(undefined);
+        await window.exportarCsvNiso('vendors');
+        expect(baixarArquivo).toHaveBeenCalledWith('/api/v1/projects/p1/export/vendors');
+        baixarArquivo.mockRejectedValueOnce(new Error('Sem permissão'));
+        await window.exportarCsvNiso('risks');
+        expect(document.querySelector('.toast-error')?.textContent).toContain('Sem permissão');
     });
 });
