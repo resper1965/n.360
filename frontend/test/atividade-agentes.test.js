@@ -115,6 +115,15 @@ describe('operadores e destinatários', () => {
     expect(el('c').textContent).not.toContain('Nenhum parceiro escolhido');
   });
 
+  it('falha ao carregar as partes também avisa em vez de dizer que não há parceiro', async () => {
+    const rotas = base({ [`GET ${B}/etapas`]: { etapas: [{ etapa: 'compartilhamento_externo', parceiros: [{ id: 'pa1', nome: 'Empresa exemplo' }] }] } });
+    delete rotas[`GET ${P}/partes`];
+    await abrir(renderAtividade, rotas);
+    expect(el('tl-parte')).toBeNull();
+    expect(el('c').textContent).toContain('Não foi possível carregar os parceiros desta atividade');
+    expect(el('c').textContent).not.toContain('Nenhum parceiro escolhido');
+  });
+
   it('"Outros destinatários" grava pelo registro (PUT /api/v1/ropa/:id, que também confere o pedido aberto)', async () => {
     const f = await abrir(renderAtividade, base({ 'PUT /api/v1/ropa/r1': { ok: true } }));
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });

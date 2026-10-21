@@ -121,8 +121,8 @@ Eventos por `data-action` (delegação); nada de handler inline nem `<script>` i
 Cabeçalho com nome, responsável, áreas e descrição; abaixo, nove abas livres na ordem e com os rótulos do legado (WAI-ARIA tabs com
 ativação automática: setas, Home e End; só a aba atual no Tab; o estado vai escrito no rótulo, nunca só em cor) e o menu "Ações" com o
 motivo escrito de cada item desabilitado. Onde estou: as oito partes levam número ("1. Escopo" a "8. Riscos"); Logs ROPA é histórico,
-sem número nem feito/pendente, e fica no fim da faixa. Acima das abas, a linha "N de 8 partes concluídas · Próximo: <parte>" ("não se
-aplica" conta como concluída; tudo concluído aponta a aprovação no menu Ações) e o botão secundário "Ir para a próxima pendência", que
+sem número nem feito/pendente, e fica no fim da faixa. Acima das abas, a linha "N de 6 partes concluídas · Próximo: <parte>" (Controle de
+GAPs e Riscos mostram o estado na barra, mas são sugestão e ficam fora da conta e do "Próximo"; "não se aplica" conta como concluída; tudo concluído aponta a aprovação no menu Ações) e o botão secundário "Ir para a próxima pendência", que
 abre a aba e, no Tratamento de Dados, a primeira etapa pendente. Progresso e abas formam uma faixa que gruda no topo do `#content`; a aba
 ativa tem o fundo do painel (forma, não só o sublinhado accent). As etapas do Tratamento de Dados são numeradas, têm chevron que gira
 com `aria-expanded` e marcam a etapa atual (a aberta, ou a primeira pendente) com `aria-current="step"`, contorno mais claro e o texto

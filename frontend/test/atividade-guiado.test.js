@@ -137,11 +137,13 @@ describe('painel guiado', () => {
         expect(new URL(window.location.href).searchParams.get('modo')).toBe('guiado');
     });
 
-    it('conta as perguntas em aberto (o servidor só devolve o que falta)', () => {
-        const lacunas = [{ aba: 'escopo', campo: 'finalidade' }, { aba: 'agentes', campo: 'papel' }];
-        expect(painel(painelGuiado({ ...ficha(lacunas[0]), lacunas }, 'r1')).querySelector('.at-guiado-contagem').textContent).toBe('Pergunta 1 de 2 em aberto');
+    it('conta as perguntas em aberto (o servidor só devolve o que falta; as adiadas ficam fora)', () => {
+        const lacunas = [{ aba: 'escopo', campo: 'finalidade' }, { aba: 'agentes', campo: 'papel' }, { aba: 'medidas', campo: 'medida' }];
+        expect(painel(painelGuiado({ ...ficha(lacunas[0]), lacunas }, 'r1')).querySelector('.at-guiado-contagem').textContent).toBe('Pergunta 1 de 3 em aberto');
         window.sessionStorage.setItem('ra.adiadas.r1', JSON.stringify(['escopo/finalidade']));
-        expect(painel(painelGuiado({ ...ficha(lacunas[0]), lacunas }, 'r1')).querySelector('.at-guiado-contagem').textContent).toBe('Pergunta 2 de 2 em aberto');
+        expect(painel(painelGuiado({ ...ficha(lacunas[0]), lacunas }, 'r1')).querySelector('.at-guiado-contagem').textContent).toBe('Pergunta 1 de 2 em aberto');
+        window.sessionStorage.setItem('ra.adiadas.r1', JSON.stringify(['escopo/finalidade', 'medidas/medida']));
+        expect(painel(painelGuiado({ ...ficha(lacunas[0]), lacunas }, 'r1')).querySelector('.at-guiado-contagem').textContent).toBe('Última pergunta em aberto');
         expect(painel(painelGuiado({ ...ficha(lacunas[0]), lacunas: [lacunas[0]] }, 'r2')).querySelector('.at-guiado-contagem').textContent).toBe('Última pergunta em aberto');
     });
 

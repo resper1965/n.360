@@ -201,15 +201,17 @@ describe('d) prefixo de proposta único no banco', () => {
 });
 
 describe('e) e-mail de boas-vindas com o nome da organização', () => {
-  it('conta criada pelo consultoria_admin da org B: o nome dela, escapado; pela ness.: "ness."', async () => {
+  it('equipe criada pelo consultoria_admin da org B: o nome dela, escapado; conta de cliente: sem "(consultoria: ...)"', async () => {
     const enviados = espiarEmail();
-    let res = await chamar('POST', '/api/v1/users', S.ab, { email: 'cli-novo@b.lat', password: SENHA, name: 'N', role: 'org_user', client_project_id: 'p-b' }, comEmail);
+    let res = await chamar('POST', '/api/v1/users', S.ab, { email: 'cons-novo@b.lat', password: SENHA, name: 'N', role: 'consultor' }, comEmail);
     expect(res.status, await res.clone().text()).toBe(201);
     expect(enviados[0].html).toContain('(consultoria: Consultoria &lt;B&gt;)');
     expect(enviados[0].html).not.toContain('<strong>ness.</strong>');
+    res = await chamar('POST', '/api/v1/users', S.ab, { email: 'cli-novo@b.lat', password: SENHA, name: 'N', role: 'org_user', client_project_id: 'p-b' }, comEmail);
+    expect(res.status, await res.clone().text()).toBe(201);
     res = await chamar('POST', '/api/v1/users', S.pa, { email: 'cli-n@n.lat', password: SENHA, name: 'N', role: 'org_user', client_project_id: 'p-n' }, comEmail);
     expect(res.status).toBe(201);
-    expect(enviados[1].html).toContain('(consultoria: ness.)');
+    for (const m of enviados.slice(1)) { expect(m.html).not.toContain('(consultoria:'); expect(m.text).not.toContain('(consultoria:'); }
   });
 
   it('provisionamento de organização: o nome da organização nova', async () => {

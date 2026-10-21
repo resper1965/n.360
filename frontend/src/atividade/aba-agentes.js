@@ -60,7 +60,8 @@ export async function montar(painel, ctx) {
     let parceiros = [];
     let parceirosFalhou = false;
     if (editavel) {
-        try { partes = lista(await api('GET', `/api/v1/projects/${pid}/partes?status=ativa`)); } catch (e) { /* sem seletor */ }
+        // Sem as partes não há como saber quais parceiros valem: avisa como a falha das etapas, nunca "nenhum parceiro".
+        try { partes = lista(await api('GET', `/api/v1/projects/${pid}/partes?status=ativa`)); } catch (e) { parceirosFalhou = true; }
         try {
             const etapas = lista((await api('GET', url(pid, rid, '/etapas')))?.etapas);
             // Só organização ativa: a etapa pode ter recebido outra parte pela API, e o servidor recusa pessoa nesses papéis.

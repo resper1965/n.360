@@ -298,7 +298,7 @@ governanceApp.post('/projects/:id/governance/:memberId/convidar', async (c) => {
       ).bind(id, email, SEM_SENHA, membro.name, projectId, org).run();
     }
     await logAudit(c.env.DB, 'stakeholder.convidado', ator.email, `Acesso de stakeholder para ${email} no projeto ${projectId}`, '', '', projectId);
-    const emailEnviado = await enviarBoasVindas(c, { id, email, name: membro.name }, await nomeDaOrg(c.env.DB, org)).catch(() => false);
+    const emailEnviado = await enviarBoasVindas(c, { id, email, name: membro.name, role: 'stakeholder' }, await nomeDaOrg(c.env.DB, org)).catch(() => false);
     return c.json({ ok: true, emailEnviado }, conta ? 200 : 201);
   } catch (e: any) {
     if (String(e?.message).includes('UNIQUE')) return c.json({ error: 'Este e-mail já tem conta no n.iso' }, 409);

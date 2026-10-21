@@ -1,4 +1,4 @@
-Assunto: Seu acesso ao n.360 (ness.)
+Assunto: Seu acesso ao n.360
 
 n.360 | ness.
 
@@ -6,7 +6,7 @@ Seu acesso ao n.360 está pronto
 
 Olá, Bruno Lima,
 
-Você tem uma conta nova no n.360 (organização: ness.), a plataforma de governança, risco e conformidade da ness.
+Você tem uma conta nova no n.360, a plataforma de governança, risco e conformidade da ness.
 
 Quem pede: Ana Souza (ana.souza@ness.example), da ness.
 O que fazer: Abrir o link abaixo e criar a sua senha
@@ -19,6 +19,6 @@ Criar minha senha: https://n360.ness.com.br/#convite=exemplo
 O link é pessoal e vale uma vez: não encaminhe este e-mail. Se ele vencer, peça um convite novo a quem convidou ou use "Esqueci a senha".
 
 --
-Você recebeu este e-mail porque uma conta com este endereço foi criada no n.360 (organização: ness.).
+Você recebeu este e-mail porque uma conta com este endereço foi criada no n.360.
 Dúvidas: responda a este e-mail para falar com Ana Souza (ana.souza@ness.example), da ness.
 n.360 · ness.
