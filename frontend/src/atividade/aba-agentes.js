@@ -31,7 +31,7 @@ function blocoTransferencias(pid, rid, lig, partes, editavel, simSelecionado) {
     </div>`;
 }
 
-function blocoPartes(pid, rid, lig, parceiros, editavel, registro) {
+function blocoPartes(pid, rid, lig, parceiros, editavel, registro, parceirosFalhou = false) {
     const ligadas = lista(lig.partes);
     return `<h3 class="at-sub">Operadores e destinatários</h3>
         ${ligadas.length ? `<ul class="at-lista" id="at-partes-lista">${ligadas.map((p) => `<li><span>${escapeHTML(p.nome)}, ${escapeHTML(PAPEIS_PARTE[p.papel] || p.papel)}</span>
@@ -41,6 +41,7 @@ function blocoPartes(pid, rid, lig, parceiros, editavel, registro) {
             <div class="form-group"><label class="form-label" for="tl-parte">Parceiro</label><select class="form-input" id="tl-parte">${parceiros.map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.nome)}</option>`).join('')}</select></div>
             <div class="form-group"><label class="form-label" for="tl-papel">Papel</label><select class="form-input" id="tl-papel">${PAPEIS_DE_PARCEIRO.map((v) => `<option value="${v}">${PAPEIS_PARTE[v]}</option>`).join('')}</select></div>
             <button type="button" class="btn btn-sm" data-action="adicionarParteTratamento" data-args='${args(pid, rid)}'>Ligar parceiro</button></div>`
+            : parceirosFalhou ? '<p class="re-erro" role="alert">Não foi possível carregar os parceiros desta atividade. Abra a aba de novo para tentar outra vez.</p>'
             : (editavel ? '<p class="at-nota">Nenhum parceiro escolhido nesta atividade. Escolha os parceiros na aba Tratamento de Dados, etapa Compartilhamento Externo, para ligá-los aqui.</p>' : '')}
         ${campo({ id: 'at-destinatarios', rotulo: 'Outros destinatários (texto livre)', tipo: 'textarea', max: 2000, valor: registro.recipients || '', travado: !editavel,
             ajuda: 'Quem mais recebe os dados e não está cadastrado em Parceiros.' })}`;
@@ -57,12 +58,15 @@ export async function montar(painel, ctx) {
     let partes = [];
     try { lig = (await api('GET', url(pid, rid, '/ligacoes'))) || {}; } catch (e) { /* sem ligações: a aba abre só com os papéis */ }
     let parceiros = [];
+    let parceirosFalhou = false;
     if (editavel) {
         try { partes = lista(await api('GET', `/api/v1/projects/${pid}/partes?status=ativa`)); } catch (e) { /* sem seletor */ }
         try {
             const etapas = lista((await api('GET', url(pid, rid, '/etapas')))?.etapas);
-            parceiros = lista(etapas.find((e) => e.etapa === 'compartilhamento_externo')?.parceiros);
-        } catch (e) { /* sem seletor de parceiro */ }
+            // Só organização ativa: a etapa pode ter recebido outra parte pela API, e o servidor recusa pessoa nesses papéis.
+            const orgs = new Set(partes.filter((p) => p.tipo === 'organizacao').map((p) => p.id));
+            parceiros = lista(etapas.find((e) => e.etapa === 'compartilhamento_externo')?.parceiros).filter((p) => orgs.has(p.id));
+        } catch (e) { parceirosFalhou = true; }
     }
     const trava = editavel ? '' : ' disabled';
     const sim = !!registro.international_transfers;
@@ -76,7 +80,7 @@ export async function montar(painel, ctx) {
             <label class="re-opcao"><input type="radio" name="at-intl" value="0"${sim ? '' : ' checked'}${trava}><span class="re-opcao-texto">Não</span></label>
             <label class="re-opcao"><input type="radio" name="at-intl" value="1"${sim ? ' checked' : ''}${trava}><span class="re-opcao-texto">Sim</span></label></fieldset>
         <div id="at-transf-bloco">${blocoTransferencias(pid, rid, lig, partes, editavel, sim)}</div>
-        ${blocoPartes(pid, rid, lig, parceiros, editavel, registro)}
+        ${blocoPartes(pid, rid, lig, parceiros, editavel, registro, parceirosFalhou)}
     </div>`;
     const status = painel.querySelector('#at-salvo');
     const salv = painel.querySelector('#at-salvaguarda');

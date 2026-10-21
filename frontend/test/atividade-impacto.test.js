@@ -23,7 +23,7 @@ const tudo = () => new Promise((ok) => setTimeout(ok, 0));
 async function esperar(cond) { for (let i = 0; i < 40 && !cond(); i++) await tudo(); }
 
 /** O PUT grava as respostas e recalcula a recomendação como o servidor faz (aqui, só o mínimo que o teste precisa). */
-function servidor(inicial, { dpias = [], puts422 = null } = {}) {
+function servidor(inicial, { dpias = [], puts422 = null, falhaResposta = null } = {}) {
     const atual = clone(inicial);
     const puts = [];
     const f = vi.fn(async (url, opts = {}) => {
@@ -34,6 +34,7 @@ function servidor(inicial, { dpias = [], puts422 = null } = {}) {
             const c = JSON.parse(opts.body);
             puts.push(c);
             if (puts422 && c.finalizar) return resposta({ error: puts422 }, 400);
+            if (falhaResposta && c.finalizar === undefined) return resposta({ error: falhaResposta }, 500);
             for (const [id, v] of Object.entries(c.respostas)) atual.perguntas.find((p) => p.id === id).resposta = v;
             if (c.finalizar !== undefined) atual.finalizado_em = c.finalizar ? '2026-10-16T12:00:00.000Z' : null;
             const sim = (g) => atual.perguntas.some((p) => p.grupo === g && p.resposta === 'sim');
@@ -145,11 +146,22 @@ describe('aba Teste de Impacto', () => {
         sw.click();
         await esperar(() => puts.length === 1);
         expect(puts[0]).toEqual({ respostas: {}, finalizar: true });
-        await esperar(() => el('at-imp-erro').textContent !== '');
-        expect(el('at-imp-erro').textContent).toBe('Responda as 13 perguntas antes de finalizar o teste');
-        expect(el('at-imp-erro').getAttribute('role')).toBe('alert');
+        // o erro da validação aparece junto do botão, no fim da aba
+        await esperar(() => el('at-imp-erro-final').textContent !== '');
+        expect(el('at-imp-erro-final').textContent).toBe('Responda as 13 perguntas antes de finalizar o teste');
+        expect(el('at-imp-erro-final').getAttribute('role')).toBe('alert');
+        expect(el('at-imp-erro').textContent).toBe('');
         expect(el('at-imp-final').getAttribute('aria-checked')).toBe('false');
         expect(painel.querySelectorAll('input:disabled')).toHaveLength(0);
+    });
+
+    it('falha ao gravar uma resposta: o erro aparece no topo da aba, perto das perguntas, não no fim', async () => {
+        const { painel } = await abrir(IMPACTO(), { falhaResposta: 'Não foi possível gravar a resposta' });
+        marcar('sensiveis', 'sim');
+        await esperar(() => el('at-imp-erro').textContent !== '');
+        expect(el('at-imp-erro').textContent).toBe('Não foi possível gravar a resposta');
+        expect(el('at-imp-erro').compareDocumentPosition(painel.querySelector('fieldset')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(el('at-imp-erro-final').textContent).toBe('');
     });
 
     it('teste finalizado: perguntas desabilitadas, data escrita e "Reabrir o teste" manda finalizar false', async () => {

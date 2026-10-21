@@ -102,6 +102,19 @@ describe('operadores e destinatários', () => {
     expect(el('c').querySelector('[data-action="adicionarParteTratamento"]').textContent).toBe('Ligar parceiro');
   });
 
+  it('parceiro da etapa que não é organização ativa fica fora; falha ao carregar as etapas avisa em vez de dizer que não há parceiro', async () => {
+    const etapas = { [`GET ${B}/etapas`]: { etapas: [{ etapa: 'compartilhamento_externo', parceiros: [{ id: 'pe1', nome: 'Pessoa exemplo' }, { id: 'pa1', nome: 'Empresa exemplo' }] }] } };
+    await abrir(renderAtividade, base({ [`GET ${P}/partes`]: [
+      { id: 'pe1', tipo: 'pessoa', nome: 'Pessoa exemplo', status: 'ativa' },
+      { id: 'pa1', tipo: 'organizacao', nome: 'Empresa exemplo', status: 'ativa' },
+    ], ...etapas }));
+    expect([...el('tl-parte').options].map((o) => o.textContent)).toEqual(['Empresa exemplo']);
+    await abrir(renderAtividade, base({ [`GET ${P}/partes`]: [{ id: 'pa1', tipo: 'organizacao', nome: 'Empresa exemplo', status: 'ativa' }] }));
+    expect(el('tl-parte')).toBeNull();
+    expect(el('c').textContent).toContain('Não foi possível carregar os parceiros desta atividade');
+    expect(el('c').textContent).not.toContain('Nenhum parceiro escolhido');
+  });
+
   it('"Outros destinatários" grava pelo registro (PUT /api/v1/ropa/:id, que também confere o pedido aberto)', async () => {
     const f = await abrir(renderAtividade, base({ 'PUT /api/v1/ropa/r1': { ok: true } }));
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
