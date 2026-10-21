@@ -181,12 +181,10 @@ import { classeDoControle } from '../classe-controle.js';
         loadControlAtividades(ctrl);
     }
 
-    // Atividades do n.privacy que dependem deste controle por uma medida (GET /controls/:id/atividades). Guardadas para o
-    // aviso ao sair de "implementado"; falha da chamada: o bloco não aparece e o detalhe segue.
-    let atividadesDoControle = { id: null, lista: [] };
+    // Atividades do n.privacy que dependem deste controle por uma medida (GET /controls/:id/atividades). Falha da chamada: o
+    // bloco não aparece e o detalhe segue. O aviso ao sair de "implementado" busca de novo na hora (updateControlStatus).
     const nomesDistintos = (lista) => [...new Set(lista.map((a) => a.atividade))];
     async function loadControlAtividades(ctrl) {
-        atividadesDoControle = { id: ctrl.id, lista: [] };
         const alvo = document.getElementById('controle-atividades');
         if (!alvo) return;
         let lista;
@@ -194,7 +192,6 @@ import { classeDoControle } from '../classe-controle.js';
             const r = await api('GET', `/api/v1/controls/${ctrl.id}/atividades`);
             lista = Array.isArray(r && r.atividades) ? r.atividades : [];
         } catch (e) { return; }
-        atividadesDoControle = { id: ctrl.id, lista };
         if (!lista.length || !document.getElementById('controle-atividades')) return;
         const n = nomesDistintos(lista).length;
         const abre = modulosVisiveis(S.currentProject).includes('privacy');
@@ -261,12 +258,23 @@ import { classeDoControle } from '../classe-controle.js';
 
     async function updateControlStatus(id, status) {
         const atual = S.controls.find((c) => c.id === id);
-        const nomes = atividadesDoControle.id === id ? nomesDistintos(atividadesDoControle.lista) : [];
-        if (atual && nomes.length && classeDoControle(atual.status) === 'feito' && classeDoControle(status) !== 'feito') {
-            const lista = nomes.length <= 5 ? `${nomes.slice(0, -1).join(', ')}${nomes.length > 1 ? ' e ' : ''}${nomes[nomes.length - 1]}`
-                : `${nomes.slice(0, 5).join(', ')} e mais ${nomes.length - 5}`;
-            const ok = await window.confirmar(`Este controle é usado em ${nomes.length} ${nomes.length === 1 ? 'atividade' : 'atividades'} do n.privacy: ${lista}. Elas vão mostrar o aviso para revisar a medida. Mudar o status?`, { titulo: 'Mudar o status do controle', rotulo: 'Mudar' });
-            if (!ok) { const sel = document.getElementById('controle-status'); if (sel) sel.value = atual.status; return; }
+        if (atual && classeDoControle(atual.status) === 'feito' && classeDoControle(status) !== 'feito') {
+            // Busca na hora: sem lista conferida não se muda o status sem perguntar (falha fechada).
+            let nomes = null;
+            try {
+                const r = await api('GET', `/api/v1/controls/${id}/atividades`);
+                nomes = nomesDistintos(Array.isArray(r && r.atividades) ? r.atividades : []);
+            } catch (e) { nomes = null; }
+            let pergunta = null;
+            if (nomes === null) pergunta = 'Não foi possível conferir se alguma atividade do n.privacy usa este controle. Mudar o status mesmo assim?';
+            else if (nomes.length) {
+                const lista = nomes.length <= 5 ? `${nomes.slice(0, -1).join(', ')}${nomes.length > 1 ? ' e ' : ''}${nomes[nomes.length - 1]}`
+                    : `${nomes.slice(0, 5).join(', ')} e mais ${nomes.length - 5}`;
+                pergunta = `Este controle é usado em ${nomes.length} ${nomes.length === 1 ? 'atividade' : 'atividades'} do n.privacy: ${lista}. Elas vão mostrar o aviso para revisar a medida. Mudar o status?`;
+            }
+            if (pergunta && !(await window.confirmar(pergunta, { titulo: 'Mudar o status do controle', rotulo: 'Mudar' }))) {
+                const sel = document.getElementById('controle-status'); if (sel) sel.value = atual.status; return;
+            }
         }
         try {
             await api('PUT', `/api/v1/controls/${id}/status`, { status });

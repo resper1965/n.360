@@ -72,4 +72,20 @@ describe('confirmação ao sair de implementado', () => {
         await window.updateControlStatus(CTRL.id, 'Implemented');
         expect(window.confirmar).not.toHaveBeenCalled();
     });
+    it('busca as atividades na hora da mudança: vale a lista atual, não a do detalhe aberto', async () => {
+        await abrir([]);
+        responder([A(1), A(2)]);
+        window.confirmar.mockResolvedValue(false);
+        await window.updateControlStatus(CTRL.id, 'Missing');
+        expect(window.confirmar.mock.calls[0][0]).toContain('Este controle é usado em 2 atividades do n.privacy');
+        expect(apiMock.mock.calls.some((c) => c[0] === 'PUT')).toBe(false);
+    });
+    it('sem conseguir conferir as atividades, pergunta antes de mudar (falha fechada)', async () => {
+        await abrir([]);
+        apiMock.mockImplementation(async (m, u) => { if (u.endsWith('/atividades')) throw new Error('x'); return []; });
+        window.confirmar.mockResolvedValue(false);
+        await window.updateControlStatus(CTRL.id, 'Missing');
+        expect(window.confirmar.mock.calls[0][0]).toContain('Não foi possível conferir');
+        expect(apiMock.mock.calls.some((c) => c[0] === 'PUT')).toBe(false);
+    });
 });

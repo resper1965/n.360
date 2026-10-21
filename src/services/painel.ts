@@ -388,6 +388,8 @@ export const SQL_MARCO_DO_PROGRAMA = `SELECT min(d) AS d FROM (
     SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) AS d FROM ropa_records WHERE project_id = ?1
     UNION ALL SELECT min(COALESCE(ciso_approved_at, ceo_approved_at)) FROM compliance_controls WHERE project_id = ?1
     UNION ALL SELECT min(dpo_approved_at) FROM dpia_assessments WHERE project_id = ?1
+    -- RIPD aprovado só pela Direção não tem data própria: a aprovação direta fica na trilha.
+    UNION ALL SELECT min(created_at) FROM audit_logs WHERE project_id = ?1 AND action = 'dpia.approved'
     UNION ALL SELECT min(pd.decidido_em) FROM pedido_destinatarios pd JOIN pedidos pe ON pe.id = pd.pedido_id
       WHERE pe.project_id = ?1 AND pe.papel_exigido IN ('ciso', 'ceo') AND pd.status = 'aprovado')`;
 
