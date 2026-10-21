@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { diaMaisSP } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, resetData, sessionFor, workerEnv, habilitarPrivacy } from './helpers/d1';
@@ -15,8 +16,8 @@ const chamar = (h: Record<string, string>, metodo: string, caminho: string, corp
     body: metodo === 'GET' || metodo === 'DELETE' ? undefined : JSON.stringify(corpo ?? {}),
   }), workerEnv());
 const json = async <T>(r: Response) => (await r.json()) as T;
-const amanha = () => new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-const ontem = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+const amanha = () => diaMaisSP(1);
+const ontem = () => diaMaisSP(-1);
 
 const evid = (id: string, extra: { valido?: string | null; status?: string; projeto?: string; ciso?: string | null } = {}) =>
   db().prepare(`INSERT INTO evidence (id, project_id, file_name, r2_key, file_hash, uploaded_by, evaluation_status, valido_ate, ciso_approved_by) VALUES (?, ?, ?, 'k', 'h', 'u', ?, ?, ?)`)

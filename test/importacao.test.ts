@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { hojeEmSaoPaulo } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, habilitarPrivacy } from './helpers/d1';
@@ -1184,7 +1185,7 @@ describe('documentos e avaliações (fatia 3)', () => {
 
 describe('histórico operacional (fatia 4)', () => {
   type Res = { item_id: string; decisao: string; registro_id?: string; motivo?: string; aviso?: string };
-  const HOJE = new Date().toISOString().slice(0, 10);
+  const HOJE = hojeEmSaoPaulo();
   const dia = (n: number) => somarDias(HOJE, n);
   const TOKEN = /tit-[0-9a-f]{16}/;
   const aceitar = async (lote: string, id: string) =>

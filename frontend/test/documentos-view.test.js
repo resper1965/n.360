@@ -9,10 +9,11 @@ import { S } from '../src/state.js';
 import '../src/ui.js';
 import '../src/views/meus-pedidos.js';
 import '../src/views/documentos.js';
+import { hojeSP, emDiasSP } from '../src/hoje.js';
 
-const HOJE = new Date().toISOString().slice(0, 10);
-const AMANHA = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-const ONTEM = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+const HOJE = hojeSP();
+const AMANHA = emDiasSP(1);
+const ONTEM = emDiasSP(-1);
 
 const doc = (id, extra = {}) => ({
     id, tipo: 'politica', titulo: `Documento ${id}`, pai_id: null, dono_parte_id: null, revisar_a_cada_meses: null, revisar_ate: null,
