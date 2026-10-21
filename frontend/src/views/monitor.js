@@ -387,7 +387,9 @@ import { montarLista, colunasDe } from '../lista.js';
         try {
             const members = await api('GET', `/api/v1/projects/${p.id}/governance`);
             S.currentGovernance = members || [];
-            c.innerHTML = `<div class="fade-in">${window.renderProjectGovernance(S.currentGovernance, p.id)}<div id="gov-agentes"></div></div>`;
+            // O encarregado indicado no n.privacy que ainda não está no comitê; falha não esconde a matriz.
+            const fora = await api('GET', `/api/v1/projects/${p.id}/governance/encarregados-fora`).catch(() => []);
+            c.innerHTML = `<div class="fade-in">${window.renderProjectGovernance(S.currentGovernance, p.id, Array.isArray(fora) ? fora : [])}<div id="gov-agentes"></div></div>`;
             window.carregarAgentesDoProjeto(p.id);
             window.agentesAoVivo(p.id);
         } catch(e) {
@@ -395,7 +397,7 @@ import { montarLista, colunasDe } from '../lista.js';
         }
     }
 
-    window.renderProjectGovernance = function(members, projectId) {
+    window.renderProjectGovernance = function(members, projectId, encarregadosFora = []) {
         // Organograma (D6): o Líder do SGSI (is_primary, um por projeto) é a
         // ÂNCORA no topo; abaixo, um tronco desce para uma coluna por área.
         // A âncora não se repete nas colunas.
@@ -464,6 +466,12 @@ import { montarLista, colunasDe } from '../lista.js';
                 <div class="org-anchor-title">A autoridade vem do cargo (Líder SGSI, CISO ou DPO), não de marcação. Cadastre o responsável em “Gerenciar governança”.</div>
             </div>`;
 
+        const foraHtml = podeEditarGovernanca() ? encarregadosFora.map(e => `
+            <div class="gov-empty-list d-flex justify-between items-center">
+                <span>Encarregado indicado no n.privacy: ${escapeHTML(e.nome)}${e.email ? ` (${escapeHTML(e.email)})` : ''}</span>
+                <button class="btn btn-secondary" data-action="adicionarEncarregadoAoComite" data-args='${escapeHTML(JSON.stringify([projectId, e.nome, e.email || '']))}'>Adicionar ao comitê</button>
+            </div>`).join('') : '';
+
         const aut = autoridadeDosCargos(members);
         const avisos = [
             aut.direcao ? '' : 'Nenhum membro tem cargo de Direção (CEO, Diretor(a) ou Executivo): ninguém poderá assinar como Direção.',
@@ -491,6 +499,7 @@ import { montarLista, colunasDe } from '../lista.js';
                     ${manageBtn}
                 </div>
                 ${avisoHtml}
+                ${foraHtml}
                 ${anchorHtml}
                 <div class="org-trunk" aria-hidden="true"></div>
                 <div class="org-branches">${branchesHtml}</div>
@@ -719,6 +728,16 @@ import { montarLista, colunasDe } from '../lista.js';
     };
 
     window.editingMemberId = null;
+
+    // Abre o formulário de membro já com o encarregado do n.privacy; salvar com cargo DPO mantém a parte (casa por e-mail ou nome).
+    window.adicionarEncarregadoAoComite = async function(projectId, nome, email) {
+        await window.openGovernanceModal(projectId);
+        if (!document.getElementById('gov-name')) return;
+        document.getElementById('gov-name').value = nome || '';
+        document.getElementById('gov-email').value = email || '';
+        document.getElementById('gov-role').value = 'operacoes';
+        document.getElementById('gov-title').value = 'DPO';
+    };
 
     window.editGovernanceMember = function(memberId) {
         const member = (S.currentGovernance || []).find(m => m.id === memberId);

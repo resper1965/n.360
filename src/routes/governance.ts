@@ -4,7 +4,7 @@ import { Bindings, Variables } from '../index';
 import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto } from '../helpers';
 import { enviarBoasVindas, nomeDaOrg } from './users';
 import { SEM_SENHA } from '../services/convite';
-import { ehDpo, garantirEncarregado, desfazerEncarregado } from '../services/encarregado-pessoa';
+import { ehDpo, garantirEncarregado, desfazerEncarregado, atualizarEncarregado, encarregadosFora } from '../services/encarregado-pessoa';
 import { validateBody, stakeholderSchema, governanceMemberSchema, companyProfileSchema, contextSchema, auditFindingSchema, auditFindingUpdateSchema, stakeholderAtualizarSchema, revisaoCriarSchema, revisaoAtualizarSchema, metricaCriarSchema, metricaAtualizarSchema, cienciaPoliticaSchema } from '../schemas';
 import { espelhoDoPerfilAntigo } from '../services/empresas';
 
@@ -201,7 +201,17 @@ governanceApp.post('/projects/:id/governance', async (c) => {
     }
     // O membro já está gravado: falha do vínculo é registrada, não vira 500 (o retry duplicaria o membro). A 0062 refaz o vínculo.
     if (ehDpo({ role_category, job_title })) {
-      try { await garantirEncarregado(c.env.DB, projectId, { nome: name, email: email || null }); } catch (e) { registraErro(c, e); }
+      try {
+        const depois = { nome: name, email: email || null };
+        const mudou = id && antesDpo && (antesDpo.nome !== name || (antesDpo.email ?? '').toLowerCase() !== (email || '').toLowerCase());
+        if (mudou && antesDpo) {
+          const parteId = await atualizarEncarregado(c.env.DB, projectId, antesDpo, depois);
+          if (parteId) await logAudit(c.env.DB, 'governanca.encarregado.sincronizado', c.get('user')?.email || 'system', `Parte ${parteId} atualizada pelo membro ${id}`, '', '', projectId);
+          // E-mail novo já é de outra parte: o vínculo da antiga sai e passa para a outra.
+          else await tirarEncarregado(c, projectId, id, antesDpo, name);
+        }
+        await garantirEncarregado(c.env.DB, projectId, depois);
+      } catch (e) { registraErro(c, e); }
     } else if (id && antesDpo) {
       // O DPO deixou de ser DPO: o vínculo que a governança criou sai, salvo se outro DPO do projeto casa a mesma parte.
       await tirarEncarregado(c, projectId, id, antesDpo, name);
@@ -210,6 +220,11 @@ governanceApp.post('/projects/:id/governance', async (c) => {
   } catch (e: any) {
     return erro500(c, 'Falha ao salvar governança', e);
   }
+});
+
+governanceApp.get('/projects/:id/governance/encarregados-fora', async (c) => {
+  try { return c.json(await encarregadosFora(c.env.DB, c.req.param('id')!)); }
+  catch (e) { return erro500(c, 'Falha ao listar os encarregados', e); }
 });
 
 governanceApp.delete('/projects/:id/governance/:memberId', async (c) => {

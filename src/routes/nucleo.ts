@@ -5,6 +5,7 @@ import { aplicarNomes, propostasDeNomes } from '../services/padronizar-nomes';
 import { importarPartes, conciliarResponsaveis } from '../services/partes';
 import { importarDocumentos } from '../services/documentos';
 import { conferirPedidosDoDocumento } from './pedidos';
+import { sincronizarDpoDaParte } from '../services/encarregado-pessoa';
 import { NOME_DO_PRODUTO } from '../modulos';
 import { seedPhases } from '../services/project-setup';
 import {
@@ -215,6 +216,16 @@ nucleoApp.put('/partes/:id', async (c) => {
     await c.env.DB.prepare('UPDATE partes SET nome = ?, email = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?')
       .bind(v.data.nome ?? atual.nome, email, v.data.status ?? atual.status, id, projectId).run();
     await logAudit(c.env.DB, 'parte.atualizada', c.get('user').email, `Parte ${id} atualizada`, '', '', projectId);
+    const nome = v.data.nome ?? atual.nome;
+    if (nome !== atual.nome || email !== atual.email) {
+      // A parte é a encarregada: o membro DPO da governança acompanha. Falha é registrada, a parte já está gravada.
+      try {
+        if (await c.env.DB.prepare(`SELECT 1 FROM parte_vinculos WHERE parte_id = ? AND project_id = ? AND papel = 'encarregado'`).bind(id, projectId).first()) {
+          const membro = await sincronizarDpoDaParte(c.env.DB, projectId, { nome: atual.nome, email: atual.email }, { nome, email });
+          if (membro) await logAudit(c.env.DB, 'parte.dpo_sincronizado', c.get('user').email, `Parte ${id} levada ao membro ${membro}`, '', '', projectId);
+        }
+      } catch (e) { registraErro(c, e); }
+    }
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao atualizar a parte', e); }
 });
