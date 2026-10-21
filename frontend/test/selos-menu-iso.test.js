@@ -18,14 +18,21 @@ afterEach(() => history.replaceState(null, '', '/'));
 
 describe('selos do menu do n.iso', () => {
     it('número é o total a tratar; atraso vira is-danger; zero esconde; o Painel soma os atrasados', () => {
-        aplicarSelos({ capa: { abertas: 3, vencidas: 1 }, evidencias: { em_analise: 0, ruins: 0 }, fornecedores: { pendentes: 1, vencidos: 2 } });
+        aplicarSelos({ capa: { abertas: 3, vencidas: 1 }, evidencias: { em_analise: 0, ruins: 0 }, fornecedores: { pendentes: 1, vencidos: 2, reprovados: 1 } });
         expect(el('selo-iso-capa').textContent).toBe('3');
         expect(el('selo-iso-capa').classList.contains('is-danger')).toBe(true);
         expect(el('selo-iso-capa').getAttribute('aria-label')).toBe('3 ações corretivas abertas, 1 vencida');
         expect(el('selo-iso-evidencias').hidden).toBe(true);
-        expect(el('selo-iso-fornecedores').textContent).toBe('3');
-        expect(el('selo-iso-painel').textContent).toBe('3');
-        expect(el('selo-iso-painel').getAttribute('aria-label')).toBe('3 itens atrasados');
+        expect(el('selo-iso-fornecedores').textContent).toBe('4');
+        expect(el('selo-iso-fornecedores').getAttribute('aria-label')).toBe('4 fornecedores sem avaliação em dia, 3 com avaliação vencida ou reprovada');
+        expect(el('selo-iso-painel').textContent).toBe('4');
+        expect(el('selo-iso-painel').getAttribute('aria-label')).toBe('4 itens atrasados');
+    });
+    it('evidência ruim no singular e no plural', () => {
+        aplicarSelos({ evidencias: { em_analise: 0, ruins: 1 } });
+        expect(el('selo-iso-evidencias').getAttribute('aria-label')).toBe('1 evidência a tratar, 1 vencida ou não conforme');
+        aplicarSelos({ evidencias: { em_analise: 0, ruins: 2 } });
+        expect(el('selo-iso-evidencias').getAttribute('aria-label')).toBe('2 evidências a tratar, 2 vencidas ou não conformes');
     });
     it('fora do painel busca modulos.iso.selos; falha mostra "?"', async () => {
         apiMock.mockResolvedValue({ modulos: { iso: { selos: { capa: { abertas: 2, vencidas: 0 } } } } });

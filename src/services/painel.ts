@@ -268,7 +268,7 @@ const UNIAO_ISO = [
 
 const TEMAS_ANEXO_A: [string, string][] = [['A.5', 'Controles organizacionais'], ['A.6', 'Controles de pessoas'], ['A.7', 'Controles físicos'], ['A.8', 'Controles tecnológicos']];
 
-async function blocoIso(db: D1Database, projectId: string, dia: string, equipe: boolean) {
+async function blocoIso(db: D1Database, projectId: string, dia: string, quem: QuemPede) {
   const consultas = consultasDeVencimento(db, UNIAO_ISO, projectId, dia);
   const [terceiros, respostas] = await Promise.all([listarTerceiros(db, projectId), db.batch([
     ...consultas,
@@ -295,9 +295,10 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, equipe: 
     // Exclusão da SoA sem justificativa: a justificativa do N/A mora em `description` (soa-logic.ts).
     db.prepare(`SELECT title FROM compliance_controls WHERE project_id = ?1 AND status = 'Not Applicable' AND trim(COALESCE(description, '')) = '' ORDER BY title`).bind(projectId),
     db.prepare(`SELECT probability AS p, impact AS i, count(*) AS n FROM risks WHERE project_id = ?1 AND ropa_id IS NULL GROUP BY probability, impact`).bind(projectId),
-    // Pedidos com decisão pendente: só a equipe os vê aqui (o cliente tem "Esperando a sua decisão").
+    // Pedidos à espera da decisão DESTA pessoa (o mesmo destinatário de GET /api/v1/pedidos, que "meus-pedidos" lista).
     db.prepare(`SELECT count(DISTINCT p.id) AS n FROM pedidos p JOIN pedido_destinatarios d ON d.pedido_id = p.id
-      WHERE p.project_id = ?1 AND p.status = 'aberto' AND d.status = 'pendente'`).bind(projectId),
+      WHERE p.project_id = ?1 AND p.status = 'aberto' AND d.status = 'pendente' AND (d.user_id = ?2 OR (d.user_id IS NULL AND d.email = lower(?3)))`)
+      .bind(projectId, quem.id ?? '', quem.email ?? ''),
   ])]);
   const [controles, riscos, altos, capa, capaVencidas, evid, auditoria, parados, soa, mapa, pedidosAb] = respostas.slice(consultas.length);
   const ctrl = controles.results as { tema: string; classe: string; n: number }[];
@@ -338,8 +339,9 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, equipe: 
   const vencidos = terceiros.filter((t) => t.situacao === 'vencida');
   add(vencidos.length, { grupo: 'atraso', quando: 'Vencida', texto: plural(vencidos.length, 'fornecedor com avaliação vencida', 'fornecedores com avaliação vencida'),
     contexto: exemplos(vencidos.map((t) => t.nome)), acao: 'Ver os fornecedores', tela: 'vendors', filtro: 'vencidos' });
-  const pedidosAbertos = equipe ? (pedidosAb.results[0] as { n: number } | undefined)?.n ?? 0 : 0;
-  add(pedidosAbertos, { grupo: 'semana', quando: 'Aguardando', texto: plural(pedidosAbertos, 'pedido esperando decisão', 'pedidos esperando decisão'),
+  const pedidosAbertos = (pedidosAb.results[0] as { n: number } | undefined)?.n ?? 0;
+  // O cliente já tem "Esperando a sua decisão" (`decisoes`): o item é só das outras visões.
+  add(quem.cliente ? 0 : pedidosAbertos, { grupo: 'semana', quando: 'Aguardando', texto: plural(pedidosAbertos, 'pedido esperando decisão', 'pedidos esperando decisão'),
     contexto: 'Aprovação ou ciência pendente', acao: 'Ver os pedidos', tela: 'meus-pedidos' });
   const v = lerVencimentos(TIPOS_ISO, respostas.slice(0, consultas.length), dia);
   const capaAbertas = ((capa.results[0] as Contagem | undefined)?.andamento ?? 0) + vencidasCapa.length;
@@ -348,7 +350,7 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, equipe: 
     selos: {
       capa: { abertas: capaAbertas, vencidas: vencidasCapa.length },
       evidencias: { em_analise: ev?.andamento ?? 0, ruins: ev?.falta ?? 0 },
-      fornecedores: { pendentes: terceiros.filter((t) => t.situacao === 'pendente').length, vencidos: vencidos.length },
+      fornecedores: { pendentes: terceiros.filter((t) => t.situacao === 'pendente').length, vencidos: vencidos.length, reprovados: terceiros.filter((t) => t.situacao === 'reprovada').length },
       pedidos: { abertos: pedidosAbertos },
     },
     comecando, controles_avaliados: avaliados,
@@ -415,7 +417,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     ]),
   ]);
   const [marco, cadastro, pedidos, encs, fases] = base;
-  const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia, !quem.cliente) : null;
+  const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia, quem) : null;
   const privacy = modulos.includes('privacy') ? await blocoPrivacy(db, projectId, quem.cliente, dia) : null;
   const c = cadastro.results[0] as { tratamentos: number; controles: number };
   const programa = estadoDoPrograma((marco.results[0] as { d: string | null } | undefined)?.d ?? null, c.tratamentos > 0 || c.controles > 0);

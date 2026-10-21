@@ -34,9 +34,10 @@ const SELOS_ISO = (s) => {
         ['selo-iso-capa', inteiro(ca.abertas), inteiro(ca.vencidas),
             (q, r) => `${plural(q, 'ação corretiva aberta', 'ações corretivas abertas')}${r ? `, ${plural(r, 'vencida', 'vencidas')}` : ''}`],
         ['selo-iso-evidencias', inteiro(ev.em_analise) + inteiro(ev.ruins), inteiro(ev.ruins),
-            (q, r) => `${plural(q, 'evidência a tratar', 'evidências a tratar')}${r ? `, ${r} vencidas ou não conformes` : ''}`],
-        ['selo-iso-fornecedores', inteiro(fo.pendentes) + inteiro(fo.vencidos), inteiro(fo.vencidos),
-            (q, r) => `${plural(q, 'fornecedor sem avaliação em dia', 'fornecedores sem avaliação em dia')}${r ? `, ${r} com avaliação vencida` : ''}`],
+            (q, r) => `${plural(q, 'evidência a tratar', 'evidências a tratar')}${r ? `, ${plural(r, 'vencida ou não conforme', 'vencidas ou não conformes')}` : ''}`],
+        // Reprovada conta como atraso, como no n.privacy. "N com avaliação ..." não varia com o número.
+        ['selo-iso-fornecedores', inteiro(fo.pendentes) + inteiro(fo.vencidos) + inteiro(fo.reprovados), inteiro(fo.vencidos) + inteiro(fo.reprovados),
+            (q, r) => `${plural(q, 'fornecedor sem avaliação em dia', 'fornecedores sem avaliação em dia')}${r ? `, ${r} com avaliação vencida ou reprovada` : ''}`],
     ];
     const atrasados = fila.reduce((t, [, , r]) => t + r, 0);
     return [['selo-iso-painel', atrasados, atrasados, (q) => plural(q, 'item atrasado', 'itens atrasados')], ...fila];
