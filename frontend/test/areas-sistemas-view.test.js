@@ -50,6 +50,7 @@ describe('Áreas', () => {
         expect(selos).toEqual([null, 'Inativa']);
         expect(c.querySelector('tbody b, tbody i, tbody s')).toBeNull();
         expect(a.querySelector('.btn-primary').textContent.trim()).toBe('+ Nova área');
+        expect(document.getElementById('areas-contagem').textContent).toBe('2');
     });
 
     it('vazio explica que a área é usada na atividade do RoPA', async () => {
@@ -108,6 +109,7 @@ describe('Ativos (a tela Sistemas)', () => {
         expect(linha).toContain('Empresa Exemplo');
         expect(c.querySelector('tbody img')).toBeNull();
         expect(a.querySelector('.btn-primary').textContent.trim()).toBe('+ Novo ativo');
+        expect(document.getElementById('sistemas-contagem').textContent).toBe('1');
     });
 
     it('aceita a resposta embrulhada { ok, assets }', async () => {

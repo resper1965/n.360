@@ -96,33 +96,37 @@ describe('lista', () => {
         expect(b).toContain('Falta: Avaliação, DPA');
         expect(c).toContain('Falta: Tipo, Criticidade, Avaliação, DPA');
         const antes = f.mock.calls.length;
-        const filtra = (v) => { el('tc-filtro-pendencia').value = v; window.filtrarFornecedores(); return linhas(); };
+        const filtra = (v) => { window.listaFiltrar('tc', 'pendencia', v); return linhas(); };
+        expect([...el('tc-f-pendencia').options].map((o) => o.textContent))
+            .toEqual(['Todos', 'Completos', 'Com pendência', 'Falta Tipo', 'Falta Criticidade', 'Falta Avaliação', 'Falta DPA']);
         expect(filtra('completo')).toHaveLength(1);
         expect(filtra('pendente')).toHaveLength(2);
         expect(filtra('DPA')).toHaveLength(2);
         expect(filtra('Tipo')[0]).toContain('Terceiro c');
         expect(filtra('Criticidade')).toHaveLength(1);
         expect(f.mock.calls.length).toBe(antes);
-        expect(el('tc-filtro-pendencia').getAttribute('data-action-change')).toBe('filtrarFornecedores');
+        expect(el('tc-f-pendencia').getAttribute('data-action-change')).toBe('listaFiltrar');
     });
 
     it('filtros de criticidade e de situação, na própria tela e sem servidor', async () => {
         const f = await lista();
         const antes = f.mock.calls.length;
-        el('tc-filtro-nivel').value = 'nao_avaliada';
-        window.filtrarFornecedores();
+        expect(el('tc-contagem').textContent).toBe('3');
+        expect(el('c').querySelector('.tc-filtros')).toBeNull();
+        window.listaFiltrar('tc', 'nivel', 'nao_avaliada');
         expect(linhas()).toHaveLength(1);
         expect(linhas()[0]).toContain('Terceiro c');
-        el('tc-filtro-nivel').value = '';
-        el('tc-filtro-situacao').value = 'vencida';
-        window.filtrarFornecedores();
+        expect(el('tc-contagem').textContent).toBe('1 de 3');
+        window.listaFiltrar('tc', 'nivel', '');
+        window.listaFiltrar('tc', 'situacao', 'vencida');
         expect(linhas()).toHaveLength(1);
         expect(linhas()[0]).toContain('Terceiro b');
-        el('tc-filtro-nivel').value = 'baixo';
-        window.filtrarFornecedores();
-        expect(el('c').textContent).toContain('Nenhum fornecedor nesta situação.');
+        window.listaFiltrar('tc', 'nivel', 'baixo');
+        expect(el('c').textContent).toContain('Nada encontrado com a busca ou o filtro.');
         expect(f.mock.calls.length).toBe(antes);
-        expect(el('tc-filtro-nivel').getAttribute('data-action-change')).toBe('filtrarFornecedores');
+        expect([...el('tc-f-nivel').options].map((o) => o.value)).toEqual(['', 'alto', 'medio', 'baixo', 'nao_avaliada']);
+        expect([...el('tc-f-situacao').options].map((o) => o.value)).toEqual(['', 'pendente', 'vigente', 'vencida', 'reprovada']);
+        expect(el('tc-f-nivel').getAttribute('data-action-change')).toBe('listaFiltrar');
     });
 
     it('sem projeto ativo: estado vazio; sem fornecedores: mensagem com a ponte para Partes', async () => {

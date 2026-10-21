@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, formatarData } from '../ui.js';
-import { filtrarDoPainel } from '../filtro-painel.js';
+import { montarLista, colunasDe } from '../lista.js';
 import { navigate } from '../router.js';
 import { limparFichaDoEndereco } from '../produto.js';
 
@@ -40,8 +40,6 @@ const linkSeguro = (u) => (/^https?:\/\/\S+$/i.test(String(u || '')) ? `<a href=
 
 // ─── Lista ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
-let daLista = null; // o que a lista carregou: os filtros da tela refazem a tabela sem ir ao servidor
-
 async function renderTerceiros(c, h, a) {
     h.textContent = 'Fornecedores';
     const proj = projetoAtivo();
@@ -52,7 +50,6 @@ async function renderTerceiros(c, h, a) {
     // O questionário de homologação (F5) é do projeto: a equipe revisa e edita as perguntas antes de enviar.
     const perguntas = podeEditar() && proj ? `<button class="btn" data-action="abrirPerguntasHomologacao" data-args='${args(proj.id)}'>Perguntas do questionário</button>` : '';
     a.innerHTML = perguntas + adicionar + cadastrar;
-    daLista = null;
     if (!proj) {
         c.innerHTML = window.renderSemProjeto();
         return;
@@ -61,58 +58,41 @@ async function renderTerceiros(c, h, a) {
     try { terceiros = lista(await api('GET', `/api/v1/projects/${proj.id}/terceiros`)); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os fornecedores.', e); return; }
     const vencidos = terceiros.filter((t) => t.situacao === 'vencida').length;
     const aviso = vencidos ? `<p class="t-perigo">${escapeHTML(String(vencidos))} ${vencidos === 1 ? 'fornecedor com avaliação vencida' : 'fornecedores com avaliação vencida'}.</p>` : '';
-    // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
-    const { itens, chip, filtrado } = filtrarDoPainel('terceiros', null, terceiros);
-    daLista = { proj, itens, filtrado, cadastrar };
-    const filtro = (id, rotulo, mapa) => `<div class="form-group tc-filtro"><label class="form-label" for="${id}">${rotulo}</label>
-        <select class="form-input" id="${id}" data-action-change="filtrarFornecedores"><option value="">Todas</option>${opcoes(mapa)}</select></div>`;
-    const filtros = terceiros.length ? `<div class="tc-filtros">
-        ${filtro('tc-filtro-nivel', 'Criticidade', { ...NIVEIS_CRITICIDADE, nao_avaliada: 'Não avaliada' })}
-        ${filtro('tc-filtro-situacao', 'Situação', Object.fromEntries(Object.entries(SITUACOES).map(([k, [r]]) => [k, r])))}
-        <div class="form-group tc-filtro"><label class="form-label" for="tc-filtro-pendencia">Pendência</label>
-        <select class="form-input" id="tc-filtro-pendencia" data-action-change="filtrarFornecedores"><option value="">Todas</option><option value="completo">Completos</option>
-        <option value="pendente">Com pendência</option>${PENDENCIAS.map((x) => `<option value="${x}">Falta ${escapeHTML(x)}</option>`).join('')}</select></div></div>` : '';
-    c.innerHTML = `${aviso}${chip}${filtros}<div id="tc-lista"></div>`;
-    desenharLista();
-}
-
-function desenharLista() {
-    const alvo = el('tc-lista');
-    if (!daLista || !alvo) return;
-    const { proj, cadastrar } = daLista;
-    const nivel = el('tc-filtro-nivel') ? el('tc-filtro-nivel').value : '';
-    const situacao = el('tc-filtro-situacao') ? el('tc-filtro-situacao').value : '';
-    const pend = el('tc-filtro-pendencia') ? el('tc-filtro-pendencia').value : '';
-    const passaPend = (t) => !pend || (pend === 'completo' ? !lista(t.pendencias).length : pend === 'pendente' ? lista(t.pendencias).length > 0 : lista(t.pendencias).includes(pend));
-    const itens = daLista.itens.filter((t) => (!nivel || (t.nivel || 'nao_avaliada') === nivel) && (!situacao || t.situacao === situacao) && passaPend(t));
-    const linhas = itens.map((t) => {
-        const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
-        return [
-            `<strong>${escapeHTML(t.nome)}</strong>`,
-            escapeHTML(NIVEIS_CRITICIDADE[t.nivel] || 'Não avaliada'),
-            escapeHTML(TIPOS[t.terceiro_tipo] || '—'),
-            window.renderStatusBadge(rotulo, tom),
-            escapeHTML(t.ultima_avaliacao ? dataBr(t.ultima_avaliacao.valido_ate) : '—'),
-            t.dpa ? 'Sim' : 'Não',
-            escapeHTML(situacaoTprm(t)),
-            escapeHTML(String(t.atividades ?? t.tratamentos ?? 0)),
-            `<button class="btn btn-ghost btn-sm" data-action="abrirTerceiro" data-args='${args(proj.id, t.id)}'>Abrir</button>`,
-        ];
+    // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar (o componente aplica o filtro).
+    c.innerHTML = `${aviso}<div id="tc-lista"></div>`;
+    montarLista(el('tc-lista'), {
+        id: 'tc',
+        linhas: terceiros,
+        filtroPainel: { tela: 'terceiros' },
+        colunas: colunasDe(['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações'], (t) => {
+            const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
+            return [
+                `<strong>${escapeHTML(t.nome)}</strong>`,
+                escapeHTML(NIVEIS_CRITICIDADE[t.nivel] || 'Não avaliada'),
+                escapeHTML(TIPOS[t.terceiro_tipo] || '—'),
+                window.renderStatusBadge(rotulo, tom),
+                escapeHTML(t.ultima_avaliacao ? dataBr(t.ultima_avaliacao.valido_ate) : '—'),
+                t.dpa ? 'Sim' : 'Não',
+                escapeHTML(situacaoTprm(t)),
+                escapeHTML(String(t.atividades ?? t.tratamentos ?? 0)),
+                `<button class="btn btn-ghost btn-sm" data-action="abrirTerceiro" data-args='${args(proj.id, t.id)}'>Abrir</button>`,
+            ];
+        }),
+        filtros: [
+            { chave: 'nivel', rotulo: 'Criticidade', valor: (t) => t.nivel || 'nao_avaliada', opcoes: Object.entries({ ...NIVEIS_CRITICIDADE, nao_avaliada: 'Não avaliada' }) },
+            { chave: 'situacao', rotulo: 'Situação', valor: (t) => t.situacao, opcoes: Object.entries(SITUACOES).map(([k, [r]]) => [k, r]) },
+            // A linha cai em "Com pendência" e em cada "Falta ..." que tiver; sem nenhuma, em "Completos".
+            { chave: 'pendencia', rotulo: 'Pendência', valor: (t) => (lista(t.pendencias).length ? ['pendente', ...lista(t.pendencias)] : ['completo']),
+                opcoes: [['completo', 'Completos'], ['pendente', 'Com pendência'], ...PENDENCIAS.map((x) => [x, `Falta ${x}`])] },
+        ],
+        vazio: {
+            titulo: 'Nenhuma organização cadastrada.',
+            dica: 'Cadastre os fornecedores e operadores que tratam dados para o cliente, ou traga os que já estão no projeto.',
+            // Pessoas mostra só pessoas: a importação das organizações do projeto se dispara daqui.
+            acao: `${cadastrar}${cadastrar ? `<button class="btn" data-action="importarPartes" data-args='${args(proj.id)}'>Importar do projeto</button>` : ''}`,
+        },
     });
-    alvo.innerHTML = window.renderDataTable(
-        ['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações'],
-        linhas,
-        daLista.filtrado || nivel || situacao || pend
-            ? { emptyState: 'Nenhum fornecedor nesta situação.', emptyHint: 'Limpe o filtro para ver todos.', emptyAction: '' }
-            : {
-                emptyState: 'Nenhuma organização cadastrada.',
-                emptyHint: 'Cadastre os fornecedores e operadores que tratam dados para o cliente, ou traga os que já estão no projeto.',
-                // Pessoas mostra só pessoas: a importação das organizações do projeto se dispara daqui.
-                emptyAction: `${cadastrar}${cadastrar ? `<button class="btn" data-action="importarPartes" data-args='${args(proj.id)}'>Importar do projeto</button>` : ''}`,
-            },
-    );
 }
-window.filtrarFornecedores = desenharLista;
 
 // ─── Ficha (página em abas) ─────────────────────────────────────────────────────────────────────────────────────
 

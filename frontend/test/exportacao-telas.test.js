@@ -102,12 +102,20 @@ describe('mapa de risco: exportar o que a tela mostra', () => {
         const riscos = [{ id: 'k', ropa_id: 'r1', threat: 'X', probability: 5, impact: 4, risk_level: nivelDaNota(5, 4), atividade: 'A' }];
         dublar({ 'GET /api/v1/projects/p9/ropa/riscos-mapa': { riscos } });
         await window.renderMapaDeRisco(el('c'), el('h'), el('a'));
-        expect(el('a').querySelector('[data-action="exportarCsvRiscos"]')).not.toBeNull();
+        // Na vista Lista, o CSV é o do componente de lista (todos os riscos).
+        expect(el('a').querySelector('[data-action="exportarCsvRiscos"]')).toBeNull();
+        expect(el('c').querySelector('[data-action="listaExportar"]')).not.toBeNull();
         const f = dublar();
-        await window.exportarCsvRiscos();
+        await window.listaExportar('mr');
         expect(f.mock.calls[0][0]).toMatch(/\/export\/riscos-atividade$/);
+        // Na vista Mapa, o do cabeçalho: sem célula, todos; com célula, só ela.
+        window.mapaVista('mapa');
+        expect(el('a').querySelector('[data-action="exportarCsvRiscos"]')).not.toBeNull();
+        await window.exportarCsvRiscos();
+        expect(f.mock.calls[1][0]).toMatch(/\/export\/riscos-atividade$/);
         window.mapaCelula(5, 4);
         await window.exportarCsvRiscos();
-        expect(f.mock.calls[1][0]).toMatch(/\/export\/riscos-atividade\?probabilidade=5&impacto=4$/);
+        expect(f.mock.calls[2][0]).toMatch(/\/export\/riscos-atividade\?probabilidade=5&impacto=4$/);
+        window.mapaVista('lista');
     });
 });

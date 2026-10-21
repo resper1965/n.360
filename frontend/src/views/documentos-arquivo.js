@@ -2,10 +2,11 @@ import { S } from '../state.js';
 import { api, baixarArquivo, cabecalhosAuth, API_BASE } from '../api.js';
 import { showToast, openModal, escapeHTML, formatarData, confirmar, tituloDaTela } from '../ui.js';
 import { rotuloDe } from '../rotulos.js';
+import { montarLista, colunasDe } from '../lista.js';
 
 // Documentos (n.privacy; spec 2026-10-19, frente B): os documentos do legado, um arquivo (PDF/DOC/DOCX até 10 MB) com tipo,
 // situação, vencimento e responsável, em `/projects/:id/documentos-arquivo`. Não são os documentos versionados (políticas).
-// A lista é carregada uma vez e os filtros a refazem na tela. Texto do servidor sempre escapado.
+// A lista é carregada uma vez; busca, filtros e contagem são do componente de lista. Texto do servidor sempre escapado.
 
 export const TIPOS = [['politica', 'Política'], ['norma', 'Norma'], ['procedimento', 'Procedimento'], ['termo', 'Termo'], ['contrato', 'Contrato'],
     ['aditivo', 'Aditivo'], ['relatorio', 'Relatório'], ['outro', 'Outro']];
@@ -22,7 +23,6 @@ const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
 const opcoes = (pares, atual) => pares.map(([v, r]) => `<option value="${escapeHTML(v)}"${v === atual ? ' selected' : ''}>${escapeHTML(r)}</option>`).join('');
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
-const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 let lista = null; // { projeto, docs }
 
@@ -38,39 +38,26 @@ async function renderDocumentosArquivo(c, h, a) {
         docs = Array.isArray(r) ? r : [];
     } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os documentos.', e); return; }
     lista = { projeto: proj.id, docs };
-    c.innerHTML = `<div class="co-controles">
-            <label class="co-campo"><span class="co-campo-rotulo">Buscar</span>
-                <input class="form-input" id="da-busca" type="search" maxlength="120" placeholder="Nome do documento" data-action-input="daFiltrar"></label>
-            <label class="co-campo"><span class="co-campo-rotulo">Tipo</span>
-                <select class="form-select" id="da-filtro-tipo" data-action-change="daFiltrar"><option value="">Todos</option>${opcoes(TIPOS)}</select></label>
-            <label class="co-campo"><span class="co-campo-rotulo">Status</span>
-                <select class="form-select" id="da-filtro-status" data-action-change="daFiltrar"><option value="">Todos</option>${opcoes(SITUACOES)}</select></label>
-        </div><div id="da-lista"></div>`;
-    desenhar();
+    const editar = podeEditar();
+    c.innerHTML = '<div id="da-lista"></div>';
+    montarLista(el('da-lista'), {
+        id: 'da',
+        linhas: docs,
+        colunas: colunasDe(['Nome', 'Tipo', 'Vencimento', 'Status', 'Ações'], (d) => [
+            `<strong>${escapeHTML(d.nome)}</strong>`,
+            escapeHTML(ROTULO_TIPO[d.tipo] || d.tipo),
+            escapeHTML(vencimentoDe(d)),
+            window.renderStatusBadge(ROTULO_SITUACAO[d.status] || d.status, COR_SITUACAO[d.status] || 'info'),
+            [editar ? `<button class="btn btn-ghost btn-sm" data-action="daAbrir" data-args='${args(d.id)}' aria-label="Editar: ${escapeHTML(d.nome)}">Editar</button>` : '',
+                d.arquivo_nome ? `<button class="btn btn-ghost btn-sm" data-action="daBaixar" data-args='${args(d.id)}' aria-label="Baixar o arquivo de ${escapeHTML(d.nome)}">Baixar</button>` : ''].join(''),
+        ]),
+        busca: (d) => d.nome,
+        filtros: [{ chave: 'tipo', rotulo: 'Tipo', valor: (d) => d.tipo, opcoes: TIPOS }, { chave: 'status', rotulo: 'Status', valor: (d) => d.status, opcoes: SITUACOES }],
+        vazio: { titulo: 'Nenhum documento cadastrado.', dica: 'Cadastre contratos, termos, políticas e relatórios com o arquivo e o vencimento.' },
+    });
 }
 
 const vencimentoDe = (d) => (d.sem_vencimento ? 'Sem vencimento' : formatarData(d.vencimento));
-
-function desenhar() {
-    const alvo = el('da-lista');
-    if (!lista || !alvo) return;
-    const busca = semAcento(el('da-busca').value.trim());
-    const tipo = el('da-filtro-tipo').value;
-    const status = el('da-filtro-status').value;
-    const itens = lista.docs.filter((d) => (!busca || semAcento(d.nome).includes(busca)) && (!tipo || d.tipo === tipo) && (!status || d.status === status));
-    const editar = podeEditar();
-    alvo.innerHTML = window.renderDataTable(['Nome', 'Tipo', 'Vencimento', 'Status', 'Ações'], itens.map((d) => [
-        `<strong>${escapeHTML(d.nome)}</strong>`,
-        escapeHTML(ROTULO_TIPO[d.tipo] || d.tipo),
-        escapeHTML(vencimentoDe(d)),
-        window.renderStatusBadge(ROTULO_SITUACAO[d.status] || d.status, COR_SITUACAO[d.status] || 'info'),
-        [editar ? `<button class="btn btn-ghost btn-sm" data-action="daAbrir" data-args='${args(d.id)}' aria-label="Editar: ${escapeHTML(d.nome)}">Editar</button>` : '',
-            d.arquivo_nome ? `<button class="btn btn-ghost btn-sm" data-action="daBaixar" data-args='${args(d.id)}' aria-label="Baixar o arquivo de ${escapeHTML(d.nome)}">Baixar</button>` : ''].join(''),
-    ]), lista.docs.length
-        ? { emptyState: 'Nenhum documento com estes filtros.', emptyHint: 'Limpe a busca e os filtros para ver todos.' }
-        : { emptyState: 'Nenhum documento cadastrado.', emptyHint: 'Cadastre contratos, termos, políticas e relatórios com o arquivo e o vencimento.' });
-}
-window.daFiltrar = desenhar;
 
 // ─── Modal "Documento" ───
 let modal = null; // { id, doc }

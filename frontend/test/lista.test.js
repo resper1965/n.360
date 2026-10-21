@@ -69,6 +69,16 @@ describe('montarLista', () => {
         expect([...document.querySelectorAll('#tl-f-status option')].map((o) => o.textContent)).toEqual(['Todos', 'Em aberto']);
     });
 
+    it('filtro cujo valor é uma lista: a linha entra em cada opção dela', () => {
+        const varias = [{ id: 'a', nome: 'A', areas: ['RH', 'TI'] }, { id: 'b', nome: 'B', areas: ['TI'] }, { id: 'c', nome: 'C', areas: [] }];
+        montar({ linhas: varias, filtros: [{ chave: 'area', rotulo: 'Área', valor: (l) => l.areas }] });
+        expect([...document.querySelectorAll('#tl-f-area option')].map((o) => o.value)).toEqual(['', 'RH', 'TI']);
+        escolher('#tl-f-area', 'TI');
+        expect(contagem()).toBe('2 de 3');
+        escolher('#tl-f-area', 'RH');
+        expect(linhasDaTabela().map((tr) => tr.textContent)).toEqual([expect.stringContaining('A')]);
+    });
+
     it('mudar busca ou filtro volta ao começo', () => {
         montar();
         mais().click();

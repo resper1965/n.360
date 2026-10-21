@@ -57,17 +57,19 @@ describe('Documentos', () => {
     it('busca (sem acento) e filtros de Tipo e Status refazem a lista na tela', async () => {
         const [c, h, a] = montar();
         await window.renderDocumentosArquivo(c, h, a);
-        el('da-busca').value = 'politica';
-        window.daFiltrar();
+        expect(el('da-contagem').textContent).toBe('2');
+        expect(el('da-busca').getAttribute('data-action-input')).toBe('listaBuscar');
+        window.listaBuscar('da', 'politica');
         expect(linhas(c).map((x) => x[0])).toEqual(['Política de Privacidade']);
-        el('da-busca').value = '';
-        el('da-filtro-tipo').value = 'contrato';
-        window.daFiltrar();
+        expect(el('da-contagem').textContent).toBe('1 de 2');
+        window.listaBuscar('da', '');
+        expect([...el('da-f-tipo').options].map((o) => o.value)).toEqual(['', 'politica', 'norma', 'procedimento', 'termo', 'contrato', 'aditivo', 'relatorio', 'outro']);
+        window.listaFiltrar('da', 'tipo', 'contrato');
         expect(linhas(c).map((x) => x[0])).toEqual(['Contrato <b>Fornecedor</b>']);
-        el('da-filtro-tipo').value = '';
-        el('da-filtro-status').value = 'obsoleto';
-        window.daFiltrar();
-        expect(c.textContent).toContain('Nenhum documento com estes filtros.');
+        window.listaFiltrar('da', 'tipo', '');
+        expect([...el('da-f-status').options].map((o) => o.value)).toEqual(['', 'rascunho', 'publicado', 'obsoleto']);
+        window.listaFiltrar('da', 'status', 'obsoleto');
+        expect(c.textContent).toContain('Nada encontrado com a busca ou o filtro.');
         expect(apiMock.mock.calls.filter(([m]) => m === 'GET')).toHaveLength(1);
     });
 

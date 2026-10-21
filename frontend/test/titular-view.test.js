@@ -533,13 +533,15 @@ describe('pedidos: colunas e filtros da lista (spec 2026-10-19)', () => {
     it('filtra por tipo e por status sem ir ao servidor', async () => {
         const f = await abrir('pedidos');
         const antes = f.mock.calls.length;
-        filtrar('pt-filtro-tipo', 'correcao');
+        expect(el('pt-contagem').textContent).toBe(String(PEDIDOS.length));
+        filtrar('pt-f-tipo', 'correcao');
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('PT-2026-0002')]);
-        filtrar('pt-filtro-tipo', '');
-        filtrar('pt-filtro-status', 'recebido');
+        expect(el('pt-contagem').textContent).toBe(`1 de ${PEDIDOS.length}`);
+        filtrar('pt-f-tipo', '');
+        filtrar('pt-f-status', 'recebido');
         expect(linhas()).toHaveLength(2);
-        filtrar('pt-filtro-status', 'negado');
-        expect(el('pt-lista').textContent).toContain('Nenhum pedido com estes filtros');
+        filtrar('pt-f-status', 'negado');
+        expect(el('pt-lista').textContent).toContain('Nada encontrado com a busca ou o filtro');
         expect(f.mock.calls.length).toBe(antes);
     });
 });

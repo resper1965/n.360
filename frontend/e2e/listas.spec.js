@@ -61,7 +61,7 @@ test('Gestão de GAPs: lista → filtro de status → o Gap abre o Controle de G
   const menu = page.locator('#sidebar');
   await expect(menu.getByText('Diagnóstico', { exact: true })).toBeVisible();
   await menu.locator('#nav-gaps').click();
-  await expect(page.locator('#header-title')).toHaveText('Gestão de GAPs');
+  await expect(page.locator('#header-title')).toHaveText('Gaps');
   await expect(page.locator('#gp-lista tbody tr')).toHaveCount(2);
 
   await page.getByLabel('Status').selectOption('Open');

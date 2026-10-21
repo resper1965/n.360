@@ -9,11 +9,13 @@ import { filtrarDoPainel } from './filtro-painel.js';
 const LISTAS = new Map();
 /** Colunas do componente a partir das células de cada linha (a ordem dos rótulos é a das células). */
 export const colunasDe = (rotulos, celulas) => rotulos.map((label, i) => ({ label, render: (l) => celulas(l)[i] }));
+// `valor` pode devolver uma lista (a linha cai em mais de uma opção: várias áreas, várias pendências).
+const valoresDe = (f, l) => [].concat(f.valor(l) ?? []).filter((v) => v !== null && v !== undefined && v !== '').map(String);
 const semAcento = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function opcoesDe(f, linhas) {
     if (f.opcoes) return f.opcoes;
-    const vistos = [...new Set(linhas.map((l) => f.valor(l)).filter((v) => v !== null && v !== undefined && v !== '').map(String))];
+    const vistos = [...new Set(linhas.flatMap((l) => valoresDe(f, l)))];
     return vistos.map((v) => [v, rotuloDe('', v)]).sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'pt-BR'));
 }
 
@@ -25,7 +27,7 @@ function visiveis(L) {
     if (q && L.cfg.busca) itens = itens.filter((l) => semAcento(L.cfg.busca(l)).includes(q));
     for (const f of L.cfg.filtros || []) {
         const v = L.filtros[f.chave];
-        if (v) itens = itens.filter((l) => String(f.valor(l) ?? '') === v);
+        if (v) itens = itens.filter((l) => valoresDe(f, l).includes(v));
     }
     if (L.cfg.ordenar) itens = [...itens].sort(L.cfg.ordenar);
     return { itens, chip };

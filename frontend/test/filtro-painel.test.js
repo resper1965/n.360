@@ -94,6 +94,7 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         await window.renderTitular(el('c'), el('h'), el('a'));
         expect(linhas()).toHaveLength(1);
         expect(linhas()[0]).toContain('PT-2');
+        expect(el('pt-contagem').textContent).toBe('1 de 2');
         expect(chip().getAttribute('role')).toBe('status');
         expect(chip().textContent.replace(/\s+/g, ' ')).toContain('Filtro: atrasados — limpar');
         const limpar = chip().querySelector('[data-action="limparFiltroPainel"]');
@@ -128,6 +129,7 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         ], 'GET /api/v1/parametros-legais': [] });
         await window.renderTitular(el('c'), el('h'), el('a'));
         expect(linhas().map((t) => t.includes('IN-2'))).toEqual([true]);
+        expect(el('in-contagem').textContent).toBe('1 de 2');
         expect(chip().textContent).toContain('comunicação atrasada');
     });
 
@@ -142,7 +144,8 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         expect(linhas().map((t) => t.includes('Fornecedor Vencido'))).toEqual([true]);
         S.filtroPainel = filtroValido('terceiros', null, 'pendentes');
         await window.renderTerceiros(el('c'), el('h'), el('a'));
-        expect(el('c').textContent).toContain('Nenhum fornecedor nesta situação.');
+        expect(el('c').textContent).toContain('Nada encontrado com a busca ou o filtro.');
+        expect(chip().textContent).toContain('nunca avaliados');
     });
 
     it('evidências vencidas e ações corretivas vencidas', async () => {
