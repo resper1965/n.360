@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api, API_BASE } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
-import { temProduto, projetoDoId } from '../produto.js';
+import { temProduto, projetoDoId, modulosVisiveis } from '../produto.js';
 import { montarLista, colunasDe } from '../lista.js';
 import { hojeSP } from '../hoje.js';
 import { classeDoControle } from '../classe-controle.js';
@@ -158,6 +158,8 @@ import { classeDoControle } from '../classe-controle.js';
                     </div>
                 </div>
 
+                <div id="controle-atividades" class="mb-6"></div>
+
                 <div class="ctx-label">Evidências Vinculadas</div>
                 <div id="control-evidence-list" class="card" style="padding:0; margin-bottom: 1.5rem; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.2)">
                     <div class="p-4 t-center t-dim t-sm">Carregando evidências...</div>
@@ -176,6 +178,31 @@ import { classeDoControle } from '../classe-controle.js';
         `);
         loadControlEvidence(ctrl.id);
         loadControlTrilha(ctrl.id);
+        loadControlAtividades(ctrl);
+    }
+
+    // Atividades do n.privacy que dependem deste controle por uma medida (GET /controls/:id/atividades). Guardadas para o
+    // aviso ao sair de "implementado"; falha da chamada: o bloco não aparece e o detalhe segue.
+    let atividadesDoControle = { id: null, lista: [] };
+    const nomesDistintos = (lista) => [...new Set(lista.map((a) => a.atividade))];
+    async function loadControlAtividades(ctrl) {
+        atividadesDoControle = { id: ctrl.id, lista: [] };
+        const alvo = document.getElementById('controle-atividades');
+        if (!alvo) return;
+        let lista;
+        try {
+            const r = await api('GET', `/api/v1/controls/${ctrl.id}/atividades`);
+            lista = Array.isArray(r && r.atividades) ? r.atividades : [];
+        } catch (e) { return; }
+        atividadesDoControle = { id: ctrl.id, lista };
+        if (!lista.length || !document.getElementById('controle-atividades')) return;
+        const n = nomesDistintos(lista).length;
+        const abre = modulosVisiveis(S.currentProject).includes('privacy');
+        const nome = (a) => (abre
+            ? `<button type="button" class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${escapeHTML(JSON.stringify([ctrl.project_id || S.currentProject?.id, a.ropa_id, 'medidas']))}'>${escapeHTML(a.atividade)}</button>`
+            : escapeHTML(a.atividade));
+        alvo.innerHTML = `<div class="ctx-label">Usado em ${n} ${n === 1 ? 'atividade' : 'atividades'} do n.privacy</div>
+            <ul class="t-sm">${lista.map((a) => `<li>${nome(a)}: ${escapeHTML(a.medida)}</li>`).join('')}</ul>`;
     }
 
     /**
@@ -233,6 +260,14 @@ import { classeDoControle } from '../classe-controle.js';
     window.tempoRelativo = tempoRelativo;
 
     async function updateControlStatus(id, status) {
+        const atual = S.controls.find((c) => c.id === id);
+        const nomes = atividadesDoControle.id === id ? nomesDistintos(atividadesDoControle.lista) : [];
+        if (atual && nomes.length && classeDoControle(atual.status) === 'feito' && classeDoControle(status) !== 'feito') {
+            const lista = nomes.length <= 5 ? `${nomes.slice(0, -1).join(', ')}${nomes.length > 1 ? ' e ' : ''}${nomes[nomes.length - 1]}`
+                : `${nomes.slice(0, 5).join(', ')} e mais ${nomes.length - 5}`;
+            const ok = await window.confirmar(`Este controle é usado em ${nomes.length} ${nomes.length === 1 ? 'atividade' : 'atividades'} do n.privacy: ${lista}. Elas vão mostrar o aviso para revisar a medida. Mudar o status?`, { titulo: 'Mudar o status do controle', rotulo: 'Mudar' });
+            if (!ok) { const sel = document.getElementById('controle-status'); if (sel) sel.value = atual.status; return; }
+        }
         try {
             await api('PUT', `/api/v1/controls/${id}/status`, { status });
             await loadControls();
