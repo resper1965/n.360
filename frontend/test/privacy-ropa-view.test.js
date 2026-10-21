@@ -196,6 +196,9 @@ describe('correções P0 do RoPA', () => {
         expect(linhas.find((t) => t.includes('Folha'))).not.toContain('Importado');
         // n.privacy: cada linha abre a página da atividade (onda 2), por um botão só
         expect(el('c').querySelectorAll('tbody [data-action="abrirAtividade"]')).toHaveLength(2);
+        // a lista é a do componente: contagem e "Carregar mais"; o CSV continua no "Mais ações"
+        expect(el('ropa-contagem').textContent).toBe('2');
+        expect(el('c').querySelector('[data-action="listaExportar"]')).toBeNull();
         expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade');
     });
 });
@@ -253,7 +256,9 @@ describe('RIPD (DPIA)', () => {
         expect(el('h').textContent).toBe('RIPD');
         expect(el('a').textContent).toContain('Novo RIPD');
         // F4: CSV da lista e Word por linha
-        expect(el('a').querySelector('[data-action="exportarCsvRipd"]')).not.toBeNull();
+        expect(el('a').querySelector('[data-action="exportarCsvRipd"]')).toBeNull();
+        expect(JSON.parse(el('c').querySelector('[data-action="listaExportar"]').getAttribute('data-args'))).toEqual(['ripd']);
+        expect(el('c').querySelector('[data-action="listaExportar"]').textContent.trim()).toBe('Exportar CSV');
         expect(JSON.parse(el('c').querySelector('[data-action="baixarWordRipd"]').getAttribute('data-args'))).toEqual(['p1', 'd1']);
         expect(el('c').textContent).toContain('Aguardando o encarregado');
         expect(el('c').textContent).not.toContain('CISO');
@@ -286,9 +291,12 @@ describe('RIPD (DPIA)', () => {
         const linhas = () => [...el('ripd-lista').querySelectorAll('tbody tr')];
         expect(linhas()[0].textContent).toContain('Baixo');
         expect(el('c').innerHTML).not.toContain('<b>Exemplo</b>');
-        el('ripd-filtro-status').value = 'Draft';
-        el('ripd-filtro-status').dispatchEvent(new Event('change', { bubbles: true }));
+        expect(el('ripd-contagem').textContent).toBe('2');
+        expect([...el('ripd-f-status').options].map((o) => o.textContent)).toEqual(['Todos', 'Rascunho', 'Em revisão', 'Aprovado']);
+        el('ripd-f-status').value = 'Draft';
+        el('ripd-f-status').dispatchEvent(new Event('change', { bubbles: true }));
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('ERP')]);
+        expect(el('ripd-contagem').textContent).toBe('1 de 2');
     });
 
     it('Área, Responsável, busca e filtro de área na lista do RIPD', async () => {
@@ -307,8 +315,9 @@ describe('RIPD (DPIA)', () => {
         el('ripd-busca').dispatchEvent(new Event('input', { bubbles: true }));
         expect(linhas().join('')).not.toContain('Câmeras');
         el('ripd-busca').value = '';
-        el('ripd-filtro-area').value = 'Gestão';
-        el('ripd-filtro-area').dispatchEvent(new Event('change', { bubbles: true }));
+        el('ripd-busca').dispatchEvent(new Event('input', { bubbles: true }));
+        el('ripd-f-area').value = 'Gestão';
+        el('ripd-f-area').dispatchEvent(new Event('change', { bubbles: true }));
         expect(linhas()).toEqual([expect.stringContaining('Admissão')]);
     });
 
@@ -463,14 +472,14 @@ describe('lista do RoPA no n.privacy', () => {
     it('busca sem acento e filtros de área e situação', async () => {
         rotas['/ropa'] = LISTA;
         await window.renderROPA(el('c'), el('h'), el('a'));
-        el('ropa-busca').value = 'camera'; window.filtrarRopa();
+        window.listaBuscar('ropa', 'camera');
         expect(el('ropa-lista').textContent).toContain('Câmeras');
         expect(el('ropa-lista').textContent).not.toContain('Admissão');
-        el('ropa-busca').value = 'camera '; window.filtrarRopa();
+        window.listaBuscar('ropa', 'camera ');
         expect(el('ropa-lista').textContent).toContain('Câmeras');
-        el('ropa-busca').value = ''; el('ropa-filtro-area').value = 'Comercial'; window.filtrarRopa();
+        window.listaBuscar('ropa', ''); window.listaFiltrar('ropa', 'area', 'Comercial');
         expect(el('ropa-lista').textContent).not.toContain('Admissão');
-        el('ropa-filtro-area').value = ''; el('ropa-filtro-situacao').value = 'aprovada'; window.filtrarRopa();
+        window.listaFiltrar('ropa', 'area', ''); window.listaFiltrar('ropa', 'situacao', 'aprovada');
         expect(el('ropa-lista').textContent).toContain('Admissão');
         expect(el('ropa-lista').textContent).not.toContain('Câmeras');
     });

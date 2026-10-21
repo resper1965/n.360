@@ -6,7 +6,7 @@ import { atualizarAtivo, removerAtivo } from '../services/itens';
 import { validateBody, assetSchema, dpiaSchema, revogarDpiaSchema, dpiaApprovalSchema, transferirProjetoSchema, precificacaoConfigSchema } from '../schemas';
 import { transferirProjeto, MSG_CORRIDA } from '../services/transferencia-projeto';
 import { verificarCadeia } from '../trilha';
-import { assinaturaDpia } from '../services/pedidos';
+import { assinaturaDpia, COLUNAS_DPIA } from '../services/pedidos';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { PHASE_TITLES, PHASE_CHECKLISTS } from '../constants';
 import { DEFAULT_FINANCIAL_MODEL } from '../services/pricing';
@@ -74,6 +74,14 @@ platformApp.delete('/assets/:id', async (c) => {
 });
 
 // DPIA standalone CRUD
+// Colunas que o PUT do DPIA grava e o "vazio" de cada uma. Inclui as da tela: sem elas, o texto editado era descartado em silêncio.
+const VAZIOS_DPIA: Record<string, unknown> = {
+  ropa_id: null, processing_name: null, data_category_risk: null, necessity_proportionality: null,
+  technical_measures: null, residual_risk_level: 'Medium', dpo_recommendations: null, status: 'Draft',
+  system_name: null, data_flow_description: null, data_subjects_types: null, personal_data_categories: null,
+  risks_identified: null, mitigation_measures: null, dpo_opinion: null,
+};
+
 platformApp.put('/dpia/:id', async (c) => {
   try {
     const id = c.req.param('id');
@@ -81,26 +89,30 @@ platformApp.put('/dpia/:id', async (c) => {
     const valid = await validateBody(c, dpiaSchema);
     if (!valid.success) return valid.response;
     const body = valid.data as any;
-    const atual = await c.env.DB.prepare('SELECT project_id, status FROM dpia_assessments WHERE id = ?').bind(id).first<{ project_id: string | null; status: string | null }>();
-    // Sair de 'Approved' pelo PUT deixaria as assinaturas na linha sem motivo nem trilha: é revogação.
-    // Editar só o conteúdo de DPIA aprovada continua permitido (o pedido aberto é substituído abaixo).
-    if (atual?.status === 'Approved' && Object.hasOwn(body, 'status')) {
-      return c.json({ error: 'DPIA aprovada não muda de status pela edição. Para reabrir, use "Revogar aprovação" (motivo obrigatório).' }, 400);
-    }
+    const atual = await c.env.DB.prepare(`SELECT project_id, status, dpo_signature, ceo_signature, ${COLUNAS_DPIA.join(', ')} FROM dpia_assessments WHERE id = ?`)
+      .bind(id).first<Record<string, unknown> & { project_id: string | null; status: string | null }>();
+    // Uma assinatura aprova o RIPD; mudar o conteúdo assinado derruba a aprovação (decisão do dono de 20/10/2026).
+    // Compara o valor que SERIA gravado (vazio vira NULL ou o padrão da coluna; quebra de linha normalizada): a tela manda todos os
+    // campos a cada salvar, e um campo vazio não pode contar como mudança.
+    const gravar = valoresParciais(body, VAZIOS_DPIA);
+    const texto = (x: unknown) => (typeof x === 'string' ? x.replace(/\r\n/g, '\n') : x ?? null);
+    const mudaram = atual ? COLUNAS_DPIA.filter((col) => Object.hasOwn(gravar, col) && texto(gravar[col]) !== texto(atual[col])) : [];
+    const assinado = !!(atual?.dpo_signature || atual?.ceo_signature);
+    // Sem mudança de conteúdo, o status de um RIPD aprovado não sai pelo PUT: reabrir é revogar, com motivo.
+    if (atual?.status === 'Approved' && !mudaram.length) delete body.status;
     const fora = await refForaDoProjeto(c.env.DB, atual?.project_id, body, ['ropa_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
-    const p = setParcial(body, {
-      ropa_id: null, processing_name: null, data_category_risk: null, necessity_proportionality: null,
-      technical_measures: null, residual_risk_level: 'Medium', dpo_recommendations: null, status: 'Draft',
-      // Colunas da tela de DPIA: sem elas aqui, o texto editado pela tela era descartado em silêncio.
-      system_name: null, data_flow_description: null, data_subjects_types: null, personal_data_categories: null,
-      risks_identified: null, mitigation_measures: null, dpo_opinion: null,
-    });
+    const p = setParcial(body, VAZIOS_DPIA);
     if (p.sql) await c.env.DB.prepare(`UPDATE dpia_assessments SET ${p.sql} WHERE id=?`).bind(...p.binds, id).run();
+    const user = c.get('user');
+    const email = user?.email || 'system';
+    if (assinado && mudaram.length) {
+      await c.env.DB.prepare(`UPDATE dpia_assessments SET dpo_signature = NULL, ceo_signature = NULL, dpo_approved_by = NULL, dpo_approved_at = NULL, status = 'Draft' WHERE id = ?`).bind(id).run();
+      await logAudit(c.env.DB, 'dpia.aprovacao_invalidada', email, `RIPD ${id}: conteúdo mudou (${mudaram.join(', ')}); aprovação e assinaturas zeradas, voltou a rascunho.`, '', '', atual?.project_id ?? undefined);
+    }
     // Pedido aberto sobre o texto anterior vira `substituido` e nasce outro com o texto novo.
     await conferirPedidosDoDocumento(c, 'dpia', id);
-    const user = c.get('user');
-    await logAudit(c.env.DB, 'dpia_updated', user?.email || 'system', `DPIA ${id} updated`);
+    await logAudit(c.env.DB, 'dpia_updated', email, `DPIA ${id} updated`, '', '', atual?.project_id ?? undefined);
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Falha ao atualizar DPIA', e);

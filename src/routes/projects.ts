@@ -17,7 +17,7 @@ import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
 import { controlsForRole, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
 import { checkCoherence } from '../services/coherence';
 import { comOrigemMudou } from '../services/lia';
-import { NA_STATUS } from '../services/soa-logic';
+import { classeDoControle } from '../services/classe-controle';
 import { validateBody, checklistProgressSchema, dpiaSchema, projectPhaseSchema, interviewSchema, evidenceMetaSchema, scopeChangeSchema, auditorTokenSchema, politicaTenantSchema, ssoConfigSchema, projetoCriarSchema, projetoAtualizarSchema, revogarAprovacaoSchema, reatribuirResponsavelSchema, cnpjValido } from '../schemas';
 import { camposPresentes, gravacaoDaEmpresa, gravacaoDasPessoas, projetoComCnpj } from '../services/empresas';
 import { registerAssetRoutes } from './project-assets';
@@ -1156,7 +1156,7 @@ projectsApp.get('/:id/gap-analysis', async (c) => {
   const cont = new Map(((contagens.results || []) as any[]).map((r) => [r.id, r]));
 
   const by_status: Record<string, number> = {};
-  let aplicaveis = 0, controls_with_evidence = 0, controls_with_risks = 0;
+  let aplicaveis = 0, feitos = 0, controls_with_evidence = 0, controls_with_risks = 0;
   const gaps: any[] = [];
   for (const ctrl of rows) {
     by_status[ctrl.status] = (by_status[ctrl.status] || 0) + 1;
@@ -1164,13 +1164,13 @@ projectsApp.get('/:id/gap-analysis', async (c) => {
     if (evidence_count > 0) controls_with_evidence++;
     if (risk_count > 0) controls_with_risks++;
     // Não aplicável (SoA) não é lacuna nem entra no denominador da cobertura.
-    if (ctrl.status === NA_STATUS) continue;
+    const classe = classeDoControle(ctrl.status);
+    if (classe === 'na') continue;
     aplicaveis++;
-    if (ctrl.status !== 'Implemented') {
-      gaps.push({ control_id: ctrl.id, title: ctrl.title, status: ctrl.status, evidence_count, risk_count });
-    }
+    if (classe === 'feito') feitos++;
+    else gaps.push({ control_id: ctrl.id, title: ctrl.title, status: ctrl.status, evidence_count, risk_count });
   }
-  const coverage_pct = aplicaveis > 0 ? Math.round(((by_status.Implemented || 0) / aplicaveis) * 100) : 0;
+  const coverage_pct = aplicaveis > 0 ? Math.round((feitos / aplicaveis) * 100) : 0;
 
   return c.json({ ok: true, total: rows.length, applicable: aplicaveis, by_status, coverage_pct, controls_with_evidence, controls_with_risks, gaps });
 });

@@ -1,5 +1,6 @@
 import { SQL_CLASSE_CONTROLE, SQL_EVIDENCIA_RUIM } from './painel';
 import { diaMes } from './encarregado';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Prontidão para a certificação ISO/IEC 27001:2022 (Onda 2 do diagnóstico de design de 15/10/2026): uma resposta, no
@@ -160,7 +161,7 @@ export function avaliarProntidao(c: Contagens) {
 }
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
 
 /** As contagens do projeto, num batch. Controles e evidências pelas MESMAS expressões do Painel (`painel.ts`). */
 export async function contagensDoProjeto(db: D1Database, projectId: string): Promise<{ contagens: Contagens; certificacao: Record<string, string | null> | null }> {

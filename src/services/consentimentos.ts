@@ -1,4 +1,5 @@
 import { logAudit } from '../helpers';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 7: prova de consentimento ligada ao tratamento (quem, quando, finalidade, versão do aviso). `titular_ref` é uma
@@ -7,7 +8,7 @@ import { logAudit } from '../helpers';
 
 type Falha = { ok: false; status: 400 | 404 | 409; error: string };
 const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, status, error });
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
 const ehData = (s: string) => /^\d{4}-\d{2}-\d{2}/.test(s) && !Number.isNaN(Date.parse(s.length === 10 ? `${s}T00:00:00Z` : s));
 
 const COLS = 'c.id, c.ropa_id, r.processing_purpose AS tratamento, c.titular_ref, c.finalidade, c.versao_aviso, c.obtido_em, c.canal, c.revogado_em, c.revogado_por, c.criado_por, c.created_at';

@@ -51,7 +51,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe('Gestão de GAPs', () => {
     it('colunas do legado, "Em atraso" derivado e texto escapado', async () => {
         const f = await abrir();
-        expect(el('h').textContent).toBe('Gestão de GAPs');
+        expect(el('h').textContent).toBe('Gaps');
         expect([...el('c').querySelectorAll('thead th')].map((t) => t.textContent.trim()))
             .toEqual(['Gap', 'Atividade', 'Área', 'Responsável', 'Prazo', 'Status']);
         expect(linhas()).toHaveLength(4);
@@ -69,35 +69,43 @@ describe('Gestão de GAPs', () => {
 
     it('filtro de Área com as áreas distintas', async () => {
         await abrir();
-        expect([...el('gp-filtro-area').options].map((o) => o.textContent)).toEqual(['Todas', 'Jurídico', 'Recursos Humanos']);
-        filtrar('gp-filtro-area', 'Jurídico');
+        expect([...el('gp-f-area').options].map((o) => o.textContent)).toEqual(['Todos', 'Jurídico', 'Recursos Humanos']);
+        filtrar('gp-f-area', 'Jurídico');
         expect(linhas()).toHaveLength(1);
         expect(linhas()[0].textContent).toContain('Outra Atividade');
     });
 
     it('busca e filtro de Status (com "Em atraso"), sem ir ao servidor', async () => {
         const f = await abrir();
-        filtrar('gp-filtro-status', 'In Progress');
+        expect(el('gp-contagem').textContent).toBe('4');
+        expect(el('gp-busca').getAttribute('placeholder')).toBe('Gap, atividade, área ou responsável');
+        expect(el('gp-busca').getAttribute('maxlength')).toBe('120');
+        expect([...el('gp-f-status').options].map((o) => o.textContent)).toEqual(['Todos', 'Aberto', 'Em andamento', 'Concluído', 'Em atraso']);
+        filtrar('gp-f-status', 'In Progress');
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Outra Atividade')]);
-        filtrar('gp-filtro-status', 'atraso');
+        expect(el('gp-contagem').textContent).toBe('1 de 4');
+        filtrar('gp-f-status', 'atraso');
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Recursos Humanos')]);
-        filtrar('gp-filtro-status', 'Open');
-        expect(linhas()).toHaveLength(2);
-        filtrar('gp-filtro-status', '');
+        // O status é o que a coluna mostra: o aberto com prazo vencido está em "Em atraso", não em "Aberto".
+        filtrar('gp-f-status', 'Open');
+        expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Gap c')]);
+        filtrar('gp-f-status', '');
         el('gp-busca').value = 'juridico';
         el('gp-busca').dispatchEvent(new Event('input', { bubbles: true }));
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Outra Atividade')]);
         el('gp-busca').value = 'nada assim';
         el('gp-busca').dispatchEvent(new Event('input', { bubbles: true }));
-        expect(el('gp-lista').textContent).toContain('Nenhum gap com estes filtros');
+        expect(el('gp-lista').textContent).toContain('Nada encontrado com a busca ou o filtro');
         expect(f).toHaveBeenCalledTimes(1);
     });
 
-    it('"Exportar" baixa o CSV das ações das atividades', async () => {
+    it('"Exportar" (na lista) baixa o CSV das ações das atividades', async () => {
         const f = await abrir(GAPS, { 'GET /api/v1/projects/p9/export/acoes-atividade': 'csv' });
-        const b = el('a').querySelector('[data-action="exportarGaps"]');
+        expect(el('a').querySelector('button')).toBeNull();
+        const b = el('c').querySelector('[data-action="listaExportar"]');
         expect(b.textContent.trim()).toBe('Exportar');
-        await window.exportarGaps();
+        expect(JSON.parse(b.getAttribute('data-args'))).toEqual(['gp']);
+        await window.listaExportar('gp');
         expect(f.mock.calls.map(([u]) => new URL(u, 'http://localhost').pathname)).toContain('/api/v1/projects/p9/export/acoes-atividade');
     });
 

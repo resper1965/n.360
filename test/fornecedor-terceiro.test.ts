@@ -111,38 +111,27 @@ describe('rotas de vendors sobre a parte', () => {
     expect(await vinculoTerceiro('ft-delta')).toEqual({ ok: 1 });
   });
 
-  it('DELETE tira o perfil e o vínculo terceiro; a parte e a avaliação dela ficam', async () => {
+  it('DELETE tira só o perfil de segurança; a parte segue fornecedor, com o vínculo e a avaliação dela', async () => {
     await env.DB.prepare(`INSERT INTO avaliacoes_terceiro (id, project_id, parte_id, metodo, resultado, valido_ate) VALUES ('ft-av', ?, ?, 'questionario', 'aprovado', '2999-01-01')`).bind(P, gamaParte).run();
     const r = await chamar(consultor, 'DELETE', `/api/v1/vendors/${gama}`);
     expect(r.status).toBe(200);
     expect(await env.DB.prepare('SELECT 1 FROM vendors WHERE id = ?').bind(gama).first()).toBeNull();
-    expect(await vinculoTerceiro(gamaParte)).toBeNull();
+    expect(await vinculoTerceiro(gamaParte)).toEqual({ ok: 1 });
     expect(await env.DB.prepare('SELECT nome FROM partes WHERE id = ?').bind(gamaParte).first()).toEqual({ nome: 'Gama Nova' });
     expect(await env.DB.prepare(`SELECT id FROM avaliacoes_terceiro WHERE id = 'ft-av'`).first()).toEqual({ id: 'ft-av' });
     expect(await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'vendor.deleted'`).first()).toEqual({ n: 1 });
+    // continua na lista do n.iso, sem avaliação de segurança
+    expect((await vendors()).find((x) => x.parte_id === gamaParte)).toMatchObject({ id: null, name: 'Gama Nova' });
   });
 
-  it('perfil sem vínculo terceiro some da lista e volta, com os dados de antes, quando o vínculo é recriado', async () => {
+  it('perfil sem vínculo terceiro segue na lista e no CSV (o critério é a parte, não o vínculo); o POST dele é 409', async () => {
     const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Vinculo Exemplo', notes: 'guardada' });
     const { id } = await json<{ id: string }>(r);
     const parteId = (await vendors()).find((x) => x.id === id)!.parte_id;
-    const vin = await env.DB.prepare(`SELECT id FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro'`).bind(parteId).first<{ id: string }>();
-    expect((await chamar(consultor, 'DELETE', `/api/v1/projects/${P}/partes/${parteId}/vinculos/${vin!.id}`)).status).toBe(200);
-    expect((await vendors()).find((x) => x.id === id)).toBeUndefined();
-    const nova = await chamar(consultor, 'POST', `/api/v1/projects/${P}/partes/${parteId}/vinculos`, { papel: 'terceiro', alvo_tipo: 'projeto', alvo_id: P });
-    expect(nova.status).toBe(201);
+    await env.DB.prepare(`DELETE FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro'`).bind(parteId).run();
     expect((await vendors()).find((x) => x.id === id)).toMatchObject({ id, name: 'Vinculo Exemplo', notes: 'guardada' });
-    // sem o vínculo de novo, e pelo cadastro: o POST traz o perfil de volta sem sobrescrever; com o vínculo, segue 409
-    await env.DB.prepare(`DELETE FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro'`).bind(parteId).run();
-    const volta = await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Vinculo Exemplo' });
-    expect(volta.status).toBe(200);
-    expect((await json<{ id: string }>(volta)).id).toBe(id);
-    expect((await vendors()).find((x) => x.id === id)).toMatchObject({ notes: 'guardada' });
     expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/vendors`, { name: 'Vinculo Exemplo' })).status).toBe(409);
-    const csv = await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/export/vendors`)).text();
-    expect(csv).toContain('Vinculo Exemplo');
-    await env.DB.prepare(`DELETE FROM parte_vinculos WHERE parte_id = ? AND papel = 'terceiro'`).bind(parteId).run();
-    expect(await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/export/vendors`)).text()).not.toContain('Vinculo Exemplo');
+    expect(await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/export/vendors`)).text()).toContain('Vinculo Exemplo');
   });
 
   it('perfil de parte inativa já tipada como terceiro não aparece na lista', async () => {

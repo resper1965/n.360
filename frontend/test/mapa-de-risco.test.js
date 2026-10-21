@@ -140,39 +140,44 @@ describe('Gestão de Riscos (lista, a vista padrão)', () => {
         expect(el('mapa-grade')).toBeNull();
     });
 
-    it('colunas do legado; Status Pendente ou Concluído; texto escapado', async () => {
+    it('colunas do legado; Status com o rótulo único (Aberto, Concluído, Aceito); texto escapado', async () => {
         await abrir(LISTA);
         expect([...el('mapa-lista').querySelectorAll('thead th')].map((t) => t.textContent.trim()))
             .toEqual(['Atividade', 'Motivo', 'Risco', 'Estratégia', 'Responsável', 'Prazo', 'Status', 'Ações']);
         const [a, b, c] = linhas().map((l) => l.textContent);
-        for (const x of ['Atividade Exemplo', 'Vazamento', 'Crítico', 'Responsável Exemplo', 'Pendente']) expect(a).toContain(x);
+        for (const x of ['Atividade Exemplo', 'Vazamento', 'Crítico', 'Responsável Exemplo', 'Aberto']) expect(a).toContain(x);
         expect(b).toContain('Concluído');
         expect(b).toContain('10/01/2026');
         expect(b).toContain('Aceitar');
         expect(linhas()[2].querySelectorAll('td')[3].textContent.trim()).toBe('—'); // sem sinal de tratamento
-        expect(c).toContain('Pendente'); // aceito, mas não fechado
+        expect(c).toContain('Aceito'); // o status real, sem dobrar Aceito em Aberto
         expect(el('mapa-lista').querySelector('tbody b')).toBeNull();
     });
 
     it('filtros Motivo, Área, Risco e Status refazem a tabela sem ir ao servidor', async () => {
         const f = await abrir(LISTA);
-        expect([...el('mr-filtro-motivo').options].map((o) => o.textContent)).toEqual(['Todos', 'Retenção', 'Vazamento']);
-        expect([...el('mr-filtro-area').options].map((o) => o.textContent)).toEqual(['Todas', 'Jurídico', 'Recursos Humanos']);
-        filtrar('mr-filtro-motivo', 'Vazamento');
+        expect([...el('mr-f-motivo').options].map((o) => o.textContent)).toEqual(['Todos', 'Retenção', 'Vazamento']);
+        expect([...el('mr-f-area').options].map((o) => o.textContent)).toEqual(['Todos', 'Jurídico', 'Recursos Humanos']);
+        expect(el('mr-contagem').textContent).toBe('3');
+        filtrar('mr-f-motivo', 'Vazamento');
         expect(linhas()).toHaveLength(2);
-        filtrar('mr-filtro-area', 'Recursos Humanos');
+        expect(el('mr-contagem').textContent).toBe('2 de 3');
+        filtrar('mr-f-area', 'Recursos Humanos');
         expect(linhas()).toHaveLength(1);
-        filtrar('mr-filtro-motivo', '');
-        filtrar('mr-filtro-area', 'Jurídico');
+        filtrar('mr-f-motivo', '');
+        filtrar('mr-f-area', 'Jurídico');
         expect(linhas()).toHaveLength(2);
-        filtrar('mr-filtro-area', '');
-        filtrar('mr-filtro-nivel', 'Low');
+        filtrar('mr-f-area', '');
+        filtrar('mr-f-nivel', 'Low');
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Retenção')]);
-        filtrar('mr-filtro-nivel', '');
-        filtrar('mr-filtro-status', 'Closed');
+        filtrar('mr-f-nivel', '');
+        filtrar('mr-f-status', 'Closed');
         expect(linhas()).toHaveLength(1);
-        filtrar('mr-filtro-status', 'Open');
-        expect(linhas()).toHaveLength(2);
+        filtrar('mr-f-status', 'Open');
+        expect(linhas()).toHaveLength(1);
+        filtrar('mr-f-status', 'Accepted');
+        expect(linhas()).toHaveLength(1);
+        expect([...el('mr-f-status').options].map((o) => o.textContent)).toEqual(['Todos', 'Aberto', 'Mitigado', 'Aceito', 'Concluído']);
         expect(f).toHaveBeenCalledTimes(1);
     });
 
@@ -196,6 +201,20 @@ describe('Gestão de Riscos (lista, a vista padrão)', () => {
         const put = f.mock.calls.find(([, o]) => o && o.method === 'PUT');
         expect(new URL(put[0], 'http://localhost').pathname).toBe('/api/v1/projects/p9/ropa/r1/riscos/a');
         expect(JSON.parse(put[1].body)).toMatchObject({ treatment: 'Mitigate', treatment_plan: 'Ativar MFA', owner_parte_id: 'pa1', status: 'Closed' });
+    });
+
+    it('Exportar CSV: na lista, pelo componente; no mapa, no cabeçalho e só a célula escolhida', async () => {
+        const f = await abrir(LISTA, { 'GET /api/v1/projects/p9/export/riscos-atividade': 'csv' });
+        expect(el('a').querySelector('[data-action="exportarCsvRiscos"]')).toBeNull();
+        expect(JSON.parse(el('c').querySelector('[data-action="listaExportar"]').getAttribute('data-args'))).toEqual(['mr']);
+        await window.listaExportar('mr');
+        el('c').querySelector(`[data-action="mapaVista"][data-args='["mapa"]']`).click();
+        expect(el('c').querySelector('[data-action="listaExportar"]')).toBeNull();
+        expect(el('a').querySelector('[data-action="exportarCsvRiscos"]')).not.toBeNull();
+        celula(5, 5).click();
+        await window.exportarCsvRiscos();
+        expect(f.mock.calls.map(([u]) => { const x = new URL(u, 'http://localhost'); return x.pathname + x.search; }).filter((u) => u.includes('/export/')))
+            .toEqual(['/api/v1/projects/p9/export/riscos-atividade', '/api/v1/projects/p9/export/riscos-atividade?probabilidade=5&impacto=5']);
     });
 
     it('quem só lê não vê "Tratar Risco"; "Abrir" leva à atividade na aba Riscos', async () => {

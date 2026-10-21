@@ -2,8 +2,10 @@ import { S } from '../state.js';
 import { api, API_BASE, abrirRelatorio } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
-import { temProduto, projetoDoId } from '../produto.js';
-import { filtrarDoPainel } from '../filtro-painel.js';
+import { temProduto, projetoDoId, modulosVisiveis } from '../produto.js';
+import { montarLista, colunasDe } from '../lista.js';
+import { hojeSP } from '../hoje.js';
+import { classeDoControle } from '../classe-controle.js';
 
     // O id varia por projeto (ctrl-a51, A.5.1, gerado); o código estável é o primeiro token do título.
     function codigoDoControle(ctrl) {
@@ -56,7 +58,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     <div class="phase-title">${escapeHTML(ctrl.title)}</div>
                     ${ctrl.maturity ? `<div class="t-xs t-dim">Maturidade: ${ctrl.maturity}/5</div>` : ''}
                 </div>
-                <div class="phase-status ${ctrl.status==='Compliant'?'status-done':ctrl.status==='Partial'?'status-progress':'status-pending'}">${escapeHTML(traduzStatus(ctrl.status))}</div>
+                <div class="phase-status ${{ feito: 'status-done', andamento: 'status-progress' }[classeDoControle(ctrl.status)] || 'status-pending'}">${escapeHTML(traduzStatus(ctrl.status))}</div>
             </div>`).join('')}</div>`;
     }
 
@@ -156,6 +158,8 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     </div>
                 </div>
 
+                <div id="controle-atividades" class="mb-6"></div>
+
                 <div class="ctx-label">Evidências Vinculadas</div>
                 <div id="control-evidence-list" class="card" style="padding:0; margin-bottom: 1.5rem; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.2)">
                     <div class="p-4 t-center t-dim t-sm">Carregando evidências...</div>
@@ -174,6 +178,28 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         `);
         loadControlEvidence(ctrl.id);
         loadControlTrilha(ctrl.id);
+        loadControlAtividades(ctrl);
+    }
+
+    // Atividades do n.privacy que dependem deste controle por uma medida (GET /controls/:id/atividades). Falha da chamada: o
+    // bloco não aparece e o detalhe segue. O aviso ao sair de "implementado" busca de novo na hora (updateControlStatus).
+    const nomesDistintos = (lista) => [...new Set(lista.map((a) => a.atividade))];
+    async function loadControlAtividades(ctrl) {
+        const alvo = document.getElementById('controle-atividades');
+        if (!alvo) return;
+        let lista;
+        try {
+            const r = await api('GET', `/api/v1/controls/${ctrl.id}/atividades`);
+            lista = Array.isArray(r && r.atividades) ? r.atividades : [];
+        } catch (e) { return; }
+        if (!lista.length || !document.getElementById('controle-atividades')) return;
+        const n = nomesDistintos(lista).length;
+        const abre = modulosVisiveis(S.currentProject).includes('privacy');
+        const nome = (a) => (abre
+            ? `<button type="button" class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${escapeHTML(JSON.stringify([ctrl.project_id || S.currentProject?.id, a.ropa_id, 'medidas']))}'>${escapeHTML(a.atividade)}</button>`
+            : escapeHTML(a.atividade));
+        alvo.innerHTML = `<div class="ctx-label">Usado em ${n} ${n === 1 ? 'atividade' : 'atividades'} do n.privacy</div>
+            <ul class="t-sm">${lista.map((a) => `<li>${nome(a)}: ${escapeHTML(a.medida)}</li>`).join('')}</ul>`;
     }
 
     /**
@@ -231,6 +257,25 @@ import { filtrarDoPainel } from '../filtro-painel.js';
     window.tempoRelativo = tempoRelativo;
 
     async function updateControlStatus(id, status) {
+        const atual = S.controls.find((c) => c.id === id);
+        if (atual && classeDoControle(atual.status) === 'feito' && classeDoControle(status) !== 'feito') {
+            // Busca na hora: sem lista conferida não se muda o status sem perguntar (falha fechada).
+            let nomes = null;
+            try {
+                const r = await api('GET', `/api/v1/controls/${id}/atividades`);
+                nomes = nomesDistintos(Array.isArray(r && r.atividades) ? r.atividades : []);
+            } catch (e) { nomes = null; }
+            let pergunta = null;
+            if (nomes === null) pergunta = 'Não foi possível conferir se alguma atividade do n.privacy usa este controle. Mudar o status mesmo assim?';
+            else if (nomes.length) {
+                const lista = nomes.length <= 5 ? `${nomes.slice(0, -1).join(', ')}${nomes.length > 1 ? ' e ' : ''}${nomes[nomes.length - 1]}`
+                    : `${nomes.slice(0, 5).join(', ')} e mais ${nomes.length - 5}`;
+                pergunta = `Este controle é usado em ${nomes.length} ${nomes.length === 1 ? 'atividade' : 'atividades'} do n.privacy: ${lista}. Elas vão mostrar o aviso para revisar a medida. Mudar o status?`;
+            }
+            if (pergunta && !(await window.confirmar(pergunta, { titulo: 'Mudar o status do controle', rotulo: 'Mudar' }))) {
+                const sel = document.getElementById('controle-status'); if (sel) sel.value = atual.status; return;
+            }
+        }
         try {
             await api('PUT', `/api/v1/controls/${id}/status`, { status });
             await loadControls();
@@ -812,7 +857,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     const totalSec = subData.controls.length;
                     let compliantSec = 0;
                     subData.controls.forEach(c => {
-                        if (c.status === 'Implemented' || c.status === 'Compliant' || c.status === 'Approved') {
+                        if (classeDoControle(c.status) === 'feito') {
                             compliantSec++;
                         }
                     });
@@ -894,7 +939,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                                     </div>
                                 </td>
                                 <td>
-                                    ${window.renderStatusBadge(ctrl.status === 'Implemented' || ctrl.status === 'Approved' ? 'success' : isNA ? 'info' : 'warning', ctrl.status || 'Pendente')}
+                                    ${window.renderStatusBadge(classeDoControle(ctrl.status) === 'feito' ? 'success' : isNA ? 'info' : 'warning', ctrl.status || 'Pendente')}
                                 </td>
                                 <td>
                                     <div class="d-flex gap-15">
@@ -1221,9 +1266,9 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                 } else if (filter === 'not_applicable') {
                     matchesFilter = status === 'Not Applicable';
                 } else if (filter === 'gaps') {
-                    matchesFilter = status === 'Missing';
+                    matchesFilter = classeDoControle(status) === 'falta';
                 } else if (filter === 'approved') {
-                    matchesFilter = status === 'Approved' || status === 'Implemented';
+                    matchesFilter = classeDoControle(status) === 'feito';
                 }
                 
                 if (matchesSearch && matchesFilter) {
@@ -1543,11 +1588,11 @@ import { filtrarDoPainel } from '../filtro-painel.js';
         const isOrgUser = S.user && S.user.role === 'org_user';
         const comPrivacy = temProduto(proj, 'privacy');
 
-        // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
-        const { itens: evidenciasDaLista, chip: chipFiltro, filtrado } = filtrarDoPainel('evidence', null, evidence);
-        const tableHtml = window.renderDataTable(
-            ['Arquivo Evidência', 'Controle', 'Tamanho', 'Hash (SHA-256)', 'Revisão Líder SGSI', 'Assinatura CEO', 'Avaliação', 'Ações'],
-            evidenciasDaLista.map(e => {
+        const validade = e => !e.valido_ate ? 'sem' : String(e.valido_ate).slice(0, 10) < hojeSP() ? 'vencida' : 'em_dia';
+        const validadeCelula = e => !e.valido_ate ? '<span class="t-dim">Sem validade</span>'
+            : `${formatarData(e.valido_ate)}${validade(e) === 'vencida' ? ` ${window.renderStatusBadge('Vencida', 'danger')}` : ''}`;
+
+        const celulas = e => {
                 const fileName = e.file_name || e.filename || 'Evidência sem nome';
                 const fileHash = e.file_hash || e.sha256_hash || '';
                 const hashShort = fileHash ? fileHash.substring(0, 16) + '...' : '—';
@@ -1580,6 +1625,8 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     { rotulo: 'Baixar', action: 'downloadEvidenceFile', args: [e.id] },
                     !isOrgUser && { rotulo: 'Avaliar com IA', action: 'evaluateEvidenceAI', args: [e.id] },
                     comPrivacy && { rotulo: 'Requisitos e validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id] },
+                    // Sem o n.privacy, o mesmo modal só com a validade (rota do núcleo), para quem edita evidência.
+                    !comPrivacy && !isOrgUser && S.user?.role !== 'client' && { rotulo: 'Definir validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id, { valido_ate: e.valido_ate || null }] },
                 ].filter(Boolean);
                 const [proxima, ...demais] = acoes;
                 const acoesDaLinha = `<div class="acoes-linha"><button class="btn btn-ghost btn-sm" data-action="${proxima.action}" data-args='${escapeHTML(JSON.stringify(proxima.args))}' aria-label="${escapeHTML(`${proxima.rotulo}: ${fileName}`)}">${proxima.rotulo}</button>${window.renderMaisAcoes(demais, { nome: fileName })}</div>`;
@@ -1592,20 +1639,30 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     dpoBadge,
                     ceoBadge,
                     avaliacaoBadge,
+                    validadeCelula(e),
                     acoesDaLinha
                 ];
-            }),
-            { emptyState: 'Nenhuma evidência enviada para este projeto.',
-              emptyHint: 'A evidência é o que o auditor confere para dar o controle como implementado (ISO 27001, 7.5: informação documentada). Envie o arquivo e ligue-o ao controle.',
-              emptyAction: `<button class="btn btn-primary" data-action="openEvidenceUploadModal" data-args='["${proj.id}"]'>Enviar evidência</button>`,
-              ...(filtrado ? { emptyState: 'Nenhuma evidência nesta situação.', emptyHint: 'Limpe o filtro para ver todas.', emptyAction: '' } : {}) }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${chipFiltro}
-            ${tableHtml}
+            <div id="evidencias-lista"></div>
         `;
+        montarLista(c.querySelector('#evidencias-lista'), {
+            id: 'evidencias',
+            linhas: evidence,
+            colunas: colunasDe(['Arquivo Evidência', 'Controle', 'Tamanho', 'Hash (SHA-256)', 'Revisão Líder SGSI', 'Assinatura CEO', 'Avaliação', 'Validade', 'Ações'], celulas),
+            busca: e => `${e.file_name || e.filename || ''} ${e.control_id ? (tituloDoControle[e.control_id] || e.control_id) : ''}`,
+            filtros: [
+                { chave: 'avaliacao', rotulo: 'Avaliação', valor: e => e.evaluation_status || 'pending' },
+                { chave: 'validade', rotulo: 'Validade', valor: validade, opcoes: [['em_dia', 'Em dia'], ['vencida', 'Vencida'], ['sem', 'Sem validade']] },
+            ],
+            // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
+            filtroPainel: { tela: 'evidence' },
+            vazio: { titulo: 'Nenhuma evidência enviada para este projeto.',
+                dica: 'A evidência é o que o auditor confere para dar o controle como implementado (ISO 27001, 7.5: informação documentada). Envie o arquivo e ligue-o ao controle.',
+                acao: `<button class="btn btn-primary" data-action="openEvidenceUploadModal" data-args='["${proj.id}"]'>Enviar evidência</button>` },
+        });
     }
 
     function openEvidenceUploadModal(projectId) {
@@ -1710,7 +1767,7 @@ import { filtrarDoPainel } from '../filtro-painel.js';
                     const cisoSign = ctrl.ciso_approved_by ? `<span class="t-sucesso">${escapeHTML(ctrl.ciso_approved_by)}</span>` : '<span class="t-dim">Pendente</span>';
                     const ceoSign = ctrl.ceo_approved_by ? `<span class="t-sucesso">${escapeHTML(ctrl.ceo_approved_by)}</span>` : '<span class="t-dim">Pendente</span>';
                     
-                    const statusType = (ctrl.status === 'Compliant' || ctrl.status === 'IMPLEMENTED' || ctrl.status === 'Implemented') ? 'success' : (ctrl.status === 'Partial' || ctrl.status === 'PARTIAL') ? 'warning' : 'danger';
+                    const classe = classeDoControle(ctrl.status); const statusType = classe === 'feito' ? 'success' : classe === 'andamento' ? 'warning' : 'danger';
 
                     // Map DB ID back to formatted display ID (e.g. ctrl-a51 -> A.5.1)
                     let displayId = ctrl.id || '';
@@ -2458,23 +2515,26 @@ window.renderEvidence = renderEvidence;
 window.openEvidenceUploadModal = openEvidenceUploadModal;
 
 // Requisitos (n.privacy) e validade de uma evidência; mesmo modelo da seção de requisitos do documento.
-window.abrirRequisitosEvidencia = async function (projectId, evidenceId) {
+// `soValidade` ({ valido_ate }) vem do n.iso sem o n.privacy: o modal abre só com a validade, sem ler os requisitos (faixa privacy).
+window.abrirRequisitosEvidencia = async function (projectId, evidenceId, soValidade = null) {
     const lista = (r) => (Array.isArray(r) ? r : []);
-    let ev = { requisitos: [], valido_ate: null }, catalogo = [];
-    try { ev = await api('GET', `/api/v1/projects/${projectId}/evidence/${evidenceId}/requisitos`); } catch (e) { showToast((e && e.message) || 'Não foi possível abrir os requisitos da evidência', 'error'); return; }
-    try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ }
+    let ev = { requisitos: [], valido_ate: soValidade ? soValidade.valido_ate : null }, catalogo = [];
+    if (!soValidade) {
+        try { ev = await api('GET', `/api/v1/projects/${projectId}/evidence/${evidenceId}/requisitos`); } catch (e) { showToast((e && e.message) || 'Não foi possível abrir os requisitos da evidência', 'error'); return; }
+        try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ }
+    }
     const ligados = lista(ev.requisitos);
     S.evRequisitos = ligados.map((r) => r.id);
     const args = (...v) => escapeHTML(JSON.stringify(v));
     openModal(`
-        <div class="modal-header"><span class="modal-title">Requisitos e validade</span></div>
-        <div id="ev-requisitos">
+        <div class="modal-header"><span class="modal-title">${soValidade ? 'Validade da evidência' : 'Requisitos e validade'}</span></div>
+        ${soValidade ? '' : `<div id="ev-requisitos">
             ${ligados.length ? ligados.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoEvidencia" data-args='${args(projectId, evidenceId, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">\u00d7</button></span>`).join(' ')
                 : window.renderEmptyState({ titulo: 'Nenhum requisito ligado a esta evidência.', compacto: true })}
             <div class="form-group mt-3"><select class="form-input" id="ev-req-add"><option value="">Escolha um requisito</option>${catalogo.filter((r) => !S.evRequisitos.includes(r.id))
                 .map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} — ${escapeHTML(r.titulo)}</option>`).join('')}</select></div>
             <button class="btn btn-sm" data-action="salvarRequisitosEvidencia" data-args='${args(projectId, evidenceId)}'>Ligar</button>
-        </div>
+        </div>`}
         <div class="form-group mt-5">
             <label class="form-label" for="ev-valido-ate">Válida até</label>
             <input type="date" class="form-input" id="ev-valido-ate" value="${escapeHTML(ev.valido_ate || '')}">
@@ -2505,6 +2565,7 @@ window.salvarValidadeEvidencia = async function (projectId, evidenceId) {
     try {
         await api('PUT', `/api/v1/projects/${projectId}/evidence/${evidenceId}/validade`, { valido_ate });
         showToast('Validade salva.', 'success');
+        await recarregaEvidencias(); // a coluna Validade da lista acompanha
     } catch (e) { showToast((e && e.message) || 'Não foi possível salvar a validade', 'error'); }
 };
 window.doEvidenceUpload = doEvidenceUpload;

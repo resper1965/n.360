@@ -282,7 +282,8 @@ function desenhar(c, a, entrada, proj, d) {
     cabecalho(a, entrada, proj, d);
     c.innerHTML = `<div class="pn">${entrada === 'n360' ? telaDoN360(d, proj) : telaDoModulo(d, entrada, proj)}</div>`;
     ligarDicas(c.firstElementChild);
-    if (d.selos) aplicarSelos(d.selos);
+    const selos = entrada === 'iso' ? d.modulos && d.modulos.iso && d.modulos.iso.selos : d.selos;
+    if (selos) aplicarSelos(selos);
     const pp = c.querySelector('#inicio-ponto-de-partida');
     if (pp) renderPontoDePartida(pp, proj.id, 'n360');
 }

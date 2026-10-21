@@ -1,5 +1,6 @@
 import { logAudit } from '../helpers';
 import { prazoDe, proximoProtocolo } from './parametros-legais';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 7: pedido do titular (registro interno). Protocolo `PT-AAAA-NNNN` por projeto; o prazo vem do parâmetro
@@ -15,7 +16,7 @@ type StatusPedido = (typeof STATUS_PEDIDO)[number];
 type Falha = { ok: false; status: 400 | 404 | 409; error: string };
 const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, status, error });
 
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => hojeEmSaoPaulo();
 const ehData = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
 
 export type SituacaoPrazo = 'sem_prazo' | 'encerrado' | 'no_prazo' | 'vence_hoje' | 'atrasado';

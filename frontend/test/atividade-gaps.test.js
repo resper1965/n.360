@@ -78,7 +78,7 @@ describe('aba Controle de GAPs', () => {
         const li = painel.querySelector('[data-gap="g1"]');
         expect(li.textContent).toContain('Gap: Ausência de exclusão dos dados após a finalidade (exemplo)');
         expect(li.textContent).toContain('Responsável: Responsável exemplo');
-        expect(li.textContent).toContain('Status: Pendente');
+        expect(li.textContent).toContain('Status: Aberto');
         expect(li.textContent).toContain('1 anexo');
         expect(el('at-gap-na').disabled).toBe(true);
         expect(painel.textContent).toContain('Há gaps registrados');
@@ -141,13 +141,13 @@ describe('aba Controle de GAPs', () => {
         expect(modal.textContent).toContain('PDF ou DOC (máx. 5MB)');
     });
 
-    it('Confirmar só habilita com GAP e Responsável; Status nasce Pendente; só pessoas no seletor; obrigatórios escritos no rótulo', async () => {
+    it('Confirmar só habilita com GAP e Responsável; Status nasce Aberto; só pessoas no seletor; obrigatórios escritos no rótulo', async () => {
         const { painel } = await abrir(vazio());
         [...painel.querySelectorAll('button')].find((b) => b.textContent === '+ Gaps').click();
         const botao = el('at-gap-confirmar');
         expect(botao.disabled).toBe(true);
         expect(el('at-gap-status').value).toBe('Open');
-        expect([...el('at-gap-status').options].map((o) => o.textContent)).toEqual(['Pendente', 'Em andamento', 'Concluído']);
+        expect([...el('at-gap-status').options].map((o) => o.textContent)).toEqual(['Aberto', 'Em andamento', 'Concluído']);
         expect([...el('at-gap-resp').options].map((o) => o.textContent)).toEqual(['Selecione uma pessoa', 'Responsável exemplo']);
         for (const id of ['at-gap-gap', 'at-gap-resp', 'at-gap-status']) {
             expect(document.querySelector(`label[for="${id}"]`).textContent).toContain('obrigatório');

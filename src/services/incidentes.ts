@@ -1,5 +1,6 @@
 import { logAudit } from '../helpers';
 import { prazoDe, proximoProtocolo } from './parametros-legais';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 7: incidente de segurança com dado pessoal (registro interno). Protocolo `IN-AAAA-NNNN`; os dois prazos de
@@ -17,7 +18,7 @@ const ehInstante = (s: string) => /^\d{4}-\d{2}-\d{2}([T ][\d:.]+Z?)?$/.test(s) 
 
 export type SituacaoComunicacao = 'sem_prazo' | 'comunicado' | 'no_prazo' | 'vence_hoje' | 'atrasado';
 /** Cada comunicação: feita, ou o prazo em relação a hoje (sem prazo = parâmetro não cadastrado). */
-export function situacaoDaComunicacao(prazo: string | null, feita: string | null, em = new Date().toISOString().slice(0, 10)): SituacaoComunicacao {
+export function situacaoDaComunicacao(prazo: string | null, feita: string | null, em = hojeEmSaoPaulo()): SituacaoComunicacao {
   if (feita) return 'comunicado';
   if (!prazo) return 'sem_prazo';
   const dia = prazo.slice(0, 10);

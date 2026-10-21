@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML, tituloDaTela } from '../ui.js';
 import { podeEditar } from './partes.js';
+import { montarLista, colunasDe } from '../lista.js';
 
 // Ativos (n.privacy, Cadastros; a tela "Sistemas" com o nome do legado, spec 2026-10-19): os ativos do projeto
 // (`/projects/:id/assets`), os mesmos do inventário do n.iso, numa lista leve como a do legado: Ativo, Descrição e Empresa. O modal
@@ -11,8 +12,6 @@ import { podeEditar } from './partes.js';
 const TIPOS = { Software: 'Software', Informacao: 'Informação', Hardware: 'Hardware' };
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const args = (...v) => escapeHTML(JSON.stringify(v));
-const chave = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-let daLista = null; // { proj, sistemas, editar }
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
 async function renderSistemas(c, h, a) {
@@ -27,34 +26,21 @@ async function renderSistemas(c, h, a) {
         sistemas = Array.isArray(r) ? r : (r && Array.isArray(r.assets) ? r.assets : []);
     } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os ativos.', e); return; }
     S.sistemas = sistemas;
-    daLista = { proj, sistemas, editar };
-    c.innerHTML = sistemas.length
-        ? '<div class="co-controles"><label class="co-campo"><span class="co-campo-rotulo">Buscar</span><input class="form-input" type="search" id="si-busca" maxlength="120" placeholder="Ativo ou descrição" data-action-input="filtrarSistemas"></label></div><div id="si-lista"></div>'
-        : '<div id="si-lista"></div>';
-    window.filtrarSistemas();
-}
-
-window.filtrarSistemas = function () {
-    const alvo = document.getElementById('si-lista');
-    if (!daLista || !alvo) return;
-    const { proj, sistemas, editar } = daLista;
-    const campo = document.getElementById('si-busca');
-    const busca = campo ? chave(campo.value.trim()) : '';
-    const itens = sistemas.filter((s) => !busca || [s.name, s.description].some((t) => chave(t).includes(busca)));
     const empresa = escapeHTML(proj.client_name || '—');
-    alvo.innerHTML = window.renderDataTable(
-        ['Ativo', 'Descrição', 'Empresa', 'Ações'],
-        itens.map((s) => [
+    montarLista(c, {
+        id: 'sistemas',
+        linhas: sistemas,
+        ...(sistemas.length ? { busca: (s) => `${s.name || ''} ${s.description || ''}`, buscaDica: 'Ativo ou descrição' } : {}),
+        colunas: colunasDe(['Ativo', 'Descrição', 'Empresa', 'Ações'], (s) => [
             `<strong>${escapeHTML(s.name)}</strong>`,
             escapeHTML(s.description || '—'),
             empresa,
             `<button class="btn btn-ghost btn-sm" data-action="openNovoSistemaModal" data-args='${args(proj.id, s.id)}'>${editar ? 'Ver/Editar' : 'Ver'}</button>`,
         ]),
-        busca ? { emptyState: 'Nenhum ativo com esta busca.', emptyHint: 'Limpe a busca para ver todos.' }
-            : { emptyState: 'Nenhum ativo cadastrado.',
-                emptyHint: 'Sistemas, bases e arquivos onde os dados ficam: cada etapa da atividade de tratamento do RoPA aponta para eles.' },
-    );
-};
+        vazio: { titulo: 'Nenhum ativo cadastrado.',
+            dica: 'Sistemas, bases e arquivos onde os dados ficam: cada etapa da atividade de tratamento do RoPA aponta para eles.' },
+    });
+}
 
 /** Um modal para criar (sem id), ver e editar (com id). Quem só lê vê os campos desligados, sem gravar. */
 window.openNovoSistemaModal = function (projectId, id = '') {

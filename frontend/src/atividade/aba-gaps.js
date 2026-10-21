@@ -1,14 +1,17 @@
 import { api, baixarArquivo, API_BASE, cabecalhosAuth } from '../api.js';
+import { rotuloDe } from '../rotulos.js';
 import { showToast, openModal, forceCloseModal, confirmar, escapeHTML, renderEmptyState, formatarData } from '../ui.js';
+import { hojeSP } from '../hoje.js';
 
 // Aba Controle de GAPs da ficha da atividade (spec 2026-10-16, seção 7). Contrato de aba da casca: montar(painel, ctx) com
 // ctx = { projectId, ropaId, ficha, editavel, recarregarFicha }; devolve { esvaziar }. O gap é uma ação corretiva da atividade
 // (corrective_actions): a regra é do servidor (responsável obrigatório, Não Aplicável só sem gaps, anexo conferido pelo conteúdo).
 // Padrão lista mais modal do legado: "+ Gaps" abre o modal em três sub-abas (Gap, Plano de Ação, Anexo).
 
-export const STATUS = [['Open', 'Pendente'], ['In Progress', 'Em andamento'], ['Closed', 'Concluído']];
+export const STATUS = ['Open', 'In Progress', 'Closed'].map((v) => [v, rotuloDe('', v)]);
 const ROTULO_STATUS = Object.fromEntries(STATUS);
-export const emAtraso = (g) => g.status !== 'Closed' && !!g.prazo && String(g.prazo).slice(0, 10) < new Date().toISOString().slice(0, 10);
+/** Prazo antes de hoje (AAAA-MM-DD, dia de São Paulo) e gap não concluído. A lista de gaps do projeto usa a mesma. */
+export const emAtraso = (g) => g.status !== 'Closed' && !!g.prazo && String(g.prazo).slice(0, 10) < hojeSP();
 const MAX_ANEXO = 5 * 1024 * 1024;
 const EXTENSOES = ['pdf', 'doc', 'docx'];
 const SUBABAS = [['gap', 'Gap'], ['plano', 'Plano de Ação'], ['anexo', 'Anexo']];

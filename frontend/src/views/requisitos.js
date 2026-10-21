@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { produtoAtual } from '../produto.js';
+import { hojeSP } from '../hoje.js';
 
 // Catálogo de requisitos (fatia 2 do núcleo): fontes (ISO 27001, ISO 27701, LGPD, GDPR), cada requisito com as
 // equivalências validadas pelo jurídico e, nas leis, a cobertura do projeto. Toda regra é do servidor
@@ -205,8 +206,6 @@ window.semearRequisitos = async function () {
     } catch (e) { showToast((e && e.message) || 'Não foi possível carregar o catálogo', 'error'); }
 };
 
-// Data de hoje no Brasil (AAAA-MM-DD), não em UTC: à noite o UTC já é o dia seguinte.
-const hojeBr = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 const dataBr = (d) => formatarData(d, { vazio: '' });
 // Recusa em duas etapas dentro da própria janela (o app não usa confirm()): guarda qual mapeamento espera confirmação.
 let recusando = null;
@@ -246,7 +245,7 @@ window.validarMapeamento = async function (de, para, tipo, requisitoId, nota) {
     try {
         await api('PUT', '/api/v1/requisitos/mapeamentos', {
             de_id: de, para_id: para, tipo, estado: 'validado_juridico',
-            validado_por: (S.user && (S.user.name || S.user.email)) || '', validado_em: hojeBr(), nota: nota || null,
+            validado_por: (S.user && (S.user.name || S.user.email)) || '', validado_em: hojeSP(), nota: nota || null,
         });
         showToast('Mapeamento validado.', 'success');
     } catch (e) { showToast((e && e.message) || 'Não foi possível validar o mapeamento', 'error'); return; }

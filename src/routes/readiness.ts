@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { ehPapelCliente, erro500 } from '../helpers';
 import { prontidaoDoProjeto } from '../services/prontidao';
+import { sqlClasseControle } from '../services/classe-controle';
 import { ReadinessAgent, parseObservacoes } from '../agents/readiness';
 
 // Diagnóstico de Prontidão ("gap em voo") — F1: camada DETERMINÍSTICA.
@@ -60,11 +61,11 @@ readinessApp.get('/', async (c) => {
       });
     }
 
-    // R1 (ALTO): controle marcado Implemented/Compliant SEM evidência.
+    // R1 (ALTO): controle implementado (classe-controle.ts) SEM evidência.
     const implSemEvid = await c.env.DB.prepare(
       `SELECT c.id, c.title, c.status FROM compliance_controls c
        WHERE c.project_id = ?
-         AND c.status IN ('Implemented','Compliant')
+         AND (${sqlClasseControle('c.status')}) = 'feito'
          AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.control_id = c.id)`
     ).bind(projectId).all();
     for (const r of (implSemEvid.results ?? []) as any[]) {

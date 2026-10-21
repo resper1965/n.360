@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { diaMaisSP } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy } from './helpers/d1';
@@ -20,7 +21,7 @@ const exp = (tipo: string, p = P, q = '') => `/api/v1/projects/${p}/export/${tip
 /** Linhas do CSV sem o BOM; cada linha em células (sem aspas externas). */
 const linhas = (txt: string) => txt.replace(/^﻿/, '').split('\r\n').filter(Boolean)
   .map((l) => l.split(';').map((c) => c.replace(/^"|"$/g, '').replace(/""/g, '"')));
-const dia = (deslocamento: number) => new Date(Date.now() + deslocamento * 86_400_000).toISOString().slice(0, 10);
+const dia = (deslocamento: number) => diaMaisSP(deslocamento);
 
 let consultor: Record<string, string>;
 

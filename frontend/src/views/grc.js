@@ -6,7 +6,12 @@ import { navigate } from '../router.js';
 import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
-import { filtrarDoPainel } from '../filtro-painel.js';
+import { podeAceitar, linhaDeAceite, aceitarRisco } from '../aceite-risco.js';
+import { montarLista, colunasDe } from '../lista.js';
+
+// Opções de filtro tiradas dos dados, com o rótulo de um domínio (`rotuloDe`).
+const opcoesDe = (linhas, valor, dominio) => [...new Set(linhas.map(valor).filter(Boolean))]
+    .map((v) => [v, rotuloDe(dominio, v)]).sort((x, y) => x[1].localeCompare(y[1], 'pt-BR'));
 
 // S2: wrappers para handlers COMPOSTOS/inline (a delegação chama uma função só).
 window.__grcDeleteRisk = async function (riskId) {
@@ -80,7 +85,7 @@ window.__grcCloseExecAudit = function (id) {
                 
                 cellsHTML += `
                     <div class="matrix-cell ${isSelected ? 'selected' : ''}" 
-                         style="background: ${colors.bg}; border: 1px solid ${isSelected ? 'var(--accent)' : colors.border};" 
+                         style="background: ${colors.bg}; border: 1px solid ${colors.border};" 
                          data-action="toggleRiskFilter" data-args='[${p},${i}]'
                          title="Probabilidade: ${p}, Impacto: ${i} (${count} risco${count !== 1 ? 's' : ''})">
                         ${count > 0 ? `<span class="cell-counter">${count}</span>` : ''}
@@ -89,25 +94,8 @@ window.__grcCloseExecAudit = function (id) {
             }
         }
 
-        // Vazio por filtro e vazio de verdade dizem coisas diferentes.
-        const VAZIO_RISCOS = risks.length
-            ? { titulo: 'Nenhum risco nesta célula da matriz', texto: 'Limpe o filtro para ver os demais riscos.' }
-            : { titulo: 'Nenhum risco registrado', texto: 'A apreciação de riscos (ISO 27001, 6.1.2) é o que justifica cada controle da SoA. Registre os riscos de segurança e de privacidade do escopo.',
-                acao: isOrgUser ? '' : `<button class="btn btn-primary" data-action="openNewRiskModal" data-args='["${proj.id}"]'>Novo risco</button>` };
-        // Apply filter if active
-        let filteredRisks = risks;
-        let filterIndicatorBar = '';
-        if (S.riskFilter) {
-            filteredRisks = risks.filter(r => r.probability === S.riskFilter.probability && r.impact === S.riskFilter.impact);
-            filterIndicatorBar = `
-                <div class="filter-indicator-bar" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0, 173, 232, 0.1); border: 1px solid rgba(0, 173, 232, 0.2); padding:0.5rem 1rem; margin-bottom:1.5rem; font-size:0.8rem; animation: fadeIn 0.2s ease-out;">
-                    <span>Filtrando riscos com <strong>Impacto ${S.riskFilter.impact}</strong> e <strong>Probabilidade ${S.riskFilter.probability}</strong> (${filteredRisks.length} encontrado${filteredRisks.length !== 1 ? 's' : ''})</span>
-                    <button class="btn btn-ghost py-1 px-2 t-sm t-accent" data-action="toggleRiskFilter" data-args='[${S.riskFilter.probability},${S.riskFilter.impact}]'>Limpar Filtro</button>
-                </div>
-            `;
-        }
-
-        const levelColor = l => l === 'Critical' ? 'var(--danger)' : l === 'High' ? 'var(--warning)' : l === 'Medium' ? 'var(--warning)' : 'var(--accent)';
+        const VAZIO_RISCOS = { titulo: 'Nenhum risco registrado', dica: 'A apreciação de riscos (ISO 27001, 6.1.2) é o que justifica cada controle da SoA. Registre os riscos de segurança e de privacidade do escopo.',
+            acao: isOrgUser ? '' : `<button class="btn btn-primary" data-action="openNewRiskModal" data-args='["${proj.id}"]'>Novo risco</button>` };
 
         c.innerHTML = `
             <div class="fade-in">
@@ -191,37 +179,48 @@ window.__grcCloseExecAudit = function (id) {
                     </div>
                 </div>
                 
-                <!-- Filter indicator -->
-                ${filterIndicatorBar}
-                
-                <!-- List Section -->
-                <div class="d-flex justify-between items-center mb-4 mt-4">
-                    <div class="card-label mb-0">Lista Detalhada de Riscos</div>
-                    ${risks.length ? `<button class="btn t-xs py-15 px-3" data-action="exportCSV" data-args='["risks"]'>Exportar Riscos</button>` : ''}
-                </div>
-                
-                <div>
-                    ${filteredRisks.length ? filteredRisks.map(r => `
-                        <div class="list-item clicavel" data-action="openRiskDetailsModal" data-args='["${r.id}"]'>
-                            <div class="flex-1">
-                                <div class="item-name">${escapeHTML(r.asset)} — ${escapeHTML(r.threat)}</div>
-                                <div class="item-meta mt-1">
-                                    <strong>Probabilidade:</strong> ${r.probability} | <strong>Impacto:</strong> ${r.impact} | 
-                                    <strong>Tratamento:</strong> ${escapeHTML(traduzStatus(r.treatment) || 'Não definido')} | <strong>Responsável:</strong> ${escapeHTML(r.owner_parte_nome || r.owner || 'Sem dono')}
-                                    ${r.control_standard ? ` | <strong>Controle:</strong> <span class="badge badge-implemented py-05 px-15 t-sm">${escapeHTML(r.control_standard)}</span>` : ''}
-                                    ${r.treatment === 'Accept' && r.accepted_by ? ` | <strong>Aceito por:</strong> ${escapeHTML(r.accepted_by)}` : ''}
-                                </div>
-                            </div>
-                            <div class="d-flex items-center gap-2">
-                                <span style="font-weight:600;color:${levelColor(r.risk_level)}">${r.risk_score || (r.impact * r.probability)}</span>
-                                <span class="ctx-tag" style="background:color-mix(in oklab, ${levelColor(r.risk_level)} 12%, transparent);color:${levelColor(r.risk_level)}">${escapeHTML(traduzStatus(r.risk_level) || 'Sem nível')}</span>
-                            </div>
-                        </div>
-                    `).join('') : window.renderEmptyState(VAZIO_RISCOS)}
-                </div>
+                <div class="card-label mb-4 mt-4">Lista Detalhada de Riscos</div>
+                <div id="riscos-celula">${barraDaCelula(riscosNaCelula(risks).length)}</div>
+                <div id="riscos-lista"></div>
             </div>
         `;
+        listaRiscos = montarLista(c.querySelector('#riscos-lista'), {
+            id: 'riscos',
+            // Todas as linhas (as opções dos filtros vêm da lista inteira); a célula da matriz entra por `filtrarPor`.
+            linhas: risks,
+            colunas: colunasDe(['Ameaça', 'Ativo', 'Nível', 'Residual', 'Tratamento', 'Status', 'Responsável', ''], (r) => [
+                `<strong>${escapeHTML(r.threat)}</strong>`,
+                escapeHTML(r.asset || '—'),
+                `<span class="fw-600">${r.risk_score || (r.impact * r.probability)}</span> ${escapeHTML(rotuloDe('', r.risk_level) || 'Sem nível')}`,
+                escapeHTML(rotuloDe('', r.residual_level) || '—'),
+                escapeHTML(rotuloDe('', r.treatment) || 'Não definido'),
+                escapeHTML(rotuloDe('', r.status) || '—') + (linhaDeAceite(r) ? `<div class="t-xs t-dim">${linhaDeAceite(r)}</div>` : ''),
+                escapeHTML(r.owner_parte_nome || r.owner || 'Sem dono'),
+                `<button class="btn btn-ghost btn-sm" data-action="openRiskDetailsModal" data-args='${escapeHTML(JSON.stringify([r.id]))}'>Abrir</button>`,
+            ]),
+            busca: (r) => `${r.threat} ${r.asset} ${r.owner_parte_nome || r.owner || ''}`,
+            filtros: [
+                { chave: 'nivel', rotulo: 'Nível', valor: (r) => r.risk_level },
+                { chave: 'status', rotulo: 'Status', valor: (r) => r.status },
+                { chave: 'tratamento', rotulo: 'Tratamento', valor: (r) => r.treatment },
+            ],
+            exportar: { caminho: `/api/v1/projects/${proj.id}/export/risks`, rotulo: 'Exportar riscos' },
+            vazio: VAZIO_RISCOS,
+        });
+        if (S.riskFilter) listaRiscos.filtrarPor(naCelula(S.riskFilter), VAZIO_CELULA);
     }
+
+    // A célula da matriz é um filtro da lista (probabilidade e impacto), somado à busca e aos filtros do componente.
+    let listaRiscos = null;
+    const naCelula = (f) => (r) => r.probability === f.probability && r.impact === f.impact;
+    const riscosNaCelula = (risks) => (S.riskFilter ? risks.filter(naCelula(S.riskFilter)) : risks);
+    // A célula vazia da matriz não é "nenhum risco registrado".
+    const VAZIO_CELULA = { titulo: 'Nenhum risco nesta célula da matriz', dica: 'Limpe o filtro para ver os demais riscos.' };
+    const barraDaCelula = (n) => !S.riskFilter ? '' : `
+                <div class="filter-indicator-bar" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0, 173, 232, 0.1); border: 1px solid rgba(0, 173, 232, 0.2); padding:0.5rem 1rem; margin-bottom:1.5rem; font-size:0.8rem; animation: fadeIn 0.2s ease-out;">
+                    <span>Filtrando riscos com <strong>Impacto ${S.riskFilter.impact}</strong> e <strong>Probabilidade ${S.riskFilter.probability}</strong> (${n} encontrado${n !== 1 ? 's' : ''})</span>
+                    <button class="btn btn-ghost py-1 px-2 t-sm t-accent" data-action="toggleRiskFilter" data-args='[${S.riskFilter.probability},${S.riskFilter.impact}]'>Limpar Filtro</button>
+                </div>`;
 
     window.toggleRiskFilter = function(p, i) {
         if (S.riskFilter && S.riskFilter.probability === p && S.riskFilter.impact === i) {
@@ -229,7 +228,15 @@ window.__grcCloseExecAudit = function (id) {
         } else {
             S.riskFilter = { probability: p, impact: i };
         }
-        render();
+        const barra = document.getElementById('riscos-celula');
+        if (!listaRiscos || !barra) { render(); return; }
+        const f = S.riskFilter;
+        document.querySelectorAll('.matrix-cell[data-action="toggleRiskFilter"]').forEach(el => {
+            const [pp, ii] = JSON.parse(el.dataset.args);
+            el.classList.toggle('selected', !!f && f.probability === pp && f.impact === ii);
+        });
+        barra.innerHTML = barraDaCelula(riscosNaCelula(S.risks || []).length);
+        listaRiscos.filtrarPor(f ? naCelula(f) : null, VAZIO_CELULA);
     };
 
     window.onRiskAssetSelectChange = function(select) {
@@ -245,16 +252,16 @@ window.__grcCloseExecAudit = function (id) {
         }
     };
 
-    window.onRiskTreatmentChange = function(select) {
-        const acceptGroup = document.getElementById('risk-accept-group');
-        if (select.value === 'Accept') {
-            acceptGroup.style.display = '';
-            const dtInput = document.getElementById('risk-accepted-at');
-            if (!dtInput.value) dtInput.value = new Date().toISOString().split('T')[0];
-        } else {
-            acceptGroup.style.display = 'none';
-        }
-    };
+    // Risco residual (1 a 5, vazio = sem avaliação) e prazo de tratamento; o nível residual é calculado pelo servidor.
+    function camposResiduais(pre, r = {}) {
+        const sel = (id, rotulo, v) => `<div class="form-group flex-1"><label class="form-label" for="${pre}-${id}">${rotulo}</label><select class="form-input" id="${pre}-${id}"><option value="">Sem avaliação</option>${[1, 2, 3, 4, 5].map((n) => `<option value="${n}" ${n === Number(v) ? 'selected' : ''}>${n}</option>`).join('')}</select></div>`;
+        return `<div class="d-flex gap-2">${sel('res-impact', 'Impacto residual', r.residual_impact)}${sel('res-prob', 'Probabilidade residual', r.residual_probability)}</div>
+            <div class="form-group"><label class="form-label" for="${pre}-due">Prazo de tratamento</label><input class="form-input" id="${pre}-due" type="date" value="${escapeHTML(r.treatment_due_date || '')}"></div>`;
+    }
+    function lerResiduais(pre) {
+        const n = (id) => { const v = document.getElementById(`${pre}-${id}`).value; return v ? +v : null; };
+        return { residual_impact: n('res-impact'), residual_probability: n('res-prob'), treatment_due_date: document.getElementById(`${pre}-due`).value || null };
+    }
 
     window.openNewRiskModal = async function(projectId) {
         let assets = [];
@@ -294,7 +301,7 @@ window.__grcCloseExecAudit = function (id) {
             </div>
             <div class="form-group">
                 <label class="form-label">Tratamento</label>
-                <select class="form-input" id="risk-treatment" data-action-change="onRiskTreatmentChange" data-arg-el>
+                <select class="form-input" id="risk-treatment">
                     <option value="Mitigate">Mitigar</option>
                     <option value="Accept">Aceitar</option>
                     <option value="Transfer">Transferir</option>
@@ -308,13 +315,10 @@ window.__grcCloseExecAudit = function (id) {
                     ${controlOptions}
                 </select>
             </div>
-            <div id="risk-accept-group" style="display:none">
-                <div class="form-group"><label class="form-label">Assinado/Aceito por</label><input class="form-input" id="risk-accepted-by" placeholder="Ex: Maria Silva (CEO)"></div>
-                <div class="form-group"><label class="form-label">Data do Aceite</label><input class="form-input" id="risk-accepted-at" type="date"></div>
-            </div>
             <div class="form-group"><label class="form-label">Responsável (cadastro de partes)</label><select class="form-input" id="risk-owner-parte">${parteOptions}</select></div>
             <div class="form-group"><label class="form-label">Responsável (texto livre)</label><input class="form-input" id="risk-owner" placeholder="Ex: CISO"></div>
             <div class="form-group"><label class="form-label">Plano de Tratamento</label><textarea class="form-input" id="risk-plan" rows="2" placeholder="Descreva as acoes..."></textarea></div>
+            ${camposResiduais('risk')}
             <button class="btn btn-primary w-full" data-action="createRisk" data-args='["${projectId}"]'>Registrar Risco</button>
         `);
     };
@@ -323,7 +327,6 @@ window.__grcCloseExecAudit = function (id) {
         const select = document.getElementById('risk-asset-select');
         const assetId = select.value && select.value !== '__manual__' ? select.value : null;
         const assetName = document.getElementById('risk-asset').value;
-        const treatment = document.getElementById('risk-treatment').value;
 
         const body = {
             asset_id: assetId,
@@ -332,13 +335,12 @@ window.__grcCloseExecAudit = function (id) {
             vulnerability: document.getElementById('risk-vuln').value,
             impact: +document.getElementById('risk-impact').value,
             probability: +document.getElementById('risk-prob').value,
-            treatment: treatment,
+            treatment: document.getElementById('risk-treatment').value,
             control_id: document.getElementById('risk-control').value || null,
             owner: document.getElementById('risk-owner').value,
             owner_parte_id: document.getElementById('risk-owner-parte').value || null,
             treatment_plan: document.getElementById('risk-plan').value,
-            accepted_by: treatment === 'Accept' ? document.getElementById('risk-accepted-by').value : null,
-            accepted_at: treatment === 'Accept' ? document.getElementById('risk-accepted-at').value : null
+            ...lerResiduais('risk'),
         };
         if (!body.asset || !body.threat) return;
         await api('POST', `/api/v1/projects/${projectId}/risks`, body);
@@ -380,6 +382,7 @@ window.__grcCloseExecAudit = function (id) {
             </div>
             <div class="form-group"><label class="form-label">Responsável (cadastro de partes)</label><select class="form-input" id="risk-e-owner-parte">${parteOptions}</select></div>
             <div class="form-group"><label class="form-label">Responsável (texto livre)</label><input class="form-input" id="risk-e-owner" value="${escapeHTML(r.owner||'')}"></div>
+            ${camposResiduais('risk-e', r)}
             <div class="d-flex gap-2 justify-between mt-4">
                 <button class="btn t-perigo" data-action="__grcDeleteRisk" data-args='["${riskId}"]'>Excluir</button>
                 <button class="btn btn-primary" data-action="updateRisk" data-args='["${riskId}"]'>Salvar</button>
@@ -397,7 +400,8 @@ window.__grcCloseExecAudit = function (id) {
             treatment: document.getElementById('risk-e-treatment').value, 
             control_id: document.getElementById('risk-e-control').value || null,
             owner: document.getElementById('risk-e-owner').value,
-            owner_parte_id: document.getElementById('risk-e-owner-parte').value || null
+            owner_parte_id: document.getElementById('risk-e-owner-parte').value || null,
+            ...lerResiduais('risk-e'),
         };
         await api('PUT', `/api/v1/risks/${id}`, body);
         forceCloseModal(); render();
@@ -451,18 +455,26 @@ window.__grcCloseExecAudit = function (id) {
                             <span class="badge badge-implemented py-1 px-2 t-sm">${escapeHTML(r.control_standard)}</span>
                         </div>
                     </div>` : ''}
-                    ${r.treatment === 'Accept' && r.accepted_by ? `
+                    ${linhaDeAceite(r) ? `
                     <div class="col-span-2">
-                        <div class="rotulo-campo">Risco Aceito por</div>
-                        <div class="t-base fw-500 t-texto">${escapeHTML(r.accepted_by)} em ${formatarData(r.accepted_at, { vazio: 'data desconhecida' })}</div>
+                        <div class="rotulo-campo">Aceite do risco</div>
+                        <div class="t-base fw-500 t-texto">${linhaDeAceite(r)}</div>
                     </div>` : ''}
                 </div>
             </div>
             <div class="acoes-rodape">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
+                ${canCrud && podeAceitar(r) ? `<button class="btn" data-action="aceitarRiscoIso" data-args='["${id}"]'>Aceitar risco</button>` : ''}
                 ${canCrud ? `<button class="btn btn-primary" data-action="openEditRiskModal" data-args='["${id}"]'>Editar Risco</button>` : ''}
             </div>
         `);
+    };
+
+    window.aceitarRiscoIso = async function(id) {
+        try { if (!(await aceitarRisco(api, `/api/v1/risks/${id}`))) return; }
+        catch (e) { showToast((e && e.message) || 'Não foi possível aceitar o risco', 'error'); return; }
+        showToast('Risco aceito.', 'success');
+        forceCloseModal(); render();
     };
 
     async function renderVendors(c, h, a) {
@@ -485,21 +497,22 @@ window.__grcCloseExecAudit = function (id) {
         S.vendors = vendors;
 
         const totalVendors = vendors.length;
-        const avgScore = totalVendors ? Math.round(vendors.reduce((acc, v) => acc + (v.trust_score || 0), 0) / totalVendors) : 0;
-        const dpaSignedCount = vendors.filter(v => v.dpa_signed).length;
+        // o índice médio só conta quem tem avaliação de segurança (perfil); fornecedor sem perfil não vale 0
+        const avaliados = vendors.filter(v => v.id);
+        const avgScore = avaliados.length ? Math.round(avaliados.reduce((acc, v) => acc + (v.trust_score || 0), 0) / avaliados.length) : 0;
+        // DPA é o documento ligado (fonte única, 20/10/2026); o "declarado" do perfil antigo não conta
+        const dpaSignedCount = vendors.filter(v => v.dpa).length;
         const highDilCount = vendors.filter(v => v.diligence_level === 'High' || v.diligence_level === 'Critical').length;
 
         const statsHtml = window.renderStatCards([
             { label: 'Total Fornecedores', value: totalVendors, color: 'var(--text)', subtext: 'Terceiros mapeados' },
             // Sem fornecedor não há postura a medir: "—", nunca "0/100" em vermelho.
-            { label: 'Índice de confiança médio', value: totalVendors ? `${avgScore}/100` : '—', color: !totalVendors ? 'var(--text-dim)' : avgScore >= 80 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : 'var(--danger)', subtext: 'Postura global' },
+            { label: 'Índice de confiança médio', value: avaliados.length ? `${avgScore}/100` : '—', color: !avaliados.length ? 'var(--text-dim)' : avgScore >= 80 ? 'var(--success)' : avgScore >= 50 ? 'var(--warning)' : 'var(--danger)', subtext: 'Postura global' },
             { label: 'DPAs Assinados', value: dpaSignedCount, color: 'var(--text)', subtext: 'Proteção de dados' },
             { label: 'Alta Diligência', value: highDilCount, color: highDilCount ? 'var(--warning)' : 'var(--text)', subtext: 'Acompanhamento rigoroso' }
         ]);
 
-        const tableHtml = window.renderDataTable(
-            ['Fornecedor', 'Categoria', 'Índice de confiança', 'DPA assinado', 'Certificações', 'Nível de diligência', 'Ações'],
-            vendors.map(v => {
+        const celulas = v => {
                 const certs = [];
                 if (v.has_iso27001) certs.push('ISO 27001');
                 if (v.has_iso27701) certs.push('ISO 27701');
@@ -507,31 +520,63 @@ window.__grcCloseExecAudit = function (id) {
                 if (v.attached_certifications) certs.push(v.attached_certifications);
                 const certStr = certs.length ? certs.join(', ') : '—';
                 const scoreColor = (v.trust_score || 0) >= 80 ? 'var(--success)' : (v.trust_score || 0) >= 50 ? 'var(--warning)' : 'var(--danger)';
+                // fornecedor sem perfil de segurança: a primeira edição cria a avaliação (POST com o nome da parte)
+                if (!v.id) return [
+                    `<strong>${escapeHTML(v.name)}</strong>`,
+                    '—',
+                    '<span class="t-sm t-dim">Sem avaliação de segurança</span>',
+                    seloDpa(v), '—', '—',
+                    canCrud ? `<button class="btn btn-ghost btn-sm" data-action="openEditVendorModal" data-args='["${v.parte_id}"]'>Avaliar</button>` : ''
+                ];
 
                 return [
                     `<strong>${escapeHTML(v.name)}</strong>`,
                     escapeHTML(v.category || 'Geral'),
                     `<span style="font-weight:600;color:${scoreColor}">${v.trust_score || 0}/100</span>`,
-                    v.dpa_signed ? window.renderStatusBadge('Sim', 'success') : window.renderStatusBadge('Não', 'danger'),
+                    seloDpa(v),
                     `<span class="t-sm t-dim">${escapeHTML(certStr)}</span>`,
                     window.renderStatusBadge(v.diligence_level || 'Low', v.diligence_level === 'High' ? 'danger' : 'info'),
-                    `<button class="btn btn-ghost btn-sm" data-action="openVendorDetailsModal" data-args='["${v.id}"]'>Detalhes</button>`
+                    `<button class="btn btn-ghost btn-sm" data-action="openVendorDetailsModal" data-args='["${v.parte_id}"]'>Detalhes</button>`
                 ];
-            }),
-            { emptyState: 'Nenhum fornecedor registrado neste projeto.',
-              emptyHint: 'Fornecedor com acesso a informação do escopo precisa de requisitos de segurança acordados e acompanhados (ISO 27001, A.5.19 a A.5.22).',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewVendorModal" data-args='["${proj.id}"]'>Novo fornecedor</button>` : '' }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${tableHtml}
+            <div id="fornecedores-lista"></div>
         `;
+        montarLista(c.querySelector('#fornecedores-lista'), {
+            id: 'fornecedores',
+            linhas: vendors,
+            colunas: colunasDe(['Fornecedor', 'Categoria', 'Índice de confiança', 'DPA', 'Certificações', 'Nível de diligência', 'Ações'], celulas),
+            busca: v => v.name,
+            filtros: [
+                { chave: 'diligencia', rotulo: 'Diligência', valor: v => v.diligence_level },
+                { chave: 'dpa', rotulo: 'DPA', valor: v => v.dpa ? 'sim' : v.dpa_declarado ? 'declarado' : 'nao',
+                    opcoes: [['sim', 'Sim'], ['declarado', 'Declarado, sem documento'], ['nao', 'Não']] },
+                { chave: 'avaliacao', rotulo: 'Avaliação de segurança', valor: v => v.id ? 'com' : 'sem', opcoes: [['com', 'Com avaliação'], ['sem', 'Sem avaliação']] },
+            ],
+            filtroPainel: { tela: 'vendors' },
+            exportar: { caminho: `/api/v1/projects/${proj.id}/export/vendors` },
+            vazio: { titulo: 'Nenhum fornecedor registrado neste projeto.',
+                dica: 'Fornecedor com acesso a informação do escopo precisa de requisitos de segurança acordados e acompanhados (ISO 27001, A.5.19 a A.5.22).',
+                acao: canCrud ? `<button class="btn btn-primary" data-action="openNewVendorModal" data-args='["${proj.id}"]'>Novo fornecedor</button>` : '' },
+        });
     }
 
-    window.openVendorDetailsModal = function(id) {
-        const v = S.vendors.find(x => x.id === id) || {};
+    // DPA pela fonte única: "Sim" só com documento ligado; o legado do perfil (caixa marcada ou link) é "Declarado, sem documento"
+    const textoDpa = v => v.dpa ? 'Sim' : v.dpa_declarado ? 'Declarado, sem documento' : 'Não';
+    const seloDpa = v => window.renderStatusBadge(textoDpa(v), v.dpa ? 'success' : v.dpa_declarado ? 'warning' : 'danger');
+
+    // fornecedores são identificados pela parte (`parte_id`): o perfil de segurança (`id`) é opcional
+    window.openVendorDetailsModal = async function(parteId) {
+        const v = S.vendors.find(x => x.parte_id === parteId) || {};
         const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
+        const ligados = Array.isArray(v.dpa_documentos) ? v.dpa_documentos : [];
+        let documentos = [];
+        if (canCrud) {
+            try { const r = await api('GET', `/api/v1/projects/${v.project_id}/documentos`); documentos = Array.isArray(r) ? r : []; } catch (e) { documentos = []; }
+            documentos = documentos.filter(d => !ligados.some(l => l.id === d.id));
+        }
         const dilColor = d => d === 'Low' ? 'var(--success)' : d === 'Medium' ? 'var(--warning)' : 'var(--danger)';
         
         openModal(`
@@ -558,8 +603,8 @@ window.__grcCloseExecAudit = function (id) {
                         <span style="font-size:1.1rem; font-weight:600; color:${v.trust_score >= 80 ? 'var(--success)' : v.trust_score >= 50 ? 'var(--warning)' : 'var(--danger)'}">${v.trust_score || 0} / 100</span>
                     </div>
                     <div>
-                        <div class="rotulo-campo">DPA Assinado</div>
-                        <span class="ctx-tag" style="background:${v.dpa_signed ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.05)'}; color:${v.dpa_signed ? 'var(--success)' : 'var(--text-dim)'}; font-weight:600">${v.dpa_signed ? 'Sim' : 'Não'}</span>
+                        <div class="rotulo-campo">DPA</div>
+                        ${seloDpa(v)}
                     </div>
                     
                     <div class="col-span-2">
@@ -579,10 +624,20 @@ window.__grcCloseExecAudit = function (id) {
                         <a href="${escapeHTML(v.trust_center_url)}" target="_blank" class="t-accent t-base sem-sublinhado">${escapeHTML(v.trust_center_url)} &nearr;</a>
                     </div>` : ''}
 
-                    ${v.dpa_url ? `
+                    <div class="col-span-2" id="vnd-dpa-docs">
+                        <div class="rotulo-campo">Documentos DPA ligados</div>
+                        ${ligados.length ? `<ul>${ligados.map(d => `<li>${escapeHTML(d.titulo)}</li>`).join('')}</ul>` : '<span class="t-md t-dim">Nenhum documento ligado</span>'}
+                        ${canCrud && documentos.length ? `<div class="d-flex gap-2 items-center mt-1">
+                            <label class="form-label" for="vnd-dpa-doc">Documento</label>
+                            <select class="form-input" id="vnd-dpa-doc">${documentos.map(d => `<option value="${escapeHTML(d.id)}">${escapeHTML(d.titulo)}</option>`).join('')}</select>
+                            <button class="btn btn-sm" data-action="ligarDpaFornecedor" data-args='${escapeHTML(JSON.stringify([v.project_id, parteId]))}'>Ligar documento</button>
+                        </div>` : ''}
+                    </div>
+
+                    ${v.dpa_declarado && v.dpa_url_antigo ? `
                     <div class="col-span-2">
-                        <div class="rotulo-campo">DPA Padrão / Termos de Privacidade</div>
-                        <a href="${escapeHTML(v.dpa_url)}" target="_blank" class="t-accent t-base sem-sublinhado">${escapeHTML(v.dpa_url)} &nearr;</a>
+                        <div class="rotulo-campo">DPA declarado, sem documento (link antigo)</div>
+                        <span class="t-base">${escapeHTML(v.dpa_url_antigo)}</span>
                     </div>` : ''}
 
                     <div class="col-span-2">
@@ -599,9 +654,18 @@ window.__grcCloseExecAudit = function (id) {
             </div>
             <div class="acoes-rodape">
                 <button class="btn" data-action="forceCloseModal">Fechar</button>
-                ${canCrud ? `<button class="btn btn-primary" data-action="openEditVendorModal" data-args='["${id}"]'>Editar Fornecedor</button>` : ''}
+                ${canCrud ? `<button class="btn btn-primary" data-action="openEditVendorModal" data-args='["${parteId}"]'>Editar Fornecedor</button>` : ''}
             </div>
         `);
+    };
+
+    window.ligarDpaFornecedor = async function(projectId, parteId) {
+        const documentoId = document.getElementById('vnd-dpa-doc')?.value;
+        if (!documentoId) return;
+        try { await api('POST', `/api/v1/projects/${projectId}/terceiros/${parteId}/documentos`, { documento_id: documentoId, papel: 'dpa' }); }
+        catch (e) { showToast(e.message || 'Não foi possível ligar o documento.', 'error'); return; }
+        showToast('Documento ligado como DPA.', 'success');
+        forceCloseModal(); render();
     };
 
     window.previewVendorScore = function() {
@@ -615,7 +679,6 @@ window.__grcCloseExecAudit = function (id) {
         if (document.getElementById('vnd-inc')?.checked) score += 10;
         if (document.getElementById('vnd-pen')?.checked) score += 10;
         if (document.getElementById('vnd-tc-url')?.value.trim().length > 0) score += 5;
-        if (document.getElementById('vnd-dpa')?.value === '1' || document.getElementById('vnd-dpa-url')?.value.trim().length > 0) score += 10;
         
         const finalScore = Math.min(100, score);
         const scorePreviewEl = document.getElementById('vnd-score-preview');
@@ -652,24 +715,12 @@ window.__grcCloseExecAudit = function (id) {
                 <label class="t-xs t-dim d-flex items-center gap-1 col-span-2"><input type="checkbox" id="vnd-pen" data-action-change="previewVendorScore"> Testes de Invasao (Pentest)</label>
             </div>
 
-            <div class="card-label mt-4 mb-2">Canais públicos (portal de segurança e DPA padrão)</div>
+            <div class="card-label mt-4 mb-2">Canais públicos (portal de segurança)</div>
             <div class="form-group">
                 <label class="form-label">Portal de segurança (URL)</label>
                 <input class="form-input" id="vnd-tc-url" placeholder="Ex: https://aws.amazon.com/compliance/" data-action-input="previewVendorScore">
             </div>
-            <div class="d-flex gap-2">
-                <div class="form-group flex-1">
-                    <label class="form-label">DPA Assinado?</label>
-                    <select class="form-input" id="vnd-dpa" data-action-change="previewVendorScore">
-                        <option value="0">Não</option>
-                        <option value="1">Sim</option>
-                    </select>
-                </div>
-                <div class="form-group flex-2">
-                    <label class="form-label">DPA URL (Padrão do Site)</label>
-                    <input class="form-input" id="vnd-dpa-url" placeholder="Ex: https://aws.amazon.com/dpa/" data-action-input="previewVendorScore">
-                </div>
-            </div>
+            <p class="t-sm t-dim">O DPA se registra ligando o documento na ficha do fornecedor (Detalhes).</p>
 
             <div class="d-flex justify-between items-center mt-4 mb-4 bg-sutil borda p-3">
                 <span class="t-md fw-600">Índice de confiança estimado:</span>
@@ -685,7 +736,6 @@ window.__grcCloseExecAudit = function (id) {
         const body = { 
             name: document.getElementById('vnd-name').value, 
             category: document.getElementById('vnd-cat').value, 
-            dpa_signed: +document.getElementById('vnd-dpa').value, 
             has_iso27001: document.getElementById('vnd-iso27001').checked ? 1 : 0, 
             has_iso27701: document.getElementById('vnd-iso27701').checked ? 1 : 0, 
             has_soc2: document.getElementById('vnd-soc2').checked ? 1 : 0,
@@ -695,7 +745,6 @@ window.__grcCloseExecAudit = function (id) {
             has_incident_plan: document.getElementById('vnd-inc').checked ? 1 : 0,
             has_pentest: document.getElementById('vnd-pen').checked ? 1 : 0,
             trust_center_url: document.getElementById('vnd-tc-url').value,
-            dpa_url: document.getElementById('vnd-dpa-url').value,
             attached_certifications: document.getElementById('vnd-attached-certs').value
         };
         if (!body.name) return;
@@ -703,11 +752,11 @@ window.__grcCloseExecAudit = function (id) {
         forceCloseModal(); render();
     };
 
-    window.openEditVendorModal = function(id) {
-        const v = S.vendors.find(x => x.id === id) || {};
+    window.openEditVendorModal = function(parteId) {
+        const v = S.vendors.find(x => x.parte_id === parteId) || {};
         openModal(`
-            <div class="modal-header"><span class="modal-title">Editar Fornecedor</span></div>
-            <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="vnd-e-name" value="${escapeHTML(v.name||'')}"></div>
+            <div class="modal-header"><span class="modal-title">${v.id ? 'Editar Fornecedor' : 'Avaliação de segurança'}</span></div>
+            <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="vnd-e-name" value="${escapeHTML(v.name||'')}"${v.id ? '' : ' disabled'}></div>
             <div class="form-group"><label class="form-label">Categoria</label><input class="form-input" id="vnd-e-cat" value="${escapeHTML(v.category||'')}"></div>
             
             <div class="card-label mt-4 mb-2">Certificações Conhecidas</div>
@@ -736,19 +785,7 @@ window.__grcCloseExecAudit = function (id) {
                 <label class="form-label">Portal de segurança (URL)</label>
                 <input class="form-input" id="vnd-tc-url" value="${escapeHTML(v.trust_center_url||'')}" placeholder="Ex: https://aws.amazon.com/compliance/" data-action-input="previewVendorScore">
             </div>
-            <div class="d-flex gap-2">
-                <div class="form-group flex-1">
-                    <label class="form-label">DPA Assinado?</label>
-                    <select class="form-input" id="vnd-dpa" data-action-change="previewVendorScore">
-                        <option value="0" ${!v.dpa_signed?'selected':''}>Não</option>
-                        <option value="1" ${v.dpa_signed?'selected':''}>Sim</option>
-                    </select>
-                </div>
-                <div class="form-group flex-2">
-                    <label class="form-label">DPA URL</label>
-                    <input class="form-input" id="vnd-dpa-url" value="${escapeHTML(v.dpa_url||'')}" placeholder="Ex: https://aws.amazon.com/dpa/" data-action-input="previewVendorScore">
-                </div>
-            </div>
+            <p class="t-sm t-dim">DPA: ${escapeHTML(textoDpa(v))}. O DPA se registra ligando o documento na ficha do fornecedor (Detalhes).</p>
 
             <div class="d-flex justify-between items-center mt-4 mb-4 bg-sutil borda p-3">
                 <span class="t-md fw-600">Índice de confiança estimado:</span>
@@ -756,8 +793,8 @@ window.__grcCloseExecAudit = function (id) {
             </div>
 
             <div class="d-flex gap-2 justify-between mt-6">
-                <button class="btn t-perigo" data-action="deleteVendor" data-args='["${id}"]'>Excluir</button>
-                <button class="btn btn-primary" data-action="updateVendor" data-args='["${id}"]'>Salvar</button>
+                ${v.id ? `<button class="btn t-perigo" data-action="deleteVendor" data-args='["${v.id}"]'>Remover avaliação de segurança</button>` : '<span></span>'}
+                <button class="btn btn-primary" data-action="updateVendor" data-args='["${parteId}"]'>Salvar</button>
             </div>
         `);
         window.previewVendorScore = function() {
@@ -771,7 +808,8 @@ window.__grcCloseExecAudit = function (id) {
             if (document.getElementById('vnd-inc')?.checked) score += 10;
             if (document.getElementById('vnd-pen')?.checked) score += 10;
             if (document.getElementById('vnd-tc-url')?.value.trim().length > 0) score += 5;
-            if (document.getElementById('vnd-dpa')?.value === '1' || document.getElementById('vnd-dpa-url')?.value.trim().length > 0) score += 10;
+            // o DPA conta pelo documento ligado (a ficha liga), não por campo deste formulário
+            if (v.dpa) score += 10;
             
             const finalScore = Math.min(100, score);
             const scorePreviewEl = document.getElementById('vnd-score-preview');
@@ -783,11 +821,11 @@ window.__grcCloseExecAudit = function (id) {
         window.previewVendorScore();
     };
 
-    window.updateVendor = async function(id) {
+    window.updateVendor = async function(parteId) {
+        const v = S.vendors.find(x => x.parte_id === parteId) || {};
         const body = { 
-            name: document.getElementById('vnd-e-name').value, 
+            name: v.id ? document.getElementById('vnd-e-name').value : v.name, 
             category: document.getElementById('vnd-e-cat').value, 
-            dpa_signed: +document.getElementById('vnd-dpa').value, 
             has_iso27001: document.getElementById('vnd-iso27001').checked ? 1 : 0, 
             has_iso27701: document.getElementById('vnd-iso27701').checked ? 1 : 0, 
             has_soc2: document.getElementById('vnd-soc2').checked ? 1 : 0,
@@ -797,15 +835,16 @@ window.__grcCloseExecAudit = function (id) {
             has_incident_plan: document.getElementById('vnd-inc').checked ? 1 : 0,
             has_pentest: document.getElementById('vnd-pen').checked ? 1 : 0,
             trust_center_url: document.getElementById('vnd-tc-url').value,
-            dpa_url: document.getElementById('vnd-dpa-url').value,
             attached_certifications: document.getElementById('vnd-attached-certs').value
         };
-        await api('PUT', `/api/v1/vendors/${id}`, body);
+        // sem perfil, o POST cria a avaliação na parte desta linha (pelo id: dois fornecedores podem ter o mesmo nome)
+        if (v.id) await api('PUT', `/api/v1/vendors/${v.id}`, body);
+        else await api('POST', `/api/v1/projects/${v.project_id}/vendors`, { ...body, parte_id: v.parte_id });
         forceCloseModal(); render();
     };
 
     window.deleteVendor = async function(id) {
-        if (await window.confirmar('O fornecedor e a avaliação dele saem deste projeto.', { titulo: 'Excluir fornecedor', perigo: true, rotulo: 'Excluir' })) { await api('DELETE', `/api/v1/vendors/${id}`); render(); }
+        if (await window.confirmar('A avaliação de segurança sai; o fornecedor continua cadastrado neste projeto (para tirá-lo, inative a organização em Partes).', { titulo: 'Remover avaliação de segurança', perigo: true, rotulo: 'Remover' })) { await api('DELETE', `/api/v1/vendors/${id}`); render(); }
     };
 
     async function renderTraining(c, h, a) {
@@ -842,9 +881,7 @@ window.__grcCloseExecAudit = function (id) {
             { label: 'Concluíram', value: totalRecords ? `${completedRecords} de ${totalRecords}` : '—', color: 'var(--text)', subtext: totalRecords ? 'registros de treinamento concluídos' : 'Nenhum registro de treinamento' }
         ]);
 
-        const tableHtml = window.renderDataTable(
-            ['Treinamento', 'Colaborador', 'Pontuação (%)', 'Data de conclusão', 'Evidência', 'Status', 'Ações'],
-            records.map(r => {
+        const celulas = r => {
                 const hasEvidence = !!r.evidence_file;
                 const statusType = r.status === 'Completed' ? 'success' : r.status === 'Expired' ? 'danger' : 'warning';
 
@@ -857,16 +894,23 @@ window.__grcCloseExecAudit = function (id) {
                     window.renderStatusBadge(r.status || 'Pending', statusType),
                     `<button class="btn btn-ghost btn-sm" data-action="openTrainingDetailsModal" data-args='["${r.id}"]'>Detalhes</button>`
                 ];
-            }),
-            { emptyState: 'Nenhum registro de treinamento neste projeto.',
-              emptyHint: 'O registro de quem foi treinado e quando é a evidência de conscientização (ISO 27001, 7.2 e 7.3; A.6.3).',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewTrainingModal" data-args='["${proj.id}"]'>Novo registro</button>` : '' }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${tableHtml}
+            <div id="treinamento-lista"></div>
         `;
+        montarLista(c.querySelector('#treinamento-lista'), {
+            id: 'treinamento',
+            linhas: records,
+            colunas: colunasDe(['Treinamento', 'Colaborador', 'Pontuação (%)', 'Data de conclusão', 'Evidência', 'Status', 'Ações'], celulas),
+            busca: r => `${r.employee_name} ${r.training_name}`,
+            filtros: [{ chave: 'status', rotulo: 'Status', valor: r => r.status || 'Pending', opcoes: opcoesDe(records, r => r.status || 'Pending', 'treinamento') }],
+            exportar: { caminho: `/api/v1/projects/${proj.id}/export/training` },
+            vazio: { titulo: 'Nenhum registro de treinamento neste projeto.',
+                dica: 'O registro de quem foi treinado e quando é a evidência de conscientização (ISO 27001, 7.2 e 7.3; A.6.3).',
+                acao: canCrud ? `<button class="btn btn-primary" data-action="openNewTrainingModal" data-args='["${proj.id}"]'>Novo registro</button>` : '' },
+        });
     }
 
     window.openTrainingDetailsModal = function(id) {
@@ -1149,11 +1193,7 @@ window.__grcCloseExecAudit = function (id) {
             { label: 'Críticas / Alta Severidade', value: criticalCAPA, color: criticalCAPA > 0 ? 'var(--danger)' : 'var(--text)', subtext: 'Prioridade máxima' }
         ]);
 
-        // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
-        const { itens: acoesDaLista, chip: chipFiltro, filtrado } = filtrarDoPainel('capa', null, items);
-        const tableHtml = window.renderDataTable(
-            ['Título da Ação', 'Responsável', 'Prazo', 'Severidade', 'Status', 'Ações'],
-            acoesDaLista.map(ca => {
+        const celulas = ca => {
                 const sevBadgeType = ca.severity === 'Critical' ? 'danger' : ca.severity === 'High' ? 'warning' : 'info';
                 const statusBadgeType = ca.status === 'Closed' ? 'success' : ca.status === 'In Progress' ? 'warning' : 'info';
 
@@ -1165,18 +1205,29 @@ window.__grcCloseExecAudit = function (id) {
                     window.renderStatusBadge(ca.status || 'Open', statusBadgeType),
                     `<button class="btn btn-ghost btn-sm" data-action="openCAPADetailsModal" data-args='["${ca.id}"]'>Detalhes</button>`
                 ];
-            }),
-            { emptyState: 'Nenhuma ação corretiva registrada neste projeto.',
-              emptyHint: 'Cada não conformidade pede ação para eliminar a causa e o registro do resultado (ISO 27001, 10.2).',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewCAPAModal" data-args='["${proj.id}"]'>Nova ação</button>` : '',
-              ...(filtrado ? { emptyState: 'Nenhuma ação nesta situação.', emptyHint: 'Limpe o filtro para ver todas.', emptyAction: '' } : {}) }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${chipFiltro}
-            ${tableHtml}
+            <div id="capa-lista"></div>
         `;
+        // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar (filtroPainel do componente).
+        montarLista(c.querySelector('#capa-lista'), {
+            id: 'capa',
+            linhas: items,
+            colunas: colunasDe(['Título da Ação', 'Responsável', 'Prazo', 'Severidade', 'Status', 'Ações'], celulas),
+            busca: ca => `${ca.title} ${ca.assigned_to_parte_nome || ca.assigned_to || ''}`,
+            filtros: [
+                { chave: 'status', rotulo: 'Status', valor: ca => ca.status || 'Open' },
+                { chave: 'severidade', rotulo: 'Severidade', valor: ca => ca.severity || 'Medium' },
+                { chave: 'origem', rotulo: 'Origem', valor: ca => ca.audit_id ? 'auditoria' : ca.risk_id ? 'risco' : ca.incidente_id ? 'incidente' : 'avulsa',
+                    opcoes: [['auditoria', 'Auditoria'], ['risco', 'Risco'], ['incidente', 'Incidente'], ['avulsa', 'Avulsa']] },
+            ],
+            filtroPainel: { tela: 'capa' },
+            vazio: { titulo: 'Nenhuma ação corretiva registrada neste projeto.',
+                dica: 'Cada não conformidade pede ação para eliminar a causa e o registro do resultado (ISO 27001, 10.2).',
+                acao: canCrud ? `<button class="btn btn-primary" data-action="openNewCAPAModal" data-args='["${proj.id}"]'>Nova ação</button>` : '' },
+        });
     }
 
     window.openCAPADetailsModal = async function(id) {
@@ -1308,6 +1359,13 @@ window.__grcCloseExecAudit = function (id) {
         `);
     };
 
+    // O formulário do n.iso exige responsável, como o gap; no servidor ele segue opcional (CAPA de incidente e importação nascem sem).
+    function semResponsavel(body) {
+        if (body.assigned_to_parte_id || String(body.assigned_to || '').trim()) return false;
+        showToast('Indique o responsável pela ação (cadastro de partes ou texto livre).', 'error');
+        return true;
+    }
+
     window.createCAPA = async function(projectId) {
         const body = { 
             title: document.getElementById('capa-title').value, 
@@ -1323,6 +1381,7 @@ window.__grcCloseExecAudit = function (id) {
             control_id: document.getElementById('capa-control').value || null
         };
         if (!body.title) return;
+        if (semResponsavel(body)) return;
         await api('POST', `/api/v1/projects/${projectId}/capa`, body);
         forceCloseModal(); render();
     };
@@ -1353,11 +1412,11 @@ window.__grcCloseExecAudit = function (id) {
                     </select></div>
                 <div class="form-group flex-1"><label class="form-label">Status</label>
                     <select class="form-input" id="capa-e-status">
-                        ${[{v:'Open',l:'Aberto'},{v:'In Progress',l:'Em Andamento'},{v:'Closed',l:'Fechado'}].map(o => `<option value="${o.v}" ${o.v===ca.status?'selected':''}>${o.l}</option>`).join('')}
+                        ${['Open', 'In Progress', 'Closed'].map((v) => `<option value="${v}" ${v===ca.status?'selected':''}>${rotuloDe('', v)}</option>`).join('')}
                     </select></div>
             </div>
             <div class="d-flex gap-2">
-                <div class="form-group flex-1"><label class="form-label">Prazo</label><input class="form-input" id="capa-e-due" type="date" value="${ca.due_date||''}"></div>
+                <div class="form-group flex-1"><label class="form-label">Prazo</label><input class="form-input" id="capa-e-due" type="date" value="${escapeHTML(ca.due_date||'')}"></div>
                 <div class="form-group flex-1"><label class="form-label">Responsável (cadastro de partes)</label><select class="form-input" id="capa-e-assigned-parte">${parteOptions}</select></div>
             </div>
             <div class="form-group"><label class="form-label">Responsável (texto livre)</label><input class="form-input" id="capa-e-assigned" value="${escapeHTML(ca.assigned_to||'')}"></div>
@@ -1409,6 +1468,7 @@ window.__grcCloseExecAudit = function (id) {
             risk_id: document.getElementById('capa-e-risk').value || null,
             control_id: document.getElementById('capa-e-control').value || null
         };
+        if (semResponsavel(body)) return;
         await api('PUT', `/api/v1/capa/${id}`, body);
         forceCloseModal(); render();
     };
@@ -1452,9 +1512,7 @@ window.__grcCloseExecAudit = function (id) {
             { label: 'Total de Achados', value: totalFindings, color: totalFindings > 0 ? 'var(--danger)' : 'var(--text)', subtext: 'Achados registrados nas auditorias' }
         ]);
 
-        const tableHtml = window.renderDataTable(
-            ['Título da Auditoria', 'Tipo', 'Auditor Responsável', 'Data Agendada', 'Achados', 'Status', 'Ações'],
-            audits.map(au => {
+        const celulas = au => {
                 const statusBadgeType = au.status === 'Completed' ? 'success' : au.status === 'In Progress' ? 'warning' : 'info';
                 const executeBtn = au.status !== 'Completed' 
                     ? `<button class="btn btn-sm mr-1" data-action="navigate" data-args='["audit-execution",{"activeAuditId":"${au.id}"}]' data-stop>Executar</button>`
@@ -1469,17 +1527,28 @@ window.__grcCloseExecAudit = function (id) {
                     window.renderStatusBadge(rotuloDe('auditoria', au.status || 'Planned'), statusBadgeType),
                     `${executeBtn}<button class="btn btn-ghost btn-sm" data-action="openAuditDetailsModal" data-args='["${au.id}"]'>Detalhes</button>`
                 ];
-            }),
-            { emptyState: 'Nenhuma auditoria agendada neste projeto.',
-              emptyHint: 'A auditoria interna em intervalos planejados é requisito da certificação (ISO 27001, 9.2). Agende a primeira para fechar o ciclo antes do estágio 1.',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewAuditModal" data-args='["${proj.id}"]'>Nova auditoria</button>` : '' }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${tableHtml}
+            <div id="auditorias-lista"></div>
             <div id="acesso-auditor"></div>
         `;
+        const tipo = au => au.audit_type || 'Internal';
+        const situacao = au => au.status || 'Planned';
+        montarLista(c.querySelector('#auditorias-lista'), {
+            id: 'auditorias',
+            linhas: audits,
+            colunas: colunasDe(['Título da Auditoria', 'Tipo', 'Auditor Responsável', 'Data Agendada', 'Achados', 'Status', 'Ações'], celulas),
+            busca: au => au.title,
+            filtros: [
+                { chave: 'tipo', rotulo: 'Tipo', valor: tipo, opcoes: opcoesDe(audits, tipo, 'auditoria') },
+                { chave: 'status', rotulo: 'Status', valor: situacao, opcoes: opcoesDe(audits, situacao, 'auditoria') },
+            ],
+            vazio: { titulo: 'Nenhuma auditoria agendada neste projeto.',
+                dica: 'A auditoria interna em intervalos planejados é requisito da certificação (ISO 27001, 9.2). Agende a primeira para fechar o ciclo antes do estágio 1.',
+                acao: canCrud ? `<button class="btn btn-primary" data-action="openNewAuditModal" data-args='["${proj.id}"]'>Nova auditoria</button>` : '' },
+        });
         await renderAcessoAuditor(c.querySelector('#acesso-auditor'), proj.id, S.user?.role);
     }
 

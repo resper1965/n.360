@@ -94,7 +94,7 @@ export async function hashConteudo(conteudo: unknown): Promise<string> {
  * Colunas de CONTEÚDO do DPIA. Assinaturas, status e datas ficam de fora de propósito: a assinatura
  * do DPO mudaria o hash e substituiria o pedido da Direção, que é sobre o mesmo texto.
  */
-const COLUNAS_DPIA = [
+export const COLUNAS_DPIA = [
   'processing_name', 'ropa_id', 'system_name', 'data_flow_description', 'data_subjects_types',
   'personal_data_categories', 'data_category_risk', 'necessity_proportionality', 'risks_identified',
   'mitigation_measures', 'technical_measures', 'residual_risk_level', 'dpo_recommendations', 'dpo_opinion',
@@ -301,9 +301,8 @@ export type GuardaAssinatura = { destId: string; status: string; decididoEm: str
 
 /**
  * Assinatura do DPIA por papel — a MESMA usada por `POST /projects/:id/dpia/:assessmentId/approve`.
- * Devolve o UPDATE (para entrar num `batch`), ou `null` se o DPIA não existe no projeto. O DPO assina
- * e o DPIA segue em análise; só com as duas assinaturas ele vira Approved (decidido no próprio UPDATE,
- * sem ler antes). Com `guarda`, o UPDATE só pega se a prova do destinatário foi gravada neste mesmo
+ * Devolve o UPDATE (para entrar num `batch`), ou `null` se o DPIA não existe no projeto. Uma assinatura,
+ * do DPO ou da Direção, aprova o RIPD (decisão do dono de 20/10/2026). Com `guarda`, o UPDATE só pega se a prova do destinatário foi gravada neste mesmo
  * `batch` (status e `decidido_em` exatos) e o conteúdo é o congelado.
  */
 export async function assinaturaDpia(db: D1Database, projectId: string, assessmentId: string, role: PapelAssinatura, approvedBy: string, guarda?: GuardaAssinatura): Promise<D1PreparedStatement | null> {
@@ -311,8 +310,8 @@ export async function assinaturaDpia(db: D1Database, projectId: string, assessme
   if (!existe) return null;
   const now = new Date().toISOString();
   const set = role === 'ciso'
-    ? { sql: `dpo_signature = ?, dpo_approved_by = ?, dpo_approved_at = ?, status = CASE WHEN ceo_signature IS NOT NULL THEN 'Approved' ELSE 'Under Review' END`, binds: [approvedBy, approvedBy, now] }
-    : { sql: `ceo_signature = ?, status = CASE WHEN dpo_signature IS NOT NULL THEN 'Approved' ELSE 'Under Review' END`, binds: [approvedBy] };
+    ? { sql: `dpo_signature = ?, dpo_approved_by = ?, dpo_approved_at = ?, status = 'Approved'`, binds: [approvedBy, approvedBy, now] }
+    : { sql: `ceo_signature = ?, status = 'Approved'`, binds: [approvedBy] };
   let onde = 'id = ? AND project_id = ?';
   const bindsOnde: unknown[] = [assessmentId, projectId];
   if (guarda) {

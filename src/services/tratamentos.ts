@@ -1,6 +1,7 @@
 import { aprovacoesDoProjeto, type Aprovacao } from './documentos';
 import { ehLegitimoInteresse, hashDoTratamento } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
+import { hojeEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 4.1: ligações do registro do RoPA (`ropa_records`, que é o tratamento).
@@ -114,9 +115,9 @@ export async function lerLigacoes(db: D1Database, projectId: string, ropaId: str
     db.prepare(
       `SELECT DISTINCT p.id AS parte_id, p.nome AS nome FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
         WHERE v.alvo_tipo = 'tratamento' AND v.alvo_id = ? AND v.project_id = ? AND p.tipo = 'organizacao'
-          AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN a.valido_ate END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < date('now')
+          AND (SELECT CASE WHEN a.resultado <> 'reprovado' THEN a.valido_ate END FROM avaliacoes_terceiro a WHERE a.parte_id = p.id ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1) < ?
         ORDER BY p.nome`
-    ).bind(ropaId, projectId),
+    ).bind(ropaId, projectId, hojeEmSaoPaulo()),
     db.prepare(
       `SELECT COALESCE(NULLIF(pd.nome, ''), pd.email) AS por, pd.decidido_em AS em FROM pedido_destinatarios pd JOIN pedidos p ON p.id = pd.pedido_id
         WHERE p.project_id = ? AND p.tipo = 'tratamento' AND p.ref_id = ? AND pd.status = 'aprovado' ORDER BY pd.decidido_em DESC, pd.rowid DESC LIMIT 1`

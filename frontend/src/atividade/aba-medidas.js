@@ -11,8 +11,8 @@ const ROTULO_STATUS = Object.fromEntries(STATUS_MEDIDA);
 const linha = (m, editavel) => `<li class="at-item" data-id="${escapeHTML(m.id)}">
     <div><p class="at-item-titulo">Medida: ${escapeHTML(m.medida)}</p>
         <p class="at-nota">Status: ${escapeHTML(ROTULO_STATUS[m.status] || m.status)}${m.descricao ? `. ${escapeHTML(m.descricao)}` : ''}</p>
-        ${m.controle ? `<p class="at-nota">Ligada ao controle: ${escapeHTML(m.controle.titulo)}.${m.controle.implementado === false ? ' <strong>O controle deixou de estar implementado: revise esta medida.</strong>' : ''}</p>` : ''}
-        ${!m.controle && m.controle_deixou_de_estar_implementado ? '<p class="at-nota"><strong>O controle deixou de estar implementado: revise esta medida.</strong></p>' : ''}</div>
+        ${m.controle ? `<p class="at-nota">Ligada ao controle: ${escapeHTML(m.controle.titulo)}.</p>` : ''}
+        ${m.controle_deixou_de_estar_implementado ? '<p class="at-nota"><strong>O controle deixou de estar implementado: revise esta medida.</strong></p>' : ''}</div>
     ${editavel ? `<button type="button" class="btn btn-ghost btn-sm" data-editar="${escapeHTML(m.id)}" aria-label="Editar a medida ${escapeHTML(m.medida)}">Editar</button>
         <button type="button" class="btn btn-ghost btn-sm" data-excluir="${escapeHTML(m.id)}" aria-label="Excluir a medida ${escapeHTML(m.medida)}">Excluir</button>` : ''}</li>`;
 

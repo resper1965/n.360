@@ -383,7 +383,7 @@ describe('IDOR cross-tenant nos routers de topo', () => {
       const legitimo = await req('/api/v1/projects/proj-a/dpia/dpia-a/approve', { method: 'POST', headers: jsonA, body: JSON.stringify({ role: 'ciso' }) });
       expect(legitimo.status, await legitimo.clone().text()).toBe(200);
       dpia = await env.DB.prepare('SELECT status, dpo_approved_by FROM dpia_assessments WHERE id = ?').bind('dpia-a').first<any>();
-      expect(dpia.status).toBe('Under Review');
+      expect(dpia.status).toBe('Approved'); // uma assinatura aprova (decisão de 20/10/2026)
       expect(dpia.dpo_approved_by).toBe('Admin do A');
     });
   });

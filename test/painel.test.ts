@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { diaMaisSP } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, resetData, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
@@ -11,7 +12,7 @@ import { saudeDoProjeto, estadoDoPrograma, situacaoNaCarteira, type ItemFazer } 
  */
 const db = () => env.DB;
 const chamar = (h: Record<string, string>, caminho: string) => app.fetch(new Request('http://localhost' + caminho, { headers: h }), workerEnv() as any);
-const dias = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+const dias = (n: number) => diaMaisSP(n);
 const item = (grupo: ItemFazer['grupo'], texto: string, modulo: ItemFazer['modulo'] = 'privacy'): ItemFazer => ({ grupo, texto, quando: '', contexto: '', acao: 'Abrir', tela: 'x', modulo });
 
 type Tema = { tema: string; feito: number; andamento: number; falta: number };

@@ -200,6 +200,10 @@ independente de 30/09/2026 avaliou e descartou como vulnerabilidade, e o motivo.
 5. **`GET /projects/:id/export` é alcançável.** Devolve todo o conteúdo do
    projeto, como para qualquer membro. Desde o #222 ele não leva segredo de
    integração, e a ferramenta corta a resposta em 100.000 caracteres.
+6. **O agente define a validade da evidência** (`PUT /projects/:id/evidence/:eid/validade`, faixa `nucleo` desde a Frente 3C, 21/10/2026),
+   também em projeto só do n.iso. Uma validade no passado faz a rotina diária devolver a evidência conforme a `pending` e baixa a
+   Prontidão; a assinatura gravada fica, e a trilha registra `evidencia.validade` com quem mudou. É decisão de produto (o consultor faz o
+   mesmo pela tela), não falha; quem ainda não pode é o papel de leitura (`org_user`, `client`).
 
 Achados da revisão final do #221, ambos provados por sonda e corrigidos antes
 de chegarem à produção: `POST /auth/reset-password-first` (o agente definiria a

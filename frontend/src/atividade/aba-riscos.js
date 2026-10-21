@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { showToast, openModal, forceCloseModal, confirmar, escapeHTML, formatarData, renderDataTable, renderMaisAcoes } from '../ui.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
+import { podeAceitar, linhaDeAceite, aceitarRisco } from '../aceite-risco.js';
 
 // Aba Riscos da ficha da atividade (spec 2026-10-16, seção 7). Contrato de aba da casca: montar(painel, ctx) com
 // ctx = { projectId, ropaId, ficha, editavel, recarregarFicha }; devolve { esvaziar }. O risco é o MESMO cadastro do n.iso
@@ -43,9 +44,12 @@ function desenhar() {
     const ed = R.ctx.editavel;
     const linhas = R.riscos.map((r) => {
         const t = tratado(r);
-        const acoes = ed ? `<div class="acoes-linha"><button type="button" class="btn btn-sm" data-action="atRiscoTratar" data-args='${args(r.id)}' aria-label="${escapeHTML(`Tratar o risco ${idr(r.idr)}: ${r.threat}`)}">Tratar</button>${renderMaisAcoes([
+        const aceitar = podeAceitar(r) ? `<button type="button" class="btn btn-sm" data-action="atRiscoAceitar" data-args='${args(r.id)}' aria-label="${escapeHTML(`Aceitar o risco ${idr(r.idr)}: ${r.threat}`)}">Aceitar risco</button>` : '';
+        const acoes = ed ? `<div class="acoes-linha"><button type="button" class="btn btn-sm" data-action="atRiscoTratar" data-args='${args(r.id)}' aria-label="${escapeHTML(`Tratar o risco ${idr(r.idr)}: ${r.threat}`)}">Tratar</button>${aceitar}${renderMaisAcoes([
             { rotulo: 'Editar', action: 'atRiscoEditar', args: [r.id] }, { rotulo: 'Excluir', action: 'atRiscoExcluir', args: [r.id], perigo: true }], { nome: `${idr(r.idr)} ${r.threat}` })}</div>` : '';
-        return [escapeHTML(idr(r.idr)), escapeHTML(r.threat), selo(r.risk_level), t ? escapeHTML(ESTRATEGIA_ROTULO[r.treatment] || r.treatment || '—') : '<span class="t-dim">—</span>',
+        const aceite = linhaDeAceite(r);
+        const estrategia = t ? escapeHTML(ESTRATEGIA_ROTULO[r.treatment] || r.treatment || '—') : '<span class="t-dim">—</span>';
+        return [escapeHTML(idr(r.idr)), escapeHTML(r.threat), selo(r.risk_level), aceite ? `${estrategia}<p class="at-nota">${aceite}</p>` : estrategia,
             t ? selo(r.residual_level) : '<span class="t-dim">—</span>', t ? dataBr(r.treatment_due_date) : '<span class="t-dim">—</span>', acoes];
     });
     const novo = ed ? '<button type="button" class="btn btn-sm" data-action="atRiscoNovo">+ Registrar Risco</button>' : '';
@@ -220,6 +224,11 @@ window.atRiscoTratarGravar = async function () {
     forceCloseModal();
     showToast('Tratamento registrado.', 'success');
     try { if (T.aoGravar) await T.aoGravar(); } catch (e) { falha(e, 'Não foi possível atualizar a lista'); }
+};
+
+window.atRiscoAceitar = async function (id) {
+    try { if (!(await aceitarRisco(api, url(R.ctx, `/riscos/${id}`)))) return; showToast('Risco aceito.', 'success'); await recarregar(); }
+    catch (e) { falha(e, 'Não foi possível aceitar o risco'); }
 };
 
 window.atRiscoExcluir = async function (id) {

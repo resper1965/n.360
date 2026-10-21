@@ -50,18 +50,19 @@ describe('Áreas', () => {
         expect(selos).toEqual([null, 'Inativa']);
         expect(c.querySelector('tbody b, tbody i, tbody s')).toBeNull();
         expect(a.querySelector('.btn-primary').textContent.trim()).toBe('+ Nova área');
+        expect(document.getElementById('areas-contagem').textContent).toBe('2');
     });
 
     it('busca no nome e na descrição, sem acento', async () => {
         const [c, h, a] = montar();
         await window.renderAreas(c, h, a);
-        const busca = (v) => { el('ar-busca').value = v; window.filtrarAreas(); };
+        const busca = (v) => window.listaBuscar('areas', v);
         busca('ADMISSAO');
         expect([...c.querySelectorAll('tbody tr')]).toHaveLength(1);
         busca('juri');
         expect(c.querySelector('tbody tr').textContent).toContain('Jurídico');
         busca('zzz');
-        expect(c.textContent).toContain('Nenhuma área com esta busca.');
+        expect(c.textContent).toContain('Nada encontrado com a busca ou o filtro.');
     });
 
     it('vazio explica que a área é usada na atividade do RoPA', async () => {
@@ -120,16 +121,17 @@ describe('Ativos (a tela Sistemas)', () => {
         expect(linha).toContain('Empresa Exemplo');
         expect(c.querySelector('tbody img')).toBeNull();
         expect(a.querySelector('.btn-primary').textContent.trim()).toBe('+ Novo ativo');
+        expect(document.getElementById('sistemas-contagem').textContent).toBe('1');
     });
 
     it('busca no nome e na descrição do ativo', async () => {
         const [c, h, a] = montar();
         await window.renderSistemas(c, h, a);
-        const busca = (v) => { el('si-busca').value = v; window.filtrarSistemas(); };
+        const busca = (v) => window.listaBuscar('sistemas', v);
         busca('GESTAO');
         expect(c.querySelectorAll('tbody tr')).toHaveLength(1);
         busca('zzz');
-        expect(c.textContent).toContain('Nenhum ativo com esta busca.');
+        expect(c.textContent).toContain('Nada encontrado com a busca ou o filtro.');
     });
 
     it('aceita a resposta embrulhada { ok, assets }', async () => {

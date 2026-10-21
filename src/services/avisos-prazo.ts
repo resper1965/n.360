@@ -37,14 +37,8 @@ const mensagem = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export const somarDias = (dia: string, n: number) => new Date(diaUtc(dia) + n * DIA_MS).toISOString().slice(0, 10);
 
-/** O dia de hoje em São Paulo (AAAA-MM-DD). */
-export function hojeEmSaoPaulo(agora: Date = new Date()): string {
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
-      .formatToParts(agora).map((x) => [x.type, x.value]),
-  );
-  return `${p.year}-${p.month}-${p.day}`;
-}
+// Mora em `hoje.ts`; reexportado para quem já importa daqui.
+export { hojeEmSaoPaulo } from './hoje';
 
 /** Semana ISO 8601 (`AAAA-Www`): a quinta-feira da semana decide o ano. */
 export function semanaIso(dia: string): string {

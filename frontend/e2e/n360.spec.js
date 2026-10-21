@@ -99,16 +99,16 @@ test('n.privacy: menu em seções fixas, rótulos de uma linha, selos (total a t
   expect(visao).toEqual([]);
   for (const secao of ['Cadastros', 'Mapeamento', 'Diagnóstico', 'Mais']) await expect(menu.getByText(secao, { exact: true })).toBeVisible();
   await expect(menu.locator('#secao-fornecedores')).toHaveText('Fornecedores');
-  // tudo à vista, sem abrir grupo: Documentos, Políticas e Consentimentos a um clique
+  // tudo à vista, sem abrir grupo: Documentos, Políticas e normas e Consentimentos a um clique
   await expect(menu.locator('#nav-documentos-arquivo')).toContainText('Documentos');
-  await expect(menu.locator('#nav-documentos')).toContainText('Políticas');
+  await expect(menu.locator('#nav-documentos')).toContainText('Políticas e normas');
   await expect(menu.locator('#nav-consentimentos')).toBeVisible();
   await expect(menu.locator('#nav-meus')).toBeHidden();
   await expect(menu.locator('#nav-audit-trail')).toBeHidden();
-  // Minhas aprovações e Trilha de logs moram no menu de conta
+  // Minhas aprovações e Trilha de auditoria moram no menu de conta
   await page.click('#sidebar-user-card');
   await expect(page.getByRole('menuitem', { name: 'Minhas aprovações' })).toBeVisible();
-  await expect(page.getByRole('menuitem', { name: 'Trilha de logs' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Trilha de auditoria' })).toBeVisible();
   await page.keyboard.press('Escape');
   // barra recolhida: todo link com nome, a dica aparece ao focar e o selo segue à vista no canto do ícone
   await page.click('#toggle-sidebar');

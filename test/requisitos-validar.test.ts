@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { hojeEmSaoPaulo } from '../src/services/hoje';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv } from './helpers/d1';
@@ -58,7 +59,7 @@ describe('POST /requisitos/mapeamentos/validar', () => {
     expect(r.validados_total).toBe(antes.propostos);
     const linha = await env.DB.prepare(`SELECT validado_por, validado_em FROM requisito_mapeamentos LIMIT 1`).first<{ validado_por: string; validado_em: string }>();
     expect(linha!.validado_por).toBe('adm@ness.lat');
-    expect(linha!.validado_em).toBe(new Date().toISOString().slice(0, 10));
+    expect(linha!.validado_em).toBe(hojeEmSaoPaulo());
     const trilha = await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'requisitos.mapeamento' AND actor = 'adm@ness.lat'`).first<{ n: number }>();
     expect(trilha!.n).toBeGreaterThan(0);
     const de_novo = await json<{ validados: number }>(await chamar(admin, 'POST', '/api/v1/requisitos/mapeamentos/validar', {}));

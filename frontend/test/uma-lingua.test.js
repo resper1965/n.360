@@ -5,13 +5,22 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import html from '../login.html?raw';
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
-vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://api.test' }));
+vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://api.test', baixarArquivo: vi.fn(), cabecalhosAuth: () => ({}) }));
 
 import '../src/ui.js';
 import '../src/views/monitor.js';
 import '../src/views/grc.js';
 import '../src/views/commercial.js';
+import '../src/views/documentos.js';
+import '../src/views/meus-pedidos.js';
+import '../src/views/admin.js';
+import '../src/views/titular.js';
+import '../src/views/gaps.js';
+import '../src/views/lia.js';
+import '../src/views/documentos-arquivo.js';
+import '../src/views/terceiros.js';
 import { S } from '../src/state.js';
+import { ROTULOS_PRIVACY } from '../src/produto.js';
 
 const PROIBIDOS = /\b(Implemented|Missing|Partial|Compliant|Not Applicable|Open|Closed|In Progress|AT RISK|At Risk|On Track|EXPIRED|Expired|WON|LOST|Won|Lost|Pending|Draft|Approved|Active|Inactive|Controller|Processor|Under Review|CONFIDENTIAL|Confidential|Internal|External|Certification|Surveillance|Completed|Planned|Critical|High|Medium|Low|Mitigate|Monthly|Weekly|Quarterly|Dashboard|Download|Upload|Score|Gap Analysis|Owner|Assessment|Trust Score|Template|Workflow)\b/;
 const DATA_ISO = /\b\d{4}-\d{2}-\d{2}\b/;
@@ -67,6 +76,7 @@ describe('o título da tela é o rótulo do menu', () => {
         ['renderAssets', 'nav-assets'], ['renderTraining', 'nav-training'], ['renderAudits', 'nav-audits'], ['renderCAPA', 'nav-capa'],
         ['renderVendors', 'nav-vendors'], ['renderStakeholders', 'nav-stakeholders'],
         ['renderContext', 'nav-context'], ['renderManagementReview', 'nav-mgmt'], ['renderLeads', 'nav-leads'], ['renderAssessments', 'nav-assessments'],
+        ['renderDocumentos', 'nav-documentos'], ['renderMeusPedidos', 'nav-meus'], ['renderAuditTrail', 'nav-audit-trail'],
     ])('%s', async (fn, nav) => {
         const [c, h, a] = tela();
         const menu = new DOMParser().parseFromString(html, 'text/html').getElementById(nav);
@@ -74,5 +84,29 @@ describe('o título da tela é o rótulo do menu', () => {
         document.body.appendChild(document.importNode(menu, true));
         await window[fn](c, h, a);
         expect(h.textContent).toBe(menu.querySelector('.sidebar-nav-text').textContent.trim());
+    });
+});
+
+// n.privacy: o rótulo do item é o da casca do módulo (ROTULOS_PRIVACY), quando ela o troca; o título da tela é o mesmo.
+describe('n.privacy: o título da tela é o rótulo do menu do módulo', () => {
+    beforeEach(() => {
+        S.currentProject = { id: 'p1', project_name: 'Projeto', modulos: ['iso', 'privacy'] };
+        S.activeProject = S.currentProject;
+        history.replaceState(null, '', '/privacy');
+    });
+    it.each([
+        ['renderTitular', 'nav-titular', () => { S.titularAba = 'pedidos'; }], ['renderTitular', 'nav-incidentes-privacy', () => { S.titularAba = 'incidentes'; }],
+        ['renderTitular', 'nav-consentimentos', () => { S.titularAba = 'consentimentos'; }],
+        ['renderGaps', 'nav-gaps'], ['renderLia', 'nav-lia'], ['renderDocumentosArquivo', 'nav-documentos-arquivo'], ['renderTerceiros', 'nav-terceiros'],
+        ['renderDocumentos', 'nav-documentos'],
+    ])('%s (%s)', async (fn, nav, preparar) => {
+        if (preparar) preparar();
+        const [c, h, a] = tela();
+        const menu = document.importNode(new DOMParser().parseFromString(html, 'text/html').getElementById(nav), true);
+        const rotulo = ROTULOS_PRIVACY[nav] || menu.querySelector('.sidebar-nav-text').textContent.trim();
+        menu.querySelector('.sidebar-nav-text').textContent = rotulo;
+        document.body.appendChild(menu);
+        await window[fn](c, h, a);
+        expect(h.textContent).toBe(rotulo);
     });
 });

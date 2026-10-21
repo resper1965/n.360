@@ -1,3 +1,4 @@
+import { SQL_CLASSE_CONTROLE, classeDoControle } from '../classe-controle';
 import { genId } from '../../helpers';
 import { modulosDoProjeto } from '../../modulos';
 import type { z } from 'zod';
@@ -16,7 +17,7 @@ export type MedidaLida = {
 /** Controles do n.iso já implementados no projeto. `[]` quando o projeto não tem o n.iso (e no projeto novo, sem controle nenhum). */
 export async function controlesImplementados(db: D1Database, projectId: string): Promise<{ id: string; titulo: string }[]> {
   if (!(await modulosDoProjeto(db, projectId)).includes('iso')) return [];
-  const { results } = await db.prepare(`SELECT id, title AS titulo FROM compliance_controls WHERE project_id = ? AND status = 'Implemented' ORDER BY title`)
+  const { results } = await db.prepare(`SELECT id, title AS titulo FROM compliance_controls WHERE project_id = ? AND (${SQL_CLASSE_CONTROLE}) = 'feito' ORDER BY title`)
     .bind(projectId).all<{ id: string; titulo: string }>();
   return results;
 }
@@ -36,7 +37,7 @@ export async function listarMedidas(db: D1Database, projectId: string, ropaId: s
       WHERE m.ropa_id = ? AND m.project_id = ? ORDER BY m.created_at, m.rowid`
   ).bind(ropaId, projectId).all<{ id: string; medida: string; status: string; descricao: string | null; controle_id: string | null; created_at: string; controle_titulo: string | null; controle_status: string | null }>();
   return results.map((r) => {
-    const implementado = r.controle_status === 'Implemented';
+    const implementado = classeDoControle(r.controle_status) === 'feito';
     return {
       id: r.id, medida: r.medida, status: r.status, descricao: r.descricao, controle_id: r.controle_id, created_at: r.created_at,
       controle: r.controle_id && r.controle_titulo !== null ? { id: r.controle_id, titulo: r.controle_titulo, implementado } : null,
