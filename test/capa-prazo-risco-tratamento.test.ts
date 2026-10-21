@@ -20,6 +20,10 @@ beforeAll(async () => {
 });
 
 describe('prazo da CAPA', () => {
+  it('data que não existe (31 de fevereiro) é recusada', async () => {
+    expect((await chamar(consultor, `/api/v1/projects/${P}/capa`, 'POST', { title: 'Data impossível', due_date: '2026-02-31' })).status).toBe(400);
+  });
+
   it('data fora de AAAA-MM-DD é recusada na criação e na edição; a data certa grava', async () => {
     expect((await chamar(consultor, `/api/v1/projects/${P}/capa`, 'POST', { title: 'Ação', due_date: '31/12/2026' })).status).toBe(400);
     const r = await chamar(consultor, `/api/v1/projects/${P}/capa`, 'POST', { title: 'Ação', due_date: '2026-12-31' });

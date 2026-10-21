@@ -56,7 +56,7 @@ const MODULOS: Modulo[] = [
     nome: 'vendors', base: 'vendors', tabela: 'vendors',
     criar: { name: 'Fornecedor novo', category: 'Cloud' },
     atualizar: { name: 'Fornecedor revisado', category: 'Cloud' },
-    campo: 'name', valorEsperado: 'Fornecedor revisado',
+    campo: 'name', valorEsperado: 'Fornecedor Revisado', // o PUT padroniza o nome (normalizarNome), como o POST
   },
   {
     nome: 'training', base: 'training', tabela: 'training_records',

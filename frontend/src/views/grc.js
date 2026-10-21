@@ -1415,7 +1415,7 @@ window.__grcCloseExecAudit = function (id) {
                     </select></div>
             </div>
             <div class="d-flex gap-2">
-                <div class="form-group flex-1"><label class="form-label">Prazo</label><input class="form-input" id="capa-e-due" type="date" value="${ca.due_date||''}"></div>
+                <div class="form-group flex-1"><label class="form-label">Prazo</label><input class="form-input" id="capa-e-due" type="date" value="${escapeHTML(ca.due_date||'')}"></div>
                 <div class="form-group flex-1"><label class="form-label">Responsável (cadastro de partes)</label><select class="form-input" id="capa-e-assigned-parte">${parteOptions}</select></div>
             </div>
             <div class="form-group"><label class="form-label">Responsável (texto livre)</label><input class="form-input" id="capa-e-assigned" value="${escapeHTML(ca.assigned_to||'')}"></div>

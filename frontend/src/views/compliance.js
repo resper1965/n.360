@@ -1583,7 +1583,7 @@ import { classeDoControle } from '../classe-controle.js';
                     !isOrgUser && { rotulo: 'Avaliar com IA', action: 'evaluateEvidenceAI', args: [e.id] },
                     comPrivacy && { rotulo: 'Requisitos e validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id] },
                     // Sem o n.privacy, o mesmo modal só com a validade (rota do núcleo), para quem edita evidência.
-                    !comPrivacy && !isOrgUser && { rotulo: 'Definir validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id, { valido_ate: e.valido_ate || null }] },
+                    !comPrivacy && !isOrgUser && S.user?.role !== 'client' && { rotulo: 'Definir validade', action: 'abrirRequisitosEvidencia', args: [proj.id, e.id, { valido_ate: e.valido_ate || null }] },
                 ].filter(Boolean);
                 const [proxima, ...demais] = acoes;
                 const acoesDaLinha = `<div class="acoes-linha"><button class="btn btn-ghost btn-sm" data-action="${proxima.action}" data-args='${escapeHTML(JSON.stringify(proxima.args))}' aria-label="${escapeHTML(`${proxima.rotulo}: ${fileName}`)}">${proxima.rotulo}</button>${window.renderMaisAcoes(demais, { nome: fileName })}</div>`;
