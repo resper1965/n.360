@@ -255,12 +255,17 @@ nucleoApp.post('/partes/:id/vinculos', async (c) => {
     const v = await validateBody(c, vinculoCriarSchema);
     if (!v.success) return v.response;
     const db = c.env.DB;
-    if (!(await db.prepare('SELECT 1 FROM partes WHERE id = ? AND project_id = ?').bind(parteId, projectId).first())) return c.json({ error: 'Parte não encontrada' }, 404);
+    const parte = await db.prepare('SELECT tipo FROM partes WHERE id = ? AND project_id = ?').bind(parteId, projectId).first<{ tipo: string }>();
+    if (!parte) return c.json({ error: 'Parte não encontrada' }, 404);
     const { papel, alvo_tipo, alvo_id } = v.data;
     if (!MATRIZ_PAPEL_ALVO[alvo_tipo].includes(papel)) return c.json({ error: `O papel ${papel} não se aplica a ${alvo_tipo}` }, 400);
     const alvo = await conferirAlvo(db, projectId, alvo_tipo, alvo_id);
     if (alvo === 'indisponivel') return c.json({ error: `O alvo ${alvo_tipo} ainda não existe nesta versão` }, 400);
     if (alvo === 'inexistente') return c.json({ error: 'Alvo inexistente ou de outro projeto' }, 400);
+    // Agente de tratamento (operador, cocontrolador, suboperador, destinatário) é uma organização, a de Parceiros; pessoa só como responsável.
+    if (alvo_tipo === 'tratamento' && papel !== 'responsavel' && parte.tipo !== 'organizacao') {
+      return c.json({ error: 'Operador, cocontrolador, suboperador e destinatário são organizações: cadastre a empresa em Parceiros e ligue-a aqui.' }, 400);
+    }
     const id = crypto.randomUUID();
     try {
       await db.prepare('INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, ?, ?, ?)')

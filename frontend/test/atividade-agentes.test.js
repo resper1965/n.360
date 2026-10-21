@@ -87,12 +87,32 @@ describe('operadores e destinatários', () => {
     expect(botao.dataset.action).toBe('removerParteTratamento');
   });
 
-  it('sem partes cadastradas: o vazio explica; com partes: seletor e "Ligar parte"', async () => {
-    await abrir(renderAtividade, base());
-    expect(el('c').textContent).toContain('Nenhuma empresa cadastrada ainda. Cadastre-as em Fornecedores');
-    await abrir(renderAtividade, base({ [`GET ${P}/partes`]: [{ id: 'pa1', nome: 'Empresa exemplo', status: 'ativa' }] }));
-    expect(el('tl-parte').options[0].textContent).toBe('Empresa exemplo');
-    expect(el('c').querySelector('[data-action="adicionarParteTratamento"]').textContent).toBe('Ligar parte');
+  it('o seletor lista só os parceiros escolhidos na etapa Compartilhamento Externo; sem eles, o vazio leva à etapa', async () => {
+    const etapas = (parceiros) => ({ [`GET ${B}/etapas`]: { etapas: [{ etapa: 'coleta', parceiros: [] }, { etapa: 'compartilhamento_externo', parceiros }] } });
+    await abrir(renderAtividade, base({ [`GET ${P}/partes`]: [{ id: 'pe1', tipo: 'pessoa', nome: 'Pessoa exemplo', status: 'ativa' }], ...etapas([]) }));
+    expect(el('tl-parte')).toBeNull();
+    expect(el('c').textContent).toContain('Nenhum parceiro escolhido nesta atividade');
+    await abrir(renderAtividade, base({ [`GET ${P}/partes`]: [
+      { id: 'pe1', tipo: 'pessoa', nome: 'Pessoa exemplo', status: 'ativa' },
+      { id: 'pa1', tipo: 'organizacao', nome: 'Empresa exemplo', status: 'ativa' },
+      { id: 'pa2', tipo: 'organizacao', nome: 'Outra empresa', status: 'ativa' },
+    ], ...etapas([{ id: 'pa2', nome: 'Outra empresa' }]) }));
+    expect([...el('tl-parte').options].map((o) => o.textContent)).toEqual(['Outra empresa']);
+    expect([...el('tl-papel').options].map((o) => o.value)).toEqual(['operador', 'cocontrolador', 'suboperador', 'terceiro']);
+    expect(el('c').querySelector('[data-action="adicionarParteTratamento"]').textContent).toBe('Ligar parceiro');
+  });
+
+  it('parceiro da etapa que não é organização ativa fica fora; falha ao carregar as etapas avisa em vez de dizer que não há parceiro', async () => {
+    const etapas = { [`GET ${B}/etapas`]: { etapas: [{ etapa: 'compartilhamento_externo', parceiros: [{ id: 'pe1', nome: 'Pessoa exemplo' }, { id: 'pa1', nome: 'Empresa exemplo' }] }] } };
+    await abrir(renderAtividade, base({ [`GET ${P}/partes`]: [
+      { id: 'pe1', tipo: 'pessoa', nome: 'Pessoa exemplo', status: 'ativa' },
+      { id: 'pa1', tipo: 'organizacao', nome: 'Empresa exemplo', status: 'ativa' },
+    ], ...etapas }));
+    expect([...el('tl-parte').options].map((o) => o.textContent)).toEqual(['Empresa exemplo']);
+    await abrir(renderAtividade, base({ [`GET ${P}/partes`]: [{ id: 'pa1', tipo: 'organizacao', nome: 'Empresa exemplo', status: 'ativa' }] }));
+    expect(el('tl-parte')).toBeNull();
+    expect(el('c').textContent).toContain('Não foi possível carregar os parceiros desta atividade');
+    expect(el('c').textContent).not.toContain('Nenhum parceiro escolhido');
   });
 
   it('"Outros destinatários" grava pelo registro (PUT /api/v1/ropa/:id, que também confere o pedido aberto)', async () => {

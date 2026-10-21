@@ -6,6 +6,8 @@ import { url, lista, novoAutosave, gravarAgora, campo, faixaSalvo } from './esta
 // Transferências e partes usam as rotas e as funções de sempre (tratamento-ligacoes.js); a tela só as mostra aqui.
 
 const PAPEIS_PARTE = { operador: 'Operador', cocontrolador: 'Cocontrolador', suboperador: 'Suboperador', terceiro: 'Destinatário', responsavel: 'Responsável' };
+// O seletor liga só os parceiros escolhidos na etapa Compartilhamento Externo desta atividade (o servidor recusa pessoa nesses papéis).
+const PAPEIS_DE_PARCEIRO = ['operador', 'cocontrolador', 'suboperador', 'terceiro'];
 const args = (...v) => escapeHTML(JSON.stringify(v));
 
 function blocoTransferencias(pid, rid, lig, partes, editavel, simSelecionado) {
@@ -29,19 +31,20 @@ function blocoTransferencias(pid, rid, lig, partes, editavel, simSelecionado) {
     </div>`;
 }
 
-function blocoPartes(pid, rid, lig, partes, editavel, registro) {
+function blocoPartes(pid, rid, lig, parceiros, editavel, registro, parceirosFalhou = false) {
     const ligadas = lista(lig.partes);
     return `<h3 class="at-sub">Operadores e destinatários</h3>
         ${ligadas.length ? `<ul class="at-lista" id="at-partes-lista">${ligadas.map((p) => `<li><span>${escapeHTML(p.nome)}, ${escapeHTML(PAPEIS_PARTE[p.papel] || p.papel)}</span>
             ${editavel ? `<button type="button" class="btn btn-ghost btn-sm" data-action="removerParteTratamento" data-args='${args(pid, rid, p.parte_id, p.vinculo_id)}' aria-label="Remover ${escapeHTML(p.nome)}">Remover</button>` : ''}</li>`).join('')}</ul>`
-            : '<p class="at-nota">Nenhuma parte ligada. Ligue aqui as empresas que tratam os dados em nome da sua, ou que os recebem.</p>'}
-        ${editavel && partes.length ? `<div class="at-linha-form">
-            <div class="form-group"><label class="form-label" for="tl-parte">Parte</label><select class="form-input" id="tl-parte">${partes.map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.nome)}</option>`).join('')}</select></div>
-            <div class="form-group"><label class="form-label" for="tl-papel">Papel</label><select class="form-input" id="tl-papel">${Object.entries(PAPEIS_PARTE).map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></div>
-            <button type="button" class="btn btn-sm" data-action="adicionarParteTratamento" data-args='${args(pid, rid)}'>Ligar parte</button></div>`
-            : (editavel ? '<p class="at-nota">Nenhuma empresa cadastrada ainda. Cadastre-as em Fornecedores para ligá-las aqui.</p>' : '')}
+            : '<p class="at-nota">Nenhum parceiro ligado. Ligue aqui as empresas que tratam os dados em nome da sua, ou que os recebem.</p>'}
+        ${editavel && parceiros.length ? `<div class="at-linha-form">
+            <div class="form-group"><label class="form-label" for="tl-parte">Parceiro</label><select class="form-input" id="tl-parte">${parceiros.map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.nome)}</option>`).join('')}</select></div>
+            <div class="form-group"><label class="form-label" for="tl-papel">Papel</label><select class="form-input" id="tl-papel">${PAPEIS_DE_PARCEIRO.map((v) => `<option value="${v}">${PAPEIS_PARTE[v]}</option>`).join('')}</select></div>
+            <button type="button" class="btn btn-sm" data-action="adicionarParteTratamento" data-args='${args(pid, rid)}'>Ligar parceiro</button></div>`
+            : parceirosFalhou ? '<p class="re-erro" role="alert">Não foi possível carregar os parceiros desta atividade. Abra a aba de novo para tentar outra vez.</p>'
+            : (editavel ? '<p class="at-nota">Nenhum parceiro escolhido nesta atividade. Escolha os parceiros na aba Tratamento de Dados, etapa Compartilhamento Externo, para ligá-los aqui.</p>' : '')}
         ${campo({ id: 'at-destinatarios', rotulo: 'Outros destinatários (texto livre)', tipo: 'textarea', max: 2000, valor: registro.recipients || '', travado: !editavel,
-            ajuda: 'Quem mais recebe os dados e não está cadastrado como parte.' })}`;
+            ajuda: 'Quem mais recebe os dados e não está cadastrado em Parceiros.' })}`;
 }
 
 window.atRemoverTransferencia = async function (pid, rid, id) {
@@ -54,7 +57,17 @@ export async function montar(painel, ctx) {
     let lig = {};
     let partes = [];
     try { lig = (await api('GET', url(pid, rid, '/ligacoes'))) || {}; } catch (e) { /* sem ligações: a aba abre só com os papéis */ }
-    if (editavel) { try { partes = lista(await api('GET', `/api/v1/projects/${pid}/partes?status=ativa`)); } catch (e) { /* sem seletor */ } }
+    let parceiros = [];
+    let parceirosFalhou = false;
+    if (editavel) {
+        try { partes = lista(await api('GET', `/api/v1/projects/${pid}/partes?status=ativa`)); } catch (e) { /* sem seletor */ }
+        try {
+            const etapas = lista((await api('GET', url(pid, rid, '/etapas')))?.etapas);
+            // Só organização ativa: a etapa pode ter recebido outra parte pela API, e o servidor recusa pessoa nesses papéis.
+            const orgs = new Set(partes.filter((p) => p.tipo === 'organizacao').map((p) => p.id));
+            parceiros = lista(etapas.find((e) => e.etapa === 'compartilhamento_externo')?.parceiros).filter((p) => orgs.has(p.id));
+        } catch (e) { parceirosFalhou = true; }
+    }
     const trava = editavel ? '' : ' disabled';
     const sim = !!registro.international_transfers;
     painel.innerHTML = `<div class="at-aba-corpo">
@@ -67,7 +80,7 @@ export async function montar(painel, ctx) {
             <label class="re-opcao"><input type="radio" name="at-intl" value="0"${sim ? '' : ' checked'}${trava}><span class="re-opcao-texto">Não</span></label>
             <label class="re-opcao"><input type="radio" name="at-intl" value="1"${sim ? ' checked' : ''}${trava}><span class="re-opcao-texto">Sim</span></label></fieldset>
         <div id="at-transf-bloco">${blocoTransferencias(pid, rid, lig, partes, editavel, sim)}</div>
-        ${blocoPartes(pid, rid, lig, partes, editavel, registro)}
+        ${blocoPartes(pid, rid, lig, parceiros, editavel, registro, parceirosFalhou)}
     </div>`;
     const status = painel.querySelector('#at-salvo');
     const salv = painel.querySelector('#at-salvaguarda');

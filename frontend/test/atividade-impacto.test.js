@@ -23,7 +23,7 @@ const tudo = () => new Promise((ok) => setTimeout(ok, 0));
 async function esperar(cond) { for (let i = 0; i < 40 && !cond(); i++) await tudo(); }
 
 /** O PUT grava as respostas e recalcula a recomendação como o servidor faz (aqui, só o mínimo que o teste precisa). */
-function servidor(inicial, { dpias = [], puts422 = null } = {}) {
+function servidor(inicial, { dpias = [], puts422 = null, falhaResposta = null } = {}) {
     const atual = clone(inicial);
     const puts = [];
     const f = vi.fn(async (url, opts = {}) => {
@@ -34,6 +34,7 @@ function servidor(inicial, { dpias = [], puts422 = null } = {}) {
             const c = JSON.parse(opts.body);
             puts.push(c);
             if (puts422 && c.finalizar) return resposta({ error: puts422 }, 400);
+            if (falhaResposta && c.finalizar === undefined) return resposta({ error: falhaResposta }, 500);
             for (const [id, v] of Object.entries(c.respostas)) atual.perguntas.find((p) => p.id === id).resposta = v;
             if (c.finalizar !== undefined) atual.finalizado_em = c.finalizar ? '2026-10-16T12:00:00.000Z' : null;
             const sim = (g) => atual.perguntas.some((p) => p.grupo === g && p.resposta === 'sim');
@@ -138,16 +139,29 @@ describe('aba Teste de Impacto', () => {
         expect(sw.getAttribute('role')).toBe('switch');
         expect(sw.getAttribute('aria-checked')).toBe('false');
         // o rótulo diz a ação; o nome acessível e o aria-checked dizem o estado
-        expect(sw.textContent).toBe('Marcar o teste como finalizado');
+        expect(sw.textContent).toBe('Finalizar o teste de impacto');
+        // a validação fica no fim da aba, depois da recomendação de RIPD
+        expect(el('at-recomendacao').compareDocumentPosition(sw) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(sw.getAttribute('aria-label')).toBe('Teste de impacto finalizado');
         sw.click();
         await esperar(() => puts.length === 1);
         expect(puts[0]).toEqual({ respostas: {}, finalizar: true });
-        await esperar(() => el('at-imp-erro').textContent !== '');
-        expect(el('at-imp-erro').textContent).toBe('Responda as 13 perguntas antes de finalizar o teste');
-        expect(el('at-imp-erro').getAttribute('role')).toBe('alert');
+        // o erro da validação aparece junto do botão, no fim da aba
+        await esperar(() => el('at-imp-erro-final').textContent !== '');
+        expect(el('at-imp-erro-final').textContent).toBe('Responda as 13 perguntas antes de finalizar o teste');
+        expect(el('at-imp-erro-final').getAttribute('role')).toBe('alert');
+        expect(el('at-imp-erro').textContent).toBe('');
         expect(el('at-imp-final').getAttribute('aria-checked')).toBe('false');
         expect(painel.querySelectorAll('input:disabled')).toHaveLength(0);
+    });
+
+    it('falha ao gravar uma resposta: o erro aparece no topo da aba, perto das perguntas, não no fim', async () => {
+        const { painel } = await abrir(IMPACTO(), { falhaResposta: 'Não foi possível gravar a resposta' });
+        marcar('sensiveis', 'sim');
+        await esperar(() => el('at-imp-erro').textContent !== '');
+        expect(el('at-imp-erro').textContent).toBe('Não foi possível gravar a resposta');
+        expect(el('at-imp-erro').compareDocumentPosition(painel.querySelector('fieldset')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(el('at-imp-erro-final').textContent).toBe('');
     });
 
     it('teste finalizado: perguntas desabilitadas, data escrita e "Reabrir o teste" manda finalizar false', async () => {
@@ -155,7 +169,9 @@ describe('aba Teste de Impacto', () => {
         expect(el('at-imp-final').getAttribute('aria-checked')).toBe('true');
         expect(painel.textContent).toContain('Finalizado em 16/10/2026');
         expect([...painel.querySelectorAll('input')].every((i) => i.disabled)).toBe(true);
-        const reabrir = [...painel.querySelectorAll('button')].find((b) => b.textContent === 'Reabrir o teste');
+        expect([...painel.querySelectorAll('button')].filter((b) => b.textContent === 'Reabrir o teste')).toHaveLength(1);
+        const reabrir = el('at-imp-final');
+        expect(reabrir.textContent).toBe('Reabrir o teste');
         reabrir.click();
         await esperar(() => puts.length === 1);
         expect(puts[0]).toEqual({ respostas: {}, finalizar: false });
@@ -189,7 +205,7 @@ describe('aba Teste de Impacto', () => {
         const { painel } = await abrir(imp, { editavel: false });
         expect([...painel.querySelectorAll('input')].every((i) => i.disabled)).toBe(true);
         expect(el('at-imp-final').disabled).toBe(true);
-        expect([...painel.querySelectorAll('button')].map((b) => b.textContent).filter((t) => t !== 'Marcar o teste como finalizado')).toEqual([]);
+        expect([...painel.querySelectorAll('button')].map((b) => b.textContent).filter((t) => t !== 'Finalizar o teste de impacto')).toEqual([]);
         expect(painel.textContent).toContain('A atividade já indica: Sim.');
     });
 
