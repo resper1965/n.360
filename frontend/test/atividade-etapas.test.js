@@ -4,6 +4,7 @@ import contrato from '../../contracts/ropa-abas/etapas.json';
 
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
+import { S } from '../src/state.js';
 import '../src/ui.js';
 import { initDelegation } from '../src/delegation.js';
 import { renderAtividade } from '../src/views/atividade.js';
@@ -45,9 +46,33 @@ describe('acordeão das seis etapas', () => {
     await abrirTab();
     const botoes = [...document.querySelectorAll('.at-etapa-botao')];
     expect(botoes).toHaveLength(6);
-    expect(botoes.map((b) => b.querySelector('span').textContent)).toEqual(['Coleta', 'Uso ou Processamento', 'Compartilhamento Interno', 'Compartilhamento Externo', 'Armazenamento', 'Eliminação']);
-    expect(botao('coleta').getAttribute('aria-label')).toBe('Coleta, pendente');
+    expect(botoes.map((b) => b.querySelector('.at-etapa-rotulo').textContent.trim())).toEqual(['1. Coleta', '2. Uso ou Processamento', '3. Compartilhamento Interno', '4. Compartilhamento Externo', '5. Armazenamento', '6. Eliminação']);
+    expect(botao('coleta').getAttribute('aria-label')).toBe('1. Coleta, pendente');
     expect(botao('coleta').getAttribute('aria-expanded')).toBe('false');
+    // chevron funcional, fora da árvore de acessibilidade
+    botoes.forEach((b) => expect(b.querySelector('svg.at-chevron').getAttribute('aria-hidden')).toBe('true'));
+  });
+
+  it('etapa atual: sem nenhuma aberta, a primeira pendente; ao abrir outra, a aberta', async () => {
+    await abrirTab(ETAPAS((x) => { x.etapas.forEach((y) => { y.bloqueada = false; }); porEtapa(x, 'coleta').situacao = 'concluida'; return x; }));
+    const atuais = () => [...document.querySelectorAll('.at-etapa-botao[aria-current="step"]')].map((b) => b.dataset.etapaBotao);
+    expect(atuais()).toEqual(['uso']);
+    botao('armazenamento').click();
+    expect(botao('armazenamento').getAttribute('aria-expanded')).toBe('true');
+    expect(atuais()).toEqual(['armazenamento']);
+    botao('armazenamento').click();
+    expect(botao('armazenamento').getAttribute('aria-expanded')).toBe('false');
+    expect(atuais()).toEqual(['uso']);
+  });
+
+  it('etapa concluída leva data-sit="concluida" (a cor de sucesso no CSS) e o CSS a pinta de --success-ink', async () => {
+    await abrirTab(ETAPAS((x) => { porEtapa(x, 'coleta').situacao = 'concluida'; x.etapas.forEach((y) => { y.bloqueada = false; }); return x; }));
+    const sit = botao('coleta').querySelector('.at-etapa-situacao');
+    expect(sit.dataset.sit).toBe('concluida');
+    expect(sit.textContent).toBe('Concluído');
+    const css = Object.values(import.meta.glob('../src/style.css', { query: '?raw', import: 'default', eager: true }))[0];
+    expect(css).toContain('.at-etapa-situacao[data-sit="concluida"] { color: var(--success-ink); }');
+    expect(css).not.toContain('data-sit="registrada"');
   });
 
   it('etapas bloqueadas: aria-disabled, o texto "Conclua a Coleta primeiro" e nada abre', async () => {
@@ -177,7 +202,7 @@ describe('Não Aplicável', () => {
 
   it('etapa que o servidor diz Não Aplicável: checkbox marcado, campos desabilitados, o acordeão mostra o estado', async () => {
     await abrirTab(ETAPAS((x) => { x.etapas.forEach((y) => { y.bloqueada = false; }); const u = porEtapa(x, 'uso'); u.nao_aplicavel = true; u.situacao = 'nao_aplicavel'; u.faltas = []; return x; }));
-    expect(botao('uso').getAttribute('aria-label')).toBe('Uso ou Processamento, não aplicável');
+    expect(botao('uso').getAttribute('aria-label')).toBe('2. Uso ou Processamento, não aplicável');
     botao('uso').click();
     expect(bloco('uso').querySelector('[data-na]').checked).toBe(true);
     expect(bloco('uso').querySelector('[data-campo="descricao"]').disabled).toBe(true);
@@ -220,5 +245,32 @@ describe('autosave por campo', () => {
     expect(chamadas(f)).not.toContain(`PUT ${B}/etapas/uso`);
     await esperar(() => expect(corpoDe(f, `PUT ${B}/etapas/uso`)).toEqual({ descricao: 'Uso na folha.' }));
     await esperar(() => expect(bloco('uso').querySelector('[role="status"]').textContent).toMatch(/^Salvo às \d{2}:\d{2}$/));
+  });
+});
+
+describe('onde estou: guiado e próxima pendência abrem a etapa', () => {
+  const guiada = FICHA((f) => { f.lacunas = [{ aba: 'tratamento', campo: 'coleta.descricao' }, { aba: 'agentes', campo: 'papel' }]; f.proxima_pergunta = f.lacunas[0]; return f; });
+
+  it('modo guiado: o painel é coluna irmã do tabpanel, conta as perguntas em aberto e o foco abre a etapa antes de ir ao campo', async () => {
+    window.history.replaceState(null, '', '/?aba=tratamento&modo=guiado');
+    S.atividade.avancou = true;
+    await abrirTab(undefined, undefined, guiada);
+    const area = document.querySelector('.at-area');
+    expect(area.classList.contains('at-area-guiada')).toBe(true);
+    expect([...area.children].map((x) => x.id || x.className)).toEqual(['at-painel', 'at-guiado']);
+    expect(area.querySelector('.at-guiado-contagem').textContent).toBe('Pergunta 1 de 2 em aberto');
+    expect(botao('coleta').getAttribute('aria-expanded')).toBe('true');
+    expect(document.getElementById('at-et-c-coleta').hidden).toBe(false);
+    expect(document.activeElement.id).toBe('et-desc-coleta');
+  });
+
+  it('"Ir para a próxima pendência" troca para a aba e abre a primeira etapa pendente', async () => {
+    window.history.replaceState(null, '', '/?aba=escopo');
+    await abrir(renderAtividade, rotas(ETAPAS(), { [`PUT ${B}/escopo`]: { ok: true, mudou_hash: false } }));
+    document.querySelector('[data-action="atIrParaPendencia"]').click();
+    await esperar(() => expect(document.querySelector('[role="tab"][aria-selected="true"]').id).toBe('at-aba-tratamento'));
+    await esperar(() => expect(botao('coleta').getAttribute('aria-expanded')).toBe('true'));
+    expect(botao('coleta').getAttribute('aria-current')).toBe('step');
+    expect(document.activeElement).toBe(botao('coleta'));
   });
 });

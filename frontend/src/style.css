@@ -1956,10 +1956,28 @@ button.roadmap-node { padding: 0; font-family: inherit; }
 .at-selo[data-estado="aprovada"] { border-color: var(--success); color: var(--success-ink); }
 .at-selo[data-estado="em_revisao"], .at-selo[data-estado="rascunho"] { border-color: var(--warning); color: var(--warning-ink); }
 .at-selo[data-estado="cancelada"] { border-color: var(--danger); color: var(--danger-ink); }
+/* Faixa "onde estou": progresso + abas, grudada no topo do #content (o único contêiner que rola). */
+/* O #content tem 2rem de respiro: a faixa gruda na borda dele (top negativo) e cobre o respiro com o próprio fundo. */
+.at-nav { position: sticky; top: -2rem; z-index: 20; margin-top: -1rem; padding-top: 1rem; background: var(--bg); }
+.at-progresso { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 0 0 12px; }
+.at-progresso-texto { margin: 0; font-size: var(--fs-md); color: var(--text-2); }
+.at-progresso-texto strong { font-weight: 600; color: var(--text); }
+.at-progresso-sep { padding: 0 4px; color: var(--text-dim); }
 .at-abas { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--border); }
-.at-aba { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-2); font: 500 var(--fs-md)/1.3 var(--font-body); cursor: pointer; }
+.at-area-guiada { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+.at-guiado { position: sticky; top: calc(var(--at-nav-h, 112px) - 2rem + 16px); display: flex; flex-direction: column; gap: 8px; padding: 16px; background: var(--surface); border: 1px solid var(--border); }
+.at-guiado-titulo { margin: 0; }
+.at-guiado-contagem { margin: 0; font-size: var(--fs-sm); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.at-guiado-pergunta { margin: 0; font-size: var(--fs-base); line-height: 1.5; color: var(--text); }
+.at-guiado-ajuda, .at-guiado-exemplos, .at-guiado-onde { margin: 0; font-size: var(--fs-md); line-height: 1.5; color: var(--text-2); }
+.at-guiado-aviso { margin: 0; padding: 8px 12px; border: 1px solid var(--warning); font-size: var(--fs-md); color: var(--text); }
+.at-guiado-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.at-aba { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 8px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-2); font: 500 var(--fs-md)/1.3 var(--font-body); cursor: pointer; }
 .at-aba:hover { color: var(--text); }
-.at-aba[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.at-aba[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); background: var(--surface); box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border); }
+.at-aba[data-aba="logs"] { margin-left: auto; }
+.at-aba-n { font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.at-aba[aria-selected="true"] .at-aba-n { color: var(--text-2); }
 .at-aba:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .at-aba-estado { font-size: var(--fs-xs); font-weight: 400; color: var(--text-dim); }
 .at-aba[data-estado="pendente"] .at-aba-estado { color: var(--warning-ink); }
@@ -1978,11 +1996,21 @@ button.roadmap-node { padding: 0; font-family: inherit; }
 .at-log { flex-direction: column; gap: 2px; }
 .at-item-titulo, .at-log-linha { margin: 0; font-size: var(--fs-md); color: var(--text); }
 .at-etapa-bloco { border: 1px solid var(--border); margin-bottom: 8px; }
+/* Foco levado por "próxima pendência" ou pelo guiado não para embaixo da faixa grudada. */
+.at-etapa-botao, .at-etapa-corpo .form-input { scroll-margin-top: calc(var(--at-nav-h, 112px) + 8px); }
 .at-etapa-titulo { margin: 0; font-size: var(--fs-md); }
 .at-etapa-botao { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface-2); border: 0; color: var(--text); font: 600 var(--fs-md)/1.3 var(--font-body); text-align: left; cursor: pointer; }
 .at-etapa-botao:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.at-etapa-rotulo { display: flex; align-items: center; gap: 8px; }
+.at-etapa-num { font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.at-chevron { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; color: var(--text-dim); }
+.at-etapa-botao[aria-expanded="true"] .at-chevron { transform: rotate(90deg); }
+.at-etapa-botao[aria-disabled="true"] { cursor: default; color: var(--text-2); }
+@media (prefers-reduced-motion: no-preference) { .at-chevron { transition: transform var(--fast) var(--ease-out); } }
+.at-etapa-bloco:has(> .at-etapa-titulo [aria-current="step"]) { border-color: var(--text-dim); }
+.at-etapa-botao[aria-current="step"] .at-etapa-rotulo::after { content: "etapa atual"; padding-left: 4px; font-size: var(--fs-xs); font-weight: 400; color: var(--text-dim); }
 .at-etapa-situacao { font-size: var(--fs-sm); font-weight: 400; color: var(--text-dim); }
-.at-etapa-situacao[data-sit="registrada"] { color: var(--success-ink); }
+.at-etapa-situacao[data-sit="concluida"] { color: var(--success-ink); }
 .at-etapa-situacao[data-sit="pendente"] { color: var(--warning-ink); }
 .at-etapa-corpo { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 .at-etapa-corpo[hidden] { display: none; }

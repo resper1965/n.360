@@ -3,7 +3,7 @@ import { escapeHTML, renderEmptyState, renderMaisAcoes, falhaDeCarga } from '../
 import { navigate } from '../router.js';
 import { ABAS } from '../atividade/contrato.js';
 import { carregarFicha, carregarRegistro, abaDoEndereco, gravarAbaNoEndereco, podeEscrever, esvaziarTudo, limparAutosaves } from '../atividade/estado.js';
-import { desenharAbas, abaParaTecla } from '../atividade/abas.js';
+import { desenharAbas, abaParaTecla, desenharProgresso } from '../atividade/abas.js';
 import { desenharCabecalho, montarCabecalho } from '../atividade/cabecalho.js';
 import { itensDoMenu } from '../atividade/acoes.js';
 import { modoDoEndereco, gravarModoNoEndereco, painelGuiado, focarCampo, perguntaAtual } from '../atividade/guiado.js';
@@ -79,17 +79,22 @@ export async function renderAtividade(c, h, a) {
     c.innerHTML = `<div class="at">
         ${cancelada ? '<p class="at-faixa-cancelada" role="status">Atividade cancelada. Reative para editar.</p>' : ''}
         ${desenharCabecalho(ficha, editavel)}
-        ${desenharAbas(ficha, aba)}
-        <div role="tabpanel" id="at-painel" aria-labelledby="at-aba-${aba}" tabindex="0"><h2 class="at-painel-titulo">${escapeHTML(rotulo)}</h2><div id="at-corpo"></div></div>
-        ${guiado ? painelGuiado(ficha, rid) : ''}
+        <div class="at-nav">${desenharProgresso(ficha)}${desenharAbas(ficha, aba)}</div>
+        <div class="at-area${guiado ? ' at-area-guiada' : ''}">
+            <div role="tabpanel" id="at-painel" aria-labelledby="at-aba-${aba}" tabindex="0"><h2 class="at-painel-titulo">${escapeHTML(rotulo)}</h2><div id="at-corpo"></div></div>
+            ${guiado ? painelGuiado(ficha, rid) : ''}
+        </div>
     </div>`;
+    // A coluna do guiado gruda logo abaixo da faixa (progresso + abas), que também gruda; a altura dela muda se as abas quebram linha.
+    const nav = c.querySelector('.at-nav');
+    if (nav) c.querySelector('.at').style.setProperty('--at-nav-h', `${nav.offsetHeight}px`);
     const ctx = { projectId: pid, ropaId: rid, ficha, registro: registro || {}, editavel, recarregarFicha: repintar };
     montarCabecalho(c, ctx);
     const montar = montadores()[aba];
     const corpo = c.querySelector('#at-corpo');
     if (montar) abaMontada = (await montar(corpo, ctx)) || null;
     else corpo.innerHTML = renderEmptyState({ titulo: 'Esta aba ainda não está disponível', texto: 'Ela chega na próxima atualização. Os dados desta atividade não são afetados.' });
-    if (guiado && avancou) focarCampo(corpo);
+    if (guiado && avancou) focarCampo(corpo, perguntaAtual(ficha, rid), abaMontada);
 }
 
 const repintar = () => (ultimo ? renderAtividade(ultimo.c, ultimo.h, ultimo.a) : undefined);
@@ -121,6 +126,11 @@ async function irParaAba(id) {
     if (botao) botao.focus();
 }
 window.atIrParaAba = function () { return irParaAba(this.dataset.aba); };
+// Próxima pendência: a aba e, no Tratamento de Dados, a primeira etapa pendente aberta (o foco vai ao botão dela).
+window.atIrParaPendencia = async function () {
+    await irParaAba(this.dataset.aba);
+    if (abaMontada && typeof abaMontada.abrirPendente === 'function') abaMontada.abrirPendente();
+};
 window.atTeclaAba = function (e) {
     const proxima = abaParaTecla(this.dataset.aba, e.key);
     if (!proxima) return;

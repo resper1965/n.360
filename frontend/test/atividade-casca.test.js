@@ -20,11 +20,20 @@ const ativa = () => abas().find((t) => t.getAttribute('aria-selected') === 'true
 const tecla = (alvo, key) => alvo.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
 
 describe('faixa de abas', () => {
-  it('tem as 9 abas, com os rótulos do legado e na ordem', async () => {
+  it('tem as 9 abas, com os rótulos do legado e na ordem, numeradas de 1 a 8; Logs ROPA sem número', async () => {
     await abrir(renderAtividade);
-    expect(abas().map((t) => t.querySelector('span').textContent)).toEqual(ABAS.map((a) => a.rotulo));
-    expect(abas().map((t) => t.querySelector('span').textContent)).toEqual(['Escopo', 'Tratamento de Dados', 'Agentes de Tratamento', 'Medidas de Segurança',
-      'Base Jurídica', 'Controle de GAPs', 'Teste de Impacto', 'Riscos', 'Logs ROPA']);
+    const nomes = abas().map((t) => t.querySelector('.at-aba-nome').textContent);
+    expect(nomes.map((n) => n.replace(/^\d+\. /, ''))).toEqual(ABAS.map((a) => a.rotulo));
+    expect(nomes).toEqual(['1. Escopo', '2. Tratamento de Dados', '3. Agentes de Tratamento', '4. Medidas de Segurança',
+      '5. Base Jurídica', '6. Controle de GAPs', '7. Teste de Impacto', '8. Riscos', 'Logs ROPA']);
+  });
+
+  it('Logs ROPA é histórico: sem feito/pendente no rótulo nem no nome acessível', async () => {
+    await abrir(renderAtividade);
+    const logs = el('at-aba-logs');
+    expect(logs.getAttribute('aria-label')).toBe('Logs ROPA, histórico');
+    expect(logs.dataset.estado).toBe('historico');
+    expect(logs.querySelector('.at-aba-estado').textContent).toBe('histórico');
   });
 
   it('aria-selected e tabindex 0 só na aba ativa', async () => {
@@ -36,8 +45,8 @@ describe('faixa de abas', () => {
   it('o estado vai escrito no rótulo e no aria-label, e em data-estado', async () => {
     await abrir(renderAtividade);
     const por = Object.fromEntries(abas().map((t) => [t.id, t]));
-    expect(por['at-aba-medidas'].getAttribute('aria-label')).toBe('Medidas de Segurança, vazio');
-    expect(por['at-aba-impacto'].getAttribute('aria-label')).toBe('Teste de Impacto, pendente');
+    expect(por['at-aba-medidas'].getAttribute('aria-label')).toBe('4. Medidas de Segurança, vazio');
+    expect(por['at-aba-impacto'].getAttribute('aria-label')).toBe('7. Teste de Impacto, pendente');
     expect(por['at-aba-medidas'].dataset.estado).toBe('vazio');
     expect(por['at-aba-medidas'].querySelector('.at-aba-estado').textContent).toBe('vazio');
     expect(por['at-aba-escopo'].querySelector('.at-aba-estado').textContent).toBe('feito');
@@ -87,6 +96,44 @@ describe('faixa de abas', () => {
     window.history.replaceState(null, '', '/?aba=xx');
     await abrir(renderAtividade);
     expect(ativa().id).toBe('at-aba-escopo');
+  });
+});
+
+describe('progresso (onde estou)', () => {
+  const progresso = () => el('c').querySelector('.at-progresso');
+
+  it('conta as 8 partes feitas (não se aplica conta; Logs fica fora) e aponta a primeira pendente ou vazia', async () => {
+    await abrir(renderAtividade);
+    expect(progresso().textContent.replace(/\s+/g, ' ').trim()).toContain('3 de 8 partes concluídas · Próximo: Tratamento de Dados');
+    const ir = progresso().querySelector('[data-action="atIrParaPendencia"]');
+    expect(ir.textContent).toBe('Ir para a próxima pendência');
+    expect(ir.classList.contains('btn-primary')).toBe(false);
+    expect(ir.dataset.aba).toBe('tratamento');
+  });
+
+  it('Logs pendente não conta nem vira a próxima; gaps "não se aplica" conta como concluída', async () => {
+    await abrir(renderAtividade, {}, FICHA((f) => {
+      Object.keys(f.abas).forEach((k) => { f.abas[k].estado = 'feito'; });
+      f.abas.gaps.estado = 'na'; f.abas.riscos.estado = 'vazio'; f.abas.logs.estado = 'pendente';
+      return f;
+    }));
+    expect(progresso().textContent).toContain('7 de 8 partes concluídas');
+    expect(progresso().textContent).toContain('Próximo: Riscos');
+  });
+
+  it('tudo feito: "Todas as 8 partes concluídas" e o próximo passo é a aprovação, sem botão', async () => {
+    await abrir(renderAtividade, {}, FICHA((f) => { Object.keys(f.abas).forEach((k) => { f.abas[k].estado = 'feito'; }); return f; }));
+    expect(progresso().textContent).toContain('Todas as 8 partes concluídas');
+    expect(progresso().textContent).toContain('Próximo: enviar para aprovação no menu Ações');
+    expect(progresso().querySelector('button')).toBeNull();
+  });
+
+  it('progresso e abas ficam juntos na faixa que gruda (.at-nav), antes do painel', async () => {
+    await abrir(renderAtividade);
+    const nav = el('c').querySelector('.at-nav');
+    expect(nav.querySelector('.at-progresso')).not.toBeNull();
+    expect(nav.querySelector('[role="tablist"]')).not.toBeNull();
+    expect(nav.contains(el('at-painel'))).toBe(false);
   });
 });
 

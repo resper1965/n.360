@@ -107,7 +107,7 @@ test('sistema vazio: as seis etapas do Tratamento de Dados explicam o vazio, sem
   const erros = [];
   await mockApi(page, erros);
   await entrarEAbrirAtividade(page);
-  await page.getByRole('tab', { name: 'Tratamento de Dados' }).click();
+  await page.getByRole('tab', { name: /Tratamento de Dados/ }).click();
 
   const painel = page.getByRole('tabpanel');
   await expect(painel.getByRole('heading', { level: 2 })).toHaveText('Tratamento de Dados');
