@@ -638,6 +638,7 @@ import { montarLista, colunasDe } from '../lista.js';
     };
 
     window.openGovernanceModal = async function(projectId) {
+        window.editingMemberId = null; // o modal abre limpo; editGovernanceMember define o id depois, já com ele aberto
         openModal(`
             <div class="modal-header">
                 <span class="modal-title">Gerenciar Membros da Governança</span>
@@ -731,8 +732,7 @@ import { montarLista, colunasDe } from '../lista.js';
 
     // Abre o formulário de membro já com o encarregado do n.privacy; salvar com cargo DPO mantém a parte (casa por e-mail ou nome).
     window.adicionarEncarregadoAoComite = async function(projectId, nome, email) {
-        window.editingMemberId = null; // id de edição anterior não pode sobrescrever o membro
-        await window.openGovernanceModal(projectId);
+        await window.openGovernanceModal(projectId); // abre com editingMemberId zerado
         if (!document.getElementById('gov-name')) return;
         document.getElementById('gov-name').value = nome || '';
         document.getElementById('gov-email').value = email || '';

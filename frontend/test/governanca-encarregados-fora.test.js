@@ -51,4 +51,17 @@ describe('encarregados fora do comitê', () => {
     expect(post[2].id).toBeUndefined();
     expect(post[2].name).toBe('Rita Exemplo');
   });
+  it('abrir o modal zera o id de edição; editar depois de aberto ainda o define', async () => {
+    S.user = { role: 'consultor', email: 'x@n.com' };
+    const { api } = await import('../src/api.js');
+    api.mockResolvedValue([]);
+    document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+    window.editingMemberId = 'g-velho';
+    await window.openGovernanceModal('p1');
+    expect(window.editingMemberId).toBeNull();
+    S.currentGovernance = [{ id: 'g1', name: 'Ana', email: 'a@c.com', role_category: 'executivo', job_title: 'CEO', is_primary: 0 }];
+    window.editGovernanceMember('g1');
+    expect(window.editingMemberId).toBe('g1');
+    expect(document.getElementById('gov-name').value).toBe('Ana');
+  });
 });

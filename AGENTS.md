@@ -98,7 +98,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   novos: o menu le as contagens). Tela: `frontend/src/views/painel.js` (+ `painel-graficos.js`), entrada do n.360 (`inicio`), do
   n.iso (`dashboard`) e do n.privacy (`encarregado`); uma chamada por entrada, cache de 60 s em `S.painel`, selos do menu do
   n.privacy vindos do proprio painel. O funil comercial e a tela `comercial` (`renderComercial`, `views/dashboard.js`).
-  **Painel do n.iso (Frente 4):** a lista "O que fazer" traz tambem fornecedor com avaliacao vencida (filtro `vendors::vencidos`; `situacao` em `GET /vendors`) e pedido esperando decisao (so a equipe ve); os selos do menu do n.iso vem do painel (`modulos.iso.selos`, `frontend/src/selos-menu.js`).
+  **Painel do n.iso (Frente 4):** a lista "O que fazer" traz tambem fornecedor com avaliacao vencida (filtro `vendors::vencidos`; `situacao` em `GET /vendors`) e pedido esperando decisao (conta so os pedidos abertos do projeto em que a pessoa e destinataria pendente, o mesmo casamento de `GET /api/v1/pedidos`; o item fica fora da visao do cliente, que tem `decisoes`); os selos do menu do n.iso vem do painel (`modulos.iso.selos`, `frontend/src/selos-menu.js`) e chegam tambem a visao do cliente; fornecedor reprovado conta como atraso, como no n.privacy.
   **Filtro por situacao:** o item traz `filtro` (chave fechada de `FILTROS` em `frontend/src/filtro-painel.js`, nunca dado); o botao
   navega com `{ filtroPainel }`, o `navigate` o apaga na navegacao seguinte e a lista de destino (titular pedidos/incidentes,
   terceiros, evidencias, CAPA) abre filtrada com o chip "Filtro: ... — limpar" (`filtrarDoPainel`). Do n.360 ao modulo a chave vai no
@@ -497,7 +497,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   E2E em `frontend/e2e/n360.spec.js`; `frontend/e2e/shell.js` entrega `dist/login.html` em `/iso` e `/privacy` (o servidor do
   Playwright nao faz fallback de SPA). Testes de backend que usam rota do
   n.privacy chamam `habilitarPrivacy(...)` de `test/helpers/d1.ts`.
-  **DPO e encarregado (Frente 4):** a governanca e o cadastro de partes ficam em sincronia nos dois sentidos (`atualizarEncarregado`, `sincronizarDpoDaParte` em `src/services/encarregado-pessoa.ts`); `GET /projects/:id/governance/encarregados-fora` lista o encarregado que ainda nao esta no comite (botao "Adicionar ao comite" no Monitor).
+  **DPO e encarregado (Frente 4):** a governanca e o cadastro de partes ficam em sincronia nos dois sentidos (`atualizarEncarregado`, `sincronizarDpoDaParte` em `src/services/encarregado-pessoa.ts`; a parte nunca muda linha de consultor e, se o e-mail antigo sai da matriz, a conta de stakeholder dele e revogada como no POST da governanca); `GET /projects/:id/governance/encarregados-fora` lista o encarregado que ainda nao esta no comite (botao "Adicionar ao comite" no Monitor).
   **Integracao (0061-0063):** fornecedor e terceiro sao a mesma parte (`vendors.parte_id`; `vendors` e o perfil de seguranca da parte,
   nao um cadastro paralelo, e e opcional: a lista do n.iso mostra todo fornecedor e "Remover avaliacao de seguranca" apaga so o perfil); o DPO da governanca e o encarregado (vinculo `encarregado` em `parte_vinculos`, 0062); incidente vive no
   nucleo e gera CAPA (`corrective_actions.incidente_id`, 0063). O catalogo LGPD/ANPD (`src/data/lgpd.ts`, `src/data/anpd.ts`) traz um
