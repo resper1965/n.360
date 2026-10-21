@@ -88,6 +88,18 @@ describe('lista', () => {
         expect(t).toMatch(/Só Líder SGSI/); // n1 só o CISO
     });
 
+    it('com busca ativa a lista fica plana, sem recuo; limpar a busca volta a árvore', async () => {
+        servir(rotas());
+        await abrirLista();
+        const recuos = () => [...el('c').querySelectorAll('tbody td [data-nivel]')].map((s) => s.getAttribute('data-nivel'));
+        window.listaBuscar('documentos', 'e');
+        expect(recuos().length).toBeGreaterThan(1);
+        expect(new Set(recuos())).toEqual(new Set(['0']));
+        expect([...el('c').querySelectorAll('tbody td [data-nivel]')].every((s) => s.style.paddingLeft === '0px')).toBe(true);
+        window.listaBuscar('documentos', '');
+        expect(recuos()).toEqual(['0', '1', '2', '0']);
+    });
+
     it('título, dono e texto do servidor nunca viram HTML', async () => {
         servir(rotas());
         await abrirLista();

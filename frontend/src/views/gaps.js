@@ -53,6 +53,7 @@ async function renderGaps(c, h, a) {
             emAtraso(g) ? window.renderStatusBadge('Em atraso', 'danger') : escapeHTML(rotuloStatus(g)),
         ]),
         busca: (g) => [g.titulo, g.atividade, g.area, g.responsavel].join(' '),
+        buscaDica: 'Gap, atividade, área ou responsável',
         // O status é o que a coluna mostra: o gap aberto com prazo vencido está em "Em atraso".
         filtros: [{ chave: 'status', rotulo: 'Status', valor: (g) => (emAtraso(g) ? ATRASO : g.status), opcoes: [...STATUS, [ATRASO, 'Em atraso']] }],
         exportar: { caminho: `/api/v1/projects/${proj.id}/export/acoes-atividade`, rotulo: 'Exportar' },

@@ -83,9 +83,10 @@ async function renderDocumentos(c, h, a) {
     try { S.partes = lista(await api('GET', `/api/v1/projects/${proj.id}/partes`)); } catch (e) { S.partes = []; /* secundário: só o nome do responsável */ }
     S.documentos = docs;
 
-    // A lista segue a ordem da árvore, com o recuo na coluna do título; com busca ou filtro ela fica plana (a filha sem a mãe
-    // aparece com o mesmo recuo).
-    const celulas = ({ doc: d, nivel }) => {
+    // A lista segue a ordem da árvore, com o recuo na coluna do título; com busca ou filtro ela fica plana, sem recuo (a filha
+    // sem a mãe não fica recuada sob outro documento).
+    const celulas = ({ doc: d, nivel: n }, ctx) => {
+        const nivel = ctx?.filtrando ? 0 : n;
         const [rotuloStatus, tomStatus] = STATUS[d.status] || [d.status, 'info'];
         const vencida = d.status === 'vigente' && d.revisar_ate && String(d.revisar_ate).slice(0, 10) < hoje();
         return [

@@ -52,6 +52,7 @@ async function renderDocumentosArquivo(c, h, a) {
                 d.arquivo_nome ? `<button class="btn btn-ghost btn-sm" data-action="daBaixar" data-args='${args(d.id)}' aria-label="Baixar o arquivo de ${escapeHTML(d.nome)}">Baixar</button>` : ''].join(''),
         ]),
         busca: (d) => d.nome,
+        buscaDica: 'Nome do documento',
         filtros: [{ chave: 'tipo', rotulo: 'Tipo', valor: (d) => d.tipo, opcoes: TIPOS }, { chave: 'status', rotulo: 'Status', valor: (d) => d.status, opcoes: SITUACOES }],
         vazio: { titulo: 'Nenhum documento cadastrado.', dica: 'Cadastre contratos, termos, políticas e relatórios com o arquivo e o vencimento.' },
     });

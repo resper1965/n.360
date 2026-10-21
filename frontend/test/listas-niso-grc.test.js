@@ -103,6 +103,28 @@ describe('listas do n.iso (grc.js)', () => {
         expect(baixarArquivo).toHaveBeenCalledWith('/api/v1/projects/p1/export/risks');
     });
 
+    it('Riscos: com uma célula escolhida, os filtros oferecem os valores de fora dela; limpar a célula mostra todos', async () => {
+        S.riskFilter = { probability: 5, impact: 5 };
+        await tela('renderRisks');
+        expect(linhas()).toEqual([expect.stringContaining('Vazamento')]);
+        // "Mitigado" e "Baixo" só existem fora da célula (5,5).
+        const opcoes = (f) => [...document.querySelectorAll(`#riscos-f-${f} option`)].map((o) => o.value);
+        expect(opcoes('status')).toEqual(expect.arrayContaining(['Open', 'Mitigated']));
+        expect(opcoes('nivel')).toEqual(expect.arrayContaining(['Critical', 'Low']));
+        document.querySelector(`[data-action="toggleRiskFilter"][data-args='[1,2]']`).click();
+        expect(linhas()).toHaveLength(2);
+        expect(opcoes('status')).toEqual(expect.arrayContaining(['Open', 'Mitigated']));
+        document.querySelector(`[data-action="toggleRiskFilter"][data-args='[1,2]']`).click();
+        expect(linhas()).toHaveLength(3);
+        expect(contagem('riscos')).toBe('3');
+    });
+
+    it('Riscos: sem nenhum risco, sem o botão de exportar', async () => {
+        apiMock.mockImplementation(async (metodo, caminho) => (metodo === 'GET' && caminho === `${B}/risks` ? [] : {}));
+        await tela('renderRisks');
+        expect(exportar() === null || exportar().hidden).toBe(true);
+    });
+
     it('Fornecedores: busca pelo nome, filtros de DPA e de avaliação, exportar vai a /export/vendors', async () => {
         await tela('renderVendors');
         digitar('#fornecedores-busca', 'alfa');

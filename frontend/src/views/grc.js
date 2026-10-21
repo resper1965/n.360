@@ -186,7 +186,8 @@ window.__grcCloseExecAudit = function (id) {
         `;
         listaRiscos = montarLista(c.querySelector('#riscos-lista'), {
             id: 'riscos',
-            linhas: riscosNaCelula(risks),
+            // Todas as linhas (as opções dos filtros vêm da lista inteira); a célula da matriz entra por `filtrarPor`.
+            linhas: risks,
             colunas: colunasDe(['Ameaça', 'Ativo', 'Nível', 'Residual', 'Tratamento', 'Status', 'Responsável', ''], (r) => [
                 `<strong>${escapeHTML(r.threat)}</strong>`,
                 escapeHTML(r.asset || '—'),
@@ -204,16 +205,17 @@ window.__grcCloseExecAudit = function (id) {
                 { chave: 'tratamento', rotulo: 'Tratamento', valor: (r) => r.treatment },
             ],
             exportar: { caminho: `/api/v1/projects/${proj.id}/export/risks`, rotulo: 'Exportar riscos' },
-            // A célula vazia da matriz não é "nenhum risco registrado".
-            get vazio() { return S.riskFilter && risks.length ? { titulo: 'Nenhum risco nesta célula da matriz', dica: 'Limpe o filtro para ver os demais riscos.' } : VAZIO_RISCOS; },
+            vazio: VAZIO_RISCOS,
         });
+        if (S.riskFilter) listaRiscos.filtrarPor(naCelula(S.riskFilter), VAZIO_CELULA);
     }
 
     // A célula da matriz é um filtro da lista (probabilidade e impacto), somado à busca e aos filtros do componente.
     let listaRiscos = null;
-    const riscosNaCelula = (risks) => S.riskFilter
-        ? risks.filter(r => r.probability === S.riskFilter.probability && r.impact === S.riskFilter.impact)
-        : risks;
+    const naCelula = (f) => (r) => r.probability === f.probability && r.impact === f.impact;
+    const riscosNaCelula = (risks) => (S.riskFilter ? risks.filter(naCelula(S.riskFilter)) : risks);
+    // A célula vazia da matriz não é "nenhum risco registrado".
+    const VAZIO_CELULA = { titulo: 'Nenhum risco nesta célula da matriz', dica: 'Limpe o filtro para ver os demais riscos.' };
     const barraDaCelula = (n) => !S.riskFilter ? '' : `
                 <div class="filter-indicator-bar" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0, 173, 232, 0.1); border: 1px solid rgba(0, 173, 232, 0.2); padding:0.5rem 1rem; margin-bottom:1.5rem; font-size:0.8rem; animation: fadeIn 0.2s ease-out;">
                     <span>Filtrando riscos com <strong>Impacto ${S.riskFilter.impact}</strong> e <strong>Probabilidade ${S.riskFilter.probability}</strong> (${n} encontrado${n !== 1 ? 's' : ''})</span>
@@ -233,9 +235,8 @@ window.__grcCloseExecAudit = function (id) {
             const [pp, ii] = JSON.parse(el.dataset.args);
             el.classList.toggle('selected', !!f && f.probability === pp && f.impact === ii);
         });
-        const filtrados = riscosNaCelula(S.risks || []);
-        barra.innerHTML = barraDaCelula(filtrados.length);
-        listaRiscos.atualizar(filtrados);
+        barra.innerHTML = barraDaCelula(riscosNaCelula(S.risks || []).length);
+        listaRiscos.filtrarPor(f ? naCelula(f) : null, VAZIO_CELULA);
     };
 
     window.onRiskAssetSelectChange = function(select) {

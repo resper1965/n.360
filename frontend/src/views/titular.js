@@ -97,10 +97,14 @@ async function renderTitular(c, h, a) {
     // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar (o componente aplica o filtro e mostra o chip).
     const filtroPainel = { tela: 'titular', aba };
     if (aba === 'pedidos') {
-        // Uma ação principal: com pedido atrasado à vista, responder o primeiro deles vence registrar um novo.
+        // Uma ação principal: com pedido atrasado à vista, responder o primeiro deles vence registrar um novo. Fica no cabeçalho,
+        // não na linha: a linha pode estar além das 25 carregadas ou escondida pela busca, e a tela ficaria sem ação principal.
         const { itens: visiveis } = filtrarDoPainel('titular', aba, pedidos);
         const responderPrimeiro = registrar ? visiveis.find((p) => p.situacao_prazo === 'atrasado') : null;
-        if (responderPrimeiro) a.innerHTML = novo('abrirNovoPedidoTitular', '+ Registrar pedido', false);
+        if (responderPrimeiro) {
+            a.innerHTML = novo('abrirNovoPedidoTitular', '+ Registrar pedido', false)
+                + ` <button class="btn btn-primary" data-action="abrirPedidoTitular" data-args='${args(proj.id, responderPrimeiro.id)}'>Responder ${escapeHTML(responderPrimeiro.protocolo)}</button>`;
+        }
         // Filtros de tipo e status (spec 2026-10-19): na tela, sobre a lista já carregada.
         corpo = '<div id="pt-lista"></div>';
         montar = () => montarLista(el('pt-lista'), {
@@ -113,7 +117,7 @@ async function renderTitular(c, h, a) {
                 selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
                 // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
                 registrar && p.situacao_prazo === 'atrasado'
-                    ? `<button class="btn${p === responderPrimeiro ? ' btn-primary' : ''} btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}' aria-label="Responder: ${escapeHTML(p.protocolo)}">Responder</button>`
+                    ? `<button class="btn btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}' aria-label="Responder: ${escapeHTML(p.protocolo)}">Responder</button>`
                     : `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Abrir</button>`,
             ]),
             filtros: [{ chave: 'tipo', rotulo: 'Tipo', valor: (p) => p.tipo, opcoes: Object.entries(TIPOS_PEDIDO) },

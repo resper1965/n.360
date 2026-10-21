@@ -5,7 +5,7 @@ vi.mock('../src/api.js', () => ({ baixarArquivo, api: vi.fn() }));
 import { S } from '../src/state.js';
 import * as ui from '../src/ui.js';
 import { initDelegation } from '../src/delegation.js';
-import { montarLista } from '../src/lista.js';
+import { montarLista, colunasDe } from '../src/lista.js';
 
 const linhas = Array.from({ length: 30 }, (_, i) => ({ id: `l${i}`, nome: i === 0 ? 'Ação' : `Item ${i}`, status: i % 2 ? 'Open' : 'Closed' }));
 const colunas = [{ label: 'Nome', key: 'nome' }, { label: 'Status', render: (l) => l.status }];
@@ -117,6 +117,60 @@ describe('montarLista', () => {
         expect(document.querySelector('#alvo .filtro-painel').textContent).toContain('vencidas');
         expect(linhasDaTabela()).toHaveLength(1);
         expect(contagem()).toBe('1 de 2');
+    });
+
+    it('colunasDe monta as células de cada linha uma vez por desenho, não uma vez por coluna', () => {
+        const celulas = vi.fn((l) => [l.nome, l.status, l.id]);
+        montar({ colunas: colunasDe(['Nome', 'Status', 'Id'], celulas) });
+        expect(celulas).toHaveBeenCalledTimes(25);
+        celulas.mockClear();
+        mais().click();
+        expect(celulas).toHaveBeenCalledTimes(30);
+    });
+
+    it('as colunas recebem { filtrando }: falso sem busca nem filtro, verdadeiro com qualquer um', () => {
+        const vistos = [];
+        montar({ colunas: [{ label: 'Nome', render: (l, ctx) => { vistos.push(ctx.filtrando); return l.nome; } }] });
+        expect(new Set(vistos)).toEqual(new Set([false]));
+        vistos.length = 0;
+        digitar('#tl-busca', 'item');
+        expect(new Set(vistos)).toEqual(new Set([true]));
+        digitar('#tl-busca', '');
+        vistos.length = 0;
+        escolher('#tl-f-status', 'Open');
+        expect(new Set(vistos)).toEqual(new Set([true]));
+    });
+
+    it('busca com maxlength 120 e a dica dada, escapada', () => {
+        montar({ buscaDica: 'Nome "ou" <b>área</b>' });
+        const campo = document.getElementById('tl-busca');
+        expect(campo.getAttribute('maxlength')).toBe('120');
+        expect(campo.getAttribute('placeholder')).toBe('Nome "ou" <b>área</b>');
+        document.body.innerHTML = '<div id="alvo"></div>';
+        montar();
+        expect(document.getElementById('tl-busca').hasAttribute('placeholder')).toBe(false);
+    });
+
+    it('exportar some enquanto a lista não tem linha', () => {
+        const l = montar({ linhas: [], exportar: { caminho: '/x' } });
+        const botao = () => document.querySelector('#alvo [data-action="listaExportar"]');
+        expect(botao().hidden).toBe(true);
+        l.atualizar(linhas);
+        expect(botao().hidden).toBe(false);
+        digitar('#tl-busca', 'zzz');
+        expect(botao().hidden).toBe(false);
+    });
+
+    it('filtrarPor soma um filtro da tela sem mudar as opções dos selects; null tira', () => {
+        const l = montar();
+        l.filtrarPor((x) => x.status === 'Open', { titulo: 'Nada nesta célula' });
+        expect(contagem()).toBe('15 de 30');
+        expect([...document.querySelectorAll('#tl-f-status option')].map((o) => o.value)).toEqual(['', 'Open', 'Closed']);
+        escolher('#tl-f-status', 'Closed');
+        expect(document.querySelector('#alvo .empty-state').textContent).toContain('Nada nesta célula');
+        escolher('#tl-f-status', '');
+        l.filtrarPor(null);
+        expect(contagem()).toBe('30');
     });
 
     it('atualizar troca as linhas mantendo busca e filtro', () => {

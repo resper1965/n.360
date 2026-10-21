@@ -59,6 +59,8 @@ describe('Documentos', () => {
         await window.renderDocumentosArquivo(c, h, a);
         expect(el('da-contagem').textContent).toBe('2');
         expect(el('da-busca').getAttribute('data-action-input')).toBe('listaBuscar');
+        expect(el('da-busca').getAttribute('placeholder')).toBe('Nome do documento');
+        expect(el('da-busca').getAttribute('maxlength')).toBe('120');
         window.listaBuscar('da', 'politica');
         expect(linhas(c).map((x) => x[0])).toEqual(['Política de Privacidade']);
         expect(el('da-contagem').textContent).toBe('1 de 2');

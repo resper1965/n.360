@@ -70,6 +70,8 @@ describe('Gestão de GAPs', () => {
     it('busca e filtro de Status (com "Em atraso"), sem ir ao servidor', async () => {
         const f = await abrir();
         expect(el('gp-contagem').textContent).toBe('4');
+        expect(el('gp-busca').getAttribute('placeholder')).toBe('Gap, atividade, área ou responsável');
+        expect(el('gp-busca').getAttribute('maxlength')).toBe('120');
         expect([...el('gp-f-status').options].map((o) => o.textContent)).toEqual(['Todos', 'Aberto', 'Em andamento', 'Concluído', 'Em atraso']);
         filtrar('gp-f-status', 'In Progress');
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Outra Atividade')]);
