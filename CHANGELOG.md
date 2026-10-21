@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Alterado (Frente 3C: itens soltos do n.iso, 21/10/2026; sem migration)
+- **CSV do n.iso em pt-BR:** riscos, fornecedores, treinamento, trilha e ativos saem com BOM, `;`, CRLF, cabeçalho em português e os mesmos rótulos da tela (abrem certo no Excel). **Muda o formato** para quem consumia o CSV antigo (vírgula, cabeçalho em inglês, valores do banco). O download avisa o erro na tela em vez de salvar a resposta de erro como `.csv`.
+- **Ação corretiva:** o prazo passa a ser data válida (AAAA-MM-DD), como no gap; o formulário do n.iso exige responsável.
+- **Risco no n.iso:** o formulário ganha impacto e probabilidade residuais (nível calculado pelo servidor) e prazo de tratamento.
+- **Validade da evidência** definida pelo n.iso ("Definir validade" e coluna Validade na lista), sem precisar do n.privacy.
+- **Nome do fornecedor** padronizado também na edição (`normalizarNome` no `PUT /vendors`).
+
 ### Alterado (Frente 3A: listas com busca, filtros e carregar mais nos dois módulos, 21/10/2026; sem migration)
 - **As listas do n.iso** (ações corretivas, riscos, fornecedores, treinamento, auditorias, ativos, evidências, políticas e normas, partes e áreas) **ganharam busca, filtros, contagem e "Carregar mais 25"**; riscos, fornecedores, treinamento e ativos exportam pela própria lista. A lista de riscos deixou de ser cartões e virou tabela (com residual e status); clicar numa célula da matriz filtra a lista sem recarregar a tela.
 - **As listas do n.privacy** passaram ao mesmo componente (`frontend/src/lista.js`), com o mesmo comportamento. Mudanças pequenas: no filtro de status dos Gaps, o gap aberto com prazo vencido aparece em "Em atraso"; o vazio da busca é a mesma frase em toda tela; o botão de exportar some quando a lista está vazia.

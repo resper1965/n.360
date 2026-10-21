@@ -387,9 +387,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   aprovacao derivada dos pedidos e o hash do conteudo (nao ha coluna de versao). Rotas em `src/routes/exportacao.ts`, em `FORA_DO_AGENTE`;
   trilha `exportacao.csv`/`exportacao.docx` so com tipo e contagem. O painel do encarregado ganhou `acoes_por_prazo` (vencidas, ate 30,
   31 a 90, 91 a 150, mais de 150 dias, sem prazo; `faixaDePrazo` em `src/services/riscos-atividade.ts`), clicavel na tela. Download no
-  frontend: `baixarArquivo` de `frontend/src/api.js` (token no cabecalho). As `/export/*` antigas do n.iso (`risks`, `vendors`, `training`, `audit-log`,
-  `assets`, em `src/routes/integrations.ts`) tem a mesma trilha `exportacao.csv` (`csvComTrilha`) e estao em `FORA_DO_AGENTE`; formato
-  e faixas nao mudaram.
+  frontend: `baixarArquivo` de `frontend/src/api.js` (token no cabecalho). As `/export/*` do n.iso (`risks`, `vendors`, `training`, `audit-log`,
+  `assets`, em `src/routes/integrations.ts`) tem a mesma trilha `exportacao.csv` (`csvComTrilha`), estao em `FORA_DO_AGENTE` e, desde a
+  Frente 3C (21/10/2026), saem no mesmo formato pt-BR (`montarCsv`: BOM, `;`, CRLF, cabecalho em portugues, rotulos de `exportacao.ts`).
 - **Terceiros tipificados (fatia 6, migration 0057)**: o terceiro e uma `partes` do tipo `organizacao` com `terceiro_tipo`
   (`grande_provedor|medio|pequeno|critico`) e `src/services/terceiros.ts` (rotas `/projects/:id/terceiros*`). **O tipo define o
   metodo** (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. `avaliacoes_terceiro`
@@ -427,7 +427,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   a equipe (`podeEditar` em `frontend/src/views/titular.js`; o servidor nao tem corte de papel nessas rotas alem do allow-list e, no prazo
   legal, do `platform_admin`). Contrato em `test/cliente-titular-incidente.test.ts`.
 - **Visoes, evidencia com validade e casca (fatia 8, migration 0059)**: `evidence.valido_ate` (opcional) e `evidencia_requisitos` ligam a
-  evidencia a requisito (`/projects/:id/evidence/:eid/{requisitos,validade}`, no router de requisitos, SEM tocar `evidence.ts`). A rotina
+  evidencia a requisito (`/projects/:id/evidence/:eid/{requisitos,validade}`, no router de requisitos, SEM tocar `evidence.ts`; a `validade` e faixa `nucleo`
+  desde a Frente 3C, entao o n.iso a define na lista de Evidencias; `requisitos` segue `privacy`). A rotina
   diaria de avisos chama `vencerEvidencias` ANTES de avisar: evidencia vencida volta a `pending` (a assinatura gravada NAO e apagada, ela
   atesta o conteudo), uma linha de trilha por evidencia, idempotente; fonte `evidencia` nos avisos. A cobertura da LGPD (`lacunasDaFonte`) conta
   evidencia `conforming` em dia (cobre) ou `partial` (parcial). `GET /projects/:id/encarregado` (`src/services/encarregado.ts`) e SO consulta:
@@ -683,7 +684,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
 
-- **529 `any` em `src/`** (medido em 2026-10-20, fora `*.test.ts`:
+- **524 `any` em `src/`** (medido em 2026-10-21, fora `*.test.ts`:
   `git grep -ahoE ': any\b|as any\b|<any>' -- 'src/*.ts' ':!*.test.ts' | wc -l`).
   `tsc --noEmit` limpo diz pouco. Tipar o que voce tocar e melhoria barata; nao
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
