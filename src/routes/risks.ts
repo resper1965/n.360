@@ -172,7 +172,11 @@ risks.delete('/api/v1/risks/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'risks', id, c.get('user'));
-    await c.env.DB.prepare('DELETE FROM risks WHERE id = ?').bind(id).run();
+    // A ação corretiva sobrevive ao risco (o FK é CASCADE): solta antes, como apagarRisco.
+    await c.env.DB.batch([
+      c.env.DB.prepare('UPDATE corrective_actions SET risk_id = NULL WHERE risk_id = ?').bind(id),
+      c.env.DB.prepare('DELETE FROM risks WHERE id = ?').bind(id),
+    ]);
     return c.json({ ok: true });
   } catch (e: any) {
     if (e instanceof ForbiddenError) return c.json({ ok: false, error: e.message }, 403);

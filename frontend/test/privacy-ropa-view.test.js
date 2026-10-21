@@ -2,8 +2,8 @@
 // estado vazio que ensina e sem cor fora dos tokens. api() dublado: o contrato é o mesmo de capa-ropa-responsavel.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
-vi.mock('../src/api.js', () => ({ api: apiMock, API_BASE: 'http://localhost', cabecalhosAuth: () => ({ Authorization: 'Bearer tok-sessao' }) }));
+const { apiMock, abrirRelatorio } = vi.hoisted(() => ({ apiMock: vi.fn(), abrirRelatorio: vi.fn(async () => {}) }));
+vi.mock('../src/api.js', () => ({ api: apiMock, abrirRelatorio }));
 vi.mock('../src/router.js', () => ({ render: vi.fn(), navigate: vi.fn() }));
 
 import { S } from '../src/state.js';
@@ -180,21 +180,11 @@ describe('correções P0 do RoPA', () => {
         expect(window.confirmar).not.toHaveBeenCalled();
     });
 
-    it('relatório do RoPA e do RIPD: busca com o cabeçalho da sessão e abre o blob; token nunca na URL', async () => {
-        const f = vi.fn(async () => ({ ok: true, status: 200, text: async () => '<html>relatório</html>' }));
-        vi.stubGlobal('fetch', f);
-        const abre = vi.fn(() => ({}));
-        vi.stubGlobal('open', abre);
-        URL.createObjectURL = vi.fn(() => 'blob:relatorio');
-        URL.revokeObjectURL = vi.fn();
-        S.token = 'tok-sessao';
+    it('relatório do RoPA e do RIPD: pelo abrirRelatorio de api.js (cabeçalho da sessão); token nunca na URL', async () => {
         await window.openROPAReport('p1');
         await window.openDPIAReport('p1', 'd1');
-        expect(f.mock.calls.map((c) => c[0])).toEqual(['http://localhost/api/v1/projects/p1/ropa/report', 'http://localhost/api/v1/projects/p1/dpia/d1/report']);
-        expect(f.mock.calls[0][1].headers).toEqual({ Authorization: 'Bearer tok-sessao' });
-        expect(abre).toHaveBeenCalledWith('blob:relatorio', '_blank');
+        expect(abrirRelatorio.mock.calls.map((c) => c[0])).toEqual(['/api/v1/projects/p1/ropa/report', '/api/v1/projects/p1/dpia/d1/report']);
         expect(fonte).not.toContain('token=');
-        vi.unstubAllGlobals();
     });
 
     it('registro importado com risco não informado ganha o selo "Importado: revisar"', async () => {

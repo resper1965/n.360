@@ -72,6 +72,8 @@ export const createCapaSchema = z.object({
   assigned_to_parte_id: z.string().optional().nullable(),
   // AAAA-MM-DD, como o prazo do gap; valor antigo fora do formato segue legível (a validação é só na escrita)
   due_date: dataIso.nullish(),
+  root_cause: z.string().optional().nullable(),
+  action_plan: z.string().optional().nullable(),
   status: z.string().optional().nullable()
 }).passthrough();
 
@@ -130,6 +132,8 @@ export const capaUpdateSchema = z.object({
   due_date: dataIso.nullish(),
   status: z.string().min(1, 'Status é obrigatório'),
   resolution: parcial,
+  root_cause: parcial,
+  action_plan: parcial,
 }).passthrough();
 
 export const trainingUpdateSchema = z.object({

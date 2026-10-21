@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api, API_BASE } from '../api.js';
+import { api, API_BASE, abrirRelatorio } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, traduzStatus, renderEmptyState, renderSemProjeto, markdownSeguro, formatarData, tituloDaTela } from '../ui.js';
 import { navigate } from '../router.js';
 import { temProduto, projetoDoId, modulosVisiveis } from '../produto.js';
@@ -2598,9 +2598,8 @@ window.renderAcknowledgments = renderAcknowledgments;
 window.bulkGeneratePolicies = bulkGeneratePolicies;
 window.migrate27701 = migrate27701;
 
-window.openPolicyReport = function(projectId, controlId) {
-    window.open(`/api/v1/projects/${projectId}/controls/${encodeURIComponent(controlId)}/policy/report?token=${S.token}`, '_blank');
-};
+window.openPolicyReport = (projectId, controlId) =>
+    abrirRelatorio(`/api/v1/projects/${projectId}/controls/${encodeURIComponent(controlId)}/policy/report`).catch((e) => showToast(e.message, 'error'));
 
 // A rota de avaliação trabalha sobre o TEXTO do documento (o arquivo vive no R2, não é lido
 // aqui), então o botão "IA" abre um modal para colar o trecho a avaliar.

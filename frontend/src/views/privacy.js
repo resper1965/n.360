@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api, API_BASE, cabecalhosAuth, baixarArquivo } from '../api.js';
+import { api, baixarArquivo, abrirRelatorio } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { render, navigate } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
@@ -711,16 +711,8 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
 
     // O relatório é HTML autenticado: busca com o cabeçalho da sessão e abre o conteúdo como blob. O token nunca vai na URL
     // (ficava no histórico do navegador, em log de proxy e no Referer).
-    async function abrirRelatorio(caminho) {
-        let r;
-        try { r = await fetch(API_BASE + caminho, { headers: cabecalhosAuth(), signal: AbortSignal.timeout(30000) }); }
-        catch (e) { showToast('Não foi possível gerar o relatório', 'error'); return; }
-        if (!r.ok) { showToast(`Não foi possível gerar o relatório (erro ${r.status})`, 'error'); return; }
-        const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html;charset=utf-8' }));
-        if (!window.open(url, '_blank')) showToast('O navegador bloqueou a nova janela. Permita pop-ups para este endereço.', 'error');
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-    }
-    window.openROPAReport = (projectId) => abrirRelatorio(`/api/v1/projects/${projectId}/ropa/report`);
+    const relatorio = (caminho) => abrirRelatorio(caminho).catch((e) => showToast(e.message, 'error'));
+    window.openROPAReport = (projectId) => relatorio(`/api/v1/projects/${projectId}/ropa/report`);
 
     // Arquivos (F4): CSV que abre no Excel e Word do RIPD, pelo caminho autenticado de api.js. Erro vira aviso na tela.
     const baixar = (promessa) => promessa.catch((e) => showToast(e.message || 'Não foi possível baixar o arquivo', 'error'));
@@ -790,7 +782,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         }
     };
 
-    window.openDPIAReport = (projectId, id) => abrirRelatorio(`/api/v1/projects/${projectId}/dpia/${id}/report`);
+    window.openDPIAReport = (projectId, id) => relatorio(`/api/v1/projects/${projectId}/dpia/${id}/report`);
 
     window.approveDPIA = async function(projectId, id, role) {
         try {

@@ -87,8 +87,10 @@ export function marcoDoDia(vence: string, hoje: string): string | null {
  * por conversão no TypeScript.
  */
 const FONTES: Record<Fonte, string> = {
-  capa: `SELECT c.id AS item_id, c.project_id, date(substr(c.due_date, 1, 10)) AS vence_em, c.title AS titulo, c.assigned_to AS responsavel
-    FROM corrective_actions c JOIN projects p ON p.id = c.project_id WHERE COALESCE(c.status, 'Open') <> 'Closed'`,
+  capa: `SELECT c.id AS item_id, c.project_id, date(substr(c.due_date, 1, 10)) AS vence_em, c.title AS titulo,
+      COALESCE(NULLIF(trim(pa.email), ''), NULLIF(trim(c.assigned_to), ''), pa.nome) AS responsavel
+    FROM corrective_actions c JOIN projects p ON p.id = c.project_id LEFT JOIN partes pa ON pa.id = c.assigned_to_parte_id AND pa.project_id = c.project_id
+    WHERE COALESCE(c.status, 'Open') <> 'Closed'`,
   checklist: `SELECT k.id AS item_id, k.project_id, date(substr(k.due_date, 1, 10)) AS vence_em,
       'Item ' || k.item_id || ' da fase ' || k.phase_number AS titulo, k.assigned_to AS responsavel, k.item_id AS passo_id
     FROM checklist_progress k JOIN projects p ON p.id = k.project_id WHERE COALESCE(k.is_checked, 0) = 0`,

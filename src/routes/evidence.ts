@@ -227,7 +227,7 @@ evidenceApp.post('/:id/evaluate', async (c) => {
 
     await logAudit(c.env.DB, 'evidence.evaluated', c.get('user')?.email ?? 'system', evidence.ciso_approved_by
       ? `Evidência ${evidenceId} reavaliada pela IA (${evalStatus}); status mantido (já assinada).`
-      : `Evidência ${evidenceId} avaliada como ${evalStatus}.`);
+      : `Evidência ${evidenceId} avaliada como ${evalStatus}.`, '', '', evidence.project_id);
 
     return c.json({
       ok: true,
@@ -313,13 +313,13 @@ export async function assinarEvidencia(
     if (!r.meta.changes) return { status: 409, corpo: { error: MUDOU } };
     const antes = evidence.evaluation_status || 'pending';
     const transicao = antes === 'pending' ? 'pending→conforming' : `status mantido: ${antes}`;
-    await logAudit(c.env.DB, 'evidence.approved_ciso', email, `Evidência ${id} aprovada pelo Líder SGSI (${approvedBy}); ${transicao}`);
+    await logAudit(c.env.DB, 'evidence.approved_ciso', email, `Evidência ${id} aprovada pelo Líder SGSI (${approvedBy}); ${transicao}`, '', '', evidence.project_id);
   } else {
     const r = await c.env.DB.prepare(
       'UPDATE evidence SET ceo_approved_by = ?, ceo_approved_at = ?, ceo_approved_ip = ?, ceo_approved_ua = ? WHERE id = ? AND file_hash = ?'
     ).bind(approvedBy, now, ip, ua, id, a.fileHash).run();
     if (!r.meta.changes) return { status: 409, corpo: { error: MUDOU } };
-    await logAudit(c.env.DB, 'evidence.approved_ceo', email, `Evidência ${id} aprovada pela Direção Executiva (${approvedBy})`);
+    await logAudit(c.env.DB, 'evidence.approved_ceo', email, `Evidência ${id} aprovada pela Direção Executiva (${approvedBy})`, '', '', evidence.project_id);
   }
 
   return { status: 200, corpo: { ok: true, role: targetRole, approved_by: approvedBy, approved_at: now } };
@@ -425,7 +425,7 @@ projectEvidenceApp.post('/upload', async (c) => {
       throw e;
     }
 
-    await logAudit(c.env.DB, 'evidence.uploaded', user?.email || 'system', `Evidência ${file.name} (SHA-256: ${realSha256.substring(0, 8)}...) enviada para projeto ${projectId}`);
+    await logAudit(c.env.DB, 'evidence.uploaded', user?.email || 'system', `Evidência ${file.name} (SHA-256: ${realSha256.substring(0, 8)}...) enviada para projeto ${projectId}`, '', '', projectId);
 
     return c.json({ ok: true, id, sha256: realSha256 }, 201);
   } catch (e: any) {

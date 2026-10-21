@@ -99,9 +99,15 @@ describe('modal de política', () => {
         expect(chamadas(f)).toContain('GET /api/v1/projects/p1/controls/ctrl_b_a51/policy');
     });
 
-    it('o relatório abre a rota de relatório da política', () => {
-        const abrir = vi.spyOn(window, 'open').mockReturnValue(null);
-        window.openPolicyReport('p1', 'ctrl_b_a51');
-        expect(abrir.mock.calls[0][0]).toContain('/api/v1/projects/p1/controls/ctrl_b_a51/policy/report?token=tok123');
+    it('o relatório busca a rota da política com o cabeçalho, sem token na URL', async () => {
+        const f = vi.fn(async () => ({ ok: true, status: 200, text: async () => '<html></html>' }));
+        vi.stubGlobal('fetch', f);
+        vi.stubGlobal('open', vi.fn(() => ({})));
+        URL.createObjectURL = vi.fn(() => 'blob:x');
+        URL.revokeObjectURL = vi.fn();
+        await window.openPolicyReport('p1', 'ctrl_b_a51');
+        expect(f.mock.calls[0][0]).toMatch(/\/api\/v1\/projects\/p1\/controls\/ctrl_b_a51\/policy\/report$/);
+        expect(f.mock.calls[0][1].headers.Authorization).toBe('Bearer tok123');
+        vi.unstubAllGlobals();
     });
 });

@@ -203,6 +203,7 @@ ropaAbasApp.post('/gaps', async (c) => {
   try {
     const v = await validateBody(c, gapCriarSchema);
     if (!v.success) return v.response;
+    if (c.get('user')?.agente === true && v.data.status === 'Closed') return c.json({ error: 'Forbidden: concluir gap é ato humano, pela interface' }, 403);
     const { projectId, recordId } = ids(c);
     const r = await criarGap(c.env.DB, projectId, recordId, quem(c), v.data);
     return r.ok ? c.json({ ok: true, id: r.id }, 201) : c.json({ error: r.error }, r.status);
@@ -224,6 +225,7 @@ ropaAbasApp.put('/gaps/:id', async (c) => {
   try {
     const v = await validateBody(c, gapAtualizarSchema);
     if (!v.success) return v.response;
+    if (c.get('user')?.agente === true && v.data.status === 'Closed') return c.json({ error: 'Forbidden: concluir gap é ato humano, pela interface' }, 403);
     const { projectId, recordId } = ids(c);
     const r = await atualizarGap(c.env.DB, projectId, recordId, c.req.param('id')!, quem(c), v.data);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
