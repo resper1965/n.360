@@ -1,4 +1,5 @@
 import { S } from '../state.js';
+import { rotuloDe } from '../rotulos.js';
 import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, showToast, formatarData } from '../ui.js';
 import { nivelDaNota } from '../nivel-risco.js';
@@ -22,9 +23,8 @@ const el = (id) => document.getElementById(id);
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const vistaDoEndereco = () => (new URLSearchParams(window.location.search).get('vista') === 'mapa' ? 'mapa' : 'lista');
 let estado = { projeto: null, riscos: [], celula: null, alvo: null, tela: null, partes: null };
-// Status do legado: Concluído é o risco fechado; o resto (aberto, mitigado, aceito) está Pendente.
-const STATUS = { Open: 'Pendente', Closed: 'Concluído' };
-const statusDe = (r) => (r.status === 'Closed' ? 'Closed' : 'Open');
+// Os status reais do risco, com o rótulo único da tela (rotulos.js).
+const STATUS = ['Open', 'Mitigated', 'Accepted', 'Closed'].map((v) => [v, rotuloDe('', v)]);
 const areasDe = (r) => String(r.area || '').split(', ').filter(Boolean);
 
 const plural = (n) => `${n} ${n === 1 ? 'risco' : 'riscos'}`;
@@ -72,14 +72,14 @@ function desenharLista() {
     const [motivo, area, nivel, status] = ['mr-filtro-motivo', 'mr-filtro-area', 'mr-filtro-nivel', 'mr-filtro-status'].map(valor);
     const ed = podeEditar();
     const itens = estado.riscos.filter((r) => (!motivo || r.threat === motivo) && (!area || areasDe(r).includes(area))
-        && (!nivel || r.risk_level === nivel) && (!status || statusDe(r) === status));
+        && (!nivel || r.risk_level === nivel) && (!status || r.status === status));
     alvo.innerHTML = window.renderDataTable(['Atividade', 'Motivo', 'Risco', 'Responsável', 'Prazo', 'Status', 'Ações'], itens.map((r) => [
         escapeHTML(r.atividade || '—'),
         `<strong>${escapeHTML(r.threat)}</strong>`,
         rotuloNivel(r.risk_level),
         escapeHTML(r.responsavel || '—'),
         escapeHTML(formatarData(r.prazo)),
-        escapeHTML(STATUS[statusDe(r)]),
+        escapeHTML(rotuloDe('', r.status)),
         `<div class="acoes-linha">${ed ? `<button class="btn btn-sm" data-action="mapaTratar" data-args='${args(r.id)}' aria-label="${escapeHTML(`Tratar Risco: ${r.threat}`)}">Tratar Risco</button>` : ''}
             <button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(estado.projeto, r.ropa_id, 'riscos')}' aria-label="Abrir a atividade: ${escapeHTML(r.atividade || '')}">Abrir</button></div>`,
     ]), { emptyState: 'Nenhum risco com estes filtros.', emptyHint: 'Limpe os filtros para ver todos.' });
@@ -92,7 +92,7 @@ function desenhar() {
         const r = estado.riscos;
         alvo.innerHTML = `${alternador('lista')}<div class="co-controles">${filtroLista('mr-filtro-motivo', 'Motivo', distintos(r.map((x) => x.threat)), 'Todos')}
             ${filtroLista('mr-filtro-area', 'Área', distintos(r.flatMap(areasDe)))}${filtroLista('mr-filtro-nivel', 'Risco', Object.entries(NIVEIS), 'Todos')}
-            ${filtroLista('mr-filtro-status', 'Status', Object.entries(STATUS), 'Todos')}</div>
+            ${filtroLista('mr-filtro-status', 'Status', STATUS, 'Todos')}</div>
             <div id="mapa-lista"></div>`;
         desenharLista();
         return;

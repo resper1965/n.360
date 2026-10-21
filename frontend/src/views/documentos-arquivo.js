@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { api, baixarArquivo, cabecalhosAuth, API_BASE } from '../api.js';
 import { showToast, openModal, escapeHTML, formatarData, confirmar } from '../ui.js';
+import { rotuloDe } from '../rotulos.js';
 
 // Documentos (n.privacy; spec 2026-10-19, frente B): os documentos do legado, um arquivo (PDF/DOC/DOCX até 10 MB) com tipo,
 // situação, vencimento e responsável, em `/projects/:id/documentos-arquivo`. Não são os documentos versionados (políticas).
@@ -8,7 +9,7 @@ import { showToast, openModal, escapeHTML, formatarData, confirmar } from '../ui
 
 export const TIPOS = [['politica', 'Política'], ['norma', 'Norma'], ['procedimento', 'Procedimento'], ['termo', 'Termo'], ['contrato', 'Contrato'],
     ['aditivo', 'Aditivo'], ['relatorio', 'Relatório'], ['outro', 'Outro']];
-export const SITUACOES = [['rascunho', 'Rascunho'], ['publicado', 'Publicado'], ['obsoleto', 'Obsoleto']];
+export const SITUACOES = ['rascunho', 'publicado', 'obsoleto'].map((v) => [v, rotuloDe('', v)]);
 const ROTULO_TIPO = Object.fromEntries(TIPOS);
 const ROTULO_SITUACAO = Object.fromEntries(SITUACOES);
 const COR_SITUACAO = { rascunho: 'info', publicado: 'success', obsoleto: 'neutral' };

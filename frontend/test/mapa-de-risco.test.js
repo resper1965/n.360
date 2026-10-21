@@ -140,15 +140,15 @@ describe('Gestão de Riscos (lista, a vista padrão)', () => {
         expect(el('mapa-grade')).toBeNull();
     });
 
-    it('colunas do legado; Status Pendente ou Concluído; texto escapado', async () => {
+    it('colunas do legado; Status com o rótulo único (Aberto, Concluído, Aceito); texto escapado', async () => {
         await abrir(LISTA);
         expect([...el('mapa-lista').querySelectorAll('thead th')].map((t) => t.textContent.trim()))
             .toEqual(['Atividade', 'Motivo', 'Risco', 'Responsável', 'Prazo', 'Status', 'Ações']);
         const [a, b, c] = linhas().map((l) => l.textContent);
-        for (const x of ['Atividade Exemplo', 'Vazamento', 'Crítico', 'Responsável Exemplo', 'Pendente']) expect(a).toContain(x);
+        for (const x of ['Atividade Exemplo', 'Vazamento', 'Crítico', 'Responsável Exemplo', 'Aberto']) expect(a).toContain(x);
         expect(b).toContain('Concluído');
         expect(b).toContain('10/01/2026');
-        expect(c).toContain('Pendente'); // aceito, mas não fechado
+        expect(c).toContain('Aceito'); // o status real, sem dobrar Aceito em Aberto
         expect(el('mapa-lista').querySelector('tbody b')).toBeNull();
     });
 
@@ -170,7 +170,10 @@ describe('Gestão de Riscos (lista, a vista padrão)', () => {
         filtrar('mr-filtro-status', 'Closed');
         expect(linhas()).toHaveLength(1);
         filtrar('mr-filtro-status', 'Open');
-        expect(linhas()).toHaveLength(2);
+        expect(linhas()).toHaveLength(1);
+        filtrar('mr-filtro-status', 'Accepted');
+        expect(linhas()).toHaveLength(1);
+        expect([...el('mr-filtro-status').options].map((o) => o.textContent)).toEqual(['Todos', 'Aberto', 'Mitigado', 'Aceito', 'Concluído']);
         expect(f).toHaveBeenCalledTimes(1);
     });
 

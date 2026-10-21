@@ -1360,7 +1360,7 @@ window.__grcCloseExecAudit = function (id) {
                     </select></div>
                 <div class="form-group flex-1"><label class="form-label">Status</label>
                     <select class="form-input" id="capa-e-status">
-                        ${[{v:'Open',l:'Aberto'},{v:'In Progress',l:'Em Andamento'},{v:'Closed',l:'Fechado'}].map(o => `<option value="${o.v}" ${o.v===ca.status?'selected':''}>${o.l}</option>`).join('')}
+                        ${['Open', 'In Progress', 'Closed'].map((v) => `<option value="${v}" ${v===ca.status?'selected':''}>${rotuloDe('', v)}</option>`).join('')}
                     </select></div>
             </div>
             <div class="d-flex gap-2">

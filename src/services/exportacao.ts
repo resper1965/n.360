@@ -25,7 +25,7 @@ export const montarCsv = (cabecalho: string[], linhas: unknown[][]) =>
 
 export const STATUS: Record<string, string> = {
   Active: 'Ativo', Inactive: 'Inativo', Draft: 'Rascunho', 'Under Review': 'Em revisão', Approved: 'Aprovado',
-  Open: 'Aberto', Closed: 'Concluído', Accepted: 'Aceito', 'In Progress': 'Em andamento', rascunho: 'Rascunho', concluida: 'Concluída',
+  Open: 'Aberto', Closed: 'Concluído', Mitigated: 'Mitigado', Accepted: 'Aceito', 'In Progress': 'Em andamento', rascunho: 'Rascunho', concluida: 'Concluída',
 };
 export const NIVEL: Record<string, string> = { Low: 'Baixo', Medium: 'Médio', High: 'Alto', Critical: 'Crítico' };
 export const ESTRATEGIA: Record<string, string> = { Mitigate: 'Mitigar', Accept: 'Aceitar', Transfer: 'Transferir', Avoid: 'Evitar' };
