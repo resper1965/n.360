@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Alterado (Frente 3A: listas com busca, filtros e carregar mais nos dois módulos, 21/10/2026; sem migration)
+- **As listas do n.iso** (ações corretivas, riscos, fornecedores, treinamento, auditorias, ativos, evidências, políticas e normas, partes e áreas) **ganharam busca, filtros, contagem e "Carregar mais 25"**; riscos, fornecedores, treinamento e ativos exportam pela própria lista. A lista de riscos deixou de ser cartões e virou tabela (com residual e status); clicar numa célula da matriz filtra a lista sem recarregar a tela.
+- **As listas do n.privacy** passaram ao mesmo componente (`frontend/src/lista.js`), com o mesmo comportamento. Mudanças pequenas: no filtro de status dos Gaps, o gap aberto com prazo vencido aparece em "Em atraso"; o vazio da busca é a mesma frase em toda tela; o botão de exportar some quando a lista está vazia.
+- **Titular:** o botão principal "Responder" fica no cabeçalho e abre o pedido mais urgente, para não sumir quando a linha está além das 25 primeiras.
+
 ### Alterado (Frente 2B da equalização: decisões do dono de 20/10/2026; migration 0082)
 - **RIPD aprovado por uma assinatura** (DPO ou Direção), e **mudar o conteúdo de um RIPD assinado derruba a aprovação**: as assinaturas são zeradas, ele volta a rascunho e a trilha registra `dpia.aprovacao_invalidada` (só os nomes das colunas). A tela avisa antes de salvar.
 - **Aceite de risco num modelo só:** `Accepted`, com quem e quando carimbados pelo servidor nos dois módulos; o formulário do n.iso perdeu os campos digitados de quem e quando, e os dois módulos ganharam o botão "Aceitar risco". **Migration 0082** (`risks.aceite_manual`): o aceite digitado antigo (tratamento Aceitar com nome) passa a `Accepted`, guardando nome e data, marcado "Aceite registrado à mão". **Aplicar em produção só com o "sim" do dono e `npm run db:backup` antes.**

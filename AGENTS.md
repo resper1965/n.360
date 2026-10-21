@@ -763,6 +763,10 @@ errar um digito destruia a sessao.
 - Uma lingua na tela: valor do banco por `rotuloDe` (`frontend/src/rotulos.js`), data por `formatarData` (`ui.js`,
   dd/mm/aaaa), titulo da tela = rotulo do menu (`tituloDaTela`). Modal so por `openModal` (Fechar, foco preso, pergunta
   antes de descartar), selo so por `renderStatusBadge`, vazio so por `renderEmptyState`. Detalhe em `design.md`.
+- Lista so por `montarLista` (`frontend/src/lista.js`, Frente 3A): a lista inteira vem do servidor e a tela busca (sem acento), filtra,
+  conta ("N de M"), mostra 25 por vez ("Carregar mais") e exporta pela rota CSV do servidor (`baixarArquivo`, erro avisado); o filtro
+  do Painel (`filtroPainel`) e o predicado extra (`filtrarPor`, a celula da matriz de riscos) passam por ela. As listas do n.iso e do
+  n.privacy usam o componente; Consentimentos ainda nao (botoes de situacao com contagem). Nao recrie busca ou filtro a mao na tela.
 - Produtos: `n.360` (a plataforma), `n.iso` e `n.privacy` (os modulos), com o ponto em accent, como a marca `ness.`.
 - Proibido: italicos, emojis/icones, accent como background de area.
 - Uma acao principal por tela (um `.btn-primary` visivel); acima de tres secundarias, `renderMaisAcoes` (`frontend/src/ui.js`); nenhum primario por linha de tabela; destrutivo so no fim do menu. O projeto ativo mora so no seletor da barra lateral. Detalhe em `design.md`.
