@@ -6,8 +6,14 @@ import { navigate } from '../router.js';
 import { renderAcessoAuditor } from './auditor-acesso.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
 import { nivelDaNota, nivelDoEscore } from '../nivel-risco.js';
-import { filtrarDoPainel } from '../filtro-painel.js';
 import { podeAceitar, linhaDeAceite, aceitarRisco } from '../aceite-risco.js';
+import { montarLista } from '../lista.js';
+
+// Colunas do componente de lista a partir das células de cada linha (a ordem dos rótulos é a das células).
+const colunasDe = (rotulos, celulas) => rotulos.map((label, i) => ({ label, render: (l) => celulas(l)[i] }));
+// Opções de filtro tiradas dos dados, com o rótulo de um domínio (`rotuloDe`).
+const opcoesDe = (linhas, valor, dominio) => [...new Set(linhas.map(valor).filter(Boolean))]
+    .map((v) => [v, rotuloDe(dominio, v)]).sort((x, y) => x[1].localeCompare(y[1], 'pt-BR'));
 
 // S2: wrappers para handlers COMPOSTOS/inline (a delegação chama uma função só).
 window.__grcDeleteRisk = async function (riskId) {
@@ -81,7 +87,7 @@ window.__grcCloseExecAudit = function (id) {
                 
                 cellsHTML += `
                     <div class="matrix-cell ${isSelected ? 'selected' : ''}" 
-                         style="background: ${colors.bg}; border: 1px solid ${isSelected ? 'var(--accent)' : colors.border};" 
+                         style="background: ${colors.bg}; border: 1px solid ${colors.border};" 
                          data-action="toggleRiskFilter" data-args='[${p},${i}]'
                          title="Probabilidade: ${p}, Impacto: ${i} (${count} risco${count !== 1 ? 's' : ''})">
                         ${count > 0 ? `<span class="cell-counter">${count}</span>` : ''}
@@ -90,25 +96,8 @@ window.__grcCloseExecAudit = function (id) {
             }
         }
 
-        // Vazio por filtro e vazio de verdade dizem coisas diferentes.
-        const VAZIO_RISCOS = risks.length
-            ? { titulo: 'Nenhum risco nesta célula da matriz', texto: 'Limpe o filtro para ver os demais riscos.' }
-            : { titulo: 'Nenhum risco registrado', texto: 'A apreciação de riscos (ISO 27001, 6.1.2) é o que justifica cada controle da SoA. Registre os riscos de segurança e de privacidade do escopo.',
-                acao: isOrgUser ? '' : `<button class="btn btn-primary" data-action="openNewRiskModal" data-args='["${proj.id}"]'>Novo risco</button>` };
-        // Apply filter if active
-        let filteredRisks = risks;
-        let filterIndicatorBar = '';
-        if (S.riskFilter) {
-            filteredRisks = risks.filter(r => r.probability === S.riskFilter.probability && r.impact === S.riskFilter.impact);
-            filterIndicatorBar = `
-                <div class="filter-indicator-bar" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0, 173, 232, 0.1); border: 1px solid rgba(0, 173, 232, 0.2); padding:0.5rem 1rem; margin-bottom:1.5rem; font-size:0.8rem; animation: fadeIn 0.2s ease-out;">
-                    <span>Filtrando riscos com <strong>Impacto ${S.riskFilter.impact}</strong> e <strong>Probabilidade ${S.riskFilter.probability}</strong> (${filteredRisks.length} encontrado${filteredRisks.length !== 1 ? 's' : ''})</span>
-                    <button class="btn btn-ghost py-1 px-2 t-sm t-accent" data-action="toggleRiskFilter" data-args='[${S.riskFilter.probability},${S.riskFilter.impact}]'>Limpar Filtro</button>
-                </div>
-            `;
-        }
-
-        const levelColor = l => l === 'Critical' ? 'var(--danger)' : l === 'High' ? 'var(--warning)' : l === 'Medium' ? 'var(--warning)' : 'var(--accent)';
+        const VAZIO_RISCOS = { titulo: 'Nenhum risco registrado', dica: 'A apreciação de riscos (ISO 27001, 6.1.2) é o que justifica cada controle da SoA. Registre os riscos de segurança e de privacidade do escopo.',
+            acao: isOrgUser ? '' : `<button class="btn btn-primary" data-action="openNewRiskModal" data-args='["${proj.id}"]'>Novo risco</button>` };
 
         c.innerHTML = `
             <div class="fade-in">
@@ -192,37 +181,46 @@ window.__grcCloseExecAudit = function (id) {
                     </div>
                 </div>
                 
-                <!-- Filter indicator -->
-                ${filterIndicatorBar}
-                
-                <!-- List Section -->
-                <div class="d-flex justify-between items-center mb-4 mt-4">
-                    <div class="card-label mb-0">Lista Detalhada de Riscos</div>
-                    ${risks.length ? `<button class="btn t-xs py-15 px-3" data-action="exportCSV" data-args='["risks"]'>Exportar Riscos</button>` : ''}
-                </div>
-                
-                <div>
-                    ${filteredRisks.length ? filteredRisks.map(r => `
-                        <div class="list-item clicavel" data-action="openRiskDetailsModal" data-args='["${r.id}"]'>
-                            <div class="flex-1">
-                                <div class="item-name">${escapeHTML(r.asset)} — ${escapeHTML(r.threat)}</div>
-                                <div class="item-meta mt-1">
-                                    <strong>Probabilidade:</strong> ${r.probability} | <strong>Impacto:</strong> ${r.impact} | 
-                                    <strong>Tratamento:</strong> ${escapeHTML(traduzStatus(r.treatment) || 'Não definido')} | <strong>Responsável:</strong> ${escapeHTML(r.owner_parte_nome || r.owner || 'Sem dono')}
-                                    ${r.control_standard ? ` | <strong>Controle:</strong> <span class="badge badge-implemented py-05 px-15 t-sm">${escapeHTML(r.control_standard)}</span>` : ''}
-                                    ${linhaDeAceite(r) ? ` | ${linhaDeAceite(r)}` : ''}
-                                </div>
-                            </div>
-                            <div class="d-flex items-center gap-2">
-                                <span style="font-weight:600;color:${levelColor(r.risk_level)}">${r.risk_score || (r.impact * r.probability)}</span>
-                                <span class="ctx-tag" style="background:color-mix(in oklab, ${levelColor(r.risk_level)} 12%, transparent);color:${levelColor(r.risk_level)}">${escapeHTML(traduzStatus(r.risk_level) || 'Sem nível')}</span>
-                            </div>
-                        </div>
-                    `).join('') : window.renderEmptyState(VAZIO_RISCOS)}
-                </div>
+                <div class="card-label mb-4 mt-4">Lista Detalhada de Riscos</div>
+                <div id="riscos-celula">${barraDaCelula(riscosNaCelula(risks).length)}</div>
+                <div id="riscos-lista"></div>
             </div>
         `;
+        listaRiscos = montarLista(c.querySelector('#riscos-lista'), {
+            id: 'riscos',
+            linhas: riscosNaCelula(risks),
+            colunas: colunasDe(['Ameaça', 'Ativo', 'Nível', 'Residual', 'Tratamento', 'Status', 'Responsável', ''], (r) => [
+                `<strong>${escapeHTML(r.threat)}</strong>`,
+                escapeHTML(r.asset || '—'),
+                `<span class="fw-600">${r.risk_score || (r.impact * r.probability)}</span> ${escapeHTML(rotuloDe('', r.risk_level) || 'Sem nível')}`,
+                escapeHTML(rotuloDe('', r.residual_level) || '—'),
+                escapeHTML(rotuloDe('', r.treatment) || 'Não definido'),
+                escapeHTML(rotuloDe('', r.status) || '—') + (linhaDeAceite(r) ? `<div class="t-xs t-dim">${linhaDeAceite(r)}</div>` : ''),
+                escapeHTML(r.owner_parte_nome || r.owner || 'Sem dono'),
+                `<button class="btn btn-ghost btn-sm" data-action="openRiskDetailsModal" data-args='${escapeHTML(JSON.stringify([r.id]))}'>Abrir</button>`,
+            ]),
+            busca: (r) => `${r.threat} ${r.asset} ${r.owner_parte_nome || r.owner || ''}`,
+            filtros: [
+                { chave: 'nivel', rotulo: 'Nível', valor: (r) => r.risk_level },
+                { chave: 'status', rotulo: 'Status', valor: (r) => r.status },
+                { chave: 'tratamento', rotulo: 'Tratamento', valor: (r) => r.treatment },
+            ],
+            exportar: { caminho: `/api/v1/projects/${proj.id}/export/risks`, rotulo: 'Exportar riscos' },
+            // A célula vazia da matriz não é "nenhum risco registrado".
+            get vazio() { return S.riskFilter && risks.length ? { titulo: 'Nenhum risco nesta célula da matriz', dica: 'Limpe o filtro para ver os demais riscos.' } : VAZIO_RISCOS; },
+        });
     }
+
+    // A célula da matriz é um filtro da lista (probabilidade e impacto), somado à busca e aos filtros do componente.
+    let listaRiscos = null;
+    const riscosNaCelula = (risks) => S.riskFilter
+        ? risks.filter(r => r.probability === S.riskFilter.probability && r.impact === S.riskFilter.impact)
+        : risks;
+    const barraDaCelula = (n) => !S.riskFilter ? '' : `
+                <div class="filter-indicator-bar" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0, 173, 232, 0.1); border: 1px solid rgba(0, 173, 232, 0.2); padding:0.5rem 1rem; margin-bottom:1.5rem; font-size:0.8rem; animation: fadeIn 0.2s ease-out;">
+                    <span>Filtrando riscos com <strong>Impacto ${S.riskFilter.impact}</strong> e <strong>Probabilidade ${S.riskFilter.probability}</strong> (${n} encontrado${n !== 1 ? 's' : ''})</span>
+                    <button class="btn btn-ghost py-1 px-2 t-sm t-accent" data-action="toggleRiskFilter" data-args='[${S.riskFilter.probability},${S.riskFilter.impact}]'>Limpar Filtro</button>
+                </div>`;
 
     window.toggleRiskFilter = function(p, i) {
         if (S.riskFilter && S.riskFilter.probability === p && S.riskFilter.impact === i) {
@@ -230,7 +228,16 @@ window.__grcCloseExecAudit = function (id) {
         } else {
             S.riskFilter = { probability: p, impact: i };
         }
-        render();
+        const barra = document.getElementById('riscos-celula');
+        if (!listaRiscos || !barra) { render(); return; }
+        const f = S.riskFilter;
+        document.querySelectorAll('.matrix-cell[data-action="toggleRiskFilter"]').forEach(el => {
+            const [pp, ii] = JSON.parse(el.dataset.args);
+            el.classList.toggle('selected', !!f && f.probability === pp && f.impact === ii);
+        });
+        const filtrados = riscosNaCelula(S.risks || []);
+        barra.innerHTML = barraDaCelula(filtrados.length);
+        listaRiscos.atualizar(filtrados);
     };
 
     window.onRiskAssetSelectChange = function(select) {
@@ -491,9 +498,7 @@ window.__grcCloseExecAudit = function (id) {
             { label: 'Alta Diligência', value: highDilCount, color: highDilCount ? 'var(--warning)' : 'var(--text)', subtext: 'Acompanhamento rigoroso' }
         ]);
 
-        const tableHtml = window.renderDataTable(
-            ['Fornecedor', 'Categoria', 'Índice de confiança', 'DPA', 'Certificações', 'Nível de diligência', 'Ações'],
-            vendors.map(v => {
+        const celulas = v => {
                 const certs = [];
                 if (v.has_iso27001) certs.push('ISO 27001');
                 if (v.has_iso27701) certs.push('ISO 27701');
@@ -519,16 +524,28 @@ window.__grcCloseExecAudit = function (id) {
                     window.renderStatusBadge(v.diligence_level || 'Low', v.diligence_level === 'High' ? 'danger' : 'info'),
                     `<button class="btn btn-ghost btn-sm" data-action="openVendorDetailsModal" data-args='["${v.parte_id}"]'>Detalhes</button>`
                 ];
-            }),
-            { emptyState: 'Nenhum fornecedor registrado neste projeto.',
-              emptyHint: 'Fornecedor com acesso a informação do escopo precisa de requisitos de segurança acordados e acompanhados (ISO 27001, A.5.19 a A.5.22).',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewVendorModal" data-args='["${proj.id}"]'>Novo fornecedor</button>` : '' }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${tableHtml}
+            <div id="fornecedores-lista"></div>
         `;
+        montarLista(c.querySelector('#fornecedores-lista'), {
+            id: 'fornecedores',
+            linhas: vendors,
+            colunas: colunasDe(['Fornecedor', 'Categoria', 'Índice de confiança', 'DPA', 'Certificações', 'Nível de diligência', 'Ações'], celulas),
+            busca: v => v.name,
+            filtros: [
+                { chave: 'diligencia', rotulo: 'Diligência', valor: v => v.diligence_level },
+                { chave: 'dpa', rotulo: 'DPA', valor: v => v.dpa ? 'sim' : v.dpa_declarado ? 'declarado' : 'nao',
+                    opcoes: [['sim', 'Sim'], ['declarado', 'Declarado, sem documento'], ['nao', 'Não']] },
+                { chave: 'avaliacao', rotulo: 'Avaliação de segurança', valor: v => v.id ? 'com' : 'sem', opcoes: [['com', 'Com avaliação'], ['sem', 'Sem avaliação']] },
+            ],
+            exportar: { caminho: `/api/v1/projects/${proj.id}/export/vendors` },
+            vazio: { titulo: 'Nenhum fornecedor registrado neste projeto.',
+                dica: 'Fornecedor com acesso a informação do escopo precisa de requisitos de segurança acordados e acompanhados (ISO 27001, A.5.19 a A.5.22).',
+                acao: canCrud ? `<button class="btn btn-primary" data-action="openNewVendorModal" data-args='["${proj.id}"]'>Novo fornecedor</button>` : '' },
+        });
     }
 
     // DPA pela fonte única: "Sim" só com documento ligado; o legado do perfil (caixa marcada ou link) é "Declarado, sem documento"
@@ -849,9 +866,7 @@ window.__grcCloseExecAudit = function (id) {
             { label: 'Concluíram', value: totalRecords ? `${completedRecords} de ${totalRecords}` : '—', color: 'var(--text)', subtext: totalRecords ? 'registros de treinamento concluídos' : 'Nenhum registro de treinamento' }
         ]);
 
-        const tableHtml = window.renderDataTable(
-            ['Treinamento', 'Colaborador', 'Pontuação (%)', 'Data de conclusão', 'Evidência', 'Status', 'Ações'],
-            records.map(r => {
+        const celulas = r => {
                 const hasEvidence = !!r.evidence_file;
                 const statusType = r.status === 'Completed' ? 'success' : r.status === 'Expired' ? 'danger' : 'warning';
 
@@ -864,16 +879,23 @@ window.__grcCloseExecAudit = function (id) {
                     window.renderStatusBadge(r.status || 'Pending', statusType),
                     `<button class="btn btn-ghost btn-sm" data-action="openTrainingDetailsModal" data-args='["${r.id}"]'>Detalhes</button>`
                 ];
-            }),
-            { emptyState: 'Nenhum registro de treinamento neste projeto.',
-              emptyHint: 'O registro de quem foi treinado e quando é a evidência de conscientização (ISO 27001, 7.2 e 7.3; A.6.3).',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewTrainingModal" data-args='["${proj.id}"]'>Novo registro</button>` : '' }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${tableHtml}
+            <div id="treinamento-lista"></div>
         `;
+        montarLista(c.querySelector('#treinamento-lista'), {
+            id: 'treinamento',
+            linhas: records,
+            colunas: colunasDe(['Treinamento', 'Colaborador', 'Pontuação (%)', 'Data de conclusão', 'Evidência', 'Status', 'Ações'], celulas),
+            busca: r => `${r.employee_name} ${r.training_name}`,
+            filtros: [{ chave: 'status', rotulo: 'Status', valor: r => r.status || 'Pending', opcoes: opcoesDe(records, r => r.status || 'Pending', 'treinamento') }],
+            exportar: { caminho: `/api/v1/projects/${proj.id}/export/training` },
+            vazio: { titulo: 'Nenhum registro de treinamento neste projeto.',
+                dica: 'O registro de quem foi treinado e quando é a evidência de conscientização (ISO 27001, 7.2 e 7.3; A.6.3).',
+                acao: canCrud ? `<button class="btn btn-primary" data-action="openNewTrainingModal" data-args='["${proj.id}"]'>Novo registro</button>` : '' },
+        });
     }
 
     window.openTrainingDetailsModal = function(id) {
@@ -1156,11 +1178,7 @@ window.__grcCloseExecAudit = function (id) {
             { label: 'Críticas / Alta Severidade', value: criticalCAPA, color: criticalCAPA > 0 ? 'var(--danger)' : 'var(--text)', subtext: 'Prioridade máxima' }
         ]);
 
-        // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar.
-        const { itens: acoesDaLista, chip: chipFiltro, filtrado } = filtrarDoPainel('capa', null, items);
-        const tableHtml = window.renderDataTable(
-            ['Título da Ação', 'Responsável', 'Prazo', 'Severidade', 'Status', 'Ações'],
-            acoesDaLista.map(ca => {
+        const celulas = ca => {
                 const sevBadgeType = ca.severity === 'Critical' ? 'danger' : ca.severity === 'High' ? 'warning' : 'info';
                 const statusBadgeType = ca.status === 'Closed' ? 'success' : ca.status === 'In Progress' ? 'warning' : 'info';
 
@@ -1172,18 +1190,29 @@ window.__grcCloseExecAudit = function (id) {
                     window.renderStatusBadge(ca.status || 'Open', statusBadgeType),
                     `<button class="btn btn-ghost btn-sm" data-action="openCAPADetailsModal" data-args='["${ca.id}"]'>Detalhes</button>`
                 ];
-            }),
-            { emptyState: 'Nenhuma ação corretiva registrada neste projeto.',
-              emptyHint: 'Cada não conformidade pede ação para eliminar a causa e o registro do resultado (ISO 27001, 10.2).',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewCAPAModal" data-args='["${proj.id}"]'>Nova ação</button>` : '',
-              ...(filtrado ? { emptyState: 'Nenhuma ação nesta situação.', emptyHint: 'Limpe o filtro para ver todas.', emptyAction: '' } : {}) }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${chipFiltro}
-            ${tableHtml}
+            <div id="capa-lista"></div>
         `;
+        // Vindo do painel, a lista abre filtrada pela situação do item, com o chip para limpar (filtroPainel do componente).
+        montarLista(c.querySelector('#capa-lista'), {
+            id: 'capa',
+            linhas: items,
+            colunas: colunasDe(['Título da Ação', 'Responsável', 'Prazo', 'Severidade', 'Status', 'Ações'], celulas),
+            busca: ca => `${ca.title} ${ca.assigned_to_parte_nome || ca.assigned_to || ''}`,
+            filtros: [
+                { chave: 'status', rotulo: 'Status', valor: ca => ca.status || 'Open' },
+                { chave: 'severidade', rotulo: 'Severidade', valor: ca => ca.severity || 'Medium' },
+                { chave: 'origem', rotulo: 'Origem', valor: ca => ca.audit_id ? 'auditoria' : ca.risk_id ? 'risco' : ca.incidente_id ? 'incidente' : 'avulsa',
+                    opcoes: [['auditoria', 'Auditoria'], ['risco', 'Risco'], ['incidente', 'Incidente'], ['avulsa', 'Avulsa']] },
+            ],
+            filtroPainel: { tela: 'capa' },
+            vazio: { titulo: 'Nenhuma ação corretiva registrada neste projeto.',
+                dica: 'Cada não conformidade pede ação para eliminar a causa e o registro do resultado (ISO 27001, 10.2).',
+                acao: canCrud ? `<button class="btn btn-primary" data-action="openNewCAPAModal" data-args='["${proj.id}"]'>Nova ação</button>` : '' },
+        });
     }
 
     window.openCAPADetailsModal = async function(id) {
@@ -1459,9 +1488,7 @@ window.__grcCloseExecAudit = function (id) {
             { label: 'Total de Achados', value: totalFindings, color: totalFindings > 0 ? 'var(--danger)' : 'var(--text)', subtext: 'Achados registrados nas auditorias' }
         ]);
 
-        const tableHtml = window.renderDataTable(
-            ['Título da Auditoria', 'Tipo', 'Auditor Responsável', 'Data Agendada', 'Achados', 'Status', 'Ações'],
-            audits.map(au => {
+        const celulas = au => {
                 const statusBadgeType = au.status === 'Completed' ? 'success' : au.status === 'In Progress' ? 'warning' : 'info';
                 const executeBtn = au.status !== 'Completed' 
                     ? `<button class="btn btn-sm mr-1" data-action="navigate" data-args='["audit-execution",{"activeAuditId":"${au.id}"}]' data-stop>Executar</button>`
@@ -1476,17 +1503,28 @@ window.__grcCloseExecAudit = function (id) {
                     window.renderStatusBadge(rotuloDe('auditoria', au.status || 'Planned'), statusBadgeType),
                     `${executeBtn}<button class="btn btn-ghost btn-sm" data-action="openAuditDetailsModal" data-args='["${au.id}"]'>Detalhes</button>`
                 ];
-            }),
-            { emptyState: 'Nenhuma auditoria agendada neste projeto.',
-              emptyHint: 'A auditoria interna em intervalos planejados é requisito da certificação (ISO 27001, 9.2). Agende a primeira para fechar o ciclo antes do estágio 1.',
-              emptyAction: canCrud ? `<button class="btn btn-primary" data-action="openNewAuditModal" data-args='["${proj.id}"]'>Nova auditoria</button>` : '' }
-        );
+        };
 
         c.innerHTML = `
             ${statsHtml}
-            ${tableHtml}
+            <div id="auditorias-lista"></div>
             <div id="acesso-auditor"></div>
         `;
+        const tipo = au => au.audit_type || 'Internal';
+        const situacao = au => au.status || 'Planned';
+        montarLista(c.querySelector('#auditorias-lista'), {
+            id: 'auditorias',
+            linhas: audits,
+            colunas: colunasDe(['Título da Auditoria', 'Tipo', 'Auditor Responsável', 'Data Agendada', 'Achados', 'Status', 'Ações'], celulas),
+            busca: au => au.title,
+            filtros: [
+                { chave: 'tipo', rotulo: 'Tipo', valor: tipo, opcoes: opcoesDe(audits, tipo, 'auditoria') },
+                { chave: 'status', rotulo: 'Status', valor: situacao, opcoes: opcoesDe(audits, situacao, 'auditoria') },
+            ],
+            vazio: { titulo: 'Nenhuma auditoria agendada neste projeto.',
+                dica: 'A auditoria interna em intervalos planejados é requisito da certificação (ISO 27001, 9.2). Agende a primeira para fechar o ciclo antes do estágio 1.',
+                acao: canCrud ? `<button class="btn btn-primary" data-action="openNewAuditModal" data-args='["${proj.id}"]'>Nova auditoria</button>` : '' },
+        });
         await renderAcessoAuditor(c.querySelector('#acesso-auditor'), proj.id, S.user?.role);
     }
 
