@@ -2,6 +2,32 @@ import { ABAS } from './contrato.js';
 import { escapeHTML } from '../ui.js';
 
 const ESTADO = { feito: 'feito', pendente: 'pendente', na: 'não se aplica', vazio: 'vazio' };
+// Logs ROPA é histórico, nunca uma parte a concluir: fica sem número e sem estado de feito/pendente.
+const PARTES = ABAS.filter((a) => a.id !== 'logs');
+const numeroDa = (id) => PARTES.findIndex((a) => a.id === id) + 1;
+
+/**
+ * Onde a atividade está: quantas das 8 partes estão concluídas e qual é a próxima (a primeira pendente ou vazia, na ordem).
+ * "Não se aplica" conta como concluída: a parte foi resolvida e nunca vira "feito".
+ */
+export function progressoDaFicha(ficha) {
+    const est = (id) => ((ficha.abas || {})[id] || { estado: 'vazio' }).estado;
+    const feitas = PARTES.filter((a) => est(a.id) === 'feito' || est(a.id) === 'na').length;
+    const proxima = PARTES.find((a) => est(a.id) === 'pendente' || est(a.id) === 'vazio') || null;
+    return { feitas, total: PARTES.length, proxima };
+}
+
+/** A linha de progresso acima das abas. O botão é secundário: a ficha não tem ação principal. */
+export function desenharProgresso(ficha) {
+    const { feitas, total, proxima } = progressoDaFicha(ficha);
+    if (!proxima) {
+        return `<div class="at-progresso"><p class="at-progresso-texto"><strong>Todas as ${total} partes concluídas</strong>
+            <span class="at-progresso-sep" aria-hidden="true">·</span> Próximo: enviar para aprovação no menu Ações</p></div>`;
+    }
+    return `<div class="at-progresso"><p class="at-progresso-texto"><strong>${feitas} de ${total} partes concluídas</strong>
+            <span class="at-progresso-sep" aria-hidden="true">·</span> Próximo: ${escapeHTML(proxima.rotulo)}</p>
+        <button type="button" class="btn btn-sm" data-action="atIrParaPendencia" data-aba="${proxima.id}">Ir para a próxima pendência</button></div>`;
+}
 
 /**
  * A faixa de abas (WAI-ARIA tabs, ativação automática). O estado vai ESCRITO no rótulo e no `aria-label`, nunca só em cor.
@@ -9,12 +35,14 @@ const ESTADO = { feito: 'feito', pendente: 'pendente', na: 'não se aplica', vaz
  */
 export function desenharAbas(ficha, ativa) {
     return `<div class="at-abas" role="tablist" aria-label="Abas da atividade">${ABAS.map((a) => {
-        const est = ficha.abas[a.id] || { estado: 'vazio', resumo: '' };
-        const texto = ESTADO[est.estado] || est.estado;
+        const est = a.id === 'logs' ? { estado: 'historico', resumo: (ficha.abas[a.id] || {}).resumo } : (ficha.abas[a.id] || { estado: 'vazio', resumo: '' });
+        const texto = a.id === 'logs' ? 'histórico' : (ESTADO[est.estado] || est.estado);
+        const n = numeroDa(a.id);
+        const nome = n ? `${n}. ${a.rotulo}` : a.rotulo;
         return `<button type="button" role="tab" class="at-aba" id="at-aba-${a.id}" aria-controls="at-painel" aria-selected="${a.id === ativa}" tabindex="${a.id === ativa ? 0 : -1}"
-            aria-label="${escapeHTML(`${a.rotulo}, ${texto}`)}" data-aba="${a.id}" data-estado="${escapeHTML(est.estado)}" title="${escapeHTML(est.resumo || '')}"
+            aria-label="${escapeHTML(`${nome}, ${texto}`)}" data-aba="${a.id}" data-estado="${escapeHTML(est.estado)}" title="${escapeHTML(est.resumo || '')}"
             data-action="atIrParaAba" data-action-keydown="atTeclaAba" data-arg-event>
-            <span>${escapeHTML(a.rotulo)}</span><span class="at-aba-estado">${escapeHTML(texto)}</span></button>`;
+            <span class="at-aba-nome">${n ? `<span class="at-aba-n">${n}.</span> ` : ''}${escapeHTML(a.rotulo)}</span><span class="at-aba-estado">${escapeHTML(texto)}</span></button>`;
     }).join('')}</div>`;
 }
 

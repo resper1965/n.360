@@ -134,6 +134,22 @@ describe('painel guiado', () => {
         expect(new URL(window.location.href).searchParams.get('modo')).toBe('guiado');
     });
 
+    it('conta as perguntas em aberto (o servidor só devolve o que falta)', () => {
+        const lacunas = [{ aba: 'escopo', campo: 'finalidade' }, { aba: 'agentes', campo: 'papel' }];
+        expect(painel(painelGuiado({ ...ficha(lacunas[0]), lacunas }, 'r1')).querySelector('.at-guiado-contagem').textContent).toBe('Pergunta 1 de 2 em aberto');
+        window.sessionStorage.setItem('ra.adiadas.r1', JSON.stringify(['escopo/finalidade']));
+        expect(painel(painelGuiado({ ...ficha(lacunas[0]), lacunas }, 'r1')).querySelector('.at-guiado-contagem').textContent).toBe('Pergunta 2 de 2 em aberto');
+        expect(painel(painelGuiado({ ...ficha(lacunas[0]), lacunas: [lacunas[0]] }, 'r2')).querySelector('.at-guiado-contagem').textContent).toBe('Última pergunta em aberto');
+    });
+
+    it('focarCampo deixa a aba que sabe onde está o campo decidir (o Tratamento abre a etapa)', () => {
+        document.body.innerHTML = '<div id="corpo"><input id="campo-x"><textarea id="alvo"></textarea></div>';
+        const aba = { focar: vi.fn(() => { document.getElementById('alvo').focus(); return true; }) };
+        focarCampo(document.getElementById('corpo'), { aba: 'tratamento', campo: 'coleta.descricao' }, aba);
+        expect(aba.focar).toHaveBeenCalledWith('coleta.descricao');
+        expect(document.activeElement.id).toBe('alvo');
+    });
+
     it('focarCampo leva o foco ao primeiro campo da aba', () => {
         document.body.innerHTML = '<div id="corpo"><input id="campo-x"><select></select></div>';
         focarCampo(document.getElementById('corpo'));
