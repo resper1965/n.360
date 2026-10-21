@@ -109,7 +109,13 @@ describe('vínculos', () => {
     expect(i.status).toBe(400);
     expect((await json<{ error: string }>(i)).error).toMatch(/inexistente ou de outro projeto/);
     await env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('trat-ok', 'proj-a', 'Folha')`).run();
-    expect((await vincular(parte, { papel: 'operador', alvo_tipo: 'tratamento', alvo_id: 'trat-ok' })).status).toBe(201);
+    // pessoa não é agente de tratamento: só organização liga como operador; pessoa liga como responsável
+    const pessoaOperadora = await vincular(parte, { papel: 'operador', alvo_tipo: 'tratamento', alvo_id: 'trat-ok' });
+    expect(pessoaOperadora.status).toBe(400);
+    expect((await json<{ error: string }>(pessoaOperadora)).error).toMatch(/Parceiros/);
+    expect((await vincular(parte, { papel: 'responsavel', alvo_tipo: 'tratamento', alvo_id: 'trat-ok' })).status).toBe(201);
+    const org = await criar(A, 'partes', { tipo: 'organizacao', nome: 'Operadora do Tratamento' });
+    expect((await vincular(org, { papel: 'operador', alvo_tipo: 'tratamento', alvo_id: 'trat-ok' })).status).toBe(201);
     expect((await vincular(parte, { papel: 'rei', alvo_tipo: 'projeto', alvo_id: 'proj-a' })).status).toBe(400);
   });
 
