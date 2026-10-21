@@ -9,11 +9,15 @@ export type EntradaProxima = {
   finalidade: string | null;
   responsavel: boolean;
   areas: number;
+  /** Volume mensal ou descrição da atividade: o que falta para a aba Escopo sair de pendente (`estadoDasAbas`). */
+  volumeOuDescricao: boolean;
   coleta: { titulares: { dados: number }[]; solicitaConsentimento: boolean | null; descricao: string | null; ativos: number };
   etapas: EstadoEtapa[];
   papelRespondido: boolean;
   temBase: boolean;
   art11Na: boolean;
+  /** Dado sensível sem inciso do art. 11 nem Não Aplicável: o bloqueio `sensivel_sem_art11` da conferência. */
+  sensivelSemArt11: boolean;
   medidas: number;
   impactoRespondidas: string[];
   impactoFinalizado: boolean;
@@ -46,6 +50,7 @@ export function lacunas(e: EntradaProxima): ProximaPergunta[] {
   if (!String(e.finalidade ?? '').trim()) l.push({ aba: 'escopo', campo: 'finalidade' });
   if (!e.responsavel) l.push({ aba: 'escopo', campo: 'responsavel' });
   if (!e.areas) l.push({ aba: 'escopo', campo: 'areas' });
+  if (!e.volumeOuDescricao) l.push({ aba: 'escopo', campo: 'volume_mensal' });
   const c = e.coleta;
   if (!c.titulares.length) l.push(tratamento('coleta.titulares'));
   if (c.titulares.some((t) => !t.dados)) l.push(tratamento('coleta.dados'));
@@ -57,7 +62,8 @@ export function lacunas(e: EntradaProxima): ProximaPergunta[] {
     l.push(tratamento(`${x.etapa}.${FALTA_CAMPO[x.faltas[0]] ?? x.faltas[0]}`));
   }
   if (!e.papelRespondido) l.push({ aba: 'agentes', campo: 'papel' });
-  if (!e.temBase && !e.art11Na) l.push({ aba: 'base_juridica', campo: 'base' });
+  if (e.sensivelSemArt11) l.push({ aba: 'base_juridica', campo: 'art11' });
+  else if (!e.temBase && !e.art11Na) l.push({ aba: 'base_juridica', campo: 'base' });
   if (!e.medidas) l.push({ aba: 'medidas', campo: 'medida' });
   const respondidas = new Set(e.impactoRespondidas);
   for (const p of PERGUNTAS_IMPACTO) if (!respondidas.has(p.id)) l.push({ aba: 'impacto', campo: p.id });

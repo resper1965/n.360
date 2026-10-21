@@ -86,6 +86,7 @@ export function entradaDaProxima(d: DadosAtividade, detalhe: EtapaDetalhe[], res
     finalidade: d.finalidade,
     responsavel: !!d.owner_parte_id,
     areas,
+    volumeOuDescricao: !!(String(d.volume_mensal ?? '').trim() || String(d.descricao_atividade ?? '').trim()),
     coleta: {
       titulares: (coleta?.titulares ?? []).map((t) => ({ dados: t.dados.length })),
       solicitaConsentimento: coleta?.solicita_consentimento ?? null,
@@ -96,6 +97,7 @@ export function entradaDaProxima(d: DadosAtividade, detalhe: EtapaDetalhe[], res
     papelRespondido: d.papel_controlador != null || d.papel_operador != null,
     temBase: entradaDaConferencia(d, etapas).temBase,
     art11Na: !!d.base_art11_na,
+    sensivelSemArt11: !!d.dados_sensiveis && !d.art11 && !d.base_art11_na,
     medidas: d.medidas,
     impactoRespondidas: respondidas,
     impactoFinalizado: !!d.impacto_finalizado_em,
