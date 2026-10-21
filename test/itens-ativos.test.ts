@@ -69,12 +69,14 @@ describe('ativos sobre itens: a API fica como estava', () => {
     expect(vivo).toBeTruthy();
   });
 
-  it('a rota de topo atualiza parcial e apaga de verdade, levando o bloco de segurança', async () => {
+  it('a rota de topo atualiza parcial e remove sem apagar (o ativo e as ligações ficam)', async () => {
     const { id } = await (await chamar(plat, 'POST', '/api/v1/projects/proj-a/assets', { name: 'Topo', owner: 'TI', location: 'DC' })).json() as { id: string };
     expect((await chamar(plat, 'PUT', `/api/v1/assets/${id}`, { name: 'Topo novo' })).status).toBe(200);
     const [item] = (await env.DB.prepare(`SELECT i.nome, i.responsavel_texto AS owner, s.localizacao AS location FROM itens i JOIN item_seguranca s ON s.item_id = i.id WHERE i.id = ?`).bind(id).all()).results;
     expect(item).toEqual({ nome: 'Topo Novo', owner: 'TI', location: 'DC' });
     expect((await chamar(plat, 'DELETE', `/api/v1/assets/${id}`)).status).toBe(200);
-    expect(await env.DB.prepare(`SELECT count(*) AS n FROM item_seguranca WHERE item_id = ?`).bind(id).first()).toEqual({ n: 0 });
+    expect(await env.DB.prepare(`SELECT status FROM itens WHERE id = ?`).bind(id).first()).toEqual({ status: 'removido' });
+    expect(await env.DB.prepare(`SELECT count(*) AS n FROM item_seguranca WHERE item_id = ?`).bind(id).first()).toEqual({ n: 1 });
+    expect((await chamar(plat, 'DELETE', `/api/v1/assets/${id}`)).status).toBe(404);
   });
 });

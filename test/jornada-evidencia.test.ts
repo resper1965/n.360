@@ -48,6 +48,8 @@ describe('evidência pelo checklist até a rastreabilidade', () => {
     const { file_hash } = (await env.DB.prepare('SELECT file_hash FROM evidence WHERE id = ?').bind(id).first<{ file_hash: string }>())!;
     const rev = await chamar(`/api/v1/evidence/${id}/approve`, { method: 'POST', headers: lider, body: JSON.stringify({ role: 'ciso', password: 'password123', file_hash }) });
     expect(rev.status, await rev.clone().text()).toBe(200);
+    // A assinatura entra na trilha DO PROJETO (antes saía sem project_id e sumia da tela do cliente).
+    expect(await env.DB.prepare(`SELECT project_id FROM audit_logs WHERE action = 'evidence.approved_ciso'`).first()).toEqual({ project_id: P });
 
     const depois = await (await chamar(`/api/v1/projects/${P}/traceability`, { headers: lider })).json<any>();
     expect(depois.controls.find((c: any) => c.id === 'ctl-j51').evidence[0].evaluation_status).toBe('conforming');

@@ -22,6 +22,16 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Ficha da atividade:** editar medida de segurança; o botão do GDPR diz "+ Base Legal".
 - **Ficam de fora:** paginação, exportação CSV de Solicitações (decisão do dono), mesclar, excluir ativo, percentuais do Painel e os demais rótulos; lista em `docs/paridade-legado-2026-10-20.md`.
 
+### Corrigido (Frente 1 da equalização n.iso x n.privacy, 20/10/2026; sem migration)
+- **Excluir risco pelo n.iso não apaga mais as ações corretivas ligadas** (o FK é `ON DELETE CASCADE`): a ação fica, sem o vínculo, como já fazia o risco da atividade.
+- **Excluir ativo pela rota de topo (`DELETE /api/v1/assets/:id`, a do Monitor) virou soft delete**, como a rota do projeto: o DELETE físico levava junto as ligações do ativo com as atividades de tratamento.
+- **CAPA grava causa raiz e plano de ação** (a tela mandava, o servidor descartava) na criação e na edição.
+- **O agente MCP não conclui CAPA nem gap** (`status: Closed`), como já não concluía a ação da atividade: concluir é ato humano.
+- **Avaliação e assinaturas de evidência entram na trilha do projeto** (`project_id` em `evidence.evaluated`, `evidence.approved_ciso`, `evidence.approved_ceo` e `evidence.uploaded`).
+- **Relatório de política sem token na URL:** abre como os relatórios do RoPA e do RIPD, com o cabeçalho da sessão (`abrirRelatorio`, `frontend/src/api.js`).
+- **Aviso de prazo da CAPA chega à parte responsável** (e-mail da parte de `assigned_to_parte_id`; antes só o texto livre `assigned_to`).
+- **Trilha do projeto sem IP para quem não é da consultoria** (`GET /projects/:id/audit-trail`).
+
 ### Adicionado (TPRM, referência jurídica e Empresas no n.privacy, 20/10/2026; sem migration)
 - **Fornecedores pela rotina de TPRM:** cada fornecedor mostra o que falta pelo critério da skill de avaliação de terceiros (tipo, criticidade, avaliação vigente, DPA), com filtro de pendência, e uma tela **Avaliações** com a fila de reavaliação (vencidas, vencem em 30 dias, sem avaliação, reprovadas, em dia), os críticos primeiro.
 - **Referência jurídica** (Mais): consulta aberta a todo usuário do módulo com a LGPD (art. 7 e art. 11 como bases legais), a ANPD e as seis bases do GDPR, com busca e o selo "Validado juridicamente". O `platform_admin` valida os mapeamentos propostos em lote (`POST /requisitos/mapeamentos/validar`): o validador é sempre o e-mail de quem está logado, nunca vem do corpo, e o agente MCP não chama.

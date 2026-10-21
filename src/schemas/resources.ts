@@ -64,6 +64,8 @@ export const createCapaSchema = z.object({
   assigned_to: z.string().optional().nullable(),
   assigned_to_parte_id: z.string().optional().nullable(),
   due_date: z.string().optional().nullable(),
+  root_cause: z.string().optional().nullable(),
+  action_plan: z.string().optional().nullable(),
   status: z.string().optional().nullable()
 }).passthrough();
 
@@ -122,6 +124,8 @@ export const capaUpdateSchema = z.object({
   due_date: parcial,
   status: z.string().min(1, 'Status é obrigatório'),
   resolution: parcial,
+  root_cause: parcial,
+  action_plan: parcial,
 }).passthrough();
 
 export const trainingUpdateSchema = z.object({
