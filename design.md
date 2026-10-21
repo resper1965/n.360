@@ -118,9 +118,16 @@ Eventos por `data-action` (delegação); nada de handler inline nem `<script>` i
 
 ## Ficha da atividade (n.privacy, `frontend/src/views/atividade.js`)
 
-Cabeçalho com nome, responsável, áreas e descrição; abaixo, nove abas livres na ordem do legado (WAI-ARIA tabs com ativação
-automática: setas, Home e End; só a aba atual no Tab; o estado vai escrito no rótulo, nunca só em cor) e o menu "Ações" com o motivo
-escrito de cada item desabilitado. Uma aba por vez no painel (`role="tabpanel"`, um h2 com o nome da aba). Sem botão "Salvar": a aba
+Cabeçalho com nome, responsável, áreas e descrição; abaixo, nove abas livres na ordem e com os rótulos do legado (WAI-ARIA tabs com
+ativação automática: setas, Home e End; só a aba atual no Tab; o estado vai escrito no rótulo, nunca só em cor) e o menu "Ações" com o
+motivo escrito de cada item desabilitado. Onde estou: as oito partes levam número ("1. Escopo" a "8. Riscos"); Logs ROPA é histórico,
+sem número nem feito/pendente, e fica no fim da faixa. Acima das abas, a linha "N de 8 partes concluídas · Próximo: <parte>" ("não se
+aplica" conta como concluída; tudo concluído aponta a aprovação no menu Ações) e o botão secundário "Ir para a próxima pendência", que
+abre a aba e, no Tratamento de Dados, a primeira etapa pendente. Progresso e abas formam uma faixa que gruda no topo do `#content`; a aba
+ativa tem o fundo do painel (forma, não só o sublinhado accent). As etapas do Tratamento de Dados são numeradas, têm chevron que gira
+com `aria-expanded` e marcam a etapa atual (a aberta, ou a primeira pendente) com `aria-current="step"`, contorno mais claro e o texto
+"etapa atual". No modo guiado, o painel é uma coluna de 320px à direita do painel da aba, grudada logo abaixo da faixa, com
+"Pergunta X de N em aberto"; o foco abre a etapa antes de ir ao campo. Uma aba por vez no painel (`role="tabpanel"`, um h2 com o nome da aba). Sem botão "Salvar": a aba
 grava sozinha e diz "Salvo às HH:MM" numa região `role="status"`; o que é confirmação (modal) tem um único `btn-primary`, e a ficha
 em si não tem nenhum. Todo vazio explica o que a coisa é e o que fazer (`renderEmptyState`), porque os catálogos nascem vazios.
 Atividade cancelada mostra a faixa "Atividade cancelada. Reative para editar." e deixa os campos `disabled`. Estilos `.at-*` no fim de

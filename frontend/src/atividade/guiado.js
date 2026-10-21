@@ -62,10 +62,16 @@ export function painelGuiado(ficha, ropaId) {
     const chave = chaveDaPergunta(p);
     const t = textoDaPergunta(p);
     const avisos = [];
+    // O servidor só devolve o que falta (o respondido some da lista), então o total é o que está em aberto agora.
+    const abertas = lacunasDa(ficha);
+    const n = abertas.length;
+    const posicao = abertas.findIndex((x) => chaveDaPergunta(x) === chave) + 1;
+    const contagem = n === 1 ? 'Última pergunta em aberto' : `Pergunta ${posicao} de ${n} em aberto`;
     if (tentativa === chave) avisos.push('Responda o campo para continuar, ou use "Não sei agora".');
     tentativa = null;
     return `<aside class="at-guiado" aria-labelledby="at-guiado-titulo">
-        <h3 class="at-guiado-titulo" id="at-guiado-titulo">Entrevista guiada</h3>
+        <h3 class="at-guiado-titulo titulo-secao" id="at-guiado-titulo">Entrevista guiada</h3>
+        <p class="at-guiado-contagem">${contagem}</p>
         <p class="at-guiado-pergunta">${escapeHTML(t.titulo)}</p>
         ${t.ajuda ? `<p class="at-guiado-ajuda">${escapeHTML(t.ajuda)}</p>` : ''}
         ${t.exemplos && t.exemplos.length ? `<p class="at-guiado-exemplos">Exemplos: ${t.exemplos.map(escapeHTML).join('; ')}.</p>` : ''}
@@ -83,7 +89,7 @@ export function painelGuiado(ficha, ropaId) {
 function painelPendencias(pendentes) {
     const n = pendentes.length;
     return `<aside class="at-guiado" aria-labelledby="at-guiado-titulo">
-        <h3 class="at-guiado-titulo" id="at-guiado-titulo">Entrevista guiada</h3>
+        <h3 class="at-guiado-titulo titulo-secao" id="at-guiado-titulo">Entrevista guiada</h3>
         <p class="at-guiado-pergunta">${n === 1 ? 'Falta 1 resposta' : `Faltam ${n} respostas`} que você deixou para depois.</p>
         <ul class="at-guiado-pendencias">${pendentes.map((x) => `<li><span>${escapeHTML(textoDaPergunta(x).titulo)} <span class="at-guiado-onde">(${escapeHTML(rotuloDaAba(x.aba))})</span></span>
             <button type="button" class="btn btn-sm" data-action="atGuiadoRetomar" data-chave="${escapeHTML(chaveDaPergunta(x))}">Responder agora</button></li>`).join('')}</ul>
@@ -96,7 +102,7 @@ function painelFim(ficha) {
     const sugestoes = [['gaps', 'Quer registrar os gaps agora?'], ['riscos', 'Quer registrar os riscos agora?']]
         .filter(([aba]) => ficha.abas && ficha.abas[aba] && ficha.abas[aba].estado === 'vazio');
     return `<aside class="at-guiado" aria-labelledby="at-guiado-titulo">
-        <h3 class="at-guiado-titulo" id="at-guiado-titulo">Entrevista guiada</h3>
+        <h3 class="at-guiado-titulo titulo-secao" id="at-guiado-titulo">Entrevista guiada</h3>
         <p class="at-guiado-pergunta">Tudo respondido.</p>
         <div class="at-guiado-acoes">
             ${sugestoes.map(([aba, rotulo]) => `<button type="button" class="btn" data-action="atIrParaAba" data-aba="${aba}">${escapeHTML(rotulo)}</button>`).join('')}
@@ -105,8 +111,12 @@ function painelFim(ficha) {
     </aside>`;
 }
 
-/** O foco vai ao primeiro campo da aba (o painel não tem campo próprio). */
-export function focarCampo(corpo) {
+/**
+ * O foco vai ao campo da pergunta (o painel não tem campo próprio). A aba que sabe onde o campo está (`aba.focar`, o Tratamento
+ * de Dados abre a etapa antes) decide; nas outras, o primeiro campo da aba.
+ */
+export function focarCampo(corpo, pergunta, aba) {
+    if (pergunta && aba && typeof aba.focar === 'function' && aba.focar(pergunta.campo)) return;
     const campo = corpo && corpo.querySelector('input:not([type="hidden"]), select, textarea');
     if (campo) campo.focus();
 }
