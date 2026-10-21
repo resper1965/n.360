@@ -2085,7 +2085,13 @@ button.roadmap-node { padding: 0; font-family: inherit; }
 .et-resumo thead th { color: var(--text-dim); font-weight: 500; font-size: var(--fs-xs); }
 .et-resumo td { color: var(--success-ink); }
 .et-etapas { display: flex; flex-direction: column; }
-.et-corpo { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+.et-corpo { display: flex; flex-direction: column; gap: 16px; }
+.et-linha-na { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.et-linha-na .at-salvo { min-height: 0; }
+ul.at-ajuda { padding-left: 1.25em; }
+.et-copiloto { display: flex; flex-direction: column; gap: 8px; }
+.et-proposta { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding: 12px; border: 1px solid var(--border); background: var(--surface-2); }
+.et-proposta-texto { margin: 0; font-size: var(--fs-md); line-height: 1.5; color: var(--text); white-space: pre-wrap; }
 .et-painel { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .et-painel-titulo { margin: 0; font: 600 var(--fs-md)/1.35 var(--font-head); color: var(--text); }
 .et-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
