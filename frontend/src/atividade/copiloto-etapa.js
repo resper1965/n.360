@@ -12,6 +12,9 @@ import { ORIGENS } from './catalogo-inline.js';
 const ORIGENS_VALIDAS = new Set(ORIGENS.map(([v]) => v));
 const txt = (v) => escapeHTML(v == null ? '' : v);
 
+// Teto da nota: o mesmo de `etapaRascunhoSchema` (src/schemas/ropa-abas.ts).
+const MAX_NOTA = 2000;
+
 // Espelho de PAPEIS_NESS (src/helpers.ts): equipe da consultoria. Só decide o que MOSTRAR; o servidor barra.
 const PAPEIS_EQUIPE = new Set(['consultor', 'consultant', 'platform_admin', 'consultoria_admin']);
 
@@ -21,11 +24,14 @@ export function podeRascunho() {
     return PAPEIS_EQUIPE.has(papel) || papel === 'org_admin';
 }
 
-/** Botão secundário "Rascunhar a descrição desta etapa" e a área da proposta. Vazio para quem não pode ou em etapa travada. */
+/** Nota opcional, botão secundário "Rascunhar a descrição desta etapa" e a área da proposta. Vazio para quem não pode ou em etapa travada. */
 export function botaoRascunho(id, ctx) {
     if (!podeRascunho() || !ctx.editavel || ctx.nao_aplicavel) return '';
     return `<div class="et-copiloto" data-etapa-copiloto="${txt(id)}">
-        <button type="button" class="btn btn-secondary btn-sm" data-copiloto="rascunhar">Rascunhar a descrição desta etapa</button>
+        <div class="form-group"><label class="form-label" for="et-nota-${txt(id)}">O que você sabe desta etapa (opcional)</label>
+            <textarea class="form-input" id="et-nota-${txt(id)}" data-copiloto-nota rows="2" maxlength="${MAX_NOTA}" aria-describedby="et-nota-${txt(id)}-ajuda"></textarea>
+            <p class="at-ajuda" id="et-nota-${txt(id)}-ajuda">Ex.: o RH recebe a ficha do colaborador por e-mail</p></div>
+        <div class="et-acoes"><button type="button" class="btn btn-secondary btn-sm" data-copiloto="rascunhar">Rascunhar a descrição desta etapa</button></div>
         <div class="et-copiloto-saida" data-copiloto-saida aria-live="polite"></div></div>`;
 }
 
@@ -35,14 +41,19 @@ function mostrarIndisponivel(caixa) {
     caixa.innerHTML = '<p class="at-ajuda" role="status">O assistente não está disponível agora. Escreva a descrição.</p>';
 }
 
+function mostrarSemBase(caixa) {
+    caixa.innerHTML = '<p class="at-ajuda" role="status">Para rascunhar, preencha antes os titulares ou os ativos desta etapa, ou escreva o que você sabe no campo acima.</p>';
+}
+
+// `perguntas_a_confirmar` não aparece: cada uma é uma falta (titulares, ativos, áreas, parceiros) que o "Falta preencher" do topo já mostra.
 function mostrarProposta(caixa, r) {
     const avisos = (r.avisos || []).map((a) => `<li>${txt(a)}</li>`).join('');
-    const perguntas = (r.perguntas_a_confirmar || []).map((p) => `<li>${txt(p)}</li>`).join('');
+    const fontes = (r.fontes || []).length ? `<p class="at-ajuda">Feito a partir de: ${txt(r.fontes.join(', '))}.</p>` : '';
     caixa.innerHTML = `<section class="et-proposta" aria-label="Proposta do assistente para esta etapa">
         <h5 class="et-painel-titulo">Proposta do assistente: confira</h5>
         ${r.descricao ? `<p class="et-proposta-texto">${txt(r.descricao)}</p>` : '<p class="at-ajuda">Sem texto proposto: o contexto ainda não basta.</p>'}
+        ${fontes}
         ${avisos ? `<ul class="at-ajuda" aria-label="Avisos">${avisos}</ul>` : ''}
-        ${perguntas ? `<ul class="at-ajuda" aria-label="O que falta">${perguntas}</ul>` : ''}
         <div class="et-acoes"><button type="button" class="btn btn-sm" data-copiloto="aceitar">Aceitar</button>
         <button type="button" class="btn btn-ghost btn-sm" data-copiloto="descartar">Descartar</button></div></section>`;
     caixa.dataset.origem = JSON.stringify((r.origem || []).filter((o) => ORIGENS_VALIDAS.has(o)));
@@ -74,8 +85,10 @@ export function ligarRascunho(corpo, id, ctx) {
         if (b.dataset.copiloto !== 'rascunhar' || !caixa) return;
         b.disabled = true;
         try {
-            const r = await api('POST', url(ctx.pid, ctx.rid, `/etapas/${id}/rascunho`), {});
+            const nota = (corpo.querySelector('[data-copiloto-nota]')?.value || '').trim();
+            const r = await api('POST', url(ctx.pid, ctx.rid, `/etapas/${id}/rascunho`), nota ? { nota } : {});
             if (r && r.indisponivel) mostrarIndisponivel(caixa);
+            else if (r && r.sem_base) mostrarSemBase(caixa);
             else mostrarProposta(caixa, r || {});
         } catch (err) {
             showToast((err && err.message) || 'Não foi possível pedir o rascunho. Tente de novo.', 'error');

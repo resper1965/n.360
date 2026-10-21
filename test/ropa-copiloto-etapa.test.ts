@@ -63,7 +63,8 @@ describe('D2.1: rascunho da descrição da etapa', () => {
     const r = await rascunho(s.consultor, 'coleta');
     expect(r.status).toBe(200);
     const b = await json(r);
-    expect(Object.keys(b).sort()).toEqual(['avisos', 'descricao', 'origem', 'perguntas_a_confirmar']);
+    expect(Object.keys(b).sort()).toEqual(['avisos', 'descricao', 'fontes', 'origem', 'perguntas_a_confirmar']);
+    expect(b.fontes).toEqual(['finalidade', '1 titular', '1 ativo', 'descrição atual']);
     expect(b.descricao).toBe('Coletamos os dados no cadastro de admissão.');
     expect(b.origem).toEqual(['titular']);
     expect(await instantaneo()).toEqual(antes);
@@ -107,7 +108,7 @@ describe('D2.1: rascunho da descrição da etapa', () => {
       criancas_adolescentes: true, transferencia: 'sim', owner: 'Maria', prompt: 'vazado',
     };
     const b = await json(await rascunho(s.consultor, 'compartilhamento_externo'));
-    expect(Object.keys(b).sort()).toEqual(['avisos', 'descricao', 'perguntas_a_confirmar']);
+    expect(Object.keys(b).sort()).toEqual(['avisos', 'descricao', 'fontes', 'perguntas_a_confirmar']);
     expect(b.avisos.join('\n')).toMatch(/dado sensível/);
     expect(b.avisos.join('\n')).toMatch(/transferência internacional/);
   });
@@ -151,6 +152,38 @@ describe('D2.1: rascunho da descrição da etapa', () => {
     expect(b).not.toHaveProperty('descricao');
     expect(b.perguntas_a_confirmar.join('\n')).toMatch(/áreas/);
     expect(enviado().ativos).toEqual([]);
+  });
+
+  it('sem base (nada na etapa, nem titular na Coleta, nem nota): não chama o modelo, devolve sem_base e não grava trilha', async () => {
+    const vazia = await novaAtividade(s.consultor, { processing_purpose: 'Folha de pagamento' });
+    const antes = await trilha();
+    for (const corpo of [{}, { nota: '   ' }]) {
+      const r = await rascunho(s.consultor, 'coleta', corpo, vazia);
+      expect(r.status).toBe(200);
+      const b = await json(r);
+      expect(b).toEqual({ avisos: [], perguntas_a_confirmar: expect.any(Array), sem_base: true });
+      expect(b.perguntas_a_confirmar.join('\n')).toMatch(/titulares/);
+    }
+    expect(ia.chamadas).toHaveLength(0);
+    expect(await trilha()).toBe(antes);
+  });
+
+  it('só a nota já é base: chama o modelo e diz de onde veio (fontes)', async () => {
+    const vazia = await novaAtividade(s.consultor, { processing_purpose: 'Folha de pagamento' });
+    ia.resposta = { descricao: 'O RH recebe a ficha por e-mail.' };
+    const b = await json(await rascunho(s.consultor, 'coleta', { nota: 'O RH recebe a ficha do colaborador por e-mail.' }, vazia));
+    expect(ia.chamadas).toHaveLength(1);
+    expect(b.fontes).toEqual(['finalidade', 'sua nota']);
+    expect(b).not.toHaveProperty('sem_base');
+  });
+
+  it('fontes no plural certo', async () => {
+    await put('/coleta/ativos', { ativos: [{ item_id: 'cr-i1' }, { item_id: 'cr-i2' }] });
+    ia.resposta = { descricao: 'Texto.' };
+    const b = await json(await rascunho(s.consultor, 'coleta'));
+    expect(b.fontes).toContain('2 ativos');
+    expect(b.fontes).toContain('1 titular');
+    await put('/coleta/ativos', { ativos: [{ item_id: 'cr-i1' }] });
   });
 
   it('trilha agente.rascunho sem o texto', async () => {

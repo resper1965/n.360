@@ -111,11 +111,12 @@ export function corpoDaEtapa(id, ctx) {
         <label class="es-check"><input type="checkbox" data-bool="solicita_consentimento"${e.solicita_consentimento ? ' checked' : ''}${off}><span>Solicita consentimento?</span></label>
         <label class="es-check"><input type="checkbox" data-bool="criancas_adolescentes"${e.criancas_adolescentes ? ' checked' : ''}${off}><span>Há tratamento de Dados Pessoais de Crianças e/ou Adolescentes neste Processo?</span></label>` : '';
 
+    // O "Salvo às HH:MM" divide a linha com o Não Aplicável: sozinho no topo, vazio, abria uma faixa em branco no corpo da etapa.
     return `<div class="et-corpo">
-        <p class="at-salvo" role="status"></p>
         ${migrado}
         ${faltas}
-        <label class="es-check"><input type="checkbox" data-na${e.nao_aplicavel ? ' checked' : ''}${ctx.editavel ? '' : ' disabled'}><span>Não Aplicável</span></label>
+        <div class="et-linha-na"><label class="es-check"><input type="checkbox" data-na${e.nao_aplicavel ? ' checked' : ''}${ctx.editavel ? '' : ' disabled'}><span>Não Aplicável</span></label>
+            <p class="at-salvo" role="status"></p></div>
         <div class="form-group"><label class="form-label" for="et-desc-${id}">Descrição do tratamento</label>
             <textarea class="form-input" id="et-desc-${id}" data-campo="descricao" rows="3" maxlength="${MAX.descricao}"${off}>${txt(e.descricao)}</textarea>
             <p class="at-ajuda">Descreva como esta etapa acontece na prática. Até 4.000 caracteres.</p></div>

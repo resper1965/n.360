@@ -22,14 +22,19 @@ import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo } fro
  *    Indício no texto da pessoa vira só `avisos` (regex do servidor).
  *  - Saída validada campo a campo; texto cortado no teto da etapa (4.000). Origem só na Coleta, só ids de ORIGENS_DOS_DADOS.
  *  - Modelo ausente, falhando ou fora do formato: `{ indisponivel: true }`, sem trilha e sem erro.
- *  - Nada sai ao modelo sem o copiloto ter o que perguntar: sem contexto, ele ainda responde, dizendo o que falta.
+ *  - Sem base (nenhum titular na Coleta, ativo, área, parceiro, descrição atual nem nota), o modelo NÃO é chamado: só a finalidade
+ *    não sustenta texto e ele inventava. Volta `sem_base: true` com o que falta, sem trilha (nada foi gerado).
+ *  - Com base, a resposta diz de onde veio (`fontes`, só o que foi enviado e não está vazio).
  */
 
 type Env = { DB: D1Database; AI?: unknown } & Record<string, unknown>;
 export type Ator = { id?: string; role?: string; email?: string; client_project_id?: string | null } | undefined;
 type Modelo = { run: (modelo: string, entrada: Record<string, unknown>) => Promise<unknown> };
 
-export type RespostaEtapa = { descricao?: string; origem?: string[]; avisos: string[]; perguntas_a_confirmar: string[] } | { indisponivel: true };
+export type RespostaEtapa =
+  | { descricao?: string; origem?: string[]; avisos: string[]; perguntas_a_confirmar: string[]; fontes: string[] }
+  | { avisos: []; perguntas_a_confirmar: string[]; sem_base: true }
+  | { indisponivel: true };
 export type ResultadoEtapa = { ok: true; resposta: RespostaEtapa } | { ok: false; status: 403 | 404; error: string };
 
 const TETO_ETAPA = 4000;
@@ -101,6 +106,20 @@ export async function rascunharEtapa(env: Env, projectId: string, ropaId: string
     ...(etapa === 'coleta' ? { origens_possiveis: ORIGENS_DOS_DADOS.map((o) => ({ id: o.id, rotulo: o.rotulo })) } : {}),
   };
   const perguntas = perguntasDoQueFalta(etapa, { titulares: titulares.length, ativos: det.ativos.length, areas: det.areas.length, parceiros: det.parceiros.length });
+  const nota = corpo.nota?.trim() ? corpo.nota : '';
+  const descricaoAtual = det.descricao?.trim() ? det.descricao : '';
+  if (!titulares.length && !det.ativos.length && !det.areas.length && !descricaoAtual && !nota) {
+    return { ok: true, resposta: { avisos: [], perguntas_a_confirmar: perguntas, sem_base: true } };
+  }
+  const n = (q: number, um: string, varios: string) => (q ? [`${q} ${q === 1 ? um : varios}`] : []);
+  const fontes = [
+    ...(reg.processing_purpose?.trim() ? ['finalidade'] : []),
+    ...n(titulares.length, 'titular', 'titulares'),
+    ...n(det.ativos.length, 'ativo', 'ativos'),
+    ...n(det.areas.length, 'área', 'áreas'),
+    ...(descricaoAtual ? ['descrição atual'] : []),
+    ...(nota ? ['sua nota'] : []),
+  ];
 
   const ai = env.AI as Modelo | undefined;
   if (!ai || typeof ai.run !== 'function') return { ok: true, resposta: indisponivel(projectId, 'sem_binding') };
@@ -138,6 +157,7 @@ export async function rascunharEtapa(env: Env, projectId: string, ropaId: string
     ...(origem?.length ? { origem } : {}),
     avisos,
     perguntas_a_confirmar: perguntas,
+    fontes,
   };
   await logAudit(env.DB, 'agente.rascunho', ator?.email || 'system', `Etapa ${ROTULOS[etapa]} da atividade ${ropaId}: rascunho do copiloto gerado (modelo ${modelo}); nada gravado no registro`, '', '', projectId);
   log('info', { msg: 'ropa_copiloto_etapa', projeto: projectId, etapa, ativos: det.ativos.length, avisos: avisos.length, descricao: !!descricao });

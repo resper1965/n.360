@@ -86,12 +86,47 @@ describe('proposta do assistente', () => {
         expect(campo().value).toBe('Descrição escrita');
     });
 
-    it('avisos e perguntas aparecem como texto, nunca decidem nada', async () => {
+    it('avisos aparecem como texto; as perguntas do que falta não (o "Falta preencher" do topo já diz)', async () => {
         montar();
         vi.stubGlobal('fetch', servir({ [ROTA]: { descricao: 'Texto.', avisos: ['O texto cita "atestados": responda você.'], perguntas_a_confirmar: ['Quais áreas recebem os dados?'] } }));
         botao().click();
         await esperar(() => expect(document.querySelector('[data-copiloto-saida]').textContent).toContain('atestados'));
-        expect(document.querySelector('[data-copiloto-saida]').textContent).toContain('Quais áreas recebem os dados?');
+        expect(document.querySelector('[data-copiloto-saida]').textContent).not.toContain('Quais áreas recebem os dados?');
+    });
+
+    it('a proposta vem numa caixa própria, com o texto e "Feito a partir de" com as fontes', async () => {
+        montar();
+        vi.stubGlobal('fetch', servir({ [ROTA]: { descricao: 'Texto proposto.', avisos: [], perguntas_a_confirmar: [], fontes: ['finalidade', '2 titulares', 'sua nota'] } }));
+        botao().click();
+        await esperar(() => expect(document.querySelector('.et-proposta')).not.toBeNull());
+        const caixa = document.querySelector('.et-proposta');
+        expect(caixa.querySelector('.et-painel-titulo').textContent).toBe('Proposta do assistente: confira');
+        expect(caixa.querySelector('.et-proposta-texto').textContent).toBe('Texto proposto.');
+        expect(caixa.textContent).toContain('Feito a partir de: finalidade, 2 titulares, sua nota.');
+    });
+
+    it('a nota preenchida vai no corpo do POST; em branco, o corpo segue vazio', async () => {
+        montar();
+        const f = servir({ [ROTA]: { descricao: 'Texto.', avisos: [], perguntas_a_confirmar: [], fontes: ['finalidade', 'sua nota'] } });
+        vi.stubGlobal('fetch', f);
+        const nota = document.querySelector('[data-copiloto-nota]');
+        expect(nota.getAttribute('maxlength')).toBe('2000');
+        expect(document.querySelector(`label[for="${nota.id}"]`).textContent).toBe('O que você sabe desta etapa (opcional)');
+        nota.value = '  o RH recebe a ficha por e-mail  ';
+        botao().click();
+        await esperar(() => expect(document.querySelector('.et-proposta')).not.toBeNull());
+        expect(corpoDe(f, ROTA)).toEqual({ nota: 'o RH recebe a ficha por e-mail' });
+    });
+
+    it('sem base: nada de proposta, só o que fazer para rascunhar, sem repetir as faltas', async () => {
+        montar();
+        vi.stubGlobal('fetch', servir({ [ROTA]: { avisos: [], perguntas_a_confirmar: ['Quais sistemas usam os dados nesta etapa?'], sem_base: true } }));
+        botao().click();
+        const saidaEl = () => document.querySelector('[data-copiloto-saida]');
+        await esperar(() => expect(saidaEl().textContent).toContain('Para rascunhar, preencha antes os titulares ou os ativos desta etapa, ou escreva o que você sabe no campo acima.'));
+        expect(saidaEl().querySelector('.et-proposta')).toBeNull();
+        expect(saidaEl().querySelector('[data-copiloto="aceitar"]')).toBeNull();
+        expect(saidaEl().textContent).not.toContain('Quais sistemas');
     });
 });
 

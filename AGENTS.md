@@ -321,6 +321,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   19 modulos em `frontend/src/atividade/` (`ls frontend/src/atividade/*.js | wc -l`); 29 testes de backend `ropa-*` (`ls test/ropa-*.test.ts | wc -l`).
   Copiloto por etapa (`POST .../ropa/:rid/etapas/:etapa/rascunho`, `src/services/copiloto-etapa.ts`, botao em cada etapa editavel): PROPOE a
   descricao a partir da ficha e de uma nota opcional; a pessoa aceita (Aceitar copia o texto para o campo e o autosave grava), nada grava sozinho.
+  Sem base (nenhum titular na Coleta, ativo, area, descricao nem nota) o modelo nao e chamado (`sem_base: true`, sem trilha); com base, a resposta traz `fontes` (o que foi enviado).
   E2E das etapas vazias em `frontend/e2e/ropa-etapas.spec.js`.
 - **DPIA e LIA do tratamento (fatia 5, migration 0056)**: `dpia_assessments.ropa_id` tem integridade no BANCO por tres triggers
   (`dpia_ropa_do_projeto_ins/_upd` recusam registro inexistente OU de outro projeto; `dpia_ropa_apagada` zera a referencia ao apagar o

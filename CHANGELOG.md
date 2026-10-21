@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Corrigido (rascunho da etapa do Tratamento de Dados, 21/10/2026; sem migration)
+- **O assistente não inventa mais a etapa vazia:** sem titular na Coleta, ativo, área, descrição nem nota, `POST .../ropa/:rid/etapas/:etapa/rascunho` não chama o modelo e devolve `sem_base: true` (sem trilha); com base, a resposta traz `fontes` ("finalidade", "2 titulares", "sua nota"...). A tela ganhou o campo opcional "O que você sabe desta etapa", a proposta em caixa própria com "Feito a partir de", deixou de repetir o "Falta preencher" e perdeu a faixa vazia do topo do corpo da etapa (padding duplo e a linha vazia do "Salvo às").
+
 ### Alterado (nome do tenant na tela, 21/10/2026; sem migration)
 - **"Organização" (o tenant: ness., Bekaa...) passa a se chamar "Consultoria" na tela**, nas mensagens de erro da API, no e-mail de boas-vindas e nos textos do agente MCP (tela "Consultorias", "Identidade da consultoria"); onde o texto falava da empresa cliente, virou "empresa". Sem mudança de dado, rota, coluna ou identificador; o vocabulário normativo (ISO/LGPD) e o tipo de parte "Organização" ficam como estavam.
 
