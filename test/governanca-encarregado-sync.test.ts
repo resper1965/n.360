@@ -11,7 +11,7 @@ const chamar = (h: Record<string, string>, metodo: string, caminho: string, corp
     body: metodo === 'GET' ? undefined : JSON.stringify(corpo ?? {}),
   }), workerEnv());
 let h: Record<string, string>;
-const PROJ = ['gs-1', 'gs-2', 'gs-3', 'gs-4', 'gs-5'];
+const PROJ = ['gs-1', 'gs-2', 'gs-3', 'gs-4', 'gs-5', 'gs-6', 'gs-7'];
 const gov = (p: string, corpo: Record<string, unknown>) => chamar(h, 'POST', `/api/v1/projects/${p}/governance`, corpo);
 const dpo = (name: string, email: string, id?: string) => ({ id, name, email, role_category: 'dpo', job_title: 'DPO' });
 const encarregadas = async (p: string) => (await env.DB.prepare(
@@ -60,6 +60,27 @@ describe('parte -> DPO', () => {
     expect(r.status).toBe(200);
     const m = await env.DB.prepare(`SELECT name, email FROM project_governance WHERE project_id = 'gs-3' AND role_category = 'dpo'`).first();
     expect(m).toMatchObject({ name: 'Bia Costa', email: 'bia.costa@x.com' });
+  });
+  it('linha de consultor ligada à parte encarregada não muda pelo PUT da parte', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title, is_primary) VALUES ('gs-m6', 'gs-6', 'Duda Reis', 'duda@ness.lat', 'consultor', 'Consultor DPO', 0)`),
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('gs-p6', 'gs-6', 'pessoa', 'Duda Reis', 'duda@ness.lat')`),
+      env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES ('gs-v6', 'gs-6', 'gs-p6', 'encarregado', 'projeto', 'gs-6')`),
+    ]);
+    const r = await chamar(h, 'PUT', '/api/v1/projects/gs-6/partes/gs-p6', { nome: 'Duda Melo', email: 'duda.melo@x.com' });
+    expect(r.status).toBe(200);
+    const m = await env.DB.prepare(`SELECT name, email FROM project_governance WHERE id = 'gs-m6'`).first();
+    expect(m).toMatchObject({ name: 'Duda Reis', email: 'duda@ness.lat' });
+  });
+  it('e-mail trocado pela parte: a conta de stakeholder do e-mail antigo, fora da matriz, é revogada', async () => {
+    await gov('gs-7', dpo('Eva Prado', 'eva@cliente.com'));
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, ativo) VALUES ('u-gs7', 'eva@cliente.com', 'x', 'Eva', 'stakeholder', 'gs-7', 'org_ness', 1)`).run();
+    const [parte] = await encarregadas('gs-7');
+    expect((await chamar(h, 'PUT', `/api/v1/projects/gs-7/partes/${parte.id}`, { email: 'eva.nova@cliente.com' })).status).toBe(200);
+    expect(await env.DB.prepare(`SELECT email FROM project_governance WHERE project_id = 'gs-7'`).first()).toMatchObject({ email: 'eva.nova@cliente.com' });
+    expect(await env.DB.prepare(`SELECT ativo FROM users WHERE id = 'u-gs7'`).first()).toMatchObject({ ativo: 0 });
+    const log = await env.DB.prepare(`SELECT 1 FROM audit_logs WHERE project_id = 'gs-7' AND action = 'stakeholder.revogado'`).first();
+    expect(log).toBeTruthy();
   });
 });
 

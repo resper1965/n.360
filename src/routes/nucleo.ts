@@ -6,6 +6,7 @@ import { importarPartes, conciliarResponsaveis } from '../services/partes';
 import { importarDocumentos } from '../services/documentos';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { sincronizarDpoDaParte } from '../services/encarregado-pessoa';
+import { emailAindaNaMatriz, revogarContaStakeholder } from './governance';
 import { NOME_DO_PRODUTO } from '../modulos';
 import { seedPhases } from '../services/project-setup';
 import {
@@ -222,7 +223,14 @@ nucleoApp.put('/partes/:id', async (c) => {
       try {
         if (await c.env.DB.prepare(`SELECT 1 FROM parte_vinculos WHERE parte_id = ? AND project_id = ? AND papel = 'encarregado'`).bind(id, projectId).first()) {
           const membro = await sincronizarDpoDaParte(c.env.DB, projectId, { nome: atual.nome, email: atual.email }, { nome, email });
-          if (membro) await logAudit(c.env.DB, 'parte.dpo_sincronizado', c.get('user').email, `Parte ${id} levada ao membro ${membro}`, '', '', projectId);
+          if (membro) {
+            await logAudit(c.env.DB, 'parte.dpo_sincronizado', c.get('user').email, `Parte ${id} levada ao membro ${membro.id}`, '', '', projectId);
+            // Mesmo passo do POST da governança: e-mail antigo que saiu da matriz perde o acesso de stakeholder.
+            if (membro.email && membro.email.trim().toLowerCase() !== (email ?? '').trim().toLowerCase()
+              && !(await emailAindaNaMatriz(c.env.DB, projectId, membro.email))) {
+              await revogarContaStakeholder(c, projectId, membro.email, c.get('user').email);
+            }
+          }
         }
       } catch (e) { registraErro(c, e); }
     }

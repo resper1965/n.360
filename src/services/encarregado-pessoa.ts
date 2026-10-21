@@ -55,14 +55,18 @@ export async function atualizarEncarregado(db: D1Database, projectId: string, an
 
 type MembroGov = { id: string; name: string; email: string | null; role_category: string | null; job_title: string | null };
 
-/** Leva o nome e o e-mail novos da parte encarregada ao membro DPO da governança que casava os antigos. */
-export async function sincronizarDpoDaParte(db: D1Database, projectId: string, antes: Pessoa, depois: Pessoa): Promise<string | null> {
+/**
+ * Leva o nome e o e-mail novos da parte encarregada ao membro DPO da governança que casava os antigos.
+ * Linha de consultor nunca: ela dá acesso ao projeto e autoridade de assinatura, e só a rota da governança a muda.
+ * Devolve o id do membro e o e-mail que ele tinha (para a revogação do acesso de stakeholder), ou null.
+ */
+export async function sincronizarDpoDaParte(db: D1Database, projectId: string, antes: Pessoa, depois: Pessoa): Promise<{ id: string; email: string | null } | null> {
   const { results } = await db.prepare('SELECT id, name, email, role_category, job_title FROM project_governance WHERE project_id = ?').bind(projectId).all<MembroGov>();
-  const membro = casa(results.filter(ehDpo).map((m) => ({ id: m.id, nome: m.name, email: m.email })), antes);
+  const membro = casa(results.filter((m) => m.role_category !== 'consultor' && ehDpo(m)).map((m) => ({ id: m.id, nome: m.name, email: m.email })), antes);
   if (!membro) return null;
   await db.prepare('UPDATE project_governance SET name = ?, email = ? WHERE id = ? AND project_id = ?')
     .bind(depois.nome, depois.email, membro.id, projectId).run();
-  return membro.id;
+  return { id: membro.id, email: membro.email };
 }
 
 /** Partes ativas com vínculo `encarregado` que nenhum membro DPO da governança casa. */

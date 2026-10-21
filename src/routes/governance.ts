@@ -94,7 +94,7 @@ const PODE_DESIGNAR_CONSULTOR = new Set(['platform_admin', 'org_admin', 'consult
  * `stakeholder.revogado`, senão o convite seguinte a reativaria (ver `desativadaPelaMatriz`). Usada pelo "Revogar acesso" e quando a linha da matriz
  * que originou o convite muda de e-mail ou some (senão a conta ficaria órfã, ativa e sem dono).
  */
-async function revogarContaStakeholder(c: any, projectId: string, email: string | null | undefined, ator: string): Promise<boolean> {
+export async function revogarContaStakeholder(c: any, projectId: string, email: string | null | undefined, ator: string): Promise<boolean> {
   const alvo = email?.trim().toLowerCase();
   if (!alvo) return false;
   const conta = await c.env.DB.prepare(`SELECT id FROM users WHERE lower(email) = ? AND role = 'stakeholder' AND client_project_id = ?`)
@@ -129,7 +129,7 @@ async function desativadaPelaMatriz(db: D1Database, projectId: string, email: st
 }
 
 /** Outra linha da matriz do projeto ainda usa este e-mail? Então o acesso continua justificado. */
-const emailAindaNaMatriz = async (db: D1Database, projectId: string, email: string, exceto?: string) =>
+export const emailAindaNaMatriz = async (db: D1Database, projectId: string, email: string, exceto?: string) =>
   !!(await db.prepare('SELECT 1 FROM project_governance WHERE project_id = ? AND lower(email) = ? AND id IS NOT ?')
     .bind(projectId, email.trim().toLowerCase(), exceto ?? null).first());
 
