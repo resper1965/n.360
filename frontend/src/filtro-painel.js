@@ -22,6 +22,7 @@ export const FILTROS = {
     'titular:incidentes:sem_avaliacao': ['sem avaliação de risco', (i) => i.status !== 'encerrado' && !i.risco_titular],
     'terceiros::vencidos': ['avaliação vencida', (t) => t.situacao === 'vencida'],
     'terceiros::pendentes': ['nunca avaliados', (t) => !!t.terceiro_tipo && t.situacao === 'pendente'],
+    'vendors::vencidos': ['avaliação vencida', (v) => v.situacao === 'vencida'],
     'evidence::vencidas': ['vencidas', (e) => vencida(e.valido_ate)],
     'evidence::vencidas_ou_nao_conformes': ['vencidas ou não conformes', (e) => vencida(e.valido_ate) || e.evaluation_status === 'non_conforming'],
     'capa::vencidas': ['vencidas', (a) => a.status !== 'Closed' && vencida(a.due_date)],

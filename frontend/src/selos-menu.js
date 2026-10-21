@@ -27,6 +27,22 @@ const SELOS = (v) => {
     return [['selo-painel', atrasados, atrasados, (q) => plural(q, 'item atrasado', 'itens atrasados')], ...fila];
 };
 
+// Selos do menu do n.iso (Painel, Ações corretivas, Evidências, Fornecedores): vêm de `modulos.iso.selos` do painel.
+const SELOS_ISO = (s) => {
+    const ca = s.capa || {}, ev = s.evidencias || {}, fo = s.fornecedores || {};
+    const fila = [
+        ['selo-iso-capa', inteiro(ca.abertas), inteiro(ca.vencidas),
+            (q, r) => `${plural(q, 'ação corretiva aberta', 'ações corretivas abertas')}${r ? `, ${plural(r, 'vencida', 'vencidas')}` : ''}`],
+        ['selo-iso-evidencias', inteiro(ev.em_analise) + inteiro(ev.ruins), inteiro(ev.ruins),
+            (q, r) => `${plural(q, 'evidência a tratar', 'evidências a tratar')}${r ? `, ${r} vencidas ou não conformes` : ''}`],
+        ['selo-iso-fornecedores', inteiro(fo.pendentes) + inteiro(fo.vencidos), inteiro(fo.vencidos),
+            (q, r) => `${plural(q, 'fornecedor sem avaliação em dia', 'fornecedores sem avaliação em dia')}${r ? `, ${r} com avaliação vencida` : ''}`],
+    ];
+    const atrasados = fila.reduce((t, [, , r]) => t + r, 0);
+    return [['selo-iso-painel', atrasados, atrasados, (q) => plural(q, 'item atrasado', 'itens atrasados')], ...fila];
+};
+const selosDo = (produto, v) => (produto === 'iso' ? SELOS_ISO(v) : SELOS(v));
+
 function mostrar(doc, id, quantos, atrasados, texto) {
     const el = doc.getElementById(id);
     if (!el) return;
@@ -60,10 +76,11 @@ const chaveAtual = () => (S.activeProject && S.user ? `${S.activeProject.id}|${S
  * visão do encarregado chega junto, sem a segunda chamada.
  */
 export function aplicarSelos(v, doc = document) {
-    if (produtoAtual() !== 'privacy' || !v || typeof v !== 'object') return;
+    const produto = produtoAtual();
+    if ((produto !== 'privacy' && produto !== 'iso') || !v || typeof v !== 'object') return;
     rodada += 1;
     feito = chaveAtual();
-    SELOS(v).forEach(([id, q, atrasados, texto]) => mostrar(doc, id, q, atrasados, texto));
+    selosDo(produto, v).forEach(([id, q, atrasados, texto]) => mostrar(doc, id, q, atrasados, texto));
 }
 /** `forcar` recarrega mesmo para o mesmo projeto (ao voltar ao painel do Encarregado). */
 export async function atualizarSelos(doc = document, forcar = false) {
@@ -74,21 +91,26 @@ export async function atualizarSelos(doc = document, forcar = false) {
     // ser escolhida, então a decisão espera a volta do laço de eventos.
     if (!forcar) {
         await new Promise((r) => setTimeout(r, 0));
-        if (S.view === 'encarregado') return;
+        if (S.view === (produtoAtual() === 'iso' ? 'dashboard' : 'encarregado')) return;
     }
     const eu = ++rodada;
     feito = null;
-    const limpar = () => SELOS({}).forEach(([id]) => mostrar(doc, id, 0, 0, () => ''));
-    // Só no n.privacy, com projeto que tem o módulo e papel que chega à visão (stakeholder e comercial não chegam).
-    if (produtoAtual() !== 'privacy' || !p || !temProduto(p) || !S.user || ['stakeholder', 'comercial'].includes(S.user.role)) { limpar(); return; }
+    const limpar = () => [...SELOS({}), ...SELOS_ISO({})].forEach(([id]) => mostrar(doc, id, 0, 0, () => ''));
+    const produto = produtoAtual();
+    // Só nos módulos, com projeto que tem o módulo e papel que chega à visão (stakeholder e comercial não chegam).
+    if ((produto !== 'privacy' && produto !== 'iso') || !p || !temProduto(p) || !S.user || ['stakeholder', 'comercial'].includes(S.user.role)) { limpar(); return; }
     let v;
-    try { v = await api('GET', `/api/v1/projects/${p.id}/encarregado`); } catch (e) {
+    try {
+        v = produto === 'iso'
+            ? ((await api('GET', `/api/v1/projects/${p.id}/painel?modulo=iso`)) || {}).modulos?.iso?.selos
+            : await api('GET', `/api/v1/projects/${p.id}/encarregado`);
+    } catch (e) {
         if (eu !== rodada) return;
         limpar();
-        SELOS({}).slice(1).forEach(([id]) => falhou(doc, id));
+        selosDo(produto, {}).slice(1).forEach(([id]) => falhou(doc, id));
         return;
     }
     if (eu !== rodada || !v || typeof v !== 'object') return;
     feito = chave;
-    SELOS(v).forEach(([id, q, atrasados, texto]) => mostrar(doc, id, q, atrasados, texto));
+    selosDo(produto, v).forEach(([id, q, atrasados, texto]) => mostrar(doc, id, q, atrasados, texto));
 }

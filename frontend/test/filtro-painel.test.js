@@ -175,3 +175,12 @@ describe('as listas de destino abrem filtradas, com o chip', () => {
         expect(Object.keys(FILTROS).every((k) => /^[a-z]+:[a-z]*:[a-z_0-9]+$/.test(k))).toBe(true);
     });
 });
+
+describe('fornecedores do n.iso', () => {
+    it('vendors::vencidos fica só com a avaliação vencida', () => {
+        expect(filtroValido('vendors', null, 'vencidos')).toEqual({ tela: 'vendors', aba: null, filtro: 'vencidos' });
+        const [rotulo, quem] = FILTROS['vendors::vencidos'];
+        expect(rotulo).toBe('avaliação vencida');
+        expect([{ situacao: 'vencida' }, { situacao: 'vigente' }, { situacao: 'pendente' }].filter(quem)).toEqual([{ situacao: 'vencida' }]);
+    });
+});

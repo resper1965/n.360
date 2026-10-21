@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { normalizarNome } from '../services/nomes';
-import { SQL_EH_FORNECEDOR, SQL_TEM_DPA, indiceDeConfianca, nivelDeDiligencia, temDpa, type PerfilDoIndice } from '../services/terceiros';
+import { SQL_EH_FORNECEDOR, SQL_TEM_DPA, listarTerceiros, indiceDeConfianca, nivelDeDiligencia, temDpa, type PerfilDoIndice } from '../services/terceiros';
 import { Bindings, Variables } from '../index';
 
 import { genId, logAudit, requireResourceAccess, erro500 } from '../helpers';
@@ -94,10 +94,12 @@ export function comIndiceAtual<T extends LinhaFornecedor>(v: T): T {
 
 projectVendorsApp.get('/', async (c) => {
   const projectId = c.req.param('projectId');
-  const { results } = await c.env.DB.prepare(
-    `${SQL_VENDORS_VISIVEIS} ORDER BY p.nome`
-  ).bind(projectId).all<LinhaFornecedor & { dpa_documentos: string }>();
-  return c.json({ ok: true, vendors: results.map((v) => ({ ...comIndiceAtual(v), dpa_documentos: JSON.parse(v.dpa_documentos) })) });
+  const [{ results }, terceiros] = await Promise.all([
+    c.env.DB.prepare(`${SQL_VENDORS_VISIVEIS} ORDER BY p.nome`).bind(projectId).all<LinhaFornecedor & { dpa_documentos: string; parte_id: string }>(),
+    listarTerceiros(c.env.DB, projectId as string),
+  ]);
+  const sit = new Map(terceiros.map((t) => [t.id, t.situacao]));
+  return c.json({ ok: true, vendors: results.map((v) => ({ ...comIndiceAtual(v), dpa_documentos: JSON.parse(v.dpa_documentos), situacao: sit.get(v.parte_id) ?? 'pendente' })) });
 });
 
 projectVendorsApp.post('/', async (c) => {

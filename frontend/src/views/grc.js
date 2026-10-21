@@ -555,6 +555,7 @@ window.__grcCloseExecAudit = function (id) {
                     opcoes: [['sim', 'Sim'], ['declarado', 'Declarado, sem documento'], ['nao', 'Não']] },
                 { chave: 'avaliacao', rotulo: 'Avaliação de segurança', valor: v => v.id ? 'com' : 'sem', opcoes: [['com', 'Com avaliação'], ['sem', 'Sem avaliação']] },
             ],
+            filtroPainel: { tela: 'vendors' },
             exportar: { caminho: `/api/v1/projects/${proj.id}/export/vendors` },
             vazio: { titulo: 'Nenhum fornecedor registrado neste projeto.',
                 dica: 'Fornecedor com acesso a informação do escopo precisa de requisitos de segurança acordados e acompanhados (ISO 27001, A.5.19 a A.5.22).',

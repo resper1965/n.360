@@ -4,7 +4,7 @@ import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { NOME_DO_PRODUTO, type Modulo } from '../modulos';
 import { hojeEmSaoPaulo } from './hoje';
-import { SQL_EH_FORNECEDOR } from './terceiros';
+import { SQL_EH_FORNECEDOR, listarTerceiros } from './terceiros';
 import { SQL_CLASSE_CONTROLE, sqlClasseControle } from './classe-controle';
 
 /** Situação do controle numa palavra: concluído, em andamento, não iniciado ou fora da SoA. A regra mora em classe-controle.ts. */
@@ -268,9 +268,9 @@ const UNIAO_ISO = [
 
 const TEMAS_ANEXO_A: [string, string][] = [['A.5', 'Controles organizacionais'], ['A.6', 'Controles de pessoas'], ['A.7', 'Controles físicos'], ['A.8', 'Controles tecnológicos']];
 
-async function blocoIso(db: D1Database, projectId: string, dia: string) {
+async function blocoIso(db: D1Database, projectId: string, dia: string, equipe: boolean) {
   const consultas = consultasDeVencimento(db, UNIAO_ISO, projectId, dia);
-  const respostas = await db.batch([
+  const [terceiros, respostas] = await Promise.all([listarTerceiros(db, projectId), db.batch([
     ...consultas,
     db.prepare(`SELECT substr(title, 1, 3) AS tema, ${SQL_CLASSE_CONTROLE} AS classe, count(*) AS n FROM compliance_controls
       WHERE project_id = ?1 GROUP BY 1, 2`).bind(projectId),
@@ -295,8 +295,11 @@ async function blocoIso(db: D1Database, projectId: string, dia: string) {
     // Exclusão da SoA sem justificativa: a justificativa do N/A mora em `description` (soa-logic.ts).
     db.prepare(`SELECT title FROM compliance_controls WHERE project_id = ?1 AND status = 'Not Applicable' AND trim(COALESCE(description, '')) = '' ORDER BY title`).bind(projectId),
     db.prepare(`SELECT probability AS p, impact AS i, count(*) AS n FROM risks WHERE project_id = ?1 AND ropa_id IS NULL GROUP BY probability, impact`).bind(projectId),
-  ]);
-  const [controles, riscos, altos, capa, capaVencidas, evid, auditoria, parados, soa, mapa] = respostas.slice(consultas.length);
+    // Pedidos com decisão pendente: só a equipe os vê aqui (o cliente tem "Esperando a sua decisão").
+    db.prepare(`SELECT count(DISTINCT p.id) AS n FROM pedidos p JOIN pedido_destinatarios d ON d.pedido_id = p.id
+      WHERE p.project_id = ?1 AND p.status = 'aberto' AND d.status = 'pendente'`).bind(projectId),
+  ])]);
+  const [controles, riscos, altos, capa, capaVencidas, evid, auditoria, parados, soa, mapa, pedidosAb] = respostas.slice(consultas.length);
   const ctrl = controles.results as { tema: string; classe: string; n: number }[];
   const soma = (f: (c: { tema: string; classe: string }) => boolean) => ctrl.filter(f).reduce((t, c) => t + c.n, 0);
   const um = (r: D1Result) => r.results[0] as Contagem | undefined;
@@ -332,8 +335,22 @@ async function blocoIso(db: D1Database, projectId: string, dia: string) {
   const ev = um(evid);
   add(ev?.falta ?? 0, { grupo: 'plano', quando: 'Planejar', texto: plural(ev?.falta ?? 0, 'evidência vencida ou não conforme', 'evidências vencidas ou não conformes'),
     contexto: 'Renove ou substitua o arquivo', acao: 'Renovar as evidências', tela: 'evidence', filtro: 'vencidas_ou_nao_conformes' });
+  const vencidos = terceiros.filter((t) => t.situacao === 'vencida');
+  add(vencidos.length, { grupo: 'atraso', quando: 'Vencida', texto: plural(vencidos.length, 'fornecedor com avaliação vencida', 'fornecedores com avaliação vencida'),
+    contexto: exemplos(vencidos.map((t) => t.nome)), acao: 'Ver os fornecedores', tela: 'vendors', filtro: 'vencidos' });
+  const pedidosAbertos = equipe ? (pedidosAb.results[0] as { n: number } | undefined)?.n ?? 0 : 0;
+  add(pedidosAbertos, { grupo: 'semana', quando: 'Aguardando', texto: plural(pedidosAbertos, 'pedido esperando decisão', 'pedidos esperando decisão'),
+    contexto: 'Aprovação ou ciência pendente', acao: 'Ver os pedidos', tela: 'meus-pedidos' });
   const v = lerVencimentos(TIPOS_ISO, respostas.slice(0, consultas.length), dia);
+  const capaAbertas = ((capa.results[0] as Contagem | undefined)?.andamento ?? 0) + vencidasCapa.length;
   return {
+    // Números dos selos do menu do n.iso (`selos-menu.js`), a mesma conta do painel.
+    selos: {
+      capa: { abertas: capaAbertas, vencidas: vencidasCapa.length },
+      evidencias: { em_analise: ev?.andamento ?? 0, ruins: ev?.falta ?? 0 },
+      fornecedores: { pendentes: terceiros.filter((t) => t.situacao === 'pendente').length, vencidos: vencidos.length },
+      pedidos: { abertos: pedidosAbertos },
+    },
     comecando, controles_avaliados: avaliados,
     itens: emOrdem(itens), cobertura, vencimentos: v.linhas, proximo: v.proximo, riscos: mapa.results as Celula[],
     numeros: [
@@ -398,7 +415,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     ]),
   ]);
   const [marco, cadastro, pedidos, encs, fases] = base;
-  const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia) : null;
+  const iso = modulos.includes('iso') ? await blocoIso(db, projectId, dia, !quem.cliente) : null;
   const privacy = modulos.includes('privacy') ? await blocoPrivacy(db, projectId, quem.cliente, dia) : null;
   const c = cadastro.results[0] as { tratamentos: number; controles: number };
   const programa = estadoDoPrograma((marco.results[0] as { d: string | null } | undefined)?.d ?? null, c.tratamentos > 0 || c.controles > 0);
@@ -415,8 +432,8 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     const saude = saudeDoProjeto({ itens: b.itens, comecando: b.comecando, decisoes: decisoes.length, cliente: quem.cliente, proximo: b.proximo });
     // O cliente vê a frase e os números da linha do módulo; a lista, a cobertura, o mapa e os vencimentos são da consultoria.
     modulosResp[m] = quem.cliente
-      ? { saude, numeros: b.numeros, comecando: b.comecando, ...(m === 'iso' ? { jornada: jornadaDoCliente(fases.results as Fase[]) } : {}) }
-      : { saude, numeros: b.numeros, comecando: b.comecando, fazer: b.itens, cobertura: b.cobertura, vencimentos: b.vencimentos, riscos: b.riscos, passos: b.passos,
+      ? { saude, numeros: b.numeros, comecando: b.comecando, ...(m === 'iso' && iso ? { selos: iso.selos } : {}), ...(m === 'iso' ? { jornada: jornadaDoCliente(fases.results as Fase[]) } : {}) }
+      : { saude, numeros: b.numeros, comecando: b.comecando, ...(m === 'iso' && iso ? { selos: iso.selos } : {}), fazer: b.itens, cobertura: b.cobertura, vencimentos: b.vencimentos, riscos: b.riscos, passos: b.passos,
           ...(m === 'privacy' && privacy ? { pedidos_semana: privacy.pedidos_semana, acoes_por_prazo: privacy.acoes_por_prazo } : {}) };
   }
   const todos = emOrdem(Object.values(blocos).flatMap((b) => b.itens));
