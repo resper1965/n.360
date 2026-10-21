@@ -46,6 +46,9 @@ describe('painel guiado', () => {
         expect(PERGUNTAS_GUIADAS['escopo/finalidade'].ajuda).toBe('Cada atividade vira uma linha do inventário que a ANPD pode pedir (art. 37 da LGPD). Use o nome que a empresa usa no dia a dia.');
         expect(textoDaPergunta({ aba: 'impacto', campo: 'larga_escala' }).titulo).toBe('Responda a pergunta do teste de impacto');
         expect(textoDaPergunta({ aba: 'escopo', campo: 'inexistente' }).titulo).toBe('Responda este campo');
+        // As lacunas que o servidor pergunta para o Escopo e a Base saírem de pendente têm texto próprio.
+        expect(textoDaPergunta({ aba: 'escopo', campo: 'volume_mensal' }).titulo).toMatch(/em um mês/);
+        expect(textoDaPergunta({ aba: 'base_juridica', campo: 'art11' }).titulo).toMatch(/art\. 11/);
     });
 
     it('"Não sei agora" só guarda, no navegador, a lista de campos adiados (nenhum dado de resposta)', () => {
