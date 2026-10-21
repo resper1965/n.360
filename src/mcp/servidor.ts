@@ -85,12 +85,12 @@ const textoP = { type: 'string' };
 const COMERCIAL: Ferramenta[] = [
   {
     name: 'niso_comercial_listar',
-    description: 'Lista uma área comercial da sua organização: leads, funil, levantamentos, propostas ou serviços (catálogo). Só leitura.',
+    description: 'Lista uma área comercial da sua consultoria: leads, funil, levantamentos, propostas ou serviços (catálogo). Só leitura.',
     inputSchema: { type: 'object', properties: { area: { type: 'string', enum: Object.keys(AREAS_LISTA) } }, required: ['area'], additionalProperties: false },
   },
   {
     name: 'niso_comercial_ler',
-    description: 'Lê um registro comercial da sua organização. detalhe: "respostas" (levantamento) ou "previa" (proposta, o documento montado). Só leitura.',
+    description: 'Lê um registro comercial da sua consultoria. detalhe: "respostas" (levantamento) ou "previa" (proposta, o documento montado). Só leitura.',
     inputSchema: {
       type: 'object',
       properties: { area: { type: 'string', enum: Object.keys(AREAS_ITEM) }, id: textoP, detalhe: { type: 'string', enum: ['respostas', 'previa'] } },
@@ -99,7 +99,7 @@ const COMERCIAL: Ferramenta[] = [
   },
   {
     name: 'niso_comercial_criar_lead',
-    description: 'Cria um lead (status New) na sua organização. Mostre os dados ao usuário e PEÇA APROVAÇÃO HUMANA antes de gravar.',
+    description: 'Cria um lead (status New) na sua consultoria. Mostre os dados ao usuário e PEÇA APROVAÇÃO HUMANA antes de gravar.',
     inputSchema: {
       type: 'object',
       properties: { company_name: textoP, contact_name: textoP, contact_email: textoP, source: textoP, cnpj: textoP },

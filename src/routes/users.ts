@@ -98,7 +98,7 @@ const orgDoProjeto = async (db: D1Database, projectId: string | null | undefined
 const ultimoAdminDaOrg = async (db: D1Database, orgId: string | null, alvoId: string) =>
   ((await db.prepare(`SELECT COUNT(*) AS n FROM users WHERE org_id = ? AND role = 'consultoria_admin' AND COALESCE(ativo, 1) <> 0 AND id <> ?`)
     .bind(orgId ?? '', alvoId).first<{ n: number }>())?.n ?? 0) === 0;
-const ULTIMO_ADMIN = { error: 'A organização precisa de ao menos um administrador ativo' };
+const ULTIMO_ADMIN = { error: 'A consultoria precisa de ao menos um administrador ativo' };
 /** Sem outro platform_admin ativo, ninguém mais administra a plataforma: só o banco devolveria o acesso. */
 const ultimoPlatformAdmin = async (db: D1Database, alvoId: string) =>
   ((await db.prepare(`SELECT COUNT(*) AS n FROM users WHERE role = 'platform_admin' AND COALESCE(ativo, 1) <> 0 AND id <> ?`)
@@ -224,7 +224,7 @@ usersApp.post('/', async (c) => {
     const ehCliente = PAPEIS_CLIENTE_GERIVEIS.has(targetRole);
     const orgCriador = await resolverOrg(c);
     if (ehAdminDaOrg(admin) && ehCliente && (!targetProject || await orgDoProjeto(c.env.DB, targetProject) !== orgCriador)) {
-      return c.json({ error: 'Forbidden: projeto fora da sua organização' }, 403);
+      return c.json({ error: 'Forbidden: projeto fora da sua consultoria' }, 403);
     }
     const orgNovo = ehCliente ? (await orgDoProjeto(c.env.DB, targetProject)) ?? orgCriador : orgCriador;
     if (!orgNovo) return c.json(SEM_ORG, 403);
@@ -311,7 +311,7 @@ usersApp.put('/:id', async (c) => {
       // Conta que fica (ou vira) cliente: o projeto tem de ser da organização dele, inclusive na
       // troca de papel de equipe para cliente sem mandar o projeto.
       if (ficaCliente && (!projetoFinal || await orgDoProjeto(c.env.DB, projetoFinal) !== minha)) {
-        return c.json({ error: 'Forbidden: projeto fora da sua organização' }, 403);
+        return c.json({ error: 'Forbidden: projeto fora da sua consultoria' }, 403);
       }
       // A senha de outro administrador da consultoria só o dono (pelo fluxo de senha) ou o
       // platform_admin trocam: senão um administrador toma a conta do outro.

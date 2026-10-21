@@ -16,7 +16,7 @@ organizacaoApp.get('/config', async (c) => {
     if (!ehComercial(user)) return c.json({ error: 'Forbidden: Área comercial restrita ao comercial da ness.' }, 403);
     const cfg = await lerConfigOrg(c.env.DB, c.get('orgId'));
     return c.json({ ...cfg, sugestaoNumero: formatarNumeroProposta(cfg.prefixoProposta, new Date().getFullYear(), cfg.proximoNumero) });
-  } catch (e) { return erro500(c, 'Erro ao ler a configuração da organização', e); }
+  } catch (e) { return erro500(c, 'Erro ao ler a configuração da consultoria', e); }
 });
 
 // Grava: o platform_admin (qualquer organização, por X-Org-Id) e o consultoria_admin (só a dele).
@@ -24,7 +24,7 @@ organizacaoApp.put('/config', async (c) => {
   try {
     const user = c.get('user');
     const orgId = c.get('orgId');
-    if (!podeAdministrarOrg(user, orgId)) return c.json({ error: 'Forbidden: só o administrador da organização altera a configuração' }, 403);
+    if (!podeAdministrarOrg(user, orgId)) return c.json({ error: 'Forbidden: só o administrador da consultoria altera a configuração' }, 403);
     const v = await validateBody(c, configOrgSchema);
     if (!v.success) return v.response;
     const b = v.data;
@@ -32,7 +32,7 @@ organizacaoApp.put('/config', async (c) => {
     // provisionamento (uma consultoria não emite proposta NESS-2026-001).
     if (b.prefixoProposta && await c.env.DB.prepare('SELECT 1 FROM organizations WHERE upper(prefixo_proposta) = ? AND id <> ?')
       .bind(b.prefixoProposta, orgId).first()) {
-      return c.json({ error: 'Prefixo de proposta já usado por outra organização' }, 409);
+      return c.json({ error: 'Prefixo de proposta já usado por outra consultoria' }, 409);
     }
     const atual = await lerConfigOrg(c.env.DB, orgId);
     const novo = {
@@ -56,13 +56,13 @@ organizacaoApp.put('/config', async (c) => {
         JSON.stringify(novo.preco), JSON.stringify(novo.textos), JSON.stringify(novo.secoesDesligadas), orgId).run();
     } catch (e: any) {
       // corrida com a conferência acima: o índice único (idx_organizations_prefixo) decide
-      if (String(e?.message ?? e).includes('UNIQUE')) return c.json({ error: 'Prefixo de proposta já usado por outra organização' }, 409);
+      if (String(e?.message ?? e).includes('UNIQUE')) return c.json({ error: 'Prefixo de proposta já usado por outra consultoria' }, 409);
       throw e;
     }
     await logAudit(c.env.DB, 'org.config_atualizada', user.email ?? 'system',
       `Configuração comercial da organização ${orgId} atualizada: ${Object.keys(b).join(', ') || 'nenhum campo'}`);
     return c.json(await lerConfigOrg(c.env.DB, orgId));
-  } catch (e) { return erro500(c, 'Erro ao gravar a configuração da organização', e); }
+  } catch (e) { return erro500(c, 'Erro ao gravar a configuração da consultoria', e); }
 });
 
 // Logo (tarefa 6). Corpo BINÁRIO bruto, não multipart nem JSON: por isso a rota não está em
@@ -75,7 +75,7 @@ organizacaoApp.post('/logo', async (c) => {
   try {
     const user = c.get('user');
     const orgId = c.get('orgId');
-    if (!podeAdministrarOrg(user, orgId)) return c.json({ error: 'Forbidden: só o administrador da organização altera o logo' }, 403);
+    if (!podeAdministrarOrg(user, orgId)) return c.json({ error: 'Forbidden: só o administrador da consultoria altera o logo' }, 403);
     const declarado = (c.req.header('Content-Type') ?? '').split(';')[0].trim().toLowerCase();
     const esperado: TipoLogo | undefined = declarado === MIME_LOGO.png ? 'png' : declarado === MIME_LOGO.jpg ? 'jpg' : undefined;
     if (!esperado || Number(c.req.header('Content-Length') || 0) > LOGO_MAX_BYTES) return c.json(LOGO_INVALIDO, 400);
@@ -100,9 +100,9 @@ organizacaoApp.get('/logo', async (c) => {
     const r = await c.env.DB.prepare('SELECT logo_chave FROM organizations WHERE id = ?').bind(orgId).first<{ logo_chave: string | null }>();
     const chave = r?.logo_chave;
     const tipo = chave?.match(/\.(png|jpg)$/)?.[1] as TipoLogo | undefined;
-    if (!chave || !tipo || !chave.startsWith(`logos/${orgId}/`)) return c.json({ error: 'Organização sem logo' }, 404);
+    if (!chave || !tipo || !chave.startsWith(`logos/${orgId}/`)) return c.json({ error: 'Consultoria sem logo' }, 404);
     const obj = await c.env.STORAGE.get(chave);
-    if (!obj) return c.json({ error: 'Organização sem logo' }, 404);
+    if (!obj) return c.json({ error: 'Consultoria sem logo' }, 404);
     return new Response(obj.body, {
       headers: {
         'Content-Type': MIME_LOGO[tipo], 'X-Content-Type-Options': 'nosniff',

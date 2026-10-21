@@ -221,7 +221,7 @@ function passoHtml() {
                 <select class="form-input" id="np-papel">${PAPEIS.map(([v, r]) => `<option value="${v}" ${p.org_role === v ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
             <fieldset style="border:0;padding:0;margin:0 0 1rem"><legend class="form-label">Módulos</legend>
                 ${meus.map((m) => `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="np-modulo" value="${m}" ${p.modulos.includes(m) ? 'checked' : ''}> n.${m}</label>`).join('')}
-                <p style="color:var(--text-dim);font-size:0.8rem;margin:4px 0 0">Só os módulos que a organização contratou. O limite de projetos do plano é conferido ao criar.</p></fieldset>`;
+                <p style="color:var(--text-dim);font-size:0.8rem;margin:4px 0 0">Só os módulos que a consultoria contratou. O limite de projetos do plano é conferido ao criar.</p></fieldset>`;
     }
     if (W.passo === 3) {
         const r = W.pessoas.representante, d = W.pessoas.dpo;

@@ -62,7 +62,7 @@ function desenhar() {
                <p class="cat-nota">O catálogo está vazio.</p>
                ${admin
                    ? '<button type="button" class="btn btn-primary" data-action="__catSemear">Carregar catálogo inicial</button>'
-                   : '<p class="cat-nota">Peça ao administrador da organização para carregar o catálogo inicial.</p>'}
+                   : '<p class="cat-nota">Peça ao administrador da consultoria para carregar o catálogo inicial.</p>'}
            </div>`
         : '';
 

@@ -21,7 +21,7 @@ let logoAtualUrl = null;     // Blob URL do logo gravado
 let logoNovoUrl = null;      // Blob URL da pré-visualização do arquivo escolhido
 let logoArquivo = null;
 const soIdentidade = () => S.view === 'identidade-org';
-const tituloDaTela = () => (soIdentidade() ? 'Identidade da organização' : 'Configuração comercial');
+const tituloDaTela = () => (soIdentidade() ? 'Identidade da consultoria' : 'Configuração comercial');
 
 const LOGO_TIPOS = ['image/png', 'image/jpeg'];
 const LOGO_MAX = 200 * 1024;   // o mesmo LOGO_MAX_BYTES do servidor
@@ -85,7 +85,7 @@ function desenhar() {
     c.innerHTML = `
         ${blocoLogo()}
         <form id="cfg-form" class="cfg fade-in" data-action-submit="__cfgSalvar" data-arg-event data-prevent novalidate>
-            ${podeEditar ? '' : '<p class="cfg-nota" role="note">Somente leitura: quem altera a configuração é o administrador da organização.</p>'}
+            ${podeEditar ? '' : '<p class="cfg-nota" role="note">Somente leitura: quem altera a configuração é o administrador da consultoria.</p>'}
 
             <section class="cfg-bloco" aria-labelledby="cfg-t-id">
                 <h2 class="cfg-titulo" id="cfg-t-id">Identidade</h2>
@@ -164,7 +164,7 @@ async function renderConfigComercial(c, h, a) {
     }
     // Resposta sem preço/textos (organização sem configuração gravada): estado próprio, não tela quebrada.
     if (!cfg || typeof cfg !== 'object' || (!soIdentidade() && (!cfg.preco || !cfg.textos))) {
-        c.innerHTML = vazioConfig('A configuração comercial ainda não está disponível', 'Esta organização não tem preços e textos de proposta gravados. Tente de novo ou avise o suporte.');
+        c.innerHTML = vazioConfig('A configuração comercial ainda não está disponível', 'Esta consultoria não tem preços e textos de proposta gravados. Tente de novo ou avise o suporte.');
         return;
     }
     cfg.secoesDesligadas = Array.isArray(cfg.secoesDesligadas) ? cfg.secoesDesligadas : [];
@@ -294,10 +294,10 @@ async function carregarLogo() {
         if (r.ok) logoAtualUrl = URL.createObjectURL(await r.blob());
     } catch { r = null; /* rede ou navegador sem Blob URL: cai no aviso, nunca em rejeição solta */ }
     if (logoAtualUrl) {
-        caixa.innerHTML = `<img class="cfg-logo-img" id="cfg-logo-img" src="${escapeHTML(logoAtualUrl)}" alt="Logo atual da organização">`;
+        caixa.innerHTML = `<img class="cfg-logo-img" id="cfg-logo-img" src="${escapeHTML(logoAtualUrl)}" alt="Logo atual da consultoria">`;
     } else {
         caixa.innerHTML = `<p class="cfg-nota" id="cfg-logo-sem">${r && r.status === 404
-            ? 'A organização ainda não tem logo: as propostas mostram o nome em texto.'
+            ? 'A consultoria ainda não tem logo: as propostas mostram o nome em texto.'
             : 'Não foi possível carregar o logo.'}</p>`;
     }
 }

@@ -294,10 +294,10 @@ export function aplicarCasca(produto = produtoAtual(), doc = document) {
         const l = doc.querySelector('.entry-lede');
         if (produto === 'privacy') {
             if (t) t.textContent = 'Privacidade e LGPD conduzidas, do inventário à resposta ao titular.';
-            if (l) l.innerHTML = 'O ambiente onde sua organização e a ness<span class="entry-dot">.</span> trabalham juntas: tratamentos, terceiros, pedidos do titular e incidentes em um só lugar.';
+            if (l) l.innerHTML = 'O ambiente onde sua empresa e a ness<span class="entry-dot">.</span> trabalham juntas: tratamentos, terceiros, pedidos do titular e incidentes em um só lugar.';
         } else {
             if (t) t.textContent = 'Segurança da informação e privacidade, num só lugar.';
-            if (l) l.innerHTML = 'A plataforma onde sua organização e a ness<span class="entry-dot">.</span> trabalham juntas. Os módulos n.iso (conformidade ISO 27001 e 27701) e n.privacy (LGPD) usam o mesmo cadastro.';
+            if (l) l.innerHTML = 'A plataforma onde sua empresa e a ness<span class="entry-dot">.</span> trabalham juntas. Os módulos n.iso (conformidade ISO 27001 e 27701) e n.privacy (LGPD) usam o mesmo cadastro.';
         }
         doc.querySelectorAll('.entry-section').forEach((s) => { s.hidden = true; });
         // O "conheça o n.iso" leva às seções escondidas acima, e o rodapé traz a versão do n.iso.
@@ -340,7 +340,7 @@ function semProjetoNenhum() {
     const id = 'sem-acesso-produto';
     if (!(typeof window.ehEquipeNess === 'function' && window.ehEquipeNess())) {
         return renderEmptyState({ id, titulo: 'Você ainda não tem acesso a um projeto',
-            texto: 'Peça à consultoria que conduz o trabalho, ou ao administrador da sua organização, para incluir você no projeto.' });
+            texto: 'Peça à consultoria que conduz o trabalho, ou ao administrador da sua empresa, para incluir você no projeto.' });
     }
     // Área comercial desligada: o projeto nasce pelo "Novo projeto" da tela Projetos (platform_admin e consultoria_admin).
     const comercial = typeof window.comercialAtivo === 'function' && window.comercialAtivo();
@@ -348,7 +348,7 @@ function semProjetoNenhum() {
     const acao = [
         comercial && typeof window.ehComercial === 'function' && window.ehComercial() ? `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('iso'))}?tela=leads">Criar projeto</a>` : '',
         !comercial && criaProjeto ? '<a class="btn btn-primary" href="/?tela=projects">Novo projeto</a>' : '',
-        S.user && S.user.role === 'platform_admin' ? '<a class="btn btn-secondary" href="/?tela=organizacoes">Ver organizações</a>' : '',
+        S.user && S.user.role === 'platform_admin' ? '<a class="btn btn-secondary" href="/?tela=organizacoes">Ver consultorias</a>' : '',
     ].join('');
     return renderEmptyState({ id, titulo: 'Nenhum projeto ainda',
         texto: comercial ? 'O projeto nasce quando a proposta é aprovada, no funil comercial do n.iso: lead, diagnóstico e proposta.'
@@ -485,7 +485,7 @@ window.abrirProdutosDoProjeto = async function (projectId) {
     const linha = (m) => {
         const ligado = hab.includes(m);
         const pode = podeGerir() && (ligado || contr.includes(m));
-        return `<tr><td><strong>n.${m}</strong></td><td>${ligado ? 'Habilitado' : 'Desligado'}${contr.includes(m) ? '' : ' · não contratado pela organização'}</td>
+        return `<tr><td><strong>n.${m}</strong></td><td>${ligado ? 'Habilitado' : 'Desligado'}${contr.includes(m) ? '' : ' · não contratado pela consultoria'}</td>
             <td style="text-align:right">${pode ? `<button class="btn btn-sm ${ligado ? 'btn-ghost' : 'btn-primary'}" data-action="alternarProdutoDoProjeto" data-args='${escapeHTML(JSON.stringify([projectId, m, !ligado]))}'>${ligado ? 'Desligar' : 'Habilitar'}</button>` : ''}</td></tr>`;
     };
     openModal(`<h3>Produtos do projeto</h3>

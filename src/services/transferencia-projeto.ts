@@ -22,7 +22,7 @@ export type ResultadoTransferencia =
       chavesRevogadas: number; webhooksDesativados: number; ssoDesativado: boolean; scimRevogado: boolean }
   | { ok: false; motivo: 'nao_encontrado' | 'destino_invalido' | 'mesma_org' | 'corrida' };
 
-export const MSG_CORRIDA = { error: 'O projeto mudou de organização; tente de novo' } as const;
+export const MSG_CORRIDA = { error: 'O projeto mudou de consultoria; tente de novo' } as const;
 
 /** Consultores da origem na governança do projeto: os mesmos `?` (projeto, origem) nas duas consultas. */
 const CONSULTORES_DA_ORIGEM = `project_id = ? AND role_category = 'consultor'

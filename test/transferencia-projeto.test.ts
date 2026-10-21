@@ -266,6 +266,6 @@ describe('POST /api/v1/platform/projects/:id/transferir', () => {
     expect(rs.find((r) => !r.ok)).toEqual({ ok: false, motivo: 'corrida' });
     expect((await um(`SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'projeto.transferido' AND project_id = ?`, 'p-t6'))?.n).toBe(1);
     // a mensagem da resposta HTTP da corrida perdida (409)
-    expect(MSG_CORRIDA).toEqual({ error: 'O projeto mudou de organização; tente de novo' });
+    expect(MSG_CORRIDA).toEqual({ error: 'O projeto mudou de consultoria; tente de novo' });
   });
 });

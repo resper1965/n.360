@@ -170,7 +170,7 @@ window.__adminCopiarApiKey = () => {
             ]);
 
             const tableHtml = window.renderDataTable(
-                ['Nome', 'E-mail', 'Papel', 'Projeto', 'Organização', 'Módulos', 'Situação', 'Ações'],
+                ['Nome', 'E-mail', 'Papel', 'Projeto', 'Consultoria', 'Módulos', 'Situação', 'Ações'],
                 userArr.map(u => {
                     const projectName = u.client_project_id ? (projMap[u.client_project_id] || u.client_project_id) : '—';
                     const roleLabel = u.role === 'platform_admin' ? 'Admin Plataforma' : 
@@ -202,9 +202,9 @@ window.__adminCopiarApiKey = () => {
 
             // Platform admin escolhe aqui de qual organização listar; sem escolha, todas.
             const orgsLista = souPA ? (window.orgsConhecidas?.() || []) : [];
-            const nota = souPA && orgsLista.length ? `<div class="org-filtro-usuarios"><label class="org-sel-rotulo" for="usr-org">Organização</label>
+            const nota = souPA && orgsLista.length ? `<div class="org-filtro-usuarios"><label class="org-sel-rotulo" for="usr-org">Consultoria</label>
                 <select class="org-sel" id="usr-org" data-action-change="__usuariosFiltrarOrg" data-arg-val>
-                    <option value="">Todas as organizações</option>
+                    <option value="">Todas as consultorias</option>
                     ${orgsLista.map((o) => `<option value="${escapeHTML(o.id)}"${o.id === filtroOrg ? ' selected' : ''}>${escapeHTML(o.nome)}</option>`).join('')}
                 </select></div>` : '';
             c.innerHTML = `
@@ -373,7 +373,7 @@ window.__adminCopiarApiKey = () => {
             .map(([v, rotulo]) => `<option value="${v}" ${papelDoUsuario === v ? 'selected' : ''}>${rotulo}</option>`).join('');
         // platform_admin: a conta de equipe nasce na organização do seletor do cabeçalho (X-Org-Id).
         const notaOrg = papelAtual === 'platform_admin'
-            ? `<p class="org-dica" id="user-m-org-nota">Conta de equipe (administrador, consultor, comercial) nasce na organização em que você atua: ${S.orgAtuacao ? escapeHTML(window.nomeOrgAtuacao?.() || S.orgAtuacao) : 'a ness.'}. Para outra, troque no seletor do cabeçalho.</p>`
+            ? `<p class="org-dica" id="user-m-org-nota">Conta de equipe (administrador, consultor, comercial) nasce na consultoria em que você atua: ${S.orgAtuacao ? escapeHTML(window.nomeOrgAtuacao?.() || S.orgAtuacao) : 'a ness.'}. Para outra, troque no seletor do cabeçalho.</p>`
             : '';
 
         const activeProjId = S.activeProject ? S.activeProject.id : (S.user ? S.user.client_project_id : null);
@@ -465,9 +465,9 @@ window.__adminCopiarApiKey = () => {
                     ${MODULOS_CONTA.map(([v, r]) => {
                         const tem = !!(user && Array.isArray(user.modulos) && user.modulos.includes(v));
                         const pode = tetoModulos.includes(v);
-                        return `<label style="display:block"><input type="checkbox" class="user-m-modulo" value="${v}" ${tem ? 'checked' : ''} ${pode ? '' : 'disabled'}> ${r}${pode ? '' : ' (fora do que a organização ou o projeto contratou)'}</label>`;
+                        return `<label style="display:block"><input type="checkbox" class="user-m-modulo" value="${v}" ${tem ? 'checked' : ''} ${pode ? '' : 'disabled'}> ${r}${pode ? '' : ' (fora do que a consultoria ou o projeto contratou)'}</label>`;
                     }).join('')}
-                    <p class="org-dica">${user ? 'Define a que a pessoa acessa nos projetos que têm o módulo.' : 'Sem marcar nenhum, a conta recebe os módulos padrão do projeto ou da organização.'}</p>
+                    <p class="org-dica">${user ? 'Define a que a pessoa acessa nos projetos que têm o módulo.' : 'Sem marcar nenhum, a conta recebe os módulos padrão do projeto ou da consultoria.'}</p>
                 </fieldset>
 
                 <div style="display:flex; gap:1rem; margin-top:1.5rem">

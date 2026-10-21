@@ -161,7 +161,7 @@ oauthAutorizacao.post('/authorize/entrar', async (c) => {
   ).bind(alcance.bind, u.org_id ?? '').all<{ id: string; client_name: string }>();
   if (!results.length) {
     await c.env.SESSIONS.delete(chave(token));
-    return pagina('Sem clientes', '<h1>Nenhum cliente</h1><p>Você não é consultor designado em nenhum cliente. Peça ao administrador do cliente ou ao platform_admin para designá-lo na governança do projeto. (Administrador da consultoria: a sua organização ainda não tem projeto.)</p>');
+    return pagina('Sem clientes', '<h1>Nenhum cliente</h1><p>Você não é consultor designado em nenhum cliente. Peça ao administrador do cliente ou ao platform_admin para designá-lo na governança do projeto. (Administrador da consultoria: ela ainda não tem projeto.)</p>');
   }
 
   await c.env.SESSIONS.put(chave(token), JSON.stringify({ ...pedido, userId: u.id, email: u.email }), { expirationTtl: TTL_PEDIDO });

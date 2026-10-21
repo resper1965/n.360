@@ -26,7 +26,7 @@ const comercialAtivo = () => !!(S.user && S.user.comercial_ativo === true);
         // Sem a área comercial, o cliente sem projeto não tem levantamento nem proposta a acompanhar: só o aviso de acesso.
         if (!comercialAtivo()) {
             c.innerHTML = renderEmptyState({ titulo: 'Você ainda não tem acesso a um projeto',
-                texto: 'Peça à consultoria que conduz o trabalho, ou ao administrador da sua organização, para incluir você no projeto.' });
+                texto: 'Peça à consultoria que conduz o trabalho, ou ao administrador da sua empresa, para incluir você no projeto.' });
             return;
         }
         {

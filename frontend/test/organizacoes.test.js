@@ -54,7 +54,7 @@ function servidor(extra = {}) {
     'GET /api/v1/platform/orgs': () => json(ORGS),
     'GET /api/v1/projects': () => json(PROJETOS),
     'GET /api/v1/org/config': () => json(CONFIG),
-    'GET /api/v1/org/logo': () => json({ error: 'Organização sem logo' }, 404),
+    'GET /api/v1/org/logo': () => json({ error: 'Consultoria sem logo' }, 404),
     'GET /api/v1/servicos': () => json([]),
     ...extra,
   };
@@ -120,7 +120,7 @@ describe('lista', () => {
   it('lista vazia: mensagem, sem tabela; Transferir projeto é ghost e Nova organização é a primária', async () => {
     servidor({ 'GET /api/v1/platform/orgs': () => json([]) });
     const c = await monta();
-    expect(c.textContent).toContain('Nenhuma organização');
+    expect(c.textContent).toContain('Nenhuma consultoria');
     expect(c.querySelector('table')).toBeNull();
     expect($('act').querySelector('[data-action="__orgTransferir"]').className).toContain('btn-ghost');
     expect($('act').querySelector('[data-action="__orgNova"]').className).toContain('btn-primary');
@@ -253,11 +253,11 @@ describe('nova organização', () => {
     expect($('org-n-adminEmail-erro').textContent).toBe('E-mail inválido');
     expect($('org-n-criar').disabled).toBe(false);
 
-    rotas['POST /api/v1/platform/orgs'] = () => json({ error: 'Prefixo de proposta já usado por outra organização' }, 409);
+    rotas['POST /api/v1/platform/orgs'] = () => json({ error: 'Prefixo de proposta já usado por outra consultoria' }, 409);
     envia('org-n-form');
     await espera();
     expect($('org-n-slug-erro').textContent).toBe('');
-    expect($('org-n-erro').textContent).toBe('Prefixo de proposta já usado por outra organização');
+    expect($('org-n-erro').textContent).toBe('Prefixo de proposta já usado por outra consultoria');
   });
 
   it('todo campo tem rótulo', async () => {
@@ -321,7 +321,7 @@ describe('contrato de módulos', () => {
 
   it('409 do servidor aparece no formulário', async () => {
     rotas['PUT /api/v1/platform/orgs/org_alfa'] = () => json({ ok: true });
-    rotas['PUT /api/v1/platform/orgs/org_alfa/modulos'] = () => json({ error: 'O módulo iso está habilitado em 3 projeto(s) da organização' }, 409);
+    rotas['PUT /api/v1/platform/orgs/org_alfa/modulos'] = () => json({ error: 'O módulo iso está habilitado em 3 projeto(s) da consultoria' }, 409);
     await monta();
     await clica('__orgEditar', ['org_alfa']);
     caixas()[0].checked = false;
@@ -394,8 +394,8 @@ describe('transferir projeto', () => {
   });
 
   it.each([
-    [409, 'A organização de destino não está ativa'],
-    [404, 'Projeto ou organização de destino não encontrado'],
+    [409, 'A consultoria de destino não está ativa'],
+    [404, 'Projeto ou consultoria de destino não encontrado'],
   ])('%s do servidor aparece na confirmação', async (status, msg) => {
     rotas['POST /api/v1/platform/projects/p1/transferir'] = () => json({ error: msg }, status);
     await confirma();

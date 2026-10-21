@@ -76,9 +76,9 @@ servicosApp.post('/semear-padrao', async (c) => {
   try {
     const user = c.get('user');
     const orgId = c.get('orgId');
-    if (!podeAdministrarOrg(user, orgId)) return c.json({ error: 'Forbidden: só o administrador da organização semeia o catálogo' }, 403);
+    if (!podeAdministrarOrg(user, orgId)) return c.json({ error: 'Forbidden: só o administrador da consultoria semeia o catálogo' }, 403);
     const ja = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM servicos WHERE org_id = ?').bind(orgId).first<{ n: number }>();
-    if (ja && ja.n > 0) return c.json({ error: 'A organização já tem serviços no catálogo' }, 409);
+    if (ja && ja.n > 0) return c.json({ error: 'A consultoria já tem serviços no catálogo' }, 409);
     // Os INSERTs vão num batch (tudo ou nada). ponytail: o COUNT acima e o batch não são atômicos entre si;
     // duas semeaduras simultâneas duplicariam. Só o administrador da organização chega aqui; fechar com INSERT ... WHERE NOT EXISTS se virar problema.
     await c.env.DB.batch(catalogoInicialNess().map(({ ativo, ...s }) => stmtInserir(c.env.DB, orgId, servicoSchema.parse(s), ativo !== false).stmt));

@@ -114,7 +114,7 @@ describe('contexto de organização nas rotas', () => {
     expect((await nomeDaOrg({ ...adm, 'X-Org-Id': 'org_b' })).corpo.nome).toBe('Consultoria B');
     const inexistente = await nomeDaOrg({ ...adm, 'X-Org-Id': 'org_fantasma' });
     expect(inexistente.status).toBe(403);
-    expect(inexistente.corpo.error).toBe('Organização não identificada');
+    expect(inexistente.corpo.error).toBe('Consultoria não identificada');
     // E nas rotas que gravam: nada é criado numa organização que não existe.
     const lead = await pedir('POST', '/api/v1/leads', { ...adm, 'X-Org-Id': 'org_fantasma' }, { company_name: 'Y' });
     expect(lead.status).toBe(403);

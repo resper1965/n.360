@@ -70,7 +70,7 @@ describe('renderUsers', () => {
     expect(linhas[0].textContent).toContain('ness.');
     expect(linhas[1].textContent).toContain('Bekaa');
     const sel = c.querySelector('#usr-org');
-    expect([...sel.options].map((o) => o.textContent)).toEqual(['Todas as organizações', 'ness.', 'Bekaa']);
+    expect([...sel.options].map((o) => o.textContent)).toEqual(['Todas as consultorias', 'ness.', 'Bekaa']);
     apiMock.mockClear();
     renderMock.mockClear();
     window.__usuariosFiltrarOrg('org_bekaa');
@@ -175,7 +175,7 @@ describe('desativar, reativar e excluir definitivamente', () => {
     await window.definirContaAtiva('u9', true);
     expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/users/u9/ativo', { ativo: true });
     renderMock.mockReset();
-    apiMock.mockRejectedValue(new Error('A organização precisa de ao menos um administrador ativo'));
+    apiMock.mockRejectedValue(new Error('A consultoria precisa de ao menos um administrador ativo'));
     await window.definirContaAtiva('u2', false);
     expect(renderMock).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain('precisa de ao menos um administrador ativo');
