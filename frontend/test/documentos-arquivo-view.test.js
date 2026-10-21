@@ -46,10 +46,10 @@ describe('Documentos', () => {
         await window.renderDocumentosArquivo(c, h, a);
         expect(h.textContent).toBe('Documentos');
         expect(apiMock).toHaveBeenCalledWith('GET', '/api/v1/projects/p1/documentos-arquivo');
-        expect([...c.querySelectorAll('thead th')].map((th) => th.textContent.trim())).toEqual(['Nome', 'Tipo', 'Vencimento', 'Status', 'Ações']);
+        expect([...c.querySelectorAll('thead th')].map((th) => th.textContent.trim())).toEqual(['Nome', 'Tipo', 'Responsável', 'Vencimento', 'Status', 'Ações']);
         const l = linhas(c);
-        expect(l[0].slice(0, 4)).toEqual(['Contrato <b>Fornecedor</b>', 'Contrato', '31/03/2027', 'Vigente']);
-        expect(l[1].slice(0, 4)).toEqual(['Política de Privacidade', 'Política', 'Sem vencimento', 'Rascunho']);
+        expect(l[0].slice(0, 5)).toEqual(['Contrato <b>Fornecedor</b>', 'Contrato', 'Pessoa Exemplo', '31/03/2027', 'Vigente']);
+        expect(l[1].slice(0, 5)).toEqual(['Política de Privacidade', 'Política', '—', 'Sem vencimento', 'Rascunho']);
         expect(c.querySelector('tbody b')).toBeNull();
         expect(a.querySelector('.btn-primary').textContent.trim()).toBe('+ Novo documento');
     });

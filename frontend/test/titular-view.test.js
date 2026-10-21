@@ -538,7 +538,7 @@ describe('pedidos: colunas e filtros da lista (spec 2026-10-19)', () => {
     it('mostra Canal e Respondido em', async () => {
         await abrir('pedidos', { [`GET ${B}/titular-pedidos`]: [...PEDIDOS, { ...PEDIDOS[0], id: 'd', protocolo: 'PT-2026-0004', status: 'respondido', respondido_em: '2026-10-05T12:00:00Z', situacao_prazo: 'encerrado' }] });
         const cab = [...el('pt-lista').querySelectorAll('thead th')].map((t) => t.textContent.trim());
-        expect(cab).toEqual(['Protocolo', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações']);
+        expect(cab).toEqual(['Protocolo', 'Titular', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações']);
         expect(linhas()[0].textContent).toContain('E-mail');
         expect(linhas()[3].textContent).toContain('05/10/2026');
     });
@@ -553,6 +553,19 @@ describe('pedidos: colunas e filtros da lista (spec 2026-10-19)', () => {
         filtrar('pt-f-status', 'recebido');
         expect(linhas()).toHaveLength(2);
         filtrar('pt-f-status', 'negado');
+        expect(el('pt-lista').textContent).toContain('Nada encontrado com a busca ou o filtro');
+        expect(f.mock.calls.length).toBe(antes);
+    });
+    it('busca por protocolo ou nome do titular, sem acento, na tela', async () => {
+        const f = await abrir('pedidos', { [`GET ${B}/titular-pedidos`]: [{ ...PEDIDOS[0], titular_nome: 'José Exemplo' }, ...PEDIDOS.slice(1).map((p) => ({ ...p, titular_nome: 'Maria Teste' }))] });
+        const antes = f.mock.calls.length;
+        const busca = (v) => { el('pt-busca').value = v; el('pt-busca').dispatchEvent(new Event('input', { bubbles: true })); };
+        busca('jose');
+        expect(linhas()).toHaveLength(1);
+        expect(linhas()[0].textContent).toContain('José Exemplo');
+        busca(PEDIDOS[1].protocolo.toLowerCase());
+        expect(linhas()[0].textContent).toContain(PEDIDOS[1].protocolo);
+        busca('zzz');
         expect(el('pt-lista').textContent).toContain('Nada encontrado com a busca ou o filtro');
         expect(f.mock.calls.length).toBe(antes);
     });

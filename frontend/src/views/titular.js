@@ -111,8 +111,8 @@ async function renderTitular(c, h, a) {
             id: 'pt',
             linhas: pedidos,
             filtroPainel,
-            colunas: colunasDe(['Protocolo', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações'], (p) => [
-                `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(CANAIS[p.canal] || p.canal || '—'), escapeHTML(dia(p.recebido_em)),
+            colunas: colunasDe(['Protocolo', 'Titular', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações'], (p) => [
+                `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(p.titular_nome || '—'), escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(CANAIS[p.canal] || p.canal || '—'), escapeHTML(dia(p.recebido_em)),
                 escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'), escapeHTML(dia(p.respondido_em)),
                 selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
                 // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
@@ -120,6 +120,8 @@ async function renderTitular(c, h, a) {
                     ? `<button class="btn btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}' aria-label="Responder: ${escapeHTML(p.protocolo)}">Responder</button>`
                     : `<button class="btn btn-ghost btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}'>Abrir</button>`,
             ]),
+            busca: (p) => `${p.protocolo || ''} ${p.titular_nome || ''}`,
+            buscaDica: 'Protocolo ou titular',
             filtros: [{ chave: 'tipo', rotulo: 'Tipo', valor: (p) => p.tipo, opcoes: Object.entries(TIPOS_PEDIDO) },
                 { chave: 'status', rotulo: 'Status', valor: (p) => p.status, opcoes: Object.entries(STATUS_PEDIDO) }],
             vazio: { titulo: 'Nenhum pedido de titular registrado.', dica: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', acao: novo('abrirNovoPedidoTitular', 'Registrar pedido') },

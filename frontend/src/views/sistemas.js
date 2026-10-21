@@ -30,6 +30,7 @@ async function renderSistemas(c, h, a) {
     montarLista(c, {
         id: 'sistemas',
         linhas: sistemas,
+        ...(sistemas.length ? { busca: (s) => `${s.name || ''} ${s.description || ''}`, buscaDica: 'Ativo ou descrição' } : {}),
         colunas: colunasDe(['Ativo', 'Descrição', 'Empresa', 'Ações'], (s) => [
             `<strong>${escapeHTML(s.name)}</strong>`,
             escapeHTML(s.description || '—'),

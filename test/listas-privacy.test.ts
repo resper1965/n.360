@@ -83,10 +83,10 @@ describe('GET /ropa/lias', () => {
     const { lias } = await json<{ lias: Record<string, unknown>[] }>(r);
     expect(lias).toHaveLength(2);
     expect(lias.find((l) => l.ropa_id === 'lp-r1')).toEqual({
-      ropa_id: 'lp-r1', atividade: 'Atividade Exemplo', status: 'concluida', conclusao: 'prevalece', concluida_por: 'lp@ness.lat', concluida_em: '2026-10-01',
+      ropa_id: 'lp-r1', atividade: 'Atividade Exemplo', area: 'Jurídico, Recursos Humanos', status: 'concluida', conclusao: 'prevalece', concluida_por: 'lp@ness.lat', concluida_em: '2026-10-01',
     });
     expect(lias.find((l) => l.ropa_id === 'lp-r2')).toEqual({
-      ropa_id: 'lp-r2', atividade: 'Atividade Sem LIA', status: 'faltando', conclusao: null, concluida_por: null, concluida_em: null,
+      ropa_id: 'lp-r2', atividade: 'Atividade Sem LIA', area: null, status: 'faltando', conclusao: null, concluida_por: null, concluida_em: null,
     });
   });
 });

@@ -84,7 +84,8 @@ describe('aba Base Jurídica', () => {
         // art. 11 Não Aplicável: marcada e o + Adicionar Inciso desse bloco desabilitado
         expect(el('at-base-art11-na').checked).toBe(true);
         const botoes = [...painel.querySelectorAll('button')].filter((b) => b.textContent === '+ Adicionar Inciso');
-        expect(botoes.map((b) => b.disabled)).toEqual([false, true, false]);
+        expect(botoes.map((b) => b.disabled)).toEqual([false, true]);
+        expect([...painel.querySelectorAll('button')].filter((b) => b.textContent === '+ Base Legal')).toHaveLength(1);
         // GDPR gravado
         expect(painel.querySelector('[data-gdpr="contrato"]').textContent).toContain('Executar o contrato (exemplo).');
         // nenhum primário na aba
@@ -222,7 +223,7 @@ describe('aba Base Jurídica', () => {
 
     it('GDPR: as seis bases com rótulo e texto, usada travada, Confirmar só com marca e finalidade', async () => {
         const { painel, puts } = await abrir(SEM_PENDENCIA());
-        [...painel.querySelectorAll('button')].filter((b) => b.textContent === '+ Adicionar Inciso')[2].click();
+        [...painel.querySelectorAll('button')].find((b) => b.textContent === '+ Base Legal').click();
         const modal = el('modal-content');
         expect(modal.querySelector('h2').textContent).toBe('Base Legal GDPR');
         const caixas = [...modal.querySelectorAll('input[type="checkbox"]')];
@@ -252,6 +253,18 @@ describe('aba Base Jurídica', () => {
         expect(puts[0]).toEqual({ lgpd: [{ requisito_id: 'lgpd:art7:ii', finalidade: 'Cumprir a obrigação de registro (exemplo).' }] });
     });
 
+    it('LIA gravada mostra "Baixar Word" com o projeto e a atividade', async () => {
+        const li = { ...SEM_PENDENCIA(), lia_exigida: true };
+        const { painel } = await abrir(li, { extra: { [`GET ${P}/lia`]: { lia: { status: 'rascunho', finalidade_legitima: 'x' } } } });
+        const b = painel.querySelector('[data-action="baixarWordLia"]');
+        expect(b).not.toBeNull();
+        expect(b.textContent).toBe('Baixar Word');
+        expect(JSON.parse(b.dataset.args)).toEqual(['p9', 'r1']);
+    });
+    it('sem LIA gravada não há botão de Word', async () => {
+        const { painel } = await abrir({ ...SEM_PENDENCIA(), lia_exigida: true }, { extra: { [`GET ${P}/lia`]: { lia: null } } });
+        expect(painel.querySelector('[data-action="baixarWordLia"]')).toBeNull();
+    });
     it('LIA aparece no fim quando exigida, sem botão primário', async () => {
         const li = { ...SEM_PENDENCIA(), lia_exigida: true };
         const { painel } = await abrir(li, { extra: { [`GET ${P}/lia`]: { lia: null } } });

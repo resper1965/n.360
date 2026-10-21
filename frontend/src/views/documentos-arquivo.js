@@ -43,9 +43,10 @@ async function renderDocumentosArquivo(c, h, a) {
     montarLista(el('da-lista'), {
         id: 'da',
         linhas: docs,
-        colunas: colunasDe(['Nome', 'Tipo', 'Vencimento', 'Status', 'Ações'], (d) => [
+        colunas: colunasDe(['Nome', 'Tipo', 'Responsável', 'Vencimento', 'Status', 'Ações'], (d) => [
             `<strong>${escapeHTML(d.nome)}</strong>`,
             escapeHTML(ROTULO_TIPO[d.tipo] || d.tipo),
+            escapeHTML(d.responsavel_nome || '—'),
             escapeHTML(vencimentoDe(d)),
             window.renderStatusBadge(ROTULO_SITUACAO[d.status] || d.status, COR_SITUACAO[d.status] || 'info'),
             [editar ? `<button class="btn btn-ghost btn-sm" data-action="daAbrir" data-args='${args(d.id)}' aria-label="Editar: ${escapeHTML(d.nome)}">Editar</button>` : '',

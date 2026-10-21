@@ -31,14 +31,19 @@ async function renderLia(c, h, a) {
     montarLista(c.querySelector('#lia-lista'), {
         id: 'lia',
         linhas: lias,
-        colunas: colunasDe(['Atividade', 'Situação', 'Conclusão', 'Concluída em', 'Ações'], (l) => [
+        colunas: colunasDe(['Atividade', 'Área', 'Situação', 'Conclusão', 'Concluída em', 'Ações'], (l) => [
             `<strong>${escapeHTML(l.atividade)}</strong>`,
+            escapeHTML(l.area || '—'),
             window.renderStatusBadge(ROTULO[l.status] || l.status, TOM[l.status] || 'neutral'),
             escapeHTML(CONCLUSAO[l.conclusao] || '—'),
             escapeHTML(formatarData(l.concluida_em)),
-            `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(proj.id, l.ropa_id, 'base_juridica')}' aria-label="Abrir a atividade: ${escapeHTML(l.atividade)}">Abrir</button>`,
+            `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(proj.id, l.ropa_id, 'base_juridica')}' aria-label="Abrir a atividade: ${escapeHTML(l.atividade)}">Abrir</button>`
+                + (l.status !== 'faltando' ? ` <button class="btn btn-ghost btn-sm" data-action="baixarWordLia" data-args='${args(proj.id, l.ropa_id)}' aria-label="Baixar o Word da LIA: ${escapeHTML(l.atividade)}">Word</button>` : ''),
         ]),
-        filtros: [{ chave: 'situacao', rotulo: 'Situação', valor: (l) => l.status, opcoes: SITUACOES }],
+        busca: (l) => l.atividade,
+        buscaDica: 'Atividade',
+        filtros: [{ chave: 'area', rotulo: 'Área', valor: (l) => String(l.area || '').split(', ').filter(Boolean) },
+            { chave: 'situacao', rotulo: 'Situação', valor: (l) => l.status, opcoes: SITUACOES }],
     });
 }
 window.renderLia = renderLia;

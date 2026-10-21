@@ -286,7 +286,7 @@ describe('RIPD (DPIA)', () => {
             { id: 'd2', system_name: 'ERP', status: 'Draft', atividade: null, residual_risk_level: null }];
         await window.renderDPIA(el('c'), el('h'), el('a'));
         const cab = [...el('c').querySelectorAll('thead th')].map((t) => t.textContent.trim());
-        expect(cab.slice(0, 2)).toEqual(['Atividade', 'Sistema ou operação']);
+        expect(cab.slice(0, 4)).toEqual(['Atividade', 'Área', 'Responsável', 'Sistema ou operação']);
         expect(cab).toContain('Risco residual');
         const linhas = () => [...el('ripd-lista').querySelectorAll('tbody tr')];
         expect(linhas()[0].textContent).toContain('Baixo');
@@ -297,6 +297,28 @@ describe('RIPD (DPIA)', () => {
         el('ripd-f-status').dispatchEvent(new Event('change', { bubbles: true }));
         expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('ERP')]);
         expect(el('ripd-contagem').textContent).toBe('1 de 2');
+    });
+
+    it('Área, Responsável, busca e filtro de área na lista do RIPD', async () => {
+        rotas['/dpia'] = [{ id: 'd1', system_name: 'CRM', status: 'Draft', atividade: 'Admissão', area: 'Gestão', responsavel: 'Pessoa A' },
+            { id: 'd2', system_name: null, status: 'Draft', atividade: 'Câmeras', area: 'Comercial' }];
+        await window.renderDPIA(el('c'), el('h'), el('a'));
+        const linhas = () => [...el('ripd-lista').querySelectorAll('tbody tr')].map((l) => l.textContent);
+        expect(linhas()[0]).toContain('Pessoa A');
+        el('ripd-busca').value = 'camera';
+        el('ripd-busca').dispatchEvent(new Event('input', { bubbles: true }));
+        expect(linhas()).toEqual([expect.stringContaining('Câmeras')]);
+        el('ripd-busca').value = 'camera ';
+        el('ripd-busca').dispatchEvent(new Event('input', { bubbles: true }));
+        expect(linhas()).toEqual([expect.stringContaining('Câmeras')]);
+        el('ripd-busca').value = 'null';
+        el('ripd-busca').dispatchEvent(new Event('input', { bubbles: true }));
+        expect(linhas().join('')).not.toContain('Câmeras');
+        el('ripd-busca').value = '';
+        el('ripd-busca').dispatchEvent(new Event('input', { bubbles: true }));
+        el('ripd-f-area').value = 'Gestão';
+        el('ripd-f-area').dispatchEvent(new Event('change', { bubbles: true }));
+        expect(linhas()).toEqual([expect.stringContaining('Admissão')]);
     });
 
     it('vazio sem marcação: ensina a marcar', async () => {
@@ -361,7 +383,7 @@ describe('lista com a situação derivada (ficha em abas)', () => {
         expect(el('a').querySelector('.btn-primary').textContent).toBe('Nova atividade');
         expect([...el('a').querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).not.toContain('Edição avançada');
         // colunas no vocabulário das abas, sem os campos do modelo antigo
-        expect([...el('c').querySelectorAll('thead th')].map((th) => th.textContent.trim())).toEqual(['Atividade', 'Base legal', 'Situação', 'Ações']);
+        expect([...el('c').querySelectorAll('thead th')].map((th) => th.textContent.trim())).toEqual(['Atividade', 'Área', 'Responsável', 'Base legal', 'Situação', 'Ações']);
     });
 
     it('sem a situação no servidor (versão anterior), cai no status antigo sem quebrar', async () => {
@@ -433,5 +455,32 @@ describe('Nova atividade: guiada ou direta (PR3)', () => {
         await criarPelo('Cobrança', 'direta');
         expect(window.abrirAtividade).toHaveBeenCalledWith('p1', 'r8');
         expect(window.abrirRopaEntrevista).not.toHaveBeenCalled();
+    });
+});
+
+describe('lista do RoPA no n.privacy', () => {
+    const LISTA = [
+        { id: 'r1', nome: 'Admissão', processing_purpose: 'Admissão', area: 'Gestão', owner_parte_nome: 'Pessoa A', situacao: { codigo: 'aprovada', rotulo: 'Aprovada' } },
+        { id: 'r2', nome: 'Câmeras', processing_purpose: 'Câmeras', area: 'Comercial, Gestão', owner_parte_nome: null, situacao: { codigo: 'rascunho', rotulo: 'Rascunho' } },
+    ];
+    it('colunas Atividade, Área, Responsável, Base legal, Situação, Ações', async () => {
+        rotas['/ropa'] = LISTA;
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        expect([...el('c').querySelectorAll('th')].map((x) => x.textContent.trim())).toEqual(['Atividade', 'Área', 'Responsável', 'Base legal', 'Situação', 'Ações']);
+        expect(el('c').textContent).toContain('Pessoa A');
+    });
+    it('busca sem acento e filtros de área e situação', async () => {
+        rotas['/ropa'] = LISTA;
+        await window.renderROPA(el('c'), el('h'), el('a'));
+        window.listaBuscar('ropa', 'camera');
+        expect(el('ropa-lista').textContent).toContain('Câmeras');
+        expect(el('ropa-lista').textContent).not.toContain('Admissão');
+        window.listaBuscar('ropa', 'camera ');
+        expect(el('ropa-lista').textContent).toContain('Câmeras');
+        window.listaBuscar('ropa', ''); window.listaFiltrar('ropa', 'area', 'Comercial');
+        expect(el('ropa-lista').textContent).not.toContain('Admissão');
+        window.listaFiltrar('ropa', 'area', ''); window.listaFiltrar('ropa', 'situacao', 'aprovada');
+        expect(el('ropa-lista').textContent).toContain('Admissão');
+        expect(el('ropa-lista').textContent).not.toContain('Câmeras');
     });
 });

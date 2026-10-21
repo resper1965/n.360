@@ -17,8 +17,8 @@ initDelegation();
 
 // Corpo como o handler devolve (src/routes/ropa.ts, `lias`): { lias: [...] }.
 const LIAS = [
-    { ropa_id: 'r1', atividade: 'Atividade <b>Exemplo</b>', status: 'concluida', conclusao: 'prevalece', concluida_por: 'cons@ness.lat', concluida_em: '2026-10-01T10:00:00Z' },
-    { ropa_id: 'r2', atividade: 'Atividade Sem LIA', status: 'faltando', conclusao: null, concluida_por: null, concluida_em: null },
+    { ropa_id: 'r1', atividade: 'Atividade <b>Exemplo</b>', area: 'Gestão', status: 'concluida', conclusao: 'prevalece', concluida_por: 'cons@ness.lat', concluida_em: '2026-10-01T10:00:00Z' },
+    { ropa_id: 'r2', atividade: 'Atividade Sem LIA', area: 'Comercial, Gestão', status: 'faltando', conclusao: null, concluida_por: null, concluida_em: null },
     { ropa_id: 'r3', atividade: 'Atividade Rascunho', status: 'rascunho', conclusao: null, concluida_por: null, concluida_em: null },
 ];
 const el = (id) => document.getElementById(id);
@@ -40,10 +40,17 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('LIA', () => {
+    it('Word só na linha com LIA gravada', async () => {
+        await abrir([{ ropa_id: 'r1', atividade: 'A', status: 'concluida' }, { ropa_id: 'r2', atividade: 'B', status: 'faltando' }]);
+        const bs = el('lia-lista').querySelectorAll('[data-action="baixarWordLia"]');
+        expect(bs.length).toBe(1);
+        expect(JSON.parse(bs[0].dataset.args)).toEqual(['p9', 'r1']);
+        expect(linhas()[0].contains(bs[0])).toBe(true);
+    });
     it('colunas, situação em texto e conclusão resumida', async () => {
         await abrir();
         expect(el('h').textContent).toBe('LIA');
-        expect([...el('c').querySelectorAll('thead th')].map((t) => t.textContent.trim())).toEqual(['Atividade', 'Situação', 'Conclusão', 'Concluída em', 'Ações']);
+        expect([...el('c').querySelectorAll('thead th')].map((t) => t.textContent.trim())).toEqual(['Atividade', 'Área', 'Situação', 'Conclusão', 'Concluída em', 'Ações']);
         const t = linhas().map((l) => l.textContent);
         expect(t[0]).toContain('Concluída');
         expect(t[0]).toContain('O legítimo interesse prevalece');
@@ -66,6 +73,17 @@ describe('LIA', () => {
         expect(JSON.parse(b.getAttribute('data-args'))).toEqual(['p9', 'r2', 'base_juridica']);
         b.click();
         expect(window.abrirAtividade).toHaveBeenCalledWith('p9', 'r2', 'base_juridica');
+    });
+
+    it('busca sem acento e filtro de área', async () => {
+        await abrir();
+        el('lia-busca').value = 'sem lia';
+        el('lia-busca').dispatchEvent(new Event('input', { bubbles: true }));
+        expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Atividade Sem LIA')]);
+        el('lia-busca').value = '';
+        el('lia-f-area').value = 'Comercial';
+        el('lia-f-area').dispatchEvent(new Event('change', { bubbles: true }));
+        expect(linhas().map((l) => l.textContent)).toEqual([expect.stringContaining('Atividade Sem LIA')]);
     });
 
     it('vazio: nenhuma atividade de legítimo interesse', async () => {

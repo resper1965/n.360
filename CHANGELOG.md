@@ -48,6 +48,16 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Evidência vencida** compara pelo dia também no encarregado.
 - **Ativo nasce Confidencial** nos dois módulos. O select "Status" do n.iso, que o servidor ignorava, saiu.
 
+### Corrigido e adicionado (fechamento de telas do n.privacy e do Painel, 20/10/2026; sem migration)
+- **Painel:** a atividade aprovada por pedido passa a contar como aprovada (a regra é a da situação derivada, não a coluna `status`).
+- **LIA:** botão de Word na ficha e na lista.
+- **RIPD no n.iso:** a lista do RIPD é a mesma dos dois módulos, então também ganhou Área, Responsável e busca no n.iso.
+- **Listas:** RoPA com Área, Responsável, busca e filtros de Área e situação; RIPD com Área, Responsável, busca e filtro de Área; LIA com Área, busca e filtro de Área. O servidor devolve `area` nessas listas e `responsavel` no RIPD.
+- **Diagnóstico:** coluna Estratégia na lista de riscos e filtro de Área nos gaps; a aba de gaps da atividade mostra Prazo e "Em atraso".
+- **Cadastros:** Solicitações com a coluna do titular e busca; busca em Áreas e Ativos; coluna Responsável em Documentos.
+- **Ficha da atividade:** editar medida de segurança; o botão do GDPR diz "+ Base Legal".
+- **Ficam de fora:** paginação, exportação CSV de Solicitações (decisão do dono), mesclar, excluir ativo, percentuais do Painel e os demais rótulos; lista em `docs/paridade-legado-2026-10-20.md`.
+
 ### Corrigido (Frente 1 da equalização n.iso x n.privacy, 20/10/2026; sem migration)
 - **Excluir risco pelo n.iso não apaga mais as ações corretivas ligadas** (o FK é `ON DELETE CASCADE`): a ação fica, sem o vínculo, como já fazia o risco da atividade.
 - **Excluir ativo pela rota de topo (`DELETE /api/v1/assets/:id`, a do Monitor) virou soft delete**, como a rota do projeto: o DELETE físico levava junto as ligações do ativo com as atividades de tratamento.

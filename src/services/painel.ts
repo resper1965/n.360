@@ -1,5 +1,7 @@
 import { visaoDoEncarregado, diaMes, exemplos, type Grupo, type Prioridade } from './encarregado';
 import { lerEmpresa } from './empresas';
+import { aprovacoesDoProjeto } from './documentos';
+import { situacaoDaAtividade } from './ropa-abas/situacao';
 import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { NOME_DO_PRODUTO, type Modulo } from '../modulos';
@@ -160,17 +162,14 @@ const UNIAO_PRIVACY = [
 ];
 
 async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean, dia: string) {
-  const visao = await visaoDoEncarregado(db, projectId, { cliente });
+  const [visao, aprovacoes] = await Promise.all([visaoDoEncarregado(db, projectId, { cliente }), aprovacoesDoProjeto(db, projectId, undefined, 'tratamento')]);
   const consultas = consultasDeVencimento(db, UNIAO_PRIVACY, projectId, dia);
   const respostas = await db.batch([
     ...consultas,
-    // Atividades: aprovadas / em andamento / rascunho ou sem base legal (a inativa sai da conta).
-    db.prepare(`SELECT sum(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END) AS feito,
-        sum(CASE WHEN status = 'Approved' OR status = 'Draft' OR sem_base THEN 0 ELSE 1 END) AS andamento,
-        sum(CASE WHEN status <> 'Approved' AND (status = 'Draft' OR sem_base) THEN 1 ELSE 0 END) AS falta
-      FROM (SELECT COALESCE(r.status, 'Active') AS status, (r.base_legal_id IS NULL AND trim(COALESCE(r.legal_basis, '')) = '' AND trim(COALESCE(r.base_gdpr, '')) = ''
+    // Atividades: a aprovação é DERIVADA dos pedidos (situacaoDaAtividade), não a coluna status; a conta é feita no Worker.
+    db.prepare(`SELECT r.id, r.status, r.reaberta_em, (r.base_legal_id IS NULL AND trim(COALESCE(r.legal_basis, '')) = '' AND trim(COALESCE(r.base_gdpr, '')) = ''
               AND NOT EXISTS (SELECT 1 FROM tratamento_bases b WHERE b.ropa_id = r.id AND b.project_id = r.project_id)) AS sem_base
-              FROM ropa_records r WHERE r.project_id = ?1 AND COALESCE(r.status, '') <> 'Inactive')`).bind(projectId),
+              FROM ropa_records r WHERE r.project_id = ?1 AND COALESCE(r.status, '') <> 'Inactive'`).bind(projectId),
     // RIPD exigidos: aprovado / existe e não aprovado / não existe.
     db.prepare(`SELECT sum(CASE WHEN aprovado THEN 1 ELSE 0 END) AS feito, sum(CASE WHEN existe AND NOT aprovado THEN 1 ELSE 0 END) AS andamento,
         sum(CASE WHEN existe THEN 0 ELSE 1 END) AS falta
@@ -201,11 +200,19 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
   ]);
   const [ativ, ripd, lias, pedidos90, incidentes12, evid, ciclo, semana, mapa] = respostas.slice(consultas.length);
   const um = (r: D1Result) => r.results[0] as Contagem | undefined;
+  const linhasAtiv = ativ.results as { id: string; status: string | null; reaberta_em: string | null; sem_base: number }[];
+  const contaAtiv = { feito: 0, andamento: 0, falta: 0 };
+  for (const r of linhasAtiv) {
+    const s = situacaoDaAtividade({ status: r.status, reaberta_em: r.reaberta_em, aprovacao: aprovacoes.get(r.id) ?? null, aprovacao_anterior: null });
+    if (s.codigo === 'aprovada') contaAtiv.feito++;
+    else if (r.status === 'Draft' || r.sem_base) contaAtiv.falta++;
+    else contaAtiv.andamento++;
+  }
   const linhasLia = lias.results as { legal_basis: string | null; base_titulo: string | null; base_gdpr: string | null; adicionais: string | null; lia: string | null }[];
   const exigidas = linhasLia.filter((l) => ehLegitimoInteresse(l.base_titulo, l.legal_basis, l.adicionais, l.base_gdpr));
   const te = visao.terceiros;
   const cobertura: Tema[] = [
-    tema('Atividades (RoPA)', um(ativ), 'aprovadas / em revisão ou ativas sem aprovação / rascunho ou sem base legal'),
+    tema('Atividades (RoPA)', contaAtiv, 'aprovadas / em revisão ou ativas sem aprovação / rascunho ou sem base legal'),
     tema('RIPD exigidos', um(ripd), 'aprovados / em elaboração ou revisão / não iniciados'),
     tema('LIA exigidas', { feito: exigidas.filter((l) => l.lia === 'concluida').length, andamento: exigidas.filter((l) => l.lia === 'rascunho').length, falta: exigidas.filter((l) => !l.lia).length },
       'concluídas / em rascunho / não iniciadas'),
@@ -230,8 +237,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     const idx = 11 - Math.floor(diasAte(dia, d) / 7);
     if (idx >= 0 && idx < 12) pedidosSemana[idx] += 1;
   }
-  const atividades = um(ativ);
-  const totalAtiv = (atividades?.feito ?? 0) + (atividades?.andamento ?? 0) + (atividades?.falta ?? 0);
+  const totalAtiv = contaAtiv.feito + contaAtiv.andamento + contaAtiv.falta;
   const lg = visao.lgpd;
   const encarregados = visao.encarregados;
   const comecando = visao.tratamentos.total === 0;
@@ -241,7 +247,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     cobertura, vencimentos: v.linhas, proximo: v.proximo, pedidos_semana: pedidosSemana,
     riscos: mapa.results as Celula[], acoes_por_prazo: visao.acoes_por_prazo,
     numeros: [
-      [`${atividades?.feito ?? 0} de ${totalAtiv}`, 'atividades aprovadas'],
+      [`${contaAtiv.feito} de ${totalAtiv}`, 'atividades aprovadas'],
       [String(visao.pedidos_titular.atrasados), 'pedidos atrasados'],
       lg.carregada ? [`${lg.cobertos ?? 0} de ${lg.total ?? 0}`, 'artigos da LGPD cobertos'] : [String(te.vencidos), 'terceiros vencidos'],
     ] as [string, string][],

@@ -3,7 +3,7 @@ import { rotuloDe } from '../rotulos.js';
 import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, showToast, formatarData } from '../ui.js';
 import { nivelDaNota } from '../nivel-risco.js';
-import { abrirTratarRisco } from '../atividade/aba-riscos.js';
+import { abrirTratarRisco, ESTRATEGIA_ROTULO, tratado } from '../atividade/aba-riscos.js';
 import { podeEditar } from './partes.js';
 import { montarLista, colunasDe } from '../lista.js';
 
@@ -69,10 +69,11 @@ function montarVistaLista(alvo) {
     montarLista(alvo, {
         id: 'mr',
         linhas: r,
-        colunas: colunasDe(['Atividade', 'Motivo', 'Risco', 'Responsável', 'Prazo', 'Status', 'Ações'], (x) => [
+        colunas: colunasDe(['Atividade', 'Motivo', 'Risco', 'Estratégia', 'Responsável', 'Prazo', 'Status', 'Ações'], (x) => [
             escapeHTML(x.atividade || '—'),
             `<strong>${escapeHTML(x.threat)}</strong>`,
             rotuloNivel(x.risk_level),
+            tratado({ ...x, treatment_due_date: x.prazo }) ? escapeHTML(ESTRATEGIA_ROTULO[x.treatment] || x.treatment || '—') : '—',
             escapeHTML(x.responsavel || '—'),
             escapeHTML(formatarData(x.prazo)),
             escapeHTML(rotuloDe('', x.status)),

@@ -2,9 +2,8 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { montarLista, colunasDe } from '../lista.js';
 import { escapeHTML, formatarData, showToast, tituloDaTela } from '../ui.js';
-import { STATUS, abrirGapDaAtividade } from '../atividade/aba-gaps.js';
+import { STATUS, abrirGapDaAtividade, emAtraso } from '../atividade/aba-gaps.js';
 import { podeEditar } from './partes.js';
-import { hojeSP } from '../hoje.js';
 
 // Gestão de GAPs do projeto (n.privacy, spec 2026-10-19): a lista do legado sobre `GET /projects/:id/ropa/gaps` (as ações das
 // atividades, o mesmo cadastro da aba Controle de GAPs). Busca, Status, contagem e exportar pelo componente de lista; "Em atraso" é derivado (prazo passado e não
@@ -16,8 +15,7 @@ const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 
-/** Prazo antes de hoje (AAAA-MM-DD) e gap não concluído. */
-export const emAtraso = (g) => g.status !== 'Closed' && !!g.prazo && String(g.prazo).slice(0, 10) < hojeSP();
+export { emAtraso };
 const rotuloStatus = (g) => (emAtraso(g) ? 'Em atraso' : ROTULO_STATUS[g.status] || g.status);
 
 let daLista = null;
@@ -55,7 +53,8 @@ async function renderGaps(c, h, a) {
         busca: (g) => [g.titulo, g.atividade, g.area, g.responsavel].join(' '),
         buscaDica: 'Gap, atividade, área ou responsável',
         // O status é o que a coluna mostra: o gap aberto com prazo vencido está em "Em atraso".
-        filtros: [{ chave: 'status', rotulo: 'Status', valor: (g) => (emAtraso(g) ? ATRASO : g.status), opcoes: [...STATUS, [ATRASO, 'Em atraso']] }],
+        filtros: [{ chave: 'area', rotulo: 'Área', valor: (g) => String(g.area || '').split(', ').filter(Boolean) },
+            { chave: 'status', rotulo: 'Status', valor: (g) => (emAtraso(g) ? ATRASO : g.status), opcoes: [...STATUS, [ATRASO, 'Em atraso']] }],
         exportar: { caminho: `/api/v1/projects/${proj.id}/export/acoes-atividade`, rotulo: 'Exportar' },
     });
 }

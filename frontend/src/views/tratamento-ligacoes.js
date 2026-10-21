@@ -50,6 +50,7 @@ export function formularioLia(lia, projectId, ropaId, primaria = true) {
             ${travado ? `<button class="btn btn-sm" data-action="reabrirLiaTratamento" data-args='${args(projectId, ropaId)}'>Reabrir para editar</button>`
                 : `<button class="btn btn-sm" data-action="salvarLiaTratamento" data-args='${args(projectId, ropaId, false)}'>Salvar rascunho</button>
                    <button class="btn ${primaria ? 'btn-primary ' : ''}btn-sm" data-action="salvarLiaTratamento" data-args='${args(projectId, ropaId, true)}'>Concluir</button>`}
+            ${lia ? `<button class="btn btn-sm" data-action="baixarWordLia" data-args='${args(projectId, ropaId)}'>Baixar Word</button>` : ''}
         </div></div>`;
 }
 

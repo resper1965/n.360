@@ -29,7 +29,7 @@ const dataBr = (d) => (d ? escapeHTML(formatarData(String(d).slice(0, 10))) : '<
 const norm = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 /** O legado deixa Estratégia, Risco residual e Prazo vazios até "Tratar". O servidor grava Mitigar como padrão, então só conta como tratado o que tem sinal de tratamento. */
-const tratado = (r) => !!(r.treatment_due_date || r.residual_level || (r.residual_impact && r.residual_probability) || (r.treatment && r.treatment !== 'Mitigate'));
+export const tratado = (r) => !!(r.treatment_due_date || r.residual_level || (r.residual_impact && r.residual_probability) || (r.treatment && r.treatment !== 'Mitigate'));
 
 async function carregar() {
     const c = R.ctx;

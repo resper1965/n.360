@@ -13,7 +13,8 @@ const linha = (m, editavel) => `<li class="at-item" data-id="${escapeHTML(m.id)}
         <p class="at-nota">Status: ${escapeHTML(ROTULO_STATUS[m.status] || m.status)}${m.descricao ? `. ${escapeHTML(m.descricao)}` : ''}</p>
         ${m.controle ? `<p class="at-nota">Ligada ao controle: ${escapeHTML(m.controle.titulo)}.</p>` : ''}
         ${m.controle_deixou_de_estar_implementado ? '<p class="at-nota"><strong>O controle deixou de estar implementado: revise esta medida.</strong></p>' : ''}</div>
-    ${editavel ? `<button type="button" class="btn btn-ghost btn-sm" data-excluir="${escapeHTML(m.id)}" aria-label="Excluir a medida ${escapeHTML(m.medida)}">Excluir</button>` : ''}</li>`;
+    ${editavel ? `<button type="button" class="btn btn-ghost btn-sm" data-editar="${escapeHTML(m.id)}" aria-label="Editar a medida ${escapeHTML(m.medida)}">Editar</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-excluir="${escapeHTML(m.id)}" aria-label="Excluir a medida ${escapeHTML(m.medida)}">Excluir</button>` : ''}</li>`;
 
 export async function montar(painel, ctx) {
     const { projectId: pid, ropaId: rid, editavel, ficha } = ctx;
@@ -33,32 +34,33 @@ export async function montar(painel, ctx) {
         try { await api('DELETE', url(pid, rid, `/medidas/${b.dataset.excluir}`)); } catch (e) { showToast((e && e.message) || 'Não foi possível excluir.', 'error'); return; }
         await montar(painel, ctx);
     }));
+    painel.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () => abrirModal({ pid, rid, ficha, aoGravar: () => montar(painel, ctx), medida: medidas.find((m) => m.id === b.dataset.editar) })));
     const abrir = painel.querySelector('#at-nova-medida');
     if (abrir) abrir.addEventListener('click', () => abrirModal({ pid, rid, ficha, aoGravar: () => montar(painel, ctx) }));
 }
 
-async function abrirModal({ pid, rid, ficha, aoGravar }) {
-    const comIso = !!(ficha && ficha.modulos && ficha.modulos.iso);
+async function abrirModal({ pid, rid, ficha, aoGravar, medida: editando }) {
+    const comIso = !editando && !!(ficha && ficha.modulos && ficha.modulos.iso); // o controle não muda na edição
     let sugestoes = []; let controles = [];
     try { sugestoes = lista(await api('GET', url(pid, rid, '/medidas/sugestoes'))); } catch (e) { /* sem sugestões */ }
     if (comIso) { try { controles = lista(await api('GET', url(pid, rid, '/medidas/controles'))); } catch (e) { /* sem controles */ } }
     const nomeDe = (s) => (typeof s === 'string' ? s : s && (s.medida || s.nome)) || '';
-    openModal(`<h2 class="modal-title">Medidas de Segurança</h2>
+    openModal(`<h2 class="modal-title">${editando ? 'Editar medida' : 'Medidas de Segurança'}</h2>
         ${comIso ? `<div class="form-group"><label class="form-label" for="at-m-controle">Ligar a um controle implementado</label>
             <select class="form-input" id="at-m-controle" aria-describedby="at-m-controle-ajuda"><option value="">Não ligar a um controle</option>${controles.map((c) => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.titulo)}</option>`).join('')}</select>
             <p class="at-ajuda" id="at-m-controle-ajuda">${controles.length ? 'Ao escolher, a medida e o status vêm do controle.' : 'Nenhum controle está implementado neste projeto ainda.'}</p></div>` : ''}
         <div class="form-group"><label class="form-label" for="at-m-medida">Medida (obrigatório)</label>
-            <input class="form-input" id="at-m-medida" maxlength="200" list="at-m-sugestoes" autocomplete="off" aria-describedby="at-m-medida-ajuda">
+            <input class="form-input" id="at-m-medida" maxlength="200" value="${escapeHTML(editando ? editando.medida : '')}" list="at-m-sugestoes" autocomplete="off" aria-describedby="at-m-medida-ajuda">
             <datalist id="at-m-sugestoes">${sugestoes.map((s) => `<option value="${escapeHTML(nomeDe(s))}"></option>`).join('')}</datalist>
             <p class="at-ajuda" id="at-m-medida-ajuda">Descreva a medida em poucas palavras${sugestoes.length ? ' ou escolha uma já usada neste projeto' : ''}.</p></div>
-        ${campo({ id: 'at-m-status', rotulo: 'Status', obrigatorio: true, tipo: 'select', opcoes: [['', 'Selecione o status'], ...STATUS_MEDIDA], valor: '' })}
-        ${campo({ id: 'at-m-descricao', rotulo: 'Descrição', tipo: 'textarea', max: 2000, ajuda: 'Opcional. Explique como a medida funciona na prática.' })}
+        ${campo({ id: 'at-m-status', rotulo: 'Status', obrigatorio: true, tipo: 'select', opcoes: [['', 'Selecione o status'], ...STATUS_MEDIDA], valor: editando ? editando.status : '' })}
+        ${campo({ id: 'at-m-descricao', rotulo: 'Descrição', tipo: 'textarea', max: 2000, valor: editando ? editando.descricao || '' : '', ajuda: 'Opcional. Explique como a medida funciona na prática.' })}
         <div class="at-acoes"><button type="button" class="btn" data-action="forceCloseModal">Cancelar</button>
-            <button type="button" class="btn btn-primary" id="at-m-adicionar" disabled>Adicionar</button></div>`);
+            <button type="button" class="btn btn-primary" id="${editando ? 'at-m-salvar' : 'at-m-adicionar'}"${editando ? '' : ' disabled'}>${editando ? 'Salvar' : 'Adicionar'}</button></div>`);
     const raiz = document.getElementById('modal-content');
     const medida = raiz.querySelector('#at-m-medida');
     const status = raiz.querySelector('#at-m-status');
-    const botao = raiz.querySelector('#at-m-adicionar');
+    const botao = raiz.querySelector('#at-m-adicionar, #at-m-salvar');
     const ctl = raiz.querySelector('#at-m-controle');
     const atualizar = () => { botao.disabled = !(medida.value.trim() && status.value); };
     medida.addEventListener('input', atualizar);
@@ -72,10 +74,10 @@ async function abrirModal({ pid, rid, ficha, aoGravar }) {
     botao.addEventListener('click', async () => {
         const corpo = { medida: medida.value.trim(), status: status.value };
         const d = raiz.querySelector('#at-m-descricao').value.trim();
-        if (d) corpo.descricao = d;
+        if (editando) corpo.descricao = d || null; else if (d) corpo.descricao = d;
         if (ctl && ctl.value) corpo.controle_id = ctl.value;
         botao.disabled = true;
-        try { await api('POST', url(pid, rid, '/medidas'), corpo); } catch (e) { showToast((e && e.message) || 'Não foi possível adicionar a medida.', 'error'); botao.disabled = false; return; }
+        try { await (editando ? api('PUT', url(pid, rid, `/medidas/${editando.id}`), corpo) : api('POST', url(pid, rid, '/medidas'), corpo)); } catch (e) { showToast((e && e.message) || (editando ? 'Não foi possível salvar a medida.' : 'Não foi possível adicionar a medida.'), 'error'); botao.disabled = false; return; }
         forceCloseModal();
         await aoGravar();
     });

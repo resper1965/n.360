@@ -10,6 +10,10 @@ import { montarLista, colunasDe } from '../lista.js';
 import './atividade.js';
 import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, camposDaBase, idsDoCatalogo } from '../bases-legais.js';
 
+    // Áreas de uma atividade ("Comercial, Gestão"): o filtro Área do RoPA e do RIPD casa cada uma.
+    const areasDe = (r) => String(r.area || '').split(', ').filter(Boolean);
+    const filtroArea = { chave: 'area', rotulo: 'Área', valor: areasDe };
+
     // Base legal: as listas e a coerência texto/catálogo vivem em bases-legais.js (as ligações e a entrevista usam as mesmas).
     let catalogoBases = new Set();
     function opcoesBase(atual) {
@@ -107,11 +111,12 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         ]);
 
         // n.privacy: a lista mostra o que a atividade é e em que pé está; titulares, retenção e RIPD vivem nas abas.
-        const colunas = comPrivacy ? ['Atividade', 'Base legal', 'Situação', 'Ações'] : ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Situação', 'Ações'];
+        const colunas = comPrivacy ? ['Atividade', 'Área', 'Responsável', 'Base legal', 'Situação', 'Ações'] : ['Finalidade do tratamento', 'Base legal', 'Titulares', 'Retenção', 'Exige RIPD', 'Situação', 'Ações'];
         const celulas = (r) => {
             const statusType = r.status === 'Active' || !r.status ? 'success' : 'info';
             return [
                 `<strong${cancelada(r) ? ' class="at-esmaecida"' : ''}>${escapeHTML(r.nome || r.processing_purpose)}</strong>${Array.isArray(r.nao_informado) && r.nao_informado.length ? ` ${window.renderStatusBadge('Importado: revisar', 'warning')}` : ''}`,
+                ...(comPrivacy ? [escapeHTML(r.area || '—'), escapeHTML(r.owner_parte_nome || '—')] : []),
                 escapeHTML(rotuloBase(r.legal_basis) || (comPrivacy ? 'Não informada' : 'N/A')),
                 ...(comPrivacy ? [] : [
                     escapeHTML(r.data_subjects || 'N/A'),
@@ -135,6 +140,12 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             id: 'ropa',
             linhas: records,
             colunas: colunasDe(colunas, celulas),
+            ...(comPrivacy && records.length ? {
+                busca: (r) => `${r.nome || ''} ${r.processing_purpose || ''}`,
+                buscaDica: 'Atividade',
+                filtros: [filtroArea, { chave: 'situacao', rotulo: 'Situação', valor: (r) => r.situacao?.codigo,
+                    opcoes: [['rascunho', 'Rascunho'], ['em_revisao', 'Em Revisão'], ['aprovada', 'Aprovada'], ['cancelada', 'Cancelada']] }],
+            } : {}),
             vazio: {
                 titulo: comPrivacy ? 'Nenhuma atividade de tratamento registrada.' : 'O inventário de tratamentos (art. 37) está vazio.',
                 dica: comPrivacy ? 'O inventário (art. 37 da LGPD) começa pela primeira atividade. Crie uma ou importe a planilha que o cliente já tem.' : 'Registre a primeira atividade ou importe a planilha que o cliente já tem.',
@@ -418,6 +429,8 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         const statusType = dp.status === 'Approved' ? 'success' : dp.status === 'Under Review' ? 'warning' : 'info';
         return [
             escapeHTML(dp.atividade || '—'),
+            escapeHTML(dp.area || '—'),
+            escapeHTML(dp.responsavel || '—'),
             `<strong>${escapeHTML(dp.system_name)}</strong>`,
             escapeHTML(dp.data_subjects_types || 'N/A'),
             escapeHTML(dp.personal_data_categories || 'N/A'),
@@ -477,10 +490,12 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         montarLista(c.querySelector('#ripd-lista'), {
             id: 'ripd',
             linhas: assessments,
-            colunas: colunasDe(['Atividade', 'Sistema ou operação', 'Titulares', 'Categorias de dados', 'Risco residual', 'Status', 'Ações'], celulasRipd(proj.id)),
+            colunas: colunasDe(['Atividade', 'Área', 'Responsável', 'Sistema ou operação', 'Titulares', 'Categorias de dados', 'Risco residual', 'Status', 'Ações'], celulasRipd(proj.id)),
             // Sem RIPD, sem filtro nem exportar: o vazio diz o que fazer.
             ...(assessments.length ? {
-                filtros: [{ chave: 'status', rotulo: 'Status', valor: (dp) => dp.status || 'Draft', opcoes: Object.entries(STATUS_RIPD) }],
+                busca: (dp) => `${dp.atividade || ''} ${dp.system_name || ''}`,
+                buscaDica: 'Atividade ou sistema',
+                filtros: [filtroArea, { chave: 'status', rotulo: 'Status', valor: (dp) => dp.status || 'Draft', opcoes: Object.entries(STATUS_RIPD) }],
                 exportar: { caminho: `/api/v1/projects/${proj.id}/export/ripd` },
             } : {}),
             vazio: vazioRipd,

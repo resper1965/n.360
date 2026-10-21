@@ -28,6 +28,7 @@ async function renderAreas(c, h, a) {
     montarLista(c, {
         id: 'areas',
         linhas: areas,
+        ...(areas.length ? { busca: (d) => `${d.nome || ''} ${d.descricao || ''}`, buscaDica: 'Área ou descrição' } : {}),
         colunas: colunasDe(editar ? ['Área', 'Empresa', 'Ações'] : ['Área', 'Empresa'], (d) => {
             const ativa = d.status === 'ativo';
             const linha = [

@@ -28,7 +28,20 @@ describe('lista', () => {
     expect(itens[0].textContent).toContain('Status: Ativa');
     expect(itens[0].textContent).toContain('Cada pessoa vê só o seu setor.');
     expect(itens[1].textContent).toContain('Status: Planejada');
-    expect(itens[0].querySelector('button').getAttribute('aria-label')).toBe('Excluir a medida Controle de acesso por perfil');
+    expect(itens[0].querySelector('[data-excluir]').getAttribute('aria-label')).toBe('Excluir a medida Controle de acesso por perfil');
+  });
+
+  it('editar abre o modal preenchido e grava por PUT só o que mudou', async () => {
+    const f = await abrir(renderAtividade, base([M()], { [`PUT ${B}/medidas/m1`]: { ok: true } }));
+    document.querySelector('[data-editar="m1"]').click();
+    await esperar(() => expect(el('at-m-salvar')).not.toBeNull());
+    expect(el('at-m-medida').value).toBe('Controle de acesso por perfil');
+    expect(el('at-m-status').value).toBe('ativa');
+    el('at-m-status').value = 'planejada';
+    el('at-m-status').dispatchEvent(new Event('change'));
+    el('at-m-salvar').click();
+    await esperar(() => expect(chamadas(f)).toContain(`PUT ${B}/medidas/m1`));
+    expect(corpoDe(f, `PUT ${B}/medidas/m1`)).toEqual({ medida: 'Controle de acesso por perfil', status: 'planejada', descricao: 'Cada pessoa vê só o seu setor.' });
   });
 
   it('excluir pede confirmação e só então chama DELETE', async () => {
