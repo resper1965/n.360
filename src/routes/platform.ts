@@ -433,7 +433,7 @@ platformApp.get('/client/dashboard', async (c) => {
 
     // Fases e controles são do n.iso: sem o módulo no projeto ou na pessoa, vêm vazios.
     const semIso = await recusaDoModulo(c.env.DB, user, user.client_project_id, 'iso');
-    const vazio = { results: [] as any[] };
+    const vazio = { results: [] as Record<string, unknown>[] };
     const [phases, controls] = semIso ? [vazio, vazio] : await Promise.all([
       c.env.DB.prepare('SELECT * FROM project_phases WHERE project_id = ? ORDER BY phase_number ASC').bind(user.client_project_id).all(),
       c.env.DB.prepare('SELECT * FROM compliance_controls WHERE project_id = ?').bind(user.client_project_id).all()

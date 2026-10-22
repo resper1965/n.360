@@ -42,6 +42,8 @@ describe('semRastroDeAssinatura', () => {
 
 describe('leituras JSON sem IP/UA de assinatura', () => {
   it('controle: lista global, lista do projeto, política, painel do cliente e pacote de auditoria', async () => {
+    // Conta de verdade: o gatilho dá a ela os módulos do projeto (o painel do cliente só traz controles com o n.iso).
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES ('u-cli', 'cli@x.test', 'x', 'Cli', 'client', ?)`).bind(PROJ).run();
     const cliente = await sessionFor({ id: 'u-cli', email: 'cli@x.test', role: 'client', client_project_id: PROJ });
     const dash = await worker.fetch(new Request('http://localhost/api/v1/client/dashboard', { headers: cliente }), { ...env, AI: { run: async () => ({}) } } as any);
     expect(dash.status).toBe(200);
