@@ -51,20 +51,21 @@ export function emailRedefinicaoSenha(d: { nome: string | null; codigo: string }
 }
 
 /** Aviso ao dono da conta: outra pessoa (quem gere a conta) definiu a senha dele. Nunca leva a senha. */
-export function emailSenhaDefinidaPorOutro(d: { nome: string | null; quem: Pessoa; url: string }): EmailComAssunto {
-  return com('A senha da sua conta no n.360 foi definida por outra pessoa', {
-    previa: 'Entre e crie uma senha sua: até lá, a sua conta não aprova nem assina nada.',
-    titulo: 'Sua senha foi definida por outra pessoa',
+export function emailSenhaDefinidaPorOutro(d: { nome: string | null; quem: Pessoa; url: string; link: string | null; horas: number }): EmailComAssunto {
+  return com('Crie uma senha nova para a sua conta no n.360', {
+    previa: 'A senha anterior deixou de valer. Crie a sua pelo link deste e-mail.',
+    titulo: 'Crie uma senha nova',
     saudacao: ola(d.nome),
     paragrafos: [
-      'Quem gere a sua conta no n.360 definiu uma senha nova para ela. Como essa pessoa conhece a senha, o n.360 pede que você crie uma senha sua no próximo acesso.',
-      'Até a troca, a sua conta não aprova pedidos nem assina documentos, evidências ou registros.',
+      'Quem gere a sua conta no n.360 pediu a redefinição da sua senha. A senha anterior deixou de valer e as sessões abertas foram encerradas.',
+      'Ninguém mais conhece a senha nova: só você a cria, pelo link abaixo.',
     ],
     quemPede: d.quem,
-    acao: 'Entrar no n.360 com a senha recebida e criar uma senha sua',
-    botao: { rotulo: 'Entrar no n.360', url: d.url },
-    notas: ['Se você não esperava esta mudança, fale com quem gere a sua conta antes de entrar.'],
-    motivo: 'a senha da conta com este endereço foi definida por outra pessoa no n.360.',
+    acao: d.link ? 'Abrir o link abaixo e criar a sua senha' : 'Entrar com o login único (SSO) da sua empresa, usando este e-mail',
+    prazo: d.link ? `${d.horas} horas a partir do envio deste e-mail` : null,
+    botao: d.link ? { rotulo: 'Criar minha senha', url: d.link } : { rotulo: 'Entrar no n.360', url: d.url },
+    notas: ['O link é pessoal e vale uma vez: não encaminhe este e-mail. Se você não esperava esta mudança, fale com quem gere a sua conta.'],
+    motivo: 'a senha da conta com este endereço foi redefinida por outra pessoa no n.360.',
     contato: d.quem.email ? d.quem : null,
   });
 }

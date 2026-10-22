@@ -140,8 +140,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   todo `UPDATE pedido_destinatarios` leva `status = 'pendente'` na WHERE do
   proprio statement (a unica excecao e `UPDATE pedidos SET org_id = ?`), sem
   DELETE nem REPLACE; `test/pedidos-prova.test.ts` le o fonte e reprova o que
-  fugir disso. Correcao e pedido novo. Conta com `requires_password_change = 1` (senha definida por outra pessoa no
-  `PUT /users/:id`) nao aprova nem assina ate trocar a senha (`recusaSenhaDeOutro` em `src/helpers.ts`, nos pedidos, no lote e
+  fugir disso. Correcao e pedido novo. Ninguem define a senha de outra pessoa: no `PUT /users/:id` o gestor so pede a redefinicao
+  (`redefinir_senha`; `password` de outro e ignorado), a senha vira `SEM_SENHA` e o link de criar senha vai ao e-mail da conta; o
+  e-mail de outra conta so o `platform_admin` troca. Conta com `requires_password_change = 1` nao aprova nem assina ate trocar a senha (`recusaSenhaDeOutro` em `src/helpers.ts`, nos pedidos, no lote e
   nas assinaturas diretas). A linha de quem assina na governanca (`linhaDeAssinatura`: Direcao, Lider SGSI/CISO, DPO/encarregado)
   so o `org_admin` do proprio projeto cria, altera ou remove (`podeMexerEmAssinatura`), tambem pela parte encarregada.
 - **E-mail do pedido de aprovacao**: `POST /api/v1/projects/:projectId/pedidos` com papel `ciso`/`ceo` manda a cada destinatario, uma vez, o
@@ -169,7 +170,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `enviarBoasVindas` (`src/routes/users.ts`) emite o convite (`src/services/convite.ts`: `genToken`, so o SHA-256 em `convites_senha`, 72 h,
   uma linha por conta) e o e-mail leva `appUrl/#convite=<token>` (fragmento) e nunca senha. A tela (`consumirConvite`/`doCriarSenha` em
   `frontend/src/globals.js`, caixa `criar-senha-box` em `login.html`) manda o token no CORPO de `POST /api/v1/auth/criar-senha` (publico,
-  10 por IP a cada 10 min, `criarSenhaSchema` com a politica de senha de sempre) e entra pelo login normal. Uso unico pelo `DELETE ... RETURNING`;
+  10 por IP a cada 10 min, `criarSenhaSchema` com a politica de senha de sempre) e entra pelo login normal. O "Esqueci a senha" tem um
+  codigo de 6 digitos por conta (`reset_conta:<id>` no KV; o novo substitui o anterior), pedido no maximo 5 vezes por hora por conta, e
+  `POST /auth/reset-password` exige e-mail e codigo, com 5 tentativas por hora por conta (`rateLimitD1`), de qualquer IP. Uso unico pelo `DELETE ... RETURNING`;
   reenviar (`POST /users/:id/reenviar-convite`, quem gere a conta, 5/h por conta, so com primeiro acesso pendente) substitui a linha e
   invalida o link anterior. Token desconhecido, vencido, usado, substituido, de conta desativada ou de SSO/SCIM: a MESMA resposta 400.
   Dominio de e-mail com SSO ativo (`configPorDominio`) nao ganha link. `password` no `POST /users` e aceito e IGNORADO. Trilha

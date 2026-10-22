@@ -41,7 +41,9 @@ const trilha = async () => (await env.DB.prepare(`SELECT details FROM audit_logs
 
 describe('M4 — contas de colegas', () => {
   it('a trilha da edição lista os campos que mudaram com antes e depois; a senha, sem valor', async () => {
-    const res = await chamar('PUT', '/api/v1/users/u-cb', S.ab, { name: 'Novo Nome', email: 'cb2@b.lat', password: NOVA, role: 'comercial' });
+    // E-mail de outra conta só o platform_admin troca (é por ele que a senha se recupera).
+    expect((await chamar('PUT', '/api/v1/users/u-cb', S.ab, { email: 'cb2@b.lat' })).status).toBe(403);
+    const res = await chamar('PUT', '/api/v1/users/u-cb', S.pa, { name: 'Novo Nome', email: 'cb2@b.lat', password: NOVA, role: 'comercial' });
     expect(res.status, await res.clone().text()).toBe(200);
     const { results } = await env.DB.prepare(`SELECT field, new_value, details FROM audit_logs WHERE action = 'user.updated' AND entity_id = 'u-cb'`).all<any>();
     expect(results.map((r) => r.field).filter(Boolean).sort()).toEqual(['email', 'name', 'role']);

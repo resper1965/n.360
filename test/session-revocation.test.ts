@@ -115,7 +115,7 @@ describe('Revogação de sessão', () => {
       new Request('http://localhost/api/v1/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: reset_token, newPassword: 'novaSenha123' }),
+        body: JSON.stringify({ email: 'alvo@ness.io', token: reset_token, newPassword: 'novaSenha123' }),
       }),
       env as any
     );

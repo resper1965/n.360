@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { emailRedefinicaoSenha } from '../services/emails';
-import { genId, genToken, genNumericCode, rateLimit, rateLimitD1, hashPassword, verifyPassword, logAudit, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, SESSION_TTL_SEC, erro500, comercialAtivo } from '../helpers';
+import { genId, genToken, genNumericCode, rateLimit, rateLimitD1, hashPassword, verifyPassword, logAudit, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, SESSION_TTL_SEC, erro500, comercialAtivo, constantTimeEqual } from '../helpers';
 import { equipeDeOrgSuspensa, ORG_SUSPENSA } from '../services/organizacao';
 
 /** IP do cliente para rate limiting (Cloudflare popula CF-Connecting-IP) */
@@ -349,14 +349,12 @@ authApp.post('/forgot-password', async (c) => {
       return c.json({ ok: true, message: 'Se o e-mail estiver cadastrado, um código foi gerado.' });
     }
 
-    // Garante unicidade do código enquanto ativo: sem isto, dois pedidos concorrentes
-    // com o mesmo código de 6 dígitos fariam o segundo sobrescrever o mapeamento de
-    // email do primeiro (permitindo reset da conta errada).
-    let token = genNumericCode(6);
-    for (let i = 0; i < 5 && (await c.env.SESSIONS.get(`reset_token:${token}`)); i++) {
-      token = genNumericCode(6);
+    // Um código ativo por conta (o novo substitui o anterior) e no máximo 5 pedidos por hora por conta, de qualquer IP.
+    if (!(await rateLimitD1(c.env.DB, `forgot:conta:${user.id}`, 5, 3600))) {
+      return c.json({ ok: true, message: 'Se o e-mail estiver cadastrado, um código foi gerado.' });
     }
-    await c.env.SESSIONS.put(`reset_token:${token}`, JSON.stringify({ email: user.email }), { expirationTtl: 3600 });
+    const token = genNumericCode(6);
+    await c.env.SESSIONS.put(`reset_conta:${user.id}`, JSON.stringify({ codigo: token }), { expirationTtl: 3600 });
 
     // O código NÃO vai para o log: com a observabilidade ligada, quem lê os logs
     // trocaria a senha de qualquer conta. Falha de envio é registrada no sendEmail.
@@ -383,35 +381,40 @@ authApp.post('/reset-password', async (c) => {
 
     const v = await validateBody(c, resetConfirmSchema);
     if (!v.success) return v.response;
-    const { token, newPassword } = v.data;
+    const { email: informado, token, newPassword } = v.data;
+    const INVALIDO = { error: 'Código de recuperação inválido ou expirado' };
 
-    const storedData = await c.env.SESSIONS.get(`reset_token:${token}`);
-    if (!storedData) {
-      return c.json({ error: 'Código de recuperação inválido ou expirado' }, 400);
+    // O código vale só para a conta do e-mail informado, e cada conta aceita 5 tentativas por hora, de qualquer IP:
+    // sem isso, 6 dígitos caem por força bruta distribuída.
+    const conta = await c.env.DB.prepare(
+      'SELECT id, email, password_hash, ativo FROM users WHERE lower(trim(email)) = ? ORDER BY email = ? DESC LIMIT 1'
+    ).bind(informado, informado).first<{ id: string; email: string; password_hash: string; ativo: number | null }>();
+    if (!conta) return c.json(INVALIDO, 400);
+    const chave = `reset_conta:${conta.id}`;
+    if (!(await rateLimitD1(c.env.DB, `reset:conta:${conta.id}`, 5, 3600))) {
+      await c.env.SESSIONS.delete(chave);
+      return c.json({ error: 'Muitas tentativas. Peça um código novo mais tarde.' }, 429);
     }
-
-    const { email } = JSON.parse(storedData);
+    const guardado = await c.env.SESSIONS.get(chave);
+    if (!guardado || !constantTimeEqual(String(JSON.parse(guardado).codigo), token)) return c.json(INVALIDO, 400);
     // O código pode ser de antes de a conta virar SSO/SCIM ou ser desativada.
-    const conta = await c.env.DB.prepare('SELECT password_hash, ativo FROM users WHERE email = ?').bind(email).first<{ password_hash: string; ativo: number | null }>();
-    if (!conta || semSenhaLocal(conta)) {
-      await c.env.SESSIONS.delete(`reset_token:${token}`);
-      return c.json({ error: 'Código de recuperação inválido ou expirado' }, 400);
+    if (semSenhaLocal(conta)) {
+      await c.env.SESSIONS.delete(chave);
+      return c.json(INVALIDO, 400);
     }
+    const email = conta.email;
     const newHash = await hashPassword(newPassword);
 
-    await c.env.DB.prepare('UPDATE users SET password_hash = ?, requires_password_change = 0 WHERE email = ?')
-      .bind(newHash, email).run();
+    await c.env.DB.prepare('UPDATE users SET password_hash = ?, requires_password_change = 0 WHERE id = ?')
+      .bind(newHash, conta.id).run();
 
     // Trocar a senha precisa derrubar as sessões abertas — é justamente o caso
     // de "minha conta foi comprometida". Sem isto, quem roubou a sessão continua
     // dentro por até 24h mesmo depois da troca.
-    const dono = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first<any>();
-    if (dono) {
-      await invalidateUserSessions(c.env.SESSIONS, dono.id);
-      await revogarAgentesPorTrocaDeSenha(c.env.DB, dono.id);
-    }
+    await invalidateUserSessions(c.env.SESSIONS, conta.id);
+    await revogarAgentesPorTrocaDeSenha(c.env.DB, conta.id);
 
-    await c.env.SESSIONS.delete(`reset_token:${token}`);
+    await c.env.SESSIONS.delete(chave);
 
     await logAudit(c.env.DB, 'auth.password_reset', email, 'Senha redefinida com sucesso via token de recuperação');
 

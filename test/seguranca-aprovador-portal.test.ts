@@ -62,42 +62,55 @@ describe('senha definida por outra pessoa', () => {
     return (await r.json()) as { id: string; hash: string };
   };
 
-  it('gestor define a senha: a conta troca no próximo acesso, recebe aviso e não aprova até trocar', async () => {
+  it('gestor não define a senha de outro: a atual deixa de valer e o link vai ao e-mail da conta', async () => {
+    const antes = (await env.DB.prepare('SELECT password_hash AS h FROM users WHERE id = ?').bind('sap-dir').first<{ h: string }>())!.h;
     const put = await chamar(adm, 'PUT', '/api/v1/users/sap-dir', { password: 'Senha-Do-Gestor-1' });
     expect(put.status, await put.clone().text()).toBe(200);
-    expect((await env.DB.prepare('SELECT requires_password_change AS r FROM users WHERE id = ?').bind('sap-dir').first<{ r: number }>())!.r).toBe(1);
+    const conta = (await env.DB.prepare('SELECT password_hash AS h, requires_password_change AS r FROM users WHERE id = ?').bind('sap-dir').first<{ h: string; r: number }>())!;
+    expect(conta.r).toBe(1);
+    expect(conta.h).not.toBe(antes);
+    // Nem a senha que o gestor mandou nem a antiga entram.
+    expect((await chamar({}, 'POST', '/api/v1/auth/login', { email: 'dir@cliente.lat', password: 'Senha-Do-Gestor-1' })).status).toBe(401);
+    expect((await chamar({}, 'POST', '/api/v1/auth/login', { email: 'dir@cliente.lat', password: SENHA })).status).toBe(401);
+
     const aviso = enviados.find((e) => e.to[0] === 'dir@cliente.lat')!;
-    expect(aviso.subject).toContain('definida por outra pessoa');
     expect(aviso.text).not.toContain('Senha-Do-Gestor-1');
     expect(aviso.reply_to).toBe('adm@ness.lat');
-
-    const login = await chamar({}, 'POST', '/api/v1/auth/login', { email: 'dir@cliente.lat', password: 'Senha-Do-Gestor-1' });
+    const token = /#convite=([0-9a-f]{64})/.exec(aviso.text)![1];
+    expect((await chamar({}, 'POST', '/api/v1/auth/criar-senha', { token, newPassword: 'Senha-Da-Dora-1' })).status).toBe(200);
+    const login = await chamar({}, 'POST', '/api/v1/auth/login', { email: 'dir@cliente.lat', password: 'Senha-Da-Dora-1' });
     expect(login.status, await login.clone().text()).toBe(200);
-    const { token, requiresPasswordChange } = (await login.json()) as { token: string; requiresPasswordChange: boolean };
-    expect(requiresPasswordChange).toBe(true);
-    const dir = { Authorization: `Bearer ${token}` };
-
+    const dir = { Authorization: `Bearer ${((await login.json()) as { token: string }).token}` };
     const p1 = await pedido('sap-dpia-a');
-    const negado = await chamar(dir, 'POST', `/api/v1/pedidos/${p1.id}/aprovar`, { senha: 'Senha-Do-Gestor-1' });
-    expect(negado.status).toBe(403);
-    expect(((await negado.json()) as { error: string }).error).toBe('Troque a senha definida por outra pessoa antes de aprovar.');
-    const lote = await chamar(dir, 'POST', '/api/v1/pedidos/lote', { senha: 'Senha-Do-Gestor-1', itens: [{ tipo: 'pedido', id: p1.id, hash_visto: p1.hash }] });
-    expect(lote.status).toBe(403);
-    const ripd = await chamar(dir, 'POST', `/api/v1/projects/${P}/dpia/sap-dpia-b/approve`, { role: 'ceo' });
-    expect(ripd.status).toBe(403);
-
-    const troca = await chamar(dir, 'POST', '/api/v1/auth/reset-password-first', { newPassword: 'Senha-Da-Dora-1' });
-    expect(troca.status, await troca.clone().text()).toBe(200);
     const ok = await chamar(dir, 'POST', `/api/v1/pedidos/${p1.id}/aprovar`, { senha: 'Senha-Da-Dora-1' });
     expect(ok.status, await ok.clone().text()).toBe(200);
   });
 
+  it('marca de senha de outro: aprovação recusada até a troca', async () => {
+    await env.DB.prepare('UPDATE users SET requires_password_change = 1, password_hash = ? WHERE id = ?').bind(await hashPassword(SENHA), 'sap-dir').run();
+    const dir = await sessionFor({ id: 'sap-dir', email: 'dir@cliente.lat', role: 'client', client_project_id: P, org_id: 'org_ness' });
+    const p1 = await pedido('sap-dpia-b');
+    const negado = await chamar(dir, 'POST', `/api/v1/pedidos/${p1.id}/aprovar`, { senha: SENHA });
+    expect(negado.status).toBe(403);
+    expect(((await negado.json()) as { error: string }).error).toBe('Troque a senha definida por outra pessoa antes de aprovar.');
+    expect((await chamar(dir, 'POST', '/api/v1/pedidos/lote', { senha: SENHA, itens: [{ tipo: 'pedido', id: p1.id, hash_visto: p1.hash }] })).status).toBe(403);
+    expect((await chamar(dir, 'POST', `/api/v1/projects/${P}/dpia/sap-dpia-b/approve`, { role: 'ceo' })).status).toBe(403);
+  });
+
+  it('gestor que não é da plataforma não troca o e-mail de outra conta', async () => {
+    const r = await chamar(orgAdmin, 'PUT', '/api/v1/users/sap-dir', { email: 'outro@atacante.lat' });
+    expect(r.status).toBe(403);
+    expect((await env.DB.prepare('SELECT email FROM users WHERE id = ?').bind('sap-dir').first<{ email: string }>())!.email).toBe('dir@cliente.lat');
+    // Mandar o mesmo e-mail (a tela manda sempre) não conta como troca.
+    expect((await chamar(orgAdmin, 'PUT', '/api/v1/users/sap-dir', { email: 'dir@cliente.lat', name: 'Dora' })).status).toBe(200);
+  });
+
   it('a própria pessoa trocando pela troca comum também libera', async () => {
-    await env.DB.prepare('UPDATE users SET requires_password_change = 1 WHERE id = ?').bind('sap-dir').run();
+    await env.DB.prepare('UPDATE users SET requires_password_change = 1, password_hash = ? WHERE id = ?').bind(await hashPassword(SENHA), 'sap-dir').run();
     const dir = await sessionFor({ id: 'sap-dir', email: 'dir@cliente.lat', role: 'client', client_project_id: P, org_id: 'org_ness' });
     const p = await pedido('sap-dpia-c');
-    expect((await chamar(dir, 'POST', `/api/v1/pedidos/${p.id}/aprovar`, { senha: 'Senha-Da-Dora-1' })).status).toBe(403);
-    const troca = await chamar(dir, 'POST', '/api/v1/auth/change-password', { oldPassword: 'Senha-Da-Dora-1', newPassword: 'Senha-Da-Dora-2' });
+    expect((await chamar(dir, 'POST', `/api/v1/pedidos/${p.id}/aprovar`, { senha: SENHA })).status).toBe(403);
+    const troca = await chamar(dir, 'POST', '/api/v1/auth/change-password', { oldPassword: SENHA, newPassword: 'Senha-Da-Dora-2' });
     expect(troca.status, await troca.clone().text()).toBe(200);
     const dir2 = await sessionFor({ id: 'sap-dir', email: 'dir@cliente.lat', role: 'client', client_project_id: P, org_id: 'org_ness' });
     const ok = await chamar(dir2, 'POST', `/api/v1/pedidos/${p.id}/aprovar`, { senha: 'Senha-Da-Dora-2' });

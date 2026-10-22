@@ -1763,8 +1763,8 @@ window.doForgotPasswordReset = async function() {
         }
         
         try {
-            await api('POST', '/api/v1/auth/reset-password', { token: code, newPassword: newPass });
             const email = document.getElementById('forgot-email').value;
+            await api('POST', '/api/v1/auth/reset-password', { email, token: code, newPassword: newPass });
             const res = await api('POST', '/api/v1/auth/login', { email, password: newPass });
             S.token = res.token; S.user = res.user;
             localStorage.setItem('niso_token', res.token);

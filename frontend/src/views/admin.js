@@ -440,10 +440,12 @@ window.__adminCopiarApiKey = () => {
                     <label class="form-label">E-mail</label>
                     <input type="email" id="user-m-email" class="form-input" value="${user ? escapeHTML(user.email) : ''}" placeholder="usuario@empresa.com" ${user && S.user?.role !== 'platform_admin' ? 'readonly style="opacity: 0.6"' : ''}>
                 </div>
-                ${user ? `<div class="form-group">
+                ${user ? (user.id === S.user?.id ? `<div class="form-group">
                     <label class="form-label" for="user-m-password">Senha (deixe em branco para manter a atual)</label>
                     <input type="password" id="user-m-password" class="form-input" placeholder="••••••••" autocomplete="new-password">
-                </div>` : '<p class="org-dica" id="user-m-convite-nota">A pessoa recebe um e-mail com o link para criar a própria senha (vale 72 horas). Ninguém mais conhece a senha.</p>'}
+                </div>` : `<div class="form-group">
+                    <label class="org-dica"><input type="checkbox" id="user-m-redefinir"> Redefinir a senha: a atual deixa de valer e a pessoa recebe um link para criar a dela (vale 72 horas)</label>
+                </div>`) : '<p class="org-dica" id="user-m-convite-nota">A pessoa recebe um e-mail com o link para criar a própria senha (vale 72 horas). Ninguém mais conhece a senha.</p>'}
                 <div class="form-group">
                     <label class="form-label">Papel</label>
                     <select id="user-m-role" class="form-input" data-action-change="toggleUserProjectSelect" data-arg-val>
@@ -512,6 +514,7 @@ window.__adminCopiarApiKey = () => {
         if (id && password) {
             payload.password = password;
         }
+        if (id && document.getElementById('user-m-redefinir')?.checked) payload.redefinir_senha = true;
         // Caixas de módulo (só as habilitadas, dentro do teto). Na criação vai `modulos` se marcou algum; na edição, o PUT
         // próprio depois do salvar e só se mudou.
         const caixas = [...document.querySelectorAll('.user-m-modulo:not(:disabled)')];
