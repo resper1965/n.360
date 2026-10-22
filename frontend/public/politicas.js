@@ -347,21 +347,20 @@ async function handleSignAck() {
   const doc = state.documents.find((d) => d.id === state.selectedId);
   if (!doc) return;
   try {
-    // Só o id: nome e e-mail são os da sessão (código por e-mail), o servidor não aceita outros.
+    // O id e a versão lida: nome e e-mail são os da sessão (código por e-mail), o servidor não aceita outros.
     const res = await fetch(`/api/v1/public/policies/ack?token=${state.token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ documento_id: doc.id })
+      body: JSON.stringify({ documento_id: doc.id, numero: doc.numero })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Não foi possível registrar a ciência.');
-
-    if (data.numero !== doc.numero) {
-      // Saiu versão nova entre a leitura e a confirmação: a ciência ficou na vigente de agora. Recarrega para ler.
+    if (res.status === 409) {
+      // Saiu versão nova entre a leitura e a confirmação: nada foi registrado. Recarrega para ler a nova.
       await loadPolicyList(doc.id);
-      aviso('reader-aviso', `O documento foi atualizado para a versão ${data.numero} enquanto você lia. A ciência ficou registrada nela: leia o texto novo.`, 'atencao');
+      aviso('reader-aviso', data.error || 'O documento foi atualizado enquanto você lia: leia o texto novo e confirme de novo.', 'atencao');
       return;
     }
+    if (!res.ok) throw new Error(data.error || 'Não foi possível registrar a ciência.');
     doc.ciencia = { numero: data.numero, em: data.acknowledged_at, atual: true };
     renderPolicyList(doc.id);
   } catch (err) {

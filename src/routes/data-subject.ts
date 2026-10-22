@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { logAudit } from '../helpers';
+import { logAudit, linhaDeAssinatura, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { validateBody, identificadorSchema } from '../schemas';
 import { localizarTitular, anonimizarTitular, ropaVencidos } from '../services/data-subject';
 
@@ -84,6 +84,18 @@ dataSubjectApp.post('/erase', async (c) => {
 
   const antes = await localizarTitular(c.env.DB, projectId, identificador);
   if (!antes.length) return c.json({ error: 'Nenhum registro encontrado para este titular neste projeto' }, 404);
+
+  // Linha de quem assina ou de consultor na governança não se anonimiza por aqui: seria mexer na matriz por um atalho. A pessoa sai
+  // da governança pela tela dela (a linha de assinatura, só o administrador do cliente) e depois o pedido é atendido.
+  const { results: linhas } = await c.env.DB.prepare(
+    'SELECT job_title, role_category FROM project_governance WHERE project_id = ? AND (lower(trim(email)) = lower(trim(?)) OR name = ?)'
+  ).bind(projectId, identificador, identificador).all<{ job_title: string | null; role_category: string | null }>();
+  if (linhas.some((g) => g.role_category === 'consultor')) {
+    return c.json({ error: 'A pessoa é consultora na governança do projeto: retire-a da governança antes de atender o pedido.' }, 409);
+  }
+  if (linhas.some(linhaDeAssinatura) && !podeMexerEmAssinatura(c.get('user'), projectId)) {
+    return c.json(RECUSA_LINHA_DE_ASSINATURA, 409);
+  }
 
   const afetados = await anonimizarTitular(c.env.DB, projectId, identificador);
   const total = Object.values(afetados).reduce((s, n) => s + n, 0);

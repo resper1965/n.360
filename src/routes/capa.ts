@@ -40,6 +40,10 @@ capaApp.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'corrective_actions', id, c.get('user'));
+    // Ação ou gap da atividade (n.privacy): apagar é ato humano, como nas sub-rotas da atividade, que estão em FORA_DO_AGENTE.
+    if (c.get('user')?.agente && (await c.env.DB.prepare('SELECT ropa_id FROM corrective_actions WHERE id = ?').bind(id).first<{ ropa_id: string | null }>())?.ropa_id) {
+      return c.json({ error: 'Forbidden: apagar ação ou gap da atividade é ato humano, pela interface' }, 403);
+    }
     await c.env.DB.prepare('DELETE FROM corrective_actions WHERE id = ?').bind(id).run();
     const user = c.get('user');
     await logAudit(c.env.DB, 'capa_deleted', user?.email || 'system', `CAPA ${id} deleted`);

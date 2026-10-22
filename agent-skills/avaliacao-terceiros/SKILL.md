@@ -35,8 +35,8 @@ description: Use ao avaliar terceiros que tratam dado pessoal para o cliente (TP
 | Passo | Lê | Propõe (depois do "sim") |
 |---|---|---|
 | 1. Quem são | `niso_privacy_terceiros`; operadores citados no bloco F dos tratamentos (`niso_privacy_ropa_detalhe`) | Organização que falta: cadastrar em Partes (pela interface) |
-| 2. Tipo | O que o terceiro faz, que dado recebe, de quantos titulares | `PUT /api/v1/projects/{p}/terceiros/{parteId}/tipo` com `{ "terceiro_tipo": ... }` via `niso_executar` |
-| 3. Avaliação | Evidências que o consultor trouxe (link do trust center, questionário respondido, relatório) | `POST /api/v1/projects/{p}/terceiros/{parteId}/avaliacoes` com `resultado`, `valido_ate`, `evidencia_url`, `observacao` |
+| 2. Tipo | O que o terceiro faz, que dado recebe, de quantos titulares | O tipo, no chat: a pessoa grava pela interface (criticidade ou tipo manual; o servidor recusa o agente) |
+| 3. Avaliação | Evidências que o consultor trouxe (link do trust center, questionário respondido, relatório) | `resultado`, `valido_ate`, link e observação, no chat: a pessoa registra a avaliação pela interface (o servidor recusa o agente) |
 | 4. DPA | `/documentos` (o contrato precisa existir como documento) | `POST /api/v1/projects/{p}/terceiros/{parteId}/documentos` com `{ "documento_id": ..., "papel": "dpa" }` |
 | 5. Fecho | `niso_privacy_terceiros` de novo | Lista de pendências para o consultor |
 

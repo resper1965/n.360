@@ -106,6 +106,9 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   // O agente propõe política (rascunho); publicar e descartar o rascunho é ato humano, pela interface (fatia 3.2).
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/versoes\/[^/]+\/publicar$/, 'publicar versão de documento é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/(controls\/[^/]+\/restore-version|policies\/generate-from-template)$/, 'restaurar versão e gerar política por modelo publicam o texto: ato humano, pela interface', ['POST']],
+  [/^\/api\/v1\/projects\/[^/]+\/data-subject\/erase$/, 'eliminar dado do titular é ato humano, pela interface', ['POST']],
+  // Tipo e avaliação do fornecedor definem o método de due diligence e a situação dele, como a criticidade: o agente só lê.
+  [/^\/api\/v1\/projects\/[^/]+\/terceiros\/[^/]+\/(tipo|avaliacoes)$/, 'tipo e avaliação do fornecedor são atos humanos, pela interface; o agente só lê', ['POST', 'PUT']],
   [/^\/api\/v1\/projects\/[^/]+\/policy-acknowledgments$/, 'ciência de política é registrada por uma pessoa, pela interface', ['POST', 'PUT']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/rascunho$/, 'descartar rascunho de documento é ato humano, pela interface', ['DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+$/, 'excluir documento é ato humano do administrador da plataforma, pela interface', ['DELETE']],

@@ -118,7 +118,10 @@ documentosApp.post('/documentos/:id/versoes/:numero/publicar', async (c) => {
     if (!Number.isInteger(numero) || numero < 1) return c.json({ error: 'Número de versão inválido' }, 400);
     const projectId = c.req.param('projectId')!;
     const ator = c.get('user').email;
-    const r = await publicarVersao(c.env.DB, projectId, c.req.param('id'), numero, ator);
+    // `?hash=` é o hash do rascunho que a pessoa revisou na tela: se o rascunho mudou depois, 409 e nada é publicado.
+    const hashVisto = c.req.query('hash');
+    if (hashVisto !== undefined && !/^[0-9a-f]{64}$/.test(hashVisto)) return c.json({ error: 'Hash inválido' }, 400);
+    const r = await publicarVersao(c.env.DB, projectId, c.req.param('id'), numero, ator, hashVisto);
     if (!r.ok) return c.json({ error: r.error }, r.status);
     // Versão nova vigente: os pedidos de ciência abertos do documento são conferidos (substituídos, se o conteúdo mudou).
     await conferirPedidosDoDocumento(c, 'documento', c.req.param('id'), projectId);

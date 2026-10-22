@@ -460,6 +460,8 @@ export const otpVerificacaoSchema = z.object({
  */
 export const aceiteDeDocumentoSchema = z.object({
   documento_id: z.string().min(1, 'Documento é obrigatório').max(100),
+  /** A versão que a pessoa leu na tela: se outra foi publicada no meio, 409 e nada é registrado. */
+  numero: z.number().int().positive().optional(),
 }).strict();
 
 // ═════════════════════════════════════════════════════════════════════════════

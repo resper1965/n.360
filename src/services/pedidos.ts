@@ -414,11 +414,15 @@ export type CienciaPortal =
  * registro, e `numero` volta para a tela dizer qual foi. O mesmo e-mail na mesma versão não duplica.
  */
 export async function registrarCienciaPortal(
-  db: D1Database, a: { projectId: string; documentoId: string; nome: string; email: string; ip: string | null; ua: string | null },
+  db: D1Database, a: { projectId: string; documentoId: string; numeroLido?: number; nome: string; email: string; ip: string | null; ua: string | null },
 ): Promise<CienciaPortal> {
   const doc = await documentoAtual(db, 'documento', a.documentoId, a.projectId);
   if (!doc) return { ok: false, status: 404, error: 'Documento não encontrado ou sem versão vigente' };
   const numero = Number(doc.conteudo.numero);
+  // A prova diz que a pessoa leu ESTA versão: se a que ela leu já não é a vigente, nada é registrado.
+  if (a.numeroLido !== undefined && a.numeroLido !== numero) {
+    return { ok: false, status: 409, error: `O documento foi atualizado para a versão ${numero} enquanto você lia: leia o texto novo e confirme de novo.` };
+  }
   const email = a.email.trim().toLowerCase();
 
   const achar = () => db.prepare(

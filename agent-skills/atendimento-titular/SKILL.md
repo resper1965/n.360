@@ -31,8 +31,8 @@ description: Use ao atender pedido de titular de dados (DSAR) no n.privacy: regi
 | 4. Rascunhar a resposta | Pedido, achados da busca, tratamentos | Texto da resposta no chat, por tipo de pedido | Revisão do encarregado |
 | 5. Registrar e encerrar | `niso_privacy_titular_pedidos` | Nada: a pessoa registra a resposta e o status (respondido, negado) pela interface | |
 
-Eliminação dos registros do titular no próprio n.360 (`data-subject/erase`) é destrutiva: exige `confirmado_pelo_usuario: true`
-depois de mostrar o que será apagado, e só quando o encarregado decidiu.
+Eliminação dos registros do titular no próprio n.360 (`data-subject/erase`) é ato de pessoa, pela interface (o servidor recusa o
+agente): mostre o que seria anonimizado (`GET .../data-subject?identificador=...`) e deixe a decisão com o encarregado.
 
 ## Rascunho por tipo de pedido
 
