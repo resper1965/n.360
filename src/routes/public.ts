@@ -365,7 +365,6 @@ publicApp.get('/sso/callback', async (c) => {
       iat: Date.now(),
     };
     await c.env.SESSIONS.put(`session_${token}`, JSON.stringify(sessao), { expirationTtl: SESSION_TTL_SEC });
-    await c.env.SESSIONS.put(token, JSON.stringify(sessao), { expirationTtl: SESSION_TTL_SEC });
 
     await logAudit(
       c.env.DB, usuario.criado ? 'auth.sso_provisioned' : 'auth.sso_login', usuario.email,

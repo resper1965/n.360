@@ -270,7 +270,6 @@ authApp.post('/login', async (c) => {
     // `SESSAO_COM_ORG_DESDE`.
     const sessao = { ...user, org_id: user.org_id, iat: agora, seen: agora, ...(exigeMfa ? { mfa_pending: true } : {}) };
     await c.env.SESSIONS.put(`session_${token}`, JSON.stringify(sessao), { expirationTtl: SESSION_TTL_SEC });
-    await c.env.SESSIONS.put(token, JSON.stringify(sessao), { expirationTtl: SESSION_TTL_SEC });
     // Trilha de acessos: só login que passou na senha (falha não grava o e-mail digitado, que pode
     // nem existir). O projeto é o da conta, para o acesso aparecer na trilha do projeto.
     await logAudit(c.env.DB, 'auth.login', user.email, `Login por senha${exigeMfa ? ' (aguarda o segundo fator)' : ''}`,
@@ -321,7 +320,6 @@ authApp.post('/reset-password-first', async (c) => {
       // `iat` novo exige `org_id` (corte de `SESSAO_COM_ORG_DESDE`): a sessão antiga pode não tê-lo.
       const renovada = JSON.stringify({ ...user, org_id: await orgIdDoBanco(c, user.id), iat: agora, seen: agora });
       await c.env.SESSIONS.put(`session_${sessionId}`, renovada, { expirationTtl: SESSION_TTL_SEC });
-      await c.env.SESSIONS.put(sessionId, renovada, { expirationTtl: SESSION_TTL_SEC });
     }
 
     await logAudit(c.env.DB, 'auth.password_changed_first', user.email, `Senha do primeiro acesso redefinida com sucesso`);
@@ -493,7 +491,6 @@ authApp.post('/change-password', async (c) => {
       // `iat` novo exige `org_id` (corte de `SESSAO_COM_ORG_DESDE`): a sessão antiga pode não tê-lo.
       const renovada = JSON.stringify({ ...user, org_id: await orgIdDoBanco(c, user.id), iat: agora, seen: agora });
       await c.env.SESSIONS.put(`session_${sessionId}`, renovada, { expirationTtl: SESSION_TTL_SEC });
-      await c.env.SESSIONS.put(sessionId, renovada, { expirationTtl: SESSION_TTL_SEC });
     }
 
     await logAudit(c.env.DB, 'auth.password_changed', user.email, 'Senha alterada com sucesso');
