@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
+import { modulosDaPessoa, recusaDoModulo } from '../modulos';
 import { semRastros, logAudit, requireResourceAccess, verifyPassword, erro500, projetosVisiveis, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, type PapelAssinatura } from '../helpers';
 import { assinaturaPolitica } from '../services/pedidos';
 import { validateBody, controlUpdateSchema, maturitySchema, statusSchema, assinaturaSchema, trilhaDesfazerSchema, revogarAprovacaoSchema } from '../schemas';
@@ -41,17 +42,21 @@ export function recusaAplicabilidade(atual: EstadoControle, entrada: EstadoContr
 controlsApp.get('/', async (c) => {
   const user = c.get('user');
   if (user && (user.role === 'org_admin' || user.role === 'org_user' || user.role === 'client')) {
-    if (!user.client_project_id) {
+    // Controles são do n.iso: sem o módulo no projeto ou na pessoa, a lista vem vazia (a rota por projeto daria 403).
+    if (!user.client_project_id || (await recusaDoModulo(c.env.DB, user, user.client_project_id, 'iso'))) {
       return c.json([]);
     }
     const { results } = await c.env.DB.prepare('SELECT * FROM compliance_controls WHERE project_id = ? ORDER BY id ASC').bind(user.client_project_id).all();
     return c.json(semRastros(results));
   }
   // Os controles dos projetos que o usuário enxerga (D5 e organização); só o platform_admin vê todos.
+  // Só projetos com o n.iso, e só para quem tem o n.iso.
+  if (!(await modulosDaPessoa(c.env.DB, user)).includes('iso')) return c.json([]);
+  const comIso = `project_id IN (SELECT project_id FROM projeto_modulos WHERE modulo = 'iso')`;
   const v = projetosVisiveis(user);
   const { results } = await (v
-    ? c.env.DB.prepare(`SELECT * FROM compliance_controls WHERE project_id IN (${v.sql}) ORDER BY id ASC`).bind(v.bind)
-    : c.env.DB.prepare('SELECT * FROM compliance_controls ORDER BY id ASC')).all();
+    ? c.env.DB.prepare(`SELECT * FROM compliance_controls WHERE project_id IN (${v.sql}) AND ${comIso} ORDER BY id ASC`).bind(v.bind)
+    : c.env.DB.prepare(`SELECT * FROM compliance_controls WHERE ${comIso} ORDER BY id ASC`)).all();
   return c.json(semRastros(results));
 });
 
