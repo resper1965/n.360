@@ -254,7 +254,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   copiado para o pedido novo. O codigo do portal (`POST /public/policies/request-otp`) so vai a e-mail ligado ao projeto (conta,
   governanca ou parte pessoa, ou o mesmo dominio do cliente fora `DOMINIOS_PUBLICOS` e da consultoria); fora disso a resposta e a
   mesma e nada e enviado; limites por IP, projeto e e-mail; o nome digitado nao vai no e-mail. Nada novo entra em `policy_acknowledgments` pelo portal; o registro manual interno
-  (`POST /projects/:id/policy-acknowledgments`) ainda escreve nela ate a 3.4. A aprovacao CISO/CEO de documento NAO existe
+  (`POST /projects/:id/policy-acknowledgments`) ainda escreve nela ate a 3.4: a propria ciencia qualquer papel registra; a de outra pessoa,
+  so a equipe ou o `org_admin`, com trilha `policy.ciencia_registrada`; o agente nao registra. A aprovacao CISO/CEO de documento NAO existe
   ainda (so `ciente`): segue nas colunas do controle e no pedido `politica`.
   **Tela, hierarquia e aprovacao por versao (3.4)**: `frontend/src/views/documentos.js` (`#nav-documentos`). A hierarquia e regra do
   servidor (`validarHierarquia`: politica sem pai; norma sob politica; procedimento sob norma ou politica; ciclo e impossivel por

@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
 
-import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto, linhaDeAssinatura, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
+import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto, ehEquipeNess, linhaDeAssinatura, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { enviarBoasVindas, nomeDaOrg } from './users';
 import { SEM_SENHA } from '../services/convite';
 import { ehDpo, garantirEncarregado, desfazerEncarregado, atualizarEncarregado, encarregadosFora } from '../services/encarregado-pessoa';
@@ -684,6 +684,13 @@ governanceApp.post('/projects/:id/policy-acknowledgments', async (c) => {
     if (!v.success) return v.response;
     const { policy_type, user_name, user_email } = v.data;
     if (!policy_type || !user_name || !user_email) return c.json({ error: 'Policy Type, User Name and Email are required' }, 400);
+    // A própria ciência qualquer um registra; a de outra pessoa (registro manual de quem leu no papel) só a equipe ou o
+    // administrador do cliente, e fica na trilha com quem registrou.
+    const user = c.get('user');
+    const propria = user_email.trim().toLowerCase() === String(user?.email ?? '').trim().toLowerCase();
+    if (!propria && !(ehEquipeNess(user) || user?.role === 'org_admin')) {
+      return c.json({ error: 'Forbidden: só a equipe ou o administrador do cliente registram a ciência de outra pessoa' }, 403);
+    }
 
     const ipAddress = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
     const userAgent = c.req.header('User-Agent') || 'unknown';
@@ -692,6 +699,8 @@ governanceApp.post('/projects/:id/policy-acknowledgments', async (c) => {
     await c.env.DB.prepare(
       'INSERT INTO policy_acknowledgments (id, project_id, policy_type, user_name, user_email, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).bind(ackId, projectId, policy_type, user_name, user_email, ipAddress, userAgent).run();
+    await logAudit(c.env.DB, 'policy.ciencia_registrada', user?.email ?? 'system',
+      `Ciência de "${policy_type}" registrada ${propria ? 'pela própria pessoa' : `em nome de ${user_email}`}`, '', ipAddress, projectId);
 
     return c.json({ ok: true, id: ackId });
   } catch (e: any) {
