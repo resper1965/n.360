@@ -20,7 +20,7 @@ const chamar = (metodo: string, caminho: string, headers: Record<string, string>
     body: corpo === undefined ? undefined : JSON.stringify(corpo),
   }), workerEnv() as any);
 const hashDe = async (id: string) => (await env.DB.prepare('SELECT password_hash FROM users WHERE id = ?').bind(id).first<{ password_hash: string }>())?.password_hash;
-const codigos = async () => (await env.SESSIONS.list({ prefix: 'reset_token:' })).keys.length;
+const codigos = async () => (await env.SESSIONS.list({ prefix: 'reset_conta:' })).keys.length;
 
 beforeEach(async () => {
   await applySchema();
@@ -67,11 +67,41 @@ describe('2. recuperação de senha só para conta com senha local e ativa', () 
   it('código emitido antes de a conta virar SSO ou ser desativada não troca a senha', async () => {
     for (const [id, email] of [['u-sso', 'sso@cliente.com'], ['u-off', 'off@cliente.com']]) {
       const antes = await hashDe(id);
-      await env.SESSIONS.put('reset_token:123456', JSON.stringify({ email }), { expirationTtl: 3600 });
-      const r = await chamar('POST', '/api/v1/auth/reset-password', {}, { token: '123456', newPassword: NOVA });
+      await env.SESSIONS.put(`reset_conta:${id}`, JSON.stringify({ codigo: '123456' }), { expirationTtl: 3600 });
+      const r = await chamar('POST', '/api/v1/auth/reset-password', {}, { email, token: '123456', newPassword: NOVA });
       expect(r.status, email).toBe(400);
       expect(await hashDe(id), email).toBe(antes);
     }
+  });
+});
+
+describe('2b. código de redefinição preso à conta', () => {
+  const pedir = async (email: string) => ((await (await app.fetch(new Request('http://localhost/api/v1/auth/forgot-password', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': `198.51.100.${Math.floor(Math.random() * 250)}` },
+    body: JSON.stringify({ email }) }), { ...workerEnv(), ENVIRONMENT: 'development' } as any)).json()) as any).reset_token as string | undefined;
+  const redefinir = (email: string, token: string, ip: string) => app.fetch(new Request('http://localhost/api/v1/auth/reset-password', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
+    body: JSON.stringify({ email, token, newPassword: NOVA }) }), workerEnv() as any);
+
+  it('um código ativo por conta: o novo invalida o anterior', async () => {
+    const primeiro = (await pedir('ok@cliente.com'))!;
+    let segundo = (await pedir('ok@cliente.com'))!;
+    while (segundo === primeiro) segundo = (await pedir('ok@cliente.com'))!;
+    expect((await redefinir('ok@cliente.com', primeiro, '198.51.100.1')).status).toBe(400);
+    expect((await redefinir('ok@cliente.com', segundo, '198.51.100.2')).status).toBe(200);
+  });
+
+  it('o código só vale com o e-mail da conta', async () => {
+    const codigo = (await pedir('ok@cliente.com'))!;
+    expect((await redefinir('sso@cliente.com', codigo, '198.51.100.3')).status).toBe(400);
+  });
+
+  it('5 tentativas por conta, de qualquer IP; depois o código é descartado', async () => {
+    const codigo = (await pedir('ok@cliente.com'))!;
+    const errado = codigo === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i++) expect((await redefinir('ok@cliente.com', errado, `203.0.113.${i}`)).status).toBe(400);
+    expect((await redefinir('ok@cliente.com', codigo, '203.0.113.99')).status).toBe(429);
+    expect(await codigos()).toBe(0);
   });
 });
 

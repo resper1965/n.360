@@ -24,7 +24,7 @@ export const ROTAS = {
   'POST /api/v1/auth/mfa/disable': { obrigatorios: ['password'] },
   'POST /api/v1/auth/mfa/setup': { obrigatorios: ['password'] },
   'POST /api/v1/auth/mfa/verify': { obrigatorios: ['codigo'] },
-  'POST /api/v1/auth/reset-password': { obrigatorios: ['newPassword', 'token'] },
+  'POST /api/v1/auth/reset-password': { obrigatorios: ['email', 'newPassword', 'token'] },
   'POST /api/v1/auth/reset-password-first': { obrigatorios: ['newPassword'] },
   'POST /api/v1/auth/setup': { obrigatorios: ['email', 'name', 'password'] },
   'POST /api/v1/controls/{id}/approve': { obrigatorios: ['password'] },

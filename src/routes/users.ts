@@ -295,11 +295,23 @@ usersApp.put('/:id', async (c) => {
   try {
     const v = await validateBody(c, updateUserSchema);
     if (!v.success) return v.response;
-    const { name, email, role, client_project_id, password } = v.data;
+    const { name, email, role, client_project_id, password, redefinir_senha } = v.data;
     
-    const user = await c.env.DB.prepare(`SELECT u.id, u.name, u.email, u.role, u.client_project_id, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id).first() as any;
+    const user = await c.env.DB.prepare(`SELECT u.id, u.name, u.email, u.role, u.client_project_id, u.password_hash, ${ORG_DA_CONTA_SQL} AS org FROM users u WHERE u.id = ?`).bind(id).first() as any;
     if (!user) {
       return c.json({ error: 'Usuário não encontrado' }, 404);
+    }
+    const deOutro = admin.id !== id;
+    // Senha de outra pessoa ninguém define: quem a definisse a conheceria e aprovaria no lugar dela. Vira um link de senha
+    // nova enviado ao e-mail da conta (o `password` que vier é ignorado, como no POST).
+    const redefinir = deOutro && (redefinir_senha === true || (password !== undefined && password !== ''));
+    const trocaEmail = email !== undefined && email !== String(user.email).trim().toLowerCase();
+    // O e-mail é por onde a senha se recupera: quem o trocasse para o seu receberia o link e tomaria a conta.
+    if (trocaEmail && deOutro && admin.role !== 'platform_admin') {
+      return c.json({ error: 'Forbidden: só o administrador da plataforma troca o e-mail de outra conta' }, 403);
+    }
+    if (redefinir && /^(sso|scim):/.test(String(user.password_hash ?? ''))) {
+      return c.json({ error: 'Esta conta entra pelo login único (SSO) da empresa: a senha é do provedor' }, 409);
     }
     // Papel e projeto como ficarão depois da edição.
     const papelFinal: string = role ?? user.role;
@@ -316,7 +328,7 @@ usersApp.put('/:id', async (c) => {
       }
       // A senha de outro administrador da consultoria só o dono (pelo fluxo de senha) ou o
       // platform_admin trocam: senão um administrador toma a conta do outro.
-      if (password && user.role === 'consultoria_admin') {
+      if (redefinir && user.role === 'consultoria_admin') {
         return c.json({ error: 'Forbidden: a senha de um administrador da consultoria só ele mesmo troca' }, 403);
       }
       if (user.role === 'consultoria_admin' && papelFinal !== 'consultoria_admin' && await ultimoAdminDaOrg(c.env.DB, minha, id)) {
@@ -346,7 +358,7 @@ usersApp.put('/:id', async (c) => {
         return c.json({ error: 'Forbidden: Cannot assign this role' }, 403);
       }
       // Trocar a senha de outro org_admin seria tomar a conta dele (mesma regra do consultoria_admin).
-      if (password && user.role === 'org_admin' && user.id !== admin.id) {
+      if (redefinir && user.role === 'org_admin') {
         return c.json({ error: 'Forbidden: a senha de outro administrador do projeto só ele mesmo troca' }, 403);
       }
     }
@@ -366,7 +378,7 @@ usersApp.put('/:id', async (c) => {
       updates.push('name = ?');
       values.push(name);
     }
-    if (email !== undefined) {
+    if (trocaEmail) {
       // Variante de caixa de OUTRA conta passaria no UNIQUE e, pela busca sem caixa do login, tomaria a conta dela.
       if (await c.env.DB.prepare('SELECT 1 FROM users WHERE lower(trim(email)) = ? AND id <> ?').bind(email, id).first()) {
         return c.json({ error: 'Email já cadastrado' }, 400);
@@ -393,15 +405,16 @@ usersApp.put('/:id', async (c) => {
       projetoGravado = null;
       updates.push('client_project_id = NULL');
     }
-    // Senha gravada por outra pessoa é provisória: quem a definiu a conhece. A conta troca no próximo acesso e, até lá, não
-    // aprova nem assina (`recusaSenhaDeOutro`).
-    const senhaDeOutro = password !== undefined && password !== '' && admin.id !== id;
-    if (password !== undefined && password !== '') {
-      const hash = await hashPassword(password);
+    const senhaPropria = !deOutro && password !== undefined && password !== '';
+    if (senhaPropria) {
       updates.push('password_hash = ?');
-      values.push(hash);
-      if (senhaDeOutro) updates.push('requires_password_change = 1');
+      values.push(await hashPassword(password));
+    } else if (redefinir) {
+      // Sem senha utilizável até a pessoa criar a dela pelo link (`usarConvite` zera a marca).
+      updates.push('password_hash = ?', 'requires_password_change = 1');
+      values.push(SEM_SENHA);
     }
+    const senhaMudou = senhaPropria || redefinir;
 
     if (updates.length > 0) {
       values.push(id);
@@ -410,10 +423,10 @@ usersApp.put('/:id', async (c) => {
       // Papel, senha ou projeto mudou: a sessão em curso carrega os valores
       // ANTIGOS (o middleware lê o papel do KV, não do banco). Sem derrubar a
       // sessão, rebaixar alguém de admin para leitor só passa a valer em 24h.
-      if (role !== undefined || password !== undefined || client_project_id !== undefined) {
+      if (role !== undefined || senhaMudou || trocaEmail || client_project_id !== undefined) {
         await invalidateUserSessions(c.env.SESSIONS, id);
       }
-      if (password !== undefined && password !== '') await revogarAgentesPorTrocaDeSenha(c.env.DB, id);
+      if (senhaMudou) await revogarAgentesPorTrocaDeSenha(c.env.DB, id);
       if (role !== undefined || client_project_id !== undefined) await recalcularModulos(c.env.DB, id, user, admin.email);
 
       // Antes e depois por campo, só dos quatro rastreados; da senha, só que mudou (nunca o valor).
@@ -421,14 +434,16 @@ usersApp.put('/:id', async (c) => {
       const depois: Record<CampoRastreado, string | null> = {
         name: name ?? user.name, email: email ?? user.email, role: papelFinal, client_project_id: projetoGravado,
       };
-      await c.env.DB.batch(trilhaDaEdicao(c.env.DB, id, user, depois, !!password, admin.email,
+      await c.env.DB.batch(trilhaDaEdicao(c.env.DB, id, user, depois, senhaMudou, admin.email,
         c.req.header('CF-Connecting-IP') ?? '', projetoGravado ?? user.client_project_id ?? null));
     }
-    if (senhaDeOutro) {
-      const m = emailSenhaDefinidaPorOutro({ nome: name ?? user.name, quem: { nome: admin.name ?? null, email: admin.email }, url: appUrl(c.env) });
-      // Ao endereço que a conta tinha: se o e-mail mudou junto, o dono de antes é quem precisa saber.
-      if (!(await sendEmail(c, user.email, m.assunto, m, { from: remetente(), replyTo: admin.email }))) {
-        log('error', { msg: 'senha_definida_email_falhou', user_id: id });
+    if (redefinir) {
+      const destino = trocaEmail ? email! : user.email;
+      const sso = await configPorDominio(c.env, destino);
+      const link = sso ? null : linkDoConvite(c.env, await emitirConvite(c.env.DB, id, admin.email));
+      const m = emailSenhaDefinidaPorOutro({ nome: name ?? user.name, quem: { nome: admin.name ?? null, email: admin.email }, url: appUrl(c.env), link, horas: HORAS_CONVITE });
+      if (!(await sendEmail(c, destino, m.assunto, m, { from: remetente(), replyTo: admin.email }))) {
+        log('error', { msg: 'senha_redefinida_email_falhou', user_id: id });
       }
     }
 

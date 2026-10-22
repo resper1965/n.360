@@ -614,10 +614,10 @@ describe('nISO API (D1 e KV reais)', () => {
       expect(data.ok).toBe(true);
       expect(data.reset_token).toBeTruthy();
 
-      // O token existe no KV de verdade, sob a chave que o reset espera.
-      const guardado = await env.SESSIONS.get(`reset_token:${data.reset_token}`);
-      expect(guardado).not.toBeNull();
-      expect(JSON.parse(guardado!).email).toBe('test@example.com');
+      // O código existe no KV de verdade, preso à conta (um ativo por conta).
+      const conta = await env.DB.prepare("SELECT id FROM users WHERE email='test@example.com'").first<any>();
+      const guardado = await env.SESSIONS.get(`reset_conta:${conta.id}`);
+      expect(JSON.parse(guardado!).codigo).toBe(data.reset_token);
     });
 
     it('redefine a senha com token válido, invalida o token e grava o novo hash', async () => {
@@ -635,7 +635,7 @@ describe('nISO API (D1 e KV reais)', () => {
       const res = await req('/api/v1/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: reset_token, newPassword: 'novaSenha123' }),
+        body: JSON.stringify({ email: 'test@example.com', token: reset_token, newPassword: 'novaSenha123' }),
       });
       expect(res.status).toBe(200);
       expect((await res.json() as any).ok).toBe(true);
@@ -643,8 +643,9 @@ describe('nISO API (D1 e KV reais)', () => {
       const depois = await env.DB.prepare("SELECT password_hash FROM users WHERE email='test@example.com'").first<any>();
       expect(depois.password_hash).not.toBe(antes.password_hash);
 
-      // Token de uso único: precisa sumir do KV.
-      expect(await env.SESSIONS.get(`reset_token:${reset_token}`)).toBeNull();
+      // Código de uso único: precisa sumir do KV.
+      const conta = await env.DB.prepare("SELECT id FROM users WHERE email='test@example.com'").first<any>();
+      expect(await env.SESSIONS.get(`reset_conta:${conta.id}`)).toBeNull();
     });
 
     it('token inválido não redefine senha', async () => {

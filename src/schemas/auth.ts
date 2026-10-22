@@ -54,6 +54,7 @@ export const criarSenhaSchema = z.object({
 }).strict();
 
 export const resetConfirmSchema = z.object({
+  email: emailNormalizado(),
   token: z.string().min(1, 'Token é obrigatório'),
   newPassword: senhaNovaSchema
 });

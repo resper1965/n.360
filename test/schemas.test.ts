@@ -46,7 +46,7 @@ describe('Zod Schema Unit Tests', () => {
     });
 
     it('should validate reset confirm with token and new password', () => {
-      const result = resetConfirmSchema.safeParse({ token: '123456', newPassword: 'newPassword123' });
+      const result = resetConfirmSchema.safeParse({ email: 'a@b.lat', token: '123456', newPassword: 'newPassword123' });
       expect(result.success).toBe(true);
     });
 

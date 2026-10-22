@@ -38,6 +38,8 @@ export const updateUserSchema = z.object({
   email: emailNormalizado().optional(),
   role: papel.optional(),
   password: senhaNovaSchema.optional(),
+  /** Conta de outra pessoa: manda a ela um link de senha nova (a senha atual deixa de valer). */
+  redefinir_senha: z.literal(true).optional(),
   client_project_id: z.string().nullable().optional()
 }).strict();
 

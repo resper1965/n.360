@@ -180,12 +180,13 @@ describe('cada e-mail', () => {
     expect(e.text).toContain(`Código: ${(await r.json<any>()).demo_otp}`);
   });
 
-  it('senha definida por outra pessoa: aviso ao dono, quem definiu, botão de entrar, sem a senha', async () => {
+  it('senha redefinida por outra pessoa: link ao dono, quem pediu, sem a senha', async () => {
     await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES ('em-dono', 'dono@cliente.lat', 'x', 'Dono <i>Fictício</i>', 'client', ?, 'org_ness')`).bind(P).run();
     const r = await chamar(admin, 'PUT', '/api/v1/users/em-dono', { password: 'Senha-Do-Gestor-9' });
     expect(r.status, await r.clone().text()).toBe(200);
     const e = ultimo('dono@cliente.lat');
-    confere(e, { produto: 'n.360', quem: ['Adm Fictício (adm@ness.lat)'], acao: 'Entrar no n.360 com a senha recebida e criar uma senha sua', link: 'https://n360.ness.com.br', resposta: 'adm@ness.lat' });
+    confere(e, { produto: 'n.360', quem: ['Adm Fictício (adm@ness.lat)'], acao: 'Abrir o link abaixo e criar a sua senha', prazo: '72 horas a partir do envio deste e-mail', resposta: 'adm@ness.lat' });
+    expect(e.text).toMatch(/#convite=[0-9a-f]{64}/);
     expect(e.html + e.text).not.toContain('Senha-Do-Gestor-9');
     expect(e.html).toContain('Dono &lt;i&gt;Fictício&lt;/i&gt;');
   });

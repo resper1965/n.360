@@ -1,23 +1,24 @@
-Assunto: A senha da sua conta no n.360 foi definida por outra pessoa
+Assunto: Crie uma senha nova para a sua conta no n.360
 
 n.360 | ness.
 
-Sua senha foi definida por outra pessoa
+Crie uma senha nova
 
 Olá, Bruno Lima,
 
-Quem gere a sua conta no n.360 definiu uma senha nova para ela. Como essa pessoa conhece a senha, o n.360 pede que você crie uma senha sua no próximo acesso.
+Quem gere a sua conta no n.360 pediu a redefinição da sua senha. A senha anterior deixou de valer e as sessões abertas foram encerradas.
 
-Até a troca, a sua conta não aprova pedidos nem assina documentos, evidências ou registros.
+Ninguém mais conhece a senha nova: só você a cria, pelo link abaixo.
 
 Quem pede: Ana Souza (ana.souza@ness.example)
-O que fazer: Entrar no n.360 com a senha recebida e criar uma senha sua
+O que fazer: Abrir o link abaixo e criar a sua senha
+Até quando: 72 horas a partir do envio deste e-mail
 
-Entrar no n.360: https://n360.ness.com.br
+Criar minha senha: https://n360.ness.com.br/#convite=exemplo
 
-Se você não esperava esta mudança, fale com quem gere a sua conta antes de entrar.
+O link é pessoal e vale uma vez: não encaminhe este e-mail. Se você não esperava esta mudança, fale com quem gere a sua conta.
 
 --
-Você recebeu este e-mail porque a senha da conta com este endereço foi definida por outra pessoa no n.360.
+Você recebeu este e-mail porque a senha da conta com este endereço foi redefinida por outra pessoa no n.360.
 Dúvidas: responda a este e-mail para falar com Ana Souza (ana.souza@ness.example).
 n.360 · ness.
