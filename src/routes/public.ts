@@ -13,10 +13,35 @@ import { chavePublicaJwk, ALG_ASSINATURA } from '../portabilidade';
 import { genToken, SESSION_TTL_SEC } from '../helpers';
 import { appUrl, APP_URL_PADRAO, URL_NISO } from '../config/url';
 import { registrarCienciaPortal } from '../services/pedidos';
+import { clientIp } from './auth';
+import { log } from '../observability';
 
 /** Tentativas de código por e-mail no portal de políticas: 5 por código; a contagem recomeça ao pedir código novo. */
 const MAX_TENTATIVAS_OTP = 5;
 const chaveTentativasOtp = (projectId: string, email: string) => `pol-otp:tentativa:${projectId}:${email}`;
+
+/** Domínios de e-mail de provedor público: não ligam ninguém a um cliente. */
+export const DOMINIOS_PUBLICOS = new Set(['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'live.com', 'bol.com.br', 'uol.com.br']);
+
+/**
+ * O e-mail está ligado ao projeto? Exato: conta do projeto (cliente ou stakeholder), membro da governança ou parte pessoa. Ou o
+ * mesmo domínio de um desses do lado do CLIENTE (sem linha de consultor), fora domínio público, `ness.com.br` e os domínios da
+ * equipe da organização do projeto.
+ */
+async function emailLigadoAoProjeto(db: D1Database, projectId: string, orgId: string, email: string): Promise<boolean> {
+  const { results } = await db.prepare(
+    `SELECT lower(trim(email)) AS email, 'cliente' AS lado FROM users WHERE client_project_id = ? AND COALESCE(ativo, 1) <> 0
+     UNION ALL SELECT lower(trim(email)), CASE WHEN role_category = 'consultor' THEN 'equipe_projeto' ELSE 'cliente' END FROM project_governance WHERE project_id = ?
+     UNION ALL SELECT lower(trim(email)), 'cliente' FROM partes WHERE project_id = ? AND tipo = 'pessoa'
+     UNION ALL SELECT lower(trim(email)), 'equipe' FROM users WHERE org_id = ? AND client_project_id IS NULL AND role <> 'stakeholder'`,
+  ).bind(projectId, projectId, projectId, orgId).all<{ email: string | null; lado: string }>();
+  const linhas = results.filter((r) => r.email?.includes('@'));
+  if (linhas.some((r) => r.lado !== 'equipe' && r.email === email)) return true;
+  const dominio = (e: string) => e.slice(e.lastIndexOf('@') + 1);
+  const d = dominio(email);
+  if (DOMINIOS_PUBLICOS.has(d) || d === 'ness.com.br' || linhas.some((r) => r.lado !== 'cliente' && dominio(r.email!) === d)) return false;
+  return linhas.some((r) => r.lado === 'cliente' && dominio(r.email!) === d);
+}
 
 export const publicApp = new Hono<{ Bindings: Bindings }>();
 
@@ -50,18 +75,25 @@ publicApp.post('/policies/request-otp', async (c) => {
     const v = await validateBody(c, otpPedidoSchema);
     if (!v.success) return v.response;
     const { project_id, name, email } = v.data;
+    const muitas = () => c.json({ error: 'Muitas solicitações de código. Tente novamente mais tarde.' }, 429);
+    // Esta rota é pública e montada ANTES do rateLimitMiddleware — sem trava
+    // própria, vira relay de mail-bombing e queima a cota/reputação do Resend.
+    // Limites: 20 por hora por IP, 200 por hora por projeto, 5 por hora por projeto+e-mail.
+    if (!(await rateLimit(c.env.SESSIONS, `otp-ip:${clientIp(c)}`, 20, 3600))) return muitas();
     const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(project_id).first();
     if (!project) return c.json({ error: 'Projeto não encontrado' }, 404);
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = (name || cleanEmail.split('@')[0]).trim();
 
-    // Esta rota é pública e montada ANTES do rateLimitMiddleware — sem trava
-    // própria, vira relay de mail-bombing e queima a cota/reputação do Resend.
-    // Limite por projeto+e-mail: 5 pedidos por hora.
-    const permitido = await rateLimit(c.env.SESSIONS, `otp:${project_id}:${cleanEmail}`, 5, 3600);
-    if (!permitido) {
-      return c.json({ error: 'Muitas solicitações de código. Tente novamente mais tarde.' }, 429);
+    if (!(await rateLimit(c.env.SESSIONS, `otp-proj:${project_id}`, 200, 3600))) return muitas();
+    if (!(await rateLimit(c.env.SESSIONS, `otp:${project_id}:${cleanEmail}`, 5, 3600))) return muitas();
+
+    // Só recebe código o e-mail ligado ao projeto. Fora disso, a MESMA resposta do sucesso, sem enviar nada: a
+    // resposta não diz quem é do projeto. A recusa fica só no log.
+    if (!(await emailLigadoAoProjeto(c.env.DB, project_id, String((project as { org_id?: string }).org_id ?? ''), cleanEmail))) {
+      log('warn', { msg: 'politicas_otp_email_fora_do_projeto', project_id });
+      return c.json({ ok: true, message: `Código de verificação enviado para ${cleanEmail}.` });
     }
 
     const otp = genNumericCode(6);
@@ -83,10 +115,9 @@ publicApp.post('/policies/request-otp', async (c) => {
     // só ao dono do e-mail — nunca no corpo da resposta (isso derrubaria o 2º
     // fator: qualquer um que conheça o project_id leria as políticas do tenant).
     // Entrega por e-mail; o eco em `demo_otp` fica restrito a dev/test.
-    // `cleanName` é controlado pelo chamador e vai no e-mail enviado da identidade
-    // confiável noreply@ness.com.br: o invólucro (montarEmail) escapa, para não virar relay de injeção/phishing.
+    // O nome digitado não vai no e-mail (saudação genérica): texto do chamador num e-mail de noreply@ness.com.br é phishing.
     const cliente = String((project as { client_name?: string }).client_name ?? '');
-    const m = emailCodigoPoliticas({ nome: cleanName, cliente, codigo: otp });
+    const m = emailCodigoPoliticas({ cliente, codigo: otp });
     const enviado = await sendEmail(c, cleanEmail, m.assunto, m, { from: remetente('n.360', cliente) });
     await logAudit(c.env.DB, 'policy.otp_requested', cleanEmail, `OTP de acesso às políticas solicitado para projeto ${project_id}`);
 

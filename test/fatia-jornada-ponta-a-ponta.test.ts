@@ -75,7 +75,7 @@ describe('fatia de jornada: do aceite da proposta ao auditor, só pelo produto',
     const controles = await ok(await chamar(cadm, 'GET', `/api/v1/projects/${P}/traceability`));
     expect(controles.controls.length).toBe(124); // 93 da 27001 + 31 da 27701 vendida
 
-    // ── a consultoria designa o consultor; o consultor monta a governança e as contas ───────────
+    // ── a consultoria designa o consultor; o consultor cria as contas ───────────
     await ok(await chamar(cadm, 'POST', `/api/v1/projects/${P}/governance`,
       { name: 'Cons', email: 'cons@ness.lat', role_category: 'consultor', job_title: 'Consultor' }));
     const cons = await entrar('cons@ness.lat', SENHA_EQUIPE);
@@ -83,13 +83,6 @@ describe('fatia de jornada: do aceite da proposta ao auditor, só pelo produto',
     const matriz = await ok(await chamar(cons, 'GET', `/api/v1/projects/${P}/governance`));
     const contato = matriz.find((g: any) => g.email === 'maria@cliente.com');
     expect(contato.job_title).toBe(CARGO_CONTATO_ACEITE);
-    // O contato do aceite é promovido a Direção (CEO); entram o Diretor e o Líder SGSI.
-    await ok(await chamar(cons, 'POST', `/api/v1/projects/${P}/governance`,
-      { id: contato.id, name: 'Maria Cliente', email: 'maria@cliente.com', role_category: 'executivo', job_title: 'CEO' }));
-    await ok(await chamar(cons, 'POST', `/api/v1/projects/${P}/governance`,
-      { name: 'Davi Diretor', email: 'davi@cliente.com', role_category: 'executivo', job_title: 'Diretor de Operações' }));
-    await ok(await chamar(cons, 'POST', `/api/v1/projects/${P}/governance`,
-      { name: 'Lia Líder', email: 'lia@cliente.com', role_category: 'tech', job_title: 'Líder SGSI', is_primary: true }));
 
     const conta = (email: string, name: string, role: string) =>
       chamar(cons, 'POST', '/api/v1/users', { email, name, role, password: SENHA_PROVISORIA, client_project_id: P });
@@ -101,6 +94,13 @@ describe('fatia de jornada: do aceite da proposta ao auditor, só pelo produto',
     const davi = await entrar('davi@cliente.com', SENHA_PROVISORIA);
     const lia = await entrar('lia@cliente.com', SENHA_PROVISORIA);
     const ana = await entrar('ana@cliente.com', SENHA_PROVISORIA);
+    // A linha de quem assina é do cliente: a administradora (Maria) promove o contato do aceite a Direção (CEO) e inclui o Diretor e o Líder SGSI.
+    await ok(await chamar(maria, 'POST', `/api/v1/projects/${P}/governance`,
+      { id: contato.id, name: 'Maria Cliente', email: 'maria@cliente.com', role_category: 'executivo', job_title: 'CEO' }));
+    await ok(await chamar(maria, 'POST', `/api/v1/projects/${P}/governance`,
+      { name: 'Davi Diretor', email: 'davi@cliente.com', role_category: 'executivo', job_title: 'Diretor de Operações' }));
+    await ok(await chamar(maria, 'POST', `/api/v1/projects/${P}/governance`,
+      { name: 'Lia Líder', email: 'lia@cliente.com', role_category: 'tech', job_title: 'Líder SGSI', is_primary: true }));
 
     // ── 2. o consultor grava a política (A.5.1 e A.5.2) ──────────────────────────────────────────
     const p51 = await ok(await chamar(cons, 'POST', `/api/v1/projects/${P}/controls/A.5.1/policy`, { text: TEXTO_51 }));

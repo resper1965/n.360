@@ -50,11 +50,31 @@ export function emailRedefinicaoSenha(d: { nome: string | null; codigo: string }
   });
 }
 
-export function emailCodigoPoliticas(d: { nome: string; cliente: string; codigo: string }): EmailComAssunto {
+/** Aviso ao dono da conta: outra pessoa (quem gere a conta) definiu a senha dele. Nunca leva a senha. */
+export function emailSenhaDefinidaPorOutro(d: { nome: string | null; quem: Pessoa; url: string }): EmailComAssunto {
+  return com('A senha da sua conta no n.360 foi definida por outra pessoa', {
+    previa: 'Entre e crie uma senha sua: até lá, a sua conta não aprova nem assina nada.',
+    titulo: 'Sua senha foi definida por outra pessoa',
+    saudacao: ola(d.nome),
+    paragrafos: [
+      'Quem gere a sua conta no n.360 definiu uma senha nova para ela. Como essa pessoa conhece a senha, o n.360 pede que você crie uma senha sua no próximo acesso.',
+      'Até a troca, a sua conta não aprova pedidos nem assina documentos, evidências ou registros.',
+    ],
+    quemPede: d.quem,
+    acao: 'Entrar no n.360 com a senha recebida e criar uma senha sua',
+    botao: { rotulo: 'Entrar no n.360', url: d.url },
+    notas: ['Se você não esperava esta mudança, fale com quem gere a sua conta antes de entrar.'],
+    motivo: 'a senha da conta com este endereço foi definida por outra pessoa no n.360.',
+    contato: d.quem.email ? d.quem : null,
+  });
+}
+
+/** Código do portal de políticas. Sem nome: o portal é público e o nome digitado não vai no e-mail. */
+export function emailCodigoPoliticas(d: { cliente: string; codigo: string }): EmailComAssunto {
   return com(`Seu código para ler as políticas de ${d.cliente}`, {
     previa: `Código de acesso às políticas de ${d.cliente}. Ele vale por 15 minutos.`,
     titulo: `Políticas de ${d.cliente}`,
-    saudacao: ola(d.nome),
+    saudacao: ola(null),
     paragrafos: [`Você pediu acesso ao portal de políticas de ${d.cliente} no n.360.`],
     quemPede: { organizacao: d.cliente },
     acao: 'Digitar este código no portal de políticas para ler e confirmar a leitura',

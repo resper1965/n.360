@@ -12,7 +12,9 @@ const chamar = (h: Record<string, string>, metodo: string, caminho: string, corp
   }), workerEnv());
 let h: Record<string, string>;
 const PROJ = ['gs-1', 'gs-2', 'gs-3', 'gs-4', 'gs-5', 'gs-6', 'gs-7'];
-const gov = (p: string, corpo: Record<string, unknown>) => chamar(h, 'POST', `/api/v1/projects/${p}/governance`, corpo);
+// A linha do DPO é de quem assina: o administrador do cliente do projeto a grava, também pela parte encarregada.
+const doCliente = (p: string) => sessionFor({ id: 'u-oa-' + p, email: `admin@${p}.lat`, role: 'org_admin', client_project_id: p });
+const gov = async (p: string, corpo: Record<string, unknown>) => chamar(await doCliente(p), 'POST', `/api/v1/projects/${p}/governance`, corpo);
 const dpo = (name: string, email: string, id?: string) => ({ id, name, email, role_category: 'dpo', job_title: 'DPO' });
 const encarregadas = async (p: string) => (await env.DB.prepare(
   `SELECT pa.id, pa.nome, pa.email FROM parte_vinculos v JOIN partes pa ON pa.id = v.parte_id WHERE v.project_id = ? AND v.papel = 'encarregado' AND v.alvo_tipo = 'projeto'`
@@ -56,7 +58,7 @@ describe('parte -> DPO', () => {
   it('PUT da parte encarregada leva nome e e-mail ao membro DPO', async () => {
     await gov('gs-3', dpo('Bia Lima', 'bia@x.com'));
     const [parte] = await encarregadas('gs-3');
-    const r = await chamar(h, 'PUT', `/api/v1/projects/gs-3/partes/${parte.id}`, { nome: 'Bia Costa', email: 'bia.costa@x.com' });
+    const r = await chamar(await doCliente('gs-3'), 'PUT', `/api/v1/projects/gs-3/partes/${parte.id}`, { nome: 'Bia Costa', email: 'bia.costa@x.com' });
     expect(r.status).toBe(200);
     const m = await env.DB.prepare(`SELECT name, email FROM project_governance WHERE project_id = 'gs-3' AND role_category = 'dpo'`).first();
     expect(m).toMatchObject({ name: 'Bia Costa', email: 'bia.costa@x.com' });
@@ -76,7 +78,7 @@ describe('parte -> DPO', () => {
     await gov('gs-7', dpo('Eva Prado', 'eva@cliente.com'));
     await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, ativo) VALUES ('u-gs7', 'eva@cliente.com', 'x', 'Eva', 'stakeholder', 'gs-7', 'org_ness', 1)`).run();
     const [parte] = await encarregadas('gs-7');
-    expect((await chamar(h, 'PUT', `/api/v1/projects/gs-7/partes/${parte.id}`, { email: 'eva.nova@cliente.com' })).status).toBe(200);
+    expect((await chamar(await doCliente('gs-7'), 'PUT', `/api/v1/projects/gs-7/partes/${parte.id}`, { email: 'eva.nova@cliente.com' })).status).toBe(200);
     expect(await env.DB.prepare(`SELECT email FROM project_governance WHERE project_id = 'gs-7'`).first()).toMatchObject({ email: 'eva.nova@cliente.com' });
     expect(await env.DB.prepare(`SELECT ativo FROM users WHERE id = 'u-gs7'`).first()).toMatchObject({ ativo: 0 });
     const log = await env.DB.prepare(`SELECT 1 FROM audit_logs WHERE project_id = 'gs-7' AND action = 'stakeholder.revogado'`).first();

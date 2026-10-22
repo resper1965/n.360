@@ -485,6 +485,25 @@ export async function autoridadeDeAssinatura(
   };
 }
 
+/** A linha da matriz é de quem assina: o cargo dá autoridade em `autoridadeDeAssinatura` (CEO, CISO/Líder SGSI) ou é o DPO/encarregado. */
+export const linhaDeAssinatura = (g: { job_title?: string | null; role_category?: string | null }) =>
+  g.role_category === 'dpo' || /sgsi|dpo|ciso|ceo|diret|execut|encarregad/i.test(g.job_title ?? '');
+
+/** Só o administrador do PRÓPRIO cliente (pessoa, não agente nem chave) cria, altera ou remove a linha de quem assina. */
+export const podeMexerEmAssinatura = (u: { role?: string; client_project_id?: string | null; agente?: boolean } | undefined, projectId: string) =>
+  u?.role === 'org_admin' && u.client_project_id === projectId && u.agente !== true;
+
+export const RECUSA_LINHA_DE_ASSINATURA = { error: 'A linha de quem assina (Direção, Líder SGSI/CISO ou DPO/encarregado) é do cliente: só o administrador do cliente neste projeto a cria, altera ou remove.' };
+
+/**
+ * Conta cuja senha foi definida por outra pessoa (`PUT /users/:id` por quem gere a conta grava `requires_password_change = 1`)
+ * não aprova nem assina: quem definiu a senha a conhece. Vale até a pessoa trocar a senha. Devolve o motivo ou `null`.
+ */
+export async function recusaSenhaDeOutro(db: D1Database, userId: string | undefined): Promise<string | null> {
+  const r = userId ? await db.prepare('SELECT requires_password_change FROM users WHERE id = ?').bind(userId).first<{ requires_password_change: number | null }>() : null;
+  return r?.requires_password_change === 1 ? 'Troque a senha definida por outra pessoa antes de aprovar.' : null;
+}
+
 /** Recusa a conta que administra a plataforma: operar não é aprovar, nem dar ciência. */
 export const RECUSA_PLATAFORMA = 'Operação proibida: conta de administração da plataforma não aprova nem dá ciência por cliente. Use a conta profissional designada na matriz de Governança do projeto.';
 

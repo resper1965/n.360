@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Bindings, Variables } from '../index';
-import { semRastroDeAssinatura, semRastros, genId, logAudit, requireResourceAccess, verifyPassword, validateUpload, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, idDoControle } from '../helpers';
+import { semRastroDeAssinatura, semRastros, genId, logAudit, requireResourceAccess, verifyPassword, validateUpload, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, idDoControle } from '../helpers';
 import type { PapelAssinatura } from '../helpers';
 import { EvidenceAgent } from '../agents/evidence';
 import { listPaged } from '../helpers';
@@ -285,7 +285,7 @@ export async function assinarEvidencia(
     else targetRole = 'ciso';
   }
 
-  const recusa = recusaDeAssinatura(autoridade, targetRole as PapelAssinatura);
+  const recusa = recusaDeAssinatura(autoridade, targetRole as PapelAssinatura) ?? await recusaSenhaDeOutro(c.env.DB, user.id);
   if (recusa) return { status: 403, corpo: { error: recusa } };
 
   // Quem enviou a evidência não a revisa (segregação de funções).

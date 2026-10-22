@@ -2,7 +2,8 @@ import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
 
 import { remetente } from '../services/email-layout';
-import { emailBoasVindas } from '../services/emails';
+import { emailBoasVindas, emailSenhaDefinidaPorOutro } from '../services/emails';
+import { log } from '../observability';
 import { emitirConvite, linkDoConvite, SEM_SENHA, HORAS_CONVITE } from '../services/convite';
 import { configPorDominio } from '../sso';
 import { genId, hashPassword, logAudit, rateLimitD1, sendEmail, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, erro500, ehConsultor, ehAdminDaOrg, ehEquipeNess, consultorDesignado, PROJETOS_DO_CONSULTOR_SQL, PAPEIS_EQUIPE_ORG } from '../helpers';
@@ -392,10 +393,14 @@ usersApp.put('/:id', async (c) => {
       projetoGravado = null;
       updates.push('client_project_id = NULL');
     }
+    // Senha gravada por outra pessoa é provisória: quem a definiu a conhece. A conta troca no próximo acesso e, até lá, não
+    // aprova nem assina (`recusaSenhaDeOutro`).
+    const senhaDeOutro = password !== undefined && password !== '' && admin.id !== id;
     if (password !== undefined && password !== '') {
       const hash = await hashPassword(password);
       updates.push('password_hash = ?');
       values.push(hash);
+      if (senhaDeOutro) updates.push('requires_password_change = 1');
     }
 
     if (updates.length > 0) {
@@ -418,6 +423,13 @@ usersApp.put('/:id', async (c) => {
       };
       await c.env.DB.batch(trilhaDaEdicao(c.env.DB, id, user, depois, !!password, admin.email,
         c.req.header('CF-Connecting-IP') ?? '', projetoGravado ?? user.client_project_id ?? null));
+    }
+    if (senhaDeOutro) {
+      const m = emailSenhaDefinidaPorOutro({ nome: name ?? user.name, quem: { nome: admin.name ?? null, email: admin.email }, url: appUrl(c.env) });
+      // Ao endereço que a conta tinha: se o e-mail mudou junto, o dono de antes é quem precisa saber.
+      if (!(await sendEmail(c, user.email, m.assunto, m, { from: remetente(), replyTo: admin.email }))) {
+        log('error', { msg: 'senha_definida_email_falhou', user_id: id });
+      }
     }
 
     return c.json({ ok: true, message: 'Usuário atualizado com sucesso' });

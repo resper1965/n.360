@@ -236,14 +236,11 @@ describe('500 correlaciona em vez de vazar', () => {
     await exigeSemProvedor(res, 'Falha ao gerar política');
   });
 
-  it('ai: diagnóstico executivo com IA indisponível não devolve o texto do provedor', async () => {
-    await env.DB.prepare(`INSERT INTO project_interviews (id, project_id, track, question, answer) VALUES (?,?,?,?,?)`)
-      .bind('int-vaz', PROJ, 'governanca', 'Há política?', 'Sim').run();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('ai: o diagnóstico executivo antigo (sem chamador, gravava item do checklist pela resposta do modelo) não existe mais', async () => {
     const res = await worker.fetch(new Request(`http://localhost/api/v1/projects/${PROJ}/assessment/evaluate`, {
       method: 'POST', headers: admin,
     }), envSemIa());
-    await exigeSemProvedor(res, 'Falha no processamento agêntico do diagnóstico');
+    expect(res.status).toBe(404);
   });
 
   it('ai: a rota antiga que marcava o item do checklist pela resposta do modelo não existe mais', async () => {

@@ -20,7 +20,8 @@ describe('Líder do SGSI único por projeto', () => {
   beforeAll(async () => {
     await applySchema();
     await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('p-lid','Cliente','ISO 27001','controller','Active')`).run();
-    s = { ...(await sessionFor({ id: 'u-a', email: 'adm@ness.lat', role: 'platform_admin' })), 'Content-Type': 'application/json' };
+    // DPO, CEO e Líder SGSI são linhas de quem assina: grava o administrador do cliente do projeto.
+    s = { ...(await sessionFor({ id: 'u-a', email: 'adm@c.com', role: 'org_admin', client_project_id: 'p-lid' })), 'Content-Type': 'application/json' };
   });
 
   it('marcar um novo líder desmarca o anterior', async () => {

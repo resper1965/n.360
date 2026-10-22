@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { logAudit, erro500 } from '../helpers';
-import { AssessmentAgent } from '../agents/assessment';
 import { validateBody, chatSchema } from '../schemas';
 import { chatModel } from '../config/models';
 import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, recusaDeModulo, type Modulo } from '../modulos';
@@ -58,82 +57,5 @@ Seja solícito e forneça exemplos práticos quando solicitado.`;
     return c.json({ ok: true, reply });
   } catch (err: any) {
     return erro500(c, 'Erro ao comunicar com a IA', err);
-  }
-});
-
-// AI Executive Assessment Evaluation
-aiApp.post('/projects/:id/assessment/evaluate', async (c) => {
-  const projectId = c.req.param('id');
-  const db = c.env.DB;
-
-  try {
-    const project = await db.prepare('SELECT project_name, client_name, sector, scope FROM projects WHERE id = ?').bind(projectId).first() as any;
-    if (!project) return c.json({ error: 'Project not found' }, 404);
-
-    const { results: interviews } = await db.prepare(
-      'SELECT track, question, answer, interviewee, gap_detected FROM project_interviews WHERE project_id = ?'
-    ).bind(projectId).all() as any;
-
-    if (!interviews || interviews.length === 0) {
-      return c.json({ error: 'Nenhuma resposta de entrevista encontrada para este projeto. Por favor, responda o questionário no Playbook antes de rodar o diagnóstico.' }, 400);
-    }
-
-    const assessmentData = interviews.map((i: any) => 
-      `[Trilha: ${i.track}] Questão: ${i.question}\nResposta: ${i.answer}\nEntrevistado: ${i.interviewee}\nGap Detectado: ${i.gap_detected ? 'Sim' : 'Não'}`
-    ).join('\n\n');
-
-    const agent = new AssessmentAgent(c.env.AI, db, c.env);
-    
-    const context = {
-      organizationId: projectId,
-      standardReference: project.sector || 'Geral'
-    };
-    
-    const result = await agent.run(assessmentData, context);
-    
-    if (!result.success) {
-      // result.content traz o texto cru de cada provedor de IA: vai ao log, não ao cliente.
-      return erro500(c, 'Falha no processamento agêntico do diagnóstico', new Error(result.content));
-    }
-
-    let cmmScore = 1;
-    const cmmMatch = result.content.match(/Nível CMM.*?(\d+)/i);
-    if (cmmMatch) {
-      cmmScore = parseInt(cmmMatch[1]);
-    }
-
-    const notesPayload = JSON.stringify({
-      audit_status: cmmScore >= 3 ? 'compliant' : 'non_compliant',
-      cmm_score: cmmScore,
-      audit_finding: result.content,
-      audited_at: new Date().toISOString()
-    });
-
-    const existingProgress = await db.prepare('SELECT id FROM checklist_progress WHERE project_id = ? AND item_id = "global_assessment"').bind(projectId).first();
-    if (existingProgress) {
-      await db.prepare('UPDATE checklist_progress SET is_checked = ?, notes = ?, checked_at = CURRENT_TIMESTAMP WHERE project_id = ? AND item_id = "global_assessment"').bind(
-        cmmScore >= 3 ? 1 : 0,
-        notesPayload,
-        projectId
-      ).run();
-    } else {
-      await db.prepare(`INSERT INTO checklist_progress (id, project_id, phase_number, item_id, is_checked, notes)
-        VALUES (lower(hex(randomblob(16))), ?, 0, 'global_assessment', ?, ?)`).bind(
-          projectId,
-          cmmScore >= 3 ? 1 : 0,
-          notesPayload
-        ).run();
-    }
-
-    await logAudit(db, 'project.assessment.evaluated', c.get('user')?.email || 'system', `Diagnóstico de Auto-Avaliação agêntico rodado para projeto ${projectId}`);
-
-    return c.json({
-      ok: true,
-      cmm_score: cmmScore,
-      report: result.content
-    });
-
-  } catch (err: any) {
-    return erro500(c, 'Erro ao rodar diagnóstico executivo', err);
   }
 });

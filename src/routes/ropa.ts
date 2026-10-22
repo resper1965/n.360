@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
+import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
 import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema } from '../schemas';
 import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa, gapsDoProjeto, sqlAreaDaAtividade } from '../services/riscos-atividade';
@@ -523,7 +523,7 @@ projectRopaApp.post('/:recordId/approve', async (c) => {
     // de plataforma. Antes, quem não estava na matriz caía num `if (userGov)`
     // e passava sem checagem nenhuma: assinava os dois papéis do mesmo ROPA.
     const autoridade = await autoridadeDeAssinatura(c.env.DB, projectId || '', user);
-    const recusa = recusaDeAssinatura(autoridade, role);
+    const recusa = recusaDeAssinatura(autoridade, role) ?? await recusaSenhaDeOutro(c.env.DB, user.id);
     if (recusa) return c.json({ error: recusa }, 403);
 
     const dbUser = await c.env.DB.prepare(

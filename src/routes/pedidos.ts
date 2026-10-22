@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Bindings, Variables } from '../index';
 import {
-  logAudit, verifyPassword, erro500, requireProjectAccess, projetosVisiveis, idDoControle,
+  logAudit, verifyPassword, recusaSenhaDeOutro, erro500, requireProjectAccess, projetosVisiveis, idDoControle,
   type PapelAssinatura,
   sendEmail, genToken, sha256Hex, registraErro,
 } from '../helpers';
@@ -251,7 +251,8 @@ export async function decidirPedido(
   if (a.senha !== null && !(await verifyPassword(a.senha, dbUser.password_hash))) return { status: 401, corpo: { error: 'Senha incorreta' } };
 
   const autoridade = await autoridadeNoPedido(db, pedido, user);
-  if (autoridade.recusa) return { status: 403, corpo: { error: autoridade.recusa } };
+  const recusa = autoridade.recusa ?? await recusaSenhaDeOutro(db, user.id);
+  if (recusa) return { status: 403, corpo: { error: recusa } };
   const nome = autoridade.nome || dest.nome || dbUser.name || user.email;
   const assinar: { papel: PapelAssinatura } | undefined =
     decisao === 'aprovar' && pedido.papel_exigido !== 'ciente' ? { papel: pedido.papel_exigido } : undefined;
@@ -314,6 +315,8 @@ pedidosApp.post('/lote', async (c) => {
     const dbUser = await db.prepare('SELECT password_hash, name, totp_enabled FROM users WHERE id = ? OR email = ?')
       .bind(user.id ?? '', user.email ?? '').first<DbUser>();
     if (!dbUser || !(await verifyPassword(valid.data.senha, dbUser.password_hash))) return c.json({ error: 'Senha incorreta' }, 401);
+    const senhaDeOutro = await recusaSenhaDeOutro(db, user.id);
+    if (senhaDeOutro) return c.json({ error: senhaDeOutro }, 403);
 
     const resultados: { tipo: string; id: string; resultado: 'aprovado' | 'ignorado'; motivo?: string }[] = [];
     for (const it of valid.data.itens) {

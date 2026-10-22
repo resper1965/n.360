@@ -24,6 +24,8 @@ describe('OTP do portal público de políticas', () => {
     await applySchema();
     await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES (?,?,?,?,?)`)
       .bind(PID, 'Cliente OTP', 'ISO 27001', 'controller', 'Active').run();
+    // o portal só manda código a e-mail ligado ao projeto: a parte dá o domínio do cliente
+    await env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('otp-rh', ?, 'pessoa', 'RH', 'rh@cliente.com')`).bind(PID).run();
   });
 
   it('em produção NÃO retorna o OTP no corpo, mas o grava no KV', async () => {

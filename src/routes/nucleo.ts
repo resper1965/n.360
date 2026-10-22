@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { ehEquipeNess, erro500, logAudit, podeAdministrarOrg, registraErro } from '../helpers';
+import { ehEquipeNess, erro500, logAudit, podeAdministrarOrg, registraErro, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { aplicarNomes, propostasDeNomes } from '../services/padronizar-nomes';
 import { importarPartes, conciliarResponsaveis } from '../services/partes';
 import { importarDocumentos } from '../services/documentos';
 import { conferirPedidosDoDocumento } from './pedidos';
-import { sincronizarDpoDaParte } from '../services/encarregado-pessoa';
+import { sincronizarDpoDaParte, membroDpoDaParte } from '../services/encarregado-pessoa';
 import { emailAindaNaMatriz, revogarContaStakeholder } from './governance';
 import { NOME_DO_PRODUTO } from '../modulos';
 import { seedPhases } from '../services/project-setup';
@@ -214,6 +214,14 @@ nucleoApp.put('/partes/:id', async (c) => {
       .bind(id, projectId).first<{ nome: string; email: string | null; status: string }>();
     if (!atual) return c.json({ error: 'Parte não encontrada' }, 404);
     const email = v.data.email === undefined ? atual.email : (v.data.email?.toLowerCase() ?? null);
+    // A parte encarregada leva nome e e-mail à linha do DPO na governança: mudar é mexer na linha de quem assina.
+    if ((v.data.nome ?? atual.nome) !== atual.nome || email !== atual.email) {
+      if (!podeMexerEmAssinatura(c.get('user'), projectId)
+        && await c.env.DB.prepare(`SELECT 1 FROM parte_vinculos WHERE parte_id = ? AND project_id = ? AND papel = 'encarregado'`).bind(id, projectId).first()
+        && await membroDpoDaParte(c.env.DB, projectId, { nome: atual.nome, email: atual.email })) {
+        return c.json(RECUSA_LINHA_DE_ASSINATURA, 403);
+      }
+    }
     await c.env.DB.prepare('UPDATE partes SET nome = ?, email = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?')
       .bind(v.data.nome ?? atual.nome, email, v.data.status ?? atual.status, id, projectId).run();
     await logAudit(c.env.DB, 'parte.atualizada', c.get('user').email, `Parte ${id} atualizada`, '', '', projectId);

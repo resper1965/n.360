@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Segurança (aprovador e portal de políticas, 22/10/2026; sem migration)
+- **Senha definida por outra pessoa não aprova:** o `PUT /users/:id` com senha, feito por quem gere a conta, grava `requires_password_change = 1` e avisa o dono por e-mail (`emailSenhaDefinidaPorOutro`; falha vai ao log). Até a pessoa trocar a senha (primeiro acesso ou troca comum, que agora também zera o flag), pedidos, lote e as assinaturas diretas (RIPD, RoPA, evidência, política) respondem 403.
+- **Linha de quem assina é do cliente:** criar, alterar ou remover na governança a linha de Direção, Líder SGSI/CISO ou DPO/encarregado é só do `org_admin` do próprio projeto; consultor, administração, chave de API e agente recebem 403. Editar a parte encarregada não desvia a regra.
+- **Portal de políticas:** o código só vai a e-mail ligado ao projeto (conta, governança, parte pessoa ou o mesmo domínio do cliente, fora domínio público e da consultoria), com a mesma resposta para quem fica de fora; limites de 20 por hora por IP e 200 por hora por projeto; o nome digitado sai do e-mail e tem teto de 120 caracteres.
+- **Rota sem chamador removida:** `POST /api/v1/projects/:id/assessment/evaluate` (diagnóstico executivo que gravava item do checklist pela resposta do modelo).
+
 ### Segurança (endurecimento de segurança, 22/10/2026; sem migration)
 - **Datas na tela e na API:** `formatarData` (`frontend/src/ui.js`) devolve escapado o texto que não é data, e os chamadores deixaram de escapar de novo; `scheduled_date` (auditoria), `review_date` (análise crítica) e `completion_date`/`last_measured_at` (treinamento e métrica, que aceitam também data e hora ISO) só aceitam data no servidor (`dataOuInstante`, `dataOuVazio` em `src/schemas/ropa-abas.ts`; o campo de data vazio da tela continua aceito). A delegação de eventos (`frontend/src/delegation.js`) recusa `api`, `fetch`, `eval`, temporizadores, `open`, `baixarArquivo` e afins (`PROIBIDAS`).
 - **Caminho decodificado nas regras:** `authMiddleware` (allow-lists, papel da chave de API) e o limite por rota usam `c.req.path`, o mesmo caminho do roteador; `audit-f%69ndings` não escapa mais da regra. Alterar e apagar achado de auditoria gravam trilha (`audit_finding.updated`, `audit_finding.deleted`).
