@@ -69,7 +69,7 @@ window.renderMeusPedidos = async function renderMeusPedidos(c, h, a) {
             style="flex:1;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 18px;cursor:pointer">
             <span>
                 <span style="display:block;font-weight:600;color:var(--text)">${escapeHTML(p.titulo)}</span>
-                <span style="display:block;font-size:12px;color:var(--text-dim)">${escapeHTML(PAPEIS[p.papel_exigido] || p.papel_exigido)} · ${escapeHTML(data(p.criado_em))}</span>
+                <span style="display:block;font-size:12px;color:var(--text-dim)">${escapeHTML(PAPEIS[p.papel_exigido] || p.papel_exigido)} · ${data(p.criado_em)}</span>
             </span>
             <span class="ctx-tag">${escapeHTML(p.meu_status === 'pendente' && p.status === 'aberto' ? 'Aguardando você' : STATUS[p.meu_status] || p.meu_status)}</span>
         </button>
@@ -104,7 +104,7 @@ window.abrirPedido = async function abrirPedido(id) {
     openModal(`
         <div style="padding:1.5rem 1.75rem;max-width:720px">
             <h3 style="font-family:var(--font-head);font-weight:600;font-size:17px;margin:0 0 4px">${escapeHTML(p.titulo)}</h3>
-            <p style="font-size:12px;color:var(--text-dim);margin:0 0 16px">${escapeHTML(PAPEIS[p.papel_exigido] || p.papel_exigido)} · pedido por ${escapeHTML(p.criado_por)} em ${escapeHTML(data(p.criado_em))} · situação: ${escapeHTML(STATUS[p.status] || p.status)}</p>
+            <p style="font-size:12px;color:var(--text-dim);margin:0 0 16px">${escapeHTML(PAPEIS[p.papel_exigido] || p.papel_exigido)} · pedido por ${escapeHTML(p.criado_por)} em ${data(p.criado_em)} · situação: ${escapeHTML(STATUS[p.status] || p.status)}</p>
             ${aviso}
             <div style="max-height:50vh;overflow:auto;border:1px solid var(--border);padding:16px;margin-bottom:12px">${conteudoHtml(p.tipo, p.conteudo || {})}</div>
             <p style="font-size:11px;color:var(--text-dim);margin:0 0 16px;word-break:break-all">Versão (SHA-256): <span style="font-family:var(--font-mono)">${escapeHTML(p.hash)}</span></p>
@@ -125,7 +125,7 @@ window.abrirPedido = async function abrirPedido(id) {
                     <button type="submit" class="btn btn-primary">${p.papel_exigido === 'ciente' ? 'Confirmar ciência' : 'Aprovar'}</button>
                 </div>
             </form>` : `
-            <p style="font-size:13px;color:var(--text)">Sua resposta: ${escapeHTML(STATUS[d.status] || d.status)}${d.decidido_em ? ' em ' + escapeHTML(data(d.decidido_em)) : ''}</p>
+            <p style="font-size:13px;color:var(--text)">Sua resposta: ${escapeHTML(STATUS[d.status] || d.status)}${d.decidido_em ? ' em ' + data(d.decidido_em) : ''}</p>
             <div style="display:flex;justify-content:flex-end"><button type="button" class="btn btn-secondary" data-action="forceCloseModal">Fechar</button></div>`}
         </div>`);
     if (decide) el('pd-senha').focus();
@@ -250,7 +250,7 @@ window.renderCienciaLink = async function renderCienciaLink(alvo, projectId) {
         </div>
         ${pedidos.length ? `<table class="data-table"><thead><tr><th>Documento</th><th>Pedido</th><th>Situação</th><th>Concluídos</th><th>Pendentes</th><th>Não abriram</th><th></th></tr></thead><tbody>
             ${pedidos.map((p) => `<tr>
-                <td>${escapeHTML(p.titulo)}<div style="font-size:11px;color:var(--text-dim)">${escapeHTML(data(p.criado_em))}</div></td>
+                <td>${escapeHTML(p.titulo)}<div style="font-size:11px;color:var(--text-dim)">${data(p.criado_em)}</div></td>
                 <td>${escapeHTML(PAPEIS[p.papel_exigido] || p.papel_exigido)}</td>
                 <td>${escapeHTML(STATUS[p.status] || p.status)}</td>
                 <td>${escapeHTML(String(p.cientes ?? 0))} de ${escapeHTML(String(p.total ?? 0))}</td>
@@ -355,7 +355,7 @@ window.abrirAcompanhamento = async function abrirAcompanhamento(projectId, id) {
                 ${ds.map((d) => `<tr>
                     <td>${escapeHTML(d.email)}${d.nome ? `<div style="font-size:11px;color:var(--text-dim)">${escapeHTML(d.nome)}</div>` : ''}</td>
                     <td>${escapeHTML(SITUACAO[d.situacao] || d.situacao)}</td>
-                    <td>${escapeHTML(data(d.decidido_em))}</td>
+                    <td>${data(d.decidido_em)}</td>
                     <td style="font-size:12px;color:var(--text-dim)">${escapeHTML(nota(d))}</td>
                 </tr>`).join('')}
                 </tbody></table>

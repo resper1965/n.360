@@ -34,7 +34,7 @@ window.abrirFaixaPrazo = function (projectId, faixa) {
     if (!f) return false;
     const itens = Array.isArray(f.itens) ? f.itens : [];
     const tabela = window.renderDataTable(['Ação', 'Atividade', 'Prazo', 'Responsável', ''], itens.map((i) => [
-        escapeHTML(i.title), escapeHTML(i.atividade || '—'), escapeHTML(formatarData(i.due_date, { vazio: 'Sem prazo' })),
+        escapeHTML(i.title), escapeHTML(i.atividade || '—'), formatarData(i.due_date, { vazio: 'Sem prazo' }),
         escapeHTML(i.responsavel || '—'),
         `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(projectId, i.ropa_id)}'>Abrir a atividade</button>`,
     ]), { emptyState: 'Nenhuma ação aberta nesta faixa.' });

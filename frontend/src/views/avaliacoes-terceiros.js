@@ -48,7 +48,7 @@ async function renderAvaliacoesTerceiros(c, h, a) {
         const linhas = porGrupo[k].sort(urgencia).map((t) => {
             const d = diasAte(t);
             return [`<strong>${escapeHTML(t.nome)}</strong>`, escapeHTML(NIVEIS[t.nivel] || 'Não avaliada'), escapeHTML(TIPOS[t.terceiro_tipo] || '—'),
-                escapeHTML(METODOS[t.metodo] || '—'), escapeHTML(t.ultima_avaliacao ? formatarData(t.ultima_avaliacao.valido_ate) : '—'), escapeHTML(d === null ? '—' : String(d)),
+                escapeHTML(METODOS[t.metodo] || '—'), (t.ultima_avaliacao ? formatarData(t.ultima_avaliacao.valido_ate) : '—'), escapeHTML(d === null ? '—' : String(d)),
                 `<button class="btn btn-ghost btn-sm" data-action="abrirTerceiro" data-args='${args(proj.id, t.id, 'avaliacoes')}' aria-label="${escapeHTML(`Abrir ${t.nome}`)}">Abrir</button>`];
         });
         return `<section class="av-grupo" id="av-${k}"><h3>${escapeHTML(rotulo)} (${porGrupo[k].length})</h3>${window.renderDataTable(

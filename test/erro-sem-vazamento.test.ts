@@ -246,6 +246,13 @@ describe('500 correlaciona em vez de vazar', () => {
     await exigeSemProvedor(res, 'Falha no processamento agêntico do diagnóstico');
   });
 
+  it('ai: a rota antiga que marcava o item do checklist pela resposta do modelo não existe mais', async () => {
+    const res = await worker.fetch(new Request(`http://localhost/api/v1/projects/${PROJ}/checklist/item-1/audit`, {
+      method: 'POST', headers: admin,
+    }), envSemIa());
+    expect(res.status).toBe(404);
+  });
+
   it('ai: chat com IA indisponível não devolve a exceção', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await worker.fetch(new Request(`http://localhost/api/v1/projects/${PROJ}/chat`, {

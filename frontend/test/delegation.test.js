@@ -144,4 +144,15 @@ describe('delegação (S2)', () => {
     document.body.querySelector('[data-action]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(window.__fn).toHaveBeenCalledTimes(1);
   });
+  it('recusa nomes que não são ações da interface (api, fetch, eval...)', () => {
+    const espiao = vi.fn();
+    const antes = window.api;
+    window.api = espiao;
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    clickar('<button data-action="api" data-args=\'["/api/v1/users/1","DELETE"]\'>x</button>');
+    expect(espiao).not.toHaveBeenCalled();
+    expect(aviso).toHaveBeenCalled();
+    aviso.mockRestore();
+    window.api = antes;
+  });
 });

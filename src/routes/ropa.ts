@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, refForaDoProjeto } from '../helpers';
+import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
 import { validateBody, ropaSchema, copilotoRopaSchema, ropaApprovalSchema, revogarRopaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema, riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema } from '../schemas';
 import { listarRiscos, criarRisco, atualizarRisco, apagarRisco, listarAcoes, criarAcao, atualizarAcao, apagarAcao, riscosDoMapa, gapsDoProjeto, sqlAreaDaAtividade } from '../services/riscos-atividade';
@@ -54,6 +54,15 @@ export function naoInformados(dados: unknown): string[] {
 }
 const comNaoInformados = ({ dados_importados, ...r }: Record<string, unknown>): Record<string, unknown> => ({ ...r, nao_informado: naoInformados(dados_importados) });
 
+const VAZIOS_ROPA: Record<string, unknown> = {
+  processing_purpose: null, data_categories: null, data_subjects: null, legal_basis: null, consent_details: null,
+  data_subject_rights_details: null, retention_period: null, recipients: null, international_transfers: 0,
+  transfer_safeguards: null, dpia_required: 0, dados_sensiveis: 0, criancas_adolescentes: 0, status: 'Draft', owner: null, owner_parte_id: null, base_legal_id: null,
+};
+/** As colunas do registro que entram no conteúdo congelado do pedido de aprovação (`DOCUMENTOS.tratamento` em `services/pedidos.ts`). */
+const COLUNAS_CONGELADAS_ROPA = ['processing_purpose', 'data_categories', 'data_subjects', 'legal_basis', 'base_legal_id', 'retention_period',
+  'recipients', 'international_transfers', 'transfer_safeguards', 'dpia_required', 'dados_sensiveis', 'criancas_adolescentes'];
+
 // Direct ROPA operations (/api/v1/ropa)
 ropaApp.put('/:id', async (c) => {
   try {
@@ -63,7 +72,8 @@ ropaApp.put('/:id', async (c) => {
     if (!valid.success) return valid.response;
     // Ausente preserva o valor gravado (setParcial); o transform de boolLike deixa a chave com undefined.
     const body = Object.fromEntries(Object.entries(valid.data as Record<string, unknown>).filter(([, v]) => v !== undefined)) as any;
-    const atual = await c.env.DB.prepare('SELECT status, project_id FROM ropa_records WHERE id = ?').bind(id).first<{ status: string | null; project_id: string | null }>();
+    const atual = await c.env.DB.prepare(`SELECT status, project_id, ${COLUNAS_CONGELADAS_ROPA.join(', ')} FROM ropa_records WHERE id = ?`)
+      .bind(id).first<Record<string, unknown> & { status: string | null; project_id: string | null }>();
     if (atual?.status === 'Inactive') return c.json({ error: 'Atividade cancelada: reative para editar' }, 409);
     // O projeto vem do ROPA gravado, nunca do corpo.
     // A2: com titulares na Coleta, o texto deles é derivado: só o valor derivado passa (spec 4.4).
@@ -81,12 +91,16 @@ ropaApp.put('/:id', async (c) => {
       return c.json({ error: 'ROPA aprovado não muda de status pela edição. Para reabrir, use "Revogar aprovação" (motivo obrigatório).' }, 400);
     }
     for (const k of ['international_transfers', 'dpia_required', 'dados_sensiveis', 'criancas_adolescentes']) if (k in body && body[k] !== null) body[k] = body[k] ? 1 : 0;
-    const p = setParcial(body, {
-      processing_purpose: null, data_categories: null, data_subjects: null, legal_basis: null, consent_details: null,
-      data_subject_rights_details: null, retention_period: null, recipients: null, international_transfers: 0,
-      transfer_safeguards: null, dpia_required: 0, dados_sensiveis: 0, criancas_adolescentes: 0, status: 'Draft', owner: null, owner_parte_id: null, base_legal_id: null,
-    });
+    // Aprovação direta antiga (assinaturas na linha): mudar conteúdo aprovado a derruba, como no RIPD. Compara o valor que SERIA gravado.
+    const gravar = valoresParciais(body, VAZIOS_ROPA);
+    const texto = (x: unknown) => (typeof x === 'string' ? x.replace(/\r\n/g, '\n') : x ?? null);
+    const mudaram = atual?.status === 'Approved' ? COLUNAS_CONGELADAS_ROPA.filter((col) => Object.hasOwn(gravar, col) && texto(gravar[col]) !== texto(atual[col])) : [];
+    const p = setParcial(body, VAZIOS_ROPA);
     if (p.sql) await c.env.DB.prepare(`UPDATE ropa_records SET ${p.sql}, updated_at=? WHERE id=?`).bind(...p.binds, new Date().toISOString(), id).run();
+    if (mudaram.length) {
+      await c.env.DB.prepare(`UPDATE ropa_records SET ${COLUNAS_REVOGACAO.ciso}, ${COLUNAS_REVOGACAO.ceo}, status = 'Under Review' WHERE id = ?`).bind(id).run();
+      await logAudit(c.env.DB, 'ropa.aprovacao_invalidada', c.get('user')?.email || 'system', `ROPA ${id}: conteúdo mudou (${mudaram.join(', ')}); aprovação e assinaturas zeradas, voltou a revisão.`, '', '', atual?.project_id ?? undefined);
+    }
     // A2: texto plano gravado agora precisa ser materializado de novo na próxima leitura das etapas (a marca de materialização sai).
     if (atual?.project_id && (Object.hasOwn(body, 'data_subjects') || Object.hasOwn(body, 'data_categories'))) {
       await c.env.DB.prepare('UPDATE ropa_records SET etapas_materializadas_em = NULL WHERE id = ? AND project_id = ?').bind(id, atual.project_id).run();
@@ -104,10 +118,14 @@ ropaApp.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'ropa_records', id, c.get('user'));
+    const atual = await c.env.DB.prepare('SELECT status FROM ropa_records WHERE id = ?').bind(id).first<{ status: string | null }>();
+    if (atual?.status === 'Approved') {
+      return c.json({ error: 'ROPA aprovado não pode ser excluído. Revogue a aprovação antes (motivo obrigatório).' }, 409);
+    }
     // As ligações caem por FK; os vínculos de parte não têm FK (alvo polimórfico) e saem aqui, junto.
     await c.env.DB.batch([
-      c.env.DB.prepare("DELETE FROM parte_vinculos WHERE alvo_tipo = 'tratamento' AND alvo_id = ?").bind(id),
-      c.env.DB.prepare('DELETE FROM ropa_records WHERE id = ?').bind(id),
+      c.env.DB.prepare("DELETE FROM parte_vinculos WHERE alvo_tipo = 'tratamento' AND alvo_id = ? AND NOT EXISTS (SELECT 1 FROM ropa_records WHERE id = ? AND status = 'Approved')").bind(id, id),
+      c.env.DB.prepare("DELETE FROM ropa_records WHERE id = ? AND status IS NOT 'Approved'").bind(id),
     ]);
     const user = c.get('user');
     await logAudit(c.env.DB, 'ropa_deleted', user?.email || 'system', `ROPA ${id} deleted`);

@@ -34,7 +34,7 @@ function blocoDoCampo(campo, v) {
         <span class="sr-only" id="${id}-exemplo">${campo.exemplo ? `Exemplo: ${escapeHTML(campo.exemplo)}. ` : ''}${campo.ajuda ? escapeHTML(campo.ajuda) : ''}</span>
         ${campo.ajuda ? `<p class="bancada-nota">${escapeHTML(campo.ajuda)}</p>` : ''}
         ${v && v.herdado ? '<p class="bancada-nota">Veio do preenchimento anterior; fica salvo no primeiro ajuste.</p>' : ''}
-        ${v && v.por ? `<p class="bancada-nota">Última alteração de ${escapeHTML(v.por)} em ${escapeHTML(formatarData(v.atualizado_em, { hora: true }))}</p>` : ''}</div>`;
+        ${v && v.por ? `<p class="bancada-nota">Última alteração de ${escapeHTML(v.por)} em ${formatarData(v.atualizado_em, { hora: true })}</p>` : ''}</div>`;
 }
 
 export const htmlDosCriterios = (avaliacao) => avaliacao.criterios.map((c) =>

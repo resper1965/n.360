@@ -28,7 +28,7 @@ export function filtrarLinhas(reqs, busca) {
 function linhaHtml(r) {
     const selo = r.validado_por
         ? `${window.renderStatusBadge('Validado juridicamente', 'success')}
-           <span class="rj-quem">Validado por ${escapeHTML(r.validado_por)} em ${escapeHTML(formatarData(r.validado_em, { vazio: '' }))}</span>`
+           <span class="rj-quem">Validado por ${escapeHTML(r.validado_por)} em ${formatarData(r.validado_em, { vazio: '' })}</span>`
         : '<span class="rj-quem">Sem validação jurídica</span>';
     return `<tr class="${r.pai_id ? 'rj-filho' : 'rj-pai'}"><th scope="row" class="rj-ref">${escapeHTML(r.referencia)}</th><td>${escapeHTML(r.titulo)}</td><td>${selo}</td></tr>`;
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dataIso, dataOuInstante, dataOuVazio } from './ropa-abas';
 
 /**
  * Corpos de escrita que eram lidos com `c.req.json()` sem schema (item T3 do
@@ -187,7 +188,7 @@ export const stakeholderAtualizarSchema = z.object({
 });
 
 export const revisaoCriarSchema = z.object({
-  review_date: z.string().min(1).max(50),
+  review_date: dataIso,
   attendees: txt(5000),
 });
 
@@ -204,7 +205,7 @@ export const metricaCriarSchema = z.object({
   target_value: num,
   current_value: num,
   frequency: txt(50),
-  last_measured_at: txt(50),
+  last_measured_at: z.union([dataOuVazio, dataOuInstante]).optional().nullable(),
   owner: txt(500),
   status: txt(50),
 });

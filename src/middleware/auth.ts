@@ -74,7 +74,7 @@ async function resolveApiKeyUser(
   // 'consultant'/'auditor' — string vazia cai no mesmo ramo permissivo em que
   // um NULL já caía, e a escrita segue barrada pelo `writeCapable` acima.
   // Comportamento idêntico ao anterior; o que muda é o tipo dizer isso.
-  const roleViolation = apiKeyRoleViolation(row.permissions ?? '', method, new URL(c.req.url).pathname);
+  const roleViolation = apiKeyRoleViolation(row.permissions ?? '', method, c.req.path);
   if (roleViolation) {
     return c.json({ error: roleViolation }, 403);
   }
@@ -155,7 +155,8 @@ const STAKEHOLDER_PERMITIDO: RegExp[] = [
 ];
 
 export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: Variables }>(async (c, next) => {
-  const path = new URL(c.req.url).pathname;
+  // Decodificado, como o roteador do Hono: o cru deixava `%69` passar pelas regras e chegar à rota.
+  const path = c.req.path;
   if (PUBLIC_TOKEN_PREFIXES.some(p => path.startsWith(p))) {
     return next();
   }

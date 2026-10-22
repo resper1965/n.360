@@ -536,7 +536,7 @@ import { montarLista, colunasDe } from '../lista.js';
         try { lista = await api('GET', `/api/v1/projects/${projectId}/agentes`); } catch (e) { if (!manter) alvo.innerHTML = ''; return; }
         if (!Array.isArray(lista)) { if (!manter) alvo.innerHTML = ''; return; }
         const podeRevogar = (ag) => S.user && (S.user.role === 'platform_admin' || S.user.role === 'org_admin' || S.user.role === 'consultoria_admin' || ((S.user.role === 'consultor' || S.user.role === 'consultant') && ag.consultor === S.user.email));
-        const data = (v) => escapeHTML(dataLocal(v));
+        const data = (v) => dataLocal(v);
         const ultimoUso = (v) => v ? `${data(v)} (${haQuanto(v)})` : 'nunca';
         const linhas = lista.map(ag => {
             const revogado = !!ag.revogado_em;
@@ -1307,7 +1307,7 @@ import { montarLista, colunasDe } from '../lista.js';
             list.map(m => {
                 const isCompleted = m.status === 'Completed' || m.status === 'concluido';
                 return [
-                    `<span class="fw-600 t-accent f-mono t-base">${escapeHTML(formatarData(m.review_date))}</span>`,
+                    `<span class="fw-600 t-accent f-mono t-base">${formatarData(m.review_date)}</span>`,
                     formatAttendees(m.attendees),
                     window.renderStatusBadge(isCompleted ? 'Concluída' : 'Planejada', isCompleted ? 'success' : 'warning'),
                     `<button data-action="openEditMgmtReviewModal" data-args='["${m.id}"]' class="btn btn-ghost btn-sm">Abrir Pauta / Editar</button>`

@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Segurança (endurecimento de segurança, 22/10/2026; sem migration)
+- **Datas na tela e na API:** `formatarData` (`frontend/src/ui.js`) devolve escapado o texto que não é data, e os chamadores deixaram de escapar de novo; `scheduled_date` (auditoria), `review_date` (análise crítica) e `completion_date`/`last_measured_at` (treinamento e métrica, que aceitam também data e hora ISO) só aceitam data no servidor (`dataOuInstante`, `dataOuVazio` em `src/schemas/ropa-abas.ts`; o campo de data vazio da tela continua aceito). A delegação de eventos (`frontend/src/delegation.js`) recusa `api`, `fetch`, `eval`, temporizadores, `open`, `baixarArquivo` e afins (`PROIBIDAS`).
+- **Caminho decodificado nas regras:** `authMiddleware` (allow-lists, papel da chave de API) e o limite por rota usam `c.req.path`, o mesmo caminho do roteador; `audit-f%69ndings` não escapa mais da regra. Alterar e apagar achado de auditoria gravam trilha (`audit_finding.updated`, `audit_finding.deleted`).
+- **Rota antiga de IA removida:** `POST /api/v1/projects/:id/checklist/:itemId/audit` marcava o item do checklist pela resposta do modelo, sem os critérios do servidor, e não tinha chamador.
+- **Aprovação direta do RoPA presa ao conteúdo:** no `PUT /ropa/:id`, mudar coluna do conteúdo congelado de um registro `Approved` zera as assinaturas CISO/CEO, volta a `Under Review` e grava `ropa.aprovacao_invalidada`; `DELETE /ropa/:id` de registro aprovado responde 409, como o RIPD.
+
 ### Corrigido (ajustes da revisão da ficha da atividade, 21/10/2026; sem migration)
 - **Progresso da ficha em "N de 6 partes":** Controle de GAPs e Riscos mostram o estado na barra, mas saem da conta e do "Ir para a próxima pendência" (são sugestão, como no guiado); a numeração das abas não muda. O guiado conta só as perguntas não adiadas; a aba Agentes avisa a falha ao carregar as partes em vez de dizer "nenhum parceiro"; a regra do art. 11 e a do volume ou descrição viraram funções únicas (`conferencia.ts`); o e-mail de boas-vindas só diz "(consultoria: X)" para a equipe da consultoria.
 

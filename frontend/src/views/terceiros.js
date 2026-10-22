@@ -71,7 +71,7 @@ async function renderTerceiros(c, h, a) {
                 escapeHTML(NIVEIS_CRITICIDADE[t.nivel] || 'Não avaliada'),
                 escapeHTML(TIPOS[t.terceiro_tipo] || '—'),
                 window.renderStatusBadge(rotulo, tom),
-                escapeHTML(t.ultima_avaliacao ? dataBr(t.ultima_avaliacao.valido_ate) : '—'),
+                (t.ultima_avaliacao ? dataBr(t.ultima_avaliacao.valido_ate) : '—'),
                 t.dpa ? 'Sim' : 'Não',
                 escapeHTML(situacaoTprm(t)),
                 escapeHTML(String(t.atividades ?? t.tratamentos ?? 0)),
@@ -160,7 +160,7 @@ async function renderTerceiro(c, h, a) {
     const corpo = { cadastro: abaCadastro, criticidade: abaCriticidade, avaliacoes: abaAvaliacoes, seguranca: abaSeguranca,
         documentos: abaDocumentos, atividades: abaAtividades, suboperadores: abaSuboperadores }[aba](projectId, parteId, t, editar, extra);
     h.textContent = t.nome;
-    c.innerHTML = `<div class="tc"><p class="tc-resumo">${window.renderStatusBadge(rotulo, tom)} ${t.ultima_avaliacao ? `avaliação válida até ${escapeHTML(dataBr(t.ultima_avaliacao.valido_ate))}` : 'nunca avaliado'}
+    c.innerHTML = `<div class="tc"><p class="tc-resumo">${window.renderStatusBadge(rotulo, tom)} ${t.ultima_avaliacao ? `avaliação válida até ${dataBr(t.ultima_avaliacao.valido_ate)}` : 'nunca avaliado'}
             · Criticidade: ${escapeHTML(NIVEIS_CRITICIDADE[t.nivel] || 'Não avaliada')}</p>
         <p class="tc-resumo" id="tc-tprm">Situação do TPRM: ${escapeHTML(situacaoTprm(t))}</p>
         <div class="at-abas" role="tablist" aria-label="Abas do fornecedor">${ABAS.map(([id, r]) =>
@@ -217,7 +217,7 @@ function abaAvaliacoes(projectId, parteId, t, editar, extra) {
             <button class="btn btn-primary btn-sm" data-action="registrarAvaliacaoTerceiro" data-args='${args(projectId, parteId)}'>Registrar</button></div>` : ''}
         ${titulo('Histórico de avaliações')}
         <div id="tc-historico">${hist.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Método</th><th>Resultado</th><th>Vale até</th><th>Evidência</th><th>Observação</th><th>Por</th></tr></thead><tbody>${hist.map((x) =>
-            `<tr><td>${escapeHTML(dataBr(x.created_at))}</td><td>${escapeHTML(METODOS[x.metodo] || x.metodo)}</td><td>${escapeHTML(RESULTADOS[x.resultado] || x.resultado)}</td><td>${escapeHTML(dataBr(x.valido_ate))}</td><td>${linkSeguro(x.evidencia_url)}</td><td>${escapeHTML(x.observacao || '')}</td><td>${escapeHTML(x.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
+            `<tr><td>${dataBr(x.created_at)}</td><td>${escapeHTML(METODOS[x.metodo] || x.metodo)}</td><td>${escapeHTML(RESULTADOS[x.resultado] || x.resultado)}</td><td>${dataBr(x.valido_ate)}</td><td>${linkSeguro(x.evidencia_url)}</td><td>${escapeHTML(x.observacao || '')}</td><td>${escapeHTML(x.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
             : vazio('Nenhuma avaliação registrada.')}</div>
         ${t.metodo === 'questionario' ? secaoHomologacao(projectId, parteId, extra.homologacoes || [], editar) : ''}`;
 }
@@ -354,7 +354,7 @@ function secaoCriticidade(projectId, parteId, t, crit, editar) {
     if (!crit) return `${cabeca}<p>Não foi possível carregar a avaliação de criticidade.</p>`;
     const atual = crit.atual;
     const resumo = atual
-        ? `<p>Nível atual: <strong>${escapeHTML(NIVEIS_CRITICIDADE[atual.nivel] || atual.nivel)}</strong> · avaliado em ${escapeHTML(dataBr(atual.created_at))}${atual.avaliado_por ? ` por ${escapeHTML(atual.avaliado_por)}` : ''}.</p>`
+        ? `<p>Nível atual: <strong>${escapeHTML(NIVEIS_CRITICIDADE[atual.nivel] || atual.nivel)}</strong> · avaliado em ${dataBr(atual.created_at)}${atual.avaliado_por ? ` por ${escapeHTML(atual.avaliado_por)}` : ''}.</p>`
         : '<p><strong>Sem avaliação de criticidade.</strong> Responda as cinco perguntas para definir o tipo deste fornecedor.</p>';
     const tipo = t.terceiro_tipo === 'grande_provedor'
         ? `<p>Tipo: ${escapeHTML(TIPOS[t.terceiro_tipo])}. Grande provedor é mantido: a avaliação não troca o tipo.</p>`
@@ -365,7 +365,7 @@ function secaoCriticidade(projectId, parteId, t, crit, editar) {
         <button class="btn btn-primary" data-action="confirmarCriticidadeTerceiro" data-args='${args(projectId, parteId)}'>Confirmar avaliação</button>` : '';
     const historico = lista(crit.historico);
     const tabela = historico.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Nível</th>${CRITERIOS_CRITICIDADE.map((c) => `<th>${escapeHTML(c.titulo)}</th>`).join('')}<th>Por</th></tr></thead><tbody>${historico.map((h) =>
-        `<tr><td>${escapeHTML(dataBr(h.created_at))}</td><td>${escapeHTML(NIVEIS_CRITICIDADE[h.nivel] || h.nivel)}</td>${CRITERIOS_CRITICIDADE.map((c) => `<td>${escapeHTML(respostaEmTexto(c, h[c.chave]))}</td>`).join('')}<td>${escapeHTML(h.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
+        `<tr><td>${dataBr(h.created_at)}</td><td>${escapeHTML(NIVEIS_CRITICIDADE[h.nivel] || h.nivel)}</td>${CRITERIOS_CRITICIDADE.map((c) => `<td>${escapeHTML(respostaEmTexto(c, h[c.chave]))}</td>`).join('')}<td>${escapeHTML(h.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
         : vazio('Nenhuma avaliação de criticidade registrada.');
     return `${cabeca}<div id="tc-crit">${resumo}${tipo}${perguntas}</div>
         <h5>Histórico de criticidade</h5><div id="tc-crit-historico">${tabela}</div>`;
@@ -391,8 +391,8 @@ const RESPOSTAS_HOMOLOGACAO = { sim: 'Sim', nao: 'Não', parcial: 'Parcial', na:
 function secaoHomologacao(projectId, parteId, homologacoes, editar) {
     const linhas = homologacoes.map((h) => {
         const [rotulo, tom] = h.expirada ? ['Link vencido', 'danger'] : (STATUS_HOMOLOGACAO[h.status] || [h.status, 'neutral']);
-        return `<tr><td>${escapeHTML(dataBr(h.created_at))}</td><td>${window.renderStatusBadge(rotulo, tom)}</td>
-            <td>${escapeHTML(`${h.percentual}% (${h.respondidas} de ${h.total})`)}</td><td>${escapeHTML(dataBr(String(h.expira_em || '').slice(0, 10)))}</td>
+        return `<tr><td>${dataBr(h.created_at)}</td><td>${window.renderStatusBadge(rotulo, tom)}</td>
+            <td>${escapeHTML(`${h.percentual}% (${h.respondidas} de ${h.total})`)}</td><td>${dataBr(String(h.expira_em || '').slice(0, 10))}</td>
             <td>${escapeHTML(RESULTADOS[h.resultado] || '')}</td>
             <td style="text-align:right">${editar ? `<button class="btn btn-ghost btn-sm" data-action="revisarHomologacao" data-args='${args(projectId, parteId, h.id)}'>Revisar</button>` : ''}</td></tr>`;
     }).join('');
@@ -419,7 +419,7 @@ window.criarHomologacaoTerceiro = async function (projectId, parteId) {
     const alvo = el('tc-hm-link');
     if (!alvo) return;
     alvo.innerHTML = `<div style="margin-top:1rem; padding:1rem; border:1px solid var(--border)">
-        <label class="form-label" for="tc-hm-url">Link do questionário, válido até ${escapeHTML(dataBr(String(r.expira_em || '').slice(0, 10)))}</label>
+        <label class="form-label" for="tc-hm-url">Link do questionário, válido até ${dataBr(String(r.expira_em || '').slice(0, 10))}</label>
         <div style="display:flex; gap:0.5rem"><input class="form-input" id="tc-hm-url" readonly value="${escapeHTML(r.url)}"><button class="btn btn-ghost" data-action="copiarLinkHomologacao">Copiar</button></div>
         <p style="color:var(--text-dim); margin:0.5rem 0 0">${r.email_enviado ? 'O link também foi enviado por e-mail. ' : ''}Copie agora: o link não aparece de novo. Envie-o só ao fornecedor.</p></div>`;
 };
@@ -444,7 +444,7 @@ window.revisarHomologacao = async function (projectId, parteId, id) {
         <td>${escapeHTML(RESPOSTAS_HOMOLOGACAO[p.resposta] || 'Sem resposta')}</td><td>${escapeHTML(p.justificativa || '')}</td></tr>`).join('');
     openModal(`
         <h3>Homologação de ${escapeHTML(h.parte_nome)}</h3>
-        <p>${window.renderStatusBadge(rotulo, tom)} ${escapeHTML(`${h.percentual}% respondido (${h.respondidas} de ${h.total})`)}${h.enviada_em ? ` · enviado em ${escapeHTML(dataBr(h.enviada_em))}` : ''}</p>
+        <p>${window.renderStatusBadge(rotulo, tom)} ${escapeHTML(`${h.percentual}% respondido (${h.respondidas} de ${h.total})`)}${h.enviada_em ? ` · enviado em ${dataBr(h.enviada_em)}` : ''}</p>
         <table class="data-table" id="tc-hm-respostas"><thead><tr><th>Tema</th><th>Pergunta</th><th>Resposta</th><th>Justificativa</th></tr></thead><tbody>${linhas}</tbody></table>
         ${h.status === 'respondida' ? `<h4 style="margin:1.25rem 0 0.5rem">Concluir</h4>
             <p style="color:var(--text-dim)">Concluir grava a avaliação do terceiro (método questionário) com o resultado e a validade abaixo.</p>

@@ -862,7 +862,7 @@ window.openSessionTrail = async function openSessionTrail() {
                                 <span style="flex-shrink:0">${badge(r.tipo || 'evento')}</span>
                                 <span style="flex:1;min-width:0;font-size:12.5px;color:var(--text-2);line-height:1.5">
                                     ${escapeHTML(r.descricao || '')}
-                                    <span style="display:block;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px">${escapeHTML(formatarData(r.quando, { hora: true, vazio: '' }))}</span>
+                                    <span style="display:block;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px">${formatarData(r.quando, { hora: true, vazio: '' })}</span>
                                 </span>
                             </div>`).join('')}
                     </div>`
@@ -1130,7 +1130,7 @@ window.renderNotifDropdown = function renderNotifDropdown() {
             <div class="notif-item ${n.read ? '' : 'unread'}" data-action="handleNotificationClick" data-args='["${n.id}"]'>
                 <div style="font-weight:${n.read ? '400' : '600'}">${escapeHTML(n.title)}</div>
                 <div style="font-size:0.7rem; color:var(--text-dim); margin-top:0.2rem">${escapeHTML(n.message || '')}</div>
-                <div class="notif-time">${escapeHTML(formatarData(n.created_at, { hora: true, vazio: '' }))}</div>
+                <div class="notif-time">${formatarData(n.created_at, { hora: true, vazio: '' })}</div>
             </div>
         `).join('');
     }

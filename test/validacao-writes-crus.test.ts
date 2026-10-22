@@ -38,6 +38,14 @@ const CASOS: Array<[string, string, string, unknown, string]> = [
   ['risks PUT', 'PUT', '/api/v1/risks/rsk-1', { asset: 'Ativo', threat: 'Ameaça', impact: 99 }, 'impact fora da matriz 1..5'],
   ['training PUT', 'PUT', '/api/v1/training/trn-1', { employee_name: '', training_name: 'LGPD' }, 'employee_name vazio'],
   ['vendors PUT', 'PUT', '/api/v1/vendors/vnd-1', { category: 'Nuvem' }, 'name obrigatório faltando (NOT NULL)'],
+  // Campos de data que a tela exibe: só data (ou data e hora ISO onde um sistema externo manda hora), nunca texto livre.
+  ['audits POST data', 'POST', `/api/v1/projects/${A}/audits`, { audit_type: 'Interna', title: 'A', scheduled_date: '<img src=x onerror=alert(1)>' }, 'scheduled_date não é data'],
+  ['audits PUT data', 'PUT', '/api/v1/audits/aud-1', { audit_type: 'Interna', title: 'A', status: 'Planned', scheduled_date: '<img src=x onerror=alert(1)>' }, 'scheduled_date não é data'],
+  ['training POST data', 'POST', `/api/v1/projects/${A}/training`, { employee_name: 'Ana', training_name: 'LGPD', completion_date: '<img src=x onerror=alert(1)>' }, 'completion_date não é data'],
+  ['training PUT data', 'PUT', '/api/v1/training/trn-1', { employee_name: 'Ana', training_name: 'LGPD', completion_date: '<img src=x onerror=alert(1)>' }, 'completion_date não é data'],
+  ['training import data', 'POST', `/api/v1/projects/${A}/training/import-external`, { records: [{ employee_name: 'Ana', training_name: 'LGPD', completion_date: '<img src=x onerror=alert(1)>' }] }, 'completion_date não é data'],
+  ['management-reviews POST data', 'POST', `/api/v1/projects/${A}/management-reviews`, { review_date: '<img src=x onerror=alert(1)>' }, 'review_date não é data'],
+  ['metrics POST data', 'POST', `/api/v1/projects/${A}/metrics`, { metric_name: 'M', last_measured_at: '<img src=x onerror=alert(1)>' }, 'last_measured_at não é data'],
 ];
 
 describe('Validação de corpo nos writes que liam JSON cru', () => {
@@ -69,6 +77,13 @@ describe('Validação de corpo nos writes que liam JSON cru', () => {
       expect(Array.isArray(body.details)).toBe(true);
     });
   }
+
+  it('data válida continua aceita: dia, data e hora ISO no import externo e o campo de data vazio da tela', async () => {
+    expect((await req('POST', `/api/v1/projects/${A}/training/import-external`, { records: [{ employee_name: 'Ana', training_name: 'LGPD', completion_date: '2026-07-15T10:00:00Z' }] })).status).not.toBe(400);
+    expect((await req('POST', `/api/v1/projects/${A}/training`, { employee_name: 'Ana', training_name: 'LGPD', completion_date: '2026-07-15' })).status).not.toBe(400);
+    expect((await req('POST', `/api/v1/projects/${A}/metrics`, { metric_name: 'M', last_measured_at: '' })).status).not.toBe(400);
+    expect((await req('POST', `/api/v1/projects/${A}/management-reviews`, { review_date: '2026-10-08' })).status).not.toBe(400);
+  });
 
   it('campo desconhecido continua aceito — não é este o buraco', async () => {
     const res = await req('PUT', '/api/v1/vendors/vnd-1', { name: 'Fornecedor', campo_que_nao_existe: 'x' });

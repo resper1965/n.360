@@ -47,7 +47,7 @@ async function renderDocumentosArquivo(c, h, a) {
             `<strong>${escapeHTML(d.nome)}</strong>`,
             escapeHTML(ROTULO_TIPO[d.tipo] || d.tipo),
             escapeHTML(d.responsavel_nome || '—'),
-            escapeHTML(vencimentoDe(d)),
+            vencimentoDe(d),
             window.renderStatusBadge(ROTULO_SITUACAO[d.status] || d.status, COR_SITUACAO[d.status] || 'info'),
             [editar ? `<button class="btn btn-ghost btn-sm" data-action="daAbrir" data-args='${args(d.id)}' aria-label="Editar: ${escapeHTML(d.nome)}">Editar</button>` : '',
                 d.arquivo_nome ? `<button class="btn btn-ghost btn-sm" data-action="daBaixar" data-args='${args(d.id)}' aria-label="Baixar o arquivo de ${escapeHTML(d.nome)}">Baixar</button>` : ''].join(''),

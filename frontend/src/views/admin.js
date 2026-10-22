@@ -239,7 +239,7 @@ window.__adminCopiarApiKey = () => {
         const tableHtml = window.renderDataTable(
             ['Data / Hora', 'Usuário / Ator', 'Ação Realizada', 'Detalhes'],
             logs.map(l => [
-                `<span style="white-space:nowrap;color:var(--text-dim);font-size:0.75rem">${escapeHTML(formatarData(l.created_at || l.timestamp, { hora: true }))}</span>`,
+                `<span style="white-space:nowrap;color:var(--text-dim);font-size:0.75rem">${formatarData(l.created_at || l.timestamp, { hora: true })}</span>`,
                 `<strong>${escapeHTML(l.actor || l.user_email || 'System')}</strong>`,
                 window.renderStatusBadge(l.action, 'info'),
                 `<span style="font-size:0.75rem;color:var(--text-dim)">${escapeHTML(l.details || '—')}</span>`
@@ -572,8 +572,8 @@ window.__adminCopiarApiKey = () => {
                             escapeHTML(k.name || ''),
                             escapeHTML(rotuloPapelChave(k.permissions)),
                             window.renderStatusBadge(k.status, active ? 'success' : 'info'),
-                            escapeHTML(formatarData(k.last_used_at, { hora: true })),
-                            escapeHTML(formatarData(k.created_at)),
+                            formatarData(k.last_used_at, { hora: true }),
+                            formatarData(k.created_at),
                             active ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger-ink)" data-action="revokeApiKey" data-args='["${k.id}"]'>Revogar</button>` : '',
                         ];
                     }),

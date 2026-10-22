@@ -47,7 +47,7 @@ async function renderGaps(c, h, a) {
             `<button type="button" class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(proj.id, g.ropa_id, 'gaps')}' aria-label="Abrir a atividade: ${escapeHTML(g.atividade || '')}">${escapeHTML(g.atividade || '—')}</button>`,
             escapeHTML(g.area || '—'),
             escapeHTML(g.responsavel || '—'),
-            escapeHTML(formatarData(g.prazo)),
+            formatarData(g.prazo),
             emAtraso(g) ? window.renderStatusBadge('Em atraso', 'danger') : escapeHTML(rotuloStatus(g)),
         ]),
         busca: (g) => [g.titulo, g.atividade, g.area, g.responsavel].join(' '),
