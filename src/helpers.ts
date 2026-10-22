@@ -487,7 +487,7 @@ export async function autoridadeDeAssinatura(
 
 /** A linha da matriz é de quem assina: o cargo dá autoridade em `autoridadeDeAssinatura` (CEO, CISO/Líder SGSI) ou é o DPO/encarregado. */
 export const linhaDeAssinatura = (g: { job_title?: string | null; role_category?: string | null }) =>
-  g.role_category === 'dpo' || /sgsi|dpo|ciso|ceo|diret|execut|encarregad/i.test(g.job_title ?? '');
+  g.role_category === 'dpo' || /sgsi|dpo|ciso|ceo|diret|dire[cç][aã]o|execut|encarregad/i.test(g.job_title ?? '');
 
 /** Só o administrador do PRÓPRIO cliente (pessoa, não agente nem chave) cria, altera ou remove a linha de quem assina. */
 export const podeMexerEmAssinatura = (u: { role?: string; client_project_id?: string | null; agente?: boolean } | undefined, projectId: string) =>

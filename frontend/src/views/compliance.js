@@ -1855,7 +1855,7 @@ import { classeDoControle } from '../classe-controle.js';
                 </div>
                 <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(rasc.texto || '')}</div>
                 <div class="d-flex gap-2 mt-3">
-                    <button class="btn btn-primary btn-sm" data-action="publicarRascunhoPolitica" data-args='${escapeHTML(JSON.stringify([projectId, rasc.documento_id, rasc.numero, ctrl.id]))}'>Publicar rascunho</button>
+                    <button class="btn btn-primary btn-sm" data-action="publicarRascunhoPolitica" data-args='${escapeHTML(JSON.stringify([projectId, rasc.documento_id, rasc.numero, ctrl.id, rasc.hash]))}'>Publicar rascunho</button>
                     <button class="btn btn-sm" data-action="descartarRascunhoPolitica" data-args='${escapeHTML(JSON.stringify([projectId, rasc.documento_id, ctrl.id]))}'>Descartar</button>
                 </div>
             </div>` : '';
@@ -2572,9 +2572,9 @@ window.doEvidenceUpload = doEvidenceUpload;
 window.renderPoliciesDashboard = renderPoliciesDashboard;
 // Publicar o rascunho tem o efeito de uma edição manual: o texto vira o vigente, as aprovações vão a zero e os
 // pedidos abertos são substituídos. O servidor recusa o agente nestas duas rotas.
-window.publicarRascunhoPolitica = async function (projectId, documentoId, numero, controlId) {
+window.publicarRascunhoPolitica = async function (projectId, documentoId, numero, controlId, hash) {
     try {
-        await api('POST', `/api/v1/projects/${projectId}/documentos/${documentoId}/versoes/${numero}/publicar`);
+        await api('POST', `/api/v1/projects/${projectId}/documentos/${documentoId}/versoes/${numero}/publicar${hash ? `?hash=${encodeURIComponent(hash)}` : ''}`);
         showToast('Rascunho publicado. As aprovações anteriores foram zeradas: a política precisa ser assinada de novo.', 'success');
         await openGeneratePolicyModal(projectId, controlId);
     } catch (e) {

@@ -169,7 +169,7 @@ describe('criar e abrir', () => {
         expect(m.textContent).toContain('Líder SGSI');
         expect(m.querySelector('img')).toBeNull(); // texto da versão é texto
         expect(m.querySelector('b')).toBeNull();
-        expect(JSON.parse(m.querySelector('[data-action="publicarVersaoDocumento"]').getAttribute('data-args'))).toEqual(['p9', 'p1', 3]);
+        expect(JSON.parse(m.querySelector('[data-action="publicarVersaoDocumento"]').getAttribute('data-args'))).toEqual(['p9', 'p1', 3, 'c'.repeat(64)]);
     });
 
     it('papel só de leitura abre o detalhe sem botões de escrita', async () => {

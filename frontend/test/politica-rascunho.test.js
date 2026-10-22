@@ -12,7 +12,7 @@ const TEXTO = 'Texto da política de segurança da informação. '.repeat(5);
 const controle = (extra = {}) => ({ id: 'ctrl_b_a51', project_id: 'p1', title: 'A.5.1 Políticas', description: TEXTO, ciso_approved_by: null, ceo_approved_by: null, ...extra });
 // policies.ts, GET .../controls/:controlId/policy (a resposta ganhou `rascunho`)
 const corpo = (ctrl, rascunho) => ({ ok: true, control: ctrl, content: ctrl.description, hash: 'ab'.repeat(32), versions: [], rascunho });
-const RASCUNHO = { documento_id: 'doc1', numero: 3, texto: 'Proposta do agente', origem: 'agente', criado_por: 'agente de x@ness.lat (Cliente)', criado_em: '2026-10-09 10:00:00' };
+const RASCUNHO = { documento_id: 'doc1', numero: 3, hash: 'a'.repeat(64), texto: 'Proposta do agente', origem: 'agente', criado_por: 'agente de x@ness.lat (Cliente)', criado_em: '2026-10-09 10:00:00' };
 const rotas = (ctrl, rascunho, extra = {}) => ({
     'GET /api/v1/projects/p1/controls/ctrl_b_a51/policy': corpo(ctrl, rascunho),
     'GET /api/v1/policies/templates': { ok: true, templates: [] },
@@ -39,7 +39,7 @@ describe('rascunho do agente no modal de política', () => {
         expect(aviso.textContent).toContain('agente de x@ness.lat (Cliente)');
         expect(aviso.textContent).toContain('Proposta do agente');
         expect(aviso.textContent).toContain('A política vigente só muda quando você publicar');
-        expect(JSON.parse(aviso.querySelector('[data-action="publicarRascunhoPolitica"]').getAttribute('data-args'))).toEqual(['p1', 'doc1', 3, 'ctrl_b_a51']);
+        expect(JSON.parse(aviso.querySelector('[data-action="publicarRascunhoPolitica"]').getAttribute('data-args'))).toEqual(['p1', 'doc1', 3, 'ctrl_b_a51', 'a'.repeat(64)]);
         expect(JSON.parse(aviso.querySelector('[data-action="descartarRascunhoPolitica"]').getAttribute('data-args'))).toEqual(['p1', 'doc1', 'ctrl_b_a51']);
     });
 

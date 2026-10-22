@@ -175,7 +175,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `POST /auth/reset-password` exige e-mail e codigo, com 5 tentativas por hora por conta (`rateLimitD1`), de qualquer IP. Uso unico pelo `DELETE ... RETURNING`;
   reenviar (`POST /users/:id/reenviar-convite`, quem gere a conta, 5/h por conta, so com primeiro acesso pendente) substitui a linha e
   invalida o link anterior. Token desconhecido, vencido, usado, substituido, de conta desativada ou de SSO/SCIM: a MESMA resposta 400.
-  Dominio de e-mail com SSO ativo (`configPorDominio`) nao ganha link. `password` no `POST /users` e aceito e IGNORADO. Trilha
+  Dominio de e-mail com SSO ativo (`configPorDominio`) nao ganha link; um dominio tem no maximo um SSO ativo (`PUT /projects/:id/sso` da 409)
+  e dominio de provedor publico nao tem SSO. `password` no `POST /users` e aceito e IGNORADO. Trilha
   `auth.senha_criada_convite` e `user.convite_reenviado`, sem o token. Anonimizar apaga o convite. Teste: `test/convite-senha.test.ts`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
@@ -242,7 +243,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   canonico dos pedidos. **O controle ainda e a fonte das politicas** (`compliance_controls.description` e `policy_versions`)
   ate a 3.3. Desde a 3.2 todo escritor de politica passa por `src/services/politica-escrita.ts` e espelha o texto no
   documento, e o **agente (MCP) so grava rascunho**: a rota decide por `c.get('user')?.agente === true`; publicar
-  (`POST .../versoes/:n/publicar`, que aplica o texto no controle) e descartar o rascunho sao atos humanos e estao em
+  (`POST .../versoes/:n/publicar?hash=`, que aplica o texto no controle; a tela manda o hash do rascunho que mostrou e rascunho
+  regravado depois da 409) e descartar o rascunho sao atos humanos e estao em
   `FORA_DO_AGENTE`; `PUT /controls/:id` recusa ao agente mudar `description` fora da justificativa de N/A. `POST .../documentos/importar` copia para ca so o que tem sinal de politica (versao, aprovacao
   ou pedido); `description` preenchida nao basta (em producao e texto de catalogo em quase todo controle).
   **Ciencia por versao (3.3, migration 0051)**: `pedidos.tipo = 'documento'` tem `ref_id = documentos.id` e congela a versao
@@ -251,8 +253,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   da versao antiga fica no pedido antigo. O portal publico `/politicas` lista so documentos com versao vigente e grava a ciencia
   por `registrarCienciaPortal`: linha de `pedido_destinatarios` JA DECIDIDA (`canal = 'portal'`, hash, IP, user-agent) num pedido
   `ciente` "em pe" (`criado_por = 'sistema:portal'`, um aberto por documento, indice unico parcial). Quem leu pelo portal nao e
-  copiado para o pedido novo. O codigo do portal (`POST /public/policies/request-otp`) so vai a e-mail ligado ao projeto (conta,
-  governanca ou parte pessoa, ou o mesmo dominio do cliente fora `DOMINIOS_PUBLICOS` e da consultoria); fora disso a resposta e a
+  copiado para o pedido novo; a ciencia leva o `numero` lido e versao que ja nao e a vigente da 409 sem registrar. O codigo do portal
+  (`POST /public/policies/request-otp`) so vai a e-mail ligado ao projeto (conta, governanca, ou parte pessoa ativa que nao e de terceiro
+  pelo e-mail exato; ou o mesmo dominio de conta ou governanca do cliente, fora `DOMINIOS_PUBLICOS` e da consultoria); fora disso a resposta e a
   mesma e nada e enviado; limites por IP, projeto e e-mail; o nome digitado nao vai no e-mail. Nada novo entra em `policy_acknowledgments` pelo portal; o registro manual interno
   (`POST /projects/:id/policy-acknowledgments`) ainda escreve nela ate a 3.4: a propria ciencia qualquer papel registra; a de outra pessoa,
   so a equipe ou o `org_admin`, com trilha `policy.ciencia_registrada`; o agente nao registra. A aprovacao CISO/CEO de documento NAO existe

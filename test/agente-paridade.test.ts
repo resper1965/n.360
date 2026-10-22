@@ -109,13 +109,11 @@ describe('Agente com paridade de consultor, preso ao projeto', () => {
     expect(await env.DB.prepare(`SELECT 1 FROM checklist_progress WHERE project_id='p-a' AND item_id='p15_1'`).first()).toBeNull();
   });
 
-  it('eliminar titular (anonimização) exige confirmação', async () => {
+  it('eliminar titular (anonimização) é ato humano: recusado ao agente, mesmo confirmado', async () => {
     const corpo = JSON.stringify({ identificador: 'x@y.lat', justificativa: 'pedido do titular' });
-    const sem = await comoAgente('/api/v1/projects/p-a/data-subject/erase', { method: 'POST', headers: json, body: corpo });
-    expect(sem.status).toBe(403);
-    expect((await sem.json<any>()).error).toContain('confirmado_pelo_usuario');
     const com = await comoAgente('/api/v1/projects/p-a/data-subject/erase', { method: 'POST', headers: { ...json, ...confirmado }, body: corpo });
-    expect(com.status).not.toBe(403);
+    expect(com.status).toBe(403);
+    expect((await com.json<any>()).error).toContain('fora do alcance do agente');
   });
 
   it('o agente não cria projeto, mas a listagem continua escopada', async () => {

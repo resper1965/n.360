@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { DOMINIOS_PUBLICOS } from './public';
 import { sqlAreaDaAtividade } from '../services/riscos-atividade';
 import { z } from 'zod';
 import { Bindings, Variables } from '../index';
@@ -120,6 +121,17 @@ projectsApp.put('/:projectId/sso', somenteNess, async (c) => {
       // pior que não ter SSO.
       return c.json({ error: 'TOKEN_ENC_KEY não configurada — o client_secret não pode ser gravado em claro.' }, 503);
     }
+    // Um domínio, um SSO ativo: senão outra consultoria reivindicava o domínio de e-mail deste cliente (convite sem link e botão de
+    // SSO levando ao IdP dela).
+    const dominios: string[] = body.dominios.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean);
+    const publico = dominios.find((d) => DOMINIOS_PUBLICOS.has(d) || d === 'ness.com.br');
+    if (publico) return c.json({ error: `O domínio ${publico} não é de uma empresa só e não pode ter SSO` }, 400);
+    if (body.ativo) {
+      const { results: outros } = await c.env.DB.prepare('SELECT dominios FROM project_sso WHERE ativo = 1 AND project_id <> ?').bind(projectId).all<{ dominios: string }>();
+      const tomados = new Set(outros.flatMap((o) => o.dominios.split(',').map((d) => d.trim().toLowerCase())));
+      const repetido = dominios.find((d) => tomados.has(d));
+      if (repetido) return c.json({ error: `O domínio ${repetido} já tem SSO ativo em outro projeto` }, 409);
+    }
     const cifrado = await encryptSecret(body.client_secret, chaveCripto);
 
     const ator = c.get('user')?.email ?? 'system';
@@ -132,7 +144,7 @@ projectsApp.put('/:projectId/sso', somenteNess, async (c) => {
          atualizado_em = excluded.atualizado_em, atualizado_por = excluded.atualizado_por`
     ).bind(
       projectId, body.issuer, body.client_id, cifrado,
-      body.dominios.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean).join(','),
+      dominios.join(','),
       body.papel_padrao, body.ativo ? 1 : 0, ator
     ).run();
 
@@ -266,7 +278,7 @@ projectsApp.get('/:projectId/export', async (c) => {
     const recusa = (await modulosDoProjeto(c.env.DB, projectId)).map((m) => recusaDaPessoa(m, daPessoa)).find(Boolean);
     if (recusa) return c.json({ error: `${recusa}: a exportação completa inclui os dados dele.` }, 403);
 
-    const conteudo = await exportarProjeto(c.env, projectId);
+    const conteudo = await exportarProjeto(c.env, projectId, ehEquipeNess(c.get('user')));
 
     await logAudit(
       c.env.DB,

@@ -199,7 +199,7 @@ window.openDocumentoModal = async function (projectId, id) {
             <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem">Por ${escapeHTML(rascunho.criado_por || 'autor não registrado')} em ${formatarData(rascunho.criado_em, { hora: true })}. O documento vigente só muda quando você publicar.</div>
             <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(rascunho.texto || '')}</div>
             ${editar ? `<div style="display:flex; gap:8px; margin-top:0.75rem">
-                <button class="btn btn-primary btn-sm" data-action="publicarVersaoDocumento" data-args='${args(projectId, id, rascunho.numero)}'>Publicar rascunho</button>
+                <button class="btn btn-primary btn-sm" data-action="publicarVersaoDocumento" data-args='${args(projectId, id, rascunho.numero, rascunho.hash)}'>Publicar rascunho</button>
                 <button class="btn btn-sm" data-action="descartarRascunhoDocumento" data-args='${args(projectId, id)}'>Descartar</button>
             </div>` : ''}
         </div>` : '';
@@ -320,8 +320,9 @@ window.salvarRascunhoDocumento = async function (projectId, id) {
         'Não foi possível salvar o rascunho', 'Rascunho salvo. Publique quando estiver pronto.');
 };
 
-window.publicarVersaoDocumento = (projectId, id, numero) => acao(projectId, id,
-    () => api('POST', `/api/v1/projects/${projectId}/documentos/${id}/versoes/${numero}/publicar`),
+// `hash`: o do rascunho mostrado na tela; se outra pessoa (ou o agente) o regravou, o servidor recusa e o detalhe reabre.
+window.publicarVersaoDocumento = (projectId, id, numero, hash) => acao(projectId, id,
+    () => api('POST', `/api/v1/projects/${projectId}/documentos/${id}/versoes/${numero}/publicar${hash ? `?hash=${encodeURIComponent(hash)}` : ''}`),
     'Não foi possível publicar', 'Versão publicada. Pedidos de ciência abertos foram conferidos e a aprovação anterior deixou de valer para esta versão.');
 
 window.descartarRascunhoDocumento = (projectId, id) => acao(projectId, id,

@@ -21,25 +21,31 @@ const MAX_TENTATIVAS_OTP = 5;
 const chaveTentativasOtp = (projectId: string, email: string) => `pol-otp:tentativa:${projectId}:${email}`;
 
 /** Domínios de e-mail de provedor público: não ligam ninguém a um cliente. */
-export const DOMINIOS_PUBLICOS = new Set(['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'live.com', 'bol.com.br', 'uol.com.br']);
+export const DOMINIOS_PUBLICOS = new Set([
+  'gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.com.br', 'outlook.com', 'outlook.com.br', 'live.com', 'msn.com',
+  'yahoo.com', 'yahoo.com.br', 'ymail.com', 'icloud.com', 'me.com', 'mac.com', 'aol.com', 'proton.me', 'protonmail.com',
+  'pm.me', 'tutanota.com', 'tuta.io', 'gmx.com', 'gmx.net', 'zoho.com', 'yandex.com', 'mail.com', 'fastmail.com',
+  'bol.com.br', 'uol.com.br', 'terra.com.br', 'ig.com.br', 'globo.com', 'globomail.com', 'r7.com',
+]);
 
 /**
- * O e-mail está ligado ao projeto? Exato: conta do projeto (cliente ou stakeholder), membro da governança ou parte pessoa. Ou o
- * mesmo domínio de um desses do lado do CLIENTE (sem linha de consultor), fora domínio público, `ness.com.br` e os domínios da
- * equipe da organização do projeto.
+ * O e-mail está ligado ao projeto? Exato: conta do projeto (cliente ou stakeholder), membro da governança ou parte pessoa ativa
+ * que não seja de terceiro. Ou o mesmo domínio de uma conta do cliente ou de um membro da governança do CLIENTE (sem linha de
+ * consultor; a parte não abre domínio), fora domínio público, `ness.com.br` e os domínios da equipe da organização do projeto.
  */
-async function emailLigadoAoProjeto(db: D1Database, projectId: string, orgId: string, email: string): Promise<boolean> {
+export async function emailLigadoAoProjeto(db: D1Database, projectId: string, orgId: string, email: string): Promise<boolean> {
   const { results } = await db.prepare(
     `SELECT lower(trim(email)) AS email, 'cliente' AS lado FROM users WHERE client_project_id = ? AND COALESCE(ativo, 1) <> 0
      UNION ALL SELECT lower(trim(email)), CASE WHEN role_category = 'consultor' THEN 'equipe_projeto' ELSE 'cliente' END FROM project_governance WHERE project_id = ?
-     UNION ALL SELECT lower(trim(email)), 'cliente' FROM partes WHERE project_id = ? AND tipo = 'pessoa'
+     UNION ALL SELECT lower(trim(p.email)), 'exato' FROM partes p WHERE p.project_id = ? AND p.tipo = 'pessoa' AND p.status = 'ativa'
+       AND NOT EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.parte_id = p.id AND v.papel IN ('operador', 'suboperador', 'terceiro', 'cocontrolador'))
      UNION ALL SELECT lower(trim(email)), 'equipe' FROM users WHERE org_id = ? AND client_project_id IS NULL AND role <> 'stakeholder'`,
   ).bind(projectId, projectId, projectId, orgId).all<{ email: string | null; lado: string }>();
   const linhas = results.filter((r) => r.email?.includes('@'));
   if (linhas.some((r) => r.lado !== 'equipe' && r.email === email)) return true;
   const dominio = (e: string) => e.slice(e.lastIndexOf('@') + 1);
   const d = dominio(email);
-  if (DOMINIOS_PUBLICOS.has(d) || d === 'ness.com.br' || linhas.some((r) => r.lado !== 'cliente' && dominio(r.email!) === d)) return false;
+  if (DOMINIOS_PUBLICOS.has(d) || d === 'ness.com.br' || linhas.some((r) => r.lado.startsWith('equipe') && dominio(r.email!) === d)) return false;
   return linhas.some((r) => r.lado === 'cliente' && dominio(r.email!) === d);
 }
 
@@ -256,7 +262,7 @@ publicApp.post('/policies/ack', async (c) => {
 
     // Nome e e-mail são os da sessão (provados pelo código no e-mail); o corpo não os escolhe.
     const r = await registrarCienciaPortal(c.env.DB, {
-      projectId: session.project_id, documentoId: v.data.documento_id, nome: session.name, email: session.email,
+      projectId: session.project_id, documentoId: v.data.documento_id, numeroLido: v.data.numero, nome: session.name, email: session.email,
       ip: c.req.header('CF-Connecting-IP') || null, ua: c.req.header('User-Agent') || null,
     });
     if (!r.ok) return c.json({ error: r.error }, r.status);

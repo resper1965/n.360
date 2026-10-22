@@ -172,6 +172,10 @@ risks.delete('/api/v1/risks/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'risks', id, c.get('user'));
+    // Risco da atividade (n.privacy): apagar é ato humano, como na sub-rota da atividade, que está em FORA_DO_AGENTE.
+    if (c.get('user')?.agente && (await c.env.DB.prepare('SELECT ropa_id FROM risks WHERE id = ?').bind(id).first<{ ropa_id: string | null }>())?.ropa_id) {
+      return c.json({ ok: false, error: 'Forbidden: apagar risco da atividade é ato humano, pela interface' }, 403);
+    }
     // A ação corretiva sobrevive ao risco (o FK é CASCADE): solta antes, como apagarRisco.
     await c.env.DB.batch([
       c.env.DB.prepare('UPDATE corrective_actions SET risk_id = NULL WHERE risk_id = ?').bind(id),

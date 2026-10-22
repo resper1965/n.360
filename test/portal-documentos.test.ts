@@ -55,8 +55,8 @@ beforeAll(async () => {
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Cliente Portal', 'ISO 27001', 'controller', 'Active', 'org_ness')`).bind(P),
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Outro Cliente', 'ISO 27001', 'controller', 'Active', 'org_ness')`).bind(OUTRO),
-    // o portal só manda código a e-mail ligado ao projeto: a parte dá o domínio do cliente
-    env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('pt-rh', ?, 'pessoa', 'RH', 'rh@cliente.com'), ('pt-rh2', ?, 'pessoa', 'RH', 'rh@outro.com')`).bind(P, OUTRO),
+    // o portal só manda código a e-mail ligado ao projeto: a governança do cliente dá o domínio (a parte só vale pelo e-mail exato)
+    env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('pt-rh', ?, 'RH', 'rh@cliente.com', 'tech', 'RH'), ('pt-rh2', ?, 'RH', 'rh@outro.com', 'tech', 'RH')`).bind(P, OUTRO),
     // controle com texto de catálogo: NÃO aparece no portal
     env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, description) VALUES ('pt-ctl', ?, 'ISO 27001', 'A.5.1 Só catálogo', 'Descrição do catálogo')`).bind(P),
     // ciência antiga, sem versão nem hash

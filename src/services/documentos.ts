@@ -101,22 +101,25 @@ export async function salvarRascunho(
  * muda aqui e o resultado é 409. O índice parcial de uma vigente por documento é a trava de última instância.
  */
 export async function publicarVersao(
-  db: D1Database, projectId: string, documentoId: string, numero: number, ator: string,
+  db: D1Database, projectId: string, documentoId: string, numero: number, ator: string, hashVisto?: string,
 ): Promise<Falha | { ok: true; numero: number }> {
   if (!(await existeNoProjeto(db, 'documentos', documentoId, projectId))) return falha(404, 'Documento não encontrado');
-  const v = await db.prepare(`SELECT estado FROM documento_versoes WHERE documento_id = ? AND project_id = ? AND numero = ?`)
-    .bind(documentoId, projectId, numero).first<{ estado: string }>();
+  const v = await db.prepare(`SELECT estado, hash FROM documento_versoes WHERE documento_id = ? AND project_id = ? AND numero = ?`)
+    .bind(documentoId, projectId, numero).first<{ estado: string; hash: string }>();
   if (!v) return falha(404, 'Versão não encontrada');
   if (v.estado !== 'rascunho') return falha(409, 'Só um rascunho pode ser publicado');
+  if (hashVisto && v.hash !== hashVisto) return falha(409, 'O rascunho mudou depois que você o abriu: reabra e confira o texto antes de publicar');
+  // Sem hash conferido, o que estiver gravado agora é o que publica (chamada por API).
+  const hashAlvo = hashVisto ?? v.hash;
 
   const [, publicou] = await db.batch([
     db.prepare(
       `UPDATE documento_versoes SET estado = 'substituida'
        WHERE documento_id = ? AND project_id = ? AND estado = 'vigente'
-         AND EXISTS (SELECT 1 FROM documento_versoes WHERE documento_id = ? AND numero = ? AND estado = 'rascunho')`
-    ).bind(documentoId, projectId, documentoId, numero),
-    db.prepare(`UPDATE documento_versoes SET estado = 'vigente' WHERE documento_id = ? AND project_id = ? AND numero = ? AND estado = 'rascunho'`)
-      .bind(documentoId, projectId, numero),
+         AND EXISTS (SELECT 1 FROM documento_versoes WHERE documento_id = ? AND numero = ? AND estado = 'rascunho' AND hash = ?)`
+    ).bind(documentoId, projectId, documentoId, numero, hashAlvo),
+    db.prepare(`UPDATE documento_versoes SET estado = 'vigente' WHERE documento_id = ? AND project_id = ? AND numero = ? AND estado = 'rascunho' AND hash = ?`)
+      .bind(documentoId, projectId, numero, hashAlvo),
     db.prepare(
       `UPDATE documentos SET status = 'vigente', updated_at = CURRENT_TIMESTAMP,
          revisar_ate = CASE WHEN revisar_a_cada_meses IS NOT NULL THEN date('now', '+' || revisar_a_cada_meses || ' months') END
@@ -333,10 +336,10 @@ export async function excluirDocumento(db: D1Database, projectId: string, docume
 /** O rascunho pendente do documento de um controle (o que o agente propôs), ou null. */
 export async function rascunhoDoControle(db: D1Database, projectId: string, controlId: string) {
   return db.prepare(
-    `SELECT d.id AS documento_id, v.numero, v.texto, v.origem, v.criado_por, v.criado_em
+    `SELECT d.id AS documento_id, v.numero, v.hash, v.texto, v.origem, v.criado_por, v.criado_em
      FROM documentos d JOIN documento_versoes v ON v.documento_id = d.id AND v.estado = 'rascunho'
      WHERE d.origem_control_id = ? AND d.project_id = ?`
-  ).bind(controlId, projectId).first<{ documento_id: string; numero: number; texto: string; origem: string; criado_por: string | null; criado_em: string }>();
+  ).bind(controlId, projectId).first<{ documento_id: string; numero: number; hash: string; texto: string; origem: string; criado_por: string | null; criado_em: string }>();
 }
 
 /** O controle ligado a um documento e o texto de uma versão dele (para aplicar uma publicação no controle). */

@@ -124,7 +124,7 @@ describe('portal /politicas: documentos e ciência por versão', () => {
     expect(el('ack-prev-note').textContent).toBe('Você deu ciência da versão 2. Esta é a versão 3: leia e confirme de novo.');
   });
 
-  it('assinar manda SÓ o id do documento, marca como assinado e continua no mesmo documento', async () => {
+  it('assinar manda o id e a versão lida, marca como assinado e continua no mesmo documento', async () => {
     await entrar();
     el('chk-accept').checked = true;
     el('chk-accept').dispatchEvent(new Event('change'));
@@ -133,7 +133,7 @@ describe('portal /politicas: documentos e ciência por versão', () => {
     await espera();
     const [url, init] = fetchMock.mock.calls[3];
     expect(url).toBe('/api/v1/public/policies/ack?token=pubpol_tok');
-    expect(JSON.parse(init.body)).toEqual({ documento_id: 'd1' }); // sem nome nem e-mail: valem os da sessão
+    expect(JSON.parse(init.body)).toEqual({ documento_id: 'd1', numero: 2 }); // sem nome nem e-mail: valem os da sessão
     expect(document.querySelectorAll('.policy-item')[0].textContent).toContain('Confirmado');
     expect(document.querySelector('.policy-item.active').textContent).toContain('Política de Acesso');
     expect(el('ack-completed-box').classList.contains('hidden')).toBe(false);
@@ -157,11 +157,11 @@ describe('portal /politicas: documentos e ciência por versão', () => {
     expect(el('btn-proximo').classList.contains('hidden')).toBe(true);
   });
 
-  it('se saiu versão nova entre a leitura e a confirmação, recarrega e avisa', async () => {
+  it('se saiu versão nova entre a leitura e a confirmação, nada é registrado: recarrega e avisa', async () => {
     await entrar();
     el('chk-accept').checked = true;
     el('chk-accept').dispatchEvent(new Event('change'));
-    fetchMock.mockResolvedValueOnce(json({ ok: true, documento_id: 'd1', numero: 3, hash: 'a'.repeat(64), acknowledged_at: '2026-10-09T12:00:00.000Z', ja_registrada: false }));
+    fetchMock.mockResolvedValueOnce(json({ error: 'O documento foi atualizado para a versão 3 enquanto você lia: leia o texto novo e confirme de novo.' }, 409));
     fetchMock.mockResolvedValueOnce(lista({ documents: [{ ...DOCS[0], numero: 3, texto: 'Texto v3 do acesso' }, DOCS[1], DOCS[2]] }));
     el('btn-sign-ack').click();
     await espera(60);

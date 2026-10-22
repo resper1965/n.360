@@ -50,6 +50,11 @@ const SEGREDOS_DE_INTEGRACAO: Record<string, string[]> = {
   projects: ['repository_token'],
 };
 
+/** IP e navegador de quem assinou, leu ou agiu: só a equipe da consultoria os leva (a mesma minimização das leituras JSON). */
+const RASTRO_DE_PESSOA = /_(approved|signed)_(ip|ua)$|^ip(_address)?$|^user_agent$/;
+const semRastroDePessoa = (linhas: unknown[]) =>
+  linhas.map((l) => Object.fromEntries(Object.entries(l as Record<string, unknown>).filter(([k]) => !RASTRO_DE_PESSOA.test(k))));
+
 function semSegredos(tabela: string, linhas: unknown[]): unknown[] {
   const colunas = SEGREDOS_DE_INTEGRACAO[tabela];
   if (!colunas) return linhas;
@@ -183,7 +188,7 @@ export async function tabelasExportaveis(env: Bindings): Promise<string[]> {
   return comProjeto;
 }
 
-export async function exportarProjeto(env: Bindings, projectId: string): Promise<Export> {
+export async function exportarProjeto(env: Bindings, projectId: string, comRastro = false): Promise<Export> {
   const tabelas = await tabelasExportaveis(env);
 
   const dados: Record<string, unknown[]> = {};
@@ -197,7 +202,7 @@ export async function exportarProjeto(env: Bindings, projectId: string): Promise
     const { results } = await env.DB.prepare(
       `SELECT * FROM "${t}" WHERE project_id = ? ORDER BY rowid`
     ).bind(projectId).all();
-    dados[t] = semSegredos(t, results ?? []);
+    dados[t] = comRastro ? semSegredos(t, results ?? []) : semRastroDePessoa(semSegredos(t, results ?? []));
     contagem[t] = dados[t].length;
     total += dados[t].length;
   }
@@ -226,6 +231,7 @@ export async function exportarProjeto(env: Bindings, projectId: string): Promise
     nao_incluido: [
       'Arquivos de evidência (R2): vão as chaves, os hashes e os tamanhos na tabela `evidence`; o conteúdo sai por download individual.',
       'Chaves de API e tokens de auditor: são credenciais de acesso, não dado do titular.',
+      ...(comRastro ? [] : ['IP e navegador de quem assinou, leu política ou agiu na trilha (`*_ip`, `*_ua`, `ip_address`, `user_agent`): só a equipe da consultoria os exporta.']),
       'Segredos de integração saem em branco: `webhooks.secret`, `project_sso.client_secret`, `project_scim.token_hash`, `homologacoes.token_hash` e `projects.repository_token`. Não servem fora daqui, e o do webhook permitiria forjar entregas assinadas.',
     ],
   };
