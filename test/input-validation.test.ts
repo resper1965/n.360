@@ -223,7 +223,7 @@ describe('Schemas por rota', () => {
     // monitor.js manda string vazia quando o campo não é preenchido, a coluna é
     // nullable e o handler grava `email || null`.
     const vazio = await req('/api/v1/projects/p1/governance', 'POST', {
-      name: 'Ricardo', email: '', role_category: 'executivo', job_title: 'CEO',
+      name: 'Ricardo', email: '', role_category: 'tech', job_title: 'Gerente de TI',
     });
     // O handler faz upsert e responde 200, não 201.
     expect(vazio.status, await vazio.clone().text()).toBe(200);

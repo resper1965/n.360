@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
 
-import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto } from '../helpers';
+import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto, linhaDeAssinatura, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { enviarBoasVindas, nomeDaOrg } from './users';
 import { SEM_SENHA } from '../services/convite';
 import { ehDpo, garantirEncarregado, desfazerEncarregado, atualizarEncarregado, encarregadosFora } from '../services/encarregado-pessoa';
@@ -141,6 +141,15 @@ async function mexeEmConsultor(db: D1Database, projectId: string, memberId: stri
   return atual?.role_category === 'consultor';
 }
 
+/** Criar, alterar ou remover mexe na linha de quem assina, antes ou depois da gravação? */
+async function mexeEmAssinatura(db: D1Database, projectId: string, memberId: string | undefined, novo?: { role_category?: string; job_title?: string }): Promise<boolean> {
+  if (novo && linhaDeAssinatura(novo)) return true;
+  if (!memberId) return false;
+  const atual = await db.prepare('SELECT role_category, job_title FROM project_governance WHERE id = ? AND project_id = ?')
+    .bind(memberId, projectId).first<{ role_category: string | null; job_title: string | null }>();
+  return !!atual && linhaDeAssinatura(atual);
+}
+
 const recusaDesignacao = { error: 'Forbidden: designar consultor é do platform_admin, do administrador da consultoria ou do administrador do cliente' };
 
 /** Tira o vínculo de encarregado de quem era DPO (membro `excluirId`), se nenhum outro DPO do projeto casa a mesma parte. Falha é registrada, não vira 500. */
@@ -166,6 +175,9 @@ governanceApp.post('/projects/:id/governance', async (c) => {
 
     if (!PODE_DESIGNAR_CONSULTOR.has(c.get('user')?.role ?? '') && await mexeEmConsultor(c.env.DB, projectId, id, role_category)) {
       return c.json(recusaDesignacao, 403);
+    }
+    if (!podeMexerEmAssinatura(c.get('user'), projectId) && await mexeEmAssinatura(c.env.DB, projectId, id, { role_category, job_title })) {
+      return c.json(RECUSA_LINHA_DE_ASSINATURA, 403);
     }
 
     // O DPO / Líder do SGSI é UM por projeto: marcar alguém desmarca os demais,
@@ -233,6 +245,9 @@ governanceApp.delete('/projects/:id/governance/:memberId', async (c) => {
     const memberId = c.req.param('memberId');
     if (!PODE_DESIGNAR_CONSULTOR.has(c.get('user')?.role ?? '') && await mexeEmConsultor(c.env.DB, projectId, memberId)) {
       return c.json(recusaDesignacao, 403);
+    }
+    if (!podeMexerEmAssinatura(c.get('user'), projectId) && await mexeEmAssinatura(c.env.DB, projectId, memberId)) {
+      return c.json(RECUSA_LINHA_DE_ASSINATURA, 403);
     }
     const antes = await c.env.DB.prepare('SELECT name, email, role_category, job_title FROM project_governance WHERE id = ? AND project_id = ?')
       .bind(memberId, projectId).first<{ name: string; email: string | null; role_category: string | null; job_title: string | null }>();

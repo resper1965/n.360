@@ -23,7 +23,9 @@ let consultor: Record<string, string>;
 const vinculos = async (p: string) => (await env.DB.prepare(
   `SELECT pa.nome, pa.email FROM parte_vinculos v JOIN partes pa ON pa.id = v.parte_id WHERE v.project_id = ? AND v.papel = 'encarregado' AND v.alvo_tipo = 'projeto'`
 ).bind(p).all<{ nome: string; email: string | null }>()).results;
-const gov = (p: string, corpo: Record<string, unknown>) => chamar(consultor, 'POST', `/api/v1/projects/${p}/governance`, corpo);
+// A linha do DPO é de quem assina: só o administrador do cliente do projeto a grava (`podeMexerEmAssinatura`).
+const doCliente = (p: string) => sessionFor({ id: 'u-oa-' + p, email: `admin@${p}.lat`, role: 'org_admin', client_project_id: p });
+const gov = async (p: string, corpo: Record<string, unknown>) => chamar(await doCliente(p), 'POST', `/api/v1/projects/${p}/governance`, corpo);
 
 beforeAll(async () => {
   await applySchema();
@@ -99,7 +101,7 @@ describe('DELETE /governance: DPO excluído', () => {
     await habilitarPrivacy(p);
   };
   const ids = async (p: string) => (await env.DB.prepare('SELECT id FROM project_governance WHERE project_id = ? AND email = ?').bind(p, dpo.email).all<{ id: string }>()).results.map((r) => r.id);
-  const apagar = (p: string, id: string) => chamar(consultor, 'DELETE', `/api/v1/projects/${p}/governance/${id}`);
+  const apagar = async (p: string, id: string) => chamar(await doCliente(p), 'DELETE', `/api/v1/projects/${p}/governance/${id}`);
 
   it('DPO único excluído: o vínculo sai e a trilha registra', async () => {
     await montar('dp-del');
@@ -188,7 +190,7 @@ describe('POST /governance com falha do vínculo', () => {
       },
     });
     const res = await app.fetch(new Request(`http://localhost/api/v1/projects/${SEM}/governance`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...consultor },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(await doCliente(SEM)) },
       body: JSON.stringify({ name: 'Lia Exemplo', email: 'lia@cliente.com', role_category: 'executivo', job_title: 'DPO' }),
     }), { ...workerEnv(), DB } as any);
     expect(res.status).toBe(200);

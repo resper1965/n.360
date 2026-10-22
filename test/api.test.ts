@@ -679,14 +679,14 @@ describe('nISO API (D1 e KV reais)', () => {
       const res = await req('/api/v1/public/policies/request-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: PROJ, name: 'Maria Silva', email: 'maria@empresa.com' }),
+        body: JSON.stringify({ project_id: PROJ, name: 'Maria Silva', email: 'maria@cliente.com' }),
       });
       const data = await res.json() as any;
       expect(res.status).toBe(200);
       expect(data.ok).toBe(true);
       expect(data.demo_otp).toBeTruthy();
 
-      const guardado = await env.SESSIONS.get(`otp_${PROJ}_maria@empresa.com`);
+      const guardado = await env.SESSIONS.get(`otp_${PROJ}_maria@cliente.com`);
       expect(guardado).not.toBeNull();
       expect(JSON.parse(guardado!).otp).toBe(data.demo_otp);
     });
@@ -695,34 +695,34 @@ describe('nISO API (D1 e KV reais)', () => {
       const pedido = await req('/api/v1/public/policies/request-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: PROJ, name: 'Maria Silva', email: 'maria@empresa.com' }),
+        body: JSON.stringify({ project_id: PROJ, name: 'Maria Silva', email: 'maria@cliente.com' }),
       });
       const { demo_otp } = await pedido.json() as any;
 
       const res = await req('/api/v1/public/policies/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: PROJ, email: 'maria@empresa.com', otp: demo_otp }),
+        body: JSON.stringify({ project_id: PROJ, email: 'maria@cliente.com', otp: demo_otp }),
       });
       const data = await res.json() as any;
       expect(res.status).toBe(200);
       expect(data.token).toBeTruthy();
 
       // OTP é de uso único.
-      expect(await env.SESSIONS.get(`otp_${PROJ}_maria@empresa.com`)).toBeNull();
+      expect(await env.SESSIONS.get(`otp_${PROJ}_maria@cliente.com`)).toBeNull();
     });
 
     it('OTP errado não concede token', async () => {
       await req('/api/v1/public/policies/request-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: PROJ, name: 'Maria Silva', email: 'maria@empresa.com' }),
+        body: JSON.stringify({ project_id: PROJ, name: 'Maria Silva', email: 'maria@cliente.com' }),
       });
 
       const res = await req('/api/v1/public/policies/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: PROJ, email: 'maria@empresa.com', otp: '000000' }),
+        body: JSON.stringify({ project_id: PROJ, email: 'maria@cliente.com', otp: '000000' }),
       });
       expect(res.status).not.toBe(200);
     });

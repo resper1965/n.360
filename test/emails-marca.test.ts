@@ -122,6 +122,8 @@ beforeAll(async () => {
       ('em-adm', 'adm@ness.lat', ?, 'Adm Fictício', 'platform_admin', 'org_ness')`).bind(h, h),
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('em-g', ?, 'Ana Fictícia', 'ana@ness.lat', 'consultor', 'Consultor')`).bind(P),
     env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES ('em-forn', ?, 'organizacao', 'Fornecedor <Fictício>', 'medio')`).bind(P),
+    // o portal de políticas só manda código a e-mail ligado ao projeto (ou do mesmo domínio do cliente)
+    env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('em-rh', ?, 'pessoa', 'RH Fictício', 'rh@cliente.lat')`).bind(P),
   ]);
   await habilitarPrivacy(P);
   await concederModulos('em-cons', ['iso', 'privacy']);
@@ -173,7 +175,19 @@ describe('cada e-mail', () => {
     expect(e.html).toContain(`Quem pede</td>`);
     expect(e.html).toContain(CLIENTE_ESC);
     expect(e.html).not.toContain('<script>');
+    expect(e.html + e.text).not.toContain('script'); // o nome digitado não vai no e-mail
+    expect(e.text).toContain('Olá,');
     expect(e.text).toContain(`Código: ${(await r.json<any>()).demo_otp}`);
+  });
+
+  it('senha definida por outra pessoa: aviso ao dono, quem definiu, botão de entrar, sem a senha', async () => {
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES ('em-dono', 'dono@cliente.lat', 'x', 'Dono <i>Fictício</i>', 'client', ?, 'org_ness')`).bind(P).run();
+    const r = await chamar(admin, 'PUT', '/api/v1/users/em-dono', { password: 'Senha-Do-Gestor-9' });
+    expect(r.status, await r.clone().text()).toBe(200);
+    const e = ultimo('dono@cliente.lat');
+    confere(e, { produto: 'n.360', quem: ['Adm Fictício (adm@ness.lat)'], acao: 'Entrar no n.360 com a senha recebida e criar uma senha sua', link: 'https://n360.ness.com.br', resposta: 'adm@ness.lat' });
+    expect(e.html + e.text).not.toContain('Senha-Do-Gestor-9');
+    expect(e.html).toContain('Dono &lt;i&gt;Fictício&lt;/i&gt;');
   });
 
   it('redefinição de senha: n.360, código legível, sem n.iso', async () => {

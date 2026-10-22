@@ -140,7 +140,10 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   todo `UPDATE pedido_destinatarios` leva `status = 'pendente'` na WHERE do
   proprio statement (a unica excecao e `UPDATE pedidos SET org_id = ?`), sem
   DELETE nem REPLACE; `test/pedidos-prova.test.ts` le o fonte e reprova o que
-  fugir disso. Correcao e pedido novo.
+  fugir disso. Correcao e pedido novo. Conta com `requires_password_change = 1` (senha definida por outra pessoa no
+  `PUT /users/:id`) nao aprova nem assina ate trocar a senha (`recusaSenhaDeOutro` em `src/helpers.ts`, nos pedidos, no lote e
+  nas assinaturas diretas). A linha de quem assina na governanca (`linhaDeAssinatura`: Direcao, Lider SGSI/CISO, DPO/encarregado)
+  so o `org_admin` do proprio projeto cria, altera ou remove (`podeMexerEmAssinatura`), tambem pela parte encarregada.
 - **E-mail do pedido de aprovacao**: `POST /api/v1/projects/:projectId/pedidos` com papel `ciso`/`ceo` manda a cada destinatario, uma vez, o
   `emailPedidoAprovacao` (quem pede, tipo e titulo, papel, "sem data marcada", botao para `/?tela=meus-pedidos`, `reply_to` de quem pediu;
   `telaPedida` em `frontend/src/produto.js` aceita `meus-pedidos` para qualquer papel). Nao ha reenvio para aprovacao (o "Reenviar" e so da
@@ -245,7 +248,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   da versao antiga fica no pedido antigo. O portal publico `/politicas` lista so documentos com versao vigente e grava a ciencia
   por `registrarCienciaPortal`: linha de `pedido_destinatarios` JA DECIDIDA (`canal = 'portal'`, hash, IP, user-agent) num pedido
   `ciente` "em pe" (`criado_por = 'sistema:portal'`, um aberto por documento, indice unico parcial). Quem leu pelo portal nao e
-  copiado para o pedido novo. Nada novo entra em `policy_acknowledgments` pelo portal; o registro manual interno
+  copiado para o pedido novo. O codigo do portal (`POST /public/policies/request-otp`) so vai a e-mail ligado ao projeto (conta,
+  governanca ou parte pessoa, ou o mesmo dominio do cliente fora `DOMINIOS_PUBLICOS` e da consultoria); fora disso a resposta e a
+  mesma e nada e enviado; limites por IP, projeto e e-mail; o nome digitado nao vai no e-mail. Nada novo entra em `policy_acknowledgments` pelo portal; o registro manual interno
   (`POST /projects/:id/policy-acknowledgments`) ainda escreve nela ate a 3.4. A aprovacao CISO/CEO de documento NAO existe
   ainda (so `ciente`): segue nas colunas do controle e no pedido `politica`.
   **Tela, hierarquia e aprovacao por versao (3.4)**: `frontend/src/views/documentos.js` (`#nav-documentos`). A hierarquia e regra do
@@ -693,7 +698,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
 
-- **520 `any` em `src/`** (medido em 2026-10-22, fora `*.test.ts`:
+- **516 `any` em `src/`** (medido em 2026-10-22, fora `*.test.ts`:
   `git grep -ahoE ': any\b|as any\b|<any>' -- 'src/*.ts' ':!*.test.ts' | wc -l`).
   `tsc --noEmit` limpo diz pouco. Tipar o que voce tocar e melhoria barata; nao
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o

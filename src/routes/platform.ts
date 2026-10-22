@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 
-import { redactProject, semRastros, logAudit, requireResourceAccess, escapeHtml, erro500, registraErro, autoridadeDeAssinatura, recusaDeAssinatura, ehComercial, projetosVisiveis, somenteNess, somenteComercial, PODE_REVOGAR_APROVACAO, refForaDoProjeto, setParcial, valoresParciais } from '../helpers';
+import { redactProject, semRastros, logAudit, requireResourceAccess, escapeHtml, erro500, registraErro, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, ehComercial, projetosVisiveis, somenteNess, somenteComercial, PODE_REVOGAR_APROVACAO, refForaDoProjeto, setParcial, valoresParciais } from '../helpers';
 import { atualizarAtivo, removerAtivo } from '../services/itens';
 import { validateBody, assetSchema, dpiaSchema, revogarDpiaSchema, dpiaApprovalSchema, transferirProjetoSchema, precificacaoConfigSchema } from '../schemas';
 import { transferirProjeto, MSG_CORRIDA } from '../services/transferencia-projeto';
@@ -183,7 +183,7 @@ platformApp.post('/projects/:id/dpia/:assessmentId/approve', async (c) => {
     const { role } = valid.data;
 
     const autoridade = await autoridadeDeAssinatura(c.env.DB, projectId, user);
-    const recusa = recusaDeAssinatura(autoridade, role);
+    const recusa = recusaDeAssinatura(autoridade, role) ?? await recusaSenhaDeOutro(c.env.DB, user.id);
     if (recusa) return c.json({ error: recusa }, 403);
 
     const dbUser = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(user.email).first<any>();

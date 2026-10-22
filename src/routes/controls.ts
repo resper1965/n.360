@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { semRastros, logAudit, requireResourceAccess, verifyPassword, erro500, projetosVisiveis, autoridadeDeAssinatura, recusaDeAssinatura, type PapelAssinatura } from '../helpers';
+import { semRastros, logAudit, requireResourceAccess, verifyPassword, erro500, projetosVisiveis, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, type PapelAssinatura } from '../helpers';
 import { assinaturaPolitica } from '../services/pedidos';
 import { validateBody, controlUpdateSchema, maturitySchema, statusSchema, assinaturaSchema, trilhaDesfazerSchema, revogarAprovacaoSchema } from '../schemas';
 import { registrarAlteracoes, registrarDesfazer, lerTrilha } from '../trilha-campo';
@@ -314,7 +314,7 @@ const handleControlApprove = async (c: any) => {
     // CISO/CEO registrado e sem segregação. Sem `role` no corpo, o papel sai do cargo (como evidência).
     const autoridade = await autoridadeDeAssinatura(c.env.DB, targetProjectId, user);
     const role: PapelAssinatura = v.data.role ?? (autoridade.ehDirecao && !autoridade.ehLiderSgsi ? 'ceo' : 'ciso');
-    const recusa = recusaDeAssinatura(autoridade, role);
+    const recusa = recusaDeAssinatura(autoridade, role) ?? await recusaSenhaDeOutro(c.env.DB, user.id);
     if (recusa) return c.json({ error: recusa }, 403);
 
     const now = new Date().toISOString();

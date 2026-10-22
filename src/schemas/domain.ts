@@ -445,7 +445,7 @@ export const legalAcceptSchema = z.object({
 export const otpPedidoSchema = z.object({
   project_id: z.string().min(1, 'Projeto é obrigatório'),
   email: z.string().email('E-mail inválido'),
-  name: z.string().optional(),
+  name: z.string().max(120).optional(),
 });
 
 export const otpVerificacaoSchema = z.object({

@@ -479,7 +479,7 @@ authApp.post('/change-password', async (c) => {
     }
 
     const newHash = await hashPassword(newPassword);
-    await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE email = ?')
+    await c.env.DB.prepare('UPDATE users SET password_hash = ?, requires_password_change = 0 WHERE email = ?')
       .bind(newHash, user.email).run();
     // Sessão roubada não pode sobreviver à troca de senha (até 24 h): derruba
     // todas as emitidas antes e recarimba só esta, como o primeiro acesso faz.
