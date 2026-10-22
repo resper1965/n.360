@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dataIso, dataOuInstante } from './ropa-abas';
 
 /**
  * Schemas das escritas de domínio.
@@ -86,7 +87,7 @@ export const dpiaApprovalSchema = ropaApprovalSchema;
 export const trainingSchema = z.object({
   employee_name: curto,
   training_name: curto,
-  completion_date: curtoOpcional,
+  completion_date: dataOuInstante.optional().nullable(),
   score: z.number().min(0).max(100).optional().nullable(),
   status: curtoOpcional,
   evidence_file: curtoOpcional,
@@ -97,7 +98,7 @@ export const trainingImportSchema = z.object({
     z.object({
       employee_name: curto,
       training_name: curto,
-      completion_date: curtoOpcional,
+      completion_date: dataOuInstante.optional().nullable(),
       score: z.number().min(0).max(100).optional().nullable(),
       status: curtoOpcional,
     })
@@ -345,7 +346,7 @@ export const auditScheduleSchema = z.object({
   // NOT NULL em `audit_schedule`: sem eles o INSERT vira 500 do SQLite.
   audit_type: curto,
   title: curto,
-  scheduled_date: curto,
+  scheduled_date: dataIso,
   auditor_name: curtoOpcional,
   scope: longoOpcional,
   status: curtoOpcional,

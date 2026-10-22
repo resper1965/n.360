@@ -218,7 +218,7 @@ window.abrirRequisito = async function (id, mantemRecusa) {
         const outro = m.de_id === r.id ? m.para_id : m.de_id;
         let quem;
         if (m.estado === 'validado_juridico') {
-            quem = `Validado por ${escapeHTML(m.validado_por || '')} em ${escapeHTML(dataBr(m.validado_em))}`;
+            quem = `Validado por ${escapeHTML(m.validado_por || '')} em ${dataBr(m.validado_em)}`;
         } else {
             quem = window.renderStatusBadge('Proposto', 'warning');
             if (ehAdmin()) {

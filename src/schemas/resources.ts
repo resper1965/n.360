@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dataIso } from './ropa-abas';
+import { dataIso, dataOuInstante, dataOuVazio } from './ropa-abas';
 
 /**
  * Schemas dos recursos de negócio. O foco é o trust boundary: campos que
@@ -108,7 +108,7 @@ const numeroOpcional = z.coerce.number().nullish().transform((v) => v ?? null);
 export const audiUpdateSchema = z.object({
   audit_type: z.string().min(1, 'audit_type é obrigatório'),
   title: z.string().min(1, 'Título é obrigatório'),
-  scheduled_date: opcional,
+  scheduled_date: dataOuVazio.nullish().transform((v) => v ?? null),
   auditor_name: opcional,
   scope: opcional,
   status: z.string().min(1, 'Status é obrigatório'),
@@ -139,7 +139,7 @@ export const capaUpdateSchema = z.object({
 export const trainingUpdateSchema = z.object({
   employee_name: z.string().min(1, 'Nome do colaborador é obrigatório'),
   training_name: z.string().min(1, 'Nome do treinamento é obrigatório'),
-  completion_date: opcional,
+  completion_date: dataOuInstante.nullish().transform((v) => v ?? null),
   score: numeroOpcional,
   status: opcional,
   evidence_file: opcional,

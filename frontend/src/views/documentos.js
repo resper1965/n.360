@@ -94,7 +94,7 @@ async function renderDocumentos(c, h, a) {
             escapeHTML(TIPOS[d.tipo] || d.tipo),
             window.renderStatusBadge(rotuloStatus, tomStatus) + (d.tem_rascunho ? ' <span class="ctx-tag">Rascunho pendente</span>' : ''),
             d.versao_vigente ? `v${escapeHTML(String(d.versao_vigente))}` : '—',
-            d.revisar_ate ? `${escapeHTML(dataBr(d.revisar_ate))}${vencida ? ' ' + window.renderStatusBadge('Revisão vencida', 'danger') : ''}` : '—',
+            d.revisar_ate ? `${dataBr(d.revisar_ate)}${vencida ? ' ' + window.renderStatusBadge('Revisão vencida', 'danger') : ''}` : '—',
             escapeHTML(nomeDaParte(d.dono_parte_id) || '—'),
             escapeHTML(aprovacaoTexto(d.aprovacao)),
             `<button class="btn btn-ghost btn-sm" data-action="openDocumentoModal" data-args='${args(proj.id, d.id)}'>Abrir</button>`,
@@ -196,7 +196,7 @@ window.openDocumentoModal = async function (projectId, id) {
     const aviso = rascunho ? `
         <div id="doc-rascunho" style="border:1px solid var(--accent); padding:1rem; margin-bottom:1rem">
             <div style="font-family:'Montserrat',sans-serif; font-weight:600; margin-bottom:0.25rem">Rascunho ${rascunho.origem === 'agente' ? 'do agente ' : ''}aguardando revisão</div>
-            <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem">Por ${escapeHTML(rascunho.criado_por || 'autor não registrado')} em ${escapeHTML(formatarData(rascunho.criado_em, { hora: true }))}. O documento vigente só muda quando você publicar.</div>
+            <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem">Por ${escapeHTML(rascunho.criado_por || 'autor não registrado')} em ${formatarData(rascunho.criado_em, { hora: true })}. O documento vigente só muda quando você publicar.</div>
             <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(rascunho.texto || '')}</div>
             ${editar ? `<div style="display:flex; gap:8px; margin-top:0.75rem">
                 <button class="btn btn-primary btn-sm" data-action="publicarVersaoDocumento" data-args='${args(projectId, id, rascunho.numero)}'>Publicar rascunho</button>
@@ -215,10 +215,10 @@ window.openDocumentoModal = async function (projectId, id) {
             <div class="form-group" style="flex:1"><label class="form-label">Revisar a cada (meses)</label><input class="form-input" id="doc-e-meses" type="number" min="1" max="120" value="${d.revisar_a_cada_meses ?? ''}"></div>
         </div>
         <button class="btn btn-sm" data-action="salvarMetadadosDocumento" data-args='${args(projectId, id)}'>Salvar dados do documento</button>`
-        : `<div style="font-size:0.85rem; color:var(--text-dim)">${escapeHTML(TIPOS[d.tipo] || d.tipo)} · Dono: ${escapeHTML(nomeDaParte(d.dono_parte_id) || '—')} · Revisão: ${escapeHTML(dataBr(d.revisar_ate))}</div>`;
+        : `<div style="font-size:0.85rem; color:var(--text-dim)">${escapeHTML(TIPOS[d.tipo] || d.tipo)} · Dono: ${escapeHTML(nomeDaParte(d.dono_parte_id) || '—')} · Revisão: ${dataBr(d.revisar_ate)}</div>`;
 
     const aprovacao = d.aprovacao || {};
-    const linhaAprovacao = (rotulo, ap) => `<div style="font-size:0.85rem">${rotulo}: ${ap ? `${escapeHTML(ap.por)} em ${escapeHTML(formatarData(ap.em))}` : 'sem aprovação desta versão'}</div>`;
+    const linhaAprovacao = (rotulo, ap) => `<div style="font-size:0.85rem">${rotulo}: ${ap ? `${escapeHTML(ap.por)} em ${formatarData(ap.em)}` : 'sem aprovação desta versão'}</div>`;
 
     // Uma ação à vista (pedir aprovação, ou a primeira que houver); as outras no "Mais ações", com aposentar e excluir por
     // último e separados: "Marcar como revisado" não fica mais ao lado de "Aposentar".
@@ -254,14 +254,14 @@ window.openDocumentoModal = async function (projectId, id) {
         <h4 style="margin:1.25rem 0 0.5rem">Versões</h4>
         ${versoes.length ? versoes.map((v) => `
             <details style="margin-bottom:0.5rem">
-                <summary>Versão ${escapeHTML(String(v.numero))} · ${escapeHTML(ESTADO_VERSAO[v.estado] || v.estado)} · ${escapeHTML(v.origem || '')} · ${escapeHTML(formatarData(v.criado_em, { hora: true }))}</summary>
+                <summary>Versão ${escapeHTML(String(v.numero))} · ${escapeHTML(ESTADO_VERSAO[v.estado] || v.estado)} · ${escapeHTML(v.origem || '')} · ${formatarData(v.criado_em, { hora: true })}</summary>
                 <div style="font-size:0.7rem; color:var(--text-dim)">SHA-256 ${escapeHTML(v.hash || '')}</div>
                 <div style="white-space:pre-wrap; font-size:0.85rem; margin-top:0.25rem">${escapeHTML(v.texto || '')}</div>
             </details>`).join('') : window.renderEmptyState({ titulo: 'Nenhuma versão.', compacto: true })}
         <h4 style="margin:1.25rem 0 0.5rem">Ciências</h4>
         ${ciencias.length ? `<table class="data-table"><thead><tr><th>Pessoa</th><th>Versão</th><th>Canal</th><th>Quando</th></tr></thead><tbody>
             ${ciencias.map((x) => `<tr><td>${escapeHTML(x.nome || x.email)}${x.nome ? `<div style="font-size:11px;color:var(--text-dim)">${escapeHTML(x.email)}</div>` : ''}</td>
-                <td>${escapeHTML(String(x.numero))}${x.atual ? '' : ' (anterior)'}</td><td>${escapeHTML(CANAIS[x.canal] || x.canal || '')}</td><td>${escapeHTML(formatarData(x.em, { hora: true, vazio: '' }))}</td></tr>`).join('')}
+                <td>${escapeHTML(String(x.numero))}${x.atual ? '' : ' (anterior)'}</td><td>${escapeHTML(CANAIS[x.canal] || x.canal || '')}</td><td>${formatarData(x.em, { hora: true, vazio: '' })}</td></tr>`).join('')}
         </tbody></table>` : '<p style="color:var(--text-dim)">Ninguém deu ciência ainda.</p>'}
         ${comPrivacy ? `<h4 style="margin:1.25rem 0 0.5rem">Requisitos</h4>
         <div id="doc-requisitos">
@@ -279,7 +279,7 @@ window.openDocumentoModal = async function (projectId, id) {
             ${excecoes.length ? `<table class="data-table"><thead><tr><th>Escopo</th><th>Motivo</th><th>Vence em</th><th>Situação</th><th>Aprovação</th><th></th></tr></thead><tbody>
                 ${excecoes.map((x) => {
                     const ativa = x.status === 'ativa';
-                    return `<tr><td>${escapeHTML(x.escopo)}</td><td>${escapeHTML(x.motivo)}</td><td>${escapeHTML(dataBr(x.vence_em))}</td>
+                    return `<tr><td>${escapeHTML(x.escopo)}</td><td>${escapeHTML(x.motivo)}</td><td>${dataBr(x.vence_em)}</td>
                     <td>${escapeHTML(SITUACAO_EXCECAO[x.situacao] || x.situacao)}</td>
                     <td>${x.aprovacao ? `${escapeHTML(x.aprovacao.por)} (${escapeHTML(PAPEL_APROVADOR[x.aprovacao.papel] || x.aprovacao.papel)})` : '—'}</td>
                     <td style="text-align:right;white-space:nowrap">

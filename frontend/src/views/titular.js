@@ -112,8 +112,8 @@ async function renderTitular(c, h, a) {
             linhas: pedidos,
             filtroPainel,
             colunas: colunasDe(['Protocolo', 'Titular', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações'], (p) => [
-                `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(p.titular_nome || '—'), escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(CANAIS[p.canal] || p.canal || '—'), escapeHTML(dia(p.recebido_em)),
-                escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'Não calculado'), escapeHTML(dia(p.respondido_em)),
+                `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(p.titular_nome || '—'), escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(CANAIS[p.canal] || p.canal || '—'), dia(p.recebido_em),
+                (p.prazo_em ? dia(p.prazo_em) : 'Não calculado'), dia(p.respondido_em),
                 selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
                 // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
                 registrar && p.situacao_prazo === 'atrasado'
@@ -133,7 +133,7 @@ async function renderTitular(c, h, a) {
             linhas: incidentes,
             filtroPainel,
             colunas: colunasDe(['Protocolo', 'Incidente', 'Ciência', 'Risco', 'ANPD', 'Titular', 'Status', 'Ações'], (i) => [
-                `<strong>${escapeHTML(i.protocolo)}</strong>`, escapeHTML(i.titulo), escapeHTML(dia(i.ciencia_em)), escapeHTML(RISCOS[i.risco_titular] || 'Não avaliado'),
+                `<strong>${escapeHTML(i.protocolo)}</strong>`, escapeHTML(i.titulo), dia(i.ciencia_em), escapeHTML(RISCOS[i.risco_titular] || 'Não avaliado'),
                 selo(i.situacao_anpd), selo(i.situacao_titular), escapeHTML(STATUS_INCIDENTE[i.status] || i.status),
                 `<button class="btn btn-ghost btn-sm" data-action="abrirIncidente" data-args='${args(proj.id, i.id)}'>Abrir</button>`,
             ]),
@@ -148,7 +148,7 @@ async function renderTitular(c, h, a) {
         corpo = `<p style="color:var(--text-dim)">O prazo legal não vem do código: o administrador da plataforma cadastra cada valor com a fonte e a data da revisão do jurídico. Sem o valor, o prazo fica "não calculado".</p>`
             + window.renderDataTable(['Prazo', 'Valor', 'Fonte', 'Revisado', 'Ações'], l.map((p) => [
                 `<strong>${escapeHTML(p.descricao)}</strong>`, p.definido ? escapeHTML(`${p.valor} ${UNIDADES[p.unidade] || p.unidade}`) : 'Não definido',
-                escapeHTML(p.fonte || '—'), p.definido ? escapeHTML(`${dia(p.revisado_em)} por ${p.revisado_por}`) : '—',
+                escapeHTML(p.fonte || '—'), p.definido ? `${dia(p.revisado_em)} por ${escapeHTML(p.revisado_por)}` : '—',
                 ehAdmin() ? `<button class="btn btn-ghost btn-sm" data-action="editarParametroLegal" data-args='${args(p.chave, p.descricao, p.valor ?? '', p.unidade || 'dias_corridos', p.fonte || '', p.revisado_em || '', p.revisado_por || '', !!p.definido)}'>${p.definido ? 'Editar' : 'Definir'}</button>` : '',
             ]), { emptyState: 'Sem parâmetros.' });
     }
@@ -197,7 +197,7 @@ window.abrirPedidoTitular = async function (projectId, id) {
     const editar = podeRegistrar();
     const final = p.status === 'respondido' || p.status === 'negado';
     openModal(`<h3>${escapeHTML(p.protocolo)} — ${escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo)}</h3>
-        <p>${selo(p.situacao_prazo)} Recebido em ${escapeHTML(dia(p.recebido_em))}; prazo ${escapeHTML(p.prazo_em ? dia(p.prazo_em) : 'não calculado')}.</p>
+        <p>${selo(p.situacao_prazo)} Recebido em ${dia(p.recebido_em)}; prazo ${(p.prazo_em ? dia(p.prazo_em) : 'não calculado')}.</p>
         <p id="pt-quem">${escapeHTML(p.titular_nome || 'Titular não identificado')} ${p.titular_contato ? `· ${escapeHTML(p.titular_contato)}` : ''} · ${escapeHTML(CANAIS[p.canal] || p.canal)}</p>
         <p id="pt-descricao" style="white-space:pre-wrap">${escapeHTML(p.descricao || '')}</p>
         ${editar && p.status !== 'arquivado' ? `<div class="form-group"><label class="form-label" for="pt-status">Status</label><select class="form-input" id="pt-status">${opcoes(STATUS_PEDIDO, p.status)}</select></div>
@@ -327,7 +327,7 @@ window.abrirIncidente = async function (projectId, id) {
     const comunicar = (destino, rotulo) => `<button class="btn ${proxima === destino ? 'btn-primary' : ''} btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, destino)}'>${rotulo}</button>`;
     openModal(`${faixaAnpd(i)}<h3>${escapeHTML(i.protocolo)} — ${escapeHTML(i.titulo)}</h3>
         <p style="white-space:pre-wrap">${escapeHTML(i.descricao || '')}</p>
-        <p id="in-prazos">Ciência em ${escapeHTML(dia(i.ciencia_em))}. ANPD: ${selo(i.situacao_anpd)} (${escapeHTML(i.prazo_anpd_em ? dia(i.prazo_anpd_em) : 'prazo não calculado')}) · Titular: ${selo(i.situacao_titular)} (${escapeHTML(i.prazo_titular_em ? dia(i.prazo_titular_em) : 'prazo não calculado')}).</p>
+        <p id="in-prazos">Ciência em ${dia(i.ciencia_em)}. ANPD: ${selo(i.situacao_anpd)} (${(i.prazo_anpd_em ? dia(i.prazo_anpd_em) : 'prazo não calculado')}) · Titular: ${selo(i.situacao_titular)} (${(i.prazo_titular_em ? dia(i.prazo_titular_em) : 'prazo não calculado')}).</p>
         <p id="in-status">Status: ${escapeHTML(STATUS_INCIDENTE[i.status] || i.status)} · Risco ao titular: ${escapeHTML(RISCOS[i.risco_titular] || 'não avaliado')}</p>
         ${editar ? `<h4 style="margin:1rem 0 0.5rem">Avaliar o risco</h4>
             <div class="form-group"><select class="form-input" id="in-risco" aria-label="Risco ao titular">${opcoes(RISCOS, i.risco_titular)}</select></div>

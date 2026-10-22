@@ -25,7 +25,7 @@ const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 async function opcional(fn, padrao) { try { return await fn(); } catch (e) { return padrao; } }
 const idr = (n) => String(n ?? '').padStart(2, '0');
 const selo = (nivel) => (nivel ? `<span class="badge ${SELO[nivel] || 'selo-neutral'}">${escapeHTML(NIVEL_ROTULO[nivel] || nivel)}</span>` : '<span class="t-dim">—</span>');
-const dataBr = (d) => (d ? escapeHTML(formatarData(String(d).slice(0, 10))) : '<span class="t-dim">—</span>');
+const dataBr = (d) => (d ? formatarData(String(d).slice(0, 10)) : '<span class="t-dim">—</span>');
 const norm = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 /** O legado deixa Estratégia, Risco residual e Prazo vazios até "Tratar". O servidor grava Mitigar como padrão, então só conta como tratado o que tem sinal de tratamento. */

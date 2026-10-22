@@ -41,11 +41,35 @@ describe('PUT /ropa/:id não aprova nem reverte aprovação', () => {
     expect(await linha()).toEqual({ status: 'Draft', ciso_approved_by: null, processing_purpose: 'Folha', recipients: 'RH' });
   }, 30_000);
 
-  it('ROPA aprovado editado sem status: 200, segue Approved, assinatura e campo ausente intactos', async () => {
+  it('ROPA aprovado com conteúdo mudado: 200, aprovação e assinaturas zeradas, volta a revisão, com trilha', async () => {
     await semear('Approved', true);
     const r = await chamar('PUT', URL_PUT, editor, { processing_purpose: 'Folha v2' });
     expect(r.status, await r.clone().text()).toBe(200);
-    expect(await linha()).toEqual({ status: 'Approved', ciso_approved_by: 'Ana CISO', processing_purpose: 'Folha v2', recipients: 'RH' });
+    expect(await linha()).toEqual({ status: 'Under Review', ciso_approved_by: null, processing_purpose: 'Folha v2', recipients: 'RH' });
+    const trilha = await env.DB.prepare(`SELECT actor, details FROM audit_logs WHERE action = 'ropa.aprovacao_invalidada' AND details LIKE '%ro-s%' ORDER BY created_at DESC`).first<any>();
+    expect(trilha?.actor).toBe('ed@x.com');
+    expect(trilha?.details).toContain('processing_purpose');
+  }, 30_000);
+
+  it('ROPA aprovado salvo com o mesmo conteúdo ou só com campo fora do congelado: segue Approved, assinatura intacta', async () => {
+    await semear('Approved', true);
+    const r = await chamar('PUT', URL_PUT, editor, { processing_purpose: 'Folha', recipients: 'RH', owner: 'Outra pessoa' });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await linha()).toEqual({ status: 'Approved', ciso_approved_by: 'Ana CISO', processing_purpose: 'Folha', recipients: 'RH' });
+  }, 30_000);
+
+  it('DELETE de ROPA aprovado: 409 apontando a revogação; o registro fica', async () => {
+    await semear('Approved', true);
+    const r = await chamar('DELETE', URL_PUT, editor);
+    expect(r.status, await r.clone().text()).toBe(409);
+    expect(JSON.stringify(await r.json())).toMatch(/Revogue a aprovação/);
+    expect(await linha()).toMatchObject({ status: 'Approved', ciso_approved_by: 'Ana CISO' });
+  }, 30_000);
+
+  it('DELETE de ROPA não aprovado continua: 200 e o registro sai', async () => {
+    await semear('Draft');
+    expect((await chamar('DELETE', URL_PUT, editor)).status).toBe(200);
+    expect(await linha()).toBeNull();
   }, 30_000);
 
   it('ROPA aprovado com status Draft: 400 apontando "Revogar aprovação"; assinatura intacta', async () => {

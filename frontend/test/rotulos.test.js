@@ -61,6 +61,8 @@ describe('formatarData()', () => {
         expect(formatarData(null)).toBe('—');
         expect(formatarData(undefined, { vazio: 'Sem prazo' })).toBe('Sem prazo');
         expect(formatarData('amanhã')).toBe('amanhã');
+        // Texto que não é data volta escapado: as telas interpolam o resultado em innerHTML.
+        expect(formatarData('<img src=x onerror=alert(1)>')).toBe('&lt;img src=x onerror=alert(1)&gt;');
     });
 
     it('nunca devolve ISO cru', () => {

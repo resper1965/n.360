@@ -42,7 +42,7 @@ function desenhar() {
         ? `<ul class="at-lista">${gaps.map((g) => `<li class="d-flex flex-col gap-1" data-gap="${escapeHTML(g.id)}">
             <span><strong>Gap:</strong> ${escapeHTML(g.gap)}</span>
             <span class="d-flex items-center flex-wrap gap-4"><span><span class="t-dim">Responsável:</span> ${escapeHTML(g.responsavel ? g.responsavel.nome : 'sem responsável')}</span>
-                <span><span class="t-dim">Prazo:</span> ${escapeHTML(g.prazo ? formatarData(g.prazo) : 'sem prazo')}</span>
+                <span><span class="t-dim">Prazo:</span> ${g.prazo ? formatarData(g.prazo) : 'sem prazo'}</span>
                 <span><span class="t-dim">Status:</span> ${emAtraso(g) ? window.renderStatusBadge('Em atraso', 'danger') : escapeHTML(ROTULO_STATUS[g.status] || g.status)}</span>
                 ${lista(g.anexos).length ? `<span class="t-dim">${lista(g.anexos).length} anexo${lista(g.anexos).length > 1 ? 's' : ''}</span>` : ''}${ed ? `
                 <button type="button" class="btn btn-sm" data-action="atGapAbrir" data-args='${args(g.id)}' aria-label="${escapeHTML(`Editar o gap: ${g.gap.slice(0, 80)}`)}">Editar</button>

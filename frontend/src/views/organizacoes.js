@@ -121,7 +121,7 @@ function desenhar() {
                 ? `<button type="button" class="btn btn-secondary" data-action="__orgReenviar" data-args='["${id}"]'>Reenviar convite</button>` : '';
             acoes = `<button type="button" class="btn btn-secondary" data-action="__orgEditar" data-args='["${id}"]'>Editar</button>${convite}${status}`;
         }
-        const termo = o.termoVersao ? `${escapeHTML(o.termoVersao)}<span class="org-meta">aceito em ${escapeHTML(data(o.termoAceitoEm))}</span>` : '<span class="org-vazio">sem registro</span>';
+        const termo = o.termoVersao ? `${escapeHTML(o.termoVersao)}<span class="org-meta">aceito em ${data(o.termoAceitoEm)}</span>` : '<span class="org-vazio">sem registro</span>';
         return `<tr data-org="${id}">
             <td><span class="org-nome">${escapeHTML(o.nome)}</span><span class="org-meta">${escapeHTML(o.slug)}</span></td>
             <td>${escapeHTML(o.plano)}</td>

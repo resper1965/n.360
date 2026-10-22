@@ -35,7 +35,8 @@ const REGRAS: Regra[] = [
 ];
 
 export const rateLimitMiddleware = createMiddleware<{ Bindings: Bindings; Variables: Variables }>(async (c, next) => {
-  const path = new URL(c.req.url).pathname;
+  // Decodificado, como o roteador do Hono: o cru deixava `%69` passar pelas regras e chegar à rota.
+  const path = c.req.path;
   const regra = REGRAS.find(r => r.teste(path));
   if (!regra) return next();
 

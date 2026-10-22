@@ -51,6 +51,14 @@ describe('a consultoria não registra achado de auditoria (sessão humana)', () 
     expect(await res.text()).toContain(MENSAGEM);
   });
 
+  it('caminho codificado (`audit-f%69ndings`) não escapa da regra: ela olha o caminho decodificado, como o roteador', async () => {
+    for (const method of ['PUT', 'DELETE']) {
+      const res = await req('/api/v1/audit-f%69ndings/af-1', { method, headers: consultor, body: method === 'PUT' ? ACHADO : undefined });
+      expect(res.status, method).toBe(403);
+      expect(await res.text(), method).toContain(MENSAGEM);
+    }
+  });
+
   it('a regra barra escrita, não leitura: o GET não traz a mensagem do gate', async () => {
     const res = await req('/api/v1/audits/aud-1/findings', { headers: consultor });
     expect(await res.text()).not.toContain(MENSAGEM);
@@ -75,6 +83,21 @@ describe('a consultoria não registra achado de auditoria (sessão humana)', () 
       expect(res.status, method).toBe(403);
       expect(await res.text(), method).toContain(MENSAGEM);
     }
+  });
+
+  it('alterar e apagar achado deixam trilha, como criar', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('p-trilha', 'Cliente', 'ISO 27001', 'controller', 'Active')`),
+      env.DB.prepare(`INSERT INTO audit_schedule (id, project_id, audit_type, title, scheduled_date) VALUES ('aud-trilha', 'p-trilha', 'Interna', 'A', '2026-10-01')`),
+      env.DB.prepare(`INSERT INTO audit_findings (id, audit_id, project_id, finding_type, description) VALUES ('af-trilha', 'aud-trilha', 'p-trilha', 'observation', 'x')`),
+    ]);
+    const trilha = (acao: string) => env.DB.prepare(`SELECT actor FROM audit_logs WHERE action = ? AND details LIKE '%af-trilha%'`).bind(acao).first<{ actor: string }>();
+    const put = await req('/api/v1/audit-findings/af-trilha', { method: 'PUT', headers: admin, body: JSON.stringify({ status: 'Closed' }) });
+    expect(put.status).toBe(200);
+    expect((await trilha('audit_finding.updated'))?.actor).toBe('adm@ness.lat');
+    const del = await req('/api/v1/audit-findings/af-trilha', { method: 'DELETE', headers: admin });
+    expect(del.status).toBe(200);
+    expect((await trilha('audit_finding.deleted'))?.actor).toBe('adm@ness.lat');
   });
 
   it('comercial não alcança achado nem governança do projeto (403 pelo acesso, não pelo gate)', async () => {

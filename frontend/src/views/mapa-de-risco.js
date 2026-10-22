@@ -75,7 +75,7 @@ function montarVistaLista(alvo) {
             rotuloNivel(x.risk_level),
             tratado({ ...x, treatment_due_date: x.prazo }) ? escapeHTML(ESTRATEGIA_ROTULO[x.treatment] || x.treatment || '—') : '—',
             escapeHTML(x.responsavel || '—'),
-            escapeHTML(formatarData(x.prazo)),
+            formatarData(x.prazo),
             escapeHTML(rotuloDe('', x.status)),
             `<div class="acoes-linha">${ed ? `<button class="btn btn-sm" data-action="mapaTratar" data-args='${args(x.id)}' aria-label="${escapeHTML(`Tratar Risco: ${x.threat}`)}">Tratar Risco</button>` : ''}
                 <button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(estado.projeto, x.ropa_id, 'riscos')}' aria-label="Abrir a atividade: ${escapeHTML(x.atividade || '')}">Abrir</button></div>`,

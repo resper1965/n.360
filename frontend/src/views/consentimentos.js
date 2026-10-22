@@ -68,9 +68,9 @@ function linha(x, projectId, editar) {
         referencia(x.titular_ref),
         escapeHTML(x.finalidade),
         `<button type="button" class="btn btn-ghost btn-sm co-trat" data-action="abrirTratamentoDoConsentimento" data-args='${args(projectId, x.ropa_id)}' aria-label="Abrir o tratamento: ${escapeHTML(x.tratamento)}">${escapeHTML(x.tratamento)}</button>`,
-        escapeHTML(dia(x.obtido_em)),
+        dia(x.obtido_em),
         `${escapeHTML(x.canal || 'Canal não informado')}<span class="co-sub">${escapeHTML(x.versao_aviso)}</span>`,
-        `${selo(x)}${x.vigente ? '' : ` <span class="co-sub">em ${escapeHTML(dia(x.revogado_em))}</span>`}`,
+        `${selo(x)}${x.vigente ? '' : ` <span class="co-sub">em ${dia(x.revogado_em)}</span>`}`,
         `<div class="acoes-linha"><button type="button" class="btn btn-sm" data-action="abrirConsentimento" data-args='${args(projectId, x.id)}' aria-label="Ver o consentimento de ${escapeHTML(nome)}">Ver</button>`
         + `${x.vigente && editar ? `<button type="button" class="btn btn-sm" data-action="revogarConsentimento" data-args='${args(projectId, x.id)}' aria-label="Revogar o consentimento de ${escapeHTML(nome)}">Revogar</button>` : ''}</div>`,
     ];
@@ -184,12 +184,12 @@ window.abrirConsentimento = function (projectId, id) {
             ${par('Titular', referencia(x.titular_ref))}
             ${par('Finalidade', escapeHTML(x.finalidade))}
             ${par('Tratamento', `<button type="button" class="btn btn-ghost btn-sm co-trat" data-action="abrirTratamentoDoConsentimento" data-args='${args(projectId, x.ropa_id)}'>${escapeHTML(x.tratamento)}</button>`)}
-            ${par('Obtido em', escapeHTML(dia(x.obtido_em)))}
+            ${par('Obtido em', dia(x.obtido_em))}
             ${par('Canal', escapeHTML(x.canal || 'Não informado'))}
             ${par('Versão do aviso', escapeHTML(x.versao_aviso))}
         </dl>
         <h4 class="co-h4">Histórico</h4>
-        <ol class="co-historico">${historico(x).map((h) => `<li><strong>${escapeHTML(dia(h.quando))}</strong> ${escapeHTML(h.texto)}</li>`).join('')}</ol>
+        <ol class="co-historico">${historico(x).map((h) => `<li><strong>${dia(h.quando)}</strong> ${escapeHTML(h.texto)}</li>`).join('')}</ol>
         ${x.vigente && dados.editar ? `<div class="acoes-linha"><button type="button" class="btn" data-action="revogarConsentimento" data-args='${args(projectId, x.id)}'>Revogar consentimento</button></div>` : ''}`);
 };
 

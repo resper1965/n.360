@@ -6,7 +6,7 @@ import { url, lista } from './estado.js';
 
 const LIMITE = 50;
 const cartao = (l) => `<li class="at-log"><p class="at-log-linha">${escapeHTML(l.secao)}: ${escapeHTML(l.evento)}</p>
-    <p class="at-nota">Nome: ${escapeHTML(l.nome || '')}</p><p class="at-nota">Data: ${escapeHTML(formatarData(l.data, { hora: true }))}</p></li>`;
+    <p class="at-nota">Nome: ${escapeHTML(l.nome || '')}</p><p class="at-nota">Data: ${formatarData(l.data, { hora: true })}</p></li>`;
 
 export async function montar(painel, ctx) {
     const { projectId: pid, ropaId: rid } = ctx;

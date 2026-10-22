@@ -22,6 +22,10 @@
 // A função é resolvida em `window` (as views expõem as ações lá, como os on* faziam).
 // Ação desconhecida ou data-args inválido: loga e ignora (não quebra).
 
+// O atributo vem de HTML montado com dado do servidor: só ações da interface, nunca rede, código ou janela genéricos.
+const PROIBIDAS = new Set(['api', 'fetch', 'eval', 'Function', 'setTimeout', 'setInterval', 'requestAnimationFrame', 'queueMicrotask',
+  'open', 'close', 'postMessage', 'importScripts', 'alert', 'confirm', 'prompt', 'print', 'baixarArquivo', 'constructor']);
+
 function resolverArgs(el, e) {
   const raw = el.getAttribute('data-args');
   let args = [];
@@ -52,7 +56,7 @@ function makeDispatcher(attr) {
     if (el.hasAttribute('data-stop')) e.stopPropagation();
     if (el.hasAttribute('data-prevent')) e.preventDefault();
     const fnName = el.getAttribute(attr);
-    const fn = window[fnName];
+    const fn = PROIBIDAS.has(fnName) ? undefined : window[fnName];
     if (typeof fn !== 'function') {
       console.warn('[delegation] ação desconhecida:', fnName);
       return;

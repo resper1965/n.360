@@ -471,6 +471,7 @@ governanceApp.put('/audit-findings/:id', async (c) => {
           status = COALESCE(?, status) 
       WHERE id = ?
     `).bind(description || null, auditor_notes || null, status || null, id).run();
+    await logAudit(c.env.DB, 'audit_finding.updated', c.get('user')?.email || 'system', `Achado ${id} atualizado${status ? ` (status ${status})` : ''}`);
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Falha ao atualizar achado de auditoria', e);
@@ -482,6 +483,7 @@ governanceApp.delete('/audit-findings/:id', async (c) => {
   try {
     await requireResourceAccess(c.env.DB, 'audit_findings', id, c.get('user'));
     await c.env.DB.prepare('DELETE FROM audit_findings WHERE id = ?').bind(id).run();
+    await logAudit(c.env.DB, 'audit_finding.deleted', c.get('user')?.email || 'system', `Achado ${id} excluído`);
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Falha ao deletar achado de auditoria', e);

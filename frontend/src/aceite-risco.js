@@ -8,7 +8,7 @@ export const podeAceitar = (r) => r.treatment === 'Accept' && !['Accepted', 'Clo
 export function linhaDeAceite(r) {
     if (r.status !== 'Accepted' || !r.accepted_by) return '';
     const quem = escapeHTML(r.accepted_by);
-    const quando = escapeHTML(formatarData(r.accepted_at, { vazio: 'data desconhecida' }));
+    const quando = formatarData(r.accepted_at, { vazio: 'data desconhecida' });
     return r.aceite_manual ? `Aceite registrado à mão: ${quem} em ${quando}` : `Aceito por ${quem} em ${quando}`;
 }
 

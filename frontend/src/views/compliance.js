@@ -1851,7 +1851,7 @@ import { classeDoControle } from '../classe-controle.js';
             <div id="policy-rascunho" style="border:1px solid var(--accent); padding:1rem; margin-bottom:1rem">
                 <div class="f-titulo fw-600 mb-1">Rascunho ${rasc.origem === 'agente' ? 'do agente ' : ''}aguardando revisão</div>
                 <div class="t-sm t-dim mb-2">
-                    Por ${escapeHTML(rasc.criado_por || 'autor não registrado')} em ${escapeHTML(formatarData(rasc.criado_em, { hora: true }))}. A política vigente só muda quando você publicar.
+                    Por ${escapeHTML(rasc.criado_por || 'autor não registrado')} em ${formatarData(rasc.criado_em, { hora: true })}. A política vigente só muda quando você publicar.
                 </div>
                 <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(rasc.texto || '')}</div>
                 <div class="d-flex gap-2 mt-3">

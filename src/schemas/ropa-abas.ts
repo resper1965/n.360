@@ -60,6 +60,11 @@ export const GAP_STATUS = ['Open', 'In Progress', 'Closed'] as const;
 // AAAA-MM-DD e uma data que existe (2026-02-31 não passa).
 export const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD')
   .refine((s) => !Number.isNaN(Date.parse(`${s}T00:00:00Z`)) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s, 'Data inexistente');
+/** Dia (AAAA-MM-DD) ou instante ISO com hora (`2026-07-15T10:00:00Z`): campo que um sistema externo pode mandar com hora. */
+export const dataOuInstante = z.union([dataIso, z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/, 'Data no formato AAAA-MM-DD ou data e hora ISO')
+  .refine((s) => !Number.isNaN(Date.parse(s)), 'Data inexistente')]);
+/** O `<input type="date">` vazio manda '': segue aceito (e gravado como antes), o resto tem de ser data. */
+export const dataOuVazio = z.union([z.literal(''), dataIso]);
 export const gapCriarSchema = z.strictObject({
   gap: texto(4000).min(1, 'O gap é obrigatório'),
   recomendacao: textoOuNulo(4000).optional(),

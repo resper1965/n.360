@@ -1930,9 +1930,22 @@
                     "minLength": 1
                   },
                   "scheduled_date": {
-                    "type": [
-                      "string",
-                      "null"
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": ""
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "auditor_name": {
@@ -6153,8 +6166,32 @@
                   "last_measured_at": {
                     "anyOf": [
                       {
-                        "type": "string",
-                        "maxLength": 50
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "const": ""
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              }
+                            ]
+                          },
+                          {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})?$"
+                              }
+                            ]
+                          }
+                        ]
                       },
                       {
                         "type": "null"
@@ -9489,8 +9526,7 @@
                 "properties": {
                   "review_date": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 50
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
                   },
                   "attendees": {
                     "anyOf": [
@@ -9639,8 +9675,32 @@
                   "last_measured_at": {
                     "anyOf": [
                       {
-                        "type": "string",
-                        "maxLength": 50
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "const": ""
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              }
+                            ]
+                          },
+                          {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})?$"
+                              }
+                            ]
+                          }
+                        ]
                       },
                       {
                         "type": "null"
@@ -10999,8 +11059,7 @@
                   },
                   "scheduled_date": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 500
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
                   },
                   "auditor_name": {
                     "anyOf": [
@@ -25565,8 +25624,16 @@
                         "completion_date": {
                           "anyOf": [
                             {
-                              "type": "string",
-                              "maxLength": 500
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})?$"
+                                }
+                              ]
                             },
                             {
                               "type": "null"
@@ -25723,8 +25790,16 @@
                   "completion_date": {
                     "anyOf": [
                       {
-                        "type": "string",
-                        "maxLength": 500
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})?$"
+                          }
+                        ]
                       },
                       {
                         "type": "null"
@@ -32065,9 +32140,22 @@
                     "minLength": 1
                   },
                   "completion_date": {
-                    "type": [
-                      "string",
-                      "null"
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})?$"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "score": {

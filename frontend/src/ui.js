@@ -314,7 +314,7 @@ export function traduzStatus(valor) { return rotuloDe('', valor); }
  * "2026-10-15 10:15:00" (UTC do SQLite, sem fuso), ISO com Z, Date ou milissegundos. Data só de dia não passa por
  * fuso (não vira o dia anterior em Brasília), nem a meia-noite UTC exata ("2026-10-16T00:00:00.000Z", como os prazos
  * são gravados); data com hora é convertida para o fuso do navegador. Vazio vira
- * `vazio` ('—'); texto que não é data volta como veio.
+ * `vazio` ('—'); texto que não é data volta como veio, ESCAPADO: o resultado vai direto a `innerHTML`, sem `escapeHTML` por fora.
  */
 export function formatarData(valor, { hora = false, vazio = '—' } = {}) {
     if (valor === null || valor === undefined || valor === '') return vazio;
@@ -327,7 +327,7 @@ export function formatarData(valor, { hora = false, vazio = '—' } = {}) {
         // "AAAA-MM-DD HH:MM:SS" do SQLite é UTC sem marca de fuso.
         const sqlite = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(s) ? `${s.replace(' ', 'T')}Z` : s;
         valor = /^\d{4}-\d{2}-\d{2}T/.test(sqlite) ? new Date(sqlite) : null;
-        if (!valor) return s;
+        if (!valor) return escapeHTML(s);
     }
     const d = valor instanceof Date ? valor : new Date(valor);
     if (Number.isNaN(d.getTime())) return vazio;
