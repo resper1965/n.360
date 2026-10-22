@@ -56,13 +56,14 @@ export async function transferirProjeto(db: D1Database, e: EntradaTransferencia)
           || '; concessões de agente revogadas: '
           || (SELECT COUNT(*) FROM agente_concessoes WHERE project_id = ? AND revogado_em IS NULL)
           || '; chaves de API revogadas: ' || (SELECT COUNT(*) FROM api_keys WHERE project_id = ? AND status = 'Active')
+          || '; links de auditor revogados: ' || (SELECT COUNT(*) FROM auditor_tokens WHERE project_id = ? AND revoked_at IS NULL)
           || '; webhooks desativados: ' || (SELECT COUNT(*) FROM webhooks WHERE project_id = ? AND status = 'Active')
           || '; SSO desativado: ' || (SELECT CASE WHEN EXISTS (SELECT 1 FROM project_sso WHERE project_id = ? AND ativo = 1) THEN 'sim' ELSE 'não' END)
           || '; SCIM revogado: ' || (SELECT CASE WHEN EXISTS (SELECT 1 FROM project_scim WHERE project_id = ? AND ativo = 1) THEN 'sim' ELSE 'não' END),
           '', ?, ?, datetime('now')
         WHERE changes() > 0`)
       .bind(auditId, e.atorEmail, e.projetoId, origem, e.orgDestinoId, motivo, e.projetoId, origem, e.projetoId,
-        e.projetoId, e.projetoId, e.projetoId, e.projetoId, e.ip, e.projetoId),
+        e.projetoId, e.projetoId, e.projetoId, e.projetoId, e.projetoId, e.ip, e.projetoId),
     db.prepare(`DELETE FROM project_governance WHERE ${CONSULTORES_DA_ORIGEM} AND ${DESTA}`).bind(e.projetoId, origem, auditId),
     // o agente cai na próxima chamada (concessaoValida exige revogado_em NULL)
     db.prepare(`UPDATE agente_concessoes SET revogado_em = datetime('now'), revogado_por = ?
@@ -76,6 +77,9 @@ export async function transferirProjeto(db: D1Database, e: EntradaTransferencia)
     // Pedidos (abertos e fechados) acompanham o projeto: `org_id` é o corte de isolamento deles. O
     // trigger `pedido_prova_imutavel` deixa `org_id` livre; a prova (hash, conteúdo, status) não muda.
     db.prepare(`UPDATE pedidos SET org_id = ? WHERE project_id = ? AND ${DESTA}`).bind(e.orgDestinoId, e.projetoId, auditId),
+    // o link do auditor externo foi emitido pela consultoria de origem
+    db.prepare(`UPDATE auditor_tokens SET revoked_at = datetime('now'), revoked_by = ?
+        WHERE project_id = ? AND revoked_at IS NULL AND ${DESTA}`).bind(e.atorEmail, e.projetoId, auditId),
   ]);
   if (!res[0].meta.changes) {
     // o destino pode ter sido suspenso no meio; senão, outra transferência levou o projeto

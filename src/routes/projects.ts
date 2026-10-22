@@ -863,11 +863,21 @@ projectsApp.put('/:id/checklist-progress', async (c) => {
     const user = c.get('user');
     // `checked_by` referencia users(id): chave de API não tem linha lá (id `apikey:…`).
     const quem = user?.id && !user.id.startsWith('apikey:') ? user.id : null;
+    const ctx = await carregarContexto(c.env.DB, projectId);
+    // Concluir e reabrir passo são atos humanos (como na Bancada): o agente não muda a marcação em nenhum sentido.
+    if (user?.agente && items.some((i) => !!i.is_checked !== !!ctx.progresso.get(i.item_id)?.is_checked)) {
+      return c.json({ error: 'Forbidden: concluir ou reabrir passo da trilha é ato humano, pela interface' }, 403);
+    }
+    // A anotação já gravada é da pessoa: o agente não a troca (descartá-la é ato humano da equipe). Sem `notes` no item, ela fica.
+    if (user?.agente && items.some((i) => i.notes !== undefined && (ctx.progresso.get(i.item_id)?.notes ?? null) !== null && i.notes !== ctx.progresso.get(i.item_id)?.notes)) {
+      return c.json({ error: 'Forbidden: a anotação gravada no passo só uma pessoa troca, pela interface' }, 403);
+    }
+    // Passo bloqueado não se conclui (a Bancada dá o mesmo 409).
+    const bloqueados = items.filter((i) => i.is_checked && !ctx.progresso.get(i.item_id)?.is_checked && ctx.progresso.get(i.item_id)?.bloqueio_motivo).map((i) => i.item_id);
+    if (bloqueados.length) return c.json({ error: 'Há passos bloqueados; desbloqueie antes de concluir', itens: bloqueados }, 409);
     // Marcar passo da trilha passa pelo mesmo avaliador da Bancada: sem o "concluído quando" cumprido, 409 e nada é gravado.
     const abrindo = items.filter((i) => i.is_checked);
     if (abrindo.length) {
-      if (user?.agente) return c.json({ error: 'Forbidden: concluir passo da trilha é ato humano, pela interface' }, 403);
-      const ctx = await carregarContexto(c.env.DB, projectId);
       const recusados: Array<{ item_id: string; faltam: string[] }> = [];
       for (const i of abrindo) {
         const passo = passoPorId(i.item_id);
@@ -886,7 +896,7 @@ projectsApp.put('/:id/checklist-progress', async (c) => {
     const stmt = c.env.DB.prepare(
       `INSERT INTO checklist_progress (id, project_id, phase_number, item_id, is_checked, checked_by, checked_at, evidence_id, notes, assigned_to, due_date)
        VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
-       ON CONFLICT(project_id, phase_number, item_id) DO UPDATE SET is_checked = excluded.is_checked, checked_by = excluded.checked_by, checked_at = excluded.checked_at, evidence_id = excluded.evidence_id, notes = excluded.notes, assigned_to = excluded.assigned_to, due_date = excluded.due_date`
+       ON CONFLICT(project_id, phase_number, item_id) DO UPDATE SET is_checked = excluded.is_checked, checked_by = excluded.checked_by, checked_at = excluded.checked_at, evidence_id = excluded.evidence_id, notes = COALESCE(excluded.notes, checklist_progress.notes), assigned_to = excluded.assigned_to, due_date = excluded.due_date`
     );
     await c.env.DB.batch(items.map((i) =>
       stmt.bind(projectId, i.phase_number, i.item_id, i.is_checked ? 1 : 0, quem, i.evidence_id ?? null, i.notes ?? null, i.assigned_to ?? null, i.due_date ?? null)

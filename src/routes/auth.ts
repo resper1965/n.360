@@ -455,8 +455,8 @@ authApp.post('/criar-senha', async (c) => {
 authApp.post('/logout', async (c) => {
   const token = c.req.header('Authorization')?.split(' ')[1];
   if (token) {
+    // Só a chave da sessão: o KV guarda também códigos e contadores, que o token cru do cabeçalho não pode apagar.
     await c.env.SESSIONS.delete(`session_${token}`);
-    await c.env.SESSIONS.delete(token);
   }
   return c.json({ ok: true });
 });

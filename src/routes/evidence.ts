@@ -76,6 +76,10 @@ evidenceApp.put('/:id/content', async (c) => {
 
     const ev = await c.env.DB.prepare('SELECT * FROM evidence WHERE id = ?').bind(id).first<any>();
     if (!ev || !ev.r2_key) return c.json({ error: 'Evidência não encontrada' }, 404);
+    // Só documento em texto se edita: gravar texto sobre um PDF ou imagem destruía o arquivo enviado (o R2 não guarda versão).
+    if (!['text/markdown', 'text/plain'].includes(String(ev.file_type ?? ''))) {
+      return c.json({ error: 'Só documento em texto se edita aqui; para trocar o arquivo, envie uma evidência nova' }, 409);
+    }
 
     const encoder = new TextEncoder();
     const arrayBuffer = encoder.encode(content);
