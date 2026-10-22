@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Segurança (trava de módulo por pessoa, 22/10/2026; sem migration)
+
+- O export completo do projeto (`GET /projects/:id/export`) exige que a pessoa tenha todos os módulos do projeto (403 senão); `GET /controls` e `GET /client/dashboard` só trazem controles e fases para quem tem o n.iso, em projeto com o n.iso.
+
 ### Segurança (aprovador e portal de políticas, 22/10/2026; sem migration)
 - **Senha definida por outra pessoa não aprova:** o `PUT /users/:id` com senha, feito por quem gere a conta, grava `requires_password_change = 1` e avisa o dono por e-mail (`emailSenhaDefinidaPorOutro`; falha vai ao log). Até a pessoa trocar a senha (primeiro acesso ou troca comum, que agora também zera o flag), pedidos, lote e as assinaturas diretas (RIPD, RoPA, evidência, política) respondem 403.
 - **Linha de quem assina é do cliente:** criar, alterar ou remover na governança a linha de Direção, Líder SGSI/CISO ou DPO/encarregado é só do `org_admin` do próprio projeto; consultor, administração, chave de API e agente recebem 403. Editar a parte encarregada não desvia a regra.

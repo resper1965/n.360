@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 
+import { recusaDoModulo } from '../modulos';
 import { redactProject, semRastros, logAudit, requireResourceAccess, escapeHtml, erro500, registraErro, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, ehComercial, projetosVisiveis, somenteNess, somenteComercial, PODE_REVOGAR_APROVACAO, refForaDoProjeto, setParcial, valoresParciais } from '../helpers';
 import { atualizarAtivo, removerAtivo } from '../services/itens';
 import { validateBody, assetSchema, dpiaSchema, revogarDpiaSchema, dpiaApprovalSchema, transferirProjetoSchema, precificacaoConfigSchema } from '../schemas';
@@ -430,7 +431,10 @@ platformApp.get('/client/dashboard', async (c) => {
     const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(user.client_project_id).first<any>();
     if (!project) return c.json({ error: 'Projeto não encontrado' }, 404);
 
-    const [phases, controls] = await Promise.all([
+    // Fases e controles são do n.iso: sem o módulo no projeto ou na pessoa, vêm vazios.
+    const semIso = await recusaDoModulo(c.env.DB, user, user.client_project_id, 'iso');
+    const vazio = { results: [] as any[] };
+    const [phases, controls] = semIso ? [vazio, vazio] : await Promise.all([
       c.env.DB.prepare('SELECT * FROM project_phases WHERE project_id = ? ORDER BY phase_number ASC').bind(user.client_project_id).all(),
       c.env.DB.prepare('SELECT * FROM compliance_controls WHERE project_id = ?').bind(user.client_project_id).all()
     ]);

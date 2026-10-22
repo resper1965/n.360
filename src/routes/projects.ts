@@ -27,7 +27,7 @@ import { exportarProjeto } from '../portabilidade';
 import { ipPermitido } from '../politica-tenant';
 import { papelValidoParaSso } from '../sso';
 import { appUrl } from '../config/url';
-import { modulosContratados } from '../modulos';
+import { modulosContratados, modulosDoProjeto, modulosDaPessoa, recusaDaPessoa } from '../modulos';
 
 export const projectsApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -261,6 +261,10 @@ projectsApp.get('/:projectId/export', async (c) => {
     const projectId = c.req.param('projectId');
     const projeto = await c.env.DB.prepare('SELECT id FROM projects WHERE id = ?').bind(projectId).first();
     if (!projeto) return c.json({ error: 'Projeto não encontrado' }, 404);
+    // O export leva as tabelas de todos os módulos: só quem tem todos os módulos do projeto o baixa.
+    const daPessoa = await modulosDaPessoa(c.env.DB, c.get('user'));
+    const recusa = (await modulosDoProjeto(c.env.DB, projectId)).map((m) => recusaDaPessoa(m, daPessoa)).find(Boolean);
+    if (recusa) return c.json({ error: `${recusa}: a exportação completa inclui os dados dele.` }, 403);
 
     const conteudo = await exportarProjeto(c.env, projectId);
 

@@ -132,6 +132,11 @@ export async function modulosDaPessoa(db: D1Database, user: PrincipalDeModulo): 
   return results.map((r) => r.modulo);
 }
 
+/** A recusa se o projeto ou a pessoa não têm o módulo da faixa (as duas travas de `projectAccessMiddleware`); null se pode. */
+export async function recusaDoModulo(db: D1Database, user: PrincipalDeModulo, projectId: string, faixa: Faixa): Promise<string | null> {
+  return recusaDeModulo(faixa, await modulosDoProjeto(db, projectId)) ?? recusaDaPessoa(faixa, await modulosDaPessoa(db, user));
+}
+
 /** A recusa se a faixa é de um módulo que a pessoa não tem; null se pode. O núcleo não exige módulo da pessoa. */
 export function recusaDaPessoa(faixa: Faixa, modulos: readonly Modulo[]): string | null {
   if (faixa === 'nucleo' || modulos.includes(faixa)) return null;
