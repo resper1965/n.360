@@ -189,7 +189,9 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
       return c.json({ error: 'Unauthorized: Missing session token' }, 401);
     }
 
-    const sessionData = (await c.env.SESSIONS.get(`session_${sessionId}`)) || (await c.env.SESSIONS.get(sessionId));
+    // Só a chave própria da sessão: o KV SESSIONS guarda também códigos e contadores (OTP do portal, código
+    // de redefinição de senha) sob nomes que quem está de fora conhece, e eles não podem virar sessão.
+    const sessionData = await c.env.SESSIONS.get(`session_${sessionId}`);
     if (!sessionData) {
       return c.json({ error: 'Unauthorized: Invalid or expired session' }, 401);
     }
@@ -197,6 +199,10 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
     try {
       user = JSON.parse(sessionData);
     } catch (e) {
+      return c.json({ error: 'Unauthorized: Malformed session data' }, 401);
+    }
+    // Sessão de verdade sempre tem conta, papel e carimbo (o login, o SSO e o MFA gravam os três).
+    if (!user || typeof user !== 'object' || !user.id || typeof user.role !== 'string' || !user.iat) {
       return c.json({ error: 'Unauthorized: Malformed session data' }, 401);
     }
 
@@ -244,7 +250,6 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
       if (restante > 60) {
         const renovada = { ...user, seen: agora };
         await c.env.SESSIONS.put(`session_${sessionId}`, JSON.stringify(renovada), { expirationTtl: restante });
-        await c.env.SESSIONS.put(sessionId, JSON.stringify(renovada), { expirationTtl: restante });
       }
     }
 

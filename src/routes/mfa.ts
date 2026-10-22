@@ -94,18 +94,17 @@ mfaApp.post('/activate', async (c) => {
 
 /**
  * Remove `mfa_pending` da sessão em curso: até aqui ela só podia falar com
- * /auth/mfa/*. Reescreve as duas chaves que o login grava.
+ * /auth/mfa/*. Reescreve a chave da sessão (`session_<token>`).
  */
 async function promoverSessao(c: any): Promise<void> {
   const id = c.get('sessionId');
   if (!id) return;
-  const bruto = (await c.env.SESSIONS.get(`session_${id}`)) || (await c.env.SESSIONS.get(id));
+  const bruto = await c.env.SESSIONS.get(`session_${id}`);
   if (!bruto) return;
   const sessao = JSON.parse(bruto);
   delete sessao.mfa_pending;
   const corpo = JSON.stringify(sessao);
   await c.env.SESSIONS.put(`session_${id}`, corpo, { expirationTtl: SESSION_TTL_SEC });
-  await c.env.SESSIONS.put(id, corpo, { expirationTtl: SESSION_TTL_SEC });
 }
 
 /** Tentativas permitidas por balde de 5 minutos. */
