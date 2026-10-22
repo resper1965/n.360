@@ -123,7 +123,7 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('em-g', ?, 'Ana Fictícia', 'ana@ness.lat', 'consultor', 'Consultor')`).bind(P),
     env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES ('em-forn', ?, 'organizacao', 'Fornecedor <Fictício>', 'medio')`).bind(P),
     // o portal de políticas só manda código a e-mail ligado ao projeto (ou do mesmo domínio do cliente)
-    env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('em-rh', ?, 'pessoa', 'RH Fictício', 'rh@cliente.lat')`).bind(P),
+    env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('em-rh', ?, 'RH Fictício', 'rh@cliente.lat', 'tech', 'RH')`).bind(P),
   ]);
   await habilitarPrivacy(P);
   await concederModulos('em-cons', ['iso', 'privacy']);
