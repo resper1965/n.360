@@ -56,10 +56,25 @@ import { classeDoControle } from '../classe-controle.js';
                 <div class="phase-num" style="width:3.5rem;color:var(--accent)">${escapeHTML(codigoDoControle(ctrl))}</div>
                 <div class="flex-1">
                     <div class="phase-title">${escapeHTML(ctrl.title)}</div>
+                    <div class="t-xs t-dim" data-cobertura="${escapeHTML(ctrl.id)}"></div>
                     ${ctrl.maturity ? `<div class="t-xs t-dim">Maturidade: ${ctrl.maturity}/5</div>` : ''}
                 </div>
                 <div class="phase-status ${{ feito: 'status-done', andamento: 'status-progress' }[classeDoControle(ctrl.status)] || 'status-pending'}">${escapeHTML(traduzStatus(ctrl.status))}</div>
             </div>`).join('')}</div>`;
+        if (S.currentProject) preencherCobertura(c, S.currentProject.id);
+    }
+
+    // Política temática que cobre cada controle (spec 2026-10-23). Falha de leitura deixa a célula vazia.
+    async function preencherCobertura(c, projectId) {
+        let cob;
+        try { cob = await api('GET', `/api/v1/projects/${projectId}/documentos/cobertura`); } catch (e) { return; }
+        if (S.currentProject?.id !== projectId || S.view !== 'controls') return;
+        c.querySelectorAll('[data-cobertura]').forEach((el) => {
+            const docs = cob?.por_controle?.[el.dataset.cobertura] || [];
+            const vigente = docs.find((d) => d.status === 'vigente');
+            const na = (S.controls || []).find((x) => x.id === el.dataset.cobertura)?.status === 'Not Applicable';
+            el.textContent = na ? '' : vigente ? `Coberto por ${vigente.titulo}` : docs.length ? `Política em rascunho: ${docs[0].titulo}` : 'Sem política';
+        });
     }
 
     // Diagnóstico de Prontidão (F1): busca o raio-x determinístico e mostra num

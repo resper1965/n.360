@@ -29,10 +29,11 @@ describe('classificação', () => {
     for (const p of ['terceiros/pa1/documentos', 'terceiros/pa1/documentos/d1', 'terceiros/:parteId/documentos/:documentoId']) expect(f(p), p).toBe('nucleo');
     // Validade da evidência (spec 3C, C4): o n.iso define sem o n.privacy; a ligação a requisito segue privacy
     for (const p of ['evidence/e1/validade', 'evidence/:evidenceId/validade']) expect(f(p), p).toBe('nucleo');
+    expect(f('documentos/d1/requisitos')).toBe('nucleo');
     expect(f('terceiros/pa1/avaliacoes')).toBe('privacy');
     for (const p of ['controls', 'risks', 'audits', 'capa', 'certification', 'phases', 'checklist-progress', 'readiness-check', 'auditor-token']) expect(f(p), p).toBe('iso');
     for (const p of ['terceiros', 'encarregado', 'titular-pedidos', 'consentimentos', 'requisitos/lacunas', 'ropa/importar',
-      'ropa/r1/ligacoes', 'ropa/r1/lia', 'ropa/r1/dpia', 'documentos/d1/requisitos', 'evidence/e1/requisitos']) expect(f(p), p).toBe('privacy');
+      'ropa/r1/ligacoes', 'ropa/r1/lia', 'ropa/r1/dpia', 'evidence/e1/requisitos']) expect(f(p), p).toBe('privacy');
     expect(faixaDoCaminho('/api/v1/requisitos')).toBeNull(); // catálogo global: fora da trava de projeto
   });
 
@@ -168,5 +169,21 @@ describe('CORS do n.privacy', () => {
     expect((await pre('https://niso.ness.com.br')).headers.get('access-control-allow-origin')).toBe('https://niso.ness.com.br');
     expect((await pre('https://n360.ness.com.br')).headers.get('access-control-allow-origin')).toBe('https://n360.ness.com.br');
     expect((await pre('https://malicioso.exemplo.com')).headers.get('access-control-allow-origin')).toBeFalsy();
+  });
+});
+
+describe('requisitos do documento sem o n.privacy', () => {
+  it('projeto só com iso: GET e PUT passam (núcleo)', async () => {
+    await applySchema();
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-req-iso', 'Cliente', 'ISO 27001', 'controller', 'Active', 'org_ness')`),
+      env.DB.prepare(`INSERT OR IGNORE INTO projeto_modulos (project_id, modulo) VALUES ('p-req-iso', 'iso')`),
+      env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status) VALUES ('d-req', 'p-req-iso', 'politica', 'POL-X', 'vigente')`),
+    ]);
+    const h = await sessionFor({ id: 'req-iso-u', email: 'u@ness.lat', role: 'platform_admin', org_id: 'org_ness' });
+    const url = 'http://localhost/api/v1/projects/p-req-iso/documentos/d-req/requisitos';
+    expect((await app.fetch(new Request(url, { headers: h }), workerEnv())).status).toBe(200);
+    const put = await app.fetch(new Request(url, { method: 'PUT', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ requisitos: [] }) }), workerEnv());
+    expect(put.status).toBe(200);
   });
 });

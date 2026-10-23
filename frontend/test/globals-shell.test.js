@@ -208,7 +208,7 @@ describe('notificação de prazo (avisos de prazo)', () => {
     ['/projects/p9/capa', 'capa', 'renderCAPA'],
     ['/projects/p9/audits', 'audits', 'renderAudits'],
     ['/projects/p9/certification', 'certification', 'renderProntidao'],
-    ['/projects/p9/policies', 'policies-dashboard', 'renderPoliciesDashboard'],
+    ['/projects/p9/policies', 'documentos', 'renderDocumentos'],
   ])('%s abre %s no projeto do aviso, não no projeto ativo', async (link, view, tela) => {
     const { api } = await import('../src/api.js');
     api.mockImplementation(async () => []);

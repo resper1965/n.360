@@ -67,12 +67,11 @@ describe('Documento', () => {
         'GET /api/v1/projects/p9/documentos/d1/requisitos': [],
         'GET /api/v1/requisitos': [],
     };
-    it('sem n.privacy não monta requisitos nem chama a faixa', async () => {
+    it('sem n.privacy também monta os controles e requisitos cobertos (a rota é do núcleo)', async () => {
         S.activeProject = { id: 'p9', modulos: ['iso'] };
-        const f = servir(rotas);
+        servir(rotas);
         await window.openDocumentoModal('p9', 'd1');
-        expect(el('doc-requisitos')).toBeNull();
-        expect(chamadas(f).some((c) => c.includes('/requisitos'))).toBe(false);
+        expect(el('doc-requisitos')).not.toBeNull();
     });
     it('com n.privacy monta a seção', async () => {
         S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };

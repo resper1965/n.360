@@ -2,6 +2,8 @@
 // rascunho, ciências. api() REAL; só o fetch é dublado, com o corpo de cada handler (src/routes/documentos.ts).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { servir } from './servir-api.js';
+// O app carrega o marked por <script> (login.html): aqui o mesmo arquivo roda no escopo global.
+import markedSrc from '../public/marked.min.js?raw';
 
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 
@@ -11,6 +13,7 @@ import '../src/views/meus-pedidos.js';
 import '../src/views/documentos.js';
 import { hojeSP, emDiasSP } from '../src/hoje.js';
 
+new Function(markedSrc)();
 const HOJE = hojeSP();
 const AMANHA = emDiasSP(1);
 const ONTEM = emDiasSP(-1);
@@ -45,6 +48,7 @@ const CIENCIAS = [{ nome: 'Gil <b>x</b>', email: 'gil@cliente.com', numero: 2, c
 const rotas = (extra = {}) => ({
     'GET /api/v1/projects/p9/documentos': LISTA,
     'GET /api/v1/projects/p9/partes': PARTES,
+    'GET /api/v1/projects/p9/documentos/cobertura': { aplicaveis: 0, cobertos: 0, sem_cobertura: [], por_controle: {}, por_documento: {} },
     ...extra,
 });
 const chamadas = (f) => f.mock.calls.map(([u, o]) => `${o?.method || 'GET'} ${new URL(u, 'http://localhost').pathname}`);
@@ -462,5 +466,44 @@ describe('n.privacy: documentos que um programa LGPD costuma ter', () => {
         servir(rotas());
         await abrirLista();
         expect(el('docs-lgpd-faltando')).toBeNull();
+    });
+});
+
+describe('cobertura e texto inteiro (políticas temáticas)', () => {
+    it('mostra o indicador de cobertura e os controles sem política', async () => {
+        servir(rotas({
+            'GET /api/v1/projects/p9/documentos/cobertura': { aplicaveis: 3, cobertos: 2, sem_cobertura: [{ id: 'cc-24', title: 'A.5.24 <b>Incidentes</b>' }], por_controle: {}, por_documento: { p1: 7 } },
+        }));
+        await abrirLista();
+        expect(el('docs-cobertura').textContent).toContain('2 de 3 controles aplicáveis cobertos por política vigente');
+        expect(el('docs-sem-cobertura').textContent).toContain('A.5.24 <b>Incidentes</b>');
+        expect(el('docs-sem-cobertura').querySelector('b')).toBeNull();
+        expect([...el('c').querySelectorAll('thead th')].map((t) => t.textContent)).toContain('Controles');
+        expect(el('c').querySelector('tbody tr').textContent).toContain('7');
+        expect(el('c').querySelector('#docs-cobertura').textContent).toContain('2 de ');
+    });
+
+    it('abre o documento com o texto inteiro renderizado, sem caixa de rolagem', async () => {
+        const longo = '# Política\n\n' + Array.from({ length: 80 }, (_, i) => `## ${i}. Seção\n\nTexto da seção ${i}.`).join('\n\n');
+        servir(rotas({
+            'GET /api/v1/projects/p9/documentos/p1': DETALHE({ versoes: [{ numero: 1, estado: 'vigente', origem: 'humano', hash: 'a'.repeat(64), texto: longo }] }),
+        }));
+        await abrirLista();
+        await window.openDocumentoModal('p9', 'p1');
+        const corpo = el('doc-texto-vigente');
+        expect(corpo.querySelector('h2')).not.toBeNull();
+        expect(corpo.textContent).toContain('Texto da seção 79');
+        expect(corpo.getAttribute('style') || '').not.toMatch(/max-height/);
+    });
+
+    it('mostra os requisitos também em projeto só com n.iso', async () => {
+        S.activeProject = { id: 'p9', modulos: ['iso'] };
+        servir(rotas({
+            'GET /api/v1/projects/p9/documentos/p1': DETALHE(),
+            'GET /api/v1/projects/p9/documentos/p1/requisitos': [{ id: 'rq-a515', fonte_id: 'iso27001:2022', referencia: 'A.5.15', titulo: 'Controle de acesso' }],
+        }));
+        await abrirLista();
+        await window.openDocumentoModal('p9', 'p1');
+        expect(el('doc-requisitos').textContent).toContain('A.5.15');
     });
 });

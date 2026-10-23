@@ -2194,3 +2194,9 @@ ul.at-ajuda { padding-left: 1.25em; }
 .rj-base { padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); }
 .rj-base-t { font: 600 var(--fs-lg) var(--font-head); margin: 0 0 6px; }
 .rj-base p { margin: 0; color: var(--text-2); font-size: var(--fs-md); line-height: 1.5; }
+
+/* Texto de documento (política) renderizado em markdown, inteiro, sem caixa de rolagem */
+.doc-texto { font-size: var(--fs-sm); line-height: 1.6; }
+.doc-texto h1, .doc-texto h2, .doc-texto h3 { font-family: 'Montserrat', sans-serif; font-weight: 600; margin: 1rem 0 0.5rem; }
+.doc-texto table { border-collapse: collapse; width: 100%; }
+.doc-texto th, .doc-texto td { border: 1px solid var(--border); padding: 0.25rem 0.5rem; }
