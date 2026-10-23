@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Políticas temáticas, PR1 (23/10/2026; sem migration)
+- **Nota do controle não vira política:** na importação para Documentos, o texto do controle só entra como versão quando não há histórico de política; com histórico, ele é nota do controle.
+- **Cobertura:** `GET /projects/:id/documentos/cobertura` conta os controles aplicáveis cobertos por política vigente (documento ligado ao requisito do controle). Documentos mostra o indicador, os controles sem política e a coluna Controles; Controles mostra "Coberto por".
+- **Texto inteiro:** o documento abre com o texto renderizado em markdown, sem caixa de rolagem; os requisitos cobertos aparecem também em projeto só com n.iso.
+- **Menu:** "Gestão de políticas" saiu; o aviso de política leva a Documentos.
+
 ### Agente MCP decide como o consultor (23/10/2026; sem migration)
 - **Decisões do consultor por ferramenta nomeada:** o agente remoto (papel consultor) publica documento, revisa e revoga exceção, decide passo da trilha, avalia fornecedor (tipo, criticidade, avaliação, homologação), muda a situação da atividade, conclui ação ou gap, encerra incidente, registra revogação de consentimento, opera a importação e padroniza nomes por 10 ferramentas (`src/middleware/decisoes-agente.ts`, 37 ações), cada uma com `confirmado_pelo_usuario: true` e `motivo`. A porta (`resolverAgente`) exige os cabeçalhos da ferramenta certa e grava `agente.decisao` antes da rota; `niso_executar` não alcança essas rotas.
 - **Atos do cliente seguem fora:** assinatura, aprovar e recusar pedido, lote, revogar aprovação (agora também de controle e do projeto), aceite de risco, responder/negar/arquivar/prazo do pedido do titular, eliminação e ciência de política em nome de outro.
