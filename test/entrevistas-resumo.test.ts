@@ -66,7 +66,8 @@ describe('Resumo das entrevistas e mapa da app', () => {
       expect(MAPA_DA_APP, area).toContain(area);
     }
     expect(MAPA_DA_APP).toContain('devolve 403; não insista');
-    expect(MAPA_DA_APP).toMatch(/Fora do seu alcance[^\n]*importação de programa/);
+    // a importação deixou de ser "fora do alcance": o agente a opera pela ferramenta de decisão
+    expect(MAPA_DA_APP).not.toMatch(/Fora do seu alcance[^\n]*importação de programa/);
   });
 
   it('todo caminho do mapa da app existe como rota (o agente não é mandado a um 404)', async () => {

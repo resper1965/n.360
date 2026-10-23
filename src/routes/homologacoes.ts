@@ -12,7 +12,7 @@ import { validateBody, homologacaoConcluirSchema, homologacaoCriarSchema, homolo
 /**
  * F5: homologação de fornecedor por questionário. Montado em `/api/v1/projects/:projectId/homologacoes` (faixa privacy), então o
  * `projectAccessMiddleware` já cortou projeto e módulo. Ler: quem tem o projeto. Escrever (perguntas, criar o link, concluir,
- * cancelar): só a equipe da consultoria, como o link do auditor; o agente MCP não escreve aqui (FORA_DO_AGENTE).
+ * cancelar): só a equipe da consultoria, como o link do auditor; o agente MCP escreve aqui só pela decisão confirmada (`niso_avaliar_fornecedor`).
  */
 export const homologacoesApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 

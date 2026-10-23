@@ -162,7 +162,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (`https://niso.ness.com.br/mcp`) e `hostsPermitidosMcp` aceita `niso` alem do host do `appUrl`. **Volta atras:** `APP_URL`
   de volta para `niso` (o Worker e o frontend deixam de redirecionar: o host do `APP_URL` nunca redireciona, e o frontend le o
   `app_url` do `/health`). Sem dado nem migration; o widget do Turnstile precisa ter os dois hostnames.
-- **Nomes padronizados**: `normalizarNome` (`src/services/nomes.ts`) roda ao gravar parte, departamento e ativo (esquemas em `src/schemas/nucleo.ts` e os gravadores que os contornam: `partes.ts`, `vendors.ts`, `encarregado-pessoa.ts`, `importacao.ts`, `itens.ts`). Gravador novo de nome passa por ela. O que ja estava gravado se arruma em Partes > Mais > Padronizar nomes (`src/services/padronizar-nomes.ts`); nada e unido sozinho.
+- **Nomes padronizados**: `normalizarNome` (`src/services/nomes.ts`) roda ao gravar parte, departamento e ativo (esquemas em `src/schemas/nucleo.ts` e os gravadores que os contornam: `partes.ts`, `vendors.ts`, `encarregado-pessoa.ts`, `importacao.ts`, `itens.ts`). Gravador novo de nome passa por ela. O que ja estava gravado se arruma em Partes > Mais > Padronizar nomes (`src/services/padronizar-nomes.ts`; o agente usa `niso_padronizar_nomes`); nada e unido sozinho.
 - **E-mail**: todo e-mail sai de `montarEmail` (`src/services/email-layout.ts`, o invólucro: tabela de 600px, fundo claro, marca do produto e `ness.` com o ponto em #00ade8, "Quem pede", "O que fazer", "Até quando" em dd/mm/aaaa de Brasília, botão #0b1326 com texto branco, link em texto, rodapé com o motivo e o contato, e a versão em texto puro). O texto de cada e-mail mora em `src/services/emails.ts` (o resumo de prazos em `avisos-prazo.ts`); `enviarEmail` exige `{ html, text }`. Remetente sempre `@ness.com.br`: `remetente(produto, quem)` dá "Cliente via n.360" ou "n.360 | ness.", e `replyTo` vai para quem pediu. E-mail novo entra em `emails.ts`, ganha amostra em `scripts/emails-amostra.mjs` (gera `docs/design/emails/`) e teste em `test/emails-marca.test.ts`. O convite não leva senha: leva o link de criar a senha (ver Contas).
 - **Contas**: conta de usuario se **desativa**, nao se apaga (`PUT /api/v1/users/:id/ativo`; `DELETE /api/v1/users/:id` so desativa). Apagar de verdade e `DELETE ...?definitivo=1`, so `platform_admin`; conta com historico (FK sem cascata, ex. marcacoes de checklist e aceites de termo) e ANONIMIZADA em vez de apagada: fica sem identidade e sem acesso, o e-mail e liberado e a trilha leva `user.anonimizado`. Conta desativada nao entra por senha, SSO, agente MCP nem sessao aberta; chave de API e do projeto, nao da pessoa, e continua valendo ate ser revogada em Chaves de API. Ninguem desativa nem exclui a propria conta (409). Nao reintroduza `DELETE FROM users` fora dessa rota.
   **Convite com link (15/10/2026, migration 0077):** conta nova (`POST /users`, organizacao nova e seu reenvio, convite de stakeholder) nasce SEM
@@ -242,10 +242,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   e `src/routes/documentos.ts`. Uma versao vigente e um rascunho por documento (indices parciais unicos); hash e o SHA-256
   canonico dos pedidos. **O controle ainda e a fonte das politicas** (`compliance_controls.description` e `policy_versions`)
   ate a 3.3. Desde a 3.2 todo escritor de politica passa por `src/services/politica-escrita.ts` e espelha o texto no
-  documento, e o **agente (MCP) so grava rascunho**: a rota decide por `c.get('user')?.agente === true`; publicar
-  (`POST .../versoes/:n/publicar?hash=`, que aplica o texto no controle; a tela manda o hash do rascunho que mostrou e rascunho
-  regravado depois da 409) e descartar o rascunho sao atos humanos e estao em
-  `FORA_DO_AGENTE`; `PUT /controls/:id` recusa ao agente mudar `description` fora da justificativa de N/A. `POST .../documentos/importar` copia para ca so o que tem sinal de politica (versao, aprovacao
+  documento, e o **agente (MCP) grava rascunho** e publica pela ferramenta `niso_publicar_documento`, com confirmacao, motivo e o hash do rascunho
+  (a rota decide por `c.get('user')?.agente === true`; publicar e `POST .../versoes/:n/publicar?hash=`, que aplica o texto no controle; a tela manda o hash
+  do rascunho que mostrou e rascunho regravado depois da 409; descartar o rascunho tambem e decisao); `PUT /controls/:id` recusa ao agente mudar `description` fora da justificativa de N/A. `POST .../documentos/importar` copia para ca so o que tem sinal de politica (versao, aprovacao
   ou pedido); `description` preenchida nao basta (em producao e texto de catalogo em quase todo controle).
   **Ciencia por versao (3.3, migration 0051)**: `pedidos.tipo = 'documento'` tem `ref_id = documentos.id` e congela a versao
   VIGENTE (`titulo`, `texto`, `numero`; `DOCUMENTOS.documento` em `src/services/pedidos.ts` e um subselect). Publicar versao
@@ -272,7 +271,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `src/services/excecoes.ts`, rotas `/documentos/:id/excecoes` (listar, criar, editar, `POST .../revogar`). A aprovacao e um pedido
   `tipo = 'excecao'` (`ref_id` = a excecao, congela escopo/motivo/prazo, papel `ciso`/`ceo`); a situacao e DERIVADA (revogada,
   vencida, aprovada, aguardando, sem_pedido) e mudar escopo/motivo/prazo invalida a aprovacao sozinho. Revogar cancela o pedido
-  aberto e o agente nao revoga. A fonte `excecao` dos avisos de prazo avisa o vencimento.
+  aberto; o agente revoga pela ferramenta `niso_revisar_documento`, com confirmacao e motivo. A fonte `excecao` dos avisos de prazo avisa o vencimento.
 - **Catalogo de requisitos (fatia 2, migration 0053)**: `requisito_fontes`, `requisitos` e `requisito_mapeamentos` sao GLOBAIS (sem
   `project_id`); `documento_requisitos` liga documento a requisito (por projeto) e `compliance_controls.requisito_id` liga o controle.
   Servico em `src/services/requisitos.ts` (`semearCatalogo`, `ligarControles`, `lacunasDaFonte`), rotas em `src/routes/requisitos.ts`
@@ -314,7 +313,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   principal da base) chama `conferirPedidosDoDocumento`; volume, descricao, nome, papeis, medidas, gaps, riscos, impacto e situacao mantem a aprovacao.
   **Os catalogos nascem VAZIOS** (decisao do dono de 16/10): nenhuma lista de titulares, dados, medidas ou motivos de risco e semeada; cada tela explica o
   vazio e oferece criar ali mesmo. Gap e a mesma `corrective_actions` do n.iso (com `recomendacao` e anexos PDF/DOC de ate 5 MiB, conferidos pelo
-  conteudo); o agente MCP escreve nas abas, mas nao apaga, nao anexa, nao muda a situacao nem imprime o relatorio (`FORA_DO_AGENTE`). Importar do
+  conteudo); o agente MCP escreve nas abas e muda a situacao pela ferramenta `niso_situacao_atividade` (confirmacao e motivo); apagar risco, acao, gap ou medida vai por `niso_executar` com confirmacao; nao anexa nem imprime o relatorio (`FORA_DO_AGENTE`). Importar do
   legado e etapa separada: o modelo de importacao segue sem a pergunta `alto_risco` (`PERGUNTAS_IMPORTAVEIS`). **Remocoes (PR3, pacote R):** o
   modal "Ligacoes da atividade" (`frontend/src/views/tratamento-ligacoes.js`) saiu; a API dos seus blocos continua (partes, transferencias, LIA, RIPD,
   Word da LIA, pedido de aprovacao e importacao de planilha). A rota `ropa-entrevista` redireciona para a ficha (com `?modo=guiado` quando ha atividade
@@ -363,7 +362,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   e o mapa `GET /projects/:id/ropa/riscos-mapa` (so riscos com atividade), todos na faixa `privacy` (`SUBROTAS_PRIVACY`); as rotas por id
   (`/risks/:id`, `/capa/:id`) e as listas `/risks` e `/capa` continuam `iso`. Toda consulta filtra `ropa_id` E `project_id`. Apagar o
   risco anula `risk_id` da acao antes (a acao sobrevive). O `PUT /risks/:id` parcial preserva e aceita `ropa_id` e residual. O agente cria
-  e edita; aceitar risco (`status: Accepted`) e concluir acao (`Closed`) a rota recusa, e o DELETE esta em `FORA_DO_AGENTE`. Regra R1 do
+  e edita; aceitar risco (`status: Accepted`) a rota recusa ao agente (ato do cliente); concluir acao (`Closed`) e decisao (`niso_concluir_acao`) e o DELETE vai por `niso_executar` com confirmacao. Regra R1 do
   `coherence` ignora risco com `ropa_id`; o aviso de prazo de acao em projeto sem n.iso leva a `/ropa`. Telas: etapa 4 da pagina da
   atividade (aba Riscos, `frontend/src/atividade/aba-riscos.js`), "Mapa de
   risco" na secao Avaliar do n.privacy (`views/mapa-de-risco.js`, nivel por texto em cada celula, mesma faixa do `riskLevel`; ele e a matriz do n.iso, `grc.js`, usam
@@ -417,14 +416,14 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   e semeado na primeira leitura, `origem = 'padrao'` = "a validar pelo consultor"; pergunta nao se apaga, desativa) e `homologacoes`
   (um envio por terceiro de tipo medio/pequeno: so o SHA-256 do token, `expira_em`, perguntas CONGELADAS, respostas imutaveis depois do
   envio pelo gatilho `homologacao_imutavel`). Servico `src/services/homologacao.ts`; rotas `/projects/:id/homologacoes*` (faixa privacy;
-  escrever e so da equipe, `ehEquipeNess`; o agente so le, `FORA_DO_AGENTE`) e `POST /api/v1/public/homologacao/{ver,salvar,enviar}`
+  escrever e so da equipe, `ehEquipeNess`; o agente consultor escreve pela ferramenta `niso_avaliar_fornecedor`, com confirmacao e motivo) e `POST /api/v1/public/homologacao/{ver,salvar,enviar}`
   (token no CORPO, 404 igual para inexistente/vencido/enviado/cancelado, limite por IP), pagina `frontend/public/homologacao.*`. Concluir
   (so `respondida`, ato humano) chama `registrarAvaliacao` e grava `avaliacoes_terceiro` com metodo `questionario`; a situacao e os avisos
   de prazo do terceiro seguem como estao. E-mail do link so com `RESEND_API_KEY`; o endereco nao e gravado. O envio do fornecedor avisa no
   sino os consultores designados (sem nenhum, os `consultoria_admin`; `avisarEnvio`, regra de `escolherDestinatarios`), so com o nome da
   parte, e os MESMOS recebem e-mail (`emailHomologacaoRespondida`: fornecedor, % respondido, link `/privacy?tela=terceiros`; nunca token nem
   resposta; so a quem o sino acabou de avisar, entao nao repete); falha do aviso ou do e-mail vai ao log e nao derruba o envio.
-- **Criticidade do fornecedor (migration 0080, spec `docs/superpowers/specs/2026-10-18-criticidade-fornecedor-design.md`)**: cinco respostas (impacto, exclusividade, risco financeiro, conformidade, risco reputacional) gravadas em `criticidades_terceiro` (histórico append-only, a última é a atual). O NÍVEL é derivado no servidor (`nivelDaCriticidade` em `src/services/criticidade.ts`: qualquer Alto → Alto, senão qualquer Médio → Médio, senão Baixo) e o tipo segue o nível (`tipoDaCriticidade`: Alto → crítico, Médio → médio, Baixo → pequeno), salvo `grande_provedor`, que é escolha manual. Rotas `GET|POST /projects/:id/terceiros/:parteId/criticidades`, faixa `privacy` pelo segmento `terceiros`; o agente só lê (`FORA_DO_AGENTE`). Bloco na ficha do terceiro (`frontend/src/views/terceiros.js`). Contagens de 2026-10-18: `npx vitest` nos arquivos `test/criticidade-terceiro*.test.ts` (16 testes) e `frontend/test/criticidade-terceiro-view.test.js` (7 testes).
+- **Criticidade do fornecedor (migration 0080, spec `docs/superpowers/specs/2026-10-18-criticidade-fornecedor-design.md`)**: cinco respostas (impacto, exclusividade, risco financeiro, conformidade, risco reputacional) gravadas em `criticidades_terceiro` (histórico append-only, a última é a atual). O NÍVEL é derivado no servidor (`nivelDaCriticidade` em `src/services/criticidade.ts`: qualquer Alto → Alto, senão qualquer Médio → Médio, senão Baixo) e o tipo segue o nível (`tipoDaCriticidade`: Alto → crítico, Médio → médio, Baixo → pequeno), salvo `grande_provedor`, que é escolha manual. Rotas `GET|POST /projects/:id/terceiros/:parteId/criticidades`, faixa `privacy` pelo segmento `terceiros`; o agente registra pela ferramenta `niso_avaliar_fornecedor` (`registrar_criticidade`), com confirmacao e motivo. Bloco na ficha do terceiro (`frontend/src/views/terceiros.js`). Contagens de 2026-10-18: `npx vitest` nos arquivos `test/criticidade-terceiro*.test.ts` (16 testes) e `frontend/test/criticidade-terceiro-view.test.js` (7 testes).
 - **Documentos do legado (migration 0081, spec `docs/superpowers/specs/2026-10-19-paridade-legado-menu-design.md`, frente B)**: `documentos_arquivo` é um arquivo (PDF/DOC/DOCX até 10 MB, tipo conferido pelo conteúdo como nos anexos do gap) com nome, tipo, situação, vencimento ou "sem vencimento" e responsável; não é o documento versionado (políticas, `documentos`). Serviço `src/services/documentos-arquivo.ts`, rotas `/projects/:id/documentos-arquivo` (faixa `nucleo`; escrita fora do agente MCP), arquivo no R2 em `documentos-arquivo/<project_id>/<id>/<nome>`. O vencimento é a fonte `documento_arquivo` dos avisos de prazo. Tela `frontend/src/views/documentos-arquivo.js` (`#nav-documentos-arquivo`, só n.privacy, rótulo "Documentos"; no n.privacy os versionados aparecem como "Políticas"). `departamentos.descricao` (mesma migration) entra na tela Áreas. Contagens de 2026-10-19: `npx vitest run test/documentos-arquivo.test.ts` (8 testes) e `frontend/test/documentos-arquivo-view.test.js` (7 testes).
 - **Titular, incidente e consentimento (fatia 7, migration 0058, SO registro interno)**: `titular_pedidos` (protocolo `PT-AAAA-NNNN` por projeto),
   `incidentes` (`IN-AAAA-NNNN`; encerrar exige risco avaliado e, se `relevante`, a comunicacao a ANPD registrada: CHECK do banco, vale para SQL
@@ -432,13 +431,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `parametros_legais` (global) guarda cada prazo com FONTE e REVISAO, editavel so pelo `platform_admin` com trilha; sem o valor o prazo e
   nulo ("nao calculado") e nada quebra. O prazo e CONGELADO no registro na criacao (`somarPrazo`: horas, dias corridos ou dias uteis, sem
   feriado). Avisos de prazo ganharam as fontes `titular_pedido` e `incidente` (um item por comunicacao pendente). Rotas:
-  `/api/v1/parametros-legais`, `/projects/:id/{titular-pedidos,incidentes,consentimentos}`; o agente registra e avalia, mas nao encerra
-  incidente, nao revoga consentimento e nao edita prazo. Portal publico e conector externo: fora (decisao de 09/10).
+  `/api/v1/parametros-legais`, `/projects/:id/{titular-pedidos,incidentes,consentimentos}`; o agente registra e avalia; encerrar incidente (`niso_encerrar_incidente`) e revogar consentimento (`niso_registrar_revogacao`) sao decisoes com confirmacao e motivo; responder, negar, arquivar e prazo do pedido do titular sao do cliente. Portal publico e conector externo: fora (decisao de 09/10).
   **Quem grava (o cliente age, 15/10):** equipe e o `org_admin` do PROPRIO projeto registram e respondem o pedido do titular (status e
   resposta, inclusive a partir do rascunho de IA) e registram, avaliam e comunicam o incidente; `org_user` e `client` so leem (o allow-list
   de so leitura de `src/middleware/auth.ts`, sem entrada para estas rotas). **Encerrar incidente e so da equipe da consultoria, no
-  SERVIDOR** (`ehEquipeNess` em `POST .../incidentes/:id/encerrar`; `org_admin`, `org_user` e `client` recebem 403; o agente MCP segue
-  fora por `FORA_DO_AGENTE`; o CHECK da 0058 segue valendo). Registrar/revogar consentimento e editar prazo legal continuam, na tela, so com
+  SERVIDOR** (`ehEquipeNess` em `POST .../incidentes/:id/encerrar`; `org_admin`, `org_user` e `client` recebem 403; o agente MCP so encerra pela ferramenta `niso_encerrar_incidente` (a porta o trata como equipe naquela rota); o CHECK da 0058 segue valendo). Registrar/revogar consentimento e editar prazo legal continuam, na tela, so com
   a equipe (`podeEditar` em `frontend/src/views/titular.js`; o servidor nao tem corte de papel nessas rotas alem do allow-list e, no prazo
   legal, do `platform_admin`). Contrato em `test/cliente-titular-incidente.test.ts`.
 - **Visoes, evidencia com validade e casca (fatia 8, migration 0059)**: `evidence.valido_ate` (opcional) e `evidencia_requisitos` ligam a
@@ -580,8 +577,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   exatamente o de um modelo vira itens `pendente` de confianca alta sem chamar a IA (`origem` so "registro N do modelo X"); o modelo de pedidos
   nao tem coluna de titular. **Reconciliacao**: `GET .../importacoes/:id/reconciliacao` (e `/csv`), so contagens e motivos genericos
   (`motivoGenerico`); `sem_pendencia` e o criterio da virada. Roteiro por cliente: `docs/runbook-migracao-legado.md`.
-  Fora do agente MCP: POST, PUT e DELETE de `/importacoes` estao em `FORA_DO_AGENTE` (`src/middleware/agente.ts`), e o GET tambem e
-  recusado ao agente, pelo corte de papel da propria rota (`ehEquipeNess`). **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
+  O agente MCP opera a importacao so pela ferramenta `niso_importar_programa` (confirmacao e motivo; a porta o trata como equipe naquela rota); a revisao item a item continua sendo do consultor, que diz o "sim" na conversa. **Nao existe rota de exclusao de projeto**: se um dia existir, ela precisa limpar o
   prefixo `importacoes/<project_id>/` do R2, que o cascade do D1 nao alcanca. Teste de extracao real fica fora do CI:
   `node scripts/importacao-amostra.mjs` gera CSV e HTML ficticios e diz como subir pela tela num ambiente com a IA real.
 - **Área comercial desligável (decisão do dono de 15/10/2026).** A var `COMERCIAL_ATIVO` (`wrangler.jsonc`, hoje `"false"`;
@@ -629,7 +625,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   e so cache gravado por `gravarSituacoes`) sai dos passos: algum bloqueado = `blocked`, todos concluidos = `completed`, algum mexido =
   `in_progress`. **Excecao e bloqueio:** concluir sem cumprir os criterios so com excecao (motivo obrigatorio, so equipe da consultoria,
   trilha `passo.concluido_com_excecao`); bloquear exige motivo e responsavel, nao vale em passo concluido, e concluir passo bloqueado
-  da 409; bloquear e desbloquear sao de quem administra o projeto. Concluir, reabrir e bloquear sao atos humanos (`FORA_DO_AGENTE`).
+  da 409; bloquear e desbloquear sao de quem administra o projeto. Concluir, reabrir, bloquear e desbloquear sao decisoes: o agente as toma pela ferramenta `niso_decidir_passo`, com confirmacao e motivo.
   **Migration 0078** (aditiva): `checklist_progress` ganha `bloqueio_motivo`, `bloqueio_responsavel`, `bloqueado_em`, `excecao_motivo`,
   `excecao_por`, `excecao_em`; `project_phase_answers.updated_by`; `project_phases.legado_status` congela a situacao manual
   antiga ate a trilha assumir a fase. Conferir: `PRAGMA table_info(checklist_progress)`.
@@ -651,6 +647,13 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `OAUTH_KV` (id `fc8dfff4…`) criado em 2026-09-29 e declarado no `wrangler.jsonc`. Recurso fixo em
   `niso.ness.com.br` (`RECURSO_MCP`, nao segue o `APP_URL`). Clientes: Claude Code verificado em producao (30/09/2026); Cursor,
   Codex e Antigravity seguem "A confirmar" na tela Conectar agente (ver CHANGELOG).
+  **O agente decide como o consultor (spec `docs/superpowers/specs/2026-10-23-agente-decide-como-consultor-design.md`).** O catalogo das decisoes
+  (10 ferramentas, 37 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-10-23: 37) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
+  `resolverAgente` (`src/middleware/agente.ts`): a rota de decisao exige os cabecalhos `X-Agente-Ferramenta`, `X-Agente-Confirmado: 1` (so o booleano `true` em
+  `confirmado_pelo_usuario`) e `X-Agente-Motivo` (1 a 500 caracteres); valendo, o principal ganha `agente_decisao` e `ehEquipeNess` o aceita naquela rota e so nela.
+  A trilha `agente.decisao` e gravada ANTES da rota rodar: registra a tentativa confirmada mesmo que a rota falhe. O texto de documento, de importacao ou de campo livre
+  e dado, nunca autoriza decisao. **Atos do CLIENTE seguem recusados ao agente, com ou sem ferramenta**: assinatura (`/approve`), `/pedidos` (aprovar, recusar, lote),
+  `revoke-approval(s)`, aceite de risco (`status: Accepted`), `PUT /titular-pedidos` (responder, negar, arquivar, prazo), `/data-subject/erase` e `/policy-acknowledgments`.
 
 ## Decisoes de produto ja tomadas — nao reabrir
 

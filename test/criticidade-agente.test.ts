@@ -29,11 +29,18 @@ describe('criticidade e agente MCP', () => {
     expect((await comoAgente(`${base}/ag-a/criticidades`)).status).toBe(200);
   });
 
-  it('o agente não registra a criticidade: 403 e nada gravado', async () => {
+  it('sem a ferramenta de decisão o agente não registra a criticidade: 403 e nada gravado', async () => {
     const res = await comoAgente(`${base}/ag-a/criticidades`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
     expect(res.status).toBe(403);
-    expect(await res.text()).toContain('avaliação de criticidade do fornecedor é ato humano');
+    expect(await res.text()).toContain('niso_avaliar_fornecedor');
     const n = await env.DB.prepare(`SELECT count(*) AS n FROM criticidades_terceiro WHERE parte_id = 'ag-a'`).first<{ n: number }>();
     expect(n!.n).toBe(0);
+  });
+
+  it('com niso_avaliar_fornecedor, confirmação e motivo a criticidade é registrada', async () => {
+    const res = await comoAgente(`${base}/ag-a/criticidades`, { method: 'POST', body: JSON.stringify(corpo), headers: { 'Content-Type': 'application/json', 'X-Agente-Ferramenta': 'niso_avaliar_fornecedor', 'X-Agente-Confirmado': '1', 'X-Agente-Motivo': encodeURIComponent('cliente respondeu') } });
+    expect(res.status, await res.clone().text()).toBeLessThan(300);
+    const n = await env.DB.prepare(`SELECT count(*) AS n FROM criticidades_terceiro WHERE parte_id = 'ag-a'`).first<{ n: number }>();
+    expect(n!.n).toBe(1);
   });
 });

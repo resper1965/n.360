@@ -302,8 +302,9 @@ projectRopaApp.put('/:recordId/bases', async (c) => {
 });
 
 // ─── Riscos e ações da atividade (F2, migration 0073): o MESMO cadastro do n.iso, filtrado pela atividade ───
-// O agente (MCP) cria e edita rascunho; aceitar risco, concluir ação e apagar são atos humanos (o DELETE está em FORA_DO_AGENTE).
-const ATO_HUMANO = { risco: 'aceitar risco é ato humano, pela interface', acao: 'concluir ação é ato humano, pela interface' };
+// O agente (MCP) cria e edita; aceitar risco é ato do cliente (recusado sempre); concluir ação é decisão do consultor (`niso_concluir_acao`);
+// apagar pede a confirmação de `acaoDestrutiva`.
+const ATO_HUMANO = { risco: 'aceitar risco é ato humano, pela interface' };
 
 projectRopaApp.get('/:recordId/riscos', async (c) => {
   const r = await listarRiscos(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
@@ -358,7 +359,7 @@ projectRopaApp.post('/:recordId/acoes', async (c) => {
   try {
     const v = await validateBody(c, acaoAtividadeCriarSchema);
     if (!v.success) return v.response;
-    if (c.get('user')?.agente === true && v.data.status === 'Closed') return c.json({ error: `Forbidden: ${ATO_HUMANO.acao}` }, 403);
+    if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao && v.data.status === 'Closed') return c.json({ error: 'Forbidden: concluir ação é decisão do consultor: use niso_concluir_acao' }, 403);
     const projectId = c.req.param('projectId')!;
     const r = await criarAcao(c.env.DB, projectId, c.req.param('recordId'), v.data);
     if (!r.ok) return c.json({ error: r.error }, r.status);
@@ -371,7 +372,7 @@ projectRopaApp.put('/:recordId/acoes/:acaoId', async (c) => {
   try {
     const v = await validateBody(c, acaoAtividadeAtualizarSchema);
     if (!v.success) return v.response;
-    if (c.get('user')?.agente === true && v.data.status === 'Closed') return c.json({ error: `Forbidden: ${ATO_HUMANO.acao}` }, 403);
+    if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao && v.data.status === 'Closed') return c.json({ error: 'Forbidden: concluir ação é decisão do consultor: use niso_concluir_acao' }, 403);
     const projectId = c.req.param('projectId')!;
     const r = await atualizarAcao(c.env.DB, projectId, c.req.param('recordId'), c.req.param('acaoId'), v.data);
     if (!r.ok) return c.json({ error: r.error }, r.status);

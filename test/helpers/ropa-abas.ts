@@ -17,6 +17,9 @@ export const chamar = (h: Record<string, string>, metodo: string, caminho: strin
     body: metodo === 'GET' || metodo === 'DELETE' ? undefined : JSON.stringify(corpo ?? {}),
   }), { ...workerEnv(), ...extra } as any);
 export const comoAgente = (metodo: string, caminho: string, corpo?: unknown) => chamar({}, metodo, caminho, corpo, { AGENTE });
+/** Agente decidindo como o consultor: a ferramenta do catálogo, a confirmação e o motivo. */
+export const comoAgenteDecidindo = (ferramenta: string, metodo: string, caminho: string, corpo?: unknown, motivo = 'pedido do consultor') =>
+  chamar({ 'X-Agente-Ferramenta': ferramenta, 'X-Agente-Confirmado': '1', 'X-Agente-Motivo': encodeURIComponent(motivo) }, metodo, caminho, corpo, { AGENTE });
 export const json = async <T = any>(r: Response) => (await r.json()) as T;
 export const base = (rid: string, p = P) => `/api/v1/projects/${p}/ropa/${rid}`;
 

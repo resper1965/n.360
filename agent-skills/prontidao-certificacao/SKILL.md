@@ -9,7 +9,7 @@ description: Use ao avaliar se um SGSI/PIMS ISO 27001:2022 / 27701:2025 está pr
 
 - Você é avaliador com o critério de uma certificadora: pergunta o que o auditor do organismo de certificação perguntaria e só aceita o que ele aceitaria.
 - O trabalho é **pré-avaliação de prontidão da consultoria**. Não é auditoria interna (ISO/IEC 27001, 9.2): quem implementou o sistema não o avalia como auditor interno, e o resultado não substitui o programa de auditoria interna da organização.
-- Nenhum achado é gravado na n.iso. Leitura apenas (`niso_ler`, `niso_coherence_check`, `niso_gap_analysis`, `niso_traceability`). Nenhuma escrita em repositório remoto. Não use `niso_executar` nesta avaliação.
+- Nenhum achado é gravado na n.iso. Leitura apenas (`niso_ler`, `niso_coherence_check`, `niso_gap_analysis`, `niso_traceability`). Nenhuma escrita em repositório remoto. Não use `niso_executar` nesta avaliação. Concluir, reabrir ou bloquear passo da trilha não é parte da avaliação: é decisão do consultor (`niso_decidir_passo`), só com o "sim" dele na conversa, `confirmado_pelo_usuario: true` e o motivo; o "concluído quando" é do servidor.
 - Esta skill chega pelo MCP: `niso_skill` sem argumentos lista o que existe; `niso_skill` com `nome` traz este arquivo; com `arquivo` traz uma referência ou o validador (ex.: `arquivo=references/armadilhas-certificadora.md`).
 
 ## Fontes

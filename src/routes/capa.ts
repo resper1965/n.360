@@ -16,7 +16,7 @@ capaApp.put('/:id', async (c) => {
     const v = await validateBody(c, capaUpdateSchema);
     if (!v.success) return v.response;
     const body = v.data as any;
-    if (c.get('user')?.agente === true && body.status === 'Closed') return c.json({ error: 'Forbidden: concluir ação é ato humano, pela interface' }, 403);
+    if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao && body.status === 'Closed') return c.json({ error: 'Forbidden: concluir ação é decisão do consultor: use niso_concluir_acao' }, 403);
     // O projeto vem da CAPA gravada, nunca do corpo. Sem isto, apontar para o risco de outro
     // projeto deixava o dono dele apagar esta CAPA pelo ON DELETE CASCADE.
     const atual = await c.env.DB.prepare('SELECT project_id FROM corrective_actions WHERE id = ?').bind(id).first<{ project_id: string | null }>();
@@ -40,10 +40,6 @@ capaApp.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'corrective_actions', id, c.get('user'));
-    // Ação ou gap da atividade (n.privacy): apagar é ato humano, como nas sub-rotas da atividade, que estão em FORA_DO_AGENTE.
-    if (c.get('user')?.agente && (await c.env.DB.prepare('SELECT ropa_id FROM corrective_actions WHERE id = ?').bind(id).first<{ ropa_id: string | null }>())?.ropa_id) {
-      return c.json({ error: 'Forbidden: apagar ação ou gap da atividade é ato humano, pela interface' }, 403);
-    }
     await c.env.DB.prepare('DELETE FROM corrective_actions WHERE id = ?').bind(id).run();
     const user = c.get('user');
     await logAudit(c.env.DB, 'capa_deleted', user?.email || 'system', `CAPA ${id} deleted`);

@@ -561,8 +561,9 @@ const PAPEIS_NESS = new Set(['consultor', 'consultant', 'platform_admin', 'consu
  * `requireResourceAccess`, `projetosVisiveis`). Listagem entre projetos usa
  * `projetosVisiveis`, não esta função.
  */
-export function ehEquipeNess(user: { role?: string } | undefined | null): boolean {
-  return !!user && PAPEIS_NESS.has(user.role ?? '');
+export function ehEquipeNess(user: { role?: string; agente_decisao?: unknown } | undefined | null): boolean {
+  // Decisão confirmada do agente consultor (resolverAgente) conta como a equipe que ele representa, só naquela rota.
+  return !!user && (PAPEIS_NESS.has(user.role ?? '') || !!user.agente_decisao);
 }
 
 /**
