@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
-import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
+import { produtoAtual } from '../produto.js';
 import { hojeSP } from '../hoje.js';
 import { montarLista, colunasDe } from '../lista.js';
 
@@ -82,6 +82,9 @@ async function renderDocumentos(c, h, a) {
     try { docs = lista(await api('GET', `/api/v1/projects/${proj.id}/documentos`)); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar os documentos.', e); return; }
     try { S.partes = lista(await api('GET', `/api/v1/projects/${proj.id}/partes`)); } catch (e) { S.partes = []; /* secundário: só o nome do responsável */ }
     S.documentos = docs;
+    let cob = { aplicaveis: 0, cobertos: 0, sem_cobertura: [], por_controle: {}, por_documento: {} };
+    try { cob = await api('GET', `/api/v1/projects/${proj.id}/documentos/cobertura`); } catch (e) { /* sem cobertura, a lista segue */ }
+    S.coberturaPoliticas = cob;
 
     // A lista segue a ordem da árvore, com o recuo na coluna do título; com busca ou filtro ela fica plana, sem recuo (a filha
     // sem a mãe não fica recuada sob outro documento).
@@ -92,6 +95,7 @@ async function renderDocumentos(c, h, a) {
         return [
             `<span data-nivel="${nivel}" style="display:inline-block;padding-left:${nivel * 20}px"><strong>${escapeHTML(d.titulo)}</strong></span>`,
             escapeHTML(TIPOS[d.tipo] || d.tipo),
+            d.tipo === 'politica' ? String(cob.por_documento[d.id] || 0) : '—',
             window.renderStatusBadge(rotuloStatus, tomStatus) + (d.tem_rascunho ? ' <span class="ctx-tag">Rascunho pendente</span>' : ''),
             d.versao_vigente ? `v${escapeHTML(String(d.versao_vigente))}` : '—',
             d.revisar_ate ? `${dataBr(d.revisar_ate)}${vencida ? ' ' + window.renderStatusBadge('Revisão vencida', 'danger') : ''}` : '—',
@@ -111,11 +115,15 @@ async function renderDocumentos(c, h, a) {
     const aviso = docs.length && faltam.length
         ? `<p id="docs-lgpd-faltando" class="mt-0 mb-4 t-sm t-dim">Costuma existir num programa LGPD e não encontramos pelo título: ${escapeHTML(faltam.map((m) => m.titulo).join('; '))}.</p>`
         : '';
-    c.innerHTML = aviso + '<div id="documentos-lista"></div>';
+    const indicador = cob.aplicaveis ? `
+        <p id="docs-cobertura" class="mt-0 mb-2"><strong>${cob.cobertos} de ${cob.aplicaveis}</strong> controles aplicáveis cobertos por política vigente</p>
+        ${cob.sem_cobertura.length ? `<details id="docs-sem-cobertura" class="mb-4"><summary>${cob.sem_cobertura.length} sem política vigente</summary>
+            <ul class="t-sm">${cob.sem_cobertura.map((x) => `<li>${escapeHTML(x.title)}</li>`).join('')}</ul></details>` : ''}` : '';
+    c.innerHTML = indicador + aviso + '<div id="documentos-lista"></div>';
     montarLista(c.querySelector('#documentos-lista'), {
         id: 'documentos',
         linhas: arvore(docs),
-        colunas: colunasDe(['Documento', 'Tipo', 'Situação', 'Versão', 'Revisão', 'Dono', 'Aprovação', 'Ações'], celulas),
+        colunas: colunasDe(['Documento', 'Tipo', 'Controles', 'Situação', 'Versão', 'Revisão', 'Dono', 'Aprovação', 'Ações'], celulas),
         busca: ({ doc: d }) => `${d.titulo} ${nomeDaParte(d.dono_parte_id)}`,
         filtros: [
             { chave: 'tipo', rotulo: 'Tipo', valor: ({ doc: d }) => d.tipo, opcoes: Object.entries(TIPOS).filter(([v]) => docs.some((d) => d.tipo === v)).sort((x, y) => x[1].localeCompare(y[1], 'pt-BR')) },
@@ -182,11 +190,9 @@ window.openDocumentoModal = async function (projectId, id) {
     try { d = await api('GET', `/api/v1/projects/${projectId}/documentos/${id}`); } catch (e) { falha(e, 'Não foi possível abrir o documento'); return; }
     try { ciencias = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/ciencias`)); } catch (e) { /* o resto do documento abre sem as ciências */ }
     try { excecoes = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/excecoes`)); } catch (e) { /* idem, sem as exceções */ }
-    // Requisitos são da faixa n.privacy: projeto sem o produto nem chama a rota (daria 403).
-    const comPrivacy = temProduto(projetoDoId(projectId), 'privacy');
-    if (comPrivacy) { try { requisitos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/requisitos`)); } catch (e) { /* idem, sem os requisitos */ } }
+    try { requisitos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/requisitos`)); } catch (e) { /* idem, sem os requisitos */ }
     const editar = podeEditar();
-    if (editar && comPrivacy) { try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ } }
+    if (editar) { try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ } }
     S.docRequisitos = requisitos.map((r) => r.id);
     const versoes = lista(d.versoes);
     const rascunho = versoes.find((v) => v.estado === 'rascunho');
@@ -197,7 +203,7 @@ window.openDocumentoModal = async function (projectId, id) {
         <div id="doc-rascunho" style="border:1px solid var(--accent); padding:1rem; margin-bottom:1rem">
             <div style="font-family:'Montserrat',sans-serif; font-weight:600; margin-bottom:0.25rem">Rascunho ${rascunho.origem === 'agente' ? 'do agente ' : ''}aguardando revisão</div>
             <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.5rem">Por ${escapeHTML(rascunho.criado_por || 'autor não registrado')} em ${formatarData(rascunho.criado_em, { hora: true })}. O documento vigente só muda quando você publicar.</div>
-            <div style="max-height:200px; overflow:auto; white-space:pre-wrap; font-size:0.8rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:0.75rem">${escapeHTML(rascunho.texto || '')}</div>
+            <div id="doc-texto-rascunho" class="doc-texto">${window.markdownSeguro(rascunho.texto || '')}</div>
             ${editar ? `<div style="display:flex; gap:8px; margin-top:0.75rem">
                 <button class="btn btn-primary btn-sm" data-action="publicarVersaoDocumento" data-args='${args(projectId, id, rascunho.numero, rascunho.hash)}'>Publicar rascunho</button>
                 <button class="btn btn-sm" data-action="descartarRascunhoDocumento" data-args='${args(projectId, id)}'>Descartar</button>
@@ -253,17 +259,17 @@ window.openDocumentoModal = async function (projectId, id) {
         ${editor}
         <h4 style="margin:1.25rem 0 0.5rem">Versões</h4>
         ${versoes.length ? versoes.map((v) => `
-            <details style="margin-bottom:0.5rem">
+            <details style="margin-bottom:0.5rem"${v.estado === 'vigente' ? ' open' : ''}>
                 <summary>Versão ${escapeHTML(String(v.numero))} · ${escapeHTML(ESTADO_VERSAO[v.estado] || v.estado)} · ${escapeHTML(v.origem || '')} · ${formatarData(v.criado_em, { hora: true })}</summary>
                 <div style="font-size:0.7rem; color:var(--text-dim)">SHA-256 ${escapeHTML(v.hash || '')}</div>
-                <div style="white-space:pre-wrap; font-size:0.85rem; margin-top:0.25rem">${escapeHTML(v.texto || '')}</div>
+                <div${v.estado === 'vigente' ? ' id="doc-texto-vigente"' : ''} class="doc-texto">${window.markdownSeguro(v.texto || '')}</div>
             </details>`).join('') : window.renderEmptyState({ titulo: 'Nenhuma versão.', compacto: true })}
         <h4 style="margin:1.25rem 0 0.5rem">Ciências</h4>
         ${ciencias.length ? `<table class="data-table"><thead><tr><th>Pessoa</th><th>Versão</th><th>Canal</th><th>Quando</th></tr></thead><tbody>
             ${ciencias.map((x) => `<tr><td>${escapeHTML(x.nome || x.email)}${x.nome ? `<div style="font-size:11px;color:var(--text-dim)">${escapeHTML(x.email)}</div>` : ''}</td>
                 <td>${escapeHTML(String(x.numero))}${x.atual ? '' : ' (anterior)'}</td><td>${escapeHTML(CANAIS[x.canal] || x.canal || '')}</td><td>${formatarData(x.em, { hora: true, vazio: '' })}</td></tr>`).join('')}
         </tbody></table>` : '<p style="color:var(--text-dim)">Ninguém deu ciência ainda.</p>'}
-        ${comPrivacy ? `<h4 style="margin:1.25rem 0 0.5rem">Requisitos</h4>
+        <h4 style="margin:1.25rem 0 0.5rem">Controles e requisitos cobertos</h4>
         <div id="doc-requisitos">
             ${requisitos.length ? requisitos.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)}${editar ? ` <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoDocumento" data-args='${args(projectId, id, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">×</button>` : ''}</span>`).join(' ')
                 : window.renderEmptyState({ titulo: 'Nenhum requisito ligado a este documento.', compacto: true })}
@@ -273,7 +279,7 @@ window.openDocumentoModal = async function (projectId, id) {
                         .map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} — ${escapeHTML(r.titulo)}</option>`).join('')}</select></div>
                 <button class="btn btn-sm" data-action="ligarRequisitoDocumento" data-args='${args(projectId, id)}'>Ligar</button>
             </div>` : ''}
-        </div>` : ''}
+        </div>
         <h4 style="margin:1.25rem 0 0.5rem">Exceções</h4>
         <div id="doc-excecoes">
             ${excecoes.length ? `<table class="data-table"><thead><tr><th>Escopo</th><th>Motivo</th><th>Vence em</th><th>Situação</th><th>Aprovação</th><th></th></tr></thead><tbody>
