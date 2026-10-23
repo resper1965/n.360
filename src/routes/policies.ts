@@ -55,8 +55,8 @@ policies.post('/api/v1/projects/:projectId/generate-policy', async (c) => {
       return erro500(c, 'Falha ao gerar política', new Error(result.content));
     }
 
-    // O agente propõe, o humano publica: rascunho do documento, e o controle fica como está.
-    if (c.get('user')?.agente === true) {
+    // O agente propõe, o humano publica: rascunho do documento, e o controle fica como está (salvo a decisão confirmada).
+    if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao) {
       const r = await gravarRascunhoDoAgente(c, projectId, idLinha, result.content, c.get('user')?.email || 'system');
       if (!r.ok) return c.json({ error: r.error }, r.status);
       return c.json({
@@ -447,8 +447,8 @@ policies.post('/api/v1/projects/:projectId/controls/:controlId/policy', async (c
     // control.id é o id canônico que de fato existe em compliance_controls (FK de policy_versions).
     const canonicalId = control.id;
 
-    // O agente propõe, o humano publica: rascunho do documento, e o controle fica como está.
-    if (c.get('user')?.agente === true) {
+    // O agente propõe, o humano publica: rascunho do documento, e o controle fica como está (salvo a decisão confirmada).
+    if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao) {
       const r = await gravarRascunhoDoAgente(c, projectId, canonicalId, text, userEmail);
       if (!r.ok) return c.json({ error: r.error }, r.status);
       return c.json({ ok: true, rascunho: true, control_id: canonicalId, documento_id: r.documento_id, numero: r.numero });

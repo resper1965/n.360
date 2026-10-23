@@ -104,31 +104,25 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   // Assinatura eletrônica é ato humano, pela interface (senha do assinante).
   [/^\/api\/v1\/(evidence|controls)\/[^/]+\/(signatures\/)?approve$/, 'assinatura eletrônica é ato humano, pela interface', ['POST', 'PUT']],
   [/^\/api\/v1\/projects\/[^/]+\/(ropa|dpia)\/[^/]+\/revoke-approval$/, 'revogar aprovação de ROPA e DPIA é da direção, pela interface'],
-  // O agente propõe política (rascunho); publicar e descartar o rascunho é ato humano, pela interface (fatia 3.2).
   [/^\/api\/v1\/projects\/[^/]+\/data-subject\/erase$/, 'eliminar dado do titular é ato humano, pela interface', ['POST']],
-  // Tipo e avaliação do fornecedor definem o método de due diligence e a situação dele, como a criticidade: o agente só lê.
   [/^\/api\/v1\/projects\/[^/]+\/policy-acknowledgments$/, 'ciência de política é registrada por uma pessoa, pela interface', ['POST', 'PUT']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+$/, 'excluir documento é ato humano do administrador da plataforma, pela interface', ['DELETE']],
   // Aceitar o documento gerado grava a evidência e conclui o item do checklist: é a pessoa que decide.
   [/^\/api\/v1\/projects\/[^/]+\/approve-document$/, 'aceitar documento e concluir item do checklist é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/pedidos\/lote$/, 'aprovar em lote é ato humano, com a senha de quem aprova', ['POST']],
   [/^\/api\/v1\/parametros-legais(\/|$)/, 'prazo legal é parâmetro revisado pelo jurídico, edição do administrador da plataforma; o agente só lê', ['PUT', 'DELETE']],
-  // A importação de programa grava no RoPA depois da revisão de uma pessoa da equipe (spec 2026-10-11). A leitura também é recusada, pela rota (papel de equipe).
   [/^\/api\/v1\/requisitos(\/|$)/, 'o catálogo de requisitos é edição do administrador da plataforma; o agente só lê', ['POST', 'PUT', 'DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos-arquivo(\/|$)/, 'documento em arquivo (cadastro, envio e exclusão) é feito pela interface; o agente só lê', ['POST', 'PUT', 'DELETE']],
   // Rascunho de IA do n.privacy é da tela, para a pessoa revisar (fatia 5.3); o agente já é a IA.
   [/^\/api\/v1\/projects\/[^/]+\/(ropa\/copiloto|ropa\/[^/]+\/sugestao|titular-pedidos\/[^/]+\/rascunho|incidentes\/[^/]+\/rascunho-comunicacao)$/, 'rascunho de IA do n.privacy é pela interface'],
   // Parecidos por significado (embeddings) servem ao "Cadastrar agora" da entrevista, na tela; o agente já é a IA.
   [/^\/api\/v1\/projects\/[^/]+\/similares$/, 'parecidos por significado são recurso de IA da tela'],
-  // Riscos e ações da atividade (F2): o agente cria e edita rascunho; apagar é ato humano (aceitar e concluir, a rota recusa).
   // Exportação em arquivo (F4 e as antigas do n.iso): planilha e Word são da tela; o agente lê os mesmos dados em JSON.
   [/^\/api\/v1\/projects\/[^/]+\/(export\/(atividades|ripd|riscos-atividade|acoes-atividade|lia|risks|vendors|training|audit-log|assets)|dpia\/[^/]+\/docx|ropa\/[^/]+\/lia\/docx)$/, 'exportação em arquivo é pela interface'],
-  // Homologação de fornecedor (F5): o link é credencial emitida pela consultoria e concluir grava a avaliação do terceiro; o agente só lê.
-  // Criticidade do fornecedor (spec 2026-10-18): a avaliação define o tipo, e com ele o método de due diligence; o agente só lê.
   [/^\/api\/v1\/management-reviews\/[^/]+$/,'excluir análise crítica destrói registro assinado: use a interface', ['DELETE']],
-  // Bancada da trilha (spec 2026-10-15): concluir, reabrir e bloquear passo são atos humanos (como aceitar documento); o rascunho de IA é da tela.
+  // Bancada da trilha (spec 2026-10-15): o rascunho de IA é da tela; concluir, reabrir e bloquear passo são decisões (`niso_decidir_passo`).
   [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/copiloto\/[a-z-]+$/, 'rascunho de IA da trilha é pela interface; o agente já é a IA', ['POST']],
-  // Ficha em abas (spec 2026-10-16): situação e anexos são atos humanos; o agente grava campos e rascunha, nada mais.
+  // Ficha em abas (spec 2026-10-16): anexo de gap e relatório são da tela; a situação é decisão (`niso_situacao_atividade`).
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/gaps\/[^/]+\/anexos(\/[^/]+)?$/, 'anexo de gap é arquivo enviado por uma pessoa, pela interface'],
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/relatorio$/, 'impressão da atividade é pela interface'],
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/etapas\/[^/]+\/rascunho$/, 'rascunho de IA da etapa é pela interface; o agente já é a IA', ['POST']],

@@ -130,7 +130,7 @@ incidentesApp.post('/:id/rascunho-comunicacao', async (c) => {
 });
 
 // Encerrar é da equipe da consultoria (decisão do dono, 15/10): o `org_admin` registra, avalia e comunica, mas não encerra.
-// O agente MCP também não (FORA_DO_AGENTE), e o CHECK da 0058 continua valendo para SQL direto.
+// O agente MCP encerra só pela decisão confirmada (`niso_encerrar_incidente`), e o CHECK da 0058 continua valendo para SQL direto.
 incidentesApp.post('/:id/encerrar', async (c) => {
   try {
     if (!ehEquipeNess(c.get('user'))) return c.json({ error: 'Encerrar o incidente é feito pela equipe da consultoria' }, 403);
