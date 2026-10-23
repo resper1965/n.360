@@ -21,7 +21,7 @@ O endereço oficial é `https://niso.ness.com.br/mcp`. Ele não funciona em outr
 domínio, e continua o mesmo com o n.360 como entrada da plataforma: `niso.ness.com.br`
 segue servindo `/mcp` e `/oauth`. O agente trabalha com os módulos do projeto (n.iso,
 n.privacy) que o consultor que concedeu o acesso também tem (`modulosDaPessoa`, `src/modulos.ts`); rota de
-módulo fora disso responde 403. A importação de programa também é só da tela, da equipe. Os rascunhos de IA do n.privacy
+módulo fora disso responde 403. A importação de programa o agente opera pela ferramenta `niso_importar_programa`, com o seu "sim" e um motivo. Os rascunhos de IA do n.privacy
 (`ropa/:id/sugestao`, `titular-pedidos/:id/rascunho`, `incidentes/:id/rascunho-comunicacao`) são da tela, para a
 equipe e o administrador do cliente: o agente MCP recebe 403 neles (`FORA_DO_AGENTE`, "use a interface").
 
@@ -38,7 +38,7 @@ Na primeira chamada o cliente abre o navegador. Você:
 
 1. entra com seu e-mail e senha do n.iso (e o código do segundo fator, se tiver);
 2. escolhe **um** cliente: o consultor, entre os projetos em que está designado; o administrador da consultoria (`consultoria_admin`), entre os projetos da própria organização;
-3. escolhe o **papel** do agente: **Consultor** (implementa) ou **Auditor** (só lê e audita), ver [Dois papéis](#dois-papéis-consultor-e-auditor);
+3. escolhe o **papel** do agente: **Consultor** (implementa e decide com o seu "sim") ou **Auditor** (só lê e audita), ver [Dois papéis](#dois-papéis-consultor-e-auditor);
 4. volta ao cliente MCP, que já está conectado.
 
 > **Estado dos clientes.** O Claude Code foi exercitado contra a produção em
@@ -114,13 +114,13 @@ roteiros. Depois ele escolhe o roteiro.
 | **1. Diagnóstico** | `niso_get_project`, `niso_gap_analysis`, `niso_traceability`: onde estamos e o que falta. Para numa lista de lacunas priorizada. | Não |
 | **2. Fechar lacuna** | Escolhe um controle, rascunha evidência ou política, **espera a sua aprovação**, grava. Para quando o controle tem evidência vinculada. | Sim, depois do seu ok |
 | **3. Responder auditoria** | Lê as notas do auditor, rascunha a resposta, espera a sua aprovação. | Sim, depois do seu ok |
-| **4. Pré-avaliação de prontidão** | Avalia se o SGSI está pronto para o Stage 1 e o Stage 2 da certificadora (ISO 27001:2022 + 27701:2025). Usa a skill `prontidao-certificacao`. | **Não**: só lê |
+| **4. Pré-avaliação de prontidão** | Avalia se o SGSI está pronto para o Stage 1 e o Stage 2 da certificadora (ISO 27001:2022 + 27701:2025). Usa a skill `prontidao-certificacao`. | **Não**: só lê (concluir passo é decisão: `niso_decidir_passo`) |
 | **5. Inventário** (n.privacy) | Um tratamento por vez, pelos 8 blocos da entrevista de RoPA (A atividade, B titulares, C dados, D base legal, E sistemas, F compartilhamento, G retenção, H transferência e RIPD). Propõe o registro em `Draft`, as ligações, a LIA em rascunho e a DPIA em `Draft`, espera a sua aprovação. | Rascunho, depois do seu ok |
 | **6. Pedido do titular ou incidente** (n.privacy) | Lê os prazos, rascunha a resposta ou a comunicação no chat e registra o pedido ou o incidente. Usa a skill `atendimento-titular`. Responder, encerrar e mudar prazo ficam com você. | Registro, depois do seu ok |
 | **7. Cobertura LGPD** (n.privacy) | Lê as lacunas de requisitos, propõe o documento ou a evidência que fecha cada uma e liga o documento ao requisito. | Sim, depois do seu ok |
 | **8. Maturidade LGPD** (n.privacy) | Tabela de achados com fonte e próxima ação sobre RoPA, terceiros, titular, incidentes, encarregado e lacunas. Usa a skill `maturidade-lgpd`. Não é parecer jurídico. | **Não**: só lê |
 | **9. Implantação em cliente novo** (n.privacy) | Ordem de trabalho, o que pedir ao cliente e critério de pronto de cada etapa. Usa a skill `implantacao-privacy`. | Rascunho, depois do seu ok |
-| **10. Migração de programa existente** (n.privacy) | Escolhe entre a tela Importar programa (da equipe), a planilha CSV do RoPA e o cadastro à mão, e confere o que entrou. Usa a skill `migracao-programa`. | Rascunho, depois do seu ok |
+| **10. Migração de programa existente** (n.privacy) | Escolhe entre `niso_importar_programa`, a planilha CSV do RoPA e o cadastro à mão, e confere o que entrou. Usa a skill `migracao-programa`. | Rascunho, depois do seu ok |
 | **11. Terceiros** (n.privacy) | Tipo, método, evidência, validade e DPA de cada terceiro. Usa a skill `avaliacao-terceiros`. | Sim, depois do seu ok |
 
 As skills dos roteiros 4, 6, 8, 9, 10 e 11 chegam pelo próprio MCP (`niso_skill`): `prontidao-certificacao`,
@@ -137,8 +137,8 @@ colunas da planilha do RoPA, o questionário base de terceiro, a verificação d
 
 Cada uma é fina sobre uma rota que o consultor já usa na interface; nenhuma rota nova. Exigem o módulo n.privacy no projeto e na
 sua conta (senão 403), e o projeto da conexão. O que fica com uma pessoa, pela interface: aprovar tratamento e DPIA, concluir a
-LIA, publicar documento, responder e encerrar pedido do titular, encerrar incidente, registrar a comunicação enviada, revogar
-consentimento e mudar prazo legal.
+LIA, responder, negar e arquivar pedido do titular e mudar prazo legal. Publicar documento, encerrar incidente e revogar
+consentimento são decisões do consultor, que o agente toma com o "sim" dele e um motivo.
 
 ### O que ele lê
 
@@ -159,9 +159,9 @@ que você grava na interface). Evidência pelo agente é **só texto**: transcre
 um PDF não substitui o documento.
 
 **n.privacy é rascunho.** As ferramentas `niso_privacy_*` gravam tratamento em `Draft`, LIA em rascunho, DPIA em `Draft`, e
-registram pedido do titular e incidente. Nenhuma aprova, conclui, encerra ou revoga.
+registram pedido do titular e incidente. Nenhuma aprova nem conclui. Encerrar incidente (`niso_encerrar_incidente`) e revogar consentimento (`niso_registrar_revogacao`) são ferramentas de decisão à parte, com o seu "sim" e um motivo.
 
-**Política é diferente.** `niso_update_policy` e `niso_generate_policy` gravam um **rascunho**, que aparece num aviso no modal da política. Você publica ou descarta; o agente não altera a política vigente nem publica (o servidor recusa).
+**Política é diferente.** `niso_update_policy` e `niso_generate_policy` gravam um **rascunho**, que aparece num aviso no modal da política. O agente só publica, descarta ou revisa pela ferramenta `niso_publicar_documento` (ou `niso_revisar_documento`), com o seu "sim" na conversa e um motivo; sem isso o servidor recusa.
 
 ### O que pede o seu "sim"
 

@@ -53,7 +53,7 @@ n.privacy:
 - Consentimentos: /api/v1/projects/{p}/consentimentos · Encarregado: /api/v1/projects/{p}/encarregado
 - Ligações e LIA de um tratamento do RoPA: /api/v1/projects/{p}/ropa/{id}/ligacoes · /api/v1/projects/{p}/ropa/{id}/lia
 
-Fora do seu alcance (use a interface): usuários, SSO, política de segurança, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificações), criar projeto, painel global, área comercial (salvo leitura e rascunho pelas niso_comercial_*, quando você as tiver), importação de programa e /agentes.`;
+Fora do seu alcance (use a interface): usuários, SSO, política de segurança, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificações), criar projeto, painel global, área comercial (salvo leitura e rascunho pelas niso_comercial_*, quando você as tiver) e /agentes.`;
 
 export const ROTEIROS = `Roteiros de trabalho:
 
@@ -68,7 +68,7 @@ n.privacy (só com o módulo no projeto e na sua conta; as ferramentas niso_priv
 7. Cobertura LGPD — niso_privacy_requisitos_lacunas → proponha o documento ou a evidência que fecha cada lacuna → PEÇA APROVAÇÃO HUMANA antes de gravar → niso_privacy_ligar_documento_requisito (só documento vigente cobre).
 8. Maturidade LGPD — chame niso_skill com nome=maturidade-lgpd. Só leitura: tabela de achados com fonte e próxima ação; não grava nada e não é parecer jurídico.
 9. Implantação em cliente novo — niso_skill nome=implantacao-privacy: ordem de trabalho, o que pedir ao cliente e critério de pronto. Comece por niso_privacy_encarregado e niso_privacy_ponto_de_partida. Cada gravação: PEÇA APROVAÇÃO HUMANA.
-10. Migração de programa existente — niso_skill nome=migracao-programa: planilhas, políticas e contratos do cliente. Arquivo inteiro sobe pela tela Importar programa (só a equipe, com revisão item a item); o agente completa à mão o que faltar. Cada gravação: PEÇA APROVAÇÃO HUMANA.
+10. Migração de programa existente — niso_skill nome=migracao-programa: planilhas, políticas e contratos do cliente. Arquivo inteiro: niso_importar_programa (criar lote, processar, decidir itens, confirmar; decisão do consultor, com o "sim" dele, confirmado_pelo_usuario: true e motivo); o que faltar, você completa à mão. Cada gravação: PEÇA APROVAÇÃO HUMANA.
 11. Terceiros — niso_skill nome=avaliacao-terceiros → niso_privacy_terceiros (tipo, método, situação) → proponha tipo, avaliação e DPA. Cada gravação: PEÇA APROVAÇÃO HUMANA.`;
 
 /** Roteiros do auditor: ler, comparar com o requisito, registrar achado com a evidência citada. */
