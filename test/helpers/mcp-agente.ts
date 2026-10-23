@@ -37,3 +37,18 @@ export async function chamarFerramenta(token: string, name: string, args: unknow
     : texto;
   return JSON.parse(corpo).result;
 }
+
+/** tools/list e devolve a lista de ferramentas. */
+export async function listarFerramentas(token: string): Promise<{ name: string; description?: string }[]> {
+  const r = await f('/mcp', {
+    method: 'POST',
+    headers: { Host: 'niso.ness.com.br', Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+  });
+  const texto = await r.text();
+  if (r.status !== 200) throw new Error(`HTTP ${r.status}: ${texto}`);
+  const corpo = r.headers.get('Content-Type')?.includes('text/event-stream')
+    ? texto.split(/\r?\n/).find((l) => l.startsWith('data: '))!.slice(6)
+    : texto;
+  return JSON.parse(corpo).result.tools;
+}
