@@ -83,7 +83,7 @@ async function renderDocumentos(c, h, a) {
     try { S.partes = lista(await api('GET', `/api/v1/projects/${proj.id}/partes`)); } catch (e) { S.partes = []; /* secundário: só o nome do responsável */ }
     S.documentos = docs;
     let cob = { aplicaveis: 0, cobertos: 0, sem_cobertura: [], por_controle: {}, por_documento: {} };
-    try { cob = await api('GET', `/api/v1/projects/${proj.id}/documentos/cobertura`); } catch (e) { /* sem cobertura, a lista segue */ }
+    try { const r = await api('GET', `/api/v1/projects/${proj.id}/documentos/cobertura`); if (r && r.por_documento) cob = r; } catch (e) { /* sem cobertura, a lista segue */ }
     S.coberturaPoliticas = cob;
 
     // A lista segue a ordem da árvore, com o recuo na coluna do título; com busca ou filtro ela fica plana, sem recuo (a filha
