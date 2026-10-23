@@ -65,6 +65,10 @@ titularPedidosApp.put('/:id', async (c) => {
   try {
     const v = await validateBody(c, titularPedidoAtualizarSchema);
     if (!v.success) return v.response;
+    // Responder, negar, arquivar e mexer no prazo legal são atos de pessoa (skill atendimento-titular): o agente organiza e rascunha.
+    if (c.get('user')?.agente && (['respondido', 'negado', 'arquivado'].includes(v.data.status ?? '') || v.data.resposta_texto !== undefined || v.data.prazo_em !== undefined)) {
+      return c.json({ error: 'Forbidden: responder, negar, arquivar e mudar o prazo do pedido do titular são atos humanos, pela interface' }, 403);
+    }
     const r = await atualizarPedido(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao atualizar o pedido do titular', e); }

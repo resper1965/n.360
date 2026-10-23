@@ -126,8 +126,10 @@ export async function avaliarRisco(db: D1Database, projectId: string, id: string
   if (!i) return falha(404, 'Incidente não encontrado');
   if (i.status === 'encerrado') return falha(409, 'Incidente encerrado não muda');
   const status = i.status === 'aberto' ? 'avaliado' : i.status;
-  await db.prepare(`UPDATE incidentes SET risco_titular = ?, avaliacao_texto = ?, status = ?, updated_at = datetime('now') WHERE id = ? AND project_id = ?`)
-    .bind(d.risco_titular, d.avaliacao_texto ?? null, status, id, projectId).run();
+  // `status <> 'encerrado'` na própria WHERE: o encerramento pode ter chegado entre a leitura e esta escrita.
+  const r = await db.prepare(`UPDATE incidentes SET risco_titular = ?, avaliacao_texto = ?, status = ?, updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status = ?`)
+    .bind(d.risco_titular, d.avaliacao_texto ?? null, status, id, projectId, i.status).run();
+  if (!r.meta.changes) return falha(409, 'O incidente mudou enquanto você editava; recarregue');
   await logAudit(db, 'incidente.risco', ator, `Incidente ${i.protocolo}: risco ao titular ${d.risco_titular}`, '', '', projectId);
   return { ok: true };
 }
@@ -141,7 +143,8 @@ export async function registrarComunicacao(db: D1Database, projectId: string, id
   if (!ehInstante(em)) return falha(400, 'em precisa ser uma data ou data e hora ISO');
   if (Date.parse(em.length === 10 ? `${em}T00:00:00Z` : em) > Date.now() + 60_000) return falha(400, 'A comunicação não pode estar no futuro');
   const coluna = d.destino === 'anpd' ? 'comunicacao_anpd_em' : 'comunicacao_titular_em'; // vem da lista fechada do tipo, nunca do corpo cru
-  await db.prepare(`UPDATE incidentes SET ${coluna} = ?, status = 'comunicado', updated_at = datetime('now') WHERE id = ? AND project_id = ?`).bind(em, id, projectId).run();
+  const r = await db.prepare(`UPDATE incidentes SET ${coluna} = ?, status = 'comunicado', updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'encerrado'`).bind(em, id, projectId).run();
+  if (!r.meta.changes) return falha(409, 'Incidente encerrado não muda');
   await logAudit(db, 'incidente.comunicacao', ator, `Incidente ${i.protocolo}: comunicação ${d.destino === 'anpd' ? 'à ANPD' : 'ao titular'} em ${em}`, '', '', projectId);
   return { ok: true };
 }
@@ -152,7 +155,8 @@ export async function encerrarIncidente(db: D1Database, projectId: string, id: s
   if (i.status === 'encerrado') return falha(409, 'Incidente já encerrado');
   if (!i.risco_titular) return falha(409, 'Avalie o risco ao titular antes de encerrar');
   if (i.risco_titular === 'relevante' && !i.comunicacao_anpd_em) return falha(409, 'Risco relevante exige a comunicação à ANPD registrada antes de encerrar');
-  await db.prepare(`UPDATE incidentes SET status = 'encerrado', updated_at = datetime('now') WHERE id = ? AND project_id = ?`).bind(id, projectId).run();
+  const r = await db.prepare(`UPDATE incidentes SET status = 'encerrado', updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'encerrado'`).bind(id, projectId).run();
+  if (!r.meta.changes) return falha(409, 'Incidente já encerrado');
   await logAudit(db, 'incidente.encerrado', ator, `Incidente ${i.protocolo} encerrado`, '', '', projectId);
   return { ok: true };
 }

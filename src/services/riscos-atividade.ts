@@ -25,6 +25,16 @@ export function carimboDeAceite(antes: string | null | undefined, depois: string
   return depois === 'Accepted' && antes !== 'Accepted' ? { accepted_by: ator, accepted_at: new Date().toISOString() } : null;
 }
 
+type Notas = { impact: number; probability: number; residual_impact: number | null; residual_probability: number | null };
+/**
+ * O aceite vale para as notas que foram aceitas: risco aceito cujo impacto, probabilidade ou residual muda volta a Aberto e o aceite
+ * é refeito (como o RIPD e a atividade perdem a aprovação quando o conteúdo muda).
+ */
+export function aceiteCaiu(antes: Notas & { status: string | null }, depois: Notas & { status: string | null | undefined }) {
+  return antes.status === 'Accepted' && depois.status === 'Accepted' && (antes.impact !== depois.impact || antes.probability !== depois.probability
+    || (antes.residual_impact ?? null) !== (depois.residual_impact ?? null) || (antes.residual_probability ?? null) !== (depois.residual_probability ?? null));
+}
+
 type Falha = { ok: false; status: 400 | 403 | 404; error: string };
 const naoAchou = (o: string): Falha => ({ ok: false, status: 404, error: `${o} não encontrado` });
 const refRecusada = (campo: string): Falha => ({ ok: false, status: 400, error: `${campo} inexistente ou de outro projeto` });
@@ -106,6 +116,8 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
   const resI = corpo.residual_impact === undefined ? atual.residual_impact : corpo.residual_impact;
   const resP = corpo.residual_probability === undefined ? atual.residual_probability : corpo.residual_probability;
   const aceite = carimboDeAceite(atual.status, corpo.status, ator);
+  const caiu = aceiteCaiu(atual, { impact: impacto, probability: prob, residual_impact: resI, residual_probability: resP, status: corpo.status ?? atual.status });
+  if (caiu) corpo = { ...corpo, status: 'Open' };
   const p = setParcial(corpo, {
     threat: null, vulnerability: null, asset_id: null, treatment: 'Mitigate', treatment_plan: null, residual_impact: null,
     residual_probability: null, owner_parte_id: null, control_id: null, status: 'Open', treatment_due_date: null,
@@ -117,6 +129,7 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
     binds.push(await textoDoAtivo(db, corpo.asset_id, at.processing_purpose));
   }
   if (aceite) { extra.push('accepted_by = ?', 'accepted_at = ?', 'aceite_manual = 0'); binds.push(aceite.accepted_by, aceite.accepted_at); }
+  if (caiu) extra.push('accepted_by = NULL', 'accepted_at = NULL', 'aceite_manual = 0');
   await db.batch([
     db.prepare(
       `UPDATE risks SET impact = ?, probability = ?, risk_level = ?, residual_level = ?${p.sql ? ', ' + p.sql : ''}${extra.length ? ', ' + extra.join(', ') : ''},

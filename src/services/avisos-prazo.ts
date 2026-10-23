@@ -10,7 +10,7 @@ import { genId, enviarEmail } from '../helpers';
 import { montarEmail, type EmailMontado } from './email-layout';
 import { appUrl } from '../config/url';
 import { vencerEvidencias } from './evidencia-validade';
-import { modulosDoProjeto, type Modulo } from '../modulos';
+import { modulosDaPessoa, modulosDoProjeto, recusaDaPessoa, type Faixa, type Modulo } from '../modulos';
 import { log } from '../observability';
 import { passoPorId } from '../data/passos/catalogo';
 import type { Bindings } from '../index';
@@ -224,6 +224,13 @@ const TELA: Record<Fonte, string> = {
   capa: '/capa', checklist: '', auditoria: '/audits', certificado: '/certification', link_auditor: '/audits', politica: '/policies', documento: '/documentos', excecao: '/documentos', avaliacao_terceiro: '/terceiros', titular_pedido: '/titular', incidente: '/incidentes', evidencia: '/evidence', documento_arquivo: '/documentos-arquivo',
 };
 
+/** Faixa do módulo de cada fonte (a mesma de `src/modulos.ts` para a tela que o aviso abre): só recebe quem tem o módulo. */
+const FAIXA_DA_FONTE: Record<Fonte, Faixa> = {
+  capa: 'iso', checklist: 'iso', auditoria: 'iso', certificado: 'iso', link_auditor: 'iso', politica: 'iso',
+  avaliacao_terceiro: 'privacy', titular_pedido: 'privacy',
+  documento: 'nucleo', excecao: 'nucleo', incidente: 'nucleo', evidencia: 'nucleo', documento_arquivo: 'nucleo',
+};
+
 const dataBr = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;
 const quando = (marco: string) => (marco === 'D-7' ? 'vence em 7 dias' : marco === 'D0' ? 'vence hoje' : 'com prazo vencido');
 
@@ -256,13 +263,17 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
   const pessoasPorProjeto = new Map<string, Pessoa[]>();
   const modulosPorProjeto = new Map<string, Modulo[]>();
   const atrasoNovo = new Map<string, { project_id: string; user_id: string; n: number }>();
+  const modulosPorPessoa = new Map<string, Modulo[]>();
+  const modulosDe = async (p: Pessoa) => {
+    let m = modulosPorPessoa.get(p.id);
+    if (!m) modulosPorPessoa.set(p.id, (m = await modulosDaPessoa(db, p)));
+    return m;
+  };
 
   for (const item of itens) {
     try {
       let pessoas = pessoasPorProjeto.get(item.project_id);
       if (!pessoas) pessoasPorProjeto.set(item.project_id, (pessoas = await pessoasDoProjeto(db, item.project_id)));
-      const destinos = escolherDestinatarios(pessoas, item.responsavel);
-      if (!destinos.length) { r.sem_destinatario++; continue; }
       const atraso = item.marco.startsWith('atraso-');
       // Ação (CAPA) de projeto sem o n.iso é ação da atividade de tratamento (F2): o sino leva ao RoPA, que o n.privacy abre.
       let tela = TELA[item.fonte];
@@ -271,6 +282,12 @@ export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<Resul
         if (!m) modulosPorProjeto.set(item.project_id, (m = await modulosDoProjeto(db, item.project_id)));
         if (m.length && !m.includes('iso')) tela = '/ropa';
       }
+      // Quem não tem o módulo da fonte não recebe nem o título (protocolo do titular, nome do fornecedor).
+      const faixa: Faixa = tela === '/ropa' ? 'privacy' : FAIXA_DA_FONTE[item.fonte];
+      const comModulo: Pessoa[] = [];
+      for (const p of pessoas) if (!recusaDaPessoa(faixa, await modulosDe(p))) comModulo.push(p);
+      const destinos = escolherDestinatarios(comModulo, item.responsavel);
+      if (!destinos.length) { r.sem_destinatario++; continue; }
       // Atraso na mesma semana do vencimento só sai se o D0 não saiu (a rotina não rodou no dia).
       const guardaD0 = atraso && semanaIso(item.vence_em) === semanaIso(hoje) ? 1 : 0;
       for (const p of destinos) {
