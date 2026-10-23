@@ -100,15 +100,17 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^(?!\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/agentes$).*\/agentes(\/|$)/, 'o agente não gere o próprio acesso'],
   // Desaprovar é ato da direção, pela interface (F6, decisão D1): o agente não revoga a aprovação de
   // ROPA nem de DPIA, e não apaga análise crítica, que é registro assinado. Revogar aprovação de
-  // CONTROLE segue possível, com confirmação (acaoDestrutiva).
+  // CONTROLE e do projeto também é ato do cliente (abaixo).
   // Assinatura eletrônica é ato humano, pela interface (senha do assinante).
   [/^\/api\/v1\/(evidence|controls)\/[^/]+\/(signatures\/)?approve$/, 'assinatura eletrônica é ato humano, pela interface', ['POST', 'PUT']],
   [/^\/api\/v1\/projects\/[^/]+\/(ropa|dpia)\/[^/]+\/revoke-approval$/, 'revogar aprovação de ROPA e DPIA é da direção, pela interface'],
+  [/^\/api\/v1\/(controls\/[^/]+\/revoke-approval|projects\/[^/]+\/revoke-approvals)$/, 'revogar aprovação é ato do cliente', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/data-subject\/erase$/, 'eliminar dado do titular é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/policy-acknowledgments$/, 'ciência de política é registrada por uma pessoa, pela interface', ['POST', 'PUT']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+$/, 'excluir documento é ato humano do administrador da plataforma, pela interface', ['DELETE']],
   // Aceitar o documento gerado grava a evidência e conclui o item do checklist: é a pessoa que decide.
   [/^\/api\/v1\/projects\/[^/]+\/approve-document$/, 'aceitar documento e concluir item do checklist é ato humano, pela interface', ['POST']],
+  [/^\/api\/v1\/pedidos\/[^/]+\/(aprovar|recusar)$/, 'aprovar ou recusar pedido é ato do destinatário, com a senha dele', ['POST']],
   [/^\/api\/v1\/pedidos\/lote$/, 'aprovar em lote é ato humano, com a senha de quem aprova', ['POST']],
   [/^\/api\/v1\/parametros-legais(\/|$)/, 'prazo legal é parâmetro revisado pelo jurídico, edição do administrador da plataforma; o agente só lê', ['PUT', 'DELETE']],
   [/^\/api\/v1\/requisitos(\/|$)/, 'o catálogo de requisitos é edição do administrador da plataforma; o agente só lê', ['POST', 'PUT', 'DELETE']],
@@ -212,7 +214,7 @@ export async function resolverAgente(
   const exige = d && (d.ferramenta !== 'niso_concluir_acao' || (await corpoFechaAcao(c)));
   if (d && exige) {
     let motivo = '';
-    try { motivo = decodeURIComponent(c.req.header(CABECALHO_MOTIVO) ?? '').trim(); } catch { motivo = ''; }
+    try { motivo = decodeURIComponent(c.req.header(CABECALHO_MOTIVO) ?? '').replace(/[\x00-\x1f\x7f]+/g, ' ').trim(); } catch { motivo = ''; }
     if (c.req.header(CABECALHO_FERRAMENTA) !== d.ferramenta || c.req.header(CABECALHO_CONFIRMADO) !== '1' || !motivo || motivo.length > MOTIVO_MAX) {
       return c.json({ error: `Forbidden: decisão do consultor: use ${d.ferramenta}, mostre ao consultor o que muda, peça o "sim" e informe o motivo` }, 403);
     }

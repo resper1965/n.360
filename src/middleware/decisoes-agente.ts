@@ -53,6 +53,7 @@ export const DECISOES: readonly Decisao[] = [
   { ferramenta: 'niso_importar_programa', acao: 'decidir_itens', metodo: 'POST', caminho: `${P}/importacoes/{loteId}/itens/decidir`, corpo: true },
   { ferramenta: 'niso_importar_programa', acao: 'confirmar', metodo: 'POST', caminho: `${P}/importacoes/{loteId}/confirmar` },
   { ferramenta: 'niso_importar_programa', acao: 'cancelar_lote', metodo: 'DELETE', caminho: `${P}/importacoes/{loteId}` },
+  { ferramenta: 'niso_padronizar_nomes', acao: 'propostas', metodo: 'GET', caminho: `${P}/padronizar-nomes` },
   { ferramenta: 'niso_padronizar_nomes', acao: 'padronizar', metodo: 'POST', caminho: `${P}/padronizar-nomes`, corpo: true },
 ];
 

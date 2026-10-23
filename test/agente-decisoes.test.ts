@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import worker from '../src/index';
-import { applySchema, workerEnv, habilitarPrivacy } from './helpers/d1';
+import { applySchema, workerEnv, habilitarPrivacy, sessionFor } from './helpers/d1';
 
 const P = { userId: 'u-dec', email: 'cons@ness.lat', projectId: 'p-dec', concessaoId: 'c-dec' };
 const json = { 'Content-Type': 'application/json' };
@@ -64,6 +64,11 @@ describe('porta de decisão do agente', () => {
   it('cabeçalhos do agente numa requisição de pessoa não fazem nada', async () => {
     const r = await comoPessoa('POST', '/api/v1/projects/p-dec/incidentes/in-2/encerrar', DECISAO('niso_encerrar_incidente'));
     expect(r.status).toBe(401);
+    // Pessoa de verdade (administradora do cliente, que escreve): os cabeçalhos são ignorados e encerrar segue só da equipe.
+    const auth = await sessionFor({ id: 'u-cli-dec', email: 'dono@cliente.lat', role: 'org_admin', client_project_id: 'p-dec' });
+    const p = await comoPessoa('POST', '/api/v1/projects/p-dec/incidentes/in-2/encerrar', { ...auth, ...DECISAO('niso_encerrar_incidente') });
+    expect(p.status, await p.clone().text()).toBe(403);
+    expect((await env.DB.prepare(`SELECT status FROM incidentes WHERE id='in-2'`).first<any>()).status).toBe('avaliado');
   });
 
   it('concluir ação: só pela decisão; editar sem fechar segue livre', async () => {
@@ -82,5 +87,30 @@ describe('porta de decisão do agente', () => {
   it('revogar aprovação e eliminar dado do titular seguem recusados mesmo com a decisão', async () => {
     expect((await comoAgente('POST', '/api/v1/projects/p-dec/ropa/ro-dec/revoke-approval', DECISAO('niso_concluir_acao'), {})).status).toBe(403);
     expect((await comoAgente('POST', '/api/v1/projects/p-dec/data-subject/erase', DECISAO('niso_concluir_acao'), {})).status).toBe(403);
+  });
+
+  it('aprovar ou recusar pedido e assinar controle seguem recusados com todos os cabeçalhos de decisão', async () => {
+    for (const [m, c] of [
+      ['POST', '/api/v1/pedidos/ped-x/aprovar'],
+      ['POST', '/api/v1/pedidos/ped-x/recusar'],
+      ['POST', '/api/v1/controls/ctl-x/approve'],
+    ] as const) {
+      const r = await comoAgente(m, c, DECISAO('niso_decidir_passo'), {});
+      expect(r.status, c).toBe(403);
+    }
+  });
+
+  it('padronizar nomes: o agente lê as propostas com a ferramenta, e sem ela é recusado', async () => {
+    const url = '/api/v1/projects/p-dec/padronizar-nomes';
+    expect((await comoAgente('GET', url)).status).toBe(403);
+    const r = await comoAgente('GET', url, DECISAO('niso_padronizar_nomes', 'ver o que mudaria'));
+    expect(r.status, await r.clone().text()).toBe(200);
+  });
+
+  it('caractere de controle no motivo vira espaço na trilha', async () => {
+    const r = await comoAgente('POST', '/api/v1/projects/p-dec/padronizar-nomes', DECISAO('niso_padronizar_nomes', 'linha1\nFORJADA\u0000fim'), { itens: [] });
+    expect(r.status, await r.clone().text()).toBeLessThan(500);
+    const t = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action='agente.decisao' ORDER BY created_at DESC, rowid DESC LIMIT 1`).first<any>();
+    expect(t.details).toContain('motivo: linha1 FORJADA fim');
   });
 });

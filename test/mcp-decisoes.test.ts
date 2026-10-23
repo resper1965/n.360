@@ -5,6 +5,7 @@ import { hashPassword } from '../src/helpers';
 import { tokenDoAgente, chamarFerramenta, listarFerramentas } from './helpers/mcp-agente';
 import { FERRAMENTAS_DE_DECISAO } from '../src/middleware/decisoes-agente';
 import { INSTRUCOES } from '../src/mcp/contexto';
+import { criarDocumento } from '../src/services/documentos';
 
 let token: string;
 let tokenAuditor: string;
@@ -51,6 +52,34 @@ describe('ferramentas de decisão', () => {
     const r = await chamarFerramenta(token, 'niso_executar', { metodo: 'POST', caminho: '/api/v1/projects/p-m/incidentes/in-m/encerrar', confirmado_pelo_usuario: true });
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toContain('niso_encerrar_incidente');
+  });
+
+  it('id com .. ou / é recusado antes de chamar a rota', async () => {
+    for (const incidenteId of ['..', 'a/b', '../x']) {
+      const r = await chamarFerramenta(token, 'niso_encerrar_incidente', { acao: 'encerrar', incidenteId, confirmado_pelo_usuario: true, motivo: 'teste' });
+      expect(r.isError, incidenteId).toBe(true);
+      expect((await env.DB.prepare(`SELECT status FROM incidentes WHERE id='in-m'`).first<{ status: string }>())!.status).toBe('avaliado');
+    }
+  });
+
+  it('publicar documento: hash ausente ou inválido é recusado; hash velho dá 409', async () => {
+    const c = await criarDocumento(env.DB, 'p-m', 'cons@ness.lat', { tipo: 'politica', titulo: 'Política de teste', texto: 'texto do rascunho' });
+    if (!c.ok) throw new Error(c.error);
+    const base = { acao: 'publicar', documentoId: c.id, numero: '1', confirmado_pelo_usuario: true, motivo: 'consultor aprovou' };
+    for (const hash of [undefined, 'curto', 'Z'.repeat(64)]) {
+      const r = await chamarFerramenta(token, 'niso_publicar_documento', { ...base, ...(hash ? { hash } : {}) });
+      expect(r.isError, String(hash)).toBe(true);
+      expect(r.content[0].text).toContain('hash');
+    }
+    const velho = await chamarFerramenta(token, 'niso_publicar_documento', { ...base, hash: '0'.repeat(64) });
+    expect(velho.isError).toBe(true);
+    expect(velho.content[0].text).toContain('HTTP 409');
+  });
+
+  it('o auditor chamando ferramenta de decisão é recusado', async () => {
+    const r = await chamarFerramenta(tokenAuditor, 'niso_encerrar_incidente', { acao: 'encerrar', incidenteId: 'in-m', confirmado_pelo_usuario: true, motivo: 'x' });
+    expect(r.isError).toBe(true);
+    expect((await env.DB.prepare(`SELECT status FROM incidentes WHERE id='in-m'`).first<{ status: string }>())!.status).toBe('avaliado');
   });
 
   it('com tudo, decide', async () => {

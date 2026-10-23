@@ -83,7 +83,7 @@ describe('Autorização OAuth do agente', () => {
     // O consultor consente em cima deste texto: ele tem de dizer o que o agente de fato pode fazer.
     expect(html2).not.toContain('Não apaga registros');
     expect(html2).toContain('Com a sua confirmação');
-    expect(html2).toContain('revoga aprovações');
+    expect(html2).toContain('Ato do cliente fica de fora');
 
     const fim = await f('/oauth/authorize/confirmar', form({ pedido, projeto: 'p-a' }));
     const html3 = await fim.text();

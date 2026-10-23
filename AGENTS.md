@@ -648,7 +648,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `niso.ness.com.br` (`RECURSO_MCP`, nao segue o `APP_URL`). Clientes: Claude Code verificado em producao (30/09/2026); Cursor,
   Codex e Antigravity seguem "A confirmar" na tela Conectar agente (ver CHANGELOG).
   **O agente decide como o consultor (spec `docs/superpowers/specs/2026-10-23-agente-decide-como-consultor-design.md`).** O catalogo das decisoes
-  (10 ferramentas, 36 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-10-23: 36) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
+  (10 ferramentas, 37 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-10-23: 37) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
   `resolverAgente` (`src/middleware/agente.ts`): a rota de decisao exige os cabecalhos `X-Agente-Ferramenta`, `X-Agente-Confirmado: 1` (so o booleano `true` em
   `confirmado_pelo_usuario`) e `X-Agente-Motivo` (1 a 500 caracteres); valendo, o principal ganha `agente_decisao` e `ehEquipeNess` o aceita naquela rota e so nela.
   A trilha `agente.decisao` e gravada ANTES da rota rodar: registra a tentativa confirmada mesmo que a rota falhe. O texto de documento, de importacao ou de campo livre

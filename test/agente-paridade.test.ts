@@ -128,13 +128,14 @@ describe('Agente com paridade de consultor, preso ao projeto', () => {
     expect(texto).not.toContain('p-b');
   });
 
-  it('revogar aprovações exige confirmação', async () => {
+  it('revogar aprovação de controle e do projeto é ato do cliente: recusado mesmo com confirmação', async () => {
     const corpo = JSON.stringify({ role: 'ciso', reason: 'revisão do escopo', control_ids: ['ctl-a'] });
-    const sem = await comoAgente('/api/v1/projects/p-a/revoke-approvals', { method: 'POST', headers: json, body: corpo });
-    expect(sem.status).toBe(403);
-    expect((await sem.json<any>()).error).toContain('confirmado_pelo_usuario');
-    const com = await comoAgente('/api/v1/projects/p-a/revoke-approvals', { method: 'POST', headers: { ...json, ...confirmado }, body: corpo });
-    expect(com.status, await com.clone().text()).not.toBe(403);
+    for (const caminho of ['/api/v1/projects/p-a/revoke-approvals', '/api/v1/controls/ctl-a/revoke-approval']) {
+      for (const headers of [json, { ...json, ...confirmado }]) {
+        const r = await comoAgente(caminho, { method: 'POST', headers, body: corpo });
+        expect(r.status, caminho).toBe(403);
+      }
+    }
   });
 
   it('escrita de auditor continua recusada', async () => {

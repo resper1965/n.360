@@ -54,6 +54,8 @@ const GENERICAS: Ferramenta[] = [
 ];
 /** Teto do texto devolvido ao modelo: trilha e dossiê podem ter megabytes. */
 const LIMITE_TEXTO = 100_000;
+const AVISO_CORTE = `
+[resposta cortada em ${LIMITE_TEXTO} caracteres: filtre ou peça por item]`;
 
 /**
  * O auditor remoto não tem token do portal do auditor externo: a nota dele vai para a rota autenticada do
@@ -176,12 +178,12 @@ const ORIENTACAO: Record<FerramentaDecisao, string> = {
   niso_revisar_documento: 'Marca o documento como revisado (renova o prazo de revisão) ou revoga uma exceção aprovada.',
   niso_decidir_passo: 'Conclui (com "excecao" quando o critério não é cumprido), reabre, bloqueia (motivo e responsável em dados) ou desbloqueia passo da trilha; descarta a anotação antiga do passo ou a situação antiga da fase.',
   niso_avaliar_fornecedor: 'Define tipo, registra criticidade ou avaliação, e conduz a homologação do fornecedor. A avaliação muda a situação do fornecedor e os avisos de prazo.',
-  niso_situacao_atividade: 'Envia a atividade de tratamento para revisão, reabre, cancela ou reativa. Aprovar não é aqui: é o pedido de aprovação do cliente.',
+  niso_situacao_atividade: 'Envia a atividade de tratamento para revisão, reabre (só a que está em revisão), cancela ou reativa. Aprovar não é aqui: é o pedido de aprovação do cliente. Reabrir atividade APROVADA é revogar a aprovação, ato do cliente: o servidor recusa.',
   niso_concluir_acao: "Conclui ação, CAPA ou gap; serve só para fechar. \"dados\" deve levar status: 'Closed' mais os campos que a rota exige (PUT /capa pede title e status).",
   niso_encerrar_incidente: 'Encerra o incidente. Exige risco avaliado e, se relevante, a comunicação à ANPD registrada.',
   niso_registrar_revogacao: 'Registra que o titular revogou o consentimento (não apaga a prova).',
   niso_importar_programa: 'Conduz a importação do programa: lê lotes, processa arquivo enviado pela interface, edita e decide itens, confirma a gravação ou cancela. Todas as ações exigem confirmado_pelo_usuario e motivo: mesmo a leitura pede o motivo.',
-  niso_padronizar_nomes: 'Aplica a padronização de nomes de partes, áreas e ativos escolhida.',
+  niso_padronizar_nomes: 'Padroniza nomes de partes, áreas e ativos: "propostas" lista o que mudaria, "padronizar" aplica os itens escolhidos.',
 };
 
 const DECISAO_FERRAMENTAS: Ferramenta[] = FERRAMENTAS_DE_DECISAO.map((nome) => {
@@ -230,7 +232,7 @@ async function decidir(nome: string, args: Record<string, unknown> | undefined, 
   if (comCorpo) headers.set('Content-Type', 'application/json');
   const r = await bruto(caminho, { method: d.metodo, headers, body: comCorpo ? JSON.stringify(a.dados ?? {}) : undefined });
   let texto = await r.text();
-  if (texto.length > LIMITE_TEXTO) texto = texto.slice(0, LIMITE_TEXTO);
+  if (texto.length > LIMITE_TEXTO) texto = texto.slice(0, LIMITE_TEXTO) + AVISO_CORTE;
   return { isError: !r.ok, content: [{ type: 'text', text: `HTTP ${r.status}\n${texto}` }] };
 }
 
@@ -386,8 +388,7 @@ async function genericas(nome: string, args: any, bruto: Bruto): Promise<CallToo
   const tipo = r.headers.get('Content-Type') ?? '';
   if (/json|^text\//i.test(tipo)) {
     let texto = await r.text();
-    if (texto.length > LIMITE_TEXTO) texto = texto.slice(0, LIMITE_TEXTO) + `
-[resposta cortada em ${LIMITE_TEXTO} caracteres: filtre ou peça por item]`;
+    if (texto.length > LIMITE_TEXTO) texto = texto.slice(0, LIMITE_TEXTO) + AVISO_CORTE;
     return { isError: !r.ok, content: [{ type: 'text', text: `HTTP ${r.status}
 ${texto}` }] };
   }

@@ -44,7 +44,7 @@ agente): mostre o que seria anonimizado (`GET .../data-subject?identificador=...
 | `anonimizacao_bloqueio_eliminacao` | O que foi feito e o que fica guardado por obrigação, com o motivo |
 | `portabilidade` | Os dados em formato estruturado, ou o motivo de não ser possível |
 | `informacao_compartilhamento` | Com quem os dados são compartilhados (tratamentos, bloco F) |
-| `revogacao_consentimento` | A revogação registrada e o que muda; revogar o consentimento no sistema é ato de pessoa, pela interface |
+| `revogacao_consentimento` | A revogação registrada e o que muda; registrar a revogação do consentimento no sistema é `niso_registrar_revogacao`, com confirmação do consultor e motivo |
 | `oposicao` | A análise do pedido e a decisão |
 | `outro` | Encaminhamento ao encarregado |
 

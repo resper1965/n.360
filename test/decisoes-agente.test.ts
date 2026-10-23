@@ -9,6 +9,7 @@ describe('catálogo de decisões do agente', () => {
     expect(decisaoDaRota('PUT', '/api/v1/projects/p1/terceiros/pt1/tipo')?.ferramenta).toBe('niso_avaliar_fornecedor');
     expect(decisaoDaRota('POST', '/api/v1/projects/p1/incidentes/i1/encerrar')?.ferramenta).toBe('niso_encerrar_incidente');
     expect(decisaoDaRota('GET', '/api/v1/projects/p1/importacoes')?.ferramenta).toBe('niso_importar_programa');
+    expect(decisaoDaRota('GET', '/api/v1/projects/p1/padronizar-nomes')?.ferramenta).toBe('niso_padronizar_nomes');
   });
 
   it('não casa rota comum nem ato do cliente', () => {
@@ -20,6 +21,8 @@ describe('catálogo de decisões do agente', () => {
       ['POST', '/api/v1/projects/p1/data-subject/erase'],
       ['POST', '/api/v1/projects/p1/policy-acknowledgments'],
       ['POST', '/api/v1/projects/p1/ropa/r1/revoke-approval'],
+      ['POST', '/api/v1/controls/c1/revoke-approval'],
+      ['POST', '/api/v1/projects/p1/revoke-approvals'],
     ] as const) expect(decisaoDaRota(m, c), `${m} ${c}`).toBeNull();
   });
 
