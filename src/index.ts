@@ -157,6 +157,8 @@ export type Variables = {
     agente?: boolean;
     /** Papel do agente, relido da concessão a cada chamada: consultor implementa, auditor só lê e audita. */
     agente_papel?: import('./middleware/agente').PapelAgente;
+    /** Decisão confirmada do agente consultor (src/middleware/decisoes-agente.ts): a rota a trata como da equipe. */
+    agente_decisao?: { ferramenta: string; motivo: string };
     /** Sessão autenticada por senha mas ainda sem o segundo fator. */
     mfa_pending?: boolean;
     /** Instante de emissão, usado para revogação. */

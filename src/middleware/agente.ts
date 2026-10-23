@@ -1,7 +1,8 @@
 import type { Context } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { apiKeyRoleViolation } from '../auth-policy';
-import { consultorDesignado, projetosDoAgente, ehComercial } from '../helpers';
+import { decisaoDaRota, CABECALHO_FERRAMENTA, CABECALHO_MOTIVO, MOTIVO_MAX } from './decisoes-agente';
+import { logAudit, consultorDesignado, projetosDoAgente, ehComercial } from '../helpers';
 
 /**
  * Identidade de um agente de IA conectado pelo MCP remoto (spec
@@ -104,49 +105,31 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/(evidence|controls)\/[^/]+\/(signatures\/)?approve$/, 'assinatura eletrônica é ato humano, pela interface', ['POST', 'PUT']],
   [/^\/api\/v1\/projects\/[^/]+\/(ropa|dpia)\/[^/]+\/revoke-approval$/, 'revogar aprovação de ROPA e DPIA é da direção, pela interface'],
   // O agente propõe política (rascunho); publicar e descartar o rascunho é ato humano, pela interface (fatia 3.2).
-  [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/versoes\/[^/]+\/publicar$/, 'publicar versão de documento é ato humano, pela interface', ['POST']],
-  [/^\/api\/v1\/projects\/[^/]+\/(controls\/[^/]+\/restore-version|policies\/generate-from-template)$/, 'restaurar versão e gerar política por modelo publicam o texto: ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/data-subject\/erase$/, 'eliminar dado do titular é ato humano, pela interface', ['POST']],
   // Tipo e avaliação do fornecedor definem o método de due diligence e a situação dele, como a criticidade: o agente só lê.
-  [/^\/api\/v1\/projects\/[^/]+\/terceiros\/[^/]+\/(tipo|avaliacoes)$/, 'tipo e avaliação do fornecedor são atos humanos, pela interface; o agente só lê', ['POST', 'PUT']],
   [/^\/api\/v1\/projects\/[^/]+\/policy-acknowledgments$/, 'ciência de política é registrada por uma pessoa, pela interface', ['POST', 'PUT']],
-  [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/rascunho$/, 'descartar rascunho de documento é ato humano, pela interface', ['DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+$/, 'excluir documento é ato humano do administrador da plataforma, pela interface', ['DELETE']],
   // Aceitar o documento gerado grava a evidência e conclui o item do checklist: é a pessoa que decide.
   [/^\/api\/v1\/projects\/[^/]+\/approve-document$/, 'aceitar documento e concluir item do checklist é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/pedidos\/lote$/, 'aprovar em lote é ato humano, com a senha de quem aprova', ['POST']],
-  [/^\/api\/v1\/projects\/[^/]+\/padronizar-nomes$/, 'padronizar nomes é ato humano da equipe, pela interface', ['POST']],
   [/^\/api\/v1\/parametros-legais(\/|$)/, 'prazo legal é parâmetro revisado pelo jurídico, edição do administrador da plataforma; o agente só lê', ['PUT', 'DELETE']],
-  [/^\/api\/v1\/projects\/[^/]+\/incidentes\/[^/]+\/encerrar$/, 'encerrar incidente é ato humano, pela interface', ['POST']],
-  [/^\/api\/v1\/projects\/[^/]+\/consentimentos\/[^/]+\/revogar$/, 'revogar consentimento é ato humano, pela interface', ['POST']],
   // A importação de programa grava no RoPA depois da revisão de uma pessoa da equipe (spec 2026-10-11). A leitura também é recusada, pela rota (papel de equipe).
-  [/^\/api\/v1\/projects\/[^/]+\/importacoes(\/|$)/, 'importação de programa é feita pela equipe, pela interface', ['POST', 'PUT', 'DELETE']],
   [/^\/api\/v1\/requisitos(\/|$)/, 'o catálogo de requisitos é edição do administrador da plataforma; o agente só lê', ['POST', 'PUT', 'DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/documentos-arquivo(\/|$)/, 'documento em arquivo (cadastro, envio e exclusão) é feito pela interface; o agente só lê', ['POST', 'PUT', 'DELETE']],
-  [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/revisar$/,'marcar documento como revisado é ato humano, pela interface', ['POST']],
-  [/^\/api\/v1\/projects\/[^/]+\/documentos\/[^/]+\/excecoes\/[^/]+\/revogar$/, 'revogar exceção a documento é ato humano, pela interface', ['POST']],
   // Rascunho de IA do n.privacy é da tela, para a pessoa revisar (fatia 5.3); o agente já é a IA.
   [/^\/api\/v1\/projects\/[^/]+\/(ropa\/copiloto|ropa\/[^/]+\/sugestao|titular-pedidos\/[^/]+\/rascunho|incidentes\/[^/]+\/rascunho-comunicacao)$/, 'rascunho de IA do n.privacy é pela interface'],
   // Parecidos por significado (embeddings) servem ao "Cadastrar agora" da entrevista, na tela; o agente já é a IA.
   [/^\/api\/v1\/projects\/[^/]+\/similares$/, 'parecidos por significado são recurso de IA da tela'],
   // Riscos e ações da atividade (F2): o agente cria e edita rascunho; apagar é ato humano (aceitar e concluir, a rota recusa).
-  [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/(riscos|acoes)\/[^/]+$/, 'apagar risco ou ação da atividade é ato humano, pela interface', ['DELETE']],
   // Exportação em arquivo (F4 e as antigas do n.iso): planilha e Word são da tela; o agente lê os mesmos dados em JSON.
   [/^\/api\/v1\/projects\/[^/]+\/(export\/(atividades|ripd|riscos-atividade|acoes-atividade|lia|risks|vendors|training|audit-log|assets)|dpia\/[^/]+\/docx|ropa\/[^/]+\/lia\/docx)$/, 'exportação em arquivo é pela interface'],
   // Homologação de fornecedor (F5): o link é credencial emitida pela consultoria e concluir grava a avaliação do terceiro; o agente só lê.
-  [/^\/api\/v1\/projects\/[^/]+\/homologacoes(\/|$)/, 'homologação de fornecedor é conduzida pela equipe, pela interface; o agente só lê', ['POST', 'PUT', 'DELETE']],
   // Criticidade do fornecedor (spec 2026-10-18): a avaliação define o tipo, e com ele o método de due diligence; o agente só lê.
-  [/^\/api\/v1\/projects\/[^/]+\/terceiros\/[^/]+\/criticidades$/, 'avaliação de criticidade do fornecedor é ato humano, pela interface; o agente só lê', ['POST']],
   [/^\/api\/v1\/management-reviews\/[^/]+$/,'excluir análise crítica destrói registro assinado: use a interface', ['DELETE']],
   // Bancada da trilha (spec 2026-10-15): concluir, reabrir e bloquear passo são atos humanos (como aceitar documento); o rascunho de IA é da tela.
-  [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/(concluir|reabrir|bloquear|desbloquear)$/, 'concluir, reabrir e bloquear passo da trilha é ato humano, pela interface', ['POST']],
-  [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/anotacao-anterior$/, 'descartar a anotação antiga é ato humano da equipe, pela interface', ['DELETE']],
-  [/^\/api\/v1\/projects\/[^/]+\/bancada\/fases\/[^/]+\/situacao-antiga$/, 'encerrar a situação anterior da fase é ato humano da equipe, pela interface', ['DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/copiloto\/[a-z-]+$/, 'rascunho de IA da trilha é pela interface; o agente já é a IA', ['POST']],
   // Ficha em abas (spec 2026-10-16): situação e anexos são atos humanos; o agente grava campos e rascunha, nada mais.
-  [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/situacao$/, 'cancelar, reativar, reabrir e enviar a atividade para revisão é ato humano, pela interface', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/gaps\/[^/]+\/anexos(\/[^/]+)?$/, 'anexo de gap é arquivo enviado por uma pessoa, pela interface'],
-  [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/(medidas|gaps)\/[^/]+$/, 'apagar medida ou gap é ato humano, pela interface', ['DELETE']],
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/relatorio$/, 'impressão da atividade é pela interface'],
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/etapas\/[^/]+\/rascunho$/, 'rascunho de IA da etapa é pela interface; o agente já é a IA', ['POST']],
 ];
@@ -192,6 +175,11 @@ export function acaoDestrutiva(method: string, path: string): boolean {
   return method.toUpperCase() === 'DELETE' || path.endsWith('/generate-policies-bulk') || path.endsWith('/data-subject/erase') || /\/revoke-approvals?$/.test(path);
 }
 
+/** O PUT de ação/gap só é decisão quando fecha (status Closed). Lê uma cópia: a rota lê o corpo de novo. */
+async function corpoFechaAcao(c: Context): Promise<boolean> {
+  try { return ((await c.req.raw.clone().json()) as { status?: unknown })?.status === 'Closed'; } catch { return false; }
+}
+
 export async function resolverAgente(
   c: Context<{ Bindings: Bindings; Variables: Variables }>,
   p: PropsAgente
@@ -224,6 +212,18 @@ export async function resolverAgente(
     const motivo = foraDoAuditor(method, path, p.projectId);
     if (motivo) return c.json({ error: `Forbidden: ${motivo}` }, 403);
   }
+  let decisao: { ferramenta: string; motivo: string } | undefined;
+  const d = row.papel === 'consultor' ? decisaoDaRota(method, path) : null;
+  // concluir ação/gap pelo PUT genérico só é decisão com status Closed; o resto do PUT é edição comum.
+  const exige = d && (d.ferramenta !== 'niso_concluir_acao' || (await corpoFechaAcao(c)));
+  if (d && exige) {
+    let motivo = '';
+    try { motivo = decodeURIComponent(c.req.header(CABECALHO_MOTIVO) ?? '').trim(); } catch { motivo = ''; }
+    if (c.req.header(CABECALHO_FERRAMENTA) !== d.ferramenta || c.req.header(CABECALHO_CONFIRMADO) !== '1' || !motivo || motivo.length > MOTIVO_MAX) {
+      return c.json({ error: `Forbidden: decisão do consultor: use ${d.ferramenta}, mostre ao consultor o que muda, peça o "sim" e informe o motivo` }, 403);
+    }
+    decisao = { ferramenta: d.ferramenta, motivo };
+  }
   if (acaoDestrutiva(method, path) && c.req.header(CABECALHO_CONFIRMADO) !== '1') {
     return c.json({ error: 'Forbidden: apagar, gerar em lote, eliminar titular e revogar aprovações exigem confirmação — mostre ao usuário o que será feito, espere o "sim" e reenvie com confirmado_pelo_usuario: true' }, 403);
   }
@@ -241,9 +241,12 @@ export async function resolverAgente(
   // `id` é o users.id REAL do consultor: os módulos da pessoa (`modulosDaPessoa`) saem dele, então o agente alcança
   // só o n.iso/n.privacy que o consultor que concedeu tem, e tirar o módulo dele vale na chamada seguinte.
   const email = `${row.papel === 'auditor' ? 'agente auditor' : 'agente'} de ${row.email} (${rotulo})`;
+  if (decisao) {
+    await logAudit(c.env.DB, 'agente.decisao', email, `${decisao.ferramenta}: ${method} ${path} — motivo: ${decisao.motivo}`, '', '', p.projectId);
+  }
   // Área comercial (allow-list acima): o papel e a organização REAIS de quem concedeu, relidos agora, para `somenteComercial` e
   // `exigirOrg` cortarem pela organização dela. Só nestas rotas: no resto o agente segue `client` preso ao projeto.
-  if (comercial) return { id: p.userId, email, role: row.role, org_id: row.org_id ?? undefined, client_project_id: null, agente: true, agente_papel: row.papel };
+  if (comercial) return { id: p.userId, email, role: row.role, org_id: row.org_id ?? undefined, client_project_id: null, agente: true, agente_papel: row.papel, ...(decisao ? { agente_decisao: decisao } : {}) };
   return {
     id: p.userId,
     email,
@@ -251,5 +254,6 @@ export async function resolverAgente(
     client_project_id: p.projectId,
     agente: true,
     agente_papel: row.papel,
+    ...(decisao ? { agente_decisao: decisao } : {}),
   };
 }
