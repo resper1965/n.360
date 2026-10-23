@@ -554,15 +554,19 @@ describe('rodada de correções', () => {
     expect((await json<{ item: Item }>(r2)).item.decisao).toBe('descartado');
   });
 
-  it('o agente (MCP) não escreve na importação: recusa explícita de alcance', async () => {
+  it('o agente (MCP) só escreve na importação pela ferramenta de decisão', async () => {
     const comoAgente = (metodo: string, caminho: string) => app.fetch(new Request(`http://localhost/api/v1/projects/${P}/${caminho}`, {
       method: metodo, headers: { 'Content-Type': 'application/json', 'X-Agente-Confirmado': '1' }, body: metodo === 'DELETE' ? undefined : '{}',
     }), { ...envComIa(), AGENTE } as never);
     for (const [metodo, caminho] of [['POST', 'importacoes'], ['POST', 'importacoes/l1/confirmar'], ['PUT', 'importacoes/l1/itens/i1'], ['DELETE', 'importacoes/l1']] as const) {
       const r = await comoAgente(metodo, caminho);
       expect(r.status, `${metodo} ${caminho}`).toBe(403);
-      expect((await json<{ error: string }>(r)).error, `${metodo} ${caminho}`).toContain('fora do alcance do agente');
+      expect((await json<{ error: string }>(r)).error, `${metodo} ${caminho}`).toContain('niso_importar_programa');
     }
+    // com a ferramenta, a confirmação e o motivo a porta abre (o lote inexistente dá 404, não 403)
+    const dec = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/importacoes/l1`, { method: 'DELETE',
+      headers: { 'X-Agente-Ferramenta': 'niso_importar_programa', 'X-Agente-Confirmado': '1', 'X-Agente-Motivo': encodeURIComponent('cliente pediu') } }), { ...envComIa(), AGENTE } as never);
+    expect(dec.status).toBe(404);
   });
 });
 

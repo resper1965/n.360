@@ -12,8 +12,8 @@ const json = { 'Content-Type': 'application/json' };
 const chamar = (h: Record<string, string>, metodo: string, caminho: string, corpo?: unknown) =>
   app.fetch(new Request('http://localhost' + caminho, { method: metodo, headers: { ...json, 'CF-Connecting-IP': '203.0.113.9', ...h },
     body: corpo === undefined ? undefined : JSON.stringify(corpo) }), workerEnv());
-const comoAgente = (metodo: string, caminho: string, corpo?: unknown) =>
-  app.fetch(new Request('http://localhost' + caminho, { method: metodo, headers: { ...json, 'X-Agente-Confirmado': '1' },
+const comoAgente = (metodo: string, caminho: string, corpo?: unknown, extra: Record<string, string> = {}) =>
+  app.fetch(new Request('http://localhost' + caminho, { method: metodo, headers: { ...json, 'X-Agente-Confirmado': '1', ...extra },
     body: corpo === undefined ? undefined : JSON.stringify(corpo) }),
     { ...workerEnv(), AGENTE: { userId: 'r2c-cons', email: 'cons@ness.lat', projectId: P, concessaoId: 'c-r2c' } } as any);
 const um = <T = any>(sql: string, ...b: unknown[]) => env.DB.prepare(sql).bind(...b).first<T>();
@@ -105,14 +105,28 @@ describe('11. exportação completa', () => {
 
 describe('12 e 13. agente por rota paralela', () => {
   it('não apaga risco nem gap da atividade por /risks e /capa', async () => {
-    expect((await comoAgente('DELETE', '/api/v1/risks/rk-ativ')).status).toBe(403);
-    expect((await comoAgente('DELETE', '/api/v1/capa/ca-ativ')).status).toBe(403);
+    const semSim = { 'X-Agente-Confirmado': '' };
+    expect((await comoAgente('DELETE', '/api/v1/risks/rk-ativ', undefined, semSim)).status).toBe(403);
+    expect((await comoAgente('DELETE', '/api/v1/capa/ca-ativ', undefined, semSim)).status).toBe(403);
     expect(await um(`SELECT 1 AS x FROM risks WHERE id = 'rk-ativ'`)).not.toBeNull();
     expect(await um(`SELECT 1 AS x FROM corrective_actions WHERE id = 'ca-ativ'`)).not.toBeNull();
+  });
+  it('apaga risco e gap da atividade por /risks e /capa só com a confirmação do consultor (niso_executar)', async () => {
+    expect((await comoAgente('DELETE', '/api/v1/risks/rk-ativ')).status).toBe(200);
+    expect((await comoAgente('DELETE', '/api/v1/capa/ca-ativ')).status).toBe(200);
+    expect(await um(`SELECT 1 AS x FROM risks WHERE id = 'rk-ativ'`)).toBeNull();
+    expect(await um(`SELECT 1 AS x FROM corrective_actions WHERE id = 'ca-ativ'`)).toBeNull();
   });
   it('não define tipo nem registra avaliação do fornecedor', async () => {
     expect((await comoAgente('PUT', `/api/v1/projects/${P}/terceiros/pt-org/tipo`, { terceiro_tipo: 'grande_provedor' })).status).toBe(403);
     expect((await comoAgente('POST', `/api/v1/projects/${P}/terceiros/pt-org/avaliacoes`, { resultado: 'aprovado', valido_ate: '2030-01-01' })).status).toBe(403);
+  });
+  it('define o tipo e registra a avaliação pela ferramenta niso_avaliar_fornecedor, com confirmação e motivo', async () => {
+    const dec = { 'X-Agente-Ferramenta': 'niso_avaliar_fornecedor', 'X-Agente-Motivo': encodeURIComponent('questionário respondido') };
+    const t = await comoAgente('PUT', `/api/v1/projects/${P}/terceiros/pt-org/tipo`, { terceiro_tipo: 'grande_provedor' }, dec);
+    expect(t.status, await t.clone().text()).toBe(200);
+    const a = await comoAgente('POST', `/api/v1/projects/${P}/terceiros/pt-org/avaliacoes`, { resultado: 'aprovado', valido_ate: '2030-01-01' }, dec);
+    expect(a.status, await a.clone().text()).toBeLessThan(300);
   });
 });
 

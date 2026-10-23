@@ -82,12 +82,12 @@ describe('o agente grava rascunho', () => {
   });
 });
 
-describe('publicar é ato humano', () => {
-  it('o agente não publica nem descarta, e nada muda', async () => {
+describe('publicar sem a ferramenta de decisão é recusado', () => {
+  it('o agente sem a ferramenta não publica nem descarta, e nada muda', async () => {
     const d = (await doc('ag-c1'))!;
     const pub = await comoAgente(`/api/v1/projects/p-ag/documentos/${d.id}/versoes/2/publicar`, { method: 'POST' });
     expect(pub.status).toBe(403);
-    expect(await pub.text()).toContain('ato humano');
+    expect(await pub.text()).toContain('niso_publicar_documento');
     const desc = await comoAgente(`/api/v1/projects/p-ag/documentos/${d.id}/rascunho`, { method: 'DELETE', headers: { 'X-Agente-Confirmado': '1' } });
     expect(desc.status).toBe(403);
     expect((await controle('ag-c1'))?.description).toBe('Política vigente do cliente');
@@ -164,5 +164,23 @@ describe('o agente não contorna o rascunho por PUT /controls/:id', () => {
     const r = await comoHumano('/api/v1/controls/ag-c1', { method: 'PUT', body: JSON.stringify({ description: 'Ajuste humano' }) });
     expect(r.status).toBe(200);
     expect((await controle('ag-c1'))?.description).toBe('Ajuste humano');
+  });
+});
+
+describe('o agente decide pela ferramenta niso_publicar_documento', () => {
+  const DEC = (motivo: string) => ({ 'X-Agente-Ferramenta': 'niso_publicar_documento', 'X-Agente-Confirmado': '1', 'X-Agente-Motivo': encodeURIComponent(motivo) });
+
+  it('com ferramenta, confirmação e motivo o agente publica o rascunho e descarta outro', async () => {
+    await comoAgente('/api/v1/projects/p-ag/controls/ag-c1/policy', { method: 'POST', body: JSON.stringify({ text: 'Para publicar pelo agente' }) });
+    const d = (await doc('ag-c1'))!;
+    const n = d.versoes.find((v) => v.estado === 'rascunho')!.numero;
+    const pub = await comoAgente(`/api/v1/projects/p-ag/documentos/${d.id}/versoes/${n}/publicar`, { method: 'POST', headers: DEC('consultor aprovou o texto') });
+    expect(pub.status, await pub.clone().text()).toBe(200);
+    expect((await controle('ag-c1'))?.description).toBe('Para publicar pelo agente');
+
+    await comoAgente('/api/v1/projects/p-ag/controls/ag-c1/policy', { method: 'POST', body: JSON.stringify({ text: 'Para descartar pelo agente' }) });
+    const desc = await comoAgente(`/api/v1/projects/p-ag/documentos/${d.id}/rascunho`, { method: 'DELETE', headers: DEC('texto errado') });
+    expect(desc.status, await desc.clone().text()).toBe(200);
+    expect((await doc('ag-c1'))?.versoes.some((v) => v.estado === 'rascunho')).toBe(false);
   });
 });

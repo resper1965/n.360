@@ -48,14 +48,18 @@ describe('ficha em abas: montagem das rotas', () => {
 
   it('o agente é recusado nos atos humanos e NÃO é recusado na aba Agentes de Tratamento', async () => {
     const recusas: [string, string][] = [
-      ['POST', `${base(rid)}/situacao`], ['DELETE', `${base(rid)}/medidas/x`], ['DELETE', `${base(rid)}/gaps/x`],
+      ['DELETE', `${base(rid)}/medidas/x`], ['DELETE', `${base(rid)}/gaps/x`],
       ['POST', `${base(rid)}/gaps/x/anexos`], ['GET', `${base(rid)}/relatorio`], ['POST', `${base(rid)}/etapas/coleta/rascunho`],
     ];
     for (const [m, c] of recusas) {
       const r = await comoAgente(m, c);
       expect(r.status, `${m} ${c}`).toBe(403);
-      expect((await json(r)).error, `${m} ${c}`).toContain('fora do alcance do agente');
+      expect((await json(r)).error, `${m} ${c}`).toContain(m === 'DELETE' ? 'exigem confirmação' : 'fora do alcance do agente');
     }
+    // a situação é decisão do consultor: sem a ferramenta, 403 que a cita
+    const sit = await comoAgente('POST', `${base(rid)}/situacao`);
+    expect(sit.status).toBe(403);
+    expect((await json(sit)).error).toContain('niso_situacao_atividade');
     // `.../agentes` aqui é a aba (controlador/operador), não a gestão de concessões do agente.
     const ok = await comoAgente('PUT', `${base(rid)}/agentes`, {});
     expect(ok.status).toBe(200); // passou do corte do agente

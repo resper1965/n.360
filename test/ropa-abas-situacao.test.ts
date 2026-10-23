@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import { situacaoDaAtividade, acoesDoMenu } from '../src/services/ropa-abas/situacao';
-import { prepararProjeto, chamar, comoAgente, json, base, novaAtividade, aprovarTratamentoDeTeste, P, type Sessoes } from './helpers/ropa-abas';
+import { prepararProjeto, chamar, comoAgente, comoAgenteDecidindo, json, base, novaAtividade, aprovarTratamentoDeTeste, P, type Sessoes } from './helpers/ropa-abas';
 import { aprovacoesDoProjeto } from '../src/services/documentos';
 
 const ap = (ciso: string | null, ceo: string | null = null) => ({ ciso: ciso ? { por: 'Fulano', em: ciso } : null, ceo: ceo ? { por: 'Beltrana', em: ceo } : null });
@@ -147,14 +147,21 @@ describe('POST /situacao (a máquina de estados sobre a aprovação por pedido)'
     expect(await status(rid)).toBe('Draft');
   });
 
-  it('o agente MCP nunca muda a situação (403 nas quatro ações)', async () => {
+  it('o agente MCP sem a ferramenta não muda a situação (403 nas quatro ações)', async () => {
     const rid = await novaAtividade(s.consultor);
     for (const corpo of [{ acao: 'enviar_revisao' }, { acao: 'reativar' }, { acao: 'reabrir', motivo: 'motivo válido' }, { acao: 'cancelar', motivo: 'motivo válido' }]) {
       const r = await comoAgente('POST', `${base(rid)}/situacao`, corpo);
       expect(r.status, JSON.stringify(corpo)).toBe(403);
-      expect((await json(r)).error).toContain('fora do alcance do agente');
+      expect((await json(r)).error).toContain('niso_situacao_atividade');
     }
     expect(await status(rid)).toBe('Draft');
+  });
+
+  it('o agente muda a situação pela ferramenta niso_situacao_atividade, com confirmação e motivo', async () => {
+    const rid = await novaAtividade(s.consultor);
+    const r = await comoAgenteDecidindo('niso_situacao_atividade', 'POST', `${base(rid)}/situacao`, { acao: 'enviar_revisao' });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await ficha(rid)).situacao.codigo).toBe('em_revisao');
   });
 
   it('a trilha: uma linha por seção sem o motivo e uma ropa.situacao com o motivo em justification', async () => {
