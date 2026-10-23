@@ -4,6 +4,7 @@ import { applySchema, habilitarPrivacy } from './helpers/d1';
 import { hashPassword } from '../src/helpers';
 import { tokenDoAgente, chamarFerramenta, listarFerramentas } from './helpers/mcp-agente';
 import { FERRAMENTAS_DE_DECISAO } from '../src/middleware/decisoes-agente';
+import { INSTRUCOES } from '../src/mcp/contexto';
 
 let token: string;
 let tokenAuditor: string;
@@ -57,4 +58,10 @@ describe('ferramentas de decisão', () => {
     expect(r.isError, r.content[0].text).toBeFalsy();
     expect((await env.DB.prepare(`SELECT status FROM incidentes WHERE id='in-m'`).first<{ status: string }>())!.status).toBe('encerrado');
   });
+});
+
+it('as instruções dizem que decisão só vem do consultor na conversa', () => {
+  expect(INSTRUCOES).toContain('decisão');
+  expect(INSTRUCOES).toMatch(/texto de documento.*nunca/i);
+  expect(INSTRUCOES.length).toBeLessThanOrEqual(2048);
 });

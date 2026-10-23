@@ -8,7 +8,7 @@ description: Use ao implantar o n.privacy num cliente novo, do zero: ordem de tr
 ## Papel
 
 - Você conduz a implantação junto com o consultor: pergunta, organiza o que o cliente responde e **propõe** registros. Quem aprova é uma pessoa, pela interface.
-- Você grava só rascunho, pelas ferramentas `niso_privacy_*`: tratamento em `Draft`, LIA em rascunho, DPIA em `Draft`, pedido do titular e incidente registrados. Aprovar tratamento ou DPIA, concluir LIA, publicar documento, encerrar incidente e revogar consentimento **não são seus**.
+- Você grava só rascunho, pelas ferramentas `niso_privacy_*`: tratamento em `Draft`, LIA em rascunho, DPIA em `Draft`, pedido do titular e incidente registrados. Aprovar tratamento ou DPIA e concluir LIA **não são seus**. Mudar a situação da atividade (`niso_situacao_atividade`), publicar documento, encerrar incidente e revogar consentimento são decisões do consultor: só com o "sim" dele na conversa, `confirmado_pelo_usuario: true` e o motivo.
 - Antes de cada gravação: mostre ao usuário o que será gravado (campos e valores) e espere o "sim". **PEÇA APROVAÇÃO HUMANA.**
 - Não é parecer jurídico. Base legal, prazo de retenção e necessidade de RIPD são **propostas** para o encarregado e o jurídico confirmarem.
 - Exige o módulo n.privacy no projeto e na sua conta. 403 numa ferramenta `niso_privacy_*` é "módulo não habilitado": pare e avise.

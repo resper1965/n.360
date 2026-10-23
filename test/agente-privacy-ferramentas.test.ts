@@ -69,7 +69,7 @@ describe('ferramentas nomeadas do n.privacy (definições)', () => {
     const r5 = ROTEIROS.split('\n').find((l) => l.startsWith('5.'))!;
     for (const b of ['Escopo', 'Tratamento de Dados', 'Agentes de Tratamento', 'Medidas de Segurança', 'Base Jurídica', 'Controle de GAPs', 'Teste de Impacto', 'Riscos', 'Logs']) expect(r5, b).toContain(b);
     expect(r5.indexOf('Escopo')).toBeLessThan(r5.indexOf('Logs'));
-    expect(r5).toContain('Situação, anexos, relatório, apagar medida ou gap e aprovação são de uma pessoa');
+    expect(r5).toContain('anexos, relatório e aprovação são de uma pessoa');
     for (const n of LEITURA) expect(ROTEIROS_AUDITOR, n).toContain(n);
   });
 });
@@ -113,7 +113,7 @@ describe('ferramentas nomeadas do n.privacy (MCP remoto)', () => {
     for (const n of LEITURA) expect(aud, n).toContain(n);
     for (const n of ESCRITA) expect(aud, n).not.toContain(n);
     // Contagem citada em docs/agente/README.md e mcp-server-niso/README.md.
-    expect([cons.length, aud.length]).toEqual([40, 22]);
+    expect([cons.length, aud.length]).toEqual([50, 22]);
   });
 
   it('propor_tratamento cria em Draft com os campos da entrevista e a base do catálogo; não aceita status', async () => {

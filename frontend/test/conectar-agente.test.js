@@ -169,9 +169,9 @@ describe('Conectar agente — o que a tela afirma', () => {
     const blocos = [...c.querySelectorAll('.ca-alcance > .ca-alc')];
     expect(blocos).toHaveLength(4);
     // as duas plataformas, e o que é da tela e não do agente
-    for (const t of ['n.iso', 'n.privacy', 'ropa', 'dpia', 'requisitos', 'pedidos do titular', 'incidentes', 'terceiros', 'rascunhos de ia do n.privacy', 'importação de programa']) expect(c.querySelector('.ca-alcance').textContent.toLowerCase(), t).toContain(t);
+    for (const t of ['n.iso', 'n.privacy', 'ropa', 'dpia', 'requisitos', 'pedidos do titular', 'incidentes', 'terceiros', 'atos do cliente', 'o agente decide como o consultor']) expect(c.querySelector('.ca-alcance').textContent.toLowerCase(), t).toContain(t);
     const t = c.querySelector('.ca-alcance').textContent.toLowerCase();
-    for (const pede of ['apagar', 'gerar políticas em lote', 'eliminar dados de titular', 'revogar aprovações']) expect(t, pede).toContain(pede);
+    for (const pede of ['apagar', 'gerar políticas em lote', 'decidir como consultor']) expect(t, pede).toContain(pede);
     for (const nao of ['usuários', 'sso', 'chaves de api', 'webhooks', 'achado de auditoria']) expect(t, nao).toContain(nao);
     const destacado = c.querySelectorAll('.ca-alc-sim');
     expect(destacado).toHaveLength(1);
