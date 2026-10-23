@@ -136,3 +136,16 @@ describe('a nota do controle não vira versão', () => {
     expect(doc.versoes[0]).toMatchObject({ texto: '# Política aprovada antiga', estado: 'vigente' });
   });
 });
+
+describe('controle aprovado com description diferente do histórico', () => {
+  it('a description aprovada entra como a última versão (vigente)', async () => {
+    await env.DB.batch([
+      controle('imp-aprov', 'proj-a', 'A.5.10 Uso aceitável', 'Implemented', 'Texto aprovado', 'ciso@x'),
+      versaoAntiga('imp-aprov', 'proj-a', 1, '# Política v1'),
+    ]);
+    await chamar(plat, 'POST', `${A}/documentos/importar`);
+    const doc = (await docDoControle('imp-aprov'))!;
+    expect(doc.versoes.map((v) => v.texto)).toEqual(['# Política v1', 'Texto aprovado']);
+    expect(doc.versoes.at(-1)).toMatchObject({ estado: 'vigente', texto: 'Texto aprovado' });
+  });
+});

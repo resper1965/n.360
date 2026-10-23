@@ -47,3 +47,17 @@ describe('cobertura de políticas', () => {
     expect(r).toEqual({ aplicaveis: 0, cobertos: 0, sem_cobertura: [], por_controle: {}, por_documento: {} });
   });
 });
+
+describe('cobertura sem o n.iso', () => {
+  it('projeto só com privacy: forma vazia', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-cob-priv', 'Cliente Priv', 'LGPD', 'controller', 'Active', 'org_ness')`),
+      env.DB.prepare(`INSERT INTO projeto_modulos (project_id, modulo) VALUES ('p-cob-priv', 'privacy')`),
+      env.DB.prepare(`DELETE FROM projeto_modulos WHERE project_id = 'p-cob-priv' AND modulo = 'iso'`),
+      env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status) VALUES ('cc-priv', 'p-cob-priv', 'ISO 27001', 'A.5.1', 'Missing')`),
+    ]);
+    const res = await app.fetch(new Request('http://localhost/api/v1/projects/p-cob-priv/documentos/cobertura', { headers: s }), workerEnv());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ aplicaveis: 0, cobertos: 0, sem_cobertura: [], por_controle: {}, por_documento: {} });
+  });
+});

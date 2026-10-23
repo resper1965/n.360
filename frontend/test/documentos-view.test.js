@@ -480,7 +480,7 @@ describe('cobertura e texto inteiro (políticas temáticas)', () => {
         expect(el('docs-sem-cobertura').querySelector('b')).toBeNull();
         expect([...el('c').querySelectorAll('thead th')].map((t) => t.textContent)).toContain('Controles');
         expect(el('c').querySelector('tbody tr').textContent).toContain('7');
-        expect(S.coberturaPoliticas.cobertos).toBe(2);
+        expect(el('c').querySelector('#docs-cobertura').textContent).toContain('2 de ');
     });
 
     it('abre o documento com o texto inteiro renderizado, sem caixa de rolagem', async () => {

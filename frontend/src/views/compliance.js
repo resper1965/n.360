@@ -68,11 +68,12 @@ import { classeDoControle } from '../classe-controle.js';
     async function preencherCobertura(c, projectId) {
         let cob;
         try { cob = await api('GET', `/api/v1/projects/${projectId}/documentos/cobertura`); } catch (e) { return; }
-        S.coberturaPoliticas = cob;
+        if (S.currentProject?.id !== projectId || S.view !== 'controls') return;
         c.querySelectorAll('[data-cobertura]').forEach((el) => {
             const docs = cob?.por_controle?.[el.dataset.cobertura] || [];
             const vigente = docs.find((d) => d.status === 'vigente');
-            el.textContent = vigente ? `Coberto por ${vigente.titulo}` : docs.length ? `Política em rascunho: ${docs[0].titulo}` : 'Sem política';
+            const na = (S.controls || []).find((x) => x.id === el.dataset.cobertura)?.status === 'Not Applicable';
+            el.textContent = na ? '' : vigente ? `Coberto por ${vigente.titulo}` : docs.length ? `Política em rascunho: ${docs[0].titulo}` : 'Sem política';
         });
     }
 

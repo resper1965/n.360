@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500 } from '../helpers';
 import { alvoDaPublicacao, atualizarDocumento, cienciasDoDocumento, criarDocumento, descartarRascunho, excluirDocumento, importarDocumentos, lerDocumento, listarDocumentos, marcarRevisado, publicarVersao, salvarRascunho } from '../services/documentos';
+import { recusaDoModulo } from '../modulos';
 import { coberturaDePoliticas } from '../services/cobertura-politicas';
 import { aplicarTextoNoControle } from '../services/politica-escrita';
 import { atualizarExcecao, criarExcecao, listarExcecoes, revogarExcecao } from '../services/excecoes';
@@ -17,7 +18,12 @@ export const documentosApp = new Hono<{ Bindings: Bindings; Variables: Variables
 documentosApp.get('/documentos', async (c) => c.json(await listarDocumentos(c.env.DB, c.req.param('projectId')!)));
 
 // Antes de '/documentos/:id': senão "cobertura" vira id.
-documentosApp.get('/documentos/cobertura', async (c) => c.json(await coberturaDePoliticas(c.env.DB, c.req.param('projectId')!)));
+documentosApp.get('/documentos/cobertura', async (c) => {
+  const projectId = c.req.param('projectId')!;
+  // Cobertura é de controle (n.iso): sem o módulo no projeto ou na pessoa, a forma vazia (a tela de documentos do n.privacy segue).
+  if (await recusaDoModulo(c.env.DB, c.get('user'), projectId, 'iso')) return c.json({ aplicaveis: 0, cobertos: 0, sem_cobertura: [], por_controle: {}, por_documento: {} });
+  return c.json(await coberturaDePoliticas(c.env.DB, projectId));
+});
 
 documentosApp.get('/documentos/:id', async (c) => {
   const d = await lerDocumento(c.env.DB, c.req.param('projectId')!, c.req.param('id'));

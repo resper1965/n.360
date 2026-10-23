@@ -16,6 +16,7 @@ describe('cobertura nos controles', () => {
     apiMock.mockReset();
     apiMock.mockResolvedValue(cob);
     S.currentProject = { id: 'p1' };
+    S.view = 'controls';
     S.controls = ['cc-15', 'cc-24', 'cc-30'].map(id => ({ id, project_id: 'p1', title: `A.5.1 ${id}`, status: 'Missing' }));
     const c = document.createElement('div');
     window.renderControls(c, document.createElement('div'), document.createElement('div'));
@@ -25,5 +26,17 @@ describe('cobertura nos controles', () => {
     expect(c.querySelector('[data-cobertura="cc-24"]').textContent).toContain('Sem política');
     expect(c.querySelector('[data-cobertura="cc-30"]').textContent).toContain('<b>Rascunho</b>');
     expect(c.querySelector('[data-cobertura="cc-30"] b')).toBeNull();
+  });
+
+  it('controle Não aplicável fica com a célula vazia', async () => {
+    apiMock.mockReset();
+    apiMock.mockResolvedValue(cob);
+    S.currentProject = { id: 'p1' };
+    S.view = 'controls';
+    S.controls = [{ id: 'cc-24', project_id: 'p1', title: 'A.5.24', status: 'Not Applicable' }];
+    const c = document.createElement('div');
+    window.renderControls(c, document.createElement('div'), document.createElement('div'));
+    await new Promise(r => setTimeout(r, 0));
+    expect(c.querySelector('[data-cobertura="cc-24"]').textContent).toBe('');
   });
 });

@@ -132,7 +132,7 @@ export async function publicarVersao(
   return { ok: true, numero };
 }
 
-type ControleDePolitica = { id: string; title: string; description: string | null };
+type ControleDePolitica = { id: string; title: string; description: string | null; ciso_approved_by?: string | null; ceo_approved_by?: string | null };
 
 /** O controle `c` é política: tem versão, aprovação CISO/CEO ou pedido de política. Um só lugar para as três consultas. */
 const SINAL_DE_POLITICA = `(EXISTS (SELECT 1 FROM policy_versions pv WHERE pv.control_id = c.id)
@@ -143,13 +143,16 @@ type VersaoDeHistorico = { texto: string; por: string | null };
 /**
  * Cria o documento de UM controle a partir do histórico (`policy_versions`). A última versão é a vigente. O texto atual do
  * controle (`description`) só entra quando NÃO há histórico: com histórico, `description` diferente é nota ou justificativa do
- * controle, não política (foi assim que uma nota de governança virou a política vigente). Devolve `null` sem texto nenhum.
+ * controle, não política (foi assim que uma nota de governança virou a política vigente). Exceção: se o controle tem aprovação
+ * CISO/CEO, a `description` diferente é o texto aprovado e entra como a última versão (vigente). Devolve `null` sem texto nenhum.
  * Um batch: documento e versões entram juntos ou não entram.
  */
 async function importarControle(
   db: D1Database, projectId: string, c: ControleDePolitica, historico: VersaoDeHistorico[], ator: string,
 ): Promise<{ id: string; versoes: number } | null> {
   const versoes = historico.length ? [...historico] : c.description?.trim() ? [{ texto: c.description, por: ator }] : [];
+  const aprovado = c.ciso_approved_by || c.ceo_approved_by;
+  if (historico.length && aprovado && c.description?.trim() && c.description !== historico[historico.length - 1].texto) versoes.push({ texto: c.description, por: ator });
   if (!versoes.length) return null;
 
   const id = crypto.randomUUID();
@@ -182,7 +185,7 @@ export type ResumoImportacaoDocumentos = {
 export async function importarDocumentos(db: D1Database, projectId: string, ator: string): Promise<ResumoImportacaoDocumentos> {
   const [controles, historico] = await Promise.all([
     db.prepare(
-      `SELECT c.id, c.title, c.description, c.status,
+      `SELECT c.id, c.title, c.description, c.status, c.ciso_approved_by, c.ceo_approved_by,
          EXISTS (SELECT 1 FROM documentos d WHERE d.origem_control_id = c.id) AS ja
        FROM compliance_controls c
        WHERE c.project_id = ?
@@ -245,7 +248,7 @@ export async function garantirDocumentoDoControle(db: D1Database, projectId: str
   if (existente) return existente.id;
 
   const c = await db.prepare(
-    `SELECT c.id, c.title, c.description, c.status,
+    `SELECT c.id, c.title, c.description, c.status, c.ciso_approved_by, c.ceo_approved_by,
        ${SINAL_DE_POLITICA} AS sinal
      FROM compliance_controls c WHERE c.id = ? AND c.project_id = ?`
   ).bind(controlId, projectId).first<ControleDePolitica & { status: string | null; sinal: number }>();

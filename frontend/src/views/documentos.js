@@ -84,7 +84,6 @@ async function renderDocumentos(c, h, a) {
     S.documentos = docs;
     let cob = { aplicaveis: 0, cobertos: 0, sem_cobertura: [], por_controle: {}, por_documento: {} };
     try { const r = await api('GET', `/api/v1/projects/${proj.id}/documentos/cobertura`); if (r && r.por_documento) cob = r; } catch (e) { /* sem cobertura, a lista segue */ }
-    S.coberturaPoliticas = cob;
 
     // A lista segue a ordem da árvore, com o recuo na coluna do título; com busca ou filtro ela fica plana, sem recuo (a filha
     // sem a mãe não fica recuada sob outro documento).
@@ -186,11 +185,12 @@ window.openDocumentoModal = async function (projectId, id) {
     let ciencias = [];
     let excecoes = [];
     let requisitos = [];
+    let requisitosOk = true; // sem a leitura, ligar um requisito faria o PUT substituir os que existem
     let catalogo = [];
     try { d = await api('GET', `/api/v1/projects/${projectId}/documentos/${id}`); } catch (e) { falha(e, 'Não foi possível abrir o documento'); return; }
     try { ciencias = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/ciencias`)); } catch (e) { /* o resto do documento abre sem as ciências */ }
     try { excecoes = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/excecoes`)); } catch (e) { /* idem, sem as exceções */ }
-    try { requisitos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/requisitos`)); } catch (e) { /* idem, sem os requisitos */ }
+    try { requisitos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/requisitos`)); } catch (e) { requisitosOk = false; }
     const editar = podeEditar();
     if (editar) { try { catalogo = lista(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ } }
     S.docRequisitos = requisitos.map((r) => r.id);
@@ -273,7 +273,7 @@ window.openDocumentoModal = async function (projectId, id) {
         <div id="doc-requisitos">
             ${requisitos.length ? requisitos.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)}${editar ? ` <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoDocumento" data-args='${args(projectId, id, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">×</button>` : ''}</span>`).join(' ')
                 : window.renderEmptyState({ titulo: 'Nenhum requisito ligado a este documento.', compacto: true })}
-            ${editar && catalogo.length ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; margin-top:0.75rem">
+            ${editar && requisitosOk && catalogo.length ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; margin-top:0.75rem">
                 <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="doc-req-add">Ligar requisito</label>
                     <select class="form-input" id="doc-req-add"><option value="">— escolha —</option>${catalogo.filter((r) => !requisitos.some((x) => x.id === r.id))
                         .map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} — ${escapeHTML(r.titulo)}</option>`).join('')}</select></div>
