@@ -66,7 +66,7 @@ describe('importar as políticas que já existem', () => {
   it('traz só o que é política, renumera as versões e deixa o texto atual como vigente', async () => {
     const r = await chamar(plat, 'POST', `${A}/documentos/importar`);
     expect(r.status).toBe(200);
-    expect(await json(r)).toEqual({ ok: true, criados: 4, ja_existiam: 0, versoes: 6, ignorados_nao_aplicavel: 1, ignorados_sem_texto: 1, avisos: [] });
+    expect(await json(r)).toEqual({ ok: true, criados: 4, ja_existiam: 0, versoes: 5, ignorados_nao_aplicavel: 1, ignorados_sem_texto: 1, avisos: [] });
 
     const c1 = (await docDoControle('imp-c1'))!;
     expect(c1).toMatchObject({ titulo: 'A.5.1 Política Um', tipo: 'politica', status: 'vigente', versao_vigente: 2 });
@@ -77,9 +77,9 @@ describe('importar as políticas que já existem', () => {
 
     expect((await docDoControle('imp-c5'))!.versoes.map((v) => v.texto)).toEqual(['Texto E']);
 
-    // texto atual diferente da última versão: entra mais uma, vigente
+    // com histórico, a description diferente é nota: não vira versão
     const c6 = (await docDoControle('imp-c6'))!;
-    expect(c6.versoes.map((v) => [v.numero, v.estado, v.texto])).toEqual([[1, 'substituida', 'Texto antigo'], [2, 'vigente', 'Texto novo']]);
+    expect(c6.versoes.map((v) => [v.numero, v.estado, v.texto])).toEqual([[1, 'vigente', 'Texto antigo']]);
 
     for (const id of ['imp-c3', 'imp-c4', 'imp-c7']) expect(await docDoControle(id), id).toBeNull();
   });
@@ -97,7 +97,7 @@ describe('importar as políticas que já existem', () => {
     const r = await chamar(plat, 'POST', `${A}/documentos/importar`);
     expect(await json(r)).toEqual({ ok: true, criados: 0, ja_existiam: 4, versoes: 0, ignorados_nao_aplicavel: 1, ignorados_sem_texto: 1, avisos: [] });
     expect((await env.DB.prepare(`SELECT count(*) AS n FROM documentos WHERE project_id = 'proj-a'`).first<{ n: number }>())?.n).toBe(4);
-    expect((await env.DB.prepare(`SELECT count(*) AS n FROM documento_versoes WHERE project_id = 'proj-a'`).first<{ n: number }>())?.n).toBe(6);
+    expect((await env.DB.prepare(`SELECT count(*) AS n FROM documento_versoes WHERE project_id = 'proj-a'`).first<{ n: number }>())?.n).toBe(5);
   });
 
   it('o outro projeto não foi tocado; importar nele traz o dele', async () => {
@@ -111,5 +111,28 @@ describe('importar as políticas que já existem', () => {
     expect(t?.project_id).toBeTruthy();
     expect(await env.DB.prepare(`SELECT description FROM compliance_controls WHERE id = 'imp-c6'`).first()).toEqual({ description: 'Texto novo' });
     expect((await env.DB.prepare(`SELECT count(*) AS n FROM policy_versions WHERE control_id = 'imp-c1'`).first<{ n: number }>())?.n).toBe(2);
+  });
+});
+
+describe('a nota do controle não vira versão', () => {
+  it('com histórico, a description diferente NÃO entra: a vigente é a última de policy_versions', async () => {
+    await env.DB.batch([
+      controle('imp-nota', 'proj-a', 'A.5.8 Políticas', 'In Progress', 'Nota de governança do controle'),
+      versaoAntiga('imp-nota', 'proj-a', 1, '# Política completa v1'),
+      versaoAntiga('imp-nota', 'proj-a', 2, '# Política completa v2'),
+    ]);
+    const r = await chamar(plat, 'POST', `${A}/documentos/importar`);
+    expect(r.status).toBe(200);
+    const doc = (await docDoControle('imp-nota'))!;
+    expect(doc.versoes.map((v) => v.texto)).toEqual(['# Política completa v1', '# Política completa v2']);
+    expect(doc.versoes.at(-1)).toMatchObject({ estado: 'vigente', texto: '# Política completa v2' });
+  });
+
+  it('sem histórico, a description segue entrando', async () => {
+    await controle('imp-so-desc', 'proj-a', 'A.5.9 Papéis', 'Implemented', '# Política aprovada antiga', 'ciso@x').run();
+    await chamar(plat, 'POST', `${A}/documentos/importar`);
+    const doc = (await docDoControle('imp-so-desc'))!;
+    expect(doc.versoes).toHaveLength(1);
+    expect(doc.versoes[0]).toMatchObject({ texto: '# Política aprovada antiga', estado: 'vigente' });
   });
 });

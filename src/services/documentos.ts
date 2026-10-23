@@ -141,15 +141,15 @@ const SINAL_DE_POLITICA = `(EXISTS (SELECT 1 FROM policy_versions pv WHERE pv.co
 type VersaoDeHistorico = { texto: string; por: string | null };
 
 /**
- * Cria o documento de UM controle a partir do histórico (`policy_versions`) e do texto atual. A última versão é a
- * vigente. Devolve `null` quando não há texto nenhum (nem histórico, nem `description`). Um batch: documento e
- * versões entram juntos ou não entram.
+ * Cria o documento de UM controle a partir do histórico (`policy_versions`). A última versão é a vigente. O texto atual do
+ * controle (`description`) só entra quando NÃO há histórico: com histórico, `description` diferente é nota ou justificativa do
+ * controle, não política (foi assim que uma nota de governança virou a política vigente). Devolve `null` sem texto nenhum.
+ * Um batch: documento e versões entram juntos ou não entram.
  */
 async function importarControle(
   db: D1Database, projectId: string, c: ControleDePolitica, historico: VersaoDeHistorico[], ator: string,
 ): Promise<{ id: string; versoes: number } | null> {
-  const versoes = [...historico];
-  if (c.description?.trim() && versoes.at(-1)?.texto !== c.description) versoes.push({ texto: c.description, por: ator });
+  const versoes = historico.length ? [...historico] : c.description?.trim() ? [{ texto: c.description, por: ator }] : [];
   if (!versoes.length) return null;
 
   const id = crypto.randomUUID();
@@ -175,8 +175,8 @@ export type ResumoImportacaoDocumentos = {
  * versão em `policy_versions`, aprovação CISO/CEO ou pedido `tipo = 'politica'`. Controle "Não aplicável"
  * fica de fora: ali `description` é a justificativa da SoA.
  *
- * As versões vêm de `policy_versions` em ordem, renumeradas de 1 a n; se o texto atual do controle difere da
- * última (ou não há versões), entra mais uma com ele. A última é a vigente. Repetível: o controle que já tem
+ * As versões vêm de `policy_versions` em ordem, renumeradas de 1 a n; o texto atual do controle só entra
+ * quando não há versões. A última é a vigente. Repetível: o controle que já tem
  * documento (`origem_control_id`) é pulado. Um batch por controle: documento e versões entram juntos ou não entram.
  */
 export async function importarDocumentos(db: D1Database, projectId: string, ator: string): Promise<ResumoImportacaoDocumentos> {
