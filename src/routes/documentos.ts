@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500 } from '../helpers';
 import { alvoDaPublicacao, atualizarDocumento, cienciasDoDocumento, criarDocumento, descartarRascunho, excluirDocumento, importarDocumentos, lerDocumento, listarDocumentos, marcarRevisado, publicarVersao, salvarRascunho } from '../services/documentos';
+import { coberturaDePoliticas } from '../services/cobertura-politicas';
 import { aplicarTextoNoControle } from '../services/politica-escrita';
 import { atualizarExcecao, criarExcecao, listarExcecoes, revogarExcecao } from '../services/excecoes';
 import { conferirPedidosDoDocumento } from './pedidos';
@@ -14,6 +15,9 @@ import { validateBody, documentoAtualizarSchema, documentoCriarSchema, excecaoAt
 export const documentosApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 documentosApp.get('/documentos', async (c) => c.json(await listarDocumentos(c.env.DB, c.req.param('projectId')!)));
+
+// Antes de '/documentos/:id': senão "cobertura" vira id.
+documentosApp.get('/documentos/cobertura', async (c) => c.json(await coberturaDePoliticas(c.env.DB, c.req.param('projectId')!)));
 
 documentosApp.get('/documentos/:id', async (c) => {
   const d = await lerDocumento(c.env.DB, c.req.param('projectId')!, c.req.param('id'));
