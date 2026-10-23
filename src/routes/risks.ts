@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { genId, logAudit, requireResourceAccess, erro500, ForbiddenError, refForaDoProjeto } from '../helpers';
 import { validateBody, createRiskSchema, riskUpdateSchema } from '../schemas';
-import { riskLevel, residualLevel, carimboDeAceite } from '../services/riscos-atividade';
+import { riskLevel, residualLevel, carimboDeAceite, aceiteCaiu } from '../services/riscos-atividade';
 
 const risks = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -119,7 +119,8 @@ risks.put('/api/v1/risks/:id', async (c) => {
     const residualProbability = anulavel('residual_probability');
     // Aceite carimbado pelo servidor só na transição para Accepted; accepted_by/accepted_at do corpo são ignorados.
     const email = c.get('user')?.email ?? 'system';
-    const status = obrigatoria('status');
+    const caiu = aceiteCaiu(atual as Parameters<typeof aceiteCaiu>[0], { impact, probability, residual_impact: residualImpact, residual_probability: residualProbability, status: obrigatoria('status') });
+    const status = caiu ? 'Open' : obrigatoria('status');
     const aceite = carimboDeAceite(atual.status, status, email);
 
     await c.env.DB.prepare(
@@ -138,9 +139,9 @@ risks.put('/api/v1/risks/:id', async (c) => {
       anulavel('owner'),
       anulavel('owner_parte_id', true),
       status,
-      aceite?.accepted_by ?? atual.accepted_by,
-      aceite?.accepted_at ?? atual.accepted_at,
-      aceite ? 1 : 0, // aceite novo pelo servidor deixa de ser "registrado à mão"
+      caiu ? null : aceite?.accepted_by ?? atual.accepted_by,
+      caiu ? null : aceite?.accepted_at ?? atual.accepted_at,
+      aceite || caiu ? 1 : 0, // aceite novo pelo servidor (ou desfeito) deixa de ser "registrado à mão"
       anulavel('ropa_id', true),
       residualImpact,
       residualProbability,
@@ -158,6 +159,7 @@ risks.put('/api/v1/risks/:id', async (c) => {
       ).bind(histId, id, projectId, impact, probability, level).run();
     }
     if (aceite) await logAudit(c.env.DB, 'risk.aceito', email, `Risco ${id} aceito`, '', '', projectId);
+    if (caiu) await logAudit(c.env.DB, 'risk.aceite_invalidado', email, `Risco ${id}: as notas mudaram depois do aceite; voltou a Aberto`, '', '', projectId);
 
     return c.json({ ok: true, id, risk_level: level });
   } catch (e: any) {

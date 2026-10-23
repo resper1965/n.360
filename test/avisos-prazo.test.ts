@@ -277,6 +277,8 @@ describe('rotina avisosDePrazo', () => {
       db().prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('p-priv', 'Carla', 'cons@ness.lat', 'consultor', 'Consultor')`),
       db().prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('rp-1', 'p-priv', 'Folha')`),
       db().prepare(`INSERT INTO corrective_actions (id, project_id, ropa_id, title, due_date, status) VALUES ('cap-priv', 'p-priv', 'rp-1', 'Ajustar retenção', '2026-10-07', 'Open')`),
+      // a ação da atividade é do n.privacy: só quem tem o módulo recebe o aviso
+      db().prepare(`INSERT OR IGNORE INTO usuario_modulos (user_id, modulo) VALUES ('u-cons', 'privacy')`),
     ]);
     await avisosDePrazo(SEM_CHAVE(), HOJE);
     const links = (await notificacoes()).filter((n) => n.type === 'prazo_capa').map((n) => n.link).sort();

@@ -601,7 +601,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   STORAGE e TRILHA (R2), AI, ANALYTICS (Analytics Engine), CF_VERSION_METADATA, ASSETS.
 - **Rotinas agendadas** (`grep -A2 '"triggers"' wrangler.jsonc`): `10 4 * * *` roda a manutencao
   (`src/manutencao.ts`, purga, retencao e semeadura idempotente do catalogo de requisitos) e `0 11 * * *` (08:00 em Brasilia) os avisos de prazo
-  (`src/services/avisos-prazo.ts`: sino em D-7 e D0, aviso agregado por pessoa e projeto no atraso,
+  (`src/services/avisos-prazo.ts`: sino em D-7 e D0, aviso agregado por pessoa e projeto no atraso, so a quem tem o modulo da fonte (`FAIXA_DA_FONTE`),
   e-mail-resumo; idempotencia em `avisos_prazo`); `*/15 * * * *` a sonda interna (`src/services/sonda.ts`:
   D1, KV e R2; um e-mail para `ALERTA_EMAIL` na queda e um na volta, estado nos dois KV). O
   `scheduled` de `src/index.ts` despacha por `event.cron`; cron desconhecido cai na manutencao.
@@ -668,7 +668,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (1) RIPD: uma assinatura (DPO ou Direcao) aprova (`assinaturaDpia`); mudar coluna de conteudo (`COLUNAS_DPIA`) num RIPD assinado zera as
   assinaturas, volta a `Draft` e grava `dpia.aprovacao_invalidada` (`PUT /dpia/:id`, `src/routes/platform.ts`). (2) Aceite de risco e um
   modelo so: `status = Accepted`, com `accepted_by`/`accepted_at` carimbados pela sessao na transicao (`carimboDeAceite` em
-  `src/services/riscos-atividade.ts`, usado por `/risks` e pelas sub-rotas da atividade); o corpo nunca define quem nem quando; botao
+  `src/services/riscos-atividade.ts`, usado por `/risks` e pelas sub-rotas da atividade); o corpo nunca define quem nem quando; mudar
+  impacto, probabilidade ou residual de risco aceito o devolve a `Open` sem o aceite (`aceiteCaiu`, trilha `risk.aceite_invalidado`); botao
   "Aceitar risco" nos dois modulos (`frontend/src/aceite-risco.js`); a migration 0082 levou o aceite digitado antigo a `Accepted` com
   `risks.aceite_manual = 1` ("Aceite registrado a mao"). (3) DPA: a fonte e o documento ligado ao fornecedor (`documento_partes`, papel
   `dpa`; `SQL_TEM_DPA` em `src/services/terceiros.ts`); o indice de confianca, a lista, a ficha e o CSV leem dali; `vendors.dpa_signed`/
@@ -742,7 +743,9 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   reabrem o buraco.
 - **Direitos do titular nao cobrem PII em texto livre.** A busca e por igualdade
   em colunas conhecidas (`FONTES_PII` em `src/services/data-subject.ts`).
-- **`npm audit` esta em zero nos tres pacotes** (2026-10-14, `npm audit` em cada um: raiz, `frontend` e
+- **`npm audit --omit=dev` esta em zero na raiz** (2026-10-23; `vite` e `ip-address`, puxados pelo `agents`, presos por `overrides`;
+  `@cloudflare/vitest-pool-workers`, `typescript` e `wrangler` ficam em `devDependencies`). O `npm audit` completo aponta o
+  `@vitest/mocker` (so ferramenta de teste). Em 2026-10-14 estava em zero nos tres pacotes (`npm audit` em cada um: raiz, `frontend` e
   `mcp-server-niso`). Em 06/10 a raiz tinha 4 (o `undici` puxado por `miniflare`/`wrangler`); o #297
   fixou `undici`, `sharp` e os pacotes MCP por `overrides` no `package.json`, sem rebaixar o pool de
   testes. O job `audit` do CI segue informativo (`continue-on-error`). Rode `npm audit` antes de repetir

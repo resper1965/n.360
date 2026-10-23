@@ -138,7 +138,9 @@ export async function atualizarPedido(db: D1Database, projectId: string, id: str
   if (d.prazo_em !== undefined) { sets.push('prazo_em = ?'); binds.push(d.prazo_em); }
   if (d.descricao !== undefined) { sets.push('descricao = ?'); binds.push(d.descricao); }
   if (encerrando) { sets.push('respondido_em = ?'); binds.push(new Date().toISOString()); }
-  await db.prepare(`UPDATE titular_pedidos SET ${sets.join(', ')} WHERE id = ? AND project_id = ?`).bind(...binds, id, projectId).run();
+  // O status lido vai na WHERE: se outra pessoa respondeu, negou ou arquivou no meio, nada é sobrescrito.
+  const r = await db.prepare(`UPDATE titular_pedidos SET ${sets.join(', ')} WHERE id = ? AND project_id = ? AND status = ?`).bind(...binds, id, projectId, atual.status).run();
+  if (!r.meta.changes) return falha(409, 'O pedido mudou enquanto você editava; recarregue');
   await logAudit(db, 'titular.pedido_atualizado', ator, `Pedido ${atual.protocolo}: ${atual.status} → ${novo}${d.prazo_em !== undefined ? '; prazo alterado à mão' : ''}`, '', '', projectId);
   return { ok: true };
 }

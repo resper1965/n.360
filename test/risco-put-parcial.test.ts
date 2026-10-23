@@ -42,18 +42,21 @@ describe('PUT /risks/:id parcial', () => {
     const antes = await env.DB.prepare('SELECT count(*) n FROM risk_history WHERE risk_id = ?').bind('rp-r1').first<any>();
     const r = await chamar(consultor, 'PUT', '/api/v1/risks/rp-r1', { impact: 5 });
     expect(r.status).toBe(200);
-    expect(await ler()).toMatchObject({ impact: 5, probability: 3, risk_level: 'High' });
+    expect(await ler()).toMatchObject({ impact: 5, probability: 3, risk_level: 'High', status: 'Open', accepted_by: null });
     const depois = await env.DB.prepare('SELECT count(*) n FROM risk_history WHERE risk_id = ?').bind('rp-r1').first<any>();
     expect(depois.n).toBe(antes.n + 1);
   });
 
   it('null limpa o campo; aceite do corpo é ignorado (carimbo do servidor); impacto e probabilidade recalculam o nível', async () => {
-    const r = await chamar(consultor, 'PUT', '/api/v1/risks/rp-r1', { treatment_plan: null, accepted_by: null, impact: 1, probability: 1 });
+    // o teste anterior mudou o impacto e derrubou o aceite: volta ao aceite gravado para conferir o resto
+    await env.DB.prepare(`UPDATE risks SET status = 'Accepted', accepted_by = 'Diretoria', accepted_at = '2026-10-01' WHERE id = 'rp-r1'`).run();
+    const r = await chamar(consultor, 'PUT', '/api/v1/risks/rp-r1', { treatment_plan: null, accepted_by: null });
     expect(r.status).toBe(200);
-    const linha = await ler();
-    expect(linha.treatment_plan).toBeNull();
-    expect(linha.accepted_by).toBe('Diretoria');
-    expect(linha).toMatchObject({ impact: 1, probability: 1, risk_level: 'Low', status: 'Accepted' });
+    expect((await ler()).treatment_plan).toBeNull();
+    expect((await ler()).accepted_by).toBe('Diretoria');
+    // Notas novas num risco aceito: o aceite era das notas antigas, então ele volta a Aberto e o aceite sai.
+    expect((await chamar(consultor, 'PUT', '/api/v1/risks/rp-r1', { impact: 1, probability: 1 })).status).toBe(200);
+    expect(await ler()).toMatchObject({ impact: 1, probability: 1, risk_level: 'Low', status: 'Open', accepted_by: null });
   });
 
   it('referência de outro projeto continua recusada e o POST ainda exige ativo e ameaça', async () => {
