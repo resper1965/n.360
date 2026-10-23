@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Agente MCP decide como o consultor (23/10/2026; sem migration)
+- **Decisões do consultor por ferramenta nomeada:** o agente remoto (papel consultor) publica documento, revisa e revoga exceção, decide passo da trilha, avalia fornecedor (tipo, criticidade, avaliação, homologação), muda a situação da atividade, conclui ação ou gap, encerra incidente, registra revogação de consentimento, opera a importação e padroniza nomes por 10 ferramentas (`src/middleware/decisoes-agente.ts`, 37 ações), cada uma com `confirmado_pelo_usuario: true` e `motivo`. A porta (`resolverAgente`) exige os cabeçalhos da ferramenta certa e grava `agente.decisao` antes da rota; `niso_executar` não alcança essas rotas.
+- **Atos do cliente seguem fora:** assinatura, aprovar e recusar pedido, lote, revogar aprovação (agora também de controle e do projeto), aceite de risco, responder/negar/arquivar/prazo do pedido do titular, eliminação e ciência de política em nome de outro.
+- **Consentimento OAuth atualizado:** o texto que o consultor aceita ao conectar o agente descreve as decisões e o que fica com o cliente. As concessões já existentes passam a ter o alcance novo.
+
 ### Segurança (trava de módulo por pessoa, 22/10/2026; sem migration)
 
 - O export completo do projeto (`GET /projects/:id/export`) exige que a pessoa tenha todos os módulos do projeto (403 senão); `GET /controls` e `GET /client/dashboard` só trazem controles e fases para quem tem o n.iso, em projeto com o n.iso.
