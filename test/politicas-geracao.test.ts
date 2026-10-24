@@ -6,7 +6,8 @@ import { applySchema, sessionFor, workerEnv } from './helpers/d1';
 const P = 'p-pgen';
 let h: Record<string, string>;
 const respostas: unknown[] = [];
-const AI = { run: async () => respostas.shift() ?? { choices: [{ message: { content: 'Texto da seção.' }, finish_reason: 'stop' }] } };
+let aoRodar: (() => Promise<void>) | null = null;
+const AI = { run: async () => { if (aoRodar) { const f = aoRodar; aoRodar = null; await f(); } return respostas.shift() ?? { choices: [{ message: { content: 'Texto da seção.' }, finish_reason: 'stop' }] }; } };
 const chamar = (metodo: string, caminho: string, corpo?: unknown, hdr = h, projeto = P) =>
   app.fetch(new Request(`http://localhost/api/v1/projects/${projeto}${caminho}`, { method: metodo, headers: { ...hdr, 'Content-Type': 'application/json' }, body: corpo ? JSON.stringify(corpo) : undefined }), { ...workerEnv(), AI } as never);
 
@@ -43,7 +44,11 @@ describe('política temática: criar e gerar', () => {
 
   it('tema desconhecido e requisito inexistente dão 400', async () => {
     expect((await chamar('POST', '/politicas', { tema: 'POL-NAO' })).status).toBe(400);
-    expect((await chamar('POST', '/politicas', { titulo: 'POL-W Livre', requisitos: ['nao:existe'] })).status).toBe(400);
+    const antes = (await env.DB.prepare(`SELECT count(*) n FROM documentos WHERE project_id = ?`).bind(P).first<{ n: number }>())!.n;
+    const r = await chamar('POST', '/politicas', { titulo: 'POL-W Livre', requisitos: ['nao:existe'] });
+    expect(r.status).toBe(400);
+    expect((await r.json<any>()).desconhecidos).toEqual(['nao:existe']);
+    expect((await env.DB.prepare(`SELECT count(*) n FROM documentos WHERE project_id = ?`).bind(P).first<{ n: number }>())!.n).toBe(antes);
   });
 
   it('gera uma seção e grava só nela, em rascunho', async () => {
@@ -78,6 +83,35 @@ describe('política temática: criar e gerar', () => {
       env.DB.prepare(`INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por) VALUES ('v-livre', ?, 'd-livre', 1, 'sem seções', 'h', 'rascunho', 'humano', 'x')`).bind(P),
     ]);
     expect((await chamar('POST', '/documentos/d-livre/secoes/1/gerar')).status).toBe(409);
+  });
+});
+
+describe('política temática: concorrência e guarda', () => {
+  it('não perde a edição feita em outra seção durante a geração', async () => {
+    const { id } = await (await chamar('POST', '/politicas', { titulo: 'POL-L Corrida', requisitos: [] })).json<{ id: string }>();
+    aoRodar = async () => {
+      const v = await env.DB.prepare(`SELECT id, texto FROM documento_versoes WHERE documento_id = ? AND estado = 'rascunho'`).bind(id).first<{ id: string; texto: string }>();
+      await env.DB.prepare('UPDATE documento_versoes SET texto = ? WHERE id = ?').bind(v!.texto.replace('## 2. Escopo\n\n> Seção a gerar.', '## 2. Escopo\n\nEdição humana.'), v!.id).run();
+    };
+    expect((await chamar('POST', `/documentos/${id}/secoes/1/gerar`)).status).toBe(200);
+    const t = (await env.DB.prepare(`SELECT texto FROM documento_versoes WHERE documento_id = ? AND estado = 'rascunho'`).bind(id).first<{ texto: string }>())!.texto;
+    expect(t).toContain('Edição humana.');
+    expect(t).toContain('## 1. Objetivo\n\nTexto da seção.');
+  });
+
+  it('norma dá 409; só versão vigente gera um rascunho e preserva a vigente', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo) VALUES ('d-norma', ?, 'norma', 'NOR-1 X')`).bind(P),
+      env.DB.prepare(`INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por) VALUES ('v-norma', ?, 'd-norma', 1, '## 1. A\n\n> Seção a gerar.', 'h', 'rascunho', 'humano', 'x')`).bind(P),
+      env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status) VALUES ('d-vig', ?, 'politica', 'POL-V Vigente', 'vigente')`).bind(P),
+      env.DB.prepare(`INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por) VALUES ('v-vig', ?, 'd-vig', 1, '## 1. A\n\nTexto antigo.', 'h', 'vigente', 'humano', 'x')`).bind(P),
+    ]);
+    expect((await chamar('POST', '/documentos/d-norma/secoes/1/gerar')).status).toBe(409);
+    expect((await chamar('POST', '/documentos/d-vig/secoes/1/gerar')).status).toBe(200);
+    const vig = await env.DB.prepare(`SELECT texto FROM documento_versoes WHERE documento_id = 'd-vig' AND estado = 'vigente'`).first<{ texto: string }>();
+    const rasc = await env.DB.prepare(`SELECT texto FROM documento_versoes WHERE documento_id = 'd-vig' AND estado = 'rascunho'`).first<{ texto: string }>();
+    expect(vig!.texto).toContain('Texto antigo.');
+    expect(rasc!.texto).toContain('Texto da seção.');
   });
 });
 

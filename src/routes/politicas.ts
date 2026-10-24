@@ -37,6 +37,11 @@ politicasApp.post('/politicas', async (c) => {
     } else {
       titulo = dados.titulo; esqueleto = ESQUELETO_PADRAO; requisitos = dados.requisitos;
     }
+    if (requisitos.length) {
+      const { results: ok } = await c.env.DB.prepare('SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(requisitos)).all<{ id: string }>();
+      const desconhecidos = requisitos.filter((q) => !ok.some((o) => o.id === q));
+      if (desconhecidos.length) return c.json({ error: 'Requisito inexistente', desconhecidos }, 400);
+    }
     const r = await criarDocumento(c.env.DB, projectId, ator, { tipo: 'politica', titulo, texto: montarEsqueleto(titulo, esqueleto) });
     if (!r.ok) return c.json({ error: r.error }, r.status);
     const lig = await definirRequisitosDoDocumento(c.env.DB, projectId, r.id, requisitos);
@@ -55,6 +60,8 @@ politicasApp.post('/documentos/:id/secoes/:n/gerar', async (c) => {
   try {
     const doc = await lerDocumento(db, projectId, id);
     if (!doc) return c.json({ error: 'Documento não encontrado' }, 404);
+    const d = doc as Record<string, unknown>;
+    if (d.tipo !== 'politica' || d.status === 'obsoleto') return c.json({ error: 'Só política em uso gera seções' }, 409);
     const versoes = doc.versoes as { estado: string; texto: string }[];
     const base = versoes.find((x) => x.estado === 'rascunho') ?? versoes.find((x) => x.estado === 'vigente');
     const secoes = base ? lerSecoes(base.texto) : [];
@@ -65,7 +72,7 @@ politicasApp.post('/documentos/:id/secoes/:n/gerar', async (c) => {
     const { results } = await db.prepare('SELECT requisito_id FROM documento_requisitos WHERE documento_id = ? AND project_id = ?').bind(id, projectId).all<{ requisito_id: string }>();
     const contexto = await contextoDaPolitica(db, projectId, results.map((x) => x.requisito_id), id);
     const agente = new PoliticaSecaoAgent(c.env.AI, db, c.env);
-    const p = { titulo: String((doc as Record<string, unknown>).titulo), secao: alvo.titulo, outras: secoes.filter((s) => s.n !== n).map((s) => s.titulo), contexto };
+    const p = { titulo: String(d.titulo), secao: alvo.titulo, outras: secoes.filter((s) => s.n !== n).map((s) => s.titulo), contexto };
 
     let corpo: string, cortada: boolean;
     try {
@@ -73,7 +80,7 @@ politicasApp.post('/documentos/:id/secoes/:n/gerar', async (c) => {
       corpo = a.content.trim(); cortada = a.cortada;
       if (cortada) {
         const b = await agente.gerarSecao({ ...p, continuar: corpo });
-        corpo = `${corpo}${b.content}`.trim(); cortada = b.cortada;
+        corpo = (a.content + b.content).trim(); cortada = b.cortada;
         if (cortada) corpo += `\n\n${AVISO_INCOMPLETA}`;
       }
     } catch (e) {
@@ -83,7 +90,12 @@ politicasApp.post('/documentos/:id/secoes/:n/gerar', async (c) => {
 
     const motivo = conferirSecao(cortada ? corpo.replace(AVISO_INCOMPLETA, '') : corpo);
     if (motivo) return c.json({ error: 'A resposta da IA foi recusada', motivo }, 422);
-    const novo = trocarSecao(base!.texto, n, corpo)!;
+    // Relê: a pessoa pode ter editado outra seção durante a geração (só a seção n é trocada no texto atual).
+    const atual = await lerDocumento(db, projectId, id);
+    const vs = (atual?.versoes ?? []) as { estado: string; texto: string }[];
+    const fresca = (vs.find((x) => x.estado === 'rascunho') ?? vs.find((x) => x.estado === 'vigente'))?.texto;
+    const novo = fresca ? trocarSecao(fresca, n, corpo) : null;
+    if (!novo) return c.json({ error: 'a seção mudou durante a geração' }, 409);
     const s = await salvarRascunho(db, projectId, id, ator, novo, 'gerador');
     if (!s.ok) return c.json({ error: s.error }, s.status);
     await logAudit(db, 'politica.secao_gerada', ator, `Documento ${id}: seção ${n}${cortada ? ' (incompleta)' : ''}`, '', '', projectId);

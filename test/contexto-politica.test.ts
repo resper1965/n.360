@@ -19,6 +19,8 @@ beforeAll(async () => {
       ('ctx-15', ?, 'ISO 27001', 'A.5.15 Controle de acesso', 'Implemented', 'A empresa não tem CISO; a responsabilidade é do CIO', ?),
       ('ctx-18', ?, 'ISO 27001', 'A.5.18 Direitos de acesso', 'In Progress', NULL, ?)`).bind(P, R15, P, R18),
     env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES (?, 'Fulana Teste', 'fulana@exemplo.test', 'ciso', 'CIO')`).bind(P),
+    env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES (?, 'Consultora Ness', 'c@ness.test', 'consultor', 'Consultora')`).bind(P),
+    env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, description, requisito_id) VALUES ('ctx-20', ?, 'ISO 27001', 'A.5.20 Nota longa', 'Planned', ?, ?)`).bind(P, 'linha um\n\n' + 'x'.repeat(600) + '\nfim', R15),
     env.DB.prepare(`INSERT INTO itens (id, project_id, nome) VALUES ('ctx-it', ?, 'ERP Fictício')`).bind(P),
     env.DB.prepare(`INSERT INTO item_seguranca (item_id, project_id, classificacao) VALUES ('ctx-it', ?, 'Confidencial')`).bind(P),
     env.DB.prepare(`INSERT INTO risks (id, project_id, asset, threat, risk_level, control_id) VALUES ('ctx-rk', ?, 'ERP', 'Acesso indevido', 'High', 'ctx-15')`).bind(P),
@@ -40,6 +42,15 @@ describe('contexto da política', () => {
     expect(t).toContain('Princípios.');
     expect(t).not.toContain('CPF 123');
     expect(t).not.toMatch(/@/);
+  });
+  it('nota longa vira uma linha de até 400 caracteres; consultor fora; atividade e funcionários aparecem', async () => {
+    const t = await contextoDaPolitica(env.DB, P, [R15], 'doc-novo');
+    const l = t.split('\n').find((x) => x.startsWith('- A.5.20'))!;
+    expect(l).toContain('linha um xxx');
+    expect(l.split(' | ')[2].length).toBeLessThanOrEqual(400);
+    expect(t).not.toContain('Consultora Ness');
+    expect(t).toContain('Atividade: não informada');
+    expect(t).toContain('Funcionários: não informado');
   });
   it('a própria PSI não entra como contexto dela mesma', async () => {
     expect(await contextoDaPolitica(env.DB, P, [], 'doc-psi')).not.toContain('Princípios.');

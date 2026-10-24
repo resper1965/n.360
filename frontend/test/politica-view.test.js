@@ -71,6 +71,31 @@ describe('página da política', () => {
         expect(document.querySelector('.toast').textContent).toContain('API route not found');
     });
 
+    it('org_user não vê os botões de gerar', async () => {
+        S.user = { role: 'org_user' };
+        servir(rotas());
+        await window.renderPolitica(el('c'), el('h'), el('a'));
+        expect(el('a').querySelector('[data-action="gerarSecoesPendentes"]')).toBeNull();
+        expect(el('c').querySelector('[data-action="gerarSecao"]')).toBeNull();
+    });
+
+    it('429 para a fila com um aviso só; 422 mostra o motivo', async () => {
+        const texto = '## 1. A\r\n\r\n\r\n## 2. B\r\n\r\n> Seção a gerar.\r\n';
+        const err = (status, body) => ({ status, ok: false, headers: { get: () => 'application/json' }, json: async () => body, text: async () => '{}' });
+        const f = vi.fn(async (u, o) => (o?.method === 'POST'
+            ? (u.includes('/secoes/1/') ? err(422, { error: 'A resposta da IA foi recusada', motivo: 'marcador de modelo' }) : err(429, { error: 'Limite' }))
+            : { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => (u.endsWith('/requisitos') ? [] : { ...DOC, versoes: [{ numero: 1, estado: 'rascunho', texto }] }), text: async () => '{}' }));
+        vi.stubGlobal('fetch', f);
+        await window.renderPolitica(el('c'), el('h'), el('a'));
+        expect(el('pol-secoes').textContent).toContain('0 de 2 seções prontas');
+        await window.gerarSecao('p1', 'd1', 1);
+        expect(document.body.textContent).toContain('marcador de modelo');
+        await window.gerarSecoesPendentes('p1', 'd1');
+        const posts = f.mock.calls.filter(([, o]) => o?.method === 'POST').length;
+        expect(posts).toBe(3); // 1 do gerarSecao + fila 1 (422, segue) e 2 (429, para)
+        expect([...document.querySelectorAll('.toast')].filter((t) => t.textContent.includes('Limite de geração atingido')).length).toBe(1);
+    });
+
     it('abrirPolitica guarda a política e navega', () => {
         window.abrirPolitica('p1', 'd1');
         expect(S.politica).toEqual({ projectId: 'p1', id: 'd1' });

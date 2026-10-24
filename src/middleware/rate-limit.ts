@@ -18,8 +18,10 @@ import { rateLimit } from '../helpers';
 type Regra = { teste: (p: string) => boolean; max: number; janelaSec: number; nome: string };
 
 const REGRAS: Regra[] = [
+  // Geração de seção de política: uma chamada por seção e a tela dispara a fila inteira; balde próprio (a primeira regra que casa vale).
+  { nome: 'politica-secao', teste: p => /\/secoes\/\d+\/gerar$/.test(p), max: 120, janelaSec: 3600 },
   // Inferência custa por token e é o caminho mais caro do produto.
-  { nome: 'ia', teste: p => /\/(chat|generate-policy|generate-policies-bulk|migrate-27701|evaluate)$/.test(p) || /\/secoes\/\d+\/gerar$/.test(p), max: 30, janelaSec: 3600 },
+  { nome: 'ia', teste: p => /\/(chat|generate-policy|generate-policies-bulk|migrate-27701|evaluate)$/.test(p), max: 30, janelaSec: 3600 },
   // Parecidos por significado (embeddings): a tela chama com debounce enquanto a pessoa digita.
   { nome: 'similares', teste: p => /^\/api\/v1\/projects\/[^/]+\/similares$/.test(p), max: 60, janelaSec: 600 },
   // Copiloto da entrevista do RoPA: uma chamada ao modelo de 70B por descrição; mais restrito que os parecidos.
