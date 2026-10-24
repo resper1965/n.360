@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Políticas temáticas, PR2 (24/10/2026; sem migration)
+- **Catálogo de temas:** 16 temas com sugestão de controles do Anexo A (a PSI com esqueleto próprio) e tema livre; "Nova política" em Documentos.
+- **Geração por seção:** cada seção é um pedido à IA, com o contexto do cadastro (empresa, escopo, notas dos controles, governança, ativos, riscos, PSI vigente), sem e-mail nem dado de titular. Resposta cortada pede continuação e, cortada de novo, fica marcada como incompleta; resposta com marcador de modelo ou título de outra seção não é gravada. Sempre rascunho.
+- **Página da política:** texto inteiro, situação de cada seção e "Gerar seções pendentes".
+
 ### Políticas temáticas, PR1 (23/10/2026; sem migration)
 - **Nota do controle não vira política:** na importação para Documentos, o texto do controle só entra como versão quando não há histórico de política; com histórico, ele é nota do controle.
 - **Cobertura:** `GET /projects/:id/documentos/cobertura` conta os controles aplicáveis cobertos por política vigente (documento ligado ao requisito do controle). Documentos mostra o indicador, os controles sem política e a coluna Controles; Controles mostra "Coberto por".
