@@ -65,7 +65,7 @@ export abstract class BaseAgent {
   }
 
   // Parou por limite? O gateway (formato OpenAI) diz em `finish_reason`; o Workers AI só manda o uso de tokens.
-  private static cortada(r: any, maxTokens: number): boolean {
+  private static cortada(r: { choices?: { finish_reason?: string }[]; usage?: { completion_tokens?: number } } | null | undefined, maxTokens: number): boolean {
     const fim = r?.choices?.[0]?.finish_reason;
     if (fim) return fim === 'length';
     const usados = r?.usage?.completion_tokens;
