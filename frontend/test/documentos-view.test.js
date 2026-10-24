@@ -114,7 +114,8 @@ describe('lista', () => {
     it('papel de escrita vê os botões; papel só de leitura, não', async () => {
         servir(rotas());
         await abrirLista();
-        expect([...el('a').querySelectorAll('button')].map((b) => b.getAttribute('data-action'))).toEqual(['importarDocumentos', 'openNovoDocumentoModal']);
+        expect([...el('a').querySelectorAll('button')].map((b) => b.getAttribute('data-action'))).toEqual(['importarDocumentos', 'openNovoDocumentoModal', 'openNovaPoliticaModal']);
+        expect(el('a').querySelector('.btn-primary').getAttribute('data-action')).toBe('openNovaPoliticaModal');
         S.user = { role: 'org_user' };
         await abrirLista();
         expect(el('a').innerHTML).toBe('');

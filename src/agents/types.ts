@@ -22,6 +22,8 @@ export interface ModelRunResult {
   content: string;
   model: string;
   source: ModelSource;
+  /** A resposta parou por limite de tokens: o texto pode estar incompleto. */
+  cortada: boolean;
 }
 
 export interface ModelRunOptions {
@@ -62,6 +64,14 @@ export abstract class BaseAgent {
     return (r?.response ?? r?.choices?.[0]?.message?.content ?? '').toString();
   }
 
+  // Parou por limite? O gateway (formato OpenAI) diz em `finish_reason`; o Workers AI só manda o uso de tokens.
+  private static cortada(r: { choices?: { finish_reason?: string }[]; usage?: { completion_tokens?: number } } | null | undefined, maxTokens: number): boolean {
+    const fim = r?.choices?.[0]?.finish_reason;
+    if (fim) return fim === 'length';
+    const usados = r?.usage?.completion_tokens;
+    return typeof usados === 'number' && usados >= maxTokens;
+  }
+
   /**
    * Rota única de inferência dos agentes (padrão do PhaseInterpretationAgent),
    * TODA pelo AI binding (`env.AI.run`) roteado pelo gateway n-iso — sem secret:
@@ -85,7 +95,7 @@ export abstract class BaseAgent {
     try {
       const response = await this.ai.run(gatewayModel(this.env), payload, { gateway: { id: gatewayId } });
       const content = BaseAgent.extractContent(response);
-      if (content.trim()) return { content, model: gatewayModel(this.env), source: 'ai-gateway' };
+      if (content.trim()) return { content, model: gatewayModel(this.env), source: 'ai-gateway', cortada: BaseAgent.cortada(response, maxTokens) };
       motivo = 'ai-gateway: resposta vazia do modelo';
     } catch (error: any) {
       motivo = `ai-gateway: ${error?.message ?? error}`;
@@ -95,7 +105,7 @@ export abstract class BaseAgent {
     try {
       const response = await this.ai.run(reasoningModel(this.env), payload, { gateway: { id: gatewayId } });
       const content = BaseAgent.extractContent(response);
-      if (content.trim()) return { content, model: reasoningModel(this.env), source: 'workers-ai-gateway' };
+      if (content.trim()) return { content, model: reasoningModel(this.env), source: 'workers-ai-gateway', cortada: BaseAgent.cortada(response, maxTokens) };
       motivo = `${motivo} | workers-ai: resposta vazia do modelo`;
     } catch (error: any) {
       motivo = `${motivo} | workers-ai(gateway): ${error?.message ?? error}`;
@@ -103,7 +113,7 @@ export abstract class BaseAgent {
       try {
         const response = await this.ai.run(reasoningModel(this.env), payload);
         const content = BaseAgent.extractContent(response);
-        if (content.trim()) return { content, model: reasoningModel(this.env), source: 'workers-ai-direct' };
+        if (content.trim()) return { content, model: reasoningModel(this.env), source: 'workers-ai-direct', cortada: BaseAgent.cortada(response, maxTokens) };
       } catch (e2: any) {
         motivo = `${motivo} | direto: ${e2?.message ?? e2}`;
       }

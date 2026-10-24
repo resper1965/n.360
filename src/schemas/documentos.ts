@@ -53,3 +53,9 @@ export const documentoArquivoSchema = z.object({
   responsavel_parte_id: z.string().trim().min(1).max(100).nullish(),
 }).strict().refine((d) => !(d.sem_vencimento && d.vencimento), { message: 'Documento sem vencimento não leva data', path: ['vencimento'] });
 export type DocumentoArquivo = z.infer<typeof documentoArquivoSchema>;
+
+/** Política temática: pelo código do tema do catálogo, ou tema livre com título e requisitos. */
+export const politicaCriarSchema = z.union([
+  z.object({ tema: z.string().max(20) }).strict(),
+  z.object({ titulo: z.string().min(3).max(300), requisitos: z.array(z.string().max(80)).max(200) }).strict(),
+]);

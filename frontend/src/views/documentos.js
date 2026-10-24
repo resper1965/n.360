@@ -75,7 +75,8 @@ async function renderDocumentos(c, h, a) {
     }
     a.innerHTML = podeEditar()
         ? `<button class="btn" data-action="importarDocumentos" data-args='${args(proj.id)}'>Importar políticas</button>
-           <button class="btn btn-primary" data-action="openNovoDocumentoModal" data-args='${args(proj.id)}'>+ Novo documento</button>`
+           <button class="btn" data-action="openNovoDocumentoModal" data-args='${args(proj.id)}'>+ Novo documento</button>
+           <button class="btn btn-primary" data-action="openNovaPoliticaModal" data-args='${args(proj.id)}'>Nova política</button>`
         : '';
 
     let docs = [];
@@ -100,7 +101,7 @@ async function renderDocumentos(c, h, a) {
             d.revisar_ate ? `${dataBr(d.revisar_ate)}${vencida ? ' ' + window.renderStatusBadge('Revisão vencida', 'danger') : ''}` : '—',
             escapeHTML(nomeDaParte(d.dono_parte_id) || '—'),
             escapeHTML(aprovacaoTexto(d.aprovacao)),
-            `<button class="btn btn-ghost btn-sm" data-action="openDocumentoModal" data-args='${args(proj.id, d.id)}'>Abrir</button>`,
+            `<button class="btn btn-ghost btn-sm" data-action="${d.tipo === 'politica' ? 'abrirPolitica' : 'openDocumentoModal'}" data-args='${args(proj.id, d.id)}'>Abrir</button>`,
         ];
     };
     const privacy = produtoAtual() === 'privacy';
@@ -163,6 +164,42 @@ window.openNovoDocumentoModal = function (projectId, tipo = 'politica', titulo =
         <div class="form-group"><label class="form-label">Revisar a cada (meses, opcional)</label><input class="form-input" id="doc-novo-meses" type="number" min="1" max="120"></div>
         <button class="btn btn-primary" style="width:100%" data-action="criarDocumentoNovo" data-args='${args(projectId)}'>Criar</button>
     `);
+};
+
+/** Nova política pelo catálogo de temas (ou tema livre com requisitos do catálogo). Quem decide é o servidor. */
+window.openNovaPoliticaModal = async function (projectId) {
+    let temas = [];
+    let reqs = [];
+    try { temas = lista((await api('GET', `/api/v1/projects/${projectId}/politicas/temas`) || {}).temas); } catch (e) { falha(e, 'Não foi possível carregar os temas'); return; }
+    try { reqs = lista(await api('GET', '/api/v1/requisitos?fonte=iso27001:2022')); } catch (e) { /* sem catálogo, só os temas prontos */ }
+    openModal(`
+        <div class="modal-header"><span class="modal-title">Nova política</span></div>
+        <ul class="t-sm">${temas.map((t) => `<li><strong>${escapeHTML(t.codigo)}</strong> ${escapeHTML(t.titulo)} (${lista(t.controles).length} controles)
+            ${t.documento_id
+        ? `Já existe <button class="btn btn-ghost btn-sm" data-action="abrirPolitica" data-args='${args(projectId, t.documento_id)}'>Abrir</button>`
+        : `<button class="btn btn-ghost btn-sm" data-action="criarPoliticaDoTema" data-args='${args(projectId, t.codigo)}'>Criar</button>`}</li>`).join('')}</ul>
+        ${reqs.length ? `<h3>Tema livre</h3>
+        <div class="form-group"><label class="form-label">Título</label><input class="form-input" id="pol-livre-titulo" maxlength="300"></div>
+        <div class="form-group"><label class="form-label">Requisitos</label><select class="form-input" id="pol-livre-reqs" multiple size="6">${reqs.map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.referencia)} ${escapeHTML(r.titulo)}</option>`).join('')}</select></div>
+        <button class="btn" data-action="criarPoliticaLivre" data-args='${args(projectId)}'>Criar tema livre</button>` : ''}
+    `);
+};
+
+async function criarPolitica(projectId, corpo) {
+    try {
+        const r = await api('POST', `/api/v1/projects/${projectId}/politicas`, corpo);
+        window.abrirPolitica(projectId, r.id);
+    } catch (e) {
+        if (e && e.status === 409 && e.body && e.body.id) { window.abrirPolitica(projectId, e.body.id); return; }
+        falha(e, 'Não foi possível criar a política');
+    }
+}
+window.criarPoliticaDoTema = (projectId, tema) => criarPolitica(projectId, { tema });
+window.criarPoliticaLivre = function (projectId) {
+    const titulo = el('pol-livre-titulo').value.trim();
+    const requisitos = [...el('pol-livre-reqs').selectedOptions].map((o) => o.value);
+    if (!titulo || !requisitos.length) { showToast('Informe o título e ao menos um requisito', 'error'); return; }
+    return criarPolitica(projectId, { titulo, requisitos });
 };
 
 window.criarDocumentoNovo = async function (projectId) {
