@@ -93,6 +93,7 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/pedidos/{id}/reenviar': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/pedidos/ciencia': { obrigatorios: ['destinatarios', 'ref_id', 'tipo'] },
   'POST /api/v1/projects/{projectId}/policies/generate-from-template': { obrigatorios: ['control_id', 'template_name'] },
+  'POST /api/v1/projects/{projectId}/politicas': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/risks': { obrigatorios: ['asset', 'threat'] },
   'POST /api/v1/projects/{projectId}/ropa': { obrigatorios: ['processing_purpose'] },
   'POST /api/v1/projects/{projectId}/ropa/{recordId}/acoes': { obrigatorios: ['title'] },
