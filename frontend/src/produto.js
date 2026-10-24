@@ -119,7 +119,7 @@ export function destinoDoAviso(tela, loc = window.location) {
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
 export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
-    'policies-dashboard', 'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'avaliacoes-terceiros', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
+    'policies-dashboard', 'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'politica', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'avaliacoes-terceiros', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
     'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
