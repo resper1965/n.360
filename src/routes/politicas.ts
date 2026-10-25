@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { erro500, logAudit, registraErro } from '../helpers';
-import { politicaCriarSchema, validateBody } from '../schemas';
-import { criarDocumento, lerDocumento, salvarRascunho } from '../services/documentos';
-import { definirRequisitosDoDocumento } from '../services/requisitos';
+import { ehEquipeNess, erro500, logAudit, registraErro } from '../helpers';
+import { politicaCriarSchema, politicaIncorporarSchema, politicaPromoverSchema, validateBody } from '../schemas';
+import { atualizarDocumento, criarDocumento, lerDocumento, salvarRascunho } from '../services/documentos';
+import { definirRequisitosDoDocumento, requisitosDoDocumento } from '../services/requisitos';
+import { coberturaDePoliticas } from '../services/cobertura-politicas';
+import { conferirPedidosDoDocumento } from './pedidos';
 import { contextoDaPolitica } from '../services/contexto-politica';
 import { AVISO_INCOMPLETA, conferirSecao, lerSecoes, montarEsqueleto, trocarSecao } from '../services/politica-secoes';
 import { ESQUELETO_PADRAO, TEMAS_POLITICA, esqueletoDo, requisitoDoControle } from '../data/temas-politica';
@@ -49,6 +51,70 @@ politicasApp.post('/politicas', async (c) => {
     await logAudit(c.env.DB, 'politica.criada', ator, `Documento ${r.id} criado: ${titulo}`, '', '', projectId);
     return c.json({ id: r.id }, 201);
   } catch (e) { return erro500(c, 'Falha ao criar a política', e); }
+});
+
+const SO_EQUIPE = { error: 'Só a equipe da consultoria organiza políticas' };
+type DocOrg = { id: string; titulo: string; status: string; origem_control_id: string | null };
+const docDe = (db: D1Database, projectId: string, id: string) =>
+  db.prepare(`SELECT id, titulo, status, origem_control_id FROM documentos WHERE id = ? AND project_id = ? AND tipo = 'politica'`).bind(id, projectId).first<DocOrg>();
+
+politicasApp.get('/politicas/organizar', async (c) => {
+  if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
+  try {
+    const projectId = c.req.param('projectId')!;
+    const { results } = await c.env.DB.prepare(
+      `SELECT d.id, d.titulo, d.status, d.origem_control_id AS controle_id, cc.title AS controle, cc.requisito_id
+         FROM documentos d LEFT JOIN compliance_controls cc ON cc.id = d.origem_control_id
+        WHERE d.project_id = ? AND d.tipo = 'politica' AND d.status <> 'obsoleto' ORDER BY d.titulo`
+    ).bind(projectId).all<{ id: string; titulo: string; status: string; controle_id: string | null; controle: string | null; requisito_id: string | null }>();
+    const por_controle = results.filter((d) => d.controle_id);
+    const tematicas = results.filter((d) => !d.controle_id).map(({ id, titulo, status }) => ({ id, titulo, status }));
+    return c.json({ por_controle, tematicas, sem_cobertura: (await coberturaDePoliticas(c.env.DB, projectId)).sem_cobertura });
+  } catch (e) { return erro500(c, 'Falha ao listar as políticas', e); }
+});
+
+politicasApp.post('/politicas/organizar/incorporar', async (c) => {
+  if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
+  try {
+    const v = await validateBody(c, politicaIncorporarSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!, db = c.env.DB, { origem, destino } = v.data;
+    const [o, d] = await Promise.all([docDe(db, projectId, origem), docDe(db, projectId, destino)]);
+    if (!o || !d) return c.json({ error: 'Documento não encontrado' }, 404);
+    if (origem === destino) return c.json({ error: 'Origem e destino são o mesmo documento' }, 400);
+    if (!o.origem_control_id || o.status === 'obsoleto') return c.json({ error: 'A origem tem de ser uma política por controle em uso' }, 400);
+    if (d.origem_control_id || d.status === 'obsoleto') return c.json({ error: 'O destino tem de ser uma política temática em uso' }, 400);
+    const ctl = await db.prepare('SELECT requisito_id FROM compliance_controls WHERE id = ? AND project_id = ?').bind(o.origem_control_id, projectId).first<{ requisito_id: string | null }>();
+    if (!ctl?.requisito_id) return c.json({ error: 'O controle não está no catálogo de requisitos; ligue a mão' }, 409);
+    const ids = [...new Set([...(await requisitosDoDocumento(db, projectId, destino)).map((r) => r.id), ctl.requisito_id])];
+    const lig = await definirRequisitosDoDocumento(db, projectId, destino, ids);
+    if (!lig || !lig.ok) return c.json({ error: 'Requisito inexistente', desconhecidos: lig?.desconhecidos ?? [] }, 400);
+    await db.prepare(`UPDATE documentos SET status = 'obsoleto', updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'obsoleto'`).bind(origem, projectId).run();
+    await logAudit(db, 'politica.incorporada', c.get('user').email, `Documento ${origem} incorporado a ${destino}`, '', '', projectId);
+    return c.json({ ok: true, requisitos: ids.length });
+  } catch (e) { return erro500(c, 'Falha ao incorporar a política', e); }
+});
+
+politicasApp.post('/documentos/:id/promover', async (c) => {
+  if (!ehEquipeNess(c.get('user'))) return c.json(SO_EQUIPE, 403);
+  try {
+    const v = await validateBody(c, politicaPromoverSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!, id = c.req.param('id'), db = c.env.DB, ator = c.get('user').email;
+    const doc = await docDe(db, projectId, id);
+    if (!doc) return c.json({ error: 'Documento não encontrado' }, 404);
+    if (!doc.origem_control_id || doc.status === 'obsoleto') return c.json({ error: 'Só política por controle em uso pode ser promovida' }, 400);
+    const { results: ok } = await db.prepare('SELECT id FROM requisitos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(v.data.requisitos)).all<{ id: string }>();
+    const desconhecidos = v.data.requisitos.filter((q) => !ok.some((o) => o.id === q));
+    if (desconhecidos.length) return c.json({ error: 'Requisito inexistente', desconhecidos }, 400);
+    const r = await atualizarDocumento(db, projectId, id, ator, { titulo: v.data.titulo });
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    if (r.tituloMudou) await conferirPedidosDoDocumento(c, 'documento', id, projectId);
+    await definirRequisitosDoDocumento(db, projectId, id, v.data.requisitos);
+    await db.prepare('UPDATE documentos SET origem_control_id = NULL WHERE id = ? AND project_id = ?').bind(id, projectId).run();
+    await logAudit(db, 'politica.promovida', ator, `Documento ${id} promovido a política temática: ${v.data.titulo}`, '', '', projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao promover a política', e); }
 });
 
 politicasApp.post('/documentos/:id/secoes/:n/gerar', async (c) => {

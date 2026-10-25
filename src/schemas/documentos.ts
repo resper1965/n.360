@@ -59,3 +59,8 @@ export const politicaCriarSchema = z.union([
   z.object({ tema: z.string().max(20) }).strict(),
   z.object({ titulo: z.string().min(3).max(300), requisitos: z.array(z.string().max(80)).max(200) }).strict(),
 ]);
+
+/** Organizar: incorporar a política por controle (origem) a uma temática (destino). */
+export const politicaIncorporarSchema = z.object({ origem: z.string().min(1).max(80), destino: z.string().min(1).max(80) }).strict();
+/** Organizar: promover a política por controle a temática, com título e requisitos novos. */
+export const politicaPromoverSchema = z.object({ titulo: z.string().min(3).max(200), requisitos: z.array(z.string().max(80)).min(1).max(200) }).strict();
