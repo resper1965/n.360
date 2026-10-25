@@ -102,7 +102,7 @@ controlsApp.put('/:id', async (c) => {
     // staff, então o 404 precisa ser explícito.
     if (!atual) return c.json({ error: 'Controle não encontrado' }, 404);
 
-    // `description` é o texto da política. O agente propõe política por rascunho (POST .../policy); aqui só passa a
+    // `description` é a nota do controle (a política é o documento). O agente cria política por rascunho; aqui só passa a
     // justificativa de "Não aplicável", senão este PUT contornaria a regra de que humano publica (fatia 3.2).
     if (c.get('user')?.agente === true && description !== undefined && description !== atual.description && (status || atual.status) !== NA_STATUS) {
       return c.json({ error: 'O agente não altera o texto do controle fora da justificativa de "Não aplicável": o texto da política é o documento: use niso_criar_politica / niso_gerar_secao' }, 403);

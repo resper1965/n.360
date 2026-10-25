@@ -101,14 +101,14 @@ window.abrirPromover = async function (pid, id) {
     let reqs = [];
     try { reqs = lista(await api('GET', '/api/v1/requisitos?fonte=iso27001:2022')); } catch (e) { falha(e, 'Não foi possível carregar o catálogo de requisitos'); return; }
     openModal(`<div class="modal-header"><span class="modal-title">Promover a política temática</span></div>
-        <div class="form-group"><label class="form-label" for="org-titulo">Título</label><input class="form-input" id="org-titulo" maxlength="300" value="${escapeHTML(d.titulo)}"></div>
+        <div class="form-group"><label class="form-label" for="org-titulo">Título</label><input class="form-input" id="org-titulo" maxlength="200" value="${escapeHTML(d.titulo)}"></div>
         <div class="form-group"><label class="form-label" for="org-reqs">Requisitos</label><select class="form-input" id="org-reqs" multiple size="8">${reqs.map((r) => `<option value="${escapeHTML(r.id)}" ${r.id === d.requisito_id ? 'selected' : ''}>${escapeHTML(r.referencia)} ${escapeHTML(r.titulo)}</option>`).join('')}</select></div>
         <button class="btn btn-primary" data-action="promoverPolitica" data-args='${args(pid, id)}'>Promover</button>`);
 };
 window.promoverPolitica = function (pid, id) {
     const titulo = el('org-titulo').value.trim();
     const requisitos = [...el('org-reqs').selectedOptions].map((o) => o.value);
-    if (!titulo || !requisitos.length) { showToast('Informe o título e ao menos um requisito', 'error'); return; }
+    if (titulo.length < 3 || !requisitos.length) { showToast('Informe o título (ao menos 3 caracteres) e ao menos um requisito', 'error'); return; }
     return depois(() => api('POST', `/api/v1/projects/${pid}/documentos/${id}/promover`, { titulo, requisitos }),
         'Não foi possível promover', 'Política promovida a temática.');
 };

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const titulo = z.string().trim().min(1).max(300);
-// 2 MB: o mesmo teto da edição de política atual (POST /controls/:id/policy).
+// 2 MB: teto do texto de uma versão de documento.
 const texto = z.string().min(1).max(2_000_000);
 
 export const TIPOS_DOCUMENTO = ['politica', 'norma', 'procedimento'] as const;

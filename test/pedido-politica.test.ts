@@ -131,17 +131,15 @@ describe('aprovação de política por pedido', () => {
     expect((await controle()).ceo_approved_by).toBeNull();
   });
 
-  it('mudar o texto substitui o pedido; o antigo dá 409 e o novo assina', async () => {
+  it('mudar o texto cancela o pedido: o antigo dá 409 e nenhum pedido novo nasce', async () => {
     const id = await criado('ceo', ['dir@cliente.com']);
+    const antes = (await env.DB.prepare('SELECT count(*) AS n FROM pedidos').first<any>()).n;
     const ed = await chamar(consultor, 'PUT', `/api/v1/controls/${CTRL}`, { description: 'Texto revisto da política.' });
     expect(ed.status, await ed.clone().text()).toBe(200);
-    const antigo = await pedido(id);
-    expect(antigo.status).toBe('substituido');
+    expect((await pedido(id)).status).toBe('cancelado');
     expect((await decidir(dir, id, 'aprovar')).status).toBe(409);
-    const novo = await pedido(antigo.substituido_por);
-    expect(JSON.parse(novo.conteudo_json).description).toBe('Texto revisto da política.');
-    expect((await decidir(dir, novo.id, 'aprovar')).status).toBe(200);
-    expect((await controle()).ceo_approved_by).toBe('Davi Matriz');
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM pedidos').first<any>()).n).toBe(antes);
+    expect((await controle()).ceo_approved_by).toBeNull();
   });
 
   it('texto alterado por fora entre o pedido e a decisão: 409 e nada assinado', async () => {

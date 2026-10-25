@@ -4,6 +4,7 @@ import app from '../src/index';
 import { sha256Hex, genToken } from '../src/helpers';
 import { applySchema, sessionFor, workerEnv } from './helpers/d1';
 import { criarPedido } from '../src/services/pedidos';
+import { salvarRascunho } from '../src/services/documentos';
 
 /**
  * Fatia 3 do acesso de stakeholders: ciência em massa por link com código, para quem não tem conta.
@@ -75,13 +76,21 @@ const dests = async (pedidoId: string) =>
 const resetPolitica = () => env.DB.prepare(`UPDATE compliance_controls SET title = 'Política de Segurança', description = 'Texto v1' WHERE id = ?`).bind(POL).run();
 
 /** Pedido de ciência de política já existente (criado pelo serviço) e os links enviados pelo reenvio. */
-async function lote(emails: string[]) {
+async function lote(emails: string[], doc = false) {
   const criado = await criarPedido(env.DB, {
-    projectId: P, tipo: 'politica', refId: POL, papel: 'ciente', destinatarios: emails.map((email) => ({ email })), criadoPor: 'cons@ness.lat', comLink: true,
+    projectId: P, tipo: doc ? 'documento' : 'politica', refId: doc ? DOC : POL, papel: 'ciente', destinatarios: emails.map((email) => ({ email })), criadoPor: 'cons@ness.lat', comLink: true,
   });
   const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/${criado!.id}/reenviar`);
   expect(r.status, await r.clone().text()).toBe(200);
   return { id: criado!.id, hash: criado!.hash, ...(await r.json<any>()) };
+}
+
+/** Publica uma versão nova do documento (a política vive nele): substitui o pedido `documento` aberto e avisa. */
+async function publicarNova(texto: string) {
+  const n = ((await env.DB.prepare('SELECT MAX(numero) AS n FROM documento_versoes WHERE documento_id = ?').bind(DOC).first<any>()).n as number) + 1;
+  await salvarRascunho(env.DB, P, DOC, 'cons@ness.lat', texto, 'humano');
+  const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/documentos/${DOC}/versoes/${n}/publicar`);
+  expect(r.status, await r.clone().text()).toBe(200);
 }
 
 beforeAll(async () => {
@@ -153,7 +162,7 @@ describe('criar o lote', () => {
 describe('link público', () => {
   it('token falso, expirado, de pedido substituído ou malformado: o mesmo 404, byte a byte', async () => {
     await resetPolitica();
-    const r = await lote(['exp@cliente.com', 'subst@cliente.com']);
+    const r = await lote(['exp@cliente.com', 'subst@cliente.com'], true);
     await env.DB.prepare(`UPDATE pedido_destinatarios SET token_expira_em = datetime('now', '-1 day') WHERE pedido_id = ? AND email = 'exp@cliente.com'`).bind(r.id).run();
     const expirado = tokenDe('exp@cliente.com');
     const doSubstituido = tokenDe('subst@cliente.com');
@@ -167,7 +176,7 @@ describe('link público', () => {
       }
     }
     // Documento alterado: o pedido vira substituído e o link antigo deixa de valer.
-    await env.DB.prepare(`UPDATE compliance_controls SET description = 'Texto v2' WHERE id = ?`).bind(POL).run();
+    await publicarNova('Texto v2');
     for (const acao of ['ver', 'codigo']) {
       const res = await publico(acao, { token: doSubstituido });
       expect(res.status, acao).toBe(404);
@@ -324,11 +333,11 @@ describe('painel e reenvio', () => {
 
   it('documento alterado: ciência antiga aparece como versão anterior no painel do pedido novo', async () => {
     await resetPolitica();
-    const r = await lote(['v1@cliente.com', 'nada@cliente.com']);
+    const r = await lote(['v1@cliente.com', 'nada@cliente.com'], true);
     const t = tokenDe('v1@cliente.com');
     await publico('codigo', { token: t });
     expect((await publico('ciencia', { token: t, codigo: codigoDe('v1@cliente.com'), nome: 'Vera' })).status).toBe(200);
-    await env.DB.prepare(`UPDATE compliance_controls SET description = 'Texto v3' WHERE id = ?`).bind(POL).run();
+    await publicarNova('Texto v3');
 
     const velho = await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/pedidos/${r.id}`)).json<any>();
     expect(velho.pedido.status).toBe('substituido');
@@ -347,32 +356,23 @@ describe('painel e reenvio', () => {
     expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/${r.id}/reenviar`)).status).toBe(409);
   });
 
-  it('editar a política pelas rotas substitui o pedido na hora, sem esperar alguém abrir', async () => {
-    const statusDe = async (id: string) =>
-      (await env.DB.prepare('SELECT status, substituido_por FROM pedidos WHERE id = ?').bind(id).first<any>());
+  it('editar a nota do controle cancela o pedido de política aberto, sem pedido novo nem e-mail', async () => {
     await resetPolitica();
     const a = await lote(['ed1@cliente.com']);
+    enviados = [];
     const r1 = await chamar(consultor, 'PUT', `/api/v1/controls/${POL}`, { description: 'Texto editado' });
     expect(r1.status, await r1.clone().text()).toBe(200);
-    const s1 = await statusDe(a.id);
-    expect(s1.status).toBe('substituido');
-
-    const r2 = await chamar(consultor, 'PUT', `/api/v1/controls/${POL}`, { title: 'Política de Segurança v2' });
-    expect(r2.status, await r2.clone().text()).toBe(200);
-    expect((await statusDe(s1.substituido_por)).status).toBe('substituido');
-
-    // Escrita que não muda o conteúdo (responsável) não substitui.
-    const atual = (await statusDe(s1.substituido_por)).substituido_por;
-    expect((await chamar(consultor, 'PUT', `/api/v1/controls/${POL}`, { owner: 'Fulano' })).status).toBe(200);
-    expect((await statusDe(atual)).status).toBe('aberto');
+    const s1 = await env.DB.prepare('SELECT status, substituido_por FROM pedidos WHERE id = ?').bind(a.id).first<any>();
+    expect(s1).toEqual({ status: 'cancelado', substituido_por: null });
+    expect(enviados).toEqual([]);
   });
 
   it('substituído por edição: quem tinha link recebe link novo do pedido novo, que funciona', async () => {
     await resetPolitica();
-    const a = await lote(['sub1@cliente.com', 'sub2@cliente.com']);
+    const a = await lote(['sub1@cliente.com', 'sub2@cliente.com'], true);
     const velho = tokenDe('sub1@cliente.com');
     enviados = [];
-    expect((await chamar(consultor, 'PUT', `/api/v1/controls/${POL}`, { description: 'Texto que muda' })).status).toBe(200);
+    await publicarNova('Texto que muda');
     // Todo pedido aberto deste documento é substituído; os dois deste lote estão entre os avisados.
     expect(enviados.map((e) => e.to)).toEqual(expect.arrayContaining(['sub1@cliente.com', 'sub2@cliente.com']));
     const novo = tokenDe('sub1@cliente.com');
@@ -380,7 +380,7 @@ describe('painel e reenvio', () => {
     const novoId = (await env.DB.prepare('SELECT substituido_por FROM pedidos WHERE id = ?').bind(a.id).first<any>()).substituido_por;
     const ver = await publico('ver', { token: novo });
     expect(ver.status, await ver.clone().text()).toBe(200);
-    expect((await ver.json<any>()).conteudo.description).toBe('Texto que muda');
+    expect((await ver.json<any>()).conteudo.texto).toBe('Texto que muda');
     expect((await publico('ver', { token: velho })).status).toBe(404);
     const painel = await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/pedidos/${novoId}`)).json<any>();
     expect(painel.sem_link).toBe(0);
@@ -388,8 +388,9 @@ describe('painel e reenvio', () => {
 
   it('substituído sem envio configurado: nenhum link emitido e o painel avisa quantos ficaram sem link', async () => {
     await resetPolitica();
-    const a = await lote(['sl1@cliente.com', 'sl2@cliente.com']);
-    await env.DB.prepare(`UPDATE compliance_controls SET description = 'Texto sem envio' WHERE id = ?`).bind(POL).run();
+    const a = await lote(['sl1@cliente.com', 'sl2@cliente.com'], true);
+    // Direto no banco: a conferência é lazy, feita pelo GET sem envio configurado.
+    await env.DB.prepare(`UPDATE documento_versoes SET texto = 'Texto sem envio' WHERE documento_id = ? AND estado = 'vigente'`).bind(DOC).run();
     enviados = [];
     const semEnvio = (caminho: string) => app.fetch(new Request('http://localhost' + caminho, {
       headers: { 'CF-Connecting-IP': ipNovo(), ...consultor },

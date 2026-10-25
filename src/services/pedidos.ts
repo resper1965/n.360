@@ -234,6 +234,11 @@ export async function conferirVigencia(db: D1Database, p: PedidoRow): Promise<Vi
   }
   const hash = await hashConteudo(doc.conteudo);
   if (hash === p.hash) return { vigente: true };
+  // Pedido `politica` é histórico: o texto agora é do documento. Mudou a nota do controle, cancela; não nasce pedido novo nem e-mail.
+  if (p.tipo === 'politica') {
+    await db.prepare(`UPDATE pedidos SET status = 'cancelado' WHERE id = ? AND status = 'aberto'`).bind(p.id).run();
+    return { vigente: false, status: 'cancelado' };
+  }
 
   // Marca o antigo PRIMEIRO, com guarda: se outra requisição já o substituiu, devolve o novo dela.
   const novoId = genId();

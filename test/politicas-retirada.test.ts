@@ -1,10 +1,11 @@
 // Retirada da política por controle (PR3 das políticas temáticas, Task 5): as rotas por controle saem, o pedido
 // `politica` novo é recusado, publicar documento não escreve no controle e a coerência R4 lê a cobertura.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import worker from '../src/index';
 import { applySchema, sessionFor, workerEnv } from './helpers/d1';
 import { checkCoherence } from '../src/services/coherence';
+import { criarPedido } from '../src/services/pedidos';
 
 const PJ = 'p-ret';
 const AG = { userId: 'u-ret', email: 'cons-ret@ness.lat', projectId: PJ, concessaoId: 'c-ret' };
@@ -127,5 +128,20 @@ describe('coerência R4', () => {
     await env.DB.prepare(`INSERT INTO policy_versions (id, project_id, control_id, version, policy_text, created_by) VALUES ('ret-pv', ?, 'ret-c3', 1, 'Antiga', 'x')`).bind(PJ).run();
     const r = await checkCoherence(env.DB, PJ);
     expect(r.issues.filter((i) => i.rule === 'control_approved_without_policy').map((i) => i.id)).toEqual(['ret-c1']);
+  });
+});
+
+describe('nota do controle com pedido de política antigo aberto', () => {
+  it('editar a nota cancela o pedido: nenhum pedido novo e nenhum e-mail', async () => {
+    const p = await criarPedido(env.DB, { projectId: PJ, tipo: 'politica', refId: 'ret-c1', papel: 'ciente', destinatarios: [{ email: 'leitor@cliente.lat' }], criadoPor: 'cons-ret@ness.lat', comLink: true });
+    const antes = (await env.DB.prepare('SELECT count(*) AS n FROM pedidos WHERE project_id = ?').bind(PJ).first<any>()).n;
+    const f = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{"id":"x"}', { status: 200 }));
+    try {
+      const r = await pessoa('PUT', '/api/v1/controls/ret-c1', { description: 'Nota nova do controle' });
+      expect(r.status, await r.clone().text()).toBe(200);
+      expect(f).not.toHaveBeenCalled();
+    } finally { f.mockRestore(); }
+    expect((await env.DB.prepare('SELECT status, substituido_por FROM pedidos WHERE id = ?').bind(p!.id).first<any>())).toEqual({ status: 'cancelado', substituido_por: null });
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM pedidos WHERE project_id = ?').bind(PJ).first<any>()).n).toBe(antes);
   });
 });

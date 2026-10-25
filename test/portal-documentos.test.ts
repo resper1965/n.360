@@ -82,6 +82,14 @@ describe('listar', () => {
     expect(l.user).toEqual({ name: 'Lia', email: 'lia@cliente.com' });
   });
 
+  it('documento obsoleto (incorporado por Organizar) sai da lista, mesmo com versão vigente', async () => {
+    const id = await documento('Política aposentada', 'Texto antigo');
+    const token = await sessao('lia@cliente.com', 'Lia');
+    expect((await listar(token)).documents.map((d) => d.id)).toContain(id);
+    await env.DB.prepare(`UPDATE documentos SET status = 'obsoleto' WHERE id = ?`).bind(id).run();
+    expect((await listar(token)).documents.map((d) => d.id)).not.toContain(id);
+  });
+
   it('mostra a ciência antiga (sem prova de versão) em `legacy`, só a do e-mail da sessão', async () => {
     const leo = await listar(await sessao('leo@cliente.com', 'Léo'));
     expect(leo.legacy.map((a) => a.policy_type)).toEqual(['Política Antiga']);

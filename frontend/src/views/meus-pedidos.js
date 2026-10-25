@@ -267,7 +267,7 @@ window.abrirCienciaLink = async function abrirCienciaLink(projectId) {
     try {
         // GET .../documentos devolve a lista pura. Só entra documento com versão vigente: é ela que o pedido congela.
         const r = await api('GET', `/api/v1/projects/${encodeURIComponent(projectId)}/documentos`);
-        documentos = (Array.isArray(r) ? r : r?.documentos || []).filter((d) => d.versao_vigente !== null && d.versao_vigente !== undefined);
+        documentos = (Array.isArray(r) ? r : r?.documentos || []).filter((d) => d.versao_vigente !== null && d.versao_vigente !== undefined && d.status !== 'obsoleto');
     } catch (e) {
         showToast('Erro ao carregar os documentos: ' + e.message, 'error');
         return;
