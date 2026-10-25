@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
-import { applySchema, sessionFor } from './helpers/d1';
+import { applySchema, sessionFor, habilitarPrivacy } from './helpers/d1';
 
 /** Auditoria r3, achado 2: as rotas que chamam o modelo dividem o balde `ia` (30 por hora por usuário). */
 const P = 'lia-p';
@@ -12,6 +12,7 @@ const chamar = (metodo: string, caminho: string) =>
 beforeAll(async () => {
   await applySchema();
   await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'C', 'ISO 27001', 'Controller', 'Active', 'org_ness')`).bind(P).run();
+  await habilitarPrivacy(P);
   h = await sessionFor({ id: 'lia-root', email: 'lia@ness.lat', role: 'platform_admin' });
 });
 
@@ -24,9 +25,30 @@ describe('limite de IA nas rotas que chamam o modelo', () => {
     expect((await chamar('GET', url)).status).toBe(200);
   });
 
-  it('generate-document e checklist/generate usam o mesmo balde', async () => {
-    // O balde já está cheio do teste anterior (mesmo usuário): as duas rotas barram antes da rota.
-    expect((await chamar('POST', `/api/v1/projects/${P}/generate-document`)).status).toBe(429);
-    expect((await chamar('POST', `/api/v1/projects/${P}/checklist/x/generate`)).status).toBe(429);
+  // Enche o balde `ia` de um usuário só dele, para o teste não depender da ordem.
+  const encher = async (id: string) => {
+    await env.SESSIONS.put(`ratelimit:ia:${id}`, '30', { expirationTtl: 3600 });
+    return sessionFor({ id, email: `${id}@ness.lat`, role: 'platform_admin' });
+  };
+  const post = (hh: Record<string, string>, metodo: string, caminho: string) =>
+    app.fetch(new Request('http://localhost' + caminho, { method: metodo, headers: { 'Content-Type': 'application/json', ...hh }, body: metodo === 'GET' ? undefined : '{}' }), env as never);
+
+  it.each([
+    ['POST', `/api/v1/projects/${P}/generate-document`],
+    ['POST', `/api/v1/projects/${P}/checklist/x/generate`],
+    ['GET', `/api/v1/projects/${P}/control-adequacao/1/suggestions`],
+    ['GET', `/api/v1/projects/${P}/phase-answers/1/interpret?refresh=1`],
+    ['POST', `/api/v1/projects/${P}/ropa/r1/sugestao`],
+    ['POST', `/api/v1/projects/${P}/ropa/r1/etapas/coleta/rascunho`],
+    ['POST', `/api/v1/projects/${P}/titular-pedidos/t1/rascunho`],
+    ['POST', `/api/v1/projects/${P}/incidentes/i1/rascunho-comunicacao`],
+  ])('%s %s usa o balde ia', async (metodo, caminho) => {
+    const hh = await encher('lia-' + caminho.replace(/\W/g, ''));
+    expect((await post(hh, metodo, caminho)).status).toBe(429);
+  });
+
+  it('interpret sem refresh (cache) não conta', async () => {
+    const hh = await encher('lia-interpret-cache');
+    expect((await post(hh, 'GET', `/api/v1/projects/${P}/phase-answers/1/interpret`)).status).not.toBe(429);
   });
 });

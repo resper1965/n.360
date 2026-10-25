@@ -15,14 +15,22 @@ import { rateLimit } from '../helpers';
  * então uma integração também é contada separadamente.
  */
 
-// `ai` é `?ai=1` da requisição: a leitura de prontidão só chama o modelo com ele.
-type Regra = { teste: (p: string, ai: boolean) => boolean; max: number; janelaSec: number; nome: string };
+// `q` é a query da requisição: a prontidão só chama o modelo com `?ai=1` e a interpretação da fase relê o modelo com `?refresh=1`.
+type Regra = { teste: (p: string, q: Record<string, string>) => boolean; max: number; janelaSec: number; nome: string };
 
 const REGRAS: Regra[] = [
   // Geração de seção de política: uma chamada por seção e a tela dispara a fila inteira; balde próprio (a primeira regra que casa vale).
   { nome: 'politica-secao', teste: p => /\/secoes\/\d+\/gerar$/.test(p), max: 120, janelaSec: 3600 },
   // Inferência custa por token e é o caminho mais caro do produto.
-  { nome: 'ia', teste: (p, ai) => /\/(chat|migrate-27701|evaluate|generate-document)$/.test(p) || /\/checklist\/[^/]+\/generate$/.test(p) || (ai && /^\/api\/v1\/projects\/[^/]+\/readiness-check$/.test(p)), max: 30, janelaSec: 3600 },
+  { nome: 'ia', teste: (p, q) =>
+      /\/(chat|migrate-27701|evaluate|generate-document)$/.test(p) || /\/checklist\/[^/]+\/generate$/.test(p)
+      || (q.ai === '1' && /^\/api\/v1\/projects\/[^/]+\/readiness-check$/.test(p))
+      || /^\/api\/v1\/projects\/[^/]+\/control-adequacao\/[^/]+\/suggestions$/.test(p)
+      || (q.refresh === '1' && /^\/api\/v1\/projects\/[^/]+\/phase-answers\/[^/]+\/interpret$/.test(p))
+      // Rascunhos de IA do n.privacy: atividade, pedido do titular, comunicação de incidente.
+      || /^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/(sugestao|etapas\/[^/]+\/rascunho)$/.test(p)
+      || /^\/api\/v1\/projects\/[^/]+\/(titular-pedidos\/[^/]+\/rascunho|incidentes\/[^/]+\/rascunho-comunicacao)$/.test(p),
+    max: 30, janelaSec: 3600 },
   // Parecidos por significado (embeddings): a tela chama com debounce enquanto a pessoa digita.
   { nome: 'similares', teste: p => /^\/api\/v1\/projects\/[^/]+\/similares$/.test(p), max: 60, janelaSec: 600 },
   // Copiloto da entrevista do RoPA: uma chamada ao modelo de 70B por descrição; mais restrito que os parecidos.
@@ -40,7 +48,7 @@ const REGRAS: Regra[] = [
 export const rateLimitMiddleware = createMiddleware<{ Bindings: Bindings; Variables: Variables }>(async (c, next) => {
   // Decodificado, como o roteador do Hono: o cru deixava `%69` passar pelas regras e chegar à rota.
   const path = c.req.path;
-  const regra = REGRAS.find(r => r.teste(path, c.req.query('ai') === '1'));
+  const regra = REGRAS.find(r => r.teste(path, c.req.query()));
   if (!regra) return next();
 
   // Roda depois do authMiddleware, então o usuário já está no contexto.

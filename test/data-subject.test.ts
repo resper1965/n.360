@@ -82,6 +82,18 @@ describe('Requisição de titular', () => {
     );
   });
 
+  it('IP e navegador da ciência de política só saem para a consultoria', async () => {
+    const url = `/api/v1/projects/p1/data-subject?identificador=${encodeURIComponent(IDENT)}`;
+    const ack = (b: any) => b.ocorrencias.find((o: any) => o.tabela === 'policy_acknowledgments').registros[0];
+    expect(ack(await (await req(url)).json())).toMatchObject({ ip_address: '1.2.3.4', user_agent: 'Mozilla' });
+    const adm = { ...(await sessionFor({ id: 'u3', email: 'adm@c.com', role: 'org_admin', client_project_id: 'p1', iat: Date.now() })), 'Content-Type': 'application/json' };
+    const r = await req(url, {}, adm);
+    expect(r.status).toBe(200);
+    const a = ack(await r.json());
+    expect(a).not.toHaveProperty('ip_address');
+    expect(a).not.toHaveProperty('user_agent');
+  });
+
   it('não devolve dado de terceiro com nome parecido', async () => {
     // Busca por igualdade, não LIKE: `%a%` casaria com meio mundo, e devolver
     // dado de outra pessoa numa requisição de titular é vazamento.
