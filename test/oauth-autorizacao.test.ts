@@ -160,6 +160,27 @@ describe('Autorização OAuth do agente', () => {
     expect(await r.text()).not.toContain('Em qual cliente');
   });
 
+  // Auditoria r3, achado 5: o pedido que passou por /entrar não sobrevive a troca de senha nem a desativação da conta.
+  it.each([
+    ['troca de senha', "UPDATE users SET password_hash = 'outra-senha' WHERE id = 'u-pend'"],
+    ['conta desativada', "UPDATE users SET ativo = 0 WHERE id = 'u-pend'"],
+    ['senha provisória', "UPDATE users SET requires_password_change = 1 WHERE id = 'u-pend'"],
+  ])('login pendente recusado depois de %s', async (_nome, sql) => {
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM users WHERE id = 'u-pend'`),
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('u-pend','pend@ness.lat',?,'Pend','consultor')`).bind(await hashPassword('senha-forte-123')),
+      env.DB.prepare(`INSERT OR IGNORE INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('p-a','Pend','pend@ness.lat','consultor','Consultor')`),
+    ]);
+    const pedido = await iniciar(await registrarCliente(), (await pkce()).challenge);
+    const r1 = await f('/oauth/authorize/entrar', form({ pedido, email: 'pend@ness.lat', senha: 'senha-forte-123', codigo: '' }, '10.0.0.8'));
+    expect(await r1.text()).toContain('Em qual cliente');
+    await env.DB.prepare(sql).run();
+    const r2 = await f('/oauth/authorize/confirmar', form({ pedido, projeto: 'p-a' }));
+    expect(r2.status).toBe(400);
+    expect(await r2.text()).toContain('Pedido expirado');
+    expect((await env.DB.prepare(`SELECT count(*) AS n FROM agente_concessoes WHERE user_id = 'u-pend'`).first<any>()).n).toBe(0);
+  }, 30_000);
+
   it('senha provisória (requires_password_change) não conecta agente', async () => {
     const pedido = await iniciar(await registrarCliente(), (await pkce()).challenge);
     const r = await f('/oauth/authorize/entrar', form({ pedido, email: 'nova@ness.lat', senha: 'senha-forte-123', codigo: '' }, '10.0.0.5'));
