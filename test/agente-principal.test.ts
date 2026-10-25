@@ -50,13 +50,15 @@ describe('Principal agente', () => {
 
   // Revisão final, achado 1: o Hono decodifica %XX antes de rotear; a recusa
   // tem de olhar o caminho decodificado, não o cru.
-  it('não apaga sem confirmação nem por caminho percent-encoded', async () => {
+  it('a recusa por caminho vale também com caractere percent-encoded', async () => {
     for (const caminho of [
-      '/api/v1/projects/p-a/%72isks/qualquer',
-      '/api/v1/projects/p-a/risk%73/qualquer',
+      '/api/v1/projects/p-a/data-subject/erase',
+      '/api/v1/projects/p-a/data-subject/%65rase',
+      '/api/v1/projects/p-a/%64ata-subject/eras%65',
     ]) {
-      const res = await comoAgente(caminho, { method: 'DELETE' });
+      const res = await comoAgente(caminho, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       expect(res.status, caminho).toBe(403);
+      expect((await res.json<any>()).error, caminho).toContain('fora do alcance do agente');
     }
   });
 
