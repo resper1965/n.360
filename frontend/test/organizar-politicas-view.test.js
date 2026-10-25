@@ -16,10 +16,11 @@ const P = '/api/v1/projects/p1';
 const ORG = {
     por_controle: [{ id: 'c1', titulo: 'Política A.8.24 <b>x</b>', status: 'vigente', controle_id: 'k1', controle: 'A.8.24 Criptografia', requisito_id: 'r1' }],
     tematicas: [{ id: 't1', titulo: 'POL-CRY Criptografia', status: 'vigente' }],
-    sem_cobertura: [{ id: 'k2', title: 'A.5.1 Políticas' }],
+    sem_cobertura: [{ id: 'k2', title: 'A.5.1 Políticas', requisito_id: 'iso27001:2022:A.5.1' }, { id: 'k3', title: 'Fora do catálogo', requisito_id: null }],
 };
 const rotas = (extra = {}) => ({
     [`GET ${P}/politicas/organizar`]: ORG,
+    [`GET ${P}/politicas/temas`]: { temas: [{ codigo: 'POL-GOV', titulo: 'Governança', controles: ['A.5.1'], documento_id: null }, { codigo: 'POL-CRY', titulo: 'Cripto', controles: ['A.5.1'], documento_id: 'x' }] },
     [`GET ${P}/documentos/cobertura`]: { aplicaveis: 10, cobertos: 4, sem_cobertura: [], por_controle: {}, por_documento: {} },
     'GET /api/v1/requisitos': [{ id: 'r1', referencia: 'A.8.24', titulo: 'Criptografia' }, { id: 'r2', referencia: 'A.5.1', titulo: 'Políticas' }],
     ...extra,
@@ -74,7 +75,6 @@ describe('Organizar políticas', () => {
 
     it('Ligar a uma política soma o requisito do controle aos que a temática já tem', async () => {
         const f = servir(rotas({
-            [`GET ${P}/controls`]: [{ id: 'k1', requisito_id: 'r1' }, { id: 'k2', requisito_id: 'r2' }],
             [`GET ${P}/documentos/t1/requisitos`]: [{ id: 'r1' }],
             [`PUT ${P}/documentos/t1/requisitos`]: { ok: true },
         }));
@@ -82,7 +82,33 @@ describe('Organizar políticas', () => {
         window.abrirLigarControle('p1', 'k2');
         el('org-destino').value = 't1';
         await window.ligarControle('p1', 'k2');
-        expect(corpo(f, `PUT ${P}/documentos/t1/requisitos`)).toEqual({ requisitos: ['r1', 'r2'] });
+        expect(corpo(f, `PUT ${P}/documentos/t1/requisitos`)).toEqual({ requisitos: ['r1', 'iso27001:2022:A.5.1'] });
+    });
+
+    it('erro no POST: toast, modal aberto e sem recarga', async () => {
+        servir(rotas());
+        await window.renderOrganizarPoliticas(el('c'), el('h'), el('a'));
+        window.abrirIncorporar('p1', 'c1');
+        el('org-destino').value = 't1';
+        await window.incorporarPolitica('p1', 'c1');
+        expect(document.querySelector('.toast').textContent).toContain('API route not found');
+        expect(window.render).not.toHaveBeenCalled();
+        expect(el('org-destino')).not.toBeNull();
+    });
+
+    it('controle sem requisito: motivo visível e sem botão de ligar; com requisito, sugere o tema livre', async () => {
+        servir(rotas());
+        await window.renderOrganizarPoliticas(el('c'), el('h'), el('a'));
+        expect(el('c').textContent).toContain('Controle fora do catálogo de requisitos');
+        expect(el('c').querySelectorAll('[data-action="abrirLigarControle"]').length).toBe(1);
+        const botoes = [...el('c').querySelectorAll('[data-action="openNovaPoliticaModal"]')].map((b) => JSON.parse(b.getAttribute('data-args')));
+        expect(botoes).toEqual([['p1', 'POL-GOV'], ['p1', null]]);
+    });
+
+    it('Nova política abre com o tema sugerido marcado', async () => {
+        servir(rotas());
+        await window.openNovaPoliticaModal('p1', 'POL-GOV');
+        expect(document.querySelector('#pol-sugerido').textContent).toContain('POL-GOV');
     });
 
     it('sem temáticas, Incorporar fica desabilitado com o motivo em texto', async () => {
@@ -90,6 +116,7 @@ describe('Organizar políticas', () => {
         await window.renderOrganizarPoliticas(el('c'), el('h'), el('a'));
         expect(el('c').querySelector('[data-action="abrirIncorporar"]')).toBeNull();
         expect(el('c').textContent).toContain('Crie uma política temática');
+        expect(el('c').textContent).toContain('Incorporar indisponível');
     });
 
     it('sem nada a organizar, mostra o vazio', async () => {

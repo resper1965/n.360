@@ -170,14 +170,14 @@ window.openNovoDocumentoModal = function (projectId, tipo = 'politica', titulo =
 };
 
 /** Nova política pelo catálogo de temas (ou tema livre com requisitos do catálogo). Quem decide é o servidor. */
-window.openNovaPoliticaModal = async function (projectId) {
+window.openNovaPoliticaModal = async function (projectId, sugerido = null) {
     let temas = [];
     let reqs = [];
     try { temas = lista((await api('GET', `/api/v1/projects/${projectId}/politicas/temas`) || {}).temas); } catch (e) { falha(e, 'Não foi possível carregar os temas'); return; }
     try { reqs = lista(await api('GET', '/api/v1/requisitos?fonte=iso27001:2022')); } catch (e) { /* sem catálogo, só os temas prontos */ }
     openModal(`
         <div class="modal-header"><span class="modal-title">Nova política</span></div>
-        <ul class="t-sm">${temas.map((t) => `<li><strong>${escapeHTML(t.codigo)}</strong> ${escapeHTML(t.titulo)} (${lista(t.controles).length} controles)
+        <ul class="t-sm">${temas.map((t) => `<li${t.codigo === sugerido ? ' id="pol-sugerido"' : ''}><strong>${escapeHTML(t.codigo)}</strong> ${escapeHTML(t.titulo)} (${lista(t.controles).length} controles)${t.codigo === sugerido ? ' <span class="ctx-tag">Sugerido para o controle</span>' : ''}
             ${t.documento_id
         ? `Já existe <button class="btn btn-ghost btn-sm" data-action="abrirPolitica" data-args='${args(projectId, t.documento_id)}'>Abrir</button>`
         : `<button class="btn btn-ghost btn-sm" data-action="criarPoliticaDoTema" data-args='${args(projectId, t.codigo)}'>Criar</button>`}</li>`).join('')}</ul>

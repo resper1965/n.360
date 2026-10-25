@@ -14,6 +14,13 @@ const projetoId = () => (S.activeProject || (S.projects || [])[0] || {}).id;
 const equipe = () => typeof window.ehEquipeNess === 'function' && window.ehEquipeNess();
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 const STATUS = { rascunho: ['Rascunho', 'info'], vigente: ['Vigente', 'success'] };
+const PREFIXO = 'iso27001:2022:';
+/** Tema do catálogo que cobre o controle (pelo código A.x.y do requisito) e ainda não tem política. */
+const temaSugerido = (temas, requisitoId) => {
+    const cod = String(requisitoId || '').startsWith(PREFIXO) ? requisitoId.slice(PREFIXO.length) : null;
+    const t = cod && temas.find((x) => !x.documento_id && lista(x.controles).includes(cod));
+    return t ? t.codigo : null;
+};
 const opcoesTematicas = () => lista(S.organizar && S.organizar.tematicas).map((t) => `<option value="${escapeHTML(t.id)}">${escapeHTML(t.titulo)}</option>`).join('');
 
 async function renderOrganizarPoliticas(c, h, a) {
@@ -26,6 +33,8 @@ async function renderOrganizarPoliticas(c, h, a) {
     try { org = await api('GET', `/api/v1/projects/${pid}/politicas/organizar`); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar as políticas.', e); return; }
     let cob = null;
     try { const r = await api('GET', `/api/v1/projects/${pid}/documentos/cobertura`); if (r && r.aplicaveis) cob = r; } catch (e) { /* sem o indicador, a tela segue */ }
+    let temas = [];
+    try { temas = lista((await api('GET', `/api/v1/projects/${pid}/politicas/temas`) || {}).temas); } catch (e) { /* sem sugestão, o modal abre sem seleção */ }
     S.organizar = org;
     const porControle = lista(org.por_controle);
     const semCob = lista(org.sem_cobertura);
@@ -36,7 +45,7 @@ async function renderOrganizarPoliticas(c, h, a) {
         return [
             escapeHTML(d.titulo), escapeHTML(d.controle || '—'), renderStatusBadge(rotulo, tom),
             `<button class="btn btn-ghost btn-sm" data-action="abrirPolitica" data-args='${args(pid, d.id)}'>Abrir</button>
-             ${temTematicas ? `<button class="btn btn-ghost btn-sm" data-action="abrirIncorporar" data-args='${args(pid, d.id)}'>Incorporar a…</button>` : ''}
+             ${temTematicas ? `<button class="btn btn-ghost btn-sm" data-action="abrirIncorporar" data-args='${args(pid, d.id)}'>Incorporar a…</button>` : '<span class="t-sm t-dim">Incorporar indisponível: não há política temática.</span>'}
              <button class="btn btn-ghost btn-sm" data-action="abrirPromover" data-args='${args(pid, d.id)}'>Promover a temática</button>`,
         ];
     };
@@ -46,8 +55,10 @@ async function renderOrganizarPoliticas(c, h, a) {
         <div id="org-por-controle"></div>
         <h3>Controles sem política</h3>
         ${semCob.length ? `<ul class="t-sm">${semCob.map((k) => `<li>${escapeHTML(k.title)}
-            ${temTematicas ? `<button class="btn btn-ghost btn-sm" data-action="abrirLigarControle" data-args='${args(pid, k.id)}'>Ligar a uma política</button>` : ''}
-            <button class="btn btn-ghost btn-sm" data-action="openNovaPoliticaModal" data-args='${args(pid)}'>Criar política do tema sugerido</button></li>`).join('')}</ul>`
+            ${!k.requisito_id ? '<span class="t-sm t-dim">Controle fora do catálogo de requisitos.</span>'
+            : temTematicas ? `<button class="btn btn-ghost btn-sm" data-action="abrirLigarControle" data-args='${args(pid, k.id)}'>Ligar a uma política</button>`
+            : '<span class="t-sm t-dim">Ligar indisponível: não há política temática.</span>'}
+            <button class="btn btn-ghost btn-sm" data-action="openNovaPoliticaModal" data-args='${args(pid, temaSugerido(temas, k.requisito_id))}'>Criar política do tema sugerido</button></li>`).join('')}</ul>`
         : renderEmptyState({ titulo: 'Todos os controles aplicáveis têm política vigente.', compacto: true })}`;
     montarLista(c.querySelector('#org-por-controle'), {
         id: 'organizar-politicas',
@@ -77,7 +88,7 @@ window.abrirLigarControle = (pid, id) => modalDestino('Ligar o controle a uma po
 window.ligarControle = async function (pid, controleId) {
     const destino = el('org-destino').value;
     await depois(async () => {
-        const k = lista(await api('GET', `/api/v1/projects/${pid}/controls`)).find((x) => x.id === controleId);
+        const k = lista(S.organizar && S.organizar.sem_cobertura).find((x) => x.id === controleId);
         if (!k || !k.requisito_id) throw new Error('Este controle não está ligado a um requisito do catálogo');
         const atuais = lista(await api('GET', `/api/v1/projects/${pid}/documentos/${destino}/requisitos`)).map((r) => r.id);
         await api('PUT', `/api/v1/projects/${pid}/documentos/${destino}/requisitos`, { requisitos: [...new Set([...atuais, k.requisito_id])] });
