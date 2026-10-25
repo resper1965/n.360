@@ -15,7 +15,7 @@ import { rateLimit } from '../helpers';
  * então uma integração também é contada separadamente.
  */
 
-// `q` é a query da requisição: a prontidão só chama o modelo com `?ai=1` e a interpretação da fase relê o modelo com `?refresh=1`.
+// `q` é a query da requisição: a prontidão só chama o modelo com `?ai=1`. A interpretação da fase conta na própria rota, quando vai chamar o modelo.
 type Regra = { teste: (p: string, q: Record<string, string>) => boolean; max: number; janelaSec: number; nome: string };
 
 const REGRAS: Regra[] = [
@@ -26,7 +26,6 @@ const REGRAS: Regra[] = [
       /\/(chat|migrate-27701|evaluate|generate-document)$/.test(p) || /\/checklist\/[^/]+\/generate$/.test(p)
       || (q.ai === '1' && /^\/api\/v1\/projects\/[^/]+\/readiness-check$/.test(p))
       || /^\/api\/v1\/projects\/[^/]+\/control-adequacao\/[^/]+\/suggestions$/.test(p)
-      || (q.refresh === '1' && /^\/api\/v1\/projects\/[^/]+\/phase-answers\/[^/]+\/interpret$/.test(p))
       // Rascunhos de IA do n.privacy: atividade, pedido do titular, comunicação de incidente.
       || /^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/sugestao$/.test(p)
       || /^\/api\/v1\/projects\/[^/]+\/(titular-pedidos\/[^/]+\/rascunho|incidentes\/[^/]+\/rascunho-comunicacao)$/.test(p),

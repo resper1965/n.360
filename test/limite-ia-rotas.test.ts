@@ -37,7 +37,6 @@ describe('limite de IA nas rotas que chamam o modelo', () => {
     ['POST', `/api/v1/projects/${P}/generate-document`],
     ['POST', `/api/v1/projects/${P}/checklist/x/generate`],
     ['GET', `/api/v1/projects/${P}/control-adequacao/1/suggestions`],
-    ['GET', `/api/v1/projects/${P}/phase-answers/1/interpret?refresh=1`],
     ['POST', `/api/v1/projects/${P}/ropa/r1/sugestao`],
     ['POST', `/api/v1/projects/${P}/titular-pedidos/t1/rascunho`],
     ['POST', `/api/v1/projects/${P}/incidentes/i1/rascunho-comunicacao`],

@@ -140,11 +140,11 @@ describe('pedido de aprovação do tratamento', () => {
     expect(await statusPedidos(id)).toEqual(['substituido', 'aberto']);
   });
 
-  it('mudar só o status não invalida a aprovação do conteúdo', async () => {
+  it('mandar para revisão pelo PUT uma atividade aprovada é reabrir: o consultor recebe 403 e a aprovação fica', async () => {
     const id = await novo('Só status');
     await aprovar(await pedido(id));
     const r = await chamar(consultor, 'PUT', `/api/v1/ropa/${id}`, { processing_purpose: 'Só status', status: 'Under Review' });
-    expect(r.status, await r.clone().text()).toBe(200);
+    expect(r.status, await r.clone().text()).toBe(403);
     expect((await registro(id)).aprovacao_pedido.ciso).not.toBeNull();
   });
 

@@ -97,10 +97,12 @@ ropaApp.put('/:id', async (c) => {
       const corpo = body.status === 'Inactive' ? { acao: 'cancelar' as const, motivo: 'Cancelada pela edição do registro' }
         : body.status === 'Under Review' ? { acao: 'enviar_revisao' as const } : null;
       if (corpo && atual?.project_id) {
-        const r = await transicionar(c.env.DB, atual.project_id, id, c.get('user')!, corpo, c.req.header('CF-Connecting-IP') ?? '');
-        // 409 = a máquina de situação não tem essa transição (ex.: Under Review numa atividade aprovada por pedido): segue o UPDATE comum, como antes.
-        if (r.ok) delete body.status;
-        else if (r.status !== 409) return c.json({ error: r.error }, r.status);
+        const ip = c.req.header('CF-Connecting-IP') ?? '';
+        let r = await transicionar(c.env.DB, atual.project_id, id, c.get('user')!, corpo, ip);
+        // Atividade aprovada por pedido: mandar para revisão é reabrir (a mesma transição da tela).
+        if (!r.ok && r.status === 409 && corpo.acao === 'enviar_revisao') r = await transicionar(c.env.DB, atual.project_id, id, c.get('user')!, { acao: 'reabrir', motivo: 'Reaberta pela edição do registro' }, ip);
+        if (!r.ok) return c.json({ error: r.error }, r.status);
+        delete body.status;
       }
     }
     for (const k of ['international_transfers', 'dpia_required', 'dados_sensiveis', 'criancas_adolescentes']) if (k in body && body[k] !== null) body[k] = body[k] ? 1 : 0;
