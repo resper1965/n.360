@@ -344,7 +344,7 @@ describe('painel e reenvio', () => {
       (await env.DB.prepare('SELECT status, substituido_por FROM pedidos WHERE id = ?').bind(id).first<any>());
     await resetPolitica();
     const a = await lote(['ed1@cliente.com']);
-    const r1 = await chamar(consultor, 'POST', `/api/v1/projects/${P}/controls/${POL}/policy`, { text: 'Texto editado' });
+    const r1 = await chamar(consultor, 'PUT', `/api/v1/controls/${POL}`, { description: 'Texto editado' });
     expect(r1.status, await r1.clone().text()).toBe(200);
     const s1 = await statusDe(a.id);
     expect(s1.status).toBe('substituido');
@@ -364,7 +364,7 @@ describe('painel e reenvio', () => {
     const a = await lote(['sub1@cliente.com', 'sub2@cliente.com']);
     const velho = tokenDe('sub1@cliente.com');
     enviados = [];
-    expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/controls/${POL}/policy`, { text: 'Texto que muda' })).status).toBe(200);
+    expect((await chamar(consultor, 'PUT', `/api/v1/controls/${POL}`, { description: 'Texto que muda' })).status).toBe(200);
     // Todo pedido aberto deste documento é substituído; os dois deste lote estão entre os avisados.
     expect(enviados.map((e) => e.to)).toEqual(expect.arrayContaining(['sub1@cliente.com', 'sub2@cliente.com']));
     const novo = tokenDe('sub1@cliente.com');

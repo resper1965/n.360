@@ -331,7 +331,7 @@ const SET_ASSINATURA_POLITICA: Record<PapelAssinatura, string> = {
 
 /**
  * Assinatura da política (o texto vive em `compliance_controls.description`) por papel. É a MESMA
- * usada por `POST /api/v1/controls/:id/approve` e pelo pedido de aprovação de política. Devolve o
+ * usada pelo pedido de aprovação de política (os que já existem; a rota direta saiu). Devolve o
  * UPDATE (para `run()` ou `batch`), ou `null` se o controle não existe no projeto. Não toca `status`:
  * ele é o da SoA. Com `guarda`, só pega se a prova do destinatário foi gravada no mesmo `batch` e o
  * título/texto são os congelados no pedido.
@@ -383,7 +383,7 @@ export async function registrarDecisao(db: D1Database, a: {
   // Sem esta condição, cairia em `assinaturaDpia` e assinaria um DPIA de mesmo id.
   if (a.assinar && p.tipo !== 'documento' && p.tipo !== 'excecao' && p.tipo !== 'tratamento') {
     const guarda = { destId: a.destId, status: a.status, decididoEm, conteudoJson: p.conteudo_json };
-    // Cada tipo assina pela MESMA função da aprovação direta: DPIA (platform.ts) e política (controls.ts).
+    // Cada tipo assina pela MESMA função: DPIA (a da aprovação direta em platform.ts) e política (pedidos antigos; a rota direta saiu).
     const st = p.tipo === 'politica'
       ? await assinaturaPolitica(db, p.project_id, p.ref_id, a.assinar.papel, { por: a.nome, em: decididoEm, ip: a.ip, ua: a.ua }, guarda)
       : await assinaturaDpia(db, p.project_id, p.ref_id, a.assinar.papel, a.nome, guarda);

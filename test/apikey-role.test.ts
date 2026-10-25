@@ -3,7 +3,7 @@ import { apiKeyRoleViolation, isAuditWrite } from '../src/auth-policy';
 
 const FINDINGS = '/api/v1/audits/AUD-1/findings';
 const FINDING_ITEM = '/api/v1/audit-findings/F-1';
-const GEN_POLICY = '/api/v1/projects/PROJ-1/generate-policy';
+const GEN_POLICY = '/api/v1/projects/PROJ-1/generate-document';
 
 describe('isAuditWrite', () => {
   it('POST em /audits/:id/findings é escrita de auditoria', () => {
@@ -13,7 +13,7 @@ describe('isAuditWrite', () => {
   it('GET no mesmo path não é escrita', () => {
     expect(isAuditWrite('GET', FINDINGS)).toBe(false);
   });
-  it('gerar política não é escrita de auditoria', () => {
+  it('gerar documento não é escrita de auditoria', () => {
     expect(isAuditWrite('POST', GEN_POLICY)).toBe(false);
   });
   it('PUT e DELETE de achado (/audit-findings/:id) também são escrita de auditoria', () => {
@@ -24,7 +24,7 @@ describe('isAuditWrite', () => {
 });
 
 describe('apiKeyRoleViolation — separação consultor × auditor', () => {
-  it('consultor gera política (permitido)', () => {
+  it('consultor gera documento (permitido)', () => {
     expect(apiKeyRoleViolation('consultant', 'POST', GEN_POLICY)).toBeNull();
   });
   it('consultor NÃO registra achado', () => {

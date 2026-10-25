@@ -53,7 +53,7 @@ describe('Resumo das entrevistas e mapa da app', () => {
   });
 
   it('o mapa cobre as áreas do consultor e não a comercial', () => {
-    for (const area of ['interviews', 'phase-answers', 'journey-dossier', 'versions', '/content', 'ropa', 'dpia', 'assets', 'vendors', 'training', 'audits', 'capa', 'stakeholders', 'management-reviews', 'certification', 'scope-changes', 'data-subject']) {
+    for (const area of ['interviews', 'phase-answers', 'journey-dossier', '/content', 'ropa', 'dpia', 'assets', 'vendors', 'training', 'audits', 'capa', 'stakeholders', 'management-reviews', 'certification', 'scope-changes', 'data-subject']) {
       expect(MAPA_DA_APP, area).toContain(area);
     }
     expect(MAPA_DA_APP).not.toMatch(/leads|proposals|assessments/);

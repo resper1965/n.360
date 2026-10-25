@@ -161,17 +161,6 @@ describe('versão nova substitui o pedido; a ciência da versão antiga fica', (
       expect((await dests(p.id)).filter((d) => d.status === 'ciente'), p.id).toEqual([]);
     }
   });
-
-  it('gravar uma versão nova pela edição da política do controle também substitui o pedido do documento', async () => {
-    await env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, description) VALUES ('pd-ctl', ?, 'ISO 27001:2022', 'A.5.1 Controle', 'Catálogo')`).bind(P).run();
-    const h = await sessionFor({ id: 'u-pd', email: 'cons@ness.lat', role: 'consultor' });
-    // primeira edição: cria o documento do controle e publica a versão 1
-    await chamar(h, 'POST', `/api/v1/projects/${P}/controls/pd-ctl/policy`, { text: 'Versão 1 do controle' });
-    const doc = (await env.DB.prepare(`SELECT id FROM documentos WHERE origem_control_id = 'pd-ctl'`).first<{ id: string }>())!.id;
-    const { id: ped } = await lote(doc, ['eva@cliente.com']);
-    await chamar(h, 'POST', `/api/v1/projects/${P}/controls/pd-ctl/policy`, { text: 'Versão 2 do controle' });
-    expect((await pedidosDoDoc(doc)).map((p) => [p.id === ped ? 'antigo' : 'novo', p.status])).toEqual([['antigo', 'substituido'], ['novo', 'aberto']]);
-  });
 });
 
 describe('ciência pelo portal (canal portal)', () => {

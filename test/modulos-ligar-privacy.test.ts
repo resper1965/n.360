@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv } from './helpers/d1';
-import { importarDocumentos, garantirDocumentoDoControle } from '../src/services/documentos';
+import { importarDocumentos } from '../src/services/documentos';
 import { importarPartes } from '../src/services/partes';
 
 const chamar = (h: Record<string, string>, metodo: string, caminho: string, corpo?: unknown, e: any = workerEnv()) =>
@@ -130,9 +130,9 @@ describe('importarDocumentos liga a evidência do controle ao documento (botão 
     expect(r.status).toBe(200);
     expect(await contar(`SELECT COUNT(*) AS n FROM evidence WHERE project_id = 'pl1' AND control_id = 'pl1-c1' AND documento_id = ?`, doc!.id)).toBe(2);
   });
-  it('documento rascunho de controle SEM sinal de política (garantirDocumentoDoControle) não recebe a evidência', async () => {
+  it('documento rascunho de controle SEM sinal de política não recebe a evidência', async () => {
     await env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, description) VALUES ('pl3-c2', 'pl3', 'ISO 27001', 'A.8.1 Catálogo', 'Missing', 'Texto de catálogo')`).run();
-    await garantirDocumentoDoControle(env.DB, 'pl3', 'pl3-c2', 'x@exemplo.com.br');
+    await env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status, origem_control_id) VALUES ('pl3-doc2', 'pl3', 'politica', 'A.8.1 Catálogo', 'rascunho', 'pl3-c2')`).run();
     await env.DB.prepare(`INSERT INTO evidence (id, control_id, project_id, file_name, r2_key, file_hash, uploaded_by) VALUES ('pl3-ev2', 'pl3-c2', 'pl3', 'c.pdf', 'k3', 'h3', 'x@exemplo.com.br')`).run();
     await importarDocumentos(env.DB, 'pl3', 'x@exemplo.com.br');
     expect(await contar(`SELECT COUNT(*) AS n FROM evidence WHERE id = 'pl3-ev2' AND documento_id IS NULL`)).toBe(1);

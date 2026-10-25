@@ -228,15 +228,6 @@ export const evidenceEvaluateSchema = z.object({
   text: longo.optional(),
 }).passthrough();
 
-// ─── Assinatura eletrônica ───────────────────────────────────────────────────
-// A senha é o segundo fator do ato de assinar; sem ela o handler já recusava,
-// mas com 400 vindo do banco em vez de validação explícita.
-export const assinaturaSchema = z.object({
-  password: z.string().min(1).max(500),
-  role: z.enum(['ciso', 'ceo']).optional(),
-  project_id: idOpcional,
-}).passthrough();
-
 // ─── IA ──────────────────────────────────────────────────────────────────────
 export const chatSchema = z.object({
   message: z.string().trim().min(1).max(10_000),

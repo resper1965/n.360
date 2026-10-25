@@ -15,7 +15,7 @@ export const PEDIDO_TIPOS = ['dpia', 'politica', 'documento', 'excecao', 'tratam
 export const TELAS = [
   'soa', 'risks', 'assets', 'documentos', 'ropa', 'dpia', 'partes', 'vendors', 'training', 'audits', 'capa', 'governance',
   'stakeholders', 'context', 'management-review', 'evidence', 'controls', 'metrics', 'certification', 'titular', 'terceiros',
-  'policies-dashboard', 'audit-execution', 'requisitos',
+  'audit-execution', 'requisitos',
 ] as const;
 /** Teto de caracteres por tipo de campo (o do `notes` antigo era 5.000 para todos juntos). */
 export const TETO_CAMPO = { texto: 300, texto_longo: 4000, escolha: 200, multipla: 1000, data: 10 } as const;

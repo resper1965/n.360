@@ -109,6 +109,16 @@ const TOLERADAS: { chave: string; motivo: string; expande: string[] }[] = [
   { chave: 'PUT /api/v1/projects/:p/ropa/:p', motivo: 'atividade/estado.js gravarAgora({ rota }): idem', expande: ['PUT /api/v1/projects/:p/ropa/:p/agentes', 'PUT /api/v1/projects/:p/ropa/:p/ciclo'] },
   { chave: '* /api/v1/projects/:p/:p', motivo: 'atividade/catalogo-inline.js api(…, caminho(pid, tipo)): TIPOS escolhe catálogo, ativos, áreas ou parceiros', expande: ['GET /api/v1/projects/:p/catalogos/:p', 'GET /api/v1/projects/:p/assets', 'GET /api/v1/projects/:p/departamentos', 'GET /api/v1/projects/:p/partes', 'POST /api/v1/projects/:p/catalogos/:p', 'POST /api/v1/projects/:p/assets', 'POST /api/v1/projects/:p/departamentos', 'POST /api/v1/projects/:p/partes'] },
   // Temporárias deste plano: cada tarefa que corrige a chamada apaga a entrada.
+  { chave: 'POST /api/v1/projects/:p/generate-policy', motivo: 'compliance.js: tela da política por controle; a rota saiu na Task 5 e a tela sai na Task 6', expande: [] },
+  { chave: 'GET /api/v1/projects/:p/controls/:p/policy', motivo: 'compliance.js: tela da política por controle; a rota saiu na Task 5 e a tela sai na Task 6', expande: [] },
+  { chave: 'GET /api/v1/policies/templates', motivo: 'compliance.js: tela da política por controle; a rota saiu na Task 5 e a tela sai na Task 6', expande: [] },
+  { chave: 'POST /api/v1/projects/:p/controls/:p/policy', motivo: 'compliance.js: tela da política por controle; a rota saiu na Task 5 e a tela sai na Task 6', expande: [] },
+  { chave: 'GET /api/v1/projects/:p/controls/:p/versions/:p', motivo: 'compliance.js: tela da política por controle; a rota saiu na Task 5 e a tela sai na Task 6', expande: [] },
+  { chave: 'POST /api/v1/projects/:p/controls/:p/restore-version', motivo: 'compliance.js: tela da política por controle; a rota saiu na Task 5 e a tela sai na Task 6', expande: [] },
+  { chave: 'POST /api/v1/projects/:p/policies/generate-from-template', motivo: 'compliance.js: tela da política por controle; a rota saiu na Task 5 e a tela sai na Task 6', expande: [] },
+  { chave: 'POST /api/v1/controls/:p/approve', motivo: 'compliance.js: tela da política por controle; a rota saiu na Task 5 e a tela sai na Task 6', expande: [] },
+  { chave: 'POST /api/v1/projects/:p/generate-policies-bulk', motivo: 'compliance.js: tela da política por controle; a rota saiu na Task 5 e a tela sai na Task 6', expande: [] },
+  { chave: '* /api/v1/projects/:p/controls/:p/policy/report', motivo: 'compliance.js: tela da política por controle; a rota saiu na Task 5 e a tela sai na Task 6', expande: [] },
 ];
 
 const CHAMADAS = Object.entries(FONTES).flatMap(([arq, src]) => chamadasDoFonte(arq.replace(/^\.\.\//, ''), src));

@@ -11,7 +11,7 @@ type Enviado = { to: string[]; from: string; subject: string; html: string; text
 let enviados: Enviado[] = [];
 let resendOk = true;
 const P = 'ea-proj';
-const CTRL = 'ea-pol';
+const DOC = 'ea-pol';
 const TITULO = 'Política <b>de</b> Acesso';
 
 const chamar = (h: Record<string, string>, metodo: string, caminho: string, corpo?: unknown, comChave = true) =>
@@ -27,7 +27,8 @@ beforeAll(async () => {
   await applySchema();
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Cliente <Ficticio>', 'ISO 27001:2022', 'Controller', 'Active', 'org_ness')`).bind(P),
-    env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, description, status) VALUES (?, ?, 'ISO 27001:2022', ?, 'Texto da politica.', 'Partial')`).bind(CTRL, P, TITULO),
+    env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status) VALUES (?, ?, 'politica', ?, 'vigente')`).bind(DOC, P, TITULO),
+    env.DB.prepare(`INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por) VALUES ('ea-v1', ?, ?, 1, 'Texto da politica.', '${'c'.repeat(64)}', 'vigente', 'humano', 'cons@ea.lat')`).bind(P, DOC),
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES
       ('ea-cons', 'cons@ea.lat', 'x', 'Cons Ficticio', 'consultor', NULL, 'org_ness'),
       ('ea-ciso', 'ciso@cliente.lat', 'x', 'Cida', 'org_user', ?, 'org_ness')`).bind(P),
@@ -53,7 +54,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 const pedirAprovacao = (comChave = true) => chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos`,
-  { tipo: 'politica', ref_id: CTRL, papel_exigido: 'ciso', destinatarios: [{ email: 'ciso@cliente.lat' }] }, comChave);
+  { tipo: 'documento', ref_id: DOC, papel_exigido: 'ciso', destinatarios: [{ email: 'ciso@cliente.lat' }] }, comChave);
 
 describe('pedido de aprovação criado', () => {
   it('o destinatário recebe um e-mail: quem pede, o que aprovar, até quando, link para Minhas aprovações, resposta a quem pediu', async () => {

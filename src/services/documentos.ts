@@ -218,8 +218,8 @@ export async function importarDocumentos(db: D1Database, projectId: string, ator
   await logAudit(db, 'documentos.importados', ator,
     `Importação de políticas: ${resumo.criados} criadas, ${resumo.ja_existiam} já existiam, ${resumo.versoes} versões, ` +
     `${resumo.ignorados_nao_aplicavel} não aplicáveis e ${resumo.ignorados_sem_texto} sem texto ignorados`, '', '', projectId);
-  // A evidência do controle de POLÍTICA passa a ser do documento também (o rascunho vazio que garantirDocumentoDoControle dá a
-  // controle sem sinal fica de fora). Só a ainda sem documento: repetível, e a ligação já feita não é trocada. Depois da
+  // A evidência do controle de POLÍTICA passa a ser do documento também (documento de controle sem sinal de política
+  // fica de fora). Só a ainda sem documento: repetível, e a ligação já feita não é trocada. Depois da
   // trilha e fora dela: os documentos já entraram, e falhar aqui não pode apagar a contagem.
   try {
     await db.prepare(
@@ -234,72 +234,6 @@ export async function importarDocumentos(db: D1Database, projectId: string, ator
     resumo.avisos.push('Os documentos entraram, mas as evidências das políticas não foram ligadas a eles; importe de novo para ligar.');
   }
   return resumo;
-}
-
-/**
- * O documento do controle, criado se ainda não existe. Chamada ANTES de qualquer escrita de política, para a
- * primeira escrita não perder o histórico: controle com sinal de política (versão, aprovação ou pedido) e que
- * não é "Não aplicável" é importado como na 3.1; qualquer outro ganha um documento vazio em rascunho (a
- * `description` dele pode ser só texto de catálogo ou a justificativa da SoA, e não vira versão).
- */
-export async function garantirDocumentoDoControle(db: D1Database, projectId: string, controlId: string, ator: string): Promise<string> {
-  const achar = () => db.prepare(`SELECT id FROM documentos WHERE origem_control_id = ? AND project_id = ?`).bind(controlId, projectId).first<{ id: string }>();
-  const existente = await achar();
-  if (existente) return existente.id;
-
-  const c = await db.prepare(
-    `SELECT c.id, c.title, c.description, c.status, c.ciso_approved_by, c.ceo_approved_by,
-       ${SINAL_DE_POLITICA} AS sinal
-     FROM compliance_controls c WHERE c.id = ? AND c.project_id = ?`
-  ).bind(controlId, projectId).first<ControleDePolitica & { status: string | null; sinal: number }>();
-  if (!c) throw new Error('Controle não encontrado neste projeto');
-
-  try {
-    if (c.sinal && c.status !== 'Not Applicable') {
-      const h = await db.prepare(`SELECT policy_text, created_by FROM policy_versions WHERE control_id = ? ORDER BY version, rowid`)
-        .bind(controlId).all<{ policy_text: string; created_by: string | null }>();
-      const historico = h.results.filter((r) => r.policy_text?.trim()).map((r) => ({ texto: r.policy_text, por: r.created_by }));
-      const feito = await importarControle(db, projectId, c, historico, ator);
-      if (feito) return feito.id;
-    }
-    const id = crypto.randomUUID();
-    await db.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status, origem_control_id) VALUES (?, ?, 'politica', ?, 'rascunho', ?)`)
-      .bind(id, projectId, c.title, controlId).run();
-    return id;
-  } catch (e) {
-    // Duas chamadas ao mesmo tempo: o índice de um documento por controle barrou a segunda; vale o da primeira.
-    if (!unico(e)) throw e;
-    const vencedor = await achar();
-    if (vencedor) return vencedor.id;
-    throw e;
-  }
-}
-
-/**
- * Registra no documento um texto que já foi gravado no controle: vira a versão vigente seguinte, direto (sem
- * passar pelo rascunho, que pode estar ocupado por uma proposta do agente). Texto igual ao da vigente não cria nada.
- */
-export async function espelharTexto(
-  db: D1Database, projectId: string, documentoId: string, texto: string, ator: string, origem: 'humano' | 'agente' | 'gerador',
-): Promise<{ criada: boolean }> {
-  const hash = await hashDoTexto(texto);
-  const vigente = await db.prepare(`SELECT hash FROM documento_versoes WHERE documento_id = ? AND project_id = ? AND estado = 'vigente'`)
-    .bind(documentoId, projectId).first<{ hash: string }>();
-  if (vigente?.hash === hash) return { criada: false };
-
-  await db.batch([
-    db.prepare(`UPDATE documento_versoes SET estado = 'substituida' WHERE documento_id = ? AND project_id = ? AND estado = 'vigente'`).bind(documentoId, projectId),
-    db.prepare(
-      `INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por)
-       SELECT ?, ?, ?, COALESCE(MAX(numero), 0) + 1, ?, ?, 'vigente', ?, ? FROM documento_versoes WHERE documento_id = ?`
-    ).bind(crypto.randomUUID(), projectId, documentoId, texto, hash, origem, ator, documentoId),
-    db.prepare(
-      `UPDATE documentos SET status = 'vigente', updated_at = CURRENT_TIMESTAMP,
-         revisar_ate = CASE WHEN revisar_a_cada_meses IS NOT NULL THEN date('now', '+' || revisar_a_cada_meses || ' months') END
-       WHERE id = ? AND project_id = ?`
-    ).bind(documentoId, projectId),
-  ]);
-  return { criada: true };
 }
 
 /** Descarta o rascunho pendente do documento. A versão vigente e as substituídas ficam. */
@@ -334,24 +268,6 @@ export async function excluirDocumento(db: D1Database, projectId: string, docume
   if (!r.meta.changes) return falha(409, 'Este documento já tem versão publicada, pedido ou exceção: aposente-o em vez de excluir');
   await logAudit(db, 'documento.excluido', ator, `Documento ${documentoId} ("${d.titulo}") excluído`, '', '', projectId);
   return { ok: true };
-}
-
-/** O rascunho pendente do documento de um controle (o que o agente propôs), ou null. */
-export async function rascunhoDoControle(db: D1Database, projectId: string, controlId: string) {
-  return db.prepare(
-    `SELECT d.id AS documento_id, v.numero, v.hash, v.texto, v.origem, v.criado_por, v.criado_em
-     FROM documentos d JOIN documento_versoes v ON v.documento_id = d.id AND v.estado = 'rascunho'
-     WHERE d.origem_control_id = ? AND d.project_id = ?`
-  ).bind(controlId, projectId).first<{ documento_id: string; numero: number; hash: string; texto: string; origem: string; criado_por: string | null; criado_em: string }>();
-}
-
-/** O controle ligado a um documento e o texto de uma versão dele (para aplicar uma publicação no controle). */
-export async function alvoDaPublicacao(db: D1Database, projectId: string, documentoId: string, numero: number) {
-  return db.prepare(
-    `SELECT d.origem_control_id AS controle, v.texto
-     FROM documentos d JOIN documento_versoes v ON v.documento_id = d.id AND v.numero = ?
-     WHERE d.id = ? AND d.project_id = ?`
-  ).bind(numero, documentoId, projectId).first<{ controle: string | null; texto: string }>();
 }
 
 // ─── Hierarquia, edição de metadados e revisão (fatia 3.4) ─────────────────────────────────────────────

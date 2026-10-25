@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Bindings, Variables } from '../index';
 import {
-  logAudit, verifyPassword, recusaSenhaDeOutro, erro500, requireProjectAccess, projetosVisiveis, idDoControle,
+  logAudit, verifyPassword, recusaSenhaDeOutro, erro500, requireProjectAccess, projetosVisiveis,
   type PapelAssinatura,
   sendEmail, genToken, sha256Hex, registraErro,
 } from '../helpers';
@@ -98,14 +98,12 @@ projectPedidosApp.post('/', async (c) => {
     const valid = await validateBody(c, pedidoCriarSchema);
     if (!valid.success) return valid.response;
     const b = valid.data;
-    // Política: só aprovação. A ciência de política é pelo lote por link (POST /ciencia).
-    if ((b.tipo === 'politica' || b.tipo === 'documento' || b.tipo === 'excecao' || b.tipo === 'tratamento') && b.papel_exigido === 'ciente') {
+    // Pedido novo de política por controle não nasce mais; os que existem seguem legíveis e decidíveis.
+    if (b.tipo === 'politica') return c.json({ error: 'A política agora é um documento: peça a aprovação pela página da política.' }, 400);
+    if ((b.tipo === 'documento' || b.tipo === 'excecao' || b.tipo === 'tratamento') && b.papel_exigido === 'ciente') {
       return c.json({ error: 'Ciência de política ou documento é pelo envio por link ("Nova ciência por link"). Este pedido é de aprovação: escolha Líder SGSI ou Direção.' }, 400);
     }
-    // O id do controle chega em qualquer formato ou como código; o pedido guarda o id da linha.
-    const refId = b.tipo === 'politica' ? await idDoControle(c.env.DB, projectId, b.ref_id) : b.ref_id;
-    if (!refId) return c.json({ error: 'Documento não encontrado neste projeto' }, 404);
-    if (b.tipo === 'politica' && await politicaVazia(c.env.DB, refId, projectId)) return c.json(POLITICA_VAZIA, 400);
+    const refId = b.ref_id;
 
     const projeto = await c.env.DB.prepare('SELECT org_id FROM projects WHERE id = ?').bind(projectId).first<{ org_id: string }>();
     if (!projeto) return c.json({ error: 'Projeto não encontrado' }, 404);

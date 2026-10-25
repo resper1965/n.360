@@ -1,9 +1,8 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { modulosDaPessoa, recusaDoModulo } from '../modulos';
-import { semRastros, logAudit, requireResourceAccess, verifyPassword, erro500, projetosVisiveis, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, type PapelAssinatura } from '../helpers';
-import { assinaturaPolitica } from '../services/pedidos';
-import { validateBody, controlUpdateSchema, maturitySchema, statusSchema, assinaturaSchema, trilhaDesfazerSchema, revogarAprovacaoSchema } from '../schemas';
+import { semRastros, logAudit, requireResourceAccess, erro500, projetosVisiveis } from '../helpers';
+import { validateBody, controlUpdateSchema, maturitySchema, statusSchema, trilhaDesfazerSchema, revogarAprovacaoSchema } from '../schemas';
 import { registrarAlteracoes, registrarDesfazer, lerTrilha } from '../trilha-campo';
 import { NA_STATUS, hasValidApplicability } from '../services/soa-logic';
 import { conferirPedidosDoDocumento } from './pedidos';
@@ -278,71 +277,7 @@ controlsApp.put('/:id/status', async (c) => {
   }
 });
 
-const handleControlApprove = async (c: any) => {
-  try {
-    const controlId = c.req.param('id');
-    // openapi: controlsApp POST /:id/approve
-    const v = await validateBody(c, assinaturaSchema);
-    if (!v.success) return v.response;
-    const { password } = v.data as any;
-    const user = c.get('user');
-
-    if (!password) {
-      return c.json({ error: 'Senha é obrigatória para assinatura eletrônica' }, 400);
-    }
-
-    // O escopo do UPDATE saía de `project_id` — um campo do CORPO da requisição.
-    // O `AND project_id = ?` parecia isolamento de tenant mas não era: o valor
-    // era do próprio chamador, então mandar o projeto alheio bastava para
-    // assinar controle de outro tenant com a própria senha. E quando nem havia
-    // `project_id`, o UPDATE caía no ramo sem escopo nenhum.
-    //
-    // Agora o projeto sai do próprio controle e a autorização é uma checagem
-    // explícita, não um WHERE que se parecia com uma. O `project_id` do corpo
-    // continua sendo aceito pelo schema para não quebrar quem já o envia, mas
-    // não decide mais nada.
-    const controlRow = await c.env.DB.prepare(
-      'SELECT project_id FROM compliance_controls WHERE id = ?'
-    ).bind(controlId).first() as any;
-    if (!controlRow) return c.json({ error: 'Controle não encontrado' }, 404);
-    await requireResourceAccess(c.env.DB, 'compliance_controls', controlId, user);
-    const targetProjectId = controlRow.project_id;
-
-    const dbUser = (await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(user.email).first()) as any;
-
-    if (!dbUser || !(await verifyPassword(password, dbUser.password_hash))) {
-      return c.json({ error: 'Senha incorreta' }, 401);
-    }
-
-    // A autoridade sai da matriz de governança DESTE projeto, como em ROPA, DPIA e evidência. Antes
-    // esta rota só gravava status='Approved': qualquer editor do projeto "aprovava" a política, sem
-    // CISO/CEO registrado e sem segregação. Sem `role` no corpo, o papel sai do cargo (como evidência).
-    const autoridade = await autoridadeDeAssinatura(c.env.DB, targetProjectId, user);
-    const role: PapelAssinatura = v.data.role ?? (autoridade.ehDirecao && !autoridade.ehLiderSgsi ? 'ceo' : 'ciso');
-    const recusa = recusaDeAssinatura(autoridade, role) ?? await recusaSenhaDeOutro(c.env.DB, user.id);
-    if (recusa) return c.json({ error: recusa }, 403);
-
-    const now = new Date().toISOString();
-    const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '127.0.0.1';
-    const ua = c.req.header('User-Agent') || 'Unknown';
-    // O nome da matriz vem primeiro: é sob aquela designação que a pessoa assina.
-    const approvedBy = autoridade.nome || dbUser.name || user.email;
-
-    // A mesma assinatura que o pedido de aprovação de política aciona (services/pedidos.ts).
-    const assinatura = await assinaturaPolitica(c.env.DB, targetProjectId, controlId, role, { por: approvedBy, em: now, ip, ua });
-    if (!assinatura) return c.json({ error: 'Controle não encontrado' }, 404);
-    await assinatura.run();
-
-    const quem = role === 'ciso' ? 'pelo Líder SGSI' : 'pela Direção Executiva';
-    await logAudit(c.env.DB, 'control.approved', user.email, `Política do controle ${controlId} assinada ${quem} (${approvedBy}; IP: ${ip})`, '', '', targetProjectId);
-    return c.json({ ok: true, role, approved_by: approvedBy, approved_at: now });
-  } catch (e: any) {
-    return erro500(c, 'Falha ao assinar controle', e);
-  }
-};
-
-controlsApp.post('/:id/approve', handleControlApprove);
-controlsApp.put('/:id/approve', handleControlApprove);
+// A assinatura da política do controle (POST/PUT /:id/approve) saiu: a política é um documento, aprovado por pedido.
 
 /**
  * Histórico do controle: `campo: antes → depois`, autor, quando e o marcador de

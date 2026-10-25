@@ -71,8 +71,6 @@ const EXCECOES: Record<string, string> = {
 
 /** Corpos que passam a validação, para a guarda de organização ser o que recusa. */
 const CORPOS: Record<string, (alvo: Org) => unknown> = {
-  'POST /api/v1/controls/:id/approve': () => ({ password: SENHA }),
-  'PUT /api/v1/controls/:id/approve': () => ({ password: SENHA }),
   'PUT /api/v1/leads/:id/status': () => ({ status: 'Lost' }),
   // pedido alheio: a guarda é o destinatário + projeto (404) antes da senha
   'POST /api/v1/pedidos/:id/aprovar': () => ({ senha: SENHA }),

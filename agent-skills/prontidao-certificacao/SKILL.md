@@ -28,7 +28,7 @@ Antes de avaliar, leia o registro com `niso_ler` (o mapa de caminhos está em `n
 
 - controles `/api/v1/projects/{p}/controls`; riscos `/api/v1/projects/{p}/risks`; ativos `/api/v1/projects/{p}/assets`
 - evidências `/api/v1/projects/{p}/evidence` e, para cada uma de texto, `/api/v1/evidence/{id}/content` (binário volta só como metadado: registre como "conteúdo não lido")
-- políticas e versões `/api/v1/projects/{p}/controls/{controle}/versions`
+- políticas `/api/v1/projects/{p}/documentos` e a cobertura `/api/v1/projects/{p}/documentos/cobertura`
 - auditorias `/api/v1/projects/{p}/audits`; análises críticas `/api/v1/projects/{p}/management-reviews`; CAPA `/api/v1/projects/{p}/capa`
 - treinamento `/training`, fornecedores `/vendors`, governança `/governance`, ROPA `/ropa`, DPIA `/dpia` (todos sob `/api/v1/projects/{p}/`)
 - diagnóstico: `niso_coherence_check`, `niso_gap_analysis`, `niso_traceability`
