@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
 
-import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto, ehEquipeNess, linhaDeAssinatura, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
+import { semRastros, registraErro, logAudit, requireResourceAccess, erro500, PODE_REVOGAR_APROVACAO, genId, invalidateUserSessions, revogarAgentesPorTrocaDeSenha, refForaDoProjeto, ehEquipeNess, semIpENavegador, linhaDeAssinatura, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { enviarBoasVindas, nomeDaOrg } from './users';
 import { SEM_SENHA } from '../services/convite';
 import { ehDpo, garantirEncarregado, desfazerEncarregado, atualizarEncarregado, encarregadosFora } from '../services/encarregado-pessoa';
@@ -674,7 +674,7 @@ governanceApp.get('/projects/:id/policy-acknowledgments', async (c) => {
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM policy_acknowledgments WHERE project_id = ? ORDER BY acknowledged_at DESC'
   ).bind(projectId).all();
-  return c.json(results || []);
+  return c.json(semIpENavegador(c.get('user'), results as Record<string, unknown>[]));
 });
 
 governanceApp.post('/projects/:id/policy-acknowledgments', async (c) => {

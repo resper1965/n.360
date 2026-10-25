@@ -81,4 +81,17 @@ describe('niso_ler / niso_executar', () => {
     expect(r.content[0].text.length).toBeLessThan(101_000);
     expect(r.content[0].text).toContain('cortada');
   });
+
+  it('rotas públicas e de login ficam fora (o agente não responde como fornecedor nem como visitante)', async () => {
+    for (const caminho of ['/api/v1/public/homologacao/enviar', '/api/v1/public', '/api/v1/auth/login', '/api/v1/assessments/public/x']) {
+      const r = await chamarFerramenta(token, 'niso_executar', { metodo: 'POST', caminho, corpo: { token: 'qualquer', respostas: {} } });
+      expect(r.isError, caminho).toBe(true);
+      expect(r.content[0].text, caminho).toContain('caminho de API recusado');
+    }
+    const ler = await chamarFerramenta(token, 'niso_ler', { caminho: '/api/v1/public/pedidos/ver' });
+    expect(ler.content[0].text).toContain('caminho de API recusado');
+    // prefixo parecido não é público
+    const ok = await chamarFerramenta(token, 'niso_ler', { caminho: '/api/v1/publicacoes' });
+    expect(ok.content[0].text).not.toContain('caminho de API recusado');
+  });
 });

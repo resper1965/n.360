@@ -78,12 +78,39 @@ describe('9. eliminação do titular', () => {
 
 describe('10. e-mail ligado ao projeto (portal de políticas)', () => {
   const ligado = (email: string) => emailLigadoAoProjeto(env.DB, P, 'org_ness', email);
-  it('parte de terceiro ou inativa não liga; parte ativa só pelo e-mail exato', async () => {
+  it('parte pessoa não liga pelo e-mail exato (auditoria r3, achado 8): de terceiro, inativa ou ativa', async () => {
     expect(await ligado('contato@fornecedor.lat')).toBe(false);
     expect(await ligado('outro@fornecedor.lat')).toBe(false);
     expect(await ligado('ex@antigo.lat')).toBe(false);
-    expect(await ligado('colab@parceiro.lat')).toBe(true);
+    expect(await ligado('colab@parceiro.lat')).toBe(false);
     expect(await ligado('qualquer@parceiro.lat')).toBe(false);
+  });
+  it('parte pessoa com e-mail externo pedindo o código: a mesma resposta e nada é enviado nem guardado', async () => {
+    const pedir = (email: string) => app.fetch(new Request('http://localhost/api/v1/public/policies/request-otp', {
+      method: 'POST', headers: { ...json, 'CF-Connecting-IP': '203.0.113.10' }, body: JSON.stringify({ project_id: P, email }) }), { ...workerEnv(), ENVIRONMENT: 'production' } as any);
+    const r = await pedir('colab@parceiro.lat');
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true, message: 'Código de verificação enviado para colab@parceiro.lat.' });
+    expect(await env.SESSIONS.get(`otp_${P}_colab@parceiro.lat`)).toBeNull();
+    // o domínio do cliente segue abrindo o portal
+    expect((await pedir('novo@cliente-c.lat')).status).toBe(200);
+    expect(await env.SESSIONS.get(`otp_${P}_novo@cliente-c.lat`)).not.toBeNull();
+  });
+  it('o agente não escreve na governança e por ela não abre o portal a e-mail externo (revisão do lote A, I-1)', async () => {
+    const membro = { name: 'Externo', email: 'x@externo-atacante.lat', role_category: 'tech', job_title: 'Analista' };
+    const r = await comoAgente('POST', `/api/v1/projects/${P}/governance`, membro);
+    expect(r.status).toBe(403);
+    expect((await r.json<any>()).error).toContain('fora do alcance do agente');
+    expect((await comoAgente('POST', `/api/v1/projects/${P}/governance/g-c2/convidar`, {})).status).toBe(403);
+    expect((await comoAgente('DELETE', `/api/v1/projects/${P}/governance/g-c2`)).status).toBe(403);
+    expect((await comoAgente('GET', `/api/v1/projects/${P}/governance`)).status).toBe(200);
+    expect(await um(`SELECT 1 AS x FROM project_governance WHERE email = 'x@externo-atacante.lat'`)).toBeNull();
+    for (const email of ['x@externo-atacante.lat', 'qualquer@externo-atacante.lat']) {
+      const otp = await app.fetch(new Request('http://localhost/api/v1/public/policies/request-otp', {
+        method: 'POST', headers: { ...json, 'CF-Connecting-IP': '203.0.113.11' }, body: JSON.stringify({ project_id: P, email }) }), { ...workerEnv(), ENVIRONMENT: 'production' } as any);
+      expect(otp.status).toBe(200);
+      expect(await env.SESSIONS.get(`otp_${P}_${email}`), email).toBeNull();
+    }
   });
   it('domínio da conta ou da governança do cliente liga; provedor público não', async () => {
     expect(await ligado('novo@cliente-c.lat')).toBe(true);

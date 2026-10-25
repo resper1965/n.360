@@ -15,7 +15,7 @@ import { conferirPedidosDoDocumento } from './pedidos';
 import { sugerirTratamento } from '../services/rascunhos-privacy';
 import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
 import { lerEmpresa } from '../services/empresas';
-import { situacaoDaAtividade } from '../services/ropa-abas/situacao';
+import { situacaoDaAtividade, situacaoGravada, transicionar } from '../services/ropa-abas/situacao';
 import { atividadeDoProjeto } from '../services/ropa-abas/comum';
 import { textosDaColeta, mesmosNomes } from '../services/ropa-abas/derivada';
 
@@ -90,6 +90,21 @@ ropaApp.put('/:id', async (c) => {
     if (atual?.status === 'Approved' && Object.hasOwn(body, 'status')) {
       return c.json({ error: 'ROPA aprovado não muda de status pela edição. Para reabrir, use "Revogar aprovação" (motivo obrigatório).' }, 400);
     }
+    // Mudar o status é mudar a situação: ao agente é a decisão niso_situacao_atividade; para a pessoa, cancelar e mandar para revisão
+    // passam pela mesma transição da rota /situacao (cancela o pedido aberto e grava ropa.situacao).
+    if (Object.hasOwn(body, 'status') && body.status !== atual?.status) {
+      if (c.get('user')?.agente) return c.json({ error: 'Forbidden: mudar a situação da atividade é decisão do consultor: use niso_situacao_atividade' }, 403);
+      const corpo = body.status === 'Inactive' ? { acao: 'cancelar' as const, motivo: 'Cancelada pela edição do registro' }
+        : body.status === 'Under Review' ? { acao: 'enviar_revisao' as const } : null;
+      if (corpo && atual?.project_id) {
+        const ip = c.req.header('CF-Connecting-IP') ?? '';
+        let r = await transicionar(c.env.DB, atual.project_id, id, c.get('user')!, corpo, ip);
+        // Atividade aprovada por pedido: mandar para revisão é reabrir (a mesma transição da tela).
+        if (!r.ok && r.status === 409 && corpo.acao === 'enviar_revisao') r = await transicionar(c.env.DB, atual.project_id, id, c.get('user')!, { acao: 'reabrir', motivo: 'Reaberta pela edição do registro' }, ip);
+        if (!r.ok) return c.json({ error: r.error }, r.status);
+        delete body.status;
+      }
+    }
     for (const k of ['international_transfers', 'dpia_required', 'dados_sensiveis', 'criancas_adolescentes']) if (k in body && body[k] !== null) body[k] = body[k] ? 1 : 0;
     // Aprovação direta antiga (assinaturas na linha): mudar conteúdo aprovado a derruba, como no RIPD. Compara o valor que SERIA gravado.
     const gravar = valoresParciais(body, VAZIOS_ROPA);
@@ -118,9 +133,13 @@ ropaApp.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'ropa_records', id, c.get('user'));
-    const atual = await c.env.DB.prepare('SELECT status FROM ropa_records WHERE id = ?').bind(id).first<{ status: string | null }>();
+    const atual = await c.env.DB.prepare('SELECT status, project_id FROM ropa_records WHERE id = ?').bind(id).first<{ status: string | null; project_id: string | null }>();
     if (atual?.status === 'Approved') {
       return c.json({ error: 'ROPA aprovado não pode ser excluído. Revogue a aprovação antes (motivo obrigatório).' }, 409);
+    }
+    // A aprovação por pedido não grava 'Approved': a situação é derivada dos pedidos com o hash vigente.
+    if (atual?.project_id && (await situacaoGravada(c.env.DB, atual.project_id, id))?.situacao.codigo === 'aprovada') {
+      return c.json({ error: 'A atividade aprovada não se apaga: cancele pela situação.' }, 409);
     }
     // As ligações caem por FK; os vínculos de parte não têm FK (alvo polimórfico) e saem aqui, junto.
     await c.env.DB.batch([

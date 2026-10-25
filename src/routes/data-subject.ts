@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { logAudit, linhaDeAssinatura, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
+import { logAudit, semIpENavegador, linhaDeAssinatura, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { validateBody, identificadorSchema } from '../schemas';
 import { localizarTitular, anonimizarTitular, ropaVencidos } from '../services/data-subject';
 
@@ -36,7 +36,11 @@ dataSubjectApp.get('/', async (c) => {
   const identificador = c.req.query('identificador');
   if (!identificador) return c.json({ error: 'Parâmetro `identificador` é obrigatório' }, 400);
 
-  const ocorrencias = await localizarTitular(c.env.DB, projectId, identificador);
+  const todas = await localizarTitular(c.env.DB, projectId, identificador);
+  // IP e navegador de quem leu a política saem só para principal não humano (agente, chave de API); o controlador atende o titular com eles.
+  const u = c.get('user');
+  const naoHumano = u?.agente === true || String(u?.id ?? '').startsWith('apikey:');
+  const ocorrencias = todas.map((o) => ({ ...o, registros: naoHumano ? semIpENavegador(u, o.registros) : o.registros }));
   const total = ocorrencias.reduce((s, o) => s + o.registros.length, 0);
 
   // A consulta em si é tratamento de dado pessoal e precisa constar da trilha.

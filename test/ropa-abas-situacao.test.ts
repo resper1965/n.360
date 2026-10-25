@@ -51,6 +51,9 @@ describe('ações do menu por situação e papel (spec 6)', () => {
     expect(acoesDoMenu(s('aprovada'), { ...admin, bloqueios: 0 }).reabrir.habilitada).toBe(true);
     expect(acoesDoMenu(s('aprovada'), { ...equipe, bloqueios: 0 }).reabrir.habilitada).toBe(false);
   });
+  it('Aprovada: Excluir desabilitado com o motivo em texto', () => {
+    expect(acoesDoMenu(s('aprovada'), { ...equipe, bloqueios: 0 }).excluir).toEqual({ habilitada: false, motivo: 'A atividade aprovada não se apaga: cancele pela situação.' });
+  });
   it('Cancelada: só Reativar, Imprimir e Excluir (equipe)', () => {
     expect(ligadas(acoesDoMenu(s('cancelada'), { ...equipe, bloqueios: 0 }))).toEqual(['excluir', 'imprimir', 'reativar']);
   });

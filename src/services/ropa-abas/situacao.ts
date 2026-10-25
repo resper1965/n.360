@@ -43,7 +43,7 @@ export function acoesDoMenu(s: Situacao, p: Papel): Record<AcaoId, AcaoDoMenu> {
     reabrir: c !== 'aprovada' ? nao('A atividade não está aprovada.') : p.podeRevogar ? sim : nao('Reabrir uma atividade aprovada é do administrador do cliente ou da plataforma.'),
     reativar: c !== 'cancelada' ? nao('A atividade não está cancelada.') : (p.equipe || p.orgAdmin) ? sim : nao('Sem permissão para esta ação.'),
     cancelar: c === 'cancelada' ? nao('A atividade já está cancelada.') : (p.equipe || p.orgAdmin) ? sim : nao('Sem permissão para esta ação.'),
-    excluir: p.equipe ? sim : nao('Excluir é da equipe da consultoria.'),
+    excluir: c === 'aprovada' ? nao('A atividade aprovada não se apaga: cancele pela situação.') : p.equipe ? sim : nao('Excluir é da equipe da consultoria.'),
   };
 }
 

@@ -105,7 +105,7 @@ describe('fluxo da homologação', () => {
     const linha = await env.DB.prepare('SELECT token_hash, perguntas_json, status FROM homologacoes WHERE id = ?').bind(id).first<{ token_hash: string; perguntas_json: string; status: string }>();
     expect(linha!.token_hash).toBe(await sha256Hex(token));
     expect(JSON.stringify(linha)).not.toContain(token);
-    expect(JSON.parse(linha!.perguntas_json)).toHaveLength(PERGUNTAS_PADRAO.length); // a pergunta desativada não vai
+    expect(JSON.parse(linha!.perguntas_json).perguntas).toHaveLength(PERGUNTAS_PADRAO.length); // a pergunta desativada não vai
     const lista = await json<{ id: string; status: string; percentual: number; token_hash?: string }[]>(await chamar(consultor, 'GET', `${base}?parte_id=hm-medio`));
     expect(lista.find((h) => h.id === id)).toMatchObject({ status: 'aberta', percentual: 0 });
     expect(JSON.stringify(lista)).not.toContain(linha!.token_hash);
@@ -128,6 +128,26 @@ describe('fluxo da homologação', () => {
     expect(d).toMatchObject({ cliente: 'Cliente Ficticio', fornecedor: 'Fornecedor Medio', respostas: {}, percentual: 0 });
     expect(Object.keys(d.perguntas[0]).sort()).toEqual(['id', 'tema', 'texto']);
     expect(JSON.stringify(d)).not.toMatch(/token_hash|project_id|hm-proj|cons@hm/);
+  });
+
+  it('renomear a parte ou o cliente depois de criar não muda o que o link mostra (nomes congelados); homologação antiga usa o valor ao vivo', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE partes SET nome = 'DADO DO PROJETO' WHERE id = 'hm-medio'`),
+      env.DB.prepare(`UPDATE projects SET client_name = 'OUTRO DADO' WHERE id = ?`).bind(P),
+    ]);
+    try {
+      const d = await json<{ cliente: string; fornecedor: string }>(await publico('ver', { token }));
+      expect(d).toMatchObject({ cliente: 'Cliente Ficticio', fornecedor: 'Fornecedor Medio' });
+      // array antigo (sem nomes congelados): valor ao vivo
+      const { visaoDoFornecedor } = await import('../src/services/homologacao');
+      const antiga = await visaoDoFornecedor(env.DB, { id: 'x', project_id: P, parte_id: 'hm-medio', perguntas_json: '[]', respostas_json: '{}', expira_em: '2099-01-01' });
+      expect(antiga).toMatchObject({ cliente: 'OUTRO DADO', fornecedor: 'DADO DO PROJETO' });
+    } finally {
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE partes SET nome = 'Fornecedor Medio' WHERE id = 'hm-medio'`),
+        env.DB.prepare(`UPDATE projects SET client_name = 'Cliente Ficticio' WHERE id = ?`).bind(P),
+      ]);
+    }
   });
 
   it('salva rascunho (mescla), recusa pergunta que não é do envio e campo extra; % no servidor', async () => {

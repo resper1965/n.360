@@ -35,6 +35,16 @@ describe('Interpretação da fase (F2)', () => {
       (opts.aiRun ? { ...env, AI: { run: opts.aiRun } } : env) as any
     );
 
+  it('interpretação que vai chamar o modelo conta no balde ia: cheio, 429 sem chamar a IA', async () => {
+    const k1 = PHASE_QUESTIONS[1][0].key;
+    await put('/api/v1/projects/p1/phase-answers', { phase_number: 1, answers: { [k1]: 'Moderado' } });
+    await env.SESSIONS.put('ratelimit:ia:u1', '30', { expirationTtl: 3600 });
+    const run = vi.fn(async () => ({ response: '{}' }));
+    const res = await interpret(1, { aiRun: run });
+    expect(res.status).toBe(429);
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it('fase inválida → 400', async () => {
     const res = await interpret(999);
     expect(res.status).toBe(400);

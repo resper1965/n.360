@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
 import { genId, erro500, logAudit, sha256Hex } from '../helpers';
 import { PHASE_QUESTIONS, PHASE_META, PhaseQuestion } from '../phase-questions';
+import { rateLimit } from '../helpers';
 import { PhaseInterpretationAgent, parseInterpretacao } from '../agents/phase-interpretation';
 
 // Questionário POR FASE da jornada — banco de perguntas + respostas por projeto.
@@ -231,6 +232,9 @@ projectPhaseAnswersApp.get('/:phase/interpret', async (c) => {
     } else if (cacheFresh && !forceRefresh) {
       // Cache válido: NÃO chama a IA — é o ganho principal (custo/latência).
       servirCache('');
+    } else if (!(await rateLimit(c.env.SESSIONS, `ia:${c.get('user')?.id ?? c.get('user')?.email ?? 'anon'}`, 30, 3600))) {
+      // Vai chamar o modelo (sem cache, respostas mudaram ou refresh): conta no balde `ia`, o mesmo do middleware.
+      return c.json({ error: 'Limite de requisições excedido. Tente novamente mais tarde.' }, 429, { 'Retry-After': '3600' });
     } else {
       // Gera de novo (sem cache, respostas mudaram, ou refresh forçado) e persiste.
       try {

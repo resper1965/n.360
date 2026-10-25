@@ -287,6 +287,8 @@ function caminhoSeguro(base: string, path: string): boolean {
   const rota = q === -1 ? path : path.slice(0, q);
   if (!rota.startsWith('/api/v1/') || /[%#\\]/.test(rota) || path.includes('#')) return false;
   if (rota.split('/').some((s) => s === '.' || s === '..')) return false;
+  // Rota pública ou de login fica antes do authMiddleware: o agente responderia como fornecedor, titular ou visitante.
+  if (/^\/api\/v1\/(public|auth|assessments\/public)(\/|$)/.test(rota)) return false;
   return new URL(base + rota).pathname === rota;
 }
 
@@ -305,7 +307,7 @@ function requisicaoInterna(origem: Request, env: any, ctx: any, props: PropsAgen
   // Allowlist de IP do tenant avalia o IP real do cliente MCP.
   const ip = origem.headers.get('CF-Connecting-IP');
   return async (path, init) => {
-    if (!caminhoSeguro(base, path)) throw new Error('caminho de API recusado: deve começar com /api/v1/ e não pode conter %, # ou segmentos . e ..');
+    if (!caminhoSeguro(base, path)) throw new Error('caminho de API recusado: deve começar com /api/v1/, não pode ser rota pública nem de login e não pode conter %, # ou segmentos . e ..');
     const headers = new Headers(init.headers);
     if (ip) headers.set('CF-Connecting-IP', ip);
     return fetchHono(new Request(base + path, { ...init, headers }), envAgente, ctx);

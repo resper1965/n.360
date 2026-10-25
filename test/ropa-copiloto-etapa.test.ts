@@ -51,7 +51,11 @@ const instantaneo = async () => ({
 });
 
 describe('D2.1: rascunho da descrição da etapa', () => {
-  beforeEach(() => { ia.resposta = {}; ia.falha = false; ia.chamadas = []; });
+  beforeEach(async () => {
+    ia.resposta = {}; ia.falha = false; ia.chamadas = [];
+    // O rascunho por etapa divide o balde `copiloto` (20 a cada 10 min) com o copiloto de abertura; o arquivo chama mais que isso.
+    for (const k of (await env.SESSIONS.list({ prefix: 'ratelimit:copiloto:' })).keys) await env.SESSIONS.delete(k.name);
+  });
 
   it('propõe só descrição, origem (só na Coleta) e avisos; a PROPOSTA não grava nada', async () => {
     await put('/coleta', { descricao: 'Descrição atual exemplo' });
@@ -223,7 +227,11 @@ describe('D2.1: rascunho da descrição da etapa', () => {
 describe('D2.2: o copiloto de abertura propõe por etapa e por catálogo', () => {
   const DESCRICAO = 'Fazemos a folha de pagamento dos funcionários no sistema Totvs e enviamos o arquivo ao banco.';
   const abrir = (h: Record<string, string>, corpo: unknown = { descricao: DESCRICAO }) => chamar(h, 'POST', `/api/v1/projects/${P}/ropa/copiloto`, corpo, { AI });
-  beforeEach(() => { ia.resposta = {}; ia.falha = false; ia.chamadas = []; });
+  beforeEach(async () => {
+    ia.resposta = {}; ia.falha = false; ia.chamadas = [];
+    // O rascunho por etapa divide o balde `copiloto` (20 a cada 10 min) com o copiloto de abertura; o arquivo chama mais que isso.
+    for (const k of (await env.SESSIONS.list({ prefix: 'ratelimit:copiloto:' })).keys) await env.SESSIONS.delete(k.name);
+  });
 
   it('devolve descricao_por_etapa e ids do catálogo; id inventado e sensível somem; titular novo só vai a titulares_novos', async () => {
     ia.resposta = {
