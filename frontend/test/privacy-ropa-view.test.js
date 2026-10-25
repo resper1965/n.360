@@ -484,3 +484,12 @@ describe('lista do RoPA no n.privacy', () => {
         expect(el('ropa-lista').textContent).not.toContain('Câmeras');
     });
 });
+
+describe('excluir atividade', () => {
+    it('mostra o erro do servidor (409) em vez de engolir', async () => {
+        window.confirmar = vi.fn(async () => true);
+        apiMock.mockImplementation(() => Promise.reject(new Error('Atividade aprovada não se apaga')));
+        await window.deleteROPA('r1');
+        expect(document.querySelector('.toast-error')?.textContent).toContain('Atividade aprovada não se apaga');
+    });
+});

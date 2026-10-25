@@ -421,7 +421,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
     };
 
     window.deleteROPA = async function(id) { 
-        if (await window.confirmar('O tratamento sai do RoPA deste projeto.', { titulo: 'Excluir registro do RoPA', perigo: true, rotulo: 'Excluir' })) { await api('DELETE', `/api/v1/ropa/${id}`); render(); } 
+        if (await window.confirmar('O tratamento sai do RoPA deste projeto.', { titulo: 'Excluir registro do RoPA', perigo: true, rotulo: 'Excluir' })) { try { await api('DELETE', `/api/v1/ropa/${id}`); } catch (e) { showToast('Não foi possível excluir a atividade: ' + e.message, 'error'); return; } render(); } 
     };
 
     const STATUS_RIPD = { Draft: 'Rascunho', 'Under Review': 'Em revisão', Approved: 'Aprovado' };
