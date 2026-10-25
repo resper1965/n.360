@@ -10,7 +10,6 @@ import '../src/views/meus-pedidos.js';
 import '../src/views/compliance.js';
 
 const $ = (id) => document.getElementById(id);
-const espera = () => new Promise((r) => setTimeout(r, 0));
 const corpoDe = (f, chave) => {
     const c = f.mock.calls.find(([u, o]) => `${o?.method || 'GET'} ${new URL(u, 'http://localhost').pathname}` === chave);
     return c ? JSON.parse(c[1].body) : undefined;
@@ -68,21 +67,5 @@ describe('pedido de aprovação de política', () => {
         await window.abrirAcompanhamento('p1', 'pd1');
         expect($('modal-content').textContent).toContain('Recusado');
         expect($('modal-content').textContent).toContain('Falta a seção de backup');
-    });
-
-    it('o modal da política mostra "Pedir aprovação" para quem pede, com o id do controle', async () => {
-        const texto = 'Texto da política. '.repeat(10);
-        servir({
-            'GET /api/v1/projects/p1/controls/ctrl_b_a51/policy': { ok: true, control: { id: 'ctrl_b_a51', project_id: 'p1', title: 'A.5.1 Políticas', description: texto }, content: texto, hash: 'h', versions: [] },
-            'GET /api/v1/policies/templates': { ok: true, templates: [] },
-        });
-        await window.openGeneratePolicyModal('p1', 'ctrl_b_a51');
-        const b = $('modal-content').querySelector('[data-action="abrirPedidoAprovacao"]');
-        expect(JSON.parse(b.getAttribute('data-args'))).toEqual(['p1', 'politica', 'ctrl_b_a51']);
-
-        S.user = { role: 'org_user' };
-        await window.openGeneratePolicyModal('p1', 'ctrl_b_a51');
-        await espera();
-        expect($('modal-content').querySelector('[data-action="abrirPedidoAprovacao"]')).toBeNull();
     });
 });

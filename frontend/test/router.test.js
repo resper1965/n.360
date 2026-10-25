@@ -13,7 +13,7 @@ const IDS_SIDEBAR = [
     'nav-dashboard', 'nav-projects', 'nav-leads', 'nav-assessments', 'nav-proposals',
     'nav-project', 'nav-certification', 'nav-monitor', 'nav-soa', 'nav-governance', 'nav-stakeholders',
     'nav-context', 'nav-assets', 'nav-risks', 'nav-vendors', 'nav-documentos', 'nav-training',
-    'nav-acknowledgments', 'nav-policies', 'nav-audits', 'nav-capa', 'nav-mgmt',
+    'nav-acknowledgments', 'nav-audits', 'nav-capa', 'nav-mgmt',
     'nav-evidence', 'nav-ropa', 'nav-dpia', 'nav-ai',
     'nav-audit-trail', 'nav-users', 'nav-settings', 'nav-titular', 'nav-incidentes', 'nav-inicio',
     'nav-incidentes-privacy', 'nav-consentimentos',
@@ -24,7 +24,7 @@ const IDS_SIDEBAR = [
 const VIEWS = [
     'renderDashboard', 'renderLeads', 'renderAssessments', 'renderProposals', 'renderProjects',
     'renderMonitor', 'renderAssets', 'renderMetrics', 'renderAuditTrail', 'renderAcknowledgments',
-    'renderPoliciesDashboard', 'renderRisks', 'renderVendors', 'renderTraining', 'renderROPA',
+    'renderRisks', 'renderVendors', 'renderTraining', 'renderROPA',
     'renderDPIA', 'renderAudits', 'renderCAPA', 'renderEvidence', 'renderControls',
     'renderGovernance', 'renderProntidao', 'renderAIChat', 'renderSettings',
     'renderUsers', 'renderAssessmentDetail', 'renderSelfServiceAssessment', 'renderProjectDetail',
@@ -177,11 +177,9 @@ describe('navigate()', () => {
         });
 
         it('view composta com prefixo valido resolve o item certo', () => {
-            // 'project-detail' -> 'nav-project' e 'policies-dashboard' -> 'nav-policies'
+            // 'project-detail' -> 'nav-project'
             navigate('project-detail');
             expect(itemAtivo().id).toBe('nav-project');
-            navigate('policies-dashboard');
-            expect(itemAtivo().id).toBe('nav-policies');
         });
 
         // BUG REAL (nao corrigido nesta tarefa — corrigir logica do frontend

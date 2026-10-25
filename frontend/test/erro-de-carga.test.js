@@ -63,7 +63,7 @@ const confere = (c, a, { semAcoes = true } = {}) => {
 const TELAS = [
     'renderRisks', 'renderVendors', 'renderTraining', 'renderCAPA', 'renderAudits', 'renderMonitor', 'renderPortfolio',
     'renderProntidao', 'renderMetrics', 'renderGovernance', 'renderContext', 'renderStakeholders', 'renderManagementReview',
-    'renderAssets', 'renderEvidence', 'renderPoliciesDashboard', 'renderAcknowledgments', 'renderROPA', 'renderDPIA',
+    'renderAssets', 'renderEvidence', 'renderAcknowledgments', 'renderROPA', 'renderDPIA',
     'renderTerceiros', 'renderPartes', 'renderDocumentos', 'renderRequisitos', 'renderUsers', 'renderAuditTrail', 'renderApiKeys',
     'renderLeads', 'renderAssessments', 'renderComercial', 'renderProjects',
 ];

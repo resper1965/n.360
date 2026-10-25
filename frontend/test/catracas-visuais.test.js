@@ -96,7 +96,7 @@ describe('catracas do sistema visual', () => {
     // monitor 242, compliance 248, project 174). Baixou? Baixe o teto aqui. Subiu? Use as classes do fim de style.css.
     const TETO_STYLE = {
         'src/globals.js': 84, 'src/produto.js': 4, 'src/ui.js': 11, 'src/views/admin.js': 45, 'src/views/ai.js': 9,
-        'src/views/aprovacao-lote.js': 21, 'src/views/auditor-acesso.js': 11, 'src/views/commercial.js': 27, 'src/views/compliance.js': 98,
+        'src/views/aprovacao-lote.js': 21, 'src/views/auditor-acesso.js': 11, 'src/views/commercial.js': 27, 'src/views/compliance.js': 71,
         'src/views/dashboard.js': 26, 'src/views/documentos.js': 32, 'src/views/empresa.js': 37, 'src/views/encarregado.js': 3,
         'src/views/grc.js': 41, 'src/views/importacao.js': 45, 'src/views/mapa-de-risco.js': 11, 'src/views/meus-pedidos.js': 47,
         'src/views/monitor.js': 55, 'src/views/padronizar-nomes.js': 4, 'src/views/painel-graficos.js': 1, 'src/views/partes.js': 7,

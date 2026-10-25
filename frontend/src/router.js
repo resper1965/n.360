@@ -94,7 +94,6 @@ export     function navigate(view, data) {
         else if (S.view === 'metrics') renderMetrics(c, h, a);
         else if (S.view === 'audit-trail') renderAuditTrail(c, h, a);
         else if (S.view === 'acknowledgments') renderAcknowledgments(c, h, a);
-        else if (S.view === 'policies-dashboard') renderPoliciesDashboard(c, h, a);
         else if (S.view === 'risks') renderRisks(c, h, a);
         else if (S.view === 'vendors') renderVendors(c, h, a);
         else if (S.view === 'partes') renderPartes(c, h, a);
