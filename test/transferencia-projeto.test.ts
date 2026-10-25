@@ -178,8 +178,13 @@ describe('POST /api/v1/platform/projects/:id/transferir', () => {
     expect(await todos('SELECT id, org_id FROM pedidos WHERE project_id = ? ORDER BY id', 'p-t8'))
       .toEqual([{ id: 'pd-t8-ab', org_id: 'org_b' }, { id: 'pd-t8-ap', org_id: 'org_b' }]);
 
-    // Linha que ficou com a organização antiga (lida antes da transferência): o substituto não herda.
-    await ped('pd-t8-velho', 'aberto', 'hash-que-nao-bate').run();
+    // Linha que ficou com a organização antiga (lida antes da transferência): o substituto não herda. Pedido de DPIA, porque
+    // o de política por controle agora é cancelado em vez de substituído.
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO dpia_assessments (id, project_id, processing_name) VALUES ('dp-t8', 'p-t8', 'Folha')`),
+      env.DB.prepare(`INSERT INTO pedidos (id, org_id, project_id, tipo, ref_id, titulo, papel_exigido, conteudo_json, hash, status, criado_por)
+        VALUES ('pd-t8-velho', 'org_ness', 'p-t8', 'dpia', 'dp-t8', 't', 'ciso', '{}', 'hash-que-nao-bate', 'aberto', 'u')`),
+    ]);
     const v = await conferirVigencia(env.DB, (await um('SELECT * FROM pedidos WHERE id = ?', 'pd-t8-velho'))!);
     expect(v).toMatchObject({ vigente: false, status: 'substituido' });
     expect((await um('SELECT org_id FROM pedidos WHERE id = ?', (v as any).substituido_por))?.org_id).toBe('org_b');
