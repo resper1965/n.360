@@ -101,8 +101,16 @@ const COLS = `h.id, h.project_id, h.parte_id, pa.nome AS parte_nome, h.expira_em
 
 const lerJson = <T>(s: string, padrao: T): T => { try { return JSON.parse(s) as T; } catch { return padrao; } };
 
+/** `perguntas_json` é objeto `{ perguntas, fornecedor, cliente }` (nomes congelados na criação); homologação antiga é só o array. */
+function lerCongelado(s: string) {
+  const v = lerJson<unknown>(s, []);
+  return Array.isArray(v) ? { perguntas: v as PerguntaCongelada[], fornecedor: null, cliente: null }
+    : { perguntas: (v as any)?.perguntas ?? [], fornecedor: (v as any)?.fornecedor ?? null, cliente: (v as any)?.cliente ?? null } as
+      { perguntas: PerguntaCongelada[]; fornecedor: string | null; cliente: string | null };
+}
+
 function resumo(h: Linha) {
-  const perguntas = lerJson<PerguntaCongelada[]>(h.perguntas_json, []);
+  const perguntas = lerCongelado(h.perguntas_json).perguntas;
   const respostas = lerJson<Respostas>(h.respostas_json, {});
   const { perguntas_json: _p, respostas_json: _r, expirada, ...resto } = h;
   return { ...resto, expirada: !!expirada && h.status === 'aberta', ...percentual(perguntas, respostas), _perguntas: perguntas, _respostas: respostas };
@@ -135,9 +143,10 @@ export async function criarHomologacao(db: D1Database, projectId: string, ator: 
   if (!ativas.length) return falha(400, 'O questionário do projeto não tem pergunta ativa');
   const token = genToken();
   const id = genId();
+  const cliente = (await db.prepare('SELECT client_name FROM projects WHERE id = ?').bind(projectId).first<string>('client_name')) ?? '';
   const row = await db.prepare(`INSERT INTO homologacoes (id, project_id, parte_id, token_hash, expira_em, perguntas_json, criado_por)
      VALUES (?, ?, ?, ?, datetime('now', ?), ?, ?) RETURNING expira_em`)
-    .bind(id, projectId, parte.id, await sha256Hex(token), `+${d.dias} days`, JSON.stringify(ativas), ator).first<{ expira_em: string }>();
+    .bind(id, projectId, parte.id, await sha256Hex(token), `+${d.dias} days`, JSON.stringify({ perguntas: ativas, fornecedor: parte.nome, cliente }), ator).first<{ expira_em: string }>();
   await logAudit(db, 'homologacao.criada', ator, `Homologação ${id} do terceiro ${parte.id}: ${ativas.length} perguntas, link válido por ${d.dias} dias`, '', '', projectId);
   return { ok: true, id, token, expira_em: row!.expira_em, parte_nome: parte.nome };
 }
@@ -190,11 +199,12 @@ export async function homologacaoDoToken(db: D1Database, token: string): Promise
 
 /** O que a página do fornecedor vê: o cliente, o próprio nome, as perguntas congeladas e as próprias respostas. */
 export async function visaoDoFornecedor(db: D1Database, h: Aberta) {
-  const [projeto, parte] = await Promise.all([
+  const { perguntas, fornecedor, cliente } = lerCongelado(h.perguntas_json);
+  // Antiga sem nomes congelados: valor ao vivo (compatível). Nova: nunca ao vivo, senão renomear a parte vaza dado ao link público.
+  const [projeto, parte] = cliente !== null && fornecedor !== null ? [cliente, fornecedor] : await Promise.all([
     db.prepare('SELECT client_name FROM projects WHERE id = ?').bind(h.project_id).first<string>('client_name'),
     db.prepare('SELECT nome FROM partes WHERE id = ? AND project_id = ?').bind(h.parte_id, h.project_id).first<string>('nome'),
   ]);
-  const perguntas = lerJson<PerguntaCongelada[]>(h.perguntas_json, []);
   const respostas = lerJson<Respostas>(h.respostas_json, {});
   return { cliente: projeto ?? '', fornecedor: parte ?? '', expira_em: h.expira_em, perguntas, respostas, ...percentual(perguntas, respostas) };
 }
@@ -205,7 +215,7 @@ export async function visaoDoFornecedor(db: D1Database, h: Aberta) {
  */
 export async function gravarRespostas(db: D1Database, h: Aberta, novas: Respostas, enviar: boolean):
   Promise<Falha | null | { ok: true; respondidas: number; total: number; percentual: number }> {
-  const perguntas = lerJson<PerguntaCongelada[]>(h.perguntas_json, []);
+  const perguntas = lerCongelado(h.perguntas_json).perguntas;
   const validas = new Set(perguntas.map((p) => p.id));
   if (Object.keys(novas).some((k) => !validas.has(k))) return falha(400, 'Resposta para pergunta que não está neste questionário');
   // ponytail: ler-mesclar-gravar sem trava; um fornecedor responde de cada vez. Se houver edição simultânea, guardar versão.
