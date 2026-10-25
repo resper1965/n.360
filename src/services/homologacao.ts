@@ -103,10 +103,10 @@ const lerJson = <T>(s: string, padrao: T): T => { try { return JSON.parse(s) as 
 
 /** `perguntas_json` é objeto `{ perguntas, fornecedor, cliente }` (nomes congelados na criação); homologação antiga é só o array. */
 function lerCongelado(s: string) {
-  const v = lerJson<unknown>(s, []);
-  return Array.isArray(v) ? { perguntas: v as PerguntaCongelada[], fornecedor: null, cliente: null }
-    : { perguntas: (v as any)?.perguntas ?? [], fornecedor: (v as any)?.fornecedor ?? null, cliente: (v as any)?.cliente ?? null } as
-      { perguntas: PerguntaCongelada[]; fornecedor: string | null; cliente: string | null };
+  type C = { perguntas: PerguntaCongelada[]; fornecedor: string | null; cliente: string | null };
+  const v = lerJson<PerguntaCongelada[] | Partial<C>>(s, []);
+  if (Array.isArray(v)) return { perguntas: v, fornecedor: null, cliente: null } as C;
+  return { perguntas: v.perguntas ?? [], fornecedor: v.fornecedor ?? null, cliente: v.cliente ?? null } as C;
 }
 
 function resumo(h: Linha) {
