@@ -15,7 +15,7 @@ import { conferirPedidosDoDocumento } from './pedidos';
 import { sugerirTratamento } from '../services/rascunhos-privacy';
 import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
 import { lerEmpresa } from '../services/empresas';
-import { situacaoDaAtividade } from '../services/ropa-abas/situacao';
+import { situacaoDaAtividade, situacaoGravada } from '../services/ropa-abas/situacao';
 import { atividadeDoProjeto } from '../services/ropa-abas/comum';
 import { textosDaColeta, mesmosNomes } from '../services/ropa-abas/derivada';
 
@@ -118,9 +118,13 @@ ropaApp.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id');
     await requireResourceAccess(c.env.DB, 'ropa_records', id, c.get('user'));
-    const atual = await c.env.DB.prepare('SELECT status FROM ropa_records WHERE id = ?').bind(id).first<{ status: string | null }>();
+    const atual = await c.env.DB.prepare('SELECT status, project_id FROM ropa_records WHERE id = ?').bind(id).first<{ status: string | null; project_id: string | null }>();
     if (atual?.status === 'Approved') {
       return c.json({ error: 'ROPA aprovado não pode ser excluído. Revogue a aprovação antes (motivo obrigatório).' }, 409);
+    }
+    // A aprovação por pedido não grava 'Approved': a situação é derivada dos pedidos com o hash vigente.
+    if (atual?.project_id && (await situacaoGravada(c.env.DB, atual.project_id, id))?.situacao.codigo === 'aprovada') {
+      return c.json({ error: 'A atividade aprovada não se apaga: cancele pela situação.' }, 409);
     }
     // As ligações caem por FK; os vínculos de parte não têm FK (alvo polimórfico) e saem aqui, junto.
     await c.env.DB.batch([
