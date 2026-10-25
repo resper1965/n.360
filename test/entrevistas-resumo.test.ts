@@ -93,7 +93,7 @@ describe('Resumo das entrevistas e mapa da app', () => {
   });
 
   it('o mapa diz COMO editar governança, partes interessadas e checklist', () => {
-    expect(MAPA_DA_APP).toContain('POST com id no corpo EDITA o membro');
+    expect(MAPA_DA_APP).toContain('o agente só lê; incluir, editar ou tirar membro é pela interface');
     expect(MAPA_DA_APP).toContain('PUT /api/v1/stakeholders/{id}');
     expect(MAPA_DA_APP).toContain('PUT grava o progresso por item');
   });
