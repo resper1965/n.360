@@ -154,8 +154,8 @@ tipo. Para o conteúdo, suba pela interface.
 ### O que ele grava
 
 Com `niso_executar` ou com as ferramentas específicas (política, SoA, evidência
-em texto, controle, ativo, risco, treinamento, entrevistas, governança e o resto
-que você grava na interface). Evidência pelo agente é **só texto**: transcrever
+em texto, controle, ativo, risco, treinamento, entrevistas e o resto
+que você grava na interface). Governança ele só lê; o comitê é mantido pela interface. Evidência pelo agente é **só texto**: transcrever
 um PDF não substitui o documento.
 
 **n.privacy é rascunho.** As ferramentas `niso_privacy_*` gravam tratamento em `Draft`, LIA em rascunho, DPIA em `Draft`, e
