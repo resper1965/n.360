@@ -126,6 +126,7 @@ quê (mesma regra do [`SECURITY.md`](../../SECURITY.md)).
 | `/projects/:id/{sso,security-policy,scim-token,api-keys,webhooks}` e `/webhooks` | Configuração de segurança do cliente. O agente não amplia acesso. |
 | `/auth/*`, `/legal/*`, `/notifications` | **Conta pessoal do consultor** (veja a terceira linha do primeiro quadro). |
 | `/projects/:id/auditor-token` | Emitiria uma credencial externa de até 365 dias e permitiria forjar nota de auditor. |
+| `POST`/`PUT`/`PATCH`/`DELETE /projects/:id/governance` e sub-rotas | A governança dá acesso (consultor), autoridade de assinatura e abre o portal de políticas ao e-mail e ao domínio do membro. O agente só lê (`GET`). |
 | `POST /projects` | O agente é preso a um projeto; criar outro contradiz isso. `GET /projects` continua valendo, escopado. |
 | `GET /carteira` | A carteira agrega todos os projetos do consultor; o agente está preso a um projeto. O painel do projeto (`GET /projects/:id/painel`) segue legível, na visão da consultoria. |
 | `GET /projects/consulta-cnpj/:cnpj` | Consulta externa à Receita (BrasilAPI) do assistente "Novo projeto", que o agente não usa (não cria projeto). A rota também corta por papel (`platform_admin`, `consultoria_admin`) e tem limite por usuário. O cadastro da empresa (`GET /projects/:id/empresa`) segue legível pelo agente; a edição (`PUT`) é recusada pela própria rota, que só aceita a equipe e o `org_admin` (o agente entra como `client`). |

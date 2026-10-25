@@ -33,7 +33,7 @@ Cadastro compartilhado (vale com qualquer módulo):
 - Documentos: /api/v1/projects/{p}/documentos · Evidências: /api/v1/projects/{p}/evidence · texto: /api/v1/evidence/{id}/content (PUT regrava o texto)
 - RoPA: /api/v1/projects/{p}/ropa · DPIA: /api/v1/projects/{p}/dpia · direitos do titular: /api/v1/projects/{p}/data-subject
 - Pedidos de aprovação e ciência: /api/v1/projects/{p}/pedidos · Incidentes: /api/v1/projects/{p}/incidentes (prazos de comunicação em situacao_anpd e situacao_titular)
-- Governança: /api/v1/projects/{p}/governance (POST com id no corpo EDITA o membro; linha de consultor só o platform_admin ou o administrador do cliente altera) · /api/v1/projects/{p}/stakeholders (POST cria; PUT /api/v1/stakeholders/{id} edita) · /api/v1/projects/{p}/context
+- Governança: /api/v1/projects/{p}/governance (o agente só lê; incluir, editar ou tirar membro é pela interface) · /api/v1/projects/{p}/stakeholders (POST cria; PUT /api/v1/stakeholders/{id} edita) · /api/v1/projects/{p}/context
 - Treinamento: /api/v1/projects/{p}/training · Ponto de partida (o que cada módulo aproveita do outro): /api/v1/projects/{p}/ponto-de-partida
 
 n.iso:

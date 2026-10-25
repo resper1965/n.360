@@ -94,6 +94,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   // O principal do agente carrega o users.id REAL do consultor: rotas de "minha conta" agiriam sobre ele.
   [/^\/api\/v1\/(auth|legal|notifications)(\/|$)/, 'conta pessoal do consultor'],
   [/^\/api\/v1\/projects\/[^/]+\/auditor-token(\/|$)/, 'credencial de auditor externo'],
+  // A governança dá acesso (consultor), autoridade de assinatura e abre o portal de políticas ao e-mail e ao domínio: o agente só lê.
+  [/^\/api\/v1\/projects\/[^/]+\/governance(\/|$)/, 'a governança dá acesso, assinatura e o portal de políticas; o agente só lê', ['POST', 'PUT', 'PATCH', 'DELETE']],
   [/^\/api\/v1\/projects\/?$/, 'o agente está preso a um projeto', ['POST']],
   [/^\/api\/v1\/projects\/consulta-cnpj(\/|$)/, 'consulta de CNPJ é do assistente de criação de projeto, pela interface'],
   // `ropa/:id/agentes` é a aba "Agentes de Tratamento" (controlador e operador), não a gestão de concessões: exceção explícita.

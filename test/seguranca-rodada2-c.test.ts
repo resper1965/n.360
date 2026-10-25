@@ -96,6 +96,22 @@ describe('10. e-mail ligado ao projeto (portal de políticas)', () => {
     expect((await pedir('novo@cliente-c.lat')).status).toBe(200);
     expect(await env.SESSIONS.get(`otp_${P}_novo@cliente-c.lat`)).not.toBeNull();
   });
+  it('o agente não escreve na governança e por ela não abre o portal a e-mail externo (revisão do lote A, I-1)', async () => {
+    const membro = { name: 'Externo', email: 'x@externo-atacante.lat', role_category: 'tech', job_title: 'Analista' };
+    const r = await comoAgente('POST', `/api/v1/projects/${P}/governance`, membro);
+    expect(r.status).toBe(403);
+    expect((await r.json<any>()).error).toContain('fora do alcance do agente');
+    expect((await comoAgente('POST', `/api/v1/projects/${P}/governance/g-c2/convidar`, {})).status).toBe(403);
+    expect((await comoAgente('DELETE', `/api/v1/projects/${P}/governance/g-c2`)).status).toBe(403);
+    expect((await comoAgente('GET', `/api/v1/projects/${P}/governance`)).status).toBe(200);
+    expect(await um(`SELECT 1 AS x FROM project_governance WHERE email = 'x@externo-atacante.lat'`)).toBeNull();
+    for (const email of ['x@externo-atacante.lat', 'qualquer@externo-atacante.lat']) {
+      const otp = await app.fetch(new Request('http://localhost/api/v1/public/policies/request-otp', {
+        method: 'POST', headers: { ...json, 'CF-Connecting-IP': '203.0.113.11' }, body: JSON.stringify({ project_id: P, email }) }), { ...workerEnv(), ENVIRONMENT: 'production' } as any);
+      expect(otp.status).toBe(200);
+      expect(await env.SESSIONS.get(`otp_${P}_${email}`), email).toBeNull();
+    }
+  });
   it('domínio da conta ou da governança do cliente liga; provedor público não', async () => {
     expect(await ligado('novo@cliente-c.lat')).toBe(true);
     expect(await ligado('alguem@proton.me')).toBe(false);
