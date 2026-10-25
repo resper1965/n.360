@@ -747,13 +747,11 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   reabrem o buraco.
 - **Direitos do titular nao cobrem PII em texto livre.** A busca e por igualdade
   em colunas conhecidas (`FONTES_PII` em `src/services/data-subject.ts`).
-- **`npm audit --omit=dev` esta em zero na raiz** (2026-10-23; `vite` e `ip-address`, puxados pelo `agents`, presos por `overrides`;
-  `@cloudflare/vitest-pool-workers`, `typescript` e `wrangler` ficam em `devDependencies`). O `npm audit` completo aponta o
-  `@vitest/mocker` (so ferramenta de teste). Em 2026-10-14 estava em zero nos tres pacotes (`npm audit` em cada um: raiz, `frontend` e
-  `mcp-server-niso`). Em 06/10 a raiz tinha 4 (o `undici` puxado por `miniflare`/`wrangler`); o #297
-  fixou `undici`, `sharp` e os pacotes MCP por `overrides` no `package.json`, sem rebaixar o pool de
-  testes. O job `audit` do CI segue informativo (`continue-on-error`). Rode `npm audit` antes de repetir
-  qualquer afirmacao sobre ele.
+- **`npm audit` esta em zero nos tres pacotes** (2026-10-25: `npm audit` na raiz, em `frontend` e em `mcp-server-niso`). Presos
+  por `overrides`: na raiz `undici`, `body-parser`, `fast-uri`, `zod`, `vite`, `ip-address`, `sharp` e os pacotes MCP (puxados pelo
+  `agents` e pelo pool de testes); no `frontend`, `undici` (puxado pelo `jsdom`). O npm 10 desta maquina quebra no `npm install` com
+  `overrides` (`Cannot read properties of null (reading 'edgesOut')`): regenere o lock com `npx -y npm@11 install`. O job `audit` do
+  CI segue informativo (`continue-on-error`). Rode `npm audit` antes de repetir qualquer afirmacao sobre ele.
 
 ## Segundo fator (MFA) — e como destravar alguem
 
