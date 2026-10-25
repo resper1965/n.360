@@ -4,7 +4,7 @@ import { sqlAreaDaAtividade } from '../services/riscos-atividade';
 import { z } from 'zod';
 import { Bindings, Variables } from '../index';
 
-import { redactProject, semRastros, genId, genToken, logAudit, validateUpload, erro500, somenteNess, ehEquipeNess, sha256Hex, projetosVisiveis, designacaoDoCriador, refForaDoProjeto } from '../helpers';
+import { redactProject, semRastros, genId, genToken, logAudit, validateUpload, erro500, somenteNess, ehEquipeNess, semIpENavegador, sha256Hex, projetosVisiveis, designacaoDoCriador, refForaDoProjeto } from '../helpers';
 import { itemDoChecklist, controleDoItem, marcarItemComEvidencia } from '../services/checklist-evidencia';
 import { passoPorId } from '../data/passos/catalogo';
 import { carregarContexto } from '../services/passos/contexto';
@@ -1269,7 +1269,7 @@ projectsApp.get('/:id/audit-pack', async (c) => {
         phases: phases.results || [],
         controls: semRastros(controls.results),
         evidence: semRastros(evidence.results),
-        audit_trail: logs.results || [],
+        audit_trail: semIpENavegador(c.get('user'), logs.results as Record<string, unknown>[]),
         generated_at: new Date().toISOString()
       }
     });
@@ -1284,8 +1284,7 @@ projectsApp.get('/:id/audit-trail', async (c) => {
     `SELECT * FROM audit_logs WHERE project_id = ? OR (project_id IS NULL AND details LIKE ?) ORDER BY created_at DESC LIMIT 500`
   ).bind(projectId, `%${projectId}%`).all();
   // IP de quem agiu é dado pessoal da equipe e de outras pessoas: só a consultoria o vê.
-  if (ehEquipeNess(c.get('user'))) return c.json(results || []);
-  return c.json((results || []).map(({ ip_address: _ip, ...l }) => l));
+  return c.json(semIpENavegador(c.get('user'), results as Record<string, unknown>[]));
 });
 
 // Acesso do auditor externo. O token sai UMA vez, dentro da URL (fragmento, que o navegador não

@@ -643,6 +643,12 @@ export function redactProject<T extends Record<string, any> | null | undefined>(
   return { ...rest, repository_token_set: !!repository_token } as unknown as T;
 }
 
+/** IP e navegador de quem agiu ou leu: só a equipe da consultoria os vê (cliente, chave de API e agente não). */
+export function semIpENavegador<T extends Record<string, unknown>>(user: Parameters<typeof ehEquipeNess>[0], rows: T[] | undefined | null): T[] {
+  if (ehEquipeNess(user)) return rows ?? [];
+  return (rows ?? []).map(({ ip_address: _ip, user_agent: _ua, ...r }) => r as unknown as T);
+}
+
 export const semRastros = (rows: Record<string, unknown>[] | undefined | null): Record<string, unknown>[] => (rows ?? []).map(semRastroDeAssinatura);
 
 /** Escape HTML entities para prevenir XSS em templates HTML */
