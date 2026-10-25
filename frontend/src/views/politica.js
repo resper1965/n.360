@@ -34,7 +34,8 @@ async function renderPolitica(c, h, a) {
     let d;
     try { d = await api('GET', `/api/v1/projects/${projectId}/documentos/${id}`); } catch (e) { window.falhaDeCarga(c, a, 'Não foi possível carregar a política.', e); return; }
     let reqs = [];
-    try { reqs = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/requisitos`)); } catch (e) { /* a página abre sem os controles cobertos */ }
+    let reqsOk = true; // sem a leitura, ligar um requisito faria o PUT substituir os que existem
+    try { reqs = lista(await api('GET', `/api/v1/projects/${projectId}/documentos/${id}/requisitos`)); } catch (e) { reqsOk = false; }
     const versoes = lista(d.versoes);
     const v = versoes.find((x) => x.estado === 'rascunho') || versoes.find((x) => x.estado === 'vigente') || versoes[versoes.length - 1];
     const secoes = secoesDe(v && v.texto);
@@ -43,6 +44,11 @@ async function renderPolitica(c, h, a) {
 
     h.textContent = d.titulo;
     const edita = podeEditar();
+    const rascunho = !!versoes.find((x) => x.estado === 'rascunho');
+    const editaReqs = edita && rascunho && reqsOk;
+    let catalogo = [];
+    if (editaReqs) { try { catalogo = lista(await api('GET', '/api/v1/requisitos?fonte=iso27001:2022')); } catch (e) { /* sem catálogo, sem seletor */ } }
+    S.polReqs = reqs.map((r) => r.id);
     a.innerHTML = `${edita && pendentes.length ? `<button class="btn btn-primary" data-action="gerarSecoesPendentes" data-args='${args(projectId, id)}'>Gerar seções pendentes</button>` : ''}
         <button class="btn" data-action="openDocumentoModal" data-args='${args(projectId, id)}'>Abrir em Documentos</button>`;
     c.innerHTML = `<div class="d-grid grid-2-1 gap-5">
@@ -52,7 +58,10 @@ async function renderPolitica(c, h, a) {
             <p id="pol-progresso" class="t-sm t-dim"></p>
             <ul class="t-sm">${secoes.map((s) => `<li>${s.n}. ${escapeHTML(s.titulo)} ${window.renderStatusBadge(s.situacao === 'a gerar' ? 'A gerar' : s.situacao === 'incompleta' ? 'Incompleta' : 'Pronta', TOM[s.situacao])}
                 ${edita ? `<button class="btn btn-ghost btn-sm" data-action="gerarSecao" data-args='${args(projectId, id, s.n)}'>${s.situacao === 'pronta' ? 'Regerar' : 'Gerar'}</button>` : ''}</li>`).join('')}</ul>
-            ${reqs.length ? `<h3>Controles cobertos</h3><ul class="t-sm">${reqs.map((r) => `<li>${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)}</li>`).join('')}</ul>` : ''}
+            ${reqs.length || editaReqs ? `<h3>Controles cobertos</h3><div class="t-sm">${reqs.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)}${editaReqs ? ` <button class="btn btn-ghost btn-sm" data-action="desligarRequisitoPolitica" data-args='${args(projectId, id, r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">×</button>` : ''}</span>`).join(' ')}</div>` : ''}
+            ${editaReqs && catalogo.length ? `<div class="form-group"><label class="form-label" for="pol-req-add">Ligar controle</label>
+                <select class="form-input" id="pol-req-add"><option value="">— escolha —</option>${catalogo.filter((r) => !reqs.some((x) => x.id === r.id)).map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.referencia)} ${escapeHTML(r.titulo)}</option>`).join('')}</select>
+                <button class="btn btn-ghost btn-sm" data-action="ligarRequisitoPolitica" data-args='${args(projectId, id)}'>Ligar</button></div>` : ''}
         </aside></div>`;
 }
 
@@ -85,6 +94,23 @@ window.gerarSecoesPendentes = async function (projectId, id) {
     }
     window.render();
 };
+
+async function gravarReqs(projectId, id, requisitos, ok) {
+    try {
+        await api('PUT', `/api/v1/projects/${projectId}/documentos/${id}/requisitos`, { requisitos });
+        showToast(ok, 'success');
+        window.render();
+    } catch (e) { showToast((e && e.message) || 'Não foi possível atualizar os controles', 'error'); }
+}
+
+window.ligarRequisitoPolitica = function (projectId, id) {
+    const novo = document.getElementById('pol-req-add')?.value;
+    if (!novo) { showToast('Escolha um controle', 'error'); return; }
+    return gravarReqs(projectId, id, [...(S.polReqs || []), novo], 'Controle ligado.');
+};
+
+window.desligarRequisitoPolitica = (projectId, id, requisitoId) =>
+    gravarReqs(projectId, id, (S.polReqs || []).filter((x) => x !== requisitoId), 'Controle desligado.');
 
 window.abrirPolitica = function (projectId, id) {
     if (typeof window.forceCloseModal === 'function') window.forceCloseModal();

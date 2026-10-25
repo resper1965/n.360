@@ -103,6 +103,47 @@ describe('página da política', () => {
     });
 });
 
+describe('controles cobertos editáveis', () => {
+    const CAT = [{ id: 'r1', referencia: 'A.8.24', titulo: 'Uso de criptografia' }, { id: 'r2', referencia: 'A.5.15', titulo: 'Controle de acesso' }];
+    const put = (f) => f.mock.calls.find(([, o]) => o?.method === 'PUT');
+
+    it('"×" desliga mandando o conjunto sem aquele id', async () => {
+        const f = servir(rotas({ 'GET /api/v1/requisitos': CAT, [`PUT ${P}/documentos/d1/requisitos`]: {} }));
+        await window.renderPolitica(el('c'), el('h'), el('a'));
+        const x = el('c').querySelector('[data-action="desligarRequisitoPolitica"]');
+        expect(x.getAttribute('aria-label')).toBe('Desligar A.8.24');
+        await window.desligarRequisitoPolitica('p1', 'd1', 'r1');
+        expect(JSON.parse(put(f)[1].body)).toEqual({ requisitos: [] });
+        expect(window.render).toHaveBeenCalled();
+    });
+
+    it('"Ligar" manda o conjunto com o novo; o seletor não oferece os já ligados', async () => {
+        const f = servir(rotas({ 'GET /api/v1/requisitos': CAT, [`PUT ${P}/documentos/d1/requisitos`]: {} }));
+        await window.renderPolitica(el('c'), el('h'), el('a'));
+        const sel = el('pol-req-add');
+        expect([...sel.options].map((o) => o.value)).toEqual(['', 'r2']);
+        sel.value = 'r2';
+        await window.ligarRequisitoPolitica('p1', 'd1');
+        expect(JSON.parse(put(f)[1].body)).toEqual({ requisitos: ['r1', 'r2'] });
+    });
+
+    it('sem rascunho ou com papel de leitura, nenhum botão', async () => {
+        servir(rotas({ 'GET /api/v1/requisitos': CAT, [`GET ${P}/documentos/d1`]: { ...DOC, versoes: [{ numero: 1, estado: 'vigente', texto: TEXTO }] } }));
+        await window.renderPolitica(el('c'), el('h'), el('a'));
+        expect(el('c').querySelector('[data-action="desligarRequisitoPolitica"], [data-action="ligarRequisitoPolitica"]')).toBeNull();
+        S.user = { role: 'org_user' };
+        servir(rotas({ 'GET /api/v1/requisitos': CAT }));
+        await window.renderPolitica(el('c'), el('h'), el('a'));
+        expect(el('c').querySelector('[data-action="desligarRequisitoPolitica"], [data-action="ligarRequisitoPolitica"]')).toBeNull();
+    });
+
+    it('GET dos requisitos falho: sem seletor (o PUT substituiria os que existem)', async () => {
+        servir({ [`GET ${P}/documentos/d1`]: DOC, 'GET /api/v1/requisitos': CAT });
+        await window.renderPolitica(el('c'), el('h'), el('a'));
+        expect(el('pol-req-add')).toBeNull();
+    });
+});
+
 describe('Nova política', () => {
     it('lista o catálogo e marca o tema que já existe', async () => {
         servir({
