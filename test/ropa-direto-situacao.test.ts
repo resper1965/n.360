@@ -63,7 +63,9 @@ describe('PUT /api/v1/ropa/:id com status (achado 7)', () => {
 
   it('agente com a ferramenta niso_situacao_atividade usa a rota de situação, não o PUT', async () => {
     const rid = await novaAtividade(s.consultor);
-    expect((await comoAgenteDecidindo('niso_situacao_atividade', 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Inactive' })).status).toBe(403);
+    const r = await comoAgenteDecidindo('niso_situacao_atividade', 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Inactive' });
+    expect(r.status).toBe(403);
+    expect((await json(r)).error).toBe('Forbidden: mudar a situação da atividade é decisão do consultor: use niso_situacao_atividade');
     expect((await linha(rid))!.status).toBe('Draft');
   });
 });
