@@ -73,9 +73,12 @@ async function renderDocumentos(c, h, a) {
         c.innerHTML = window.renderSemProjeto();
         return;
     }
+    const maisEquipe = typeof window.ehEquipeNess === 'function' && window.ehEquipeNess()
+        ? window.renderMaisAcoes([{ rotulo: 'Organizar políticas', action: 'abrirOrganizarPoliticas', args: [] }]) : '';
     a.innerHTML = podeEditar()
         ? `<button class="btn" data-action="importarDocumentos" data-args='${args(proj.id)}'>Importar políticas</button>
            <button class="btn" data-action="openNovoDocumentoModal" data-args='${args(proj.id)}'>+ Novo documento</button>
+           ${maisEquipe}
            <button class="btn btn-primary" data-action="openNovaPoliticaModal" data-args='${args(proj.id)}'>Nova política</button>`
         : '';
 
