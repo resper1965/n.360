@@ -92,15 +92,15 @@ async function recusaPedir(c: any): Promise<Response | null> {
 
 projectPedidosApp.post('/', async (c) => {
   try {
+    const valid = await validateBody(c, pedidoCriarSchema);
+    if (!valid.success) return valid.response;
+    const b = valid.data;
+    // Pedido novo de política por controle não nasce mais, para ninguém; os que existem seguem legíveis e decidíveis.
+    if (b.tipo === 'politica') return c.json(POLITICA_E_DOCUMENTO, 400);
     const recusa = await recusaPedir(c);
     if (recusa) return recusa;
     const user = c.get('user');
     const projectId = c.req.param('projectId') ?? '';
-    const valid = await validateBody(c, pedidoCriarSchema);
-    if (!valid.success) return valid.response;
-    const b = valid.data;
-    // Pedido novo de política por controle não nasce mais; os que existem seguem legíveis e decidíveis.
-    if (b.tipo === 'politica') return c.json(POLITICA_E_DOCUMENTO, 400);
     if ((b.tipo === 'documento' || b.tipo === 'excecao' || b.tipo === 'tratamento') && b.papel_exigido === 'ciente') {
       return c.json({ error: 'Ciência de política ou documento é pelo envio por link ("Nova ciência por link"). Este pedido é de aprovação: escolha Líder SGSI ou Direção.' }, 400);
     }
@@ -410,13 +410,13 @@ async function enviarLinks(c: any, pedidoId: string, titulo: string, links: Link
 
 projectPedidosApp.post('/ciencia', async (c) => {
   try {
+    const valid = await validateBody(c, pedidoCienciaLoteSchema);
+    if (!valid.success) return valid.response;
+    if (valid.data.tipo === 'politica') return c.json(POLITICA_E_DOCUMENTO, 400);
     const recusa = await recusaPedir(c);
     if (recusa) return recusa;
     const user = c.get('user');
     const projectId = c.req.param('projectId') ?? '';
-    const valid = await validateBody(c, pedidoCienciaLoteSchema);
-    if (!valid.success) return valid.response;
-    if (valid.data.tipo === 'politica') return c.json(POLITICA_E_DOCUMENTO, 400);
     // Sem a chave o sendEmail só simula: criar links que ninguém recebeu engana quem pediu.
     if (!c.env.RESEND_API_KEY) return c.json(SEM_EMAIL, 503);
     const b = valid.data;

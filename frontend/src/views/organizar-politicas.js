@@ -54,18 +54,26 @@ async function renderOrganizarPoliticas(c, h, a) {
         ${!temTematicas && porControle.length ? '<p class="t-sm t-dim">Crie uma política temática (Nova política) para poder incorporar as políticas por controle a ela.</p>' : ''}
         <div id="org-por-controle"></div>
         <h3>Controles sem política</h3>
-        ${semCob.length ? `<ul class="t-sm">${semCob.map((k) => `<li>${escapeHTML(k.title)}
-            ${!k.requisito_id ? '<span class="t-sm t-dim">Controle fora do catálogo de requisitos.</span>'
-            : temTematicas ? `<button class="btn btn-ghost btn-sm" data-action="abrirLigarControle" data-args='${args(pid, k.id)}'>Ligar a uma política</button>`
-            : '<span class="t-sm t-dim">Ligar indisponível: não há política temática.</span>'}
-            <button class="btn btn-ghost btn-sm" data-action="openNovaPoliticaModal" data-args='${args(pid, temaSugerido(temas, k.requisito_id))}'>Criar política do tema sugerido</button></li>`).join('')}</ul>`
-        : renderEmptyState({ titulo: 'Todos os controles aplicáveis têm política vigente.', compacto: true })}`;
+        <div id="org-sem-cobertura"></div>`;
     montarLista(c.querySelector('#org-por-controle'), {
         id: 'organizar-politicas',
         linhas: porControle,
         colunas: colunasDe(['Política', 'Controle', 'Situação', 'Ações'], celulas),
         busca: (d) => `${d.titulo} ${d.controle || ''}`,
         vazio: { titulo: 'Não há políticas por controle a organizar.' },
+    });
+    montarLista(c.querySelector('#org-sem-cobertura'), {
+        id: 'organizar-sem-cobertura',
+        linhas: semCob,
+        colunas: colunasDe(['Controle', 'Ações'], (k) => [
+            escapeHTML(k.title),
+            `${!k.requisito_id ? '<span class="t-sm t-dim">Controle fora do catálogo de requisitos.</span>'
+                : temTematicas ? `<button class="btn btn-ghost btn-sm" data-action="abrirLigarControle" data-args='${args(pid, k.id)}'>Ligar a uma política</button>`
+                : '<span class="t-sm t-dim">Ligar indisponível: não há política temática.</span>'}
+             <button class="btn btn-ghost btn-sm" data-action="openNovaPoliticaModal" data-args='${args(pid, temaSugerido(temas, k.requisito_id))}'>Criar política do tema sugerido</button>`,
+        ]),
+        busca: (k) => k.title,
+        vazio: { titulo: 'Todos os controles aplicáveis têm política vigente.' },
     });
 }
 
