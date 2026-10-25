@@ -64,7 +64,7 @@ politicasApp.get('/politicas/organizar', async (c) => {
     const projectId = c.req.param('projectId')!;
     const { results } = await c.env.DB.prepare(
       `SELECT d.id, d.titulo, d.status, d.origem_control_id AS controle_id, cc.title AS controle, cc.requisito_id
-         FROM documentos d LEFT JOIN compliance_controls cc ON cc.id = d.origem_control_id
+         FROM documentos d LEFT JOIN compliance_controls cc ON cc.id = d.origem_control_id AND cc.project_id = d.project_id
         WHERE d.project_id = ? AND d.tipo = 'politica' AND d.status <> 'obsoleto' ORDER BY d.titulo`
     ).bind(projectId).all<{ id: string; titulo: string; status: string; controle_id: string | null; controle: string | null; requisito_id: string | null }>();
     const por_controle = results.filter((d) => d.controle_id);
