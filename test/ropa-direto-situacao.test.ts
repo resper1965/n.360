@@ -1,7 +1,7 @@
-// Rodada 3 da auditoria MCP: DELETE de /api/v1/ropa/:id respeitam a situação derivada (achado 1).
+// Rodada 3 da auditoria MCP: DELETE e PUT diretos de /api/v1/ropa/:id respeitam a situação derivada (achados 1 e 7).
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
-import { prepararProjeto, chamar, json, base, novaAtividade, aprovarTratamentoDeTeste, P, type Sessoes } from './helpers/ropa-abas';
+import { prepararProjeto, chamar, comoAgente, comoAgenteDecidindo, json, base, novaAtividade, aprovarTratamentoDeTeste, P, type Sessoes } from './helpers/ropa-abas';
 
 let s: Sessoes;
 beforeAll(async () => { s = await prepararProjeto(); });
@@ -23,5 +23,47 @@ describe('DELETE /api/v1/ropa/:id com a atividade aprovada por pedido (achado 1)
     const rid = await novaAtividade(s.consultor);
     expect((await chamar(s.consultor, 'DELETE', `/api/v1/ropa/${rid}`)).status).toBe(200);
     expect(await linha(rid)).toBeNull();
+  });
+});
+
+describe('PUT /api/v1/ropa/:id com status (achado 7)', () => {
+  const pedidoAberto = (id: string, rid: string) => env.DB.prepare(`INSERT INTO pedidos (id, org_id, project_id, tipo, ref_id, titulo, conteudo_json, hash, papel_exigido, status, criado_por)
+    VALUES (?, 'org_ness', ?, 'tratamento', ?, 'Tratamento: exemplo', '{}', ?, 'ciso', 'aberto', 'cons@ness.lat')`).bind(id, P, rid, `h-${id}`).run();
+  const statusPedido = async (id: string) => (await env.DB.prepare('SELECT status FROM pedidos WHERE id = ?').bind(id).first<{ status: string }>())!.status;
+
+  it('agente mudando o status: 403 citando niso_situacao_atividade, nada muda; mesmo status passa', async () => {
+    const rid = await novaAtividade(s.consultor);
+    const r = await comoAgente('PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Inactive' });
+    expect(r.status).toBe(403);
+    expect((await json(r)).error).toContain('niso_situacao_atividade');
+    expect((await linha(rid))!.status).toBe('Draft');
+    expect((await comoAgente('PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Draft', retention_period: '5 anos' })).status).toBe(200);
+  });
+
+  it('pessoa cancelando pelo PUT: o pedido aberto é cancelado e a trilha ropa.situacao é gravada', async () => {
+    const rid = await novaAtividade(s.consultor);
+    await pedidoAberto('dir-p1', rid);
+    const r = await chamar(s.consultor, 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Inactive' });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await linha(rid))!.status).toBe('Inactive');
+    expect(await statusPedido('dir-p1')).toBe('cancelado');
+    const t = await env.DB.prepare(`SELECT 1 AS ok FROM audit_logs WHERE action = 'ropa.situacao' AND details LIKE ?`).bind(`ROPA ${rid}:%`).first();
+    expect(t).not.toBeNull();
+  });
+
+  it('pessoa mandando para revisão pelo PUT: grava ropa.situacao; status de destino fora da máquina segue como antes', async () => {
+    const rid = await novaAtividade(s.consultor);
+    expect((await chamar(s.consultor, 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Under Review' })).status).toBe(200);
+    expect((await linha(rid))!.status).toBe('Under Review');
+    const t = await env.DB.prepare(`SELECT 1 AS ok FROM audit_logs WHERE action = 'ropa.situacao' AND details LIKE ?`).bind(`ROPA ${rid}:%`).first();
+    expect(t).not.toBeNull();
+    expect((await chamar(s.consultor, 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Active' })).status).toBe(200);
+    expect((await linha(rid))!.status).toBe('Active');
+  });
+
+  it('agente com a ferramenta niso_situacao_atividade usa a rota de situação, não o PUT', async () => {
+    const rid = await novaAtividade(s.consultor);
+    expect((await comoAgenteDecidindo('niso_situacao_atividade', 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Inactive' })).status).toBe(403);
+    expect((await linha(rid))!.status).toBe('Draft');
   });
 });

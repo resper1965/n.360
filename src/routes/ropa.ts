@@ -15,7 +15,7 @@ import { conferirPedidosDoDocumento } from './pedidos';
 import { sugerirTratamento } from '../services/rascunhos-privacy';
 import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
 import { lerEmpresa } from '../services/empresas';
-import { situacaoDaAtividade, situacaoGravada } from '../services/ropa-abas/situacao';
+import { situacaoDaAtividade, situacaoGravada, transicionar } from '../services/ropa-abas/situacao';
 import { atividadeDoProjeto } from '../services/ropa-abas/comum';
 import { textosDaColeta, mesmosNomes } from '../services/ropa-abas/derivada';
 
@@ -89,6 +89,19 @@ ropaApp.put('/:id', async (c) => {
     // Sair de 'Approved' pelo PUT deixaria as assinaturas na linha sem motivo nem trilha: é revogação.
     if (atual?.status === 'Approved' && Object.hasOwn(body, 'status')) {
       return c.json({ error: 'ROPA aprovado não muda de status pela edição. Para reabrir, use "Revogar aprovação" (motivo obrigatório).' }, 400);
+    }
+    // Mudar o status é mudar a situação: ao agente é a decisão niso_situacao_atividade; para a pessoa, cancelar e mandar para revisão
+    // passam pela mesma transição da rota /situacao (cancela o pedido aberto e grava ropa.situacao).
+    if (Object.hasOwn(body, 'status') && body.status !== atual?.status) {
+      if (c.get('user')?.agente) return c.json({ error: 'Forbidden: mudar a situação da atividade é decisão do consultor: use niso_situacao_atividade' }, 403);
+      const corpo = body.status === 'Inactive' ? { acao: 'cancelar' as const, motivo: 'Cancelada pela edição do registro' }
+        : body.status === 'Under Review' ? { acao: 'enviar_revisao' as const } : null;
+      if (corpo && atual?.project_id) {
+        const r = await transicionar(c.env.DB, atual.project_id, id, c.get('user')!, corpo, c.req.header('CF-Connecting-IP') ?? '');
+        // 409 = a máquina de situação não tem essa transição (ex.: Under Review numa atividade aprovada por pedido): segue o UPDATE comum, como antes.
+        if (r.ok) delete body.status;
+        else if (r.status !== 409) return c.json({ error: r.error }, r.status);
+      }
     }
     for (const k of ['international_transfers', 'dpia_required', 'dados_sensiveis', 'criancas_adolescentes']) if (k in body && body[k] !== null) body[k] = body[k] ? 1 : 0;
     // Aprovação direta antiga (assinaturas na linha): mudar conteúdo aprovado a derruba, como no RIPD. Compara o valor que SERIA gravado.
