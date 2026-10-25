@@ -64,14 +64,12 @@ test('Nova política → gerar seções pendentes → publicar → Vigente', asy
   await page.click('#login-submit');
   await expect(page).toHaveURL(/\/iso$/);
 
-  // O item fica em "Mais" (recolhido) e o clique cedo demais cai antes de o menu estar ligado: repete até a tela abrir.
+  // O item fica em "Mais" (recolhido) e a tela inicial ainda pode redesenhar por cima: repete o caminho todo até o modal abrir.
   await expect(async () => {
     await page.locator('#sidebar #nav-documentos').evaluate((b) => b.click());
-    await expect(page.getByRole('button', { name: 'Nova política' })).toBeVisible({ timeout: 1500 });
+    await page.getByRole('button', { name: 'Nova política' }).click({ timeout: 1500 });
+    await expect(page.locator('.modal-title', { hasText: 'Nova política' })).toBeVisible({ timeout: 1500 });
   }).toPass({ timeout: 15_000 });
-  await page.getByRole('button', { name: 'Nova política' }).click();
-  const modal = page.locator('.modal-title', { hasText: 'Nova política' });
-  await expect(modal).toBeVisible();
   await expect(page.getByText('POL-EX')).toBeVisible();
   await page.getByRole('button', { name: 'Criar', exact: true }).first().click();
 
