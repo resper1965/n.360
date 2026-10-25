@@ -56,6 +56,7 @@ describe('lista única de checklist', () => {
 
   it('a geração aceita TODO item que a tela mostra', async () => {
     for (const i of todos) {
+      await env.SESSIONS.delete('ratelimit:ia:u-adm'); // o limite `ia` vale; o teste fixa outra coisa
       const res = await worker.fetch(new Request(`http://localhost/api/v1/projects/${P}/generate-document`, {
         method: 'POST', headers: admin, body: JSON.stringify({ itemId: i.id, fields: {} }),
       }), workerEnv());
