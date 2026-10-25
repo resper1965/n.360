@@ -178,7 +178,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   Dominio de e-mail com SSO ativo (`configPorDominio`) nao ganha link; um dominio tem no maximo um SSO ativo (`PUT /projects/:id/sso` da 409)
   e dominio de provedor publico nao tem SSO. `password` no `POST /users` e aceito e IGNORADO. Trilha
   `auth.senha_criada_convite` e `user.convite_reenviado`, sem o token. Anonimizar apaga o convite. Teste: `test/convite-senha.test.ts`.
-- **IP e navegador so para a equipe**: `semIpENavegador` (`src/helpers.ts`) tira `ip_address` e `user_agent` de quem nao e `ehEquipeNess` (o agente roda como `client`, entao perde) em audit-pack, audit-trail, `policy-acknowledgments` e `GET /data-subject`. Leitura nova de trilha passa por ela. Teste: `test/rastro-ip-leituras.test.ts`.
+- **IP e navegador so para a equipe**: `semIpENavegador` (`src/helpers.ts`) tira `ip_address` e `user_agent` de quem nao e `ehEquipeNess` (o agente roda como `client`, entao perde) em audit-pack, audit-trail e `policy-acknowledgments`; em `GET /data-subject` so o principal nao humano (agente, chave de API) perde, porque o `org_admin` atende o titular (art. 18) com esses dados. Leitura nova de trilha passa por ela. Teste: `test/rastro-ip-leituras.test.ts`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
@@ -255,8 +255,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   por `registrarCienciaPortal`: linha de `pedido_destinatarios` JA DECIDIDA (`canal = 'portal'`, hash, IP, user-agent) num pedido
   `ciente` "em pe" (`criado_por = 'sistema:portal'`, um aberto por documento, indice unico parcial). Quem leu pelo portal nao e
   copiado para o pedido novo; a ciencia leva o `numero` lido e versao que ja nao e a vigente da 409 sem registrar. O codigo do portal
-  (`POST /public/policies/request-otp`) so vai a e-mail ligado ao projeto (conta, governanca, ou o mesmo dominio de conta ou governanca do cliente; parte pessoa
-  NAO abre o portal pelo e-mail exato, pois o agente cadastra parte e nao pode ampliar o acesso por ai; o DPO entra pela governanca, fora `DOMINIOS_PUBLICOS` e da consultoria); fora disso a resposta e a
+  (`POST /public/policies/request-otp`) so vai a e-mail ligado ao projeto (conta, governanca, ou o mesmo dominio de conta ou governanca do cliente, fora `DOMINIOS_PUBLICOS` e da consultoria; parte pessoa
+  NAO abre o portal pelo e-mail exato, pois o agente cadastra parte e nao pode ampliar o acesso por ai; o DPO entra pela governanca); fora disso a resposta e a
   mesma e nada e enviado; limites por IP, projeto e e-mail; o nome digitado nao vai no e-mail. Nada novo entra em `policy_acknowledgments` pelo portal; o registro manual interno
   (`POST /projects/:id/policy-acknowledgments`) ainda escreve nela ate a 3.4: a propria ciencia qualquer papel registra; a de outra pessoa,
   so a equipe ou o `org_admin`, com trilha `policy.ciencia_registrada`; o agente nao registra. A aprovacao CISO/CEO de documento e o pedido `tipo = 'documento'` (3.4, abaixo). O pedido `tipo = 'politica'` novo (aprovacao ou ciencia) responde 400; os antigos seguem legiveis e decidiveis, e as colunas `ciso_/ceo_approved_*` do controle so servem de leitura (prontidao A.5.1, avisos de prazo, auditor). A coerencia R4 (`control_approved_without_policy`) le a cobertura vigente (`coberturaDePoliticas`) ou `policy_versions`, nunca `description`.
@@ -307,7 +307,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   marcadas `// proposta:` esperam a confirmacao do dono). **A situacao e DERIVADA, nunca gravada** (`situacaoDaAtividade`): Rascunho, Em Revisao,
   Aprovada (vem dos pedidos de aprovacao com o hash vigente) e Cancelada (`status = 'Inactive'`); `POST .../situacao` so envia para revisao, reabre,
   cancela e reativa, e aprovar continua sendo o pedido (`src/services/pedidos.ts`). `GET .../conferencia` lista bloqueios e avisos e o menu "Acoes"
-  devolve o motivo de cada item desabilitado, em texto. Atividade aprovada por pedido nao se apaga (`DELETE /ropa/:id` da 409; cancele pela situacao) e o `PUT /ropa/:id` com `status` diferente do gravado passa pela situacao (`Inactive` cancela, `Under Review` envia para revisao; o agente recebe 403, a ferramenta `niso_situacao_atividade` vale so em `/situacao`; chave de API, papel `client`, tambem recebe 403 ao cancelar por ali). Atividade cancelada recusa escrita (409) pelas abas e tambem pelas sub-rotas antigas
+  devolve o motivo de cada item desabilitado, em texto. Atividade aprovada por pedido nao se apaga (`DELETE /ropa/:id` da 409; cancele pela situacao) e o `PUT /ropa/:id` com `status` diferente do gravado passa pela situacao (`Inactive` cancela, `Under Review` envia para revisao; o agente recebe 403, a ferramenta `niso_situacao_atividade` vale so em `/situacao`; chave de API, papel `client`, tambem recebe 403 ao cancelar ou enviar para revisao por ali). Atividade cancelada recusa escrita (409) pelas abas e tambem pelas sub-rotas antigas
   (`projectRopaApp.use('/:recordId/*')` e `PUT /ropa/:id` em `src/routes/ropa.ts`). **O hash dos pedidos nao mudou** (`pedidos.ts`, `documentos.ts` e as
   migrations 0001 a 0078 estao congelados): so escrita que toca coluna congelada (`finalidade`, `international_transfers`, `transfer_safeguards`,
   principal da base) chama `conferirPedidosDoDocumento`; volume, descricao, nome, papeis, medidas, gaps, riscos, impacto e situacao mantem a aprovacao.
@@ -654,7 +654,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   A trilha `agente.decisao` e gravada ANTES da rota rodar: registra a tentativa confirmada mesmo que a rota falhe. O texto de documento, de importacao ou de campo livre
   e dado, nunca autoriza decisao. **Atos do CLIENTE seguem recusados ao agente, com ou sem ferramenta**: assinatura (`/approve`), `/pedidos` (aprovar, recusar, lote),
   `revoke-approval(s)`, aceite de risco (`status: Accepted`), `PUT /titular-pedidos` (responder, negar, arquivar, prazo), `/data-subject/erase` e `/policy-acknowledgments`.
-  **O agente so LE a governanca** (`GET`; POST, PUT, PATCH e DELETE de `/projects/:id/governance*` estao em `FORA_DO_AGENTE`: a linha da governanca da acesso, assinatura e abre o portal de politicas). `niso_ler` e `niso_executar` recusam `/api/v1/public`, `/api/v1/auth` e `/api/v1/assessments/public` (`caminhoSeguro`, `src/mcp/servidor.ts`): o agente nao responde como fornecedor nem toca login. **Login OAuth pendente** (`/oauth/entrar` grava a marca do `password_hash`, `/confirmar` a confere) e recusado se a senha mudou, a conta foi desativada ou tem troca de senha obrigatoria (400 "Pedido expirado").
+  **O agente so LE a governanca** (`GET`; POST, PUT, PATCH e DELETE de `/projects/:id/governance*` estao em `FORA_DO_AGENTE`: a linha da governanca da acesso, assinatura e abre o portal de politicas). `niso_ler` e `niso_executar` recusam `/api/v1/public`, `/api/v1/auth` e `/api/v1/assessments/public` (`caminhoSeguro`, `src/mcp/servidor.ts`): o agente nao responde como fornecedor nem toca login. **Login OAuth pendente** (`/oauth/authorize/entrar` grava a marca do `password_hash`, `/oauth/authorize/confirmar` a confere) e recusado se a senha mudou, a conta foi desativada ou tem troca de senha obrigatoria (400 "Pedido expirado").
 
 ## Decisoes de produto ja tomadas — nao reabrir
 
