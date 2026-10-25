@@ -37,8 +37,10 @@ dataSubjectApp.get('/', async (c) => {
   if (!identificador) return c.json({ error: 'Parâmetro `identificador` é obrigatório' }, 400);
 
   const todas = await localizarTitular(c.env.DB, projectId, identificador);
-  // IP e navegador de quem leu a política não vão ao agente nem a quem não é da consultoria.
-  const ocorrencias = todas.map((o) => ({ ...o, registros: semIpENavegador(c.get('user'), o.registros) }));
+  // IP e navegador de quem leu a política saem só para principal não humano (agente, chave de API); o controlador atende o titular com eles.
+  const u = c.get('user');
+  const naoHumano = u?.agente === true || String(u?.id ?? '').startsWith('apikey:');
+  const ocorrencias = todas.map((o) => ({ ...o, registros: naoHumano ? semIpENavegador(u, o.registros) : o.registros }));
   const total = ocorrencias.reduce((s, o) => s + o.registros.length, 0);
 
   // A consulta em si é tratamento de dado pessoal e precisa constar da trilha.

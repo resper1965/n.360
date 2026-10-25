@@ -82,14 +82,22 @@ describe('Requisição de titular', () => {
     );
   });
 
-  it('IP e navegador da ciência de política só saem para a consultoria', async () => {
+  it('IP e navegador da ciência de política saem para a consultoria e o org_admin, não para o agente', async () => {
     const url = `/api/v1/projects/p1/data-subject?identificador=${encodeURIComponent(IDENT)}`;
     const ack = (b: any) => b.ocorrencias.find((o: any) => o.tabela === 'policy_acknowledgments').registros[0];
     expect(ack(await (await req(url)).json())).toMatchObject({ ip_address: '1.2.3.4', user_agent: 'Mozilla' });
     const adm = { ...(await sessionFor({ id: 'u3', email: 'adm@c.com', role: 'org_admin', client_project_id: 'p1', iat: Date.now() })), 'Content-Type': 'application/json' };
     const r = await req(url, {}, adm);
     expect(r.status).toBe(200);
-    const a = ack(await r.json());
+    expect(ack(await r.json())).toMatchObject({ ip_address: '1.2.3.4', user_agent: 'Mozilla' });
+    await env.DB.batch([
+      env.DB.prepare(`INSERT OR IGNORE INTO users (id, email, password_hash, name, role, org_id) VALUES ('u-ds-cons', 'cons@ness.lat', 'x', 'Cons', 'consultor', 'org_ness')`),
+      env.DB.prepare(`INSERT OR IGNORE INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-ds', 'p1', 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`),
+      env.DB.prepare(`INSERT OR IGNORE INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-ds', 'u-ds-cons', 'p1', datetime('now','+30 days'))`),
+    ]);
+    const ag = await app.fetch(new Request('http://localhost' + url), { ...env, AGENTE: { userId: 'u-ds-cons', email: 'cons@ness.lat', projectId: 'p1', concessaoId: 'c-ds' } } as any);
+    expect(ag.status).toBe(200);
+    const a = ack(await ag.json());
     expect(a).not.toHaveProperty('ip_address');
     expect(a).not.toHaveProperty('user_agent');
   });
