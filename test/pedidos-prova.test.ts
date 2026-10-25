@@ -152,6 +152,8 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Cliente', 'ISO 27001', 'controller', 'Active', 'org_ness')`).bind(P),
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Outro', 'ISO 27001', 'controller', 'Active', 'org_b')`).bind(Q),
     env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, description) VALUES (?, ?, 'ISO 27001', 'Política de Segurança', 'Texto v1')`).bind(POL, P),
+    env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status) VALUES ('pv-doc', ?, 'politica', 'POL-PSI-001 Segurança', 'vigente')`).bind(P),
+    env.DB.prepare(`INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por) VALUES ('pv-doc-v1', ?, 'pv-doc', 1, 'Texto', '${'f'.repeat(64)}', 'vigente', 'humano', 'x@ness.lat')`).bind(P),
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES
       ('pv-cadm', 'cadm@ness.lat', ?, 'Cadm', 'consultoria_admin', NULL, 'org_ness'),
       ('pv-oa', 'dono@cliente.com', ?, 'Dono', 'org_admin', ?, 'org_ness'),
@@ -275,7 +277,7 @@ describe('prova imutável', () => {
   it('correção é pedido novo: a prova anterior fica como estava', async () => {
     const antes = await env.DB.prepare(`SELECT * FROM pedido_destinatarios WHERE id = 'pv-d1'`).first();
     const r = await chamar(cadm, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`,
-      { tipo: 'politica', ref_id: POL, destinatarios: [{ email: 'dora@cliente.com' }] });
+      { tipo: 'documento', ref_id: 'pv-doc', destinatarios: [{ email: 'dora@cliente.com' }] });
     expect(r.status, await r.clone().text()).toBe(201);
     const novo = await r.json<any>();
     expect(novo.id).not.toBe('pv-ap');

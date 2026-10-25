@@ -3,16 +3,20 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { sha256Hex, genToken } from '../src/helpers';
 import { applySchema, sessionFor, workerEnv } from './helpers/d1';
+import { criarPedido } from '../src/services/pedidos';
 
 /**
  * Fatia 3 do acesso de stakeholders: ciência em massa por link com código, para quem não tem conta.
  * A consultoria manda um documento a uma lista de e-mails; cada pessoa recebe um link pessoal (token
  * só no fragmento da URL, só o SHA-256 no banco), abre o conteúdo congelado, pede um código de 6
  * dígitos ao próprio e-mail e confirma. Painel de acompanhamento e reenvio só aos pendentes.
+ * O pedido de ciência de política por CONTROLE não nasce mais pela rota (a política agora é um documento); os que já
+ * existem seguem valendo, então aqui eles nascem pelo serviço e os links saem pelo reenvio, como sairiam hoje.
  */
 const P = 'pl-proj';
 const OUTRO = 'pl-outro';
 const POL = 'pl-pol';
+const DOC = 'pl-doc';
 const INVALIDO = JSON.stringify({ error: 'Link inválido ou expirado' });
 
 let ipSeq = 0;
@@ -70,12 +74,14 @@ const dests = async (pedidoId: string) =>
   (await env.DB.prepare('SELECT * FROM pedido_destinatarios WHERE pedido_id = ? ORDER BY email').bind(pedidoId).all<any>()).results;
 const resetPolitica = () => env.DB.prepare(`UPDATE compliance_controls SET title = 'Política de Segurança', description = 'Texto v1' WHERE id = ?`).bind(POL).run();
 
-async function lote(emails: string[], extra: Record<string, unknown> = {}) {
-  const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, {
-    tipo: 'politica', ref_id: POL, destinatarios: emails.map((email) => ({ email })), ...extra,
+/** Pedido de ciência de política já existente (criado pelo serviço) e os links enviados pelo reenvio. */
+async function lote(emails: string[]) {
+  const criado = await criarPedido(env.DB, {
+    projectId: P, tipo: 'politica', refId: POL, papel: 'ciente', destinatarios: emails.map((email) => ({ email })), criadoPor: 'cons@ness.lat', comLink: true,
   });
-  expect(r.status, await r.clone().text()).toBe(201);
-  return r.json<any>();
+  const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/${criado!.id}/reenviar`);
+  expect(r.status, await r.clone().text()).toBe(200);
+  return { id: criado!.id, hash: criado!.hash, ...(await r.json<any>()) };
 }
 
 beforeAll(async () => {
@@ -85,6 +91,8 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Cliente', 'ISO 27001', 'controller', 'Active', 'org_ness')`).bind(P),
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, 'Outro', 'ISO 27001', 'controller', 'Active', 'org_b')`).bind(OUTRO),
     env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, description) VALUES (?, ?, 'ISO 27001', 'Política de Segurança', 'Texto v1')`).bind(POL, P),
+    env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status) VALUES (?, ?, 'politica', 'POL-PSI-001 Segurança', 'vigente')`).bind(DOC, P),
+    env.DB.prepare(`INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por) VALUES ('pl-doc-v1', ?, ?, 1, 'Texto', '${'e'.repeat(64)}', 'vigente', 'humano', 'cons@ness.lat')`).bind(P, DOC),
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, org_id) VALUES ('u-cons', 'cons@ness.lat', 'x', 'Cons', 'consultor', 'org_ness'),
       ('u-cadmb', 'cadm@b.lat', 'x', 'CadmB', 'consultoria_admin', 'org_b')`),
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('g-cons', ?, 'Cons', 'cons@ness.lat', 'consultor', 'Consultor')`).bind(P),
@@ -95,13 +103,12 @@ beforeAll(async () => {
 }, 60_000);
 
 describe('criar o lote', () => {
-  it('ciência de política vazia: 400 e nenhum pedido gravado', async () => {
-    await env.DB.prepare(`UPDATE compliance_controls SET description = '  ' WHERE id = ?`).bind(POL).run();
+  it('ciência nova de política por controle: 400 e nenhum pedido gravado', async () => {
     const antes = (await env.DB.prepare('SELECT COUNT(*) AS n FROM pedidos').first<any>()).n;
     const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'politica', ref_id: POL, destinatarios: [{ email: 'v@cliente.com' }] });
     expect(r.status).toBe(400);
+    expect((await r.json<any>()).error).toBe('A política agora é um documento: peça a aprovação pela página da política.');
     expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM pedidos').first<any>()).n).toBe(antes);
-    await resetPolitica();
   });
 
   it('um token por e-mail, só o SHA-256 no banco, e-mail repetido ignorado, link só no fragmento', async () => {
@@ -130,16 +137,17 @@ describe('criar o lote', () => {
   it('sem chave de e-mail configurada não cria nada (503); limite de 200 e-mails; documento de outro projeto 404', async () => {
     const semChave = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/pedidos/ciencia`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...consultor },
-      body: JSON.stringify({ tipo: 'politica', ref_id: POL, destinatarios: [{ email: 'x@cliente.com' }] }),
+      body: JSON.stringify({ tipo: 'documento', ref_id: DOC, destinatarios: [{ email: 'x@cliente.com' }] }),
     }), workerEnv());
     expect(semChave.status).toBe(503);
     const muitos = Array.from({ length: 201 }, (_, i) => ({ email: `p${i}@cliente.com` }));
-    expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'politica', ref_id: POL, destinatarios: muitos })).status).toBe(400);
-    expect((await chamar(cadmB, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'politica', ref_id: POL, destinatarios: [{ email: 'x@c.com' }] })).status).toBe(403);
-    await env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title) VALUES ('pl-pol-b', ?, 'ISO', 'B')`).bind(OUTRO).run();
-    expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'politica', ref_id: 'pl-pol-b', destinatarios: [{ email: 'x@c.com' }] })).status).toBe(404);
-    expect((await chamar(stakeholder, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'politica', ref_id: POL, destinatarios: [{ email: 'x@c.com' }] })).status).toBe(403);
+    expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'documento', ref_id: DOC, destinatarios: muitos })).status).toBe(400);
+    expect((await chamar(cadmB, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'documento', ref_id: DOC, destinatarios: [{ email: 'x@c.com' }] })).status).toBe(403);
+    await env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status) VALUES ('pl-doc-b', ?, 'politica', 'B', 'vigente')`).bind(OUTRO).run();
+    expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'documento', ref_id: 'pl-doc-b', destinatarios: [{ email: 'x@c.com' }] })).status).toBe(404);
+    expect((await chamar(stakeholder, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'documento', ref_id: DOC, destinatarios: [{ email: 'x@c.com' }] })).status).toBe(403);
   });
+
 });
 
 describe('link público', () => {

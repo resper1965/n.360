@@ -117,7 +117,8 @@ beforeAll(async () => {
   const h = await hashPassword('senha-forte-123');
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES (?, ?, 'ISO 27001', 'controller', 'Active', 'org_ness')`).bind(P, CLIENTE),
-    env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, description) VALUES (?, ?, 'ISO 27001', 'Política <b>de</b> Segurança', 'Texto v1')`).bind(POL, P),
+    env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status) VALUES (?, ?, 'politica', 'Política <b>de</b> Segurança', 'vigente')`).bind(POL, P),
+    env.DB.prepare(`INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por) VALUES ('em-pol-v1', ?, ?, 1, 'Texto v1', '${'a'.repeat(64)}', 'vigente', 'humano', 'ana@ness.lat')`).bind(P, POL),
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, org_id) VALUES ('em-cons', 'ana@ness.lat', ?, 'Ana Fictícia', 'consultor', 'org_ness'),
       ('em-adm', 'adm@ness.lat', ?, 'Adm Fictício', 'platform_admin', 'org_ness')`).bind(h, h),
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('em-g', ?, 'Ana Fictícia', 'ana@ness.lat', 'consultor', 'Consultor')`).bind(P),
@@ -143,7 +144,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('cada e-mail', () => {
   it('ciência por link e o código: quem pede, o quê, até quando, link, resposta a quem pediu', async () => {
-    const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'politica', ref_id: POL, destinatarios: [{ email: 'leitor@cliente.lat', nome: 'Leitor <i>Fictício</i>' }] });
+    const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/pedidos/ciencia`, { tipo: 'documento', ref_id: POL, destinatarios: [{ email: 'leitor@cliente.lat', nome: 'Leitor <i>Fictício</i>' }] });
     expect(r.status, await r.clone().text()).toBe(201);
     const e = ultimo('leitor@cliente.lat');
     const link = /https:\/\/n360\.ness\.com\.br\/politicas#[0-9a-f]{64}/.exec(e.text)![0];

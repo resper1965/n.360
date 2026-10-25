@@ -72,6 +72,11 @@ describe('rotas da política por controle', () => {
     expect((await agente(metodo, caminho, corpo)).status).toBe(404);
   });
 
+  it('controle: a mesma concessão do agente alcança uma rota que existe (o 404 não vem da concessão)', async () => {
+    const r = await agente('GET', `/api/v1/projects/${PJ}/documentos`);
+    expect(r.status, await r.clone().text()).toBe(200);
+  });
+
   it('nenhuma delas tocou o controle', async () => {
     const c = await env.DB.prepare(`SELECT description FROM compliance_controls WHERE id = 'ret-c1'`).first<any>();
     expect(c.description).toBe('Nota antiga do controle');
@@ -84,6 +89,15 @@ describe('pedido de política', () => {
     // O consultor designado pede (o platform_admin não pede); a recusa vem antes de ler o controle.
     const cons = await sessionFor({ id: 'u-ret', email: 'cons-ret@ness.lat', role: 'consultor', org_id: 'org_ness' });
     const r = await worker.fetch(new Request(`http://localhost/api/v1/projects/${PJ}/pedidos`, { method: 'POST', headers: { ...json, ...cons }, body: JSON.stringify({ tipo: 'politica', ref_id: 'ret-c1', papel_exigido: 'ciso', destinatarios: [{ email: 'cons-ret@ness.lat' }] }) }), workerEnv());
+    expect(r.status, await r.clone().text()).toBe(400);
+    expect((await r.json<any>()).error).toBe('A política agora é um documento: peça a aprovação pela página da política.');
+    expect((await env.DB.prepare(`SELECT count(*) AS n FROM pedidos WHERE project_id = ?`).bind(PJ).first<any>()).n).toBe(0);
+  });
+
+  it('POST ciencia (lote por link) com tipo politica: o mesmo 400 e nenhum pedido criado', async () => {
+    const cons = await sessionFor({ id: 'u-ret', email: 'cons-ret@ness.lat', role: 'consultor', org_id: 'org_ness' });
+    const r = await worker.fetch(new Request(`http://localhost/api/v1/projects/${PJ}/pedidos/ciencia`, { method: 'POST', headers: { ...json, ...cons }, body: JSON.stringify({ tipo: 'politica', ref_id: 'ret-c1', destinatarios: [{ email: 'leitor@cliente.lat' }] }) }),
+      { ...workerEnv(), RESEND_API_KEY: 're_teste' } as any);
     expect(r.status, await r.clone().text()).toBe(400);
     expect((await r.json<any>()).error).toBe('A política agora é um documento: peça a aprovação pela página da política.');
     expect((await env.DB.prepare(`SELECT count(*) AS n FROM pedidos WHERE project_id = ?`).bind(PJ).first<any>()).n).toBe(0);
