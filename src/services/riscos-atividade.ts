@@ -1,4 +1,4 @@
-import { genId, refForaDoProjeto, setParcial } from '../helpers';
+import { genId, logAudit, refForaDoProjeto, setParcial } from '../helpers';
 import { hojeEmSaoPaulo } from './hoje';
 
 /**
@@ -129,7 +129,9 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
     binds.push(await textoDoAtivo(db, corpo.asset_id, at.processing_purpose));
   }
   if (aceite) { extra.push('accepted_by = ?', 'accepted_at = ?', 'aceite_manual = 0'); binds.push(aceite.accepted_by, aceite.accepted_at); }
-  if (caiu) extra.push('accepted_by = NULL', 'accepted_at = NULL', 'aceite_manual = 0');
+  // Sair de Accepted por status explícito também desfaz o aceite (como a queda por notas).
+  const saiu = !caiu && atual.status === 'Accepted' && corpo.status !== undefined && corpo.status !== 'Accepted';
+  if (caiu || saiu) extra.push('accepted_by = NULL', 'accepted_at = NULL', 'aceite_manual = 0');
   await db.batch([
     db.prepare(
       `UPDATE risks SET impact = ?, probability = ?, risk_level = ?, residual_level = ?${p.sql ? ', ' + p.sql : ''}${extra.length ? ', ' + extra.join(', ') : ''},
@@ -138,6 +140,7 @@ export async function atualizarRisco(db: D1Database, projectId: string, ropaId: 
     db.prepare('INSERT INTO risk_history (id, risk_id, project_id, impact, probability, risk_level) VALUES (?, ?, ?, ?, ?, ?)')
       .bind(genId(), id, projectId, impacto, prob, nivel),
   ]);
+  if (caiu || saiu) await logAudit(db, 'risk.aceite_invalidado', ator, `Risco ${id}: aceite desfeito (${caiu ? 'notas mudaram' : 'saiu de Aceito'})`, '', '', projectId);
   return { ok: true, risk_level: nivel };
 }
 
