@@ -24,7 +24,7 @@ describe('OTP do portal público de políticas', () => {
     await applySchema();
     await env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES (?,?,?,?,?)`)
       .bind(PID, 'Cliente OTP', 'ISO 27001', 'controller', 'Active').run();
-    // a governança do cliente dá o domínio (a parte só vale pelo e-mail exato)
+    // a governança do cliente dá o domínio (parte pessoa não liga pelo e-mail exato)
     await env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('otp-rh', ?, 'RH', 'rh@cliente.com', 'tech', 'RH')`).bind(PID).run();
   });
 

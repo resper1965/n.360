@@ -29,18 +29,17 @@ export const DOMINIOS_PUBLICOS = new Set([
 ]);
 
 /**
- * O e-mail está ligado ao projeto? Exato: conta do projeto (cliente ou stakeholder), membro da governança ou parte pessoa ativa
- * que não seja de terceiro. Ou o mesmo domínio de uma conta do cliente ou de um membro da governança do CLIENTE (sem linha de
- * consultor; a parte não abre domínio), fora domínio público, `ness.com.br` e os domínios da equipe da organização do projeto.
+ * O e-mail está ligado ao projeto? Exato: conta do projeto (cliente ou stakeholder) ou membro da governança. Ou o mesmo domínio de
+ * uma conta do cliente ou de um membro da governança do CLIENTE (sem linha de consultor), fora domínio público, `ness.com.br` e os
+ * domínios da equipe da organização do projeto. Parte pessoa não liga pelo e-mail exato: qualquer um que grava partes (o agente
+ * inclusive) cadastraria um e-mail externo e abriria o portal; ela só entra pela regra de domínio do cliente.
  */
 export async function emailLigadoAoProjeto(db: D1Database, projectId: string, orgId: string, email: string): Promise<boolean> {
   const { results } = await db.prepare(
     `SELECT lower(trim(email)) AS email, 'cliente' AS lado FROM users WHERE client_project_id = ? AND COALESCE(ativo, 1) <> 0
      UNION ALL SELECT lower(trim(email)), CASE WHEN role_category = 'consultor' THEN 'equipe_projeto' ELSE 'cliente' END FROM project_governance WHERE project_id = ?
-     UNION ALL SELECT lower(trim(p.email)), 'exato' FROM partes p WHERE p.project_id = ? AND p.tipo = 'pessoa' AND p.status = 'ativa'
-       AND NOT EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.parte_id = p.id AND v.papel IN ('operador', 'suboperador', 'terceiro', 'cocontrolador'))
      UNION ALL SELECT lower(trim(email)), 'equipe' FROM users WHERE org_id = ? AND client_project_id IS NULL AND role <> 'stakeholder'`,
-  ).bind(projectId, projectId, projectId, orgId).all<{ email: string | null; lado: string }>();
+  ).bind(projectId, projectId, orgId).all<{ email: string | null; lado: string }>();
   const linhas = results.filter((r) => r.email?.includes('@'));
   if (linhas.some((r) => r.lado !== 'equipe' && r.email === email)) return true;
   const dominio = (e: string) => e.slice(e.lastIndexOf('@') + 1);
