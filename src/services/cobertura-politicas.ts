@@ -4,7 +4,7 @@ export type DocumentoQueCobre = { id: string; titulo: string; status: 'rascunho'
 export type CoberturaPoliticas = {
   aplicaveis: number;
   cobertos: number;
-  sem_cobertura: { id: string; title: string }[];
+  sem_cobertura: { id: string; title: string; requisito_id: string | null }[];
   por_controle: Record<string, DocumentoQueCobre[]>;
   por_documento: Record<string, number>;
 };
@@ -35,7 +35,7 @@ export async function coberturaDePoliticas(db: D1Database, projectId: string): P
     if (docs.length) r.por_controle[c.id] = docs;
     for (const d of docs) r.por_documento[d.id] = (r.por_documento[d.id] ?? 0) + 1;
     if (docs.some((d) => d.status === 'vigente')) r.cobertos++;
-    else r.sem_cobertura.push({ id: c.id, title: c.title });
+    else r.sem_cobertura.push({ id: c.id, title: c.title, requisito_id: c.requisito_id });
   }
   return r;
 }

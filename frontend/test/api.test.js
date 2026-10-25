@@ -298,8 +298,8 @@ describe('abrirRelatorio()', () => {
         URL.createObjectURL = vi.fn(() => 'blob:relatorio');
         URL.revokeObjectURL = vi.fn();
         S.token = 'tok-sessao';
-        await abrirRelatorio('/api/v1/projects/p1/controls/A.5.1/policy/report');
-        expect(f.mock.calls[0][0]).toBe(API_BASE + '/api/v1/projects/p1/controls/A.5.1/policy/report');
+        await abrirRelatorio('/api/v1/projects/p1/ropa/r1/relatorio');
+        expect(f.mock.calls[0][0]).toBe(API_BASE + '/api/v1/projects/p1/ropa/r1/relatorio');
         expect(f.mock.calls[0][1].headers).toMatchObject({ Authorization: 'Bearer tok-sessao' });
         expect(abre).toHaveBeenCalledWith('', '_blank');
         expect(aba.location.href).toBe('blob:relatorio');

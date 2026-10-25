@@ -5,8 +5,8 @@ import { applySchema, sessionFor } from './helpers/d1';
 
 /**
  * A vetorização (Vectorize / RAG) saiu em 2026-10-06. Este arquivo fixa:
- *   1. gerar política continua funcionando SEM o binding VECTOR_INDEX, e o
- *      contexto do prompt continua vindo do D1 (respostas do assessment);
+ *   1. gerar documento com a IA continua funcionando SEM o binding VECTOR_INDEX, com o
+ *      contexto vindo do pedido (a geração de política por controle saiu no PR3 das políticas temáticas);
  *   2. as rotas que só existiam para o conhecimento vetorial respondem 404.
  */
 const PROJ = 'proj-sem-vetor';
@@ -56,13 +56,12 @@ describe('vetorização removida', () => {
     expect((env as any).VECTOR_INDEX).toBeUndefined();
   });
 
-  it('gera política sem VECTOR_INDEX, com o contexto do assessment (D1) no prompt', async () => {
+  it('gera documento sem VECTOR_INDEX, com os campos do pedido no prompt', async () => {
     prompts.length = 0;
-    const res = await req(`/api/v1/projects/${PROJ}/generate-policy`, { method: 'POST', body: JSON.stringify({ control_id: 'A.5.1' }) }, headers);
+    const res = await req(`/api/v1/projects/${PROJ}/generate-document`, { method: 'POST', body: JSON.stringify({ itemId: 'p1_1', fields: { backup: 'Backup diario em nuvem' } }) }, headers);
     expect(res.status, await res.clone().text()).toBe(200);
-    expect(prompts.some((p) => p.includes('q_backup: Backup diario em nuvem'))).toBe(true);
-    const ctrl = await env.DB.prepare('SELECT description FROM compliance_controls WHERE id = ?').bind('ctrl-a51').first<any>();
-    expect(ctrl.description).toContain('Política gerada');
+    expect(prompts.some((p) => p.includes('Backup diario em nuvem'))).toBe(true);
+    expect(((await res.json()) as any).content).toContain('Política gerada');
   });
 
   it('POST /api/v1/mcp/execute e GET /api/v1/mcp não existem mais (404)', async () => {

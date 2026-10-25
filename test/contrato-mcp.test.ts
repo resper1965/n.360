@@ -79,19 +79,19 @@ describe('Contrato do mcp-server-niso', () => {
 });
 
 describe('ferramentas.ts é a fonte única das ferramentas MCP', () => {
-  it('exporta as 39 ferramentas, todas com prefixo niso_', () => {
-    expect(TOOLS).toHaveLength(39);
+  it('exporta as 38 ferramentas, todas com prefixo niso_', () => {
+    expect(TOOLS).toHaveLength(38);
     expect(TOOLS.every((t) => t.name.startsWith('niso_'))).toBe(true);
   });
   it('auditor não vê escrita de implementação; consultor não vê achado', () => {
-    expect(ferramentaPermitida('niso_generate_policy', 'auditor')).toBe(false);
+    expect(ferramentaPermitida('niso_create_evidence', 'auditor')).toBe(false);
     expect(ferramentaPermitida('niso_create_audit_finding', 'consultant')).toBe(false);
     expect(ferramentaPermitida('niso_get_project', 'readonly')).toBe(true);
   });
   it('executarFerramenta impõe o papel sozinha, sem tocar o transporte', async () => {
     const explode = () => { throw new Error('transporte não devia ser chamado'); };
     const t = { get: explode, enviar: explode, contrato: explode, uploadTexto: explode } as unknown as Transporte;
-    const r = await executarFerramenta('niso_generate_policy', { projectId: 'p1' }, t, { papel: 'auditor' });
+    const r = await executarFerramenta('niso_create_evidence', { projectId: 'p1', fileName: 'x.md', content: 'x' }, t, { papel: 'auditor' });
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toContain('indisponível para o papel');
   });

@@ -162,6 +162,7 @@ describe('ciência por link (consultoria, fatia 3)', () => {
     // GET .../documentos (src/routes/documentos.ts): lista pura; só entra quem tem versão vigente
     fetchMock.mockResolvedValueOnce(json([
       { id: 'd1', tipo: 'politica', titulo: 'Política de <b>Segurança</b>', status: 'vigente', versao_vigente: 2, tem_rascunho: false },
+      { id: 'd3', tipo: 'politica', titulo: 'Incorporada', status: 'obsoleto', versao_vigente: 1, tem_rascunho: false },
       { id: 'd2', tipo: 'politica', titulo: 'Só rascunho', status: 'rascunho', versao_vigente: null, tem_rascunho: true },
     ]));
     await window.abrirCienciaLink('p1');

@@ -11,7 +11,7 @@ import { ehComercial } from '../helpers';
 type FetchHono = (r: Request, e: any, c?: any) => Response | Promise<Response>;
 
 /** Fora do alcance do agente mesmo sendo do consultor: o servidor recusa de novo. */
-const BLOQUEADAS = new Set(['niso_generate_policies_bulk', 'niso_create_audit_finding', 'niso_create_auditor_note']);
+const BLOQUEADAS = new Set(['niso_create_audit_finding', 'niso_create_auditor_note']);
 
 const CONTEXTO: Ferramenta = {
   name: 'niso_contexto',
@@ -39,7 +39,7 @@ const GENERICAS: Ferramenta[] = [
   {
     name: 'niso_executar',
     description:
-      'Grava no projeto desta conexão, como o consultor faria na interface: POST, PUT, PATCH ou DELETE em /api/v1/... Apagar e gerar em lote exigem confirmado_pelo_usuario: true — antes, mostre ao usuário o que será feito (nome e id) e espere o "sim".',
+      'Grava no projeto desta conexão, como o consultor faria na interface: POST, PUT, PATCH ou DELETE em /api/v1/... Apagar exige confirmado_pelo_usuario: true — antes, mostre ao usuário o que será feito (nome e id) e espere o "sim".',
     inputSchema: {
       type: 'object',
       properties: {
@@ -174,7 +174,7 @@ async function comercial(nome: string, args: Record<string, unknown> | undefined
 
 /** O que mostrar ao consultor antes do "sim" (e o efeito de cada ferramenta). */
 const ORIENTACAO: Record<FerramentaDecisao, string> = {
-  niso_publicar_documento: 'Publica, restaura, gera por modelo ou descarta texto de política/documento. Publicar troca a versão vigente, zera as aprovações de CISO e CEO e substitui os pedidos de ciência abertos; "hash" é o do rascunho que você mostrou.',
+  niso_publicar_documento: 'Publica ou descarta texto de política/documento. Publicar troca a versão vigente, zera as aprovações de CISO e CEO e substitui os pedidos de ciência abertos; "hash" é o do rascunho que você mostrou.',
   niso_revisar_documento: 'Marca o documento como revisado (renova o prazo de revisão) ou revoga uma exceção aprovada.',
   niso_decidir_passo: 'Conclui (com "excecao" quando o critério não é cumprido), reabre, bloqueia (motivo e responsável em dados) ou desbloqueia passo da trilha; descarta a anotação antiga do passo ou a situação antiga da fase.',
   niso_avaliar_fornecedor: 'Define tipo, registra criticidade ou avaliação, e conduz a homologação do fornecedor. A avaliação muda a situação do fornecedor e os avisos de prazo.',

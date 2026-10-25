@@ -264,21 +264,6 @@ export const TOOLS: Ferramenta[] = [
     },
   },
   {
-    name: "niso_generate_policy",
-    description: `Generate a policy document for a control via the n.iso PolicyAgent (AI draft). The server saves it as a DRAFT of the control's policy document: nothing in the current policy changes until a human publishes it on the policy screen. ${WRITE_GUARDRAIL}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        projectId: { type: "string", description: "The project ID" },
-        controlId: {
-          type: "string",
-          description: "The ISO 27001:2022 Annex A control ID (e.g., A.5.1). Defaults to A.5.1",
-        },
-      },
-      required: ["projectId"],
-    },
-  },
-  {
     name: "niso_evaluate_evidence",
     description: `AI pre-qualification of an evidence record (CONFORME/PARCIAL/NAO CONFORME draft — not an audit verdict). Requires the extracted text of the evidence document. ${WRITE_GUARDRAIL}`,
     inputSchema: {
@@ -313,23 +298,6 @@ export const TOOLS: Ferramenta[] = [
         },
       },
       required: ["projectId", "fileName", "content"],
-    },
-  },
-  {
-    name: "niso_generate_policies_bulk",
-    description: `Generate multiple policy documents sequentially via AI. NEVER run autonomously — bulk generation ALWAYS requires explicit human approval in the active contract. ${WRITE_GUARDRAIL}`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        projectId: { type: "string", description: "The project ID" },
-        controlIds: {
-          type: "array",
-          items: { type: "string" },
-          description:
-            "Annex A control IDs to generate policies for (e.g., ['A.5.1','A.5.9']). Defaults to the core organizational set",
-        },
-      },
-      required: ["projectId"],
     },
   },
   {
@@ -386,21 +354,35 @@ export const TOOLS: Ferramenta[] = [
     },
   },
   {
-    name: "niso_update_policy",
-    description: `Propose the text of a control's policy (NOT AI generation — the exact text provided). The server saves it as a DRAFT of the control's policy document: the current policy, its CISO/CEO approvals and its open approval requests stay untouched until a human publishes the draft on the policy screen. Tell the user a draft is waiting for review; never say the policy was changed. ${WRITE_GUARDRAIL}`,
+    name: "niso_criar_politica",
+    description: `Create a thematic policy as a DRAFT document with its section skeleton. Provide exactly one of: tema (catalog code, e.g. POL-CRY) or titulo + requisitos (requirement ids). If the theme already exists the server answers 409 with the existing document id: use that id. Nothing is published; publishing is a human decision (niso_publicar_documento). ${WRITE_GUARDRAIL}`,
     inputSchema: {
       type: "object",
       properties: {
         projectId: { type: "string", description: "The project ID" },
-        controlId: { type: "string", description: "The control ID (e.g. A.5.1 or ctrl-a51)" },
-        text: { type: "string", description: "Full policy text (markdown) to save as the new current version" },
+        tema: { type: "string", description: "Catalog theme code (e.g. POL-CRY). Use instead of titulo/requisitos" },
+        titulo: { type: "string", description: "Free title (3 to 300 chars), with requisitos" },
+        requisitos: { type: "array", items: { type: "string" }, description: "Requirement ids the policy covers (with titulo)" },
       },
-      required: ["projectId", "controlId", "text"],
+      required: ["projectId"],
+    },
+  },
+  {
+    name: "niso_gerar_secao",
+    description: `Generate ONE section of a thematic policy draft with AI and save it in the draft (nothing else changes). Call once per section, in order. To publish use niso_publicar_documento. ${WRITE_GUARDRAIL}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string", description: "The project ID" },
+        documentoId: { type: "string", description: "The policy document ID (from niso_criar_politica)" },
+        secao: { type: "number", description: "Section number, starting at 1" },
+      },
+      required: ["projectId", "documentoId", "secao"],
     },
   },
   {
     name: "niso_update_control",
-    description: `Update fields of an existing SoA control (status, title and/or description). At least one of the three must be provided. Changing the description resets any prior CISO/CEO approval. The agent may change the description only to record the justification of a Not Applicable control; to propose policy text use niso_update_policy (it saves a draft for human review). ${WRITE_GUARDRAIL}`,
+    description: `Update fields of an existing SoA control (status, title and/or description). At least one of the three must be provided. The agent may change the description only to record the justification of a Not Applicable control; policy text is a document (niso_criar_politica / niso_gerar_secao). ${WRITE_GUARDRAIL}`,
     inputSchema: {
       type: "object",
       properties: {
@@ -408,7 +390,7 @@ export const TOOLS: Ferramenta[] = [
         controlId: { type: "string", description: "The control ID (e.g. ctrl-a51)" },
         status: { type: "string", description: "New control status" },
         title: { type: "string", description: "New control title" },
-        description: { type: "string", description: "New control description/policy text" },
+        description: { type: "string", description: "New control description" },
       },
       required: ["projectId", "controlId"],
     },
@@ -797,16 +779,6 @@ export async function executarFerramenta(
         return await t.get(`/api/v1/projects/${enc(projectId)}/audit-pack`);
       }
 
-      case "niso_generate_policy": {
-        const { projectId, controlId } = z
-          .object({ projectId: z.string(), controlId: z.string().optional() })
-          .parse(args);
-        fora(projectId);
-        return await t.enviar(`/api/v1/projects/${enc(projectId)}/generate-policy`, {
-          control_id: controlId,
-        });
-      }
-
       case "niso_evaluate_evidence": {
         const { evidenceId, text } = z
           .object({ evidenceId: z.string(), text: z.string() })
@@ -844,18 +816,6 @@ export async function executarFerramenta(
           },
           validated.content,
           validated.fileName
-        );
-      }
-
-      case "niso_generate_policies_bulk": {
-        const { projectId, controlIds } = z
-          .object({ projectId: z.string(), controlIds: z.array(z.string()).optional() })
-          .parse(args);
-        fora(projectId);
-        return await t.contrato(
-          "POST /api/v1/projects/{projectId}/generate-policies-bulk",
-          { projectId },
-          { control_ids: controlIds }
         );
       }
 
@@ -901,17 +861,25 @@ export async function executarFerramenta(
         return await t.enviar(`/api/v1/projects/${enc(validated.projectId)}/assets`, validated);
       }
 
-      case "niso_update_policy": {
-        const schema = z.object({
-          projectId: z.string(),
-          controlId: z.string(),
-          text: z.string(),
-        });
-        const validated = schema.parse(args);
-        fora(validated.projectId);
-        return await t.enviar(
-          `/api/v1/projects/${enc(validated.projectId)}/controls/${enc(validated.controlId)}/policy`,
-          { text: validated.text }
+      case "niso_criar_politica": {
+        const { projectId, ...corpo } = z
+          .object({ projectId: z.string(), tema: z.string().optional(), titulo: z.string().optional(), requisitos: z.array(z.string()).optional() })
+          .refine((v) => (v.tema !== undefined) !== (v.titulo !== undefined), { message: "Informe tema, ou titulo com requisitos (um só dos dois)" })
+          .refine((v) => v.titulo === undefined || v.requisitos !== undefined, { message: "titulo exige requisitos" })
+          .parse(args);
+        fora(projectId);
+        return await t.contrato("POST /api/v1/projects/{projectId}/politicas", { projectId }, corpo);
+      }
+
+      case "niso_gerar_secao": {
+        const { projectId, documentoId, secao } = z
+          .object({ projectId: z.string(), documentoId: z.string(), secao: z.number().int().min(1) })
+          .parse(args);
+        fora(projectId);
+        return await t.contrato(
+          "POST /api/v1/projects/{projectId}/documentos/{id}/secoes/{n}/gerar",
+          { projectId, id: documentoId, n: String(secao) },
+          {}
         );
       }
 

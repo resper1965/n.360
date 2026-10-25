@@ -4,6 +4,7 @@
 // dados real por trás (ver AGENTS.md: não afirme sem evidência).
 
 import { classeDoControle } from './classe-controle';
+import { coberturaDePoliticas } from './cobertura-politicas';
 
 export type CoherenceSeverity = 'error' | 'warning';
 
@@ -32,7 +33,7 @@ export async function checkCoherence(db: D1Database, projectId: string): Promise
   ).bind(projectId).all<any>();
 
   const { results: controls } = await db.prepare(
-    `SELECT id, standard, title, status, description FROM compliance_controls WHERE project_id = ?`
+    `SELECT id, standard, title, status FROM compliance_controls WHERE project_id = ?`
   ).bind(projectId).all<any>();
 
   // Não há regra de "risco aponta pra controle inexistente": a FK
@@ -67,6 +68,9 @@ export async function checkCoherence(db: D1Database, projectId: string): Promise
         `SELECT DISTINCT control_id FROM policy_versions WHERE project_id = ? AND control_id IS NOT NULL`
       ).bind(projectId).all<any>();
       const comPolitica = new Set((versions || []).map((v: any) => v.control_id));
+      // A política é o documento vigente que cobre o controle; `description` é nota do controle e não conta.
+      const { por_controle } = await coberturaDePoliticas(db, projectId);
+      for (const [id, docs] of Object.entries(por_controle)) if (docs.some((d) => d.status === 'vigente')) comPolitica.add(id);
 
       for (const control of controls as any[]) {
         if (classeDoControle(control.status) !== 'feito') continue;
@@ -80,8 +84,8 @@ export async function checkCoherence(db: D1Database, projectId: string): Promise
             message: `Controle "${control.title}" (${control.standard}) está ${control.status} mas não tem nenhuma evidência anexada.`,
           });
         }
-        // R4: controle aprovado/implementado sem política escrita (nem versão, nem descrição).
-        if (!comPolitica.has(control.id) && !(control.description && control.description.trim())) {
+        // R4: controle aprovado/implementado sem política (nem documento vigente que o cobre, nem versão antiga).
+        if (!comPolitica.has(control.id)) {
           issues.push({
             rule: 'control_approved_without_policy',
             severity: 'warning',

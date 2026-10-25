@@ -1,10 +1,9 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500 } from '../helpers';
-import { alvoDaPublicacao, atualizarDocumento, cienciasDoDocumento, criarDocumento, descartarRascunho, excluirDocumento, importarDocumentos, lerDocumento, listarDocumentos, marcarRevisado, publicarVersao, salvarRascunho } from '../services/documentos';
+import { atualizarDocumento, cienciasDoDocumento, criarDocumento, descartarRascunho, excluirDocumento, importarDocumentos, lerDocumento, listarDocumentos, marcarRevisado, publicarVersao, salvarRascunho } from '../services/documentos';
 import { recusaDoModulo } from '../modulos';
 import { coberturaDePoliticas } from '../services/cobertura-politicas';
-import { aplicarTextoNoControle } from '../services/politica-escrita';
 import { atualizarExcecao, criarExcecao, listarExcecoes, revogarExcecao } from '../services/excecoes';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { validateBody, documentoAtualizarSchema, documentoCriarSchema, excecaoAtualizarSchema, excecaoCriarSchema, versaoSalvarSchema } from '../schemas';
@@ -135,10 +134,6 @@ documentosApp.post('/documentos/:id/versoes/:numero/publicar', async (c) => {
     if (!r.ok) return c.json({ error: r.error }, r.status);
     // Versão nova vigente: os pedidos de ciência abertos do documento são conferidos (substituídos, se o conteúdo mudou).
     await conferirPedidosDoDocumento(c, 'documento', c.req.param('id'), projectId);
-    // Documento que veio de um controle: publicar tem o efeito de uma edição manual da política (texto no controle,
-    // aprovações a zero, pedidos conferidos, versão no histórico). Até a 3.3 o controle é a fonte da ciência.
-    const alvo = await alvoDaPublicacao(c.env.DB, projectId, c.req.param('id'), numero);
-    if (alvo?.controle) await aplicarTextoNoControle(c, projectId, alvo.controle, alvo.texto, ator);
     return c.json({ ok: true, numero: r.numero });
   } catch (e) { return erro500(c, 'Falha ao publicar a versão', e); }
 });

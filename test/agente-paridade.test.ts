@@ -41,12 +41,6 @@ describe('Agente com paridade de consultor, preso ao projeto', () => {
     expect(log?.actor).toMatch(/^agente de /);
   });
 
-  it('gerar em lote sem confirmação é recusado', async () => {
-    const r = await comoAgente('/api/v1/projects/p-a/generate-policies-bulk', { method: 'POST', headers: json, body: '{}' });
-    expect(r.status).toBe(403);
-    expect((await r.json<any>()).error).toContain('confirmado_pelo_usuario');
-  });
-
   it('recurso de outro projeto por id direto: nem lendo, nem apagando com confirmação', async () => {
     expect((await comoAgente('/api/v1/evidence/ev-b/content')).status).toBe(403);
     expect((await comoAgente('/api/v1/risks/r-b', { method: 'DELETE', headers: confirmado })).status).toBe(403);

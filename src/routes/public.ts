@@ -208,7 +208,7 @@ publicApp.get('/policies/list', async (c) => {
     const { results: documentos } = await c.env.DB.prepare(
       `SELECT d.id, d.tipo, d.titulo, v.numero, v.texto
          FROM documentos d JOIN documento_versoes v ON v.documento_id = d.id AND v.estado = 'vigente'
-        WHERE d.project_id = ? ORDER BY d.titulo ASC`
+        WHERE d.project_id = ? AND d.status <> 'obsoleto' ORDER BY d.titulo ASC`
     ).bind(session.project_id).all<{ id: string; tipo: string; titulo: string; numero: number; texto: string }>();
 
     // A ciência mais recente deste e-mail por documento, de qualquer pedido (inclusive os já substituídos).

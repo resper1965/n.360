@@ -94,7 +94,6 @@ export     function navigate(view, data) {
         else if (S.view === 'metrics') renderMetrics(c, h, a);
         else if (S.view === 'audit-trail') renderAuditTrail(c, h, a);
         else if (S.view === 'acknowledgments') renderAcknowledgments(c, h, a);
-        else if (S.view === 'policies-dashboard') renderPoliciesDashboard(c, h, a);
         else if (S.view === 'risks') renderRisks(c, h, a);
         else if (S.view === 'vendors') renderVendors(c, h, a);
         else if (S.view === 'partes') renderPartes(c, h, a);
@@ -102,6 +101,7 @@ export     function navigate(view, data) {
         else if (S.view === 'sistemas') renderSistemas(c, h, a);
         else if (S.view === 'documentos') renderDocumentos(c, h, a);
         else if (S.view === 'politica') renderPolitica(c, h, a);
+        else if (S.view === 'organizar-politicas') renderOrganizarPoliticas(c, h, a);
         else if (S.view === 'documentos-arquivo') renderDocumentosArquivo(c, h, a);
         else if (S.view === 'requisitos') renderRequisitos(c, h, a);
         else if (S.view === 'referencia-juridica') renderReferenciaJuridica(c, h, a);

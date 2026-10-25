@@ -20,8 +20,6 @@ const P = '/api/v1/projects/{projectId}';
 export const DECISOES: readonly Decisao[] = [
   { ferramenta: 'niso_publicar_documento', acao: 'publicar', metodo: 'POST', caminho: `${P}/documentos/{documentoId}/versoes/{numero}/publicar` },
   { ferramenta: 'niso_publicar_documento', acao: 'descartar_rascunho', metodo: 'DELETE', caminho: `${P}/documentos/{documentoId}/rascunho` },
-  { ferramenta: 'niso_publicar_documento', acao: 'restaurar_versao', metodo: 'POST', caminho: `${P}/controls/{controlId}/restore-version`, corpo: true },
-  { ferramenta: 'niso_publicar_documento', acao: 'gerar_por_modelo', metodo: 'POST', caminho: `${P}/policies/generate-from-template`, corpo: true },
   { ferramenta: 'niso_revisar_documento', acao: 'marcar_revisado', metodo: 'POST', caminho: `${P}/documentos/{documentoId}/revisar`, corpo: true },
   { ferramenta: 'niso_revisar_documento', acao: 'revogar_excecao', metodo: 'POST', caminho: `${P}/documentos/{documentoId}/excecoes/{excecaoId}/revogar`, corpo: true },
   { ferramenta: 'niso_decidir_passo', acao: 'concluir', metodo: 'POST', caminho: `${P}/passos/{itemId}/concluir`, corpo: true },

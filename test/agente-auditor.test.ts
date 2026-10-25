@@ -97,7 +97,7 @@ describe('Agente auditor (MCP remoto)', () => {
   it('tools/list do auditor: leitura, niso_ler e as duas escritas de auditoria; nada do consultor', async () => {
     const nomes: string[] = (await rpc(token, 'tools/list')).tools.map((t: any) => t.name);
     for (const n of ['niso_contexto', 'niso_skill', 'niso_ler', 'niso_list_controls', 'niso_list_risks', 'niso_list_evidence', 'niso_audit_pack', 'niso_gap_analysis', 'niso_create_audit_finding', 'niso_create_auditor_note']) expect(nomes, n).toContain(n);
-    for (const n of ['niso_executar', 'niso_create_evidence', 'niso_update_control', 'niso_generate_policy', 'niso_update_policy', 'niso_create_risk', 'niso_create_asset', 'niso_respond_auditor_note', 'niso_generate_policies_bulk']) expect(nomes, n).not.toContain(n);
+    for (const n of ['niso_executar', 'niso_create_evidence', 'niso_update_control', 'niso_criar_politica', 'niso_gerar_secao', 'niso_create_risk', 'niso_create_asset', 'niso_respond_auditor_note']) expect(nomes, n).not.toContain(n);
   });
 
   it('handshake e niso_contexto são do auditor', async () => {
@@ -129,7 +129,7 @@ describe('Agente auditor (MCP remoto)', () => {
       ['PUT', '/api/v1/risks/r-a', { asset: 'x', threat: 'y' }],
       ['DELETE', '/api/v1/risks/r-a'],
       ['PUT', `/api/v1/projects/${P}/controls/ctl-a`, { status: 'implemented' }],
-      ['POST', `/api/v1/projects/${P}/generate-policy`, { controlId: 'ctl-a' }],
+      ['POST', `/api/v1/projects/${P}/politicas`, { tema: 'POL-CRY' }],
       ['POST', `/api/v1/projects/${P}/ropa`, { processing_purpose: 'x' }],
       ['PUT', '/api/v1/evidence/ev-a/content', { content: 'x' }],
       ['PUT', '/api/v1/auditor-notes/qualquer/respond', { response: 'x' }],
@@ -153,7 +153,7 @@ describe('Agente auditor (MCP remoto)', () => {
       ['niso_executar', { metodo: 'POST', caminho: `/api/v1/projects/${P}/risks`, corpo: { asset: 'x', threat: 'y' } }],
       ['niso_create_evidence', { projectId: P, fileName: 'x.md', content: 'x' }],
       ['niso_update_control', { projectId: P, controlId: 'ctl-a', status: 'implemented' }],
-      ['niso_generate_policy', { projectId: P, controlId: 'ctl-a' }],
+      ['niso_criar_politica', { projectId: P, tema: 'POL-CRY' }],
     ] as const) {
       const res = await chamarFerramenta(token, name, args);
       expect(res.isError, name).toBe(true);

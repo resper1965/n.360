@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const titulo = z.string().trim().min(1).max(300);
-// 2 MB: o mesmo teto da edição de política atual (POST /controls/:id/policy).
+// 2 MB: teto do texto de uma versão de documento.
 const texto = z.string().min(1).max(2_000_000);
 
 export const TIPOS_DOCUMENTO = ['politica', 'norma', 'procedimento'] as const;
@@ -59,3 +59,11 @@ export const politicaCriarSchema = z.union([
   z.object({ tema: z.string().max(20) }).strict(),
   z.object({ titulo: z.string().min(3).max(300), requisitos: z.array(z.string().max(80)).max(200) }).strict(),
 ]);
+
+/** Gerar uma seção: sem campos (a seção vem na URL); a rota aceita corpo vazio. */
+export const politicaSecaoGerarSchema = z.object({}).strict();
+
+/** Organizar: incorporar a política por controle (origem) a uma temática (destino). */
+export const politicaIncorporarSchema = z.object({ origem: z.string().min(1).max(80), destino: z.string().min(1).max(80) }).strict();
+/** Organizar: promover a política por controle a temática, com título e requisitos novos. */
+export const politicaPromoverSchema = z.object({ titulo: z.string().min(3).max(200), requisitos: z.array(z.string().max(80)).min(1).max(200) }).strict();

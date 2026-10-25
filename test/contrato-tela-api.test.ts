@@ -108,7 +108,6 @@ const TOLERADAS: { chave: string; motivo: string; expande: string[] }[] = [
   { chave: '* /api/v1/projects/:p/ropa/:p', motivo: 'atividade/estado.js novoAutosave({ rota }): o sufixo vem do chamador (PUT)', expande: ['PUT /api/v1/projects/:p/ropa/:p/escopo', 'PUT /api/v1/projects/:p/ropa/:p/agentes', 'PUT /api/v1/projects/:p/ropa/:p/ciclo'] },
   { chave: 'PUT /api/v1/projects/:p/ropa/:p', motivo: 'atividade/estado.js gravarAgora({ rota }): idem', expande: ['PUT /api/v1/projects/:p/ropa/:p/agentes', 'PUT /api/v1/projects/:p/ropa/:p/ciclo'] },
   { chave: '* /api/v1/projects/:p/:p', motivo: 'atividade/catalogo-inline.js api(…, caminho(pid, tipo)): TIPOS escolhe catálogo, ativos, áreas ou parceiros', expande: ['GET /api/v1/projects/:p/catalogos/:p', 'GET /api/v1/projects/:p/assets', 'GET /api/v1/projects/:p/departamentos', 'GET /api/v1/projects/:p/partes', 'POST /api/v1/projects/:p/catalogos/:p', 'POST /api/v1/projects/:p/assets', 'POST /api/v1/projects/:p/departamentos', 'POST /api/v1/projects/:p/partes'] },
-  // Temporárias deste plano: cada tarefa que corrige a chamada apaga a entrada.
 ];
 
 const CHAMADAS = Object.entries(FONTES).flatMap(([arq, src]) => chamadasDoFonte(arq.replace(/^\.\.\//, ''), src));

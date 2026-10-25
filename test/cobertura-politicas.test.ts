@@ -31,6 +31,7 @@ describe('cobertura de políticas', () => {
     expect(r.aplicaveis).toBe(3);
     expect(r.cobertos).toBe(2);                          // A.5.15 e A.5.18 pela POL-IAM vigente
     expect(r.sem_cobertura.map((x) => x.id)).toEqual(['cc-24']); // rascunho e procedimento não cobrem
+    expect(r.sem_cobertura[0].requisito_id).toBe('rq-a524');
     expect(r.por_documento).toMatchObject({ 'doc-iam': 2, 'doc-inc': 1 });
     expect(r.por_controle['cc-24']).toEqual([{ id: 'doc-inc', titulo: 'POL-IRP-001 Incidentes', status: 'rascunho' }]);
     expect(r.por_controle['cc-15'][0]).toMatchObject({ id: 'doc-iam', status: 'vigente' });

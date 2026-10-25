@@ -93,7 +93,6 @@ describe('porta de decisão do agente', () => {
     for (const [m, c] of [
       ['POST', '/api/v1/pedidos/ped-x/aprovar'],
       ['POST', '/api/v1/pedidos/ped-x/recusar'],
-      ['POST', '/api/v1/controls/ctl-x/approve'],
     ] as const) {
       const r = await comoAgente(m, c, DECISAO('niso_decidir_passo'), {});
       expect(r.status, c).toBe(403);

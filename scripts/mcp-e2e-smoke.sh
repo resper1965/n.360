@@ -79,8 +79,8 @@ echo "CONSULTOR (implementa, NAO audita):"
 req GET  "/api/v1/projects" "$KEY_CONSULTANT"
 espera_status "1. lista projetos (leitura)" "200"
 
-req POST "/api/v1/projects/$PROJ/generate-policy" "$KEY_CONSULTANT" '{}'
-nega_recusa_papel "2. gerar politica (escrita de implementacao)" "consultor não registra"
+req POST "/api/v1/projects/$PROJ/generate-document" "$KEY_CONSULTANT" '{"itemId":"p1_1","fields":{}}'
+nega_recusa_papel "2. gerar documento (escrita de implementacao)" "consultor não registra"
 
 req POST "/api/v1/audits/e2e-smoke/findings" "$KEY_CONSULTANT" '{}'
 espera_status "3. registrar achado → RECUSADO" "403" "consultor não registra achado"
@@ -102,8 +102,8 @@ echo "AUDITOR (audita, NAO implementa):"
 req GET "/api/v1/projects" "$KEY_AUDITOR"
 espera_status "5. lista projetos (leitura)" "200"
 
-req POST "/api/v1/projects/$PROJ/generate-policy" "$KEY_AUDITOR" '{}'
-espera_status "7. gerar politica → RECUSADO" "403" "auditor só registra achado"
+req POST "/api/v1/projects/$PROJ/generate-document" "$KEY_AUDITOR" '{"itemId":"p1_1","fields":{}}'
+espera_status "7. gerar documento → RECUSADO" "403" "auditor só registra achado"
 
 if [ -n "$AUDIT_ID" ]; then
   req POST "/api/v1/audits/$AUDIT_ID/findings" "$KEY_AUDITOR" '{"description":"smoke e2e","severity":"minor"}'

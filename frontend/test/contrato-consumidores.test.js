@@ -72,19 +72,6 @@ describe('consumidores que o desembrulho antigo quebrava', () => {
         expect(document.querySelector('.toast').textContent).toContain('Novos controles: 3');
     });
 
-    it('políticas em lote: mostra total, sucesso e falhas (policies.ts:390)', async () => {
-        vi.spyOn(window, 'pedirTexto').mockResolvedValue('A.5.1,A.5.2');
-        vi.spyOn(window, 'confirmar').mockResolvedValue(true);
-        servir({ 'POST /api/v1/projects/p1/generate-policies-bulk': {
-            ok: true, total: 2, successful: 1, failed: 1,
-            policies: [{ control_id: 'A.5.1', success: true, content_preview: 'Política...' }, { control_id: 'A.5.2', success: false, content_preview: '' }],
-        } });
-        await window.bulkGeneratePolicies('p1');
-        const t = [...document.querySelectorAll('.toast')].pop().textContent;
-        expect(t).toContain('Sucesso: 1');
-        expect(t).toContain('Falhas: 1');
-    });
-
     it('carteira: lê `portfolio` do envelope de duas listas (platform.ts:547)', async () => {
         const p = { id: 'p1', client_name: 'Acme', project_name: null, overall_progress_pct: 80, completed_phases: 3, phase_count: 41, risk_count: 0, evidence_count: 2 };
         servir({ 'GET /api/v1/portfolio': { ok: true, portfolio: [p], projects: [p] } });
@@ -115,19 +102,5 @@ describe('consumidores que liam campo que a resposta não tem', () => {
         });
         await window.renderSoA(...tela());
         expect(window.currentSoATraceMap.c1.evidence).toHaveLength(1);
-    });
-
-    it('templates de política: viram opções do seletor (policies.ts:521)', async () => {
-        servir({
-            // policies.ts, GET .../controls/:controlId/policy (P2): sem texto de política, o modal abre o formulário de geração.
-            'GET /api/v1/projects/p1/controls/A.5.1/policy': {
-                ok: true, control: { id: 'ctrl-a51', project_id: 'p1', title: 'A.5.1 Políticas', description: '' },
-                content: '', hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', versions: [],
-            },
-            'GET /api/v1/policies/templates': { ok: true, templates: ['isms-policy', 'access-control-policy'] },
-        });
-        await window.openGeneratePolicyModal('p1', 'A.5.1');
-        const opcoes = [...$('policy-template-select').options].map((o) => o.value);
-        expect(opcoes).toEqual(['isms-policy', 'access-control-policy']);
     });
 });

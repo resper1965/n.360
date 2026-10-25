@@ -6,9 +6,10 @@ import { hashConteudo, criarPedido } from '../src/services/pedidos';
 import { applySchema, sessionFor, workerEnv } from './helpers/d1';
 
 /**
- * Aprovação de política por pedido: a direção do cliente que só tem conta `org_user` (read-only, o
- * write-guard barra POST /controls/:id/approve) aprova pelo pedido. A assinatura cai no controle
- * pela mesma assinaturaPolitica da aprovação direta, com a autoridade da matriz de governança.
+ * Pedidos de aprovação de política por CONTROLE que já existem: seguem legíveis e decidíveis (a prova não muda).
+ * Pedido novo desse tipo a rota recusa (a política agora é um documento, PR3 das políticas temáticas); aqui
+ * eles nascem pelo serviço, como os que já estão no banco. A assinatura cai no controle pela assinaturaPolitica,
+ * com a autoridade da matriz de governança.
  */
 const SENHA = 'Senha-forte-123!';
 const P = 'pp-proj';
@@ -30,13 +31,8 @@ let consultor: Record<string, string>, ciso: Record<string, string>, dir: Record
 
 const criar = (papel: string, emails: string[], ref = 'A.5.1', h = consultor) =>
   chamar(h, 'POST', `/api/v1/projects/${P}/pedidos`, { tipo: 'politica', ref_id: ref, papel_exigido: papel, destinatarios: emails.map((email) => ({ email })) });
-const criado = async (papel: string, emails: string[]) => {
-  const r = await criar(papel, emails);
-  expect(r.status, await r.clone().text()).toBe(201);
-  return (await r.json() as any).id as string;
-};
-// Pedido que a rota recusaria (destinatário sem a autoridade): a matriz pode mudar depois da criação, e a decisão confere de novo.
-const criadoSemChecagem = async (papel: 'ciso' | 'ceo', emails: string[]) =>
+// Pedido como os que já existem no banco (a rota não cria mais); a matriz pode mudar depois, e a decisão confere de novo.
+const criado = async (papel: 'ciso' | 'ceo', emails: string[]) =>
   (await criarPedido(env.DB, { projectId: P, tipo: 'politica', refId: CTRL, papel, destinatarios: emails.map((email) => ({ email })), criadoPor: 'cons@ness.lat' }))!.id;
 const decidir = (h: Record<string, string>, id: string, acao: 'aprovar' | 'recusar', corpo: Record<string, unknown> = { senha: SENHA }) =>
   chamar(h, 'POST', `/api/v1/pedidos/${id}/${acao}`, corpo);
@@ -75,7 +71,7 @@ beforeEach(async () => {
 });
 
 describe('aprovação de política por pedido', () => {
-  it('o consultor pede pelo código; o pedido guarda o id da linha e congela título e texto', async () => {
+  it('o pedido existente guarda o id da linha e congela título e texto', async () => {
     const id = await criado('ciso', ['ciso@cliente.com']);
     const p = await pedido(id);
     expect(p).toMatchObject({ tipo: 'politica', ref_id: CTRL, papel_exigido: 'ciso', status: 'aberto' });
@@ -83,9 +79,14 @@ describe('aprovação de política por pedido', () => {
     expect(p.hash).toBe(await hashConteudo({ title: TITULO, description: TEXTO }));
   });
 
-  it('ciência de política por conta é recusada (é pelo lote por link); controle fora do projeto: 404', async () => {
-    expect((await criar('ciente', ['ciso@cliente.com'])).status).toBe(400);
-    expect((await criar('ciso', ['ciso@cliente.com'], 'A.99.9')).status).toBe(404);
+  it('pedido novo de política pela rota: 400 para qualquer papel, e nada gravado', async () => {
+    const antes = (await env.DB.prepare('SELECT COUNT(*) AS n FROM pedidos').first<any>()).n;
+    for (const papel of ['ciso', 'ceo', 'ciente']) {
+      const r = await criar(papel, ['ciso@cliente.com']);
+      expect(r.status).toBe(400);
+      expect((await r.json() as any).error).toBe('A política agora é um documento: peça a aprovação pela página da política.');
+    }
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM pedidos').first<any>()).n).toBe(antes);
   });
 
   it('org_user não cria pedido de política', async () => {
@@ -115,7 +116,7 @@ describe('aprovação de política por pedido', () => {
   });
 
   it('quem não tem o cargo na matriz não aprova: 403 e nada gravado', async () => {
-    const id = await criadoSemChecagem('ciso', ['analista@cliente.com']);
+    const id = await criado('ciso', ['analista@cliente.com']);
     const r = await decidir(analista, id, 'aprovar');
     expect(r.status).toBe(403);
     expect((await controle()).ciso_approved_by).toBeNull();
@@ -123,24 +124,22 @@ describe('aprovação de política por pedido', () => {
   });
 
   it('o CISO não aprova pedido de papel ceo (segregação de funções)', async () => {
-    const id = await criadoSemChecagem('ceo', ['ciso@cliente.com']);
+    const id = await criado('ceo', ['ciso@cliente.com']);
     const r = await decidir(ciso, id, 'aprovar');
     expect(r.status).toBe(403);
     expect(await r.text()).toContain('Segregação de Funções');
     expect((await controle()).ceo_approved_by).toBeNull();
   });
 
-  it('mudar o texto substitui o pedido; o antigo dá 409 e o novo assina', async () => {
+  it('mudar o texto cancela o pedido: o antigo dá 409 e nenhum pedido novo nasce', async () => {
     const id = await criado('ceo', ['dir@cliente.com']);
-    const ed = await chamar(consultor, 'POST', `/api/v1/projects/${P}/controls/${CTRL}/policy`, { text: 'Texto revisto da política.' });
+    const antes = (await env.DB.prepare('SELECT count(*) AS n FROM pedidos').first<any>()).n;
+    const ed = await chamar(consultor, 'PUT', `/api/v1/controls/${CTRL}`, { description: 'Texto revisto da política.' });
     expect(ed.status, await ed.clone().text()).toBe(200);
-    const antigo = await pedido(id);
-    expect(antigo.status).toBe('substituido');
+    expect((await pedido(id)).status).toBe('cancelado');
     expect((await decidir(dir, id, 'aprovar')).status).toBe(409);
-    const novo = await pedido(antigo.substituido_por);
-    expect(JSON.parse(novo.conteudo_json).description).toBe('Texto revisto da política.');
-    expect((await decidir(dir, novo.id, 'aprovar')).status).toBe(200);
-    expect((await controle()).ceo_approved_by).toBe('Davi Matriz');
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM pedidos').first<any>()).n).toBe(antes);
+    expect((await controle()).ceo_approved_by).toBeNull();
   });
 
   it('texto alterado por fora entre o pedido e a decisão: 409 e nada assinado', async () => {
@@ -162,14 +161,5 @@ describe('aprovação de política por pedido', () => {
 
     const lista = await (await chamar(consultor, 'GET', `/api/v1/projects/${P}/pedidos`)).json() as any;
     expect(lista.pedidos.find((p: any) => p.id === id)).toMatchObject({ tipo: 'politica', papel_exigido: 'ceo', status: 'recusado' });
-  });
-
-  it.each([[null], ['   '], ['Universal ISMS requirement.']])('política vazia (%j) não pode ser pedida: 400 e nenhum pedido gravado', async (texto) => {
-    await env.DB.prepare('UPDATE compliance_controls SET description = ? WHERE id = ?').bind(texto, CTRL).run();
-    const antes = (await env.DB.prepare('SELECT COUNT(*) AS n FROM pedidos').first<any>()).n;
-    const r = await criar('ciso', ['ciso@cliente.com']);
-    expect(r.status).toBe(400);
-    expect((await r.json() as any).error).toBe('A política está vazia: escreva o texto antes de pedir aprovação');
-    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM pedidos').first<any>()).n).toBe(antes);
   });
 });

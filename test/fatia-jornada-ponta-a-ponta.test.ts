@@ -2,12 +2,12 @@
 // produto e com o D1 real. Só a equipe da consultoria (comercial, administração e consultor) e a
 // proposta enviada nascem no preparo, como em test/projeto-nasce-completo.test.ts; daí em diante
 // tudo passa pela API: aceite, designação, contas do cliente com login e primeira senha, governança,
-// política e as duas aprovações, evidência pelo checklist e revisão, e o portal do auditor.
+// política (documento) e a aprovação por pedido, evidência pelo checklist e revisão, e o portal do auditor.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, workerEnv } from './helpers/d1';
-import { sha256Hex, genToken, hashPassword } from '../src/helpers';
+import { sha256Hex, genToken, hashPassword, idDoControle } from '../src/helpers';
 import { CARGO_CONTATO_ACEITE } from '../src/services/fechar-venda';
 
 type Cab = Record<string, string>;
@@ -16,7 +16,6 @@ const SENHA_EQUIPE = 'Equipe-forte-123!';
 const SENHA_PROVISORIA = 'Provisoria-123!';
 const SENHA_NOVA = 'Senha-nova-456!';
 const TEXTO_51 = 'Política de segurança da informação da Cliente Ltda.: escopo, papéis e revisão anual.';
-const TEXTO_52 = 'Papéis e responsabilidades de segurança da informação da Cliente Ltda.';
 const SERVICO = { nome: 'Implementação ISO 27001 + 27701', norma: 'ISO/IEC 27001:2022 + 27701:2025', tipo: 'projeto', descricao: '', premissas: [], exclusoes: [],
   formaPreco: 'fixo', valorFixo: 90000, entregaveis: ['x'], criterioAceite: 'ok', fases: [{ nome: 'Diagnóstico', percentual: 100 }] };
 
@@ -102,21 +101,16 @@ describe('fatia de jornada: do aceite da proposta ao auditor, só pelo produto',
     await ok(await chamar(maria, 'POST', `/api/v1/projects/${P}/governance`,
       { name: 'Lia Líder', email: 'lia@cliente.com', role_category: 'tech', job_title: 'Líder SGSI', is_primary: true }));
 
-    // ── 2. o consultor grava a política (A.5.1 e A.5.2) ──────────────────────────────────────────
-    const p51 = await ok(await chamar(cons, 'POST', `/api/v1/projects/${P}/controls/A.5.1/policy`, { text: TEXTO_51 }));
-    const p52 = await ok(await chamar(cons, 'POST', `/api/v1/projects/${P}/controls/A.5.2/policy`, { text: TEXTO_52 }));
-    const assinaturaDe = (id: string) => db().prepare('SELECT description, ceo_approved_by, ceo_approved_at FROM compliance_controls WHERE id = ?')
-      .bind(id).first<{ description: string; ceo_approved_by: string | null; ceo_approved_at: string | null }>();
+    // ── 2. o consultor escreve a política como documento e publica ───────────────────────────────
+    const doc = await ok(await chamar(cons, 'POST', `/api/v1/projects/${P}/documentos`, { titulo: 'POL-PSI-001 Política de segurança da informação', texto: TEXTO_51 }), 201);
+    await ok(await chamar(cons, 'POST', `/api/v1/projects/${P}/documentos/${doc.id}/versoes/1/publicar`));
 
-    // ── 3a. a Direção assina direto (CEO, com senha) ─────────────────────────────────────────────
-    await ok(await chamar(maria, 'POST', `/api/v1/controls/${p51.control_id}/approve`, { role: 'ceo', password: SENHA_NOVA }));
-    expect(await assinaturaDe(p51.control_id)).toMatchObject({ description: TEXTO_51, ceo_approved_by: 'Maria Cliente', ceo_approved_at: expect.any(String) });
-
-    // ── 3b. a Direção (org_user, só leitura) aprova pelo pedido ─────────────────────────────────
+    // ── 3. a Direção (org_user, só leitura) aprova pelo pedido ──────────────────────────────────
     const pedido = await ok(await chamar(cons, 'POST', `/api/v1/projects/${P}/pedidos`,
-      { tipo: 'politica', ref_id: 'A.5.2', papel_exigido: 'ceo', destinatarios: [{ email: 'davi@cliente.com' }] }), 201);
+      { tipo: 'documento', ref_id: doc.id, papel_exigido: 'ceo', destinatarios: [{ email: 'davi@cliente.com' }] }), 201);
     await ok(await chamar(davi, 'POST', `/api/v1/pedidos/${pedido.id}/aprovar`, { senha: SENHA_NOVA }));
-    expect(await assinaturaDe(p52.control_id)).toMatchObject({ description: TEXTO_52, ceo_approved_by: 'Davi Diretor', ceo_approved_at: expect.any(String) });
+    expect(await db().prepare('SELECT status FROM pedidos WHERE id = ?').bind(pedido.id).first()).toEqual({ status: 'aprovado' });
+    const c51 = (await idDoControle(db(), P, 'A.5.1'))!;
 
     // ── 4. evidência pelo checklist, ligada ao controle e pendente; o Líder SGSI revisa ─────────
     const form = new FormData();
@@ -125,7 +119,7 @@ describe('fatia de jornada: do aceite da proposta ao auditor, só pelo produto',
     const up = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/documents/upload`, { method: 'POST', headers: ana, body: form }), workerEnv());
     const { id: evId } = await ok(up, 201);
     const evidenciaNaRastreabilidade = async () =>
-      (await ok(await chamar(cons, 'GET', `/api/v1/projects/${P}/traceability`))).controls.find((c: any) => c.id === p51.control_id).evidence;
+      (await ok(await chamar(cons, 'GET', `/api/v1/projects/${P}/traceability`))).controls.find((c: any) => c.id === c51).evidence;
     expect(await evidenciaNaRastreabilidade()).toEqual([expect.objectContaining({ id: evId, evaluation_status: 'pending' })]);
 
     const { file_hash } = (await db().prepare('SELECT file_hash FROM evidence WHERE id = ?').bind(evId).first<{ file_hash: string }>())!;
@@ -139,7 +133,7 @@ describe('fatia de jornada: do aceite da proposta ao auditor, só pelo produto',
     expect(tokenAuditor).toBeTruthy();
     const soa = await ok(await chamar({}, 'POST', '/api/v1/public/auditor/ver', { token: tokenAuditor }));
     expect(soa.controles.length).toBe(124);
-    expect(soa.controles.find((c: any) => c.id === p51.control_id).evidencias).toEqual([
+    expect(soa.controles.find((c: any) => c.id === c51).evidencias).toEqual([
       expect.objectContaining({ id: evId, file_name: 'politica.pdf', file_hash, evaluation_status: 'conforming', ciso_approved_by: 'Lia Líder' }),
     ]);
     const arquivo = await chamar({}, 'POST', '/api/v1/public/auditor/evidencia', { token: tokenAuditor, evidence_id: evId });

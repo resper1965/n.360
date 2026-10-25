@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Bindings, Variables } from '../index';
 import {
-  logAudit, verifyPassword, recusaSenhaDeOutro, erro500, requireProjectAccess, projetosVisiveis, idDoControle,
+  logAudit, verifyPassword, recusaSenhaDeOutro, erro500, requireProjectAccess, projetosVisiveis,
   type PapelAssinatura,
   sendEmail, genToken, sha256Hex, registraErro,
 } from '../helpers';
@@ -13,7 +13,7 @@ import { emailCiencia, emailPedidoAprovacao, type QuemPede } from '../services/e
 import { log } from '../observability';
 import { assinarEvidencia } from './evidence';
 import {
-  criarPedido, recusaDeDestinatarios, politicaVazia, conferirVigencia, registrarDecisao, podePedir, autoridadeNoPedido, DIAS_LINK, type PedidoRow,
+  criarPedido, recusaDeDestinatarios, conferirVigencia, registrarDecisao, podePedir, autoridadeNoPedido, DIAS_LINK, type PedidoRow,
   substituirPedidosDoDocumento, type TipoPedido, type Vigencia,
 } from '../services/pedidos';
 
@@ -78,7 +78,8 @@ async function avisarSubstituicao(c: any, antigo: PedidoRow, vig: Vigencia): Pro
   }
 }
 
-const POLITICA_VAZIA = { error: 'A política está vazia: escreva o texto antes de pedir aprovação' };
+// Pedido novo de política por controle não nasce mais (aprovação nem ciência); os que existem seguem legíveis e decidíveis.
+const POLITICA_E_DOCUMENTO = { error: 'A política agora é um documento: peça a aprovação pela página da política.' };
 
 export const pedidosApp = new Hono<Ctx>();
 export const projectPedidosApp = new Hono<Ctx>();
@@ -91,21 +92,19 @@ async function recusaPedir(c: any): Promise<Response | null> {
 
 projectPedidosApp.post('/', async (c) => {
   try {
+    const valid = await validateBody(c, pedidoCriarSchema);
+    if (!valid.success) return valid.response;
+    const b = valid.data;
+    // Pedido novo de política por controle não nasce mais, para ninguém; os que existem seguem legíveis e decidíveis.
+    if (b.tipo === 'politica') return c.json(POLITICA_E_DOCUMENTO, 400);
     const recusa = await recusaPedir(c);
     if (recusa) return recusa;
     const user = c.get('user');
     const projectId = c.req.param('projectId') ?? '';
-    const valid = await validateBody(c, pedidoCriarSchema);
-    if (!valid.success) return valid.response;
-    const b = valid.data;
-    // Política: só aprovação. A ciência de política é pelo lote por link (POST /ciencia).
-    if ((b.tipo === 'politica' || b.tipo === 'documento' || b.tipo === 'excecao' || b.tipo === 'tratamento') && b.papel_exigido === 'ciente') {
+    if ((b.tipo === 'documento' || b.tipo === 'excecao' || b.tipo === 'tratamento') && b.papel_exigido === 'ciente') {
       return c.json({ error: 'Ciência de política ou documento é pelo envio por link ("Nova ciência por link"). Este pedido é de aprovação: escolha Líder SGSI ou Direção.' }, 400);
     }
-    // O id do controle chega em qualquer formato ou como código; o pedido guarda o id da linha.
-    const refId = b.tipo === 'politica' ? await idDoControle(c.env.DB, projectId, b.ref_id) : b.ref_id;
-    if (!refId) return c.json({ error: 'Documento não encontrado neste projeto' }, 404);
-    if (b.tipo === 'politica' && await politicaVazia(c.env.DB, refId, projectId)) return c.json(POLITICA_VAZIA, 400);
+    const refId = b.ref_id;
 
     const projeto = await c.env.DB.prepare('SELECT org_id FROM projects WHERE id = ?').bind(projectId).first<{ org_id: string }>();
     if (!projeto) return c.json({ error: 'Projeto não encontrado' }, 404);
@@ -411,19 +410,19 @@ async function enviarLinks(c: any, pedidoId: string, titulo: string, links: Link
 
 projectPedidosApp.post('/ciencia', async (c) => {
   try {
+    const valid = await validateBody(c, pedidoCienciaLoteSchema);
+    if (!valid.success) return valid.response;
+    if (valid.data.tipo === 'politica') return c.json(POLITICA_E_DOCUMENTO, 400);
     const recusa = await recusaPedir(c);
     if (recusa) return recusa;
     const user = c.get('user');
     const projectId = c.req.param('projectId') ?? '';
-    const valid = await validateBody(c, pedidoCienciaLoteSchema);
-    if (!valid.success) return valid.response;
     // Sem a chave o sendEmail só simula: criar links que ninguém recebeu engana quem pediu.
     if (!c.env.RESEND_API_KEY) return c.json(SEM_EMAIL, 503);
     const b = valid.data;
     const projeto = await c.env.DB.prepare('SELECT org_id FROM projects WHERE id = ?').bind(projectId).first<{ org_id: string }>();
     if (!projeto) return c.json({ error: 'Projeto não encontrado' }, 404);
 
-    if (b.tipo === 'politica' && await politicaVazia(c.env.DB, b.ref_id, projectId)) return c.json(POLITICA_VAZIA, 400);
     const criado = await criarPedido(c.env.DB, {
       projectId, tipo: b.tipo, refId: b.ref_id, papel: 'ciente',
       destinatarios: b.destinatarios, criadoPor: user.email, comLink: true,

@@ -41,7 +41,7 @@ describe('semRastroDeAssinatura', () => {
 });
 
 describe('leituras JSON sem IP/UA de assinatura', () => {
-  it('controle: lista global, lista do projeto, política, painel do cliente e pacote de auditoria', async () => {
+  it('controle: lista global, lista do projeto, painel do cliente e pacote de auditoria', async () => {
     // Conta de verdade: o gatilho dá a ela os módulos do projeto (o painel do cliente só traz controles com o n.iso).
     await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES ('u-cli', 'cli@x.test', 'x', 'Cli', 'client', ?)`).bind(PROJ).run();
     const cliente = await sessionFor({ id: 'u-cli', email: 'cli@x.test', role: 'client', client_project_id: PROJ });
@@ -51,7 +51,7 @@ describe('leituras JSON sem IP/UA de assinatura', () => {
     expect(td).toContain('lider@x.test');
     expect(td).not.toMatch(RASTRO);
     expect(td).not.toContain(IP);
-    for (const p of ['/api/v1/controls', `/api/v1/projects/${PROJ}/controls`, `/api/v1/projects/${PROJ}/controls/c-min/policy`, `/api/v1/projects/${PROJ}/audit-pack`]) {
+    for (const p of ['/api/v1/controls', `/api/v1/projects/${PROJ}/controls`, `/api/v1/projects/${PROJ}/audit-pack`]) {
       const t = await texto(p);
       expect(t, p).toContain('lider@x.test');
       expect(t, p).not.toMatch(RASTRO);
@@ -81,13 +81,6 @@ describe('leituras JSON sem IP/UA de assinatura', () => {
     expect(await texto(`/api/v1/projects/${PROJ}/dpia`)).not.toMatch(RASTRO);
     expect(await texto(`/api/v1/projects/${PROJ}/dpia/d-min/report`)).not.toContain(IP);
     expect(await texto(`/api/v1/projects/${PROJ}/management-reviews`)).not.toMatch(RASTRO);
-  });
-
-  it('política: relatório HTML também não traz o IP nem o UA', async () => {
-    const rel = await texto(`/api/v1/projects/${PROJ}/controls/c-min/policy/report`);
-    expect(rel).toContain('lider@x.test');
-    expect(rel).not.toContain(IP);
-    expect(rel).not.toContain(UA);
   });
 
   it('o banco continua guardando o rastro', async () => {

@@ -146,11 +146,6 @@ export const assessmentRespostasPublicasSchema = z.object({
 export const assessmentBlocoSchema = z.object({ answers: blocoAssessment });
 
 // ─── policies ───────────────────────────────────────────────────────────────
-export const politicaGerarSchema = z.object({
-  control_id: txt(200),
-  phase_number: z.number().int().min(0).max(100).optional().nullable(),
-});
-
 export const documentoGerarSchema = z.object({
   itemId: z.string().min(1).max(200),
   fields: z.record(z.string().max(200), z.union([z.string().max(50_000), z.number(), z.boolean(), z.null()])),
@@ -160,21 +155,6 @@ export const documentoGerarSchema = z.object({
 export const documentoAprovarSchema = z.object({
   itemId: z.string().min(1).max(200),
   content: z.string().min(1),
-});
-
-export const politicasLoteSchema = z.object({
-  control_ids: z.array(z.string().max(100)).max(100).optional(),
-});
-
-export const versaoRestaurarSchema = z.object({
-  version_id: z.string().min(1).max(200),
-});
-
-export const politicaTextoSchema = z.object({ text: z.string().optional() });
-
-export const politicaDeTemplateSchema = z.object({
-  template_name: z.string().min(1).max(200),
-  control_id: z.string().min(1).max(200),
 });
 
 // ─── governance ─────────────────────────────────────────────────────────────

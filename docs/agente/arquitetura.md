@@ -147,7 +147,7 @@ governança derruba o agente dela na chamada seguinte, sem esperar o token expir
 | `src/middleware/agente.ts` | `concessaoValida`, `resolverAgente`, `FORA_DO_AGENTE`, `acaoDestrutiva`, `NOME_CLIENTE_SQL`. |
 | `src/middleware/auth.ts` | Ramo `env.AGENTE` do `authMiddleware` e a trilha `agente.acao_destrutiva`. |
 | `src/routes/agentes.ts` | O que o cliente vê e faz: listar e revogar os agentes do projeto. |
-| `mcp-server-niso/src/ferramentas.ts` | As 39 ferramentas tipadas (n.iso e n.privacy), o filtro por papel e o despacho. **Compartilhado** entre o servidor local (stdio) e o remoto. |
+| `mcp-server-niso/src/ferramentas.ts` | As 38 ferramentas tipadas (n.iso e n.privacy), o filtro por papel e o despacho. **Compartilhado** entre o servidor local (stdio) e o remoto. |
 | `agent-skills/` | A fonte das skills (SKILL.md, referências, scripts). |
 | `scripts/gerar-skills.mjs` | Escreve `src/mcp/skills-gerado.ts` a partir de `agent-skills/` (`npm run skills:gerar`). |
 | `migrations/0034_agente_concessoes.sql` | A tabela das concessões. |
@@ -197,12 +197,11 @@ O agente **consultor** enxerga **40**: 4 do servidor remoto e 36 tipadas. O **au
 | Origem | Quais |
 |---|---|
 | Só do servidor remoto (`servidor.ts`) | `niso_contexto`, `niso_skill`, `niso_ler`, `niso_executar` |
-| Tipadas (`ferramentas.ts`), n.iso | Leitura: `list_projects`, `get_project`, `list_controls`, `list_risks`, `gap_analysis`, `traceability`, `list_evidence`, `audit_pack`, `coherence_check`. Escrita: `create_risk`, `update_risk`, `generate_policy`, `evaluate_evidence`, `create_evidence`, `import_training`, `create_asset`, `update_policy`, `update_control`, `migrate_27701`, `respond_auditor_note` |
+| Tipadas (`ferramentas.ts`), n.iso | Leitura: `list_projects`, `get_project`, `list_controls`, `list_risks`, `gap_analysis`, `traceability`, `list_evidence`, `audit_pack`, `coherence_check`. Escrita: `create_risk`, `update_risk`, `criar_politica`, `gerar_secao`, `evaluate_evidence`, `create_evidence`, `import_training`, `create_asset`, `update_control`, `migrate_27701`, `respond_auditor_note` |
 | Tipadas (`ferramentas.ts`), n.privacy | Leitura: `privacy_ropa`, `privacy_ropa_detalhe`, `privacy_requisitos_lacunas`, `privacy_titular_pedidos`, `privacy_incidentes`, `privacy_terceiros`, `privacy_encarregado`, `privacy_ponto_de_partida`. Escrita (só rascunho): `privacy_propor_tratamento`, `privacy_atualizar_tratamento`, `privacy_ligar_tratamento`, `privacy_criar_dpia_do_tratamento`, `privacy_rascunhar_lia`, `privacy_registrar_pedido_titular`, `privacy_registrar_incidente`, `privacy_ligar_documento_requisito` |
 
-O servidor local define as 39 tipadas (`grep -c '^    name: "niso_' mcp-server-niso/src/ferramentas.ts`). O remoto esconde 3 do consultor: as duas de escrita de
-auditor (`create_audit_finding`, `create_auditor_note`) pelo papel, e
-`generate_policies_bulk` por `BLOQUEADAS`. As tipadas são ergonomia: guiam o
+O servidor local define as 38 tipadas (`grep -c '^    name: "niso_' mcp-server-niso/src/ferramentas.ts`). O remoto esconde 2 do consultor: as duas de escrita de
+auditor (`create_audit_finding`, `create_auditor_note`) por `BLOQUEADAS`. As tipadas são ergonomia: guiam o
 modelo nos casos comuns. **A fronteira de segurança é o worker**, não a lista:
 `niso_ler` e `niso_executar` alcançam qualquer rota que o consultor alcança, e é
 a autorização do principal que decide.

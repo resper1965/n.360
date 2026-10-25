@@ -35,7 +35,7 @@ describe('Principal agente', () => {
   });
 
   it('não assina evidência nem controle: assinatura eletrônica é ato humano', async () => {
-    for (const caminho of ['/api/v1/evidence/ev-x/approve', '/api/v1/evidence/ev-x/signatures/approve', '/api/v1/controls/ctl-x/approve']) {
+    for (const caminho of ['/api/v1/evidence/ev-x/approve', '/api/v1/evidence/ev-x/signatures/approve']) {
       for (const method of ['POST', 'PUT']) {
         const res = await comoAgente(caminho, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'x', role: 'ciso', file_hash: 'x' }) });
         expect(res.status, `${method} ${caminho}`).toBe(403);
@@ -48,20 +48,17 @@ describe('Principal agente', () => {
     expect((await comoAgente('/api/v1/projects/p-a/risks/qualquer', { method: 'DELETE' })).status).toBe(403);
   });
 
-  it('não gera políticas em lote sem confirmação', async () => {
-    const res = await comoAgente('/api/v1/projects/p-a/generate-policies-bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    expect(res.status).toBe(403);
-  });
-
   // Revisão final, achado 1: o Hono decodifica %XX antes de rotear; a recusa
   // tem de olhar o caminho decodificado, não o cru.
-  it('não gera em lote nem por caminho percent-encoded', async () => {
+  it('a recusa por caminho vale também com caractere percent-encoded', async () => {
     for (const caminho of [
-      '/api/v1/projects/p-a/%67enerate-policies-bulk',
-      '/api/v1/projects/p-a/generate-policies-bul%6B',
+      '/api/v1/projects/p-a/data-subject/erase',
+      '/api/v1/projects/p-a/data-subject/%65rase',
+      '/api/v1/projects/p-a/%64ata-subject/eras%65',
     ]) {
       const res = await comoAgente(caminho, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       expect(res.status, caminho).toBe(403);
+      expect((await res.json<any>()).error, caminho).toContain('fora do alcance do agente');
     }
   });
 

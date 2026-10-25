@@ -77,19 +77,3 @@ describe('Contexto (4.1 a 4.3)', () => {
         expect(strip).not.toMatch(/CONFORME|100%/i);
     });
 });
-
-describe('Selo da política aprovada', () => {
-    it('diz a versão publicada e a data, não "ISO 27001 CONFORME"', async () => {
-        const ctrl = { id: 'c1', project_id: 'p1', title: 'A.5.1 — Políticas', description: 'Texto da política. '.repeat(10), ciso_approved_by: 'Ana', ciso_approved_at: '2026-10-07' };
-        servir({
-            [`GET ${P}/controls/c1/policy`]: { ok: true, control: ctrl, content: ctrl.description, hash: 'ab'.repeat(32),
-                versions: [{ id: 'v2', version: 2, created_by: 'x@exemplo.com', created_at: '2026-10-07T12:00:00Z' }, { id: 'v1', version: 1, created_by: 'x@exemplo.com', created_at: '2026-09-01T12:00:00Z' }] },
-            'GET /api/v1/policies/templates': { ok: true, templates: [] },
-        });
-        tela();
-        await window.openGeneratePolicyModal('p1', 'c1');
-        const m = document.getElementById('modal-content');
-        expect(m.querySelector('.selo-fato').textContent).toBe('Política publicada, versão 2, em 07/10/2026');
-        expect(m.textContent).not.toMatch(/ISO 27001 CONFORME|Homologação Digital/);
-    });
-});

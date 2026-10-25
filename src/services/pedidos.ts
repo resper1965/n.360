@@ -154,18 +154,6 @@ export async function documentoAtual(db: D1Database, tipo: TipoPedido, refId: st
   return { titulo: d.titulo(row, refId), conteudo: Object.fromEntries(colunas.map((c) => [c, lista(c)])) };
 }
 
-/** Texto-padrão que o catálogo grava quando a política ainda não foi escrita. */
-const DESCRICAO_PADRAO = 'Universal ISMS requirement.';
-
-/** Política sem texto (nula, em branco ou o padrão do catálogo): não há o que aprovar nem o que ler. */
-export async function politicaVazia(db: D1Database, refId: string, projectId: string): Promise<boolean> {
-  const doc = await documentoAtual(db, 'politica', refId, projectId);
-  if (!doc) return false; // inexistente é 404 de quem chama, não "vazia"
-  const d = doc.conteudo.description;
-  const t = typeof d === 'string' ? d.trim() : '';
-  return !t || t === DESCRICAO_PADRAO;
-}
-
 export interface PedidoRow {
   id: string; org_id: string; project_id: string; tipo: TipoPedido; ref_id: string; titulo: string;
   papel_exigido: PapelPedido; conteudo_json: string; hash: string; status: string;
@@ -246,6 +234,11 @@ export async function conferirVigencia(db: D1Database, p: PedidoRow): Promise<Vi
   }
   const hash = await hashConteudo(doc.conteudo);
   if (hash === p.hash) return { vigente: true };
+  // Pedido `politica` é histórico: o texto agora é do documento. Mudou a nota do controle, cancela; não nasce pedido novo nem e-mail.
+  if (p.tipo === 'politica') {
+    await db.prepare(`UPDATE pedidos SET status = 'cancelado' WHERE id = ? AND status = 'aberto'`).bind(p.id).run();
+    return { vigente: false, status: 'cancelado' };
+  }
 
   // Marca o antigo PRIMEIRO, com guarda: se outra requisição já o substituiu, devolve o novo dela.
   const novoId = genId();
@@ -331,7 +324,7 @@ const SET_ASSINATURA_POLITICA: Record<PapelAssinatura, string> = {
 
 /**
  * Assinatura da política (o texto vive em `compliance_controls.description`) por papel. É a MESMA
- * usada por `POST /api/v1/controls/:id/approve` e pelo pedido de aprovação de política. Devolve o
+ * usada pelo pedido de aprovação de política (os que já existem; a rota direta saiu). Devolve o
  * UPDATE (para `run()` ou `batch`), ou `null` se o controle não existe no projeto. Não toca `status`:
  * ele é o da SoA. Com `guarda`, só pega se a prova do destinatário foi gravada no mesmo `batch` e o
  * título/texto são os congelados no pedido.
@@ -383,7 +376,7 @@ export async function registrarDecisao(db: D1Database, a: {
   // Sem esta condição, cairia em `assinaturaDpia` e assinaria um DPIA de mesmo id.
   if (a.assinar && p.tipo !== 'documento' && p.tipo !== 'excecao' && p.tipo !== 'tratamento') {
     const guarda = { destId: a.destId, status: a.status, decididoEm, conteudoJson: p.conteudo_json };
-    // Cada tipo assina pela MESMA função da aprovação direta: DPIA (platform.ts) e política (controls.ts).
+    // Cada tipo assina pela MESMA função: DPIA (a da aprovação direta em platform.ts) e política (pedidos antigos; a rota direta saiu).
     const st = p.tipo === 'politica'
       ? await assinaturaPolitica(db, p.project_id, p.ref_id, a.assinar.papel, { por: a.nome, em: decididoEm, ip: a.ip, ua: a.ua }, guarda)
       : await assinaturaDpia(db, p.project_id, p.ref_id, a.assinar.papel, a.nome, guarda);

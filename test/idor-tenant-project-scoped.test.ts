@@ -42,14 +42,15 @@ const ROTAS: Array<[metodo: string, caminho: (p: string) => string, corpo?: unkn
   ['GET', p => `/api/v1/projects/${p}/webhooks`],
   ['GET', p => `/api/v1/projects/${p}/export/risks`],
   ['GET', p => `/api/v1/projects/${p}/export/audit-log`],
-  ['GET', p => `/api/v1/projects/${p}/controls/ctl-1/versions`],
+  ['GET', p => `/api/v1/projects/${p}/controls`],
+  ['POST', p => `/api/v1/projects/${p}/generate-document`, { itemId: 'p1_1', fields: { escopo: 'Matriz' } }],
 ];
 
 function testEnv() {
   return { ...env, AI: { run: async () => ({ response: 'stub' }) } } as any;
 }
 
-describe('IDOR cross-tenant nas rotas de projeto (risks/policies/integrations)', () => {
+describe('IDOR cross-tenant nas rotas de projeto (risks/controls/policies/integrations)', () => {
   let headers: Record<string, string>;
 
   beforeAll(async () => {

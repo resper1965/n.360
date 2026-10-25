@@ -202,11 +202,6 @@ describe('500 correlaciona em vez de vazar', () => {
   // provedor (gateway, Workers AI, binding direto). Isso fica no log, não no 500.
   const PROVEDOR = 'texto-cru-do-provedor-xyz';
   const envSemIa = () => ({ ...testEnv(), AI: { run: async () => { throw new Error(PROVEDOR); } } });
-  // A geração de política só chama a IA depois de achar o controle no projeto (idDoControle).
-  const comControleA51 = () => env.DB.prepare(
-    `INSERT OR IGNORE INTO compliance_controls (id, project_id, standard, title) VALUES (?,?,?,?)`
-  ).bind('ctrl-vaz-a51', PROJ, 'ISO 27001:2022', 'A.5.1 Políticas').run();
-
   async function exigeSemProvedor(res: Response, mensagem: string) {
     expect(res.status).toBe(500);
     const corpo = (await res.json()) as Record<string, unknown>;
@@ -227,13 +222,14 @@ describe('500 correlaciona em vez de vazar', () => {
     await exigeSemProvedor(res, 'Falha ao avaliar evidência');
   });
 
-  it('policies: gerar política com IA indisponível não devolve o texto do provedor', async () => {
-    await comControleA51();
+  it('policies: gerar documento do item com IA indisponível não devolve o texto do provedor', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const res = await worker.fetch(new Request(`http://localhost/api/v1/projects/${PROJ}/generate-policy`, {
-      method: 'POST', headers: { ...admin, 'Content-Type': 'application/json' }, body: JSON.stringify({ control_id: 'A.5.1' }),
+    const res = await worker.fetch(new Request(`http://localhost/api/v1/projects/${PROJ}/generate-document`, {
+      method: 'POST', headers: { ...admin, 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId: 'p1_1', fields: { escopo: 'Matriz' } }),
     }), envSemIa());
-    await exigeSemProvedor(res, 'Falha ao gerar política');
+    // Sem IA, a rota devolve o esqueleto do documento: nunca a mensagem do provedor.
+    expect(res.status).toBe(200);
+    expect(await res.text()).not.toMatch(new RegExp(`${PROVEDOR}|ai-gateway|workers-ai`));
   });
 
   it('ai: o diagnóstico executivo antigo (sem chamador, gravava item do checklist pela resposta do modelo) não existe mais', async () => {
@@ -256,27 +252,6 @@ describe('500 correlaciona em vez de vazar', () => {
       method: 'POST', headers: { ...admin, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'oi' }),
     }), envSemIa());
     await exigeSemProvedor(res, 'Erro ao comunicar com a IA');
-  });
-
-  it('policies: lote com IA indisponível não devolve o erro do provedor na prévia', async () => {
-    await comControleA51();
-    const linhas: string[] = [];
-    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => { linhas.push(String(args[0])); });
-    const res = await worker.fetch(new Request(`http://localhost/api/v1/projects/${PROJ}/generate-policies-bulk`, {
-      method: 'POST', headers: { ...admin, 'Content-Type': 'application/json' }, body: JSON.stringify({ control_ids: ['A.5.1'] }),
-    }), envSemIa());
-    expect(res.status).toBe(200);
-    const corpo = (await res.json()) as { policies: Array<Record<string, unknown>> };
-    expect(JSON.stringify(corpo)).not.toMatch(new RegExp(`${PROVEDOR}|ai-gateway|workers-ai`));
-    const item = corpo.policies[0];
-    expect(item.success).toBe(false);
-    expect(item.content_preview).toBe('');
-    expect(typeof item.request_id).toBe('string');
-    // O texto do provedor foi para o log, sob o mesmo id devolvido no item.
-    const erro = linhas
-      .map((l) => { try { return JSON.parse(l); } catch { return null; } })
-      .find((ev) => ev?.msg === 'erro_handler' && ev.request_id === item.request_id);
-    expect(erro?.erro).toMatch(new RegExp(PROVEDOR));
   });
 
   it('webhooks: teste que falha devolve 502 sem a mensagem da exceção', async () => {

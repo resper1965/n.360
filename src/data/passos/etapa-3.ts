@@ -124,7 +124,7 @@ export const PASSOS_ETAPA_3: Passo[] = [
       esc('politicas_publicadas', 'As políticas organizacionais de SI foram publicadas?', ['Publicadas', 'Em revisão', 'Não'], false, { pergunta: 'p15_q1' }),
     ],
     prova: { descricao: 'Política aprovada pela direção e registro de ciência dos colaboradores.', obrigatoria: true, aceita: 'ambos' },
-    ondeVive: [DOCUMENTOS, { tela: 'policies-dashboard', rotulo: 'Abrir as políticas por controle' }],
+    ondeVive: [{ tela: 'documentos', rotulo: 'Abrir as políticas' }],
     concluidoQuando: [
       CP('Objetivos, compromissos e aprovador escritos'),
       EV('Política aprovada e registro de ciência anexados'),

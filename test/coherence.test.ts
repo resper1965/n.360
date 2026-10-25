@@ -36,19 +36,24 @@ describe('GET /api/v1/projects/:id/coherence', () => {
 
       // R3: controle aprovado sem evidência (mas com política, pra isolar a regra).
       env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, description) VALUES (?,?,?,?,?,?)`)
-        .bind('ctrl-sem-evidencia', PROJ, 'ISO 27001:2022', 'Controle de acesso', 'Approved', 'Política já escrita'),
+        .bind('ctrl-sem-evidencia', PROJ, 'ISO 27001:2022', 'Controle de acesso', 'Approved', 'Nota do controle'),
+      env.DB.prepare(`INSERT INTO policy_versions (id, project_id, control_id, version, policy_text, created_by) VALUES ('pv-coer', ?, 'ctrl-sem-evidencia', 1, 'Política antiga', 'x')`).bind(PROJ),
 
-      // R4: controle aprovado sem política nem descrição (mas com evidência, pra isolar a regra).
+      // R4: controle aprovado sem política (a nota do controle não conta), mas com evidência, pra isolar a regra.
       env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, description) VALUES (?,?,?,?,?,?)`)
-        .bind('ctrl-sem-politica', PROJ, 'ISO 27001:2022', 'Gestão de fornecedores', 'Approved', null),
+        .bind('ctrl-sem-politica', PROJ, 'ISO 27001:2022', 'Gestão de fornecedores', 'Approved', 'Só nota'),
       env.DB.prepare(
         `INSERT INTO evidence (id, project_id, control_id, file_name, r2_key, file_hash, file_type, file_size, uploaded_by, evaluation_status)
          VALUES (?,?,?,?,?,?,?,?,?,?)`
       ).bind('ev-sem-politica', PROJ, 'ctrl-sem-politica', 'a.md', 'k/a.md', 'aa', 'text/markdown', 2, 'x@y', 'pending'),
 
-      // Controle limpo: aprovado, com evidência e com política — não deve gerar nenhum issue.
-      env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, description) VALUES (?,?,?,?,?,?)`)
-        .bind('ctrl-ok', PROJ, 'ISO 27001:2022', 'Backup', 'Approved', 'Política já escrita'),
+      // Controle limpo: aprovado, com evidência e coberto por política vigente — não deve gerar nenhum issue.
+      env.DB.prepare(`INSERT OR IGNORE INTO requisito_fontes (id, nome, versao) VALUES ('iso27001:2022', 'ISO/IEC 27001', '2022')`),
+      env.DB.prepare(`INSERT OR IGNORE INTO requisitos (id, fonte_id, referencia, titulo) VALUES ('rq-coer-backup', 'iso27001:2022', 'A.8.13', 'Backup')`),
+      env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status, description, requisito_id) VALUES (?,?,?,?,?,?,?)`)
+        .bind('ctrl-ok', PROJ, 'ISO 27001:2022', 'Backup', 'Approved', null, 'rq-coer-backup'),
+      env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status) VALUES ('doc-coer', ?, 'politica', 'POL-BKP-001 Backup', 'vigente')`).bind(PROJ),
+      env.DB.prepare(`INSERT INTO documento_requisitos (documento_id, requisito_id, project_id) VALUES ('doc-coer', 'rq-coer-backup', ?)`).bind(PROJ),
       env.DB.prepare(
         `INSERT INTO evidence (id, project_id, control_id, file_name, r2_key, file_hash, file_type, file_size, uploaded_by, evaluation_status)
          VALUES (?,?,?,?,?,?,?,?,?,?)`
