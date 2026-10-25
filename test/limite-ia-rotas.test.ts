@@ -39,12 +39,18 @@ describe('limite de IA nas rotas que chamam o modelo', () => {
     ['GET', `/api/v1/projects/${P}/control-adequacao/1/suggestions`],
     ['GET', `/api/v1/projects/${P}/phase-answers/1/interpret?refresh=1`],
     ['POST', `/api/v1/projects/${P}/ropa/r1/sugestao`],
-    ['POST', `/api/v1/projects/${P}/ropa/r1/etapas/coleta/rascunho`],
     ['POST', `/api/v1/projects/${P}/titular-pedidos/t1/rascunho`],
     ['POST', `/api/v1/projects/${P}/incidentes/i1/rascunho-comunicacao`],
   ])('%s %s usa o balde ia', async (metodo, caminho) => {
     const hh = await encher('lia-' + caminho.replace(/\W/g, ''));
     expect((await post(hh, metodo, caminho)).status).toBe(429);
+  });
+
+  it('rascunho por etapa usa o balde copiloto, não o ia', async () => {
+    const id = 'lia-etapa';
+    await env.SESSIONS.put(`ratelimit:copiloto:${id}`, '20', { expirationTtl: 600 });
+    const hh = await sessionFor({ id, email: `${id}@ness.lat`, role: 'platform_admin' });
+    expect((await post(hh, 'POST', `/api/v1/projects/${P}/ropa/r1/etapas/coleta/rascunho`)).status).toBe(429);
   });
 
   it('interpret sem refresh (cache) não conta', async () => {

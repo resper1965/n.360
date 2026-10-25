@@ -28,13 +28,13 @@ const REGRAS: Regra[] = [
       || /^\/api\/v1\/projects\/[^/]+\/control-adequacao\/[^/]+\/suggestions$/.test(p)
       || (q.refresh === '1' && /^\/api\/v1\/projects\/[^/]+\/phase-answers\/[^/]+\/interpret$/.test(p))
       // Rascunhos de IA do n.privacy: atividade, pedido do titular, comunicação de incidente.
-      || /^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/(sugestao|etapas\/[^/]+\/rascunho)$/.test(p)
+      || /^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/sugestao$/.test(p)
       || /^\/api\/v1\/projects\/[^/]+\/(titular-pedidos\/[^/]+\/rascunho|incidentes\/[^/]+\/rascunho-comunicacao)$/.test(p),
     max: 30, janelaSec: 3600 },
   // Parecidos por significado (embeddings): a tela chama com debounce enquanto a pessoa digita.
   { nome: 'similares', teste: p => /^\/api\/v1\/projects\/[^/]+\/similares$/.test(p), max: 60, janelaSec: 600 },
-  // Copiloto da entrevista do RoPA: uma chamada ao modelo de 70B por descrição; mais restrito que os parecidos.
-  { nome: 'copiloto', teste: p => /^\/api\/v1\/projects\/[^/]+\/ropa\/copiloto$/.test(p), max: 20, janelaSec: 600 },
+  // Copiloto da entrevista do RoPA e rascunho por etapa: uma chamada ao modelo de 70B por descrição; mais restrito que os parecidos.
+  { nome: 'copiloto', teste: p => /^\/api\/v1\/projects\/[^/]+\/ropa\/(copiloto|[^/]+\/etapas\/[^/]+\/rascunho)$/.test(p), max: 20, janelaSec: 600 },
   // Copiloto do passo da Bancada (três modos): uma chamada ao modelo por clique, mesmo custo do copiloto do RoPA.
   { nome: 'copiloto-passo', teste: p => /^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/copiloto\/[a-z-]+$/.test(p), max: 30, janelaSec: 600 },
   // Consulta de CNPJ na BrasilAPI (assistente "Novo projeto"): chamada externa por CNPJ; a tela chama ao sair do campo.
