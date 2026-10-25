@@ -19,7 +19,7 @@ Claude ──stdio──▶ mcp-server-niso ──HTTPS + X-API-Key──▶ wor
 As duas camadas respondem a perguntas diferentes e nenhuma substitui a outra:
 
 - **No servidor MCP** — quais ferramentas esse agente enxerga. É ergonomia e
-  separação de papéis: um auditor não deveria nem ver `niso_generate_policy` na
+  separação de papéis: um auditor não deveria nem ver `niso_create_audit_finding` na
   lista, porque não é dele escrever política do auditado.
 - **No worker** — o que a chave de API pode de fato fazer, em qual projeto. É a
   fronteira de segurança. Vale mesmo que alguém chame a API direto, sem MCP.
@@ -109,7 +109,7 @@ agente recebe:
 Papel | Enxerga
 ---|---
 `auditor` | 17 ferramentas de leitura (9 do n.iso, 8 do n.privacy) + `niso_create_audit_finding`, `niso_create_auditor_note` (19)
-`consultant` | 17 ferramentas de leitura + todas as demais escritas: política, SoA, risco, ativo, evidência, 27701, treinamento e as 8 de rascunho do n.privacy (37)
+`consultant` | 17 ferramentas de leitura + todas as demais escritas: política, SoA, risco, ativo, evidência, 27701, treinamento e as 8 de rascunho do n.privacy (36)
 vazio | tudo — use só em desenvolvimento
 
 O filtro é aplicado **duas vezes**: em `ListTools` (o agente não vê o que não é
@@ -141,7 +141,7 @@ Os dois recebem também o limite de projeto: a chave de API é vinculada a **um*
 projeto, e nenhum agente alcança outro. Com `NISO_PROJECT_ID`, o contexto nomeia
 qual.
 
-Rodar sem `NISO_ROLE` recebe um contexto próprio, avisando que as 39 ferramentas
+Rodar sem `NISO_ROLE` recebe um contexto próprio, avisando que as 38 ferramentas
 estão na mesma sessão e que isso mistura os dois lados que a norma separa.
 
 ## Chave de API: `read` não escreve
@@ -173,7 +173,7 @@ numa máquina de desenvolvedor — trate como tal.
 
 ## Ferramentas
 
-39 ao todo (`grep -c '^    name: "niso_' src/ferramentas.ts`, 2026-10-13).
+38 ao todo (`grep -c '^    name: "niso_' src/ferramentas.ts`, 2026-10-25).
 
 **Leitura do n.iso (9)** — `niso_list_projects`, `niso_get_project`, `niso_list_controls`,
 `niso_list_risks`, `niso_gap_analysis`, `niso_traceability`, `niso_list_evidence`,
@@ -183,9 +183,9 @@ numa máquina de desenvolvedor — trate como tal.
 `niso_privacy_requisitos_lacunas`, `niso_privacy_titular_pedidos`, `niso_privacy_incidentes`,
 `niso_privacy_terceiros`, `niso_privacy_encarregado`, `niso_privacy_ponto_de_partida`
 
-**Escrita do consultor (12)** — `niso_create_risk`, `niso_update_risk`, `niso_create_asset`,
-`niso_create_evidence`, `niso_generate_policy`, `niso_generate_policies_bulk`,
-`niso_evaluate_evidence`, `niso_update_policy`,
+**Escrita do consultor (11)** — `niso_create_risk`, `niso_update_risk`, `niso_create_asset`,
+`niso_create_evidence`, `niso_criar_politica`, `niso_gerar_secao`,
+`niso_evaluate_evidence`,
 `niso_update_control`, `niso_migrate_27701`, `niso_import_training`,
 `niso_respond_auditor_note`
 

@@ -132,7 +132,7 @@ quê (mesma regra do [`SECURITY.md`](../../SECURITY.md)).
 | `/agentes` | O agente não gere o próprio acesso. |
 | `/projects/:id/{ropa,dpia}/:id/revoke-approval`, `revoke-approval(s)` de controle | Desaprovar é ato do cliente (a direção), pela interface, com ou sem confirmação. |
 | `DELETE /management-reviews/:id` | Excluir análise crítica destrói registro assinado: só pela interface. |
-| `POST`/`PUT /evidence/:id/approve`, `/controls/:id/approve` e `.../signatures/approve` | Assinatura eletrônica é ato humano, com a senha de quem assina. |
+| `POST`/`PUT /evidence/:id/approve` e `.../signatures/approve` | Assinatura eletrônica é ato humano, com a senha de quem assina. |
 | `POST /projects/:id/approve-document` | Aceitar o documento gerado no checklist grava a evidência e conclui o item: é a pessoa que decide, depois de ler o rascunho. Gerar (`POST /projects/:id/checklist/:item/generate` e `.../generate-document`) só devolve o texto, sem gravar nada. |
 | `PUT`/`DELETE /parametros-legais*` | Prazo legal é parâmetro revisado pelo jurídico e editado pelo administrador da plataforma; o agente só lê. |
 | `POST /projects/:id/incidentes/:id/encerrar`, `POST /projects/:id/consentimentos/:id/revogar` | Fora do `niso_executar`: só pelas ferramentas de decisão `niso_encerrar_incidente` e `niso_registrar_revogacao`, com confirmação e motivo. |

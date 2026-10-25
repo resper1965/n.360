@@ -102,7 +102,7 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   // ROPA nem de DPIA, e não apaga análise crítica, que é registro assinado. Revogar aprovação de
   // CONTROLE e do projeto também é ato do cliente (abaixo).
   // Assinatura eletrônica é ato humano, pela interface (senha do assinante).
-  [/^\/api\/v1\/(evidence|controls)\/[^/]+\/(signatures\/)?approve$/, 'assinatura eletrônica é ato humano, pela interface', ['POST', 'PUT']],
+  [/^\/api\/v1\/evidence\/[^/]+\/(signatures\/)?approve$/, 'assinatura eletrônica é ato humano, pela interface', ['POST', 'PUT']],
   [/^\/api\/v1\/projects\/[^/]+\/(ropa|dpia)\/[^/]+\/revoke-approval$/, 'revogar aprovação de ROPA e DPIA é da direção, pela interface'],
   [/^\/api\/v1\/(controls\/[^/]+\/revoke-approval|projects\/[^/]+\/revoke-approvals)$/, 'revogar aprovação é ato do cliente', ['POST']],
   [/^\/api\/v1\/projects\/[^/]+\/data-subject\/erase$/, 'eliminar dado do titular é ato humano, pela interface', ['POST']],

@@ -115,7 +115,7 @@ sem revisão humana, e cada aprovação deixa assinatura e trilha.
   para Stage 1 e 2), `maturidade-lgpd` (achados de maturidade do programa de privacidade),
   `atendimento-titular`, `implantacao-privacy`, `migracao-programa` e `avaliacao-terceiros`, servidas
   pelo próprio MCP (`niso_skill`); roteiro de cada uma em [`docs/agente/README.md`](docs/agente/README.md).
-- **MCP local** (`mcp-server-niso/`, stdio com chave de API, 39 ferramentas em 2026-10-14:
+- **MCP local** (`mcp-server-niso/`, stdio com chave de API, 38 ferramentas em 2026-10-14:
   `grep -oE 'name: "niso_[a-z_0-9]+"' mcp-server-niso/src/*.ts | sort -u | wc -l`), com filtro por
   papel. Ver [`mcp-server-niso/README.md`](mcp-server-niso/README.md).
 

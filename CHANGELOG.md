@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Políticas temáticas, PR3 (25/10/2026; sem migration)
+- **Organizar políticas:** em "Mais" de Documentos, a equipe vê o que há para arrumar (`GET /politicas/organizar`, com o `requisito_id` de cada controle sem cobertura), incorpora o texto de documentos por controle ao documento temático (a origem fica `obsoleto`, nenhuma versão é apagada) e promove um documento por controle a política própria. Cada ato é de uma pessoa da equipe e vai à trilha.
+- **Página da política:** os controles cobertos se editam ali, com rascunho.
+- **Saiu a política por controle:** a tela de gestão por controle, a geração em lote, o modelo de política, o relatório, as versões e `POST/PUT /controls/:id/approve`. Pedido novo de aprovação ou ciência com `tipo = 'politica'` responde 400; os antigos seguem. A coerência R4 lê a cobertura vigente ou o histórico, nunca a nota do controle.
+- **Agente:** `niso_criar_politica` e `niso_gerar_secao` no lugar de `niso_generate_policy`, `niso_update_policy` e `niso_generate_policies_bulk`.
+
 ### Políticas temáticas, PR2 (24/10/2026; sem migration)
 - **Catálogo de temas:** 16 temas com sugestão de controles do Anexo A (a PSI com esqueleto próprio) e tema livre; "Nova política" em Documentos.
 - **Geração por seção:** cada seção é um pedido à IA, com o contexto do cadastro (empresa, escopo, notas dos controles, governança, ativos, riscos, PSI vigente), sem e-mail nem dado de titular. Resposta cortada pede continuação e, cortada de novo, fica marcada como incompleta; resposta com marcador de modelo ou título de outra seção não é gravada. Sempre rascunho.
