@@ -71,6 +71,7 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/documentos-arquivo': { obrigatorios: ['nome', 'status', 'tipo'] },
   'POST /api/v1/projects/{projectId}/documentos/{id}/excecoes': { obrigatorios: ['escopo', 'motivo', 'vence_em'] },
   'POST /api/v1/projects/{projectId}/documentos/{id}/promover': { obrigatorios: ['requisitos', 'titulo'] },
+  'POST /api/v1/projects/{projectId}/documentos/{id}/secoes/{n}/gerar': { obrigatorios: [] },
   'POST /api/v1/projects/{projectId}/documentos/{id}/versoes': { obrigatorios: ['texto'] },
   'POST /api/v1/projects/{projectId}/generate-document': { obrigatorios: ['fields', 'itemId'] },
   'POST /api/v1/projects/{projectId}/generate-policies-bulk': { obrigatorios: [] },

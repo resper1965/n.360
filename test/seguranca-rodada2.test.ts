@@ -46,9 +46,9 @@ beforeAll(async () => {
 });
 
 describe('agente não publica política por rota paralela', () => {
-  it('restaurar versão e gerar por modelo são recusados ao agente', async () => {
-    expect((await comoAgente('POST', `/api/v1/projects/${P}/controls/ctl-x/restore-version`, { version_id: 'v1' })).status).toBe(403);
-    expect((await comoAgente('POST', `/api/v1/projects/${P}/policies/generate-from-template`, {})).status).toBe(403);
+  it('publicar versão e descartar rascunho sem a ferramenta de decisão são recusados ao agente', async () => {
+    expect((await comoAgente('POST', `/api/v1/projects/${P}/documentos/doc-x/versoes/1/publicar`)).status).toBe(403);
+    expect((await comoAgente('DELETE', `/api/v1/projects/${P}/documentos/doc-x/rascunho`)).status).toBe(403);
   });
 });
 

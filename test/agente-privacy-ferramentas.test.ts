@@ -106,7 +106,7 @@ describe('ferramentas nomeadas do n.privacy (MCP remoto)', () => {
     tokenAuditor = await tokenDoAgente('au@ness.lat', P, 'auditor');
   }, 60_000);
 
-  it('tools/list: consultor vê as 16; auditor só as 8 de leitura', async () => {
+  it('tools/list: consultor vê as de leitura e escrita; auditor só as de leitura', async () => {
     const cons = await nomesDaLista(token);
     for (const n of [...LEITURA, ...ESCRITA]) expect(cons, n).toContain(n);
     const aud = await nomesDaLista(tokenAuditor);

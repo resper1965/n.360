@@ -166,9 +166,9 @@ export function foraDoAuditor(method: string, path: string, projectId: string): 
   return 'o agente auditor só lê e registra achado e nota de auditoria; quem audita não implementa (ISO 27001, 9.2)';
 }
 
-/** Única definição do que exige confirmação: apagar, gerar em lote, anonimizar titular, revogar aprovações. */
+/** Única definição do que exige confirmação: apagar, anonimizar titular, revogar aprovações. */
 export function acaoDestrutiva(method: string, path: string): boolean {
-  return method.toUpperCase() === 'DELETE' || path.endsWith('/generate-policies-bulk') || path.endsWith('/data-subject/erase') || /\/revoke-approvals?$/.test(path);
+  return method.toUpperCase() === 'DELETE' || path.endsWith('/data-subject/erase') || /\/revoke-approvals?$/.test(path);
 }
 
 /** O PUT de ação/gap só é decisão quando fecha (status Closed). Lê uma cópia: a rota lê o corpo de novo. */
@@ -221,7 +221,7 @@ export async function resolverAgente(
     decisao = { ferramenta: d.ferramenta, motivo };
   }
   if (acaoDestrutiva(method, path) && c.req.header(CABECALHO_CONFIRMADO) !== '1') {
-    return c.json({ error: 'Forbidden: apagar, gerar em lote, eliminar titular e revogar aprovações exigem confirmação — mostre ao usuário o que será feito, espere o "sim" e reenvie com confirmado_pelo_usuario: true' }, 403);
+    return c.json({ error: 'Forbidden: apagar, eliminar titular e revogar aprovações exigem confirmação — mostre ao usuário o que será feito, espere o "sim" e reenvie com confirmado_pelo_usuario: true' }, 403);
   }
   // Segunda camada, a mesma da chave de API: consultor não registra achado; auditor só escreve achado.
   const violacao = apiKeyRoleViolation(row.papel === 'auditor' ? 'auditor' : 'consultant', method, path);

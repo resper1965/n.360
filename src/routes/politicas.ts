@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { ehEquipeNess, erro500, logAudit, registraErro } from '../helpers';
-import { politicaCriarSchema, politicaIncorporarSchema, politicaPromoverSchema, validateBody } from '../schemas';
+import { politicaCriarSchema, politicaSecaoGerarSchema, politicaIncorporarSchema, politicaPromoverSchema, validateBody } from '../schemas';
 import { atualizarDocumento, criarDocumento, lerDocumento, salvarRascunho } from '../services/documentos';
 import { definirRequisitosDoDocumento, requisitosDoDocumento } from '../services/requisitos';
 import { coberturaDePoliticas } from '../services/cobertura-politicas';
@@ -124,6 +124,8 @@ politicasApp.post('/documentos/:id/secoes/:n/gerar', async (c) => {
   const ator = c.get('user').email;
   const db = c.env.DB;
   try {
+    // A tela chama sem corpo; o agente manda {}. Corpo presente passa pelo esquema.
+    if ((await c.req.text()).trim()) { const v = await validateBody(c, politicaSecaoGerarSchema); if (!v.success) return v.response; }
     const doc = await lerDocumento(db, projectId, id);
     if (!doc) return c.json({ error: 'Documento não encontrado' }, 404);
     const d = doc as Record<string, unknown>;

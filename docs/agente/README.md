@@ -161,14 +161,13 @@ um PDF não substitui o documento.
 **n.privacy é rascunho.** As ferramentas `niso_privacy_*` gravam tratamento em `Draft`, LIA em rascunho, DPIA em `Draft`, e
 registram pedido do titular e incidente. Nenhuma aprova nem conclui. Encerrar incidente (`niso_encerrar_incidente`) e revogar consentimento (`niso_registrar_revogacao`) são ferramentas de decisão à parte, com o seu "sim" e um motivo.
 
-**Política é diferente.** `niso_update_policy` e `niso_generate_policy` gravam um **rascunho**, que aparece num aviso no modal da política. O agente só publica, descarta ou revisa pela ferramenta `niso_publicar_documento` (ou `niso_revisar_documento`), com o seu "sim" na conversa e um motivo; sem isso o servidor recusa.
+**Política é diferente.** `niso_criar_politica` e `niso_gerar_secao` gravam um **rascunho** do documento da política. O agente só publica, descarta ou revisa pela ferramenta `niso_publicar_documento` (ou `niso_revisar_documento`), com o seu "sim" na conversa e um motivo; sem isso o servidor recusa.
 
 ### O que pede o seu "sim"
 
-Quatro ações. O agente deve **mostrar o que vai fazer** (nome e id) e esperar:
+Três ações. O agente deve **mostrar o que vai fazer** (nome e id) e esperar:
 
 - apagar um registro;
-- gerar políticas em lote;
 - eliminar dados de um titular (LGPD);
 - revogar aprovações de controle (a de ROPA e DPIA e a exclusão de análise crítica são só da interface).
 
@@ -214,7 +213,7 @@ auditoria.
 2. Leitura antes de escrita (gap, rastreabilidade, audit pack).
 3. Tudo que você gera é **rascunho**: mostre e espere meu "ok" antes de gravar.
 4. Evidência pelo agente é só texto; binário sobe pela interface.
-5. Apagar, gerar em lote, eliminar titular, revogar aprovação: mostre o que será
+5. Apagar, eliminar titular, revogar aprovação: mostre o que será
    feito e espere meu "sim" antes de enviar com `confirmado_pelo_usuario: true`.
 6. Para ler qualquer área use `niso_ler`; o mapa está em `niso_contexto`.
 7. Pré-avaliação de prontidão: `niso_skill nome=prontidao-certificacao`.

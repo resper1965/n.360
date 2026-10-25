@@ -87,11 +87,11 @@ describe('/mcp remoto', () => {
     expect(res.instructions).toBe(INSTRUCOES);
   });
 
-  it('lista ferramentas do consultor, sem lote, sem auditoria, com niso_contexto', async () => {
+  it('lista ferramentas do consultor, sem auditoria, com niso_contexto', async () => {
     const nomes: string[] = (await rpc(token, 'tools/list')).tools.map((t: any) => t.name);
     expect(nomes).toContain('niso_contexto');
     expect(nomes).toContain('niso_create_risk');
-    expect(nomes).not.toContain('niso_generate_policies_bulk');
+    expect(nomes).not.toContain('niso_generate_policy');
     expect(nomes).not.toContain('niso_create_audit_finding');
     expect(nomes).not.toContain('niso_create_auditor_note');
   });
@@ -118,7 +118,7 @@ describe('/mcp remoto', () => {
   });
 
   it('ferramenta fora do papel é recusada mesmo chamada direto', async () => {
-    for (const name of ['niso_create_audit_finding', 'niso_create_auditor_note', 'niso_generate_policies_bulk']) {
+    for (const name of ['niso_create_audit_finding', 'niso_create_auditor_note']) {
       const res = await rpc(token, 'tools/call', { name, arguments: { projectId: 'p-a', auditId: 'x' } });
       expect(res.isError, name).toBe(true);
       expect(res.content[0].text, name).toContain('indisponível');

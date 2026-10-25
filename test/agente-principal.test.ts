@@ -48,19 +48,14 @@ describe('Principal agente', () => {
     expect((await comoAgente('/api/v1/projects/p-a/risks/qualquer', { method: 'DELETE' })).status).toBe(403);
   });
 
-  it('não gera políticas em lote sem confirmação', async () => {
-    const res = await comoAgente('/api/v1/projects/p-a/generate-policies-bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    expect(res.status).toBe(403);
-  });
-
   // Revisão final, achado 1: o Hono decodifica %XX antes de rotear; a recusa
   // tem de olhar o caminho decodificado, não o cru.
-  it('não gera em lote nem por caminho percent-encoded', async () => {
+  it('não apaga sem confirmação nem por caminho percent-encoded', async () => {
     for (const caminho of [
-      '/api/v1/projects/p-a/%67enerate-policies-bulk',
-      '/api/v1/projects/p-a/generate-policies-bul%6B',
+      '/api/v1/projects/p-a/%72isks/qualquer',
+      '/api/v1/projects/p-a/risk%73/qualquer',
     ]) {
-      const res = await comoAgente(caminho, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const res = await comoAgente(caminho, { method: 'DELETE' });
       expect(res.status, caminho).toBe(403);
     }
   });
