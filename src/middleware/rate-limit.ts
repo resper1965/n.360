@@ -15,13 +15,14 @@ import { rateLimit } from '../helpers';
  * então uma integração também é contada separadamente.
  */
 
-type Regra = { teste: (p: string) => boolean; max: number; janelaSec: number; nome: string };
+// `ai` é `?ai=1` da requisição: a leitura de prontidão só chama o modelo com ele.
+type Regra = { teste: (p: string, ai: boolean) => boolean; max: number; janelaSec: number; nome: string };
 
 const REGRAS: Regra[] = [
   // Geração de seção de política: uma chamada por seção e a tela dispara a fila inteira; balde próprio (a primeira regra que casa vale).
   { nome: 'politica-secao', teste: p => /\/secoes\/\d+\/gerar$/.test(p), max: 120, janelaSec: 3600 },
   // Inferência custa por token e é o caminho mais caro do produto.
-  { nome: 'ia', teste: p => /\/(chat|migrate-27701|evaluate)$/.test(p), max: 30, janelaSec: 3600 },
+  { nome: 'ia', teste: (p, ai) => /\/(chat|migrate-27701|evaluate|generate-document)$/.test(p) || /\/checklist\/[^/]+\/generate$/.test(p) || (ai && /^\/api\/v1\/projects\/[^/]+\/readiness-check$/.test(p)), max: 30, janelaSec: 3600 },
   // Parecidos por significado (embeddings): a tela chama com debounce enquanto a pessoa digita.
   { nome: 'similares', teste: p => /^\/api\/v1\/projects\/[^/]+\/similares$/.test(p), max: 60, janelaSec: 600 },
   // Copiloto da entrevista do RoPA: uma chamada ao modelo de 70B por descrição; mais restrito que os parecidos.
@@ -39,7 +40,7 @@ const REGRAS: Regra[] = [
 export const rateLimitMiddleware = createMiddleware<{ Bindings: Bindings; Variables: Variables }>(async (c, next) => {
   // Decodificado, como o roteador do Hono: o cru deixava `%69` passar pelas regras e chegar à rota.
   const path = c.req.path;
-  const regra = REGRAS.find(r => r.teste(path));
+  const regra = REGRAS.find(r => r.teste(path, c.req.query('ai') === '1'));
   if (!regra) return next();
 
   // Roda depois do authMiddleware, então o usuário já está no contexto.
