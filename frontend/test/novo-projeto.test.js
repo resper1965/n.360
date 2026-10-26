@@ -198,6 +198,19 @@ describe('Dados da empresa', () => {
         expect(document.querySelector('#modal-content script')).toBeNull();
     });
 
+    it('histórico para o cliente: a trilha vem sem os detalhes, e a linha diz "cadastro atualizado"', async () => {
+        S.user = { role: 'org_admin' };
+        apiMock.mockImplementation(async (m, url) => {
+            if (url.endsWith('/empresa') && m === 'GET') return { empresa: EMPRESA, pode_editar: true };
+            if (url.endsWith('/audit-trail')) return [{ action: 'empresa.atualizada', actor: 'cadm@x.lat', created_at: '2026-10-14T10:00:00' }];
+            return { ok: true };
+        });
+        await window.abrirDadosEmpresa('p1');
+        expect($('modal-content').textContent).toContain('cadm@x.lat');
+        expect($('modal-content').textContent).toContain('cadastro atualizado');
+        expect($('modal-content').textContent).not.toContain('undefined');
+    });
+
     it('edita, mostra o histórico e grava pelo PUT', async () => {
         S.user = { role: 'consultoria_admin' };
         apiMock.mockImplementation(async (m, url) => {
