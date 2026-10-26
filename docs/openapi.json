@@ -15583,6 +15583,259 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "finalidades": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "beneficios_empresa": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "beneficios_terceiros": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "relevancia_beneficios": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "consequencias_nao_tratamento": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "regulamentacoes_setoriais": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "aspecto_antietico": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tratamento_necessario": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tratamento_proporcional_finalidade": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finalidade_sem_dados": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finalidade_menos_dados": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finalidade_menos_danosa": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "dados_sensiveis": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "relacao_formal": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tratamento_anterior": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "coleta_direta": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "ciencia_coleta_terceiros": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tempo_desde_coleta": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "mudanca_expectativa_titular": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tecnicas_adequadas": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tratamento_inovador": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "registro_expectativa_original": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "registro_ciencia_titulares": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
