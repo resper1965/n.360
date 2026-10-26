@@ -123,8 +123,9 @@ roteiros. Depois ele escolhe o roteiro.
 | **10. Migração de programa existente** (n.privacy) | Escolhe entre `niso_importar_programa`, a planilha CSV do RoPA e o cadastro à mão, e confere o que entrou. Usa a skill `migracao-programa`. | Rascunho, depois do seu ok |
 | **11. Terceiros** (n.privacy) | Tipo, método, evidência, validade e DPA de cada terceiro. Usa a skill `avaliacao-terceiros`. | Sim, depois do seu ok |
 
-As skills dos roteiros 4, 6, 8, 9, 10 e 11 chegam pelo próprio MCP (`niso_skill`): `prontidao-certificacao`,
-`atendimento-titular`, `maturidade-lgpd`, `implantacao-privacy`, `migracao-programa` e `avaliacao-terceiros`. A do 4 traz
+As skills dos roteiros 4, 6, 8, 9, 10, 11 e 12 chegam pelo próprio MCP (`niso_skill`): `prontidao-certificacao`,
+`atendimento-titular`, `maturidade-lgpd`, `implantacao-privacy`, `migracao-programa`, `avaliacao-terceiros` e `cadastro-cliente`
+(o roteiro 12, de qualquer módulo: empresa, CNPJ, pessoas, áreas, sistemas e fornecedores; o agente consultor grava `PUT /empresa` com o "sim" do consultor, o auditor só lê). A do 4 traz
 referências e um validador de achados; as do n.privacy trazem referências (a entrevista de RoPA, o que pedir ao cliente, as
 colunas da planilha do RoPA, o questionário base de terceiro, a verificação de identidade do titular). Não há nada para instalar.
 

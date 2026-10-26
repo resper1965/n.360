@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Agente do consultor: cadastro do cliente
+- Nova skill `cadastro-cliente` (`niso_skill nome=cadastro-cliente`, roteiro 12): empresa, CNPJ, representante, encarregado, pessoas, áreas, sistemas e fornecedores. Lê o que já existe, mostra campo a campo o que vai gravar e espera o "sim" do consultor.
+- O agente com o papel de consultor passa a gravar `PUT /projects/:id/empresa` (antes só lia); o auditor e a chave de API continuam só lendo. A trilha leva "agente de <consultor>" e só os nomes dos campos.
+- O mapa do agente (`niso_contexto`) agora cita a empresa, os vínculos de papéis, a ficha da atividade e os questionários da LIA e do RIPD, a importação de programa, a padronização de nomes e os documentos em arquivo, que existiam sem estar no mapa.
+- Vínculo `responsavel` passa a valer sobre uma organização (`alvo_tipo = parte`): pessoa responde por fornecedor; organização como responsável e pessoa como fornecedor são recusadas (400).
+
 ### CNPJ do fornecedor e responsável (D4; migration 0085 ainda não aplicada)
 - `partes.cnpj` (migration 0085): só organização tem CNPJ (CHECK no banco e 400 na API para pessoa), só dígitos, com os verificadores conferidos (`cnpjCampo`, o mesmo da empresa do projeto) e um por projeto (409 se repetir). Cria e edita pela tela de Partes e pela ficha do fornecedor; a lista de Fornecedores ganhou a coluna CNPJ.
 - Importação de terceiros: o CNPJ do arquivo vai para a coluna (antes era anotado nas notas do perfil de fornecedor). Parte que já tem CNPJ não é trocada pelo arquivo; CNPJ inválido ou já usado por outra organização do projeto vira aviso e a parte é criada sem ele.

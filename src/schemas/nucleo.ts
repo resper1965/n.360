@@ -29,7 +29,7 @@ export type AlvoVinculo = (typeof ALVOS_VINCULO)[number];
 export const MATRIZ_PAPEL_ALVO: Record<AlvoVinculo, readonly PapelVinculo[]> = {
   projeto: ['encarregado', 'terceiro', 'operador', 'cocontrolador', 'parte_interessada', 'responsavel'],
   departamento: ['responsavel'],
-  parte: ['suboperador'],
+  parte: ['suboperador', 'responsavel'], // responsavel: a pessoa responsável por um fornecedor (a organização)
   item: ['dono_sistema', 'dono_processo', 'responsavel', 'operador'],
   tratamento: ['operador', 'cocontrolador', 'suboperador', 'terceiro', 'responsavel'],
 };

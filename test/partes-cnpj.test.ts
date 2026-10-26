@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import app from '../src/index';
-import { applySchema, sessionFor, workerEnv, seedTwoProjects } from './helpers/d1';
+import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarPrivacy } from './helpers/d1';
 
 const chamar = (h: Record<string, string>, metodo: string, caminho: string, corpo?: unknown) =>
   app.fetch(new Request('http://localhost' + caminho, {
@@ -17,6 +17,7 @@ let plat: Record<string, string>;
 beforeAll(async () => {
   await applySchema();
   await seedTwoProjects();
+  await habilitarPrivacy('proj-a'); // as rotas de fornecedores são da faixa n.privacy
   plat = await sessionFor({ id: 'u-pa-cnpj', email: 'pa-cnpj@ness.lat', role: 'platform_admin' });
 });
 
@@ -42,5 +43,23 @@ describe('CNPJ da organização em partes (D4, migration 0085)', () => {
     expect((await chamar(plat, 'PUT', `${A}/partes/${pessoa.id}`, { cnpj: '11222333000181' })).status).toBe(400);
     const terceira = await json<{ id: string }>(await chamar(plat, 'POST', `${A}/partes`, { tipo: 'organizacao', nome: 'Terceira' }));
     expect((await chamar(plat, 'PUT', `${A}/partes/${terceira.id}`, { cnpj: '45723174000110' })).status).toBe(409);
+  });
+});
+
+describe('responsável do fornecedor: vínculo responsavel sobre a organização (D4)', () => {
+  it('pessoa responde por organização; organização como responsável e pessoa como fornecedor são recusadas', async () => {
+    const mk = async (corpo: object) => (await json<{ id: string }>(await chamar(plat, 'POST', `${A}/partes`, corpo))).id;
+    const org = await mk({ tipo: 'organizacao', nome: 'Fornecedora Responsável' });
+    const outraOrg = await mk({ tipo: 'organizacao', nome: 'Outra Organização' });
+    const pessoa = await mk({ tipo: 'pessoa', nome: 'Carla Exemplo', email: 'carla@exemplo.com' });
+    const corpo = { papel: 'responsavel', alvo_tipo: 'parte', alvo_id: org };
+    expect((await chamar(plat, 'POST', `${A}/partes/${pessoa}/vinculos`, corpo)).status).toBe(201);
+    expect((await chamar(plat, 'POST', `${A}/partes/${pessoa}/vinculos`, corpo)).status).toBe(409);
+    expect((await chamar(plat, 'POST', `${A}/partes/${outraOrg}/vinculos`, corpo)).status).toBe(400); // organização não é responsável
+    expect((await chamar(plat, 'POST', `${A}/partes/${pessoa}/vinculos`, { ...corpo, alvo_id: pessoa })).status).toBe(400); // o alvo é pessoa
+    expect((await chamar(plat, 'PUT', `${A}/terceiros/${org}/tipo`, { terceiro_tipo: 'medio' })).status).toBe(200); // a organização vira fornecedor
+    const ficha = await json<{ responsaveis: { id: string; nome: string; vinculo_id: string }[] }>(await chamar(plat, 'GET', `${A}/terceiros/${org}`));
+    expect(ficha.responsaveis).toMatchObject([{ id: pessoa, nome: 'Carla Exemplo' }]);
+    expect((await chamar(plat, 'DELETE', `${A}/partes/${pessoa}/vinculos/${ficha.responsaveis[0].vinculo_id}`)).status).toBe(200);
   });
 });

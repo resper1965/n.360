@@ -286,6 +286,11 @@ nucleoApp.post('/partes/:id/vinculos', async (c) => {
     if (alvo_tipo === 'tratamento' && papel !== 'responsavel' && parte.tipo !== 'organizacao') {
       return c.json({ error: 'Operador, cocontrolador, suboperador e destinatário são organizações: cadastre a empresa em Parceiros e ligue-a aqui.' }, 400);
     }
+    // Responsável por um fornecedor (D4): a pessoa responde por uma organização.
+    if (alvo_tipo === 'parte' && papel === 'responsavel') {
+      const org = await db.prepare('SELECT tipo FROM partes WHERE id = ? AND project_id = ?').bind(alvo_id, projectId).first<{ tipo: string }>();
+      if (parte.tipo !== 'pessoa' || org?.tipo !== 'organizacao') return c.json({ error: 'O responsável por um fornecedor é uma pessoa, e o fornecedor é uma organização.' }, 400);
+    }
     const id = crypto.randomUUID();
     try {
       await db.prepare('INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES (?, ?, ?, ?, ?, ?)')
