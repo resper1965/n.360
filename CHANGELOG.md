@@ -13,7 +13,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 ## [Não publicado]
 
 ### LIA com as 23 perguntas do legado (27/10/2026; migration 0084 ainda não aplicada)
-- A LIA traz as 23 perguntas reais do legado (Finalidade 7, Necessidade 5, Proporcionalidade 11), todas em texto livre, no lugar das 12 aproximadas. Abas: Finalidade, Necessidade, Proporcionalidade, Conclusão (formulário atual, regra de concluir inalterada) e Logs; a pergunta tem o número da aba. A ficha ganha Reabrir (com confirmação) e Imprimir LIA. O Word e o modelo de CSV da LIA levam as 23 colunas opcionais. A pergunta 5 de Necessidade está parcial no guia e fica marcada para confirmação.
+- A LIA traz as 23 perguntas reais do legado (Finalidade 7, Necessidade 5, Proporcionalidade 11), todas em texto livre, no lugar das 12 aproximadas. Abas: Finalidade, Necessidade, Proporcionalidade, Conclusão (formulário atual, regra de concluir inalterada) e Logs; a pergunta tem o número da aba. A ficha ganha Reabrir (com confirmação) e Imprimir LIA. O Word e o modelo de CSV da LIA levam as 23 colunas opcionais.
 
 ### Corrigido
 - **RIPD com as perguntas reais do legado:** o questionário (migration 0083) tinha 17 perguntas aproximadas; agora tem as 38 do guia do legado (Teste de Impacto 4, Conformidade 29, Armazenamento 5), todas em texto livre, numeradas na tela, com a Conformidade em três grupos (1 a 6, 7 a 16, 17 a 29). A pergunta das bases legais mostra, só leitura, as bases da atividade. Os textos cortados no guia foram confirmados pelo dono. Sem migration: não havia resposta gravada em produção.

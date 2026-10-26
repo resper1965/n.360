@@ -47,9 +47,9 @@ describe('catálogo de perguntas da LIA', () => {
     expect(PERGUNTAS_LIA.every((p) => p.texto.trim().length > 20 && p.texto.length <= 2000)).toBe(true);
   });
 
-  it('a pergunta de texto parcial no guia do legado carrega o comentário de confirmação (lê o fonte)', () => {
-    const linhas = fonte.split(/\r?\n/).filter((l) => l.includes('// texto parcial no guia do legado: confirmar o final'));
-    expect(linhas.map((l) => /id: '([a-z_]+)'/.exec(l)?.[1])).toEqual(['finalidade_menos_danosa']);
+  it('nenhuma pergunta ficou marcada como texto parcial do guia (lê o fonte)', () => {
+    const linhas = fonte.split(/\r?\n/).filter((l) => l.includes('texto parcial no guia do legado'));
+    expect(linhas).toEqual([]);
   });
 });
 
