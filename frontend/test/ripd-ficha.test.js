@@ -16,19 +16,22 @@ const DPIA = { id: 'd1', system_name: '', atividade: 'Folha de pagamento fictici
 const QUESTIONARIO = [
     { id: 'teste_impacto', rotulo: 'Teste de Impacto', perguntas: [
         { id: 'beneficios', texto: 'Benefícios', tipo: 'texto', resposta: null, da_atividade: null },
-        { id: 'terceiros_operadores', texto: 'Existem terceiros (operadores) por parte das etapas de tratamento?', tipo: 'escolha', resposta: null, da_atividade: 'Operadores: Operadora Ficticia' }] },
+        { id: 'terceiros_operadores', texto: 'Existem terceiros responsáveis (Operadores) por parte das etapas de tratamento?', tipo: 'texto', resposta: null, da_atividade: 'Operadores: Operadora Ficticia' }] },
     { id: 'conformidade', rotulo: 'Conformidade', perguntas: [
         { id: 'o_que_muda', texto: 'O que muda depois do projeto?', tipo: 'texto', resposta: 'Folha digital', da_atividade: null },
         { id: 'quantos_titulares', texto: 'Quantos titulares são afetados?', tipo: 'texto', resposta: null, da_atividade: 'cerca de 300 por mes' }] },
     { id: 'armazenamento', rotulo: 'Armazenamento', perguntas: [
-        { id: 'territorio_nacional', texto: 'Os dados ficam em território nacional?', tipo: 'escolha', resposta: 'sim', da_atividade: null }] },
+        { id: 'territorio_nacional', texto: 'Os dados são armazenados em território nacional?', tipo: 'texto', resposta: 'Sim', da_atividade: null }] },
 ];
+// Conformidade de verdade: 29 perguntas (a 29 leva o bloco só leitura das bases legais).
+const CONFORMIDADE_29 = Array.from({ length: 29 }, (_, i) => ({ id: `c_${i + 1}`, texto: `Pergunta ficticia ${i + 1}`, tipo: 'texto', resposta: null, da_atividade: null }));
+CONFORMIDADE_29[28].base_legal = { dados_pessoais: ['Art. 7, V: Execução de contrato'], dados_sensiveis: [] };
 const LOGS = [{ evento: 'Aprovação revogada (reaberto)', nome: 'Ana', data: '2026-10-26 10:00:00' }, { evento: 'Criado', nome: 'Ana', data: '2026-10-25 09:00:00' }];
 
-const abrir = async (aba, dpia = DPIA) => {
+const abrir = async (aba, dpia = DPIA, questionario = QUESTIONARIO) => {
     apiMock.mockImplementation(async (m, u) => {
         if (m === 'GET' && u.endsWith('/dpia')) return [dpia];
-        if (m === 'GET' && u.endsWith('/questionario')) return QUESTIONARIO;
+        if (m === 'GET' && u.endsWith('/questionario')) return questionario;
         if (m === 'GET' && u.endsWith('/logs')) return LOGS;
         return { ok: true };
     });
@@ -101,10 +104,27 @@ describe('abas de perguntas', () => {
         expect(el('rf-p-o_que_muda').closest('.at-pergunta').textContent).not.toContain('A atividade já indica');
     });
 
-    it('a aba Teste de Impacto traz operadores como sugestão e a escolha em sim, não e não sei', async () => {
+    it('a aba Teste de Impacto traz operadores como sugestão, numera a pergunta e responde em caixa de texto', async () => {
         await abrir('teste_impacto');
         expect(el('c').textContent).toContain('A atividade já indica: Operadores: Operadora Ficticia');
-        expect([...el('c').querySelectorAll('input[name="rf-p-terceiros_operadores"]')].map((i) => i.value)).toEqual(['sim', 'nao', 'nao_sei']);
+        expect(el('rf-p-terceiros_operadores-t').textContent).toBe('2. Existem terceiros responsáveis (Operadores) por parte das etapas de tratamento?');
+        expect(el('rf-p-terceiros_operadores').tagName).toBe('TEXTAREA');
+        expect(chamadas('PUT')).toHaveLength(0);
+    });
+
+    it('Conformidade com 29 perguntas: numeradas, em três grupos com título e o bloco de base legal só leitura na 29', async () => {
+        const q = [QUESTIONARIO[0], { id: 'conformidade', rotulo: 'Conformidade', perguntas: CONFORMIDADE_29 }, QUESTIONARIO[2]];
+        await abrir('conformidade', DPIA, q);
+        expect([...el('c').querySelectorAll('.at-sub')].map((h) => h.textContent)).toEqual(['Perguntas 1 a 6', '7 a 16', '17 a 29']);
+        expect(el('c').querySelectorAll('.at-pergunta')).toHaveLength(29);
+        expect(el('rf-p-c_29-t').textContent).toBe('29. Pergunta ficticia 29');
+        // O título de grupo vem antes da pergunta que abre o grupo.
+        expect(el('rf-p-c_7').closest('.at-pergunta').previousElementSibling.textContent).toBe('7 a 16');
+        const bloco = el('rf-base-legal');
+        expect(bloco.textContent).toContain('Base Legal (Dados Pessoais): Art. 7, V: Execução de contrato');
+        expect(bloco.textContent).toContain('Base Legal (Dados sensíveis): não informada na atividade');
+        expect(bloco.querySelector('textarea, input')).toBeNull();
+        expect(document.querySelectorAll('#rf-base-legal')).toHaveLength(1);
         expect(chamadas('PUT')).toHaveLength(0);
     });
 
@@ -129,7 +149,7 @@ describe('abas de perguntas', () => {
     it('sem permissão de edição os campos ficam desabilitados', async () => {
         S.user = { role: 'client' };
         await abrir('armazenamento');
-        expect(el('c').querySelector('input[type="radio"]').disabled).toBe(true);
+        expect(el('rf-p-territorio_nacional').disabled).toBe(true);
     });
 });
 
