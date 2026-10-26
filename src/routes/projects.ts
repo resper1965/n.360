@@ -1281,10 +1281,13 @@ projectsApp.get('/:id/audit-pack', async (c) => {
 projectsApp.get('/:id/audit-trail', async (c) => {
   const projectId = c.req.param('id');
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM audit_logs WHERE project_id = ? OR (project_id IS NULL AND details LIKE ?) ORDER BY created_at DESC LIMIT 500`
-  ).bind(projectId, `%${projectId}%`).all();
-  // IP de quem agiu é dado pessoal da equipe e de outras pessoas: só a consultoria o vê.
-  return c.json(semIpENavegador(c.get('user'), results as Record<string, unknown>[]));
+    `SELECT * FROM audit_logs WHERE project_id = ? ORDER BY created_at DESC LIMIT 500`
+  ).bind(projectId).all();
+  // IP, navegador, detalhes, justificativa e valores antes/depois (texto livre, às vezes de outras pessoas)
+  // só a consultoria vê. Quem não é da equipe recebe quem, o quê e quando.
+  const linhas = semIpENavegador(c.get('user'), results as Record<string, unknown>[]);
+  if (ehEquipeNess(c.get('user'))) return c.json(linhas);
+  return c.json(linhas.map(({ details: _d, justification: _j, old_value: _o, new_value: _n, ...r }) => r));
 });
 
 // Acesso do auditor externo. O token sai UMA vez, dentro da URL (fragmento, que o navegador não

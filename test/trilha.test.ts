@@ -155,11 +155,14 @@ describe('Trilha arquivada', () => {
     expect((await verificarCadeia(comTrilha())).dias).toBe(1);
   });
 
-  it('`diaAtras(1)` é ontem em UTC — o cron arquiva o dia FECHADO', async () => {
+  it('`diaAtras(1)` é ontem em São Paulo — o cron arquiva o dia FECHADO', async () => {
     const agora = new Date('2026-09-06T04:10:00Z');
-    expect(diaAtras(1, agora)).toBe('2026-09-05');
+    expect(diaAtras(1, agora)).toBe('2026-09-04');
     // Arquivar o dia corrente produziria um objeto incompleto que a
     // idempotência depois se recusaria a corrigir.
-    expect(diaAtras(0, agora)).toBe('2026-09-06');
+    expect(diaAtras(0, agora)).toBe('2026-09-05');
+    // 02:00Z ainda é a noite do dia anterior em São Paulo (UTC-3); 03:00Z já é o dia novo.
+    expect(diaAtras(0, new Date('2026-09-06T02:59:00Z'))).toBe('2026-09-05');
+    expect(diaAtras(0, new Date('2026-09-06T03:00:00Z'))).toBe('2026-09-06');
   });
 });
