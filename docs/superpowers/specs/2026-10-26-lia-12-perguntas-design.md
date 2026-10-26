@@ -1,4 +1,6 @@
-# LIA com as 12 perguntas do legado (D2)
+# LIA com as perguntas do legado (D2)
+
+> Atualização de 27/10/2026: as 12 perguntas abaixo eram aproximadas. O guia real do legado traz 23 (7 + 5 + 11), todas em texto livre, com o texto exato em `docs/superpowers/specs/2026-10-27-guia-legado-ripd-lia-perguntas.md` e em `src/data/lia-perguntas.ts`. Onde este texto diz "12", leia 23; a migration 0084 não mudou.
 
 Decisão do dono, 26/10/2026: a LIA do legado (12 perguntas em três abas) entra como ficha com abas. A LIA não tem pedido nem hash
 (`DOCUMENTOS` em `src/services/pedidos.ts` não tem `lia`), então não há a restrição do RIPD. Fonte: `docs/paridade-legado-2026-10-20.md`,

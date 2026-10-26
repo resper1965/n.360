@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
+import fonte from '../src/data/lia-perguntas.ts?raw';
 import app from '../src/index';
 import { PERGUNTAS_LIA, ABAS_LIA } from '../src/data/lia-perguntas';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
 
-/** Questionário da LIA (migration 0084, spec 2026-10-26): 12 perguntas em tabela própria; a conclusão e a regra de concluir não mudam. Só dado fictício. */
+/** Questionário da LIA (migration 0084, spec 2026-10-26): 23 perguntas em tabela própria; a conclusão e a regra de concluir não mudam. Só dado fictício. */
 const P = 'lq-proj';
 const OUTRO = 'lq-outro';
 const base = (p = P, r = 'lq-ropa') => `/api/v1/projects/${p}/ropa/${r}/lia`;
@@ -34,11 +35,21 @@ beforeAll(async () => {
 });
 
 describe('catálogo de perguntas da LIA', () => {
-  it('tem 3 abas com 4 perguntas cada (12), ids únicos e curtos', () => {
-    expect(ABAS_LIA.map((a) => PERGUNTAS_LIA.filter((p) => p.aba === a.id).length)).toEqual([4, 4, 4]);
-    expect(PERGUNTAS_LIA).toHaveLength(12);
-    expect(new Set(PERGUNTAS_LIA.map((p) => p.id)).size).toBe(12);
-    expect(PERGUNTAS_LIA.every((p) => p.id.length <= 60 && p.texto.length > 5)).toBe(true);
+  it('tem exatamente 7 + 5 + 11 perguntas (23), todas em texto livre como no legado', () => {
+    expect(ABAS_LIA.map((a) => PERGUNTAS_LIA.filter((p) => p.aba === a.id).length)).toEqual([7, 5, 11]);
+    expect(PERGUNTAS_LIA).toHaveLength(23);
+    expect(PERGUNTAS_LIA.every((p) => p.tipo === 'texto')).toBe(true);
+  });
+
+  it('ids únicos em snake_case (até 60) e textos não vazios', () => {
+    expect(new Set(PERGUNTAS_LIA.map((p) => p.id)).size).toBe(23);
+    expect(PERGUNTAS_LIA.every((p) => /^[a-z][a-z0-9_]*$/.test(p.id) && p.id.length <= 60)).toBe(true);
+    expect(PERGUNTAS_LIA.every((p) => p.texto.trim().length > 20 && p.texto.length <= 2000)).toBe(true);
+  });
+
+  it('a pergunta de texto parcial no guia do legado carrega o comentário de confirmação (lê o fonte)', () => {
+    const linhas = fonte.split(/\r?\n/).filter((l) => l.includes('// texto parcial no guia do legado: confirmar o final'));
+    expect(linhas.map((l) => /id: '([a-z_]+)'/.exec(l)?.[1])).toEqual(['finalidade_menos_danosa']);
   });
 });
 
@@ -59,21 +70,21 @@ describe('GET e PUT /ropa/:id/lia/questionario', () => {
 
   it('grava, relê, troca e apaga com null; texto em branco também apaga', async () => {
     const put = (respostas: object) => chamar(consultor, 'PUT', `${base()}/questionario`, { respostas });
-    const r0 = await put({ finalidades: 'Atender pedidos', coleta_direta: 'sim' });
+    const r0 = await put({ finalidades: 'Atender pedidos', coleta_direta: 'Sim, direta' });
     expect(r0.status, await r0.clone().text()).toBe(200);
     let p = perguntasDe(await (await chamar(consultor, 'GET', `${base()}/questionario`)).json());
-    expect([p.finalidades.resposta, p.coleta_direta.resposta]).toEqual(['Atender pedidos', 'sim']);
-    await put({ coleta_direta: 'nao' });
+    expect([p.finalidades.resposta, p.coleta_direta.resposta]).toEqual(['Atender pedidos', 'Sim, direta']);
+    await put({ coleta_direta: 'Não' });
     await put({ finalidades: null });
     await put({ beneficios_empresa: '   ' });
     p = perguntasDe(await (await chamar(consultor, 'GET', `${base()}/questionario`)).json());
-    expect([p.finalidades.resposta, p.coleta_direta.resposta, p.beneficios_empresa.resposta]).toEqual([null, 'nao', null]);
+    expect([p.finalidades.resposta, p.coleta_direta.resposta, p.beneficios_empresa.resposta]).toEqual([null, 'Não', null]);
   });
 
   it('recusa pergunta desconhecida, escolha fora de sim/nao/nao_sei, texto longo, corpo vazio e campo a mais', async () => {
     const put = (corpo: unknown) => chamar(consultor, 'PUT', `${base()}/questionario`, corpo);
     expect((await put({ respostas: { inventada: 'x' } })).status).toBe(400);
-    expect((await put({ respostas: { proporcional: 'talvez' } })).status).toBe(400);
+    expect((await put({ respostas: { tratamento_nao_existe: 'talvez' } })).status).toBe(400);
     expect((await put({ respostas: { finalidades: 'a'.repeat(2001) } })).status).toBe(400);
     expect((await put({ respostas: {} })).status).toBe(400);
     expect((await put({ respostas: { finalidades: 'x' }, extra: 1 })).status).toBe(400);
@@ -90,14 +101,14 @@ describe('GET e PUT /ropa/:id/lia/questionario', () => {
     const lia = await chamar(consultor, 'PUT', `${base(P, 'lq-ropa2')}`, COMPLETA);
     expect(lia.status).toBe(201);
     const concluida = await chamar(consultor, 'PUT', base(P, 'lq-ropa2'), { status: 'concluida' });
-    expect(concluida.status, await concluida.clone().text()).toBe(200); // sem nenhuma das 12 respostas
+    expect(concluida.status, await concluida.clone().text()).toBe(200); // sem nenhuma das 23 respostas
     const antes = await env.DB.prepare(`SELECT * FROM lia_assessments WHERE ropa_id = 'lq-ropa2'`).first();
-    expect((await chamar(consultor, 'PUT', `${base(P, 'lq-ropa2')}/questionario`, { respostas: { proporcional: 'sim', menos_dados: 'Só o e-mail' } })).status).toBe(200);
+    expect((await chamar(consultor, 'PUT', `${base(P, 'lq-ropa2')}/questionario`, { respostas: { tratamento_necessario: 'Sim', finalidade_menos_dados: 'Só o e-mail' } })).status).toBe(200);
     expect(await env.DB.prepare(`SELECT * FROM lia_assessments WHERE ropa_id = 'lq-ropa2'`).first()).toEqual(antes);
   });
 
   it('os logs usam entity_type lia, sem texto digitado, e apagar a LIA leva as respostas', async () => {
-    await chamar(consultor, 'PUT', `${base()}/questionario`, { respostas: { realmente_necessario: 'sim', menos_dados: 'segredo-fictício-123' } });
+    await chamar(consultor, 'PUT', `${base()}/questionario`, { respostas: { tratamento_necessario: 'Sim', finalidade_menos_dados: 'segredo-fictício-123' } });
     const r = await chamar(consultor, 'GET', `${base()}/logs`);
     expect(r.status).toBe(200);
     const texto = await r.clone().text();

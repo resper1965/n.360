@@ -169,7 +169,7 @@ export async function liaEmWord(db: D1Database, projectId: string, ropaId: strin
   const concluida = l.status === 'concluida';
   const corpo: Bloco[] = [
     ...ident, ...ativ.blocos,
-    // As 12 perguntas do legado, uma seção por aba (migration 0084); sem resposta aparece o traço de sempre.
+    // As 23 perguntas do legado, uma seção por aba (migration 0084); sem resposta aparece o traço de sempre.
     ...(questionario?.abas ?? []).flatMap((a) => [titulo(a.rotulo), ...campos(a.perguntas.map((q): [string, unknown] => [q.texto, q.tipo === 'escolha' && q.resposta ? ESCOLHA_LIA[q.resposta] ?? q.resposta : q.resposta]))]),
     titulo('Teste de legítimo interesse'), ...campos([
       ['Finalidade legítima', l.finalidade_legitima], ['Necessidade', l.necessidade], ['Balanceamento', l.balanceamento],

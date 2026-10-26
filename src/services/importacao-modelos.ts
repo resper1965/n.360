@@ -51,7 +51,7 @@ export const MODELOS: Modelo[] = [
     nome: 'lia', entidade: 'lia', tipo: 'avaliacao', colunas: {
       tratamento: T, conclusao: T, riscos: 'lista', finalidade_legitima: T, necessidade: T, balanceamento: T, salvaguardas: T,
     },
-    // As 12 perguntas do legado (migration 0084): coluna = id da pergunta; as de escolha trazem sim, não ou não sei.
+    // As 23 perguntas do legado (migration 0084): coluna = id da pergunta, todas texto livre.
     opcionais: Object.fromEntries(PERGUNTAS_LIA.map((p) => [p.id, p.tipo === 'escolha' ? 'opcao' as const : T])),
   },
   // Pedidos do titular SEM coluna de titular: o modelo não carrega dado pessoal.

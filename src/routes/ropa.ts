@@ -251,7 +251,7 @@ projectRopaApp.put('/:recordId/lia', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao salvar a LIA', e); }
 });
 
-// Questionário da LIA (migration 0084): as 12 perguntas do legado, fora das colunas da LIA. O agente lê e rascunha respostas (como o PUT da LIA).
+// Questionário da LIA (migration 0084): as 23 perguntas do legado, fora das colunas da LIA. O agente lê e rascunha respostas (como o PUT da LIA).
 projectRopaApp.get('/:recordId/lia/questionario', async (c) => {
   try {
     const r = await lerQuestionarioLia(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));

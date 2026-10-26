@@ -953,12 +953,12 @@ async function gravarAvaliacao(db: D1Database, projectId: string, loteId: string
       salvaguardas: d.salvaguardas ?? undefined,
     });
     if (!r.ok) return recusado(item, r.error);
-    // As 12 perguntas do legado (0084), as que o arquivo trouxe. Falha aqui vira aviso: a LIA já foi criada e nada se desfaz.
+    // As 23 perguntas do legado (0084), as que o arquivo trouxe. Falha aqui vira aviso: a LIA já foi criada e nada se desfaz.
     const avisos: string[] = [];
     const respostas = Object.fromEntries(PERGUNTAS_LIA.map((q) => [q.id, (d as Record<string, unknown>)[q.id]] as const).filter(([, v]) => typeof v === 'string' && v.trim()));
     if (Object.keys(respostas).length) {
       const q = await salvarQuestionarioLia(db, projectId, ropaId, ator, respostas as Record<string, string>);
-      if (!q.ok) avisos.push(`as respostas das 12 perguntas não foram gravadas (${q.error}); responda na ficha da LIA`);
+      if (!q.ok) avisos.push(`as respostas das 23 perguntas não foram gravadas (${q.error}); responda na ficha da LIA`);
     }
     return fecharItem(db, projectId, loteId, ator, item, r.id, 'LIA', avisos);
   }

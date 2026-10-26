@@ -1,5 +1,5 @@
 /**
- * Questionário da LIA (n.privacy, migration 0084): as 12 perguntas do legado (`src/data/lia-perguntas.ts`) com a resposta gravada em
+ * Questionário da LIA (n.privacy, migration 0084): as 23 perguntas do legado (`src/data/lia-perguntas.ts`) com a resposta gravada em
  * `lia_respostas`. A LIA é uma por tratamento, então a chave é o `ropa_id`. As respostas são o questionário, não a prova: gravar uma
  * nunca muda a conclusão, o status nem a regra de concluir (`salvarLia` não as lê). A sugestão da atividade (`da_atividade`) é só
  * leitura e nunca é gravada.

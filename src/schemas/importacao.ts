@@ -70,7 +70,6 @@ export const OBRIGATORIOS_DOCUMENTO = ['titulo', 'tipo'] as const;
 
 /** Fatia 3: DPIA ou LIA proposta (a entidade do item diz qual). `tratamento` é a finalidade, casada com o RoPA pelo nome normalizado. */
 const longo = z.string().trim().max(2000).nullish();
-const escolha = z.enum(['sim', 'nao', 'nao_sei']).nullish();
 export const avaliacaoPropostaSchema = z.object({
   tratamento: z.string().trim().min(1).max(500),
   conclusao: longo,
@@ -82,10 +81,30 @@ export const avaliacaoPropostaSchema = z.object({
   finalidade_legitima: longo,
   balanceamento: longo,
   salvaguardas: longo,
-  // As 12 perguntas da LIA do legado (migration 0084), opcionais; ids = `src/data/lia-perguntas.ts`. Só a LIA as grava.
-  finalidades: longo, beneficios_empresa: longo, beneficios_terceiros: longo, relevancia_beneficios: longo,
-  realmente_necessario: escolha, proporcional: escolha, alcancada_sem_dados: escolha, menos_dados: longo,
-  dados_sensiveis: escolha, relacao_formal: escolha, tratamento_anterior: escolha, coleta_direta: escolha,
+  // As 23 perguntas da LIA do legado (migration 0084), opcionais e todas texto livre; ids = `src/data/lia-perguntas.ts`. Só a LIA as grava.
+  finalidades: longo,
+  beneficios_empresa: longo,
+  beneficios_terceiros: longo,
+  relevancia_beneficios: longo,
+  consequencias_nao_tratamento: longo,
+  regulamentacoes_setoriais: longo,
+  aspecto_antietico: longo,
+  tratamento_necessario: longo,
+  tratamento_proporcional_finalidade: longo,
+  finalidade_sem_dados: longo,
+  finalidade_menos_dados: longo,
+  finalidade_menos_danosa: longo,
+  dados_sensiveis: longo,
+  relacao_formal: longo,
+  tratamento_anterior: longo,
+  coleta_direta: longo,
+  ciencia_coleta_terceiros: longo,
+  tempo_desde_coleta: longo,
+  mudanca_expectativa_titular: longo,
+  tecnicas_adequadas: longo,
+  tratamento_inovador: longo,
+  registro_expectativa_original: longo,
+  registro_ciencia_titulares: longo,
 }).strict();
 export type AvaliacaoProposta = z.infer<typeof avaliacaoPropostaSchema>;
 export const OBRIGATORIOS_AVALIACAO = ['tratamento', 'conclusao', 'riscos'] as const;
