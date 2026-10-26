@@ -24,7 +24,7 @@ window.abrirPadronizarNomes = async function (projectId) {
         <td>${p.conflito ? 'Já existe um igual: una à mão' : ''}</td></tr>`).join('');
     // Parte e item duplicados podem ser mesclados (D5): escolhe-se o que FICA, vê-se a prévia do que muda e confirma-se. Departamento segue à mão.
     const dupLi = (d, i) => `<li>${escapeHTML(ROTULO[d.tabela] || d.tabela)}: ${escapeHTML((d.nomes || []).join(', '))}${Array.isArray(d.registros) && d.registros.length > 1
-        ? ` <label>Manter <select class="form-input" id="pn-manter-${i}" style="width:auto;display:inline-block">${d.registros.map((x) => `<option value="${escapeHTML(x.id)}">${escapeHTML(x.nome)}</option>`).join('')}</select></label>
+        ? ` <label>Manter <select class="form-input" id="pn-manter-${i}">${d.registros.map((x) => `<option value="${escapeHTML(x.id)}">${escapeHTML(x.nome)}</option>`).join('')}</select></label>
             <button class="btn btn-ghost btn-sm" data-action="previaMesclar" data-args='${args(projectId, i)}'>Mesclar</button>` : ''}</li>`;
     const dups = duplicatas.length
         ? `<h4 style="margin:1.25rem 0 0.5rem">Possíveis duplicatas</h4><ul>${duplicatas.map(dupLi).join('')}</ul>` : '';
@@ -66,8 +66,8 @@ window.previaMesclar = async function (projectId, i) {
     openModal(`
         <h3>Mesclar ${escapeHTML(ROTULO[d.tabela] || d.tabela)}</h3>
         <p>Fica: <strong>${escapeHTML(p.manter.nome)}</strong>. Sai (fica inativo): <strong>${escapeHTML(p.remover.nome)}</strong>.</p>
-        ${efeitos.length ? `<p>O que passa para o que fica:</p><ul>${efeitos.map((e) => `<li>${escapeHTML(e.rotulo)}: ${escapeHTML(String(e.n))}</li>`).join('')}</ul>` : '<p style="color:var(--text-dim)">Nada aponta para o duplicado; ele só é inativado.</p>'}
-        ${p.tratamentos ? `<p style="color:var(--text-dim)">${escapeHTML(String(p.tratamentos))} atividade(s) de tratamento mudam; se estavam em aprovação, a aprovação é refeita.</p>` : ''}
+        ${efeitos.length ? `<p>O que passa para o que fica:</p><ul>${efeitos.map((e) => `<li>${escapeHTML(e.rotulo)}: ${escapeHTML(String(e.n))}</li>`).join('')}</ul>` : '<p class="t-dim">Nada aponta para o duplicado; ele só é inativado.</p>'}
+        ${p.tratamentos ? `<p class="t-dim">${escapeHTML(String(p.tratamentos))} atividade(s) de tratamento mudam; se estavam em aprovação, a aprovação é refeita.</p>` : ''}
         ${avisos.map((a) => `<p class="t-perigo">${escapeHTML(a)}</p>`).join('')}
         <button class="btn btn-primary" data-action="confirmarMesclar" data-args='${args(projectId, d.tabela, manter, remover.id)}'>Confirmar mesclagem</button>
         <button class="btn btn-ghost" data-action="abrirPadronizarNomes" data-args='${args(projectId)}'>Voltar</button>
