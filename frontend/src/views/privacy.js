@@ -3,7 +3,7 @@ import { api, baixarArquivo, abrirRelatorio } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { render, navigate } from '../router.js';
 import { opcoesDePartes } from '../partes-opcoes.js';
-import { temProduto, projetoDoId, produtoAtual } from '../produto.js';
+import { temProduto, projetoDoId } from '../produto.js';
 import { podeEntrevistar, confirmaEdicaoAprovada } from '../atividade/estado.js';
 import { listarItens, criarItem } from '../atividade/catalogo-inline.js';
 import { montarLista, colunasDe } from '../lista.js';
@@ -431,13 +431,13 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             escapeHTML(dp.atividade || '—'),
             escapeHTML(dp.area || '—'),
             escapeHTML(dp.responsavel || '—'),
-            `<strong>${escapeHTML(dp.system_name)}</strong>`,
+            `<strong>${escapeHTML(dp.system_name || dp.atividade || dp.processing_name || '—')}</strong>`,
             escapeHTML(dp.data_subjects_types || 'N/A'),
             escapeHTML(dp.personal_data_categories || 'N/A'),
             escapeHTML(dp.residual_risk_level || '—'),
             // Selo "mudou na origem" (F3): só aviso; a aprovação do RIPD não muda por isso.
             window.renderStatusBadge(dp.status || 'Draft', statusType) + (dp.origem_mudou ? ` ${window.renderStatusBadge('RoPA mudou depois deste RIPD: revise', 'warning')}` : ''),
-            `<button class="btn btn-ghost btn-sm" data-action="openDPIADetailsModal" data-args='["${dp.id}"]'>Detalhes</button>
+            `<button class="btn btn-ghost btn-sm" data-action="abrirRipd" data-args='["${projectId}","${dp.id}"]'>Abrir</button>
              <button class="btn btn-ghost btn-sm" style="color:var(--accent)" data-action="openDPIAReport" data-args='["${projectId}","${dp.id}"]' data-stop>PDF</button>
              <button class="btn btn-ghost btn-sm" data-action="baixarWordRipd" data-args='["${projectId}","${dp.id}"]' data-stop>Word</button>`
         ];
@@ -501,92 +501,6 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             vazio: vazioRipd,
         });
     }
-
-    // Uma assinatura, do encarregado/Líder SGSI ou da Direção, aprova o RIPD (decisão do dono de 20/10/2026).
-    const linhaAssinatura = (conteudo) => `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:0.5rem; font-size:0.75rem">${conteudo}</div>`;
-    const assinaturasRipd = (dp, projectId, papelCiso) => {
-        const feitas = [[dp.dpo_signature, papelCiso], [dp.ceo_signature, 'Direção Executiva']].filter(([nome]) => nome);
-        if (feitas.length) {
-            return feitas.map(([nome, papel]) => linhaAssinatura(`<div><span style="color:var(--success)">Aprovado por ${escapeHTML(nome)}</span> (${papel})</div>`)).join('');
-        }
-        const assinar = (papel, role) => linhaAssinatura(`<div><strong>${papel}</strong></div><button class="btn" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="approveDPIA" data-args='["${projectId}","${dp.id}","${role}"]'>Assinar</button>`);
-        return `<p style="font-size:0.75rem; color:var(--text-dim); margin:0">Uma assinatura, do ${papelCiso} ou da Direção Executiva, aprova o RIPD.</p>${assinar(papelCiso, 'ciso')}${assinar('Direção Executiva', 'ceo')}`;
-    };
-
-    window.openDPIADetailsModal = function(id) {
-        const dp = S.dpia.find(x => x.id === id) || {};
-        const projectId = S.activeProject ? S.activeProject.id : '';
-        const canCrud = S.user && (S.user.role === 'platform_admin' || S.user.role === 'consultant' || S.user.role === 'consultor');
-        const statusColor = s => s === 'Approved' ? 'var(--success)' : s === 'Under Review' ? 'var(--warning)' : 'var(--muted)';
-        // No n.privacy quem assina pelo papel `ciso` é o encarregado (o cargo DPO dá a autoridade, monitor.js).
-        const papelCiso = produtoAtual() === 'privacy' ? 'Encarregado (DPO)' : 'Líder SGSI';
-        
-        openModal(`
-            <div class="modal-header">
-                <span class="modal-title">Detalhes do RIPD</span>
-                
-            </div>
-            <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
-                <div style="font-family:'Montserrat',sans-serif; font-weight:600; font-size:1.3rem; color:var(--text)">
-                    ${escapeHTML(dp.system_name)}
-                </div>
-                
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px">
-                    <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Descrição do Fluxo de Dados</div>
-                        <div style="font-size:0.85rem; color:var(--text)">${escapeHTML(dp.data_flow_description || 'Sem descrição')}</div>
-                    </div>
-                    <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Tipos de Titulares</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(dp.data_subjects_types || 'N/A')}</div>
-                    </div>
-                    <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Categorias de Dados Pessoais</div>
-                        <div style="font-size:0.85rem; font-weight:600; color:var(--text)">${escapeHTML(dp.personal_data_categories || 'N/A')}</div>
-                    </div>
-                    <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Necessidade e Proporcionalidade</div>
-                        <div style="font-size:0.85rem; color:var(--text)">${escapeHTML(dp.necessity_proportionality || 'Sem justificativa cadastrada')}</div>
-                    </div>
-                    <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Riscos identificados à privacidade</div>
-                        <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(dp.risks_identified || 'Nenhum risco listado')}</div>
-                    </div>
-                    <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Medidas de mitigação e salvaguardas</div>
-                        <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(dp.mitigation_measures || 'Nenhuma medida cadastrada')}</div>
-                    </div>
-                    <div style="grid-column:span 2">
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Parecer do DPO (Encarregado)</div>
-                        <div style="font-size:0.85rem; color:var(--text); white-space:pre-wrap">${escapeHTML(dp.dpo_opinion || 'Aguardando parecer formal do DPO')}</div>
-                    </div>
-                    <div>
-                        <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:500; margin-bottom:4px">Status do RIPD</div>
-                        <span class="ctx-tag" style="color:${statusColor(dp.status)}; border-color:${statusColor(dp.status)}; font-weight:600">${escapeHTML(window.traduzStatus(dp.status || 'Draft'))}</span>
-                    </div>
-                </div>
-            </div>
-            <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:1rem; margin-top:16px">
-                <h4 style="font-family:'Montserrat',sans-serif; font-size:0.7rem; color:var(--text-dim); margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.05em">Assinaturas do RIPD</h4>
-                <div style="display:flex; flex-direction:column; gap:0.75rem">
-                    ${assinaturasRipd(dp, projectId, papelCiso)}
-                    ${podeRevogar() && (dp.dpo_signature || dp.ceo_signature || dp.status === 'Approved') ? `<div style="text-align:right"><button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="revogarDPIA" data-args='["${projectId}","${dp.id}"]'>Revogar aprovação do RIPD</button></div>` : ''}
-                    ${window.podePedirAprovacao?.(S.user) ? `<div style="text-align:right"><button class="btn-secondary" style="padding:0.2rem 0.6rem; font-size:0.75rem" data-action="abrirPedidoAprovacao" data-args='${escapeHTML(JSON.stringify([projectId, 'dpia', dp.id]))}'>Pedir aprovação</button></div>` : ''}
-                </div>
-            </div>
-            
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px">
-                <div>
-                    <button class="btn btn-secondary" data-action="openDPIAReport" data-args='["${projectId}","${dp.id}"]'>Exportar RIPD (PDF)</button>
-                    <button class="btn btn-secondary" data-action="baixarWordRipd" data-args='["${projectId}","${dp.id}"]'>Baixar Word</button>
-                </div>
-                <div>
-                    <button class="btn" data-action="forceCloseModal">Fechar</button>
-                    ${canCrud ? `<button class="btn btn-primary" data-action="openEditDPIAModal" data-args='["${id}"]'>Editar RIPD</button>` : ''}
-                </div>
-            </div>
-        `);
-    };
 
     // Novo RIPD (n.privacy): a atividade do RoPA vem primeiro e o RIPD nasce dela, herdando o que já foi informado (finalidade,
     // titulares, categorias, base legal, retenção, teste de impacto). Sem atividade, ou sem o n.privacy, o formulário à mão de sempre.
@@ -664,62 +578,12 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         forceCloseModal(); render();
     };
 
-    window.openEditDPIAModal = function(id) {
-        const dp = S.dpia.find(x => x.id === id) || {};
-        openModal(`
-            <div class="modal-header"><span class="modal-title">Editar RIPD</span></div>
-            <div class="form-group"><label class="form-label">Nome do Sistema</label><input class="form-input" id="dpia-e-system" value="${escapeHTML(dp.system_name||'')}"></div>
-            <div class="form-group"><label class="form-label">Descrição do Fluxo</label><textarea class="form-input" id="dpia-e-flow">${escapeHTML(dp.data_flow_description||'')}</textarea></div>
-            <div style="display:flex; gap:0.5rem">
-                <div class="form-group" style="flex:1"><label class="form-label">Tipos de Titulares</label><input class="form-input" id="dpia-e-subjects" value="${escapeHTML(dp.data_subjects_types||'')}"></div>
-                <div class="form-group" style="flex:1"><label class="form-label">Categorias de Dados</label><input class="form-input" id="dpia-e-categories" value="${escapeHTML(dp.personal_data_categories||'')}"></div>
-            </div>
-            <div class="form-group"><label class="form-label">Necessidade e Proporcionalidade</label><textarea class="form-input" id="dpia-e-necessity">${escapeHTML(dp.necessity_proportionality||'')}</textarea></div>
-            <div class="form-group"><label class="form-label">Riscos Identificados</label><textarea class="form-input" id="dpia-e-risks">${escapeHTML(dp.risks_identified||'')}</textarea></div>
-            <div class="form-group"><label class="form-label">Medidas de Mitigação</label><textarea class="form-input" id="dpia-e-mitigations">${escapeHTML(dp.mitigation_measures||'')}</textarea></div>
-            <div class="form-group"><label class="form-label">Parecer do DPO (Encarregado)</label><textarea class="form-input" id="dpia-e-opinion">${escapeHTML(dp.dpo_opinion||'')}</textarea></div>
-            <div class="form-group"><label class="form-label">Status</label>
-                <select class="form-input" id="dpia-e-status" ${dp.status==='Approved'?'disabled':''}>
-                    ${dp.status==='Approved' ? '<option value="Approved" selected>Aprovado (para reabrir, revogue a aprovação)</option>' : `
-                    <option value="Draft" ${dp.status==='Draft'?'selected':''}>Rascunho</option>
-                    <option value="Under Review" ${dp.status==='Under Review'?'selected':''}>Em revisão</option>`}
-                </select></div>
-
-            <div style="display:flex; gap:0.5rem; justify-content:space-between; margin-top:1.5rem">
-                <button class="btn" style="color:var(--danger-ink)" data-action="deleteDPIA" data-args='["${id}"]'>Excluir</button>
-                <button class="btn btn-primary" data-action="updateDPIA" data-args='["${id}"]'>Salvar</button>
-            </div>
-        `);
-    };
-
-    window.updateDPIA = async function(id) {
-        const body = {
-            system_name: document.getElementById('dpia-e-system').value,
-            data_flow_description: document.getElementById('dpia-e-flow').value,
-            data_subjects_types: document.getElementById('dpia-e-subjects').value,
-            personal_data_categories: document.getElementById('dpia-e-categories').value,
-            necessity_proportionality: document.getElementById('dpia-e-necessity').value,
-            risks_identified: document.getElementById('dpia-e-risks').value,
-            mitigation_measures: document.getElementById('dpia-e-mitigations').value,
-            dpo_opinion: document.getElementById('dpia-e-opinion').value
-        };
-        // Aprovar é pelo fluxo de assinatura; o PUT só move entre Draft e Under Review e ignora
-        // status em DPIA já aprovada.
-        const st = document.getElementById('dpia-e-status');
-        if (!st.disabled) body.status = st.value;
-        // Mudar o conteúdo de um RIPD aprovado derruba a aprovação no servidor (PUT /dpia/:id).
-        const dp = S.dpia.find(x => x.id === id) || {};
-        const mudou = Object.keys(body).some(k => k !== 'status' && (body[k] || '') !== (dp[k] || ''));
-        if (dp.status === 'Approved' && mudou && !(await window.confirmar('A aprovação do RIPD cai e ele volta a rascunho.', { titulo: 'Editar RIPD aprovado', rotulo: 'Editar' }))) return;
-        await api('PUT', `/api/v1/dpia/${id}`, body);
-        forceCloseModal(); render();
-    };
-
     window.deleteDPIA = async function(id) {
         if (await window.confirmar('O RIPD sai deste projeto.', { titulo: 'Excluir RIPD', perigo: true, rotulo: 'Excluir' })) {
             await api('DELETE', `/api/v1/dpia/${id}`);
             forceCloseModal();
-            render();
+            // Excluído da própria página (ficha do RIPD): volta à lista; de outro lugar, só refaz a tela.
+            if (S.view === 'ripd-ficha') window.ripdVoltar(); else render();
         }
     };
 
@@ -771,11 +635,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         try {
             await api('POST', `/api/v1/projects/${projectId}/dpia/${id}/revoke-approval`, { reason: motivo });
             showToast('Aprovação do RIPD revogada');
-            forceCloseModal();
-            // Falha na recarga não zera a lista: o render() abaixo refaz a tela e mostra o erro ali.
-            try { S.dpia = await api('GET', `/api/v1/projects/${projectId}/dpia`); } catch (e) { /* idem */ }
-            window.openDPIADetailsModal(id);
-            render();
+            render(); // a página do RIPD relê o registro
         } catch(e) {
             showToast('Erro ao revogar aprovação: ' + e.message, 'error');
         }
@@ -803,13 +663,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
         try {
             await api('POST', `/api/v1/projects/${projectId}/dpia/${id}/approve`, { role });
             showToast('RIPD assinado.');
-            forceCloseModal();
-            setTimeout(async () => {
-                // Falha na recarga não zera a lista: o render() abaixo refaz a tela e mostra o erro ali.
-                try { S.dpia = await api('GET', `/api/v1/projects/${projectId}/dpia`); } catch (e) { /* idem */ }
-                window.openDPIADetailsModal(id);
-                render();
-            }, 300);
+            render(); // a página do RIPD relê o registro e mostra a assinatura
         } catch(e) {
             showToast('Erro ao assinar DPIA: ' + e.message, 'error');
         }

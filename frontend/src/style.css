@@ -2167,6 +2167,9 @@ ul.at-ajuda { padding-left: 1.25em; }
 .tc-painel fieldset label { display: inline-flex; align-items: center; gap: 8px; padding: 3px 0; font-size: var(--fs-md); color: var(--text-2); cursor: pointer; }
 .tc-painel .data-table { margin-top: 4px; }
 
+/* Ficha do RIPD (views/ripd-ficha.js): linha de assinatura. */
+.rf-assinatura { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--border); background: var(--bg); font-size: var(--fs-sm); color: var(--text); }
+
 /* Nova atividade (views/privacy.js): área nova sob demanda e o modo de preenchimento como opções descritas. */
 .ra-mostrar-area { margin-top: 6px; }
 .ra-nova-area { margin-top: 10px; }
