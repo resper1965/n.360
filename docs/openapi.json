@@ -17835,6 +17835,17 @@
                       "ativa",
                       "inativa"
                     ]
+                  },
+                  "cnpj": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 }
               }
@@ -17959,6 +17970,17 @@
                         "maxLength": 320,
                         "format": "email",
                         "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cnpj": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
                       },
                       {
                         "type": "null"

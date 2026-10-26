@@ -10,6 +10,7 @@ import {
   OBRIGATORIOS_BASES, OBRIGATORIOS_CICLO, OBRIGATORIOS_GAP, OBRIGATORIOS_IMPACTO, OBRIGATORIOS_RISCO, basesPropostasSchema, cicloPropostoSchema,
   gapPropostoSchema, impactoPropostoSchema, riscoPropostoSchema,
 } from '../schemas/importacao';
+import { cnpjValido } from '../schemas/corpos';
 import { criarAcao, criarRisco } from './riscos-atividade';
 import { lerImpacto, salvarImpacto, PERGUNTAS_IMPORTAVEIS, type RespostaImpacto } from './impacto';
 import { lerCiclo, salvarCiclo } from './ciclo';
@@ -823,13 +824,15 @@ async function completarTerceiro(db: D1Database, projectId: string, loteId: stri
     }
   }
 
-  // CNPJ no perfil de fornecedor (criado pelo tipo); a anotação não se repete numa reimportação. Sem tipo não há perfil: avisa.
+  // CNPJ da organização (migration 0085): só entra em parte sem CNPJ e se for válido e único no projeto; o resto vira aviso.
   if (d.cnpj) {
-    if (!tipo) avisos.push(`CNPJ ${d.cnpj} não anotado: o terceiro está sem tipo (sem perfil de fornecedor)`);
-    else {
-      const nota = `CNPJ: ${d.cnpj}`;
-      await db.prepare(`UPDATE vendors SET notes = CASE WHEN COALESCE(notes, '') = '' THEN ?1 ELSE notes || char(10) || ?1 END
-        WHERE parte_id = ?2 AND project_id = ?3 AND instr(COALESCE(notes, ''), ?1) = 0`).bind(nota, parteId, projectId).run();
+    const dig = d.cnpj.replace(/\D/g, '');
+    const gravado = (await db.prepare('SELECT cnpj FROM partes WHERE id = ? AND project_id = ?').bind(parteId, projectId).first<{ cnpj: string | null }>())?.cnpj ?? null;
+    if (!cnpjValido(dig)) avisos.push(`CNPJ "${d.cnpj}" inválido; não foi gravado`);
+    else if (gravado && gravado !== dig) avisos.push(`CNPJ mantido (${gravado}); o arquivo diz ${dig}`);
+    else if (!gravado) {
+      try { await db.prepare('UPDATE partes SET cnpj = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ? AND cnpj IS NULL').bind(dig, parteId, projectId).run(); }
+      catch { avisos.push(`CNPJ ${dig} já está em outra organização do projeto; não foi gravado`); }
     }
   }
 }
