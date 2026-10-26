@@ -126,7 +126,16 @@ window.ripdSalvarDados = async function (id) {
 
 // ─── Abas de perguntas (autosave por campo) ─────────────────────────────────────────────────────────────────────
 
-function pergunta(q, editar) {
+/** As três páginas da Conformidade no legado: o servidor manda uma lista só; aqui ela ganha os títulos de grupo (1 a 6, 7 a 16, 17 a 29). */
+const GRUPOS_CONFORMIDADE = [[1, 'Perguntas 1 a 6'], [7, '7 a 16'], [17, '17 a 29']];
+
+/** Só leitura e nunca gravado: as bases legais vêm da atividade, como no legado ("Base Legal (Dados Pessoais)" e "(Dados sensíveis)"). */
+function blocoBaseLegal(b) {
+    const linha = (rotulo, itens) => `<p class="at-nota"><strong>${rotulo}</strong>: ${itens && itens.length ? itens.map(escapeHTML).join('; ') : 'não informada na atividade'}</p>`;
+    return `<div class="at-aba-corpo" id="rf-base-legal">${linha('Base Legal (Dados Pessoais)', b && b.dados_pessoais)}${linha('Base Legal (Dados sensíveis)', b && b.dados_sensiveis)}</div>`;
+}
+
+function pergunta(q, editar, numero) {
     const idq = `rf-p-${escapeHTML(q.id)}`;
     const dica = !q.resposta && q.da_atividade ? `<p class="at-nota">A atividade já indica: ${escapeHTML(q.da_atividade)}</p>` : '';
     const corpo = q.tipo === 'escolha'
@@ -134,7 +143,7 @@ function pergunta(q, editar) {
             <input type="radio" id="${idq}-${v}" name="${idq}" value="${v}" ${q.resposta === v ? 'checked' : ''} ${editar ? `data-action-change="ripdResponder" data-args='${args(q.id)}' data-arg-val` : 'disabled'}>
             <span class="re-opcao-texto">${rot}</span></label>`).join('')}</div>`
         : `<textarea class="form-input" id="${idq}" aria-labelledby="${idq}-t" maxlength="2000" ${editar ? `data-action-change="ripdResponder" data-args='${args(q.id)}' data-arg-val` : 'disabled'}>${escapeHTML(q.resposta || '')}</textarea>`;
-    return `<div class="at-pergunta"><p class="at-pergunta-texto" id="${idq}-t">${escapeHTML(q.texto)}</p>${dica}${corpo}
+    return `<div class="at-pergunta"><p class="at-pergunta-texto" id="${idq}-t">${numero}. ${escapeHTML(q.texto)}</p>${dica}${corpo}${q.base_legal !== undefined ? blocoBaseLegal(q.base_legal) : ''}
         <p class="at-nota" id="rf-st-${escapeHTML(q.id)}" role="status"></p></div>`;
 }
 
@@ -142,7 +151,10 @@ function abaPerguntas(aba, abas, editar) {
     const a = abas.find((x) => x.id === aba);
     if (!a) return window.renderEmptyState({ titulo: 'Não foi possível carregar as perguntas', compacto: true });
     return `<div class="at-aba-corpo"><p class="at-nota">As respostas desta aba não entram na aprovação do RIPD: responder não derruba assinatura nem pedido. Cada resposta é gravada ao sair do campo.</p>
-        ${a.perguntas.map((q) => pergunta(q, editar)).join('')}</div>`;
+        ${a.perguntas.map((q, i) => {
+            const grupo = aba === 'conformidade' ? GRUPOS_CONFORMIDADE.find(([n]) => n === i + 1) : null;
+            return `${grupo ? `<h3 class="at-sub">${grupo[1]}</h3>` : ''}${pergunta(q, editar, i + 1)}`;
+        }).join('')}</div>`;
 }
 
 window.ripdResponder = async function (id, valor) {

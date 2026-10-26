@@ -16,7 +16,7 @@ legado; as capturas têm dado real de cliente e NÃO entram no repositório).
 - **Logs:** linha do tempo de reaberturas.
 
 **O texto exato das perguntas de Conformidade está cortado nas capturas.** Usar as redações acima como ponto de partida, tudo num só
-arquivo de dados (`src/data/ripd-perguntas.ts`) com o comentário `// texto a confirmar com o dono` nas que forem aproximadas. Trocar o
+arquivo de dados (`src/data/ripd-perguntas.ts`) com o comentário `// texto a confirmar com o dono` nas que forem aproximadas (substituído em 27/10 pelos textos reais do legado: ver `2026-10-27-guia-legado-ripd-lia-perguntas.md`). Trocar o
 texto depois é editar esse arquivo.
 
 ## Dado (migration 0083, aditiva)
