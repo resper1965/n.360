@@ -70,12 +70,13 @@ instalar() { # dir nome args-do-npm...
   echo "$atual" > "$marca"
 }
 
-instalar . "Raiz: instalar" ci --no-audit --no-fund
+# --include=dev nas três: com NODE_ENV=production (esta máquina) o npm ci pula as devDependencies e o tsc não acha o vitest.
+instalar . "Raiz: instalar" ci --include=dev --no-audit --no-fund
 passo "Tipos" npx tsc --noEmit
 instalar frontend "Frontend: instalar" ci --include=dev --no-audit --no-fund
 passo "Frontend: build" bash -c "cd frontend && npm run build"
 passo "Frontend: testes" rodar_vitest frontend --maxWorkers=3 --testTimeout=30000 --retry=1
-instalar mcp-server-niso "MCP: instalar" ci --no-audit --no-fund
+instalar mcp-server-niso "MCP: instalar" ci --include=dev --no-audit --no-fund
 passo "MCP: build" bash -c "cd mcp-server-niso && npm run build"
 # Workers fixos (o padrão do vitest é núcleos - 1, e 19 workerd ao mesmo tempo estouram tempo nesta máquina) e 30 s por teste,
 # como o frontend: sob carga, teste de login e de lote passava dos 5 s e a repetição achava o banco da primeira tentativa.
