@@ -165,6 +165,7 @@ describe('Autorização OAuth do agente', () => {
     ['troca de senha', "UPDATE users SET password_hash = 'outra-senha' WHERE id = 'u-pend'"],
     ['conta desativada', "UPDATE users SET ativo = 0 WHERE id = 'u-pend'"],
     ['senha provisória', "UPDATE users SET requires_password_change = 1 WHERE id = 'u-pend'"],
+    ['TOTP ligado', "UPDATE users SET totp_enabled = 1, totp_secret = 'segredo-novo' WHERE id = 'u-pend'"],
   ])('login pendente recusado depois de %s', async (_nome, sql) => {
     await env.DB.batch([
       env.DB.prepare(`DELETE FROM users WHERE id = 'u-pend'`),
