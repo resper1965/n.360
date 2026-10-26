@@ -105,9 +105,17 @@ const doRecomeco = (id, mudar) => { const L = LISTAS.get(id); if (!L) return; mu
 window.listaBuscar = (id, valor) => doRecomeco(id, (L) => { L.busca = valor; });
 window.listaFiltrar = (id, chaveFiltro, valor) => doRecomeco(id, (L) => { L.filtros[chaveFiltro] = valor; });
 window.listaMais = (id) => { const L = LISTAS.get(id); if (!L) return; L.mostrando += L.porPagina; desenharCorpo(L); };
-// Exporta a lista inteira do servidor (uma linha de trilha por exportação), não a filtrada.
+/** Query string `?a=1&b=2` só com os valores preenchidos ('' quando não sobra nenhum). */
+export const consultaDe = (obj) => {
+    const q = new URLSearchParams(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '').map(([k, v]) => [k, String(v).trim()])).toString();
+    return q ? `?${q}` : '';
+};
+
+// Exporta do servidor (uma linha de trilha por exportação). `caminho` fixo = a lista inteira; função = recebe a busca e os filtros
+// escolhidos na tela ({ q, filtros: { chave: valor } }) e devolve o caminho com os parâmetros, para o arquivo sair como a tela mostra.
 window.listaExportar = (id) => {
     const L = LISTAS.get(id);
     if (!L?.cfg.exportar) return;
-    return baixarArquivo(L.cfg.exportar.caminho).catch((e) => showToast(e.message || 'Não foi possível exportar.', 'error'));
+    const c = L.cfg.exportar.caminho;
+    return baixarArquivo(typeof c === 'function' ? c({ q: L.busca || '', filtros: { ...L.filtros } }) : c).catch((e) => showToast(e.message || 'Não foi possível exportar.', 'error'));
 };

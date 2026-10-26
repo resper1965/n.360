@@ -121,6 +121,38 @@ describe('rotas', () => {
     expect((await chamar(consultor, exp('acoes-atividade', P, '?faixa=qualquer'))).status).toBe(400);
   });
 
+  it('ações: o CSV traz Área, Recomendação e Plano e respeita busca, área e situação da tela', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO departamentos (id, project_id, nome) VALUES ('ex-dep', ?, 'Recursos Humanos')`).bind(P),
+      env.DB.prepare(`INSERT INTO tratamento_departamentos (ropa_id, project_id, departamento_id) VALUES ('ex-r2', ?, 'ex-dep')`).bind(P),
+      env.DB.prepare(`UPDATE corrective_actions SET recomendacao = 'Revisar a retenção', action_plan = 'Plano exemplo' WHERE id = 'ex-a3'`),
+    ]);
+    const todas = linhas(await (await chamar(consultor, exp('acoes-atividade'))).text());
+    expect(todas[0].slice(0, 6)).toEqual(['Atividade', 'Área', 'Ação', 'Descrição', 'Recomendação', 'Plano']);
+    const semPrazo = todas.find((l) => l[2] === 'Ação sem prazo')!;
+    expect(semPrazo.slice(1, 6)).toEqual(['Recursos Humanos', 'Ação sem prazo', '', 'Revisar a retenção', 'Plano exemplo']);
+    const porArea = linhas(await (await chamar(consultor, exp('acoes-atividade', P, '?area=Recursos%20Humanos'))).text());
+    expect(porArea.map((l) => l[2])).toEqual(['Ação', 'Ação sem prazo']);
+    const atraso = linhas(await (await chamar(consultor, exp('acoes-atividade', P, '?status=atraso'))).text());
+    expect(atraso.map((l) => l[2])).toEqual(['Ação', 'Ação vencida']);
+    const abertas = linhas(await (await chamar(consultor, exp('acoes-atividade', P, '?status=Open'))).text());
+    expect(abertas.map((l) => l[2])).toEqual(['Ação', 'Ação em 10 dias', 'Ação sem prazo']); // a vencida só cai em "atraso", como na tela
+    const busca = linhas(await (await chamar(consultor, exp('acoes-atividade', P, '?q=FOLHA'))).text());
+    expect(busca.map((l) => l[2])).toEqual(['Ação', 'Ação sem prazo']); // atividade "Folha de pagamento"
+    expect((await chamar(consultor, exp('acoes-atividade', P, '?status=qualquer'))).status).toBe(400);
+  });
+
+  it('riscos: motivo, nível, situação e área da tela filtram o arquivo', async () => {
+    const motivo = linhas(await (await chamar(consultor, exp('riscos-atividade', P, '?motivo=Vazamento'))).text());
+    expect(motivo.map((l) => l[1])).toEqual(['Ameaça', 'Vazamento']);
+    const nivel = linhas(await (await chamar(consultor, exp('riscos-atividade', P, '?nivel=Low'))).text());
+    expect(nivel.map((l) => l[1])).toEqual(['Ameaça', 'Acesso indevido']);
+    expect(linhas(await (await chamar(consultor, exp('riscos-atividade', P, '?status=Closed'))).text())).toHaveLength(1);
+    const area = linhas(await (await chamar(consultor, exp('riscos-atividade', P, '?area=Recursos%20Humanos'))).text());
+    expect(area.map((l) => l[1])).toEqual(['Ameaça', 'Acesso indevido']);
+    expect((await chamar(consultor, exp('riscos-atividade', P, '?nivel=Enorme'))).status).toBe(400);
+  });
+
   it('RIPD e LIA: só os do projeto', async () => {
     const ripd = await (await chamar(consultor, exp('ripd'))).text();
     expect(ripd).toContain('RIPD do cadastro');

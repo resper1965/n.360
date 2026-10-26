@@ -109,6 +109,18 @@ describe('Gestão de GAPs', () => {
         expect(f.mock.calls.map(([u]) => new URL(u, 'http://localhost').pathname)).toContain('/api/v1/projects/p9/export/acoes-atividade');
     });
 
+    it('"Exportar" leva a busca e os filtros da tela como parâmetros', async () => {
+        const f = await abrir(GAPS, { 'GET /api/v1/projects/p9/export/acoes-atividade': 'csv' });
+        el('gp-busca').value = 'Retenção ação';
+        el('gp-busca').dispatchEvent(new Event('input', { bubbles: true }));
+        window.listaFiltrar('gp', 'status', 'atraso');
+        await window.listaExportar('gp');
+        const u = f.mock.calls.map(([x]) => new URL(x, 'http://localhost')).find((x) => x.pathname.endsWith('/export/acoes-atividade'));
+        expect(u.searchParams.get('q')).toBe('Retenção ação');
+        expect(u.searchParams.get('status')).toBe('atraso');
+        expect(u.searchParams.has('area')).toBe(false);
+    });
+
     it('o Gap abre o modal "Controle de GAPs" da atividade, com as abas Gap, Plano de Ação e Anexo', async () => {
         const f = await abrir(GAPS, { 'GET /api/v1/projects/p9/ropa/r1/gaps': DA_ATIVIDADE, 'GET /api/v1/projects/p9/partes': [{ id: 'pa1', tipo: 'pessoa', nome: 'Responsável Exemplo', status: 'ativa' }] });
         const b = linhas()[0].querySelector('[data-action="gpAbrir"]');

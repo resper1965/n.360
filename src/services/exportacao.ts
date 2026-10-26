@@ -2,7 +2,7 @@ import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { cicloEmTexto, etapasDe, type EtapaLida } from './ciclo';
 import { aprovacoesDoProjeto } from './documentos';
 import { situacaoDaAtividade } from './ropa-abas/situacao';
-import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO, type FaixaPrazo } from './riscos-atividade';
+import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO, sqlAreaDaAtividade, type FaixaPrazo } from './riscos-atividade';
 import { hojeEmSaoPaulo } from './hoje';
 
 /**
@@ -36,7 +36,15 @@ export const traduz = (mapa: Record<string, string>, v: unknown) => (v == null |
 export const simNao = (v: unknown) => (v ? 'Sim' : 'Não');
 const ROTULO_FAIXA = Object.fromEntries(FAIXAS_PRAZO.map((f) => [f.id, f.rotulo])) as Record<FaixaPrazo, string>;
 
-export type FiltroExportacao = { probabilidade?: number; impacto?: number; faixa?: FaixaPrazo };
+/**
+ * Filtros das listas, os mesmos da tela: `q` (busca), `area`, `status`, `motivo` e `nivel` (riscos). Em Gaps o `status` aceita `atraso`
+ * (aberto com prazo vencido; nesse caso o gap não cai em "Aberto"), como o filtro da tela.
+ */
+export type FiltroExportacao = { probabilidade?: number; impacto?: number; faixa?: FaixaPrazo; q?: string; area?: string; status?: string; motivo?: string; nivel?: string };
+export const STATUS_DE_GAP = ['Open', 'In Progress', 'Closed', 'atraso'];
+export const STATUS_DE_RISCO = ['Open', 'Mitigated', 'Accepted', 'Closed'];
+export const NIVEIS_DE_RISCO = ['Low', 'Medium', 'High', 'Critical'];
+const semAcento = (t: unknown) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 type Tabela = { cabecalho: string[]; linhas: unknown[][] };
 type Linha = Record<string, unknown>;
 
@@ -74,8 +82,10 @@ async function riscos(db: D1Database, projectId: string, f: FiltroExportacao): P
        JOIN ropa_records rr ON rr.id = r.ropa_id AND rr.project_id = r.project_id
        LEFT JOIN partes pa ON pa.id = r.owner_parte_id AND pa.project_id = r.project_id
       WHERE r.project_id = ?1 AND (?2 IS NULL OR r.probability = ?2) AND (?3 IS NULL OR r.impact = ?3)
-      ORDER BY r.impact * r.probability DESC, rr.processing_purpose, r.created_at LIMIT ?4`,
-    projectId, f.probabilidade ?? null, f.impacto ?? null, TETO_LINHAS + 1);
+        AND (?4 IS NULL OR r.threat = ?4) AND (?5 IS NULL OR r.risk_level = ?5) AND (?6 IS NULL OR COALESCE(r.status, 'Open') = ?6)
+        AND (?7 IS NULL OR instr(', ' || COALESCE(${sqlAreaDaAtividade('r.ropa_id', 'r.project_id')}, '') || ', ', ', ' || ?7 || ', ') > 0)
+      ORDER BY r.impact * r.probability DESC, rr.processing_purpose, r.created_at LIMIT ?8`,
+    projectId, f.probabilidade ?? null, f.impacto ?? null, f.motivo || null, f.nivel || null, f.status || null, f.area || null, TETO_LINHAS + 1);
   return {
     cabecalho: ['Atividade', 'Ameaça', 'Vulnerabilidade', 'Ativo', 'Impacto', 'Probabilidade', 'Nível', 'Estratégia', 'Plano de tratamento',
       'Impacto residual', 'Probabilidade residual', 'Nível residual', 'Prazo', 'Responsável', 'Situação', 'Criado em'],
@@ -91,12 +101,21 @@ async function acoes(db: D1Database, projectId: string, f: FiltroExportacao): Pr
   const dia = hoje();
   const aberta = (s: unknown) => (s || 'Open') !== 'Closed';
   // ponytail: a faixa é conta em JS sobre as ações do projeto (poucas centenas); filtrar em SQL exigiria repetir as datas da faixa.
-  const regs = (await acoesDasAtividades(db, projectId, { soAbertas: !!f.faixa, limite: f.faixa ? 100_000 : TETO_LINHAS + 1 }))
-    .filter((a) => !f.faixa || faixaDePrazo(a.due_date, dia) === f.faixa);
+  const filtrando = !!(f.faixa || f.q || f.area || f.status);
+  const q = semAcento(f.q).trim();
+  const todasAcoes = await acoesDasAtividades(db, projectId, { soAbertas: !!f.faixa, limite: filtrando ? 100_000 : TETO_LINHAS + 1 });
+  // Os mesmos critérios da lista de Gaps: busca em gap, atividade, área e responsável; área entre as da atividade; "atraso" = aberto vencido.
+  const regs = todasAcoes.filter((a) => {
+    const atrasado = aberta(a.status) && faixaDePrazo(a.due_date, dia) === 'vencidas';
+    return (!f.faixa || faixaDePrazo(a.due_date, dia) === f.faixa)
+      && (!q || semAcento([a.description || a.title, a.atividade, a.area, a.responsavel].join(' ')).includes(q))
+      && (!f.area || String(a.area ?? '').split(', ').includes(f.area))
+      && (!f.status || (atrasado ? 'atraso' : a.status || 'Open') === f.status);
+  });
   return {
-    cabecalho: ['Atividade', 'Ação', 'Descrição', 'Prazo', 'Faixa de prazo', 'Responsável', 'Risco ligado', 'Situação', 'Criada em', 'Concluída em'],
+    cabecalho: ['Atividade', 'Área', 'Ação', 'Descrição', 'Recomendação', 'Plano', 'Prazo', 'Faixa de prazo', 'Responsável', 'Risco ligado', 'Situação', 'Criada em', 'Concluída em'],
     linhas: regs.map((a) => [
-      a.atividade, a.title, a.description, a.due_date, aberta(a.status) ? ROTULO_FAIXA[faixaDePrazo(a.due_date, dia)] : '', a.responsavel, a.risco,
+      a.atividade, a.area, a.title, a.description, a.recomendacao, a.action_plan, a.due_date, aberta(a.status) ? ROTULO_FAIXA[faixaDePrazo(a.due_date, dia)] : '', a.responsavel, a.risco,
       traduz(STATUS, a.status || 'Open'), a.created_at, a.completed_at,
     ]),
   };

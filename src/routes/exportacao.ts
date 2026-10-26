@@ -1,9 +1,9 @@
 import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500, logAudit } from '../helpers';
-import { EXPORTACOES, exportarCsv, type FiltroExportacao, type TipoExportacao } from '../services/exportacao';
+import { EXPORTACOES, NIVEIS_DE_RISCO, STATUS_DE_GAP, STATUS_DE_RISCO, exportarCsv, type FiltroExportacao, type TipoExportacao } from '../services/exportacao';
 import { ehFaixaPrazo } from '../services/riscos-atividade';
-import { ripdEmWord, liaEmWord, TIPO_DOCX } from '../services/documento-word';
+import { ripdEmWord, liaEmWord, documentoEmWord, TIPO_DOCX } from '../services/documento-word';
 
 /**
  * Exportação (F4): CSV das listas do n.privacy e RIPD/LIA em Word. Montado em `/api/v1/projects/:projectId`, depois do
@@ -19,6 +19,21 @@ for (const tipo of Object.keys(EXPORTACOES) as TipoExportacao[]) {
     try {
       const projectId = c.req.param('projectId')!;
       const filtro: FiltroExportacao = {};
+      // Busca e filtros da tela (texto curto; só comparados, nunca interpolados).
+      const texto = (k: string) => { const v = c.req.query(k)?.trim(); return v ? v.slice(0, 200) : undefined; };
+      if (tipo === 'riscos-atividade' || tipo === 'acoes-atividade') {
+        filtro.area = texto('area');
+        filtro.status = texto('status');
+        if (tipo === 'riscos-atividade') {
+          filtro.motivo = texto('motivo');
+          filtro.nivel = texto('nivel');
+          if (filtro.nivel && !NIVEIS_DE_RISCO.includes(filtro.nivel)) return c.json({ error: 'Nível de risco desconhecido' }, 400);
+          if (filtro.status && !STATUS_DE_RISCO.includes(filtro.status)) return c.json({ error: 'Situação de risco desconhecida' }, 400);
+        } else {
+          filtro.q = texto('q');
+          if (filtro.status && !STATUS_DE_GAP.includes(filtro.status)) return c.json({ error: 'Situação de gap desconhecida' }, 400);
+        }
+      }
       if (tipo === 'riscos-atividade') {
         filtro.probabilidade = nota(c.req.query('probabilidade'));
         filtro.impacto = nota(c.req.query('impacto'));
@@ -60,6 +75,9 @@ async function responderWord(c: Ctx, gerar: () => Promise<{ bytes: Uint8Array; n
 
 exportacaoApp.get('/dpia/:dpiaId/docx', (c) =>
   responderWord(c, () => ripdEmWord(c.env.DB, c.req.param('projectId')!, c.req.param('dpiaId'), c.env.STORAGE), 'RIPD', c.req.param('dpiaId')));
+
+exportacaoApp.get('/documentos/:docId/docx', (c) =>
+  responderWord(c, () => documentoEmWord(c.env.DB, c.req.param('projectId')!, c.req.param('docId'), c.env.STORAGE), 'Documento', c.req.param('docId')));
 
 exportacaoApp.get('/ropa/:recordId/lia/docx', (c) =>
   responderWord(c, () => liaEmWord(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'), c.env.STORAGE), 'LIA', c.req.param('recordId')));

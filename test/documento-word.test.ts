@@ -55,6 +55,12 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO lia_assessments (id, project_id, ropa_id, finalidade_legitima, necessidade, balanceamento, conclusao, status, concluida_em, concluida_por) VALUES
       ('dw-l1', ?1, 'dw-r1', 'Proteger clientes', 'Sem alternativa menos invasiva', 'Expectativa razoável', 'prevalece', 'concluida', '2026-10-02T12:00:00Z', 'cons@exemplo.invalid'),
       ('dw-lx', ?2, 'dw-alheio', 'LIA alheia', NULL, NULL, NULL, 'rascunho', NULL, NULL)`).bind(P, OUTRO),
+    env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status) VALUES ('dw-doc1', ?1, 'politica', 'Política de Acesso Exemplo', 'vigente'), ('dw-doc2', ?1, 'norma', 'Norma em Rascunho', 'rascunho'), ('dw-docx', ?2, 'politica', 'Política alheia', 'vigente')`).bind(P, OUTRO),
+    env.DB.prepare(`INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por) VALUES
+      ('dw-dv1', ?1, 'dw-doc1', 1, '# Objetivo' || char(10) || 'Texto <b>com marca</b> & **negrito**.' || char(10) || char(10) || '- primeiro item' || char(10) || '- segundo item', 'abcdef1234567890', 'vigente', 'humano', 'autor@exemplo.invalid'),
+      ('dw-dv2', ?1, 'dw-doc1', 2, 'Texto do rascunho que não deve sair', 'ffff', 'rascunho', 'humano', 'autor@exemplo.invalid'),
+      ('dw-dv3', ?1, 'dw-doc2', 1, 'Só rascunho.', 'eeee', 'rascunho', 'humano', 'autor@exemplo.invalid'),
+      ('dw-dv4', ?2, 'dw-docx', 1, 'Texto alheio', 'dddd', 'vigente', 'humano', 'x')`).bind(P, OUTRO),
   ]);
   await habilitarPrivacy(P, OUTRO);
   consultor = await sessionFor({ id: 'u-dw', email: 'dw@ness.lat', role: 'consultor' });
@@ -113,6 +119,27 @@ describe('LIA em Word', () => {
     expect((await chamar(consultor, `/api/v1/projects/${P}/ropa/dw-alheio/lia/docx`)).status).toBe(404);
     await env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('dw-r2', ?, 'Sem LIA')`).bind(P).run();
     expect((await chamar(consultor, `/api/v1/projects/${P}/ropa/dw-r2/lia/docx`)).status).toBe(404);
+  });
+});
+
+describe('documento versionado em Word', () => {
+  it('a versão vigente (não o rascunho), com títulos, lista e texto escapado; sem RASCUNHO', async () => {
+    const r = await chamar(consultor, `/api/v1/projects/${P}/documentos/dw-doc1/docx`);
+    expect(r.headers.get('Content-Disposition')).toBe('attachment; filename="Documento-Politica-de-Acesso-Exemplo.docx"');
+    const { doc, cab, tudo } = await abrir(r);
+    for (const t of ['Política de Acesso Exemplo', 'Objetivo', 'Texto &lt;b&gt;com marca&lt;/b&gt; &amp; negrito.', 'primeiro item', 'segundo item', 'Empresa Exemplo Ltda.', 'Versão', 'autor@exemplo.invalid']) expect(tudo, t).toContain(t);
+    expect(doc).not.toContain('que não deve sair');
+    expect(cab).not.toContain('RASCUNHO');
+    expect(tudo).not.toContain('Texto alheio');
+  });
+
+  it('sem versão vigente sai o rascunho, marcado; documento de outro projeto é 404; trilha sem conteúdo', async () => {
+    const { cab, doc } = await abrir(await chamar(consultor, `/api/v1/projects/${P}/documentos/dw-doc2/docx`));
+    expect(cab).toContain('RASCUNHO');
+    expect(doc).toContain('Só rascunho.');
+    expect((await chamar(consultor, `/api/v1/projects/${P}/documentos/dw-docx/docx`)).status).toBe(404);
+    const t = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'exportacao.docx' AND project_id = ? ORDER BY rowid DESC LIMIT 1`).bind(P).first<{ details: string }>();
+    expect(t!.details).toMatch(/^Documento dw-doc\d baixado em Word$/);
   });
 });
 
