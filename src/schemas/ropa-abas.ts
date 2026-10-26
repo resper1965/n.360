@@ -124,6 +124,12 @@ export const etapaRascunhoSchema = z.strictObject({ nota: z.string().trim().max(
 export type CorpoRascunhoEtapa = z.infer<typeof etapaRascunhoSchema>;
 
 /** Respostas do questionário do RIPD (migration 0083): pergunta → texto ou escolha, `null` apaga. A pergunta e a escolha são conferidas pelo serviço. */
+/** Respostas do questionário da LIA (migration 0084): mesmo formato do RIPD. A pergunta e a escolha são conferidas pelo serviço. */
+export const liaQuestionarioSchema = z.strictObject({
+  respostas: z.record(z.string().min(1).max(60), z.string().max(2000).nullable())
+    .refine((r) => Object.keys(r).length >= 1 && Object.keys(r).length <= 40, 'Mande de 1 a 40 respostas'),
+});
+
 export const ripdQuestionarioSchema = z.strictObject({
   respostas: z.record(z.string().min(1).max(60), z.string().max(2000).nullable())
     .refine((r) => Object.keys(r).length >= 1 && Object.keys(r).length <= 40, 'Mande de 1 a 40 respostas'),

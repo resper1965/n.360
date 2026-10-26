@@ -203,6 +203,7 @@ export const ROTAS = {
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/impacto': { obrigatorios: ['respostas'] },
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/itens': { obrigatorios: ['itens'] },
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/lia': { obrigatorios: [] },
+  'PUT /api/v1/projects/{projectId}/ropa/{recordId}/lia/questionario': { obrigatorios: ['respostas'] },
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/medidas/{id}': { obrigatorios: [] },
   'PUT /api/v1/projects/{projectId}/ropa/{recordId}/riscos/{riscoId}': { obrigatorios: [] },
   'PUT /api/v1/projects/{projectId}/security-policy': { obrigatorios: [] },

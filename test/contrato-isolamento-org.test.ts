@@ -92,6 +92,8 @@ const CORPOS: Record<string, (alvo: Org) => unknown> = {
   'POST /api/v1/platform/projects/:id/transferir': (alvo) => ({ orgDestinoId: alvo === B ? NESS.org : B.org, motivo: 'varredura de isolamento' }),
   // Questionário do RIPD (migration 0083): a guarda é o projeto da URL e o RIPD dele (404), antes de gravar.
   'PUT /api/v1/projects/:projectId/dpia/:dpiaId/questionario': () => ({ respostas: { o_que_muda: 'Varredura' } }),
+  // Questionário da LIA (migration 0084): a guarda é o projeto da URL e a atividade dele (404), antes de gravar.
+  'PUT /api/v1/projects/:projectId/ropa/:recordId/lia/questionario': () => ({ respostas: { finalidades: 'Varredura' } }),
   // Ficha em abas (spec 2026-10-16): cada pacote registra os seus em test/helpers/isolamento-ropa-abas-*.ts.
   ...CORPOS_A, ...CORPOS_S, ...CORPOS_A2,
 };
