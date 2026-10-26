@@ -73,7 +73,7 @@ A lista da LIA tem busca por texto e filtro por Área, e colunas Atividade e Ár
 2. O tratamento dos dados pessoais será realizado de forma proporcional à finalidade? Por exemplo, tudo o que se pretende fazer com os dados nesta atividade de tratamento está relacionado com a finalidade desejada?
 3. A finalidade poderia ser alcançada sem o tratamento dos dados pessoais?
 4. A finalidade poderia ser alcançada com o tratamento de quantidade menor de dados pessoais? Em caso positivo, favor informar quais são os dados estritamente necessários para alcançar a finalidade.
-5. A finalidade poderia ser alcançada com o tratamento dos dados pessoais de forma menos danosa para o titular do que a que se propõe? Por exemplo, o tratamento poderia ser realizado com menos riscos para o titular? **[final cortado e lido com dificuldade: confirmar]**
+5. A finalidade poderia ser alcançada com o tratamento dos dados pessoais de forma menos danosa do que a que se propõe? Por exemplo, o tratamento poderia ser realizado com menos riscos para o titular?
 
 ### Proporcionalidade (11 perguntas)
 1. Os dados pessoais a serem tratados são considerados dados sensíveis (dado pessoal sobre origem racial ou étnica, convicção religiosa, opinião política, filiação a sindicato ou a organização de caráter religioso, filosófico ou político, dado referente à saúde ou à vida sexual, dado genético ou biométrico, quando vinculado a uma pessoa natural)?
