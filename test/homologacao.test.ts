@@ -4,7 +4,7 @@ import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
 import { sha256Hex } from '../src/helpers';
-import { PERGUNTAS_PADRAO, percentual } from '../src/services/homologacao';
+import { PERGUNTAS_PADRAO, percentual, lerCongelado } from '../src/services/homologacao';
 import { itensDoDia, hojeEmSaoPaulo, somarDias } from '../src/services/avisos-prazo';
 
 /** F5: homologação de fornecedor por questionário. Dados fictícios. */
@@ -258,5 +258,14 @@ describe('rotas públicas', () => {
   it('token ausente ou grande demais é 400', async () => {
     expect((await publico('ver', {}, '198.51.100.10')).status).toBe(400);
     expect((await publico('ver', { token: 'a'.repeat(201) }, '198.51.100.10')).status).toBe(400);
+  });
+});
+
+describe('lerCongelado', () => {
+  it('JSON que não é objeto nem array vira perguntas vazias, sem lançar', () => {
+    for (const j of ['null', '5', '"texto"', 'true', '{"perguntas":"x"}', 'não é json']) {
+      expect(lerCongelado(j)).toEqual({ perguntas: [], fornecedor: null, cliente: null });
+    }
+    expect(lerCongelado('[{"id":"a"}]').perguntas).toHaveLength(1);
   });
 });
