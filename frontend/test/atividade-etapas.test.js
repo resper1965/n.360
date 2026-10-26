@@ -90,7 +90,7 @@ describe('acordeão das seis etapas', () => {
     expect(document.querySelectorAll('#at-corpo .btn-primary')).toHaveLength(0);
   });
 
-  it('a situação de cada etapa aparece no resumo em duas colunas: Concluído e Não Aplicável', async () => {
+  it('a situação de cada etapa aparece no resumo em duas colunas: Registrado e Não Aplicável', async () => {
     const e = ETAPAS((x) => {
       porEtapa(x, 'coleta').situacao = 'concluida'; porEtapa(x, 'coleta').faltas = [];
       porEtapa(x, 'armazenamento').nao_aplicavel = true; porEtapa(x, 'armazenamento').situacao = 'nao_aplicavel'; porEtapa(x, 'armazenamento').bloqueada = false;
@@ -100,7 +100,7 @@ describe('acordeão das seis etapas', () => {
     const linhas = [...document.querySelectorAll('.et-resumo tbody tr')];
     expect(linhas[0].children[1].textContent).toBe('Sim');
     expect(linhas[4].children[2].textContent).toBe('Sim');
-    expect(document.querySelector('.et-resumo thead').textContent).toContain('Concluído');
+    expect(document.querySelector('.et-resumo thead').textContent).toContain('Registrado');
     expect(document.querySelector('.et-resumo thead').textContent).toContain('Não Aplicável');
   });
 });
@@ -157,21 +157,24 @@ describe('demais etapas', () => {
     expect(travada.textContent).toContain('já é a área da atividade');
   });
 
-  it('Compartilhamento Externo: painel Parceiros', async () => {
+  it('Compartilhamento Externo: painel Organização/Instituição', async () => {
     await abrirTab(ETAPAS((x) => { x.etapas.forEach((e) => { e.bloqueada = false; }); return x; }));
     botao('compartilhamento_externo').click();
-    expect(bloco('compartilhamento_externo').textContent).toContain('Parceiros');
+    expect(bloco('compartilhamento_externo').textContent).toContain('Organização/Instituição');
+    expect(bloco('compartilhamento_externo').textContent).not.toContain('Parceiros');
   });
 
-  it('Armazenamento: tabela Ativos | Armazenamento com local editável, gravado sozinho em 800 ms', async () => {
+  it('Armazenamento: tabela Ativos | Armazenamento; Editar abre o diálogo e grava o local', async () => {
     const f = await abrirTab(ETAPAS((x) => { x.etapas.forEach((e) => { e.bloqueada = false; }); porEtapa(x, 'armazenamento').ativos = [{ item_id: 'i1', nome: 'Sistema exemplo', local_armazenamento: null, travado: false }]; return x; }));
     botao('armazenamento').click();
     const cabecalhos = [...bloco('armazenamento').querySelectorAll('table th')].map((t) => t.textContent);
     expect(cabecalhos.slice(0, 2)).toEqual(['Ativos', 'Armazenamento']);
-    const local = bloco('armazenamento').querySelector('input[data-item="i1"]');
-    local.value = 'Servidor exemplo';
-    local.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(bloco('armazenamento').querySelector('input[data-item]')).toBeNull();
+    bloco('armazenamento').querySelector('[data-acao="editar-local"]').click();
+    await esperar(() => expect(document.querySelector('.confirmar input')).not.toBeNull());
     expect(chamadas(f)).not.toContain(`PUT ${B}/etapas/armazenamento/ativos`);
+    document.querySelector('.confirmar input').value = 'Servidor exemplo';
+    document.querySelector('[data-confirmar="sim"]').click();
     await esperar(() => expect(corpoDe(f, `PUT ${B}/etapas/armazenamento/ativos`)).toBeDefined());
     expect(corpoDe(f, `PUT ${B}/etapas/armazenamento/ativos`)).toEqual({ ativos: [{ item_id: 'i1', local_armazenamento: 'Servidor exemplo' }] });
   });

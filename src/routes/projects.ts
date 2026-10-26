@@ -1241,7 +1241,7 @@ projectsApp.post('/:id/dpia', async (c) => {
     ).bind(id, projectId, body.ropa_id || null, body.processing_name ?? null, body.data_category_risk ?? null, body.necessity_proportionality ?? null, body.technical_measures ?? null, body.residual_risk_level || 'Medium', body.dpo_recommendations || null,
       body.system_name || null, body.data_flow_description || null, body.data_subjects_types || null, body.personal_data_categories || null, body.risks_identified || null, body.mitigation_measures || null, body.dpo_opinion || null, now).run();
     const user = c.get('user');
-    await logAudit(c.env.DB, 'dpia_created', user?.email || 'system', `DPIA ${id} created`, '', '', projectId);
+    await logAudit(c.env.DB, 'dpia_created', user?.email || 'system', `DPIA ${id} created`, '', '', projectId, { tipo: 'dpia', id });
     return c.json({ ok: true, id }, 201);
   } catch (e: any) {
     return erro500(c, 'Falha ao criar DPIA', e);
@@ -1281,10 +1281,13 @@ projectsApp.get('/:id/audit-pack', async (c) => {
 projectsApp.get('/:id/audit-trail', async (c) => {
   const projectId = c.req.param('id');
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM audit_logs WHERE project_id = ? OR (project_id IS NULL AND details LIKE ?) ORDER BY created_at DESC LIMIT 500`
-  ).bind(projectId, `%${projectId}%`).all();
-  // IP de quem agiu é dado pessoal da equipe e de outras pessoas: só a consultoria o vê.
-  return c.json(semIpENavegador(c.get('user'), results as Record<string, unknown>[]));
+    `SELECT * FROM audit_logs WHERE project_id = ? ORDER BY created_at DESC LIMIT 500`
+  ).bind(projectId).all();
+  // IP, navegador, detalhes, justificativa e valores antes/depois (texto livre, às vezes de outras pessoas)
+  // só a consultoria vê. Quem não é da equipe recebe quem, o quê e quando.
+  const linhas = semIpENavegador(c.get('user'), results as Record<string, unknown>[]);
+  if (ehEquipeNess(c.get('user'))) return c.json(linhas);
+  return c.json(linhas.map(({ details: _d, justification: _j, old_value: _o, new_value: _n, ...r }) => r));
 });
 
 // Acesso do auditor externo. O token sai UMA vez, dentro da URL (fragmento, que o navegador não

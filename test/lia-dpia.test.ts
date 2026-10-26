@@ -171,6 +171,12 @@ describe('DPIA a partir do tratamento', () => {
     expect((await env.DB.prepare('SELECT necessity_proportionality AS n, risks_identified AS r FROM dpia_assessments WHERE ropa_id = ?').bind(cat).first())).toEqual({ n: 'Base legal: art. 7, IX - Legítimo interesse.', r: null });
   });
 
+  it('sem ativo ligado, o título do RIPD é a finalidade da atividade (system_name nunca fica vazio)', async () => {
+    const rid = await novo('Atividade sem sistemas');
+    const id = (await json<{ id: string }>(await chamar(consultor, 'POST', `${base(rid)}/dpia`))).id;
+    expect(await env.DB.prepare('SELECT processing_name, system_name FROM dpia_assessments WHERE id = ?').bind(id).first()).toEqual({ processing_name: 'Atividade sem sistemas', system_name: 'Atividade sem sistemas' });
+  });
+
   it('a LIA nasce com o hash do tratamento', async () => {
     const rid = await novo('LIA com origem', { legal_basis: 'legítimo interesse' });
     const hash = await hashConteudo((await documentoAtual(env.DB, 'tratamento', rid, P))!.conteudo);

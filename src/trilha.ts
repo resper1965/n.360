@@ -1,5 +1,6 @@
 import { log } from './observability';
 import type { Bindings } from './index';
+import { diaMaisSP } from './services/hoje';
 
 /**
  * Arquivamento da trilha de auditoria FORA do D1 (item 4.4 do
@@ -70,10 +71,9 @@ export function chaveDoDia(dia: string): string {
   return `${PREFIXO}/${ano}/${mes}/${dia}.jsonl`;
 }
 
-/** Data (UTC) de N dias atrás, em `YYYY-MM-DD`. */
+/** Dia de São Paulo de N dias atrás, em `YYYY-MM-DD` (o mesmo dia de `hoje.ts`). */
 export function diaAtras(n: number, agora = new Date()): string {
-  const d = new Date(agora.getTime() - n * 24 * 60 * 60 * 1000);
-  return d.toISOString().slice(0, 10);
+  return diaMaisSP(-n, agora);
 }
 
 /**

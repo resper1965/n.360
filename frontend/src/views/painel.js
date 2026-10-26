@@ -201,9 +201,9 @@ function telaDoModulo(d, m, proj) {
     const direita = [quadro('pn-cob', 'Cobertura do programa', graficoCobertura(b.cobertura), '<span class="pn-meta">mesma escala em todos os temas</span>'),
         quadro('pn-mapa-t', 'Mapa de risco', totalRiscos ? graficoMapa(riscos) : `<p class="pn-vazio-tx">Nenhum risco registrado${m === 'privacy' ? ' nas atividades de tratamento' : ''}. Os riscos aparecem aqui por probabilidade e impacto.</p>`,
             totalRiscos ? `<span class="pn-meta">${totalRiscos} ${totalRiscos === 1 ? 'risco' : 'riscos'}${m === 'privacy' ? ' das atividades' : ''}</span>` : '')];
-    if (m === 'privacy' && Array.isArray(b.pedidos_semana)) {
-        const total = b.pedidos_semana.reduce((t, n) => t + (Number(n) || 0), 0);
-        direita.push(quadro('pn-ped', 'Pedidos do titular recebidos', total ? graficoPedidos(b.pedidos_semana) : '<p class="pn-vazio-tx">Nenhum pedido recebido nas últimas 12 semanas.</p>'));
+    if (m === 'privacy' && Array.isArray(b.pedidos_mes)) {
+        const total = b.pedidos_mes.reduce((t, n) => t + (Number(n) || 0), 0);
+        direita.push(quadro('pn-ped', 'Pedidos do titular recebidos', total ? graficoPedidos(b.pedidos_mes, b.meses_pedidos) : '<p class="pn-vazio-tx">Nenhum pedido recebido nos últimos 12 meses.</p>'));
     }
     return `${topo}${colunas(esquerda, direita)}`;
 }

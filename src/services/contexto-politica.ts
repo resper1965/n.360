@@ -1,3 +1,4 @@
+import { escopoRopa } from './escopo-itens';
 /**
  * Contexto do cliente para a IA redigir uma seção de política temática (spec 2026-10-23). Só cadastro da organização:
  * nunca e-mail, nem dado de titular. Tudo filtrado por project_id.
@@ -16,7 +17,7 @@ export async function contextoDaPolitica(db: D1Database, projectId: string, requ
     db.prepare(`SELECT i.nome, s.classificacao FROM itens i LEFT JOIN item_seguranca s ON s.item_id = i.id AND s.project_id = i.project_id
         WHERE i.project_id = ? AND i.status = 'ativo' ORDER BY i.nome LIMIT 50`)
       .bind(projectId).all<{ nome: string; classificacao: string | null }>(),
-    db.prepare(`SELECT threat, risk_level FROM risks WHERE project_id = ? AND ropa_id IS NULL
+    db.prepare(`SELECT threat, risk_level FROM risks WHERE project_id = ?${escopoRopa('programa')}
         AND control_id IN (SELECT id FROM compliance_controls WHERE project_id = ? AND requisito_id IN (SELECT value FROM json_each(?))) LIMIT 30`)
       .bind(projectId, projectId, reqs).all<{ threat: string; risk_level: string | null }>(),
     db.prepare(`SELECT titulo FROM documentos WHERE project_id = ? AND tipo = 'politica' ORDER BY titulo LIMIT 30`)

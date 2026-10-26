@@ -43,7 +43,7 @@ describe('Frente 1: defeitos P0', () => {
     const r = await chamar(consultor, 'POST', `/api/v1/projects/${P}/risks`, { asset: 'ERP', threat: 'Acesso indevido', impact: 3, probability: 3 });
     expect(r.status, await r.clone().text()).toBe(201);
     const riskId = (await r.json<{ id: string }>()).id;
-    const a = await chamar(consultor, 'POST', `/api/v1/projects/${P}/capa`, { title: 'Trocar senhas', risk_id: riskId });
+    const a = await chamar(consultor, 'POST', `/api/v1/projects/${P}/capa`, { title: 'Trocar senhas', assigned_to: 'Fulano', risk_id: riskId });
     const acao = (await a.json<{ id: string }>()).id;
     expect((await chamar(consultor, 'DELETE', `/api/v1/risks/${riskId}`)).status).toBe(200);
     expect(await env.DB.prepare('SELECT count(*) AS n FROM risks WHERE id = ?').bind(riskId).first()).toEqual({ n: 0 });
@@ -51,7 +51,7 @@ describe('Frente 1: defeitos P0', () => {
   });
 
   it('CAPA grava causa raiz e plano de ação na criação e na edição', async () => {
-    const a = await chamar(consultor, 'POST', `/api/v1/projects/${P}/capa`, { title: 'Ação', root_cause: 'Causa', action_plan: 'Plano' });
+    const a = await chamar(consultor, 'POST', `/api/v1/projects/${P}/capa`, { title: 'Ação', assigned_to: 'Fulano', root_cause: 'Causa', action_plan: 'Plano' });
     const id = (await a.json<{ id: string }>()).id;
     expect(await env.DB.prepare('SELECT root_cause, action_plan FROM corrective_actions WHERE id = ?').bind(id).first()).toEqual({ root_cause: 'Causa', action_plan: 'Plano' });
     expect((await chamar(consultor, 'PUT', `/api/v1/capa/${id}`, { title: 'Ação', status: 'Open', root_cause: 'Causa 2' })).status).toBe(200);
@@ -59,7 +59,7 @@ describe('Frente 1: defeitos P0', () => {
   });
 
   it('o agente não conclui CAPA nem gap; edita sem concluir', async () => {
-    const id = (await (await chamar(consultor, 'POST', `/api/v1/projects/${P}/capa`, { title: 'Ação do agente' })).json<{ id: string }>()).id;
+    const id = (await (await chamar(consultor, 'POST', `/api/v1/projects/${P}/capa`, { title: 'Ação do agente', assigned_to: 'Fulano' })).json<{ id: string }>()).id;
     expect((await ag('PUT', `/api/v1/capa/${id}`, { title: 'Ação do agente', status: 'Closed' })).status).toBe(403);
     expect((await ag('PUT', `/api/v1/capa/${id}`, { title: 'Ação do agente', status: 'In Progress' })).status).toBe(200);
 
@@ -86,7 +86,8 @@ describe('Frente 1: defeitos P0', () => {
     const r = await chamar(cliente, 'GET', `/api/v1/projects/${P}/audit-trail`);
     expect(r.status).toBe(200);
     const doCliente = (await r.json<any[]>()).find((l) => l.id === 'f1-log');
-    expect(doCliente).toMatchObject({ action: 'teste.f1', details: 'detalhe' });
+    expect(doCliente).toMatchObject({ action: 'teste.f1' });
     expect(doCliente).not.toHaveProperty('ip_address');
+    expect(doCliente).not.toHaveProperty('details'); // texto livre só para a consultoria (P0-8)
   });
 });

@@ -4,7 +4,7 @@ import { ETAPAS } from './contrato.js';
 import { url, esvaziarTudo } from './estado.js';
 import { corpoDaEtapa, ligarEtapa, situacaoDaEtapa } from './etapas.js';
 
-// Aba Tratamento de Dados (spec 2026-10-16, seção 5): resumo das seis etapas em duas colunas (Concluído e Não Aplicável), um
+// Aba Tratamento de Dados (spec 2026-10-16, seção 5): resumo das seis etapas em duas colunas (Registrado e Não Aplicável), um
 // acordeão por etapa e "Ver o fluxo" (o diagrama Mermaid que o servidor deriva). Contrato de aba da casca: `montar(painel, ctx)`,
 // devolve `{ esvaziar }` para a casca gravar o que estiver pendente antes de trocar de aba. Não há botão "Salvar" nesta aba.
 
@@ -62,7 +62,7 @@ export async function montar(painel, ctx) {
         painel.innerHTML = `<div class="at-aba-corpo et">
             <div class="et-topo"><button type="button" class="btn btn-sm" data-acao="ver-fluxo">Ver o fluxo</button></div>
             <table class="et-resumo"><caption class="sr-only">Situação das seis etapas</caption>
-                <thead><tr><th scope="col">Etapa</th><th scope="col">Concluído</th><th scope="col">Não Aplicável</th></tr></thead>
+                <thead><tr><th scope="col">Etapa</th><th scope="col">Registrado</th><th scope="col">Não Aplicável</th></tr></thead>
                 <tbody>${linhas.join('')}</tbody></table>
             <div class="et-etapas" id="at-etapas">${secoes.join('')}</div>
         </div>`;

@@ -17,7 +17,7 @@ type Visao = {
   tratamentos: { total: number; sem_base_legal: number; dpia_pendente: number; lia_pendente: number; sem_responsavel: number; com_terceiro_vencido: number };
   terceiros: { total: number; sem_tipo: number; pendentes: number; vencidos: number; reprovados: number; com_pendencia: number };
   documentos: { revisao_vencida: number };
-  evidencias: { vencidas: number; vencem_em_7_dias: number };
+  evidencias: { a_corrigir: number; vencem_em_7_dias: number };
   lgpd: { carregada: boolean; total?: number; cobertos?: number; parciais?: number; lacunas?: number };
   prazos_legais: { nao_definidos: string[] };
 };
@@ -46,7 +46,7 @@ describe('projeto vazio', () => {
     expect(v.incidentes).toMatchObject({ abertos: 0, comunicacoes_atrasadas: 0, comunicacoes_pendentes: 0 });
     expect(v.tratamentos).toEqual({ total: 0, sem_base_legal: 0, dpia_pendente: 0, lia_pendente: 0, sem_responsavel: 0, com_terceiro_vencido: 0 });
     expect(v.terceiros).toMatchObject({ total: 0, vencidos: 0, com_pendencia: 0 });
-    expect(v.evidencias).toEqual({ vencidas: 0, vencem_em_7_dias: 0 });
+    expect(v.evidencias).toEqual({ a_corrigir: 0, vencem_em_7_dias: 0 });
     expect(v.lgpd).toEqual({ carregada: false });
     expect(v.prazos_legais.nao_definidos).toEqual(['titular.resposta', 'incidente.comunicacao_anpd', 'incidente.comunicacao_titular']);
     // projeto vazio NÃO é projeto em dia: RoPA vazio e catálogo ausente viram prioridade, com a tela de destino
@@ -97,7 +97,7 @@ describe('projeto com pendências', () => {
     expect(v.incidentes).toMatchObject({ abertos: 2, comunicacoes_atrasadas: 2, sem_avaliacao_de_risco: 1 });
     expect(v.tratamentos).toEqual({ total: 3, sem_base_legal: 1, dpia_pendente: 1, lia_pendente: 1, sem_responsavel: 0, com_terceiro_vencido: 1 });
     expect(v.terceiros).toEqual({ total: 3, sem_tipo: 1, pendentes: 1, vencidos: 1, reprovados: 0, com_pendencia: 3 });
-    expect(v.evidencias).toEqual({ vencidas: 1, vencem_em_7_dias: 1 });
+    expect(v.evidencias).toEqual({ a_corrigir: 1, vencem_em_7_dias: 1 });
     expect(v.documentos.revisao_vencida).toBe(1);
     expect(v.prazos_legais.nao_definidos).toEqual([]);
     const textos = v.prioridades.map((p) => `${p.nivel}: ${p.texto}`);
@@ -108,7 +108,7 @@ describe('projeto com pendências', () => {
     expect(textos).toContain('alta: 1 tratamento exige DPIA e não tem');
     expect(textos).toContain('alta: 1 tratamento por legítimo interesse sem LIA');
     expect(textos).toContain('media: 1 pedido do titular vence em até 7 dias');
-    expect(textos).toContain('media: 1 evidência vencida');
+    expect(textos).toContain('media: 1 evidência vencida ou não conforme');
     expect(textos).toContain('media: 1 documento com revisão vencida');
     expect(textos).toContain('media: 1 terceiro nunca avaliado');
     expect(textos).toContain('media: 1 tratamento sem base legal');
@@ -174,7 +174,7 @@ describe('projeto com pendências', () => {
     ]);
     const v = await ver();
     expect(v.pedidos_titular.abertos).toBe(0);
-    expect(v.evidencias.vencidas).toBe(0);
+    expect(v.evidencias.a_corrigir).toBe(0);
     expect(v.tratamentos.total).toBe(0);
   });
 });

@@ -190,12 +190,12 @@ describe('aba Teste de Impacto', () => {
         expect([...painel.querySelectorAll('button')].some((b) => b.textContent === 'Criar o RIPD a partir da atividade')).toBe(false);
     });
 
-    it('RIPD já existente: só "Abrir o RIPD", que abre o detalhe com a lista carregada', async () => {
+    it('RIPD já existente: só "Abrir o RIPD", que abre a página do RIPD', async () => {
         const { painel } = await abrir(IMPACTO(), { dpias: [{ id: 'dp1', nome: 'RIPD exemplo', status: 'Draft' }] });
-        window.openDPIADetailsModal = vi.fn();
+        window.abrirRipd = vi.fn();
         [...painel.querySelectorAll('button')].find((b) => b.textContent === 'Abrir o RIPD').click();
-        await esperar(() => window.openDPIADetailsModal.mock.calls.length === 1);
-        expect(window.openDPIADetailsModal).toHaveBeenCalledWith('dp1');
+        await esperar(() => window.abrirRipd.mock.calls.length === 1);
+        expect(window.abrirRipd).toHaveBeenCalledWith('p9', 'dp1');
         expect([...painel.querySelectorAll('button')].some((b) => b.textContent === 'Criar o RIPD a partir da atividade')).toBe(false);
     });
 

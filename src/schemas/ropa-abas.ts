@@ -122,3 +122,9 @@ export const catalogoAtualizarSchema = z.strictObject({
 /** Corpo do POST de rascunho da etapa: uma nota opcional da pessoa (dado). Campo a mais é 400. */
 export const etapaRascunhoSchema = z.strictObject({ nota: z.string().trim().max(2000).optional() });
 export type CorpoRascunhoEtapa = z.infer<typeof etapaRascunhoSchema>;
+
+/** Respostas do questionário do RIPD (migration 0083): pergunta → texto ou escolha, `null` apaga. A pergunta e a escolha são conferidas pelo serviço. */
+export const ripdQuestionarioSchema = z.strictObject({
+  respostas: z.record(z.string().min(1).max(60), z.string().max(2000).nullable())
+    .refine((r) => Object.keys(r).length >= 1 && Object.keys(r).length <= 40, 'Mande de 1 a 40 respostas'),
+});

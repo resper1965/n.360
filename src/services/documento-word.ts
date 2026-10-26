@@ -181,3 +181,56 @@ export async function liaEmWord(db: D1Database, projectId: string, ropaId: strin
     rodape: `Gerado pelo n.privacy em ${dataBr(new Date().toISOString())}. Versão gravada em ${dataBr(l.updated_at)}.`,
   }, storage);
 }
+
+/** O texto da versão (Markdown simples) em blocos do Word: títulos `#`, listas `-`/`*`/`1.`, parágrafos. Negrito e itálico saem como texto. */
+function markdownEmBlocos(md: string): Bloco[] {
+  const out: Bloco[] = [];
+  let corrente: string[] = [];
+  const fecha = () => { if (corrente.length) out.push(par(corrente.join('\n'))); corrente = []; };
+  const sem = (t: string) => t.replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/`([^`]+)`/g, '$1');
+  for (const bruta of md.replace(/\r\n?/g, '\n').split('\n')) {
+    const l = bruta.trimEnd();
+    const h = /^(#{1,6})\s+(.*)$/.exec(l);
+    const item = /^\s*(?:[-*+]|\d+[.)])\s+(.*)$/.exec(l);
+    if (!l.trim()) fecha();
+    else if (h) { fecha(); out.push(h[1].length === 1 ? titulo(sem(h[2])) : new Paragraph({ heading: HeadingLevel.HEADING_3, spacing: { before: 200, after: 80 }, children: runs(sem(h[2]), { bold: true, font: TITULO, size: 22, color: '0F172A' }) })); }
+    else if (item) { fecha(); out.push(new Paragraph({ bullet: { level: 0 }, spacing: { after: 60 }, children: runs(sem(item[1]), { color: '44506A' }) })); }
+    else corrente.push(sem(l));
+  }
+  fecha();
+  return out;
+}
+
+const TIPO_DOCUMENTO: Record<string, string> = { politica: 'Política', norma: 'Norma', procedimento: 'Procedimento' };
+
+/**
+ * Um documento versionado em Word (a versão vigente; sem vigente, o rascunho mais novo, marcado RASCUNHO), ou null se não é do
+ * projeto ou não tem versão. O texto é o da versão gravada, sem reescrita; a aprovação vem dos pedidos (a mesma derivação da tela).
+ */
+export async function documentoEmWord(db: D1Database, projectId: string, documentoId: string, storage?: R2Bucket): Promise<Gerado | null> {
+  const d = await db.prepare('SELECT id, tipo, titulo, revisar_ate FROM documentos WHERE id = ? AND project_id = ?').bind(documentoId, projectId).first<Linha>();
+  if (!d) return null;
+  const versoes = (await db.prepare(
+    `SELECT numero, estado, texto, hash, criado_por, criado_em FROM documento_versoes WHERE documento_id = ? AND project_id = ? ORDER BY numero DESC`
+  ).bind(documentoId, projectId).all<Linha>()).results;
+  const v = versoes.find((x) => x.estado === 'vigente') ?? versoes.find((x) => x.estado === 'rascunho');
+  if (!v) return null;
+  const [ident, aprovacoes] = await Promise.all([identificacao(db, projectId), aprovacoesDoProjeto(db, projectId, documentoId, 'documento')]);
+  const ap = aprovacoes.get(documentoId);
+  const aprov = (papel: 'ciso' | 'ceo') => { const p = ap?.[papel]; return p ? `Aprovado por ${p.por} em ${dataBr(p.em)}` : 'Pendente'; };
+  const vigente = v.estado === 'vigente';
+  const corpo: Bloco[] = [
+    ...ident,
+    titulo('Controle do documento'), ...campos([
+      ['Tipo', TIPO_DOCUMENTO[txt(d.tipo)] ?? d.tipo], ['Versão', `${v.numero}${vigente ? ' (vigente)' : ' (rascunho)'}`],
+      ['Autor da versão', v.criado_por], ['Registrada em', v.criado_em ? dataBr(txt(v.criado_em)) : ''],
+      ['Próxima revisão', d.revisar_ate ? dataBr(txt(d.revisar_ate)) : ''],
+      ...(vigente ? [['Líder SGSI', aprov('ciso')], ['Direção', aprov('ceo')]] as [string, unknown][] : []),
+    ]),
+    ...markdownEmBlocos(txt(v.texto)),
+  ];
+  return montar(db, projectId, {
+    nome: nomeArquivo('Documento', d.titulo), titulo: txt(d.titulo), rascunho: !vigente, corpo,
+    rodape: `Gerado pelo n.privacy em ${dataBr(new Date().toISOString())}. Versão ${v.numero}${txt(v.hash) ? `, conteúdo ${txt(v.hash).slice(0, 8)}` : ''}.`,
+  }, storage);
+}

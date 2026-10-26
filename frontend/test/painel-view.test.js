@@ -26,7 +26,7 @@ const BLOCO = (extra = {}) => ({
     vencimentos: [{ tipo: 'Pedidos do titular', vencidos: 2, itens: [{ dias: 3, rotulo: 'PT-3' }, { dias: 40, rotulo: 'PT-<i>4</i>' }] }],
     riscos: [{ p: 4, i: 5, n: 2 }, { p: 1, i: 1, n: 1 }],
     passos: [{ texto: 'Indicar o encarregado', contexto: 'art. 41', feito: false, acao: 'Indicar', tela: 'encarregado' }],
-    pedidos_semana: [0, 1, 0, 2, 0, 0, 1, 0, 3, 0, 1, 2],
+    pedidos_mes: [0, 1, 0, 2, 0, 0, 1, 0, 3, 0, 1, 2],
     acoes_por_prazo: [{ faixa: 'vencidas', rotulo: 'Vencidas', total: 1, itens: [{ id: 'a1', ropa_id: 'r1', atividade: 'Folha', title: 'Revisar', due_date: '2026-10-01', responsavel: null }] }],
     ...extra,
 });
@@ -85,7 +85,7 @@ describe('entrada do n.privacy', () => {
         await abrir();
         const c = el('c');
         for (const s of c.querySelectorAll('.pn-estado')) expect(s.textContent.trim().length).toBeGreaterThan(0);
-        // cobertura, vencimentos, mapa e pedidos por semana
+        // cobertura, vencimentos, mapa e pedidos por mês
         expect(c.querySelectorAll('details.pn-equiv')).toHaveLength(4);
         for (const g of c.querySelectorAll('svg[role="img"], .pn-mapa-c')) expect(g.getAttribute('aria-label')).toBeTruthy();
         expect(c.innerHTML).not.toMatch(/\sstyle="/);
@@ -302,11 +302,15 @@ describe('gráficos', () => {
         expect(document.querySelectorAll('.pn-lt-w')).toHaveLength(1);
         expect(document.querySelector('table').textContent).toContain('em 3 dias');
     });
-    it('pedidos por semana: número desta semana e média escritos; menos de dois pontos, nada', () => {
+    it('pedidos por mês: número deste mês e média escritos; menos de dois pontos, nada', () => {
         document.body.innerHTML = graficoPedidos([2, 3, 1, 4, 3, 2, 5, 3, 4, 2, 6, 4]);
         expect(document.querySelector('.pn-spark-n').textContent).toContain('4');
-        expect(document.body.textContent).toContain('média de 3,3 por semana');
+        expect(document.body.textContent).toContain('média de 3,3 por mês');
         expect(graficoPedidos([1])).toBe('');
+        const meses = ['2025-11', '2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'];
+        document.body.innerHTML = graficoPedidos([2, 3, 1, 4, 3, 2, 5, 3, 4, 2, 6, 4], meses);
+        expect(document.querySelector('table').textContent).toContain('nov/25');
+        expect(document.querySelector('table').textContent).toContain('Este mês');
     });
 });
 

@@ -108,14 +108,16 @@ export async function logAudit(
   details: string,
   justification: string = '',
   ip: string = '',
-  projectId?: string
+  projectId?: string,
+  // Registro a que a linha pertence (ex.: { tipo: 'dpia', id }), para a aba Logs da ficha ler só o dele.
+  entidade?: { tipo: string; id: string }
 ) {
   await db
     .prepare(
-      `INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+      `INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, entity_type, entity_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
     )
-    .bind(genId(), action, actor, details, justification, ip, projectId ?? null)
+    .bind(genId(), action, actor, details, justification, ip, projectId ?? null, entidade?.tipo ?? null, entidade?.id ?? null)
     .run();
 }
 

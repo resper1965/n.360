@@ -1,6 +1,7 @@
 import { SQL_CLASSE_CONTROLE, SQL_EVIDENCIA_RUIM } from './painel';
 import { diaMes } from './encarregado';
 import { hojeEmSaoPaulo } from './hoje';
+import { escopoRopa } from './escopo-itens';
 
 /**
  * Prontidão para a certificação ISO/IEC 27001:2022 (Onda 2 do diagnóstico de design de 15/10/2026): uma resposta, no
@@ -178,7 +179,7 @@ export async function contagensDoProjeto(db: D1Database, projectId: string): Pro
       AND (ciso_approved_by IS NOT NULL OR ceo_approved_by IS NOT NULL)`).bind(projectId),
     // Riscos do n.iso: o mesmo recorte do Painel (sem atividade de tratamento do n.privacy).
     db.prepare(`SELECT count(*) AS total, sum(CASE WHEN COALESCE(status, 'Open') NOT IN ('Mitigated', 'Accepted', 'Closed') AND trim(COALESCE(treatment_plan, '')) = '' THEN 1 ELSE 0 END) AS sem
-      FROM risks WHERE project_id = ?1 AND ropa_id IS NULL`).bind(projectId),
+      FROM risks WHERE project_id = ?1${escopoRopa('programa')}`).bind(projectId),
     db.prepare(`SELECT sum(CASE WHEN tipo = 'politica' AND status = 'vigente' THEN 1 ELSE 0 END) AS politicas,
         sum(CASE WHEN status = 'vigente' AND revisar_ate IS NOT NULL AND substr(revisar_ate, 1, 10) < ?2 THEN 1 ELSE 0 END) AS vencidos
       FROM documentos WHERE project_id = ?1`).bind(projectId, dia),
@@ -194,7 +195,7 @@ export async function contagensDoProjeto(db: D1Database, projectId: string): Pro
         (SELECT count(*) FROM audit_findings WHERE project_id = ?1 AND finding_type IN ('minor_nc', 'major_nc')) AS nc,
         (SELECT count(*) FROM audit_findings f WHERE f.project_id = ?1 AND f.finding_type IN ('minor_nc', 'major_nc')
            AND NOT EXISTS (SELECT 1 FROM corrective_actions a WHERE a.id = f.capa_id AND a.status = 'Closed')) AS nc_abertas,
-        (SELECT count(*) FROM corrective_actions WHERE project_id = ?1 AND ropa_id IS NULL AND COALESCE(status, 'Open') <> 'Closed' AND substr(due_date, 1, 10) < ?2) AS acoes,
+        (SELECT count(*) FROM corrective_actions WHERE project_id = ?1${escopoRopa('programa')} AND COALESCE(status, 'Open') <> 'Closed' AND substr(due_date, 1, 10) < ?2) AS acoes,
         (SELECT count(*) FROM project_phases WHERE project_id = ?1) AS fases,
         (SELECT count(*) FROM project_phases WHERE project_id = ?1 AND status = 'completed') AS fases_ok`).bind(projectId, dia),
     db.prepare(`SELECT id, stage1_date, stage1_status, stage2_date, stage2_status, registrar, target_date FROM certification_tracking WHERE project_id = ?1`).bind(projectId),

@@ -109,11 +109,11 @@ platformApp.put('/dpia/:id', async (c) => {
     const email = user?.email || 'system';
     if (assinado && mudaram.length) {
       await c.env.DB.prepare(`UPDATE dpia_assessments SET dpo_signature = NULL, ceo_signature = NULL, dpo_approved_by = NULL, dpo_approved_at = NULL, status = 'Draft' WHERE id = ?`).bind(id).run();
-      await logAudit(c.env.DB, 'dpia.aprovacao_invalidada', email, `RIPD ${id}: conteúdo mudou (${mudaram.join(', ')}); aprovação e assinaturas zeradas, voltou a rascunho.`, '', '', atual?.project_id ?? undefined);
+      await logAudit(c.env.DB, 'dpia.aprovacao_invalidada', email, `RIPD ${id}: conteúdo mudou (${mudaram.join(', ')}); aprovação e assinaturas zeradas, voltou a rascunho.`, '', '', atual?.project_id ?? undefined, { tipo: 'dpia', id });
     }
     // Pedido aberto sobre o texto anterior vira `substituido` e nasce outro com o texto novo.
     await conferirPedidosDoDocumento(c, 'dpia', id);
-    await logAudit(c.env.DB, 'dpia_updated', email, `DPIA ${id} updated`, '', '', atual?.project_id ?? undefined);
+    await logAudit(c.env.DB, 'dpia_updated', email, `DPIA ${id} updated`, '', '', atual?.project_id ?? undefined, { tipo: 'dpia', id });
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Falha ao atualizar DPIA', e);
@@ -162,7 +162,7 @@ platformApp.post('/projects/:id/dpia/:assessmentId/revoke-approval', async (c) =
     await c.env.DB.prepare(
       `UPDATE dpia_assessments SET dpo_signature = NULL, ceo_signature = NULL, dpo_approved_by = NULL, dpo_approved_at = NULL, status = 'Draft' WHERE id = ? AND project_id = ?`
     ).bind(assessmentId, projectId).run();
-    await logAudit(c.env.DB, 'dpia.approval_revoked', user.email, `DPIA ${assessmentId}: aprovação e assinaturas revogadas; voltou a Draft.`, valid.data.reason, c.req.header('CF-Connecting-IP') ?? '', projectId);
+    await logAudit(c.env.DB, 'dpia.approval_revoked', user.email, `DPIA ${assessmentId}: aprovação e assinaturas revogadas; voltou a Draft.`, valid.data.reason, c.req.header('CF-Connecting-IP') ?? '', projectId, { tipo: 'dpia', id: assessmentId });
     return c.json({ ok: true, status: 'Draft' });
   } catch (e: any) {
     return erro500(c, 'Erro ao revogar aprovação do DPIA', e);
@@ -197,7 +197,7 @@ platformApp.post('/projects/:id/dpia/:assessmentId/approve', async (c) => {
     await assinatura.run();
 
     const quem = role === 'ciso' ? 'pelo DPO / Líder SGSI' : 'pela Direção Executiva';
-    await logAudit(c.env.DB, 'dpia.approved', user.email, `DPIA ${assessmentId} aprovado ${quem} (${approvedBy}); papel: ${role}`, '', c.req.header('CF-Connecting-IP') ?? '', projectId);
+    await logAudit(c.env.DB, 'dpia.approved', user.email, `DPIA ${assessmentId} aprovado ${quem} (${approvedBy}); papel: ${role}`, '', c.req.header('CF-Connecting-IP') ?? '', projectId, { tipo: 'dpia', id: assessmentId });
     return c.json({ ok: true });
   } catch (e: any) {
     return erro500(c, 'Erro ao aprovar DPIA', e);
