@@ -51,6 +51,16 @@ describe('PUT /api/v1/ropa/:id com status (achado 7)', () => {
     expect(t).not.toBeNull();
   });
 
+  it('cancelar pelo PUT não grava os outros campos do corpo; enviar para revisão grava', async () => {
+    const rid = await novaAtividade(s.consultor);
+    const ret = () => env.DB.prepare('SELECT retention_period r FROM ropa_records WHERE id = ?').bind(rid).first<{ r: string | null }>();
+    expect((await chamar(s.consultor, 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Under Review', retention_period: '3 anos' })).status).toBe(200);
+    expect((await ret())!.r).toBe('3 anos');
+    expect((await chamar(s.consultor, 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Inactive', retention_period: '9 anos' })).status).toBe(200);
+    expect((await linha(rid))!.status).toBe('Inactive');
+    expect((await ret())!.r).toBe('3 anos');
+  });
+
   it('pessoa mandando para revisão pelo PUT: grava ropa.situacao; status de destino fora da máquina segue como antes', async () => {
     const rid = await novaAtividade(s.consultor);
     expect((await chamar(s.consultor, 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: 'Finalidade exemplo', status: 'Under Review' })).status).toBe(200);
