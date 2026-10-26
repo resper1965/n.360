@@ -14,12 +14,16 @@ const CNPJ_VALIDO = '11222333000181';
 
 /** URLs que o handler pediu ao `fetch`, na ordem. */
 let pedidas: string[] = [];
+/** Cabeçalhos de cada pedido de saída: a BrasilAPI responde 429 sem User-Agent. */
+let cabecalhos: Record<string, string>[] = [];
 
 /** Troca o fetch de saída por um que responde `corpo` e anota a URL. */
 function dubleDeFetch(corpo: unknown, ok = true) {
   pedidas = [];
-  vi.stubGlobal('fetch', async (entrada: any) => {
+  cabecalhos = [];
+  vi.stubGlobal('fetch', async (entrada: any, init?: RequestInit) => {
     pedidas.push(typeof entrada === 'string' ? entrada : entrada.url);
+    cabecalhos.push((init?.headers ?? {}) as Record<string, string>);
     return new Response(JSON.stringify(corpo), {
       status: ok ? 200 : 404,
       headers: { 'Content-Type': 'application/json' },
@@ -69,6 +73,7 @@ describe('consulta de CNPJ para preview', () => {
     expect(res.status).toBe(200);
     expect(pedidas).toHaveLength(1);
     expect(pedidas[0]).toBe(`https://brasilapi.com.br/api/cnpj/v1/${CNPJ_VALIDO}`);
+    expect(cabecalhos[0]['User-Agent'], 'a BrasilAPI responde 429 sem User-Agent').toMatch(/^n360-ness\//);
   });
 
   it('devolve só os campos do preview — não repassa o cadastro inteiro', async () => {

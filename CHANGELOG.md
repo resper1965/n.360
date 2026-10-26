@@ -12,6 +12,8 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Consulta de CNPJ voltou a funcionar
+- A BrasilAPI responde 429 a pedido sem `User-Agent`, e o `fetch` do Worker não manda um: o assistente "Novo projeto", a seção Dados da empresa e a consulta de leads caíam em "indisponível". Todas as consultas de CNPJ (`CABECALHOS_CONSULTA` em `src/helpers.ts`) agora mandam `User-Agent`; o teste confere o cabeçalho. Sem migration.
 ### Agente do consultor: cadastro do cliente
 - Nova skill `cadastro-cliente` (`niso_skill nome=cadastro-cliente`, roteiro 12): empresa, CNPJ, representante, encarregado, pessoas, áreas, sistemas e fornecedores. Lê o que já existe, mostra campo a campo o que vai gravar e espera o "sim" do consultor.
 - O agente com o papel de consultor passa a gravar `PUT /projects/:id/empresa` (antes só lia); o auditor e a chave de API continuam só lendo. A trilha leva "agente de <consultor>" e só os nomes dos campos.

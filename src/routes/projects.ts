@@ -4,7 +4,7 @@ import { sqlAreaDaAtividade } from '../services/riscos-atividade';
 import { z } from 'zod';
 import { Bindings, Variables } from '../index';
 
-import { redactProject, semRastros, genId, genToken, logAudit, validateUpload, erro500, somenteNess, ehEquipeNess, semIpENavegador, sha256Hex, projetosVisiveis, designacaoDoCriador, refForaDoProjeto } from '../helpers';
+import { redactProject, semRastros, genId, genToken, logAudit, validateUpload, erro500, CABECALHOS_CONSULTA, somenteNess, ehEquipeNess, semIpENavegador, sha256Hex, projetosVisiveis, designacaoDoCriador, refForaDoProjeto } from '../helpers';
 import { itemDoChecklist, controleDoItem, marcarItemComEvidencia } from '../services/checklist-evidencia';
 import { passoPorId } from '../data/passos/catalogo';
 import { carregarContexto } from '../services/passos/contexto';
@@ -462,7 +462,7 @@ projectsApp.get('/consulta-cnpj/:cnpj', async (c) => {
 
     let res: Response;
     try {
-      res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, { signal: AbortSignal.timeout(8000) });
+      res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, { headers: CABECALHOS_CONSULTA, signal: AbortSignal.timeout(8000) });
     } catch {
       return c.json({ ok: true, cnpj, indisponivel: true, existente });
     }
