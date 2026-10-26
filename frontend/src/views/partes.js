@@ -2,6 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, openModal, escapeHTML, tituloDaTela } from '../ui.js';
 import { produtoAtual } from '../produto.js';
+import { mascaraCnpj } from './empresa.js';
 import { montarLista, colunasDe } from '../lista.js';
 
 // Partes e departamentos do projeto (fatia 1.4 do núcleo). O cadastro existe para o responsável de risco,
@@ -90,6 +91,7 @@ window.openNovaParteModal = function (projectId, tipo = 'pessoa') {
             <select class="form-input" id="parte-tipo">${Object.entries(TIPOS).map(([v, r]) => `<option value="${v}" ${v === tipoEscolhido ? 'selected' : ''}>${r}</option>`).join('')}</select></div>`}
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="parte-nome" maxlength="200"></div>
         <div class="form-group"><label class="form-label">E-mail (opcional)</label><input class="form-input" id="parte-email" type="email" maxlength="320"></div>
+        ${tipoEscolhido === 'organizacao' || !privacy ? `<div class="form-group"><label class="form-label" for="parte-cnpj">CNPJ (opcional, só de organização)</label><input class="form-input" id="parte-cnpj" inputmode="numeric" maxlength="18"></div>` : ''}
         <button class="btn btn-primary" style="width:100%" data-action="criarParte" data-args='["${projectId}"]'>Cadastrar</button>
     `);
 };
@@ -99,7 +101,9 @@ window.criarParte = async function (projectId) {
     if (!nome) return;
     const email = document.getElementById('parte-email').value.trim();
     try {
-        await api('POST', `/api/v1/projects/${projectId}/partes`, { tipo: document.getElementById('parte-tipo').value, nome, email: email || null });
+        const tipo = document.getElementById('parte-tipo').value;
+        const cnpj = document.getElementById('parte-cnpj')?.value.trim();
+        await api('POST', `/api/v1/projects/${projectId}/partes`, { tipo, nome, email: email || null, ...(tipo === 'organizacao' && cnpj ? { cnpj } : {}) });
         window.forceCloseModal();
         window.render();
     } catch (e) { falha(e, 'Não foi possível cadastrar a parte'); }
@@ -115,6 +119,7 @@ window.openParteModal = async function (projectId, id) {
         <div class="modal-header"><span class="modal-title">${escapeHTML(p.nome)}</span></div>
         <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="parte-e-nome" maxlength="200" value="${escapeHTML(p.nome)}" ${editar ? '' : 'disabled'}></div>
         <div class="form-group"><label class="form-label">E-mail</label><input class="form-input" id="parte-e-email" type="email" maxlength="320" value="${escapeHTML(p.email || '')}" ${editar ? '' : 'disabled'}></div>
+        ${p.tipo === 'organizacao' ? `<div class="form-group"><label class="form-label" for="parte-e-cnpj">CNPJ</label><input class="form-input" id="parte-e-cnpj" inputmode="numeric" maxlength="18" value="${escapeHTML(mascaraCnpj(p.cnpj || ''))}" ${editar ? '' : 'disabled'}></div>` : ''}
         <div class="form-group"><label class="form-label">Situação</label>
             <select class="form-input" id="parte-e-status" ${editar ? '' : 'disabled'}>
                 <option value="ativa" ${p.status === 'ativa' ? 'selected' : ''}>Ativa</option>
@@ -131,7 +136,8 @@ window.salvarParte = async function (projectId, id) {
     if (!nome) return;
     const email = document.getElementById('parte-e-email').value.trim();
     try {
-        await api('PUT', `/api/v1/projects/${projectId}/partes/${id}`, { nome, email: email || null, status: document.getElementById('parte-e-status').value });
+        const campoCnpj = document.getElementById('parte-e-cnpj');
+        await api('PUT', `/api/v1/projects/${projectId}/partes/${id}`, { nome, email: email || null, status: document.getElementById('parte-e-status').value, ...(campoCnpj ? { cnpj: campoCnpj.value.trim() || null } : {}) });
         window.forceCloseModal();
         window.render();
     } catch (e) { falha(e, 'Não foi possível salvar a parte'); }

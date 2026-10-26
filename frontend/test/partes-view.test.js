@@ -83,6 +83,29 @@ describe('tela de Partes', () => {
     await window.criarParte('p1');
     expect(apiMock).toHaveBeenCalledWith('POST', '/api/v1/projects/p1/partes', { tipo: 'organizacao', nome: 'Fornecedora Exemplo', email: null });
   });
+  it('D4: organização leva o CNPJ; pessoa não manda o campo; a edição mostra o CNPJ com máscara e limpa com null', async () => {
+    const [c, h, a] = montar();
+    window.openNovaParteModal('p1');
+    document.getElementById('parte-tipo').value = 'organizacao';
+    document.getElementById('parte-nome').value = 'Fornecedora Exemplo';
+    document.getElementById('parte-cnpj').value = '11.222.333/0001-81';
+    await window.criarParte('p1');
+    expect(apiMock).toHaveBeenLastCalledWith('POST', '/api/v1/projects/p1/partes', { tipo: 'organizacao', nome: 'Fornecedora Exemplo', email: null, cnpj: '11.222.333/0001-81' });
+
+    window.openNovaParteModal('p1');
+    document.getElementById('parte-tipo').value = 'pessoa';
+    document.getElementById('parte-nome').value = 'Ana';
+    document.getElementById('parte-cnpj').value = '11.222.333/0001-81';
+    await window.criarParte('p1');
+    expect(apiMock).toHaveBeenLastCalledWith('POST', '/api/v1/projects/p1/partes', { tipo: 'pessoa', nome: 'Ana', email: null });
+
+    apiMock.mockImplementation((m, url) => Promise.resolve(url.endsWith('/partes/pt9') ? { id: 'pt9', tipo: 'organizacao', nome: 'Org', email: null, status: 'ativa', cnpj: '11222333000181', vinculos: [] } : {}));
+    await window.openParteModal('p1', 'pt9');
+    expect(document.getElementById('parte-e-cnpj').value).toBe('11.222.333/0001-81');
+    document.getElementById('parte-e-cnpj').value = '';
+    await window.salvarParte('p1', 'pt9');
+    expect(apiMock).toHaveBeenLastCalledWith('PUT', '/api/v1/projects/p1/partes/pt9', { nome: 'Org', email: null, status: 'ativa', cnpj: null });
+  });
 });
 
 describe('Partes no n.iso: tudo como antes', () => {

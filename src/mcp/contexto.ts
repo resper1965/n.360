@@ -28,8 +28,10 @@ export const INSTRUCOES_AUDITOR =
 export const MAPA_DA_APP = `Mapa da app ({p} = projectId). Rota de módulo que o projeto não tem devolve 403; não insista.
 
 Cadastro compartilhado (vale com qualquer módulo):
-- Partes (pessoas e organizações): /api/v1/projects/{p}/partes · Departamentos: /api/v1/projects/{p}/departamentos · Itens (ativos): /api/v1/projects/{p}/assets
-- Fornecedores: /api/v1/projects/{p}/vendors (o perfil de segurança de uma parte que é terceiro)
+- Empresa do cliente (CNPJ, razão social, endereço, representante): /api/v1/projects/{p}/empresa (PUT grava só os campos enviados; null limpa; mostre ao consultor o que muda antes)
+- Partes (pessoas e organizações; só organização tem cnpj): /api/v1/projects/{p}/partes · papéis (responsável, encarregado, dono): POST /api/v1/projects/{p}/partes/{id}/vinculos · Departamentos: /api/v1/projects/{p}/departamentos · Itens (ativos e sistemas): /api/v1/projects/{p}/assets
+- Fornecedores: /api/v1/projects/{p}/vendors (o perfil de segurança de uma parte que é terceiro) · tipo, criticidade, avaliação e homologação são decisão (niso_avaliar_fornecedor)
+- Importar programa (arquivos do cliente): niso_importar_programa · padronizar nomes: niso_padronizar_nomes · documento em arquivo: /api/v1/projects/{p}/documentos-arquivo (só leitura) · módulos do projeto: /api/v1/projects/{p}/modulos
 - Documentos: /api/v1/projects/{p}/documentos · Evidências: /api/v1/projects/{p}/evidence · texto: /api/v1/evidence/{id}/content (PUT regrava o texto)
 - RoPA: /api/v1/projects/{p}/ropa · DPIA: /api/v1/projects/{p}/dpia · direitos do titular: /api/v1/projects/{p}/data-subject
 - Pedidos de aprovação e ciência: /api/v1/projects/{p}/pedidos · Incidentes: /api/v1/projects/{p}/incidentes (prazos de comunicação em situacao_anpd e situacao_titular)
@@ -51,7 +53,8 @@ n.privacy:
 - Requisitos e cobertura: /api/v1/projects/{p}/requisitos/lacunas?fonte=lgpd (ou fonte=anpd) · catálogo (ids de base legal): /api/v1/requisitos?fonte=lgpd
 - Terceiros: /api/v1/projects/{p}/terceiros · Pedidos do titular: /api/v1/projects/{p}/titular-pedidos (prazo em situacao_prazo)
 - Consentimentos: /api/v1/projects/{p}/consentimentos · Encarregado: /api/v1/projects/{p}/encarregado
-- Ligações e LIA de um tratamento do RoPA: /api/v1/projects/{p}/ropa/{id}/ligacoes · /api/v1/projects/{p}/ropa/{id}/lia
+- Ligações e LIA de um tratamento do RoPA: /api/v1/projects/{p}/ropa/{id}/ligacoes · /api/v1/projects/{p}/ropa/{id}/lia · questionário da LIA: /ropa/{id}/lia/questionario
+- Ficha da atividade (abas): /api/v1/projects/{p}/ropa/{id}/ficha · /escopo · /etapas · /medidas · /gaps · /logs · situação: niso_situacao_atividade · questionário do RIPD: /api/v1/projects/{p}/dpia/{id}/questionario
 
 Fora do seu alcance (use a interface): usuários, SSO, política de segurança, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificações), criar projeto, painel global, área comercial (salvo leitura e rascunho pelas niso_comercial_*, quando você as tiver) e /agentes.`;
 
@@ -69,7 +72,9 @@ n.privacy (só com o módulo no projeto e na sua conta; as ferramentas niso_priv
 8. Maturidade LGPD — chame niso_skill com nome=maturidade-lgpd. Só leitura: tabela de achados com fonte e próxima ação; não grava nada e não é parecer jurídico.
 9. Implantação em cliente novo — niso_skill nome=implantacao-privacy: ordem de trabalho, o que pedir ao cliente e critério de pronto. Comece por niso_privacy_encarregado e niso_privacy_ponto_de_partida. Cada gravação: PEÇA APROVAÇÃO HUMANA.
 10. Migração de programa existente — niso_skill nome=migracao-programa: planilhas, políticas e contratos do cliente. Arquivo inteiro: niso_importar_programa (criar lote, processar, decidir itens, confirmar; decisão do consultor, com o "sim" dele, confirmado_pelo_usuario: true e motivo); o que faltar, você completa à mão. Cada gravação: PEÇA APROVAÇÃO HUMANA.
-11. Terceiros — niso_skill nome=avaliacao-terceiros → niso_privacy_terceiros (tipo, método, situação) → proponha tipo, avaliação e DPA. Cada gravação: PEÇA APROVAÇÃO HUMANA.`;
+11. Terceiros — niso_skill nome=avaliacao-terceiros → niso_privacy_terceiros (tipo, método, situação) → proponha tipo, avaliação e DPA. Cada gravação: PEÇA APROVAÇÃO HUMANA.
+Qualquer módulo:
+12. Cadastro do cliente (empresa, CNPJ, representante, encarregado, pessoas, áreas, sistemas, fornecedores) — niso_skill nome=cadastro-cliente: o que ler antes, onde gravar cada dado e o critério de pronto. Cada gravação: PEÇA APROVAÇÃO HUMANA.`;
 
 /** Roteiros do auditor: ler, comparar com o requisito, registrar achado com a evidência citada. */
 export const ROTEIROS_AUDITOR = `Roteiros de auditoria (ler → comparar com o requisito → registrar achado com a evidência citada):

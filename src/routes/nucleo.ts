@@ -184,8 +184,13 @@ nucleoApp.post('/partes', async (c) => {
     const v = await validateBody(c, parteCriarSchema);
     if (!v.success) return v.response;
     const id = crypto.randomUUID();
-    await c.env.DB.prepare('INSERT INTO partes (id, project_id, tipo, nome, email) VALUES (?, ?, ?, ?, ?)')
-      .bind(id, projectId, v.data.tipo, v.data.nome, v.data.email?.toLowerCase() ?? null).run();
+    try {
+      await c.env.DB.prepare('INSERT INTO partes (id, project_id, tipo, nome, email, cnpj) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(id, projectId, v.data.tipo, v.data.nome, v.data.email?.toLowerCase() ?? null, v.data.cnpj ?? null).run();
+    } catch (e) {
+      if (unico(e)) return c.json({ error: 'Já existe uma organização com esse CNPJ neste projeto' }, 409);
+      throw e;
+    }
     await logAudit(c.env.DB, 'parte.criada', c.get('user').email, `Parte ${v.data.tipo} criada`, '', '', projectId);
     return c.json({ ok: true, id }, 201);
   } catch (e) { return erro500(c, 'Falha ao criar a parte', e); }
@@ -210,9 +215,11 @@ nucleoApp.put('/partes/:id', async (c) => {
     const id = c.req.param('id');
     const v = await validateBody(c, parteAtualizarSchema);
     if (!v.success) return v.response;
-    const atual = await c.env.DB.prepare('SELECT nome, email, status FROM partes WHERE id = ? AND project_id = ?')
-      .bind(id, projectId).first<{ nome: string; email: string | null; status: string }>();
+    const atual = await c.env.DB.prepare('SELECT nome, email, status, tipo, cnpj FROM partes WHERE id = ? AND project_id = ?')
+      .bind(id, projectId).first<{ nome: string; email: string | null; status: string; tipo: string; cnpj: string | null }>();
     if (!atual) return c.json({ error: 'Parte não encontrada' }, 404);
+    if (v.data.cnpj && atual.tipo !== 'organizacao') return c.json({ error: 'CNPJ é só de organização' }, 400);
+    const cnpj = v.data.cnpj === undefined ? atual.cnpj : v.data.cnpj;
     const email = v.data.email === undefined ? atual.email : (v.data.email?.toLowerCase() ?? null);
     // A parte encarregada leva nome e e-mail à linha do DPO na governança: mudar é mexer na linha de quem assina.
     if ((v.data.nome ?? atual.nome) !== atual.nome || email !== atual.email) {
@@ -222,9 +229,14 @@ nucleoApp.put('/partes/:id', async (c) => {
         return c.json(RECUSA_LINHA_DE_ASSINATURA, 403);
       }
     }
-    await c.env.DB.prepare('UPDATE partes SET nome = ?, email = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?')
-      .bind(v.data.nome ?? atual.nome, email, v.data.status ?? atual.status, id, projectId).run();
-    await logAudit(c.env.DB, 'parte.atualizada', c.get('user').email, `Parte ${id} atualizada`, '', '', projectId);
+    try {
+      await c.env.DB.prepare('UPDATE partes SET nome = ?, email = ?, status = ?, cnpj = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?')
+        .bind(v.data.nome ?? atual.nome, email, v.data.status ?? atual.status, cnpj, id, projectId).run();
+    } catch (e) {
+      if (unico(e)) return c.json({ error: 'Já existe uma organização com esse CNPJ neste projeto' }, 409);
+      throw e;
+    }
+    await logAudit(c.env.DB, 'parte.atualizada', c.get('user').email, `Parte ${id} atualizada${cnpj !== atual.cnpj ? ' (CNPJ alterado)' : ''}`, '', '', projectId);
     const nome = v.data.nome ?? atual.nome;
     if (nome !== atual.nome || email !== atual.email) {
       // A parte é a encarregada: o membro DPO da governança acompanha. Falha é registrada, a parte já está gravada.
@@ -273,6 +285,11 @@ nucleoApp.post('/partes/:id/vinculos', async (c) => {
     // Agente de tratamento (operador, cocontrolador, suboperador, destinatário) é uma organização, a de Parceiros; pessoa só como responsável.
     if (alvo_tipo === 'tratamento' && papel !== 'responsavel' && parte.tipo !== 'organizacao') {
       return c.json({ error: 'Operador, cocontrolador, suboperador e destinatário são organizações: cadastre a empresa em Parceiros e ligue-a aqui.' }, 400);
+    }
+    // Responsável por um fornecedor (D4): a pessoa responde por uma organização.
+    if (alvo_tipo === 'parte' && papel === 'responsavel') {
+      const org = await db.prepare('SELECT tipo FROM partes WHERE id = ? AND project_id = ?').bind(alvo_id, projectId).first<{ tipo: string }>();
+      if (parte.tipo !== 'pessoa' || org?.tipo !== 'organizacao') return c.json({ error: 'O responsável por um fornecedor é uma pessoa, e o fornecedor é uma organização.' }, 400);
     }
     const id = crypto.randomUUID();
     try {

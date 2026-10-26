@@ -33,7 +33,7 @@ export function situacaoDe(ultima: Pick<Avaliacao, 'resultado' | 'valido_ate'> |
 }
 
 export type Terceiro = {
-  id: string; nome: string; terceiro_tipo: TipoTerceiro | null; metodo: Metodo | null; situacao: Situacao;
+  id: string; nome: string; cnpj: string | null; terceiro_tipo: TipoTerceiro | null; metodo: Metodo | null; situacao: Situacao;
   ultima_avaliacao: Avaliacao | null; tratamentos: number; documentos: number;
   /** nível da criticidade mais recente; null = nunca avaliada */
   nivel: NivelCriticidade | null; dpa: boolean; atividades: number;
@@ -104,7 +104,7 @@ async function recalcularIndice(db: D1Database, parteId: string): Promise<void> 
 /** Terceiros do projeto (partes organização ativas, menos as que são só parte interessada) com tipo, situação, nº de tratamentos que os usam e nº de documentos (DPA). */
 export async function listarTerceiros(db: D1Database, projectId: string): Promise<Terceiro[]> {
   const [partes, avals, trat, docs, crits, dpas] = await db.batch([
-    db.prepare(`SELECT id, nome, terceiro_tipo FROM partes p WHERE project_id = ?1 AND ${SQL_EH_FORNECEDOR} ORDER BY nome`).bind(projectId),
+    db.prepare(`SELECT id, nome, cnpj, terceiro_tipo FROM partes p WHERE project_id = ?1 AND ${SQL_EH_FORNECEDOR} ORDER BY nome`).bind(projectId),
     db.prepare(`SELECT ${COLS_AVALIACAO} FROM avaliacoes_terceiro WHERE project_id = ? ORDER BY created_at, rowid`).bind(projectId),
     db.prepare(`SELECT parte_id, count(DISTINCT ropa_id) AS n FROM (${SQL_ATIVIDADES}) GROUP BY parte_id`).bind(projectId),
     db.prepare(`SELECT parte_id, count(DISTINCT documento_id) AS n FROM documento_partes WHERE project_id = ? GROUP BY parte_id`).bind(projectId),
@@ -118,10 +118,10 @@ export async function listarTerceiros(db: D1Database, projectId: string): Promis
   for (const a of avals.results as (Avaliacao & { parte_id: string })[]) ultima.set(a.parte_id, a); // ordenado: a última sobrescreve
   const n = (r: { results: unknown[] }) => new Map((r.results as { parte_id: string; n: number }[]).map((x) => [x.parte_id, x.n]));
   const nt = n(trat), nd = n(docs);
-  return (partes.results as { id: string; nome: string; terceiro_tipo: TipoTerceiro | null }[]).map((p) => {
+  return (partes.results as { id: string; nome: string; cnpj: string | null; terceiro_tipo: TipoTerceiro | null }[]).map((p) => {
     const u = ultima.get(p.id) ?? null;
     const atividades = nt.get(p.id) ?? 0;
-    const t = { id: p.id, nome: p.nome, terceiro_tipo: p.terceiro_tipo, metodo: p.terceiro_tipo ? METODO_DO_TIPO[p.terceiro_tipo] : null, situacao: situacaoDe(u), ultima_avaliacao: u,
+    const t = { id: p.id, nome: p.nome, cnpj: p.cnpj, terceiro_tipo: p.terceiro_tipo, metodo: p.terceiro_tipo ? METODO_DO_TIPO[p.terceiro_tipo] : null, situacao: situacaoDe(u), ultima_avaliacao: u,
       tratamentos: atividades, documentos: nd.get(p.id) ?? 0, nivel: nivel.get(p.id) ?? null, dpa: comDpa.has(p.id), atividades };
     return { ...t, pendencias: pendenciasDe(t) };
   });
@@ -140,7 +140,7 @@ export async function lerTerceiro(db: D1Database, projectId: string, parteId: st
   const todos = await listarTerceiros(db, projectId);
   const t = todos.find((x) => x.id === parteId);
   if (!t) return null;
-  const [hist, docs, subs, trat, parte, seg] = await db.batch([
+  const [hist, docs, subs, trat, parte, seg, resp] = await db.batch([
     db.prepare(`SELECT ${COLS_AVALIACAO} FROM avaliacoes_terceiro WHERE parte_id = ? AND project_id = ? ORDER BY created_at DESC, rowid DESC`).bind(parteId, projectId),
     db.prepare(`SELECT d.id, d.titulo, d.status, dp.papel FROM documento_partes dp JOIN documentos d ON d.id = dp.documento_id WHERE dp.parte_id = ? AND dp.project_id = ? ORDER BY d.titulo`).bind(parteId, projectId),
     db.prepare(`SELECT p.id, p.nome FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id WHERE v.papel = 'suboperador' AND v.alvo_tipo = 'parte' AND v.alvo_id = ? AND v.project_id = ? ORDER BY p.nome`).bind(parteId, projectId),
@@ -150,8 +150,10 @@ export async function lerTerceiro(db: D1Database, projectId: string, parteId: st
     db.prepare(`SELECT email FROM partes WHERE id = ? AND project_id = ?`).bind(parteId, projectId),
     // o perfil de segurança é opcional: o terceiro já passou pelo critério de fornecedor (`listarTerceiros`)
     db.prepare(`SELECT v.*, p.nome AS name FROM vendors v JOIN partes p ON p.id = v.parte_id WHERE v.parte_id = ?1 AND v.project_id = ?2`).bind(parteId, projectId),
+    // responsável do fornecedor: a pessoa com o vínculo `responsavel` sobre esta organização (o vínculo que o núcleo já tem)
+    db.prepare(`SELECT v.id AS vinculo_id, p.id, p.nome, p.email FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id WHERE v.papel = 'responsavel' AND v.alvo_tipo = 'parte' AND v.alvo_id = ? AND v.project_id = ? ORDER BY p.nome`).bind(parteId, projectId),
   ]);
-  return { ...t, email: (parte.results[0] as { email: string | null } | undefined)?.email ?? null, seguranca: seg.results[0] ?? null,
+  return { ...t, email: (parte.results[0] as { email: string | null } | undefined)?.email ?? null, seguranca: seg.results[0] ?? null, responsaveis: resp.results,
     historico: hist.results as Avaliacao[], documentos_ligados: docs.results, suboperadores: subs.results, tratamentos_afetados: trat.results };
 }
 

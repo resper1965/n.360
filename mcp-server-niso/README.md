@@ -35,11 +35,11 @@ O endereco continua `https://niso.ness.com.br/mcp` com o n.360 como entrada da
 plataforma; o agente remoto trabalha com os modulos do projeto (n.iso, n.privacy).
 
 O metodo de trabalho tambem chega pelo MCP: `niso_skill` lista e entrega as skills do
-consultor (hoje seis: `ls agent-skills`). `prontidao-certificacao`, a pre-avaliacao de prontidao para Stage 1 e 2, com
+consultor (hoje sete: `ls agent-skills`). `prontidao-certificacao`, a pre-avaliacao de prontidao para Stage 1 e 2, com
 referencias e o validador de achados; `maturidade-lgpd`, os achados de maturidade do programa de
 privacidade, so leitura; e as quatro do n.privacy, que propoem rascunho e param para aprovacao humana:
 `implantacao-privacy` (cliente novo, entrevista de RoPA em 8 blocos), `migracao-programa` (trazer um programa existente),
-`avaliacao-terceiros` (TPRM) e `atendimento-titular` (DSAR, prazo como parametro). Nada para instalar; o texto mora em
+`avaliacao-terceiros` (TPRM) e `atendimento-titular` (DSAR, prazo como parametro); e `cadastro-cliente`, que vale com qualquer modulo: preencher a empresa, o CNPJ, as pessoas, as areas, os sistemas e os fornecedores do cliente, mostrando cada gravacao ao consultor. Nada para instalar; o texto mora em
 `agent-skills/` e e atualizado junto com o deploy.
 
 O agente remoto tem o alcance do consultor humano no projeto escolhido no login: le qualquer area com `niso_ler` e grava com `niso_executar` ou com as ferramentas especificas. No n.privacy, as ferramentas `niso_privacy_*` leem o programa e gravam so rascunho (tratamento em Draft, LIA em rascunho, DPIA em Draft, pedido do titular e incidente registrados); aprovar, concluir LIA, encerrar incidente e revogar consentimento ficam com uma pessoa, pela interface. Apagar, gerar em lote, eliminar dados do titular e revogar aprovacoes exigem `confirmado_pelo_usuario: true`, que o agente so envia depois de mostrar o que sera feito e receber o 'sim'. Fora do alcance: usuarios, SSO, politica de seguranca, SCIM, chaves de API, webhooks, credencial de auditor externo (auditor-token), conta pessoal (login, termos, notificacoes), criar projeto, painel global, area comercial (salvo leitura e rascunho pelas `niso_comercial_*`, so para o agente de quem e do comercial; ver `docs/agente/seguranca.md`), /agentes, registro de achado de auditoria, importacao

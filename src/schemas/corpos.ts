@@ -29,6 +29,11 @@ export function cnpjValido(d: string): boolean {
   return dv(12) === Number(d[12]) && dv(13) === Number(d[13]);
 }
 
+/** CNPJ opcional: só dígitos, com os verificadores certos; vazio limpa, ausente não mexe. Vale para a empresa do projeto e para a organização em `partes`. */
+export const cnpjCampo = z.string().max(20).nullable().optional()
+  .transform((s) => (s === undefined ? undefined : s === null ? null : s.replace(/\D/g, '') || null))
+  .refine((d) => d == null || cnpjValido(d), { message: 'CNPJ inválido (confira os dígitos verificadores)' });
+
 /** Texto opcional: aparado, vazio vira null (limpa o campo); ausente fica ausente (não mexe). */
 const campo = (max: number) => z.string().max(max).nullable().optional()
   .transform((s) => (s === undefined ? undefined : s === null ? null : s.trim() || null));
@@ -38,9 +43,7 @@ const campo = (max: number) => z.string().max(max).nullable().optional()
  * o representante entra por nome e cargo, e vira pessoa em `partes` na criação do projeto.
  */
 export const empresaSchema = z.object({
-  cnpj: z.string().max(20).nullable().optional()
-    .transform((s) => (s === undefined ? undefined : s === null ? null : s.replace(/\D/g, '') || null))
-    .refine((d) => d == null || cnpjValido(d), { message: 'CNPJ inválido (confira os dígitos verificadores)' }),
+  cnpj: cnpjCampo,
   documento_alternativo: campo(100),
   razao_social: campo(300),
   nome_fantasia: campo(300),
