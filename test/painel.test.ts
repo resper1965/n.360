@@ -20,7 +20,7 @@ type Painel = {
   visao: string; empresa: { razao_social: string | null } | null; programa: { estado: string; rotulo: string }; saude: { tom: string; rotulo: string; frase: string };
   encarregados: { nome: string }[]; decisoes?: { titulo: string; acao: string }[]; selos?: Record<string, unknown>;
   modulos: Record<string, { saude: { tom: string }; numeros: [string, string][]; comecando: boolean; fazer?: { grupo: string; texto: string; acao: string; contexto: string; quando: string }[];
-    cobertura?: Tema[]; vencimentos?: { tipo: string; vencidos: number; itens: { dias: number; rotulo: string }[] }[]; riscos?: { p: number; i: number; n: number }[]; pedidos_semana?: number[] }>;
+    cobertura?: Tema[]; vencimentos?: { tipo: string; vencidos: number; itens: { dias: number; rotulo: string }[] }[]; riscos?: { p: number; i: number; n: number }[]; pedidos_mes?: number[] }>;
 };
 
 describe('frase de saúde (função pura)', () => {
@@ -114,6 +114,9 @@ async function semear() {
     db().prepare(`INSERT INTO risks (id, project_id, asset, threat, impact, probability, risk_level, ropa_id) VALUES ('rk1', 'pa', 'a', 'Vazamento', 5, 4, 'High', 'r2'), ('rk2', 'pa', 'a', 'TMS fora', 4, 4, 'High', NULL)`),
     db().prepare(`INSERT INTO corrective_actions (id, project_id, title, due_date, status, ropa_id) VALUES ('c1', 'pa', 'Revisão de acessos', ?1, 'Open', NULL),
       ('c2', 'pa', 'Backup', ?2, 'Open', NULL), ('c3', 'pa', 'Reduzir retenção', ?3, 'Open', 'r2')`).bind(dias(-10), dias(30), dias(15)),
+    // documentos do legado: o vencimento entra na linha "Documentos (revisão)"; obsoleto e sem vencimento ficam fora
+    db().prepare(`INSERT INTO documentos_arquivo (id, project_id, nome, tipo, status, vencimento, sem_vencimento) VALUES
+      ('da1', 'pa', 'Contrato exemplo', 'contrato', 'publicado', ?1, 0), ('da2', 'pa', 'Obsoleto exemplo', 'outro', 'obsoleto', ?1, 0), ('da3', 'pa', 'Sem vencimento exemplo', 'outro', 'publicado', NULL, 1)`).bind(dias(20)),
     db().prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status) VALUES ('k1', 'pa', 'ISO 27001:2022', 'A.5.1 Políticas', 'Completed'),
       ('k2', 'pa', 'ISO 27001:2022', 'A.5.2 Papéis', 'In Progress'), ('k3', 'pa', 'ISO 27001:2022', 'A.8.1 Dispositivos', 'Missing'), ('k4', 'pa', 'ISO 27001:2022', 'A.7.5 Ameaças', 'Not Applicable')`),
     db().prepare(`INSERT INTO pedidos (id, org_id, project_id, tipo, ref_id, titulo, papel_exigido, conteudo_json, hash, criado_por) VALUES
@@ -167,9 +170,11 @@ describe('GET /projects/:id/painel', () => {
     expect(m.vencimentos!.find((l) => l.tipo === 'Evidências')!.vencidos).toBe(1);
     // ações das atividades: das faixas de prazo que a visão do encarregado já monta
     expect(m.vencimentos!.find((l) => l.tipo === 'Ações das atividades')).toEqual({ tipo: 'Ações das atividades', vencidos: 0, itens: [{ dias: 15, rotulo: 'Reduzir retenção' }] });
+    expect(m.vencimentos!.find((l) => l.tipo === 'Documentos (revisão)')!.itens).toEqual([{ dias: 20, rotulo: 'Contrato exemplo' }]);
     expect(m.riscos).toEqual([{ p: 4, i: 5, n: 1 }]);
-    expect(m.pedidos_semana).toHaveLength(12);
-    expect(m.pedidos_semana!.reduce((a, b) => a + b, 0)).toBe(4);
+    expect(m.pedidos_mes).toHaveLength(12);
+    expect(m.pedidos_mes!.reduce((a, b) => a + b, 0)).toBe(4);
+    expect(m.numeros.slice(3)).toEqual([['0%', 'de gaps concluídos'], ['0%', 'de riscos concluídos']]);
   });
 
   it('n.iso: cobertura do Anexo A por tema (sem os não aplicáveis), ações vencidas e o mapa só dos riscos do n.iso', async () => {
@@ -211,8 +216,8 @@ describe('GET /projects/:id/painel', () => {
     expect(corpo.saude).toMatchObject({ tom: 'vez', rotulo: 'Sua vez' });
     expect(corpo.decisoes).toEqual([expect.objectContaining({ titulo: 'Aprovar "Folha"', acao: 'Ler e aprovar' })]);
     const m = corpo.modulos.privacy;
-    for (const k of ['fazer', 'cobertura', 'riscos', 'vencimentos', 'pedidos_semana']) expect(m, k).not.toHaveProperty(k);
-    expect(corpo.modulos.privacy.numeros).toHaveLength(3);
+    for (const k of ['fazer', 'cobertura', 'riscos', 'vencimentos', 'pedidos_mes']) expect(m, k).not.toHaveProperty(k);
+    expect(corpo.modulos.privacy.numeros).toHaveLength(5);
   });
 
   it('cliente no n.iso: o próximo marco da jornada (a primeira fase não concluída), sem a lista da consultoria', async () => {

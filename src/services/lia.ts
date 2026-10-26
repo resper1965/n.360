@@ -167,7 +167,7 @@ export async function criarDpiaDoTratamento(
     `INSERT INTO dpia_assessments (id, project_id, ropa_id, processing_name, system_name, data_subjects_types, personal_data_categories, data_flow_description,
        necessity_proportionality, risks_identified, origem_hash, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft')`
-  ).bind(id, projectId, ropaId, reg.processing_purpose, lig.itens.map((i) => i.nome).join(', ') || null, reg.data_subjects, reg.data_categories, linhas.join('\n') || null,
+  ).bind(id, projectId, ropaId, reg.processing_purpose, lig.itens.map((i) => i.nome).join(', ') || reg.processing_purpose, reg.data_subjects, reg.data_categories, linhas.join('\n') || null,
     necessidade || null, riscos || null, await hashDoTratamento(db, projectId, ropaId)).run();
   await logAudit(db, 'dpia.criada_do_tratamento', ator, `DPIA ${id} criada a partir do tratamento ${ropaId}`, '', '', projectId, { tipo: 'dpia', id });
   return { ok: true, id };

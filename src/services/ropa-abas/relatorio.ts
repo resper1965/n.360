@@ -14,7 +14,7 @@ const campo = (rotulo: string, valor: string) => `<div class="campo"><div class=
 const PROC: Record<string, string> = { nao: 'Não, não são submetidos.', apoio: 'Sim, como apoio à decisão humana.', decisao: 'Sim, com decisão automatizada.' };
 const ESTRATEGIA: Record<string, string> = { Mitigate: 'Mitigar', Accept: 'Aceitar', Avoid: 'Evitar', Transfer: 'Transferir' };
 const STATUS_GAP: Record<string, string> = { Open: 'Pendente', 'In Progress': 'Em andamento', Closed: 'Concluído' };
-const STATUS_MEDIDA: Record<string, string> = { ativa: 'Ativa', em_implantacao: 'Em implantação', planejada: 'Planejada' };
+const STATUS_MEDIDA: Record<string, string> = { ativa: 'Ativo', em_implantacao: 'Em implantação', planejada: 'Planejada' };
 const SITUACAO_ETAPA: Record<string, string> = { concluida: 'Concluída', pendente: 'Pendente', nao_aplicavel: 'Não aplicável' };
 
 /** As seis etapas do tratamento, com o que cada uma registra (spec 5). Só o que está gravado; o dado sensível aparece marcado. */

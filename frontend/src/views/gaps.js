@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { montarLista, colunasDe } from '../lista.js';
+import { montarLista, colunasDe, consultaDe } from '../lista.js';
 import { escapeHTML, formatarData, showToast, tituloDaTela } from '../ui.js';
 import { STATUS, abrirGapDaAtividade, emAtraso } from '../atividade/aba-gaps.js';
 import { podeEditar } from './partes.js';
@@ -55,7 +55,8 @@ async function renderGaps(c, h, a) {
         // O status é o que a coluna mostra: o gap aberto com prazo vencido está em "Em atraso".
         filtros: [{ chave: 'area', rotulo: 'Área', valor: (g) => String(g.area || '').split(', ').filter(Boolean) },
             { chave: 'status', rotulo: 'Status', valor: (g) => (emAtraso(g) ? ATRASO : g.status), opcoes: [...STATUS, [ATRASO, 'Em atraso']] }],
-        exportar: { caminho: `/api/v1/projects/${proj.id}/export/acoes-atividade`, rotulo: 'Exportar' },
+        // O arquivo sai com a busca e os filtros que a tela mostra (o servidor aplica a mesma regra).
+        exportar: { caminho: (e) => { const q = consultaDe({ q: e.q, area: e.filtros.area, status: e.filtros.status }); return `/api/v1/projects/${proj.id}/export/acoes-atividade${q}`; }, rotulo: 'Exportar' },
     });
 }
 
