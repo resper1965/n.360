@@ -132,7 +132,7 @@ import {
   parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
-import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema, ripdQuestionarioSchema } from './schemas/ropa-abas';
+import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema, ripdQuestionarioSchema, liaQuestionarioSchema } from './schemas/ropa-abas';
 import { passoCamposSchema, passoMetaSchema, passoConcluirSchema, passoReabrirSchema, passoBloquearSchema, passoDesbloquearSchema, copilotoCampoSchema, copilotoConversaSchema } from './schemas/passos';
 
 /**
@@ -323,6 +323,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/gaps', schema: gapCriarSchema, nome: 'gapCriarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/impacto', schema: tratamentoImpactoSchema, nome: 'tratamentoImpactoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/itens', schema: tratamentoItensSchema, nome: 'tratamentoItensSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/lia/questionario', schema: liaQuestionarioSchema, nome: 'liaQuestionarioSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/lia', schema: liaSalvarSchema, nome: 'liaSalvarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/medidas/:id', schema: medidaAtualizarSchema, nome: 'medidaAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/medidas', schema: medidaCriarSchema, nome: 'medidaCriarSchema' },

@@ -9,7 +9,7 @@ const P = 'proj-e2e';
 const BASE = `/api/v1/projects/${P}`;
 const PERGUNTAS = {
   teste_impacto: [['beneficios', 'Benefícios', 'texto']],
-  conformidade: [['o_que_muda', 'O que muda depois do projeto?', 'texto'], ['partes_envolvidas', 'As partes interessadas foram envolvidas?', 'escolha']],
+  conformidade: [['o_que_muda', 'O que muda depois do projeto?', 'texto'], ['partes_envolvidas', 'As partes interessadas foram envolvidas?', 'texto']],
   armazenamento: [['onde_ficam', 'Onde os dados ficam armazenados?', 'texto']],
 };
 const ROTULOS = { teste_impacto: 'Teste de Impacto', conformidade: 'Conformidade', armazenamento: 'Armazenamento' };
@@ -60,14 +60,17 @@ test('lista de RIPD → página → aba Conformidade → responder → recarrega
   await page.getByRole('tab', { name: 'Conformidade' }).click();
   await expect(page).toHaveURL(/aba=conformidade/);
   await page.getByLabel('O que muda depois do projeto?').fill('A folha passa a ser digital');
-  await page.getByLabel('Sim', { exact: true }).check();
+  await page.getByLabel('As partes interessadas foram envolvidas?').fill('Sim');
+  await page.getByLabel('As partes interessadas foram envolvidas?').blur();
+  await expect(page.locator('#rf-st-partes_envolvidas')).toHaveText('Salvo.');
+  await expect(page.getByRole('heading', { name: 'Perguntas 1 a 6' })).toBeVisible();
   await expect(page.locator('#rf-st-o_que_muda')).toHaveText('Salvo.');
-  expect(respostas).toEqual({ o_que_muda: 'A folha passa a ser digital', partes_envolvidas: 'sim' });
+  expect(respostas).toEqual({ o_que_muda: 'A folha passa a ser digital', partes_envolvidas: 'Sim' });
 
   await page.reload();
   await expect(page.getByRole('tab', { name: 'Conformidade' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByLabel('O que muda depois do projeto?')).toHaveValue('A folha passa a ser digital');
-  await expect(page.getByLabel('Sim', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('As partes interessadas foram envolvidas?')).toHaveValue('Sim');
 
   await page.getByRole('button', { name: 'Voltar aos RIPDs' }).click();
   await expect(page).not.toHaveURL(/dpia=/);

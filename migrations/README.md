@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0083** (`ls migrations/*.sql | tail -1`). São 81 arquivos
+- Última migration no repositório: **0084** (`ls migrations/*.sql | tail -1`). São 82 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -687,3 +687,7 @@ consulta do cabeçalho do arquivo. **Não é idempotente** (`ADD COLUMN`): aplic
 **Produção só com o "sim" explícito do dono e `npm run db:backup` antes. Não aplicada em lugar nenhum.**
 Ordem: merge → `npm run db:backup` → workflow *Apply DB migrations* (`db-migrate.yml`) → `npx wrangler d1 migrations list niso-db --remote`
 (esperado: "No migrations to apply") → workflow *Deploy*.
+
+## 0084 — respostas do questionário da LIA (2026-10-26)
+
+Aditiva: cria `lia_respostas` (PK `ropa_id`+`pergunta`, índice por projeto, gatilho `lia_respostas_do_projeto_ins`), no molde da 0083. As colunas de `lia_assessments` não mudam. Idempotente (`IF NOT EXISTS`). Produção só com o "sim" do dono e `npm run db:backup` antes; mesma ordem da 0083.

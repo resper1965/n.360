@@ -113,6 +113,17 @@ describe('LIA em Word', () => {
     expect(tudo).not.toContain('LIA alheia');
   });
 
+  it('traz as 23 perguntas por aba, com a resposta e o traço quando em branco', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO lia_respostas (ropa_id, project_id, pergunta, resposta) VALUES ('dw-r1', ?, 'finalidades', 'Evitar fraude ficticia')`).bind(P),
+      env.DB.prepare(`INSERT INTO lia_respostas (ropa_id, project_id, pergunta, resposta) VALUES ('dw-r1', ?, 'tratamento_inovador', 'Não, é um serviço comum')`).bind(P),
+    ]);
+    const { doc } = await abrir(await chamar(consultor, `/api/v1/projects/${P}/ropa/dw-r1/lia/docx`));
+    for (const t of ['Finalidade', 'Necessidade', 'Proporcionalidade', 'Para quais finalidades os dados pessoais serão tratados?', 'Evitar fraude ficticia',
+      'Os dados pessoais serão tratados para a realização de algo novo ou inovador?', 'Não, é um serviço comum', 'Há quanto tempo os dados pessoais foram coletados?']) expect(doc, t).toContain(t);
+    await env.DB.prepare(`DELETE FROM lia_respostas WHERE ropa_id = 'dw-r1'`).run();
+  });
+
   it('rascunho marcado; LIA de outro projeto e atividade sem LIA são 404', async () => {
     const { cab } = await abrir(await chamar(consultor, `/api/v1/projects/${OUTRO}/ropa/dw-alheio/lia/docx`));
     expect(cab).toContain('RASCUNHO');

@@ -4,7 +4,7 @@ import { escapeHTML, formatarData } from '../ui.js';
 import { montarLista, colunasDe } from '../lista.js';
 
 // LIA do projeto (n.privacy, spec 2026-10-19): `GET /projects/:id/ropa/lias`, as LIAs gravadas e as atividades de legítimo interesse
-// ainda sem LIA ("Faltando"). Só leitura; a LIA se faz na aba Base Jurídica da atividade. Texto do servidor escapado.
+// ainda sem LIA ("Faltando"). Só leitura; a LIA tem ficha própria (23 perguntas em abas), aberta daqui ou da aba Base Jurídica da atividade. Texto do servidor escapado.
 
 const SITUACOES = [['faltando', 'Faltando'], ['rascunho', 'Rascunho'], ['concluida', 'Concluída']];
 const ROTULO = Object.fromEntries(SITUACOES);
@@ -37,7 +37,8 @@ async function renderLia(c, h, a) {
             window.renderStatusBadge(ROTULO[l.status] || l.status, TOM[l.status] || 'neutral'),
             escapeHTML(CONCLUSAO[l.conclusao] || '—'),
             formatarData(l.concluida_em),
-            `<button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(proj.id, l.ropa_id, 'base_juridica')}' aria-label="Abrir a atividade: ${escapeHTML(l.atividade)}">Abrir</button>`
+            `<button class="btn btn-ghost btn-sm" data-action="abrirLia" data-args='${args(proj.id, l.ropa_id)}' aria-label="Abrir a LIA: ${escapeHTML(l.atividade)}">Abrir</button>`
+                + ` <button class="btn btn-ghost btn-sm" data-action="abrirAtividade" data-args='${args(proj.id, l.ropa_id, 'base_juridica')}' aria-label="Abrir a atividade: ${escapeHTML(l.atividade)}">Atividade</button>`
                 + (l.status !== 'faltando' ? ` <button class="btn btn-ghost btn-sm" data-action="baixarWordLia" data-args='${args(proj.id, l.ropa_id)}' aria-label="Baixar o Word da LIA: ${escapeHTML(l.atividade)}">Word</button>` : ''),
         ]),
         busca: (l) => l.atividade,

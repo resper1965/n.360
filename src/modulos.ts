@@ -56,10 +56,10 @@ const SUBROTAS_PRIVACY: RegExp[] = [
   /^ropa\/(importar|copiloto|riscos-mapa|gaps|lias)$/,
   // Riscos e ações da atividade (F2): visão filtrada de `risks` e `corrective_actions`, que por id seguem na faixa iso.
   /^ropa\/[^/]+\/(riscos|acoes)(\/[^/]+)?$/,
-  /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|lia|sugestao|impacto|ciclo|bases)$/,
+  /^ropa\/[^/]+\/(ligacoes|itens|departamentos|transferencias|diagrama|dpia|sugestao|impacto|ciclo|bases)$/,
   // Exportação (F4): riscos, ações e LIA das atividades; atividades e RIPD seguem no núcleo pelo segmento `export`.
   /^export\/(riscos-atividade|acoes-atividade|lia)$/,
-  /^ropa\/[^/]+\/lia\/docx$/,
+  /^ropa\/[^/]+\/lia(\/(docx|questionario|logs))?$/,
   /^incidentes\/[^/]+\/rascunho-comunicacao$/,
   /^evidence\/[^/]+\/requisitos$/,
   // Ficha em abas (spec 2026-10-16): o registro segue no núcleo; a camada nova é do n.privacy.

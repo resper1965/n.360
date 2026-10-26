@@ -5,16 +5,19 @@
  */
 import { ABAS_RIPD, PERGUNTAS_RIPD, PERGUNTA_RIPD_POR_ID, ESCOLHAS_RIPD, MAX_RESPOSTAS_POR_PUT, MAX_TEXTO_RESPOSTA, type AbaRipd } from '../data/ripd-perguntas';
 import { genId } from '../helpers';
+import { lerBaseJuridica } from './ropa-abas/base-juridica';
 
-export type PerguntaLida = { id: string; texto: string; tipo: 'texto' | 'escolha'; resposta: string | null; da_atividade: string | null };
+/** Só leitura, derivado da atividade (nunca gravado): o que o legado mostra abaixo da pergunta das bases legais. */
+export type BaseLegalLida = { dados_pessoais: string[]; dados_sensiveis: string[] };
+export type PerguntaLida = { id: string; texto: string; tipo: 'texto' | 'escolha'; resposta: string | null; da_atividade: string | null; base_legal?: BaseLegalLida | null };
 export type QuestionarioLido = { abas: { id: AbaRipd; rotulo: string; perguntas: PerguntaLida[] }[] };
 type Falha = { ok: false; status: 400 | 404; error: string };
 
 /** O que a atividade ligada ao RIPD já informa: operadores (aba Agentes), local de armazenamento (etapa Armazenamento) e volume mensal (Escopo). */
-async function sugestoesDaAtividade(db: D1Database, projectId: string, ropaId: string | null): Promise<Record<'operadores' | 'armazenamento' | 'volume', string | null>> {
-  if (!ropaId) return { operadores: null, armazenamento: null, volume: null };
+async function sugestoesDaAtividade(db: D1Database, projectId: string, ropaId: string | null): Promise<Record<'operadores' | 'armazenamento' | 'volume' | 'sensiveis', string | null>> {
+  if (!ropaId) return { operadores: null, armazenamento: null, volume: null, sensiveis: null };
   const [reg, ops, arm] = await db.batch([
-    db.prepare('SELECT volume_mensal FROM ropa_records WHERE id = ? AND project_id = ?').bind(ropaId, projectId),
+    db.prepare('SELECT volume_mensal, dados_sensiveis FROM ropa_records WHERE id = ? AND project_id = ?').bind(ropaId, projectId),
     db.prepare(
       `SELECT DISTINCT p.nome FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id
         WHERE v.alvo_tipo = 'tratamento' AND v.alvo_id = ? AND v.project_id = ? AND v.papel = 'operador' ORDER BY p.nome`
@@ -24,11 +27,13 @@ async function sugestoesDaAtividade(db: D1Database, projectId: string, ropaId: s
         WHERE c.ropa_id = ? AND c.project_id = ? AND c.etapa = 'armazenamento' AND c.situacao = 'registrada'`
     ).bind(ropaId, projectId),
   ]);
-  const volume = (reg.results[0] as { volume_mensal: string | null } | undefined)?.volume_mensal?.trim() || null;
+  const r = reg.results[0] as { volume_mensal: string | null; dados_sensiveis: number } | undefined;
+  const volume = r?.volume_mensal?.trim() || null;
   const operadores = (ops.results as { nome: string }[]).map((o) => o.nome);
   const etapa = arm.results[0] as { item: string | null; descricao: string | null } | undefined;
   const local = etapa ? [etapa.item, etapa.descricao?.trim()].filter(Boolean).join(': ') || null : null;
-  return { operadores: operadores.length ? `Operadores: ${operadores.join(', ')}` : null, armazenamento: local, volume };
+  return { operadores: operadores.length ? `Operadores: ${operadores.join(', ')}` : null, armazenamento: local, volume,
+    sensiveis: r ? (r.dados_sensiveis === 1 ? 'A atividade marca tratamento de dados sensíveis.' : 'A atividade não marca tratamento de dados sensíveis.') : null };
 }
 
 /** As perguntas por aba, com a resposta gravada e a sugestão da atividade. null = o RIPD não é do projeto. */
@@ -39,11 +44,15 @@ export async function lerQuestionario(db: D1Database, projectId: string, dpiaId:
     .all<{ pergunta: string; resposta: string }>();
   const gravadas = new Map(results.map((r) => [r.pergunta, r.resposta]));
   const sug = await sugestoesDaAtividade(db, projectId, dpia.ropa_id);
+  const bj = dpia.ropa_id ? await lerBaseJuridica(db, projectId, dpia.ropa_id) : null;
+  const titulo = (i: { referencia: string; titulo: string }) => `${i.referencia}: ${i.titulo}`;
+  const baseLegal: BaseLegalLida | null = bj ? { dados_pessoais: bj.lgpd.map(titulo), dados_sensiveis: bj.art11.incisos.map(titulo) } : null;
   return {
     abas: ABAS_RIPD.map((a) => ({
       id: a.id, rotulo: a.rotulo,
       perguntas: PERGUNTAS_RIPD.filter((p) => p.aba === a.id).map((p) => ({
         id: p.id, texto: p.texto, tipo: p.tipo, resposta: gravadas.get(p.id) ?? null, da_atividade: p.sugestao ? sug[p.sugestao] : null,
+        ...(p.bloco === 'base_legal' ? { base_legal: baseLegal } : {}),
       })),
     })),
   };

@@ -82,7 +82,7 @@ export async function salvarLia(db: D1Database, projectId: string, ropaId: strin
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(id, projectId, ropaId, d.finalidade_legitima ?? null, d.necessidade ?? null, d.balanceamento ?? null, d.salvaguardas ?? null, d.conclusao ?? null, status,
       concluindo ? new Date().toISOString() : null, concluindo ? ator : null, ator, await hashDoTratamento(db, projectId, ropaId)).run();
-    await logAudit(db, 'lia.criada', ator, `LIA do tratamento ${ropaId} criada (${status})`, '', '', projectId);
+    await logAudit(db, 'lia.criada', ator, `LIA do tratamento ${ropaId} criada (${status})`, '', '', projectId, { tipo: 'lia', id: ropaId });
     return { ok: true, id, criada: true };
   }
   const colunas = [...sets.map((c) => `${c} = ?`), 'status = ?', 'concluida_em = ?', 'concluida_por = ?', "updated_at = datetime('now')"];
@@ -91,13 +91,16 @@ export async function salvarLia(db: D1Database, projectId: string, ropaId: strin
     status === 'concluida' ? (concluindo ? new Date().toISOString() : atual.concluida_em) : null,
     status === 'concluida' ? (concluindo ? ator : atual.concluida_por) : null, atual.id, projectId,
   ).run();
-  await logAudit(db, concluindo ? 'lia.concluida' : 'lia.atualizada', ator, `LIA do tratamento ${ropaId}: ${status}`, '', '', projectId);
+  await logAudit(db, concluindo ? 'lia.concluida' : 'lia.atualizada', ator, `LIA do tratamento ${ropaId}: ${status}`, '', '', projectId, { tipo: 'lia', id: ropaId });
   return { ok: true, id: atual.id, criada: false };
 }
 
 export async function apagarLia(db: D1Database, projectId: string, ropaId: string, ator: string): Promise<boolean> {
   const r = await db.prepare('DELETE FROM lia_assessments WHERE ropa_id = ? AND project_id = ?').bind(ropaId, projectId).run();
-  if (r.meta.changes) await logAudit(db, 'lia.apagada', ator, `LIA do tratamento ${ropaId} apagada`, '', '', projectId);
+  if (r.meta.changes) {
+    await db.prepare('DELETE FROM lia_respostas WHERE ropa_id = ? AND project_id = ?').bind(ropaId, projectId).run(); // o questionário some com a LIA
+    await logAudit(db, 'lia.apagada', ator, `LIA do tratamento ${ropaId} apagada`, '', '', projectId, { tipo: 'lia', id: ropaId });
+  }
   return (r.meta.changes ?? 0) > 0;
 }
 

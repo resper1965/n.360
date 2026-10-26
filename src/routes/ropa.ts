@@ -11,6 +11,8 @@ import { criarTransferencia, definirLigacao, diagramaDoTratamento, lerLigacoes, 
 import { aprovacoesDoProjeto } from '../services/documentos';
 import { importarTratamentos } from '../services/tratamentos-importar';
 import { apagarLia, criarDpiaDoTratamento, lerLia, liasDoProjeto, salvarLia } from '../services/lia';
+import { liaQuestionarioSchema } from '../schemas/ropa-abas';
+import { lerLogsLia, lerQuestionarioLia, salvarQuestionarioLia } from '../services/lia-questionario';
 import { conferirPedidosDoDocumento } from './pedidos';
 import { sugerirTratamento } from '../services/rascunhos-privacy';
 import { copilotoDoRopa, podePedirCopiloto } from '../services/copiloto-ropa';
@@ -247,6 +249,30 @@ projectRopaApp.put('/:recordId/lia', async (c) => {
     const r = await salvarLia(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'), c.get('user')?.email || 'system', v.data);
     return r.ok ? c.json({ ok: true, id: r.id }, r.criada ? 201 : 200) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao salvar a LIA', e); }
+});
+
+// Questionário da LIA (migration 0084): as 23 perguntas do legado, fora das colunas da LIA. O agente lê e rascunha respostas (como o PUT da LIA).
+projectRopaApp.get('/:recordId/lia/questionario', async (c) => {
+  try {
+    const r = await lerQuestionarioLia(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
+    return r ? c.json({ ok: true, ...r }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao ler o questionário da LIA', e); }
+});
+
+projectRopaApp.put('/:recordId/lia/questionario', async (c) => {
+  try {
+    const v = await validateBody(c, liaQuestionarioSchema);
+    if (!v.success) return v.response;
+    const r = await salvarQuestionarioLia(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'), c.get('user')?.email || 'system', v.data.respostas);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao gravar o questionário da LIA', e); }
+});
+
+projectRopaApp.get('/:recordId/lia/logs', async (c) => {
+  try {
+    const r = await lerLogsLia(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'));
+    return r ? c.json({ ok: true, logs: r }) : c.json({ error: 'Registro do RoPA não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao ler os logs da LIA', e); }
 });
 
 projectRopaApp.delete('/:recordId/lia', async (c) => {

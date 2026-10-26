@@ -5,6 +5,8 @@ import { assinaturaDpia, documentoAtual, hashConteudo } from '../src/services/pe
 import { PERGUNTAS_RIPD, ABAS_RIPD } from '../src/data/ripd-perguntas';
 import { applySchema, sessionFor, workerEnv, designarConsultor, habilitarPrivacy } from './helpers/d1';
 
+const fonte = (import.meta.glob('../src/data/ripd-perguntas.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../src/data/ripd-perguntas.ts'];
+
 /** Questionário do RIPD (migration 0083, spec 2026-10-26): respostas em tabela própria, fora do hash da aprovação. Só dado fictício. */
 const P = 'rq-proj';
 const OUTRO = 'rq-outro';
@@ -23,7 +25,10 @@ beforeAll(async () => {
   }
   await habilitarPrivacy(P, OUTRO);
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, volume_mensal) VALUES ('rq-ropa', ?, 'Folha ficticia', 'cerca de 300 titulares por mes')`).bind(P),
+    env.DB.prepare(`INSERT OR IGNORE INTO requisito_fontes (id, nome) VALUES ('lgpd', 'LGPD')`),
+    env.DB.prepare(`INSERT OR IGNORE INTO requisitos (id, fonte_id, referencia, titulo) VALUES ('lgpd:art7:v', 'lgpd', 'Art. 7, V', 'Execução de contrato'), ('lgpd:art11:ii-a', 'lgpd', 'Art. 11, II, a', 'Cumprimento de obrigação legal (sensível)')`),
+    env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose, volume_mensal, dados_sensiveis, base_legal_id) VALUES ('rq-ropa', ?, 'Folha ficticia', 'cerca de 300 titulares por mes', 1, 'lgpd:art7:v')`).bind(P),
+    env.DB.prepare(`INSERT INTO tratamento_bases (ropa_id, requisito_id, project_id, finalidade) VALUES ('rq-ropa', 'lgpd:art11:ii-a', ?, 'obrigacao ficticia')`).bind(P),
     env.DB.prepare(`INSERT INTO dpia_assessments (id, project_id, ropa_id, processing_name, status) VALUES ('rq-1', ?, 'rq-ropa', 'Folha', 'Draft')`).bind(P),
     env.DB.prepare(`INSERT INTO dpia_assessments (id, project_id, processing_name, status) VALUES ('rq-sem', ?, 'Sem atividade', 'Draft')`).bind(P),
     env.DB.prepare(`INSERT INTO dpia_assessments (id, project_id, processing_name, status) VALUES ('rq-alheio', ?, 'Alheio', 'Draft')`).bind(OUTRO),
@@ -38,10 +43,23 @@ beforeAll(async () => {
 });
 
 describe('catálogo de perguntas do RIPD', () => {
-  it('tem 3 abas com 4, 8 e 5 perguntas, ids únicos e as não confirmadas marcadas no arquivo de dados', async () => {
-    expect(ABAS_RIPD.map((a) => PERGUNTAS_RIPD.filter((p) => p.aba === a.id).length)).toEqual([4, 8, 5]);
+  const doAba = (a: string) => PERGUNTAS_RIPD.filter((p) => p.aba === a);
+
+  it('tem exatamente 4 + 29 + 5 perguntas, todas em texto livre, como no legado', () => {
+    expect(ABAS_RIPD.map((a) => doAba(a.id).length)).toEqual([4, 29, 5]);
+    expect(PERGUNTAS_RIPD).toHaveLength(38);
+    expect(PERGUNTAS_RIPD.every((p) => p.tipo === 'texto')).toBe(true);
+  });
+
+  it('ids únicos, em snake_case e com até 60 caracteres; texto nunca vazio', () => {
     expect(new Set(PERGUNTAS_RIPD.map((p) => p.id)).size).toBe(PERGUNTAS_RIPD.length);
-    expect(PERGUNTAS_RIPD.every((p) => p.id.length <= 60 && p.texto.length > 5)).toBe(true);
+    expect(PERGUNTAS_RIPD.every((p) => /^[a-z][a-z0-9_]*$/.test(p.id) && p.id.length <= 60)).toBe(true);
+    expect(PERGUNTAS_RIPD.every((p) => p.texto.trim().length > 5)).toBe(true);
+  });
+
+  it('nenhuma pergunta do RIPD está marcada como texto parcial do guia do legado', () => {
+    expect(fonte.split(/\r?\n/).filter((l) => l.includes("{ id: '") && l.includes('texto parcial no guia do legado'))).toEqual([]);
+    expect(fonte).not.toContain('texto a confirmar com o dono');
   });
 });
 
@@ -57,8 +75,20 @@ describe('GET e PUT /dpia/:id/questionario', () => {
     expect(p.onde_ficam.da_atividade).toBe('Banco Ficticio: nuvem ficticia');
     expect(p.quantos_titulares.da_atividade).toBe('cerca de 300 titulares por mes');
     expect(p.beneficios.da_atividade).toBeNull();
+    expect(p.dados_sensiveis.da_atividade).toBe('A atividade marca tratamento de dados sensíveis.');
     // Sugestão nunca é gravada.
     expect((await env.DB.prepare('SELECT count(*) AS n FROM dpia_respostas').first<{ n: number }>())!.n).toBe(0);
+  });
+
+  it('a pergunta das bases legais traz o bloco só leitura da atividade, e nada disso é gravado', async () => {
+    const corpo: any = await (await chamar(consultor, 'GET', `${base()}/questionario`)).json();
+    const p = perguntasDe(corpo);
+    expect(p.bases_legais.base_legal).toEqual({ dados_pessoais: ['Art. 7, V: Execução de contrato'], dados_sensiveis: ['Art. 11, II, a: Cumprimento de obrigação legal (sensível)'] });
+    expect(Object.values(p).filter((x: any) => x.base_legal !== undefined)).toHaveLength(1);
+    expect(p.bases_legais.resposta).toBeNull();
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM dpia_respostas').first<{ n: number }>())!.n).toBe(0);
+    const sem: any = await (await chamar(consultor, 'GET', `${base(P, 'rq-sem')}/questionario`)).json();
+    expect(perguntasDe(sem).bases_legais.base_legal).toBeNull();
   });
 
   it('RIPD sem atividade ligada não traz sugestão', async () => {
@@ -80,15 +110,19 @@ describe('GET e PUT /dpia/:id/questionario', () => {
     expect(p.territorio_nacional.resposta).toBe('sim'); // as que não vieram ficam
   });
 
-  it('recusa pergunta desconhecida, escolha fora de sim/nao/nao_sei, campo a mais, corpo vazio e texto longo', async () => {
+  it('recusa pergunta desconhecida, campo a mais, corpo vazio e texto longo; as 29 da Conformidade cabem num PUT', async () => {
     const put = (corpo: unknown) => chamar(consultor, 'PUT', `${base()}/questionario`, corpo);
     expect((await put({ respostas: { inventada: 'x' } })).status).toBe(400);
-    expect((await put({ respostas: { territorio_nacional: 'talvez' } })).status).toBe(400);
+    expect((await put({ respostas: { bases_legais_inventada: 'x' } })).status).toBe(400);
     expect((await put({ respostas: { o_que_muda: 'x' }, extra: 1 })).status).toBe(400);
     expect((await put({ respostas: {} })).status).toBe(400);
     expect((await put({ respostas: { o_que_muda: 'a'.repeat(2001) } })).status).toBe(400);
     const muitas = Object.fromEntries(Array.from({ length: 41 }, (_, i) => [`p${i}`, 'x']));
     expect((await put({ respostas: muitas })).status).toBe(400);
+    const todas = Object.fromEntries(PERGUNTAS_RIPD.filter((q) => q.aba === 'conformidade').map((q) => [q.id, 'ficticio']));
+    expect(Object.keys(todas)).toHaveLength(29);
+    expect((await put({ respostas: todas })).status).toBe(200);
+    expect((await env.DB.prepare(`SELECT count(*) AS n FROM dpia_respostas WHERE dpia_id = 'rq-1'`).first<{ n: number }>())!.n).toBe(29 + 2); // + as 2 de antes (territorio_nacional, beneficios)
   });
 
   it('RIPD de outro projeto: 404 pelo projeto da URL, e a linha alheia não muda', async () => {

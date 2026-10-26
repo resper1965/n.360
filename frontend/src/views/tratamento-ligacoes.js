@@ -18,7 +18,7 @@ const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
 /** Depois de gravar: a página da atividade se redesenha; a aba que gravou continua na tela. */
 async function atualizar() {
-    if (S.view === 'ropa-atividade') window.render();
+    if (S.view === 'ropa-atividade' || S.view === 'lia-ficha') window.render();
 }
 
 async function acao(projectId, ropaId, fazer, padrao, sucesso) {

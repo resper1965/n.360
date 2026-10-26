@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### LIA com as 23 perguntas do legado (27/10/2026; migration 0084 ainda não aplicada)
+- A LIA traz as 23 perguntas reais do legado (Finalidade 7, Necessidade 5, Proporcionalidade 11), todas em texto livre, no lugar das 12 aproximadas. Abas: Finalidade, Necessidade, Proporcionalidade, Conclusão (formulário atual, regra de concluir inalterada) e Logs; a pergunta tem o número da aba. A ficha ganha Reabrir (com confirmação) e Imprimir LIA. O Word e o modelo de CSV da LIA levam as 23 colunas opcionais. A pergunta 5 de Necessidade está parcial no guia e fica marcada para confirmação.
+
+### Corrigido
+- **RIPD com as perguntas reais do legado:** o questionário (migration 0083) tinha 17 perguntas aproximadas; agora tem as 38 do guia do legado (Teste de Impacto 4, Conformidade 29, Armazenamento 5), todas em texto livre, numeradas na tela, com a Conformidade em três grupos (1 a 6, 7 a 16, 17 a 29). A pergunta das bases legais mostra, só leitura, as bases da atividade. Os textos cortados no guia foram confirmados pelo dono. Sem migration: não havia resposta gravada em produção.
+
 ### Lacunas pós-revisão (26/10/2026; sem migration)
 - (1) `POST /documentos/:id/promover` grava título, requisitos e origem num `db.batch` só: falha na gravação dos requisitos não deixa título nem origem mudados. (2) `POST /politicas/organizar/incorporar` liga o requisito e aposenta a origem no mesmo batch; origem já aposentada (corrida) responde 409, sem requisito e sem trilha. (3) `PUT /api/v1/ropa/:id` que cancela a atividade não grava os outros campos do corpo; enviar para revisão e reabrir seguem aplicando. (4) O login OAuth pendente guarda também o estado do TOTP (junto da marca da senha): ligar, trocar ou desligar o segundo fator depois do `/entrar` derruba o `/confirmar` ("Pedido expirado"). (5) `lerCongelado` (homologação) aceita JSON `null`, número ou texto: vira perguntas vazias com o nome ao vivo. (6) `sem_cobertura` sai em ordem natural (A.5.2 antes de A.5.10).
 
