@@ -28,7 +28,34 @@ describe('ficha em abas: Logs ROPA', () => {
     const linhas = await json<any[]>(r);
     expect(linhas[0]).toMatchObject({ secao: 'Escopo', evento: 'Alteração', nome: 'Consultor exemplo' });
     expect(linhas.find((x) => x.secao === 'Teste de Impacto')).toBeTruthy();
-    expect(Object.keys(linhas[0]).sort()).toEqual(['data', 'evento', 'nome', 'secao']);
+    expect(Object.keys(linhas[0]).sort()).toEqual(['data', 'evento', 'mudancas', 'nome', 'secao']);
+    expect(JSON.stringify(linhas)).not.toContain('sigiloso');
+  });
+
+  it('D3: escolha, marca e áreas entram com antes e depois; texto livre fica só como "Alteração"', async () => {
+    const a = await novaAtividade(s.consultor);
+    await chamar(s.consultor, 'PUT', `${base(a)}/escopo`, { processamento_automatizado: 'nao' });
+    const r = await chamar(s.consultor, 'PUT', `${base(a)}/escopo`, { processamento_automatizado: 'decisao', descricao_atividade: 'Texto livre sigiloso exemplo', finalidade: 'Finalidade sigilosa exemplo' });
+    expect(r.status).toBe(200);
+    await chamar(s.consultor, 'PUT', `${base(a)}/agentes`, { papel_controlador: true, transfer_safeguards: 'Cláusula sigilosa exemplo' });
+    const linhas = await json<any[]>(await chamar(s.consultor, 'GET', `${base(a)}/logs?limite=10`));
+    const escopo = linhas.find((x) => x.secao === 'Escopo' && x.mudancas.some((m: any) => m.depois === 'decisao'));
+    expect(escopo.mudancas).toEqual([{ campo: 'processamento_automatizado', antes: 'nao', depois: 'decisao' }]);
+    const agentes = linhas.find((x) => x.secao === 'Agentes de Tratamento');
+    expect(agentes.mudancas).toEqual([{ campo: 'papel_controlador', antes: '(vazio)', depois: '1' }]);
+    const { results } = await env.DB.prepare(`SELECT details FROM audit_logs WHERE entity_id = ? AND action = 'ropa.secao'`).bind(a).all<{ details: string }>();
+    expect(JSON.stringify(results)).not.toContain('sigiloso');
+    expect(JSON.stringify(linhas)).not.toContain('sigiloso');
+  });
+
+  it('D3: a situação grava de e para; só entra campo da lista fixa', async () => {
+    const a = await novaAtividade(s.consultor);
+    await registrarSecao(env.DB, 'cons@ness.lat', P, a, 'Escopo', 'Alteração', '', [
+      { campo: 'situacao', antes: 'Draft', depois: 'Under Review' },
+      { campo: 'descricao_atividade', antes: 'texto antigo sigiloso', depois: 'texto novo sigiloso' },
+    ]);
+    const linhas = await json<any[]>(await chamar(s.consultor, 'GET', `${base(a)}/logs?limite=5`));
+    expect(linhas[0].mudancas).toEqual([{ campo: 'situacao', antes: 'Draft', depois: 'Under Review' }]);
     expect(JSON.stringify(linhas)).not.toContain('sigiloso');
   });
 

@@ -5,7 +5,13 @@ import { url, lista } from './estado.js';
 // Aba Logs ROPA: a trilha da atividade por seção, só leitura, mais recente primeiro. O servidor não devolve texto livre.
 
 const LIMITE = 50;
-const cartao = (l) => `<li class="at-log"><p class="at-log-linha">${escapeHTML(l.secao)}: ${escapeHTML(l.evento)}</p>
+const ROTULOS = { processamento_automatizado: 'Processamento automatizado', owner_parte_id: 'Responsável', areas_ids: 'Áreas', papel_controlador: 'Controlador',
+    papel_operador: 'Operador', international_transfers: 'Transferência internacional', situacao: 'Situação' };
+const SITUACOES = { Draft: 'Rascunho', 'Under Review': 'Em revisão', Approved: 'Aprovada', Inactive: 'Cancelada' };
+const SIM_NAO = { 1: 'Sim', 0: 'Não' };
+const valor = (m, v) => (m.campo === 'situacao' ? SITUACOES[v] || v : (m.campo.startsWith('papel_') || m.campo === 'international_transfers') ? SIM_NAO[v] || v : v);
+const mudancas = (l) => (l.mudancas || []).map((m) => `<p class="at-nota">${escapeHTML(ROTULOS[m.campo] || m.campo)}: ${escapeHTML(valor(m, m.antes))} para ${escapeHTML(valor(m, m.depois))}</p>`).join('');
+const cartao = (l) => `<li class="at-log"><p class="at-log-linha">${escapeHTML(l.secao)}: ${escapeHTML(l.evento)}</p>${mudancas(l)}
     <p class="at-nota">Nome: ${escapeHTML(l.nome || '')}</p><p class="at-nota">Data: ${formatarData(l.data, { hora: true })}</p></li>`;
 
 export async function montar(painel, ctx) {

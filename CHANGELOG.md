@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Logs da atividade com antes e depois (D3)
+- A aba Logs ROPA mostra o valor anterior e o novo só dos campos que não são texto livre: processamento automatizado, responsável (id), áreas (ids), controlador, operador, transferência internacional e a situação (de e para). Texto livre (nome, descrição, finalidade, garantias, gap, medida) segue como "Alteração", sem o conteúdo. A lista de campos é fixa (`CAMPOS_COM_VALOR` em `src/services/ropa-abas/logs.ts`): campo fora dela é descartado ao gravar. O GET `/logs` passou a devolver `mudancas` em cada linha. Sem migration.
+
 ### LIA com as 23 perguntas do legado (27/10/2026; migration 0084 ainda não aplicada)
 - A LIA traz as 23 perguntas reais do legado (Finalidade 7, Necessidade 5, Proporcionalidade 11), todas em texto livre, no lugar das 12 aproximadas. Abas: Finalidade, Necessidade, Proporcionalidade, Conclusão (formulário atual, regra de concluir inalterada) e Logs; a pergunta tem o número da aba. A ficha ganha Reabrir (com confirmação) e Imprimir LIA. O Word e o modelo de CSV da LIA levam as 23 colunas opcionais.
 
