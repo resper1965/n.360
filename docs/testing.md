@@ -9,7 +9,7 @@ Contagens de 2026-10-14, com o comando ao lado:
 
 | Suite | Runtime | Config | Arquivos |
 |---|---|---|---|
-| Worker (backend) | runtime real do Cloudflare Workers (`@cloudflare/vitest-pool-workers`) | `vitest.config.mts` | 254 (`ls test/*.test.ts \| wc -l`) |
+| Worker (backend) | runtime real do Cloudflare Workers (`@cloudflare/vitest-plugin`, antes `@cloudflare/vitest-pool-workers`) | `vitest.config.mts` | 254 (`ls test/*.test.ts \| wc -l`) |
 | Frontend (unit) | jsdom (DOM simulado) | `frontend/vitest.config.js` | 96 (`ls frontend/test/*.test.js \| wc -l`) |
 | Frontend (E2E) | Chromium real (Playwright), API mockada | `frontend/playwright.config.js` | 6 (`ls frontend/e2e/*.spec.js \| wc -l`) |
 | E2E legado de MFA | Python + navegador, fora do CI | `test/e2e/` | 1 (`mfa.py`) |
@@ -86,7 +86,7 @@ copie os números para cá: eles mudam e a cópia envelhece.
 
 ## Isolamento de storage entre testes (importante ao escrever teste novo)
 
-O worker roda em `vitest` 4 + `@cloudflare/vitest-pool-workers` 0.20.x. A config
+O worker roda em `vitest` 4 + `@cloudflare/vitest-plugin` 1.x (o `@cloudflare/vitest-pool-workers` foi renomeado). A config
 usa o plugin `cloudflareTest` (não mais `defineWorkersConfig`/`poolOptions`).
 
 O ponto que pega: **o pool isola storage (D1/KV) apenas POR ARQUIVO, não por

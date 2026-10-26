@@ -2,7 +2,7 @@ version: 2
 
 # Atualização automática de dependências. Motivo concreto: o `npm audit` do worker
 # acusa vulnerabilidades críticas cuja correção exige bump major de
-# @cloudflare/vitest-pool-workers — o Dependabot abre o PR e o CI diz se quebra.
+# @cloudflare/vitest-plugin — o Dependabot abre o PR e o CI diz se quebra.
 #
 # Frequência MENSAL (era semanal): cada PR custa uma verificação completa na Cloudflare (~14 min) e, com a regra de
 # branch atualizado, cada merge refaz a dos outros. Alerta de segurança do Dependabot não segue esta agenda.
@@ -13,7 +13,7 @@ version: 2
 #
 # IGNORADOS de propósito (conflito de peer dependency que derruba o `npm ci`, ou seja,
 # o PR inteiro, inclusive os pacotes bons do mesmo grupo). Revisitar quando sair versão compatível:
-#  - vitest / @vitest/* major 5: @cloudflare/vitest-pool-workers@0.22 ainda não suporta (ERESOLVE).
+#  - vitest / @vitest/* major 5: o @cloudflare/vitest-plugin 1.x já aceita vitest 5; o bloqueio pode sair na próxima major.
 #  - @modelcontextprotocol/server: o pacote `agents` não aceita a 2.3 (ERESOLVE).
 updates:
   - package-ecosystem: npm
@@ -24,7 +24,7 @@ updates:
     groups:
       # Agrupa o que quase sempre sobe junto, para não gerar 5 PRs por mês.
       dev-tooling:
-        patterns: ["vitest", "@vitest/*", "@cloudflare/vitest-pool-workers", "typescript", "wrangler"]
+        patterns: ["vitest", "@vitest/*", "@cloudflare/vitest-plugin", "typescript", "wrangler"]
         update-types: ["minor", "patch"]
       menores-e-patches:
         update-types: ["minor", "patch"]
