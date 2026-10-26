@@ -18,6 +18,8 @@ const SITUACAO = { faltando: ['Faltando', 'danger'], rascunho: ['Rascunho', 'war
 const projetoAtivo = () => S.activeProject || (S.projects || [])[0];
 const args = (...v) => escapeHTML(JSON.stringify(v));
 const el = (id) => document.getElementById(id);
+// api() desembrulha `{ ok: true, <lista> }` para a lista pura; sem o desembrulho, a lista vem na chave.
+const lista = (r, chave) => (Array.isArray(r) ? r : (r && Array.isArray(r[chave]) ? r[chave] : []));
 const ropaDoEndereco = () => new URLSearchParams(window.location.search).get('ropa') || (S.lia && S.lia.ropaId);
 const abaDoEndereco = () => {
     const id = new URLSearchParams(window.location.search).get('aba');
@@ -109,7 +111,7 @@ async function renderLiaFicha(c, h, a) {
     const aba = abaDoEndereco();
     const editar = podeEditar();
     let item;
-    try { item = ((await api('GET', `/api/v1/projects/${projectId}/ropa/lias`)).lias || []).find((x) => x.ropa_id === ropaId); }
+    try { item = lista(await api('GET', `/api/v1/projects/${projectId}/ropa/lias`), 'lias').find((x) => x.ropa_id === ropaId); }
     catch (e) { if (minha === sequencia) window.falhaDeCarga(c, a, 'Não foi possível abrir a LIA.', e); return; }
     if (minha !== sequencia) return;
     if (!item) {
@@ -121,8 +123,8 @@ async function renderLiaFicha(c, h, a) {
     let abas = null;
     let logs = [];
     let lia = null;
-    if (DE_PERGUNTAS.includes(aba)) { try { abas = (await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/lia/questionario`)).abas || []; } catch (e) { abas = []; } }
-    if (aba === 'logs') { try { logs = (await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/lia/logs`)).logs || []; } catch (e) { logs = []; } }
+    if (DE_PERGUNTAS.includes(aba)) { try { abas = lista(await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/lia/questionario`), 'abas'); } catch (e) { abas = []; } }
+    if (aba === 'logs') { try { logs = lista(await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/lia/logs`), 'logs'); } catch (e) { logs = []; } }
     if (aba === 'conclusao') { try { lia = (await api('GET', `/api/v1/projects/${projectId}/ropa/${ropaId}/lia`)).lia || null; } catch (e) { lia = null; } }
     if (minha !== sequencia) return;
 

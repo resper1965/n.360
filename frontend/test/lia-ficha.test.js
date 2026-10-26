@@ -27,8 +27,8 @@ const LIA = { id: 'l1', ropa_id: 'r1', finalidade_legitima: 'Prevenir fraude', n
 const abrir = async (aba, { item = ITEM, lia = null } = {}) => {
     apiMock.mockImplementation(async (m, u) => {
         if (m === 'GET' && u.endsWith('/ropa/lias')) return { lias: [item] };
-        if (m === 'GET' && u.endsWith('/lia/questionario')) return { ok: true, abas: ABAS_Q };
-        if (m === 'GET' && u.endsWith('/lia/logs')) return { ok: true, logs: LOGS };
+        if (m === 'GET' && u.endsWith('/lia/questionario')) return ABAS_Q; // api() entrega a lista pura de { ok: true, abas }
+        if (m === 'GET' && u.endsWith('/lia/logs')) return LOGS;
         if (m === 'GET' && u.endsWith('/lia')) return { lia };
         return { ok: true };
     });
