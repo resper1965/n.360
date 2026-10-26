@@ -38,6 +38,8 @@ describe('listar', () => {
     expect(por('d2')).toBeUndefined(); // já está no padrão
     expect(por('d5')).toBeUndefined(); // outro projeto
     expect(duplicatas).toContainEqual({ tabela: 'departamentos', nomes: ['RH', 'rh'] });
+    // parte e item duplicados trazem os ids para a tela de mesclar; departamento não (segue à mão)
+    expect(duplicatas.filter((d) => d.tabela !== 'departamentos').every((d) => Array.isArray((d as { registros?: unknown[] }).registros))).toBe(true);
   });
 });
 

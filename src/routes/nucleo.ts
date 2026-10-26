@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { ehEquipeNess, erro500, logAudit, podeAdministrarOrg, registraErro, podeMexerEmAssinatura, RECUSA_LINHA_DE_ASSINATURA } from '../helpers';
 import { aplicarNomes, propostasDeNomes } from '../services/padronizar-nomes';
+import { mesclar, previaDaMescla } from '../services/mesclar';
 import { importarPartes, conciliarResponsaveis } from '../services/partes';
 import { importarDocumentos } from '../services/documentos';
 import { conferirPedidosDoDocumento } from './pedidos';
@@ -11,7 +12,7 @@ import { NOME_DO_PRODUTO } from '../modulos';
 import { seedPhases } from '../services/project-setup';
 import {
   validateBody, moduloHabilitarSchema, MODULOS, parseModulos, type Modulo,
-  padronizarNomesSchema, departamentoCriarSchema, departamentoAtualizarSchema, parteCriarSchema, parteAtualizarSchema, vinculoCriarSchema,
+  padronizarNomesSchema, mesclarSchema, departamentoCriarSchema, departamentoAtualizarSchema, parteCriarSchema, parteAtualizarSchema, vinculoCriarSchema,
   MATRIZ_PAPEL_ALVO, type AlvoVinculo,
 } from '../schemas';
 
@@ -112,6 +113,22 @@ nucleoApp.post('/padronizar-nomes', async (c) => {
     if (!v.success) return v.response;
     return c.json({ ok: true, ...(await aplicarNomes(c.env.DB, c.req.param('projectId')!, c.get('user').email, v.data.itens)) });
   } catch (e) { return erro500(c, 'Falha ao padronizar os nomes', e); }
+});
+
+// ─── mesclar duplicata (D5): prévia sem `confirmar`, execução com `confirmar: true` ──────────────────
+nucleoApp.post('/mesclar', async (c) => {
+  try {
+    if (!ehEquipeNess(c.get('user'))) return c.json({ error: 'Mesclar cadastros é feito pela equipe da consultoria' }, 403);
+    const projectId = c.req.param('projectId')!;
+    const v = await validateBody(c, mesclarSchema);
+    if (!v.success) return v.response;
+    const { tabela, manter, remover, confirmar } = v.data;
+    const r = confirmar ? await mesclar(c.env.DB, tabela, projectId, c.get('user').email, manter, remover) : await previaDaMescla(c.env.DB, tabela, projectId, manter, remover);
+    if (!('ok' in r)) return c.json({ error: r.error }, r.status);
+    // O conteúdo congelado da aprovação das atividades tocadas mudou: o pedido aberto é conferido e, se preciso, substituído.
+    if (confirmar && r.tratamentos.length) await conferirPedidosDoDocumento(c, 'tratamento', r.tratamentos, projectId);
+    return c.json({ ...r, previa: !confirmar, tratamentos: r.tratamentos.length });
+  } catch (e) { return erro500(c, 'Falha ao mesclar os cadastros', e); }
 });
 
 // ─── departamentos ─────────────────────────────────────────────────────────
