@@ -99,7 +99,7 @@ export async function transicionar(db: D1Database, projectId: string, ropaId: st
   }
   await db.batch(stmts);
   const ator = user.email || 'system';
-  await registrarSecao(db, ator, projectId, ropaId, 'Situação', EVENTO[corpo.acao]);
+  await registrarSecao(db, ator, projectId, ropaId, 'Situação', EVENTO[corpo.acao], '', [{ campo: 'situacao', antes: at.status ?? '(vazio)', depois: PARA[corpo.acao] }]);
   await logAudit(db, 'ropa.situacao', ator, `ROPA ${ropaId}: ${at.status ?? 'sem status'} -> ${PARA[corpo.acao]} (${corpo.acao})`, motivo, ip, projectId);
   return { ok: true, de: at.status, para: PARA[corpo.acao] };
 }

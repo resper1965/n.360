@@ -2,7 +2,18 @@
 export type Falha = { ok: false; status: 400 | 403 | 404 | 409; error: string; invalidos?: string[] };
 export const falha = (status: Falha['status'], error: string, invalidos?: string[]): Falha => ({ ok: false, status, error, ...(invalidos ? { invalidos } : {}) });
 /** `mudouHash`: a escrita tocou coluna do conteúdo congelado; a rota então chama `conferirPedidosDoDocumento` (spec 4.4). */
-export type Gravado = { ok: true; mudouHash: boolean };
+/** Antes e depois de um campo que NÃO é texto livre (escolha, marca, data, situação, ids): só esses entram na trilha (D3, `CAMPOS_COM_VALOR`). */
+export type Mudanca = { campo: string; antes: string; depois: string };
+export type Gravado = { ok: true; mudouHash: boolean; mudancas?: Mudanca[] };
+
+/** Texto de um valor de campo sem texto livre para a trilha: vazio vira "(vazio)", lista de ids vira ids separados por vírgula. */
+export const valorDeTrilha = (v: unknown): string => {
+  if (Array.isArray(v)) return v.length ? [...v].map(String).sort().join(',') : '(vazio)';
+  return v === null || v === undefined || v === '' ? '(vazio)' : String(v);
+};
+/** Só entra mudança se o valor mudou de verdade. */
+export const mudanca = (campo: string, antes: unknown, depois: unknown): Mudanca[] =>
+  valorDeTrilha(antes) === valorDeTrilha(depois) ? [] : [{ campo, antes: valorDeTrilha(antes), depois: valorDeTrilha(depois) }];
 
 export type AtividadeBasica = { id: string; status: string | null; processing_purpose: string };
 

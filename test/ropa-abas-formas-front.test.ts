@@ -40,7 +40,7 @@ describe('ficha em abas: formas que o frontend lê', () => {
   it('logs: linhas {secao, evento, nome, data}; "antes" com a data da última linha pagina no formato aceito', async () => {
     const linhas = await json<any[]>(await chamar(s.consultor, 'GET', `${base(rid)}/logs?limite=50`));
     expect(linhas.length).toBeGreaterThan(0);
-    expect(Object.keys(linhas[0]).sort()).toEqual(['data', 'evento', 'nome', 'secao']);
+    expect(Object.keys(linhas[0]).sort()).toEqual(['data', 'evento', 'mudancas', 'nome', 'secao']);
     expect((await chamar(s.consultor, 'GET', `${base(rid)}/logs?limite=50&antes=${encodeURIComponent(linhas[linhas.length - 1].data)}`)).status).toBe(200);
   });
 

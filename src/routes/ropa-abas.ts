@@ -49,7 +49,7 @@ function putAba<T extends object>(caminho: string, schema: Parameters<typeof val
       const ator = c.get('user')?.email || 'system';
       const r = await salvar(c.env.DB, projectId, recordId, ator, v.data);
       if (!r.ok) return c.json({ error: r.error, ...(r.invalidos ? { invalidos: r.invalidos } : {}) }, r.status);
-      if (Object.keys(v.data).length) await registrarSecao(c.env.DB, ator, projectId, recordId, secao, 'Alteração');
+      if (Object.keys(v.data).length) await registrarSecao(c.env.DB, ator, projectId, recordId, secao, 'Alteração', '', r.mudancas);
       if (r.mudouHash) await conferirPedidosDoDocumento(c, 'tratamento', recordId, projectId);
       return c.json({ ok: true, mudou_hash: r.mudouHash });
     } catch (e) { return erro500(c, falhaMsg, e); }

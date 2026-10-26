@@ -25,6 +25,18 @@ describe('logs', () => {
     expect(cartoes[0].textContent).toMatch(/Data: 16\/10\/2026 \d{2}:\d{2}/);
   });
 
+  it('D3: mostra o antes e o depois em português, escapando o valor', async () => {
+    await abrir(renderAtividade, { [`GET ${B}/logs`]: [
+      L(1, { secao: 'Situação', evento: 'Reaberta', mudancas: [{ campo: 'situacao', antes: 'Approved', depois: 'Under Review' }] }),
+      L(2, { secao: 'Agentes de Tratamento', mudancas: [{ campo: 'papel_controlador', antes: '(vazio)', depois: '1' }, { campo: 'areas_ids', antes: '(vazio)', depois: '<b>x</b>' }] }),
+      L(3) ] });
+    const c = [...el('at-logs').querySelectorAll('.at-log')];
+    expect(c[0].textContent).toContain('Situação: Aprovada para Em revisão');
+    expect(c[1].textContent).toContain('Controlador: (vazio) para Sim');
+    expect(c[1].querySelector('b')).toBeNull();
+    expect(c[2].textContent).not.toContain(' para ');
+  });
+
   it('somente leitura: nenhum campo, nenhum filtro, "Carregar mais" escondido quando cabe tudo', async () => {
     await abrir(renderAtividade, { [`GET ${B}/logs`]: [L(1)] });
     expect(el('at-corpo').querySelectorAll('input, select, textarea')).toHaveLength(0);

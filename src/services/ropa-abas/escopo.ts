@@ -1,7 +1,7 @@
 import { refForaDoProjeto } from '../../helpers';
 import { definirLigacao } from '../tratamentos';
 import type { EscopoCorpo } from '../../schemas/ropa-abas';
-import { exigirEditavel, falha, type Falha, type Gravado } from './comum';
+import { exigirEditavel, falha, mudanca, type Falha, type Gravado, type Mudanca } from './comum';
 
 /** Coluna do corpo → coluna do banco, e se a coluna está no conteúdo congelado do tratamento (spec 4.4). */
 const COLUNAS: Record<string, { coluna: string; hash: boolean }> = {
@@ -22,27 +22,31 @@ export async function salvarEscopo(db: D1Database, projectId: string, ropaId: st
 
   // Áreas primeiro: se alguma é inválida, nada foi gravado ainda.
   let areasMudaram = false;
+  const mudancas: Mudanca[] = [];
   if (corpo.areas_ids) {
     const antes = (await db.prepare('SELECT departamento_id FROM tratamento_departamentos WHERE ropa_id = ? AND project_id = ? ORDER BY departamento_id').bind(ropaId, projectId).all<{ departamento_id: string }>()).results.map((r) => r.departamento_id);
     const r = await definirLigacao(db, projectId, ropaId, 'departamentos', corpo.areas_ids);
     if (!r) return falha(404, 'Registro do RoPA não encontrado');
     if (!r.ok) return falha(400, 'Área inexistente ou de outro projeto', r.invalidos);
     areasMudaram = JSON.stringify([...corpo.areas_ids].sort()) !== JSON.stringify(antes);
+    mudancas.push(...mudanca('areas_ids', antes, corpo.areas_ids));
   }
 
   let mudouHash = areasMudaram;
   const sets: string[] = [];
   const binds: unknown[] = [];
+  const gravada = await db.prepare('SELECT processamento_automatizado, owner_parte_id FROM ropa_records WHERE id = ? AND project_id = ?').bind(ropaId, projectId).first<Record<string, unknown>>();
   for (const [campo, def] of Object.entries(COLUNAS)) {
     if (!Object.hasOwn(corpo, campo)) continue;
     const v = (corpo as Record<string, unknown>)[campo];
     if (v === undefined) continue;
     sets.push(`${def.coluna} = ?`);
     binds.push(v ?? null);
+    if (campo === 'processamento_automatizado' || campo === 'owner_parte_id') mudancas.push(...mudanca(campo, gravada?.[campo], v));
     if (def.hash && v !== ed.atividade.processing_purpose) mudouHash = true;
   }
   if (sets.length) {
     await db.prepare(`UPDATE ropa_records SET ${sets.join(', ')}, updated_at = ? WHERE id = ? AND project_id = ?`).bind(...binds, new Date().toISOString(), ropaId, projectId).run();
   }
-  return { ok: true, mudouHash };
+  return { ok: true, mudouHash, mudancas };
 }

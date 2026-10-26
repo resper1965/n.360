@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import type { agentesSchema } from '../../schemas/ropa-abas';
-import { exigirEditavel, type Falha, type Gravado } from './comum';
+import { exigirEditavel, mudanca, type Falha, type Gravado, type Mudanca } from './comum';
 
 type AgentesCorpo = z.infer<typeof agentesSchema>;
 
@@ -19,9 +19,10 @@ const COLUNAS = {
 export async function salvarAgentes(db: D1Database, projectId: string, ropaId: string, _ator: string, corpo: AgentesCorpo): Promise<Falha | Gravado> {
   const ed = await exigirEditavel(db, projectId, ropaId);
   if (!ed.ok) return ed;
-  const atual = await db.prepare('SELECT international_transfers, transfer_safeguards FROM ropa_records WHERE id = ? AND project_id = ?')
+  const atual = await db.prepare('SELECT papel_controlador, papel_operador, international_transfers, transfer_safeguards FROM ropa_records WHERE id = ? AND project_id = ?')
     .bind(ropaId, projectId).first<Record<string, unknown>>();
   let mudouHash = false;
+  const mudancas: Mudanca[] = [];
   const sets: string[] = [];
   const binds: unknown[] = [];
   for (const [campo, noHash] of Object.entries(COLUNAS)) {
@@ -31,9 +32,10 @@ export async function salvarAgentes(db: D1Database, projectId: string, ropaId: s
     binds.push(v ?? null);
     const igual = campo === 'international_transfers' ? Number(atual?.[campo] ?? 0) === Number(v) : (v ?? null) === (atual?.[campo] ?? null);
     if (noHash && !igual) mudouHash = true;
+    if (campo !== 'transfer_safeguards') mudancas.push(...mudanca(campo, atual?.[campo], v));
   }
   if (sets.length) {
     await db.prepare(`UPDATE ropa_records SET ${sets.join(', ')}, updated_at = ? WHERE id = ? AND project_id = ?`).bind(...binds, new Date().toISOString(), ropaId, projectId).run();
   }
-  return { ok: true, mudouHash };
+  return { ok: true, mudouHash, mudancas };
 }
