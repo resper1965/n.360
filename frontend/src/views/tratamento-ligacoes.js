@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api, baixarArquivo } from '../api.js';
-import { showToast, openModal, escapeHTML } from '../ui.js';
+import { showToast, openModal, escapeHTML, confirmar } from '../ui.js';
 
 // Ferramentas que as abas da atividade usam (views/atividade.js e src/atividade/): a LIA (formulário e ações), partes e
 // transferências, o RIPD, o Word da LIA, o pedido de aprovação e a importação de planilha. O modal de Ligações saiu (PR3 do
@@ -71,8 +71,11 @@ window.salvarLiaTratamento = (projectId, ropaId, concluir) => acao(projectId, ro
     conclusao: el('tl-lia-con').value || null, status: concluir ? 'concluida' : 'rascunho',
 }), 'Não foi possível salvar a LIA', concluir ? 'LIA concluída.' : 'LIA salva.');
 
-window.reabrirLiaTratamento = (projectId, ropaId) => acao(projectId, ropaId,
-    () => api('PUT', `/api/v1/projects/${projectId}/ropa/${ropaId}/lia`, { status: 'rascunho' }), 'Não foi possível reabrir a LIA', 'LIA reaberta.');
+window.reabrirLiaTratamento = async (projectId, ropaId) => {
+    if (!(await confirmar('Confirma a reabertura do formulário?', { titulo: 'Reabrir a LIA', rotulo: 'Reabrir' }))) return;
+    return acao(projectId, ropaId,
+        () => api('PUT', `/api/v1/projects/${projectId}/ropa/${ropaId}/lia`, { status: 'rascunho' }), 'Não foi possível reabrir a LIA', 'LIA reaberta.');
+};
 
 window.adicionarParteTratamento = (projectId, ropaId) => acao(projectId, ropaId,
     () => api('POST', `/api/v1/projects/${projectId}/partes/${el('tl-parte').value}/vinculos`, { papel: el('tl-papel').value, alvo_tipo: 'tratamento', alvo_id: ropaId }),

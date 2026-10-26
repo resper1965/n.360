@@ -111,11 +111,11 @@ describe('Dados de titular', () => {
         window.catAbrir('d1');
         const modal = el('modal-content').textContent;
         expect(modal).toContain('Alterar Dado Pessoal');
-        expect(modal).toContain('É um Dado Sensível?');
+        expect(modal).toContain('É um dado sensível?');
         expect(modal).toContain('Esse dado pessoal também será atualizado no registro vinculado aos titulares na base de Atividades.');
         expect(el('cat-nome').value).toBe('Nome completo');
-        expect(el('cat-sensivel').value).toBe('nao');
-        el('cat-sensivel').value = 'sim';
+        expect(el('cat-sensivel').checked).toBe(false);
+        el('cat-sensivel').checked = true;
         await window.catSalvar('d1');
         expect(corpoDe(f, `PUT ${B}/dados/d1`)).toEqual({ nome: 'Nome completo', sensivel: true });
     });
@@ -124,7 +124,7 @@ describe('Dados de titular', () => {
         const f = await tela('dados', { [`POST ${B}/dados`]: { ok: true, item: { id: 'd3' } } });
         window.catAbrir(null);
         el('cat-nome').value = 'Biometria';
-        el('cat-sensivel').value = 'sim';
+        el('cat-sensivel').checked = true;
         await window.catSalvar(null);
         expect(corpoDe(f, `POST ${B}/dados`)).toEqual({ nome: 'Biometria', sensivel: true });
     });

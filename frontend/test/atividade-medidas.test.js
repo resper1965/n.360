@@ -25,7 +25,7 @@ describe('lista', () => {
     const itens = [...document.querySelectorAll('#at-medidas .at-item')];
     expect(itens).toHaveLength(2);
     expect(itens[0].textContent).toContain('Medida: Controle de acesso por perfil');
-    expect(itens[0].textContent).toContain('Status: Ativa');
+    expect(itens[0].textContent).toContain('Status: Ativo');
     expect(itens[0].textContent).toContain('Cada pessoa vê só o seu setor.');
     expect(itens[1].textContent).toContain('Status: Planejada');
     expect(itens[0].querySelector('[data-excluir]').getAttribute('aria-label')).toBe('Excluir a medida Controle de acesso por perfil');

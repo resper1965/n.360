@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { escapeHTML, confirmar, showToast, renderEmptyState } from '../ui.js';
+import { escapeHTML, confirmar, pedirTexto, showToast, renderEmptyState } from '../ui.js';
 import { url, novoAutosave, gravarAgora } from './estado.js';
 import { abrirSelecao } from './modal-selecao.js';
 import { listarItens, TEXTO_VAZIO, ORIGENS } from './catalogo-inline.js';
@@ -65,12 +65,12 @@ export function corpoDaEtapa(id, ctx) {
         paineis += painel('Ativos', 'ativos', `${lista(ativos.map(linhaAtivo), TEXTO_VAZIO.ativo)}${acrescentar('add-ativo', '+ Adicionar Ativos')}`);
     } else if (id === 'compartilhamento_externo') {
         const linhas = (e.parceiros || []).map((p) => `<li class="et-linha"><span>${txt(p.nome)}</span>${tirar(p.nome, 'remover-parceiro', p.id)}</li>`);
-        paineis += painel('Parceiros', 'parceiros', `${lista(linhas, TEXTO_VAZIO.parceiro)}${acrescentar('add-parceiro', '+ Adicionar Parceiros')}`);
+        paineis += painel('Organização/Instituição', 'parceiros', `${lista(linhas, TEXTO_VAZIO.parceiro)}${acrescentar('add-parceiro', '+ Adicionar Organização/Instituição')}`);
         paineis += painel('Ativos', 'ativos', `${lista(ativos.map(linhaAtivo), TEXTO_VAZIO.ativo)}${acrescentar('add-ativo', '+ Adicionar Ativos')}`);
     } else if (id === 'armazenamento') {
         const corpoTab = ativos.map((a) => `<tr><th scope="row">${txt(a.nome)}</th>
-            <td><input class="form-input" data-item="${txt(a.item_id)}" value="${txt(a.local_armazenamento)}" maxlength="${MAX.local}" aria-label="Armazenamento de ${txt(a.nome)}"${off}></td>
-            <td class="et-linha-acoes"><button type="button" class="btn btn-ghost btn-sm" data-acao="remover-ativo" data-id="${txt(a.item_id)}"${off} aria-label="Tirar ${txt(a.nome)} desta etapa">Tirar</button></td></tr>`);
+            <td>${txt(a.local_armazenamento) || '<span class="at-nota">Local não informado</span>'}</td>
+            <td class="et-linha-acoes"><button type="button" class="btn btn-ghost btn-sm" data-acao="editar-local" data-id="${txt(a.item_id)}"${off} aria-label="Editar o local de armazenamento de ${txt(a.nome)}">Editar</button> <button type="button" class="btn btn-ghost btn-sm" data-acao="remover-ativo" data-id="${txt(a.item_id)}"${off} aria-label="Tirar ${txt(a.nome)} desta etapa">Tirar</button></td></tr>`);
         const tabela = ativos.length ? `<table class="et-tabela"><caption class="sr-only">Ativos e local de armazenamento</caption>
             <thead><tr><th scope="col">Ativos</th><th scope="col">Armazenamento</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
             <tbody>${corpoTab.join('')}</tbody></table>`
@@ -137,20 +137,10 @@ export function ligarEtapa(secao, id, ctx) {
     const { pid, rid } = ctx;
     const rota = `/etapas/${id}`;
     const salvo = novoAutosave({ pid, rid, rota, status, montar: (lote) => lote });
-    const salvoLocal = novoAutosave({ pid, rid, rota: `/etapas/${id}/ativos`, status,
-        montar: (lote) => ({ ativos: ativosDe(ctx.porId[id]).map((a) => ({ item_id: a.item_id, local_armazenamento: Object.prototype.hasOwnProperty.call(lote, a.item_id) ? lote[a.item_id] : a.local_armazenamento })) }) });
 
     corpo.querySelectorAll('[data-campo]').forEach((c) => {
         c.addEventListener('input', () => salvo.agendar(c.dataset.campo, c.value));
         c.addEventListener('blur', () => salvo.esvaziar());
-    });
-    corpo.querySelectorAll('input[data-item]').forEach((c) => {
-        c.addEventListener('input', () => {
-            const a = ativosDe(ctx.porId[id]).find((x) => x.item_id === c.dataset.item);
-            if (a) a.local_armazenamento = c.value;
-            salvoLocal.agendar(c.dataset.item, c.value);
-        });
-        c.addEventListener('blur', () => salvoLocal.esvaziar());
     });
 
     corpo.addEventListener('change', async (ev) => {
@@ -234,6 +224,14 @@ async function acao(nome, b, id, ctx) {
                 },
             });
         }
+        if (nome === 'editar-local') {
+            const a = ativosDe(e).find((x) => x.item_id === b.dataset.id);
+            if (!a) return undefined;
+            const novo = await pedirTexto(`Onde os dados de ${a.nome} ficam guardados?`, { titulo: 'Local de armazenamento', padrao: a.local_armazenamento || '', rotulo: 'Salvar' });
+            if (novo === null) return undefined;
+            await gravar('/etapas/armazenamento/ativos', { ativos: ativosDe(e).map((x) => ({ item_id: x.item_id, local_armazenamento: x.item_id === a.item_id ? (novo.slice(0, MAX.local) || null) : x.local_armazenamento ?? null })) });
+            return await recarregar();
+        }
         if (nome === 'remover-ativo') {
             if (!(await confirmar('Tirar este ativo desta etapa?', { rotulo: 'Tirar', perigo: true }))) return undefined;
             const restantes = ativosDe(e).filter((a) => a.item_id !== b.dataset.id)
@@ -266,7 +264,7 @@ async function acao(nome, b, id, ctx) {
             const todos = await listarItens(pid, 'parceiro');
             const atuais = (e.parceiros || []).map((p) => p.id);
             return abrirSelecao({
-                titulo: 'Parceiros', pid, tipo: 'parceiro', criarRotulo: '+ Criar parceiro', buscaRotulo: 'Buscar parceiro',
+                titulo: 'Organização/Instituição', pid, tipo: 'parceiro', criarRotulo: '+ Criar parceiro', buscaRotulo: 'Buscar parceiro',
                 ajuda: 'Empresas externas que recebem os dados nesta etapa.',
                 vazio: TEXTO_VAZIO.parceiro, selecionados: atuais,
                 itens: todos.map((i) => ({ ...i, travado: atuais.includes(i.id), motivo: 'já usado nesta etapa' })),

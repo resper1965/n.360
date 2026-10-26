@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, escapeHTML, tituloDaTela } from '../ui.js';
+import { showToast, openModal, escapeHTML, tituloDaTela, confirmar } from '../ui.js';
 import { podeEditar } from './partes.js';
 import { montarLista, colunasDe } from '../lista.js';
 
@@ -35,7 +35,7 @@ async function renderSistemas(c, h, a) {
             `<strong>${escapeHTML(s.name)}</strong>`,
             escapeHTML(s.description || '—'),
             empresa,
-            `<button class="btn btn-ghost btn-sm" data-action="openNovoSistemaModal" data-args='${args(proj.id, s.id)}'>${editar ? 'Ver/Editar' : 'Ver'}</button>`,
+            `<button class="btn btn-ghost btn-sm" data-action="openNovoSistemaModal" data-args='${args(proj.id, s.id)}'>${editar ? 'Ver/Editar' : 'Ver'}</button>${editar ? ` <button class="btn btn-ghost btn-sm" data-action="excluirSistema" data-args='${args(proj.id, s.id, s.name)}'>Excluir</button>` : ''}`,
         ]),
         vazio: { titulo: 'Nenhum ativo cadastrado.',
             dica: 'Sistemas, bases e arquivos onde os dados ficam: cada etapa da atividade de tratamento do RoPA aponta para eles.' },
@@ -58,7 +58,7 @@ window.openNovoSistemaModal = function (projectId, id = '') {
             <select class="form-input" id="sis-tipo" ${off}>${Object.entries(tipos).map(([k, r]) => `<option value="${escapeHTML(k)}" ${k === v.category ? 'selected' : ''}>${escapeHTML(r)}</option>`).join('')}</select></div>
         <div class="form-group"><label class="form-label" for="sis-responsavel">Responsável</label><input class="form-input" id="sis-responsavel" maxlength="500" value="${escapeHTML(v.owner || '')}" ${off}></div>
         <div class="form-group"><label class="form-label" for="sis-local">Local de armazenamento</label><input class="form-input" id="sis-local" maxlength="500" placeholder="Ex.: nuvem, servidor interno, arquivo físico" value="${escapeHTML(v.location || '')}" ${off}></div>
-        ${off ? '' : `<button class="btn btn-primary w-full" data-action="salvarSistema" data-args='${args(projectId, id)}'>${s ? 'Salvar' : 'Cadastrar'}</button>`}
+        ${off ? '' : `<div class="acoes-rodape">${s ? '' : '<button type="button" class="btn btn-ghost" data-action="limparModal">Limpar</button>'}<button class="btn btn-primary" data-action="salvarSistema" data-args='${args(projectId, id)}'>${s ? 'Salvar' : 'Cadastrar'}</button></div>`}
     `);
 };
 
@@ -72,6 +72,16 @@ window.salvarSistema = async function (projectId, id) {
         window.forceCloseModal();
         window.render();
     } catch (e) { falha(e, 'Não foi possível salvar o ativo'); }
+};
+
+// Excluir é soft delete no servidor (a trilha e o histórico ficam), a mesma regra do inventário do n.iso.
+window.excluirSistema = async function (projectId, id, nome) {
+    if (!(await confirmar(`Excluir o ativo "${nome}"? Ele sai das listas; o histórico fica na trilha.`, { titulo: 'Excluir ativo', rotulo: 'Excluir', perigo: true }))) return;
+    try {
+        await api('DELETE', `/api/v1/projects/${projectId}/assets/${id}`);
+        showToast('Ativo excluído', 'success');
+        window.render();
+    } catch (e) { falha(e, 'Não foi possível excluir o ativo'); }
 };
 
 window.renderSistemas = renderSistemas;

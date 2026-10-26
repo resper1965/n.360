@@ -50,7 +50,7 @@ window.openNovaAreaModal = function (projectId) {
         <div class="modal-header"><span class="modal-title">Nova área</span></div>
         <div class="form-group"><label class="form-label" for="area-nome">Área</label><input class="form-input" id="area-nome" maxlength="200"></div>
         <div class="form-group"><label class="form-label" for="area-descricao">Descrição da área</label><textarea class="form-input" id="area-descricao" rows="3" maxlength="2000"></textarea></div>
-        <button class="btn btn-primary w-full" data-action="criarArea" data-args='${args(projectId)}'>Cadastrar</button>
+        <div class="acoes-rodape"><button type="button" class="btn btn-ghost" data-action="limparModal">Limpar</button><button class="btn btn-primary" data-action="criarArea" data-args='${args(projectId)}'>Cadastrar</button></div>
     `);
 };
 

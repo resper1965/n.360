@@ -5,7 +5,7 @@ import { url, lista, campo, faixaSalvo } from './estado.js';
 // Aba Medidas de Segurança: lista (Medida, Status, Descrição) e o modal "+ Medidas de Segurança". O catálogo nasce vazio: o campo Medida
 // é texto livre, com sugestões só do que o próprio projeto já usou. No n.iso, a medida pode nascer de um controle implementado.
 
-export const STATUS_MEDIDA = [['ativa', 'Ativa'], ['em_implantacao', 'Em implantação'], ['planejada', 'Planejada']];
+export const STATUS_MEDIDA = [['ativa', 'Ativo'], ['em_implantacao', 'Em implantação'], ['planejada', 'Planejada']];
 const ROTULO_STATUS = Object.fromEntries(STATUS_MEDIDA);
 
 const linha = (m, editavel) => `<li class="at-item" data-id="${escapeHTML(m.id)}">
@@ -21,7 +21,7 @@ export async function montar(painel, ctx) {
     let medidas;
     try { medidas = lista(await api('GET', url(pid, rid, '/medidas'))); } catch (e) { painel.innerHTML = renderEmptyState({ titulo: 'Não foi possível carregar as medidas', texto: (e && e.message) || 'Tente de novo em instantes.' }); return; }
 
-    const novo = '<button type="button" class="btn btn-sm" id="at-nova-medida">+ Medidas de Segurança</button>';
+    const novo = '<button type="button" class="btn btn-sm" id="at-nova-medida">+ Medida</button>';
     painel.innerHTML = `<div class="at-aba-corpo">${faixaSalvo()}${editavel && medidas.length ? `<div class="at-acoes">${novo}</div>` : ''}
         ${medidas.length ? `<ul class="at-lista-itens" id="at-medidas">${medidas.map((m) => linha(m, editavel)).join('')}</ul>`
             : renderEmptyState({ titulo: 'Nenhuma medida de segurança registrada',

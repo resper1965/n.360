@@ -35,6 +35,44 @@ beforeEach(() => {
     S.user = { role: 'consultor' };
 });
 
+describe('Ativos: excluir e limpar', () => {
+    it('Excluir pede confirmação e manda DELETE (exclusão lógica do servidor); cancelar não manda nada', async () => {
+        const [c, h, a] = montar();
+        await window.renderSistemas(c, h, a);
+        const botao = c.querySelector('[data-action="excluirSistema"]');
+        expect(botao).not.toBeNull();
+        const p1 = window.excluirSistema('p1', 'a1', 'ERP');
+        document.querySelector('[data-confirmar="nao"]').click();
+        await p1;
+        expect(apiMock).not.toHaveBeenCalledWith('DELETE', expect.anything());
+        const p2 = window.excluirSistema('p1', 'a1', 'ERP');
+        document.querySelector('[data-confirmar="sim"]').click();
+        await p2;
+        expect(apiMock).toHaveBeenCalledWith('DELETE', '/api/v1/projects/p1/assets/a1');
+        expect(window.render).toHaveBeenCalled();
+    });
+
+    it('quem só lê não vê Excluir', async () => {
+        S.user = { role: 'org_user' };
+        const [c, h, a] = montar();
+        await window.renderSistemas(c, h, a);
+        expect(c.querySelector('[data-action="excluirSistema"]')).toBeNull();
+    });
+
+    it('o modal de novo ativo tem Limpar, que volta os campos ao que o modal desenhou; a edição não tem', async () => {
+        const [c, h, a] = montar();
+        await window.renderSistemas(c, h, a);
+        window.openNovoSistemaModal('p1');
+        el('sis-nome').value = 'Qualquer';
+        el('sis-tipo').value = 'Hardware';
+        document.querySelector('#modal-content [data-action="limparModal"]').click();
+        expect(el('sis-nome').value).toBe('');
+        expect(el('sis-tipo').value).toBe('Software');
+        window.openNovoSistemaModal('p1', 'a1');
+        expect(document.querySelector('#modal-content [data-action="limparModal"]')).toBeNull();
+    });
+});
+
 describe('Áreas', () => {
     it('lista Área (com a descrição) e Empresa, marca a inativa e escapa o texto', async () => {
         const [c, h, a] = montar();

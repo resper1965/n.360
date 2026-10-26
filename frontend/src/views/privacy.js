@@ -431,7 +431,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             escapeHTML(dp.atividade || '—'),
             escapeHTML(dp.area || '—'),
             escapeHTML(dp.responsavel || '—'),
-            `<strong>${escapeHTML(dp.system_name)}</strong>`,
+            `<strong>${escapeHTML(dp.system_name || dp.processing_name || dp.atividade || "—")}</strong>`,
             escapeHTML(dp.data_subjects_types || 'N/A'),
             escapeHTML(dp.personal_data_categories || 'N/A'),
             escapeHTML(dp.residual_risk_level || '—'),
@@ -528,7 +528,7 @@ import { BASES_ART7, BASES_ART11, ART11, BASES_LEGADO, normaliza, rotuloBase, ca
             </div>
             <div style="display:flex; flex-direction:column; gap:16px; font-family:'Inter',sans-serif;">
                 <div style="font-family:'Montserrat',sans-serif; font-weight:600; font-size:1.3rem; color:var(--text)">
-                    ${escapeHTML(dp.system_name)}
+                    ${escapeHTML(dp.system_name || dp.processing_name || dp.atividade || "—")}
                 </div>
                 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px">

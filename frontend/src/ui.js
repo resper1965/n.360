@@ -613,6 +613,15 @@ window.renderAbas = renderAbas;
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.forceCloseModal = forceCloseModal;
+// "Limpar" dos modais de cadastro: volta cada campo ao que o modal desenhou (vazio, ou o padrão da lista) e deixa o foco no primeiro.
+window.limparModal = function () {
+    const raiz = document.getElementById('modal-content');
+    if (!raiz) return;
+    raiz.querySelectorAll('input, textarea').forEach((c) => { if (c.type === 'checkbox' || c.type === 'radio') c.checked = c.defaultChecked; else c.value = c.defaultValue; });
+    raiz.querySelectorAll('select').forEach((s) => { [...s.options].forEach((o) => { o.selected = o.defaultSelected; }); if (!s.querySelector('option[selected]')) s.selectedIndex = 0; });
+    const primeiro = raiz.querySelector('input:not([type=hidden]), textarea, select');
+    if (primeiro) primeiro.focus();
+};
 window.pedirFecharModal = pedirFecharModal;
 window.showToast = showToast;
 window.renderPageHeader = renderPageHeader;
