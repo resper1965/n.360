@@ -24,6 +24,7 @@ import './views/requisitos.js';
 import './views/referencia-juridica.js';
 import './views/terceiros.js';
 import './views/ripd-ficha.js';
+import './views/lia-ficha.js';
 import './views/avaliacoes-terceiros.js';
 import './views/catalogos.js';
 import './views/parceiros.js';
