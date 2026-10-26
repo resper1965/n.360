@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../index';
-import { genId, logAudit, somenteComercial, erro500 } from '../helpers';
+import { genId, logAudit, somenteComercial, erro500, CABECALHOS_CONSULTA } from '../helpers';
 import { validateBody, leadSchema, leadStatusSchema, cnpjSchema } from '../schemas';
 import { exigirOrg } from '../services/organizacao';
 
@@ -82,7 +82,7 @@ leadsApp.get('/consulta-cnpj/:cnpj', async (c) => {
     const limpo = (c.req.param('cnpj') || '').replace(/\D/g, '');
     if (limpo.length !== 14) return c.json({ error: 'CNPJ inválido (14 dígitos)' }, 400);
 
-    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${limpo}`);
+    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${limpo}`, { headers: CABECALHOS_CONSULTA });
     if (!res.ok) return c.json({ error: 'CNPJ não encontrado' }, 404);
     const d = await res.json() as Record<string, unknown>;
 
@@ -169,10 +169,10 @@ leadsApp.post('/:id/enrich-cnpj', async (c) => {
     const lead = await c.env.DB.prepare('SELECT id FROM leads WHERE id = ? AND org_id = ?').bind(id, c.get('orgId')).first();
     if (!lead) return c.json({ error: 'Lead não encontrado' }, 404);
 
-    let res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+    let res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`, { headers: CABECALHOS_CONSULTA });
     let d: any;
     if (!res.ok) {
-      const resWs = await fetch(`https://receitaws.com.br/v1/cnpj/${cleanCnpj}`);
+      const resWs = await fetch(`https://receitaws.com.br/v1/cnpj/${cleanCnpj}`, { headers: CABECALHOS_CONSULTA });
       if (!resWs.ok) return c.json({ error: 'CNPJ não encontrado na Receita Federal ou APIs indisponíveis' }, 404);
       const wsData: any = await resWs.json();
       if (wsData.status === 'ERROR') return c.json({ error: wsData.message || 'CNPJ não encontrado' }, 404);
