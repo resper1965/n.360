@@ -32,6 +32,11 @@ export type Proximo = { dias: number; rotulo: string; tipo: string } | null;
 const DIA = 86_400_000;
 const hoje = () => hojeEmSaoPaulo();
 const somarDias = (d: string, n: number) => new Date(Date.parse(d) + n * DIA).toISOString().slice(0, 10);
+/** AAAA-MM do mês de `dia` recuado `n` meses (n >= 0). */
+const mesesAtras = (dia: string, n: number) => {
+  const t = Number(dia.slice(0, 4)) * 12 + Number(dia.slice(5, 7)) - 1 - n;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
+};
 const diasAte = (d: string, de: string) => Math.round((Date.parse(d.slice(0, 10)) - Date.parse(de)) / DIA);
 const plural = (q: number, um: string, varios: string) => `${q} ${q === 1 ? um : varios}`;
 const ORDEM: Grupo[] = ['atraso', 'semana', 'plano'];
@@ -142,6 +147,8 @@ const SQL_EVIDENCIAS = `SELECT
   FROM evidence WHERE project_id = ?1`;
 const SQL_UNIAO_EVIDENCIAS = `SELECT 'Evidências' AS tipo, file_name AS rotulo, substr(valido_ate, 1, 10) AS data FROM evidence WHERE project_id = ?1 AND valido_ate IS NOT NULL`;
 const SQL_UNIAO_DOCUMENTOS = `SELECT 'Documentos (revisão)', titulo, substr(revisar_ate, 1, 10) FROM documentos WHERE project_id = ?1 AND status = 'vigente' AND revisar_ate IS NOT NULL`;
+// Documentos do legado (`documentos_arquivo`): o vencimento entra na mesma linha do painel; obsoleto e "sem vencimento" ficam fora (a regra dos avisos de prazo).
+const SQL_UNIAO_DOCUMENTOS_ARQUIVO = `SELECT 'Documentos (revisão)', nome, substr(vencimento, 1, 10) FROM documentos_arquivo WHERE project_id = ?1 AND status <> 'obsoleto' AND sem_vencimento = 0 AND vencimento IS NOT NULL`;
 
 // ─── n.privacy ──────────────────────────────────────────────────────────────────────────────────────────
 
@@ -159,6 +166,7 @@ const UNIAO_PRIVACY = [
     FROM partes p WHERE p.project_id = ?1 AND ${SQL_EH_FORNECEDOR}`,
   SQL_UNIAO_EVIDENCIAS,
   SQL_UNIAO_DOCUMENTOS,
+  SQL_UNIAO_DOCUMENTOS_ARQUIVO,
 ];
 
 async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean, dia: string) {
@@ -194,11 +202,17 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
     db.prepare(`SELECT sum(CASE WHEN n >= 6 THEN 1 ELSE 0 END) AS feito, sum(CASE WHEN n BETWEEN 1 AND 5 THEN 1 ELSE 0 END) AS andamento, sum(CASE WHEN n = 0 THEN 1 ELSE 0 END) AS falta
       FROM (SELECT (SELECT count(*) FROM tratamento_ciclo c WHERE c.ropa_id = r.id AND c.project_id = r.project_id) AS n
               FROM ropa_records r WHERE r.project_id = ?1 AND COALESCE(r.status, '') <> 'Inactive')`).bind(projectId),
-    db.prepare(`SELECT substr(recebido_em, 1, 10) AS d FROM titular_pedidos WHERE project_id = ?1 AND substr(recebido_em, 1, 10) > ?2`).bind(projectId, somarDias(dia, -84)),
+    // Pedidos por mês: 12 meses, o atual incluído (do dia 1 de onze meses atrás em diante).
+    db.prepare(`SELECT substr(recebido_em, 1, 7) AS m FROM titular_pedidos WHERE project_id = ?1 AND substr(recebido_em, 1, 10) >= ?2`).bind(projectId, mesesAtras(dia, 11) + '-01'),
     // Riscos das atividades (F2): o mesmo recorte do Mapa de risco do n.privacy.
     db.prepare(`SELECT probability AS p, impact AS i, count(*) AS n FROM risks WHERE project_id = ?1 AND ropa_id IS NOT NULL GROUP BY probability, impact`).bind(projectId),
+    // Indicadores de andamento (% de gaps e de riscos das atividades concluídos). Gap = ação corretiva da atividade; risco tratado = fechado, mitigado ou aceito.
+    db.prepare(`SELECT (SELECT count(*) FROM corrective_actions WHERE project_id = ?1 AND ropa_id IS NOT NULL) AS gaps,
+        (SELECT count(*) FROM corrective_actions WHERE project_id = ?1 AND ropa_id IS NOT NULL AND status = 'Closed') AS gaps_ok,
+        (SELECT count(*) FROM risks WHERE project_id = ?1 AND ropa_id IS NOT NULL) AS riscos,
+        (SELECT count(*) FROM risks WHERE project_id = ?1 AND ropa_id IS NOT NULL AND status IN ('Closed', 'Mitigated', 'Accepted')) AS riscos_ok`).bind(projectId),
   ]);
-  const [ativ, ripd, lias, pedidos90, incidentes12, evid, ciclo, semana, mapa] = respostas.slice(consultas.length);
+  const [ativ, ripd, lias, pedidos90, incidentes12, evid, ciclo, meses, mapa, andamento] = respostas.slice(consultas.length);
   const um = (r: D1Result) => r.results[0] as Contagem | undefined;
   const linhasAtiv = ativ.results as { id: string; status: string | null; reaberta_em: string | null; sem_base: number }[];
   const contaAtiv = { feito: 0, andamento: 0, falta: 0 };
@@ -231,12 +245,15 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
   v.linhas.push({ tipo: 'Ações das atividades', vencidos: faixa('vencidas')?.total ?? 0, itens: acoes });
   const primeiraAcao = [...acoes].sort((a, b) => a.dias - b.dias)[0];
   if (primeiraAcao && (!v.proximo || primeiraAcao.dias < v.proximo.dias)) v.proximo = { ...primeiraAcao, tipo: 'Ações das atividades' };
-  // Pedidos recebidos por semana, 12 semanas, a mais recente por último.
-  const pedidosSemana = Array.from({ length: 12 }, () => 0);
-  for (const { d } of semana.results as { d: string }[]) {
-    const idx = 11 - Math.floor(diasAte(dia, d) / 7);
-    if (idx >= 0 && idx < 12) pedidosSemana[idx] += 1;
+  // Pedidos recebidos por mês, 12 meses, o mês atual por último.
+  const chaves = Array.from({ length: 12 }, (_, i) => mesesAtras(dia, 11 - i));
+  const pedidosMes = chaves.map(() => 0);
+  for (const { m } of meses.results as { m: string }[]) {
+    const idx = chaves.indexOf(m);
+    if (idx >= 0) pedidosMes[idx] += 1;
   }
+  const an = (andamento.results[0] ?? {}) as Record<string, number>;
+  const pct = (ok: number, total: number) => (total ? `${Math.round((ok / total) * 100)}%` : 'nenhum');
   const totalAtiv = contaAtiv.feito + contaAtiv.andamento + contaAtiv.falta;
   const lg = visao.lgpd;
   const encarregados = visao.encarregados;
@@ -244,12 +261,14 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
   return {
     encarregados, comecando, tratamentos: visao.tratamentos.total,
     itens: emOrdem(visao.prioridades.map(daPrioridade('privacy'))),
-    cobertura, vencimentos: v.linhas, proximo: v.proximo, pedidos_semana: pedidosSemana,
+    cobertura, vencimentos: v.linhas, proximo: v.proximo, pedidos_mes: pedidosMes, meses_pedidos: chaves,
     riscos: mapa.results as Celula[], acoes_por_prazo: visao.acoes_por_prazo,
     numeros: [
       [`${contaAtiv.feito} de ${totalAtiv}`, 'atividades aprovadas'],
       [String(visao.pedidos_titular.atrasados), 'pedidos atrasados'],
       lg.carregada ? [`${lg.cobertos ?? 0} de ${lg.total ?? 0}`, 'artigos da LGPD cobertos'] : [String(te.vencidos), 'terceiros vencidos'],
+      [pct(an.gaps_ok ?? 0, an.gaps ?? 0), 'de gaps concluídos'],
+      [pct(an.riscos_ok ?? 0, an.riscos ?? 0), 'de riscos concluídos'],
     ] as [string, string][],
     passos: [
       { texto: 'Indicar o encarregado', contexto: 'A LGPD exige a indicação (art. 41)', feito: encarregados.length > 0, acao: 'Indicar', tela: 'encarregado' },
@@ -270,6 +289,7 @@ const UNIAO_ISO = [
   `SELECT 'Auditorias', title, substr(scheduled_date, 1, 10) FROM audit_schedule WHERE project_id = ?1 AND COALESCE(status, 'Planned') NOT IN ('Completed', 'Cancelled')`,
   SQL_UNIAO_EVIDENCIAS,
   SQL_UNIAO_DOCUMENTOS,
+  SQL_UNIAO_DOCUMENTOS_ARQUIVO,
 ];
 
 const TEMAS_ANEXO_A: [string, string][] = [['A.5', 'Controles organizacionais'], ['A.6', 'Controles de pessoas'], ['A.7', 'Controles físicos'], ['A.8', 'Controles tecnológicos']];
@@ -444,7 +464,7 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     modulosResp[m] = quem.cliente
       ? { saude, numeros: b.numeros, comecando: b.comecando, ...(m === 'iso' && iso ? { selos: iso.selos } : {}), ...(m === 'iso' ? { jornada: jornadaDoCliente(fases.results as Fase[]) } : {}) }
       : { saude, numeros: b.numeros, comecando: b.comecando, ...(m === 'iso' && iso ? { selos: iso.selos } : {}), fazer: b.itens, cobertura: b.cobertura, vencimentos: b.vencimentos, riscos: b.riscos, passos: b.passos,
-          ...(m === 'privacy' && privacy ? { pedidos_semana: privacy.pedidos_semana, acoes_por_prazo: privacy.acoes_por_prazo } : {}) };
+          ...(m === 'privacy' && privacy ? { pedidos_mes: privacy.pedidos_mes, meses_pedidos: privacy.meses_pedidos, acoes_por_prazo: privacy.acoes_por_prazo } : {}) };
   }
   const todos = emOrdem(Object.values(blocos).flatMap((b) => b.itens));
   return {
