@@ -37,7 +37,7 @@ const CASOS = [
   },
   {
     nome: 'CAPA', tabela: 'corrective_actions', coluna: 'assigned_to_parte_id', lista: `${A}/capa`, campoLista: 'actions',
-    criar: (extra: object) => chamar(plat, 'POST', `${A}/capa`, { title: 'Corrigir', ...extra }),
+    criar: (extra: object) => chamar(plat, 'POST', `${A}/capa`, { title: 'Corrigir', assigned_to: 'Fulano', ...extra }),
     editar: (id: string, extra: object) => chamar(plat, 'PUT', `/api/v1/capa/${id}`, { title: 'Corrigir', status: 'Open', ...extra }),
   },
 ];

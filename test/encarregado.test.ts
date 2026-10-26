@@ -174,7 +174,7 @@ describe('projeto com pendências', () => {
     ]);
     const v = await ver();
     expect(v.pedidos_titular.abertos).toBe(0);
-    expect(v.evidencias.vencidas).toBe(0);
+    expect(v.evidencias.a_corrigir).toBe(0);
     expect(v.tratamentos.total).toBe(0);
   });
 });

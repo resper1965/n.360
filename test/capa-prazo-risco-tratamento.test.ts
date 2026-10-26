@@ -21,12 +21,12 @@ beforeAll(async () => {
 
 describe('prazo da CAPA', () => {
   it('data que não existe (31 de fevereiro) é recusada', async () => {
-    expect((await chamar(consultor, `/api/v1/projects/${P}/capa`, 'POST', { title: 'Data impossível', due_date: '2026-02-31' })).status).toBe(400);
+    expect((await chamar(consultor, `/api/v1/projects/${P}/capa`, 'POST', { title: 'Data impossível', assigned_to: 'Fulano', due_date: '2026-02-31' })).status).toBe(400);
   });
 
   it('data fora de AAAA-MM-DD é recusada na criação e na edição; a data certa grava', async () => {
-    expect((await chamar(consultor, `/api/v1/projects/${P}/capa`, 'POST', { title: 'Ação', due_date: '31/12/2026' })).status).toBe(400);
-    const r = await chamar(consultor, `/api/v1/projects/${P}/capa`, 'POST', { title: 'Ação', due_date: '2026-12-31' });
+    expect((await chamar(consultor, `/api/v1/projects/${P}/capa`, 'POST', { title: 'Ação', assigned_to: 'Fulano', due_date: '31/12/2026' })).status).toBe(400);
+    const r = await chamar(consultor, `/api/v1/projects/${P}/capa`, 'POST', { title: 'Ação', assigned_to: 'Fulano', due_date: '2026-12-31' });
     expect(r.status).toBe(201);
     const { id } = await r.json<{ id: string }>();
     expect((await chamar(consultor, `/api/v1/capa/${id}`, 'PUT', { title: 'Ação', status: 'Open', due_date: 'amanhã' })).status).toBe(400);

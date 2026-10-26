@@ -2,17 +2,19 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { genId, logAudit, requireResourceAccess, erro500, ForbiddenError, refForaDoProjeto } from '../helpers';
 import { validateBody, createRiskSchema, riskUpdateSchema } from '../schemas';
+import { escopoRopa } from '../services/escopo-itens';
 import { riskLevel, residualLevel, carimboDeAceite, aceiteCaiu } from '../services/riscos-atividade';
 
 const risks = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
+// Escopo `todos` de propósito: a matriz do n.iso mostra também os riscos das atividades do n.privacy.
 risks.get('/api/v1/projects/:projectId/risks', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT r.*, cc.standard as control_standard, cc.title as control_title, pa.nome as owner_parte_nome
      FROM risks r 
      LEFT JOIN compliance_controls cc ON r.control_id = cc.id AND cc.project_id = r.project_id
      LEFT JOIN partes pa ON pa.id = r.owner_parte_id AND pa.project_id = r.project_id
-     WHERE r.project_id = ? 
+     WHERE r.project_id = ?${escopoRopa('todos', 'r.ropa_id')}
      ORDER BY r.impact * r.probability DESC`
   ).bind(c.req.param('projectId')).all();
   return c.json({ ok: true, risks: results });

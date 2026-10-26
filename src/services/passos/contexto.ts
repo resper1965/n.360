@@ -1,10 +1,11 @@
 import { SQL_CLASSE_CONTROLE } from '../classe-controle';
 import { SQL_EH_FORNECEDOR } from '../terceiros';
 import { ENTIDADES, type Entidade } from '../../data/passos/tipos';
+import { escopoRopa } from '../escopo-itens';
 
 /** Uma consulta por entidade, todas com `project_id = ?`. Lista fechada: o catálogo só cita as chaves daqui. */
 export const CONSULTAS_ENTIDADE: Record<Entidade, string> = {
-  riscos: `SELECT COUNT(*) AS n FROM risks WHERE project_id = ?`,
+  riscos: `SELECT COUNT(*) AS n FROM risks WHERE project_id = ?${escopoRopa('todos')}`,
   ativos: `SELECT COUNT(*) AS n FROM itens WHERE project_id = ? AND status = 'ativo'`,
   controles_implementados: `SELECT COUNT(*) AS n FROM compliance_controls WHERE project_id = ? AND (${SQL_CLASSE_CONTROLE}) = 'feito'`,
   documentos_vigentes: `SELECT COUNT(*) AS n FROM documentos WHERE project_id = ? AND status = 'vigente'`,
@@ -14,7 +15,7 @@ export const CONSULTAS_ENTIDADE: Record<Entidade, string> = {
   treinamentos: `SELECT COUNT(*) AS n FROM training_records WHERE project_id = ?`,
   auditorias: `SELECT COUNT(*) AS n FROM audit_schedule WHERE project_id = ?`,
   analises_criticas: `SELECT COUNT(*) AS n FROM management_reviews WHERE project_id = ?`,
-  acoes_corretivas: `SELECT COUNT(*) AS n FROM corrective_actions WHERE project_id = ?`,
+  acoes_corretivas: `SELECT COUNT(*) AS n FROM corrective_actions WHERE project_id = ?${escopoRopa('todos')}`,
   partes_interessadas: `SELECT COUNT(*) AS n FROM stakeholders WHERE project_id = ?`,
   governanca: `SELECT COUNT(*) AS n FROM project_governance WHERE project_id = ?`,
   incidentes: `SELECT COUNT(*) AS n FROM incidentes WHERE project_id = ?`,

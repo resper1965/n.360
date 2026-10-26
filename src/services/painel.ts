@@ -133,6 +133,7 @@ type Celula = { p: number; i: number; n: number };
 
 export { SQL_EVIDENCIA_VENCIDA, SQL_EVIDENCIA_RUIM } from './evidencia-regras';
 import { SQL_EVIDENCIA_RUIM } from './evidencia-regras';
+import { escopoRopa } from './escopo-itens';
 // Ordem das colunas de status de evidência, igual nos dois módulos: válida e conforme, em análise, vencida ou não conforme.
 const SQL_EVIDENCIAS = `SELECT
     sum(CASE WHEN (valido_ate IS NULL OR substr(valido_ate, 1, 10) >= ?2) AND evaluation_status = 'conforming' THEN 1 ELSE 0 END) AS feito,
@@ -196,7 +197,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
               FROM ropa_records r WHERE r.project_id = ?1 AND COALESCE(r.status, '') <> 'Inactive')`).bind(projectId),
     db.prepare(`SELECT substr(recebido_em, 1, 10) AS d FROM titular_pedidos WHERE project_id = ?1 AND substr(recebido_em, 1, 10) > ?2`).bind(projectId, somarDias(dia, -84)),
     // Riscos das atividades (F2): o mesmo recorte do Mapa de risco do n.privacy.
-    db.prepare(`SELECT probability AS p, impact AS i, count(*) AS n FROM risks WHERE project_id = ?1 AND ropa_id IS NOT NULL GROUP BY probability, impact`).bind(projectId),
+    db.prepare(`SELECT probability AS p, impact AS i, count(*) AS n FROM risks WHERE project_id = ?1${escopoRopa('atividades')} GROUP BY probability, impact`).bind(projectId),
   ]);
   const [ativ, ripd, lias, pedidos90, incidentes12, evid, ciclo, semana, mapa] = respostas.slice(consultas.length);
   const um = (r: D1Result) => r.results[0] as Contagem | undefined;
@@ -266,7 +267,7 @@ async function blocoPrivacy(db: D1Database, projectId: string, cliente: boolean,
 const TIPOS_ISO = ['Ações corretivas', 'Auditorias', 'Evidências', 'Documentos (revisão)'];
 const UNIAO_ISO = [
   `SELECT 'Ações corretivas' AS tipo, title AS rotulo, substr(due_date, 1, 10) AS data FROM corrective_actions
-    WHERE project_id = ?1 AND ropa_id IS NULL AND COALESCE(status, 'Open') <> 'Closed' AND due_date IS NOT NULL`,
+    WHERE project_id = ?1${escopoRopa('programa')} AND COALESCE(status, 'Open') <> 'Closed' AND due_date IS NOT NULL`,
   `SELECT 'Auditorias', title, substr(scheduled_date, 1, 10) FROM audit_schedule WHERE project_id = ?1 AND COALESCE(status, 'Planned') NOT IN ('Completed', 'Cancelled')`,
   SQL_UNIAO_EVIDENCIAS,
   SQL_UNIAO_DOCUMENTOS,
@@ -284,14 +285,14 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, quem: Qu
     db.prepare(`SELECT sum(CASE WHEN COALESCE(status, 'Open') IN ('Mitigated', 'Accepted', 'Closed') THEN 1 ELSE 0 END) AS feito,
         sum(CASE WHEN COALESCE(status, 'Open') NOT IN ('Mitigated', 'Accepted', 'Closed') AND trim(COALESCE(treatment_plan, '')) <> '' THEN 1 ELSE 0 END) AS andamento,
         sum(CASE WHEN COALESCE(status, 'Open') NOT IN ('Mitigated', 'Accepted', 'Closed') AND trim(COALESCE(treatment_plan, '')) = '' THEN 1 ELSE 0 END) AS falta
-      FROM risks WHERE project_id = ?1 AND ropa_id IS NULL`).bind(projectId),
-    db.prepare(`SELECT threat FROM risks WHERE project_id = ?1 AND ropa_id IS NULL AND risk_level IN ('High', 'Critical') AND COALESCE(status, 'Open') = 'Open'
+      FROM risks WHERE project_id = ?1${escopoRopa('programa')}`).bind(projectId),
+    db.prepare(`SELECT threat FROM risks WHERE project_id = ?1${escopoRopa('programa')} AND risk_level IN ('High', 'Critical') AND COALESCE(status, 'Open') = 'Open'
       AND trim(COALESCE(treatment_plan, '')) = '' ORDER BY impact * probability DESC, threat`).bind(projectId),
     db.prepare(`SELECT sum(CASE WHEN COALESCE(status, 'Open') = 'Closed' THEN 1 ELSE 0 END) AS feito,
         sum(CASE WHEN COALESCE(status, 'Open') <> 'Closed' AND (due_date IS NULL OR substr(due_date, 1, 10) >= ?2) THEN 1 ELSE 0 END) AS andamento,
         sum(CASE WHEN COALESCE(status, 'Open') <> 'Closed' AND substr(due_date, 1, 10) < ?2 THEN 1 ELSE 0 END) AS falta
-      FROM corrective_actions WHERE project_id = ?1 AND ropa_id IS NULL`).bind(projectId, dia),
-    db.prepare(`SELECT title, substr(due_date, 1, 10) AS due FROM corrective_actions WHERE project_id = ?1 AND ropa_id IS NULL AND COALESCE(status, 'Open') <> 'Closed'
+      FROM corrective_actions WHERE project_id = ?1${escopoRopa('programa')}`).bind(projectId, dia),
+    db.prepare(`SELECT title, substr(due_date, 1, 10) AS due FROM corrective_actions WHERE project_id = ?1${escopoRopa('programa')} AND COALESCE(status, 'Open') <> 'Closed'
       AND substr(due_date, 1, 10) < ?2 ORDER BY due_date, title`).bind(projectId, dia),
     db.prepare(SQL_EVIDENCIAS).bind(projectId, dia),
     db.prepare(`SELECT title, substr(scheduled_date, 1, 10) AS data FROM audit_schedule WHERE project_id = ?1 AND COALESCE(status, 'Planned') NOT IN ('Completed', 'Cancelled')
@@ -300,7 +301,7 @@ async function blocoIso(db: D1Database, projectId: string, dia: string, quem: Qu
       .bind(projectId, somarDias(dia, -60)),
     // Exclusão da SoA sem justificativa: a justificativa do N/A mora em `description` (soa-logic.ts).
     db.prepare(`SELECT title FROM compliance_controls WHERE project_id = ?1 AND status = 'Not Applicable' AND trim(COALESCE(description, '')) = '' ORDER BY title`).bind(projectId),
-    db.prepare(`SELECT probability AS p, impact AS i, count(*) AS n FROM risks WHERE project_id = ?1 AND ropa_id IS NULL GROUP BY probability, impact`).bind(projectId),
+    db.prepare(`SELECT probability AS p, impact AS i, count(*) AS n FROM risks WHERE project_id = ?1${escopoRopa('programa')} GROUP BY probability, impact`).bind(projectId),
     // Pedidos à espera da decisão DESTA pessoa (o mesmo destinatário de GET /api/v1/pedidos, que "meus-pedidos" lista).
     db.prepare(`SELECT count(DISTINCT p.id) AS n FROM pedidos p JOIN pedido_destinatarios d ON d.pedido_id = p.id
       WHERE p.project_id = ?1 AND p.status = 'aberto' AND d.status = 'pendente' AND (d.user_id = ?2 OR (d.user_id IS NULL AND d.email = lower(?3)))`)
@@ -520,7 +521,7 @@ export async function carteira(db: D1Database, visiveis: { sql: string; bind: st
          (SELECT count(*) FROM titular_pedidos t WHERE t.project_id = p.id AND t.status IN ('recebido', 'em_andamento') AND substr(t.prazo_em, 1, 10) < ?1) AS pedidos_atrasados,
          (SELECT count(*) FROM incidentes i WHERE i.project_id = p.id AND i.status <> 'encerrado' AND COALESCE(i.risco_titular, '') <> 'sem_risco'
             AND ((i.comunicacao_anpd_em IS NULL AND substr(i.prazo_anpd_em, 1, 10) < ?1) OR (i.comunicacao_titular_em IS NULL AND substr(i.prazo_titular_em, 1, 10) < ?1))) AS comunicacoes_atrasadas,
-         (SELECT count(*) FROM corrective_actions a WHERE a.project_id = p.id AND COALESCE(a.status, 'Open') <> 'Closed' AND substr(a.due_date, 1, 10) < ?1) AS acoes_vencidas,
+         (SELECT count(*) FROM corrective_actions a WHERE a.project_id = p.id${escopoRopa('todos', 'a.ropa_id')} AND COALESCE(a.status, 'Open') <> 'Closed' AND substr(a.due_date, 1, 10) < ?1) AS acoes_vencidas,
          (SELECT count(*) FROM ropa_records r WHERE r.project_id = p.id AND COALESCE(r.status, '') <> 'Inactive') AS tratamentos,
          (SELECT count(*) FROM compliance_controls c WHERE c.project_id = p.id AND (${sqlClasseControle('c.status')}) <> 'falta') AS controles
        FROM projects p WHERE p.id ${escopo}`),

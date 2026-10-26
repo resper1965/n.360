@@ -7,7 +7,8 @@ import { ehLegitimoInteresse } from './lia';
 import { SQL_TITULOS_ADICIONAIS } from './bases';
 import { acoesDasAtividades, faixaDePrazo, FAIXAS_PRAZO } from './riscos-atividade';
 import { hojeEmSaoPaulo, diaMaisSP } from './hoje';
-import { SQL_EVIDENCIA_VENCIDA } from './evidencia-regras';
+import { SQL_EVIDENCIA_RUIM } from './evidencia-regras';
+import { escopoRopa } from './escopo-itens';
 
 /**
  * Núcleo do n.privacy, fatia 8: a visão do encarregado. É CONSULTA sobre as tabelas das fatias anteriores, nunca grava: o que está atrasado
@@ -79,14 +80,15 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
   const lgpdCarregada = (fontes?.n ?? 0) > 0;
   const lacunas = lgpdCarregada ? await lacunasDaFonte(db, projectId, 'lgpd') : [];
   const evidencias = {
-    vencidas: await n(db, `SELECT count(*) AS n FROM evidence WHERE project_id = ?1 AND ${SQL_EVIDENCIA_VENCIDA}`, projectId, dia),
+    // O mesmo critério da cobertura do Painel (`SQL_EVIDENCIAS`) e da Prontidão: só `conforming` em dia cobre; vencida ou não conforme é a corrigir.
+    a_corrigir: await n(db, `SELECT count(*) AS n FROM evidence WHERE project_id = ?1 AND ${SQL_EVIDENCIA_RUIM}`, projectId, dia),
     vencem_em_7_dias: await n(db, `SELECT count(*) AS n FROM evidence WHERE project_id = ?1 AND valido_ate IS NOT NULL AND substr(valido_ate, 1, 10) >= ?2 AND substr(valido_ate, 1, 10) <= ?3`, projectId, dia, em7),
   };
 
   // Riscos e ações das atividades (F2, 0073): só o que tem ropa_id; risco e CAPA só do n.iso ficam na matriz e na CAPA dele.
   const riscos = {
-    altos: await n(db, `SELECT count(*) AS n FROM risks WHERE project_id = ?1 AND ropa_id IS NOT NULL AND risk_level IN ('High', 'Critical') AND COALESCE(status, 'Open') = 'Open'`, projectId),
-    acoes_vencidas: await n(db, `SELECT count(*) AS n FROM corrective_actions WHERE project_id = ?1 AND ropa_id IS NOT NULL AND COALESCE(status, 'Open') <> 'Closed' AND due_date IS NOT NULL AND substr(due_date, 1, 10) < ?2`, projectId, dia),
+    altos: await n(db, `SELECT count(*) AS n FROM risks WHERE project_id = ?1${escopoRopa('atividades')} AND risk_level IN ('High', 'Critical') AND COALESCE(status, 'Open') = 'Open'`, projectId),
+    acoes_vencidas: await n(db, `SELECT count(*) AS n FROM corrective_actions WHERE project_id = ?1${escopoRopa('atividades')} AND COALESCE(status, 'Open') <> 'Closed' AND due_date IS NOT NULL AND substr(due_date, 1, 10) < ?2`, projectId, dia),
   };
 
   // Faixas de prazo das ações abertas das atividades (F4): contagem e até 50 itens por faixa, para a tela abrir a lista.
@@ -166,7 +168,7 @@ export async function visaoDoEncarregado(db: D1Database, projectId: string, { cl
     { grupo: 'atraso', quando: venceu(acoesVencidas.map((a) => a.due_date)), contexto: exemplos(acoesVencidas.map((a) => a.title)), acao: 'Ver as ações', filtro: 'acoes_vencidas' });
   p('media', secao.pedidos_titular.vencem_em_7_dias, (q) => `${q} ${q === 1 ? 'pedido do titular vence' : 'pedidos do titular vencem'} em até 7 dias`, 'titular',
     { grupo: 'semana', quando: `Até ${diaMes(em7dias.map((x) => String(x.prazo_em).slice(0, 10)).sort().pop())}`, contexto: exemplos(em7dias.map((x) => x.protocolo)), acao: 'Ver os pedidos', aba: 'pedidos', filtro: 'vencem_7_dias' });
-  p('media', secao.evidencias.vencidas, (q) => `${q} ${q === 1 ? 'evidência vencida' : 'evidências vencidas'}`, 'evidence', planejar('A validade passou; a evidência volta a pendente', 'Renovar as evidências', 'vencidas'));
+  p('media', secao.evidencias.a_corrigir, (q) => `${q} ${q === 1 ? 'evidência vencida ou não conforme' : 'evidências vencidas ou não conformes'}`, 'evidence', planejar('Renove ou substitua o arquivo', 'Renovar as evidências', 'vencidas_ou_nao_conformes'));
   p('media', secao.documentos.revisao_vencida, (q) => `${q} ${q === 1 ? 'documento com revisão vencida' : 'documentos com revisão vencida'}`, 'documentos', planejar('A data de revisão passou', 'Revisar os documentos'));
   p('media', secao.terceiros.pendentes, (q) => `${q} ${q === 1 ? 'terceiro nunca avaliado' : 'terceiros nunca avaliados'}`, 'terceiros',
     planejar(exemplos(terceiros.filter((t) => t.terceiro_tipo && t.situacao === 'pendente').map((t) => t.nome)), 'Avaliar os terceiros', 'pendentes'));

@@ -5,6 +5,7 @@
 
 import { classeDoControle } from './classe-controle';
 import { coberturaDePoliticas } from './cobertura-politicas';
+import { escopoRopa } from './escopo-itens';
 
 export type CoherenceSeverity = 'error' | 'warning';
 
@@ -29,7 +30,7 @@ export async function checkCoherence(db: D1Database, projectId: string): Promise
 
   const { results: risks } = await db.prepare(
     // Risco da atividade de tratamento (n.privacy, 0073) fica fora das regras do Annex A: a medida dele vive no RoPA.
-    `SELECT id, asset, threat, treatment, status, control_id FROM risks WHERE project_id = ? AND ropa_id IS NULL`
+    `SELECT id, asset, threat, treatment, status, control_id FROM risks WHERE project_id = ?${escopoRopa('programa')}`
   ).bind(projectId).all<any>();
 
   const { results: controls } = await db.prepare(

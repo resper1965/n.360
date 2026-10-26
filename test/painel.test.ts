@@ -143,7 +143,7 @@ describe('GET /projects/:id/painel', () => {
     const m = corpo.modulos.privacy;
     expect(m.fazer![0]).toMatchObject({ grupo: 'atraso', texto: '1 pedido do titular atrasado', acao: 'Responder os pedidos', contexto: 'PT-1 (acesso)', tela: 'titular', aba: 'pedidos', filtro: 'atrasados' });
     // A lista de destino abre filtrada pela situação do item (chave fechada, nunca dado).
-    expect(m.fazer!.find((i) => i.texto.includes('evidência vencida'))).toMatchObject({ tela: 'evidence', filtro: 'vencidas' });
+    expect(m.fazer!.find((i) => i.texto.includes('evidência vencida'))).toMatchObject({ tela: 'evidence', filtro: 'vencidas_ou_nao_conformes' });
     expect(m.fazer!.map((i) => i.grupo)).toEqual([...m.fazer!.map((i) => i.grupo)].sort((a, b) => ['atraso', 'semana', 'plano'].indexOf(a) - ['atraso', 'semana', 'plano'].indexOf(b)));
     expect(corpo.saude).toMatchObject({ tom: 'atraso', rotulo: 'Atrasado', frase: '1 pedido do titular atrasado.' });
     // a lista e a frase saem da mesma conta: o primeiro item é o que a frase nomeia
