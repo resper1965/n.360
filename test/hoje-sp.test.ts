@@ -30,7 +30,7 @@ describe('"hoje" é o dia de São Paulo', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-10-21T00:30:00Z'));
     const v = await visaoDoEncarregado(env.DB, P);
-    expect(v.evidencias.vencidas).toBe(1); // só a de 19/10
+    expect(v.evidencias.a_corrigir).toBe(1); // só a de 19/10
     expect(v.evidencias.vencem_em_7_dias).toBe(1); // a de hoje, mesmo escrita com hora
   });
 

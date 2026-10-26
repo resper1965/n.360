@@ -242,6 +242,17 @@ describe('fluxo da homologação', () => {
     expect((await json<{ id: string; expirada: boolean }[]>(await chamar(consultor, 'GET', base))).find((h) => h.id === vencida.id)!.expirada).toBe(true);
   });
 
+  it('a lista de fornecedores traz o resumo do último questionário não cancelado (Data de envio e % respondido)', async () => {
+    const feita = await json<{ id: string }>(await criar());
+    await env.DB.prepare(`UPDATE homologacoes SET enviada_em = '2026-10-05 09:00:00' WHERE id = ?`).bind(feita.id).run();
+    const cancelada = await json<{ id: string }>(await criar());
+    await chamar(consultor, 'POST', `${base}/${cancelada.id}/cancelar`);
+    const lista = await json<{ id: string; questionario: { enviada_em: string | null; percentual: number; total: number } | null }[]>(await chamar(consultor, 'GET', `/api/v1/projects/${P}/terceiros`));
+    const grande = lista.find((t) => t.id === 'hm-medio')!;
+    expect(grande.questionario).toMatchObject({ enviada_em: '2026-10-05 09:00:00', percentual: 0 }); // a cancelada, mais nova, não vale
+    expect(lista.every((t) => t.questionario === null || typeof t.questionario.total === 'number')).toBe(true);
+  });
+
   it('homologação de outro projeto não é alcançada pelo caminho do projeto', async () => {
     expect((await chamar(consultor, 'GET', `/api/v1/projects/${P}/homologacoes/nao-existe`)).status).toBe(404);
     expect((await chamar(consultor, 'POST', `/api/v1/projects/${P}/homologacoes/nao-existe/cancelar`)).status).toBe(404);

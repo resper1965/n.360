@@ -97,8 +97,11 @@ export function graficoVencimentos(linhas) {
         ${tabelaEquivalente(['Tipo', 'Item', 'Prazo'], [...vencidos, ...todos])}`;
 }
 
-/** Pedidos do titular recebidos por semana, 12 semanas, com a média: a única série no tempo do painel. */
-export function graficoPedidos(valores) {
+const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const rotuloMes = (aaaamm, i, n) => (i === n - 1 ? 'Este mês' : /^\d{4}-\d{2}$/.test(aaaamm || '') ? `${MES[Number(aaaamm.slice(5)) - 1]}/${aaaamm.slice(2, 4)}` : `Há ${n - 1 - i} meses`);
+
+/** Pedidos do titular recebidos por mês, 12 meses, com a média: a única série no tempo do painel. */
+export function graficoPedidos(valores, meses = []) {
     const v = (Array.isArray(valores) ? valores : []).map((n) => Math.max(0, Number(n) || 0));
     if (v.length < 2) return '';
     const w = 168, h = 40, max = Math.max(1, ...v);
@@ -107,13 +110,13 @@ export function graficoPedidos(valores) {
     const media = v.reduce((a, b) => a + b, 0) / v.length;
     const ult = v[v.length - 1];
     const mediaTxt = media.toFixed(1).replace('.', ',');
-    const resumo = `Pedidos recebidos por semana nas últimas 12 semanas: de ${Math.min(...v)} a ${Math.max(...v)}; ${ult} nesta semana; média de ${mediaTxt}`;
+    const resumo = `Pedidos recebidos por mês nos últimos 12 meses: de ${Math.min(...v)} a ${Math.max(...v)}; ${ult} neste mês; média de ${mediaTxt}`;
     return `<div class="pn-spark"><svg width="${w}" height="${h}" role="img" tabindex="0" aria-label="${resumo}" data-dica="${resumo}">
             <line class="pn-spark-media" x1="0" x2="${w}" y1="${y(media).toFixed(1)}" y2="${y(media).toFixed(1)}"></line>
             <polyline class="pn-spark-linha" points="${v.map((n, i) => `${x(i).toFixed(1)},${y(n).toFixed(1)}`).join(' ')}"></polyline>
             <rect class="pn-spark-ult" x="${(x(v.length - 1) - 4).toFixed(1)}" y="${(y(ult) - 4).toFixed(1)}" width="8" height="8"></rect></svg>
-        <div><div class="pn-spark-n">${ult} <span class="pn-meta">nesta semana</span></div><div class="pn-meta">média de ${mediaTxt} por semana em 12 semanas</div></div></div>
-        ${tabelaEquivalente(['Semana', 'Pedidos'], v.map((n, i) => [i === v.length - 1 ? 'Esta semana' : `Há ${v.length - 1 - i} ${v.length - 1 - i === 1 ? 'semana' : 'semanas'}`, n]))}`;
+        <div><div class="pn-spark-n">${ult} <span class="pn-meta">neste mês</span></div><div class="pn-meta">média de ${mediaTxt} por mês em 12 meses</div></div></div>
+        ${tabelaEquivalente(['Mês', 'Pedidos'], v.map((n, i) => [rotuloMes(meses[i], i, v.length), n]))}`;
 }
 
 /**

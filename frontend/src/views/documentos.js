@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api } from '../api.js';
+import { api, baixarArquivo } from '../api.js';
 import { showToast, openModal, closeModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
 import { produtoAtual } from '../produto.js';
 import { hojeSP } from '../hoje.js';
@@ -296,6 +296,7 @@ window.openDocumentoModal = async function (projectId, id) {
             ${linhaAprovacao('Direção', aprovacao.ceo)}
         </div>
         ${acoes}
+        ${versoes.length ? `<div class="acoes-rodape"><button type="button" class="btn btn-sm" data-action="baixarWordDocumento" data-args='${args(projectId, id)}'>Baixar Word</button></div>` : ''}
         ${editor}
         <h4 style="margin:1.25rem 0 0.5rem">Versões</h4>
         ${versoes.length ? versoes.map((v) => `
@@ -422,3 +423,7 @@ window.pedirAprovacaoDocumento = function (projectId, id) {
 };
 
 window.renderDocumentos = renderDocumentos;
+
+// Word do documento versionado (a versão vigente, ou o rascunho), pelo caminho autenticado de api.js.
+window.baixarWordDocumento = (projectId, id) => baixarArquivo(`/api/v1/projects/${projectId}/documentos/${id}/docx`)
+    .catch((e) => showToast(e.message || 'Não foi possível baixar o Word', 'error'));

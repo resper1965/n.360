@@ -12,7 +12,7 @@ import '../src/views/terceiros.js';
 const B = '/api/v1/projects/p9/terceiros';
 const T = (id, extra = {}) => ({ id, nome: `Terceiro ${id}`, terceiro_tipo: 'medio', metodo: 'questionario', situacao: 'vigente', ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2027-01-31', metodo: 'questionario' }, tratamentos: 2, documentos: 1, nivel: 'medio', dpa: true, atividades: 2, pendencias: [], ...extra });
 const LISTA = [
-    T('a', { nome: 'Nuvem <b>Grande</b>' }),
+    T('a', { nome: 'Nuvem <b>Grande</b>', questionario: { enviada_em: '2026-10-05 09:00:00', percentual: 80, respondidas: 8, total: 10 } }),
     T('b', { situacao: 'vencida', nivel: 'alto', dpa: false, pendencias: ['Avaliação', 'DPA'], ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2025-01-01', metodo: 'questionario' } }),
     T('c', { terceiro_tipo: null, metodo: null, situacao: 'pendente', ultima_avaliacao: null, tratamentos: 0, documentos: 0, nivel: null, dpa: false, atividades: 0, pendencias: ['Tipo', 'Criticidade', 'Avaliação', 'DPA'] }),
 ];
@@ -73,9 +73,12 @@ describe('lista', () => {
         await lista();
         expect(el('h').textContent).toBe('Fornecedores');
         expect([...el('c').querySelectorAll('thead th')].map((th) => th.textContent.trim()))
-            .toEqual(['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações']);
+            .toEqual(['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'Data de envio', '% do questionário', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações']);
         const [a, b, c] = linhas();
         expect(a).toContain('Nuvem <b>Grande</b>');
+        expect(a).toContain('05/10/2026');
+        expect(a).toContain('80%');
+        expect(b).not.toContain('%');
         expect(a).toContain('Médio');
         expect(a).toContain('Vigente');
         expect(a).toContain('31/01/2027');
@@ -87,6 +90,16 @@ describe('lista', () => {
         expect(c).toContain('Pendente');
         expect(el('c').textContent).toContain('1 fornecedor com avaliação vencida');
         expect(el('c').querySelector('tbody b')).toBeNull();
+    });
+
+    it('busca pelo nome, sem acento e sem ir ao servidor', async () => {
+        const f = await lista();
+        const antes = f.mock.calls.length;
+        window.listaBuscar('tc', 'NUVEM');
+        expect(linhas()).toHaveLength(1);
+        window.listaBuscar('tc', 'zzz');
+        expect(el('c').textContent).toContain('Nada encontrado com a busca ou o filtro');
+        expect(f.mock.calls.length).toBe(antes);
     });
 
     it('coluna Situação do TPRM: Completo ou Falta: ...; filtro Pendência na própria tela', async () => {

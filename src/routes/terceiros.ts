@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500 } from '../helpers';
 import { definirTipo, desligarDocumento, lerCriticidades, lerTerceiro, ligarDocumento, listarCandidatos, listarTerceiros, registrarAvaliacao, registrarCriticidade, type PapelDocumento } from '../services/terceiros';
+import { listarHomologacoes } from '../services/homologacao';
 import { validateBody, avaliacaoTerceiroSchema, criticidadeTerceiroSchema, terceiroDocumentoSchema, terceiroTipoSchema } from '../schemas';
 
 /**
@@ -10,7 +11,17 @@ import { validateBody, avaliacaoTerceiroSchema, criticidadeTerceiroSchema, terce
  */
 export const terceirosApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-terceirosApp.get('/', async (c) => c.json(await listarTerceiros(c.env.DB, c.req.param('projectId')!)));
+// A lista traz o resumo do último questionário não cancelado (Data de envio e % respondido), o mesmo dado da ficha.
+terceirosApp.get('/', async (c) => {
+  const projectId = c.req.param('projectId')!;
+  const [terceiros, homologacoes] = await Promise.all([listarTerceiros(c.env.DB, projectId), listarHomologacoes(c.env.DB, projectId)]);
+  const ultima = new Map<string, (typeof homologacoes)[number]>();
+  for (const h of homologacoes) if (h.status !== 'cancelada' && !ultima.has(h.parte_id)) ultima.set(h.parte_id, h); // ordenada da mais nova para a mais antiga
+  return c.json(terceiros.map((t) => {
+    const h = ultima.get(t.id);
+    return { ...t, questionario: h ? { enviada_em: h.enviada_em, percentual: h.percentual, respondidas: h.respondidas, total: h.total } : null };
+  }));
+});
 
 terceirosApp.get('/candidatos', async (c) => c.json(await listarCandidatos(c.env.DB, c.req.param('projectId')!)));
 

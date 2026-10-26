@@ -1,4 +1,3 @@
-import { S } from '../state.js';
 import { api } from '../api.js';
 import { showToast, escapeHTML, formatarData } from '../ui.js';
 import { textoRecomendacao } from '../recomendacao-ripd.js';
@@ -105,12 +104,8 @@ window.atImpCriarRipd = async function () {
     } catch (e) { showToast((e && e.message) || 'Não foi possível criar o RIPD', 'error'); }
 };
 
-/** O RIPD abre no detalhe dele (onde fica o pedido de aprovação do RIPD), com a lista carregada. */
-window.atAbrirRipd = async function (projectId, id) {
-    try { S.dpia = lista(await api('GET', `/api/v1/projects/${projectId}/dpia`)); }
-    catch (e) { showToast(`Não foi possível abrir o RIPD: ${e.message}`, 'error'); return; }
-    window.openDPIADetailsModal(id);
-};
+/** O RIPD abre na página própria dele (onde ficam as abas, as assinaturas e o pedido de aprovação). */
+window.atAbrirRipd = (projectId, id) => window.abrirRipd(projectId, id);
 
 export async function montar(painel, ctx) {
     I = { painel, ctx, imp: null, dpias: [] };

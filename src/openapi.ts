@@ -132,7 +132,7 @@ import {
   parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
-import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema } from './schemas/ropa-abas';
+import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema, ripdQuestionarioSchema } from './schemas/ropa-abas';
 import { passoCamposSchema, passoMetaSchema, passoConcluirSchema, passoReabrirSchema, passoBloquearSchema, passoDesbloquearSchema, copilotoCampoSchema, copilotoConversaSchema } from './schemas/passos';
 
 /**
@@ -271,6 +271,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/documentos/:id/versoes', schema: versaoSalvarSchema, nome: 'versaoSalvarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/documentos/:id', schema: documentoAtualizarSchema, nome: 'documentoAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/documentos', schema: documentoCriarSchema, nome: 'documentoCriarSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/dpia/:dpiaId/questionario', schema: ripdQuestionarioSchema, nome: 'ripdQuestionarioSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/empresa', schema: empresaSchema, nome: 'empresaSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/evidence/:evidenceId/requisitos', schema: documentoRequisitosSchema, nome: 'documentoRequisitosSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/evidence/:evidenceId/validade', schema: evidenciaValidadeSchema, nome: 'evidenciaValidadeSchema' },

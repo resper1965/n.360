@@ -94,14 +94,14 @@ window.catAbrir = function (id) {
     openModal(`<div class="modal-header"><span class="modal-title">${escapeHTML(i ? (ed ? t.alterar : t.coluna) : t.novo)}</span></div>
         <div class="form-group"><label class="form-label" for="cat-nome">${escapeHTML(t.coluna)}</label>
             <input class="form-input" id="cat-nome" maxlength="200" value="${escapeHTML(i ? i.nome : '')}" ${off}></div>
-        ${dado ? `<div class="form-group"><label class="form-label" for="cat-sensivel">É um Dado Sensível?</label>
-            <select class="form-input" id="cat-sensivel" ${off}><option value="nao" ${i && i.sensivel ? '' : 'selected'}>Não</option><option value="sim" ${i && i.sensivel ? 'selected' : ''}>Sim</option></select></div>
+        ${dado ? `<div class="form-group"><label class="es-check"><input type="checkbox" id="cat-sensivel" ${i && i.sensivel ? 'checked' : ''} ${off}><span>É um dado sensível?</span></label></div>
             ${i ? '<p class="at-nota">Esse dado pessoal também será atualizado no registro vinculado aos titulares na base de Atividades.</p>' : ''}` : ''}
         ${dado ? '' : `<div class="form-group"><label class="form-label" for="cat-descricao">Descrição do titular</label>
             <textarea class="form-input" id="cat-descricao" rows="4" maxlength="2000" placeholder="Descreva quem é este titular" ${off}>${escapeHTML(i && i.descricao ? i.descricao : '')}</textarea></div>`}
         ${ed ? `<div class="acoes-rodape">${i ? (i.status === 'inativo'
             ? `<button type="button" class="btn btn-ghost" data-action="catReativar" data-args='${args(i.id)}'>Reativar</button>`
             : `<button type="button" class="btn btn-ghost t-perigo" data-action="catExcluir" data-args='${args(i.id)}'>Excluir</button>`) : ''}
+            ${i ? '' : '<button type="button" class="btn btn-ghost" data-action="limparModal">Limpar</button>'}
             <button type="button" class="btn btn-primary" data-action="catSalvar" data-args='${args(i ? i.id : null)}'>Salvar</button></div>` : ''}`);
 };
 
@@ -110,7 +110,7 @@ window.catSalvar = async function (id) {
     if (!nome) { showToast('Informe o nome', 'error'); return; }
     const sens = el('cat-sensivel');
     const desc = el('cat-descricao');
-    const corpo = sens ? { nome, sensivel: sens.value === 'sim' } : { nome, descricao: desc ? desc.value.trim() || null : null };
+    const corpo = sens ? { nome, sensivel: sens.checked } : { nome, descricao: desc ? desc.value.trim() || null : null };
     const pid = projetoAtivo().id;
     try {
         if (id) await api('PUT', `/api/v1/projects/${pid}/catalogos/${tipo}/${id}`, corpo);

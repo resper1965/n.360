@@ -5,7 +5,7 @@ import { escapeHTML, showToast, formatarData } from '../ui.js';
 import { nivelDaNota } from '../nivel-risco.js';
 import { abrirTratarRisco, ESTRATEGIA_ROTULO, tratado } from '../atividade/aba-riscos.js';
 import { podeEditar } from './partes.js';
-import { montarLista, colunasDe } from '../lista.js';
+import { montarLista, colunasDe, consultaDe } from '../lista.js';
 
 // Mapa de risco do n.privacy (F2): matriz 5x5 de probabilidade por impacto sobre os riscos das atividades de tratamento
 // (`GET /projects/:id/ropa/riscos-mapa`). O registro é o mesmo da matriz do n.iso; aqui entram só os riscos com atividade.
@@ -87,7 +87,7 @@ function montarVistaLista(alvo) {
             { chave: 'nivel', rotulo: 'Risco', valor: (x) => x.risk_level, opcoes: Object.entries(NIVEIS) },
             { chave: 'status', rotulo: 'Status', valor: (x) => x.status, opcoes: STATUS },
         ],
-        exportar: { caminho: `/api/v1/projects/${estado.projeto}/export/riscos-atividade` },
+        exportar: { caminho: (e) => { const q = consultaDe({ motivo: e.filtros.motivo, area: e.filtros.area, nivel: e.filtros.nivel, status: e.filtros.status }); return `/api/v1/projects/${estado.projeto}/export/riscos-atividade${q}`; } },
     });
 }
 

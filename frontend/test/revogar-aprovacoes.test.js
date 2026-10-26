@@ -1,5 +1,5 @@
 // F6: desaprovar é ato da direção, pela interface. Só platform_admin e org_admin veem "Revogar" (ROPA,
-// DPIA) e "Excluir análise" (análise crítica); o motivo é obrigatório e vai ao servidor.
+// DPIA, na página do RIPD: frontend/test/ripd-ficha.test.js) e "Excluir análise" (análise crítica); o motivo é obrigatório e vai ao servidor.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { S } from '../src/state.js';
@@ -25,9 +25,6 @@ describe('quem vê os botões de desaprovar', () => {
       S.user = { role: papel };
       window.openROPADetailsModal('r1');
       expect(botoes('revogarROPA').length).toBe(ve ? 1 : 0);
-      document.body.innerHTML = MODAL;
-      window.openDPIADetailsModal('d1');
-      expect(botoes('revogarDPIA').length).toBe(ve ? 1 : 0);
       document.body.innerHTML = MODAL;
       window.openEditMgmtReviewForm('m1');
       expect(botoes('excluirMgmtReview').length).toBe(ve ? 1 : 0);

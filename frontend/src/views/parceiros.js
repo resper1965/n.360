@@ -63,7 +63,7 @@ window.parceiroAbrir = function (id) {
     openModal(`<div class="modal-header"><span class="modal-title">${p ? 'Editar parceiro' : 'Novo parceiro'}</span></div>
         <div class="form-group"><label class="form-label" for="pc-nome">Nome</label><input class="form-input" id="pc-nome" maxlength="200" value="${escapeHTML(p ? p.nome : '')}"></div>
         <div class="form-group"><label class="form-label" for="pc-email">E-mail (opcional)</label><input class="form-input" id="pc-email" type="email" maxlength="320" value="${escapeHTML(p && p.email ? p.email : '')}"></div>
-        <button class="btn btn-primary w-full" data-action="parceiroSalvar" data-args='${args(p ? p.id : null)}'>${p ? 'Salvar' : 'Cadastrar'}</button>`);
+        <div class="acoes-rodape">${p ? '' : '<button type="button" class="btn btn-ghost" data-action="limparModal">Limpar</button>'}<button class="btn btn-primary" data-action="parceiroSalvar" data-args='${args(p ? p.id : null)}'>${p ? 'Salvar' : 'Cadastrar'}</button></div>`);
 };
 
 window.parceiroSalvar = async function (id) {

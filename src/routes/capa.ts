@@ -3,6 +3,11 @@ import { Bindings, Variables } from '../index';
 
 import { logAudit, requireResourceAccess, erro500, refForaDoProjeto, setParcial } from '../helpers';
 import { validateBody, createCapaSchema, capaUpdateSchema } from '../schemas';
+import { escopoRopa } from '../services/escopo-itens';
+
+/** Responsável da ação: a parte do cadastro ou o texto livre, como o gap. Vazio nos dois não vale. */
+const MSG_RESPONSAVEL = 'Indique o responsável pela ação (cadastro de partes ou texto livre).';
+const temResponsavel = (parteId: unknown, texto: unknown) => !!parteId || !!String(texto ?? '').trim();
 
 export const capaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectCapaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -22,6 +27,13 @@ capaApp.put('/:id', async (c) => {
     const atual = await c.env.DB.prepare('SELECT project_id FROM corrective_actions WHERE id = ?').bind(id).first<{ project_id: string | null }>();
     const fora = await refForaDoProjeto(c.env.DB, atual?.project_id, body, ['audit_id', 'risk_id', 'control_id', 'assigned_to_parte_id', 'incidente_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
+    // Ação antiga sem responsável segue editável; o que não vale é deixá-la sem ele ao mexer nos campos do responsável.
+    if ('assigned_to' in body || 'assigned_to_parte_id' in body) {
+      const ant = await c.env.DB.prepare('SELECT assigned_to, assigned_to_parte_id FROM corrective_actions WHERE id = ?').bind(id).first<{ assigned_to: string | null; assigned_to_parte_id: string | null }>();
+      const parte = 'assigned_to_parte_id' in body ? body.assigned_to_parte_id : ant?.assigned_to_parte_id;
+      const texto = 'assigned_to' in body ? body.assigned_to : ant?.assigned_to;
+      if (!temResponsavel(parte, texto)) return c.json({ error: MSG_RESPONSAVEL }, 400);
+    }
     const completedAt = body.status === 'Closed' ? new Date().toISOString() : null;
     const p = setParcial(body, { audit_id: null, risk_id: null, control_id: null, description: null, severity: null, assigned_to: null, assigned_to_parte_id: null, incidente_id: null, due_date: null, resolution: null, root_cause: null, action_plan: null });
     await c.env.DB.prepare(
@@ -51,12 +63,13 @@ capaApp.delete('/:id', async (c) => {
 });
 
 // Project CAPA operations (/api/v1/projects/:projectId/capa)
+// Escopo `todos` de propósito: a CAPA do n.iso lista também as ações das atividades do n.privacy.
 projectCapaApp.get('/', async (c) => {
   const projectId = c.req.param('projectId');
   const result = await c.env.DB.prepare(
     `SELECT ca.*, pa.nome AS assigned_to_parte_nome FROM corrective_actions ca
      LEFT JOIN partes pa ON pa.id = ca.assigned_to_parte_id AND pa.project_id = ca.project_id
-     WHERE ca.project_id = ? ORDER BY ca.created_at DESC`
+     WHERE ca.project_id = ?${escopoRopa('todos', 'ca.ropa_id')} ORDER BY ca.created_at DESC`
   ).bind(projectId).all();
   return c.json({ ok: true, actions: result.results });
 });
@@ -69,6 +82,8 @@ projectCapaApp.post('/', async (c) => {
     const body = valid.data as any;
     const fora = await refForaDoProjeto(c.env.DB, projectId, body, ['audit_id', 'risk_id', 'control_id', 'assigned_to_parte_id', 'incidente_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
+    // A CAPA de incidente nasce do registro do incidente (o responsável vem depois); as demais exigem responsável.
+    if (!body.incidente_id && !temResponsavel(body.assigned_to_parte_id, body.assigned_to)) return c.json({ error: MSG_RESPONSAVEL }, 400);
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     await c.env.DB.prepare(

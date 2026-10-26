@@ -217,6 +217,15 @@ describe('Gestão de Riscos (lista, a vista padrão)', () => {
             .toEqual(['/api/v1/projects/p9/export/riscos-atividade', '/api/v1/projects/p9/export/riscos-atividade?probabilidade=5&impacto=5']);
     });
 
+    it('Exportar CSV na lista leva os filtros da tela (motivo, risco e status)', async () => {
+        const f = await abrir(LISTA, { 'GET /api/v1/projects/p9/export/riscos-atividade': 'csv' });
+        window.listaFiltrar('mr', 'nivel', 'High');
+        window.listaFiltrar('mr', 'status', 'Open');
+        await window.listaExportar('mr');
+        const u = f.mock.calls.map(([x]) => new URL(x, 'http://localhost')).find((x) => x.pathname.endsWith('/export/riscos-atividade'));
+        expect(u.search).toBe('?nivel=High&status=Open');
+    });
+
     it('quem só lê não vê "Tratar Risco"; "Abrir" leva à atividade na aba Riscos', async () => {
         S.user = { role: 'org_user' };
         await abrir(LISTA);

@@ -44,7 +44,7 @@ export     function navigate(view, data) {
         if (produto === 'privacy' && targetView === 'vendors') targetView = 'terceiros';
         
         // A ficha do fornecedor vive no endereço; qualquer outra tela a tira de lá.
-        if (targetView !== 'terceiro') limparFichaDoEndereco();
+        if (targetView !== 'terceiro' && targetView !== 'ripd-ficha') limparFichaDoEndereco();
         S.view = targetView;
         if (data) Object.assign(S, data);
         atualizarSeletorDeModulo(); // só aparece no Painel do módulo
@@ -63,6 +63,7 @@ export     function navigate(view, data) {
             : targetView === 'projects' && produto !== 'n360' ? 'nav-project'
             : targetView === 'management-review' ? 'nav-mgmt'
             : targetView === 'terceiro' ? 'nav-terceiros'
+            : targetView === 'ripd-ficha' ? 'nav-dpia'
             // O id inteiro vence o prefixo: 'audit-trail' é nav-audit-trail (nav-audit não existe).
             : document.getElementById(`nav-${targetView}`) ? `nav-${targetView}` : `nav-${targetView.split('-')[0]}`;
         const el = document.getElementById(navId);
@@ -122,6 +123,7 @@ export     function navigate(view, data) {
         else if (S.view === 'ropa') renderROPA(c, h, a);
         else if (S.view === 'ropa-atividade') renderAtividade(c, h, a);
         else if (S.view === 'dpia') renderDPIA(c, h, a);
+        else if (S.view === 'ripd-ficha') renderRipdFicha(c, h, a);
         else if (S.view === 'audits') renderAudits(c, h, a);
         else if (S.view === 'capa') renderCAPA(c, h, a);
         else if (S.view === 'evidence') renderEvidence(c, h, a);

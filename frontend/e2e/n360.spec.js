@@ -13,7 +13,7 @@ const BLOCO = (m) => ({
   fazer: [{ grupo: 'atraso', quando: 'Venceu em 12/10', texto: m === 'iso' ? '1 ação corretiva passou do prazo' : '2 pedidos do titular atrasados', contexto: '', acao: 'Abrir a lista', tela: m === 'iso' ? 'capa' : 'titular', modulo: m }],
   cobertura: [{ tema: 'Tema exemplo', feito: 2, andamento: 1, falta: 1, conta: 'a / b / c' }],
   vencimentos: [{ tipo: 'Exemplo', vencidos: 1, itens: [{ dias: 3, rotulo: 'Item exemplo' }] }],
-  riscos: [{ p: 4, i: 5, n: 1 }], passos: [], ...(m === 'privacy' ? { pedidos_semana: [0, 1, 0, 2, 0, 0, 1, 0, 3, 0, 1, 2], acoes_por_prazo: [] } : {}),
+  riscos: [{ p: 4, i: 5, n: 1 }], passos: [], ...(m === 'privacy' ? { pedidos_mes: [0, 1, 0, 2, 0, 0, 1, 0, 3, 0, 1, 2], acoes_por_prazo: [] } : {}),
 });
 const PAINEL = (modulos) => ({
   gerado_em: new Date().toISOString(), visao: 'equipe', modulos_pedidos: modulos,
