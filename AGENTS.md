@@ -291,7 +291,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   guardado, com rotulos sanitizados. A aprovacao por pedido (`tipo = 'tratamento'`, 0055 reconstroi `pedidos` no molde da 0051 e ja
   aceita `avaliacao_terceiro` da fatia 6) congela o registro e tudo o que ele liga (o diagrama sai dessas colunas); e DERIVADA
   (`aprovacoesDoProjeto(..., 'tratamento')`), mudar registro, item, departamento, parte ou transferencia invalida e substitui o pedido
-  aberto, status nao. Convive com a aprovacao direta antiga (`POST .../approve`), que no n.privacy saiu da tela (onda 2: a aprovacao da
+  aberto, status nao. **Decisao do dono (26/10/2026, D6):** trocar os titulares, os dados ou os ativos da Coleta (o que entra no conteudo congelado; a descricao da Coleta nao entra) de uma atividade aprovada por pedido deixa a aprovacao desatualizada e pede nova aprovacao, sem mexer na prova do pedido anterior; `test/ropa-etapas-rotas.test.ts` fixa isso. Convive com a aprovacao direta antiga (`POST .../approve`), que no n.privacy saiu da tela (onda 2: a aprovacao da
   atividade e so o pedido, na etapa 5 da pagina da atividade; o POST segue no servidor por compatibilidade, o n.iso ainda assina no modal
   Detalhes, e a assinatura antiga gravada conta como aprovacao feita). `GET .../ligacoes` traz `aprovacao_anterior` (a aprovacao mais
   recente quando nenhuma vale mais, porque a atividade mudou depois) e `pedidos_abertos`. `POST /projects/:id/ropa/importar` (CSV) cria

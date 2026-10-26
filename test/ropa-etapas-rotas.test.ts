@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
-import { prepararProjeto, chamar, comoAgente, json, base, novaAtividade, novoItem, P, OUTRO, type Sessoes } from './helpers/ropa-abas';
+import { prepararProjeto, chamar, comoAgente, json, base, novaAtividade, novoItem, aprovarTratamentoDeTeste, P, OUTRO, type Sessoes } from './helpers/ropa-abas';
 import { novaArea, novaParte, linha } from './helpers/ropa-abas-a';
 
 /** Rotas das etapas (spec 8.2, plano A2.3). Atividade nova, sem dado de cliente: nomes genéricos. */
@@ -28,6 +28,21 @@ describe('rotas das etapas do tratamento', () => {
     await put(rid, '/coleta/titulares', { titulares: [{ titular_id: t1, dados_ids: [d1] }] });
     await put(rid, '/coleta/ativos', { ativos: [{ item_id: 'rt-i1' }] });
   };
+
+  it('D6 (decisão de 26/10/2026): trocar titulares e dados da Coleta de atividade aprovada deixa a aprovação desatualizada e não mexe na prova do pedido', async () => {
+    const rid = await aprovarTratamentoDeTeste(env.DB, P);
+    const ficha = async () => (await json<any>(await chamar(s.consultor, 'GET', `${base(rid)}/ficha`))).situacao;
+    expect(await ficha()).toMatchObject({ codigo: 'aprovada', aprovacao_desatualizada: false });
+    const prova = () => env.DB.prepare(`SELECT status, hash, conteudo_json FROM pedidos WHERE id = ?`).bind(`${P}-p`).first();
+    const antes = await prova();
+    // a descrição da Coleta NÃO entra no conteúdo congelado; os titulares e os dados dela, sim
+    await lerEtapas(rid); // materializa a atividade (os textos viram etapas)
+    expect((await put(rid, '/coleta', { descricao: 'Descrição nova, depois da aprovação' })).status).toBe(200);
+    expect(await ficha()).toMatchObject({ codigo: 'aprovada', aprovacao_desatualizada: false });
+    expect((await put(rid, '/coleta/titulares', { titulares: [{ titular_id: t2, dados_ids: [d2] }] })).status).toBe(200);
+    expect(await ficha()).toMatchObject({ codigo: 'rascunho', aprovacao_desatualizada: true });
+    expect(await prova()).toEqual(antes); // a prova imutável do que foi aprovado continua como estava
+  });
 
   it('GET /etapas devolve as seis etapas, a forma do contrato e materializa (projeto novo: tudo pendente)', async () => {
     const rid = await novaAtividade(s.consultor);
