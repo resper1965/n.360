@@ -132,6 +132,7 @@ quê (mesma regra do [`SECURITY.md`](../../SECURITY.md)).
 | `GET /carteira` | A carteira agrega todos os projetos do consultor; o agente está preso a um projeto. O painel do projeto (`GET /projects/:id/painel`) segue legível, na visão da consultoria. |
 | `GET /projects/consulta-cnpj/:cnpj` | Consulta externa à Receita (BrasilAPI) do assistente "Novo projeto", que o agente não usa (não cria projeto). A rota também corta por papel (`platform_admin`, `consultoria_admin`) e tem limite por usuário. O cadastro da empresa (`GET /projects/:id/empresa`) segue legível pelo agente; a edição (`PUT`) é recusada pela própria rota, que só aceita a equipe e o `org_admin` (o agente entra como `client`). |
 | `/agentes` | O agente não gere o próprio acesso. |
+| `POST /projects/:id/mesclar` | Mesclar parte ou item duplicado move vínculos e inativa um cadastro: ato do consultor, pela interface, com a prévia do que muda. |
 | `PUT /projects/:id/empresa` (não está na lista: é exceção) | O cadastro da empresa do projeto o agente com o papel de consultor GRAVA (`podeEditarEmpresa`), com o "sim" do consultor no chat pedido pela skill `cadastro-cliente`; a trilha leva "agente de <email>" e só os NOMES dos campos. O agente auditor e a chave de API só leem. |
 | `/projects/:id/{ropa,dpia}/:id/revoke-approval`, `revoke-approval(s)` de controle | Desaprovar é ato do cliente (a direção), pela interface, com ou sem confirmação. |
 | `DELETE /management-reviews/:id` | Excluir análise crítica destrói registro assinado: só pela interface. |

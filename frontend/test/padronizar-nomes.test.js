@@ -59,6 +59,30 @@ describe('Padronizar nomes', () => {
     expect(corpo).toEqual({ itens: [{ tabela: 'departamentos', id: 'd1', antes: 'ti' }] });
   });
 
+  it('D5: duplicata de parte tem "Mesclar"; a prévia escapa o nome e confirmar manda manter, remover e confirmar:true', async () => {
+    const DUP = { propostas: [], duplicatas: [
+      { tabela: 'partes', nomes: ['Nuvem <b>X</b>', 'nuvem x'], registros: [{ id: 'a1', nome: 'Nuvem <b>X</b>' }, { id: 'a2', nome: 'nuvem x' }] },
+      { tabela: 'departamentos', nomes: ['RH', 'rh'] },
+    ] };
+    apiMock.mockResolvedValueOnce(DUP);
+    await window.abrirPadronizarNomes('p9');
+    const m = el('modal-content');
+    expect(m.querySelectorAll('[data-action="previaMesclar"]')).toHaveLength(1); // departamento segue à mão
+    expect(m.querySelector('b')).toBeNull();
+    m.querySelector('#pn-manter-0').value = 'a2';
+    apiMock.mockResolvedValueOnce({ ok: true, previa: true, manter: { id: 'a2', nome: 'nuvem x' }, remover: { id: 'a1', nome: 'Nuvem <b>X</b>' },
+      efeitos: [{ rotulo: 'Papéis (vínculos)', n: 2 }], avisos: ['Aviso <i>x</i>'], tratamentos: 1 });
+    await window.previaMesclar('p9', 0);
+    expect(apiMock).toHaveBeenLastCalledWith('POST', '/api/v1/projects/p9/mesclar', { tabela: 'partes', manter: 'a2', remover: 'a1' });
+    const p = el('modal-content');
+    expect(p.textContent).toContain('Papéis (vínculos): 2');
+    expect(p.textContent).toContain('Nuvem <b>X</b>');
+    expect(p.querySelector('b, i')).toBeNull();
+    apiMock.mockResolvedValueOnce({ ok: true });
+    await window.confirmarMesclar('p9', 'partes', 'a2', 'a1');
+    expect(apiMock).toHaveBeenLastCalledWith('POST', '/api/v1/projects/p9/mesclar', { tabela: 'partes', manter: 'a2', remover: 'a1', confirmar: true });
+  });
+
   it('sem nada a padronizar, diz isso', async () => {
     apiMock.mockResolvedValue({ propostas: [], duplicatas: [] });
     await window.abrirPadronizarNomes('p9');

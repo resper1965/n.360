@@ -37,6 +37,13 @@ export const MATRIZ_PAPEL_ALVO: Record<AlvoVinculo, readonly PapelVinculo[]> = {
 const nome = z.string().trim().min(1).max(200).transform(normalizarNome);
 const email = z.string().trim().email().max(320);
 
+/** Mesclar duplicata (D5): `confirmar` ausente ou falso só mostra o que mudaria. */
+export const mesclarSchema = z.object({
+  tabela: z.enum(['partes', 'itens']),
+  manter: z.string().trim().min(1).max(100),
+  remover: z.string().trim().min(1).max(100),
+  confirmar: z.boolean().optional(),
+}).strict();
 export const padronizarNomesSchema = z.object({
   itens: z.array(z.object({ tabela: z.enum(['partes', 'departamentos', 'itens']), id: z.string().min(1).max(100), antes: z.string().max(500) }).strict()).min(1).max(200),
 }).strict();

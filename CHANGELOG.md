@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Mesclar parte e item duplicados (D5)
+- Em Padronizar nomes, a duplicata de parte ou de item ganhou "Mesclar": escolhe-se o cadastro que FICA, a tela mostra a prévia (quantos responsáveis, vínculos, avaliações, ligações com atividades e documentos passam para ele) e só a confirmação grava. `POST /projects/:id/mesclar` (`src/services/mesclar.ts`): sem `confirmar` devolve a prévia; com `confirmar: true` move tudo numa transação e inativa o duplicado (parte `inativa`, item `removido`). Sem migration.
+- Salvaguardas: só equipe da consultoria; os dois do mesmo projeto, do mesmo tipo e ativos; recusa se o duplicado é o encarregado (a linha de assinatura da governança é da interface), tem conta de acesso ou tem CNPJ diferente do que fica. Homologações do duplicado (imutáveis) e o perfil de segurança dele, se o que fica já tem um, permanecem nele, com aviso na prévia. O CNPJ, o e-mail e o tipo de fornecedor passam ao que fica se ele não tinha. Atividades tocadas têm o pedido de aprovação conferido (o conteúdo congelado mudou).
+- A trilha `cadastro.mesclado` leva ids e contagens, nunca o nome. O agente MCP não mescla (`FORA_DO_AGENTE`). Parte inativa deixa de aparecer como duplicata.
+
 ### Agente do consultor: cadastro do cliente
 - Nova skill `cadastro-cliente` (`niso_skill nome=cadastro-cliente`, roteiro 12): empresa, CNPJ, representante, encarregado, pessoas, áreas, sistemas e fornecedores. Lê o que já existe, mostra campo a campo o que vai gravar e espera o "sim" do consultor.
 - O agente com o papel de consultor passa a gravar `PUT /projects/:id/empresa` (antes só lia); o auditor e a chave de API continuam só lendo. A trilha leva "agente de <consultor>" e só os nomes dos campos.

@@ -9,14 +9,15 @@ export const TABELAS_NOMES = ['partes', 'departamentos', 'itens'] as const;
 export type TabelaNome = (typeof TABELAS_NOMES)[number];
 
 export type Proposta = { tabela: TabelaNome; id: string; antes: string; depois: string; conflito: boolean };
-export type Duplicata = { tabela: TabelaNome; nomes: string[] };
+/** `registros` (id e nome) só em partes e itens: a tela de mesclar precisa dos ids. */
+export type Duplicata = { tabela: TabelaNome; nomes: string[]; registros?: { id: string; nome: string }[] };
 export type Ignorado = { tabela: TabelaNome; id: string; motivo: string };
 
-type Linha = { id: string; nome: string };
+type Linha = { id: string; nome: string; status?: string };
 
 /** `itens` guarda também sistemas e outros; os removidos ficam de fora. */
 const SELECT: Record<TabelaNome, string> = {
-  partes: `SELECT id, nome FROM partes WHERE project_id = ?`,
+  partes: `SELECT id, nome, status FROM partes WHERE project_id = ?`,
   departamentos: `SELECT id, nome FROM departamentos WHERE project_id = ?`,
   itens: `SELECT id, nome FROM itens WHERE project_id = ? AND status != 'removido'`,
 };
@@ -35,9 +36,14 @@ export async function propostasDeNomes(db: D1Database, projectId: string): Promi
       const depois = normalizarNome(l.nome);
       if (depois && depois !== l.nome) propostas.push({ tabela: t, id: l.id, antes: l.nome, depois, conflito: exatos.has(depois) });
     }
-    const grupos = new Map<string, string[]>();
-    for (const l of ls) grupos.set(chaveNome(l.nome), [...(grupos.get(chaveNome(l.nome)) ?? []), l.nome]);
-    for (const nomes of grupos.values()) if (nomes.length > 1) duplicatas.push({ tabela: t, nomes: nomes.sort() });
+    const grupos = new Map<string, Linha[]>();
+    // parte inativa (inclusive a que sobrou de uma mesclagem) não é duplicata de ninguém
+    for (const l of ls) if (l.status !== 'inativa') grupos.set(chaveNome(l.nome), [...(grupos.get(chaveNome(l.nome)) ?? []), l]);
+    for (const g of grupos.values()) {
+      if (g.length < 2) continue;
+      const nomes = g.map((l) => l.nome).sort();
+      duplicatas.push(t === 'departamentos' ? { tabela: t, nomes } : { tabela: t, nomes, registros: g.map(({ id, nome }) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome)) });
+    }
   }
   return { propostas, duplicatas };
 }
