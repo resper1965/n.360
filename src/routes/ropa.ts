@@ -102,6 +102,8 @@ ropaApp.put('/:id', async (c) => {
         // Atividade aprovada por pedido: mandar para revisão é reabrir (a mesma transição da tela).
         if (!r.ok && r.status === 409 && corpo.acao === 'enviar_revisao') r = await transicionar(c.env.DB, atual.project_id, id, c.get('user')!, { acao: 'reabrir', motivo: 'Reaberta pela edição do registro' }, ip);
         if (!r.ok) return c.json({ error: r.error }, r.status);
+        // Cancelada recusa escrita (como pelas abas): cancelar com sucesso não aplica o resto do corpo.
+        if (corpo.acao === 'cancelar') return c.json({ ok: true });
         delete body.status;
       }
     }

@@ -62,3 +62,13 @@ describe('cobertura sem o n.iso', () => {
     expect(await res.json()).toEqual({ aplicaveis: 0, cobertos: 0, sem_cobertura: [], por_controle: {}, por_documento: {} });
   });
 });
+
+describe('ordem natural de sem_cobertura', () => {
+  it('A.5.2 vem antes de A.5.10', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-cob-ord', 'Cliente Ord', 'ISO 27001', 'controller', 'Active', 'org_ness')`),
+      env.DB.prepare(`INSERT INTO compliance_controls (id, project_id, standard, title, status) VALUES ('o-10', 'p-cob-ord', 'ISO 27001', 'A.5.10 Uso aceitável', 'Missing'), ('o-2', 'p-cob-ord', 'ISO 27001', 'A.5.2 Papéis', 'Missing'), ('o-1', 'p-cob-ord', 'ISO 27001', 'A.5.1 Políticas', 'Missing')`),
+    ]);
+    expect((await coberturaDePoliticas(env.DB, 'p-cob-ord')).sem_cobertura.map((x) => x.id)).toEqual(['o-1', 'o-2', 'o-10']);
+  });
+});

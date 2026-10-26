@@ -123,16 +123,16 @@ const FONTES: Record<Fonte, string> = {
     WHERE pa.status = 'ativa' AND a.resultado <> 'reprovado'
       AND a.id = (SELECT a2.id FROM avaliacoes_terceiro a2 WHERE a2.parte_id = a.parte_id ORDER BY a2.created_at DESC, a2.rowid DESC LIMIT 1)`,
   titular_pedido: `SELECT t.id AS item_id, t.project_id, date(substr(t.prazo_em, 1, 10)) AS vence_em, 'Pedido do titular ' || t.protocolo AS titulo,
-      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel, date(t.created_at) AS criado_em
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel, date(t.created_at, '-3 hours') AS criado_em
     FROM titular_pedidos t JOIN projects p ON p.id = t.project_id LEFT JOIN partes pa ON pa.id = t.responsavel_parte_id AND pa.project_id = t.project_id
     WHERE t.status IN ('recebido', 'em_andamento') AND t.prazo_em IS NOT NULL`,
   incidente: `SELECT i.id || ':anpd' AS item_id, i.project_id, date(substr(i.prazo_anpd_em, 1, 10)) AS vence_em, 'Comunicação à ANPD do incidente ' || i.protocolo AS titulo,
-      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel, date(i.created_at) AS criado_em
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome) AS responsavel, date(i.created_at, '-3 hours') AS criado_em
     FROM incidentes i JOIN projects p ON p.id = i.project_id LEFT JOIN partes pa ON pa.id = i.responsavel_parte_id AND pa.project_id = i.project_id
     WHERE i.status <> 'encerrado' AND i.prazo_anpd_em IS NOT NULL AND i.comunicacao_anpd_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'
     UNION ALL
     SELECT i.id || ':titular', i.project_id, date(substr(i.prazo_titular_em, 1, 10)), 'Comunicação ao titular do incidente ' || i.protocolo,
-      COALESCE(NULLIF(trim(pa.email), ''), pa.nome), date(i.created_at)
+      COALESCE(NULLIF(trim(pa.email), ''), pa.nome), date(i.created_at, '-3 hours')
     FROM incidentes i JOIN projects p ON p.id = i.project_id LEFT JOIN partes pa ON pa.id = i.responsavel_parte_id AND pa.project_id = i.project_id
     WHERE i.status <> 'encerrado' AND i.prazo_titular_em IS NOT NULL AND i.comunicacao_titular_em IS NULL AND COALESCE(i.risco_titular, '') <> 'sem_risco'`,
   evidencia: `SELECT e.id AS item_id, e.project_id, date(substr(e.valido_ate, 1, 10)) AS vence_em, 'Evidência ' || e.file_name AS titulo, NULL AS responsavel

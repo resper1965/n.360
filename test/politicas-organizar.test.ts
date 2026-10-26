@@ -92,6 +92,37 @@ describe('organizar políticas', () => {
     expect((await chamar('POST', '/documentos/d-tem/promover', { titulo: 'POL-NOVA Qualquer', requisitos: [R1] })).status).toBe(400);
   });
 
+  it('promover com falha na gravação dos requisitos não muda título nem origem', async () => {
+    const db = new Proxy(env.DB, {
+      get(alvo, prop) {
+        if (prop === 'prepare') return (sql: string) => alvo.prepare(/INSERT INTO documento_requisitos/.test(sql) ? 'INSERT INTO tabela_que_nao_existe VALUES (1)' : sql);
+        const v = (alvo as any)[prop];
+        return typeof v === 'function' ? v.bind(alvo) : v;
+      },
+    });
+    const r = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/documentos/d-ctl2/promover`, { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ titulo: 'POL-FALHA Qualquer', requisitos: [R1] }) }), { ...workerEnv(), DB: db } as never);
+    expect(r.status).toBe(500);
+    expect(await env.DB.prepare(`SELECT titulo, origem_control_id o FROM documentos WHERE id = 'd-ctl2'`).first()).toEqual({ titulo: 'Política sem catálogo', o: 'c-sem' });
+  });
+
+  it('incorporar com a origem já aposentada dá 409 e não grava trilha nem requisito', async () => {
+    await doc('d-corr', 'Política da corrida', 'vigente', 'c-acc');
+    const antes = (await env.DB.prepare(`SELECT count(*) n FROM audit_logs WHERE action = 'politica.incorporada'`).first<{ n: number }>())!.n;
+    // Simula a corrida: outro já aposentou a origem entre a leitura e a gravação.
+    const db = new Proxy(env.DB, {
+      get(alvo, prop) {
+        if (prop === 'batch') return async (st: any[]) => { await alvo.prepare(`UPDATE documentos SET status = 'obsoleto' WHERE id = 'd-corr'`).run(); return alvo.batch(st); };
+        const v = (alvo as any)[prop];
+        return typeof v === 'function' ? v.bind(alvo) : v;
+      },
+    });
+    const reqsAntes = (await env.DB.prepare(`SELECT count(*) n FROM documento_requisitos WHERE documento_id = 'd-tem2'`).first<{ n: number }>())!.n;
+    const r = await app.fetch(new Request(`http://localhost/api/v1/projects/${P}/politicas/organizar/incorporar`, { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ origem: 'd-corr', destino: 'd-tem2' }) }), { ...workerEnv(), DB: db } as never);
+    expect(r.status).toBe(409);
+    expect((await env.DB.prepare(`SELECT count(*) n FROM audit_logs WHERE action = 'politica.incorporada'`).first<{ n: number }>())!.n).toBe(antes);
+    expect((await env.DB.prepare(`SELECT count(*) n FROM documento_requisitos WHERE documento_id = 'd-tem2'`).first<{ n: number }>())!.n).toBe(reqsAntes);
+  });
+
   it('documento de outro projeto dá 404 e promover obsoleto dá 400', async () => {
     expect((await chamar('POST', '/politicas/organizar/incorporar', { origem: 'd-out', destino: 'd-tem' })).status).toBe(404);
     expect((await chamar('POST', '/politicas/organizar/incorporar', { origem: 'd-ctl2', destino: 'd-out' })).status).toBe(404);

@@ -102,11 +102,13 @@ const COLS = `h.id, h.project_id, h.parte_id, pa.nome AS parte_nome, h.expira_em
 const lerJson = <T>(s: string, padrao: T): T => { try { return JSON.parse(s) as T; } catch { return padrao; } };
 
 /** `perguntas_json` é objeto `{ perguntas, fornecedor, cliente }` (nomes congelados na criação); homologação antiga é só o array. */
-function lerCongelado(s: string) {
+export function lerCongelado(s: string) {
   type C = { perguntas: PerguntaCongelada[]; fornecedor: string | null; cliente: string | null };
   const v = lerJson<PerguntaCongelada[] | Partial<C>>(s, []);
   if (Array.isArray(v)) return { perguntas: v, fornecedor: null, cliente: null } as C;
-  return { perguntas: v.perguntas ?? [], fornecedor: v.fornecedor ?? null, cliente: v.cliente ?? null } as C;
+  // JSON válido que não é objeto (null, número, texto) vira questionário vazio, com o nome ao vivo.
+  if (!v || typeof v !== 'object') return { perguntas: [], fornecedor: null, cliente: null } as C;
+  return { perguntas: Array.isArray(v.perguntas) ? v.perguntas : [], fornecedor: v.fornecedor ?? null, cliente: v.cliente ?? null } as C;
 }
 
 function resumo(h: Linha) {

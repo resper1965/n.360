@@ -26,6 +26,10 @@ const TTL_PEDIDO = 600;
 const TTL_CONCESSAO_DIAS = 30;
 const chave = (t: string) => `oauth_pedido:${t}`;
 
+/** Marca da conta no login pendente: senha E segundo fator. Ligar, trocar ou desligar o TOTP depois do /entrar derruba o pedido. */
+const marcaDaConta = async (u: { password_hash: string; totp_enabled: number; totp_secret: string | null }) =>
+  (await sha256Hex(`${u.password_hash}|${u.totp_enabled}|${u.totp_secret ?? ''}`)).slice(0, 16);
+
 interface Pedido { oauth: unknown; clientName: string; destino: string; userId?: string; email?: string; marca?: string }
 
 /**
@@ -164,7 +168,7 @@ oauthAutorizacao.post('/authorize/entrar', async (c) => {
     return pagina('Sem clientes', '<h1>Nenhum cliente</h1><p>Você não é consultor designado em nenhum cliente. Peça ao administrador do cliente ou ao platform_admin para designá-lo na governança do projeto. (Administrador da consultoria: ela ainda não tem projeto.)</p>');
   }
 
-  await c.env.SESSIONS.put(chave(token), JSON.stringify({ ...pedido, userId: u.id, email: u.email, marca: (await sha256Hex(u.password_hash)).slice(0, 16) }), { expirationTtl: TTL_PEDIDO });
+  await c.env.SESSIONS.put(chave(token), JSON.stringify({ ...pedido, userId: u.id, email: u.email, marca: await marcaDaConta(u) }), { expirationTtl: TTL_PEDIDO });
   const opcoes = results.map((p) =>
     `<label class="op"><input type="radio" name="projeto" value="${escapeHtml(p.id)}" required> ${escapeHtml(p.client_name)}</label>`
   ).join('');
@@ -195,11 +199,11 @@ oauthAutorizacao.post('/authorize/confirmar', async (c) => {
   // Sem o campo: formulário anterior ao papel, que só conhecia o consultor. Valor fora da lista é recusado.
   const papel = String(f.papel ?? 'consultor') as PapelAgente;
   if (!PAPEIS_AGENTE.includes(papel)) return pagina('Pedido inválido', '<h1>Papel inválido</h1><p>Volte ao seu cliente MCP e conecte de novo.</p>', 400);
-  const quem = await c.env.DB.prepare('SELECT email, role, org_id, password_hash, ativo, requires_password_change FROM users WHERE id = ?').bind(pedido.userId)
-    .first<{ email: string; role: string; org_id: string | null; password_hash: string; ativo: number; requires_password_change: number }>();
+  const quem = await c.env.DB.prepare('SELECT email, role, org_id, password_hash, ativo, requires_password_change, totp_enabled, totp_secret FROM users WHERE id = ?').bind(pedido.userId)
+    .first<{ email: string; role: string; org_id: string | null; password_hash: string; ativo: number; requires_password_change: number; totp_enabled: number; totp_secret: string | null }>();
   if (!quem) return pagina('Não autorizado', '<h1>Cliente fora da sua designação</h1>', 403);
   // O login pendente vale só para a senha e a conta de quando foi feito: troca de senha, desativação ou senha provisória o derrubam.
-  if (quem.ativo === 0 || quem.requires_password_change === 1 || !pedido.marca || pedido.marca !== (await sha256Hex(quem.password_hash)).slice(0, 16)) {
+  if (quem.ativo === 0 || quem.requires_password_change === 1 || !pedido.marca || pedido.marca !== (await marcaDaConta(quem))) {
     return pagina('Pedido expirado', '<h1>Pedido expirado</h1><p>Volte ao seu cliente MCP e conecte de novo.</p>', 400);
   }
   const alcance = projetosDoAgente(quem);
