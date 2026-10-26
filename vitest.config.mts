@@ -1,7 +1,7 @@
-import { cloudflareTest } from '@cloudflare/vitest-pool-workers';
+import { cloudflareTest } from '@cloudflare/vitest-plugin';
 import { defineConfig, configDefaults } from 'vitest/config';
 
-// Migrado para vitest 4 + @cloudflare/vitest-pool-workers 0.20.x: a API de
+// Migrado para vitest 4 + @cloudflare/vitest-plugin (antes @cloudflare/vitest-pool-workers): a API de
 // `poolOptions.workers` saiu; o pool agora entra como PLUGIN `cloudflareTest`.
 export default defineConfig({
   plugins: [

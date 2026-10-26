@@ -39,7 +39,7 @@ export async function applySchema(): Promise<void> {
 /**
  * Zera todos os dados do D1 mantendo o schema (tabelas e triggers ficam).
  *
- * O pool de Workers (`@cloudflare/vitest-pool-workers` >= 0.5) isola storage
+ * O pool de Workers (`@cloudflare/vitest-plugin`, antes `@cloudflare/vitest-pool-workers` >= 0.5) isola storage
  * apenas POR ARQUIVO — a versao antiga (0.4.x) resetava a cada `it()`. Testes
  * que semeiam ids fixos ou acumulam mutacao em cima da mesma linha contavam com
  * aquele reset; chamar isto num `beforeEach` restaura o mesmo efeito.
