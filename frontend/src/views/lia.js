@@ -4,7 +4,7 @@ import { escapeHTML, formatarData } from '../ui.js';
 import { montarLista, colunasDe } from '../lista.js';
 
 // LIA do projeto (n.privacy, spec 2026-10-19): `GET /projects/:id/ropa/lias`, as LIAs gravadas e as atividades de legítimo interesse
-// ainda sem LIA ("Faltando"). Só leitura; a LIA tem ficha própria (12 perguntas em abas), aberta daqui ou da aba Base Jurídica da atividade. Texto do servidor escapado.
+// ainda sem LIA ("Faltando"). Só leitura; a LIA tem ficha própria (23 perguntas em abas), aberta daqui ou da aba Base Jurídica da atividade. Texto do servidor escapado.
 
 const SITUACOES = [['faltando', 'Faltando'], ['rascunho', 'Rascunho'], ['concluida', 'Concluída']];
 const ROTULO = Object.fromEntries(SITUACOES);

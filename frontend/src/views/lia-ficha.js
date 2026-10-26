@@ -6,7 +6,7 @@ import { limparFichaDoEndereco } from '../produto.js';
 import { formularioLia, podeEditar } from './tratamento-ligacoes.js';
 
 // Ficha da LIA (spec 2026-10-26): uma página com abas, no molde da ficha do RIPD, com a aba no endereço
-// (`?tela=lia-ficha&ropa=<id>&aba=<aba>`). Finalidade, Necessidade e Proporcionalidade são o questionário do legado (12 perguntas),
+// (`?tela=lia-ficha&ropa=<id>&aba=<aba>`). Finalidade, Necessidade e Proporcionalidade são o questionário do legado (23 perguntas, todas em texto livre como no legado),
 // gravado campo a campo em tabela própria; Conclusão é o formulário da LIA (balanceamento, salvaguardas, conclusão e o resto, com as
 // regras de concluir e reabrir no servidor); Logs é a trilha. Toda regra é do servidor; aqui só se mostra e se chama. Texto do servidor escapado.
 
@@ -52,7 +52,7 @@ const voltar = '<button type="button" class="btn" data-action="liaVoltar">Voltar
 
 // ─── Abas de perguntas (autosave por campo) ─────────────────────────────────────────────────────────────────────
 
-function pergunta(q, editar) {
+function pergunta(q, editar, n) {
     const idq = `lf-p-${escapeHTML(q.id)}`;
     const dica = !q.resposta && q.da_atividade ? `<p class="at-nota">A atividade já indica: ${escapeHTML(q.da_atividade)}</p>` : '';
     const corpo = q.tipo === 'escolha'
@@ -60,7 +60,7 @@ function pergunta(q, editar) {
             <input type="radio" id="${idq}-${v}" name="${idq}" value="${v}" ${q.resposta === v ? 'checked' : ''} ${editar ? `data-action-change="liaResponder" data-args='${args(q.id)}' data-arg-val` : 'disabled'}>
             <span class="re-opcao-texto">${rot}</span></label>`).join('')}</div>`
         : `<textarea class="form-input" id="${idq}" aria-labelledby="${idq}-t" maxlength="2000" ${editar ? `data-action-change="liaResponder" data-args='${args(q.id)}' data-arg-val` : 'disabled'}>${escapeHTML(q.resposta || '')}</textarea>`;
-    return `<div class="at-pergunta"><p class="at-pergunta-texto" id="${idq}-t">${escapeHTML(q.texto)}</p>${dica}${corpo}
+    return `<div class="at-pergunta"><p class="at-pergunta-texto" id="${idq}-t">${n}. ${escapeHTML(q.texto)}</p>${dica}${corpo}
         <p class="at-nota" id="lf-st-${escapeHTML(q.id)}" role="status"></p></div>`;
 }
 
@@ -68,7 +68,7 @@ function abaPerguntas(aba, abas, editar) {
     const a = abas.find((x) => x.id === aba);
     if (!a) return window.renderEmptyState({ titulo: 'Não foi possível carregar as perguntas', compacto: true });
     return `<div class="at-aba-corpo"><p class="at-nota">As respostas desta aba são o questionário: não mudam a conclusão da LIA nem a regra de concluí-la. Cada resposta é gravada ao sair do campo.</p>
-        ${a.perguntas.map((q) => pergunta(q, editar)).join('')}</div>`;
+        ${a.perguntas.map((q, i) => pergunta(q, editar, i + 1)).join('')}</div>`;
 }
 
 window.liaResponder = async function (id, valor) {
@@ -134,7 +134,8 @@ async function renderLiaFicha(c, h, a) {
     const corpo = aba === 'conclusao' ? abaConclusao(lia, projectId, ropaId, editar) : aba === 'logs' ? abaLogs(logs) : abaPerguntas(aba, abas || [], editar);
     c.innerHTML = `<div class="tc"><p class="tc-resumo">${window.renderStatusBadge(rotulo, tom)} Atividade: ${escapeHTML(item.atividade || '')}
             <button type="button" class="btn btn-sm" data-action="abrirAtividade" data-args='${args(projectId, ropaId, 'base_juridica')}'>Abrir a atividade</button>
-            ${item.status !== 'faltando' ? `<button type="button" class="btn btn-sm" data-action="baixarWordLia" data-args='${args(projectId, ropaId)}'>Baixar Word</button>` : ''}</p>
+            ${item.status === 'concluida' && editar ? `<button type="button" class="btn btn-sm" data-action="reabrirLiaTratamento" data-args='${args(projectId, ropaId)}'>Reabrir</button>` : ''}
+            ${item.status !== 'faltando' ? `<button type="button" class="btn btn-sm" data-action="baixarWordLia" data-args='${args(projectId, ropaId)}'>Imprimir LIA</button>` : ''}</p>
         <div class="at-abas" role="tablist" aria-label="Abas da LIA">${ABAS.map(([id, r]) =>
             `<button type="button" role="tab" class="at-aba" id="lf-aba-${id}" aria-controls="lf-painel" aria-selected="${id === aba}" tabindex="${id === aba ? 0 : -1}"
                 data-action="liaIrParaAba" data-action-keydown="liaTeclaAba" data-arg-event data-args='${args(id)}'>${escapeHTML(r)}</button>`).join('')}</div>

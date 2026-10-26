@@ -14,12 +14,12 @@ const el = (id) => document.getElementById(id);
 const ITEM = { ropa_id: 'r1', atividade: 'Atendimento ficticio', status: 'rascunho', conclusao: null };
 const ABAS_Q = [
     { id: 'finalidade', rotulo: 'Finalidade', perguntas: [
-        { id: 'finalidades', texto: 'Quais são as finalidades do tratamento?', tipo: 'texto', resposta: 'Atender pedidos', da_atividade: null },
-        { id: 'beneficios_empresa', texto: 'Quais são os benefícios para a empresa?', tipo: 'texto', resposta: null, da_atividade: 'Base legal: Legítimo interesse' }] },
+        { id: 'finalidades', texto: 'Para quais finalidades os dados pessoais serão tratados?', tipo: 'texto', resposta: 'Atender pedidos', da_atividade: null },
+        { id: 'beneficios_empresa', texto: 'Quais benefícios serão auferidos pela Cia?', tipo: 'texto', resposta: null, da_atividade: 'Base legal: Legítimo interesse' }] },
     { id: 'necessidade', rotulo: 'Necessidade', perguntas: [
-        { id: 'realmente_necessario', texto: 'O tratamento é realmente necessário?', tipo: 'escolha', resposta: null, da_atividade: null }] },
+        { id: 'tratamento_necessario', texto: 'O tratamento dos dados pessoais é realmente necessário para atingir a finalidade?', tipo: 'texto', resposta: null, da_atividade: null }] },
     { id: 'proporcionalidade', rotulo: 'Proporcionalidade', perguntas: [
-        { id: 'coleta_direta', texto: 'A coleta dos dados é direta?', tipo: 'escolha', resposta: 'sim', da_atividade: null }] },
+        { id: 'coleta_direta', texto: 'Os dados pessoais foram coletados diretamente do titular?', tipo: 'texto', resposta: 'Sim, pelo formulário', da_atividade: null }] },
 ];
 const LOGS = [{ evento: 'Questionário respondido (Necessidade)', nome: 'Ana', data: '2026-10-26 10:00:00' }, { evento: 'Criada', nome: 'Ana', data: '2026-10-25 09:00:00' }];
 const LIA = { id: 'l1', ropa_id: 'r1', finalidade_legitima: 'Prevenir fraude', necessidade: 'Dados mínimos', balanceamento: 'Titular espera', salvaguardas: null, conclusao: 'prevalece', status: 'concluida' };
@@ -77,11 +77,24 @@ describe('página da LIA', () => {
         expect(chamadas('PUT')).toHaveLength(0);
     });
 
-    it('as escolhas são sim, não e não sei', async () => {
-        await abrir('necessidade');
-        expect([...el('c').querySelectorAll('input[name="lf-p-realmente_necessario"]')].map((i) => i.value)).toEqual(['sim', 'nao', 'nao_sei']);
+    it('todas as perguntas são caixa de texto e mostram o número dentro da aba', async () => {
+        await abrir('finalidade');
+        expect(el('c').querySelectorAll('input[type="radio"]')).toHaveLength(0);
+        expect([...el('c').querySelectorAll('.at-pergunta-texto')].map((p) => p.textContent.slice(0, 3))).toEqual(['1. ', '2. ']);
         await abrir('proporcionalidade');
-        expect(el('c').querySelector('input[value="sim"]').checked).toBe(true);
+        expect(el('lf-p-coleta_direta').value).toBe('Sim, pelo formulário');
+    });
+
+    it('a ficha tem Imprimir LIA e, só com a LIA concluída, Reabrir com a confirmação de sempre', async () => {
+        await abrir('finalidade');
+        expect([...el('c').querySelectorAll('.tc-resumo button')].map((b) => b.textContent.trim())).toEqual(['Abrir a atividade', 'Imprimir LIA']);
+        await abrir('finalidade', { item: { ...ITEM, status: 'concluida' } });
+        expect([...el('c').querySelectorAll('.tc-resumo button')].map((b) => b.textContent.trim())).toEqual(['Abrir a atividade', 'Reabrir', 'Imprimir LIA']);
+        const p = window.reabrirLiaTratamento('p1', 'r1');
+        expect(document.body.textContent).toContain('Confirma a reabertura do formulário?');
+        document.querySelector('[data-confirmar="nao"]').click();
+        await p;
+        expect(chamadas('PUT')).toHaveLength(0);
     });
 
     it('autosave: texto grava a pergunta, e vazio apaga, em PUT .../lia/questionario', async () => {
@@ -105,7 +118,7 @@ describe('página da LIA', () => {
     it('sem permissão de edição os campos ficam desabilitados', async () => {
         S.user = { role: 'client' };
         await abrir('proporcionalidade');
-        expect(el('c').querySelector('input[type="radio"]').disabled).toBe(true);
+        expect(el('lf-p-coleta_direta').disabled).toBe(true);
     });
 });
 

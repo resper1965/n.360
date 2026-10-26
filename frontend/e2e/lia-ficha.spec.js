@@ -8,9 +8,9 @@ const USER = { id: 'u1', email: 'consultor@ness.io', name: 'Consultor', role: 'c
 const P = 'proj-e2e';
 const BASE = `/api/v1/projects/${P}`;
 const PERGUNTAS = {
-  finalidade: [['finalidades', 'Quais são as finalidades do tratamento?', 'texto']],
-  necessidade: [['realmente_necessario', 'O tratamento é realmente necessário?', 'escolha'], ['menos_dados', 'A finalidade seria alcançada com menos dados? Quais?', 'texto']],
-  proporcionalidade: [['coleta_direta', 'A coleta dos dados é direta?', 'escolha']],
+  finalidade: [['finalidades', 'Para quais finalidades os dados pessoais serão tratados?', 'texto']],
+  necessidade: [['tratamento_necessario', 'O tratamento dos dados pessoais é realmente necessário para atingir a finalidade?', 'texto'], ['finalidade_menos_dados', 'A finalidade poderia ser alcançada com o tratamento de quantidade menor de dados pessoais?', 'texto']],
+  proporcionalidade: [['tempo_desde_coleta', 'Há quanto tempo os dados pessoais foram coletados?', 'texto']],
 };
 const ROTULOS = { finalidade: 'Finalidade', necessidade: 'Necessidade', proporcionalidade: 'Proporcionalidade' };
 
@@ -58,15 +58,18 @@ test('lista de LIA → ficha → aba Necessidade → responder → recarregar e 
 
   await page.getByRole('tab', { name: 'Necessidade' }).click();
   await expect(page).toHaveURL(/aba=necessidade/);
-  await page.getByLabel('A finalidade seria alcançada com menos dados? Quais?').fill('Só o nome e o contato');
-  await page.getByLabel('Sim', { exact: true }).check();
-  await expect(page.locator('#lf-st-menos_dados')).toHaveText('Salvo.');
-  expect(respostas).toEqual({ menos_dados: 'Só o nome e o contato', realmente_necessario: 'sim' });
+  await expect(page.getByText('2. A finalidade poderia ser alcançada com o tratamento de quantidade menor')).toBeVisible(); // numeração da aba
+  await page.getByLabel('A finalidade poderia ser alcançada com o tratamento de quantidade menor').fill('Só o nome e o contato');
+  await page.getByLabel('O tratamento dos dados pessoais é realmente necessário').fill('Sim, sem o histórico não há como atender');
+  await page.getByLabel('O tratamento dos dados pessoais é realmente necessário').blur(); // o autosave é no change, ao sair do campo
+  await expect(page.locator('#lf-st-finalidade_menos_dados')).toHaveText('Salvo.');
+  await expect(page.locator('#lf-st-tratamento_necessario')).toHaveText('Salvo.');
+  expect(respostas).toEqual({ finalidade_menos_dados: 'Só o nome e o contato', tratamento_necessario: 'Sim, sem o histórico não há como atender' });
 
   await page.reload();
   await expect(page.getByRole('tab', { name: 'Necessidade' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByLabel('A finalidade seria alcançada com menos dados? Quais?')).toHaveValue('Só o nome e o contato');
-  await expect(page.getByLabel('Sim', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('A finalidade poderia ser alcançada com o tratamento de quantidade menor')).toHaveValue('Só o nome e o contato');
+  await expect(page.getByRole('button', { name: 'Imprimir LIA' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Voltar às LIAs' }).click();
   await expect(page).not.toHaveURL(/ropa=/);
