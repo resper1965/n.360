@@ -262,8 +262,8 @@ describe('RIPD (DPIA)', () => {
         expect(JSON.parse(el('c').querySelector('[data-action="baixarWordRipd"]').getAttribute('data-args'))).toEqual(['p1', 'd1']);
         expect(el('c').textContent).toContain('Aguardando o encarregado');
         expect(el('c').textContent).not.toContain('CISO');
-        window.openEditDPIAModal('d1');
-        expect([...el('dpia-e-status').options].map((o) => [o.value, o.textContent])).toEqual([['Draft', 'Rascunho'], ['Under Review', 'Em revisão']]);
+        // A linha abre a página do RIPD (spec 2026-10-26), não mais um modal.
+        expect(JSON.parse(el('c').querySelector('[data-action="abrirRipd"]').getAttribute('data-args'))).toEqual(['p1', 'd1']);
     });
 
     it('vazio com tratamentos marcados: diz quantos exigem RIPD e leva ao RoPA', async () => {
