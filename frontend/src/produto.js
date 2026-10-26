@@ -68,11 +68,11 @@ export async function destinoLegado(loc = window.location) {
     return `${base.origin}${prefixo}${resto}${loc.search || ''}${loc.hash || ''}`;
 }
 
-/** A ficha do fornecedor vive no endereço (`?tela=terceiro&parte=&aba=`); fora dela, esses parâmetros saem. */
+/** A ficha do fornecedor (`?tela=terceiro&parte=&aba=`) e a do RIPD (`?tela=ripd-ficha&dpia=&aba=`) vivem no endereço; fora delas, esses parâmetros saem. */
 export function limparFichaDoEndereco() {
-    if (new URLSearchParams(window.location.search).get('tela') !== 'terceiro') return;
+    if (!['terceiro', 'ripd-ficha'].includes(new URLSearchParams(window.location.search).get('tela'))) return;
     const u = new URL(window.location.href);
-    for (const k of ['tela', 'parte', 'aba']) u.searchParams.delete(k);
+    for (const k of ['tela', 'parte', 'dpia', 'aba']) u.searchParams.delete(k);
     window.history.replaceState(null, '', u);
 }
 
@@ -119,7 +119,7 @@ export function destinoDoAviso(tela, loc = window.location) {
  * pedida (`pedidoDoHub`). Tela nova de módulo entra aqui; o teste confere que cada uma tem ramo no render.
  */
 export const TELAS_DOS_MODULOS = ['dashboard', 'comercial', 'leads', 'assessments', 'proposals', 'monitor', 'assets', 'metrics', 'acknowledgments',
-    'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'politica', 'organizar-politicas', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'avaliacoes-terceiros', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
+    'risks', 'vendors', 'partes', 'areas', 'sistemas', 'documentos', 'politica', 'organizar-politicas', 'requisitos', 'referencia-juridica', 'terceiros', 'terceiro', 'ripd-ficha', 'avaliacoes-terceiros', 'titulares', 'dados-titular', 'parceiros', 'empresas', 'documentos-arquivo', 'titular', 'encarregado', 'mapa-de-risco', 'gaps', 'lia', 'importacao',
     'training', 'ropa', 'ropa-atividade', 'dpia', 'audits', 'capa', 'evidence', 'controls', 'governance', 'certification', 'ai-chat', 'settings', 'catalogo',
     'config-comercial', 'assessment-detail', 'project-detail', 'soa', 'stakeholders', 'context', 'audit-execution', 'management-review'];
 // O aviso do sino clicado no n.360, guardado para o módulo reabri-lo (modal da CAPA, linha do SoA, aba de incidentes, projeto).
@@ -200,8 +200,8 @@ export function pedidoDoHub(loc = window.location) {
     if (!q.has('tela')) return null;
     const tela = q.get('tela');
     const aba = q.get('aba') === 'incidentes' && tela === 'titular' ? 'incidentes' : null;
-    // A ficha do fornecedor vive no endereço (?tela=terceiro&parte=&aba=): recarregar volta a ela, na mesma aba.
-    if (tela !== 'terceiro') { q.delete('tela'); q.delete('aba'); }
+    // A ficha do fornecedor (?tela=terceiro&parte=&aba=) e a do RIPD (?tela=ripd-ficha&dpia=&aba=) vivem no endereço: recarregar volta a ela, na mesma aba.
+    if (tela !== 'terceiro' && tela !== 'ripd-ficha') { q.delete('tela'); q.delete('aba'); }
     const resto = q.toString();
     history.replaceState(history.state, '', `${loc.pathname}${resto ? `?${resto}` : ''}${loc.hash || ''}`);
     if (aviso) return { aviso };

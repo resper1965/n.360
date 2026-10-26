@@ -27,6 +27,7 @@ import { vendorsApp, projectVendorsApp } from './routes/vendors';
 import { trainingApp, projectTrainingApp } from './routes/training';
 import { ropaApp, projectRopaApp } from './routes/ropa';
 import { ropaAbasApp, catalogosApp } from './routes/ropa-abas';
+import { ripdQuestionarioApp } from './routes/ripd-questionario';
 import { auditsApp, projectAuditsApp } from './routes/audits';
 import { capaApp, projectCapaApp } from './routes/capa';
 import { certificationsApp, projectCertificationsApp } from './routes/certifications';
@@ -438,6 +439,8 @@ app.route('/api/v1/ropa', ropaApp);
 // Ficha em abas (spec 2026-10-16): antes do app antigo por clareza; os sufixos (ficha, escopo...) não existem nele.
 app.route('/api/v1/projects/:projectId/ropa/:recordId', ropaAbasApp);
 app.route('/api/v1/projects/:projectId/catalogos', catalogosApp);
+// Questionário e logs do RIPD (spec 2026-10-26): o resto de /dpia segue no platformApp.
+app.route('/api/v1/projects/:projectId/dpia/:dpiaId', ripdQuestionarioApp);
 app.route('/api/v1/projects/:projectId/ropa', projectRopaApp);
 
 app.route('/api/v1/audits', auditsApp);
