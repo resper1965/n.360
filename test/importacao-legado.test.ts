@@ -106,6 +106,12 @@ describe('modelos de CSV', () => {
     expect(Object.keys(amostras).sort()).toEqual(MODELOS.map((m) => m.nome).sort());
     for (const [nome, csv] of Object.entries(amostras)) expect(modeloDoCsv(csv)?.nome, nome).toBe(nome);
     expect(modeloDoCsv('finalidade;titulares\nVendas;Clientes')).toBeNull(); // subconjunto: segue pela IA
+    // LIA: o cabeçalho de sete colunas continua valendo; as 12 perguntas são opcionais, mas coluna desconhecida derruba o casamento.
+    const lia7 = 'tratamento;conclusao;riscos;finalidade_legitima;necessidade;balanceamento;salvaguardas';
+    expect(modeloDoCsv(`${lia7}\nX;;;;;;`)?.nome).toBe('lia');
+    expect(modeloDoCsv(`${lia7};coleta_direta\nX;;;;;;;sim`)?.nome).toBe('lia');
+    expect(modeloDoCsv(`${lia7};coluna_inventada\nX;;;;;;;x`)).toBeNull();
+    expect(modeloDoCsv('tratamento;coleta_direta\nX;sim')).toBeNull(); // faltam as obrigatórias
     expect(modeloDoCsv('﻿"Atividade","Ameaça","Etapa","Situação","Item","Descrição"\n')).toBeNull();
     expect(modeloDoCsv('﻿"Atividade","Etapa","Situação","Item","Descrição"\nx,coleta,registrada,,\n')?.nome).toBe('ciclo'); // BOM, aspas, vírgula, acento
   });
@@ -181,6 +187,10 @@ describe('migração do legado pelos modelos, sem IA', () => {
     expect(lia).toMatchObject({ finalidade_legitima: 'Responder às solicitações dos clientes', necessidade: 'Sem o histórico não há como atender',
       salvaguardas: 'Opção de não receber contato', status: 'rascunho', conclusao: null });
     expect(String(lia!.balanceamento)).toContain('Expectativa razoável');
+    // As 12 perguntas da amostra vão para lia_respostas (escolha normalizada: "não" vira nao).
+    const resp = Object.fromEntries((await env.DB.prepare(`SELECT pergunta, resposta FROM lia_respostas WHERE ropa_id = ?`).bind(atend).all<{ pergunta: string; resposta: string }>()).results.map((r) => [r.pergunta, r.resposta]));
+    expect(Object.keys(resp)).toHaveLength(12);
+    expect(resp).toMatchObject({ finalidades: 'Atender e responder aos clientes', realmente_necessario: 'sim', alcancada_sem_dados: 'nao', menos_dados: 'Só nome e contato', coleta_direta: 'sim' });
     expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM titular_pedidos WHERE project_id = ?`).bind(P).first<{ n: number }>())!.n).toBe(2);
   }, 30_000); // dez arquivos num lote: sob carga passa dos 5 s, e a segunda tentativa acharia os tratamentos da primeira
 

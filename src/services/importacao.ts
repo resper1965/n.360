@@ -14,6 +14,8 @@ import { criarAcao, criarRisco } from './riscos-atividade';
 import { lerImpacto, salvarImpacto, PERGUNTAS_IMPORTAVEIS, type RespostaImpacto } from './impacto';
 import { lerCiclo, salvarCiclo } from './ciclo';
 import { lerBases, salvarBases } from './bases';
+import { PERGUNTAS_LIA } from '../data/lia-perguntas';
+import { salvarQuestionarioLia } from './lia-questionario';
 import { itensDoModelo, modeloDoCsv, type Modelo } from './importacao-modelos';
 import { montarCsv } from './exportacao';
 import { chave, stmtInserirTratamento, validarTratamento } from './tratamentos-importar';
@@ -951,7 +953,14 @@ async function gravarAvaliacao(db: D1Database, projectId: string, loteId: string
       salvaguardas: d.salvaguardas ?? undefined,
     });
     if (!r.ok) return recusado(item, r.error);
-    return fecharItem(db, projectId, loteId, ator, item, r.id, 'LIA', []);
+    // As 12 perguntas do legado (0084), as que o arquivo trouxe. Falha aqui vira aviso: a LIA já foi criada e nada se desfaz.
+    const avisos: string[] = [];
+    const respostas = Object.fromEntries(PERGUNTAS_LIA.map((q) => [q.id, (d as Record<string, unknown>)[q.id]] as const).filter(([, v]) => typeof v === 'string' && v.trim()));
+    if (Object.keys(respostas).length) {
+      const q = await salvarQuestionarioLia(db, projectId, ropaId, ator, respostas as Record<string, string>);
+      if (!q.ok) avisos.push(`as respostas das 12 perguntas não foram gravadas (${q.error}); responda na ficha da LIA`);
+    }
+    return fecharItem(db, projectId, loteId, ator, item, r.id, 'LIA', avisos);
   }
 
   const lig = await lerLigacoes(db, projectId, ropaId);

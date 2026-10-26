@@ -1,6 +1,7 @@
 import { chave, lerCsv } from './tratamentos-importar';
 import { PERGUNTAS_IMPORTAVEIS } from './impacto';
 import type { Entidade } from './importacao';
+import { PERGUNTAS_LIA } from '../data/lia-perguntas';
 
 /**
  * Modelos de CSV da importação (F6): o caminho DETERMINÍSTICO da migração do legado. Um CSV cujo cabeçalho é exatamente o conjunto de
@@ -13,7 +14,8 @@ import type { Entidade } from './importacao';
  */
 type Conversao = 'texto' | 'lista' | 'bool' | 'nota' | 'dia' | 'opcao';
 type TipoArquivoModelo = 'inventario' | 'terceiros' | 'avaliacao' | 'historico';
-export type Modelo = { nome: string; entidade: Entidade; tipo: TipoArquivoModelo; colunas: Record<string, Conversao> };
+/** `opcionais`: colunas que o cabeçalho pode ter a mais (todas as `colunas` continuam obrigatórias); sem elas o modelo casa como sempre. */
+export type Modelo = { nome: string; entidade: Entidade; tipo: TipoArquivoModelo; colunas: Record<string, Conversao>; opcionais?: Record<string, Conversao> };
 
 const T = 'texto' as const;
 export const MODELOS: Modelo[] = [
@@ -49,6 +51,8 @@ export const MODELOS: Modelo[] = [
     nome: 'lia', entidade: 'lia', tipo: 'avaliacao', colunas: {
       tratamento: T, conclusao: T, riscos: 'lista', finalidade_legitima: T, necessidade: T, balanceamento: T, salvaguardas: T,
     },
+    // As 12 perguntas do legado (migration 0084): coluna = id da pergunta; as de escolha trazem sim, não ou não sei.
+    opcionais: Object.fromEntries(PERGUNTAS_LIA.map((p) => [p.id, p.tipo === 'escolha' ? 'opcao' as const : T])),
   },
   // Pedidos do titular SEM coluna de titular: o modelo não carrega dado pessoal.
   { nome: 'pedidos', entidade: 'titular_pedido', tipo: 'historico', colunas: { tipo: 'opcao', canal: 'opcao', recebido_em: 'dia', status: 'opcao', respondido_em: 'dia', protocolo: T } },
@@ -59,7 +63,10 @@ export function modeloDoCsv(texto: string): Modelo | null {
   const cab = (lerCsv(texto.split(/\r?\n/, 1)[0] ?? '')[0] ?? []).map(chave);
   const conjunto = new Set(cab);
   if (conjunto.size !== cab.length) return null;
-  return MODELOS.find((m) => { const cols = Object.keys(m.colunas); return cols.length === cab.length && cols.every((c) => conjunto.has(c)); }) ?? null;
+  return MODELOS.find((m) => {
+    const cols = Object.keys(m.colunas);
+    return cols.every((c) => conjunto.has(c)) && cab.every((c) => c in m.colunas || (!!m.opcionais && c in m.opcionais));
+  }) ?? null;
 }
 
 function converter(v: string, c: Conversao): unknown {
@@ -78,7 +85,7 @@ export function itensDoModelo(texto: string, m: Modelo): { linha: number; dados:
   const nomes = cab.map(chave);
   return linhas.map((cels, i) => {
     const dados: Record<string, unknown> = {};
-    nomes.forEach((n, j) => { if ((cels[j] ?? '').trim()) dados[n] = converter(cels[j], m.colunas[n]); });
+    nomes.forEach((n, j) => { if ((cels[j] ?? '').trim()) dados[n] = converter(cels[j], m.colunas[n] ?? m.opcionais![n]); });
     if (m.entidade === 'terceiro') {
       const { avaliacao_resultado: resultado, avaliacao_valido_ate: valido_ate, avaliacao_metodo: metodo } = dados;
       delete dados.avaliacao_resultado; delete dados.avaliacao_valido_ate; delete dados.avaliacao_metodo;

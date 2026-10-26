@@ -26,6 +26,7 @@ describe('migration 0084: respostas do questionário da LIA', () => {
     expect(await colunas('lia_assessments')).toEqual(colunasLia); // aditiva: a LIA existente não muda
     expect(await env.DB.prepare(`SELECT * FROM lia_assessments WHERE id = 'l84'`).first()).toEqual(antes);
     await execSql(migration0084); // rodar de novo não quebra
+    await env.DB.prepare(`DELETE FROM ropa_records WHERE project_id IN ('p84', 'p84b')`).run();
     await env.DB.prepare(`DELETE FROM projects WHERE id IN ('p84', 'p84b')`).run();
   }, 30_000);
 
@@ -46,8 +47,9 @@ describe('migration 0084: respostas do questionário da LIA', () => {
     expect(await env.DB.prepare(`SELECT 1 FROM lia_respostas WHERE ropa_id = 'r84'`).first()).toBeNull(); // cascata do tratamento
     await env.DB.prepare(`INSERT INTO ropa_records (id, project_id, processing_purpose) VALUES ('r84', 'p84', 'Atividade ficticia')`).run();
     await env.DB.prepare(ins('r84', 'p84', 'beneficios_empresa', 'x')).run();
+    await env.DB.prepare(`DELETE FROM ropa_records WHERE project_id = 'p84'`).run(); // ropa_records não cascateia do projeto (legado): sai antes
     await env.DB.prepare(`DELETE FROM projects WHERE id = 'p84'`).run();
-    expect(await env.DB.prepare(`SELECT 1 FROM lia_respostas WHERE project_id = 'p84'`).first()).toBeNull(); // cascata do projeto
+    expect(await env.DB.prepare(`SELECT 1 FROM lia_respostas WHERE project_id = 'p84'`).first()).toBeNull(); // nada sobra
     await env.DB.prepare(`DELETE FROM projects WHERE id = 'p84b'`).run();
   });
 });

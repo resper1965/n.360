@@ -6,6 +6,7 @@ import { lerBases, basesEmTexto } from './bases';
 import { lerCiclo, cicloEmTexto } from './ciclo';
 import { lerImpacto } from './impacto';
 import { lerLia, RESULTADO_IMPACTO } from './lia';
+import { lerQuestionarioLia } from './lia-questionario';
 import { listarRiscos } from './riscos-atividade';
 import { aprovacoesDoProjeto } from './documentos';
 import { documentoAtual, hashConteudo } from './pedidos';
@@ -157,16 +158,19 @@ export async function ripdEmWord(db: D1Database, projectId: string, dpiaId: stri
   }, storage);
 }
 
+const ESCOLHA_LIA: Record<string, string> = { sim: 'Sim', nao: 'Não', nao_sei: 'Não sei agora' };
 const CONCLUSAO_LIA: Record<string, string> = { prevalece: 'O legítimo interesse prevalece', nao_prevalece: 'O legítimo interesse não prevalece' };
 
 /** A LIA da atividade em Word, ou null se a atividade não é do projeto ou não tem LIA. */
 export async function liaEmWord(db: D1Database, projectId: string, ropaId: string, storage?: R2Bucket): Promise<Gerado | null> {
   const l = await lerLia(db, projectId, ropaId);
   if (!l) return null;
-  const [ident, ativ] = await Promise.all([identificacao(db, projectId), atividade(db, projectId, ropaId)]);
+  const [ident, ativ, questionario] = await Promise.all([identificacao(db, projectId), atividade(db, projectId, ropaId), lerQuestionarioLia(db, projectId, ropaId)]);
   const concluida = l.status === 'concluida';
   const corpo: Bloco[] = [
     ...ident, ...ativ.blocos,
+    // As 12 perguntas do legado, uma seção por aba (migration 0084); sem resposta aparece o traço de sempre.
+    ...(questionario?.abas ?? []).flatMap((a) => [titulo(a.rotulo), ...campos(a.perguntas.map((q): [string, unknown] => [q.texto, q.tipo === 'escolha' && q.resposta ? ESCOLHA_LIA[q.resposta] ?? q.resposta : q.resposta]))]),
     titulo('Teste de legítimo interesse'), ...campos([
       ['Finalidade legítima', l.finalidade_legitima], ['Necessidade', l.necessidade], ['Balanceamento', l.balanceamento],
       ['Salvaguardas', l.salvaguardas], ['Conclusão', l.conclusao ? CONCLUSAO_LIA[l.conclusao] : ''],
