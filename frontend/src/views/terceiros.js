@@ -4,6 +4,7 @@ import { showToast, openModal, closeModal, escapeHTML, formatarData } from '../u
 import { montarLista, colunasDe } from '../lista.js';
 import { navigate } from '../router.js';
 import { limparFichaDoEndereco } from '../produto.js';
+import { mascaraCnpj } from './empresa.js';
 
 // Fornecedores (n.privacy; antes "Terceiros", fatia 6 do núcleo): organizações com tipo, o método que o tipo define, a avaliação
 // com validade, a criticidade e o DPA ligado. A lista filtra na própria tela; a ficha é uma página em abas, com a parte e a aba no
@@ -66,10 +67,11 @@ async function renderTerceiros(c, h, a) {
         filtroPainel: { tela: 'terceiros' },
         busca: (t) => t.nome || '',
         buscaDica: 'Fornecedor',
-        colunas: colunasDe(['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'Data de envio', '% do questionário', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações'], (t) => {
+        colunas: colunasDe(['Fornecedor', 'CNPJ', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'Data de envio', '% do questionário', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações'], (t) => {
             const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
             return [
                 `<strong>${escapeHTML(t.nome)}</strong>`,
+                escapeHTML(t.cnpj ? mascaraCnpj(t.cnpj) : '—'),
                 escapeHTML(NIVEIS_CRITICIDADE[t.nivel] || 'Não avaliada'),
                 escapeHTML(TIPOS[t.terceiro_tipo] || '—'),
                 window.renderStatusBadge(rotulo, tom),
@@ -157,6 +159,7 @@ async function renderTerceiro(c, h, a) {
     if (aba === 'avaliacoes' && t.metodo === 'questionario') {
         try { extra.homologacoes = lista(await api('GET', `/api/v1/projects/${projectId}/homologacoes?parte_id=${encodeURIComponent(parteId)}`)); } catch (e) { extra.homologacoes = []; }
     }
+    if (aba === 'cadastro' && editar) { try { extra.pessoas = lista(await api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`)); } catch (e) { extra.pessoas = []; } }
     if (aba === 'documentos' && editar) { try { extra.documentos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos`)); } catch (e) { extra.documentos = []; } }
     if (minha !== sequencia) return;
 
@@ -197,9 +200,23 @@ window.tcTeclaAba = function (e, atual) {
 const linhaMetodo = (t) => `<p class="t-dim">${t.metodo ? `O tipo define o método de avaliação: <strong>${escapeHTML(METODOS[t.metodo])}</strong>.` : 'Defina o tipo para saber o método de avaliação.'}</p>`;
 const dl = (pares) => `<dl style="display:grid; grid-template-columns:max-content 1fr; gap:0.5rem 1.5rem; margin:0">${pares.map(([k, v]) => `<dt>${k}</dt><dd style="margin:0">${v}</dd>`).join('')}</dl>`;
 
-function abaCadastro(projectId, parteId, t, editar) {
-    return `${dl([['Nome', escapeHTML(t.nome)], ['E-mail', escapeHTML(t.email || '—')]])}
-        ${editar ? `<p class="t-dim"><button class="btn btn-ghost btn-sm" data-action="openParteModal" data-args='${args(projectId, parteId)}'>Editar nome e e-mail</button></p>` : ''}
+/** Responsável do fornecedor: a pessoa com o vínculo `responsavel` sobre a organização (o vínculo do núcleo, sem tabela nova). */
+function blocoResponsaveis(projectId, parteId, t, editar, pessoas) {
+    const resp = lista(t.responsaveis);
+    const ja = new Set(resp.map((x) => x.id));
+    const livres = lista(pessoas).filter((p) => !ja.has(p.id));
+    return `${titulo('Responsável')}
+        <div id="tc-resp">${resp.length ? `<ul>${resp.map((x) => `<li>${escapeHTML(x.nome)}${x.email ? ` (${escapeHTML(x.email)})` : ''}
+            ${editar ? `<button class="btn btn-ghost btn-sm" data-action="removerResponsavelTerceiro" data-args='${args(projectId, x.id, x.vinculo_id)}'>Remover</button>` : ''}</li>`).join('')}</ul>` : vazio('Nenhum responsável definido.')}</div>
+        ${editar && livres.length ? `<div class="form-group"><label class="form-label" for="tc-resp-sel">Pessoa</label>
+            <select class="form-input" id="tc-resp-sel">${livres.map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.nome)}</option>`).join('')}</select>
+            <button class="btn btn-ghost btn-sm" data-action="adicionarResponsavelTerceiro" data-args='${args(projectId, parteId)}'>Adicionar responsável</button></div>` : ''}`;
+}
+
+function abaCadastro(projectId, parteId, t, editar, extra = {}) {
+    return `${dl([['Nome', escapeHTML(t.nome)], ['CNPJ', escapeHTML(t.cnpj ? mascaraCnpj(t.cnpj) : '—')], ['E-mail', escapeHTML(t.email || '—')]])}
+        ${editar ? `<p class="t-dim"><button class="btn btn-ghost btn-sm" data-action="openParteModal" data-args='${args(projectId, parteId)}'>Editar nome, e-mail e CNPJ</button></p>` : ''}
+        ${blocoResponsaveis(projectId, parteId, t, editar, extra.pessoas)}
         ${titulo('Tipo e método')}
         <div id="tc-tipo">
             ${editar ? `<div style="display:flex; gap:0.5rem; align-items:flex-end"><div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-tipo-sel">Tipo do fornecedor</label>
@@ -321,6 +338,12 @@ async function acao(fazer, padrao, sucesso) {
         await repintar();
     } catch (e) { falha(e, padrao); }
 }
+
+window.adicionarResponsavelTerceiro = (projectId, parteId) => acao(
+    () => api('POST', `/api/v1/projects/${projectId}/partes/${el('tc-resp-sel').value}/vinculos`, { papel: 'responsavel', alvo_tipo: 'parte', alvo_id: parteId }), 'Não foi possível adicionar o responsável', 'Responsável adicionado.');
+
+window.removerResponsavelTerceiro = (projectId, pessoaId, vinculoId) => acao(
+    () => api('DELETE', `/api/v1/projects/${projectId}/partes/${pessoaId}/vinculos/${vinculoId}`), 'Não foi possível remover o responsável', 'Responsável removido.');
 
 window.salvarTipoTerceiro = (projectId, parteId) => acao(
     () => api('PUT', `/api/v1/projects/${projectId}/terceiros/${parteId}/tipo`, { terceiro_tipo: el('tc-tipo-sel').value || null }), 'Não foi possível salvar o tipo', 'Tipo salvo.');

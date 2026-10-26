@@ -680,8 +680,8 @@ describe('terceiros (fatia 2)', () => {
     expect(r.status, await r.clone().text()).toBe(200);
     return (await json<{ resultados: Res[] }>(r)).resultados;
   };
-  const partesCom = async (nome: string) => (await env.DB.prepare(`SELECT id, tipo, terceiro_tipo, email FROM partes WHERE project_id = ? AND nome = ?`).bind(P, normalizarNome(nome))
-    .all<{ id: string; tipo: string; terceiro_tipo: string | null; email: string | null }>()).results;
+  const partesCom = async (nome: string) => (await env.DB.prepare(`SELECT id, tipo, terceiro_tipo, email, cnpj FROM partes WHERE project_id = ? AND nome = ?`).bind(P, normalizarNome(nome))
+    .all<{ id: string; tipo: string; terceiro_tipo: string | null; email: string | null; cnpj: string | null }>()).results;
 
   it('parseTerceiros tolera cerca e devolve null fora do formato', () => {
     expect(parseTerceiros('```json\n{"terceiros":[{"nome":"A"}]}\n```')).toEqual([{ nome: 'A' }]);
@@ -737,7 +737,7 @@ describe('terceiros (fatia 2)', () => {
     const lote = await novoLote();
     respondeTerceiros(
       terceiro('Correio Nuvem Ltda', {
-        tipo: 'grande_provedor', contato: 'dpo@correio.example', cnpj: '11.111.111/0001-11', dpa: 'dpa correio nuvem',
+        tipo: 'grande_provedor', contato: 'dpo@correio.example', cnpj: '11.222.333/0001-81', dpa: 'dpa correio nuvem',
         tratamentos: ['folha de pagamento (rh)', 'Tratamento que não existe'],
         ultima_avaliacao: { resultado: 'com_ressalvas', valido_ate: futuro, metodo: 'questionário' },
       }),
@@ -758,9 +758,9 @@ describe('terceiros (fatia 2)', () => {
     expect(t.historico).toMatchObject([{ resultado: 'com_ressalvas', valido_ate: futuro }]);
     expect(t.tratamentos_afetados.map((x) => x.id)).toEqual(['ropa-t-folha']);
     expect(t.documentos_ligados).toMatchObject([{ id: 'doc-dpa-cn', papel: 'dpa' }]);
-    // o tipo faz do terceiro um fornecedor do n.iso (perfil de segurança), com o CNPJ anotado
-    const vendor = await env.DB.prepare('SELECT notes FROM vendors WHERE parte_id = ?').bind(cn.id).first<{ notes: string | null }>();
-    expect(vendor?.notes).toContain('11.111.111/0001-11');
+    // o CNPJ vai para a coluna da organização (0085), só com dígitos; a ficha e a lista o devolvem
+    expect(cn.cnpj).toBe('11222333000181');
+    expect((t as { cnpj?: string }).cnpj).toBe('11222333000181');
     const aviso = resultados.find((r) => r.registro_id === cn.id)!.aviso!;
     expect(aviso).toMatch(/Tratamento que não existe/);
 
@@ -815,15 +815,16 @@ describe('terceiros (fatia 2)', () => {
     expect(ativas).toHaveLength(1);
   });
 
-  it('CNPJ sem tipo (sem perfil de fornecedor) não se perde calado: vira aviso', async () => {
+  it('CNPJ inválido não se perde calado: vira aviso e a parte é criada sem ele; sem tipo o CNPJ válido entra', async () => {
     const lote = await novoLote();
-    respondeTerceiros(terceiro('Sem Perfil Ltda', { tipo: null, cnpj: '22.222.222/0001-22' }));
+    respondeTerceiros(terceiro('Sem Perfil Ltda', { tipo: null, cnpj: '22.222.222/0001-22' }), terceiro('Sem Tipo Ltda', { tipo: null, cnpj: '45.723.174/0001-10' }));
     await processarTerceiros(lote);
-    const [i] = (await lerLote(lote)).itens;
-    await aceitar(lote, i.id);
-    const [r] = await confirmar(lote);
-    expect(r.decisao).toBe('gravado');
-    expect(r.aviso).toMatch(/CNPJ/);
+    for (const i of (await lerLote(lote)).itens) await aceitar(lote, i.id);
+    const rs = await confirmar(lote);
+    expect(rs.map((x) => x.decisao)).toEqual(['gravado', 'gravado']);
+    expect(rs.find((x) => /CNPJ/.test(x.aviso ?? ''))!.aviso).toMatch(/inválido/);
+    expect((await partesCom('Sem Perfil Ltda'))[0].cnpj).toBeNull();
+    expect((await partesCom('Sem Tipo Ltda'))[0].cnpj).toBe('45723174000110');
   });
 
   it('falha depois da transação (tipo/avaliação/DPA) não desfaz a parte: vira aviso e o lote não trava', async () => {

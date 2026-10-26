@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { normalizarNome } from '../services/nomes';
 import { RESPOSTAS_CRITICIDADE } from '../services/criticidade';
+import { cnpjCampo } from './corpos';
 
 export const MODULOS = ['iso', 'privacy'] as const;
 export type Modulo = (typeof MODULOS)[number];
@@ -28,7 +29,7 @@ export type AlvoVinculo = (typeof ALVOS_VINCULO)[number];
 export const MATRIZ_PAPEL_ALVO: Record<AlvoVinculo, readonly PapelVinculo[]> = {
   projeto: ['encarregado', 'terceiro', 'operador', 'cocontrolador', 'parte_interessada', 'responsavel'],
   departamento: ['responsavel'],
-  parte: ['suboperador'],
+  parte: ['suboperador', 'responsavel'], // responsavel: a pessoa responsável por um fornecedor (a organização)
   item: ['dono_sistema', 'dono_processo', 'responsavel', 'operador'],
   tratamento: ['operador', 'cocontrolador', 'suboperador', 'terceiro', 'responsavel'],
 };
@@ -43,8 +44,10 @@ export const padronizarNomesSchema = z.object({
 const descricaoArea = z.string().trim().max(2000).nullish();
 export const departamentoCriarSchema = z.object({ nome, descricao: descricaoArea });
 export const departamentoAtualizarSchema = z.object({ nome: nome.optional(), status: z.enum(['ativo', 'inativo']).optional(), descricao: descricaoArea });
-export const parteCriarSchema = z.object({ tipo: z.enum(['pessoa', 'organizacao']).default('pessoa'), nome, email: email.optional().nullable() });
-export const parteAtualizarSchema = z.object({ nome: nome.optional(), email: email.optional().nullable(), status: z.enum(['ativa', 'inativa']).optional() });
+/** CNPJ só de organização (migration 0085): em pessoa o servidor recusa com 400, antes do CHECK do banco. */
+export const parteCriarSchema = z.object({ tipo: z.enum(['pessoa', 'organizacao']).default('pessoa'), nome, email: email.optional().nullable(), cnpj: cnpjCampo })
+  .refine((p) => !p.cnpj || p.tipo === 'organizacao', { message: 'CNPJ é só de organização', path: ['cnpj'] });
+export const parteAtualizarSchema = z.object({ nome: nome.optional(), email: email.optional().nullable(), status: z.enum(['ativa', 'inativa']).optional(), cnpj: cnpjCampo });
 export const vinculoCriarSchema = z.object({ papel: z.enum(PAPEIS_VINCULO), alvo_tipo: z.enum(ALVOS_VINCULO), alvo_id: z.string().trim().min(1).max(100) });
 
 // ─── Ligações do tratamento (fatia 4.1) ───────────────────────────────────────

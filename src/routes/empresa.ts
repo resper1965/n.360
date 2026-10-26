@@ -7,12 +7,13 @@ import { camposPresentes, gravacaoDaEmpresa, lerEmpresa, projetoComCnpj, type Ca
 /**
  * Cadastro da empresa do projeto (migration 0071), em `/api/v1/projects/:projectId/empresa`, faixa `nucleo`. O
  * `projectAccessMiddleware` já cortou o projeto (e a organização). Lê quem alcança o projeto; edita a equipe da
- * consultoria com acesso e o administrador do cliente (`org_admin`), a mesma regra do `company-profile`. Cliente comum,
- * chave de API e agente MCP (entram como `client`) só leem.
+ * consultoria com acesso, o administrador do cliente (`org_admin`) e o agente MCP com o papel de consultor (preenche o cadastro
+ * com o "sim" do consultor no chat; a trilha leva "agente de <consultor>"). Cliente comum, chave de API e agente auditor só leem.
  */
 export const empresaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-export const podeEditarEmpresa = (user: { role?: string } | undefined | null) => ehEquipeNess(user) || user?.role === 'org_admin';
+export const podeEditarEmpresa = (user: { role?: string; agente?: boolean; agente_papel?: string } | undefined | null) =>
+  ehEquipeNess(user) || user?.role === 'org_admin' || (user?.agente === true && user.agente_papel === 'consultor');
 
 empresaApp.get('/', async (c) => {
   try {

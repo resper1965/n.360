@@ -1350,9 +1350,11 @@ CREATE TABLE IF NOT EXISTS partes (
     status TEXT NOT NULL DEFAULT 'ativa' CHECK (status IN ('ativa', 'inativa')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    terceiro_tipo TEXT CHECK (terceiro_tipo IS NULL OR terceiro_tipo IN ('grande_provedor', 'medio', 'pequeno', 'critico'))
+    terceiro_tipo TEXT CHECK (terceiro_tipo IS NULL OR terceiro_tipo IN ('grande_provedor', 'medio', 'pequeno', 'critico')),
+    cnpj TEXT CHECK (cnpj IS NULL OR (tipo = 'organizacao' AND length(cnpj) = 14 AND cnpj NOT GLOB '*[^0-9]*'))
 );
 CREATE INDEX IF NOT EXISTS idx_partes_projeto ON partes(project_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_partes_cnpj ON partes(project_id, cnpj) WHERE cnpj IS NOT NULL;
 
 -- alvo_id não tem FK: aponta para tabelas diferentes conforme alvo_tipo. A API confere que o alvo
 -- existe NO projeto antes de gravar.

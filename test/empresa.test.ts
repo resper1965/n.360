@@ -118,7 +118,7 @@ describe('GET/PUT /projects/:id/empresa', () => {
     expect((await chamar(cadmB, 'PUT', '/api/v1/projects/pf1/empresa', { cnpj: CNPJ_A })).status).toBe(200);
   });
 
-  it('permissões: org_admin edita o próprio; org_user só lê; comercial não alcança; agente e chave de API só leem', async () => {
+  it('permissões: org_admin edita o próprio; org_user só lê; comercial não alcança; agente consultor edita; agente auditor só lê', async () => {
     expect((await chamar(cli, 'PUT', '/api/v1/projects/pe1/empresa', { site: 'https://alfa.exemplo' })).status).toBe(200);
     // o cliente não vê o nome de outro projeto da consultoria no 409
     const dup = await chamar(cli, 'PUT', '/api/v1/projects/pe1/empresa', { cnpj: CNPJ_B });
@@ -137,7 +137,13 @@ describe('GET/PUT /projects/:id/empresa', () => {
     await env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-e', 'u-cons', 'pe1', datetime('now','+30 days'))`).run();
     const agente = { AGENTE: { concessaoId: 'c-e', userId: 'u-cons', email: 'cons@e.lat', projectId: 'pe1' } };
     expect((await chamar({}, 'GET', '/api/v1/projects/pe1/empresa', undefined, agente)).status).toBe(200);
-    expect((await chamar({ 'X-Agente-Confirmado': '1' }, 'PUT', '/api/v1/projects/pe1/empresa', { site: 'x' }, agente)).status).toBe(403);
+    // D4/agente: o agente com o papel de consultor preenche o cadastro (a trilha leva "agente de ..."); o auditor só lê.
+    expect((await chamar({ 'X-Agente-Confirmado': '1' }, 'PUT', '/api/v1/projects/pe1/empresa', { site: 'https://agente.exemplo' }, agente)).status).toBe(200);
+    await env.DB.prepare(`UPDATE agente_concessoes SET revogado_em = datetime('now') WHERE id = 'c-e'`).run(); // a mesma conta não tem os dois papéis ativos
+    await env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em, papel) VALUES ('c-ea', 'u-cons', 'pe1', datetime('now','+30 days'), 'auditor')`).run();
+    const auditor = { AGENTE: { concessaoId: 'c-ea', userId: 'u-cons', email: 'cons@e.lat', projectId: 'pe1', papel: 'auditor' } };
+    expect((await chamar({ 'X-Agente-Confirmado': '1' }, 'PUT', '/api/v1/projects/pe1/empresa', { site: 'x' }, auditor)).status).toBe(403);
+    await env.DB.batch([env.DB.prepare(`DELETE FROM agente_concessoes WHERE id = 'c-ea'`), env.DB.prepare(`UPDATE agente_concessoes SET revogado_em = NULL WHERE id = 'c-e'`)]); // os outros testes do arquivo usam a c-e
   });
 
   it('isolamento: consultoria_admin da organização F não lê nem edita a empresa de projeto da organização E', async () => {

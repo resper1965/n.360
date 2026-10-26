@@ -73,7 +73,7 @@ describe('lista', () => {
         await lista();
         expect(el('h').textContent).toBe('Fornecedores');
         expect([...el('c').querySelectorAll('thead th')].map((th) => th.textContent.trim()))
-            .toEqual(['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'Data de envio', '% do questionário', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações']);
+            .toEqual(['Fornecedor', 'CNPJ', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'Data de envio', '% do questionário', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações']);
         const [a, b, c] = linhas();
         expect(a).toContain('Nuvem <b>Grande</b>');
         expect(a).toContain('05/10/2026');
@@ -225,6 +225,32 @@ describe('ficha: abas', () => {
         el('tc-tipo-sel').value = '';
         await window.salvarTipoTerceiro('p9', 'a');
         expect(corpoDe(f, `PUT ${B}/a/tipo`)).toEqual({ terceiro_tipo: null });
+    });
+
+    it('D4: Cadastro mostra o CNPJ com máscara e o responsável (escapado); adicionar e remover chamam o vínculo do núcleo', async () => {
+        const PESSOAS = [{ id: 'pe1', nome: 'Ana <i>Responsável</i>' }, { id: 'pe2', nome: 'Beto Exemplo' }];
+        const f = await ficha({
+            [`GET ${B}/a`]: FICHA({ cnpj: '11222333000181', responsaveis: [{ id: 'pe1', nome: 'Ana <i>Responsável</i>', email: 'ana@exemplo.com', vinculo_id: 'v1' }] }),
+            'GET /api/v1/projects/p9/partes': PESSOAS,
+            'POST /api/v1/projects/p9/partes/pe2/vinculos': { ok: true },
+            'DELETE /api/v1/projects/p9/partes/pe1/vinculos/v1': { ok: true },
+        });
+        const p = el('tc-painel');
+        expect(p.textContent).toContain('11.222.333/0001-81');
+        expect(el('tc-resp').textContent).toContain('Ana <i>Responsável</i>');
+        expect(el('tc-resp').querySelector('i')).toBeNull();
+        expect([...el('tc-resp-sel').options].map((o) => o.value)).toEqual(['pe2']); // quem já é responsável não repete
+        el('tc-resp-sel').value = 'pe2';
+        await window.adicionarResponsavelTerceiro('p9', 'a');
+        expect(corpoDe(f, 'POST /api/v1/projects/p9/partes/pe2/vinculos')).toEqual({ papel: 'responsavel', alvo_tipo: 'parte', alvo_id: 'a' });
+        await window.removerResponsavelTerceiro('p9', 'pe1', 'v1');
+        expect(chamadas(f)).toContain('DELETE /api/v1/projects/p9/partes/pe1/vinculos/v1');
+    });
+
+    it('D4: a lista mostra o CNPJ com máscara, ou traço', async () => {
+        await lista({ [`GET ${B}`]: [T('a', { cnpj: '11222333000181' }), T('b', { cnpj: null })] });
+        const celulas = [...el('c').querySelectorAll('tbody tr')].map((tr) => tr.children[1].textContent.trim());
+        expect(celulas).toEqual(['11.222.333/0001-81', '—']);
     });
 
     it('Avaliações: histórico com a observação (link só http), nova avaliação só com tipo', async () => {
