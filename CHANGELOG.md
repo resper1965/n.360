@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Consulta de CNPJ voltou a funcionar
+- A BrasilAPI responde 429 a pedido sem `User-Agent`, e o `fetch` do Worker não manda um: o assistente "Novo projeto", a seção Dados da empresa e a consulta de leads caíam em "indisponível". Todas as consultas de CNPJ (`CABECALHOS_CONSULTA` em `src/helpers.ts`) agora mandam `User-Agent`; o teste confere o cabeçalho. Sem migration.
+
 ### Logs da atividade com antes e depois (D3)
 - A aba Logs ROPA mostra o valor anterior e o novo só dos campos que não são texto livre: processamento automatizado, responsável (id), áreas (ids), controlador, operador, transferência internacional e a situação (de e para). Texto livre (nome, descrição, finalidade, garantias, gap, medida) segue como "Alteração", sem o conteúdo. A lista de campos é fixa (`CAMPOS_COM_VALOR` em `src/services/ropa-abas/logs.ts`): campo fora dela é descartado ao gravar. O GET `/logs` passou a devolver `mudancas` em cada linha. Sem migration.
 

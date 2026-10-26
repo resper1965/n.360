@@ -61,6 +61,9 @@ export function genId(): string {
  * TUDO — inclusive a negação lançada lá dentro por `requireProjectAccess` /
  * `requireResourceAccess` — e sem esta guarda a recusa sairia como 500.
  */
+/** A BrasilAPI responde 429 a pedido sem User-Agent, e o `fetch` do Worker não manda um: toda consulta de CNPJ leva este cabeçalho. */
+export const CABECALHOS_CONSULTA = { 'User-Agent': 'n360-ness/1.0 (+https://n360.ness.com.br)', Accept: 'application/json' } as const;
+
 export function erro500(c: any, mensagem: string, e: unknown) {
   if (e instanceof ForbiddenError) return c.json({ error: e.message }, 403);
   return c.json({ error: mensagem, request_id: registraErro(c, e) }, 500);
