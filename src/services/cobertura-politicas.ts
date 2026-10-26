@@ -29,7 +29,9 @@ export async function coberturaDePoliticas(db: D1Database, projectId: string): P
   for (const l of ligacoes.results) porRequisito.set(l.requisito_id, [...(porRequisito.get(l.requisito_id) ?? []), { id: l.id, titulo: l.titulo, status: l.status }]);
 
   const r: CoberturaPoliticas = { aplicaveis: 0, cobertos: 0, sem_cobertura: [], por_controle: {}, por_documento: {} };
-  for (const c of controles.results) {
+  // A.5.2 antes de A.5.10: o ORDER BY do SQL é textual.
+  const porTitulo = [...controles.results].sort((a, b) => a.title.localeCompare(b.title, 'pt-BR', { numeric: true }));
+  for (const c of porTitulo) {
     r.aplicaveis++;
     const docs = (c.requisito_id && porRequisito.get(c.requisito_id)) || [];
     if (docs.length) r.por_controle[c.id] = docs;
