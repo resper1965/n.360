@@ -132,7 +132,7 @@ import {
   parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
-import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema } from './schemas/ropa-abas';
+import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema, ripdQuestionarioSchema } from './schemas/ropa-abas';
 import { passoCamposSchema, passoMetaSchema, passoConcluirSchema, passoReabrirSchema, passoBloquearSchema, passoDesbloquearSchema, copilotoCampoSchema, copilotoConversaSchema } from './schemas/passos';
 
 /**
@@ -329,6 +329,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/riscos/:riscoId', schema: riscoAtividadeAtualizarSchema, nome: 'riscoAtividadeAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/riscos', schema: riscoAtividadeCriarSchema, nome: 'riscoAtividadeCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/situacao', schema: situacaoSchema, nome: 'situacaoSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/dpia/:dpiaId/questionario', schema: ripdQuestionarioSchema, nome: 'ripdQuestionarioSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/transferencias', schema: tratamentoTransferenciaSchema, nome: 'tratamentoTransferenciaSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/copiloto', schema: copilotoRopaSchema, nome: 'copilotoRopaSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/importar', schema: ropaImportarSchema, nome: 'ropaImportarSchema' },

@@ -169,6 +169,6 @@ export async function criarDpiaDoTratamento(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft')`
   ).bind(id, projectId, ropaId, reg.processing_purpose, lig.itens.map((i) => i.nome).join(', ') || null, reg.data_subjects, reg.data_categories, linhas.join('\n') || null,
     necessidade || null, riscos || null, await hashDoTratamento(db, projectId, ropaId)).run();
-  await logAudit(db, 'dpia.criada_do_tratamento', ator, `DPIA ${id} criada a partir do tratamento ${ropaId}`, '', '', projectId);
+  await logAudit(db, 'dpia.criada_do_tratamento', ator, `DPIA ${id} criada a partir do tratamento ${ropaId}`, '', '', projectId, { tipo: 'dpia', id });
   return { ok: true, id };
 }
