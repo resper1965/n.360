@@ -86,7 +86,8 @@ describe('Frente 1: defeitos P0', () => {
     const r = await chamar(cliente, 'GET', `/api/v1/projects/${P}/audit-trail`);
     expect(r.status).toBe(200);
     const doCliente = (await r.json<any[]>()).find((l) => l.id === 'f1-log');
-    expect(doCliente).toMatchObject({ action: 'teste.f1', details: 'detalhe' });
+    expect(doCliente).toMatchObject({ action: 'teste.f1' });
     expect(doCliente).not.toHaveProperty('ip_address');
+    expect(doCliente).not.toHaveProperty('details'); // texto livre só para a consultoria (P0-8)
   });
 });

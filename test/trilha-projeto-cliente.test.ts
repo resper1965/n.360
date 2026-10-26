@@ -24,10 +24,10 @@ beforeEach(async () => {
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES (?, 'Cliente A', 'ISO 27001', 'controller', 'Active')`).bind(A),
     env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES (?, 'Cliente B', 'ISO 27001', 'controller', 'Active')`).bind(B),
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id, ativo) VALUES ('u-cli-t','cli-t@cliente.com','x','Cliente','org_user',?,'org_ness',1)`).bind(A),
-    env.DB.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, field, old_value, new_value)
+    env.DB.prepare(`INSERT OR IGNORE INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, field, old_value, new_value)
       VALUES ('tr-a1','teste.trilha','quem@x.com','segredo de A','porque sim','1.2.3.4',?,'campo','antes','depois')`).bind(A),
-    env.DB.prepare(`INSERT INTO audit_logs (id, action, actor, details, project_id) VALUES ('tr-b1','teste.trilha.b','quem@x.com','so de B',?)`).bind(B),
-    env.DB.prepare(`INSERT INTO audit_logs (id, action, actor, details, project_id) VALUES ('tr-n1','teste.trilha.global','quem@x.com',?,NULL)`).bind(`cita ${A} no texto`),
+    env.DB.prepare(`INSERT OR IGNORE INTO audit_logs (id, action, actor, details, project_id) VALUES ('tr-b1','teste.trilha.b','quem@x.com','so de B',?)`).bind(B),
+    env.DB.prepare(`INSERT OR IGNORE INTO audit_logs (id, action, actor, details, project_id) VALUES ('tr-n1','teste.trilha.global','quem@x.com',?,NULL)`).bind(`cita ${A} no texto`),
   ]);
   pa = await sessionFor({ id: 'u-pa-t', email: 'pa-t@ness.lat', role: 'platform_admin', org_id: 'org_ness' });
   cli = await sessionFor({ id: 'u-cli-t', email: 'cli-t@cliente.com', role: 'org_user', client_project_id: A });
