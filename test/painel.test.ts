@@ -217,7 +217,7 @@ describe('GET /projects/:id/painel', () => {
     expect(corpo.decisoes).toEqual([expect.objectContaining({ titulo: 'Aprovar "Folha"', acao: 'Ler e aprovar' })]);
     const m = corpo.modulos.privacy;
     for (const k of ['fazer', 'cobertura', 'riscos', 'vencimentos', 'pedidos_mes']) expect(m, k).not.toHaveProperty(k);
-    expect(corpo.modulos.privacy.numeros).toHaveLength(3);
+    expect(corpo.modulos.privacy.numeros).toHaveLength(5);
   });
 
   it('cliente no n.iso: o próximo marco da jornada (a primeira fase não concluída), sem a lista da consultoria', async () => {

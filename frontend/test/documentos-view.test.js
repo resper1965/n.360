@@ -183,7 +183,8 @@ describe('criar e abrir', () => {
         await abrirLista();
         await window.openDocumentoModal('p9', 'p1');
         const acoes = [...el('modal-content').querySelectorAll('[data-action]')].map((b) => b.getAttribute('data-action'));
-        expect(acoes.filter((a) => a !== 'forceCloseModal')).toEqual([]);
+        // Baixar Word é leitura: quem só lê também baixa.
+        expect(acoes.filter((a) => a !== 'forceCloseModal')).toEqual(['baixarWordDocumento']);
     });
 });
 

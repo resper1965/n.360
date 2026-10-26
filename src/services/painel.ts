@@ -146,9 +146,9 @@ const SQL_EVIDENCIAS = `SELECT
     sum(CASE WHEN ${SQL_EVIDENCIA_RUIM} THEN 1 ELSE 0 END) AS falta
   FROM evidence WHERE project_id = ?1`;
 const SQL_UNIAO_EVIDENCIAS = `SELECT 'Evidências' AS tipo, file_name AS rotulo, substr(valido_ate, 1, 10) AS data FROM evidence WHERE project_id = ?1 AND valido_ate IS NOT NULL`;
-const SQL_UNIAO_DOCUMENTOS = `SELECT 'Documentos (revisão)', titulo, substr(revisar_ate, 1, 10) FROM documentos WHERE project_id = ?1 AND status = 'vigente' AND revisar_ate IS NOT NULL`;
+const SQL_UNIAO_DOCUMENTOS = `SELECT 'Documentos (revisão)' AS tipo, titulo AS rotulo, substr(revisar_ate, 1, 10) AS data FROM documentos WHERE project_id = ?1 AND status = 'vigente' AND revisar_ate IS NOT NULL`;
 // Documentos do legado (`documentos_arquivo`): o vencimento entra na mesma linha do painel; obsoleto e "sem vencimento" ficam fora (a regra dos avisos de prazo).
-const SQL_UNIAO_DOCUMENTOS_ARQUIVO = `SELECT 'Documentos (revisão)', nome, substr(vencimento, 1, 10) FROM documentos_arquivo WHERE project_id = ?1 AND status <> 'obsoleto' AND sem_vencimento = 0 AND vencimento IS NOT NULL`;
+const SQL_UNIAO_DOCUMENTOS_ARQUIVO = `SELECT 'Documentos (revisão)' AS tipo, nome AS rotulo, substr(vencimento, 1, 10) AS data FROM documentos_arquivo WHERE project_id = ?1 AND status <> 'obsoleto' AND sem_vencimento = 0 AND vencimento IS NOT NULL`;
 
 // ─── n.privacy ──────────────────────────────────────────────────────────────────────────────────────────
 

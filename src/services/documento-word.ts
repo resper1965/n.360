@@ -186,13 +186,9 @@ export async function liaEmWord(db: D1Database, projectId: string, ropaId: strin
 function markdownEmBlocos(md: string): Bloco[] {
   const out: Bloco[] = [];
   let corrente: string[] = [];
-  const fecha = () => { if (corrente.length) out.push(par(corrente.join('
-'))); corrente = []; };
+  const fecha = () => { if (corrente.length) out.push(par(corrente.join('\n'))); corrente = []; };
   const sem = (t: string) => t.replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/`([^`]+)`/g, '$1');
-  for (const bruta of md.replace(/
-?/g, '
-').split('
-')) {
+  for (const bruta of md.replace(/\r\n?/g, '\n').split('\n')) {
     const l = bruta.trimEnd();
     const h = /^(#{1,6})\s+(.*)$/.exec(l);
     const item = /^\s*(?:[-*+]|\d+[.)])\s+(.*)$/.exec(l);

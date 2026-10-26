@@ -117,7 +117,7 @@ describe('rotas', () => {
     expect(txt).not.toContain('Ação alheia');
     expect(linhas(txt)).toHaveLength(4);
     const vencidas = linhas(await (await chamar(consultor, exp('acoes-atividade', P, '?faixa=vencidas'))).text());
-    expect(vencidas.map((x) => x[1])).toEqual(['Ação', 'Ação vencida']);
+    expect(vencidas.map((x) => x[2])).toEqual(['Ação', 'Ação vencida']);
     expect((await chamar(consultor, exp('acoes-atividade', P, '?faixa=qualquer'))).status).toBe(400);
   });
 

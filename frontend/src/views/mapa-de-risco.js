@@ -87,7 +87,7 @@ function montarVistaLista(alvo) {
             { chave: 'nivel', rotulo: 'Risco', valor: (x) => x.risk_level, opcoes: Object.entries(NIVEIS) },
             { chave: 'status', rotulo: 'Status', valor: (x) => x.status, opcoes: STATUS },
         ],
-        exportar: { caminho: (e) => `/api/v1/projects/${estado.projeto}/export/riscos-atividade${consultaDe({ motivo: e.filtros.motivo, area: e.filtros.area, nivel: e.filtros.nivel, status: e.filtros.status })}` },
+        exportar: { caminho: (e) => { const q = consultaDe({ motivo: e.filtros.motivo, area: e.filtros.area, nivel: e.filtros.nivel, status: e.filtros.status }); return `/api/v1/projects/${estado.projeto}/export/riscos-atividade${q}`; } },
     });
 }
 

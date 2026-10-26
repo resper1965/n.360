@@ -56,7 +56,7 @@ async function renderGaps(c, h, a) {
         filtros: [{ chave: 'area', rotulo: 'Área', valor: (g) => String(g.area || '').split(', ').filter(Boolean) },
             { chave: 'status', rotulo: 'Status', valor: (g) => (emAtraso(g) ? ATRASO : g.status), opcoes: [...STATUS, [ATRASO, 'Em atraso']] }],
         // O arquivo sai com a busca e os filtros que a tela mostra (o servidor aplica a mesma regra).
-        exportar: { caminho: (e) => `/api/v1/projects/${proj.id}/export/acoes-atividade${consultaDe({ q: e.q, area: e.filtros.area, status: e.filtros.status })}`, rotulo: 'Exportar' },
+        exportar: { caminho: (e) => { const q = consultaDe({ q: e.q, area: e.filtros.area, status: e.filtros.status }); return `/api/v1/projects/${proj.id}/export/acoes-atividade${q}`; }, rotulo: 'Exportar' },
     });
 }
 

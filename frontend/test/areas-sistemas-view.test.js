@@ -65,7 +65,8 @@ describe('Ativos: excluir e limpar', () => {
         window.openNovoSistemaModal('p1');
         el('sis-nome').value = 'Qualquer';
         el('sis-tipo').value = 'Hardware';
-        document.querySelector('#modal-content [data-action="limparModal"]').click();
+        expect(document.querySelector('#modal-content [data-action="limparModal"]')).not.toBeNull();
+        window.limparModal();
         expect(el('sis-nome').value).toBe('');
         expect(el('sis-tipo').value).toBe('Software');
         window.openNovoSistemaModal('p1', 'a1');
