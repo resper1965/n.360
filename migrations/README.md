@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0082** (`ls migrations/*.sql | tail -1`). São 80 arquivos
+- Última migration no repositório: **0083** (`ls migrations/*.sql | tail -1`). São 81 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
