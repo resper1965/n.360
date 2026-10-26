@@ -64,7 +64,9 @@ async function renderTerceiros(c, h, a) {
         id: 'tc',
         linhas: terceiros,
         filtroPainel: { tela: 'terceiros' },
-        colunas: colunasDe(['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações'], (t) => {
+        busca: (t) => t.nome || '',
+        buscaDica: 'Fornecedor',
+        colunas: colunasDe(['Fornecedor', 'Criticidade', 'Tipo', 'Avaliação', 'Vale até', 'Data de envio', '% do questionário', 'DPA', 'Situação do TPRM', 'Atividades', 'Ações'], (t) => {
             const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
             return [
                 `<strong>${escapeHTML(t.nome)}</strong>`,
@@ -72,6 +74,8 @@ async function renderTerceiros(c, h, a) {
                 escapeHTML(TIPOS[t.terceiro_tipo] || '—'),
                 window.renderStatusBadge(rotulo, tom),
                 (t.ultima_avaliacao ? dataBr(t.ultima_avaliacao.valido_ate) : '—'),
+                t.questionario && t.questionario.enviada_em ? dataBr(String(t.questionario.enviada_em).slice(0, 10)) : '—',
+                t.questionario ? `${escapeHTML(String(t.questionario.percentual))}%` : '—',
                 t.dpa ? 'Sim' : 'Não',
                 escapeHTML(situacaoTprm(t)),
                 escapeHTML(String(t.atividades ?? t.tratamentos ?? 0)),
