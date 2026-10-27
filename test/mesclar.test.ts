@@ -102,3 +102,43 @@ describe('mesclar duplicata (D5)', () => {
     expect((await chamar(cliente, 'POST', `${A}/mesclar`, { tabela: 'partes', manter: 'c1', remover: 'c2' })).status).toBe(403);
   });
 });
+
+describe('mesclar: acertos da revisão de segurança (27/10/2026)', () => {
+  it('o e-mail do duplicado passa para o cadastro que fica quando este não é encarregado', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('em-k', 'proj-a', 'pessoa', 'Pessoa Fica', NULL)`),
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('em-d', 'proj-a', 'pessoa', 'Pessoa Some', 'some@exemplo.test')`),
+    ]);
+    const r = await mesclar(A, { tabela: 'partes', manter: 'em-k', remover: 'em-d', confirmar: true });
+    expect(r.status, JSON.stringify(await r.clone().json())).toBe(200);
+    expect(await env.DB.prepare(`SELECT email FROM partes WHERE id = 'em-k'`).first()).toEqual({ email: 'some@exemplo.test' });
+  });
+
+  it('encarregado que fica sem e-mail NÃO recebe o e-mail do duplicado, e a prévia avisa (a linha de assinatura é da interface)', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('en-k', 'proj-a', 'pessoa', 'Encarregada Fica', NULL)`),
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('en-d', 'proj-a', 'pessoa', 'Encarregada Some', 'dup-dpo@exemplo.test')`),
+      env.DB.prepare(`INSERT INTO parte_vinculos (id, project_id, parte_id, papel, alvo_tipo, alvo_id) VALUES ('en-v', 'proj-a', 'en-k', 'encarregado', 'projeto', 'proj-a')`),
+    ]);
+    const previa = await json<{ avisos: string[] }>(await mesclar(A, { tabela: 'partes', manter: 'en-k', remover: 'en-d' }));
+    expect(previa.avisos.join(' ')).toContain('e-mail do duplicado não será copiado');
+    const r = await mesclar(A, { tabela: 'partes', manter: 'en-k', remover: 'en-d', confirmar: true });
+    expect(r.status, JSON.stringify(await r.clone().json())).toBe(200);
+    expect(await env.DB.prepare(`SELECT email FROM partes WHERE id = 'en-k'`).first()).toEqual({ email: null });
+  });
+
+  it('depois de mesclar, o índice de confiança do fornecedor que fica já conta o DPA que veio do duplicado', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('fk', 'proj-a', 'organizacao', 'Fornecedor Fica')`),
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('fd', 'proj-a', 'organizacao', 'Fornecedor Some')`),
+      env.DB.prepare(`INSERT INTO vendors (id, project_id, name, parte_id, trust_score, diligence_level) VALUES ('vf', 'proj-a', 'Fornecedor Fica', 'fk', 0, 'High')`),
+      env.DB.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, status) VALUES ('dc-dpa', 'proj-a', 'politica', 'DPA exemplo', 'vigente')`),
+      env.DB.prepare(`INSERT INTO documento_partes (documento_id, parte_id, papel, project_id) VALUES ('dc-dpa', 'fd', 'dpa', 'proj-a')`),
+    ]);
+    expect(await n(`SELECT trust_score AS n FROM vendors WHERE id = 'vf'`)).toBe(0);
+    const r = await mesclar(A, { tabela: 'partes', manter: 'fk', remover: 'fd', confirmar: true });
+    expect(r.status, JSON.stringify(await r.clone().json())).toBe(200);
+    expect(await n(`SELECT count(*) AS n FROM documento_partes WHERE parte_id = 'fk' AND papel = 'dpa'`)).toBe(1);
+    expect(await n(`SELECT trust_score AS n FROM vendors WHERE id = 'vf'`)).toBe(10); // só o DPA pontua (10)
+  });
+});

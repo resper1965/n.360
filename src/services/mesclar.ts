@@ -1,4 +1,5 @@
 import { logAudit } from '../helpers';
+import { recalcularIndice } from './terceiros';
 
 /**
  * Mesclar duplicata de parte ou de item (decisão D5 de 26/10/2026; antes "Padronizar nomes" só listava e mandava unir à mão).
@@ -77,6 +78,12 @@ async function ler(db: D1Database, tabela: TabelaMescla, projectId: string, id: 
 
 const quantos = async (db: D1Database, sql: string, ...b: string[]) => (await db.prepare(sql).bind(...b).first<{ n: number }>())?.n ?? 0;
 
+/** O encarregado (DPO) do projeto: a linha de assinatura da governança só se altera pela interface. */
+const ehEncarregado = async (db: D1Database, parteId: string, projectId: string) =>
+  (await quantos(db, `SELECT count(*) AS n FROM parte_vinculos WHERE parte_id = ? AND project_id = ? AND papel = 'encarregado'`, parteId, projectId)) > 0;
+/** O e-mail do duplicado só passa para o que fica se este não for o encarregado. */
+const copiaEmail = async (db: D1Database, manter: Cadastro, projectId: string) => !(await ehEncarregado(db, manter.id, projectId));
+
 /** Confere os dois cadastros e devolve o que a mesclagem faria. Não grava nada. */
 export async function previaDaMescla(db: D1Database, tabela: TabelaMescla, projectId: string, manterId: string, removerId: string): Promise<Previa | Falha> {
   if (manterId === removerId) return { status: 409, error: 'Escolha dois cadastros diferentes' };
@@ -91,6 +98,9 @@ export async function previaDaMescla(db: D1Database, tabela: TabelaMescla, proje
     if (remover.user_id) return { status: 409, error: 'O cadastro a remover é de uma conta de acesso; desative a conta pela interface antes' };
     const dpo = await quantos(db, `SELECT count(*) AS n FROM parte_vinculos WHERE parte_id = ? AND project_id = ? AND papel = 'encarregado'`, removerId, projectId);
     if (dpo) return { status: 409, error: 'O cadastro a remover é o encarregado (DPO): a linha de assinatura da governança é alterada pela interface' };
+    if (remover.email && !manter.email && !(await copiaEmail(db, manter, projectId))) {
+      avisos.push('O e-mail do duplicado não será copiado: o cadastro que fica é o encarregado (DPO), e a linha de assinatura é alterada pela interface.');
+    }
     if (remover.cnpj && manter.cnpj && remover.cnpj !== manter.cnpj) return { status: 409, error: 'Os dois têm CNPJ diferente: não são a mesma organização' };
     if (await quantos(db, `SELECT count(*) AS n FROM homologacoes WHERE parte_id = ? AND project_id = ?`, removerId, projectId)) {
       avisos.push('As homologações do duplicado ficam registradas nele (são imutáveis) e não passam para o cadastro que fica.');
@@ -126,6 +136,7 @@ export async function mesclar(db: D1Database, tabela: TabelaMescla, projectId: s
   if (!('ok' in previa)) return previa;
   const [k, d, p] = [manterId, removerId, projectId];
   const stmts: D1PreparedStatement[] = [];
+  const email = tabela === 'partes' && (await copiaEmail(db, { id: k, nome: '', status: '' }, p)) ? 1 : 0;
 
   for (const t of TROCAR[tabela]) {
     stmts.push(db.prepare(`UPDATE ${t.tabela} SET ${t.coluna} = ? WHERE ${t.coluna} = ? AND project_id = ?`).bind(k, d, p));
@@ -142,9 +153,9 @@ export async function mesclar(db: D1Database, tabela: TabelaMescla, projectId: s
       db.prepare(`DELETE FROM parte_vinculos WHERE project_id = ? AND alvo_tipo = 'parte' AND parte_id = alvo_id`).bind(p),
       db.prepare(`UPDATE vendors SET parte_id = ? WHERE parte_id = ? AND project_id = ? AND NOT EXISTS (SELECT 1 FROM vendors v2 WHERE v2.parte_id = ?)`).bind(k, d, p, k),
       db.prepare(`UPDATE partes SET cnpj = NULL WHERE id = ? AND project_id = ?`).bind(d, p), // libera o índice único antes de passar o CNPJ
-      db.prepare(`UPDATE partes SET email = COALESCE(email, (SELECT email FROM partes WHERE id = ?1)), cnpj = COALESCE(cnpj, ?2),
+      db.prepare(`UPDATE partes SET email = CASE WHEN ?5 = 1 THEN COALESCE(email, (SELECT email FROM partes WHERE id = ?1)) ELSE email END, cnpj = COALESCE(cnpj, ?2),
                     terceiro_tipo = COALESCE(terceiro_tipo, (SELECT terceiro_tipo FROM partes WHERE id = ?1)), updated_at = CURRENT_TIMESTAMP
-                  WHERE id = ?3 AND project_id = ?4`).bind(d, (await ler(db, 'partes', p, d))?.cnpj ?? null, k, p),
+                  WHERE id = ?3 AND project_id = ?4`).bind(d, (await ler(db, 'partes', p, d))?.cnpj ?? null, k, p, email),
       db.prepare(`UPDATE partes SET status = 'inativa', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`).bind(d, p),
     );
   } else {
@@ -157,6 +168,8 @@ export async function mesclar(db: D1Database, tabela: TabelaMescla, projectId: s
     );
   }
   await db.batch(stmts);
+  // O DPA e o perfil do duplicado passaram para o que fica: o índice de confiança dele acompanha (sem perfil de fornecedor, não faz nada).
+  if (tabela === 'partes') await recalcularIndice(db, manterId);
   // Ids e contagens, nunca nome: parte pode ser pessoa.
   await logAudit(db, 'cadastro.mesclado', ator, `${tabela}: ${d} mesclado em ${k} (${previa.efeitos.map((e) => `${e.rotulo}: ${e.n}`).join('; ') || 'nada a mover'})`, '', '', projectId);
   return previa;

@@ -30,6 +30,8 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
    apply" e `PRAGMA table_info(<tabela>)` mostra a coluna.
 5. Só então o merge: o deploy recusa migration pendente.
 
+**Migration que refaz tabela (DROP + RENAME) recria também os gatilhos e índices dela.** O `DROP TABLE` apaga os objetos da tabela; a 0087 perdeu assim o gatilho de isolamento de `tratamento_etapa_itens` até a 0088. O teste `test/migrations-consistencia.test.ts` reprova isso (R1: o que o `schema.sql` define sobre a tabela precisa ser recriado por uma migration de número igual ou maior) e confere que toda coluna de `ADD COLUMN` existe no `schema.sql` (R2; exceção só com motivo escrito em `EXCECOES_R2`). Aplicar a sequência inteira num banco vazio **não** é possível (42 das 86 falham: não existe a 0001), por isso a conferência é estática.
+
 **Registrar sem executar.** Quando produção já tem o objeto (coluna criada à mão, por
 exemplo) e o `ADD COLUMN` abortaria com "duplicate column", a migration não é executada: só se
 registra o nome em `d1_migrations` (`INSERT OR IGNORE INTO d1_migrations (name) VALUES (...)`),
