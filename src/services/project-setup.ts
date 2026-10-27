@@ -70,7 +70,9 @@ export function catalogosDoProjeto(texto: string, orgRole: string): Catalogo[] {
   if (com27701 || /27001/.test(texto)) out.push({ standard: ISO_27001_2022_STANDARD, lista: ISO_27001_2022 });
   if (com27701) {
     const porPapel = controlsForRole(orgRole);
-    out.push({ standard: ISO_27701_2025_STANDARD, lista: porPapel.length ? porPapel : controlsForRole('') });
+    // A.3 (segurança) vale para qualquer papel e sempre vem; o papel só decide A.1 e A.2. Sem nenhuma das duas, cai no Controlador.
+    const temPapel = porPapel.some((c) => /^A\.[12]\./.test(c.code));
+    out.push({ standard: ISO_27701_2025_STANDARD, lista: temPapel ? porPapel : controlsForRole('') });
   }
   return out;
 }

@@ -293,15 +293,15 @@ describe('fecharVenda', () => {
     const a = await proposta();
     const ra = await fecharVenda(db(), entrada(a.id));
     if (!ra.ok) throw new Error('fechamento falhou');
-    expect(await porNorma(ra.projetoId)).toEqual({ 'ISO 27001:2022': 93, 'ISO 27701:2025': 31 });
+    expect(await porNorma(ra.projetoId)).toEqual({ 'ISO 27001:2022': 93, 'ISO 27701:2025': 60 });
     expect(await idDoControle(db(), ra.projetoId!, 'A.8.34')).not.toBeNull();
     expect(await fecharVenda(db(), entrada(a.id))).toMatchObject({ ok: false, motivo: 'ja_fechada' });
-    expect(await porNorma(ra.projetoId)).toEqual({ 'ISO 27001:2022': 93, 'ISO 27701:2025': 31 });
+    expect(await porNorma(ra.projetoId)).toEqual({ 'ISO 27001:2022': 93, 'ISO 27701:2025': 60 });
 
     // sem levantamento: o serviço decide
     const casos: [any, Record<string, number>][] = [
       [PROJETO, { 'ISO 27001:2022': 93 }],
-      [{ ...PROJETO, nome: 'Implementação integrada', norma: 'ISO/IEC 27001:2022 + 27701:2025' }, { 'ISO 27001:2022': 93, 'ISO 27701:2025': 31 }],
+      [{ ...PROJETO, nome: 'Implementação integrada', norma: 'ISO/IEC 27001:2022 + 27701:2025' }, { 'ISO 27001:2022': 93, 'ISO 27701:2025': 60 }],
       [{ ...PROJETO, nome: 'Adequação LGPD', norma: 'LGPD' }, {}],
     ];
     for (const [servico, esperado] of casos) {
@@ -313,7 +313,7 @@ describe('fecharVenda', () => {
   });
 
   it('papel do levantamento decide a tabela 27701; "Ainda não mapeado" cai no Controlador', async () => {
-    const papeis: [string, number][] = [['Controlador + Operador', 49], ['Operador', 18], ['Ainda não mapeado', 31]];
+    const papeis: [string, number][] = [['Controlador + Operador', 78], ['Operador', 47], ['Ainda não mapeado', 60]];
     for (const [k, [papel, n]] of papeis.entries()) {
       const as = `as-papel-${k}`;
       await db().batch([
