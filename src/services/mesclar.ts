@@ -41,6 +41,7 @@ const LIGAR: Record<TabelaMescla, { rotulo: string; tabela: string; coluna: stri
     { rotulo: 'Papéis (vínculos)', tabela: 'parte_vinculos', coluna: 'parte_id' },
     { rotulo: 'Papéis sobre ela (vínculos)', tabela: 'parte_vinculos', coluna: 'alvo_id', extra: `alvo_tipo = 'parte'` },
     { rotulo: 'Documento ligado (DPA, contrato)', tabela: 'documento_partes', coluna: 'parte_id' },
+    { rotulo: 'Documento em arquivo ligado (DPA, contrato)', tabela: 'documentos_arquivo_partes', coluna: 'parte_id' },
     { rotulo: 'Parceiro do compartilhamento externo', tabela: 'tratamento_externo_parceiros', coluna: 'parte_id' },
   ],
   itens: [

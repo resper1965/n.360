@@ -174,6 +174,26 @@ projetoRequisitosApp.put('/documentos/:id/requisitos', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao ligar os requisitos ao documento', e); }
 });
 
+// Documento em arquivo (0086): publicado e com arquivo anexado, cobre o requisito como a política vigente. Escrita é da interface (agente só lê).
+projetoRequisitosApp.get('/documentos-arquivo/:id/requisitos', async (c) => {
+  const projectId = c.req.param('projectId')!;
+  const doc = await c.env.DB.prepare('SELECT id FROM documentos_arquivo WHERE id = ? AND project_id = ?').bind(c.req.param('id'), projectId).first();
+  return doc ? c.json(await requisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), 'arquivo')) : c.json({ error: 'Documento não encontrado' }, 404);
+});
+
+projetoRequisitosApp.put('/documentos-arquivo/:id/requisitos', async (c) => {
+  try {
+    const v = await validateBody(c, documentoRequisitosSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const r = await definirRequisitosDoDocumento(c.env.DB, projectId, c.req.param('id'), v.data.requisitos, 'arquivo');
+    if (!r) return c.json({ error: 'Documento não encontrado' }, 404);
+    if (!r.ok) return c.json({ error: 'Requisito não encontrado', desconhecidos: r.desconhecidos }, 400);
+    await logAudit(c.env.DB, 'documento_arquivo.requisitos', c.get('user').email, `Documento em arquivo ${c.req.param('id')}: ${r.total} requisitos ligados`, '', '', projectId);
+    return c.json({ ok: true, total: r.total });
+  } catch (e) { return erro500(c, 'Falha ao ligar os requisitos ao documento', e); }
+});
+
 projetoRequisitosApp.get('/evidence/:evidenceId/requisitos', async (c) => {
   const projectId = c.req.param('projectId')!;
   const ev = await c.env.DB.prepare('SELECT valido_ate FROM evidence WHERE id = ? AND project_id = ?').bind(c.req.param('evidenceId'), projectId).first<{ valido_ate: string | null }>();

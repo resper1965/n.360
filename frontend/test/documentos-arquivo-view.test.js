@@ -13,6 +13,8 @@ const DOCS = [
         responsavel_parte_id: 'pa1', responsavel_nome: 'Pessoa Exemplo', arquivo_nome: 'contrato.pdf' },
     { id: 'd2', nome: 'Política de Privacidade', tipo: 'politica', status: 'rascunho', vencimento: null, sem_vencimento: 1, arquivo_nome: null },
 ];
+const REQ_LIGADOS = [{ id: 'rq1', fonte_id: 'lgpd', referencia: 'Art. 37', titulo: 'Registro <i>das operações</i>' }];
+const CATALOGO = [...REQ_LIGADOS, { id: 'rq2', fonte_id: 'lgpd', referencia: 'Art. 41', titulo: 'Encarregado' }];
 const PESSOAS = [{ id: 'pa1', nome: 'Pessoa Exemplo' }, { id: 'pa2', nome: 'Outra <i>Pessoa</i>' }];
 
 function montar() {
@@ -30,6 +32,8 @@ beforeEach(() => {
     apiMock.mockImplementation((m, url) => {
         if (m === 'GET' && url.endsWith('/documentos-arquivo')) return Promise.resolve(structuredClone(DOCS)); // a tela altera o item na remoção do arquivo
         if (m === 'GET' && url.includes('/partes')) return Promise.resolve(PESSOAS);
+        if (m === 'GET' && url.endsWith('/documentos-arquivo/d1/requisitos')) return Promise.resolve(structuredClone(REQ_LIGADOS));
+        if (m === 'GET' && url === '/api/v1/requisitos') return Promise.resolve(CATALOGO);
         if (m === 'POST') return Promise.resolve({ ok: true, id: 'novo' });
         return Promise.resolve({ ok: true });
     });
@@ -107,6 +111,22 @@ describe('Documentos', () => {
         await window.daSalvar();
         expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/projects/p1/documentos-arquivo/d1',
             { nome: 'Contrato <b>Fornecedor</b>', tipo: 'contrato', status: 'publicado', sem_vencimento: true, vencimento: null, responsavel_parte_id: 'pa1' });
+    });
+
+    it('requisitos que cobre: só na edição; mostra os ligados (escapados), liga e desliga mandando o conjunto inteiro', async () => {
+        const [c, h, a] = montar();
+        await window.renderDocumentosArquivo(c, h, a);
+        await window.daAbrir(null);
+        expect(el('da-requisitos')).toBeNull();
+        await window.daAbrir('d1');
+        expect(el('da-requisitos').textContent).toContain('lgpd Art. 37');
+        expect(el('da-requisitos').querySelector('i')).toBeNull();
+        expect([...el('da-req-add').options].map((o) => o.value)).toEqual(['', 'rq2']); // o já ligado não se oferece de novo
+        el('da-req-add').value = 'rq2';
+        await window.daLigarRequisito();
+        expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/projects/p1/documentos-arquivo/d1/requisitos', { requisitos: ['rq1', 'rq2'] });
+        await window.daDesligarRequisito('rq1');
+        expect(apiMock).toHaveBeenCalledWith('PUT', '/api/v1/projects/p1/documentos-arquivo/d1/requisitos', { requisitos: [] });
     });
 
     it('arquivo: mostra o atual com Ver, Baixar e Remover; envia o novo por multipart depois de salvar; recusa tipo errado', async () => {

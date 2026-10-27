@@ -66,7 +66,8 @@ terceirosApp.post('/:parteId/documentos', async (c) => {
   try {
     const v = await validateBody(c, terceiroDocumentoSchema);
     if (!v.success) return v.response;
-    const r = await ligarDocumento(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'), c.get('user').email, v.data.documento_id, v.data.papel);
+    if (v.data.arquivo_id && c.get('user')?.agente) return c.json({ error: 'documento em arquivo é ligado pela interface; o agente só lê' }, 403);
+    const r = await ligarDocumento(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'), c.get('user').email, (v.data.arquivo_id ?? v.data.documento_id)!, v.data.papel, v.data.arquivo_id ? 'arquivo' : 'versionado');
     return r.ok ? c.json({ ok: true }, 201) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao ligar o documento', e); }
 });
@@ -75,7 +76,9 @@ terceirosApp.delete('/:parteId/documentos/:documentoId', async (c) => {
   try {
     const papel = (c.req.query('papel') || 'dpa') as PapelDocumento;
     if (!['dpa', 'contrato', 'outro'].includes(papel)) return c.json({ error: 'papel deve ser dpa, contrato ou outro' }, 400);
-    const ok = await desligarDocumento(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'), c.get('user').email, c.req.param('documentoId'), papel);
+    const arquivo = c.req.query('origem') === 'arquivo';
+    if (arquivo && c.get('user')?.agente) return c.json({ error: 'documento em arquivo é desligado pela interface; o agente só lê' }, 403);
+    const ok = await desligarDocumento(c.env.DB, c.req.param('projectId')!, c.req.param('parteId'), c.get('user').email, c.req.param('documentoId'), papel, arquivo ? 'arquivo' : 'versionado');
     return ok ? c.json({ ok: true }) : c.json({ error: 'Ligação não encontrada' }, 404);
   } catch (e) { return erro500(c, 'Falha ao desligar o documento', e); }
 });

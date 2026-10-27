@@ -61,6 +61,7 @@ const SO_PARTE_INTERESSADA = `EXISTS (SELECT 1 FROM parte_vinculos v WHERE v.par
   AND p.terceiro_tipo IS NULL
   AND NOT EXISTS (SELECT 1 FROM avaliacoes_terceiro a WHERE a.parte_id = p.id)
   AND NOT EXISTS (SELECT 1 FROM documento_partes d WHERE d.parte_id = p.id)
+  AND NOT EXISTS (SELECT 1 FROM documentos_arquivo_partes d WHERE d.parte_id = p.id)
   AND NOT EXISTS (SELECT 1 FROM vendors f WHERE f.parte_id = p.id)`;
 
 /** Quem é fornecedor, igual nos dois módulos e em toda contagem: organização ativa que não é só parte interessada. Alias `p` = partes. */
@@ -68,9 +69,13 @@ export const SQL_EH_FORNECEDOR = `p.tipo = 'organizacao' AND p.status = 'ativa' 
 
 /**
  * O fornecedor tem DPA: documento ligado com papel `dpa` (decisão de 20/10/2026, fonte única nos dois módulos). `vendors.dpa_signed`
- * e `dpa_url` são histórico ("declarado, sem documento") e não contam. Alias `p` = partes.
+ * e `dpa_url` são histórico ("declarado, sem documento") e não contam. Alias `p` = partes. Desde a 0086 o documento em arquivo também vale,
+ * mas só publicado e com arquivo anexado (`SQL_ARQUIVO_VALE`, alias `a`): rascunho, obsoleto e documento sem arquivo não provam nada.
  */
-export const SQL_TEM_DPA = `EXISTS (SELECT 1 FROM documento_partes d WHERE d.parte_id = p.id AND d.project_id = p.project_id AND d.papel = 'dpa')`;
+export const SQL_ARQUIVO_VALE = `a.status = 'publicado' AND a.r2_key IS NOT NULL`;
+export const SQL_TEM_DPA = `(EXISTS (SELECT 1 FROM documento_partes d WHERE d.parte_id = p.id AND d.project_id = p.project_id AND d.papel = 'dpa')
+  OR EXISTS (SELECT 1 FROM documentos_arquivo_partes ap JOIN documentos_arquivo a ON a.id = ap.documento_arquivo_id
+              WHERE ap.parte_id = p.id AND ap.project_id = p.project_id AND ap.papel = 'dpa' AND ${SQL_ARQUIVO_VALE}))`;
 
 /** As colunas do perfil de segurança (`vendors`) que entram no índice de confiança. */
 export type PerfilDoIndice = Partial<Record<'has_iso27001' | 'has_iso27701' | 'has_soc2' | 'has_mfa' | 'has_encryption' | 'has_backup' | 'has_incident_plan' | 'has_pentest', unknown>>
@@ -94,11 +99,17 @@ export async function temDpa(db: D1Database, parteId: string): Promise<boolean> 
 }
 
 /** Recalcula o índice e a diligência do perfil de segurança da parte (se houver) quando o DPA é ligado ou desligado. */
-async function recalcularIndice(db: D1Database, parteId: string): Promise<void> {
+export async function recalcularIndice(db: D1Database, parteId: string): Promise<void> {
   const v = await db.prepare('SELECT * FROM vendors WHERE parte_id = ?').bind(parteId).first<PerfilDoIndice>();
   if (!v) return;
   const indice = indiceDeConfianca(v, await temDpa(db, parteId));
   await db.prepare('UPDATE vendors SET trust_score = ?, diligence_level = ? WHERE parte_id = ?').bind(indice, nivelDeDiligencia(indice), parteId).run();
+}
+
+/** Fornecedores que usam o documento em arquivo como DPA: a situação dele (publicar, anexar, apagar) muda o índice de confiança deles. */
+export async function partesComDpaDoArquivo(db: D1Database, arquivoId: string): Promise<string[]> {
+  const r = await db.prepare(`SELECT DISTINCT parte_id FROM documentos_arquivo_partes WHERE documento_arquivo_id = ? AND papel = 'dpa'`).bind(arquivoId).all<{ parte_id: string }>();
+  return r.results.map((x) => x.parte_id);
 }
 
 /** Terceiros do projeto (partes organização ativas, menos as que são só parte interessada) com tipo, situação, nº de tratamentos que os usam e nº de documentos (DPA). */
@@ -107,9 +118,10 @@ export async function listarTerceiros(db: D1Database, projectId: string): Promis
     db.prepare(`SELECT id, nome, cnpj, terceiro_tipo FROM partes p WHERE project_id = ?1 AND ${SQL_EH_FORNECEDOR} ORDER BY nome`).bind(projectId),
     db.prepare(`SELECT ${COLS_AVALIACAO} FROM avaliacoes_terceiro WHERE project_id = ? ORDER BY created_at, rowid`).bind(projectId),
     db.prepare(`SELECT parte_id, count(DISTINCT ropa_id) AS n FROM (${SQL_ATIVIDADES}) GROUP BY parte_id`).bind(projectId),
-    db.prepare(`SELECT parte_id, count(DISTINCT documento_id) AS n FROM documento_partes WHERE project_id = ? GROUP BY parte_id`).bind(projectId),
+    db.prepare(`SELECT parte_id, count(*) AS n FROM (SELECT parte_id, documento_id AS doc FROM documento_partes WHERE project_id = ?1
+      UNION SELECT parte_id, documento_arquivo_id FROM documentos_arquivo_partes WHERE project_id = ?1) GROUP BY parte_id`).bind(projectId),
     db.prepare(`SELECT parte_id, nivel FROM criticidades_terceiro WHERE project_id = ? ORDER BY created_at, rowid`).bind(projectId),
-    db.prepare(`SELECT DISTINCT parte_id FROM documento_partes WHERE project_id = ? AND papel = 'dpa'`).bind(projectId),
+    db.prepare(`SELECT p.id AS parte_id FROM partes p WHERE p.project_id = ? AND ${SQL_TEM_DPA}`).bind(projectId),
   ]);
   const nivel = new Map<string, NivelCriticidade>();
   for (const c of crits.results as { parte_id: string; nivel: NivelCriticidade }[]) nivel.set(c.parte_id, c.nivel); // ordenado: a última sobrescreve
@@ -142,7 +154,8 @@ export async function lerTerceiro(db: D1Database, projectId: string, parteId: st
   if (!t) return null;
   const [hist, docs, subs, trat, parte, seg, resp] = await db.batch([
     db.prepare(`SELECT ${COLS_AVALIACAO} FROM avaliacoes_terceiro WHERE parte_id = ? AND project_id = ? ORDER BY created_at DESC, rowid DESC`).bind(parteId, projectId),
-    db.prepare(`SELECT d.id, d.titulo, d.status, dp.papel FROM documento_partes dp JOIN documentos d ON d.id = dp.documento_id WHERE dp.parte_id = ? AND dp.project_id = ? ORDER BY d.titulo`).bind(parteId, projectId),
+    db.prepare(`SELECT * FROM (SELECT d.id, d.titulo, d.status, dp.papel, 'versionado' AS origem FROM documento_partes dp JOIN documentos d ON d.id = dp.documento_id WHERE dp.parte_id = ?1 AND dp.project_id = ?2
+      UNION ALL SELECT a.id, a.nome, a.status, ap.papel, 'arquivo' FROM documentos_arquivo_partes ap JOIN documentos_arquivo a ON a.id = ap.documento_arquivo_id WHERE ap.parte_id = ?1 AND ap.project_id = ?2) ORDER BY titulo`).bind(parteId, projectId),
     db.prepare(`SELECT p.id, p.nome FROM parte_vinculos v JOIN partes p ON p.id = v.parte_id WHERE v.papel = 'suboperador' AND v.alvo_tipo = 'parte' AND v.alvo_id = ? AND v.project_id = ? ORDER BY p.nome`).bind(parteId, projectId),
     // 'compartilhamento_externo' < 'vinculo': o MAX dá vínculo quando o tratamento vem pelas duas origens
     db.prepare(`SELECT r.id, r.processing_purpose AS finalidade, MAX(a.origem) AS origem FROM (${SQL_ATIVIDADES}) a JOIN ropa_records r ON r.id = a.ropa_id
@@ -192,25 +205,34 @@ export async function registrarAvaliacao(db: D1Database, projectId: string, part
 
 export type PapelDocumento = 'dpa' | 'contrato' | 'outro';
 
-export async function ligarDocumento(db: D1Database, projectId: string, parteId: string, ator: string, documentoId: string, papel: PapelDocumento): Promise<Falha | { ok: true }> {
+/** `versionado` = `documentos` (política, norma…); `arquivo` = `documentos_arquivo` (o PDF/DOCX do legado, 0086). Nome de tabela só desta lista. */
+export type OrigemDocumento = 'versionado' | 'arquivo';
+const LIGACAO: Record<OrigemDocumento, { documento: string; ligacao: string; coluna: string }> = {
+  versionado: { documento: 'documentos', ligacao: 'documento_partes', coluna: 'documento_id' },
+  arquivo: { documento: 'documentos_arquivo', ligacao: 'documentos_arquivo_partes', coluna: 'documento_arquivo_id' },
+};
+
+export async function ligarDocumento(db: D1Database, projectId: string, parteId: string, ator: string, documentoId: string, papel: PapelDocumento, origem: OrigemDocumento = 'versionado'): Promise<Falha | { ok: true }> {
+  const t = LIGACAO[origem];
   if (!(await parteDoProjeto(db, projectId, parteId))) return falha(404, 'Parte não encontrada');
-  if (!(await db.prepare('SELECT 1 FROM documentos WHERE id = ? AND project_id = ?').bind(documentoId, projectId).first())) return falha(400, 'Documento inexistente ou de outro projeto');
+  if (!(await db.prepare(`SELECT 1 FROM ${t.documento} WHERE id = ? AND project_id = ?`).bind(documentoId, projectId).first())) return falha(400, 'Documento inexistente ou de outro projeto');
   try {
-    await db.prepare(`INSERT INTO documento_partes (documento_id, parte_id, papel, project_id) VALUES (?, ?, ?, ?)`).bind(documentoId, parteId, papel, projectId).run();
+    await db.prepare(`INSERT INTO ${t.ligacao} (${t.coluna}, parte_id, papel, project_id) VALUES (?, ?, ?, ?)`).bind(documentoId, parteId, papel, projectId).run();
   } catch (e) {
     if (/UNIQUE|PRIMARY KEY/i.test(String((e as Error)?.message))) return falha(409, 'Esse documento já está ligado a este terceiro com esse papel');
     throw e;
   }
   if (papel === 'dpa') await recalcularIndice(db, parteId);
-  await logAudit(db, 'terceiro.documento', ator, `Parte ${parteId}: documento ${documentoId} ligado como ${papel}`, '', '', projectId);
+  await logAudit(db, 'terceiro.documento', ator, `Parte ${parteId}: documento${origem === 'arquivo' ? ' em arquivo' : ''} ${documentoId} ligado como ${papel}`, '', '', projectId);
   return { ok: true };
 }
 
-export async function desligarDocumento(db: D1Database, projectId: string, parteId: string, ator: string, documentoId: string, papel: PapelDocumento): Promise<boolean> {
-  const r = await db.prepare('DELETE FROM documento_partes WHERE documento_id = ? AND parte_id = ? AND papel = ? AND project_id = ?').bind(documentoId, parteId, papel, projectId).run();
+export async function desligarDocumento(db: D1Database, projectId: string, parteId: string, ator: string, documentoId: string, papel: PapelDocumento, origem: OrigemDocumento = 'versionado'): Promise<boolean> {
+  const t = LIGACAO[origem];
+  const r = await db.prepare(`DELETE FROM ${t.ligacao} WHERE ${t.coluna} = ? AND parte_id = ? AND papel = ? AND project_id = ?`).bind(documentoId, parteId, papel, projectId).run();
   if (!r.meta.changes) return false;
   if (papel === 'dpa') await recalcularIndice(db, parteId);
-  await logAudit(db, 'terceiro.documento', ator, `Parte ${parteId}: documento ${documentoId} desligado (${papel})`, '', '', projectId);
+  await logAudit(db, 'terceiro.documento', ator, `Parte ${parteId}: documento${origem === 'arquivo' ? ' em arquivo' : ''} ${documentoId} desligado (${papel})`, '', '', projectId);
   return true;
 }
 

@@ -33,6 +33,7 @@ const rotas = (extra = {}) => ({
     [`GET ${B}/a`]: FICHA(),
     [`GET ${B}/a/criticidades`]: { atual: null, historico: [] },
     'GET /api/v1/projects/p9/documentos': [{ id: 'd1', titulo: 'DPA Nuvem' }, { id: 'd2', titulo: 'Contrato Mestre' }],
+    'GET /api/v1/projects/p9/documentos-arquivo': [{ id: 'ar1', nome: 'DPA <b>assinado</b>' }],
     ...extra,
 });
 const chamadas = (f) => f.mock.calls.map(([u, o]) => `${o?.method || 'GET'} ${new URL(u, 'http://localhost').pathname}${new URL(u, 'http://localhost').search}`);
@@ -320,11 +321,23 @@ describe('ficha: abas', () => {
         const f = await ficha({ [`POST ${B}/a/documentos`]: { ok: true }, [`DELETE ${B}/a/documentos/d1`]: { ok: true } }, 'documentos');
         expect(el('tc-docs').textContent).toContain('DPA <i>Nuvem</i>');
         expect(el('tc-docs').textContent).toContain('Vigente');
-        el('tc-doc').value = 'd2'; el('tc-doc-papel').value = 'contrato';
+        el('tc-doc').value = 'doc:d2'; el('tc-doc-papel').value = 'contrato';
         await window.ligarDocumentoTerceiro('p9', 'a');
         expect(corpoDe(f, `POST ${B}/a/documentos`)).toEqual({ documento_id: 'd2', papel: 'contrato' });
-        await window.desligarDocumentoTerceiro('p9', 'a', 'd1', 'dpa');
+        await window.desligarDocumentoTerceiro('p9', 'a', 'd1', 'dpa', '');
         expect(chamadas(f)).toContain(`DELETE ${B}/a/documentos/d1?papel=dpa`);
+    });
+
+    it('Documentos: o arquivo aparece na lista de ligar (escapado), liga com arquivo_id e desliga com origem=arquivo', async () => {
+        const f = await ficha({ [`POST ${B}/a/documentos`]: { ok: true }, [`DELETE ${B}/a/documentos/ar1`]: { ok: true } }, 'documentos');
+        const op = [...el('tc-doc').options].map((o) => [o.value, o.textContent]);
+        expect(op).toContainEqual(['arquivo:ar1', 'DPA <b>assinado</b> (arquivo)']);
+        expect(el('tc-doc').querySelector('b')).toBeNull();
+        el('tc-doc').value = 'arquivo:ar1'; el('tc-doc-papel').value = 'dpa';
+        await window.ligarDocumentoTerceiro('p9', 'a');
+        expect(corpoDe(f, `POST ${B}/a/documentos`)).toEqual({ arquivo_id: 'ar1', papel: 'dpa' });
+        await window.desligarDocumentoTerceiro('p9', 'a', 'ar1', 'dpa', 'arquivo');
+        expect(chamadas(f)).toContain(`DELETE ${B}/a/documentos/ar1?papel=dpa&origem=arquivo`);
     });
 
     it('Atividades: as duas origens, com o rótulo e o link para a atividade', async () => {
