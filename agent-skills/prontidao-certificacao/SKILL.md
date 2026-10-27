@@ -67,7 +67,7 @@ id;bloco;requisito;severidade;veredito_s1;veredito_s2;pergunta_auditor;constatac
 ```
 
 - `id`: `B<bloco>-<nn>` (ex.: `B3-07`), único no arquivo.
-- `requisito`: cláusula ou controle (ex.: `9.3.2`, `A.8.15`, `27701 A.1.x (a confirmar)`).
+- `requisito`: cláusula ou controle (ex.: `9.3.2`, `A.8.15`, `27701 A.1.2.6`).
 - `pergunta_auditor`: a pergunta que o auditor faria.
 - `constatacao`: o que foi observado, factual, sem adjetivo.
 - `fonte`: obrigatória; várias fontes separadas por `|`.
@@ -86,7 +86,7 @@ Consultar: `references/clausulas-27001.md`, `references/clausulas-27701.md`, `re
 - Não inventar evidência, data, pessoa, valor ou numeração normativa.
 - Não citar contexto fora do escopo definido para o SGSI/PIMS avaliado (nenhum cliente, parceiro ou projeto externo nomeado).
 - Não copiar texto normativo das ISO: parafrasear.
-- Numeração das Tabelas A.1/A.2/A.3 da ISO/IEC 27701:2025: tratar como item a confirmar contra o texto oficial.
+- Numeração das Tabelas A.1, A.2 e A.3 da 27701:2025: conferida contra a ABNT NBR ISO/IEC 27701:2026 em 27/10/2026. Cite o identificador completo (por exemplo, `A.1.2.6`); o pareamento da A.3 com a 27001:2022 é por título, confira na 27002:2022.
 
 ## Como validar
 

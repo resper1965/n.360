@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Numeração da ISO/IEC 27701:2025 conferida contra a norma
+- As referências da skill de prontidão (`agent-skills/prontidao-certificacao/references/`) estavam com "A.1.x (a confirmar)". Conferidas contra a ABNT NBR ISO/IEC 27701:2026 (adoção idêntica da 27701:2025): Tabela A.1 tem 31 controles (A.1.2.2 a A.1.5.5), a A.2 tem 18 (A.2.2.2 a A.2.5.9, agora tabelada) e a A.3 tem 29 (A.3.3 a A.3.31), todos com o identificador oficial.
+- A A.3 anterior era outro conjunto (16 itens de "extensão de privacidade"); foi trocada pela oficial, que é de segurança da informação, com o pareamento por título com o Anexo A da 27001:2022 (a conferir na 27002:2022). Cláusulas 4 a 10: acrescentadas 6.3 e 7.1.
+- O catálogo da aplicação (`src/data/iso27701-2025.ts`) já estava com a numeração oficial de A.1 e A.2 (conferido código a código); a A.3 não está no catálogo.
+
 ### Skill `correcao-e-ajustes` e a fila do painel no mapa do agente
 - Nova skill do consultor (`niso_skill nome=correcao-e-ajustes`): conduz o ciclo achado, ação com dono e prazo, evidência, reavaliação e fechamento, nos dois módulos, com os pontos em que para e pede o "sim", as armadilhas da ferramenta (N/A, aprovação presa ao conteúdo, evidência vencida, cobertura) e o que o agente nunca faz.
 - O mapa e os roteiros do agente (`src/mcp/contexto.ts`) passam a listar `/api/v1/projects/{p}/painel` (a fila do que fazer, por módulo) e o roteiro 13. Nenhuma ferramenta nova: a leitura é `niso_ler` e a escrita segue por `niso_executar` e pelas ferramentas de decisão.
