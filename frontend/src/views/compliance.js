@@ -270,22 +270,25 @@ import { classeDoControle } from '../classe-controle.js';
     }
     window.tempoRelativo = tempoRelativo;
 
+    // Pergunta de quem tira o controle de "implementado" ou do escopo: as atividades do n.privacy que o usam por uma medida.
+    // Busca na hora: sem lista conferida não se muda nada sem perguntar (falha fechada). `acao` fecha a frase ("Mudar o status?").
+    async function perguntaDasAtividades(id, acao) {
+        let nomes = null;
+        try {
+            const r = await api('GET', `/api/v1/controls/${id}/atividades`);
+            nomes = nomesDistintos(Array.isArray(r && r.atividades) ? r.atividades : []);
+        } catch (e) { nomes = null; }
+        if (nomes === null) return `Não foi possível conferir se alguma atividade do n.privacy usa este controle. ${acao} mesmo assim?`;
+        if (!nomes.length) return null;
+        const lista = nomes.length <= 5 ? `${nomes.slice(0, -1).join(', ')}${nomes.length > 1 ? ' e ' : ''}${nomes[nomes.length - 1]}`
+            : `${nomes.slice(0, 5).join(', ')} e mais ${nomes.length - 5}`;
+        return `Este controle é usado em ${nomes.length} ${nomes.length === 1 ? 'atividade' : 'atividades'} do n.privacy: ${lista}. Elas vão mostrar o aviso para revisar a medida. ${acao}?`;
+    }
+
     async function updateControlStatus(id, status) {
         const atual = S.controls.find((c) => c.id === id);
         if (atual && classeDoControle(atual.status) === 'feito' && classeDoControle(status) !== 'feito') {
-            // Busca na hora: sem lista conferida não se muda o status sem perguntar (falha fechada).
-            let nomes = null;
-            try {
-                const r = await api('GET', `/api/v1/controls/${id}/atividades`);
-                nomes = nomesDistintos(Array.isArray(r && r.atividades) ? r.atividades : []);
-            } catch (e) { nomes = null; }
-            let pergunta = null;
-            if (nomes === null) pergunta = 'Não foi possível conferir se alguma atividade do n.privacy usa este controle. Mudar o status mesmo assim?';
-            else if (nomes.length) {
-                const lista = nomes.length <= 5 ? `${nomes.slice(0, -1).join(', ')}${nomes.length > 1 ? ' e ' : ''}${nomes[nomes.length - 1]}`
-                    : `${nomes.slice(0, 5).join(', ')} e mais ${nomes.length - 5}`;
-                pergunta = `Este controle é usado em ${nomes.length} ${nomes.length === 1 ? 'atividade' : 'atividades'} do n.privacy: ${lista}. Elas vão mostrar o aviso para revisar a medida. Mudar o status?`;
-            }
+            const pergunta = await perguntaDasAtividades(id, 'Mudar o status');
             if (pergunta && !(await window.confirmar(pergunta, { titulo: 'Mudar o status do controle', rotulo: 'Mudar' }))) {
                 const sel = document.getElementById('controle-status'); if (sel) sel.value = atual.status; return;
             }
@@ -1507,6 +1510,9 @@ import { classeDoControle } from '../classe-controle.js';
     window.confirmNA = async function(ctrlId) {
         const why = (document.getElementById('na-why')?.value || '').trim();
         if (why.length < MIN_NA_JUSTIFICATION) return;
+        // Excluir do escopo também tira o controle de "implementado": mesmo aviso da mudança de status, antes de gravar.
+        const pergunta = await perguntaDasAtividades(ctrlId, 'Excluir do escopo');
+        if (pergunta && !(await window.confirmar(pergunta, { titulo: 'Excluir o controle do escopo', rotulo: 'Excluir' }))) return;
         try {
             await api('PUT', `/api/v1/controls/${ctrlId}`, { status: 'Not Applicable', description: why });
             // Controle fora do escopo não tem grau de implementação: a maturidade
