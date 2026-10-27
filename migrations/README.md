@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0085** (`ls migrations/*.sql | tail -1`). São 83 arquivos
+- Última migration no repositório: **0086** (`ls migrations/*.sql | tail -1`). São 84 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -695,3 +695,7 @@ Aditiva: cria `lia_respostas` (PK `ropa_id`+`pergunta`, índice por projeto, gat
 ## 0085 — CNPJ da organização em `partes` (2026-10-26)
 
 Aditiva: `partes.cnpj` (nulo; CHECK: só `tipo = 'organizacao'`, 14 dígitos) e o índice único parcial `idx_partes_cnpj` (um CNPJ por projeto). Nenhuma linha existente muda. **Não é idempotente** (`ADD COLUMN`): aplicar só pelo `migrations apply`. Conferência depois: `PRAGMA table_info(partes)` mostra `cnpj`; `SELECT count(*) FROM partes WHERE cnpj IS NOT NULL` dá 0. Produção só com o "sim" do dono e `npm run db:backup` antes; mesma ordem da 0083.
+
+## 0086 — documento em arquivo como DPA e cobertura (2026-10-27)
+
+Aditiva: cria `documentos_arquivo_partes` (arquivo, parte, papel `dpa`/`contrato`/`outro`) e `documentos_arquivo_requisitos` (arquivo, requisito), com os índices por parte e por requisito; as duas nascem vazias e nada existente muda. Idempotente (`IF NOT EXISTS`). Conferência depois: `SELECT name FROM sqlite_master WHERE name LIKE 'documentos_arquivo_%'` lista as duas tabelas e `count(*)` dá 0 em ambas. Produção só com o "sim" do dono e `npm run db:backup` antes; mesma ordem da 0083.

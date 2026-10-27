@@ -261,6 +261,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/data-subject/erase', schema: identificadorSchema, nome: 'identificadorSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/departamentos/:id', schema: departamentoAtualizarSchema, nome: 'departamentoAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/departamentos', schema: departamentoCriarSchema, nome: 'departamentoCriarSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/documentos-arquivo/:id/requisitos', schema: documentoRequisitosSchema, nome: 'documentoRequisitosSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/documentos-arquivo/:id', schema: documentoArquivoSchema, nome: 'documentoArquivoSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/documentos-arquivo', schema: documentoArquivoSchema, nome: 'documentoArquivoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/documentos/:id/excecoes/:exId', schema: excecaoAtualizarSchema, nome: 'excecaoAtualizarSchema' },

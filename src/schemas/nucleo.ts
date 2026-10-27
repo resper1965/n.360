@@ -195,10 +195,12 @@ export const homologacaoTokenSchema = z.object({ token: tokenHomologacao }).stri
 export const homologacaoRespostasSchema = z.object({ token: tokenHomologacao, respostas: respostasHomologacao }).strict();
 export const homologacaoEnviarSchema = z.object({ token: tokenHomologacao, respostas: respostasHomologacao.optional() }).strict();
 
+/** Liga um documento ao terceiro: `documento_id` (versionado) OU `arquivo_id` (documento em arquivo, 0086), nunca os dois. */
 export const terceiroDocumentoSchema = z.object({
-  documento_id: z.string().trim().min(1).max(100),
+  documento_id: z.string().trim().min(1).max(100).optional(),
+  arquivo_id: z.string().trim().min(1).max(100).optional(),
   papel: z.enum(['dpa', 'contrato', 'outro']).default('dpa'),
-}).strict();
+}).strict().refine((d) => !!d.documento_id !== !!d.arquivo_id, { message: 'Informe documento_id ou arquivo_id (um só)' });
 
 // ─── Titular, incidente e consentimento (fatia 7) ─────────────────────────────
 const dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD');

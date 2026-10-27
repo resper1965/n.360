@@ -15,7 +15,7 @@ const METODOS = { trust_center: 'Trust center', questionario: 'Questionário', a
 const RESULTADOS = { aprovado: 'Aprovado', com_ressalvas: 'Aprovado com ressalvas', reprovado: 'Reprovado' };
 const SITUACOES = { pendente: ['Pendente', 'neutral'], vigente: ['Vigente', 'success'], vencida: ['Vencida', 'danger'], reprovada: ['Reprovada', 'danger'] };
 const PAPEIS_DOC = { dpa: 'DPA', contrato: 'Contrato', outro: 'Outro' };
-const STATUS_DOC = { rascunho: 'Rascunho', vigente: 'Vigente', obsoleto: 'Obsoleto' };
+const STATUS_DOC = { rascunho: 'Rascunho', vigente: 'Vigente', publicado: 'Publicado', obsoleto: 'Obsoleto' };
 const ORIGENS = { vinculo: 'Vínculo', compartilhamento_externo: 'Compartilhamento externo' };
 const PENDENCIAS = ['Tipo', 'Criticidade', 'Avaliação', 'DPA'];
 /** "Completo" ou "Falta: Tipo, DPA", do `pendencias` que o servidor manda (a ficha e a lista usam a mesma linha). */
@@ -160,7 +160,10 @@ async function renderTerceiro(c, h, a) {
         try { extra.homologacoes = lista(await api('GET', `/api/v1/projects/${projectId}/homologacoes?parte_id=${encodeURIComponent(parteId)}`)); } catch (e) { extra.homologacoes = []; }
     }
     if (aba === 'cadastro' && editar) { try { extra.pessoas = lista(await api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`)); } catch (e) { extra.pessoas = []; } }
-    if (aba === 'documentos' && editar) { try { extra.documentos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos`)); } catch (e) { extra.documentos = []; } }
+    if (aba === 'documentos' && editar) {
+        try { extra.documentos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos`)); } catch (e) { extra.documentos = []; }
+        try { extra.arquivos = lista(await api('GET', `/api/v1/projects/${projectId}/documentos-arquivo`)); } catch (e) { extra.arquivos = []; }
+    }
     if (minha !== sequencia) return;
 
     const [rotulo, tom] = SITUACOES[t.situacao] || [t.situacao, 'neutral'];
@@ -285,12 +288,13 @@ window.salvarSegurancaTerceiro = async function (projectId, parteId, vendorId) {
 function abaDocumentos(projectId, parteId, t, editar, extra) {
     const ligados = lista(t.documentos_ligados);
     const documentos = extra.documentos || [];
+    const arquivos = extra.arquivos || [];
     return `<div id="tc-docs">${ligados.length ? `<table class="data-table"><thead><tr><th>Documento</th><th>Papel</th><th>Situação</th><th></th></tr></thead><tbody>${ligados.map((d) =>
-            `<tr><td>${escapeHTML(d.titulo)}</td><td>${escapeHTML(PAPEIS_DOC[d.papel] || d.papel)}</td><td>${escapeHTML(STATUS_DOC[d.status] || d.status || '')}</td><td class="t-right">${editar
-                ? `<button class="btn btn-ghost btn-sm" data-action="desligarDocumentoTerceiro" data-args='${args(projectId, parteId, d.id, d.papel)}'>Desligar</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+            `<tr><td>${escapeHTML(d.titulo)}${d.origem === 'arquivo' ? ' <span class="t-dim">(arquivo)</span>' : ''}</td><td>${escapeHTML(PAPEIS_DOC[d.papel] || d.papel)}</td><td>${escapeHTML(STATUS_DOC[d.status] || d.status || '')}</td><td class="t-right">${editar
+                ? `<button class="btn btn-ghost btn-sm" data-action="desligarDocumentoTerceiro" data-args='${args(projectId, parteId, d.id, d.papel, d.origem === 'arquivo' ? 'arquivo' : '')}'>Desligar</button>` : ''}</td></tr>`).join('')}</tbody></table>`
             : vazio('Nenhum documento ligado.')}
-            ${editar && documentos.length ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; margin-top:0.75rem"><div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-doc">Documento</label>
-                <select class="form-input" id="tc-doc">${documentos.map((d) => `<option value="${escapeHTML(d.id)}">${escapeHTML(d.titulo)}</option>`).join('')}</select></div>
+            ${editar && (documentos.length || arquivos.length) ? `<div style="display:flex; gap:0.5rem; align-items:flex-end; margin-top:0.75rem"><div class="form-group" style="flex:2; margin:0"><label class="form-label" for="tc-doc">Documento</label>
+                <select class="form-input" id="tc-doc">${documentos.map((d) => `<option value="doc:${escapeHTML(d.id)}">${escapeHTML(d.titulo)}</option>`).join('')}${arquivos.map((d) => `<option value="arquivo:${escapeHTML(d.id)}">${escapeHTML(d.nome)} (arquivo)</option>`).join('')}</select></div>
                 <div class="form-group" style="flex:1; margin:0"><label class="form-label" for="tc-doc-papel">Papel</label><select class="form-input" id="tc-doc-papel">${opcoes(PAPEIS_DOC)}</select></div>
                 <button class="btn btn-sm" data-action="ligarDocumentoTerceiro" data-args='${args(projectId, parteId)}'>Ligar</button></div>` : ''}</div>`;
 }
@@ -356,11 +360,14 @@ window.registrarAvaliacaoTerceiro = function (projectId, parteId) {
     }), 'Não foi possível registrar a avaliação', 'Avaliação registrada.');
 };
 
-window.ligarDocumentoTerceiro = (projectId, parteId) => acao(
-    () => api('POST', `/api/v1/projects/${projectId}/terceiros/${parteId}/documentos`, { documento_id: el('tc-doc').value, papel: el('tc-doc-papel').value }), 'Não foi possível ligar o documento', 'Documento ligado.');
+/** O select mistura documento versionado (`doc:<id>`) e documento em arquivo (`arquivo:<id>`): o corpo leva um só dos dois ids. */
+const documentoDoSelect = (valor, papel) => (valor.startsWith('arquivo:') ? { arquivo_id: valor.slice(8), papel } : { documento_id: valor.replace(/^doc:/, ''), papel });
 
-window.desligarDocumentoTerceiro = (projectId, parteId, documentoId, papel) => acao(
-    () => api('DELETE', `/api/v1/projects/${projectId}/terceiros/${parteId}/documentos/${documentoId}?papel=${encodeURIComponent(papel)}`), 'Não foi possível desligar o documento', 'Documento desligado.');
+window.ligarDocumentoTerceiro = (projectId, parteId) => acao(
+    () => api('POST', `/api/v1/projects/${projectId}/terceiros/${parteId}/documentos`, documentoDoSelect(el('tc-doc').value, el('tc-doc-papel').value)), 'Não foi possível ligar o documento', 'Documento ligado.');
+
+window.desligarDocumentoTerceiro = (projectId, parteId, documentoId, papel, origem) => acao(
+    () => api('DELETE', `/api/v1/projects/${projectId}/terceiros/${parteId}/documentos/${documentoId}?papel=${encodeURIComponent(papel)}${origem === 'arquivo' ? '&origem=arquivo' : ''}`), 'Não foi possível desligar o documento', 'Documento desligado.');
 
 // ─── Avaliação de criticidade (spec 2026-10-18) ─────────────────────────────────────────────────────────────────
 // Cinco blocos, uma resposta cada, com a pergunta do legado (spec 2026-10-19). O nível é derivado no servidor (pior critério); o tipo segue o nível, salvo grande provedor.

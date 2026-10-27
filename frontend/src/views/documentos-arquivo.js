@@ -25,6 +25,7 @@ const opcoes = (pares, atual) => pares.map(([v, r]) => `<option value="${escapeH
 const falha = (e, padrao) => showToast((e && e.message) || padrao, 'error');
 
 let lista = null; // { projeto, docs }
+const arr = (r) => (Array.isArray(r) ? r : []);
 
 async function renderDocumentosArquivo(c, h, a) {
     h.textContent = tituloDaTela('nav-documentos-arquivo', 'Documentos');
@@ -73,7 +74,8 @@ window.daAbrir = async function (id) {
         const r = await api('GET', `/api/v1/projects/${lista.projeto}/partes?tipo=pessoa&status=ativa`);
         pessoas = Array.isArray(r) ? r : [];
     } catch (e) { /* sem a lista de pessoas o documento ainda se grava sem responsável */ }
-    modal = { id: d ? d.id : null, doc: d };
+    modal = { id: d ? d.id : null, doc: d, requisitos: [], catalogo: [], requisitosOk: true };
+    if (d) await carregarRequisitos();
     const resp = d ? d.responsavel_parte_id : '';
     // O responsável atual entra na lista mesmo se a pessoa foi inativada.
     if (resp && !pessoas.some((p) => p.id === resp)) pessoas.unshift({ id: resp, nome: d.responsavel_nome || 'Responsável atual' });
@@ -96,12 +98,49 @@ window.daAbrir = async function (id) {
             <input class="form-input mt-2" id="da-arquivo" type="file" accept=".pdf,.doc,.docx">
             <div class="co-campo-rotulo">PDF, DOC ou DOCX, até 10 MB.${d && d.arquivo_nome ? ' Enviar outro substitui o atual.' : ''}</div>
             <div class="re-erro" id="da-erro" role="alert"></div></div>
+        ${d ? `<div class="form-group"><span class="form-label">Requisitos que cobre</span>
+            <div id="da-requisitos">${blocoRequisitos()}</div>
+            <div class="co-campo-rotulo">Cobre o requisito só com o documento publicado e com arquivo anexado.</div></div>` : ''}
         <div class="d-flex gap-2">
             <button class="btn btn-primary" data-action="daSalvar">Salvar</button>
             ${d ? `<button class="btn btn-ghost" data-action="daExcluir">Excluir</button>` : ''}
         </div>
     `);
 };
+
+// Requisitos que o arquivo cobre (0086). Sem a leitura (`requisitosOk`) não há como ligar: o PUT substitui o conjunto inteiro.
+async function carregarRequisitos() {
+    try { modal.requisitos = arr(await api('GET', `/api/v1/projects/${lista.projeto}/documentos-arquivo/${modal.id}/requisitos`)); } catch (e) { modal.requisitosOk = false; return; }
+    if (podeEditar()) { try { modal.catalogo = arr(await api('GET', '/api/v1/requisitos')); } catch (e) { /* sem catálogo, sem seletor */ } }
+}
+
+function blocoRequisitos() {
+    if (!modal.requisitosOk) return '<span class="co-campo-rotulo">Não foi possível carregar os requisitos.</span>';
+    const editar = podeEditar();
+    const tags = modal.requisitos.map((r) => `<span class="ctx-tag" title="${escapeHTML(r.titulo)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)}${editar
+        ? ` <button class="btn btn-ghost btn-sm" data-action="daDesligarRequisito" data-args='${args(r.id)}' aria-label="Desligar ${escapeHTML(r.referencia)}">×</button>` : ''}</span>`).join(' ');
+    const livres = modal.catalogo.filter((r) => !modal.requisitos.some((x) => x.id === r.id));
+    return `${tags || '<span class="co-campo-rotulo">Nenhum requisito ligado.</span>'}
+        ${editar && livres.length ? `<div class="d-flex gap-2 items-center mt-2"><label class="sr-only" for="da-req-add">Ligar requisito</label>
+            <select class="form-select" id="da-req-add"><option value="">Ligar requisito…</option>${livres.map((r) => `<option value="${escapeHTML(r.id)}">${escapeHTML(r.fonte_id)} ${escapeHTML(r.referencia)} — ${escapeHTML(r.titulo)}</option>`).join('')}</select>
+            <button class="btn btn-sm" data-action="daLigarRequisito">Ligar</button></div>` : ''}`;
+}
+
+async function gravarRequisitos(ids) {
+    try {
+        await api('PUT', `/api/v1/projects/${lista.projeto}/documentos-arquivo/${modal.id}/requisitos`, { requisitos: ids });
+        modal.requisitos = arr(await api('GET', `/api/v1/projects/${lista.projeto}/documentos-arquivo/${modal.id}/requisitos`));
+        el('da-requisitos').innerHTML = blocoRequisitos();
+    } catch (e) { falha(e, 'Não foi possível atualizar os requisitos'); }
+}
+
+window.daLigarRequisito = function () {
+    const novo = el('da-req-add') && el('da-req-add').value;
+    if (!modal || !modal.id || !modal.requisitosOk || !novo) return undefined;
+    return gravarRequisitos([...modal.requisitos.map((r) => r.id), novo]);
+};
+
+window.daDesligarRequisito = (requisitoId) => (modal && modal.id && modal.requisitosOk ? gravarRequisitos(modal.requisitos.map((r) => r.id).filter((x) => x !== requisitoId)) : undefined);
 
 function arquivoAtual() {
     const d = modal && modal.doc;

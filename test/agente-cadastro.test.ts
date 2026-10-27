@@ -74,4 +74,16 @@ describe('agente consultor preenche o cadastro do cliente (skill cadastro-client
     expect((await env.DB.prepare('SELECT cnpj FROM partes WHERE id = ?').bind(orgId).first<{ cnpj: string }>())?.cnpj).toBe('45723174000110');
     expect(await env.DB.prepare(`SELECT 1 FROM parte_vinculos WHERE parte_id = ? AND papel = 'responsavel' AND alvo_tipo = 'parte' AND alvo_id = ?`).bind(pessoaId, orgId).first()).not.toBeNull();
   });
+
+  it('o agente só lê o documento em arquivo: não liga como DPA nem como cobertura', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome) VALUES ('f-arq', 'p-cad', 'organizacao', 'Fornecedora do Arquivo')`),
+      env.DB.prepare(`INSERT INTO documentos_arquivo (id, project_id, nome, tipo, status, r2_key, arquivo_nome, arquivo_tipo) VALUES ('da-arq', 'p-cad', 'DPA assinado', 'contrato', 'publicado', 'k/x.pdf', 'x.pdf', 'pdf')`),
+    ]);
+    const ligar = await chamarFerramenta(consultor, 'niso_executar', { metodo: 'POST', caminho: '/api/v1/projects/p-cad/terceiros/f-arq/documentos', corpo: { arquivo_id: 'da-arq', papel: 'dpa' } });
+    expect(ligar.isError).toBe(true);
+    const cobrir = await chamarFerramenta(consultor, 'niso_executar', { metodo: 'PUT', caminho: '/api/v1/projects/p-cad/documentos-arquivo/da-arq/requisitos', corpo: { requisitos: [] } });
+    expect(cobrir.isError).toBe(true);
+    expect(await env.DB.prepare(`SELECT 1 FROM documentos_arquivo_partes WHERE documento_arquivo_id = 'da-arq'`).first()).toBeNull();
+  });
 });

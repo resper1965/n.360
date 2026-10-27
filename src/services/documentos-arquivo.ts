@@ -2,6 +2,7 @@ import { genId } from '../helpers';
 import { tipoDoAnexo, MIME_ANEXO, type TipoAnexo } from './ropa-abas/anexos';
 import { falha, type Falha } from './ropa-abas/comum';
 import type { DocumentoArquivo } from '../schemas';
+import { partesComDpaDoArquivo, recalcularIndice } from './terceiros';
 
 /**
  * Documentos do legado (spec 2026-10-19, frente B; tabela `documentos_arquivo`, migration 0081): um arquivo (PDF/DOC/DOCX) com
@@ -46,8 +47,13 @@ export async function salvarDocumentoArquivo(db: D1Database, projectId: string, 
   }
   const r = await db.prepare(`UPDATE documentos_arquivo SET nome = ?, tipo = ?, status = ?, vencimento = ?, sem_vencimento = ?, responsavel_parte_id = ?,
       updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`).bind(...vals, id, projectId).run();
-  return r.meta.changes ? { ok: true, id } : falha(404, 'Documento não encontrado');
+  if (!r.meta.changes) return falha(404, 'Documento não encontrado');
+  await reindexar(db, await partesComDpaDoArquivo(db, id));
+  return { ok: true, id };
 }
+
+/** O DPA do fornecedor depende de o arquivo estar publicado e anexado (`SQL_ARQUIVO_VALE`): mexer nisso refaz o índice de confiança dele. */
+const reindexar = async (db: D1Database, partes: string[]) => { for (const p of partes) await recalcularIndice(db, p); };
 
 const chaveDo = (db: D1Database, projectId: string, id: string) =>
   db.prepare('SELECT r2_key FROM documentos_arquivo WHERE id = ? AND project_id = ?').bind(id, projectId).first<{ r2_key: string | null }>();
@@ -55,7 +61,9 @@ const chaveDo = (db: D1Database, projectId: string, id: string) =>
 export async function excluirDocumentoArquivo(env: Env, projectId: string, id: string): Promise<boolean> {
   const l = await chaveDo(env.DB, projectId, id);
   if (!l) return false;
+  const partes = await partesComDpaDoArquivo(env.DB, id);
   await env.DB.prepare('DELETE FROM documentos_arquivo WHERE id = ? AND project_id = ?').bind(id, projectId).run();
+  await reindexar(env.DB, partes);
   if (l.r2_key) await env.STORAGE.delete(l.r2_key).catch(() => undefined);
   return true;
 }
@@ -78,6 +86,7 @@ export async function anexarArquivo(env: Env, projectId: string, id: string, arq
     throw e;
   }
   if (antes.r2_key && antes.r2_key !== chave) await env.STORAGE.delete(antes.r2_key).catch(() => undefined);
+  await reindexar(env.DB, await partesComDpaDoArquivo(env.DB, id));
   return { ok: true };
 }
 
@@ -105,5 +114,6 @@ export async function removerArquivo(env: Env, projectId: string, id: string): P
   await env.DB.prepare(`UPDATE documentos_arquivo SET r2_key = NULL, arquivo_nome = NULL, arquivo_tipo = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`)
     .bind(id, projectId).run();
   await env.STORAGE.delete(l.r2_key).catch(() => undefined);
+  await reindexar(env.DB, await partesComDpaDoArquivo(env.DB, id));
   return true;
 }
