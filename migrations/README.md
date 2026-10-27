@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0087** (`ls migrations/*.sql | tail -1`). São 85 arquivos
+- Última migration no repositório: **0088** (`ls migrations/*.sql | tail -1`). São 86 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -703,3 +703,7 @@ Aditiva: cria `documentos_arquivo_partes` (arquivo, parte, papel `dpa`/`contrato
 ## 0087 — Eliminação com ativos próprios (2026-10-27)
 
 Refaz `tratamento_etapa_itens` (SQLite não altera CHECK) para aceitar a etapa `eliminacao`. Nenhuma tabela aponta para ela (é folha), então o DROP não cascateia. Copia as linhas como estão e, de continuidade, cada ativo do Armazenamento vira também ativo da Eliminação (a tela já os mostrava herdados); `tratamento_itens`, o hash da aprovação, já tem esses itens e não muda. Recria `idx_etapa_itens_item`. Conferência depois: `SELECT etapa, count(*) FROM tratamento_etapa_itens GROUP BY etapa` lista `eliminacao` com o mesmo total de `armazenamento`. Produção só com o "sim" do dono e `npm run db:backup` antes; repetir é inofensivo (a tabela nova é recriada e troca a antiga), mas aplique uma vez, pelo `migrations apply`.
+
+## 0088 — gatilho de isolamento de `tratamento_etapa_itens` (2026-10-27)
+
+A 0087 refez a tabela (DROP + RENAME) e o DROP apaga os gatilhos dela: o `etapa_itens_do_projeto_ins` (0079) ficou de fora. Achado da revisão de segurança de 27/10; não houve caminho explorável (o código confere o item com `foraDoProjeto`), mas SQL direto deixou de ser recusado. A 0088 recria o gatilho, igual ao da 0079 e do `schema.sql` (aditiva, `IF NOT EXISTS`). Conferência depois: `SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'tratamento_etapa_itens'` lista o gatilho. **Regra que isto deixa:** migration que refaz tabela (DROP + RENAME) recria também os gatilhos dela; confira com `sqlite_master` antes de aplicar. Produção só com o "sim" do dono e `npm run db:backup` antes.
