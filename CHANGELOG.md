@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Migrations x schema.sql, e dois acertos da mescla
+- Novo teste `test/migrations-consistencia.test.ts`: migration que refaz tabela (DROP + RENAME) precisa recriar os gatilhos e índices que o `schema.sql` define sobre ela (R1, a regra que teria pegado a perda do gatilho na 0087), e toda coluna criada por `ADD COLUMN` precisa existir no `schema.sql` (R2). Mutação verificada: sem a 0088, a R1 reprova e cita a 0087. Spec e plano em `docs/superpowers/`.
+- Mesclar não copia mais o e-mail do duplicado para o cadastro que fica quando este é o encarregado (DPO): a linha de assinatura é da interface, como no `PUT /partes/:id`; a prévia avisa.
+- Mesclar recalcula o índice de confiança do fornecedor que fica (o DPA e o perfil do duplicado passam para ele). Achados 2 e 3 da revisão de segurança das PRs #512 a #515.
+
 ### Numeração da ISO/IEC 27001:2022 conferida contra a norma
 - Conferidos contra a ABNT NBR ISO/IEC 27001:2022 (Versão Corrigida 2023) com a Emenda 1:2024: os 93 códigos do Anexo A (`src/data/iso27001-2022.ts` e a referência da skill de prontidão) e as cláusulas 4 a 10. Nenhum código divergia. Os títulos do catálogo diferem da norma só na redação, de propósito (título de trabalho próprio).
 - A referência da skill de prontidão passa a citar a Emenda 1:2024 (mudanças climáticas) em 4.1 e 4.2; a jornada do n.iso já a tinha no passo 4.1.
