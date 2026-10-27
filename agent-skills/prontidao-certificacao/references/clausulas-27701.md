@@ -1,6 +1,6 @@
 # ISO/IEC 27701:2025 — extensões do PIMS às cláusulas 4 a 10 (paráfrase)
 
-> **Numeração a confirmar contra o texto oficial da 27701:2025.** A edição 2025 passou a ser norma de sistema de gestão independente; a correspondência abaixo segue a estrutura das cláusulas 4–10 e deve ser conferida antes de citar número em achado. Em caso de dúvida, cite `27701 <cláusula> (a confirmar)`.
+> **Numeração das cláusulas 4 a 10 conferida contra a ABNT NBR ISO/IEC 27701:2026 (adoção idêntica da ISO/IEC 27701:2025), em 27/10/2026.** Cite o identificador completo da cláusula (por exemplo, `27701 6.1.2`). Texto em paráfrase.
 
 | Cláusula | Exige | Informação documentada obrigatória | Pergunta do auditor | Amostra S2 |
 |---|---|---|---|---|
@@ -12,6 +12,8 @@
 | 6.1.2 | Avaliação de riscos incluindo riscos ao titular (não só à organização) | Sim: processo de avaliação de riscos | Os riscos aos direitos e liberdades dos titulares foram avaliados? | Riscos de privacidade com impacto no titular; RIPD/DPIA quando cabível |
 | 6.1.3 | Tratamento de riscos com controles de privacidade; SoA incluindo controles do anexo da 27701 | Sim: SoA com controles de privacidade | A SoA inclui os controles de privacidade com justificativa de exclusão? | SoA com Tabelas A.1/A.3 (e A.2 se aplicável) |
 | 6.2 | Objetivos de privacidade mensuráveis | Sim: objetivos | Como se mede o desempenho em privacidade? | Medições (prazo de resposta ao titular, incidentes) |
+| 6.3 | Mudanças no PIMS feitas de forma planejada | Não explícita | Como uma mudança no PIMS (escopo, processo, sistema) é planejada antes de ser feita? | Registro de mudança de escopo ou de processo, com análise do efeito na privacidade |
+| 7.1 | Determinar e prover os recursos do PIMS | Não explícita | Quem decide e quem garante pessoas e meios para o PIMS? | Alocação de responsáveis e orçamento |
 | 7.2–7.4 | Competência, conscientização e comunicação incluindo privacidade | Sim: evidência de competência | Quem trata dados pessoais foi treinado em privacidade? | Registros de treinamento em privacidade |
 | 7.5 | Informação documentada do PIMS, incluindo registros de tratamento | Sim | Onde estão os registros de tratamento? | ROPA versionado |
 | 8.1–8.3 | Operação, avaliação e tratamento de riscos de privacidade, incluindo operadores externos | Sim: resultados | Como se controla o tratamento feito por operadores/suboperadores? | Contratos com cláusulas de proteção de dados; avaliações de fornecedor |
