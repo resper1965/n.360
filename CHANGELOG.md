@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Painel de prontidão para o primeiro cliente
+- `docs/prontidao-primeiro-cliente.md`: levantamento de 27/10/2026, só leitura, com a situação de cada frente (correção, segurança, segredo exposto, dados, operação, uso real, conformidade, autenticação), o que falta em ordem e o comando que refaz cada prova. Aponta como bloqueio o token do repositório ainda em texto claro (#317) e, como lacunas operacionais, os prazos legais não cadastrados, o MFA desligado, o `slo.yml` desativado e o roteiro de aceite nunca rodado.
+
 ### Migrations x schema.sql, e dois acertos da mescla
 - Novo teste `test/migrations-consistencia.test.ts`: migration que refaz tabela (DROP + RENAME) precisa recriar os gatilhos e índices que o `schema.sql` define sobre ela (R1, a regra que teria pegado a perda do gatilho na 0087), e toda coluna criada por `ADD COLUMN` precisa existir no `schema.sql` (R2). Mutação verificada: sem a 0088, a R1 reprova e cita a 0087. Spec e plano em `docs/superpowers/`.
 - Mesclar não copia mais o e-mail do duplicado para o cadastro que fica quando este é o encarregado (DPO): a linha de assinatura é da interface, como no `PUT /partes/:id`; a prévia avisa.
