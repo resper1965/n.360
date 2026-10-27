@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Gatilho de isolamento devolvido a `tratamento_etapa_itens` (migration 0088)
+- A 0087 refez a tabela e perdeu o gatilho que recusa ligar item de outro projeto por SQL direto. A 0088 o recria. Nenhum caminho da aplicação era explorável (o código já conferia o projeto do item); era só a defesa no banco. Achado da revisão de segurança das PRs #512 a #515.
+
 ### Eliminação com escolha própria de ativos (migration 0087)
 - Na ficha da atividade, a etapa Eliminação deixa de herdar os ativos do Armazenamento: a pessoa escolhe os ativos de onde os dados serão eliminados ("+ Adicionar Ativos" e "Tirar", como nas outras etapas). Sem ativo a etapa fica pendente, salvo com o Armazenamento Não Aplicável. Os ativos escolhidos entram no conteúdo da aprovação do tratamento, como os das demais etapas.
 - Migration 0087 (reconstrói `tratamento_etapa_itens` para aceitar a etapa): copia os ativos do Armazenamento para a Eliminação, então nada muda na tela das atividades existentes; o hash da aprovação não muda. O campo `travado` saiu do ativo da etapa na resposta de `GET .../etapas`.
