@@ -34,6 +34,7 @@ const rotas = (etapas = ETAPAS(), extra = {}) => ({
   [`PUT ${B}/etapas/coleta`]: { ok: true },
   [`PUT ${B}/etapas/armazenamento/ativos`]: { ok: true },
   [`PUT ${B}/etapas/eliminacao`]: { ok: true },
+  [`PUT ${B}/etapas/eliminacao/ativos`]: { ok: true },
   [`PUT ${B}/etapas/uso`]: { ok: true },
   [`PUT ${B}/etapas/uso/ativos`]: { ok: true },
   [`PUT ${B}/etapas/coleta/ativos`]: { ok: true },
@@ -179,14 +180,26 @@ describe('demais etapas', () => {
     expect(corpoDe(f, `PUT ${B}/etapas/armazenamento/ativos`)).toEqual({ ativos: [{ item_id: 'i1', local_armazenamento: 'Servidor exemplo' }] });
   });
 
-  it('Eliminação: tabela só de leitura (herdada) e Prazo e Descarte lado a lado', async () => {
-    await abrirTab(ETAPAS((x) => { x.etapas.forEach((e) => { e.bloqueada = false; }); porEtapa(x, 'armazenamento').ativos = [{ item_id: 'i1', nome: 'Sistema exemplo', local_armazenamento: 'Servidor exemplo', travado: false }]; return x; }));
+  it('Eliminação: ativos próprios, com Adicionar e Tirar; Prazo e Descarte lado a lado', async () => {
+    const f = await abrirTab(ETAPAS((x) => { x.etapas.forEach((e) => { e.bloqueada = false; }); porEtapa(x, 'eliminacao').ativos = [{ item_id: 'i1', nome: 'Sistema exemplo', local_armazenamento: null }]; return x; }));
     botao('eliminacao').click();
     const corpo = bloco('eliminacao');
-    expect(corpo.querySelectorAll('table input')).toHaveLength(0);
-    expect(corpo.querySelector('table').textContent).toContain('Servidor exemplo');
+    expect(corpo.querySelector('table')).toBeNull();
+    expect(corpo.querySelector('#at-et-eliminacao-ativos').textContent).toContain('Sistema exemplo');
+    expect(corpo.querySelector('[data-acao="add-ativo"]')).not.toBeNull();
     expect(corpo.querySelector('.et-duas [data-campo="prazo"]')).not.toBeNull();
     expect(corpo.querySelector('.et-duas [data-campo="descarte"]')).not.toBeNull();
+    corpo.querySelector('[data-acao="remover-ativo"]').click();
+    await esperar(() => expect(document.querySelector('[data-confirmar="sim"]')).not.toBeNull());
+    document.querySelector('[data-confirmar="sim"]').click();
+    await esperar(() => expect(corpoDe(f, `PUT ${B}/etapas/eliminacao/ativos`)).toEqual({ ativos: [] }));
+  });
+
+  it('Eliminação sem ativos explica o que escolher', async () => {
+    await abrirTab(ETAPAS((x) => { x.etapas.forEach((e) => { e.bloqueada = false; }); return x; }));
+    botao('eliminacao').click();
+    expect(bloco('eliminacao').textContent).toContain('Nenhum ativo para eliminar');
+    expect(bloco('eliminacao').textContent).toContain('Escolha os sistemas, arquivos e bases');
   });
 });
 

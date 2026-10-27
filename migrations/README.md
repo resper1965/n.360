@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0086** (`ls migrations/*.sql | tail -1`). São 84 arquivos
+- Última migration no repositório: **0087** (`ls migrations/*.sql | tail -1`). São 85 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -699,3 +699,7 @@ Aditiva: `partes.cnpj` (nulo; CHECK: só `tipo = 'organizacao'`, 14 dígitos) e 
 ## 0086 — documento em arquivo como DPA e cobertura (2026-10-27)
 
 Aditiva: cria `documentos_arquivo_partes` (arquivo, parte, papel `dpa`/`contrato`/`outro`) e `documentos_arquivo_requisitos` (arquivo, requisito), com os índices por parte e por requisito; as duas nascem vazias e nada existente muda. Idempotente (`IF NOT EXISTS`). Conferência depois: `SELECT name FROM sqlite_master WHERE name LIKE 'documentos_arquivo_%'` lista as duas tabelas e `count(*)` dá 0 em ambas. Produção só com o "sim" do dono e `npm run db:backup` antes; mesma ordem da 0083.
+
+## 0087 — Eliminação com ativos próprios (2026-10-27)
+
+Refaz `tratamento_etapa_itens` (SQLite não altera CHECK) para aceitar a etapa `eliminacao`. Nenhuma tabela aponta para ela (é folha), então o DROP não cascateia. Copia as linhas como estão e, de continuidade, cada ativo do Armazenamento vira também ativo da Eliminação (a tela já os mostrava herdados); `tratamento_itens`, o hash da aprovação, já tem esses itens e não muda. Recria `idx_etapa_itens_item`. Conferência depois: `SELECT etapa, count(*) FROM tratamento_etapa_itens GROUP BY etapa` lista `eliminacao` com o mesmo total de `armazenamento`. Produção só com o "sim" do dono e `npm run db:backup` antes; repetir é inofensivo (a tabela nova é recriada e troca a antiga), mas aplique uma vez, pelo `migrations apply`.

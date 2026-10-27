@@ -36,8 +36,8 @@ export function situacaoDaEtapa(d: DadosDaEtapa): EstadoEtapa {
     const feitos = new Map(d.titularesDaEtapa.map((t) => [t.titular_id, t]));
     if (d.titularesDaColeta.some((t) => { const x = feitos.get(t.titular_id); return !x || (x.situacao === 'definido' && !x.dados); })) faltas.push('titulares da Coleta');
   }
-  if (d.etapa !== 'eliminacao' && !d.ativos.length) faltas.push('ao menos um ativo');
-  if (d.etapa === 'eliminacao' && !d.armazenamento.naoAplicavel && !d.armazenamento.ativos) faltas.push('ativos do Armazenamento');
+  // Armazenamento Não Aplicável: nada é guardado, então não há ativo a eliminar (a Eliminação concluída assim continua concluída).
+  if (!d.ativos.length && !(d.etapa === 'eliminacao' && d.armazenamento.naoAplicavel)) faltas.push('ao menos um ativo');
   if (d.etapa === 'compartilhamento_interno' && !d.areas) faltas.push('ao menos uma área');
   if (d.etapa === 'compartilhamento_externo' && !d.parceiros) faltas.push('ao menos um parceiro');
   if (d.etapa === 'armazenamento' && d.ativos.some((a) => !cheio(a.local_armazenamento))) faltas.push('local de armazenamento de cada ativo');
@@ -45,7 +45,7 @@ export function situacaoDaEtapa(d: DadosDaEtapa): EstadoEtapa {
   return { etapa: d.etapa, situacao: faltas.length ? 'pendente' : 'concluida', faltas };
 }
 
-export type AtivoDaEtapa = { item_id: string; nome: string; local_armazenamento: string | null; travado: boolean };
+export type AtivoDaEtapa = { item_id: string; nome: string; local_armazenamento: string | null };
 export type DadoDoTitular = { id: string; nome: string; sensivel: boolean };
 export type TitularDaEtapa = { titular_id: string; nome: string; situacao: 'definido' | 'nao_usa'; dados: DadoDoTitular[] };
 export type EtapaDetalhe = {
@@ -106,9 +106,7 @@ export async function lerEtapas(db: D1Database, projectId: string, ropaId: strin
     return [...mapa.values()];
   };
   const ativosDe = (etapa: Etapa): AtivoDaEtapa[] => ativos.results.filter((a) => a.etapa === etapa)
-    .map((a) => ({ item_id: a.item_id, nome: a.nome, local_armazenamento: a.local_armazenamento, travado: etapa === 'eliminacao' }));
-  // A Eliminação não tem ativos próprios: lê os do Armazenamento (somente leitura, spec 5).
-  const ativosDaEtapa = (etapa: Etapa) => (etapa === 'eliminacao' ? ativosDe('armazenamento') : ativosDe(etapa));
+    .map((a) => ({ item_id: a.item_id, nome: a.nome, local_armazenamento: a.local_armazenamento }));
   const naoAplicavelDe = (etapa: Etapa) => cabPor.get(etapa)?.situacao === 'nao_aplicavel';
   const titularesColeta = titularesDe('coleta');
   const dadosDaEtapa = (etapa: Etapa): DadosDaEtapa => {
@@ -117,7 +115,7 @@ export async function lerEtapas(db: D1Database, projectId: string, ropaId: strin
     return {
       etapa, naoAplicavel,
       descricao: naoAplicavel ? null : h?.descricao ?? null,
-      ativos: naoAplicavel ? [] : ativosDaEtapa(etapa),
+      ativos: naoAplicavel ? [] : ativosDe(etapa),
       areas: etapa === 'compartilhamento_interno' ? areas.length : 0,
       parceiros: etapa === 'compartilhamento_externo' ? parceiros.length : 0,
       titularesDaColeta: titularesColeta.map((t) => ({ titular_id: t.titular_id, dados: t.dados.length })),
@@ -139,7 +137,7 @@ export async function lerEtapas(db: D1Database, projectId: string, ropaId: strin
       origem: h?.origem ? (JSON.parse(h.origem) as string[]) : [],
       solicita_consentimento: h?.solicita_consentimento == null ? null : !!h.solicita_consentimento,
       criancas_adolescentes: etapa === 'coleta' ? !!reg.criancas_adolescentes : false,
-      ativos: naoAplicavel ? [] : ativosDaEtapa(etapa),
+      ativos: naoAplicavel ? [] : ativosDe(etapa),
       areas: etapa === 'compartilhamento_interno' ? areas : [],
       parceiros: etapa === 'compartilhamento_externo' ? parceiros : [],
       titulares: etapa === 'coleta' || naoAplicavel ? (etapa === 'coleta' ? titularesColeta : []) : titularesDe(etapa),
@@ -259,10 +257,9 @@ export async function salvarCabecalhoDaEtapa(db: D1Database, projectId: string, 
   return { ok: true, mudouHash };
 }
 
-/** Ativos da etapa: substitui a lista; `tratamento_itens` (hash) é sincronizado. Eliminação não tem ativos próprios (400). */
+/** Ativos da etapa: substitui a lista; `tratamento_itens` (hash) é sincronizado. A Eliminação escolhe os seus (0087). */
 export async function salvarAtivos(db: D1Database, projectId: string, ropaId: string, etapa: Etapa, ator: string,
   ativos: { item_id: string; local_armazenamento?: string | null }[]): Promise<Falha | Gravado> {
-  if (etapa === 'eliminacao') return falha(400, 'A Eliminação usa os ativos do Armazenamento');
   if (etapa !== 'armazenamento' && ativos.some((a) => a.local_armazenamento)) return falha(400, 'Local de armazenamento só existe no Armazenamento');
   const p = await preparar(db, projectId, ropaId);
   if (!p.ok) return p;
