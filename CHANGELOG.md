@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Aviso ao excluir um controle do escopo (n.iso)
+- Marcar um controle como "Não aplicável" na SoA agora avisa quando alguma atividade do n.privacy usa o controle por uma medida, como a mudança de status já avisava. Cancelar não grava; sem conseguir conferir as atividades, pergunta antes (falha fechada). O aviso é o mesmo texto, de uma função só (`perguntaDasAtividades`, `frontend/src/views/compliance.js`). Controle não se apaga no produto: a exclusão do escopo é o caminho.
+
 ### Documento em arquivo como DPA do fornecedor e como cobertura (migration 0086)
 - O documento em arquivo (PDF/DOC/DOCX da tela Documentos) agora pode ser o DPA ou o contrato de um fornecedor e cobrir requisitos, como o documento versionado já fazia. Quem anexou o DPA assinado deixa de aparecer como "sem DPA" e sem cobertura.
 - Só vale o arquivo PUBLICADO e com arquivo anexado; rascunho, obsoleto e documento sem arquivo não provam nada. A mesma regra serve ao DPA, ao índice de confiança do fornecedor, à pendência "sem DPA", ao export de fornecedores e à cobertura da LGPD (o arquivo cobre o requisito por inteiro, como a política vigente; a origem aparece marcada como arquivo).

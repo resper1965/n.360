@@ -89,3 +89,38 @@ describe('confirmação ao sair de implementado', () => {
         expect(apiMock.mock.calls.some((c) => c[0] === 'PUT')).toBe(false);
     });
 });
+
+describe('excluir do escopo (N/A)', () => {
+    const justificativa = 'Nao ha tratamento de dado pessoal neste escopo do SGSI, registrado.';
+    const preparar = async (atividades) => {
+        await abrir(atividades);
+        document.body.insertAdjacentHTML('beforeend', `<textarea id="na-why">${justificativa}</textarea>`);
+        apiMock.mockClear();
+    };
+    it('com atividade usando o controle, pergunta; cancelar não grava', async () => {
+        await preparar([A(1), A(2)]);
+        window.confirmar.mockResolvedValue(false);
+        await window.confirmNA(CTRL.id);
+        expect(window.confirmar.mock.calls[0][0]).toContain('Este controle é usado em 2 atividades do n.privacy: Atividade 1 e Atividade 2.');
+        expect(window.confirmar.mock.calls[0][0]).toContain('Excluir do escopo?');
+        expect(apiMock.mock.calls.some((c) => c[0] === 'PUT')).toBe(false);
+    });
+    it('confirmada, grava a exclusão', async () => {
+        await preparar([A(1)]);
+        window.confirmar.mockResolvedValue(true);
+        await window.confirmNA(CTRL.id);
+        expect(apiMock).toHaveBeenCalledWith('PUT', `/api/v1/controls/${CTRL.id}`, { status: 'Not Applicable', description: justificativa });
+    });
+    it('sem atividade ligada, não pergunta; sem conseguir conferir, pergunta (falha fechada)', async () => {
+        await preparar([]);
+        await window.confirmNA(CTRL.id);
+        expect(window.confirmar).not.toHaveBeenCalled();
+        expect(apiMock.mock.calls.some((c) => c[0] === 'PUT')).toBe(true);
+        document.body.insertAdjacentHTML('beforeend', `<textarea id="na-why">${justificativa}</textarea>`);
+        apiMock.mockReset(); apiMock.mockImplementation(async (m, u) => { if (u.endsWith('/atividades')) throw new Error('x'); return []; });
+        window.confirmar.mockResolvedValue(false);
+        await window.confirmNA(CTRL.id);
+        expect(window.confirmar.mock.calls[0][0]).toContain('Não foi possível conferir');
+        expect(apiMock.mock.calls.some((c) => c[0] === 'PUT')).toBe(false);
+    });
+});
