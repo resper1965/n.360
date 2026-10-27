@@ -48,6 +48,7 @@ n.iso:
 - Análise crítica e métricas: /api/v1/projects/{p}/management-reviews · /api/v1/projects/{p}/metrics · /api/v1/projects/{p}/policy-acknowledgments
 - Certificação: /api/v1/projects/{p}/certification · mudanças de escopo: /api/v1/projects/{p}/scope-changes
 - Diagnóstico: /api/v1/projects/{p}/gap-analysis · /api/v1/projects/{p}/traceability · /api/v1/projects/{p}/coherence · /api/v1/projects/{p}/audit-pack
+- Fila do que fazer (os dois módulos): /api/v1/projects/{p}/painel (por módulo: fazer[] em atraso, semana e plano, vencimentos, cobertura e riscos; é por onde se começa uma rodada de correção)
 
 n.privacy:
 - Requisitos e cobertura: /api/v1/projects/{p}/requisitos/lacunas?fonte=lgpd (ou fonte=anpd) · catálogo (ids de base legal): /api/v1/requisitos?fonte=lgpd
@@ -74,7 +75,8 @@ n.privacy (só com o módulo no projeto e na sua conta; as ferramentas niso_priv
 10. Migração de programa existente — niso_skill nome=migracao-programa: planilhas, políticas e contratos do cliente. Arquivo inteiro: niso_importar_programa (criar lote, processar, decidir itens, confirmar; decisão do consultor, com o "sim" dele, confirmado_pelo_usuario: true e motivo); o que faltar, você completa à mão. Cada gravação: PEÇA APROVAÇÃO HUMANA.
 11. Terceiros — niso_skill nome=avaliacao-terceiros → niso_privacy_terceiros (tipo, método, situação) → proponha tipo, avaliação e DPA. Cada gravação: PEÇA APROVAÇÃO HUMANA.
 Qualquer módulo:
-12. Cadastro do cliente (empresa, CNPJ, representante, encarregado, pessoas, áreas, sistemas, fornecedores) — niso_skill nome=cadastro-cliente: o que ler antes, onde gravar cada dado e o critério de pronto. Cada gravação: PEÇA APROVAÇÃO HUMANA.`;
+12. Cadastro do cliente (empresa, CNPJ, representante, encarregado, pessoas, áreas, sistemas, fornecedores) — niso_skill nome=cadastro-cliente: o que ler antes, onde gravar cada dado e o critério de pronto. Cada gravação: PEÇA APROVAÇÃO HUMANA.
+13. Correção e ajustes depois de um diagnóstico — niso_skill nome=correcao-e-ajustes: lê a fila (/painel), prioriza, propõe ação com dono e prazo, cobra a evidência, reavalia e fecha. Cada gravação: PEÇA APROVAÇÃO HUMANA; fechar ação é decisão (niso_concluir_acao).`;
 
 /** Roteiros do auditor: ler, comparar com o requisito, registrar achado com a evidência citada. */
 export const ROTEIROS_AUDITOR = `Roteiros de auditoria (ler → comparar com o requisito → registrar achado com a evidência citada):
