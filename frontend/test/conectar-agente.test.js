@@ -65,13 +65,13 @@ describe('Conectar agente — estrutura', () => {
 
   it('o painel mostra só o trecho do cliente selecionado', () => {
     const { c } = monta();
-    expect(painel(c).textContent).toContain('claude mcp add --transport http --scope user niso');
+    expect(painel(c).textContent).toContain('claude mcp add --transport http --scope user n360');
     expect(painel(c).textContent).not.toContain('codex mcp add');
     window.__selecionarCliente('codex');
     expect(aba(c, 'Codex').getAttribute('aria-selected')).toBe('true');
     expect(aba(c, 'Claude Code').getAttribute('aria-selected')).toBe('false');
-    expect(painel(c).textContent).toContain('codex mcp add niso --url https://niso.ness.com.br/mcp');
-    expect(painel(c).textContent).toContain('codex mcp login niso');
+    expect(painel(c).textContent).toContain('codex mcp add n360 --url https://niso.ness.com.br/mcp');
+    expect(painel(c).textContent).toContain('codex mcp login n360');
     expect(painel(c).textContent).not.toContain('claude mcp add');
   });
 
@@ -100,7 +100,7 @@ describe('Conectar agente — instruções que o consultor precisa', () => {
     expect(t).toContain('Needs authentication');
     expect(t).toContain('/mcp');
     expect(t).toContain('claude mcp list');
-    expect(t).toContain('claude mcp remove niso -s user');
+    expect(t).toContain('claude mcp remove n360 -s user');
   });
 
   it('o passo 2 diz que o login é do consultor, não do agente da sessão', () => {
@@ -291,7 +291,7 @@ describe('Conectar agente — copiar', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     monta();
     await window.__copiarTrecho('claude');
-    expect(writeText).toHaveBeenCalledWith('claude mcp add --transport http --scope user niso https://niso.ness.com.br/mcp');
+    expect(writeText).toHaveBeenCalledWith('claude mcp add --transport http --scope user n360 https://niso.ness.com.br/mcp');
     expect(window.showToast).toHaveBeenCalledWith('Copiado');
   });
 
@@ -301,7 +301,7 @@ describe('Conectar agente — copiar', () => {
     monta();
     window.__selecionarCliente('codex');
     await window.__copiarTrecho('codex');
-    expect(writeText.mock.calls[0][0]).toContain('codex mcp login niso');
+    expect(writeText.mock.calls[0][0]).toContain('codex mcp login n360');
   });
 
   it('se a área de transferência recusar, diz que falhou em vez de mentir', async () => {

@@ -47,7 +47,7 @@ de programa e os rascunhos de IA do n.privacy (que sao da tela). Para outro proj
 
 | Cliente | Onde | Trecho | Estado |
 |---|---|---|---|
-| Claude Code | terminal | `claude mcp add --transport http niso https://niso.ness.com.br/mcp` | exercitado em producao (30/09/2026) |
+| Claude Code | terminal | `claude mcp add --transport http n360 https://niso.ness.com.br/mcp` | exercitado em producao (30/09/2026) |
 | Cursor | `.cursor/mcp.json` | `{ "mcpServers": { "niso": { "url": "https://niso.ness.com.br/mcp" } } }` | a confirmar |
 | Codex | `~/.codex/config.toml` | `[mcp_servers.niso]` + `url = "https://niso.ness.com.br/mcp"` | a confirmar |
 | Antigravity | `~/.gemini/config/mcp_config.json` | `{ "mcpServers": { "niso": { "serverUrl": "https://niso.ness.com.br/mcp" } } }` | a confirmar |

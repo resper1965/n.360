@@ -27,8 +27,8 @@ equipe e o administrador do cliente: o agente MCP recebe 403 neles (`FORA_DO_AGE
 
 | Cliente | Como |
 |---|---|
-| **Claude Code** | `claude mcp add --transport http niso https://niso.ness.com.br/mcp` |
-| **Codex** | `codex mcp add niso --url https://niso.ness.com.br/mcp`, depois `codex mcp login niso`. Confira com `codex mcp list`. |
+| **Claude Code** | `claude mcp add --transport http n360 https://niso.ness.com.br/mcp` |
+| **Codex** | `codex mcp add n360 --url https://niso.ness.com.br/mcp`, depois `codex mcp login n360`. Confira com `codex mcp list`. |
 | **Cursor** | em `.cursor/mcp.json` (ou `~/.cursor/mcp.json`, para todos os projetos): `{ "mcpServers": { "niso": { "url": "https://niso.ness.com.br/mcp" } } }`. Entre por Cursor Settings > MCP. |
 | **Antigravity** | em `~/.gemini/config/mcp_config.json` (antes da 2.0: `~/.gemini/antigravity/mcp_config.json`): `{ "mcpServers": { "niso": { "serverUrl": "https://niso.ness.com.br/mcp" } } }`. Entre pelo botão Authenticate do painel MCP; editor e linha de comando têm login separado. |
 | **ChatGPT** | Configurações > Conectores > Avançado > Modo desenvolvedor: crie um conector com a URL `https://niso.ness.com.br/mcp` e autenticação OAuth. |
@@ -95,7 +95,7 @@ Qualquer cliente que fale MCP por HTTP com OAuth (registro dinâmico, PKCE, call
 `http` em loopback) conecta. A ness. só dá suporte aos seis acima.
 
 **OpenClaw: não use com dado de cliente.** Ele conecta (`openclaw mcp add`, depois
-`openclaw mcp login niso`), mas é um agente de longa duração que recebe mensagem por WhatsApp,
+`openclaw mcp login n360`), mas é um agente de longa duração que recebe mensagem por WhatsApp,
 Telegram, Slack e outros canais. Qualquer mensagem nesses canais pode virar instrução para um
 agente que grava e apaga no projeto do cliente com o seu alcance. Se mesmo assim for usar: nenhum
 canal aberto a terceiros, um projeto por conexão (já é a regra) e revogue a concessão em
@@ -254,7 +254,7 @@ Quem vê o cartão: administrador do cliente, `platform_admin`, `consultoria_adm
 
 | Sintoma | Causa provável e o que fazer |
 |---|---|
-| A ferramenta nova não aparece, ou `/mcp` não carregou | Reconecte: rode `/mcp` no Claude Code e reconecte o `niso`. O cliente guarda a lista de ferramentas da conexão anterior. |
+| A ferramenta nova não aparece, ou `/mcp` não carregou | Reconecte: rode `/mcp` no Claude Code e reconecte o `n360`. O cliente guarda a lista de ferramentas da conexão anterior. |
 | "refaça o login" / 401 | A concessão foi revogada, expirou (30 dias), você saiu da governança do projeto ou trocou a senha. Conecte de novo. |
 | "Separação de funções" ao conectar | Você já tem um agente do outro papel ativo neste cliente. Revogue-o (painel Agentes ou Governança) e conecte de novo. |
 | O agente auditor recebe 403 ao gravar | Correto: o auditor só grava achado e nota. Corrigir é da equipe, pela ação corretiva. |

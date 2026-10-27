@@ -10,14 +10,14 @@ const CLIENTES = [
     // `--scope user`: o padrão ("local") prende o servidor à pasta onde o comando rodou, e some numa
     // sessão sem pasta ou numa pasta temporária (caso real de um consultor, 01/10/2026).
     { id: 'claude', nome: 'Claude Code', onde: 'Terminal', aConfirmar: false,
-      trecho: `claude mcp add --transport http --scope user niso ${URL_MCP}`,
+      trecho: `claude mcp add --transport http --scope user n360 ${URL_MCP}`,
       precisa: 'Precisa do comando claude no terminal. Se o seu terminal disser que ele não existe (comum com o app desktop), instale no PowerShell com: irm https://claude.ai/install.ps1 | iex, e abra um terminal novo.',
-      depois: 'Depois do comando o servidor aparece como "Needs authentication": é o esperado. Abra o claude, rode /mcp, escolha niso e entre no navegador. Confira com: claude mcp list (deve mostrar conectado). Para refazer: claude mcp remove niso -s user.' },
+      depois: 'Depois do comando o servidor aparece como "Needs authentication": é o esperado. Abra o claude, rode /mcp, escolha n360 e entre no navegador. Confira com: claude mcp list (deve mostrar conectado). Para refazer: claude mcp remove n360 -s user.' },
     { id: 'cursor', nome: 'Cursor', onde: 'Arquivo .cursor/mcp.json (este projeto) ou ~/.cursor/mcp.json (todos)', aConfirmar: true,
       trecho: `{ "mcpServers": { "niso": { "url": "${URL_MCP}" } } }`,
       depois: 'Salve o arquivo e abra Cursor Settings > MCP: o niso aparece pedindo login. Clique, entre pelo navegador e volte. Conectado, ele lista as ferramentas do niso. Se o navegador não abrir, atualize o Cursor: algumas versões têm esse defeito.' },
     { id: 'codex', nome: 'Codex', onde: 'Terminal', aConfirmar: true,
-      trecho: `codex mcp add niso --url ${URL_MCP}\ncodex mcp login niso`,
+      trecho: `codex mcp add n360 --url ${URL_MCP}\ncodex mcp login n360`,
       depois: 'O segundo comando abre o navegador para você entrar no n.iso. Confira com: codex mcp list (deve mostrar o niso), ou /mcp dentro do Codex.' },
     { id: 'antigravity', nome: 'Antigravity', onde: 'Arquivo ~/.gemini/config/mcp_config.json', aConfirmar: true,
       trecho: `{ "mcpServers": { "niso": { "serverUrl": "${URL_MCP}" } } }`,
@@ -56,7 +56,7 @@ const VE_CONECTADOS = ['platform_admin', 'consultoria_admin'];
 
 const PASSOS = [
     { titulo: 'Adicione o servidor', texto: 'Copie o comando ou o endereço do seu cliente, na aba acima, e use-o onde a aba indica. O endereço é o mesmo para todos.' },
-    { titulo: 'Entre e escolha o cliente e o papel', texto: 'O servidor fica sem acesso até você entrar: no Claude Code, abra o claude, rode /mcp, escolha niso e entre pelo navegador. Esse login é seu, o agente da sessão não o faz por você. No navegador, escolha um cliente (é um por conexão) e o papel: Consultor ou Auditor.' },
+    { titulo: 'Entre e escolha o cliente e o papel', texto: 'O servidor fica sem acesso até você entrar: no Claude Code, abra o claude, rode /mcp, escolha n360 e entre pelo navegador. Esse login é seu, o agente da sessão não o faz por você. No navegador, escolha um cliente (é um por conexão) e o papel: Consultor ou Auditor.' },
     { titulo: 'Chame niso_contexto', texto: 'Peça ao agente para começar por niso_contexto: ela diz o cliente, o mapa da app e os roteiros (diagnóstico, fechar lacuna, responder auditoria e a pré-avaliação de prontidão, que só lê; no n.privacy, inventário, titular e incidente, cobertura, maturidade, implantação, migração e terceiros).' },
 ];
 

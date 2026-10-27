@@ -12,6 +12,9 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Servidor MCP chama-se n360
+- O nome do servidor MCP (o que o cliente mostra e usa no comando) passa de `niso` a `n360`: `claude mcp add --transport http --scope user n360 https://niso.ness.com.br/mcp`, `/mcp` > `n360`. O endereço continua `niso.ness.com.br/mcp` (é o recurso que os clientes OAuth já registraram), os nomes das ferramentas continuam `niso_*` e o OAuth e as concessões não mudam. Conexão antiga chamada `niso` segue funcionando até expirar; quem quiser o nome novo roda `claude mcp remove niso -s user` e adiciona `n360` (o prefixo das ferramentas no Claude Code passa de `mcp__niso__` a `mcp__n360__`; regra de permissão com o prefixo antigo precisa ser refeita).
+
 ### Gatilho de isolamento devolvido a `tratamento_etapa_itens` (migration 0088)
 - A 0087 refez a tabela e perdeu o gatilho que recusa ligar item de outro projeto por SQL direto. A 0088 o recria. Nenhum caminho da aplicação era explorável (o código já conferia o projeto do item); era só a defesa no banco. Achado da revisão de segurança das PRs #512 a #515.
 
