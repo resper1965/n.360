@@ -2,7 +2,8 @@
 // ABNT NBR ISO/IEC 27701:2026). O Anexo A da edição 2025 reorganizou os controles
 // de privacidade em tabelas por papel:
 //   - Tabela A.1 — controles específicos do CONTROLADOR de DP (31 controles);
-//   - Tabela A.2 — controles específicos do OPERADOR de DP (18 controles).
+//   - Tabela A.2 — controles específicos do OPERADOR de DP (18 controles);
+//   - Tabela A.3 — controles de SEGURANÇA DA INFORMAÇÃO, comuns ao controlador e ao operador (29 controles, A.3.3 a A.3.31).
 // A numeração é de 4 níveis (ex.: A.1.2.6), diferente da edição 2019.
 //
 // IMPORTANTE (licença): os TÍTULOS abaixo são redigidos em palavras próprias, a
@@ -76,10 +77,44 @@ export const ISO_27701_2025_PROCESSOR: readonly Iso27701Control[] = [
   { code: 'A.2.5.9', title: 'Notificação de troca de subcontratado' },
 ] as const;
 
+// Tabela A.3 — Segurança da informação, comum ao controlador e ao operador de DP (29).
+// O comentário de cada linha é o controle do Anexo A da 27001:2022 de mesmo tema, pareado pelo TÍTULO (confira na 27002:2022 antes de citar o par).
+export const ISO_27701_2025_SECURITY: readonly Iso27701Control[] = [
+  { code: 'A.3.3', title: 'Políticas de segurança da informação' }, // 27001:2022 A.5.1
+  { code: 'A.3.4', title: 'Papéis e responsabilidades pela segurança' }, // 27001:2022 A.5.2
+  { code: 'A.3.5', title: 'Classificação da informação' }, // 27001:2022 A.5.12
+  { code: 'A.3.6', title: 'Rotulagem da informação' }, // 27001:2022 A.5.13
+  { code: 'A.3.7', title: 'Transferência de informação' }, // 27001:2022 A.5.14
+  { code: 'A.3.8', title: 'Gestão de identidade' }, // 27001:2022 A.5.16
+  { code: 'A.3.9', title: 'Direitos de acesso' }, // 27001:2022 A.5.18
+  { code: 'A.3.10', title: 'Segurança da informação nos contratos de fornecedores' }, // 27001:2022 A.5.20
+  { code: 'A.3.11', title: 'Planejamento e preparação para incidentes' }, // 27001:2022 A.5.24
+  { code: 'A.3.12', title: 'Resposta a incidentes de segurança' }, // 27001:2022 A.5.26
+  { code: 'A.3.13', title: 'Requisitos legais, regulatórios e contratuais' }, // 27001:2022 A.5.31
+  { code: 'A.3.14', title: 'Proteção de registros' }, // 27001:2022 A.5.33
+  { code: 'A.3.15', title: 'Análise crítica independente da segurança' }, // 27001:2022 A.5.35
+  { code: 'A.3.16', title: 'Conformidade com políticas, regras e normas de segurança' }, // 27001:2022 A.5.36
+  { code: 'A.3.17', title: 'Conscientização, educação e treinamento' }, // 27001:2022 A.6.3
+  { code: 'A.3.18', title: 'Acordos de confidencialidade' }, // 27001:2022 A.6.6
+  { code: 'A.3.19', title: 'Mesa limpa e tela limpa' }, // 27001:2022 A.7.7
+  { code: 'A.3.20', title: 'Mídias de armazenamento' }, // 27001:2022 A.7.10
+  { code: 'A.3.21', title: 'Descarte seguro ou reutilização de equipamentos' }, // 27001:2022 A.7.14
+  { code: 'A.3.22', title: 'Dispositivos dos usuários (endpoint)' }, // 27001:2022 A.8.1
+  { code: 'A.3.23', title: 'Autenticação segura' }, // 27001:2022 A.8.5
+  { code: 'A.3.24', title: 'Backup das informações' }, // 27001:2022 A.8.13
+  { code: 'A.3.25', title: 'Registro de eventos (log)' }, // 27001:2022 A.8.15
+  { code: 'A.3.26', title: 'Uso de criptografia' }, // 27001:2022 A.8.24
+  { code: 'A.3.27', title: 'Ciclo de vida de desenvolvimento seguro' }, // 27001:2022 A.8.25
+  { code: 'A.3.28', title: 'Requisitos de segurança da aplicação' }, // 27001:2022 A.8.26
+  { code: 'A.3.29', title: 'Arquitetura e engenharia de sistemas seguros' }, // 27001:2022 A.8.27
+  { code: 'A.3.30', title: 'Desenvolvimento terceirizado' }, // 27001:2022 A.8.30
+  { code: 'A.3.31', title: 'Informações de teste' }, // 27001:2022 A.8.33
+] as const;
+
 export const ISO_27701_2025_STANDARD = 'ISO 27701:2025';
 
 // Papéis (projects.org_role é texto livre no nISO). Normaliza para decidir quais
-// tabelas semear: Controlador → A.1; Operador → A.2; ambos → A.1 + A.2.
+// tabelas semear: Controlador → A.1; Operador → A.2; ambos → A.1 + A.2. A A.3 (segurança) vale para os dois papéis e vai sempre.
 export function controlsForRole(orgRole: string | null | undefined): Iso27701Control[] {
   const r = (orgRole || '').toLowerCase();
   const isController = /control/.test(r) || /both|amb/.test(r) || r.trim() === '';
@@ -87,5 +122,6 @@ export function controlsForRole(orgRole: string | null | undefined): Iso27701Con
   const out: Iso27701Control[] = [];
   if (isController) out.push(...ISO_27701_2025_CONTROLLER);
   if (isProcessor) out.push(...ISO_27701_2025_PROCESSOR);
+  out.push(...ISO_27701_2025_SECURITY);
   return out;
 }

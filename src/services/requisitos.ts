@@ -1,5 +1,5 @@
 import { ISO_27001_2022, ISO_27001_2022_STANDARD } from '../data/iso27001-2022';
-import { ISO_27701_2025_CONTROLLER, ISO_27701_2025_PROCESSOR, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
+import { ISO_27701_2025_CONTROLLER, ISO_27701_2025_PROCESSOR, ISO_27701_2025_SECURITY, ISO_27701_2025_STANDARD } from '../data/iso27701-2025';
 import { LGPD, LGPD_VERSAO } from '../data/lgpd';
 import { ANPD, ANPD_VERSAO } from '../data/anpd';
 import { MAPEAMENTOS } from '../data/mapeamento-privacidade-iso';
@@ -46,6 +46,8 @@ function linhasIso(): Linha[] {
     ...ISO_27001_2022.map((c) => ({ id: idDe(F_27001, c.code), fonte_id: F_27001, referencia: c.code, titulo: c.title, papel: null })),
     ...ISO_27701_2025_CONTROLLER.map((c) => ({ id: idDe(F_27701, c.code), fonte_id: F_27701, referencia: c.code, titulo: c.title, papel: 'controlador' })),
     ...ISO_27701_2025_PROCESSOR.map((c) => ({ id: idDe(F_27701, c.code), fonte_id: F_27701, referencia: c.code, titulo: c.title, papel: 'operador' })),
+    // A.3 é de segurança e vale para os dois papéis: sem papel.
+    ...ISO_27701_2025_SECURITY.map((c) => ({ id: idDe(F_27701, c.code), fonte_id: F_27701, referencia: c.code, titulo: c.title, papel: null })),
   ];
 }
 

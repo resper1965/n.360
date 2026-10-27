@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### A.3 da ISO/IEC 27701:2025 no catálogo de controles
+- O catálogo da 27701 ganha a Tabela A.3 (segurança da informação, A.3.3 a A.3.31, 29 controles), comum ao controlador e ao operador, com título de trabalho próprio e o controle de mesmo tema da 27001:2022 pareado por título (`src/data/iso27701-2025.ts`). `controlsForRole` passa a sempre incluí-la: Controlador = A.1 + A.3 (60), Operador = A.2 + A.3 (47), os dois = 78. O catálogo de requisitos (`requisitos`, semeado na manutenção diária) também a recebe, sem papel.
+- Projetos novos já nascem com a A.3. Projeto existente a recebe com `POST /projects/:id/seed-27701-2025` (idempotente: só cria o que falta). Os controles novos nascem como "Faltando": cada um se marca implementado ou Não aplicável com justificativa, como qualquer controle da SoA. Não há mapeamento da A.3 para a LGPD, então a cobertura da LGPD não muda.
+- Corrigido junto: o papel "Ainda não mapeado" continua caindo no Controlador (a condição de fallback olhava o tamanho da lista, que passou a nunca ser vazia).
+
 ### SLO de produção medido dentro do Worker
 - O GitHub Actions ficou parado por cobrança (o job do `slo.yml` nem iniciava), e a vigilância do que o usuário sente com o sistema no ar dependia dele. Nova rotina `src/services/slo.ts`, no cron `15 */6 * * *`: mesma consulta e mesmos tetos de `scripts/slo.mjs` (5xx acima de 1%; p95 acima de 800 ms fora das rotas de IA), testados contra o script.
 - Um e-mail para `ALERTA_EMAIL` por transição (entrada em violação, volta ao normal) e também quando não consegue medir (token recusado, API fora, resposta que não é JSON): vigilância calada não vira prova de saúde. A última medição fica no KV `slo:ultimo`.

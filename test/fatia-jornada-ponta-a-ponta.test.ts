@@ -72,7 +72,7 @@ describe('fatia de jornada: do aceite da proposta ao auditor, só pelo produto',
 
     const cadm = await entrar('cadm@ness.lat', SENHA_EQUIPE);
     const controles = await ok(await chamar(cadm, 'GET', `/api/v1/projects/${P}/traceability`));
-    expect(controles.controls.length).toBe(124); // 93 da 27001 + 31 da 27701 vendida
+    expect(controles.controls.length).toBe(153); // 93 da 27001 + 60 da 27701 vendida (A.1 31 + A.3 29)
 
     // ── a consultoria designa o consultor; o consultor cria as contas ───────────
     await ok(await chamar(cadm, 'POST', `/api/v1/projects/${P}/governance`,
@@ -132,7 +132,7 @@ describe('fatia de jornada: do aceite da proposta ao auditor, só pelo produto',
     const tokenAuditor = (gerado.url as string).match(/\/auditor#([0-9a-f]{64})$/)?.[1];
     expect(tokenAuditor).toBeTruthy();
     const soa = await ok(await chamar({}, 'POST', '/api/v1/public/auditor/ver', { token: tokenAuditor }));
-    expect(soa.controles.length).toBe(124);
+    expect(soa.controles.length).toBe(153);
     expect(soa.controles.find((c: any) => c.id === c51).evidencias).toEqual([
       expect.objectContaining({ id: evId, file_name: 'politica.pdf', file_hash, evaluation_status: 'conforming', ciso_approved_by: 'Lia Líder' }),
     ]);

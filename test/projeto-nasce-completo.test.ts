@@ -45,7 +45,7 @@ describe('projeto nasce completo do aceite da proposta', () => {
 
     // 1. controles
     expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27001:2022'`, projetoId)).toBe(93);
-    expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27701:2025'`, projetoId)).toBe(31);
+    expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27701:2025'`, projetoId)).toBe(60);
     // escopo e nome
     expect(await db().prepare('SELECT scope, project_name FROM projects WHERE id = ?').bind(projetoId).first<any>())
       .toEqual({ scope: 'Sede em São Paulo e a plataforma de pagamentos', project_name: 'Cliente Ltda. — ISO/IEC 27001:2022 + 27701:2025' });
@@ -61,7 +61,7 @@ describe('projeto nasce completo do aceite da proposta', () => {
     // re-aceite: 409, nada novo
     expect((await aceitar(corpo)).status).toBe(409);
     expect(await conta(`SELECT COUNT(*) n FROM projects WHERE proposta_id = 'pp-1'`)).toBe(1);
-    expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ?`, projetoId)).toBe(124);
+    expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ?`, projetoId)).toBe(153);
     expect(await conta(`SELECT COUNT(*) n FROM project_governance WHERE project_id = ?`, projetoId)).toBe(1);
     expect(await conta(`SELECT COUNT(*) n FROM notifications WHERE type = 'projeto_sem_consultor' AND target_id = 'pp-1'`)).toBe(1);
   }, 60_000);
@@ -74,7 +74,7 @@ describe('projeto nasce completo do aceite da proposta', () => {
       method: 'POST', headers: { ...s, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }), workerEnv() as any)).json<any>()).id as string;
     const iso = await criar({ client_name: 'Manual', standards: 'ISO 27001, ISO 27701:2025', org_role: 'Controller', modulos: ['iso'] });
     expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27001:2022'`, iso)).toBe(93);
-    expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27701:2025'`, iso)).toBe(31);
+    expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ? AND standard = 'ISO 27701:2025'`, iso)).toBe(60);
     expect(await conta(`SELECT COUNT(*) n FROM project_phases WHERE project_id = ?`, iso)).toBe(PHASE_TITLES.length);
     const priv = await criar({ client_name: 'Só privacidade', standards: 'LGPD', modulos: ['privacy'] });
     expect(await conta(`SELECT COUNT(*) n FROM compliance_controls WHERE project_id = ?`, priv)).toBe(0);
