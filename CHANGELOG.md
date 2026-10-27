@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Skill `correcao-e-ajustes` e a fila do painel no mapa do agente
+- Nova skill do consultor (`niso_skill nome=correcao-e-ajustes`): conduz o ciclo achado, ação com dono e prazo, evidência, reavaliação e fechamento, nos dois módulos, com os pontos em que para e pede o "sim", as armadilhas da ferramenta (N/A, aprovação presa ao conteúdo, evidência vencida, cobertura) e o que o agente nunca faz.
+- O mapa e os roteiros do agente (`src/mcp/contexto.ts`) passam a listar `/api/v1/projects/{p}/painel` (a fila do que fazer, por módulo) e o roteiro 13. Nenhuma ferramenta nova: a leitura é `niso_ler` e a escrita segue por `niso_executar` e pelas ferramentas de decisão.
+
 ### Servidor MCP chama-se n360
 - O nome do servidor MCP (o que o cliente mostra e usa no comando) passa de `niso` a `n360`: `claude mcp add --transport http --scope user n360 https://niso.ness.com.br/mcp`, `/mcp` > `n360`. O endereço continua `niso.ness.com.br/mcp` (é o recurso que os clientes OAuth já registraram), os nomes das ferramentas continuam `niso_*` e o OAuth e as concessões não mudam. Conexão antiga chamada `niso` segue funcionando até expirar; quem quiser o nome novo roda `claude mcp remove niso -s user` e adiciona `n360` (o prefixo das ferramentas no Claude Code passa de `mcp__niso__` a `mcp__n360__`; regra de permissão com o prefixo antigo precisa ser refeita).
 

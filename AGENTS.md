@@ -609,8 +609,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **MCP**: `mcp-server-niso/` expoe o produto a clientes MCP com filtro de
   ferramenta por papel. Ver `mcp-server-niso/README.md`.
 - **Skills do consultor**: `agent-skills/<nome>/` (SKILL.md + references + scripts) e a fonte; o
-  Worker nao le disco (sete em 2026-10-26, `ls agent-skills`: `prontidao-certificacao`, `maturidade-lgpd`,
-  `atendimento-titular`, `implantacao-privacy`, `migracao-programa`, `avaliacao-terceiros` e `cadastro-cliente`), entao `npm run skills:gerar` escreve `src/mcp/skills-gerado.ts` (commitado; o
+  Worker nao le disco (oito em 2026-10-27, `ls agent-skills | wc -l`: `prontidao-certificacao`, `maturidade-lgpd`,
+  `atendimento-titular`, `implantacao-privacy`, `migracao-programa`, `avaliacao-terceiros`, `cadastro-cliente` e `correcao-e-ajustes`), entao `npm run skills:gerar` escreve `src/mcp/skills-gerado.ts` (commitado; o
   `test/agente-skills.test.ts` falha se ficar velho). O agente as le pelo MCP com `niso_skill`,
   atras do login. Skill nova = pasta nova + gerar + roteiro em `src/mcp/contexto.ts`.
 - **Trilha de implementacao do n.iso (faixa `iso`; spec `docs/superpowers/specs/2026-10-15-bancada-trilha-design.md`, codinome interno "Bancada").**
