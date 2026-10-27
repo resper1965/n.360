@@ -430,7 +430,7 @@ export async function handlerMcp(req: Request, env: any, ctx: any, fetchHono: Fe
   const t = transporteInterno(bruto);
 
   const criar = () => {
-    const server = new Server({ name: 'niso', version: '2.0.0' }, { capabilities: { tools: {} }, instructions: papel === 'auditor' ? INSTRUCOES_AUDITOR : INSTRUCOES });
+    const server = new Server({ name: 'n360', version: '2.0.0' }, { capabilities: { tools: {} }, instructions: papel === 'auditor' ? INSTRUCOES_AUDITOR : INSTRUCOES });
     server.setRequestHandler('tools/list', async () => ({ tools: ferramentas as any }));
     server.setRequestHandler('tools/call', async (r) => {
       const { name, arguments: args } = r.params;
