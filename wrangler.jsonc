@@ -51,7 +51,7 @@
 	// (src/services/avisos-prazo.ts). A cada 15 min: sonda interna das
 	// dependências (src/services/sonda.ts), que substitui o cron do uptime.yml.
 	"triggers": {
-		"crons": ["10 4 * * *", "0 11 * * *", "*/15 * * * *"]
+		"crons": ["10 4 * * *", "0 11 * * *", "*/15 * * * *", "15 */6 * * *"]
 	},
 	"upload_source_maps": true,
 

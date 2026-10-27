@@ -46,7 +46,7 @@ O n.iso não tem plantão formal. Isto é o que existe de fato:
 | Produção fora do ar (Worker, domínio, certificado) | e-mail do monitor externo | serviço de uptime gratuito, a cada 5 min (passo a passo abaixo) |
 | D1, KV ou R2 sem resposta com o Worker no ar | e-mail para `ALERTA_EMAIL` (um na queda, um na volta) | sonda interna do Worker, cron de 15 min (`src/services/sonda.ts`) |
 | Publicada pela metade (sob pedido) | issue, label `uptime` | `uptime.yml`, só manual desde 13/10/2026 |
-| Taxa de erro alta com o site NO ar | issue automática, label `slo` | `slo.yml`, a cada 6h sobre o Analytics Engine |
+| Taxa de erro alta com o site NO ar | e-mail para `ALERTA_EMAIL` (um na entrada, um na volta; também quando não consegue medir) | o próprio Worker, a cada 6h sobre o Analytics Engine (`src/services/slo.ts`); o `slo.yml` ficou como alternativa manual |
 | Cliente reclama | quem atende | — |
 
 **Por que três sondas.** A do `uptime.yml` rodava no Actions a cada 15 minutos; com o repositório privado, cada
@@ -82,7 +82,9 @@ O monitor externo confere só o `/health`. O envelope de validação do login (c
 com o `uptime.yml` manual e com a conferência do SHA depois de cada deploy.
 
 O monitor externo e a sonda interna pegam o sistema fora do ar; o `slo.yml` pega o caso em
-que ele responde mal. São coisas diferentes de propósito: se 30% das requisições
+que ele responde mal. Desde 27/10/2026 essa medição roda DENTRO do Worker (`src/services/slo.ts`, cron `15 */6 * * *`), porque o GitHub Actions pode ficar parado por cobrança (aconteceu: o job nem iniciava) e a vigilância não pode depender disso. O `slo.yml` fica desligado, como alternativa manual. Exige o segredo `CF_ANALYTICS_TOKEN` (token da Cloudflare só de leitura de Analytics, `Account Analytics: Read`, separado do token de deploy): crie em Cloudflare, My Profile, API Tokens, e grave com `npx wrangler secret put CF_ANALYTICS_TOKEN`. Sem ele a medição só registra `slo_sem_token` no log. A última medição fica no KV: `npx wrangler kv key get slo:ultimo --binding SESSIONS --remote`.
+
+São coisas diferentes de propósito: se 30% das requisições
 devolverem 500 e a sonda cair nos 70% que respondem, ela passa verde — e é o SLO
 que acusa.
 

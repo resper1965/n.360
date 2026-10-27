@@ -604,7 +604,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   (`src/manutencao.ts`, purga, retencao e semeadura idempotente do catalogo de requisitos) e `0 11 * * *` (08:00 em Brasilia) os avisos de prazo
   (`src/services/avisos-prazo.ts`: sino em D-7 e D0, aviso agregado por pessoa e projeto no atraso, so a quem tem o modulo da fonte (`FAIXA_DA_FONTE`),
   e-mail-resumo; idempotencia em `avisos_prazo`); `*/15 * * * *` a sonda interna (`src/services/sonda.ts`:
-  D1, KV e R2; um e-mail para `ALERTA_EMAIL` na queda e um na volta, estado nos dois KV). O
+  D1, KV e R2; um e-mail para `ALERTA_EMAIL` na queda e um na volta, estado nos dois KV); `15 */6 * * *` o SLO de producao
+  (`src/services/slo.ts`: 5xx e p95 de 24h no Analytics Engine, tetos iguais aos de `scripts/slo.mjs`, um e-mail por transicao e tambem quando nao consegue medir;
+  exige o secret `CF_ANALYTICS_TOKEN`, so leitura de Analytics; ultima medicao no KV `slo:ultimo`). O
   `scheduled` de `src/index.ts` despacha por `event.cron`; cron desconhecido cai na manutencao.
 - **MCP**: `mcp-server-niso/` expoe o produto a clientes MCP com filtro de
   ferramenta por papel. Ver `mcp-server-niso/README.md`.

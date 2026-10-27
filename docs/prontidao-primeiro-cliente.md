@@ -13,7 +13,7 @@ Legenda: verde = provado agora; amarelo = parcial ou sem prova; vermelho = bloqu
 | Segurança de código | verde | `npm audit` com 0 em raiz, `frontend` e `mcp-server-niso`; 0 alertas do Dependabot; `test/isolamento-rotas-novas.test.ts` (35 casos) sem vazamento |
 | Segredo exposto | vermelho | Issue #317: 1 projeto com o token do repositório em texto claro no banco (o código já não o devolve, o valor não foi revogado) |
 | Dados | verde, com ressalva | Backup restaurado num SQLite local: 118 tabelas, `integrity_check` ok, 24 gatilhos. Ressalva: não foi um import real no D1 |
-| Operação | amarelo | Sonda interna a cada 15 min existe; `slo.yml` está `disabled_manually` e a issue #369 (p95 de 1672 ms contra o teto de 800 ms) segue aberta; nunca se provou que a queda gera o e-mail |
+| Operação | vermelho | O GitHub Actions está bloqueado por cobrança (a execução de 27/10 não iniciou o job: "pagamentos recentes da conta falharam ou o limite de gastos precisa ser aumentado"), então `slo.yml`, `uptime.yml` e CodeQL não rodam; a sonda interna a cada 15 min existe, mas a queda nunca teve o e-mail provado. A medição do SLO foi movida para o Worker (`src/services/slo.ts`), que só vigia depois que o segredo `CF_ANALYTICS_TOKEN` existir; a issue #369 (p95 de 1672 ms, de 13/10) segue sem reconfirmação |
 | Uso real | amarelo | O projeto tem dados (tratamentos, controles, riscos, documentos, evidências), mas o `docs/roteiro-aceite.md` (43 itens) nunca foi rodado em produção |
 | Conformidade | amarelo | 179 mapeamentos ISO e LGPD validados em 21/10 (`validado_juridico`); `parametros_legais` com 0 linhas: prazos de pedido do titular e de incidente saem "não calculado" |
 | Autenticação | amarelo | 0 dos 17 usuários ativos com segundo fator (o MFA é opcional) |
@@ -24,7 +24,7 @@ Legenda: verde = provado agora; amarelo = parcial ou sem prova; vermelho = bloqu
 2. Cadastrar os prazos em `parametros_legais` (tela do `platform_admin`, com a fonte e a revisão de cada um).
 3. Ligar o segundo fator nas contas que operam o cliente (consultor e administrador do cliente).
 4. Rodar o `docs/roteiro-aceite.md` no projeto do cliente e registrar o resultado.
-5. Reativar a vigilância: decidir entre religar o `slo.yml` (cerca de 4 execuções por dia, minutos de Actions) ou um monitor externo, e investigar o p95 da #369.
+5. Regularizar a cobrança do GitHub (Settings, Billing & plans) e criar o segredo `CF_ANALYTICS_TOKEN` (só leitura de Analytics) para a medição do SLO no Worker passar a valer; depois conferir `slo:ultimo` no KV e investigar o p95 da #369.
 6. Provar a queda: derrubar de propósito a sonda num ambiente de teste e conferir que o e-mail chega.
 
 ## Não medido

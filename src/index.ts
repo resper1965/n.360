@@ -75,6 +75,7 @@ import { exportacaoApp } from './routes/exportacao';
 import { manutencaoDiaria } from './manutencao';
 import { avisosDePrazo, hojeEmSaoPaulo } from './services/avisos-prazo';
 import { sondaInterna, CRON_SONDA } from './services/sonda';
+import { verificarSlo, CRON_SLO } from './services/slo';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handlerMcp } from './mcp/servidor';
@@ -126,6 +127,8 @@ export type Bindings = {
   CF_ACCOUNT_ID?: string;
   AI_GATEWAY_ID?: string;
   RESEND_API_KEY?: string;
+  /** Token SÓ DE LEITURA de Analytics da conta (secret): a medição do SLO lê o dataset `niso_metrics` (src/services/slo.ts). Sem ele, só o log. */
+  CF_ANALYTICS_TOKEN?: string;
   /** Destino dos alertas da sonda interna (src/services/sonda.ts). Var pública, opcional: sem ela, só o log. */
   ALERTA_EMAIL?: string;
   /** Analytics Engine. Opcional: sem o binding, a métrica é ignorada. */
@@ -667,6 +670,7 @@ export default Object.assign(app, {
     ctx.waitUntil(
       evento.cron === CRON_AVISOS ? avisosDePrazo(env, hojeEmSaoPaulo())
         : evento.cron === CRON_SONDA ? sondaInterna(env)
+        : evento.cron === CRON_SLO ? verificarSlo(env)
         : manutencaoDiaria(env)
     );
   },

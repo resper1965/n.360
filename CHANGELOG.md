@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### SLO de produção medido dentro do Worker
+- O GitHub Actions ficou parado por cobrança (o job do `slo.yml` nem iniciava), e a vigilância do que o usuário sente com o sistema no ar dependia dele. Nova rotina `src/services/slo.ts`, no cron `15 */6 * * *`: mesma consulta e mesmos tetos de `scripts/slo.mjs` (5xx acima de 1%; p95 acima de 800 ms fora das rotas de IA), testados contra o script.
+- Um e-mail para `ALERTA_EMAIL` por transição (entrada em violação, volta ao normal) e também quando não consegue medir (token recusado, API fora, resposta que não é JSON): vigilância calada não vira prova de saúde. A última medição fica no KV `slo:ultimo`.
+- Exige um segredo novo, **só de leitura de Analytics**: `npx wrangler secret put CF_ANALYTICS_TOKEN` (sem ele, só o log `slo_sem_token`). O token de deploy continua fora do Worker. Spec e plano em `docs/superpowers/`. O `slo.yml` segue desligado, como alternativa manual.
+
 ### Painel de prontidão para o primeiro cliente
 - `docs/prontidao-primeiro-cliente.md`: levantamento de 27/10/2026, só leitura, com a situação de cada frente (correção, segurança, segredo exposto, dados, operação, uso real, conformidade, autenticação), o que falta em ordem e o comando que refaz cada prova. Aponta como bloqueio o token do repositório ainda em texto claro (#317) e, como lacunas operacionais, os prazos legais não cadastrados, o MFA desligado, o `slo.yml` desativado e o roteiro de aceite nunca rodado.
 
