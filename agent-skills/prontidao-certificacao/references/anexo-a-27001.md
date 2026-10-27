@@ -1,5 +1,7 @@
 # ISO/IEC 27001:2022 — Anexo A (93 controles, paráfrase)
 
+> Conferido contra a ABNT NBR ISO/IEC 27001:2022 (Versão Corrigida 2023) com a Emenda 1:2024, em 27/10/2026: os 93 controles do Anexo A, numeração e estrutura. Texto em paráfrase; nunca o texto da norma.
+
 Nomes em português por paráfrase; não substitui o texto oficial. Comandos da última coluna são **só leitura**; `<...>` indica parâmetro a preencher; `{owner}/{repo}` e `{org}` são do GitHub. "—" = sem export técnico típico (a prova é documental ou de registro). Controles físicos (A.7) em infraestrutura de nuvem são em grande parte herdados do provedor: a prova é o relatório de terceira parte do provedor mais o controle dos locais próprios (escritório, trabalho remoto).
 
 | Controle | Nome | S1 (documento esperado) | S2 (registro/prova esperada) | Export típico AWS/GitHub |

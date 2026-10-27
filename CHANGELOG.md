@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Numeração da ISO/IEC 27001:2022 conferida contra a norma
+- Conferidos contra a ABNT NBR ISO/IEC 27001:2022 (Versão Corrigida 2023) com a Emenda 1:2024: os 93 códigos do Anexo A (`src/data/iso27001-2022.ts` e a referência da skill de prontidão) e as cláusulas 4 a 10. Nenhum código divergia. Os títulos do catálogo diferem da norma só na redação, de propósito (título de trabalho próprio).
+- A referência da skill de prontidão passa a citar a Emenda 1:2024 (mudanças climáticas) em 4.1 e 4.2; a jornada do n.iso já a tinha no passo 4.1.
+- AGENTS.md: `soa-logic.ts` não tem "93 regras" (é o gate de aplicabilidade N/A); os 93 controles estão em `src/data/iso27001-2022.ts`.
+
 ### Numeração da ISO/IEC 27701:2025 conferida contra a norma
 - As referências da skill de prontidão (`agent-skills/prontidao-certificacao/references/`) estavam com "A.1.x (a confirmar)". Conferidas contra a ABNT NBR ISO/IEC 27701:2026 (adoção idêntica da 27701:2025): Tabela A.1 tem 31 controles (A.1.2.2 a A.1.5.5), a A.2 tem 18 (A.2.2.2 a A.2.5.9, agora tabelada) e a A.3 tem 29 (A.3.3 a A.3.31), todos com o identificador oficial.
 - A A.3 anterior era outro conjunto (16 itens de "extensão de privacidade"); foi trocada pela oficial, que é de segurança da informação, com o pareamento por título com o Anexo A da 27001:2022 (a conferir na 27002:2022). Cláusulas 4 a 10: acrescentadas 6.3 e 7.1.

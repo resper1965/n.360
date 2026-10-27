@@ -183,7 +183,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
 - **Services** (`src/services/`, 60 arquivos em 2026-10-18: `ls src/services/*.ts | wc -l`; mais 18 em `src/services/ropa-abas/`, `ls src/services/ropa-abas/*.ts | wc -l`): entre eles
-  `soa-logic.ts` (93 regras Annex A 2022), `migration-service.ts` (2013→2022),
+  `soa-logic.ts` (gate de aplicabilidade N/A da SoA; os 93 controles do Anexo A 2022 estao em `src/data/iso27001-2022.ts`), `migration-service.ts` (2013→2022),
   `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
 - **Agents** (`src/agents/`): policy, evidence, assessment, control-adequacao,
