@@ -77,12 +77,7 @@ export function corpoDaEtapa(id, ctx) {
             : renderEmptyState({ compacto: true, titulo: TEXTO_VAZIO.ativo.titulo, texto: 'Ativo é um sistema, arquivo ou base que guarda ou usa dados. Cada ativo pede o local onde os dados ficam.' });
         paineis += painel('Ativos e armazenamento', 'ativos', `${tabela}${acrescentar('add-ativo', '+ Adicionar Ativos')}`);
     } else if (id === 'eliminacao') {
-        const herdados = ativosDe(ctx.porId.armazenamento);
-        const tabela = herdados.length ? `<table class="et-tabela"><caption class="sr-only">Ativos herdados do Armazenamento</caption>
-            <thead><tr><th scope="col">Ativos</th><th scope="col">Armazenamento</th></tr></thead>
-            <tbody>${herdados.map((a) => `<tr><th scope="row">${txt(a.nome)}</th><td>${txt(a.local_armazenamento) || 'Local não informado'}</td></tr>`).join('')}</tbody></table>`
-            : renderEmptyState({ compacto: true, titulo: 'Nenhum ativo para eliminar', texto: 'Os ativos desta etapa vêm da etapa Armazenamento.' });
-        paineis += painel('Ativos (vêm do Armazenamento)', 'ativos', tabela);
+        paineis += painel('Ativos', 'ativos', `${lista(ativos.map(linhaAtivo), { titulo: 'Nenhum ativo para eliminar', texto: 'Escolha os sistemas, arquivos e bases de onde os dados serão eliminados.' })}${acrescentar('add-ativo', '+ Adicionar Ativos')}`);
         paineis += `<div class="et-duas">
             <div class="form-group"><label class="form-label" for="et-prazo-eliminacao">Prazo</label>
                 <input class="form-input" id="et-prazo-eliminacao" data-campo="prazo" maxlength="${MAX.prazo}" value="${txt(e.prazo)}"${off}></div>

@@ -58,7 +58,7 @@ const FORMAS: [string, unknown, z.ZodTypeAny][] = [
     etapas: z.array(S({
       etapa: z.enum(ETAPAS), rotulo: z.string(), situacao: z.enum(['pendente', 'concluida', 'nao_aplicavel']), faltas: z.array(z.string()), nao_aplicavel: z.boolean(),
       descricao: z.string().nullable(), origem: z.array(z.string()), solicita_consentimento: z.number().nullable(), criancas_adolescentes: z.boolean(),
-      ativos: z.array(S({ item_id: z.string(), nome: z.string(), local_armazenamento: z.string().nullable(), travado: z.boolean() })),
+      ativos: z.array(S({ item_id: z.string(), nome: z.string(), local_armazenamento: z.string().nullable() })),
       areas: z.array(parte), parceiros: z.array(parte),
       titulares: z.array(S({ titular_id: z.string(), nome: z.string(), situacao: z.enum(['definido', 'nao_usa']), dados: z.array(S({ id: z.string(), nome: z.string(), sensivel: z.boolean() })) })),
       prazo: z.string().nullable(), descarte: z.string().nullable(), migrado: z.boolean(), bloqueada: z.boolean(),

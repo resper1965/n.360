@@ -46,6 +46,10 @@ describe('situação derivada da etapa', () => {
     const r = situacaoDaEtapa(base({ etapa: 'eliminacao', ativos: [], armazenamento: { naoAplicavel: false, ativos: 1 } }));
     expect(r.faltas).toEqual(expect.arrayContaining(['prazo', 'descarte']));
   });
+  it('Eliminação sem ativo próprio pede ao menos um ativo; com ativo não pede', () => {
+    expect(situacaoDaEtapa(base({ etapa: 'eliminacao', ativos: [] })).faltas).toContain('ao menos um ativo');
+    expect(situacaoDaEtapa(base({ etapa: 'eliminacao', ativos: [{ local_armazenamento: null }] })).faltas).not.toContain('ao menos um ativo');
+  });
   it('Eliminação com Armazenamento Não Aplicável não exige ativos', () => {
     const r = situacaoDaEtapa(base({ etapa: 'eliminacao', ativos: [], prazo: '5 anos', descarte: 'Exclusão', armazenamento: { naoAplicavel: true, ativos: 0 }, titularesDaEtapa: [{ titular_id: 't1', situacao: 'definido', dados: 1 }] }));
     expect(r.situacao).toBe('concluida');

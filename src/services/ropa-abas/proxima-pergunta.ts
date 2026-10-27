@@ -31,7 +31,6 @@ export const FALTA_CAMPO: Record<string, string> = {
   'titulares da Coleta': 'titulares',
   'defina os titulares na Coleta': 'titulares',
   'ao menos um ativo': 'ativos',
-  'ativos do Armazenamento': 'armazenamento.ativos',
   'ao menos uma área': 'areas',
   'ao menos um parceiro': 'parceiros',
   'local de armazenamento de cada ativo': 'locais',

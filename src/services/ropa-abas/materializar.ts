@@ -64,6 +64,10 @@ export async function materializar(db: D1Database, projectId: string, ropaId: st
   stmts.push(db.prepare(`INSERT OR IGNORE INTO tratamento_etapa_itens (ropa_id, etapa, item_id, project_id)
     SELECT ropa_id, etapa, item_id, project_id FROM tratamento_ciclo WHERE ropa_id = ? AND project_id = ? AND etapa NOT IN ('coleta', 'eliminacao') AND item_id IS NOT NULL`)
     .bind(ropaId, projectId));
+  // A Eliminação já mostrava os ativos do Armazenamento (antes da 0087): a atividade antiga continua vendo os mesmos.
+  stmts.push(db.prepare(`INSERT OR IGNORE INTO tratamento_etapa_itens (ropa_id, etapa, item_id, project_id)
+    SELECT ropa_id, 'eliminacao', item_id, project_id FROM tratamento_etapa_itens WHERE ropa_id = ? AND project_id = ? AND etapa = 'armazenamento'`)
+    .bind(ropaId, projectId));
   stmts.push(db.prepare(`UPDATE tratamento_ciclo SET descricao_etapa = descricao WHERE ropa_id = ? AND project_id = ? AND descricao_etapa IS NULL AND descricao IS NOT NULL AND etapa <> 'coleta'`)
     .bind(ropaId, projectId));
   try {

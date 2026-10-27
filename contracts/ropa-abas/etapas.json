@@ -18,8 +18,7 @@
         {
           "item_id": "i1",
           "nome": "Sistema exemplo",
-          "local_armazenamento": null,
-          "travado": false
+          "local_armazenamento": null
         }
       ],
       "areas": [],

@@ -76,7 +76,7 @@ async function recusa(env: Env, projectId: string, ator: Ator): Promise<{ status
 function perguntasDoQueFalta(etapa: Etapa, faltas: { titulares: number; ativos: number; areas: number; parceiros: number }): string[] {
   const p: string[] = [];
   if (etapa === 'coleta' && !faltas.titulares) p.push('Quem são os titulares desta atividade? Defina-os na Coleta, antes da descrição.');
-  if (etapa !== 'eliminacao' && !faltas.ativos) p.push('Quais sistemas, arquivos ou bases usam os dados nesta etapa? Adicione ao menos um ativo.');
+  if (!faltas.ativos) p.push('Quais sistemas, arquivos ou bases usam os dados nesta etapa? Adicione ao menos um ativo.');
   if (etapa === 'compartilhamento_interno' && !faltas.areas) p.push('Quais áreas recebem os dados? Adicione ao menos uma área.');
   if (etapa === 'compartilhamento_externo' && !faltas.parceiros) p.push('Quais parceiros recebem os dados? Adicione ao menos um parceiro.');
   return p;

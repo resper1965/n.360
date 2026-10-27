@@ -1993,7 +1993,7 @@ CREATE TABLE IF NOT EXISTS catalogo_itens (
 -- ─── Ciclo de vida por etapa (spec 4.2). A Eliminação não tem linhas de ativo: herda a leitura do Armazenamento. ───
 CREATE TABLE IF NOT EXISTS tratamento_etapa_itens (
     ropa_id TEXT NOT NULL REFERENCES ropa_records(id) ON DELETE CASCADE,
-    etapa TEXT NOT NULL CHECK (etapa IN ('coleta', 'uso', 'compartilhamento_interno', 'compartilhamento_externo', 'armazenamento')),
+    etapa TEXT NOT NULL CHECK (etapa IN ('coleta', 'uso', 'compartilhamento_interno', 'compartilhamento_externo', 'armazenamento', 'eliminacao')),
     item_id TEXT NOT NULL REFERENCES itens(id) ON DELETE CASCADE,
     local_armazenamento TEXT CHECK (local_armazenamento IS NULL OR (etapa = 'armazenamento' AND length(local_armazenamento) <= 200)),
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

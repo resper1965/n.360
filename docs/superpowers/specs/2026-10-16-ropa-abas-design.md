@@ -137,7 +137,7 @@ Etapas e rótulos (ids em `src/services/ciclo.ts`, já existem): Coleta (`coleta
 | Compartilhamento Interno | Não Aplicável, Descrição, Ativos, Áreas (menos as da própria atividade), Titulares |
 | Compartilhamento Externo | Não Aplicável, Descrição, Ativos, Parceiros, Titulares |
 | Armazenamento | Não Aplicável, Descrição, Ativos (cada um com **local de armazenamento**), Titulares |
-| Eliminação | Não Aplicável, Descrição, Ativos (somente leitura, os do Armazenamento), **Prazo**, **Descarte**, Titulares |
+| Eliminação | Não Aplicável, Descrição, Ativos (próprios, escolhidos na etapa desde a 0087; antes eram os do Armazenamento, só leitura), **Prazo**, **Descarte**, Titulares |
 
 **Situação da etapa, derivada no servidor** (função pura `situacaoDaEtapa`, nunca gravada): `nao_aplicavel` se a linha do cabeçalho diz; senão `concluida` se **todas** as faltas abaixo estão vazias; senão `pendente`, com as faltas em texto.
 
@@ -145,7 +145,7 @@ Etapas e rótulos (ids em `src/services/ciclo.ts`, já existem): Coleta (`coleta
 - Uso: descrição, pelo menos um ativo, todo titular da Coleta `definido` ou `nao_usa`.
 - Compartilhamento Interno: o mesmo e pelo menos uma área. Externo: o mesmo e pelo menos um parceiro.
 - Armazenamento: o mesmo do Uso e **local preenchido em cada ativo**.
-- Eliminação: descrição, `Prazo` e `Descarte` preenchidos e todo titular definido (os ativos vêm do Armazenamento; a etapa depende do Armazenamento não estar `pendente` por falta de ativo).
+- Eliminação: descrição, `Prazo` e `Descarte` preenchidos e todo titular definido (com ao menos um ativo próprio, salvo com o Armazenamento Não Aplicável; desde a 0087 os ativos não vêm mais do Armazenamento).
 
 **Titular por etapa**: `pendente` (sem linha), `definido` (com pelo menos um dado, **subconjunto dos dados do mesmo titular na Coleta**; o servidor recusa dado que a Coleta não tem) ou `nao_usa` ("Dados não usados nesse tratamento"). Gravar exige pelo menos um dado ou `nao_usa`, como o legado ("Gravar" só habilita com marca).
 

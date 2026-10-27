@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Eliminação com escolha própria de ativos (migration 0087)
+- Na ficha da atividade, a etapa Eliminação deixa de herdar os ativos do Armazenamento: a pessoa escolhe os ativos de onde os dados serão eliminados ("+ Adicionar Ativos" e "Tirar", como nas outras etapas). Sem ativo a etapa fica pendente, salvo com o Armazenamento Não Aplicável. Os ativos escolhidos entram no conteúdo da aprovação do tratamento, como os das demais etapas.
+- Migration 0087 (reconstrói `tratamento_etapa_itens` para aceitar a etapa): copia os ativos do Armazenamento para a Eliminação, então nada muda na tela das atividades existentes; o hash da aprovação não muda. O campo `travado` saiu do ativo da etapa na resposta de `GET .../etapas`.
+
 ### Aviso ao excluir um controle do escopo (n.iso)
 - Marcar um controle como "Não aplicável" na SoA agora avisa quando alguma atividade do n.privacy usa o controle por uma medida, como a mudança de status já avisava. Cancelar não grava; sem conseguir conferir as atividades, pergunta antes (falha fechada). O aviso é o mesmo texto, de uma função só (`perguntaDasAtividades`, `frontend/src/views/compliance.js`). Controle não se apaga no produto: a exclusão do escopo é o caminho.
 

@@ -112,10 +112,22 @@ describe('rotas das etapas do tratamento', () => {
     expect((await put(rid, '/compartilhamento_interno/areas', { departamentos_ids: ['rt-a2'] })).status).toBe(200);
   });
 
-  it('Eliminação não recebe ativos (400); local de armazenamento fora do Armazenamento é 400', async () => {
+  it('Eliminação tem ativos próprios (0087), independentes do Armazenamento, e entram no hash; local só no Armazenamento', async () => {
     const rid = await novaAtividade(s.consultor);
     await coletaPronta(rid);
-    expect((await put(rid, '/eliminacao/ativos', { ativos: [{ item_id: 'rt-i1' }] })).status).toBe(400);
+    await put(rid, '/armazenamento/ativos', { ativos: [{ item_id: 'rt-i1', local_armazenamento: 'Servidor exemplo' }] });
+    expect((await put(rid, '/eliminacao/ativos', { ativos: [{ item_id: 'rt-i2' }] })).status).toBe(200);
+    const el = (await lerEtapas(rid)).find((e) => e.etapa === 'eliminacao');
+    expect(el.ativos.map((a: { item_id: string }) => a.item_id)).toEqual(['rt-i2']);
+    expect(el.faltas).not.toContain('ao menos um ativo');
+    // o Armazenamento não mudou, e o ativo escolhido na Eliminação foi para o conteúdo da aprovação (tratamento_itens)
+    const arm = (await lerEtapas(rid)).find((e) => e.etapa === 'armazenamento');
+    expect(arm.ativos.map((a: { item_id: string }) => a.item_id)).toEqual(['rt-i1']);
+    expect(await linha('SELECT count(*) n FROM tratamento_itens WHERE ropa_id = ? AND item_id = ?', rid, 'rt-i2')).toMatchObject({ n: 1 });
+    // tirar da Eliminação limpa a lista; o item que sai de todas as etapas sai do hash
+    expect((await put(rid, '/eliminacao/ativos', { ativos: [] })).status).toBe(200);
+    expect(await linha('SELECT count(*) n FROM tratamento_itens WHERE ropa_id = ? AND item_id = ?', rid, 'rt-i2')).toMatchObject({ n: 0 });
+    expect((await put(rid, '/eliminacao/ativos', { ativos: [{ item_id: 'rt-i1', local_armazenamento: 'Servidor exemplo' }] })).status).toBe(400);
     expect((await put(rid, '/uso/ativos', { ativos: [{ item_id: 'rt-i1', local_armazenamento: 'Servidor exemplo' }] })).status).toBe(400);
   });
 
