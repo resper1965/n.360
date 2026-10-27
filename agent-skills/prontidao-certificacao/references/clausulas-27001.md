@@ -1,11 +1,13 @@
 # ISO/IEC 27001:2022 — cláusulas 4 a 10 (paráfrase)
 
+> Conferido contra a ABNT NBR ISO/IEC 27001:2022 (Versão Corrigida 2023) com a Emenda 1:2024, em 27/10/2026: cláusulas 4 a 10, numeração e estrutura. Texto em paráfrase; nunca o texto da norma.
+
 Paráfrase para uso na pré-avaliação; não substitui o texto oficial. "ID obrigatória" = informação documentada que a própria cláusula exige manter ou reter.
 
 | Cláusula | Exige | Informação documentada obrigatória | Pergunta do auditor | Amostra S2 |
 |---|---|---|---|---|
-| 4.1 | Identificar questões internas e externas relevantes ao propósito e aos resultados do SGSI | Não explícita (usual: análise de contexto) | Quais questões internas e externas afetam o SGSI e onde isso foi considerado no risco? | Análise de contexto revisada no período; vínculo com a avaliação de riscos |
-| 4.2 | Identificar partes interessadas, seus requisitos e quais serão tratados pelo SGSI | Não explícita (usual: registro de partes interessadas e requisitos legais) | Quem são as partes interessadas e quais requisitos delas o SGSI trata? | Registro de requisitos legais/contratuais atualizado; evidência de monitoramento das mudanças |
+| 4.1 | Identificar questões internas e externas relevantes ao propósito e aos resultados do SGSI; **determinar se "mudanças climáticas" é pertinente** (Emenda 1:2024) | Não explícita (usual: análise de contexto) | Quais questões internas e externas afetam o SGSI e onde isso foi considerado no risco? | Análise de contexto revisada no período; vínculo com a avaliação de riscos |
+| 4.2 | Identificar partes interessadas, seus requisitos (que podem incluir requisitos sobre mudanças climáticas, Emenda 1:2024) e quais serão tratados pelo SGSI | Não explícita (usual: registro de partes interessadas e requisitos legais) | Quem são as partes interessadas e quais requisitos delas o SGSI trata? | Registro de requisitos legais/contratuais atualizado; evidência de monitoramento das mudanças |
 | 4.3 | Definir limites e aplicabilidade do SGSI, considerando 4.1, 4.2, interfaces e dependências | Sim: escopo | O escopo cobre as interfaces e dependências com terceiros e nuvem? | Escopo aprovado; ativos e processos do inventário batem com o escopo |
 | 4.4 | Estabelecer, implementar, manter e melhorar o SGSI e seus processos | Não explícita | Como os processos do SGSI interagem e quem os opera? | Mapa de processos; evidência de operação de cada processo |
 | 5.1 | Alta direção demonstra liderança e comprometimento (política, recursos, integração, comunicação, melhoria) | Não explícita | Como a direção demonstra comprometimento além de assinar a política? | Atas, decisões de recursos, participação na análise crítica |
