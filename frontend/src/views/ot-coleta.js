@@ -2,13 +2,12 @@ import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, confirmar, pedirTexto,
     formatarData } from '../ui.js';
-import { baseOt, podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo } from '../ot-comum.js';
+import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo } from '../ot-comum.js';
 
 // Coleta do n.ot (N3; spec §7, P0-3, P0-5): planilha (multipart `file` + `site_id`) e entrada manual caem em lotes que outra pessoa
 // revisa antes do inventário. A duplicata aparece como a API devolve (`possivel_duplicata`); quem não vê completo não recebe o alvo.
 
 const el = (id) => document.getElementById(id);
-const base = () => baseOt(S.activeProject);
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 
@@ -27,7 +26,7 @@ const PRIVACIDADE = 'A planilha é lida em memória e descartada: o arquivo orig
 export async function montarColeta(c, a, p) {
     let lotes;
     try {
-        const [s, l] = await Promise.all([api('GET', `${baseOt(p)}/sites`), api('GET', `${baseOt(p)}/lotes`)]);
+        const [s, l] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/lotes`)]);
         sites = lista(s, 'sites'); lotes = lista(l, 'lotes');
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar a coleta do n.ot.', e); return; }
     if (S.otLote) { await montarLote(c, a, S.otLote); return; }
@@ -67,7 +66,7 @@ window.otEnviarPlanilha = async () => {
     fd.append('site_id', el('ot-lote-site').value);
     let r, corpo;
     try {
-        r = await fetch(`${API_BASE}${base()}/lotes`, { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) });
+        r = await fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/lotes`, { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) });
         corpo = await r.json().catch(() => ({}));
     } catch (e) { return showToast('Não foi possível enviar a planilha. Verifique a conexão e tente de novo.', 'error'); }
     if (!r.ok) return falhou(Object.assign(new Error(corpo.error || ''), { status: r.status }), 'Não foi possível ler a planilha.');
@@ -75,7 +74,7 @@ window.otEnviarPlanilha = async () => {
 };
 
 // Entrada manual: os itens ficam só na memória deste modal até o envio (e somem ao reabrir).
-const zonasDe = async (siteId) => (siteId ? lista(await api('GET', `${base()}/zonas?site_id=${encodeURIComponent(siteId)}`).catch(() => null), 'zonas') : []);
+const zonasDe = async (siteId) => (siteId ? lista(await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/zonas?site_id=${encodeURIComponent(siteId)}`).catch(() => null), 'zonas') : []);
 const listaManuais = () => (manuais.length ? `<ul class="m-0">${manuais.map((m) => `<li>${escapeHTML(m.nome || '(sem nome)')}</li>`).join('')}</ul>`
     : renderEmptyState({ titulo: 'Nenhum item no lote ainda.', compacto: true }));
 window.otEntradaManual = () => {
@@ -109,7 +108,7 @@ window.otManualAdicionar = () => {
 window.otManualEnviar = async () => {
     if (!manuais.length) return showToast('Adicione ao menos um item ao lote.', 'error');
     try {
-        const r = await api('POST', `${base()}/lotes/manual`, { site_id: el('ot-m-site').value, itens: manuais });
+        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/manual`, { site_id: el('ot-m-site').value, itens: manuais });
         manuais = [];
         forceCloseModal();
         aposCriar(r);
@@ -119,7 +118,7 @@ window.otManualEnviar = async () => {
 // ─── revisão do lote ────────────────────────────────────────────────────────
 async function montarLote(c, a, id) {
     let r;
-    try { r = await api('GET', `${base()}/lotes/${encodeURIComponent(id)}`); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o lote.', e, { acao: 'otVoltarLotes' }); return; }
+    try { r = await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}`); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o lote.', e, { acao: 'otVoltarLotes' }); return; }
     const { lote } = r;
     const itens = lista(r, 'itens');
     const emRevisao = lote.status === 'em_revisao';
@@ -143,7 +142,7 @@ async function montarLote(c, a, id) {
 window.otAprovarLote = async (id) => {
     if (!await confirmar('Aprovar o lote? Os itens sem erro vão para o inventário e você fica registrado como quem verificou.', { titulo: 'Aprovar lote', rotulo: 'Aprovar' })) return;
     try {
-        const r = await api('POST', `${base()}/lotes/${encodeURIComponent(id)}/aprovar`);
+        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}/aprovar`);
         showToast(`Lote aprovado: ${r.criados} criado(s), ${r.atualizados} atualizado(s), ${r.recusados} recusado(s).`, 'success');
         window.render();
     } catch (e) { falhou(e, 'Não foi possível aprovar o lote.'); }
@@ -153,7 +152,7 @@ window.otRejeitarLote = async (id) => {
     if (motivo === null) return;
     if (motivo.length < 3) { showToast('Escreva o motivo da rejeição.', 'error'); return; }
     try {
-        await api('POST', `${base()}/lotes/${encodeURIComponent(id)}/rejeitar`, { motivo });
+        await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}/rejeitar`, { motivo });
         showToast('Lote rejeitado.', 'success'); window.render();
     } catch (e) { falhou(e, 'Não foi possível rejeitar o lote.'); }
 };

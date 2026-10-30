@@ -7,7 +7,6 @@ import { api } from './api.js';
 // IP e MAC aparecem como a API devolve (mascarados ou completos) e vivem só na memória da tela: nunca em localStorage,
 // sessionStorage, endereço ou cache.
 
-export const baseOt = (proj) => `/api/v1/projects/${encodeURIComponent(proj.id)}/ot`;
 const papel = () => S.user?.role || '';
 
 /** Cadastra e altera o inventário, exporta e pede rascunho à IA: Gestor ARCiber (org_admin) e a equipe. */
