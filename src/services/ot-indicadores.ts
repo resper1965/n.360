@@ -33,6 +33,7 @@ export async function indicadoresOt(db: D1Database, projectId: string, sites: st
 
   // Ativo incompleto fora do ARCiber não viola o 4.3.1 (o item é dos ativos do ARCiber): falta evidência, não "não atende".
   const completude: { situacao: Situacao; evidencia: string } = !a.total ? { situacao: 'sem_evidencia', evidencia: 'Nenhum ativo no inventário' }
+    : !a.arciber ? { situacao: 'sem_evidencia', evidencia: 'Nenhum ativo do ARCiber no inventário: o 4.3.1 é dos ativos do ARCiber' }
     : a.completos === a.total ? { situacao: 'evidencia_no_inventario', evidencia: `Os ${a.total} ativo(s) têm os 6 campos do 4.3.1 registrados` }
       : { situacao: 'sem_evidencia', evidencia: `${a.total - a.completos} de ${a.total} ativo(s) sem os 6 campos do 4.3.1` };
   const externos: { situacao: Situacao } = { situacao: f.sem_vpn ? 'nao_atende' : f.externos ? 'evidencia_no_inventario' : 'sem_evidencia' };

@@ -209,6 +209,15 @@ describe('indicadores do projeto', () => {
     expect(b.completude).toMatchObject({ total: 1 });
     expect(b.fluxos_externos).toMatchObject({ externos: 1, sem_vpn: 1 });
   });
+
+  it('4.3.1: ativos completos mas nenhum do ARCiber não é evidência do item (que é dos ativos do ARCiber)', async () => {
+    const s3 = await criar(cons, 'sites', { nome: 'SE Leste' });
+    await criar(cons, 'ativos', { site_id: s3, nome: 'RTU fora do ARCiber', ...ATIVO, no_arciber: false, categoria_arciber: null, ip: '10.3.3.30', mac: null });
+    expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec0', site_id: s3 })).status).toBe(201);
+    const i = await ler(tec0);
+    expect(i.completude).toMatchObject({ total: 1, completos: 1, situacao: 'sem_evidencia', arciber: { total: 0, completos: 0 } });
+    expect(i.prazos.find((p) => p.codigo === '4.3.1')!.situacao).toBe('sem_evidencia');
+  });
 });
 
 describe('IA: sugestão de zona Purdue e completude do 4.3.1 (P0-7)', () => {
