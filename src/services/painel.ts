@@ -455,11 +455,13 @@ export async function painelDoProjeto(db: D1Database, projectId: string, modulos
     acao: p.papel_exigido === 'ciente' ? 'Ler e dar ciência' : 'Ler e aprovar',
   }));
   // Na lista que junta os dois módulos, o n.privacy vem primeiro dentro de cada grupo: o prazo dele é legal.
-  const blocos = { ...(privacy ? { privacy } : {}), ...(iso ? { iso } : {}) } as Record<Modulo, NonNullable<typeof iso> | NonNullable<typeof privacy>>;
+  // Partial: o n.OT ainda não tem bloco no painel (fatia N1); módulo sem bloco fica fora de `modulos`.
+  const blocos = { ...(privacy ? { privacy } : {}), ...(iso ? { iso } : {}) } as Partial<Record<Modulo, NonNullable<typeof iso> | NonNullable<typeof privacy>>>;
   const proximoDe = (lista: Proximo[]) => lista.filter((p): p is NonNullable<Proximo> => !!p).sort((a, b) => a.dias - b.dias)[0] ?? null;
   const modulosResp: Record<string, unknown> = {};
   for (const m of modulos) {
     const b = blocos[m];
+    if (!b) continue;
     const saude = saudeDoProjeto({ itens: b.itens, comecando: b.comecando, decisoes: decisoes.length, cliente: quem.cliente, proximo: b.proximo });
     // O cliente vê a frase e os números da linha do módulo; a lista, a cobertura, o mapa e os vencimentos são da consultoria.
     modulosResp[m] = quem.cliente

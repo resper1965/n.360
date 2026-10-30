@@ -90,6 +90,14 @@ describe('n.OT: GET /ot/requisitos e as travas do módulo', () => {
     }
   });
 
+  it('o painel do projeto com o n.OT não quebra (o n.OT ainda não tem bloco no painel)', async () => {
+    for (const q of ['', '?modulo=ot']) {
+      const r = await pedir(plat, `/api/v1/projects/proj-a/painel${q}`);
+      expect(r.status, `${q} ${await r.clone().text()}`).toBe(200);
+    }
+    expect(Object.keys((await (await pedir(plat, '/api/v1/projects/proj-a/painel')).json<{ modulos: object }>()).modulos)).toEqual(['iso']);
+  });
+
   // Por último: liga o n.OT no proj-b.
   it('P0-1: ligar o n.OT no projeto (PUT /modulos/ot) não o concede às contas de cliente; só a concessão explícita', async () => {
     await env.DB.batch([
