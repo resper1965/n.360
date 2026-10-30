@@ -126,6 +126,15 @@ describe('P0-3: a planilha é lida no Worker; o original não fica e nada vai à
     expect(await conta()).toBe(n0);
   });
 
+  it('corpo sem Content-Length (chunked) acima do teto: 413, lido só até o teto', async () => {
+    const pedaco = new Uint8Array(1024 * 1024).fill(97);
+    let enviados = 0;
+    const corpo = new ReadableStream<Uint8Array>({ pull(ctl) { if (enviados++ < 8) ctl.enqueue(pedaco); else ctl.close(); } });
+    const r = await app.fetch(new Request(`http://localhost${P}/lotes`, { method: 'POST', headers: { ...tec, 'Content-Type': 'multipart/form-data; boundary=x' }, body: corpo }), workerEnv());
+    expect(r.status).toBe(413);
+    expect(enviados, 'leu o corpo inteiro').toBeLessThan(8);
+  });
+
   it('linha inválida não derruba o lote: fica com o erro (campo e regra, sem o valor)', async () => {
     const r = await enviar(tec, ids.s1, 'm.csv', csv(`Bom;10.1.1.50;;Fab;M;IED;f;;;nao;;`, `Ruim;999.1.1.1;;Fab;M;IED;responde em 192.168.0.9;;;nao;;`,
       `Incompleto;10.1.1.51;;Fab;M;RTU;f;;;sim;centro_operacao;`));

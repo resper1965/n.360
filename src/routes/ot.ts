@@ -445,12 +445,32 @@ async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, pro
   return c.json({ ...resumo, status: 'em_revisao', ...extra }, 201);
 }
 
+/** Corpo inteiro até `teto` bytes; null se passar (o stream é cancelado no primeiro pedaço além). */
+async function lerAteTeto(req: Request, teto: number): Promise<Blob | null> {
+  const leitor = req.body?.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = leitor ? await leitor.read() : { done: true, value: undefined };
+    if (done) return new Blob(partes);
+    total += value.byteLength;
+    if (total > teto) { await leitor!.cancel().catch(() => {}); return null; }
+    partes.push(value);
+  }
+}
+
 // Planilha (multipart: `file` e `site_id`). O arquivo é lido em memória e descartado: nunca vai ao R2 nem à IA (P0-3).
 otApp.post('/lotes', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
-    if (Number(c.req.header('Content-Length') || 0) > LIMITES_PLANILHA.bytes + 64 * 1024) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
-    const corpo = await c.req.parseBody();
+    const teto = LIMITES_PLANILHA.bytes + 64 * 1024;
+    if (Number(c.req.header('Content-Length') || 0) > teto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
+    // Corpo sem Content-Length (chunked) passaria pelo cabeçalho: a leitura para no teto, em vez de parseBody ler tudo na memória.
+    const bruto = await lerAteTeto(c.req.raw, teto);
+    if (!bruto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
+    const fd = await new Response(bruto, { headers: { 'Content-Type': c.req.header('Content-Type') ?? '' } }).formData().catch(() => null);
+    if (!fd) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
+    const corpo = { file: fd.get('file'), site_id: fd.get('site_id') };
     const file = corpo['file'];
     if (!(file instanceof File)) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
     if (!daLista(sites, corpo['site_id'])) return refRuim(c, 'site_id');

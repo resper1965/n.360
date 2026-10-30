@@ -1,7 +1,7 @@
 // Leitura da planilha da coleta do n.ot (modelo de ameaças P0-3, P1-5; T13, T14). O arquivo é lido AQUI, em memória, e nunca
 // vai ao R2 nem à IA: nada de `env.AI.toMarkdown` (que mandaria o XLSX bruto, com IP/MAC em claro, para fora do Worker).
-// CSV pelo `lerCsv` do n.privacy. XLSX por um leitor de ZIP mínimo (DecompressionStream) e XML por expressão regular: sem DTD nem
-// entidade declarada (recusadas), com teto de bytes descomprimidos por entrada.
+// CSV pelo `lerCsv` do n.privacy. XLSX por um leitor de ZIP mínimo (DecompressionStream) e XML por varredura linear (indexOf): sem DTD
+// nem entidade declarada (recusadas), com teto de bytes descomprimidos por entrada e tetos de linhas/colunas durante a leitura.
 import { lerCsv } from './tratamentos-importar';
 
 export const LIMITES_PLANILHA = { bytes: 5 * 1024 * 1024, descomprimido: 20 * 1024 * 1024, linhas: 5000, colunas: 60, celula: 2048 };
@@ -14,8 +14,12 @@ export async function lerPlanilha(nome: string, arquivo: ArrayBuffer): Promise<L
   if (arquivo.byteLength > LIMITES_PLANILHA.bytes) return { erro: `Arquivo acima de ${LIMITES_PLANILHA.bytes / 1024 / 1024} MB` };
   let linhas: string[][];
   try {
-    linhas = ext === 'csv' ? lerCsv(new TextDecoder().decode(arquivo)) : await lerXlsx(new Uint8Array(arquivo));
+    // +1: a primeira linha é o cabeçalho. O teto vale durante a leitura (CSV de 5 MB com "a\n" montaria 2,5 milhões de linhas).
+    linhas = ext === 'csv' ? lerCsv(new TextDecoder().decode(arquivo), { linhas: LIMITES_PLANILHA.linhas + 1, colunas: LIMITES_PLANILHA.colunas })
+      : await lerXlsx(new Uint8Array(arquivo));
   } catch (e) {
+    if (e instanceof RangeError && e.message === 'linhas') return { erro: `Planilha acima de ${LIMITES_PLANILHA.linhas} linhas` };
+    if (e instanceof RangeError && e.message === 'colunas') return { erro: `Planilha acima de ${LIMITES_PLANILHA.colunas} colunas` };
     return { erro: e instanceof ErroPlanilha ? e.message : 'Arquivo XLSX ilegível' };
   }
   // A primeira linha é o cabeçalho.
@@ -77,8 +81,29 @@ async function extrair(b: Uint8Array, e: Entrada): Promise<string> {
 const ENTIDADES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 const texto = (s: string) => s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, k: string) =>
   k[0] === '#' ? String.fromCodePoint(k[1].toLowerCase() === 'x' ? parseInt(k.slice(2), 16) : Number(k.slice(1))) : ENTIDADES[k.toLowerCase()]);
+/**
+ * Elementos `<tag ...>corpo</tag>` ou `<tag .../>` por indexOf, em tempo linear: regex preguiçosa com `[\s\S]*?` reexamina o resto do
+ * texto a cada abertura sem fechamento (20 mil `<row>` abertos = quadrático). Abertura sem fechamento é XML malformado. As tags lidas
+ * aqui (row, c, v, si, t) não se aninham nelas mesmas no SpreadsheetML.
+ */
+function* elementos(xml: string, tag: string): Generator<[attrs: string, corpo: string]> {
+  const abre = `<${tag}`, fecha = `</${tag}>`;
+  for (let i = xml.indexOf(abre); i >= 0; i = xml.indexOf(abre, i)) {
+    const prox = xml[i + abre.length];
+    if (prox !== '>' && prox !== '/' && prox !== ' ' && prox !== '\t' && prox !== '\r' && prox !== '\n') { i += abre.length; continue; }
+    const fimAbre = xml.indexOf('>', i);
+    if (fimAbre < 0) throw new ErroPlanilha('XML do XLSX malformado');
+    const attrs = xml.slice(i + abre.length, fimAbre);
+    if (attrs.endsWith('/')) { yield [attrs.slice(0, -1), '']; i = fimAbre + 1; continue; }
+    const f = xml.indexOf(fecha, fimAbre + 1);
+    if (f < 0) throw new ErroPlanilha('XML do XLSX malformado');
+    yield [attrs, xml.slice(fimAbre + 1, f)];
+    i = f + fecha.length;
+  }
+}
+
 /** Texto de todos os `<t>` (uma string compartilhada pode vir em vários runs). */
-const textos = (s: string) => [...s.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((m) => texto(m[1])).join('');
+const textos = (s: string) => [...elementos(s, 't')].map(([, corpo]) => texto(corpo)).join('');
 
 const semDtd = (xml: string) => {
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new ErroPlanilha('XLSX com DTD ou entidade declarada não é aceito');
@@ -93,23 +118,26 @@ async function lerXlsx(b: Uint8Array): Promise<string[][]> {
   // workbook.xml e os rels só se aparecer planilha com a ordem trocada.
   const folhas = [...dir.keys()].filter((k) => /^xl\/worksheets\/sheet\d+\.xml$/.test(k)).sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
   if (!folhas.length) throw new ErroPlanilha('O XLSX não tem planilha');
-  const compartilhadas = dir.has('xl/sharedStrings.xml')
-    ? [...semDtd(await extrair(b, dir.get('xl/sharedStrings.xml')!)).matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => textos(m[1]))
-    : [];
+  const compartilhadas: string[] = [];
+  if (dir.has('xl/sharedStrings.xml')) {
+    for (const [, corpo] of elementos(semDtd(await extrair(b, dir.get('xl/sharedStrings.xml')!)), 'si')) {
+      // Mais strings do que células cabem na planilha é arquivo montado para gastar memória.
+      if (compartilhadas.push(textos(corpo)) > LIMITES_PLANILHA.linhas * LIMITES_PLANILHA.colunas) throw new ErroPlanilha('XLSX com strings compartilhadas acima do teto');
+    }
+  }
   const xml = semDtd(await extrair(b, dir.get(folhas[0])!));
   const linhas: string[][] = [];
-  for (const [, corpo] of xml.matchAll(/<row\b[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g)) {
+  for (const [, corpo] of elementos(xml, 'row')) {
     const linha: string[] = [];
     let prox = 0;
-    for (const m of (corpo ?? '').matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-      const attrs = m[1];
+    for (const [attrs, conteudo] of elementos(corpo, 'c')) {
       const ref = attrs.match(/\br="([A-Z]+\d*)"/i)?.[1];
       const col = ref ? coluna(ref) : prox;
       if (col >= LIMITES_PLANILHA.colunas * 4) throw new ErroPlanilha(`Planilha acima de ${LIMITES_PLANILHA.colunas} colunas`);
       prox = col + 1;
       const tipo = attrs.match(/\bt="(\w+)"/)?.[1];
-      const v = m[2]?.match(/<v>([\s\S]*?)<\/v>/)?.[1];
-      const valor = tipo === 'inlineStr' ? textos(m[2] ?? '') : tipo === 's' ? compartilhadas[Number(v)] ?? '' : v === undefined ? '' : texto(v);
+      const v = elementos(conteudo, 'v').next().value?.[1];
+      const valor = tipo === 'inlineStr' ? textos(conteudo) : tipo === 's' ? compartilhadas[Number(v)] ?? '' : v === undefined ? '' : texto(v);
       while (linha.length < col) linha.push('');
       linha[col] = valor;
     }

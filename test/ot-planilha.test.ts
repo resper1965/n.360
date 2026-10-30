@@ -98,3 +98,35 @@ describe('lerPlanilha: tetos (P1-5)', () => {
     expect(await lerPlanilha('a.csv', utf8('nome\n' + 'x\n'.repeat(linhas)).buffer as ArrayBuffer)).toHaveProperty('linhas');
   });
 });
+
+// Entrada maliciosa curta (revisão de 2026-10-30): a varredura do XML é linear e os tetos valem DURANTE o parse.
+describe('lerPlanilha: CPU e memória com entrada maliciosa (P1-5)', () => {
+  const rapido = async (arq: ArrayBuffer, ms: number) => {
+    const t0 = performance.now();
+    const r = await lerPlanilha('x.xlsx', arq);
+    expect(performance.now() - t0, 'varredura não linear').toBeLessThan(ms);
+    return r;
+  };
+
+  it('<row>, <c>, <si> e <t> sem fechamento: recusa em tempo linear', async () => {
+    const n = 60_000;
+    const folha = (corpo: string) => `<worksheet><sheetData>${corpo}</sheetData></worksheet>`;
+    expect(await rapido(await zip({ 'xl/worksheets/sheet1.xml': folha('<row>'.repeat(n)) }), 1000)).toHaveProperty('erro');
+    expect(await rapido(await zip({ 'xl/worksheets/sheet1.xml': folha(`<row>${'<c>'.repeat(n)}</row>`) }), 1000)).toHaveProperty('erro');
+    expect(await rapido(await zip({ 'xl/worksheets/sheet1.xml': folha(`<row><c t="inlineStr"><is>${'<t>'.repeat(n)}</is></c></row>`) }), 1000)).toHaveProperty('erro');
+    expect(await rapido(await zip({ 'xl/sharedStrings.xml': `<sst>${'<si>'.repeat(n)}</sst>`, 'xl/worksheets/sheet1.xml': folha('') }), 1000)).toHaveProperty('erro');
+  });
+
+  it('sharedStrings com mais strings do que a planilha comporta é recusado durante a leitura', async () => {
+    const { linhas, colunas } = LIMITES_PLANILHA;
+    const sst = `<sst>${'<si><t>a</t></si>'.repeat(linhas * colunas + 1)}</sst>`;
+    expect(await rapido(await zip({ 'xl/sharedStrings.xml': sst, 'xl/worksheets/sheet1.xml': '<worksheet/>' }), 3000)).toMatchObject({ erro: expect.stringContaining('strings') });
+  });
+
+  it('CSV de 5 MB com "a\\n" repetido para no teto de linhas sem montar a tabela inteira', async () => {
+    const t0 = performance.now();
+    const r = await lerPlanilha('a.csv', utf8('a\n'.repeat(LIMITES_PLANILHA.bytes / 2 - 8)).buffer as ArrayBuffer);
+    expect(r).toMatchObject({ erro: expect.stringContaining('linhas') });
+    expect(performance.now() - t0).toBeLessThan(300);
+  });
+});

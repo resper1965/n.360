@@ -11,14 +11,20 @@ export const MAX_LINHAS = 500;
 const LOTE = 50; // ponytail: teto de statements por batch do D1
 
 /** CSV mínimo (RFC 4180): campo entre aspas, aspas dobradas, quebra de linha dentro do campo. Delimitador `;` ou `,`. */
-export function lerCsv(texto: string): string[][] {
+/** `teto`: para no meio da leitura (RangeError 'linhas' | 'colunas') em vez de montar uma tabela que será recusada depois. */
+export function lerCsv(texto: string, teto?: { linhas: number; colunas: number }): string[][] {
   const t = texto.replace(/^﻿/, '');
   const primeira = t.split(/\r?\n/, 1)[0] ?? '';
   const delim = (primeira.match(/;/g) ?? []).length > (primeira.match(/,/g) ?? []).length ? ';' : ',';
   const linhas: string[][] = [];
   let campo = '', linha: string[] = [], aspas = false;
-  const fechaCampo = () => { linha.push(campo); campo = ''; };
-  const fechaLinha = () => { fechaCampo(); if (linha.some((c) => c.trim() !== '')) linhas.push(linha); linha = []; };
+  const fechaCampo = () => { linha.push(campo); campo = ''; if (teto && linha.length > teto.colunas) throw new RangeError('colunas'); };
+  const fechaLinha = () => {
+    fechaCampo();
+    if (linha.some((c) => c.trim() !== '')) linhas.push(linha);
+    linha = [];
+    if (teto && linhas.length > teto.linhas) throw new RangeError('linhas');
+  };
   for (let i = 0; i < t.length; i++) {
     const ch = t[i];
     if (aspas) {
