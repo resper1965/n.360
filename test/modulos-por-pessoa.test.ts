@@ -140,7 +140,7 @@ describe('regra: a pessoa precisa do módulo', () => {
   it('/auth/me devolve os módulos da pessoa', async () => {
     const me = async (h: Record<string, string>) => (await (await req('/api/v1/auth/me', { headers: h })).json<any>()).user.modulos;
     expect(await me(await sessao('r-iso', 'client', 'p-duo'))).toEqual(['iso']);
-    expect(await me(await sessao('r-pa', 'platform_admin'))).toEqual(['iso', 'privacy']);
+    expect(await me(await sessao('r-pa', 'platform_admin'))).toEqual(['iso', 'privacy', 'ot']);
   });
 });
 
@@ -228,8 +228,8 @@ describe('conceder: PUT /users/:id/modulos', () => {
     expect(ou.teto_modulos).toEqual(['iso', 'privacy']);
     const doPa = await lista(await sessao('c-pa', 'platform_admin'));
     const isoSo = doPa.find((u) => u.id === 'c-ou-iso');
-    expect(isoSo.teto_modulos).toEqual(['iso', 'privacy']); // platform_admin concede qualquer um
-    expect(doPa.find((u) => u.id === 'c-pa').modulos).toEqual(['iso', 'privacy']);
+    expect(isoSo.teto_modulos).toEqual(['iso', 'privacy', 'ot']); // platform_admin concede qualquer um
+    expect(doPa.find((u) => u.id === 'c-pa').modulos).toEqual(['iso', 'privacy', 'ot']);
     const doCadm = await lista(await sessao('c-cadm', 'consultoria_admin', null, 'o-priv'));
     expect(doCadm.find((u) => u.id === 'c-cons-priv').teto_modulos).toEqual(['privacy']);
   });

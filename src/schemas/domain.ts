@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { dataIso, dataOuInstante } from './ropa-abas';
+import { MODULOS } from './nucleo';
 
 /**
  * Schemas das escritas de domínio.
@@ -231,7 +232,7 @@ export const evidenceEvaluateSchema = z.object({
 // ─── IA ──────────────────────────────────────────────────────────────────────
 export const chatSchema = z.object({
   message: z.string().trim().min(1).max(10_000),
-  modulo: z.enum(['iso', 'privacy']).optional(),
+  modulo: z.enum(MODULOS).optional(),
 }).passthrough();
 
 export const gerarPoliticaSchema = z.object({

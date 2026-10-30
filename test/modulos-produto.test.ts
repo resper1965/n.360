@@ -2,7 +2,9 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { applySchema, execSql, sessionFor, workerEnv } from './helpers/d1';
-import { FAIXA_DA_TABELA, faixaDoCaminho, recusaDeModulo } from '../src/modulos';
+import { FAIXA_DA_TABELA, MODULOS_PRODUTO, faixaDoCaminho, recusaDeModulo } from '../src/modulos';
+import { MODULOS } from '../src/schemas/nucleo';
+import { projetoCriarSchema } from '../src/schemas/corpos';
 import migration0060 from '../migrations/0060_modulos_do_contrato.sql?raw';
 
 /**
@@ -35,6 +37,13 @@ describe('classificação', () => {
     for (const p of ['terceiros', 'encarregado', 'titular-pedidos', 'consentimentos', 'requisitos/lacunas', 'ropa/importar',
       'ropa/r1/ligacoes', 'ropa/r1/lia', 'ropa/r1/dpia', 'evidence/e1/requisitos']) expect(f(p), p).toBe('privacy');
     expect(faixaDoCaminho('/api/v1/requisitos')).toBeNull(); // catálogo global: fora da trava de projeto
+    for (const p of ['ot', 'ot/requisitos']) expect(f(p), p).toBe('ot');
+  });
+
+  it('as três listas de módulos andam juntas (corpos.ts repete a lista por causa de um ciclo de import)', () => {
+    expect([...MODULOS]).toEqual([...MODULOS_PRODUTO]);
+    expect(projetoCriarSchema.safeParse({ modulos: [...MODULOS_PRODUTO] }).success).toBe(true);
+    expect(projetoCriarSchema.safeParse({ modulos: ['xyz'] }).success).toBe(false);
   });
 
   it('toda tabela de recurso por id tem faixa', () => {
@@ -49,6 +58,7 @@ describe('classificação', () => {
     expect(recusaDeModulo('iso', ['privacy'])).toBe('Produto n.iso não habilitado neste projeto');
     expect(recusaDeModulo('privacy', ['iso'])).toBe('Produto n.privacy não habilitado neste projeto');
     expect(recusaDeModulo('privacy', ['iso', 'privacy'])).toBeNull();
+    expect(recusaDeModulo('ot', ['iso', 'privacy'])).toBe('Produto n.OT não habilitado neste projeto');
     expect(recusaDeModulo('privacy', [])).toBeNull(); // sem módulo = projeto inexistente: a rota responde 404
   });
 });

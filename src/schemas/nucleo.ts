@@ -3,7 +3,7 @@ import { normalizarNome } from '../services/nomes';
 import { RESPOSTAS_CRITICIDADE } from '../services/criticidade';
 import { cnpjCampo } from './corpos';
 
-export const MODULOS = ['iso', 'privacy'] as const;
+export const MODULOS = ['iso', 'privacy', 'ot'] as const;
 export type Modulo = (typeof MODULOS)[number];
 
 /** `organizations.modulos_contratados` é JSON gravado pela rota validada; JSON ruim cai no padrão. */

@@ -126,6 +126,7 @@ quê (mesma regra do [`SECURITY.md`](../../SECURITY.md)).
 | `/projects/:id/{sso,security-policy,scim-token,api-keys,webhooks}` e `/webhooks` | Configuração de segurança do cliente. O agente não amplia acesso. |
 | `/api/v1/public/*`, `/api/v1/auth/*`, `/api/v1/assessments/public/*` | Rotas sem sessão (portais, link com token, login): `niso_ler` e `niso_executar` as recusam em `caminhoSeguro` ("caminho de API recusado"), senão o agente responderia como fornecedor ou ciente. |
 | `/auth/*`, `/legal/*`, `/notifications` | **Conta pessoal do consultor** (veja a terceira linha do primeiro quadro). |
+| `/projects/:id/ot` e sub-rotas | n.OT (modelo de ameaças P0-2): o inventário do ARCiber não vai ao modelo. A rota também recusa chave de API e agente (`src/routes/ot.ts`). |
 | `/projects/:id/auditor-token` | Emitiria uma credencial externa de até 365 dias e permitiria forjar nota de auditor. |
 | `POST`/`PUT`/`PATCH`/`DELETE /projects/:id/governance` e sub-rotas | A governança dá acesso (consultor), autoridade de assinatura e abre o portal de políticas ao e-mail e ao domínio do membro. O agente só lê (`GET`); quem mantém o comitê é uma pessoa. |
 | `POST /projects` | O agente é preso a um projeto; criar outro contradiz isso. `GET /projects` continua valendo, escopado. |

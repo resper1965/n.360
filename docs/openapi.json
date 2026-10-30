@@ -168,13 +168,14 @@
                 "type": "object",
                 "properties": {
                   "modulos": {
-                    "maxItems": 2,
+                    "maxItems": 3,
                     "type": "array",
                     "items": {
                       "type": "string",
                       "enum": [
                         "iso",
-                        "privacy"
+                        "privacy",
+                        "ot"
                       ]
                     }
                   }
@@ -449,13 +450,14 @@
                     ]
                   },
                   "modulos": {
-                    "maxItems": 2,
+                    "maxItems": 3,
                     "type": "array",
                     "items": {
                       "type": "string",
                       "enum": [
                         "iso",
-                        "privacy"
+                        "privacy",
+                        "ot"
                       ]
                     }
                   }
@@ -6987,13 +6989,14 @@
                 "properties": {
                   "modulos": {
                     "minItems": 1,
-                    "maxItems": 2,
+                    "maxItems": 3,
                     "type": "array",
                     "items": {
                       "type": "string",
                       "enum": [
                         "iso",
-                        "privacy"
+                        "privacy",
+                        "ot"
                       ]
                     }
                   }
@@ -7709,7 +7712,8 @@
                     "type": "string",
                     "enum": [
                       "iso",
-                      "privacy"
+                      "privacy",
+                      "ot"
                     ]
                   }
                 },
@@ -26957,13 +26961,14 @@
                   },
                   "modulos": {
                     "minItems": 1,
-                    "maxItems": 2,
+                    "maxItems": 3,
                     "type": "array",
                     "items": {
                       "type": "string",
                       "enum": [
                         "iso",
-                        "privacy"
+                        "privacy",
+                        "ot"
                       ]
                     }
                   },
