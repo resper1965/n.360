@@ -7,12 +7,12 @@ vi.mock('../src/api.js', () => ({ api: vi.fn(async () => ([])), API_BASE: 'http:
 vi.mock('../src/router.js', () => ({ navigate: vi.fn(), render: vi.fn() }));
 vi.mock('../src/produto.js', async (original) => {
   const real = await original();
-  return { ...real, destinoDoAviso: vi.fn(real.destinoDoAviso) };
+  return { ...real, destinoDoAviso: vi.fn(real.destinoDoAviso), irPara: vi.fn() };
 });
 
 import { S } from '../src/state.js';
 import { navigate } from '../src/router.js';
-import { destinoDoAviso } from '../src/produto.js';
+import { destinoDoAviso, irPara } from '../src/produto.js';
 
 beforeAll(async () => {
   vi.stubGlobal('MutationObserver', class { observe() {} disconnect() {} takeRecords() { return []; } });
@@ -29,6 +29,8 @@ const clicar = async (link) => {
 beforeEach(() => {
   navigate.mockClear();
   destinoDoAviso.mockClear();
+  irPara.mockClear();
+  sessionStorage.clear();
   S.projects = [PROJ];
   S.titularAba = 'pedidos';
   document.body.innerHTML = '<div id="notif-dropdown"></div>';
@@ -65,5 +67,48 @@ describe('handleNotificationClick', () => {
     history.replaceState(null, '', '/privacy');
     await clicar('/projects/p1/terceiros');
     expect(navigate).toHaveBeenCalledWith('terceiros', { currentProject: PROJ, activeProject: PROJ });
+  });
+
+  // ot_acesso_sensivel (src/services/ot-stepup.ts): link /projects/<id>/ot; a mensagem diz se foi revelação ou exportação.
+  describe('aviso do n.ot (revelação ou exportação)', () => {
+    const OT = { id: 'p2', modulos: ['iso', 'ot'] };
+    const EXPORTOU = 'gestor@x.com exportou o inventário (csv, site s1, 3 ativo(s)). Justificativa: Entrega ao ONS';
+    const REVELOU = 'admin@ness.com.br revelou o IP/MAC do ativo a1. Justificativa: Auditoria de campo';
+    const clicarOt = async (message, proj = OT) => {
+      S.projects = [proj];
+      S.notifications = [{ id: 'n1', link: `/projects/${proj.id}/ot`, message, read: 0 }];
+      await window.handleNotificationClick('n1');
+    };
+    beforeEach(() => { S.otAba = 'catalogo'; });
+
+    it('no n.ot: abre a tela do n.ot no projeto do aviso, na aba Saídas (exportação) ou Inventário (revelação)', async () => {
+      history.replaceState(null, '', '/ot');
+      await clicarOt(EXPORTOU);
+      expect(navigate).toHaveBeenCalledWith('ot', { currentProject: OT, activeProject: OT });
+      expect(S.otAba).toBe('saidas');
+      await clicarOt(REVELOU);
+      expect(S.otAba).toBe('inventario');
+    });
+
+    it('no n.iso: vai à casca /ot com o projeto e o aviso guardados (o n.ot o reabre no boot)', async () => {
+      history.replaceState(null, '', '/iso');
+      await clicarOt(EXPORTOU);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(irPara).toHaveBeenCalledWith('/ot?tela=ot');
+      expect(JSON.parse(sessionStorage.getItem('n360_aviso'))).toMatchObject({ link: '/projects/p2/ot', message: EXPORTOU });
+      expect(JSON.parse(localStorage.getItem('niso_activeProject'))).toMatchObject({ id: 'p2' });
+    });
+
+    it('no n.360: navega para a tela do n.ot (o router leva ao módulo)', async () => {
+      await clicarOt(REVELOU);
+      expect(navigate).toHaveBeenCalledWith('ot', { currentProject: OT, activeProject: OT });
+    });
+
+    it('quem não tem o n.ot no projeto cai na página do projeto, não numa casca sem acesso', async () => {
+      history.replaceState(null, '', '/iso');
+      await clicarOt(REVELOU, PROJ);
+      expect(irPara).not.toHaveBeenCalled();
+      expect(navigate).toHaveBeenCalledWith('project-detail', { currentProject: PROJ });
+    });
   });
 });

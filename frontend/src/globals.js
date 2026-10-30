@@ -1,4 +1,4 @@
-import { PRODUTOS, atualizarItemOt, produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
+import { PRODUTOS, atualizarItemOt, produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, enderecoNoModulo, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
 import { S } from './state.js';
 import { atualizarSelos } from './selos-menu.js';
 import { api, API_BASE } from './api.js';
@@ -1230,6 +1230,11 @@ window.abrirAviso = async function abrirAviso(n) {
                     navigate('controls', { currentProject: proj });
                 } else if (subview === 'soa') {
                     navigate('soa', { currentProject: proj });
+                } else if (subview === 'ot' && modulosVisiveis(proj).includes('ot')) {
+                    // ot_acesso_sensivel (src/services/ot-stepup.ts): a exportação abre Saídas; a revelação, o Inventário.
+                    S.otAba = /\bexportou\b/.test(message) ? 'saidas' : 'inventario';
+                    if (produtoAtual() === 'ot' || noHub) navigate('ot', { currentProject: proj, activeProject: proj });
+                    else { S.avisoEmCurso = n; irPara(enderecoNoModulo('ot', 'ot', proj)); } // o n.ot reabre o aviso no boot (pedidoDoHub)
                 } else if (Object.hasOwn(TELA_DO_AVISO, subview || '')) {
                     // Incidente é do núcleo: os dois módulos têm a tela (aba Incidentes), então navega local em qualquer um.
                     const destino = subview === 'incidentes' ? {} : destinoDoAviso(subview);
