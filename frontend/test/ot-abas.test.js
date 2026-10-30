@@ -495,7 +495,12 @@ describe('step-up de TOTP e teto por hora', () => {
         const f = globalThis.fetch;
         const download = { ok: true, status: 200, headers: { get: () => null }, blob: async () => new Blob(['a']) };
         let exportacoes = 0;
-        vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => (url.endsWith('/exportacao') && exportacoes++ > 0 ? download : f(url, opts))));
+        const corpos = [];
+        vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => {
+            if (!url.endsWith('/exportacao')) return f(url, opts);
+            corpos.push(JSON.parse(opts.body));
+            return exportacoes++ > 0 ? download : f(url, opts);
+        }));
         URL.createObjectURL = vi.fn(() => 'blob:x');
         URL.revokeObjectURL = vi.fn();
         el('ot-exp-site').value = 's1';
@@ -505,6 +510,7 @@ describe('step-up de TOTP e teto por hora', () => {
         await p;
         expect(exportacoes).toBe(2);
         expect(chamadas.some((x) => x.k === 'POST /api/v1/auth/mfa/verify')).toBe(true);
+        expect(corpos[1]).toEqual({ formato: 'xlsx', site_id: 's1', justificativa: 'Entrega do inventário ao ONS' });
     });
 
     it('conta sem TOTP ativo: diz para ativar o segundo fator, sem pedir código', async () => {
