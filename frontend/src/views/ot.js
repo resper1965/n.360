@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderSemProjeto, renderDataTable, falhaDeCarga, renderAbas, renderMaisAcoes, renderStatusBadge,
     openModal, forceCloseModal, showToast, confirmar, pedirTexto, formatarData } from '../ui.js';
-import { baseOt, podeEditarOt, podeRevelar, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
+import { baseOt, podeEditarOt, podeRevelar, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
     TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS } from '../ot-comum.js';
 import { montarColeta } from './ot-coleta.js';
 import { montarSaidas } from './ot-saidas.js';
@@ -210,7 +210,7 @@ window.otRemover = async (rota, id) => {
     } catch (e) { falhou(e, 'Não foi possível remover.'); }
 };
 
-// Revelar (platform_admin, spec §5): motivo obrigatório para a trilha; o valor aparece só neste modal e some em 30 s. Fica numa
+// Revelar (platform_admin, spec §5): motivo obrigatório para a trilha, TOTP dos últimos 10 min (comStepUp, P1-1); o valor aparece só neste modal e some em 30 s. Fica numa
 // variável local da chamada, nunca em S, storage, endereço ou na tabela.
 const TEMPO_REVELADO = 30000;
 window.otRevelar = async (id) => {
@@ -219,7 +219,8 @@ window.otRevelar = async (id) => {
     if (motivo === null) return;
     if (motivo.length < 10) { showToast('Escreva o motivo com ao menos 10 caracteres.', 'error'); return; }
     let r;
-    try { r = await api('POST', `${base()}/ativos/${encodeURIComponent(id)}/revelar`, { justificativa: motivo }); } catch (e) { falhou(e, 'Não foi possível revelar.'); return; }
+    try { r = await comStepUp(() => api('POST', `${base()}/ativos/${encodeURIComponent(id)}/revelar`, { justificativa: motivo })); } catch (e) { falhou(e, 'Não foi possível revelar.'); return; }
+    if (!r) return;
     openModal(`<div class="modal-header"><span class="modal-title">IP e MAC de ${escapeHTML(r.nome || 'ativo')}</span></div>
         <div id="ot-revelado"><div class="rotulo-campo">IP</div><p class="valor-campo f-mono">${escapeHTML(r.ip ?? '—')}</p>
         <div class="rotulo-campo mt-3">MAC</div><p class="valor-campo f-mono">${escapeHTML(r.mac ?? '—')}</p></div>

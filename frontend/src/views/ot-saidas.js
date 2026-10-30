@@ -1,6 +1,6 @@
 import { api, baixarArquivo } from '../api.js';
-import { escapeHTML, renderDataTable, renderStatCards, renderStatusBadge, falhaDeCarga, showToast, formatarData } from '../ui.js';
-import { baseOt, podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, SITUACAO } from '../ot-comum.js';
+import { escapeHTML, renderDataTable, renderStatCards, renderStatusBadge, falhaDeCarga, showToast, formatarData, pedirTexto } from '../ui.js';
+import { baseOt, podeEditarOt, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, SITUACAO } from '../ot-comum.js';
 import { S } from '../state.js';
 
 // Saídas do n.ot (N4; spec §8): indicadores e conformidade por item da RO-CB.BR.01, ambos calculados do inventário pelo servidor
@@ -28,7 +28,7 @@ export async function montarSaidas(c, a, p) {
             <div class="form-group"><label class="form-label" for="ot-exp-site">Site</label><select class="form-input" id="ot-exp-site">${opcoes(sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>
             <button class="btn" data-action="otExportar" data-args='["csv"]'>Exportar CSV</button>
             <button class="btn" data-action="otExportar" data-args='["xlsx"]'>Exportar XLSX</button></div>
-        <p class="org-dica">A exportação é por site, com IP e MAC como o seu papel os vê, e fica registrada na trilha de auditoria.</p>` : '';
+        <p class="org-dica">A exportação é por site, com IP e MAC como o seu papel os vê. Pede justificativa e o código do autenticador, fica registrada na trilha de auditoria e avisa o Gestor ARCiber do projeto.</p>` : '';
 
     c.innerHTML = `<h3 class="mb-3">Indicadores do inventário</h3>
         ${renderStatCards([
@@ -55,7 +55,12 @@ export async function montarSaidas(c, a, p) {
 window.otExportar = async (formato) => {
     const site = el('ot-exp-site')?.value;
     if (!site || !['csv', 'xlsx'].includes(formato)) return;
+    const justificativa = await pedirTexto('Por que exportar o inventário deste site? O motivo vai para a trilha de auditoria e para o aviso ao Gestor ARCiber (mínimo de 10 caracteres, sem IP nem MAC).',
+        { titulo: 'Exportar o inventário', rotulo: 'Exportar' });
+    if (justificativa === null) return;
+    if (justificativa.length < 10) { showToast('Escreva o motivo com ao menos 10 caracteres.', 'error'); return; }
     try {
-        await baixarArquivo(`${baseOt(S.activeProject)}/exportacao?formato=${formato}&site_id=${encodeURIComponent(site)}`);
+        // POST: a justificativa vai no corpo, não no endereço (P1-1).
+        await comStepUp(() => baixarArquivo(`${baseOt(S.activeProject)}/exportacao`, { formato, site_id: site, justificativa }));
     } catch (e) { showToast(mensagemDeErro(e, 'Não foi possível exportar o inventário.'), 'error'); }
 };

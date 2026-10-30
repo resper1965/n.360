@@ -118,14 +118,20 @@ async function api(m, p, b, extras) {
 
 /**
  * Baixa um arquivo da API (CSV, Word) com o cabeçalho da sessão: o token nunca vai na URL. O nome sai do
- * Content-Disposition do servidor (já sanitizado lá). Erro vira exceção com a mensagem do servidor quando houver.
+ * Content-Disposition do servidor (já sanitizado lá). Com `corpo`, é POST em JSON (a exportação do n.ot leva a justificativa).
+ * Erro vira exceção com a mensagem do servidor quando houver, e `status`/`body` como em api().
  */
-async function baixarArquivo(p) {
-    const r = await fetch(API_BASE + p, { headers: cabecalhosAuth(), signal: AbortSignal.timeout(60000) });
+async function baixarArquivo(p, corpo) {
+    const r = await fetch(API_BASE + p, corpo === undefined ? { headers: cabecalhosAuth(), signal: AbortSignal.timeout(60000) }
+        : { method: 'POST', headers: { ...cabecalhosAuth(), 'Content-Type': 'application/json' }, body: JSON.stringify(corpo), signal: AbortSignal.timeout(60000) });
     if (!r.ok) {
         let msg = `Não foi possível baixar o arquivo (erro ${r.status})`;
-        try { const d = await r.json(); if (d && d.error) msg = d.error; } catch (e) { /* corpo sem JSON */ }
-        throw new Error(msg);
+        let d = {};
+        try { d = (await r.json()) || {}; if (d.error) msg = d.error; } catch (e) { /* corpo sem JSON */ }
+        const err = new Error(msg);
+        err.status = r.status;
+        err.body = d;
+        throw err;
     }
     const nome = /filename="([^"]+)"/.exec(r.headers.get('content-disposition') || '')?.[1] || 'arquivo';
     const url = URL.createObjectURL(await r.blob());

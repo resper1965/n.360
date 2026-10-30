@@ -1,5 +1,6 @@
 import { S } from './state.js';
-import { escapeHTML } from './ui.js';
+import { escapeHTML, pedirTexto } from './ui.js';
+import { api } from './api.js';
 
 // Peças comuns das abas do n.ot (views/ot.js, ot-coleta.js, ot-saidas.js). Os papéis aqui só ESCONDEM o que a API recusaria; a
 // barreira é o servidor (src/services/ot-inventario.ts: podeEditarOt, podeCriarLote, podeVerCompleto/podeAprovar).
@@ -21,7 +22,7 @@ export const podeRevelar = (ativo) => !!ativo && ativo.mascarado === true && pap
 /** Mensagem para a tela; o 403 diz claramente que é falta de permissão, com o motivo do servidor sem o "Forbidden:". */
 export function mensagemDeErro(e, padrao) {
     const m = String((e && e.message) || '').replace(/^Forbidden:\s*/i, '').trim();
-    if (e && e.status === 403) return `Sem permissão: ${m || 'seu papel não faz esta ação no n.ot'}.`.replace(/\.\.$/, '.');
+    if (e && e.status === 403 && e.body?.codigo !== 'totp_necessario') return `Sem permissão: ${m || 'seu papel não faz esta ação no n.ot'}.`.replace(/\.\.$/, '.');
     return m || padrao;
 }
 
@@ -107,3 +108,19 @@ export const SITUACAO = {
     evidencia_no_inventario: ['info', 'Evidência no inventário'],
     sem_evidencia: ['warning', 'Sem evidência'],
 };
+
+/**
+ * Revelar e exportar (P1-1): o servidor pede o TOTP confirmado nos últimos 10 min (403 `totp_necessario`). Aqui a tela pede o código,
+ * confirma em /auth/mfa/verify (o mesmo do login, que carimba a sessão) e repete `fazer` uma vez. Conta sem TOTP ativo e o 429 do teto
+ * por hora sobem como erro, com a mensagem do servidor.
+ */
+export async function comStepUp(fazer) {
+    try { return await fazer(); } catch (e) {
+        if (!(e && e.status === 403 && e.body && e.body.codigo === 'totp_necessario' && e.body.totp_ativo)) throw e;
+    }
+    const codigo = await pedirTexto('Esta ação pede o código de 6 dígitos do seu autenticador (vale por 10 minutos).',
+        { titulo: 'Confirmar o segundo fator', rotulo: 'Confirmar' });
+    if (codigo === null) return null;
+    await api('POST', '/api/v1/auth/mfa/verify', { codigo: codigo.trim() });
+    return fazer();
+}
