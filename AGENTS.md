@@ -97,7 +97,12 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   IA) e `POST …/ot/lotes/manual` (JSON) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
   no inventario. O tecnico (`org_user`) so cria lote, nos sites de `ot_site_acessos` (entrada exata no allow-list de `auth.ts`);
   aprovar/rejeitar e de quem `podeVerCompleto` e nunca de quem criou o lote; a aprovacao grava `verificado_por` e
-  `ultima_verificacao_em`, a evidencia do 4.3.1. Export de ferramenta OT (Nozomi etc.) nao existe: sem amostra.
+  `ultima_verificacao_em` (a evidencia do 4.3.1) so quando o item trouxe todos os campos do 4.3.1; item que muda um deles sem
+  recoletar, ou `PUT /ativos` que toca um deles, zera a verificacao (`toca431`). Alvo da mescla alterado depois da revisao volta o
+  item a pendente e o lote a `em_revisao` (P1-4). A marca de duplicata (`possivel_duplicata`, `possiveis_duplicatas`) so sai para
+  quem `podeVerCompleto` (A1). O export de portabilidade (`GET /projects/:id/export`) nunca leva tabela `ot_*` (prefixo, em
+  `src/portabilidade.ts`). Troca de papel ou projeto nao concede `ot` (`recalcularModulos`). Export de ferramenta OT (Nozomi etc.)
+  nao existe: sem amostra.
 - **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
   `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` e
   `/homologacao*` ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.
