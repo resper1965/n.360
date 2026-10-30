@@ -90,4 +90,17 @@ describe('n.OT: GET /ot/requisitos e as travas do módulo', () => {
     }
   });
 
+  // Por último: liga o n.OT no proj-b.
+  it('P0-1: ligar o n.OT no projeto (PUT /modulos/ot) não o concede às contas de cliente; só a concessão explícita', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE organizations SET modulos_contratados = '["iso","ot"]' WHERE id = 'org_ness'`),
+      env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES ('u-b2', 'u-b2@cliente.teste', 'x', 'Cliente B', 'org_user', 'proj-b')`),
+    ]);
+    const r = await app.fetch(new Request('http://localhost/api/v1/projects/proj-b/modulos/ot', {
+      method: 'PUT', headers: { ...plat, 'Content-Type': 'application/json' }, body: JSON.stringify({ habilitado: true }),
+    }), workerEnv());
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await env.DB.prepare(`SELECT 1 FROM projeto_modulos WHERE project_id = 'proj-b' AND modulo = 'ot'`).first()).not.toBeNull();
+    expect(await env.DB.prepare(`SELECT 1 FROM usuario_modulos WHERE user_id = 'u-b2' AND modulo = 'ot'`).first()).toBeNull();
+  });
 });

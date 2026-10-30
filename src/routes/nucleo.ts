@@ -55,15 +55,16 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
         // Módulos por pessoa (fatia 3 do n.360): ligar o módulo no projeto o concede às contas de CLIENTE dele, no mesmo
         // batch. Equipe e stakeholder não: a equipe recebe pelo contrato da organização (ou por PUT /users/:id/modulos).
         // A trilha é o terceiro statement do MESMO batch: se ela falha, nem o módulo nem a concessão ficam.
+        // O n.OT não: só por concessão explícita a cada pessoa (modelo de ameaças do n.OT, P0-1; mesma regra do gatilho, 0089).
         await db.batch([
           db.prepare('INSERT INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, ?, ?)').bind(projectId, modulo, user.email),
           db.prepare(`INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
-            SELECT id, ?, ? FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client')`).bind(modulo, user.email, projectId),
+            SELECT id, ?, ? FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client') AND ? <> 'ot'`).bind(modulo, user.email, projectId, modulo),
           db.prepare(`INSERT INTO audit_logs (id, action, actor, details, justification, ip_address, project_id, created_at)
             VALUES (?, 'usuario.modulos', ?, ? || ' habilitado no projeto: concedido a '
-              || (SELECT COUNT(*) FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client')) || ' contas de cliente',
+              || (SELECT COUNT(*) FROM users WHERE client_project_id = ? AND role IN ('org_admin', 'org_user', 'client') AND ? <> 'ot') || ' contas de cliente',
               '', '', ?, datetime('now'))`)
-            .bind(crypto.randomUUID(), user.email, NOME_DO_PRODUTO[modulo as Modulo], projectId, projectId),
+            .bind(crypto.randomUUID(), user.email, NOME_DO_PRODUTO[modulo as Modulo], projectId, modulo, projectId),
         ]);
         if (modulo === 'iso') {
           // O projeto criado sem o n.iso nasce sem as fases da jornada: ligar o módulo as carrega (nunca duplica).
