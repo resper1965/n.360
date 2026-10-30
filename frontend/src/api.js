@@ -37,6 +37,21 @@ function falha(codigo, detalhe, extra = {}) {
     return Object.assign(new Error(MSG[codigo]), { codigo }, extra);
 }
 
+/**
+ * 401 de sessão (fora das rotas que tratam o próprio 401): age e devolve o erro a lançar. Serve a api() e aos envios multipart que
+ * usam fetch direto (a planilha do n.ot). Sessão expirada NÃO é o mesmo que sessão inválida. Expirou por inatividade: o usuário
+ * continua sendo quem era e pode ter edição aberta na tela — derrubar tudo perde o trabalho dele. Reautentica no lugar, preservando
+ * o rascunho (ver pedirReautenticacao em globals.js).
+ */
+function sessaoTerminada(data, detalhe) {
+    if (data?.expired === 'inactivity' && window.pedirReautenticacao) {
+        window.pedirReautenticacao();
+        return new Error('Sessão expirada por inatividade');
+    }
+    if (window.doLogout) window.doLogout();
+    return falha('sessao', detalhe, { status: 401 });
+}
+
 // `extras` carrega cabeçalho por chamada — hoje só o X-Operacao, que agrupa as
 // linhas da trilha de uma ação em lote. Fica opcional para não tocar nas ~200
 // chamadas existentes.
@@ -81,18 +96,7 @@ async function api(m, p, b, extras) {
         throw falha('formato', `resposta HTTP ${r.status} sem JSON em ${m} ${p}`, { status: r.status });
     }
 
-    if (r.status === 401 && p !== '/api/v1/auth/login' && !autoatendimentoMfa) {
-        // Sessão expirada NÃO é o mesmo que sessão inválida. Expirou por
-        // inatividade: o usuário continua sendo quem era e pode ter edição
-        // aberta na tela — derrubar tudo perde o trabalho dele. Reautentica no
-        // lugar, preservando o rascunho (ver pedirReautenticacao em globals.js).
-        if (data?.expired === 'inactivity' && window.pedirReautenticacao) {
-            window.pedirReautenticacao();
-            throw new Error('Sessão expirada por inatividade');
-        }
-        if (window.doLogout) window.doLogout();
-        throw falha('sessao', `401 em ${m} ${p}`, { status: 401 });
-    }
+    if (r.status === 401 && p !== '/api/v1/auth/login' && !autoatendimentoMfa) throw sessaoTerminada(data, `401 em ${m} ${p}`);
     if (!r.ok) {
         const doServidor = data.error && !ERRO_GENERICO.test(String(data.error).trim()) ? data.error
             : (!data.error && data.details ? data.details.map(i => i.message).join(', ') : '');
@@ -159,5 +163,5 @@ async function abrirRelatorio(p) {
     aba.location.href = url;
 }
 
-export { api, baixarArquivo, abrirRelatorio };
+export { api, baixarArquivo, abrirRelatorio, sessaoTerminada };
 window.api = api;

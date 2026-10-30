@@ -97,6 +97,22 @@ describe('inventário', () => {
         expect(texto()).not.toContain('RTU-01');
     });
 
+    it('trocar de projeto zera os filtros de site e zona e o lote aberto: o projeto B não abre vazio pelo filtro do A', async () => {
+        servirOt(INVENTARIO);
+        await abrir('inventario');
+        window.otFiltrarSite('s1');
+        window.otFiltrarZona('z2');
+        S.otLote = 'l-do-a';
+        const B2 = '/api/v1/projects/p8/ot';
+        S.activeProject = { id: 'p8', modulos: ['ot'] };
+        servirOt({ [`GET ${B2}/sites`]: { sites: [{ ...SITE, id: 's8', nome: 'SE Sul' }] }, [`GET ${B2}/zonas`]: { zonas: [] },
+            [`GET ${B2}/ativos`]: { ativos: [{ ...ATIVOS[0], id: 'a8', site_id: 's8', zona_id: null, nome: 'RTU-SUL' }] } });
+        await abrir('inventario');
+        expect(chamadas.filter((x) => x.k !== `GET ${B2}/sites`).map((x) => x.url.search)).toEqual(['', '']);
+        expect(texto()).toContain('RTU-SUL');
+        expect([S.otSite, S.otZona, S.otLote]).toEqual([null, null, null]);
+    });
+
     it('client e org_user não veem criar, editar nem remover', async () => {
         for (const role of ['client', 'org_user']) {
             S.user = { id: 'u', role };
@@ -205,6 +221,28 @@ describe('revelar IP/MAC', () => {
         expect(grava).not.toHaveBeenCalled();
         expect(window.location.href).not.toContain('10.9.8.7');
     });
+
+    it('o tempo de um "Revelar" antigo não fecha o modal do seguinte', async () => {
+        S.user = { id: 'pa', role: 'platform_admin' };
+        servirOt({ ...INVENTARIO, [`POST ${B}/ativos/a1/revelar`]: ativo('a1', 'RTU-01', 'z2', { ip: '10.9.8.7', mascarado: false }),
+            [`POST ${B}/ativos/a2/revelar`]: ativo('a2', 'IHM-02', 'z3', { ip: '10.1.1.2', mascarado: false }) });
+        await abrir('inventario');
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        const revelar = async (id) => {
+            const p = window.otRevelar(id);
+            await Promise.resolve();
+            document.querySelector('.confirmar input').value = 'Auditoria de campo do ONS';
+            document.querySelector('[data-confirmar="sim"]').click();
+            await p;
+        };
+        await revelar('a1');
+        vi.advanceTimersByTime(20000);
+        await revelar('a2');
+        vi.advanceTimersByTime(15000);
+        expect(el('ot-revelado').textContent).toContain('10.1.1.2');
+        vi.advanceTimersByTime(15000);
+        expect(el('ot-revelado')).toBeNull();
+    });
 });
 
 describe('IA: rascunho que a pessoa confirma', () => {
@@ -296,8 +334,9 @@ describe('acesso por site', () => {
 describe('coleta', () => {
     // GET /lotes e GET /lotes/:id (serializarItem em services/ot-coleta.ts).
     const LOTE = { id: 'l1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', criado_por: 'u-tec', decidido_por: null, decidido_em: null, motivo: null, created_at: '2026-10-30 10:00:00', updated_at: '2026-10-30 10:00:00' };
+    // Como o Gestor ARCiber (org_admin) recebe: IP em claro, `mascarado: false` (podeVerCompleto).
     const ITEM = (id, linha, extra) => ({ id, linha, decisao: 'pendente', motivo: null, erros: [], possivel_duplicata: false,
-        dados: { zona_id: null, nome: `Item ${linha}`, tipo_dispositivo: 'RTU', fabricante: 'ACME', no_arciber: false, firmware_nao_aplicavel: false, protocolos_portas: [], ip: '•••', mac: null, mascarado: true }, ...extra });
+        dados: { zona_id: null, nome: `Item ${linha}`, tipo_dispositivo: 'RTU', fabricante: 'ACME', no_arciber: false, firmware_nao_aplicavel: false, protocolos_portas: [], ip: '10.0.0.5', mac: null, mascarado: false }, ...extra });
     const COLETA = { [`GET ${B}/sites`]: { sites: [SITE] }, [`GET ${B}/lotes`]: { lotes: [{ ...LOTE, itens: 2, com_erro: 1, gravados: 0 }] },
         [`GET ${B}/lotes/l1`]: { lote: LOTE, itens: [ITEM('i1', 2, { possivel_duplicata: true }), ITEM('i2', 3, { erros: [{ campo: 'mac', motivo: 'MAC inválido' }] })] } };
 
@@ -323,6 +362,27 @@ describe('coleta', () => {
         expect(post.opts.headers.Authorization).toBe('Bearer tok');
         expect(post.opts.headers['Content-Type']).toBeUndefined();
         expect(S.otLote).toBe('l2');
+    });
+
+    it('planilha com a sessão terminada (401) segue o tratamento de api(): reautentica por inatividade ou sai', async () => {
+        const arq = new File(['nome\nRTU\n'], 'ativos.csv', { type: 'text/csv' });
+        const enviar = async (corpo) => {
+            servirOt(COLETA, { [`POST ${B}/lotes`]: [401, corpo] });
+            await abrir('coleta');
+            Object.defineProperty(el('ot-lote-arquivo'), 'files', { value: [arq] });
+            await window.otEnviarPlanilha();
+        };
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        window.pedirReautenticacao = vi.fn();
+        window.doLogout = vi.fn();
+        await enviar({ error: 'Unauthorized', expired: 'inactivity' });
+        expect(window.pedirReautenticacao).toHaveBeenCalledTimes(1);
+        expect(window.doLogout).not.toHaveBeenCalled();
+        await enviar({ error: 'Unauthorized' });
+        expect(window.doLogout).toHaveBeenCalledTimes(1);
+        expect(document.body.textContent).toContain('Sua sessão terminou');
+        expect(S.otLote).toBeNull();
+        delete window.pedirReautenticacao; delete window.doLogout;
     });
 
     it('entrada manual junta itens e manda o lote em JSON', async () => {
@@ -357,6 +417,20 @@ describe('coleta', () => {
             expect(acoes(el('a')), user.role).not.toContain('otAprovarLote');
             expect(acoes(el('a')), user.role).not.toContain('otRejeitarLote');
         }
+    });
+
+    it('consultoria_admin não designado (a API devolve o lote mascarado) não vê aprovar nem rejeitar; designado vê', async () => {
+        S.user = { id: 'ca', role: 'consultoria_admin' };
+        const mascarado = (id, linha) => ITEM(id, linha, { dados: { ...ITEM(id, linha).dados, ip: '•••', mascarado: true } });
+        servirOt({ ...COLETA, [`GET ${B}/lotes/l1`]: { lote: LOTE, itens: [mascarado('i1', 2), mascarado('i2', 3)] } });
+        S.otLote = 'l1';
+        await abrir('coleta');
+        expect(acoes(el('a'))).not.toContain('otAprovarLote');
+        expect(acoes(el('a'))).not.toContain('otRejeitarLote');
+        expect(texto()).toContain('A aprovação é do Gestor ARCiber ou do consultor do projeto.');
+        servirOt(COLETA);
+        await abrir('coleta');
+        expect(acoes(el('a'))).toEqual(expect.arrayContaining(['otAprovarLote', 'otRejeitarLote']));
     });
 
     it('403 na aprovação aparece claro, como falta de permissão', async () => {
@@ -495,7 +569,12 @@ describe('step-up de TOTP e teto por hora', () => {
         const f = globalThis.fetch;
         const download = { ok: true, status: 200, headers: { get: () => null }, blob: async () => new Blob(['a']) };
         let exportacoes = 0;
-        vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => (url.endsWith('/exportacao') && exportacoes++ > 0 ? download : f(url, opts))));
+        const corpos = [];
+        vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => {
+            if (!url.endsWith('/exportacao')) return f(url, opts);
+            corpos.push(JSON.parse(opts.body));
+            return exportacoes++ > 0 ? download : f(url, opts);
+        }));
         URL.createObjectURL = vi.fn(() => 'blob:x');
         URL.revokeObjectURL = vi.fn();
         el('ot-exp-site').value = 's1';
@@ -505,6 +584,34 @@ describe('step-up de TOTP e teto por hora', () => {
         await p;
         expect(exportacoes).toBe(2);
         expect(chamadas.some((x) => x.k === 'POST /api/v1/auth/mfa/verify')).toBe(true);
+        expect(corpos[1]).toEqual({ formato: 'xlsx', site_id: 's1', justificativa: 'Entrega do inventário ao ONS' });
+    });
+
+    it('código errado (401 do verify) pede o código de novo, sem perder a justificativa; o campo é de código numérico', async () => {
+        S.user = { id: 'pa', role: 'platform_admin' };
+        const revelado = ativo('a1', 'RTU-01', 'z2', { ip: '10.9.8.7', mac: 'aa:bb:cc:dd:ee:ff', mascarado: false });
+        emSequencia(`POST ${B}/ativos/a1/revelar`, [[403, TOTP], [200, revelado]], INVENTARIO);
+        const f = globalThis.fetch;
+        const base = f.getMockImplementation();
+        let tentativas = 0;
+        f.mockImplementation(async (url, opts = {}) => (url.endsWith('/auth/mfa/verify')
+            ? (chamadas.push({ k: 'POST /api/v1/auth/mfa/verify', opts }), resposta(tentativas++ ? { ok: true } : { error: 'Código inválido' }, tentativas > 1 ? 200 : 401))
+            : base(url, opts)));
+        await abrir('inventario');
+        const p = window.otRevelar('a1');
+        await responder('Auditoria de campo do ONS');
+        await pausa(); await pausa();
+        const campo = document.querySelector('.confirmar input');
+        expect(campo.getAttribute('inputmode')).toBe('numeric');
+        expect(campo.getAttribute('autocomplete')).toBe('one-time-code');
+        await responder('000000');
+        await responder('123456');
+        await p;
+        expect(chamadas.filter((x) => x.k === 'POST /api/v1/auth/mfa/verify').map((x) => JSON.parse(x.opts.body).codigo)).toEqual(['000000', '123456']);
+        const revelar = chamadas.filter((x) => x.k === `POST ${B}/ativos/a1/revelar`);
+        expect(revelar).toHaveLength(2);
+        expect(JSON.parse(revelar[1].opts.body)).toEqual({ justificativa: 'Auditoria de campo do ONS' });
+        expect(el('ot-revelado').textContent).toContain('10.9.8.7');
     });
 
     it('conta sem TOTP ativo: diz para ativar o segundo fator, sem pedir código', async () => {

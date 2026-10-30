@@ -22,7 +22,7 @@ export const SO_ISO = ['nav-dashboard', 'nav-comercial', 'nav-leads', 'nav-asses
     'nav-incidentes', 'nav-mgmt'];
 export const SO_PRIVACY = ['nav-encarregado', 'nav-empresas', 'nav-importacao', 'nav-requisitos', 'nav-referencia-juridica', 'nav-sistemas', 'nav-terceiros', 'nav-avaliacoes-terceiros', 'nav-titulares', 'nav-dados-titular',
     'nav-parceiros', 'nav-documentos-arquivo', 'nav-titular', 'nav-incidentes-privacy', 'nav-consentimentos', 'nav-mapa-de-risco', 'nav-lia', 'nav-gaps'];
-/** O n.ot (N1) tem uma tela só, o catálogo RO-CB.BR.01; o cadastro comum não entra no menu dele. */
+/** O n.ot tem uma tela só (`views/ot.js`), em abas: catálogo, inventário, fluxos, coleta, saídas e acesso por site; o cadastro comum não entra no menu dele. */
 export const SO_OT = ['nav-ot'];
 /**
  * Conta e acessos (n.360, fatia 2): telas que só o n.360 mostra no menu, cada uma com o item dela. É também a lista
@@ -376,7 +376,9 @@ export function semAcesso(c, produto = produtoAtual()) {
         ? renderEmptyState({ id: 'sem-acesso-produto', titulo: 'Você ainda não tem acesso a nenhum módulo do n.360',
             texto: 'Nenhum projeto seu tem o n.iso ou o n.privacy habilitado. Fale com a ness. para contratar.' })
         : renderEmptyState({ id: 'sem-acesso-produto', titulo: `Você não tem acesso ao n.${nome}`,
-            texto: 'Nenhum projeto seu tem este módulo habilitado. Fale com a ness. para contratar, ou volte ao n.360.',
+            // O n.ot nunca é concedido automaticamente (P0-1): sem ele, o comum é faltar a concessão à pessoa, não o contrato.
+            texto: produto === 'ot' ? 'O n.ot é concedido pessoa a pessoa, mesmo quando o projeto já tem o módulo. Peça a concessão a quem administra os usuários do seu projeto, ou volte ao n.360.'
+                : 'Nenhum projeto seu tem este módulo habilitado. Fale com a ness. para contratar, ou volte ao n.360.',
             acao: `<a class="btn btn-primary" href="${escapeHTML(enderecoDoProduto('n360'))}">Abrir o n.360</a>` });
 }
 

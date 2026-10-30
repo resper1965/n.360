@@ -3,7 +3,7 @@
 Se voce esta lendo isto, voce e o agente responsavel por continuar o
 desenvolvimento do **n.360**, a plataforma de GRC da ness., e dos seus
 modulos: **n.iso** (ISO 27001/27701, em `/iso`), **n.privacy** (LGPD/ANPD, em
-`/privacy`) e **n.ot** (ARCiber, ONS RO-CB.BR.01, em `/ot`; fatia N1 em construcao). O repositorio, o Worker e o banco ainda se chamam `niso` por
+`/privacy`) e **n.ot** (ARCiber, ONS RO-CB.BR.01, em `/ot`: catalogo, inventario, coleta, saidas e step-up, fatias N1 a N4 e P1-1). O repositorio, o Worker e o banco ainda se chamam `niso` por
 historia; nao e o nome do produto.
 
 Este arquivo descreve o que **existe hoje**. Historico de sprint vive no
@@ -77,8 +77,10 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
 - **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa faixa (`nucleo`, `iso`, `privacy`, `ot`).
   Faixa de modulo exige o modulo no projeto (`projeto_modulos`) **e** na pessoa (`usuario_modulos`, migration
   0066); senao 403. Rota nova de projeto sem faixa reprova em `test/modulos-produto.test.ts`.
-- **n.ot (spec `2026-10-30-n-ot-modulo-n360-design`, migrations 0089/0090):** faixa `ot`, todas as rotas sob
-  `/api/v1/projects/:projectId/ot/…` (`src/routes/ot.ts`; hoje so `GET …/ot/requisitos`, o catalogo RO-CB.BR.01 Rev.00).
+- **n.ot (spec `2026-10-30-n-ot-modulo-n360-design`, fatias N1 a N4 e P1-1, migrations 0089 a 0092):** faixa `ot`, todas as rotas
+  sob `/api/v1/projects/:projectId/ot/…`: catalogo RO-CB.BR.01 Rev.00 (`GET …/ot/requisitos`), inventario (sites, zonas, ativos,
+  fluxos, acesso por site), coleta em lotes, revelar e conformidade em `src/routes/ot.ts`; indicadores, exportacao e IA em
+  `src/routes/ot-saidas.ts`.
   Duas regras do modelo de ameacas que nao podem regredir: **P0-1, o `ot` nunca e concedido automaticamente** (o gatilho
   `usuario_modulos_padrao` nao o da a ninguem, e habilitar o `ot` no projeto nao o da aos clientes; so `PUT /users/:id/modulos`
   ou `POST /users` com `modulos`, com trilha; a caixa do n.ot na tela Usuarios nunca nasce marcada) e **P0-2, sem chave de API
@@ -90,8 +92,9 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   `justificativa` no corpo) exigem o carimbo `totp_em` da sessao, gravado por `/auth/mfa/verify`, dos ultimos 10 min (403
   `codigo: totp_necessario`, mesmo com SSO), justificativa sem IP/MAC em `audit_logs.justification`, teto por hora em `rate_limits`
   (revelar 20/pessoa e 60/projeto; exportar 5/pessoa e 15/projeto; 429 `teto_por_hora`) e aviso ao Gestor ARCiber titular e suplente
-  (sino de quem alcanca o projeto e e-mail da governanca), tudo em `src/services/ot-stepup.ts`; a tela pede o codigo e repete
-  (`comStepUp` em `ot-comum.js`). A conformidade mostra so os tres estados do servidor (nunca "atende"). Item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
+  (sino de quem alcanca o projeto e e-mail da governanca), tudo em `src/services/ot-stepup.ts`; a tela pede o codigo (de novo se errado, sem
+  perder a justificativa) e repete (`comStepUp` em `ot-comum.js`). O aviso do sino (`/projects/:id/ot`) abre o n.ot na aba Saidas
+  (exportacao) ou Inventario (revelacao); trocar de projeto zera os filtros de site e zona e o lote aberto (`renderOt`). A conformidade mostra so os tres estados do servidor (nunca "atende"). Item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
   o painel ainda nao tem bloco do n.ot (`views/painel.js` o ignora).
   Coleta (N3, migration 0092): `POST …/ot/lotes` (planilha CSV/XLSX em multipart, lida em memoria: nunca vai ao R2 nem a
   IA) e `POST …/ot/lotes/manual` (JSON) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
