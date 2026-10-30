@@ -127,6 +127,20 @@ describe('modal de usuário: módulos', () => {
     expect(apiMock.mock.calls[1][2].modulos).toEqual(['privacy']);
   });
 
+  it('n.ot: caixa própria, nunca marcada por padrão; marcar é o que concede (P0-1)', async () => {
+    apiMock.mockResolvedValue([{ ...USERS[2], teto_modulos: ['iso', 'privacy', 'ot'] }]);
+    dom();
+    await window.openUserModal('');
+    expect(caixa('ot').disabled).toBe(false);
+    expect(caixa('ot').checked).toBe(false);
+    $('user-m-name').value = 'Eva'; $('user-m-email').value = 'eva@exemplo.test'; $('user-m-role').value = 'consultor';
+    apiMock.mockReset();
+    apiMock.mockResolvedValue({});
+    caixa('ot').checked = true;
+    await window.saveUser('');
+    expect(apiMock.mock.calls[0][2].modulos).toEqual(['ot']);
+  });
+
   it('criação por quem só enxerga teto de iso: privacy desabilitado', async () => {
     S.user = { role: 'org_admin', client_project_id: 'p1' };
     apiMock.mockResolvedValue([USERS[1]]);

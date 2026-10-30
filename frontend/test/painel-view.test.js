@@ -226,6 +226,15 @@ describe('início do n.360', () => {
         expect(el('c').querySelectorAll('.pn-m .pn-m-desc')).toHaveLength(2);
     });
 
+    it('projeto com o n.ot: o painel o ignora (sem linha nem bloco) e não quebra', async () => {
+        S.user = { id: 'u1', role: 'consultor', modulos: ['iso', 'privacy', 'ot'] };
+        S.activeProject = { id: 'p9', modulos: ['iso', 'privacy', 'ot'] }; S.projects = [S.activeProject];
+        servir({ 'GET /api/v1/projects/p9/painel': PAINEL({ modulos: { iso: BLOCO(), privacy: BLOCO() } }), 'GET /api/v1/projects/p9/ponto-de-partida': { cadastro: {} } });
+        await abrir('n360');
+        expect([...el('c').querySelectorAll('.pn-m h3')].map((x) => x.textContent)).toEqual(['n.iso', 'n.privacy']);
+        expect(el('c').textContent).not.toContain('n.ot');
+    });
+
     it('consultor com mais de um projeto: a carteira é o padrão; a escolha fica lembrada, e sem storage tudo funciona', async () => {
         S.projects = [S.activeProject, { id: 'p8', client_name: 'Outro', modulos: ['privacy'] }];
         const CARTEIRA = { projetos: [{ id: 'p8', nome: 'Clínica <b>Exemplo</b>', modulos: ['privacy'], tom: 'atraso', situacao: '1 prazo legal vencido', urgente: '1 pedido do titular atrasado', modulo_urgente: 'privacy', ultimo_movimento: null },
