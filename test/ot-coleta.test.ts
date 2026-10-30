@@ -4,6 +4,7 @@ import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
 import { manutencaoDiaria } from '../src/manutencao';
 import { chavesOt, decifrarOt, aadOt, hmacOt } from '../src/services/ot-cifra';
+import { aprovarLote } from '../src/services/ot-coleta';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 import xlsxReal from './fixtures/ot-planilha-openpyxl.xlsx.b64?raw';
 
@@ -332,6 +333,18 @@ describe('4.3.1 e P1-4: verificação só com recoleta; alvo alterado depois da 
     expect(await json(r2)).toMatchObject({ atualizados: 1, pendentes: 0 });
     expect(await ativo(nova)).toMatchObject({ nome: 'Do lote' });
     expect(await env.DB.prepare(`SELECT status FROM ot_lotes WHERE id = ?`).bind(l).first('status')).toBe('concluido');
+  });
+
+  it('edição entre a leitura e a gravação: o WHERE do updated_at não sobrescreve e o item fica pendente', async () => {
+    const l = await loteDo(tec, `Corrida perdida;10.1.1.90;;;;;;;;;;`);
+    // o batch da gravação roda depois de uma edição concorrente do alvo
+    const db = new Proxy(env.DB, { get: (t, k) => k === 'batch'
+      ? async (stmts: D1PreparedStatement[]) => { await t.prepare(`UPDATE ot_ativos SET nome = 'Concorrente', updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', '+1 second') WHERE id = ?`).bind(nova).run(); return t.batch(stmts); }
+      : (typeof (t as any)[k] === 'function' ? (t as any)[k].bind(t) : (t as any)[k]) }) as D1Database;
+    const r = await aprovarLote(db, chavesOt(env)!, { id: 'u-gestor', email: 'gestor@cliente.teste' }, 'proj-a', JSON.stringify([ids.s1]), l);
+    expect(r).toMatchObject({ ok: true, pendentes: 1 });
+    expect(await ativo(nova)).toMatchObject({ nome: 'Concorrente' });
+    expect(await env.DB.prepare(`SELECT decisao FROM ot_lote_itens WHERE lote_id = ?`).bind(l).first('decisao')).toBe('pendente');
   });
 
   it('ativo novo com o mesmo IP criado depois da revisão também volta o item a pendente', async () => {
