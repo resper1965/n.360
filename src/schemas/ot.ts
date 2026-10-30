@@ -70,3 +70,11 @@ export const otAcessoCriarSchema = z.object({ user_id: id, site_id: id }).strict
 
 /** Revelar IP/MAC (platform_admin): o motivo vai à trilha (`audit_logs.justification`). */
 export const otRevelarSchema = z.object({ justificativa: z.string().trim().min(10).max(500) }).strict();
+
+/** Teto de itens por lote (P0-5, P1-5): o mesmo da planilha (5.000 linhas). */
+export const TETO_ITENS_LOTE = 5000;
+/** Entrada manual em lote: cada item é validado campo a campo na tubulação da coleta (services/ot-coleta.ts), não aqui, para que
+ *  um item ruim fique no lote com o erro em vez de derrubar o envio inteiro. */
+export const otLoteManualSchema = z.object({ site_id: id, itens: z.array(z.record(z.string(), z.unknown())).min(1).max(TETO_ITENS_LOTE) }).strict();
+/** Rejeitar lote: o motivo vai à trilha (`audit_logs.justification`), nunca a `details`. */
+export const otLoteRejeitarSchema = z.object({ motivo: livre(500, 3) }).strict();

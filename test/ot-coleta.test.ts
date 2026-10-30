@@ -1,0 +1,272 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import { env } from 'cloudflare:test';
+import app from '../src/index';
+import { sha256Hex } from '../src/helpers';
+import { chavesOt, decifrarOt, aadOt, hmacOt } from '../src/services/ot-cifra';
+import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
+import xlsxReal from './fixtures/ot-planilha-openpyxl.xlsx.b64?raw';
+
+// Coleta do n.ot (N3): lotes em staging por planilha (CSV/XLSX) e entrada manual, dedupe sem revelar o alvo, aprovação que
+// promove ao inventário. Modelo de ameaças P0-3 (o original não fica, nada vai à IA) e P0-5 (dedupe sem oráculo). D1 real.
+
+type H = Record<string, string>;
+const P = '/api/v1/projects/proj-a/ot';
+const chamar = async (h: H, metodo: string, caminho: string, corpo?: unknown, extra: Record<string, unknown> = {}) =>
+  app.fetch(new Request('http://localhost' + caminho, {
+    method: metodo, headers: { 'Content-Type': 'application/json', ...h }, body: corpo === undefined ? undefined : JSON.stringify(corpo),
+  }), { ...workerEnv(), ...extra });
+const json = async <T = Record<string, unknown>>(r: Response) => r.json<T>();
+
+/** Upload multipart: o arquivo e o site. */
+const enviar = async (h: H, site: string, nome: string, conteudo: BlobPart, extra: Record<string, unknown> = {}) => {
+  const fd = new FormData();
+  fd.set('site_id', site);
+  fd.set('file', new File([conteudo], nome));
+  return app.fetch(new Request(`http://localhost${P}/lotes`, { method: 'POST', headers: h, body: fd }), { ...workerEnv(), ...extra });
+};
+
+const IP1 = '10.1.1.10';
+const IP2 = '10.2.2.20';
+const ATIVO_ARCIBER = {
+  nome: 'RTU Bay 1', no_arciber: true, categoria_arciber: 'centro_operacao', tipo_dispositivo: 'RTU', fabricante: 'Fab', modelo: 'M1',
+  funcao: 'telecontrole', ip: IP1, mac: 'AA-BB-CC-11-22-33', protocolos_portas: [{ protocolo: 'DNP3', porta: 20000 }], firmware_so_versao: '2.4.1.7',
+};
+const CAB = 'nome;ip;mac;fabricante;modelo;tipo;funcao;protocolos;firmware;arciber;categoria;zona';
+const csv = (...linhas: string[]) => [CAB, ...linhas].join('\n');
+
+let plat: H, gestor: H, tec: H, tec0: H, cli: H, cons: H, caDes: H;
+const ids: Record<string, string> = {};
+
+const criar = async (h: H, rota: string, corpo: unknown) => {
+  const r = await chamar(h, 'POST', `${P}/${rota}`, corpo);
+  expect(r.status, `${rota} ${await r.clone().text()}`).toBe(201);
+  return (await json<{ id: string }>(r)).id;
+};
+interface Item { id: string; linha: number; decisao: string; erros: { campo: string; motivo: string }[]; possivel_duplicata: boolean; duplicata_de?: string; registro_id?: string; dados: Record<string, unknown> }
+const lerLote = async (h: H, id: string) => {
+  const r = await chamar(h, 'GET', `${P}/lotes/${id}`);
+  expect(r.status, await r.clone().text()).toBe(200);
+  const texto = await r.text();
+  return { texto, ...(JSON.parse(texto) as { lote: Record<string, unknown>; itens: Item[] }) };
+};
+
+beforeAll(async () => {
+  await applySchema();
+  await seedTwoProjects();
+  await habilitarOt('proj-a', 'proj-b');
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES
+      ('u-gestor', 'gestor@cliente.teste', 'x', 'Gestor', 'org_admin', 'proj-a'),
+      ('u-tec', 'tec@cliente.teste', 'x', 'Técnico', 'org_user', 'proj-a'),
+      ('u-tec0', 'tec0@cliente.teste', 'x', 'Técnico sem site', 'org_user', 'proj-a'),
+      ('u-cli', 'cli@cliente.teste', 'x', 'Leitura', 'client', 'proj-a'),
+      ('u-ca-d', 'ca-d@ness.lat', 'x', 'Admin designado', 'consultoria_admin', NULL)`),
+    env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title) VALUES ('proj-a', 'Admin', 'ca-d@ness.lat', 'consultor', 'Consultor')`),
+  ]);
+  await designarConsultor('cons-ot@ness.lat', 'proj-a');
+  await concederModulos(['u-gestor', 'u-tec', 'u-tec0', 'u-cli', 'u-ca-d', 'cons:cons-ot@ness.lat'], ['ot']);
+  plat = await sessionFor({ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin' });
+  gestor = await sessionFor({ id: 'u-gestor', email: 'gestor@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' });
+  tec = await sessionFor({ id: 'u-tec', email: 'tec@cliente.teste', role: 'org_user', client_project_id: 'proj-a' });
+  tec0 = await sessionFor({ id: 'u-tec0', email: 'tec0@cliente.teste', role: 'org_user', client_project_id: 'proj-a' });
+  cli = await sessionFor({ id: 'u-cli', email: 'cli@cliente.teste', role: 'client', client_project_id: 'proj-a' });
+  cons = await sessionFor({ id: 'cons:cons-ot@ness.lat', email: 'cons-ot@ness.lat', role: 'consultor' });
+  caDes = await sessionFor({ id: 'u-ca-d', email: 'ca-d@ness.lat', role: 'consultoria_admin' });
+
+  ids.s1 = await criar(cons, 'sites', { nome: 'SE Norte' });
+  ids.s2 = await criar(cons, 'sites', { nome: 'SE Sul' });
+  ids.z2 = await criar(cons, 'zonas', { site_id: ids.s1, nome: 'Supervisão', nivel_purdue: 2 });
+  ids.a1 = await criar(gestor, 'ativos', { site_id: ids.s1, zona_id: ids.z2, ...ATIVO_ARCIBER });
+  ids.a2 = await criar(cons, 'ativos', { site_id: ids.s2, nome: 'IED Sul', ip: IP2, fabricante: 'Fab', modelo: 'M9' });
+  expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec', site_id: ids.s1 })).status).toBe(201);
+});
+
+describe('P0-3: a planilha é lida no Worker; o original não fica e nada vai à IA', () => {
+  it('CSV e XLSX viram lote em revisão; o R2 não recebe nada; env.AI (toMarkdown e run) não é chamado', async () => {
+    const chamadas: string[] = [];
+    const AI = { toMarkdown: async () => { chamadas.push('toMarkdown'); throw new Error('proibido'); }, run: async () => { chamadas.push('run'); throw new Error('proibido'); } };
+    const antes = (await env.STORAGE.list()).objects.length;
+    const xlsx = Uint8Array.from(atob(xlsxReal.trim()), (ch) => ch.charCodeAt(0));
+    for (const [nome, conteudo] of [['inv.csv', csv(`Novo IED;10.1.1.99;;Fab;M5;IED;protecao;;;nao;;`)], ['inv.xlsx', xlsx]] as const) {
+      const r = await enviar(tec, ids.s1, nome, conteudo, { AI });
+      expect(r.status, `${nome} ${await r.clone().text()}`).toBe(201);
+      const b = await json<{ id: string; status: string; itens: number }>(r);
+      expect(b.status).toBe('em_revisao');
+      expect(b.itens).toBeGreaterThan(0);
+      const lote = await env.DB.prepare(`SELECT * FROM ot_lotes WHERE id = ?`).bind(b.id).first<Record<string, unknown>>();
+      expect(lote).toMatchObject({ fonte: 'planilha', status: 'em_revisao', criado_por: 'u-tec', site_id: ids.s1 });
+    }
+    expect(chamadas).toEqual([]);
+    const depois = await env.STORAGE.list();
+    expect(depois.objects.length, depois.objects.map((o) => o.key).join(',')).toBe(antes);
+  });
+
+  it('o staging guarda IP/MAC só cifrados (AAD do item) e com o HMAC do projeto', async () => {
+    const r = await enviar(tec, ids.s1, 'a.csv', csv(`Gateway;10.1.1.77;00-11-22-33-44-55;Fab;G1;GW;borda;;;nao;;`));
+    const { id } = await json<{ id: string }>(r);
+    const linha = await env.DB.prepare(`SELECT id, dados FROM ot_lote_itens WHERE lote_id = ?`).bind(id).first<{ id: string; dados: string }>();
+    expect(linha!.dados).not.toContain('10.1.1.77');
+    expect(linha!.dados).not.toMatch(/00[:-]11[:-]22/);
+    const d = JSON.parse(linha!.dados) as Record<string, string>;
+    const k = chavesOt(env)!;
+    expect(await decifrarOt(d.ip_cifrado, k, aadOt('proj-a', 'ot_lote_itens', linha!.id, 'ip'))).toBe('10.1.1.77');
+    expect(await decifrarOt(d.mac_cifrado, k, aadOt('proj-a', 'ot_lote_itens', linha!.id, 'mac'))).toBe('00:11:22:33:44:55');
+    expect(d.ip_hash).toBe(await hmacOt(k, 'proj-a', '10.1.1.77'));
+  });
+
+  it('acima dos tetos ou ilegível: 400 e nenhum lote nem item gravado', async () => {
+    const conta = async () => (await env.DB.prepare(`SELECT (SELECT count(*) FROM ot_lotes) + (SELECT count(*) FROM ot_lote_itens) AS n`).first<{ n: number }>())!.n;
+    const n0 = await conta();
+    for (const [nome, conteudo] of [['g.csv', csv(...Array(5001).fill('X;;;;;;;;;;;'))], ['x.xlsx', 'não é zip'], ['x.pdf', '%PDF'], ['v.csv', CAB]] as const) {
+      const r = await enviar(tec, ids.s1, nome, conteudo);
+      expect(r.status, nome).toBe(400);
+    }
+    expect(await conta()).toBe(n0);
+  });
+
+  it('linha inválida não derruba o lote: fica com o erro (campo e regra, sem o valor)', async () => {
+    const r = await enviar(tec, ids.s1, 'm.csv', csv(`Bom;10.1.1.50;;Fab;M;IED;f;;;nao;;`, `Ruim;999.1.1.1;;Fab;M;IED;responde em 192.168.0.9;;;nao;;`,
+      `Incompleto;10.1.1.51;;Fab;M;RTU;f;;;sim;centro_operacao;`));
+    expect(r.status).toBe(201);
+    const { itens, texto } = await lerLote(cons, (await json<{ id: string }>(r)).id);
+    expect(itens.map((i) => i.erros.map((e) => e.campo))).toEqual([[], ['ip', 'funcao'], ['4.3.1']]);
+    expect(texto).not.toMatch(/999\.1\.1\.1|192\.168\.0\.9/);
+  });
+});
+
+describe('P0-5: dedupe sem revelar o alvo, só no site do lote', () => {
+  it('quem não vê completo recebe só "possível duplicata"; quem vê, o id do ativo; IP de outro site responde igual a IP novo', async () => {
+    const r = await enviar(tec, ids.s1, 'd.csv', csv(`Qualquer;${IP1};;;;;;;;nao;;`, `Outro;${IP2};;;;;;;;nao;;`, `Novo;10.9.9.9;;;;;;;;nao;;`,
+      `RTU Bay 1;;;Fab;M1;;;;;nao;;`));
+    expect(r.status).toBe(201);
+    const id = (await json<{ id: string }>(r)).id;
+    for (const h of [tec, cli]) {
+      const { itens, texto } = await lerLote(h, id);
+      expect(itens.map((i) => i.possivel_duplicata)).toEqual([true, false, false, true]);
+      expect(texto).not.toContain(ids.a1);
+      expect(texto).not.toContain(ids.a2);
+      expect(texto).not.toMatch(/duplicata_de|registro_id|ip_hash|ip_cifrado|ot1:/);
+      // a resposta para o IP do outro site e a do IP novo têm a mesma forma
+      const [, outro, novo] = itens;
+      expect(Object.keys(outro).sort()).toEqual(Object.keys(novo).sort());
+      expect({ ...outro, id: 0, linha: 0, dados: 0 }).toEqual({ ...novo, id: 0, linha: 0, dados: 0 });
+      expect(itens[0].dados).toMatchObject({ ip: '•••', mascarado: true });
+    }
+    const { itens } = await lerLote(gestor, id);
+    expect(itens.map((i) => i.duplicata_de ?? null)).toEqual([ids.a1, null, null, ids.a1]);
+    expect(itens[0].dados).toMatchObject({ ip: IP1, mascarado: false });
+  });
+
+  it('técnico só cria lote nos sites vinculados; site sem acesso responde igual a site inexistente; sem vínculo, nenhum', async () => {
+    const semAcesso = await enviar(tec, ids.s2, 'a.csv', csv(`X;;;;;;;;;nao;;`));
+    const inexistente = await enviar(tec, 'site-que-nao-existe', 'a.csv', csv(`X;;;;;;;;;nao;;`));
+    expect(semAcesso.status).toBe(400);
+    expect(await semAcesso.text()).toBe(await inexistente.text());
+    expect((await enviar(tec0, ids.s1, 'a.csv', csv(`X;;;;;;;;;nao;;`))).status).toBe(400);
+    expect((await chamar(tec0, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'X' }] })).status).toBe(400);
+    expect((await json<{ lotes: unknown[] }>(await chamar(tec0, 'GET', `${P}/lotes`))).lotes).toEqual([]);
+  });
+
+  it('teto de itens por lote (5.000) e de lotes por dia por pessoa', async () => {
+    const r = await chamar(cons, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: Array(5001).fill({ nome: 'X' }) });
+    expect(r.status).toBe(400);
+    await env.DB.batch(Array.from({ length: 20 }, (_, i) => env.DB.prepare(
+      `INSERT INTO ot_lotes (id, project_id, site_id, fonte, criado_por, status) VALUES (?, 'proj-a', ?, 'manual', 'u-ca-d', 'rejeitado')`).bind(`l-teto-${i}`, ids.s1)));
+    const muitos = await chamar(caDes, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'X' }] });
+    expect(muitos.status).toBe(429);
+  });
+});
+
+describe('entrada manual pela mesma tubulação', () => {
+  it('JSON vira lote manual; campo do servidor no item (cifra, hash, verificação) vira erro do item, não gravação', async () => {
+    const r = await chamar(gestor, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [
+      { nome: 'Switch', ip: '10.1.1.60', fabricante: 'Fab', zona_id: ids.z2 },
+      { nome: 'Forjado', ip_cifrado: 'ot1:k1:a:b', verificado_por: 'eu', ip_hash: 'x' },
+    ] });
+    expect(r.status, await r.clone().text()).toBe(201);
+    const id = (await json<{ id: string }>(r)).id;
+    expect(await env.DB.prepare(`SELECT fonte FROM ot_lotes WHERE id = ?`).bind(id).first('fonte')).toBe('manual');
+    const { itens } = await lerLote(cons, id);
+    expect(itens[0]).toMatchObject({ erros: [], dados: { nome: 'Switch', ip: '10.1.1.60', zona_id: ids.z2 } });
+    expect(itens[1].erros.map((e) => e.campo).sort()).toEqual(['ip_cifrado', 'ip_hash', 'verificado_por']);
+    const banco = await env.DB.prepare(`SELECT dados FROM ot_lote_itens WHERE lote_id = ? AND linha = 2`).bind(id).first<{ dados: string }>();
+    expect(banco!.dados).not.toMatch(/eu|ot1:k1:a:b/);
+  });
+});
+
+describe('papéis', () => {
+  it('client só lê; chave de API e agente recebem 403; sem as chaves do n.ot, 503', async () => {
+    expect((await enviar(cli, ids.s1, 'a.csv', csv(`X;;;;;;;;;nao;;`))).status).toBe(403);
+    expect((await chamar(cli, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'X' }] })).status).toBe(403);
+    expect((await chamar(cli, 'GET', `${P}/lotes`)).status).toBe(200);
+    const CHAVE = 'chave-ot-coleta';
+    await env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('key-col', 'proj-a', ?, 'escrita', 'write', 'Active')`).bind(await sha256Hex(CHAVE)).run();
+    for (const [m, c, corpo] of [['GET', `${P}/lotes`], ['POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'X' }] }]] as const) {
+      expect((await chamar({ 'X-API-Key': CHAVE }, m, c, corpo)).status, `${m} ${c}`).toBe(403);
+    }
+    await env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-col', 'cons:cons-ot@ness.lat', 'proj-a', datetime('now', '+30 days'))`).run();
+    expect((await chamar({}, 'GET', `${P}/lotes`, undefined, { AGENTE: { userId: 'cons:cons-ot@ness.lat', email: 'cons-ot@ness.lat', projectId: 'proj-a', concessaoId: 'c-col' } })).status).toBe(403);
+    for (const falta of [{ OT_INVENTARIO_KEY: undefined }, { OT_INVENTARIO_HMAC_KEY: undefined }]) {
+      expect((await chamar(cons, 'GET', `${P}/lotes`, undefined, falta)).status).toBe(503);
+      expect((await chamar(cons, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'X' }] }, falta)).status).toBe(503);
+      expect((await enviar(cons, ids.s1, 'a.csv', csv(`X;;;;;;;;;nao;;`), falta)).status).toBe(503);
+    }
+  });
+});
+
+describe('aprovação promove ao inventário', () => {
+  let lote: string;
+  beforeAll(async () => {
+    const r = await enviar(tec, ids.s1, 'ap.csv', csv(
+      `Mesmo IP;${IP1};;;;;;;3.0.0;;;`, // duplicata do a1: atualiza o que veio (nome, firmware), mantém o resto
+      `RTU Nova;10.1.1.90;;Fab;M7;RTU;telecontrole;DNP3:20000|IEC104:2404;1.2;sim;centro_operacao;Supervisão`,
+      `Ruim;;;;;;responde em 192.168.0.9;;;nao;;`,
+    ));
+    expect(r.status).toBe(201);
+    lote = (await json<{ id: string }>(r)).id;
+  });
+
+  it('técnico, client e platform_admin não aprovam; quem criou não aprova o próprio lote', async () => {
+    for (const h of [tec, cli, plat]) expect((await chamar(h, 'POST', `${P}/lotes/${lote}/aprovar`)).status).toBe(403);
+    const r = await chamar(gestor, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'Do gestor' }] });
+    const proprio = (await json<{ id: string }>(r)).id;
+    expect((await chamar(gestor, 'POST', `${P}/lotes/${proprio}/aprovar`)).status).toBe(403);
+    expect((await chamar(gestor, 'POST', `${P}/lotes/${proprio}/rejeitar`, { motivo: 'lançado por engano' })).status).toBe(403);
+    expect((await chamar(cons, 'POST', `${P}/lotes/${proprio}/rejeitar`, { motivo: 'lançado por engano' })).status).toBe(200);
+    expect(await env.DB.prepare(`SELECT status FROM ot_lotes WHERE id = ?`).bind(proprio).first('status')).toBe('rejeitado');
+    expect(await env.DB.prepare(`SELECT decisao FROM ot_lote_itens WHERE lote_id = ?`).bind(proprio).first('decisao')).toBe('descartado');
+    expect((await chamar(cons, 'POST', `${P}/lotes/${proprio}/aprovar`)).status).toBe(409);
+  });
+
+  it('Gestor ARCiber aprova: duplicata atualiza o ativo, novo é criado, item com erro é recusado; verificação e trilha registradas', async () => {
+    const n0 = (await env.DB.prepare(`SELECT count(*) AS n FROM ot_ativos WHERE project_id = 'proj-a'`).first<{ n: number }>())!.n;
+    const r = await chamar(gestor, 'POST', `${P}/lotes/${lote}/aprovar`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await json(r)).toMatchObject({ criados: 1, atualizados: 1, recusados: 1 });
+    expect((await chamar(caDes, 'POST', `${P}/lotes/${lote}/aprovar`)).status, 'aprova uma vez só').toBe(409);
+    expect((await env.DB.prepare(`SELECT count(*) AS n FROM ot_ativos WHERE project_id = 'proj-a'`).first<{ n: number }>())!.n).toBe(n0 + 1);
+
+    const a1 = await env.DB.prepare(`SELECT * FROM ot_ativos WHERE id = ?`).bind(ids.a1).first<Record<string, unknown>>();
+    expect(a1).toMatchObject({ firmware_so_versao: '3.0.0', nome: 'Mesmo IP', fabricante: 'Fab', verificado_por: 'gestor@cliente.teste' });
+    expect(a1!.ultima_verificacao_em).toBeTruthy();
+    const { itens } = await lerLote(gestor, lote);
+    expect(itens.map((i) => i.decisao)).toEqual(['gravado', 'gravado', 'recusado']);
+    const nova = await env.DB.prepare(`SELECT * FROM ot_ativos WHERE id = ?`).bind(itens[1].registro_id).first<Record<string, string>>();
+    expect(nova).toMatchObject({ nome: 'RTU Nova', site_id: ids.s1, zona_id: ids.z2, no_arciber: 1, verificado_por: 'gestor@cliente.teste',
+      protocolos_portas: JSON.stringify([{ protocolo: 'DNP3', porta: 20000 }, { protocolo: 'IEC104', porta: 2404 }]) });
+    // a cifra do staging não serve ao inventário (AAD): o servidor recifra para a linha nova
+    expect(await decifrarOt(nova!.ip_cifrado, chavesOt(env)!, aadOt('proj-a', 'ot_ativos', nova!.id, 'ip'))).toBe('10.1.1.90');
+    expect(await env.DB.prepare(`SELECT status, decidido_por FROM ot_lotes WHERE id = ?`).bind(lote).first()).toEqual({ status: 'concluido', decidido_por: 'gestor@cliente.teste' });
+
+    const t = await env.DB.prepare(`SELECT actor, details FROM audit_logs WHERE action = 'ot.lote.aprovado' ORDER BY rowid DESC LIMIT 1`).first<Record<string, string>>();
+    expect(t).toMatchObject({ actor: 'gestor@cliente.teste' });
+    expect(t!.details).toContain('1 criado(s), 1 atualizado(s), 1 recusado(s)');
+  });
+
+  it('a trilha da coleta não leva IP, MAC nem nome de ativo', async () => {
+    const { results } = await env.DB.prepare(`SELECT action, details FROM audit_logs WHERE action LIKE 'ot.lote.%'`).all<{ action: string; details: string }>();
+    expect(results.length).toBeGreaterThan(3);
+    for (const l of results) expect(l.details, l.action).not.toMatch(/10\.1\.1\.|192\.168|RTU|Gateway|Switch|00:11/);
+  });
+});
+

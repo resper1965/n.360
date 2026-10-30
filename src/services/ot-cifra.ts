@@ -60,5 +60,18 @@ export function normalizarMac(bruto: string): string | null {
   return /^[0-9a-f]{12}$/.test(hex) ? hex.match(/../g)!.join(':') : null;
 }
 
+/** IP/MAC em claro → cifra com AAD da linha e HMAC por projeto (P0-8). `null` limpa; ausente não mexe. */
+export async function cifrarEnderecos(chaves: ChavesOt, projectId: string, tabela: string, id: string, d: { ip?: string | null; mac?: string | null }) {
+  const out: Record<string, string | null> = {};
+  for (const [campo, normalizar] of [['ip', normalizarIp], ['mac', normalizarMac]] as const) {
+    const bruto = d[campo];
+    if (bruto === undefined) continue;
+    const valor = bruto === null ? null : normalizar(bruto);
+    out[`${campo}_cifrado`] = valor && await cifrarOt(valor, chaves, aadOt(projectId, tabela, id, campo));
+    out[`${campo}_hash`] = valor && await hmacOt(chaves, projectId, valor);
+  }
+  return out;
+}
+
 /** Máscara do MAC (P0-6): o OUI (fabricante, já em claro no cadastro) fica; o resto não. */
 export const mascararMac = (mac: string) => `${mac.slice(0, 8)}:••:••:••`;

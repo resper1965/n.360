@@ -4,10 +4,12 @@ import { erro500, genId, logAudit } from '../helpers';
 import { validateBody } from '../schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
-  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema,
+  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema,
 } from '../schemas/ot';
-import { aadOt, chavesOt, cifrarOt, hmacOt, normalizarIp, normalizarMac, type ChavesOt } from '../services/ot-cifra';
-import { FLUXO_VISIVEL, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
+import { FLUXO_VISIVEL, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, type LinhaItem } from '../services/ot-coleta';
+import { LIMITES_PLANILHA, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
 
 /** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
@@ -24,17 +26,24 @@ otApp.use('*', async (c, next) => {
   await next();
 });
 
-// Escrita: só quem cadastra o inventário (org_user e client já param no allow-list de auth.ts; isto é a segunda trava).
+// Escrita: só quem cadastra o inventário (org_user e client já param no allow-list de auth.ts; isto é a segunda trava). Criar lote
+// de coleta é a exceção do técnico (org_user), com o site conferido na rota.
+const CRIAR_LOTE = /\/ot\/lotes(\/manual)?$/;
 otApp.on(['POST', 'PUT', 'PATCH', 'DELETE'], '*', async (c, next) => {
-  if (!podeEditarOt(c.get('user'))) return c.json({ error: 'Forbidden: seu papel não altera o inventário do n.ot' }, 403);
+  const u = c.get('user');
+  if (!(c.req.method === 'POST' && CRIAR_LOTE.test(c.req.path) ? podeCriarLote(u) : podeEditarOt(u))) {
+    return c.json({ error: 'Forbidden: seu papel não altera o inventário do n.ot' }, 403);
+  }
   await next();
 });
 
-// P0-8, falha fechada: sem as duas chaves, nada de ativo entra nem sai.
-otApp.use('/ativos/*', async (c, next) => {
-  if (!chavesOt(c.env)) return c.json({ error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' }, 503);
-  await next();
-});
+// P0-8, falha fechada: sem as duas chaves, nada de ativo nem de lote entra ou sai.
+for (const rota of ['/ativos/*', '/lotes/*']) {
+  otApp.use(rota, async (c, next) => {
+    if (!chavesOt(c.env)) return c.json({ error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' }, 503);
+    await next();
+  });
+}
 
 interface Requisito { id: string; framework: string; codigo: string; titulo: string; descricao: string | null; categoria: string | null; versao: string; prazo_meses: number | null }
 
@@ -182,18 +191,8 @@ const COLUNAS_ATIVO = `id, project_id, site_id, zona_id, nome, no_arciber, categ
   ip_cifrado, mac_cifrado, ip_hash, mac_hash, protocolos_portas, firmware_so_versao, firmware_nao_aplicavel, ultima_verificacao_em,
   verificado_por, status, created_at, updated_at`;
 
-/** IP/MAC em claro do corpo → cifra com AAD da linha e HMAC por projeto (P0-8). `null` limpa; ausente não mexe. */
-async function enderecos(chaves: ChavesOt, projectId: string, id: string, d: { ip?: string | null; mac?: string | null }) {
-  const out: Record<string, string | null> = {};
-  for (const [campo, normalizar] of [['ip', normalizarIp], ['mac', normalizarMac]] as const) {
-    const bruto = d[campo];
-    if (bruto === undefined) continue;
-    const valor = bruto === null ? null : normalizar(bruto);
-    out[`${campo}_cifrado`] = valor && await cifrarOt(valor, chaves, aadOt(projectId, 'ot_ativos', id, campo));
-    out[`${campo}_hash`] = valor && await hmacOt(chaves, projectId, valor);
-  }
-  return out;
-}
+const enderecos = (chaves: ChavesOt, projectId: string, id: string, d: { ip?: string | null; mac?: string | null }) =>
+  cifrarEnderecos(chaves, projectId, 'ot_ativos', id, d);
 
 /** Ativos pelo serializador único; uma linha de trilha por requisição que saiu sem máscara (P1-7), com a contagem. */
 async function responderAtivos(c: C, projectId: string, linhas: LinhaAtivo[], completo: boolean, justificativa = '') {
@@ -398,6 +397,95 @@ otApp.delete('/acessos/:siteId/:userId', async (c) => {
     await trilha(c, 'ot.acesso.revogado', projectId, `Acesso ao site ${siteId} revogado da conta ${userId}`, { tipo: 'ot_site', id: siteId });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao revogar o acesso', e); }
+});
+
+// ─── coleta: lotes em staging (spec §7; P0-3, P0-5) ──────────────────────────
+otApp.get('/lotes', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const { results } = await db.prepare(`SELECT l.id, l.site_id, l.fonte, l.status, l.criado_por, l.decidido_por, l.decidido_em, l.motivo, l.created_at, l.updated_at,
+        count(i.id) AS itens, coalesce(sum(i.erros <> '[]'), 0) AS com_erro, coalesce(sum(i.decisao = 'gravado'), 0) AS gravados
+      FROM ot_lotes l LEFT JOIN ot_lote_itens i ON i.lote_id = l.id WHERE l.project_id = ? AND l.site_id IN (SELECT value FROM json_each(?))
+      GROUP BY l.id ORDER BY l.created_at DESC`).bind(projectId, sites).all();
+    return c.json({ lotes: results });
+  } catch (e) { return erro500(c, 'Falha ao listar os lotes', e); }
+});
+
+otApp.get('/lotes/:id', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const lote = await db.prepare(`SELECT id, site_id, fonte, status, criado_por, decidido_por, decidido_em, motivo, created_at, updated_at FROM ot_lotes
+      WHERE id = ? AND project_id = ? AND site_id IN (SELECT value FROM json_each(?))`).bind(c.req.param('id'), projectId, sites).first();
+    if (!lote) return NAO_ENCONTRADO(c, 'Lote');
+    const { results } = await db.prepare(`SELECT id, project_id, linha, dados, erros, duplicata_de, decisao, motivo, registro_id FROM ot_lote_itens
+      WHERE lote_id = ? AND project_id = ? ORDER BY linha`).bind(lote.id, projectId).all<LinhaItem>();
+    const completo = await podeVerCompleto(db, user, projectId);
+    const itens = await Promise.all(results.map((i) => serializarItem(i, completo, chavesOt(c.env)!)));
+    const sensiveis = completo ? results.filter((i) => /"(ip|mac)_cifrado":"ot1:/.test(i.dados)).length : 0;
+    if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} item(ns) do lote ${lote.id} com IP/MAC sem máscara`, { tipo: 'ot_lote', id: lote.id as string });
+    return c.json({ lote, itens });
+  } catch (e) { return erro500(c, 'Falha ao ler o lote', e); }
+});
+
+async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, projectId: string, site: string, extra: Record<string, unknown> = {}) {
+  if (!r.ok) return c.json({ error: r.error }, r.status);
+  const { ok: _ok, ...resumo } = r;
+  await trilha(c, 'ot.lote.criado', projectId, `Lote ${r.id} criado no site ${site}: ${r.itens} item(ns), ${r.com_erro} com erro`, { tipo: 'ot_lote', id: r.id });
+  return c.json({ ...resumo, status: 'em_revisao', ...extra }, 201);
+}
+
+// Planilha (multipart: `file` e `site_id`). O arquivo é lido em memória e descartado: nunca vai ao R2 nem à IA (P0-3).
+otApp.post('/lotes', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (Number(c.req.header('Content-Length') || 0) > LIMITES_PLANILHA.bytes + 64 * 1024) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
+    const corpo = await c.req.parseBody();
+    const file = corpo['file'];
+    if (!(file instanceof File)) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
+    if (!daLista(sites, corpo['site_id'])) return refRuim(c, 'site_id');
+    const lida = await lerPlanilha(file.name, await file.arrayBuffer());
+    if ('erro' in lida) return c.json({ error: lida.erro }, 400);
+    const { itens, reconhecidas, ignoradas } = linhasDaPlanilha(lida.linhas);
+    if (!reconhecidas) return c.json({ error: 'Nenhuma coluna reconhecida no cabeçalho (ex.: nome, ip, mac, fabricante, modelo, tipo, funcao)' }, 400);
+    const site = corpo['site_id'] as string;
+    return responderLote(c, await criarLote(db, chavesOt(c.env)!, user, projectId, site, 'planilha', itens), projectId, site, { colunas_ignoradas: ignoradas });
+  } catch (e) { return erro500(c, 'Falha ao receber a planilha', e); }
+});
+
+otApp.post('/lotes/manual', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otLoteManualSchema);
+    if (!v.success) return v.response;
+    if (!daLista(sites, v.data.site_id)) return refRuim(c, 'site_id');
+    return responderLote(c, await criarLote(db, chavesOt(c.env)!, user, projectId, v.data.site_id, 'manual', v.data.itens), projectId, v.data.site_id);
+  } catch (e) { return erro500(c, 'Falha ao criar o lote', e); }
+});
+
+otApp.post('/lotes/:id/aprovar', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeAprovar(db, user, projectId)) return c.json({ error: 'Forbidden: seu papel não aprova lote' }, 403);
+    const r = await aprovarLote(db, chavesOt(c.env)!, user, projectId, sites, c.req.param('id'));
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    const { ok: _ok, ...n } = r;
+    await trilha(c, 'ot.lote.aprovado', projectId, `Lote ${c.req.param('id')} aprovado: ${n.criados} criado(s), ${n.atualizados} atualizado(s), ${n.recusados} recusado(s)`,
+      { tipo: 'ot_lote', id: c.req.param('id') });
+    return c.json({ ok: true, ...n });
+  } catch (e) { return erro500(c, 'Falha ao aprovar o lote', e); }
+});
+
+otApp.post('/lotes/:id/rejeitar', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeAprovar(db, user, projectId)) return c.json({ error: 'Forbidden: seu papel não rejeita lote' }, 403);
+    const v = await validateBody(c, otLoteRejeitarSchema);
+    if (!v.success) return v.response;
+    const r = await rejeitarLote(db, user, projectId, sites, c.req.param('id'), v.data.motivo);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await trilha(c, 'ot.lote.rejeitado', projectId, `Lote ${c.req.param('id')} rejeitado`, { tipo: 'ot_lote', id: c.req.param('id') }, v.data.motivo);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao rejeitar o lote', e); }
 });
 
 // ─── conformidade RO-CB.BR.01 calculada do inventário ───────────────────────

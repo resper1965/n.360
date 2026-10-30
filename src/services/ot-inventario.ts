@@ -10,6 +10,9 @@ const naoEhPessoa = (u: AtorOt) => u.agente === true || u.id.startsWith('apikey:
 /** Quem cadastra e altera o inventário: Gestor ARCiber (org_admin) e a equipe. Técnico (org_user) e client, não (P1-2: o técnico cria lote, na N3). */
 export const podeEditarOt = (u: AtorOt) => !naoEhPessoa(u) && ['org_admin', 'consultor', 'consultant', 'consultoria_admin', 'platform_admin'].includes(u.role);
 
+/** Criar lote de coleta (spec §5): quem edita o inventário e o técnico (org_user), este só nos sites vinculados (a rota confere). */
+export const podeCriarLote = (u: AtorOt) => podeEditarOt(u) || (!naoEhPessoa(u) && u.role === 'org_user');
+
 /**
  * IP/MAC em claro (P0-6, §12.1 pergunta 1 e 2): Gestor ARCiber (org_admin), consultor designado e consultoria_admin SÓ no projeto
  * em que também está designado. platform_admin vê mascarado e revela por ação registrada. Decide pelo `role` do principal, nunca
@@ -21,6 +24,12 @@ export async function podeVerCompleto(db: D1Database, u: AtorOt, projectId: stri
   if (u.role !== 'consultoria_admin') return false;
   return !!await db.prepare(`SELECT 1 FROM projects WHERE id = ? AND id IN (${PROJETOS_DO_CONSULTOR_SQL})`).bind(projectId, u.email).first();
 }
+
+/**
+ * Aprovar ou rejeitar lote: quem revisa o inventário em claro (Gestor ARCiber, consultor designado, consultoria_admin designado),
+ * para ver a duplicata que vai mesclar. platform_admin, técnico e client não. Quem criou o lote não decide (a rota confere; §12.1, 6).
+ */
+export const podeAprovar = podeVerCompleto;
 
 /**
  * Os sites que a pessoa enxerga no projeto (P0-4): o ÚNICO filtro de site, usado por toda consulta `ot_*`. Técnico (org_user): só os
@@ -51,9 +60,9 @@ export interface LinhaAtivo {
  * O serializador ÚNICO do ativo (P0-6): toda saída do inventário passa por aqui. Cifra e hash nunca saem. Mascarado: IPv4/IPv6
  * total (`•••`, §12.1 pergunta 1); MAC com o OUI e o resto oculto. Firmware, modelo e portas em claro (§12.1 pergunta 3).
  */
-export async function serializarAtivo(linha: LinhaAtivo, completo: boolean, chaves: ChavesOt) {
+export async function serializarAtivo(linha: LinhaAtivo, completo: boolean, chaves: ChavesOt, tabela = 'ot_ativos') {
   const { ip_cifrado, mac_cifrado, ip_hash: _ih, mac_hash: _mh, protocolos_portas, ...resto } = linha;
-  const aad = (campo: string) => aadOt(linha.project_id, 'ot_ativos', linha.id, campo);
+  const aad = (campo: string) => aadOt(linha.project_id, tabela, linha.id, campo);
   const mac = mac_cifrado ? await decifrarOt(mac_cifrado, chaves, aad('mac')) : null;
   return {
     ...resto,
