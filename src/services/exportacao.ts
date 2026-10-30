@@ -14,9 +14,11 @@ import { hojeEmSaoPaulo } from './hoje';
 /** Teto de linhas por arquivo (o mesmo espírito do `audit-log`, que corta em 500): acima dele o arquivo sai cortado e a resposta avisa. */
 export const TETO_LINHAS = 5000;
 
+/** A mesma neutralização de fórmula para CSV e XLSX (modelo de ameaças do n.ot, T15). */
+export const neutralizarFormula = (s: string) => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s);
+
 export function celulaCsv(v: unknown): string {
-  let s = typeof v === 'number' && !Number.isInteger(v) ? String(v).replace('.', ',') : String(v ?? '');
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  const s = neutralizarFormula(typeof v === 'number' && !Number.isInteger(v) ? String(v).replace('.', ',') : String(v ?? ''));
   return `"${s.replace(/"/g, '""')}"`;
 }
 
