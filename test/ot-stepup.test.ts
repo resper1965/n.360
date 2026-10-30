@@ -40,10 +40,12 @@ beforeAll(async () => {
       ('u-sup', 'suplente@cliente.teste', 'x', 'Suplente', 'org_admin', 'proj-a', NULL, 0),
       ('u-pa', 'pa@ness.lat', 'x', 'Plataforma', 'platform_admin', NULL, ?, 1),
       ('u-outro', 'gestor-b@cliente.teste', 'x', 'Gestor de B', 'org_admin', 'proj-b', NULL, 0)`).bind(SEGREDO),
-    // Titular e suplente do Gestor ARCiber (spec §3). A conta de proj-b com o mesmo cargo em proj-b não é avisada.
+    // Titular e suplente do Gestor ARCiber (spec §3). A conta de proj-b com o mesmo cargo em proj-b não é avisada no sino nem quando o
+    // e-mail dela está na governança de proj-a (a conta não alcança proj-a): esse recebe só o e-mail.
     env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title, is_primary) VALUES
       ('proj-a', 'Gestor', 'gestor@cliente.teste', 'tech', 'Gestor ARCiber', 1),
       ('proj-a', 'Suplente', 'SUPLENTE@cliente.teste', 'tech', 'Gestor ARCiber', 0),
+      ('proj-a', 'Suplente de fora', 'gestor-b@cliente.teste', 'tech', 'Gestor ARCiber', 0),
       ('proj-b', 'Gestor de B', 'gestor-b@cliente.teste', 'tech', 'Gestor ARCiber', 1)`),
   ]);
   await concederModulos(['u-gestor', 'u-sup', 'u-outro'], ['ot']);
@@ -171,11 +173,11 @@ describe('P1-1: aviso ao Gestor ARCiber (titular e suplente)', () => {
     const h = await sessionFor({ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin', totp_em: Date.now() });
     expect((await chamar(h, 'POST', `${P}/ativos/${ids.a1}/revelar`, { justificativa: MOTIVO }, comEmail)).status).toBe(200);
     expect(await avisos()).toEqual(['u-gestor', 'u-sup']);
-    expect(enviados.sort()).toEqual(['SUPLENTE@cliente.teste', 'gestor@cliente.teste']);
+    expect(enviados.sort()).toEqual(['SUPLENTE@cliente.teste', 'gestor-b@cliente.teste', 'gestor@cliente.teste']);
     const r = await chamar(gestor, 'POST', `${P}/exportacao`, { formato: 'csv', site_id: ids.s1, justificativa: MOTIVO }, comEmail);
     expect(r.status).toBe(200);
     expect(await avisos()).toEqual(['u-gestor', 'u-gestor', 'u-sup', 'u-sup']);
-    expect(enviados).toHaveLength(4);
+    expect(enviados).toHaveLength(6);
     const n = await env.DB.prepare(`SELECT title, message FROM notifications WHERE type = 'ot_acesso_sensivel' ORDER BY rowid DESC LIMIT 1`).first<{ title: string; message: string }>();
     expect(n!.message).toContain('gestor@cliente.teste');
     expect(n!.message).toContain(MOTIVO);
