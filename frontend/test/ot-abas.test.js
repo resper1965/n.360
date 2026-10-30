@@ -364,6 +364,17 @@ describe('coleta', () => {
         expect(S.otLote).toBe('l2');
     });
 
+    it('lote sem a contagem de duplicatas (quem vê mascarado): o aviso não afirma "0 duplicatas"', async () => {
+        servirOt({ ...COLETA, [`POST ${B}/lotes`]: { id: 'l4', itens: 2, com_erro: 0, status: 'em_revisao' } });
+        await abrir('coleta');
+        el('ot-lote-site').value = 's1';
+        Object.defineProperty(el('ot-lote-arquivo'), 'files', { value: [new File(['nome\nRTU\n'], 'a.csv', { type: 'text/csv' })] });
+        await window.otEnviarPlanilha();
+        const toasts = [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | ');
+        expect(toasts).toContain('Lote criado: 2 item(ns)');
+        expect(toasts).not.toMatch(/duplicata/);
+    });
+
     it('planilha com a sessão terminada (401) segue o tratamento de api(): reautentica por inatividade ou sai', async () => {
         const arq = new File(['nome\nRTU\n'], 'ativos.csv', { type: 'text/csv' });
         const enviar = async (corpo) => {

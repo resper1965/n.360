@@ -53,7 +53,7 @@ window.otVoltarLotes = () => { S.otLote = null; window.render(); };
 
 const aposCriar = (r) => {
     const ign = Array.isArray(r.colunas_ignoradas) && r.colunas_ignoradas.length ? ` Colunas ignoradas: ${r.colunas_ignoradas.join(', ')}.` : '';
-    showToast(`Lote criado: ${r.itens} item(ns), ${r.com_erro} com erro, ${r.possiveis_duplicatas ?? 0} possível(is) duplicata(s).${ign}`, 'success');
+    showToast(`Lote criado: ${r.itens} item(ns), ${r.com_erro} com erro.${r.possiveis_duplicatas === undefined ? '' : ` ${r.possiveis_duplicatas} possível(is) duplicata(s).`}${ign}`, 'success');
     S.otLote = r.id;
     window.render();
 };
@@ -130,7 +130,7 @@ async function montarLote(c, a, id) {
     a.innerHTML = '<button class="btn" data-action="otVoltarLotes">Voltar aos lotes</button>'
         + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>Aprovar lote</button>` : '');
     const aviso = !emRevisao ? '' : criou ? 'Você criou este lote: a aprovação é de outra pessoa.'
-        : !aprova ? 'A aprovação é do Gestor ARCiber ou do consultor do projeto.' : 'Aprovar grava no inventário os itens sem erro (a possível duplicata é mesclada no ativo existente) e registra você como quem verificou (4.3.1). Itens com erro são recusados.';
+        : !aprova ? 'A aprovação é do Gestor ARCiber ou do consultor do projeto.' : 'Aprovar grava no inventário os itens sem erro (a possível duplicata é mesclada no ativo existente) e registra você como quem verificou (4.3.1) só nos itens que trazem todos os campos do 4.3.1. Itens com erro são recusados.';
     const erros = (xs) => (xs && xs.length ? `<ul class="m-0 t-perigo">${xs.map((x) => `<li>${escapeHTML(x.campo)}: ${escapeHTML(x.motivo)}</li>`).join('')}</ul>` : '—');
     c.innerHTML = `<h3 class="mb-2">Lote de ${escapeHTML((FONTE[lote.fonte] || lote.fonte).toLowerCase())} · ${escapeHTML(nomeDe(sites, lote.site_id))} ${selo(STATUS, lote.status)}</h3>
         <p class="org-dica mb-3">Criado em ${escapeHTML(formatarData(lote.created_at, { hora: true }))}.${lote.motivo ? ` Motivo: ${escapeHTML(lote.motivo)}` : ''} ${escapeHTML(aviso)}</p>
