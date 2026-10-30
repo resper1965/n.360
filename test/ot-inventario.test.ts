@@ -343,3 +343,32 @@ describe('4.1.2/4.1.3 e conformidade por item da RO-CB.BR.01', () => {
     expect(c.itens.find((i) => i.codigo === '4.3.1')!.situacao).toBe('nao_atende');
   });
 });
+
+describe('C1: exportação de portabilidade não leva o inventário OT (P0-2, P0-4, P0-6)', () => {
+  const semOt = async (r: Response) => {
+    const texto = await r.text();
+    expect(r.status, texto.slice(0, 300)).toBe(200);
+    const { manifesto, dados } = JSON.parse(texto) as { manifesto: { tabelas: Record<string, number> }; dados: Record<string, unknown> };
+    expect(Object.keys(dados).filter((t) => t.startsWith('ot_'))).toEqual([]);
+    expect(Object.keys(manifesto.tabelas).filter((t) => t.startsWith('ot_'))).toEqual([]);
+    for (const s of ['IED Sul', 'RTU Bay 1', 'ot1:k1:', 'ip_hash', 'SE Sul']) expect(texto, s).not.toContain(s);
+  };
+
+  it('técnico com vínculo só ao s1 e chave de API read recebem 200 sem nenhum dado ot_*', async () => {
+    await concederModulos(['u-tec'], ['iso']);
+    await semOt(await chamar(tec, 'GET', '/api/v1/projects/proj-a/export'));
+    const CHAVE = 'chave-ot-export-read';
+    await env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('key-exp', 'proj-a', ?, 'leitura', 'read', 'Active')`).bind(await sha256Hex(CHAVE)).run();
+    await semOt(await chamar({ 'X-API-Key': CHAVE }, 'GET', '/api/v1/projects/proj-a/export'));
+  });
+
+  it('tabela ot_* futura com project_id também fica fora por padrão', async () => {
+    const { tabelasExportaveis } = await import('../src/portabilidade');
+    await env.DB.prepare('CREATE TABLE ot_tabela_futura (id TEXT PRIMARY KEY, project_id TEXT)').run();
+    try {
+      expect((await tabelasExportaveis(env as any)).filter((t) => t.startsWith('ot_'))).toEqual([]);
+    } finally {
+      await env.DB.prepare('DROP TABLE ot_tabela_futura').run();
+    }
+  });
+});
