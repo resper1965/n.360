@@ -1,4 +1,4 @@
-import { produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
+import { PRODUTOS, atualizarItemOt, produtoAtual, projetosDoProduto, semAcesso, atualizarLinkCruzado, atualizarSeletorDeModulo, destinoDoAviso, destinoLegado, irPara, modulosVisiveis, enderecoDoProduto, telaPedida, pedidoDoHub, alvoDaBancada } from './produto.js';
 import { S } from './state.js';
 import { atualizarSelos } from './selos-menu.js';
 import { api, API_BASE } from './api.js';
@@ -720,6 +720,7 @@ window.updateActiveProjectWidget = function updateActiveProjectWidget() {
         }
         atualizarLinkCruzado();
         atualizarSeletorDeModulo();
+        atualizarItemOt();
         atualizarSelos();
     }
 
@@ -761,7 +762,7 @@ window.updateTenantFace = function updateTenantFace() {
         if (sel) sel.setAttribute('aria-label', p ? `Projeto ativo: ${name}. Trocar de projeto` : 'Escolher o projeto');
         // Só no n.iso a norma do projeto diz algo; no n.privacy mostra o módulo e no início do n.360 os módulos do projeto.
         const prod = produtoAtual();
-        if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod === 'privacy' ? 'n.privacy' : modulosVisiveis(p).map((m) => `n.${m}`).join(' · ');
+        if (normEl) normEl.textContent = !p ? '' : prod === 'iso' ? (p.standard || p.standards || 'ISO 27001:2022') : prod !== 'n360' ? `n.${prod}` : modulosVisiveis(p).map((m) => `n.${m}`).join(' · ');
         if (initialsEl) initialsEl.textContent = p ? name.slice(0, 2).toUpperCase() : '—';
     }
 
@@ -824,7 +825,7 @@ window.renderAccountMenu = function renderAccountMenu() {
             <div class="account-rule"></div>
             <div class="account-sign">
                 <span class="account-sign-house">ness<span>.</span></span>
-                <span class="account-sign-ver">${{ privacy: 'n.privacy', n360: 'n.360' }[produtoAtual()] || NISO_VERSION}</span>
+                <span class="account-sign-ver">${{ privacy: 'n.privacy', ot: 'n.ot', n360: 'n.360' }[produtoAtual()] || NISO_VERSION}</span>
             </div>`;
     }
 
@@ -1643,7 +1644,7 @@ window.initApp = async function initApp() {
             // no n.iso. Sem isto ela ficaria trancada fora.
             irPara(enderecoDoProduto('iso'), true);
             return;
-        } else if (!(S.projects || []).length && (produto === 'privacy' || produto === 'n360' || isClient)) {
+        } else if (!(S.projects || []).length && (produto === 'privacy' || produto === 'ot' || produto === 'n360' || isClient)) {
             // Nenhum projeto com o módulo do caminho (ou nenhum módulo, no n.360): diz isso, em vez de uma tela vazia.
             S.view = 'sem-acesso-produto';
             semAcesso(document.getElementById('content'));
@@ -1664,9 +1665,9 @@ window.initApp = async function initApp() {
         } else if (S.bancadaAlvo) {
             if (!S.activeProject && (S.projects || []).length) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
             navigate('project-detail');
-        } else if (produto === 'privacy') {
+        } else if (produto === 'privacy' || produto === 'ot') {
             if (!S.activeProject) { S.activeProject = S.projects[0]; S.currentProject = S.projects[0]; updateActiveProjectWidget(); }
-            navigate('encarregado');
+            navigate(PRODUTOS[produto].inicio);
         } else {
             navigate('dashboard');
         }
