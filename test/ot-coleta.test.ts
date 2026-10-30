@@ -268,5 +268,18 @@ describe('aprovação promove ao inventário', () => {
     expect(results.length).toBeGreaterThan(3);
     for (const l of results) expect(l.details, l.action).not.toMatch(/10\.1\.1\.|192\.168|RTU|Gateway|Switch|00:11/);
   });
+
+  it('4.3.1: a verificação registrada na aprovação vira evidência; verificação sem quem verificou não conta', async () => {
+    const conf = async (h: H, base = P) => (await json<{ itens: { codigo: string; situacao: string }[] }>(await chamar(h, 'GET', `${base}/conformidade`))).itens.find((i) => i.codigo === '4.3.1')!.situacao;
+    expect(await conf(gestor)).toBe('evidencia_no_inventario');
+    // proj-b: ativo do ARCiber com data de verificação mas sem verificado_por (gravado fora da aprovação)
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('sb', 'proj-b', 'SE B')`),
+      env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, no_arciber, categoria_arciber, tipo_dispositivo, fabricante, funcao, ip_cifrado,
+        protocolos_portas, firmware_so_versao, ultima_verificacao_em) VALUES ('ab', 'proj-b', 'sb', 'X', 1, 'centro_operacao', 'RTU', 'F', 'f', 'ot1:k1:a:b',
+        '[{"protocolo":"DNP3"}]', '1', datetime('now'))`),
+    ]);
+    expect(await conf(plat, '/api/v1/projects/proj-b/ot')).toBe('sem_evidencia');
+  });
 });
 

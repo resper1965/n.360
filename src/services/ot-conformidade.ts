@@ -17,7 +17,7 @@ export async function conformidadeOt(db: D1Database, projectId: string, sites: s
     db.prepare(`SELECT count(*) AS n FROM (SELECT site_id FROM ot_zonas WHERE project_id = ? AND status = 'ativo' AND ${NO_SITE} AND nivel_purdue IN (2, 3, 4)
       GROUP BY site_id HAVING count(DISTINCT nivel_purdue) = 3)`).bind(projectId, sites),
     db.prepare(`SELECT count(*) AS externos, coalesce(sum(f.via_vpn = 0), 0) AS sem_vpn FROM ot_fluxos f WHERE ${FLUXO_VISIVEL} AND f.externo = 1`).bind(projectId, sites, sites, sites),
-    db.prepare(`SELECT count(*) AS arciber, coalesce(sum(ultima_verificacao_em IS NULL), 0) AS sem_verificacao,
+    db.prepare(`SELECT count(*) AS arciber, coalesce(sum(ultima_verificacao_em IS NULL OR verificado_por IS NULL), 0) AS sem_verificacao,
         coalesce(sum(ultima_verificacao_em < datetime('now', '-24 months')), 0) AS vencidos, coalesce(sum(zona_id IS NULL), 0) AS sem_zona
       FROM ot_ativos WHERE project_id = ? AND status = 'ativo' AND no_arciber = 1 AND ${NO_SITE}`).bind(projectId, sites),
     // 4.2.1: gestor e suplente em project_governance, cargo "Gestor ARCiber" (spec §3): titular is_primary = 1, suplente 0.
@@ -40,11 +40,13 @@ export async function conformidadeOt(db: D1Database, projectId: string, sites: s
         : { situacao: 'sem_evidencia', evidencia: 'Nenhum fluxo externo registrado', numeros: { ...f } },
     '4.2.1': () => g.titular && g.suplente ? { situacao: 'evidencia_no_inventario', evidencia: 'Titular e suplente com cargo "Gestor ARCiber" na governança do projeto', numeros: { ...g } }
       : { situacao: 'sem_evidencia', evidencia: `Falta ${[!g.titular && 'titular', !g.suplente && 'suplente'].filter(Boolean).join(' e ')} com cargo "Gestor ARCiber" na governança do projeto`, numeros: { ...g } },
-    // Os campos do 4.3.1 o banco já garante (CHECK ot_ativos_4_3_1): o que falta provar é a verificação a cada 24 meses.
+    // Os campos do 4.3.1 o banco já garante (CHECK ot_ativos_4_3_1): o que falta provar é a verificação a cada 24 meses. Só conta a
+    // verificação com quem a fez: a aprovação de lote da coleta grava as duas (`verificado_por` e `ultima_verificacao_em`); data sem
+    // pessoa não é evidência.
     '4.3.1': () => !a.arciber ? { situacao: 'sem_evidencia', evidencia: 'Nenhum ativo do ARCiber no inventário', numeros: { ...a } }
       : a.vencidos ? { situacao: 'nao_atende', evidencia: `${a.vencidos} ativo(s) do ARCiber com verificação há mais de 24 meses`, numeros: { ...a } }
-        : a.sem_verificacao ? { situacao: 'sem_evidencia', evidencia: `${a.sem_verificacao} de ${a.arciber} ativo(s) do ARCiber sem verificação registrada (campos do 4.3.1 completos)`, numeros: { ...a } }
-          : { situacao: 'evidencia_no_inventario', evidencia: `Os ${a.arciber} ativo(s) do ARCiber têm os campos do 4.3.1 e verificação nos últimos 24 meses`, numeros: { ...a } },
+        : a.sem_verificacao ? { situacao: 'sem_evidencia', evidencia: `${a.sem_verificacao} de ${a.arciber} ativo(s) do ARCiber sem verificação registrada por aprovação de lote (campos do 4.3.1 completos)`, numeros: { ...a } }
+          : { situacao: 'evidencia_no_inventario', evidencia: `Os ${a.arciber} ativo(s) do ARCiber têm os campos do 4.3.1 e verificação por aprovação de lote nos últimos 24 meses`, numeros: { ...a } },
   };
 
   const itens = (requisitos.results as { codigo: string; titulo: string; prazo_meses: number | null }[])
