@@ -1,6 +1,6 @@
 import { api, baixarArquivo } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatCards, renderStatusBadge, falhaDeCarga, showToast, formatarData } from '../ui.js';
-import { baseOt, podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, SITUACAO } from '../ot-comum.js';
+import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, SITUACAO } from '../ot-comum.js';
 import { S } from '../state.js';
 
 // Saídas do n.ot (N4; spec §8): indicadores e conformidade por item da RO-CB.BR.01, ambos calculados do inventário pelo servidor
@@ -14,7 +14,7 @@ const dias = (p) => (!p ? 'Sem prazo' : p.vencido ? `Vencido há ${Math.abs(p.di
 export async function montarSaidas(c, a, p) {
     let ind, conf, sites;
     try {
-        [ind, conf, sites] = await Promise.all([api('GET', `${baseOt(p)}/indicadores`), api('GET', `${baseOt(p)}/conformidade`), api('GET', `${baseOt(p)}/sites`)]);
+        [ind, conf, sites] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/indicadores`), api('GET', `/api/v1/projects/${p.id}/ot/conformidade`), api('GET', `/api/v1/projects/${p.id}/ot/sites`)]);
         sites = lista(sites, 'sites');
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível calcular as saídas do n.ot.', e); return; }
     const comp = ind.completude || {};
@@ -56,6 +56,6 @@ window.otExportar = async (formato) => {
     const site = el('ot-exp-site')?.value;
     if (!site || !['csv', 'xlsx'].includes(formato)) return;
     try {
-        await baixarArquivo(`${baseOt(S.activeProject)}/exportacao?formato=${formato}&site_id=${encodeURIComponent(site)}`);
+        await baixarArquivo(`/api/v1/projects/${S.activeProject.id}/ot/exportacao?formato=${formato}&site_id=${encodeURIComponent(site)}`);
     } catch (e) { showToast(mensagemDeErro(e, 'Não foi possível exportar o inventário.'), 'error'); }
 };

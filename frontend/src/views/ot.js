@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderSemProjeto, renderDataTable, falhaDeCarga, renderAbas, renderMaisAcoes, renderStatusBadge,
     openModal, forceCloseModal, showToast, confirmar, pedirTexto, formatarData } from '../ui.js';
-import { baseOt, podeEditarOt, podeRevelar, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
+import { podeEditarOt, podeRevelar, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
     TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS } from '../ot-comum.js';
 import { montarColeta } from './ot-coleta.js';
 import { montarSaidas } from './ot-saidas.js';
@@ -14,7 +14,6 @@ import { montarSaidas } from './ot-saidas.js';
 const prazo = (m) => (Number.isInteger(m) && m > 0 ? `${m} meses` : 'Sem prazo');
 const el = (id) => document.getElementById(id);
 const proj = () => S.activeProject;
-const base = () => baseOt(proj());
 const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 const TEMPO_IA = 90000;
@@ -45,7 +44,7 @@ window.otAba = (v) => { S.otAba = v; S.otLote = null; window.render(); };
 async function montarCatalogo(c, a, p) {
     let reqs;
     try {
-        const r = await api('GET', `${baseOt(p)}/requisitos`);
+        const r = await api('GET', `/api/v1/projects/${p.id}/ot/requisitos`);
         reqs = Array.isArray(r && r.requisitos) ? r.requisitos : [];
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os requisitos da RO-CB.BR.01.', e); return; }
     if (!reqs.length) {
@@ -58,12 +57,11 @@ async function montarCatalogo(c, a, p) {
 }
 
 // ─── inventário (N2) ────────────────────────────────────────────────────────
-const comSite = (rota) => (S.otSite ? `${rota}?site_id=${encodeURIComponent(S.otSite)}` : rota);
+const doSite = () => (S.otSite ? `?site_id=${encodeURIComponent(S.otSite)}` : '');
 
 async function carregarInventario(p, { fluxos = false } = {}) {
-    const b = baseOt(p);
-    const [s, z, at, fl] = await Promise.all([api('GET', `${b}/sites`), api('GET', comSite(`${b}/zonas`)), api('GET', comSite(`${b}/ativos`)),
-        fluxos ? api('GET', comSite(`${b}/fluxos`)) : null]);
+    const [s, z, at, fl] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/zonas${doSite()}`), api('GET', `/api/v1/projects/${p.id}/ot/ativos${doSite()}`),
+        fluxos ? api('GET', `/api/v1/projects/${p.id}/ot/fluxos${doSite()}`) : null]);
     D.sites = lista(s, 'sites'); D.zonas = lista(z, 'zonas'); D.ativos = lista(at, 'ativos'); D.fluxos = lista(fl, 'fluxos');
     if (S.otSite && !D.sites.some((x) => x.id === S.otSite)) S.otSite = null;
 }
@@ -143,7 +141,7 @@ window.otSalvarSite = async (id) => {
     if (!nome) return showToast('Informe o nome do site.', 'error');
     const corpo = { nome, tipo: el('ot-s-tipo').value, criticidade: el('ot-s-crit').value || null, localizacao: el('ot-s-local').value.trim() || null };
     try {
-        await api(id ? 'PUT' : 'POST', id ? `${base()}/sites/${encodeURIComponent(id)}` : `${base()}/sites`, corpo);
+        await api(id ? 'PUT' : 'POST', id ? `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(id)}` : `/api/v1/projects/${proj().id}/ot/sites`, corpo);
         forceCloseModal(); showToast('Site salvo.', 'success'); window.render();
     } catch (e) { falhou(e, 'Não foi possível salvar o site.'); }
 };
@@ -166,7 +164,7 @@ window.otSalvarZona = async (id) => {
     const corpo = { nome, nivel_purdue: Number(el('ot-z-nivel').value), tipo: el('ot-z-tipo').value, descricao: el('ot-z-desc').value.trim() || null };
     if (!id) corpo.site_id = el('ot-z-site').value;
     try {
-        await api(id ? 'PUT' : 'POST', id ? `${base()}/zonas/${encodeURIComponent(id)}` : `${base()}/zonas`, corpo);
+        await api(id ? 'PUT' : 'POST', id ? `/api/v1/projects/${proj().id}/ot/zonas/${encodeURIComponent(id)}` : `/api/v1/projects/${proj().id}/ot/zonas`, corpo);
         forceCloseModal(); showToast('Zona salva.', 'success'); window.render();
     } catch (e) { falhou(e, 'Não foi possível salvar a zona.'); }
 };
@@ -193,7 +191,7 @@ window.otSalvarAtivo = async (id) => {
     if (!id && !dados.nome) return showToast('Informe o nome do ativo.', 'error');
     const corpo = id ? dados : { site_id: el('ot-f-site').value, ...dados };
     try {
-        await api(id ? 'PUT' : 'POST', id ? `${base()}/ativos/${encodeURIComponent(id)}` : `${base()}/ativos`, corpo);
+        await api(id ? 'PUT' : 'POST', id ? `/api/v1/projects/${proj().id}/ot/ativos/${encodeURIComponent(id)}` : `/api/v1/projects/${proj().id}/ot/ativos`, corpo);
         forceCloseModal(); showToast('Ativo salvo.', 'success'); window.render();
     } catch (e) { falhou(e, 'Não foi possível salvar o ativo.'); }
 };
@@ -205,7 +203,12 @@ window.otRemover = async (rota, id) => {
         { titulo: 'Remover do inventário', rotulo: 'Remover', perigo: true });
     if (!ok) return;
     try {
-        await api('DELETE', `${base()}/${rota}/${encodeURIComponent(id)}`);
+        const i = encodeURIComponent(id);
+        const pid = proj().id;
+        if (rota === 'sites') await api('DELETE', `/api/v1/projects/${pid}/ot/sites/${i}`);
+        else if (rota === 'zonas') await api('DELETE', `/api/v1/projects/${pid}/ot/zonas/${i}`);
+        else if (rota === 'ativos') await api('DELETE', `/api/v1/projects/${pid}/ot/ativos/${i}`);
+        else await api('DELETE', `/api/v1/projects/${pid}/ot/fluxos/${i}`);
         showToast('Removido do inventário.', 'success'); window.render();
     } catch (e) { falhou(e, 'Não foi possível remover.'); }
 };
@@ -219,7 +222,7 @@ window.otRevelar = async (id) => {
     if (motivo === null) return;
     if (motivo.length < 10) { showToast('Escreva o motivo com ao menos 10 caracteres.', 'error'); return; }
     let r;
-    try { r = await api('POST', `${base()}/ativos/${encodeURIComponent(id)}/revelar`, { justificativa: motivo }); } catch (e) { falhou(e, 'Não foi possível revelar.'); return; }
+    try { r = await api('POST', `/api/v1/projects/${proj().id}/ot/ativos/${encodeURIComponent(id)}/revelar`, { justificativa: motivo }); } catch (e) { falhou(e, 'Não foi possível revelar.'); return; }
     openModal(`<div class="modal-header"><span class="modal-title">IP e MAC de ${escapeHTML(r.nome || 'ativo')}</span></div>
         <div id="ot-revelado"><div class="rotulo-campo">IP</div><p class="valor-campo f-mono">${escapeHTML(r.ip ?? '—')}</p>
         <div class="rotulo-campo mt-3">MAC</div><p class="valor-campo f-mono">${escapeHTML(r.mac ?? '—')}</p></div>
@@ -237,7 +240,7 @@ window.otRevelar = async (id) => {
 // IA (P0-7): rascunho; quem grava é a pessoa, pelas rotas do inventário.
 window.otSugerirZona = async (id) => {
     let s;
-    try { s = await api('POST', `${base()}/ia/zona-sugerida`, { ativo_id: id }, { timeoutMs: TEMPO_IA }); } catch (e) { falhou(e, 'Não foi possível pedir a sugestão de zona.'); return; }
+    try { s = await api('POST', `/api/v1/projects/${proj().id}/ot/ia/zona-sugerida`, { ativo_id: id }, { timeoutMs: TEMPO_IA }); } catch (e) { falhou(e, 'Não foi possível pedir a sugestão de zona.'); return; }
     openModal(`<div class="modal-header"><span class="modal-title">Rascunho da IA: zona do ativo</span></div>
         <p class="org-dica mb-3">Sugestão da IA, ainda não gravada. Confira antes de aplicar.</p>
         <div class="rotulo-campo">Nível Purdue sugerido</div><p class="valor-campo">${escapeHTML(String(s.nivel_purdue))}</p>
@@ -248,7 +251,7 @@ window.otSugerirZona = async (id) => {
 };
 window.otAplicarZona = async (id, zonaId) => {
     try {
-        await api('PUT', `${base()}/ativos/${encodeURIComponent(id)}`, { zona_id: zonaId });
+        await api('PUT', `/api/v1/projects/${proj().id}/ot/ativos/${encodeURIComponent(id)}`, { zona_id: zonaId });
         forceCloseModal(); showToast('Zona aplicada ao ativo.', 'success'); window.render();
     } catch (e) { falhou(e, 'Não foi possível aplicar a zona.'); }
 };
@@ -266,7 +269,7 @@ window.otChecarCompletude = async () => {
     const descricao = el('ot-ia-desc').value.trim();
     if (descricao.length < 10) return showToast('Descreva o ativo com ao menos 10 caracteres.', 'error');
     let r;
-    try { r = await api('POST', `${base()}/ia/completude`, { descricao }, { timeoutMs: TEMPO_IA }); } catch (e) { falhou(e, 'Não foi possível checar a completude.'); return; }
+    try { r = await api('POST', `/api/v1/projects/${proj().id}/ot/ia/completude`, { descricao }, { timeoutMs: TEMPO_IA }); } catch (e) { falhou(e, 'Não foi possível checar a completude.'); return; }
     rascunhoIa = r.campos || {};
     const campos = [['Tipo de dispositivo', rascunhoIa.tipo_dispositivo], ['Fabricante', rascunhoIa.fabricante], ['Modelo', rascunhoIa.modelo], ['Função', rascunhoIa.funcao],
         ['IP', rascunhoIa.ip], ['MAC', rascunhoIa.mac], ['Protocolos', (rascunhoIa.protocolos_portas || []).map((p) => (p.porta == null ? p.protocolo : `${p.protocolo}:${p.porta}`)).join(', ')],
@@ -335,7 +338,7 @@ window.otSalvarFluxo = async () => {
     if (corpo.protocolo === null) delete corpo.protocolo;
     if (corpo.porta === null) delete corpo.porta;
     try {
-        const r = await api('POST', `${base()}/fluxos`, corpo);
+        const r = await api('POST', `/api/v1/projects/${proj().id}/ot/fluxos`, corpo);
         forceCloseModal();
         const v = r && Array.isArray(r.violacoes) ? r.violacoes : [];
         showToast(v.length ? `Fluxo registrado com violação de ${v.join(' e ')}: externo sem VPN.` : 'Fluxo registrado.', v.length ? 'warning' : 'success');
@@ -348,7 +351,7 @@ let tecnicos = [];
 async function montarAcessos(c, a, p) {
     let acessos;
     try {
-        const [s, ac] = await Promise.all([api('GET', `${baseOt(p)}/sites`), api('GET', `${baseOt(p)}/acessos`)]);
+        const [s, ac] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/acessos`)]);
         D.sites = lista(s, 'sites'); acessos = lista(ac, 'acessos');
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os acessos por site.', e); return; }
     // Secundário: sem a lista de contas, a tabela mostra o id e o formulário avisa.
@@ -371,14 +374,14 @@ window.otNovoAcesso = () => {
 };
 window.otSalvarAcesso = async () => {
     try {
-        await api('POST', `${base()}/acessos`, { user_id: el('ot-ac-user').value, site_id: el('ot-ac-site').value });
+        await api('POST', `/api/v1/projects/${proj().id}/ot/acessos`, { user_id: el('ot-ac-user').value, site_id: el('ot-ac-site').value });
         forceCloseModal(); showToast('Acesso concedido.', 'success'); window.render();
     } catch (e) { falhou(e, 'Não foi possível conceder o acesso.'); }
 };
 window.otRevogarAcesso = async (siteId, userId) => {
     if (!await confirmar('Revogar o acesso deste técnico ao site? Ele deixa de ver e de coletar nesse site.', { titulo: 'Revogar acesso', rotulo: 'Revogar', perigo: true })) return;
     try {
-        await api('DELETE', `${base()}/acessos/${encodeURIComponent(siteId)}/${encodeURIComponent(userId)}`);
+        await api('DELETE', `/api/v1/projects/${proj().id}/ot/acessos/${encodeURIComponent(siteId)}/${encodeURIComponent(userId)}`);
         showToast('Acesso revogado.', 'success'); window.render();
     } catch (e) { falhou(e, 'Não foi possível revogar o acesso.'); }
 };
