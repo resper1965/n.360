@@ -17,7 +17,8 @@ Hono no Cloudflare Workers, D1, KV, R2 e Workers AI. Frontend SPA em JavaScript 
 empacotado pelo Vite. Sem framework é decisão, não dívida.
 
 ### III. Foco nas normas e na lei
-O n.iso segue a ISO 27001:2022 e a ISO 27701; o n.privacy, a LGPD e as resoluções da ANPD. Toda
+O n.iso segue a ISO 27001:2022 e a ISO 27701; o n.privacy, a LGPD e as resoluções da ANPD; o n.ot, a
+rotina operacional RO-CB.BR.01 do ONS (ARCiber). Toda
 funcionalidade, política, avaliação e controle segue a referência do seu módulo. A IA produz rascunho; quem
 aprova é uma pessoa, e cada aprovação deixa assinatura e trilha.
 
@@ -32,7 +33,7 @@ schema entra em dois lugares: `schema.sql` e uma migration numerada.
 
 ### VI. Identidade da ness.
 PT-BR em todo texto visível. Marca `ness.` (minúsculo, com ponto), plataforma `n.360` e módulos
-`n.iso` e `n.privacy`. Um tema
+`n.iso`, `n.privacy` e `n.ot`. Um tema
 escuro só, sem itálico, sem emoji. Tokens visuais com fonte única em `frontend/src/style.css`
 (`:root`); ver [`design.md`](design.md).
 

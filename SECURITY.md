@@ -1,6 +1,6 @@
 # Política de Segurança
 
-O n.360 (e os módulos n.iso e n.privacy) processa dados de conformidade e **dados pessoais
+O n.360 (e os módulos n.iso, n.privacy e n.ot) processa dados de conformidade e **dados pessoais
 sob a LGPD** (RoPA, DPIA, pedidos de titulares, incidentes, consentimentos, evidências de
 auditoria). Uma falha aqui não afeta só o sistema — afeta
 os titulares de dados dos nossos clientes. Trate relatos de segurança com essa
@@ -62,6 +62,8 @@ Invariantes de segurança que o código mantém e que **não devem regredir**:
 | Concessão do agente revalidada a cada chamada; troca de senha a revoga | `concessaoValida` — `test/mcp-remoto.test.ts`, `test/agente-principal.test.ts` |
 | Segredo de integração não sai (listagem de webhooks, export de portabilidade) | `src/routes/integrations.ts`, `src/portabilidade.ts` — `test/webhooks-segredo.test.ts` |
 | Rota de módulo só com o módulo no projeto **e** na pessoa; o núcleo vale com qualquer módulo | `src/modulos.ts` (faixas, `modulosDaPessoa`) no `projectAccessMiddleware` e no `requireResourceAccess` — `test/modulos-produto.test.ts`, `test/modulos-por-pessoa.test.ts` |
+| n.ot (P0-1): o módulo `ot` nunca é concedido automaticamente, nem a cliente nem à equipe; só por concessão explícita com trilha | gatilho `usuario_modulos_padrao` da `migrations/0089_modulo_ot.sql` e `PUT /projects/:id/modulos/ot` sem concessão — `test/migration-0089.test.ts`, `test/ot-modulo.test.ts` |
+| n.ot (P0-2): chave de API e agente MCP recebem 403 em toda rota `ot` | middleware de `otApp` (`src/routes/ot.ts`) e `FORA_DO_AGENTE` — `test/ot-modulo.test.ts`, `test/agente-paridade.test.ts` |
 | Conta se desativa, não se apaga; desativada não entra por senha, SSO, agente nem sessão aberta. Apagar de verdade só `platform_admin`; ninguém desativa a própria conta | `PUT /api/v1/users/:id/ativo` e `DELETE ...?definitivo=1` em `src/routes/users.ts` — `test/contas-ativo.test.ts`, `test/contas-seguranca.test.ts` |
 | Busca ao IdP do SSO só em host público e sem seguir redirecionamento (SSRF) | `exigirHostPublico` e `buscarNoIdp` (`redirect: 'manual'`) em `src/sso.ts` — `test/sso.test.ts` |
 | Rascunho de IA do n.privacy não leva dado do titular ao modelo e não grava nada no registro | `mascararPii` e esquema estrito em `src/services/rascunhos-privacy.ts` — `test/agentes-privacy.test.ts` |

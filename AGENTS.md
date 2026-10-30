@@ -1,9 +1,9 @@
 # n.360 — Manifesto do Agente
 
 Se voce esta lendo isto, voce e o agente responsavel por continuar o
-desenvolvimento do **n.360**, a plataforma de GRC da ness., e dos seus dois
-modulos: **n.iso** (ISO 27001/27701, em `/iso`) e **n.privacy** (LGPD/ANPD, em
-`/privacy`). O repositorio, o Worker e o banco ainda se chamam `niso` por
+desenvolvimento do **n.360**, a plataforma de GRC da ness., e dos seus
+modulos: **n.iso** (ISO 27001/27701, em `/iso`), **n.privacy** (LGPD/ANPD, em
+`/privacy`) e **n.ot** (ARCiber, ONS RO-CB.BR.01, em `/ot`; fatia N1 em construcao). O repositorio, o Worker e o banco ainda se chamam `niso` por
 historia; nao e o nome do produto.
 
 Este arquivo descreve o que **existe hoje**. Historico de sprint vive no
@@ -70,13 +70,21 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
 
 - **Um Worker, um banco (D1 `niso-db`), um deploy.** O endereco canonico e `https://n360.ness.com.br`
   (`APP_URL` em `wrangler.jsonc`). `/` e o inicio do n.360 (um cartao por modulo e o grupo "Conta e acessos"),
-  `/iso*` a casca do n.iso e `/privacy*` a do n.privacy. O CAMINHO decide a casca (`frontend/src/produto.js`);
+  `/iso*` a casca do n.iso, `/privacy*` a do n.privacy e `/ot*` a do n.ot. O CAMINHO decide a casca (`frontend/src/produto.js`);
   o servidor entrega o mesmo `login.html` para todos.
 - **Um cadastro so.** Partes, itens, documentos, RoPA, DPIA, evidencias, pedidos e incidentes sao do nucleo e
   servem aos dois modulos. O que e so de um modulo fica na faixa dele.
-- **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa faixa (`nucleo`, `iso`, `privacy`).
+- **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa faixa (`nucleo`, `iso`, `privacy`, `ot`).
   Faixa de modulo exige o modulo no projeto (`projeto_modulos`) **e** na pessoa (`usuario_modulos`, migration
   0066); senao 403. Rota nova de projeto sem faixa reprova em `test/modulos-produto.test.ts`.
+- **n.ot (spec `2026-10-30-n-ot-modulo-n360-design`, migrations 0089/0090):** faixa `ot`, todas as rotas sob
+  `/api/v1/projects/:projectId/ot/…` (`src/routes/ot.ts`; hoje so `GET …/ot/requisitos`, o catalogo RO-CB.BR.01 Rev.00).
+  Duas regras do modelo de ameacas que nao podem regredir: **P0-1, o `ot` nunca e concedido automaticamente** (o gatilho
+  `usuario_modulos_padrao` nao o da a ninguem, e habilitar o `ot` no projeto nao o da aos clientes; so `PUT /users/:id/modulos`
+  ou `POST /users` com `modulos`, com trilha; a caixa do n.ot na tela Usuarios nunca nasce marcada) e **P0-2, sem chave de API
+  nem agente MCP** (`otApp` responde 403 a `apikey:` e a `agente`; `/projects/:id/ot` esta em `FORA_DO_AGENTE`). Frontend:
+  casca `/ot` com uma tela (`views/ot.js`), item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
+  o painel ainda nao tem bloco do n.ot (`views/painel.js` o ignora).
 - **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
   `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` e
   `/homologacao*` ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.
