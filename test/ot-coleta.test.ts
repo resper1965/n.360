@@ -378,6 +378,17 @@ describe('4.3.1 e P1-4: verificação só com recoleta; alvo alterado depois da 
     expect(await env.DB.prepare(`SELECT decisao FROM ot_lote_itens WHERE lote_id = ?`).bind(l).first('decisao')).toBe('pendente');
   });
 
+  it('duas linhas do mesmo lote no mesmo ativo e lote acima de um batch: tudo gravado, nenhum item pendente', async () => {
+    const linhas = ['', `Primeira;10.1.1.90;;;;;;;;;;`, `Segunda;10.1.1.90;;;;;;;;;;`,
+      ...Array.from({ length: 30 }, (_, k) => `Lote grande ${k};10.1.2.${k + 1};;;;;;;;;;`)];
+    await env.DB.prepare(`UPDATE ot_ativos SET updated_at = '2026-01-01 00:00:00.000' WHERE id = ?`).bind(nova).run(); // o teste anterior o deixou no futuro
+    const l = await loteDo(tec, `Com erro;999.1.1.1;;;;;;;;;;`, ...linhas.slice(1));
+    const r = await json(await chamar(gestor, 'POST', `${P}/lotes/${l}/aprovar`));
+    expect(r).toMatchObject({ criados: 30, atualizados: 2, recusados: 1, pendentes: 0 });
+    expect(await ativo(nova)).toMatchObject({ nome: 'Segunda' });
+    expect(await env.DB.prepare(`SELECT count(*) AS n FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'gravado'`).bind(l).first('n')).toBe(32);
+  });
+
   it('ativo novo com o mesmo IP criado depois da revisão também volta o item a pendente', async () => {
     const l = await loteDo(tec, `Sem par;10.1.1.92;;;;;;;;;;`);
     const outro = await criar(gestor, 'ativos', { site_id: ids.s1, nome: 'Chegou antes', ip: '10.1.1.92' });

@@ -136,8 +136,15 @@ const COLS_ATIVO = ['zona_id', 'nome', 'no_arciber', 'categoria_arciber', 'tipo_
 const ativosDoSite = (db: D1Database, projectId: string, siteId: string) =>
   db.prepare(`SELECT id, ${COLS_ATIVO.join(', ')}, updated_at FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo'`).bind(projectId, siteId).all<Existente>();
 
-async function emBlocos(db: D1Database, stmts: D1PreparedStatement[]) {
-  for (let i = 0; i < stmts.length; i += BLOCO) await db.batch(stmts.slice(i, i + BLOCO));
+/** Batches de até BLOCO statements; um grupo (array) nunca se parte entre batches: o `changes()` do item lê o statement anterior. */
+async function emBlocos(db: D1Database, itens: (D1PreparedStatement | D1PreparedStatement[])[]) {
+  let bloco: D1PreparedStatement[] = [];
+  for (const g of itens) {
+    const s = [g].flat();
+    if (bloco.length && bloco.length + s.length > BLOCO) { await db.batch(bloco); bloco = []; }
+    bloco.push(...s);
+  }
+  if (bloco.length) await db.batch(bloco);
 }
 
 type Falha = { ok: false; status: 400 | 403 | 404 | 409 | 429; error: string };
@@ -227,9 +234,9 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   ]);
   const zonasAtivas = new Set(zonas.results.map((z) => z.id));
   const idx = indice(ativos.results);
-  const novos = new Set<string>(); // ativos criados nesta aprovação: duplicata entre linhas do mesmo lote foi revisada junto
+  const tocados = new Set<string>(); // ativos criados ou mesclados nesta aprovação: linhas do mesmo lote foram revisadas juntas
   const n = { criados: 0, atualizados: 0, recusados: 0 };
-  const stmts: D1PreparedStatement[] = [];
+  const stmts: (D1PreparedStatement | D1PreparedStatement[])[] = [];
   const recusar = (i: LinhaItem, motivo: string) => {
     n.recusados++;
     stmts.push(db.prepare(`UPDATE ot_lote_itens SET decisao = 'recusado', motivo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(motivo, i.id));
@@ -240,7 +247,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     if (d.zona_id && !zonasAtivas.has(d.zona_id as string)) { recusar(i, 'A zona do item foi removida'); continue; }
     const alvo = idx.achar(d);
     // P1-4: o alvo de agora não é o revisado (outro, sumiu, ou editado depois da revisão do item): o item volta a pendente, nada é gravado.
-    if (alvo ? !novos.has(alvo.id) && (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) : !!i.duplicata_de) {
+    if (alvo ? !tocados.has(alvo.id) && (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) : !!i.duplicata_de) {
       stmts.push(db.prepare(`UPDATE ot_lote_itens SET duplicata_de = ?, motivo = ?, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo?.id ?? null, ALVO_MUDOU, i.id));
       continue;
     }
@@ -251,19 +258,19 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     const vals = COLS_ATIVO.map((k) => linha[k] ?? null);
     const recoletado = !falta431({ ...d, no_arciber: 1 });
     const verificacao = recoletado ? `verificado_por = ?, ultima_verificacao_em = CURRENT_TIMESTAMP` : alvo && toca431(d, alvo) ? `verificado_por = NULL, ultima_verificacao_em = NULL` : null;
-    stmts.push(alvo
+    stmts.push([alvo
       // O WHERE compara o updated_at lido: edição entre a leitura e a gravação não é sobrescrita (changes() = 0 deixa o item pendente).
       ? db.prepare(`UPDATE ot_ativos SET ${COLS_ATIVO.map((k) => `${k} = ?`).join(', ')}${verificacao ? `, ${verificacao}` : ''},
-          updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND status = 'ativo' AND updated_at = ?`)
-        .bind(...vals, ...(recoletado ? [ator.email] : []), ativoId, projectId, alvo.updated_at)
+          updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND status = 'ativo' AND (? OR updated_at = ?)`)
+        .bind(...vals, ...(recoletado ? [ator.email] : []), ativoId, projectId, Number(tocados.has(ativoId)), alvo.updated_at)
       : db.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, ${COLS_ATIVO.join(', ')}, verificado_por, ultima_verificacao_em, updated_at)
           VALUES (?, ?, ?, ${COLS_ATIVO.map(() => '?').join(', ')}, ?, ${recoletado ? 'CURRENT_TIMESTAMP' : 'NULL'}, ${AGORA_MS})`)
-        .bind(ativoId, projectId, lote.site_id, ...vals, recoletado ? ator.email : null));
-    stmts.push(db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'pendente' END,
+        .bind(ativoId, projectId, lote.site_id, ...vals, recoletado ? ator.email : null),
+    db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'pendente' END,
       registro_id = CASE WHEN changes() > 0 THEN ? END, motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`)
-      .bind(ativoId, ALVO_MUDOU, i.id));
+      .bind(ativoId, ALVO_MUDOU, i.id)]);
     idx.add({ ...linha, id: ativoId } as Existente);
-    if (!alvo) novos.add(ativoId);
+    tocados.add(ativoId);
     n[alvo ? 'atualizados' : 'criados']++;
   }
   await emBlocos(db, stmts);
