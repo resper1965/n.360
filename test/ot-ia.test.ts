@@ -40,6 +40,19 @@ describe('P0-7: mascararParaIa', () => {
     expect(m.mapa.size).toBe(1);
   });
 
+  it('endereço colado a _ ou letra também vira token, e o resíduo o pega se escapar', () => {
+    for (const [t, v] of [['ip _10.0.0.1_', '10.0.0.1'], ['ip a10.0.0.1', '10.0.0.1'], ['ip10.0.0.1x', '10.0.0.1'], ['rtu01_192.168.0.5', '192.168.0.5'],
+      ['MAC_001a2b3c4d5e', '001a2b3c4d5e'], ['mac_aa:bb:cc:dd:ee:01', 'aa:bb:cc:dd:ee:01']] as const) {
+      const m = mascararParaIa(t);
+      expect(m.texto, t).not.toContain(v);
+      expect(() => garantirSemEndereco(m.texto), t).not.toThrow();
+      expect(() => garantirSemEndereco(t), `resíduo ${t}`).toThrow(RecusaIa);
+    }
+    // versão de firmware com forma de IPv4 continua mascarada (não vai ao modelo), e sem dígitos colados não vira endereço
+    expect(mascararParaIa('firmware v2.4.1.7').texto).not.toContain('2.4.1.7');
+    expect(mascararParaIa('firmware 1.2.3.4.5').texto).toContain('1.2.3.4.5');
+  });
+
   it('garantirSemEndereco lança se sobrou IP, MAC ou IPv6', () => {
     for (const t of ['x 10.0.0.1', 'x aa:bb:cc:dd:ee:ff', 'x 2001:db8::1', 'x aabb.ccdd.eeff']) expect(() => garantirSemEndereco(t), t).toThrow();
   });

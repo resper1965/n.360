@@ -8,7 +8,7 @@ import type { z } from 'zod';
 import { reasoningModel } from '../config/models';
 import { gatewayConfig } from '../agents/types';
 import { objetoDaResposta } from '../agents/importacao';
-import { normalizarIp } from './ot-cifra';
+import { normalizarIp, ENDERECO_EM_TEXTO } from './ot-cifra';
 
 export type TipoToken = 'ip' | 'mac' | 'hostname' | 'serie';
 export type MapaTokens = Map<string, { tipo: TipoToken; valor: string }>;
@@ -22,15 +22,16 @@ const DO_TOKEN = /\[\[(IP|MAC|HOST|SERIE)_[0-9a-f]{8}\]\]/;
 const PARECE_TOKEN = /(IP|MAC|HOST|SERIE)_[0-9a-f]{8}/i;
 
 const IPV6 = /(?<![\w:.])(?:[0-9a-f]{0,4}:){2,7}(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-f]{0,4})(?:%\w+)?(?:\/\d{1,3})?(?![\w:])/gi;
-const MAC = /\b[0-9a-f]{2}([:-])[0-9a-f]{2}(?:\1[0-9a-f]{2}){4}\b|\b[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}\b|\b[0-9a-f]{12}\b/gi;
-const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2}\b|-(?:(?:\d{1,3}\.){3})?\d{1,3}\b)?(?!\.\d)/g;
+// Limite por lookaround de hex/dígito, não `\b`: `_` e letra colada ("rtu01_192.168.0.5", "MAC_001a2b3c4d5e") separam.
+const MAC = /(?<![0-9a-f])[0-9a-f]{2}([:\- _])[0-9a-f]{2}(?:\1[0-9a-f]{2}){4}(?![0-9a-f])|(?<![0-9a-f])[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}(?![0-9a-f])|(?<![0-9a-f])[0-9a-f]{12}(?![0-9a-f])/gi;
+const IPV4 = /(?<!\d|\d\.)(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2}(?!\d)|-(?:(?:\d{1,3}\.){3})?\d{1,3}(?!\d))?(?!\.?\d)/g;
 const FQDN = /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\b(?!\.?[\w-])/gi;
 // Rótulo + valor: o valor (grupo 3) vira token. Sem `:`/`=`, só valor com dígito, `-` ou `_` (senão "o host responde" perderia a palavra).
 const HOST_ROTULADO = /\b(hostname|nome d[eo] host|host)(\s*[:=]\s*|\s+(?=[\w.-]*[\d_-]))([A-Za-z0-9][\w.-]*[A-Za-z0-9]|[A-Za-z0-9])/gi;
 const SERIE = /(\bs\/n|\bsn|\bserial|\bn[uú]mero de s[eé]rie|\bn[ºo°]\.? de s[eé]rie)(\s*[:#=]?\s*)([A-Z0-9][A-Z0-9-]{3,})/gi;
 
-/** O que ainda parece endereço depois da máscara (a mesma família de padrões do esquema do inventário): a chamada não acontece. */
-const RESIDUO = /\b\d{1,3}(\.\d{1,3}){3}\b|\b([0-9a-f]{1,4}:){4,7}[0-9a-f]{1,4}\b|[0-9a-f]{0,4}::[0-9a-f]{0,4}|\b[0-9a-f]{2}([:-][0-9a-f]{2}){5}\b|\b[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}\b/i;
+/** O que ainda parece endereço depois da máscara (o mesmo padrão do esquema do inventário): a chamada não acontece. */
+const RESIDUO = ENDERECO_EM_TEXTO;
 
 const sorteio = () => [...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
