@@ -169,7 +169,7 @@ export async function habilitarPrivacy(...ids: string[]): Promise<void> {
 }
 
 /**
- * Habilita o n.OT nos projetos do teste. Diferente do `habilitarPrivacy`, não dá o módulo a ninguém: `ot` só entra em
+ * Habilita o n.ot nos projetos do teste. Diferente do `habilitarPrivacy`, não dá o módulo a ninguém: `ot` só entra em
  * `usuario_modulos` por concessão explícita (0089, modelo de ameaças P0-1). Dê às contas com `concederModulos(ids, ['ot'])`.
  */
 export async function habilitarOt(...ids: string[]): Promise<void> {

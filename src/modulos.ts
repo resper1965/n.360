@@ -6,7 +6,7 @@ import { parseModulos } from './schemas/nucleo';
  *   - `iso`: o que só o n.iso faz (controles, SoA, riscos, auditorias, certificação…).
  *   - `privacy`: o que só o n.privacy faz (requisitos por projeto, terceiros, pedidos do titular, consentimentos, encarregado,
  *     ligações do tratamento, LIA).
- *   - `ot`: o n.OT (inventário e requisitos do ARCiber, ONS RO-CB.BR.01), sob `ot/`.
+ *   - `ot`: o n.ot (inventário e requisitos do ARCiber, ONS RO-CB.BR.01), sob `ot/`.
  * Rota nova precisa estar classificada aqui: `test/modulos-produto.test.ts` reprova a que não estiver.
  */
 
@@ -14,7 +14,7 @@ export const MODULOS_PRODUTO = ['iso', 'privacy', 'ot'] as const;
 export type Modulo = (typeof MODULOS_PRODUTO)[number];
 export type Faixa = 'nucleo' | Modulo;
 
-export const NOME_DO_PRODUTO: Record<Modulo, string> = { iso: 'n.iso', privacy: 'n.privacy', ot: 'n.OT' };
+export const NOME_DO_PRODUTO: Record<Modulo, string> = { iso: 'n.iso', privacy: 'n.privacy', ot: 'n.ot' };
 
 /** Primeiro segmento depois de `/api/v1/projects/:projectId/` → faixa. `''` é o próprio projeto. */
 export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
@@ -38,7 +38,7 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   // só n.privacy
   catalogos: 'privacy', consentimentos: 'privacy', encarregado: 'privacy', importacoes: 'privacy', requisitos: 'privacy', terceiros: 'privacy', homologacoes: 'privacy',
   'titular-pedidos': 'privacy',
-  // só n.OT: todas as rotas ficam sob `ot/` (spec 2026-10-30-n-ot-modulo-n360-design, 4.2)
+  // só n.ot: todas as rotas ficam sob `ot/` (spec 2026-10-30-n-ot-modulo-n360-design, 4.2)
   ot: 'ot',
 };
 

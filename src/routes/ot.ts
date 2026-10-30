@@ -2,15 +2,15 @@ import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500 } from '../helpers';
 
-/** n.OT (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
+/** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
 export const otApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-// Modelo de ameaças do n.OT, P0-2: o inventário de OT é dado sensível do ARCiber; chave de API e agente MCP ficam de fora
+// Modelo de ameaças do n.ot, P0-2: o inventário de OT é dado sensível do ARCiber; chave de API e agente MCP ficam de fora
 // (o agente também está em FORA_DO_AGENTE). Os sinais são os de middleware/auth.ts (`apikey:`) e middleware/agente.ts (`agente`).
 otApp.use('*', async (c, next) => {
   const user = c.get('user');
   if (user.agente === true || user.id?.startsWith('apikey:')) {
-    return c.json({ error: 'Forbidden: o n.OT não aceita chave de API nem agente — use a interface' }, 403);
+    return c.json({ error: 'Forbidden: o n.ot não aceita chave de API nem agente — use a interface' }, 403);
   }
   await next();
 });
@@ -26,6 +26,6 @@ otApp.get('/requisitos', async (c) => {
     results.sort((a, b) => a.framework.localeCompare(b.framework) || a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
     return c.json({ requisitos: results });
   } catch (e) {
-    return erro500(c, 'Falha ao listar os requisitos do n.OT', e);
+    return erro500(c, 'Falha ao listar os requisitos do n.ot', e);
   }
 });

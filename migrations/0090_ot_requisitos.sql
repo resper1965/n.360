@@ -1,4 +1,4 @@
--- 0090 — n.OT: catálogo global de requisitos (sem project_id) e carga da ONS RO-CB.BR.01 Rev.00 (vigência 09/07/2021).
+-- 0090 — n.ot: catálogo global de requisitos (sem project_id) e carga da ONS RO-CB.BR.01 Rev.00 (vigência 09/07/2021).
 --
 -- 25 itens: os 18 do Anexo 1, os subitens 4.5.1.1 a 4.5.1.6 (herdam o prazo do 4.5.1) e o 5.1.1 (sem prazo). Prazo em meses após a
 -- vigência. Texto portado sem alteração de OT2net/packages/db/migrations/central/0003_seed_ro_cb_br_01.sql, conferido contra o PDF.

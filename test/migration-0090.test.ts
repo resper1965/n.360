@@ -5,7 +5,7 @@ import migration0090 from '../migrations/0090_ot_requisitos.sql?raw';
 
 const DEZOITO = ['4.1.2', '4.1.3', '4.2.1', '4.2.2', '4.3.1', '4.3.2', '4.3.3', '4.6.1'];
 
-describe('migration 0090: catálogo ONS RO-CB.BR.01 do n.OT', () => {
+describe('migration 0090: catálogo ONS RO-CB.BR.01 do n.ot', () => {
   it('carrega os 25 itens com os prazos do Anexo 1, códigos únicos, e é repetível sobre o banco sem a tabela', async () => {
     await applySchema();
     await execSql('DROP TABLE IF EXISTS ot_requisitos;');

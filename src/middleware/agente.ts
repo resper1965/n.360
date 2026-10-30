@@ -94,8 +94,8 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   // O principal do agente carrega o users.id REAL do consultor: rotas de "minha conta" agiriam sobre ele.
   [/^\/api\/v1\/(auth|legal|notifications)(\/|$)/, 'conta pessoal do consultor'],
   [/^\/api\/v1\/projects\/[^/]+\/auditor-token(\/|$)/, 'credencial de auditor externo'],
-  // Modelo de ameaças do n.OT, P0-2: o inventário do ARCiber não sai para o modelo; a rota também recusa (routes/ot.ts).
-  [/^\/api\/v1\/projects\/[^/]+\/ot(\/|$)/, 'o n.OT é só pela interface'],
+  // Modelo de ameaças do n.ot, P0-2: o inventário do ARCiber não sai para o modelo; a rota também recusa (routes/ot.ts).
+  [/^\/api\/v1\/projects\/[^/]+\/ot(\/|$)/, 'o n.ot é só pela interface'],
   // A governança dá acesso (consultor), autoridade de assinatura e abre o portal de políticas ao e-mail e ao domínio: o agente só lê.
   [/^\/api\/v1\/projects\/[^/]+\/governance(\/|$)/, 'a governança dá acesso, assinatura e o portal de políticas; o agente só lê', ['POST', 'PUT', 'PATCH', 'DELETE']],
   [/^\/api\/v1\/projects\/?$/, 'o agente está preso a um projeto', ['POST']],

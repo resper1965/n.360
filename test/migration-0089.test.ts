@@ -53,7 +53,7 @@ const daPessoa = async (u: string) => ((await env.DB.prepare('SELECT modulo FROM
 const conta = (id: string, role: string, projeto: string | null, org = 'org_ness') =>
   env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id, org_id) VALUES (?, ?, 'h', ?, ?, ?, ?)`).bind(id, `${id}@exemplo.teste`, id, role, projeto, org);
 
-describe('migration 0089: módulo n.OT nos CHECKs de projeto_modulos e usuario_modulos', () => {
+describe('migration 0089: módulo n.ot nos CHECKs de projeto_modulos e usuario_modulos', () => {
   it('ponto de risco: no D1, refazer a tabela com os gatilhos de pé falha no RENAME (por isso a 0089 os derruba antes)', async () => {
     await applySchema();
     await execSql(`CREATE TABLE usuario_modulos_x (user_id TEXT, modulo TEXT); DROP TABLE usuario_modulos;`);

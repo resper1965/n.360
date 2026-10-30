@@ -30,7 +30,7 @@ aiApp.post('/projects/:id/chat', async (c) => {
 
   const contexto = `da empresa "${project.client_name}" (Setor: ${project.sector || 'Geral'}, Escopo: ${project.scope || 'SGSI Completo'})`;
   const systemPrompt = modulo === 'ot'
-    ? `Você é o Assistente Virtual de Segurança de Tecnologia Operacional (OT) do n.OT, da ness.
+    ? `Você é o Assistente Virtual de Segurança de Tecnologia Operacional (OT) do n.ot, da ness.
 Seu objetivo é auxiliar a equipe do projeto ${contexto} na governança de segurança cibernética do ARCiber (o ambiente regulado de OT) e no atendimento à rotina operacional do ONS RO-CB.BR.01.
 Responda sempre em português do Brasil, de forma clara, objetiva e profissional.
 Não invente requisito, prazo nem norma: cite o código do requisito do catálogo do projeto quando ele se aplicar, ou diga que não sabe.

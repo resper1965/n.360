@@ -2165,7 +2165,7 @@ BEGIN
     SELECT RAISE(ABORT, 'tratamento inexistente ou de outro projeto');
 END;
 
--- ─── n.OT: catálogo global de requisitos e carga da ONS RO-CB.BR.01 Rev.00 (migration 0090) ───
+-- ─── n.ot: catálogo global de requisitos e carga da ONS RO-CB.BR.01 Rev.00 (migration 0090) ───
 CREATE TABLE IF NOT EXISTS ot_requisitos (
     id TEXT PRIMARY KEY,
     framework TEXT NOT NULL,

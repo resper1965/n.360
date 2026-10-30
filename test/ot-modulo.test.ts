@@ -23,7 +23,7 @@ let cliB: Record<string, string>;
 beforeAll(async () => {
   await applySchema();
   await seedTwoProjects();
-  // proj-a tem o n.OT; proj-b não (só o n.iso do contrato da org_ness dos testes)
+  // proj-a tem o n.ot; proj-b não (só o n.iso do contrato da org_ness dos testes)
   await habilitarOt('proj-a');
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES
@@ -41,7 +41,7 @@ beforeAll(async () => {
   cliB = await sessionFor({ id: 'u-b', email: 'u-b@cliente.teste', role: 'org_user', client_project_id: 'proj-b' });
 });
 
-describe('n.OT: GET /ot/requisitos e as travas do módulo', () => {
+describe('n.ot: GET /ot/requisitos e as travas do módulo', () => {
   it('projeto E pessoa com ot: 200 com os 25 itens do catálogo em ordem natural de código', async () => {
     const r = await pedir(cliOt, A);
     expect(r.status, await r.clone().text()).toBe(200);
@@ -58,13 +58,13 @@ describe('n.OT: GET /ot/requisitos e as travas do módulo', () => {
   it('403 quando o PROJETO não tem ot (mesmo para quem tem todos os módulos)', async () => {
     const r = await pedir(plat, B);
     expect(r.status).toBe(403);
-    expect((await r.json<{ error: string }>()).error).toContain('n.OT');
+    expect((await r.json<{ error: string }>()).error).toContain('n.ot');
   });
 
   it('403 quando a PESSOA não tem ot, no projeto que tem', async () => {
     const r = await pedir(cliSemOt, A);
     expect(r.status).toBe(403);
-    expect((await r.json<{ error: string }>()).error).toContain('n.OT');
+    expect((await r.json<{ error: string }>()).error).toContain('n.ot');
   });
 
   it('403 para conta de OUTRO projeto, mesmo com o módulo', async () => {
@@ -90,7 +90,7 @@ describe('n.OT: GET /ot/requisitos e as travas do módulo', () => {
     }
   });
 
-  it('o painel do projeto com o n.OT não quebra (o n.OT ainda não tem bloco no painel)', async () => {
+  it('o painel do projeto com o n.ot não quebra (o n.ot ainda não tem bloco no painel)', async () => {
     for (const q of ['', '?modulo=ot']) {
       const r = await pedir(plat, `/api/v1/projects/proj-a/painel${q}`);
       expect(r.status, `${q} ${await r.clone().text()}`).toBe(200);
@@ -98,8 +98,8 @@ describe('n.OT: GET /ot/requisitos e as travas do módulo', () => {
     expect(Object.keys((await (await pedir(plat, '/api/v1/projects/proj-a/painel')).json<{ modulos: object }>()).modulos)).toEqual(['iso']);
   });
 
-  // Por último: liga o n.OT no proj-b.
-  it('P0-1: ligar o n.OT no projeto (PUT /modulos/ot) não o concede às contas de cliente; só a concessão explícita', async () => {
+  // Por último: liga o n.ot no proj-b.
+  it('P0-1: ligar o n.ot no projeto (PUT /modulos/ot) não o concede às contas de cliente; só a concessão explícita', async () => {
     await env.DB.batch([
       env.DB.prepare(`UPDATE organizations SET modulos_contratados = '["iso","ot"]' WHERE id = 'org_ness'`),
       env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES ('u-b2', 'u-b2@cliente.teste', 'x', 'Cliente B', 'org_user', 'proj-b')`),

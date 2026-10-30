@@ -55,7 +55,7 @@ nucleoApp.put('/modulos/:modulo', async (c) => {
         // Módulos por pessoa (fatia 3 do n.360): ligar o módulo no projeto o concede às contas de CLIENTE dele, no mesmo
         // batch. Equipe e stakeholder não: a equipe recebe pelo contrato da organização (ou por PUT /users/:id/modulos).
         // A trilha é o terceiro statement do MESMO batch: se ela falha, nem o módulo nem a concessão ficam.
-        // O n.OT não: só por concessão explícita a cada pessoa (modelo de ameaças do n.OT, P0-1; mesma regra do gatilho, 0089).
+        // O n.ot não: só por concessão explícita a cada pessoa (modelo de ameaças do n.ot, P0-1; mesma regra do gatilho, 0089).
         await db.batch([
           db.prepare('INSERT INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, ?, ?)').bind(projectId, modulo, user.email),
           db.prepare(`INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)

@@ -58,7 +58,7 @@ describe('classificação', () => {
     expect(recusaDeModulo('iso', ['privacy'])).toBe('Produto n.iso não habilitado neste projeto');
     expect(recusaDeModulo('privacy', ['iso'])).toBe('Produto n.privacy não habilitado neste projeto');
     expect(recusaDeModulo('privacy', ['iso', 'privacy'])).toBeNull();
-    expect(recusaDeModulo('ot', ['iso', 'privacy'])).toBe('Produto n.OT não habilitado neste projeto');
+    expect(recusaDeModulo('ot', ['iso', 'privacy'])).toBe('Produto n.ot não habilitado neste projeto');
     expect(recusaDeModulo('privacy', [])).toBeNull(); // sem módulo = projeto inexistente: a rota responde 404
   });
 });

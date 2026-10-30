@@ -84,7 +84,7 @@ export const projetoCriarSchema = z.object({
   scope: txt(50_000),
   standards: txt(200),
   org_role: txt(200),
-  /** Produtos do projeto (n.iso, n.privacy, n.OT), dentro do que a organização contratou. Ausente = tudo o que foi contratado. */
+  /** Produtos do projeto (n.iso, n.privacy, n.ot), dentro do que a organização contratou. Ausente = tudo o que foi contratado. */
   // Literal: importar `MODULOS` de ./nucleo faria ciclo (nucleo importa `cnpjCampo` daqui); test/modulos-produto.test.ts confere.
   modulos: z.array(z.enum(['iso', 'privacy', 'ot'])).min(1).max(3).optional(),
   /** Cadastro da empresa (o mesmo de `PUT /projects/:id/empresa`). Ausente = só o projeto, como sempre foi. */

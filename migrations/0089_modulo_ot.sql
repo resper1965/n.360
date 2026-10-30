@@ -1,4 +1,4 @@
--- 0089 — n.OT: o módulo `ot` entra nos CHECKs de `projeto_modulos` e `usuario_modulos`.
+-- 0089 — n.ot: o módulo `ot` entra nos CHECKs de `projeto_modulos` e `usuario_modulos`.
 --
 -- SQLite não altera CHECK: as duas tabelas são refeitas (receita da 0087) e as linhas copiadas como estão. Nenhuma tabela aponta
 -- para elas (são folhas) e nenhum índice ou gatilho é definido SOBRE elas. Mas os gatilhos `projeto_modulos_do_contrato` (ON projects)
@@ -6,7 +6,7 @@
 -- pé (test/migration-0089.test.ts prova). Por isso saem ANTES e voltam DEPOIS, na mesma migration.
 -- Gatilhos: o projeto novo recebe `ot` se a organização contratou (contrato é explícito). A conta nova NÃO recebe `ot` por padrão,
 -- nem cliente (o SCIM do IdP do cliente cria conta) nem equipe: `ot` só entra em `usuario_modulos` por concessão explícita
--- (modelo de ameaças do n.OT, P0-1).
+-- (modelo de ameaças do n.ot, P0-1).
 -- Repetível: as tabelas `_nova` não sobram de uma execução completa e a cópia é INSERT OR IGNORE.
 -- Backup antes: npm run db:backup. Conferir antes e depois: SELECT modulo, count(*) FROM projeto_modulos GROUP BY modulo e o mesmo em
 -- usuario_modulos dão os mesmos totais; SELECT name FROM sqlite_master WHERE type = 'trigger' AND name IN ('projeto_modulos_do_contrato',
