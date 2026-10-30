@@ -11,6 +11,7 @@ import { FLUXO_VISIVEL, podeAprovar, podeCriarLote, podeEditarOt, podeVerComplet
 import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
+import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 
 /** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
 export const otApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -228,17 +229,23 @@ otApp.get('/ativos/:id', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao ler o ativo', e); }
 });
 
-// platform_admin vê mascarado por padrão (spec §5): revelar é ação explícita, com motivo, registrada em audit_logs.
-// shortcut: sem o step-up de TOTP, o teto por hora e o aviso ao Gestor ARCiber (P1-1); entram antes de produção.
+// platform_admin vê mascarado por padrão (spec §5): revelar é ação explícita, com motivo, registrada em audit_logs. P1-1: TOTP nos
+// últimos 10 min, teto por hora e aviso ao Gestor ARCiber (services/ot-stepup.ts).
 otApp.post('/ativos/:id/revelar', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
     if (user.role !== 'platform_admin' && !await podeVerCompleto(db, user, projectId)) return c.json({ error: 'Forbidden: seu papel não revela IP/MAC' }, 403);
+    const sem = await semStepUp(c);
+    if (sem) return sem;
     const v = await validateBody(c, otRevelarSchema);
     if (!v.success) return v.response;
     const linha = await lerAtivo(db, c.req.param('id'), projectId, sites);
     if (!linha) return NAO_ENCONTRADO(c, 'Ativo');
-    return c.json((await responderAtivos(c, projectId, [linha], true, v.data.justificativa))[0]);
+    const teto = await tetoEstourado(c, 'revelar', projectId);
+    if (teto) return teto;
+    const [ativo] = await responderAtivos(c, projectId, [linha], true, v.data.justificativa);
+    await avisarGestorArciber(c, projectId, `revelou o IP/MAC do ativo ${linha.id}`, v.data.justificativa);
+    return c.json(ativo);
   } catch (e) { return erro500(c, 'Falha ao revelar o ativo', e); }
 });
 

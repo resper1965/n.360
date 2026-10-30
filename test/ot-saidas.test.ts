@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import JSZip from 'jszip';
 import app from '../src/index';
@@ -51,13 +51,13 @@ beforeAll(async () => {
   await designarConsultor(AGENTE.email, 'proj-a');
   await env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES (?, ?, 'proj-a', datetime('now', '+30 days'))`).bind(AGENTE.concessaoId, AGENTE.userId).run();
   await concederModulos(['u-gestor', 'u-tec', 'u-tec0', 'u-cli', 'u-ca-n', AGENTE.userId], ['ot']);
-  plat = await sessionFor({ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin' });
-  gestor = await sessionFor({ id: 'u-gestor', email: 'gestor@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' });
-  tec = await sessionFor({ id: 'u-tec', email: 'tec@cliente.teste', role: 'org_user', client_project_id: 'proj-a' });
-  tec0 = await sessionFor({ id: 'u-tec0', email: 'tec0@cliente.teste', role: 'org_user', client_project_id: 'proj-a' });
-  cli = await sessionFor({ id: 'u-cli', email: 'cli@cliente.teste', role: 'client', client_project_id: 'proj-a' });
-  cons = await sessionFor({ id: AGENTE.userId, email: AGENTE.email, role: 'consultor' });
-  caNao = await sessionFor({ id: 'u-ca-n', email: 'ca-n@ness.lat', role: 'consultoria_admin' });
+  plat = await sessionFor({ ...{ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin' }, totp_em: Date.now() });
+  gestor = await sessionFor({ ...{ id: 'u-gestor', email: 'gestor@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' }, totp_em: Date.now() });
+  tec = await sessionFor({ ...{ id: 'u-tec', email: 'tec@cliente.teste', role: 'org_user', client_project_id: 'proj-a' }, totp_em: Date.now() });
+  tec0 = await sessionFor({ ...{ id: 'u-tec0', email: 'tec0@cliente.teste', role: 'org_user', client_project_id: 'proj-a' }, totp_em: Date.now() });
+  cli = await sessionFor({ ...{ id: 'u-cli', email: 'cli@cliente.teste', role: 'client', client_project_id: 'proj-a' }, totp_em: Date.now() });
+  cons = await sessionFor({ ...{ id: AGENTE.userId, email: AGENTE.email, role: 'consultor' }, totp_em: Date.now() });
+  caNao = await sessionFor({ ...{ id: 'u-ca-n', email: 'ca-n@ness.lat', role: 'consultoria_admin' }, totp_em: Date.now() });
 
   ids.s1 = await criar(cons, 'sites', { nome: '=SE Norte', tipo: 'subestacao' });
   ids.s2 = await criar(cons, 'sites', { nome: 'SE Sul' });
@@ -75,13 +75,18 @@ beforeAll(async () => {
   expect((await chamar(gestor, 'POST', `${P}/acessos`, { user_id: 'u-tec', site_id: ids.s2 })).status).toBe(201);
 });
 
-const exportar = (h: H, formato = 'csv', site = ids.s1, base = P) => chamar(h, 'GET', `${base}/exportacao?formato=${formato}&site_id=${site}`);
+// P1-1: POST com justificativa, sessão com TOTP recente (beforeAll) e teto por hora zerado a cada caso (test/ot-stepup.test.ts cobre o teto).
+const MOTIVO = 'entrega do inventário ao ONS';
+const exportar = (h: H, formato = 'csv', site = ids.s1, base = P, extra: Record<string, unknown> = {}) =>
+  chamar(h, 'POST', `${base}/exportacao`, { formato, site_id: site, justificativa: MOTIVO }, extra);
 const planilha = async (r: Response) => {
   const zip = await JSZip.loadAsync(await r.arrayBuffer());
   return zip.file('xl/worksheets/sheet1.xml')!.async('string');
 };
 
 describe('exportação do inventário (CSV e XLSX)', () => {
+  beforeEach(async () => { await env.DB.prepare(`DELETE FROM rate_limits WHERE key LIKE 'ot:%'`).run(); });
+
   it('Gestor ARCiber: CSV com o cabeçalho dos 6 campos do 4.3.1, IP/MAC completos, sem cache, e uma linha de trilha sem conteúdo', async () => {
     const r = await exportar(gestor);
     expect(r.status, await r.clone().text()).toBe(200);
@@ -153,13 +158,13 @@ describe('exportação do inventário (CSV e XLSX)', () => {
   });
 
   it('só por site (§12.1, pergunta 5): sem site_id é 400; site de outro projeto é 404; formato desconhecido é 400', async () => {
-    expect((await chamar(gestor, 'GET', `${P}/exportacao?formato=csv`)).status).toBe(400);
+    expect((await chamar(gestor, 'POST', `${P}/exportacao`, { formato: 'csv', justificativa: MOTIVO })).status).toBe(400);
     expect((await exportar(gestor, 'csv', ids.sb)).status).toBe(404);
     expect((await exportar(gestor, 'pdf')).status).toBe(400);
   });
 
   it('sem as chaves do inventário: 503', async () => {
-    const r = await chamar(gestor, 'GET', `${P}/exportacao?formato=csv&site_id=${ids.s1}`, undefined, { OT_INVENTARIO_KEY: undefined });
+    const r = await exportar(gestor, 'csv', ids.s1, P, { OT_INVENTARIO_KEY: undefined });
     expect(r.status).toBe(503);
   });
 });
@@ -272,11 +277,11 @@ describe('IA: sugestão de zona Purdue e completude do 4.3.1 (P0-7)', () => {
 
 describe('P0-2: chave de API e agente MCP recusados em todas as saídas', () => {
   const ROTAS: [string, string, unknown?][] = [
-    ['GET', `${P}/indicadores`], ['GET', `${P}/exportacao?formato=csv&site_id=__S1__`],
+    ['GET', `${P}/indicadores`], ['POST', `${P}/exportacao`, { formato: 'csv', site_id: '__S1__', justificativa: 'entrega do inventário ao ONS' }],
     ['POST', `${P}/ia/zona-sugerida`, { ativo_id: '__A1__' }], ['POST', `${P}/ia/completude`, { descricao: 'RTU em 10.0.0.1 qualquer' }],
   ];
   const resolver = (c: string) => c.replace('__S1__', ids.s1);
-  const corpoDe = (b: unknown) => (b && typeof b === 'object' && 'ativo_id' in b ? { ativo_id: ids.a1 } : b);
+  const corpoDe = (b: unknown) => (b && typeof b === 'object' && 'ativo_id' in b ? { ativo_id: ids.a1 } : b && typeof b === 'object' && 'site_id' in b ? { ...b, site_id: ids.s1 } : b);
 
   it('chave de API de escrita: 403', async () => {
     for (const [m, c, b] of ROTAS) expect((await chamar({ 'X-API-Key': CHAVE }, m, resolver(c), corpoDe(b))).status, `${m} ${c}`).toBe(403);

@@ -173,6 +173,8 @@ export type Variables = {
     agente_decisao?: { ferramenta: string; motivo: string };
     /** Sessão autenticada por senha mas ainda sem o segundo fator. */
     mfa_pending?: boolean;
+    /** Último código do segundo fator confirmado nesta sessão (ms), por /auth/mfa/verify: step-up do n.ot (services/ot-stepup.ts). */
+    totp_em?: number;
     /** Instante de emissão, usado para revogação. */
     iat?: number;
     /** Última atividade vista pelo middleware; relógio da expiração por inatividade. */

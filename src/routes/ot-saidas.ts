@@ -4,6 +4,8 @@ import type { Bindings, Variables } from '../index';
 import { erro500, logAudit } from '../helpers';
 import { validateBody } from '../schemas';
 import { otIaCompletudeSchema, otIaZonaSchema } from '../schemas/ot-saidas';
+import { otExportarSchema } from '../schemas/ot';
+import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { chavesOt } from '../services/ot-cifra';
 import { podeEditarOt, podeVerCompleto, sitesPermitidos } from '../services/ot-inventario';
 import { indicadoresOt } from '../services/ot-indicadores';
@@ -23,8 +25,8 @@ const contexto = async (c: C) => {
   return { db: c.env.DB, user, projectId, sites: await sitesPermitidos(c.env.DB, user, projectId) };
 };
 const doSite = (sites: string, id: string | undefined) => !!id && (JSON.parse(sites) as string[]).includes(id);
-const trilha = (c: C, acao: string, projectId: string, detalhe: string, entidade?: { tipo: string; id: string }) =>
-  logAudit(c.env.DB, acao, c.get('user').email, detalhe, '', c.req.header('CF-Connecting-IP') ?? '', projectId, entidade);
+const trilha = (c: C, acao: string, projectId: string, detalhe: string, entidade?: { tipo: string; id: string }, justificativa = '') =>
+  logAudit(c.env.DB, acao, c.get('user').email, detalhe, justificativa, c.req.header('CF-Connecting-IP') ?? '', projectId, entidade);
 
 otSaidasApp.get('/indicadores', async (c) => {
   try {
@@ -33,25 +35,29 @@ otSaidasApp.get('/indicadores', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao calcular os indicadores', e); }
 });
 
-// Quem exporta: quem cadastra o inventário (Gestor ARCiber e a equipe). Técnico (org_user) e client, não (spec §5).
-// shortcut: sem o step-up de TOTP, a justificativa, o teto por hora e o aviso ao Gestor ARCiber (P1-1); entram antes de produção.
-otSaidasApp.get('/exportacao', async (c) => {
+// Quem exporta: quem cadastra o inventário (Gestor ARCiber e a equipe). Técnico (org_user) e client, não (spec §5). P1-1: TOTP nos
+// últimos 10 min, justificativa, teto por hora e aviso ao Gestor ARCiber (services/ot-stepup.ts). POST: a justificativa não vai no endereço.
+otSaidasApp.post('/exportacao', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
     if (!podeEditarOt(user)) return c.json({ error: 'Forbidden: seu papel não exporta o inventário do n.ot' }, 403);
-    const formato = c.req.query('formato') ?? 'csv';
-    if (formato !== 'csv' && formato !== 'xlsx') return c.json({ error: 'Formato desconhecido: use csv ou xlsx' }, 400);
-    const siteId = c.req.query('site_id');
-    if (!siteId) return c.json({ error: 'Informe o site (site_id): a exportação é por site' }, 400);
+    const sem = await semStepUp(c);
+    if (sem) return sem;
+    const v = await validateBody(c, otExportarSchema);
+    if (!v.success) return v.response;
+    const { formato, site_id: siteId, justificativa } = v.data;
     if (!doSite(sites, siteId)) return c.json({ error: 'Site não encontrado' }, 404);
     const chaves = chavesOt(c.env);
     if (!chaves) return c.json({ error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' }, 503);
+    const teto = await tetoEstourado(c, 'exportar', projectId);
+    if (teto) return teto;
     const completo = await podeVerCompleto(db, user, projectId);
     const r = await linhasDoSite(db, chaves, projectId, siteId, completo);
     // P1-7: uma linha por requisição, só id do site e contagem.
     await trilha(c, 'ot.inventario.exportar', projectId,
       `Exportação ${formato} do site: ${r.linhas.length} ativo(s), IP/MAC ${completo ? 'sem máscara' : 'mascarados'}${r.truncado ? ' (cortada no teto)' : ''}`,
-      { tipo: 'ot_site', id: siteId });
+      { tipo: 'ot_site', id: siteId }, justificativa);
+    await avisarGestorArciber(c, projectId, `exportou o inventário (${formato}, site ${siteId}, ${r.linhas.length} ativo(s))`, justificativa);
     const nome = `inventario-ot-${new Date().toISOString().slice(0, 10)}.${formato}`;
     return new Response(formato === 'csv' ? csvDoInventario(r.linhas) : xlsxDoInventario(r.linhas), {
       headers: {

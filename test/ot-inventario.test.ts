@@ -50,7 +50,8 @@ beforeAll(async () => {
   ]);
   await designarConsultor('cons-ot@ness.lat', 'proj-a');
   await concederModulos(['u-gestor', 'u-tec', 'u-tec0', 'u-cli', 'u-tecb', 'u-ca-d', 'u-ca-n', 'cons:cons-ot@ness.lat'], ['ot']);
-  plat = await sessionFor({ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin' });
+  // TOTP recente: revelar exige o step-up do P1-1 (test/ot-stepup.test.ts).
+  plat = await sessionFor({ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin', totp_em: Date.now() });
   gestor = await sessionFor({ id: 'u-gestor', email: 'gestor@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' });
   tec = await sessionFor({ id: 'u-tec', email: 'tec@cliente.teste', role: 'org_user', client_project_id: 'proj-a' });
   tec0 = await sessionFor({ id: 'u-tec0', email: 'tec0@cliente.teste', role: 'org_user', client_project_id: 'proj-a' });

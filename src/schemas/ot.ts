@@ -68,8 +68,11 @@ export const otFluxoAtualizarSchema = z.object(campoFluxo).partial().strict();
 
 export const otAcessoCriarSchema = z.object({ user_id: id, site_id: id }).strict();
 
-/** Revelar IP/MAC (platform_admin): o motivo vai à trilha (`audit_logs.justification`). */
-export const otRevelarSchema = z.object({ justificativa: z.string().trim().min(10).max(500) }).strict();
+/** Revelar IP/MAC e exportar (P1-1): o motivo vai à trilha (`audit_logs.justification`) e ao aviso do Gestor ARCiber, por isso sem IP/MAC. */
+const justificativa = livre(500, 10);
+export const otRevelarSchema = z.object({ justificativa }).strict();
+/** Exportação por site (P1-6): POST para a justificativa não ir no endereço. */
+export const otExportarSchema = z.object({ formato: z.enum(['csv', 'xlsx']), site_id: id, justificativa }).strict();
 
 /** Teto de itens por lote (P0-5, P1-5): o mesmo da planilha (5.000 linhas). */
 export const TETO_ITENS_LOTE = 5000;
