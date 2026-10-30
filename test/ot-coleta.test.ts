@@ -219,7 +219,8 @@ describe('aprovação promove ao inventário', () => {
   let lote: string;
   beforeAll(async () => {
     const r = await enviar(tec, ids.s1, 'ap.csv', csv(
-      `Mesmo IP;${IP1};;;;;;;3.0.0;;;`, // duplicata do a1: atualiza o que veio (nome, firmware), mantém o resto
+      // duplicata do a1 com os campos do 4.3.1 recoletados: atualiza o que veio e carimba a verificação
+      `Mesmo IP;${IP1};;Fab;;RTU;telecontrole;DNP3:20000;3.0.0;sim;centro_operacao;`,
       `RTU Nova;10.1.1.90;;Fab;M7;RTU;telecontrole;DNP3:20000|IEC104:2404;1.2;sim;centro_operacao;Supervisão`,
       `Ruim;;;;;;responde em 192.168.0.9;;;nao;;`,
     ));
@@ -281,6 +282,64 @@ describe('aprovação promove ao inventário', () => {
         '[{"protocolo":"DNP3"}]', '1', datetime('now'))`),
     ]);
     expect(await conf(plat, '/api/v1/projects/proj-b/ot')).toBe('sem_evidencia');
+  });
+});
+
+describe('4.3.1 e P1-4: verificação só com recoleta; alvo alterado depois da revisão volta a pendente', () => {
+  const conf = async () => (await json<{ itens: { codigo: string; situacao: string }[] }>(await chamar(gestor, 'GET', `${P}/conformidade`))).itens.find((i) => i.codigo === '4.3.1')!.situacao;
+  const ativo = (id: string) => env.DB.prepare(`SELECT * FROM ot_ativos WHERE id = ?`).bind(id).first<Record<string, unknown>>();
+  const loteDo = async (h: H, ...linhas: string[]) => {
+    const r = await enviar(h, ids.s1, 'v.csv', csv(...linhas));
+    expect(r.status, await r.clone().text()).toBe(201);
+    return (await json<{ id: string }>(r)).id;
+  };
+  let nova: string;
+  beforeAll(async () => {
+    nova = (await env.DB.prepare(`SELECT id FROM ot_ativos WHERE nome = 'RTU Nova'`).first<{ id: string }>())!.id;
+  });
+
+  it('PUT direto: nome não mexe na verificação; campo do 4.3.1 a zera e o 4.3.1 deixa de dizer evidencia_no_inventario', async () => {
+    expect(await conf()).toBe('evidencia_no_inventario');
+    expect((await chamar(gestor, 'PUT', `${P}/ativos/${nova}`, { nome: 'RTU Nova 2' })).status).toBe(200);
+    expect(await ativo(nova)).toMatchObject({ verificado_por: 'gestor@cliente.teste' });
+    expect((await chamar(gestor, 'PUT', `${P}/ativos/${ids.a1}`, { firmware_so_versao: '3.0.1', ip: '10.1.1.11' })).status).toBe(200);
+    expect(await ativo(ids.a1)).toMatchObject({ verificado_por: null, ultima_verificacao_em: null });
+    expect(await conf()).not.toBe('evidencia_no_inventario');
+  });
+
+  it('planilha parcial não renova a verificação: sem mudar campo do 4.3.1 mantém a data; mudando parte deles, zera', async () => {
+    await env.DB.prepare(`UPDATE ot_ativos SET ultima_verificacao_em = '2026-01-01 00:00:00' WHERE id = ?`).bind(nova).run();
+    const l1 = await loteDo(tec, `RTU Nova 2;10.1.1.90;;Fab;M8;;;;;;;`); // casa pelo IP; IP e fabricante iguais, muda o modelo
+    expect((await chamar(gestor, 'POST', `${P}/lotes/${l1}/aprovar`)).status).toBe(200);
+    expect(await ativo(nova)).toMatchObject({ modelo: 'M8', verificado_por: 'gestor@cliente.teste', ultima_verificacao_em: '2026-01-01 00:00:00' });
+    const l2 = await loteDo(tec, `RTU Nova 2;10.1.1.90;;Fab2;M8;;;;;;;`); // muda o fabricante sem recoletar o resto do 4.3.1
+    expect((await chamar(gestor, 'POST', `${P}/lotes/${l2}/aprovar`)).status).toBe(200);
+    expect(await ativo(nova)).toMatchObject({ verificado_por: null, ultima_verificacao_em: null });
+  });
+
+  it('alvo alterado depois da revisão: o item volta a pendente, o alvo não é sobrescrito e o lote fica em revisão', async () => {
+    const l = await loteDo(tec, `Do lote;10.1.1.90;;;;;;;;;;`, `Item novo;10.1.1.91;;;;;;;;;;`);
+    expect((await chamar(gestor, 'PUT', `${P}/ativos/${nova}`, { nome: 'Editado depois' })).status).toBe(200);
+    const r = await chamar(gestor, 'POST', `${P}/lotes/${l}/aprovar`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await json(r)).toMatchObject({ criados: 1, atualizados: 0, pendentes: 1 });
+    expect(await ativo(nova)).toMatchObject({ nome: 'Editado depois' });
+    expect(await env.DB.prepare(`SELECT status FROM ot_lotes WHERE id = ?`).bind(l).first('status')).toBe('em_revisao');
+    const { itens } = await lerLote(gestor, l);
+    expect(itens.map((i) => i.decisao)).toEqual(['pendente', 'gravado']);
+    // revisado de novo (nada mudou desde a volta), a aprovação grava
+    const r2 = await chamar(gestor, 'POST', `${P}/lotes/${l}/aprovar`);
+    expect(await json(r2)).toMatchObject({ atualizados: 1, pendentes: 0 });
+    expect(await ativo(nova)).toMatchObject({ nome: 'Do lote' });
+    expect(await env.DB.prepare(`SELECT status FROM ot_lotes WHERE id = ?`).bind(l).first('status')).toBe('concluido');
+  });
+
+  it('ativo novo com o mesmo IP criado depois da revisão também volta o item a pendente', async () => {
+    const l = await loteDo(tec, `Sem par;10.1.1.92;;;;;;;;;;`);
+    const outro = await criar(gestor, 'ativos', { site_id: ids.s1, nome: 'Chegou antes', ip: '10.1.1.92' });
+    const r = await chamar(gestor, 'POST', `${P}/lotes/${l}/aprovar`);
+    expect(await json(r)).toMatchObject({ criados: 0, atualizados: 0, pendentes: 1 });
+    expect(await ativo(outro)).toMatchObject({ nome: 'Chegou antes' });
   });
 });
 

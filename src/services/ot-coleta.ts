@@ -69,6 +69,18 @@ export function falta431(l: Record<string, unknown>) {
   return l.no_arciber === 1 && !(l.categoria_arciber && tem('tipo_dispositivo') && tem('fabricante') && tem('funcao') && (l.ip_cifrado || l.mac_cifrado)
     && (JSON.parse((l.protocolos_portas as string) ?? '[]') as unknown[]).length > 0 && (tem('firmware_so_versao') || l.firmware_nao_aplicavel === 1));
 }
+/**
+ * Regra da verificação do 4.3.1: aprovação com todos os campos recoletados carimba; edição direta (PUT) que toca um deles, ou item de lote
+ * que MUDA um deles em relação ao alvo, zera; o resto mantém. Sem `alvo`, basta tocar. IP/MAC comparados pelo hash (o staging não tem o claro).
+ */
+const CAMPOS_4_3_1 = ['no_arciber', 'categoria_arciber', 'tipo_dispositivo', 'fabricante', 'funcao', 'ip', 'mac', 'protocolos_portas', 'firmware_so_versao', 'firmware_nao_aplicavel'];
+export const toca431 = (d: Record<string, unknown>, alvo?: Record<string, unknown>) => CAMPOS_4_3_1.some((k) => {
+  const col = k === 'ip' || k === 'mac' ? `${k}_hash` : k;
+  const v = d[k] ?? d[col];
+  return v !== undefined && (!alvo || v !== (alvo[col] ?? null));
+});
+/** Momento com milissegundos: o `updated_at` do alvo é comparado com o do item (P1-4), e o segundo inteiro esconderia a edição. */
+export const AGORA_MS = `strftime('%Y-%m-%d %H:%M:%f', 'now')`;
 export const FALTA_4_3_1 = 'Ativo do ARCiber exige os campos mínimos do 4.3.1 da RO-CB.BR.01: categoria, tipo de dispositivo, fabricante, função, IP ou MAC, ao menos um protocolo/porta e firmware/SO (ou "não aplicável")';
 
 /**
@@ -155,7 +167,7 @@ export async function criarLote(db: D1Database, chaves: ChavesOt, ator: { id: st
       const dup = idx.achar(dados);
       comErro += Number(erros.length > 0);
       dups += Number(!!dup);
-      stmts.push(db.prepare(`INSERT INTO ot_lote_itens (id, project_id, lote_id, linha, dados, erros, duplicata_de) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      stmts.push(db.prepare(`INSERT INTO ot_lote_itens (id, project_id, lote_id, linha, dados, erros, duplicata_de, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ${AGORA_MS})`)
         .bind(id, projectId, loteId, n + 2, JSON.stringify(dados), JSON.stringify(erros), dup?.id ?? null));
     }
     await emBlocos(db, stmts);
@@ -167,7 +179,7 @@ export async function criarLote(db: D1Database, chaves: ChavesOt, ator: { id: st
   }
 }
 
-export interface LinhaItem { id: string; project_id: string; linha: number; dados: string; erros: string; duplicata_de: string | null; decisao: string; motivo: string | null; registro_id: string | null }
+export interface LinhaItem { id: string; project_id: string; linha: number; dados: string; erros: string; duplicata_de: string | null; decisao: string; motivo: string | null; registro_id: string | null; updated_at?: string }
 
 /** Item pelo serializador único do ativo (P0-6). P0-5: quem não vê completo recebe só `possivel_duplicata`, sem o alvo. */
 export async function serializarItem(i: LinhaItem, completo: boolean, chaves: ChavesOt) {
@@ -198,7 +210,7 @@ async function recifrar(chaves: ChavesOt, projectId: string, itemId: string, ati
  * `em_revisao` → `gravando` (duas aprovações simultâneas gravam uma vez); lote preso em `gravando` há 10 min é retomado.
  */
 export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: string; email: string }, projectId: string, sites: string, loteId: string):
-  Promise<Falha | { ok: true; criados: number; atualizados: number; recusados: number }> {
+  Promise<Falha | { ok: true; criados: number; atualizados: number; recusados: number; pendentes: number }> {
   const lote = await decidivel(db, ator, projectId, sites, loteId);
   if (!lote.ok) return lote;
   const trava = await db.prepare(`UPDATE ot_lotes SET status = 'gravando', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?
@@ -206,12 +218,13 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   if (!trava.meta.changes) return { ok: false, status: 409, error: 'O lote não está em revisão' };
 
   const [{ results: itens }, ativos, zonas] = await Promise.all([
-    db.prepare(`SELECT id, project_id, linha, dados, erros, duplicata_de, decisao, motivo, registro_id FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente' ORDER BY linha`).bind(loteId).all<LinhaItem>(),
+    db.prepare(`SELECT id, project_id, linha, dados, erros, duplicata_de, decisao, motivo, registro_id, updated_at FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente' ORDER BY linha`).bind(loteId).all<LinhaItem>(),
     ativosDoSite(db, projectId, lote.site_id),
     db.prepare(`SELECT id FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo'`).bind(projectId, lote.site_id).all<{ id: string }>(),
   ]);
   const zonasAtivas = new Set(zonas.results.map((z) => z.id));
   const idx = indice(ativos.results);
+  const novos = new Set<string>(); // ativos criados nesta aprovação: duplicata entre linhas do mesmo lote foi revisada junto
   const n = { criados: 0, atualizados: 0, recusados: 0 };
   const stmts: D1PreparedStatement[] = [];
   const recusar = (i: LinhaItem, motivo: string) => {
@@ -223,25 +236,45 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     const d = JSON.parse(i.dados) as Record<string, unknown>;
     if (d.zona_id && !zonasAtivas.has(d.zona_id as string)) { recusar(i, 'A zona do item foi removida'); continue; }
     const alvo = idx.achar(d);
+    // P1-4: o alvo de agora não é o revisado (outro, sumiu, ou editado depois da revisão do item): o item volta a pendente, nada é gravado.
+    if (alvo ? !novos.has(alvo.id) && (alvo.id !== i.duplicata_de || String(alvo.updated_at) > String(i.updated_at)) : !!i.duplicata_de) {
+      stmts.push(db.prepare(`UPDATE ot_lote_itens SET duplicata_de = ?, motivo = ?, updated_at = ${AGORA_MS} WHERE id = ?`).bind(alvo?.id ?? null, ALVO_MUDOU, i.id));
+      continue;
+    }
     const ativoId = alvo?.id ?? genId();
     await recifrar(chaves, projectId, i.id, ativoId, d);
     const linha: Record<string, unknown> = { protocolos_portas: '[]', no_arciber: 0, firmware_nao_aplicavel: 0, ...alvo, ...d };
     if (falta431(linha)) { recusar(i, FALTA_4_3_1); continue; }
     const vals = COLS_ATIVO.map((k) => linha[k] ?? null);
+    const recoletado = !falta431({ ...d, no_arciber: 1 });
+    const verificacao = recoletado ? `verificado_por = ?, ultima_verificacao_em = CURRENT_TIMESTAMP` : alvo && toca431(d, alvo) ? `verificado_por = NULL, ultima_verificacao_em = NULL` : null;
     stmts.push(alvo
-      ? db.prepare(`UPDATE ot_ativos SET ${COLS_ATIVO.map((k) => `${k} = ?`).join(', ')}, verificado_por = ?, ultima_verificacao_em = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ? AND status = 'ativo'`).bind(...vals, ator.email, ativoId, projectId)
-      : db.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, ${COLS_ATIVO.join(', ')}, verificado_por, ultima_verificacao_em)
-          VALUES (?, ?, ?, ${COLS_ATIVO.map(() => '?').join(', ')}, ?, CURRENT_TIMESTAMP)`).bind(ativoId, projectId, lote.site_id, ...vals, ator.email));
-    stmts.push(db.prepare(`UPDATE ot_lote_itens SET decisao = 'gravado', registro_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(ativoId, i.id));
+      // O WHERE compara o updated_at lido: edição entre a leitura e a gravação não é sobrescrita (changes() = 0 deixa o item pendente).
+      ? db.prepare(`UPDATE ot_ativos SET ${COLS_ATIVO.map((k) => `${k} = ?`).join(', ')}${verificacao ? `, ${verificacao}` : ''},
+          updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND status = 'ativo' AND updated_at = ?`)
+        .bind(...vals, ...(recoletado ? [ator.email] : []), ativoId, projectId, alvo.updated_at)
+      : db.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, ${COLS_ATIVO.join(', ')}, verificado_por, ultima_verificacao_em, updated_at)
+          VALUES (?, ?, ?, ${COLS_ATIVO.map(() => '?').join(', ')}, ?, ${recoletado ? 'CURRENT_TIMESTAMP' : 'NULL'}, ${AGORA_MS})`)
+        .bind(ativoId, projectId, lote.site_id, ...vals, recoletado ? ator.email : null));
+    stmts.push(db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'pendente' END,
+      registro_id = CASE WHEN changes() > 0 THEN ? END, motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`)
+      .bind(ativoId, ALVO_MUDOU, i.id));
     idx.add({ ...linha, id: ativoId } as Existente);
+    if (!alvo) novos.add(ativoId);
     n[alvo ? 'atualizados' : 'criados']++;
   }
   await emBlocos(db, stmts);
-  await db.prepare(`UPDATE ot_lotes SET status = 'concluido', decidido_por = ?, decidido_em = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-    .bind(ator.email, loteId).run();
-  return { ok: true, ...n };
+  const pendentes = (await db.prepare(`SELECT count(*) AS n FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente'`).bind(loteId).first<{ n: number }>())?.n ?? 0;
+  // Item que voltou a pendente deixa o lote em revisão para outra decisão; sem pendente, concluído.
+  await db.prepare(pendentes
+    ? `UPDATE ot_lotes SET status = 'em_revisao', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    : `UPDATE ot_lotes SET status = 'concluido', decidido_por = ?, decidido_em = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    .bind(...(pendentes ? [] : [ator.email]), loteId).run();
+  // shortcut: na corrida rara em que o alvo muda entre a leitura e o batch, `atualizados` conta o item que ficou pendente; `pendentes` vem do banco.
+  return { ok: true, ...n, pendentes };
 }
+
+const ALVO_MUDOU = 'O ativo de destino mudou depois da revisão: revise o item de novo';
 
 export async function rejeitarLote(db: D1Database, ator: { id: string; email: string }, projectId: string, sites: string, loteId: string, motivo: string): Promise<Falha | { ok: true }> {
   const lote = await decidivel(db, ator, projectId, sites, loteId);

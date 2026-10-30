@@ -8,7 +8,7 @@ import {
 } from '../schemas/ot';
 import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
 import { FLUXO_VISIVEL, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
-import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, type LinhaItem } from '../services/ot-coleta';
+import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
@@ -82,7 +82,7 @@ const paraBanco = (d: Record<string, unknown>) => Object.fromEntries(Object.entr
 async function atualizar(db: D1Database, tabela: 'ot_sites' | 'ot_zonas' | 'ot_ativos' | 'ot_fluxos', id: string, projectId: string, sites: string, campos: Record<string, unknown>) {
   const cols = Object.keys(campos);
   const doSite = tabela === 'ot_sites' ? 'id IN (SELECT value FROM json_each(?))' : NO_SITE;
-  const r = await db.prepare(`UPDATE ${tabela} SET ${cols.map((k) => `${k} = ?`).concat('updated_at = CURRENT_TIMESTAMP').join(', ')}
+  const r = await db.prepare(`UPDATE ${tabela} SET ${cols.map((k) => `${k} = ?`).concat(`updated_at = ${AGORA_MS}`).join(', ')}
     WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${doSite}`).bind(...cols.map((k) => campos[k]), id, projectId, sites).run();
   return r.meta.changes;
 }
@@ -286,6 +286,8 @@ otApp.put('/ativos/:id', async (c) => {
     if (ruim) return refRuim(c, ruim);
     const campos = { ...paraBanco(resto), ...await enderecos(chavesOt(c.env)!, projectId, atual.id, { ip, mac }) };
     if (!Object.keys(campos).length) return c.json({ error: 'Nada a alterar' }, 400);
+    // Edição direta de campo do 4.3.1 não é verificação: zera a que havia (só a aprovação de lote com recoleta carimba).
+    if (toca431(v.data)) Object.assign(campos, { verificado_por: null, ultima_verificacao_em: null });
     try {
       if (!await atualizar(db, 'ot_ativos', atual.id, projectId, sites, campos)) return NAO_ENCONTRADO(c, 'Ativo');
     } catch (err) { const r = recusaDoBanco(c, err); if (r) return r; throw err; }
