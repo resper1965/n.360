@@ -1,0 +1,58 @@
+// Conformidade por item da RO-CB.BR.01 calculada do inventário do n.ot (plano N2, item 6). Princípio I da CONSTITUTION ("nada se
+// afirma sem evidência"): o inventário só prova a FALTA de algo que ele mesmo registra (fluxo externo sem VPN, site sem as zonas,
+// verificação vencida). Ausência de violação no cadastro não prova o item; e nada aqui diz "atende": no máximo, "o inventário
+// registra o que o item pede". Item que o inventário não cobre fica `sem_evidencia`. Tudo filtrado pelos sites permitidos (P0-4).
+import { FLUXO_VISIVEL } from './ot-inventario';
+
+export type Situacao = 'nao_atende' | 'evidencia_no_inventario' | 'sem_evidencia';
+const VIGENCIA = '2021-07-09'; // RO-CB.BR.01 Rev.00
+const NO_SITE = 'site_id IN (SELECT value FROM json_each(?))';
+
+const prazoEm = (meses: number) => { const d = new Date(`${VIGENCIA}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + meses); return d.toISOString().slice(0, 10); };
+
+export async function conformidadeOt(db: D1Database, projectId: string, sites: string) {
+  const nSites = (JSON.parse(sites) as string[]).length;
+  const [requisitos, zonas, fluxos, ativos, gestor] = await db.batch([
+    db.prepare(`SELECT codigo, titulo, prazo_meses FROM ot_requisitos WHERE framework = 'ONS-RO-CB.BR.01'`),
+    db.prepare(`SELECT count(*) AS n FROM (SELECT site_id FROM ot_zonas WHERE project_id = ? AND status = 'ativo' AND ${NO_SITE} AND nivel_purdue IN (2, 3, 4)
+      GROUP BY site_id HAVING count(DISTINCT nivel_purdue) = 3)`).bind(projectId, sites),
+    db.prepare(`SELECT count(*) AS externos, coalesce(sum(f.via_vpn = 0), 0) AS sem_vpn FROM ot_fluxos f WHERE ${FLUXO_VISIVEL} AND f.externo = 1`).bind(projectId, sites, sites, sites),
+    db.prepare(`SELECT count(*) AS arciber, coalesce(sum(ultima_verificacao_em IS NULL), 0) AS sem_verificacao,
+        coalesce(sum(ultima_verificacao_em < datetime('now', '-24 months')), 0) AS vencidos, coalesce(sum(zona_id IS NULL), 0) AS sem_zona
+      FROM ot_ativos WHERE project_id = ? AND status = 'ativo' AND no_arciber = 1 AND ${NO_SITE}`).bind(projectId, sites),
+    // 4.2.1: gestor e suplente em project_governance, cargo "Gestor ARCiber" (spec §3): titular is_primary = 1, suplente 0.
+    db.prepare(`SELECT coalesce(sum(is_primary = 1), 0) AS titular, coalesce(sum(coalesce(is_primary, 0) = 0), 0) AS suplente FROM project_governance
+      WHERE project_id = ? AND lower(trim(job_title)) = 'gestor arciber'`).bind(projectId),
+  ]);
+  const z = (zonas.results[0] as { n: number }).n;
+  const f = fluxos.results[0] as { externos: number; sem_vpn: number };
+  const a = ativos.results[0] as { arciber: number; sem_verificacao: number; vencidos: number; sem_zona: number };
+  const g = gestor.results[0] as { titular: number; suplente: number };
+
+  const avaliar: Record<string, () => { situacao: Situacao; evidencia: string; numeros?: Record<string, number> }> = {
+    '4.1.1': () => !nSites ? { situacao: 'sem_evidencia', evidencia: 'Nenhum site no inventário' }
+      : z < nSites ? { situacao: 'nao_atende', evidencia: `${nSites - z} de ${nSites} site(s) sem zonas nos níveis 2, 3 e 4`, numeros: { sites: nSites, sites_com_3_zonas: z } }
+        : { situacao: 'evidencia_no_inventario', evidencia: `Os ${nSites} site(s) têm zonas nos níveis 2, 3 e 4 registradas`, numeros: { sites: nSites, sites_com_3_zonas: z } },
+    '4.1.2': () => f.sem_vpn ? { situacao: 'nao_atende', evidencia: `${f.sem_vpn} fluxo(s) externo(s) sem VPN`, numeros: { ...f } }
+      : { situacao: 'sem_evidencia', evidencia: 'Nenhum fluxo externo sem VPN registrado; a ausência no inventário não prova que o ARCiber é inacessível pela internet', numeros: { ...f } },
+    '4.1.3': () => f.sem_vpn ? { situacao: 'nao_atende', evidencia: `${f.sem_vpn} de ${f.externos} fluxo(s) externo(s) sem VPN`, numeros: { ...f } }
+      : f.externos ? { situacao: 'evidencia_no_inventario', evidencia: `Os ${f.externos} fluxo(s) externo(s) registrados passam por VPN`, numeros: { ...f } }
+        : { situacao: 'sem_evidencia', evidencia: 'Nenhum fluxo externo registrado', numeros: { ...f } },
+    '4.2.1': () => g.titular && g.suplente ? { situacao: 'evidencia_no_inventario', evidencia: 'Titular e suplente com cargo "Gestor ARCiber" na governança do projeto', numeros: { ...g } }
+      : { situacao: 'sem_evidencia', evidencia: `Falta ${[!g.titular && 'titular', !g.suplente && 'suplente'].filter(Boolean).join(' e ')} com cargo "Gestor ARCiber" na governança do projeto`, numeros: { ...g } },
+    // Os campos do 4.3.1 o banco já garante (CHECK ot_ativos_4_3_1): o que falta provar é a verificação a cada 24 meses.
+    '4.3.1': () => !a.arciber ? { situacao: 'sem_evidencia', evidencia: 'Nenhum ativo do ARCiber no inventário', numeros: { ...a } }
+      : a.vencidos ? { situacao: 'nao_atende', evidencia: `${a.vencidos} ativo(s) do ARCiber com verificação há mais de 24 meses`, numeros: { ...a } }
+        : a.sem_verificacao ? { situacao: 'sem_evidencia', evidencia: `${a.sem_verificacao} de ${a.arciber} ativo(s) do ARCiber sem verificação registrada (campos do 4.3.1 completos)`, numeros: { ...a } }
+          : { situacao: 'evidencia_no_inventario', evidencia: `Os ${a.arciber} ativo(s) do ARCiber têm os campos do 4.3.1 e verificação nos últimos 24 meses`, numeros: { ...a } },
+  };
+
+  const itens = (requisitos.results as { codigo: string; titulo: string; prazo_meses: number | null }[])
+    .sort((x, y) => x.codigo.localeCompare(y.codigo, undefined, { numeric: true }))
+    .map((r) => ({
+      codigo: r.codigo, titulo: r.titulo, prazo_meses: r.prazo_meses, prazo_em: r.prazo_meses ? prazoEm(r.prazo_meses) : null,
+      ...(avaliar[r.codigo]?.() ?? { situacao: 'sem_evidencia' as Situacao, evidencia: 'Fora do que o inventário registra' }),
+    }));
+  const resumo = Object.fromEntries((['nao_atende', 'evidencia_no_inventario', 'sem_evidencia'] as const).map((s) => [s, itens.filter((i) => i.situacao === s).length]));
+  return { framework: 'ONS-RO-CB.BR.01', versao: 'Rev.00', vigencia: VIGENCIA, itens, resumo };
+}

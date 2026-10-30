@@ -8,6 +8,7 @@ import {
 } from '../schemas/ot';
 import { aadOt, chavesOt, cifrarOt, hmacOt, normalizarIp, normalizarMac, type ChavesOt } from '../services/ot-cifra';
 import { FLUXO_VISIVEL, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { conformidadeOt } from '../services/ot-conformidade';
 
 /** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
 export const otApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -397,4 +398,12 @@ otApp.delete('/acessos/:siteId/:userId', async (c) => {
     await trilha(c, 'ot.acesso.revogado', projectId, `Acesso ao site ${siteId} revogado da conta ${userId}`, { tipo: 'ot_site', id: siteId });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao revogar o acesso', e); }
+});
+
+// ─── conformidade RO-CB.BR.01 calculada do inventário ───────────────────────
+otApp.get('/conformidade', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    return c.json(await conformidadeOt(db, projectId, sites));
+  } catch (e) { return erro500(c, 'Falha ao calcular a conformidade', e); }
 });

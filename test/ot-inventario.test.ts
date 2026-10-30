@@ -206,6 +206,9 @@ describe('P0-4: filtro de site único', () => {
 
   it('org_user sem linha em ot_site_acessos: zero sites, zero ativos, zero fluxos, conformidade sobre nada', async () => {
     for (const rota of ['sites', 'zonas', 'ativos', 'fluxos', 'acessos']) expect(await lista(tec0, rota), rota).toEqual([]);
+    const conf = await json<{ itens: { codigo: string; situacao: string; numeros?: Record<string, number> }[] }>(await chamar(tec0, 'GET', `${P}/conformidade`));
+    expect(conf.itens.find((i) => i.codigo === '4.1.1')!.situacao).toBe('sem_evidencia');
+    expect(conf.itens.find((i) => i.codigo === '4.1.2')!.numeros).toEqual({ externos: 0, sem_vpn: 0 });
   });
 
   it('entre projetos: conta de B não entra em A; id de B pela URL de A é 404; site/zona/ativo de B no corpo é recusado', async () => {
@@ -249,7 +252,7 @@ describe('papéis e escrita', () => {
     }
     const CHAVE = 'chave-ot-inventario';
     await env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status) VALUES ('key-inv', 'proj-a', ?, 'escrita', 'write', 'Active')`).bind(await sha256Hex(CHAVE)).run();
-    for (const [m, c] of [['GET', `${P}/ativos`], ['POST', `${P}/sites`], ['GET', `${P}/sites`]]) {
+    for (const [m, c] of [['GET', `${P}/ativos`], ['POST', `${P}/sites`], ['GET', `${P}/conformidade`]]) {
       expect((await chamar({ 'X-API-Key': CHAVE }, m, c, m === 'GET' ? undefined : { nome: 'X' })).status, `${m} ${c}`).toBe(403);
     }
     await env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('c-inv', 'cons:cons-ot@ness.lat', 'proj-a', datetime('now', '+30 days'))`).run();
@@ -288,5 +291,54 @@ describe('papéis e escrita', () => {
     const { results } = await env.DB.prepare(`SELECT action, details FROM audit_logs WHERE action LIKE 'ot.%'`).all<{ action: string; details: string }>();
     expect(results.length).toBeGreaterThan(10);
     for (const l of results) expect(l.details, l.action).not.toMatch(/10\.1\.1\.10|10\.2\.2\.20|aa:bb|AA-BB|RTU Bay|IED Sul|SE Norte/);
+  });
+});
+
+describe('4.1.2/4.1.3 e conformidade por item da RO-CB.BR.01', () => {
+  it('fluxo externo sem VPN sai marcado como violação; com VPN, não; fluxo interno exige as duas pontas', async () => {
+    const r = await chamar(cons, 'POST', `${P}/fluxos`, { site_id: ids.s1, origem_ativo_id: ids.a1, externo: true });
+    const criado = await json<{ id: string; violacoes: string[] }>(r);
+    expect(criado.violacoes).toEqual(['4.1.2', '4.1.3']);
+    const vpn = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: ids.a1, externo: true, via_vpn: true });
+    const fluxos = (await json<{ fluxos: { id: string; violacoes: string[]; externo: boolean }[] }>(await chamar(tec, 'GET', `${P}/fluxos`))).fluxos;
+    expect(fluxos.find((f) => f.id === ids.fext)).toMatchObject({ externo: true, violacoes: ['4.1.2', '4.1.3'] });
+    expect(fluxos.find((f) => f.id === vpn)!.violacoes).toEqual([]);
+    expect(fluxos.find((f) => f.id === ids.f11)!.violacoes).toEqual([]);
+    const meia = await chamar(cons, 'POST', `${P}/fluxos`, { site_id: ids.s1, origem_ativo_id: ids.a1 });
+    expect(meia.status).toBe(400);
+    expect((await json<{ error: string }>(meia)).error).toContain('ponta');
+    expect((await chamar(cons, 'DELETE', `${P}/fluxos/${criado.id}`)).status).toBe(200);
+  });
+
+  it('25 itens com prazo de 18/27 meses; só afirma o que o inventário sustenta', async () => {
+    const r = await chamar(gestor, 'GET', `${P}/conformidade`);
+    expect(r.status, await r.clone().text()).toBe(200);
+    const c = await json<{ itens: { codigo: string; prazo_meses: number | null; prazo_em: string | null; situacao: string; evidencia: string }[]; resumo: Record<string, number> }>(r);
+    expect(c.itens).toHaveLength(25);
+    const item = (k: string) => c.itens.find((i) => i.codigo === k)!;
+    expect(item('4.1.2')).toMatchObject({ prazo_meses: 18, prazo_em: '2023-01-09', situacao: 'nao_atende' });
+    expect(item('4.1.3')).toMatchObject({ situacao: 'nao_atende' });
+    expect(item('4.1.1')).toMatchObject({ prazo_meses: 27, prazo_em: '2023-10-09', situacao: 'nao_atende' }); // s2 só tem o nível 2
+    expect(item('4.1.1').evidencia).toContain('1 de 2');
+    expect(item('5.1.1')).toMatchObject({ prazo_meses: null, prazo_em: null, situacao: 'sem_evidencia' });
+    // campos completos, mas sem verificação registrada: não se afirma o 4.3.1
+    expect(item('4.3.1').situacao).toBe('sem_evidencia');
+    expect(item('4.2.1').situacao).toBe('sem_evidencia');
+    expect(Object.values(c.resumo).reduce((a, b) => a + b, 0)).toBe(25);
+    expect(c.itens.some((i) => !['nao_atende', 'evidencia_no_inventario', 'sem_evidencia'].includes(i.situacao))).toBe(false);
+
+    // técnico do s1: o s1 tem as 3 zonas -> há evidência do 4.1.1 no que ele vê
+    expect((await json<typeof c>(await chamar(tec, 'GET', `${P}/conformidade`))).itens.find((i) => i.codigo === '4.1.1')!.situacao).toBe('evidencia_no_inventario');
+  });
+
+  it('4.2.1: titular e suplente "Gestor ARCiber" na governança viram evidência; 4.3.1 com verificação vencida é não atende', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title, is_primary) VALUES
+        ('proj-a', 'Titular', 't@cliente.teste', 'executivo', 'Gestor ARCiber', 1), ('proj-a', 'Suplente', 's@cliente.teste', 'executivo', 'Gestor ARCiber', 0)`),
+      env.DB.prepare(`UPDATE ot_ativos SET ultima_verificacao_em = datetime('now', '-25 months') WHERE id = ?`).bind(ids.a1),
+    ]);
+    const c = await json<{ itens: { codigo: string; situacao: string }[] }>(await chamar(gestor, 'GET', `${P}/conformidade`));
+    expect(c.itens.find((i) => i.codigo === '4.2.1')!.situacao).toBe('evidencia_no_inventario');
+    expect(c.itens.find((i) => i.codigo === '4.3.1')!.situacao).toBe('nao_atende');
   });
 });
