@@ -83,6 +83,8 @@ export const ROTAS = {
   'POST /api/v1/projects/{projectId}/ot/ativos': { obrigatorios: ['nome', 'site_id'] },
   'POST /api/v1/projects/{projectId}/ot/ativos/{id}/revelar': { obrigatorios: ['justificativa'] },
   'POST /api/v1/projects/{projectId}/ot/fluxos': { obrigatorios: ['site_id'] },
+  'POST /api/v1/projects/{projectId}/ot/ia/completude': { obrigatorios: ['descricao'] },
+  'POST /api/v1/projects/{projectId}/ot/ia/zona-sugerida': { obrigatorios: ['ativo_id'] },
   'POST /api/v1/projects/{projectId}/ot/sites': { obrigatorios: ['nome'] },
   'POST /api/v1/projects/{projectId}/ot/zonas': { obrigatorios: ['nivel_purdue', 'nome', 'site_id'] },
   'POST /api/v1/projects/{projectId}/padronizar-nomes': { obrigatorios: ['itens'] },
