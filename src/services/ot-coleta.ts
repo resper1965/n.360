@@ -181,15 +181,18 @@ export async function criarLote(db: D1Database, chaves: ChavesOt, ator: { id: st
 
 export interface LinhaItem { id: string; project_id: string; linha: number; dados: string; erros: string; duplicata_de: string | null; decisao: string; motivo: string | null; registro_id: string | null; updated_at?: string }
 
-/** Item pelo serializador único do ativo (P0-6). P0-5: quem não vê completo recebe só `possivel_duplicata`, sem o alvo. */
+/**
+ * Item pelo serializador único do ativo (P0-6). P0-5/A1 (decisão do dono): a marca de duplicata é oráculo de "este IP existe", então quem
+ * não vê completo não recebe `possivel_duplicata`, nem o alvo, nem o motivo de alvo alterado; só quem vê completo (e aprova) os vê.
+ */
 export async function serializarItem(i: LinhaItem, completo: boolean, chaves: ChavesOt) {
   const d = JSON.parse(i.dados) as Record<string, unknown>;
   const linha = { ip_cifrado: null, mac_cifrado: null, ip_hash: null, mac_hash: null, protocolos_portas: '[]', no_arciber: 0, firmware_nao_aplicavel: 0, ...d,
     id: i.id, project_id: i.project_id } as LinhaAtivo;
   const { id: _i, project_id: _p, ...dados } = await serializarAtivo(linha, completo, chaves, 'ot_lote_itens');
   return {
-    id: i.id, linha: i.linha, decisao: i.decisao, motivo: i.motivo, erros: JSON.parse(i.erros) as Erro[], possivel_duplicata: !!i.duplicata_de,
-    ...(completo && { duplicata_de: i.duplicata_de, registro_id: i.registro_id }),
+    id: i.id, linha: i.linha, decisao: i.decisao, motivo: completo || i.motivo !== ALVO_MUDOU ? i.motivo : null, erros: JSON.parse(i.erros) as Erro[],
+    ...(completo && { possivel_duplicata: !!i.duplicata_de, duplicata_de: i.duplicata_de, registro_id: i.registro_id }),
     dados,
   };
 }

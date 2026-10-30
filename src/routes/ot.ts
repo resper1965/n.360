@@ -438,7 +438,9 @@ otApp.get('/lotes/:id', async (c) => {
 
 async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, projectId: string, site: string, extra: Record<string, unknown> = {}) {
   if (!r.ok) return c.json({ error: r.error }, r.status);
-  const { ok: _ok, ...resumo } = r;
+  // A1: a contagem de duplicatas só vai a quem vê completo (para os demais, a chave nem aparece).
+  const { ok: _ok, possiveis_duplicatas, ...resumo } = r;
+  if (await podeVerCompleto(c.env.DB, c.get('user'), projectId)) Object.assign(resumo, { possiveis_duplicatas });
   await trilha(c, 'ot.lote.criado', projectId, `Lote ${r.id} criado no site ${site}: ${r.itens} item(ns), ${r.com_erro} com erro`, { tipo: 'ot_lote', id: r.id });
   return c.json({ ...resumo, status: 'em_revisao', ...extra }, 201);
 }

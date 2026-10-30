@@ -44,7 +44,7 @@ const criar = async (h: H, rota: string, corpo: unknown) => {
   expect(r.status, `${rota} ${await r.clone().text()}`).toBe(201);
   return (await json<{ id: string }>(r)).id;
 };
-interface Item { id: string; linha: number; decisao: string; erros: { campo: string; motivo: string }[]; possivel_duplicata: boolean; duplicata_de?: string; registro_id?: string; dados: Record<string, unknown> }
+interface Item { id: string; linha: number; decisao: string; motivo?: string | null; erros: { campo: string; motivo: string }[]; possivel_duplicata: boolean; duplicata_de?: string; registro_id?: string; dados: Record<string, unknown> }
 const lerLote = async (h: H, id: string) => {
   const r = await chamar(h, 'GET', `${P}/lotes/${id}`);
   expect(r.status, await r.clone().text()).toBe(200);
@@ -137,14 +137,18 @@ describe('P0-3: a planilha é lida no Worker; o original não fica e nada vai à
 });
 
 describe('P0-5: dedupe sem revelar o alvo, só no site do lote', () => {
-  it('quem não vê completo recebe só "possível duplicata"; quem vê, o id do ativo; IP de outro site responde igual a IP novo', async () => {
+  it('A1: quem não vê completo não recebe a marca de duplicata (nem chave, nem contagem); quem vê, a marca e o id do ativo', async () => {
     const r = await enviar(tec, ids.s1, 'd.csv', csv(`Qualquer;${IP1};;;;;;;;nao;;`, `Outro;${IP2};;;;;;;;nao;;`, `Novo;10.9.9.9;;;;;;;;nao;;`,
       `RTU Bay 1;;;Fab;M1;;;;;nao;;`));
     expect(r.status).toBe(201);
-    const id = (await json<{ id: string }>(r)).id;
-    for (const h of [tec, cli]) {
+    const resposta = await json<{ id: string }>(r);
+    const id = resposta.id;
+    expect(Object.keys(resposta).sort()).toEqual(['colunas_ignoradas', 'com_erro', 'id', 'itens', 'status']);
+    for (const h of [tec, cli, plat]) {
       const { itens, texto } = await lerLote(h, id);
-      expect(itens.map((i) => i.possivel_duplicata)).toEqual([true, false, false, true]);
+      expect(texto).not.toContain('duplicata');
+      // o IP existente (linha 2) e o novo (linha 4) saem com a mesma forma e os mesmos valores, fora id, linha e dados
+      expect({ ...itens[0], id: 0, linha: 0, dados: 0 }).toEqual({ ...itens[2], id: 0, linha: 0, dados: 0 });
       expect(texto).not.toContain(ids.a1);
       expect(texto).not.toContain(ids.a2);
       expect(texto).not.toMatch(/duplicata_de|registro_id|ip_hash|ip_cifrado|ot1:/);
@@ -155,8 +159,24 @@ describe('P0-5: dedupe sem revelar o alvo, só no site do lote', () => {
       expect(itens[0].dados).toMatchObject({ ip: '•••', mascarado: true });
     }
     const { itens } = await lerLote(gestor, id);
+    expect(itens.map((i) => i.possivel_duplicata)).toEqual([true, false, false, true]);
     expect(itens.map((i) => i.duplicata_de ?? null)).toEqual([ids.a1, null, null, ids.a1]);
     expect(itens[0].dados).toMatchObject({ ip: IP1, mascarado: false });
+  });
+
+  it('A1: técnico mascarado manda um IP existente e um novo e recebe respostas indistinguíveis; o Gestor vê a marca e a contagem', async () => {
+    const manual = (h: H, ip: string) => chamar(h, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: [{ nome: 'Sonda', ip }] });
+    const [existe, novo] = [await manual(tec, IP1), await manual(tec, '10.1.1.123')];
+    expect(existe.status).toBe(201);
+    const [a, b] = [await json(existe), await json(novo)];
+    expect({ ...a, id: 0 }).toEqual({ ...b, id: 0 });
+    expect(JSON.stringify(a)).not.toContain('duplicata');
+    const [la, lb] = [await lerLote(tec, a.id as string), await lerLote(tec, b.id as string)];
+    expect({ ...la.itens[0], id: 0, dados: 0 }).toEqual({ ...lb.itens[0], id: 0, dados: 0 });
+    expect({ ...la.lote, id: 0, created_at: 0, updated_at: 0 }).toEqual({ ...lb.lote, id: 0, created_at: 0, updated_at: 0 });
+    const g = await json(await manual(gestor, IP1));
+    expect(g).toMatchObject({ possiveis_duplicatas: 1 });
+    expect((await lerLote(gestor, a.id as string)).itens[0]).toMatchObject({ possivel_duplicata: true, duplicata_de: ids.a1 });
   });
 
   it('técnico só cria lote nos sites vinculados; site sem acesso responde igual a site inexistente; sem vínculo, nenhum', async () => {
@@ -328,6 +348,8 @@ describe('4.3.1 e P1-4: verificação só com recoleta; alvo alterado depois da 
     expect(await env.DB.prepare(`SELECT status FROM ot_lotes WHERE id = ?`).bind(l).first('status')).toBe('em_revisao');
     const { itens } = await lerLote(gestor, l);
     expect(itens.map((i) => i.decisao)).toEqual(['pendente', 'gravado']);
+    expect(itens[0].motivo).toMatch(/mudou depois da revisão/);
+    expect((await lerLote(tec, l)).texto, 'A1: o motivo de alvo alterado também é marca de duplicata').not.toMatch(/mudou depois da revisão/);
     // revisado de novo (nada mudou desde a volta), a aprovação grava
     const r2 = await chamar(gestor, 'POST', `${P}/lotes/${l}/aprovar`);
     expect(await json(r2)).toMatchObject({ atualizados: 1, pendentes: 0 });
