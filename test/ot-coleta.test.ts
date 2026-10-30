@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
+import { manutencaoDiaria } from '../src/manutencao';
 import { chavesOt, decifrarOt, aadOt, hmacOt } from '../src/services/ot-cifra';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 import xlsxReal from './fixtures/ot-planilha-openpyxl.xlsx.b64?raw';
@@ -283,3 +284,19 @@ describe('aprovação promove ao inventário', () => {
   });
 });
 
+describe('retenção: lote não concluído expira em 7 dias', () => {
+  it('a manutenção diária apaga lote parado há mais de 7 dias (e os itens); concluído fica', async () => {
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, criado_por, status, created_at) VALUES
+        ('l-velho', 'proj-a', ?, 'manual', 'u-tec', 'em_revisao', datetime('now', '-8 days')),
+        ('l-feito', 'proj-a', ?, 'manual', 'u-tec', 'concluido', datetime('now', '-8 days')),
+        ('l-novo', 'proj-a', ?, 'manual', 'u-tec', 'em_revisao', datetime('now', '-6 days'))`).bind(ids.s1, ids.s1, ids.s1),
+      env.DB.prepare(`INSERT INTO ot_lote_itens (id, project_id, lote_id, linha) VALUES ('i-velho', 'proj-a', 'l-velho', 2)`),
+    ]);
+    const r = await manutencaoDiaria(env as never);
+    expect(r.retencao.ot_lotes).toBeGreaterThanOrEqual(1);
+    const { results } = await env.DB.prepare(`SELECT id FROM ot_lotes WHERE id IN ('l-velho', 'l-feito', 'l-novo') ORDER BY id`).all<{ id: string }>();
+    expect(results.map((l) => l.id)).toEqual(['l-feito', 'l-novo']);
+    expect(await env.DB.prepare(`SELECT count(*) AS n FROM ot_lote_itens WHERE id = 'i-velho'`).first('n')).toBe(0);
+  });
+});
