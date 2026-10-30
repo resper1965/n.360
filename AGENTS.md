@@ -83,7 +83,10 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   `usuario_modulos_padrao` nao o da a ninguem, e habilitar o `ot` no projeto nao o da aos clientes; so `PUT /users/:id/modulos`
   ou `POST /users` com `modulos`, com trilha; a caixa do n.ot na tela Usuarios nunca nasce marcada) e **P0-2, sem chave de API
   nem agente MCP** (`otApp` responde 403 a `apikey:` e a `agente`; `/projects/:id/ot` esta em `FORA_DO_AGENTE`). Frontend:
-  casca `/ot` com uma tela (`views/ot.js`), item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
+  casca `/ot` com uma tela (`views/ot.js`) em abas: catalogo, inventario (sites, zonas, ativos), fluxos, coleta (`views/ot-coleta.js`),
+  saidas (`views/ot-saidas.js`) e acesso por site (so quem edita); papeis e formulario do ativo em `src/ot-comum.js`, que so ESCONDE o que
+  a API recusaria. IP/MAC aparecem como a API devolve e ficam so na memoria da tela; "Revelar" (platform_admin, ativo mascarado) pede o
+  motivo e mostra o valor num modal que some em 30 s. A conformidade mostra so os tres estados do servidor (nunca "atende"). Item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
   o painel ainda nao tem bloco do n.ot (`views/painel.js` o ignora).
   Coleta (N3, migration 0092): `POST …/ot/lotes` (planilha CSV/XLSX em multipart, lida em memoria: nunca vai ao R2 nem a
   IA) e `POST …/ot/lotes/manual` (JSON) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
