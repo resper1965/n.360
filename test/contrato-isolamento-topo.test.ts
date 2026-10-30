@@ -249,6 +249,8 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   documentos_arquivo: { tipo: 'outro', status: 'rascunho', sem_vencimento: 0, arquivo_tipo: 'pdf' },
   // n.ot (0091): fluxo precisa de ponta (CHECK); externo com uma ponta só, a zona alheia semeada nesta passada
   ot_fluxos: { externo: 1, origem_zona_id: (id: string) => id },
+  // n.ot (0092): fonte do lote é enum do CHECK
+  ot_lotes: { fonte: 'manual' },
 };
 
 async function semearTenantAlheio(id: string, projeto: string): Promise<void> {

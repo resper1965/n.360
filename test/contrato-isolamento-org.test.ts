@@ -221,6 +221,8 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   documentos_arquivo: { tipo: 'outro', status: 'rascunho', sem_vencimento: 0, arquivo_tipo: 'pdf' },
   // n.ot (0091): cada ponta do fluxo é ativo OU zona (CHECK); a zona fica de fora, vale sobre a FK
   ot_fluxos: { origem_zona_id: null, destino_zona_id: null },
+  // n.ot (0092): fonte do lote é enum do CHECK
+  ot_lotes: { fonte: 'manual' },
 };
 
 /**

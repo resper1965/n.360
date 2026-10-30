@@ -2318,3 +2318,45 @@ CREATE TABLE IF NOT EXISTS ot_site_acessos (
     FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_ot_site_acessos_projeto ON ot_site_acessos(project_id, user_id);
+
+-- Coleta do n.ot (0092): lotes em staging; IP/MAC só cifrados (ot1:); o original da planilha nunca vai ao R2 (P0-3).
+CREATE TABLE IF NOT EXISTS ot_lotes (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL,
+    fonte TEXT NOT NULL CHECK (fonte IN ('manual', 'planilha', 'ferramenta_ot', 'ia')),
+    status TEXT NOT NULL DEFAULT 'processando'
+        CHECK (status IN ('recebendo', 'processando', 'em_revisao', 'gravando', 'concluido', 'rejeitado', 'erro', 'erro_ia')),
+    criado_por TEXT NOT NULL,
+    decidido_por TEXT,
+    decidido_em DATETIME,
+    motivo TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (id, project_id),
+    FOREIGN KEY (site_id, project_id) REFERENCES ot_sites(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_lotes_site ON ot_lotes(project_id, site_id);
+CREATE INDEX IF NOT EXISTS idx_ot_lotes_criador ON ot_lotes(criado_por, created_at);
+
+-- `dados` tem a forma da linha de `ot_ativos` (IP/MAC cifrados com AAD do item, hashes por projeto); `erros` = [{campo, motivo}],
+-- nunca o valor (P1-7). `duplicata_de` só sai para quem vê completo (P0-5).
+CREATE TABLE IF NOT EXISTS ot_lote_itens (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    lote_id TEXT NOT NULL,
+    linha INTEGER NOT NULL,
+    entidade TEXT NOT NULL DEFAULT 'ativo' CHECK (entidade IN ('ativo', 'zona', 'fluxo')),
+    dados TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(dados) AND json_type(dados) = 'object'
+        AND json_type(dados, '$.ip') IS NULL AND json_type(dados, '$.mac') IS NULL
+        AND coalesce(json_extract(dados, '$.ip_cifrado') LIKE 'ot1:%', 1) AND coalesce(json_extract(dados, '$.mac_cifrado') LIKE 'ot1:%', 1)),
+    erros TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(erros) AND json_type(erros) = 'array'),
+    duplicata_de TEXT,
+    decisao TEXT NOT NULL DEFAULT 'pendente' CHECK (decisao IN ('pendente', 'aceito', 'descartado', 'gravado', 'recusado')),
+    motivo TEXT,
+    registro_id TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (lote_id, project_id) REFERENCES ot_lotes(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_lote_itens_lote ON ot_lote_itens(lote_id, linha);
