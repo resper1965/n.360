@@ -48,7 +48,9 @@ describe('P0-8: cifra própria do n.ot', () => {
 
 describe('normalização de IP e MAC (o hash precisa casar o mesmo endereço escrito de outro jeito)', () => {
   it('IPv4 sem zeros à esquerda; IPv6 canônico; inválido é null', () => {
-    expect(normalizarIp('010.000.000.001')).toBe('10.0.0.1');
+    // zero à esquerda é ambíguo (octal em várias ferramentas: 010 = 8): recusado, não normalizado, para o dedupe não mesclar ativos diferentes
+    for (const ambiguo of ['010.0.0.1', '010.000.000.001', '10.0.0.01', '192.168.001.1']) expect(normalizarIp(ambiguo), ambiguo).toBeNull();
+    expect(normalizarIp('10.0.0.0')).toBe('10.0.0.0');
     expect(normalizarIp(' 192.168.1.20 ')).toBe('192.168.1.20');
     expect(normalizarIp('2001:0DB8:0000:0000:0000:0000:0000:0001')).toBe('2001:db8::1');
     for (const ruim of ['256.1.1.1', '1.2.3', 'abc', '10.0.0.1/24', '', '1.2.3.4.5']) expect(normalizarIp(ruim), ruim).toBeNull();

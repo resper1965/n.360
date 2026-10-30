@@ -58,11 +58,11 @@ export const ENDERECO_EM_TEXTO = new RegExp([
   String.raw`(?<![0-9a-f])[0-9a-f]{12}(?![0-9a-f])`,
 ].join('|'), 'i');
 
-/** IPv4 sem zeros à esquerda ou IPv6 canônico (o do parser de URL da plataforma); null se não for IP. */
+/** IPv4 decimal ou IPv6 canônico (o do parser de URL da plataforma); null se não for IP. Octeto com zero à esquerda é null: "010" é 8 em octal para várias ferramentas. */
 export function normalizarIp(bruto: string): string | null {
   const s = bruto.trim();
   const v4 = s.split('.');
-  if (v4.length === 4 && v4.every((o) => /^\d{1,3}$/.test(o) && Number(o) <= 255)) return v4.map(Number).join('.');
+  if (v4.length === 4 && v4.every((o) => /^(0|[1-9]\d{0,2})$/.test(o) && Number(o) <= 255)) return v4.map(Number).join('.');
   if (!s.includes(':') || !/^[0-9a-fA-F:.]+$/.test(s)) return null;
   try { return new URL(`http://[${s}]`).hostname.slice(1, -1); } catch { return null; }
 }
