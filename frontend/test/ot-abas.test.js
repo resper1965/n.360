@@ -364,6 +364,27 @@ describe('coleta', () => {
         expect(S.otLote).toBe('l2');
     });
 
+    it('planilha com a sessão terminada (401) segue o tratamento de api(): reautentica por inatividade ou sai', async () => {
+        const arq = new File(['nome\nRTU\n'], 'ativos.csv', { type: 'text/csv' });
+        const enviar = async (corpo) => {
+            servirOt(COLETA, { [`POST ${B}/lotes`]: [401, corpo] });
+            await abrir('coleta');
+            Object.defineProperty(el('ot-lote-arquivo'), 'files', { value: [arq] });
+            await window.otEnviarPlanilha();
+        };
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        window.pedirReautenticacao = vi.fn();
+        window.doLogout = vi.fn();
+        await enviar({ error: 'Unauthorized', expired: 'inactivity' });
+        expect(window.pedirReautenticacao).toHaveBeenCalledTimes(1);
+        expect(window.doLogout).not.toHaveBeenCalled();
+        await enviar({ error: 'Unauthorized' });
+        expect(window.doLogout).toHaveBeenCalledTimes(1);
+        expect(document.body.textContent).toContain('Sua sessão terminou');
+        expect(S.otLote).toBeNull();
+        delete window.pedirReautenticacao; delete window.doLogout;
+    });
+
     it('entrada manual junta itens e manda o lote em JSON', async () => {
         servirOt({ ...COLETA, [`POST ${B}/lotes/manual`]: { id: 'l3', itens: 1, com_erro: 0, possiveis_duplicatas: 0, status: 'em_revisao' } });
         await abrir('coleta');

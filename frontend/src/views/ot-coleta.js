@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api, API_BASE, cabecalhosAuth } from '../api.js';
+import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, confirmar, pedirTexto,
     formatarData } from '../ui.js';
 import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo } from '../ot-comum.js';
@@ -69,6 +69,7 @@ window.otEnviarPlanilha = async () => {
         r = await fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/lotes`, { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) });
         corpo = await r.json().catch(() => ({}));
     } catch (e) { return showToast('Não foi possível enviar a planilha. Verifique a conexão e tente de novo.', 'error'); }
+    if (r.status === 401) return falhou(sessaoTerminada(corpo, '401 no envio da planilha do n.ot'), 'Sua sessão terminou.');
     if (!r.ok) return falhou(Object.assign(new Error(corpo.error || ''), { status: r.status }), 'Não foi possível ler a planilha.');
     aposCriar(corpo);
 };
