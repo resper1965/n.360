@@ -78,7 +78,7 @@ describe('n.ot: GET /ot/requisitos e as travas do módulo', () => {
   it('P0-2: chave de API (mesmo de escrita) é recusada', async () => {
     const r = await pedir({ 'X-API-Key': CHAVE }, A);
     expect(r.status).toBe(403);
-    expect((await r.json<{ error: string }>()).error).toMatch(/n\.OT/);
+    expect((await r.json<{ error: string }>()).error).toMatch(/n\.ot/);
   });
 
   it('P0-2: agente MCP é recusado, inclusive com decisão confirmada', async () => {
