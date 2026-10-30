@@ -147,7 +147,7 @@ function perguntar(texto, { titulo = 'Confirmar', rotulo = 'Confirmar', perigo =
         camada.innerHTML = `<div class="confirmar-caixa">
             <h2 class="confirmar-titulo" id="confirmar-titulo">${escapeHTML(titulo)}</h2>
             <p class="confirmar-texto" id="confirmar-texto">${escapeHTML(texto)}</p>
-            ${campo ? `<input class="form-input" type="${campo.tipo === 'password' ? 'password' : 'text'}" aria-labelledby="confirmar-texto"${campo.tipo === 'password' ? ' autocomplete="current-password"' : ''}>` : ''}
+            ${campo ? `<input class="form-input" type="${campo.tipo === 'password' ? 'password' : 'text'}" aria-labelledby="confirmar-texto"${campo.tipo === 'password' ? ' autocomplete="current-password"' : campo.tipo === 'codigo' ? ' inputmode="numeric" autocomplete="one-time-code"' : ''}>` : ''}
             <div class="confirmar-acoes">
                 ${cancelar ? '<button type="button" class="btn" data-confirmar="nao">Cancelar</button>' : ''}
                 <button type="button" class="btn ${perigo ? 'btn-perigo' : 'btn-primary'}" data-confirmar="sim">${escapeHTML(rotulo)}</button>
@@ -193,7 +193,7 @@ function perguntar(texto, { titulo = 'Confirmar', rotulo = 'Confirmar', perigo =
 /** Sim/não na própria tela. Resolve true ou false. `perigo` pinta o botão de confirmar em --danger. */
 export function confirmar(texto, opcoes = {}) { return perguntar(texto, opcoes); }
 
-/** Texto na própria tela. Resolve o texto (aparado, menos senha), ou null se cancelou. `tipo: 'password'` esconde o que se digita. */
+/** Texto na própria tela. Resolve o texto (aparado, menos senha), ou null se cancelou. `tipo: 'password'` esconde o que se digita; `tipo: 'codigo'` abre o teclado numérico e aceita o código do autenticador. */
 export function pedirTexto(texto, { padrao = '', tipo = 'text', ...opcoes } = {}) {
     return perguntar(texto, { titulo: opcoes.titulo || 'Informe', rotulo: opcoes.rotulo || 'Continuar', ...opcoes, campo: { padrao, tipo } });
 }

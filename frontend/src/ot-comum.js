@@ -110,16 +110,22 @@ export const SITUACAO = {
 
 /**
  * Revelar e exportar (P1-1): o servidor pede o TOTP confirmado nos últimos 10 min (403 `totp_necessario`). Aqui a tela pede o código,
- * confirma em /auth/mfa/verify (o mesmo do login, que carimba a sessão) e repete `fazer` uma vez. Conta sem TOTP ativo e o 429 do teto
+ * confirma em /auth/mfa/verify (o mesmo do login, que carimba a sessão; código errado pede de novo) e repete `fazer` uma vez. Conta sem TOTP ativo e o 429 do teto
  * por hora sobem como erro, com a mensagem do servidor.
  */
 export async function comStepUp(fazer) {
     try { return await fazer(); } catch (e) {
         if (!(e && e.status === 403 && e.body && e.body.codigo === 'totp_necessario' && e.body.totp_ativo)) throw e;
     }
-    const codigo = await pedirTexto('Esta ação pede o código de 6 dígitos do seu autenticador (vale por 10 minutos).',
-        { titulo: 'Confirmar o segundo fator', rotulo: 'Confirmar' });
-    if (codigo === null) return null;
-    await api('POST', '/api/v1/auth/mfa/verify', { codigo: codigo.trim() });
+    let texto = 'Esta ação pede o código de 6 dígitos do seu autenticador (vale por 10 minutos).';
+    for (;;) {
+        const codigo = await pedirTexto(texto, { titulo: 'Confirmar o segundo fator', rotulo: 'Confirmar', tipo: 'codigo' });
+        if (codigo === null) return null;
+        try { await api('POST', '/api/v1/auth/mfa/verify', { codigo }); break; } catch (e) {
+            // Código errado (401) pede de novo: a justificativa já digitada fica em `fazer`. O resto (429, rede) sobe.
+            if (!(e && e.status === 401)) throw e;
+            texto = `${e.message || 'Código inválido'}. Digite o código atual do seu autenticador.`.replace(/\.\./, '.');
+        }
+    }
     return fazer();
 }

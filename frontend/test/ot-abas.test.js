@@ -513,6 +513,33 @@ describe('step-up de TOTP e teto por hora', () => {
         expect(corpos[1]).toEqual({ formato: 'xlsx', site_id: 's1', justificativa: 'Entrega do inventário ao ONS' });
     });
 
+    it('código errado (401 do verify) pede o código de novo, sem perder a justificativa; o campo é de código numérico', async () => {
+        S.user = { id: 'pa', role: 'platform_admin' };
+        const revelado = ativo('a1', 'RTU-01', 'z2', { ip: '10.9.8.7', mac: 'aa:bb:cc:dd:ee:ff', mascarado: false });
+        emSequencia(`POST ${B}/ativos/a1/revelar`, [[403, TOTP], [200, revelado]], INVENTARIO);
+        const f = globalThis.fetch;
+        const base = f.getMockImplementation();
+        let tentativas = 0;
+        f.mockImplementation(async (url, opts = {}) => (url.endsWith('/auth/mfa/verify')
+            ? (chamadas.push({ k: 'POST /api/v1/auth/mfa/verify', opts }), resposta(tentativas++ ? { ok: true } : { error: 'Código inválido' }, tentativas > 1 ? 200 : 401))
+            : base(url, opts)));
+        await abrir('inventario');
+        const p = window.otRevelar('a1');
+        await responder('Auditoria de campo do ONS');
+        await pausa(); await pausa();
+        const campo = document.querySelector('.confirmar input');
+        expect(campo.getAttribute('inputmode')).toBe('numeric');
+        expect(campo.getAttribute('autocomplete')).toBe('one-time-code');
+        await responder('000000');
+        await responder('123456');
+        await p;
+        expect(chamadas.filter((x) => x.k === 'POST /api/v1/auth/mfa/verify').map((x) => JSON.parse(x.opts.body).codigo)).toEqual(['000000', '123456']);
+        const revelar = chamadas.filter((x) => x.k === `POST ${B}/ativos/a1/revelar`);
+        expect(revelar).toHaveLength(2);
+        expect(JSON.parse(revelar[1].opts.body)).toEqual({ justificativa: 'Auditoria de campo do ONS' });
+        expect(el('ot-revelado').textContent).toContain('10.9.8.7');
+    });
+
     it('conta sem TOTP ativo: diz para ativar o segundo fator, sem pedir código', async () => {
         S.user = { id: 'pa', role: 'platform_admin' };
         emSequencia(`POST ${B}/ativos/a1/revelar`, [[403, { ...TOTP, error: 'Esta ação exige o segundo fator (TOTP) do n.360: ative-o no seu perfil e tente de novo', totp_ativo: false }]], INVENTARIO);
