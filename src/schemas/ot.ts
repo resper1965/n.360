@@ -1,12 +1,11 @@
 import { z } from 'zod';
-import { normalizarIp, normalizarMac } from '../services/ot-cifra';
+import { normalizarIp, normalizarMac, ENDERECO_EM_TEXTO } from '../services/ot-cifra';
 
 // Corpos do inventário do n.ot. Todos `.strict()` (modelo de ameaças P1-3/P0-8): `project_id`, `status`, `verificado_por`,
 // `ultima_verificacao_em`, `ip_cifrado`, `ip_hash` e afins no corpo são recusados; o servidor é quem os escreve.
 
-// P0-6: IP ou MAC digitado em campo livre sairia em claro para quem vê mascarado. IPv4, IPv6 (4+ grupos ou `::`) e MAC com `:`, `-` ou `.`.
-const ENDERECO = /\b\d{1,3}(\.\d{1,3}){3}\b|\b([0-9a-f]{1,4}:){4,7}[0-9a-f]{1,4}\b|[0-9a-f]{0,4}::[0-9a-f]{0,4}|\b[0-9a-f]{2}([:-][0-9a-f]{2}){5}\b|\b[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}\b/i;
-const livre = (max: number, min = 0) => z.string().trim().min(min).max(max).refine((s) => !ENDERECO.test(s), 'Não informe IP nem MAC em campo de texto livre');
+// P0-6: IP ou MAC digitado em campo livre sairia em claro para quem vê mascarado (padrão em services/ot-cifra.ts).
+const livre = (max: number, min = 0) => z.string().trim().min(min).max(max).refine((s) => !ENDERECO_EM_TEXTO.test(s), 'Não informe IP nem MAC em campo de texto livre');
 const nome = livre(200, 1);
 const id = z.string().trim().min(1).max(100);
 const opcional = <T extends z.ZodTypeAny>(t: T) => t.nullable().optional();
@@ -41,7 +40,7 @@ const campoAtivo = {
   ip: opcional(z.string().trim().max(100).refine((s) => normalizarIp(s) !== null, 'IP inválido')),
   mac: opcional(z.string().trim().max(100).refine((s) => normalizarMac(s) !== null, 'MAC inválido')),
   protocolos_portas: z.array(z.object({
-    protocolo: z.string().trim().min(1).max(50),
+    protocolo: livre(50, 1),
     porta: z.number().int().min(0).max(65535).optional(),
   }).strict()).max(100).optional(),
   // Versão de firmware tem forma de IPv4 ("10.2.0.4"): fica fora da recusa de endereço.
@@ -56,7 +55,7 @@ const campoFluxo = {
   origem_zona_id: opcional(id),
   destino_ativo_id: opcional(id),
   destino_zona_id: opcional(id),
-  protocolo: opcional(z.string().trim().max(50)),
+  protocolo: opcional(livre(50)),
   porta: opcional(z.number().int().min(0).max(65535)),
   direcao: z.enum(['unidirecional', 'bidirecional']).optional(),
   finalidade: opcional(livre(500)),

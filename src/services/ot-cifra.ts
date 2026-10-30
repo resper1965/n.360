@@ -45,6 +45,19 @@ export async function hmacOt(chaves: ChavesOt, projectId: string, valorNormaliza
   return [...sig].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * IP ou MAC dentro de texto livre (P0-6, P0-7): IPv4, IPv6 (4+ grupos ou `::`), MAC com `:`, `-`, `.`, `_`, espaço ou sem
+ * separador. O limite olha só dígito/hex (lookaround), não `\b`: `_` e letra colada ("RTU_10.1.1.10", "IED10.1.1.10") separam.
+ */
+export const ENDERECO_EM_TEXTO = new RegExp([
+  String.raw`(?<!\d|\d\.)\d{1,3}(?:\.\d{1,3}){3}(?!\.?\d)`,
+  String.raw`(?<![0-9a-f:])(?:[0-9a-f]{1,4}:){4,7}[0-9a-f]{1,4}(?![0-9a-f:])`,
+  String.raw`[0-9a-f]{0,4}::[0-9a-f]{0,4}`,
+  String.raw`(?<![0-9a-f])[0-9a-f]{2}([:\- _])[0-9a-f]{2}(?:\1[0-9a-f]{2}){4}(?![0-9a-f])`,
+  String.raw`(?<![0-9a-f])[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}(?![0-9a-f])`,
+  String.raw`(?<![0-9a-f])[0-9a-f]{12}(?![0-9a-f])`,
+].join('|'), 'i');
+
 /** IPv4 sem zeros à esquerda ou IPv6 canônico (o do parser de URL da plataforma); null se não for IP. */
 export function normalizarIp(bruto: string): string | null {
   const s = bruto.trim();
