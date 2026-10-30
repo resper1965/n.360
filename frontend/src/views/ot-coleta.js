@@ -123,11 +123,13 @@ async function montarLote(c, a, id) {
     const itens = lista(r, 'itens');
     const emRevisao = lote.status === 'em_revisao';
     const criou = lote.criado_por === S.user?.id;
-    const decide = emRevisao && podeAprovarOt() && !criou;
+    // A API aprova só quem vê completo (podeAprovar = podeVerCompleto): item mascarado diz que não é o caso (o consultoria_admin não designado).
+    const aprova = podeAprovarOt() && !itens.some((i) => i.dados?.mascarado === true);
+    const decide = emRevisao && aprova && !criou;
     a.innerHTML = '<button class="btn" data-action="otVoltarLotes">Voltar aos lotes</button>'
         + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>Aprovar lote</button>` : '');
     const aviso = !emRevisao ? '' : criou ? 'Você criou este lote: a aprovação é de outra pessoa.'
-        : !podeAprovarOt() ? 'A aprovação é do Gestor ARCiber ou do consultor do projeto.' : 'Aprovar grava no inventário os itens sem erro (a possível duplicata é mesclada no ativo existente) e registra você como quem verificou (4.3.1). Itens com erro são recusados.';
+        : !aprova ? 'A aprovação é do Gestor ARCiber ou do consultor do projeto.' : 'Aprovar grava no inventário os itens sem erro (a possível duplicata é mesclada no ativo existente) e registra você como quem verificou (4.3.1). Itens com erro são recusados.';
     const erros = (xs) => (xs && xs.length ? `<ul class="m-0 t-perigo">${xs.map((x) => `<li>${escapeHTML(x.campo)}: ${escapeHTML(x.motivo)}</li>`).join('')}</ul>` : '—');
     c.innerHTML = `<h3 class="mb-2">Lote de ${escapeHTML((FONTE[lote.fonte] || lote.fonte).toLowerCase())} · ${escapeHTML(nomeDe(sites, lote.site_id))} ${selo(STATUS, lote.status)}</h3>
         <p class="org-dica mb-3">Criado em ${escapeHTML(formatarData(lote.created_at, { hora: true }))}.${lote.motivo ? ` Motivo: ${escapeHTML(lote.motivo)}` : ''} ${escapeHTML(aviso)}</p>

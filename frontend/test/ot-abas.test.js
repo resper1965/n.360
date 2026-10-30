@@ -334,8 +334,9 @@ describe('acesso por site', () => {
 describe('coleta', () => {
     // GET /lotes e GET /lotes/:id (serializarItem em services/ot-coleta.ts).
     const LOTE = { id: 'l1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', criado_por: 'u-tec', decidido_por: null, decidido_em: null, motivo: null, created_at: '2026-10-30 10:00:00', updated_at: '2026-10-30 10:00:00' };
+    // Como o Gestor ARCiber (org_admin) recebe: IP em claro, `mascarado: false` (podeVerCompleto).
     const ITEM = (id, linha, extra) => ({ id, linha, decisao: 'pendente', motivo: null, erros: [], possivel_duplicata: false,
-        dados: { zona_id: null, nome: `Item ${linha}`, tipo_dispositivo: 'RTU', fabricante: 'ACME', no_arciber: false, firmware_nao_aplicavel: false, protocolos_portas: [], ip: '•••', mac: null, mascarado: true }, ...extra });
+        dados: { zona_id: null, nome: `Item ${linha}`, tipo_dispositivo: 'RTU', fabricante: 'ACME', no_arciber: false, firmware_nao_aplicavel: false, protocolos_portas: [], ip: '10.0.0.5', mac: null, mascarado: false }, ...extra });
     const COLETA = { [`GET ${B}/sites`]: { sites: [SITE] }, [`GET ${B}/lotes`]: { lotes: [{ ...LOTE, itens: 2, com_erro: 1, gravados: 0 }] },
         [`GET ${B}/lotes/l1`]: { lote: LOTE, itens: [ITEM('i1', 2, { possivel_duplicata: true }), ITEM('i2', 3, { erros: [{ campo: 'mac', motivo: 'MAC inválido' }] })] } };
 
@@ -395,6 +396,20 @@ describe('coleta', () => {
             expect(acoes(el('a')), user.role).not.toContain('otAprovarLote');
             expect(acoes(el('a')), user.role).not.toContain('otRejeitarLote');
         }
+    });
+
+    it('consultoria_admin não designado (a API devolve o lote mascarado) não vê aprovar nem rejeitar; designado vê', async () => {
+        S.user = { id: 'ca', role: 'consultoria_admin' };
+        const mascarado = (id, linha) => ITEM(id, linha, { dados: { ...ITEM(id, linha).dados, ip: '•••', mascarado: true } });
+        servirOt({ ...COLETA, [`GET ${B}/lotes/l1`]: { lote: LOTE, itens: [mascarado('i1', 2), mascarado('i2', 3)] } });
+        S.otLote = 'l1';
+        await abrir('coleta');
+        expect(acoes(el('a'))).not.toContain('otAprovarLote');
+        expect(acoes(el('a'))).not.toContain('otRejeitarLote');
+        expect(texto()).toContain('A aprovação é do Gestor ARCiber ou do consultor do projeto.');
+        servirOt(COLETA);
+        await abrir('coleta');
+        expect(acoes(el('a'))).toEqual(expect.arrayContaining(['otAprovarLote', 'otRejeitarLote']));
     });
 
     it('403 na aprovação aparece claro, como falta de permissão', async () => {
