@@ -86,7 +86,12 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   casca `/ot` com uma tela (`views/ot.js`) em abas: catalogo, inventario (sites, zonas, ativos), fluxos, coleta (`views/ot-coleta.js`),
   saidas (`views/ot-saidas.js`) e acesso por site (so quem edita); papeis e formulario do ativo em `src/ot-comum.js`, que so ESCONDE o que
   a API recusaria. IP/MAC aparecem como a API devolve e ficam so na memoria da tela; "Revelar" (platform_admin, ativo mascarado) pede o
-  motivo e mostra o valor num modal que some em 30 s. A conformidade mostra so os tres estados do servidor (nunca "atende"). Item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
+  motivo e mostra o valor num modal que some em 30 s. **P1-1 (step-up):** revelar e exportar (`POST …/ot/exportacao`, com
+  `justificativa` no corpo) exigem o carimbo `totp_em` da sessao, gravado por `/auth/mfa/verify`, dos ultimos 10 min (403
+  `codigo: totp_necessario`, mesmo com SSO), justificativa sem IP/MAC em `audit_logs.justification`, teto por hora em `rate_limits`
+  (revelar 20/pessoa e 60/projeto; exportar 5/pessoa e 15/projeto; 429 `teto_por_hora`) e aviso ao Gestor ARCiber titular e suplente
+  (sino de quem alcanca o projeto e e-mail da governanca), tudo em `src/services/ot-stepup.ts`; a tela pede o codigo e repete
+  (`comStepUp` em `ot-comum.js`). A conformidade mostra so os tres estados do servidor (nunca "atende"). Item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
   o painel ainda nao tem bloco do n.ot (`views/painel.js` o ignora).
   Coleta (N3, migration 0092): `POST …/ot/lotes` (planilha CSV/XLSX em multipart, lida em memoria: nunca vai ao R2 nem a
   IA) e `POST …/ot/lotes/manual` (JSON) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
