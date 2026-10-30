@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0088** (`ls migrations/*.sql | tail -1`). São 86 arquivos
+- Última migration no repositório: **0091** (`ls migrations/*.sql | tail -1`). São 89 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -709,3 +709,7 @@ Refaz `tratamento_etapa_itens` (SQLite não altera CHECK) para aceitar a etapa `
 ## 0088 — gatilho de isolamento de `tratamento_etapa_itens` (2026-10-27)
 
 A 0087 refez a tabela (DROP + RENAME) e o DROP apaga os gatilhos dela: o `etapa_itens_do_projeto_ins` (0079) ficou de fora. Achado da revisão de segurança de 27/10; não houve caminho explorável (o código confere o item com `foraDoProjeto`), mas SQL direto deixou de ser recusado. A 0088 recria o gatilho, igual ao da 0079 e do `schema.sql` (aditiva, `IF NOT EXISTS`). Conferência depois: `SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'tratamento_etapa_itens'` lista o gatilho. **Regra que isto deixa:** migration que refaz tabela (DROP + RENAME) recria também os gatilhos dela; confira com `sqlite_master` antes de aplicar. Produção só com o "sim" do dono e `npm run db:backup` antes.
+
+## 0091 — inventário do n.ot (2026-10-30)
+
+Cria `ot_sites`, `ot_zonas`, `ot_ativos`, `ot_fluxos` e `ot_site_acessos` (spec `2026-10-30-n-ot-modulo-n360-design`, §6). Aditiva e repetível (`IF NOT EXISTS`); não toca tabela existente. As referências entre tabelas `ot_*` são FK compostas com o `project_id`; o CHECK `ot_ativos_4_3_1` recusa ativo do ARCiber sem os campos do 4.3.1; IP/MAC só entram na forma `ot1:` (cifrados pelo servidor). Antes de as rotas servirem ativos em produção: `wrangler secret put OT_INVENTARIO_KEY` e `OT_INVENTARIO_HMAC_KEY` (sem eles, 503). Conferência depois: `SELECT name FROM sqlite_master WHERE name LIKE 'ot_%'`. Produção só com o "sim" do dono e `npm run db:backup` antes.
