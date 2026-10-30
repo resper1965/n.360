@@ -417,20 +417,31 @@ describe('saídas', () => {
         expect(t).not.toMatch(/conform[ea]\b/i);
     });
 
-    it('exporta CSV por site com o token no cabeçalho, nunca no endereço', async () => {
-        servirOt({ ...SAIDAS, [`GET ${B}/exportacao`]: {} });
+    it('exporta CSV por site com justificativa no corpo (POST) e o token no cabeçalho, nunca no endereço', async () => {
+        servirOt(SAIDAS);
         const fetchExport = vi.fn(async () => ({ ok: true, status: 200, headers: { get: (h) => (h === 'content-disposition' ? 'attachment; filename="inventario-ot-2026-10-30.csv"' : null) }, blob: async () => new Blob(['a']) }));
         await abrir('saidas');
         vi.stubGlobal('fetch', fetchExport);
         URL.createObjectURL = vi.fn(() => 'blob:x');
         URL.revokeObjectURL = vi.fn();
         el('ot-exp-site').value = 's1';
-        await window.otExportar('csv');
+        const curto = window.otExportar('csv');
+        await pausa();
+        document.querySelector('.confirmar input').value = 'curto';
+        document.querySelector('[data-confirmar="sim"]').click();
+        await curto;
+        expect(fetchExport).not.toHaveBeenCalled();
+        const p = window.otExportar('csv');
+        await pausa();
+        document.querySelector('.confirmar input').value = 'Entrega do inventário ao ONS';
+        document.querySelector('[data-confirmar="sim"]').click();
+        await p;
         const [url, opts] = fetchExport.mock.calls[0];
         const u = new URL(url, 'http://localhost');
         expect(u.pathname).toBe(`${B}/exportacao`);
-        expect(u.searchParams.get('formato')).toBe('csv');
-        expect(u.searchParams.get('site_id')).toBe('s1');
+        expect(u.search).toBe('');
+        expect(opts.method).toBe('POST');
+        expect(JSON.parse(opts.body)).toEqual({ formato: 'csv', site_id: 's1', justificativa: 'Entrega do inventário ao ONS' });
         expect(url).not.toContain('tok');
         expect(opts.headers.Authorization).toBe('Bearer tok');
     });
@@ -442,5 +453,78 @@ describe('saídas', () => {
             await abrir('saidas');
             expect(acoes(el('c')), role).not.toContain('otExportar');
         }
+    });
+});
+
+// P1-1: revelar e exportar pedem TOTP dos últimos 10 min (403 totp_necessario), com teto por hora (429 teto_por_hora).
+describe('step-up de TOTP e teto por hora', () => {
+    const TOTP = { error: 'Confirme o código do seu autenticador (TOTP) para continuar', codigo: 'totp_necessario', totp_ativo: true };
+    /** Responde a `k` com `respostas` em ordem (status, corpo); o resto como servirOt. */
+    function emSequencia(k, respostas, rotas) {
+        const f = servirOt(rotas);
+        const base = f.getMockImplementation();
+        let i = 0;
+        f.mockImplementation(async (url, opts = {}) => {
+            const chave = `${opts.method || 'GET'} ${new URL(url, 'http://localhost').pathname}`;
+            if (chave === k && i < respostas.length) { chamadas.push({ k: chave, opts }); const [st, corpo] = respostas[i++]; return resposta(corpo, st); }
+            return base(url, opts);
+        });
+    }
+    const responder = async (valor) => { await pausa(); await pausa(); document.querySelector('.confirmar input').value = valor; document.querySelector('[data-confirmar="sim"]').click(); };
+
+    it('revelar sem TOTP recente pede o código, confirma em /auth/mfa/verify e repete a chamada', async () => {
+        S.user = { id: 'pa', role: 'platform_admin' };
+        const revelado = ativo('a1', 'RTU-01', 'z2', { ip: '10.9.8.7', mac: 'aa:bb:cc:dd:ee:ff', mascarado: false });
+        emSequencia(`POST ${B}/ativos/a1/revelar`, [[403, TOTP], [200, revelado]], { ...INVENTARIO, 'POST /api/v1/auth/mfa/verify': { ok: true, metodo: 'totp' } });
+        await abrir('inventario');
+        const p = window.otRevelar('a1');
+        await responder('Auditoria de campo do ONS');
+        await responder('123456');
+        await p;
+        const ks = chamadas.map((x) => x.k);
+        expect(ks.filter((k) => k === `POST ${B}/ativos/a1/revelar`)).toHaveLength(2);
+        const verify = chamadas.find((x) => x.k === 'POST /api/v1/auth/mfa/verify');
+        expect(JSON.parse(verify.opts.body)).toEqual({ codigo: '123456' });
+        expect(el('ot-revelado').textContent).toContain('10.9.8.7');
+    });
+
+    it('exportar sem TOTP recente pede o código e repete com a mesma justificativa', async () => {
+        emSequencia(`POST ${B}/exportacao`, [[403, TOTP]], { [`GET ${B}/indicadores`]: {}, [`GET ${B}/conformidade`]: { itens: [] }, [`GET ${B}/sites`]: { sites: [SITE] },
+            'POST /api/v1/auth/mfa/verify': { ok: true } });
+        await abrir('saidas');
+        const f = globalThis.fetch;
+        const download = { ok: true, status: 200, headers: { get: () => null }, blob: async () => new Blob(['a']) };
+        let exportacoes = 0;
+        vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => (url.endsWith('/exportacao') && exportacoes++ > 0 ? download : f(url, opts))));
+        URL.createObjectURL = vi.fn(() => 'blob:x');
+        URL.revokeObjectURL = vi.fn();
+        el('ot-exp-site').value = 's1';
+        const p = window.otExportar('xlsx');
+        await responder('Entrega do inventário ao ONS');
+        await responder('654321');
+        await p;
+        expect(exportacoes).toBe(2);
+        expect(chamadas.some((x) => x.k === 'POST /api/v1/auth/mfa/verify')).toBe(true);
+    });
+
+    it('conta sem TOTP ativo: diz para ativar o segundo fator, sem pedir código', async () => {
+        S.user = { id: 'pa', role: 'platform_admin' };
+        emSequencia(`POST ${B}/ativos/a1/revelar`, [[403, { ...TOTP, error: 'Esta ação exige o segundo fator (TOTP) do n.360: ative-o no seu perfil e tente de novo', totp_ativo: false }]], INVENTARIO);
+        await abrir('inventario');
+        const p = window.otRevelar('a1');
+        await responder('Auditoria de campo do ONS');
+        await p;
+        expect(chamadas.some((x) => x.k === 'POST /api/v1/auth/mfa/verify')).toBe(false);
+        expect(document.body.textContent).toMatch(/ative-o no seu perfil/);
+    });
+
+    it('429 mostra a mensagem do teto por hora', async () => {
+        S.user = { id: 'pa', role: 'platform_admin' };
+        emSequencia(`POST ${B}/ativos/a1/revelar`, [[429, { error: 'Limite por hora atingido: revelações de IP/MAC (20 por pessoa e 60 por projeto). Tente de novo mais tarde.', codigo: 'teto_por_hora' }]], INVENTARIO);
+        await abrir('inventario');
+        const p = window.otRevelar('a1');
+        await responder('Auditoria de campo do ONS');
+        await p;
+        expect(document.body.textContent).toContain('Limite por hora atingido');
     });
 });
