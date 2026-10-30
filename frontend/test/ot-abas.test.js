@@ -97,6 +97,22 @@ describe('inventário', () => {
         expect(texto()).not.toContain('RTU-01');
     });
 
+    it('trocar de projeto zera os filtros de site e zona e o lote aberto: o projeto B não abre vazio pelo filtro do A', async () => {
+        servirOt(INVENTARIO);
+        await abrir('inventario');
+        window.otFiltrarSite('s1');
+        window.otFiltrarZona('z2');
+        S.otLote = 'l-do-a';
+        const B2 = '/api/v1/projects/p8/ot';
+        S.activeProject = { id: 'p8', modulos: ['ot'] };
+        servirOt({ [`GET ${B2}/sites`]: { sites: [{ ...SITE, id: 's8', nome: 'SE Sul' }] }, [`GET ${B2}/zonas`]: { zonas: [] },
+            [`GET ${B2}/ativos`]: { ativos: [{ ...ATIVOS[0], id: 'a8', site_id: 's8', zona_id: null, nome: 'RTU-SUL' }] } });
+        await abrir('inventario');
+        expect(chamadas.filter((x) => x.k !== `GET ${B2}/sites`).map((x) => x.url.search)).toEqual(['', '']);
+        expect(texto()).toContain('RTU-SUL');
+        expect([S.otSite, S.otZona, S.otLote]).toEqual([null, null, null]);
+    });
+
     it('client e org_user não veem criar, editar nem remover', async () => {
         for (const role of ['client', 'org_user']) {
             S.user = { id: 'u', role };

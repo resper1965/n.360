@@ -29,6 +29,8 @@ async function renderOt(c, h, a) {
     h.innerHTML = 'n<span class="pn-ponto">.</span>ot';
     a.innerHTML = '';
     if (!proj()) { c.innerHTML = renderSemProjeto(); return; }
+    // Filtros e lote são do projeto: trocá-lo (seletor, aviso do sino) não pode levar o site do A para a consulta do B.
+    if (S.otProjeto !== proj().id) { S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; }
     const abas = abasDoPapel();
     const aba = abas.some(([v]) => v === S.otAba) ? S.otAba : 'catalogo';
     S.otAba = aba;
