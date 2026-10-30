@@ -205,6 +205,28 @@ describe('revelar IP/MAC', () => {
         expect(grava).not.toHaveBeenCalled();
         expect(window.location.href).not.toContain('10.9.8.7');
     });
+
+    it('o tempo de um "Revelar" antigo não fecha o modal do seguinte', async () => {
+        S.user = { id: 'pa', role: 'platform_admin' };
+        servirOt({ ...INVENTARIO, [`POST ${B}/ativos/a1/revelar`]: ativo('a1', 'RTU-01', 'z2', { ip: '10.9.8.7', mascarado: false }),
+            [`POST ${B}/ativos/a2/revelar`]: ativo('a2', 'IHM-02', 'z3', { ip: '10.1.1.2', mascarado: false }) });
+        await abrir('inventario');
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        const revelar = async (id) => {
+            const p = window.otRevelar(id);
+            await Promise.resolve();
+            document.querySelector('.confirmar input').value = 'Auditoria de campo do ONS';
+            document.querySelector('[data-confirmar="sim"]').click();
+            await p;
+        };
+        await revelar('a1');
+        vi.advanceTimersByTime(20000);
+        await revelar('a2');
+        vi.advanceTimersByTime(15000);
+        expect(el('ot-revelado').textContent).toContain('10.1.1.2');
+        vi.advanceTimersByTime(15000);
+        expect(el('ot-revelado')).toBeNull();
+    });
 });
 
 describe('IA: rascunho que a pessoa confirma', () => {

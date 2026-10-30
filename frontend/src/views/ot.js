@@ -216,6 +216,7 @@ window.otRemover = async (rota, id) => {
 // Revelar (platform_admin, spec §5): motivo obrigatório para a trilha, TOTP dos últimos 10 min (comStepUp, P1-1); o valor aparece só neste modal e some em 30 s. Fica numa
 // variável local da chamada, nunca em S, storage, endereço ou na tabela.
 const TEMPO_REVELADO = 30000;
+let tempoRevelado = null; // um só: o tempo de um "Revelar" antigo não fecha o modal do seguinte
 window.otRevelar = async (id) => {
     const motivo = await pedirTexto('Por que revelar o IP e o MAC deste ativo? O motivo vai para a trilha de auditoria (mínimo de 10 caracteres).',
         { titulo: 'Revelar IP/MAC', rotulo: 'Revelar' });
@@ -230,7 +231,8 @@ window.otRevelar = async (id) => {
         <p class="org-dica mt-3">O acesso foi registrado na trilha. Este valor some da tela em 30 segundos e não é guardado.</p>
         <div class="acoes-rodape"><button class="btn" data-action="forceCloseModal">Fechar</button></div>`);
     r = null;
-    setTimeout(() => {
+    clearTimeout(tempoRevelado);
+    tempoRevelado = setTimeout(() => {
         const box = el('ot-revelado');
         if (!box) return;
         el('modal-content').innerHTML = '';
