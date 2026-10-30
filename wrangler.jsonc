@@ -115,6 +115,9 @@
 	// `npx wrangler secret put TOKEN_ENC_KEY`. Sem ele, o token é gravado em texto
 	// claro (fallback legado). Após provisionar, rode uma vez
 	// `POST /api/v1/projects/admin/encrypt-tokens` (platform_admin) para migrar o legado.
+	// OT_INVENTARIO_KEY e OT_INVENTARIO_HMAC_KEY (segredos) cifram e indexam o IP/MAC do inventário do n.ot:
+	// `npx wrangler secret put OT_INVENTARIO_KEY` e `npx wrangler secret put OT_INVENTARIO_HMAC_KEY`. Sem eles, as rotas
+	// de ativos do n.ot respondem 503.
 	"vars": {
 		"ENVIRONMENT": "production",
 		// Endereço canônico (src/config/url.ts): links de e-mail, base do SCIM, CORS e

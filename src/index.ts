@@ -116,6 +116,11 @@ export type Bindings = {
    *  removido. Documentação que descreve um risco que já não existe é tão ruim
    *  quanto a que esconde um que existe: manda procurar no lugar errado. */
   TOKEN_ENC_KEY?: string;
+  /** Cifra (AES-GCM, `ot1:<kid>:`) e HMAC do IP/MAC do inventário do n.ot (`services/ot-cifra.ts`, modelo de ameaças P0-8).
+   *  Secrets: `npx wrangler secret put OT_INVENTARIO_KEY` e `npx wrangler secret put OT_INVENTARIO_HMAC_KEY`.
+   *  Sem qualquer um, as rotas de ativos do n.ot respondem 503 (falha fechada). Trocar a chave de HMAC quebra o dedupe. */
+  OT_INVENTARIO_KEY?: string;
+  OT_INVENTARIO_HMAC_KEY?: string;
   ENVIRONMENT?: string;
   /** Endereço canônico deste ambiente (`src/config/url.ts`). Sem ele, o de produção. */
   APP_URL?: string;
