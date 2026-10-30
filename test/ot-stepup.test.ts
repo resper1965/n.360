@@ -184,6 +184,26 @@ describe('P1-1: aviso ao Gestor ARCiber (titular e suplente)', () => {
     expect(JSON.stringify(n)).not.toContain(IP1);
   });
 
+  it('aviso que não chega fica na trilha (aviso_gestor: falhou | nenhum) e a ação segue', async () => {
+    await limparTetos();
+    const h = await sessionFor({ id: 'u-pa', email: 'pa@ness.lat', role: 'platform_admin', totp_em: Date.now() });
+    const aviso = async () => (await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'ot.aviso_gestor' ORDER BY rowid DESC LIMIT 1`).first<{ details: string }>())?.details;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{}', { status: 500 }));
+    expect((await chamar(h, 'POST', `${P}/ativos/${ids.a1}/revelar`, { justificativa: MOTIVO }, { RESEND_API_KEY: 're_teste' })).status).toBe(200);
+    expect(await aviso()).toMatch(/aviso_gestor: falhou/);
+    vi.restoreAllMocks();
+    const gov = await env.DB.prepare(`SELECT * FROM project_governance WHERE project_id = 'proj-a' AND job_title = 'Gestor ARCiber'`).all();
+    await env.DB.prepare(`DELETE FROM project_governance WHERE project_id = 'proj-a' AND job_title = 'Gestor ARCiber'`).run();
+    try {
+      expect((await chamar(h, 'POST', `${P}/ativos/${ids.a1}/revelar`, { justificativa: MOTIVO })).status).toBe(200);
+      expect(await aviso()).toMatch(/aviso_gestor: nenhum/);
+      expect(await aviso()).not.toContain(IP1);
+    } finally {
+      await env.DB.batch(gov.results.map((g: any) => env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title, is_primary) VALUES (?, ?, ?, ?, ?, ?)`)
+        .bind(g.project_id, g.name, g.email, g.role_category, g.job_title, g.is_primary)));
+    }
+  });
+
   it('recusa (sem TOTP, teto) não avisa', async () => {
     await revelar(plat);
     await exportar(semTotp);

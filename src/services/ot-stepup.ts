@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { createNotification, enviarEmail, rateLimitD1 } from '../helpers';
+import { createNotification, enviarEmail, logAudit, rateLimitD1 } from '../helpers';
+import { CARGO_GESTOR_ARCIBER } from './ot-conformidade';
 import { appUrl } from '../config/url';
 import { emailAvisoOtSensivel } from './emails';
 import { pessoasDoProjeto } from './avisos-prazo';
@@ -50,23 +51,29 @@ export async function tetoEstourado(c: C, acao: AcaoSensivel, projectId: string)
  * Aviso ao Gestor ARCiber do projeto (titular e suplente em `project_governance`, cargo "Gestor ARCiber"): no sino (`notifications`) de
  * quem tem conta que alcança o projeto (a regra de `pessoasDoProjeto`) e por e-mail ao endereço cadastrado na governança. O texto leva
  * quem, o quê e a justificativa (que recusa IP/MAC), nunca IP, MAC nem nome de ativo (P1-7). Devolve quantos gestores foram avisados.
+ * Falha aberta por decisão (a ação não espera o aviso), mas nunca em silêncio: sem gestor cadastrado ou com e-mail que não saiu, a trilha
+ * registra `ot.aviso_gestor` com `aviso_gestor: nenhum | falhou`.
  */
 export async function avisarGestorArciber(c: C, projectId: string, oQue: string, justificativa: string): Promise<number> {
   const db = c.env.DB;
   const { results: gestores } = await db.prepare(`SELECT name, email FROM project_governance
-    WHERE project_id = ? AND lower(trim(job_title)) = 'gestor arciber' AND coalesce(trim(email), '') <> '' ORDER BY is_primary DESC`)
+    WHERE project_id = ? AND ${CARGO_GESTOR_ARCIBER} AND coalesce(trim(email), '') <> '' ORDER BY is_primary DESC`)
     .bind(projectId).all<{ name: string; email: string }>();
-  if (!gestores.length) return 0;
   const quem = c.get('user').email;
+  const registrar = (como: 'nenhum' | 'falhou') => logAudit(db, 'ot.aviso_gestor', quem, `aviso_gestor: ${como} (${quem} ${oQue})`, justificativa,
+    c.req.header('CF-Connecting-IP') ?? '', projectId);
+  if (!gestores.length) { await registrar('nenhum'); return 0; }
   const titulo = 'n.ot: revelação ou exportação do inventário de OT';
   const mensagem = `${quem} ${oQue}. Justificativa: ${justificativa}`;
   const contas = await pessoasDoProjeto(db, projectId);
   const email = emailAvisoOtSensivel({ quem, oQue, justificativa, url: appUrl(c.env) });
+  let falhas = 0;
   for (const g of gestores) {
     for (const p of contas.filter((x) => x.email.toLowerCase() === g.email.trim().toLowerCase())) {
       await createNotification(db, 'ot_acesso_sensivel', titulo, mensagem, p.id, `/projects/${projectId}/ot`);
     }
-    await enviarEmail(c.env, g.email.trim(), email.assunto, email);
+    if (!(await enviarEmail(c.env, g.email.trim(), email.assunto, email))) falhas++;
   }
+  if (falhas) await registrar('falhou');
   return gestores.length;
 }

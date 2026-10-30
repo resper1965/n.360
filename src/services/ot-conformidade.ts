@@ -4,6 +4,8 @@
 // registra o que o item pede". Item que o inventário não cobre fica `sem_evidencia`. Tudo filtrado pelos sites permitidos (P0-4).
 import { FLUXO_VISIVEL } from './ot-inventario';
 
+/** Cargo do Gestor ARCiber em `project_governance` (spec §3): a mesma regra no 4.2.1 e no aviso do step-up (ot-stepup.ts). */
+export const CARGO_GESTOR_ARCIBER = `lower(trim(job_title)) = 'gestor arciber'`;
 export type Situacao = 'nao_atende' | 'evidencia_no_inventario' | 'sem_evidencia';
 const VIGENCIA = '2021-07-09'; // RO-CB.BR.01 Rev.00
 const NO_SITE = 'site_id IN (SELECT value FROM json_each(?))';
@@ -22,7 +24,7 @@ export async function conformidadeOt(db: D1Database, projectId: string, sites: s
       FROM ot_ativos WHERE project_id = ? AND status = 'ativo' AND no_arciber = 1 AND ${NO_SITE}`).bind(projectId, sites),
     // 4.2.1: gestor e suplente em project_governance, cargo "Gestor ARCiber" (spec §3): titular is_primary = 1, suplente 0.
     db.prepare(`SELECT coalesce(sum(is_primary = 1), 0) AS titular, coalesce(sum(coalesce(is_primary, 0) = 0), 0) AS suplente FROM project_governance
-      WHERE project_id = ? AND lower(trim(job_title)) = 'gestor arciber'`).bind(projectId),
+      WHERE project_id = ? AND ${CARGO_GESTOR_ARCIBER}`).bind(projectId),
   ]);
   const z = (zonas.results[0] as { n: number }).n;
   const f = fluxos.results[0] as { externos: number; sem_vpn: number };
