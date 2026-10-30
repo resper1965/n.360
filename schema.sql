@@ -1312,17 +1312,17 @@ CREATE INDEX IF NOT EXISTS idx_avisos_prazo_email ON avisos_prazo(email_enviado_
 -- ─── Núcleo do n.privacy, fatia 1.1 (migration 0047) ───
 CREATE TABLE IF NOT EXISTS projeto_modulos (
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy')),
+    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy', 'ot')),
     habilitado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     habilitado_por TEXT NOT NULL DEFAULT 'sistema',
     PRIMARY KEY (project_id, modulo)
 );
--- Módulo inicial do projeto novo = o contrato da organização (0060; antes, sempre `iso`).
+-- Módulo inicial do projeto novo = o contrato da organização (0060; antes, sempre `iso`). `ot` desde a 0089.
 CREATE TRIGGER IF NOT EXISTS projeto_modulos_do_contrato AFTER INSERT ON projects
 BEGIN
     INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por)
         SELECT NEW.id, j.value, 'sistema' FROM organizations o, json_each(CASE WHEN json_valid(o.modulos_contratados) THEN o.modulos_contratados ELSE '[]' END) j
-         WHERE o.id = NEW.org_id AND j.value IN ('iso', 'privacy');
+         WHERE o.id = NEW.org_id AND j.value IN ('iso', 'privacy', 'ot');
     INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por)
         SELECT NEW.id, 'iso', 'sistema' WHERE NOT EXISTS (SELECT 1 FROM projeto_modulos WHERE project_id = NEW.id);
 END;
@@ -1865,17 +1865,18 @@ CREATE INDEX IF NOT EXISTS idx_importacao_itens_projeto ON importacao_itens(proj
 -- ─── n.360, fatia 3: módulos por pessoa (migration 0066) ───
 CREATE TABLE IF NOT EXISTS usuario_modulos (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy')),
+    modulo TEXT NOT NULL CHECK (modulo IN ('iso', 'privacy', 'ot')),
     concedido_por TEXT,
     concedido_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, modulo)
 );
 -- Conta nova recebe o padrão (cliente: os módulos do projeto; equipe: o contrato da organização, ou n.iso). Ver a 0066.
+-- `ot` nunca vem por padrão, só por concessão explícita (0089; SCIM do cliente cria conta).
 CREATE TRIGGER IF NOT EXISTS usuario_modulos_padrao AFTER INSERT ON users
 BEGIN
     INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
         SELECT NEW.id, pm.modulo, 'padrao' FROM projeto_modulos pm
-         WHERE pm.project_id = NEW.client_project_id
+         WHERE pm.project_id = NEW.client_project_id AND pm.modulo IN ('iso', 'privacy')
            AND NEW.role IN ('org_admin', 'org_user', 'client', 'client_admin', 'user', 'employee');
     INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por)
         SELECT NEW.id, j.value, 'padrao' FROM organizations o,
