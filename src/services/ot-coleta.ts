@@ -7,7 +7,7 @@ import { genId } from '../helpers';
 import { otAtivoCriarSchema, TETO_ITENS_LOTE } from '../schemas/ot';
 import { chave } from './tratamentos-importar';
 import { aadOt, cifrarEnderecos, cifrarOt, decifrarOt, type ChavesOt } from './ot-cifra';
-import { serializarAtivo, type LinhaAtivo } from './ot-inventario';
+import { serializarAtivo, TETO_LEITURA_OT, type LinhaAtivo } from './ot-inventario';
 
 export const TETO_ITENS = TETO_ITENS_LOTE;
 export const TETO_LOTES_DIA = 20;
@@ -135,10 +135,11 @@ export function indice(ativos: Existente[]) {
 const COLS_ATIVO = ['zona_id', 'nome', 'no_arciber', 'categoria_arciber', 'tipo_dispositivo', 'fabricante', 'modelo', 'funcao', 'ip_cifrado', 'mac_cifrado',
   'ip_hash', 'mac_hash', 'protocolos_portas', 'firmware_so_versao', 'firmware_nao_aplicavel'] as const;
 export const ativosDoSite = (db: D1Database, projectId: string, siteId: string) =>
-  db.prepare(`SELECT id, ${COLS_ATIVO.join(', ')}, updated_at FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo'`).bind(projectId, siteId).all<Existente>();
+  db.prepare(`SELECT id, ${COLS_ATIVO.join(', ')}, updated_at FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo'
+    LIMIT ${TETO_LEITURA_OT}`).bind(projectId, siteId).all<Existente>();
 
 export async function zonasDoSite(db: D1Database, projectId: string, siteId: string) {
-  const z = await db.prepare(`SELECT id, nome FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo'`).bind(projectId, siteId).all<{ id: string; nome: string }>();
+  const z = await db.prepare(`SELECT id, nome FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId, siteId).all<{ id: string; nome: string }>();
   return new Map(z.results.map((x) => [chave(x.nome), x.id]));
 }
 
@@ -233,7 +234,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   const [{ results: itens }, ativos, zonas] = await Promise.all([
     db.prepare(`SELECT id, project_id, linha, dados, erros, duplicata_de, decisao, motivo, registro_id, updated_at FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente' ORDER BY linha`).bind(loteId).all<LinhaItem>(),
     ativosDoSite(db, projectId, lote.site_id),
-    db.prepare(`SELECT id FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo'`).bind(projectId, lote.site_id).all<{ id: string }>(),
+    db.prepare(`SELECT id FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lote.site_id).all<{ id: string }>(),
   ]);
   const zonasAtivas = new Set(zonas.results.map((z) => z.id));
   const idx = indice(ativos.results);

@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import { chavesOt } from '../src/services/ot-cifra';
 import { prepararAchado, confrontar, enviarAoLote } from '../src/services/ot-levantamento';
 import { applySchema, seedTwoProjects, habilitarOt, workerEnv } from './helpers/d1';
+import { comTeto } from '../src/middleware/query-cap';
 
 const chaves = chavesOt(workerEnv())!;
 beforeAll(async () => {
@@ -26,6 +27,17 @@ describe('achado: cifra própria, confronto no site, envio ao lote', () => {
     await env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_cifrado, ip_hash) VALUES ('at-1', 'proj-a', 's1', 'RTU', ?, ?)`).bind(a.dados.ip_cifrado, a.dados.ip_hash).run();
     expect(await confrontar(env.DB, 'proj-a', 's1', a.dados)).toEqual({ confronto: 'confirma', alvo_id: 'at-1' });
     expect(await confrontar(env.DB, 'proj-a', 's2', a.dados)).toEqual({ confronto: 'novo', alvo_id: null });
+  });
+
+  it('site com 600 ativos: o 600º confirma pelo IP (o teto de 500 do query-cap não corta o índice)', async () => {
+    const a = await prepararAchado(chaves, 'proj-a', 's3', 'tmp', { nome: 'X', ip: '10.6.2.88' });
+    await env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('s3', 'proj-a', 'SE Grande')`).run();
+    await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 599)
+      INSERT INTO ot_ativos (id, project_id, site_id, nome) SELECT 'massa-at-'||i, 'proj-a', 's3', 'Ativo '||i FROM n`).run();
+    await env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_cifrado, ip_hash) VALUES ('at-600', 'proj-a', 's3', 'RTU 600', ?, ?)`)
+      .bind(a.dados.ip_cifrado, a.dados.ip_hash).run();
+    // comTeto: o D1 que as rotas recebem (src/index.ts), com o LIMIT 500 automático.
+    expect(await confrontar(comTeto(env.DB), 'proj-a', 's3', a.dados)).toEqual({ confronto: 'confirma', alvo_id: 'at-600' });
   });
 
   it('enviarAoLote cria lote manual ligado à sessão e marca os achados como enviados', async () => {
