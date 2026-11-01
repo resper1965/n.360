@@ -184,6 +184,7 @@ const ORIENTACAO: Record<FerramentaDecisao, string> = {
   niso_registrar_revogacao: 'Registra que o titular revogou o consentimento (não apaga a prova).',
   niso_importar_programa: 'Conduz a importação do programa: lê lotes, processa arquivo enviado pela interface, edita e decide itens, confirma a gravação ou cancela. Todas as ações exigem confirmado_pelo_usuario e motivo: mesmo a leitura pede o motivo.',
   niso_padronizar_nomes: 'Padroniza nomes de partes, áreas e ativos: "propostas" lista o que mudaria, "padronizar" aplica os itens escolhidos.',
+  niso_editar_catalogo: 'Altera item do catálogo do projeto ("tipo": titulares, dados, medidas ou motivos-risco): nome, sensível (só dado), descrição ou status. Marcar ou desmarcar dado sensível muda a base exigida nas atividades que usam o dado (art. 11 da LGPD).',
 };
 
 const DECISAO_FERRAMENTAS: Ferramenta[] = FERRAMENTAS_DE_DECISAO.map((nome) => {

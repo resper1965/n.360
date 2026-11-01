@@ -113,7 +113,7 @@ describe('ferramentas nomeadas do n.privacy (MCP remoto)', () => {
     for (const n of LEITURA) expect(aud, n).toContain(n);
     for (const n of ESCRITA) expect(aud, n).not.toContain(n);
     // Contagem citada em docs/agente/README.md e mcp-server-niso/README.md.
-    expect([cons.length, aud.length]).toEqual([50, 22]);
+    expect([cons.length, aud.length]).toEqual([51, 22]);
   });
 
   it('propor_tratamento cria em Draft com os campos da entrevista e a base do catálogo; não aceita status', async () => {
