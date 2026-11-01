@@ -8,7 +8,7 @@ import {
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
 } from '../schemas/ot';
 import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
-import { FLUXO_VISIVEL, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
@@ -555,7 +555,7 @@ otApp.get('/levantamentos', async (c) => {
     const { db, projectId, sites } = await contexto(c);
     const site = c.req.query('site_id');
     const { results } = await db.prepare(`SELECT ${LEV_COLS}, (SELECT count(*) FROM ot_achados a WHERE a.levantamento_id = l.id AND a.situacao <> 'descartado') AS achados
-      FROM ot_levantamentos l WHERE project_id = ? AND status = 'ativo' AND ${NO_SITE} ${site ? 'AND site_id = ?' : ''} ORDER BY realizado_em DESC, created_at DESC`)
+      FROM ot_levantamentos l WHERE project_id = ? AND status = 'ativo' AND ${NO_SITE} ${site ? 'AND site_id = ?' : ''} ORDER BY realizado_em DESC, created_at DESC LIMIT ${TETO_LEITURA_OT}`)
       .bind(...[projectId, sites, ...(site ? [site] : [])]).all();
     return c.json({ levantamentos: results.map((l) => ({ ...l, roteiro: JSON.parse(String(l.roteiro)) })) });
   } catch (e) { return erro500(c, 'Falha ao listar os levantamentos', e); }

@@ -2,6 +2,7 @@ import type { ChavesOt } from './ot-cifra';
 import { aadOt, decifrarOt } from './ot-cifra';
 import { ativosDoSite, criarLote, indice, prepararItem, zonasDoSite } from './ot-coleta';
 import { serializarAtivo, type LinhaAtivo } from './ot-inventario';
+import { temPii } from './rascunhos-privacy';
 
 // Descoberta operacional (spec 2026-11-01, L1). O achado usa a MESMA validação do item de lote (prepararItem), com a AAD de
 // ot_achados; o confronto usa o MESMO índice da deduplicação, só no site da sessão (sem oráculo, P0-5); o envio decifra e
@@ -15,7 +16,15 @@ export interface LinhaAchado {
 /** Valida e cifra. O "nome obrigatório" e a falta do 4.3.1 ficam em `erros` como aviso: achado é rascunho e pode estar incompleto. */
 export async function prepararAchado(chaves: ChavesOt, projectId: string, _siteId: string, achadoId: string, dados: Record<string, unknown>,
   zonas: Map<string, string> = new Map()) {
-  return prepararItem(chaves, projectId, achadoId, dados, zonas, 'ot_achados');
+  const r = await prepararItem(chaves, projectId, achadoId, dados, zonas, 'ot_achados');
+  // O achado é texto de entrevista: campo de texto com CPF, e-mail ou telefone vira erro e não é gravado (mesma regra das notas).
+  for (const [campo, v] of Object.entries(r.dados)) {
+    if (typeof v === 'string' && !campo.endsWith('_cifrado') && !campo.endsWith('_hash') && temPii(v)) {
+      delete r.dados[campo];
+      r.erros.push({ campo, motivo: 'Não informe CPF, e-mail nem telefone' });
+    }
+  }
+  return r;
 }
 
 /** Índice dos ativos do site: monte uma vez por requisição e passe a `confrontar` (uma leitura, não uma por achado). */

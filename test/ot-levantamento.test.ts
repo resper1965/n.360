@@ -166,3 +166,23 @@ describe('achados: confronto sem oráculo e envio ao lote', () => {
     expect(await env.DB.prepare('SELECT status FROM ot_levantamentos WHERE id = ?').bind(ids.lev2).first()).toEqual({ status: 'removido' });
   });
 });
+
+describe('revisão do Codex no PR #539', () => {
+  it('campo de texto do achado com e-mail, CPF ou telefone vira erro e não é gravado', async () => {
+    const lev = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-01' });
+    const r = await chamar(cons, 'POST', `${P}/levantamentos/${lev}/achados`, { dados: { nome: 'Notebook IHM', fabricante: 'ana@empresa.com.br' }, evidencia: 'notebook na IHM' });
+    expect(r.status, await r.clone().text()).toBe(201);
+    const { id, erros } = await r.json<{ id: string; erros: { campo: string }[] }>();
+    expect(erros.map((e) => e.campo)).toContain('fabricante');
+    const linha = await env.DB.prepare('SELECT dados FROM ot_achados WHERE id = ?').bind(id).first<{ dados: string }>();
+    expect(linha!.dados).not.toContain('ana@empresa');
+  });
+
+  it('a lista de levantamentos não para em 500 (teto automático de leitura)', async () => {
+    await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 600)
+      INSERT INTO ot_levantamentos (id, project_id, site_id, tipo, realizado_em, criado_por) SELECT 'lev-massa-'||i, 'proj-a', ?, 'visita', '2026-10-01', 'u' FROM n`).bind(ids.s1).run();
+    const r = await chamar(cons, 'GET', `${P}/levantamentos`);
+    const { levantamentos } = await r.json<{ levantamentos: { id: string }[] }>();
+    expect(levantamentos.filter((l) => l.id.startsWith('lev-massa-')).length).toBe(600);
+  });
+});
