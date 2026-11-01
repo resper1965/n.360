@@ -157,4 +157,15 @@ describe('o agente organiza, mas não decide', () => {
     expect((await ler(d.id)).status).toBe('vigente');
     expect((await comoAgente('PUT', `${A}/documentos/${d.id}`, { titulo: 'Reorganizado pelo agente' })).status).toBe(200);
   });
+
+  it('versão gravada pelo agente sai com origem agente, mesmo que o corpo diga humano', async () => {
+    const r = await comoAgente('POST', `${A}/documentos`, { tipo: 'politica', titulo: 'Escrita pelo agente', texto: 'v1' });
+    expect(r.status).toBe(201);
+    const id = (await json<{ id: string }>(r)).id;
+    const origem = async (n: number) => (await env.DB.prepare('SELECT origem FROM documento_versoes WHERE documento_id = ? AND numero = ?').bind(id, n).first<{ origem: string }>())?.origem;
+    expect(await origem(1)).toBe('agente');
+    await publicar(id);
+    expect((await comoAgente('POST', `${A}/documentos/${id}/versoes`, { texto: 'v2', origem: 'humano' })).status).toBe(201);
+    expect(await origem(2)).toBe('agente');
+  });
 });

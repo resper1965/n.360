@@ -25,7 +25,7 @@ beforeAll(async () => {
 }, 60_000);
 
 describe('ferramentas de decisão', () => {
-  it('o consultor vê as dez; o auditor nenhuma', async () => {
+  it('o consultor vê as onze; o auditor nenhuma', async () => {
     const nomes = (await listarFerramentas(token)).map((t) => t.name);
     for (const f of FERRAMENTAS_DE_DECISAO) expect(nomes).toContain(f);
     const doAuditor = (await listarFerramentas(tokenAuditor)).map((t) => t.name);
