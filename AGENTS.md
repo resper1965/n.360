@@ -110,8 +110,10 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   documento, roteiro de 15 perguntas (`GET …/ot/roteiro`), achados confrontados com o inventario e enviados ao lote existente
   (`/levantamentos*`, incl. `…/:id/achados` e `…/:id/enviar`; `POST …/ot/lotes` aceita `levantamento_id` para sessoes de documento).
   Operador so por funcao e turno; texto livre recusa IP/MAC/CPF/e-mail/telefone; o confronto com o inventario so sai para quem
-  `podeVerCompleto`; achado so entra no inventario por lote aprovado. Retencao: achados 30 dias e `enviado` sem lote volta a
-  rascunho apos 1 dia (`src/manutencao.ts`). Leituras com `LIMIT` explicito (`TETO_LEITURA_OT`) por causa do teto de 500 linhas
+  `podeVerCompleto`; achado so entra no inventario por lote aprovado; a leitura sem mascara da sessao vai a trilha
+  (`ot.inventario.ver_sensivel`). Retencao (`src/manutencao.ts`): descartado sai em 30 dias; rascunho de sessao encerrada ha
+  30 dias sai; rascunho de sessao aberta nao expira; `enviado` sem lote, de lote rejeitado ou de lote apagado volta a rascunho
+  apos 1 dia. Chaves do `roteiro` so as de `ot_roteiro_perguntas` (400 nas demais). Leituras com `LIMIT` explicito (`TETO_LEITURA_OT`) por causa do teto de 500 linhas
   da consulta. Frontend: aba Levantamento (`views/ot-levantamento.js`) com notas em autosave, roteiro para achado, aba inicial
   por papel, confirmacoes com o conteudo e contagem nas abas.
 - **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
