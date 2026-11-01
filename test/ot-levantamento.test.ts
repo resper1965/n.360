@@ -121,6 +121,26 @@ describe('achados: confronto sem oráculo e envio ao lote', () => {
     expect((await enviar(ids.lev1)).status).toBe(400); // lev1 é entrevista
   });
 
+  it('sessão documental não perde o título: documento_titulo null é 400', async () => {
+    const doc = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'documento', realizado_em: '2026-11-01', documento_titulo: 'Diagrama de rede' });
+    expect((await chamar(cons, 'PUT', `${P}/levantamentos/${doc}`, { documento_titulo: null })).status).toBe(400);
+    expect((await chamar(cons, 'PUT', `${P}/levantamentos/${ids.lev1}`, { documento_titulo: null })).status).toBe(200); // entrevista: título opcional
+  });
+
+  it('1.500 achados em rascunho: GET com confronto em todos, sem uma consulta por achado', async () => {
+    const lev = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-02' });
+    await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 1500)
+      INSERT INTO ot_achados (id, project_id, levantamento_id, dados, evidencia, criado_por) SELECT 'muitos-'||i, 'proj-a', ?, '{"nome":"RTU 1"}', 'x', 'u' FROM n`).bind(lev).run();
+    let consultas = 0;
+    const db = new Proxy(env.DB, { get: (t, k) => k === 'prepare' ? (sql: string) => { consultas++; return t.prepare(sql); } : Reflect.get(t, k).bind?.(t) ?? Reflect.get(t, k) });
+    const r = await app.fetch(new Request(`http://localhost${P}/levantamentos/${lev}`, { headers: cons }), { ...workerEnv(), DB: db });
+    expect(r.status).toBe(200);
+    const { achados } = await r.json<{ achados: { confronto?: string }[] }>();
+    expect(achados).toHaveLength(1500);
+    expect(achados.every((a) => a.confronto === 'novo' || a.confronto === 'confirma')).toBe(true);
+    expect(consultas).toBeLessThan(50);
+  });
+
   it('remoção é lógica: some da lista e do GET', async () => {
     expect((await chamar(cons, 'DELETE', `${P}/levantamentos/${ids.lev2}`)).status).toBe(200);
     expect((await chamar(cons, 'GET', `${P}/levantamentos/${ids.lev2}`)).status).toBe(404);

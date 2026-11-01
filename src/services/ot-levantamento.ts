@@ -18,9 +18,12 @@ export async function prepararAchado(chaves: ChavesOt, projectId: string, _siteI
   return prepararItem(chaves, projectId, achadoId, dados, zonas, 'ot_achados');
 }
 
-export async function confrontar(db: D1Database, projectId: string, siteId: string, dados: Record<string, unknown>) {
-  const idx = indice((await ativosDoSite(db, projectId, siteId)).results);
-  const alvo = idx.achar(dados);
+/** Índice dos ativos do site: monte uma vez por requisição e passe a `confrontar` (uma leitura, não uma por achado). */
+export const indiceDoSite = async (db: D1Database, projectId: string, siteId: string) => indice((await ativosDoSite(db, projectId, siteId)).results);
+
+export async function confrontar(db: D1Database, projectId: string, siteId: string, dados: Record<string, unknown>,
+  idx?: Awaited<ReturnType<typeof indiceDoSite>>) {
+  const alvo = (idx ?? await indiceDoSite(db, projectId, siteId)).achar(dados);
   return alvo ? { confronto: 'confirma' as const, alvo_id: alvo.id } : { confronto: 'novo' as const, alvo_id: null };
 }
 

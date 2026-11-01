@@ -72,7 +72,8 @@ describe('achado: cifra própria, confronto no site, envio ao lote', () => {
       VALUES ('ach-preso', 'proj-a', 'lev', '{}', 'x', 'enviado', 'u', datetime('now', '-2 days')),
              ('ach-em-curso', 'proj-a', 'lev', '{}', 'x', 'enviado', 'u', datetime('now'))`).run();
     const { manutencaoDiaria } = await import('../src/manutencao');
-    await manutencaoDiaria(env as any);
+    const r = await manutencaoDiaria(env as any);
+    expect(r.retencao.ot_achados_revertidos).toBe(1);
     expect(await env.DB.prepare(`SELECT situacao, lote_id FROM ot_achados WHERE id = 'ach-preso'`).first()).toEqual({ situacao: 'rascunho', lote_id: null });
     expect(await env.DB.prepare(`SELECT situacao FROM ot_achados WHERE id = 'ach-em-curso'`).first()).toEqual({ situacao: 'enviado' });
   });

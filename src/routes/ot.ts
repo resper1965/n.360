@@ -13,7 +13,7 @@ import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem,
 import { LIMITES_PLANILHA, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
-import { confrontar, enviarAoLote, prepararAchado, serializarAchado, zonasDoSite, type LinhaAchado } from '../services/ot-levantamento';
+import { confrontar, enviarAoLote, indiceDoSite, prepararAchado, serializarAchado, zonasDoSite, type LinhaAchado } from '../services/ot-levantamento';
 
 /** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
 export const otApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -576,11 +576,14 @@ otApp.get('/levantamentos/:id', async (c) => {
     if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
     const completo = await podeVerCompleto(db, user, projectId);
     const chaves = chavesOt(c.env)!;
-    const { results } = await db.prepare(`SELECT * FROM ot_achados WHERE levantamento_id = ? AND project_id = ? ORDER BY created_at`).bind(lev.id, projectId).all<LinhaAchado>();
+    // LIMIT explícito: sem ele o teto global de SELECT (query-cap, 500) cortaria a sessão em silêncio.
+    const { results } = await db.prepare(`SELECT * FROM ot_achados WHERE levantamento_id = ? AND project_id = ? ORDER BY created_at LIMIT ${TETO_ACHADOS_SESSAO}`)
+      .bind(lev.id, projectId).all<LinhaAchado>();
+    // A1: o confronto só é calculado (e devolvido) para quem vê completo; o índice do site é lido uma vez.
+    const idx = completo ? await indiceDoSite(db, projectId, lev.site_id) : undefined;
     const achados = [];
     for (const a of results) {
-      // A1: o confronto só é calculado (e devolvido) para quem vê completo.
-      const conf = completo && a.situacao === 'rascunho' ? await confrontar(db, projectId, lev.site_id, JSON.parse(a.dados)) : undefined;
+      const conf = idx && a.situacao === 'rascunho' ? await confrontar(db, projectId, lev.site_id, JSON.parse(a.dados), idx) : undefined;
       achados.push(await serializarAchado(a, completo, chaves, conf));
     }
     return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados });
@@ -594,6 +597,7 @@ otApp.put('/levantamentos/:id', async (c) => {
     if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
     const v = await validateBody(c, otLevantamentoAtualizarSchema);
     if (!v.success) return v.response;
+    if (lev.tipo === 'documento' && 'documento_titulo' in v.data && !v.data.documento_titulo) return c.json({ error: 'Documento exige o título' }, 400);
     // Colunas só das chaves do esquema `.strict()` (como em atualizar()); valores sempre por bind.
     const d = { ...v.data, ...(v.data.roteiro && { roteiro: JSON.stringify(v.data.roteiro) }) };
     const campos = Object.keys(d);
