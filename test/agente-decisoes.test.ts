@@ -79,6 +79,17 @@ describe('porta de decisão do agente', () => {
     expect(r.status, await r.clone().text()).toBe(200);
   });
 
+  it('editar o catálogo: só pela decisão, como o consultor faria pela tela', async () => {
+    await env.DB.prepare(`INSERT INTO catalogo_itens (id, project_id, tipo, nome) VALUES ('ci-bio', 'p-dec', 'dado', 'Biometria facial')`).run();
+    const caminho = '/api/v1/projects/p-dec/catalogos/dados/ci-bio';
+    expect((await comoAgente('PUT', caminho, {}, { sensivel: true })).status).toBe(403);
+    const r = await comoAgente('PUT', caminho, DECISAO('niso_editar_catalogo', 'biometria é dado sensível (LGPD, art. 5º, II)'), { sensivel: true });
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect((await env.DB.prepare(`SELECT sensivel FROM catalogo_itens WHERE id = 'ci-bio'`).first<{ sensivel: number }>())?.sensivel).toBe(1);
+    const t = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'agente.decisao' ORDER BY created_at DESC LIMIT 1`).first<{ details: string }>();
+    expect(t?.details).toContain('niso_editar_catalogo');
+  });
+
   it('apagar risco da atividade: com confirmação, como apagar hoje', async () => {
     expect((await comoAgente('DELETE', '/api/v1/risks/rk-at')).status).toBe(403);
     expect((await comoAgente('DELETE', '/api/v1/risks/rk-at', { 'X-Agente-Confirmado': '1' })).status).toBe(200);

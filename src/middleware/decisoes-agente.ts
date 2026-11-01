@@ -10,6 +10,7 @@ export const MOTIVO_MAX = 500;
 export const FERRAMENTAS_DE_DECISAO = [
   'niso_publicar_documento', 'niso_revisar_documento', 'niso_decidir_passo', 'niso_avaliar_fornecedor', 'niso_situacao_atividade',
   'niso_concluir_acao', 'niso_encerrar_incidente', 'niso_registrar_revogacao', 'niso_importar_programa', 'niso_padronizar_nomes',
+  'niso_editar_catalogo',
 ] as const;
 export type FerramentaDecisao = (typeof FERRAMENTAS_DE_DECISAO)[number];
 
@@ -53,6 +54,8 @@ export const DECISOES: readonly Decisao[] = [
   { ferramenta: 'niso_importar_programa', acao: 'cancelar_lote', metodo: 'DELETE', caminho: `${P}/importacoes/{loteId}` },
   { ferramenta: 'niso_padronizar_nomes', acao: 'propostas', metodo: 'GET', caminho: `${P}/padronizar-nomes` },
   { ferramenta: 'niso_padronizar_nomes', acao: 'padronizar', metodo: 'POST', caminho: `${P}/padronizar-nomes`, corpo: true },
+  // Editar o catálogo é da equipe da ness (ropa-abas.ts); criar segue livre a quem escreve, fora da decisão.
+  { ferramenta: 'niso_editar_catalogo', acao: 'editar_item', metodo: 'PUT', caminho: `${P}/catalogos/{tipo}/{itemId}`, corpo: true },
 ];
 
 export const parametrosDe = (modelo: string): string[] => [...modelo.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
