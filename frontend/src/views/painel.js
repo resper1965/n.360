@@ -13,7 +13,8 @@ import { graficoCobertura, graficoMapa, graficoVencimentos, graficoPedidos, liga
 // aparece esmaecida enquanto a nova chega (nada de piscar o esqueleto). Todo texto do servidor passa por escapeHTML.
 
 const VALIDADE_MS = 60_000;
-const NOME = { iso: 'n.iso', privacy: 'n.privacy' };
+const NOME = { iso: 'n.iso', privacy: 'n.privacy', ot: 'n.ot' };
+// O n.ot ainda não tem bloco no painel (N1): fica fora das linhas e da lista; só o nome aparece na carteira.
 const MODULOS = ['iso', 'privacy'];
 const ROTULO_ESTADO = { atraso: 'Atrasado', semana: 'Nesta semana', plano: 'Para planejar' };
 const e = (v) => escapeHTML(String(v ?? ''));

@@ -155,6 +155,14 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
     }
   }
 
+  // n.ot (modelo de ameaças P0-3): lote de coleta não concluído expira em 7 dias; os itens (IP/MAC cifrados) vão junto pela FK.
+  try {
+    const r = await env.DB.prepare(`DELETE FROM ot_lotes WHERE status <> 'concluido' AND created_at < datetime('now', '-7 days')`).run();
+    resultado.retencao.ot_lotes = r.meta?.changes ?? 0;
+  } catch (e: unknown) {
+    resultado.falhas.push(`retencao ot_lotes: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
   /*
    * Arquiva a trilha de ONTEM, não a de hoje: o dia corrente ainda recebe
    * registro, e arquivá-lo produziria um objeto incompleto que a idempotência

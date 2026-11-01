@@ -1,0 +1,528 @@
+import { Hono, type Context } from 'hono';
+import type { Bindings, Variables } from '../index';
+import { erro500, genId, logAudit } from '../helpers';
+import { validateBody } from '../schemas';
+import {
+  otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
+  otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema,
+} from '../schemas/ot';
+import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
+import { FLUXO_VISIVEL, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, type LinhaItem } from '../services/ot-coleta';
+import { LIMITES_PLANILHA, lerPlanilha } from '../services/ot-planilha';
+import { conformidadeOt } from '../services/ot-conformidade';
+import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
+
+/** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
+export const otApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+type C = Context<{ Bindings: Bindings; Variables: Variables }>;
+
+// Modelo de ameaças do n.ot, P0-2: o inventário de OT é dado sensível do ARCiber; chave de API e agente MCP ficam de fora
+// (o agente também está em FORA_DO_AGENTE). Os sinais são os de middleware/auth.ts (`apikey:`) e middleware/agente.ts (`agente`).
+otApp.use('*', async (c, next) => {
+  const user = c.get('user');
+  if (user.agente === true || user.id?.startsWith('apikey:')) {
+    return c.json({ error: 'Forbidden: o n.ot não aceita chave de API nem agente — use a interface' }, 403);
+  }
+  await next();
+});
+
+// Escrita: só quem cadastra o inventário (org_user e client já param no allow-list de auth.ts; isto é a segunda trava). Criar lote
+// de coleta é a exceção do técnico (org_user), com o site conferido na rota.
+const CRIAR_LOTE = /\/ot\/lotes(\/manual)?$/;
+otApp.on(['POST', 'PUT', 'PATCH', 'DELETE'], '*', async (c, next) => {
+  const u = c.get('user');
+  if (!(c.req.method === 'POST' && CRIAR_LOTE.test(c.req.path) ? podeCriarLote(u) : podeEditarOt(u))) {
+    return c.json({ error: 'Forbidden: seu papel não altera o inventário do n.ot' }, 403);
+  }
+  await next();
+});
+
+// P0-8, falha fechada: sem as duas chaves, nada de ativo nem de lote entra ou sai.
+for (const rota of ['/ativos/*', '/lotes/*']) {
+  otApp.use(rota, async (c, next) => {
+    if (!chavesOt(c.env)) return c.json({ error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' }, 503);
+    await next();
+  });
+}
+
+interface Requisito { id: string; framework: string; codigo: string; titulo: string; descricao: string | null; categoria: string | null; versao: string; prazo_meses: number | null }
+
+otApp.get('/requisitos', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare(
+      'SELECT id, framework, codigo, titulo, descricao, categoria, versao, prazo_meses FROM ot_requisitos'
+    ).all<Requisito>();
+    // ordem natural (4.5.1 < 4.5.1.1 < 4.6.1): ORDER BY de texto poria 4.10 antes de 4.2
+    results.sort((a, b) => a.framework.localeCompare(b.framework) || a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
+    return c.json({ requisitos: results });
+  } catch (e) {
+    return erro500(c, 'Falha ao listar os requisitos do n.ot', e);
+  }
+});
+
+// ─── apoio ──────────────────────────────────────────────────────────────────
+const contexto = async (c: C) => {
+  const user = c.get('user');
+  const projectId = c.req.param('projectId')!;
+  return { db: c.env.DB, user, projectId, sites: await sitesPermitidos(c.env.DB, user, projectId) };
+};
+const NO_SITE = 'site_id IN (SELECT value FROM json_each(?))';
+const NAO_ENCONTRADO = (c: C, o: string) => c.json({ error: `${o} não encontrado` }, 404);
+const daLista = (sites: string, id: unknown) => typeof id === 'string' && (JSON.parse(sites) as string[]).includes(id);
+
+/** Booleano vira 0/1 e lista vira JSON; ausente fica de fora (no UPDATE, mantém). */
+const paraBanco = (d: Record<string, unknown>) => Object.fromEntries(Object.entries(d).filter(([, v]) => v !== undefined)
+  .map(([k, v]) => [k, typeof v === 'boolean' ? Number(v) : Array.isArray(v) ? JSON.stringify(v) : v]));
+
+/**
+ * UPDATE dos campos validados (as chaves saem de esquema `.strict()`, nunca do corpo cru), preso ao projeto, ao site permitido e ao
+ * registro ativo. 0 = não achou (inexistente, de outro projeto ou de site sem acesso: o mesmo 404, T27).
+ */
+async function atualizar(db: D1Database, tabela: 'ot_sites' | 'ot_zonas' | 'ot_ativos' | 'ot_fluxos', id: string, projectId: string, sites: string, campos: Record<string, unknown>) {
+  const cols = Object.keys(campos);
+  const doSite = tabela === 'ot_sites' ? 'id IN (SELECT value FROM json_each(?))' : NO_SITE;
+  const r = await db.prepare(`UPDATE ${tabela} SET ${cols.map((k) => `${k} = ?`).concat(`updated_at = ${AGORA_MS}`).join(', ')}
+    WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${doSite}`).bind(...cols.map((k) => campos[k]), id, projectId, sites).run();
+  return r.meta.changes;
+}
+
+/** Zona/ativo citado no corpo: ativo, do projeto e de site permitido (P1-3); `site` restringe ao mesmo site. Devolve o campo ruim. */
+async function refInvalida(db: D1Database, projectId: string, sites: string, corpo: Record<string, unknown>, campos: [string, 'ot_zonas' | 'ot_ativos'][], site?: string) {
+  for (const [campo, tabela] of campos) {
+    const id = corpo[campo];
+    if (id === undefined || id === null) continue;
+    const achou = await db.prepare(`SELECT 1 FROM ${tabela} WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${NO_SITE} AND (? IS NULL OR site_id = ?)`)
+      .bind(id, projectId, sites, site ?? null, site ?? null).first();
+    if (!achou) return campo;
+  }
+  return null;
+}
+const refRuim = (c: C, campo: string) => c.json({ error: `Referência inválida: ${campo}` }, 400);
+
+const FALTA_4_3_1 = 'Ativo do ARCiber exige os campos mínimos do 4.3.1 da RO-CB.BR.01: categoria, tipo de dispositivo, fabricante, função, IP ou MAC, ao menos um protocolo/porta e firmware/SO (ou "não aplicável")';
+/** CHECK do banco que o esquema não cobre (depende do registro inteiro): a mensagem certa em vez de 500. */
+function recusaDoBanco(c: C, e: unknown) {
+  const m = e instanceof Error ? e.message : '';
+  if (m.includes('ot_ativos_4_3_1')) return c.json({ error: FALTA_4_3_1 }, 400);
+  if (m.includes('CHECK constraint failed') && m.includes('origem')) return c.json({ error: 'Fluxo precisa de uma ponta de cada lado (ativo ou zona, não os dois); fluxo externo, de ao menos uma' }, 400);
+  return null;
+}
+
+/** P1-7: a trilha do n.ot leva só ids e contagens, nunca nome, IP ou MAC. */
+const trilha = (c: C, acao: string, projectId: string, detalhe: string, entidade?: { tipo: string; id: string }, justificativa = '') =>
+  logAudit(c.env.DB, acao, c.get('user').email, detalhe, justificativa, c.req.header('CF-Connecting-IP') ?? '', projectId, entidade);
+
+// ─── sites ──────────────────────────────────────────────────────────────────
+otApp.get('/sites', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const { results } = await db.prepare(`SELECT id, nome, tipo, criticidade, localizacao, status, created_at, updated_at FROM ot_sites
+      WHERE project_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY nome`).bind(projectId, sites).all();
+    return c.json({ sites: results });
+  } catch (e) { return erro500(c, 'Falha ao listar os sites', e); }
+});
+
+otApp.post('/sites', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const v = await validateBody(c, otSiteCriarSchema);
+    if (!v.success) return v.response;
+    const id = genId();
+    await c.env.DB.prepare('INSERT INTO ot_sites (id, project_id, nome, tipo, criticidade, localizacao) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(id, projectId, v.data.nome, v.data.tipo ?? 'outro', v.data.criticidade ?? null, v.data.localizacao ?? null).run();
+    await trilha(c, 'ot.site.criado', projectId, `Site ${id} criado`, { tipo: 'ot_site', id });
+    return c.json({ ok: true, id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar o site', e); }
+});
+
+otApp.put('/sites/:id', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otSiteAtualizarSchema);
+    if (!v.success) return v.response;
+    const campos = paraBanco(v.data);
+    if (!Object.keys(campos).length) return c.json({ error: 'Nada a alterar' }, 400);
+    if (!await atualizar(db, 'ot_sites', c.req.param('id'), projectId, sites, campos)) return NAO_ENCONTRADO(c, 'Site');
+    await trilha(c, 'ot.site.atualizado', projectId, `Site ${c.req.param('id')} atualizado`, { tipo: 'ot_site', id: c.req.param('id') });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao atualizar o site', e); }
+});
+
+// ─── zonas ──────────────────────────────────────────────────────────────────
+otApp.get('/zonas', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const { results } = await db.prepare(`SELECT id, site_id, nome, nivel_purdue, tipo, descricao, status, created_at, updated_at FROM ot_zonas
+      WHERE project_id = ? AND status = 'ativo' AND ${NO_SITE} AND (? IS NULL OR site_id = ?) ORDER BY nivel_purdue, nome`)
+      .bind(projectId, sites, c.req.query('site_id') ?? null, c.req.query('site_id') ?? null).all();
+    return c.json({ zonas: results });
+  } catch (e) { return erro500(c, 'Falha ao listar as zonas', e); }
+});
+
+otApp.post('/zonas', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otZonaCriarSchema);
+    if (!v.success) return v.response;
+    if (!daLista(sites, v.data.site_id)) return refRuim(c, 'site_id');
+    const id = genId();
+    await db.prepare('INSERT INTO ot_zonas (id, project_id, site_id, nome, nivel_purdue, tipo, descricao) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, projectId, v.data.site_id, v.data.nome, v.data.nivel_purdue, v.data.tipo ?? 'outra', v.data.descricao ?? null).run();
+    await trilha(c, 'ot.zona.criada', projectId, `Zona ${id} criada no site ${v.data.site_id}`, { tipo: 'ot_zona', id });
+    return c.json({ ok: true, id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar a zona', e); }
+});
+
+otApp.put('/zonas/:id', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otZonaAtualizarSchema);
+    if (!v.success) return v.response;
+    const campos = paraBanco(v.data);
+    if (!Object.keys(campos).length) return c.json({ error: 'Nada a alterar' }, 400);
+    if (!await atualizar(db, 'ot_zonas', c.req.param('id'), projectId, sites, campos)) return NAO_ENCONTRADO(c, 'Zona');
+    await trilha(c, 'ot.zona.atualizada', projectId, `Zona ${c.req.param('id')} atualizada`, { tipo: 'ot_zona', id: c.req.param('id') });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao atualizar a zona', e); }
+});
+
+// ─── ativos ─────────────────────────────────────────────────────────────────
+const COLUNAS_ATIVO = `id, project_id, site_id, zona_id, nome, no_arciber, categoria_arciber, tipo_dispositivo, fabricante, modelo, funcao,
+  ip_cifrado, mac_cifrado, ip_hash, mac_hash, protocolos_portas, firmware_so_versao, firmware_nao_aplicavel, ultima_verificacao_em,
+  verificado_por, status, created_at, updated_at`;
+
+const enderecos = (chaves: ChavesOt, projectId: string, id: string, d: { ip?: string | null; mac?: string | null }) =>
+  cifrarEnderecos(chaves, projectId, 'ot_ativos', id, d);
+
+/** Ativos pelo serializador único; uma linha de trilha por requisição que saiu sem máscara (P1-7), com a contagem. */
+async function responderAtivos(c: C, projectId: string, linhas: LinhaAtivo[], completo: boolean, justificativa = '') {
+  const chaves = chavesOt(c.env)!;
+  const ativos = await Promise.all(linhas.map((l) => serializarAtivo(l, completo, chaves)));
+  const sensiveis = completo ? linhas.filter((l) => l.ip_cifrado || l.mac_cifrado).length : 0;
+  if (sensiveis) {
+    await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} ativo(s) com IP/MAC sem máscara`,
+      linhas.length === 1 ? { tipo: 'ot_ativo', id: linhas[0].id } : undefined, justificativa);
+  }
+  return ativos;
+}
+
+otApp.get('/ativos', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const site = c.req.query('site_id') ?? null;
+    const { results } = await db.prepare(`SELECT ${COLUNAS_ATIVO} FROM ot_ativos WHERE project_id = ? AND status = 'ativo' AND ${NO_SITE}
+      AND (? IS NULL OR site_id = ?) ORDER BY nome`).bind(projectId, sites, site, site).all<LinhaAtivo>();
+    return c.json({ ativos: await responderAtivos(c, projectId, results, await podeVerCompleto(db, user, projectId)) });
+  } catch (e) { return erro500(c, 'Falha ao listar os ativos', e); }
+});
+
+const lerAtivo = (db: D1Database, id: string, projectId: string, sites: string) =>
+  db.prepare(`SELECT ${COLUNAS_ATIVO} FROM ot_ativos WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${NO_SITE}`).bind(id, projectId, sites).first<LinhaAtivo>();
+
+otApp.get('/ativos/:id', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const linha = await lerAtivo(db, c.req.param('id'), projectId, sites);
+    if (!linha) return NAO_ENCONTRADO(c, 'Ativo');
+    return c.json((await responderAtivos(c, projectId, [linha], await podeVerCompleto(db, user, projectId)))[0]);
+  } catch (e) { return erro500(c, 'Falha ao ler o ativo', e); }
+});
+
+// platform_admin vê mascarado por padrão (spec §5): revelar é ação explícita, com motivo, registrada em audit_logs. P1-1: TOTP nos
+// últimos 10 min, teto por hora e aviso ao Gestor ARCiber (services/ot-stepup.ts).
+otApp.post('/ativos/:id/revelar', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (user.role !== 'platform_admin' && !await podeVerCompleto(db, user, projectId)) return c.json({ error: 'Forbidden: seu papel não revela IP/MAC' }, 403);
+    const sem = await semStepUp(c);
+    if (sem) return sem;
+    const v = await validateBody(c, otRevelarSchema);
+    if (!v.success) return v.response;
+    const linha = await lerAtivo(db, c.req.param('id'), projectId, sites);
+    if (!linha) return NAO_ENCONTRADO(c, 'Ativo');
+    const teto = await tetoEstourado(c, 'revelar', projectId);
+    if (teto) return teto;
+    const [ativo] = await responderAtivos(c, projectId, [linha], true, v.data.justificativa);
+    await avisarGestorArciber(c, projectId, `revelou o IP/MAC do ativo ${linha.id}`, v.data.justificativa);
+    return c.json(ativo);
+  } catch (e) { return erro500(c, 'Falha ao revelar o ativo', e); }
+});
+
+otApp.post('/ativos', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otAtivoCriarSchema);
+    if (!v.success) return v.response;
+    const d = v.data;
+    if (!daLista(sites, d.site_id)) return refRuim(c, 'site_id');
+    const ruim = await refInvalida(db, projectId, sites, d, [['zona_id', 'ot_zonas']], d.site_id);
+    if (ruim) return refRuim(c, ruim);
+    const id = genId();
+    const e = await enderecos(chavesOt(c.env)!, projectId, id, { ip: d.ip ?? null, mac: d.mac ?? null });
+    try {
+      await db.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, zona_id, nome, no_arciber, categoria_arciber, tipo_dispositivo, fabricante,
+          modelo, funcao, ip_cifrado, mac_cifrado, ip_hash, mac_hash, protocolos_portas, firmware_so_versao, firmware_nao_aplicavel)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+        id, projectId, d.site_id, d.zona_id ?? null, d.nome, Number(d.no_arciber ?? false), d.categoria_arciber ?? null, d.tipo_dispositivo ?? null,
+        d.fabricante ?? null, d.modelo ?? null, d.funcao ?? null, e.ip_cifrado, e.mac_cifrado, e.ip_hash, e.mac_hash,
+        JSON.stringify(d.protocolos_portas ?? []), d.firmware_so_versao ?? null, Number(d.firmware_nao_aplicavel ?? false),
+      ).run();
+    } catch (err) { const r = recusaDoBanco(c, err); if (r) return r; throw err; }
+    await trilha(c, 'ot.ativo.criado', projectId, `Ativo ${id} criado no site ${d.site_id}`, { tipo: 'ot_ativo', id });
+    return c.json({ ok: true, id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar o ativo', e); }
+});
+
+otApp.put('/ativos/:id', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otAtivoAtualizarSchema);
+    if (!v.success) return v.response;
+    const atual = await lerAtivo(db, c.req.param('id'), projectId, sites);
+    if (!atual) return NAO_ENCONTRADO(c, 'Ativo');
+    const { ip, mac, ...resto } = v.data;
+    const ruim = await refInvalida(db, projectId, sites, resto, [['zona_id', 'ot_zonas']], atual.site_id as string);
+    if (ruim) return refRuim(c, ruim);
+    const campos = { ...paraBanco(resto), ...await enderecos(chavesOt(c.env)!, projectId, atual.id, { ip, mac }) };
+    if (!Object.keys(campos).length) return c.json({ error: 'Nada a alterar' }, 400);
+    // Edição direta de campo do 4.3.1 não é verificação: zera a que havia (só a aprovação de lote com recoleta carimba).
+    if (toca431(v.data)) Object.assign(campos, { verificado_por: null, ultima_verificacao_em: null });
+    try {
+      if (!await atualizar(db, 'ot_ativos', atual.id, projectId, sites, campos)) return NAO_ENCONTRADO(c, 'Ativo');
+    } catch (err) { const r = recusaDoBanco(c, err); if (r) return r; throw err; }
+    await trilha(c, 'ot.ativo.atualizado', projectId, `Ativo ${atual.id} atualizado`, { tipo: 'ot_ativo', id: atual.id });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao atualizar o ativo', e); }
+});
+
+// ─── fluxos ─────────────────────────────────────────────────────────────────
+interface LinhaFluxo { externo: number; via_vpn: number; [campo: string]: unknown }
+/** 4.1.2/4.1.3: fluxo externo só por VPN. O cadastro aceita o fluxo como ele é (é o retrato) e o marca como violação. */
+const comViolacao = (f: LinhaFluxo) => ({ ...f, externo: f.externo === 1, via_vpn: f.via_vpn === 1, violacoes: f.externo === 1 && f.via_vpn !== 1 ? ['4.1.2', '4.1.3'] : [] });
+
+const PONTAS: [string, 'ot_zonas' | 'ot_ativos'][] = [['origem_ativo_id', 'ot_ativos'], ['origem_zona_id', 'ot_zonas'], ['destino_ativo_id', 'ot_ativos'], ['destino_zona_id', 'ot_zonas']];
+
+otApp.get('/fluxos', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const site = c.req.query('site_id') ?? null;
+    const { results } = await db.prepare(`SELECT f.id, f.site_id, f.origem_ativo_id, f.origem_zona_id, f.destino_ativo_id, f.destino_zona_id, f.protocolo,
+        f.porta, f.direcao, f.finalidade, f.externo, f.via_vpn, f.status, f.created_at, f.updated_at
+      FROM ot_fluxos f WHERE ${FLUXO_VISIVEL} AND (? IS NULL OR f.site_id = ?) ORDER BY f.created_at`)
+      .bind(projectId, sites, sites, sites, site, site).all<LinhaFluxo>();
+    return c.json({ fluxos: results.map(comViolacao) });
+  } catch (e) { return erro500(c, 'Falha ao listar os fluxos', e); }
+});
+
+otApp.post('/fluxos', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otFluxoCriarSchema);
+    if (!v.success) return v.response;
+    const d = v.data;
+    if (!daLista(sites, d.site_id)) return refRuim(c, 'site_id');
+    const ruim = await refInvalida(db, projectId, sites, d, PONTAS);
+    if (ruim) return refRuim(c, ruim);
+    const id = genId();
+    try {
+      await db.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, origem_zona_id, destino_ativo_id, destino_zona_id, protocolo, porta,
+          direcao, finalidade, externo, via_vpn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+        id, projectId, d.site_id, d.origem_ativo_id ?? null, d.origem_zona_id ?? null, d.destino_ativo_id ?? null, d.destino_zona_id ?? null,
+        d.protocolo ?? null, d.porta ?? null, d.direcao ?? 'unidirecional', d.finalidade ?? null, Number(d.externo ?? false), Number(d.via_vpn ?? false),
+      ).run();
+    } catch (err) { const r = recusaDoBanco(c, err); if (r) return r; throw err; }
+    await trilha(c, 'ot.fluxo.criado', projectId, `Fluxo ${id} criado no site ${d.site_id}`, { tipo: 'ot_fluxo', id });
+    return c.json({ ok: true, id, violacoes: d.externo && !d.via_vpn ? ['4.1.2', '4.1.3'] : [] }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar o fluxo', e); }
+});
+
+otApp.put('/fluxos/:id', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otFluxoAtualizarSchema);
+    if (!v.success) return v.response;
+    const ruim = await refInvalida(db, projectId, sites, v.data, PONTAS);
+    if (ruim) return refRuim(c, ruim);
+    const campos = paraBanco(v.data);
+    if (!Object.keys(campos).length) return c.json({ error: 'Nada a alterar' }, 400);
+    try {
+      if (!await atualizar(db, 'ot_fluxos', c.req.param('id'), projectId, sites, campos)) return NAO_ENCONTRADO(c, 'Fluxo');
+    } catch (err) { const r = recusaDoBanco(c, err); if (r) return r; throw err; }
+    await trilha(c, 'ot.fluxo.atualizado', projectId, `Fluxo ${c.req.param('id')} atualizado`, { tipo: 'ot_fluxo', id: c.req.param('id') });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao atualizar o fluxo', e); }
+});
+
+// ─── exclusão lógica (sites, zonas, ativos, fluxos) ─────────────────────────
+for (const [rota, tabela, nome, tipo] of [
+  ['sites', 'ot_sites', 'Site', 'ot_site'], ['zonas', 'ot_zonas', 'Zona', 'ot_zona'],
+  ['ativos', 'ot_ativos', 'Ativo', 'ot_ativo'], ['fluxos', 'ot_fluxos', 'Fluxo', 'ot_fluxo'],
+] as const) {
+  otApp.delete(`/${rota}/:id`, async (c) => {
+    try {
+      const { db, projectId, sites } = await contexto(c);
+      if (!await atualizar(db, tabela, c.req.param('id'), projectId, sites, { status: 'removido' })) return NAO_ENCONTRADO(c, nome);
+      await trilha(c, `${tipo.replace('_', '.')}.removido`, projectId, `${nome} ${c.req.param('id')} removido (exclusão lógica)`, { tipo, id: c.req.param('id') });
+      return c.json({ ok: true });
+    } catch (e) { return erro500(c, `Falha ao remover: ${nome.toLowerCase()}`, e); }
+  });
+}
+
+// ─── acesso por site (técnicos) ─────────────────────────────────────────────
+otApp.get('/acessos', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    // O técnico vê os próprios vínculos; quem administra vê todos.
+    const { results } = await db.prepare(`SELECT a.user_id, a.site_id, a.concedido_por, a.created_at FROM ot_site_acessos a
+      WHERE a.project_id = ? AND ${NO_SITE.replace('site_id', 'a.site_id')} AND (? IS NULL OR a.user_id = ?) ORDER BY a.site_id, a.user_id`)
+      .bind(projectId, sites, user.role === 'org_user' ? user.id : null, user.role === 'org_user' ? user.id : null).all();
+    return c.json({ acessos: results });
+  } catch (e) { return erro500(c, 'Falha ao listar os acessos', e); }
+});
+
+otApp.post('/acessos', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otAcessoCriarSchema);
+    if (!v.success) return v.response;
+    if (!daLista(sites, v.data.site_id)) return refRuim(c, 'site_id');
+    // Só técnico (org_user) do próprio projeto: os demais papéis já veem todos os sites, e conta de outro projeto não entra.
+    const tecnico = await db.prepare(`SELECT 1 FROM users WHERE id = ? AND role = 'org_user' AND client_project_id = ?`).bind(v.data.user_id, projectId).first();
+    if (!tecnico) return refRuim(c, 'user_id');
+    await db.prepare('INSERT OR IGNORE INTO ot_site_acessos (user_id, site_id, project_id, concedido_por) VALUES (?, ?, ?, ?)')
+      .bind(v.data.user_id, v.data.site_id, projectId, c.get('user').email).run();
+    await trilha(c, 'ot.acesso.concedido', projectId, `Acesso ao site ${v.data.site_id} concedido à conta ${v.data.user_id}`, { tipo: 'ot_site', id: v.data.site_id });
+    return c.json({ ok: true }, 201);
+  } catch (e) { return erro500(c, 'Falha ao conceder o acesso', e); }
+});
+
+otApp.delete('/acessos/:siteId/:userId', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const { siteId, userId } = c.req.param();
+    const r = await c.env.DB.prepare('DELETE FROM ot_site_acessos WHERE site_id = ? AND user_id = ? AND project_id = ?').bind(siteId, userId, projectId).run();
+    if (!r.meta.changes) return NAO_ENCONTRADO(c, 'Acesso');
+    await trilha(c, 'ot.acesso.revogado', projectId, `Acesso ao site ${siteId} revogado da conta ${userId}`, { tipo: 'ot_site', id: siteId });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao revogar o acesso', e); }
+});
+
+// ─── coleta: lotes em staging (spec §7; P0-3, P0-5) ──────────────────────────
+otApp.get('/lotes', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const { results } = await db.prepare(`SELECT l.id, l.site_id, l.fonte, l.status, l.criado_por, l.decidido_por, l.decidido_em, l.motivo, l.created_at, l.updated_at,
+        count(i.id) AS itens, coalesce(sum(i.erros <> '[]'), 0) AS com_erro, coalesce(sum(i.decisao = 'gravado'), 0) AS gravados
+      FROM ot_lotes l LEFT JOIN ot_lote_itens i ON i.lote_id = l.id WHERE l.project_id = ? AND l.site_id IN (SELECT value FROM json_each(?))
+      GROUP BY l.id ORDER BY l.created_at DESC`).bind(projectId, sites).all();
+    return c.json({ lotes: results });
+  } catch (e) { return erro500(c, 'Falha ao listar os lotes', e); }
+});
+
+otApp.get('/lotes/:id', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const lote = await db.prepare(`SELECT id, site_id, fonte, status, criado_por, decidido_por, decidido_em, motivo, created_at, updated_at FROM ot_lotes
+      WHERE id = ? AND project_id = ? AND site_id IN (SELECT value FROM json_each(?))`).bind(c.req.param('id'), projectId, sites).first();
+    if (!lote) return NAO_ENCONTRADO(c, 'Lote');
+    const { results } = await db.prepare(`SELECT id, project_id, linha, dados, erros, duplicata_de, decisao, motivo, registro_id FROM ot_lote_itens
+      WHERE lote_id = ? AND project_id = ? ORDER BY linha`).bind(lote.id, projectId).all<LinhaItem>();
+    const completo = await podeVerCompleto(db, user, projectId);
+    const itens = await Promise.all(results.map((i) => serializarItem(i, completo, chavesOt(c.env)!)));
+    const sensiveis = completo ? results.filter((i) => /"(ip|mac)_cifrado":"ot1:/.test(i.dados)).length : 0;
+    if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} item(ns) do lote ${lote.id} com IP/MAC sem máscara`, { tipo: 'ot_lote', id: lote.id as string });
+    return c.json({ lote, itens });
+  } catch (e) { return erro500(c, 'Falha ao ler o lote', e); }
+});
+
+async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, projectId: string, site: string, extra: Record<string, unknown> = {}) {
+  if (!r.ok) return c.json({ error: r.error }, r.status);
+  // A1: a contagem de duplicatas só vai a quem vê completo (para os demais, a chave nem aparece).
+  const { ok: _ok, possiveis_duplicatas, ...resumo } = r;
+  if (await podeVerCompleto(c.env.DB, c.get('user'), projectId)) Object.assign(resumo, { possiveis_duplicatas });
+  await trilha(c, 'ot.lote.criado', projectId, `Lote ${r.id} criado no site ${site}: ${r.itens} item(ns), ${r.com_erro} com erro`, { tipo: 'ot_lote', id: r.id });
+  return c.json({ ...resumo, status: 'em_revisao', ...extra }, 201);
+}
+
+/** Corpo inteiro até `teto` bytes; null se passar (o stream é cancelado no primeiro pedaço além). */
+async function lerAteTeto(req: Request, teto: number): Promise<Blob | null> {
+  const leitor = req.body?.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = leitor ? await leitor.read() : { done: true, value: undefined };
+    if (done) return new Blob(partes);
+    total += value.byteLength;
+    if (total > teto) { await leitor!.cancel().catch(() => {}); return null; }
+    partes.push(value);
+  }
+}
+
+// Planilha (multipart: `file` e `site_id`). O arquivo é lido em memória e descartado: nunca vai ao R2 nem à IA (P0-3).
+otApp.post('/lotes', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const teto = LIMITES_PLANILHA.bytes + 64 * 1024;
+    if (Number(c.req.header('Content-Length') || 0) > teto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
+    // Corpo sem Content-Length (chunked) passaria pelo cabeçalho: a leitura para no teto, em vez de parseBody ler tudo na memória.
+    const bruto = await lerAteTeto(c.req.raw, teto);
+    if (!bruto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
+    const fd = await new Response(bruto, { headers: { 'Content-Type': c.req.header('Content-Type') ?? '' } }).formData().catch(() => null);
+    if (!fd) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
+    const corpo = { file: fd.get('file'), site_id: fd.get('site_id') };
+    const file = corpo['file'];
+    if (!(file instanceof File)) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
+    if (!daLista(sites, corpo['site_id'])) return refRuim(c, 'site_id');
+    const lida = await lerPlanilha(file.name, await file.arrayBuffer());
+    if ('erro' in lida) return c.json({ error: lida.erro }, 400);
+    const { itens, reconhecidas, ignoradas } = linhasDaPlanilha(lida.linhas);
+    if (!reconhecidas) return c.json({ error: 'Nenhuma coluna reconhecida no cabeçalho (ex.: nome, ip, mac, fabricante, modelo, tipo, funcao)' }, 400);
+    const site = corpo['site_id'] as string;
+    return responderLote(c, await criarLote(db, chavesOt(c.env)!, user, projectId, site, 'planilha', itens), projectId, site, { colunas_ignoradas: ignoradas });
+  } catch (e) { return erro500(c, 'Falha ao receber a planilha', e); }
+});
+
+otApp.post('/lotes/manual', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otLoteManualSchema);
+    if (!v.success) return v.response;
+    if (!daLista(sites, v.data.site_id)) return refRuim(c, 'site_id');
+    return responderLote(c, await criarLote(db, chavesOt(c.env)!, user, projectId, v.data.site_id, 'manual', v.data.itens), projectId, v.data.site_id);
+  } catch (e) { return erro500(c, 'Falha ao criar o lote', e); }
+});
+
+otApp.post('/lotes/:id/aprovar', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeAprovar(db, user, projectId)) return c.json({ error: 'Forbidden: seu papel não aprova lote' }, 403);
+    const r = await aprovarLote(db, chavesOt(c.env)!, user, projectId, sites, c.req.param('id'));
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    const { ok: _ok, ...n } = r;
+    await trilha(c, 'ot.lote.aprovado', projectId, `Lote ${c.req.param('id')} aprovado: ${n.criados} criado(s), ${n.atualizados} atualizado(s), ${n.recusados} recusado(s)`,
+      { tipo: 'ot_lote', id: c.req.param('id') });
+    return c.json({ ok: true, ...n });
+  } catch (e) { return erro500(c, 'Falha ao aprovar o lote', e); }
+});
+
+otApp.post('/lotes/:id/rejeitar', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeAprovar(db, user, projectId)) return c.json({ error: 'Forbidden: seu papel não rejeita lote' }, 403);
+    const v = await validateBody(c, otLoteRejeitarSchema);
+    if (!v.success) return v.response;
+    const r = await rejeitarLote(db, user, projectId, sites, c.req.param('id'), v.data.motivo);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await trilha(c, 'ot.lote.rejeitado', projectId, `Lote ${c.req.param('id')} rejeitado`, { tipo: 'ot_lote', id: c.req.param('id') }, v.data.motivo);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao rejeitar o lote', e); }
+});
+
+// ─── conformidade RO-CB.BR.01 calculada do inventário ───────────────────────
+otApp.get('/conformidade', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    return c.json(await conformidadeOt(db, projectId, sites));
+  } catch (e) { return erro500(c, 'Falha ao calcular a conformidade', e); }
+});

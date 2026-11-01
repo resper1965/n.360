@@ -3,6 +3,7 @@ import { criarAtivo, lerAtivo as lerAtivoDoBanco, type CamposAtivo } from '../..
 // `?raw` inlina o arquivo como string em tempo de build (Vite), então roda no
 // pool workerd sem tocar node:fs — que é o que quebrava a suíte antes.
 import schemaSql from '../../schema.sql?raw';
+import { MODULOS_PRODUTO, type Modulo } from '../../src/modulos';
 
 /**
  * Aplica um script SQL num D1 real.
@@ -168,12 +169,20 @@ export async function habilitarPrivacy(...ids: string[]): Promise<void> {
 }
 
 /**
+ * Habilita o n.ot nos projetos do teste. Diferente do `habilitarPrivacy`, não dá o módulo a ninguém: `ot` só entra em
+ * `usuario_modulos` por concessão explícita (0089, modelo de ameaças P0-1). Dê às contas com `concederModulos(ids, ['ot'])`.
+ */
+export async function habilitarOt(...ids: string[]): Promise<void> {
+  await env.DB.batch(ids.map((id) => env.DB.prepare(`INSERT OR IGNORE INTO projeto_modulos (project_id, modulo, habilitado_por) VALUES (?, 'ot', 'teste')`).bind(id)));
+}
+
+/**
  * Dá módulos às contas (n.360, fatia 3: a rota de n.iso/n.privacy exige o módulo da pessoa). Em produção toda sessão é de
  * uma conta em `users`; muitos testes abrem sessão (`sessionFor`) com um `id` que não está lá, e `usuario_modulos` tem FK.
  * Para esses, cria a conta mínima (e-mail sintético, para não colidir com a conta do mesmo e-mail que o teste já tenha).
  * Chame DEPOIS de inserir as contas do próprio teste.
  */
-export async function concederModulos(ids: string | string[], modulos: readonly ('iso' | 'privacy')[] = ['iso', 'privacy']): Promise<void> {
+export async function concederModulos(ids: string | string[], modulos: readonly Modulo[] = MODULOS_PRODUTO): Promise<void> {
   await env.DB.batch([ids].flat().flatMap((id) => [
     env.DB.prepare(`INSERT OR IGNORE INTO users (id, email, password_hash, name, role) VALUES (?, ?, 'x', ?, 'org_user')`).bind(id, `${id}@conta.teste`, id),
     ...modulos.map((m) => env.DB.prepare(`INSERT OR IGNORE INTO usuario_modulos (user_id, modulo, concedido_por) VALUES (?, ?, 'teste')`).bind(id, m)),

@@ -1,9 +1,9 @@
 # n.360 — Manifesto do Agente
 
 Se voce esta lendo isto, voce e o agente responsavel por continuar o
-desenvolvimento do **n.360**, a plataforma de GRC da ness., e dos seus dois
-modulos: **n.iso** (ISO 27001/27701, em `/iso`) e **n.privacy** (LGPD/ANPD, em
-`/privacy`). O repositorio, o Worker e o banco ainda se chamam `niso` por
+desenvolvimento do **n.360**, a plataforma de GRC da ness., e dos seus
+modulos: **n.iso** (ISO 27001/27701, em `/iso`), **n.privacy** (LGPD/ANPD, em
+`/privacy`) e **n.ot** (ARCiber, ONS RO-CB.BR.01, em `/ot`: catalogo, inventario, coleta, saidas e step-up, fatias N1 a N4 e P1-1). O repositorio, o Worker e o banco ainda se chamam `niso` por
 historia; nao e o nome do produto.
 
 Este arquivo descreve o que **existe hoje**. Historico de sprint vive no
@@ -70,13 +70,42 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
 
 - **Um Worker, um banco (D1 `niso-db`), um deploy.** O endereco canonico e `https://n360.ness.com.br`
   (`APP_URL` em `wrangler.jsonc`). `/` e o inicio do n.360 (um cartao por modulo e o grupo "Conta e acessos"),
-  `/iso*` a casca do n.iso e `/privacy*` a do n.privacy. O CAMINHO decide a casca (`frontend/src/produto.js`);
+  `/iso*` a casca do n.iso, `/privacy*` a do n.privacy e `/ot*` a do n.ot. O CAMINHO decide a casca (`frontend/src/produto.js`);
   o servidor entrega o mesmo `login.html` para todos.
 - **Um cadastro so.** Partes, itens, documentos, RoPA, DPIA, evidencias, pedidos e incidentes sao do nucleo e
   servem aos dois modulos. O que e so de um modulo fica na faixa dele.
-- **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa faixa (`nucleo`, `iso`, `privacy`).
+- **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa faixa (`nucleo`, `iso`, `privacy`, `ot`).
   Faixa de modulo exige o modulo no projeto (`projeto_modulos`) **e** na pessoa (`usuario_modulos`, migration
   0066); senao 403. Rota nova de projeto sem faixa reprova em `test/modulos-produto.test.ts`.
+- **n.ot (spec `2026-10-30-n-ot-modulo-n360-design`, fatias N1 a N4 e P1-1, migrations 0089 a 0092):** faixa `ot`, todas as rotas
+  sob `/api/v1/projects/:projectId/ot/…`: catalogo RO-CB.BR.01 Rev.00 (`GET …/ot/requisitos`), inventario (sites, zonas, ativos,
+  fluxos, acesso por site), coleta em lotes, revelar e conformidade em `src/routes/ot.ts`; indicadores, exportacao e IA em
+  `src/routes/ot-saidas.ts`.
+  Duas regras do modelo de ameacas que nao podem regredir: **P0-1, o `ot` nunca e concedido automaticamente** (o gatilho
+  `usuario_modulos_padrao` nao o da a ninguem, e habilitar o `ot` no projeto nao o da aos clientes; so `PUT /users/:id/modulos`
+  ou `POST /users` com `modulos`, com trilha; a caixa do n.ot na tela Usuarios nunca nasce marcada) e **P0-2, sem chave de API
+  nem agente MCP** (`otApp` responde 403 a `apikey:` e a `agente`; `/projects/:id/ot` esta em `FORA_DO_AGENTE`). Frontend:
+  casca `/ot` com uma tela (`views/ot.js`) em abas: catalogo, inventario (sites, zonas, ativos), fluxos, coleta (`views/ot-coleta.js`),
+  saidas (`views/ot-saidas.js`) e acesso por site (so quem edita); papeis e formulario do ativo em `src/ot-comum.js`, que so ESCONDE o que
+  a API recusaria. IP/MAC aparecem como a API devolve e ficam so na memoria da tela; "Revelar" (platform_admin, ativo mascarado) pede o
+  motivo e mostra o valor num modal que some em 30 s. **P1-1 (step-up):** revelar e exportar (`POST …/ot/exportacao`, com
+  `justificativa` no corpo) exigem o carimbo `totp_em` da sessao, gravado por `/auth/mfa/verify`, dos ultimos 10 min (403
+  `codigo: totp_necessario`, mesmo com SSO), justificativa sem IP/MAC em `audit_logs.justification`, teto por hora em `rate_limits`
+  (revelar 20/pessoa e 60/projeto; exportar 5/pessoa e 15/projeto; 429 `teto_por_hora`) e aviso ao Gestor ARCiber titular e suplente
+  (sino de quem alcanca o projeto e e-mail da governanca), tudo em `src/services/ot-stepup.ts`; a tela pede o codigo (de novo se errado, sem
+  perder a justificativa) e repete (`comStepUp` em `ot-comum.js`). O aviso do sino (`/projects/:id/ot`) abre o n.ot na aba Saidas
+  (exportacao) ou Inventario (revelacao); trocar de projeto zera os filtros de site e zona e o lote aberto (`renderOt`). A conformidade mostra so os tres estados do servidor (nunca "atende"). Item `#nav-ot` no hub so com projeto **e** pessoa com o modulo (`atualizarItemOt`);
+  o painel ainda nao tem bloco do n.ot (`views/painel.js` o ignora).
+  Coleta (N3, migration 0092): `POST …/ot/lotes` (planilha CSV/XLSX em multipart, lida em memoria: nunca vai ao R2 nem a
+  IA) e `POST …/ot/lotes/manual` (JSON) entram em `ot_lotes`/`ot_lote_itens` (`src/services/ot-coleta.ts`); nada grava direto
+  no inventario. O tecnico (`org_user`) so cria lote, nos sites de `ot_site_acessos` (entrada exata no allow-list de `auth.ts`);
+  aprovar/rejeitar e de quem `podeVerCompleto` e nunca de quem criou o lote; a aprovacao grava `verificado_por` e
+  `ultima_verificacao_em` (a evidencia do 4.3.1) so quando o item trouxe todos os campos do 4.3.1; item que muda um deles sem
+  recoletar, ou `PUT /ativos` que toca um deles, zera a verificacao (`toca431`). Alvo da mescla alterado depois da revisao volta o
+  item a pendente e o lote a `em_revisao` (P1-4). A marca de duplicata (`possivel_duplicata`, `possiveis_duplicatas`) so sai para
+  quem `podeVerCompleto` (A1). O export de portabilidade (`GET /projects/:id/export`) nunca leva tabela `ot_*` (prefixo, em
+  `src/portabilidade.ts`). Troca de papel ou projeto nao concede `ot` (`recalcularModulos`). Export de ferramenta OT (Nozomi etc.)
+  nao existe: sem amostra.
 - **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
   `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` e
   `/homologacao*` ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.

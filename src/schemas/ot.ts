@@ -1,0 +1,82 @@
+import { z } from 'zod';
+import { normalizarIp, normalizarMac, ENDERECO_EM_TEXTO } from '../services/ot-cifra';
+
+// Corpos do inventário do n.ot. Todos `.strict()` (modelo de ameaças P1-3/P0-8): `project_id`, `status`, `verificado_por`,
+// `ultima_verificacao_em`, `ip_cifrado`, `ip_hash` e afins no corpo são recusados; o servidor é quem os escreve.
+
+// P0-6: IP ou MAC digitado em campo livre sairia em claro para quem vê mascarado (padrão em services/ot-cifra.ts).
+const livre = (max: number, min = 0) => z.string().trim().min(min).max(max).refine((s) => !ENDERECO_EM_TEXTO.test(s), 'Não informe IP nem MAC em campo de texto livre');
+const nome = livre(200, 1);
+const id = z.string().trim().min(1).max(100);
+const opcional = <T extends z.ZodTypeAny>(t: T) => t.nullable().optional();
+
+export const otSiteCriarSchema = z.object({
+  nome,
+  tipo: z.enum(['subestacao', 'usina', 'centro_operacao', 'outro']).optional(),
+  criticidade: opcional(z.enum(['alta', 'media', 'baixa'])),
+  localizacao: opcional(livre(500)),
+}).strict();
+export const otSiteAtualizarSchema = otSiteCriarSchema.partial().strict();
+
+export const otZonaCriarSchema = z.object({
+  site_id: id,
+  nome,
+  nivel_purdue: z.number().int().min(0).max(5),
+  tipo: z.enum(['supervisao', 'dmz_operativa', 'corporativa', 'outra']).optional(),
+  descricao: opcional(livre(2000)),
+}).strict();
+export const otZonaAtualizarSchema = otZonaCriarSchema.omit({ site_id: true }).partial().strict();
+
+const campoAtivo = {
+  zona_id: opcional(id),
+  nome,
+  no_arciber: z.boolean().optional(),
+  categoria_arciber: opcional(z.enum(['centro_operacao', 'infra_dados_voz', 'ambiente_ons'])),
+  tipo_dispositivo: opcional(livre(200)),
+  fabricante: opcional(livre(200)),
+  modelo: opcional(livre(200)),
+  funcao: opcional(livre(500)),
+  // Em claro no corpo; o servidor normaliza, cifra e calcula o hash (P0-8).
+  ip: opcional(z.string().trim().max(100).refine((s) => normalizarIp(s) !== null, 'IP inválido')),
+  mac: opcional(z.string().trim().max(100).refine((s) => normalizarMac(s) !== null, 'MAC inválido')),
+  protocolos_portas: z.array(z.object({
+    protocolo: livre(50, 1),
+    porta: z.number().int().min(0).max(65535).optional(),
+  }).strict()).max(100).optional(),
+  // Versão de firmware tem forma de IPv4 ("10.2.0.4"): fica fora da recusa de endereço.
+  firmware_so_versao: opcional(z.string().trim().max(200)),
+  firmware_nao_aplicavel: z.boolean().optional(),
+};
+export const otAtivoCriarSchema = z.object({ site_id: id, ...campoAtivo }).strict();
+export const otAtivoAtualizarSchema = z.object(campoAtivo).partial().strict();
+
+const campoFluxo = {
+  origem_ativo_id: opcional(id),
+  origem_zona_id: opcional(id),
+  destino_ativo_id: opcional(id),
+  destino_zona_id: opcional(id),
+  protocolo: opcional(livre(50)),
+  porta: opcional(z.number().int().min(0).max(65535)),
+  direcao: z.enum(['unidirecional', 'bidirecional']).optional(),
+  finalidade: opcional(livre(500)),
+  externo: z.boolean().optional(),
+  via_vpn: z.boolean().optional(),
+};
+export const otFluxoCriarSchema = z.object({ site_id: id, ...campoFluxo }).strict();
+export const otFluxoAtualizarSchema = z.object(campoFluxo).partial().strict();
+
+export const otAcessoCriarSchema = z.object({ user_id: id, site_id: id }).strict();
+
+/** Revelar IP/MAC e exportar (P1-1): o motivo vai à trilha (`audit_logs.justification`) e ao aviso do Gestor ARCiber, por isso sem IP/MAC. */
+const justificativa = livre(500, 10);
+export const otRevelarSchema = z.object({ justificativa }).strict();
+/** Exportação por site (P1-6): POST para a justificativa não ir no endereço. */
+export const otExportarSchema = z.object({ formato: z.enum(['csv', 'xlsx']), site_id: id, justificativa }).strict();
+
+/** Teto de itens por lote (P0-5, P1-5): o mesmo da planilha (5.000 linhas). */
+export const TETO_ITENS_LOTE = 5000;
+/** Entrada manual em lote: cada item é validado campo a campo na tubulação da coleta (services/ot-coleta.ts), não aqui, para que
+ *  um item ruim fique no lote com o erro em vez de derrubar o envio inteiro. */
+export const otLoteManualSchema = z.object({ site_id: id, itens: z.array(z.record(z.string(), z.unknown())).min(1).max(TETO_ITENS_LOTE) }).strict();
+/** Rejeitar lote: o motivo vai à trilha (`audit_logs.justification`), nunca a `details`. */
+export const otLoteRejeitarSchema = z.object({ motivo: livre(500, 3) }).strict();

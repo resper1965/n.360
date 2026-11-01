@@ -219,6 +219,10 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   criticidades_terceiro: { impacto: 'alto', exclusividade: 'sem_alternativas', risco_financeiro: 'alto', conformidade: 'regulamentado', risco_reputacional: 'alto', nivel: 'alto' },
   // Documentos do legado (0081): enums do CHECK; sem vencimento = 0 para o CHECK do vencimento valer com data
   documentos_arquivo: { tipo: 'outro', status: 'rascunho', sem_vencimento: 0, arquivo_tipo: 'pdf' },
+  // n.ot (0091): cada ponta do fluxo é ativo OU zona (CHECK); a zona fica de fora, vale sobre a FK
+  ot_fluxos: { origem_zona_id: null, destino_zona_id: null },
+  // n.ot (0092): fonte do lote é enum do CHECK
+  ot_lotes: { fonte: 'manual' },
 };
 
 /**
@@ -255,6 +259,7 @@ async function semearOrganizacao(o: Org, neutro: string): Promise<string[]> {
       if (c.name === 'id') valores.push(id);
       else if (c.name === 'project_id') valores.push(o.proj);
       else if (c.name === 'org_id') valores.push(o.org);
+      else if (fixo === null) continue;
       else if (alvoFk.has(c.name) && idDe.has(alvoFk.get(c.name)!)) valores.push(idDe.get(alvoFk.get(c.name)!));
       else if (c.notnull && c.dflt_value === null) {
         valores.push(fixo !== undefined ? fixo : /INT|REAL|NUM/i.test(c.type ?? '') ? 0 : `${id}-${c.name}`);

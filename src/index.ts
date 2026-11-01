@@ -47,6 +47,8 @@ import { requisitosApp, projetoRequisitosApp } from './routes/requisitos';
 import { terceirosApp } from './routes/terceiros';
 import { homologacoesApp } from './routes/homologacoes';
 import { importacaoApp } from './routes/importacao';
+import { otApp } from './routes/ot';
+import { otSaidasApp } from './routes/ot-saidas';
 import { encarregadoApp } from './routes/encarregado';
 import { pontoDePartidaApp } from './routes/ponto-de-partida';
 import { painelApp, carteiraApp } from './routes/painel';
@@ -115,6 +117,11 @@ export type Bindings = {
    *  removido. Documentação que descreve um risco que já não existe é tão ruim
    *  quanto a que esconde um que existe: manda procurar no lugar errado. */
   TOKEN_ENC_KEY?: string;
+  /** Cifra (AES-GCM, `ot1:<kid>:`) e HMAC do IP/MAC do inventário do n.ot (`services/ot-cifra.ts`, modelo de ameaças P0-8).
+   *  Secrets: `npx wrangler secret put OT_INVENTARIO_KEY` e `npx wrangler secret put OT_INVENTARIO_HMAC_KEY`.
+   *  Sem qualquer um, as rotas de ativos do n.ot respondem 503 (falha fechada). Trocar a chave de HMAC quebra o dedupe. */
+  OT_INVENTARIO_KEY?: string;
+  OT_INVENTARIO_HMAC_KEY?: string;
   ENVIRONMENT?: string;
   /** Endereço canônico deste ambiente (`src/config/url.ts`). Sem ele, o de produção. */
   APP_URL?: string;
@@ -166,6 +173,8 @@ export type Variables = {
     agente_decisao?: { ferramenta: string; motivo: string };
     /** Sessão autenticada por senha mas ainda sem o segundo fator. */
     mfa_pending?: boolean;
+    /** Último código do segundo fator confirmado nesta sessão (ms), por /auth/mfa/verify: step-up do n.ot (services/ot-stepup.ts). */
+    totp_em?: number;
     /** Instante de emissão, usado para revogação. */
     iat?: number;
     /** Última atividade vista pelo middleware; relógio da expiração por inatividade. */
@@ -471,6 +480,9 @@ app.route('/api/v1/projects/:projectId', projetoRequisitosApp);
 app.route('/api/v1/projects/:projectId/terceiros', terceirosApp);
 app.route('/api/v1/projects/:projectId/homologacoes', homologacoesApp);
 app.route('/api/v1/projects/:projectId/importacoes', importacaoApp);
+app.route('/api/v1/projects/:projectId/ot', otApp);
+// Depois do otApp de propósito: as travas dele (P0-2, escrita só de quem cadastra) valem para as saídas (N4).
+app.route('/api/v1/projects/:projectId/ot', otSaidasApp);
 app.route('/api/v1/projects/:projectId/encarregado', encarregadoApp);
 app.route('/api/v1/projects/:projectId/ponto-de-partida', pontoDePartidaApp);
 // Painel de entrada (n.360, n.iso, n.privacy) e a carteira de quem cuida de vários projetos.

@@ -222,3 +222,16 @@ export function emailAlertaSonda(assunto: string, linhas: string[]): EmailComAss
     motivo: 'este endereço está configurado como ALERTA_EMAIL da sonda interna do n.360.',
   });
 }
+
+/** Aviso ao Gestor ARCiber (n.ot, P1-1): alguém revelou IP/MAC ou exportou o inventário. Sem IP, MAC nem nome de ativo. */
+export function emailAvisoOtSensivel(d: { quem: string; oQue: string; justificativa: string; url: string }): EmailComAssunto {
+  return com('n.ot: revelação ou exportação do inventário de OT', {
+    previa: `${d.quem} ${d.oQue}.`,
+    titulo: 'Revelação ou exportação do inventário de OT',
+    paragrafos: [`${d.quem} ${d.oQue}, depois de confirmar o segundo fator.`],
+    dados: [['Quem', d.quem], ['Justificativa', d.justificativa]],
+    botao: { rotulo: 'Abrir o n.ot', url: `${d.url}/ot` },
+    notas: ['Se este acesso não era esperado, fale com quem o fez e revise a trilha de auditoria do projeto.'],
+    motivo: 'este endereço está cadastrado como Gestor ARCiber (titular ou suplente) do projeto no n.360.',
+  });
+}

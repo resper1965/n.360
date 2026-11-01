@@ -140,7 +140,7 @@ describe('regra: a pessoa precisa do módulo', () => {
   it('/auth/me devolve os módulos da pessoa', async () => {
     const me = async (h: Record<string, string>) => (await (await req('/api/v1/auth/me', { headers: h })).json<any>()).user.modulos;
     expect(await me(await sessao('r-iso', 'client', 'p-duo'))).toEqual(['iso']);
-    expect(await me(await sessao('r-pa', 'platform_admin'))).toEqual(['iso', 'privacy']);
+    expect(await me(await sessao('r-pa', 'platform_admin'))).toEqual(['iso', 'privacy', 'ot']);
   });
 });
 
@@ -228,8 +228,8 @@ describe('conceder: PUT /users/:id/modulos', () => {
     expect(ou.teto_modulos).toEqual(['iso', 'privacy']);
     const doPa = await lista(await sessao('c-pa', 'platform_admin'));
     const isoSo = doPa.find((u) => u.id === 'c-ou-iso');
-    expect(isoSo.teto_modulos).toEqual(['iso', 'privacy']); // platform_admin concede qualquer um
-    expect(doPa.find((u) => u.id === 'c-pa').modulos).toEqual(['iso', 'privacy']);
+    expect(isoSo.teto_modulos).toEqual(['iso', 'privacy', 'ot']); // platform_admin concede qualquer um
+    expect(doPa.find((u) => u.id === 'c-pa').modulos).toEqual(['iso', 'privacy', 'ot']);
     const doCadm = await lista(await sessao('c-cadm', 'consultoria_admin', null, 'o-priv'));
     expect(doCadm.find((u) => u.id === 'c-cons-priv').teto_modulos).toEqual(['privacy']);
   });
@@ -301,5 +301,34 @@ describe('conceder: PUT /users/:id/modulos', () => {
     expect(log.details).toContain('iso, privacy → iso');
     expect((await mover('t-2')).status).toBe(200);
     expect(await modulos('t-2')).toEqual(['iso']); // só n.privacy: interseção vazia → os do projeto novo
+  });
+
+  it('P0-1: troca de papel ou de projeto nunca concede ot sem concessão explícita', async () => {
+    const pa = await sessao('c-pa', 'platform_admin');
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p-ot', 'Ot', 'x', 'c', 'Active', 'org_ness')`),
+      env.DB.prepare(`INSERT OR IGNORE INTO projeto_modulos (project_id, modulo) VALUES ('p-ot', 'ot')`),
+      conta('ot-stk', 'stakeholder', 'p-ot'), conta('ot-cli', 'client', 'p-duo'), conta('ot-cli2', 'client', 'p-duo'),
+    ]);
+    await env.DB.prepare(`DELETE FROM usuario_modulos WHERE user_id IN ('ot-stk', 'ot-cli', 'ot-cli2')`).run();
+    await put(pa, 'ot-cli', ['iso']);
+    await put(pa, 'ot-cli2', ['privacy']);
+    const editar = (id: string, corpo: unknown) => req(`/api/v1/users/${id}`, { method: 'PUT', headers: { ...pa, ...json }, body: JSON.stringify(corpo) });
+    expect((await editar('ot-stk', { role: 'org_user' })).status).toBe(200);
+    expect(await modulos('ot-stk')).not.toContain('ot');
+    expect((await editar('ot-cli', { client_project_id: 'p-ot' })).status).toBe(200);
+    expect(await modulos('ot-cli')).toEqual(['iso']);
+    expect((await editar('ot-cli2', { client_project_id: 'p-ot' })).status).toBe(200);
+    expect(await modulos('ot-cli2')).not.toContain('ot'); // interseção vazia: o teto sem ot
+  });
+
+  it('P0-1: módulos dados na criação da conta vão para audit_logs (usuario.modulos)', async () => {
+    const pa = await sessao('c-pa', 'platform_admin');
+    const r = await req('/api/v1/users', { method: 'POST', headers: { ...pa, ...json },
+      body: JSON.stringify({ email: 'nova-ot@ex.lat', password: 'Senha-forte-123!', name: 'N', role: 'org_user', client_project_id: 'p-duo', modulos: ['iso', 'ot'] }) });
+    expect(r.status, await r.clone().text()).toBe(201);
+    const log = await env.DB.prepare(`SELECT details, project_id FROM audit_logs WHERE action = 'usuario.modulos' AND details LIKE '%nova-ot@ex.lat%'`).first<any>();
+    expect(log?.details).toContain('iso, ot');
+    expect(log.project_id).toBe('p-duo');
   });
 });

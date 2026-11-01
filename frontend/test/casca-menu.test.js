@@ -21,7 +21,7 @@ describe('n.360: menu de hub', () => {
     it('só Início, Minhas aprovações, Conta e acessos, Segurança do projeto e Trilha de auditoria', () => {
         montarApp();
         aplicarCasca('n360');
-        expect(new Set(visiveis())).toEqual(new Set(['nav-inicio', 'nav-meus', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail']));
+        expect(new Set(visiveis())).toEqual(new Set(['nav-inicio', 'nav-meus', 'nav-ot', ...SO_N360, 'nav-seguranca-projeto', 'nav-audit-trail']));
     });
     it('grupo que ficou vazio some com o rótulo', () => {
         montarApp();
@@ -71,6 +71,8 @@ const ESTRUTURA_ISO = [
 const ESTRUTURA_N360 = [
     'nav-inicio=Início',
     'nav-meus=Minhas aprovações',
+    // o n.ot entra no hub (escondido até o projeto e a pessoa terem o módulo: ot-modulo.test.js)
+    'nav-ot=n.ot',
     '[Conta e acessos] true',
     'group-conta (aberto): nav-projects=Projetos, nav-users=Usuários, nav-organizacoes=Consultorias, nav-identidade=Identidade da consultoria, nav-seguranca-projeto=Segurança do projeto, nav-api-keys=Chaves de API, nav-conectar-agente=Agentes',
     '[Sistema] false',

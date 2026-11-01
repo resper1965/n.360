@@ -328,6 +328,14 @@ describe('sem acesso e links entre módulos', () => {
         expect(el('c').querySelector('a').getAttribute('href')).toBe('/');
         expect(el('c').querySelector('a').textContent).toBe('Abrir o n.360');
     });
+    it('n.ot sem acesso: a causa comum é a concessão explícita (P0-1), não o contrato', () => {
+        document.body.innerHTML = '<div id="c"></div>';
+        semAcesso(el('c'), 'ot');
+        expect(el('c').textContent).toContain('Você não tem acesso ao n.ot');
+        expect(el('c').textContent).toContain('concessão');
+        expect(el('c').textContent).not.toContain('contratar');
+        expect(el('c').querySelector('a').getAttribute('href')).toBe('/');
+    });
     it('n.360 sem módulo em projeto nenhum: texto próprio, sem link', () => {
         document.body.innerHTML = '<h1 id="header-title"></h1><div id="c"></div>';
         semAcesso(el('c'), 'n360');

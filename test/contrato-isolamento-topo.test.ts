@@ -247,6 +247,10 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   criticidades_terceiro: { impacto: 'alto', exclusividade: 'sem_alternativas', risco_financeiro: 'alto', conformidade: 'regulamentado', risco_reputacional: 'alto', nivel: 'alto' },
   // Documentos do legado (0081): enums do CHECK; sem vencimento = 0 para o CHECK do vencimento valer com data
   documentos_arquivo: { tipo: 'outro', status: 'rascunho', sem_vencimento: 0, arquivo_tipo: 'pdf' },
+  // n.ot (0091): fluxo precisa de ponta (CHECK); externo com uma ponta só, a zona alheia semeada nesta passada
+  ot_fluxos: { externo: 1, origem_zona_id: (id: string) => id },
+  // n.ot (0092): fonte do lote é enum do CHECK
+  ot_lotes: { fonte: 'manual' },
 };
 
 async function semearTenantAlheio(id: string, projeto: string): Promise<void> {
@@ -277,6 +281,12 @@ async function semearTenantAlheio(id: string, projeto: string): Promise<void> {
         else if (alvoFk.has(c.name)) valores.push(alvoFk.get(c.name) === 'projects' ? projeto : id);
         else valores.push(/INT|REAL|NUM/i.test(c.type ?? '') ? 0 : 'x');
       }
+    }
+    // Coluna opcional que um CHECK exige (ex.: a ponta do fluxo do n.ot): entra pelo VALOR_FIXO; função recebe o id alheio.
+    for (const [k, v] of Object.entries(VALOR_FIXO[name] ?? {})) {
+      if (usadas.includes(k)) continue;
+      usadas.push(k);
+      valores.push(typeof v === 'function' ? v(id) : v);
     }
     try {
       await env.DB.prepare(
