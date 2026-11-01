@@ -10,6 +10,8 @@ describe('catálogo de decisões do agente', () => {
     expect(decisaoDaRota('POST', '/api/v1/projects/p1/incidentes/i1/encerrar')?.ferramenta).toBe('niso_encerrar_incidente');
     expect(decisaoDaRota('GET', '/api/v1/projects/p1/importacoes')?.ferramenta).toBe('niso_importar_programa');
     expect(decisaoDaRota('GET', '/api/v1/projects/p1/padronizar-nomes')?.ferramenta).toBe('niso_padronizar_nomes');
+    expect(decisaoDaRota('PUT', '/api/v1/projects/p1/catalogos/dados/c1')?.ferramenta).toBe('niso_editar_catalogo');
+    expect(decisaoDaRota('POST', '/api/v1/projects/p1/catalogos/dados')).toBeNull();
   });
 
   it('não casa rota comum nem ato do cliente', () => {
