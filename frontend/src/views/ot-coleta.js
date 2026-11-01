@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, confirmar, pedirTexto,
     formatarData } from '../ui.js';
-import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo } from '../ot-comum.js';
+import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo } from '../ot-comum.js';
 
 // Coleta do n.ot (N3; spec §7, P0-3, P0-5): planilha (multipart `file` + `site_id`) e entrada manual caem em lotes que outra pessoa
 // revisa antes do inventário. A duplicata aparece como a API devolve (`possivel_duplicata`); quem não vê completo não recebe o alvo.
@@ -20,6 +20,7 @@ const selo = (mapa, v) => renderStatusBadge(...(mapa[v] || ['neutral', v || '—
 let sites = [];
 let manuais = [];
 let documentos = [];
+let itensDoLote = [];
 
 const PRIVACIDADE = 'A planilha é lida em memória e descartada: o arquivo original não é guardado. Só as linhas reconhecidas entram no lote, que espera a revisão '
     + 'de outra pessoa (o Gestor ARCiber ou o consultor) antes de chegar ao inventário. Lote não concluído expira em 7 dias.';
@@ -131,6 +132,7 @@ async function montarLote(c, a, id) {
     try { r = await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}`); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o lote.', e, { acao: 'otVoltarLotes' }); return; }
     const { lote } = r;
     const itens = lista(r, 'itens');
+    itensDoLote = itens;
     const emRevisao = lote.status === 'em_revisao';
     const criou = lote.criado_por === S.user?.id;
     // A API aprova só quem vê completo (podeAprovar = podeVerCompleto): item mascarado diz que não é o caso (o consultoria_admin não designado).
@@ -140,19 +142,30 @@ async function montarLote(c, a, id) {
         + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>Aprovar lote</button>` : '');
     const aviso = !emRevisao ? '' : criou ? 'Você criou este lote: a aprovação é de outra pessoa.'
         : !aprova ? 'A aprovação é do Gestor ARCiber ou do consultor do projeto.' : 'Aprovar grava no inventário os itens sem erro (a possível duplicata é mesclada no ativo existente) e registra você como quem verificou (4.3.1) só nos itens que trazem todos os campos do 4.3.1. Itens com erro são recusados.';
-    const erros = (xs) => (xs && xs.length ? `<ul class="m-0 t-perigo">${xs.map((x) => `<li>${escapeHTML(x.campo)}: ${escapeHTML(x.motivo)}</li>`).join('')}</ul>` : '—');
     c.innerHTML = `<h3 class="mb-2">Lote de ${escapeHTML((FONTE[lote.fonte] || lote.fonte).toLowerCase())} · ${escapeHTML(nomeDe(sites, lote.site_id))} ${selo(STATUS, lote.status)}</h3>
         <p class="org-dica mb-3">Criado em ${escapeHTML(formatarData(lote.created_at, { hora: true }))}.${lote.motivo ? ` Motivo: ${escapeHTML(lote.motivo)}` : ''} ${escapeHTML(aviso)}</p>
         ${renderDataTable(['Linha', 'Nome', 'Tipo', 'Fabricante', 'IP', 'MAC', 'Erros', 'Duplicata', 'Decisão'], itens.map((i) => {
         const d = i.dados || {};
         return [escapeHTML(String(i.linha)), escapeHTML(d.nome || '—'), escapeHTML(d.tipo_dispositivo || '—'), escapeHTML(d.fabricante || '—'),
-            `<span class="f-mono">${escapeHTML(d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(d.mac ?? '—')}</span>`, erros(i.erros),
-            i.possivel_duplicata ? renderStatusBadge('warning', 'Possível duplicata') : '—', escapeHTML(DECISAO[i.decisao] || i.decisao)];
+            `<span class="f-mono">${escapeHTML(d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(d.mac ?? '—')}</span>`, listaDeErros(i.erros, 't-perigo'),
+            i.possivel_duplicata ? renderStatusBadge('warning', `Possível duplicata de ${nomeDoAtivo(i.duplicata_de)}`) : '—', escapeHTML(DECISAO[i.decisao] || i.decisao)];
     }), { emptyMessage: 'Lote sem itens.' })}`;
 }
 
+const qtd = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+/** O que a aprovação vai fazer, contado dos itens pendentes que a tela já tem. Sem a duplicata (quem não vê completo), só sem erro e com erro. */
+function resumoDaAprovacao(itens) {
+    const pend = itens.filter((i) => i.decisao === 'pendente');
+    const comErro = pend.filter((i) => i.erros?.length).length;
+    const ok = pend.filter((i) => !i.erros?.length);
+    const total = qtd(pend.length, 'item', 'itens');
+    if (!pend.every((i) => 'possivel_duplicata' in i)) return `${total}: ${ok.length} sem erro, ${comErro} com erro.`;
+    const mescla = ok.filter((i) => i.possivel_duplicata).length;
+    return `${total}: ${qtd(ok.length - mescla, 'entra como novo', 'entram como novos')}, ${qtd(mescla, 'mescla em ativo existente', 'mesclam em ativos existentes')}, `
+        + `${qtd(comErro, 'recusado por erro', 'recusados por erro')}.`;
+}
 window.otAprovarLote = async (id) => {
-    if (!await confirmar('Aprovar o lote? Os itens sem erro vão para o inventário e você fica registrado como quem verificou.', { titulo: 'Aprovar lote', rotulo: 'Aprovar' })) return;
+    if (!await confirmar(`${resumoDaAprovacao(itensDoLote)} Você fica registrado como quem verificou.`, { titulo: 'Aprovar lote', rotulo: 'Aprovar' })) return;
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}/aprovar`);
         showToast(`Lote aprovado: ${r.criados} criado(s), ${r.atualizados} atualizado(s), ${r.recusados} recusado(s).`, 'success');

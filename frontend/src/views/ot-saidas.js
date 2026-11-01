@@ -55,8 +55,9 @@ export async function montarSaidas(c, a, p) {
 window.otExportar = async (formato) => {
     const site = el('ot-exp-site')?.value;
     if (!site || !['csv', 'xlsx'].includes(formato)) return;
-    const justificativa = await pedirTexto('Por que exportar o inventário deste site? O motivo vai para a trilha de auditoria e para o aviso ao Gestor ARCiber (mínimo de 10 caracteres, sem IP nem MAC).',
-        { titulo: 'Exportar o inventário', rotulo: 'Exportar' });
+    const nome = el('ot-exp-site').selectedOptions?.[0]?.textContent || 'o site';
+    const justificativa = await pedirTexto('Por que exportar o inventário deste site? IP e MAC saem como o seu papel os vê. O motivo vai para a trilha de auditoria e para o aviso ao Gestor ARCiber (mínimo de 10 caracteres, sem IP nem MAC).',
+        { titulo: `Exportar ${nome} (${formato.toUpperCase()})`, rotulo: 'Exportar' });
     if (justificativa === null) return;
     if (justificativa.length < 10) { showToast('Escreva o motivo com ao menos 10 caracteres.', 'error'); return; }
     try {
