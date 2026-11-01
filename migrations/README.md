@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0092** (`ls migrations/*.sql | tail -1`). São 90 arquivos
+- Última migration no repositório: **0093** (`ls migrations/*.sql | tail -1`). São 91 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -717,3 +717,7 @@ Cria `ot_sites`, `ot_zonas`, `ot_ativos`, `ot_fluxos` e `ot_site_acessos` (spec 
 ## 0092 — coleta do n.ot (2026-10-30)
 
 Cria `ot_lotes` e `ot_lote_itens` (staging da coleta: planilha CSV/XLSX e entrada manual; spec §6/§7). Tabelas próprias, não `importacoes` (os CHECK de lá são do n.privacy). Aditiva e repetível (`IF NOT EXISTS`); não toca tabela existente. O CHECK de `ot_lote_itens.dados` recusa `ip`/`mac` em claro e cifra fora da forma `ot1:`; não há `r2_key`, porque o arquivo original nunca vai ao R2 (P0-3). Lote não concluído é apagado pela manutenção diária depois de 7 dias. Conferência depois: `SELECT name FROM sqlite_master WHERE name LIKE 'ot_lote%'`. Produção só com o "sim" do dono e `npm run db:backup` antes.
+
+## 0093 — levantamento do n.ot (2026-11-01)
+
+Cria `ot_levantamentos` (sessões de entrevista, visita e documento), `ot_achados` e `ot_roteiro_perguntas` (15 perguntas semeadas com `INSERT OR IGNORE`) e acrescenta `ot_lotes.levantamento_id` por `ALTER TABLE ADD COLUMN`, que roda uma vez pelo runner: `ot_lotes` não é refeita (gatilhos e RENAME no D1, ver 0089). O resto é repetível (`IF NOT EXISTS`). IP/MAC em `ot_achados.dados` só cifrados (`ot1:`), como na 0092. Conferência depois: `SELECT count(*) FROM ot_roteiro_perguntas` (15) e `PRAGMA table_info(ot_lotes)`. Produção só com o "sim" do dono e `npm run db:backup` antes.
