@@ -57,11 +57,11 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('abas da casca /ot', () => {
-    it('catálogo, inventário, fluxos, coleta e saídas; acesso por site só para quem administra', async () => {
+    it('catálogo, inventário, fluxos, coleta, levantamento e saídas; acesso por site só para quem administra', async () => {
         servirOt({ [`GET ${B}/requisitos`]: { requisitos: [] } });
         await abrir('catalogo');
         const abas = () => [...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim());
-        expect(abas()).toEqual(['Catálogo RO-CB.BR.01', 'Inventário', 'Fluxos', 'Coleta', 'Saídas', 'Acesso por site']);
+        expect(abas()).toEqual(['Catálogo RO-CB.BR.01', 'Inventário', 'Fluxos', 'Coleta', 'Levantamento', 'Saídas', 'Acesso por site']);
         for (const role of ['client', 'org_user']) {
             S.user = { id: 'u', role };
             await abrir('catalogo');

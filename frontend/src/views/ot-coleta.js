@@ -19,6 +19,7 @@ const selo = (mapa, v) => renderStatusBadge(...(mapa[v] || ['neutral', v || '—
 
 let sites = [];
 let manuais = [];
+let documentos = [];
 
 const PRIVACIDADE = 'A planilha é lida em memória e descartada: o arquivo original não é guardado. Só as linhas reconhecidas entram no lote, que espera a revisão '
     + 'de outra pessoa (o Gestor ARCiber ou o consultor) antes de chegar ao inventário. Lote não concluído expira em 7 dias.';
@@ -31,10 +32,14 @@ export async function montarColeta(c, a, p) {
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar a coleta do n.ot.', e); return; }
     if (S.otLote) { await montarLote(c, a, S.otLote); return; }
     const criar = podeCriarLote() && sites.length;
+    // Secundário: sem a lista de sessões, a planilha só não se liga a um documento.
+    if (criar) documentos = lista(await api('GET', `/api/v1/projects/${p.id}/ot/levantamentos`).catch(() => null), 'levantamentos').filter((l) => l.tipo === 'documento');
+    const siteLote = S.otSite || sites[0]?.id;
     if (criar) a.innerHTML = '<button class="btn" data-action="otEntradaManual">Entrada manual</button>';
     const envio = criar ? `<div class="bloco mb-4"><h3 class="mb-3">Enviar planilha</h3>
         <div class="d-flex gap-4 flex-wrap items-center">
-            <div class="form-group"><label class="form-label" for="ot-lote-site">Site</label><select class="form-input" id="ot-lote-site">${opcoes(sites.map((s) => [s.id, s.nome]), S.otSite)}</select></div>
+            <div class="form-group"><label class="form-label" for="ot-lote-site">Site</label><select class="form-input" id="ot-lote-site" data-action-change="otLoteSite" data-arg-val>${opcoes(sites.map((s) => [s.id, s.nome]), siteLote)}</select></div>
+            <div class="form-group"><label class="form-label" for="ot-lote-doc">Ligar a um documento (opcional)</label><select class="form-input" id="ot-lote-doc">${opcoesDoc(siteLote)}</select></div>
             <div class="form-group"><label class="form-label" for="ot-lote-arquivo">Planilha (CSV ou XLSX, até 5 MB)</label><input class="form-input" type="file" id="ot-lote-arquivo" accept=".csv,.xlsx"></div>
             <button class="btn btn-primary" data-action="otEnviarPlanilha">Enviar planilha</button></div>
         <p class="org-dica">Colunas reconhecidas pelo cabeçalho: nome, ip, mac, fabricante, modelo, tipo, funcao, protocolos, firmware, arciber, categoria, zona. As demais são ignoradas.</p></div>` : '';
@@ -47,6 +52,9 @@ export async function montarColeta(c, a, p) {
         `<button class="btn btn-sm" data-action="otAbrirLote" data-args='${args(l.id)}' aria-label="${escapeHTML(`Revisar lote de ${formatarData(l.created_at, { hora: true })}`)}">Revisar</button>`,
     ]), { emptyMessage: 'Nenhum lote de coleta.', emptyHint: criar ? 'Envie uma planilha ou registre ativos pela entrada manual.' : 'Os lotes aparecem aqui quando alguém envia a coleta de um site.' })}`;
 }
+
+const opcoesDoc = (siteId) => `<option value="">Nenhum</option>${opcoes(documentos.filter((d) => d.site_id === siteId).map((d) => [d.id, d.documento_titulo || d.realizado_em]))}`;
+window.otLoteSite = (siteId) => { const x = el('ot-lote-doc'); if (x) x.innerHTML = opcoesDoc(siteId); };
 
 window.otAbrirLote = (id) => { S.otLote = id; window.render(); };
 window.otVoltarLotes = () => { S.otLote = null; window.render(); };
@@ -64,6 +72,7 @@ window.otEnviarPlanilha = async () => {
     const fd = new FormData();
     fd.append('file', arquivo);
     fd.append('site_id', el('ot-lote-site').value);
+    if (el('ot-lote-doc')?.value) fd.append('levantamento_id', el('ot-lote-doc').value);
     let r, corpo;
     try {
         r = await fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/lotes`, { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) });

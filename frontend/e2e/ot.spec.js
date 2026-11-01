@@ -62,6 +62,11 @@ const ABAS_OT = {
   [`${B}/fluxos`]: { fluxos: [{ id: 'f1', site_id: 's1', origem_ativo_id: 'a1', origem_zona_id: null, destino_ativo_id: null, destino_zona_id: null, protocolo: 'HTTPS',
     porta: 443, direcao: 'unidirecional', finalidade: null, externo: true, via_vpn: false, violacoes: ['4.1.2', '4.1.3'] }] },
   [`${B}/lotes`]: { lotes: [{ id: 'l1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', criado_por: 'u-tec', created_at: '2026-10-30 10:00:00', itens: 2, com_erro: 0, gravados: 0 }] },
+  [`${B}/levantamentos`]: { levantamentos: [{ id: 'lv1', site_id: 's1', tipo: 'entrevista', realizado_em: '2026-11-01', funcao: 'Operador', turno: 'B', documento_titulo: null,
+    documento_data: null, notas: '', roteiro: {}, situacao: 'aberto', achados: 0 }] },
+  [`${B}/roteiro`]: { perguntas: [
+    { id: 'rot-01', ordem: 1, texto: 'Algum equipamento desta sala é acessado de fora da empresa?', item_norma: '4.1.3', entidade_esperada: 'fluxo', tipos_sessao: ['entrevista', 'visita'] },
+    { id: 'rot-02', ordem: 2, texto: 'Há pendrive ou notebook pessoal ligado à rede?', item_norma: '4.3.1', entidade_esperada: 'ativo', tipos_sessao: ['entrevista', 'visita'] }] },
   [`${B}/indicadores`]: { completude: { total: 1, completos: 1, percentual: 100, situacao: 'evidencia_no_inventario', evidencia: 'Os 1 ativo(s) têm os 6 campos do 4.3.1 registrados', arciber: { total: 1, completos: 1 } },
     por_zona: [{ zona_id: 'z2', site_id: 's1', nome: 'Supervisão', nivel_purdue: 2, ativos: 1 }], por_nivel: { 2: 1 }, sem_zona: 0,
     fluxos_externos: { externos: 1, sem_vpn: 1, situacao: 'nao_atende' }, prazos: [] },
@@ -93,6 +98,10 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo gua
   await page.getByRole('tab', { name: 'Coleta' }).click();
   await expect(page.locator('#ot-coleta-privacidade')).toContainText('o arquivo original não é guardado');
   await expect(conteudo).toContainText('Em revisão');
+
+  await page.getByRole('tab', { name: 'Levantamento' }).click();
+  await expect(conteudo).toContainText('Entrevista');
+  await expect(conteudo).toContainText('Operador · turno B');
 
   await page.getByRole('tab', { name: 'Saídas' }).click();
   await expect(conteudo).toContainText('Não atende');

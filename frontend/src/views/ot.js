@@ -6,6 +6,7 @@ import { podeEditarOt, podeRevelar, mensagemDeErro, comStepUp, lista, opcoes, no
     TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS } from '../ot-comum.js';
 import { montarColeta } from './ot-coleta.js';
 import { montarSaidas } from './ot-saidas.js';
+import { montarLevantamento } from './ot-levantamento.js';
 
 // n.ot (spec 2026-10-30-n-ot-modulo-n360-design): a casca /ot em abas. Catálogo RO-CB.BR.01 (N1), inventário, fluxos e acesso por
 // site (N2), coleta (N3, ot-coleta.js) e saídas (N4, ot-saidas.js), sobre as rotas de src/routes/ot.ts e ot-saidas.ts. Todo texto é
@@ -21,7 +22,7 @@ const TEMPO_IA = 90000;
 /** O que a API devolveu no último desenho (sites, zonas, ativos, fluxos). */
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
-const ABAS = [['catalogo', 'Catálogo RO-CB.BR.01'], ['inventario', 'Inventário'], ['fluxos', 'Fluxos'], ['coleta', 'Coleta'], ['saidas', 'Saídas'],
+const ABAS = [['catalogo', 'Catálogo RO-CB.BR.01'], ['inventario', 'Inventário'], ['fluxos', 'Fluxos'], ['coleta', 'Coleta'], ['levantamento', 'Levantamento'], ['saidas', 'Saídas'],
     ['acessos', 'Acesso por site']];
 const abasDoPapel = () => ABAS.filter(([v]) => v !== 'acessos' || podeEditarOt());
 
@@ -30,17 +31,17 @@ async function renderOt(c, h, a) {
     a.innerHTML = '';
     if (!proj()) { c.innerHTML = renderSemProjeto(); return; }
     // Filtros e lote são do projeto: trocá-lo (seletor, aviso do sino) não pode levar o site do A para a consulta do B.
-    if (S.otProjeto !== proj().id) { S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; }
+    if (S.otProjeto !== proj().id) { S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; }
     const abas = abasDoPapel();
     const aba = abas.some(([v]) => v === S.otAba) ? S.otAba : 'catalogo';
     S.otAba = aba;
     c.innerHTML = renderAbas(abas.map(([v, r]) => [v, escapeHTML(r)]), aba, 'otAba') + '<div id="ot-painel"><div class="loading"></div></div>';
     const painel = el('ot-painel');
-    const montar = { catalogo: montarCatalogo, inventario: montarInventario, fluxos: montarFluxos, coleta: montarColeta, saidas: montarSaidas, acessos: montarAcessos }[aba];
+    const montar = { catalogo: montarCatalogo, inventario: montarInventario, fluxos: montarFluxos, coleta: montarColeta, levantamento: montarLevantamento, saidas: montarSaidas, acessos: montarAcessos }[aba];
     await montar(painel, a, proj());
 }
 
-window.otAba = (v) => { S.otAba = v; S.otLote = null; window.render(); };
+window.otAba = (v) => { S.otAba = v; S.otLote = null; S.otLevantamento = null; window.render(); };
 
 // ─── catálogo (N1) ──────────────────────────────────────────────────────────
 async function montarCatalogo(c, a, p) {
