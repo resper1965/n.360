@@ -44,7 +44,9 @@ export async function lerDocumento(db: D1Database, projectId: string, id: string
   return { ...comBooleano(d), aprovacao, versoes: v.results, evidencias: ev.results };
 }
 
-export async function criarDocumento(db: D1Database, projectId: string, ator: string, dados: DocumentoCriar): Promise<Falha | { ok: true; id: string }> {
+export async function criarDocumento(
+  db: D1Database, projectId: string, ator: string, dados: DocumentoCriar, origem: 'humano' | 'agente' | 'gerador' = 'humano',
+): Promise<Falha | { ok: true; id: string }> {
   const recusa = await validarHierarquia(db, projectId, { tipo: dados.tipo, paiId: dados.pai_id });
   if (recusa) return falha(400, recusa);
   if (dados.dono_parte_id && !(await existeNoProjeto(db, 'partes', dados.dono_parte_id, projectId))) return falha(400, 'dono_parte_id inexistente ou de outro projeto');
@@ -53,8 +55,8 @@ export async function criarDocumento(db: D1Database, projectId: string, ator: st
   await db.batch([
     db.prepare(`INSERT INTO documentos (id, project_id, tipo, titulo, pai_id, dono_parte_id, revisar_a_cada_meses) VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, projectId, dados.tipo, dados.titulo, dados.pai_id ?? null, dados.dono_parte_id ?? null, dados.revisar_a_cada_meses ?? null),
-    db.prepare(`INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por) VALUES (?, ?, ?, 1, ?, ?, 'rascunho', 'humano', ?)`)
-      .bind(crypto.randomUUID(), projectId, id, dados.texto, hash, ator),
+    db.prepare(`INSERT INTO documento_versoes (id, project_id, documento_id, numero, texto, hash, estado, origem, criado_por) VALUES (?, ?, ?, 1, ?, ?, 'rascunho', ?, ?)`)
+      .bind(crypto.randomUUID(), projectId, id, dados.texto, hash, origem, ator),
   ]);
   await logAudit(db, 'documento.criado', ator, `Documento ${id} criado: ${dados.titulo}`, '', '', projectId);
   return { ok: true, id };

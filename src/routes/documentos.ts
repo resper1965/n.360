@@ -78,7 +78,7 @@ documentosApp.post('/documentos', async (c) => {
   try {
     const v = await validateBody(c, documentoCriarSchema);
     if (!v.success) return v.response;
-    const r = await criarDocumento(c.env.DB, c.req.param('projectId')!, c.get('user').email, v.data);
+    const r = await criarDocumento(c.env.DB, c.req.param('projectId')!, c.get('user').email, v.data, c.get('user')?.agente === true ? 'agente' : 'humano');
     return r.ok ? c.json({ ok: true, id: r.id }, 201) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao criar o documento', e); }
 });
@@ -116,7 +116,9 @@ documentosApp.post('/documentos/:id/versoes', async (c) => {
   try {
     const v = await validateBody(c, versaoSalvarSchema);
     if (!v.success) return v.response;
-    const r = await salvarRascunho(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data.texto, v.data.origem);
+    // A origem do agente vem da sessão, não do corpo: texto do agente nunca passa por humano na trilha da versão.
+    const origem = c.get('user')?.agente === true ? 'agente' : v.data.origem;
+    const r = await salvarRascunho(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data.texto, origem);
     return r.ok ? c.json({ ok: true, numero: r.numero }, r.criada ? 201 : 200) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao salvar a versão', e); }
 });
