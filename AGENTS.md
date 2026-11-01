@@ -3,7 +3,7 @@
 Se voce esta lendo isto, voce e o agente responsavel por continuar o
 desenvolvimento do **n.360**, a plataforma de GRC da ness., e dos seus
 modulos: **n.iso** (ISO 27001/27701, em `/iso`), **n.privacy** (LGPD/ANPD, em
-`/privacy`) e **n.ot** (ARCiber, ONS RO-CB.BR.01, em `/ot`: catalogo, inventario, coleta, saidas e step-up, fatias N1 a N4 e P1-1). O repositorio, o Worker e o banco ainda se chamam `niso` por
+`/privacy`) e **n.ot** (ARCiber, ONS RO-CB.BR.01, em `/ot`: catalogo, inventario, coleta, saidas e step-up, fatias N1 a N4, P1-1 e Levantamento L1). O repositorio, o Worker e o banco ainda se chamam `niso` por
 historia; nao e o nome do produto.
 
 Este arquivo descreve o que **existe hoje**. Historico de sprint vive no
@@ -106,6 +106,14 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   quem `podeVerCompleto` (A1). O export de portabilidade (`GET /projects/:id/export`) nunca leva tabela `ot_*` (prefixo, em
   `src/portabilidade.ts`). Troca de papel ou projeto nao concede `ot` (`recalcularModulos`). Export de ferramenta OT (Nozomi etc.)
   nao existe: sem amostra.
+  Levantamento (L1 da descoberta operacional, migracao 0093, `src/services/ot-levantamento.ts`): sessoes de entrevista, visita e
+  documento, roteiro de 15 perguntas (`GET …/ot/roteiro`), achados confrontados com o inventario e enviados ao lote existente
+  (`/levantamentos*`, incl. `…/:id/achados` e `…/:id/enviar`; `POST …/ot/lotes` aceita `levantamento_id` para sessoes de documento).
+  Operador so por funcao e turno; texto livre recusa IP/MAC/CPF/e-mail/telefone; o confronto com o inventario so sai para quem
+  `podeVerCompleto`; achado so entra no inventario por lote aprovado. Retencao: achados 30 dias e `enviado` sem lote volta a
+  rascunho apos 1 dia (`src/manutencao.ts`). Leituras com `LIMIT` explicito (`TETO_LEITURA_OT`) por causa do teto de 500 linhas
+  da consulta. Frontend: aba Levantamento (`views/ot-levantamento.js`) com notas em autosave, roteiro para achado, aba inicial
+  por papel, confirmacoes com o conteudo e contagem nas abas.
 - **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
   `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` e
   `/homologacao*` ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.
