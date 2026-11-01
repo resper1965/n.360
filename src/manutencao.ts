@@ -164,6 +164,9 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
   }
 
   try {
+    // Envio interrompido (tomou o achado e não gravou o lote) volta a rascunho e segue a regra de 30 dias abaixo.
+    await env.DB.prepare(`UPDATE ot_achados SET situacao = 'rascunho', updated_at = CURRENT_TIMESTAMP
+      WHERE situacao = 'enviado' AND lote_id IS NULL AND updated_at < datetime('now', '-1 day')`).run();
     // Descoberta operacional (spec 2026-11-01 §10): achado descartado, ou rascunho de sessão encerrada, sai em 30 dias.
     const r = await env.DB.prepare(`DELETE FROM ot_achados WHERE (situacao = 'descartado' AND updated_at < datetime('now', '-30 days'))
       OR (situacao = 'rascunho' AND levantamento_id IN (SELECT id FROM ot_levantamentos WHERE situacao = 'encerrado' AND encerrado_em < datetime('now', '-30 days')))`).run();

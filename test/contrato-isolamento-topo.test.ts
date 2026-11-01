@@ -251,6 +251,7 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   ot_fluxos: { externo: 1, origem_zona_id: (id: string) => id },
   // n.ot (0092): fonte do lote é enum do CHECK
   ot_lotes: { fonte: 'manual' },
+  ot_levantamentos: { tipo: 'entrevista' },
 };
 
 async function semearTenantAlheio(id: string, projeto: string): Promise<void> {

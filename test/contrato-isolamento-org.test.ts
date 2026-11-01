@@ -223,6 +223,7 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   ot_fluxos: { origem_zona_id: null, destino_zona_id: null },
   // n.ot (0092): fonte do lote é enum do CHECK
   ot_lotes: { fonte: 'manual' },
+  ot_levantamentos: { tipo: 'entrevista' },
 };
 
 /**

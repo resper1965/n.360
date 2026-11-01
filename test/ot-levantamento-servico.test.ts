@@ -66,4 +66,14 @@ describe('achado: cifra própria, confronto no site, envio ao lote', () => {
     expect(await env.DB.prepare(`SELECT 1 FROM ot_achados WHERE id = 'ach-velho'`).first()).toBeNull();
     expect(await env.DB.prepare(`SELECT 1 FROM ot_achados WHERE id = 'ach-2'`).first()).not.toBeNull();
   });
+
+  it('retenção: enviado sem lote há mais de 1 dia (envio interrompido) volta a rascunho', async () => {
+    await env.DB.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, dados, evidencia, situacao, criado_por, updated_at)
+      VALUES ('ach-preso', 'proj-a', 'lev', '{}', 'x', 'enviado', 'u', datetime('now', '-2 days')),
+             ('ach-em-curso', 'proj-a', 'lev', '{}', 'x', 'enviado', 'u', datetime('now'))`).run();
+    const { manutencaoDiaria } = await import('../src/manutencao');
+    await manutencaoDiaria(env as any);
+    expect(await env.DB.prepare(`SELECT situacao, lote_id FROM ot_achados WHERE id = 'ach-preso'`).first()).toEqual({ situacao: 'rascunho', lote_id: null });
+    expect(await env.DB.prepare(`SELECT situacao FROM ot_achados WHERE id = 'ach-em-curso'`).first()).toEqual({ situacao: 'enviado' });
+  });
 });
