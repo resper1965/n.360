@@ -41,30 +41,45 @@ export async function serializarAchado(a: LinhaAchado, completo: boolean, chaves
 const PARA_BRUTO = ['nome', 'zona_id', 'no_arciber', 'categoria_arciber', 'tipo_dispositivo', 'fabricante', 'modelo', 'funcao', 'firmware_so_versao',
   'firmware_nao_aplicavel'] as const;
 
-/** Decifra os achados em rascunho da sessão e cria um lote manual ligado a ela; marca os enviados. */
+/**
+ * Decifra os achados em rascunho da sessão e cria um lote manual ligado a ela. A troca rascunho → enviado (lote_id NULL) é a trava:
+ * dois envios simultâneos do mesmo achado não criam dois lotes; se o lote falha, os achados tomados voltam a rascunho.
+ */
 export async function enviarAoLote(db: D1Database, chaves: ChavesOt, ator: { id: string }, projectId: string,
   lev: { id: string; site_id: string }, achadoIds: string[]) {
-  const { results } = await db.prepare(`SELECT * FROM ot_achados WHERE project_id = ? AND levantamento_id = ? AND situacao = 'rascunho'
-    AND id IN (SELECT value FROM json_each(?))`).bind(projectId, lev.id, JSON.stringify(achadoIds)).all<LinhaAchado>();
-  if (results.length !== achadoIds.length) return { ok: false as const, status: 400 as const, error: 'Achado inexistente, de outra sessão ou já enviado' };
-  const brutos: Record<string, unknown>[] = [];
-  for (const a of results) {
-    const d = JSON.parse(a.dados) as Record<string, unknown>;
-    const b: Record<string, unknown> = Object.fromEntries(PARA_BRUTO.filter((k) => d[k] !== undefined && d[k] !== null).map((k) => [k, d[k]]));
-    if (b.no_arciber !== undefined) b.no_arciber = !!b.no_arciber;
-    if (b.firmware_nao_aplicavel !== undefined) b.firmware_nao_aplicavel = !!b.firmware_nao_aplicavel;
-    if (typeof d.protocolos_portas === 'string') b.protocolos_portas = JSON.parse(d.protocolos_portas);
-    for (const campo of ['ip', 'mac'] as const) {
-      const c = d[`${campo}_cifrado`];
-      if (typeof c === 'string') b[campo] = await decifrarOt(c, chaves, aadOt(projectId, 'ot_achados', a.id, campo));
+  const ids = JSON.stringify([...new Set(achadoIds)]);
+  const { results } = await db.prepare(`UPDATE ot_achados SET situacao = 'enviado', lote_id = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE project_id = ? AND levantamento_id = ? AND situacao = 'rascunho' AND id IN (SELECT value FROM json_each(?)) RETURNING *`)
+    .bind(projectId, lev.id, ids).all<LinhaAchado>();
+  const tomados = JSON.stringify(results.map((a) => a.id));
+  const devolver = () => db.prepare(`UPDATE ot_achados SET situacao = 'rascunho', updated_at = CURRENT_TIMESTAMP
+    WHERE situacao = 'enviado' AND lote_id IS NULL AND id IN (SELECT value FROM json_each(?))`).bind(tomados).run();
+  if (results.length !== new Set(achadoIds).size) {
+    if (results.length) await devolver();
+    return { ok: false as const, status: 400 as const, error: 'Achado inexistente, de outra sessão ou já enviado' };
+  }
+  let r: Awaited<ReturnType<typeof criarLote>>;
+  try {
+    const brutos: Record<string, unknown>[] = [];
+    for (const a of results) {
+      const d = JSON.parse(a.dados) as Record<string, unknown>;
+      const b: Record<string, unknown> = Object.fromEntries(PARA_BRUTO.filter((k) => d[k] !== undefined && d[k] !== null).map((k) => [k, d[k]]));
+      if (b.no_arciber !== undefined) b.no_arciber = !!b.no_arciber;
+      if (b.firmware_nao_aplicavel !== undefined) b.firmware_nao_aplicavel = !!b.firmware_nao_aplicavel;
+      if (typeof d.protocolos_portas === 'string') b.protocolos_portas = JSON.parse(d.protocolos_portas);
+      for (const campo of ['ip', 'mac'] as const) {
+        const c = d[`${campo}_cifrado`];
+        if (typeof c === 'string') b[campo] = await decifrarOt(c, chaves, aadOt(projectId, 'ot_achados', a.id, campo));
+      }
+      brutos.push(b);
     }
-    brutos.push(b);
+    r = await criarLote(db, chaves, ator, projectId, lev.site_id, 'manual', brutos, lev.id);
+  } catch (e) {
+    await devolver();
+    throw e;
   }
-  const r = await criarLote(db, chaves, ator, projectId, lev.site_id, 'manual', brutos, lev.id);
-  if (r.ok) {
-    await db.prepare(`UPDATE ot_achados SET situacao = 'enviado', lote_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (SELECT value FROM json_each(?))`)
-      .bind(r.id, JSON.stringify(achadoIds)).run();
-  }
+  if (!r.ok) { await devolver(); return r; }
+  await db.prepare(`UPDATE ot_achados SET lote_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (SELECT value FROM json_each(?))`).bind(r.id, tomados).run();
   return r;
 }
 

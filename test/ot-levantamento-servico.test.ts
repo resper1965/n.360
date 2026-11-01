@@ -40,6 +40,23 @@ describe('achado: cifra própria, confronto no site, envio ao lote', () => {
     expect(ach).toEqual({ situacao: 'enviado', lote_id: (r as { id: string }).id });
   });
 
+  it('dois envios simultâneos do mesmo achado: um só lote; id repetido não é erro', async () => {
+    const p = await prepararAchado(chaves, 'proj-a', 's1', 'ach-3', { nome: 'Switch' });
+    await env.DB.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, dados, evidencia, criado_por) VALUES ('ach-3', 'proj-a', 'lev', ?, 'x', 'u-c')`)
+      .bind(JSON.stringify(p.dados)).run();
+    const antes = (await env.DB.prepare(`SELECT count(*) AS n FROM ot_lotes WHERE levantamento_id = 'lev'`).first<{ n: number }>())!.n;
+    const rs = await Promise.all([1, 2].map(() => enviarAoLote(env.DB, chaves, { id: 'u-c' }, 'proj-a', { id: 'lev', site_id: 's1' }, ['ach-3', 'ach-3'])));
+    expect(rs.filter((r) => r.ok)).toHaveLength(1);
+    expect((await env.DB.prepare(`SELECT count(*) AS n FROM ot_lotes WHERE levantamento_id = 'lev'`).first<{ n: number }>())!.n).toBe(antes + 1);
+  });
+
+  it('envio com um id inválido devolve a rascunho o achado válido que foi tomado', async () => {
+    await env.DB.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, dados, evidencia, criado_por) VALUES ('ach-4', 'proj-a', 'lev', '{"nome":"IHM"}', 'x', 'u-c')`).run();
+    const r = await enviarAoLote(env.DB, chaves, { id: 'u-c' }, 'proj-a', { id: 'lev', site_id: 's1' }, ['ach-4', 'ach-x']);
+    expect(r).toMatchObject({ ok: false, status: 400 });
+    expect(await env.DB.prepare(`SELECT situacao, lote_id FROM ot_achados WHERE id = 'ach-4'`).first()).toEqual({ situacao: 'rascunho', lote_id: null });
+  });
+
   it('retenção: descartado há 31 dias sai; enviado fica', async () => {
     await env.DB.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, dados, evidencia, situacao, criado_por, updated_at)
       VALUES ('ach-velho', 'proj-a', 'lev', '{}', 'x', 'descartado', 'u', datetime('now', '-31 days'))`).run();
