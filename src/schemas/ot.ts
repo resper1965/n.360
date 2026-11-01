@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { normalizarIp, normalizarMac, ENDERECO_EM_TEXTO } from '../services/ot-cifra';
+import { temPii } from '../services/rascunhos-privacy';
 
 // Corpos do inventário do n.ot. Todos `.strict()` (modelo de ameaças P1-3/P0-8): `project_id`, `status`, `verificado_por`,
 // `ultima_verificacao_em`, `ip_cifrado`, `ip_hash` e afins no corpo são recusados; o servidor é quem os escreve.
@@ -80,3 +81,43 @@ export const TETO_ITENS_LOTE = 5000;
 export const otLoteManualSchema = z.object({ site_id: id, itens: z.array(z.record(z.string(), z.unknown())).min(1).max(TETO_ITENS_LOTE) }).strict();
 /** Rejeitar lote: o motivo vai à trilha (`audit_logs.justification`), nunca a `details`. */
 export const otLoteRejeitarSchema = z.object({ motivo: livre(500, 3) }).strict();
+
+// Levantamento (spec descoberta operacional, L1): texto livre também recusa CPF, e-mail e telefone; o operador não tem nome.
+const livreSemPii = (max: number, min = 0) => livre(max, min).refine((s) => !temPii(s), 'Não informe CPF, e-mail nem telefone');
+const data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD');
+export const TETO_ACHADOS_SESSAO = 2000;
+const respostaRoteiro = z.object({ resposta: z.enum(['sim', 'nao', 'nao_perguntado']), nota: livreSemPii(500).optional() }).strict();
+
+export const otLevantamentoCriarSchema = z.object({
+  site_id: id,
+  tipo: z.enum(['entrevista', 'visita', 'documento']),
+  realizado_em: data,
+  funcao: opcional(livreSemPii(100)),
+  turno: opcional(livreSemPii(50)),
+  documento_titulo: opcional(livreSemPii(200, 1)),
+  documento_data: opcional(data),
+  notas: livreSemPii(20000).optional(),
+  roteiro: z.record(z.string().max(20), respostaRoteiro).optional(),
+}).strict().refine((s) => s.tipo !== 'documento' || !!s.documento_titulo, { message: 'Documento exige o título', path: ['documento_titulo'] });
+
+export const otLevantamentoAtualizarSchema = z.object({
+  funcao: opcional(livreSemPii(100)),
+  turno: opcional(livreSemPii(50)),
+  documento_titulo: opcional(livreSemPii(200, 1)),
+  documento_data: opcional(data),
+  notas: livreSemPii(20000).optional(),
+  roteiro: z.record(z.string().max(20), respostaRoteiro).optional(),
+  situacao: z.enum(['aberto', 'encerrado']).optional(),
+}).strict();
+
+// `dados` é validado campo a campo por prepararItem (mesmo esquema do ativo); aqui só a forma.
+export const otAchadoCriarSchema = z.object({
+  dados: z.record(z.string(), z.unknown()),
+  evidencia: livreSemPii(2000, 1),
+}).strict();
+export const otAchadoAtualizarSchema = z.object({
+  dados: z.record(z.string(), z.unknown()).optional(),
+  evidencia: livreSemPii(2000, 1).optional(),
+  situacao: z.enum(['rascunho', 'descartado']).optional(),
+}).strict();
+export const otEnviarAchadosSchema = z.object({ achados: z.array(id).min(1).max(TETO_ACHADOS_SESSAO) }).strict();
