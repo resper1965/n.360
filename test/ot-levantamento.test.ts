@@ -77,6 +77,18 @@ describe('achados: confronto sem oráculo e envio ao lote', () => {
     expect(t).not.toContain('10.1.1.99');
   });
 
+  it('leitura sem máscara da sessão grava ot.inventario.ver_sensivel (P0-6); mascarada não grava', async () => {
+    const conta = async () => (await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'ot.inventario.ver_sensivel'`).first<{ n: number }>())!.n;
+    const n0 = await conta();
+    expect((await chamar(cons, 'GET', `${P}/levantamentos/${ids.lev1}`)).status).toBe(200);
+    expect(await conta()).toBe(n0 + 1);
+    const l = await env.DB.prepare(`SELECT entity_type, entity_id, details FROM audit_logs WHERE action = 'ot.inventario.ver_sensivel' ORDER BY rowid DESC LIMIT 1`).first<Record<string, string>>();
+    expect(l).toMatchObject({ entity_type: 'ot_levantamento', entity_id: ids.lev1 });
+    expect(l!.details).not.toMatch(/10\.1\.1/);
+    expect((await chamar(tec, 'GET', `${P}/levantamentos/${ids.lev1}`)).status).toBe(200);
+    expect(await conta()).toBe(n0 + 1);
+  });
+
   it('enviar cria lote ligado à sessão; quem criou não aprova; o gestor aprova', async () => {
     const r = await chamar(cons, 'POST', `${P}/levantamentos/${ids.lev1}/enviar`, { achados: [ids.ach2] });
     expect(r.status, await r.clone().text()).toBe(201);

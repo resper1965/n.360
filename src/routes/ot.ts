@@ -586,6 +586,8 @@ otApp.get('/levantamentos/:id', async (c) => {
       const conf = idx && a.situacao === 'rascunho' ? await confrontar(db, projectId, lev.site_id, JSON.parse(a.dados), idx) : undefined;
       achados.push(await serializarAchado(a, completo, chaves, conf));
     }
+    const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
+    if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} achado(s) do levantamento ${lev.id} com IP/MAC sem máscara`, { tipo: 'ot_levantamento', id: lev.id });
     return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados });
   } catch (e) { return erro500(c, 'Falha ao ler o levantamento', e); }
 });
