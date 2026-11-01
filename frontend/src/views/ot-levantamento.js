@@ -204,12 +204,19 @@ export async function esvaziarNotas() {
 }
 
 // Fechar ou recarregar a página com notas pendentes: o PUT segue com keepalive, com o mesmo cabeçalho de autenticação de api().
+// O navegador recusa keepalive acima de 64 KB somados: manda as notas que cabem; as demais ficam como estavam no servidor.
+const TETO_KEEPALIVE = 64 * 1024;
 window.addEventListener('pagehide', () => {
     lerCampo();
+    let soma = 0;
     for (const [k, { pid, lid, texto }] of pendentes) {
         if (recusados.get(k) === texto) continue;
+        const body = JSON.stringify({ notas: texto });
+        const bytes = new TextEncoder().encode(body).length;
+        if (soma + bytes > TETO_KEEPALIVE) continue;
+        soma += bytes;
         fetch(`${API_BASE}/api/v1/projects/${pid}/ot/levantamentos/${encodeURIComponent(lid)}`, {
-            method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json', ...cabecalhosAuth() }, body: JSON.stringify({ notas: texto }),
+            method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json', ...cabecalhosAuth() }, body,
         }).catch(() => {});
     }
 });

@@ -374,6 +374,23 @@ describe('rodada de correção 1: notas em fila, por sessão e por projeto', () 
         expect(JSON.parse(put.opts.body)).toEqual({ notas: 'nota antes de fechar' });
         await window.otSalvarNotas(); // esvazia para o próximo teste
     });
+
+    it('fechar a página: os corpos com keepalive somam no máximo 64 KB; o que não cabe não é mandado', async () => {
+        const L2 = { ...LEV, id: 'l2', notas: '' };
+        const PUT1 = `PUT ${B}/levantamentos/l1`, PUT2 = `PUT ${B}/levantamentos/l2`;
+        await sessao([], { [`GET ${B}/levantamentos/l2`]: { levantamento: L2, achados: [] } }, { [PUT1]: [500, { error: 'x' }], [PUT2]: [500, { error: 'x' }] });
+        digitar('a'.repeat(40000));
+        S.otLevantamento = 'l2';
+        await redesenhar(); // a l1 falhou e segue pendente
+        digitar('b'.repeat(40000));
+        chamadas.length = 0;
+        window.dispatchEvent(new Event('pagehide'));
+        const vivos = chamadas.filter((x) => x.opts.keepalive);
+        expect(vivos).toHaveLength(1);
+        expect(vivos.reduce((n, x) => n + new TextEncoder().encode(x.opts.body).length, 0)).toBeLessThanOrEqual(64 * 1024);
+        servirOt({ [PUT1]: { ok: true }, [PUT2]: { ok: true }, [`GET ${B}/levantamentos/l2`]: { levantamento: L2, achados: [] }, [`GET ${B}/roteiro`]: ROTEIRO });
+        await window.otSalvarNotas(); // esvazia para o próximo teste
+    });
 });
 
 describe('rodada de correção 1: abas', () => {
