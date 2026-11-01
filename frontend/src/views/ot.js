@@ -2,11 +2,11 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderEmptyState, renderSemProjeto, renderDataTable, falhaDeCarga, renderAbas, renderMaisAcoes, renderStatusBadge,
     openModal, forceCloseModal, showToast, confirmar, pedirTexto, formatarData } from '../ui.js';
-import { podeEditarOt, podeRevelar, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
-    TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS } from '../ot-comum.js';
+import { podeEditarOt, podeAprovarOt, podeRevelar, mensagemDeErro, comStepUp, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo,
+    nomesDeAtivos, TIPOS_SITE, CRITICIDADE, TIPOS_ZONA, CATEGORIAS } from '../ot-comum.js';
 import { montarColeta } from './ot-coleta.js';
 import { montarSaidas } from './ot-saidas.js';
-import { montarLevantamento } from './ot-levantamento.js';
+import { montarLevantamento, esvaziarNotas } from './ot-levantamento.js';
 
 // n.ot (spec 2026-10-30-n-ot-modulo-n360-design): a casca /ot em abas. Catálogo RO-CB.BR.01 (N1), inventário, fluxos e acesso por
 // site (N2), coleta (N3, ot-coleta.js) e saídas (N4, ot-saidas.js), sobre as rotas de src/routes/ot.ts e ot-saidas.ts. Todo texto é
@@ -31,17 +31,24 @@ async function renderOt(c, h, a) {
     a.innerHTML = '';
     if (!proj()) { c.innerHTML = renderSemProjeto(); return; }
     // Filtros e lote são do projeto: trocá-lo (seletor, aviso do sino) não pode levar o site do A para a consulta do B.
-    if (S.otProjeto !== proj().id) { S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; }
+    if (S.otProjeto !== proj().id) { S.otProjeto = proj().id; S.otSite = null; S.otZona = null; S.otLote = null; S.otLevantamento = null; nomesDeAtivos.clear(); }
+    // Contagens das abas e aba de entrada: o que espera a pessoa. Falha aqui só tira a contagem (cada aba carrega e mostra o próprio erro).
+    const [lotes, levs] = await Promise.all([api('GET', `/api/v1/projects/${proj().id}/ot/lotes`).then((r) => lista(r, 'lotes')),
+        api('GET', `/api/v1/projects/${proj().id}/ot/levantamentos`).then((r) => lista(r, 'levantamentos'))].map((x) => x.catch(() => [])));
+    const emRevisao = lotes.filter((l) => l.status === 'em_revisao');
+    const abertos = levs.filter((l) => l.situacao !== 'encerrado').length;
+    const conta = { coleta: emRevisao.length && ` · ${emRevisao.length} em revisão`, levantamento: abertos && ` · ${abertos} ${abertos === 1 ? 'aberto' : 'abertos'}` };
     const abas = abasDoPapel();
-    const aba = abas.some(([v]) => v === S.otAba) ? S.otAba : 'catalogo';
+    const entrada = podeAprovarOt() && emRevisao.some((l) => l.criado_por !== S.user?.id) ? 'coleta' : 'inventario';
+    const aba = abas.some(([v]) => v === S.otAba) ? S.otAba : entrada;
     S.otAba = aba;
-    c.innerHTML = renderAbas(abas.map(([v, r]) => [v, escapeHTML(r)]), aba, 'otAba') + '<div id="ot-painel"><div class="loading"></div></div>';
+    c.innerHTML = renderAbas(abas.map(([v, r]) => [v, escapeHTML(r + (conta[v] || ''))]), aba, 'otAba') + '<div id="ot-painel"><div class="loading"></div></div>';
     const painel = el('ot-painel');
     const montar = { catalogo: montarCatalogo, inventario: montarInventario, fluxos: montarFluxos, coleta: montarColeta, levantamento: montarLevantamento, saidas: montarSaidas, acessos: montarAcessos }[aba];
     await montar(painel, a, proj());
 }
 
-window.otAba = (v) => { S.otAba = v; S.otLote = null; S.otLevantamento = null; window.render(); };
+window.otAba = async (v) => { S.otAba = v; S.otLote = null; S.otLevantamento = null; await esvaziarNotas(); window.render(); };
 
 // ─── catálogo (N1) ──────────────────────────────────────────────────────────
 async function montarCatalogo(c, a, p) {
@@ -66,6 +73,7 @@ async function carregarInventario(p, { fluxos = false } = {}) {
     const [s, z, at, fl] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/sites`), api('GET', `/api/v1/projects/${p.id}/ot/zonas${doSite()}`), api('GET', `/api/v1/projects/${p.id}/ot/ativos${doSite()}`),
         fluxos ? api('GET', `/api/v1/projects/${p.id}/ot/fluxos${doSite()}`) : null]);
     D.sites = lista(s, 'sites'); D.zonas = lista(z, 'zonas'); D.ativos = lista(at, 'ativos'); D.fluxos = lista(fl, 'fluxos');
+    for (const x of D.ativos) nomesDeAtivos.set(x.id, x.nome);
     if (S.otSite && !D.sites.some((x) => x.id === S.otSite)) S.otSite = null;
 }
 
@@ -80,16 +88,16 @@ const linhaMais = (itens, nome) => renderMaisAcoes(itens, { nome });
 async function montarInventario(c, a, p) {
     try { await carregarInventario(p); } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o inventário do n.ot.', e); return; }
     const editar = podeEditarOt();
-    if (editar) {
-        a.innerHTML = `<button class="btn" data-action="otNovoSite">+ Novo site</button>`
-            + (D.sites.length ? `<button class="btn" data-action="otNovaZona">+ Nova zona</button><button class="btn" data-action="otRascunhoIa">Rascunho por IA</button>`
-                + `<button class="btn btn-primary" data-action="otNovoAtivo">+ Novo ativo</button>` : '');
-    }
     if (!D.sites.length) {
         c.innerHTML = renderEmptyState({ titulo: 'Nenhum site no inventário',
             texto: editar ? 'Cadastre o primeiro site (subestação, usina ou centro de operação); zonas e ativos ficam dentro dele.'
-                : 'O inventário começa pelos sites. Quem administra o n.ot no projeto cadastra os sites ou concede o seu acesso a eles.' });
+                : 'O inventário começa pelos sites. Quem administra o n.ot no projeto cadastra os sites ou concede o seu acesso a eles.',
+            acao: editar ? '<button class="btn btn-primary" data-action="otNovoSite">Cadastrar o primeiro site</button>' : '' });
         return;
+    }
+    if (editar) {
+        a.innerHTML = `<button class="btn" data-action="otNovoSite">+ Novo site</button><button class="btn" data-action="otNovaZona">+ Nova zona</button>`
+            + `<button class="btn" data-action="otRascunhoIa">Rascunho por IA</button><button class="btn btn-primary" data-action="otNovoAtivo">+ Novo ativo</button>`;
     }
     const zonaVale = (x) => !S.otZona || (S.otZona === 'sem' ? !x.zona_id : x.zona_id === S.otZona);
     const ativos = D.ativos.filter(zonaVale);

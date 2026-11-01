@@ -38,6 +38,9 @@ test('projeto e pessoa com o n.ot: o item do menu leva a /ot e à lista da RO-CB
   await item.click();
   await expect(page).toHaveURL(/\/ot$/);
   await expect(page).toHaveTitle('n.ot | ness. ARCiber');
+  // Sem lote esperando, a entrada é o Inventário; o catálogo fica na sua aba.
+  await expect(page.getByRole('tab', { name: 'Inventário' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Catálogo RO-CB.BR.01' }).click();
   await expect(page.locator('#content')).toContainText('4.1.1');
   await expect(page.locator('#content')).toContainText('18 meses');
   await expect(page.locator('#content')).toContainText('Sem prazo');
@@ -85,6 +88,10 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo gua
   await entrar(page);
   await page.locator('#nav-ot').click();
   const conteudo = page.locator('#content');
+  // O consultor aprova e há um lote de outra pessoa em revisão: a entrada é a Coleta, e as abas dizem o que espera.
+  await expect(page.getByRole('tab', { name: 'Coleta · 1 em revisão' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Levantamento · 1 aberto' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Catálogo RO-CB.BR.01' }).click();
   await expect(conteudo).toContainText('4.1.1');
 
   await page.getByRole('tab', { name: 'Inventário' }).click();

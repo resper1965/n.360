@@ -69,7 +69,8 @@ describe('abas da casca /ot', () => {
         }
         S.otAba = 'acessos';
         await window.renderOt(el('c'), el('h'), el('a'));
-        expect(el('c').querySelector('[aria-selected="true"]').textContent).toContain('Catálogo');
+        // Aba que o papel não tem cai na aba de entrada (Inventário, ou a Coleta para quem aprova e tem lote esperando).
+        expect(el('c').querySelector('[aria-selected="true"]').textContent).toContain('Inventário');
     });
 });
 
@@ -108,7 +109,7 @@ describe('inventário', () => {
         servirOt({ [`GET ${B2}/sites`]: { sites: [{ ...SITE, id: 's8', nome: 'SE Sul' }] }, [`GET ${B2}/zonas`]: { zonas: [] },
             [`GET ${B2}/ativos`]: { ativos: [{ ...ATIVOS[0], id: 'a8', site_id: 's8', zona_id: null, nome: 'RTU-SUL' }] } });
         await abrir('inventario');
-        expect(chamadas.filter((x) => x.k !== `GET ${B2}/sites`).map((x) => x.url.search)).toEqual(['', '']);
+        expect(chamadas.filter((x) => /\/(zonas|ativos)$/.test(x.k)).map((x) => x.url.search)).toEqual(['', '']);
         expect(texto()).toContain('RTU-SUL');
         expect([S.otSite, S.otZona, S.otLote]).toEqual([null, null, null]);
     });
