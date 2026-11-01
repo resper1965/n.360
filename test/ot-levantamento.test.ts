@@ -60,6 +60,13 @@ describe('levantamento: acesso e texto livre', () => {
     expect([401, 403]).toContain(r.status);
   });
 
+  it('roteiro só aceita chaves de ot_roteiro_perguntas: chave livre é 400 no POST e no PUT', async () => {
+    const resp = { resposta: 'sim' };
+    expect((await chamar(cons, 'PUT', `${P}/levantamentos/${ids.lev1}`, { roteiro: { 'rot-01': resp, 'inventada': resp } })).status).toBe(400);
+    expect((await chamar(cons, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-01', roteiro: { 'x-1': resp } })).status).toBe(400);
+    expect((await chamar(cons, 'PUT', `${P}/levantamentos/${ids.lev1}`, { roteiro: { 'rot-01': resp } })).status).toBe(200);
+  });
+
   it('documento sem título: 400', async () => {
     expect((await chamar(cons, 'POST', `${P}/levantamentos`, { site_id: ids.s1, tipo: 'documento', realizado_em: '2026-11-01' })).status).toBe(400);
   });

@@ -542,6 +542,14 @@ const lerLevantamento = (db: D1Database, projectId: string, sites: string, id: s
   db.prepare(`SELECT ${LEV_COLS} FROM ot_levantamentos WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${NO_SITE}`)
     .bind(id, projectId, sites).first<Record<string, unknown> & { id: string; site_id: string; tipo: string; situacao: string }>();
 
+/** Chaves do roteiro só as perguntas cadastradas: o objeto é guardado como veio e chave livre viraria campo sem dono. */
+const roteiroRuim = async (db: D1Database, roteiro?: Record<string, unknown>) => {
+  const chaves = Object.keys(roteiro ?? {});
+  if (!chaves.length) return false;
+  const r = await db.prepare('SELECT count(*) AS n FROM ot_roteiro_perguntas WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(chaves)).first<{ n: number }>();
+  return r!.n !== chaves.length;
+};
+
 otApp.get('/levantamentos', async (c) => {
   try {
     const { db, projectId, sites } = await contexto(c);
@@ -559,6 +567,7 @@ otApp.post('/levantamentos', async (c) => {
     const v = await validateBody(c, otLevantamentoCriarSchema);
     if (!v.success) return v.response;
     if (!daLista(sites, v.data.site_id)) return refRuim(c, 'site_id');
+    if (await roteiroRuim(db, v.data.roteiro)) return refRuim(c, 'roteiro');
     const id = genId();
     const d = v.data;
     await db.prepare(`INSERT INTO ot_levantamentos (id, project_id, site_id, tipo, realizado_em, funcao, turno, documento_titulo, documento_data, notas, roteiro, criado_por)
@@ -600,6 +609,7 @@ otApp.put('/levantamentos/:id', async (c) => {
     const v = await validateBody(c, otLevantamentoAtualizarSchema);
     if (!v.success) return v.response;
     if (lev.tipo === 'documento' && 'documento_titulo' in v.data && !v.data.documento_titulo) return c.json({ error: 'Documento exige o título' }, 400);
+    if (await roteiroRuim(db, v.data.roteiro)) return refRuim(c, 'roteiro');
     // Colunas só das chaves do esquema `.strict()` (como em atualizar()); valores sempre por bind.
     const d = { ...v.data, ...(v.data.roteiro && { roteiro: JSON.stringify(v.data.roteiro) }) };
     const campos = Object.keys(d);
