@@ -117,3 +117,53 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo gua
   expect(texto).not.toMatch(/\batende\b|conforme/i);
   await expect(page.getByRole('button', { name: 'Exportar CSV' })).toBeVisible();
 });
+
+// Spec do Levantamento §9: abrir a sessão, registrar um achado e enviá-lo ao lote; o POST de envio leva só os ids marcados
+// e a tela vai ao lote criado na Coleta. API mockada com estado (o achado registrado volta no GET seguinte).
+test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre na Coleta', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  const LV = { ...ABAS_OT[`${B}/levantamentos`].levantamentos[0] };
+  const achados = [];
+  let criado, envio;
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
+    const chave = `${req.method()} ${path}`;
+    if (chave === `GET ${B}/levantamentos/lv1`) return json({ levantamento: LV, achados });
+    if (chave === `POST ${B}/levantamentos/lv1/achados`) {
+      criado = req.postDataJSON();
+      achados.push({ id: 'ach1', levantamento_id: 'lv1', entidade: 'ativo', origem: 'consultor', situacao: 'rascunho', lote_id: null,
+        evidencia: criado.evidencia, erros: [], dados: criado.dados, confronto: 'novo', alvo_id: null });
+      return json({ id: 'ach1', erros: [] }, 201);
+    }
+    if (chave === `POST ${B}/levantamentos/lv1/enviar`) { envio = req.postDataJSON(); return json({ id: 'lote-lv', itens: 1 }, 201); }
+    if (chave === `GET ${B}/lotes/lote-lv`) {
+      return json({ lote: { id: 'lote-lv', site_id: 's1', fonte: 'manual', status: 'em_revisao', criado_por: 'u1', created_at: '2026-11-01 10:00:00', motivo: null },
+        itens: [{ id: 'i1', linha: 1, dados: criado.dados, erros: [], decisao: 'pendente', duplicata_de: null }] });
+    }
+    if (req.method() === 'GET' && path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  const conteudo = page.locator('#content');
+  await page.getByRole('tab', { name: /^Levantamento/ }).click();
+  await page.getByRole('button', { name: 'Abrir Entrevista de 01/11/2026' }).click();
+  await expect(conteudo).toContainText('Roteiro');
+
+  await page.getByRole('button', { name: 'Registrar achado' }).click();
+  await page.fill('#lev-evidencia', 'notebook pessoal ligado à IHM');
+  await page.fill('#ot-f-nome', 'Notebook IHM');
+  await page.locator('#modal').getByRole('button', { name: 'Registrar' }).click();
+  await expect(conteudo).toContainText('Notebook IHM');
+  expect(criado).toMatchObject({ dados: { nome: 'Notebook IHM' }, evidencia: 'notebook pessoal ligado à IHM' });
+
+  await page.getByRole('checkbox', { name: 'Enviar Notebook IHM ao lote' }).check();
+  await page.locator('#header-actions').getByRole('button', { name: 'Enviar ao lote' }).click();
+  await page.locator('.confirmar').getByRole('button', { name: 'Enviar ao lote' }).click();
+  await expect(page.getByRole('tab', { name: /^Coleta/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(conteudo).toContainText('Lote de');
+  await expect(conteudo).toContainText('Notebook IHM');
+  expect(envio).toEqual({ achados: ['ach1'] });
+});
