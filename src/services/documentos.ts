@@ -345,7 +345,11 @@ export async function atualizarDocumento(
   quando('status', 'status = ?', campos.status);
   if (campos.revisar_a_cada_meses === null) sets.push('revisar_ate = NULL');
   // Periodicidade nova num documento já vigente e sem data de revisão: a primeira revisão fica a N meses de hoje.
-  else if (campos.revisar_a_cada_meses !== undefined) sets.push(`revisar_ate = COALESCE(revisar_ate, CASE WHEN status = 'vigente' THEN date('now', '+' || revisar_a_cada_meses || ' months') END)`);
+  // O valor vai vinculado: no SQLite o SET lê a linha antiga, e a coluna ainda nula daria data nula.
+  else if (campos.revisar_a_cada_meses !== undefined) {
+    sets.push(`revisar_ate = COALESCE(revisar_ate, CASE WHEN status = 'vigente' THEN date('now', '+' || ? || ' months') END)`);
+    binds.push(campos.revisar_a_cada_meses);
+  }
 
   await db.prepare(`UPDATE documentos SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`).bind(...binds, id, projectId).run();
   await logAudit(db, 'documento.atualizado', ator, `Documento ${id} atualizado (${Object.keys(campos).join(', ')})`, '', '', projectId);
