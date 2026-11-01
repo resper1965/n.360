@@ -208,6 +208,17 @@ describe('GET /projects/:id/painel', () => {
     expect(iso.saude.rotulo).toBe('Começando');
   });
 
+  it('n.iso: os primeiros passos saem do cadastro (escopo como na Prontidão, jornada carregada, ativo ativo)', async () => {
+    const passos = async () => ((await painel(consultor, 'pv', 'iso')).corpo.modulos.iso as unknown as { passos: { feito: boolean }[] }).passos.map((p) => p.feito);
+    expect(await passos()).toEqual([false, false, false]);
+    await db().batch([
+      db().prepare(`UPDATE projects SET scope = 'Plataforma e operação' WHERE id = 'pv'`),
+      db().prepare(`INSERT INTO project_phases (id, project_id, phase_number, title, status) VALUES ('fv0', 'pv', 0, 'Mobilização', 'pending')`),
+      db().prepare(`INSERT INTO itens (id, project_id, nome) VALUES ('iv1', 'pv', 'Servidor de aplicação')`),
+    ]);
+    expect(await passos()).toEqual([true, true, true]);
+  });
+
   it('cliente: "Sua vez" e o que espera a decisão dele; sem lista, cobertura, mapa nem vencimentos', async () => {
     await semear();
     const { status, corpo } = await painel(cliente, 'pa', 'privacy');
