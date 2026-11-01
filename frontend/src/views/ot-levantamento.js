@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api } from '../api.js';
+import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
 import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
@@ -78,8 +78,8 @@ async function montarSessao(c, a, p, id) {
         r = lv; perguntas = lista(rot, 'perguntas');
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o levantamento.', e, { acao: 'otVoltarLevantamentos' }); return; }
     const l = r.levantamento;
-    if (atual?.id !== l.id) statusNotas = { texto: '', erro: false, tentar: false };
     atual = l;
+    atualPid = p.id;
     achados = lista(r, 'achados');
     const editar = podeEditarOt();
     const aberto = l.situacao !== 'encerrado';
@@ -124,59 +124,95 @@ async function montarSessao(c, a, p, id) {
 // O texto digitado vive aqui até o servidor aceitar: responder o roteiro, registrar achado ou encerrar redesenham a tela a partir da
 // API, e o rascunho volta ao campo. Recusa do servidor (IP, MAC, CPF, e-mail, telefone) aparece no status e o texto fica.
 const ESPERA_NOTAS = 1500;
-let rascunho = null; // { id, texto } ainda não aceito pelo servidor
+// Tudo por sessão (chave projeto|levantamento): o texto de uma sessão nunca substitui o de outra, e o projeto é o do momento em que se
+// digitou (trocar de projeto com a gravação agendada não manda as notas ao projeto novo).
+let atualPid = null;
+const pendentes = new Map(); // chave → { pid, lid, texto } ainda não aceito pelo servidor
+const recusados = new Map(); // chave → texto que o servidor recusou (400): não se reenvia enquanto não mudar
+const status = new Map(); // chave → { texto, erro, tentar }
 let timerNotas = null;
 let emVoo = null;
-let statusNotas = { texto: '', erro: false, tentar: false };
-const notasNaTela = (l) => (rascunho && rascunho.id === l.id ? rascunho.texto : l.notas || '');
+const chave = (pid, lid) => `${pid}|${lid}`;
+const chaveAtual = () => (atual ? chave(atualPid, atual.id) : '');
+const notasNaTela = (l) => pendentes.get(chave(atualPid, l.id))?.texto ?? (l.notas || '');
 const hora = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 function mostrarStatusNotas(busy = false) {
     const st = el('lev-notas-status');
     if (!st) return;
-    st.textContent = statusNotas.texto;
-    st.classList.toggle('t-perigo', statusNotas.erro);
+    const e = status.get(chaveAtual()) || { texto: '', erro: false, tentar: false };
+    st.textContent = e.texto;
+    st.classList.toggle('t-perigo', e.erro);
     st.setAttribute('aria-busy', String(busy));
     const t = el('lev-notas-tentar');
-    if (t) t.innerHTML = statusNotas.tentar ? '<button class="btn btn-sm" data-action="otSalvarNotas">Tentar de novo</button>' : '';
+    if (t) t.innerHTML = e.tentar ? '<button class="btn btn-sm" data-action="otSalvarNotas">Tentar de novo</button>' : '';
+}
+
+/** O campo na tela vira rascunho da sessão aberta, se difere do que o servidor tem. */
+function lerCampo() {
+    const campo = el('lev-notas');
+    if (!campo || !atual || campo.readOnly) return;
+    const k = chaveAtual();
+    if (campo.value !== (atual.notas || '') || pendentes.has(k)) pendentes.set(k, { pid: atualPid, lid: atual.id, texto: campo.value });
 }
 
 window.otNotasDigitadas = () => {
-    const campo = el('lev-notas');
-    if (!campo || !atual) return;
-    rascunho = { id: atual.id, texto: campo.value };
+    lerCampo();
     clearTimeout(timerNotas);
     timerNotas = setTimeout(() => { esvaziarNotas(); }, ESPERA_NOTAS);
 };
 
-/** Grava o rascunho das notas, se houver. Devolve true se não sobrou nada pendente. Chamado antes de todo redesenho da sessão. */
+async function gravar(k, { pid, lid, texto }) {
+    status.set(k, { texto: 'Salvando…', erro: false, tentar: false });
+    if (k === chaveAtual()) mostrarStatusNotas(true);
+    try {
+        await api('PUT', `/api/v1/projects/${pid}/ot/levantamentos/${encodeURIComponent(lid)}`, { notas: texto });
+        if (atual && k === chaveAtual()) atual.notas = texto;
+        if (pendentes.get(k)?.texto === texto) pendentes.delete(k);
+        recusados.delete(k);
+        status.set(k, { texto: `Salvo às ${hora()}`, erro: false, tentar: false });
+        return true;
+    } catch (e) {
+        if (e && e.status === 400) {
+            // 400 é o texto que o servidor recusa: repetir daria o mesmo; a pessoa corrige. O motivo vem em `details` (src/schemas/index.ts).
+            recusados.set(k, texto);
+            const motivo = e.body?.details?.map((d) => d.message).join('. ') || mensagemDeErro(e, 'O servidor recusou as notas');
+            status.set(k, { texto: `${motivo}${motivo.endsWith('.') ? '' : '.'} O texto continua aqui: corrija e saia do campo.`, erro: true, tentar: false });
+        } else status.set(k, { texto: 'Não foi possível salvar. Tente de novo.', erro: true, tentar: true });
+        return false;
+    } finally { if (k === chaveAtual()) mostrarStatusNotas(); }
+}
+
+/**
+ * Grava, em fila, as notas pendentes de todas as sessões (a recusada só depois de mudar). Devolve true se nada da sessão aberta ficou
+ * pendente. Chamado antes de todo redesenho, troca de aba, de sessão ou de projeto.
+ */
 export async function esvaziarNotas() {
     clearTimeout(timerNotas); timerNotas = null;
-    if (emVoo) await emVoo;
-    const campo = el('lev-notas');
-    if (campo && atual && !campo.readOnly && campo.value !== (atual.notas || '')) rascunho = { id: atual.id, texto: campo.value };
-    if (!rascunho || !atual || rascunho.id !== atual.id) return true;
-    const { id, texto } = rascunho;
-    statusNotas = { texto: 'Salvando…', erro: false, tentar: false };
-    mostrarStatusNotas(true);
-    emVoo = (async () => {
-        try {
-            await api('PUT', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(id)}`, { notas: texto });
-            atual.notas = texto;
-            if (rascunho && rascunho.texto === texto) rascunho = null;
-            statusNotas = { texto: `Salvo às ${hora()}`, erro: false, tentar: false };
-            return true;
-        } catch (e) {
-            // 400 é o texto que o servidor recusa: tentar de novo daria o mesmo; a pessoa corrige o texto.
-            // O esquema devolve "Payload inválido" com o motivo em `details` (src/schemas/index.ts).
-            const motivo = e?.body?.details?.map((d) => d.message).join('. ');
-            statusNotas = e && e.status === 400 ? { texto: `${motivo || mensagemDeErro(e, 'O servidor recusou as notas')}. O texto continua aqui: corrija e saia do campo.`.replace(/\.\./g, '.'), erro: true, tentar: false }
-                : { texto: 'Não foi possível salvar. Tente de novo.', erro: true, tentar: true };
-            return false;
-        } finally { emVoo = null; mostrarStatusNotas(); }
+    while (emVoo) await emVoo; // uma gravação por vez: a mais antiga nunca chega depois da mais nova
+    lerCampo();
+    const p = (async () => {
+        let ok = true;
+        for (const [k, r] of [...pendentes]) {
+            if (recusados.get(k) === r.texto) { if (k === chaveAtual()) ok = false; continue; }
+            if (!await gravar(k, r) && k === chaveAtual()) ok = false;
+        }
+        return ok;
     })();
-    return emVoo;
+    emVoo = p;
+    try { return await p; } finally { if (emVoo === p) emVoo = null; }
 }
+
+// Fechar ou recarregar a página com notas pendentes: o PUT segue com keepalive, com o mesmo cabeçalho de autenticação de api().
+window.addEventListener('pagehide', () => {
+    lerCampo();
+    for (const [k, { pid, lid, texto }] of pendentes) {
+        if (recusados.get(k) === texto) continue;
+        fetch(`${API_BASE}/api/v1/projects/${pid}/ot/levantamentos/${encodeURIComponent(lid)}`, {
+            method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json', ...cabecalhosAuth() }, body: JSON.stringify({ notas: texto }),
+        }).catch(() => {});
+    }
+});
 const redesenhar = async () => { await esvaziarNotas(); window.render(); };
 
 const salvar = async (corpo, padrao, ok) => {
@@ -228,7 +264,7 @@ const marcados = () => [...document.querySelectorAll('input[id^="ach-sel-"]:chec
 const nomeDoAchado = (id) => achados.find((x) => x.id === id)?.dados?.nome || 'achado sem nome';
 window.otMarcarAchado = () => {
     const n = marcados().length;
-    const b = el('a')?.querySelector('[data-action="otEnviarAchados"]') || document.querySelector('[data-action="otEnviarAchados"]');
+    const b = document.querySelector('[data-action="otEnviarAchados"]');
     if (b) b.disabled = !n;
     const dica = el('lev-envio-dica');
     if (dica) dica.textContent = n ? `${n} ${n === 1 ? 'achado marcado' : 'achados marcados'} para o lote.` : 'Marque os achados que vão ao lote.';

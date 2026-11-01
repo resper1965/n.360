@@ -286,3 +286,122 @@ describe('P1c: confirmações de alto risco com o conteúdo', () => {
         expect(JSON.parse(chamadas.find((x) => x.k === `POST ${B}/levantamentos/l1/enviar`).opts.body)).toEqual({ achados: ['a1', 'a2'] });
     });
 });
+
+describe('rodada de correção 1: notas em fila, por sessão e por projeto', () => {
+    // fetch com PUT de notas que só responde quando o teste manda (gravações sobrepostas).
+    function servirComPutPendente(extra = {}) {
+        const pendentes = [];
+        let noAr = 0; let maxNoAr = 0;
+        const base = { [`GET ${B}/levantamentos/l1`]: { levantamento: LEV, achados: [] }, [`GET ${B}/roteiro`]: ROTEIRO, ...extra };
+        chamadas = [];
+        vi.stubGlobal('fetch', vi.fn((url, opts = {}) => {
+            const u = new URL(url, 'http://localhost');
+            const k = `${opts.method || 'GET'} ${u.pathname}`;
+            chamadas.push({ k, url: u, opts });
+            if (k === `PUT ${B}/levantamentos/l1`) {
+                noAr++; maxNoAr = Math.max(maxNoAr, noAr);
+                return new Promise((ok) => pendentes.push(() => { noAr--; ok(resposta({ ok: true })); }));
+            }
+            return Promise.resolve(k in base ? resposta(base[k]) : resposta({ error: `API route not found: ${k}` }, 404));
+        }));
+        return { pendentes, max: () => maxNoAr };
+    }
+
+    it('três gravações sobrepostas saem uma de cada vez, e a última levada é o texto mais novo', async () => {
+        await sessao([]);
+        const f = servirComPutPendente();
+        digitar('a');
+        const g1 = window.otSalvarNotas();
+        await pausa();
+        digitar('ab');
+        const g2 = window.otSalvarNotas();
+        digitar('abc');
+        const g3 = window.otSalvarNotas();
+        for (let i = 0; i < 5; i++) { await pausa(); f.pendentes.splice(0).forEach((r) => r()); }
+        await Promise.all([g1, g2, g3]);
+        const enviados = puts().map((b) => b.notas);
+        expect(enviados.at(-1)).toBe('abc');
+        expect(f.max()).toBe(1);
+        expect(el('lev-notas-status').textContent).toMatch(/^Salvo às/);
+    });
+
+    it('trocar de projeto com notas pendentes grava no projeto em que foram digitadas', async () => {
+        await sessao([]);
+        digitar('nota do projeto p1');
+        S.activeProject = { id: 'p2', modulos: ['ot'] };
+        servirOt({ [`PUT ${B}/levantamentos/l1`]: { ok: true } });
+        await redesenhar();
+        expect(chamadas.filter((x) => x.k.startsWith('PUT')).map((x) => x.k)).toEqual([`PUT ${B}/levantamentos/l1`]);
+        expect(puts()).toEqual([{ notas: 'nota do projeto p1' }]);
+    });
+
+    it('o tempo de espera que vence depois da troca de projeto ainda grava no projeto de origem', async () => {
+        await sessao([]);
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        digitar('digitada em p1');
+        S.activeProject = { id: 'p2', modulos: ['ot'] };
+        await vi.advanceTimersByTimeAsync(1600);
+        expect(chamadas.filter((x) => x.k.startsWith('PUT')).map((x) => x.k)).toEqual([`PUT ${B}/levantamentos/l1`]);
+    });
+
+    it('texto recusado (400) não é reenviado sem mudar, e fica com a sessão dele ao abrir outra e voltar', async () => {
+        const L2 = { ...LEV, id: 'l2', notas: 'notas da l2' };
+        const recusa = [400, { error: 'Payload inválido', details: [{ path: 'notas', message: 'Não informe IP nem MAC em campo de texto livre' }] }];
+        await sessao([], { [`GET ${B}/levantamentos/l2`]: { levantamento: L2, achados: [] } }, { [`PUT ${B}/levantamentos/l1`]: recusa });
+        digitar('IHM em 10.0.0.1');
+        await window.otSalvarNotas();
+        expect(el('lev-notas-status').textContent).toBe('Não informe IP nem MAC em campo de texto livre. O texto continua aqui: corrija e saia do campo.');
+        await redesenhar();
+        await window.otSalvarNotas();
+        expect(puts()).toHaveLength(1);
+        S.otLevantamento = 'l2';
+        await redesenhar();
+        expect(el('lev-notas').value).toBe('notas da l2');
+        S.otLevantamento = 'l1';
+        await redesenhar();
+        expect(el('lev-notas').value).toBe('IHM em 10.0.0.1');
+        expect(el('lev-notas-status').textContent).toContain('Não informe IP nem MAC');
+        expect(puts()).toHaveLength(1);
+    });
+
+    it('fechar a página com notas pendentes manda o PUT com keepalive e o cabeçalho de autenticação', async () => {
+        await sessao([]);
+        digitar('nota antes de fechar');
+        window.dispatchEvent(new Event('pagehide'));
+        const put = chamadas.find((x) => x.k === `PUT ${B}/levantamentos/l1`);
+        expect(put.opts.keepalive).toBe(true);
+        expect(put.opts.headers.Authorization).toBe('Bearer tok');
+        expect(JSON.parse(put.opts.body)).toEqual({ notas: 'nota antes de fechar' });
+        await window.otSalvarNotas(); // esvazia para o próximo teste
+    });
+});
+
+describe('rodada de correção 1: abas', () => {
+    it('com aba escolhida, o painel carrega sem esperar as contagens, que chegam depois ao rótulo', async () => {
+        let soltarLotes;
+        chamadas = [];
+        vi.stubGlobal('fetch', vi.fn((url, opts = {}) => {
+            const u = new URL(url, 'http://localhost');
+            const k = `${opts.method || 'GET'} ${u.pathname}`;
+            chamadas.push({ k, url: u, opts });
+            if (k === `GET ${B}/lotes`) return new Promise((ok) => { soltarLotes = () => ok(resposta({ lotes: [{ id: 'x', status: 'em_revisao', criado_por: 'u-tec' }] })); });
+            const rotas = { ...SITES, [`GET ${B}/indicadores`]: {}, [`GET ${B}/conformidade`]: {}, [`GET ${B}/levantamentos`]: { levantamentos: [] } };
+            return Promise.resolve(k in rotas ? resposta(rotas[k]) : resposta({ error: 'x' }, 404));
+        }));
+        S.otAba = 'saidas';
+        const r = redesenhar();
+        await pausa(); await pausa();
+        expect(chamadas.map((x) => x.k)).toContain(`GET ${B}/indicadores`);
+        soltarLotes();
+        await r;
+        expect([...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim())).toContain('Coleta · 1 em revisão');
+    });
+
+    it('consultoria_admin (designação desconhecida na tela) entra pelo Inventário mesmo com lote em revisão', async () => {
+        S.user = { id: 'ca', role: 'consultoria_admin' };
+        servirOt({ ...SITES, [`GET ${B}/zonas`]: { zonas: [] }, [`GET ${B}/ativos`]: { ativos: [] }, [`GET ${B}/levantamentos`]: { levantamentos: [] },
+            [`GET ${B}/lotes`]: { lotes: [{ id: 'x', status: 'em_revisao', criado_por: 'u-tec' }] } });
+        await redesenhar();
+        expect(el('c').querySelector('[role="tab"][aria-selected="true"]').textContent.trim()).toBe('Inventário');
+    });
+});
