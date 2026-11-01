@@ -53,28 +53,45 @@ const campo = (id, rotulo, valor, extra = '') => `<div class="form-group"><label
     + `<input class="form-input" id="${id}" value="${escapeHTML(valor ?? '')}"${extra}></div>`;
 const marca = (id, rotulo, ligado) => `<label class="opcao-check mb-3" for="${id}"><input type="checkbox" id="${id}"${ligado ? ' checked' : ''}> ${rotulo}</label>`;
 
+/** Rótulo de cada campo do ativo: o mesmo no formulário e nos erros e avisos que a API devolve por `campo` (nunca a chave na tela). */
+export const ROTULO_CAMPO = {
+    nome: 'Nome', zona: 'Zona', zona_id: 'Zona', no_arciber: 'Ativo do ARCiber', categoria_arciber: 'Categoria ARCiber', tipo_dispositivo: 'Tipo de dispositivo',
+    fabricante: 'Fabricante', modelo: 'Modelo', funcao: 'Função', ip: 'Endereço IP', mac: 'Endereço MAC', protocolos_portas: 'Protocolos e portas',
+    firmware_so_versao: 'Firmware ou sistema operacional (versão)', firmware_nao_aplicavel: 'Firmware/SO não se aplica', '4.3.1': 'Campos mínimos do 4.3.1',
+};
+/** Lista de erros/avisos `[{ campo, motivo }]` da API, com o rótulo do campo; '—' se não houver. */
+export const listaDeErros = (xs, classe = '') => (xs && xs.length
+    ? `<ul class="m-0${classe ? ` ${classe}` : ''}">${xs.map((x) => `<li>${escapeHTML(ROTULO_CAMPO[x.campo] || 'Campo não reconhecido')}: ${escapeHTML(x.motivo)}</li>`).join('')}</ul>` : '—');
+
+/** Nome dos ativos do inventário já carregado nesta tela (id → nome; nunca IP/MAC), para dizer qual ativo a duplicata ou o achado confirma. */
+export const nomesDeAtivos = new Map();
+export const nomeDoAtivo = (id) => (id && nomesDeAtivos.get(id)) || 'ativo existente';
+
 /**
  * Campos do ativo (4.3.1 da RO-CB.BR.01), para o cadastro e para a entrada manual da coleta. `d` é o ativo como a API devolve ou o
  * rascunho da IA. Na edição, IP e MAC nascem vazios: em branco mantém o registrado (o valor mascarado não volta ao servidor).
+ * `recolher`: o nome fica à vista e o resto vai para "Detalhes do ativo (opcional)" (o achado durante a entrevista).
  */
-export function camposDoAtivo(d = {}, { zonas = [], edicao = false } = {}) {
+export function camposDoAtivo(d = {}, { zonas = [], edicao = false, recolher = false } = {}) {
+    const R = ROTULO_CAMPO;
     const ipMac = edicao ? ' placeholder="Em branco: mantém o valor registrado" autocomplete="off"' : ' autocomplete="off"';
-    return `${campo('ot-f-nome', 'Nome', d.nome, ' maxlength="200"')}
-        <div class="form-group"><label class="form-label" for="ot-f-zona">Zona</label>
+    const resto = `<div class="form-group"><label class="form-label" for="ot-f-zona">${R.zona}</label>
             <select class="form-input" id="ot-f-zona"><option value="">Sem zona</option>${opcoes(zonas.map((z) => [z.id, `${z.nome} (nível ${z.nivel_purdue})`]), d.zona_id)}</select></div>
         ${marca('ot-f-arciber', 'Ativo do ARCiber (exige os campos mínimos do 4.3.1)', d.no_arciber === true)}
-        <div class="form-group"><label class="form-label" for="ot-f-categoria">Categoria ARCiber</label>
+        <div class="form-group"><label class="form-label" for="ot-f-categoria">${R.categoria_arciber}</label>
             <select class="form-input" id="ot-f-categoria"><option value="">—</option>${opcoes(Object.entries(CATEGORIAS), d.categoria_arciber)}</select></div>
-        ${campo('ot-f-tipo', 'Tipo de dispositivo', d.tipo_dispositivo, ' maxlength="200"')}
-        ${campo('ot-f-fabricante', 'Fabricante', d.fabricante, ' maxlength="200"')}
-        ${campo('ot-f-modelo', 'Modelo', d.modelo, ' maxlength="200"')}
-        ${campo('ot-f-funcao', 'Função', d.funcao, ' maxlength="500"')}
-        ${campo('ot-f-ip', 'Endereço IP', edicao ? '' : d.ip, `${ipMac} maxlength="100"`)}
-        ${campo('ot-f-mac', 'Endereço MAC', edicao ? '' : d.mac, `${ipMac} maxlength="100"`)}
-        ${campo('ot-f-protocolos', 'Protocolos e portas (ex.: Modbus:502, DNP3:20000)', protocolosTexto(d.protocolos_portas), ' maxlength="2000"')}
-        ${campo('ot-f-firmware', 'Firmware ou sistema operacional (versão)', d.firmware_so_versao, ' maxlength="200"')}
-        ${marca('ot-f-firmware-na', 'Firmware/SO não se aplica', d.firmware_nao_aplicavel === true)}
+        ${campo('ot-f-tipo', R.tipo_dispositivo, d.tipo_dispositivo, ' maxlength="200"')}
+        ${campo('ot-f-fabricante', R.fabricante, d.fabricante, ' maxlength="200"')}
+        ${campo('ot-f-modelo', R.modelo, d.modelo, ' maxlength="200"')}
+        ${campo('ot-f-funcao', R.funcao, d.funcao, ' maxlength="500"')}
+        ${campo('ot-f-ip', R.ip, edicao ? '' : d.ip, `${ipMac} maxlength="100"`)}
+        ${campo('ot-f-mac', R.mac, edicao ? '' : d.mac, `${ipMac} maxlength="100"`)}
+        ${campo('ot-f-protocolos', `${R.protocolos_portas} (ex.: Modbus:502, DNP3:20000)`, protocolosTexto(d.protocolos_portas), ' maxlength="2000"')}
+        ${campo('ot-f-firmware', R.firmware_so_versao, d.firmware_so_versao, ' maxlength="200"')}
+        ${marca('ot-f-firmware-na', R.firmware_nao_aplicavel, d.firmware_nao_aplicavel === true)}
         <p class="org-dica">Ativo do ARCiber precisa de categoria, tipo, fabricante, função, IP ou MAC, ao menos um protocolo e firmware/SO (ou "não se aplica"). Não escreva IP nem MAC nos campos de texto livre.</p>`;
+    const nome = campo('ot-f-nome', R.nome, d.nome, ' maxlength="200"');
+    return recolher ? `${nome}<details class="ot-detalhes"><summary>Detalhes do ativo (opcional)</summary>${resto}</details>` : `${nome}${resto}`;
 }
 
 /**

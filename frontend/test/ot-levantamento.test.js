@@ -90,7 +90,10 @@ describe('aba Levantamento', () => {
             { [`POST ${B}/levantamentos/l1/enviar`]: { id: 'lote-9', itens: 1, com_erro: 0, status: 'em_revisao' } });
         expect(el('ach-sel-a3')).toBeNull();
         el('ach-sel-a1').checked = true;
-        await window.otEnviarAchados();
+        const p = window.otEnviarAchados();
+        await new Promise((r) => setTimeout(r, 0));
+        document.querySelector('[data-confirmar="sim"]').click();
+        await p;
         expect(corpo(`POST ${B}/levantamentos/l1/enviar`)).toEqual({ achados: ['a1'] });
         expect(S.otLote).toBe('lote-9');
         expect(S.otLevantamento).toBeNull();

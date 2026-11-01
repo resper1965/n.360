@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData } from '../ui.js';
-import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo } from '../ot-comum.js';
+import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
+import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 
 // Levantamento do n.ot (L1, descoberta operacional): sessões de entrevista, visita de campo e documento, com o roteiro guiado e os
@@ -13,7 +13,6 @@ const args = (...xs) => escapeHTML(JSON.stringify(xs));
 const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 
 const TIPO = { entrevista: 'Entrevista', visita: 'Visita de campo', documento: 'Documento' };
-const CONFRONTO = { novo: 'Novo no inventário', confirma: 'Confirma ativo existente' };
 const RESPOSTA = { sim: 'Sim', nao: 'Não', nao_perguntado: 'Não perguntado' };
 const ACHADO = { rascunho: ['neutral', 'Rascunho'], enviado: ['info', 'Enviado ao lote'], descartado: ['warning', 'Descartado'] };
 const selo = (mapa, v) => renderStatusBadge(...(mapa[v] || ['neutral', v || '—']));
@@ -23,6 +22,8 @@ const quem = (l) => (l.tipo === 'documento' ? escapeHTML(l.documento_titulo || '
 
 let sites = [];
 let atual = null;
+let perguntas = [];
+let achados = [];
 
 export async function montarLevantamento(c, a, p) {
     if (S.otLevantamento) { await montarSessao(c, a, p, S.otLevantamento); return; }
@@ -40,7 +41,7 @@ export async function montarLevantamento(c, a, p) {
 }
 
 window.otAbrirLevantamento = (id) => { S.otLevantamento = id; window.render(); };
-window.otVoltarLevantamentos = () => { S.otLevantamento = null; window.render(); };
+window.otVoltarLevantamentos = async () => { await esvaziarNotas(); S.otLevantamento = null; window.render(); };
 
 // ─── nova sessão ───────────────────────────────────────────────────────────
 window.otNovoLevantamento = () => {
@@ -71,39 +72,39 @@ window.otCriarLevantamento = async () => {
 
 // ─── a sessão ──────────────────────────────────────────────────────────────
 async function montarSessao(c, a, p, id) {
-    let r, perguntas;
+    let r;
     try {
         const [lv, rot] = await Promise.all([api('GET', `/api/v1/projects/${p.id}/ot/levantamentos/${encodeURIComponent(id)}`), api('GET', `/api/v1/projects/${p.id}/ot/roteiro`)]);
         r = lv; perguntas = lista(rot, 'perguntas');
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar o levantamento.', e, { acao: 'otVoltarLevantamentos' }); return; }
     const l = r.levantamento;
+    if (atual?.id !== l.id) statusNotas = { texto: '', erro: false, tentar: false };
     atual = l;
-    const achados = lista(r, 'achados');
+    achados = lista(r, 'achados');
     const editar = podeEditarOt();
     const aberto = l.situacao !== 'encerrado';
     const rascunhos = achados.filter((x) => x.situacao === 'rascunho');
     a.innerHTML = '<button class="btn" data-action="otVoltarLevantamentos">Voltar aos levantamentos</button>'
         + (editar ? `<button class="btn" data-action="otEncerrarLevantamento" data-args='${args(aberto ? 'encerrado' : 'aberto')}'>${aberto ? 'Encerrar' : 'Reabrir'}</button>` : '')
         + (editar && aberto ? '<button class="btn" data-action="otNovoAchado">Registrar achado</button>' : '')
-        + (editar && rascunhos.length ? '<button class="btn btn-primary" data-action="otEnviarAchados">Enviar ao lote</button>' : '');
+        + (editar && rascunhos.length ? '<button class="btn btn-primary" data-action="otEnviarAchados" aria-describedby="lev-envio-dica" disabled>Enviar ao lote</button>' : '');
 
     const doTipo = perguntas.filter((q) => Array.isArray(q.tipos_sessao) && q.tipos_sessao.includes(l.tipo));
     const roteiro = !doTipo.length ? '' : `<h3 class="mb-3">Roteiro</h3>
         ${renderDataTable(['Pergunta', 'Item da norma', 'Resposta', ...(editar ? ['Responder'] : [])], doTipo.map((q) => {
         const resp = l.roteiro?.[q.id]?.resposta;
         return [escapeHTML(q.texto), `<span class="badge">${escapeHTML(q.item_norma || '—')}</span>`, escapeHTML(RESPOSTA[resp] || '—'),
-            ...(editar ? [`<div class="d-flex gap-2">${Object.entries(RESPOSTA).map(([v, rot]) => `<button class="btn btn-sm" data-action="otResponderRoteiro" data-args='${args(q.id, v)}' aria-pressed="${resp === v}">${rot}</button>`).join('')}</div>`] : [])];
+            ...(editar ? [`<div class="d-flex gap-2 ot-resposta">${Object.entries(RESPOSTA).map(([v, rot]) => `<button class="btn btn-sm" data-action="otResponderRoteiro" data-args='${args(q.id, v)}' aria-pressed="${resp === v}">${rot}</button>`).join('')}</div>`] : [])];
     }))}`;
 
     const comConfronto = achados.some((x) => 'confronto' in x);
-    const avisos = (xs) => (xs && xs.length ? `<ul class="m-0">${xs.map((x) => `<li>${escapeHTML(x.campo)}: ${escapeHTML(x.motivo)}</li>`).join('')}</ul>` : '—');
     const tabela = renderDataTable([...(editar ? ['Enviar'] : []), 'Nome', 'IP', 'MAC', 'Evidência', ...(comConfronto ? ['Inventário'] : []), 'Avisos', 'Situação', ...(editar ? ['Ações'] : [])],
         achados.map((x) => {
             const d = x.dados || {};
             const rasc = x.situacao === 'rascunho';
-            return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" aria-label="${escapeHTML(`Enviar ${d.nome || 'achado'} ao lote`)}">` : '—'] : []),
+            return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${d.nome || 'achado'} ao lote`)}">` : '—'] : []),
                 escapeHTML(d.nome || '—'), `<span class="f-mono">${escapeHTML(d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
-                ...(comConfronto ? [escapeHTML(CONFRONTO[x.confronto] || '—')] : []), avisos(x.erros), selo(ACHADO, x.situacao),
+                ...(comConfronto ? [escapeHTML(x.confronto === 'confirma' ? `Confirma ${nomeDoAtivo(x.alvo_id)}` : x.confronto === 'novo' ? 'Novo no inventário' : '—')] : []), listaDeErros(x.erros), selo(ACHADO, x.situacao),
                 ...(editar ? [rasc ? `<button class="btn btn-sm" data-action="otDescartarAchado" data-args='${args(x.id)}' aria-label="${escapeHTML(`Descartar ${d.nome || 'achado'}`)}">Descartar</button>` : '—'] : [])];
         }), { emptyMessage: 'Nenhum achado registrado.', emptyHint: editar && aberto ? 'Registre cada equipamento ou acesso visto ou relatado nesta sessão.' : '' });
 
@@ -111,29 +112,97 @@ async function montarSessao(c, a, p, id) {
         <p class="org-dica mb-3">Realizado em ${escapeHTML(formatarData(l.realizado_em))}.${l.documento_data ? ` Documento de ${escapeHTML(formatarData(l.documento_data))}.` : ''} Os achados enviados viram um lote da Coleta, que outra pessoa aprova antes do inventário.</p>
         <div class="bloco mb-4"><h3 class="mb-3">Notas</h3>
             <div class="form-group"><label class="form-label" for="lev-notas">Notas da sessão (sem nomes, IP, MAC, e-mail ou telefone)</label>
-            <textarea class="form-input" id="lev-notas" rows="5" maxlength="20000"${editar ? '' : ' readonly'}>${escapeHTML(l.notas || '')}</textarea></div>
-            ${editar ? '<div class="d-flex justify-end"><button class="btn" data-action="otSalvarNotas">Salvar notas</button></div>' : ''}</div>
+            <textarea class="form-input" id="lev-notas" rows="5" maxlength="20000"${editar ? ' data-action-input="otNotasDigitadas" data-action-blur="otSalvarNotas" aria-describedby="lev-notas-status"' : ' readonly'}>${escapeHTML(notasNaTela(l))}</textarea></div>
+            ${editar ? '<div class="d-flex gap-2 items-center"><p class="at-salvo" id="lev-notas-status" role="status"></p><span id="lev-notas-tentar"></span></div>' : ''}</div>
         ${roteiro}
-        <h3 class="mb-3">Achados</h3>${tabela}`;
+        <h3 class="mb-3">Achados</h3>
+        ${editar && rascunhos.length ? '<p class="org-dica mb-2" id="lev-envio-dica">Marque os achados que vão ao lote.</p>' : ''}${tabela}`;
+    if (editar) mostrarStatusNotas();
 }
 
+// ─── notas: gravam sozinhas e nunca se perdem num redesenho ──────────────────
+// O texto digitado vive aqui até o servidor aceitar: responder o roteiro, registrar achado ou encerrar redesenham a tela a partir da
+// API, e o rascunho volta ao campo. Recusa do servidor (IP, MAC, CPF, e-mail, telefone) aparece no status e o texto fica.
+const ESPERA_NOTAS = 1500;
+let rascunho = null; // { id, texto } ainda não aceito pelo servidor
+let timerNotas = null;
+let emVoo = null;
+let statusNotas = { texto: '', erro: false, tentar: false };
+const notasNaTela = (l) => (rascunho && rascunho.id === l.id ? rascunho.texto : l.notas || '');
+const hora = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+function mostrarStatusNotas(busy = false) {
+    const st = el('lev-notas-status');
+    if (!st) return;
+    st.textContent = statusNotas.texto;
+    st.classList.toggle('t-perigo', statusNotas.erro);
+    st.setAttribute('aria-busy', String(busy));
+    const t = el('lev-notas-tentar');
+    if (t) t.innerHTML = statusNotas.tentar ? '<button class="btn btn-sm" data-action="otSalvarNotas">Tentar de novo</button>' : '';
+}
+
+window.otNotasDigitadas = () => {
+    const campo = el('lev-notas');
+    if (!campo || !atual) return;
+    rascunho = { id: atual.id, texto: campo.value };
+    clearTimeout(timerNotas);
+    timerNotas = setTimeout(() => { esvaziarNotas(); }, ESPERA_NOTAS);
+};
+
+/** Grava o rascunho das notas, se houver. Devolve true se não sobrou nada pendente. Chamado antes de todo redesenho da sessão. */
+export async function esvaziarNotas() {
+    clearTimeout(timerNotas); timerNotas = null;
+    if (emVoo) await emVoo;
+    const campo = el('lev-notas');
+    if (campo && atual && !campo.readOnly && campo.value !== (atual.notas || '')) rascunho = { id: atual.id, texto: campo.value };
+    if (!rascunho || !atual || rascunho.id !== atual.id) return true;
+    const { id, texto } = rascunho;
+    statusNotas = { texto: 'Salvando…', erro: false, tentar: false };
+    mostrarStatusNotas(true);
+    emVoo = (async () => {
+        try {
+            await api('PUT', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(id)}`, { notas: texto });
+            atual.notas = texto;
+            if (rascunho && rascunho.texto === texto) rascunho = null;
+            statusNotas = { texto: `Salvo às ${hora()}`, erro: false, tentar: false };
+            return true;
+        } catch (e) {
+            // 400 é o texto que o servidor recusa: tentar de novo daria o mesmo; a pessoa corrige o texto.
+            // O esquema devolve "Payload inválido" com o motivo em `details` (src/schemas/index.ts).
+            const motivo = e?.body?.details?.map((d) => d.message).join('. ');
+            statusNotas = e && e.status === 400 ? { texto: `${motivo || mensagemDeErro(e, 'O servidor recusou as notas')}. O texto continua aqui: corrija e saia do campo.`.replace(/\.\./g, '.'), erro: true, tentar: false }
+                : { texto: 'Não foi possível salvar. Tente de novo.', erro: true, tentar: true };
+            return false;
+        } finally { emVoo = null; mostrarStatusNotas(); }
+    })();
+    return emVoo;
+}
+const redesenhar = async () => { await esvaziarNotas(); window.render(); };
+
 const salvar = async (corpo, padrao, ok) => {
+    await esvaziarNotas();
     try {
         await api('PUT', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}`, corpo);
         if (ok) showToast(ok, 'success');
         window.render();
-    } catch (e) { falhou(e, padrao); }
+        return true;
+    } catch (e) { falhou(e, padrao); return false; }
 };
-window.otSalvarNotas = () => salvar({ notas: el('lev-notas').value }, 'Não foi possível salvar as notas.', 'Notas salvas.');
-window.otResponderRoteiro = (pergunta, resposta) => salvar({ roteiro: { ...atual.roteiro, [pergunta]: { ...atual.roteiro?.[pergunta], resposta } } }, 'Não foi possível registrar a resposta.');
+window.otSalvarNotas = () => esvaziarNotas();
+// "Sim" numa pergunta que espera um achado abre o registro já com a pergunta na evidência (editável).
+window.otResponderRoteiro = async (pergunta, resposta) => {
+    const ok = await salvar({ roteiro: { ...atual.roteiro, [pergunta]: { ...atual.roteiro?.[pergunta], resposta } } }, 'Não foi possível registrar a resposta.');
+    const q = perguntas.find((x) => x.id === pergunta);
+    if (ok && resposta === 'sim' && q?.entidade_esperada && atual.situacao !== 'encerrado') await window.otNovoAchado(`Roteiro: ${q.texto} Resposta: sim. `);
+};
 window.otEncerrarLevantamento = (situacao) => salvar({ situacao }, 'Não foi possível alterar a situação do levantamento.', situacao === 'encerrado' ? 'Levantamento encerrado.' : 'Levantamento reaberto.');
 
-window.otNovoAchado = async () => {
+window.otNovoAchado = async (evidencia = '') => {
     const zonas = lista(await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/zonas?site_id=${encodeURIComponent(atual.site_id)}`).catch(() => null), 'zonas');
     openModal(`<div class="modal-header"><span class="modal-title">Registrar achado</span></div>
         <p class="org-dica mb-3">O achado fica nesta sessão até ser enviado ao lote. Campos que faltam viram aviso, não impedem o registro.</p>
-        ${camposDoAtivo({}, { zonas })}
-        <div class="form-group"><label class="form-label" for="lev-evidencia">Evidência (o que foi visto ou relatado, sem nomes, IP ou MAC)</label><textarea class="form-input" id="lev-evidencia" rows="3" maxlength="2000"></textarea></div>
+        <div class="form-group"><label class="form-label" for="lev-evidencia">Evidência (o que foi visto ou relatado, sem nomes, IP ou MAC)</label><textarea class="form-input" id="lev-evidencia" rows="3" maxlength="2000" autofocus>${escapeHTML(evidencia)}</textarea></div>
+        ${camposDoAtivo({}, { zonas, recolher: true })}
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAchado">Registrar</button></div>`, 'modal-large');
 };
 window.otSalvarAchado = async () => {
@@ -145,21 +214,34 @@ window.otSalvarAchado = async () => {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/achados`, { dados, evidencia });
         forceCloseModal();
         showToast(r.erros?.length ? `Achado registrado com ${r.erros.length} aviso(s).` : 'Achado registrado.', 'success');
-        window.render();
+        await redesenhar();
     } catch (e) { falhou(e, 'Não foi possível registrar o achado.'); }
 };
 window.otDescartarAchado = async (id) => {
     try {
         await api('PUT', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/achados/${encodeURIComponent(id)}`, { situacao: 'descartado' });
         showToast('Achado descartado.', 'success');
-        window.render();
+        await redesenhar();
     } catch (e) { falhou(e, 'Não foi possível descartar o achado.'); }
 };
+const marcados = () => [...document.querySelectorAll('input[id^="ach-sel-"]:checked')].map((x) => x.id.slice('ach-sel-'.length));
+const nomeDoAchado = (id) => achados.find((x) => x.id === id)?.dados?.nome || 'achado sem nome';
+window.otMarcarAchado = () => {
+    const n = marcados().length;
+    const b = el('a')?.querySelector('[data-action="otEnviarAchados"]') || document.querySelector('[data-action="otEnviarAchados"]');
+    if (b) b.disabled = !n;
+    const dica = el('lev-envio-dica');
+    if (dica) dica.textContent = n ? `${n} ${n === 1 ? 'achado marcado' : 'achados marcados'} para o lote.` : 'Marque os achados que vão ao lote.';
+};
 window.otEnviarAchados = async () => {
-    const marcados = [...document.querySelectorAll('input[id^="ach-sel-"]:checked')].map((x) => x.id.slice('ach-sel-'.length));
-    if (!marcados.length) return showToast('Marque os achados que vão ao lote.', 'error');
+    const ids = marcados();
+    if (!ids.length) return;
+    const n = ids.length;
+    if (!await confirmar(`Enviar ${n} ${n === 1 ? 'achado' : 'achados'} ao lote: ${ids.map(nomeDoAchado).join(', ')}. O lote vai para a Coleta, onde outra pessoa aprova antes do inventário.`,
+        { titulo: 'Enviar ao lote', rotulo: 'Enviar ao lote' })) return;
+    await esvaziarNotas();
     try {
-        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/enviar`, { achados: marcados });
+        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/enviar`, { achados: ids });
         showToast(`Lote criado com ${r.itens} item(ns). A aprovação é do Gestor ARCiber.`, 'success');
         S.otLote = r.id; S.otLevantamento = null; S.otAba = 'coleta';
         window.render();
