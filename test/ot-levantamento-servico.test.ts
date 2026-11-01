@@ -89,4 +89,22 @@ describe('achado: cifra própria, confronto no site, envio ao lote', () => {
     expect(await env.DB.prepare(`SELECT situacao, lote_id FROM ot_achados WHERE id = 'ach-preso'`).first()).toEqual({ situacao: 'rascunho', lote_id: null });
     expect(await env.DB.prepare(`SELECT situacao FROM ot_achados WHERE id = 'ach-em-curso'`).first()).toEqual({ situacao: 'enviado' });
   });
+  it('retenção: enviado de lote rejeitado ou de lote apagado volta a rascunho após 1 dia; de lote pendente ou aprovado fica', async () => {
+    await env.DB.prepare(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, criado_por, status) VALUES
+      ('lote-rej', 'proj-a', 's1', 'manual', 'u-c', 'rejeitado'), ('lote-ok', 'proj-a', 's1', 'manual', 'u-c', 'concluido'),
+      ('lote-pend', 'proj-a', 's1', 'manual', 'u-c', 'em_revisao')`).run();
+    await env.DB.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, dados, evidencia, situacao, lote_id, criado_por, updated_at) VALUES
+      ('ach-rej', 'proj-a', 'lev', '{}', 'x', 'enviado', 'lote-rej', 'u', datetime('now', '-2 days')),
+      ('ach-orfao', 'proj-a', 'lev', '{}', 'x', 'enviado', 'lote-apagado', 'u', datetime('now', '-2 days')),
+      ('ach-aprov', 'proj-a', 'lev', '{}', 'x', 'enviado', 'lote-ok', 'u', datetime('now', '-2 days')),
+      ('ach-pend', 'proj-a', 'lev', '{}', 'x', 'enviado', 'lote-pend', 'u', datetime('now', '-2 days'))`).run();
+    const { manutencaoDiaria } = await import('../src/manutencao');
+    await manutencaoDiaria(env as any);
+    for (const id of ['ach-rej', 'ach-orfao']) {
+      expect(await env.DB.prepare(`SELECT situacao, lote_id FROM ot_achados WHERE id = ?`).bind(id).first()).toEqual({ situacao: 'rascunho', lote_id: null });
+    }
+    for (const id of ['ach-aprov', 'ach-pend']) {
+      expect(await env.DB.prepare(`SELECT situacao FROM ot_achados WHERE id = ?`).bind(id).first()).toEqual({ situacao: 'enviado' });
+    }
+  });
 });
