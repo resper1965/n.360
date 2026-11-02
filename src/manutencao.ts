@@ -163,6 +163,27 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
     resultado.falhas.push(`retencao ot_lotes: ${e instanceof Error ? e.message : String(e)}`);
   }
 
+  try {
+    // Enviado sem lote (envio interrompido), de lote rejeitado ou de lote já apagado pela retenção de 7 dias volta a rascunho
+    // e segue a regra de 30 dias abaixo; sem isto ficaria órfão para sempre, sem expirar nem poder ser reenviado.
+    const r = await env.DB.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE situacao = 'enviado' AND (lote_id IS NULL OR lote_id NOT IN (SELECT id FROM ot_lotes WHERE status <> 'rejeitado'))
+        AND updated_at < datetime('now', '-1 day')`).run();
+    resultado.retencao.ot_achados_revertidos = r.meta?.changes ?? 0;
+  } catch (e) {
+    resultado.falhas.push(`retencao ot_achados_revertidos: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    // Descoberta operacional (spec 2026-11-01 §10): achado descartado, ou rascunho de sessão encerrada, sai em 30 dias.
+    // Rascunho de sessão aberta não expira: é trabalho em andamento.
+    const r = await env.DB.prepare(`DELETE FROM ot_achados WHERE (situacao = 'descartado' AND updated_at < datetime('now', '-30 days'))
+      OR (situacao = 'rascunho' AND levantamento_id IN (SELECT id FROM ot_levantamentos WHERE situacao = 'encerrado' AND encerrado_em < datetime('now', '-30 days')))`).run();
+    resultado.retencao.ot_achados = r.meta?.changes ?? 0;
+  } catch (e) {
+    resultado.falhas.push(`retencao ot_achados: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
   /*
    * Arquiva a trilha de ONTEM, não a de hoje: o dia corrente ainda recebe
    * registro, e arquivá-lo produziria um objeto incompleto que a idempotência

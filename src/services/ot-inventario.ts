@@ -3,6 +3,10 @@
 import { PROJETOS_DO_CONSULTOR_SQL, ehConsultor } from '../helpers';
 import { aadOt, decifrarOt, mascararMac, type ChavesOt } from './ot-cifra';
 
+/** LIMIT explícito das leituras que decidem (acesso, deduplicação, confronto, zonas): sem ele o query-cap corta em 500 em silêncio.
+ *  shortcut: um site (ou projeto) com mais de 20.000 linhas fica cortado aqui; ao chegar perto disso, paginar ou indexar no banco. */
+export const TETO_LEITURA_OT = 20000;
+
 export interface AtorOt { id: string; email: string; role: string; agente?: boolean }
 
 const naoEhPessoa = (u: AtorOt) => u.agente === true || u.id.startsWith('apikey:');
@@ -39,8 +43,8 @@ export const podeAprovar = podeVerCompleto;
 export async function sitesPermitidos(db: D1Database, u: AtorOt, projectId: string): Promise<string> {
   const { results } = u.role === 'org_user'
     ? await db.prepare(`SELECT s.id FROM ot_sites s JOIN ot_site_acessos a ON a.site_id = s.id AND a.user_id = ?
-        WHERE s.project_id = ? AND s.status = 'ativo'`).bind(u.id, projectId).all<{ id: string }>()
-    : await db.prepare(`SELECT id FROM ot_sites WHERE project_id = ? AND status = 'ativo'`).bind(projectId).all<{ id: string }>();
+        WHERE s.project_id = ? AND s.status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(u.id, projectId).all<{ id: string }>()
+    : await db.prepare(`SELECT id FROM ot_sites WHERE project_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId).all<{ id: string }>();
   return JSON.stringify(results.map((r) => r.id));
 }
 

@@ -135,6 +135,7 @@ import {
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema,
+  otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema,
 } from './schemas/ot';
 import { otIaZonaSchema, otIaCompletudeSchema } from './schemas/ot-saidas';
 import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema, ripdQuestionarioSchema, liaQuestionarioSchema } from './schemas/ropa-abas';
@@ -303,6 +304,11 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/fluxos', schema: otFluxoCriarSchema, nome: 'otFluxoCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ia/completude', schema: otIaCompletudeSchema, nome: 'otIaCompletudeSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ia/zona-sugerida', schema: otIaZonaSchema, nome: 'otIaZonaSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/levantamentos/:id/achados/:aid', schema: otAchadoAtualizarSchema, nome: 'otAchadoAtualizarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/levantamentos/:id/achados', schema: otAchadoCriarSchema, nome: 'otAchadoCriarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/levantamentos/:id/enviar', schema: otEnviarAchadosSchema, nome: 'otEnviarAchadosSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/levantamentos/:id', schema: otLevantamentoAtualizarSchema, nome: 'otLevantamentoAtualizarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/levantamentos', schema: otLevantamentoCriarSchema, nome: 'otLevantamentoCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/lotes/:id/rejeitar', schema: otLoteRejeitarSchema, nome: 'otLoteRejeitarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/lotes/manual', schema: otLoteManualSchema, nome: 'otLoteManualSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/sites/:id', schema: otSiteAtualizarSchema, nome: 'otSiteAtualizarSchema' },

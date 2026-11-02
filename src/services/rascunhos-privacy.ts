@@ -36,6 +36,9 @@ export function mascararPii(texto: string | null | undefined): string | null {
     .replace(TELEFONE, '[telefone]');
 }
 
+/** Há CPF, e-mail ou telefone no texto? Mesmas regras de `mascararPii` (o levantamento do n.ot recusa em vez de mascarar). */
+export const temPii = (texto: string) => mascararPii(texto) !== texto;
+
 /** Chama o agente: modelo fora do ar ou resposta fora do esquema viram 502, sem nada gravado. */
 async function consultar<T>(pergunta: () => Promise<{ valor: T | null; modelo: string }>, aoFalhar: AoFalhar): Promise<Falha | { ok: true; valor: T; modelo: string }> {
   let r: { valor: T | null; modelo: string };

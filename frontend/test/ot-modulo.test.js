@@ -78,13 +78,14 @@ describe('tela do catálogo RO-CB.BR.01', () => {
     const req = (codigo, titulo, prazo_meses) => ({ id: `ons-${codigo}`, framework: 'ONS-RO-CB.BR.01', codigo, titulo, descricao: 'd', categoria: 'c', versao: 'Rev.00', prazo_meses });
     const abrir = async () => {
         document.body.innerHTML = '<h1 id="h"></h1><div id="a"></div><div id="c"></div>';
+        S.otAba = 'catalogo';
         await window.renderOt(el('c'), el('h'), el('a'));
     };
     it('lista código, título e prazo (18, 27 ou sem prazo), tudo escapado, do projeto ativo', async () => {
         S.activeProject = { id: 'p9', modulos: ['ot'] };
         const f = servir({ 'GET /api/v1/projects/p9/ot/requisitos': { requisitos: [req('4.1.1', 'Zonas <b id="x">x</b>', 18), req('4.3.1', 'Inventário', 27), req('5.1.1', 'Exceções', null)] } });
         await abrir();
-        expect(new URL(f.mock.calls[0][0], 'http://x').pathname).toBe('/api/v1/projects/p9/ot/requisitos');
+        expect(f.mock.calls.map((c) => new URL(c[0], 'http://x').pathname)).toContain('/api/v1/projects/p9/ot/requisitos');
         expect([...el('c').querySelectorAll('th')].map((t) => t.textContent)).toEqual(['Código', 'Requisito', 'Prazo']);
         const linhas = [...el('c').querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent.trim()));
         expect(linhas).toEqual([['4.1.1', 'Zonas <b id="x">x</b>', '18 meses'], ['4.3.1', 'Inventário', '27 meses'], ['5.1.1', 'Exceções', 'Sem prazo']]);

@@ -38,6 +38,9 @@ test('projeto e pessoa com o n.ot: o item do menu leva a /ot e à lista da RO-CB
   await item.click();
   await expect(page).toHaveURL(/\/ot$/);
   await expect(page).toHaveTitle('n.ot | ness. ARCiber');
+  // Sem lote esperando, a entrada é o Inventário; o catálogo fica na sua aba.
+  await expect(page.getByRole('tab', { name: 'Inventário' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Catálogo RO-CB.BR.01' }).click();
   await expect(page.locator('#content')).toContainText('4.1.1');
   await expect(page.locator('#content')).toContainText('18 meses');
   await expect(page.locator('#content')).toContainText('Sem prazo');
@@ -62,6 +65,11 @@ const ABAS_OT = {
   [`${B}/fluxos`]: { fluxos: [{ id: 'f1', site_id: 's1', origem_ativo_id: 'a1', origem_zona_id: null, destino_ativo_id: null, destino_zona_id: null, protocolo: 'HTTPS',
     porta: 443, direcao: 'unidirecional', finalidade: null, externo: true, via_vpn: false, violacoes: ['4.1.2', '4.1.3'] }] },
   [`${B}/lotes`]: { lotes: [{ id: 'l1', site_id: 's1', fonte: 'planilha', status: 'em_revisao', criado_por: 'u-tec', created_at: '2026-10-30 10:00:00', itens: 2, com_erro: 0, gravados: 0 }] },
+  [`${B}/levantamentos`]: { levantamentos: [{ id: 'lv1', site_id: 's1', tipo: 'entrevista', realizado_em: '2026-11-01', funcao: 'Operador', turno: 'B', documento_titulo: null,
+    documento_data: null, notas: '', roteiro: {}, situacao: 'aberto', achados: 0 }] },
+  [`${B}/roteiro`]: { perguntas: [
+    { id: 'rot-01', ordem: 1, texto: 'Algum equipamento desta sala é acessado de fora da empresa?', item_norma: '4.1.3', entidade_esperada: 'fluxo', tipos_sessao: ['entrevista', 'visita'] },
+    { id: 'rot-02', ordem: 2, texto: 'Há pendrive ou notebook pessoal ligado à rede?', item_norma: '4.3.1', entidade_esperada: 'ativo', tipos_sessao: ['entrevista', 'visita'] }] },
   [`${B}/indicadores`]: { completude: { total: 1, completos: 1, percentual: 100, situacao: 'evidencia_no_inventario', evidencia: 'Os 1 ativo(s) têm os 6 campos do 4.3.1 registrados', arciber: { total: 1, completos: 1 } },
     por_zona: [{ zona_id: 'z2', site_id: 's1', nome: 'Supervisão', nivel_purdue: 2, ativos: 1 }], por_nivel: { 2: 1 }, sem_zona: 0,
     fluxos_externos: { externos: 1, sem_vpn: 1, situacao: 'nao_atende' }, prazos: [] },
@@ -80,6 +88,10 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo gua
   await entrar(page);
   await page.locator('#nav-ot').click();
   const conteudo = page.locator('#content');
+  // O consultor aprova e há um lote de outra pessoa em revisão: a entrada é a Coleta, e as abas dizem o que espera.
+  await expect(page.getByRole('tab', { name: 'Coleta · 1 em revisão' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Levantamento · 1 aberto' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Catálogo RO-CB.BR.01' }).click();
   await expect(conteudo).toContainText('4.1.1');
 
   await page.getByRole('tab', { name: 'Inventário' }).click();
@@ -94,10 +106,64 @@ test('abas do n.ot: inventário mascarado, fluxo sem VPN, coleta sem arquivo gua
   await expect(page.locator('#ot-coleta-privacidade')).toContainText('o arquivo original não é guardado');
   await expect(conteudo).toContainText('Em revisão');
 
+  await page.getByRole('tab', { name: 'Levantamento' }).click();
+  await expect(conteudo).toContainText('Entrevista');
+  await expect(conteudo).toContainText('Operador · turno B');
+
   await page.getByRole('tab', { name: 'Saídas' }).click();
   await expect(conteudo).toContainText('Não atende');
   await expect(conteudo).toContainText('Sem evidência');
   const texto = (await conteudo.textContent()).replace(/Não atende/g, '');
   expect(texto).not.toMatch(/\batende\b|conforme/i);
   await expect(page.getByRole('button', { name: 'Exportar CSV' })).toBeVisible();
+});
+
+// Spec do Levantamento §9: abrir a sessão, registrar um achado e enviá-lo ao lote; o POST de envio leva só os ids marcados
+// e a tela vai ao lote criado na Coleta. API mockada com estado (o achado registrado volta no GET seguinte).
+test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre na Coleta', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  const LV = { ...ABAS_OT[`${B}/levantamentos`].levantamentos[0] };
+  const achados = [];
+  let criado, envio;
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
+    const chave = `${req.method()} ${path}`;
+    if (chave === `GET ${B}/levantamentos/lv1`) return json({ levantamento: LV, achados });
+    if (chave === `POST ${B}/levantamentos/lv1/achados`) {
+      criado = req.postDataJSON();
+      achados.push({ id: 'ach1', levantamento_id: 'lv1', entidade: 'ativo', origem: 'consultor', situacao: 'rascunho', lote_id: null,
+        evidencia: criado.evidencia, erros: [], dados: criado.dados, confronto: 'novo', alvo_id: null });
+      return json({ id: 'ach1', erros: [] }, 201);
+    }
+    if (chave === `POST ${B}/levantamentos/lv1/enviar`) { envio = req.postDataJSON(); return json({ id: 'lote-lv', itens: 1 }, 201); }
+    if (chave === `GET ${B}/lotes/lote-lv`) {
+      return json({ lote: { id: 'lote-lv', site_id: 's1', fonte: 'manual', status: 'em_revisao', criado_por: 'u1', created_at: '2026-11-01 10:00:00', motivo: null },
+        itens: [{ id: 'i1', linha: 1, dados: criado.dados, erros: [], decisao: 'pendente', duplicata_de: null }] });
+    }
+    if (req.method() === 'GET' && path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  const conteudo = page.locator('#content');
+  await page.getByRole('tab', { name: /^Levantamento/ }).click();
+  await page.getByRole('button', { name: 'Abrir Entrevista de 01/11/2026' }).click();
+  await expect(conteudo).toContainText('Roteiro');
+
+  await page.getByRole('button', { name: 'Registrar achado' }).click();
+  await page.fill('#lev-evidencia', 'notebook pessoal ligado à IHM');
+  await page.fill('#ot-f-nome', 'Notebook IHM');
+  await page.locator('#modal').getByRole('button', { name: 'Registrar' }).click();
+  await expect(conteudo).toContainText('Notebook IHM');
+  expect(criado).toMatchObject({ dados: { nome: 'Notebook IHM' }, evidencia: 'notebook pessoal ligado à IHM' });
+
+  await page.getByRole('checkbox', { name: 'Enviar Notebook IHM ao lote' }).check();
+  await page.locator('#header-actions').getByRole('button', { name: 'Enviar ao lote' }).click();
+  await page.locator('.confirmar').getByRole('button', { name: 'Enviar ao lote' }).click();
+  await expect(page.getByRole('tab', { name: /^Coleta/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(conteudo).toContainText('Lote de');
+  await expect(conteudo).toContainText('Notebook IHM');
+  expect(envio).toEqual({ achados: ['ach1'] });
 });

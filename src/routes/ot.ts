@@ -5,13 +5,15 @@ import { validateBody } from '../schemas';
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema,
+  otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
 } from '../schemas/ot';
 import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
-import { FLUXO_VISIVEL, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
+import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
+import { confrontar, enviarAoLote, indiceDoSite, prepararAchado, serializarAchado, zonasDoSite, type LinhaAchado } from '../services/ot-levantamento';
 
 /** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
 export const otApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -39,7 +41,7 @@ otApp.on(['POST', 'PUT', 'PATCH', 'DELETE'], '*', async (c, next) => {
 });
 
 // P0-8, falha fechada: sem as duas chaves, nada de ativo nem de lote entra ou sai.
-for (const rota of ['/ativos/*', '/lotes/*']) {
+for (const rota of ['/ativos/*', '/lotes/*', '/levantamentos/*']) {
   otApp.use(rota, async (c, next) => {
     if (!chavesOt(c.env)) return c.json({ error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' }, 503);
     await next();
@@ -470,7 +472,7 @@ otApp.post('/lotes', async (c) => {
     if (!bruto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
     const fd = await new Response(bruto, { headers: { 'Content-Type': c.req.header('Content-Type') ?? '' } }).formData().catch(() => null);
     if (!fd) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
-    const corpo = { file: fd.get('file'), site_id: fd.get('site_id') };
+    const corpo = { file: fd.get('file'), site_id: fd.get('site_id'), levantamento_id: fd.get('levantamento_id') };
     const file = corpo['file'];
     if (!(file instanceof File)) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
     if (!daLista(sites, corpo['site_id'])) return refRuim(c, 'site_id');
@@ -479,7 +481,14 @@ otApp.post('/lotes', async (c) => {
     const { itens, reconhecidas, ignoradas } = linhasDaPlanilha(lida.linhas);
     if (!reconhecidas) return c.json({ error: 'Nenhuma coluna reconhecida no cabeçalho (ex.: nome, ip, mac, fabricante, modelo, tipo, funcao)' }, 400);
     const site = corpo['site_id'] as string;
-    return responderLote(c, await criarLote(db, chavesOt(c.env)!, user, projectId, site, 'planilha', itens), projectId, site, { colunas_ignoradas: ignoradas });
+    // Planilha ligada a uma sessão documental (spec descoberta operacional §2): do mesmo site e visível a quem envia.
+    let levantamentoId: string | null = null;
+    if (typeof corpo['levantamento_id'] === 'string' && corpo['levantamento_id']) {
+      const lev = await lerLevantamento(db, projectId, sites, corpo['levantamento_id']);
+      if (!lev || lev.tipo !== 'documento' || lev.site_id !== site) return c.json({ error: 'levantamento_id inválido' }, 400);
+      levantamentoId = lev.id;
+    }
+    return responderLote(c, await criarLote(db, chavesOt(c.env)!, user, projectId, site, 'planilha', itens, levantamentoId), projectId, site, { colunas_ignoradas: ignoradas });
   } catch (e) { return erro500(c, 'Falha ao receber a planilha', e); }
 });
 
@@ -517,6 +526,170 @@ otApp.post('/lotes/:id/rejeitar', async (c) => {
     await trilha(c, 'ot.lote.rejeitado', projectId, `Lote ${c.req.param('id')} rejeitado`, { tipo: 'ot_lote', id: c.req.param('id') }, v.data.motivo);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao rejeitar o lote', e); }
+});
+
+// ─── levantamento (spec descoberta operacional, L1) ──────────────────────────────────────────
+otApp.get('/roteiro', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT id, ordem, texto, item_norma, entidade_esperada, tipos_sessao FROM ot_roteiro_perguntas ORDER BY ordem').all();
+    return c.json({ perguntas: results.map((p) => ({ ...p, tipos_sessao: JSON.parse(String(p.tipos_sessao)) })) });
+  } catch (e) { return erro500(c, 'Falha ao listar o roteiro', e); }
+});
+
+const LEV_COLS = 'id, site_id, tipo, realizado_em, funcao, turno, documento_titulo, documento_data, notas, roteiro, situacao, criado_por, created_at, updated_at';
+/** Sessão ativa, do projeto e de site permitido: inexistente, de outro projeto ou de site sem acesso dão o mesmo 404 (T27). */
+const lerLevantamento = (db: D1Database, projectId: string, sites: string, id: string) =>
+  db.prepare(`SELECT ${LEV_COLS} FROM ot_levantamentos WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${NO_SITE}`)
+    .bind(id, projectId, sites).first<Record<string, unknown> & { id: string; site_id: string; tipo: string; situacao: string }>();
+
+/** Chaves do roteiro só as perguntas cadastradas: o objeto é guardado como veio e chave livre viraria campo sem dono. */
+const roteiroRuim = async (db: D1Database, roteiro?: Record<string, unknown>) => {
+  const chaves = Object.keys(roteiro ?? {});
+  if (!chaves.length) return false;
+  const r = await db.prepare('SELECT count(*) AS n FROM ot_roteiro_perguntas WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(chaves)).first<{ n: number }>();
+  return r!.n !== chaves.length;
+};
+
+otApp.get('/levantamentos', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const site = c.req.query('site_id');
+    const { results } = await db.prepare(`SELECT ${LEV_COLS}, (SELECT count(*) FROM ot_achados a WHERE a.levantamento_id = l.id AND a.situacao <> 'descartado') AS achados
+      FROM ot_levantamentos l WHERE project_id = ? AND status = 'ativo' AND ${NO_SITE} ${site ? 'AND site_id = ?' : ''} ORDER BY realizado_em DESC, created_at DESC LIMIT ${TETO_LEITURA_OT}`)
+      .bind(...[projectId, sites, ...(site ? [site] : [])]).all();
+    return c.json({ levantamentos: results.map((l) => ({ ...l, roteiro: JSON.parse(String(l.roteiro)) })) });
+  } catch (e) { return erro500(c, 'Falha ao listar os levantamentos', e); }
+});
+
+otApp.post('/levantamentos', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const v = await validateBody(c, otLevantamentoCriarSchema);
+    if (!v.success) return v.response;
+    if (!daLista(sites, v.data.site_id)) return refRuim(c, 'site_id');
+    if (await roteiroRuim(db, v.data.roteiro)) return refRuim(c, 'roteiro');
+    const id = genId();
+    const d = v.data;
+    await db.prepare(`INSERT INTO ot_levantamentos (id, project_id, site_id, tipo, realizado_em, funcao, turno, documento_titulo, documento_data, notas, roteiro, criado_por)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, projectId, d.site_id, d.tipo, d.realizado_em, d.funcao ?? null, d.turno ?? null,
+      d.documento_titulo ?? null, d.documento_data ?? null, d.notas ?? '', JSON.stringify(d.roteiro ?? {}), user.id).run();
+    await trilha(c, 'ot.levantamento.criado', projectId, `Levantamento ${id} (${d.tipo}) criado`, { tipo: 'ot_levantamento', id });
+    return c.json({ id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar o levantamento', e); }
+});
+
+otApp.get('/levantamentos/:id', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const lev = await lerLevantamento(db, projectId, sites, c.req.param('id'));
+    if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
+    const completo = await podeVerCompleto(db, user, projectId);
+    const chaves = chavesOt(c.env)!;
+    // LIMIT explícito: sem ele o teto global de SELECT (query-cap, 500) cortaria a sessão em silêncio.
+    const { results } = await db.prepare(`SELECT * FROM ot_achados WHERE levantamento_id = ? AND project_id = ? ORDER BY created_at LIMIT ${TETO_ACHADOS_SESSAO}`)
+      .bind(lev.id, projectId).all<LinhaAchado>();
+    // A1: o confronto só é calculado (e devolvido) para quem vê completo; o índice do site é lido uma vez.
+    const idx = completo ? await indiceDoSite(db, projectId, lev.site_id) : undefined;
+    const achados = [];
+    for (const a of results) {
+      const conf = idx && a.situacao === 'rascunho' ? await confrontar(db, projectId, lev.site_id, JSON.parse(a.dados), idx) : undefined;
+      achados.push(await serializarAchado(a, completo, chaves, conf));
+    }
+    const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
+    if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} achado(s) do levantamento ${lev.id} com IP/MAC sem máscara`, { tipo: 'ot_levantamento', id: lev.id });
+    return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados });
+  } catch (e) { return erro500(c, 'Falha ao ler o levantamento', e); }
+});
+
+otApp.put('/levantamentos/:id', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const lev = await lerLevantamento(db, projectId, sites, c.req.param('id'));
+    if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
+    const v = await validateBody(c, otLevantamentoAtualizarSchema);
+    if (!v.success) return v.response;
+    if (lev.tipo === 'documento' && 'documento_titulo' in v.data && !v.data.documento_titulo) return c.json({ error: 'Documento exige o título' }, 400);
+    if (await roteiroRuim(db, v.data.roteiro)) return refRuim(c, 'roteiro');
+    // Colunas só das chaves do esquema `.strict()` (como em atualizar()); valores sempre por bind.
+    const d = { ...v.data, ...(v.data.roteiro && { roteiro: JSON.stringify(v.data.roteiro) }) };
+    const campos = Object.keys(d);
+    if (!campos.length) return c.json({ ok: true });
+    const encerrando = v.data.situacao === 'encerrado' && lev.situacao !== 'encerrado';
+    await db.prepare(`UPDATE ot_levantamentos SET ${campos.map((k) => `${k} = ?`).join(', ')}${encerrando ? ', encerrado_em = CURRENT_TIMESTAMP' : ''},
+      updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`).bind(...campos.map((k) => (d as Record<string, unknown>)[k] ?? null), lev.id, projectId).run();
+    await trilha(c, 'ot.levantamento.editado', projectId, `Levantamento ${lev.id} editado (${campos.join(', ')})`, { tipo: 'ot_levantamento', id: lev.id });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao editar o levantamento', e); }
+});
+
+otApp.delete('/levantamentos/:id', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const lev = await lerLevantamento(db, projectId, sites, c.req.param('id'));
+    if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
+    await db.prepare(`UPDATE ot_levantamentos SET status = 'removido', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`).bind(lev.id, projectId).run();
+    await trilha(c, 'ot.levantamento.removido', projectId, `Levantamento ${lev.id} removido`, { tipo: 'ot_levantamento', id: lev.id });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao remover o levantamento', e); }
+});
+
+otApp.post('/levantamentos/:id/achados', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const lev = await lerLevantamento(db, projectId, sites, c.req.param('id'));
+    if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
+    if (lev.situacao === 'encerrado') return c.json({ error: 'Levantamento encerrado: reabra para registrar achados' }, 409);
+    const v = await validateBody(c, otAchadoCriarSchema);
+    if (!v.success) return v.response;
+    const n = await db.prepare(`SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?`).bind(lev.id).first<{ n: number }>();
+    if ((n?.n ?? 0) >= TETO_ACHADOS_SESSAO) return c.json({ error: `Limite de ${TETO_ACHADOS_SESSAO} achados por levantamento` }, 400);
+    // O mesmo id vai à AAD da cifra e à linha: trocar um sem o outro torna o IP indecifrável.
+    const id = genId();
+    const p = await prepararAchado(chavesOt(c.env)!, projectId, lev.site_id, id, v.data.dados, await zonasDoSite(db, projectId, lev.site_id));
+    await db.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, dados, erros, evidencia, criado_por) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, projectId, lev.id, JSON.stringify(p.dados), JSON.stringify(p.erros), v.data.evidencia, user.id).run();
+    await trilha(c, 'ot.achado.criado', projectId, `Achado ${id} no levantamento ${lev.id}`, { tipo: 'ot_achado', id });
+    return c.json({ id, erros: p.erros }, 201);
+  } catch (e) { return erro500(c, 'Falha ao registrar o achado', e); }
+});
+
+otApp.put('/levantamentos/:id/achados/:aid', async (c) => {
+  try {
+    const { db, projectId, sites } = await contexto(c);
+    const lev = await lerLevantamento(db, projectId, sites, c.req.param('id'));
+    if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
+    const a = await db.prepare(`SELECT id, situacao FROM ot_achados WHERE id = ? AND levantamento_id = ? AND project_id = ?`)
+      .bind(c.req.param('aid'), lev.id, projectId).first<{ id: string; situacao: string }>();
+    if (!a) return NAO_ENCONTRADO(c, 'Achado');
+    if (a.situacao === 'enviado') return c.json({ error: 'Achado já enviado ao lote' }, 409);
+    const v = await validateBody(c, otAchadoAtualizarSchema);
+    if (!v.success) return v.response;
+    const sets: string[] = []; const vals: unknown[] = [];
+    if (v.data.dados) {
+      const p = await prepararAchado(chavesOt(c.env)!, projectId, lev.site_id, a.id, v.data.dados, await zonasDoSite(db, projectId, lev.site_id));
+      sets.push('dados = ?', 'erros = ?'); vals.push(JSON.stringify(p.dados), JSON.stringify(p.erros));
+    }
+    if (v.data.evidencia !== undefined) { sets.push('evidencia = ?'); vals.push(v.data.evidencia); }
+    if (v.data.situacao) { sets.push('situacao = ?'); vals.push(v.data.situacao); }
+    if (!sets.length) return c.json({ ok: true });
+    // `situacao <> 'enviado'` de novo no UPDATE: um envio entre a leitura e a escrita não perde a trava.
+    const r = await db.prepare(`UPDATE ot_achados SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND situacao <> 'enviado'`).bind(...vals, a.id).run();
+    if (!r.meta.changes) return c.json({ error: 'Achado já enviado ao lote' }, 409);
+    await trilha(c, 'ot.achado.editado', projectId, `Achado ${a.id} editado`, { tipo: 'ot_achado', id: a.id });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao editar o achado', e); }
+});
+
+otApp.post('/levantamentos/:id/enviar', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    const lev = await lerLevantamento(db, projectId, sites, c.req.param('id'));
+    if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
+    const v = await validateBody(c, otEnviarAchadosSchema);
+    if (!v.success) return v.response;
+    const r = await enviarAoLote(db, chavesOt(c.env)!, user, projectId, { id: lev.id, site_id: lev.site_id }, v.data.achados);
+    return responderLote(c, r, projectId, lev.site_id, { levantamento_id: lev.id });
+  } catch (e) { return erro500(c, 'Falha ao enviar os achados ao lote', e); }
 });
 
 // ─── conformidade RO-CB.BR.01 calculada do inventário ───────────────────────

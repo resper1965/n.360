@@ -7,7 +7,7 @@ import { genId } from '../helpers';
 import { otAtivoCriarSchema, TETO_ITENS_LOTE } from '../schemas/ot';
 import { chave } from './tratamentos-importar';
 import { aadOt, cifrarEnderecos, cifrarOt, decifrarOt, type ChavesOt } from './ot-cifra';
-import { serializarAtivo, type LinhaAtivo } from './ot-inventario';
+import { serializarAtivo, TETO_LEITURA_OT, type LinhaAtivo } from './ot-inventario';
 
 export const TETO_ITENS = TETO_ITENS_LOTE;
 export const TETO_LOTES_DIA = 20;
@@ -88,7 +88,8 @@ export const FALTA_4_3_1 = 'Ativo do ARCiber exige os campos mínimos do 4.3.1 d
  * (assim um IP digitado em campo livre não chega ao staging); campo desconhecido (`ip_cifrado`, `verificado_por`...) também é erro.
  * `dados` sai na forma da linha de `ot_ativos`, com IP/MAC cifrados com a AAD do item.
  */
-async function prepararItem(chaves: ChavesOt, projectId: string, id: string, bruto: Record<string, unknown>, zonas: Map<string, string>) {
+export async function prepararItem(chaves: ChavesOt, projectId: string, id: string, bruto: Record<string, unknown>, zonas: Map<string, string>,
+  tabela = 'ot_lote_itens') {
   const erros: Erro[] = [];
   const ok: Record<string, unknown> = {};
   for (const [campo, valor] of Object.entries(bruto)) {
@@ -109,13 +110,13 @@ async function prepararItem(chaves: ChavesOt, projectId: string, id: string, bru
     ...(no_arciber !== undefined && { no_arciber: Number(no_arciber) }),
     ...(firmware_nao_aplicavel !== undefined && { firmware_nao_aplicavel: Number(firmware_nao_aplicavel) }),
     ...(protocolos_portas !== undefined && { protocolos_portas: JSON.stringify(protocolos_portas) }),
-    ...await cifrarEnderecos(chaves, projectId, 'ot_lote_itens', id, { ip: ip as string | undefined, mac: mac as string | undefined }),
+    ...await cifrarEnderecos(chaves, projectId, tabela, id, { ip: ip as string | undefined, mac: mac as string | undefined }),
   };
   if (falta431(dados)) erros.push({ campo: '4.3.1', motivo: FALTA_4_3_1 });
   return { dados, erros };
 }
 
-interface Existente { id: string; ip_hash: string | null; mac_hash: string | null; fabricante: string | null; modelo: string | null; nome: string; [k: string]: unknown }
+export interface Existente { id: string; ip_hash: string | null; mac_hash: string | null; fabricante: string | null; modelo: string | null; nome: string; [k: string]: unknown }
 const chaveNome = (d: Record<string, unknown>) => d.fabricante && d.modelo && d.nome ? `${chave(String(d.fabricante))}|${chave(String(d.modelo))}|${chave(String(d.nome))}` : null;
 
 /**
@@ -123,7 +124,7 @@ const chaveNome = (d: Record<string, unknown>) => d.fabricante && d.modelo && d.
  * Restringir ao site do lote (que é sempre um site permitido) é o que tira o oráculo do P0-5: ativo de outro site nunca casa, então
  * a resposta para o IP de um site sem acesso é a mesma de um IP novo.
  */
-function indice(ativos: Existente[]) {
+export function indice(ativos: Existente[]) {
   const m = new Map<string, Existente>();
   const por = (a: Existente) => [a.mac_hash && `m:${a.mac_hash}`, a.ip_hash && `i:${a.ip_hash}`, chaveNome(a) && `n:${chaveNome(a)}`].filter(Boolean) as string[];
   const add = (a: Existente) => por(a).forEach((k) => m.set(k, a));
@@ -133,8 +134,14 @@ function indice(ativos: Existente[]) {
 
 const COLS_ATIVO = ['zona_id', 'nome', 'no_arciber', 'categoria_arciber', 'tipo_dispositivo', 'fabricante', 'modelo', 'funcao', 'ip_cifrado', 'mac_cifrado',
   'ip_hash', 'mac_hash', 'protocolos_portas', 'firmware_so_versao', 'firmware_nao_aplicavel'] as const;
-const ativosDoSite = (db: D1Database, projectId: string, siteId: string) =>
-  db.prepare(`SELECT id, ${COLS_ATIVO.join(', ')}, updated_at FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo'`).bind(projectId, siteId).all<Existente>();
+export const ativosDoSite = (db: D1Database, projectId: string, siteId: string) =>
+  db.prepare(`SELECT id, ${COLS_ATIVO.join(', ')}, updated_at FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo'
+    LIMIT ${TETO_LEITURA_OT}`).bind(projectId, siteId).all<Existente>();
+
+export async function zonasDoSite(db: D1Database, projectId: string, siteId: string) {
+  const z = await db.prepare(`SELECT id, nome FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId, siteId).all<{ id: string; nome: string }>();
+  return new Map(z.results.map((x) => [chave(x.nome), x.id]));
+}
 
 /** Batches de até BLOCO statements; um grupo (array) nunca se parte entre batches: o `changes()` do item lê o statement anterior. */
 async function emBlocos(db: D1Database, itens: (D1PreparedStatement | D1PreparedStatement[])[]) {
@@ -151,20 +158,17 @@ type Falha = { ok: false; status: 400 | 403 | 404 | 409 | 429; error: string };
 
 /** Cria o lote (planilha ou manual) já em revisão. O site precisa estar entre os permitidos (a rota passa a lista). */
 export async function criarLote(db: D1Database, chaves: ChavesOt, ator: { id: string }, projectId: string, siteId: string, fonte: 'planilha' | 'manual',
-  brutos: Record<string, unknown>[]): Promise<Falha | { ok: true; id: string; itens: number; com_erro: number; possiveis_duplicatas: number }> {
+  brutos: Record<string, unknown>[], levantamentoId: string | null = null): Promise<Falha | { ok: true; id: string; itens: number; com_erro: number; possiveis_duplicatas: number }> {
   if (!brutos.length) return { ok: false, status: 400, error: 'Lote sem itens' };
   if (brutos.length > TETO_ITENS) return { ok: false, status: 400, error: `Lote acima de ${TETO_ITENS} itens` };
   const hoje = await db.prepare(`SELECT count(*) AS n FROM ot_lotes WHERE criado_por = ? AND created_at > datetime('now', '-1 day')`).bind(ator.id).first<{ n: number }>();
   if ((hoje?.n ?? 0) >= TETO_LOTES_DIA) return { ok: false, status: 429, error: `Limite de ${TETO_LOTES_DIA} lotes por dia atingido` };
 
-  const [zonas, ativos] = await Promise.all([
-    db.prepare(`SELECT id, nome FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo'`).bind(projectId, siteId).all<{ id: string; nome: string }>(),
-    ativosDoSite(db, projectId, siteId),
-  ]);
-  const mapaZonas = new Map(zonas.results.map((z) => [chave(z.nome), z.id]));
+  const [mapaZonas, ativos] = await Promise.all([zonasDoSite(db, projectId, siteId), ativosDoSite(db, projectId, siteId)]);
   const idx = indice(ativos.results);
   const loteId = genId();
-  await db.prepare(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, criado_por) VALUES (?, ?, ?, ?, ?)`).bind(loteId, projectId, siteId, fonte, ator.id).run();
+  await db.prepare(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, criado_por, levantamento_id) VALUES (?, ?, ?, ?, ?, ?)`)
+    .bind(loteId, projectId, siteId, fonte, ator.id, levantamentoId).run();
   try {
     let comErro = 0, dups = 0;
     const stmts: D1PreparedStatement[] = [];
@@ -230,7 +234,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   const [{ results: itens }, ativos, zonas] = await Promise.all([
     db.prepare(`SELECT id, project_id, linha, dados, erros, duplicata_de, decisao, motivo, registro_id, updated_at FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente' ORDER BY linha`).bind(loteId).all<LinhaItem>(),
     ativosDoSite(db, projectId, lote.site_id),
-    db.prepare(`SELECT id FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo'`).bind(projectId, lote.site_id).all<{ id: string }>(),
+    db.prepare(`SELECT id FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lote.site_id).all<{ id: string }>(),
   ]);
   const zonasAtivas = new Set(zonas.results.map((z) => z.id));
   const idx = indice(ativos.results);

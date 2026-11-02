@@ -2203,3 +2203,13 @@ ul.at-ajuda { padding-left: 1.25em; }
 .doc-texto h1, .doc-texto h2, .doc-texto h3 { font-family: 'Montserrat', sans-serif; font-weight: 600; margin: 1rem 0 0.5rem; }
 .doc-texto table { border-collapse: collapse; width: 100%; }
 .doc-texto th, .doc-texto td { border: 1px solid var(--border); padding: 0.25rem 0.5rem; }
+
+/* n.ot, Levantamento: a resposta escolhida do roteiro (borda dupla e peso, além da cor; o texto da resposta também está na coluna ao lado)
+   e os campos do 4.3.1 recolhidos no registro do achado. */
+.ot-resposta .btn[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-dim); color: var(--text); font-weight: 600; }
+.ot-detalhes { margin: 0 0 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.ot-detalhes > summary { cursor: pointer; color: var(--accent); width: fit-content; font-size: var(--fs-base); margin-bottom: 4px; }
+.ot-detalhes > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ot-detalhes[open] > summary { margin-bottom: 12px; }
+/* "Enviar ao lote" fica desabilitado até marcar um achado; a dica em texto ao lado da tabela diz o que fazer. */
+[data-action="otEnviarAchados"]:disabled { opacity: 0.45; cursor: not-allowed; }
