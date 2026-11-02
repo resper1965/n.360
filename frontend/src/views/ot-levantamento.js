@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo } from '../ot-comum.js';
+import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, pontasDoSite, rotaDoFluxo } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 
 // Levantamento do n.ot (L1, descoberta operacional): sessões de entrevista, visita de campo e documento, com o roteiro guiado e os
@@ -24,6 +24,8 @@ let sites = [];
 let atual = null;
 let perguntas = [];
 let achados = [];
+let pontas = { ativos: [], zonas: [] }; // ativos e zonas do site da sessão: nomes das pontas do fluxo
+let perguntaDoAchado = null;
 
 export async function montarLevantamento(c, a, p) {
     if (S.otLevantamento) { await montarSessao(c, a, p, S.otLevantamento); return; }
@@ -81,6 +83,7 @@ async function montarSessao(c, a, p, id) {
     atual = l;
     atualPid = p.id;
     achados = lista(r, 'achados');
+    pontas = await pontasDoSite(l.site_id);
     const editar = podeEditarOt();
     const aberto = l.situacao !== 'encerrado';
     const rascunhos = achados.filter((x) => x.situacao === 'rascunho');
@@ -98,14 +101,16 @@ async function montarSessao(c, a, p, id) {
     }))}`;
 
     const comConfronto = achados.some((x) => 'confronto' in x);
-    const tabela = renderDataTable([...(editar ? ['Enviar'] : []), 'Nome', 'IP', 'MAC', 'Evidência', ...(comConfronto ? ['Inventário'] : []), 'Avisos', 'Situação', ...(editar ? ['Ações'] : [])],
+    const tabela = renderDataTable([...(editar ? ['Enviar'] : []), 'Tipo', 'Nome', 'IP', 'MAC', 'Evidência', ...(comConfronto ? ['Confronto'] : []), 'Avisos', 'Situação', ...(editar ? ['Ações'] : [])],
         achados.map((x) => {
             const d = x.dados || {};
+            const fluxo = x.entidade === 'fluxo';
+            const nome = nomeDoAchado(x.id, 'achado');
             const rasc = x.situacao === 'rascunho';
-            return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${d.nome || 'achado'} ao lote`)}">` : '—'] : []),
-                escapeHTML(d.nome || '—'), `<span class="f-mono">${escapeHTML(d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
-                ...(comConfronto ? [escapeHTML(x.confronto === 'confirma' ? `Confirma ${nomeDoAtivo(x.alvo_id)}` : x.confronto === 'novo' ? 'Novo no inventário' : '—')] : []), listaDeErros(x.erros), selo(ACHADO, x.situacao),
-                ...(editar ? [rasc ? `<button class="btn btn-sm" data-action="otDescartarAchado" data-args='${args(x.id)}' aria-label="${escapeHTML(`Descartar ${d.nome || 'achado'}`)}">Descartar</button>` : '—'] : [])];
+            return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${nome} ao lote`)}">` : '—'] : []),
+                fluxo ? 'Fluxo' : 'Ativo', escapeHTML(nome), `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
+                ...(comConfronto ? [confronto(x)] : []), listaDeErros(x.erros), selo(ACHADO, x.situacao),
+                ...(editar ? [rasc ? `<button class="btn btn-sm" data-action="otDescartarAchado" data-args='${args(x.id)}' aria-label="${escapeHTML(`Descartar ${nome}`)}">Descartar</button>` : '—'] : [])];
         }), { emptyMessage: 'Nenhum achado registrado.', emptyHint: editar && aberto ? 'Registre cada equipamento ou acesso visto ou relatado nesta sessão.' : '' });
 
     c.innerHTML = `<h3 class="mb-2">${escapeHTML(TIPO[l.tipo] || l.tipo)} · ${quem(l)} · ${escapeHTML(nomeDe(sites, l.site_id))} ${situacao(l)}</h3>
@@ -118,6 +123,13 @@ async function montarSessao(c, a, p, id) {
         <h3 class="mb-3">Achados</h3>
         ${editar && rascunhos.length ? '<p class="org-dica mb-2" id="lev-envio-dica">Marque os achados que vão ao lote.</p>' : ''}${tabela}`;
     if (editar) mostrarStatusNotas();
+}
+
+const CONTRADIZ = 'O inventário registra esse fluxo de outro jeito (externo ou VPN)';
+function confronto(x) {
+    if (x.confronto === 'contradiz') return `<span class="badge selo-warning" title="${escapeHTML(CONTRADIZ)}">Contradiz</span>`;
+    if (x.confronto === 'confirma') return escapeHTML(x.entidade === 'fluxo' ? 'Confirma' : `Confirma ${nomeDoAtivo(x.alvo_id)}`);
+    return x.confronto === 'novo' ? (x.entidade === 'fluxo' ? 'Novo' : 'Novo no inventário') : '—';
 }
 
 // ─── notas: gravam sozinhas e nunca se perdem num redesenho ──────────────────
@@ -236,25 +248,68 @@ window.otSalvarNotas = () => esvaziarNotas();
 window.otResponderRoteiro = async (pergunta, resposta) => {
     const ok = await salvar({ roteiro: { ...atual.roteiro, [pergunta]: { ...atual.roteiro?.[pergunta], resposta } } }, 'Não foi possível registrar a resposta.');
     const q = perguntas.find((x) => x.id === pergunta);
-    if (ok && resposta === 'sim' && q?.entidade_esperada && atual.situacao !== 'encerrado') await window.otNovoAchado(`Roteiro: ${q.texto} Resposta: sim. `);
+    if (ok && resposta === 'sim' && q?.entidade_esperada && atual.situacao !== 'encerrado') {
+        await window.otNovoAchado(`Roteiro: ${q.texto} Resposta: sim. `, q.id, q.entidade_esperada === 'fluxo' ? 'fluxo' : 'ativo');
+    }
 };
 window.otEncerrarLevantamento = (situacao) => salvar({ situacao }, 'Não foi possível alterar a situação do levantamento.', situacao === 'encerrado' ? 'Levantamento encerrado.' : 'Levantamento reaberto.');
 
-window.otNovoAchado = async (evidencia = '') => {
-    const zonas = lista(await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/zonas?site_id=${encodeURIComponent(atual.site_id)}`).catch(() => null), 'zonas');
+// Pontas do fluxo num select só: "a:<id>" ativo, "z:<id>" zona, "fora" fora da empresa (marca externo e não vai ao servidor).
+const selectPonta = (id, rotulo) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}" data-action-change="otPontaFluxo" data-arg-val><option value="">—</option>
+    <optgroup label="Ativos">${opcoes(pontas.ativos.map((x) => [`a:${x.id}`, x.nome]))}</optgroup>
+    <optgroup label="Zonas">${opcoes(pontas.zonas.map((x) => [`z:${x.id}`, x.nome]))}</optgroup>
+    <option value="fora">Fora da empresa</option></select></div>`;
+const camposDoFluxo = () => `${selectPonta('lev-fx-origem', 'Origem')}${selectPonta('lev-fx-destino', 'Destino')}
+    <div class="form-group"><label class="form-label" for="lev-fx-protocolo">Protocolo</label><input class="form-input" id="lev-fx-protocolo" maxlength="100"></div>
+    <div class="form-group"><label class="form-label" for="lev-fx-porta">Porta</label><input class="form-input" type="number" id="lev-fx-porta" min="0" max="65535" step="1"></div>
+    <div class="form-group"><label class="form-label" for="lev-fx-direcao">Direção</label><select class="form-input" id="lev-fx-direcao"><option value="">—</option>${opcoes([['unidirecional', 'Unidirecional'], ['bidirecional', 'Bidirecional']])}</select></div>
+    <div class="form-group"><label class="form-label" for="lev-fx-finalidade">Finalidade</label><input class="form-input" id="lev-fx-finalidade" maxlength="500"></div>
+    <div class="form-group"><label><input type="checkbox" id="lev-fx-externo"> Externo</label></div>
+    <div class="form-group"><label><input type="checkbox" id="lev-fx-vpn"> Via VPN</label></div>`;
+window.otPontaFluxo = (v) => { if (v === 'fora') el('lev-fx-externo').checked = true; };
+window.otEntidadeAchado = (v) => {
+    el('lev-ach-ativo').hidden = v === 'fluxo';
+    el('lev-ach-fluxo').hidden = v !== 'fluxo';
+    const r = document.querySelector(`input[name="ach-entidade"][value="${v === 'fluxo' ? 'fluxo' : 'ativo'}"]`);
+    if (r) r.checked = true;
+};
+window.otNovoAchado = async (evidencia = '', perguntaId = null, entidade = 'ativo') => {
+    perguntaDoAchado = perguntaId;
+    const radio = (v, rot) => `<label class="d-flex gap-2 items-center"><input type="radio" name="ach-entidade" value="${v}" data-action-change="otEntidadeAchado" data-arg-val${v === entidade ? ' checked' : ''}> ${rot}</label>`;
     openModal(`<div class="modal-header"><span class="modal-title">Registrar achado</span></div>
         <p class="org-dica mb-3">O achado fica nesta sessão até ser enviado ao lote. Campos que faltam viram aviso, não impedem o registro.</p>
         <div class="form-group"><label class="form-label" for="lev-evidencia">Evidência (o que foi visto ou relatado, sem nomes, IP ou MAC)</label><textarea class="form-input" id="lev-evidencia" rows="3" maxlength="2000" autofocus>${escapeHTML(evidencia)}</textarea></div>
-        ${camposDoAtivo({}, { zonas, recolher: true })}
+        <fieldset class="form-group"><legend class="form-label">O que foi achado</legend><div class="d-flex gap-4">${radio('ativo', 'Ativo')}${radio('fluxo', 'Fluxo')}</div></fieldset>
+        <div id="lev-ach-ativo"${entidade === 'fluxo' ? ' hidden' : ''}>${camposDoAtivo({}, { zonas: pontas.zonas, recolher: true })}</div>
+        <div id="lev-ach-fluxo"${entidade === 'fluxo' ? '' : ' hidden'}>${camposDoFluxo()}</div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAchado">Registrar</button></div>`, 'modal-large');
 };
+// Fluxo: só o que foi preenchido; externo e via_vpn sempre como booleanos. Devolve { erro } se a porta não for inteiro de 0 a 65535.
+function lerCamposDoFluxo() {
+    const v = (id) => el(id)?.value.trim() || '';
+    const d = { externo: el('lev-fx-externo').checked, via_vpn: el('lev-fx-vpn').checked };
+    for (const lado of ['origem', 'destino']) {
+        const x = v(`lev-fx-${lado}`);
+        if (x === 'fora') d.externo = true;
+        else if (x) d[`${lado}_${x[0] === 'a' ? 'ativo' : 'zona'}_id`] = x.slice(2);
+    }
+    for (const k of ['protocolo', 'direcao', 'finalidade']) if (v(`lev-fx-${k}`)) d[k] = v(`lev-fx-${k}`);
+    const porta = v('lev-fx-porta');
+    if (porta) {
+        if (!/^\d+$/.test(porta) || Number(porta) > 65535) return { erro: 'Porta: número inteiro de 0 a 65535.' };
+        d.porta = Number(porta);
+    }
+    return { dados: d };
+}
 window.otSalvarAchado = async () => {
-    const { dados, erro } = lerCamposDoAtivo({ vazio: 'omitir' });
+    const entidade = document.querySelector('input[name="ach-entidade"]:checked')?.value === 'fluxo' ? 'fluxo' : 'ativo';
+    const { dados, erro } = entidade === 'fluxo' ? lerCamposDoFluxo() : lerCamposDoAtivo({ vazio: 'omitir' });
     if (erro) return showToast(erro, 'error');
     const evidencia = el('lev-evidencia').value.trim();
     if (!evidencia) return showToast('Descreva a evidência do achado.', 'error');
     try {
-        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/achados`, { dados, evidencia });
+        const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/achados`,
+            { entidade, dados, evidencia, ...(perguntaDoAchado ? { pergunta_id: perguntaDoAchado } : {}) });
         forceCloseModal();
         showToast(r.erros?.length ? `Achado registrado com ${r.erros.length} aviso(s).` : 'Achado registrado.', 'success');
         await redesenhar();
@@ -268,7 +323,10 @@ window.otDescartarAchado = async (id) => {
     } catch (e) { falhou(e, 'Não foi possível descartar o achado.'); }
 };
 const marcados = () => [...document.querySelectorAll('input[id^="ach-sel-"]:checked')].map((x) => x.id.slice('ach-sel-'.length));
-const nomeDoAchado = (id) => achados.find((x) => x.id === id)?.dados?.nome || 'achado sem nome';
+function nomeDoAchado(id, padrao = 'achado sem nome') {
+    const x = achados.find((a) => a.id === id);
+    return x?.entidade === 'fluxo' ? rotaDoFluxo(x.dados, pontas) : x?.dados?.nome || padrao;
+}
 window.otMarcarAchado = () => {
     const n = marcados().length;
     const b = document.querySelector('[data-action="otEnviarAchados"]');
@@ -279,8 +337,10 @@ window.otMarcarAchado = () => {
 window.otEnviarAchados = async () => {
     const ids = marcados();
     if (!ids.length) return;
-    const n = ids.length;
-    if (!await confirmar(`Enviar ${n} ${n === 1 ? 'achado' : 'achados'} ao lote: ${ids.map(nomeDoAchado).join(', ')}. O lote vai para a Coleta, onde outra pessoa aprova antes do inventário.`,
+    const fl = ids.filter((id) => achados.find((x) => x.id === id)?.entidade === 'fluxo').length;
+    const at = ids.length - fl;
+    const conta = [at && `${at} ${at === 1 ? 'ativo' : 'ativos'}`, fl && `${fl} ${fl === 1 ? 'fluxo' : 'fluxos'}`].filter(Boolean).join(' e ');
+    if (!await confirmar(`Enviar ${ids.length} ${ids.length === 1 ? 'achado' : 'achados'} ao lote (${conta}): ${ids.map((id) => nomeDoAchado(id)).join(', ')}. O lote vai para a Coleta, onde outra pessoa aprova antes do inventário.`,
         { titulo: 'Enviar ao lote', rotulo: 'Enviar ao lote' })) return;
     await esvaziarNotas();
     try {

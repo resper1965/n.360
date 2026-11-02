@@ -115,6 +115,60 @@ describe('aba Levantamento', () => {
         expect(corpo(`PUT ${B}/levantamentos/l1/achados/a1`)).toEqual({ situacao: 'descartado' });
     });
 
+    const PONTAS = { [`GET ${B}/ativos`]: { ativos: [{ id: 'at1', nome: 'CLP 1' }] }, [`GET ${B}/zonas`]: { zonas: [{ id: 'z1', nome: 'Supervisão', nivel_purdue: 2 }] } };
+    const FLUXO = (extra = {}) => ACH({ id: 'f1', entidade: 'fluxo', evidencia: 'acesso remoto',
+        dados: { origem_ativo_id: 'at1', destino_zona_id: 'zx', protocolo: 'RDP', porta: 3389, externo: true, via_vpn: false }, ...extra });
+
+    it('achado de fluxo: "Sim" numa pergunta de fluxo abre com Fluxo marcado e salvar manda entidade, pontas e pergunta', async () => {
+        await detalhe([], { ...PONTAS, [`PUT ${B}/levantamentos/l1`]: { ok: true }, [`POST ${B}/levantamentos/l1/achados`]: { id: 'a9', erros: [] } });
+        await window.otResponderRoteiro('rot-01', 'sim');
+        const radios = [...document.querySelectorAll('input[name="ach-entidade"]')];
+        expect(radios.map((r) => r.value)).toEqual(['ativo', 'fluxo']);
+        expect(radios[1].checked).toBe(true);
+        expect(el('lev-ach-fluxo').hidden).toBe(false);
+        expect(el('lev-ach-ativo').hidden).toBe(true);
+        expect([...el('lev-fx-origem').querySelectorAll('optgroup')].map((g) => g.label)).toEqual(['Ativos', 'Zonas']);
+        expect(el('lev-fx-origem').textContent).toContain('Fora da empresa');
+        el('lev-fx-origem').value = 'a:at1';
+        el('lev-fx-destino').value = 'z:z1';
+        el('lev-fx-protocolo').value = 'Modbus';
+        el('lev-fx-porta').value = '502';
+        el('lev-fx-direcao').value = 'bidirecional';
+        el('lev-fx-finalidade').value = 'telemetria';
+        el('lev-fx-externo').checked = true;
+        el('lev-evidencia').value = 'relatado';
+        await window.otSalvarAchado();
+        expect(corpo(`POST ${B}/levantamentos/l1/achados`)).toEqual({ entidade: 'fluxo', pergunta_id: 'rot-01', evidencia: 'relatado',
+            dados: { origem_ativo_id: 'at1', destino_zona_id: 'z1', protocolo: 'Modbus', porta: 502, direcao: 'bidirecional', finalidade: 'telemetria', externo: true, via_vpn: false } });
+    });
+
+    it('"Fora da empresa" numa ponta marca externo e não envia a ponta; trocar para Ativo volta aos campos do ativo', async () => {
+        await detalhe([], { ...PONTAS, [`POST ${B}/levantamentos/l1/achados`]: { id: 'a9', erros: [] } });
+        await window.otNovoAchado();
+        expect(document.querySelector('input[name="ach-entidade"][value="ativo"]').checked).toBe(true);
+        expect(el('lev-ach-fluxo').hidden).toBe(true);
+        window.otEntidadeAchado('fluxo');
+        el('lev-fx-origem').value = 'fora';
+        el('lev-fx-destino').value = 'a:at1';
+        el('lev-evidencia').value = 'VPN do fornecedor';
+        await window.otSalvarAchado();
+        const b = corpo(`POST ${B}/levantamentos/l1/achados`);
+        expect(b.dados).toEqual({ destino_ativo_id: 'at1', externo: true, via_vpn: false });
+        expect(b).not.toHaveProperty('pergunta_id');
+    });
+
+    it('tabela mostra Tipo, a rota do fluxo e "Contradiz"; o envio conta ativos e fluxos', async () => {
+        await detalhe([ACH({ confronto: 'novo', alvo_id: null }), ACH({ id: 'a2', confronto: 'confirma', alvo_id: 'x' }), FLUXO({ confronto: 'contradiz', alvo_id: 'fl9' })], PONTAS);
+        expect(texto()).toContain('CLP 1 → ponta removida');
+        expect(texto()).toContain('Fluxo');
+        const c = [...document.querySelectorAll('#c .badge')].find((b) => b.textContent === 'Contradiz');
+        expect(c.title).toBe('O inventário registra esse fluxo de outro jeito (externo ou VPN)');
+        for (const id of ['a1', 'a2', 'f1']) el(`ach-sel-${id}`).checked = true;
+        window.otEnviarAchados();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(document.querySelector('.confirmar').textContent).toContain('2 ativos e 1 fluxo');
+    });
+
     it('novo levantamento de documento manda título, não função e turno', async () => {
         servirOt({ [`GET ${B}/levantamentos`]: { levantamentos: [] }, ...SITES, [`POST ${B}/levantamentos`]: { id: 'l2' } });
         await abrir('levantamento');
@@ -171,5 +225,21 @@ describe('coleta ligada a um documento', () => {
         await window.otEnviarPlanilha();
         const fd = chamadas.find((x) => x.k === `POST ${B}/lotes`).opts.body;
         expect(fd.get('levantamento_id')).toBe('d1');
+    });
+});
+
+describe('coleta com fluxo', () => {
+    it('item de fluxo mostra "Fluxo: origem → destino" e "—" em IP/MAC/Fabricante; não trava a aprovação', async () => {
+        S.user = { id: 'u-gestor', role: 'org_admin' };
+        S.otLote = 'lt1';
+        servirOt({ ...SITES, [`GET ${B}/lotes`]: { lotes: [] }, [`GET ${B}/lotes/lt1`]: { lote: { id: 'lt1', site_id: 's1', fonte: 'manual', status: 'em_revisao', criado_por: 'u-outro', created_at: '2026-11-01 10:00:00' },
+            itens: [{ id: 'i1', linha: 1, entidade: 'fluxo', dados: { origem_ativo_id: 'at1', externo: true, protocolo: 'RDP' }, erros: [], decisao: 'pendente' }] },
+        [`GET ${B}/ativos`]: { ativos: [{ id: 'at1', nome: 'CLP 1' }] }, [`GET ${B}/zonas`]: { zonas: [] } });
+        await abrir('coleta');
+        const linha = [...document.querySelectorAll('#c tbody tr')][0];
+        const cel = [...linha.querySelectorAll('td')].map((t) => t.textContent);
+        expect(cel[1]).toBe('Fluxo: CLP 1 → Fora da empresa');
+        expect([cel[3], cel[4], cel[5]]).toEqual(['—', '—', '—']);
+        expect(document.querySelector('[data-action="otAprovarLote"]')).not.toBeNull();
     });
 });

@@ -133,14 +133,16 @@ test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre
     if (chave === `GET ${B}/levantamentos/lv1`) return json({ levantamento: LV, achados });
     if (chave === `POST ${B}/levantamentos/lv1/achados`) {
       criado = req.postDataJSON();
-      achados.push({ id: 'ach1', levantamento_id: 'lv1', entidade: 'ativo', origem: 'consultor', situacao: 'rascunho', lote_id: null,
-        evidencia: criado.evidencia, erros: [], dados: criado.dados, confronto: 'novo', alvo_id: null });
-      return json({ id: 'ach1', erros: [] }, 201);
+      const id = `ach${achados.length + 1}`;
+      // O fluxo externo do RTU-01 já está no inventário sem VPN: dito "via VPN" na entrevista, contradiz.
+      achados.push({ id, levantamento_id: 'lv1', entidade: criado.entidade, pergunta_id: criado.pergunta_id ?? null, origem: 'consultor', situacao: 'rascunho', lote_id: null,
+        evidencia: criado.evidencia, erros: [], dados: criado.dados, confronto: criado.entidade === 'fluxo' ? 'contradiz' : 'novo', alvo_id: criado.entidade === 'fluxo' ? 'f1' : null });
+      return json({ id, erros: [] }, 201);
     }
     if (chave === `POST ${B}/levantamentos/lv1/enviar`) { envio = req.postDataJSON(); return json({ id: 'lote-lv', itens: 1 }, 201); }
     if (chave === `GET ${B}/lotes/lote-lv`) {
       return json({ lote: { id: 'lote-lv', site_id: 's1', fonte: 'manual', status: 'em_revisao', criado_por: 'u1', created_at: '2026-11-01 10:00:00', motivo: null },
-        itens: [{ id: 'i1', linha: 1, dados: criado.dados, erros: [], decisao: 'pendente', duplicata_de: null }] });
+        itens: achados.map((x, n) => ({ id: `i${n + 1}`, linha: n + 1, entidade: x.entidade, dados: x.dados, erros: [], decisao: 'pendente', duplicata_de: null })) });
     }
     if (req.method() === 'GET' && path in ABAS_OT) return json(ABAS_OT[path]);
     return route.fallback();
@@ -157,13 +159,30 @@ test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre
   await page.fill('#ot-f-nome', 'Notebook IHM');
   await page.locator('#modal').getByRole('button', { name: 'Registrar' }).click();
   await expect(conteudo).toContainText('Notebook IHM');
-  expect(criado).toMatchObject({ dados: { nome: 'Notebook IHM' }, evidencia: 'notebook pessoal ligado à IHM' });
+  expect(criado).toMatchObject({ entidade: 'ativo', dados: { nome: 'Notebook IHM' }, evidencia: 'notebook pessoal ligado à IHM' });
+
+  // "Sim" na pergunta de fluxo abre o achado com Fluxo marcado e a pergunta ligada.
+  await page.getByRole('row', { name: /acessado de fora da empresa/ }).getByRole('button', { name: 'Sim' }).click();
+  await expect(page.getByRole('radio', { name: 'Fluxo' })).toBeChecked();
+  await page.getByLabel('Origem').selectOption({ label: 'RTU-01' });
+  await page.getByLabel('Destino').selectOption({ label: 'Fora da empresa' });
+  await page.getByLabel('Protocolo', { exact: true }).fill('HTTPS');
+  await page.getByLabel('Porta', { exact: true }).fill('443');
+  await page.getByLabel('Via VPN').check();
+  await page.locator('#modal').getByRole('button', { name: 'Registrar' }).click();
+  await expect(conteudo).toContainText('RTU-01 → Fora da empresa');
+  await expect(conteudo.locator('.badge', { hasText: 'Contradiz' })).toHaveAttribute('title', /de outro jeito/);
+  expect(criado).toMatchObject({ entidade: 'fluxo', pergunta_id: 'rot-01', dados: { origem_ativo_id: 'a1', protocolo: 'HTTPS', porta: 443, externo: true, via_vpn: true } });
+  expect(criado.dados).not.toHaveProperty('destino_ativo_id');
 
   await page.getByRole('checkbox', { name: 'Enviar Notebook IHM ao lote' }).check();
+  await page.getByRole('checkbox', { name: 'Enviar RTU-01 → Fora da empresa ao lote' }).check();
   await page.locator('#header-actions').getByRole('button', { name: 'Enviar ao lote' }).click();
+  await expect(page.locator('.confirmar')).toContainText('1 ativo e 1 fluxo');
   await page.locator('.confirmar').getByRole('button', { name: 'Enviar ao lote' }).click();
   await expect(page.getByRole('tab', { name: /^Coleta/ })).toHaveAttribute('aria-selected', 'true');
   await expect(conteudo).toContainText('Lote de');
   await expect(conteudo).toContainText('Notebook IHM');
-  expect(envio).toEqual({ achados: ['ach1'] });
+  await expect(conteudo).toContainText('Fluxo: RTU-01 → Fora da empresa');
+  expect(envio).toEqual({ achados: ['ach1', 'ach2'] });
 });

@@ -150,8 +150,9 @@ describe('P1a: a sessão conduz a entrevista', () => {
         await sessao();
         await window.otNovoAchado();
         const m = el('modal-content');
-        const ordem = [...m.querySelectorAll('textarea, input, select')].map((x) => x.id);
-        expect(ordem.slice(0, 2)).toEqual(['lev-evidencia', 'ot-f-nome']);
+        const ordem = [...m.querySelectorAll('textarea, input, select')].map((x) => x.id || x.name);
+        // L2: entre a evidência e o nome, a escolha Ativo | Fluxo (Ativo marcado).
+        expect(ordem.slice(0, 4)).toEqual(['lev-evidencia', 'ach-entidade', 'ach-entidade', 'ot-f-nome']);
         const det = m.querySelector('details');
         expect(det.querySelector('summary').textContent).toBe('Detalhes do ativo (opcional)');
         expect(det.querySelector('#ot-f-categoria')).toBeTruthy();
