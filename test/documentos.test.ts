@@ -108,6 +108,15 @@ describe('versões e publicação', () => {
     expect((await ler(id)).revisar_ate).toBeNull();
   });
 
+  it('periodicidade definida depois de publicar fixa a primeira revisão a N meses de hoje', async () => {
+    // No SQLite o SET lê a linha ANTIGA: a data tem de sair do valor novo, não da coluna ainda nula.
+    const id = await novo();
+    await chamar(plat, 'POST', `${A}/documentos/${id}/versoes/1/publicar`);
+    expect((await chamar(plat, 'PUT', `${A}/documentos/${id}`, { revisar_a_cada_meses: 12 })).status).toBe(200);
+    const ate = await env.DB.prepare(`SELECT revisar_ate = date('now', '+12 months') AS certo FROM documentos WHERE id = ?`).bind(id).first<{ certo: number }>();
+    expect(ate?.certo).toBe(1);
+  });
+
   it('nova versão depois de publicar vira a 2; publicar a 2 substitui a 1', async () => {
     const id = await novo();
     await chamar(plat, 'POST', `${A}/documentos/${id}/versoes/1/publicar`);

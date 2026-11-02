@@ -201,13 +201,13 @@ describe('5. atividades de um controle', () => {
 describe('6. cliente não mescla (ato da equipe)', () => {
   for (const [papel, h] of [['org_user', () => cliA], ['org_admin', () => admA]] as const) {
     it(`${papel} de A mesclando cadastros do próprio projeto: 403 e nada muda`, async () => {
-      const antes = await env.DB.prepare(`SELECT id, status FROM partes WHERE project_id = ? UNION ALL SELECT id, status FROM itens WHERE project_id = ? ORDER BY id`).bind(A, A).all();
+      const antes = (await env.DB.prepare(`SELECT id, status FROM partes WHERE project_id = ? UNION ALL SELECT id, status FROM itens WHERE project_id = ? ORDER BY id`).bind(A, A).all()).results;
       for (const corpo of [{ tabela: 'partes', manter: 'rna-p1', remover: 'rna-p2', confirmar: true }, { tabela: 'itens', manter: 'rna-i1', remover: 'rna-i2', confirmar: true },
         { tabela: 'partes', manter: 'rna-p1', remover: 'rna-p2' }]) {
         const r = await chamar(h(), 'POST', `/api/v1/projects/${A}/mesclar`, corpo);
         expect(r.status, await r.text()).toBe(403);
       }
-      expect(await env.DB.prepare(`SELECT id, status FROM partes WHERE project_id = ? UNION ALL SELECT id, status FROM itens WHERE project_id = ? ORDER BY id`).bind(A, A).all()).toEqual(antes);
+      expect((await env.DB.prepare(`SELECT id, status FROM partes WHERE project_id = ? UNION ALL SELECT id, status FROM itens WHERE project_id = ? ORDER BY id`).bind(A, A).all()).results).toEqual(antes);
       await tentar(h(), 'POST', `/api/v1/projects/${A}/mesclar`, { tabela: 'partes', manter: 'zzb-p1', remover: 'zzb-p2', confirmar: true });
     });
   }

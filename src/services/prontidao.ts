@@ -1,4 +1,4 @@
-import { SQL_CLASSE_CONTROLE, SQL_EVIDENCIA_RUIM } from './painel';
+import { SQL_CLASSE_CONTROLE, SQL_ESCOPO_DEFINIDO, SQL_EVIDENCIA_RUIM } from './painel';
 import { diaMes } from './encarregado';
 import { hojeEmSaoPaulo } from './hoje';
 import { escopoRopa } from './escopo-itens';
@@ -168,8 +168,7 @@ const hoje = () => hojeEmSaoPaulo();
 export async function contagensDoProjeto(db: D1Database, projectId: string): Promise<{ contagens: Contagens; certificacao: Record<string, string | null> | null }> {
   const dia = hoje();
   const [proj, ctrl, a51, riscos, docs, evid, outros, cert] = await db.batch([
-    db.prepare(`SELECT (trim(COALESCE(p.scope, '')) <> '' OR (x.notes IS NOT NULL AND CASE WHEN json_valid(x.notes) THEN trim(COALESCE(json_extract(x.notes, '$.perimeter'), '')) <> ''
-          ELSE trim(x.notes) <> '' END)) AS escopo,
+    db.prepare(`SELECT ${SQL_ESCOPO_DEFINIDO} AS escopo,
         (trim(COALESCE(x.internal_strengths, '') || COALESCE(x.internal_weaknesses, '') || COALESCE(x.external_opportunities, '') || COALESCE(x.external_threats, '')) <> '') AS contexto
       FROM projects p LEFT JOIN context_analysis x ON x.project_id = p.id WHERE p.id = ?1`).bind(projectId),
     db.prepare(`SELECT classe, count(*) AS n, sum(CASE WHEN classe = 'na' AND trim(COALESCE(description, '')) = '' THEN 1 ELSE 0 END) AS sem_just,
