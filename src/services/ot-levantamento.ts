@@ -2,6 +2,7 @@ import type { ChavesOt } from './ot-cifra';
 import { aadOt, decifrarOt } from './ot-cifra';
 import { ativosDoSite, criarLote, indice, prepararItem, zonasDoSite } from './ot-coleta';
 import { serializarAtivo, type LinhaAtivo } from './ot-inventario';
+import { prepararFluxo } from './ot-fluxo-achado';
 import { temPii } from './rascunhos-privacy';
 
 // Descoberta operacional (spec 2026-11-01, L1). O achado usa a MESMA validação do item de lote (prepararItem), com a AAD de
@@ -10,12 +11,13 @@ import { temPii } from './rascunhos-privacy';
 
 export interface LinhaAchado {
   id: string; project_id: string; levantamento_id: string; entidade: string; dados: string; erros: string; evidencia: string;
-  origem: string; situacao: string; lote_id: string | null; created_at: string;
+  origem: string; situacao: string; lote_id: string | null; created_at: string; pergunta_id: string | null; lote_item_id: string | null;
 }
 
 /** Valida e cifra. O "nome obrigatório" e a falta do 4.3.1 ficam em `erros` como aviso: achado é rascunho e pode estar incompleto. */
 export async function prepararAchado(chaves: ChavesOt, projectId: string, _siteId: string, achadoId: string, dados: Record<string, unknown>,
-  zonas: Map<string, string> = new Map()) {
+  zonas: Map<string, string> = new Map(), entidade = 'ativo', pontas?: { ativos: Set<string>; zonas: Set<string> }) {
+  if (entidade === 'fluxo') return prepararFluxo(dados, pontas!);
   const r = await prepararItem(chaves, projectId, achadoId, dados, zonas, 'ot_achados');
   // O achado é texto de entrevista: campo de texto com CPF, e-mail ou telefone vira erro e não é gravado (mesma regra das notas).
   for (const [campo, v] of Object.entries(r.dados)) {
@@ -38,13 +40,19 @@ export async function confrontar(db: D1Database, projectId: string, siteId: stri
 
 /** Serializador único (P0-6) para os dados; confronto e alvo só para quem vê completo (A1). */
 export async function serializarAchado(a: LinhaAchado, completo: boolean, chaves: ChavesOt,
-  confronto?: { confronto: 'novo' | 'confirma'; alvo_id: string | null }) {
+  confronto?: { confronto: 'novo' | 'confirma' | 'contradiz'; alvo_id: string | null }) {
   const d = JSON.parse(a.dados) as Record<string, unknown>;
+  if (a.entidade === 'fluxo') {
+    return { id: a.id, levantamento_id: a.levantamento_id, entidade: a.entidade, pergunta_id: a.pergunta_id ?? null, origem: a.origem, situacao: a.situacao,
+      lote_id: a.lote_id, evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at,
+      dados: { ...d, ...(d.externo !== undefined && { externo: d.externo === 1 }), ...(d.via_vpn !== undefined && { via_vpn: d.via_vpn === 1 }) },
+      ...(completo && confronto && { confronto: confronto.confronto, alvo_id: confronto.alvo_id }) };
+  }
   const linha = { ip_cifrado: null, mac_cifrado: null, ip_hash: null, mac_hash: null, protocolos_portas: '[]', no_arciber: 0, firmware_nao_aplicavel: 0,
     nome: '', ...d, id: a.id, project_id: a.project_id } as LinhaAtivo;
   const { id: _i, project_id: _p, ...dados } = await serializarAtivo(linha, completo, chaves, 'ot_achados');
   return {
-    id: a.id, levantamento_id: a.levantamento_id, entidade: a.entidade, origem: a.origem, situacao: a.situacao, lote_id: a.lote_id,
+    id: a.id, levantamento_id: a.levantamento_id, entidade: a.entidade, pergunta_id: a.pergunta_id ?? null, origem: a.origem, situacao: a.situacao, lote_id: a.lote_id,
     evidencia: a.evidencia, erros: JSON.parse(a.erros), created_at: a.created_at, dados,
     ...(completo && confronto && { confronto: confronto.confronto, alvo_id: confronto.alvo_id }),
   };
