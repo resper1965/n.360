@@ -19324,6 +19324,17 @@
                       "rascunho",
                       "descartado"
                     ]
+                  },
+                  "pergunta_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -19437,6 +19448,13 @@
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": {
+                  "entidade": {
+                    "type": "string",
+                    "enum": [
+                      "ativo",
+                      "fluxo"
+                    ]
+                  },
                   "dados": {
                     "type": "object",
                     "propertyNames": {
@@ -19448,6 +19466,17 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 2000
+                  },
+                  "pergunta_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [

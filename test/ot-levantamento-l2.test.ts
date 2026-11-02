@@ -95,7 +95,7 @@ describe('achado de fluxo (L2)', () => {
 });
 
 type Item = { id: string; entidade: string; decisao: string; registro_id?: string | null; dados: Record<string, unknown>; [k: string]: unknown };
-type Fluxo = { id: string; origem_ativo_id: string | null; destino_zona_id: string | null; via_vpn: boolean; violacoes: string[] };
+type Fluxo = { id: string; origem_ativo_id: string | null; destino_zona_id: string | null; via_vpn: boolean; violacoes: string[]; [k: string]: unknown };
 const enviar = async (achados: string[]) => {
   const r = await chamar(cons, 'POST', `${P}/levantamentos/${ids.lev1}/enviar`, { achados });
   expect(r.status, await r.clone().text()).toBe(201);
@@ -144,6 +144,28 @@ describe('lote com fluxos', () => {
     await manutencaoDiaria(env as any);
     expect(await env.DB.prepare(`SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?`).bind(fl).first())
       .toEqual({ situacao: 'rascunho', lote_id: null, lote_item_id: null });
+  });
+
+  it('bidirecional casado ao contrário: atualiza só externo/VPN, pontas intactas, lote concluído', async () => {
+    const f = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: ids.a2, destino_zona_id: ids.z1, direcao: 'bidirecional', externo: true, via_vpn: false });
+    const n0 = (await fluxosS1()).length;
+    const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_zona_id: ids.z1, destino_ativo_id: ids.a2, via_vpn: true }, evidencia: 'x' });
+    const lote = await enviar([fl]);
+    await aprovar(lote);
+    const fs = await fluxosS1();
+    expect(fs).toHaveLength(n0);
+    expect(fs.find((x) => x.id === f)).toMatchObject({ origem_ativo_id: ids.a2, origem_zona_id: null, destino_ativo_id: null, destino_zona_id: ids.z1,
+      direcao: 'bidirecional', via_vpn: true });
+    expect(await env.DB.prepare('SELECT status FROM ot_lotes WHERE id = ?').bind(lote).first()).toEqual({ status: 'concluido' });
+  });
+
+  it('ponta removida entre o envio e a aprovação: item recusado', async () => {
+    const a4 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'CLP 4' });
+    const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: a4, destino_zona_id: ids.z1 }, evidencia: 'x' });
+    const lote = await enviar([fl]);
+    expect((await chamar(cons, 'DELETE', `${P}/ativos/${a4}`)).status).toBe(200);
+    await aprovar(lote);
+    expect((await itensDo(gestor, lote))[0]).toMatchObject({ decisao: 'recusado', motivo: 'Uma ponta do fluxo foi removida' });
   });
 
   it('técnico lê o lote sem marca de duplicata no item de fluxo', async () => {

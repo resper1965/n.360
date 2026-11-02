@@ -272,7 +272,8 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
       // Regra do confronto do fluxo: casou na chave (confirma ou contradiz, recalculado agora) atualiza só os campos do item; senão, cria.
       const alvo = idxF.achar(d);
       const fluxoId = alvo?.id ?? genId();
-      const cols = COLS_FLUXO.filter((k) => d[k] !== undefined);
+      // Pontas e direção são a chave do casamento: o UPDATE nunca as grava (bidirecional casado ao contrário trocaria as pontas).
+      const cols = (['protocolo', 'porta', 'finalidade', 'externo', 'via_vpn'] as const).filter((k) => d[k] !== undefined);
       const novo: Record<string, unknown> = { direcao: 'unidirecional', externo: 0, via_vpn: 0, ...d };
       stmts.push([alvo
         ? db.prepare(`UPDATE ot_fluxos SET ${cols.map((k) => `${k} = ?, `).join('')}updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND status = 'ativo'`)
@@ -282,7 +283,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
       db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'pendente' END,
         registro_id = CASE WHEN changes() > 0 THEN ? END, motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`)
         .bind(fluxoId, FLUXO_SUMIU, i.id)]);
-      idxF.add({ ...(alvo ?? novo), ...d, id: fluxoId } as FluxoExistente);
+      idxF.add({ ...(alvo ? { ...alvo, ...Object.fromEntries(cols.map((k) => [k, d[k]])) } : novo), id: fluxoId } as FluxoExistente);
       n[alvo ? 'atualizados' : 'criados']++;
       continue;
     }
