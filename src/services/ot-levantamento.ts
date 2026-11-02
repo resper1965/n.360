@@ -81,8 +81,13 @@ export async function enviarAoLote(db: D1Database, chaves: ChavesOt, ator: { id:
   let r: Awaited<ReturnType<typeof criarLote>>;
   try {
     const brutos: Record<string, unknown>[] = [];
+    const entidades = results.map((a) => a.entidade === 'fluxo' ? 'fluxo' as const : 'ativo' as const);
     for (const a of results) {
       const d = JSON.parse(a.dados) as Record<string, unknown>;
+      if (a.entidade === 'fluxo') {
+        brutos.push({ ...d, ...(d.externo !== undefined && { externo: !!d.externo }), ...(d.via_vpn !== undefined && { via_vpn: !!d.via_vpn }) });
+        continue;
+      }
       const b: Record<string, unknown> = Object.fromEntries(PARA_BRUTO.filter((k) => d[k] !== undefined && d[k] !== null).map((k) => [k, d[k]]));
       if (b.no_arciber !== undefined) b.no_arciber = !!b.no_arciber;
       if (b.firmware_nao_aplicavel !== undefined) b.firmware_nao_aplicavel = !!b.firmware_nao_aplicavel;
@@ -93,13 +98,15 @@ export async function enviarAoLote(db: D1Database, chaves: ChavesOt, ator: { id:
       }
       brutos.push(b);
     }
-    r = await criarLote(db, chaves, ator, projectId, lev.site_id, 'manual', brutos, lev.id);
+    r = await criarLote(db, chaves, ator, projectId, lev.site_id, 'manual', brutos, lev.id, entidades);
   } catch (e) {
     await devolver();
     throw e;
   }
   if (!r.ok) { await devolver(); return r; }
-  await db.prepare(`UPDATE ot_achados SET lote_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (SELECT value FROM json_each(?))`).bind(r.id, tomados).run();
+  const lote = r.id;
+  await db.batch(r.itemIds.map((item, n) => db.prepare(`UPDATE ot_achados SET lote_id = ?, lote_item_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    .bind(lote, item, results[n].id)));
   return r;
 }
 

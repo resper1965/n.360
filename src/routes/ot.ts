@@ -429,7 +429,7 @@ otApp.get('/lotes/:id', async (c) => {
     const lote = await db.prepare(`SELECT id, site_id, fonte, status, criado_por, decidido_por, decidido_em, motivo, created_at, updated_at FROM ot_lotes
       WHERE id = ? AND project_id = ? AND site_id IN (SELECT value FROM json_each(?))`).bind(c.req.param('id'), projectId, sites).first();
     if (!lote) return NAO_ENCONTRADO(c, 'Lote');
-    const { results } = await db.prepare(`SELECT id, project_id, linha, dados, erros, duplicata_de, decisao, motivo, registro_id FROM ot_lote_itens
+    const { results } = await db.prepare(`SELECT id, project_id, linha, entidade, dados, erros, duplicata_de, decisao, motivo, registro_id FROM ot_lote_itens
       WHERE lote_id = ? AND project_id = ? ORDER BY linha`).bind(lote.id, projectId).all<LinhaItem>();
     const completo = await podeVerCompleto(db, user, projectId);
     const itens = await Promise.all(results.map((i) => serializarItem(i, completo, chavesOt(c.env)!)));
@@ -442,7 +442,7 @@ otApp.get('/lotes/:id', async (c) => {
 async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, projectId: string, site: string, extra: Record<string, unknown> = {}) {
   if (!r.ok) return c.json({ error: r.error }, r.status);
   // A1: a contagem de duplicatas só vai a quem vê completo (para os demais, a chave nem aparece).
-  const { ok: _ok, possiveis_duplicatas, ...resumo } = r;
+  const { ok: _ok, possiveis_duplicatas, itemIds: _ids, ...resumo } = r;
   if (await podeVerCompleto(c.env.DB, c.get('user'), projectId)) Object.assign(resumo, { possiveis_duplicatas });
   await trilha(c, 'ot.lote.criado', projectId, `Lote ${r.id} criado no site ${site}: ${r.itens} item(ns), ${r.com_erro} com erro`, { tipo: 'ot_lote', id: r.id });
   return c.json({ ...resumo, status: 'em_revisao', ...extra }, 201);
@@ -648,8 +648,8 @@ otApp.post('/levantamentos/:id/achados', async (c) => {
     if (!v.success) return v.response;
     const n = await db.prepare(`SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?`).bind(lev.id).first<{ n: number }>();
     if ((n?.n ?? 0) >= TETO_ACHADOS_SESSAO) return c.json({ error: `Limite de ${TETO_ACHADOS_SESSAO} achados por levantamento` }, 400);
-    // O mesmo id vai à AAD da cifra e à linha: trocar um sem o outro torna o IP indecifrável.
     if (await perguntaRuim(db, v.data.pergunta_id)) return refRuim(c, 'pergunta_id');
+    // O mesmo id vai à AAD da cifra e à linha: trocar um sem o outro torna o IP indecifrável.
     const id = genId();
     const entidade = v.data.entidade ?? 'ativo';
     const p = await prepararAchado(chavesOt(c.env)!, projectId, lev.site_id, id, v.data.dados, await zonasDoSite(db, projectId, lev.site_id), entidade,

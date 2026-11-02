@@ -8,6 +8,7 @@ import { otAtivoCriarSchema, TETO_ITENS_LOTE } from '../schemas/ot';
 import { chave } from './tratamentos-importar';
 import { aadOt, cifrarEnderecos, cifrarOt, decifrarOt, type ChavesOt } from './ot-cifra';
 import { serializarAtivo, TETO_LEITURA_OT, type LinhaAtivo } from './ot-inventario';
+import { COLS_FLUXO, fluxosDoSite, indiceFluxos, pontasDoSite, prepararFluxo, type FluxoExistente } from './ot-fluxo-achado';
 
 export const TETO_ITENS = TETO_ITENS_LOTE;
 export const TETO_LOTES_DIA = 20;
@@ -156,9 +157,13 @@ async function emBlocos(db: D1Database, itens: (D1PreparedStatement | D1Prepared
 
 type Falha = { ok: false; status: 400 | 403 | 404 | 409 | 429; error: string };
 
-/** Cria o lote (planilha ou manual) já em revisão. O site precisa estar entre os permitidos (a rota passa a lista). */
+/**
+ * Cria o lote (planilha ou manual) já em revisão. O site precisa estar entre os permitidos (a rota passa a lista). `entidades[n]` é o tipo de
+ * `brutos[n]` (ausente = ativo); só o envio de achados o passa: nada no corpo do usuário escolhe a entidade.
+ */
 export async function criarLote(db: D1Database, chaves: ChavesOt, ator: { id: string }, projectId: string, siteId: string, fonte: 'planilha' | 'manual',
-  brutos: Record<string, unknown>[], levantamentoId: string | null = null): Promise<Falha | { ok: true; id: string; itens: number; com_erro: number; possiveis_duplicatas: number }> {
+  brutos: Record<string, unknown>[], levantamentoId: string | null = null, entidades: ('ativo' | 'fluxo')[] = []):
+  Promise<Falha | { ok: true; id: string; itens: number; com_erro: number; possiveis_duplicatas: number; itemIds: string[] }> {
   if (!brutos.length) return { ok: false, status: 400, error: 'Lote sem itens' };
   if (brutos.length > TETO_ITENS) return { ok: false, status: 400, error: `Lote acima de ${TETO_ITENS} itens` };
   const hoje = await db.prepare(`SELECT count(*) AS n FROM ot_lotes WHERE criado_por = ? AND created_at > datetime('now', '-1 day')`).bind(ator.id).first<{ n: number }>();
@@ -166,31 +171,36 @@ export async function criarLote(db: D1Database, chaves: ChavesOt, ator: { id: st
 
   const [mapaZonas, ativos] = await Promise.all([zonasDoSite(db, projectId, siteId), ativosDoSite(db, projectId, siteId)]);
   const idx = indice(ativos.results);
+  const [pontas, fluxos] = entidades.includes('fluxo') ? await Promise.all([pontasDoSite(db, projectId, siteId), fluxosDoSite(db, projectId, siteId)]) : [];
+  const idxF = indiceFluxos(fluxos ?? []);
   const loteId = genId();
   await db.prepare(`INSERT INTO ot_lotes (id, project_id, site_id, fonte, criado_por, levantamento_id) VALUES (?, ?, ?, ?, ?, ?)`)
     .bind(loteId, projectId, siteId, fonte, ator.id, levantamentoId).run();
   try {
     let comErro = 0, dups = 0;
     const stmts: D1PreparedStatement[] = [];
+    const itemIds: string[] = [];
     for (const [n, bruto] of brutos.entries()) {
       const id = genId();
-      const { dados, erros } = await prepararItem(chaves, projectId, id, bruto, mapaZonas);
-      const dup = idx.achar(dados);
+      const entidade = entidades[n] ?? 'ativo';
+      const { dados, erros } = entidade === 'fluxo' ? prepararFluxo(bruto, pontas!) : await prepararItem(chaves, projectId, id, bruto, mapaZonas);
+      const dup = entidade === 'fluxo' ? idxF.achar(dados) : idx.achar(dados);
       comErro += Number(erros.length > 0);
       dups += Number(!!dup);
-      stmts.push(db.prepare(`INSERT INTO ot_lote_itens (id, project_id, lote_id, linha, dados, erros, duplicata_de, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ${AGORA_MS})`)
-        .bind(id, projectId, loteId, n + 2, JSON.stringify(dados), JSON.stringify(erros), dup?.id ?? null));
+      itemIds.push(id);
+      stmts.push(db.prepare(`INSERT INTO ot_lote_itens (id, project_id, lote_id, linha, entidade, dados, erros, duplicata_de, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${AGORA_MS})`)
+        .bind(id, projectId, loteId, n + 2, entidade, JSON.stringify(dados), JSON.stringify(erros), dup?.id ?? null));
     }
     await emBlocos(db, stmts);
     await db.prepare(`UPDATE ot_lotes SET status = 'em_revisao', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(loteId).run();
-    return { ok: true, id: loteId, itens: brutos.length, com_erro: comErro, possiveis_duplicatas: dups };
+    return { ok: true, id: loteId, itens: brutos.length, com_erro: comErro, possiveis_duplicatas: dups, itemIds };
   } catch (e) {
     await db.prepare(`UPDATE ot_lotes SET status = 'erro', motivo = 'Falha ao gravar os itens', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(loteId).run();
     throw e;
   }
 }
 
-export interface LinhaItem { id: string; project_id: string; linha: number; dados: string; erros: string; duplicata_de: string | null; decisao: string; motivo: string | null; registro_id: string | null; updated_at?: string }
+export interface LinhaItem { id: string; project_id: string; linha: number; entidade: string; dados: string; erros: string; duplicata_de: string | null; decisao: string; motivo: string | null; registro_id: string | null; updated_at?: string }
 
 /**
  * Item pelo serializador único do ativo (P0-6). P0-5/A1 (decisão do dono): a marca de duplicata é oráculo de "este IP existe", então quem
@@ -198,11 +208,15 @@ export interface LinhaItem { id: string; project_id: string; linha: number; dado
  */
 export async function serializarItem(i: LinhaItem, completo: boolean, chaves: ChavesOt) {
   const d = JSON.parse(i.dados) as Record<string, unknown>;
+  if (i.entidade === 'fluxo') {
+    return { id: i.id, linha: i.linha, entidade: 'fluxo', decisao: i.decisao, motivo: i.motivo, erros: JSON.parse(i.erros) as Erro[],
+      ...(completo && { possivel_duplicata: !!i.duplicata_de, duplicata_de: i.duplicata_de, registro_id: i.registro_id }), dados: d };
+  }
   const linha = { ip_cifrado: null, mac_cifrado: null, ip_hash: null, mac_hash: null, protocolos_portas: '[]', no_arciber: 0, firmware_nao_aplicavel: 0, ...d,
     id: i.id, project_id: i.project_id } as LinhaAtivo;
   const { id: _i, project_id: _p, ...dados } = await serializarAtivo(linha, completo, chaves, 'ot_lote_itens');
   return {
-    id: i.id, linha: i.linha, decisao: i.decisao, motivo: completo || i.motivo !== ALVO_MUDOU ? i.motivo : null, erros: JSON.parse(i.erros) as Erro[],
+    id: i.id, linha: i.linha, entidade: 'ativo', decisao: i.decisao, motivo: completo || i.motivo !== ALVO_MUDOU ? i.motivo : null, erros: JSON.parse(i.erros) as Erro[],
     ...(completo && { possivel_duplicata: !!i.duplicata_de, duplicata_de: i.duplicata_de, registro_id: i.registro_id }),
     dados,
   };
@@ -231,11 +245,14 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     AND (status = 'em_revisao' OR (status = 'gravando' AND updated_at < datetime('now', '-10 minutes')))`).bind(loteId, projectId).run();
   if (!trava.meta.changes) return { ok: false, status: 409, error: 'O lote não está em revisão' };
 
-  const [{ results: itens }, ativos, zonas] = await Promise.all([
-    db.prepare(`SELECT id, project_id, linha, dados, erros, duplicata_de, decisao, motivo, registro_id, updated_at FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente' ORDER BY linha`).bind(loteId).all<LinhaItem>(),
+  const [{ results: itens }, ativos, zonas, pontas, fluxos] = await Promise.all([
+    db.prepare(`SELECT id, project_id, linha, entidade, dados, erros, duplicata_de, decisao, motivo, registro_id, updated_at FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente' ORDER BY linha`).bind(loteId).all<LinhaItem>(),
     ativosDoSite(db, projectId, lote.site_id),
     db.prepare(`SELECT id FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lote.site_id).all<{ id: string }>(),
+    pontasDoSite(db, projectId, lote.site_id),
+    fluxosDoSite(db, projectId, lote.site_id),
   ]);
+  const idxF = indiceFluxos(fluxos);
   const zonasAtivas = new Set(zonas.results.map((z) => z.id));
   const idx = indice(ativos.results);
   const tocados = new Set<string>(); // ativos criados ou mesclados nesta aprovação: linhas do mesmo lote foram revisadas juntas
@@ -248,6 +265,27 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   for (const i of itens) {
     if ((JSON.parse(i.erros) as Erro[]).length) { recusar(i, 'Item com erro de validação'); continue; }
     const d = JSON.parse(i.dados) as Record<string, unknown>;
+    if (i.entidade === 'fluxo') {
+      const sumiu = (['origem', 'destino'] as const).some((l) => (d[`${l}_ativo_id`] && !pontas.ativos.has(d[`${l}_ativo_id`] as string))
+        || (d[`${l}_zona_id`] && !pontas.zonas.has(d[`${l}_zona_id`] as string)));
+      if (sumiu) { recusar(i, 'Uma ponta do fluxo foi removida'); continue; }
+      // Regra do confronto do fluxo: casou na chave (confirma ou contradiz, recalculado agora) atualiza só os campos do item; senão, cria.
+      const alvo = idxF.achar(d);
+      const fluxoId = alvo?.id ?? genId();
+      const cols = COLS_FLUXO.filter((k) => d[k] !== undefined);
+      const novo: Record<string, unknown> = { direcao: 'unidirecional', externo: 0, via_vpn: 0, ...d };
+      stmts.push([alvo
+        ? db.prepare(`UPDATE ot_fluxos SET ${cols.map((k) => `${k} = ?, `).join('')}updated_at = ${AGORA_MS} WHERE id = ? AND project_id = ? AND status = 'ativo'`)
+          .bind(...cols.map((k) => d[k]), fluxoId, projectId)
+        : db.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, ${COLS_FLUXO.join(', ')}) VALUES (?, ?, ?, ${COLS_FLUXO.map(() => '?').join(', ')})`)
+          .bind(fluxoId, projectId, lote.site_id, ...COLS_FLUXO.map((k) => novo[k] ?? null)),
+      db.prepare(`UPDATE ot_lote_itens SET decisao = CASE WHEN changes() > 0 THEN 'gravado' ELSE 'pendente' END,
+        registro_id = CASE WHEN changes() > 0 THEN ? END, motivo = CASE WHEN changes() > 0 THEN NULL ELSE ? END, updated_at = ${AGORA_MS} WHERE id = ?`)
+        .bind(fluxoId, FLUXO_SUMIU, i.id)]);
+      idxF.add({ ...(alvo ?? novo), ...d, id: fluxoId } as FluxoExistente);
+      n[alvo ? 'atualizados' : 'criados']++;
+      continue;
+    }
     if (d.zona_id && !zonasAtivas.has(d.zona_id as string)) { recusar(i, 'A zona do item foi removida'); continue; }
     const alvo = idx.achar(d);
     // P1-4: o alvo de agora não é o revisado (outro, sumiu, ou editado depois da revisão do item): o item volta a pendente, nada é gravado.
@@ -289,6 +327,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
 }
 
 const ALVO_MUDOU = 'O ativo de destino mudou depois da revisão: revise o item de novo';
+const FLUXO_SUMIU = 'O fluxo de destino foi removido depois da revisão: revise o item de novo';
 
 export async function rejeitarLote(db: D1Database, ator: { id: string; email: string }, projectId: string, sites: string, loteId: string, motivo: string): Promise<Falha | { ok: true }> {
   const lote = await decidivel(db, ator, projectId, sites, loteId);

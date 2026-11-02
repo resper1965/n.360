@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import app from '../src/index';
+import { manutencaoDiaria } from '../src/manutencao';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
 
 // Levantamento do n.ot (spec 2026-11-01, L2): achado de fluxo. Base da L1: sessões, achados, confronto sem oráculo, envio ao lote. D1 real.
@@ -90,5 +91,64 @@ describe('achado de fluxo (L2)', () => {
   it('achado de ativo segue como na L1: IP existente confirma', async () => {
     const id = await criar(cons, `levantamentos/${ids.lev1}/achados`, { dados: { nome: 'RTU 1', ip: '10.1.1.10' }, evidencia: 'x' });
     expect((await sessao(cons)).find((a) => a.id === id)).toMatchObject({ entidade: 'ativo', confronto: 'confirma', alvo_id: ids.a1 });
+  });
+});
+
+type Item = { id: string; entidade: string; decisao: string; registro_id?: string | null; dados: Record<string, unknown>; [k: string]: unknown };
+type Fluxo = { id: string; origem_ativo_id: string | null; destino_zona_id: string | null; via_vpn: boolean; violacoes: string[] };
+const enviar = async (achados: string[]) => {
+  const r = await chamar(cons, 'POST', `${P}/levantamentos/${ids.lev1}/enviar`, { achados });
+  expect(r.status, await r.clone().text()).toBe(201);
+  return (await r.json<{ id: string }>()).id;
+};
+const itensDo = async (h: H, lote: string) => (await (await chamar(h, 'GET', `${P}/lotes/${lote}`)).json<{ itens: Item[] }>()).itens;
+const fluxosS1 = async () => (await (await chamar(cons, 'GET', `${P}/fluxos?site_id=${ids.s1}`)).json<{ fluxos: Fluxo[] }>()).fluxos;
+const aprovar = async (lote: string) => expect((await chamar(gestor, 'POST', `${P}/lotes/${lote}/aprovar`)).status).toBe(200);
+
+describe('lote com fluxos', () => {
+  const l: Record<string, string> = {};
+  it('enviar leva ativo e fluxo ao lote; o achado guarda o item', async () => {
+    const at = await criar(cons, `levantamentos/${ids.lev1}/achados`, { dados: { nome: 'Switch L2' }, evidencia: 'x' });
+    const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, destino_zona_id: ids.z1, externo: true, via_vpn: false }, evidencia: 'x' });
+    l.lote1 = await enviar([at, fl]);
+    const itens = await itensDo(gestor, l.lote1);
+    expect(itens).toHaveLength(2);
+    expect(itens.find((i) => i.entidade === 'fluxo')!.dados.origem_ativo_id).toBe(ids.a1);
+    expect(itens.find((i) => i.entidade === 'ativo')!.dados.nome).toBe('Switch L2');
+    const { results } = await env.DB.prepare(`SELECT lote_item_id FROM ot_achados WHERE id IN (?, ?)`).bind(at, fl).all<{ lote_item_id: string | null }>();
+    expect(results.every((a) => a.lote_item_id)).toBe(true);
+  });
+
+  it('aprovar cria o fluxo com violação; o item fica gravado com registro_id', async () => {
+    await aprovar(l.lote1);
+    const f = (await fluxosS1()).find((x) => x.origem_ativo_id === ids.a1 && x.destino_zona_id === ids.z1)!;
+    expect(f.violacoes).toEqual(['4.1.2', '4.1.3']);
+    l.fluxo = f.id;
+    expect((await itensDo(gestor, l.lote1)).find((i) => i.entidade === 'fluxo')).toMatchObject({ decisao: 'gravado', registro_id: f.id });
+  });
+
+  it('mesma chave atualiza o fluxo existente, sem criar outro', async () => {
+    const n0 = (await fluxosS1()).length;
+    const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, destino_zona_id: ids.z1, via_vpn: true }, evidencia: 'x' });
+    await aprovar(await enviar([fl]));
+    const fs = await fluxosS1();
+    expect(fs).toHaveLength(n0);
+    expect(fs.find((x) => x.id === l.fluxo)).toMatchObject({ via_vpn: true, violacoes: [] });
+  });
+
+  it('item de fluxo com erro é recusado e a manutenção devolve o achado a rascunho', async () => {
+    const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { externo: true }, evidencia: 'x' });
+    l.lote3 = await enviar([fl]);
+    await aprovar(l.lote3);
+    expect((await itensDo(gestor, l.lote3))[0].decisao).toBe('recusado');
+    await manutencaoDiaria(env as any);
+    expect(await env.DB.prepare(`SELECT situacao, lote_id, lote_item_id FROM ot_achados WHERE id = ?`).bind(fl).first())
+      .toEqual({ situacao: 'rascunho', lote_id: null, lote_item_id: null });
+  });
+
+  it('técnico lê o lote sem marca de duplicata no item de fluxo', async () => {
+    const it = (await itensDo(tec, l.lote1)).find((i) => i.entidade === 'fluxo')!;
+    expect(it).not.toHaveProperty('possivel_duplicata');
+    expect(it).not.toHaveProperty('duplicata_de');
   });
 });

@@ -166,12 +166,21 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
   try {
     // Enviado sem lote (envio interrompido), de lote rejeitado ou de lote já apagado pela retenção de 7 dias volta a rascunho
     // e segue a regra de 30 dias abaixo; sem isto ficaria órfão para sempre, sem expirar nem poder ser reenviado.
-    const r = await env.DB.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL, updated_at = CURRENT_TIMESTAMP
+    const r = await env.DB.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL, lote_item_id = NULL, updated_at = CURRENT_TIMESTAMP
       WHERE situacao = 'enviado' AND (lote_id IS NULL OR lote_id NOT IN (SELECT id FROM ot_lotes WHERE status <> 'rejeitado'))
         AND updated_at < datetime('now', '-1 day')`).run();
     resultado.retencao.ot_achados_revertidos = r.meta?.changes ?? 0;
   } catch (e) {
     resultado.falhas.push(`retencao ot_achados_revertidos: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    // Achado cujo item foi recusado na aprovação volta a rascunho para ser corrigido e reenviado.
+    const r = await env.DB.prepare(`UPDATE ot_achados SET situacao = 'rascunho', lote_id = NULL, lote_item_id = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE situacao = 'enviado' AND lote_item_id IN (SELECT id FROM ot_lote_itens WHERE decisao = 'recusado')`).run();
+    resultado.retencao.ot_achados_recusados = r.meta?.changes ?? 0;
+  } catch (e) {
+    resultado.falhas.push(`retencao ot_achados_recusados: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   try {

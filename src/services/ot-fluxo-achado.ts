@@ -55,12 +55,13 @@ const chaveFluxo = (o: string, d: string) => `o:${o}|d:${d}`;
 
 export function indiceFluxos(fluxos: FluxoExistente[]) {
   const m = new Map<string, FluxoExistente>();
-  for (const f of fluxos) {
+  const add = (f: FluxoExistente) => {
     const o = ponta(f, 'origem'), d = ponta(f, 'destino');
     m.set(chaveFluxo(o, d), f);
     if (f.direcao === 'bidirecional' && !m.has(chaveFluxo(d, o))) m.set(chaveFluxo(d, o), f);
-  }
-  return { achar: (x: Record<string, unknown>) => (ponta(x, 'origem') || ponta(x, 'destino')) ? m.get(chaveFluxo(ponta(x, 'origem'), ponta(x, 'destino'))) : undefined };
+  };
+  fluxos.forEach(add);
+  return { add, achar: (x: Record<string, unknown>) => (ponta(x, 'origem') || ponta(x, 'destino')) ? m.get(chaveFluxo(ponta(x, 'origem'), ponta(x, 'destino'))) : undefined };
 }
 
 export function confrontarFluxo(d: Record<string, unknown>, idx: ReturnType<typeof indiceFluxos>) {
