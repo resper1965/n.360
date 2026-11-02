@@ -51,7 +51,7 @@ const campoAtivo = {
 export const otAtivoCriarSchema = z.object({ site_id: id, ...campoAtivo }).strict();
 export const otAtivoAtualizarSchema = z.object(campoAtivo).partial().strict();
 
-const campoFluxo = {
+export const campoFluxo = {
   origem_ativo_id: opcional(id),
   origem_zona_id: opcional(id),
   destino_ativo_id: opcional(id),
