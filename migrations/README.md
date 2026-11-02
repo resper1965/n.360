@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0093** (`ls migrations/*.sql | tail -1`). São 91 arquivos
+- Última migration no repositório: **0094** (`ls migrations/*.sql | tail -1`). São 92 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -721,3 +721,7 @@ Cria `ot_lotes` e `ot_lote_itens` (staging da coleta: planilha CSV/XLSX e entrad
 ## 0093 — levantamento do n.ot (2026-11-01)
 
 Cria `ot_levantamentos` (sessões de entrevista, visita e documento), `ot_achados` e `ot_roteiro_perguntas` (15 perguntas semeadas com `INSERT OR IGNORE`) e acrescenta `ot_lotes.levantamento_id` por `ALTER TABLE ADD COLUMN`, que roda uma vez pelo runner: `ot_lotes` não é refeita (gatilhos e RENAME no D1, ver 0089). O resto é repetível (`IF NOT EXISTS`). IP/MAC em `ot_achados.dados` só cifrados (`ot1:`), como na 0092. Conferência depois: `SELECT count(*) FROM ot_roteiro_perguntas` (15) e `PRAGMA table_info(ot_lotes)`. Produção só com o "sim" do dono e `npm run db:backup` antes.
+
+## 0094 — achados da L2 do n.ot
+
+Acrescenta `ot_achados.pergunta_id` (FK para `ot_roteiro_perguntas`, `ON DELETE SET NULL`) e `ot_achados.lote_item_id` (sem FK: o item some com o lote e o achado sobrevive) por `ALTER TABLE ADD COLUMN`, que roda uma vez pelo runner, e o índice `idx_ot_achados_lote_item`. Aditiva; nenhuma tabela é refeita. Conferência depois: `SELECT name FROM pragma_table_info('ot_achados') WHERE name IN ('pergunta_id','lote_item_id')` (2 linhas). Produção só com o "sim" do dono e `npm run db:backup` antes.
