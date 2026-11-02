@@ -30,11 +30,11 @@ export function prepararFluxo(bruto: Record<string, unknown>, pontas: { ativos: 
   const erros: Erro[] = [];
   const dados: Record<string, unknown> = {};
   for (const [campo, valor] of Object.entries(bruto)) {
-    if (!(campo in FORMA)) { erros.push({ campo, motivo: 'campo não aceito' }); continue; }
+    if (!Object.hasOwn(FORMA, campo)) { erros.push({ campo, motivo: 'campo não aceito' }); continue; }
     const v = FORMA[campo].safeParse(valor);
     if (!v.success) { const i = v.error.issues[0]; erros.push({ campo, motivo: i.code === 'custom' ? i.message : MOTIVO[i.code] ?? 'valor inválido' }); continue; }
     if (v.data === undefined || v.data === null) continue;
-    if (PONTA[campo] && !pontas[PONTA[campo]].has(v.data as string)) { erros.push({ campo, motivo: 'não encontrado no site' }); continue; }
+    if (Object.hasOwn(PONTA, campo) && !pontas[PONTA[campo]].has(v.data as string)) { erros.push({ campo, motivo: 'não encontrado no site' }); continue; }
     if (typeof v.data === 'string' && temPii(v.data)) { erros.push({ campo, motivo: 'Não informe CPF, e-mail nem telefone' }); continue; }
     dados[campo] = typeof v.data === 'boolean' ? Number(v.data) : v.data;
   }

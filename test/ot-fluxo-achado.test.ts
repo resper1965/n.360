@@ -25,6 +25,12 @@ describe('prepararFluxo', () => {
     expect(prepararFluxo({ externo: true }, pontas).erros.map((e) => e.campo)).toContain('pontas');
     expect(prepararFluxo({ externo: true, origem_ativo_id: 'a1' }, pontas).erros).toEqual([]);
   });
+  it('chave herdada do Object.prototype (constructor, __proto__) vira "campo não aceito", sem lançar', () => {
+    const r = prepararFluxo({ constructor: 1, origem_ativo_id: 'a1', destino_ativo_id: 'a2' }, pontas);
+    expect(r.erros).toContainEqual({ campo: 'constructor', motivo: 'campo não aceito' });
+    expect(r.dados).toEqual({ origem_ativo_id: 'a1', destino_ativo_id: 'a2' });
+    expect(() => prepararFluxo(JSON.parse('{"__proto__": 1, "toString": 2}'), pontas)).not.toThrow();
+  });
   it('finalidade com IP ou e-mail: erro, não gravada', () => {
     expect(prepararFluxo({ origem_ativo_id: 'a1', destino_ativo_id: 'a2', finalidade: 'para 10.0.0.1' }, pontas).dados.finalidade).toBeUndefined();
     const r = prepararFluxo({ origem_ativo_id: 'a1', destino_ativo_id: 'a2', finalidade: 'avisar ana@x.com' }, pontas);
