@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, pontasDoSite, rotaDoFluxo } from '../ot-comum.js';
+import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 
 // Levantamento do n.ot (L1, descoberta operacional): sessões de entrevista, visita de campo e documento, com o roteiro guiado e os
@@ -24,7 +24,8 @@ let sites = [];
 let atual = null;
 let perguntas = [];
 let achados = [];
-let pontas = { ativos: [], zonas: [] }; // ativos e zonas do site da sessão: nomes das pontas do fluxo
+let nomesPontas = {}; // `nomes_pontas` da sessão: id → nome das pontas dos fluxos (nunca de /ativos, que traria IP/MAC)
+let ativosDoSite = []; // `ativos_do_site`: { id, nome } para escolher a ponta
 let perguntaDoAchado = null;
 
 export async function montarLevantamento(c, a, p) {
@@ -83,7 +84,8 @@ async function montarSessao(c, a, p, id) {
     atual = l;
     atualPid = p.id;
     achados = lista(r, 'achados');
-    pontas = await pontasDoSite(l.site_id);
+    nomesPontas = r.nomes_pontas || {};
+    ativosDoSite = lista(r, 'ativos_do_site');
     const editar = podeEditarOt();
     const aberto = l.situacao !== 'encerrado';
     const rascunhos = achados.filter((x) => x.situacao === 'rascunho');
@@ -254,19 +256,20 @@ window.otResponderRoteiro = async (pergunta, resposta) => {
 };
 window.otEncerrarLevantamento = (situacao) => salvar({ situacao }, 'Não foi possível alterar a situação do levantamento.', situacao === 'encerrado' ? 'Levantamento encerrado.' : 'Levantamento reaberto.');
 
-// Pontas do fluxo num select só: "a:<id>" ativo, "z:<id>" zona, "fora" fora da empresa (marca externo e não vai ao servidor).
-const selectPonta = (id, rotulo) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}" data-action-change="otPontaFluxo" data-arg-val><option value="">—</option>
-    <optgroup label="Ativos">${opcoes(pontas.ativos.map((x) => [`a:${x.id}`, x.nome]))}</optgroup>
-    <optgroup label="Zonas">${opcoes(pontas.zonas.map((x) => [`z:${x.id}`, x.nome]))}</optgroup>
+// Pontas do fluxo num select só: "a:<id>" ativo, "z:<id>" zona, "fora" fora da empresa (marca Externo = Sim e não vai ao servidor).
+const selectPonta = (id, rotulo, zonas) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}" data-action-change="otPontaFluxo" data-arg-val><option value="">—</option>
+    <optgroup label="Ativos">${opcoes(ativosDoSite.map((x) => [`a:${x.id}`, x.nome]))}</optgroup>
+    <optgroup label="Zonas">${opcoes(zonas.map((x) => [`z:${x.id}`, x.nome]))}</optgroup>
     <option value="fora">Fora da empresa</option></select></div>`;
-const camposDoFluxo = () => `${selectPonta('lev-fx-origem', 'Origem')}${selectPonta('lev-fx-destino', 'Destino')}
-    <div class="form-group"><label class="form-label" for="lev-fx-protocolo">Protocolo</label><input class="form-input" id="lev-fx-protocolo" maxlength="100"></div>
+// Externo e Via VPN: "Não informado" não vai ao servidor, que então não compara nem grava o campo (nunca vira "não" por omissão).
+const simNao = (id, rotulo) => `<div class="form-group"><label class="form-label" for="${id}">${rotulo}</label><select class="form-input" id="${id}"><option value="">Não informado</option>${opcoes([['sim', 'Sim'], ['nao', 'Não']])}</select></div>`;
+const camposDoFluxo = (zonas) => `${selectPonta('lev-fx-origem', 'Origem', zonas)}${selectPonta('lev-fx-destino', 'Destino', zonas)}
+    <div class="form-group"><label class="form-label" for="lev-fx-protocolo">Protocolo</label><input class="form-input" id="lev-fx-protocolo" maxlength="50"></div>
     <div class="form-group"><label class="form-label" for="lev-fx-porta">Porta</label><input class="form-input" type="number" id="lev-fx-porta" min="0" max="65535" step="1"></div>
     <div class="form-group"><label class="form-label" for="lev-fx-direcao">Direção</label><select class="form-input" id="lev-fx-direcao"><option value="">—</option>${opcoes([['unidirecional', 'Unidirecional'], ['bidirecional', 'Bidirecional']])}</select></div>
     <div class="form-group"><label class="form-label" for="lev-fx-finalidade">Finalidade</label><input class="form-input" id="lev-fx-finalidade" maxlength="500"></div>
-    <div class="form-group"><label><input type="checkbox" id="lev-fx-externo"> Externo</label></div>
-    <div class="form-group"><label><input type="checkbox" id="lev-fx-vpn"> Via VPN</label></div>`;
-window.otPontaFluxo = (v) => { if (v === 'fora') el('lev-fx-externo').checked = true; };
+    ${simNao('lev-fx-externo', 'Externo')}${simNao('lev-fx-vpn', 'Via VPN')}`;
+window.otPontaFluxo = (v) => { if (v === 'fora') el('lev-fx-externo').value = 'sim'; };
 window.otEntidadeAchado = (v) => {
     el('lev-ach-ativo').hidden = v === 'fluxo';
     el('lev-ach-fluxo').hidden = v !== 'fluxo';
@@ -275,19 +278,21 @@ window.otEntidadeAchado = (v) => {
 };
 window.otNovoAchado = async (evidencia = '', perguntaId = null, entidade = 'ativo') => {
     perguntaDoAchado = perguntaId;
+    const zonas = lista(await api('GET', `/api/v1/projects/${S.activeProject.id}/ot/zonas?site_id=${encodeURIComponent(atual.site_id)}`).catch(() => null), 'zonas');
     const radio = (v, rot) => `<label class="d-flex gap-2 items-center"><input type="radio" name="ach-entidade" value="${v}" data-action-change="otEntidadeAchado" data-arg-val${v === entidade ? ' checked' : ''}> ${rot}</label>`;
     openModal(`<div class="modal-header"><span class="modal-title">Registrar achado</span></div>
         <p class="org-dica mb-3">O achado fica nesta sessão até ser enviado ao lote. Campos que faltam viram aviso, não impedem o registro.</p>
         <div class="form-group"><label class="form-label" for="lev-evidencia">Evidência (o que foi visto ou relatado, sem nomes, IP ou MAC)</label><textarea class="form-input" id="lev-evidencia" rows="3" maxlength="2000" autofocus>${escapeHTML(evidencia)}</textarea></div>
         <fieldset class="form-group"><legend class="form-label">O que foi achado</legend><div class="d-flex gap-4">${radio('ativo', 'Ativo')}${radio('fluxo', 'Fluxo')}</div></fieldset>
-        <div id="lev-ach-ativo"${entidade === 'fluxo' ? ' hidden' : ''}>${camposDoAtivo({}, { zonas: pontas.zonas, recolher: true })}</div>
-        <div id="lev-ach-fluxo"${entidade === 'fluxo' ? '' : ' hidden'}>${camposDoFluxo()}</div>
+        <div id="lev-ach-ativo"${entidade === 'fluxo' ? ' hidden' : ''}>${camposDoAtivo({}, { zonas, recolher: true })}</div>
+        <div id="lev-ach-fluxo"${entidade === 'fluxo' ? '' : ' hidden'}>${camposDoFluxo(zonas)}</div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarAchado">Registrar</button></div>`, 'modal-large');
 };
-// Fluxo: só o que foi preenchido; externo e via_vpn sempre como booleanos. Devolve { erro } se a porta não for inteiro de 0 a 65535.
+// Fluxo: só o que foi preenchido; externo e via_vpn só se escolhidos (Sim/Não). Devolve { erro } se a porta não for inteiro de 0 a 65535.
 function lerCamposDoFluxo() {
     const v = (id) => el(id)?.value.trim() || '';
-    const d = { externo: el('lev-fx-externo').checked, via_vpn: el('lev-fx-vpn').checked };
+    const d = {};
+    for (const [k, id] of [['externo', 'lev-fx-externo'], ['via_vpn', 'lev-fx-vpn']]) if (v(id)) d[k] = v(id) === 'sim';
     for (const lado of ['origem', 'destino']) {
         const x = v(`lev-fx-${lado}`);
         if (x === 'fora') d.externo = true;
@@ -325,7 +330,7 @@ window.otDescartarAchado = async (id) => {
 const marcados = () => [...document.querySelectorAll('input[id^="ach-sel-"]:checked')].map((x) => x.id.slice('ach-sel-'.length));
 function nomeDoAchado(id, padrao = 'achado sem nome') {
     const x = achados.find((a) => a.id === id);
-    return x?.entidade === 'fluxo' ? rotaDoFluxo(x.dados, pontas) : x?.dados?.nome || padrao;
+    return x?.entidade === 'fluxo' ? rotaDoFluxo(x.dados, nomesPontas) : x?.dados?.nome || padrao;
 }
 window.otMarcarAchado = () => {
     const n = marcados().length;

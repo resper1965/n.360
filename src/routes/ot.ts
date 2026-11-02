@@ -9,11 +9,11 @@ import {
 } from '../schemas/ot';
 import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
-import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, type LinhaItem } from '../services/ot-coleta';
+import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
-import { confrontarFluxo, fluxosDoSite, indiceFluxos, pontasDoSite } from '../services/ot-fluxo-achado';
+import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
 import { confrontar, enviarAoLote, indiceDoSite, prepararAchado, serializarAchado, zonasDoSite, type LinhaAchado } from '../services/ot-levantamento';
 
 /** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
@@ -430,12 +430,13 @@ otApp.get('/lotes/:id', async (c) => {
       WHERE id = ? AND project_id = ? AND site_id IN (SELECT value FROM json_each(?))`).bind(c.req.param('id'), projectId, sites).first();
     if (!lote) return NAO_ENCONTRADO(c, 'Lote');
     const { results } = await db.prepare(`SELECT id, project_id, linha, entidade, dados, erros, duplicata_de, decisao, motivo, registro_id FROM ot_lote_itens
-      WHERE lote_id = ? AND project_id = ? ORDER BY linha`).bind(lote.id, projectId).all<LinhaItem>();
+      WHERE lote_id = ? AND project_id = ? ORDER BY linha LIMIT ${TETO_ITENS}`).bind(lote.id, projectId).all<LinhaItem>();
     const completo = await podeVerCompleto(db, user, projectId);
     const itens = await Promise.all(results.map((i) => serializarItem(i, completo, chavesOt(c.env)!)));
     const sensiveis = completo ? results.filter((i) => /"(ip|mac)_cifrado":"ot1:/.test(i.dados)).length : 0;
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} item(ns) do lote ${lote.id} com IP/MAC sem máscara`, { tipo: 'ot_lote', id: lote.id as string });
-    return c.json({ lote, itens });
+    const nomes_pontas = await nomesDasPontas(db, projectId, lote.site_id as string, itens.filter((i) => i.entidade === 'fluxo').map((i) => i.dados));
+    return c.json({ lote, itens, nomes_pontas });
   } catch (e) { return erro500(c, 'Falha ao ler o lote', e); }
 });
 
@@ -602,7 +603,11 @@ otApp.get('/levantamentos/:id', async (c) => {
     }
     const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} achado(s) do levantamento ${lev.id} com IP/MAC sem máscara`, { tipo: 'ot_levantamento', id: lev.id });
-    return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados });
+    // Só nomes (nunca /ativos, que decifra IP/MAC): os das pontas citadas e os ativos do site que o achado de fluxo oferece como ponta.
+    const nomes_pontas = await nomesDasPontas(db, projectId, lev.site_id, results.filter((a) => a.entidade === 'fluxo').map((a) => JSON.parse(a.dados)));
+    const { results: ativos_do_site } = await db.prepare(`SELECT id, nome FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo' ORDER BY nome
+      LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lev.site_id).all<{ id: string; nome: string }>();
+    return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados, nomes_pontas, ativos_do_site });
   } catch (e) { return erro500(c, 'Falha ao ler o levantamento', e); }
 });
 

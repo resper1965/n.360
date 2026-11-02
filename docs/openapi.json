@@ -19329,6 +19329,7 @@
                     "anyOf": [
                       {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 20
                       },
                       {
@@ -19471,6 +19472,7 @@
                     "anyOf": [
                       {
                         "type": "string",
+                        "minLength": 1,
                         "maxLength": 20
                       },
                       {

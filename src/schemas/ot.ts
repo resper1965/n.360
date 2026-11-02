@@ -115,12 +115,12 @@ export const otAchadoCriarSchema = z.object({
   entidade: z.enum(['ativo', 'fluxo']).optional(),
   dados: z.record(z.string(), z.unknown()),
   evidencia: livreSemPii(2000, 1),
-  pergunta_id: opcional(z.string().max(20)),
+  pergunta_id: opcional(z.string().min(1).max(20)),
 }).strict();
 export const otAchadoAtualizarSchema = z.object({
   dados: z.record(z.string(), z.unknown()).optional(),
   evidencia: livreSemPii(2000, 1).optional(),
   situacao: z.enum(['rascunho', 'descartado']).optional(),
-  pergunta_id: opcional(z.string().max(20)),
+  pergunta_id: opcional(z.string().min(1).max(20)),
 }).strict();
 export const otEnviarAchadosSchema = z.object({ achados: z.array(id).min(1).max(TETO_ACHADOS_SESSAO) }).strict();

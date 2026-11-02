@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderEmptyState, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, confirmar, pedirTexto,
     formatarData } from '../ui.js';
-import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, pontasDoSite, rotaDoFluxo } from '../ot-comum.js';
+import { podeCriarLote, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo } from '../ot-comum.js';
 
 // Coleta do n.ot (N3; spec §7, P0-3, P0-5): planilha (multipart `file` + `site_id`) e entrada manual caem em lotes que outra pessoa
 // revisa antes do inventário. A duplicata aparece como a API devolve (`possivel_duplicata`); quem não vê completo não recebe o alvo.
@@ -137,7 +137,6 @@ async function montarLote(c, a, id) {
     const criou = lote.criado_por === S.user?.id;
     // A API aprova só quem vê completo (podeAprovar = podeVerCompleto): item mascarado diz que não é o caso (o consultoria_admin não designado).
     const aprova = podeAprovarOt() && !itens.some((i) => i.entidade !== 'fluxo' && i.dados?.mascarado === true);
-    const pontas = itens.some((i) => i.entidade === 'fluxo') ? await pontasDoSite(lote.site_id) : null;
     const decide = emRevisao && aprova && !criou;
     a.innerHTML = '<button class="btn" data-action="otVoltarLotes">Voltar aos lotes</button>'
         + (decide ? `<button class="btn" data-action="otRejeitarLote" data-args='${args(lote.id)}'>Rejeitar</button><button class="btn btn-primary" data-action="otAprovarLote" data-args='${args(lote.id)}'>Aprovar lote</button>` : '');
@@ -148,7 +147,8 @@ async function montarLote(c, a, id) {
         ${renderDataTable(['Linha', 'Nome', 'Tipo', 'Fabricante', 'IP', 'MAC', 'Erros', 'Duplicata', 'Decisão'], itens.map((i) => {
         const d = i.dados || {};
         if (i.entidade === 'fluxo') {
-            return [escapeHTML(String(i.linha)), escapeHTML(`Fluxo: ${rotaDoFluxo(d, pontas)}`), '—', '—', '—', '—', listaDeErros(i.erros, 't-perigo'), '—', escapeHTML(DECISAO[i.decisao] || i.decisao)];
+            return [escapeHTML(String(i.linha)), escapeHTML(`Fluxo: ${rotaDoFluxo(d, r.nomes_pontas)}`), '—', '—', '—', '—', listaDeErros(i.erros, 't-perigo'),
+                i.possivel_duplicata ? renderStatusBadge('warning', 'Atualiza fluxo existente') : '—', escapeHTML(DECISAO[i.decisao] || i.decisao)];
         }
         return [escapeHTML(String(i.linha)), escapeHTML(d.nome || '—'), escapeHTML(d.tipo_dispositivo || '—'), escapeHTML(d.fabricante || '—'),
             `<span class="f-mono">${escapeHTML(d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(d.mac ?? '—')}</span>`, listaDeErros(i.erros, 't-perigo'),

@@ -209,7 +209,7 @@ export interface LinhaItem { id: string; project_id: string; linha: number; enti
 export async function serializarItem(i: LinhaItem, completo: boolean, chaves: ChavesOt) {
   const d = JSON.parse(i.dados) as Record<string, unknown>;
   if (i.entidade === 'fluxo') {
-    return { id: i.id, linha: i.linha, entidade: 'fluxo', decisao: i.decisao, motivo: i.motivo, erros: JSON.parse(i.erros) as Erro[],
+    return { id: i.id, linha: i.linha, entidade: 'fluxo', decisao: i.decisao, motivo: completo || i.motivo !== FLUXO_SUMIU ? i.motivo : null, erros: JSON.parse(i.erros) as Erro[],
       ...(completo && { possivel_duplicata: !!i.duplicata_de, duplicata_de: i.duplicata_de, registro_id: i.registro_id }), dados: d };
   }
   const linha = { ip_cifrado: null, mac_cifrado: null, ip_hash: null, mac_hash: null, protocolos_portas: '[]', no_arciber: 0, firmware_nao_aplicavel: 0, ...d,
@@ -246,7 +246,7 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
   if (!trava.meta.changes) return { ok: false, status: 409, error: 'O lote não está em revisão' };
 
   const [{ results: itens }, ativos, zonas, pontas, fluxos] = await Promise.all([
-    db.prepare(`SELECT id, project_id, linha, entidade, dados, erros, duplicata_de, decisao, motivo, registro_id, updated_at FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente' ORDER BY linha`).bind(loteId).all<LinhaItem>(),
+    db.prepare(`SELECT id, project_id, linha, entidade, dados, erros, duplicata_de, decisao, motivo, registro_id, updated_at FROM ot_lote_itens WHERE lote_id = ? AND decisao = 'pendente' ORDER BY linha LIMIT ${TETO_ITENS}`).bind(loteId).all<LinhaItem>(),
     ativosDoSite(db, projectId, lote.site_id),
     db.prepare(`SELECT id FROM ot_zonas WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lote.site_id).all<{ id: string }>(),
     pontasDoSite(db, projectId, lote.site_id),

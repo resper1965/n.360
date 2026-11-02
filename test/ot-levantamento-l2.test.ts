@@ -174,3 +174,47 @@ describe('lote com fluxos', () => {
     expect(it).not.toHaveProperty('duplicata_de');
   });
 });
+
+describe('revisão final (L2)', () => {
+  it('externo/via_vpn ausentes não comparam nem gravam: confirma e, aprovado, mantém externo=1 e via_vpn=1', async () => {
+    const a5 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'CLP 5' });
+    const f = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: a5, destino_zona_id: ids.z1, externo: true, via_vpn: true });
+    const fl = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: a5, destino_zona_id: ids.z1, protocolo: 'OPC' }, evidencia: 'x' });
+    expect((await sessao(cons)).find((a) => a.id === fl)).toMatchObject({ confronto: 'confirma', alvo_id: f });
+    await aprovar(await enviar([fl]));
+    expect((await fluxosS1()).find((x) => x.id === f)).toMatchObject({ externo: true, via_vpn: true, protocolo: 'OPC' });
+  });
+
+  it('pergunta_id vazio: 400 no POST e no PUT', async () => {
+    expect((await fluxoAch({ origem_ativo_id: ids.a1 }, { pergunta_id: '' })).status).toBe(400);
+    const id = await criar(cons, `levantamentos/${ids.lev1}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1 }, evidencia: 'x' });
+    expect((await chamar(cons, 'PUT', `${P}/levantamentos/${ids.lev1}/achados/${id}`, { pergunta_id: '' })).status).toBe(400);
+  });
+
+  it('nomes_pontas: só nomes das pontas citadas, do site; ler a sessão com fluxos não grava ver_sensivel', async () => {
+    const lev = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'visita', realizado_em: '2026-11-02' });
+    const vazio = await (await chamar(cons, 'GET', `${P}/levantamentos/${lev}`)).json<{ nomes_pontas: Record<string, string> }>();
+    expect(vazio.nomes_pontas).toEqual({});
+    await criar(cons, `levantamentos/${lev}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a1, destino_zona_id: ids.z1 }, evidencia: 'x' });
+    await criar(cons, `levantamentos/${lev}/achados`, { entidade: 'fluxo', dados: { origem_ativo_id: ids.a3, destino_ativo_id: ids.a2 }, evidencia: 'x' });
+    const conta = async () => (await env.DB.prepare(`SELECT count(*) AS n FROM audit_logs WHERE action = 'ot.inventario.ver_sensivel'`).first<{ n: number }>())!.n;
+    const n0 = await conta();
+    const r = await (await chamar(cons, 'GET', `${P}/levantamentos/${lev}`)).json<{ nomes_pontas: Record<string, string>; ativos_do_site: { id: string; nome: string }[] }>();
+    expect(r.nomes_pontas).toEqual({ [ids.a1]: 'RTU 1', [ids.z1]: 'Supervisão', [ids.a2]: 'IHM 1' });
+    expect(r.ativos_do_site).toContainEqual({ id: ids.a1, nome: 'RTU 1' });
+    expect(r.ativos_do_site.map((a) => a.id)).not.toContain(ids.a3);
+    expect(JSON.stringify(r)).not.toContain('10.1.1.');
+    expect(await conta()).toBe(n0);
+    const lote = await (await chamar(cons, 'POST', `${P}/levantamentos/${lev}/enviar`, { achados: (await (await chamar(cons, 'GET', `${P}/levantamentos/${lev}`))
+      .json<{ achados: { id: string }[] }>()).achados.map((a) => a.id) })).json<{ id: string }>();
+    const l = await (await chamar(gestor, 'GET', `${P}/lotes/${lote.id}`)).json<{ nomes_pontas: Record<string, string> }>();
+    expect(l.nomes_pontas).toEqual({ [ids.a1]: 'RTU 1', [ids.z1]: 'Supervisão', [ids.a2]: 'IHM 1' });
+    expect(await conta()).toBe(n0);
+  });
+
+  it('lote com mais de 500 itens: a leitura traz todos (LIMIT acima do teto global de SELECT)', async () => {
+    const r = await chamar(cons, 'POST', `${P}/lotes/manual`, { site_id: ids.s1, itens: Array(501).fill({ nome: 'X' }) });
+    expect(r.status).toBe(201);
+    expect(await itensDo(gestor, (await r.json<{ id: string }>()).id)).toHaveLength(501);
+  });
+});

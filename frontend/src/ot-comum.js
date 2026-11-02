@@ -67,20 +67,13 @@ export const listaDeErros = (xs, classe = '') => (xs && xs.length
 export const nomesDeAtivos = new Map();
 export const nomeDoAtivo = (id) => (id && nomesDeAtivos.get(id)) || 'ativo existente';
 
-/** Ativos e zonas de um site, para dar nome às pontas de um fluxo (falha vira lista vazia: a ponta aparece como "ponta removida"). */
-export async function pontasDoSite(siteId) {
-    const q = `?site_id=${encodeURIComponent(siteId || '')}`;
-    const [a, z] = await Promise.all([api('GET', `/api/v1/projects/${S.activeProject.id}/ot/ativos${q}`).catch(() => null),
-        api('GET', `/api/v1/projects/${S.activeProject.id}/ot/zonas${q}`).catch(() => null)]);
-    return { ativos: lista(a, 'ativos'), zonas: lista(z, 'zonas') };
-}
-const ponta = (d, lado, { ativos, zonas }) => {
-    const [a, z] = [d[`${lado}_ativo_id`], d[`${lado}_zona_id`]];
-    if (a || z) return (a ? ativos : zonas).find((x) => x.id === (a || z))?.nome || 'ponta removida';
+const ponta = (d, lado, nomes) => {
+    const id = d[`${lado}_ativo_id`] || d[`${lado}_zona_id`];
+    if (id) return (Object.hasOwn(nomes, id) && nomes[id]) || 'ponta removida';
     return d.externo ? 'Fora da empresa' : '—';
 };
-/** "origem → destino" de um fluxo (texto, a escapar por quem mostra). */
-export const rotaDoFluxo = (d = {}, pontas) => `${ponta(d, 'origem', pontas)} → ${ponta(d, 'destino', pontas)}`;
+/** "origem → destino" de um fluxo (texto, a escapar por quem mostra). `nomes`: `nomes_pontas` da API (id → nome; nunca IP/MAC). */
+export const rotaDoFluxo = (d = {}, nomes = {}) => `${ponta(d, 'origem', nomes)} → ${ponta(d, 'destino', nomes)}`;
 
 /**
  * Campos do ativo (4.3.1 da RO-CB.BR.01), para o cadastro e para a entrada manual da coleta. `d` é o ativo como a API devolve ou o

@@ -130,7 +130,9 @@ test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre
     const path = new URL(req.url()).pathname;
     const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
     const chave = `${req.method()} ${path}`;
-    if (chave === `GET ${B}/levantamentos/lv1`) return json({ levantamento: LV, achados });
+    // Nomes das pontas pela própria sessão e pelo lote (nunca via /ativos, que traria IP/MAC).
+    const nomes_pontas = { a1: 'RTU-01' };
+    if (chave === `GET ${B}/levantamentos/lv1`) return json({ levantamento: LV, achados, nomes_pontas, ativos_do_site: [{ id: 'a1', nome: 'RTU-01' }] });
     if (chave === `POST ${B}/levantamentos/lv1/achados`) {
       criado = req.postDataJSON();
       const id = `ach${achados.length + 1}`;
@@ -142,7 +144,7 @@ test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre
     if (chave === `POST ${B}/levantamentos/lv1/enviar`) { envio = req.postDataJSON(); return json({ id: 'lote-lv', itens: 1 }, 201); }
     if (chave === `GET ${B}/lotes/lote-lv`) {
       return json({ lote: { id: 'lote-lv', site_id: 's1', fonte: 'manual', status: 'em_revisao', criado_por: 'u1', created_at: '2026-11-01 10:00:00', motivo: null },
-        itens: achados.map((x, n) => ({ id: `i${n + 1}`, linha: n + 1, entidade: x.entidade, dados: x.dados, erros: [], decisao: 'pendente', duplicata_de: null })) });
+        itens: achados.map((x, n) => ({ id: `i${n + 1}`, linha: n + 1, entidade: x.entidade, dados: x.dados, erros: [], decisao: 'pendente', duplicata_de: null })), nomes_pontas });
     }
     if (req.method() === 'GET' && path in ABAS_OT) return json(ABAS_OT[path]);
     return route.fallback();
@@ -168,7 +170,8 @@ test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre
   await page.getByLabel('Destino').selectOption({ label: 'Fora da empresa' });
   await page.getByLabel('Protocolo', { exact: true }).fill('HTTPS');
   await page.getByLabel('Porta', { exact: true }).fill('443');
-  await page.getByLabel('Via VPN').check();
+  await expect(page.getByLabel('Externo')).toHaveValue('sim');
+  await page.getByLabel('Via VPN').selectOption({ label: 'Sim' });
   await page.locator('#modal').getByRole('button', { name: 'Registrar' }).click();
   await expect(conteudo).toContainText('RTU-01 → Fora da empresa');
   await expect(conteudo.locator('.badge', { hasText: 'Contradiz' })).toHaveAttribute('title', /de outro jeito/);

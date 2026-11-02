@@ -105,8 +105,10 @@ export async function enviarAoLote(db: D1Database, chaves: ChavesOt, ator: { id:
   }
   if (!r.ok) { await devolver(); return r; }
   const lote = r.id;
-  await db.batch(r.itemIds.map((item, n) => db.prepare(`UPDATE ot_achados SET lote_id = ?, lote_item_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-    .bind(lote, item, results[n].id)));
+  // Um statement só (atômico): um batch de até 2.000 UPDATEs que falhasse no meio deixaria achados enviados sem lote.
+  const liga = JSON.stringify(Object.fromEntries(r.itemIds.map((item, n) => [results[n].id, item])));
+  await db.prepare(`UPDATE ot_achados SET lote_id = ?1, lote_item_id = (SELECT value FROM json_each(?2) WHERE key = ot_achados.id),
+    updated_at = CURRENT_TIMESTAMP WHERE id IN (SELECT key FROM json_each(?2))`).bind(lote, liga).run();
   return r;
 }
 

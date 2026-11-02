@@ -17,12 +17,25 @@ const MOTIVO: Record<string, string> = { invalid_type: 'tipo inválido', invalid
 const PONTA: Record<string, 'ativos' | 'zonas'> = { origem_ativo_id: 'ativos', destino_ativo_id: 'ativos', origem_zona_id: 'zonas', destino_zona_id: 'zonas' };
 
 export const fluxosDoSite = async (db: D1Database, projectId: string, siteId: string) => (await db.prepare(`SELECT id, ${COLS_FLUXO.join(', ')}, updated_at
-  FROM ot_fluxos WHERE project_id = ? AND site_id = ? AND status = 'ativo' LIMIT ${TETO_LEITURA_OT}`).bind(projectId, siteId).all<FluxoExistente>()).results;
+  FROM ot_fluxos WHERE project_id = ? AND site_id = ? AND status = 'ativo' ORDER BY created_at, id LIMIT ${TETO_LEITURA_OT}`).bind(projectId, siteId).all<FluxoExistente>()).results;
 
 export async function pontasDoSite(db: D1Database, projectId: string, siteId: string) {
   const [a, z] = await Promise.all(['ot_ativos', 'ot_zonas'].map((t) => db.prepare(`SELECT id FROM ${t} WHERE project_id = ? AND site_id = ? AND status = 'ativo'
     LIMIT ${TETO_LEITURA_OT}`).bind(projectId, siteId).all<{ id: string }>()));
   return { ativos: new Set(a.results.map((x) => x.id)), zonas: new Set(z.results.map((x) => x.id)) };
+}
+
+/**
+ * id → nome das pontas citadas nos fluxos (ativos e zonas ativos do site): só o nome, nunca IP/MAC. A tela nomeia o fluxo com isto em
+ * vez de ler /ativos (que decifraria IP/MAC do site e escreveria ver_sensivel na trilha). Id fora daqui a tela mostra "ponta removida".
+ */
+export async function nomesDasPontas(db: D1Database, projectId: string, siteId: string, dados: Record<string, unknown>[]): Promise<Record<string, string>> {
+  const ids = [...new Set(dados.flatMap((d) => ['origem_ativo_id', 'origem_zona_id', 'destino_ativo_id', 'destino_zona_id'].map((k) => d[k])))].filter((x) => typeof x === 'string');
+  if (!ids.length) return {};
+  const { results } = await db.prepare(`SELECT id, nome FROM ot_ativos WHERE project_id = ?1 AND site_id = ?2 AND status = 'ativo' AND id IN (SELECT value FROM json_each(?3))
+    UNION ALL SELECT id, nome FROM ot_zonas WHERE project_id = ?1 AND site_id = ?2 AND status = 'ativo' AND id IN (SELECT value FROM json_each(?3))
+    LIMIT ${TETO_LEITURA_OT}`).bind(projectId, siteId, JSON.stringify(ids)).all<{ id: string; nome: string }>();
+  return Object.fromEntries(results.map((r) => [r.id, r.nome]));
 }
 
 /** Campo inválido vira erro e não entra em `dados` (como prepararItem). Pontas insuficientes são aviso: achado pode estar incompleto. */
