@@ -175,6 +175,7 @@ const SEM_RECURSO_ALHEIO: Record<string, string> = {
   'POST /api/v1/public/pedidos/ver': 'ciência por link: o token pessoal do link é a autorização',
   'POST /api/v1/public/pedidos/codigo': 'ciência por link: o token pessoal do link é a autorização; o código vai ao e-mail do destinatário',
   'POST /api/v1/public/pedidos/ciencia': 'ciência por link: token pessoal do link + código do e-mail do destinatário',
+  'POST /api/v1/public/titular-pedidos/abrir': 'portal público de solicitações: o token do link (um por projeto) é a autorização e define o projeto; o corpo não traz id de recurso de outro tenant',
   'POST /api/v1/public/auditor/ver': 'portal do auditor: o token do link (no corpo) é a autorização, preso a um projeto; isolamento em test/portal-auditor.test.ts',
   'POST /api/v1/public/auditor/evidencia': 'portal do auditor: token no corpo; evidência alheia por id é 404 (test/portal-auditor.test.ts)',
   'POST /api/v1/public/auditor/pedidos': 'portal do auditor: token no corpo, prova só do projeto do token',
@@ -209,6 +210,8 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   parte_vinculos: { papel: 'responsavel', alvo_tipo: 'projeto' },
   avaliacoes_terceiro: { metodo: 'auditoria', resultado: 'aprovado' },
   titular_pedidos: { tipo: 'acesso' },
+  // Portal do titular (0096): tipo da tratativa é enum do CHECK
+  titular_pedido_tratativas: { tipo: 'nota' },
   // Ficha em abas (0079)
   catalogo_itens: { tipo: 'titular' },
   tratamento_medidas: { status: 'ativa' },
