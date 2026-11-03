@@ -7,13 +7,15 @@ import { chavesOt } from '../services/ot-cifra';
 import { sitesPermitidos, TETO_LEITURA_OT } from '../services/ot-inventario';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
 import { prepararAchado, zonasDoSite } from '../services/ot-levantamento';
-import { aplicarMapeamento, assinaturaDoCabecalho, CAMPOS_DEPARA, proporMapeamento, tetoDepara, TETO_DEPARA, type Mapeamento } from '../services/ot-depara';
+import { achadosDoTexto, aplicarMapeamento, assinaturaDoCabecalho, CAMPOS_DEPARA, proporMapeamento, tetoDepara, TETO_DEPARA, type Mapeamento } from '../services/ot-depara';
 import { lerLevantamento } from './ot';
+import { dividirEmTrechos, lerDocumento, LIMITES_TEXTO } from '../services/ot-documento';
+import { RecusaIa } from '../services/ot-ia';
 
 /**
  * De-para de planilha do n.ot (L4). Montado no mesmo prefixo, LOGO DEPOIS do `otApp` (src/index.ts): herda a recusa de chave de API e
  * agente (P0-2), a trava de escrita e a falha fechada sem as chaves em `/levantamentos/*`. O arquivo é lido em memória e descartado
- * (P0-3): nunca vai ao R2 nem ao `toMarkdown`; à IA só vão cabeçalho e amostra mascarados (ot-depara.ts).
+ * (P0-3): nunca vai ao R2 nem ao `toMarkdown`; à IA só vão cabeçalho e amostra, ou trechos do texto, mascarados (ot-depara.ts).
  */
 export const otDeparaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 type C = Context<{ Bindings: Bindings; Variables: Variables }>;
@@ -27,32 +29,41 @@ const contexto = async (c: C) => {
 const trilha = (c: C, acao: string, projectId: string, detalhe: string, entidade?: { tipo: string; id: string }) =>
   logAudit(c.env.DB, acao, c.get('user').email, detalhe, '', c.req.header('CF-Connecting-IP') ?? '', projectId, entidade);
 
-/** Sessão documental aberta + planilha lida em memória. Devolve a resposta de erro ou os dados. */
-async function sessaoEPlanilha(c: C) {
+/** Travas comuns: sessão documental aberta + arquivo do campo `file` lido em memória (5 MB). Devolve a resposta de erro ou os dados. */
+async function sessaoEArquivo(c: C, rotulo: 'planilha' | 'documento') {
   const ctx = await contexto(c);
   const lev = await lerLevantamento(ctx.db, ctx.projectId, ctx.sites, c.req.param('id')!);
   if (!lev) return c.json({ error: 'Levantamento não encontrado' }, 404);
-  if (lev.tipo !== 'documento' || lev.situacao !== 'aberto') return c.json({ error: 'De-para de planilha só em levantamento documental aberto' }, 409);
+  if (lev.tipo !== 'documento' || lev.situacao !== 'aberto') return c.json({ error: `De-para de ${rotulo} só em levantamento documental aberto` }, 409);
   const teto = LIMITES_PLANILHA.bytes + 64 * 1024;
   if (Number(c.req.header('Content-Length') || 0) > teto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
   const bruto = await lerAteTeto(c.req.raw, teto);
   if (!bruto) return c.json({ error: 'Arquivo acima de 5 MB' }, 413);
   const fd = await new Response(bruto, { headers: { 'Content-Type': c.req.header('Content-Type') ?? '' } }).formData().catch(() => null);
   const file = fd?.get('file');
-  if (!fd || !(file instanceof File)) return c.json({ error: 'Envie a planilha no campo "file"' }, 400);
-  const lida = await lerPlanilha(file.name, await file.arrayBuffer());
+  if (!fd || !(file instanceof File)) return c.json({ error: `Envie ${rotulo === 'planilha' ? 'a planilha' : 'o documento'} no campo "file"` }, 400);
+  return { ...ctx, lev, fd, file };
+}
+
+async function sessaoEPlanilha(c: C) {
+  const s = await sessaoEArquivo(c, 'planilha');
+  if (s instanceof Response) return s;
+  const lida = await lerPlanilha(s.file.name, await s.file.arrayBuffer());
   if ('erro' in lida) return c.json({ error: lida.erro }, 400);
   const [cabecalho = [], ...linhas] = lida.linhas;
   if (!cabecalho.some((x) => x.trim())) return c.json({ error: 'A planilha não tem cabeçalho' }, 400);
-  return { ...ctx, lev, fd, cabecalho, linhas };
+  return { ...s, cabecalho, linhas };
 }
+
+const TETO_HORA = () => ({ error: `Limite por hora atingido: propostas de de-para (${TETO_DEPARA.pessoa} por pessoa e ${TETO_DEPARA.projeto} por projeto). Tente de novo mais tarde.`,
+  codigo: 'teto_por_hora' });
 
 otDeparaApp.post('/levantamentos/:id/depara/planilha/proposta', async (c) => {
   try {
     const s = await sessaoEPlanilha(c);
     if (s instanceof Response) return s;
     const { db, user, projectId, lev, cabecalho, linhas } = s;
-    const perfil = await db.prepare(`SELECT id, nome, fonte, mapeamento FROM ot_perfis_depara WHERE project_id = ? AND assinatura = ? AND status = 'ativo'`)
+    const perfil = await db.prepare(`SELECT id, nome, fonte, mapeamento FROM ot_perfis_depara WHERE project_id = ? AND assinatura = ? AND status = 'ativo' LIMIT 1`)
       .bind(projectId, await assinaturaDoCabecalho(cabecalho)).first<{ id: string; nome: string; fonte: string; mapeamento: string }>();
     let r: { mapeamento: Mapeamento; origem: 'perfil' | 'ia' | 'cabecalho'; perfil?: { id: string; nome: string; fonte: string }; aviso?: string };
     if (perfil) {
@@ -60,8 +71,7 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/proposta', async (c) => {
       r = { mapeamento: JSON.parse(mapeamento) as Mapeamento, origem: 'perfil', perfil: p };
     } else {
       if (!await tetoDepara(db, user.id, projectId)) {
-        return c.json({ error: `Limite por hora atingido: propostas de de-para (${TETO_DEPARA.pessoa} por pessoa e ${TETO_DEPARA.projeto} por projeto). Tente de novo mais tarde.`,
-          codigo: 'teto_por_hora' }, 429);
+        return c.json(TETO_HORA(), 429);
       }
       r = await proporMapeamento(c.env, cabecalho, linhas.slice(0, 5));
     }
@@ -84,6 +94,7 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
     try { bruto = JSON.parse(String(fd.get('mapeamento') ?? '')); } catch { return c.json({ error: 'mapeamento inválido: envie um objeto JSON' }, 400); }
     const m = mapeamentoSchema.safeParse(bruto);
     if (!m.success) return c.json({ error: 'mapeamento inválido: índice de coluna → campo do ativo' }, 400);
+    if (!Object.keys(m.data).length) return c.json({ error: 'Escolha ao menos uma coluna' }, 400);
     if (Object.keys(m.data).some((i) => Number(i) >= cabecalho.length)) return c.json({ error: 'mapeamento inválido: coluna fora do cabeçalho' }, 400);
     if (new Set(Object.values(m.data)).size !== Object.values(m.data).length) return c.json({ error: 'mapeamento inválido: campo repetido' }, 400);
     const opcional = (k: string) => { const v = fd.get(k); return typeof v === 'string' && v.trim() ? v : undefined; };
@@ -123,6 +134,44 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
       { tipo: 'ot_levantamento', id: lev.id });
     return c.json({ criados: itens.length, com_aviso: comAviso, ...(perfilId && { perfil_id: perfilId }) }, 201);
   } catch (e) { return erro500(c, 'Falha ao aplicar o de-para', e); }
+});
+
+otDeparaApp.post('/levantamentos/:id/depara/texto', async (c) => {
+  try {
+    const s = await sessaoEArquivo(c, 'documento');
+    if (s instanceof Response) return s;
+    const { db, user, projectId, lev, file } = s;
+    const lido = await lerDocumento(file.name, await file.arrayBuffer());
+    if ('erro' in lido) return c.json({ error: lido.erro }, lido.status);
+    const trechos = dividirEmTrechos(lido.paragrafos);
+    if (trechos.length > LIMITES_TEXTO.trechos) return c.json({ error: 'Documento grande demais: divida em partes de até 60 mil caracteres' }, 400);
+    if (!await tetoDepara(db, user.id, projectId)) return c.json(TETO_HORA(), 429); // uma tentativa por documento
+    let r: Awaited<ReturnType<typeof achadosDoTexto>>;
+    try { r = await achadosDoTexto(c.env, trechos); } catch (e) {
+      if (e instanceof RecusaIa) return c.json({ error: e.message }, 422);
+      throw e;
+    }
+    const n = await db.prepare('SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?').bind(lev.id).first<{ n: number }>();
+    const itens = r.itens.slice(0, Math.max(0, TETO_ACHADOS_SESSAO - (n?.n ?? 0)));
+    const descartados = r.descartados + r.itens.length - itens.length;
+
+    const chaves = chavesOt(c.env)!;
+    const zonas = await zonasDoSite(db, projectId, lev.site_id);
+    const stmts: D1PreparedStatement[] = [];
+    let comAviso = 0;
+    for (const it of itens) {
+      const id = genId(); // o mesmo id na AAD da cifra e na linha
+      const p = await prepararAchado(chaves, projectId, lev.site_id, id, it.dados, zonas);
+      if (p.erros.length) comAviso++;
+      stmts.push(db.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, entidade, dados, erros, evidencia, origem, criado_por)
+        VALUES (?, ?, ?, 'ativo', ?, ?, ?, 'ia', ?)`).bind(id, projectId, lev.id, JSON.stringify(p.dados), JSON.stringify(p.erros), it.evidencia, user.id));
+    }
+    for (let i = 0; i < stmts.length; i += BLOCO) await db.batch(stmts.slice(i, i + BLOCO));
+    await trilha(c, 'ot.depara.texto', projectId,
+      `${itens.length} achados do levantamento ${lev.id} sugeridos pela IA; ${descartados} descartados; ${r.trechos_pulados} trechos pulados`,
+      { tipo: 'ot_levantamento', id: lev.id });
+    return c.json({ criados: itens.length, com_aviso: comAviso, descartados, trechos_pulados: r.trechos_pulados }, 201);
+  } catch (e) { return erro500(c, 'Falha ao ler o documento', e); }
 });
 
 otDeparaApp.get('/depara/perfis', async (c) => {

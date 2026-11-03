@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import { aplicarMapeamento, assinaturaDoCabecalho, mapeamentoPorCabecalho, proporMapeamento } from '../src/services/ot-depara';
+import { achadosDoTexto, aplicarMapeamento, assinaturaDoCabecalho, mapeamentoPorCabecalho, proporMapeamento } from '../src/services/ot-depara';
+import { RecusaIa } from '../src/services/ot-ia';
 
 // De-para de planilha do n.ot (L4): assinatura do cabeçalho, mapeamento por cabeçalho, aplicação e proposta da IA mascarada (P0-7).
 
@@ -39,5 +40,43 @@ describe('de-para: serviço', () => {
     expect(sem.aviso).toBeTruthy();
     const fora = await proporMapeamento({ ...env, AI: { run: async () => ({ response: { colunas: [{ indice: 9, campo: 'nome' }] } }) } }, ['Nome'], []);
     expect(fora.origem).toBe('cabecalho');
+  });
+
+  // Texto: o falso lê o que recebeu (já mascarado) e devolve itens com evidência copiada dele.
+  const iaTexto = (itens: (t: string) => Record<string, unknown>[], visto: string[] = []) => ({ ...env, AI: { run: async (_m: string, p: { messages: { content: string }[] }) => {
+    visto.push(p.messages[1].content);
+    return { response: { itens: itens(p.messages[1].content) } };
+  } } });
+
+  it('texto: IP mascarado à IA, restaurado no achado; evidência gravada sem endereço', async () => {
+    const visto: string[] = [];
+    const r = await achadosDoTexto(iaTexto((t) => {
+      const ip = t.match(/\[\[IP_[0-9a-f]{8}\]\]/)![0];
+      return [{ nome: 'RTU SEL-3530', ip, hostname: null, evidencia: `RTU SEL-3530 em ${ip}` }];
+    }, visto), ['A RTU SEL-3530 em 10.1.1.10 faz o telecontrole.']);
+    expect(visto[0]).toContain('[[IP_');
+    expect(visto[0]).not.toContain('10.1.1.10');
+    expect(r).toEqual({ itens: [{ dados: { nome: 'RTU SEL-3530', ip: '10.1.1.10' }, evidencia: 'RTU SEL-3530 em [IP]' }], descartados: 0, trechos_pulados: 0 });
+  });
+
+  it('texto: evidência que não está no trecho é descartada', async () => {
+    const r = await achadosDoTexto(iaTexto(() => [{ nome: 'Switch', evidencia: 'switch no rack 4' }]), ['O switch do rack 3 liga a rede.']);
+    expect(r).toEqual({ itens: [], descartados: 1, trechos_pulados: 0 });
+  });
+
+  it('texto: e-mail vira [e-mail] antes da IA; hostname só vira nome quando falta nome', async () => {
+    const visto: string[] = [];
+    const r = await achadosDoTexto(iaTexto((t) => {
+      const h = t.match(/\[\[HOST_[0-9a-f]{8}\]\]/)![0];
+      return [{ nome: '', hostname: h, evidencia: 'contato [e-mail]' }];
+    }, visto), ['Falar com ana@x.com, contato [e-mail] do hostname: rtu-01']);
+    expect(visto[0]).toContain('[e-mail]');
+    expect(visto[0]).not.toContain('ana@x.com');
+    expect(r.itens).toEqual([{ dados: { nome: 'rtu-01' }, evidencia: 'contato [e-mail]' }]);
+  });
+
+  it('texto: token em nome recusa a resposta inteira', async () => {
+    await expect(achadosDoTexto(iaTexto((t) => [{ nome: t.match(/\[\[IP_[0-9a-f]{8}\]\]/)![0], evidencia: 'RTU' }]), ['RTU em 10.1.1.10']))
+      .rejects.toBeInstanceOf(RecusaIa);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
+import JSZip from 'jszip';
 import app from '../src/index';
 import { sha256Hex } from '../src/helpers';
 import { applySchema, sessionFor, workerEnv, seedTwoProjects, habilitarOt, concederModulos, designarConsultor } from './helpers/d1';
@@ -12,7 +13,15 @@ const CHAVE = 'chave-ot-depara';
 let chamadasIa = 0;
 const toMarkdown: unknown[] = [];
 const puts: unknown[] = [];
-const run = async (_m: string, p: { messages: { content: string }[] }) => {
+let chamadasTexto = 0;
+type Entrada = { messages: { content: string }[]; response_format: { json_schema: { required: string[] } } };
+const run = async (_m: string, p: Entrada) => {
+  if (p.response_format.json_schema.required.includes('itens')) {
+    // texto: um ativo por IP citado, evidência copiada do texto recebido
+    chamadasTexto++;
+    const itens = [...p.messages[1].content.matchAll(/RTU (\w+) em (\[\[IP_[0-9a-f]{8}\]\])/g)].map((x) => ({ nome: `RTU ${x[1]}`, ip: x[2], evidencia: x[0] }));
+    return { response: { itens } };
+  }
   chamadasIa++;
   const n = (p.messages[1].content.match(/"indice"/g) ?? []).length;
   return { response: { colunas: [{ indice: 0, campo: 'nome' }, ...(n > 1 ? [{ indice: 1, campo: 'ip' }] : [])] } };
@@ -24,11 +33,11 @@ const ENV_EXTRA = {
 const chamar = (h: H, metodo: string, caminho: string, corpo?: unknown) => app.fetch(new Request('http://localhost' + caminho, {
   method: metodo, headers: { 'Content-Type': 'application/json', ...h }, body: corpo === undefined ? undefined : JSON.stringify(corpo),
 }), { ...workerEnv(), ...ENV_EXTRA });
-const multipart = (h: H, caminho: string, csv: string, campos: Record<string, string> = {}, nome = 'inv.csv') => {
+const multipart = (h: H, caminho: string, csv: BlobPart, campos: Record<string, string> = {}, nome = 'inv.csv', extra: Record<string, unknown> = ENV_EXTRA) => {
   const fd = new FormData();
   fd.set('file', new File([csv], nome));
   for (const [k, v] of Object.entries(campos)) fd.set(k, v);
-  return app.fetch(new Request('http://localhost' + caminho, { method: 'POST', headers: h, body: fd }), { ...workerEnv(), ...ENV_EXTRA });
+  return app.fetch(new Request('http://localhost' + caminho, { method: 'POST', headers: h, body: fd }), { ...workerEnv(), ...extra });
 };
 const criar = async (h: H, rota: string, corpo: unknown) => {
   const r = await chamar(h, 'POST', `${P}/${rota}`, corpo);
@@ -120,6 +129,9 @@ describe('de-para de planilha', () => {
     expect((await aplicar(cons, { mapeamento: JSON.stringify({ '0': 'nome', '1': 'ip_cifrado' }) })).status).toBe(400);
     expect((await aplicar(cons, { mapeamento: JSON.stringify({ '0': 'nome', '7': 'ip' }) })).status).toBe(400);
     expect((await aplicar(cons, { mapeamento: 'não é json' })).status).toBe(400);
+    const vazio = await aplicar(cons, { mapeamento: '{}' });
+    expect(vazio.status).toBe(400);
+    expect(await vazio.json()).toEqual({ error: 'Escolha ao menos uma coluna' });
     expect((await aplicar(cons, { mapeamento: MAPA, perfil_nome: 'Lista do 10.1.9.9' })).status).toBe(400);
   });
 
@@ -140,6 +152,65 @@ describe('de-para de planilha', () => {
     for (const l of results) {
       expect(l.details + l.justification).not.toContain('inv.csv');
       expect(l.details + l.justification).not.toMatch(/\d+\.\d+\.\d+\.\d+/);
+    }
+    expect(puts).toEqual([]);
+    expect(toMarkdown).toEqual([]);
+  });
+});
+
+const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+async function docx(corpo: string) {
+  const z = new JSZip();
+  z.file('word/document.xml', `<w:document ${W}><w:body>${corpo}</w:body></w:document>`);
+  return z.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
+}
+const par = (t: string) => `<w:p><w:r><w:t>${t}</w:t></w:r></w:p>`;
+const texto = (h: H, arquivo: BlobPart, nome = 'relatorio.docx', lev = ids.doc, extra?: Record<string, unknown>) =>
+  multipart(h, `${P}/levantamentos/${lev}/depara/texto`, arquivo, {}, nome, extra);
+const contarAchados = async () => (await env.DB.prepare('SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?').bind(ids.doc).first<{ n: number }>())!.n;
+
+describe('de-para de texto', () => {
+  beforeAll(async () => { await env.DB.prepare(`DELETE FROM rate_limits WHERE key LIKE 'ot:depara:%'`).run(); });
+
+  it('DOCX com dois parágrafos sobre um ativo: 1 achado da IA em rascunho, evidência sem IP', async () => {
+    const antes = await contarAchados();
+    const r = await texto(cons, await docx(par('A RTU Texto em 10.1.7.7 faz o telecontrole.') + par('A RTU Texto fica na sala 2.')));
+    expect(r.status, await r.clone().text()).toBe(201);
+    expect(await r.json()).toEqual({ criados: 1, com_aviso: 0, descartados: 0, trechos_pulados: 0 });
+    expect(await contarAchados()).toBe(antes + 1);
+    const { achados } = await (await chamar(cons, 'GET', `${P}/levantamentos/${ids.doc}`)).json<{ achados: (Ach & { situacao: string })[] }>();
+    const a = achados.find((x) => x.origem === 'ia')!;
+    expect(a).toMatchObject({ situacao: 'rascunho', evidencia: 'RTU Texto em [IP]', dados: { nome: 'RTU Texto' } });
+    expect(a.evidencia).not.toMatch(/\d+\.\d+\.\d+\.\d+/);
+  });
+
+  it('IA ausente: 422 com mensagem, nada gravado', async () => {
+    const antes = await contarAchados();
+    const r = await texto(cons, 'A RTU Sem em 10.1.7.8 faz algo.', 'nota.txt', ids.doc, { ...ENV_EXTRA, AI: undefined });
+    expect(r.status).toBe(422);
+    expect((await r.json<{ error: string }>()).error).toBeTruthy();
+    expect(await contarAchados()).toBe(antes);
+  });
+
+  it('recusas: sessão encerrada, PDF, DOCX com DTD, acima de 60 mil caracteres, trechos demais', async () => {
+    const enc = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'documento', realizado_em: '2026-11-03', documento_titulo: 'Encerrado' });
+    expect((await chamar(cons, 'PUT', `${P}/levantamentos/${enc}`, { situacao: 'encerrado' })).status).toBe(200);
+    expect((await texto(cons, 'RTU', 'a.txt', enc)).status).toBe(409);
+    expect((await texto(cons, 'RTU', 'a.pdf')).status).toBe(400);
+    expect((await texto(cons, await docx('<!DOCTYPE x>' + par('a')))).status).toBe(400);
+    expect((await texto(cons, 'a'.repeat(61_000), 'a.txt')).status).toBe(413);
+    const antes = chamadasTexto;
+    const muitos = await texto(cons, Array.from({ length: 37 }, () => 'b'.repeat(1600)).join('\n'), 'a.txt');
+    expect(muitos.status).toBe(400);
+    expect(await muitos.json()).toEqual({ error: 'Documento grande demais: divida em partes de até 60 mil caracteres' });
+    expect(chamadasTexto).toBe(antes);
+  });
+
+  it('nada ao R2 nem ao toMarkdown; trilha sem nome de arquivo nem IP', async () => {
+    const { results } = await env.DB.prepare(`SELECT details, justification FROM audit_logs WHERE action = 'ot.depara.texto' LIMIT 100`).all<{ details: string; justification: string }>();
+    expect(results.map((l) => l.details)).toContainEqual(expect.stringMatching(/^1 achados do levantamento .+ sugeridos pela IA; 0 descartados; 0 trechos pulados$/));
+    for (const l of results) {
+      expect(l.details + l.justification).not.toMatch(/relatorio|nota\.txt|\d+\.\d+\.\d+\.\d+/);
     }
     expect(puts).toEqual([]);
     expect(toMarkdown).toEqual([]);
