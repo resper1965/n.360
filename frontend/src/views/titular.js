@@ -210,11 +210,11 @@ window.abrirPedidoTitular = async function (projectId, id) {
         ${podeRascunho() && !final && p.status !== 'arquivado' ? `<div style="margin-top:0.75rem"><button class="btn btn-sm" data-action="rascunhoRespostaTitular" data-args='${args(projectId, id)}'>Rascunho</button></div>
             <div id="pt-rascunho" style="margin-top:0.75rem"></div>` : ''}
         ${podeDados() && p.titular_contato ? `<h4 style="margin:1rem 0 0.5rem">Dados do titular</h4>
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <div class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-sm" data-action="localizarDadosDoTitular" data-args='${args(projectId, id)}'>Localizar dados</button>
                 ${p.tipo === 'anonimizacao_bloqueio_eliminacao' ? `<button class="btn btn-sm" data-action="eliminarDadosDoTitular" data-args='${args(projectId, id)}'>Eliminar dados</button>` : ''}
             </div><div id="pt-dados" style="margin-top:0.75rem"></div>` : ''}
-        <div id="pt-tratativas-box" style="margin-top:1rem"></div>`, 'modal-large');
+        <div id="pt-tratativas-box" class="mt-4"></div>`, 'modal-large');
     pedidoAberto = p;
     carregarTratativas(projectId, id, podeRegistrar());
 };
@@ -227,7 +227,7 @@ async function carregarTratativas(projectId, id, editar) {
     try { ts = lista(await api('GET', `/api/v1/projects/${projectId}/titular-pedidos/${id}/tratativas`)); } catch (e) { box.innerHTML = '<p class="at-nota">Não foi possível carregar as tratativas.</p>'; return; }
     const linhas = ts.length ? `<ul class="et-lista">${ts.map((t) => `<li class="et-linha"><span><strong>${escapeHTML(TIPOS_TRATATIVA[t.tipo] || t.tipo)}</strong> · ${dia(t.created_at)}<br>${escapeHTML(t.texto)}</span></li>`).join('')}</ul>`
         : '<p class="at-nota">Nenhuma tratativa registrada. Registre aqui a comunicação com o titular, o encaminhamento ao ponto focal e as evidências recebidas.</p>';
-    const form = editar ? `<div class="form-group" style="margin-top:0.5rem"><label class="form-label" for="pt-trat-tipo">Nova tratativa</label>
+    const form = editar ? `<div class="form-group mt-2"><label class="form-label" for="pt-trat-tipo">Nova tratativa</label>
             <select class="form-input" id="pt-trat-tipo">${opcoes(TIPOS_TRATATIVA)}</select></div>
         <div class="form-group"><textarea class="form-input" id="pt-trat-texto" rows="3" maxlength="5000" aria-label="Texto da tratativa"></textarea></div>
         <button class="btn btn-sm" data-action="salvarTratativa" data-args='${args(projectId, id)}'>Registrar tratativa</button>` : '';
@@ -251,8 +251,8 @@ window.abrirPortalTitular = async function (projectId) {
     openModal(`<h3>Link do portal de solicitações</h3>
         <p>Gere um link para o cliente publicar no site ou app. O titular abre a solicitação por ele e recebe um número de protocolo; as solicitações entram aqui, em Solicitações.</p>
         <p id="pt-portal-estado">${p.ativo ? 'Portal ativo. O link aparece só ao gerar; gere de novo para um link novo (o anterior deixa de valer).' : 'Portal desativado. Gere o link para ativar.'}</p>
-        <div id="pt-portal-link" style="margin:0.75rem 0"></div>
-        <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+        <div id="pt-portal-link" class="mt-3 mb-3"></div>
+        <div class="d-flex gap-2 flex-wrap">
             <button class="btn btn-primary" data-action="gerarPortalTitular" data-args='${args(projectId)}'>${p.ativo ? 'Gerar novo link' : 'Gerar link'}</button>
             ${p.ativo ? `<button class="btn" data-action="desativarPortalTitular" data-args='${args(projectId)}'>Desativar</button>` : ''}
         </div>`);
@@ -400,12 +400,12 @@ window.abrirIncidente = async function (projectId, id) {
             <div class="form-group"><textarea class="form-input" id="in-aval" rows="2" maxlength="5000" placeholder="Justificativa">${escapeHTML(i.avaliacao_texto || '')}</textarea></div>
             <button class="btn btn-sm" data-action="avaliarRiscoIncidente" data-args='${args(projectId, id)}'>Salvar avaliação</button>
             <h4 style="margin:1rem 0 0.5rem">Comunicações</h4>
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <div class="d-flex gap-2 flex-wrap">
                 ${i.comunicacao_anpd_em ? '' : comunicar('anpd', 'Registrei a comunicação à ANPD')}
                 ${i.comunicacao_titular_em ? '' : comunicar('titular', 'Registrei a comunicação ao titular')}
             </div>` : ''}
         ${podeRascunho() ? `<h4 style="margin:1rem 0 0.5rem">Rascunho da comunicação</h4>
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <div class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-sm" data-action="rascunhoComunicacaoIncidente" data-args='${args(projectId, id, 'anpd')}'>Rascunho para a ANPD</button>
                 <button class="btn btn-sm" data-action="rascunhoComunicacaoIncidente" data-args='${args(projectId, id, 'titular')}'>Rascunho para o titular</button>
             </div><div id="in-rascunho" style="margin-top:0.75rem"></div>` : ''}
