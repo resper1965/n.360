@@ -10,7 +10,7 @@ import {
 import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
-import { LIMITES_PLANILHA, lerPlanilha } from '../services/ot-planilha';
+import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
@@ -449,20 +449,6 @@ async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, pro
   return c.json({ ...resumo, status: 'em_revisao', ...extra }, 201);
 }
 
-/** Corpo inteiro até `teto` bytes; null se passar (o stream é cancelado no primeiro pedaço além). */
-async function lerAteTeto(req: Request, teto: number): Promise<Blob | null> {
-  const leitor = req.body?.getReader();
-  const partes: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = leitor ? await leitor.read() : { done: true, value: undefined };
-    if (done) return new Blob(partes);
-    total += value.byteLength;
-    if (total > teto) { await leitor!.cancel().catch(() => {}); return null; }
-    partes.push(value);
-  }
-}
-
 // Planilha (multipart: `file` e `site_id`). O arquivo é lido em memória e descartado: nunca vai ao R2 nem à IA (P0-3).
 otApp.post('/lotes', async (c) => {
   try {
@@ -540,7 +526,7 @@ otApp.get('/roteiro', async (c) => {
 
 const LEV_COLS = 'id, site_id, tipo, realizado_em, funcao, turno, documento_titulo, documento_data, notas, roteiro, situacao, criado_por, created_at, updated_at';
 /** Sessão ativa, do projeto e de site permitido: inexistente, de outro projeto ou de site sem acesso dão o mesmo 404 (T27). */
-const lerLevantamento = (db: D1Database, projectId: string, sites: string, id: string) =>
+export const lerLevantamento = (db: D1Database, projectId: string, sites: string, id: string) =>
   db.prepare(`SELECT ${LEV_COLS} FROM ot_levantamentos WHERE id = ? AND project_id = ? AND status = 'ativo' AND ${NO_SITE}`)
     .bind(id, projectId, sites).first<Record<string, unknown> & { id: string; site_id: string; tipo: string; situacao: string }>();
 

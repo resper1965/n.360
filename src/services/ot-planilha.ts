@@ -31,6 +31,21 @@ export async function lerPlanilha(nome: string, arquivo: ArrayBuffer): Promise<L
 
 export class ErroPlanilha extends Error {}
 
+/** Corpo inteiro até `teto` bytes; null se passar (o stream é cancelado no primeiro pedaço além). */
+export async function lerAteTeto(req: Request, teto: number): Promise<Blob | null> {
+  const leitor = req.body?.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = leitor ? await leitor.read() : { done: true, value: undefined };
+    if (done) return new Blob(partes);
+    total += value.byteLength;
+    if (total > teto) { await leitor!.cancel().catch(() => {}); return null; }
+    partes.push(value);
+  }
+}
+
+
 // ─── ZIP ────────────────────────────────────────────────────────────────────
 interface Entrada { metodo: number; comprimido: number; offsetLocal: number }
 
