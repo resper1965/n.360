@@ -56,11 +56,17 @@ describe('Riscos no formato do legado (IDR, motivo, Tratar)', () => {
   it('motivos: vazios no projeto novo (nada semeado) e depois os pares já usados, distintos, só deste projeto', async () => {
     // O outro projeto da fixture (OUTRO) nunca teve risco: é o "projeto novo".
     const a = await novaAtividade(s.outro, {}, OUTRO);
-    const m = async () => (await json<{ motivos: any[] }>(await chamar(s.outro, 'GET', `${base(a, OUTRO)}/riscos/motivos`))).motivos;
+    // motivos do PROJETO (exclui a lista de referência de riscos de privacidade, que vem marcada `referencia: true`)
+    const m = async () => (await json<{ motivos: any[] }>(await chamar(s.outro, 'GET', `${base(a, OUTRO)}/riscos/motivos`))).motivos.filter((x) => !x.referencia);
     expect(await m()).toEqual([]);
+    // a lista de referência está presente mesmo no projeto novo
+    expect((await json<{ motivos: any[] }>(await chamar(s.outro, 'GET', `${base(a, OUTRO)}/riscos/motivos`))).motivos.some((x) => x.referencia)).toBe(true);
     await chamar(s.outro, 'POST', `${base(a, OUTRO)}/riscos`, { threat: 'Vazamento exemplo', vulnerability: 'Descrição A', impact: 2, probability: 2 });
     await chamar(s.outro, 'POST', `${base(a, OUTRO)}/riscos`, { threat: 'Vazamento exemplo', vulnerability: 'Descrição A', impact: 3, probability: 3 });
     expect(await m()).toEqual([{ nome: 'Vazamento exemplo', descricao_padrao: 'Descrição A' }]);
+    // o motivo usado não é semeado no catálogo do projeto
+    const { env } = await import('cloudflare:test');
+    expect((await env.DB.prepare(`SELECT count(*) n FROM catalogo_itens WHERE project_id = ? AND tipo = 'motivo_risco'`).bind(OUTRO).first<{ n: number }>())!.n).toBe(0);
     // não vaza para o outro projeto
     const deP = await novaAtividade(s.consultor);
     const doP = (await json<{ motivos: any[] }>(await chamar(s.consultor, 'GET', `${base(deP)}/riscos/motivos`))).motivos;

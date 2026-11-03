@@ -79,7 +79,7 @@ function modalAnalise(r) {
             <div class="form-group"><label class="form-label" for="at-rk-motivo">Motivo ${obrigatorio}</label>
                 <input class="form-input" id="at-rk-motivo" list="at-rk-motivos" maxlength="500" required aria-required="true" autocomplete="off" value="${escapeHTML(r ? r.threat : '')}" aria-describedby="at-rk-motivo-d">
                 <datalist id="at-rk-motivos">${R.motivos.map((m) => `<option value="${escapeHTML(m.nome)}"></option>`).join('')}</datalist>
-                <p class="at-nota" id="at-rk-motivo-d">${R.motivos.length ? 'Escolha um motivo já usado neste projeto ou escreva um novo.' : 'Este projeto ainda não tem motivos de risco. Escreva o primeiro; ele fica disponível para os próximos riscos.'}</p></div>
+                <p class="at-nota" id="at-rk-motivo-d">Escolha um da lista — riscos comuns de privacidade e os já usados neste projeto — ou escreva um novo.</p></div>
             <div class="form-group"><label class="form-label" for="at-rk-desc">Descrição</label>
                 <textarea class="form-input" id="at-rk-desc" rows="5" maxlength="5000">${escapeHTML(r ? r.vulnerability || '' : '')}</textarea></div>
             <div class="form-group"><label class="form-label" for="at-rk-prob">Probabilidade ${obrigatorio}</label><select class="form-input" id="at-rk-prob" required aria-required="true">${opcoesNota(PROBABILIDADE, r && r.probability, 'Selecione uma opção')}</select></div>

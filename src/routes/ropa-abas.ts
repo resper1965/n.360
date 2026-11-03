@@ -24,6 +24,7 @@ import { guardarAnexo, listarAnexos, baixarAnexo, apagarAnexo, MAX_ANEXO } from 
 import { exigirEditavel } from '../services/ropa-abas/comum';
 import { montarRelatorio } from '../services/ropa-abas/relatorio';
 import { motivosDeRisco } from '../services/riscos-atividade';
+import { RISCOS_PRIVACIDADE } from '../data/riscos-privacidade';
 // D2: copiloto da descrição por etapa (propõe; a pessoa aceita).
 import { rascunharEtapa } from '../services/copiloto-etapa';
 
@@ -187,7 +188,10 @@ ropaAbasApp.get('/riscos/motivos', async (c) => {
     const catalogo = await listarCatalogo(c.env.DB, projectId, 'motivo_risco');
     const chaves = new Set(catalogo.map((m) => chaveNome(m.nome)));
     const usados = (await motivosDeRisco(c.env.DB, projectId)).filter((u) => !chaves.has(chaveNome(u.nome)));
-    return c.json({ motivos: [...catalogo.map((m) => ({ nome: m.nome, descricao_padrao: m.descricao_padrao })), ...usados] });
+    usados.forEach((u) => chaves.add(chaveNome(u.nome)));
+    // Lista de referência de riscos de privacidade (LGPD): só sugestão no datalist, nunca semeada no catálogo do projeto.
+    const referencia = RISCOS_PRIVACIDADE.filter((r) => !chaves.has(chaveNome(r.nome))).map((r) => ({ nome: r.nome, descricao_padrao: r.descricao_padrao, referencia: true }));
+    return c.json({ motivos: [...catalogo.map((m) => ({ nome: m.nome, descricao_padrao: m.descricao_padrao })), ...usados, ...referencia] });
   } catch (e) { return erro500(c, 'Falha ao listar os motivos', e); }
 });
 

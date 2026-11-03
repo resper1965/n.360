@@ -108,7 +108,7 @@ describe('aba Riscos', () => {
         expect(modal.querySelector('h2').textContent).toBe('Análise de Riscos');
         expect(el('at-rk-nivel').textContent).toBe('a calcular...');
         expect(el('at-rk-nivel').getAttribute('role')).toBe('status');
-        expect(modal.textContent).toContain('Este projeto ainda não tem motivos de risco');
+        expect(modal.textContent).toContain('riscos comuns de privacidade');
         expect(el('at-rk-gravar').textContent).toBe('Adicionar');
         expect(el('at-rk-gravar').disabled).toBe(true);
         expect(el('at-rk-restaurar').disabled).toBe(true);
