@@ -3,9 +3,12 @@
 // Montado antes do authMiddleware (index.ts); molde de public-homologacao.ts.
 import { Hono } from 'hono';
 import type { Bindings } from '../index';
-import { rateLimitD1, erro500 } from '../helpers';
+import { rateLimitD1, erro500, enviarEmail } from '../helpers';
 import { validateBody, portalAbrirSchema } from '../schemas';
 import { portalDoToken, abrirPedidoPortal } from '../services/titular-pedidos';
+import { emailProtocoloTitular } from '../services/emails';
+import { remetente } from '../services/email-layout';
+import { log } from '../observability';
 
 export const publicTitularApp = new Hono<{ Bindings: Bindings }>();
 
@@ -35,6 +38,14 @@ publicTitularApp.post('/abrir', async (c) => {
     const r = await abrirPedidoPortal(c.env.DB, portal.project_id, {
       tipo: v.data.tipo, titular_nome: v.data.titular_nome, titular_contato: v.data.titular_contato, descricao: v.data.descricao,
     });
-    return r.ok ? c.json({ ok: true, protocolo: r.protocolo }, 201) : c.json({ error: r.error }, r.status);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    // Retorno ao titular com o protocolo, best-effort: sem RESEND ou com falha de envio, o pedido já está criado e o protocolo vai na resposta.
+    try {
+      const m = emailProtocoloTitular({ protocolo: r.protocolo });
+      await enviarEmail(c.env, v.data.titular_contato, m.assunto, m, { from: remetente('n.privacy') });
+    } catch (e) {
+      log('warn', { msg: 'titular_portal_email_falhou', projeto: portal.project_id, erro: e instanceof Error ? e.message : String(e) });
+    }
+    return c.json({ ok: true, protocolo: r.protocolo }, 201);
   } catch (e) { return erro500(c, 'Falha ao registrar a solicitação', e); }
 });

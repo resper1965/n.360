@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
+import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela, confirmar } from '../ui.js';
 import { navigate } from '../router.js';
 import { produtoAtual, temProduto } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
@@ -253,12 +253,14 @@ window.abrirPortalTitular = async function (projectId) {
         <p id="pt-portal-estado">${p.ativo ? 'Portal ativo. O link aparece só ao gerar; gere de novo para um link novo (o anterior deixa de valer).' : 'Portal desativado. Gere o link para ativar.'}</p>
         <div id="pt-portal-link" class="mt-3 mb-3"></div>
         <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-primary" data-action="gerarPortalTitular" data-args='${args(projectId)}'>${p.ativo ? 'Gerar novo link' : 'Gerar link'}</button>
+            <button class="btn btn-primary" data-action="gerarPortalTitular" data-args='${args(projectId, !!p.ativo)}'>${p.ativo ? 'Gerar novo link' : 'Gerar link'}</button>
             ${p.ativo ? `<button class="btn" data-action="desativarPortalTitular" data-args='${args(projectId)}'>Desativar</button>` : ''}
         </div>`);
 };
 
-window.gerarPortalTitular = async function (projectId) {
+window.gerarPortalTitular = async function (projectId, ativo) {
+    // Regerar invalida o link que o cliente já publicou: confirmar antes (regra de design — destrutivo pede confirmação).
+    if (ativo && !(await confirmar('O link que o cliente já publicou deixará de valer. Gerar um novo?', { rotulo: 'Gerar novo link', perigo: true }))) return;
     try {
         const r = await api('POST', `/api/v1/projects/${projectId}/titular-portal`);
         const box = el('pt-portal-link');
@@ -273,6 +275,7 @@ window.gerarPortalTitular = async function (projectId) {
 };
 
 window.desativarPortalTitular = async function (projectId) {
+    if (!(await confirmar('Desativar o portal interrompe a recepção de novas solicitações pelo link publicado. Continuar?', { rotulo: 'Desativar', perigo: true }))) return;
     try {
         await api('POST', `/api/v1/projects/${projectId}/titular-portal/desativar`);
         showToast('Portal desativado.', 'success');

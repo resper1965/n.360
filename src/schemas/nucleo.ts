@@ -240,7 +240,7 @@ export const portalAbrirSchema = z.object({
   token: z.string().trim().min(10).max(200),
   tipo: z.enum(['confirmacao', 'acesso', 'correcao', 'anonimizacao_bloqueio_eliminacao', 'portabilidade', 'informacao_compartilhamento', 'revogacao_consentimento', 'oposicao', 'outro']),
   titular_nome: z.string().trim().min(1).max(200),
-  titular_contato: z.string().trim().min(1).max(300),
+  titular_contato: z.string().trim().max(300).email('Informe um e-mail válido para a resposta'),
   descricao: z.string().trim().min(1).max(5000),
 }).strict();
 

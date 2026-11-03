@@ -103,6 +103,11 @@ titularPedidosApp.post('/:id/tratativas', async (c) => {
 // Só leitura e gravação de quem já gere os pedidos do titular (equipe e org_admin pelo allow-list); o agente roda como client e não escreve.
 export const titularPortalApp = new Hono<Ctx>();
 
+// O link público é uma credencial de portador: gerá-lo ou desativá-lo é ato de PESSOA (equipe da consultoria ou org_admin do
+// projeto), nunca de chave de API nem do agente. Chave e agente entram como papel `client` (write-guard os deixa escrever), então
+// a checagem positiva por papel os recusa: sem ela, uma chave `write`/`admin` giraria ou derrubaria o link do cliente.
+const podeGerirPortal = (u: { role?: string; agente_decisao?: unknown } | undefined) => ehEquipeNess(u) || u?.role === 'org_admin';
+
 titularPortalApp.get('/', async (c) => {
   const p = await lerPortal(c.env.DB, c.req.param('projectId')!);
   return c.json(p ?? { ativo: false, criado_por: null, created_at: null });
@@ -110,6 +115,7 @@ titularPortalApp.get('/', async (c) => {
 
 titularPortalApp.post('/', async (c) => {
   try {
+    if (!podeGerirPortal(c.get('user'))) return c.json({ error: 'Forbidden: o link do portal é gerado pela equipe da consultoria ou pelo org_admin, não por chave de API nem pelo agente' }, 403);
     const { token } = await gerarPortal(c.env.DB, c.req.param('projectId')!, c.get('user').email);
     return c.json({ ok: true, url: `${appUrl(c.env)}/solicitacao#${token}` }, 201);
   } catch (e) { return erro500(c, 'Falha ao gerar o link do portal', e); }
@@ -117,6 +123,7 @@ titularPortalApp.post('/', async (c) => {
 
 titularPortalApp.post('/desativar', async (c) => {
   try {
+    if (!podeGerirPortal(c.get('user'))) return c.json({ error: 'Forbidden: o portal é desativado pela equipe da consultoria ou pelo org_admin, não por chave de API nem pelo agente' }, 403);
     const ok = await desativarPortal(c.env.DB, c.req.param('projectId')!, c.get('user').email);
     return ok ? c.json({ ok: true }) : c.json({ error: 'O portal já estava desativado ou nunca foi gerado' }, 409);
   } catch (e) { return erro500(c, 'Falha ao desativar o portal', e); }

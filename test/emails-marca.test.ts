@@ -4,7 +4,7 @@ import app from '../src/index';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy, concederModulos } from './helpers/d1';
 import { hashPassword } from '../src/helpers';
 import { COR, dataBr, montarEmail, remetente } from '../src/services/email-layout';
-import { emailAlertaSonda, emailProposta } from '../src/services/emails';
+import { emailAlertaSonda, emailProposta, emailProtocoloTitular } from '../src/services/emails';
 import { emailResumo } from '../src/services/avisos-prazo';
 
 /**
@@ -248,6 +248,13 @@ describe('e-mails montados direto (a rota já tem teste próprio)', () => {
     confere({ ...m, to: [], from: remetente(), subject: 'n.360: 2 prazos para acompanhar' }, { produto: 'n.360', acao: 'Abrir o n.360 e tratar cada item', prazo: '10/10/2026', link: 'https://n360.ness.com.br' });
     expect(m.html).toContain('Projeto &lt;X&gt;');
     expect(m.html).toContain('Trocar &lt;b&gt;senhas&lt;/b&gt;');
+  });
+
+  it('protocolo do titular: o número de protocolo aparece no assunto e no corpo', () => {
+    const m = emailProtocoloTitular({ protocolo: 'PT-2026-0042' });
+    expect(m.assunto).toContain('PT-2026-0042');
+    expect(m.html).toContain('PT-2026-0042');
+    expect(m.text).toContain('PT-2026-0042');
   });
 
   it('alerta da sonda: invólucro, sem botão', () => {

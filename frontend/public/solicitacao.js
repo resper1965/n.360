@@ -63,6 +63,10 @@
             erro.textContent = 'Preencha seu nome, seu e-mail e a descrição do pedido.';
             return;
         }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(corpo.titular_contato)) {
+            erro.textContent = 'Informe um e-mail válido para a resposta.';
+            return;
+        }
         botao.disabled = true;
         let res;
         try {
