@@ -224,6 +224,8 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   // n.ot (0092): fonte do lote é enum do CHECK
   ot_lotes: { fonte: 'manual' },
   ot_levantamentos: { tipo: 'entrevista' },
+  // n.ot (0095): assinatura tem 64 caracteres e mapeamento é objeto JSON (CHECKs)
+  ot_perfis_depara: { assinatura: 'a'.repeat(64), mapeamento: '{}' },
 };
 
 /**

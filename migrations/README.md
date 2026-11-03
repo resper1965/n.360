@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0094** (`ls migrations/*.sql | tail -1`). São 92 arquivos
+- Última migration no repositório: **0095** (`ls migrations/*.sql | tail -1`). São 93 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -725,3 +725,7 @@ Cria `ot_levantamentos` (sessões de entrevista, visita e documento), `ot_achado
 ## 0094 — achados da L2 do n.ot
 
 Acrescenta `ot_achados.pergunta_id` (FK para `ot_roteiro_perguntas`, `ON DELETE SET NULL`) e `ot_achados.lote_item_id` (sem FK: o item some com o lote e o achado sobrevive) por `ALTER TABLE ADD COLUMN`, que roda uma vez pelo runner, e o índice `idx_ot_achados_lote_item`. Aditiva; nenhuma tabela é refeita. Conferência depois: `SELECT name FROM pragma_table_info('ot_achados') WHERE name IN ('pergunta_id','lote_item_id')` (2 linhas). Produção só com o "sim" do dono e `npm run db:backup` antes.
+
+## 0095 — perfis de de-para do n.ot (2026-11-03)
+
+Cria `ot_perfis_depara` (perfil da planilha: cabeçalho → campos do ativo, uma assinatura por projeto, `UNIQUE (project_id, assinatura)`). Aditiva e repetível (`IF NOT EXISTS`); não toca tabela existente. Conferência depois: `SELECT name FROM sqlite_master WHERE name='ot_perfis_depara'` (1 linha). Produção só com o "sim" do dono e `npm run db:backup` antes.
