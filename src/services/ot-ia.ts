@@ -37,13 +37,20 @@ const sorteio = () => [...crypto.getRandomValues(new Uint8Array(4))].map((b) => 
 
 // shortcut: hostname sem ponto e sem rótulo ("SE-NORTE-RTU01" solto no texto) não é reconhecido; a rota de zona nem manda o nome
 // do ativo. Se a coleta por descrição livre (N3) precisar, acrescentar os nomes do inventário do site à máscara.
-export function mascararParaIa(texto: string): Mascara {
-  const mapa: MapaTokens = new Map();
+/** Token novo deste tipo no mapa (o mapa é da chamada). */
+export function tokenNovo(mapa: MapaTokens, tipo: TipoToken, valor: string): string {
+  const t = `[[${SIGLA[tipo]}_${sorteio()}]]`;
+  mapa.set(t, { tipo, valor });
+  return t;
+}
+
+/** `mapa` permite mascarar várias partes de uma mesma chamada (células) num mapa só. */
+export function mascararParaIa(texto: string, mapa: MapaTokens = new Map()): Mascara {
   const porValor = new Map<string, string>();
   const token = (tipo: TipoToken, valor: string) => {
     const chave = `${tipo}|${valor}`;
     let t = porValor.get(chave);
-    if (!t) { t = `[[${SIGLA[tipo]}_${sorteio()}]]`; porValor.set(chave, t); mapa.set(t, { tipo, valor }); }
+    if (!t) { t = tokenNovo(mapa, tipo, valor); porValor.set(chave, t); }
     return t;
   };
   const v6 = (m: string) => (normalizarIp(m.replace(/(%\w+)?(\/\d{1,3})?$/, '')) ? token('ip', m) : m);

@@ -144,6 +144,24 @@ describe('de-para de planilha', () => {
     expect(r!.status).toBe(429);
     expect(await r!.json()).toEqual({ error: 'Limite por hora do de-para atingido (10 por pessoa e 30 por projeto). Tente de novo mais tarde.', codigo: 'teto_por_hora' });
     expect(chamadasIa).toBe(10);
+    // quem passou do próprio teto e insiste não gasta o do projeto
+    const projeto = async () => (await env.DB.prepare(`SELECT count FROM rate_limits WHERE key = 'ot:depara:projeto:proj-a'`).first<{ count: number }>())?.count;
+    expect(await projeto()).toBe(10);
+    for (let i = 0; i < 3; i++) expect((await proposta(cons, `Outra${i};IP\nA;10.1.8.1\n`)).status).toBe(429);
+    expect(await projeto()).toBe(10);
+  });
+
+  it('teto de 2.000 achados na sessão vale por linha: com 1.999, aplicar 3 linhas cria 1', async () => {
+    const lev = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'documento', realizado_em: '2026-11-03', documento_titulo: 'Cheio' });
+    await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1999)
+      INSERT INTO ot_achados (id, project_id, levantamento_id, criado_por) SELECT 'cheio-' || i, 'proj-a', ?, 'x' FROM n`).bind(lev).run();
+    const r = await aplicar(cons, { mapeamento: MAPA }, 'Equipamento;Endereço\nA;10.1.9.11\nB;10.1.9.12\nC;10.1.9.13\n', lev);
+    expect(r.status, await r.clone().text()).toBe(201);
+    expect(await r.json()).toMatchObject({ criados: 1 });
+    const n = async () => (await env.DB.prepare('SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n;
+    expect(await n()).toBe(2000);
+    expect((await aplicar(cons, { mapeamento: MAPA }, 'Equipamento;Endereço\nD;10.1.9.14\n', lev)).status).toBe(400);
+    expect(await n()).toBe(2000);
   });
 
   it('trilha sem nome de arquivo nem IP; nada ao R2 nem ao toMarkdown', async () => {

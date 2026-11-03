@@ -84,6 +84,15 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/proposta', async (c) => {
 const mapeamentoSchema = z.record(z.string().regex(/^\d{1,2}$/), z.enum(CAMPOS_DEPARA));
 const perfilSchema = z.object({ perfil_nome: livreSemPii(100, 1).optional(), perfil_fonte: livreSemPii(200).optional() });
 const BLOCO = 50;
+/** Cada INSERT confere o teto da sessão na hora (D1 roda o lote em série): pedidos simultâneos não passam de 2.000. */
+const INSERIR_ACHADO = (origem: 'consultor' | 'ia') => `INSERT INTO ot_achados (id, project_id, levantamento_id, entidade, dados, erros, evidencia, origem, criado_por)
+  SELECT ?, ?, ?, 'ativo', ?, ?, ?, '${origem}', ? WHERE (SELECT count(*) FROM ot_achados WHERE levantamento_id = ?) < ${TETO_ACHADOS_SESSAO}`;
+/** Grava em blocos de 50 e devolve quantos entraram (o resto bateu no teto). */
+async function gravarAchados(db: D1Database, stmts: D1PreparedStatement[]): Promise<number> {
+  let criados = 0;
+  for (let i = 0; i < stmts.length; i += BLOCO) for (const r of await db.batch(stmts.slice(i, i + BLOCO))) criados += r.meta.changes;
+  return criados;
+}
 
 otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
   try {
@@ -104,7 +113,7 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
     // Número da linha na planilha (cabeçalho = 1) para a evidência; linha sem campo mapeado é pulada.
     const itens = linhas.flatMap((l, i) => aplicarMapeamento([l], m.data).map((dados) => ({ dados, linha: i + 2 })));
     const n = await db.prepare('SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?').bind(lev.id).first<{ n: number }>();
-    if ((n?.n ?? 0) + itens.length > TETO_ACHADOS_SESSAO) return c.json({ error: `Limite de ${TETO_ACHADOS_SESSAO} achados por levantamento` }, 400);
+    if ((n?.n ?? 0) >= TETO_ACHADOS_SESSAO) return c.json({ error: `Limite de ${TETO_ACHADOS_SESSAO} achados por levantamento` }, 400);
 
     const chaves = chavesOt(c.env)!;
     const zonas = await zonasDoSite(db, projectId, lev.site_id);
@@ -114,11 +123,10 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
       const id = genId(); // o mesmo id na AAD da cifra e na linha
       const r = await prepararAchado(chaves, projectId, lev.site_id, id, it.dados, zonas);
       if (r.erros.length) comAviso++;
-      stmts.push(db.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, entidade, dados, erros, evidencia, origem, criado_por)
-        VALUES (?, ?, ?, 'ativo', ?, ?, ?, 'consultor', ?)`).bind(id, projectId, lev.id, JSON.stringify(r.dados), JSON.stringify(r.erros),
-        `Planilha importada, linha ${it.linha}`, user.id));
+      stmts.push(db.prepare(INSERIR_ACHADO('consultor')).bind(id, projectId, lev.id, JSON.stringify(r.dados), JSON.stringify(r.erros),
+        `Planilha importada, linha ${it.linha}`, user.id, lev.id));
     }
-    for (let i = 0; i < stmts.length; i += BLOCO) await db.batch(stmts.slice(i, i + BLOCO));
+    const criados = await gravarAchados(db, stmts);
 
     let perfilId: string | undefined;
     if (p.data.perfil_nome) {
@@ -130,9 +138,9 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
         .first<{ id: string }>();
       perfilId = r!.id;
     }
-    await trilha(c, 'ot.depara.aplicado', projectId, `${itens.length} achados do levantamento ${lev.id} por de-para; perfil salvo: ${perfilId ? 'sim' : 'não'}`,
+    await trilha(c, 'ot.depara.aplicado', projectId, `${criados} achados do levantamento ${lev.id} por de-para; perfil salvo: ${perfilId ? 'sim' : 'não'}`,
       { tipo: 'ot_levantamento', id: lev.id });
-    return c.json({ criados: itens.length, com_aviso: comAviso, ...(perfilId && { perfil_id: perfilId }) }, 201);
+    return c.json({ criados, com_aviso: comAviso, ...(perfilId && { perfil_id: perfilId }) }, 201);
   } catch (e) { return erro500(c, 'Falha ao aplicar o de-para', e); }
 });
 
@@ -154,7 +162,6 @@ otDeparaApp.post('/levantamentos/:id/depara/texto', async (c) => {
     }
     const n = await db.prepare('SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?').bind(lev.id).first<{ n: number }>();
     const itens = r.itens.slice(0, Math.max(0, TETO_ACHADOS_SESSAO - (n?.n ?? 0)));
-    const descartados = r.descartados + r.itens.length - itens.length;
 
     const chaves = chavesOt(c.env)!;
     const zonas = await zonasDoSite(db, projectId, lev.site_id);
@@ -164,14 +171,14 @@ otDeparaApp.post('/levantamentos/:id/depara/texto', async (c) => {
       const id = genId(); // o mesmo id na AAD da cifra e na linha
       const p = await prepararAchado(chaves, projectId, lev.site_id, id, it.dados, zonas);
       if (p.erros.length) comAviso++;
-      stmts.push(db.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, entidade, dados, erros, evidencia, origem, criado_por)
-        VALUES (?, ?, ?, 'ativo', ?, ?, ?, 'ia', ?)`).bind(id, projectId, lev.id, JSON.stringify(p.dados), JSON.stringify(p.erros), it.evidencia, user.id));
+      stmts.push(db.prepare(INSERIR_ACHADO('ia')).bind(id, projectId, lev.id, JSON.stringify(p.dados), JSON.stringify(p.erros), it.evidencia, user.id, lev.id));
     }
-    for (let i = 0; i < stmts.length; i += BLOCO) await db.batch(stmts.slice(i, i + BLOCO));
+    const criados = await gravarAchados(db, stmts);
+    const descartados = r.descartados + r.itens.length - criados; // o que passou do teto da sessão conta como descartado
     await trilha(c, 'ot.depara.texto', projectId,
-      `${itens.length} achados do levantamento ${lev.id} sugeridos pela IA; ${descartados} descartados; ${r.trechos_pulados} trechos pulados`,
+      `${criados} achados do levantamento ${lev.id} sugeridos pela IA; ${descartados} descartados; ${r.trechos_pulados} trechos pulados`,
       { tipo: 'ot_levantamento', id: lev.id });
-    return c.json({ criados: itens.length, com_aviso: comAviso, descartados, trechos_pulados: r.trechos_pulados }, 201);
+    return c.json({ criados, com_aviso: comAviso, descartados, trechos_pulados: r.trechos_pulados }, 201);
   } catch (e) { return erro500(c, 'Falha ao ler o documento', e); }
 });
 

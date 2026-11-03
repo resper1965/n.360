@@ -20,6 +20,11 @@ describe('lerDocumento', () => {
       + '<w:tbl><w:tr><w:tc><w:p w:rsidR="1"><w:r><w:t>célula A</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>célula B</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/>');
     expect(await lerDocumento('a.docx', b)).toEqual({ paragrafos: ['RTU 1 da SE Norte', 'célula A', 'célula B'] });
   });
+  it('DOCX: <w:tab/>, <w:br/> e <w:cr/> viram espaço, <w:noBreakHyphen/> vira hífen', async () => {
+    const b = await docx('<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="720"/></w:tabs></w:pPr><w:r><w:t>Porta 502</w:t><w:tab/><w:t>10.0.0.5</w:t>'
+      + '<w:br w:type="textWrapping"/><w:t>AA</w:t><w:cr/><w:t>SE</w:t><w:noBreakHyphen/><w:t>NORTE</w:t></w:r></w:p>');
+    expect(await lerDocumento('a.docx', b)).toEqual({ paragrafos: ['Porta 502 10.0.0.5 AA SE-NORTE'] });
+  });
   it('DOCX com DOCTYPE -> 400', async () => {
     const r = await lerDocumento('a.docx', await docx('<!DOCTYPE x><w:p><w:r><w:t>a</w:t></w:r></w:p>'));
     expect(r).toMatchObject({ status: 400 });

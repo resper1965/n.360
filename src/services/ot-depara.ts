@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { rateLimitD1, sha256Hex } from '../helpers';
 import { chave } from './tratamentos-importar';
 import { COLUNAS, valorDaCelula } from './ot-coleta';
-import { garantirSemEndereco, mascararParaIa, perguntarIa, perguntarIaItens, RecusaIa, semTokens, type EnvIa } from './ot-ia';
+import { garantirSemEndereco, mascararParaIa, tokenNovo, type MapaTokens, perguntarIa, perguntarIaItens, RecusaIa, semTokens, type EnvIa } from './ot-ia';
 import { mascararPii, temPii } from './rascunhos-privacy';
 import { ENDERECO_EM_TEXTO } from './ot-cifra';
 import { normalizarEspacos } from './ot-documento';
@@ -39,10 +39,14 @@ export async function proporMapeamento(env: EnvIa, cab: string[], amostra: strin
   const esquema = z.object({
     colunas: z.array(z.object({ indice: z.number().int().min(0).max(cab.length - 1), campo: z.enum(CAMPOS_DEPARA).nullable() }).strict()).max(cab.length),
   }).strict();
-  const pii = (l: string[]) => l.map((c) => mascararPii(c) ?? '');
-  const entrada = JSON.stringify({ cabecalho: pii(cab).map((nome, indice) => ({ indice, nome })), amostra: amostra.slice(0, 5).map(pii) });
+  // Célula a célula, num mapa só. Na amostra, palavra única com dígito, `-` ou `_` vira HOST: o hostname solto ("SE-NORTE-RTU01")
+  // não tem rótulo na célula e passaria pela máscara (spec §6). O cabeçalho não passa por essa troca.
+  const mapa: MapaTokens = new Map();
+  const cel = (c: string) => mascararParaIa(mascararPii(c) ?? '', mapa).texto;
+  const host = (c: string) => (/^\S*[\d_-]\S*$/.test(c) && !/^\[[^\]]*\]$|^\[\[[A-Z]+_[0-9a-f]{8}\]\]$/.test(c) ? tokenNovo(mapa, 'hostname', c) : c);
+  const entrada = JSON.stringify({ cabecalho: cab.map((c, indice) => ({ indice, nome: cel(c) })), amostra: amostra.slice(0, 5).map((l) => l.map((c) => host(cel(c)))) });
   try {
-    const s = await perguntarIa(env, PROMPT, entrada, esquema, JSON_SCHEMA);
+    const s = await perguntarIa(env, PROMPT, entrada, esquema, JSON_SCHEMA, (texto) => ({ texto, mapa }));
     const m: Mapeamento = {};
     const usados = new Set<string>();
     for (const { indice, campo } of s.colunas) {
@@ -69,11 +73,11 @@ export function aplicarMapeamento(linhas: string[][], m: Mapeamento): Record<str
   }).filter((o) => Object.keys(o).length > 0);
 }
 
-/** true = dentro do teto. Conta a tentativa nas duas chaves (pessoa e projeto), janela de 1 h. */
+/** true = dentro do teto. Conta a tentativa na pessoa e, só se ela passar, no projeto; janela de 1 h. */
 export async function tetoDepara(db: D1Database, userId: string, projectId: string): Promise<boolean> {
-  const pessoa = await rateLimitD1(db, `ot:depara:pessoa:${userId}`, TETO_DEPARA.pessoa, 3600);
-  const projeto = await rateLimitD1(db, `ot:depara:projeto:${projectId}`, TETO_DEPARA.projeto, 3600);
-  return pessoa && projeto;
+  // A pessoa primeiro: quem já passou do próprio teto e insiste não gasta o teto do projeto dos colegas.
+  return await rateLimitD1(db, `ot:depara:pessoa:${userId}`, TETO_DEPARA.pessoa, 3600)
+    && await rateLimitD1(db, `ot:depara:projeto:${projectId}`, TETO_DEPARA.projeto, 3600);
 }
 
 const PROMPT_TEXTO = `Você lê um trecho de documento técnico de tecnologia operacional (OT) do setor elétrico e lista os ativos citados

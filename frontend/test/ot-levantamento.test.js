@@ -395,6 +395,20 @@ describe('importar arquivo na sessão de documento', () => {
         expect(document.body.textContent).toContain('1 achado criado (0 com aviso).');
     });
 
+    it('fechar o modal durante a proposta descarta a resposta: o mapeamento não reabre', async () => {
+        await abrirDoc({ [`POST ${P}/planilha/proposta`]: PROPOSTA });
+        el('modal-overlay').classList.add('open');
+        window.otImportarArquivo(); escolher('a.csv');
+        const lendo = window.otLerArquivo();
+        window.forceCloseModal();
+        await lendo;
+        expect(chamadas.some((x) => x.k === `POST ${P}/planilha/proposta`)).toBe(true);
+        expect(el('modal-content').textContent).not.toContain('Importar planilha');
+        expect(el('modal-overlay').classList.contains('open')).toBe(false);
+        await window.otAplicarDepara();
+        expect(chamadas.some((x) => x.k === `POST ${P}/planilha/aplicar`)).toBe(false);
+    });
+
     it('achado com origem ia mostra o selo "Sugerido pela IA" junto do nome', async () => {
         await abrirDoc({}, DOC, [ACH(), ACH({ id: 'a2', origem: 'ia', dados: { nome: 'CLP sugerido' } })]);
         const linha = (nome) => [...document.querySelectorAll('#c tbody tr')].find((tr) => tr.textContent.includes(nome));

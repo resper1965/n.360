@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
 import { achadosDoTexto, aplicarMapeamento, assinaturaDoCabecalho, mapeamentoPorCabecalho, proporMapeamento } from '../src/services/ot-depara';
 import { RecusaIa } from '../src/services/ot-ia';
+import { dividirEmTrechos, lerDocumento } from '../src/services/ot-documento';
+import JSZip from 'jszip';
 
 // De-para de planilha do n.ot (L4): assinatura do cabeçalho, mapeamento por cabeçalho, aplicação e proposta da IA mascarada (P0-7).
 
@@ -34,6 +36,18 @@ describe('de-para: serviço', () => {
     expect(entrada).not.toContain('ana@x.com');
   });
 
+  it('proposta: hostname solto na amostra vira [[HOST_]]; o cabeçalho segue legível', async () => {
+    let entrada = '';
+    const run = async (_m: string, p: { messages: { content: string }[] }) => {
+      entrada = p.messages[1].content;
+      return { response: { colunas: [{ indice: 0, campo: 'nome' }] } };
+    };
+    await proporMapeamento({ ...env, AI: { run } }, ['Hostname', 'IP', 'Contato'], [['SE-NORTE-RTU01', '10.0.0.1', 'ana@x.com']]);
+    expect(entrada).toContain('Hostname');
+    expect(entrada).not.toContain('SE-NORTE-RTU01');
+    expect(entrada).toMatch(/"\[\[HOST_[0-9a-f]{8}\]\]","\[\[IP_[0-9a-f]{8}\]\]","\[e-mail\]"/);
+  });
+
   it('IA fora do ar ou índice fora do cabeçalho: cai no cabeçalho com aviso', async () => {
     const sem = await proporMapeamento({ ...env, AI: undefined }, ['Nome', 'IP'], []);
     expect(sem).toMatchObject({ mapeamento: { '0': 'nome', '1': 'ip' }, origem: 'cabecalho' });
@@ -58,6 +72,18 @@ describe('de-para: serviço', () => {
     expect(visto[0]).toContain('[[IP_');
     expect(visto[0]).not.toContain('10.1.1.10');
     expect(r).toEqual({ itens: [{ dados: { nome: 'RTU SEL-3530', ip: '10.1.1.10' }, evidencia: 'RTU SEL-3530 em [IP]' }], descartados: 0, trechos_pulados: 0 });
+  });
+
+  it('texto: DOCX com <w:tab/> entre a porta e o IP chega à IA com o IP mascarado', async () => {
+    const z = new JSZip();
+    z.file('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+      + '<w:p><w:r><w:t>RTU porta 502</w:t><w:tab/><w:t>10.0.0.5</w:t></w:r></w:p></w:body></w:document>');
+    const lido = await lerDocumento('a.docx', await z.generateAsync({ type: 'arraybuffer' }));
+    expect(lido).toEqual({ paragrafos: ['RTU porta 502 10.0.0.5'] });
+    const visto: string[] = [];
+    await achadosDoTexto(iaTexto(() => [], visto), dividirEmTrechos((lido as { paragrafos: string[] }).paragrafos));
+    expect(visto[0]).toMatch(/^RTU porta 502 \[\[IP_[0-9a-f]{8}\]\]$/);
+    expect(visto[0]).not.toContain('10.0.0.5');
   });
 
   it('texto: evidência que não está no trecho é descartada', async () => {

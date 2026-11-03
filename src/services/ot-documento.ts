@@ -16,7 +16,9 @@ export async function lerDocumento(nome: string, arquivo: ArrayBuffer): Promise<
       const b = new Uint8Array(arquivo);
       const entrada = diretorio(b).get('word/document.xml');
       if (!entrada) return { erro: 'DOCX sem word/document.xml', status: 400 };
-      const xml = semDtd(await extrair(b, entrada));
+      // Tabulação e quebra de linha viram espaço (e o hífen inseparável, hífen): sem isso "502⇥10.0.0.5" colaria em "50210.0.0.5",
+      // que nem a máscara nem a conferência de resíduo reconhecem como endereço (P0-7).
+      const xml = semDtd(await extrair(b, entrada)).replace(/<w:(?:tab|br|cr)\b[^>]*\/>/g, '<w:t> </w:t>').replace(/<w:noBreakHyphen\b[^>]*\/>/g, '<w:t>-</w:t>');
       // Tabelas: cada célula contém seus <w:p>, então a varredura plana já gera um parágrafo por célula.
       brutos = [...elementos(xml, 'w:p')].map(([, p]) => [...elementos(p, 'w:t')].map(([, t]) => decodificarXml(t)).join(''));
     }

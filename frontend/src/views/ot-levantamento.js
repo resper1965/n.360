@@ -364,6 +364,7 @@ const ORIGEM_DEPARA = { ia: 'Sugerido pela IA', cabecalho: 'Pelo nome da coluna'
 let importacao = null; // { file, cabecalho }
 let importando = false;
 let observador = null;
+let fechamentos = 0; // conta os fechamentos do modal: a proposta que chega depois de um fechamento é descartada
 const conta = (k, um, varios) => `${k} ${k === 1 ? um : varios}`;
 
 /** Fechar o modal por qualquer caminho (Cancelar, Fechar, Esc, fundo) solta o arquivo guardado na memória da tela. */
@@ -373,6 +374,7 @@ function soltarAoFechar() {
     observador = new MutationObserver(() => {
         if (ov.classList.contains('open')) return;
         importacao = null;
+        fechamentos++;
         const input = el('lev-imp-arquivo');
         if (input) input.value = '';
         observador.disconnect(); observador = null;
@@ -437,9 +439,11 @@ async function lerArquivo() {
     }
     if (ext !== 'csv' && ext !== 'xlsx') return showToast('Use CSV, XLSX, TXT ou DOCX.', 'error');
     let p;
+    const aberto = fechamentos;
     try { p = await enviarArquivo(() => fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/depara/planilha/proposta`,
             { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) })); }
     catch (e) { return falhou(e, 'Não foi possível ler a planilha.'); }
+    if (aberto !== fechamentos) return; // fechou durante a leitura: não reabre o mapeamento nem guarda o arquivo
     importacao = { file, cabecalho: p.cabecalho || [] };
     const seloOrigem = p.origem === 'perfil' ? `Perfil salvo: ${p.perfil?.nome || ''}` : ORIGEM_DEPARA[p.origem] || p.origem;
     const linhas = importacao.cabecalho.map((c, i) => {
