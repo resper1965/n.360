@@ -156,7 +156,7 @@ async function renderTerceiro(c, h, a) {
     // O que só a aba aberta usa. Falha aqui não derruba a ficha: a aba diz que não carregou ou fica vazia.
     const extra = {};
     if (aba === 'criticidade') { try { extra.crit = await api('GET', `/api/v1/projects/${projectId}/terceiros/${parteId}/criticidades`); } catch (e) { extra.crit = null; } }
-    if (aba === 'avaliacoes' && t.metodo === 'questionario') {
+    if (aba === 'avaliacoes' && t.pode_questionario) {
         try { extra.homologacoes = lista(await api('GET', `/api/v1/projects/${projectId}/homologacoes?parte_id=${encodeURIComponent(parteId)}`)); } catch (e) { extra.homologacoes = []; }
     }
     if (aba === 'cadastro' && editar) { try { extra.pessoas = lista(await api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`)); } catch (e) { extra.pessoas = []; } }
@@ -243,7 +243,7 @@ function abaAvaliacoes(projectId, parteId, t, editar, extra) {
         <div id="tc-historico">${hist.length ? `<table class="data-table"><thead><tr><th>Em</th><th>Método</th><th>Resultado</th><th>Vale até</th><th>Evidência</th><th>Observação</th><th>Por</th></tr></thead><tbody>${hist.map((x) =>
             `<tr><td>${dataBr(x.created_at)}</td><td>${escapeHTML(METODOS[x.metodo] || x.metodo)}</td><td>${escapeHTML(RESULTADOS[x.resultado] || x.resultado)}</td><td>${dataBr(x.valido_ate)}</td><td>${linkSeguro(x.evidencia_url)}</td><td>${escapeHTML(x.observacao || '')}</td><td>${escapeHTML(x.avaliado_por || '')}</td></tr>`).join('')}</tbody></table>`
             : vazio('Nenhuma avaliação registrada.')}</div>
-        ${t.metodo === 'questionario' ? secaoHomologacao(projectId, parteId, extra.homologacoes || [], editar) : ''}`;
+        ${t.pode_questionario ? secaoHomologacao(projectId, parteId, extra.homologacoes || [], editar) : ''}`;
 }
 
 // Perfil de segurança: a linha de `vendors` da parte (o mesmo perfil da tela Fornecedores do n.iso), salvo pelo PUT dela.
