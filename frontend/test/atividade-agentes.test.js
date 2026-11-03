@@ -124,8 +124,9 @@ describe('operadores e destinatários', () => {
     expect(el('c').textContent).not.toContain('Nenhum parceiro escolhido');
   });
 
-  it('"Outros destinatários" grava pelo registro (PUT /api/v1/ropa/:id, que também confere o pedido aberto)', async () => {
+  it('"Órgãos públicos destinatários" grava pelo registro (PUT /api/v1/ropa/:id, que também confere o pedido aberto)', async () => {
     const f = await abrir(renderAtividade, base({ 'PUT /api/v1/ropa/r1': { ok: true } }));
+    expect(document.querySelector('label[for="at-destinatarios"]').textContent).toContain('Órgãos públicos');
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     el('at-destinatarios').value = 'Empresa exemplo C';
     el('at-destinatarios').dispatchEvent(new Event('input', { bubbles: true }));

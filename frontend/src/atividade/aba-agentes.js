@@ -43,8 +43,8 @@ function blocoPartes(pid, rid, lig, parceiros, editavel, registro, parceirosFalh
             <button type="button" class="btn btn-sm" data-action="adicionarParteTratamento" data-args='${args(pid, rid)}'>Ligar parceiro</button></div>`
             : parceirosFalhou ? '<p class="re-erro" role="alert">Não foi possível carregar os parceiros desta atividade. Abra a aba de novo para tentar outra vez.</p>'
             : (editavel ? '<p class="at-nota">Nenhum parceiro escolhido nesta atividade. Escolha os parceiros na aba Tratamento de Dados, etapa Compartilhamento Externo, para ligá-los aqui.</p>' : '')}
-        ${campo({ id: 'at-destinatarios', rotulo: 'Outros destinatários (texto livre)', tipo: 'textarea', max: 2000, valor: registro.recipients || '', travado: !editavel,
-            ajuda: 'Quem mais recebe os dados e não está cadastrado em Parceiros.' })}`;
+        ${campo({ id: 'at-destinatarios', rotulo: 'Órgãos públicos destinatários', tipo: 'textarea', max: 2000, valor: registro.recipients || '', travado: !editavel,
+            ajuda: 'Órgãos públicos que recebem os dados, em geral para cumprimento de obrigação legal. Os demais destinatários devem ser cadastrados em Parceiros.' })}`;
 }
 
 window.atRemoverTransferencia = async function (pid, rid, id) {
