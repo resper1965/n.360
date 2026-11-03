@@ -29,12 +29,12 @@ export async function lerPlanilha(nome: string, arquivo: ArrayBuffer): Promise<L
   return { linhas };
 }
 
-class ErroPlanilha extends Error {}
+export class ErroPlanilha extends Error {}
 
 // ─── ZIP ────────────────────────────────────────────────────────────────────
 interface Entrada { metodo: number; comprimido: number; offsetLocal: number }
 
-function diretorio(b: Uint8Array): Map<string, Entrada> {
+export function diretorio(b: Uint8Array): Map<string, Entrada> {
   const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
   let fim = -1;
   for (let i = b.length - 22; i >= Math.max(0, b.length - 22 - 0xffff); i--) if (v.getUint32(i, true) === 0x06054b50) { fim = i; break; }
@@ -52,7 +52,7 @@ function diretorio(b: Uint8Array): Map<string, Entrada> {
   return mapa;
 }
 
-async function extrair(b: Uint8Array, e: Entrada): Promise<string> {
+export async function extrair(b: Uint8Array, e: Entrada): Promise<string> {
   const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
   const o = e.offsetLocal;
   if (o + 30 > b.length || v.getUint32(o, true) !== 0x04034b50) throw new ErroPlanilha('Arquivo XLSX ilegível (entrada do ZIP)');
@@ -79,14 +79,14 @@ async function extrair(b: Uint8Array, e: Entrada): Promise<string> {
 
 // ─── XML do SpreadsheetML ───────────────────────────────────────────────────
 const ENTIDADES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
-const texto = (s: string) => s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, k: string) =>
+export const decodificarXml = (s: string) => s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, k: string) =>
   k[0] === '#' ? String.fromCodePoint(k[1].toLowerCase() === 'x' ? parseInt(k.slice(2), 16) : Number(k.slice(1))) : ENTIDADES[k.toLowerCase()]);
 /**
  * Elementos `<tag ...>corpo</tag>` ou `<tag .../>` por indexOf, em tempo linear: regex preguiçosa com `[\s\S]*?` reexamina o resto do
  * texto a cada abertura sem fechamento (20 mil `<row>` abertos = quadrático). Abertura sem fechamento é XML malformado. As tags lidas
  * aqui (row, c, v, si, t) não se aninham nelas mesmas no SpreadsheetML.
  */
-function* elementos(xml: string, tag: string): Generator<[attrs: string, corpo: string]> {
+export function* elementos(xml: string, tag: string): Generator<[attrs: string, corpo: string]> {
   const abre = `<${tag}`, fecha = `</${tag}>`;
   for (let i = xml.indexOf(abre); i >= 0; i = xml.indexOf(abre, i)) {
     const prox = xml[i + abre.length];
@@ -103,9 +103,9 @@ function* elementos(xml: string, tag: string): Generator<[attrs: string, corpo: 
 }
 
 /** Texto de todos os `<t>` (uma string compartilhada pode vir em vários runs). */
-const textos = (s: string) => [...elementos(s, 't')].map(([, corpo]) => texto(corpo)).join('');
+const textos = (s: string) => [...elementos(s, 't')].map(([, corpo]) => decodificarXml(corpo)).join('');
 
-const semDtd = (xml: string) => {
+export const semDtd = (xml: string) => {
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new ErroPlanilha('XLSX com DTD ou entidade declarada não é aceito');
   return xml;
 };
@@ -137,7 +137,7 @@ async function lerXlsx(b: Uint8Array): Promise<string[][]> {
       prox = col + 1;
       const tipo = attrs.match(/\bt="(\w+)"/)?.[1];
       const v = elementos(conteudo, 'v').next().value?.[1];
-      const valor = tipo === 'inlineStr' ? textos(conteudo) : tipo === 's' ? compartilhadas[Number(v)] ?? '' : v === undefined ? '' : texto(v);
+      const valor = tipo === 'inlineStr' ? textos(conteudo) : tipo === 's' ? compartilhadas[Number(v)] ?? '' : v === undefined ? '' : decodificarXml(v);
       while (linha.length < col) linha.push('');
       linha[col] = valor;
     }
