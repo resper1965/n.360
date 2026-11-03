@@ -324,7 +324,7 @@ describe('importar arquivo na sessão de documento', () => {
     });
 
     it('TXT pede confirmação e mostra as contagens; 422 manda registrar à mão; 429 fala do limite por hora', async () => {
-        await abrirDoc({ [`POST ${P}/texto`]: { criados: 3, com_aviso: 1, descartados: 2, trechos_pulados: 1 } });
+        await abrirDoc({ [`POST ${P}/texto`]: { criados: 3, com_aviso: 1, descartados: 2, trechos_pulados: 4 } });
         window.otImportarArquivo(); escolher('ata.txt');
         const p = window.otLerArquivo();
         await new Promise((r) => setTimeout(r, 0));
@@ -332,7 +332,7 @@ describe('importar arquivo na sessão de documento', () => {
         document.querySelector('[data-confirmar="sim"]').click();
         await p;
         expect(fdDe(`POST ${P}/texto`).get('file').name).toBe('ata.txt');
-        expect(document.body.textContent).toContain('3 achados sugeridos pela IA. 2 descartados por evidência ausente. 1 trechos pulados por endereço sem máscara');
+        expect(document.body.textContent).toContain('3 achados sugeridos pela IA. 2 descartados por evidência ausente. 4 trechos pulados por endereço sem máscara');
 
         const falha = async (status, corpo) => {
             servirOt({});
@@ -347,6 +347,52 @@ describe('importar arquivo na sessão de documento', () => {
         expect(document.body.textContent).toContain('A IA não está disponível agora. Registre os achados à mão.');
         await falha(429, { error: 'Limite por hora atingido: ...', codigo: 'teto_por_hora' });
         expect(document.body.textContent).toContain('Limite por hora do de-para atingido; tente mais tarde.');
+    });
+
+    it('clique duplo não repete proposta, aplicar ou texto; o botão fica ocupado e volta depois do erro', async () => {
+        const conta = (k) => chamadas.filter((x) => x.k === k).length;
+        await abrirDoc({ [`POST ${P}/planilha/proposta`]: PROPOSTA, [`POST ${P}/planilha/aplicar`]: { criados: 1, com_aviso: 0 } });
+        window.otImportarArquivo(); escolher('a.csv');
+        const p1 = window.otLerArquivo();
+        const b = document.querySelector('[data-action="otLerArquivo"]');
+        expect([b.disabled, b.getAttribute('aria-busy')]).toEqual([true, 'true']);
+        await Promise.all([p1, window.otLerArquivo()]);
+        expect(conta(`POST ${P}/planilha/proposta`)).toBe(1);
+        await Promise.all([window.otAplicarDepara(), window.otAplicarDepara()]);
+        expect(conta(`POST ${P}/planilha/aplicar`)).toBe(1);
+
+        await abrirDoc({ [`POST ${P}/texto`]: { criados: 1, com_aviso: 0, descartados: 1, trechos_pulados: 1 } });
+        window.otImportarArquivo(); escolher('ata.txt');
+        const t1 = window.otLerArquivo();
+        const t2 = window.otLerArquivo();
+        await new Promise((r) => setTimeout(r, 0));
+        document.querySelector('[data-confirmar="sim"]').click();
+        await Promise.all([t1, t2]);
+        expect(conta(`POST ${P}/texto`)).toBe(1);
+        // Singular nas contagens.
+        expect(document.body.textContent).toContain('1 achado sugerido pela IA. 1 descartado por evidência ausente. 1 trecho pulado por endereço sem máscara.');
+
+        vi.stubGlobal('fetch', vi.fn(async () => resposta({ error: 'x', codigo: 'teto_por_hora' }, 429)));
+        window.otImportarArquivo(); escolher('a.csv');
+        await window.otLerArquivo();
+        expect(document.querySelector('[data-action="otLerArquivo"]').disabled).toBe(false);
+    });
+
+    it('proposta de 1 linha e 1 achado criado no singular; fechar o modal solta o arquivo', async () => {
+        await abrirDoc({ [`POST ${P}/planilha/proposta`]: { ...PROPOSTA, linhas: 1 }, [`POST ${P}/planilha/aplicar`]: { criados: 1, com_aviso: 0 } });
+        el('modal-overlay').classList.add('open');
+        window.otImportarArquivo(); escolher('a.csv');
+        await window.otLerArquivo();
+        expect(el('modal-content').textContent).toContain('1 linha');
+        expect(el('modal-content').textContent).not.toContain('1 linhas');
+        window.forceCloseModal();
+        await new Promise((r) => setTimeout(r, 0));
+        await window.otAplicarDepara(); // sem arquivo guardado: nada vai
+        expect(chamadas.some((x) => x.k === `POST ${P}/planilha/aplicar`)).toBe(false);
+        window.otImportarArquivo(); escolher('a.csv');
+        await window.otLerArquivo();
+        await window.otAplicarDepara();
+        expect(document.body.textContent).toContain('1 achado criado (0 com aviso).');
     });
 
     it('achado com origem ia mostra o selo "Sugerido pela IA" junto do nome', async () => {

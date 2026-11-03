@@ -362,6 +362,35 @@ const CAMPOS_DEPARA = ['nome', 'ip', 'mac', 'fabricante', 'modelo', 'tipo_dispos
     'no_arciber', 'categoria_arciber', 'firmware_nao_aplicavel', 'zona']; // src/services/ot-depara.ts
 const ORIGEM_DEPARA = { ia: 'Sugerido pela IA', cabecalho: 'Pelo nome da coluna' };
 let importacao = null; // { file, cabecalho }
+let importando = false;
+let observador = null;
+const conta = (k, um, varios) => `${k} ${k === 1 ? um : varios}`;
+
+/** Fechar o modal por qualquer caminho (Cancelar, Fechar, Esc, fundo) solta o arquivo guardado na memória da tela. */
+function soltarAoFechar() {
+    observador?.disconnect();
+    const ov = el('modal-overlay');
+    observador = new MutationObserver(() => {
+        if (ov.classList.contains('open')) return;
+        importacao = null;
+        const input = el('lev-imp-arquivo');
+        if (input) input.value = '';
+        observador.disconnect(); observador = null;
+    });
+    observador.observe(ov, { attributes: true, attributeFilter: ['class'] });
+}
+
+/** Um envio por vez: aplicar não é idempotente e cada leitura gasta o teto por hora. O botão fica desabilitado até a resposta. */
+async function semRepetir(acao, fazer) {
+    if (importando) return;
+    importando = true;
+    const b = document.querySelector(`#modal-content [data-action="${acao}"]`);
+    if (b) { b.disabled = true; b.setAttribute('aria-busy', 'true'); }
+    try { await fazer(); } finally {
+        importando = false;
+        if (b) { b.disabled = false; b.removeAttribute('aria-busy'); }
+    }
+}
 
 /** Multipart (o api() só manda JSON): `enviar` faz o fetch, com o caminho literal (catraca contrato-tela-api). Devolve o corpo do 2xx ou lança Error para a tela. */
 async function enviarArquivo(enviar) {
@@ -384,9 +413,11 @@ window.otImportarArquivo = () => {
         <div class="form-group"><label class="form-label" for="lev-imp-arquivo">Planilha (CSV ou XLSX) ou documento (TXT ou DOCX)</label>
         <input class="form-input" type="file" id="lev-imp-arquivo" accept=".csv,.xlsx,.txt,.docx"></div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otLerArquivo">Continuar</button></div>`);
+    soltarAoFechar();
 };
 
-window.otLerArquivo = async () => {
+window.otLerArquivo = () => semRepetir('otLerArquivo', lerArquivo);
+async function lerArquivo() {
     const file = el('lev-imp-arquivo')?.files?.[0];
     if (!file) return showToast('Escolha o arquivo.', 'error');
     const ext = file.name.split('.').pop().toLowerCase();
@@ -398,8 +429,8 @@ window.otLerArquivo = async () => {
             const r = await enviarArquivo(() => fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/depara/texto`,
             { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) }));
             forceCloseModal();
-            showToast(`${r.criados} achados sugeridos pela IA. ${r.descartados} descartados por evidência ausente.`
-                + (r.trechos_pulados > 0 ? ` ${r.trechos_pulados} trechos pulados por endereço sem máscara.` : ''), 'success');
+            showToast(`${conta(r.criados, 'achado sugerido', 'achados sugeridos')} pela IA. ${conta(r.descartados, 'descartado', 'descartados')} por evidência ausente.`
+                + (r.trechos_pulados > 0 ? ` ${conta(r.trechos_pulados, 'trecho pulado', 'trechos pulados')} por endereço sem máscara.` : ''), 'success');
             await redesenhar();
         } catch (e) { falhou(e, 'Não foi possível ler o documento.'); }
         return;
@@ -416,16 +447,17 @@ window.otLerArquivo = async () => {
         return [escapeHTML(rotulo), `<select class="form-input" id="lev-map-${i}" aria-label="${escapeHTML(`Campo do n.ot para ${rotulo}`)}"><option value="">Ignorar</option>${opcoes(CAMPOS_DEPARA.map((k) => [k, ROTULO_CAMPO[k]]), p.mapeamento?.[i])}</select>`];
     });
     openModal(`<div class="modal-header"><span class="modal-title">Importar planilha</span></div>
-        <p class="d-flex gap-2 items-center mb-2"><span class="badge selo-info">${escapeHTML(seloOrigem)}</span> <span>${escapeHTML(`${p.linhas} linhas`)}</span></p>
+        <p class="d-flex gap-2 items-center mb-2"><span class="badge selo-info">${escapeHTML(seloOrigem)}</span> <span>${escapeHTML(conta(p.linhas, 'linha', 'linhas'))}</span></p>
         ${p.aviso ? `<p class="org-dica mb-3" role="status">${escapeHTML(p.aviso)}</p>` : ''}
         ${renderDataTable(['Coluna da planilha', 'Campo do n.ot'], linhas)}
         <label class="opcao-check mb-3" for="lev-imp-perfil"><input type="checkbox" id="lev-imp-perfil"> Salvar como perfil</label>
         <div class="form-group"><label class="form-label" for="lev-imp-perfil-nome">Nome do perfil</label><input class="form-input" id="lev-imp-perfil-nome" maxlength="100" value="${escapeHTML(p.perfil?.nome || '')}"></div>
         <div class="form-group"><label class="form-label" for="lev-imp-perfil-fonte">Fonte (sistema que gera a planilha)</label><input class="form-input" id="lev-imp-perfil-fonte" maxlength="200" value="${escapeHTML(p.perfil?.fonte || '')}"></div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otAplicarDepara">Criar achados</button></div>`, 'modal-large');
-};
+}
 
-window.otAplicarDepara = async () => {
+window.otAplicarDepara = () => semRepetir('otAplicarDepara', aplicarDepara);
+async function aplicarDepara() {
     if (!importacao) return;
     const mapeamento = {};
     importacao.cabecalho.forEach((_, i) => { const v = el(`lev-map-${i}`)?.value; if (v) mapeamento[i] = v; });
@@ -448,7 +480,7 @@ window.otAplicarDepara = async () => {
             { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) }));
         importacao = null;
         forceCloseModal();
-        showToast(`${r.criados} achados criados (${r.com_aviso} com aviso).`, 'success');
+        showToast(`${conta(r.criados, 'achado criado', 'achados criados')} (${r.com_aviso} com aviso).`, 'success');
         await redesenhar();
     } catch (e) { falhou(e, 'Não foi possível criar os achados.'); }
-};
+}
