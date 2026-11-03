@@ -2436,3 +2436,19 @@ INSERT OR IGNORE INTO ot_roteiro_perguntas (id, ordem, texto, item_norma, entida
  ('rot-13', 13, 'Há modem, roteador 4G ou link de dados fora do padrão?', '4.1.2, 4.1.3', 'ativo_fluxo'),
  ('rot-14', 14, 'Quando algo estranho acontece na rede, a quem vocês avisam?', '4.6.3, 4.6.4', NULL),
  ('rot-15', 15, 'Os equipamentos guardam registro de quem entrou e do que fez?', '4.6.1', 'ativo');
+
+-- ─── n.ot: perfis de de-para (migration 0095) ───
+CREATE TABLE IF NOT EXISTS ot_perfis_depara (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    nome TEXT NOT NULL CHECK (length(nome) BETWEEN 1 AND 100),
+    fonte TEXT NOT NULL DEFAULT '' CHECK (length(fonte) <= 200),
+    assinatura TEXT NOT NULL CHECK (length(assinatura) = 64),
+    mapeamento TEXT NOT NULL CHECK (json_valid(mapeamento) AND json_type(mapeamento) = 'object'),
+    status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'removido')),
+    criado_por TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, assinatura)
+);
+CREATE INDEX IF NOT EXISTS idx_ot_perfis_depara_projeto ON ot_perfis_depara(project_id);

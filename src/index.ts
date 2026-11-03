@@ -49,6 +49,7 @@ import { homologacoesApp } from './routes/homologacoes';
 import { importacaoApp } from './routes/importacao';
 import { otApp } from './routes/ot';
 import { otSaidasApp } from './routes/ot-saidas';
+import { otDeparaApp } from './routes/ot-depara';
 import { encarregadoApp } from './routes/encarregado';
 import { pontoDePartidaApp } from './routes/ponto-de-partida';
 import { painelApp, carteiraApp } from './routes/painel';
@@ -483,6 +484,8 @@ app.route('/api/v1/projects/:projectId/importacoes', importacaoApp);
 app.route('/api/v1/projects/:projectId/ot', otApp);
 // Depois do otApp de propósito: as travas dele (P0-2, escrita só de quem cadastra) valem para as saídas (N4).
 app.route('/api/v1/projects/:projectId/ot', otSaidasApp);
+// Depois do otApp de propósito: as travas dele (P0-2, escrita só de quem cadastra) valem para o de-para (L4).
+app.route('/api/v1/projects/:projectId/ot', otDeparaApp);
 app.route('/api/v1/projects/:projectId/encarregado', encarregadoApp);
 app.route('/api/v1/projects/:projectId/ponto-de-partida', pontoDePartidaApp);
 // Painel de entrada (n.360, n.iso, n.privacy) e a carteira de quem cuida de vários projetos.

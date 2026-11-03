@@ -15,7 +15,7 @@ export const TETO_LOTES_DIA = 20;
 const BLOCO = 50; // statements por batch do D1, como em tratamentos-importar
 
 /** Cabeçalho da planilha (sem acento nem caixa, por `chave`) → campo do ativo. Coluna fora daqui é ignorada, nunca gravada. */
-const COLUNAS: Record<string, string> = {
+export const COLUNAS: Record<string, string> = {
   nome: 'nome', ativo: 'nome', nome_do_ativo: 'nome',
   ip: 'ip', endereco_ip: 'ip', ip_address: 'ip',
   mac: 'mac', endereco_mac: 'mac', mac_address: 'mac',
@@ -33,6 +33,19 @@ const COLUNAS: Record<string, string> = {
 const SIM = ['sim', 's', '1', 'true', 'x', 'yes'];
 const NAO = ['nao', 'n', '0', 'false', 'no'];
 
+/** Célula (já aparada, não vazia) → valor do campo, como no corpo JSON da entrada manual. */
+export function valorDaCelula(campo: string, v: string): unknown {
+  if (campo === 'no_arciber' || campo === 'firmware_nao_aplicavel') return SIM.includes(chave(v)) ? true : NAO.includes(chave(v)) ? false : v;
+  if (campo === 'categoria_arciber') return chave(v);
+  if (campo === 'protocolos_portas') {
+    return v.split(/[|,;]/).map((p) => p.trim()).filter(Boolean).map((p) => {
+      const [protocolo, porta] = p.split(':').map((x) => x.trim());
+      return porta === undefined ? { protocolo } : { protocolo, porta: /^\d+$/.test(porta) ? Number(porta) : porta };
+    });
+  }
+  return v;
+}
+
 /** Planilha (cabeçalho + linhas) → objetos como o corpo JSON da entrada manual. Célula vazia = campo ausente. */
 export function linhasDaPlanilha(linhas: string[][]) {
   const [cab = [], ...resto] = linhas;
@@ -44,14 +57,7 @@ export function linhasDaPlanilha(linhas: string[][]) {
       const campo = campos[i];
       const v = bruto.trim();
       if (!campo || !v || campo in o) return;
-      if (campo === 'no_arciber' || campo === 'firmware_nao_aplicavel') o[campo] = SIM.includes(chave(v)) ? true : NAO.includes(chave(v)) ? false : v;
-      else if (campo === 'categoria_arciber') o[campo] = chave(v);
-      else if (campo === 'protocolos_portas') {
-        o[campo] = v.split(/[|,;]/).map((p) => p.trim()).filter(Boolean).map((p) => {
-          const [protocolo, porta] = p.split(':').map((x) => x.trim());
-          return porta === undefined ? { protocolo } : { protocolo, porta: /^\d+$/.test(porta) ? Number(porta) : porta };
-        });
-      } else o[campo] = v;
+      o[campo] = valorDaCelula(campo, v);
     });
     return o;
   });

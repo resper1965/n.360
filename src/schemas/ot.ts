@@ -83,7 +83,7 @@ export const otLoteManualSchema = z.object({ site_id: id, itens: z.array(z.recor
 export const otLoteRejeitarSchema = z.object({ motivo: livre(500, 3) }).strict();
 
 // Levantamento (spec descoberta operacional, L1): texto livre também recusa CPF, e-mail e telefone; o operador não tem nome.
-const livreSemPii = (max: number, min = 0) => livre(max, min).refine((s) => !temPii(s), 'Não informe CPF, e-mail nem telefone');
+export const livreSemPii = (max: number, min = 0) => livre(max, min).refine((s) => !temPii(s), 'Não informe CPF, e-mail nem telefone');
 const data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD');
 export const TETO_ACHADOS_SESSAO = 2000;
 const respostaRoteiro = z.object({ resposta: z.enum(['sim', 'nao', 'nao_perguntado']), nota: livreSemPii(500).optional() }).strict();
