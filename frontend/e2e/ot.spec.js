@@ -189,3 +189,56 @@ test('levantamento: abre a sessão, registra um achado e envia ao lote, que abre
   await expect(conteudo).toContainText('Fluxo: RTU-01 → Fora da empresa');
   expect(envio).toEqual({ achados: ['ach1', 'ach2'] });
 });
+
+// L4 (de-para, src/routes/ot-depara.ts): sessão documento → importar CSV → proposta pelo nome da coluna → criar achados.
+// O mesmo arquivo vai nas duas chamadas; o achado sugerido pela IA (origem ia) traz o selo.
+test('levantamento documento: importa CSV pelo de-para e os achados aparecem', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  const LV = { ...ABAS_OT[`${B}/levantamentos`].levantamentos[0], tipo: 'documento', documento_titulo: 'Inventário 2023', funcao: null, turno: null };
+  const achados = [{ id: 'ia1', levantamento_id: 'lv1', entidade: 'ativo', origem: 'ia', situacao: 'rascunho', lote_id: null,
+    evidencia: 'O CLP-07 fica no painel 3', erros: [], dados: { nome: 'CLP-07' } }];
+  const enviados = [];
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
+    const chave = `${req.method()} ${path}`;
+    if (chave === `GET ${B}/levantamentos`) return json({ levantamentos: [LV] });
+    if (chave === `GET ${B}/levantamentos/lv1`) return json({ levantamento: LV, achados, nomes_pontas: {}, ativos_do_site: [] });
+    if (chave === `POST ${B}/levantamentos/lv1/depara/planilha/proposta`) {
+      enviados.push(req.postData());
+      return json({ cabecalho: ['Hostname', 'Endereço IP', 'Observação'], mapeamento: { 0: 'nome', 1: 'ip' }, origem: 'cabecalho', linhas: 2 });
+    }
+    if (chave === `POST ${B}/levantamentos/lv1/depara/planilha/aplicar`) {
+      enviados.push(req.postData());
+      for (const nome of ['RTU-10', 'IHM-02']) achados.push({ id: nome, levantamento_id: 'lv1', entidade: 'ativo', origem: 'consultor', situacao: 'rascunho', lote_id: null,
+        evidencia: 'Planilha importada, linha 2', erros: [], dados: { nome, ip: '•••', mascarado: true } });
+      return json({ criados: 2, com_aviso: 0 }, 201);
+    }
+    if (req.method() === 'GET' && path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  const conteudo = page.locator('#content');
+  await page.getByRole('tab', { name: /^Levantamento/ }).click();
+  await page.getByRole('button', { name: 'Abrir Documento de 01/11/2026' }).click();
+  await expect(conteudo.locator('tr', { hasText: 'CLP-07' }).locator('.badge', { hasText: 'Sugerido pela IA' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Importar arquivo' }).click();
+  await expect(page.locator('#modal')).toContainText('O arquivo é lido e descartado; não fica guardado.');
+  await page.getByLabel('Planilha (CSV ou XLSX) ou documento (TXT ou DOCX)').setInputFiles({ name: 'inventario.csv', mimeType: 'text/csv',
+    buffer: Buffer.from('Hostname,Endereço IP,Observação\nRTU-10,10.0.0.10,x\nIHM-02,10.0.0.11,y\n') });
+  await page.locator('#modal').getByRole('button', { name: 'Continuar' }).click();
+  await expect(page.locator('#modal')).toContainText('Pelo nome da coluna');
+  await expect(page.locator('#modal')).toContainText('2 linhas');
+  await expect(page.getByLabel('Campo do n.ot para Hostname')).toHaveValue('nome');
+  await expect(page.getByLabel('Campo do n.ot para Observação')).toHaveValue('');
+  await page.locator('#modal').getByRole('button', { name: 'Criar achados' }).click();
+  await expect(page.locator('body')).toContainText('2 achados criados (0 com aviso)');
+  await expect(conteudo).toContainText('RTU-10');
+  await expect(conteudo).toContainText('IHM-02');
+  expect(enviados).toHaveLength(2);
+  for (const corpo of enviados) expect(corpo).toContain('RTU-10,10.0.0.10');
+  expect(enviados[1]).toContain('{"0":"nome","1":"ip"}');
+});

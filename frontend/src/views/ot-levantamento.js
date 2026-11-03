@@ -1,7 +1,7 @@
 import { S } from '../state.js';
-import { api, API_BASE, cabecalhosAuth } from '../api.js';
+import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo } from '../ot-comum.js';
+import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 
 // Levantamento do n.ot (L1, descoberta operacional): sessões de entrevista, visita de campo e documento, com o roteiro guiado e os
@@ -92,6 +92,7 @@ async function montarSessao(c, a, p, id) {
     a.innerHTML = '<button class="btn" data-action="otVoltarLevantamentos">Voltar aos levantamentos</button>'
         + (editar ? `<button class="btn" data-action="otEncerrarLevantamento" data-args='${args(aberto ? 'encerrado' : 'aberto')}'>${aberto ? 'Encerrar' : 'Reabrir'}</button>` : '')
         + (editar && aberto ? '<button class="btn" data-action="otNovoAchado">Registrar achado</button>' : '')
+        + (editar && aberto && l.tipo === 'documento' ? '<button class="btn" data-action="otImportarArquivo">Importar arquivo</button>' : '')
         + (editar && rascunhos.length ? '<button class="btn btn-primary" data-action="otEnviarAchados" aria-describedby="lev-envio-dica" disabled>Enviar ao lote</button>' : '');
 
     const doTipo = perguntas.filter((q) => Array.isArray(q.tipos_sessao) && q.tipos_sessao.includes(l.tipo));
@@ -110,7 +111,7 @@ async function montarSessao(c, a, p, id) {
             const nome = nomeDoAchado(x.id, 'achado');
             const rasc = x.situacao === 'rascunho';
             return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${nome} ao lote`)}">` : '—'] : []),
-                fluxo ? 'Fluxo' : 'Ativo', escapeHTML(nome), `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
+                fluxo ? 'Fluxo' : 'Ativo', escapeHTML(nome) + (x.origem === 'ia' ? ' <span class="badge selo-info">Sugerido pela IA</span>' : ''), `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
                 ...(comConfronto ? [confronto(x)] : []), listaDeErros(x.erros), selo(ACHADO, x.situacao),
                 ...(editar ? [rasc ? `<button class="btn btn-sm" data-action="otDescartarAchado" data-args='${args(x.id)}' aria-label="${escapeHTML(`Descartar ${nome}`)}">Descartar</button>` : '—'] : [])];
         }), { emptyMessage: 'Nenhum achado registrado.', emptyHint: editar && aberto ? 'Registre cada equipamento ou acesso visto ou relatado nesta sessão.' : '' });
@@ -354,4 +355,100 @@ window.otEnviarAchados = async () => {
         S.otLote = r.id; S.otLevantamento = null; S.otAba = 'coleta';
         window.render();
     } catch (e) { falhou(e, 'Não foi possível enviar os achados ao lote.'); }
+};
+
+// ─── importar arquivo (L4, de-para): o arquivo fica só na memória desta tela e vai de novo, o mesmo, ao aplicar ─────
+const CAMPOS_DEPARA = ['nome', 'ip', 'mac', 'fabricante', 'modelo', 'tipo_dispositivo', 'funcao', 'protocolos_portas', 'firmware_so_versao',
+    'no_arciber', 'categoria_arciber', 'firmware_nao_aplicavel', 'zona']; // src/services/ot-depara.ts
+const ORIGEM_DEPARA = { ia: 'Sugerido pela IA', cabecalho: 'Pelo nome da coluna' };
+let importacao = null; // { file, cabecalho }
+
+/** Multipart (o api() só manda JSON): `enviar` faz o fetch, com o caminho literal (catraca contrato-tela-api). Devolve o corpo do 2xx ou lança Error para a tela. */
+async function enviarArquivo(enviar) {
+    let r, corpo;
+    try {
+        r = await enviar();
+        corpo = await r.json().catch(() => ({}));
+    } catch { throw new Error('Não foi possível enviar o arquivo. Verifique a conexão e tente de novo.'); }
+    if (r.status === 401) throw sessaoTerminada(corpo, '401 no de-para do n.ot');
+    if (r.status === 429) throw new Error('Limite por hora do de-para atingido; tente mais tarde.');
+    if (r.status === 422) throw new Error(`${String(corpo.error || 'A IA não respondeu').replace(/\.$/, '')}. Registre os achados à mão.`);
+    if (!r.ok) throw Object.assign(new Error(corpo.error || ''), { status: r.status, body: corpo });
+    return corpo;
+}
+
+window.otImportarArquivo = () => {
+    importacao = null;
+    openModal(`<div class="modal-header"><span class="modal-title">Importar arquivo</span></div>
+        <p class="org-dica mb-3">O arquivo é lido e descartado; não fica guardado. IP, MAC e dados pessoais são mascarados antes da IA.</p>
+        <div class="form-group"><label class="form-label" for="lev-imp-arquivo">Planilha (CSV ou XLSX) ou documento (TXT ou DOCX)</label>
+        <input class="form-input" type="file" id="lev-imp-arquivo" accept=".csv,.xlsx,.txt,.docx"></div>
+        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otLerArquivo">Continuar</button></div>`);
+};
+
+window.otLerArquivo = async () => {
+    const file = el('lev-imp-arquivo')?.files?.[0];
+    if (!file) return showToast('Escolha o arquivo.', 'error');
+    const ext = file.name.split('.').pop().toLowerCase();
+    const fd = new FormData();
+    fd.append('file', file);
+    if (ext === 'txt' || ext === 'docx') {
+        if (!await confirmar('A IA vai ler o texto mascarado e sugerir achados. Revise cada um antes de enviar ao lote.', { titulo: 'Ler documento', rotulo: 'Ler com a IA' })) return;
+        try {
+            const r = await enviarArquivo(() => fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/depara/texto`,
+            { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) }));
+            forceCloseModal();
+            showToast(`${r.criados} achados sugeridos pela IA. ${r.descartados} descartados por evidência ausente.`
+                + (r.trechos_pulados > 0 ? ` ${r.trechos_pulados} trechos pulados por endereço sem máscara.` : ''), 'success');
+            await redesenhar();
+        } catch (e) { falhou(e, 'Não foi possível ler o documento.'); }
+        return;
+    }
+    if (ext !== 'csv' && ext !== 'xlsx') return showToast('Use CSV, XLSX, TXT ou DOCX.', 'error');
+    let p;
+    try { p = await enviarArquivo(() => fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/depara/planilha/proposta`,
+            { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) })); }
+    catch (e) { return falhou(e, 'Não foi possível ler a planilha.'); }
+    importacao = { file, cabecalho: p.cabecalho || [] };
+    const seloOrigem = p.origem === 'perfil' ? `Perfil salvo: ${p.perfil?.nome || ''}` : ORIGEM_DEPARA[p.origem] || p.origem;
+    const linhas = importacao.cabecalho.map((c, i) => {
+        const rotulo = c.trim() || `Coluna ${i + 1}`;
+        return [escapeHTML(rotulo), `<select class="form-input" id="lev-map-${i}" aria-label="${escapeHTML(`Campo do n.ot para ${rotulo}`)}"><option value="">Ignorar</option>${opcoes(CAMPOS_DEPARA.map((k) => [k, ROTULO_CAMPO[k]]), p.mapeamento?.[i])}</select>`];
+    });
+    openModal(`<div class="modal-header"><span class="modal-title">Importar planilha</span></div>
+        <p class="d-flex gap-2 items-center mb-2"><span class="badge selo-info">${escapeHTML(seloOrigem)}</span> <span>${escapeHTML(`${p.linhas} linhas`)}</span></p>
+        ${p.aviso ? `<p class="org-dica mb-3" role="status">${escapeHTML(p.aviso)}</p>` : ''}
+        ${renderDataTable(['Coluna da planilha', 'Campo do n.ot'], linhas)}
+        <label class="opcao-check mb-3" for="lev-imp-perfil"><input type="checkbox" id="lev-imp-perfil"> Salvar como perfil</label>
+        <div class="form-group"><label class="form-label" for="lev-imp-perfil-nome">Nome do perfil</label><input class="form-input" id="lev-imp-perfil-nome" maxlength="100" value="${escapeHTML(p.perfil?.nome || '')}"></div>
+        <div class="form-group"><label class="form-label" for="lev-imp-perfil-fonte">Fonte (sistema que gera a planilha)</label><input class="form-input" id="lev-imp-perfil-fonte" maxlength="200" value="${escapeHTML(p.perfil?.fonte || '')}"></div>
+        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otAplicarDepara">Criar achados</button></div>`, 'modal-large');
+};
+
+window.otAplicarDepara = async () => {
+    if (!importacao) return;
+    const mapeamento = {};
+    importacao.cabecalho.forEach((_, i) => { const v = el(`lev-map-${i}`)?.value; if (v) mapeamento[i] = v; });
+    const campos = Object.values(mapeamento);
+    if (!campos.length) return showToast('Escolha o campo de ao menos uma coluna.', 'error');
+    const repetido = campos.find((c, i) => campos.indexOf(c) !== i);
+    if (repetido) return showToast(`O campo "${ROTULO_CAMPO[repetido]}" está em mais de uma coluna. Deixe só uma.`, 'error');
+    const fd = new FormData();
+    fd.append('file', importacao.file);
+    fd.append('mapeamento', JSON.stringify(mapeamento));
+    if (el('lev-imp-perfil')?.checked) {
+        const nome = el('lev-imp-perfil-nome').value.trim();
+        if (!nome) return showToast('Dê um nome ao perfil.', 'error');
+        fd.append('perfil_nome', nome);
+        const fonte = el('lev-imp-perfil-fonte').value.trim();
+        if (fonte) fd.append('perfil_fonte', fonte);
+    }
+    try {
+        const r = await enviarArquivo(() => fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/depara/planilha/aplicar`,
+            { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) }));
+        importacao = null;
+        forceCloseModal();
+        showToast(`${r.criados} achados criados (${r.com_aviso} com aviso).`, 'success');
+        await redesenhar();
+    } catch (e) { falhou(e, 'Não foi possível criar os achados.'); }
 };

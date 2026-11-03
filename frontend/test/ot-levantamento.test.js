@@ -235,6 +235,128 @@ describe('aba Levantamento', () => {
     });
 });
 
+// L4 (de-para): corpos de src/routes/ot-depara.ts (proposta 200, aplicar 201, texto 201/422, teto 429).
+describe('importar arquivo na sessão de documento', () => {
+    const DOC = { ...LEV, tipo: 'documento', documento_titulo: 'Inventário 2023' };
+    const P = `${B}/levantamentos/l1/depara`;
+    const abrirDoc = async (extra = {}, lev = DOC, achados = []) => {
+        servirOt({ [`GET ${B}/levantamentos/l1`]: { levantamento: lev, achados }, [`GET ${B}/roteiro`]: ROTEIRO, ...extra });
+        window.otAbrirLevantamento('l1');
+        await abrir('levantamento');
+    };
+    const escolher = (nome, conteudo = 'x') => {
+        const f = new File([conteudo], nome);
+        Object.defineProperty(el('lev-imp-arquivo'), 'files', { value: [f] });
+        return f;
+    };
+    const PROPOSTA = { cabecalho: ['Hostname <b id="xss2">', 'End. IP', 'Obs'], mapeamento: { 0: 'nome', 1: 'ip' }, origem: 'perfil',
+        perfil: { id: 'pf1', nome: 'Export <i id="xss3">SCADA</i>', fonte: 'SCADA' }, aviso: 'Revise as colunas.', linhas: 12 };
+    const fdDe = (k) => chamadas.find((x) => x.k === k).opts.body;
+
+    it('botão só em documento aberto para quem edita', async () => {
+        await abrirDoc();
+        expect(document.querySelector('[data-action="otImportarArquivo"]')).not.toBeNull();
+        await abrirDoc({}, { ...DOC, situacao: 'encerrado' });
+        expect(document.querySelector('[data-action="otImportarArquivo"]')).toBeNull();
+        await abrirDoc({}, LEV);
+        expect(document.querySelector('[data-action="otImportarArquivo"]')).toBeNull();
+        S.user = { id: 'u', role: 'org_user' };
+        await abrirDoc();
+        expect(document.querySelector('[data-action="otImportarArquivo"]')).toBeNull();
+    });
+
+    it('modal avisa que o arquivo não fica guardado; a proposta preenche os selects e o selo, com texto escapado', async () => {
+        await abrirDoc({ [`POST ${P}/planilha/proposta`]: PROPOSTA });
+        window.otImportarArquivo();
+        expect(el('lev-imp-arquivo').accept).toBe('.csv,.xlsx,.txt,.docx');
+        expect(el('modal-content').textContent).toContain('O arquivo é lido e descartado; não fica guardado. IP, MAC e dados pessoais são mascarados antes da IA.');
+        const f = escolher('a.csv');
+        await window.otLerArquivo();
+        expect(fdDe(`POST ${P}/planilha/proposta`).get('file')).toBe(f);
+        expect([el('lev-map-0').value, el('lev-map-1').value, el('lev-map-2').value]).toEqual(['nome', 'ip', '']);
+        expect([...el('lev-map-2').options].map((o) => o.textContent)).toContain('Ignorar');
+        expect([...el('lev-map-2').options].map((o) => o.textContent)).toContain('Endereço MAC');
+        const m = el('modal-content').textContent;
+        expect(m).toContain('Perfil salvo: Export <i id="xss3">SCADA</i>');
+        expect(m).toContain('Revise as colunas.');
+        expect(m).toContain('12 linhas');
+        expect(m).toContain('Hostname <b id="xss2">');
+        expect(el('xss2')).toBeNull(); expect(el('xss3')).toBeNull();
+        for (const [origem, selo] of [['ia', 'Sugerido pela IA'], ['cabecalho', 'Pelo nome da coluna']]) {
+            await abrirDoc({ [`POST ${P}/planilha/proposta`]: { ...PROPOSTA, origem, perfil: undefined, aviso: undefined } });
+            window.otImportarArquivo(); escolher('a.xlsx');
+            await window.otLerArquivo();
+            expect(el('modal-content').textContent).toContain(selo);
+        }
+    });
+
+    it('aplicar reenvia o mesmo arquivo e só as colunas não ignoradas, com o perfil; toast e redesenho', async () => {
+        await abrirDoc({ [`POST ${P}/planilha/proposta`]: PROPOSTA, [`POST ${P}/planilha/aplicar`]: { criados: 12, com_aviso: 2, perfil_id: 'pf1' } });
+        window.otImportarArquivo();
+        const f = escolher('a.csv');
+        await window.otLerArquivo();
+        el('lev-map-1').value = '';
+        el('lev-map-2').value = 'mac';
+        el('lev-imp-perfil').checked = true;
+        el('lev-imp-perfil-nome').value = 'Export SCADA';
+        el('lev-imp-perfil-fonte').value = 'SCADA';
+        await window.otAplicarDepara();
+        const fd = fdDe(`POST ${P}/planilha/aplicar`);
+        expect(fd.get('file')).toBe(f);
+        expect(JSON.parse(fd.get('mapeamento'))).toEqual({ 0: 'nome', 2: 'mac' });
+        expect([fd.get('perfil_nome'), fd.get('perfil_fonte')]).toEqual(['Export SCADA', 'SCADA']);
+        expect(document.body.textContent).toContain('12 achados criados (2 com aviso)');
+        expect(window.render).toHaveBeenCalled();
+    });
+
+    it('campo repetido bloqueia o envio; sem perfil marcado, nome e fonte não vão', async () => {
+        await abrirDoc({ [`POST ${P}/planilha/proposta`]: PROPOSTA, [`POST ${P}/planilha/aplicar`]: { criados: 1, com_aviso: 0 } });
+        window.otImportarArquivo(); escolher('a.csv');
+        await window.otLerArquivo();
+        el('lev-map-2').value = 'nome';
+        await window.otAplicarDepara();
+        expect(chamadas.some((x) => x.k === `POST ${P}/planilha/aplicar`)).toBe(false);
+        expect(document.body.textContent).toContain('"Nome" está em mais de uma coluna');
+        el('lev-map-2').value = '';
+        await window.otAplicarDepara();
+        const fd = fdDe(`POST ${P}/planilha/aplicar`);
+        expect(fd.has('perfil_nome')).toBe(false);
+    });
+
+    it('TXT pede confirmação e mostra as contagens; 422 manda registrar à mão; 429 fala do limite por hora', async () => {
+        await abrirDoc({ [`POST ${P}/texto`]: { criados: 3, com_aviso: 1, descartados: 2, trechos_pulados: 1 } });
+        window.otImportarArquivo(); escolher('ata.txt');
+        const p = window.otLerArquivo();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(document.querySelector('.confirmar').textContent).toContain('A IA vai ler o texto mascarado e sugerir achados. Revise cada um antes de enviar ao lote.');
+        document.querySelector('[data-confirmar="sim"]').click();
+        await p;
+        expect(fdDe(`POST ${P}/texto`).get('file').name).toBe('ata.txt');
+        expect(document.body.textContent).toContain('3 achados sugeridos pela IA. 2 descartados por evidência ausente. 1 trechos pulados por endereço sem máscara');
+
+        const falha = async (status, corpo) => {
+            servirOt({});
+            vi.stubGlobal('fetch', vi.fn(async () => resposta(corpo, status)));
+            window.otImportarArquivo(); escolher('ata.docx');
+            const q = window.otLerArquivo();
+            await new Promise((r) => setTimeout(r, 0));
+            document.querySelector('[data-confirmar="sim"]').click();
+            await q;
+        };
+        await falha(422, { error: 'A IA não está disponível agora' });
+        expect(document.body.textContent).toContain('A IA não está disponível agora. Registre os achados à mão.');
+        await falha(429, { error: 'Limite por hora atingido: ...', codigo: 'teto_por_hora' });
+        expect(document.body.textContent).toContain('Limite por hora do de-para atingido; tente mais tarde.');
+    });
+
+    it('achado com origem ia mostra o selo "Sugerido pela IA" junto do nome', async () => {
+        await abrirDoc({}, DOC, [ACH(), ACH({ id: 'a2', origem: 'ia', dados: { nome: 'CLP sugerido' } })]);
+        const linha = (nome) => [...document.querySelectorAll('#c tbody tr')].find((tr) => tr.textContent.includes(nome));
+        expect(linha('Notebook IHM').textContent).not.toContain('Sugerido pela IA');
+        expect(linha('CLP sugerido').querySelector('.badge').textContent).toBe('Sugerido pela IA');
+    });
+});
+
 describe('coleta ligada a um documento', () => {
     it('a planilha pode ser ligada a uma sessão documento do site escolhido', async () => {
         servirOt({ ...SITES, [`GET ${B}/lotes`]: { lotes: [] }, [`GET ${B}/levantamentos`]: { levantamentos: [LEV,
