@@ -570,3 +570,39 @@ describe('pedidos: colunas e filtros da lista (spec 2026-10-19)', () => {
         expect(f.mock.calls.length).toBe(antes);
     });
 });
+
+describe('portal público e tratativas (#14)', () => {
+    const esperarEl = async (id) => { for (let i = 0; i < 30 && !el(id); i++) await new Promise((r) => setTimeout(r, 5)); };
+
+    it('a aba de pedidos traz o botão "Link do portal" para quem registra', async () => {
+        await abrir('pedidos');
+        expect(el('a').textContent).toContain('Link do portal');
+    });
+
+    it('gerar o link mostra a URL uma vez', async () => {
+        const f = servir({ [`GET ${B}/titular-portal`]: { ativo: false, criado_por: null, created_at: null }, [`POST ${B}/titular-portal`]: { ok: true, url: 'https://n360.ness.com.br/solicitacao#tok-abc' } });
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        await window.abrirPortalTitular('p9');
+        expect(el('modal-content').textContent).toContain('Gerar link');
+        await window.gerarPortalTitular('p9');
+        expect(el('pt-portal-url').value).toBe('https://n360.ness.com.br/solicitacao#tok-abc');
+        expect(chamadas(f)).toContain(`POST ${B}/titular-portal`);
+    });
+
+    it('abrir um pedido carrega as tratativas e registra uma nova', async () => {
+        const PED = { id: 'a', protocolo: 'PT-2026-0001', tipo: 'acesso', canal: 'formulario', recebido_em: '2026-10-01', prazo_em: null, status: 'recebido', situacao_prazo: 'sem_prazo', titular_nome: 'Fulano', titular_contato: 'f@e.com', descricao: 'Quero acesso' };
+        const f = servir({
+            [`GET ${B}/titular-pedidos/a`]: PED,
+            [`GET ${B}/titular-pedidos/a/tratativas`]: [{ id: 't1', tipo: 'encaminhamento', texto: 'Ao RH', autor: 'x', created_at: '2026-10-02 10:00:00' }],
+            [`POST ${B}/titular-pedidos/a/tratativas`]: { ok: true, id: 't2' },
+        });
+        document.body.innerHTML = '<div id="modal-overlay"><div id="modal"><div id="modal-content"></div></div></div>';
+        await window.abrirPedidoTitular('p9', 'a');
+        await esperarEl('pt-trat-texto');
+        expect(el('pt-tratativas-box').textContent).toContain('Encaminhamento a ponto focal');
+        el('pt-trat-texto').value = 'Nova tratativa';
+        el('pt-trat-tipo').value = 'nota';
+        await window.salvarTratativa('p9', 'a');
+        expect(corpoDe(f, `POST ${B}/titular-pedidos/a/tratativas`)).toEqual({ tipo: 'nota', texto: 'Nova tratativa' });
+    });
+});
