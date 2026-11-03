@@ -119,6 +119,7 @@ export async function perguntarIaItens<I extends z.ZodType<Record<string, unknow
   env: EnvIa, sistema: string, usuario: Mascara, item: I, jsonSchema: Record<string, unknown>,
   opcoes: { maxTokens?: number; camposComToken?: string[] } = {},
 ): Promise<z.infer<I>[]> {
+  if ((opcoes.camposComToken ?? []).some((c) => Object.hasOwn(RESTAURAVEL, c))) throw new Error('camposComToken não pode incluir ip, mac ou hostname');
   const bruto = await chamarModelo(env, sistema, usuario.texto, jsonSchema, opcoes.maxTokens ?? 2000);
   const v = z.object({ itens: z.array(item).max(50) }).strict().safeParse(bruto);
   if (!v.success) throw new RecusaIa('A resposta da IA veio fora do formato esperado');
@@ -128,15 +129,20 @@ export async function perguntarIaItens<I extends z.ZodType<Record<string, unknow
     const resto: Record<string, unknown> = {};
     for (const [k, val] of Object.entries(it)) {
       if (!separados.has(k)) { resto[k] = val; continue; }
-      if (typeof val === 'string') for (const t of val.match(new RegExp(DO_TOKEN.source, 'g')) ?? []) if (!usuario.mapa.has(t)) throw new RecusaIa(RECUSA_TOKEN);
+      if (typeof val !== 'string') throw new RecusaIa(RECUSA_TOKEN);
+      // tira os tokens desta chamada; o que sobrar não pode parecer token nem endereço
+      let sobra = val;
+      for (const t of val.match(TOKENS_G) ?? []) { if (!usuario.mapa.has(t)) throw new RecusaIa(RECUSA_TOKEN); sobra = sobra.replaceAll(t, ' '); }
+      semTokenNemEndereco(sobra);
       guardado[k] = val;
     }
     return { ...restaurarSaida(resto, usuario.mapa), ...guardado } as z.infer<I>;
   });
 }
 
+const TOKENS_G = new RegExp(DO_TOKEN.source, 'g');
 const MARCADOR: Record<string, string> = { IP: '[IP]', MAC: '[MAC]', HOST: '[HOST]', SERIE: '[SERIE]' };
 /** Troca cada token por um marcador, para gravar evidência sem endereço. */
 export function semTokens(texto: string): string {
-  return texto.replace(/\[\[(IP|MAC|HOST|SERIE)_[0-9a-f]{8}\]\]/g, (_m, s: string) => MARCADOR[s]);
+  return texto.replace(TOKENS_G, (_m, s: string) => MARCADOR[s]);
 }

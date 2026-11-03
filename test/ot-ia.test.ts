@@ -159,6 +159,17 @@ describe('perguntarIaItens', () => {
     expect(f.chamadas[0].entrada.max_tokens).toBe(2000);
   });
 
+  it('campo com token aceita só token do mapa: endereço literal, hex maiúsculo, token sem colchete e não-string recusam', async () => {
+    const c = { camposComToken: ['evidencia'] };
+    for (const e of ['RTU em 10.0.0.9', '[[IP_0A1B2C3D]]', 'IP_0a1b2c3d', 42, null]) {
+      await expect(perguntarIaItens(falso([{ ...ok, evidencia: e }]).env, 's', usuario, item, {}, c), String(e)).rejects.toThrow(RecusaIa);
+    }
+  });
+
+  it('camposComToken com ip, mac ou hostname é erro de programação', async () => {
+    await expect(perguntarIaItens(falso([]).env, 's', usuario, item, {}, { camposComToken: ['ip'] })).rejects.toThrow(/camposComToken/);
+  });
+
   it('semTokens troca token por marcador', () => {
     expect(semTokens('a [[IP_0a1b2c3d]] b [[MAC_00112233]]')).toBe('a [IP] b [MAC]');
   });
