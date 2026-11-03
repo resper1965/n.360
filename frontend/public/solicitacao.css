@@ -1,0 +1,4 @@
+/* Solicitação do titular (solicitacao.html): só o que é desta página. Tokens, topo, campos, botões e estados vêm de /publico.css.
+ * Sistema quadrado (raio 0). */
+.sl-nota { margin-top: 12px; }
+.sl-protocolo { margin: 8px 0 0; font: 400 28px/1.3 var(--font-mono); color: var(--accent); overflow-wrap: anywhere; }

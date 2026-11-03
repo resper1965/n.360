@@ -1,14 +1,15 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { ehEquipeNess, erro500, registraErro } from '../helpers';
+import { appUrl } from '../config/url';
 import { lerParametros, removerParametro, salvarParametro } from '../services/parametros-legais';
-import { atualizarPedido, criarPedido, lerPedido, listarPedidos } from '../services/titular-pedidos';
+import { atualizarPedido, criarPedido, lerPedido, listarPedidos, gerarPortal, lerPortal, desativarPortal, listarTratativas, adicionarTratativa } from '../services/titular-pedidos';
 import { avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
 import { listarConsentimentos, registrarConsentimento, revogarConsentimento } from '../services/consentimentos';
 import { rascunharComunicacao, rascunharResposta } from '../services/rascunhos-privacy';
 import {
   validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, parametroLegalSchema,
-  titularPedidoAtualizarSchema, titularPedidoCriarSchema,
+  titularPedidoAtualizarSchema, titularPedidoCriarSchema, tratativaSchema,
 } from '../schemas';
 
 type Ctx = { Bindings: Bindings; Variables: Variables };
@@ -80,6 +81,45 @@ titularPedidosApp.post('/:id/rascunho', async (c) => {
     const r = await rascunharResposta(c.env, c.req.param('projectId')!, c.req.param('id'), c.get('user'), (e) => registraErro(c, e));
     return r.ok ? c.json(r) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao gerar o rascunho da resposta', e); }
+});
+
+// Tratativas do atendimento (migration 0096): quem já responde o pedido registra os passos (comunicação, encaminhamento, evidência).
+// Escrita é de quem tem acesso de escrita a titular (equipe e org_admin pelo allow-list de auth.ts); org_user, client e o agente só leem.
+titularPedidosApp.get('/:id/tratativas', async (c) => {
+  const t = await listarTratativas(c.env.DB, c.req.param('projectId')!, c.req.param('id'));
+  return t ? c.json(t) : c.json({ error: 'Pedido não encontrado' }, 404);
+});
+
+titularPedidosApp.post('/:id/tratativas', async (c) => {
+  try {
+    const v = await validateBody(c, tratativaSchema);
+    if (!v.success) return v.response;
+    const r = await adicionarTratativa(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data);
+    return r.ok ? c.json({ ok: true, id: r.id }, 201) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao registrar a tratativa', e); }
+});
+
+// ─── Portal público de solicitações: o link que o cliente publica (migration 0096) ───────────────
+// Só leitura e gravação de quem já gere os pedidos do titular (equipe e org_admin pelo allow-list); o agente roda como client e não escreve.
+export const titularPortalApp = new Hono<Ctx>();
+
+titularPortalApp.get('/', async (c) => {
+  const p = await lerPortal(c.env.DB, c.req.param('projectId')!);
+  return c.json(p ?? { ativo: false, criado_por: null, created_at: null });
+});
+
+titularPortalApp.post('/', async (c) => {
+  try {
+    const { token } = await gerarPortal(c.env.DB, c.req.param('projectId')!, c.get('user').email);
+    return c.json({ ok: true, url: `${appUrl(c.env)}/solicitacao#${token}` }, 201);
+  } catch (e) { return erro500(c, 'Falha ao gerar o link do portal', e); }
+});
+
+titularPortalApp.post('/desativar', async (c) => {
+  try {
+    const ok = await desativarPortal(c.env.DB, c.req.param('projectId')!, c.get('user').email);
+    return ok ? c.json({ ok: true }) : c.json({ error: 'O portal já estava desativado ou nunca foi gerado' }, 409);
+  } catch (e) { return erro500(c, 'Falha ao desativar o portal', e); }
 });
 
 // ─── Incidente ───────────────────────────────────────────────────────────────────────────────────

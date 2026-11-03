@@ -37,7 +37,7 @@ export const FAIXA_DO_SEGMENTO: Record<string, Faixa> = {
   'seed-27001-2022': 'iso', 'seed-27701-2025': 'iso', traceability: 'iso',
   // só n.privacy
   catalogos: 'privacy', consentimentos: 'privacy', encarregado: 'privacy', importacoes: 'privacy', requisitos: 'privacy', terceiros: 'privacy', homologacoes: 'privacy',
-  'titular-pedidos': 'privacy',
+  'titular-pedidos': 'privacy', 'titular-portal': 'privacy',
   // só n.ot: todas as rotas ficam sob `ot/` (spec 2026-10-30-n-ot-modulo-n360-design, 4.2)
   ot: 'ot',
 };

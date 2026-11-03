@@ -1,4 +1,4 @@
-import { logAudit } from '../helpers';
+import { logAudit, genToken, sha256Hex } from '../helpers';
 import { prazoDe, proximoProtocolo } from './parametros-legais';
 import { hojeEmSaoPaulo } from './hoje';
 
@@ -143,4 +143,63 @@ export async function atualizarPedido(db: D1Database, projectId: string, id: str
   if (!r.meta.changes) return falha(409, 'O pedido mudou enquanto você editava; recarregue');
   await logAudit(db, 'titular.pedido_atualizado', ator, `Pedido ${atual.protocolo}: ${atual.status} → ${novo}${d.prazo_em !== undefined ? '; prazo alterado à mão' : ''}`, '', '', projectId);
   return { ok: true };
+}
+
+// ─── Portal público de solicitações (migration 0096, spec 2026-11-03) ─────────────────────────────
+
+/** Gera (ou regenera) o link público do projeto; só o SHA-256 do token fica no banco, o token sai uma vez. */
+export async function gerarPortal(db: D1Database, projectId: string, ator: string): Promise<{ token: string }> {
+  const token = genToken();
+  await db.prepare(
+    `INSERT INTO titular_portais (project_id, token_hash, ativo, criado_por) VALUES (?, ?, 1, ?)
+     ON CONFLICT(project_id) DO UPDATE SET token_hash = excluded.token_hash, ativo = 1, criado_por = excluded.criado_por, updated_at = CURRENT_TIMESTAMP`,
+  ).bind(projectId, await sha256Hex(token), ator).run();
+  await logAudit(db, 'titular.portal', ator, 'Link público do portal de solicitações gerado (o token anterior deixa de valer)', '', '', projectId);
+  return { token };
+}
+
+/** Estado do portal do projeto (sem o token). null = nunca foi gerado. */
+export async function lerPortal(db: D1Database, projectId: string): Promise<{ ativo: boolean; criado_por: string | null; created_at: string } | null> {
+  const r = await db.prepare('SELECT ativo, criado_por, created_at FROM titular_portais WHERE project_id = ?').bind(projectId).first<{ ativo: number; criado_por: string | null; created_at: string }>();
+  return r ? { ativo: r.ativo === 1, criado_por: r.criado_por, created_at: r.created_at } : null;
+}
+
+export async function desativarPortal(db: D1Database, projectId: string, ator: string): Promise<boolean> {
+  const r = await db.prepare("UPDATE titular_portais SET ativo = 0, updated_at = CURRENT_TIMESTAMP WHERE project_id = ? AND ativo = 1").bind(projectId).run();
+  if (r.meta.changes) await logAudit(db, 'titular.portal', ator, 'Link público do portal de solicitações desativado', '', '', projectId);
+  return !!r.meta.changes;
+}
+
+/** Projeto do token do link, só se o portal está ativo. null (inexistente ou desligado) dá o mesmo 404 na rota pública. */
+export async function portalDoToken(db: D1Database, token: string): Promise<{ project_id: string } | null> {
+  return db.prepare("SELECT project_id FROM titular_portais WHERE token_hash = ? AND ativo = 1").bind(await sha256Hex(token)).first<{ project_id: string }>();
+}
+
+export type AberturaPortal = { tipo: TipoPedido; titular_nome: string; titular_contato: string; descricao: string };
+
+/** Abre um pedido pela recepção pública: canal `formulario`, status `recebido`, protocolo gerado como na criação interna. */
+export async function abrirPedidoPortal(db: D1Database, projectId: string, d: AberturaPortal): Promise<Falha | { ok: true; id: string; protocolo: string; prazo_em: string | null }> {
+  return criarPedido(db, projectId, 'sistema:portal', { tipo: d.tipo, canal: 'formulario', titular_nome: d.titular_nome, titular_contato: d.titular_contato, descricao: d.descricao });
+}
+
+// ─── Tratativas do atendimento (migration 0096) ───────────────────────────────────────────────────
+
+export const TIPOS_TRATATIVA = ['comunicacao_titular', 'encaminhamento', 'evidencia', 'nota'] as const;
+export type TipoTratativa = (typeof TIPOS_TRATATIVA)[number];
+export type Tratativa = { id: string; tipo: TipoTratativa; texto: string; autor: string | null; created_at: string };
+
+export async function listarTratativas(db: D1Database, projectId: string, pedidoId: string): Promise<Tratativa[] | null> {
+  if (!(await db.prepare('SELECT 1 FROM titular_pedidos WHERE id = ? AND project_id = ?').bind(pedidoId, projectId).first())) return null;
+  const { results } = await db.prepare(
+    'SELECT id, tipo, texto, autor, created_at FROM titular_pedido_tratativas WHERE pedido_id = ? AND project_id = ? ORDER BY created_at, rowid',
+  ).bind(pedidoId, projectId).all<Tratativa>();
+  return results;
+}
+
+export async function adicionarTratativa(db: D1Database, projectId: string, pedidoId: string, ator: string, d: { tipo: TipoTratativa; texto: string }): Promise<Falha | { ok: true; id: string }> {
+  if (!(await db.prepare('SELECT 1 FROM titular_pedidos WHERE id = ? AND project_id = ?').bind(pedidoId, projectId).first())) return falha(404, 'Pedido não encontrado');
+  const id = crypto.randomUUID();
+  await db.prepare('INSERT INTO titular_pedido_tratativas (id, pedido_id, project_id, tipo, texto, autor) VALUES (?, ?, ?, ?, ?, ?)').bind(id, pedidoId, projectId, d.tipo, d.texto, ator).run();
+  await logAudit(db, 'titular.tratativa', ator, `Tratativa (${d.tipo}) registrada no pedido ${pedidoId}`, '', '', projectId);
+  return { ok: true, id };
 }

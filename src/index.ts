@@ -55,7 +55,8 @@ import { pontoDePartidaApp } from './routes/ponto-de-partida';
 import { painelApp, carteiraApp } from './routes/painel';
 import { similaresApp } from './routes/similares';
 import { empresaApp } from './routes/empresa';
-import { parametrosLegaisApp, titularPedidosApp, incidentesApp, consentimentosApp } from './routes/titular';
+import { parametrosLegaisApp, titularPedidosApp, titularPortalApp, incidentesApp, consentimentosApp } from './routes/titular';
+import { publicTitularApp } from './routes/public-titular';
 import { agentesApp } from './routes/agentes';
 import { auditorApp } from './routes/auditor';
 import { platformApp } from './routes/platform';
@@ -376,6 +377,8 @@ app.route('/api/v1/public/pedidos', publicPedidosApp);
 app.route('/api/v1/public/auditor', publicAuditorApp);
 // Questionário de homologação para o fornecedor, sem sessão: token do link no corpo, só o hash no banco, limite por IP (F5).
 app.route('/api/v1/public/homologacao', publicHomologacaoApp);
+// Portal público de solicitações do titular, sem sessão: token do link no corpo, só o hash no banco, limite por IP e por projeto (0096).
+app.route('/api/v1/public/titular-pedidos', publicTitularApp);
 
 /*
  * SCIM 2.0 (item 4.2). Montado em `/scim/v2/*` — o caminho que a RFC 7644
@@ -495,6 +498,7 @@ app.route('/api/v1/projects/:projectId/similares', similaresApp);
 app.route('/api/v1/projects/:projectId/empresa', empresaApp);
 app.route('/api/v1/parametros-legais', parametrosLegaisApp);
 app.route('/api/v1/projects/:projectId/titular-pedidos', titularPedidosApp);
+app.route('/api/v1/projects/:projectId/titular-portal', titularPortalApp);
 app.route('/api/v1/projects/:projectId/incidentes', incidentesApp);
 app.route('/api/v1/projects/:projectId/consentimentos', consentimentosApp);
 
