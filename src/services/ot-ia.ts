@@ -4,7 +4,7 @@
 // um token do tipo certo emitido nesta chamada; token em qualquer outro campo, token desconhecido ou endereço literal recusa a
 // resposta inteira. Uma descrição por chamada, saída por esquema estrito, Workers AI pelo AI Gateway com log desligado. A IA
 // rascunha; quem grava é uma pessoa, pelas rotas do inventário.
-import type { z } from 'zod';
+import { z } from 'zod';
 import { reasoningModel } from '../config/models';
 import { gatewayConfig } from '../agents/types';
 import { objetoDaResposta } from '../agents/importacao';
@@ -82,30 +82,61 @@ export function restaurarSaida<T extends Record<string, unknown>>(saida: T, mapa
 interface ModeloIa { run: (modelo: string, entrada: unknown, opcoes?: unknown) => Promise<unknown> }
 export type EnvIa = { AI?: unknown; [k: string]: unknown };
 
+async function chamarModelo(env: EnvIa, sistema: string, textoMascarado: string, jsonSchema: Record<string, unknown>, maxTokens: number): Promise<unknown> {
+  garantirSemEndereco(textoMascarado);
+  const ai = env.AI as ModeloIa | undefined;
+  if (!ai || typeof ai.run !== 'function') throw new RecusaIa('IA indisponível neste ambiente');
+  let resposta: unknown;
+  try {
+    const r = await ai.run(reasoningModel(env), {
+      messages: [{ role: 'system', content: sistema }, { role: 'user', content: textoMascarado }],
+      response_format: { type: 'json_schema', json_schema: jsonSchema }, temperature: 0.1, max_tokens: maxTokens,
+    }, { gateway: { id: gatewayConfig(env).gatewayId, collectLog: false, skipCache: true } });
+    resposta = (r as { response?: unknown } | null)?.response;
+  } catch {
+    throw new RecusaIa('A IA não respondeu; tente de novo');
+  }
+  return typeof resposta === 'string' ? objetoDaResposta(resposta) : resposta;
+}
+
 /**
  * Uma chamada, um texto: mascara, confere que nada sobrou (senão não chama), pede JSON pelo esquema, valida estrito e restaura.
  * Só Workers AI (dado de infraestrutura crítica não sai da Cloudflare), pelo gateway do repo, sem log nem cache.
  */
 export async function perguntarIa<S extends z.ZodType<Record<string, unknown>>>(
   env: EnvIa, sistema: string, usuario: string, esquema: S, jsonSchema: Record<string, unknown>,
-  mascarar: (t: string) => Mascara = mascararParaIa,
+  mascarar: (t: string) => Mascara = mascararParaIa, maxTokens = 800,
 ): Promise<z.infer<S>> {
   const m = mascarar(usuario);
-  garantirSemEndereco(m.texto);
-  const ai = env.AI as ModeloIa | undefined;
-  if (!ai || typeof ai.run !== 'function') throw new RecusaIa('IA indisponível neste ambiente');
-  let resposta: unknown;
-  try {
-    const r = await ai.run(reasoningModel(env), {
-      messages: [{ role: 'system', content: sistema }, { role: 'user', content: m.texto }],
-      response_format: { type: 'json_schema', json_schema: jsonSchema }, temperature: 0.1, max_tokens: 800,
-    }, { gateway: { id: gatewayConfig(env).gatewayId, collectLog: false, skipCache: true } });
-    resposta = (r as { response?: unknown } | null)?.response;
-  } catch {
-    throw new RecusaIa('A IA não respondeu; tente de novo');
-  }
-  const bruto = typeof resposta === 'string' ? objetoDaResposta(resposta) : resposta;
+  const bruto = await chamarModelo(env, sistema, m.texto, jsonSchema, maxTokens);
   const v = esquema.safeParse(bruto);
   if (!v.success) throw new RecusaIa('A resposta da IA veio fora do formato esperado');
   return restaurarSaida(v.data, m.mapa);
+}
+
+/** Lista de itens sobre texto JÁ mascarado (o chamador guarda o mapa para conferir a evidência). `camposComToken` ficam com o token intacto. */
+export async function perguntarIaItens<I extends z.ZodType<Record<string, unknown>>>(
+  env: EnvIa, sistema: string, usuario: Mascara, item: I, jsonSchema: Record<string, unknown>,
+  opcoes: { maxTokens?: number; camposComToken?: string[] } = {},
+): Promise<z.infer<I>[]> {
+  const bruto = await chamarModelo(env, sistema, usuario.texto, jsonSchema, opcoes.maxTokens ?? 2000);
+  const v = z.object({ itens: z.array(item).max(50) }).strict().safeParse(bruto);
+  if (!v.success) throw new RecusaIa('A resposta da IA veio fora do formato esperado');
+  const separados = new Set(opcoes.camposComToken ?? []);
+  return v.data.itens.map((it: Record<string, unknown>) => {
+    const guardado: Record<string, unknown> = {};
+    const resto: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(it)) {
+      if (!separados.has(k)) { resto[k] = val; continue; }
+      if (typeof val === 'string') for (const t of val.match(new RegExp(DO_TOKEN.source, 'g')) ?? []) if (!usuario.mapa.has(t)) throw new RecusaIa(RECUSA_TOKEN);
+      guardado[k] = val;
+    }
+    return { ...restaurarSaida(resto, usuario.mapa), ...guardado } as z.infer<I>;
+  });
+}
+
+const MARCADOR: Record<string, string> = { IP: '[IP]', MAC: '[MAC]', HOST: '[HOST]', SERIE: '[SERIE]' };
+/** Troca cada token por um marcador, para gravar evidência sem endereço. */
+export function semTokens(texto: string): string {
+  return texto.replace(/\[\[(IP|MAC|HOST|SERIE)_[0-9a-f]{8}\]\]/g, (_m, s: string) => MARCADOR[s]);
 }

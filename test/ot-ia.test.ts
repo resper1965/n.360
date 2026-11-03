@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { mascararParaIa, garantirSemEndereco, restaurarSaida, perguntarIa, RecusaIa } from '../src/services/ot-ia';
+import { mascararParaIa, garantirSemEndereco, restaurarSaida, perguntarIa, perguntarIaItens, semTokens, RecusaIa } from '../src/services/ot-ia';
 
 // Modelo de ameaças do n.ot, P0-7 (T16/T13): máscara própria para a IA. Nenhum identificador de rede em claro vai ao modelo;
 // a resposta só ganha o valor de volta nos campos ip/mac/hostname; token em outro campo, ou desconhecido, recusa.
@@ -120,5 +120,46 @@ describe('P0-7: perguntarIa', () => {
   it('resposta fora do esquema estrito (campo a mais) é recusada', async () => {
     await expect(perguntarIa(ai({ ip: null, funcao: 'x', extra: 1 }), 's', 'x', esquema, {})).rejects.toThrow(RecusaIa);
     await expect(perguntarIa(ai('não é json'), 's', 'x', esquema, {})).rejects.toThrow(RecusaIa);
+  });
+});
+
+describe('perguntarIaItens', () => {
+  const T = '[[IP_0a1b2c3d]]';
+  const usuario = { texto: `RTU em ${T}`, mapa: new Map([[T, { tipo: 'ip' as const, valor: '10.0.0.5' }]]) };
+  const item = z.object({ nome: z.string(), ip: z.string().nullable().optional(), evidencia: z.string() }).strict();
+  const falso = (itens: unknown[]) => {
+    const chamadas: { entrada: any; opcoes: any }[] = [];
+    return { chamadas, env: { AI: { run: async (_m: string, entrada: any, opcoes: any) => { chamadas.push({ entrada, opcoes }); return { response: { itens } }; } } } };
+  };
+  const ok = { nome: 'RTU', ip: T, evidencia: `RTU em ${T}` };
+
+  it('token em campo fora de camposComToken recusa; em camposComToken fica intacto e o ip é restaurado', async () => {
+    await expect(perguntarIaItens(falso([ok]).env, 's', usuario, item, {})).rejects.toThrow(RecusaIa);
+    expect(await perguntarIaItens(falso([ok]).env, 's', usuario, item, {}, { camposComToken: ['evidencia'] }))
+      .toEqual([{ nome: 'RTU', ip: '10.0.0.5', evidencia: `RTU em ${T}` }]);
+    await expect(perguntarIaItens(falso([{ ...ok, evidencia: 'x [[IP_ffffffff]]' }]).env, 's', usuario, item, {}, { camposComToken: ['evidencia'] })).rejects.toThrow(RecusaIa);
+  });
+
+  it('token desconhecido em ip e token em nome recusam', async () => {
+    const c = { camposComToken: ['evidencia'] };
+    await expect(perguntarIaItens(falso([{ ...ok, ip: '[[IP_ffffffff]]' }]).env, 's', usuario, item, {}, c)).rejects.toThrow(RecusaIa);
+    await expect(perguntarIaItens(falso([{ ...ok, nome: T }]).env, 's', usuario, item, {}, c)).rejects.toThrow(RecusaIa);
+  });
+
+  it('endereço residual não chama a IA', async () => {
+    const f = falso([]);
+    await expect(perguntarIaItens(f.env, 's', { texto: 'RTU em 10.0.0.5', mapa: new Map() }, item, {})).rejects.toThrow(RecusaIa);
+    expect(f.chamadas).toHaveLength(0);
+  });
+
+  it('gateway sem log e sem cache, max_tokens 2000', async () => {
+    const f = falso([]);
+    await perguntarIaItens(f.env, 's', usuario, item, {});
+    expect(f.chamadas[0].opcoes.gateway).toMatchObject({ collectLog: false, skipCache: true });
+    expect(f.chamadas[0].entrada.max_tokens).toBe(2000);
+  });
+
+  it('semTokens troca token por marcador', () => {
+    expect(semTokens('a [[IP_0a1b2c3d]] b [[MAC_00112233]]')).toBe('a [IP] b [MAC]');
   });
 });
