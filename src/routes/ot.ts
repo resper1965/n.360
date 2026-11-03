@@ -9,10 +9,11 @@ import {
 } from '../schemas/ot';
 import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
-import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, type LinhaItem } from '../services/ot-coleta';
+import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
+import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
 import { confrontar, enviarAoLote, indiceDoSite, prepararAchado, serializarAchado, zonasDoSite, type LinhaAchado } from '../services/ot-levantamento';
 
 /** n.ot (spec 2026-10-30-n-ot-modulo-n360-design). Faixa `ot` pelo segmento (`FAIXA_DO_SEGMENTO`): projeto E pessoa com o módulo. */
@@ -428,20 +429,21 @@ otApp.get('/lotes/:id', async (c) => {
     const lote = await db.prepare(`SELECT id, site_id, fonte, status, criado_por, decidido_por, decidido_em, motivo, created_at, updated_at FROM ot_lotes
       WHERE id = ? AND project_id = ? AND site_id IN (SELECT value FROM json_each(?))`).bind(c.req.param('id'), projectId, sites).first();
     if (!lote) return NAO_ENCONTRADO(c, 'Lote');
-    const { results } = await db.prepare(`SELECT id, project_id, linha, dados, erros, duplicata_de, decisao, motivo, registro_id FROM ot_lote_itens
-      WHERE lote_id = ? AND project_id = ? ORDER BY linha`).bind(lote.id, projectId).all<LinhaItem>();
+    const { results } = await db.prepare(`SELECT id, project_id, linha, entidade, dados, erros, duplicata_de, decisao, motivo, registro_id FROM ot_lote_itens
+      WHERE lote_id = ? AND project_id = ? ORDER BY linha LIMIT ${TETO_ITENS}`).bind(lote.id, projectId).all<LinhaItem>();
     const completo = await podeVerCompleto(db, user, projectId);
     const itens = await Promise.all(results.map((i) => serializarItem(i, completo, chavesOt(c.env)!)));
     const sensiveis = completo ? results.filter((i) => /"(ip|mac)_cifrado":"ot1:/.test(i.dados)).length : 0;
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} item(ns) do lote ${lote.id} com IP/MAC sem máscara`, { tipo: 'ot_lote', id: lote.id as string });
-    return c.json({ lote, itens });
+    const nomes_pontas = await nomesDasPontas(db, projectId, lote.site_id as string, itens.filter((i) => i.entidade === 'fluxo').map((i) => i.dados));
+    return c.json({ lote, itens, nomes_pontas });
   } catch (e) { return erro500(c, 'Falha ao ler o lote', e); }
 });
 
 async function responderLote(c: C, r: Awaited<ReturnType<typeof criarLote>>, projectId: string, site: string, extra: Record<string, unknown> = {}) {
   if (!r.ok) return c.json({ error: r.error }, r.status);
   // A1: a contagem de duplicatas só vai a quem vê completo (para os demais, a chave nem aparece).
-  const { ok: _ok, possiveis_duplicatas, ...resumo } = r;
+  const { ok: _ok, possiveis_duplicatas, itemIds: _ids, ...resumo } = r;
   if (await podeVerCompleto(c.env.DB, c.get('user'), projectId)) Object.assign(resumo, { possiveis_duplicatas });
   await trilha(c, 'ot.lote.criado', projectId, `Lote ${r.id} criado no site ${site}: ${r.itens} item(ns), ${r.com_erro} com erro`, { tipo: 'ot_lote', id: r.id });
   return c.json({ ...resumo, status: 'em_revisao', ...extra }, 201);
@@ -543,6 +545,8 @@ const lerLevantamento = (db: D1Database, projectId: string, sites: string, id: s
     .bind(id, projectId, sites).first<Record<string, unknown> & { id: string; site_id: string; tipo: string; situacao: string }>();
 
 /** Chaves do roteiro só as perguntas cadastradas: o objeto é guardado como veio e chave livre viraria campo sem dono. */
+const perguntaRuim = async (db: D1Database, p: string | null | undefined) =>
+  !!p && !await db.prepare('SELECT 1 FROM ot_roteiro_perguntas WHERE id = ?').bind(p).first();
 const roteiroRuim = async (db: D1Database, roteiro?: Record<string, unknown>) => {
   const chaves = Object.keys(roteiro ?? {});
   if (!chaves.length) return false;
@@ -590,14 +594,20 @@ otApp.get('/levantamentos/:id', async (c) => {
       .bind(lev.id, projectId).all<LinhaAchado>();
     // A1: o confronto só é calculado (e devolvido) para quem vê completo; o índice do site é lido uma vez.
     const idx = completo ? await indiceDoSite(db, projectId, lev.site_id) : undefined;
+    const idxF = completo && results.some((a) => a.entidade === 'fluxo') ? indiceFluxos(await fluxosDoSite(db, projectId, lev.site_id)) : undefined;
     const achados = [];
     for (const a of results) {
-      const conf = idx && a.situacao === 'rascunho' ? await confrontar(db, projectId, lev.site_id, JSON.parse(a.dados), idx) : undefined;
+      const conf = !idx || a.situacao !== 'rascunho' ? undefined
+        : a.entidade === 'fluxo' ? confrontarFluxo(JSON.parse(a.dados), idxF!) : await confrontar(db, projectId, lev.site_id, JSON.parse(a.dados), idx);
       achados.push(await serializarAchado(a, completo, chaves, conf));
     }
     const sensiveis = completo ? results.filter((a) => /"(ip|mac)_cifrado":"ot1:/.test(a.dados)).length : 0;
     if (sensiveis) await trilha(c, 'ot.inventario.ver_sensivel', projectId, `${sensiveis} achado(s) do levantamento ${lev.id} com IP/MAC sem máscara`, { tipo: 'ot_levantamento', id: lev.id });
-    return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados });
+    // Só nomes (nunca /ativos, que decifra IP/MAC): os das pontas citadas e os ativos do site que o achado de fluxo oferece como ponta.
+    const nomes_pontas = await nomesDasPontas(db, projectId, lev.site_id, results.filter((a) => a.entidade === 'fluxo').map((a) => JSON.parse(a.dados)));
+    const { results: ativos_do_site } = await db.prepare(`SELECT id, nome FROM ot_ativos WHERE project_id = ? AND site_id = ? AND status = 'ativo' ORDER BY nome
+      LIMIT ${TETO_LEITURA_OT}`).bind(projectId, lev.site_id).all<{ id: string; nome: string }>();
+    return c.json({ levantamento: { ...lev, roteiro: JSON.parse(String(lev.roteiro)) }, achados, nomes_pontas, ativos_do_site });
   } catch (e) { return erro500(c, 'Falha ao ler o levantamento', e); }
 });
 
@@ -643,11 +653,14 @@ otApp.post('/levantamentos/:id/achados', async (c) => {
     if (!v.success) return v.response;
     const n = await db.prepare(`SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?`).bind(lev.id).first<{ n: number }>();
     if ((n?.n ?? 0) >= TETO_ACHADOS_SESSAO) return c.json({ error: `Limite de ${TETO_ACHADOS_SESSAO} achados por levantamento` }, 400);
+    if (await perguntaRuim(db, v.data.pergunta_id)) return refRuim(c, 'pergunta_id');
     // O mesmo id vai à AAD da cifra e à linha: trocar um sem o outro torna o IP indecifrável.
     const id = genId();
-    const p = await prepararAchado(chavesOt(c.env)!, projectId, lev.site_id, id, v.data.dados, await zonasDoSite(db, projectId, lev.site_id));
-    await db.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, dados, erros, evidencia, criado_por) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, projectId, lev.id, JSON.stringify(p.dados), JSON.stringify(p.erros), v.data.evidencia, user.id).run();
+    const entidade = v.data.entidade ?? 'ativo';
+    const p = await prepararAchado(chavesOt(c.env)!, projectId, lev.site_id, id, v.data.dados, await zonasDoSite(db, projectId, lev.site_id), entidade,
+      entidade === 'fluxo' ? await pontasDoSite(db, projectId, lev.site_id) : undefined);
+    await db.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, entidade, pergunta_id, dados, erros, evidencia, criado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, projectId, lev.id, entidade, v.data.pergunta_id ?? null, JSON.stringify(p.dados), JSON.stringify(p.erros), v.data.evidencia, user.id).run();
     await trilha(c, 'ot.achado.criado', projectId, `Achado ${id} no levantamento ${lev.id}`, { tipo: 'ot_achado', id });
     return c.json({ id, erros: p.erros }, 201);
   } catch (e) { return erro500(c, 'Falha ao registrar o achado', e); }
@@ -658,19 +671,22 @@ otApp.put('/levantamentos/:id/achados/:aid', async (c) => {
     const { db, projectId, sites } = await contexto(c);
     const lev = await lerLevantamento(db, projectId, sites, c.req.param('id'));
     if (!lev) return NAO_ENCONTRADO(c, 'Levantamento');
-    const a = await db.prepare(`SELECT id, situacao FROM ot_achados WHERE id = ? AND levantamento_id = ? AND project_id = ?`)
-      .bind(c.req.param('aid'), lev.id, projectId).first<{ id: string; situacao: string }>();
+    const a = await db.prepare(`SELECT id, situacao, entidade FROM ot_achados WHERE id = ? AND levantamento_id = ? AND project_id = ?`)
+      .bind(c.req.param('aid'), lev.id, projectId).first<{ id: string; situacao: string; entidade: string }>();
     if (!a) return NAO_ENCONTRADO(c, 'Achado');
     if (a.situacao === 'enviado') return c.json({ error: 'Achado já enviado ao lote' }, 409);
     const v = await validateBody(c, otAchadoAtualizarSchema);
     if (!v.success) return v.response;
+    if (await perguntaRuim(db, v.data.pergunta_id)) return refRuim(c, 'pergunta_id');
     const sets: string[] = []; const vals: unknown[] = [];
     if (v.data.dados) {
-      const p = await prepararAchado(chavesOt(c.env)!, projectId, lev.site_id, a.id, v.data.dados, await zonasDoSite(db, projectId, lev.site_id));
+      const p = await prepararAchado(chavesOt(c.env)!, projectId, lev.site_id, a.id, v.data.dados, await zonasDoSite(db, projectId, lev.site_id), a.entidade,
+        a.entidade === 'fluxo' ? await pontasDoSite(db, projectId, lev.site_id) : undefined);
       sets.push('dados = ?', 'erros = ?'); vals.push(JSON.stringify(p.dados), JSON.stringify(p.erros));
     }
     if (v.data.evidencia !== undefined) { sets.push('evidencia = ?'); vals.push(v.data.evidencia); }
     if (v.data.situacao) { sets.push('situacao = ?'); vals.push(v.data.situacao); }
+    if (v.data.pergunta_id !== undefined) { sets.push('pergunta_id = ?'); vals.push(v.data.pergunta_id); }
     if (!sets.length) return c.json({ ok: true });
     // `situacao <> 'enviado'` de novo no UPDATE: um envio entre a leitura e a escrita não perde a trava.
     const r = await db.prepare(`UPDATE ot_achados SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND situacao <> 'enviado'`).bind(...vals, a.id).run();

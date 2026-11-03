@@ -116,6 +116,7 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   apos 1 dia. Chaves do `roteiro` so as de `ot_roteiro_perguntas` (400 nas demais). Leituras com `LIMIT` explicito (`TETO_LEITURA_OT`) por causa do teto de 500 linhas
   da consulta. Frontend: aba Levantamento (`views/ot-levantamento.js`) com notas em autosave, roteiro para achado, aba inicial
   por papel, confirmacoes com o conteudo e contagem nas abas.
+  Achado de fluxo (L2, migracao 0094, `src/services/ot-fluxo-achado.ts`): validado pelo esquema do fluxo, pontas so do site da sessao; o confronto pela chave das pontas diz novo, confirma ou contradiz (externo/VPN diferente). A aprovacao do lote cria o fluxo ou atualiza so protocolo, porta, finalidade, externo e via_vpn (pontas e direcao nunca). Migracao 0094: `ot_achados.pergunta_id` e `lote_item_id`; achado de item recusado volta a rascunho na manutencao.
 - **Dominios antigos:** `niso.ness.com.br` e `nprivacy.ness.com.br` respondem 308 para `/iso` e `/privacy`, mas
   `/api/*`, `/scim/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/health`, `/politicas*`, `/auditor*`, `/proposta*` e
   `/homologacao*` ficam no lugar (`fica` em `src/config/url.ts`). Detalhe em "URL canonica", abaixo.

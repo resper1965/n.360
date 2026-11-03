@@ -2404,9 +2404,12 @@ CREATE TABLE IF NOT EXISTS ot_achados (
     criado_por TEXT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    pergunta_id TEXT REFERENCES ot_roteiro_perguntas(id) ON DELETE SET NULL, -- 0094
+    lote_item_id TEXT, -- 0094
     FOREIGN KEY (levantamento_id, project_id) REFERENCES ot_levantamentos(id, project_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_ot_achados_sessao ON ot_achados(levantamento_id, situacao);
+CREATE INDEX IF NOT EXISTS idx_ot_achados_lote_item ON ot_achados(lote_item_id); -- 0094
 
 CREATE TABLE IF NOT EXISTS ot_roteiro_perguntas (
     id TEXT NOT NULL PRIMARY KEY,

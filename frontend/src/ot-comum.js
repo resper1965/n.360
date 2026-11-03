@@ -67,6 +67,14 @@ export const listaDeErros = (xs, classe = '') => (xs && xs.length
 export const nomesDeAtivos = new Map();
 export const nomeDoAtivo = (id) => (id && nomesDeAtivos.get(id)) || 'ativo existente';
 
+const ponta = (d, lado, nomes) => {
+    const id = d[`${lado}_ativo_id`] || d[`${lado}_zona_id`];
+    if (id) return (Object.hasOwn(nomes, id) && nomes[id]) || 'ponta removida';
+    return d.externo ? 'Fora da empresa' : '—';
+};
+/** "origem → destino" de um fluxo (texto, a escapar por quem mostra). `nomes`: `nomes_pontas` da API (id → nome; nunca IP/MAC). */
+export const rotaDoFluxo = (d = {}, nomes = {}) => `${ponta(d, 'origem', nomes)} → ${ponta(d, 'destino', nomes)}`;
+
 /**
  * Campos do ativo (4.3.1 da RO-CB.BR.01), para o cadastro e para a entrada manual da coleta. `d` é o ativo como a API devolve ou o
  * rascunho da IA. Na edição, IP e MAC nascem vazios: em branco mantém o registrado (o valor mascarado não volta ao servidor).
