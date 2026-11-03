@@ -9,7 +9,10 @@ import { lerBaseJuridica } from './ropa-abas/base-juridica';
 
 /** Só leitura, derivado da atividade (nunca gravado): o que o legado mostra abaixo da pergunta das bases legais. */
 export type BaseLegalLida = { dados_pessoais: string[]; dados_sensiveis: string[] };
-export type PerguntaLida = { id: string; texto: string; tipo: 'texto' | 'escolha'; resposta: string | null; da_atividade: string | null; base_legal?: BaseLegalLida | null };
+/** Compartilhamento externo lido da atividade: `tem` governa se a pergunta é respondível (só habilita quando o ROPA tem parceiros). */
+export type CompartilhamentoExternoLido = { tem: boolean; parceiros: string[] };
+export type PerguntaLida = { id: string; texto: string; tipo: 'texto' | 'escolha'; resposta: string | null; da_atividade: string | null;
+  base_legal?: BaseLegalLida | null; finalidade?: string | null; compartilhamento_externo?: CompartilhamentoExternoLido | null };
 export type QuestionarioLido = { abas: { id: AbaRipd; rotulo: string; perguntas: PerguntaLida[] }[] };
 type Falha = { ok: false; status: 400 | 404; error: string };
 
@@ -47,12 +50,27 @@ export async function lerQuestionario(db: D1Database, projectId: string, dpiaId:
   const bj = dpia.ropa_id ? await lerBaseJuridica(db, projectId, dpia.ropa_id) : null;
   const titulo = (i: { referencia: string; titulo: string }) => `${i.referencia}: ${i.titulo}`;
   const baseLegal: BaseLegalLida | null = bj ? { dados_pessoais: bj.lgpd.map(titulo), dados_sensiveis: bj.art11.incisos.map(titulo) } : null;
+  // Blocos read-only vindos do ROPA: finalidade (processing_purpose) e compartilhamento externo (parceiros da etapa). Nunca gravados.
+  let finalidade: string | null = null;
+  let externo: CompartilhamentoExternoLido | null = null;
+  if (dpia.ropa_id) {
+    const [reg, parc] = await db.batch([
+      db.prepare('SELECT processing_purpose FROM ropa_records WHERE id = ? AND project_id = ?').bind(dpia.ropa_id, projectId),
+      db.prepare(`SELECT pa.nome FROM tratamento_externo_parceiros ep JOIN partes pa ON pa.id = ep.parte_id
+         WHERE ep.ropa_id = ? AND ep.project_id = ? ORDER BY pa.nome`).bind(dpia.ropa_id, projectId),
+    ]);
+    finalidade = ((reg.results[0] as { processing_purpose: string } | undefined)?.processing_purpose ?? '').trim() || null;
+    const parceiros = (parc.results as { nome: string }[]).map((p) => p.nome);
+    externo = { tem: parceiros.length > 0, parceiros };
+  }
   return {
     abas: ABAS_RIPD.map((a) => ({
       id: a.id, rotulo: a.rotulo,
       perguntas: PERGUNTAS_RIPD.filter((p) => p.aba === a.id).map((p) => ({
         id: p.id, texto: p.texto, tipo: p.tipo, resposta: gravadas.get(p.id) ?? null, da_atividade: p.sugestao ? sug[p.sugestao] : null,
         ...(p.bloco === 'base_legal' ? { base_legal: baseLegal } : {}),
+        ...(p.bloco === 'finalidade' ? { finalidade } : {}),
+        ...(p.bloco === 'compartilhamento_externo' ? { compartilhamento_externo: externo } : {}),
       })),
     })),
   };

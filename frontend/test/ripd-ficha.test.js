@@ -60,6 +60,26 @@ describe('página do RIPD', () => {
         expect(abas.map((b) => b.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true', 'false', 'false']);
     });
 
+    it('#7-11 traz finalidade e compartilhamento externo do ROPA; sem parceiros a resposta fica desabilitada', async () => {
+        const q = [{ id: 'conformidade', rotulo: 'Conformidade', perguntas: [
+            { id: 'por_que_coletados', texto: 'Por que os dados pessoais estão sendo coletados?', tipo: 'texto', resposta: null, da_atividade: null, finalidade: 'Folha de pagamento ficticia' },
+            { id: 'contratos_compartilhamento', texto: 'Quais contratos?', tipo: 'texto', resposta: null, da_atividade: null, compartilhamento_externo: { tem: false, parceiros: [] } },
+        ] }];
+        await abrir('conformidade', DPIA, q);
+        expect(el('rf-finalidade').textContent).toContain('Folha de pagamento ficticia');
+        expect(el('rf-p-contratos_compartilhamento').disabled).toBe(true);
+        expect(el('rf-comp-ext').textContent).toContain('não registra compartilhamento externo');
+    });
+
+    it('#7-11 com parceiro externo no ROPA o campo fica habilitado e mostra o nome', async () => {
+        const q = [{ id: 'conformidade', rotulo: 'Conformidade', perguntas: [
+            { id: 'contratos_compartilhamento', texto: 'Quais contratos?', tipo: 'texto', resposta: null, da_atividade: null, compartilhamento_externo: { tem: true, parceiros: ['Parceiro X'] } },
+        ] }];
+        await abrir('conformidade', DPIA, q);
+        expect(el('rf-p-contratos_compartilhamento').disabled).toBe(false);
+        expect(el('rf-comp-ext').textContent).toContain('Parceiro X');
+    });
+
     it('o título usa a finalidade da atividade quando o sistema está vazio', async () => {
         await abrir('dados');
         expect(el('h').textContent).toBe('Folha de pagamento ficticia');
