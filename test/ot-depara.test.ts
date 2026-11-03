@@ -142,7 +142,7 @@ describe('de-para de planilha', () => {
       if (r.status !== 200) break;
     }
     expect(r!.status).toBe(429);
-    expect(await r!.json()).toMatchObject({ codigo: 'teto_por_hora' });
+    expect(await r!.json()).toEqual({ error: 'Limite por hora do de-para atingido (10 por pessoa e 30 por projeto). Tente de novo mais tarde.', codigo: 'teto_por_hora' });
     expect(chamadasIa).toBe(10);
   });
 
@@ -200,6 +200,12 @@ describe('de-para de texto', () => {
     expect((await texto(cons, await docx('<!DOCTYPE x>' + par('a')))).status).toBe(400);
     expect((await texto(cons, 'a'.repeat(61_000), 'a.txt')).status).toBe(413);
     const antes = chamadasTexto;
+    const tentativas = async () => (await env.DB.prepare(`SELECT count FROM rate_limits WHERE key = 'ot:depara:pessoa:cons:cons-ot@ness.lat'`).first<{ count: number }>())?.count;
+    const contadas = await tentativas();
+    const vazio = await texto(cons, ' \n\n ', 'a.txt');
+    expect(vazio.status).toBe(400);
+    expect(await vazio.json()).toEqual({ error: 'Documento sem texto' });
+    expect(await tentativas()).toBe(contadas); // documento vazio não gasta a tentativa da hora
     const muitos = await texto(cons, Array.from({ length: 37 }, () => 'b'.repeat(1600)).join('\n'), 'a.txt');
     expect(muitos.status).toBe(400);
     expect(await muitos.json()).toEqual({ error: 'Documento grande demais: divida em partes de até 60 mil caracteres' });

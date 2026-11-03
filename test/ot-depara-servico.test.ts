@@ -43,8 +43,9 @@ describe('de-para: serviço', () => {
   });
 
   // Texto: o falso lê o que recebeu (já mascarado) e devolve itens com evidência copiada dele.
-  const iaTexto = (itens: (t: string) => Record<string, unknown>[], visto: string[] = []) => ({ ...env, AI: { run: async (_m: string, p: { messages: { content: string }[] }) => {
+  const iaTexto = (itens: (t: string) => Record<string, unknown>[], visto: string[] = [], tokens: number[] = []) => ({ ...env, AI: { run: async (_m: string, p: { messages: { content: string }[]; max_tokens: number }) => {
     visto.push(p.messages[1].content);
+    tokens.push(p.max_tokens);
     return { response: { itens: itens(p.messages[1].content) } };
   } } });
 
@@ -73,6 +74,15 @@ describe('de-para: serviço', () => {
     expect(visto[0]).toContain('[e-mail]');
     expect(visto[0]).not.toContain('ana@x.com');
     expect(r.itens).toEqual([{ dados: { nome: 'rtu-01' }, evidencia: 'contato [e-mail]' }]);
+  });
+
+  it('texto: max_tokens 6000; item sem nenhum campo é descartado; mais de 25 itens recusa', async () => {
+    const tokens: number[] = [];
+    const r = await achadosDoTexto(iaTexto(() => [{ nome: null, fabricante: ' ', evidencia: 'O switch' }], [], tokens), ['O switch do rack 3.']);
+    expect(tokens).toEqual([6000]);
+    expect(r).toEqual({ itens: [], descartados: 1, trechos_pulados: 0 });
+    await expect(achadosDoTexto(iaTexto(() => Array.from({ length: 26 }, () => ({ nome: 'S', evidencia: 'O switch' }))), ['O switch do rack 3.']))
+      .rejects.toBeInstanceOf(RecusaIa);
   });
 
   it('texto: token em nome recusa a resposta inteira', async () => {

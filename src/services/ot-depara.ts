@@ -92,7 +92,7 @@ const ITEM_TEXTO = z.object({
 const nulo = (max: number) => ({ type: ['string', 'null'], maxLength: max });
 const JSON_SCHEMA_TEXTO = {
   type: 'object', additionalProperties: false, required: ['itens'],
-  properties: { itens: { type: 'array', maxItems: 50, items: { type: 'object', additionalProperties: false, required: [...Object.keys(LIMITES_ITEM), 'evidencia'],
+  properties: { itens: { type: 'array', maxItems: 25, items: { type: 'object', additionalProperties: false, required: [...Object.keys(LIMITES_ITEM), 'evidencia'],
     properties: { ...Object.fromEntries(Object.entries(LIMITES_ITEM).map(([k, max]) => [k, nulo(max)])), evidencia: { type: 'string', minLength: 1, maxLength: 500 } } } } },
 };
 
@@ -108,7 +108,7 @@ export async function achadosDoTexto(env: EnvIa, trechos: string[]) {
     const m = mascararParaIa(mascararPii(trecho) ?? '');
     try { garantirSemEndereco(m.texto); } catch (e) { if (!(e instanceof RecusaIa)) throw e; trechos_pulados++; continue; }
     const enviado = normalizarEspacos(m.texto);
-    const r = await perguntarIaItens(env, PROMPT_TEXTO, m, ITEM_TEXTO, JSON_SCHEMA_TEXTO, { camposComToken: ['evidencia'] });
+    const r = await perguntarIaItens(env, PROMPT_TEXTO, m, ITEM_TEXTO, JSON_SCHEMA_TEXTO, { camposComToken: ['evidencia'], maxTokens: 6000, maxItens: 25 });
     for (const { evidencia, hostname, ...campos } of r) {
       const ev = normalizarEspacos(semTokens(evidencia as string));
       if (!enviado.includes(normalizarEspacos(evidencia as string)) || ENDERECO_EM_TEXTO.test(ev) || temPii(ev)) { descartados++; continue; }
@@ -119,6 +119,7 @@ export async function achadosDoTexto(env: EnvIa, trechos: string[]) {
       }
       // hostname só preenche o nome que faltou; nunca vai para outro campo
       if (!dados.nome && typeof hostname === 'string' && hostname.trim()) dados.nome = hostname.trim();
+      if (!Object.keys(dados).length) { descartados++; continue; } // como a linha vazia da planilha
       itens.push({ dados, evidencia: ev });
     }
   }

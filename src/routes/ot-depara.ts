@@ -55,7 +55,7 @@ async function sessaoEPlanilha(c: C) {
   return { ...s, cabecalho, linhas };
 }
 
-const TETO_HORA = () => ({ error: `Limite por hora atingido: propostas de de-para (${TETO_DEPARA.pessoa} por pessoa e ${TETO_DEPARA.projeto} por projeto). Tente de novo mais tarde.`,
+const TETO_HORA = () => ({ error: `Limite por hora do de-para atingido (${TETO_DEPARA.pessoa} por pessoa e ${TETO_DEPARA.projeto} por projeto). Tente de novo mais tarde.`,
   codigo: 'teto_por_hora' });
 
 otDeparaApp.post('/levantamentos/:id/depara/planilha/proposta', async (c) => {
@@ -143,6 +143,7 @@ otDeparaApp.post('/levantamentos/:id/depara/texto', async (c) => {
     const { db, user, projectId, lev, file } = s;
     const lido = await lerDocumento(file.name, await file.arrayBuffer());
     if ('erro' in lido) return c.json({ error: lido.erro }, lido.status);
+    if (!lido.paragrafos.length) return c.json({ error: 'Documento sem texto' }, 400);
     const trechos = dividirEmTrechos(lido.paragrafos);
     if (trechos.length > LIMITES_TEXTO.trechos) return c.json({ error: 'Documento grande demais: divida em partes de até 60 mil caracteres' }, 400);
     if (!await tetoDepara(db, user.id, projectId)) return c.json(TETO_HORA(), 429); // uma tentativa por documento

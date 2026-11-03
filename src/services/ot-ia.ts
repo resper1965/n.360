@@ -117,11 +117,11 @@ export async function perguntarIa<S extends z.ZodType<Record<string, unknown>>>(
 /** Lista de itens sobre texto JÁ mascarado (o chamador guarda o mapa para conferir a evidência). `camposComToken` ficam com o token intacto. */
 export async function perguntarIaItens<I extends z.ZodType<Record<string, unknown>>>(
   env: EnvIa, sistema: string, usuario: Mascara, item: I, jsonSchema: Record<string, unknown>,
-  opcoes: { maxTokens?: number; camposComToken?: string[] } = {},
+  opcoes: { maxTokens?: number; camposComToken?: string[]; maxItens?: number } = {},
 ): Promise<z.infer<I>[]> {
   if ((opcoes.camposComToken ?? []).some((c) => Object.hasOwn(RESTAURAVEL, c))) throw new Error('camposComToken não pode incluir ip, mac ou hostname');
   const bruto = await chamarModelo(env, sistema, usuario.texto, jsonSchema, opcoes.maxTokens ?? 2000);
-  const v = z.object({ itens: z.array(item).max(50) }).strict().safeParse(bruto);
+  const v = z.object({ itens: z.array(item).max(opcoes.maxItens ?? 50) }).strict().safeParse(bruto);
   if (!v.success) throw new RecusaIa('A resposta da IA veio fora do formato esperado');
   const separados = new Set(opcoes.camposComToken ?? []);
   return v.data.itens.map((it: Record<string, unknown>) => {
