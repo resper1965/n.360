@@ -46,7 +46,7 @@ describe('planejarResumo', () => {
       at('8.8.8.8', { protocolos: ['dns'] }),
     ], []));
     expect(p.ativos).toEqual([{ ip: '10.1.1.30', nome: 'SEL (dnp3) #1', mac: '00:30:a7:01:02:04', fabricante: 'SEL', protocolos_portas: [{ protocolo: 'dnp3', porta: 20000 }] }]);
-    expect(p.macs).toEqual([{ ip: '10.1.1.10', mac: '00:30:a7:01:02:03' }]);
+    expect(p.macs).toEqual([{ ip: '10.1.1.10', mac: '00:30:a7:01:02:03', nome: 'RTU 1' }]);
     expect(p.contagem).toMatchObject({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1 });
   });
 

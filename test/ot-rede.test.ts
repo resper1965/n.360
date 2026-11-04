@@ -19,11 +19,31 @@ const ENV_EXTRA = {
 const chamar = (h: H, metodo: string, caminho: string, corpo?: unknown) => app.fetch(new Request('http://localhost' + caminho, {
   method: metodo, headers: { 'Content-Type': 'application/json', ...h }, body: corpo === undefined ? undefined : JSON.stringify(corpo),
 }), { ...workerEnv(), ...ENV_EXTRA });
-const enviar = (h: H, lev: string, conteudo: BlobPart) => {
+const enviar = (h: H, lev: string, conteudo: BlobPart, extra: Record<string, unknown> = {}) => {
   const fd = new FormData();
   fd.set('file', new File([conteudo], 'resumo.json'));
-  return app.fetch(new Request(`http://localhost${P}/levantamentos/${lev}/depara/rede`, { method: 'POST', headers: h, body: fd }), { ...workerEnv(), ...ENV_EXTRA });
+  return app.fetch(new Request(`http://localhost${P}/levantamentos/${lev}/depara/rede`, { method: 'POST', headers: h, body: fd }), { ...workerEnv(), ...ENV_EXTRA, ...extra });
 };
+/** D1 cujo `batch` falha quando leva um INSERT em ot_achados (o resto passa ao banco real). */
+function dbQueFalhaNosAchados() {
+  const sqlDe = new WeakMap<object, string>();
+  return new Proxy(env.DB, {
+    get(t, k) {
+      if (k === 'prepare') return (sql: string) => {
+        const st = t.prepare(sql);
+        const bind = st.bind.bind(st);
+        st.bind = (...v: unknown[]) => { const b = bind(...v); sqlDe.set(b, sql); return b; };
+        return st;
+      };
+      if (k === 'batch') return async (stmts: D1PreparedStatement[]) => {
+        if (stmts.some((x) => sqlDe.get(x)?.includes('INSERT INTO ot_achados'))) throw new Error('falha forçada');
+        return t.batch(stmts);
+      };
+      const v = (t as unknown as Record<string | symbol, unknown>)[k];
+      return typeof v === 'function' ? v.bind(t) : v;
+    },
+  });
+}
 const criar = async (h: H, rota: string, corpo: unknown) => {
   const r = await chamar(h, 'POST', `${P}/${rota}`, corpo);
   expect(r.status, `${rota} ${await r.clone().text()}`).toBe(201);
@@ -87,7 +107,8 @@ describe('POST /levantamentos/:id/depara/rede', () => {
   it('resumo válido: 201 com as contagens; achados do consultor com evidência do sensor e IP cifrado com a AAD do id gravado', async () => {
     const r = await enviar(cons, ids.doc, RESUMO);
     expect(r.status, await r.clone().text()).toBe(201);
-    expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 3, fluxos_pendentes: 2, nao_importados: 0 });
+    expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 3, fluxos_pendentes: 2, nao_importados: 0,
+      pendentes_nao_importados: 0 });
     const lista = await achados(cons, ids.doc);
     expect(lista).toHaveLength(5);
     expect(lista.filter((a) => a.entidade === 'fluxo')).toHaveLength(3);
@@ -149,10 +170,50 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     const { periodo: _p, ...semPeriodo } = base;
     const r = await enviar(gestor, lev, JSON.stringify({ ...semPeriodo, ativos: [1, 2, 3, 4, 5].map((i) => at(`10.1.2.${i}`)), conexoes: [] }));
     expect(r.status, await r.clone().text()).toBe(201);
-    expect(await r.json()).toMatchObject({ ativos_novos: 5, nao_importados: 3 });
+    expect(await r.json()).toMatchObject({ ativos_novos: 2, nao_importados: 3 });
     expect(await contar(lev)).toBe(2000);
     const ev = await env.DB.prepare(`SELECT evidencia FROM ot_achados WHERE levantamento_id = ? AND id NOT LIKE 'rede-cheio-%' LIMIT 1`).bind(lev).first<{ evidencia: string }>();
     expect(ev!.evidencia).toBe('Sensor de rede (Zeek): 0 conexões entre 04/11 e 04/11');
+  });
+
+  it('perto do teto: só as vagas livres, na ordem ativos novos, MACs, fluxos; contagens do que foi gravado', async () => {
+    const lev = await doc('Quase cheio');
+    await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1997)
+      INSERT INTO ot_achados (id, project_id, levantamento_id, criado_por) SELECT 'rede-quase-' || i, 'proj-a', ?, 'x' FROM n`).bind(lev).run();
+    const r = await enviar(cons, lev, RESUMO);
+    expect(r.status, await r.clone().text()).toBe(201);
+    expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 1, fluxos_pendentes: 2, nao_importados: 2,
+      pendentes_nao_importados: 0 });
+    expect(await contar(lev)).toBe(2000);
+  });
+
+  it('teto de 2.000 pendências por sessão: o excedente volta em pendentes_nao_importados', async () => {
+    const lev = await doc('Pendências cheias');
+    await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1999)
+      INSERT INTO ot_fluxos_pendentes (id, project_id, levantamento_id, origem_ip_hash, dados) SELECT 'pend-' || i, 'proj-a', ?, 'h', '{}' FROM n`).bind(lev).run();
+    const r = await enviar(cons, lev, RESUMO);
+    expect(r.status, await r.clone().text()).toBe(201);
+    expect(await r.json()).toMatchObject({ fluxos_pendentes: 1, pendentes_nao_importados: 1 });
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n).toBe(2000);
+  });
+
+  it('falha ao gravar os achados: 500 e nenhuma pendência desta requisição fica', async () => {
+    const lev = await doc('Falha');
+    const r = await enviar(cons, lev, RESUMO, { DB: dbQueFalhaNosAchados() });
+    expect(r.status).toBe(500);
+    expect(await contar(lev)).toBe(0);
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n).toBe(0);
+  });
+
+  it('achado que completa o MAC leva o nome do ativo: enviado ao lote e aprovado por outra pessoa, o ativo ganha o MAC', async () => {
+    const mac = (await achados(cons, ids.doc)).find((a) => a.entidade === 'ativo' && a.dados.nome === 'RTU 1')!;
+    expect(mac).toBeTruthy();
+    const e = await chamar(cons, 'POST', `${P}/levantamentos/${ids.doc}/enviar`, { achados: [mac.id] });
+    expect(e.status, await e.clone().text()).toBe(201);
+    const ap = await chamar(gestor, 'POST', `${P}/lotes/${(await e.json<{ id: string }>()).id}/aprovar`);
+    expect(ap.status, await ap.clone().text()).toBe(200);
+    const a = await env.DB.prepare(`SELECT mac_hash FROM ot_ativos WHERE id = 'a-rtu'`).first<{ mac_hash: string | null }>();
+    expect(a!.mac_hash).toBe(await hmacOt(chaves, 'proj-a', '00:30:a7:01:02:03'));
   });
 
   it('nada ao R2, sem IA; trilha só com contagens', async () => {

@@ -69,7 +69,7 @@ export type ResumoRede = z.infer<typeof resumoRedeSchema>;
 
 export interface Plano {
   ativos: Record<string, unknown>[];
-  macs: { ip: string; mac: string }[];
+  macs: { ip: string; mac: string; nome: string }[];
   fluxos: Record<string, unknown>[];
   pendentes: { origem_ip_hash: string | null; destino_ip_hash: string | null; dados: Record<string, unknown> }[];
   contagem: { ativos_novos: number; ativos_conhecidos: number; macs_completados: number; fluxos_criados: number; fluxos_pendentes: number };
@@ -95,7 +95,8 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
     const existente = await doSite(x);
     if (existente) {
       plano.contagem.ativos_conhecidos++;
-      if (mac && !existente.mac_hash) plano.macs.push({ ip: x, mac });
+      // nome do ativo existente: sem ele o item do lote seria recusado por "nome obrigatório"
+      if (mac && !existente.mac_hash) plano.macs.push({ ip: x, mac, nome: existente.nome });
       continue;
     }
     novos.add(x);

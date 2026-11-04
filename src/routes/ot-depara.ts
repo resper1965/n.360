@@ -173,6 +173,7 @@ otDeparaApp.post('/levantamentos/:id/depara/texto', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao ler o documento', e); }
 });
 
+const TETO_PENDENTES_SESSAO = 2000;
 /** Resumo do sensor de rede (n.ot L3): validação estrita, achados de ativo e fluxo na sessão, pendências só com hash. Sem IA, sem R2. */
 otDeparaApp.post('/levantamentos/:id/depara/rede', async (c) => {
   try {
@@ -196,25 +197,44 @@ otDeparaApp.post('/levantamentos/:id/depara/rede', async (c) => {
     const evidencia = EVIDENCIA_SENSOR(resumo.conexoes.reduce((n, x) => n + x.contagem, 0),
       resumo.periodo?.inicio ?? datas[0] ?? resumo.gerado_em, resumo.periodo?.fim ?? datas.at(-1) ?? resumo.gerado_em);
 
+    // Teto lido uma vez: só as vagas livres são cifradas (ativos novos, depois MACs, depois fluxos); a guarda do INSERT segura a corrida.
+    const [n, np] = await Promise.all([
+      db.prepare('SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?').bind(lev.id).first<{ n: number }>(),
+      db.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev.id).first<{ n: number }>(),
+    ]);
+    const planejados = [...plano.ativos.map((d) => ['novo', d] as const), ...plano.macs.map((d) => ['mac', d] as const), ...plano.fluxos.map((d) => ['fluxo', d] as const)];
+    const itens = planejados.slice(0, Math.max(0, TETO_ACHADOS_SESSAO - (n?.n ?? 0)));
+    const pendentes = plano.pendentes.slice(0, Math.max(0, TETO_PENDENTES_SESSAO - (np?.n ?? 0)));
+
     const [zonas, pontas] = await Promise.all([zonasDoSite(db, projectId, lev.site_id), pontasDoSite(db, projectId, lev.site_id)]);
     const stmts: D1PreparedStatement[] = [];
-    const itens = [...[...plano.ativos, ...plano.macs].map((d) => ['ativo', d] as const), ...plano.fluxos.map((d) => ['fluxo', d] as const)];
-    for (const [entidade, dados] of itens) {
+    for (const [tipo, dados] of itens) {
+      const entidade = tipo === 'fluxo' ? 'fluxo' : 'ativo';
       const id = genId(); // o mesmo id na AAD da cifra e na linha
       const p = await prepararAchado(chaves, projectId, lev.site_id, id, dados, zonas, entidade, pontas);
       stmts.push(db.prepare(INSERIR_ACHADO('consultor', entidade)).bind(id, projectId, lev.id, JSON.stringify(p.dados), JSON.stringify(p.erros), evidencia, user.id, lev.id));
     }
-    const criados = await gravarAchados(db, stmts);
-    const pend = plano.pendentes.map((p) => db.prepare(`INSERT INTO ot_fluxos_pendentes (id, project_id, levantamento_id, origem_ip_hash, destino_ip_hash, dados)
-      VALUES (?, ?, ?, ?, ?, ?)`).bind(genId(), projectId, lev.id, p.origem_ip_hash, p.destino_ip_hash, JSON.stringify({ ...p.dados, evidencia })));
+    // Pendências primeiro: se os achados falharem, as desta requisição saem antes do erro (um novo envio não as duplica).
+    const idsPend = pendentes.map(() => genId());
+    const pend = pendentes.map((p, i) => db.prepare(`INSERT INTO ot_fluxos_pendentes (id, project_id, levantamento_id, origem_ip_hash, destino_ip_hash, dados)
+      VALUES (?, ?, ?, ?, ?, ?)`).bind(idsPend[i], projectId, lev.id, p.origem_ip_hash, p.destino_ip_hash, JSON.stringify({ ...p.dados, evidencia })));
     for (let i = 0; i < pend.length; i += 50) await db.batch(pend.slice(i, i + 50));
+    let criados: number;
+    try { criados = await gravarAchados(db, stmts); } catch (e) {
+      await db.prepare('DELETE FROM ot_fluxos_pendentes WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(idsPend)).run();
+      throw e;
+    }
 
-    const k = plano.contagem;
-    const nao_importados = stmts.length - criados;
+    // A guarda só recusa depois que a sessão enche, e ela não esvazia no meio: os gravados são os primeiros `criados` itens.
+    const gravados = itens.slice(0, criados);
+    const conta = (t: string) => gravados.filter(([x]) => x === t).length;
+    const k = { ativos_novos: conta('novo'), ativos_conhecidos: plano.contagem.ativos_conhecidos, macs_completados: conta('mac'), fluxos_criados: conta('fluxo'),
+      fluxos_pendentes: pendentes.length, nao_importados: planejados.length - criados, pendentes_nao_importados: plano.pendentes.length - pendentes.length };
     await trilha(c, 'ot.depara.rede', projectId, `Resumo de rede no levantamento ${lev.id}: ${k.ativos_novos} ativos novos, ${k.ativos_conhecidos} conhecidos, `
-      + `${k.macs_completados} MACs, ${k.fluxos_criados} fluxos, ${k.fluxos_pendentes} pendentes, ${nao_importados} não importados`, { tipo: 'ot_levantamento', id: lev.id });
+      + `${k.macs_completados} MACs, ${k.fluxos_criados} fluxos, ${k.fluxos_pendentes} pendentes, ${k.nao_importados} não importados, `
+      + `${k.pendentes_nao_importados} pendentes não importados`, { tipo: 'ot_levantamento', id: lev.id });
     // A1: separar novo de conhecido diria a quem vê mascarado que o IP existe no inventário.
-    return c.json(await podeVerCompleto(db, user, projectId) ? { ...k, nao_importados } : { achados_criados: criados, fluxos_pendentes: k.fluxos_pendentes }, 201);
+    return c.json(await podeVerCompleto(db, user, projectId) ? k : { achados_criados: criados, fluxos_pendentes: k.fluxos_pendentes }, 201);
   } catch (e) { return erro500(c, 'Falha ao importar o resumo de rede', e); }
 });
 
