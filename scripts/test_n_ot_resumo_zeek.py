@@ -107,6 +107,12 @@ class T(unittest.TestCase):
             "porta": 20000, "aplicacao": "dnp3", "contagem": 1, "primeira_vez": "2026-11-01T00:00:30Z", "ultima_vez": "2026-11-01T00:00:30Z"})
         self.assertEqual(len(r["conexoes"]), 4)
 
+    def test_zeek_versao(self):
+        ok = resumo.resumir(self._pasta([self._c()], software=[{"name": "Zeek", "unparsed_version": "6.0.4"}]))
+        self.assertEqual(ok["zeek_versao"], "6.0.4")
+        ruim = resumo.resumir(self._pasta([self._c()], software=[{"name": "zeek", "unparsed_version": "Zeek 6.0 (build x)"}]))
+        self.assertNotIn("zeek_versao", ruim)
+
     def test_cli(self):
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "r.json")

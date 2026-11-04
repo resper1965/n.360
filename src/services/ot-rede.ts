@@ -87,9 +87,10 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
   const doSite = async (x: string) => idx.achar({ ip_hash: await hash(x) });
 
   const plano: Plano = { ativos: [], macs: [], fluxos: [], pendentes: [], contagem: { ativos_novos: 0, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0 } };
+  const novos = new Set<string>();
   for (const a of resumo.ativos) {
     const x = normalizarIp(a.ip)!;
-    if (!interno(x)) continue;
+    if (!interno(x) || novos.has(x)) continue;
     const mac = a.mac && normalizarMac(a.mac)!;
     const existente = await doSite(x);
     if (existente) {
@@ -97,10 +98,13 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
       if (mac && !existente.mac_hash) plano.macs.push({ ip: x, mac });
       continue;
     }
+    novos.add(x);
     const [p] = a.protocolos;
-    // até 100 portas (teto de protocolos_portas do ativo), na ordem do resumo, que é por frequência
+    // até 100 portas (teto de protocolos_portas do ativo); o script ordena as portas, então ficam as menores
     const pp = !p ? undefined : a.portas_servico.length ? a.portas_servico.slice(0, 100).map((porta) => ({ protocolo: p, porta })) : [{ protocolo: p }];
-    plano.ativos.push({ ip: x, ...(mac && { mac }), ...(a.fabricante && { fabricante: a.fabricante }), ...(pp && { protocolos_portas: pp }) });
+    // nome é obrigatório na aprovação; gerado sem IP
+    const nome = `${a.fabricante || 'Dispositivo'} (${p || 'rede'}) #${plano.ativos.length + 1}`;
+    plano.ativos.push({ ip: x, nome, ...(mac && { mac }), ...(a.fabricante && { fabricante: a.fabricante }), ...(pp && { protocolos_portas: pp }) });
   }
 
   const vistos = new Set<string>();

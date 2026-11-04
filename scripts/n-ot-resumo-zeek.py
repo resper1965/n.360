@@ -127,7 +127,8 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES)
     versao = None
     for r in ler(pasta, "software"):
         if str(r.get("name", "")).lower() == "zeek" and r.get("unparsed_version"):
-            versao = str(r["unparsed_version"])
+            v = str(r["unparsed_version"])
+            versao = v if re.fullmatch(r"[\w.+-]{1,50}", v, re.ASCII) else None  # mesma forma que o n.ot aceita
             break
 
     lc = sorted(conns.items(), key=lambda kv: -kv[1]["n"])

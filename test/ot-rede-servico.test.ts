@@ -45,9 +45,17 @@ describe('planejarResumo', () => {
       at('10.1.1.20', { mac: '00:30:a7:01:02:05' }),
       at('8.8.8.8', { protocolos: ['dns'] }),
     ], []));
-    expect(p.ativos).toEqual([{ ip: '10.1.1.30', mac: '00:30:a7:01:02:04', fabricante: 'SEL', protocolos_portas: [{ protocolo: 'dnp3', porta: 20000 }] }]);
+    expect(p.ativos).toEqual([{ ip: '10.1.1.30', nome: 'SEL (dnp3) #1', mac: '00:30:a7:01:02:04', fabricante: 'SEL', protocolos_portas: [{ protocolo: 'dnp3', porta: 20000 }] }]);
     expect(p.macs).toEqual([{ ip: '10.1.1.10', mac: '00:30:a7:01:02:03' }]);
     expect(p.contagem).toMatchObject({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1 });
+  });
+
+  it('ativos novos: nome gerado sem IP, numerado na ordem; mesmo IP escrito de dois jeitos vira um', async () => {
+    const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([
+      at('fd00::1', { protocolos: ['modbus'] }), at('fd00:0:0::1'), at('10.1.1.50'), at('10.1.1.51', { fabricante: 'ABB' })], []));
+    expect(p.ativos.map((a) => a.nome)).toEqual(['Dispositivo (modbus) #1', 'Dispositivo (rede) #2', 'ABB (rede) #3']);
+    expect(p.ativos.map((a) => a.ip)).toEqual(['fd00::1', '10.1.1.50', '10.1.1.51']);
+    expect(p.contagem.ativos_novos).toBe(3);
   });
 
   it('ativo com mais de 100 portas: só as 100 primeiras, na ordem do resumo', async () => {
