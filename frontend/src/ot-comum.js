@@ -22,6 +22,9 @@ export const podeRevelar = (ativo) => !!ativo && ativo.mascarado === true && pap
 export function mensagemDeErro(e, padrao) {
     const m = String((e && e.message) || '').replace(/^Forbidden:\s*/i, '').trim();
     if (e && e.status === 403 && e.body?.codigo !== 'totp_necessario') return `Sem permissão: ${m || 'seu papel não faz esta ação no n.ot'}.`.replace(/\.\.$/, '.');
+    // 400 do esquema: a recusa de endereço ou de dado pessoal em texto livre explica o motivo e a saída; ela vem em `details`, não em `error`.
+    const explicada = e?.status === 400 && (e.body?.details || []).map((d) => d.message).find((t) => /dado sensível|^Não informe/.test(String(t)));
+    if (explicada) return explicada;
     return m || padrao;
 }
 
