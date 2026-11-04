@@ -2479,15 +2479,16 @@ CREATE TABLE IF NOT EXISTS ot_perfis_depara (
 CREATE INDEX IF NOT EXISTS idx_ot_perfis_depara_projeto ON ot_perfis_depara(project_id);
 
 -- ─── n.ot: sensor de rede (migration 0097_ot_sensor_rede) ───
--- destino_ip_hash nulo = destino externo.
+-- Hash nulo = lado externo (nunca o HMAC de IP externo); ao menos um lado é interno.
 CREATE TABLE IF NOT EXISTS ot_fluxos_pendentes (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     levantamento_id TEXT NOT NULL,
-    origem_ip_hash TEXT NOT NULL,
+    origem_ip_hash TEXT,
     destino_ip_hash TEXT,
     dados TEXT NOT NULL CHECK (json_valid(dados) AND json_type(dados) = 'object'),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (origem_ip_hash IS NOT NULL OR destino_ip_hash IS NOT NULL),
     FOREIGN KEY (levantamento_id, project_id) REFERENCES ot_levantamentos(id, project_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_origem ON ot_fluxos_pendentes(project_id, origem_ip_hash);

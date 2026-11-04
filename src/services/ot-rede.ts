@@ -71,13 +71,13 @@ export interface Plano {
   ativos: Record<string, unknown>[];
   macs: { ip: string; mac: string }[];
   fluxos: Record<string, unknown>[];
-  pendentes: { origem_ip_hash: string; destino_ip_hash: string | null; dados: Record<string, unknown> }[];
+  pendentes: { origem_ip_hash: string | null; destino_ip_hash: string | null; dados: Record<string, unknown> }[];
   contagem: { ativos_novos: number; ativos_conhecidos: number; macs_completados: number; fluxos_criados: number; fluxos_pendentes: number };
 }
 
 /**
  * Resumo validado → achados de ativo, MACs a completar, fluxos com pontas do site e pendências (só hash). Comparação por `ip_hash` no
- * índice do site, sem decifrar. Pendência com origem externa: `origem_ip_hash` é o hash do IP externo e `dados.externo` marca o caso.
+ * índice do site, sem decifrar. Na pendência o lado externo fica com hash nulo: IP externo nunca é guardado, nem como HMAC.
  */
 export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId: string, site: { id: string; faixas: string[] }, resumo: ResumoRede): Promise<Plano> {
   const idx = indice((await ativosDoSite(db, projectId, site.id)).results);
@@ -98,7 +98,8 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
       continue;
     }
     const [p] = a.protocolos;
-    const pp = !p ? undefined : a.portas_servico.length ? a.portas_servico.map((porta) => ({ protocolo: p, porta })) : [{ protocolo: p }];
+    // até 100 portas (teto de protocolos_portas do ativo), na ordem do resumo, que é por frequência
+    const pp = !p ? undefined : a.portas_servico.length ? a.portas_servico.slice(0, 100).map((porta) => ({ protocolo: p, porta })) : [{ protocolo: p }];
     plano.ativos.push({ ip: x, ...(mac && { mac }), ...(a.fabricante && { fabricante: a.fabricante }), ...(pp && { protocolos_portas: pp }) });
   }
 
@@ -110,7 +111,7 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
     const dados: Record<string, unknown> = { protocolo: c.aplicacao ?? c.transporte, porta: c.porta, direcao: 'unidirecional', ...(!(io && id) && { externo: true }) };
     const ao = io ? (await doSite(o))?.id : undefined, ad = id ? (await doSite(d))?.id : undefined;
     if ((io && !ao) || (id && !ad)) {
-      const p = { origem_ip_hash: await hash(o), destino_ip_hash: id ? await hash(d) : null, dados };
+      const p = { origem_ip_hash: io ? await hash(o) : null, destino_ip_hash: id ? await hash(d) : null, dados };
       const k = JSON.stringify(p);
       if (!vistos.has(k)) { vistos.add(k); plano.pendentes.push(p); }
       continue;

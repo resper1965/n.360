@@ -50,6 +50,22 @@ describe('planejarResumo', () => {
     expect(p.contagem).toMatchObject({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1 });
   });
 
+  it('ativo com mais de 100 portas: só as 100 primeiras, na ordem do resumo', async () => {
+    const portas = Array.from({ length: 150 }, (_, i) => 1000 + i);
+    const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.40', { protocolos: ['modbus'], portas_servico: portas })], []));
+    expect(p.ativos[0].protocolos_portas).toEqual(portas.slice(0, 100).map((porta) => ({ protocolo: 'modbus', porta })));
+  });
+
+  it('pendente com lado externo: hash nulo desse lado, nunca o HMAC do IP externo', async () => {
+    const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([], [cx('203.0.113.5', '10.1.1.30', 502, 'modbus'), cx('10.1.1.30', '198.51.100.9', 443, 'https')]));
+    expect(p.pendentes).toEqual([
+      { origem_ip_hash: null, destino_ip_hash: await hmacOt(chaves, PJ, '10.1.1.30'), dados: { protocolo: 'modbus', porta: 502, direcao: 'unidirecional', externo: true } },
+      { origem_ip_hash: await hmacOt(chaves, PJ, '10.1.1.30'), destino_ip_hash: null, dados: { protocolo: 'https', porta: 443, direcao: 'unidirecional', externo: true } },
+    ]);
+    const s = JSON.stringify(p.pendentes);
+    for (const ext of ['203.0.113.5', '198.51.100.9']) expect(s).not.toContain(await hmacOt(chaves, PJ, ext));
+  });
+
   it('fluxos: pontas resolvidas, externo, pendente só com hash, faixa interna do site, duplicata', async () => {
     const r = resumo([], [
       cx('10.1.1.20', '10.1.1.10', 20000, 'dnp3'),
