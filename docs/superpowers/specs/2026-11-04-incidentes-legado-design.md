@@ -133,7 +133,7 @@ post mortem e o histórico resumido. Sem migration. Fora do agente (`FORA_DO_AGE
 - Texto livre do incidente não vai à trilha; a trilha leva o nome do campo.
 - Faixa: incidente segue no núcleo (`incidentes`), as rotas novas de rascunho seguem `privacy` como hoje.
 - Importação do legado (`importarIncidente`): as colunas novas entram como opcionais no modelo de CSV, sem quebrar
-  arquivo antigo.
+  arquivo antigo. **Entra na fatia 2** (a fatia 1 grava pela tela e pela API; a importação continua com os campos de antes).
 
 ## 6. Decisões do dono (04/11/2026)
 

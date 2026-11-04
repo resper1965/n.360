@@ -96,6 +96,17 @@ describe('registro completo do incidente', () => {
     expect((await chamar(consultor, 'PUT', `${B}/incidentes/${id}`, { severidade: 'baixa' })).status).toBe(409);
   });
 
+  it('banco: incidente encerrado não ganha área, dado nem evidência; evidência não aponta para incidente de outro projeto', async () => {
+    const id = await novo();
+    await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'sem_risco' });
+    await chamar(consultor, 'POST', `${B}/incidentes/${id}/encerrar`);
+    await expect(env.DB.prepare(`INSERT INTO incidente_departamentos (incidente_id, departamento_id, project_id) VALUES (?, 'ir-d1', ?)`).bind(id, P).run()).rejects.toThrow(/encerrado/);
+    await expect(env.DB.prepare(`INSERT INTO incidente_dados (incidente_id, titular_id, dado_id, project_id) VALUES (?, 'ir-t1', 'ir-dd1', ?)`).bind(id, P).run()).rejects.toThrow(/encerrado/);
+    await expect(env.DB.prepare(`INSERT INTO incidente_anexos (id, project_id, incidente_id, file_name, r2_key, file_hash, file_type, file_size, uploaded_by) VALUES ('ir-x1', ?, ?, 'a.pdf', 'k', 'h', 'pdf', 1, 'x')`).bind(P, id).run()).rejects.toThrow(/encerrado/);
+    const aberto = await novo();
+    await expect(env.DB.prepare(`INSERT INTO incidente_anexos (id, project_id, incidente_id, file_name, r2_key, file_hash, file_type, file_size, uploaded_by) VALUES ('ir-x2', ?, ?, 'a.pdf', 'k', 'h', 'pdf', 1, 'x')`).bind(OUTRO, aberto).run()).rejects.toThrow(/outro projeto/);
+  });
+
   it('isolamento: incidente de outro projeto é 404 nos anexos e na edição', async () => {
     await env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em) VALUES ('ir-i-o', ?, 'IN-2026-0099', 'Alheio', '2026-10-01')`).bind(OUTRO).run();
     expect((await chamar(consultor, 'GET', `${B}/incidentes/ir-i-o/anexos`)).status).toBe(404);

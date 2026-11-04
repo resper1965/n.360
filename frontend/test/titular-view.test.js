@@ -354,7 +354,7 @@ describe('incidentes', () => {
         await window.salvarEdicaoIncidente('p9', 'i1');
         expect(corpoDe(f, `PUT ${B}/incidentes/i1`)).toEqual({
             titulo: 'Acesso indevido corrigido', descricao: null, origem_alerta: null, severidade: 'media', tipo: 'vazamento', comprometimento: ['integridade'],
-            ocorrido_em: '2026-09-30', fim_em: null, responsavel_parte_id: 'p1', titulares_estimados: 40, criterios_risco: ['sensiveis'],
+            ocorrido_em: '2026-09-30', responsavel_parte_id: 'p1', titulares_estimados: 40, criterios_risco: ['sensiveis'],
             areas: ['d1', 'd2'], dados: [{ titular_id: 't1', dado_id: 'x1' }, { titular_id: 't1', dado_id: 'x2' }],
         });
     });

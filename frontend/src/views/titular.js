@@ -591,14 +591,16 @@ window.editarIncidente = async function (projectId, id) {
     listaDados();
 };
 
+// O campo de data mostra só o dia: sem mudança, não manda (a hora que a API gravou, por exemplo pelo agente, não se perde).
+const dataMudou = (idCampo) => { const c = el(idCampo); return c.value === c.defaultValue ? undefined : (c.value || null); };
 window.salvarEdicaoIncidente = function (projectId, id) {
     const titulo = valorOuNulo('in-ed-titulo');
     if (!titulo) { showToast('Informe o título.', 'error'); return; }
     const qtd = el('in-ed-qtd').value.trim();
     const corpo = {
         titulo, descricao: valorOuNulo('in-ed-desc'), origem_alerta: valorOuNulo('in-ed-origem'), severidade: el('in-ed-severidade').value || null,
-        tipo: el('in-ed-tipo').value || null, comprometimento: marcados('in-ed-comp'), ocorrido_em: el('in-ed-ocorrido').value || null,
-        fim_em: el('in-ed-fim').value || null, responsavel_parte_id: el('in-ed-resp').value || null, titulares_estimados: qtd === '' ? null : Number(qtd),
+        tipo: el('in-ed-tipo').value || null, comprometimento: marcados('in-ed-comp'), ocorrido_em: dataMudou('in-ed-ocorrido'),
+        fim_em: dataMudou('in-ed-fim'), responsavel_parte_id: el('in-ed-resp').value || null, titulares_estimados: qtd === '' ? null : Number(qtd),
         criterios_risco: marcados('in-ed-crit'),
         // Sem a lista carregada (falha ou sem o n.privacy), o campo não vai: o servidor mantém o que já está gravado.
         ...(edicao?.comAreas ? { areas: marcados('in-ed-area') } : {}),

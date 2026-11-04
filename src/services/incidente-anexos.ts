@@ -28,6 +28,8 @@ export async function guardarAnexoIncidente(env: Env, projectId: string, id: str
       .bind(anexo, projectId, id, arq.name.slice(0, 255), chave, await sha256Bytes(arq.bytes), tipo, arq.bytes.byteLength, ator).run();
   } catch (e) {
     await env.STORAGE.delete(chave).catch(() => undefined);
+    // Encerrado entre a conferência e a gravação: o gatilho `incidente_anexos_aberto` recusa.
+    if (/encerrado não muda/.test(String((e as Error)?.message))) return falha(409, 'Incidente encerrado não muda');
     throw e;
   }
   return { ok: true, id: anexo };
@@ -60,7 +62,9 @@ export async function apagarAnexoIncidente(env: Env, projectId: string, id: stri
   if (recusa) return recusa;
   const l = await env.DB.prepare('SELECT r2_key FROM incidente_anexos WHERE id = ? AND incidente_id = ? AND project_id = ?').bind(anexo, id, projectId).first<{ r2_key: string }>();
   if (!l) return falha(404, 'Anexo não encontrado');
-  await env.DB.prepare('DELETE FROM incidente_anexos WHERE id = ? AND incidente_id = ? AND project_id = ?').bind(anexo, id, projectId).run();
+  const r = await env.DB.prepare(`DELETE FROM incidente_anexos WHERE id = ? AND incidente_id = ? AND project_id = ?
+    AND EXISTS (SELECT 1 FROM incidentes WHERE id = ? AND status <> 'encerrado')`).bind(anexo, id, projectId, id).run();
+  if (!r.meta.changes) return falha(409, 'Incidente encerrado não muda');
   await env.STORAGE.delete(l.r2_key).catch(() => undefined);
   return { ok: true };
 }

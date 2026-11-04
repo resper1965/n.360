@@ -147,6 +147,7 @@ const CAMPOS_REGISTRO = ['titulo', 'descricao', 'ocorrido_em', 'responsavel_part
   'titulares_estimados', 'criterios_risco', 'fim_em'] as const; // allowlist: o nome da coluna nunca vem do corpo
 const EM_JSON = new Set(['comprometimento', 'criterios_risco']);
 const mesmoConjunto = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+const AINDA_ABERTO = `EXISTS (SELECT 1 FROM incidentes WHERE id = ? AND status <> 'encerrado')`;
 const quando = (s: string) => Date.parse(s.length === 10 ? `${s}T00:00:00Z` : s);
 
 /**
@@ -184,18 +185,24 @@ export async function atualizarIncidente(db: D1Database, projectId: string, id: 
   }
   if (d.areas && !mesmoConjunto(d.areas, i.areas.map((a) => a.id))) {
     mudaram.push('areas');
-    stmts.push(db.prepare('DELETE FROM incidente_departamentos WHERE incidente_id = ? AND project_id = ?').bind(id, projectId),
+    stmts.push(db.prepare(`DELETE FROM incidente_departamentos WHERE incidente_id = ? AND project_id = ? AND ${AINDA_ABERTO}`).bind(id, projectId, id),
       ...d.areas.map((a) => db.prepare('INSERT INTO incidente_departamentos (incidente_id, departamento_id, project_id) VALUES (?, ?, ?)').bind(id, a, projectId)));
   }
   const par = (x: { titular_id: string; dado_id: string }) => `${x.titular_id}|${x.dado_id}`;
   if (d.dados && !mesmoConjunto(d.dados.map(par), i.dados.map(par))) {
     mudaram.push('dados');
-    stmts.push(db.prepare('DELETE FROM incidente_dados WHERE incidente_id = ? AND project_id = ?').bind(id, projectId),
+    stmts.push(db.prepare(`DELETE FROM incidente_dados WHERE incidente_id = ? AND project_id = ? AND ${AINDA_ABERTO}`).bind(id, projectId, id),
       ...d.dados.map((x) => db.prepare('INSERT INTO incidente_dados (incidente_id, titular_id, dado_id, project_id) VALUES (?, ?, ?, ?)').bind(id, x.titular_id, x.dado_id, projectId)));
   }
   if (!stmts.length) return { ok: true };
-  // Uma transação só: campos e listas mudam juntos ou nada muda.
-  await db.batch(stmts);
+  // Uma transação só: campos e listas mudam juntos ou nada muda. Se o encerramento chegar entre a leitura e aqui, o gatilho
+  // `*_aberto` recusa a inclusão e a transação inteira volta; a exclusão só vale com o incidente aberto (AINDA_ABERTO).
+  let r: D1Result[];
+  try { r = await db.batch(stmts); } catch (e) {
+    if (/encerrado não muda/.test(String((e as Error)?.message))) return falha(409, 'Incidente encerrado não muda');
+    throw e;
+  }
+  if (mudaram.some((k) => (CAMPOS_REGISTRO as readonly string[]).includes(k)) && !r[0].meta.changes) return falha(409, 'Incidente encerrado não muda');
   await logAudit(db, 'incidente.alterado', ator, `Incidente ${i.protocolo}: ${mudaram.join(', ')}`, '', '', projectId);
   return { ok: true };
 }

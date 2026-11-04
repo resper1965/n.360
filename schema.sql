@@ -2548,3 +2548,24 @@ CREATE TABLE IF NOT EXISTS incidente_anexos (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_incidente_anexos ON incidente_anexos(incidente_id);
+-- Incidente encerrado não ganha área, dado nem evidência (a trava do serviço sozinha perde a corrida com o encerramento).
+CREATE TRIGGER IF NOT EXISTS incidente_departamentos_aberto BEFORE INSERT ON incidente_departamentos
+WHEN (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_dados_aberto BEFORE INSERT ON incidente_dados
+WHEN (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_anexos_do_projeto BEFORE INSERT ON incidente_anexos
+WHEN NOT EXISTS (SELECT 1 FROM incidentes i WHERE i.id = NEW.incidente_id AND i.project_id IS NEW.project_id)
+BEGIN
+    SELECT RAISE(ABORT, 'incidente inexistente ou de outro projeto');
+END;
+CREATE TRIGGER IF NOT EXISTS incidente_anexos_aberto BEFORE INSERT ON incidente_anexos
+WHEN (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;
