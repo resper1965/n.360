@@ -16,7 +16,8 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(
 
 const LIG = (extra = {}) => ({ transferencias: [], partes: [], ...extra });
 const PUT_AGENTES = { [`PUT ${B}/agentes`]: { ok: true, mudou_hash: false } };
-const base = (extra = {}, registro = REGISTRO()) => ({ [`GET ${B}/ligacoes`]: LIG(), [`GET ${P}/partes`]: [], [`GET ${P}/ropa`]: { ok: true, records: [registro] }, ...PUT_AGENTES, ...extra });
+const ORGAOS = (extra = {}) => ({ orgaos: [], texto_anterior: null, ...extra });
+const base = (extra = {}, registro = REGISTRO()) => ({ [`GET ${B}/ligacoes`]: LIG(), [`GET ${B}/orgaos-publicos`]: ORGAOS(), [`GET ${P}/partes`]: [], [`GET ${P}/ropa`]: { ok: true, records: [registro] }, ...PUT_AGENTES, ...extra });
 
 describe('papéis', () => {
   it('Controlador e Operador são duas caixas de marcar num grupo com nome; cada clique grava na hora', async () => {
@@ -124,15 +125,43 @@ describe('operadores e destinatários', () => {
     expect(el('c').textContent).not.toContain('Nenhum parceiro escolhido');
   });
 
-  it('"Órgãos públicos destinatários" grava pelo registro (PUT /api/v1/ropa/:id, que também confere o pedido aberto)', async () => {
-    const f = await abrir(renderAtividade, base({ 'PUT /api/v1/ropa/r1': { ok: true } }));
-    expect(document.querySelector('label[for="at-destinatarios"]').textContent).toContain('Órgãos públicos');
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    el('at-destinatarios').value = 'Empresa exemplo C';
-    el('at-destinatarios').dispatchEvent(new Event('input', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(801);
-    vi.useRealTimers();
-    await esperar(() => expect(corpoDe(f, 'PUT /api/v1/ropa/r1')).toEqual({ recipients: 'Empresa exemplo C' }));
+  it('órgãos públicos: lista estruturada; adicionar manda nome e obrigação legal à rota própria', async () => {
+    const f = await abrir(renderAtividade, base({
+      [`GET ${B}/orgaos-publicos`]: ORGAOS({ orgaos: [{ id: 'o1', nome: 'Órgão exemplo A', obrigacao_legal: 'Obrigação exemplo' }] }),
+      [`POST ${B}/orgaos-publicos`]: { ok: true, id: 'o2' },
+      [`DELETE ${B}/orgaos-publicos/o1`]: { ok: true },
+    }));
+    expect(el('at-orgaos-lista').textContent).toContain('Órgão exemplo A, Obrigação exemplo');
+    el('c').querySelector('[data-orgao-remover="o1"]').click();
+    await esperar(() => expect(document.querySelector('[data-confirmar="sim"]')).not.toBeNull());
+    document.querySelector('[data-confirmar="sim"]').click();
+    await esperar(() => expect(chamadas(f)).toContain(`DELETE ${B}/orgaos-publicos/o1`));
+    expect(el('at-destinatarios')).toBeNull();
+    el('at-orgao-nome').value = 'Órgão exemplo B';
+    el('at-orgao-obrigacao').value = 'Lei exemplo';
+    el('at-orgao-adicionar').click();
+    await esperar(() => expect(corpoDe(f, `POST ${B}/orgaos-publicos`)).toEqual({ nome: 'Órgão exemplo B', obrigacao_legal: 'Lei exemplo' }));
+  });
+
+  it('órgãos públicos: o texto livre antigo aparece e o primeiro cadastro pede confirmação', async () => {
+    const f = await abrir(renderAtividade, base({
+      [`GET ${B}/orgaos-publicos`]: ORGAOS({ texto_anterior: 'Texto exemplo antigo' }),
+      [`POST ${B}/orgaos-publicos`]: { ok: true, id: 'o2' },
+    }));
+    expect(el('at-orgaos-anterior').textContent).toContain('Texto exemplo antigo');
+    el('at-orgao-nome').value = 'Órgão exemplo B';
+    el('at-orgao-adicionar').click();
+    await esperar(() => expect(document.querySelector('[data-confirmar="sim"]')).not.toBeNull());
+    expect(chamadas(f)).not.toContain(`POST ${B}/orgaos-publicos`);
+    document.querySelector('[data-confirmar="sim"]').click();
+    await esperar(() => expect(corpoDe(f, `POST ${B}/orgaos-publicos`)).toEqual({ nome: 'Órgão exemplo B', obrigacao_legal: null }));
+  });
+
+  it('órgãos públicos: falha ao carregar avisa em vez de dizer que não há órgão', async () => {
+    const rotas = base();
+    delete rotas[`GET ${B}/orgaos-publicos`];
+    await abrir(renderAtividade, rotas);
+    expect(el('at-orgaos').textContent).toContain('Não foi possível carregar os órgãos públicos');
   });
 });
 

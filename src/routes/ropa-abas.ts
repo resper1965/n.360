@@ -15,6 +15,8 @@ import { salvarBaseJuridica, lerBaseJuridica } from '../services/ropa-abas/base-
 import { atividadeDoProjeto } from '../services/ropa-abas/comum';
 import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema } from '../schemas/ropa-abas';
 import type { Falha, Gravado } from '../services/ropa-abas/comum';
+import { orgaoPublicoCriarSchema, orgaoPublicoAtualizarSchema } from '../schemas/ropa-abas';
+import { lerOrgaosPublicos, criarOrgaoPublico, atualizarOrgaoPublico, apagarOrgaoPublico } from '../services/ropa-abas/orgaos-publicos';
 import { gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, situacaoSchema } from '../schemas/ropa-abas';
 import { carregarConferencia } from '../services/ropa-abas/conferencia';
 import { montarFicha } from '../services/ropa-abas/ficha';
@@ -117,6 +119,52 @@ ropaAbasApp.delete('/medidas/:id', async (c) => {
     await registrarSecao(c.env.DB, c.get('user')?.email || 'system', projectId, recordId, 'Medidas de Segurança', 'Exclusão');
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao apagar a medida', e); }
+});
+// Órgãos públicos destinatários (0097): cada escrita regrava `recipients`, que está no conteúdo congelado da aprovação.
+const SECAO_AGENTES = 'Agentes de Tratamento';
+ropaAbasApp.get('/orgaos-publicos', async (c) => {
+  try {
+    const r = await lerOrgaosPublicos(c.env.DB, c.req.param('projectId')!, c.req.param('recordId')!);
+    return r ? c.json(r) : c.json(NAO_ENCONTRADA, 404);
+  } catch (e) { return erro500(c, 'Falha ao listar os órgãos públicos', e); }
+});
+ropaAbasApp.post('/orgaos-publicos', async (c) => {
+  try {
+    const v = await validateBody(c, orgaoPublicoCriarSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const recordId = c.req.param('recordId')!;
+    const ator = c.get('user')?.email || 'system';
+    const r = await criarOrgaoPublico(c.env.DB, projectId, recordId, ator, v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await registrarSecao(c.env.DB, ator, projectId, recordId, SECAO_AGENTES, 'Inclusão');
+    if (r.mudouHash) await conferirPedidosDoDocumento(c, 'tratamento', recordId, projectId);
+    return c.json({ ok: true, id: r.id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao cadastrar o órgão público', e); }
+});
+ropaAbasApp.put('/orgaos-publicos/:id', async (c) => {
+  try {
+    const v = await validateBody(c, orgaoPublicoAtualizarSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const recordId = c.req.param('recordId')!;
+    const r = await atualizarOrgaoPublico(c.env.DB, projectId, recordId, c.req.param('id')!, v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await registrarSecao(c.env.DB, c.get('user')?.email || 'system', projectId, recordId, SECAO_AGENTES, 'Alteração');
+    if (r.mudouHash) await conferirPedidosDoDocumento(c, 'tratamento', recordId, projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao atualizar o órgão público', e); }
+});
+ropaAbasApp.delete('/orgaos-publicos/:id', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const recordId = c.req.param('recordId')!;
+    const r = await apagarOrgaoPublico(c.env.DB, projectId, recordId, c.req.param('id')!);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await registrarSecao(c.env.DB, c.get('user')?.email || 'system', projectId, recordId, SECAO_AGENTES, 'Exclusão');
+    if (r.mudouHash) await conferirPedidosDoDocumento(c, 'tratamento', recordId, projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao remover o órgão público', e); }
 });
 putAba('/base-juridica', baseJuridicaSchema, 'Base Jurídica', 'Falha ao gravar a base jurídica', salvarBaseJuridica);
 ropaAbasApp.get('/base-juridica', async (c) => {

@@ -43,6 +43,13 @@ export const medidaCriarSchema = z.strictObject({
 });
 export const medidaAtualizarSchema = medidaCriarSchema.partial();
 
+/** Órgão público destinatário (aba Agentes): o nome e a obrigação legal que justifica o envio. */
+export const orgaoPublicoCriarSchema = z.strictObject({
+  nome: texto(200).min(1, 'Nome do órgão é obrigatório'),
+  obrigacao_legal: textoOuNulo(500).optional(),
+});
+export const orgaoPublicoAtualizarSchema = orgaoPublicoCriarSchema.partial();
+
 const incisoComFinalidade = z.strictObject({ requisito_id: id, finalidade: texto(2000).min(3, 'A finalidade é obrigatória em cada inciso') });
 export const GDPR_BASES = ['consentimento', 'contrato', 'interesses_legitimos', 'interesses_vitais', 'obrigacao_legal', 'tarefa_publica'] as const;
 export const baseJuridicaSchema = z.strictObject({

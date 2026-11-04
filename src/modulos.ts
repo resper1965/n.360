@@ -67,7 +67,7 @@ const SUBROTAS_PRIVACY: RegExp[] = [
   /^evidence\/[^/]+\/requisitos$/,
   // Ficha em abas (spec 2026-10-16): o registro segue no núcleo; a camada nova é do n.privacy.
   /^ropa\/[^/]+\/(ficha|escopo|agentes|base-juridica|logs|conferencia|situacao|relatorio)$/,
-  /^ropa\/[^/]+\/(medidas|gaps|etapas)(\/.*)?$/,
+  /^ropa\/[^/]+\/(medidas|gaps|etapas|orgaos-publicos)(\/.*)?$/,
 ];
 
 /** Resto do caminho depois de `/api/v1/projects/:id/`, ou null se o caminho não é de projeto. */
