@@ -31,12 +31,17 @@ export async function definirLigacao(db: D1Database, projectId: string, ropaId: 
   const validos = new Set(results.map((r) => r.id));
   const invalidos = unicos.filter((x) => !validos.has(x));
   if (invalidos.length) return { ok: false as const, invalidos };
+  const { ligacao, coluna } = LIGACOES[tipo];
+  const antes = (await db.prepare(`SELECT ${coluna} AS id FROM ${ligacao} WHERE ropa_id = ? AND project_id = ?`).bind(ropaId, projectId).all<{ id: string }>()).results.map((r) => r.id);
+  let mudou = antes.length !== unicos.length || antes.some((x) => !unicos.includes(x));
   await db.batch(stmtsLigacao(db, projectId, ropaId, tipo, unicos));
   // A2: item ligado pela rota antiga também entra na Coleta (acrescenta, nunca remove: spec 4.3).
   if (tipo === 'itens' && unicos.length) {
-    await db.batch(unicos.map((i) => db.prepare(`INSERT OR IGNORE INTO tratamento_etapa_itens (ropa_id, etapa, item_id, project_id) VALUES (?, 'coleta', ?, ?)`).bind(ropaId, i, projectId)));
+    const r = await db.batch(unicos.map((i) => db.prepare(`INSERT OR IGNORE INTO tratamento_etapa_itens (ropa_id, etapa, item_id, project_id) VALUES (?, 'coleta', ?, ?)`).bind(ropaId, i, projectId)));
+    if (r.some((x) => x.meta.changes)) mudou = true;
   }
-  return { ok: true as const, total: unicos.length };
+  // `mudou`: o conjunto (ou a Coleta) mudou; a rota só derruba aprovação quando muda de verdade.
+  return { ok: true as const, total: unicos.length, mudou };
 }
 
 /** A troca do conjunto, em statements: o chamador já conferiu os ids (a importação de programa a põe na transação do item). */
