@@ -117,6 +117,49 @@ describe('autenticação do /ot-coleta/mcp', () => {
   });
 });
 
+describe('política de segurança do cliente', () => {
+  const comIp = (ip: string | null, k = 'k-outra') => worker.fetch(new Request(`${BASE}/ot-coleta/mcp`, {
+    method: 'POST',
+    headers: { Host: 'n360.ness.com.br', 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${k}`,
+      ...(ip && { 'CF-Connecting-IP': ip }) },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'criar_sessao_documental', arguments: { site_id: ids.s1, documento_titulo: 'Allowlist' } } }),
+  }), workerEnv(), createExecutionContext());
+  const sessoes = async () => (await env.DB.prepare(`SELECT count(*) AS n FROM ot_levantamentos WHERE criado_por = 'apikey:k-outra'`).first<{ n: number }>())!.n;
+
+  it('allowlist de IP que exclui o chamador: 403 e nada executado; IP permitido: executa', async () => {
+    await env.DB.prepare(`INSERT INTO project_security_policy (project_id, mfa_obrigatorio, sessao_ttl_seg, ip_allowlist) VALUES ('proj-a', 1, 60, '203.0.113.0/24')`).run();
+    try {
+      const antes = await sessoes();
+      for (const ip of ['198.51.100.7', null]) {
+        const r = await comIp(ip);
+        expect(r.status, String(ip)).toBe(403);
+        expect((await r.json<{ error: string }>()).error).toBe('Forbidden: origem não permitida pela política de segurança deste cliente');
+      }
+      expect(await sessoes()).toBe(antes);
+      const ok = await comIp('203.0.113.7'); // MFA e TTL da política não alcançam o agente
+      const texto = await ok.text();
+      expect(ok.status, texto).toBe(200);
+      expect(texto).toContain('levantamento_id');
+      expect(await sessoes()).toBe(antes + 1);
+    } finally {
+      await env.DB.prepare(`DELETE FROM project_security_policy WHERE project_id = 'proj-a'`).run();
+    }
+  });
+
+  it('falha da trilha depois de gravar não vira Falha interna', async () => {
+    await env.DB.prepare(`CREATE TRIGGER trilha_falha BEFORE INSERT ON audit_logs WHEN NEW.action = 'ot.agente.criar_sessao_documental' BEGIN SELECT RAISE(ABORT, 'trilha fora'); END`).run();
+    try {
+      const antes = await sessoes();
+      const r = await ferramenta('k-outra', 'criar_sessao_documental', { site_id: ids.s1, documento_titulo: 'Sem trilha' });
+      expect(r.erro, r.texto).toBe(false);
+      expect(r.dados.levantamento_id).toBeTruthy();
+      expect(await sessoes()).toBe(antes + 1);
+    } finally {
+      await env.DB.prepare('DROP TRIGGER trilha_falha').run();
+    }
+  });
+});
+
 describe('ferramentas', () => {
   it('tools/list: exatamente as 4, com esquema estrito', async () => {
     const { tools } = await rpc(chave, 'tools/list');

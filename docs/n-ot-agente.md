@@ -4,7 +4,7 @@ Um agente de IA (Claude Code, Cursor) lê documentos técnicos de OT no computad
 
 ## Ligar (Gestor ARCiber)
 
-Só o Gestor ARCiber liga ou desliga. Na aba **Acesso por site** do n.ot, no cartão **Agente de coleta**, ligue o interruptor. Desligado, todas as chaves do projeto deixam de valer.
+Só o Gestor ARCiber liga ou desliga. Na aba **Acesso por site** do n.ot, no cartão **Agente de coleta**, ligue o interruptor. Desligado, todas as chaves do projeto deixam de valer. Desligar não revoga: ao religar, as chaves ainda não vencidas voltam a valer; revogue-as se não for essa a intenção.
 
 ## Emitir a chave
 
@@ -37,7 +37,7 @@ Cursor (`mcp.json`):
 
 Pode, com 4 ferramentas: `ler_depara` (campos, vocabulários, roteiro, sites e limites), `criar_sessao_documental`, `registrar_achados` e `encerrar_sessao`.
 
-Não pode: ler o inventário nem sessões alheias; enviar ao inventário; enviar `zona`/`zona_id`; registrar outra coisa que não seja ativo; trocar de projeto (vem da chave). A chave é recusada em todas as rotas `/api/v1` e em `/mcp`. Lote JSON-RPC é recusado.
+Não pode: ler o inventário nem sessões alheias; enviar ao inventário; enviar `zona`/`zona_id`; registrar outra coisa que não seja ativo; trocar de projeto (vem da chave). A chave é recusada em todas as rotas `/api/v1` e em `/mcp`. Lote JSON-RPC é recusado. Se o cliente tem allowlist de IP na política de segurança, ela vale também para o agente (403 fora dela); MFA e tempo de sessão não se aplicam, são regras de sessão humana.
 
 ## Limites
 
@@ -47,7 +47,7 @@ Não pode: ler o inventário nem sessões alheias; enviar ao inventário; enviar
 
 ## Revogar
 
-No mesmo cartão, revogue a chave (Gestor ou consultoria designada). Vale na próxima requisição. Desligar o agente também bloqueia todas. Emissão, revogação e cada chamada ficam na trilha.
+No mesmo cartão, revogue a chave (Gestor ou consultoria designada). Vale na próxima requisição. Desligar o agente também bloqueia todas. Emissão, revogação e cada chamada de ferramenta executada ficam na trilha. Chamadas recusadas pelo limite por hora, de ferramenta desconhecida ou com argumentos inválidos não são registradas.
 
 ## Aviso de privacidade
 

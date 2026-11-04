@@ -59,6 +59,8 @@ export async function politicaDoProjeto(
  * lista de PERMISSÕES, não casar significa negar. Uma allowlist que aceitasse o
  * que não entende seria uma allowlist decorativa.
  */
+export const ERRO_ORIGEM = 'Forbidden: origem não permitida pela política de segurança deste cliente';
+
 export function ipPermitido(ip: string | null, allowlist: string | null): boolean {
   const entradas = (allowlist ?? '').split(',').map((e) => e.trim()).filter(Boolean);
   if (!entradas.length) return true; // sem lista, sem restrição
@@ -119,7 +121,7 @@ export function avaliarPolitica(entrada: {
   // Origem primeiro: é a restrição mais forte, e não faz sentido dizer a quem
   // está fora da rede permitida qual é o próximo obstáculo.
   if (!ipPermitido(ip, politica.ip_allowlist)) {
-    return { erro: 'Forbidden: origem não permitida pela política de segurança deste cliente', status: 403 };
+    return { erro: ERRO_ORIGEM, status: 403 };
   }
 
   if (politica.sessao_ttl_seg && iat) {

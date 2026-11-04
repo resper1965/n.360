@@ -6,6 +6,8 @@ import { CAMPOS_DEPARA, gravarAchados, INSERIR_ACHADO, type CampoDepara } from '
 import { TETO_LEITURA_OT } from './ot-inventario';
 import { prepararAchado } from './ot-levantamento';
 import { hojeEmSaoPaulo } from './hoje';
+import { ERRO_ORIGEM, ipPermitido, politicaDoProjeto } from '../politica-tenant';
+import type { Bindings } from '../index';
 
 /** Agente externo de coleta do n.ot (L5, plano 2026-11-04): chave `ot_coleta`, válida só em `/ot-coleta/mcp`. */
 export const VALIDADE_PADRAO_DIAS = 7;
@@ -31,7 +33,7 @@ export type EnvColeta = { DB: D1Database; OT_INVENTARIO_KEY?: string; OT_INVENTA
 /** Recusa de uma operação do agente: a mensagem vai ao agente como está (texto fixo, sem dado). */
 export class RecusaColeta extends Error {}
 
-/** Falha fechada, a cada requisição: chave ativa, com validade e não vencida, `ot_coleta`; projeto com o n.ot e o interruptor ligado; chaves do n.ot.
+/** Falha fechada, a cada requisição: chave ativa, com validade e não vencida, `ot_coleta`; projeto com o n.ot e o interruptor ligado; IP na allowlist do cliente; chaves do n.ot.
  *  O teto por hora é cobrado por `tools/call` (`cobrarChamada`), não aqui. */
 export async function autenticarChaveColeta(env: EnvColeta, req: Request): Promise<{ ok: true; chave: ChaveColeta } | { ok: false; status: 401 | 403 | 503; error: string }> {
   const auth = req.headers.get('Authorization') ?? '';
@@ -45,6 +47,9 @@ export async function autenticarChaveColeta(env: EnvColeta, req: Request): Promi
   if (p?.agente_coleta_ot !== 1 || !(await modulosDoProjeto(env.DB, row.project_id)).includes('ot')) {
     return { ok: false, status: 403, error: 'Agente de coleta desligado neste projeto' };
   }
+  // Allowlist de IP do cliente, como no /api/v1; MFA e TTL de sessão são regras de sessão humana e ficam de fora.
+  const politica = await politicaDoProjeto(env as unknown as Bindings, row.project_id);
+  if (politica && !ipPermitido(req.headers.get('CF-Connecting-IP'), politica.ip_allowlist)) return { ok: false, status: 403, error: ERRO_ORIGEM };
   if (!chavesOt(env)) return { ok: false, status: 503, error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' };
   await env.DB.prepare("UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?").bind(row.id).run().catch(() => {});
   return { ok: true, chave: { id: row.id, nome: row.name, projectId: row.project_id, ator: `apikey:${row.id} (${row.name})` } };

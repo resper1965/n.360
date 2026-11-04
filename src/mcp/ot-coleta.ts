@@ -94,7 +94,8 @@ export async function handlerOtColeta(req: Request, env: EnvColeta & { APP_URL?:
       }
       try {
         const { res, detalhe } = await executar(env, chave, nome, v.data);
-        await trilha(nome, detalhe);
+        // A operação já foi gravada: falha da trilha não pode virar "Falha interna" (o agente repetiria e duplicaria).
+        await trilha(nome, detalhe).catch((e) => console.error('ot-coleta trilha', nome, e));
         return { content: [{ type: 'text', text: JSON.stringify(res) }] };
       } catch (e) {
         if (!(e instanceof RecusaColeta)) { console.error('ot-coleta', nome, e); return falha('Falha interna'); }
