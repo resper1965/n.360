@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { normalizarIp, normalizarMac, ENDERECO_EM_TEXTO } from '../services/ot-cifra';
 import { temPii } from '../services/rascunhos-privacy';
+import { VALIDADE_MAX_DIAS } from '../services/ot-agente';
 
 // Corpos do inventário do n.ot. Todos `.strict()` (modelo de ameaças P1-3/P0-8): `project_id`, `status`, `verificado_por`,
 // `ultima_verificacao_em`, `ip_cifrado`, `ip_hash` e afins no corpo são recusados; o servidor é quem os escreve.
@@ -124,3 +125,7 @@ export const otAchadoAtualizarSchema = z.object({
   pergunta_id: opcional(z.string().min(1).max(20)),
 }).strict();
 export const otEnviarAchadosSchema = z.object({ achados: z.array(id).min(1).max(TETO_ACHADOS_SESSAO) }).strict();
+
+// Agente de coleta (L5): interruptor do Gestor ARCiber e chave `ot_coleta` (validade em dias, 1..VALIDADE_MAX_DIAS).
+export const otAgenteInterruptorSchema = z.object({ ligado: z.boolean() }).strict();
+export const otAgenteChaveSchema = z.object({ nome: livreSemPii(100, 1), dias: z.number().int().min(1).max(VALIDADE_MAX_DIAS).optional() }).strict();
