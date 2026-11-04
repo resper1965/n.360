@@ -253,6 +253,12 @@ export function tituloDoAviso(item: Pick<ItemDoDia, 'fonte' | 'marco' | 'titulo'
  * Atraso não tem sino por item: sai um por pessoa e projeto, com a contagem dos prazos novos. Na primeira
  * execução (tabela vazia) o atraso que já existe é registrado como enviado, sem sino nem e-mail.
  */
+/**
+ * 11:00 UTC = 08:00 em Brasília (UTC-3, sem horário de verão). O mesmo texto vai em `triggers.crons`. Mora aqui, não em
+ * `src/index.ts`: export que não é handler no módulo principal derruba o `wrangler dev` (o runtime trata cada export como entrada).
+ */
+export const CRON_AVISOS = '0 11 * * *';
+
 export async function avisosDePrazo(env: EnvAvisos, hoje: string): Promise<ResultadoAvisos> {
   const db = env.DB;
   const primeira = !(await db.prepare('SELECT 1 FROM avisos_prazo LIMIT 1').first());
