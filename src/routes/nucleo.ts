@@ -8,6 +8,13 @@ import { importarDocumentos } from '../services/documentos';
 import { sincronizarDpoDaParte, membroDpoDaParte } from '../services/encarregado-pessoa';
 import { emailAindaNaMatriz, revogarContaStakeholder } from './governance';
 import { conteudoDoTratamentoMudou } from './ropa';
+import { documentoAtual, hashConteudo } from '../services/pedidos';
+
+/** Hash do conteúdo congelado do tratamento (o mesmo dos pedidos de aprovação); '' se não existe. */
+const hashDoTratamento = async (db: D1Database, id: string, projectId: string) => {
+  const d = await documentoAtual(db, 'tratamento', id, projectId);
+  return d ? hashConteudo(d.conteudo) : '';
+};
 import { NOME_DO_PRODUTO } from '../modulos';
 import { seedPhases } from '../services/project-setup';
 import {
@@ -124,10 +131,16 @@ nucleoApp.post('/mesclar', async (c) => {
     const v = await validateBody(c, mesclarSchema);
     if (!v.success) return v.response;
     const { tabela, manter, remover, confirmar } = v.data;
+    // Atividades tocadas: o hash do conteúdo congelado antes da mescla, para derrubar a aprovação só onde ele mudou
+    // (item só do ciclo de vida, que fica fora do conteúdo congelado, não derruba).
+    const tocadas = confirmar ? await previaDaMescla(c.env.DB, tabela, projectId, manter, remover) : null;
+    const antes = new Map<string, string>();
+    if (tocadas && 'ok' in tocadas) for (const t of tocadas.tratamentos) antes.set(t, await hashDoTratamento(c.env.DB, t, projectId));
     const r = confirmar ? await mesclar(c.env.DB, tabela, projectId, c.get('user').email, manter, remover) : await previaDaMescla(c.env.DB, tabela, projectId, manter, remover);
     if (!('ok' in r)) return c.json({ error: r.error }, r.status);
-    // O conteúdo congelado da aprovação das atividades tocadas mudou: o pedido aberto é conferido e, se preciso, substituído.
-    if (confirmar) for (const t of r.tratamentos) await conteudoDoTratamentoMudou(c, t, projectId);
+    if (confirmar) {
+      for (const t of r.tratamentos) if (antes.get(t) !== await hashDoTratamento(c.env.DB, t, projectId)) await conteudoDoTratamentoMudou(c, t, projectId);
+    }
     return c.json({ ...r, previa: !confirmar, tratamentos: r.tratamentos.length });
   } catch (e) { return erro500(c, 'Falha ao mesclar os cadastros', e); }
 });

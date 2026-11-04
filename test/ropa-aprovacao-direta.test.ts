@@ -38,6 +38,26 @@ describe('aprovação direta antiga e responsável em texto', () => {
     expect(await estado(rid)).toEqual(CAIU);
   });
 
+  it('mescla: item só do ciclo de vida (fora do conteúdo congelado) mantém a aprovação; item ligado à atividade derruba', async () => {
+    const mesclar = (manter: string, remover: string) =>
+      chamar(s.consultor, 'POST', `/api/v1/projects/${P}/mesclar`, { tabela: 'itens', manter, remover, confirmar: true });
+    const rid = await novaAtividade(s.consultor);
+    await novoItem('pad-m1', 'Sistema exemplo M1');
+    await novoItem('pad-m2', 'Sistema exemplo M2');
+    await env.DB.prepare(`INSERT INTO tratamento_ciclo (ropa_id, project_id, etapa, situacao, item_id) VALUES (?, ?, 'uso', 'registrada', 'pad-m2')`).bind(rid, P).run();
+    await aprovar(rid);
+    expect((await mesclar('pad-m1', 'pad-m2')).status).toBe(200);
+    expect(await estado(rid)).toMatchObject({ status: 'Approved' });
+
+    const rid2 = await novaAtividade(s.consultor);
+    await novoItem('pad-m3', 'Sistema exemplo M3');
+    await novoItem('pad-m4', 'Sistema exemplo M4');
+    expect((await chamar(s.consultor, 'PUT', `${base(rid2)}/itens`, { itens: ['pad-m4'] })).status).toBe(200);
+    await aprovar(rid2);
+    expect((await mesclar('pad-m3', 'pad-m4')).status).toBe(200);
+    expect(await estado(rid2)).toEqual(CAIU);
+  });
+
   it('gap com responsável só em texto aparece pelo nome na aba e na lista do projeto', async () => {
     const rid = await novaAtividade(s.consultor);
     await chamar(s.consultor, 'POST', `${base(rid)}/acoes`, { title: 'Ação exemplo AD' });
