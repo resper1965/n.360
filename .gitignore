@@ -202,3 +202,4 @@ playwright-report/
 debug.log
 .impeccable/
 .superpowers/
+__pycache__/
