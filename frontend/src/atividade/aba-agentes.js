@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { escapeHTML, confirmar } from '../ui.js';
+import { escapeHTML, confirmar, showToast } from '../ui.js';
 import { url, lista, novoAutosave, gravarAgora, campo, faixaSalvo } from './estado.js';
 
 // Aba Agentes de Tratamento: quem é controlador e operador, a transferência internacional e os operadores e destinatários.
@@ -31,7 +31,7 @@ function blocoTransferencias(pid, rid, lig, partes, editavel, simSelecionado) {
     </div>`;
 }
 
-function blocoPartes(pid, rid, lig, parceiros, editavel, registro, parceirosFalhou = false) {
+function blocoPartes(pid, rid, lig, parceiros, editavel, parceirosFalhou = false) {
     const ligadas = lista(lig.partes);
     return `<h3 class="at-sub">Operadores e destinatários</h3>
         ${ligadas.length ? `<ul class="at-lista" id="at-partes-lista">${ligadas.map((p) => `<li><span>${escapeHTML(p.nome)}, ${escapeHTML(PAPEIS_PARTE[p.papel] || p.papel)}</span>
@@ -42,9 +42,21 @@ function blocoPartes(pid, rid, lig, parceiros, editavel, registro, parceirosFalh
             <div class="form-group"><label class="form-label" for="tl-papel">Papel</label><select class="form-input" id="tl-papel">${PAPEIS_DE_PARCEIRO.map((v) => `<option value="${v}">${PAPEIS_PARTE[v]}</option>`).join('')}</select></div>
             <button type="button" class="btn btn-sm" data-action="adicionarParteTratamento" data-args='${args(pid, rid)}'>Ligar parceiro</button></div>`
             : parceirosFalhou ? '<p class="re-erro" role="alert">Não foi possível carregar os parceiros desta atividade. Abra a aba de novo para tentar outra vez.</p>'
-            : (editavel ? '<p class="at-nota">Nenhum parceiro escolhido nesta atividade. Escolha os parceiros na aba Tratamento de Dados, etapa Compartilhamento Externo, para ligá-los aqui.</p>' : '')}
-        ${campo({ id: 'at-destinatarios', rotulo: 'Órgãos públicos destinatários', tipo: 'textarea', max: 2000, valor: registro.recipients || '', travado: !editavel,
-            ajuda: 'Órgãos públicos que recebem os dados, em geral para cumprimento de obrigação legal. Os demais destinatários devem ser cadastrados em Parceiros.' })}`;
+            : (editavel ? '<p class="at-nota">Nenhum parceiro escolhido nesta atividade. Escolha os parceiros na aba Tratamento de Dados, etapa Compartilhamento Externo, para ligá-los aqui.</p>' : '')}`;
+}
+
+// Órgãos públicos destinatários (0097): um por linha, com a obrigação legal; o servidor regrava o texto da aprovação.
+function blocoOrgaos(r, editavel, falhou) {
+    if (falhou) return '<p class="re-erro" role="alert">Não foi possível carregar os órgãos públicos. Abra a aba de novo para tentar outra vez.</p>';
+    const orgaos = lista(r.orgaos);
+    return `${r.texto_anterior ? `<p class="at-nota" id="at-orgaos-anterior">Registrado antes em texto livre: ${escapeHTML(r.texto_anterior)}. Cadastre cada órgão abaixo; o primeiro cadastro substitui este texto.</p>` : ''}
+        ${orgaos.length ? `<ul class="at-lista" id="at-orgaos-lista">${orgaos.map((o) => `<li><span>${escapeHTML(o.nome)}${o.obrigacao_legal ? `, ${escapeHTML(o.obrigacao_legal)}` : ''}</span>
+            ${editavel ? `<button type="button" class="btn btn-ghost btn-sm" data-orgao-remover="${escapeHTML(o.id)}" aria-label="Remover ${escapeHTML(o.nome)}">Remover</button>` : ''}</li>`).join('')}</ul>`
+            : (r.texto_anterior ? '' : '<p class="at-nota">Nenhum órgão público cadastrado.</p>')}
+        ${editavel ? `<div class="at-linha-form">
+            <div class="form-group"><label class="form-label" for="at-orgao-nome">Órgão</label><input class="form-input" id="at-orgao-nome" maxlength="200"></div>
+            <div class="form-group"><label class="form-label" for="at-orgao-obrigacao">Obrigação legal</label><input class="form-input" id="at-orgao-obrigacao" maxlength="500"></div>
+            <button type="button" class="btn btn-sm" id="at-orgao-adicionar">Adicionar órgão</button></div>` : ''}`;
 }
 
 window.atRemoverTransferencia = async function (pid, rid, id) {
@@ -57,6 +69,9 @@ export async function montar(painel, ctx) {
     let lig = {};
     let partes = [];
     try { lig = (await api('GET', url(pid, rid, '/ligacoes'))) || {}; } catch (e) { /* sem ligações: a aba abre só com os papéis */ }
+    let orgaos = {};
+    let orgaosFalhou = false;
+    try { orgaos = (await api('GET', url(pid, rid, '/orgaos-publicos'))) || {}; } catch (e) { orgaosFalhou = true; }
     let parceiros = [];
     let parceirosFalhou = false;
     if (editavel) {
@@ -81,7 +96,10 @@ export async function montar(painel, ctx) {
             <label class="re-opcao"><input type="radio" name="at-intl" value="0"${sim ? '' : ' checked'}${trava}><span class="re-opcao-texto">Não</span></label>
             <label class="re-opcao"><input type="radio" name="at-intl" value="1"${sim ? ' checked' : ''}${trava}><span class="re-opcao-texto">Sim</span></label></fieldset>
         <div id="at-transf-bloco">${blocoTransferencias(pid, rid, lig, partes, editavel, sim)}</div>
-        ${blocoPartes(pid, rid, lig, parceiros, editavel, registro, parceirosFalhou)}
+        ${blocoPartes(pid, rid, lig, parceiros, editavel, parceirosFalhou)}
+        <h3 class="at-sub">Órgãos públicos destinatários</h3>
+        <p class="at-ajuda">Órgãos públicos que recebem os dados, em geral para cumprimento de obrigação legal. Os demais destinatários devem ser cadastrados em Parceiros.</p>
+        <div id="at-orgaos">${blocoOrgaos(orgaos, editavel, orgaosFalhou)}</div>
     </div>`;
     const status = painel.querySelector('#at-salvo');
     const salv = painel.querySelector('#at-salvaguarda');
@@ -102,9 +120,26 @@ export async function montar(painel, ctx) {
     const salvo = novoAutosave({ pid, rid, rota: '/agentes', status });
     function ligarSalvaguarda(el) { el.addEventListener('input', () => { registro.transfer_safeguards = el.value; salvo.agendar('transfer_safeguards', el.value); }); }
     if (salv) ligarSalvaguarda(salv);
-    // Destinatários em texto: a rota do registro (PUT /api/v1/ropa/:id), que também confere o pedido de aprovação aberto.
-    const dest = painel.querySelector('#at-destinatarios');
-    const salvoDest = novoAutosave({ pid, rid, caminho: `/api/v1/ropa/${rid}`, status });
-    dest.addEventListener('input', () => salvoDest.agendar('recipients', dest.value));
-    painel.addEventListener('focusout', () => { salvo.esvaziar(); salvoDest.esvaziar(); });
+    const caixaOrgaos = painel.querySelector('#at-orgaos');
+    async function recarregarOrgaos() {
+        try { orgaos = (await api('GET', url(pid, rid, '/orgaos-publicos'))) || {}; orgaosFalhou = false; } catch (e) { orgaosFalhou = true; }
+        caixaOrgaos.innerHTML = blocoOrgaos(orgaos, editavel, orgaosFalhou);
+    }
+    caixaOrgaos.addEventListener('click', async (e) => {
+        const remover = e.target.closest('[data-orgao-remover]');
+        if (remover) {
+            if (!(await confirmar('Remover este órgão público?', { rotulo: 'Remover', perigo: true }))) return;
+            try { await api('DELETE', url(pid, rid, `/orgaos-publicos/${remover.dataset.orgaoRemover}`)); } catch (err) { showToast((err && err.message) || 'Não foi possível remover.', 'error'); return; }
+            await recarregarOrgaos();
+            return;
+        }
+        if (!e.target.closest('#at-orgao-adicionar')) return;
+        const nome = caixaOrgaos.querySelector('#at-orgao-nome').value.trim();
+        if (!nome) { showToast('Informe o nome do órgão.', 'error'); return; }
+        if (orgaos.texto_anterior && !(await confirmar('O texto registrado antes será substituído pela lista de órgãos. Continuar?', { rotulo: 'Continuar' }))) return;
+        const obrigacao = caixaOrgaos.querySelector('#at-orgao-obrigacao').value.trim();
+        try { await api('POST', url(pid, rid, '/orgaos-publicos'), { nome, obrigacao_legal: obrigacao || null }); } catch (err) { showToast((err && err.message) || 'Não foi possível adicionar.', 'error'); return; }
+        await recarregarOrgaos();
+    });
+    painel.addEventListener('focusout', () => { salvo.esvaziar(); });
 }

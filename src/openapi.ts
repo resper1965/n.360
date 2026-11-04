@@ -138,7 +138,7 @@ import {
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema,
 } from './schemas/ot';
 import { otIaZonaSchema, otIaCompletudeSchema } from './schemas/ot-saidas';
-import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema, ripdQuestionarioSchema, liaQuestionarioSchema } from './schemas/ropa-abas';
+import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, orgaoPublicoCriarSchema, orgaoPublicoAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema, ripdQuestionarioSchema, liaQuestionarioSchema } from './schemas/ropa-abas';
 import { passoCamposSchema, passoMetaSchema, passoConcluirSchema, passoReabrirSchema, passoBloquearSchema, passoDesbloquearSchema, copilotoCampoSchema, copilotoConversaSchema } from './schemas/passos';
 
 /**
@@ -355,6 +355,8 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/lia', schema: liaSalvarSchema, nome: 'liaSalvarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/medidas/:id', schema: medidaAtualizarSchema, nome: 'medidaAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/medidas', schema: medidaCriarSchema, nome: 'medidaCriarSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/orgaos-publicos/:id', schema: orgaoPublicoAtualizarSchema, nome: 'orgaoPublicoAtualizarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/orgaos-publicos', schema: orgaoPublicoCriarSchema, nome: 'orgaoPublicoCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/revoke-approval', schema: revogarRopaSchema, nome: 'revogarRopaSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ropa/:recordId/riscos/:riscoId', schema: riscoAtividadeAtualizarSchema, nome: 'riscoAtividadeAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ropa/:recordId/riscos', schema: riscoAtividadeCriarSchema, nome: 'riscoAtividadeCriarSchema' },

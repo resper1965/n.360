@@ -48,11 +48,12 @@ describe('estadoDasAbas (função pura, a regra de cada aba)', () => {
     expect(aba({ dados_sensiveis: 1, art7: 1, art11: 1 }, 'base_juridica').estado).toBe('feito');
     expect(aba({ dados_sensiveis: 1, art7: 1, base_art11_na: 1 }, 'base_juridica').estado).toBe('feito');
   });
-  it('gaps: na quando Não Aplicável; feito com todos fechados; pendente com algum aberto; vazio sem nada', () => {
+  it('gaps: na quando Não Aplicável; vazio sem nada; feito com os obrigatórios preenchidos (aberto ou fechado); pendente só sem responsável', () => {
     expect(aba({ gaps_nao_aplicavel: 1 }, 'gaps').estado).toBe('na');
     expect(aba({}, 'gaps').estado).toBe('vazio');
-    expect(aba({ gaps: 2, gaps_abertos: 0 }, 'gaps').estado).toBe('feito');
-    expect(aba({ gaps: 2, gaps_abertos: 1 }, 'gaps')).toEqual({ estado: 'pendente', resumo: '2 gaps, 1 aberto.' });
+    expect(aba({ gaps: 2, gaps_abertos: 0 }, 'gaps')).toEqual({ estado: 'feito', resumo: '2 gaps, todos fechados.' });
+    expect(aba({ gaps: 2, gaps_abertos: 1 }, 'gaps')).toEqual({ estado: 'feito', resumo: '2 gaps, 1 aberto, campos obrigatórios preenchidos.' });
+    expect(aba({ gaps: 2, gaps_abertos: 1, sem_responsavel: 1 }, 'gaps')).toEqual({ estado: 'pendente', resumo: '2 gaps, 1 sem responsável.' });
   });
   it('impacto: feito se finalizado, senão pendente com "N de M respondidas"', () => {
     expect(aba({ impacto_finalizado_em: '2026-10-10 10:00:00' }, 'impacto').estado).toBe('feito');

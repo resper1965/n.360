@@ -378,6 +378,11 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   descricao a partir da ficha e de uma nota opcional; a pessoa aceita (Aceitar copia o texto para o campo e o autosave grava), nada grava sozinho.
   Sem base (nenhum titular na Coleta, ativo, area, descricao nem nota) o modelo nao e chamado (`sem_base: true`, sem trilha); com base, a resposta traz `fontes` (o que foi enviado).
   E2E das etapas vazias em `frontend/e2e/ropa-etapas.spec.js`.
+- **Órgãos públicos destinatários (migration 0097):** na aba Agentes, um órgão por linha (`tratamento_orgaos_publicos`: nome e obrigação legal,
+  até 20 por atividade, gatilho de projeto), rotas `GET|POST /projects/:id/ropa/:rid/orgaos-publicos` e `PUT|DELETE .../:id` (faixa `privacy`),
+  serviço `src/services/ropa-abas/orgaos-publicos.ts`. `ropa_records.recipients` segue no conteúdo congelado: cada escrita o regrava a partir das
+  linhas (`textoDosOrgaos`) e, se mudou, confere os pedidos. O texto livre antigo sai como `texto_anterior` ate o primeiro cadastro, que o substitui (a tela pede confirmacao).
+  Na aba Controle de GAPs, `pendente` so quando ha gap aberto sem responsavel; gap aberto com os campos preenchidos conta como feito (`estadoDasAbas`).
 - **DPIA e LIA do tratamento (fatia 5, migration 0056)**: `dpia_assessments.ropa_id` tem integridade no BANCO por tres triggers
   (`dpia_ropa_do_projeto_ins/_upd` recusam registro inexistente OU de outro projeto; `dpia_ropa_apagada` zera a referencia ao apagar o
   tratamento), sem reconstruir a tabela (assinatura e deriva historica). `lia_assessments` e a LIA (uma por tratamento, `ropa_id`

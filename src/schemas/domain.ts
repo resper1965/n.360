@@ -53,7 +53,7 @@ export const ropaSchema = z.object({
   data_subjects: curtoOpcional,
   legal_basis: curtoOpcional,
   retention_period: curtoOpcional,
-  recipients: curtoOpcional,
+  recipients: z.string().trim().max(15000).optional().nullable(), // texto gerado dos órgãos públicos (até 20 × 700, 0097)
   // INTEGER no banco; o frontend manda 0 ou 1. Exigir string aqui fazia TODA
   // criação de ROPA pela UI falhar com 400 antes de chegar ao INSERT.
   international_transfers: boolLike,
