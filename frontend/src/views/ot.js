@@ -24,7 +24,7 @@ const TEMPO_IA = 90000;
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
 const ABAS = [['catalogo', 'Catálogo RO-CB.BR.01'], ['inventario', 'Inventário'], ['fluxos', 'Fluxos'], ['coleta', 'Coleta'], ['levantamento', 'Levantamento'], ['saidas', 'Saídas'],
-    ['acessos', 'Acesso por site']];
+    ['acessos', 'Acessos e agente']];
 const abasDoPapel = () => ABAS.filter(([v]) => v !== 'acessos' || podeEditarOt());
 
 async function renderOt(c, h, a) {
@@ -137,7 +137,9 @@ async function montarInventario(c, a, p) {
     const tabelaAtivos = renderDataTable(['Ativo', 'Site', 'Zona', 'Tipo', 'Fabricante e modelo', 'IP', 'MAC', 'ARCiber', ...(editar ? ['Ações'] : [])], ativos.map((x) => [
         `<strong>${escapeHTML(x.nome)}</strong>`, escapeHTML(nomeDe(D.sites, x.site_id)), escapeHTML(x.zona_id ? nomeDe(D.zonas, x.zona_id) : 'Sem zona'),
         escapeHTML(x.tipo_dispositivo || '—'), escapeHTML([x.fabricante, x.modelo].filter(Boolean).join(' ') || '—'),
-        `<span class="f-mono">${escapeHTML(x.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(x.mac ?? '—')}</span>`,
+        // Decisão do dono: IP ou MAC basta para o 4.3.1, mas o que falta fica à vista para a coleta em campo.
+        x.ip == null ? renderStatusBadge('warning', 'Falta IP') : `<span class="f-mono">${escapeHTML(x.ip)}</span>`,
+        x.mac == null ? renderStatusBadge('warning', 'Falta MAC') : `<span class="f-mono">${escapeHTML(x.mac)}</span>`,
         x.no_arciber ? renderStatusBadge('info', `Sim${x.categoria_arciber ? ` · ${CATEGORIAS[x.categoria_arciber] || x.categoria_arciber}` : ''}`) : 'Não',
         ...acoesAtivo(x),
     ]), { emptyMessage: 'Nenhum ativo neste recorte.', emptyHint: editar ? 'Cadastre o ativo aqui ou traga uma planilha pela aba Coleta.' : 'Os ativos entram pela aba Coleta, com a revisão de quem administra o n.ot.' });

@@ -18,7 +18,8 @@ export async function indicadoresOt(db: D1Database, projectId: string, sites: st
   const [ativos, zonas, fluxos] = await db.batch([
     db.prepare(`SELECT count(*) AS total, coalesce(sum(${SQL_COMPLETO_4_3_1}), 0) AS completos, coalesce(sum(a.no_arciber = 1), 0) AS arciber,
         coalesce(sum(a.no_arciber = 1 AND ${SQL_COMPLETO_4_3_1}), 0) AS arciber_completos,
-        coalesce(sum(NOT EXISTS (SELECT 1 FROM ot_zonas z WHERE z.id = a.zona_id AND z.status = 'ativo')), 0) AS sem_zona
+        coalesce(sum(NOT EXISTS (SELECT 1 FROM ot_zonas z WHERE z.id = a.zona_id AND z.status = 'ativo')), 0) AS sem_zona,
+        coalesce(sum(a.ip_cifrado IS NULL), 0) AS sem_ip, coalesce(sum(a.mac_cifrado IS NULL), 0) AS sem_mac
       FROM ot_ativos a WHERE a.project_id = ? AND a.status = 'ativo' AND ${NO_SITE}`).bind(projectId, sites),
     db.prepare(`SELECT z.id AS zona_id, z.site_id, z.nome, z.nivel_purdue, count(a.id) AS ativos FROM ot_zonas z
       LEFT JOIN ot_ativos a ON a.zona_id = z.id AND a.project_id = z.project_id AND a.status = 'ativo'
@@ -27,7 +28,7 @@ export async function indicadoresOt(db: D1Database, projectId: string, sites: st
     db.prepare(`SELECT count(*) AS externos, coalesce(sum(f.via_vpn = 0), 0) AS sem_vpn FROM ot_fluxos f WHERE ${FLUXO_VISIVEL} AND f.externo = 1`)
       .bind(projectId, sites, sites, sites),
   ]);
-  const a = ativos.results[0] as { total: number; completos: number; arciber: number; arciber_completos: number; sem_zona: number };
+  const a = ativos.results[0] as { total: number; completos: number; arciber: number; arciber_completos: number; sem_zona: number; sem_ip: number; sem_mac: number };
   const porZona = zonas.results as { zona_id: string; site_id: string; nome: string; nivel_purdue: number; ativos: number }[];
   const f = fluxos.results[0] as { externos: number; sem_vpn: number };
 
@@ -53,6 +54,9 @@ export async function indicadoresOt(db: D1Database, projectId: string, sites: st
     por_zona: porZona,
     por_nivel: Object.fromEntries([...new Set(porZona.map((z) => z.nivel_purdue))].map((n) => [n, porZona.filter((z) => z.nivel_purdue === n).reduce((s, z) => s + z.ativos, 0)])),
     sem_zona: a.sem_zona,
+    // Decisão do dono (2026-11-04): o 4.3.1 pede IP ou MAC; faltar um dos dois é aviso de coleta, não bloqueio.
+    sem_ip: a.sem_ip,
+    sem_mac: a.sem_mac,
     fluxos_externos: { externos: f.externos, sem_vpn: f.sem_vpn, ...externos },
     prazos,
   };

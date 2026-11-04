@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, forceCloseModal, showToast, confirmar, formatarData } from '../ui.js';
 import { mensagemDeErro, lista, semRepetir } from '../ot-comum.js';
 
-// n.ot, L5 (plano 2026-11-04): o cartão "Agente de coleta" na aba Acesso por site, sobre /ot/agente* (src/routes/ot.ts). Ligar é do
+// n.ot, L5 (plano 2026-11-04): o cartão "Agente de coleta" na aba Acessos e agente, sobre /ot/agente* (src/routes/ot.ts). Ligar é do
 // Gestor ARCiber (pode_ligar); emitir e revogar, de quem vê o inventário completo (pode_emitir). A chave em claro vive só no modal
 // que a mostra: nunca em variável de módulo, S ou storage, e o modal é esvaziado ao fechar.
 
