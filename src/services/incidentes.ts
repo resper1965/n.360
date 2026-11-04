@@ -25,13 +25,17 @@ export function situacaoDaComunicacao(prazo: string | null, feita: string | null
   return dia < em ? 'atrasado' : dia === em ? 'vence_hoje' : 'no_prazo';
 }
 
-const COLS = 'id, protocolo, titulo, descricao, ocorrido_em, ciencia_em, risco_titular, avaliacao_texto, comunicacao_anpd_em, comunicacao_titular_em, prazo_anpd_em, prazo_titular_em, status, responsavel_parte_id, criado_por, created_at, updated_at';
+const COLS = 'id, protocolo, titulo, descricao, ocorrido_em, ciencia_em, risco_titular, avaliacao_texto, comunicacao_anpd_em, comunicacao_titular_em, prazo_anpd_em, prazo_titular_em, status, responsavel_parte_id, criado_por, created_at, updated_at, origem_alerta, severidade, tipo, comprometimento, titulares_estimados, criterios_risco, fim_em';
 export type Incidente = {
   id: string; protocolo: string; titulo: string; descricao: string | null; ocorrido_em: string | null; ciencia_em: string; risco_titular: Risco | null; avaliacao_texto: string | null;
   comunicacao_anpd_em: string | null; comunicacao_titular_em: string | null; prazo_anpd_em: string | null; prazo_titular_em: string | null; status: string; responsavel_parte_id: string | null;
+  origem_alerta: string | null; severidade: string | null; tipo: string | null; comprometimento: string | null; titulares_estimados: number | null; criterios_risco: string | null; fim_em: string | null;
 };
+const lista = (json: string | null): string[] => { try { const v = JSON.parse(json ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
 const comSituacao = (i: Incidente) => ({
   ...i,
+  comprometimento: lista(i.comprometimento),
+  criterios_risco: lista(i.criterios_risco),
   situacao_anpd: situacaoDaComunicacao(i.prazo_anpd_em, i.comunicacao_anpd_em),
   situacao_titular: situacaoDaComunicacao(i.prazo_titular_em, i.comunicacao_titular_em),
 });
@@ -41,9 +45,18 @@ export async function listarIncidentes(db: D1Database, projectId: string) {
   return results.map(comSituacao);
 }
 
+/** O incidente com as áreas e os titulares × dados afetados (nomes do cadastro). */
 export async function lerIncidente(db: D1Database, projectId: string, id: string) {
   const i = await db.prepare(`SELECT ${COLS} FROM incidentes WHERE id = ? AND project_id = ?`).bind(id, projectId).first<Incidente>();
-  return i ? comSituacao(i) : null;
+  if (!i) return null;
+  const [areas, dados] = await Promise.all([
+    db.prepare(`SELECT d.id, d.nome FROM incidente_departamentos x JOIN departamentos d ON d.id = x.departamento_id
+                WHERE x.incidente_id = ? AND x.project_id = ? ORDER BY d.nome`).bind(id, projectId).all<{ id: string; nome: string }>(),
+    db.prepare(`SELECT x.titular_id, t.nome AS titular, x.dado_id, d.nome AS dado, d.sensivel FROM incidente_dados x
+                JOIN catalogo_itens t ON t.id = x.titular_id JOIN catalogo_itens d ON d.id = x.dado_id
+                WHERE x.incidente_id = ? AND x.project_id = ? ORDER BY t.nome, d.nome`).bind(id, projectId).all<{ titular_id: string; titular: string; dado_id: string; dado: string; sensivel: number }>(),
+  ]);
+  return { ...comSituacao(i), areas: areas.results, dados: dados.results };
 }
 
 export type NovoIncidente = { titulo: string; descricao?: string | null; ocorrido_em?: string | null; ciencia_em: string; responsavel_parte_id?: string | null };
@@ -125,19 +138,64 @@ export async function importarIncidente(db: D1Database, projectId: string, ator:
  * Corrige o registro (título, descrição, data da ocorrência, responsável) enquanto não está encerrado. A ciência fica de fora: os prazos
  * de comunicação contam dela e foram congelados na criação. Campo ausente mantém; a trilha diz só quais campos mudaram, nunca o texto.
  */
-export async function atualizarIncidente(db: D1Database, projectId: string, id: string, ator: string,
-  d: { titulo?: string; descricao?: string | null; ocorrido_em?: string | null; responsavel_parte_id?: string | null }): Promise<Falha | { ok: true }> {
+export type RegistroIncidente = {
+  titulo?: string; descricao?: string | null; ocorrido_em?: string | null; responsavel_parte_id?: string | null; origem_alerta?: string | null;
+  severidade?: string | null; tipo?: string | null; comprometimento?: string[]; titulares_estimados?: number | null; criterios_risco?: string[];
+  fim_em?: string | null; areas?: string[]; dados?: { titular_id: string; dado_id: string }[];
+};
+const CAMPOS_REGISTRO = ['titulo', 'descricao', 'ocorrido_em', 'responsavel_parte_id', 'origem_alerta', 'severidade', 'tipo', 'comprometimento',
+  'titulares_estimados', 'criterios_risco', 'fim_em'] as const; // allowlist: o nome da coluna nunca vem do corpo
+const EM_JSON = new Set(['comprometimento', 'criterios_risco']);
+const mesmoConjunto = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+const quando = (s: string) => Date.parse(s.length === 10 ? `${s}T00:00:00Z` : s);
+
+/**
+ * Corrige e completa o registro (campos, áreas e titulares × dados) enquanto não está encerrado. A ciência fica de fora: os prazos de
+ * comunicação contam dela e foram congelados na criação. Campo ausente mantém; áreas e dados enviados substituem a lista. A trilha diz só
+ * quais campos mudaram, nunca o texto.
+ */
+export async function atualizarIncidente(db: D1Database, projectId: string, id: string, ator: string, d: RegistroIncidente): Promise<Falha | { ok: true }> {
   const i = await lerIncidente(db, projectId, id);
   if (!i) return falha(404, 'Incidente não encontrado');
   if (i.status === 'encerrado') return falha(409, 'Incidente encerrado não muda');
-  if (d.ocorrido_em && !ehInstante(d.ocorrido_em)) return falha(400, 'ocorrido_em precisa ser uma data ou data e hora ISO');
+  for (const k of ['ocorrido_em', 'fim_em'] as const) if (d[k] && !ehInstante(d[k]!)) return falha(400, `${k} precisa ser uma data ou data e hora ISO`);
+  const ocorrido = d.ocorrido_em !== undefined ? d.ocorrido_em : i.ocorrido_em;
+  const fim = d.fim_em !== undefined ? d.fim_em : i.fim_em;
+  if (ocorrido && fim && quando(fim) < quando(ocorrido)) return falha(400, 'O fim não pode ser antes da ocorrência');
   if (d.responsavel_parte_id && !(await db.prepare('SELECT 1 FROM partes WHERE id = ? AND project_id = ?').bind(d.responsavel_parte_id, projectId).first())) return falha(400, 'responsavel_parte_id inexistente ou de outro projeto');
-  const CAMPOS = ['titulo', 'descricao', 'ocorrido_em', 'responsavel_parte_id'] as const; // allowlist: o nome da coluna nunca vem do corpo
-  const mudaram = CAMPOS.filter((k) => d[k] !== undefined && (d[k] ?? null) !== (i[k] ?? null));
-  if (!mudaram.length) return { ok: true };
-  const r = await db.prepare(`UPDATE incidentes SET ${mudaram.map((k) => `${k} = ?`).join(', ')}, updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'encerrado'`)
-    .bind(...mudaram.map((k) => d[k] ?? null), id, projectId).run();
-  if (!r.meta.changes) return falha(409, 'Incidente encerrado não muda');
+  // Áreas e dados do cadastro DESTE projeto: conferidos antes (400 com o motivo), o gatilho do banco é a segunda trava.
+  if (d.areas?.length) {
+    const ok = await db.prepare(`SELECT count(*) AS n FROM departamentos WHERE project_id = ? AND id IN (SELECT value FROM json_each(?))`).bind(projectId, JSON.stringify(d.areas)).first<{ n: number }>();
+    if ((ok?.n ?? 0) !== d.areas.length) return falha(400, 'Área inexistente ou de outro projeto');
+  }
+  if (d.dados?.length) {
+    const ids = [...new Set(d.dados.flatMap((x) => [x.titular_id, x.dado_id]))];
+    const { results } = await db.prepare(`SELECT id, tipo FROM catalogo_itens WHERE project_id = ? AND id IN (SELECT value FROM json_each(?))`).bind(projectId, JSON.stringify(ids)).all<{ id: string; tipo: string }>();
+    const tipo = new Map(results.map((r) => [r.id, r.tipo]));
+    if (d.dados.some((x) => tipo.get(x.titular_id) !== 'titular' || tipo.get(x.dado_id) !== 'dado')) return falha(400, 'Titular ou dado inexistente ou de outro projeto');
+  }
+  const valor = (k: (typeof CAMPOS_REGISTRO)[number]) => (EM_JSON.has(k) ? JSON.stringify(d[k] ?? []) : (d[k] ?? null));
+  const atual = (k: (typeof CAMPOS_REGISTRO)[number]) => (EM_JSON.has(k) ? JSON.stringify(i[k] ?? []) : (i[k] ?? null));
+  const mudaram: string[] = CAMPOS_REGISTRO.filter((k) => d[k] !== undefined && valor(k) !== atual(k));
+  const stmts: D1PreparedStatement[] = [];
+  if (mudaram.length) {
+    stmts.push(db.prepare(`UPDATE incidentes SET ${mudaram.map((k) => `${k} = ?`).join(', ')}, updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'encerrado'`)
+      .bind(...mudaram.map((k) => valor(k as (typeof CAMPOS_REGISTRO)[number])), id, projectId));
+  }
+  if (d.areas && !mesmoConjunto(d.areas, i.areas.map((a) => a.id))) {
+    mudaram.push('areas');
+    stmts.push(db.prepare('DELETE FROM incidente_departamentos WHERE incidente_id = ? AND project_id = ?').bind(id, projectId),
+      ...d.areas.map((a) => db.prepare('INSERT INTO incidente_departamentos (incidente_id, departamento_id, project_id) VALUES (?, ?, ?)').bind(id, a, projectId)));
+  }
+  const par = (x: { titular_id: string; dado_id: string }) => `${x.titular_id}|${x.dado_id}`;
+  if (d.dados && !mesmoConjunto(d.dados.map(par), i.dados.map(par))) {
+    mudaram.push('dados');
+    stmts.push(db.prepare('DELETE FROM incidente_dados WHERE incidente_id = ? AND project_id = ?').bind(id, projectId),
+      ...d.dados.map((x) => db.prepare('INSERT INTO incidente_dados (incidente_id, titular_id, dado_id, project_id) VALUES (?, ?, ?, ?)').bind(id, x.titular_id, x.dado_id, projectId)));
+  }
+  if (!stmts.length) return { ok: true };
+  // Uma transação só: campos e listas mudam juntos ou nada muda.
+  await db.batch(stmts);
   await logAudit(db, 'incidente.alterado', ator, `Incidente ${i.protocolo}: ${mudaram.join(', ')}`, '', '', projectId);
   return { ok: true };
 }

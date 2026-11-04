@@ -132,6 +132,7 @@ const FORA_DO_AGENTE: Array<[RegExp, string, string[]?]> = [
   [/^\/api\/v1\/projects\/[^/]+\/passos\/[^/]+\/copiloto\/[a-z-]+$/, 'rascunho de IA da trilha é pela interface; o agente já é a IA', ['POST']],
   // Ficha em abas (spec 2026-10-16): anexo de gap e relatório são da tela; a situação é decisão (`niso_situacao_atividade`).
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/gaps\/[^/]+\/anexos(\/[^/]+)?$/, 'anexo de gap é arquivo enviado por uma pessoa, pela interface'],
+  [/^\/api\/v1\/projects\/[^/]+\/incidentes\/[^/]+\/anexos(\/[^/]+)?$/, 'evidência do incidente é arquivo enviado por uma pessoa, pela interface'],
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/relatorio$/, 'impressão da atividade é pela interface'],
   [/^\/api\/v1\/projects\/[^/]+\/ropa\/[^/]+\/etapas\/[^/]+\/rascunho$/, 'rascunho de IA da etapa é pela interface; o agente já é a IA', ['POST']],
 ];

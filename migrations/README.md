@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0097** (`ls migrations/*.sql | tail -1`). São 96 arquivos
+- Última migration no repositório: **0098** (`ls migrations/*.sql | tail -1`). São 97 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`,
@@ -747,3 +747,12 @@ depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titula
 
 Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).
+
+## 0098 — registro completo do incidente (2026-11-04)
+
+Colunas novas em `incidentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner; o CHECK da 0058 não muda): `origem_alerta`,
+`severidade`, `tipo`, `comprometimento`, `titulares_estimados`, `criterios_risco`, `fim_em`. Tabelas novas `incidente_departamentos`,
+`incidente_dados` e `incidente_anexos`, com gatilho de projeto. Conferência depois:
+`SELECT name FROM pragma_table_info('incidentes') WHERE name IN ('origem_alerta','severidade','tipo','comprometimento','titulares_estimados','criterios_risco','fim_em')`
+(7 linhas) e `SELECT name FROM sqlite_master WHERE name IN ('incidente_departamentos','incidente_dados','incidente_anexos')` (3 linhas).
+Produção só com o "sim" do dono e `npm run db:backup` antes.

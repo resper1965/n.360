@@ -323,17 +323,48 @@ describe('incidentes', () => {
         await window.encerrarIncidente('p9', 'i1');
         expect(chamadas(f)).toContain(`POST ${B}/incidentes/i1/encerrar`);
     });
-    it('corrigir dados do registro manda título, descrição e ocorrência (nunca a ciência)', async () => {
-        const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], descricao: 'Antes' }, [`PUT ${B}/incidentes/i1`]: { ok: true } });
+    it('editar registro manda os campos do legado, as áreas e os titulares × dados (nunca a ciência)', async () => {
+        const f = await abrir('incidentes', {
+            [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], descricao: 'Antes', severidade: 'media', comprometimento: ['integridade'], criterios_risco: [], areas: [{ id: 'd1', nome: 'TI' }],
+                dados: [{ titular_id: 't1', titular: 'Clientes', dado_id: 'x1', dado: 'E-mail', sensivel: 0 }] },
+            [`GET ${B}/incidentes/i1/anexos`]: { anexos: [{ id: 'a1', file_name: 'laudo.pdf', file_type: 'pdf', file_size: 10 }] },
+            [`GET ${B}/departamentos`]: [{ id: 'd1', nome: 'TI', status: 'ativo' }, { id: 'd2', nome: 'Comercial', status: 'ativo' }],
+            [`GET ${B}/partes`]: [{ id: 'p1', nome: 'Ana', tipo: 'pessoa' }, { id: 'o1', nome: 'Empresa', tipo: 'organizacao' }],
+            [`GET ${B}/catalogos/titulares`]: [{ id: 't1', nome: 'Clientes', status: 'ativo' }],
+            [`GET ${B}/catalogos/dados`]: [{ id: 'x1', nome: 'E-mail', status: 'ativo' }, { id: 'x2', nome: 'Saúde', status: 'ativo' }],
+            [`PUT ${B}/incidentes/i1`]: { ok: true },
+        });
         await window.abrirIncidente('p9', 'i1');
+        expect(el('in-registro').textContent).toContain('Severidade: Média');
+        expect(el('in-registro').textContent).toContain('Clientes: E-mail');
+        await vi.waitFor(() => expect(el('in-anexos').textContent).toContain('laudo.pdf'));
         el('modal-content').querySelector('[data-action="editarIncidente"]').click();
         await vi.waitFor(() => expect(el('in-ed-titulo')).not.toBeNull());
         expect(el('in-ed-desc').value).toBe('Antes');
+        // O responsável é uma pessoa do cadastro; organização não aparece.
+        expect([...el('in-ed-resp').options].map((o) => o.textContent)).toEqual(['Não definido', 'Ana']);
         el('in-ed-titulo').value = '  '; await window.salvarEdicaoIncidente('p9', 'i1');
         expect(chamadas(f)).not.toContain(`PUT ${B}/incidentes/i1`);
         el('in-ed-titulo').value = 'Acesso indevido corrigido'; el('in-ed-desc').value = ''; el('in-ed-ocorrido').value = '2026-09-30';
+        el('in-ed-tipo').value = 'vazamento'; el('in-ed-qtd').value = '40'; el('in-ed-resp').value = 'p1';
+        document.querySelector('input[name="in-ed-area"][value="d2"]').click();
+        document.querySelector('input[name="in-ed-crit"][value="sensiveis"]').click();
+        el('in-ed-dado').value = 'x2'; window.adicionarDadoIncidente();
+        expect(el('in-ed-dados-lista').textContent).toContain('Clientes: Saúde');
         await window.salvarEdicaoIncidente('p9', 'i1');
-        expect(corpoDe(f, `PUT ${B}/incidentes/i1`)).toEqual({ titulo: 'Acesso indevido corrigido', descricao: null, ocorrido_em: '2026-09-30' });
+        expect(corpoDe(f, `PUT ${B}/incidentes/i1`)).toEqual({
+            titulo: 'Acesso indevido corrigido', descricao: null, origem_alerta: null, severidade: 'media', tipo: 'vazamento', comprometimento: ['integridade'],
+            ocorrido_em: '2026-09-30', fim_em: null, responsavel_parte_id: 'p1', titulares_estimados: 40, criterios_risco: ['sensiveis'],
+            areas: ['d1', 'd2'], dados: [{ titular_id: 't1', dado_id: 'x1' }, { titular_id: 't1', dado_id: 'x2' }],
+        });
+    });
+    it('sem o catálogo do n.privacy, a edição não mexe nos titulares × dados', async () => {
+        const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], areas: [], dados: [] }, [`GET ${B}/departamentos`]: [], [`PUT ${B}/incidentes/i1`]: { ok: true } });
+        await window.editarIncidente('p9', 'i1');
+        expect(el('modal-content').textContent).toContain('vêm do catálogo do n.privacy');
+        await window.salvarEdicaoIncidente('p9', 'i1');
+        expect(corpoDe(f, `PUT ${B}/incidentes/i1`)).not.toHaveProperty('dados');
+        expect(corpoDe(f, `PUT ${B}/incidentes/i1`)).toHaveProperty('areas', []);
     });
     it('incidente encerrado e papel de leitura não têm ações', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], status: 'encerrado' } });

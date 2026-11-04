@@ -81,7 +81,7 @@ const nunca = () => false; // o registro não tem campo para isso: sempre falta,
 const temTexto = (s: string | null | undefined) => !!s && !!s.trim();
 const riscos: Campo = ['Riscos e impactos aos titulares', (i) => temTexto(i.avaliacao_texto)];
 const ciencia: Campo = ['Data da ciência', (i) => temTexto(i.ciencia_em)];
-const natureza: Campo = ['Natureza e categoria dos dados afetados', nunca];
+const natureza: Campo = ['Natureza e categoria dos dados afetados', (i) => i.dados.length > 0];
 const medidasSeg: Campo = ['Medidas técnicas e de segurança adotadas antes e depois', nunca];
 const mitigacao: Campo = ['Medidas para reverter ou mitigar os efeitos', nunca];
 const encarregado: Campo = ['Dados do encarregado', (_i, x) => x.encarregado];
@@ -89,7 +89,7 @@ const encarregado: Campo = ['Dados do encarregado', (_i, x) => x.encarregado];
 /** Conteúdo mínimo da comunicação (Res. CD/ANPD 15/2024): art. 6 para a ANPD, art. 9 para o titular. */
 const CAMPOS: Record<'anpd' | 'titular', Campo[]> = {
   anpd: [
-    ['Descrição do incidente', (i) => temTexto(i.descricao)], natureza, ['Número de titulares afetados', nunca], medidasSeg, riscos, mitigacao,
+    ['Descrição do incidente', (i) => temTexto(i.descricao)], natureza, ['Número de titulares afetados', (i) => i.titulares_estimados != null], medidasSeg, riscos, mitigacao,
     ['Data da ocorrência', (i) => temTexto(i.ocorrido_em)], ciencia, encarregado, ['Identificação do controlador', () => true],
     ['Identificação do operador, quando houver', nunca], ['Total de titulares nas atividades afetadas', nunca],
   ],
@@ -118,7 +118,9 @@ export async function rascunharComunicacao(env: Env, projectId: string, incident
   const r = await consultar(() => agente(env).rascunharComunicacao({
     destino: destino === 'anpd' ? 'ANPD' : 'titulares afetados', controlador: proj?.client_name ?? null,
     titulo: mascararPii(i.titulo), descricao: mascararPii(i.descricao), ocorrido_em: i.ocorrido_em, ciencia_em: i.ciencia_em, risco_ao_titular: i.risco_titular,
-    avaliacao_do_risco: mascararPii(i.avaliacao_texto), prazo: destino === 'anpd' ? i.prazo_anpd_em : i.prazo_titular_em, ...campos,
+    avaliacao_do_risco: mascararPii(i.avaliacao_texto), titulares_estimados: i.titulares_estimados,
+    // Só categorias do catálogo (nomes como "Clientes" e "E-mail"), nunca dado de titular.
+    dados_afetados: i.dados.map((x) => `${x.titular}: ${x.dado}${x.sensivel ? ' (sensível)' : ''}`), prazo: destino === 'anpd' ? i.prazo_anpd_em : i.prazo_titular_em, ...campos,
   }), aoFalhar);
   if (!r.ok) return r;
   await trilha(env, ator, projectId, `Incidente ${i.protocolo} (comunicação ${destino === 'anpd' ? 'à ANPD' : 'ao titular'})`, r.modelo);
