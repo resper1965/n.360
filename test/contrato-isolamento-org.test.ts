@@ -229,6 +229,8 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   ot_levantamentos: { tipo: 'entrevista' },
   // n.ot (0095): assinatura tem 64 caracteres e mapeamento é objeto JSON (CHECKs)
   ot_perfis_depara: { assinatura: 'a'.repeat(64), mapeamento: '{}' },
+  // n.ot (0097): dados é objeto JSON (CHECK)
+  ot_fluxos_pendentes: { dados: '{}' },
 };
 
 /**

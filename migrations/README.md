@@ -737,6 +737,10 @@ Cria `ot_perfis_depara` (perfil da planilha: cabeçalho → campos do ativo, uma
 
 Acrescenta `projects.agente_coleta_ot INTEGER NOT NULL DEFAULT 0 CHECK (agente_coleta_ot IN (0, 1))` por `ALTER TABLE ADD COLUMN`, que roda uma vez pelo runner (interruptor do agente externo, desligado por padrão). Aditiva; nenhuma tabela é refeita. A chave do agente é `api_keys.permissions = 'ot_coleta'` (sem CHECK). Conferência depois: `SELECT name FROM pragma_table_info('projects') WHERE name = 'agente_coleta_ot'` (1 linha). Produção só com o "sim" do dono e `npm run db:backup` antes.
 
+## 0097 — sensor de rede do n.ot (2026-11-04)
+
+Acrescenta `ot_sites.faixas_internas` (JSON array de CIDR, default `'[]'`) por `ALTER TABLE ADD COLUMN`, que roda uma vez pelo runner, e cria `ot_fluxos_pendentes` (conexões do resumo do Zeek com ponta desconhecida; só hash de IP, `destino_ip_hash` nulo = externo). Aditiva; o resto é repetível. Mesma numeração da `0097_orgaos_publicos.sql` por PRs paralelos (o runner controla pelo nome). Conferência depois: `SELECT name FROM pragma_table_info('ot_sites') WHERE name = 'faixas_internas'` (1 linha) e `SELECT name FROM sqlite_master WHERE name = 'ot_fluxos_pendentes'` (1 linha). Produção só com o "sim" do dono e `npm run db:backup` antes.
+
 ## 0096 — portal de solicitações do titular (2026-11-03)
 
 Cria `titular_portais` (um link por projeto, só o SHA-256 do token) e `titular_pedido_tratativas` (histórico do atendimento do pedido).

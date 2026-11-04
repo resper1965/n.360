@@ -13,11 +13,18 @@ const nome = livre(200, 1);
 const id = z.string().trim().min(1).max(100);
 const opcional = <T extends z.ZodTypeAny>(t: T) => t.nullable().optional();
 
+/** CIDR IPv4 (`a.b.c.d/0-32`) ou IPv6 (`x::/0-128`), sem espaços. */
+export const faixaCidr = z.string().trim().refine((f) => {
+  const [ip, n, ...resto] = f.split('/');
+  return resto.length === 0 && /^(0|[1-9]\d{0,2})$/.test(n ?? '') && normalizarIp(ip) !== null && Number(n) <= (ip.includes(':') ? 128 : 32);
+}, 'Faixa inválida: use CIDR, como 200.10.0.0/24');
+
 export const otSiteCriarSchema = z.object({
   nome,
   tipo: z.enum(['subestacao', 'usina', 'centro_operacao', 'outro']).optional(),
   criticidade: opcional(z.enum(['alta', 'media', 'baixa'])),
   localizacao: opcional(livre(500)),
+  faixas_internas: z.array(faixaCidr).max(50).optional(),
 }).strict();
 export const otSiteAtualizarSchema = otSiteCriarSchema.partial().strict();
 
