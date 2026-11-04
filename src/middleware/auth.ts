@@ -400,7 +400,7 @@ export const authMiddleware = createMiddleware<{ Bindings: Bindings; Variables: 
       const recusa = avaliarPolitica({
         politica,
         caminho: path,
-        ip: c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || null,
+        ip: c.req.header('CF-Connecting-IP') || null,
         totpAtivo: linha?.totp_enabled === 1,
         iat: (user as { iat?: number }).iat,
       });

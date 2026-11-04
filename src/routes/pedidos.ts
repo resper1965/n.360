@@ -257,7 +257,7 @@ export async function decidirPedido(
     decisao === 'aprovar' && pedido.papel_exigido !== 'ciente' ? { papel: pedido.papel_exigido } : undefined;
 
   const novoStatus = decisao === 'recusar' ? 'recusado' : pedido.papel_exigido === 'ciente' ? 'ciente' : 'aprovado';
-  const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || null;
+  const ip = c.req.header('CF-Connecting-IP') || null;
   const ua = c.req.header('User-Agent') || null;
   const motivo = decisao === 'recusar' ? a.motivo ?? null : null;
   const pegou = await registrarDecisao(db, {
