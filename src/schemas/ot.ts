@@ -6,7 +6,9 @@ import { temPii } from '../services/rascunhos-privacy';
 // `ultima_verificacao_em`, `ip_cifrado`, `ip_hash` e afins no corpo são recusados; o servidor é quem os escreve.
 
 // P0-6: IP ou MAC digitado em campo livre sairia em claro para quem vê mascarado (padrão em services/ot-cifra.ts).
-const livre = (max: number, min = 0) => z.string().trim().min(min).max(max).refine((s) => !ENDERECO_EM_TEXTO.test(s), 'Não informe IP nem MAC em campo de texto livre');
+// Decisão do dono (2026-11-04): recusa mesmo o falso positivo (item da norma, versão), mas explica o motivo e a saída.
+export const RECUSA_ENDERECO = 'O texto tem algo com forma de endereço IP ou MAC (ex.: quatro números separados por ponto). Para não expor dado sensível, campo de texto livre não aceita endereço: registre IP e MAC nos campos próprios do ativo. Se for item da norma ou versão de firmware, troque o último ponto por hífen (ex.: 4.5.1-1).';
+const livre = (max: number, min = 0) => z.string().trim().min(min).max(max).refine((s) => !ENDERECO_EM_TEXTO.test(s), RECUSA_ENDERECO);
 const nome = livre(200, 1);
 const id = z.string().trim().min(1).max(100);
 const opcional = <T extends z.ZodTypeAny>(t: T) => t.nullable().optional();
