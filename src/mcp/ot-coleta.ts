@@ -2,7 +2,7 @@ import { createMcpHandler } from 'agents/mcp/server';
 import { Server, type CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { logAudit } from '../helpers';
-import { autenticarChaveColeta, criarSessaoDocumental, encerrarSessao, lerDepara, registrarAchados, RecusaColeta, TETO_ACHADOS_CHAMADA, type ChaveColeta, type EnvColeta } from '../services/ot-agente';
+import { autenticarChaveColeta, cobrarChamada, criarSessaoDocumental, encerrarSessao, lerDepara, registrarAchados, RecusaColeta, TETO_ACHADOS_CHAMADA, type ChaveColeta, type EnvColeta } from '../services/ot-agente';
 import { hostsPermitidosMcp } from './servidor';
 
 /**
@@ -71,6 +71,10 @@ export async function handlerOtColeta(req: Request, env: EnvColeta & { APP_URL?:
     });
   }
   const { chave } = auth;
+  // Lote JSON-RPC (array) recusado: um POST só levaria até 100 chamadas.
+  if ((await req.clone().text().catch(() => '')).trimStart().startsWith('[')) {
+    return new Response(JSON.stringify({ error: 'Lote JSON-RPC não aceito: envie uma chamada por requisição' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+  }
   const trilha = (nome: Nome, detalhe: string) => logAudit(env.DB, `ot.agente.${nome}`, chave.ator, detalhe, '', req.headers.get('CF-Connecting-IP') ?? '', chave.projectId);
 
   const criar = () => {
@@ -79,6 +83,8 @@ export async function handlerOtColeta(req: Request, env: EnvColeta & { APP_URL?:
     server.setRequestHandler('tools/call', async (r): Promise<CallToolResult> => {
       const falha = (text: string): CallToolResult => ({ isError: true, content: [{ type: 'text', text }] });
       const { name, arguments: args } = r.params;
+      const teto = await cobrarChamada(env.DB, chave);
+      if (teto) return falha(teto);
       if (!Object.hasOwn(ESQUEMAS, name)) return falha('Ferramenta indisponível');
       const nome = name as Nome;
       const v = ESQUEMAS[nome].safeParse(args ?? {});

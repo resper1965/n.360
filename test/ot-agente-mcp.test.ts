@@ -38,7 +38,7 @@ const ferramenta = async (chave: string, name: string, args: unknown) => {
   return { erro: res.isError === true, texto: res.content[0].text as string, dados: res.isError ? undefined : JSON.parse(res.content[0].text) };
 };
 
-const ins = (id: string, projeto: string, texto: string, permissions: string, extra = `'Active', NULL`) =>
+const ins = (id: string, projeto: string, texto: string, permissions: string, extra = `'Active', '2099-01-01T00:00:00.000Z'`) =>
   sha256Hex(texto).then((h) => env.DB.prepare(`INSERT INTO api_keys (id, project_id, key_hash, name, permissions, status, expires_at)
     VALUES (?, ?, ?, 'agente', ?, ${extra})`).bind(id, projeto, h, permissions).run());
 
@@ -57,6 +57,7 @@ beforeAll(async () => {
   cons = await sessionFor({ id: 'cons:cons-ot@ness.lat', email: 'cons-ot@ness.lat', role: 'consultor' });
   ids.s1 = await criar(cons, 'sites', { nome: 'SE Norte' });
   ids.a1 = await criar(cons, 'ativos', { site_id: ids.s1, nome: 'RTU 1', ip: '10.1.1.10' });
+  ids.z1 = await criar(cons, 'zonas', { site_id: ids.s1, nome: 'Zona Real', nivel_purdue: 2 });
   const rb = await humano(cons, 'POST', '/api/v1/projects/proj-b/ot/sites', { nome: 'SE de B' });
   ids.sB = (await rb.json<{ id: string }>()).id;
   ids.levHumano = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'documento', realizado_em: '2026-11-01', documento_titulo: 'Manual' });
@@ -70,11 +71,13 @@ beforeAll(async () => {
   await ins('k-c', 'proj-c', 'k-sem-ot', 'ot_coleta');
   await ins('k-outra', 'proj-a', 'k-outra', 'ot_coleta');
   await ins('k-teto', 'proj-a', 'k-teto', 'ot_coleta');
+  await ins('k-nula', 'proj-a', 'k-sem-validade', 'ot_coleta', `'Active', NULL`);
+  await ins('k-sess', 'proj-a', 'k-sessoes', 'ot_coleta');
 });
 
 describe('autenticação do /ot-coleta/mcp', () => {
-  it('sem chave, chave read, revogada ou vencida: 401 com WWW-Authenticate', async () => {
-    for (const k of [null, 'k-leitura', 'k-revogada', 'k-vencida', 'inexistente']) {
+  it('sem chave, chave read, revogada, vencida ou sem validade: 401 com WWW-Authenticate', async () => {
+    for (const k of [null, 'k-leitura', 'k-revogada', 'k-vencida', 'k-sem-validade', 'inexistente']) {
       const r = await bruto(k, 'tools/list');
       expect(r.status, String(k)).toBe(401);
       expect(r.headers.get('WWW-Authenticate')).toContain('Bearer');
@@ -135,6 +138,7 @@ describe('ferramentas', () => {
     expect(r.dados.roteiro.length).toBe(15);
     expect(Object.keys(r.dados.roteiro[0]).sort()).toEqual(['id', 'item_norma', 'texto']);
     expect(r.dados.campos.map((c: any) => c.campo)).toContain('categoria_arciber');
+    expect(r.dados.campos.map((c: any) => c.campo)).not.toContain('zona');
     expect(r.dados.regras.join(' ')).toMatch(/IP/);
     expect(r.texto).not.toContain('RTU 1');
     expect(r.texto).not.toContain(ids.a1);
@@ -170,6 +174,17 @@ describe('ferramentas', () => {
     const d = JSON.parse(comIp.dados);
     expect(await decifrarOt(d.ip_cifrado, chavesOt(env as any)!, aadOt('proj-a', 'ot_achados', comIp.id, 'ip'))).toBe('10.1.1.10');
     ids.achados = JSON.stringify(results.map((a) => a.id));
+  });
+
+  it('zona e zona_id: recusa uniforme, a mesma resposta para zona real e inventada', async () => {
+    const resp = [];
+    for (const dados of [{ nome: 'CLP 1', zona: 'Zona Real' }, { nome: 'CLP 1', zona: 'Zona Inventada' }, { nome: 'CLP 1', zona_id: ids.z1 }, { nome: 'CLP 1', zona_id: 'z-falsa' }]) {
+      const r = await ferramenta(chave, 'registrar_achados', { levantamento_id: ids.lev, achados: [{ dados, evidencia: 'Página 9: CLP' }] });
+      expect(r.erro, r.texto).toBe(false);
+      resp.push(r.texto);
+    }
+    expect(new Set(resp).size).toBe(1);
+    expect(JSON.parse(resp[0])).toEqual({ criados: 0, recusados: [{ indice: 0, motivo: 'campo não aceito pelo agente' }], com_aviso: 0 });
   });
 
   it('argumentos fora do esquema estrito (projectId, project_id): recusados', async () => {
@@ -217,12 +232,34 @@ describe('ferramentas', () => {
     expect(acoes).toEqual(['ot.agente.criar_sessao_documental', 'ot.agente.encerrar_sessao', 'ot.agente.ler_depara', 'ot.agente.registrar_achados']);
   });
 
-  it('teto: a 121ª chamada da chave na hora é recusada com 429', async () => {
+  it('teto: a 121ª tools/call da chave na hora é recusada; tools/list segue de graça', async () => {
     await env.DB.prepare('INSERT INTO rate_limits (key, count, window_start) VALUES (?, 119, ?)').bind('ot:agente:k-teto', Math.floor(Date.now() / 1000)).run();
-    expect((await bruto('k-teto', 'tools/list')).status).toBe(200); // 120ª
-    const r = await bruto('k-teto', 'tools/list');
-    expect(r.status).toBe(429);
-    expect((await r.json<{ error: string }>()).error).toMatch(/120/);
+    expect((await ferramenta('k-teto', 'ler_depara', {})).erro).toBe(false); // 120ª
+    const r = await ferramenta('k-teto', 'ler_depara', {});
+    expect(r.erro).toBe(true);
+    expect(r.texto).toMatch(/Limite de 120 chamadas por hora/);
+    expect((await rpc('k-teto', 'tools/list')).tools.length).toBe(4);
+  });
+
+  it('lote JSON-RPC (array): 400 e nada executado', async () => {
+    const antes = (await env.DB.prepare(`SELECT count(*) AS n FROM ot_levantamentos WHERE criado_por = ?`).bind(`apikey:${chaveId}`).first<{ n: number }>())!.n;
+    const chamada = (id: number) => ({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'criar_sessao_documental', arguments: { site_id: ids.s1, documento_titulo: 'Lote' } } });
+    const r = await worker.fetch(new Request(`${BASE}/ot-coleta/mcp`, {
+      method: 'POST',
+      headers: { Host: 'n360.ness.com.br', 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${chave}` },
+      body: JSON.stringify([chamada(1), chamada(2)]),
+    }), workerEnv(), createExecutionContext());
+    expect(r.status).toBe(400);
+    const depois = (await env.DB.prepare(`SELECT count(*) AS n FROM ot_levantamentos WHERE criado_por = ?`).bind(`apikey:${chaveId}`).first<{ n: number }>())!.n;
+    expect(depois).toBe(antes);
+  });
+
+  it('teto diário: a 21ª sessão da chave é recusada', async () => {
+    const ins20 = Array.from({ length: 20 }, (_, i) => env.DB.prepare(`INSERT INTO ot_levantamentos (id, project_id, site_id, tipo, realizado_em, documento_titulo, criado_por)
+      VALUES (?, 'proj-a', ?, 'documento', '2026-11-04', 'Doc', 'apikey:k-sess')`).bind(`lev-sess-${i}`, ids.s1));
+    await env.DB.batch(ins20);
+    const r = await ferramenta('k-sessoes', 'criar_sessao_documental', { site_id: ids.s1, documento_titulo: 'Doc 21' });
+    expect(r).toMatchObject({ erro: true, texto: 'Limite de 20 sessões por dia desta chave atingido. Tente de novo amanhã.' });
   });
 });
 
