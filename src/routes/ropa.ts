@@ -85,6 +85,11 @@ ropaApp.put('/:id', async (c) => {
         || (Object.hasOwn(body, 'data_categories') && !mesmosNomes(body.data_categories, coleta.data_categories));
       if (coleta.temTitulares && divergente) return c.json({ error: 'Titulares e dados desta atividade são registrados na etapa Coleta' }, 409);
     }
+    // 0097: com órgãos públicos cadastrados, `recipients` é derivado deles; só a aba Agentes o muda.
+    if (atual?.project_id && Object.hasOwn(body, 'recipients') && String(body.recipients ?? '').trim() !== String(atual.recipients ?? '').trim()
+      && await c.env.DB.prepare('SELECT 1 FROM tratamento_orgaos_publicos WHERE ropa_id = ? AND project_id = ? LIMIT 1').bind(id, atual.project_id).first()) {
+      return c.json({ error: 'Os órgãos públicos destinatários desta atividade são registrados na aba Agentes de Tratamento' }, 409);
+    }
     const fora = await refForaDoProjeto(c.env.DB, atual?.project_id, body, ['owner_parte_id']);
     if (fora) return c.json({ error: `${fora} inexistente ou de outro projeto` }, 400);
     if (await baseLegalInexistente(c.env.DB, body.base_legal_id)) return c.json({ error: 'base_legal_id inexistente no catálogo de requisitos' }, 400);
