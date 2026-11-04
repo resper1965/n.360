@@ -95,7 +95,7 @@ async function renderTitular(c, h, a) {
         const chaves = aba === 'pedidos' ? ['titular.resposta'] : ['incidente.comunicacao_anpd', 'incidente.comunicacao_titular'];
         // Secundário: sem a lista de parâmetros, o aviso não aparece.
         const faltam = ((await ler(api('GET', '/api/v1/parametros-legais'))) || []).filter((p) => chaves.includes(p.chave) && !p.definido);
-        if (faltam.length) aviso = `<p id="titular-aviso-prazos" style="color:var(--warning); margin:0 0 1rem">Prazos legais não cadastrados: ${aba === 'pedidos' ? 'novos pedidos ficarão sem prazo' : 'novos incidentes ficarão sem prazo de comunicação'}. Fale com o administrador.
+        if (faltam.length) aviso = `<p id="titular-aviso-prazos" style="color:var(--warning-ink); margin:0 0 1rem">Prazos legais não cadastrados: ${aba === 'pedidos' ? 'novos pedidos ficarão sem prazo' : 'novos incidentes ficarão sem prazo de comunicação'}. Fale com o administrador.
             <button class="btn btn-ghost btn-sm" data-action="escolherAbaTitular" data-args='${args('prazos')}'>Ver prazos legais</button></p>`;
     }
 
@@ -448,8 +448,8 @@ window.pedirEncerramentoIncidente = function (projectId, id, semPendenciaAnpd, r
     // O servidor recusa nesses dois casos: dizer o que falta, sem oferecer um "encerrar mesmo assim" que não funciona.
     const impede = !risco ? 'Avalie o risco ao titular antes de encerrar.'
         : risco === 'relevante' && !semPendenciaAnpd ? 'Com risco relevante, o incidente só encerra depois de registrada a comunicação à ANPD.' : null;
-    if (impede) { el('in-encerrar').innerHTML = `<p style="color:var(--warning)">${impede}</p>`; return; }
-    el('in-encerrar').innerHTML = `<p style="color:${semPendenciaAnpd ? 'var(--text)' : 'var(--warning)'}">${semPendenciaAnpd
+    if (impede) { el('in-encerrar').innerHTML = `<p style="color:var(--warning-ink)">${impede}</p>`; return; }
+    el('in-encerrar').innerHTML = `<p style="color:${semPendenciaAnpd ? 'var(--text)' : 'var(--warning-ink)'}">${semPendenciaAnpd
         ? 'Encerrar o incidente? Depois de encerrado, ele não recebe mais avaliação nem comunicação.'
         : 'A ANPD ainda não foi comunicada. Encerrar mesmo assim?'}</p>
         <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem">
@@ -614,7 +614,7 @@ window.rascunhoComunicacaoIncidente = async function (projectId, id, destino) {
     try { r = await api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/rascunho-comunicacao`, { destino }); } catch (e) { falha(e, 'Não foi possível gerar o rascunho'); return; }
     const itens = (l) => (lista(l).length ? lista(l).map((x) => escapeHTML(x)).join('; ') : 'nada');
     el('in-rascunho').innerHTML = `<p id="in-rascunho-tem">O incidente tem: ${itens(r.presentes)}.</p>
-        <p id="in-rascunho-falta" style="color:var(--warning)">Falta (complete antes de enviar): ${itens(r.faltando)}.</p>
+        <p id="in-rascunho-falta" style="color:var(--warning-ink)">Falta (complete antes de enviar): ${itens(r.faltando)}.</p>
         ${caixaRascunho('in-rascunho-texto', r.texto)}`;
 };
 

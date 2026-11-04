@@ -388,7 +388,7 @@ describe('aviso de prazos legais não cadastrados', () => {
         await abrir('pedidos', { 'GET /api/v1/parametros-legais': [{ chave: 'titular.resposta', descricao: 'X', definido: false }] });
         const aviso = el('titular-aviso-prazos');
         expect(aviso.textContent).toContain('Prazos legais não cadastrados: novos pedidos ficarão sem prazo. Fale com o administrador.');
-        expect(aviso.getAttribute('style')).toContain('var(--warning)');
+        expect(aviso.getAttribute('style')).toContain('var(--warning-ink)');
         expect(JSON.parse(aviso.querySelector('[data-action="escolherAbaTitular"]').getAttribute('data-args'))).toEqual(['prazos']);
         expect(el('c').innerHTML.indexOf('titular-aviso-prazos')).toBeLessThan(el('c').innerHTML.indexOf('PT-2026-0001'));
     });

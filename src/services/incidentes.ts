@@ -222,8 +222,10 @@ export async function registrarComunicacao(db: D1Database, projectId: string, id
   if (!ehInstante(em)) return falha(400, 'em precisa ser uma data ou data e hora ISO');
   if (Date.parse(em.length === 10 ? `${em}T00:00:00Z` : em) > Date.now() + 60_000) return falha(400, 'A comunicação não pode estar no futuro');
   const coluna = d.destino === 'anpd' ? 'comunicacao_anpd_em' : 'comunicacao_titular_em'; // vem da lista fechada do tipo, nunca do corpo cru
-  const r = await db.prepare(`UPDATE incidentes SET ${coluna} = ?, status = 'comunicado', updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'encerrado'`).bind(em, id, projectId).run();
-  if (!r.meta.changes) return falha(409, 'Incidente encerrado não muda');
+  // A primeira data registrada é a oficial: uma segunda aba ou um reenvio não a sobrescreve.
+  if (i[coluna]) return falha(409, `Comunicação ${d.destino === 'anpd' ? 'à ANPD' : 'ao titular'} já registrada em ${String(i[coluna]).slice(0, 10)}`);
+  const r = await db.prepare(`UPDATE incidentes SET ${coluna} = ?, status = 'comunicado', updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'encerrado' AND ${coluna} IS NULL`).bind(em, id, projectId).run();
+  if (!r.meta.changes) return falha(409, 'O incidente mudou enquanto você editava; recarregue');
   await logAudit(db, 'incidente.comunicacao', ator, `Incidente ${i.protocolo}: comunicação ${d.destino === 'anpd' ? 'à ANPD' : 'ao titular'} em ${em}`, '', '', projectId);
   return { ok: true };
 }
