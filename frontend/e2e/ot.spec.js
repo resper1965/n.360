@@ -245,7 +245,6 @@ test('levantamento documento: importa CSV pelo de-para e os achados aparecem', a
 
 // L5: o cartão "Agente de coleta" na aba Acesso por site. O gestor liga (com a confirmação do aviso do modelo); o consultor emite a chave,
 // que aparece uma vez no modal com o comando do Claude Code e some do DOM ao fechar. API mockada.
-const CAPTURAS = '/tmp/claude-0/-home-user/8d20e19c-8674-5635-afd6-f96013e1abc2/scratchpad/l5-capturas';
 const ENDPOINT = 'https://app.example/ot-coleta/mcp';
 async function rotasAgente(page, agente, extra = {}) {
   const puts = [];
@@ -302,7 +301,6 @@ test('agente de coleta: o consultor emite a chave e a vê uma vez no modal', asy
   await expect(cartao.getByRole('switch')).toHaveCount(0);
   await expect(cartao).toContainText('Notebook da Ana');
   await cartao.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: `${CAPTURAS}/cartao-agente.png`, fullPage: true });
 
   await cartao.getByRole('button', { name: 'Emitir chave' }).click();
   await page.getByLabel('Nome').fill('Notebook do Rui');
@@ -312,7 +310,6 @@ test('agente de coleta: o consultor emite a chave e a vê uma vez no modal', asy
   await expect(modal).toContainText('Guarde agora: ela não aparece de novo');
   await expect(page.getByRole('textbox', { name: 'Chave' })).toHaveValue('n360_ot_e2e_SEGREDO');
   await expect(modal).toContainText(`claude mcp add --transport http n-ot-coleta ${ENDPOINT} --header "Authorization: Bearer n360_ot_e2e_SEGREDO"`);
-  await page.screenshot({ path: `${CAPTURAS}/modal-chave.png` });
   await modal.locator('.acoes-rodape').getByRole('button', { name: 'Fechar' }).click();
   await expect(cartao).toContainText('Notebook do Rui');
   expect(await page.content()).not.toContain('n360_ot_e2e_SEGREDO');
