@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { Bindings, Variables } from '../index';
 import { semRastros, logAudit, requireResourceAccess, escapeHtml, autoridadeDeAssinatura, recusaDeAssinatura, recusaSenhaDeOutro, erro500, registraErro, PODE_REVOGAR_APROVACAO, setParcial, valoresParciais, refForaDoProjeto } from '../helpers';
 import { COLUNAS_REVOGACAO } from './controls';
@@ -20,6 +20,17 @@ import { lerEmpresa } from '../services/empresas';
 import { situacaoDaAtividade, situacaoGravada, transicionar } from '../services/ropa-abas/situacao';
 import { atividadeDoProjeto } from '../services/ropa-abas/comum';
 import { textosDaColeta, mesmosNomes } from '../services/ropa-abas/derivada';
+
+/**
+ * A escrita mudou o conteúdo congelado do tratamento: a aprovação direta antiga (assinaturas na linha, `status = 'Approved'`) cai e
+ * volta a revisão, com trilha; a aprovação por pedido é conferida pelos pedidos abertos. Toda escrita congelada passa por aqui.
+ */
+export async function conteudoDoTratamentoMudou(c: Context<{ Bindings: Bindings; Variables: Variables }>, recordId: string, projectId: string) {
+  const r = await c.env.DB.prepare(`UPDATE ropa_records SET ${COLUNAS_REVOGACAO.ciso}, ${COLUNAS_REVOGACAO.ceo}, status = 'Under Review' WHERE id = ? AND project_id = ? AND status = 'Approved'`)
+    .bind(recordId, projectId).run();
+  if (r.meta.changes) await logAudit(c.env.DB, 'ropa.aprovacao_invalidada', c.get('user')?.email || 'system', `ROPA ${recordId}: conteúdo aprovado mudou; aprovação e assinaturas zeradas, voltou a revisão.`, '', '', projectId);
+  await conferirPedidosDoDocumento(c, 'tratamento', recordId, projectId);
+}
 
 export const ropaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 export const projectRopaApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -483,7 +494,7 @@ projectRopaApp.put('/:recordId/itens', async (c) => {
     if (!r) return c.json({ error: 'Registro do RoPA não encontrado' }, 404);
     if (!r.ok) return c.json({ error: 'Item inexistente ou de outro projeto', invalidos: r.invalidos }, 400);
     await logAudit(c.env.DB, 'ropa.itens', c.get('user')?.email || 'system', `ROPA ${c.req.param('recordId')}: ${r.total} itens ligados`, '', '', projectId);
-    await conferirPedidosDoDocumento(c, 'tratamento', c.req.param('recordId'), projectId);
+    if (r.mudou) await conteudoDoTratamentoMudou(c, c.req.param('recordId'), projectId);
     return c.json({ ok: true, total: r.total });
   } catch (e) { return erro500(c, 'Falha ao ligar os itens', e); }
 });
@@ -497,7 +508,7 @@ projectRopaApp.put('/:recordId/departamentos', async (c) => {
     if (!r) return c.json({ error: 'Registro do RoPA não encontrado' }, 404);
     if (!r.ok) return c.json({ error: 'Departamento inexistente ou de outro projeto', invalidos: r.invalidos }, 400);
     await logAudit(c.env.DB, 'ropa.departamentos', c.get('user')?.email || 'system', `ROPA ${c.req.param('recordId')}: ${r.total} departamentos ligados`, '', '', projectId);
-    await conferirPedidosDoDocumento(c, 'tratamento', c.req.param('recordId'), projectId);
+    if (r.mudou) await conteudoDoTratamentoMudou(c, c.req.param('recordId'), projectId);
     return c.json({ ok: true, total: r.total });
   } catch (e) { return erro500(c, 'Falha ao ligar os departamentos', e); }
 });
@@ -510,7 +521,7 @@ projectRopaApp.post('/:recordId/transferencias', async (c) => {
     const r = await criarTransferencia(c.env.DB, projectId, c.req.param('recordId'), v.data);
     if (!r.ok) return c.json({ error: r.error }, r.status);
     await logAudit(c.env.DB, 'ropa.transferencia', c.get('user')?.email || 'system', `ROPA ${c.req.param('recordId')}: transferência para ${v.data.pais}`, '', '', projectId);
-    await conferirPedidosDoDocumento(c, 'tratamento', c.req.param('recordId'), projectId);
+    await conteudoDoTratamentoMudou(c, c.req.param('recordId'), projectId);
     return c.json({ ok: true, id: r.id }, 201);
   } catch (e) { return erro500(c, 'Falha ao registrar a transferência', e); }
 });
@@ -519,7 +530,7 @@ projectRopaApp.delete('/:recordId/transferencias/:transferenciaId', async (c) =>
   try {
     const projectId = c.req.param('projectId')!;
     const ok = await removerTransferencia(c.env.DB, projectId, c.req.param('recordId'), c.req.param('transferenciaId'));
-    if (ok) await conferirPedidosDoDocumento(c, 'tratamento', c.req.param('recordId'), projectId);
+    if (ok) await conteudoDoTratamentoMudou(c, c.req.param('recordId'), projectId);
     return ok ? c.json({ ok: true }) : c.json({ error: 'Transferência não encontrada' }, 404);
   } catch (e) { return erro500(c, 'Falha ao remover a transferência', e); }
 });

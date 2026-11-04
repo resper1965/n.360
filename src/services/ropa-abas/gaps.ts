@@ -12,7 +12,7 @@ const SECAO = 'Controle de GAPS';
 const tituloDe = (gap: string) => gap.split('\n')[0].trim().slice(0, 120) || gap.trim().slice(0, 120);
 
 export type GapLido = {
-  id: string; gap: string; recomendacao: string | null; plano_acao: string | null; responsavel: { id: string; nome: string } | null; prazo: string | null; status: string;
+  id: string; gap: string; recomendacao: string | null; plano_acao: string | null; responsavel: { id: string | null; nome: string } | null; prazo: string | null; status: string;
   anexos: { id: string; file_name: string; file_type: string; file_size: number }[];
 };
 
@@ -22,7 +22,7 @@ export async function listarGaps(db: D1Database, projectId: string, ropaId: stri
   if (!at) return null;
   const [linhas, anexos] = await db.batch([
     db.prepare(
-      `SELECT ca.id, ca.title, ca.description, ca.recomendacao, ca.action_plan, ca.due_date, ca.status, ca.assigned_to_parte_id, pa.nome AS responsavel_nome
+      `SELECT ca.id, ca.title, ca.description, ca.recomendacao, ca.action_plan, ca.due_date, ca.status, ca.assigned_to_parte_id, pa.nome AS responsavel_nome, NULLIF(TRIM(ca.assigned_to), '') AS responsavel_texto
          FROM corrective_actions ca LEFT JOIN partes pa ON pa.id = ca.assigned_to_parte_id AND pa.project_id = ca.project_id
         WHERE ca.ropa_id = ? AND ca.project_id = ? ORDER BY ca.created_at, ca.rowid`
     ).bind(ropaId, projectId),
@@ -37,7 +37,8 @@ export async function listarGaps(db: D1Database, projectId: string, ropaId: stri
   }
   const gaps = (linhas.results as LinhaGap[]).map((l): GapLido => ({
     id: l.id, gap: l.description ?? l.title, recomendacao: l.recomendacao ?? null, plano_acao: l.action_plan ?? null,
-    responsavel: l.assigned_to_parte_id ? { id: l.assigned_to_parte_id, nome: l.responsavel_nome ?? '' } : null,
+    // Responsável só em texto (campo antigo da CAPA): aparece pelo nome, sem id (a tela pede escolher a pessoa ao editar).
+    responsavel: l.assigned_to_parte_id ? { id: l.assigned_to_parte_id, nome: l.responsavel_nome ?? '' } : l.responsavel_texto ? { id: null, nome: l.responsavel_texto } : null,
     prazo: l.due_date ?? null, status: l.status ?? 'Open', anexos: porGap.get(l.id) ?? [],
   }));
   return { gaps, nao_aplicavel: !!at.gaps_nao_aplicavel };
@@ -100,5 +101,5 @@ export async function definirGapsNaoAplicavel(db: D1Database, projectId: string,
 
 type LinhaGap = {
   id: string; title: string; description: string | null; recomendacao: string | null; action_plan: string | null; due_date: string | null;
-  status: string | null; assigned_to_parte_id: string | null; responsavel_nome: string | null;
+  status: string | null; assigned_to_parte_id: string | null; responsavel_nome: string | null; responsavel_texto: string | null;
 };

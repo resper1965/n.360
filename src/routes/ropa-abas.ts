@@ -7,7 +7,7 @@ import { lerEtapas, salvarCabecalhoDaEtapa, salvarAtivos, salvarAreas, salvarPar
 import { listarCatalogo, criarNoCatalogo, atualizarCatalogo, registrarCatalogo, TIPO_DO_CAMINHO } from '../services/ropa-abas/catalogos';
 import { chaveNome } from '../services/nomes';
 import { conferirPedidosDoDocumento } from './pedidos';
-import { COLUNAS_REVOGACAO } from './controls';
+import { conteudoDoTratamentoMudou } from './ropa';
 import { lerLogs, registrarSecao } from '../services/ropa-abas/logs';
 import { salvarEscopo } from '../services/ropa-abas/escopo';
 import { salvarAgentes } from '../services/ropa-abas/agentes';
@@ -33,16 +33,6 @@ import { rascunharEtapa } from '../services/copiloto-etapa';
 
 type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
 
-/**
- * A escrita mudou o conteúdo congelado: a aprovação direta antiga (assinaturas na linha, `status = 'Approved'`) cai e volta a revisão,
- * como no `PUT /ropa/:id`; a aprovação por pedido é conferida pelos pedidos abertos.
- */
-async function conteudoMudou(c: Context<{ Bindings: Bindings; Variables: Variables }>, recordId: string, projectId: string) {
-  const r = await c.env.DB.prepare(`UPDATE ropa_records SET ${COLUNAS_REVOGACAO.ciso}, ${COLUNAS_REVOGACAO.ceo}, status = 'Under Review' WHERE id = ? AND project_id = ? AND status = 'Approved'`)
-    .bind(recordId, projectId).run();
-  if (r.meta.changes) await logAudit(c.env.DB, 'ropa.aprovacao_invalidada', c.get('user')?.email || 'system', `ROPA ${recordId}: conteúdo mudou pela ficha; aprovação e assinaturas zeradas, voltou a revisão.`, '', '', projectId);
-  await conferirPedidosDoDocumento(c, 'tratamento', recordId, projectId);
-}
 /** /api/v1/projects/:projectId/ropa/:recordId/...: a ficha em abas (spec 2026-10-16). Parâmetros `:projectId` e `:recordId`. */
 export const ropaAbasApp: App = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 /** /api/v1/projects/:projectId/catalogos/:tipo (PR2). */
@@ -65,7 +55,7 @@ function putAba<T extends object>(caminho: string, schema: Parameters<typeof val
       const r = await salvar(c.env.DB, projectId, recordId, ator, v.data);
       if (!r.ok) return c.json({ error: r.error, ...(r.invalidos ? { invalidos: r.invalidos } : {}) }, r.status);
       if (Object.keys(v.data).length) await registrarSecao(c.env.DB, ator, projectId, recordId, secao, 'Alteração', '', r.mudancas);
-      if (r.mudouHash) await conteudoMudou(c, recordId, projectId);
+      if (r.mudouHash) await conteudoDoTratamentoMudou(c, recordId, projectId);
       return c.json({ ok: true, mudou_hash: r.mudouHash });
     } catch (e) { return erro500(c, falhaMsg, e); }
   });
@@ -150,7 +140,7 @@ ropaAbasApp.post('/orgaos-publicos', async (c) => {
     const r = await criarOrgaoPublico(c.env.DB, projectId, recordId, ator, v.data);
     if (!r.ok) return c.json({ error: r.error }, r.status);
     await registrarSecao(c.env.DB, ator, projectId, recordId, SECAO_AGENTES, 'Inclusão');
-    if (r.mudouHash) await conteudoMudou(c, recordId, projectId);
+    if (r.mudouHash) await conteudoDoTratamentoMudou(c, recordId, projectId);
     return c.json({ ok: true, id: r.id }, 201);
   } catch (e) { return erro500(c, 'Falha ao cadastrar o órgão público', e); }
 });
@@ -163,7 +153,7 @@ ropaAbasApp.put('/orgaos-publicos/:id', async (c) => {
     const r = await atualizarOrgaoPublico(c.env.DB, projectId, recordId, c.req.param('id')!, v.data);
     if (!r.ok) return c.json({ error: r.error }, r.status);
     await registrarSecao(c.env.DB, c.get('user')?.email || 'system', projectId, recordId, SECAO_AGENTES, 'Alteração');
-    if (r.mudouHash) await conteudoMudou(c, recordId, projectId);
+    if (r.mudouHash) await conteudoDoTratamentoMudou(c, recordId, projectId);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao atualizar o órgão público', e); }
 });
@@ -174,7 +164,7 @@ ropaAbasApp.delete('/orgaos-publicos/:id', async (c) => {
     const r = await apagarOrgaoPublico(c.env.DB, projectId, recordId, c.req.param('id')!);
     if (!r.ok) return c.json({ error: r.error }, r.status);
     await registrarSecao(c.env.DB, c.get('user')?.email || 'system', projectId, recordId, SECAO_AGENTES, 'Exclusão');
-    if (r.mudouHash) await conteudoMudou(c, recordId, projectId);
+    if (r.mudouHash) await conteudoDoTratamentoMudou(c, recordId, projectId);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao remover o órgão público', e); }
 });
@@ -356,7 +346,7 @@ async function responderEtapa(c: Context<{ Bindings: Bindings; Variables: Variab
   const { projectId, recordId } = ids(c);
   const ator = quem(c);
   await registrarSecao(c.env.DB, ator, projectId, recordId, 'Tratamento de Dados', `Alteração (${etapa})`);
-  if (r.mudouHash) await conteudoMudou(c, recordId, projectId);
+  if (r.mudouHash) await conteudoDoTratamentoMudou(c, recordId, projectId);
   return c.json({ ok: true, mudou_hash: r.mudouHash });
 }
 
