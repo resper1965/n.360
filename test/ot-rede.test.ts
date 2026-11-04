@@ -45,11 +45,12 @@ const RESUMO = JSON.stringify({
   conexoes: [
     cx('10.1.1.20', '10.1.1.10', 20000, 'dnp3'),
     cx('10.1.1.20', '203.0.113.5', 443, 'https'),
+    cx('10.1.1.10', '203.0.113.9', 443, 'https'),
     cx('10.1.1.30', '10.1.1.10', 20000, 'dnp3'),
     cx('10.1.1.20', '200.10.0.7', 502, 'modbus'), // faixa interna do site: ponta interna desconhecida
   ],
 });
-const IPS = ['10.1.1.30', '10.1.1.10', '10.1.1.20', '203.0.113.5', '200.10.0.7'];
+const IPS = ['10.1.1.30', '10.1.1.10', '10.1.1.20', '203.0.113.5', '203.0.113.9', '200.10.0.7'];
 
 let gestor: H, cons: H, caNao: H;
 const ids: Record<string, string> = {};
@@ -76,12 +77,8 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_hash) VALUES ('a-rtu', 'proj-a', ?, 'RTU 1', ?)`).bind(ids.s1, await hmacOt(chaves, 'proj-a', '10.1.1.10')),
     env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_hash, mac_hash) VALUES ('a-ihm', 'proj-a', ?, 'IHM', ?, 'mh')`).bind(ids.s1, await hmacOt(chaves, 'proj-a', '10.1.1.20')),
   ]);
-  // Fluxo do inventário marcado interno nas mesmas pontas do fluxo externo do sensor (dado legado: o CHECK de hoje o recusaria).
-  await env.DB.batch([
-    env.DB.prepare('PRAGMA ignore_check_constraints = ON'),
-    env.DB.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, protocolo, porta, externo) VALUES ('f-ihm', 'proj-a', ?, 'a-ihm', 'https', 443, 0)`).bind(ids.s1),
-    env.DB.prepare('PRAGMA ignore_check_constraints = OFF'),
-  ]);
+  // Fluxo externo do inventário com a mesma ponta do fluxo externo da IHM no sensor (confirma); o da RTU não tem par (novo).
+  ids.fext = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: 'a-ihm', externo: true, protocolo: 'https', porta: 443 });
   ids.doc = await doc('Sensor SE Norte');
   ids.ent = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'entrevista', realizado_em: '2026-11-04' });
 });
@@ -90,13 +87,13 @@ describe('POST /levantamentos/:id/depara/rede', () => {
   it('resumo válido: 201 com as contagens; achados do consultor com evidência do sensor e IP cifrado com a AAD do id gravado', async () => {
     const r = await enviar(cons, ids.doc, RESUMO);
     expect(r.status, await r.clone().text()).toBe(201);
-    expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 2, fluxos_pendentes: 2, nao_importados: 0 });
+    expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 3, fluxos_pendentes: 2, nao_importados: 0 });
     const lista = await achados(cons, ids.doc);
-    expect(lista).toHaveLength(4);
-    expect(lista.filter((a) => a.entidade === 'fluxo')).toHaveLength(2);
+    expect(lista).toHaveLength(5);
+    expect(lista.filter((a) => a.entidade === 'fluxo')).toHaveLength(3);
     for (const a of lista) {
       expect(a.origem).toBe('consultor');
-      expect(a.evidencia).toBe('Sensor de rede (Zeek): 12 conexões entre 01/11 e 03/11');
+      expect(a.evidencia).toBe('Sensor de rede (Zeek): 15 conexões entre 01/11 e 03/11');
     }
     const novo = await env.DB.prepare(`SELECT id, dados FROM ot_achados WHERE levantamento_id = ? AND entidade = 'ativo' AND dados LIKE '%SEL%'`).bind(ids.doc)
       .first<{ id: string; dados: string }>();
@@ -105,10 +102,12 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     expect(await decifrarOt(d.mac_cifrado, chaves, aadOt('proj-a', 'ot_achados', novo!.id, 'mac'))).toBe('00:30:a7:01:02:04');
   });
 
-  it('fluxo externo do sensor contra o fluxo interno do inventário nas mesmas pontas: o consultor vê contradiz', async () => {
-    const f = (await achados(cons, ids.doc)).find((a) => a.entidade === 'fluxo' && a.dados.externo === true)!;
-    expect(f.dados).toMatchObject({ origem_ativo_id: 'a-ihm', protocolo: 'https', porta: 443 });
-    expect(f.confronto).toBe('contradiz');
+  it('fluxo externo do sensor: novo sem par no inventário, confirma com o fluxo externo já cadastrado (o consultor vê)', async () => {
+    const externos = (await achados(cons, ids.doc)).filter((a) => a.entidade === 'fluxo' && a.dados.externo === true);
+    const ihm = externos.find((a) => a.dados.origem_ativo_id === 'a-ihm')!;
+    const rtu = externos.find((a) => a.dados.origem_ativo_id === 'a-rtu')!;
+    expect(ihm).toMatchObject({ dados: { protocolo: 'https', porta: 443 }, confronto: 'confirma' });
+    expect(rtu.confronto).toBe('novo');
   });
 
   it('pendências gravadas só com hash, sem IP em claro, e com a evidência para a segunda passagem', async () => {
@@ -117,14 +116,14 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     const texto = JSON.stringify(results);
     for (const ip of IPS) expect(texto).not.toContain(ip);
     expect(results.map((p) => p.origem_ip_hash).sort()).toEqual([await hmacOt(chaves, 'proj-a', '10.1.1.20'), await hmacOt(chaves, 'proj-a', '10.1.1.30')].sort());
-    for (const p of results) expect(JSON.parse(p.dados)).toMatchObject({ direcao: 'unidirecional', evidencia: 'Sensor de rede (Zeek): 12 conexões entre 01/11 e 03/11' });
+    for (const p of results) expect(JSON.parse(p.dados)).toMatchObject({ direcao: 'unidirecional', evidencia: 'Sensor de rede (Zeek): 15 conexões entre 01/11 e 03/11' });
   });
 
   it('quem vê mascarado recebe só achados_criados e fluxos_pendentes', async () => {
     const lev = await doc('Sensor mascarado');
     const r = await enviar(caNao, lev, RESUMO);
     expect(r.status, await r.clone().text()).toBe(201);
-    expect(await r.json()).toEqual({ achados_criados: 4, fluxos_pendentes: 2 });
+    expect(await r.json()).toEqual({ achados_criados: 5, fluxos_pendentes: 2 });
   });
 
   it('recusas: campo desconhecido (400, nada gravado), JSON malformado, sessão de entrevista, 6 MB, chave de API', async () => {
