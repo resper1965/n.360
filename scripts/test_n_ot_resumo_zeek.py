@@ -60,6 +60,53 @@ class T(unittest.TestCase):
         for c in self.r["conexoes"]:
             self.assertEqual(set(c), CONEXAO)
 
+    def _pasta(self, conn, **outros):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        for nome, rows in dict(conn=conn, **outros).items():
+            with open(os.path.join(d, nome + ".log"), "w") as f:
+                f.write("".join(json.dumps(x) + "\n" for x in rows))
+        return d
+
+    def _c(self, **kw):
+        base = {"ts": 1793491200, "id.orig_h": "10.0.0.1", "id.resp_h": "10.0.0.2", "id.resp_p": 80, "proto": "tcp"}
+        base.update(kw)
+        return base
+
+    def test_portas_invalidas(self):
+        r = resumo.resumir(self._pasta([
+            self._c(proto="icmp", **{"id.resp_p": 0}), self._c(**{"id.resp_p": 70000}),
+            self._c(**{"id.resp_p": True}), self._c()],
+            known_services=[{"host": "10.0.0.2", "port_num": 99999}, {"host": "10.0.0.2", "port_num": 22}]))
+        self.assertEqual([c["porta"] for c in r["conexoes"]], [80])
+        self.assertEqual(next(a for a in r["ativos"] if a["ip"] == "10.0.0.2")["portas_servico"], [22, 80])
+
+    def test_valores_invalidos(self):
+        r = resumo.resumir(self._pasta([
+            self._c(**{"id.orig_h": "-"}), self._c(**{"id.resp_h": "nao-ip"}), self._c(**{"id.orig_h": 5}),
+            self._c(proto="-"), self._c(proto=""), self._c(ts=True), self._c(ts=1e300), self._c(ts="x"),
+            self._c(resp_l2_addr="zz:zz"), self._c(resp_l2_addr="AA:BB:CC:DD:EE:FF", proto="udp")]))
+        self.assertEqual([(c["transporte"], c["contagem"]) for c in r["conexoes"]], [("tcp", 1), ("udp", 1)])
+        self.assertEqual(next(a for a in r["ativos"] if a["ip"] == "10.0.0.2")["mac"], "aa:bb:cc:dd:ee:ff")
+
+    def test_marca_por_porta(self):
+        r = resumo.resumir(self._pasta(
+            [self._c(service="ssh", **{"id.resp_p": 22}), self._c(**{"id.resp_p": 502}), self._c(**{"id.resp_p": 502})],
+            modbus=[{"id.orig_h": "10.0.0.1", "id.resp_h": "10.0.0.2", "id.resp_p": 502}]))
+        self.assertEqual({c["porta"]: (c["aplicacao"], c["contagem"]) for c in r["conexoes"]},
+                         {22: ("ssh", 1), 502: ("modbus", 2)})
+        self.assertEqual(next(a for a in r["ativos"] if a["ip"] == "10.0.0.2")["protocolos"], ["modbus", "ssh"])
+
+    def test_valores_completos(self):
+        r = dict(self.r)
+        r.pop("gerado_em")
+        self.assertEqual(r["periodo"], {"inicio": "2026-11-01T00:00:00Z", "fim": "2026-11-01T00:02:00Z"})
+        self.assertEqual(self.ativo("10.1.1.10"), {"ip": "10.1.1.10", "mac": "00:30:a7:01:02:03", "fabricante": "SEL",
+            "protocolos": ["modbus"], "portas_servico": [502], "primeira_vez": "2026-11-01T00:00:00Z", "ultima_vez": "2026-11-01T00:02:00Z"})
+        self.assertEqual(self.conn("10.1.1.11", 20000), {"origem": "10.1.1.20", "destino": "10.1.1.11", "transporte": "tcp",
+            "porta": 20000, "aplicacao": "dnp3", "contagem": 1, "primeira_vez": "2026-11-01T00:00:30Z", "ultima_vez": "2026-11-01T00:00:30Z"})
+        self.assertEqual(len(r["conexoes"]), 4)
+
     def test_cli(self):
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "r.json")

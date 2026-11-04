@@ -2,7 +2,7 @@
 """Resume logs JSON do Zeek em resumo.json (n.ot-resumo-rede/1). So biblioteca padrao.
 Uso: python3 n-ot-resumo-zeek.py <pasta-de-logs> [-o resumo.json]
 Le apenas IP, MAC, portas, protocolo e horarios; nunca payload, usuario, URI, arquivo ou certificado."""
-import argparse, gzip, json, os, sys
+import argparse, gzip, ipaddress, json, os, re, sys
 from datetime import datetime, timezone
 
 FORMATO = "n.ot-resumo-rede/1"
@@ -45,9 +45,28 @@ def aplicacao(service):
     return None
 
 
+MAC_RE = re.compile(r"^[0-9a-f]{2}([:-][0-9a-f]{2}){5}$")
+TRANSPORTES = {"tcp", "udp", "icmp"}
+
+
 def mac_ok(m):
-    m = str(m or "").lower()
-    return m if len(m) == 17 and m.count(":") == 5 else None
+    m = m.lower() if isinstance(m, str) else ""
+    return m.replace("-", ":") if MAC_RE.match(m) else None
+
+
+def porta_ok(p):
+    return isinstance(p, int) and not isinstance(p, bool) and 1 <= p <= 65535
+
+
+def ip_ok(x):
+    try:
+        return isinstance(x, str) and bool(ipaddress.ip_address(x))
+    except ValueError:
+        return False
+
+
+def ts_ok(t):  # 2000-01-01 .. 2100-01-01 (evita overflow em iso)
+    return isinstance(t, (int, float)) and not isinstance(t, bool) and 946684800 <= t <= 4102444800
 
 
 def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES):
@@ -56,7 +75,8 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES)
     marcas = {}  # (origem, destino) -> aplicacao dada por modbus.log/dnp3.log
     for nome in ("modbus", "dnp3"):
         for r in ler(pasta, nome):
-            marcas[(r.get("id.orig_h"), r.get("id.resp_h"))] = nome
+            if porta_ok(r.get("id.resp_p")):
+                marcas[(r.get("id.orig_h"), r.get("id.resp_h"), r["id.resp_p"])] = nome
     ativos, conns, ts_all = {}, {}, []
 
     def ativo(ip):
@@ -68,34 +88,37 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES)
 
     for r in ler(pasta, "conn"):
         o, d, p, ts = r.get("id.orig_h"), r.get("id.resp_h"), r.get("id.resp_p"), r.get("ts")
-        if not o or not d or not isinstance(p, int) or not isinstance(ts, (int, float)):
+        tr = r.get("proto")
+        if not (ip_ok(o) and ip_ok(d) and ts_ok(ts) and tr in TRANSPORTES):
             continue
-        tr = str(r.get("proto") or "").lower()
-        app = marcas.get((o, d)) or aplicacao(r.get("service"))
+        if not porta_ok(p):  # ICMP e portas invalidas: sem conexao, sem porta de servico
+            p = None
+        app = marcas.get((o, d, p)) or aplicacao(r.get("service"))
         ts_all.append(ts)
-        k = (o, d, tr, p, app)
-        c = conns.setdefault(k, {"n": 0, "ini": ts, "fim": ts})
-        c["n"] += 1
-        c["ini"], c["fim"] = min(c["ini"], ts), max(c["fim"], ts)
+        if p:  # sem porta valida (ex.: ICMP) so conta para os ativos
+            c = conns.setdefault((o, d, tr, p, app), {"n": 0, "ini": ts, "fim": ts})
+            c["n"] += 1
+            c["ini"], c["fim"] = min(c["ini"], ts), max(c["fim"], ts)
         for ip, mac in ((o, r.get("orig_l2_addr")), (d, r.get("resp_l2_addr"))):
             a = ativo(ip)
             a["peso"] += 1
             tempo(a, ts)
             a["mac"] = a["mac"] or mac_ok(mac)
         s = ativos[d]
-        s["portas"].add(p)
+        if p:
+            s["portas"].add(p)
         if app:
             s["protocolos"].add(app)
     for r in ler(pasta, "dhcp"):
         ip = r.get("assigned_addr") or r.get("client_addr")
-        if ip and mac_ok(r.get("mac")):
+        if ip_ok(ip) and mac_ok(r.get("mac")):
             a = ativo(ip)
             a["mac"] = a["mac"] or mac_ok(r["mac"])
     for r in ler(pasta, "known_hosts"):
-        if r.get("host"):
+        if ip_ok(r.get("host")):
             ativo(r["host"])
     for r in ler(pasta, "known_services"):
-        if r.get("host") and isinstance(r.get("port_num"), int):
+        if ip_ok(r.get("host")) and porta_ok(r.get("port_num")):
             a = ativo(r["host"])
             a["portas"].add(r["port_num"])
             app = aplicacao(r.get("service"))
