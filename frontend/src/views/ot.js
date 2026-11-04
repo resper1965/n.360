@@ -24,7 +24,7 @@ const TEMPO_IA = 90000;
 const D = { sites: [], zonas: [], ativos: [], fluxos: [] };
 
 const ABAS = [['catalogo', 'Catálogo RO-CB.BR.01'], ['inventario', 'Inventário'], ['fluxos', 'Fluxos'], ['coleta', 'Coleta'], ['levantamento', 'Levantamento'], ['saidas', 'Saídas'],
-    ['acessos', 'Acesso por site']];
+    ['acessos', 'Acessos e agente']];
 const abasDoPapel = () => ABAS.filter(([v]) => v !== 'acessos' || podeEditarOt());
 
 async function renderOt(c, h, a) {

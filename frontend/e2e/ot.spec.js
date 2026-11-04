@@ -243,7 +243,7 @@ test('levantamento documento: importa CSV pelo de-para e os achados aparecem', a
   expect(enviados[1]).toContain('{"0":"nome","1":"ip"}');
 });
 
-// L5: o cartão "Agente de coleta" na aba Acesso por site. O gestor liga (com a confirmação do aviso do modelo); o consultor emite a chave,
+// L5: o cartão "Agente de coleta" na aba Acessos e agente. O gestor liga (com a confirmação do aviso do modelo); o consultor emite a chave,
 // que aparece uma vez no modal com o comando do Claude Code e some do DOM ao fechar. API mockada.
 const ENDPOINT = 'https://app.example/ot-coleta/mcp';
 async function rotasAgente(page, agente, extra = {}) {
@@ -268,7 +268,7 @@ test('agente de coleta: o gestor liga depois de confirmar o aviso do modelo', as
   const puts = await rotasAgente(page, { ligado: false, pode_ligar: true, pode_emitir: true, endpoint: ENDPOINT }, { [`GET ${B}/agente/chaves`]: () => [{ chaves: [] }] });
   await entrar(page);
   await page.locator('#nav-ot').click();
-  await page.getByRole('tab', { name: 'Acesso por site' }).click();
+  await page.getByRole('tab', { name: 'Acessos e agente' }).click();
   const cartao = page.locator('#ot-agente');
   await expect(cartao).toContainText('Um agente externo (Claude Code, Cursor)');
   const sw = cartao.getByRole('switch', { name: 'Agente de coleta' });
@@ -295,7 +295,7 @@ test('agente de coleta: o consultor emite a chave e a vê uma vez no modal', asy
   });
   await entrar(page);
   await page.locator('#nav-ot').click();
-  await page.getByRole('tab', { name: 'Acesso por site' }).click();
+  await page.getByRole('tab', { name: 'Acessos e agente' }).click();
   const cartao = page.locator('#ot-agente');
   await expect(cartao).toContainText('Ligado');
   await expect(cartao.getByRole('switch')).toHaveCount(0);
