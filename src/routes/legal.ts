@@ -12,7 +12,7 @@ import { situacaoLegal, versoesVigentes, type DocumentoLegal } from '../legal-po
 export const legalApp = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 function ip(c: any): string {
-  return c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+  return c.req.header('CF-Connecting-IP') || 'unknown';
 }
 
 async function documentosPublicados(db: D1Database): Promise<DocumentoLegal[]> {

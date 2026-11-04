@@ -184,6 +184,16 @@ describe('Política aplicada na requisição', () => {
     });
     expect(dentro.status).toBe(200);
   });
+
+  it('X-Forwarded-For forjado não passa pela allowlist: só vale o CF-Connecting-IP', async () => {
+    await politica({ ips: '203.0.113.0/24' });
+    const sem = await pedir(worker, '/api/v1/portfolio', { headers: { ...cliente, 'X-Forwarded-For': '203.0.113.42' } });
+    expect(sem.status).toBe(403);
+    const fora = await pedir(worker, '/api/v1/portfolio', {
+      headers: { ...cliente, 'CF-Connecting-IP': '198.51.100.1', 'X-Forwarded-For': '203.0.113.42' },
+    });
+    expect(fora.status).toBe(403);
+  });
 });
 
 describe('PUT /api/v1/projects/:projectId/security-policy', () => {

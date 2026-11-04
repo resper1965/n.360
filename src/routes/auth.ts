@@ -6,7 +6,7 @@ import { equipeDeOrgSuspensa, ORG_SUSPENSA } from '../services/organizacao';
 
 /** IP do cliente para rate limiting (Cloudflare popula CF-Connecting-IP) */
 export function clientIp(c: any): string {
-  return c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+  return c.req.header('CF-Connecting-IP') || 'unknown';
 }
 import { authMiddleware } from '../middleware/auth';
 import { modulosDaPessoa } from '../modulos';

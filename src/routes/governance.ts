@@ -692,7 +692,7 @@ governanceApp.post('/projects/:id/policy-acknowledgments', async (c) => {
       return c.json({ error: 'Forbidden: só a equipe ou o administrador do cliente registram a ciência de outra pessoa' }, 403);
     }
 
-    const ipAddress = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+    const ipAddress = c.req.header('CF-Connecting-IP') || 'unknown';
     const userAgent = c.req.header('User-Agent') || 'unknown';
 
     const ackId = crypto.randomUUID().replace(/-/g, '');

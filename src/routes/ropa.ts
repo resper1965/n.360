@@ -598,7 +598,7 @@ projectRopaApp.post('/:recordId/approve', async (c) => {
     // assina, e é ele que o auditor confere contra o organograma do projeto.
     let approvedBy = autoridade.nome || dbUser?.name || user.email;
     const now = new Date().toISOString();
-    const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '127.0.0.1';
+    const ip = c.req.header('CF-Connecting-IP') || '127.0.0.1';
     const ua = c.req.header('User-Agent') || 'Unknown';
 
     if (role === 'ciso') {
