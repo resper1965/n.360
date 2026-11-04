@@ -140,11 +140,13 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     for (const p of results) expect(JSON.parse(p.dados)).toMatchObject({ direcao: 'unidirecional', evidencia: 'Sensor de rede (Zeek): 15 conexões entre 01/11 e 03/11' });
   });
 
-  it('quem vê mascarado recebe só achados_criados e fluxos_pendentes', async () => {
+  it('quem vê mascarado não importa: 403 e nada gravado', async () => {
     const lev = await doc('Sensor mascarado');
     const r = await enviar(caNao, lev, RESUMO);
-    expect(r.status, await r.clone().text()).toBe(201);
-    expect(await r.json()).toEqual({ achados_criados: 5, fluxos_pendentes: 2 });
+    expect(r.status).toBe(403);
+    expect(await r.json()).toEqual({ error: 'Importar o resumo de rede exige ver o inventário completo (Gestor ARCiber ou consultoria designada)' });
+    expect(await contar(lev)).toBe(0);
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n).toBe(0);
   });
 
   it('recusas: campo desconhecido (400, nada gravado), JSON malformado, sessão de entrevista, 6 MB, chave de API', async () => {
