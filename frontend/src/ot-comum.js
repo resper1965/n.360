@@ -154,3 +154,16 @@ export async function comStepUp(fazer) {
     }
     return fazer();
 }
+
+/** Um envio por vez (aplicar não é idempotente; cada leitura gasta o teto por hora): os botões da ação ficam desabilitados até a resposta. */
+let ocupado = false;
+export async function semRepetir(acao, fazer) {
+    if (ocupado) return;
+    ocupado = true;
+    const bs = [...document.querySelectorAll(`[data-action="${acao}"]`)];
+    for (const b of bs) { b.disabled = true; b.setAttribute('aria-busy', 'true'); }
+    try { await fazer(); } finally {
+        ocupado = false;
+        for (const b of bs) { b.disabled = false; b.removeAttribute('aria-busy'); }
+    }
+}

@@ -415,6 +415,13 @@ describe('importar arquivo na sessão de documento', () => {
         expect(linha('Notebook IHM').textContent).not.toContain('Sugerido pela IA');
         expect(linha('CLP sugerido').querySelector('.badge').textContent).toBe('Sugerido pela IA');
     });
+
+    it('achado com origem agente mostra o selo "Enviado pelo agente" junto do nome', async () => {
+        await abrirDoc({}, DOC, [ACH(), ACH({ id: 'a3', origem: 'agente', dados: { nome: 'RTU do agente' } })]);
+        const linha = (nome) => [...document.querySelectorAll('#c tbody tr')].find((tr) => tr.textContent.includes(nome));
+        expect(linha('Notebook IHM').textContent).not.toContain('Enviado pelo agente');
+        expect(linha('RTU do agente').querySelector('.badge').textContent).toBe('Enviado pelo agente');
+    });
 });
 
 describe('coleta ligada a um documento', () => {

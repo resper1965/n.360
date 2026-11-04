@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO } from '../ot-comum.js';
+import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 
 // Levantamento do n.ot (L1, descoberta operacional): sessões de entrevista, visita de campo e documento, com o roteiro guiado e os
@@ -15,6 +15,7 @@ const falhou = (e, padrao) => showToast(mensagemDeErro(e, padrao), 'error');
 const TIPO = { entrevista: 'Entrevista', visita: 'Visita de campo', documento: 'Documento' };
 const RESPOSTA = { sim: 'Sim', nao: 'Não', nao_perguntado: 'Não perguntado' };
 const ACHADO = { rascunho: ['neutral', 'Rascunho'], enviado: ['info', 'Enviado ao lote'], descartado: ['warning', 'Descartado'] };
+const SELO_ORIGEM = { ia: 'Sugerido pela IA', agente: 'Enviado pelo agente' };
 const selo = (mapa, v) => renderStatusBadge(...(mapa[v] || ['neutral', v || '—']));
 const situacao = (l) => (l.situacao === 'encerrado' ? renderStatusBadge('neutral', 'Encerrado') : renderStatusBadge('info', 'Aberto'));
 const quem = (l) => (l.tipo === 'documento' ? escapeHTML(l.documento_titulo || '—')
@@ -111,7 +112,7 @@ async function montarSessao(c, a, p, id) {
             const nome = nomeDoAchado(x.id, 'achado');
             const rasc = x.situacao === 'rascunho';
             return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${nome} ao lote`)}">` : '—'] : []),
-                fluxo ? 'Fluxo' : 'Ativo', escapeHTML(nome) + (x.origem === 'ia' ? ' <span class="badge selo-info">Sugerido pela IA</span>' : ''), `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
+                fluxo ? 'Fluxo' : 'Ativo', escapeHTML(nome) + (SELO_ORIGEM[x.origem] ? ` <span class="badge selo-info">${SELO_ORIGEM[x.origem]}</span>` : ''), `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
                 ...(comConfronto ? [confronto(x)] : []), listaDeErros(x.erros), selo(ACHADO, x.situacao),
                 ...(editar ? [rasc ? `<button class="btn btn-sm" data-action="otDescartarAchado" data-args='${args(x.id)}' aria-label="${escapeHTML(`Descartar ${nome}`)}">Descartar</button>` : '—'] : [])];
         }), { emptyMessage: 'Nenhum achado registrado.', emptyHint: editar && aberto ? 'Registre cada equipamento ou acesso visto ou relatado nesta sessão.' : '' });
@@ -362,7 +363,6 @@ const CAMPOS_DEPARA = ['nome', 'ip', 'mac', 'fabricante', 'modelo', 'tipo_dispos
     'no_arciber', 'categoria_arciber', 'firmware_nao_aplicavel', 'zona']; // src/services/ot-depara.ts
 const ORIGEM_DEPARA = { ia: 'Sugerido pela IA', cabecalho: 'Pelo nome da coluna' };
 let importacao = null; // { file, cabecalho }
-let importando = false;
 let observador = null;
 let fechamentos = 0; // conta os fechamentos do modal: a proposta que chega depois de um fechamento é descartada
 const conta = (k, um, varios) => `${k} ${k === 1 ? um : varios}`;
@@ -380,18 +380,6 @@ function soltarAoFechar() {
         observador.disconnect(); observador = null;
     });
     observador.observe(ov, { attributes: true, attributeFilter: ['class'] });
-}
-
-/** Um envio por vez: aplicar não é idempotente e cada leitura gasta o teto por hora. O botão fica desabilitado até a resposta. */
-async function semRepetir(acao, fazer) {
-    if (importando) return;
-    importando = true;
-    const b = document.querySelector(`#modal-content [data-action="${acao}"]`);
-    if (b) { b.disabled = true; b.setAttribute('aria-busy', 'true'); }
-    try { await fazer(); } finally {
-        importando = false;
-        if (b) { b.disabled = false; b.removeAttribute('aria-busy'); }
-    }
 }
 
 /** Multipart (o api() só manda JSON): `enviar` faz o fetch, com o caminho literal (catraca contrato-tela-api). Devolve o corpo do 2xx ou lança Error para a tela. */
