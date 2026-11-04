@@ -127,7 +127,7 @@ async function renderTitular(c, h, a) {
             buscaDica: 'Protocolo ou titular',
             filtros: [{ chave: 'tipo', rotulo: 'Tipo', valor: (p) => p.tipo, opcoes: Object.entries(TIPOS_PEDIDO) },
                 { chave: 'status', rotulo: 'Status', valor: (p) => p.status, opcoes: Object.entries(STATUS_PEDIDO) }],
-            vazio: { titulo: 'Nenhum pedido de titular registrado.', dica: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', acao: novo('abrirNovoPedidoTitular', 'Registrar pedido') },
+            vazio: { titulo: 'Nenhum pedido de titular registrado.', dica: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', acao: novo('abrirNovoPedidoTitular', 'Registrar pedido', false) },
         });
     } else if (aba === 'incidentes') {
         corpo = '<div id="in-lista"></div>';
@@ -140,7 +140,7 @@ async function renderTitular(c, h, a) {
                 selo(i.situacao_anpd), selo(i.situacao_titular), escapeHTML(STATUS_INCIDENTE[i.status] || i.status),
                 `<button class="btn btn-ghost btn-sm" data-action="abrirIncidente" data-args='${args(proj.id, i.id)}'>Abrir</button>`,
             ]),
-            vazio: { titulo: 'Nenhum incidente registrado.', dica: soIncidentes() ? '' : 'LGPD, art. 48. Registre o incidente com a data da ciência: é dela que contam os prazos de comunicação.', acao: novo('abrirNovoIncidente', 'Registrar incidente') },
+            vazio: { titulo: 'Nenhum incidente registrado.', dica: soIncidentes() ? '' : 'LGPD, art. 48. Registre o incidente com a data da ciência: é dela que contam os prazos de comunicação.', acao: novo('abrirNovoIncidente', 'Registrar incidente', false) },
         });
     } else if (aba === 'consentimentos') {
         c.innerHTML = `${abas}<p class="co-carregando" role="status">Carregando os consentimentos…</p>`;
@@ -185,7 +185,10 @@ window.abrirNovoPedidoTitular = function (projectId) {
         <button class="btn btn-primary" data-action="salvarNovoPedidoTitular" data-args='${args(projectId)}'>Registrar</button>`);
 };
 
-window.salvarNovoPedidoTitular = (projectId) => acao(async () => {
+window.salvarNovoPedidoTitular = (projectId) => {
+    // Um clique no formulário em branco criava um pedido vazio: sem a descrição, não há o que atender.
+    if (!valorOuNulo('pt-desc')) { showToast('Descreva o pedido antes de registrar.', 'error'); el('pt-desc').focus(); return; }
+    return acao(async () => {
     const r = await api('POST', `/api/v1/projects/${projectId}/titular-pedidos`, {
         tipo: el('pt-tipo').value, canal: el('pt-canal').value, titular_nome: valorOuNulo('pt-nome'), titular_contato: valorOuNulo('pt-contato'),
         descricao: valorOuNulo('pt-desc'), ...(el('pt-data').value ? { recebido_em: el('pt-data').value } : {}),
@@ -193,6 +196,7 @@ window.salvarNovoPedidoTitular = (projectId) => acao(async () => {
     showToast(`Pedido ${r.protocolo} registrado. ${r.prazo_em ? `Prazo: ${dia(r.prazo_em)}.` : 'Prazo não calculado (cadastre o prazo legal).'}`, 'success');
     forceCloseModal();
 }, 'Não foi possível registrar o pedido');
+};
 
 window.abrirPedidoTitular = async function (projectId, id) {
     let p;
@@ -203,7 +207,7 @@ window.abrirPedidoTitular = async function (projectId, id) {
         <p>${selo(p.situacao_prazo)} Recebido em ${dia(p.recebido_em)}; prazo ${(p.prazo_em ? dia(p.prazo_em) : 'não calculado')}.</p>
         <p id="pt-quem">${escapeHTML(p.titular_nome || 'Titular não identificado')} ${p.titular_contato ? `· ${escapeHTML(p.titular_contato)}` : ''} · ${escapeHTML(CANAIS[p.canal] || p.canal)}</p>
         <p id="pt-descricao" style="white-space:pre-wrap">${escapeHTML(p.descricao || '')}</p>
-        ${editar && p.status !== 'arquivado' ? `<div class="form-group"><label class="form-label" for="pt-status">Status</label><select class="form-input" id="pt-status">${opcoes(STATUS_PEDIDO, p.status)}</select></div>
+        ${editar && p.status !== 'arquivado' ? `<div class="form-group"><label class="form-label" for="pt-status">Status</label><select class="form-input" id="pt-status">${opcoes(final ? { [p.status]: STATUS_PEDIDO[p.status], arquivado: STATUS_PEDIDO.arquivado } : STATUS_PEDIDO, p.status)}</select></div>
             <div class="form-group"><label class="form-label" for="pt-resp">Resposta</label><textarea class="form-input" id="pt-resp" rows="4" maxlength="5000" ${final ? 'disabled' : ''}>${escapeHTML(p.resposta_texto || '')}</textarea></div>
             <button class="btn btn-primary" data-action="salvarPedidoTitular" data-args='${args(projectId, id)}'>Salvar</button>`
             : `<p id="pt-resposta" style="white-space:pre-wrap">${escapeHTML(p.resposta_texto || '')}</p>`}
@@ -265,13 +269,19 @@ window.gerarPortalTitular = async function (projectId, ativo) {
         const r = await api('POST', `/api/v1/projects/${projectId}/titular-portal`);
         const box = el('pt-portal-link');
         if (box) box.innerHTML = `<label class="form-label" for="pt-portal-url">Link (copie agora; ele não é mostrado de novo)</label>
-            <input class="form-input" id="pt-portal-url" readonly value="${escapeHTML(r.url)}">`;
+            <div class="d-flex gap-2"><input class="form-input" id="pt-portal-url" readonly value="${escapeHTML(r.url)}">
+            <button class="btn" data-action="copiarLinkPortal">Copiar</button></div>`;
         const campo = el('pt-portal-url');
         if (campo) { campo.focus(); campo.select(); }
         const estado = el('pt-portal-estado');
-        if (estado) estado.textContent = 'Portal ativo. Copie o link acima; ele não é mostrado de novo.';
+        if (estado) estado.textContent = 'Portal ativo. Copie o link abaixo; ele não é mostrado de novo.';
         showToast('Link gerado.', 'success');
     } catch (e) { falha(e, 'Não foi possível gerar o link'); }
+};
+
+window.copiarLinkPortal = async function () {
+    const campo = el('pt-portal-url');
+    try { await navigator.clipboard.writeText(campo.value); showToast('Link copiado.', 'success'); } catch (e) { campo.select(); showToast('Não deu para copiar sozinho: o link está selecionado, use Ctrl+C.', 'error'); }
 };
 
 window.desativarPortalTitular = async function (projectId) {
@@ -398,11 +408,14 @@ window.abrirIncidente = async function (projectId, id) {
         <p style="white-space:pre-wrap">${escapeHTML(i.descricao || '')}</p>
         <p id="in-prazos">Ciência em ${dia(i.ciencia_em)}. ANPD: ${selo(i.situacao_anpd)} (${(i.prazo_anpd_em ? dia(i.prazo_anpd_em) : 'prazo não calculado')}) · Titular: ${selo(i.situacao_titular)} (${(i.prazo_titular_em ? dia(i.prazo_titular_em) : 'prazo não calculado')}).</p>
         <p id="in-status">Status: ${escapeHTML(STATUS_INCIDENTE[i.status] || i.status)} · Risco ao titular: ${escapeHTML(RISCOS[i.risco_titular] || 'não avaliado')}</p>
+        ${editar ? `<button class="btn btn-ghost btn-sm" data-action="editarIncidente" data-args='${args(projectId, id)}'>Corrigir dados do registro</button>` : ''}
         ${editar ? `<h4 style="margin:1rem 0 0.5rem">Avaliar o risco</h4>
             <div class="form-group"><select class="form-input" id="in-risco" aria-label="Risco ao titular">${opcoes(RISCOS, i.risco_titular)}</select></div>
             <div class="form-group"><textarea class="form-input" id="in-aval" rows="2" maxlength="5000" placeholder="Justificativa">${escapeHTML(i.avaliacao_texto || '')}</textarea></div>
             <button class="btn btn-sm" data-action="avaliarRiscoIncidente" data-args='${args(projectId, id)}'>Salvar avaliação</button>
             <h4 style="margin:1rem 0 0.5rem">Comunicações</h4>
+            ${i.comunicacao_anpd_em && i.comunicacao_titular_em ? '' : `<div class="form-group"><label class="form-label" for="in-com-data">Data da comunicação</label>
+                <input class="form-input" id="in-com-data" type="date" max="${hojeSP()}" value="${hojeSP()}"></div>`}
             <div class="d-flex gap-2 flex-wrap">
                 ${i.comunicacao_anpd_em ? '' : comunicar('anpd', 'Registrei a comunicação à ANPD')}
                 ${i.comunicacao_titular_em ? '' : comunicar('titular', 'Registrei a comunicação ao titular')}
@@ -416,12 +429,16 @@ window.abrirIncidente = async function (projectId, id) {
             <button class="btn btn-sm" data-action="abrirCapaDoIncidente" data-args='${args(projectId, id)}'>Abrir CAPA</button>` : ''}
         ${encerrar ? `<div style="border-top:1px solid var(--border); margin-top:1.5rem; padding-top:1rem">
             <div id="in-encerrar"></div>
-            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco)}'>Encerrar incidente</button>
+            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco, i.risco_titular || null)}'>Encerrar incidente</button>
         </div>` : ''}`, 'modal-large');
 };
 
 // Confirmação na própria janela (o app não usa confirm()). Sem a comunicação à ANPD (e com risco), a pergunta diz isso.
-window.pedirEncerramentoIncidente = function (projectId, id, semPendenciaAnpd) {
+window.pedirEncerramentoIncidente = function (projectId, id, semPendenciaAnpd, risco) {
+    // O servidor recusa nesses dois casos: dizer o que falta, sem oferecer um "encerrar mesmo assim" que não funciona.
+    const impede = !risco ? 'Avalie o risco ao titular antes de encerrar.'
+        : risco === 'relevante' && !semPendenciaAnpd ? 'Com risco relevante, o incidente só encerra depois de registrada a comunicação à ANPD.' : null;
+    if (impede) { el('in-encerrar').innerHTML = `<p style="color:var(--warning)">${impede}</p>`; return; }
     el('in-encerrar').innerHTML = `<p style="color:${semPendenciaAnpd ? 'var(--text)' : 'var(--warning)'}">${semPendenciaAnpd
         ? 'Encerrar o incidente? Depois de encerrado, ele não recebe mais avaliação nem comunicação.'
         : 'A ANPD ainda não foi comunicada. Encerrar mesmo assim?'}</p>
@@ -444,8 +461,32 @@ window.avaliarRiscoIncidente = (projectId, id) => acao(
     () => api('PUT', `/api/v1/projects/${projectId}/incidentes/${id}/risco`, { risco_titular: el('in-risco').value, avaliacao_texto: valorOuNulo('in-aval') }),
     'Não foi possível salvar a avaliação', 'Avaliação salva.', reabrirIncidente(projectId, id));
 
-window.registrarComunicacaoIncidente = (projectId, id, destino) => acao(
-    () => api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/comunicacoes`, { destino }), 'Não foi possível registrar a comunicação', 'Comunicação registrada.', reabrirIncidente(projectId, id));
+// Registrar a comunicação não se desfaz: pede a data (a de hoje vem preenchida) e confirma antes.
+window.registrarComunicacaoIncidente = async function (projectId, id, destino) {
+    const em = el('in-com-data')?.value || hojeSP();
+    const quem = destino === 'anpd' ? 'à ANPD' : 'ao titular';
+    if (!(await confirmar(`Registrar a comunicação ${quem} em ${dia(em)}? Depois de registrada, ela não se desfaz.`, { rotulo: 'Registrar' }))) return;
+    return acao(() => api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/comunicacoes`, { destino, em }), 'Não foi possível registrar a comunicação', 'Comunicação registrada.', reabrirIncidente(projectId, id));
+};
+
+window.editarIncidente = async function (projectId, id) {
+    let i;
+    try { i = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}`); } catch (e) { falha(e, 'Não foi possível abrir o incidente'); return; }
+    openModal(`<h3>${escapeHTML(i.protocolo)}: corrigir dados do registro</h3>
+        <p class="at-nota">A data da ciência não muda aqui: os prazos de comunicação contam dela.</p>
+        <div class="form-group"><label class="form-label" for="in-ed-titulo">Título</label><input class="form-input" id="in-ed-titulo" maxlength="500" value="${escapeHTML(i.titulo)}"></div>
+        <div class="form-group"><label class="form-label" for="in-ed-desc">Descrição</label><textarea class="form-input" id="in-ed-desc" rows="4" maxlength="5000">${escapeHTML(i.descricao || '')}</textarea></div>
+        <div class="form-group"><label class="form-label" for="in-ed-ocorrido">Ocorreu em (opcional)</label><input class="form-input" id="in-ed-ocorrido" type="date" max="${hojeSP()}" value="${escapeHTML(String(i.ocorrido_em || '').slice(0, 10))}"></div>
+        <div class="d-flex gap-2"><button class="btn btn-primary" data-action="salvarEdicaoIncidente" data-args='${args(projectId, id)}'>Salvar</button>
+        <button class="btn" data-action="abrirIncidente" data-args='${args(projectId, id)}'>Voltar sem salvar</button></div>`, 'modal-large');
+};
+
+window.salvarEdicaoIncidente = function (projectId, id) {
+    const titulo = valorOuNulo('in-ed-titulo');
+    if (!titulo) { showToast('Informe o título.', 'error'); return; }
+    return acao(() => api('PUT', `/api/v1/projects/${projectId}/incidentes/${id}`, { titulo, descricao: valorOuNulo('in-ed-desc'), ocorrido_em: el('in-ed-ocorrido').value || null }),
+        'Não foi possível salvar o incidente', 'Incidente atualizado.', reabrirIncidente(projectId, id));
+};
 
 // O que tem e o que falta vêm do servidor, calculados do registro (Res. CD/ANPD 15/2024); o texto é editável e não é gravado.
 window.rascunhoComunicacaoIncidente = async function (projectId, id, destino) {

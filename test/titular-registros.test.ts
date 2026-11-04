@@ -238,6 +238,26 @@ describe('incidente', () => {
     expect((await chamar(consultor, 'POST', `${B}/incidentes/${id}/encerrar`)).status).toBe(200);
   });
 
+  it('corrigir o registro: título, descrição, ocorrência e responsável mudam; a ciência e os prazos não; encerrado não muda', async () => {
+    const id = await novo();
+    const antes = await ler(id);
+    const put = (corpo: object, alvo = id) => chamar(consultor, 'PUT', `${B}/incidentes/${alvo}`, corpo);
+    expect((await put({ titulo: 'Acesso indevido à planilha', descricao: 'Link público', ocorrido_em: '2026-09-30' })).status).toBe(200);
+    const depois = await ler(id);
+    expect(depois).toMatchObject({ titulo: 'Acesso indevido à planilha', descricao: 'Link público', ocorrido_em: '2026-09-30' });
+    expect([depois.ciencia_em, depois.prazo_anpd_em, depois.prazo_titular_em]).toEqual([antes.ciencia_em, antes.prazo_anpd_em, antes.prazo_titular_em]);
+    for (const corpo of [{ ciencia_em: '2026-10-01' }, { titulo: ' ' }, { ocorrido_em: 'ontem' }, { responsavel_parte_id: 'tr-pa-o' }]) {
+      expect((await put(corpo)).status, JSON.stringify(corpo)).toBe(400);
+    }
+    const trilha = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'incidente.alterado' AND details LIKE ?`).bind(`%${antes.protocolo}%`).first<{ details: string }>();
+    expect(trilha?.details).toContain('titulo, descricao, ocorrido_em');
+    expect(trilha?.details).not.toContain('Link público');
+    expect((await put({ titulo: 'x' }, 'tr-i-nao-existe')).status).toBe(404);
+    await chamar(consultor, 'PUT', `${B}/incidentes/${id}/risco`, { risco_titular: 'sem_risco' });
+    await chamar(consultor, 'POST', `${B}/incidentes/${id}/encerrar`);
+    expect((await put({ titulo: 'Depois de encerrado' })).status).toBe(409);
+  });
+
   it('o agente registra e avalia, mas não encerra; incidente de outro projeto é 404', async () => {
     const id = await novo();
     const ag = (m: string, p: string, b?: unknown) => chamar({}, m, p, b, { AGENTE });

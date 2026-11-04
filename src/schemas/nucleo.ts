@@ -258,6 +258,13 @@ export const incidenteCriarSchema = z.object({
   responsavel_parte_id: idParte.nullish(),
 }).strict();
 
+export const incidenteAtualizarSchema = z.object({
+  titulo: textoCurto.optional(),
+  descricao: textoLongo.nullable().optional(),
+  ocorrido_em: instante.nullable().optional(),
+  responsavel_parte_id: idParte.nullable().optional(),
+}).strict();
+
 export const incidenteRiscoSchema = z.object({
   risco_titular: z.enum(['sem_risco', 'baixo', 'relevante']),
   avaliacao_texto: textoLongo.nullish(),
