@@ -61,11 +61,11 @@ describe('abas da casca /ot', () => {
         servirOt({ [`GET ${B}/requisitos`]: { requisitos: [] } });
         await abrir('catalogo');
         const abas = () => [...el('c').querySelectorAll('[role="tab"]')].map((t) => t.textContent.trim());
-        expect(abas()).toEqual(['Catálogo RO-CB.BR.01', 'Inventário', 'Fluxos', 'Coleta', 'Levantamento', 'Saídas', 'Acesso por site']);
+        expect(abas()).toEqual(['Catálogo RO-CB.BR.01', 'Inventário', 'Fluxos', 'Coleta', 'Levantamento', 'Saídas', 'Acessos e agente']);
         for (const role of ['client', 'org_user']) {
             S.user = { id: 'u', role };
             await abrir('catalogo');
-            expect(abas(), role).not.toContain('Acesso por site');
+            expect(abas(), role).not.toContain('Acessos e agente');
         }
         S.otAba = 'acessos';
         await window.renderOt(el('c'), el('h'), el('a'));
@@ -178,6 +178,21 @@ describe('inventário', () => {
         document.querySelector('[data-confirmar="sim"]').click();
         await p;
         expect(chamadas.some((x) => x.k === `DELETE ${B}/ativos/a1`)).toBe(true);
+    });
+});
+
+describe('aviso de IP ou MAC faltando (decisão do dono: o 4.3.1 pede um dos dois)', () => {
+    it('mostra "Falta MAC" e "Falta IP" sem esconder o que existe', async () => {
+        S.user = { id: 'g', role: 'org_admin' };
+        servirOt({ ...INVENTARIO, [`GET ${B}/ativos`]: { ativos: [
+            ativo('a1', 'RTU-01', 'z2', { ip: '10.0.0.1', mac: null, mascarado: false }),
+            ativo('a2', 'SW-02', 'z2', { ip: null, mac: 'aa:bb:cc:dd:ee:ff', mascarado: false }),
+        ] } });
+        await abrir('inventario');
+        expect(texto()).toContain('Falta MAC');
+        expect(texto()).toContain('Falta IP');
+        expect(texto()).toContain('10.0.0.1');
+        expect(texto()).toContain('aa:bb:cc:dd:ee:ff');
     });
 });
 

@@ -1,4 +1,4 @@
-// n.ot, L5 (plano 2026-11-04): o cartão "Agente de coleta" na aba Acesso por site, sobre as rotas /ot/agente* de src/routes/ot.ts.
+// n.ot, L5 (plano 2026-11-04): o cartão "Agente de coleta" na aba Acessos e agente, sobre as rotas /ot/agente* de src/routes/ot.ts.
 // api() REAL; só o fetch é dublado (mesmo arranque de ot-abas.test.js), com os corpos que os handlers devolvem.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resposta } from './servir-api.js';
