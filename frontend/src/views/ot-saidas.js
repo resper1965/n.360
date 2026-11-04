@@ -35,6 +35,8 @@ export async function montarSaidas(c, a, p) {
         { label: 'Completude do 4.3.1', value: comp.percentual === null || comp.percentual === undefined ? '—' : `${comp.percentual}%`, subtext: `${comp.completos ?? 0} de ${comp.total ?? 0} ativo(s) com os 6 campos` },
         { label: 'Ativos do ARCiber completos', value: `${comp.arciber?.completos ?? 0} de ${comp.arciber?.total ?? 0}` },
         { label: 'Ativos sem zona', value: ind.sem_zona ?? 0 },
+        { label: 'Ativos sem IP', value: ind.sem_ip ?? 0 },
+        { label: 'Ativos sem MAC', value: ind.sem_mac ?? 0 },
         { label: 'Fluxos externos sem VPN', value: `${fx.sem_vpn ?? 0} de ${fx.externos ?? 0}`, color: fx.sem_vpn ? 'var(--danger-ink)' : undefined },
     ])}
         <p class="mb-2">Completude: ${situacao(comp.situacao)} ${escapeHTML(comp.evidencia || '')}</p>

@@ -181,6 +181,21 @@ describe('inventário', () => {
     });
 });
 
+describe('aviso de IP ou MAC faltando (decisão do dono: o 4.3.1 pede um dos dois)', () => {
+    it('mostra "Falta MAC" e "Falta IP" sem esconder o que existe', async () => {
+        S.user = { id: 'g', role: 'org_admin' };
+        servirOt({ ...INVENTARIO, [`GET ${B}/ativos`]: { ativos: [
+            ativo('a1', 'RTU-01', 'z2', { ip: '10.0.0.1', mac: null, mascarado: false }),
+            ativo('a2', 'SW-02', 'z2', { ip: null, mac: 'aa:bb:cc:dd:ee:ff', mascarado: false }),
+        ] } });
+        await abrir('inventario');
+        expect(texto()).toContain('Falta MAC');
+        expect(texto()).toContain('Falta IP');
+        expect(texto()).toContain('10.0.0.1');
+        expect(texto()).toContain('aa:bb:cc:dd:ee:ff');
+    });
+});
+
 describe('revelar IP/MAC', () => {
     it('só para o platform_admin e só em ativo mascarado; quem já vê completo não tem o botão', async () => {
         S.user = { id: 'pa', role: 'platform_admin' };

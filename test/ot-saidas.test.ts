@@ -172,7 +172,7 @@ describe('exportação do inventário (CSV e XLSX)', () => {
 describe('indicadores do projeto', () => {
   type Ind = {
     completude: { total: number; completos: number; percentual: number | null; situacao: string; arciber: { total: number; completos: number } };
-    por_nivel: Record<string, number>; sem_zona: number; por_zona: { zona_id: string; nivel_purdue: number; ativos: number }[];
+    por_nivel: Record<string, number>; sem_zona: number; sem_ip: number; sem_mac: number; por_zona: { zona_id: string; nivel_purdue: number; ativos: number }[];
     fluxos_externos: { externos: number; sem_vpn: number; situacao: string };
     prazos: { codigo: string; prazo_meses: number; prazo_em: string; dias_restantes: number; vencido: boolean; situacao: string }[];
   };
@@ -183,6 +183,11 @@ describe('indicadores do projeto', () => {
     expect(i.completude).toMatchObject({ total: 4, completos: 1, percentual: 25, situacao: 'sem_evidencia', arciber: { total: 1, completos: 1 } });
     expect(i.por_nivel).toEqual({ 2: 1, 3: 1, 4: 0 });
     expect(i.sem_zona).toBe(2);
+    // Decisão do dono: falta de IP ou de MAC é aviso, contado sobre os ativos visíveis (o 4.3.1 pede só um dos dois).
+    const c = await env.DB.prepare(`SELECT sum(ip_cifrado IS NULL) AS ip, sum(mac_cifrado IS NULL) AS mac FROM ot_ativos WHERE project_id = 'proj-a' AND status = 'ativo'`).first<{ ip: number; mac: number }>();
+    expect(i.sem_ip).toBe(c!.ip);
+    expect(i.sem_mac).toBe(c!.mac);
+    expect(i.sem_ip + i.sem_mac).toBeGreaterThan(0);
     expect(i.por_zona.find((z) => z.zona_id === ids.z2)).toMatchObject({ nivel_purdue: 2, ativos: 1 });
     expect(i.fluxos_externos).toEqual({ externos: 3, sem_vpn: 2, situacao: 'nao_atende' });
     const p431 = i.prazos.find((p) => p.codigo === '4.3.1')!;
