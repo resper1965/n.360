@@ -54,6 +54,23 @@ describe('ficha em abas: órgãos públicos destinatários', () => {
     expect((await chamar(s.consultor, 'GET', rota(outra))).status).toBe(200);
   });
 
+  it('aprovação direta antiga (assinatura na linha) cai quando a lista muda, como no PUT do registro', async () => {
+    const rid = await novaAtividade(s.consultor);
+    await env.DB.prepare(`UPDATE ropa_records SET status = 'Approved', ciso_approved_by = 'ciso@cliente.exemplo', ciso_approved_at = '2026-01-01' WHERE id = ?`).bind(rid).run();
+    expect((await chamar(s.consultor, 'POST', rota(rid), { nome: 'Órgão exemplo A' })).status).toBe(201);
+    expect(await linha('SELECT status, ciso_approved_by FROM ropa_records WHERE id = ?', rid)).toEqual({ status: 'Under Review', ciso_approved_by: null });
+    expect((await linha<{ n: number }>(`SELECT count(*) n FROM audit_logs WHERE action = 'ropa.aprovacao_invalidada' AND details LIKE ?`, `%${rid}%`))?.n).toBe(1);
+  });
+
+  it('com órgãos cadastrados, o PUT do registro não troca o texto (409); o mesmo texto passa', async () => {
+    const rid = await novaAtividade(s.consultor);
+    await chamar(s.consultor, 'POST', rota(rid), { nome: 'Órgão exemplo A' });
+    const { f } = (await linha<{ f: string }>('SELECT processing_purpose f FROM ropa_records WHERE id = ?', rid))!;
+    expect((await chamar(s.consultor, 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: f, recipients: 'Outro texto' })).status).toBe(409);
+    expect((await chamar(s.consultor, 'PUT', `/api/v1/ropa/${rid}`, { processing_purpose: f, recipients: 'Órgão exemplo A' })).status).toBe(200);
+    expect(await recipients(rid)).toBe('Órgão exemplo A');
+  });
+
   it('o banco recusa a linha com atividade de outro projeto', async () => {
     const rid = await novaAtividade(s.consultor);
     await expect(env.DB.prepare(`INSERT INTO tratamento_orgaos_publicos (id, project_id, ropa_id, nome) VALUES ('op-x', ?, ?, 'X')`).bind(OUTRO, rid).run())

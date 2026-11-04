@@ -64,7 +64,7 @@ export async function lerDadosAtividade(db: D1Database, projectId: string, ropaI
       (SELECT count(*) FROM risks k WHERE k.ropa_id = r.id AND k.project_id = r.project_id) AS riscos,
       (SELECT count(*) FROM corrective_actions a WHERE a.ropa_id = r.id AND a.project_id = r.project_id) AS gaps,
       (SELECT count(*) FROM corrective_actions a WHERE a.ropa_id = r.id AND a.project_id = r.project_id AND COALESCE(a.status, 'Open') <> 'Closed') AS gaps_abertos,
-      (SELECT count(*) FROM corrective_actions a WHERE a.ropa_id = r.id AND a.project_id = r.project_id AND COALESCE(a.status, 'Open') <> 'Closed' AND a.assigned_to_parte_id IS NULL) AS sem_responsavel,
+      (SELECT count(*) FROM corrective_actions a WHERE a.ropa_id = r.id AND a.project_id = r.project_id AND COALESCE(a.status, 'Open') <> 'Closed' AND a.assigned_to_parte_id IS NULL AND TRIM(COALESCE(a.assigned_to, '')) = '') AS sem_responsavel,
       (SELECT count(*) FROM tratamento_impacto t WHERE t.ropa_id = r.id AND t.project_id = r.project_id) AS respondidas,
       (SELECT count(*) FROM audit_logs l WHERE l.project_id = r.project_id AND ((l.entity_type = 'ropa' AND l.entity_id = r.id) OR l.details LIKE 'ROPA ' || r.id || ':%')) AS logs,
       (SELECT json_group_array(json_object('id', d.id, 'nome', d.nome)) FROM tratamento_departamentos t JOIN departamentos d ON d.id = t.departamento_id
