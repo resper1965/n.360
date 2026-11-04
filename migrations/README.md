@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0095** (`ls migrations/*.sql | tail -1`). São 93 arquivos
+- Última migration no repositório: **0096** (`ls migrations/*.sql | tail -1`). São 94 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206).
@@ -729,3 +729,7 @@ Acrescenta `ot_achados.pergunta_id` (FK para `ot_roteiro_perguntas`, `ON DELETE 
 ## 0095 — perfis de de-para do n.ot (2026-11-03)
 
 Cria `ot_perfis_depara` (perfil da planilha: cabeçalho → campos do ativo, uma assinatura por projeto, `UNIQUE (project_id, assinatura)`). Aditiva e repetível (`IF NOT EXISTS`); não toca tabela existente. Conferência depois: `SELECT name FROM sqlite_master WHERE name='ot_perfis_depara'` (1 linha). Produção só com o "sim" do dono e `npm run db:backup` antes.
+
+## 0096 — agente de coleta do n.ot (2026-11-04)
+
+Acrescenta `projects.agente_coleta_ot INTEGER NOT NULL DEFAULT 0 CHECK (agente_coleta_ot IN (0, 1))` por `ALTER TABLE ADD COLUMN`, que roda uma vez pelo runner (interruptor do agente externo, desligado por padrão). Aditiva; nenhuma tabela é refeita. A chave do agente é `api_keys.permissions = 'ot_coleta'` (sem CHECK). Conferência depois: `SELECT name FROM pragma_table_info('projects') WHERE name = 'agente_coleta_ot'` (1 linha). Produção só com o "sim" do dono e `npm run db:backup` antes.
