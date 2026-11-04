@@ -1,0 +1,81 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import { env } from 'cloudflare:test';
+import { chavesOt, hmacOt } from '../src/services/ot-cifra';
+import { EVIDENCIA_SENSOR, planejarResumo, resumoRedeSchema } from '../src/services/ot-rede';
+import { applySchema, seedTwoProjects, workerEnv } from './helpers/d1';
+
+// n.ot L3: validação do resumo do sensor de rede e montagem de achados e pendências. D1 real.
+const chaves = chavesOt(workerEnv())!;
+const PJ = 'proj-a';
+const base = { formato: 'n.ot-resumo-rede/1', gerado_em: '2026-11-04T12:00:00Z', periodo: { inicio: '2026-11-01T00:00:00Z', fim: '2026-11-03T23:59:59Z' } };
+const at = (ip: string, extra: Record<string, unknown> = {}) => ({ ip, protocolos: [], portas_servico: [], ...extra });
+const cx = (origem: string, destino: string, porta: number, aplicacao: string | null, transporte = 'tcp') =>
+  ({ origem, destino, transporte, porta, aplicacao, contagem: 3, primeira_vez: '2026-11-01T00:00:00Z', ultima_vez: '2026-11-02T00:00:00Z' });
+const resumo = (ativos: unknown[], conexoes: unknown[]) => resumoRedeSchema.parse({ ...base, ativos, conexoes });
+
+beforeAll(async () => {
+  await applySchema(); await seedTwoProjects();
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('s1', ?, 'SE 1')`).bind(PJ),
+    env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_hash) VALUES ('a-rtu', ?, 's1', 'RTU 1', ?)`).bind(PJ, await hmacOt(chaves, PJ, '10.1.1.10')),
+    env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_hash, mac_hash) VALUES ('a-ihm', ?, 's1', 'IHM', ?, 'mh')`).bind(PJ, await hmacOt(chaves, PJ, '10.1.1.20')),
+  ]);
+});
+
+describe('resumoRedeSchema', () => {
+  const ok = { ...base, ativos: [at('10.1.1.10', { mac: '00:30:a7:01:02:03', fabricante: 'SEL', protocolos: ['dnp3'], portas_servico: [20000] })],
+    conexoes: [cx('10.1.1.20', '10.1.1.10', 20000, 'dnp3')] };
+  it('aceita o formato da spec', () => expect(resumoRedeSchema.safeParse(ok).success).toBe(true));
+  it.each([
+    ['campo desconhecido', { ...ok, extra: 1 }],
+    ['formato diferente', { ...ok, formato: 'outro/1' }],
+    ['IP inválido', { ...ok, ativos: [at('999.1.1.1')] }],
+    ['aplicação fora da lista', { ...ok, conexoes: [cx('10.1.1.20', '10.1.1.10', 20000, 'iec61850x')] }],
+    ['fabricante com e-mail', { ...ok, ativos: [at('10.1.1.10', { fabricante: 'ana@x.com' })] }],
+    ['mais de 5.000 ativos', { ...ok, ativos: Array.from({ length: 5001 }, (_, i) => at(`10.0.${i >> 8}.${i & 255}`)) }],
+  ])('recusa %s', (_, r) => expect(resumoRedeSchema.safeParse(r).success).toBe(false));
+});
+
+describe('planejarResumo', () => {
+  const site = { id: 's1', faixas: [] as string[] };
+  it('ativos: novo interno, MAC que completa, externo nunca', async () => {
+    const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([
+      at('10.1.1.30', { mac: '00:30:a7:01:02:04', fabricante: 'SEL', protocolos: ['dnp3'], portas_servico: [20000] }),
+      at('10.1.1.10', { mac: '00-30-A7-01-02-03' }),
+      at('10.1.1.20', { mac: '00:30:a7:01:02:05' }),
+      at('8.8.8.8', { protocolos: ['dns'] }),
+    ], []));
+    expect(p.ativos).toEqual([{ ip: '10.1.1.30', mac: '00:30:a7:01:02:04', fabricante: 'SEL', protocolos_portas: [{ protocolo: 'dnp3', porta: 20000 }] }]);
+    expect(p.macs).toEqual([{ ip: '10.1.1.10', mac: '00:30:a7:01:02:03' }]);
+    expect(p.contagem).toMatchObject({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1 });
+  });
+
+  it('fluxos: pontas resolvidas, externo, pendente só com hash, faixa interna do site, duplicata', async () => {
+    const r = resumo([], [
+      cx('10.1.1.20', '10.1.1.10', 20000, 'dnp3'),
+      cx('10.1.1.20', '10.1.1.10', 20000, 'dnp3', 'udp'),
+      cx('10.1.1.20', '203.0.113.5', 443, 'https'),
+      cx('10.1.1.30', '10.1.1.10', 502, null),
+      cx('200.10.0.7', '10.1.1.10', 502, 'modbus'),
+      cx('8.8.8.8', '1.1.1.1', 53, 'dns', 'udp'),
+    ]);
+    const p = await planejarResumo(env.DB, chaves, PJ, site, r);
+    expect(p.fluxos).toEqual([
+      { origem_ativo_id: 'a-ihm', destino_ativo_id: 'a-rtu', protocolo: 'dnp3', porta: 20000, direcao: 'unidirecional' },
+      { origem_ativo_id: 'a-ihm', protocolo: 'https', porta: 443, direcao: 'unidirecional', externo: true },
+      { destino_ativo_id: 'a-rtu', protocolo: 'modbus', porta: 502, direcao: 'unidirecional', externo: true },
+    ]);
+    expect(p.pendentes).toEqual([{ origem_ip_hash: await hmacOt(chaves, PJ, '10.1.1.30'), destino_ip_hash: await hmacOt(chaves, PJ, '10.1.1.10'),
+      dados: { protocolo: 'tcp', porta: 502, direcao: 'unidirecional' } }]);
+    expect(JSON.stringify(p.pendentes)).not.toContain('10.1.1.30');
+    expect(p.contagem).toMatchObject({ fluxos_criados: 3, fluxos_pendentes: 1 });
+
+    const comFaixa = await planejarResumo(env.DB, chaves, PJ, { id: 's1', faixas: ['200.10.0.0/24'] }, r);
+    expect(comFaixa.pendentes.map((x) => x.origem_ip_hash)).toContain(await hmacOt(chaves, PJ, '200.10.0.7'));
+    expect(comFaixa.fluxos.some((f) => f.protocolo === 'modbus')).toBe(false);
+  });
+});
+
+it('EVIDENCIA_SENSOR', () => {
+  expect(EVIDENCIA_SENSOR(5321, '2026-11-01T00:00:00Z', '2026-11-03T23:59:59Z')).toBe('Sensor de rede (Zeek): 5321 conexões entre 01/11 e 03/11');
+});
