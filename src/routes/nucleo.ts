@@ -5,9 +5,9 @@ import { aplicarNomes, propostasDeNomes } from '../services/padronizar-nomes';
 import { mesclar, previaDaMescla } from '../services/mesclar';
 import { importarPartes, conciliarResponsaveis } from '../services/partes';
 import { importarDocumentos } from '../services/documentos';
-import { conferirPedidosDoDocumento } from './pedidos';
 import { sincronizarDpoDaParte, membroDpoDaParte } from '../services/encarregado-pessoa';
 import { emailAindaNaMatriz, revogarContaStakeholder } from './governance';
+import { conteudoDoTratamentoMudou } from './ropa';
 import { NOME_DO_PRODUTO } from '../modulos';
 import { seedPhases } from '../services/project-setup';
 import {
@@ -127,7 +127,7 @@ nucleoApp.post('/mesclar', async (c) => {
     const r = confirmar ? await mesclar(c.env.DB, tabela, projectId, c.get('user').email, manter, remover) : await previaDaMescla(c.env.DB, tabela, projectId, manter, remover);
     if (!('ok' in r)) return c.json({ error: r.error }, r.status);
     // O conteúdo congelado da aprovação das atividades tocadas mudou: o pedido aberto é conferido e, se preciso, substituído.
-    if (confirmar && r.tratamentos.length) await conferirPedidosDoDocumento(c, 'tratamento', r.tratamentos, projectId);
+    if (confirmar) for (const t of r.tratamentos) await conteudoDoTratamentoMudou(c, t, projectId);
     return c.json({ ...r, previa: !confirmar, tratamentos: r.tratamentos.length });
   } catch (e) { return erro500(c, 'Falha ao mesclar os cadastros', e); }
 });
@@ -319,7 +319,7 @@ nucleoApp.post('/partes/:id/vinculos', async (c) => {
     }
     await logAudit(db, 'parte.vinculada', c.get('user').email, `Parte ${parteId}: ${papel} em ${alvo_tipo}`, '', '', projectId);
     // As partes do tratamento entram no conteúdo congelado do pedido de aprovação (fatia 4.3).
-    if (alvo_tipo === 'tratamento') await conferirPedidosDoDocumento(c, 'tratamento', alvo_id, projectId);
+    if (alvo_tipo === 'tratamento') await conteudoDoTratamentoMudou(c, alvo_id, projectId);
     return c.json({ ok: true, id }, 201);
   } catch (e) { return erro500(c, 'Falha ao vincular a parte', e); }
 });
@@ -332,7 +332,7 @@ nucleoApp.delete('/partes/:id/vinculos/:vinculoId', async (c) => {
     const r = await c.env.DB.prepare('DELETE FROM parte_vinculos WHERE id = ? AND parte_id = ? AND project_id = ?')
       .bind(c.req.param('vinculoId'), c.req.param('id'), projectId).run();
     if (!r.meta.changes) return c.json({ error: 'Vínculo não encontrado' }, 404);
-    if (alvo?.alvo_tipo === 'tratamento') await conferirPedidosDoDocumento(c, 'tratamento', alvo.alvo_id, projectId);
+    if (alvo?.alvo_tipo === 'tratamento') await conteudoDoTratamentoMudou(c, alvo.alvo_id, projectId);
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao remover o vínculo', e); }
 });

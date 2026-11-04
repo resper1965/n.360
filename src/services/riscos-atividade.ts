@@ -264,7 +264,7 @@ export type AcaoDaAtividade = {
 export async function acoesDasAtividades(db: D1Database, projectId: string, { soAbertas = false, limite = 10_000 } = {}): Promise<AcaoDaAtividade[]> {
   const { results } = await db.prepare(
     `SELECT ca.id, ca.ropa_id, rr.processing_purpose AS atividade, ca.title, ca.description, ca.due_date, ca.status,
-            pa.nome AS responsavel, r.threat AS risco, ca.created_at, ca.completed_at, ca.recomendacao, ca.action_plan,
+            COALESCE(pa.nome, NULLIF(TRIM(ca.assigned_to), '')) AS responsavel, r.threat AS risco, ca.created_at, ca.completed_at, ca.recomendacao, ca.action_plan,
             (SELECT count(*) FROM acao_anexos x WHERE x.acao_id = ca.id AND x.project_id = ca.project_id) AS anexos, ${AREA('ca')}
        FROM corrective_actions ca JOIN ropa_records rr ON rr.id = ca.ropa_id AND rr.project_id = ca.project_id
        LEFT JOIN partes pa ON pa.id = ca.assigned_to_parte_id AND pa.project_id = ca.project_id
