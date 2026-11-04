@@ -734,7 +734,8 @@ otApp.get('/agente/chaves', async (c) => {
   try {
     const { db, user, projectId } = await contexto(c);
     if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO(c);
-    const { results } = await db.prepare(`SELECT id, name AS nome, status, expires_at AS expira_em, last_used_at AS ultimo_uso FROM api_keys
+    const { results } = await db.prepare(`SELECT id, name AS nome,
+      CASE WHEN status = 'Active' AND expires_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now') THEN 'Vencida' ELSE status END AS status, expires_at AS expira_em, last_used_at AS ultimo_uso FROM api_keys
       WHERE project_id = ? AND permissions = 'ot_coleta' ORDER BY created_at DESC LIMIT ${TETO_LEITURA_OT}`).bind(projectId).all();
     return c.json({ chaves: results });
   } catch (e) { return erro500(c, 'Falha ao listar as chaves do agente', e); }
@@ -760,7 +761,7 @@ otApp.delete('/agente/chaves/:kid', async (c) => {
     const { db, user, projectId } = await contexto(c);
     if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO(c);
     const kid = c.req.param('kid');
-    const r = await db.prepare(`UPDATE api_keys SET status = 'Revoked' WHERE id = ? AND project_id = ? AND permissions = 'ot_coleta'`).bind(kid, projectId).run();
+    const r = await db.prepare(`UPDATE api_keys SET status = 'Revoked' WHERE id = ? AND project_id = ? AND permissions = 'ot_coleta' AND status = 'Active'`).bind(kid, projectId).run();
     if (!r.meta.changes) return NAO_ENCONTRADO(c, 'Chave');
     await trilha(c, 'ot.agente.chave_revogada', projectId, `Chave ${kid} revogada`, { tipo: 'api_key', id: kid });
     return c.json({ ok: true });
