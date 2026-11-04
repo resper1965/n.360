@@ -129,7 +129,7 @@ import {
   tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema,
   riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema,
   terceiroTipoSchema, avaliacaoTerceiroSchema, terceiroDocumentoSchema, criticidadeTerceiroSchema,
-  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, tratativaSchema, portalAbrirSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
+  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, tratativaSchema, portalAbrirSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteAtualizarSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
 import {
@@ -292,6 +292,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes/:id/comunicacoes', schema: incidenteComunicacaoSchema, nome: 'incidenteComunicacaoSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes/:id/rascunho-comunicacao', schema: incidenteRascunhoSchema, nome: 'incidenteRascunhoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/incidentes/:id/risco', schema: incidenteRiscoSchema, nome: 'incidenteRiscoSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/incidentes/:id', schema: incidenteAtualizarSchema, nome: 'incidenteAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes', schema: incidenteCriarSchema, nome: 'incidenteCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/mesclar', schema: mesclarSchema, nome: 'mesclarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/modulos/:modulo', schema: moduloHabilitarSchema, nome: 'moduloHabilitarSchema' },

@@ -6,10 +6,13 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0096** (`ls migrations/*.sql | tail -1`). São 94 arquivos
+- Última migration no repositório: **0097** (`ls migrations/*.sql | tail -1`). São 96 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
-  estável, e **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
-  saiu no #206).
+  estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
+  saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`,
+  de PRs paralelos). O runner controla pelo NOME do arquivo (`d1_migrations.name`), então as duas
+  valem e já estão aplicadas em produção; não renomeie (renomear faria o runner aplicar de novo).
+  Antes de numerar a próxima, confira a `main` atual (`git ls-tree --name-only origin/main migrations/`).
 - Produção sem migration pendente é condição de deploy: `.github/workflows/deploy.yml` roda
   `wrangler d1 migrations list niso-db --remote` e recusa publicar se a resposta não for
   "No migrations to apply". Confira você mesmo antes de afirmar o estado de produção.
@@ -733,3 +736,14 @@ Cria `ot_perfis_depara` (perfil da planilha: cabeçalho → campos do ativo, uma
 ## 0096 — agente de coleta do n.ot (2026-11-04)
 
 Acrescenta `projects.agente_coleta_ot INTEGER NOT NULL DEFAULT 0 CHECK (agente_coleta_ot IN (0, 1))` por `ALTER TABLE ADD COLUMN`, que roda uma vez pelo runner (interruptor do agente externo, desligado por padrão). Aditiva; nenhuma tabela é refeita. A chave do agente é `api_keys.permissions = 'ot_coleta'` (sem CHECK). Conferência depois: `SELECT name FROM pragma_table_info('projects') WHERE name = 'agente_coleta_ot'` (1 linha). Produção só com o "sim" do dono e `npm run db:backup` antes.
+
+## 0096 — portal de solicitações do titular (2026-11-03)
+
+Cria `titular_portais` (um link por projeto, só o SHA-256 do token) e `titular_pedido_tratativas` (histórico do atendimento do pedido).
+Aditiva e repetível (`IF NOT EXISTS`). Mesma numeração da `0096_ot_agente_coleta.sql` por PRs paralelos; ver "Estado". Conferência
+depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titular_pedido_tratativas')` (2 linhas).
+
+## 0097 — órgãos públicos destinatários da atividade (2026-11-04)
+
+Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).

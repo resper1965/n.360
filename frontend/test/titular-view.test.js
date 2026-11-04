@@ -70,6 +70,13 @@ describe('abas', () => {
         expect(S.titularAba).toBe('incidentes');
         expect(navigate).toHaveBeenLastCalledWith('titular');
     });
+    it('lista vazia: um primário só, o do cabeçalho (o do vazio é secundário)', async () => {
+        await abrir('pedidos', { [`GET ${B}/titular-pedidos`]: [] });
+        const primarios = [...document.querySelectorAll('#a .btn-primary, #c .btn-primary')].map((b) => b.textContent.trim());
+        expect(primarios).toEqual(['+ Registrar pedido']);
+        await abrir('incidentes', { [`GET ${B}/incidentes`]: [] });
+        expect([...document.querySelectorAll('#a .btn-primary, #c .btn-primary')].map((b) => b.textContent.trim())).toEqual(['+ Registrar incidente']);
+    });
     it('sem projeto ativo: estado vazio', async () => {
         S.activeProject = null; S.projects = [];
         await abrir('pedidos');
@@ -98,9 +105,14 @@ describe('pedidos', () => {
     it('registrar manda tipo, canal, contato e, só se preenchida, a data; mostra o protocolo e o prazo', async () => {
         const f = await abrir('pedidos', { [`POST ${B}/titular-pedidos`]: { ok: true, id: 'n', protocolo: 'PT-2026-0004', prazo_em: '2026-10-25T00:00:00.000Z' } });
         window.abrirNovoPedidoTitular('p9');
-        el('pt-tipo').value = 'portabilidade'; el('pt-canal').value = 'email'; el('pt-nome').value = ' Fulano '; el('pt-desc').value = '';
+        el('pt-tipo').value = 'portabilidade'; el('pt-canal').value = 'email'; el('pt-nome').value = ' Fulano '; el('pt-desc').value = '  ';
+        // Sem descrição não registra (um clique no formulário em branco criava um pedido vazio).
         await window.salvarNovoPedidoTitular('p9');
-        expect(corpoDe(f, `POST ${B}/titular-pedidos`)).toEqual({ tipo: 'portabilidade', canal: 'email', titular_nome: 'Fulano', titular_contato: null, descricao: null });
+        expect(chamadas(f)).not.toContain(`POST ${B}/titular-pedidos`);
+        expect(document.body.textContent).toContain('Descreva o pedido antes de registrar.');
+        el('pt-desc').value = ' Quer os dados em CSV ';
+        await window.salvarNovoPedidoTitular('p9');
+        expect(corpoDe(f, `POST ${B}/titular-pedidos`)).toEqual({ tipo: 'portabilidade', canal: 'email', titular_nome: 'Fulano', titular_contato: null, descricao: 'Quer os dados em CSV' });
         expect(document.body.textContent).toContain('PT-2026-0004');
         expect(document.body.textContent).toContain('25/10/2026');
     });
@@ -118,6 +130,8 @@ describe('pedidos', () => {
         servir(rotas({ [`GET ${B}/titular-pedidos/a`]: { ...base, status: 'respondido', resposta_texto: 'Segue.' } }));
         await window.abrirPedidoTitular('p9', 'a');
         expect(el('pt-resp').disabled).toBe(true);
+        // Respondido só vai para arquivado (o servidor recusa o resto): o seletor oferece só isso.
+        expect([...el('pt-status').options].map((o) => o.value)).toEqual(['respondido', 'arquivado']);
     });
 });
 
@@ -266,7 +280,13 @@ describe('incidentes', () => {
         expect(pedir.textContent).toBe('Encerrar incidente');
         const botoes = [...el('modal-content').querySelectorAll('button')];
         expect(botoes[botoes.length - 1]).toBe(pedir);
-        window.pedirEncerramentoIncidente('p9', 'i1', false);
+        // Risco relevante sem ANPD e risco não avaliado: o servidor recusa, então a tela diz o que falta e não oferece encerrar.
+        window.pedirEncerramentoIncidente('p9', 'i1', false, 'relevante');
+        expect(el('in-encerrar').textContent).toContain('só encerra depois de registrada a comunicação à ANPD');
+        expect(el('in-encerrar').querySelector('[data-action="encerrarIncidente"]')).toBeNull();
+        window.pedirEncerramentoIncidente('p9', 'i1', false, null);
+        expect(el('in-encerrar').textContent).toContain('Avalie o risco ao titular antes de encerrar.');
+        window.pedirEncerramentoIncidente('p9', 'i1', false, 'baixo');
         expect(el('in-encerrar').textContent).toContain('A ANPD ainda não foi comunicada. Encerrar mesmo assim?');
         expect(chamadas(f)).not.toContain(`POST ${B}/incidentes/i1/encerrar`);
         expect(el('in-encerrar').querySelector('[data-action="encerrarIncidente"]')).not.toBeNull();
@@ -276,7 +296,7 @@ describe('incidentes', () => {
         servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], comunicacao_anpd_em: '2026-10-03', situacao_anpd: 'comunicado' } }));
         await window.abrirIncidente('p9', 'i1');
         expect([...el('modal-content').querySelectorAll('.btn-primary')].map((b) => b.textContent)).toEqual(['Registrei a comunicação ao titular']);
-        window.pedirEncerramentoIncidente('p9', 'i1', true);
+        window.pedirEncerramentoIncidente('p9', 'i1', true, 'relevante');
         expect(el('in-encerrar').textContent).not.toContain('ANPD ainda não');
         window.cancelarEncerramentoIncidente();
         expect(el('in-encerrar').textContent).toBe('');
@@ -291,10 +311,29 @@ describe('incidentes', () => {
         el('in-risco').value = 'baixo'; el('in-aval').value = ' pouco dado ';
         await window.avaliarRiscoIncidente('p9', 'i1');
         expect(corpoDe(f, `PUT ${B}/incidentes/i1/risco`)).toEqual({ risco_titular: 'baixo', avaliacao_texto: 'pouco dado' });
-        await window.registrarComunicacaoIncidente('p9', 'i1', 'anpd');
-        expect(corpoDe(f, `POST ${B}/incidentes/i1/comunicacoes`)).toEqual({ destino: 'anpd' });
+        // Registrar a comunicação pede confirmação na janela e manda a data escolhida (hoje vem preenchido).
+        el('in-com-data').value = '2026-10-03';
+        const registro = window.registrarComunicacaoIncidente('p9', 'i1', 'anpd');
+        await vi.waitFor(() => expect(document.querySelector('[data-confirmar="sim"]')).not.toBeNull());
+        expect(chamadas(f)).not.toContain(`POST ${B}/incidentes/i1/comunicacoes`);
+        expect(document.body.textContent).toContain('Registrar a comunicação à ANPD em 03/10/2026?');
+        document.querySelector('[data-confirmar="sim"]').click();
+        await registro;
+        expect(corpoDe(f, `POST ${B}/incidentes/i1/comunicacoes`)).toEqual({ destino: 'anpd', em: '2026-10-03' });
         await window.encerrarIncidente('p9', 'i1');
         expect(chamadas(f)).toContain(`POST ${B}/incidentes/i1/encerrar`);
+    });
+    it('corrigir dados do registro manda título, descrição e ocorrência (nunca a ciência)', async () => {
+        const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], descricao: 'Antes' }, [`PUT ${B}/incidentes/i1`]: { ok: true } });
+        await window.abrirIncidente('p9', 'i1');
+        el('modal-content').querySelector('[data-action="editarIncidente"]').click();
+        await vi.waitFor(() => expect(el('in-ed-titulo')).not.toBeNull());
+        expect(el('in-ed-desc').value).toBe('Antes');
+        el('in-ed-titulo').value = '  '; await window.salvarEdicaoIncidente('p9', 'i1');
+        expect(chamadas(f)).not.toContain(`PUT ${B}/incidentes/i1`);
+        el('in-ed-titulo').value = 'Acesso indevido corrigido'; el('in-ed-desc').value = ''; el('in-ed-ocorrido').value = '2026-09-30';
+        await window.salvarEdicaoIncidente('p9', 'i1');
+        expect(corpoDe(f, `PUT ${B}/incidentes/i1`)).toEqual({ titulo: 'Acesso indevido corrigido', descricao: null, ocorrido_em: '2026-09-30' });
     });
     it('incidente encerrado e papel de leitura não têm ações', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], status: 'encerrado' } });
@@ -587,6 +626,11 @@ describe('portal público e tratativas (#14)', () => {
         await window.gerarPortalTitular('p9');
         expect(el('pt-portal-url').value).toBe('https://n360.ness.com.br/solicitacao#tok-abc');
         expect(chamadas(f)).toContain(`POST ${B}/titular-portal`);
+        expect(el('pt-portal-estado').textContent).toContain('Copie o link abaixo');
+        const escrever = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText: escrever }, configurable: true });
+        await window.copiarLinkPortal();
+        expect(escrever).toHaveBeenCalledWith('https://n360.ness.com.br/solicitacao#tok-abc');
     });
 
     it('abrir um pedido carrega as tratativas e registra uma nova', async () => {

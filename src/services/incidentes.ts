@@ -121,6 +121,27 @@ export async function importarIncidente(db: D1Database, projectId: string, ator:
 }
 
 /** Avalia o risco ao titular: o incidente aberto passa a `avaliado`. Reavaliar é permitido enquanto não encerrado. */
+/**
+ * Corrige o registro (título, descrição, data da ocorrência, responsável) enquanto não está encerrado. A ciência fica de fora: os prazos
+ * de comunicação contam dela e foram congelados na criação. Campo ausente mantém; a trilha diz só quais campos mudaram, nunca o texto.
+ */
+export async function atualizarIncidente(db: D1Database, projectId: string, id: string, ator: string,
+  d: { titulo?: string; descricao?: string | null; ocorrido_em?: string | null; responsavel_parte_id?: string | null }): Promise<Falha | { ok: true }> {
+  const i = await lerIncidente(db, projectId, id);
+  if (!i) return falha(404, 'Incidente não encontrado');
+  if (i.status === 'encerrado') return falha(409, 'Incidente encerrado não muda');
+  if (d.ocorrido_em && !ehInstante(d.ocorrido_em)) return falha(400, 'ocorrido_em precisa ser uma data ou data e hora ISO');
+  if (d.responsavel_parte_id && !(await db.prepare('SELECT 1 FROM partes WHERE id = ? AND project_id = ?').bind(d.responsavel_parte_id, projectId).first())) return falha(400, 'responsavel_parte_id inexistente ou de outro projeto');
+  const CAMPOS = ['titulo', 'descricao', 'ocorrido_em', 'responsavel_parte_id'] as const; // allowlist: o nome da coluna nunca vem do corpo
+  const mudaram = CAMPOS.filter((k) => d[k] !== undefined && (d[k] ?? null) !== (i[k] ?? null));
+  if (!mudaram.length) return { ok: true };
+  const r = await db.prepare(`UPDATE incidentes SET ${mudaram.map((k) => `${k} = ?`).join(', ')}, updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'encerrado'`)
+    .bind(...mudaram.map((k) => d[k] ?? null), id, projectId).run();
+  if (!r.meta.changes) return falha(409, 'Incidente encerrado não muda');
+  await logAudit(db, 'incidente.alterado', ator, `Incidente ${i.protocolo}: ${mudaram.join(', ')}`, '', '', projectId);
+  return { ok: true };
+}
+
 export async function avaliarRisco(db: D1Database, projectId: string, id: string, ator: string, d: { risco_titular: Risco; avaliacao_texto?: string | null }): Promise<Falha | { ok: true }> {
   const i = await lerIncidente(db, projectId, id);
   if (!i) return falha(404, 'Incidente não encontrado');

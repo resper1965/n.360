@@ -4,11 +4,11 @@ import { ehEquipeNess, erro500, registraErro } from '../helpers';
 import { appUrl } from '../config/url';
 import { lerParametros, removerParametro, salvarParametro } from '../services/parametros-legais';
 import { atualizarPedido, criarPedido, lerPedido, listarPedidos, gerarPortal, lerPortal, desativarPortal, listarTratativas, adicionarTratativa } from '../services/titular-pedidos';
-import { avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
+import { atualizarIncidente, avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
 import { listarConsentimentos, registrarConsentimento, revogarConsentimento } from '../services/consentimentos';
 import { rascunharComunicacao, rascunharResposta } from '../services/rascunhos-privacy';
 import {
-  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, parametroLegalSchema,
+  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
   titularPedidoAtualizarSchema, titularPedidoCriarSchema, tratativaSchema,
 } from '../schemas';
 
@@ -146,6 +146,16 @@ incidentesApp.post('/', async (c) => {
     const r = await criarIncidente(c.env.DB, c.req.param('projectId')!, c.get('user').email, v.data);
     return r.ok ? c.json({ ok: true, id: r.id, protocolo: r.protocolo, prazo_anpd_em: r.prazo_anpd_em, prazo_titular_em: r.prazo_titular_em }, 201) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao registrar o incidente', e); }
+});
+
+// Corrigir o registro (não a ciência: os prazos contam dela e ficaram congelados).
+incidentesApp.put('/:id', async (c) => {
+  try {
+    const v = await validateBody(c, incidenteAtualizarSchema);
+    if (!v.success) return v.response;
+    const r = await atualizarIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao alterar o incidente', e); }
 });
 
 incidentesApp.put('/:id/risco', async (c) => {

@@ -77,7 +77,7 @@ import policies from './routes/policies';
 import integrations from './routes/integrations';
 import { exportacaoApp } from './routes/exportacao';
 import { manutencaoDiaria } from './manutencao';
-import { avisosDePrazo, hojeEmSaoPaulo } from './services/avisos-prazo';
+import { avisosDePrazo, hojeEmSaoPaulo, CRON_AVISOS } from './services/avisos-prazo';
 import { sondaInterna, CRON_SONDA } from './services/sonda';
 import { verificarSlo, CRON_SLO } from './services/slo';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
@@ -608,9 +608,6 @@ app.onError((err, c) => {
  * (`src/services/sonda.ts`). O `waitUntil` mantém a invocação viva até a
  * rotina terminar — sem ele o runtime pode encerrá-la no meio do DELETE.
  */
-
-/** 11:00 UTC = 08:00 em Brasília (UTC-3, sem horário de verão). O mesmo texto vai em `triggers.crons`. */
-export const CRON_AVISOS = '0 11 * * *';
 
 const fetchHono = app.fetch.bind(app);
 
