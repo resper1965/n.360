@@ -135,7 +135,7 @@ import {
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema,
-  otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema,
+  otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, otAgenteInterruptorSchema, otAgenteChaveSchema,
 } from './schemas/ot';
 import { otIaZonaSchema, otIaCompletudeSchema } from './schemas/ot-saidas';
 import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, orgaoPublicoCriarSchema, orgaoPublicoAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema, ripdQuestionarioSchema, liaQuestionarioSchema } from './schemas/ropa-abas';
@@ -296,6 +296,8 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/mesclar', schema: mesclarSchema, nome: 'mesclarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/modulos/:modulo', schema: moduloHabilitarSchema, nome: 'moduloHabilitarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/acessos', schema: otAcessoCriarSchema, nome: 'otAcessoCriarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/agente/chaves', schema: otAgenteChaveSchema, nome: 'otAgenteChaveSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/agente', schema: otAgenteInterruptorSchema, nome: 'otAgenteInterruptorSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ativos/:id/revelar', schema: otRevelarSchema, nome: 'otRevelarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/ativos/:id', schema: otAtivoAtualizarSchema, nome: 'otAtivoAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/ativos', schema: otAtivoCriarSchema, nome: 'otAtivoCriarSchema' },

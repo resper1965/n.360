@@ -6,12 +6,15 @@ import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
+  otAgenteInterruptorSchema, otAgenteChaveSchema,
 } from '../schemas/ot';
 import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
 import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem, toca431, AGORA_MS, TETO_ITENS, type LinhaItem } from '../services/ot-coleta';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
+import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
+import { appUrl } from '../config/url';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
 import { confrontar, enviarAoLote, indiceDoSite, prepararAchado, serializarAchado, zonasDoSite, type LinhaAchado } from '../services/ot-levantamento';
@@ -700,4 +703,67 @@ otApp.get('/conformidade', async (c) => {
     const { db, projectId, sites } = await contexto(c);
     return c.json(await conformidadeOt(db, projectId, sites));
   } catch (e) { return erro500(c, 'Falha ao calcular a conformidade', e); }
+});
+
+// ─── agente de coleta (L5, plano 2026-11-04) ───────────────────────────────────────────
+// Ligar é a autorização do cliente: só o Gestor ARCiber do projeto. Emitir/revogar: quem vê o inventário completo.
+const ehGestorArciber = (c: C, projectId: string) => c.get('user').role === 'org_admin' && c.get('user').client_project_id === projectId;
+const SO_COMPLETO = (c: C) => c.json({ error: 'Forbidden: só o Gestor ARCiber e a consultoria designada gerenciam as chaves do agente' }, 403);
+
+otApp.get('/agente', async (c) => {
+  try {
+    const { db, user, projectId } = await contexto(c);
+    const p = await db.prepare('SELECT agente_coleta_ot FROM projects WHERE id = ?').bind(projectId).first<{ agente_coleta_ot: number }>();
+    return c.json({ ligado: p?.agente_coleta_ot === 1, pode_ligar: ehGestorArciber(c, projectId), pode_emitir: await podeVerCompleto(db, user, projectId), endpoint: `${appUrl(c.env)}/ot-coleta/mcp` });
+  } catch (e) { return erro500(c, 'Falha ao ler o agente de coleta', e); }
+});
+
+otApp.put('/agente', async (c) => {
+  try {
+    const { db, projectId } = await contexto(c);
+    if (!ehGestorArciber(c, projectId)) return c.json({ error: 'Só o Gestor ARCiber liga o agente de coleta' }, 403);
+    const v = await validateBody(c, otAgenteInterruptorSchema);
+    if (!v.success) return v.response;
+    await db.prepare('UPDATE projects SET agente_coleta_ot = ? WHERE id = ?').bind(Number(v.data.ligado), projectId).run();
+    await trilha(c, v.data.ligado ? 'ot.agente.ligado' : 'ot.agente.desligado', projectId, `Agente de coleta ${v.data.ligado ? 'ligado' : 'desligado'}`);
+    return c.json({ ligado: v.data.ligado });
+  } catch (e) { return erro500(c, 'Falha ao alterar o agente de coleta', e); }
+});
+
+otApp.get('/agente/chaves', async (c) => {
+  try {
+    const { db, user, projectId } = await contexto(c);
+    if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO(c);
+    const { results } = await db.prepare(`SELECT id, name AS nome,
+      CASE WHEN status = 'Active' AND expires_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now') THEN 'Vencida' ELSE status END AS status, expires_at AS expira_em, last_used_at AS ultimo_uso FROM api_keys
+      WHERE project_id = ? AND permissions = 'ot_coleta' ORDER BY created_at DESC LIMIT ${TETO_LEITURA_OT}`).bind(projectId).all();
+    return c.json({ chaves: results });
+  } catch (e) { return erro500(c, 'Falha ao listar as chaves do agente', e); }
+});
+
+otApp.post('/agente/chaves', async (c) => {
+  try {
+    const { db, user, projectId } = await contexto(c);
+    if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO(c);
+    const v = await validateBody(c, otAgenteChaveSchema);
+    if (!v.success) return v.response;
+    const p = await db.prepare('SELECT agente_coleta_ot FROM projects WHERE id = ?').bind(projectId).first<{ agente_coleta_ot: number }>();
+    if (p?.agente_coleta_ot !== 1) return c.json({ error: 'Ligue o agente de coleta antes de emitir a chave' }, 409);
+    const dias = v.data.dias ?? VALIDADE_PADRAO_DIAS;
+    const k = await emitirChaveColeta(db, projectId, v.data.nome, dias, user.email);
+    await trilha(c, 'ot.agente.chave_emitida', projectId, `Chave ${k.id} emitida por ${dias} dias`, { tipo: 'api_key', id: k.id });
+    return c.json(k, 201);
+  } catch (e) { return erro500(c, 'Falha ao emitir a chave do agente', e); }
+});
+
+otApp.delete('/agente/chaves/:kid', async (c) => {
+  try {
+    const { db, user, projectId } = await contexto(c);
+    if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO(c);
+    const kid = c.req.param('kid');
+    const r = await db.prepare(`UPDATE api_keys SET status = 'Revoked' WHERE id = ? AND project_id = ? AND permissions = 'ot_coleta' AND status = 'Active'`).bind(kid, projectId).run();
+    if (!r.meta.changes) return NAO_ENCONTRADO(c, 'Chave');
+    await trilha(c, 'ot.agente.chave_revogada', projectId, `Chave ${kid} revogada`, { tipo: 'api_key', id: kid });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao revogar a chave do agente', e); }
 });

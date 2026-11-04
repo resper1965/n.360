@@ -124,3 +124,9 @@ export const otAchadoAtualizarSchema = z.object({
   pergunta_id: opcional(z.string().min(1).max(20)),
 }).strict();
 export const otEnviarAchadosSchema = z.object({ achados: z.array(id).min(1).max(TETO_ACHADOS_SESSAO) }).strict();
+
+/** Validade máxima da chave do agente de coleta (L5). Mora aqui, não em ot-agente.ts, para ot-agente poder importar este arquivo sem ciclo. */
+export const VALIDADE_MAX_DIAS = 30;
+// Agente de coleta (L5): interruptor do Gestor ARCiber e chave `ot_coleta` (validade em dias, 1..VALIDADE_MAX_DIAS).
+export const otAgenteInterruptorSchema = z.object({ ligado: z.boolean() }).strict();
+export const otAgenteChaveSchema = z.object({ nome: livreSemPii(100, 1), dias: z.number().int().min(1).max(VALIDADE_MAX_DIAS).optional() }).strict();

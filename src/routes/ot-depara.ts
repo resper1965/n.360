@@ -7,7 +7,7 @@ import { chavesOt } from '../services/ot-cifra';
 import { sitesPermitidos, TETO_LEITURA_OT } from '../services/ot-inventario';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
 import { prepararAchado, zonasDoSite } from '../services/ot-levantamento';
-import { achadosDoTexto, aplicarMapeamento, assinaturaDoCabecalho, CAMPOS_DEPARA, proporMapeamento, tetoDepara, TETO_DEPARA, type Mapeamento } from '../services/ot-depara';
+import { achadosDoTexto, aplicarMapeamento, assinaturaDoCabecalho, CAMPOS_DEPARA, gravarAchados, INSERIR_ACHADO, proporMapeamento, tetoDepara, TETO_DEPARA, type Mapeamento } from '../services/ot-depara';
 import { lerLevantamento } from './ot';
 import { dividirEmTrechos, lerDocumento, LIMITES_TEXTO } from '../services/ot-documento';
 import { RecusaIa } from '../services/ot-ia';
@@ -83,17 +83,6 @@ otDeparaApp.post('/levantamentos/:id/depara/planilha/proposta', async (c) => {
 
 const mapeamentoSchema = z.record(z.string().regex(/^\d{1,2}$/), z.enum(CAMPOS_DEPARA));
 const perfilSchema = z.object({ perfil_nome: livreSemPii(100, 1).optional(), perfil_fonte: livreSemPii(200).optional() });
-const BLOCO = 50;
-/** Cada INSERT confere o teto da sessão na hora (D1 roda o lote em série): pedidos simultâneos não passam de 2.000. */
-const INSERIR_ACHADO = (origem: 'consultor' | 'ia') => `INSERT INTO ot_achados (id, project_id, levantamento_id, entidade, dados, erros, evidencia, origem, criado_por)
-  SELECT ?, ?, ?, 'ativo', ?, ?, ?, '${origem}', ? WHERE (SELECT count(*) FROM ot_achados WHERE levantamento_id = ?) < ${TETO_ACHADOS_SESSAO}`;
-/** Grava em blocos de 50 e devolve quantos entraram (o resto bateu no teto). */
-async function gravarAchados(db: D1Database, stmts: D1PreparedStatement[]): Promise<number> {
-  let criados = 0;
-  for (let i = 0; i < stmts.length; i += BLOCO) for (const r of await db.batch(stmts.slice(i, i + BLOCO))) criados += r.meta.changes;
-  return criados;
-}
-
 otDeparaApp.post('/levantamentos/:id/depara/planilha/aplicar', async (c) => {
   try {
     const s = await sessaoEPlanilha(c);

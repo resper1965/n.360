@@ -34,7 +34,7 @@ export const HOST_DO_MODULO = new Map([
 /** Hosts antigos que o Worker ainda recebe só para redirecionar (308) ao `appUrl`, tudo, inclusive as exceções. */
 export const HOSTS_LEGADOS = ['n-iso.ness.com.br', 'niso.ness.workers.dev'];
 
-const FICAM = ['/api', '/scim', '/mcp', '/oauth', '/.well-known', '/health'];
+const FICAM = ['/api', '/scim', '/mcp', '/ot-coleta/mcp', '/oauth', '/.well-known', '/health'];
 const PAGINAS_PUBLICAS = ['/politicas', '/auditor', '/proposta', '/homologacao'];
 const EXTENSOES = ['.html', '.js', '.css'];
 

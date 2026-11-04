@@ -55,6 +55,12 @@ async function resolveApiKeyUser(
     return c.json({ error: 'Unauthorized: API key is not scoped to a project' }, 401);
   }
 
+  // Falha fechada: a chave do agente de coleta do n.ot só vale em /ot-coleta/mcp (que não passa por aqui).
+  // Sem isto, ela (não writeCapable) leria qualquer GET da API.
+  if (row.permissions === 'ot_coleta') {
+    return c.json({ error: 'Forbidden: a chave de coleta do n.ot só vale no endpoint do agente (/ot-coleta/mcp)' }, 403);
+  }
+
   // Enforce permissions: chaves 'read' (o default) não podem executar mutações.
   // 'consultant' e 'auditor' escrevem, mas cada um só no seu conjunto de rotas
   // (ver auth-policy.ts) — é a independência 9.2 aplicada no backend.

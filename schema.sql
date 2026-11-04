@@ -211,7 +211,9 @@ CREATE TABLE IF NOT EXISTS projects (
     proposta_id TEXT,
     -- Consultoria dona do projeto (migration 0040). Sem REFERENCES, como nas
     -- tabelas comerciais: ALTER TABLE não aceita FK com default.
-    org_id TEXT NOT NULL DEFAULT 'org_ness'
+    org_id TEXT NOT NULL DEFAULT 'org_ness',
+    -- 0096: interruptor do agente externo de coleta do n.ot (desligado por padrão).
+    agente_coleta_ot INTEGER NOT NULL DEFAULT 0 CHECK (agente_coleta_ot IN (0, 1))
 );
 CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(org_id);
 

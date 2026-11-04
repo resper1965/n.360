@@ -7,13 +7,13 @@ import { servirShell } from './shell.js';
 const USER = { id: 'u1', email: 'consultor@ness.io', name: 'Consultor', role: 'consultor' };
 const REQ = (codigo, titulo, prazo_meses) => ({ id: `ons-${codigo}`, framework: 'ONS-RO-CB.BR.01', codigo, titulo, descricao: null, categoria: null, versao: 'Rev.00', prazo_meses });
 
-async function mockApi(page, modulos, modulosDaPessoa) {
+async function mockApi(page, modulos, modulosDaPessoa, papel = USER.role) {
   await servirShell(page);
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
     const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
-    const user = { ...USER, modulos: modulosDaPessoa };
+    const user = { ...USER, role: papel, modulos: modulosDaPessoa };
     if (path === '/api/v1/auth/login') return json({ token: 'e2e-fake-token', user });
     if (path === '/api/v1/auth/me') return json({ user });
     if (path === '/api/v1/projects' && method === 'GET') return json([{ id: 'proj-e2e', client_name: 'Cliente E2E', project_name: 'Projeto E2E', modulos }]);
@@ -241,4 +241,77 @@ test('levantamento documento: importa CSV pelo de-para e os achados aparecem', a
   expect(enviados).toHaveLength(2);
   for (const corpo of enviados) expect(corpo).toContain('RTU-10,10.0.0.10');
   expect(enviados[1]).toContain('{"0":"nome","1":"ip"}');
+});
+
+// L5: o cartão "Agente de coleta" na aba Acesso por site. O gestor liga (com a confirmação do aviso do modelo); o consultor emite a chave,
+// que aparece uma vez no modal com o comando do Claude Code e some do DOM ao fechar. API mockada.
+const ENDPOINT = 'https://app.example/ot-coleta/mcp';
+async function rotasAgente(page, agente, extra = {}) {
+  const puts = [];
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
+    const chave = `${req.method()} ${path}`;
+    if (chave === `GET ${B}/agente`) return json(agente);
+    if (chave === `PUT ${B}/agente`) { puts.push(req.postDataJSON()); agente.ligado = req.postDataJSON().ligado; return json({ ligado: agente.ligado }); }
+    if (chave in extra) return json(...extra[chave]());
+    if (req.method() === 'GET' && path in ABAS_OT) return json(ABAS_OT[path]);
+    if (chave === `GET ${B}/acessos`) return json({ acessos: [] });
+    return route.fallback();
+  });
+  return puts;
+}
+
+test('agente de coleta: o gestor liga depois de confirmar o aviso do modelo', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot'], 'org_admin');
+  const puts = await rotasAgente(page, { ligado: false, pode_ligar: true, pode_emitir: true, endpoint: ENDPOINT }, { [`GET ${B}/agente/chaves`]: () => [{ chaves: [] }] });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await page.getByRole('tab', { name: 'Acesso por site' }).click();
+  const cartao = page.locator('#ot-agente');
+  await expect(cartao).toContainText('Um agente externo (Claude Code, Cursor)');
+  const sw = cartao.getByRole('switch', { name: 'Agente de coleta' });
+  await expect(sw).toHaveAttribute('aria-checked', 'false');
+  await sw.click();
+  await expect(page.getByRole('alertdialog')).toContainText('Os arquivos passam pelo modelo do agente antes de chegar ao n.ot, sem a máscara do n.ot.');
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Ligar' }).click();
+  await expect(sw).toHaveAttribute('aria-checked', 'true');
+  expect(puts).toEqual([{ ligado: true }]);
+});
+
+test('agente de coleta: o consultor emite a chave e a vê uma vez no modal', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  const chaves = [{ id: 'k1', nome: 'Notebook da Ana', status: 'Active', expira_em: '2026-11-11T10:00:00.000Z', ultimo_uso: '2026-11-04T09:12:00.000Z' },
+    { id: 'k0', nome: 'Coleta de outubro', status: 'Revoked', expira_em: '2026-10-20T10:00:00.000Z', ultimo_uso: null }];
+  const posts = [];
+  await rotasAgente(page, { ligado: true, pode_ligar: false, pode_emitir: true, endpoint: ENDPOINT }, {
+    [`GET ${B}/agente/chaves`]: () => [{ chaves }],
+    [`POST ${B}/agente/chaves`]: () => {
+      posts.push(1);
+      chaves.unshift({ id: 'k2', nome: 'Notebook do Rui', status: 'Active', expira_em: '2026-11-11T10:00:00.000Z', ultimo_uso: null });
+      return [{ id: 'k2', chave: 'n360_ot_e2e_SEGREDO', expira_em: '2026-11-11T10:00:00.000Z' }, 201];
+    },
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  await page.getByRole('tab', { name: 'Acesso por site' }).click();
+  const cartao = page.locator('#ot-agente');
+  await expect(cartao).toContainText('Ligado');
+  await expect(cartao.getByRole('switch')).toHaveCount(0);
+  await expect(cartao).toContainText('Notebook da Ana');
+  await cartao.scrollIntoViewIfNeeded();
+
+  await cartao.getByRole('button', { name: 'Emitir chave' }).click();
+  await page.getByLabel('Nome').fill('Notebook do Rui');
+  await expect(page.getByLabel('Validade (dias)')).toHaveValue('7');
+  await page.locator('#modal').getByRole('button', { name: 'Emitir' }).click();
+  const modal = page.locator('#modal');
+  await expect(modal).toContainText('Guarde agora: ela não aparece de novo');
+  await expect(page.getByRole('textbox', { name: 'Chave' })).toHaveValue('n360_ot_e2e_SEGREDO');
+  await expect(modal).toContainText(`claude mcp add --transport http n-ot-coleta ${ENDPOINT} --header "Authorization: Bearer n360_ot_e2e_SEGREDO"`);
+  await modal.locator('.acoes-rodape').getByRole('button', { name: 'Fechar' }).click();
+  await expect(cartao).toContainText('Notebook do Rui');
+  expect(await page.content()).not.toContain('n360_ot_e2e_SEGREDO');
+  expect(posts).toHaveLength(1);
 });

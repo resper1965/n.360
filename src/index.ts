@@ -83,6 +83,7 @@ import { verificarSlo, CRON_SLO } from './services/slo';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handlerMcp } from './mcp/servidor';
+import { handlerOtColeta } from './mcp/ot-coleta';
 import { comercialAtivo } from './helpers';
 import { appUrl, fica, HOST_DO_MODULO, HOSTS_LEGADOS, ORIGENS_EXTRAS, RECURSO_MCP, URL_NISO } from './config/url';
 
@@ -682,6 +683,9 @@ export default Object.assign(app, {
       if (legado) return Response.redirect(`${ROTAS_OAUTH(p) ? URL_NISO : base}${p}${url.search}`, 308);
       // Domínio de módulo, caminho de exceção: responde no lugar.
     }
+    // MCP do agente de coleta do n.ot (L5): só a chave `ot_coleta`, fora do OAuth e do Hono. Está em `fica` (como o /mcp): o domínio de
+    // módulo responde no lugar e o host legado redireciona (308) ao APP_URL, acima.
+    if (decodificarCaminho(url.pathname) === '/ot-coleta/mcp') return handlerOtColeta(req, env, ctx);
     return ROTAS_OAUTH(url.pathname) ? provider.fetch(req, env as any, ctx) : fetchHono(req, env, ctx);
   },
   scheduled: (evento: ScheduledController, env: Bindings, ctx: ExecutionContext) => {
