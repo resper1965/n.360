@@ -6,12 +6,12 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0097** (`ls migrations/*.sql | tail -1`). São 96 arquivos
+- Última migration no repositório: **0097** (`ls migrations/*.sql | tail -1`). São 97 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
-  saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`,
-  de PRs paralelos). O runner controla pelo NOME do arquivo (`d1_migrations.name`), então as duas
-  valem e já estão aplicadas em produção; não renomeie (renomear faria o runner aplicar de novo).
+  saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
+  e **duas 0097** (`0097_orgaos_publicos.sql` e `0097_ot_sensor_rede.sql`), de PRs paralelos. O runner controla pelo NOME do arquivo (`d1_migrations.name`), então as duas
+  valem (as 0096 já estão aplicadas em produção); não renomeie (renomear faria o runner aplicar de novo).
   Antes de numerar a próxima, confira a `main` atual (`git ls-tree --name-only origin/main migrations/`).
 - Produção sem migration pendente é condição de deploy: `.github/workflows/deploy.yml` roda
   `wrangler d1 migrations list niso-db --remote` e recusa publicar se a resposta não for

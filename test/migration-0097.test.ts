@@ -17,6 +17,6 @@ describe('migration 0097: sensor de rede do n.ot', () => {
   });
 
   it('recusa dados que não seja objeto JSON', async () => {
-    await expect(env.DB.prepare(`INSERT INTO ot_fluxos_pendentes (id, project_id, levantamento_id, origem_ip_hash, dados) VALUES ('f1', 'proj-a', 'l1', 'h', '[]')`).run()).rejects.toThrow();
+    await expect(env.DB.prepare(`INSERT INTO ot_fluxos_pendentes (id, project_id, levantamento_id, origem_ip_hash, dados) VALUES ('f1', 'proj-a', 'l1', 'h', '[]')`).run()).rejects.toThrow(/CHECK/);
   });
 });

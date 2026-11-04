@@ -124,7 +124,7 @@ otApp.get('/sites', async (c) => {
   try {
     const { db, projectId, sites } = await contexto(c);
     const { results } = await db.prepare(`SELECT id, nome, tipo, criticidade, localizacao, faixas_internas, status, created_at, updated_at FROM ot_sites
-      WHERE project_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY nome`).bind(projectId, sites).all<{ faixas_internas: string }>();
+      WHERE project_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`).bind(projectId, sites).all<{ faixas_internas: string }>();
     return c.json({ sites: results.map((r) => ({ ...r, faixas_internas: JSON.parse(r.faixas_internas) as string[] })) });
   } catch (e) { return erro500(c, 'Falha ao listar os sites', e); }
 });
