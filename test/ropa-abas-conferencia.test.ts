@@ -86,6 +86,9 @@ describe('GET /conferencia', () => {
     expect(ids((await conf(rid)).avisos)).toContain('lia_pendente');
     await chamar(s.consultor, 'POST', `${base(rid)}/acoes`, { title: 'Ação exemplo' });
     expect(ids((await conf(rid)).bloqueios)).toContain('gap_sem_responsavel');
+    // Responsável só em texto (o campo antigo da CAPA) também conta.
+    await env.DB.prepare(`UPDATE corrective_actions SET assigned_to = 'Pessoa exemplo' WHERE ropa_id = ?`).bind(rid).run();
+    expect(ids((await conf(rid)).bloqueios)).not.toContain('gap_sem_responsavel');
     await env.DB.prepare(`UPDATE ropa_records SET base_art11_na = 1 WHERE id = ?`).bind(rid).run();
     expect(ids((await conf(rid)).bloqueios)).not.toContain('sensivel_sem_art11');
   });
