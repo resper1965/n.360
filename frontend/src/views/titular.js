@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { api } from '../api.js';
-import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela } from '../ui.js';
+import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela, confirmar } from '../ui.js';
 import { navigate } from '../router.js';
 import { produtoAtual, temProduto } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
@@ -15,6 +15,7 @@ const TIPOS_PEDIDO = { confirmacao: 'Confirmação de tratamento', acesso: 'Aces
     informacao_compartilhamento: 'Informação sobre compartilhamento', revogacao_consentimento: 'Revogação do consentimento', oposicao: 'Oposição', outro: 'Outro' };
 const CANAIS = { email: 'E-mail', telefone: 'Telefone', formulario: 'Formulário', presencial: 'Presencial', outro: 'Outro' };
 const STATUS_PEDIDO = { recebido: 'Recebido', em_andamento: 'Em andamento', respondido: 'Respondido', negado: 'Negado', arquivado: 'Arquivado' };
+const TIPOS_TRATATIVA = { comunicacao_titular: 'Comunicação ao titular', encaminhamento: 'Encaminhamento a ponto focal', evidencia: 'Evidência recebida', nota: 'Nota interna' };
 const PRAZO = { sem_prazo: ['Prazo não calculado', 'neutral'], encerrado: ['Encerrado', 'neutral'], no_prazo: ['No prazo', 'success'], vence_hoje: ['Vence hoje', 'warning'], atrasado: ['Atrasado', 'danger'], comunicado: ['Comunicado', 'success'] };
 const RISCOS = { sem_risco: 'Sem risco', baixo: 'Baixo', relevante: 'Relevante' };
 const STATUS_INCIDENTE = { aberto: 'Aberto', avaliado: 'Avaliado', comunicado: 'Comunicado', encerrado: 'Encerrado' };
@@ -75,7 +76,9 @@ async function renderTitular(c, h, a) {
     };
     const abas = window.renderAbas(Object.entries(abasDoProduto).map(([v, r]) => [v, escapeHTML(r) + (rotulos[v] || '')]), aba, 'escolherAbaTitular');
     const novo = (acao, rotulo, primario = true) => ((acao === 'abrirNovoConsentimento' ? editar : registrar) ? `<button class="btn${primario ? ' btn-primary' : ''}" data-action="${acao}" data-args='${args(proj.id)}'>${rotulo}</button>` : '');
-    a.innerHTML = aba === 'pedidos' ? novo('abrirNovoPedidoTitular', '+ Registrar pedido')
+    // Link do portal público de solicitações (o cliente publica no site/app); gerá-lo é de quem registra os pedidos.
+    const portalBtn = registrar ? ` <button class="btn" data-action="abrirPortalTitular" data-args='${args(proj.id)}'>Link do portal</button>` : '';
+    a.innerHTML = aba === 'pedidos' ? novo('abrirNovoPedidoTitular', '+ Registrar pedido') + portalBtn
         : aba === 'incidentes' ? novo('abrirNovoIncidente', '+ Registrar incidente')
         : aba === 'consentimentos' ? novo('abrirNovoConsentimento', '+ Registrar consentimento') : '';
 
@@ -102,7 +105,7 @@ async function renderTitular(c, h, a) {
         const { itens: visiveis } = filtrarDoPainel('titular', aba, pedidos);
         const responderPrimeiro = registrar ? visiveis.find((p) => p.situacao_prazo === 'atrasado') : null;
         if (responderPrimeiro) {
-            a.innerHTML = novo('abrirNovoPedidoTitular', '+ Registrar pedido', false)
+            a.innerHTML = novo('abrirNovoPedidoTitular', '+ Registrar pedido', false) + portalBtn
                 + ` <button class="btn btn-primary" data-action="abrirPedidoTitular" data-args='${args(proj.id, responderPrimeiro.id)}'>Responder ${escapeHTML(responderPrimeiro.protocolo)}</button>`;
         }
         // Filtros de tipo e status (spec 2026-10-19): na tela, sobre a lista já carregada.
@@ -207,11 +210,77 @@ window.abrirPedidoTitular = async function (projectId, id) {
         ${podeRascunho() && !final && p.status !== 'arquivado' ? `<div style="margin-top:0.75rem"><button class="btn btn-sm" data-action="rascunhoRespostaTitular" data-args='${args(projectId, id)}'>Rascunho</button></div>
             <div id="pt-rascunho" style="margin-top:0.75rem"></div>` : ''}
         ${podeDados() && p.titular_contato ? `<h4 style="margin:1rem 0 0.5rem">Dados do titular</h4>
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <div class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-sm" data-action="localizarDadosDoTitular" data-args='${args(projectId, id)}'>Localizar dados</button>
                 ${p.tipo === 'anonimizacao_bloqueio_eliminacao' ? `<button class="btn btn-sm" data-action="eliminarDadosDoTitular" data-args='${args(projectId, id)}'>Eliminar dados</button>` : ''}
-            </div><div id="pt-dados" style="margin-top:0.75rem"></div>` : ''}`, 'modal-large');
+            </div><div id="pt-dados" style="margin-top:0.75rem"></div>` : ''}
+        <div id="pt-tratativas-box" class="mt-4"></div>`, 'modal-large');
     pedidoAberto = p;
+    carregarTratativas(projectId, id, podeRegistrar());
+};
+
+// Tratativas do atendimento: o histórico de passos (comunicação, encaminhamento, evidência, nota). Quem registra o pedido também as registra.
+async function carregarTratativas(projectId, id, editar) {
+    const box = el('pt-tratativas-box');
+    if (!box) return;
+    let ts = [];
+    try { ts = lista(await api('GET', `/api/v1/projects/${projectId}/titular-pedidos/${id}/tratativas`)); } catch (e) { box.innerHTML = '<p class="at-nota">Não foi possível carregar as tratativas.</p>'; return; }
+    const linhas = ts.length ? `<ul class="et-lista">${ts.map((t) => `<li class="et-linha"><span><strong>${escapeHTML(TIPOS_TRATATIVA[t.tipo] || t.tipo)}</strong> · ${dia(t.created_at)}<br>${escapeHTML(t.texto)}</span></li>`).join('')}</ul>`
+        : '<p class="at-nota">Nenhuma tratativa registrada. Registre aqui a comunicação com o titular, o encaminhamento ao ponto focal e as evidências recebidas.</p>';
+    const form = editar ? `<div class="form-group mt-2"><label class="form-label" for="pt-trat-tipo">Nova tratativa</label>
+            <select class="form-input" id="pt-trat-tipo">${opcoes(TIPOS_TRATATIVA)}</select></div>
+        <div class="form-group"><textarea class="form-input" id="pt-trat-texto" rows="3" maxlength="5000" aria-label="Texto da tratativa"></textarea></div>
+        <button class="btn btn-sm" data-action="salvarTratativa" data-args='${args(projectId, id)}'>Registrar tratativa</button>` : '';
+    box.innerHTML = `<h4 style="margin:0 0 0.5rem">Tratativas do atendimento</h4>${linhas}${form}`;
+}
+
+window.salvarTratativa = async function (projectId, id) {
+    const texto = el('pt-trat-texto').value.trim();
+    if (!texto) { showToast('Escreva o texto da tratativa.', 'error'); return; }
+    try {
+        await api('POST', `/api/v1/projects/${projectId}/titular-pedidos/${id}/tratativas`, { tipo: el('pt-trat-tipo').value, texto });
+        await carregarTratativas(projectId, id, true);
+        showToast('Tratativa registrada.', 'success');
+    } catch (e) { falha(e, 'Não foi possível registrar a tratativa'); }
+};
+
+// ─── Portal público: o link que o cliente publica (migration 0096) ─────────────────────────────────
+window.abrirPortalTitular = async function (projectId) {
+    let p;
+    try { p = await api('GET', `/api/v1/projects/${projectId}/titular-portal`); } catch (e) { falha(e, 'Não foi possível abrir o portal'); return; }
+    openModal(`<h3>Link do portal de solicitações</h3>
+        <p>Gere um link para o cliente publicar no site ou app. O titular abre a solicitação por ele e recebe um número de protocolo; as solicitações entram aqui, em Solicitações.</p>
+        <p id="pt-portal-estado">${p.ativo ? 'Portal ativo. O link aparece só ao gerar; gere de novo para um link novo (o anterior deixa de valer).' : 'Portal desativado. Gere o link para ativar.'}</p>
+        <div id="pt-portal-link" class="mt-3 mb-3"></div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-primary" data-action="gerarPortalTitular" data-args='${args(projectId, !!p.ativo)}'>${p.ativo ? 'Gerar novo link' : 'Gerar link'}</button>
+            ${p.ativo ? `<button class="btn" data-action="desativarPortalTitular" data-args='${args(projectId)}'>Desativar</button>` : ''}
+        </div>`);
+};
+
+window.gerarPortalTitular = async function (projectId, ativo) {
+    // Regerar invalida o link que o cliente já publicou: confirmar antes (regra de design — destrutivo pede confirmação).
+    if (ativo && !(await confirmar('O link que o cliente já publicou deixará de valer. Gerar um novo?', { rotulo: 'Gerar novo link', perigo: true }))) return;
+    try {
+        const r = await api('POST', `/api/v1/projects/${projectId}/titular-portal`);
+        const box = el('pt-portal-link');
+        if (box) box.innerHTML = `<label class="form-label" for="pt-portal-url">Link (copie agora; ele não é mostrado de novo)</label>
+            <input class="form-input" id="pt-portal-url" readonly value="${escapeHTML(r.url)}">`;
+        const campo = el('pt-portal-url');
+        if (campo) { campo.focus(); campo.select(); }
+        const estado = el('pt-portal-estado');
+        if (estado) estado.textContent = 'Portal ativo. Copie o link acima; ele não é mostrado de novo.';
+        showToast('Link gerado.', 'success');
+    } catch (e) { falha(e, 'Não foi possível gerar o link'); }
+};
+
+window.desativarPortalTitular = async function (projectId) {
+    if (!(await confirmar('Desativar o portal interrompe a recepção de novas solicitações pelo link publicado. Continuar?', { rotulo: 'Desativar', perigo: true }))) return;
+    try {
+        await api('POST', `/api/v1/projects/${projectId}/titular-portal/desativar`);
+        showToast('Portal desativado.', 'success');
+        forceCloseModal();
+    } catch (e) { falha(e, 'Não foi possível desativar o portal'); }
 };
 
 // Busca e eliminação pelo contato do pedido. A regra é do servidor (/data-subject: busca por igualdade, anonimização, trilha).
@@ -334,12 +403,12 @@ window.abrirIncidente = async function (projectId, id) {
             <div class="form-group"><textarea class="form-input" id="in-aval" rows="2" maxlength="5000" placeholder="Justificativa">${escapeHTML(i.avaliacao_texto || '')}</textarea></div>
             <button class="btn btn-sm" data-action="avaliarRiscoIncidente" data-args='${args(projectId, id)}'>Salvar avaliação</button>
             <h4 style="margin:1rem 0 0.5rem">Comunicações</h4>
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <div class="d-flex gap-2 flex-wrap">
                 ${i.comunicacao_anpd_em ? '' : comunicar('anpd', 'Registrei a comunicação à ANPD')}
                 ${i.comunicacao_titular_em ? '' : comunicar('titular', 'Registrei a comunicação ao titular')}
             </div>` : ''}
         ${podeRascunho() ? `<h4 style="margin:1rem 0 0.5rem">Rascunho da comunicação</h4>
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <div class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-sm" data-action="rascunhoComunicacaoIncidente" data-args='${args(projectId, id, 'anpd')}'>Rascunho para a ANPD</button>
                 <button class="btn btn-sm" data-action="rascunhoComunicacaoIncidente" data-args='${args(projectId, id, 'titular')}'>Rascunho para o titular</button>
             </div><div id="in-rascunho" style="margin-top:0.75rem"></div>` : ''}

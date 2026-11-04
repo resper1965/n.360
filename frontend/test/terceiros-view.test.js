@@ -10,11 +10,11 @@ import '../src/ui.js';
 import '../src/views/terceiros.js';
 
 const B = '/api/v1/projects/p9/terceiros';
-const T = (id, extra = {}) => ({ id, nome: `Terceiro ${id}`, terceiro_tipo: 'medio', metodo: 'questionario', situacao: 'vigente', ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2027-01-31', metodo: 'questionario' }, tratamentos: 2, documentos: 1, nivel: 'medio', dpa: true, atividades: 2, pendencias: [], ...extra });
+const T = (id, extra = {}) => ({ id, nome: `Terceiro ${id}`, terceiro_tipo: 'medio', metodo: 'questionario', pode_questionario: true, situacao: 'vigente', ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2027-01-31', metodo: 'questionario' }, tratamentos: 2, documentos: 1, nivel: 'medio', dpa: true, atividades: 2, pendencias: [], ...extra });
 const LISTA = [
     T('a', { nome: 'Nuvem <b>Grande</b>', questionario: { enviada_em: '2026-10-05 09:00:00', percentual: 80, respondidas: 8, total: 10 } }),
     T('b', { situacao: 'vencida', nivel: 'alto', dpa: false, pendencias: ['Avaliação', 'DPA'], ultima_avaliacao: { resultado: 'aprovado', valido_ate: '2025-01-01', metodo: 'questionario' } }),
-    T('c', { terceiro_tipo: null, metodo: null, situacao: 'pendente', ultima_avaliacao: null, tratamentos: 0, documentos: 0, nivel: null, dpa: false, atividades: 0, pendencias: ['Tipo', 'Criticidade', 'Avaliação', 'DPA'] }),
+    T('c', { terceiro_tipo: null, metodo: null, pode_questionario: false, situacao: 'pendente', ultima_avaliacao: null, tratamentos: 0, documentos: 0, nivel: null, dpa: false, atividades: 0, pendencias: ['Tipo', 'Criticidade', 'Avaliação', 'DPA'] }),
 ];
 const SEGURANCA = { id: 'v1', name: 'Nuvem <b>Grande</b>', category: 'Nuvem', status: 'Active', has_iso27001: 1, has_iso27701: 0, has_soc2: 0, has_mfa: 1, has_encryption: 0, has_backup: 0, has_incident_plan: 0, has_pentest: 0, dpa_signed: 0, trust_center_url: 'https://trust.exemplo.com', dpa_url: null, attached_certifications: 'PCI-DSS', notes: 'Obs <i>x</i>' };
 const FICHA = (extra = {}) => ({
@@ -423,10 +423,16 @@ describe('homologação por questionário (F5), na aba Avaliações', () => {
         expect(s.querySelector('[data-action="criarHomologacaoTerceiro"]')).not.toBeNull();
     });
 
-    it('fornecedor de outro método não mostra a seção nem busca homologações', async () => {
-        const f = await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'critico', metodo: 'auditoria' }) }, 'avaliacoes');
+    it('grande provedor (trust center) não mostra a seção nem busca homologações', async () => {
+        const f = await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'grande_provedor', metodo: 'trust_center', pode_questionario: false }) }, 'avaliacoes');
         expect(el('tc-homologacao')).toBeNull();
         expect(chamadas(f).some((k) => k.startsWith(`GET ${H}`))).toBe(false);
+    });
+
+    it('#12 fornecedor crítico mostra a seção de questionário (método formal segue auditoria)', async () => {
+        const f = await ficha({ [`GET ${B}/a`]: FICHA({ terceiro_tipo: 'critico', metodo: 'auditoria', pode_questionario: true }), [`GET ${H}`]: [] }, 'avaliacoes');
+        expect(el('tc-homologacao')).not.toBeNull();
+        expect(chamadas(f).some((k) => k.startsWith(`GET ${H}`))).toBe(true);
     });
 
     it('homologar manda fornecedor, prazo e e-mail (se houver) e mostra o link uma vez', async () => {

@@ -32,6 +32,7 @@ const amostras = {
   'convite': m.emailBoasVindas({ nome: 'Bruno Lima', email: 'bruno.lima@cliente.example', organizacao: 'ness.', equipe: false, convidante: ana, url: 'https://n360.ness.com.br', link: 'https://n360.ness.com.br/#convite=exemplo', horas: 72 }),
   'redefinicao-senha': m.emailRedefinicaoSenha({ nome: 'Bruno Lima', codigo: '482913' }),
   'codigo-politicas': m.emailCodigoPoliticas({ cliente: 'Metalúrgica Exemplo Ltda', codigo: '705218' }),
+  'protocolo-titular': m.emailProtocoloTitular({ protocolo: 'PT-2026-0001' }),
   'senha-definida': m.emailSenhaDefinidaPorOutro({ nome: 'Bruno Lima', quem: { nome: 'Ana Souza', email: 'ana.souza@ness.example' }, url: 'https://n360.ness.com.br', link: 'https://n360.ness.com.br/#convite=exemplo', horas: 72 }),
   'ciencia': m.emailCiencia({ titulo: 'Política de Segurança da Informação', nome: 'Carla Dias', link: 'https://n360.ness.com.br/politicas#exemplo', quem, reenvio: false, validoAte: daqui(30) }),
   'ciencia-reenvio': m.emailCiencia({ titulo: 'Política de Segurança da Informação', nome: 'Carla Dias', link: 'https://n360.ness.com.br/politicas#exemplo', quem, reenvio: true, validoAte: daqui(30) }),

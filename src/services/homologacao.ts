@@ -4,7 +4,7 @@ import { appUrl } from '../config/url';
 import { remetente } from './email-layout';
 import { emailHomologacaoRespondida } from './emails';
 import { log } from '../observability';
-import { METODO_DO_TIPO, registrarAvaliacao, type Avaliacao, type TipoTerceiro } from './terceiros';
+import { PODE_QUESTIONARIO, registrarAvaliacao, type Avaliacao, type TipoTerceiro } from './terceiros';
 import { escolherDestinatarios, pessoasDoProjeto } from './avisos-prazo';
 
 /**
@@ -132,14 +132,14 @@ export async function lerHomologacao(db: D1Database, projectId: string, id: stri
   return { ...r, perguntas: _perguntas.map((p) => ({ ...p, resposta: _respostas[p.id]?.resposta ?? null, justificativa: _respostas[p.id]?.justificativa ?? null })) };
 }
 
-const ehQuestionario = (tipo: TipoTerceiro | null) => !!tipo && METODO_DO_TIPO[tipo] === 'questionario';
+const ehQuestionario = (tipo: TipoTerceiro | null) => !!tipo && PODE_QUESTIONARIO.has(tipo);
 
 export async function criarHomologacao(db: D1Database, projectId: string, ator: string, d: { parte_id: string; dias: number }):
   Promise<Falha | { ok: true; id: string; token: string; expira_em: string; parte_nome: string }> {
   const parte = await db.prepare(`SELECT id, tipo, terceiro_tipo, nome FROM partes WHERE id = ? AND project_id = ?`).bind(d.parte_id, projectId)
     .first<{ id: string; tipo: string; terceiro_tipo: TipoTerceiro | null; nome: string }>();
   if (!parte) return falha(404, 'Terceiro não encontrado');
-  if (parte.tipo !== 'organizacao' || !ehQuestionario(parte.terceiro_tipo)) return falha(400, 'Este terceiro não é avaliado por questionário: defina o tipo como médio ou pequeno');
+  if (parte.tipo !== 'organizacao' || !ehQuestionario(parte.terceiro_tipo)) return falha(400, 'Este terceiro não recebe questionário: defina o tipo como médio, pequeno ou crítico');
   const { perguntas } = await listarPerguntas(db, projectId);
   const ativas: PerguntaCongelada[] = perguntas.filter((p) => p.ativa).map(({ id, tema, texto }) => ({ id, tema, texto }));
   if (!ativas.length) return falha(400, 'O questionário do projeto não tem pergunta ativa');
@@ -179,7 +179,8 @@ export async function concluirHomologacao(db: D1Database, projectId: string, id:
      WHERE id = ? AND project_id = ? AND status = 'respondida'`).bind(d.resultado, ator, id, projectId).run();
   if (!reserva.meta.changes) return falha(409, 'Só homologação respondida pelo fornecedor pode ser concluída');
   const observacao = `Homologação por questionário (${h.percentual}% respondido)${d.observacao ? `: ${d.observacao}` : ''}`.slice(0, 2000);
-  const r = await registrarAvaliacao(db, projectId, h.parte_id, ator, { resultado: d.resultado, valido_ate: d.valido_ate, observacao });
+  // O método é sempre `questionario` (o servidor decide): no crítico isso difere do método formal do tipo (auditoria).
+  const r = await registrarAvaliacao(db, projectId, h.parte_id, ator, { resultado: d.resultado, valido_ate: d.valido_ate, observacao }, 'questionario');
   if (!r.ok) {
     await db.prepare(`UPDATE homologacoes SET status = 'respondida', resultado = NULL, concluida_por = NULL, concluida_em = NULL WHERE id = ? AND project_id = ?`).bind(id, projectId).run();
     return r;

@@ -35,6 +35,7 @@ beforeAll(async () => {
       ('hm-cli', 'cli@hm.lat', 'x', 'Cli', 'org_admin', ?, 'org_ness'), ('hm-sem', 'sem@hm.lat', 'x', 'Sem', 'org_admin', ?, 'org_ness')`).bind(P, P),
     env.DB.prepare(`INSERT INTO project_governance (id, project_id, name, email, role_category, job_title) VALUES ('hm-g', ?, 'Cons', 'cons@hm.lat', 'consultor', 'Consultor')`).bind(P),
     env.DB.prepare(`INSERT INTO partes (id, project_id, tipo, nome, terceiro_tipo) VALUES ('hm-medio', ?1, 'organizacao', 'Fornecedor Medio', 'medio'), ('hm-grande', ?1, 'organizacao', 'Nuvem Grande', 'grande_provedor'),
+      ('hm-critico', ?1, 'organizacao', 'Fornecedor Critico', 'critico'),
       ('hm-sem-tipo', ?1, 'organizacao', 'Sem Tipo', NULL), ('hm-alheio', ?2, 'organizacao', 'Alheio', 'pequeno')`).bind(P, OUTRO),
     env.DB.prepare(`INSERT INTO agente_concessoes (id, user_id, project_id, expira_em) VALUES ('hm-conc', 'hm-cons', ?, datetime('now','+30 days'))`).bind(P),
   ]);
@@ -119,6 +120,20 @@ describe('fluxo da homologação', () => {
     expect((await criar({ dias: 61 })).status).toBe(400);
     expect((await chamar(cliente, 'POST', base, { parte_id: 'hm-medio' })).status).toBe(403);
     expect((await chamar({ 'X-Agente-Confirmado': '1' }, 'POST', base, { parte_id: 'hm-medio' }, AGENTE)).status).toBe(403);
+  });
+
+  it('#12 crítico recebe questionário (além da auditoria): aparece como questionável, mas o método formal do tipo segue auditoria e a avaliação do questionário grava "questionario"', async () => {
+    const critico = (await json<{ id: string; metodo: string; pode_questionario: boolean }[]>(await chamar(consultor, 'GET', `/api/v1/projects/${P}/terceiros`))).find((t) => t.id === 'hm-critico')!;
+    expect(critico).toMatchObject({ metodo: 'auditoria', pode_questionario: true });
+    const criado = await criar({ parte_id: 'hm-critico' });
+    expect(criado.status, await criado.clone().text()).toBe(201);
+    const { id: hid } = await json<{ id: string }>(criado);
+    // marca "respondida" direto (sem passar pelo envio que avisa o sino, para não afetar a contagem de outros testes)
+    await env.DB.prepare(`UPDATE homologacoes SET status = 'respondida', enviada_em = CURRENT_TIMESTAMP WHERE id = ?`).bind(hid).run();
+    const r = await chamar(consultor, 'POST', `${base}/${hid}/concluir`, { resultado: 'aprovado', valido_ate: dias(365) });
+    expect(r.status, await r.clone().text()).toBe(200);
+    const { avaliacao_id } = await json<{ avaliacao_id: string }>(r);
+    expect(await env.DB.prepare('SELECT metodo FROM avaliacoes_terceiro WHERE id = ?').bind(avaliacao_id).first<string>('metodo')).toBe('questionario');
   });
 
   it('o fornecedor abre só o que é dele: cliente, fornecedor, perguntas e as próprias respostas', async () => {

@@ -135,15 +135,32 @@ function blocoBaseLegal(b) {
     return `<div class="at-aba-corpo" id="rf-base-legal">${linha('Base Legal (Dados Pessoais)', b && b.dados_pessoais)}${linha('Base Legal (Dados sensíveis)', b && b.dados_sensiveis)}</div>`;
 }
 
+/** Só leitura, vindo do ROPA: a finalidade da atividade (pergunta "por que são coletados"). */
+function blocoFinalidade(f) {
+    return `<div class="at-aba-corpo" id="rf-finalidade"><p class="at-nota"><strong>Finalidade (do ROPA)</strong>: ${f ? escapeHTML(f) : 'não informada na atividade'}</p></div>`;
+}
+
+/** Só leitura, vindo do ROPA: os parceiros do compartilhamento externo. Sem parceiros, a pergunta fica desabilitada (nada a responder). */
+function blocoCompartilhamentoExterno(ce) {
+    return ce && ce.tem
+        ? `<div class="at-aba-corpo" id="rf-comp-ext"><p class="at-nota"><strong>Compartilhamento externo (do ROPA)</strong>: ${ce.parceiros.map(escapeHTML).join('; ')}</p></div>`
+        : `<div class="at-aba-corpo" id="rf-comp-ext"><p class="at-nota">A atividade não registra compartilhamento externo no ROPA — nada a responder aqui.</p></div>`;
+}
+
 function pergunta(q, editar, numero) {
     const idq = `rf-p-${escapeHTML(q.id)}`;
+    // Compartilhamento externo só é respondível quando o ROPA tem parceiros externos (feedback: "só habilitar caso preenchido no ROPA").
+    const bloqueado = q.compartilhamento_externo !== undefined && !(q.compartilhamento_externo && q.compartilhamento_externo.tem);
+    const editavel = editar && !bloqueado;
     const dica = !q.resposta && q.da_atividade ? `<p class="at-nota">A atividade já indica: ${escapeHTML(q.da_atividade)}</p>` : '';
+    // Blocos read-only do ROPA antes do campo: a informação já vem da atividade, sem precisar reescrever.
+    const blocosRopa = `${q.finalidade !== undefined ? blocoFinalidade(q.finalidade) : ''}${q.compartilhamento_externo !== undefined ? blocoCompartilhamentoExterno(q.compartilhamento_externo) : ''}`;
     const corpo = q.tipo === 'escolha'
         ? `<div class="at-opcoes" role="radiogroup" aria-labelledby="${idq}-t">${ESCOLHAS.map(([v, rot]) => `<label class="re-opcao" for="${idq}-${v}">
-            <input type="radio" id="${idq}-${v}" name="${idq}" value="${v}" ${q.resposta === v ? 'checked' : ''} ${editar ? `data-action-change="ripdResponder" data-args='${args(q.id)}' data-arg-val` : 'disabled'}>
+            <input type="radio" id="${idq}-${v}" name="${idq}" value="${v}" ${q.resposta === v ? 'checked' : ''} ${editavel ? `data-action-change="ripdResponder" data-args='${args(q.id)}' data-arg-val` : 'disabled'}>
             <span class="re-opcao-texto">${rot}</span></label>`).join('')}</div>`
-        : `<textarea class="form-input" id="${idq}" aria-labelledby="${idq}-t" maxlength="2000" ${editar ? `data-action-change="ripdResponder" data-args='${args(q.id)}' data-arg-val` : 'disabled'}>${escapeHTML(q.resposta || '')}</textarea>`;
-    return `<div class="at-pergunta"><p class="at-pergunta-texto" id="${idq}-t">${numero}. ${escapeHTML(q.texto)}</p>${dica}${corpo}${q.base_legal !== undefined ? blocoBaseLegal(q.base_legal) : ''}
+        : `<textarea class="form-input" id="${idq}" aria-labelledby="${idq}-t" maxlength="2000" ${editavel ? `data-action-change="ripdResponder" data-args='${args(q.id)}' data-arg-val` : 'disabled'}>${escapeHTML(q.resposta || '')}</textarea>`;
+    return `<div class="at-pergunta"><p class="at-pergunta-texto" id="${idq}-t">${numero}. ${escapeHTML(q.texto)}</p>${blocosRopa}${dica}${corpo}${q.base_legal !== undefined ? blocoBaseLegal(q.base_legal) : ''}
         <p class="at-nota" id="rf-st-${escapeHTML(q.id)}" role="status"></p></div>`;
 }
 

@@ -86,6 +86,21 @@ export function emailCodigoPoliticas(d: { cliente: string; codigo: string }): Em
   });
 }
 
+/** Retorno ao titular que abriu uma solicitação pelo portal público: o número de protocolo para acompanhar o atendimento. */
+export function emailProtocoloTitular(d: { protocolo: string }): EmailComAssunto {
+  return com(`Recebemos sua solicitação — protocolo ${d.protocolo}`, {
+    previa: `Sua solicitação foi recebida. Guarde o protocolo ${d.protocolo}.`,
+    titulo: 'Solicitação recebida',
+    saudacao: ola(null),
+    paragrafos: [
+      'Recebemos sua solicitação sobre seus dados pessoais.',
+      `Guarde este número de protocolo para acompanhar o atendimento: ${d.protocolo}.`,
+    ],
+    notas: ['Se você não fez esta solicitação, ignore este e-mail.'],
+    motivo: 'você abriu uma solicitação sobre seus dados pessoais no portal desta organização.',
+  });
+}
+
 /** Quem pede a ciência: o cliente do projeto e quem criou o pedido (com a organização dele). */
 export type QuemPede = { cliente: string; pessoa: Pessoa | null };
 const quemPedeBloco = (q: QuemPede): Pessoa => (q.pessoa ? { ...q.pessoa, organizacao: q.pessoa.organizacao ?? q.cliente } : { organizacao: q.cliente });

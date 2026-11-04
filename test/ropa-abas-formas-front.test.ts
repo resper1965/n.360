@@ -11,7 +11,10 @@ describe('ficha em abas: formas que o frontend lê', () => {
   });
 
   it('projeto novo: listas vazias, nunca erro (o sistema vazio explica, não quebra)', async () => {
-    expect(await json(await chamar(s.consultor, 'GET', `${base(rid)}/riscos/motivos`))).toEqual({ motivos: [] });
+    // motivos nunca é vazio: traz a lista de referência de riscos de privacidade (só sugestão, `referencia: true`); nada do projeto.
+    const motivos = (await json<{ motivos: { referencia?: boolean }[] }>(await chamar(s.consultor, 'GET', `${base(rid)}/riscos/motivos`))).motivos;
+    expect(motivos.length).toBeGreaterThan(0);
+    expect(motivos.every((m) => m.referencia === true)).toBe(true);
     expect(await json(await chamar(s.consultor, 'GET', `${base(rid)}/medidas`))).toEqual([]);
     expect(await json(await chamar(s.consultor, 'GET', `${base(rid)}/medidas/sugestoes`))).toEqual([]);
     expect(await json(await chamar(s.consultor, 'GET', `${base(rid)}/medidas/controles`))).toEqual([]);

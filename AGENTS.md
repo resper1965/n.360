@@ -450,7 +450,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   Frente 3C (21/10/2026), saem no mesmo formato pt-BR (`montarCsv`: BOM, `;`, CRLF, cabecalho em portugues, rotulos de `exportacao.ts`).
 - **Terceiros tipificados (fatia 6, migration 0057)**: o terceiro e uma `partes` do tipo `organizacao` com `terceiro_tipo`
   (`grande_provedor|medio|pequeno|critico`) e `src/services/terceiros.ts` (rotas `/projects/:id/terceiros*`). **O tipo define o
-  metodo** (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. `avaliacoes_terceiro`
+  metodo** formal (`METODO_DO_TIPO`: trust_center, questionario, questionario, auditoria) e o SERVIDOR decide, nao o corpo. Quem RECEBE
+  questionario de homologacao e desacoplado do metodo (`PODE_QUESTIONARIO`: medio, pequeno e **critico**; grande provedor fica fora); a
+  avaliacao gerada pelo questionario grava metodo `questionario` mesmo no critico (cujo metodo formal e auditoria). `avaliacoes_terceiro`
   guarda o HISTORICO (resultado, `valido_ate` obrigatorio e futuro, link http(s) de evidencia) e a situacao e DERIVADA da mais recente
   (`situacaoDe`: pendente, vigente, vencida, reprovada). `documento_partes` liga documento a terceiro como DPA/contrato/outro (a spec pede
   `documentos.tipo = 'contrato'`; mudar esse CHECK reconstruiria `documentos` e quatro tabelas filhas). Efeitos do vencimento: fonte
@@ -477,7 +479,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `parametros_legais` (global) guarda cada prazo com FONTE e REVISAO, editavel so pelo `platform_admin` com trilha; sem o valor o prazo e
   nulo ("nao calculado") e nada quebra. O prazo e CONGELADO no registro na criacao (`somarPrazo`: horas, dias corridos ou dias uteis, sem
   feriado). Avisos de prazo ganharam as fontes `titular_pedido` e `incidente` (um item por comunicacao pendente). Rotas:
-  `/api/v1/parametros-legais`, `/projects/:id/{titular-pedidos,incidentes,consentimentos}`; o agente registra e avalia; encerrar incidente (`niso_encerrar_incidente`) e revogar consentimento (`niso_registrar_revogacao`) sao decisoes com confirmacao e motivo; responder, negar, arquivar e prazo do pedido do titular sao do cliente. Portal publico e conector externo: fora (decisao de 09/10).
+  `/api/v1/parametros-legais`, `/projects/:id/{titular-pedidos,incidentes,consentimentos}`; o agente registra e avalia; encerrar incidente (`niso_encerrar_incidente`) e revogar consentimento (`niso_registrar_revogacao`) sao decisoes com confirmacao e motivo; responder, negar, arquivar e prazo do pedido do titular sao do cliente. **Portal publico do titular: ATIVO** (migration 0096, spec `docs/superpowers/specs/2026-11-03-portal-solicitacoes-titular-design.md`, revê a decisão de 09/10 só para o portal): link por projeto (`titular_portais`, só o SHA-256 do token; gerar/desativar em `/projects/:id/titular-portal`, equipe e `org_admin`), recepção pública `POST /api/v1/public/titular-pedidos/abrir` (token no corpo, limite por IP e por projeto, cria pedido `canal='formulario'`, devolve o protocolo; sem CPF no intake), página `/solicitacao` (`frontend/public/solicitacao.*`) e tratativas do atendimento (`titular_pedido_tratativas`, `/titular-pedidos/:id/tratativas`). O **conector externo segue fora**; o agente não opera o portal.
   **Quem grava (o cliente age, 15/10):** equipe e o `org_admin` do PROPRIO projeto registram e respondem o pedido do titular (status e
   resposta, inclusive a partir do rascunho de IA) e registram, avaliam e comunicam o incidente; `org_user` e `client` so leem (o allow-list
   de so leitura de `src/middleware/auth.ts`, sem entrada para estas rotas). **Encerrar incidente e so da equipe da consultoria, no

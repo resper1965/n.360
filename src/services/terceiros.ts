@@ -12,8 +12,16 @@ export type TipoTerceiro = (typeof TIPOS_TERCEIRO)[number];
 export type Metodo = 'trust_center' | 'questionario' | 'auditoria';
 export type Situacao = 'pendente' | 'vigente' | 'vencida' | 'reprovada';
 
-/** O tipo define o método (spec seção 5). Trust center é link mais validade, preenchido à mão. */
+/** O tipo define o método formal da avaliação (spec seção 5). Trust center é link mais validade, preenchido à mão. */
 export const METODO_DO_TIPO: Record<TipoTerceiro, Metodo> = { grande_provedor: 'trust_center', medio: 'questionario', pequeno: 'questionario', critico: 'auditoria' };
+
+/**
+ * Quem pode receber um questionário de homologação. Desacoplado do método: o crítico tem método formal `auditoria`, mas também
+ * recebe questionário (é o de maior criticidade — precisa do questionário conforme pedido do dono). O grande provedor fica de
+ * fora (trust center de hiperescala; questionário próprio não é acionável). A avaliação gerada pelo questionário registra o
+ * método `questionario`, decidido no servidor, sem mudar o método formal do tipo.
+ */
+export const PODE_QUESTIONARIO: ReadonlySet<TipoTerceiro> = new Set<TipoTerceiro>(['medio', 'pequeno', 'critico']);
 
 type Falha = { ok: false; status: 400 | 404 | 409; error: string };
 const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, status, error });
@@ -34,6 +42,8 @@ export function situacaoDe(ultima: Pick<Avaliacao, 'resultado' | 'valido_ate'> |
 
 export type Terceiro = {
   id: string; nome: string; cnpj: string | null; terceiro_tipo: TipoTerceiro | null; metodo: Metodo | null; situacao: Situacao;
+  /** o terceiro pode receber questionário de homologação (médio, pequeno ou crítico), independente do método formal */
+  pode_questionario: boolean;
   ultima_avaliacao: Avaliacao | null; tratamentos: number; documentos: number;
   /** nível da criticidade mais recente; null = nunca avaliada */
   nivel: NivelCriticidade | null; dpa: boolean; atividades: number;
@@ -133,7 +143,8 @@ export async function listarTerceiros(db: D1Database, projectId: string): Promis
   return (partes.results as { id: string; nome: string; cnpj: string | null; terceiro_tipo: TipoTerceiro | null }[]).map((p) => {
     const u = ultima.get(p.id) ?? null;
     const atividades = nt.get(p.id) ?? 0;
-    const t = { id: p.id, nome: p.nome, cnpj: p.cnpj, terceiro_tipo: p.terceiro_tipo, metodo: p.terceiro_tipo ? METODO_DO_TIPO[p.terceiro_tipo] : null, situacao: situacaoDe(u), ultima_avaliacao: u,
+    const t = { id: p.id, nome: p.nome, cnpj: p.cnpj, terceiro_tipo: p.terceiro_tipo, metodo: p.terceiro_tipo ? METODO_DO_TIPO[p.terceiro_tipo] : null,
+      pode_questionario: !!p.terceiro_tipo && PODE_QUESTIONARIO.has(p.terceiro_tipo), situacao: situacaoDe(u), ultima_avaliacao: u,
       tratamentos: atividades, documentos: nd.get(p.id) ?? 0, nivel: nivel.get(p.id) ?? null, dpa: comDpa.has(p.id), atividades };
     return { ...t, pendencias: pendenciasDe(t) };
   });
@@ -187,15 +198,18 @@ export async function definirTipo(db: D1Database, projectId: string, parteId: st
 
 export type NovaAvaliacao = { resultado: Avaliacao['resultado']; valido_ate: string; evidencia_url?: string | null; observacao?: string | null };
 
-/** Registra a avaliação (o método vem do tipo, nunca do corpo). A validade é obrigatória e não pode estar no passado. */
-export async function registrarAvaliacao(db: D1Database, projectId: string, parteId: string, ator: string, d: NovaAvaliacao): Promise<Falha | { ok: true; id: string; metodo: Metodo }> {
+/**
+ * Registra a avaliação. A validade é obrigatória e não pode estar no passado. `metodoForcado` é decidido pelo SERVIDOR (só a
+ * conclusão do questionário o usa, para gravar `questionario` mesmo no crítico, cujo método formal é `auditoria`); nunca vem do corpo.
+ */
+export async function registrarAvaliacao(db: D1Database, projectId: string, parteId: string, ator: string, d: NovaAvaliacao, metodoForcado?: Metodo): Promise<Falha | { ok: true; id: string; metodo: Metodo }> {
   const p = await parteDoProjeto(db, projectId, parteId);
   if (!p) return falha(404, 'Parte não encontrada');
   if (p.tipo !== 'organizacao') return falha(400, 'Só organização é terceiro');
   if (!p.terceiro_tipo) return falha(400, 'Defina o tipo do terceiro antes de registrar a avaliação');
   if (!dataValida(d.valido_ate)) return falha(400, 'valido_ate precisa ser uma data AAAA-MM-DD');
   if (d.valido_ate < hoje()) return falha(400, 'valido_ate não pode estar no passado');
-  const metodo = METODO_DO_TIPO[p.terceiro_tipo];
+  const metodo = metodoForcado ?? METODO_DO_TIPO[p.terceiro_tipo];
   const id = crypto.randomUUID();
   await db.prepare(`INSERT INTO avaliacoes_terceiro (id, project_id, parte_id, metodo, resultado, valido_ate, evidencia_url, observacao, avaliado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, projectId, parteId, metodo, d.resultado, d.valido_ate, d.evidencia_url ?? null, d.observacao ?? null, ator).run();
