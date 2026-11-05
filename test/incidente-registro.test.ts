@@ -71,6 +71,31 @@ describe('registro completo do incidente', () => {
     await expect(env.DB.prepare(`INSERT INTO incidente_departamentos (incidente_id, departamento_id, project_id) VALUES (?, 'ir-d-o', ?)`).bind(id, P).run()).rejects.toThrow(/outro projeto/);
   });
 
+  it('comunicação à ANPD: canal e protocolo no registro, protocolo interno derivado; antes da comunicação só a justificativa', async () => {
+    const id = await novo();
+    // Antes da comunicação: protocolo e canal não (descrevem uma comunicação que aconteceu); a justificativa sim.
+    expect((await chamar(consultor, 'PUT', `${B}/incidentes/${id}`, { anpd_protocolo: '00000.000001/2026-01' })).status).toBe(409);
+    expect((await chamar(consultor, 'PUT', `${B}/incidentes/${id}`, { anpd_canal: 'sei' })).status).toBe(409);
+    expect((await chamar(consultor, 'PUT', `${B}/incidentes/${id}`, { anpd_justificativa: 'Prazo perdido por falha do e-mail (exemplo).' })).status).toBe(200);
+    expect((await ler(id)).anpd_protocolo_interno).toBeNull();
+    // Canal fora da lista e canal na comunicação ao titular: 400.
+    expect((await chamar(consultor, 'POST', `${B}/incidentes/${id}/comunicacoes`, { destino: 'anpd', anpd_canal: 'fax' })).status).toBe(400);
+    expect((await chamar(consultor, 'POST', `${B}/incidentes/${id}/comunicacoes`, { destino: 'titular', anpd_canal: 'email' })).status).toBe(400);
+    const r = await chamar(consultor, 'POST', `${B}/incidentes/${id}/comunicacoes`, { destino: 'anpd', anpd_canal: 'formulario_anpd', anpd_protocolo: '00000.000001/2026-01' });
+    expect(r.status, await r.clone().text()).toBe(200);
+    const i = await ler(id);
+    expect(i).toMatchObject({ anpd_canal: 'formulario_anpd', anpd_protocolo: '00000.000001/2026-01', anpd_justificativa: 'Prazo perdido por falha do e-mail (exemplo).',
+      anpd_protocolo_interno: `${i.protocolo}-COM01` });
+    // Depois da comunicação o protocolo chega e se corrige pela edição do registro; a trilha leva só o nome do campo.
+    expect((await chamar(consultor, 'PUT', `${B}/incidentes/${id}`, { anpd_protocolo: '00000.000002/2026-01', anpd_canal: 'email' })).status).toBe(200);
+    expect(await ler(id)).toMatchObject({ anpd_protocolo: '00000.000002/2026-01', anpd_canal: 'email' });
+    const trilha = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'incidente.alterado' AND details LIKE ?`).bind(`%${i.protocolo}%`).all<{ details: string }>();
+    expect(trilha.results.map((t) => t.details).join(' ')).toContain('anpd_protocolo, anpd_canal');
+    expect(JSON.stringify(trilha.results)).not.toContain('00000.000002');
+    // O banco recusa canal fora da lista também por SQL direto.
+    await expect(env.DB.prepare(`UPDATE incidentes SET anpd_canal = 'fax' WHERE id = ?`).bind(id).run()).rejects.toThrow(/CHECK/);
+  });
+
   it('evidências: anexa PDF, lista, baixa e remove; arquivo que não é PDF/DOC é 400; encerrado não muda; cliente só lê', async () => {
     const id = await novo();
     const envia = (h: Record<string, string>, bytes: Uint8Array, nome: string) => {

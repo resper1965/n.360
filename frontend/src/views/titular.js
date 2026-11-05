@@ -23,6 +23,7 @@ const STATUS_INCIDENTE = { aberto: 'Aberto', avaliado: 'Avaliado', comunicado: '
 const SEVERIDADES = { baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica' };
 const TIPOS_INCIDENTE = { acesso_indevido: 'Acesso indevido', vazamento: 'Vazamento ou exposição', perda: 'Perda ou extravio', indisponibilidade: 'Indisponibilidade',
     alteracao_indevida: 'Alteração indevida', terceiro: 'Incidente em terceiro (fornecedor ou operador)', malware: 'Malware ou ransomware', engenharia_social: 'Engenharia social', outro: 'Outro' };
+const CANAIS_ANPD = { sei: 'Peticionamento eletrônico (SEI)', formulario_anpd: 'Formulário da ANPD', email: 'E-mail', outro: 'Outro' };
 const COMPROMETIMENTOS = { confidencialidade: 'Confidencialidade', integridade: 'Integridade', disponibilidade: 'Disponibilidade' };
 const CRITERIOS_RISCO = { sensiveis: 'Dados sensíveis', criancas_idosos: 'Crianças, adolescentes ou idosos', financeiros: 'Dados financeiros', autenticacao: 'Autenticação em sistemas',
     sigilo: 'Sigilo legal, judicial ou profissional', larga_escala: 'Larga escala', nenhum: 'Não afeta nenhum dos critérios' };
@@ -425,6 +426,9 @@ window.abrirIncidente = async function (projectId, id) {
             <h4 style="margin:1rem 0 0.5rem">Comunicações</h4>
             ${i.comunicacao_anpd_em && i.comunicacao_titular_em ? '' : `<div class="form-group"><label class="form-label" for="in-com-data">Data da comunicação</label>
                 <input class="form-input" id="in-com-data" type="date" max="${hojeSP()}" value="${hojeSP()}"></div>`}
+            ${i.comunicacao_anpd_em ? '' : `<div class="at-linha-form"><div class="form-group"><label class="form-label" for="in-com-canal">Canal da comunicação à ANPD</label>
+                <select class="form-input" id="in-com-canal"><option value="">Não informado</option>${opcoes(CANAIS_ANPD)}</select></div>
+                <div class="form-group"><label class="form-label" for="in-com-prot">Nº do protocolo na ANPD (opcional)</label><input class="form-input" id="in-com-prot" maxlength="100"></div></div>`}
             <div class="d-flex gap-2 flex-wrap">
                 ${i.comunicacao_anpd_em ? '' : comunicar('anpd', 'Registrei a comunicação à ANPD')}
                 ${i.comunicacao_titular_em ? '' : comunicar('titular', 'Registrei a comunicação ao titular')}
@@ -476,7 +480,9 @@ window.registrarComunicacaoIncidente = async function (projectId, id, destino) {
     const em = el('in-com-data')?.value || hojeSP();
     const quem = destino === 'anpd' ? 'à ANPD' : 'ao titular';
     if (!(await confirmar(`Registrar a comunicação ${quem} em ${dia(em)}? Depois de registrada, ela não se desfaz.`, { rotulo: 'Registrar' }))) return;
-    return acao(() => api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/comunicacoes`, { destino, em }), 'Não foi possível registrar a comunicação', 'Comunicação registrada.', reabrirIncidente(projectId, id));
+    // Canal e protocolo só vão com a comunicação à ANPD (o servidor recusa na do titular).
+    const anpd = destino === 'anpd' ? { anpd_canal: el('in-com-canal')?.value || null, anpd_protocolo: (el('in-com-prot')?.value || '').trim() || null } : {};
+    return acao(() => api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/comunicacoes`, { destino, em, ...anpd }), 'Não foi possível registrar a comunicação', 'Comunicação registrada.', reabrirIncidente(projectId, id));
 };
 
 const nomes = (mapa, l) => (lista(l).length ? lista(l).map((v) => escapeHTML(mapa[v] || v)).join(', ') : 'não informado');
@@ -493,6 +499,9 @@ function blocoRegistroIncidente(i) {
         ${linha('Titulares estimados', i.titulares_estimados == null ? 'não informado' : escapeHTML(String(i.titulares_estimados)))}
         ${linha('Titulares e dados afetados', dados.length ? dados.map((x) => `${escapeHTML(x.titular)}: ${escapeHTML(x.dado)}${x.sensivel ? ' (sensível)' : ''}`).join('; ') : 'nenhum')}
         ${linha('Critérios do risco', nomes(CRITERIOS_RISCO, i.criterios_risco))}
+        ${i.comunicacao_anpd_em ? `${linha('Comunicação à ANPD', `${escapeHTML(i.anpd_protocolo_interno || '')}, enviada em ${dia(i.comunicacao_anpd_em)}`)}
+            ${linha('Canal', escapeHTML(CANAIS_ANPD[i.anpd_canal] || 'não informado'))} ${linha('Nº do protocolo na ANPD', escapeHTML(i.anpd_protocolo || 'não informado'))}` : ''}
+        ${i.anpd_justificativa ? linha('Justificativa (ANPD)', escapeHTML(i.anpd_justificativa)) : ''}
     </ul>`;
 }
 
@@ -586,6 +595,13 @@ window.editarIncidente = async function (projectId, id) {
                 : '<p class="at-nota">Os titulares e dados vêm do catálogo do n.privacy (Titulares e dados pessoais).</p>'}
         </fieldset>
         <fieldset class="at-grupo"><legend class="at-grupo-titulo">Critérios do risco aos titulares</legend>${caixas('in-ed-crit', CRITERIOS_RISCO, i.criterios_risco)}</fieldset>
+        <fieldset class="at-grupo"><legend class="at-grupo-titulo">Comunicação à ANPD</legend>
+            ${i.comunicacao_anpd_em ? `<p class="at-nota">${escapeHTML(i.anpd_protocolo_interno || '')}, enviada em ${dia(i.comunicacao_anpd_em)}.</p>
+                <div class="form-group"><label class="form-label" for="in-ed-canal">Canal</label>${select('in-ed-canal', CANAIS_ANPD, i.anpd_canal, 'Não informado')}</div>
+                <div class="form-group"><label class="form-label" for="in-ed-prot">Nº do protocolo na ANPD</label><input class="form-input" id="in-ed-prot" maxlength="100" value="${escapeHTML(i.anpd_protocolo || '')}"></div>`
+                : '<p class="at-nota">Canal e protocolo entram depois de registrada a comunicação à ANPD, na janela do incidente.</p>'}
+            <div class="form-group"><label class="form-label" for="in-ed-just">Justificativa (comunicação fora do prazo ou não feita)</label><textarea class="form-input" id="in-ed-just" rows="2" maxlength="5000">${escapeHTML(i.anpd_justificativa || '')}</textarea></div>
+        </fieldset>
         <div class="d-flex gap-2 mt-3"><button class="btn btn-primary" data-action="salvarEdicaoIncidente" data-args='${args(projectId, id)}'>Salvar</button>
         <button class="btn" data-action="abrirIncidente" data-args='${args(projectId, id)}'>Voltar sem salvar</button></div>`, 'modal-large');
     listaDados();
@@ -601,7 +617,9 @@ window.salvarEdicaoIncidente = function (projectId, id) {
         titulo, descricao: valorOuNulo('in-ed-desc'), origem_alerta: valorOuNulo('in-ed-origem'), severidade: el('in-ed-severidade').value || null,
         tipo: el('in-ed-tipo').value || null, comprometimento: marcados('in-ed-comp'), ocorrido_em: dataMudou('in-ed-ocorrido'),
         fim_em: dataMudou('in-ed-fim'), responsavel_parte_id: el('in-ed-resp').value || null, titulares_estimados: qtd === '' ? null : Number(qtd),
-        criterios_risco: marcados('in-ed-crit'),
+        criterios_risco: marcados('in-ed-crit'), anpd_justificativa: valorOuNulo('in-ed-just'),
+        // Protocolo e canal só existem (e só vão) depois de registrada a comunicação à ANPD.
+        ...(el('in-ed-canal') ? { anpd_canal: el('in-ed-canal').value || null, anpd_protocolo: valorOuNulo('in-ed-prot') } : {}),
         // Sem a lista carregada (falha ou sem o n.privacy), o campo não vai: o servidor mantém o que já está gravado.
         ...(edicao?.comAreas ? { areas: marcados('in-ed-area') } : {}),
         ...(edicao?.comCatalogo ? { dados: edicao.dados.map((x) => ({ titular_id: x.titular_id, dado_id: x.dado_id })) } : {}),

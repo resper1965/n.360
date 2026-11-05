@@ -12,6 +12,13 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Incidente: comunicação à ANPD completa e importação por CSV (migration 0099)
+- Registrar a comunicação à ANPD pede também o canal (peticionamento eletrônico SEI, formulário da ANPD, e-mail, outro) e o nº do protocolo na ANPD, opcional. A comunicação ao titular não aceita esses campos.
+- O protocolo interno da comunicação (`<protocolo>-COM01`, como no legado) é derivado, sem coluna. O resumo do incidente mostra protocolo interno, data, canal e nº.
+- "Editar registro" ganha o bloco Comunicação à ANPD: canal e protocolo se corrigem depois de registrada a comunicação (antes, 409), e a justificativa (comunicação fora do prazo ou não feita) vale sempre. A trilha leva só o nome do campo.
+- Importação: modelo de CSV `incidentes`, sem IA, com as colunas da 0058 obrigatórias e as do registro completo (0098) e da ANPD (0099) opcionais, para o arquivo antigo seguir valendo. Áreas e titulares x dados se ligam pela tela. Amostra em `docs/modelos-importacao/incidentes.csv`.
+- Migration 0099 (aditiva): `anpd_protocolo`, `anpd_canal` e `anpd_justificativa` em `incidentes`, com CHECK. Fatia 2 da spec `2026-11-04-incidentes-legado-design`.
+
 ### n.privacy: base legal com a finalidade da atividade; Tratar risco e teste de impacto sem travar
 - Base Jurídica: ao marcar uma base (LGPD, art. 11 ou GDPR), o campo "Finalidade" já vem com a finalidade da atividade (aba Escopo); a pessoa ajusta e grava. "Preencher" faz o mesmo na base sem finalidade. Nada é gravado sozinho.
 - Tratar Risco: o "Gravar" não fica mais desabilitado em silêncio. Quem preenchia só o Risco residual clicava e nada acontecia; agora a tela diz o que falta, abre a aba Tratamento e põe o foco no primeiro campo.
