@@ -262,6 +262,7 @@ export const incidenteCriarSchema = z.object({
 export const SEVERIDADES_INCIDENTE = ['baixa', 'media', 'alta', 'critica'] as const;
 export const TIPOS_INCIDENTE = ['acesso_indevido', 'vazamento', 'perda', 'indisponibilidade', 'alteracao_indevida', 'terceiro', 'malware', 'engenharia_social', 'outro'] as const;
 export const COMPROMETIMENTOS = ['confidencialidade', 'integridade', 'disponibilidade'] as const;
+export const CANAIS_ANPD = ['sei', 'formulario_anpd', 'email', 'outro'] as const;
 export const CRITERIOS_RISCO = ['sensiveis', 'criancas_idosos', 'financeiros', 'autenticacao', 'sigilo', 'larga_escala', 'nenhum'] as const;
 const semRepetir = <T extends z.ZodTypeAny>(item: T, max: number) => z.array(item).max(max).refine((xs) => new Set(xs.map((x) => JSON.stringify(x))).size === xs.length, 'itens repetidos');
 
@@ -280,6 +281,10 @@ export const incidenteAtualizarSchema = z.object({
   fim_em: instante.nullable().optional(),
   areas: semRepetir(idParte, 50).optional(),
   dados: semRepetir(z.object({ titular_id: idParte, dado_id: idParte }).strict(), 200).optional(),
+  // Comunicação à ANPD (0099): protocolo e canal só depois de registrada a comunicação (regra no serviço).
+  anpd_protocolo: z.string().trim().min(1).max(100).nullable().optional(),
+  anpd_canal: z.enum(CANAIS_ANPD).nullable().optional(),
+  anpd_justificativa: z.string().trim().max(5000).nullable().optional(),
 }).strict();
 
 export const incidenteRiscoSchema = z.object({
@@ -292,6 +297,8 @@ export const incidenteRascunhoSchema = z.object({ destino: z.enum(['anpd', 'titu
 export const incidenteComunicacaoSchema = z.object({
   destino: z.enum(['anpd', 'titular']),
   em: instante.optional(),
+  anpd_canal: z.enum(CANAIS_ANPD).nullish(),
+  anpd_protocolo: z.string().trim().min(1).max(100).nullish(),
 }).strict();
 
 export const consentimentoCriarSchema = z.object({
