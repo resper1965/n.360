@@ -258,11 +258,28 @@ export const incidenteCriarSchema = z.object({
   responsavel_parte_id: idParte.nullish(),
 }).strict();
 
+// Registro completo do incidente (0098; listas aprovadas pelo dono em 04/11/2026, spec 2026-11-04-incidentes-legado-design).
+export const SEVERIDADES_INCIDENTE = ['baixa', 'media', 'alta', 'critica'] as const;
+export const TIPOS_INCIDENTE = ['acesso_indevido', 'vazamento', 'perda', 'indisponibilidade', 'alteracao_indevida', 'terceiro', 'malware', 'engenharia_social', 'outro'] as const;
+export const COMPROMETIMENTOS = ['confidencialidade', 'integridade', 'disponibilidade'] as const;
+export const CRITERIOS_RISCO = ['sensiveis', 'criancas_idosos', 'financeiros', 'autenticacao', 'sigilo', 'larga_escala', 'nenhum'] as const;
+const semRepetir = <T extends z.ZodTypeAny>(item: T, max: number) => z.array(item).max(max).refine((xs) => new Set(xs.map((x) => JSON.stringify(x))).size === xs.length, 'itens repetidos');
+
 export const incidenteAtualizarSchema = z.object({
   titulo: textoCurto.optional(),
   descricao: textoLongo.nullable().optional(),
   ocorrido_em: instante.nullable().optional(),
   responsavel_parte_id: idParte.nullable().optional(),
+  origem_alerta: z.string().trim().max(500).nullable().optional(),
+  severidade: z.enum(SEVERIDADES_INCIDENTE).nullable().optional(),
+  tipo: z.enum(TIPOS_INCIDENTE).nullable().optional(),
+  comprometimento: semRepetir(z.enum(COMPROMETIMENTOS), 3).optional(),
+  titulares_estimados: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  // "nenhum" não convive com os outros critérios (no legado é a opção exclusiva).
+  criterios_risco: semRepetir(z.enum(CRITERIOS_RISCO), 7).refine((xs) => !xs.includes('nenhum') || xs.length === 1, '"nenhum" não vai com outros critérios').optional(),
+  fim_em: instante.nullable().optional(),
+  areas: semRepetir(idParte, 50).optional(),
+  dados: semRepetir(z.object({ titular_id: idParte, dado_id: idParte }).strict(), 200).optional(),
 }).strict();
 
 export const incidenteRiscoSchema = z.object({

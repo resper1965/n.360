@@ -18,6 +18,7 @@ async function banco_de_antes() {
   // Desfaz só o que a 0079 cria, para simular o banco da 0078. Índice e gatilhos primeiro; depois tabelas filhas; depois as colunas.
   await execSql(`
     DROP INDEX IF EXISTS idx_risks_ropa_idr;
+    DROP TABLE IF EXISTS incidente_dados; -- da 0098: aponta para catalogo_itens, que a 0079 cria
     ${TABELAS.slice().reverse().map((t) => `DROP TABLE IF EXISTS ${t};`).join('\n')}
     ${NOVAS_ROPA.map((c) => `ALTER TABLE ropa_records DROP COLUMN ${c};`).join('\n')}
     ALTER TABLE tratamento_ciclo DROP COLUMN origem; ALTER TABLE tratamento_ciclo DROP COLUMN solicita_consentimento;

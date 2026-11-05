@@ -242,6 +242,7 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   catalogo_itens: { tipo: 'titular' },
   tratamento_medidas: { status: 'ativa' },
   acao_anexos: { file_type: 'pdf', file_size: 1 },
+  incidente_anexos: { file_type: 'pdf', file_size: 1 },
 
   // Criticidade do fornecedor (0080): enums do CHECK
 

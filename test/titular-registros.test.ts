@@ -211,8 +211,13 @@ describe('incidente', () => {
     expect((await ler(id)).status).toBe('avaliado');
     expect((await chamar(consultor, 'POST', `${B}/incidentes/${id}/comunicacoes`, { destino: 'anpd', em: new Date(Date.now() + 86_400_000).toISOString() })).status).toBe(400);
     expect((await chamar(consultor, 'POST', `${B}/incidentes/${id}/comunicacoes`, { destino: 'imprensa' })).status).toBe(400);
-    expect((await chamar(consultor, 'POST', `${B}/incidentes/${id}/comunicacoes`, { destino: 'anpd' })).status).toBe(200);
+    expect((await chamar(consultor, 'POST', `${B}/incidentes/${id}/comunicacoes`, { destino: 'anpd', em: '2026-10-02' })).status).toBe(200);
+    // A primeira data é a oficial: registrar de novo (segunda aba, reenvio) é 409 e não sobrescreve.
+    const outra = await chamar(consultor, 'POST', `${B}/incidentes/${id}/comunicacoes`, { destino: 'anpd' });
+    expect(outra.status).toBe(409);
+    expect((await json<{ error: string }>(outra)).error).toContain('já registrada em 2026-10-02');
     const i = await ler(id);
+    expect(i.comunicacao_anpd_em).toBe('2026-10-02');
     expect(i.status).toBe('comunicado');
     expect(i.situacao_anpd).toBe('comunicado');
   });

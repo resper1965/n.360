@@ -15,7 +15,7 @@ export function tipoDoAnexo(nome: string, bytes: Uint8Array): Tipo | null {
   return magia.every((b, i) => bytes[i] === b) ? ext : null;
 }
 
-async function sha256Bytes(bytes: ArrayBuffer): Promise<string> {
+export async function sha256Bytes(bytes: ArrayBuffer): Promise<string> {
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 

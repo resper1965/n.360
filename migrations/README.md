@@ -6,12 +6,13 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0097** (`ls migrations/*.sql | tail -1`). São 97 arquivos
+- Última migration no repositório: **0098** (`ls migrations/*.sql | tail -1`). São 98 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
   e **duas 0097** (`0097_orgaos_publicos.sql` e `0097_ot_sensor_rede.sql`), de PRs paralelos. O runner controla pelo NOME do arquivo (`d1_migrations.name`), então as duas
-  valem (as 0096 já estão aplicadas em produção); não renomeie (renomear faria o runner aplicar de novo).
+  valem e já estão aplicadas em produção (conferido em 05/11/2026: `npx wrangler d1 migrations list niso-db --remote` só listava a 0098
+  como pendente); não renomeie (renomear faria o runner aplicar de novo).
   Antes de numerar a próxima, confira a `main` atual (`git ls-tree --name-only origin/main migrations/`).
 - Produção sem migration pendente é condição de deploy: `.github/workflows/deploy.yml` roda
   `wrangler d1 migrations list niso-db --remote` e recusa publicar se a resposta não for
@@ -751,3 +752,12 @@ depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titula
 
 Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).
+
+## 0098 — registro completo do incidente (2026-11-04)
+
+Colunas novas em `incidentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner; o CHECK da 0058 não muda): `origem_alerta`,
+`severidade`, `tipo`, `comprometimento`, `titulares_estimados`, `criterios_risco`, `fim_em`. Tabelas novas `incidente_departamentos`,
+`incidente_dados` e `incidente_anexos`, com gatilho de projeto. Conferência depois:
+`SELECT name FROM pragma_table_info('incidentes') WHERE name IN ('origem_alerta','severidade','tipo','comprometimento','titulares_estimados','criterios_risco','fim_em')`
+(7 linhas) e `SELECT name FROM sqlite_master WHERE name IN ('incidente_departamentos','incidente_dados','incidente_anexos')` (3 linhas).
+Aplicada em produção em 05/11/2026, com backup antes: as duas conferências deram 7 e 3 linhas, mais os 6 gatilhos.

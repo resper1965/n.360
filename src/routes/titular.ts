@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { ehEquipeNess, erro500, registraErro } from '../helpers';
+import { ehEquipeNess, erro500, logAudit, registraErro } from '../helpers';
 import { appUrl } from '../config/url';
 import { lerParametros, removerParametro, salvarParametro } from '../services/parametros-legais';
 import { atualizarPedido, criarPedido, lerPedido, listarPedidos, gerarPortal, lerPortal, desativarPortal, listarTratativas, adicionarTratativa } from '../services/titular-pedidos';
+import { guardarAnexoIncidente, listarAnexosIncidente, baixarAnexoIncidente, apagarAnexoIncidente, MAX_ANEXO } from '../services/incidente-anexos';
 import { atualizarIncidente, avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
 import { listarConsentimentos, registrarConsentimento, revogarConsentimento } from '../services/consentimentos';
 import { rascunharComunicacao, rascunharResposta } from '../services/rascunhos-privacy';
@@ -156,6 +157,47 @@ incidentesApp.put('/:id', async (c) => {
     const r = await atualizarIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao alterar o incidente', e); }
+});
+
+// Evidências do incidente (0098). Trilha só com o nome da ação, nunca o nome do arquivo.
+incidentesApp.get('/:id/anexos', async (c) => {
+  try {
+    const r = await listarAnexosIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'));
+    return r ? c.json({ anexos: r }) : c.json({ error: 'Incidente não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao listar os anexos', e); }
+});
+
+incidentesApp.post('/:id/anexos', async (c) => {
+  try {
+    // Recusa pelo tamanho declarado antes de ler o corpo; o limite exato é conferido sobre o arquivo.
+    if (Number(c.req.header('Content-Length') ?? 0) > MAX_ANEXO + 1024) return c.json({ error: 'Máximo de 5 MB por arquivo' }, 413);
+    const corpo = await c.req.parseBody().catch(() => ({} as Record<string, unknown>));
+    const arq = corpo['file'];
+    if (!(arq instanceof File)) return c.json({ error: 'Envie um arquivo PDF ou DOC (máx. 5MB) válido' }, 400);
+    if (arq.size > MAX_ANEXO) return c.json({ error: 'Máximo de 5 MB por arquivo' }, 413);
+    const projectId = c.req.param('projectId')!;
+    const r = await guardarAnexoIncidente(c.env, projectId, c.req.param('id'), c.get('user').email, { name: arq.name, bytes: await arq.arrayBuffer() });
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await logAudit(c.env.DB, 'incidente.anexo', c.get('user').email, `Incidente ${c.req.param('id')}: evidência anexada`, '', '', projectId);
+    return c.json({ ok: true, id: r.id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao anexar o arquivo', e); }
+});
+
+incidentesApp.get('/:id/anexos/:anexoId', async (c) => {
+  try {
+    const r = await baixarAnexoIncidente(c.env, c.req.param('projectId')!, c.req.param('id'), c.req.param('anexoId'));
+    return r ?? c.json({ error: 'Anexo não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao baixar o anexo', e); }
+});
+
+incidentesApp.delete('/:id/anexos/:anexoId', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const r = await apagarAnexoIncidente(c.env, projectId, c.req.param('id'), c.req.param('anexoId'));
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await logAudit(c.env.DB, 'incidente.anexo', c.get('user').email, `Incidente ${c.req.param('id')}: evidência removida`, '', '', projectId);
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao apagar o anexo', e); }
 });
 
 incidentesApp.put('/:id/risco', async (c) => {

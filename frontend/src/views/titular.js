@@ -1,5 +1,5 @@
 import { S } from '../state.js';
-import { api } from '../api.js';
+import { api, baixarArquivo, API_BASE, cabecalhosAuth } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela, confirmar } from '../ui.js';
 import { navigate } from '../router.js';
 import { produtoAtual, temProduto } from '../produto.js';
@@ -19,6 +19,13 @@ const TIPOS_TRATATIVA = { comunicacao_titular: 'Comunicação ao titular', encam
 const PRAZO = { sem_prazo: ['Prazo não calculado', 'neutral'], encerrado: ['Encerrado', 'neutral'], no_prazo: ['No prazo', 'success'], vence_hoje: ['Vence hoje', 'warning'], atrasado: ['Atrasado', 'danger'], comunicado: ['Comunicado', 'success'] };
 const RISCOS = { sem_risco: 'Sem risco', baixo: 'Baixo', relevante: 'Relevante' };
 const STATUS_INCIDENTE = { aberto: 'Aberto', avaliado: 'Avaliado', comunicado: 'Comunicado', encerrado: 'Encerrado' };
+// Registro completo do incidente (0098; listas aprovadas pelo dono em 04/11/2026). Os valores são os do servidor (src/schemas/nucleo.ts).
+const SEVERIDADES = { baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica' };
+const TIPOS_INCIDENTE = { acesso_indevido: 'Acesso indevido', vazamento: 'Vazamento ou exposição', perda: 'Perda ou extravio', indisponibilidade: 'Indisponibilidade',
+    alteracao_indevida: 'Alteração indevida', terceiro: 'Incidente em terceiro (fornecedor ou operador)', malware: 'Malware ou ransomware', engenharia_social: 'Engenharia social', outro: 'Outro' };
+const COMPROMETIMENTOS = { confidencialidade: 'Confidencialidade', integridade: 'Integridade', disponibilidade: 'Disponibilidade' };
+const CRITERIOS_RISCO = { sensiveis: 'Dados sensíveis', criancas_idosos: 'Crianças, adolescentes ou idosos', financeiros: 'Dados financeiros', autenticacao: 'Autenticação em sistemas',
+    sigilo: 'Sigilo legal, judicial ou profissional', larga_escala: 'Larga escala', nenhum: 'Não afeta nenhum dos critérios' };
 const UNIDADES = { horas: 'horas', dias_corridos: 'dias corridos', dias_uteis: 'dias úteis' };
 const ABAS = { pedidos: 'Pedidos do titular', incidentes: 'Incidentes', consentimentos: 'Consentimentos', prazos: 'Prazos legais' };
 const MENU_DA_ABA = { pedidos: 'nav-titular', incidentes: 'nav-incidentes-privacy', consentimentos: 'nav-consentimentos' };
@@ -88,7 +95,7 @@ async function renderTitular(c, h, a) {
         const chaves = aba === 'pedidos' ? ['titular.resposta'] : ['incidente.comunicacao_anpd', 'incidente.comunicacao_titular'];
         // Secundário: sem a lista de parâmetros, o aviso não aparece.
         const faltam = ((await ler(api('GET', '/api/v1/parametros-legais'))) || []).filter((p) => chaves.includes(p.chave) && !p.definido);
-        if (faltam.length) aviso = `<p id="titular-aviso-prazos" style="color:var(--warning); margin:0 0 1rem">Prazos legais não cadastrados: ${aba === 'pedidos' ? 'novos pedidos ficarão sem prazo' : 'novos incidentes ficarão sem prazo de comunicação'}. Fale com o administrador.
+        if (faltam.length) aviso = `<p id="titular-aviso-prazos" style="color:var(--warning-ink); margin:0 0 1rem">Prazos legais não cadastrados: ${aba === 'pedidos' ? 'novos pedidos ficarão sem prazo' : 'novos incidentes ficarão sem prazo de comunicação'}. Fale com o administrador.
             <button class="btn btn-ghost btn-sm" data-action="escolherAbaTitular" data-args='${args('prazos')}'>Ver prazos legais</button></p>`;
     }
 
@@ -408,7 +415,9 @@ window.abrirIncidente = async function (projectId, id) {
         <p style="white-space:pre-wrap">${escapeHTML(i.descricao || '')}</p>
         <p id="in-prazos">Ciência em ${dia(i.ciencia_em)}. ANPD: ${selo(i.situacao_anpd)} (${(i.prazo_anpd_em ? dia(i.prazo_anpd_em) : 'prazo não calculado')}) · Titular: ${selo(i.situacao_titular)} (${(i.prazo_titular_em ? dia(i.prazo_titular_em) : 'prazo não calculado')}).</p>
         <p id="in-status">Status: ${escapeHTML(STATUS_INCIDENTE[i.status] || i.status)} · Risco ao titular: ${escapeHTML(RISCOS[i.risco_titular] || 'não avaliado')}</p>
-        ${editar ? `<button class="btn btn-ghost btn-sm" data-action="editarIncidente" data-args='${args(projectId, id)}'>Corrigir dados do registro</button>` : ''}
+        ${blocoRegistroIncidente(i)}
+        ${editar ? `<button class="btn btn-ghost btn-sm" data-action="editarIncidente" data-args='${args(projectId, id)}'>Editar registro</button>` : ''}
+        <h4 class="mt-4 mb-2">Evidências</h4><div id="in-anexos"></div>
         ${editar ? `<h4 style="margin:1rem 0 0.5rem">Avaliar o risco</h4>
             <div class="form-group"><select class="form-input" id="in-risco" aria-label="Risco ao titular">${opcoes(RISCOS, i.risco_titular)}</select></div>
             <div class="form-group"><textarea class="form-input" id="in-aval" rows="2" maxlength="5000" placeholder="Justificativa">${escapeHTML(i.avaliacao_texto || '')}</textarea></div>
@@ -431,6 +440,7 @@ window.abrirIncidente = async function (projectId, id) {
             <div id="in-encerrar"></div>
             <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco, i.risco_titular || null)}'>Encerrar incidente</button>
         </div>` : ''}`, 'modal-large');
+    carregarAnexosIncidente(projectId, id, editar);
 };
 
 // Confirmação na própria janela (o app não usa confirm()). Sem a comunicação à ANPD (e com risco), a pergunta diz isso.
@@ -438,8 +448,8 @@ window.pedirEncerramentoIncidente = function (projectId, id, semPendenciaAnpd, r
     // O servidor recusa nesses dois casos: dizer o que falta, sem oferecer um "encerrar mesmo assim" que não funciona.
     const impede = !risco ? 'Avalie o risco ao titular antes de encerrar.'
         : risco === 'relevante' && !semPendenciaAnpd ? 'Com risco relevante, o incidente só encerra depois de registrada a comunicação à ANPD.' : null;
-    if (impede) { el('in-encerrar').innerHTML = `<p style="color:var(--warning)">${impede}</p>`; return; }
-    el('in-encerrar').innerHTML = `<p style="color:${semPendenciaAnpd ? 'var(--text)' : 'var(--warning)'}">${semPendenciaAnpd
+    if (impede) { el('in-encerrar').innerHTML = `<p style="color:var(--warning-ink)">${impede}</p>`; return; }
+    el('in-encerrar').innerHTML = `<p style="color:${semPendenciaAnpd ? 'var(--text)' : 'var(--warning-ink)'}">${semPendenciaAnpd
         ? 'Encerrar o incidente? Depois de encerrado, ele não recebe mais avaliação nem comunicação.'
         : 'A ANPD ainda não foi comunicada. Encerrar mesmo assim?'}</p>
         <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem">
@@ -469,22 +479,134 @@ window.registrarComunicacaoIncidente = async function (projectId, id, destino) {
     return acao(() => api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/comunicacoes`, { destino, em }), 'Não foi possível registrar a comunicação', 'Comunicação registrada.', reabrirIncidente(projectId, id));
 };
 
+const nomes = (mapa, l) => (lista(l).length ? lista(l).map((v) => escapeHTML(mapa[v] || v)).join(', ') : 'não informado');
+function blocoRegistroIncidente(i) {
+    const linha = (rotulo, valor) => `<li><strong>${rotulo}:</strong> ${valor}</li>`;
+    const dados = lista(i.dados);
+    return `<ul class="at-lista" id="in-registro">
+        ${linha('Origem do alerta', escapeHTML(i.origem_alerta || 'não informada'))}
+        ${linha('Severidade', escapeHTML(SEVERIDADES[i.severidade] || 'não informada'))}
+        ${linha('Tipo', escapeHTML(TIPOS_INCIDENTE[i.tipo] || 'não informado'))}
+        ${linha('Comprometimento', nomes(COMPROMETIMENTOS, i.comprometimento))}
+        ${linha('Ocorreu em', i.ocorrido_em ? dia(i.ocorrido_em) : 'não informado')} ${linha('Fim', i.fim_em ? dia(i.fim_em) : 'não informado')}
+        ${linha('Áreas afetadas', lista(i.areas).length ? lista(i.areas).map((a) => escapeHTML(a.nome)).join(', ') : 'nenhuma')}
+        ${linha('Titulares estimados', i.titulares_estimados == null ? 'não informado' : escapeHTML(String(i.titulares_estimados)))}
+        ${linha('Titulares e dados afetados', dados.length ? dados.map((x) => `${escapeHTML(x.titular)}: ${escapeHTML(x.dado)}${x.sensivel ? ' (sensível)' : ''}`).join('; ') : 'nenhum')}
+        ${linha('Critérios do risco', nomes(CRITERIOS_RISCO, i.criterios_risco))}
+    </ul>`;
+}
+
+// Evidências do incidente: a lista vem depois da janela abrir (uma chamada a mais não atrasa o resto).
+async function carregarAnexosIncidente(projectId, id, editar) {
+    const box = el('in-anexos');
+    if (!box) return;
+    let l = [];
+    try { l = lista((await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}/anexos`)).anexos); } catch (e) { box.innerHTML = '<p class="at-nota">Não foi possível carregar as evidências.</p>'; return; }
+    box.innerHTML = `${l.length ? `<ul class="at-lista">${l.map((a) => `<li><span>${escapeHTML(a.file_name)}</span>
+            <span class="d-flex gap-2"><button class="btn btn-ghost btn-sm" data-action="baixarAnexoIncidente" data-args='${args(projectId, id, a.id)}'>Baixar</button>
+            ${editar ? `<button class="btn btn-ghost btn-sm" data-action="removerAnexoIncidente" data-args='${args(projectId, id, a.id)}' aria-label="Remover ${escapeHTML(a.file_name)}">Remover</button>` : ''}</span></li>`).join('')}</ul>`
+        : '<p class="at-nota">Nenhuma evidência anexada.</p>'}
+        ${editar ? `<div class="form-group mt-2"><label class="form-label" for="in-anexo-arq">Anexar evidência (PDF ou DOC, até 5 MB)</label>
+            <input class="form-input" id="in-anexo-arq" type="file" accept=".pdf,.doc,.docx"></div>
+            <button class="btn btn-sm" data-action="anexarIncidente" data-args='${args(projectId, id)}'>Anexar</button>` : ''}`;
+}
+
+window.anexarIncidente = async function (projectId, id) {
+    const arq = el('in-anexo-arq')?.files?.[0];
+    if (!arq) { showToast('Escolha o arquivo.', 'error'); return; }
+    const fd = new FormData();
+    fd.append('file', arq);
+    try {
+        const r = await fetch(`${API_BASE}/api/v1/projects/${projectId}/incidentes/${id}/anexos`, { method: 'POST', headers: cabecalhosAuth(), body: fd });
+        const corpo = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(corpo.error || 'Não foi possível anexar o arquivo.');
+        showToast('Evidência anexada.', 'success');
+        await carregarAnexosIncidente(projectId, id, true);
+    } catch (e) { falha(e, 'Não foi possível anexar o arquivo'); }
+};
+window.baixarAnexoIncidente = (projectId, id, anexo) => baixarArquivo(`/api/v1/projects/${projectId}/incidentes/${id}/anexos/${anexo}`).catch((e) => falha(e, 'Não foi possível baixar o arquivo'));
+window.removerAnexoIncidente = async function (projectId, id, anexo) {
+    if (!(await confirmar('Remover esta evidência do incidente?', { rotulo: 'Remover', perigo: true }))) return;
+    try { await api('DELETE', `/api/v1/projects/${projectId}/incidentes/${id}/anexos/${anexo}`); await carregarAnexosIncidente(projectId, id, true); } catch (e) { falha(e, 'Não foi possível remover a evidência'); }
+};
+
+// Edição do registro: áreas, titulares e dados vêm do cadastro do projeto; sem o n.privacy (catálogo), os titulares × dados não aparecem.
+let edicao = null;
+const opcional = async (f) => { try { return lista(await f()); } catch (e) { return null; } };
+const caixas = (prefixo, mapa, marcados) => `<div class="d-flex gap-2 flex-wrap">${Object.entries(mapa).map(([v, r]) =>
+    `<label class="re-opcao"><input type="checkbox" name="${prefixo}" value="${escapeHTML(v)}" ${lista(marcados).includes(v) ? 'checked' : ''}><span class="re-opcao-texto">${escapeHTML(r)}</span></label>`).join('')}</div>`;
+const marcados = (nome) => [...document.querySelectorAll(`input[name="${nome}"]:checked`)].map((x) => x.value);
+function listaDados() {
+    const box = el('in-ed-dados-lista');
+    if (!box) return;
+    box.innerHTML = edicao.dados.length ? `<ul class="at-lista">${edicao.dados.map((x, n) => `<li><span>${escapeHTML(x.titular)}: ${escapeHTML(x.dado)}</span>
+        <button class="btn btn-ghost btn-sm" data-action="removerDadoIncidente" data-args='${args(n)}' aria-label="Remover ${escapeHTML(x.titular)}: ${escapeHTML(x.dado)}">Remover</button></li>`).join('')}</ul>`
+        : '<p class="at-nota">Nenhum titular e dado afetado registrado.</p>';
+}
+window.adicionarDadoIncidente = function () {
+    const t = el('in-ed-titular'), d = el('in-ed-dado');
+    if (!t.value || !d.value) { showToast('Escolha o titular e o dado.', 'error'); return; }
+    if (!edicao.dados.some((x) => x.titular_id === t.value && x.dado_id === d.value)) {
+        edicao.dados.push({ titular_id: t.value, titular: t.selectedOptions[0].textContent, dado_id: d.value, dado: d.selectedOptions[0].textContent });
+    }
+    listaDados();
+};
+window.removerDadoIncidente = function (n) { edicao.dados.splice(n, 1); listaDados(); };
+
 window.editarIncidente = async function (projectId, id) {
     let i;
     try { i = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}`); } catch (e) { falha(e, 'Não foi possível abrir o incidente'); return; }
-    openModal(`<h3>${escapeHTML(i.protocolo)}: corrigir dados do registro</h3>
+    const [areas, partes, titulares, dados] = await Promise.all([
+        opcional(() => api('GET', `/api/v1/projects/${projectId}/departamentos`)), opcional(() => api('GET', `/api/v1/projects/${projectId}/partes?status=ativa`)),
+        opcional(() => api('GET', `/api/v1/projects/${projectId}/catalogos/titulares`)), opcional(() => api('GET', `/api/v1/projects/${projectId}/catalogos/dados`)),
+    ]);
+    edicao = { dados: lista(i.dados).map((x) => ({ ...x })), comCatalogo: !!(titulares && dados), comAreas: !!areas };
+    const select = (idCampo, mapa, atual, vazio) => `<select class="form-input" id="${idCampo}"><option value="">${vazio}</option>${opcoes(mapa, atual)}</select>`;
+    const ativos = (l) => lista(l).filter((x) => (x.status || 'ativo') === 'ativo');
+    const pessoas = Object.fromEntries(lista(partes).filter((p) => p.tipo === 'pessoa').map((p) => [p.id, p.nome]));
+    const areasMarcadas = lista(i.areas).map((a) => a.id);
+    openModal(`<h3>${escapeHTML(i.protocolo)}: editar registro</h3>
         <p class="at-nota">A data da ciência não muda aqui: os prazos de comunicação contam dela.</p>
         <div class="form-group"><label class="form-label" for="in-ed-titulo">Título</label><input class="form-input" id="in-ed-titulo" maxlength="500" value="${escapeHTML(i.titulo)}"></div>
-        <div class="form-group"><label class="form-label" for="in-ed-desc">Descrição</label><textarea class="form-input" id="in-ed-desc" rows="4" maxlength="5000">${escapeHTML(i.descricao || '')}</textarea></div>
+        <div class="form-group"><label class="form-label" for="in-ed-desc">Descrição detalhada</label><textarea class="form-input" id="in-ed-desc" rows="4" maxlength="5000">${escapeHTML(i.descricao || '')}</textarea></div>
+        <div class="form-group"><label class="form-label" for="in-ed-origem">Origem do alerta</label><input class="form-input" id="in-ed-origem" maxlength="500" value="${escapeHTML(i.origem_alerta || '')}"></div>
+        <div class="form-group"><label class="form-label" for="in-ed-severidade">Severidade</label>${select('in-ed-severidade', SEVERIDADES, i.severidade, 'Não informada')}</div>
+        <div class="form-group"><label class="form-label" for="in-ed-tipo">Tipo de incidente</label>${select('in-ed-tipo', TIPOS_INCIDENTE, i.tipo, 'Não informado')}</div>
+        <fieldset class="at-grupo"><legend class="at-grupo-titulo">Comprometimento</legend>${caixas('in-ed-comp', COMPROMETIMENTOS, i.comprometimento)}</fieldset>
         <div class="form-group"><label class="form-label" for="in-ed-ocorrido">Ocorreu em (opcional)</label><input class="form-input" id="in-ed-ocorrido" type="date" max="${hojeSP()}" value="${escapeHTML(String(i.ocorrido_em || '').slice(0, 10))}"></div>
-        <div class="d-flex gap-2"><button class="btn btn-primary" data-action="salvarEdicaoIncidente" data-args='${args(projectId, id)}'>Salvar</button>
+        <div class="form-group"><label class="form-label" for="in-ed-fim">Fim (opcional)</label><input class="form-input" id="in-ed-fim" type="date" max="${hojeSP()}" value="${escapeHTML(String(i.fim_em || '').slice(0, 10))}"></div>
+        <div class="form-group"><label class="form-label" for="in-ed-resp">Responsável pelas tratativas</label>${select('in-ed-resp', pessoas, i.responsavel_parte_id, 'Não definido')}</div>
+        <fieldset class="at-grupo"><legend class="at-grupo-titulo">Áreas afetadas</legend>${areas ? (ativos(areas).length ? caixas('in-ed-area', Object.fromEntries(ativos(areas).map((a) => [a.id, a.nome])), areasMarcadas) : '<p class="at-nota">Nenhuma área cadastrada. Cadastre em Áreas.</p>') : '<p class="at-nota">Não foi possível carregar as áreas.</p>'}</fieldset>
+        <div class="form-group"><label class="form-label" for="in-ed-qtd">Quantidade estimada de titulares</label><input class="form-input" id="in-ed-qtd" type="number" min="0" value="${i.titulares_estimados ?? ''}"></div>
+        <fieldset class="at-grupo"><legend class="at-grupo-titulo">Titulares e dados afetados</legend>
+            ${edicao.comCatalogo ? `<div id="in-ed-dados-lista"></div><div class="at-linha-form">
+                <div class="form-group"><label class="form-label" for="in-ed-titular">Titular</label><select class="form-input" id="in-ed-titular">${opcoes(Object.fromEntries(ativos(titulares).map((t) => [t.id, t.nome])))}</select></div>
+                <div class="form-group"><label class="form-label" for="in-ed-dado">Dado</label><select class="form-input" id="in-ed-dado">${opcoes(Object.fromEntries(ativos(dados).map((d) => [d.id, d.nome])))}</select></div>
+                <button type="button" class="btn btn-sm" data-action="adicionarDadoIncidente">Adicionar</button></div>`
+                : '<p class="at-nota">Os titulares e dados vêm do catálogo do n.privacy (Titulares e dados pessoais).</p>'}
+        </fieldset>
+        <fieldset class="at-grupo"><legend class="at-grupo-titulo">Critérios do risco aos titulares</legend>${caixas('in-ed-crit', CRITERIOS_RISCO, i.criterios_risco)}</fieldset>
+        <div class="d-flex gap-2 mt-3"><button class="btn btn-primary" data-action="salvarEdicaoIncidente" data-args='${args(projectId, id)}'>Salvar</button>
         <button class="btn" data-action="abrirIncidente" data-args='${args(projectId, id)}'>Voltar sem salvar</button></div>`, 'modal-large');
+    listaDados();
 };
 
+// O campo de data mostra só o dia: sem mudança, não manda (a hora que a API gravou, por exemplo pelo agente, não se perde).
+const dataMudou = (idCampo) => { const c = el(idCampo); return c.value === c.defaultValue ? undefined : (c.value || null); };
 window.salvarEdicaoIncidente = function (projectId, id) {
     const titulo = valorOuNulo('in-ed-titulo');
     if (!titulo) { showToast('Informe o título.', 'error'); return; }
-    return acao(() => api('PUT', `/api/v1/projects/${projectId}/incidentes/${id}`, { titulo, descricao: valorOuNulo('in-ed-desc'), ocorrido_em: el('in-ed-ocorrido').value || null }),
+    const qtd = el('in-ed-qtd').value.trim();
+    const corpo = {
+        titulo, descricao: valorOuNulo('in-ed-desc'), origem_alerta: valorOuNulo('in-ed-origem'), severidade: el('in-ed-severidade').value || null,
+        tipo: el('in-ed-tipo').value || null, comprometimento: marcados('in-ed-comp'), ocorrido_em: dataMudou('in-ed-ocorrido'),
+        fim_em: dataMudou('in-ed-fim'), responsavel_parte_id: el('in-ed-resp').value || null, titulares_estimados: qtd === '' ? null : Number(qtd),
+        criterios_risco: marcados('in-ed-crit'),
+        // Sem a lista carregada (falha ou sem o n.privacy), o campo não vai: o servidor mantém o que já está gravado.
+        ...(edicao?.comAreas ? { areas: marcados('in-ed-area') } : {}),
+        ...(edicao?.comCatalogo ? { dados: edicao.dados.map((x) => ({ titular_id: x.titular_id, dado_id: x.dado_id })) } : {}),
+    };
+    return acao(() => api('PUT', `/api/v1/projects/${projectId}/incidentes/${id}`, corpo),
         'Não foi possível salvar o incidente', 'Incidente atualizado.', reabrirIncidente(projectId, id));
 };
 
@@ -494,7 +616,7 @@ window.rascunhoComunicacaoIncidente = async function (projectId, id, destino) {
     try { r = await api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/rascunho-comunicacao`, { destino }); } catch (e) { falha(e, 'Não foi possível gerar o rascunho'); return; }
     const itens = (l) => (lista(l).length ? lista(l).map((x) => escapeHTML(x)).join('; ') : 'nada');
     el('in-rascunho').innerHTML = `<p id="in-rascunho-tem">O incidente tem: ${itens(r.presentes)}.</p>
-        <p id="in-rascunho-falta" style="color:var(--warning)">Falta (complete antes de enviar): ${itens(r.faltando)}.</p>
+        <p id="in-rascunho-falta" style="color:var(--warning-ink)">Falta (complete antes de enviar): ${itens(r.faltando)}.</p>
         ${caixaRascunho('in-rascunho-texto', r.texto)}`;
 };
 
