@@ -98,8 +98,9 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
   const plano: Plano = { ativos: [], macs: [], fluxos: [], pendentes: [], contagem: { ativos_novos: 0, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0 } };
   const conexoes = resumo.conexoes.map((c) => ({ ...c, origem: normalizarIp(c.origem)!, destino: normalizarIp(c.destino)! }))
     .filter((c) => ehHost(c.origem) && ehHost(c.destino));
-  // ativo novo só para IP que originou conexão ou tem MAC: broadcast de sub-rede só aparece como destino
-  const origens = new Set(conexoes.map((c) => c.origem));
+  // ativo novo só para IP que originou conexão, tem MAC, ou foi destino de TCP/aplicação identificada (outstation só responde; sem MAC no Zeek).
+  // Broadcast de sub-rede só recebe UDP sem aplicação, então fica de fora.
+  const vivos = new Set(conexoes.flatMap((c) => [c.origem, ...(c.transporte === 'tcp' || c.aplicacao ? [c.destino] : [])]));
   const ipsVistos = new Set<string>();
   for (const a of resumo.ativos) {
     const x = normalizarIp(a.ip)!;
@@ -113,7 +114,7 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
       if (mac && !existente.mac_hash) plano.macs.push({ ip: x, mac, nome: existente.nome });
       continue;
     }
-    if (!mac && !origens.has(x)) continue;
+    if (!mac && !vivos.has(x)) continue;
     const [p] = a.protocolos;
     // até 100 portas (teto de protocolos_portas do ativo); o script ordena as portas, então ficam as menores
     const pp = !p ? undefined : a.portas_servico.length ? a.portas_servico.slice(0, 100).map((porta) => ({ protocolo: p, porta })) : [{ protocolo: p }];

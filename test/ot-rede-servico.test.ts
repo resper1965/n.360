@@ -78,13 +78,19 @@ describe('planejarResumo', () => {
     const p = await planejarResumo(env.DB, chaves, PJ, site, resumo(
       [at('10.1.1.60'), at('10.1.1.255'), at('10.1.1.61'), at('224.0.0.251'), at('0.0.0.0', { mac: '00:30:a7:00:00:60' }), at('ff02::fb'), at('127.0.0.1'),
         at('169.254.7.7', { mac: '00:30:a7:00:00:77' })], // APIPA é interna
-      [cx('10.1.1.60', '10.1.1.255', 47808, 'bacnet', 'udp'), // broadcast da sub-rede: só como destino, não vira ativo
+      [cx('10.1.1.60', '10.1.1.255', 47808, null, 'udp'), // broadcast da sub-rede: só como destino, não vira ativo
         cx('10.1.1.61', '224.0.0.251', 5353, 'dns', 'udp'), cx('10.1.1.20', '239.255.255.250', 1900, null, 'udp'),
         cx('0.0.0.0', '255.255.255.255', 67, null, 'udp'), cx('10.1.1.20', '255.255.255.255', 47808, 'bacnet', 'udp'),
         cx('fe80::1', 'ff02::fb', 5353, 'dns', 'udp'), cx('::', 'fe80::2', 547, null, 'udp'), cx('10.1.1.20', '127.0.0.1', 80, 'http')]));
     expect(p.ativos.map((a) => a.ip)).toEqual(['10.1.1.60', '169.254.7.7']);
     expect(p.fluxos).toEqual([]);
     expect(p.pendentes.map((x) => [x.origem_ip_hash, x.destino_ip_hash])).toEqual([[await hmacOt(chaves, PJ, '10.1.1.60'), await hmacOt(chaves, PJ, '10.1.1.255')]]);
+  });
+
+  it('outstation que só responde (TCP 502, sem MAC) vira ativo novo; broadcast que só recebe UDP sem aplicação não', async () => {
+    const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.70'), at('10.1.1.255')],
+      [cx('10.1.1.20', '10.1.1.70', 502, null), cx('10.1.1.20', '10.1.1.255', 137, null, 'udp')]));
+    expect(p.ativos.map((a) => a.ip)).toEqual(['10.1.1.70']);
   });
 
   it('pendente com lado externo: hash nulo desse lado, nunca o HMAC do IP externo', async () => {

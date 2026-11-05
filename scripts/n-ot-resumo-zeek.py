@@ -22,9 +22,10 @@ def iso(ts):
 def arquivos(pasta, nome):
     """nome*.log e nome*.log.gz em qualquer subpasta (rotacao do zeekctl/Malcolm: 2026-11-01/conn.10:00:00-11:00:00.log.gz)."""
     achados = []
-    for raiz, _, nomes in os.walk(pasta):
+    for raiz, _, nomes in os.walk(pasta, followlinks=True):  # logs/current do zeekctl e symlink
         achados += [os.path.join(raiz, n) for n in nomes
-                    if fnmatch.fnmatchcase(n, nome + "*.log") or fnmatch.fnmatchcase(n, nome + "*.log.gz")]
+                    if not (nome == "conn" and n.startswith("conn_long"))  # conexoes longas repetem as de conn.log
+                    and fnmatch.fnmatchcase(n, nome + "*.log") or fnmatch.fnmatchcase(n, nome + "*.log.gz")]
     return sorted(achados)
 
 

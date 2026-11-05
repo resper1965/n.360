@@ -12,7 +12,10 @@ Instale o Zeek (ou o Malcolm, que já traz o Zeek) numa máquina própria para o
 
 ```
 @load policy/tuning/json-logs.zeek
+@load policy/protocols/conn/mac-logging
 ```
+
+O `mac-logging` faz o MAC aparecer no `conn.log`; sem ele, equipamentos que só respondem (CLPs e UTRs consultados) chegam sem MAC.
 
 ## Ligar na porta espelhada
 

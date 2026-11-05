@@ -162,6 +162,16 @@ class T(unittest.TestCase):
             "porta": 20000, "aplicacao": "dnp3", "contagem": 1, "primeira_vez": "2026-11-01T00:00:30Z", "ultima_vez": "2026-11-01T00:00:30Z"})
         self.assertEqual(len(r["conexoes"]), 4)
 
+    def test_conn_long_fora_e_symlink_seguido(self):
+        d = self._pasta([self._c()])
+        with open(os.path.join(d, "conn_long.log"), "w") as f:
+            f.write(json.dumps(self._c(**{"id.resp_p": 8080})) + "\n")
+        self.assertEqual([c["porta"] for c in resumo.resumir(d)["conexoes"]], [80])
+        raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, raiz)
+        os.symlink(d, os.path.join(raiz, "current"))
+        self.assertEqual(len(resumo.resumir(raiz)["conexoes"]), 1)
+
     def test_zeek_versao(self):
         ok = resumo.resumir(self._pasta([self._c()], software=[{"name": "Zeek", "unparsed_version": "6.0.4"}]))
         self.assertEqual(ok["zeek_versao"], "6.0.4")
