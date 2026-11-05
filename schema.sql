@@ -2241,6 +2241,7 @@ CREATE TABLE IF NOT EXISTS ot_sites (
     status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'removido')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    faixas_internas TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(faixas_internas) AND json_type(faixas_internas) = 'array'),
     UNIQUE (id, project_id)
 );
 CREATE INDEX IF NOT EXISTS idx_ot_sites_projeto ON ot_sites(project_id);
@@ -2476,6 +2477,22 @@ CREATE TABLE IF NOT EXISTS ot_perfis_depara (
     UNIQUE (project_id, assinatura)
 );
 CREATE INDEX IF NOT EXISTS idx_ot_perfis_depara_projeto ON ot_perfis_depara(project_id);
+
+-- ─── n.ot: sensor de rede (migration 0097_ot_sensor_rede) ───
+-- Hash nulo = lado externo (nunca o HMAC de IP externo); ao menos um lado é interno.
+CREATE TABLE IF NOT EXISTS ot_fluxos_pendentes (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    levantamento_id TEXT NOT NULL,
+    origem_ip_hash TEXT,
+    destino_ip_hash TEXT,
+    dados TEXT NOT NULL CHECK (json_valid(dados) AND json_type(dados) = 'object'),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (origem_ip_hash IS NOT NULL OR destino_ip_hash IS NOT NULL),
+    FOREIGN KEY (levantamento_id, project_id) REFERENCES ot_levantamentos(id, project_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_origem ON ot_fluxos_pendentes(project_id, origem_ip_hash);
+CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_destino ON ot_fluxos_pendentes(project_id, destino_ip_hash);
 
 -- ─── Órgãos públicos destinatários da atividade (0097) ───
 CREATE TABLE IF NOT EXISTS tratamento_orgaos_publicos (

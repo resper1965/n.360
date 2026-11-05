@@ -1,0 +1,8 @@
+{"ts": 1793491200, "uid": "C1", "id.orig_h": "10.1.1.20", "id.orig_p": 50000, "id.resp_h": "10.1.1.10", "id.resp_p": 502, "proto": "tcp", "resp_l2_addr": "00:30:a7:01:02:03"}
+{"ts": 1793491260, "uid": "C1", "id.orig_h": "10.1.1.20", "id.orig_p": 50000, "id.resp_h": "10.1.1.10", "id.resp_p": 502, "proto": "tcp"}
+{"ts": 1793491320, "uid": "C1", "id.orig_h": "10.1.1.20", "id.orig_p": 50000, "id.resp_h": "10.1.1.10", "id.resp_p": 502, "proto": "tcp"}
+{"ts": 1793491230, "uid": "C1", "id.orig_h": "10.1.1.20", "id.orig_p": 50000, "id.resp_h": "10.1.1.11", "id.resp_p": 20000, "proto": "tcp", "service": "dnp3"}
+{"ts": 1793491240, "uid": "C1", "id.orig_h": "10.1.1.20", "id.orig_p": 50000, "id.resp_h": "10.1.1.30", "id.resp_p": 443, "proto": "tcp", "service": "ssl,http"}
+{"ts": 1793491250, "uid": "C1", "id.orig_h": "10.1.1.20", "id.orig_p": 50000, "id.resp_h": "10.1.1.31", "id.resp_p": 9999, "proto": "tcp", "service": "foo"}
+{"ts": 1793491290, "uid": "C2", "id.orig_h": "10.1.1.20", "id.orig_p": 5353, "id.resp_h": "224.0.0.251", "id.resp_p": 5353, "proto": "udp", "service": "dns"}
+{"ts": 1793491290, "uid": "C3", "id.orig_h": "0.0.0.0", "id.orig_p": 68, "id.resp_h": "255.255.255.255", "id.resp_p": 67, "proto": "udp"}

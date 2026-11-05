@@ -4,13 +4,15 @@ import type { Bindings, Variables } from '../index';
 import { erro500, genId, logAudit } from '../helpers';
 import { livreSemPii, TETO_ACHADOS_SESSAO } from '../schemas/ot';
 import { chavesOt } from '../services/ot-cifra';
-import { sitesPermitidos, TETO_LEITURA_OT } from '../services/ot-inventario';
+import { podeVerCompleto, sitesPermitidos, TETO_LEITURA_OT } from '../services/ot-inventario';
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
 import { prepararAchado, zonasDoSite } from '../services/ot-levantamento';
 import { achadosDoTexto, aplicarMapeamento, assinaturaDoCabecalho, CAMPOS_DEPARA, gravarAchados, INSERIR_ACHADO, proporMapeamento, tetoDepara, TETO_DEPARA, type Mapeamento } from '../services/ot-depara';
 import { lerLevantamento } from './ot';
 import { dividirEmTrechos, lerDocumento, LIMITES_TEXTO } from '../services/ot-documento';
 import { RecusaIa } from '../services/ot-ia';
+import { EVIDENCIA_SENSOR, planejarResumo, resumoRedeSchema } from '../services/ot-rede';
+import { pontasDoSite } from '../services/ot-fluxo-achado';
 
 /**
  * De-para de planilha do n.ot (L4). Montado no mesmo prefixo, LOGO DEPOIS do `otApp` (src/index.ts): herda a recusa de chave de API e
@@ -169,6 +171,77 @@ otDeparaApp.post('/levantamentos/:id/depara/texto', async (c) => {
       { tipo: 'ot_levantamento', id: lev.id });
     return c.json({ criados, com_aviso: comAviso, descartados, trechos_pulados: r.trechos_pulados }, 201);
   } catch (e) { return erro500(c, 'Falha ao ler o documento', e); }
+});
+
+const TETO_PENDENTES_SESSAO = 2000;
+/** Resumo do sensor de rede (n.ot L3): validação estrita, achados de ativo e fluxo na sessão, pendências só com hash. Sem IA, sem R2. */
+otDeparaApp.post('/levantamentos/:id/depara/rede', async (c) => {
+  try {
+    // A1: novo/conhecido, a contagem e o nome do ativo no achado de MAC diriam a quem vê mascarado que o IP existe no inventário.
+    if (!await podeVerCompleto(c.env.DB, c.get('user'), c.req.param('projectId')!)) {
+      return c.json({ error: 'Importar o resumo de rede exige ver o inventário completo (Gestor ARCiber ou consultoria designada)' }, 403);
+    }
+    const s = await sessaoEArquivo(c, 'documento');
+    if (s instanceof Response) return s;
+    const { db, user, projectId, lev, file } = s;
+    let bruto: unknown;
+    try { bruto = JSON.parse(await file.text()); } catch { return c.json({ error: 'Resumo de rede inválido: JSON malformado' }, 400); }
+    const v = resumoRedeSchema.safeParse(bruto);
+    if (!v.success) {
+      const i = v.error.issues[0]; // caminho e mensagem do Zod, nunca o valor recebido
+      return c.json({ error: `Resumo de rede inválido: ${i.path.length ? `${i.path.join('.')}: ` : ''}${i.message}` }, 400);
+    }
+    const resumo = v.data;
+    const site = await db.prepare('SELECT faixas_internas FROM ot_sites WHERE id = ? AND project_id = ?').bind(lev.site_id, projectId).first<{ faixas_internas: string }>();
+    const chaves = chavesOt(c.env)!;
+    const plano = await planejarResumo(db, chaves, projectId, { id: lev.site_id, faixas: JSON.parse(site?.faixas_internas ?? '[]') as string[] }, resumo);
+
+    // Sem período no resumo: as datas das conexões; sem conexões, a data em que foi gerado.
+    const datas = resumo.conexoes.flatMap((x) => [x.primeira_vez, x.ultima_vez]).sort();
+    const evidencia = EVIDENCIA_SENSOR(resumo.conexoes.reduce((n, x) => n + x.contagem, 0),
+      resumo.periodo?.inicio ?? datas[0] ?? resumo.gerado_em, resumo.periodo?.fim ?? datas.at(-1) ?? resumo.gerado_em);
+
+    // Teto lido uma vez: só as vagas livres são cifradas (ativos novos, depois MACs, depois fluxos); a guarda do INSERT segura a corrida.
+    const [n, np] = await Promise.all([
+      db.prepare('SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?').bind(lev.id).first<{ n: number }>(),
+      db.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev.id).first<{ n: number }>(),
+    ]);
+    const planejados = [...plano.ativos.map((d) => ['novo', d] as const), ...plano.macs.map((d) => ['mac', d] as const), ...plano.fluxos.map((d) => ['fluxo', d] as const)];
+    const itens = planejados.slice(0, Math.max(0, TETO_ACHADOS_SESSAO - (n?.n ?? 0)));
+    const pendentes = plano.pendentes.slice(0, Math.max(0, TETO_PENDENTES_SESSAO - (np?.n ?? 0)));
+
+    const [zonas, pontas] = await Promise.all([zonasDoSite(db, projectId, lev.site_id), pontasDoSite(db, projectId, lev.site_id)]);
+    const stmts: D1PreparedStatement[] = [];
+    for (const [tipo, dados] of itens) {
+      const entidade = tipo === 'fluxo' ? 'fluxo' : 'ativo';
+      const id = genId(); // o mesmo id na AAD da cifra e na linha
+      const p = await prepararAchado(chaves, projectId, lev.site_id, id, dados, zonas, entidade, pontas);
+      stmts.push(db.prepare(INSERIR_ACHADO('consultor', entidade)).bind(id, projectId, lev.id, JSON.stringify(p.dados), JSON.stringify(p.erros), evidencia, user.id, lev.id));
+    }
+    // Pendências primeiro: se os achados falharem, as desta requisição saem antes do erro (um novo envio não as duplica).
+    const idsPend = pendentes.map(() => genId());
+    const pend = pendentes.map((p, i) => db.prepare(`INSERT INTO ot_fluxos_pendentes (id, project_id, levantamento_id, origem_ip_hash, destino_ip_hash, dados)
+      VALUES (?, ?, ?, ?, ?, ?)`).bind(idsPend[i], projectId, lev.id, p.origem_ip_hash, p.destino_ip_hash, JSON.stringify({ ...p.dados, evidencia })));
+    let criados: number;
+    try {
+      for (let i = 0; i < pend.length; i += 50) await db.batch(pend.slice(i, i + 50));
+      criados = await gravarAchados(db, stmts);
+    } catch (e) {
+      await db.prepare('DELETE FROM ot_fluxos_pendentes WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(idsPend)).run()
+        .catch((x) => console.error('ot.depara.rede: falha ao limpar pendências', x));
+      throw e;
+    }
+
+    // A guarda só recusa depois que a sessão enche, e ela não esvazia no meio: os gravados são os primeiros `criados` itens.
+    const gravados = itens.slice(0, criados);
+    const conta = (t: string) => gravados.filter(([x]) => x === t).length;
+    const k = { ativos_novos: conta('novo'), ativos_conhecidos: plano.contagem.ativos_conhecidos, macs_completados: conta('mac'), fluxos_criados: conta('fluxo'),
+      fluxos_pendentes: pendentes.length, nao_importados: planejados.length - criados, pendentes_nao_importados: plano.pendentes.length - pendentes.length };
+    await trilha(c, 'ot.depara.rede', projectId, `Resumo de rede no levantamento ${lev.id}: ${k.ativos_novos} ativos novos, ${k.ativos_conhecidos} conhecidos, `
+      + `${k.macs_completados} MACs, ${k.fluxos_criados} fluxos, ${k.fluxos_pendentes} pendentes, ${k.nao_importados} não importados, `
+      + `${k.pendentes_nao_importados} pendentes não importados`, { tipo: 'ot_levantamento', id: lev.id });
+    return c.json(k, 201);
+  } catch (e) { return erro500(c, 'Falha ao importar o resumo de rede', e); }
 });
 
 otDeparaApp.get('/depara/perfis', async (c) => {

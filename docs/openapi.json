@@ -20791,6 +20791,13 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "faixas_internas": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 },
                 "additionalProperties": false
@@ -20936,6 +20943,13 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "faixas_internas": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 },
                 "required": [

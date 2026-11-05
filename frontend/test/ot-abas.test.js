@@ -86,6 +86,27 @@ describe('inventário', () => {
         expect(texto()).toContain('Supervisão');
     });
 
+    it('site: faixas internas vão como array (uma por linha, vazias fora); editar mostra as gravadas; erro do servidor aparece', async () => {
+        servirOt({ ...INVENTARIO, [`POST ${B}/sites`]: { id: 's2' }, [`PUT ${B}/sites/s1`]: { ok: true } });
+        await abrir('inventario');
+        window.otNovoSite();
+        el('ot-s-nome').value = 'SE Leste';
+        el('ot-s-faixas').value = ' 200.10.0.0/24 \n\n2001:db8::/32\n';
+        await window.otSalvarSite('');
+        expect(JSON.parse(chamadas.find((x) => x.k === `POST ${B}/sites`).opts.body).faixas_internas).toEqual(['200.10.0.0/24', '2001:db8::/32']);
+        {
+            servirOt({ [`GET ${B}/sites`]: { sites: [{ ...SITE, faixas_internas: ['200.10.0.0/24', '200.11.0.0/24'] }] }, [`GET ${B}/zonas`]: { zonas: ZONAS }, [`GET ${B}/ativos`]: { ativos: ATIVOS } },
+                { [`PUT ${B}/sites/s1`]: [400, { error: 'Faixa inválida: use CIDR, como 200.10.0.0/24' }] });
+            await abrir('inventario');
+            window.otEditarSite('s1');
+            expect(el('ot-s-faixas').value).toBe('200.10.0.0/24\n200.11.0.0/24');
+            el('ot-s-faixas').value = 'x';
+            await window.otSalvarSite('s1');
+            expect(JSON.parse(chamadas.find((x) => x.k === `PUT ${B}/sites/s1`).opts.body).faixas_internas).toEqual(['x']);
+            expect(document.body.textContent).toContain('Faixa inválida: use CIDR, como 200.10.0.0/24');
+        }
+    });
+
     it('filtro por site vai à API (?site_id=); filtro por zona recorta a lista carregada', async () => {
         servirOt(INVENTARIO);
         S.otSite = 's1';
@@ -458,6 +479,22 @@ describe('coleta', () => {
         servirOt(COLETA);
         await abrir('coleta');
         expect(acoes(el('a'))).toEqual(expect.arrayContaining(['otAprovarLote', 'otRejeitarLote']));
+    });
+
+    it('aprovação conta os fluxos do sensor de rede que viraram achados, só quando há', async () => {
+        for (const [n, esperado] of [[2, '2 fluxo(s) do sensor de rede viraram achados no levantamento de origem.'], [0, null]]) {
+            servirOt({ ...COLETA, [`POST ${B}/lotes/l1/aprovar`]: { ok: true, criados: 1, atualizados: 0, recusados: 1, pendentes: 0, fluxos_pendentes_resolvidos: n } });
+            document.querySelectorAll('.toast').forEach((t) => t.remove());
+            S.otLote = 'l1';
+            await abrir('coleta');
+            const p = window.otAprovarLote('l1');
+            await pausa();
+            document.querySelector('[data-confirmar="sim"]').click();
+            await p;
+            if (esperado) expect(document.body.textContent).toContain(esperado);
+            else expect(document.body.textContent).not.toContain('sensor de rede');
+            expect(document.body.textContent).toContain('Lote aprovado: 1 criado(s)');
+        }
     });
 
     it('403 na aprovação aparece claro, como falta de permissão', async () => {

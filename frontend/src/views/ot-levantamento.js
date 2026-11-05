@@ -1,7 +1,7 @@
 import { S } from '../state.js';
 import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
-import { podeEditarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir } from '../ot-comum.js';
+import { podeEditarOt, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
 
 // Levantamento do n.ot (L1, descoberta operacional): sessões de entrevista, visita de campo e documento, com o roteiro guiado e os
@@ -16,6 +16,8 @@ const TIPO = { entrevista: 'Entrevista', visita: 'Visita de campo', documento: '
 const RESPOSTA = { sim: 'Sim', nao: 'Não', nao_perguntado: 'Não perguntado' };
 const ACHADO = { rascunho: ['neutral', 'Rascunho'], enviado: ['info', 'Enviado ao lote'], descartado: ['warning', 'Descartado'] };
 const SELO_ORIGEM = { ia: 'Sugerido pela IA', agente: 'Enviado pelo agente' };
+// O sensor de rede grava origem 'consultor'; a fonte fica na evidência (EVIDENCIA_SENSOR, src/services/ot-rede.ts).
+const seloDoAchado = (x) => SELO_ORIGEM[x.origem] || (String(x.evidencia || '').startsWith('Sensor de rede (Zeek): ') ? 'Sensor de rede' : '');
 const selo = (mapa, v) => renderStatusBadge(...(mapa[v] || ['neutral', v || '—']));
 const situacao = (l) => (l.situacao === 'encerrado' ? renderStatusBadge('neutral', 'Encerrado') : renderStatusBadge('info', 'Aberto'));
 const quem = (l) => (l.tipo === 'documento' ? escapeHTML(l.documento_titulo || '—')
@@ -112,7 +114,7 @@ async function montarSessao(c, a, p, id) {
             const nome = nomeDoAchado(x.id, 'achado');
             const rasc = x.situacao === 'rascunho';
             return [...(editar ? [rasc ? `<input type="checkbox" id="ach-sel-${escapeHTML(x.id)}" data-action-change="otMarcarAchado" aria-label="${escapeHTML(`Enviar ${nome} ao lote`)}">` : '—'] : []),
-                fluxo ? 'Fluxo' : 'Ativo', escapeHTML(nome) + (SELO_ORIGEM[x.origem] ? ` <span class="badge selo-info">${SELO_ORIGEM[x.origem]}</span>` : ''), `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
+                fluxo ? 'Fluxo' : 'Ativo', escapeHTML(nome) + (seloDoAchado(x) ? ` <span class="badge selo-info">${seloDoAchado(x)}</span>` : ''), `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.ip ?? '—')}</span>`, `<span class="f-mono">${escapeHTML(fluxo ? '—' : d.mac ?? '—')}</span>`, escapeHTML(x.evidencia || '—'),
                 ...(comConfronto ? [confronto(x)] : []), listaDeErros(x.erros), selo(ACHADO, x.situacao),
                 ...(editar ? [rasc ? `<button class="btn btn-sm" data-action="otDescartarAchado" data-args='${args(x.id)}' aria-label="${escapeHTML(`Descartar ${nome}`)}">Descartar</button>` : '—'] : [])];
         }), { emptyMessage: 'Nenhum achado registrado.', emptyHint: editar && aberto ? 'Registre cada equipamento ou acesso visto ou relatado nesta sessão.' : '' });
@@ -396,12 +398,16 @@ async function enviarArquivo(enviar) {
     return corpo;
 }
 
+// O resumo de rede só vai a quem vê o inventário completo (a rota recusa os demais com 403); podeAprovar = podeVerCompleto no servidor.
+const ofereceRede = () => podeAprovarOt();
+
 window.otImportarArquivo = () => {
     importacao = null;
+    const rede = ofereceRede();
     openModal(`<div class="modal-header"><span class="modal-title">Importar arquivo</span></div>
         <p class="org-dica mb-3">O arquivo é lido e descartado; não fica guardado. IP, MAC e dados pessoais são mascarados antes da IA.</p>
-        <div class="form-group"><label class="form-label" for="lev-imp-arquivo">Planilha (CSV ou XLSX) ou documento (TXT ou DOCX)</label>
-        <input class="form-input" type="file" id="lev-imp-arquivo" accept=".csv,.xlsx,.txt,.docx"></div>
+        <div class="form-group"><label class="form-label" for="lev-imp-arquivo">${rede ? 'Planilha (CSV ou XLSX), documento (TXT ou DOCX) ou resumo de rede (JSON)' : 'Planilha (CSV ou XLSX) ou documento (TXT ou DOCX)'}</label>
+        <input class="form-input" type="file" id="lev-imp-arquivo" accept=".csv,.xlsx,.txt,.docx${rede ? ',.json' : ''}"></div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otLerArquivo">Continuar</button></div>`);
     soltarAoFechar();
 };
@@ -425,6 +431,7 @@ async function lerArquivo() {
         } catch (e) { falhou(e, 'Não foi possível ler o documento.'); }
         return;
     }
+    if (ext === 'json' && ofereceRede()) return lerResumoRede(file);
     if (ext !== 'csv' && ext !== 'xlsx') return showToast('Use CSV, XLSX, TXT ou DOCX.', 'error');
     let p;
     const aberto = fechamentos;
@@ -475,4 +482,42 @@ async function aplicarDepara() {
         showToast(`${conta(r.criados, 'achado criado', 'achados criados')} (${r.com_aviso} com aviso).`, 'success');
         await redesenhar();
     } catch (e) { falhou(e, 'Não foi possível criar os achados.'); }
+}
+
+// ─── resumo do sensor de rede (L3): a tela só confere o formato e conta; quem valida, cifra e cruza com o inventário é o servidor ─────
+async function lerResumoRede(file) {
+    // mesmo teto do servidor (sessaoEArquivo): não lê para a memória um arquivo que seria recusado
+    if (file.size > 5 * 1024 * 1024) return showToast('Resumo acima de 5 MB: gere de novo com o script atual, que corta as conexões menos frequentes', 'error');
+    const aberto = fechamentos;
+    let j = null;
+    try { j = JSON.parse(await file.text()); } catch { /* cai na recusa abaixo */ }
+    if (aberto !== fechamentos) return;
+    if (j?.formato !== 'n.ot-resumo-rede/1' || !Array.isArray(j.ativos) || !Array.isArray(j.conexoes)) return showToast('Arquivo não é um resumo de rede do n.ot', 'error');
+    importacao = { file };
+    const periodo = j.periodo ? `Período: ${formatarData(j.periodo.inicio, { hora: true })} a ${formatarData(j.periodo.fim, { hora: true })}.` : 'Sem período no resumo.';
+    openModal(`<div class="modal-header"><span class="modal-title">Importar resumo de rede</span></div>
+        <p class="org-dica mb-3">IP e MAC entram cifrados; o arquivo não fica guardado.</p>
+        <p class="mb-2">${escapeHTML(periodo)}</p>
+        <p class="mb-3">${escapeHTML(`${conta(j.ativos.length, 'ativo', 'ativos')} e ${conta(j.conexoes.length, 'conexão', 'conexões')} no resumo.`)}</p>
+        <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otImportarRede">Criar achados</button></div>`);
+}
+
+window.otImportarRede = () => semRepetir('otImportarRede', importarRede);
+async function importarRede() {
+    if (!importacao?.file) return;
+    const fd = new FormData();
+    fd.append('file', importacao.file);
+    try {
+        const r = await enviarArquivo(() => fetch(`${API_BASE}/api/v1/projects/${S.activeProject.id}/ot/levantamentos/${encodeURIComponent(atual.id)}/depara/rede`,
+            { method: 'POST', headers: cabecalhosAuth(), body: fd, signal: AbortSignal.timeout(120000) }));
+        importacao = null;
+        forceCloseModal();
+        const fora = (r.nao_importados || 0) + (r.pendentes_nao_importados || 0);
+        showToast(`Achados criados: ${conta(r.ativos_novos, 'ativo novo', 'ativos novos')}, ${conta(r.macs_completados, 'MAC completado', 'MACs completados')}, `
+            + `${conta(r.fluxos_criados, 'fluxo criado', 'fluxos criados')}.`
+            + (r.ativos_conhecidos > 0 ? ` ${conta(r.ativos_conhecidos, 'ativo já estava', 'ativos já estavam')} no inventário.` : '')
+            + (r.fluxos_pendentes > 0 ? ` ${conta(r.fluxos_pendentes, 'fluxo espera', 'fluxos esperam')} a aprovação dos ativos novos.` : '')
+            + (fora > 0 ? ` ${conta(fora, 'item ficou', 'itens ficaram')} de fora pelo limite da sessão.` : ''), 'success');
+        await redesenhar();
+    } catch (e) { falhou(e, 'Não foi possível importar o resumo de rede.'); }
 }

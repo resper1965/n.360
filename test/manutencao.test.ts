@@ -177,6 +177,20 @@ describe('manutenção diária', () => {
         env.DB.prepare(`DELETE FROM audit_logs WHERE action = 'acao.antiga'`).run()
       ).rejects.toThrow(/append-only/);
     });
+    it('pendência de fluxo do sensor sem resolução sai em 90 dias; a de 89 fica', async () => {
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO projects (id, client_name, standards, org_role, status) VALUES ('p-pend','C','ISO 27001','controller','Active')`),
+        env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('s-pend', 'p-pend', 'S')`),
+        env.DB.prepare(`INSERT INTO ot_levantamentos (id, project_id, site_id, tipo, realizado_em, documento_titulo, criado_por) VALUES ('l-pend', 'p-pend', 's-pend', 'documento', '2026-11-04', 'D', 'u')`),
+        env.DB.prepare(`INSERT INTO ot_fluxos_pendentes (id, project_id, levantamento_id, origem_ip_hash, dados, created_at) VALUES
+          ('pend-91', 'p-pend', 'l-pend', 'h', '{}', datetime('now', '-91 days')), ('pend-89', 'p-pend', 'l-pend', 'h', '{}', datetime('now', '-89 days'))`),
+      ]);
+      const r = await manutencaoDiaria(env as any);
+      expect(r.falhas).toEqual([]);
+      expect(r.retencao.ot_fluxos_pendentes).toBe(1);
+      const { results } = await env.DB.prepare('SELECT id FROM ot_fluxos_pendentes LIMIT 10').all<{ id: string }>();
+      expect(results.map((x) => x.id)).toEqual(['pend-89']);
+    });
   });
 
   describe('catálogo de requisitos', () => {
