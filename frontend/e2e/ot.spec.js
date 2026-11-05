@@ -227,7 +227,7 @@ test('levantamento documento: importa CSV pelo de-para e os achados aparecem', a
 
   await page.getByRole('button', { name: 'Importar arquivo' }).click();
   await expect(page.locator('#modal')).toContainText('O arquivo é lido e descartado; não fica guardado.');
-  await page.getByLabel('Planilha (CSV ou XLSX) ou documento (TXT ou DOCX)').setInputFiles({ name: 'inventario.csv', mimeType: 'text/csv',
+  await page.getByLabel('Planilha (CSV ou XLSX), documento (TXT ou DOCX) ou resumo de rede (JSON)').setInputFiles({ name: 'inventario.csv', mimeType: 'text/csv',
     buffer: Buffer.from('Hostname,Endereço IP,Observação\nRTU-10,10.0.0.10,x\nIHM-02,10.0.0.11,y\n') });
   await page.locator('#modal').getByRole('button', { name: 'Continuar' }).click();
   await expect(page.locator('#modal')).toContainText('Pelo nome da coluna');
@@ -241,6 +241,51 @@ test('levantamento documento: importa CSV pelo de-para e os achados aparecem', a
   expect(enviados).toHaveLength(2);
   for (const corpo of enviados) expect(corpo).toContain('RTU-10,10.0.0.10');
   expect(enviados[1]).toContain('{"0":"nome","1":"ip"}');
+});
+
+// L3 (sensor de rede, src/routes/ot-depara.ts POST …/depara/rede): o .json do resumo é conferido na tela, vai inteiro à API e os achados
+// voltam com o selo "Sensor de rede" (pela evidência). API mockada.
+test('levantamento documento: importa o resumo do sensor de rede e os achados aparecem com o selo', async ({ page }) => {
+  await mockApi(page, ['iso', 'ot'], ['iso', 'ot']);
+  const LV = { ...ABAS_OT[`${B}/levantamentos`].levantamentos[0], tipo: 'documento', documento_titulo: 'Captura Zeek', funcao: null, turno: null };
+  const achados = [];
+  const enviados = [];
+  const RESUMO = { formato: 'n.ot-resumo-rede/1', gerado_em: '2026-11-04T12:00:00Z', periodo: { inicio: '2026-11-01T00:00:00Z', fim: '2026-11-03T00:00:00Z' },
+    ativos: [{ ip: '10.1.1.10', mac: '00:30:a7:01:02:03' }], conexoes: [{ origem: '10.1.1.20', destino: '10.1.1.10', transporte: 'tcp', porta: 20000, aplicacao: 'dnp3', contagem: 5321 }] };
+  await page.route(`**${B}/**`, async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
+    const chave = `${req.method()} ${path}`;
+    if (chave === `GET ${B}/levantamentos`) return json({ levantamentos: [LV] });
+    if (chave === `GET ${B}/levantamentos/lv1`) return json({ levantamento: LV, achados, nomes_pontas: {}, ativos_do_site: [] });
+    if (chave === `POST ${B}/levantamentos/lv1/depara/rede`) {
+      enviados.push(req.postData());
+      achados.push({ id: 'z1', levantamento_id: 'lv1', entidade: 'ativo', origem: 'consultor', situacao: 'rascunho', lote_id: null,
+        evidencia: 'Sensor de rede (Zeek): 5321 conexões entre 01/11 e 03/11', erros: [], dados: { nome: 'Ativo 10.1.1.10', ip: '10.1.1.10' } });
+      return json({ ativos_novos: 1, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 1, nao_importados: 0, pendentes_nao_importados: 0 }, 201);
+    }
+    if (req.method() === 'GET' && path in ABAS_OT) return json(ABAS_OT[path]);
+    return route.fallback();
+  });
+  await entrar(page);
+  await page.locator('#nav-ot').click();
+  const conteudo = page.locator('#content');
+  await page.getByRole('tab', { name: /^Levantamento/ }).click();
+  await page.getByRole('button', { name: 'Abrir Documento de 01/11/2026' }).click();
+
+  await page.getByRole('button', { name: 'Importar arquivo' }).click();
+  await page.getByLabel('Planilha (CSV ou XLSX), documento (TXT ou DOCX) ou resumo de rede (JSON)').setInputFiles({ name: 'resumo.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(RESUMO)) });
+  await page.locator('#modal').getByRole('button', { name: 'Continuar' }).click();
+  await expect(page.locator('#modal')).toContainText('IP e MAC entram cifrados; o arquivo não fica guardado.');
+  await expect(page.locator('#modal')).toContainText('1 ativo e 1 conexão no resumo.');
+  await page.locator('#modal').getByRole('button', { name: 'Criar achados' }).click();
+  await expect(page.locator('body')).toContainText('1 ativo novo');
+  await expect(page.locator('body')).toContainText('1 fluxo espera a aprovação dos ativos novos');
+  await expect(conteudo.locator('tr', { hasText: 'Ativo 10.1.1.10' }).locator('.badge', { hasText: 'Sensor de rede' })).toBeVisible();
+  expect(enviados).toHaveLength(1);
+  expect(enviados[0]).toContain('"formato":"n.ot-resumo-rede/1"');
 });
 
 // L5: o cartão "Agente de coleta" na aba Acessos e agente. O gestor liga (com a confirmação do aviso do modelo); o consultor emite a chave,

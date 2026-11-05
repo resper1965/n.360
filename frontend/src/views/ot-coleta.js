@@ -172,7 +172,8 @@ window.otAprovarLote = async (id) => {
     if (!await confirmar(`${resumoDaAprovacao(itensDoLote)} Você fica registrado como quem verificou.`, { titulo: 'Aprovar lote', rotulo: 'Aprovar' })) return;
     try {
         const r = await api('POST', `/api/v1/projects/${S.activeProject.id}/ot/lotes/${encodeURIComponent(id)}/aprovar`);
-        showToast(`Lote aprovado: ${r.criados} criado(s), ${r.atualizados} atualizado(s), ${r.recusados} recusado(s).`, 'success');
+        showToast(`Lote aprovado: ${r.criados} criado(s), ${r.atualizados} atualizado(s), ${r.recusados} recusado(s).`
+            + (r.fluxos_pendentes_resolvidos > 0 ? ` ${r.fluxos_pendentes_resolvidos} fluxo(s) do sensor de rede viraram achados no levantamento de origem.` : ''), 'success');
         window.render();
     } catch (e) { falhou(e, 'Não foi possível aprovar o lote.'); }
 };

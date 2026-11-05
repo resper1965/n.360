@@ -164,12 +164,16 @@ function formSite(s) {
         <div class="form-group"><label class="form-label" for="ot-s-tipo">Tipo</label><select class="form-input" id="ot-s-tipo">${opcoes(Object.entries(TIPOS_SITE), s.tipo || 'outro')}</select></div>
         <div class="form-group"><label class="form-label" for="ot-s-crit">Criticidade</label><select class="form-input" id="ot-s-crit"><option value="">—</option>${opcoes(Object.entries(CRITICIDADE), s.criticidade)}</select></div>
         <div class="form-group"><label class="form-label" for="ot-s-local">Localização</label><input class="form-input" id="ot-s-local" maxlength="500" value="${escapeHTML(s.localizacao || '')}"></div>
+        <div class="form-group"><label class="form-label" for="ot-s-faixas">Faixas internas com IP público (opcional)</label>
+        <textarea class="form-input f-mono" id="ot-s-faixas" rows="3" aria-describedby="ot-s-faixas-dica">${escapeHTML((s.faixas_internas || []).join('\n'))}</textarea>
+        <p class="org-dica" id="ot-s-faixas-dica">Uma faixa por linha, em CIDR (como 200.10.0.0/24). O sensor de rede trata esses endereços como da rede interna.</p></div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarSite" data-args='${args(s.id || '')}'>Salvar</button></div>`);
 }
 window.otSalvarSite = async (id) => {
     const nome = el('ot-s-nome').value.trim();
     if (!nome) return showToast('Informe o nome do site.', 'error');
-    const corpo = { nome, tipo: el('ot-s-tipo').value, criticidade: el('ot-s-crit').value || null, localizacao: el('ot-s-local').value.trim() || null };
+    const corpo = { nome, tipo: el('ot-s-tipo').value, criticidade: el('ot-s-crit').value || null, localizacao: el('ot-s-local').value.trim() || null,
+        faixas_internas: el('ot-s-faixas').value.split('\n').map((f) => f.trim()).filter(Boolean) };
     try {
         await api(id ? 'PUT' : 'POST', id ? `/api/v1/projects/${proj().id}/ot/sites/${encodeURIComponent(id)}` : `/api/v1/projects/${proj().id}/ot/sites`, corpo);
         forceCloseModal(); showToast('Site salvo.', 'success'); window.render();

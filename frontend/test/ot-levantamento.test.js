@@ -268,7 +268,7 @@ describe('importar arquivo na sessão de documento', () => {
     it('modal avisa que o arquivo não fica guardado; a proposta preenche os selects e o selo, com texto escapado', async () => {
         await abrirDoc({ [`POST ${P}/planilha/proposta`]: PROPOSTA });
         window.otImportarArquivo();
-        expect(el('lev-imp-arquivo').accept).toBe('.csv,.xlsx,.txt,.docx');
+        expect(el('lev-imp-arquivo').accept).toBe('.csv,.xlsx,.txt,.docx,.json');
         expect(el('modal-content').textContent).toContain('O arquivo é lido e descartado; não fica guardado. IP, MAC e dados pessoais são mascarados antes da IA.');
         const f = escolher('a.csv');
         await window.otLerArquivo();
@@ -407,6 +407,71 @@ describe('importar arquivo na sessão de documento', () => {
         expect(el('modal-overlay').classList.contains('open')).toBe(false);
         await window.otAplicarDepara();
         expect(chamadas.some((x) => x.k === `POST ${P}/planilha/aplicar`)).toBe(false);
+    });
+
+    // L3 (sensor de rede): src/routes/ot-depara.ts POST …/depara/rede; o .json só é oferecido a quem vê o inventário completo.
+    const RESUMO = { formato: 'n.ot-resumo-rede/1', gerado_em: '2026-11-04T12:00:00Z', periodo: { inicio: '2026-11-01T00:00:00Z', fim: '2026-11-03T00:00:00Z' },
+        ativos: [{ ip: '10.1.1.10' }, { ip: '10.1.1.11' }], conexoes: [{ origem: '10.1.1.20', destino: '10.1.1.10' }] };
+    const KS = { ativos_novos: 2, ativos_conhecidos: 1, macs_completados: 1, fluxos_criados: 3, fluxos_pendentes: 4, nao_importados: 0, pendentes_nao_importados: 0 };
+
+    it('resumo de rede: modal com período e totais, aviso e "Criar achados"; envia o arquivo e mostra o resumo com plurais', async () => {
+        await abrirDoc({ [`POST ${P}/rede`]: KS });
+        window.otImportarArquivo();
+        expect(el('lev-imp-arquivo').accept).toBe('.csv,.xlsx,.txt,.docx,.json');
+        const f = escolher('resumo.json', JSON.stringify(RESUMO));
+        await window.otLerArquivo();
+        const m = el('modal-content').textContent;
+        expect(m).toContain('IP e MAC entram cifrados; o arquivo não fica guardado.');
+        expect(m).toContain('01/11/2026');
+        expect(m).toContain('03/11/2026');
+        expect(m).toContain('2 ativos');
+        expect(m).toContain('1 conexão');
+        expect(chamadas.some((x) => x.k === `POST ${P}/rede`)).toBe(false);
+        await window.otImportarRede();
+        expect(fdDe(`POST ${P}/rede`).get('file')).toBe(f);
+        const t = document.body.textContent;
+        expect(t).toContain('2 ativos novos');
+        expect(t).toContain('1 MAC completado');
+        expect(t).toContain('3 fluxos criados');
+        expect(t).toContain('1 ativo já estava no inventário');
+        expect(t).toContain('4 fluxos esperam');
+        expect(t).not.toContain('Contradiz');
+        expect(window.render).toHaveBeenCalled();
+    });
+
+    it('resumo de rede: JSON de outro formato é recusado na tela, sem ir à API; o 403 mostra a mensagem do servidor', async () => {
+        await abrirDoc({}, DOC);
+        window.otImportarArquivo(); escolher('outro.json', JSON.stringify({ formato: 'x', ativos: [], conexoes: [] }));
+        await window.otLerArquivo();
+        expect(document.body.textContent).toContain('Arquivo não é um resumo de rede do n.ot');
+        window.otImportarArquivo(); escolher('quebrado.json', '{');
+        await window.otLerArquivo();
+        expect(chamadas.some((x) => x.k.startsWith('POST'))).toBe(false);
+        servirOt({ [`GET ${B}/levantamentos/l1`]: { levantamento: DOC, achados: [] }, [`GET ${B}/roteiro`]: ROTEIRO });
+        const f = vi.fn(async () => resposta({ error: 'Importar o resumo de rede exige ver o inventário completo (Gestor ARCiber ou consultoria designada)' }, 403));
+        vi.stubGlobal('fetch', f);
+        window.otImportarArquivo(); escolher('resumo.json', JSON.stringify(RESUMO));
+        await window.otLerArquivo();
+        await window.otImportarRede();
+        expect(document.body.textContent).toContain('exige ver o inventário completo');
+    });
+
+    it('resumo de rede não é oferecido a quem edita sem ver o inventário completo (platform_admin)', async () => {
+        S.user = { id: 'pa', role: 'platform_admin' };
+        await abrirDoc({ [`POST ${P}/rede`]: KS });
+        window.otImportarArquivo();
+        expect(el('lev-imp-arquivo').accept).toBe('.csv,.xlsx,.txt,.docx');
+        escolher('resumo.json', JSON.stringify(RESUMO));
+        await window.otLerArquivo();
+        expect(document.body.textContent).toContain('Use CSV, XLSX, TXT ou DOCX.');
+        expect(el('modal-content').textContent).not.toContain('IP e MAC entram cifrados');
+    });
+
+    it('achado do sensor de rede mostra o selo "Sensor de rede"', async () => {
+        await abrirDoc({}, DOC, [ACH(), ACH({ id: 'a4', evidencia: 'Sensor de rede (Zeek): 5321 conexões entre 01/11 e 03/11', dados: { nome: 'Ativo 10.1.1.10' } })]);
+        const linha = (nome) => [...document.querySelectorAll('#c tbody tr')].find((tr) => tr.textContent.includes(nome));
+        expect(linha('Notebook IHM').textContent).not.toContain('Sensor de rede');
+        expect(linha('Ativo 10.1.1.10').querySelector('.badge').textContent).toBe('Sensor de rede');
     });
 
     it('achado com origem ia mostra o selo "Sugerido pela IA" junto do nome', async () => {
