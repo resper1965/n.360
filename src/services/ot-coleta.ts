@@ -8,6 +8,7 @@ import { otAtivoCriarSchema, TETO_ITENS_LOTE } from '../schemas/ot';
 import { chave } from './tratamentos-importar';
 import { aadOt, cifrarEnderecos, cifrarOt, decifrarOt, type ChavesOt } from './ot-cifra';
 import { serializarAtivo, TETO_LEITURA_OT, type LinhaAtivo } from './ot-inventario';
+import { resolverPendentes } from './ot-rede';
 import { COLS_FLUXO, fluxosDoSite, indiceFluxos, pontasDoSite, prepararFluxo, type FluxoExistente } from './ot-fluxo-achado';
 
 export const TETO_ITENS = TETO_ITENS_LOTE;
@@ -244,7 +245,7 @@ async function recifrar(chaves: ChavesOt, projectId: string, itemId: string, ati
  * `em_revisao` → `gravando` (duas aprovações simultâneas gravam uma vez); lote preso em `gravando` há 10 min é retomado.
  */
 export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: string; email: string }, projectId: string, sites: string, loteId: string):
-  Promise<Falha | { ok: true; criados: number; atualizados: number; recusados: number; pendentes: number }> {
+  Promise<Falha | { ok: true; criados: number; atualizados: number; recusados: number; pendentes: number; fluxos_pendentes_resolvidos: number }> {
   const lote = await decidivel(db, ator, projectId, sites, loteId);
   if (!lote.ok) return lote;
   const trava = await db.prepare(`UPDATE ot_lotes SET status = 'gravando', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?
@@ -330,7 +331,9 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     : `UPDATE ot_lotes SET status = 'concluido', decidido_por = ?, decidido_em = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
     .bind(...(pendentes ? [] : [ator.email]), loteId).run();
   // shortcut: na corrida rara em que o alvo muda entre a leitura e o batch, `atualizados` conta o item que ficou pendente; `pendentes` vem do banco.
-  return { ok: true, ...n, pendentes };
+  // Segunda passagem do sensor de rede (n.ot L3): só quando a aprovação criou ou atualizou ativo.
+  const fluxos_pendentes_resolvidos = tocados.size ? await resolverPendentes(db, chaves, projectId) : 0;
+  return { ok: true, ...n, pendentes, fluxos_pendentes_resolvidos };
 }
 
 const ALVO_MUDOU = 'O ativo de destino mudou depois da revisão: revise o item de novo';

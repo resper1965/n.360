@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { hmacOt, normalizarIp, normalizarMac, type ChavesOt } from './ot-cifra';
 import { ativosDoSite, indice } from './ot-coleta';
+import { gravarAchados, INSERIR_ACHADO } from './ot-depara';
+import { pontasDoSite } from './ot-fluxo-achado';
+import { TETO_LEITURA_OT } from './ot-inventario';
+import { prepararAchado } from './ot-levantamento';
+import { genId } from '../helpers';
 import { livreSemPii } from '../schemas/ot';
 
 /** IPv4 → inteiro de 32 bits; IPv6 → inteiro de 128 bits (BigInt). null se não for IP. */
@@ -134,3 +139,38 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
 
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 export const EVIDENCIA_SENSOR = (n: number, inicio: string, fim: string) => `Sensor de rede (Zeek): ${n} conexões entre ${ddmm(inicio)} e ${ddmm(fim)}`;
+
+/**
+ * Segunda passagem (spec §3.4): pendência cujos hashes internos agora casam com ativos do site da sua sessão vira achado de fluxo nessa
+ * sessão (mesmo encerrada) e sai da tabela. Sessão cheia (teto de 2.000): a pendência fica. Devolve quantas viraram achado.
+ */
+export async function resolverPendentes(db: D1Database, chaves: ChavesOt, projectId: string): Promise<number> {
+  const { results } = await db.prepare(`SELECT p.id, p.levantamento_id, p.origem_ip_hash, p.destino_ip_hash, p.dados, l.site_id, l.criado_por
+    FROM ot_fluxos_pendentes p JOIN ot_levantamentos l ON l.id = p.levantamento_id AND l.project_id = p.project_id
+    WHERE p.project_id = ? ORDER BY p.created_at, p.id LIMIT ${TETO_LEITURA_OT}`).bind(projectId)
+    .all<{ id: string; levantamento_id: string; origem_ip_hash: string | null; destino_ip_hash: string | null; dados: string; site_id: string; criado_por: string }>();
+  const sites = new Map<string, Promise<[ReturnType<typeof indice>, Awaited<ReturnType<typeof pontasDoSite>>]>>();
+  const doSite = (s: string) => sites.get(s) ?? sites.set(s, Promise.all([ativosDoSite(db, projectId, s).then((r) => indice(r.results)), pontasDoSite(db, projectId, s)])).get(s)!;
+  const stmts: D1PreparedStatement[] = [];
+  const pares: { a: string; p: string }[] = [];
+  for (const p of results) {
+    const [idx, pontas] = await doSite(p.site_id);
+    const ao = p.origem_ip_hash ? idx.achar({ ip_hash: p.origem_ip_hash })?.id : undefined;
+    const ad = p.destino_ip_hash ? idx.achar({ ip_hash: p.destino_ip_hash })?.id : undefined;
+    if ((p.origem_ip_hash && !ao) || (p.destino_ip_hash && !ad)) continue;
+    const { evidencia, ...fluxo } = JSON.parse(p.dados) as Record<string, unknown>; // prepararFluxo recusa campo desconhecido
+    const id = genId();
+    const r = await prepararAchado(chaves, projectId, p.site_id, id, { ...(ao && { origem_ativo_id: ao }), ...(ad && { destino_ativo_id: ad }), ...fluxo },
+      undefined, 'fluxo', pontas);
+    // criado_por: quem abriu a sessão (a criação é do sistema, sem usuário na requisição)
+    stmts.push(db.prepare(INSERIR_ACHADO('consultor', 'fluxo')).bind(id, projectId, p.levantamento_id, JSON.stringify(r.dados), JSON.stringify(r.erros),
+      String(evidencia ?? ''), p.criado_por, p.levantamento_id));
+    pares.push({ a: id, p: p.id });
+  }
+  if (!stmts.length) return 0;
+  // shortcut: duas aprovações simultâneas podem resolver a mesma pendência duas vezes (achado repetido); raro, upgrade com reserva da pendência.
+  const criados = await gravarAchados(db, stmts);
+  await db.prepare(`DELETE FROM ot_fluxos_pendentes WHERE project_id = ? AND id IN (SELECT json_extract(value, '$.p') FROM json_each(?)
+    WHERE EXISTS (SELECT 1 FROM ot_achados WHERE id = json_extract(value, '$.a')))`).bind(projectId, JSON.stringify(pares)).run();
+  return criados;
+}

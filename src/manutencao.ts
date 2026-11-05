@@ -193,6 +193,14 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
     resultado.falhas.push(`retencao ot_achados: ${e instanceof Error ? e.message : String(e)}`);
   }
 
+  try {
+    // n.ot L3: fluxo do sensor cuja ponta interna não apareceu no inventário em 90 dias é descartado (só hash, mas não fica para sempre).
+    const r = await env.DB.prepare(`DELETE FROM ot_fluxos_pendentes WHERE created_at < datetime('now', '-90 days')`).run();
+    resultado.retencao.ot_fluxos_pendentes = r.meta?.changes ?? 0;
+  } catch (e) {
+    resultado.falhas.push(`retencao ot_fluxos_pendentes: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
   /*
    * Arquiva a trilha de ONTEM, não a de hoje: o dia corrente ainda recebe
    * registro, e arquivá-lo produziria um objeto incompleto que a idempotência

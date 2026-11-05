@@ -218,6 +218,27 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     expect(a!.mac_hash).toBe(await hmacOt(chaves, 'proj-a', '00:30:a7:01:02:03'));
   });
 
+  it('segunda passagem: aprovado o ativo da ponta desconhecida, a pendência vira achado de fluxo com as duas pontas, mesmo com a sessão encerrada', async () => {
+    // IP próprio deste teste: o 10.1.1.30 já tem pendências em outras sessões do arquivo
+    const lev = await doc('Segunda passagem');
+    const r = await enviar(cons, lev, JSON.stringify({ ...base, ativos: [at('10.1.1.40', { protocolos: ['dnp3'] })], conexoes: [cx('10.1.1.40', '10.1.1.10', 20000, 'dnp3')] }));
+    expect(r.status, await r.clone().text()).toBe(201);
+    expect(await r.json()).toMatchObject({ ativos_novos: 1, fluxos_pendentes: 1 });
+    const ativo = (await achados(cons, lev)).find((a) => a.entidade === 'ativo')!;
+    const e = await chamar(cons, 'POST', `${P}/levantamentos/${lev}/enviar`, { achados: [ativo.id] });
+    expect(e.status, await e.clone().text()).toBe(201);
+    await env.DB.prepare(`UPDATE ot_levantamentos SET situacao = 'encerrado', encerrado_em = CURRENT_TIMESTAMP WHERE id = ?`).bind(lev).run();
+    const ap = await chamar(gestor, 'POST', `${P}/lotes/${(await e.json<{ id: string }>()).id}/aprovar`);
+    expect(ap.status, await ap.clone().text()).toBe(200);
+    expect(await ap.json()).toMatchObject({ criados: 1, fluxos_pendentes_resolvidos: 1 });
+    const novo = await env.DB.prepare('SELECT id FROM ot_ativos WHERE ip_hash = ?').bind(await hmacOt(chaves, 'proj-a', '10.1.1.40')).first<{ id: string }>();
+    const fluxo = await env.DB.prepare(`SELECT dados, evidencia, origem FROM ot_achados WHERE levantamento_id = ? AND entidade = 'fluxo'`).bind(lev)
+      .first<{ dados: string; evidencia: string; origem: string }>();
+    expect(JSON.parse(fluxo!.dados)).toMatchObject({ origem_ativo_id: novo!.id, destino_ativo_id: 'a-rtu', protocolo: 'dnp3', porta: 20000, direcao: 'unidirecional' });
+    expect(fluxo).toMatchObject({ evidencia: 'Sensor de rede (Zeek): 3 conexões entre 01/11 e 03/11', origem: 'consultor' });
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n).toBe(0);
+  });
+
   it('nada ao R2, sem IA; trilha só com contagens', async () => {
     expect(puts).toEqual([]);
     expect(chamadasIa).toBe(0);
