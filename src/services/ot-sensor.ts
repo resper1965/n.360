@@ -26,14 +26,16 @@ const HORA = 3_600_000;
 const ms = (s: string) => new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z').getTime();
 const validas = (cs: Cred[], agora: Date) => cs.filter((c) => c.situacao === 'ativa' && ms(c.expira_em) > agora.getTime());
 
-/** em dia ≤ 26 h; atrasada até 72 h; parada acima disso ou sem credencial ativa e válida. Sonda que nunca enviou fica atrasada (o cron usa a data de criação). */
-export function situacaoSensor(ultimoEnvio: string | null, credenciais: Cred[], agora: Date): 'em_dia' | 'atrasada' | 'parada' {
+/** `referencia` = último envio concluído, ou a criação da sonda se ainda não enviou.
+ *  Em dia ≤ 26 h; atrasada até 72 h; parada acima disso ou sem credencial ativa e válida. */
+export function situacaoSensor(referencia: string, credenciais: Cred[], agora: Date): 'em_dia' | 'atrasada' | 'parada' {
   if (!validas(credenciais, agora).length) return 'parada';
-  if (!ultimoEnvio) return 'atrasada';
-  const h = (agora.getTime() - ms(ultimoEnvio)) / HORA;
+  const h = (agora.getTime() - ms(referencia)) / HORA;
   return h <= 26 ? 'em_dia' : h <= 72 ? 'atrasada' : 'parada';
 }
 
-/** Alguma credencial ativa vence em até 30 dias. */
-export const vencendo = (credenciais: Cred[], agora: Date): boolean =>
-  validas(credenciais, agora).some((c) => ms(c.expira_em) - agora.getTime() <= 30 * 24 * HORA);
+/** A credencial ativa que vence por último vence em até 30 dias (renovar limpa o aviso). */
+export const vencendo = (credenciais: Cred[], agora: Date): boolean => {
+  const v = validas(credenciais, agora);
+  return v.length > 0 && Math.max(...v.map((c) => ms(c.expira_em))) - agora.getTime() <= 30 * 24 * HORA;
+};

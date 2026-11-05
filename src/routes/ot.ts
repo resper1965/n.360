@@ -780,16 +780,17 @@ otApp.get('/sites/:sid/sensores', async (c) => {
     const sid = c.req.param('sid');
     if (!daLista(sites, sid)) return NAO_ENCONTRADO(c, 'Site');
     const ultimo = (col: string) => `(SELECT ${col} FROM ot_sensor_envios e WHERE e.sensor_id = s.id AND e.situacao = 'concluido' ORDER BY e.created_at DESC LIMIT 1)`;
-    const { results } = await db.prepare(`SELECT s.id, s.nome, s.faixa_origem, s.situacao, ${ultimo('created_at')} AS ultimo_envio, ${ultimo('capture_loss')} AS capture_loss
+    const { results } = await db.prepare(`SELECT s.id, s.nome, s.faixa_origem, s.situacao, s.created_at, ${ultimo('created_at')} AS ultimo_envio, ${ultimo('capture_loss')} AS capture_loss
       FROM ot_sensores s WHERE s.project_id = ? AND s.site_id = ? AND s.situacao = 'ativa' ORDER BY s.nome LIMIT ${TETO_LEITURA_OT}`)
-      .bind(projectId, sid).all<{ id: string; ultimo_envio: string | null }>();
+      .bind(projectId, sid).all<{ id: string; created_at: string; ultimo_envio: string | null }>();
     const { results: creds } = await db.prepare(`SELECT id, sensor_id, expira_em, situacao FROM ot_sensor_credenciais
       WHERE project_id = ? AND situacao = 'ativa' AND sensor_id IN (SELECT id FROM ot_sensores WHERE project_id = ? AND site_id = ?) ORDER BY created_at LIMIT ${TETO_LEITURA_OT}`)
       .bind(projectId, projectId, sid).all<{ id: string; sensor_id: string; expira_em: string; situacao: string }>();
     const agora = new Date();
     return c.json({ sensores: results.map((s) => {
       const cs = creds.filter((k) => k.sensor_id === s.id);
-      return { ...s, saude: situacaoSensor(s.ultimo_envio, cs, agora), vencendo: vencendo(cs, agora), credenciais: cs.map(({ id, expira_em, situacao }) => ({ id, expira_em, situacao })) };
+      const { created_at, ...resto } = s;
+      return { ...resto, saude: situacaoSensor(s.ultimo_envio ?? created_at, cs, agora), vencendo: vencendo(cs, agora), credenciais: cs.map(({ id, expira_em, situacao }) => ({ id, expira_em, situacao })) };
     }) });
   } catch (e) { return erro500(c, 'Falha ao listar as sondas', e); }
 });
@@ -840,7 +841,7 @@ otApp.delete('/sensores/:id/credenciais/:cid', async (c) => {
     if (!s) return NAO_ENCONTRADO(c, 'Sonda');
     const r = await db.prepare(`UPDATE ot_sensor_credenciais SET situacao = 'revogada' WHERE id = ? AND sensor_id = ? AND project_id = ? AND situacao = 'ativa'`).bind(cid, s.id, projectId).run();
     if (!r.meta.changes) return NAO_ENCONTRADO(c, 'Credencial');
-    await trilha(c, 'ot.sensor.revogado', projectId, `Credencial ${cid} da sonda ${s.id} revogada`, { tipo: 'ot_sensor', id: s.id });
+    await trilha(c, 'ot.sensor.credencial', projectId, `Credencial ${cid} da sonda ${s.id} revogada`, { tipo: 'ot_sensor', id: s.id });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao revogar a credencial da sonda', e); }
 });

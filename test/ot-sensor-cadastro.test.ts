@@ -58,7 +58,7 @@ describe('cadastro de sondas', () => {
     const k = await env.DB.prepare('SELECT chave_hash FROM ot_sensor_credenciais WHERE sensor_id = ?').bind(sensor.id).first<{ chave_hash: string }>();
     expect(k?.chave_hash).toBe(await sha256Hex(j.credencial));
     const { results } = await env.DB.prepare(`SELECT * FROM audit_logs WHERE action LIKE 'ot.sensor.%'`).all();
-    expect(results.length).toBeGreaterThan(0);
+    expect(results.map((a) => (a as { action: string }).action)).toEqual(['ot.sensor.criado']);
     expect(JSON.stringify(results)).not.toContain('ots_');
     expect(await (await chamar(cons, 'GET', `${P}/ot/sites/s-a/sensores`)).text()).not.toContain(j.credencial);
   });
@@ -66,7 +66,7 @@ describe('cadastro de sondas', () => {
   it('lista: saúde, vencendo e credenciais', async () => {
     const j = await (await chamar(gestor, 'GET', `${P}/ot/sites/s-a/sensores`)).json<{ sensores: Record<string, unknown>[] }>();
     expect(j.sensores).toHaveLength(1);
-    expect(j.sensores[0]).toMatchObject({ id: sensor.id, saude: 'atrasada', ultimo_envio: null, vencendo: false });
+    expect(j.sensores[0]).toMatchObject({ id: sensor.id, saude: 'em_dia', ultimo_envio: null, vencendo: false });
     expect(j.sensores[0].credenciais).toHaveLength(1);
   });
 
@@ -82,6 +82,18 @@ describe('cadastro de sondas', () => {
     expect((await chamar(cons, 'DELETE', `${P}/ot/sensores/${sensor.id}/credenciais/${id}`)).status).toBe(404);
     const n = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ot_sensor_credenciais WHERE sensor_id = ? AND situacao = 'ativa'`).bind(sensor.id).first<{ n: number }>();
     expect(n?.n).toBe(1);
+    const acoes = await env.DB.prepare(`SELECT action, details FROM audit_logs WHERE action LIKE 'ot.sensor.%' ORDER BY rowid`).all<{ action: string; details: string }>();
+    expect(acoes.results.map((a) => a.action)).toEqual(['ot.sensor.criado', 'ot.sensor.credencial', 'ot.sensor.credencial']);
+    expect(acoes.results[2].details).toContain('revogada');
+  });
+
+  it('credencial vencida não conta no teto de 2', async () => {
+    await env.DB.prepare(`INSERT INTO ot_sensores (id, project_id, site_id, nome, faixa_origem, criado_por) VALUES ('sen-v', 'proj-a', 's-a', 'V', '10.0.0.0/8', 'x')`).run();
+    await env.DB.prepare(`INSERT INTO ot_sensor_credenciais (id, sensor_id, project_id, chave_hash, expira_em) VALUES
+      ('cv1', 'sen-v', 'proj-a', 'h1', '2020-01-01T00:00:00.000Z'), ('cv2', 'sen-v', 'proj-a', 'h2', '2020-01-01T00:00:00.000Z')`).run();
+    expect((await chamar(cons, 'POST', `${P}/ot/sensores/sen-v/credenciais`, {})).status).toBe(201);
+    expect((await chamar(cons, 'POST', `${P}/ot/sensores/sen-v/credenciais`, {})).status).toBe(201);
+    expect((await chamar(cons, 'POST', `${P}/ot/sensores/sen-v/credenciais`, {})).status).toBe(409);
   });
 
   it('sonda de outro projeto: 404 (P0-4)', async () => {
@@ -95,9 +107,11 @@ describe('cadastro de sondas', () => {
     expect((await chamar(cons, 'DELETE', `${P}/ot/sensores/${sensor.id}`)).status).toBe(200);
     const n = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ot_sensor_credenciais WHERE sensor_id = ? AND situacao = 'ativa'`).bind(sensor.id).first<{ n: number }>();
     expect(n?.n).toBe(0);
+    const ult = await env.DB.prepare(`SELECT action FROM audit_logs WHERE action LIKE 'ot.sensor.%' ORDER BY rowid DESC LIMIT 1`).first<{ action: string }>();
+    expect(ult?.action).toBe('ot.sensor.revogado');
     expect((await chamar(cons, 'POST', `${P}/ot/sensores/${sensor.id}/credenciais`, {})).status).toBe(404);
-    const j = await (await chamar(cons, 'GET', `${P}/ot/sites/s-a/sensores`)).json<{ sensores: unknown[] }>();
-    expect(j.sensores).toHaveLength(0);
+    const j = await (await chamar(cons, 'GET', `${P}/ot/sites/s-a/sensores`)).json<{ sensores: { id: string }[] }>();
+    expect(j.sensores.some((x) => x.id === sensor.id)).toBe(false);
   });
 });
 
@@ -111,6 +125,10 @@ describe('situacaoSensor / vencendo', () => {
     expect(situacaoSensor(h(27), ok, agora)).toBe('atrasada');
     expect(situacaoSensor(h(73), ok, agora)).toBe('parada');
   });
+  it('sonda sem envio mede a partir da criação', () => {
+    expect(situacaoSensor(h(1), ok, agora)).toBe('em_dia');
+    expect(situacaoSensor(h(73), ok, agora)).toBe('parada');
+  });
   it('aceita o formato do D1 (sem T nem fuso)', () => {
     expect(situacaoSensor(h(25).slice(0, 19).replace('T', ' '), ok, agora)).toBe('em_dia');
   });
@@ -121,5 +139,6 @@ describe('situacaoSensor / vencendo', () => {
   it('vencendo', () => {
     expect(vencendo([{ expira_em: em(29), situacao: 'ativa' }], agora)).toBe(true);
     expect(vencendo(ok, agora)).toBe(false);
+    expect(vencendo([{ expira_em: em(10), situacao: 'ativa' }, { expira_em: em(300), situacao: 'ativa' }], agora)).toBe(false);
   });
 });
