@@ -36,7 +36,9 @@ tela.
 
 O n.360 é a plataforma de governança, risco e conformidade da ness. Leva uma empresa à adequação e
 à certificação na ISO 27001 e na ISO 27701 (módulo **n.iso**) e mantém o programa de privacidade sob a
-LGPD e as resoluções da ANPD (módulo **n.privacy**), sobre **um cadastro só**.
+LGPD e as resoluções da ANPD (módulo **n.privacy**), sobre **um cadastro só**. O módulo **n.ot** atende a
+rotina ARCiber do ONS (RO-CB.BR.01) para ambientes de tecnologia operacional: inventário, coleta e
+levantamento em campo, com IP e MAC protegidos.
 
 Sucesso, nas palavras do dono:
 - **O cliente age sozinho:** entra, entende o que falta e resolve sem precisar ligar para o consultor.

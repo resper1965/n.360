@@ -3,7 +3,7 @@
 Se voce esta lendo isto, voce e o agente responsavel por continuar o
 desenvolvimento do **n.360**, a plataforma de GRC da ness., e dos seus
 modulos: **n.iso** (ISO 27001/27701, em `/iso`), **n.privacy** (LGPD/ANPD, em
-`/privacy`) e **n.ot** (ARCiber, ONS RO-CB.BR.01, em `/ot`: catalogo, inventario, coleta, saidas e step-up, fatias N1 a N4, P1-1 e Levantamento L1). O repositorio, o Worker e o banco ainda se chamam `niso` por
+`/privacy`) e **n.ot** (ARCiber, ONS RO-CB.BR.01, em `/ot`: catalogo, inventario, coleta, saidas e step-up, fatias N1 a N4, P1-1 e Levantamento L1 a L5). O repositorio, o Worker e o banco ainda se chamam `niso` por
 historia; nao e o nome do produto.
 
 Este arquivo descreve o que **existe hoje**. Historico de sprint vive no
@@ -130,8 +130,8 @@ Cloudflare Workers (Hono) + D1 + KV + R2 + Workers AI. Frontend SPA
 Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 
 - **Backend**: `src/index.ts` e o composition root que monta os sub-routers de
-  dominio: **59 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
-  2026-10-17). A lista nominal envelhecia a cada PR; leia o diretorio.
+  dominio: **66 arquivos em `src/routes/`** (`ls src/routes/*.ts | grep -vc '\.test\.ts$'`,
+  2026-11-05). A lista nominal envelhecia a cada PR; leia o diretorio.
 - **Painel de entrada** (estudo `docs/design/diagnostico-2026-10-14/dashboard-entrada.md`, direcao A; decisoes adotadas na secao 10
   dele): `GET /api/v1/projects/:id/painel?modulo=iso|privacy` (sem `?modulo`, os modulos do projeto que a pessoa tem; faixa `nucleo`
   com a mesma recusa de modulo feita na rota) e `GET /api/v1/carteira` (projetos de `projetosVisiveis`, consultas agrupadas; fora do
@@ -225,12 +225,12 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Middleware**: `src/middleware/auth.ts` (sessao, chave de API, RBAC
   write-guard por metodo+rota) e `src/middleware/project-access.ts` (isolamento
   multi-tenant em `/api/v1/projects/:projectId/*`).
-- **Services** (`src/services/`, 60 arquivos em 2026-10-18: `ls src/services/*.ts | wc -l`; mais 18 em `src/services/ropa-abas/`, `ls src/services/ropa-abas/*.ts | wc -l`): entre eles
+- **Services** (`src/services/`, 88 arquivos em 2026-11-05: `ls src/services/*.ts | wc -l`; mais 20 em `src/services/ropa-abas/`, `ls src/services/ropa-abas/*.ts | wc -l`): entre eles
   `soa-logic.ts` (gate de aplicabilidade N/A da SoA; os 93 controles do Anexo A 2022 estao em `src/data/iso27001-2022.ts`), `migration-service.ts` (2013→2022),
   `pedidos.ts`, `organizacao.ts`, `fechar-venda.ts`,
   `preco-proposta.ts`, `transferencia-projeto.ts`, `totp.ts`, `data-subject.ts`.
 - **Agents** (`src/agents/`): policy, evidence, assessment, control-adequacao,
-  phase-interpretation, readiness, importacao e privacidade (`ls src/agents`). O `privacidade` so
+  phase-interpretation, readiness, importacao, privacidade e politica-secao (`ls src/agents`). O `privacidade` so
   RASCUNHA no n.privacy (sugestao do tratamento, resposta ao titular, comunicacao de incidente): a saida
   passa por zod estrito, nada e gravado no registro e a trilha `agente.rascunho` nao leva o texto
   (`src/services/rascunhos-privacy.ts`). O copiloto da entrevista do RoPA (`POST .../ropa/copiloto`,
@@ -267,9 +267,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
     com `/api/v1/public/homologacao/*` (`src/routes/public-homologacao.ts`), token no corpo, só o hash no banco.
   - Arquivo novo em `frontend/public/` é copiado como está — mesmo padrão de
     `marked.min.js`, `favicon.svg`. Não precisa de entrada no Vite.
-- **Schema**: `schema.sql` — **108 tabelas** (2026-10-27: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
+- **Schema**: `schema.sql` — **127 tabelas** (2026-11-05: `grep -oE '^\s*CREATE TABLE( IF NOT EXISTS)? +[a-z_0-9]+' schema.sql | awk '{print $NF}' | sort -u | wc -l`;
   em 2026-10-05 o mesmo 58 (antes da 0046) saiu do `schema.sql` aplicado num SQLite em memoria). Migrations
-  numeradas em `migrations/`, ultima a **0088** (`ls migrations/*.sql | tail -1`). Procedimento
+  numeradas em `migrations/`, ultima a **0098** (`ls migrations/*.sql | tail -1`; ha duas 0096 e duas 0097, de PRs paralelos). Procedimento
   de migration nova e o que ha de particular (0011 neutralizada, buraco 0031–0033) em
   `migrations/README.md` — leia antes de tocar em migration.
 - **Cadastro da empresa (migration 0071)**: `empresas`, 1:1 com `projects` (`project_id` e a chave), em `src/services/empresas.ts`
@@ -375,7 +375,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   tela (`GET/POST/PUT /projects/:id/catalogos/:tipo`, `src/services/ropa-abas/catalogos.ts`); ativo, area e parceiro reusam `/assets`,
   `/departamentos` e `/partes`. Contagens (2026-10-18, salvo onde marcado): 6 etapas (`ETAPAS`); 8 rotas de etapa e 3 de catalogo em `src/routes/ropa-abas.ts`
   (`grep -c "ropaAbasApp\.\(get\|put\|post\)('/etapas" src/routes/ropa-abas.ts`; `grep -c "catalogosApp\.\(get\|put\|post\)(" src/routes/ropa-abas.ts`);
-  21 modulos em `frontend/src/atividade/` (2026-10-21, `ls frontend/src/atividade/*.js | wc -l`); 30 testes de backend `ropa-*` (2026-10-21, `ls test/ropa-*.test.ts | wc -l`).
+  21 modulos em `frontend/src/atividade/` (2026-10-21, `ls frontend/src/atividade/*.js | wc -l`); 33 testes de backend `ropa-*` (2026-11-05, `ls test/ropa-*.test.ts | wc -l`).
   Copiloto por etapa (`POST .../ropa/:rid/etapas/:etapa/rascunho`, `src/services/copiloto-etapa.ts`, botao em cada etapa editavel): PROPOE a
   descricao a partir da ficha e de uma nota opcional; a pessoa aceita (Aceitar copia o texto para o campo e o autosave grava), nada grava sozinho.
   Sem base (nenhum titular na Coleta, ativo, area, descricao nem nota) o modelo nao e chamado (`sem_base: true`, sem trilha); com base, a resposta traz `fontes` (o que foi enviado).
@@ -441,7 +441,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   tambem abrem a pagina. O modal de ligacoes (`openLigacoesTratamento`, "Editar ligacoes" na etapa 1) ficou so com base legal, sugestao
   da IA, sistemas, departamentos, partes, transferencias e diagrama. A entrevista nao pergunta mais volume, decisao automatica nem impacto
   de vazamento (so alimentavam uma segunda recomendacao de RIPD na tela) nem tem o bloco do teste: a atividade nova grava, segue para o
-  ciclo de vida e termina na pagina. Teste: `frontend/test/atividade-view.test.js`.
+  ciclo de vida e termina na pagina. Testes: `frontend/test/atividade-*.test.js`.
 - **Exportacao, Word e faixas de prazo (F4, sem migration)**: CSV que abre no Excel em pt-BR (`src/services/exportacao.ts`: BOM,
   `;`, CRLF, toda celula entre aspas, celula que comeca com `= + - @`, tab ou CR ganha `'`, teto de 5.000 linhas com `X-Exportacao-Truncada`)
   em `GET /projects/:id/export/{atividades,ripd}` (nucleo) e `export/{riscos-atividade,acoes-atividade,lia}` (faixa `privacy`; riscos
@@ -476,8 +476,8 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   sino os consultores designados (sem nenhum, os `consultoria_admin`; `avisarEnvio`, regra de `escolherDestinatarios`), so com o nome da
   parte, e os MESMOS recebem e-mail (`emailHomologacaoRespondida`: fornecedor, % respondido, link `/privacy?tela=terceiros`; nunca token nem
   resposta; so a quem o sino acabou de avisar, entao nao repete); falha do aviso ou do e-mail vai ao log e nao derruba o envio.
-- **Criticidade do fornecedor (migration 0080, spec `docs/superpowers/specs/2026-10-18-criticidade-fornecedor-design.md`)**: cinco respostas (impacto, exclusividade, risco financeiro, conformidade, risco reputacional) gravadas em `criticidades_terceiro` (histórico append-only, a última é a atual). O NÍVEL é derivado no servidor (`nivelDaCriticidade` em `src/services/criticidade.ts`: qualquer Alto → Alto, senão qualquer Médio → Médio, senão Baixo) e o tipo segue o nível (`tipoDaCriticidade`: Alto → crítico, Médio → médio, Baixo → pequeno), salvo `grande_provedor`, que é escolha manual. Rotas `GET|POST /projects/:id/terceiros/:parteId/criticidades`, faixa `privacy` pelo segmento `terceiros`; o agente registra pela ferramenta `niso_avaliar_fornecedor` (`registrar_criticidade`), com confirmacao e motivo. Bloco na ficha do terceiro (`frontend/src/views/terceiros.js`). Contagens de 2026-10-18: `npx vitest` nos arquivos `test/criticidade-terceiro*.test.ts` (16 testes) e `frontend/test/criticidade-terceiro-view.test.js` (7 testes).
-- **Documentos do legado (migration 0081, spec `docs/superpowers/specs/2026-10-19-paridade-legado-menu-design.md`, frente B)**: `documentos_arquivo` é um arquivo (PDF/DOC/DOCX até 10 MB, tipo conferido pelo conteúdo como nos anexos do gap) com nome, tipo, situação, vencimento ou "sem vencimento" e responsável; não é o documento versionado (políticas, `documentos`). Serviço `src/services/documentos-arquivo.ts`, rotas `/projects/:id/documentos-arquivo` (faixa `nucleo`; escrita fora do agente MCP), arquivo no R2 em `documentos-arquivo/<project_id>/<id>/<nome>`. O vencimento é a fonte `documento_arquivo` dos avisos de prazo. Tela `frontend/src/views/documentos-arquivo.js` (`#nav-documentos-arquivo`, só n.privacy, rótulo "Documentos"; no n.privacy os versionados aparecem como "Políticas"). `departamentos.descricao` (mesma migration) entra na tela Áreas. Contagens de 2026-10-19: `npx vitest run test/documentos-arquivo.test.ts` (8 testes) e `frontend/test/documentos-arquivo-view.test.js` (7 testes). **Como DPA e como cobertura (migration 0086, 27/10/2026):** o arquivo liga a fornecedor (`documentos_arquivo_partes`, papel `dpa`/`contrato`/`outro`, pela mesma rota `POST .../terceiros/:id/documentos` com `arquivo_id` no lugar de `documento_id`; desligar leva `?origem=arquivo`) e a requisito (`documentos_arquivo_requisitos`, `GET`/`PUT .../documentos-arquivo/:id/requisitos`). Só vale **publicado e com arquivo anexado** (`SQL_ARQUIVO_VALE`, `src/services/terceiros.ts`): `SQL_TEM_DPA`, o índice de confiança e a cobertura (`lacunasDaFonte`, origem `documento` com `arquivo: true`) usam a mesma regra; publicar, anexar, remover o arquivo ou apagar o documento refaz o índice do fornecedor. A mescla de partes move essas ligações; o agente MCP só lê (a rota recusa `arquivo_id` ao agente e `PUT .../documentos-arquivo/*` é `FORA_DO_AGENTE`). Teste: `test/documentos-arquivo-ligacoes.test.ts`.
+- **Criticidade do fornecedor (migration 0080, spec `docs/superpowers/specs/2026-10-18-criticidade-fornecedor-design.md`)**: cinco respostas (impacto, exclusividade, risco financeiro, conformidade, risco reputacional) gravadas em `criticidades_terceiro` (histórico append-only, a última é a atual). O NÍVEL é derivado no servidor (`nivelDaCriticidade` em `src/services/criticidade.ts`: qualquer Alto → Alto, senão qualquer Médio → Médio, senão Baixo) e o tipo segue o nível (`tipoDaCriticidade`: Alto → crítico, Médio → médio, Baixo → pequeno), salvo `grande_provedor`, que é escolha manual. Rotas `GET|POST /projects/:id/terceiros/:parteId/criticidades`, faixa `privacy` pelo segmento `terceiros`; o agente registra pela ferramenta `niso_avaliar_fornecedor` (`registrar_criticidade`), com confirmacao e motivo. Bloco na ficha do terceiro (`frontend/src/views/terceiros.js`). Testes: `test/criticidade-terceiro*.test.ts` e `frontend/test/criticidade-terceiro-view.test.js`.
+- **Documentos do legado (migration 0081, spec `docs/superpowers/specs/2026-10-19-paridade-legado-menu-design.md`, frente B)**: `documentos_arquivo` é um arquivo (PDF/DOC/DOCX até 10 MB, tipo conferido pelo conteúdo como nos anexos do gap) com nome, tipo, situação, vencimento ou "sem vencimento" e responsável; não é o documento versionado (políticas, `documentos`). Serviço `src/services/documentos-arquivo.ts`, rotas `/projects/:id/documentos-arquivo` (faixa `nucleo`; escrita fora do agente MCP), arquivo no R2 em `documentos-arquivo/<project_id>/<id>/<nome>`. O vencimento é a fonte `documento_arquivo` dos avisos de prazo. Tela `frontend/src/views/documentos-arquivo.js` (`#nav-documentos-arquivo`, só n.privacy, rótulo "Documentos"; no n.privacy os versionados aparecem como "Políticas"). `departamentos.descricao` (mesma migration) entra na tela Áreas. Testes: `test/documentos-arquivo.test.ts` e `frontend/test/documentos-arquivo-view.test.js`. **Como DPA e como cobertura (migration 0086, 27/10/2026):** o arquivo liga a fornecedor (`documentos_arquivo_partes`, papel `dpa`/`contrato`/`outro`, pela mesma rota `POST .../terceiros/:id/documentos` com `arquivo_id` no lugar de `documento_id`; desligar leva `?origem=arquivo`) e a requisito (`documentos_arquivo_requisitos`, `GET`/`PUT .../documentos-arquivo/:id/requisitos`). Só vale **publicado e com arquivo anexado** (`SQL_ARQUIVO_VALE`, `src/services/terceiros.ts`): `SQL_TEM_DPA`, o índice de confiança e a cobertura (`lacunasDaFonte`, origem `documento` com `arquivo: true`) usam a mesma regra; publicar, anexar, remover o arquivo ou apagar o documento refaz o índice do fornecedor. A mescla de partes move essas ligações; o agente MCP só lê (a rota recusa `arquivo_id` ao agente e `PUT .../documentos-arquivo/*` é `FORA_DO_AGENTE`). Teste: `test/documentos-arquivo-ligacoes.test.ts`.
 - **RIPD com o questionário do legado (migration 0083, spec `docs/superpowers/specs/2026-10-26-ripd-questionario-design.md`)**: as respostas do questionário (abas Teste de Impacto, Conformidade e Armazenamento) ficam em `dpia_respostas` (PK `dpia_id`+`pergunta`, gatilho de projeto), **fora de `COLUNAS_DPIA` e do hash**: gravar resposta não derruba assinatura nem pedido (`test/ripd-questionario.test.ts` prova hash e situação intactos). Perguntas e abas em `src/data/ripd-perguntas.ts` (os textos do legado, `docs/superpowers/specs/2026-10-27-guia-legado-ripd-lia-perguntas.md`: 4 + 29 + 5 perguntas, todas em texto livre como no legado; nenhuma ficou marcada como parcial depois da confirmação do dono). A tela numera por aba e agrupa a Conformidade em "Perguntas 1 a 6", "7 a 16" e "17 a 29"; a pergunta das bases legais mostra, só leitura e nunca gravado, as bases LGPD da atividade, `base_legal` no GET); serviço `src/services/ripd-questionario.ts`; rotas `GET|PUT /projects/:id/dpia/:dpiaId/questionario` e `GET .../logs` em `src/routes/ripd-questionario.ts` (faixa `nucleo`). A sugestão `da_atividade` (operadores, local de armazenamento, volume mensal, dados sensíveis) é só leitura e nunca é gravada. Os eventos do RIPD gravam `audit_logs.entity_type = 'dpia'` (`logAudit`, 8º parâmetro) e a aba Logs lê só eles, sem texto livre nem motivo. O RIPD é uma página com abas (`frontend/src/views/ripd-ficha.js`, `?tela=ripd-ficha&dpia=&aba=`, `limparFichaDoEndereco`), não mais um modal; a aba Dados edita também `technical_measures`, `residual_risk_level`, `dpo_recommendations` e `data_category_risk` e avisa antes de salvar campo do hash num RIPD aprovado.
 - **LIA com as 23 perguntas do legado (migration 0084, spec `docs/superpowers/specs/2026-10-26-lia-12-perguntas-design.md`)**: as respostas (abas Finalidade, Necessidade e Proporcionalidade) ficam em `lia_respostas` (PK `ropa_id`+`pergunta`, gatilho de projeto); as colunas de `lia_assessments` continuam e são a aba Conclusão, e a regra de concluir não mudou (as 23 respostas não bloqueiam a conclusão). Perguntas em `src/data/lia-perguntas.ts` (7 de Finalidade, 5 de Necessidade e 11 de Proporcionalidade, texto exato do guia do legado, `docs/superpowers/specs/2026-10-27-guia-legado-ripd-lia-perguntas.md`; todas em texto livre), serviço `src/services/lia-questionario.ts`, rotas `GET|PUT /projects/:id/ropa/:rid/lia/questionario` e `GET .../lia/logs` (faixa `privacy`). Eventos da LIA gravam `audit_logs.entity_type = 'lia'`. Tela `frontend/src/views/lia-ficha.js` (`?tela=lia-ficha&ropa=&aba=`). O Word e o CSV de importação da LIA trazem as 23 respostas (colunas opcionais no modelo `lia`).
 - **Titular, incidente e consentimento (fatia 7, migration 0058, SO registro interno)**: `titular_pedidos` (protocolo `PT-AAAA-NNNN` por projeto),
@@ -705,7 +705,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   `niso.ness.com.br` (`RECURSO_MCP`, nao segue o `APP_URL`). Clientes: Claude Code verificado em producao (30/09/2026); Cursor,
   Codex e Antigravity seguem "A confirmar" na tela Conectar agente (ver CHANGELOG).
   **O agente decide como o consultor (spec `docs/superpowers/specs/2026-10-23-agente-decide-como-consultor-design.md`).** O catalogo das decisoes
-  (10 ferramentas, 35 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-10-25: 35) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
+  (11 ferramentas, 36 acoes; `grep -cE "^\s+\{ ferramenta: 'niso_" src/middleware/decisoes-agente.ts` conta as entradas de `DECISOES`, 2026-11-05: 36) e `src/middleware/decisoes-agente.ts`; `src/mcp/servidor.ts` gera as ferramentas dele (`DECISAO_FERRAMENTAS`) so para o papel consultor. A porta e
   `resolverAgente` (`src/middleware/agente.ts`): a rota de decisao exige os cabecalhos `X-Agente-Ferramenta`, `X-Agente-Confirmado: 1` (so o booleano `true` em
   `confirmado_pelo_usuario`) e `X-Agente-Motivo` (1 a 500 caracteres); valendo, o principal ganha `agente_decisao` e `ehEquipeNess` o aceita naquela rota e so nela.
   A trilha `agente.decisao` e gravada ANTES da rota rodar: registra a tentativa confirmada mesmo que a rota falhe. O texto de documento, de importacao ou de campo livre
@@ -773,27 +773,26 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   precisa de permissao (o `-a` importa: `fechar-venda.ts` tem byte NUL e o
   `git grep` sem ele conta menos). `test/any-catraca.test.ts` reprova se o numero subir — e
   tambem se descer sem baixar o `TETO` la.
-- **Nenhum dos 328 arquivos de teste do backend mocka o D1 inteiro** (2026-10-18;
+- **Nenhum dos 424 arquivos de teste do backend mocka o D1 inteiro** (2026-11-05;
   `ls test/*.test.ts | wc -l`). Todos os que tocam banco usam o D1 real do
   `cloudflare:test`. Sobram dubles PONTUAIS de proposito: falha injetada
   (`helpers.test.ts`, `evidencia-upload-controle.test.ts`), linha legada que o schema atual
   nao aceita (`api.test.ts`) e Proxy sobre o D1 real para simular erro ou corrida
   (`erro-sem-vazamento`, `pedidos-corrida`, `revisao-final-decididos`, `avisos-prazo`, `politica-escritores`,
-  `modulos-ligar-privacy`, entre outros; em 2026-10-14 o comando abaixo casa 18 linhas em 12 arquivos, todas
+  `modulos-ligar-privacy`, entre outros; em 2026-11-05 o comando abaixo casa 24 linhas em 15 arquivos, todas
   dubles pontuais ou parametro com nome `DB`). Medicao:
   `git grep -nE "prepare\s*[:(]\s*(vi\.fn|\(|async)|\bDB\s*:" -- test` e conferir
   cada ocorrencia. Teste mockado nao pega deriva de schema — foi exatamente
   assim que o codebase acumulou consulta a tabela inexistente. Caminho novo de
   banco: teste de integracao real, no estilo de `test/schema-contract.test.ts`.
-- **Frontend com pouco teste por linha.** ~20,7 mil linhas de JS (2026-10-18)
-  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 142 arquivos de teste em jsdom
-  (`ls frontend/test/*.test.js | wc -l`) e 8 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
-  que rodam no CI. `test/e2e/mfa.py` e legado, fora do CI. As 38 telas de `frontend/src/views/` (2026-10-18) sao
-  importadas por ao menos um teste (2026-10-15: `for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
-  nao imprime nada), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, `project.js`, todas acima de 1.400 linhas)
+- **Frontend com pouco teste por linha.** ~24,3 mil linhas de JS (2026-11-05)
+  (`cat frontend/src/*.js frontend/src/views/*.js | wc -l`), 178 arquivos de teste em jsdom
+  (`ls frontend/test/*.test.js | wc -l`) e 15 specs E2E em Chromium (`ls frontend/e2e/*.spec.js`),
+  que rodam no portao local. `test/e2e/mfa.py` e legado, fora do CI. As 56 telas de `frontend/src/views/` (2026-11-05) sao
+  importadas por ao menos um teste (`for f in frontend/src/views/*.js; do grep -rlq "views/$(basename $f .js)" frontend/test frontend/e2e || echo $f; done`
+  imprime so as quatro sub-telas do n.ot, `ot-agente`, `ot-coleta`, `ot-levantamento` e `ot-saidas`, que os testes `frontend/test/ot-*.test.js` alcancam pela `views/ot.js`), mas as grandes (`compliance.js`, `monitor.js`, `grc.js`, todas acima de 1.800 linhas)
   tem teste so de fatias.
-- **6 leituras de corpo cruas em 4 arquivos** (2026-10-12: `git grep -n "c\.req\.json" -- 'src/routes/*.ts'`
-  da 7 linhas em 5 arquivos; a de `policies.ts` passa o corpo por `safeParse` e nao conta): `control-adequacao`,
+- **7 leituras de corpo cruas em 5 arquivos** (2026-11-05: `git grep -n "c\.req\.json" -- 'src/routes/*.ts'`): `auth` (o `/criar-senha` rele o corpo so para conferir o token depois que o `validateBody` recusou), `control-adequacao`,
   `controls` (le so para recusar `maturity`, depois `validateBody`), `phase-questionnaire` e
   `scim` (3, formato SCIM). Elas validam campo a campo no handler; o `bodyGuard` global cobre
   teto de tamanho e poluicao de prototipo. O T3 (#259) fechou as demais.
@@ -804,7 +803,7 @@ Ao mexer nestas areas, voce esta em terreno que ja falhou antes:
   reabrem o buraco.
 - **Direitos do titular nao cobrem PII em texto livre.** A busca e por igualdade
   em colunas conhecidas (`FONTES_PII` em `src/services/data-subject.ts`).
-- **`npm audit` esta em zero nos tres pacotes** (2026-10-25: `npm audit` na raiz, em `frontend` e em `mcp-server-niso`). Presos
+- **`npm audit` esta em zero nos tres pacotes** (2026-11-05: `npm audit` na raiz, em `frontend` e em `mcp-server-niso`; o `@hono/node-server` do `mcp-server-niso` subiu para 2.1.6 pelo aviso GHSA-rmxm-3fg6-px4f). Presos
   por `overrides`: na raiz `undici`, `body-parser`, `fast-uri`, `zod`, `vite`, `ip-address`, `sharp` e os pacotes MCP (puxados pelo
   `agents` e pelo pool de testes); no `frontend`, `undici` (puxado pelo `jsdom`). O npm 10 desta maquina quebra no `npm install` com
   `overrides` (`Cannot read properties of null (reading 'edgesOut')`): regenere o lock com `npx -y npm@11 install`. O job `audit` do
@@ -858,9 +857,9 @@ errar um digito destruia a sessao.
   inline (`git grep -nE "border-radius:\s*[1-9][0-9.]*(px|rem)" -- frontend/src` nao imprime nada); so os circulos de
   50%. Inline so `0` (`frontend/test/catracas-visuais.test.js`); novo nasce quadrado.
 - Estilo inline so para valor calculado; o resto usa as classes do fim de `frontend/src/style.css` (componentes e
-  utilitarios sobre tokens). A catraca trava o teto de `style=` por arquivo: 1.002 no frontend em 2026-10-15
+  utilitarios sobre tokens). A catraca trava o teto de `style=` por arquivo: 795 no frontend em 2026-11-05
   (`git grep -o "style=" -- 'frontend/src/*.js' 'frontend/src/views/*.js' | wc -l`), eram 1.740; nas quatro telas
-  grandes, 249 (eram 973).
+  grandes, 176 (eram 973).
 - Login: tela dividida — marca à esquerda, cartão à direita; empilha abaixo
   de 900px.
 
