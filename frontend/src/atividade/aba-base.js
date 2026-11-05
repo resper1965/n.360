@@ -194,7 +194,10 @@ window.atBaseAdicionar = function (tipo) {
                 <button type="submit" class="btn btn-primary" id="at-base-gravar" data-pendentes="${falta.length}" disabled>${tipo === 'gdpr' ? 'Confirmar' : 'Gravar'}</button></div></form>`);
 };
 
-/** Uma "Finalidade" obrigatória por inciso marcado; o que já foi digitado fica. */
+/** A finalidade da atividade (aba Escopo) é a sugestão inicial de cada base: a pessoa ajusta, nada é gravado sem o Gravar. */
+const finalidadeDaAtividade = () => String((E && E.ctx.ficha && E.ctx.ficha.registro && E.ctx.ficha.registro.finalidade) || '').trim();
+
+/** Uma "Finalidade" obrigatória por inciso marcado; o que já foi digitado fica, e o campo novo já vem com a finalidade da atividade. */
 window.atBaseMarcou = function () {
     const area = el('at-base-finalidades');
     const antes = Object.fromEntries([...area.querySelectorAll('textarea')].map((t) => [t.dataset.para, t.value]));
@@ -202,7 +205,7 @@ window.atBaseMarcou = function () {
     area.innerHTML = marcados.map((i, n) => {
         const id = `at-base-fin-${n}`;
         return `<div class="form-group"><label class="form-label" for="${id}">Finalidade: ${escapeHTML(i.dataset.nome)} <span class="t-aviso">(obrigatório)</span></label>
-            <textarea class="form-input" id="${id}" rows="2" maxlength="2000" data-para="${escapeHTML(i.value)}" required aria-required="true">${escapeHTML(antes[i.value] || '')}</textarea></div>`;
+            <textarea class="form-input" id="${id}" rows="2" maxlength="2000" data-para="${escapeHTML(i.value)}" required aria-required="true">${escapeHTML(i.value in antes ? antes[i.value] : finalidadeDaAtividade())}</textarea></div>`;
     }).join('');
     window.atBaseValida();
 };
@@ -245,7 +248,7 @@ window.atBaseFinalidade = function (tipo, id) {
             <p class="at-nota">${escapeHTML(nome)}</p>
             ${falta.length ? `<p class="at-nota t-aviso" role="status">Antes, preencha a finalidade de: ${escapeHTML(falta.map((p) => p.referencia || p.rotulo).join(', '))}.</p>` : ''}
             <div class="form-group"><label class="form-label" for="at-base-fin-unica">Finalidade <span class="t-aviso">(obrigatório)</span></label>
-                <textarea class="form-input" id="at-base-fin-unica" rows="3" maxlength="2000" data-para="${escapeHTML(id)}" data-action-input="atBaseValida" required aria-required="true" autofocus>${escapeHTML(x.finalidade || '')}</textarea></div>
+                <textarea class="form-input" id="at-base-fin-unica" rows="3" maxlength="2000" data-para="${escapeHTML(id)}" data-action-input="atBaseValida" required aria-required="true" autofocus>${escapeHTML(x.finalidade || finalidadeDaAtividade())}</textarea></div>
             <p class="re-erro" id="at-base-erro" role="alert"></p>
             <div class="acoes-rodape"><button type="button" class="btn" data-action="forceCloseModal">Fechar</button>
                 <button type="submit" class="btn btn-primary" id="at-base-gravar" data-pendentes="0">Gravar</button></div></form>`);
