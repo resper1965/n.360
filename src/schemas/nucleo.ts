@@ -287,6 +287,25 @@ export const incidenteAtualizarSchema = z.object({
   anpd_justificativa: z.string().trim().max(5000).nullable().optional(),
 }).strict();
 
+// Ação corretiva do incidente (fatia 4, 0100): mesma corrective_actions; tratamento de lista fechada; prazo opcional.
+export const TRATAMENTOS_ACAO_INCIDENTE = ['contencao', 'correcao', 'aperfeicoamento'] as const;
+const dataAcao = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD');
+export const incidenteAcaoCriarSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  description: z.string().trim().max(5000).nullish(),
+  tratamento: z.enum(TRATAMENTOS_ACAO_INCIDENTE).nullish(),
+  assigned_to_parte_id: idParte.nullish(),
+  due_date: dataAcao.nullish(),
+}).strict();
+export const incidenteAcaoAtualizarSchema = z.object({
+  title: z.string().trim().min(1).max(500).optional(),
+  description: z.string().trim().max(5000).nullable().optional(),
+  tratamento: z.enum(TRATAMENTOS_ACAO_INCIDENTE).nullable().optional(),
+  assigned_to_parte_id: idParte.nullable().optional(),
+  due_date: dataAcao.nullable().optional(),
+  status: z.enum(['Open', 'In Progress', 'Closed']).optional(),
+}).strict();
+
 export const incidenteRiscoSchema = z.object({
   risco_titular: z.enum(['sem_risco', 'baixo', 'relevante']),
   avaliacao_texto: textoLongo.nullish(),

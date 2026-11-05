@@ -5,11 +5,13 @@ import { appUrl } from '../config/url';
 import { lerParametros, removerParametro, salvarParametro } from '../services/parametros-legais';
 import { atualizarPedido, criarPedido, lerPedido, listarPedidos, gerarPortal, lerPortal, desativarPortal, listarTratativas, adicionarTratativa } from '../services/titular-pedidos';
 import { guardarAnexoIncidente, listarAnexosIncidente, baixarAnexoIncidente, apagarAnexoIncidente, MAX_ANEXO } from '../services/incidente-anexos';
+import { listarAcoesDoIncidente, criarAcaoDoIncidente, atualizarAcaoDoIncidente } from '../services/incidente-acoes';
+import { guardarAnexo, listarAnexos, baixarAnexo, apagarAnexo } from '../services/ropa-abas/anexos';
 import { atualizarIncidente, avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
 import { listarConsentimentos, registrarConsentimento, revogarConsentimento } from '../services/consentimentos';
 import { rascunharComunicacao, rascunharResposta } from '../services/rascunhos-privacy';
 import {
-  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
+  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
   titularPedidoAtualizarSchema, titularPedidoCriarSchema, tratativaSchema,
 } from '../schemas';
 
@@ -197,6 +199,74 @@ incidentesApp.delete('/:id/anexos/:anexoId', async (c) => {
     if (!r.ok) return c.json({ error: r.error }, r.status);
     await logAudit(c.env.DB, 'incidente.anexo', c.get('user').email, `Incidente ${c.req.param('id')}: evidência removida`, '', '', projectId);
     return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao apagar o anexo', e); }
+});
+
+// Ações corretivas do incidente (fatia 4): a mesma corrective_actions da CAPA, ligada por incidente_id, nos dois módulos.
+incidentesApp.get('/:id/acoes', async (c) => {
+  try {
+    const r = await listarAcoesDoIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'));
+    return r ? c.json({ acoes: r }) : c.json({ error: 'Incidente não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao listar as ações do incidente', e); }
+});
+
+incidentesApp.post('/:id/acoes', async (c) => {
+  try {
+    const v = await validateBody(c, incidenteAcaoCriarSchema);
+    if (!v.success) return v.response;
+    const r = await criarAcaoDoIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data);
+    return r.ok ? c.json({ ok: true, id: r.id }, 201) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao criar a ação do incidente', e); }
+});
+
+incidentesApp.put('/:id/acoes/:acaoId', async (c) => {
+  try {
+    const v = await validateBody(c, incidenteAcaoAtualizarSchema);
+    if (!v.success) return v.response;
+    // Concluir ação é decisão do consultor, como na CAPA e na atividade: o agente só pela ferramenta.
+    if (c.get('user')?.agente === true && !c.get('user')?.agente_decisao && v.data.status === 'Closed') return c.json({ error: 'Forbidden: concluir ação é decisão do consultor: use niso_concluir_acao' }, 403);
+    const r = await atualizarAcaoDoIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.req.param('acaoId'), c.get('user').email, v.data);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao alterar a ação do incidente', e); }
+});
+
+// Anexos da ação: a mesma acao_anexos do gap (PDF/DOC até 5 MB, tipo pelo conteúdo), dona pelo incidente_id. Fora do agente MCP.
+const donoIncidente = (c: { req: { param: (k: string) => string | undefined } }) => ({ coluna: 'incidente_id' as const, id: c.req.param('id')! });
+incidentesApp.get('/:id/acoes/:acaoId/anexos', async (c) => {
+  try {
+    const r = await listarAnexos(c.env.DB, c.req.param('projectId')!, donoIncidente(c), c.req.param('acaoId'));
+    return r ? c.json({ anexos: r }) : c.json({ error: 'Ação não encontrada' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao listar os anexos', e); }
+});
+
+incidentesApp.post('/:id/acoes/:acaoId/anexos', async (c) => {
+  try {
+    if (Number(c.req.header('Content-Length') ?? 0) > MAX_ANEXO + 1024) return c.json({ error: 'Máximo de 5 MB por arquivo' }, 413);
+    const corpo = await c.req.parseBody().catch(() => ({} as Record<string, unknown>));
+    const arq = corpo['file'];
+    if (!(arq instanceof File)) return c.json({ error: 'Envie um arquivo PDF ou DOC (máx. 5MB) válido' }, 400);
+    if (arq.size > MAX_ANEXO) return c.json({ error: 'Máximo de 5 MB por arquivo' }, 413);
+    const projectId = c.req.param('projectId')!;
+    const r = await guardarAnexo(c.env, projectId, donoIncidente(c), c.req.param('acaoId'), c.get('user').email, { name: arq.name, bytes: await arq.arrayBuffer() });
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    await logAudit(c.env.DB, 'incidente.acao', c.get('user').email, `Incidente ${c.req.param('id')}: anexo da ação corretiva`, '', '', projectId);
+    return c.json({ ok: true, id: r.id }, 201);
+  } catch (e) { return erro500(c, 'Falha ao anexar o arquivo', e); }
+});
+
+incidentesApp.get('/:id/acoes/:acaoId/anexos/:anexoId', async (c) => {
+  try {
+    const r = await baixarAnexo(c.env, c.req.param('projectId')!, donoIncidente(c), c.req.param('acaoId'), c.req.param('anexoId'));
+    return r ?? c.json({ error: 'Anexo não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao baixar o anexo', e); }
+});
+
+incidentesApp.delete('/:id/acoes/:acaoId/anexos/:anexoId', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const ok = await apagarAnexo(c.env, projectId, donoIncidente(c), c.req.param('acaoId'), c.req.param('anexoId'));
+    if (ok) await logAudit(c.env.DB, 'incidente.acao', c.get('user').email, `Incidente ${c.req.param('id')}: anexo da ação corretiva removido`, '', '', projectId);
+    return ok ? c.json({ ok: true }) : c.json({ error: 'Anexo não encontrado' }, 404);
   } catch (e) { return erro500(c, 'Falha ao apagar o anexo', e); }
 });
 

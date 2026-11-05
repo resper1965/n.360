@@ -497,21 +497,47 @@ describe('incidentes no n.iso', () => {
         await abrir('pedidos');
         expect([...el('c').querySelectorAll('[data-action="escolherAbaTitular"]')].map((b) => b.textContent)).toEqual(['Incidentes (1 · 1 atrasado)']);
     });
-    it('a janela do incidente tem Abrir CAPA quando o projeto tem iso; criar envia incidente_id', async () => {
-        S.activeProject = { id: 'p9', modulos: ['iso'] };
-        const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], descricao: 'Notebook perdido' }, [`POST ${B}/capa`]: { ok: true, id: 'c1' } });
-        await window.abrirIncidente('p9', 'i1');
-        expect(el('modal-content').querySelector('[data-action="abrirCapaDoIncidente"]')).not.toBeNull();
-        await window.abrirCapaDoIncidente('p9', 'i1');
-        expect(corpoDe(f, `POST ${B}/capa`)).toEqual({ title: 'Incidente IN-2026-0001: Acesso <b>indevido</b>', description: 'Notebook perdido', incidente_id: 'i1' });
-    });
-    it('no n.privacy a janela não oferece CAPA e as quatro abas continuam', async () => {
+    it('ações corretivas nos dois módulos: lista com protocolo -PA, "Nenhuma ação" e cria pela janela, sem CAPA', async () => {
         history.replaceState(null, '', '/privacy');
         S.activeProject = { id: 'p9', modulos: ['iso', 'privacy'] };
-        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
+        const f = await abrir('incidentes', {
+            [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] },
+            [`GET ${B}/incidentes/i1/acoes`]: { acoes: [] },
+            [`GET ${B}/partes`]: [{ id: 'p1', nome: 'Ana', tipo: 'pessoa' }, { id: 'o1', nome: 'Empresa', tipo: 'organizacao' }],
+            [`POST ${B}/incidentes/i1/acoes`]: { ok: true, id: 'a1' },
+        });
         expect(el('c').querySelectorAll('[role="tab"][data-action="escolherAbaTitular"]').length).toBe(4);
         await window.abrirIncidente('p9', 'i1');
         expect(el('modal-content').querySelector('[data-action="abrirCapaDoIncidente"]')).toBeNull();
+        await vi.waitFor(() => expect(el('in-acoes').textContent).toContain('Nenhuma ação.'));
+        await window.abrirAcaoIncidente('p9', 'i1', null);
+        expect([...el('in-ac-trat').options].map((o) => o.textContent)).toEqual(['Não informado', 'Contenção', 'Correção', 'Aperfeiçoamento']);
+        expect([...el('in-ac-resp').options].map((o) => o.textContent)).toEqual(['Não definido', 'Ana']);
+        expect(el('in-ac-status')).toBeNull(); // nasce aberta
+        el('in-ac-titulo').value = '  '; await window.salvarAcaoIncidente('p9', 'i1', null);
+        expect(chamadas(f)).not.toContain(`POST ${B}/incidentes/i1/acoes`);
+        el('in-ac-titulo').value = 'Isolar o servidor'; el('in-ac-trat').value = 'contencao'; el('in-ac-resp').value = 'p1';
+        await window.salvarAcaoIncidente('p9', 'i1', null);
+        expect(corpoDe(f, `POST ${B}/incidentes/i1/acoes`)).toEqual({ title: 'Isolar o servidor', description: null, tratamento: 'contencao', assigned_to_parte_id: 'p1', due_date: null });
+    });
+    it('ação existente: a lista mostra protocolo, tratamento, status, prazo e responsável; abrir edita o status e mostra os anexos', async () => {
+        const ACAO = { id: 'a1', protocolo: 'IN-2026-0001-PA01', title: 'Isolar <b>o</b> servidor', tratamento: 'contencao', status: 'Open', due_date: '2026-12-01', assigned_to_parte_id: 'p1', assigned_to_parte_nome: 'Ana' };
+        const f = await abrir('incidentes', {
+            [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] },
+            [`GET ${B}/incidentes/i1/acoes`]: { acoes: [ACAO] },
+            [`GET ${B}/partes`]: [{ id: 'p1', nome: 'Ana', tipo: 'pessoa' }],
+            [`GET ${B}/incidentes/i1/acoes/a1/anexos`]: { anexos: [{ id: 'x1', file_name: 'plano.pdf' }] },
+            [`PUT ${B}/incidentes/i1/acoes/a1`]: { ok: true },
+        });
+        await window.abrirIncidente('p9', 'i1');
+        await vi.waitFor(() => expect(el('in-acoes').textContent).toContain('IN-2026-0001-PA01'));
+        expect(el('in-acoes').textContent).toContain('Contenção · Aberto · prazo 01/12/2026 · Ana');
+        expect(el('in-acoes').innerHTML).not.toContain('<b>o</b>'); // escapado
+        await window.abrirAcaoIncidente('p9', 'i1', 'a1');
+        await vi.waitFor(() => expect(el('in-ac-anexos').textContent).toContain('plano.pdf'));
+        el('in-ac-status').value = 'Closed';
+        await window.salvarAcaoIncidente('p9', 'i1', 'a1');
+        expect(corpoDe(f, `PUT ${B}/incidentes/i1/acoes/a1`)).toMatchObject({ status: 'Closed', tratamento: 'contencao', due_date: '2026-12-01' });
     });
 });
 

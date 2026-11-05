@@ -8,7 +8,7 @@ const COLUNAS: [string, string][] = [
   ['corrective_actions', 'assigned_to_parte_id'], ['checklist_progress', 'assigned_to_parte_id'],
 ];
 // Colunas acrescentadas por migrations POSTERIORES à 0049: ficam depois da coluna do responsável.
-const POSTERIORES: Record<string, number> = { risks: 7, compliance_controls: 1, ropa_records: 17, corrective_actions: 3, checklist_progress: 6 }; // 0082: aceite_manual em risks. 0079 (abas do RoPA): +2 em risks, +12 em ropa_records, +1 em corrective_actions. 0078: bloqueio_*, excecao_* (6 colunas), ropa_id e os três residual_* (0073), requisito_id (0053), base_legal_id (0054) + dados_sensiveis e criancas_adolescentes (0069) + impacto_finalizado_em (0072) + base_gdpr (0074), incidente_id (0063) + ropa_id (0073)
+const POSTERIORES: Record<string, number> = { risks: 7, compliance_controls: 1, ropa_records: 17, corrective_actions: 4, checklist_progress: 6 }; // 0100: tratamento em corrective_actions. 0082: aceite_manual em risks. 0079 (abas do RoPA): +2 em risks, +12 em ropa_records, +1 em corrective_actions. 0078: bloqueio_*, excecao_* (6 colunas), ropa_id e os três residual_* (0073), requisito_id (0053), base_legal_id (0054) + dados_sensiveis e criancas_adolescentes (0069) + impacto_finalizado_em (0072) + base_gdpr (0074), incidente_id (0063) + ropa_id (0073)
 const colunas = async (t: string) =>
   (await env.DB.prepare(`SELECT name FROM pragma_table_info('${t}')`).all<{ name: string }>()).results.map((r) => r.name);
 

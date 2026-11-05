@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0099** (`ls migrations/*.sql | tail -1`). São 99 arquivos
+- Última migration no repositório: **0100** (`ls migrations/*.sql | tail -1`). São 100 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -753,13 +753,19 @@ depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titula
 Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).
 
+## 0100 — tratamento da ação corretiva do incidente (2026-11-05)
+
+`corrective_actions.tratamento` (`contencao`, `correcao`, `aperfeicoamento`) por `ALTER TABLE ADD COLUMN`. Fatia 4 da spec
+`2026-11-04-incidentes-legado-design`. Conferência depois: `SELECT name FROM pragma_table_info('corrective_actions') WHERE name = 'tratamento'`
+(1 linha). Produção só com o "sim" do dono e `npm run db:backup` antes.
+
 ## 0099 — comunicação à ANPD completa (2026-11-05)
 
 Colunas novas em `incidentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner; o CHECK da 0058 não muda): `anpd_protocolo`
 (até 100), `anpd_canal` (`sei`, `formulario_anpd`, `email`, `outro`) e `anpd_justificativa` (até 5000). Fatia 2 da spec
 `2026-11-04-incidentes-legado-design`. Conferência depois:
 `SELECT name FROM pragma_table_info('incidentes') WHERE name IN ('anpd_protocolo','anpd_canal','anpd_justificativa')` (3 linhas).
-Produção só com o "sim" do dono e `npm run db:backup` antes.
+Aplicada em produção em 05/11/2026, com backup antes: a conferência deu 3 linhas.
 
 ## 0098 — registro completo do incidente (2026-11-04)
 

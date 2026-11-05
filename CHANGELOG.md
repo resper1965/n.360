@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Incidente: ações corretivas dentro do incidente, nos dois módulos (migration 0100)
+- A janela do incidente ganha a seção "Ações corretivas", no n.iso e no n.privacy: lista com o protocolo `<protocolo>-PA01` (derivado pela ordem de criação), o tratamento, o status, o prazo e o responsável; "Nova ação" e "Abrir" para editar. Sem ação, "Nenhuma ação." Nada é criado sozinho.
+- A ação é a mesma `corrective_actions` da CAPA do n.iso, ligada pelo `incidente_id`; o "Abrir CAPA", que só existia no n.iso, saiu da janela. Tratamento: contenção, correção ou aperfeiçoamento; prazo opcional em todos. A ação segue depois do encerramento do incidente.
+- Anexos da ação (PDF/DOC até 5 MB, tipo pelo conteúdo), na mesma `acao_anexos` do gap, fora do agente MCP. Concluir a ação pelo agente só com a ferramenta `niso_concluir_acao`.
+- Rotas `GET|POST /projects/:id/incidentes/:id/acoes`, `PUT .../acoes/:acaoId` e `.../acoes/:acaoId/anexos*` (`src/services/incidente-acoes.ts`). Migration 0100 (aditiva): `corrective_actions.tratamento`, com CHECK.
+
 ### Incidente: comunicação à ANPD completa e importação por CSV (migration 0099)
 - Registrar a comunicação à ANPD pede também o canal (peticionamento eletrônico SEI, formulário da ANPD, e-mail, outro) e o nº do protocolo na ANPD, opcional. A comunicação ao titular não aceita esses campos.
 - O protocolo interno da comunicação (`<protocolo>-COM01`, como no legado) é derivado, sem coluna. O resumo do incidente mostra protocolo interno, data, canal e nº.

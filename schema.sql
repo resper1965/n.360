@@ -669,7 +669,9 @@ CREATE TABLE IF NOT EXISTS corrective_actions (
     -- Ação da atividade de tratamento do n.privacy, migration 0073
     ropa_id TEXT REFERENCES ropa_records(id) ON DELETE SET NULL,
     -- Ficha em abas (migration 0079)
-    recomendacao TEXT CHECK (recomendacao IS NULL OR length(recomendacao) <= 4000)
+    recomendacao TEXT CHECK (recomendacao IS NULL OR length(recomendacao) <= 4000),
+    -- Tratamento da ação corretiva do incidente (0100)
+    tratamento TEXT CHECK (tratamento IS NULL OR tratamento IN ('contencao', 'correcao', 'aperfeicoamento'))
 );
 
 CREATE TABLE IF NOT EXISTS api_keys (
