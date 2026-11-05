@@ -230,6 +230,8 @@ const VALOR_FIXO: Record<string, Record<string, unknown>> = {
   ot_levantamentos: { tipo: 'entrevista' },
   // n.ot (0095): assinatura tem 64 caracteres e mapeamento é objeto JSON (CHECKs)
   ot_perfis_depara: { assinatura: 'a'.repeat(64), mapeamento: '{}' },
+  // n.ot (0097): dados é objeto JSON (CHECK)
+  ot_fluxos_pendentes: { dados: '{}', origem_ip_hash: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
 };
 
 /**
@@ -268,7 +270,7 @@ async function semearOrganizacao(o: Org, neutro: string): Promise<string[]> {
       else if (c.name === 'org_id') valores.push(o.org);
       else if (fixo === null) continue;
       else if (alvoFk.has(c.name) && idDe.has(alvoFk.get(c.name)!)) valores.push(idDe.get(alvoFk.get(c.name)!));
-      else if (c.notnull && c.dflt_value === null) {
+      else if ((c.notnull && c.dflt_value === null) || fixo !== undefined) {
         valores.push(fixo !== undefined ? fixo : /INT|REAL|NUM/i.test(c.type ?? '') ? 0 : `${id}-${c.name}`);
       } else continue;
       usadas.push(c.name);

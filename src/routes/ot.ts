@@ -123,9 +123,9 @@ const trilha = (c: C, acao: string, projectId: string, detalhe: string, entidade
 otApp.get('/sites', async (c) => {
   try {
     const { db, projectId, sites } = await contexto(c);
-    const { results } = await db.prepare(`SELECT id, nome, tipo, criticidade, localizacao, status, created_at, updated_at FROM ot_sites
-      WHERE project_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY nome`).bind(projectId, sites).all();
-    return c.json({ sites: results });
+    const { results } = await db.prepare(`SELECT id, nome, tipo, criticidade, localizacao, faixas_internas, status, created_at, updated_at FROM ot_sites
+      WHERE project_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY nome LIMIT ${TETO_LEITURA_OT}`).bind(projectId, sites).all<{ faixas_internas: string }>();
+    return c.json({ sites: results.map((r) => ({ ...r, faixas_internas: JSON.parse(r.faixas_internas) as string[] })) });
   } catch (e) { return erro500(c, 'Falha ao listar os sites', e); }
 });
 
@@ -135,8 +135,8 @@ otApp.post('/sites', async (c) => {
     const v = await validateBody(c, otSiteCriarSchema);
     if (!v.success) return v.response;
     const id = genId();
-    await c.env.DB.prepare('INSERT INTO ot_sites (id, project_id, nome, tipo, criticidade, localizacao) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind(id, projectId, v.data.nome, v.data.tipo ?? 'outro', v.data.criticidade ?? null, v.data.localizacao ?? null).run();
+    await c.env.DB.prepare('INSERT INTO ot_sites (id, project_id, nome, tipo, criticidade, localizacao, faixas_internas) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, projectId, v.data.nome, v.data.tipo ?? 'outro', v.data.criticidade ?? null, v.data.localizacao ?? null, JSON.stringify(v.data.faixas_internas ?? [])).run();
     await trilha(c, 'ot.site.criado', projectId, `Site ${id} criado`, { tipo: 'ot_site', id });
     return c.json({ ok: true, id }, 201);
   } catch (e) { return erro500(c, 'Falha ao criar o site', e); }
@@ -500,8 +500,8 @@ otApp.post('/lotes/:id/aprovar', async (c) => {
     const r = await aprovarLote(db, chavesOt(c.env)!, user, projectId, sites, c.req.param('id'));
     if (!r.ok) return c.json({ error: r.error }, r.status);
     const { ok: _ok, ...n } = r;
-    await trilha(c, 'ot.lote.aprovado', projectId, `Lote ${c.req.param('id')} aprovado: ${n.criados} criado(s), ${n.atualizados} atualizado(s), ${n.recusados} recusado(s)`,
-      { tipo: 'ot_lote', id: c.req.param('id') });
+    await trilha(c, 'ot.lote.aprovado', projectId, `Lote ${c.req.param('id')} aprovado: ${n.criados} criado(s), ${n.atualizados} atualizado(s), ${n.recusados} recusado(s)`
+      + (n.fluxos_pendentes_resolvidos > 0 ? `, ${n.fluxos_pendentes_resolvidos} fluxo(s) pendente(s) resolvido(s)` : ''), { tipo: 'ot_lote', id: c.req.param('id') });
     return c.json({ ok: true, ...n });
   } catch (e) { return erro500(c, 'Falha ao aprovar o lote', e); }
 });

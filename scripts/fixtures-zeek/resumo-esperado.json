@@ -1,0 +1,105 @@
+{
+  "formato": "n.ot-resumo-rede/1",
+  "gerado_em": "2026-11-04T12:00:00Z",
+  "periodo": {
+    "inicio": "2026-11-01T00:00:00Z",
+    "fim": "2026-11-01T00:02:00Z"
+  },
+  "ativos": [
+    {
+      "ip": "10.1.1.20",
+      "mac": "00:0e:8c:aa:bb:cc",
+      "fabricante": "Siemens",
+      "protocolos": [],
+      "portas_servico": [],
+      "primeira_vez": "2026-11-01T00:00:00Z",
+      "ultima_vez": "2026-11-01T00:02:00Z"
+    },
+    {
+      "ip": "10.1.1.10",
+      "mac": "00:30:a7:01:02:03",
+      "fabricante": "SEL",
+      "protocolos": [
+        "modbus"
+      ],
+      "portas_servico": [
+        502
+      ],
+      "primeira_vez": "2026-11-01T00:00:00Z",
+      "ultima_vez": "2026-11-01T00:02:00Z"
+    },
+    {
+      "ip": "10.1.1.11",
+      "protocolos": [
+        "dnp3"
+      ],
+      "portas_servico": [
+        20000
+      ],
+      "primeira_vez": "2026-11-01T00:00:30Z",
+      "ultima_vez": "2026-11-01T00:00:30Z"
+    },
+    {
+      "ip": "10.1.1.30",
+      "protocolos": [
+        "https"
+      ],
+      "portas_servico": [
+        443
+      ],
+      "primeira_vez": "2026-11-01T00:00:40Z",
+      "ultima_vez": "2026-11-01T00:00:40Z"
+    },
+    {
+      "ip": "10.1.1.31",
+      "protocolos": [],
+      "portas_servico": [
+        9999
+      ],
+      "primeira_vez": "2026-11-01T00:00:50Z",
+      "ultima_vez": "2026-11-01T00:00:50Z"
+    }
+  ],
+  "conexoes": [
+    {
+      "origem": "10.1.1.20",
+      "destino": "10.1.1.10",
+      "transporte": "tcp",
+      "porta": 502,
+      "aplicacao": "modbus",
+      "contagem": 3,
+      "primeira_vez": "2026-11-01T00:00:00Z",
+      "ultima_vez": "2026-11-01T00:02:00Z"
+    },
+    {
+      "origem": "10.1.1.20",
+      "destino": "10.1.1.11",
+      "transporte": "tcp",
+      "porta": 20000,
+      "aplicacao": "dnp3",
+      "contagem": 1,
+      "primeira_vez": "2026-11-01T00:00:30Z",
+      "ultima_vez": "2026-11-01T00:00:30Z"
+    },
+    {
+      "origem": "10.1.1.20",
+      "destino": "10.1.1.30",
+      "transporte": "tcp",
+      "porta": 443,
+      "aplicacao": "https",
+      "contagem": 1,
+      "primeira_vez": "2026-11-01T00:00:40Z",
+      "ultima_vez": "2026-11-01T00:00:40Z"
+    },
+    {
+      "origem": "10.1.1.20",
+      "destino": "10.1.1.31",
+      "transporte": "tcp",
+      "porta": 9999,
+      "aplicacao": null,
+      "contagem": 1,
+      "primeira_vez": "2026-11-01T00:00:50Z",
+      "ultima_vez": "2026-11-01T00:00:50Z"
+    }
+  ]
+}
