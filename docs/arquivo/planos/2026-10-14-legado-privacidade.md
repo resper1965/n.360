@@ -10,7 +10,7 @@
 
 **Spec e insumos:**
 - Estudo do gap (página): https://claude.ai/artifact/BjWXd6CSR3BiM7nG3bWBhk
-- Pesquisa de código, com evidência arquivo:linha: `docs/superpowers/plans/2026-10-14-legado-pesquisa-de-codigo.md`
+- Pesquisa de código, com evidência arquivo:linha: `docs/arquivo/planos/2026-10-14-legado-pesquisa-de-codigo.md`
 - Decisões do dono em 14/10/2026: (1) riscos e ações no cadastro comum, com o **mapa de risco no n.privacy**; (2) **todas** as fases, aos poucos; (3) os clientes do legado **migram para o n.360 e o legado é desligado**; (4) as planilhas de exportação do legado serão fornecidas.
 
 ## Restrições globais

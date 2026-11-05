@@ -2,11 +2,11 @@
 
 > **Para agentes:** SUB-SKILL OBRIGATÓRIA: use superpowers:executing-plans para executar este plano tarefa a tarefa. Os passos usam caixas `- [ ]`.
 
-**Objetivo:** fechar as lacunas 4 e 5 do plano mestre (`2026-10-14-legado-privacidade.md`): o ciclo de vida do dado por etapa e mais de uma base legal por atividade, inclusive a base do GDPR, sem mexer no conteúdo congelado das aprovações.
+**Objetivo:** fechar as lacunas 4 e 5 do plano mestre (`docs/arquivo/planos/2026-10-14-legado-privacidade.md`): o ciclo de vida do dado por etapa e mais de uma base legal por atividade, inclusive a base do GDPR, sem mexer no conteúdo congelado das aprovações.
 
 **Arquitetura:** duas tabelas novas ligadas à atividade (`ropa_records`) e uma coluna de texto, todas aditivas (migration 0074). Serviços `src/services/ciclo.ts` e `src/services/bases.ts`; sub-rotas `GET/PUT .../ropa/:rid/ciclo` e `GET/PUT .../ropa/:rid/bases` na faixa `privacy`. A entrevista grava e lê o que hoje é "sem coluna" (origem e eliminação) e pergunta o ciclo e as bases adicionais uma vez. Nada disso entra em `DOCUMENTOS.tratamento` nem em `COLUNAS_DPIA` (`src/services/pedidos.ts`): o padrão é não incluir, e nenhuma das duas coisas é indispensável no hash.
 
-**Insumos:** plano mestre (restrições globais, pré-preenchimento, lacunas 4 e 5, adequações, parágrafo F3); pesquisa `2026-10-14-legado-pesquisa-de-codigo.md` (seções C, D, E; decisões D5 e D6); moldes F1 (`src/services/impacto.ts`, 0072, `test/impacto.test.ts`, `test/tratamento-aprovacao.test.ts`) e F2 (`src/services/riscos-atividade.ts`, 0073).
+**Insumos:** plano mestre (restrições globais, pré-preenchimento, lacunas 4 e 5, adequações, parágrafo F3); pesquisa `docs/arquivo/planos/2026-10-14-legado-pesquisa-de-codigo.md` (seções C, D, E; decisões D5 e D6); moldes F1 (`src/services/impacto.ts`, 0072, `test/impacto.test.ts`, `test/tratamento-aprovacao.test.ts`) e F2 (`src/services/riscos-atividade.ts`, 0073).
 
 ## Decisões desta fase
 

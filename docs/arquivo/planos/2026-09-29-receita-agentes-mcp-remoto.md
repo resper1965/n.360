@@ -6,7 +6,7 @@
 > revalidação a cada chamada e a revogação seguem como descritos aqui. A regra "o agente
 > não apaga e não gera em lote" foi **substituída** em 30/09/2026: o agente passou a ter o
 > alcance do consultor, preso a um projeto, com confirmação para as ações destrutivas
-> ([spec](../../superpowers/specs/2026-09-30-agente-paridade-consultor-design.md)). O estado atual está em [`docs/agente/`](../../agente/README.md).
+> ([spec](../specs/2026-09-30-agente-paridade-consultor-design.md)). O estado atual está em [`docs/agente/`](../../agente/README.md).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -16,7 +16,7 @@
 
 **Tech Stack:** Cloudflare Workers + Hono 4.13, D1, KV, `@cloudflare/workers-oauth-provider`, `agents` (`agents/mcp/server`), `@modelcontextprotocol/server` (SDK v2), zod 4, vitest 4 + `@cloudflare/vitest-pool-workers`.
 
-**Spec:** `docs/superpowers/specs/2026-09-29-receita-agentes-mcp-remoto-design.md`
+**Spec:** `docs/arquivo/specs/2026-09-29-receita-agentes-mcp-remoto-design.md`
 
 ## Global Constraints
 

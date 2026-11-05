@@ -1,8 +1,8 @@
 # RoPA em abas, clone do legado (fase 1)
 
-Data: 16/10/2026. Redesenho da atividade de tratamento do n.privacy: a tela passa a ser a "Registro da atividade" do legado (cabeçalho e nove abas livres), com os dados do ciclo de vida por etapa, sem perder a entrevista guiada, o pré-preenchimento, a aprovação por pedido com hash e o cadastro compartilhado com o n.iso. Decisões do dono do produto de 16/10/2026 (nota `nprivacy-paridade-telas-legado` da memória do dono), fechadas em conversa; este texto as traduz em modelo, contrato, entrega e riscos. Plano de execução em [`docs/superpowers/plans/2026-10-16-ropa-abas.md`](../plans/2026-10-16-ropa-abas.md).
+Data: 16/10/2026. Redesenho da atividade de tratamento do n.privacy: a tela passa a ser a "Registro da atividade" do legado (cabeçalho e nove abas livres), com os dados do ciclo de vida por etapa, sem perder a entrevista guiada, o pré-preenchimento, a aprovação por pedido com hash e o cadastro compartilhado com o n.iso. Decisões do dono do produto de 16/10/2026 (nota `nprivacy-paridade-telas-legado` da memória do dono), fechadas em conversa; este texto as traduz em modelo, contrato, entrega e riscos. Plano de execução em [`docs/arquivo/planos/2026-10-16-ropa-abas.md`](../../arquivo/planos/2026-10-16-ropa-abas.md).
 
-Fontes lidas: 40 capturas do legado (leituras de analistas em três partes; duas conferidas direto no PNG), `AGENTS.md`, `PRODUCT.md`, `design.md`, a spec e o plano da Bancada (`2026-10-15-bancada-trilha*`, molde de fatiamento), a pesquisa de código do legado (`2026-10-14-legado-pesquisa-de-codigo.md`) e o plano F1-F6 (`2026-10-14-legado-privacidade.md`). Todo `arquivo:linha` aponta para `origin/main` em `2c50ac5`.
+Fontes lidas: 40 capturas do legado (leituras de analistas em três partes; duas conferidas direto no PNG), `AGENTS.md`, `PRODUCT.md`, `design.md`, a spec e o plano da Bancada (`2026-10-15-bancada-trilha*`, molde de fatiamento), a pesquisa de código do legado (`docs/arquivo/planos/2026-10-14-legado-pesquisa-de-codigo.md`) e o plano F1-F6 (`docs/arquivo/planos/2026-10-14-legado-privacidade.md`). Todo `arquivo:linha` aponta para `origin/main` em `2c50ac5`.
 
 ## 1. Problema
 

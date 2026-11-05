@@ -5,7 +5,7 @@ import { itensDoDia } from '../src/services/avisos-prazo';
 import { applySchema, sessionFor, workerEnv, habilitarPrivacy } from './helpers/d1';
 
 /**
- * Frente 1 da equalização (docs/equalizacao-modulos-2026-10-20.md, P0): defeitos que perdiam dado,
+ * Frente 1 da equalização (docs/arquivo/equalizacao-modulos-2026-10-20.md, P0): defeitos que perdiam dado,
  * deixavam o agente concluir o que é ato humano ou mostravam o que não devia.
  */
 const P = 'f1-proj';

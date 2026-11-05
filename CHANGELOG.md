@@ -12,6 +12,111 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Higienização de 05/11: estado, documentos e código sem uso
+- `docs/estado-2026-11-05.md`: o estágio do projeto, os riscos abertos e os próximos passos, cada um com o comando que o prova. `docs/prontidao-primeiro-cliente.md` refeito com as provas de 05/11.
+- AGENTS.md, README.md, PRODUCT.md e llms.txt com os números de hoje e com o n.ot como terceiro módulo; o README perde os selos de workflows desligados e descreve a publicação pelo portão local.
+- 23 documentos executados ou superados vão para `docs/arquivo/` (planos de 14 a 27/10, três specs, o estado de 20/10, o plano de 08/10, a paridade, a equalização e a avaliação de 14/10), com os links reescritos. `backups/README.md` e `docs/runbook-incidente.md` deixam de prometer backup diário e issue automática de deploy, que não rodam com o Actions desligado.
+- Sai o código sem uso do frontend: `similares.js` (sem importador desde que a entrevista do RoPA saiu), seu teste e o CSS, e os arquivos do modelo do Vite em `frontend/src/assets/`.
+- `mcp-server-niso`: `@hono/node-server` 2.1.6 (GHSA-rmxm-3fg6-px4f); `npm audit` zero nos três pacotes.
+- O portão (`scripts/ci/gate.sh`) passa a rodar `scripts/test_n_ot_resumo_zeek.py`, citado no `SECURITY.md` e antes fora dele.
+
+### Incidente com o registro completo do legado (migration 0098)
+- O incidente ganha os campos do legado: origem do alerta, severidade, tipo, comprometimento (confidencialidade, integridade, disponibilidade), critérios de risco, titulares estimados e data de fim. Listas fechadas em `src/schemas/nucleo.ts`.
+- Áreas afetadas e titulares x dados afetados (do catálogo do RoPA) se ligam ao incidente. `PUT /projects/:id/incidentes/:id` grava campos e listas numa transação; a lista enviada substitui a anterior.
+- Evidências: `GET|POST|DELETE .../incidentes/:id/anexos`, PDF ou DOC até 5 MB, tipo conferido pelo conteúdo, no R2 em `incidentes/<projeto>/<id>/`. Fora do agente MCP.
+- Incidente encerrado não ganha área, dado nem evidência, também no banco (gatilhos); a edição que chega depois do encerramento recebe 409.
+- O rascunho de IA da comunicação passa a contar titulares estimados e dados afetados.
+- Registrar a comunicação não sobrescreve a data já registrada (409 com a data oficial).
+- Tela: resumo do registro na janela do incidente, "Editar registro" com os campos novos e a seção Evidências (`frontend/src/views/titular.js`). A edição só manda a data de ocorrência e de fim quando a pessoa muda o dia, para não perder a hora gravada pela API.
+- Migration 0098 (aditiva): colunas novas em `incidentes` e as tabelas `incidente_departamentos`, `incidente_dados` e `incidente_anexos`, com gatilho de projeto. Importação por CSV dos campos novos fica para a fatia 2. Spec em `docs/superpowers/specs/2026-11-04-incidentes-legado-design.md`.
+
+### Sensor de rede no n.ot (L3; migration 0097)
+- Um sensor Zeek numa porta espelhada vira achados do levantamento: `scripts/n-ot-resumo-zeek.py` (só biblioteca padrão do Python) resume os logs (`conn` obrigatório; modbus, dnp3, dhcp, `known_*` e software quando existem) num `resumo.json` com IP, MAC, portas, protocolo e horários, nunca payload. Lê logs rotacionados e compactados; multicast, broadcast e loopback ficam de fora.
+- Na sessão de documento do Levantamento, "Importar arquivo" aceita o resumo (até 5 MB). Ele vira achados de ativo e de fluxo em rascunho, revisados e aprovados pelo lote da Coleta, como qualquer coleta. O arquivo é lido na hora: não vai ao R2 nem à IA. Só quem vê o inventário completo importa (403 para os demais).
+- O site ganha faixas internas (CIDR). Conexão com ponta ainda desconhecida fica em `ot_fluxos_pendentes` (só o hash do IP) e vira achado de fluxo quando o ativo é aprovado; a pendência expira em 90 dias (`src/manutencao.ts`).
+- Selo "Sensor de rede" no achado; a aprovação do lote conta os fluxos pendentes resolvidos, e a trilha `ot.lote.aprovado` os leva.
+- Migration 0097 (`0097_ot_sensor_rede.sql`, aditiva): `ot_sites.faixas_internas` e `ot_fluxos_pendentes`. Serviço `src/services/ot-rede.ts`; guia `docs/n-ot-sensor-rede.md`. É visibilidade de inventário, não detecção de ataque.
+
+### Solicitações e Incidentes: correções do teste no navegador; `wrangler dev` volta a subir
+- Pedido do titular: formulário em branco não registra (descrição obrigatória na tela); pedido respondido ou negado só oferece "Arquivado".
+- Portal: o texto diz "copie o link abaixo" e há o botão Copiar.
+- Incidente: `PUT .../incidentes/:id` corrige título, descrição, data de ocorrência e responsável enquanto não encerrado (a ciência não muda, porque os prazos contam dela); trilha `incidente.alterado` só com os nomes dos campos. Botão "Corrigir dados do registro".
+- Comunicação à ANPD e ao titular pede a data (hoje preenchido) e confirma antes de registrar, porque não se desfaz.
+- Encerrar: sem risco avaliado, ou com risco relevante sem a comunicação à ANPD, a tela diz o que falta em vez de oferecer um encerramento que o servidor recusa.
+- O botão Fechar do modal fica acima da faixa do prazo; na lista vazia a ação do vazio é secundária.
+- `npm run dev` não subia: o runtime local recusava a constante `CRON_AVISOS` exportada de `src/index.ts`. Ela passou para `src/services/avisos-prazo.ts`. Produção não muda.
+
+### n.ot: aviso de IP ou MAC faltando; aba "Acessos e agente"
+- O item 4.3.1 da RO-CB.BR.01 pede IP ou MAC, e o cadastro segue a norma: o que falta fica visível sem bloquear ("Falta IP"/"Falta MAC" na tabela do inventário; "Ativos sem IP" e "Ativos sem MAC" em Saídas, `src/services/ot-indicadores.ts`).
+- A aba "Acesso por site" passa a se chamar "Acessos e agente", porque o cartão do agente de coleta mora nela.
+
+### n.ot: recusa de IP ou MAC em texto livre diz o motivo
+- O filtro continua recusando também o falso positivo (item da norma ou versão com quatro números), mas a mensagem agora explica por quê e como escrever (campos próprios; hífen no último ponto). A tela mostra essa explicação no lugar de "Payload inválido" (`mensagemDeErro` em `frontend/src/ot-comum.js`).
+
+### Segurança: IP do cliente só pelo `CF-Connecting-IP`
+- O `X-Forwarded-For` vem do cliente e, usado como reserva, permitia passar pela allowlist de IP do projeto e trocar a chave do limite de tentativas de login, "Esqueci a senha" e redefinição. O IP agora sai só do `CF-Connecting-IP`, que a Cloudflare sempre põe no Worker (`src/middleware/auth.ts`, `src/routes/auth.ts` e as rotas que gravam IP na prova). Sem migration.
+
+### Agente externo de coleta do n.ot (L5; migration 0096)
+- Chave própria `ot_coleta` (7 dias por padrão, máximo 30) que só vale em `POST /ot-coleta/mcp`; é recusada em toda `/api/v1` e em `/mcp` (falha fechada em `src/middleware/auth.ts`). Vale a allowlist de IP do projeto.
+- Quatro ferramentas MCP (`src/mcp/ot-coleta.ts`): `ler_depara`, `criar_sessao_documental`, `registrar_achados` e `encerrar_sessao`. Sem leitura de inventário, só achado de ativo, sem zona, lote JSON-RPC recusado.
+- Tetos: 120 chamadas por hora e 20 sessões por dia por chave; 200 achados por chamada e 2.000 por sessão.
+- Interruptor só do Gestor ARCiber (com confirmação ao ligar); chaves emitidas e revogadas pelo Gestor ou pela consultoria designada. Cartão "Agente de coleta" na aba de acessos: a chave aparece uma vez (Copiar, endpoint e o comando do Claude Code). Achado enviado pelo agente leva o selo "Enviado pelo agente".
+- O arquivo passa pelo modelo do agente sem a máscara do n.ot: está escrito no guia `docs/n-ot-agente.md`. Migration 0096 (`0096_ot_agente_coleta.sql`). Serviço `src/services/ot-agente.ts`.
+
+### Órgãos públicos na aba Agentes e aprovação direta do RoPA (migration 0097)
+- Aba Agentes: os órgãos públicos que recebem os dados viram lista (nome e obrigação legal, até 20 por atividade), com Adicionar e Remover, no lugar do campo de texto. Rotas `GET|POST .../ropa/:rid/orgaos-publicos` e `PUT|DELETE .../:id`, faixa `privacy` (`src/services/ropa-abas/orgaos-publicos.ts`).
+- Cada escrita regrava `ropa_records.recipients` (conteúdo congelado da aprovação) e confere os pedidos abertos. O texto livre antigo aparece como texto anterior até o primeiro cadastro. `PUT /ropa/:id` recusa (409) trocar `recipients` quando a atividade já tem órgãos cadastrados.
+- Aprovação direta antiga (status Aprovado com assinaturas na linha) cai quando o conteúdo congelado muda por qualquer caminho: abas da ficha, transferências, itens, departamentos, vínculo de parte e mescla de cadastros. Regra única `conteudoDoTratamentoMudou` (`src/routes/ropa.ts`), trilha `ropa.aprovacao_invalidada`. Itens e departamentos só derrubam quando o conjunto muda de fato; a mescla só derruba onde o hash do conteúdo mudou.
+- Controle de GAPs: pendente só com gap aberto sem responsável; gap aberto com os campos preenchidos conta como feito. Gap com responsável só em texto (`assigned_to`, o campo antigo da CAPA) aparece pelo nome e não conta como "sem responsável".
+- Migration 0097 (`0097_orgaos_publicos.sql`, aditiva): `tratamento_orgaos_publicos`, com gatilho de projeto.
+
+### Portal de solicitações do titular e ajustes do teste do n.privacy (migration 0096)
+- Portal público de solicitações do titular, ativo (revê a decisão de 09/10 só para o portal; o conector externo segue fora). Um link por projeto (`titular_portais`, só o SHA-256 do token), gerado e desativado em `/projects/:id/titular-portal` pela equipe ou pelo `org_admin`; chave de API e agente recebem 403.
+- Página `/solicitacao` (`frontend/public/solicitacao.*`): o titular escolhe o tipo, informa nome e e-mail, descreve e recebe o protocolo, também por e-mail (`emailProtocoloTitular`; falha de envio não derruba o pedido). Sem CPF. `POST /api/v1/public/titular-pedidos/abrir` com o token no corpo e limite por IP e por projeto; token inválido ou portal desligado dão o mesmo 404.
+- Tratativas do atendimento (`titular_pedido_tratativas`, `/titular-pedidos/:id/tratativas`): comunicação, encaminhamento, evidência e nota, no modal do pedido. Gerar novo link e desativar pedem confirmação.
+- Questionário de homologação também para o fornecedor crítico (`PODE_QUESTIONARIO`: médio, pequeno e crítico); o método formal do crítico segue auditoria, e a avaliação gerada pelo questionário grava método `questionario`.
+- Riscos da atividade: o campo "motivo" sugere também uma lista de referência de 18 riscos de privacidade (`src/data/riscos-privacidade.ts`), só sugestão e nunca semeada no catálogo; escolher um preenche a descrição.
+- RIPD: "Por que os dados são coletados?" mostra a finalidade do RoPA, e a pergunta dos contratos do compartilhamento externo mostra os parceiros e só habilita quando a atividade registra compartilhamento externo. Só leitura, fora do hash.
+- Copiloto da etapa lê também a descrição da atividade (e ela já conta como base); etapa Não Aplicável não mostra mais selos "Pendente" por titular.
+- Migration 0096 (`0096_titular_portal.sql`, aditiva). Spec em `docs/superpowers/specs/2026-11-03-portal-solicitacoes-titular-design.md`.
+
+### De-para com IA no levantamento do n.ot (L4; migration 0095)
+- Na sessão de documento, a planilha CSV/XLSX vira achados por mapeamento coluna para campo, proposto pela IA a partir do cabeçalho e de 5 linhas mascaradas, ou pelo nome da coluna. O mapeamento fica salvo como perfil por assinatura do cabeçalho (`ot_perfis_depara`) e é reaplicado sem IA.
+- TXT e DOCX viram achados de ativo sugeridos pela IA (`origem = 'ia'`), com a evidência conferida no texto mascarado. Leitor de DOCX sem DTD e com tetos (`src/services/ot-documento.ts`).
+- Rotas `.../levantamentos/:id/depara/planilha/proposta`, `.../planilha/aplicar`, `.../depara/texto` e `GET|DELETE .../depara/perfis` (`src/routes/ot-depara.ts`). Tetos provisórios: 10 por pessoa e 30 por projeto por hora; trecho de 3.000 caracteres, 20 trechos, 60 mil caracteres, 25 itens e 6.000 tokens por trecho.
+- Migration 0095 (aditiva): `ot_perfis_depara`.
+
+### Fluxos no levantamento do n.ot (L2; migration 0094)
+- Achado de fluxo, validado pelo esquema do fluxo, com as pontas só do site da sessão. O confronto pela chave das pontas diz novo, confirma ou contradiz (externo ou VPN diferente). Externo e Via VPN têm três estados (Não informado, Sim, Não); sem escolha, nada vai ao servidor.
+- A aprovação do lote da Coleta cria o fluxo ou atualiza só protocolo, porta, finalidade, externo e via VPN (pontas e direção nunca). Item de fluxo casado mostra "Atualiza fluxo existente".
+- O achado se liga à pergunta do roteiro e ao item do lote; achado de item recusado volta a rascunho na manutenção. As telas recebem o nome das pontas da API e não chamam mais `/ativos`.
+- Migration 0094 (aditiva): `ot_achados.pergunta_id` e `ot_achados.lote_item_id`. Serviço `src/services/ot-fluxo-achado.ts`.
+
+### Levantamento do n.ot (L1; migration 0093)
+- Aba Levantamento (`frontend/src/views/ot-levantamento.js`): sessões de entrevista, visita de campo e documento, com notas em autosave, roteiro de 15 perguntas (`GET .../ot/roteiro`) e achados de ativo confrontados com o inventário. Os achados marcados vão ao lote da Coleta (`/levantamentos*`, `.../:id/achados`, `.../:id/enviar`); só entram no inventário por lote aprovado. `POST .../ot/lotes` aceita `levantamento_id` de sessão de documento.
+- Operador só por função e turno. Texto livre recusa IP, MAC, CPF, e-mail e telefone. O confronto com o inventário só sai para quem vê completo; a leitura sem máscara da sessão vai à trilha (`ot.inventario.ver_sensivel`).
+- Retenção (`src/manutencao.ts`): descartado sai em 30 dias; rascunho de sessão encerrada há 30 dias sai; achado enviado sem lote, de lote rejeitado ou apagado volta a rascunho após 1 dia.
+- Abas com contagem ("N em revisão", "N abertos") e aba inicial por papel; aprovar, exportar e duplicata dizem o que vai acontecer. Leituras com `LIMIT` explícito (`TETO_LEITURA_OT`) para não cortar em 500 linhas.
+- Migration 0093: `ot_levantamentos`, `ot_achados`, `ot_roteiro_perguntas` (15 perguntas semeadas) e `ot_lotes.levantamento_id`. Serviço `src/services/ot-levantamento.ts`.
+
+### Corrigido (painel e documentos; sem migration)
+- Painel do n.iso: os primeiros passos (escopo, diagnóstico, ativos) saem do cadastro. Antes iam sempre como não feitos, e o painel pedia "Definir o escopo" enquanto a Prontidão dizia que o escopo estava registrado. O escopo usa a mesma expressão da Prontidão (`SQL_ESCOPO_DEFINIDO`), o diagnóstico conta com a jornada carregada e os ativos com item ativo (#538).
+- Documentos: versão escrita pelo agente MCP sai com origem `agente`; a origem vem da sessão e não pode ser declarada no corpo. Antes aparecia na trilha da versão como de uma pessoa (#535).
+- Documentos: periodicidade definida depois de publicar passa a fixar a data de revisão; `revisar_ate` ficava nulo em documento já vigente (#534).
+
+### Agente: editar item do catálogo é decisão do consultor
+- `PUT /projects/:id/catalogos/:tipo/:itemId` entra na tabela de decisões (`niso_editar_catalogo`, `src/middleware/decisoes-agente.ts`), com confirmação e motivo na trilha. Antes o agente recebia 403 mesmo com o "sim" do consultor (um dado biométrico cadastrado como não sensível só se corrigia pela tela). Criar item segue livre. Sem migration.
+
+### Módulo n.ot: inventário, coleta e saídas do ARCiber (migrations 0089 a 0092)
+- Terceiro módulo do n.360, em `/ot`, para a rotina ARCiber do ONS (RO-CB.BR.01 Rev.00). Faixa `ot` em `src/modulos.ts`; todas as rotas sob `/api/v1/projects/:projectId/ot/...` (`src/routes/ot.ts`, `src/routes/ot-saidas.ts`).
+- Catálogo com os 25 itens da rotina (`GET .../ot/requisitos`, tabela global `ot_requisitos`). Inventário de sites, zonas, ativos e fluxos, com acesso por site, cifra própria de IP e MAC (com AAD) e máscara por papel. Conformidade por item calculada do inventário, só nos três estados do servidor (nunca "atende").
+- Coleta em lotes: planilha CSV/XLSX lida em memória (sem R2 e sem IA) ou entrada manual. Nada grava direto no inventário: o técnico só cria lote nos seus sites, e aprovar ou rejeitar é de quem vê completo e nunca de quem criou. Verificação do 4.3.1 só com recoleta completa; alvo alterado depois da revisão volta o item a pendente. Lote não concluído expira em 7 dias.
+- Saídas: indicadores, exportação e IA com máscara própria.
+- Step-up (P1-1): revelar IP/MAC e exportar exigem TOTP verificado nos últimos 10 minutos (403 `totp_necessario`, também com SSO), justificativa, teto por hora (revelar 20 por pessoa e 60 por projeto; exportar 5 e 15; 429 `teto_por_hora`) e aviso ao Gestor ARCiber titular e suplente (`src/services/ot-stepup.ts`). O valor revelado aparece num modal que some em 30 s.
+- O `ot` nunca é concedido automaticamente: nem a conta nova, nem ao cliente quando o módulo é ligado no projeto, nem por troca de papel; só por `PUT /users/:id/modulos` ou `POST /users` com `modulos`, com trilha. Chave de API e agente MCP não alcançam o n.ot. A portabilidade (`GET /projects/:id/export`) não leva tabela `ot_*`.
+- Frontend: casca `/ot` com abas (catálogo, inventário, fluxos, coleta, saídas, acesso por site); item n.ot no hub só com projeto e pessoa com o módulo; o painel ainda não tem bloco do n.ot.
+- Migrations: 0089 (`ot` nos CHECKs de `projeto_modulos` e `usuario_modulos`, com as tabelas refeitas e os gatilhos recriados), 0090 (catálogo), 0091 (inventário) e 0092 (coleta). Segredos do inventário em `migrations/README.md`.
+
 ### A.3 da ISO/IEC 27701:2025 no catálogo de controles
 - O catálogo da 27701 ganha a Tabela A.3 (segurança da informação, A.3.3 a A.3.31, 29 controles), comum ao controlador e ao operador, com título de trabalho próprio e o controle de mesmo tema da 27001:2022 pareado por título (`src/data/iso27701-2025.ts`). `controlsForRole` passa a sempre incluí-la: Controlador = A.1 + A.3 (60), Operador = A.2 + A.3 (47), os dois = 78. O catálogo de requisitos (`requisitos`, semeado na manutenção diária) também a recebe, sem papel.
 - Projetos novos já nascem com a A.3. Projeto existente a recebe com `POST /projects/:id/seed-27701-2025` (idempotente: só cria o que falta). Os controles novos nascem como "Faltando": cada um se marca implementado ou Não aplicável com justificativa, como qualquer controle da SoA. Não há mapeamento da A.3 para a LGPD, então a cobertura da LGPD não muda.
@@ -189,7 +294,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Diagnóstico:** coluna Estratégia na lista de riscos e filtro de Área nos gaps; a aba de gaps da atividade mostra Prazo e "Em atraso".
 - **Cadastros:** Solicitações com a coluna do titular e busca; busca em Áreas e Ativos; coluna Responsável em Documentos.
 - **Ficha da atividade:** editar medida de segurança; o botão do GDPR diz "+ Base Legal".
-- **Ficam de fora:** paginação, exportação CSV de Solicitações (decisão do dono), mesclar, excluir ativo, percentuais do Painel e os demais rótulos; lista em `docs/paridade-legado-2026-10-20.md`.
+- **Ficam de fora:** paginação, exportação CSV de Solicitações (decisão do dono), mesclar, excluir ativo, percentuais do Painel e os demais rótulos; lista em `docs/arquivo/paridade-legado-2026-10-20.md`.
 
 ### Corrigido (Frente 1 da equalização n.iso x n.privacy, 20/10/2026; sem migration)
 - **Excluir risco pelo n.iso não apaga mais as ações corretivas ligadas** (o FK é `ON DELETE CASCADE`): a ação fica, sem o vínculo, como já fazia o risco da atividade.

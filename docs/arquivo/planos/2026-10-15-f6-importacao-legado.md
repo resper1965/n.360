@@ -2,7 +2,7 @@
 
 > **Para agentes:** SUB-SKILL OBRIGATÓRIA: use superpowers:executing-plans para executar este plano tarefa a tarefa. Os passos usam caixas `- [ ]`.
 
-**Objetivo:** fechar a lacuna 8 do plano mestre (`2026-10-14-legado-privacidade.md`): a "Importar programa" passa a trazer o que o legado
+**Objetivo:** fechar a lacuna 8 do plano mestre (`docs/arquivo/planos/2026-10-14-legado-privacidade.md`): a "Importar programa" passa a trazer o que o legado
 guarda e o n.360 já sabe receber depois das fases F1 a F3 (riscos e ações da atividade, teste de impacto, ciclo de vida, bases adicionais e
 GDPR, RIPD e LIA com os campos de cada seção), por um caminho DETERMINÍSTICO (modelos de CSV de cabeçalho fixo, sem IA) além do caminho
 por IA, e entrega o **relatório de reconciliação** por lote que o roteiro de virada exige para desligar o legado.

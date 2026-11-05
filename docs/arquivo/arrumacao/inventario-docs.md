@@ -42,7 +42,7 @@ O documento está atual em quase tudo. Correções:
 - **L203:** diz "frontend/test tem 19 arquivos". São **42**. O texto também não menciona os 5 e2e em `frontend/e2e`, que rodam no CI.
 - **L206–207:** diz "36 leituras sem schema em 12 arquivos". Depois do T3 (#259) sobram cerca de 6.
 - **L217–218:** diz "4 advisories moderados do undici". O certo é 4, sendo 3 moderadas e **1 alta**.
-- **L263:** recomenda o `docs/plano-2026-10-fechamento.md`, que já está quase todo executado. Ver a seção 2.
+- **L263:** recomenda o `docs/arquivo/plano-2026-10-fechamento.md`, que já está quase todo executado. Ver a seção 2.
 - **L340–353:** está errado e afirma o oposto da realidade. O texto diz que o repo é privado e que o CodeQL foi removido. Hoje o repo é **público** e o CodeQL **existe e roda**. A frase sobre o CodeRabbit (que repo privado não tem plano gratuito) também perdeu a premissa.
 - **L357–361:** diz que o ruleset exige "apenas o check `test`". Ele exige **`test` e `e2e`**.
 
@@ -127,7 +127,7 @@ Conferido: os símbolos, os testes e os triggers citados na tabela existem.
 | `deliveries/niso-deep-gap-analysis.md` | **remover** | É de 02/07/2026 e descreve outra arquitetura (Neon, `CICDScannerService`, nada disso existe em `src/`). Tem emojis, o que fere a marca. |
 | `deliveries/<cliente>/*`, `deliveries/ness-labs/*` | **retirar do repo público, decisão do dono** | São entregáveis de cliente (<cliente>) num repositório que hoje é **público**. Vale o mesmo para `migrations/0011_seed_twyn_governance.sql` e as referências a "<cliente>" em `src/constants.ts` e `src/routes/projects.ts`. Não é erro de documentação, é exposição. |
 | `migrations/README.md` L1–264 | **arquivar** | Runbook do incidente de 2026-08, já executado (ver seção 1). |
-| `docs/plano-2026-10-fechamento.md` | **provavelmente arquivar** | Os itens T1–T4 aparecem como entregues nos PRs #259 e #278–#281. O H2 cita um e-mail pessoal (a conta `platform_admin` do dono) num repo público. O documento não foi lido por inteiro. |
+| `docs/arquivo/plano-2026-10-fechamento.md` | **provavelmente arquivar** | Os itens T1–T4 aparecem como entregues nos PRs #259 e #278–#281. O H2 cita um e-mail pessoal (a conta `platform_admin` do dono) num repo público. O documento não foi lido por inteiro. |
 | `docs/backlog-plan.md`, `docs/enterprise-grade-plan.md`, `docs/api-triage-2026-08.md`, `docs/security-owasp-2026-08.md` | **candidatos a arquivo** | Planos e avaliações datados. As ondas do enterprise-grade já estão no CHANGELOG (8.2 a 10.0). O AGENTS:23 cita o item 0.2, então arquivar exige ajustar a referência. Não foram lidos por inteiro. |
 | `docs/superpowers/specs` e `plans` de features entregues | **arquivar** | Landing/login (#207), MCP remoto (#212/#213), paridade do agente (#221) e propostas fatias 3–5 (multiconsultoria, envio/aceite). O `n360-arquitetura-design` (22/09) não teve a entrega verificada. O AGENTS:105 cita a spec da landing; manter esse link ou apontar para o arquivo. |
 | `specs/001-*`, `specs/002-*`, `specs/2026-07-16-<cliente>-*`, `.specify/` | **avaliar** | São do Spec Kit inicial (julho). O AGENTS:271–279 ainda as apresenta como contexto vivo. Não foram conferidas. |

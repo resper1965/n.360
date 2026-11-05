@@ -1,6 +1,6 @@
 # Fornecedores e menu Cadastros (n.privacy)
 
-Etapa 3 do plano `docs/superpowers/plans/2026-10-18-versao-final.md`. Aprovado pelo dono em 19/10/2026. Sem capturas do legado:
+Etapa 3 do plano `docs/arquivo/planos/2026-10-18-versao-final.md`. Aprovado pelo dono em 19/10/2026. Sem capturas do legado:
 a tela é montada só com campos que já existem e já são gravados. Sem migration.
 
 ## Menu do n.privacy

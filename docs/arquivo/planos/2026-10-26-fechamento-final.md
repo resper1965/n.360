@@ -1,14 +1,14 @@
 # Fechamento do n.360: o que falta e como resolver
 
 > **Para agentes:** SUB-SKILL: `superpowers:subagent-driven-development` (recomendado) ou `superpowers:executing-plans`. Cada fase é
-> uma leva de PRs pelo `scripts/ci/ship.sh`. Leia antes `docs/estado-2026-10-20.md` (como publicar e as armadilhas).
+> uma leva de PRs pelo `scripts/ci/ship.sh`. Leia antes `docs/arquivo/estado-2026-10-20.md` (como publicar e as armadilhas).
 
 **Objetivo (o inicial):** trocar o sistema legado (DPO as a Service) pelo n.privacy com o menor impacto para os clientes,
 mantendo o n.iso íntegro e os dois módulos sobre o mesmo cadastro.
 
 **Estado em 26/10/2026** (conferido no código da `main` `164b669`, sem migration pendente em produção): as etapas 0 a 4 do plano de
-18/10 estão no ar. Dos dois documentos de lacunas de 20/10 (`docs/equalizacao-modulos-2026-10-20.md`, 8 P0, 13 P1 e P2; e
-`docs/paridade-legado-2026-10-20.md`) resolveram-se 7 de 8 P0 e 9 de 13 P1. Sobra o que está abaixo.
+18/10 estão no ar. Dos dois documentos de lacunas de 20/10 (`docs/arquivo/equalizacao-modulos-2026-10-20.md`, 8 P0, 13 P1 e P2; e
+`docs/arquivo/paridade-legado-2026-10-20.md`) resolveram-se 7 de 8 P0 e 9 de 13 P1. Sobra o que está abaixo.
 
 ## Restrições globais
 
@@ -117,7 +117,7 @@ Cada uma com a minha recomendação. Sem decidir, a fase correspondente não com
 
 `RESEND_API_KEY` no sentinela (`npx wrangler secret put RESEND_API_KEY --name n-sentinela`); exclusão de
 `C:\Users\resper\worktrees` no antivírus; desmarcar "Require branches to be up to date" na regra "main protegida"; e as pendências
-antigas do n.iso em `docs/plano-2026-10-fechamento.md` (H2, F2, F4, F5, T5).
+antigas do n.iso em `docs/arquivo/plano-2026-10-fechamento.md` (H2, F2, F4, F5, T5).
 
 ## Ordem e critério de pronto
 

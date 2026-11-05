@@ -2,7 +2,7 @@
 
 > **Para agentes:** SUB-SKILL OBRIGATÓRIA: use superpowers:executing-plans para executar este plano tarefa a tarefa. Os passos usam caixas `- [ ]`.
 
-**Objetivo:** fechar a lacuna 7 do plano mestre (`2026-10-14-legado-privacidade.md`): o questionário de homologação do fornecedor (perguntas do projeto, envio por link público com prazo, respostas com rascunho, % respondido) cujo resultado, decidido por uma pessoa da consultoria, vira uma linha de `avaliacoes_terceiro` com método `questionario`.
+**Objetivo:** fechar a lacuna 7 do plano mestre (`docs/arquivo/planos/2026-10-14-legado-privacidade.md`): o questionário de homologação do fornecedor (perguntas do projeto, envio por link público com prazo, respostas com rascunho, % respondido) cujo resultado, decidido por uma pessoa da consultoria, vira uma linha de `avaliacoes_terceiro` com método `questionario`.
 
 **Arquitetura:** migration 0075 com duas tabelas aditivas (`homologacao_perguntas`, `homologacoes`) e um gatilho de imutabilidade. Serviço `src/services/homologacao.ts`; rotas da consultoria em `src/routes/homologacoes.ts` montadas em `/api/v1/projects/:projectId/homologacoes` (segmento novo `homologacoes` na faixa `privacy`); rotas públicas em `src/routes/public-homologacao.ts` montadas em `/api/v1/public/homologacao` antes do `authMiddleware`; página estática `frontend/public/homologacao.{html,js,css}` no molde do portal do auditor. A conclusão chama `registrarAvaliacao` de `src/services/terceiros.ts` (a regra de validade fica lá).
 

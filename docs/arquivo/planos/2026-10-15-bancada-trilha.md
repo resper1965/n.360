@@ -1,6 +1,6 @@
 # Bancada da trilha: plano de implementação
 
-> **Para agentes:** SUB-SKILL OBRIGATÓRIA: use superpowers:subagent-driven-development (um worktree por pacote) ou superpowers:executing-plans. Os passos usam caixas `- [ ]`. Leia antes: `AGENTS.md`, `PRODUCT.md`, `design.md` e a spec [`2026-10-15-bancada-trilha-design.md`](../specs/2026-10-15-bancada-trilha-design.md).
+> **Para agentes:** SUB-SKILL OBRIGATÓRIA: use superpowers:subagent-driven-development (um worktree por pacote) ou superpowers:executing-plans. Os passos usam caixas `- [ ]`. Leia antes: `AGENTS.md`, `PRODUCT.md`, `design.md` e a spec [`2026-10-15-bancada-trilha-design.md`](../../superpowers/specs/2026-10-15-bancada-trilha-design.md).
 
 **Objetivo:** trocar a tela da jornada (`renderProjectDetail`, `frontend/src/views/project.js:128`) pela Bancada: três colunas (trilha, cartão do passo, copiloto), 132 passos com conteúdo, autosave no servidor, situação da fase derivada, conclusão por critério medido no servidor e copiloto de IA que só propõe.
 

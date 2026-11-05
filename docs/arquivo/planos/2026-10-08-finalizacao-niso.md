@@ -246,7 +246,7 @@ Nenhum passo desta tarefa roda sem "sim" explícito do dono no turno. Se o class
 **Files:**
 - Modify: `AGENTS.md` (contagens com o comando ao lado; remover instrução viva sobre staging)
 - Modify: `CHANGELOG.md` (entrada da versão; ler a convenção no topo do arquivo antes de escolher o número; o último registro é `v11.0.0`)
-- Modify: `docs/plano-2026-10-fechamento.md` (atualizar as linhas de estado que mudaram)
+- Modify: `docs/arquivo/plano-2026-10-fechamento.md` (atualizar as linhas de estado que mudaram)
 - Modify: `docs/arquivo/planos/2026-10-05-plano-mestre-execucao.md` (acrescentar apontamento para este plano)
 
 - [ ] **Step 1: Contagens com o comando**
@@ -276,16 +276,16 @@ Branch `docs/fechamento-2026-10-08`, a partir de `origin/main` depois dos merges
 | Repositório público ou privado | Decidir. Privado exige Advanced Security para o CodeQL | `AGENTS.md`, seção de portões |
 | Cobrança do Actions | Conferir que o limite de gasto não bloqueia `test`, `e2e` e `deploy` | plano mestre |
 | Trailer de autoria nos commits | Decidir se mantém; reescrever histórico público é destrutivo, só com "sim" | notas da sessão anterior |
-| MFA da conta `platform_admin` | Ativar pelo cartão de perfil; guardar códigos de recuperação | `docs/plano-2026-10-fechamento.md` |
+| MFA da conta `platform_admin` | Ativar pelo cartão de perfil; guardar códigos de recuperação | `docs/arquivo/plano-2026-10-fechamento.md` |
 | Checkout principal | Voltar para `main` e decidir sobre `.vscode/settings.json`, `.impeccable/`, `debug.log` | `git status` inicial |
 | Stashes antigos | Descartar ou pedir comparação (o agente não apaga stash) | notas da sessão anterior |
 | Catálogo inicial e proposta ponta a ponta | Executar no navegador | plano mestre |
-| F2: login OAuth em Codex, Cursor, Antigravity | Executar e confirmar | `docs/plano-2026-10-fechamento.md` |
-| D2/F4 (PDF) e T5 (PII em texto livre) | Decisões de produto | `docs/plano-2026-10-fechamento.md` |
+| F2: login OAuth em Codex, Cursor, Antigravity | Executar e confirmar | `docs/arquivo/plano-2026-10-fechamento.md` |
+| D2/F4 (PDF) e T5 (PII em texto livre) | Decisões de produto | `docs/arquivo/plano-2026-10-fechamento.md` |
 
 ## Fora deste plano
 
-- F3 (último uso ao vivo), F4 (leitura de PDF), F5 (verificação normativa) e T1–T6 (dívida estrutural): continuam em `docs/plano-2026-10-fechamento.md`.
+- F3 (último uso ao vivo), F4 (leitura de PDF), F5 (verificação normativa) e T1–T6 (dívida estrutural): continuam em `docs/arquivo/plano-2026-10-fechamento.md`.
 - Frente nova de produto fica fora. Este plano só fecha o que já está aberto.
 
 ---

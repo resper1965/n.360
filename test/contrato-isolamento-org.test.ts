@@ -38,6 +38,11 @@ const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 type Org = { org: string; m: string; proj: string; rec: string };
 const NESS: Org = { org: 'org_ness', m: 'zzn', proj: 'zzn-proj', rec: 'zzn-rec' };
 const B: Org = { org: 'org_b', m: 'zzb', proj: 'zzb-proj', rec: 'zzb-rec' };
+/**
+ * O marcador como palavra: o semeado o traz sempre separado (`zzb-rec`, `@zzb.lat`, `Cliente zzb`), e um id aleatório
+ * em base 36 (`genId`) pode conter as mesmas três letras no meio, cercadas de letra ou dígito (`…1dzzb32…`, visto em 05/11/2026).
+ */
+const temMarcador = (texto: string, m: string) => new RegExp(`(?<![a-z0-9])${m}(?![a-z0-9])`).test(texto.toLowerCase());
 
 type Rota = { metodo: string; caminho: string; chave: string };
 
@@ -438,7 +443,7 @@ describe('contrato de isolamento entre organizações', () => {
         const res = await chamar(p, 'POST', `/api/v1/public/auditor/${acao}`, { token: p.token });
         const texto = await res.text();
         expect(res.status, `${p.nome} ${acao}: ${texto}`).toBe(200);
-        expect(texto.toLowerCase(), `${p.nome} ${acao}`).not.toContain(p.alheio.m);
+        expect(temMarcador(texto, p.alheio.m), `${p.nome} ${acao}: ${texto.slice(0, 300)}`).toBe(false);
       }
     }
   });
@@ -530,8 +535,8 @@ describe('contrato de isolamento entre organizações', () => {
         const res = await chamar(p, 'GET', forjar(r.caminho, p.de, p.token));
         if (res.ok) respostas2xx++;
         const texto = (await res.text()).toLowerCase();
-        if (texto.includes(p.alheio.m)) {
-          const i = texto.indexOf(p.alheio.m);
+        if (temMarcador(texto, p.alheio.m)) {
+          const i = texto.search(new RegExp(`(?<![a-z0-9])${p.alheio.m}(?![a-z0-9])`));
           vazou.push(`${res.status} ${r.chave}  [${p.nome}]  …${texto.slice(Math.max(0, i - 60), i + 40)}…`);
         }
       }

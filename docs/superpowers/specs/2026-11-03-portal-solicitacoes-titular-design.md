@@ -1,6 +1,6 @@
 # Portal público de solicitações do titular (n.privacy)
 
-**Status:** em implementação (PR da branch `claude/friendly-ptolemy-1d3lrq`).
+**Status:** implementado no #543 (migration `0096_titular_portal.sql`), em produção.
 **Origem:** feedback de testes do dono (documento "Teste n.Privacy"), item do módulo de solicitações.
 
 ## Reversão de decisão

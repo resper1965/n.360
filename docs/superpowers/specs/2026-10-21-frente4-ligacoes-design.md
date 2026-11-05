@@ -1,6 +1,6 @@
 # Frente 4 da equalização: ligações entre os módulos (21/10/2026)
 
-O que sobrou do P2 de `docs/equalizacao-modulos-2026-10-20.md` depois das Frentes 1 a 3. Decisões do dono de 21/10/2026:
+O que sobrou do P2 de `docs/arquivo/equalizacao-modulos-2026-10-20.md` depois das Frentes 1 a 3. Decisões do dono de 21/10/2026:
 4.1 opção (a), 4.2 opção (a) sem migration, 4.3 e 4.4 como abaixo. Fora desta frente: Word e relatório do documento versionado e o
 documento em arquivo no Painel/LGPD/DPA (4.5, rodada própria) e as telas duplicadas sobre a mesma tabela (CAPA x GAPs, Ativos,
 Fornecedores).

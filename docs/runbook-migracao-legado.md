@@ -1,7 +1,7 @@
 # Runbook: migração de um cliente do sistema anterior (DPO as a Service) para o n.360
 
 Checklist operacional, um cliente por vez. Transforma a seção "Migração do legado e desligamento" do plano mestre
-(`docs/superpowers/plans/2026-10-14-legado-privacidade.md`) em passos com tela, arquivo e critério numérico. A importação em si está
+(`docs/arquivo/planos/2026-10-14-legado-privacidade.md`) em passos com tela, arquivo e critério numérico. A importação em si está
 descrita no `AGENTS.md` (seção "Importacao de programa de privacidade", fatias 1 a 4 e F6).
 
 ## Regra de dados pessoais (vale para todos os passos)

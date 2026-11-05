@@ -3,7 +3,7 @@
 Data: 15/10/2026. Redesenho da tela da jornada de implementação do n.iso (`renderProjectDetail`, hoje em
 `frontend/src/views/project.js:128`, 1.488 linhas no arquivo). Decisões do dono do produto, fechadas em conversa; este texto
 as traduz em modelo, contrato, entrega e riscos. Plano de execução em
-[`docs/superpowers/plans/2026-10-15-bancada-trilha.md`](../plans/2026-10-15-bancada-trilha.md).
+[`docs/arquivo/planos/2026-10-15-bancada-trilha.md`](../../arquivo/planos/2026-10-15-bancada-trilha.md).
 
 ## 1. Problema
 

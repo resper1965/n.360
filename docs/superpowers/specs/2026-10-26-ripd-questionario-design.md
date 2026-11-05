@@ -1,7 +1,7 @@
 # RIPD com o questionário do legado, fora do hash (D1)
 
 Decisão do dono, 26/10/2026: as respostas do questionário novo do RIPD **não entram no hash da aprovação**; ficam em tabela própria,
-e as aprovações que já existem continuam válidas. Fonte do legado: `docs/paridade-legado-2026-10-20.md`, seção 1 (guias gravados no
+e as aprovações que já existem continuam válidas. Fonte do legado: `docs/arquivo/paridade-legado-2026-10-20.md`, seção 1 (guias gravados no
 legado; as capturas têm dado real de cliente e NÃO entram no repositório).
 
 ## O que o legado tem (quatro abas)

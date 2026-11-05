@@ -3,7 +3,7 @@
 > Atualização de 27/10/2026: as 12 perguntas abaixo eram aproximadas. O guia real do legado traz 23 (7 + 5 + 11), todas em texto livre, com o texto exato em `docs/superpowers/specs/2026-10-27-guia-legado-ripd-lia-perguntas.md` e em `src/data/lia-perguntas.ts`. Onde este texto diz "12", leia 23; a migration 0084 não mudou.
 
 Decisão do dono, 26/10/2026: a LIA do legado (12 perguntas em três abas) entra como ficha com abas. A LIA não tem pedido nem hash
-(`DOCUMENTOS` em `src/services/pedidos.ts` não tem `lia`), então não há a restrição do RIPD. Fonte: `docs/paridade-legado-2026-10-20.md`,
+(`DOCUMENTOS` em `src/services/pedidos.ts` não tem `lia`), então não há a restrição do RIPD. Fonte: `docs/arquivo/paridade-legado-2026-10-20.md`,
 seção 2 (guias do legado; capturas com dado real NÃO entram no repositório). Molde pronto: o RIPD de 26/10 (`src/routes/ripd-questionario.ts`,
 `src/services/ripd-questionario.ts`, `src/data/ripd-perguntas.ts`, `frontend/src/views/ripd-ficha.js`, migration 0083).
 
