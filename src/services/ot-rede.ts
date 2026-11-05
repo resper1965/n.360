@@ -54,6 +54,8 @@ export const resumoRedeSchema = z.object({
   gerado_em: quando,
   periodo: z.object({ inicio: quando, fim: quando }).strict().optional(),
   zeek_versao: z.string().max(50).regex(/^[\w.+-]+$/).optional(),
+  capture_loss: z.number().min(0).max(100).optional(), // percentual do capture_loss.log do Zeek
+  versao_script: z.string().regex(/^[\w.+-]{1,20}$/).optional(),
   ativos: z.array(z.object({
     ip,
     mac: z.string().refine((s) => normalizarMac(s) !== null, 'MAC inválido').optional(),
@@ -221,7 +223,7 @@ export async function gravarPlano(db: D1Database, chaves: ChavesOt, a: { project
     criados = await gravarAchados(db, stmts);
   } catch (e) {
     await db.prepare('DELETE FROM ot_fluxos_pendentes WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(idsPend)).run()
-      .catch((x) => console.error('ot.depara.rede: falha ao limpar pendências', x));
+      .catch((x) => console.error('ot.rede: falha ao limpar pendências', x));
     throw e;
   }
   // A guarda só recusa depois que a sessão enche, e ela não esvazia no meio: os gravados são os primeiros `criados` itens.
@@ -231,7 +233,7 @@ export async function gravarPlano(db: D1Database, chaves: ChavesOt, a: { project
     nao_importados: planejados.length - criados, pendentes_nao_importados: plano.pendentes.length - pendentes.length };
 }
 
-const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+export const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 export const EVIDENCIA_SENSOR = (n: number, inicio: string, fim: string) => `Sensor de rede (Zeek): ${n} conexões entre ${ddmm(inicio)} e ${ddmm(fim)}`;
 
 /**

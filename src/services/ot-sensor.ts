@@ -1,4 +1,9 @@
 import { genId, sha256Hex } from '../helpers';
+import { modulosDoProjeto } from '../modulos';
+import { ERRO_ORIGEM, ipPermitido, politicaDoProjeto } from '../politica-tenant';
+import { chavesOt } from './ot-cifra';
+import { ipNaFaixa } from './ot-rede';
+import type { Bindings } from '../index';
 
 /** Sonda de rede do n.ot (plano 2026-11-05): cadastro e credenciais próprias (`ots_`), válidas só em `/ot-sensor/resumo`. */
 export const VALIDADE_SENSOR_DIAS = 365;
@@ -39,3 +44,24 @@ export const vencendo = (credenciais: Cred[], agora: Date): boolean => {
   const v = validas(credenciais, agora);
   return v.length > 0 && Math.max(...v.map((c) => ms(c.expira_em))) - agora.getTime() <= 30 * 24 * HORA;
 };
+
+export interface SensorAutenticado { id: string; nome: string; projectId: string; siteId: string }
+
+/** Falha fechada, a cada envio: credencial `ots_` ativa e não vencida de sonda ativa (401); projeto com o n.ot (403); IP de
+ *  `CF-Connecting-IP`, e só dele, dentro da `faixa_origem` (403, também sem faixa) e na allowlist do projeto (403); chaves do n.ot (503). */
+export async function autenticarSensor(env: Bindings, req: Request): Promise<{ ok: true; sensor: SensorAutenticado } | { ok: false; status: 401 | 403 | 503; error: string }> {
+  const auth = req.headers.get('Authorization') ?? '';
+  const texto = auth.startsWith('Bearer ots_') ? auth.slice(7).trim() : '';
+  const s = texto ? await env.DB.prepare(`SELECT s.id, s.nome, s.project_id, s.site_id, s.faixa_origem FROM ot_sensor_credenciais k
+      JOIN ot_sensores s ON s.id = k.sensor_id AND s.project_id = k.project_id
+    WHERE k.chave_hash = ? AND k.situacao = 'ativa' AND k.expira_em > ? AND s.situacao = 'ativa'`)
+    .bind(await sha256Hex(texto), new Date().toISOString()).first<{ id: string; nome: string; project_id: string; site_id: string; faixa_origem: string }>() : null;
+  if (!s) return { ok: false, status: 401, error: 'Credencial da sonda inválida, revogada ou vencida' };
+  if (!(await modulosDoProjeto(env.DB, s.project_id)).includes('ot')) return { ok: false, status: 403, error: 'n.ot desligado neste projeto' };
+  const ip = req.headers.get('CF-Connecting-IP'); // #549: nunca X-Forwarded-For
+  if (!ip || !s.faixa_origem || !ipNaFaixa(ip, s.faixa_origem)) return { ok: false, status: 403, error: 'Origem fora da faixa cadastrada para esta sonda' };
+  const politica = await politicaDoProjeto(env, s.project_id);
+  if (politica && !ipPermitido(ip, politica.ip_allowlist)) return { ok: false, status: 403, error: ERRO_ORIGEM };
+  if (!chavesOt(env)) return { ok: false, status: 503, error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' };
+  return { ok: true, sensor: { id: s.id, nome: s.nome, projectId: s.project_id, siteId: s.site_id } };
+}
