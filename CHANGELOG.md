@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.privacy: base legal com a finalidade da atividade; Tratar risco e teste de impacto sem travar
+- Base Jurídica: ao marcar uma base (LGPD, art. 11 ou GDPR), o campo "Finalidade" já vem com a finalidade da atividade (aba Escopo); a pessoa ajusta e grava. "Preencher" faz o mesmo na base sem finalidade. Nada é gravado sozinho.
+- Tratar Risco: o "Gravar" não fica mais desabilitado em silêncio. Quem preenchia só o Risco residual clicava e nada acontecia; agora a tela diz o que falta, abre a aba Tratamento e põe o foco no primeiro campo.
+- Teste de impacto: cada resposta grava e troca só a pergunta, a contagem e a recomendação. Antes cada clique redesenhava a página inteira da atividade (cinco leituras e a aba remontada), e a pergunta seguinte esperava. Os selos da ficha se atualizam ao finalizar e ao trocar de aba.
+
 ### Higienização de 05/11: estado, documentos e código sem uso
 - `docs/estado-2026-11-05.md`: o estágio do projeto, os riscos abertos e os próximos passos, cada um com o comando que o prova. `docs/prontidao-primeiro-cliente.md` refeito com as provas de 05/11.
 - AGENTS.md, README.md, PRODUCT.md e llms.txt com os números de hoje e com o n.ot como terceiro módulo; o README perde os selos de workflows desligados e descreve a publicação pelo portão local.
