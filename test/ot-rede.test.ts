@@ -239,6 +239,81 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     expect((await env.DB.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n).toBe(0);
   });
 
+  /** Importa um ativo novo com o IP dado (sem conexões), envia o achado ao lote; `antes` roda antes da aprovação; devolve sessão, lote e resposta. */
+  async function aprovarAtivoNovo(ip: string, antes: (lev: string, hash: string) => Promise<void>, extra: Record<string, unknown> = {}) {
+    const lev = await doc(`Ativo novo ${ip.split('.').pop()}`);
+    const r = await enviar(cons, lev, JSON.stringify({ ...base, ativos: [at(ip)], conexoes: [] }));
+    expect(r.status, await r.clone().text()).toBe(201);
+    const ativo = (await achados(cons, lev)).find((a) => a.entidade === 'ativo')!;
+    const e = await chamar(cons, 'POST', `${P}/levantamentos/${lev}/enviar`, { achados: [ativo.id] });
+    expect(e.status, await e.clone().text()).toBe(201);
+    await antes(lev, await hmacOt(chaves, 'proj-a', ip));
+    const loteId = (await e.json<{ id: string }>()).id;
+    const ap = await app.fetch(new Request(`http://localhost${P}/lotes/${loteId}/aprovar`, { method: 'POST', headers: gestor }), { ...workerEnv(), ...ENV_EXTRA, ...extra });
+    return { lev, loteId, ap };
+  }
+  const pendente = (id: string, lev: string, origem: string | null, destino: string | null, dados: string) => env.DB.prepare(`INSERT INTO ot_fluxos_pendentes
+    (id, project_id, levantamento_id, origem_ip_hash, destino_ip_hash, dados) VALUES (?, 'proj-a', ?, ?, ?, ?)`).bind(id, lev, origem, destino, dados).run();
+  const existe = async (id: string) => !!(await env.DB.prepare('SELECT 1 FROM ot_fluxos_pendentes WHERE id = ?').bind(id).first());
+
+  it('segunda passagem: pendência malformada é pulada, a externa (destino nulo) resolve com uma ponta; a aprovação devolve 200 e grava a trilha', async () => {
+    const EXT = JSON.stringify({ protocolo: 'https', porta: 443, direcao: 'unidirecional', externo: true, evidencia: 'Sensor de rede (Zeek): 2 conexões entre 01/11 e 02/11' });
+    const { lev, loteId, ap } = await aprovarAtivoNovo('10.1.1.41', async (lev, h) => {
+      // O CHECK da tabela barra JSON inválido; a linha ruim simula dado gravado antes do CHECK ou corrompido.
+      await env.DB.batch([env.DB.prepare('PRAGMA ignore_check_constraints = ON'),
+        env.DB.prepare(`INSERT INTO ot_fluxos_pendentes (id, project_id, levantamento_id, origem_ip_hash, dados) VALUES ('pend-ruim', 'proj-a', ?, ?, '{não é json')`).bind(lev, h),
+        env.DB.prepare('PRAGMA ignore_check_constraints = OFF')]);
+      await pendente('pend-ext', lev, h, null, EXT);
+    });
+    expect(ap.status, await ap.clone().text()).toBe(200);
+    expect(await ap.json()).toMatchObject({ criados: 1, fluxos_pendentes_resolvidos: 1 });
+    const novo = await env.DB.prepare('SELECT id FROM ot_ativos WHERE ip_hash = ?').bind(await hmacOt(chaves, 'proj-a', '10.1.1.41')).first<{ id: string }>();
+    const f = await env.DB.prepare(`SELECT dados, evidencia FROM ot_achados WHERE levantamento_id = ? AND entidade = 'fluxo'`).bind(lev).first<{ dados: string; evidencia: string }>();
+    const d = JSON.parse(f!.dados);
+    expect(d).toMatchObject({ origem_ativo_id: novo!.id, externo: 1, protocolo: 'https', porta: 443 });
+    expect(d.destino_ativo_id).toBeUndefined();
+    expect(f!.evidencia).toBe('Sensor de rede (Zeek): 2 conexões entre 01/11 e 02/11');
+    expect([await existe('pend-ruim'), await existe('pend-ext')]).toEqual([true, false]);
+    const t = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'ot.lote.aprovado' AND details LIKE ? LIMIT 1`).bind(`%${loteId}%`).first();
+    expect(t).toBeTruthy();
+  });
+
+  it('segunda passagem que falha no banco não derruba a aprovação já gravada: 200, resolvidos 0, trilha gravada e a pendência fica', async () => {
+    const DADOS = JSON.stringify({ protocolo: 'dnp3', porta: 20000, direcao: 'unidirecional', evidencia: 'Sensor' });
+    const rtu = await hmacOt(chaves, 'proj-a', '10.1.1.10');
+    const db = new Proxy(env.DB, {
+      get(t, k) {
+        if (k === 'prepare') return (sql: string) => { if (sql.includes('FROM ot_fluxos_pendentes p')) throw new Error('falha forçada'); return t.prepare(sql); };
+        const v = (t as unknown as Record<string | symbol, unknown>)[k];
+        return typeof v === 'function' ? v.bind(t) : v;
+      },
+    });
+    const { loteId: lote, ap } = await aprovarAtivoNovo('10.1.1.43', async (lev, h) => { await pendente('pend-falha', lev, h, rtu, DADOS); }, { DB: db });
+    expect(ap.status, await ap.clone().text()).toBe(200);
+    expect(await ap.json()).toMatchObject({ criados: 1, fluxos_pendentes_resolvidos: 0 });
+    expect(await env.DB.prepare(`SELECT 1 FROM audit_logs WHERE action = 'ot.lote.aprovado' AND details LIKE ? LIMIT 1`).bind(`%${lote}%`).first()).toBeTruthy();
+    expect(await existe('pend-falha')).toBe(true);
+  });
+
+  it('segunda passagem: sessão cheia (2.000) deixa a pendência; mesmo hash em sessão de outro site não resolve', async () => {
+    const DADOS = JSON.stringify({ protocolo: 'dnp3', porta: 20000, direcao: 'unidirecional', evidencia: 'Sensor' });
+    const cheia = await doc('Cheia para a segunda passagem');
+    await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2000)
+      INSERT INTO ot_achados (id, project_id, levantamento_id, criado_por) SELECT 'rede-2p-' || i, 'proj-a', ?, 'x' FROM n`).bind(cheia).run();
+    const s2 = await criar(cons, 'sites', { nome: 'SE Sul' });
+    const outro = await criar(cons, 'levantamentos', { site_id: s2, tipo: 'documento', realizado_em: '2026-11-04', documento_titulo: 'Outro site' });
+    const rtu = await hmacOt(chaves, 'proj-a', '10.1.1.10');
+    const { ap } = await aprovarAtivoNovo('10.1.1.42', async (_lev, h) => {
+      await pendente('pend-cheia', cheia, h, rtu, DADOS);
+      await pendente('pend-outro-site', outro, h, null, DADOS);
+    });
+    expect(ap.status, await ap.clone().text()).toBe(200);
+    expect(await ap.json()).toMatchObject({ criados: 1, fluxos_pendentes_resolvidos: 0 });
+    expect([await existe('pend-cheia'), await existe('pend-outro-site')]).toEqual([true, true]);
+    expect(await contar(cheia)).toBe(2000);
+    expect(await contar(outro)).toBe(0);
+  });
+
   it('nada ao R2, sem IA; trilha só com contagens', async () => {
     expect(puts).toEqual([]);
     expect(chamadasIa).toBe(0);

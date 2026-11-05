@@ -332,7 +332,12 @@ export async function aprovarLote(db: D1Database, chaves: ChavesOt, ator: { id: 
     .bind(...(pendentes ? [] : [ator.email]), loteId).run();
   // shortcut: na corrida rara em que o alvo muda entre a leitura e o batch, `atualizados` conta o item que ficou pendente; `pendentes` vem do banco.
   // Segunda passagem do sensor de rede (n.ot L3): só quando a aprovação criou ou atualizou ativo.
-  const fluxos_pendentes_resolvidos = tocados.size ? await resolverPendentes(db, chaves, projectId) : 0;
+  // O lote já está gravado: falha aqui não derruba a aprovação (a próxima aprovação tenta de novo).
+  let fluxos_pendentes_resolvidos = 0;
+  if (tocados.size) {
+    try { fluxos_pendentes_resolvidos = await resolverPendentes(db, chaves, projectId, [...tocados]); }
+    catch (e) { console.error('ot: segunda passagem do sensor de rede falhou', e); }
+  }
   return { ok: true, ...n, pendentes, fluxos_pendentes_resolvidos };
 }
 
