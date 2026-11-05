@@ -76,7 +76,7 @@ O administrador do primeiro cliente real foi cadastrado como `org_admin` (feito 
   `FONTES_PII`, e o trigger impediria anonimizar a linha decidida). Registrada no CHANGELOG.
 - **Jurídico:** termo de uso com advogado só quando uma consultoria de fora for contratar; conferência final do texto da ISO 27701 contra a norma comprada.
 
-## 5. Onda 2 em diante (depois da cadeia) — itens do `docs/plano-2026-10-fechamento.md`
+## 5. Onda 2 em diante (depois da cadeia) — itens do `docs/arquivo/plano-2026-10-fechamento.md`
 
 Dono agente, uma onda por vez, cada item com teste vermelho primeiro, PR, CI verde, revisão independente, sonda:
 
@@ -109,7 +109,7 @@ Dono agente, uma onda por vez, cada item com teste vermelho primeiro, PR, CI ver
   `consultoria_admin` alcança todos os projetos da própria org. Teste de contrato: `test/contrato-isolamento-org.test.ts` (varre as rotas × todos os papéis).
 - **Dados de produção:** só escrever com "sim" explícito do dono. Backup (`npm run db:backup` → `backups/niso-backup.sql`, local, não versionado) antes de migration.
 - **Documentos:** spec `docs/superpowers/specs/2026-10-04-acesso-stakeholders-design.md`; plano das 5 fatias
-  `docs/arquivo/planos/2026-10-04-acesso-stakeholders.md`; plano de fechamento `docs/plano-2026-10-fechamento.md`; este plano mestre.
+  `docs/arquivo/planos/2026-10-04-acesso-stakeholders.md`; plano de fechamento `docs/arquivo/plano-2026-10-fechamento.md`; este plano mestre.
 
 ## 7. Como retomar numa sessão nova (cole isto)
 
@@ -197,6 +197,6 @@ Conferido com `git log --oneline origin/main`, `gh run list --workflow=deploy.ym
 
 ## 12. Estado em 2026-10-08 (fim do dia)
 
-O estado de hoje está em [`docs/plano-2026-10-fechamento.md`](../../plano-2026-10-fechamento.md), seção
+O estado de hoje está em [`docs/arquivo/plano-2026-10-fechamento.md`](../plano-2026-10-fechamento.md), seção
 "Estado em 2026-10-08": produção em `445f063`, migrations 0045 e 0046 aplicadas, nenhum PR aberto,
 Dependabot zerado. As decisões do n.privacy (perguntas 3, 5 e 6) estão registradas lá.

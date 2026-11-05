@@ -276,5 +276,5 @@ Quem vê o cartão: administrador do cliente, `platform_admin`, `consultoria_adm
   e o que checar antes de um PR.
 - [`../../mcp-server-niso/README.md`](../../mcp-server-niso/README.md): o servidor
   local (chave de API), para integrações e para o papel de auditor.
-- [`../superpowers/specs/2026-09-30-agente-paridade-consultor-design.md`](../superpowers/specs/2026-09-30-agente-paridade-consultor-design.md):
+- [`docs/arquivo/specs/2026-09-30-agente-paridade-consultor-design.md`](../arquivo/specs/2026-09-30-agente-paridade-consultor-design.md):
   a decisão de dar ao agente o alcance do consultor, preso a um projeto.

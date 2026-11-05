@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Higienização de 05/11: estado, documentos e código sem uso
+- `docs/estado-2026-11-05.md`: o estágio do projeto, os riscos abertos e os próximos passos, cada um com o comando que o prova. `docs/prontidao-primeiro-cliente.md` refeito com as provas de 05/11.
+- AGENTS.md, README.md, PRODUCT.md e llms.txt com os números de hoje e com o n.ot como terceiro módulo; o README perde os selos de workflows desligados e descreve a publicação pelo portão local.
+- 23 documentos executados ou superados vão para `docs/arquivo/` (planos de 14 a 27/10, três specs, o estado de 20/10, o plano de 08/10, a paridade, a equalização e a avaliação de 14/10), com os links reescritos. `backups/README.md` e `docs/runbook-incidente.md` deixam de prometer backup diário e issue automática de deploy, que não rodam com o Actions desligado.
+- Sai o código sem uso do frontend: `similares.js` (sem importador desde que a entrevista do RoPA saiu), seu teste e o CSS, e os arquivos do modelo do Vite em `frontend/src/assets/`.
+- `mcp-server-niso`: `@hono/node-server` 2.1.6 (GHSA-rmxm-3fg6-px4f); `npm audit` zero nos três pacotes.
+- O portão (`scripts/ci/gate.sh`) passa a rodar `scripts/test_n_ot_resumo_zeek.py`, citado no `SECURITY.md` e antes fora dele.
+
 ### Incidente com o registro completo do legado (migration 0098)
 - O incidente ganha os campos do legado: origem do alerta, severidade, tipo, comprometimento (confidencialidade, integridade, disponibilidade), critérios de risco, titulares estimados e data de fim. Listas fechadas em `src/schemas/nucleo.ts`.
 - Áreas afetadas e titulares x dados afetados (do catálogo do RoPA) se ligam ao incidente. `PUT /projects/:id/incidentes/:id` grava campos e listas numa transação; a lista enviada substitui a anterior.
@@ -286,7 +294,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - **Diagnóstico:** coluna Estratégia na lista de riscos e filtro de Área nos gaps; a aba de gaps da atividade mostra Prazo e "Em atraso".
 - **Cadastros:** Solicitações com a coluna do titular e busca; busca em Áreas e Ativos; coluna Responsável em Documentos.
 - **Ficha da atividade:** editar medida de segurança; o botão do GDPR diz "+ Base Legal".
-- **Ficam de fora:** paginação, exportação CSV de Solicitações (decisão do dono), mesclar, excluir ativo, percentuais do Painel e os demais rótulos; lista em `docs/paridade-legado-2026-10-20.md`.
+- **Ficam de fora:** paginação, exportação CSV de Solicitações (decisão do dono), mesclar, excluir ativo, percentuais do Painel e os demais rótulos; lista em `docs/arquivo/paridade-legado-2026-10-20.md`.
 
 ### Corrigido (Frente 1 da equalização n.iso x n.privacy, 20/10/2026; sem migration)
 - **Excluir risco pelo n.iso não apaga mais as ações corretivas ligadas** (o FK é `ON DELETE CASCADE`): a ação fica, sem o vínculo, como já fazia o risco da atividade.

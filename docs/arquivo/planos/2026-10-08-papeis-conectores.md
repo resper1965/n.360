@@ -8,7 +8,7 @@
 
 **Tech Stack:** Cloudflare Workers (Hono), D1, Vitest com `cloudflare:test`, frontend vanilla JS com testes em jsdom.
 
-**Spec:** sem spec nova. Decisões do dono em 2026-10-08: "papéis, sim" (consultoria não registra achado), "remoção gerar SoA", "termine a receita para os outros conectores, analise, é possível OpenClaw?", "defina", "faça". Base: `docs/superpowers/specs/2026-09-29-receita-agentes-mcp-remoto-design.md` e `docs/agente/README.md`.
+**Spec:** sem spec nova. Decisões do dono em 2026-10-08: "papéis, sim" (consultoria não registra achado), "remoção gerar SoA", "termine a receita para os outros conectores, analise, é possível OpenClaw?", "defina", "faça". Base: `docs/arquivo/specs/2026-09-29-receita-agentes-mcp-remoto-design.md` e `docs/agente/README.md`.
 
 ## Decisões definidas (pedido "defina")
 

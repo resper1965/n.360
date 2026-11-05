@@ -10,7 +10,7 @@
 
 **Tech Stack:** Cloudflare Workers, Hono 4.13, D1, `@modelcontextprotocol/server` 2.0, vitest + `cloudflare:test` (D1 real).
 
-**Spec:** `docs/superpowers/specs/2026-09-30-agente-paridade-consultor-design.md`
+**Spec:** `docs/arquivo/specs/2026-09-30-agente-paridade-consultor-design.md`
 
 ## Global Constraints
 

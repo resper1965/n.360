@@ -226,7 +226,7 @@ dicionário. Ação: medir (`SELECT count(*) FROM users WHERE password_hash NOT 
   local nele.
 - `.claude/skills/*` são symlinks (modo 120000) para `.agents/skills/`; no Windows sem `core.symlinks` viram arquivos texto de 30 bytes.
   O `ponytail` é a exceção (pasta real).
-- Docs: nenhum candidato claro a `docs/arquivo/`. `docs/plano-2026-10-fechamento.md` ainda guarda pendências abertas do dono (H2, F2,
+- Docs: nenhum candidato claro a `docs/arquivo/`. `docs/arquivo/plano-2026-10-fechamento.md` ainda guarda pendências abertas do dono (H2, F2,
   F4, F5, T5) mas tem estados velhos (F7, F10 e D5 "PR aberto", já mergeados): decisão do dono entre atualizar e arquivar.
   `docs/design/diagnostico-2026-10-13/` não estava no índice: **acrescentado** em `docs/README.md`.
 - Nomes: `n.360`/`n.iso`/`n.privacy` no texto, `niso` só técnico. Ver seção 1 para o que ficou com "produto".

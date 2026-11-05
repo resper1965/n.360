@@ -141,7 +141,7 @@ conta seria feita no navegador.
 Conclusão: a **identidade** e o **n.privacy** cabem hoje com o que existe (empresa, encarregado e ponto de partida).
 Faltam três coisas: (1) as prioridades e a cobertura do **n.iso** calculadas no servidor; (2) um **agregador de
 vencimentos** por projeto; (3) a **carteira** com saúde por projeto. O mapa de risco por atividade no n.privacy
-depende da fase F2 do plano do legado (`docs/superpowers/plans/2026-10-14-legado-privacidade.md`, branch
+depende da fase F2 do plano do legado (`docs/arquivo/planos/2026-10-14-legado-privacidade.md`, branch
 `docs/plano-legado-privacidade`).
 
 ## 4. Princípios da proposta

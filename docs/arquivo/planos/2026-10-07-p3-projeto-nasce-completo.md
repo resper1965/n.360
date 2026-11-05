@@ -8,7 +8,7 @@
 
 **Tech Stack:** Cloudflare Workers + Hono, D1 (SQLite), vitest com `@cloudflare/vitest-pool-workers` (D1 real).
 
-**Spec:** `docs/superpowers/specs/2026-10-07-fatia-jornada-design.md` (seção 2, linha P3; seções 3, 4 e 5)
+**Spec:** `docs/arquivo/specs/2026-10-07-fatia-jornada-design.md` (seção 2, linha P3; seções 3, 4 e 5)
 
 ## Global Constraints
 

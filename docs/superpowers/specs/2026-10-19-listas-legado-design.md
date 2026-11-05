@@ -1,6 +1,6 @@
 # Listas do legado no n.privacy (Gaps, Riscos, LIA, Solicitações, RIPD)
 
-Etapa 3 do plano `docs/superpowers/plans/2026-10-18-versao-final.md`. Decisão do dono (19/10/2026): sem capturas, as telas
+Etapa 3 do plano `docs/arquivo/planos/2026-10-18-versao-final.md`. Decisão do dono (19/10/2026): sem capturas, as telas
 saem dos campos que já existem e já são gravados. Sem migration. Tudo na faixa `privacy` ou `nucleo` já existente; rota nova
 de projeto entra em `src/modulos.ts` (o `test/modulos-produto.test.ts` reprova rota sem faixa).
 

@@ -2,7 +2,7 @@
 
 > **Para agentes:** SUB-SKILL OBRIGATÓRIA: use superpowers:executing-plans para executar este plano tarefa a tarefa. Os passos usam caixas `- [ ]`.
 
-**Objetivo:** fechar a lacuna 6 do plano mestre (`2026-10-14-legado-privacidade.md`): CSV que abre no Excel das listas do n.privacy (atividades, riscos e ações das atividades, RIPD e LIA), RIPD e LIA em Word, e o painel do encarregado com as faixas de prazo das ações das atividades.
+**Objetivo:** fechar a lacuna 6 do plano mestre (`docs/arquivo/planos/2026-10-14-legado-privacidade.md`): CSV que abre no Excel das listas do n.privacy (atividades, riscos e ações das atividades, RIPD e LIA), RIPD e LIA em Word, e o painel do encarregado com as faixas de prazo das ações das atividades.
 
 **Arquitetura:** sem migration. Serviço `src/services/exportacao.ts` (CSV: BOM, `;`, CRLF, aspas, fórmula neutralizada, teto de linhas; as consultas de cada lista), serviço `src/services/documento-word.ts` (RIPD e LIA em `.docx`, com os auxiliares de `src/services/documento-docx.ts`), rotas num arquivo novo `src/routes/exportacao.ts` montado em `/api/v1/projects/:projectId`. A faixa de prazo da ação (`faixaDePrazo`) mora em `src/services/riscos-atividade.ts` e serve ao painel e ao CSV.
 

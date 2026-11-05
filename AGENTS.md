@@ -347,7 +347,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   de Dados e as seis etapas (PR2, abaixo). **Rotas** em `src/routes/ropa-abas.ts`
   (`/projects/:id/ropa/:rid/{ficha,escopo,agentes,medidas,base-juridica,gaps,logs,conferencia,situacao,relatorio,riscos/motivos}`), faixa `privacy`;
   os esquemas ficam em `src/schemas/ropa-abas.ts`, os servicos em `src/services/ropa-abas/` e o conteudo fixo em `src/data/ropa-abas/` (as opcoes
-  marcadas `// proposta:` esperam a confirmacao do dono). **A situacao e DERIVADA, nunca gravada** (`situacaoDaAtividade`): Rascunho, Em Revisao,
+  ja confirmadas pelo dono; nao sobra marca `// proposta:`, `git grep -n "// proposta:" -- src` vazio em 2026-11-05). **A situacao e DERIVADA, nunca gravada** (`situacaoDaAtividade`): Rascunho, Em Revisao,
   Aprovada (vem dos pedidos de aprovacao com o hash vigente) e Cancelada (`status = 'Inactive'`); `POST .../situacao` so envia para revisao, reabre,
   cancela e reativa, e aprovar continua sendo o pedido (`src/services/pedidos.ts`). `GET .../conferencia` lista bloqueios e avisos e o menu "Acoes"
   devolve o motivo de cada item desabilitado, em texto. Atividade aprovada por pedido nao se apaga (`DELETE /ropa/:id` da 409; cancele pela situacao) e o `PUT /ropa/:id` com `status` diferente do gravado passa pela situacao (`Inactive` cancela, `Under Review` envia para revisao; o agente recebe 403, a ferramenta `niso_situacao_atividade` vale so em `/situacao`; chave de API, papel `client`, tambem recebe 403 ao cancelar ou enviar para revisao por ali). Atividade cancelada recusa escrita (409) pelas abas e tambem pelas sub-rotas antigas
@@ -363,7 +363,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   gravada; sem ela, a lista do RoPA), e o consentimento abre a ficha. `niso_privacy_ropa_detalhe` devolve situacao, etapas e medidas. O modo guiado e o painel
   `frontend/src/atividade/guiado.js` sobre as abas (a pergunta vem de `ficha.proxima_pergunta`); o motor da entrevista em `ropa-entrevista.js` saiu. E2E do sistema vazio em
   `frontend/e2e/ropa-abas.spec.js`; formas de resposta que a tela le em `test/ropa-abas-formas-front.test.ts`.
-- **Tratamento de Dados por etapa (PR2, sem migration; plano `docs/superpowers/plans/2026-10-16-ropa-abas.md`).** A aba tem seis etapas em ordem
+- **Tratamento de Dados por etapa (PR2, sem migration; plano `docs/arquivo/planos/2026-10-16-ropa-abas.md`).** A aba tem seis etapas em ordem
   (`ETAPAS` em `src/schemas/ropa-abas.ts`). A Coleta define titulares e dados; as outras usam so o que ela definiu, e cada titular tem situacao
   por etapa (`definido` ou `nao_usa`). As etapas 2 a 6 travam (409 no servidor) enquanto a Coleta estiver pendente. A situacao de cada etapa e
   DERIVADA (`situacaoDaEtapa`, `src/services/ropa-abas/etapas.ts`: concluida, pendente com `faltas`, ou nao aplicavel). **A Eliminacao tem ativos
@@ -500,11 +500,12 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   atesta o conteudo), uma linha de trilha por evidencia, idempotente; fonte `evidencia` nos avisos. A cobertura da LGPD (`lacunasDaFonte`) conta
   evidencia `conforming` em dia (cobre) ou `partial` (parcial). `GET /projects/:id/encarregado` (`src/services/encarregado.ts`) e SO consulta:
   pedidos do titular, incidentes, tratamentos sem base/DPIA/LIA, terceiros, documentos, evidencias, LGPD e prazos legais nao cadastrados, com a
-  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy (alternativa A do estudo `docs/design/diagnostico-2026-10-14/menu-privacy.md`;
-  `organizarMenuPrivacy` e `SECOES_PRIVACY` em `frontend/src/produto.js`, rotulos so do modulo em `ROTULOS_PRIVACY`): Painel no topo, cinco secoes FIXAS
-  (titulo que nao e botao e nao recolhe, itens em `ul`/`li`): Mapear (Tratamentos (RoPA), Importar programa), Cadastros (Pessoas, Areas e Sistemas, cada um a sua tela: `partes`, `areas` e `sistemas`;
-  Fornecedores, Titulares e dados pessoais), Avaliar (RIPD, LIA, Riscos, Gaps, Cobertura da LGPD), Responder (Pedidos do titular, Incidentes, Consentimentos, os tres abrem a tela titular na aba) e Provar
-  (Documentos, Evidencias, Treinamento, Papeis e comite), e o Assistente no fim. Minhas aprovacoes e Trilha de logs ficam no menu de conta
+  lista "o que fazer" priorizada; funciona com tudo vazio. Menu do n.privacy na ordem do legado
+  (`organizarMenuPrivacy` e `SECOES_PRIVACY` em `frontend/src/produto.js`, rotulos so do modulo em `ROTULOS_PRIVACY`; a lista de secoes e a fonte, leia la):
+  em 2026-11-05, Painel e Empresas no topo; Cadastros (Areas, Sistemas, Titulares, Dados de titular, Parceiros, Pessoas); Mapeamento (RoPA, DPIA, LIA);
+  Diagnostico (Gaps, Mapa de risco); Fornecedores (lista e avaliacoes); Documentos e Solicitacoes; "Mais" (Referencia juridica, Incidentes,
+  Consentimentos, Requisitos, Politicas, Evidencias, Treinamento, Papeis e comite, Importar programa); e o Assistente no fim. Titulos de secao nao
+  sao botao e nao recolhem; itens em `ul`/`li`. Minhas aprovacoes e Trilha de logs ficam no menu de conta
   (`#account-menu`) so no n.privacy (`FORA_DO_MENU_PRIVACY`). **Telas do legado (19/10/2026, sem migration):** Fornecedores (`views/terceiros.js`)
   e a lista dos terceiros com nivel de criticidade, DPA e atividades (vinculo ao tratamento e etapa Compartilhamento Externo, sem
   duplicar) e a ficha em pagina propria (`?tela=terceiro&parte=&aba=`) com sete abas; a aba Seguranca edita o perfil de `vendors`
@@ -518,8 +519,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   abaixo (Frontend, n.360).
 - **n.iso e n.privacy sao MODULOS do n.360 sobre o mesmo cadastro (decisao de 09/10/2026, migration 0060; casca n.360 em 11/10).**
   Um Worker, um banco, um deploy; um dominio (`n360.ness.com.br`, em `routes` do `wrangler.jsonc`; `niso` e `nprivacy` ficam como
-  redirecionamento, ver URL canonica). O cliente pode ter um, o outro ou os dois. (Comentarios antigos no codigo ainda dizem
-  "produtos separados"; e o mesmo modelo.) **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa FAIXA (`FAIXA_DO_SEGMENTO` e
+  redirecionamento, ver URL canonica). O cliente pode ter um, o outro ou os dois. **A trava e do servidor:** `src/modulos.ts` poe cada rota de projeto numa FAIXA (`FAIXA_DO_SEGMENTO` e
   `SUBROTAS_PRIVACY`): `nucleo` (o cadastro compartilhado: partes, itens, documentos, evidencia, RoPA, DPIA, pedidos, governanca),
   `iso` (controles, SoA, riscos, auditorias, jornada…) ou `privacy` (requisitos por projeto, terceiros, titular, incidentes,
   consentimentos, encarregado, ligacoes/LIA/importacao do RoPA). O `projectAccessMiddleware` e o `requireResourceAccess` (pela
@@ -618,7 +618,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   O pseudonimo usa uma subchave (`HMAC(TOKEN_ENC_KEY, "n.iso/importacao/titular_ref/v1")`), nao a chave de cifra direto. Consentimento exige o tratamento do RoPA de mesma finalidade normalizada (o gravado na mesma confirmacao vale;
   sem ele, `recusado`). Duplicata: pedido pelo protocolo de origem; incidente pelo protocolo de origem ou titulo e dia da ciencia;
   consentimento pelo pseudonimo, finalidade e data.
-  **Legado (F6, migration 0076; plano `docs/superpowers/plans/2026-10-15-f6-importacao-legado.md`):** entidades `risco`, `gap`, `impacto`,
+  **Legado (F6, migration 0076; plano `docs/arquivo/planos/2026-10-15-f6-importacao-legado.md`):** entidades `risco`, `gap`, `impacto`,
   `ciclo` e `bases` (CHECK ampliado por rebuild de `importacao_itens`, mais a coluna `aviso`, que guarda o aviso da gravacao). Gravacao por
   `GRAVAR_DA_ATIVIDADE` com os servicos da F1 a F3 (`criarRisco`, `criarAcao`, `salvarImpacto`, `salvarCiclo`, `salvarBases`); atividade pela
   finalidade normalizada (sem ela, `recusado`); responsavel (pessoa), ativo e sistema por nome, sem criar nada (aviso). **A importacao nunca
@@ -720,7 +720,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Sem alternancia de tema.** Um tema so, o escuro da marca.
 - **Sem framework no frontend.** Vanilla e decisao, nao divida.
 - **Responsividade fora de escopo** ate segunda ordem.
-- **Equalizacao n.iso x n.privacy (20/10/2026, `docs/equalizacao-modulos-2026-10-20.md`).** A mesma entidade segue a mesma regra e
+- **Equalizacao n.iso x n.privacy (20/10/2026, `docs/arquivo/equalizacao-modulos-2026-10-20.md`).** A mesma entidade segue a mesma regra e
   aparece do mesmo jeito nos dois modulos: (1) RIPD aprovado PERDE a aprovacao quando o conteudo muda, como atividade e documento;
   (2) aceite de risco e um modelo so, `status = Accepted` carimbado no servidor (quem e quando), nos dois modulos; (3) o DPA do
   fornecedor tem fonte unica, o documento ligado em `documento_partes` (papel `dpa`), e `vendors.dpa_signed` passa a ser derivado
@@ -866,7 +866,7 @@ errar um digito destruia a sessao.
 ## Documentos que valem a leitura
 
 - `docs/README.md` — indice da documentacao; `docs/arquivo/` guarda o que ja foi executado
-- `docs/plano-2026-10-fechamento.md` — foto de 08/10 do plano de outubro, com as pendencias do dono (H2, F2, F4, F5, T5)
+- `docs/estado-2026-11-05.md` — o estagio do projeto, os riscos abertos e os proximos passos (do dono, decisoes e o que construir); a foto anterior e o plano de outubro estao em `docs/arquivo/`
 - `docs/superpowers/specs/` — o desenho vigente de cada funcionalidade grande (n.360, modulos por pessoa, importacao,
   integracao, nucleo do n.privacy); plano executado vai para `docs/arquivo/planos/`
 - `docs/design/diagnostico-2026-10-12/` — diagnostico de design do n.360, do n.iso e do n.privacy

@@ -1,6 +1,6 @@
 # Frente 2: uma regra por conceito e as decisões de 20/10 (n.iso x n.privacy)
 
-Origem: `docs/equalizacao-modulos-2026-10-20.md` (P1 e "Decisões do dono"). A Frente 1 (defeitos P0) está no PR #463.
+Origem: `docs/arquivo/equalizacao-modulos-2026-10-20.md` (P1 e "Decisões do dono"). A Frente 1 (defeitos P0) está no PR #463.
 Desenho aprovado pelo dono em 20/10/2026, em conversa. Duas partes, dois PRs: **2A** primeiro, depois **2B**.
 
 ## Objetivo

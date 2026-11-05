@@ -3,7 +3,7 @@
 <!-- impeccable:product-schema 1 -->
 
 Registro durável do que o n.360 é, para quem e por quê. Não traz cor, fonte nem componente: o
-visual vive em [`DESIGN.md`](DESIGN.md) e nos tokens de `frontend/src/style.css`. Números e rotas
+visual vive em [`design.md`](design.md) e nos tokens de `frontend/src/style.css`. Números e rotas
 vivem no [`AGENTS.md`](AGENTS.md), com o comando que mede cada um.
 
 ## Platform

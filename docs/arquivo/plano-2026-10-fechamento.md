@@ -2,7 +2,7 @@
 
 Consolida o que ficou aberto depois do ciclo do agente consultor (#204 a #227): o
 que é seu, o que é de um agente, em que ordem, e quando cada item está pronto.
-Segue o formato do [`backlog-plan.md`](arquivo/backlog-plan.md) (arquivado em 2026-10-06), que valia para o
+Segue o formato do [`backlog-plan.md`](backlog-plan.md) (arquivado em 2026-10-06), que valia para o
 débito de agosto.
 
 Esforço: **S** ≤2h · **M** meio dia · **L** ≥1 dia. Prioridade: **P1** (fazer já) → **P4**.
@@ -361,4 +361,4 @@ resultado. Só com isso você responde sim ou não com número na mão.
 4. Conferir o **código de saída** e "Unhandled", não só "N passaram".
 5. Um PR por item; o merge é decisão sua.
 6. Mudou o alcance do agente? Atualizar, no mesmo PR, o texto do consentimento, `niso_contexto` e
-   [`agente/seguranca.md`](agente/seguranca.md).
+   [`agente/seguranca.md`](../agente/seguranca.md).

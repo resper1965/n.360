@@ -1,6 +1,6 @@
 # Roteiro de aceite do n.360 em produção
 
-Etapa 5 do plano `docs/superpowers/plans/2026-10-18-versao-final.md`. Cerca de 40 minutos, logado em `https://n360.ness.com.br`,
+Etapa 5 do plano `docs/arquivo/planos/2026-10-18-versao-final.md`. Cerca de 40 minutos, logado em `https://n360.ness.com.br`,
 num **projeto de teste vazio** com os dois módulos habilitados. Não use projeto de cliente. Atualizado em 20/10/2026 para o menu do
 legado.
 

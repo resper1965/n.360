@@ -8,7 +8,7 @@
 
 **Tech Stack:** Cloudflare Workers (Hono) + D1 + R2; frontend Vanilla JS (Vite para `src/`, `public/` copiado como está); Vitest (pool de Workers no backend, jsdom no frontend).
 
-**Spec:** `docs/superpowers/specs/2026-10-07-fatia-jornada-design.md` (P5 na seção 2; decisões da seção 3; item 5 do critério de pronto na seção 5).
+**Spec:** `docs/arquivo/specs/2026-10-07-fatia-jornada-design.md` (P5 na seção 2; decisões da seção 3; item 5 do critério de pronto na seção 5).
 
 ## Global Constraints
 

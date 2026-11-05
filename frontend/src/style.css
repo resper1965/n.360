@@ -1542,8 +1542,6 @@ td .mais-acoes-botao { padding: 4px 10px; }
 .re-faixa { border: 1px solid var(--warning); }
 .tl-origem { color: var(--warning); font-size: 12px; }
 .re-nota { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
-/* Reserva a linha do "buscando parecidos…": o aviso aparece e some sem empurrar o formulário. */
-.re-similares-busca { min-height: 1.5em; }
 .re-erro { margin: 0; font-size: 13px; color: var(--danger-ink); }
 .re-erro:empty { display: none; }
 .re-sugestao { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 12px; border: 1px solid var(--border); background: var(--bg); font-size: 13px; color: var(--text-2); }
@@ -1569,8 +1567,6 @@ td .mais-acoes-botao { padding: 4px 10px; }
 .re-cadastro .form-group { margin: 0; }
 .re-cadastro-titulo { margin: 0; font: 600 15px var(--font-head); color: var(--text); }
 .re-cadastro-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
-#re-similares { display: flex; flex-direction: column; gap: 6px; }
-#re-similares .btn { margin-left: 8px; vertical-align: baseline; }
 /* Copiloto: descrição livre no começo da atividade nova e o selo de resposta proposta (texto, sem fundo de accent). */
 .re-copiloto { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; padding: 20px 24px; border: 1px solid var(--border); background: var(--surface); }
 .re-copiloto .re-acoes { margin-top: 4px; }
