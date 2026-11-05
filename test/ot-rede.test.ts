@@ -77,6 +77,9 @@ const ids: Record<string, string> = {};
 const doc = (titulo: string) => criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'documento', realizado_em: '2026-11-04', documento_titulo: titulo });
 type Ach = { id: string; entidade: string; origem: string; evidencia: string; dados: Record<string, unknown>; confronto?: string };
 const achados = async (h: H, lev: string) => (await (await chamar(h, 'GET', `${P}/levantamentos/${lev}`)).json<{ achados: Ach[] }>()).achados;
+/** Os testes de teto reimportam o RESUMO no mesmo site: sem as chaves anteriores, o filtro de novidade não o recusa. */
+const esquecerChaves = () => env.DB.batch([env.DB.prepare(`UPDATE ot_achados SET chave_sensor = NULL WHERE project_id = 'proj-a'`),
+  env.DB.prepare(`UPDATE ot_fluxos_pendentes SET chave_sensor = NULL WHERE project_id = 'proj-a'`)]);
 const contar = async (lev: string) => (await env.DB.prepare('SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n;
 
 beforeAll(async () => {
@@ -108,7 +111,7 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     const r = await enviar(cons, ids.doc, RESUMO);
     expect(r.status, await r.clone().text()).toBe(201);
     expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 3, fluxos_pendentes: 2, nao_importados: 0,
-      pendentes_nao_importados: 0 });
+      pendentes_nao_importados: 0, repetidos: 0 });
     const lista = await achados(cons, ids.doc);
     expect(lista).toHaveLength(5);
     expect(lista.filter((a) => a.entidade === 'fluxo')).toHaveLength(3);
@@ -138,6 +141,18 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     for (const ip of IPS) expect(texto).not.toContain(ip);
     expect(results.map((p) => p.origem_ip_hash).sort()).toEqual([await hmacOt(chaves, 'proj-a', '10.1.1.20'), await hmacOt(chaves, 'proj-a', '10.1.1.30')].sort());
     for (const p of results) expect(JSON.parse(p.dados)).toMatchObject({ direcao: 'unidirecional', evidencia: 'Sensor de rede (Zeek): 15 conexões entre 01/11 e 03/11' });
+  });
+
+  it('o mesmo resumo de novo, em outra sessão do site: nenhum achado nem pendência, tudo em repetidos', async () => {
+    const lev = await doc('Repetido');
+    const r = await enviar(cons, lev, RESUMO);
+    expect(r.status, await r.clone().text()).toBe(201);
+    expect(await r.json()).toEqual({ ativos_novos: 0, ativos_conhecidos: 2, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0, nao_importados: 0,
+      pendentes_nao_importados: 0, repetidos: 7 });
+    expect(await contar(lev)).toBe(0);
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n).toBe(0);
+    const chaves = await env.DB.prepare(`SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ? AND chave_sensor IS NOT NULL`).bind(ids.doc).first<{ n: number }>();
+    expect(chaves!.n).toBe(5);
   });
 
   it('quem vê mascarado não importa: 403 e nada gravado', async () => {
@@ -179,17 +194,19 @@ describe('POST /levantamentos/:id/depara/rede', () => {
   });
 
   it('perto do teto: só as vagas livres, na ordem ativos novos, MACs, fluxos; contagens do que foi gravado', async () => {
+    await esquecerChaves();
     const lev = await doc('Quase cheio');
     await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1997)
       INSERT INTO ot_achados (id, project_id, levantamento_id, criado_por) SELECT 'rede-quase-' || i, 'proj-a', ?, 'x' FROM n`).bind(lev).run();
     const r = await enviar(cons, lev, RESUMO);
     expect(r.status, await r.clone().text()).toBe(201);
     expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 1, fluxos_pendentes: 2, nao_importados: 2,
-      pendentes_nao_importados: 0 });
+      pendentes_nao_importados: 0, repetidos: 0 });
     expect(await contar(lev)).toBe(2000);
   });
 
   it('teto de 2.000 pendências por sessão: o excedente volta em pendentes_nao_importados', async () => {
+    await esquecerChaves();
     const lev = await doc('Pendências cheias');
     await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1999)
       INSERT INTO ot_fluxos_pendentes (id, project_id, levantamento_id, origem_ip_hash, dados) SELECT 'pend-' || i, 'proj-a', ?, 'h', '{}' FROM n`).bind(lev).run();
@@ -200,6 +217,7 @@ describe('POST /levantamentos/:id/depara/rede', () => {
   });
 
   it('falha ao gravar os achados: 500 e nenhuma pendência desta requisição fica', async () => {
+    await esquecerChaves();
     const lev = await doc('Falha');
     const r = await enviar(cons, lev, RESUMO, { DB: dbQueFalhaNosAchados() });
     expect(r.status).toBe(500);
@@ -232,8 +250,10 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     expect(ap.status, await ap.clone().text()).toBe(200);
     expect(await ap.json()).toMatchObject({ criados: 1, fluxos_pendentes_resolvidos: 1 });
     const novo = await env.DB.prepare('SELECT id FROM ot_ativos WHERE ip_hash = ?').bind(await hmacOt(chaves, 'proj-a', '10.1.1.40')).first<{ id: string }>();
-    const fluxo = await env.DB.prepare(`SELECT dados, evidencia, origem FROM ot_achados WHERE levantamento_id = ? AND entidade = 'fluxo'`).bind(lev)
-      .first<{ dados: string; evidencia: string; origem: string }>();
+    const fluxo = await env.DB.prepare(`SELECT dados, evidencia, origem, chave_sensor FROM ot_achados WHERE levantamento_id = ? AND entidade = 'fluxo'`).bind(lev)
+      .first<{ dados: string; evidencia: string; origem: string; chave_sensor: string }>();
+    // a chave da pendência passa ao achado: o filtro de novidade continua a ver o fluxo
+    expect(fluxo!.chave_sensor).toBe(await hmacOt(chaves, 'proj-a', `${ids.s1}|10.1.1.40|10.1.1.10|dnp3|20000`));
     expect(JSON.parse(fluxo!.dados)).toMatchObject({ origem_ativo_id: novo!.id, destino_ativo_id: 'a-rtu', protocolo: 'dnp3', porta: 20000, direcao: 'unidirecional' });
     expect(fluxo).toMatchObject({ evidencia: 'Sensor de rede (Zeek): 3 conexões entre 01/11 e 03/11', origem: 'consultor' });
     expect((await env.DB.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n).toBe(0);
