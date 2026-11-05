@@ -2,11 +2,12 @@
 """Resume logs JSON do Zeek em resumo.json (n.ot-resumo-rede/1). So biblioteca padrao.
 Uso: python3 n-ot-resumo-zeek.py <pasta-de-logs> [-o resumo.json]
 Le apenas IP, MAC, portas, protocolo e horarios; nunca payload, usuario, URI, arquivo ou certificado."""
-import argparse, gzip, ipaddress, json, os, re, sys
+import argparse, fnmatch, gzip, ipaddress, json, os, re, sys
 from datetime import datetime, timezone
 
 FORMATO = "n.ot-resumo-rede/1"
 LIMITE_ATIVOS, LIMITE_CONEXOES = 5000, 20000
+TETO_BYTES = 4500000  # o n.ot recusa arquivo acima de 5 MB
 ACEITOS = {"modbus", "dnp3", "iec104", "s7comm", "enip", "bacnet", "opcua", "mms", "goose", "http",
            "https", "ssh", "telnet", "rdp", "smb", "snmp", "ntp", "dns", "syslog", "ftp"}
 OUI = {"00:30:a7": "SEL", "00:0e:8c": "Siemens", "00:1b:1b": "Siemens", "00:21:c1": "ABB",
@@ -18,20 +19,27 @@ def iso(ts):
     return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def arquivos(pasta, nome):
+    """nome*.log e nome*.log.gz em qualquer subpasta (rotacao do zeekctl/Malcolm: 2026-11-01/conn.10:00:00-11:00:00.log.gz)."""
+    achados = []
+    for raiz, _, nomes in os.walk(pasta):
+        achados += [os.path.join(raiz, n) for n in nomes
+                    if fnmatch.fnmatchcase(n, nome + "*.log") or fnmatch.fnmatchcase(n, nome + "*.log.gz")]
+    return sorted(achados)
+
+
 def ler(pasta, nome):
-    """Gera os registros de nome.log ou nome.log.gz; linhas invalidas sao ignoradas."""
-    for sufixo, abrir in ((".log", open), (".log.gz", gzip.open)):
-        caminho = os.path.join(pasta, nome + sufixo)
-        if os.path.isfile(caminho):
-            with abrir(caminho, "rt", encoding="utf-8", errors="replace") as f:
-                for linha in f:
-                    try:
-                        r = json.loads(linha)
-                    except ValueError:
-                        continue
-                    if isinstance(r, dict):
-                        yield r
-            return
+    """Gera os registros de todos os arquivos de nome (.log e .gz juntos); linhas invalidas sao ignoradas."""
+    for caminho in arquivos(pasta, nome):
+        abrir = gzip.open if caminho.endswith(".gz") else open
+        with abrir(caminho, "rt", encoding="utf-8", errors="replace") as f:
+            for linha in f:
+                try:
+                    r = json.loads(linha)
+                except ValueError:
+                    continue
+                if isinstance(r, dict):
+                    yield r
 
 
 def aplicacao(service):
@@ -59,10 +67,12 @@ def porta_ok(p):
 
 
 def ip_ok(x):
+    """IP de um host: multicast, broadcast limitado, nao especificado e loopback ficam de fora (o servidor repete o filtro)."""
     try:
-        return isinstance(x, str) and bool(ipaddress.ip_address(x))
+        a = ipaddress.ip_address(x) if isinstance(x, str) else None
     except ValueError:
         return False
+    return a is not None and not (a.is_multicast or a.is_unspecified or a.is_loopback or x == "255.255.255.255")
 
 
 def ts_ok(t):  # 2000-01-01 .. 2100-01-01 (evita overflow em iso)
@@ -70,7 +80,9 @@ def ts_ok(t):  # 2000-01-01 .. 2100-01-01 (evita overflow em iso)
 
 
 def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES):
-    if not any(os.path.isfile(os.path.join(pasta, "conn" + s)) for s in (".log", ".log.gz")):
+    if not os.path.isdir(pasta):
+        raise NotADirectoryError("pasta nao encontrada: " + pasta)
+    if not arquivos(pasta, "conn"):
         raise FileNotFoundError("conn.log nao encontrado em " + pasta)
     marcas = {}  # (origem, destino) -> aplicacao dada por modbus.log/dnp3.log
     for nome in ("modbus", "dnp3"):
@@ -164,6 +176,28 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES)
     return out
 
 
+def compacto(x):
+    return json.dumps(x, ensure_ascii=False, separators=(",", ":"))
+
+
+def caber(out, teto=TETO_BYTES):
+    """JSON compacto ate o teto: corta as conexoes menos frequentes; se ainda passar, os ativos sem conexao e sem MAC."""
+    tam = len(compacto(out).encode())
+    cs, at = out["conexoes"], out["ativos"]
+    nc, na = len(cs), len(at)
+    while tam > teto and cs:  # a lista ja vem da mais para a menos frequente
+        tam -= len(compacto(cs.pop()).encode()) + (1 if cs else 0)
+    for i in range(len(at) - 1, -1, -1):  # sem conexoes e ainda acima: ativos sem MAC, do menos para o mais visto
+        if tam <= teto:
+            break
+        if "mac" not in at[i]:
+            tam -= len(compacto(at.pop(i)).encode()) + (1 if at else 0)
+    if nc != len(cs) or na != len(at):
+        print("aviso: resumo acima de %.1f MB; descartadas %d conexoes e %d ativos menos frequentes"
+              % (teto / 1e6, nc - len(cs), na - len(at)), file=sys.stderr)
+    return compacto(out)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Resume logs JSON do Zeek para o n.ot")
     ap.add_argument("pasta")
@@ -175,7 +209,7 @@ def main(argv=None):
         print("erro: " + str(e), file=sys.stderr)
         return 2
     with open(args.saida, "w", encoding="utf-8") as f:
-        json.dump(r, f, ensure_ascii=False, indent=2)
+        f.write(caber(r))
     print("%s: %d ativos, %d conexoes" % (args.saida, len(r["ativos"]), len(r["conexoes"])))
     return 0
 

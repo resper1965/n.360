@@ -446,6 +446,13 @@ describe('importar arquivo na sessão de documento', () => {
         expect(document.body.textContent).toContain('Arquivo não é um resumo de rede do n.ot');
         window.otImportarArquivo(); escolher('quebrado.json', '{');
         await window.otLerArquivo();
+        window.otImportarArquivo();
+        const grande = escolher('grande.json', JSON.stringify(RESUMO));
+        Object.defineProperty(grande, 'size', { value: 5 * 1024 * 1024 + 1 });
+        grande.text = vi.fn();
+        await window.otLerArquivo();
+        expect(document.body.textContent).toContain('Resumo acima de 5 MB');
+        expect(grande.text).not.toHaveBeenCalled();
         expect(chamadas.some((x) => x.k.startsWith('POST'))).toBe(false);
         servirOt({ [`GET ${B}/levantamentos/l1`]: { levantamento: DOC, achados: [] }, [`GET ${B}/roteiro`]: ROTEIRO });
         const f = vi.fn(async () => resposta({ error: 'Importar o resumo de rede exige ver o inventário completo (Gestor ARCiber ou consultoria designada)' }, 403));

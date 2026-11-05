@@ -486,6 +486,8 @@ async function aplicarDepara() {
 
 // ─── resumo do sensor de rede (L3): a tela só confere o formato e conta; quem valida, cifra e cruza com o inventário é o servidor ─────
 async function lerResumoRede(file) {
+    // mesmo teto do servidor (sessaoEArquivo): não lê para a memória um arquivo que seria recusado
+    if (file.size > 5 * 1024 * 1024) return showToast('Resumo acima de 5 MB: gere de novo com o script atual, que corta as conexões menos frequentes', 'error');
     const aberto = fechamentos;
     let j = null;
     try { j = JSON.parse(await file.text()); } catch { /* cai na recusa abaixo */ }

@@ -1,7 +1,10 @@
-import importlib.util, json, os, shutil, tempfile, unittest
+import contextlib, gzip, importlib.util, io, json, os, shutil, tempfile, unittest
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 FIX = os.path.join(AQUI, "fixtures-zeek")
+# saida de resumir(FIX) com gerado_em fixo; o teste do backend (test/ot-rede-servico.test.ts) passa este arquivo no resumoRedeSchema.
+# Regerar: REGERAR=1 python3 -m unittest scripts/test_n_ot_resumo_zeek.py
+ESPERADO = os.path.join(FIX, "resumo-esperado.json")
 spec = importlib.util.spec_from_file_location("resumo", os.path.join(AQUI, "n-ot-resumo-zeek.py"))
 resumo = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(resumo)
@@ -44,8 +47,60 @@ class T(unittest.TestCase):
         self.assertNotIn("mac", self.ativo("10.1.1.30"))
 
     def test_gz(self):
-        r = resumo.resumir(os.path.join(FIX, "gz"))
+        r = resumo.resumir(os.path.join(AQUI, "fixtures-zeek-gz"))
         self.assertEqual(sum(c["contagem"] for c in r["conexoes"]), 2)
+
+    def test_rotacao_em_subpastas(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        linha = lambda ts, porta: json.dumps(self._c(ts=ts, **{"id.resp_p": porta})) + "\n"
+        for sub, nome, conteudo in (("2026-11-01", "conn.10:00:00-11:00:00.log.gz", linha(1793491200, 502)),
+                                    ("2026-11-01", "conn.11:00:00-12:00:00.log.gz", linha(1793494800, 502)),
+                                    ("2026-11-02", "modbus.10:00:00-11:00:00.log.gz", json.dumps(
+                                        {"id.orig_h": "10.0.0.1", "id.resp_h": "10.0.0.2", "id.resp_p": 502}) + "\n"),
+                                    ("", "conn.log", linha(1793577600, 22))):
+            os.makedirs(os.path.join(d, sub), exist_ok=True)
+            caminho = os.path.join(d, sub, nome)
+            with (gzip.open if nome.endswith(".gz") else open)(caminho, "wt") as f:
+                f.write(conteudo)
+        r = resumo.resumir(d)
+        self.assertEqual({c["porta"]: (c["aplicacao"], c["contagem"]) for c in r["conexoes"]}, {502: ("modbus", 2), 22: (None, 1)})
+        self.assertEqual(r["periodo"], {"inicio": "2026-11-01T00:00:00Z", "fim": "2026-11-02T00:00:00Z"})
+
+    def test_multicast_broadcast_ignorados(self):
+        r = resumo.resumir(self._pasta([
+            self._c(**{"id.resp_h": "224.0.0.251"}), self._c(**{"id.resp_h": "239.255.255.250"}), self._c(**{"id.resp_h": "255.255.255.255"}),
+            self._c(**{"id.orig_h": "0.0.0.0"}), self._c(**{"id.orig_h": "fe80::1", "id.resp_h": "ff02::fb"}),
+            self._c(**{"id.orig_h": "::", "id.resp_h": "fe80::2"}), self._c(**{"id.resp_h": "127.0.0.1"}), self._c()],
+            dhcp=[{"client_addr": "0.0.0.0", "mac": "00:30:a7:00:00:01"}], known_hosts=[{"host": "ff02::1"}]))
+        self.assertEqual([(c["origem"], c["destino"]) for c in r["conexoes"]], [("10.0.0.1", "10.0.0.2")])
+        self.assertEqual(sorted(a["ip"] for a in r["ativos"]), ["10.0.0.1", "10.0.0.2"])
+
+    def test_cabe_no_teto(self):
+        base = {"formato": "f", "ativos": [{"ip": "10.0.0.%d" % i, "protocolos": [], "portas_servico": []} for i in range(3)]
+                + [{"ip": "10.0.0.9", "mac": "00:00:00:00:00:01", "protocolos": [], "portas_servico": []}],
+                "conexoes": [{"origem": "10.0.0.1", "destino": "10.0.0.2", "contagem": n} for n in (9, 5, 1)]}
+        r = json.loads(json.dumps(base))
+        self.assertEqual(resumo.caber(r), json.dumps(base, separators=(",", ":")))  # cabe: compacto e intacto
+        so_dois = dict(base, conexoes=[], ativos=[base["ativos"][0], base["ativos"][3]])
+        for teto, conexoes, ativos in ((len(resumo.compacto(base)) - 1, [9, 5], 4), (len(resumo.compacto(so_dois)), [], 2)):
+            r, err = json.loads(json.dumps(base)), io.StringIO()
+            with contextlib.redirect_stderr(err):
+                texto = resumo.caber(r, teto)
+            self.assertLessEqual(len(texto.encode()), teto)
+            out = json.loads(texto)
+            self.assertEqual([c["contagem"] for c in out["conexoes"]], conexoes)
+            self.assertEqual(len(out["ativos"]), ativos)
+            self.assertIn("descartadas %d conexoes e %d ativos" % (3 - len(conexoes), 4 - ativos), err.getvalue())
+        self.assertEqual([a["ip"] for a in out["ativos"]], ["10.0.0.0", "10.0.0.9"])  # fica o com MAC e o mais visto
+
+    def test_resumo_esperado(self):
+        r = dict(self.r, gerado_em="2026-11-04T12:00:00Z")
+        if os.environ.get("REGERAR"):
+            with open(ESPERADO, "w", encoding="utf-8") as f:
+                f.write(json.dumps(r, ensure_ascii=False, indent=2) + "\n")
+        with open(ESPERADO, encoding="utf-8") as f:
+            self.assertEqual(json.load(f), r)
 
     def test_teto(self):
         r = resumo.resumir(FIX, limite_conexoes=2)
@@ -117,7 +172,10 @@ class T(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "r.json")
             self.assertEqual(resumo.main([FIX, "-o", out]), 0)
-            self.assertEqual(json.load(open(out))["formato"], "n.ot-resumo-rede/1")
+            with open(out) as f:
+                texto = f.read()
+            self.assertEqual(json.loads(texto)["formato"], "n.ot-resumo-rede/1")
+            self.assertNotIn("\n", texto)  # compacto
             vazia = os.path.join(d, "vazia")
             os.mkdir(vazia)
             self.assertEqual(resumo.main([vazia, "-o", out]), 2)

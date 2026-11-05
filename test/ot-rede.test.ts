@@ -170,7 +170,7 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     await env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1998)
       INSERT INTO ot_achados (id, project_id, levantamento_id, criado_por) SELECT 'rede-cheio-' || i, 'proj-a', ?, 'x' FROM n`).bind(lev).run();
     const { periodo: _p, ...semPeriodo } = base;
-    const r = await enviar(gestor, lev, JSON.stringify({ ...semPeriodo, ativos: [1, 2, 3, 4, 5].map((i) => at(`10.1.2.${i}`)), conexoes: [] }));
+    const r = await enviar(gestor, lev, JSON.stringify({ ...semPeriodo, ativos: [1, 2, 3, 4, 5].map((i) => at(`10.1.2.${i}`, { mac: `00:30:a7:00:02:0${i}` })), conexoes: [] }));
     expect(r.status, await r.clone().text()).toBe(201);
     expect(await r.json()).toMatchObject({ ativos_novos: 2, nao_importados: 3 });
     expect(await contar(lev)).toBe(2000);
@@ -239,10 +239,10 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     expect((await env.DB.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n).toBe(0);
   });
 
-  /** Importa um ativo novo com o IP dado (sem conexões), envia o achado ao lote; `antes` roda antes da aprovação; devolve sessão, lote e resposta. */
+  /** Importa um ativo novo com o IP dado (com MAC, sem conexões), envia o achado ao lote; `antes` roda antes da aprovação; devolve sessão, lote e resposta. */
   async function aprovarAtivoNovo(ip: string, antes: (lev: string, hash: string) => Promise<void>, extra: Record<string, unknown> = {}) {
     const lev = await doc(`Ativo novo ${ip.split('.').pop()}`);
-    const r = await enviar(cons, lev, JSON.stringify({ ...base, ativos: [at(ip)], conexoes: [] }));
+    const r = await enviar(cons, lev, JSON.stringify({ ...base, ativos: [at(ip, { mac: `00:30:a7:00:00:${Number(ip.split('.').pop()).toString(16).padStart(2, '0')}` })], conexoes: [] }));
     expect(r.status, await r.clone().text()).toBe(201);
     const ativo = (await achados(cons, lev)).find((a) => a.entidade === 'ativo')!;
     const e = await chamar(cons, 'POST', `${P}/levantamentos/${lev}/enviar`, { achados: [ativo.id] });
@@ -274,8 +274,8 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     expect(d.destino_ativo_id).toBeUndefined();
     expect(f!.evidencia).toBe('Sensor de rede (Zeek): 2 conexões entre 01/11 e 02/11');
     expect([await existe('pend-ruim'), await existe('pend-ext')]).toEqual([true, false]);
-    const t = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'ot.lote.aprovado' AND details LIKE ? LIMIT 1`).bind(`%${loteId}%`).first();
-    expect(t).toBeTruthy();
+    const t = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'ot.lote.aprovado' AND details LIKE ? LIMIT 1`).bind(`%${loteId}%`).first<{ details: string }>();
+    expect(t!.details).toContain('1 fluxo(s) pendente(s) resolvido(s)');
   });
 
   it('segunda passagem que falha no banco não derruba a aprovação já gravada: 200, resolvidos 0, trilha gravada e a pendência fica', async () => {

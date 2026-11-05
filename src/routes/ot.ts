@@ -500,8 +500,8 @@ otApp.post('/lotes/:id/aprovar', async (c) => {
     const r = await aprovarLote(db, chavesOt(c.env)!, user, projectId, sites, c.req.param('id'));
     if (!r.ok) return c.json({ error: r.error }, r.status);
     const { ok: _ok, ...n } = r;
-    await trilha(c, 'ot.lote.aprovado', projectId, `Lote ${c.req.param('id')} aprovado: ${n.criados} criado(s), ${n.atualizados} atualizado(s), ${n.recusados} recusado(s)`,
-      { tipo: 'ot_lote', id: c.req.param('id') });
+    await trilha(c, 'ot.lote.aprovado', projectId, `Lote ${c.req.param('id')} aprovado: ${n.criados} criado(s), ${n.atualizados} atualizado(s), ${n.recusados} recusado(s)`
+      + (n.fluxos_pendentes_resolvidos > 0 ? `, ${n.fluxos_pendentes_resolvidos} fluxo(s) pendente(s) resolvido(s)` : ''), { tipo: 'ot_lote', id: c.req.param('id') });
     return c.json({ ok: true, ...n });
   } catch (e) { return erro500(c, 'Falha ao aprovar o lote', e); }
 });

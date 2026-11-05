@@ -3,6 +3,8 @@ import { env } from 'cloudflare:test';
 import { chavesOt, hmacOt } from '../src/services/ot-cifra';
 import { EVIDENCIA_SENSOR, planejarResumo, resumoRedeSchema } from '../src/services/ot-rede';
 import { applySchema, seedTwoProjects, workerEnv } from './helpers/d1';
+// saída real do scripts/n-ot-resumo-zeek.py sobre scripts/fixtures-zeek; o teste Python garante que continua igual à do script
+import esperado from '../scripts/fixtures-zeek/resumo-esperado.json';
 
 // n.ot L3: validação do resumo do sensor de rede e montagem de achados e pendências. D1 real.
 const chaves = chavesOt(workerEnv())!;
@@ -26,6 +28,12 @@ describe('resumoRedeSchema', () => {
   const ok = { ...base, ativos: [at('10.1.1.10', { mac: '00:30:a7:01:02:03', fabricante: 'SEL', protocolos: ['dnp3'], portas_servico: [20000] })],
     conexoes: [cx('10.1.1.20', '10.1.1.10', 20000, 'dnp3')] };
   it('aceita o formato da spec', () => expect(resumoRedeSchema.safeParse(ok).success).toBe(true));
+  it('aceita a saída do script sobre as fixtures (contrato entre o script e o importador)', () => {
+    const r = resumoRedeSchema.safeParse(esperado);
+    expect(r.error?.issues).toBeUndefined();
+    expect(r.data!.ativos.length).toBeGreaterThan(0);
+    expect(r.data!.conexoes.length).toBeGreaterThan(0);
+  });
   it.each([
     ['campo desconhecido', { ...ok, extra: 1 }],
     ['formato diferente', { ...ok, formato: 'outro/1' }],
@@ -44,6 +52,7 @@ describe('planejarResumo', () => {
       at('10.1.1.10', { mac: '00-30-A7-01-02-03' }),
       at('10.1.1.20', { mac: '00:30:a7:01:02:05' }),
       at('8.8.8.8', { protocolos: ['dns'] }),
+      at('10.1.1.10', { mac: '00:30:a7:01:02:03' }), // conhecido repetido: conta uma vez
     ], []));
     expect(p.ativos).toEqual([{ ip: '10.1.1.30', nome: 'SEL (dnp3) #1', mac: '00:30:a7:01:02:04', fabricante: 'SEL', protocolos_portas: [{ protocolo: 'dnp3', porta: 20000 }] }]);
     expect(p.macs).toEqual([{ ip: '10.1.1.10', mac: '00:30:a7:01:02:03', nome: 'RTU 1' }]);
@@ -52,7 +61,8 @@ describe('planejarResumo', () => {
 
   it('ativos novos: nome gerado sem IP, numerado na ordem; mesmo IP escrito de dois jeitos vira um', async () => {
     const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([
-      at('fd00::1', { protocolos: ['modbus'] }), at('fd00:0:0::1'), at('10.1.1.50'), at('10.1.1.51', { fabricante: 'ABB' })], []));
+      at('fd00::1', { protocolos: ['modbus'], mac: '00:30:a7:00:00:01' }), at('fd00:0:0::1'), at('10.1.1.50'), at('10.1.1.51', { fabricante: 'ABB' })],
+    [cx('10.1.1.50', '10.1.1.10', 502, null), cx('10.1.1.51', '10.1.1.10', 502, null)]));
     expect(p.ativos.map((a) => a.nome)).toEqual(['Dispositivo (modbus) #1', 'Dispositivo (rede) #2', 'ABB (rede) #3']);
     expect(p.ativos.map((a) => a.ip)).toEqual(['fd00::1', '10.1.1.50', '10.1.1.51']);
     expect(p.contagem.ativos_novos).toBe(3);
@@ -60,8 +70,21 @@ describe('planejarResumo', () => {
 
   it('ativo com mais de 100 portas: só as 100 primeiras, na ordem do resumo', async () => {
     const portas = Array.from({ length: 150 }, (_, i) => 1000 + i);
-    const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.40', { protocolos: ['modbus'], portas_servico: portas })], []));
+    const p = await planejarResumo(env.DB, chaves, PJ, site, resumo([at('10.1.1.40', { protocolos: ['modbus'], portas_servico: portas, mac: '00:30:a7:00:00:40' })], []));
     expect(p.ativos[0].protocolos_portas).toEqual(portas.slice(0, 100).map((porta) => ({ protocolo: 'modbus', porta })));
+  });
+
+  it('multicast, broadcast e não especificado: nem ativo, nem fluxo, nem pendência; ativo novo sem MAC só se originou conexão', async () => {
+    const p = await planejarResumo(env.DB, chaves, PJ, site, resumo(
+      [at('10.1.1.60'), at('10.1.1.255'), at('10.1.1.61'), at('224.0.0.251'), at('0.0.0.0', { mac: '00:30:a7:00:00:60' }), at('ff02::fb'), at('127.0.0.1'),
+        at('169.254.7.7', { mac: '00:30:a7:00:00:77' })], // APIPA é interna
+      [cx('10.1.1.60', '10.1.1.255', 47808, 'bacnet', 'udp'), // broadcast da sub-rede: só como destino, não vira ativo
+        cx('10.1.1.61', '224.0.0.251', 5353, 'dns', 'udp'), cx('10.1.1.20', '239.255.255.250', 1900, null, 'udp'),
+        cx('0.0.0.0', '255.255.255.255', 67, null, 'udp'), cx('10.1.1.20', '255.255.255.255', 47808, 'bacnet', 'udp'),
+        cx('fe80::1', 'ff02::fb', 5353, 'dns', 'udp'), cx('::', 'fe80::2', 547, null, 'udp'), cx('10.1.1.20', '127.0.0.1', 80, 'http')]));
+    expect(p.ativos.map((a) => a.ip)).toEqual(['10.1.1.60', '169.254.7.7']);
+    expect(p.fluxos).toEqual([]);
+    expect(p.pendentes.map((x) => [x.origem_ip_hash, x.destino_ip_hash])).toEqual([[await hmacOt(chaves, PJ, '10.1.1.60'), await hmacOt(chaves, PJ, '10.1.1.255')]]);
   });
 
   it('pendente com lado externo: hash nulo desse lado, nunca o HMAC do IP externo', async () => {

@@ -33,10 +33,14 @@ export function ipNaFaixa(ip: string, cidr: string): boolean {
   return x.n >> sobra === y.n >> sobra;
 }
 
-const PRIVADAS = ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fc00::/7', 'fe80::/10'];
+const PRIVADAS = ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '169.254.0.0/16', 'fc00::/7', 'fe80::/10'];
 
-/** Rede interna = privados, ULA, link-local e as faixas do site. */
+/** Rede interna = privados, ULA, link-local (IPv4 e IPv6) e as faixas do site. */
 export const ehInterno = (ip: string, faixas: string[]): boolean => [...PRIVADAS, ...faixas].some((f) => ipNaFaixa(ip, f));
+
+// Multicast, broadcast limitado, não especificado e loopback não são hosts: nem ativo, nem fluxo, nem pendência.
+const NAO_HOST = ['224.0.0.0/4', '255.255.255.255/32', '0.0.0.0/32', '127.0.0.0/8', 'ff00::/8', '::/128', '::1/128'];
+export const ehHost = (ip: string): boolean => !NAO_HOST.some((f) => ipNaFaixa(ip, f));
 
 // Resumo do sensor de rede (spec §2–§3): esquema estrito; qualquer erro recusa o arquivo inteiro.
 export const PROTOCOLOS_REDE = ['modbus', 'dnp3', 'iec104', 's7comm', 'enip', 'bacnet', 'opcua', 'mms', 'goose', 'http', 'https', 'ssh', 'telnet',
@@ -92,10 +96,15 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
   const doSite = async (x: string) => idx.achar({ ip_hash: await hash(x) });
 
   const plano: Plano = { ativos: [], macs: [], fluxos: [], pendentes: [], contagem: { ativos_novos: 0, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0 } };
-  const novos = new Set<string>();
+  const conexoes = resumo.conexoes.map((c) => ({ ...c, origem: normalizarIp(c.origem)!, destino: normalizarIp(c.destino)! }))
+    .filter((c) => ehHost(c.origem) && ehHost(c.destino));
+  // ativo novo só para IP que originou conexão ou tem MAC: broadcast de sub-rede só aparece como destino
+  const origens = new Set(conexoes.map((c) => c.origem));
+  const ipsVistos = new Set<string>();
   for (const a of resumo.ativos) {
     const x = normalizarIp(a.ip)!;
-    if (!interno(x) || novos.has(x)) continue;
+    if (!interno(x) || !ehHost(x) || ipsVistos.has(x)) continue;
+    ipsVistos.add(x); // IP conhecido repetido também conta uma vez só
     const mac = a.mac && normalizarMac(a.mac)!;
     const existente = await doSite(x);
     if (existente) {
@@ -104,7 +113,7 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
       if (mac && !existente.mac_hash) plano.macs.push({ ip: x, mac, nome: existente.nome });
       continue;
     }
-    novos.add(x);
+    if (!mac && !origens.has(x)) continue;
     const [p] = a.protocolos;
     // até 100 portas (teto de protocolos_portas do ativo); o script ordena as portas, então ficam as menores
     const pp = !p ? undefined : a.portas_servico.length ? a.portas_servico.slice(0, 100).map((porta) => ({ protocolo: p, porta })) : [{ protocolo: p }];
@@ -114,8 +123,8 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
   }
 
   const vistos = new Set<string>();
-  for (const c of resumo.conexoes) {
-    const o = normalizarIp(c.origem)!, d = normalizarIp(c.destino)!;
+  for (const c of conexoes) {
+    const o = c.origem, d = c.destino;
     const io = interno(o), id = interno(d);
     if (!io && !id) continue; // não é fluxo do site
     const dados: Record<string, unknown> = { protocolo: c.aplicacao ?? c.transporte, porta: c.porta, direcao: 'unidirecional', ...(!(io && id) && { externo: true }) };
