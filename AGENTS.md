@@ -718,6 +718,9 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
 - **Sem i18n.** O produto e PT-BR. Comentario, mensagem de erro e texto de UI em
   portugues. A camada de traducao foi removida por decisao explicita.
 - **Sem alternancia de tema.** Um tema so, o escuro da marca.
+- **Backup do D1 = Time Travel (decisao do dono, 05/11/2026), ate haver volume de dados.** Sem backup diario automatico (o `db-backup.yml`
+  segue desligado); a recuperacao e o Time Travel do D1 (`npx wrangler d1 time-travel info niso-db`, restauracao por
+  `wrangler d1 time-travel restore`), e o `npm run db:backup` manual continua obrigatorio antes de toda migration. Rever quando o volume crescer.
 - **Sem framework no frontend.** Vanilla e decisao, nao divida.
 - **Responsividade fora de escopo** ate segunda ordem.
 - **Equalizacao n.iso x n.privacy (20/10/2026, `docs/arquivo/equalizacao-modulos-2026-10-20.md`).** A mesma entidade segue a mesma regra e

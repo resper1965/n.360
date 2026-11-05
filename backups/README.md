@@ -9,7 +9,8 @@ O `.github/workflows/db-backup.yml` (diário, 03:40 UTC, com verificação do du
 desligado junto com os outros workflows do Actions (`disabled_manually`; o dono não paga
 minutos do Actions no repositório privado). **Não há backup diário automático.** A
 recuperação de curto prazo é o Time Travel do D1 (`docs/runbook-publicacao.md`), e o backup
-manual abaixo continua obrigatório antes de toda migration. Religar o workflow é decisão do dono.
+manual abaixo continua obrigatório antes de toda migration. **Decisão do dono (05/11/2026): o Time Travel é a
+política de backup até haver volume de dados**; aí se revê (religar o workflow ou outro destino).
 
 ## Backup de produção sob demanda (execute você mesmo, com as credenciais da conta)
 

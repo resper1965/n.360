@@ -12,7 +12,7 @@ Legenda: verde = provado agora; amarelo = parcial ou sem prova; vermelho = bloqu
 | Correção | verde | Portão local verde em cada merge; `/health` devolve `913e7d3`, o SHA do último merge (#553) |
 | Segurança de código | verde | `npm audit` com 0 em raiz, `frontend` e `mcp-server-niso` (o aviso moderado do `@hono/node-server` foi corrigido em 05/11); cabeçalhos HSTS, CSP, nosniff, X-Frame-Options e Referrer-Policy presentes; `/api/v1/projects` sem login dá 401. Alertas do Dependabot: a API devolve 403 para esta sessão, conferir na tela do GitHub |
 | Segredo exposto | vermelho | Issue #317 aberta: 1 projeto com o token do repositório EM CLARO no banco (a mesma consulta de 27/10 dá o mesmo resultado) |
-| Dados | amarelo | O `db-backup.yml` está desligado (`disabled_manually`): não há backup diário automático. A recuperação de curto prazo é o Time Travel do D1 (`docs/runbook-publicacao.md`); antes de cada migration há o `npm run db:backup` manual (feito na 0098) |
+| Dados | verde, por decisão | Política do dono (05/11): o Time Travel do D1 é o backup até haver volume de dados; o `db-backup.yml` segue desligado. Antes de cada migration, o `npm run db:backup` manual (feito na 0098) |
 | Operação | amarelo | Os workflows do Actions estão desligados, salvo a sonda externa e o Dependabot. O SLO medido no Worker FUNCIONA (o `CF_ANALYTICS_TOKEN` existe) e acusa violação: `slo:ultimo` de 05/11 18:15 UTC dá p95 de 965 ms e p99 de 1.590 ms (teto 800 ms), 0 erros 5xx em 923 requisições. Issue #369 segue aberta. O e-mail de queda da sonda nunca foi provado |
 | Uso real | amarelo | 5 projetos (iso 5, privacy 4, ot 1), 21 atividades no RoPA, 1 incidente, 0 pedidos do titular. O `docs/roteiro-aceite.md` nunca foi rodado inteiro em produção |
 | Conformidade | verde | 179 mapeamentos ISO e LGPD `validado_juridico`, 0 propostos; `parametros_legais` com 3 prazos (titular 15 dias corridos; incidente à ANPD e ao titular 3 dias úteis) |
@@ -24,8 +24,7 @@ Legenda: verde = provado agora; amarelo = parcial ou sem prova; vermelho = bloqu
 2. Ligar o segundo fator no `platform_admin` e nas contas que operam o cliente (cartão de perfil, no rodapé da barra lateral).
 3. Investigar o p95 de 965 ms (#369): quais rotas, no Analytics Engine; o SLO no Worker já mede e avisa.
 4. Rodar o `docs/roteiro-aceite.md` no projeto do cliente e registrar o resultado.
-5. Decidir o backup diário: religar o `db-backup.yml` (custa minuto do Actions) ou aceitar o Time Travel do D1 (janela conforme o plano da conta) como política, por escrito.
-6. Provar a queda: derrubar de propósito a sonda num ambiente de teste e conferir que o e-mail chega.
+5. Provar a queda: derrubar de propósito a sonda num ambiente de teste e conferir que o e-mail chega.
 
 ## Não medido
 
