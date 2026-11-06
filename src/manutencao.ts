@@ -184,13 +184,20 @@ export async function manutencaoDiaria(env: Bindings): Promise<ResultadoManutenc
   }
 
   try {
-    // Descoberta operacional (spec 2026-11-01 §10): achado descartado, ou rascunho de sessão encerrada, sai em 30 dias.
+    // Descoberta operacional (spec 2026-11-01 §10): achado descartado (90 dias se tem `chave_sensor`: o filtro de novidade da sonda depende dele), ou rascunho de sessão encerrada, sai em 30 dias.
     // Rascunho de sessão aberta não expira: é trabalho em andamento.
-    const r = await env.DB.prepare(`DELETE FROM ot_achados WHERE (situacao = 'descartado' AND updated_at < datetime('now', '-30 days'))
+    const r = await env.DB.prepare(`DELETE FROM ot_achados WHERE (situacao = 'descartado' AND updated_at < datetime('now', CASE WHEN chave_sensor IS NOT NULL THEN '-90 days' ELSE '-30 days' END))
       OR (situacao = 'rascunho' AND levantamento_id IN (SELECT id FROM ot_levantamentos WHERE situacao = 'encerrado' AND encerrado_em < datetime('now', '-30 days')))`).run();
     resultado.retencao.ot_achados = r.meta?.changes ?? 0;
   } catch (e) {
     resultado.falhas.push(`retencao ot_achados: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    const r = await env.DB.prepare(`DELETE FROM ot_sensor_envios WHERE created_at < datetime('now', '-400 days')`).run();
+    resultado.retencao.ot_sensor_envios = r.meta?.changes ?? 0;
+  } catch (e) {
+    resultado.falhas.push(`retencao ot_sensor_envios: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   try {

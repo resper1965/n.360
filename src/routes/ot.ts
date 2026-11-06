@@ -6,7 +6,7 @@ import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otLoteManualSchema, otLoteRejeitarSchema,
   otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, TETO_ACHADOS_SESSAO,
-  otAgenteInterruptorSchema, otAgenteChaveSchema,
+  otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema,
 } from '../schemas/ot';
 import { chavesOt, cifrarEnderecos, type ChavesOt } from '../services/ot-cifra';
 import { FLUXO_VISIVEL, TETO_LEITURA_OT, podeAprovar, podeCriarLote, podeEditarOt, podeVerCompleto, serializarAtivo, sitesPermitidos, type LinhaAtivo } from '../services/ot-inventario';
@@ -14,6 +14,7 @@ import { aprovarLote, criarLote, linhasDaPlanilha, rejeitarLote, serializarItem,
 import { LIMITES_PLANILHA, lerAteTeto, lerPlanilha } from '../services/ot-planilha';
 import { conformidadeOt } from '../services/ot-conformidade';
 import { emitirChaveColeta, VALIDADE_PADRAO_DIAS } from '../services/ot-agente';
+import { emitirCredencialSensor, RecusaSensor, situacaoSensor, vencendo } from '../services/ot-sensor';
 import { appUrl } from '../config/url';
 import { avisarGestorArciber, semStepUp, tetoEstourado } from '../services/ot-stepup';
 import { confrontarFluxo, fluxosDoSite, indiceFluxos, nomesDasPontas, pontasDoSite } from '../services/ot-fluxo-achado';
@@ -766,4 +767,109 @@ otApp.delete('/agente/chaves/:kid', async (c) => {
     await trilha(c, 'ot.agente.chave_revogada', projectId, `Chave ${kid} revogada`, { tipo: 'api_key', id: kid });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao revogar a chave do agente', e); }
+});
+
+// ─── sondas de rede (plano 2026-11-05): cadastro e credenciais; o envio é em /ot-sensor/resumo ───────────────
+const SO_COMPLETO_SONDA = (c: C) => c.json({ error: 'Forbidden: só o Gestor ARCiber e a consultoria designada gerenciam as sondas' }, 403);
+const recusaSensor = (c: C, e: unknown) => e instanceof RecusaSensor ? c.json({ error: e.message }, 409) : null;
+
+otApp.get('/sites/:sid/sensores', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO_SONDA(c);
+    const sid = c.req.param('sid');
+    if (!daLista(sites, sid)) return NAO_ENCONTRADO(c, 'Site');
+    const ultimo = (col: string) => `(SELECT ${col} FROM ot_sensor_envios e WHERE e.sensor_id = s.id AND e.situacao = 'concluido' ORDER BY e.created_at DESC LIMIT 1)`;
+    const { results } = await db.prepare(`SELECT s.id, s.nome, s.faixa_origem, s.situacao, s.created_at, ${ultimo('created_at')} AS ultimo_envio, ${ultimo('capture_loss')} AS capture_loss
+      FROM ot_sensores s WHERE s.project_id = ? AND s.site_id = ? AND s.situacao = 'ativa' ORDER BY s.nome LIMIT ${TETO_LEITURA_OT}`)
+      .bind(projectId, sid).all<{ id: string; created_at: string; ultimo_envio: string | null }>();
+    const { results: creds } = await db.prepare(`SELECT id, sensor_id, expira_em, situacao FROM ot_sensor_credenciais
+      WHERE project_id = ? AND situacao = 'ativa' AND sensor_id IN (SELECT id FROM ot_sensores WHERE project_id = ? AND site_id = ?) ORDER BY created_at LIMIT ${TETO_LEITURA_OT}`)
+      .bind(projectId, projectId, sid).all<{ id: string; sensor_id: string; expira_em: string; situacao: string }>();
+    const agora = new Date();
+    return c.json({ sensores: results.map((s) => {
+      const cs = creds.filter((k) => k.sensor_id === s.id);
+      const { created_at, ...resto } = s;
+      return { ...resto, saude: situacaoSensor(s.ultimo_envio ?? created_at, cs, agora), vencendo: vencendo(cs, agora), credenciais: cs.map(({ id, expira_em, situacao }) => ({ id, expira_em, situacao })) };
+    }) });
+  } catch (e) { return erro500(c, 'Falha ao listar as sondas', e); }
+});
+
+// Pontos a esclarecer: rascunhos que a sonda trouxe, por entidade, só em sessões de sites permitidos. Só contagem: sem decifrar, sem confronto, sem trilha.
+otApp.get('/sensores/pontos', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO_SONDA(c);
+    const { results } = await db.prepare(`SELECT a.entidade, count(*) AS n FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
+      WHERE a.project_id = ? AND a.situacao = 'rascunho' AND a.evidencia LIKE 'Sensor de rede (Zeek): %' AND l.status = 'ativo' AND l.site_id IN (SELECT value FROM json_each(?))
+      GROUP BY a.entidade LIMIT 10`).bind(projectId, sites).all<{ entidade: string; n: number }>();
+    const n = (e: string) => results.find((r) => r.entidade === e)?.n ?? 0;
+    return c.json({ ativos: n('ativo'), fluxos: n('fluxo') });
+  } catch (e) { return erro500(c, 'Falha ao contar os pontos a esclarecer', e); }
+});
+
+otApp.post('/sites/:sid/sensores', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO_SONDA(c);
+    const sid = c.req.param('sid');
+    if (!daLista(sites, sid)) return NAO_ENCONTRADO(c, 'Site');
+    const v = await validateBody(c, sensorCriarSchema);
+    if (!v.success) return v.response;
+    const id = genId();
+    await db.prepare('INSERT INTO ot_sensores (id, project_id, site_id, nome, faixa_origem, criado_por) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(id, projectId, sid, v.data.nome, v.data.faixa_origem, user.email).run();
+    const k = await emitirCredencialSensor(db, projectId, id);
+    await trilha(c, 'ot.sensor.criado', projectId, `Sonda ${id} criada no site ${sid}; credencial ${k.id}`, { tipo: 'ot_sensor', id });
+    const conf = `# /etc/n-ot-sonda.conf\nurl = ${appUrl(c.env)}/ot-sensor/resumo\ncredencial = ${k.credencial}\n`;
+    return c.json({ sensor: { id, nome: v.data.nome, faixa_origem: v.data.faixa_origem, situacao: 'ativa' }, credencial: k.credencial, expira_em: k.expira_em, conf }, 201);
+  } catch (e) { return erro500(c, 'Falha ao criar a sonda', e); }
+});
+
+/** Sonda ativa do projeto e de site permitido (P0-4); senão 404. */
+const sondaDoProjeto = async (c: C, db: D1Database, projectId: string, sites: string) => {
+  const s = await db.prepare(`SELECT id, site_id FROM ot_sensores WHERE id = ? AND project_id = ? AND situacao = 'ativa'`).bind(c.req.param('id'), projectId).first<{ id: string; site_id: string }>();
+  return s && daLista(sites, s.site_id) ? s : null;
+};
+
+otApp.post('/sensores/:id/credenciais', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO_SONDA(c);
+    const s = await sondaDoProjeto(c, db, projectId, sites);
+    if (!s) return NAO_ENCONTRADO(c, 'Sonda');
+    let k;
+    try { k = await emitirCredencialSensor(db, projectId, s.id); } catch (e) { const r = recusaSensor(c, e); if (r) return r; throw e; }
+    await trilha(c, 'ot.sensor.credencial', projectId, `Credencial ${k.id} emitida para a sonda ${s.id}`, { tipo: 'ot_sensor', id: s.id });
+    return c.json({ credencial: k.credencial, expira_em: k.expira_em }, 201);
+  } catch (e) { return erro500(c, 'Falha ao emitir a credencial da sonda', e); }
+});
+
+otApp.delete('/sensores/:id/credenciais/:cid', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO_SONDA(c);
+    const s = await sondaDoProjeto(c, db, projectId, sites);
+    const cid = c.req.param('cid');
+    if (!s) return NAO_ENCONTRADO(c, 'Sonda');
+    const r = await db.prepare(`UPDATE ot_sensor_credenciais SET situacao = 'revogada' WHERE id = ? AND sensor_id = ? AND project_id = ? AND situacao = 'ativa'`).bind(cid, s.id, projectId).run();
+    if (!r.meta.changes) return NAO_ENCONTRADO(c, 'Credencial');
+    await trilha(c, 'ot.sensor.credencial', projectId, `Credencial ${cid} da sonda ${s.id} revogada`, { tipo: 'ot_sensor', id: s.id });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao revogar a credencial da sonda', e); }
+});
+
+otApp.delete('/sensores/:id', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO_SONDA(c);
+    const s = await sondaDoProjeto(c, db, projectId, sites);
+    if (!s) return NAO_ENCONTRADO(c, 'Sonda');
+    const [, cs] = await db.batch([
+      db.prepare(`UPDATE ot_sensores SET situacao = 'revogada' WHERE id = ? AND project_id = ?`).bind(s.id, projectId),
+      db.prepare(`UPDATE ot_sensor_credenciais SET situacao = 'revogada' WHERE sensor_id = ? AND project_id = ? AND situacao = 'ativa'`).bind(s.id, projectId),
+    ]);
+    await trilha(c, 'ot.sensor.revogado', projectId, `Sonda ${s.id} revogada com ${cs.meta.changes} credenciais`, { tipo: 'ot_sensor', id: s.id });
+    return c.json({ ok: true });
+  } catch (e) { return erro500(c, 'Falha ao revogar a sonda', e); }
 });

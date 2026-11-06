@@ -133,8 +133,9 @@ export async function achadosDoTexto(env: EnvIa, trechos: string[]) {
 
 const BLOCO = 50;
 /** Cada INSERT confere o teto da sessão na hora (D1 roda o lote em série): pedidos simultâneos não passam de 2.000. */
-export const INSERIR_ACHADO = (origem: 'consultor' | 'ia' | 'agente', entidade: 'ativo' | 'fluxo' = 'ativo') => `INSERT INTO ot_achados (id, project_id, levantamento_id, entidade, dados, erros, evidencia, origem, criado_por)
-  SELECT ?, ?, ?, '${entidade}', ?, ?, ?, '${origem}', ? WHERE (SELECT count(*) FROM ot_achados WHERE levantamento_id = ?) < ${TETO_ACHADOS_SESSAO}`;
+/** `comChave`: `chave_sensor` entra como última coluna vinculada (resumo de rede, n.ot L3). */
+export const INSERIR_ACHADO = (origem: 'consultor' | 'ia' | 'agente', entidade: 'ativo' | 'fluxo' = 'ativo', comChave = false) => `INSERT INTO ot_achados (id, project_id, levantamento_id, entidade, dados, erros, evidencia, origem, criado_por${comChave ? ', chave_sensor' : ''})
+  SELECT ?, ?, ?, '${entidade}', ?, ?, ?, '${origem}', ?${comChave ? ', ?' : ''} WHERE (SELECT count(*) FROM ot_achados WHERE levantamento_id = ?) < ${TETO_ACHADOS_SESSAO}`;
 /** Grava em blocos de 50 e devolve quantos entraram (o resto bateu no teto). */
 export async function gravarAchados(db: D1Database, stmts: D1PreparedStatement[]): Promise<number> {
   let criados = 0;

@@ -12,6 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: sonda com envio automático e saúde da coleta (migration 0101)
+- A sonda de rede manda o resumo sozinha: `POST /ot-sensor/resumo`, com credencial própria `ots_…` por sonda (até 2 ativas, 365 dias, faixa de origem obrigatória, IP só de `CF-Connecting-IP`). A resposta é só `{ recebido, envio_id }`; o envio é idempotente.
+- Só a novidade vira achado: o que já está em rascunho, pendente ou descartado há menos de 90 dias não volta; sem novidade, não nasce sessão. A chave de novidade inclui o site e o lado externo vira `ext`.
+- Saúde da coleta: em dia até 26 h, atrasada até 72 h, parada acima disso ou sem credencial válida; e-mail diário ao Gestor ARCiber só para sonda parada.
+- Tela: área "Sondas" em "Acessos e agente" (nova sonda, credencial mostrada uma vez, rotação, revogação) e cartões "Saúde da coleta" e "Pontos a esclarecer" no topo de "Levantamento".
+- `scripts/n-ot-resumo-zeek.py --enviar` (fila local de 7 dias, contrato de erros, sem seguir redirecionamento; `--so-fila` só esvazia) e `scripts/instalar-sonda.sh` (Ubuntu 24.04, Zeek LTS, ICSNPP, placa de escuta sem IP, nftables, timers).
+- Regra de ativo novo corrigida no guia: também vira ativo o IP que recebe TCP ou protocolo conhecido. Guia `docs/n-ot-sensor-rede.md` reescrito com os dois modos.
+
 ### Incidente: ações corretivas dentro do incidente, nos dois módulos (migration 0100)
 - A janela do incidente ganha a seção "Ações corretivas", no n.iso e no n.privacy: lista com o protocolo `<protocolo>-PA01` (derivado pela ordem de criação), o tratamento, o status, o prazo e o responsável; "Nova ação" e "Abrir" para editar. Sem ação, "Nenhuma ação." Nada é criado sozinho.
 - A ação é a mesma `corrective_actions` da CAPA do n.iso, ligada pelo `incidente_id`; o "Abrir CAPA", que só existia no n.iso, saiu da janela. Tratamento: contenção, correção ou aperfeiçoamento; prazo opcional em todos. A ação segue depois do encerramento do incidente.

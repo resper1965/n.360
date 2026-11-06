@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0100** (`ls migrations/*.sql | tail -1`). São 100 arquivos
+- Última migration no repositório: **0101** (`ls migrations/*.sql | tail -1`). São 101 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -775,3 +775,8 @@ Colunas novas em `incidentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo r
 `SELECT name FROM pragma_table_info('incidentes') WHERE name IN ('origem_alerta','severidade','tipo','comprometimento','titulares_estimados','criterios_risco','fim_em')`
 (7 linhas) e `SELECT name FROM sqlite_master WHERE name IN ('incidente_departamentos','incidente_dados','incidente_anexos')` (3 linhas).
 Aplicada em produção em 05/11/2026, com backup antes: as duas conferências deram 7 e 3 linhas, mais os 6 gatilhos.
+
+## 0101 — sondas do n.ot com envio automático (2026-11-05)
+
+Colunas `chave_sensor` em `ot_achados` e `ot_fluxos_pendentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner) e tabelas novas `ot_sensores`, `ot_sensor_credenciais` e `ot_sensor_envios`. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name IN ('ot_sensores','ot_sensor_credenciais','ot_sensor_envios')` (3 linhas) e `SELECT name FROM pragma_table_info('ot_achados') WHERE name = 'chave_sensor'` (1 linha).

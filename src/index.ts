@@ -79,11 +79,13 @@ import { exportacaoApp } from './routes/exportacao';
 import { manutencaoDiaria } from './manutencao';
 import { avisosDePrazo, hojeEmSaoPaulo, CRON_AVISOS } from './services/avisos-prazo';
 import { sondaInterna, CRON_SONDA } from './services/sonda';
+import { avisarSensores } from './services/ot-sensor';
 import { verificarSlo, CRON_SLO } from './services/slo';
 import { oauthAutorizacao } from './routes/oauth-autorizacao';
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handlerMcp } from './mcp/servidor';
 import { handlerOtColeta } from './mcp/ot-coleta';
+import { handlerOtSensor } from './routes/ot-sensor';
 import { comercialAtivo } from './helpers';
 import { appUrl, fica, HOST_DO_MODULO, HOSTS_LEGADOS, ORIGENS_EXTRAS, RECURSO_MCP, URL_NISO } from './config/url';
 
@@ -683,12 +685,15 @@ export default Object.assign(app, {
     // MCP do agente de coleta do n.ot (L5): só a chave `ot_coleta`, fora do OAuth e do Hono. Está em `fica` (como o /mcp): o domínio de
     // módulo responde no lugar e o host legado redireciona (308) ao APP_URL, acima.
     if (decodificarCaminho(url.pathname) === '/ot-coleta/mcp') return handlerOtColeta(req, env, ctx);
+    // Envio da sonda de rede do n.ot: só a credencial `ots_`, fora do /api e do OAuth (em `fica`, como o de cima).
+    if (decodificarCaminho(url.pathname) === '/ot-sensor/resumo') return handlerOtSensor(req, env, ctx);
     return ROTAS_OAUTH(url.pathname) ? provider.fetch(req, env as any, ctx) : fetchHono(req, env, ctx);
   },
   scheduled: (evento: ScheduledController, env: Bindings, ctx: ExecutionContext) => {
     // ponytail: cron que não é o dos avisos nem o da sonda cai na manutenção, o comportamento de antes destas rotinas.
     ctx.waitUntil(
-      evento.cron === CRON_AVISOS ? avisosDePrazo(env, hojeEmSaoPaulo())
+      evento.cron === CRON_AVISOS ? Promise.allSettled([avisosDePrazo(env, hojeEmSaoPaulo()), avisarSensores(env, new Date())])
+          .then((rs) => rs.forEach((r, i) => r.status === 'rejected' && console.error(`cron avisos: falha em ${['avisosDePrazo', 'avisarSensores'][i]}`, r.reason)))
         : evento.cron === CRON_SONDA ? sondaInterna(env)
         : evento.cron === CRON_SLO ? verificarSlo(env)
         : manutencaoDiaria(env)

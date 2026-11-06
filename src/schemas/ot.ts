@@ -139,3 +139,6 @@ export const VALIDADE_MAX_DIAS = 30;
 // Agente de coleta (L5): interruptor do Gestor ARCiber e chave `ot_coleta` (validade em dias, 1..VALIDADE_MAX_DIAS).
 export const otAgenteInterruptorSchema = z.object({ ligado: z.boolean() }).strict();
 export const otAgenteChaveSchema = z.object({ nome: livreSemPii(100, 1), dias: z.number().int().min(1).max(VALIDADE_MAX_DIAS).optional() }).strict();
+
+/** Cadastro da sonda de rede: nome sem PII e a faixa de onde ela envia (obrigatória). */
+export const sensorCriarSchema = z.object({ nome: livreSemPii(80, 1), faixa_origem: faixaCidr }).strict();
