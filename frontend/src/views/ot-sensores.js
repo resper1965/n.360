@@ -64,7 +64,7 @@ export async function areaSondas(p, sites) {
         <p class="org-header-intro">Uma sonda de rede envia o resumo do tráfego sozinha, todo dia. Os pontos novos entram como rascunho no Levantamento, e nada vai ao inventário sem revisão.</p>
         ${falhas ? '<p class="org-dica" role="alert">Não foi possível carregar as sondas de alguns sites. Tente de novo em instantes.</p>' : ''}
         ${por.map(({ site, sensores }) => `<div class="d-flex gap-2 items-center mt-3"><h4>${escapeHTML(site.nome)}</h4>
-            <button class="btn btn-sm btn-primary" data-action="otNovaSonda" data-args='${args(site.id)}' aria-label="${escapeHTML(`Nova sonda em ${site.nome}`)}">Nova sonda</button></div>
+            <button class="btn btn-sm btn-secondary" data-action="otNovaSonda" data-args='${args(site.id)}' aria-label="${escapeHTML(`Nova sonda em ${site.nome}`)}">Nova sonda</button></div>
             ${renderDataTable(['Sonda', 'Situação', 'Último envio', 'Perda de captura', 'Credencial', 'Ações'], sensores.map(linha), { emptyMessage: 'Nenhuma sonda neste site.' })}`).join('')}</section>`;
 }
 

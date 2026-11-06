@@ -1,6 +1,7 @@
 import { genId, logAudit, sendEmail, sha256Hex } from '../helpers';
 import { montarEmail } from './email-layout';
 import { TETO_LEITURA_OT } from './ot-inventario';
+import { CARGO_GESTOR_ARCIBER } from './ot-conformidade';
 import { modulosDoProjeto } from '../modulos';
 import { ERRO_ORIGEM, ipPermitido, politicaDoProjeto } from '../politica-tenant';
 import { chavesOt } from './ot-cifra';
@@ -73,7 +74,8 @@ export async function autenticarSensor(env: Bindings, req: Request): Promise<{ o
 export async function avisarSensores(env: Bindings, agora: Date): Promise<{ atrasadas: number; paradas: number; emails: number }> {
   const { results: sondas } = await env.DB.prepare(`SELECT s.id, s.nome, s.project_id, st.nome AS site, s.created_at,
       (SELECT created_at FROM ot_sensor_envios e WHERE e.sensor_id = s.id AND e.situacao = 'concluido' ORDER BY e.created_at DESC LIMIT 1) AS ultimo_envio
-    FROM ot_sensores s JOIN ot_sites st ON st.id = s.site_id AND st.project_id = s.project_id WHERE s.situacao = 'ativa' LIMIT ${TETO_LEITURA_OT}`)
+    FROM ot_sensores s JOIN ot_sites st ON st.id = s.site_id AND st.project_id = s.project_id WHERE s.situacao = 'ativa'
+      AND EXISTS (SELECT 1 FROM projeto_modulos m WHERE m.project_id = s.project_id AND m.modulo = 'ot') LIMIT ${TETO_LEITURA_OT}`)
     .all<{ id: string; nome: string; project_id: string; site: string; created_at: string; ultimo_envio: string | null }>();
   const { results: creds } = await env.DB.prepare(`SELECT sensor_id, expira_em, situacao FROM ot_sensor_credenciais WHERE situacao = 'ativa'
     AND expira_em > ? LIMIT ${TETO_LEITURA_OT}`).bind(agora.toISOString()).all<Cred & { sensor_id: string }>(); // vencida não ocupa o LIMIT; sem válida segue parada
@@ -86,7 +88,7 @@ export async function avisarSensores(env: Bindings, agora: Date): Promise<{ atra
   }
   if (out.atrasadas || out.paradas) await logAudit(env.DB, 'ot.sensor.atrasado', 'sistema', `Sondas atrasadas: ${out.atrasadas}; paradas: ${out.paradas}`);
   for (const s of paradas) {
-    const { results: gestores } = await env.DB.prepare(`SELECT email FROM users WHERE role = 'org_admin' AND client_project_id = ? LIMIT ${TETO_LEITURA_OT}`).bind(s.project_id).all<{ email: string }>();
+    const { results: gestores } = await env.DB.prepare(`SELECT email FROM project_governance WHERE project_id = ? AND ${CARGO_GESTOR_ARCIBER} AND coalesce(trim(email), '') <> '' ORDER BY is_primary DESC LIMIT ${TETO_LEITURA_OT}`).bind(s.project_id).all<{ email: string }>();
     const assunto = `n.ot: a sonda ${s.nome} está parada`;
     const corpo = montarEmail({
       assunto, titulo: 'Sonda parada', saudacao: 'Olá,',

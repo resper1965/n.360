@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { avisarSensores } from '../src/services/ot-sensor';
 import { manutencaoDiaria } from '../src/manutencao';
-import { applySchema, resetData, seedTwoProjects } from './helpers/d1';
+import { applySchema, resetData, seedTwoProjects, habilitarOt } from './helpers/d1';
 
 const ha = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString().slice(0, 19).replace('T', ' ');
 const futuro = new Date(Date.now() + 200 * 86_400_000).toISOString();
@@ -15,8 +15,10 @@ const envio = (id: string, sid: string, criado: string) =>
 
 describe('saúde da coleta', () => {
   beforeEach(async () => {
-    await applySchema(); await resetData(); await seedTwoProjects();
+    await applySchema(); await resetData(); await seedTwoProjects(); await habilitarOt('proj-a');
     await env.DB.batch([
+      env.DB.prepare(`INSERT INTO project_governance (project_id, name, email, role_category, job_title, is_primary) VALUES
+        ('proj-a', 'Titular', 'titular@cliente.teste', 'tech', 'Gestor ARCiber', 1), ('proj-a', 'Suplente', 'suplente@cliente.teste', 'tech', 'Gestor ARCiber', 0), ('proj-a', 'Outro', 'ciso@cliente.teste', 'tech', 'CISO', 0)`),
       env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('s-a', 'proj-a', 'Subestação Norte')`),
       env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES ('u-g', 'gestor@cliente.teste', 'x', 'G', 'org_admin', 'proj-a'), ('u-c', 'cli@cliente.teste', 'x', 'C', 'client', 'proj-a')`),
       sonda('em-dia', 'Em dia', ha(500)), cred('em-dia'), envio('e1', 'em-dia', ha(1)),
@@ -29,21 +31,30 @@ describe('saúde da coleta', () => {
 
   it('conta, grava trilha só com contagem e ignora sonda revogada', async () => {
     const r = await avisarSensores({ ...env } as any, new Date());
-    expect(r).toEqual({ atrasadas: 1, paradas: 1, emails: 1 });
+    expect(r).toEqual({ atrasadas: 1, paradas: 1, emails: 2 });
     const t = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'ot.sensor.atrasado' ORDER BY rowid DESC LIMIT 1`).first<{ details: string }>();
     expect(t!.details).toBe('Sondas atrasadas: 1; paradas: 1');
   });
 
-  it('e-mail só da parada, ao org_admin, com nome da sonda e do site e sem IP', async () => {
+  it('e-mail só da parada, ao titular e ao suplente do Gestor ARCiber (não ao org_admin), com nome da sonda e do site e sem IP', async () => {
     const enviados: any[] = [];
     vi.stubGlobal('fetch', async (_u: string, i: RequestInit) => { enviados.push(JSON.parse(i.body as string)); return new Response('{}'); });
     await avisarSensores({ ...env, RESEND_API_KEY: 'k' } as any, new Date());
-    expect(enviados).toHaveLength(1);
+    expect(enviados.map((e) => e.to[0]).sort()).toEqual(['suplente@cliente.teste', 'titular@cliente.teste']);
     const m = enviados[0];
-    expect(m.to).toEqual(['gestor@cliente.teste']);
     expect(m.subject).toContain('Sonda Parada');
     expect(m.text).toContain('Subestação Norte');
     expect(m.subject + m.html + m.text).not.toMatch(/200\.10|\d+\.\d+\.\d+\.\d+/);
+  });
+
+  it('sem Gestor ARCiber na governança: ninguém recebe, mas a parada é contada', async () => {
+    await env.DB.prepare(`DELETE FROM project_governance`).run();
+    expect(await avisarSensores({ ...env } as any, new Date())).toEqual({ atrasadas: 1, paradas: 1, emails: 0 });
+  });
+
+  it('sonda de projeto sem n.ot não conta nem avisa', async () => {
+    await env.DB.prepare(`DELETE FROM projeto_modulos WHERE project_id = 'proj-a' AND modulo = 'ot'`).run();
+    expect(await avisarSensores({ ...env } as any, new Date())).toEqual({ atrasadas: 0, paradas: 0, emails: 0 });
   });
 
   it('sonda em dia cuja única credencial ativa venceu: parada', async () => {
