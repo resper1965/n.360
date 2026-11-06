@@ -8,7 +8,7 @@ import { guardarAnexoIncidente, listarAnexosIncidente, baixarAnexoIncidente, apa
 import { listarAcoesDoIncidente, criarAcaoDoIncidente, atualizarAcaoDoIncidente } from '../services/incidente-acoes';
 import { listarAnalises, criarAnalise, atualizarAnalise, lerHistoricoIncidente } from '../services/incidente-analises';
 import { lerPostmortem, salvarPostmortem } from '../services/incidente-postmortem';
-import { montarCsv } from '../services/exportacao';
+import { dataHoraBr, montarCsv } from '../services/exportacao';
 import { guardarAnexo, listarAnexos, baixarAnexo, apagarAnexo } from '../services/ropa-abas/anexos';
 import { atualizarIncidente, avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
 import { listarConsentimentos, registrarConsentimento, revogarConsentimento } from '../services/consentimentos';
@@ -262,7 +262,7 @@ incidentesApp.get('/:id/historico/csv', async (c) => {
     const r = await lerHistoricoIncidente(c.env.DB, projectId, c.req.param('id'), 500);
     if (!r) return c.json({ error: 'Incidente não encontrado' }, 404);
     await logAudit(c.env.DB, 'exportacao.csv', c.get('user').email, `Exportação CSV do histórico do incidente: ${r.length} linhas`, '', '', projectId);
-    return new Response(montarCsv(['Data', 'Evento', 'Detalhe', 'Quem'], r.map((l) => [l.data, l.evento, l.detalhe ?? '', l.nome])), {
+    return new Response(montarCsv(['Data', 'Evento', 'Detalhe', 'Quem'], r.map((l) => [dataHoraBr(l.data), l.evento, l.detalhe ?? '', l.nome])), {
       headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="historico-incidente.csv"', 'Cache-Control': 'no-store' },
     });
   } catch (e) { return erro500(c, 'Falha ao exportar o histórico do incidente', e); }

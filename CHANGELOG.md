@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.privacy: CSV das Solicitações, hora de Brasília nas exportações e roteiro de aceite
+- "Exportar CSV" na lista de Solicitações (`GET /projects/:id/export/pedidos-titular`, faixa `privacy`, fora do agente), com os filtros de tipo e status da tela: protocolo, tipo, canal, recebido em, prazo, situação do prazo, status e respondido em. Não leva nome, contato, descrição nem resposta do titular.
+- O CSV do Histórico do incidente passa a sair na hora de Brasília, como o Word (`dataHoraBr` em `src/services/exportacao.ts`, o mesmo auxiliar nos dois).
+- `docs/roteiro-aceite.md` atualizado: fichas de RIPD e LIA, CNPJ, mescla, órgãos públicos, Eliminação, portal do titular, CSV das Solicitações, incidente completo e n.ot.
+
 ### Incidente: Word (fatia 7)
 - "Baixar em Word" na página do incidente: registro (com áreas, comprometimento, critérios e titulares × dados), risco ao titular, comunicações à ANPD e aos titulares, análises, ações corretivas com o protocolo `-PA`, post mortem e os 100 eventos mais recentes do histórico. Antes do encerramento sai como RASCUNHO.
 - Rota `GET /projects/:id/incidentes/:id/docx` (`incidenteEmWord` em `src/services/documento-word.ts`), fora do agente MCP como os outros Word; a trilha `exportacao.docx` leva só o id.

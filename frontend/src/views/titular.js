@@ -4,7 +4,7 @@ import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, titulo
 import { navigate } from '../router.js';
 import { produtoAtual, limparFichaDoEndereco } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
-import { montarLista, colunasDe } from '../lista.js';
+import { montarLista, colunasDe, consultaDe } from '../lista.js';
 import { carregarConsentimentos, telaConsentimentos } from './consentimentos.js';
 import { hojeSP } from '../hoje.js';
 import { rotuloDe } from '../rotulos.js';
@@ -138,6 +138,8 @@ async function renderTitular(c, h, a) {
             buscaDica: 'Protocolo ou titular',
             filtros: [{ chave: 'tipo', rotulo: 'Tipo', valor: (p) => p.tipo, opcoes: Object.entries(TIPOS_PEDIDO) },
                 { chave: 'status', rotulo: 'Status', valor: (p) => p.status, opcoes: Object.entries(STATUS_PEDIDO) }],
+            // O CSV sai com os filtros da tela e sem dado do titular (só protocolo e andamento).
+            exportar: { caminho: (e) => { const q = consultaDe({ tipo: e.filtros.tipo, status: e.filtros.status }); return `/api/v1/projects/${proj.id}/export/pedidos-titular${q}`; } },
             vazio: { titulo: 'Nenhum pedido de titular registrado.', dica: 'LGPD, art. 18. Registre cada pedido recebido para que o prazo de resposta comece a contar.', acao: novo('abrirNovoPedidoTitular', 'Registrar pedido', false) },
         });
     } else if (aba === 'incidentes') {

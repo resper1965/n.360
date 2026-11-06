@@ -445,7 +445,7 @@ Vanilla JS, sem framework, bundle via Vite. Deploy por `wrangler deploy`.
   ciclo de vida e termina na pagina. Testes: `frontend/test/atividade-*.test.js`.
 - **Exportacao, Word e faixas de prazo (F4, sem migration)**: CSV que abre no Excel em pt-BR (`src/services/exportacao.ts`: BOM,
   `;`, CRLF, toda celula entre aspas, celula que comeca com `= + - @`, tab ou CR ganha `'`, teto de 5.000 linhas com `X-Exportacao-Truncada`)
-  em `GET /projects/:id/export/{atividades,ripd}` (nucleo) e `export/{riscos-atividade,acoes-atividade,lia}` (faixa `privacy`; riscos
+  em `GET /projects/:id/export/{atividades,ripd}` (nucleo) e `export/{riscos-atividade,acoes-atividade,lia,pedidos-titular}` (faixa `privacy`; Solicitacoes com os filtros `tipo` e `status` e sem nome, contato, descricao nem resposta do titular; riscos
   aceitam `probabilidade`/`impacto`, a celula do mapa; acoes aceitam `faixa`). RIPD e LIA em Word (`src/services/documento-word.ts`, com os
   auxiliares de `documento-docx.ts`): `GET .../dpia/:id/docx` (nucleo), `GET .../ropa/:rid/lia/docx` (privacy) e, desde a fatia 7 dos incidentes, `GET .../incidentes/:id/docx` (nucleo), lidos AO VIVO da empresa,
   do encarregado, da atividade, das bases, do ciclo, do teste de impacto e dos riscos; rascunho com "RASCUNHO" no cabecalho, que leva o logo da organizacao do projeto (`logoComoDataUri`, o mesmo da

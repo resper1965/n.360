@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../index';
 import { erro500, logAudit } from '../helpers';
-import { EXPORTACOES, NIVEIS_DE_RISCO, STATUS_DE_GAP, STATUS_DE_RISCO, exportarCsv, type FiltroExportacao, type TipoExportacao } from '../services/exportacao';
+import { EXPORTACOES, NIVEIS_DE_RISCO, STATUS_DE_GAP, STATUS_DE_RISCO, STATUS_PEDIDO, TIPO_PEDIDO, exportarCsv, type FiltroExportacao, type TipoExportacao } from '../services/exportacao';
 import { ehFaixaPrazo } from '../services/riscos-atividade';
 import { ripdEmWord, liaEmWord, documentoEmWord, incidenteEmWord, TIPO_DOCX } from '../services/documento-word';
 
@@ -33,6 +33,12 @@ for (const tipo of Object.keys(EXPORTACOES) as TipoExportacao[]) {
           filtro.q = texto('q');
           if (filtro.status && !STATUS_DE_GAP.includes(filtro.status)) return c.json({ error: 'Situação de gap desconhecida' }, 400);
         }
+      }
+      if (tipo === 'pedidos-titular') {
+        filtro.tipo = texto('tipo');
+        filtro.status = texto('status');
+        if (filtro.tipo && !(filtro.tipo in TIPO_PEDIDO)) return c.json({ error: 'Tipo de pedido desconhecido' }, 400);
+        if (filtro.status && !(filtro.status in STATUS_PEDIDO)) return c.json({ error: 'Status de pedido desconhecido' }, 400);
       }
       if (tipo === 'riscos-atividade') {
         filtro.probabilidade = nota(c.req.query('probabilidade'));
