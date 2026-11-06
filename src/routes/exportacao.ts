@@ -3,7 +3,7 @@ import type { Bindings, Variables } from '../index';
 import { erro500, logAudit } from '../helpers';
 import { EXPORTACOES, NIVEIS_DE_RISCO, STATUS_DE_GAP, STATUS_DE_RISCO, exportarCsv, type FiltroExportacao, type TipoExportacao } from '../services/exportacao';
 import { ehFaixaPrazo } from '../services/riscos-atividade';
-import { ripdEmWord, liaEmWord, documentoEmWord, TIPO_DOCX } from '../services/documento-word';
+import { ripdEmWord, liaEmWord, documentoEmWord, incidenteEmWord, TIPO_DOCX } from '../services/documento-word';
 
 /**
  * Exportação (F4): CSV das listas do n.privacy e RIPD/LIA em Word. Montado em `/api/v1/projects/:projectId`, depois do
@@ -81,3 +81,6 @@ exportacaoApp.get('/documentos/:docId/docx', (c) =>
 
 exportacaoApp.get('/ropa/:recordId/lia/docx', (c) =>
   responderWord(c, () => liaEmWord(c.env.DB, c.req.param('projectId')!, c.req.param('recordId'), c.env.STORAGE), 'LIA', c.req.param('recordId')));
+
+exportacaoApp.get('/incidentes/:incidenteId/docx', (c) =>
+  responderWord(c, () => incidenteEmWord(c.env.DB, c.req.param('projectId')!, c.req.param('incidenteId'), c.env.STORAGE), 'Incidente', c.req.param('incidenteId')));

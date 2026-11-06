@@ -12,9 +12,14 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Incidente: Word (fatia 7)
+- "Baixar em Word" na página do incidente: registro (com áreas, comprometimento, critérios e titulares × dados), risco ao titular, comunicações à ANPD e aos titulares, análises, ações corretivas com o protocolo `-PA`, post mortem e os 100 eventos mais recentes do histórico. Antes do encerramento sai como RASCUNHO.
+- Rota `GET /projects/:id/incidentes/:id/docx` (`incidenteEmWord` em `src/services/documento-word.ts`), fora do agente MCP como os outros Word; a trilha `exportacao.docx` leva só o id.
+- Correção do post mortem (apontada pelo Codex no #561): o Histórico dizia "14 resposta(s)" a cada gravação, porque a tela manda as 14 perguntas; agora diz quantas estão respondidas ("2 de 14 respondidas").
+
 ### Incidente: post mortem (migration 0103)
 - Aba "Post mortem" na página do incidente, antes do Histórico: as 14 perguntas de causa raiz do legado, com o texto exato. Abre só depois do encerramento (antes, a aba diz isso) e responder não reabre o incidente. Quem registra o incidente responde; o cliente só lê.
-- Rotas `GET|PUT /projects/:id/incidentes/:id/postmortem` (`src/services/incidente-postmortem.ts`); resposta em branco apaga. O Histórico mostra "Post mortem" com a contagem de respostas, nunca o texto.
+- Rotas `GET|PUT /projects/:id/incidentes/:id/postmortem` (`src/services/incidente-postmortem.ts`); resposta em branco apaga. O Histórico mostra "Post mortem" com quantas das 14 estão respondidas, nunca o texto.
 - Migration 0103 (aditiva): `incidente_postmortem`, com gatilhos que só aceitam resposta de incidente encerrado do mesmo projeto, também por SQL direto.
 
 ### Incidente: página com abas, análises e histórico (migration 0101)

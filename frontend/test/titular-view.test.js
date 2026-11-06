@@ -429,6 +429,7 @@ describe('ficha do incidente (página com abas)', () => {
         expect(new URLSearchParams(window.location.search).get('tela')).toBe('incidente-ficha');
         expect(el('h').textContent).toBe('IN-2026-0001 — Acesso <b>indevido</b>'); // textContent: escapado
         expect(el('a').querySelector('[data-action="incidenteVoltar"]')).not.toBeNull();
+        expect(el('a').querySelector('[data-action="baixarIncidenteWord"]').getAttribute('data-args')).toBe(JSON.stringify(['p9', 'i1']));
         await window.incidenteIrParaAba(null, 'historico');
         expect(new URLSearchParams(window.location.search).get('aba')).toBe('historico');
         expect(el('in-aba-historico').getAttribute('aria-selected')).toBe('true');
@@ -492,6 +493,8 @@ describe('ficha do incidente (página com abas)', () => {
         expect(el('in-historico').querySelector('[data-action="exportarHistoricoIncidente"]')).not.toBeNull();
         await window.exportarHistoricoIncidente('p9', 'i1');
         expect(chamadas(f)).toContain(`GET ${B}/incidentes/i1/historico/csv`);
+        await window.baixarIncidenteWord('p9', 'i1');
+        expect(chamadas(f)).toContain(`GET ${B}/incidentes/i1/docx`);
     });
 });
 
