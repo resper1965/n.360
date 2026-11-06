@@ -1,6 +1,6 @@
 # Pedido do titular: conferência de identidade e encaminhamento a ponto focal (n.privacy)
 
-Data: 06/11/2026. Situação: **desenho aprovado pelo dono em 06/11/2026**; falta a revisão desta spec.
+Data: 06/11/2026. Situação: **aprovada pelo dono em 06/11/2026** e construída (migration 0104; plano `docs/superpowers/plans/2026-11-06-titular-identidade-encaminhamento.md`).
 Base: `2026-11-03-portal-solicitacoes-titular-design.md`, que deixou os dois itens "de fora (follow-up)". Hoje os dois existem só
 como tratativa em texto livre (`titular_pedido_tratativas`, tipos `encaminhamento` e `nota`).
 

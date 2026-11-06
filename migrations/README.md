@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0103** (`ls migrations/*.sql | tail -1`). São 104 arquivos
+- Última migration no repositório: **0104** (`ls migrations/*.sql | tail -1`). São 105 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -752,6 +752,16 @@ depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titula
 
 Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).
+
+## 0104 — identidade e encaminhamento do pedido do titular (2026-11-06)
+
+Quatro colunas em `titular_pedidos` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner): `identidade_metodo` (lista fechada),
+`identidade_obs` (até 500), `identidade_por` e `identidade_em`. Tabela nova `titular_pedido_encaminhamentos` (pessoa, prazo, mensagem,
+situação `aguardando`/`respondido`/`cancelado`, retorno), com dois índices e o gatilho `titular_encaminhamentos_do_projeto` (pedido e
+pessoa do mesmo projeto). Spec `2026-11-06-titular-identidade-encaminhamento-design`. Conferência depois:
+`SELECT name FROM pragma_table_info('titular_pedidos') WHERE name LIKE 'identidade_%'` (4 linhas) e
+`SELECT name FROM sqlite_master WHERE name IN ('titular_pedido_encaminhamentos','titular_encaminhamentos_do_projeto')` (2 linhas).
+Produção só com o "sim" do dono e backup antes.
 
 ## 0103 — post mortem do incidente (2026-11-06)
 
