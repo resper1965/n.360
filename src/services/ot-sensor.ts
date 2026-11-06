@@ -1,4 +1,6 @@
-import { genId, sha256Hex } from '../helpers';
+import { genId, logAudit, sendEmail, sha256Hex } from '../helpers';
+import { montarEmail } from './email-layout';
+import { TETO_LEITURA_OT } from './ot-inventario';
 import { modulosDoProjeto } from '../modulos';
 import { ERRO_ORIGEM, ipPermitido, politicaDoProjeto } from '../politica-tenant';
 import { chavesOt } from './ot-cifra';
@@ -64,4 +66,35 @@ export async function autenticarSensor(env: Bindings, req: Request): Promise<{ o
   if (politica && !ipPermitido(ip, politica.ip_allowlist)) return { ok: false, status: 403, error: ERRO_ORIGEM };
   if (!chavesOt(env)) return { ok: false, status: 503, error: 'Inventário de ativos indisponível: as chaves do n.ot não estão configuradas' };
   return { ok: true, sensor: { id: s.id, nome: s.nome, projectId: s.project_id, siteId: s.site_id } };
+}
+
+/** Cron diário: conta sondas ativas atrasadas/paradas, grava a trilha (só contagem) e avisa o Gestor ARCiber de cada parada.
+ *  O e-mail leva só o nome da sonda e do site; nunca IP, faixa ou credencial. */
+export async function avisarSensores(env: Bindings, agora: Date): Promise<{ atrasadas: number; paradas: number; emails: number }> {
+  const { results: sondas } = await env.DB.prepare(`SELECT s.id, s.nome, s.project_id, st.nome AS site, s.created_at,
+      (SELECT created_at FROM ot_sensor_envios e WHERE e.sensor_id = s.id AND e.situacao = 'concluido' ORDER BY e.created_at DESC LIMIT 1) AS ultimo_envio
+    FROM ot_sensores s JOIN ot_sites st ON st.id = s.site_id AND st.project_id = s.project_id WHERE s.situacao = 'ativa' LIMIT ${TETO_LEITURA_OT}`)
+    .all<{ id: string; nome: string; project_id: string; site: string; created_at: string; ultimo_envio: string | null }>();
+  const { results: creds } = await env.DB.prepare(`SELECT sensor_id, expira_em, situacao FROM ot_sensor_credenciais WHERE situacao = 'ativa' LIMIT ${TETO_LEITURA_OT}`)
+    .all<Cred & { sensor_id: string }>();
+  const out = { atrasadas: 0, paradas: 0, emails: 0 };
+  const paradas: typeof sondas = [];
+  for (const s of sondas) {
+    const sit = situacaoSensor(s.ultimo_envio ?? s.created_at, creds.filter((k) => k.sensor_id === s.id), agora);
+    if (sit === 'atrasada') out.atrasadas++;
+    else if (sit === 'parada') { out.paradas++; paradas.push(s); }
+  }
+  if (out.atrasadas || out.paradas) await logAudit(env.DB, 'ot.sensor.atrasado', 'sistema', `Sondas atrasadas: ${out.atrasadas}; paradas: ${out.paradas}`);
+  for (const s of paradas) {
+    const { results: gestores } = await env.DB.prepare(`SELECT email FROM users WHERE role = 'org_admin' AND client_project_id = ? LIMIT ${TETO_LEITURA_OT}`).bind(s.project_id).all<{ email: string }>();
+    const assunto = `n.ot: a sonda ${s.nome} está parada`;
+    const corpo = montarEmail({
+      assunto, titulo: 'Sonda parada', saudacao: 'Olá,',
+      paragrafos: [`A sonda ${s.nome}, do site ${s.site}, não envia resumos há mais de 72 horas ou está sem credencial válida.`],
+      acao: 'Abrir o n.ot, conferir a sonda e renovar a credencial se for preciso',
+      motivo: 'você é Gestor ARCiber de um projeto com o n.ot.',
+    });
+    for (const g of gestores) if (await sendEmail({ env }, g.email, assunto, corpo)) out.emails++;
+  }
+  return out;
 }
