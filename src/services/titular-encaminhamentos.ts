@@ -50,11 +50,11 @@ export async function atualizarEncaminhamento(db: D1Database, projectId: string,
   if (!p) return falha(404, 'Pedido não encontrado');
   const retorno = d.status === 'respondido' ? d.retorno : null;
   const r = await db.prepare(`UPDATE titular_pedido_encaminhamentos SET status = ?, retorno = ?, retorno_por = ?, retorno_em = CURRENT_TIMESTAMP
-      WHERE id = ? AND pedido_id = ? AND project_id = ? AND status = 'aguardando'`).bind(d.status, retorno, ator, encId, pedidoId, projectId).run();
-  if (!r.meta.changes) {
+      WHERE id = ? AND pedido_id = ? AND project_id = ? AND status = 'aguardando' RETURNING parte_id`).bind(d.status, retorno, ator, encId, pedidoId, projectId).first<{ parte_id: string }>();
+  if (!r) {
     const existe = await db.prepare('SELECT 1 FROM titular_pedido_encaminhamentos WHERE id = ? AND pedido_id = ? AND project_id = ?').bind(encId, pedidoId, projectId).first();
     return existe ? falha(409, 'Encaminhamento já respondido ou cancelado') : falha(404, 'Encaminhamento não encontrado');
   }
-  await logAudit(db, 'titular_pedido.encaminhamento', ator, `Pedido ${p.protocolo}: encaminhamento ${d.status}`, '', '', projectId);
+  await logAudit(db, 'titular_pedido.encaminhamento', ator, `Pedido ${p.protocolo}: encaminhamento ${d.status} (parte ${r.parte_id})`, '', '', projectId);
   return { ok: true as const };
 }

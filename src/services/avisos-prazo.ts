@@ -143,9 +143,10 @@ const FONTES: Record<Fonte, string> = {
     WHERE d.status <> 'obsoleto' AND d.sem_vencimento = 0 AND d.vencimento IS NOT NULL`,
   // Encaminhamento do pedido do titular a ponto focal (0104): só D0 e atraso (o prazo interno é curto; ver itensDoDia).
   encaminhamento_titular: `SELECT e.id AS item_id, e.project_id, e.prazo AS vence_em,
-      'Encaminhamento do pedido ' || t.protocolo || ' a ' || pa.nome AS titulo, NULL AS responsavel
+      'Encaminhamento do pedido ' || t.protocolo || ' a ' || pa.nome AS titulo,
+      COALESCE(NULLIF(trim(pr.email), ''), pr.nome) AS responsavel
     FROM titular_pedido_encaminhamentos e JOIN titular_pedidos t ON t.id = e.pedido_id JOIN partes pa ON pa.id = e.parte_id
-      JOIN projects p ON p.id = e.project_id
+      JOIN projects p ON p.id = e.project_id LEFT JOIN partes pr ON pr.id = t.responsavel_parte_id AND pr.project_id = t.project_id
     WHERE e.status = 'aguardando'`,
 };
 

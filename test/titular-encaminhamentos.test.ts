@@ -69,6 +69,9 @@ describe('encaminhamento do pedido do titular', () => {
     const { id: id2 } = await json(await enc({ parte_id: 'tenc-pf', prazo: diaMaisSP(5), mensagem: 'Outra' }));
     expect((await put(id2, { status: 'cancelado' })).status).toBe(200);
     expect((await put('inexistente', { status: 'cancelado' })).status).toBe(404);
+    const trilha = await env.DB.prepare(`SELECT details FROM audit_logs WHERE action = 'titular_pedido.encaminhamento' AND project_id = ? AND details LIKE '%encaminhamento %'`).bind(P).all<any>();
+    expect(trilha.results.map((t) => t.details)).toEqual(expect.arrayContaining(['Pedido PT-2026-0001: encaminhamento respondido (parte tenc-pf)', 'Pedido PT-2026-0001: encaminhamento cancelado (parte tenc-pf)']));
+    expect(JSON.stringify(trilha.results)).not.toContain('Dados localizados');
   });
 
   it('recusa: pessoa errada, prazo no passado, campo extra, pedido encerrado, outro projeto, cliente', async () => {

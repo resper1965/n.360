@@ -16,7 +16,8 @@ beforeEach(async () => {
   await db().batch([
     db().prepare(`INSERT INTO projects (id, client_name, standards, org_role, status, org_id) VALUES ('p1', 'Cliente p1', 'LGPD', 'Controller', 'Active', 'org_ness')`),
     db().prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('pa1', 'p1', 'pessoa', 'Ponto Focal', 'pf@exemplo.com.br')`),
-    db().prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em) VALUES ('tp1', 'p1', 'PT-2026-0001', 'acesso', '2026-10-01')`),
+    db().prepare(`INSERT INTO partes (id, project_id, tipo, nome, email) VALUES ('dpo', 'p1', 'pessoa', 'Responsável', 'resp@exemplo.com.br')`),
+    db().prepare(`INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, recebido_em, responsavel_parte_id) VALUES ('tp1', 'p1', 'PT-2026-0001', 'acesso', '2026-10-01', 'dpo')`),
   ]);
 });
 
@@ -26,6 +27,8 @@ describe('fonte encaminhamento_titular', () => {
     const itens = (await itensDoDia(db(), HOJE)).itens.filter((i) => i.fonte === 'encaminhamento_titular');
     expect(Object.fromEntries(itens.map((i) => [i.item_id, i.marco]))).toEqual({ d0: 'D0', atr: 'atraso-2026-W41' });
     expect(itens[0].titulo).toBe('Encaminhamento do pedido PT-2026-0001 a Ponto Focal');
+    // O responsável do aviso é o do pedido (como na fonte titular_pedido), não o ponto focal.
+    expect(itens.every((i) => i.responsavel === 'resp@exemplo.com.br')).toBe(true);
     expect(tituloDoAviso({ fonte: 'encaminhamento_titular', marco: 'D0', titulo: itens[0].titulo })).toBe('Encaminhamento do pedido PT-2026-0001 a Ponto Focal vence hoje');
   });
 });
