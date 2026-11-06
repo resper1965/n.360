@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.privacy: consulta pública do pedido do titular pelo protocolo (migration 0105)
+- Quem abre a solicitação pelo portal recebe, na tela e no e-mail, o protocolo e um código de acompanhamento. Na página `/solicitacao`, "Acompanhar uma solicitação" mostra a situação, o tipo, a data de abertura, o prazo e a data da conclusão; o link do e-mail já abre a consulta.
+- A consulta não mostra nome, contato, descrição nem a resposta, que segue por e-mail. Protocolo ou código errado dão a mesma resposta, e as tentativas têm limite por endereço.
+- Rota `POST /api/v1/public/titular-pedidos/consultar`; o código não volta por nenhuma rota depois da abertura e o banco guarda só o hash.
+- Migration 0105 (aditiva): coluna `titular_pedidos.acompanhamento_hash` e índice único parcial.
+
 ### n.privacy: conferência de identidade e encaminhamento a ponto focal (migration 0104)
 - No pedido do titular, o bloco "Identidade do titular" registra como a identidade foi conferida (documento com foto, dados cadastrais, canal autenticado, presencial ou outro), com observação curta e quem e quando conferiu. É só registro: responder sem a conferência pede confirmação, e a lista marca os pedidos abertos sem ela.
 - "Encaminhar" manda o pedido a uma pessoa do cadastro, com prazo interno e mensagem. O ponto focal recebe um e-mail sem os dados do titular e responde por fora; o DPO registra o retorno ou cancela. O encaminhamento vira tratativa e o prazo entra nos avisos (no dia e no atraso).

@@ -129,7 +129,7 @@ import {
   tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema,
   riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema,
   terceiroTipoSchema, avaliacaoTerceiroSchema, terceiroDocumentoSchema, criticidadeTerceiroSchema,
-  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, tratativaSchema, portalAbrirSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteAtualizarSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, titularIdentidadeSchema, encaminhamentoCriarSchema, encaminhamentoAtualizarSchema, consentimentoCriarSchema,
+  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, tratativaSchema, portalAbrirSchema, portalConsultarSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteAtualizarSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, titularIdentidadeSchema, encaminhamentoCriarSchema, encaminhamentoAtualizarSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
 import {
@@ -420,6 +420,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/public/propostas/ver', schema: propostaTokenSchema, nome: 'propostaTokenSchema' },
   { metodo: 'POST', caminho: '/api/v1/public/sso/iniciar', schema: ssoInicioSchema, nome: 'ssoInicioSchema' },
   { metodo: 'POST', caminho: '/api/v1/public/titular-pedidos/abrir', schema: portalAbrirSchema, nome: 'portalAbrirSchema' },
+  { metodo: 'POST', caminho: '/api/v1/public/titular-pedidos/consultar', schema: portalConsultarSchema, nome: 'portalConsultarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/requisitos/:id', schema: requisitoAtualizarSchema, nome: 'requisitoAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/requisitos/mapeamentos/validar', schema: validarMapeamentosSchema, nome: 'validarMapeamentosSchema' },
   { metodo: 'POST', caminho: '/api/v1/requisitos/mapeamentos', schema: mapeamentoSchema, nome: 'mapeamentoSchema' },

@@ -244,6 +244,12 @@ export const portalAbrirSchema = z.object({
   descricao: z.string().trim().min(1).max(5000),
 }).strict();
 
+/** Consulta pública do pedido (migration 0105): protocolo PT-AAAA-NNNN (maiúscula ou minúscula) e o código de acompanhamento. */
+export const portalConsultarSchema = z.object({
+  protocolo: z.string().trim().max(20).regex(/^PT-\d{4}-\d+$/i, 'Protocolo no formato PT-AAAA-NNNN'),
+  codigo: z.string().trim().min(1).max(40),
+}).strict();
+
 /** Conferência de identidade do titular (migration 0104): método da lista fechada; null limpa. A observação é conferida no serviço. */
 export const titularIdentidadeSchema = z.object({
   metodo: z.enum(['documento_foto', 'dados_cadastrais', 'canal_autenticado', 'presencial', 'outro']).nullable(),

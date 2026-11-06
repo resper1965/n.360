@@ -250,11 +250,15 @@ describe('e-mails montados direto (a rota já tem teste próprio)', () => {
     expect(m.html).toContain('Trocar &lt;b&gt;senhas&lt;/b&gt;');
   });
 
-  it('protocolo do titular: o número de protocolo aparece no assunto e no corpo', () => {
-    const m = emailProtocoloTitular({ protocolo: 'PT-2026-0042' });
+  it('protocolo do titular: protocolo, código e o link de acompanhamento', () => {
+    const link = 'https://n360.ness.com.br/solicitacao#acompanhar=PT-2026-0042.K7QM-3XRP-9WTD-H2FN';
+    const m = emailProtocoloTitular({ protocolo: 'PT-2026-0042', codigo: 'K7QM-3XRP-9WTD-H2FN', link });
     expect(m.assunto).toContain('PT-2026-0042');
-    expect(m.html).toContain('PT-2026-0042');
-    expect(m.text).toContain('PT-2026-0042');
+    for (const s of [m.html, m.text]) {
+      expect(s).toContain('PT-2026-0042');
+      expect(s).toContain('K7QM-3XRP-9WTD-H2FN');
+      expect(s).toContain(link);
+    }
   });
 
   it('alerta da sonda: invólucro, sem botão', () => {

@@ -1,6 +1,6 @@
 import { logAudit, genToken, sha256Hex } from '../helpers';
 import { prazoDe, proximoProtocolo } from './parametros-legais';
-import { hojeEmSaoPaulo } from './hoje';
+import { hojeEmSaoPaulo, diaEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 7: pedido do titular (registro interno). Protocolo `PT-AAAA-NNNN` por projeto; o prazo vem do parâmetro
@@ -54,7 +54,7 @@ const parteDoProjeto = async (db: D1Database, projectId: string, id: string | nu
 
 export type NovoPedido = { tipo: TipoPedido; canal?: CanalPedido; titular_nome?: string | null; titular_contato?: string | null; descricao?: string | null; recebido_em?: string; responsavel_parte_id?: string | null };
 
-export async function criarPedido(db: D1Database, projectId: string, ator: string, d: NovoPedido): Promise<Falha | { ok: true; id: string; protocolo: string; prazo_em: string | null }> {
+export async function criarPedido(db: D1Database, projectId: string, ator: string, d: NovoPedido, acompanhamentoHash: string | null = null): Promise<Falha | { ok: true; id: string; protocolo: string; prazo_em: string | null }> {
   const recebido = d.recebido_em ?? hoje();
   if (!ehData(recebido)) return falha(400, 'recebido_em precisa ser uma data AAAA-MM-DD');
   if (recebido > hoje()) return falha(400, 'recebido_em não pode estar no futuro');
@@ -62,9 +62,9 @@ export async function criarPedido(db: D1Database, projectId: string, ator: strin
   const prazo = await prazoDe(db, 'titular.resposta', recebido);
   const id = crypto.randomUUID();
   const protocolo = await comProtocolo(db, projectId, recebido, (protocolo) => db.prepare(
-    `INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, canal, titular_nome, titular_contato, descricao, recebido_em, prazo_em, responsavel_parte_id, criado_por)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(id, projectId, protocolo, d.tipo, d.canal ?? 'outro', d.titular_nome ?? null, d.titular_contato ?? null, d.descricao ?? null, recebido, prazo, d.responsavel_parte_id ?? null, ator).run());
+    `INSERT INTO titular_pedidos (id, project_id, protocolo, tipo, canal, titular_nome, titular_contato, descricao, recebido_em, prazo_em, responsavel_parte_id, criado_por, acompanhamento_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, projectId, protocolo, d.tipo, d.canal ?? 'outro', d.titular_nome ?? null, d.titular_contato ?? null, d.descricao ?? null, recebido, prazo, d.responsavel_parte_id ?? null, ator, acompanhamentoHash).run());
   if (!protocolo) return falha(409, 'Não foi possível gerar o protocolo; tente de novo');
   await logAudit(db, 'titular.pedido_criado', ator, `Pedido ${protocolo} (${d.tipo}) registrado; prazo ${prazo ? prazo.slice(0, 10) : 'não calculado'}`, '', '', projectId);
   return { ok: true, id, protocolo, prazo_em: prazo };
@@ -181,9 +181,45 @@ export async function portalDoToken(db: D1Database, token: string): Promise<{ pr
 
 export type AberturaPortal = { tipo: TipoPedido; titular_nome: string; titular_contato: string; descricao: string };
 
-/** Abre um pedido pela recepção pública: canal `formulario`, status `recebido`, protocolo gerado como na criação interna. */
-export async function abrirPedidoPortal(db: D1Database, projectId: string, d: AberturaPortal): Promise<Falha | { ok: true; id: string; protocolo: string; prazo_em: string | null }> {
-  return criarPedido(db, projectId, 'sistema:portal', { tipo: d.tipo, canal: 'formulario', titular_nome: d.titular_nome, titular_contato: d.titular_contato, descricao: d.descricao });
+// Código de acompanhamento (migration 0105): 16 símbolos sem ambíguos (0/O, 1/I/L), ~79 bits; só o SHA-256 vai ao banco.
+const ALFABETO = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+const agrupar = (s: string) => s.match(/.{4}/g)!.join('-');
+
+export function gerarCodigoAcompanhamento(): string {
+  let s = '';
+  const byte = new Uint8Array(1);
+  while (s.length < 16) {
+    crypto.getRandomValues(byte);
+    if (byte[0] < 248) s += ALFABETO[byte[0] % 31]; // 248 = 31 * 8: sem viés de módulo
+  }
+  return agrupar(s);
+}
+
+/** O código como digitado (minúsculas, espaço, hífen) no formato canônico; null se não pode ser um código. */
+export function normalizarCodigo(s: string): string | null {
+  const limpo = s.toUpperCase().replace(/[\s-]/g, '');
+  return limpo.length === 16 && [...limpo].every((ch) => ALFABETO.includes(ch)) ? agrupar(limpo) : null;
+}
+
+/** Abre um pedido pela recepção pública: canal `formulario`, status `recebido`, protocolo gerado como na criação interna, e o código de
+ *  acompanhamento, devolvido só aqui (o banco guarda o hash). */
+export async function abrirPedidoPortal(db: D1Database, projectId: string, d: AberturaPortal): Promise<Falha | { ok: true; id: string; protocolo: string; prazo_em: string | null; codigo: string }> {
+  const codigo = gerarCodigoAcompanhamento();
+  const r = await criarPedido(db, projectId, 'sistema:portal', { tipo: d.tipo, canal: 'formulario', titular_nome: d.titular_nome, titular_contato: d.titular_contato, descricao: d.descricao }, await sha256Hex(codigo));
+  return r.ok ? { ...r, codigo } : r;
+}
+
+export type ConsultaPublica = { protocolo: string; tipo: string; status: string; recebido_em: string; prazo_em: string | null; respondido_em: string | null };
+
+/** Consulta pública: acha pelo hash do código e confere o protocolo. null para qualquer falha (a rota dá o mesmo 404). As datas saem
+ *  como o dia de São Paulo (AAAA-MM-DD): `respondido_em` é gravado como instante UTC. */
+export async function consultarPedidoPortal(db: D1Database, protocolo: string, codigo: string): Promise<ConsultaPublica | null> {
+  const canonico = normalizarCodigo(codigo);
+  if (!canonico) return null;
+  const p = await db.prepare('SELECT protocolo, tipo, status, recebido_em, prazo_em, respondido_em FROM titular_pedidos WHERE acompanhamento_hash = ?')
+    .bind(await sha256Hex(canonico)).first<ConsultaPublica>();
+  if (!p || p.protocolo !== protocolo.toUpperCase()) return null;
+  return { ...p, recebido_em: diaEmSaoPaulo(p.recebido_em)!, prazo_em: diaEmSaoPaulo(p.prazo_em), respondido_em: diaEmSaoPaulo(p.respondido_em) };
 }
 
 // ─── Tratativas do atendimento (migration 0096) ───────────────────────────────────────────────────

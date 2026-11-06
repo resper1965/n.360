@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0104** (`ls migrations/*.sql | tail -1`). São 105 arquivos
+- Última migration no repositório: **0105** (`ls migrations/*.sql | tail -1`). São 106 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -752,6 +752,15 @@ depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titula
 
 Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).
+
+## 0105 — código de acompanhamento do pedido do titular (2026-11-06)
+
+Coluna `titular_pedidos.acompanhamento_hash` por `ALTER TABLE ADD COLUMN` (roda uma vez pelo runner) e o índice único parcial
+`idx_titular_pedidos_acompanhamento` (repetível). Guarda só o SHA-256 do código de acompanhamento que a abertura pelo portal gera; a
+consulta pública acha o pedido por ele. Spec `2026-11-06-titular-consulta-protocolo-design`. Conferência depois:
+`SELECT name FROM pragma_table_info('titular_pedidos') WHERE name = 'acompanhamento_hash'` (1 linha) e
+`SELECT name FROM sqlite_master WHERE name = 'idx_titular_pedidos_acompanhamento'` (1 linha).
+Aplicada em produção em 06/11/2026, com backup antes: as conferências deram 1 e 1 linha.
 
 ## 0104 — identidade e encaminhamento do pedido do titular (2026-11-06)
 

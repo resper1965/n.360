@@ -181,6 +181,7 @@ const SEM_RECURSO_ALHEIO: Record<string, string> = {
   'POST /api/v1/public/pedidos/codigo': 'ciência por link: o token pessoal do link é a autorização; o código vai ao e-mail do destinatário',
   'POST /api/v1/public/pedidos/ciencia': 'ciência por link: token pessoal do link + código do e-mail do destinatário',
   'POST /api/v1/public/titular-pedidos/abrir': 'portal público de solicitações: o token do link (um por projeto) é a autorização e define o projeto; o corpo não traz id de recurso de outro tenant',
+  'POST /api/v1/public/titular-pedidos/consultar': 'consulta pública do pedido: o código de acompanhamento (só o hash no banco, único) é a autorização e acha um pedido só; o corpo não traz id de recurso nem de projeto; test/titular-consulta.test.ts',
   'POST /api/v1/public/auditor/ver': 'portal do auditor: o token do link (no corpo) é a autorização, preso a um projeto; isolamento em test/portal-auditor.test.ts',
   'POST /api/v1/public/auditor/evidencia': 'portal do auditor: token no corpo; evidência alheia por id é 404 (test/portal-auditor.test.ts)',
   'POST /api/v1/public/auditor/pedidos': 'portal do auditor: token no corpo, prova só do projeto do token',

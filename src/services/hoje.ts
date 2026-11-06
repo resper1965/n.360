@@ -13,3 +13,13 @@ export function diaMaisSP(dias: number, agora: Date = new Date()): string {
   d.setUTCDate(d.getUTCDate() + dias);
   return d.toISOString().slice(0, 10);
 }
+
+/** O dia (AAAA-MM-DD) de uma data gravada, em São Paulo. Data pura ou meia-noite UTC exata é dia de calendário (prazo) e fica como
+ *  está; instante (`toISOString`, ou o `datetime` do SQLite, em UTC) vira o dia de São Paulo. A mesma regra de `dataHoraBr`. */
+export function diaEmSaoPaulo(v: string | null): string | null {
+  if (!v) return null;
+  const t = v.trim();
+  if (!/[T ]\d{2}:\d{2}/.test(t) || /^\d{4}-\d{2}-\d{2}T00:00(:00(\.0+)?)?Z$/.test(t)) return t.slice(0, 10);
+  const d = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(t) ? t : `${t.replace(' ', 'T')}Z`);
+  return Number.isNaN(d.getTime()) ? t.slice(0, 10) : hojeEmSaoPaulo(d);
+}
