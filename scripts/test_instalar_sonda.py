@@ -52,21 +52,37 @@ class T(unittest.TestCase):
         self.assertIn("enp2s0:", netplan)
         self.assertIn("dhcp4: false", netplan)
         self.assertNotIn("addresses", netplan)
+        sysctl = funcao("sysctl_escuta", "enp2s0")
+        self.assertIn("net.ipv6.conf.enp2s0.disable_ipv6 = 1", sysctl)
+        self.assertIn("net.ipv6.conf.enp2s0.accept_ra = 0", sysctl)
+        # o sysctl vale antes de a placa subir (sem link-local IPv6)
+        self.assertLess(self.s.index("sysctl -q -p /etc/sysctl.d/90-n-ot-escuta.conf"),
+                        self.s.index('ip link set dev "$ESCUTA" up'))
+        self.tem('[[ -z $(ip -o addr show dev "$ESCUTA") ]]', "50-cloud-init.yaml")
+
+    def test_recusa_escuta_com_rota_padrao(self):
+        self.tem("ip route show default", "ip -6 route show default")
 
     def test_firewall(self):
-        regras = funcao("regras_nft", "enp1s0", "42", "998", "443", "203.0.113.7", "2001:db8::7")
+        regras = funcao("regras_nft", "enp2s0", "enp1s0", "42", "998", "443")
         self.assertIn("policy drop", regras)
+        saida = regras[regras.index("chain saida"):].splitlines()
+        self.assertEqual(saida[2].strip(), 'oifname "enp2s0" drop')  # primeira regra: a escuta nunca transmite
         self.assertIn('iifname "enp1s0" tcp dport 22 accept', regras)
         self.assertEqual(regras.count("dport 22"), 1)  # SSH so pela gestao
-        self.assertIn("203.0.113.7", regras)
-        self.assertIn("2001:db8::7", regras)
-        self.assertIn("meta skuid 998 ip daddr @n360 tcp dport 443 accept", regras)
+        self.assertIn("meta skuid 998 tcp dport 443 accept", regras)
+        self.assertIn("meta skuid 42 tcp dport { 80, 443 } accept", regras)
+        self.assertNotIn("daddr", regras)  # sem IP fixo do n.360
+        self.assertNotIn("icmp, ipv6-icmp } accept", "\n".join(saida))  # sem ICMP de saida liberado em bloco
         self.tem("nftables")
         if shutil.which("nft"):  # confere a sintaxe sem carregar nada
             with tempfile.NamedTemporaryFile("w", suffix=".nft") as f:
                 f.write(regras.replace("flush ruleset\n", ""))
                 f.flush()
                 subprocess.run(["nft", "-c", "-f", f.name], check=True)
+
+    def test_zkg_com_firewall_fechado_explica(self):
+        self.tem("nft list table inet n_ot_sonda", "nft delete table inet n_ot_sonda")
 
     def test_unattended_upgrades(self):
         self.tem("unattended-upgrades", 'APT::Periodic::Unattended-Upgrade "1"')

@@ -32,24 +32,18 @@ network:
 EOF
 }
 
-conjunto() {  # conjunto <nome> <tipo> <ips...>: set do nftables, sem elements quando vazio
-	local nome=$1 tipo=$2 elementos=""
-	shift 2
-	(($#)) && elementos=" elements = { $(IFS=,; echo "$*") };"
-	echo "	set $nome { type $tipo;$elementos }"
+sysctl_escuta() {  # sem IPv6 na escuta: nem link-local nem RA
+	cat <<EOF
+net.ipv6.conf.$1.disable_ipv6 = 1
+net.ipv6.conf.$1.accept_ra = 0
+EOF
 }
 
-regras_nft() {  # regras_nft <gestao> <uid _apt> <uid sonda> <porta n.360> <ips do n.360...>
-	local gestao=$1 uid_apt=$2 uid_sonda=$3 porta=$4 ip v4=() v6=()
-	shift 4
-	for ip in "$@"; do
-		if [[ $ip == *:* ]]; then v6+=("$ip"); else v4+=("$ip"); fi
-	done
-	echo "flush ruleset"
-	echo "table inet n_ot_sonda {"
-	conjunto n360 ipv4_addr "${v4[@]}"
-	conjunto n360_6 ipv6_addr "${v6[@]}"
+regras_nft() {  # regras_nft <escuta> <gestao> <uid _apt> <uid sonda> <porta n.360>
+	local escuta=$1 gestao=$2 uid_apt=$3 uid_sonda=$4 porta=$5
 	cat <<EOF
+flush ruleset
+table inet n_ot_sonda {
 	chain entrada {
 		type filter hook input priority filter; policy drop;
 		iif "lo" accept
@@ -63,13 +57,13 @@ regras_nft() {  # regras_nft <gestao> <uid _apt> <uid sonda> <porta n.360> <ips 
 	}
 	chain saida {
 		type filter hook output priority filter; policy drop;
+		oifname "$escuta" drop
 		oif "lo" accept
 		ct state established,related accept
-		meta l4proto { icmp, ipv6-icmp } accept
+		icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit } accept
 		udp dport { 67, 123 } accept
 		meta l4proto { tcp, udp } th dport 53 accept
-		meta skuid $uid_sonda ip daddr @n360 tcp dport $porta accept
-		meta skuid $uid_sonda ip6 daddr @n360_6 tcp dport $porta accept
+		meta skuid $uid_sonda tcp dport $porta accept
 		meta skuid $uid_apt tcp dport { 80, 443 } accept
 	}
 }
@@ -157,6 +151,9 @@ verificar() {
 	[[ $ESCUTA != "$GESTAO" ]] || falha "escuta e gestao precisam ser placas diferentes"
 	ip link show dev "$ESCUTA" >/dev/null || falha "placa de escuta $ESCUTA nao existe"
 	ip link show dev "$GESTAO" >/dev/null || falha "placa de gestao $GESTAO nao existe"
+	if ip route show default | grep -qw "dev $ESCUTA" || ip -6 route show default | grep -qw "dev $ESCUTA"; then
+		falha "a rota padrao sai por $ESCUTA: essa e a placa de gestao? Trocar as duas cortaria o SSH"
+	fi
 	[[ -f $ORIGEM_CONF ]] || falha "conf $ORIGEM_CONF nao existe"
 	[[ -f $(dirname "$0")/n-ot-resumo-zeek.py ]] || falha "n-ot-resumo-zeek.py precisa estar ao lado deste script"
 }
@@ -172,6 +169,7 @@ instalar_zeek() {
 	fi
 	echo "deb [signed-by=$CHAVE_ZEEK] $REPO_ZEEK /" >/etc/apt/sources.list.d/zeek.list
 	apt-get update -q
+	# zeek-lts (OBS) fica fora do unattended-upgrades de proposito: os plugins ICSNPP sao compilados para a ABI do Zeek
 	# zeek-lts traz zeekctl, zkg e spicy; cmake/g++/git compilam os pacotes ICSNPP
 	apt-get install -y -q zeek-lts cmake make g++ git libpcap-dev libssl-dev zlib1g-dev \
 		nftables unattended-upgrades acl python3 util-linux
@@ -184,6 +182,10 @@ instalar_zeek() {
 		zkg list installed 2>/dev/null | grep -q "/$p " || falta+=("$p")
 	done
 	if ((${#falta[@]})); then
+		if nft list table inet n_ot_sonda >/dev/null 2>&1; then
+			falha "faltam ${falta[*]} e o firewall da sonda ja esta fechado (root nao sai para o GitHub, de proposito).
+Abra-o so durante a instalacao: nft delete table inet n_ot_sonda; rode este script de novo (ele fecha o firewall no fim)."
+		fi
 		zkg refresh
 		zkg install --force --skiptests "${falta[@]}"  # sem btest no sistema; --force nao pergunta
 	fi
@@ -207,14 +209,19 @@ configurar_zeek() {
 
 configurar_escuta() {
 	passo "Placa de escuta $ESCUTA sem IP e em modo promiscuo"
+	sysctl_escuta "$ESCUTA" >/etc/sysctl.d/90-n-ot-escuta.conf
+	sysctl -q -p /etc/sysctl.d/90-n-ot-escuta.conf  # antes de subir a placa: sem link-local IPv6
 	ip addr flush dev "$ESCUTA"
 	ip link set dev "$ESCUTA" up promisc on
 	if ! cmp -s <(netplan_escuta "$ESCUTA") "$NETPLAN"; then
 		netplan_escuta "$ESCUTA" >"$NETPLAN"
 		chmod 0600 "$NETPLAN"
 		netplan apply
+		sysctl -q -p /etc/sysctl.d/90-n-ot-escuta.conf
 		ip link set dev "$ESCUTA" up promisc on
 	fi
+	[[ -z $(ip -o addr show dev "$ESCUTA") ]] ||
+		falha "$ESCUTA ainda tem endereco; outro arquivo em /etc/netplan (ex.: 50-cloud-init.yaml) deve estar configurando essa placa"
 	cat >/etc/systemd/system/n-ot-escuta.service <<EOF
 [Unit]
 Description=n.ot: placa de escuta $ESCUTA em modo promiscuo
@@ -223,6 +230,7 @@ After=network.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+ExecStartPre=/usr/sbin/sysctl -q -p /etc/sysctl.d/90-n-ot-escuta.conf
 ExecStart=/usr/sbin/ip link set dev $ESCUTA up promisc on
 
 [Install]
@@ -278,15 +286,13 @@ ligar_timers() {
 }
 
 fechar_firewall() {
-	local host porta ips
+	local host porta
 	read -r host porta <<<"$DESTINO"
-	passo "nftables: saida so para $host:$porta (mais DNS, NTP e apt) e SSH so por $GESTAO"
-	# shortcut: IPs do n.360 resolvidos agora; se mudarem, rode o instalador de novo
-	mapfile -t ips < <(getent ahosts "$host" | awk '{print $1}' | sort -u)
-	((${#ips[@]})) || falha "nao resolvi $host"
+	passo "nftables: saida da sonda so na porta $porta (url aponta para $host), DNS, NTP e apt; SSH so por $GESTAO"
+	# sem IP fixo do n.360 (anycast muda): o uid da sonda so fala com a url da conf
 	{
 		echo "#!/usr/sbin/nft -f"
-		regras_nft "$GESTAO" "$(id -u _apt)" "$(id -u "$USUARIO")" "$porta" "${ips[@]}"
+		regras_nft "$ESCUTA" "$GESTAO" "$(id -u _apt)" "$(id -u "$USUARIO")" "$porta"
 	} >/etc/nftables.conf
 	nft -c -f /etc/nftables.conf
 	nft -f /etc/nftables.conf
