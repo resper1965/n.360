@@ -10,6 +10,7 @@ import { portalDoToken, abrirPedidoPortal, consultarPedidoPortal } from '../serv
 import { emailProtocoloTitular } from '../services/emails';
 import { remetente } from '../services/email-layout';
 import { log } from '../observability';
+import { appUrl } from '../config/url';
 
 export const publicTitularApp = new Hono<{ Bindings: Bindings }>();
 
@@ -42,7 +43,8 @@ publicTitularApp.post('/abrir', async (c) => {
     if (!r.ok) return c.json({ error: r.error }, r.status);
     // Retorno ao titular com o protocolo, best-effort: sem RESEND ou com falha de envio, o pedido já está criado e o protocolo vai na resposta.
     try {
-      const m = emailProtocoloTitular({ protocolo: r.protocolo });
+      const link = `${appUrl(c.env)}/solicitacao#acompanhar=${r.protocolo}.${r.codigo}`;
+      const m = emailProtocoloTitular({ protocolo: r.protocolo, codigo: r.codigo, link });
       await enviarEmail(c.env, v.data.titular_contato, m.assunto, m, { from: remetente('n.privacy') });
     } catch (e) {
       log('warn', { msg: 'titular_portal_email_falhou', projeto: portal.project_id, erro: e instanceof Error ? e.message : String(e) });
