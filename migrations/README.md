@@ -761,7 +761,7 @@ situação `aguardando`/`respondido`/`cancelado`, retorno), com dois índices e 
 pessoa do mesmo projeto). Spec `2026-11-06-titular-identidade-encaminhamento-design`. Conferência depois:
 `SELECT name FROM pragma_table_info('titular_pedidos') WHERE name LIKE 'identidade_%'` (4 linhas) e
 `SELECT name FROM sqlite_master WHERE name IN ('titular_pedido_encaminhamentos','titular_encaminhamentos_do_projeto')` (2 linhas).
-Produção só com o "sim" do dono e backup antes.
+Aplicada em produção em 06/11/2026, com backup antes: as conferências deram 4 e 2 linhas.
 
 ## 0103 — post mortem do incidente (2026-11-06)
 
