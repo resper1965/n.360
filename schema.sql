@@ -669,7 +669,9 @@ CREATE TABLE IF NOT EXISTS corrective_actions (
     -- Ação da atividade de tratamento do n.privacy, migration 0073
     ropa_id TEXT REFERENCES ropa_records(id) ON DELETE SET NULL,
     -- Ficha em abas (migration 0079)
-    recomendacao TEXT CHECK (recomendacao IS NULL OR length(recomendacao) <= 4000)
+    recomendacao TEXT CHECK (recomendacao IS NULL OR length(recomendacao) <= 4000),
+    -- Tratamento da ação corretiva do incidente (0100)
+    tratamento TEXT CHECK (tratamento IS NULL OR tratamento IN ('contencao', 'correcao', 'aperfeicoamento'))
 );
 
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -1804,6 +1806,10 @@ CREATE TABLE IF NOT EXISTS incidentes (
     titulares_estimados INTEGER CHECK (titulares_estimados IS NULL OR titulares_estimados >= 0),
     criterios_risco TEXT CHECK (criterios_risco IS NULL OR json_valid(criterios_risco)),
     fim_em TEXT,
+    -- Comunicação à ANPD (0099).
+    anpd_protocolo TEXT CHECK (anpd_protocolo IS NULL OR length(anpd_protocolo) <= 100),
+    anpd_canal TEXT CHECK (anpd_canal IS NULL OR anpd_canal IN ('sei', 'formulario_anpd', 'email', 'outro')),
+    anpd_justificativa TEXT CHECK (anpd_justificativa IS NULL OR length(anpd_justificativa) <= 5000),
     UNIQUE (project_id, protocolo),
     CHECK (status <> 'encerrado' OR risco_titular IS NOT NULL),
     CHECK (status <> 'encerrado' OR risco_titular <> 'relevante' OR comunicacao_anpd_em IS NOT NULL)

@@ -1038,6 +1038,8 @@ async function gravarHistorico(db: D1Database, projectId: string, loteId: string
     const x = await importarIncidente(db, projectId, ator, {
       titulo: d.titulo, descricao: descricaoImportada(loteId, d.protocolo), ciencia_em: d.ciencia_em, risco_titular: d.risco_titular,
       comunicacao_anpd_em: d.comunicacao_anpd_em, comunicacao_titular_em: d.comunicacao_titular_em, status: d.status,
+      origem_alerta: d.origem_alerta, severidade: d.severidade, tipo: d.tipo, comprometimento: d.comprometimento, titulares_estimados: d.titulares_estimados,
+      criterios_risco: d.criterios_risco, fim_em: d.fim_em, anpd_protocolo: d.anpd_protocolo, anpd_canal: d.anpd_canal, anpd_justificativa: d.anpd_justificativa,
     });
     if (x.ok && x.prazos_vencidos.length) avisos.push(`prazo de comunicação já vencido (${x.prazos_vencidos.join('; ')}): aparece atrasado; o aviso de atraso começa na semana que vem`);
     r = x;

@@ -129,7 +129,7 @@ import {
   tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema,
   riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema,
   terceiroTipoSchema, avaliacaoTerceiroSchema, terceiroDocumentoSchema, criticidadeTerceiroSchema,
-  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, tratativaSchema, portalAbrirSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteAtualizarSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, consentimentoCriarSchema,
+  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, tratativaSchema, portalAbrirSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteAtualizarSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
 import {
@@ -289,6 +289,8 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/homologacoes', schema: homologacaoCriarSchema, nome: 'homologacaoCriarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/importacoes/:id/itens/:iid', schema: importacaoItemSchema, nome: 'importacaoItemSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/importacoes/:id/itens/decidir', schema: importacaoItensDecidirSchema, nome: 'importacaoItensDecidirSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/incidentes/:id/acoes/:acaoId', schema: incidenteAcaoAtualizarSchema, nome: 'incidenteAcaoAtualizarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes/:id/acoes', schema: incidenteAcaoCriarSchema, nome: 'incidenteAcaoCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes/:id/comunicacoes', schema: incidenteComunicacaoSchema, nome: 'incidenteComunicacaoSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/incidentes/:id/rascunho-comunicacao', schema: incidenteRascunhoSchema, nome: 'incidenteRascunhoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/incidentes/:id/risco', schema: incidenteRiscoSchema, nome: 'incidenteRiscoSchema' },

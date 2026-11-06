@@ -41,6 +41,7 @@ export const DECISOES: readonly Decisao[] = [
   { ferramenta: 'niso_concluir_acao', acao: 'concluir_capa', metodo: 'PUT', caminho: '/api/v1/capa/{acaoId}', corpo: true },
   { ferramenta: 'niso_concluir_acao', acao: 'concluir_acao_da_atividade', metodo: 'PUT', caminho: `${P}/ropa/{ropaId}/acoes/{acaoId}`, corpo: true },
   { ferramenta: 'niso_concluir_acao', acao: 'concluir_gap', metodo: 'PUT', caminho: `${P}/ropa/{ropaId}/gaps/{gapId}`, corpo: true },
+  { ferramenta: 'niso_concluir_acao', acao: 'concluir_acao_do_incidente', metodo: 'PUT', caminho: `${P}/incidentes/{incidenteId}/acoes/{acaoId}`, corpo: true },
   { ferramenta: 'niso_encerrar_incidente', acao: 'encerrar', metodo: 'POST', caminho: `${P}/incidentes/{incidenteId}/encerrar` },
   { ferramenta: 'niso_registrar_revogacao', acao: 'revogar_consentimento', metodo: 'POST', caminho: `${P}/consentimentos/{consentimentoId}/revogar`, corpo: true },
   { ferramenta: 'niso_importar_programa', acao: 'listar_lotes', metodo: 'GET', caminho: `${P}/importacoes` },

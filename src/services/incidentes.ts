@@ -25,11 +25,12 @@ export function situacaoDaComunicacao(prazo: string | null, feita: string | null
   return dia < em ? 'atrasado' : dia === em ? 'vence_hoje' : 'no_prazo';
 }
 
-const COLS = 'id, protocolo, titulo, descricao, ocorrido_em, ciencia_em, risco_titular, avaliacao_texto, comunicacao_anpd_em, comunicacao_titular_em, prazo_anpd_em, prazo_titular_em, status, responsavel_parte_id, criado_por, created_at, updated_at, origem_alerta, severidade, tipo, comprometimento, titulares_estimados, criterios_risco, fim_em';
+const COLS = 'id, protocolo, titulo, descricao, ocorrido_em, ciencia_em, risco_titular, avaliacao_texto, comunicacao_anpd_em, comunicacao_titular_em, prazo_anpd_em, prazo_titular_em, status, responsavel_parte_id, criado_por, created_at, updated_at, origem_alerta, severidade, tipo, comprometimento, titulares_estimados, criterios_risco, fim_em, anpd_protocolo, anpd_canal, anpd_justificativa';
 export type Incidente = {
   id: string; protocolo: string; titulo: string; descricao: string | null; ocorrido_em: string | null; ciencia_em: string; risco_titular: Risco | null; avaliacao_texto: string | null;
   comunicacao_anpd_em: string | null; comunicacao_titular_em: string | null; prazo_anpd_em: string | null; prazo_titular_em: string | null; status: string; responsavel_parte_id: string | null;
   origem_alerta: string | null; severidade: string | null; tipo: string | null; comprometimento: string | null; titulares_estimados: number | null; criterios_risco: string | null; fim_em: string | null;
+  anpd_protocolo: string | null; anpd_canal: string | null; anpd_justificativa: string | null;
 };
 const lista = (json: string | null): string[] => { try { const v = JSON.parse(json ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
 const comSituacao = (i: Incidente) => ({
@@ -38,6 +39,8 @@ const comSituacao = (i: Incidente) => ({
   criterios_risco: lista(i.criterios_risco),
   situacao_anpd: situacaoDaComunicacao(i.prazo_anpd_em, i.comunicacao_anpd_em),
   situacao_titular: situacaoDaComunicacao(i.prazo_titular_em, i.comunicacao_titular_em),
+  // Protocolo interno da comunicação à ANPD (o legado mostra `-COM01`): derivado, sem coluna; uma comunicação por incidente.
+  anpd_protocolo_interno: i.comunicacao_anpd_em ? `${i.protocolo}-COM01` : null,
 });
 
 export async function listarIncidentes(db: D1Database, projectId: string) {
@@ -95,6 +98,8 @@ const instanteMs = (s: string) => Date.parse(s.length === 10 ? `${s}T00:00:00Z` 
 export type StatusIncidente = 'aberto' | 'avaliado' | 'comunicado' | 'encerrado';
 export type IncidenteImportado = {
   titulo: string; descricao: string; ciencia_em: string; risco_titular?: Risco | null; comunicacao_anpd_em?: string | null; comunicacao_titular_em?: string | null; status: StatusIncidente;
+  origem_alerta?: string | null; severidade?: string | null; tipo?: string | null; comprometimento?: string[] | null; titulares_estimados?: number | null;
+  criterios_risco?: string[] | null; fim_em?: string | null; anpd_protocolo?: string | null; anpd_canal?: string | null; anpd_justificativa?: string | null;
 };
 
 /**
@@ -104,7 +109,8 @@ export type IncidenteImportado = {
  * em `prazos_vencidos`). A rotina de avisos dá carência na semana ISO da criação ao prazo que nasceu vencido; depois, o atraso volta.
  */
 export async function importarIncidente(db: D1Database, projectId: string, ator: string, d: IncidenteImportado): Promise<Falha | { ok: true; id: string; protocolo: string; prazos_vencidos: string[] }> {
-  for (const [campo, v] of [['ciencia_em', d.ciencia_em], ['comunicacao_anpd_em', d.comunicacao_anpd_em], ['comunicacao_titular_em', d.comunicacao_titular_em]] as const) {
+  if ((d.anpd_protocolo || d.anpd_canal) && !d.comunicacao_anpd_em) return falha(400, 'Protocolo e canal da ANPD exigem a data da comunicação à ANPD');
+  for (const [campo, v] of [['ciencia_em', d.ciencia_em], ['comunicacao_anpd_em', d.comunicacao_anpd_em], ['comunicacao_titular_em', d.comunicacao_titular_em], ['fim_em', d.fim_em]] as const) {
     if (v == null) continue;
     if (!ehInstante(v)) return falha(400, `${campo} precisa ser uma data (AAAA-MM-DD) ou data e hora ISO`);
     if (instanteMs(v) > Date.now() + 60_000) return falha(400, `${campo} não pode estar no futuro`);
@@ -124,10 +130,14 @@ export async function importarIncidente(db: D1Database, projectId: string, ator:
   const prazoTitular = await prazo('incidente.comunicacao_titular', d.comunicacao_titular_em, 'titular');
   const id = crypto.randomUUID();
   const protocolo = await comProtocolo(db, projectId, d.ciencia_em, (protocolo) => db.prepare(
-    `INSERT INTO incidentes (id, project_id, protocolo, titulo, descricao, ciencia_em, risco_titular, comunicacao_anpd_em, comunicacao_titular_em, prazo_anpd_em, prazo_titular_em, status, criado_por)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO incidentes (id, project_id, protocolo, titulo, descricao, ciencia_em, risco_titular, comunicacao_anpd_em, comunicacao_titular_em, prazo_anpd_em, prazo_titular_em, status, criado_por,
+       origem_alerta, severidade, tipo, comprometimento, titulares_estimados, criterios_risco, fim_em, anpd_protocolo, anpd_canal, anpd_justificativa)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, projectId, protocolo, d.titulo, d.descricao, d.ciencia_em, d.risco_titular ?? null, d.comunicacao_anpd_em ?? null, d.comunicacao_titular_em ?? null,
-    prazoAnpd, prazoTitular, d.status, ator).run());
+    prazoAnpd, prazoTitular, d.status, ator, d.origem_alerta ?? null, d.severidade ?? null, d.tipo ?? null,
+    d.comprometimento?.length ? JSON.stringify(d.comprometimento) : null, d.titulares_estimados ?? null,
+    d.criterios_risco?.length ? JSON.stringify(d.criterios_risco) : null, d.fim_em ?? null, d.anpd_protocolo ?? null, d.anpd_canal ?? null,
+    d.anpd_justificativa ?? null).run());
   if (!protocolo) return falha(409, 'Não foi possível gerar o protocolo; tente de novo');
   await logAudit(db, 'incidente.importado', ator, `Incidente ${protocolo} (${d.status}) importado do histórico; ciência em ${d.ciencia_em}`, '', '', projectId);
   return { ok: true, id, protocolo, prazos_vencidos: vencidos };
@@ -142,9 +152,10 @@ export type RegistroIncidente = {
   titulo?: string; descricao?: string | null; ocorrido_em?: string | null; responsavel_parte_id?: string | null; origem_alerta?: string | null;
   severidade?: string | null; tipo?: string | null; comprometimento?: string[]; titulares_estimados?: number | null; criterios_risco?: string[];
   fim_em?: string | null; areas?: string[]; dados?: { titular_id: string; dado_id: string }[];
+  anpd_protocolo?: string | null; anpd_canal?: string | null; anpd_justificativa?: string | null;
 };
 const CAMPOS_REGISTRO = ['titulo', 'descricao', 'ocorrido_em', 'responsavel_parte_id', 'origem_alerta', 'severidade', 'tipo', 'comprometimento',
-  'titulares_estimados', 'criterios_risco', 'fim_em'] as const; // allowlist: o nome da coluna nunca vem do corpo
+  'titulares_estimados', 'criterios_risco', 'fim_em', 'anpd_protocolo', 'anpd_canal', 'anpd_justificativa'] as const; // allowlist: o nome da coluna nunca vem do corpo
 const EM_JSON = new Set(['comprometimento', 'criterios_risco']);
 const mesmoConjunto = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
 const AINDA_ABERTO = `EXISTS (SELECT 1 FROM incidentes WHERE id = ? AND status <> 'encerrado')`;
@@ -163,6 +174,8 @@ export async function atualizarIncidente(db: D1Database, projectId: string, id: 
   const ocorrido = d.ocorrido_em !== undefined ? d.ocorrido_em : i.ocorrido_em;
   const fim = d.fim_em !== undefined ? d.fim_em : i.fim_em;
   if (ocorrido && fim && quando(fim) < quando(ocorrido)) return falha(400, 'O fim não pode ser antes da ocorrência');
+  // Protocolo e canal descrevem uma comunicação que aconteceu: só depois de registrada (a justificativa vale antes, para o atraso ou a dispensa).
+  if ((d.anpd_protocolo || d.anpd_canal) && !i.comunicacao_anpd_em) return falha(409, 'Registre a comunicação à ANPD antes do protocolo e do canal');
   if (d.responsavel_parte_id && !(await db.prepare('SELECT 1 FROM partes WHERE id = ? AND project_id = ?').bind(d.responsavel_parte_id, projectId).first())) return falha(400, 'responsavel_parte_id inexistente ou de outro projeto');
   // Áreas e dados do cadastro DESTE projeto: conferidos antes (400 com o motivo), o gatilho do banco é a segunda trava.
   if (d.areas?.length) {
@@ -221,7 +234,9 @@ export async function avaliarRisco(db: D1Database, projectId: string, id: string
 }
 
 /** Registra que a comunicação foi feita (à ANPD ou ao titular). Sem data, vale agora. A data não pode estar no futuro. */
-export async function registrarComunicacao(db: D1Database, projectId: string, id: string, ator: string, d: { destino: 'anpd' | 'titular'; em?: string }): Promise<Falha | { ok: true }> {
+export async function registrarComunicacao(db: D1Database, projectId: string, id: string, ator: string,
+  d: { destino: 'anpd' | 'titular'; em?: string; anpd_canal?: string | null; anpd_protocolo?: string | null }): Promise<Falha | { ok: true }> {
+  if (d.destino === 'titular' && (d.anpd_canal || d.anpd_protocolo)) return falha(400, 'Canal e protocolo são da comunicação à ANPD');
   const i = await lerIncidente(db, projectId, id);
   if (!i) return falha(404, 'Incidente não encontrado');
   if (i.status === 'encerrado') return falha(409, 'Incidente encerrado não muda');
@@ -231,7 +246,9 @@ export async function registrarComunicacao(db: D1Database, projectId: string, id
   const coluna = d.destino === 'anpd' ? 'comunicacao_anpd_em' : 'comunicacao_titular_em'; // vem da lista fechada do tipo, nunca do corpo cru
   // A primeira data registrada é a oficial: uma segunda aba ou um reenvio não a sobrescreve.
   if (i[coluna]) return falha(409, `Comunicação ${d.destino === 'anpd' ? 'à ANPD' : 'ao titular'} já registrada em ${String(i[coluna]).slice(0, 10)}`);
-  const r = await db.prepare(`UPDATE incidentes SET ${coluna} = ?, status = 'comunicado', updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'encerrado' AND ${coluna} IS NULL`).bind(em, id, projectId).run();
+  const anpd = d.destino === 'anpd' ? ', anpd_canal = coalesce(?, anpd_canal), anpd_protocolo = coalesce(?, anpd_protocolo)' : '';
+  const extra = d.destino === 'anpd' ? [d.anpd_canal ?? null, d.anpd_protocolo ?? null] : [];
+  const r = await db.prepare(`UPDATE incidentes SET ${coluna} = ?${anpd}, status = 'comunicado', updated_at = datetime('now') WHERE id = ? AND project_id = ? AND status <> 'encerrado' AND ${coluna} IS NULL`).bind(em, ...extra, id, projectId).run();
   if (!r.meta.changes) return falha(409, 'O incidente mudou enquanto você editava; recarregue');
   await logAudit(db, 'incidente.comunicacao', ator, `Incidente ${i.protocolo}: comunicação ${d.destino === 'anpd' ? 'à ANPD' : 'ao titular'} em ${em}`, '', '', projectId);
   return { ok: true };

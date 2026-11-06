@@ -33,6 +33,7 @@ por uma pessoa antes de gravar. Arquivo com outro cabeçalho segue pelo caminho 
 | ripd | `ripd.csv` | RIPD em rascunho, com necessidade, medidas e risco residual | RIPD |
 | lia | `lia.csv` | LIA em rascunho, com as quatro seções | LIA |
 | pedidos | `pedidos.csv` | pedido do titular (sem titular) | Solicitações |
+| incidentes | `incidentes.csv` | incidente com o registro completo e a comunicação à ANPD (colunas de severidade em diante opcionais; sem titular; áreas e titulares x dados se ligam pela tela) | Gestão de incidentes |
 
 Convenções: listas separadas por `|`; sim/não; notas de 1 a 5; datas AAAA-MM-DD ou DD/MM/AAAA; opções como no exemplo (acento e caixa
 não importam: "Em andamento" vale `em_andamento`). A atividade de riscos, gaps, impacto, ciclo e bases é a **finalidade** exatamente como
