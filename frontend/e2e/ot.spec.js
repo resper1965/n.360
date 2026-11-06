@@ -372,6 +372,7 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
     const json = (o, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(o) });
     const chave = `${req.method()} ${path}`;
     if (chave === `GET ${B}/sites/s1/sensores`) return json({ sensores });
+    if (chave === `GET ${B}/sensores/pontos`) return json({ ativos: 3, fluxos: 1 });
     if (chave === `POST ${B}/sites/s1/sensores`) {
       posts.push(req.postDataJSON());
       sensores.push({ id: 'z1', nome: 'Sonda do barramento', faixa_origem: '203.0.113.0/24', situacao: 'ativa', saude: 'em_dia', ultimo_envio: new Date(Date.now() - 2 * 3600000).toISOString(),
@@ -411,4 +412,5 @@ test('sondas: o consultor cria a sonda, vê a credencial uma vez e o cartão de 
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('1 de 1');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Último resumo há 2 h');
   await expect(page.locator('#ot-cartoes-coleta')).toContainText('Pontos a esclarecer');
+  await expect(page.locator('#ot-cartoes-coleta')).toContainText('3 ativos');
 });

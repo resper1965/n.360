@@ -106,26 +106,39 @@ describe('área Sondas', () => {
 
 describe('cartões do Levantamento', () => {
     const LEVS = { levantamentos: [{ id: 'lv1', site_id: 's1', tipo: 'documento', realizado_em: '2026-11-04', situacao: 'encerrado', criado_por: 'sensor:z1', achados: 3, roteiro: {} }] };
-    const SESSAO = { levantamento: LEVS.levantamentos[0], achados: [
-        { id: 'a1', entidade: 'ativo', situacao: 'rascunho', evidencia: 'Sensor de rede (Zeek): 10 conexões' },
-        { id: 'a2', entidade: 'fluxo', situacao: 'rascunho', evidencia: 'Sensor de rede (Zeek): 5 conexões' },
-        { id: 'a3', entidade: 'ativo', situacao: 'descartado', evidencia: 'Sensor de rede (Zeek): 1' }] };
+    const PONTOS = { [`GET ${B}/sensores/pontos`]: { ativos: 1, fluxos: 2 } };
+    const cartoes = async () => { await vi.waitFor(() => expect(el('ot-cartoes-coleta')).not.toBeNull()); return el('ot-cartoes-coleta').textContent; };
 
-    it('mostra a saúde (N de M, último resumo) e os pontos a esclarecer separados em ativos e fluxos', async () => {
-        await abrir('levantamento', { [`GET ${B}/levantamentos`]: LEVS, [`GET ${B}/levantamentos/lv1`]: SESSAO, [`GET ${B}/sites/s1/sensores`]: SONDAS });
-        const t = el('ot-cartoes-coleta').textContent;
+    it('desenha a lista antes dos cartões; mostra N de M, último resumo e a contagem do servidor em uma só chamada', async () => {
+        await abrir('levantamento', { [`GET ${B}/levantamentos`]: LEVS, [`GET ${B}/sites/s1/sensores`]: SONDAS, ...PONTOS });
+        expect(el('c').textContent).toContain('Entrevistas, visitas');
+        const t = await cartoes();
         expect(t).toContain('Saúde da coleta');
         expect(t).toContain('1 de 2');
         expect(t).toContain('Último resumo há 2 h');
         expect(t).toContain('Pontos a esclarecer');
         expect(t).toContain('1 ativo');
-        expect(t).toContain('1 fluxo');
+        expect(t).toContain('2 fluxos');
+        expect(t).toContain('Sensor de rede');
+        expect(chamadas.filter((c) => c.k.includes('/levantamentos/lv1'))).toHaveLength(0); // sem leitura por sessão
     });
 
     it('sem sonda, ou sem ver o completo, não mostra os cartões', async () => {
         await abrir('levantamento', { [`GET ${B}/levantamentos`]: LEVS, [`GET ${B}/sites/s1/sensores`]: { sensores: [] } });
+        await pausa();
         expect(el('ot-cartoes-coleta')).toBeNull();
         await abrir('levantamento', { [`GET ${B}/levantamentos`]: LEVS, [`GET ${B}/sites/s1/sensores`]: [403, { error: 'Forbidden' }] });
+        await pausa();
         expect(el('ot-cartoes-coleta')).toBeNull();
+    });
+});
+
+describe('falha que não é 403', () => {
+    it('a área avisa e mantém os sites que carregaram', async () => {
+        await abrir('acessos', { [`GET ${B}/sites`]: { sites: [{ id: 's1', nome: 'SE Norte' }, { id: 's2', nome: 'SE Sul' }] },
+            [`GET ${B}/sites/s1/sensores`]: SONDAS, [`GET ${B}/sites/s2/sensores`]: [500, { error: 'boom' }] });
+        const area = el('ot-sondas');
+        expect(area.textContent).toContain('Não foi possível carregar as sondas de alguns sites');
+        expect(area.textContent).toContain('Em dia');
     });
 });

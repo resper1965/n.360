@@ -2,6 +2,9 @@ import { S } from '../state.js';
 import { api } from '../api.js';
 import { escapeHTML, renderDataTable, renderStatusBadge, openModal, showToast, confirmar, formatarData } from '../ui.js';
 import { mensagemDeErro, lista, semRepetir } from '../ot-comum.js';
+import { seloDoAchado } from './ot-levantamento.js';
+
+const EVIDENCIA_SENSOR = 'Sensor de rede (Zeek): ';
 
 // n.ot, sonda de rede com envio automático (plano 2026-11-05, Task 8): a área "Sondas" por site na aba Acessos e agente e os cartões
 // "Saúde da coleta" e "Pontos a esclarecer" no topo do Levantamento, sobre /ot/sites/:sid/sensores e /ot/sensores* (src/routes/ot.ts).
@@ -28,12 +31,11 @@ export function haQuanto(iso, agora = Date.now()) {
 }
 const diasAte = (iso) => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / DIA));
 
-/** Sondas ativas de cada site; null se a pessoa não vê o inventário completo (403) ou a leitura falhar. */
+/** Sondas ativas de cada site. null se a pessoa não vê o inventário completo (403: a área some em silêncio); `falhas` conta os sites que não carregaram por outro erro. */
 async function lerSondas(p, sites) {
-    try {
-        const rs = await Promise.all(sites.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(s.id)}/sensores`)));
-        return sites.map((s, i) => ({ site: s, sensores: lista(rs[i], 'sensores') }));
-    } catch { return null; }
+    const rs = await Promise.allSettled(sites.map((s) => api('GET', `/api/v1/projects/${p.id}/ot/sites/${encodeURIComponent(s.id)}/sensores`)));
+    if (rs.some((r) => r.status === 'rejected' && r.reason?.status === 403)) return null;
+    return { por: sites.map((s, i) => ({ site: s, sensores: rs[i].status === 'fulfilled' ? lista(rs[i].value, 'sensores') : [] })), falhas: rs.filter((r) => r.status === 'rejected').length };
 }
 
 // ─── área "Sondas" (aba Acessos e agente) ───────────────────────────────────────
@@ -54,11 +56,13 @@ function linha(s) {
 /** HTML do bloco Sondas (um por site), ou '' para quem não vê o inventário completo. */
 export async function areaSondas(p, sites) {
     if (!sites.length) return '';
-    const por = await lerSondas(p, sites);
-    if (!por) return '';
+    const lidas = await lerSondas(p, sites);
+    if (!lidas) return '';
+    const { por, falhas } = lidas;
     return `<section class="card mt-6" id="ot-sondas" aria-labelledby="ot-sondas-titulo">
         <h3 id="ot-sondas-titulo">Sondas</h3>
         <p class="org-header-intro">Uma sonda de rede envia o resumo do tráfego sozinha, todo dia. Os pontos novos entram como rascunho no Levantamento, e nada vai ao inventário sem revisão.</p>
+        ${falhas ? '<p class="org-dica" role="alert">Não foi possível carregar as sondas de alguns sites. Tente de novo em instantes.</p>' : ''}
         ${por.map(({ site, sensores }) => `<div class="d-flex gap-2 items-center mt-3"><h4>${escapeHTML(site.nome)}</h4>
             <button class="btn btn-sm btn-primary" data-action="otNovaSonda" data-args='${args(site.id)}' aria-label="${escapeHTML(`Nova sonda em ${site.nome}`)}">Nova sonda</button></div>
             ${renderDataTable(['Sonda', 'Situação', 'Último envio', 'Perda de captura', 'Credencial', 'Ações'], sensores.map(linha), { emptyMessage: 'Nenhuma sonda neste site.' })}`).join('')}</section>`;
@@ -135,31 +139,23 @@ window.otRevogarSonda = (id, nome) => semRepetir('otRevogarSonda', async () => {
 });
 
 // ─── cartões no topo do Levantamento ────────────────────────────────────────────
-const TETO_SESSOES = 20; // sessões de sonda mais recentes lidas para contar os pontos (não há rota que liste os achados do projeto)
-
-/** Cartões "Saúde da coleta" e "Pontos a esclarecer"; '' se o projeto não tem sonda ou a pessoa não vê o inventário completo. */
-export async function cartoesColeta(p, sites, levs) {
-    const por = await lerSondas(p, sites);
-    const sensores = (por || []).flatMap((x) => x.sensores);
-    if (!sensores.length) return '';
+/** Preenche #ot-cartoes-slot depois de a lista ser desenhada. Sem sonda, ou sem ver o inventário completo, o espaço fica vazio. */
+export async function preencherCartoes(p, sites) {
+    const lidas = await lerSondas(p, sites);
+    const sensores = (lidas?.por || []).flatMap((x) => x.sensores);
+    if (!sensores.length) return;
+    let pontos = null;
+    try { pontos = await api('GET', `/api/v1/projects/${p.id}/ot/sensores/pontos`); } catch { /* o cartão de saúde segue sem a contagem */ }
+    const slot = el('ot-cartoes-slot');
+    if (!slot) return; // outra tela já foi desenhada
     const emDia = sensores.filter((s) => s.saude === 'em_dia').length;
     const ultimo = sensores.map((s) => s.ultimo_envio).filter(Boolean).sort().pop();
-    // Pontos a esclarecer: rascunhos das sessões criadas pela sonda (criado_por 'sensor:<id>') com o selo na evidência.
-    const sessoes = levs.filter((l) => String(l.criado_por || '').startsWith('sensor:') && l.achados > 0).slice(0, TETO_SESSOES);
-    let ativos = 0, fluxos = 0, parcial = false;
-    const lidas = await Promise.all(sessoes.map((l) => api('GET', `/api/v1/projects/${p.id}/ot/levantamentos/${encodeURIComponent(l.id)}`).catch(() => null)));
-    for (const r of lidas) {
-        if (!r) { parcial = true; continue; }
-        for (const x of lista(r, 'achados')) {
-            if (x.situacao !== 'rascunho' || !String(x.evidencia || '').startsWith('Sensor de rede (Zeek): ')) continue;
-            if (x.entidade === 'fluxo') fluxos++; else ativos++;
-        }
-    }
     const corSaude = emDia === sensores.length ? 'success' : emDia ? 'warning' : 'danger';
-    return `<div class="d-flex gap-3 mb-4" id="ot-cartoes-coleta">
+    const n = (v, um, varios) => `<strong>${v}</strong> ${v === 1 ? um : varios}`;
+    slot.innerHTML = `<div class="d-flex gap-3 mb-4" id="ot-cartoes-coleta">
         <section class="card" aria-labelledby="ot-saude-titulo"><h3 id="ot-saude-titulo">Saúde da coleta</h3>
         <p>${renderStatusBadge(corSaude, `${emDia} de ${sensores.length}`)} <span>· Último resumo ${escapeHTML(ultimo ? haQuanto(ultimo) : 'nunca')}</span></p></section>
         <section class="card" aria-labelledby="ot-pontos-titulo"><h3 id="ot-pontos-titulo">Pontos a esclarecer</h3>
-        <p><strong>${ativos}</strong> ${ativos === 1 ? 'ativo' : 'ativos'} · <strong>${fluxos}</strong> ${fluxos === 1 ? 'fluxo' : 'fluxos'} <span class="badge selo-info">Sensor de rede</span></p>
-        <p class="org-dica">Rascunhos que a sonda trouxe e ninguém revisou${parcial ? '. Algumas sessões não carregaram, então a conta pode estar menor' : ''}.</p></section></div>`;
+        ${pontos ? `<p>${n(pontos.ativos, 'ativo', 'ativos')} · ${n(pontos.fluxos, 'fluxo', 'fluxos')} <span class="badge selo-info">${seloDoAchado({ evidencia: EVIDENCIA_SENSOR })}</span></p>
+        <p class="org-dica">Rascunhos que a sonda trouxe e ninguém revisou.</p>` : '<p class="org-dica">Não foi possível contar os pontos agora.</p>'}</section></div>`;
 }

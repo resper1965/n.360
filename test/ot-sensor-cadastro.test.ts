@@ -115,6 +115,45 @@ describe('cadastro de sondas', () => {
   });
 });
 
+describe('pontos a esclarecer', () => {
+  let gestor: H, cli: H;
+  beforeAll(async () => {
+    // o esquema e os projetos vêm do describe acima (mesmo arquivo, mesmo banco)
+    await env.DB.prepare(`INSERT INTO users (id, email, password_hash, name, role, client_project_id) VALUES
+      ('u-g2', 'g2@cliente.teste', 'x', 'Gestor', 'org_admin', 'proj-a'), ('u-c2', 'c2@cliente.teste', 'x', 'Leitura', 'client', 'proj-a')`).run();
+    await concederModulos(['u-g2', 'u-c2'], ['ot']);
+    gestor = await sessionFor({ id: 'u-g2', email: 'g2@cliente.teste', role: 'org_admin', client_project_id: 'proj-a' });
+    cli = await sessionFor({ id: 'u-c2', email: 'c2@cliente.teste', role: 'client', client_project_id: 'proj-a' });
+    const SENSOR = 'Sensor de rede (Zeek): 5 conexões';
+    const ach = (id: string, lev: string, proj: string, ent: string, sit: string, ev: string) =>
+      env.DB.prepare(`INSERT INTO ot_achados (id, project_id, levantamento_id, entidade, situacao, evidencia, criado_por) VALUES (?, ?, ?, ?, ?, ?, 'x')`).bind(id, proj, lev, ent, sit, ev);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome, status) VALUES ('p-ok', 'proj-a', 'SE ok', 'ativo'), ('p-off', 'proj-a', 'SE off', 'removido'), ('p-b', 'proj-b', 'SE b', 'ativo')`),
+      env.DB.prepare(`INSERT INTO ot_levantamentos (id, project_id, site_id, tipo, realizado_em, criado_por) VALUES
+        ('pl-ok', 'proj-a', 'p-ok', 'documento', '2026-11-04', 'sensor:z'), ('pl-off', 'proj-a', 'p-off', 'documento', '2026-11-04', 'sensor:z'), ('pl-b', 'proj-b', 'p-b', 'documento', '2026-11-04', 'sensor:z')`),
+      ach('x1', 'pl-ok', 'proj-a', 'ativo', 'rascunho', SENSOR), ach('x2', 'pl-ok', 'proj-a', 'ativo', 'rascunho', SENSOR), ach('x3', 'pl-ok', 'proj-a', 'fluxo', 'rascunho', SENSOR),
+      ach('x4', 'pl-ok', 'proj-a', 'ativo', 'enviado', SENSOR), ach('x5', 'pl-ok', 'proj-a', 'ativo', 'descartado', SENSOR),
+      ach('x6', 'pl-ok', 'proj-a', 'ativo', 'rascunho', 'Entrevista com o operador'),
+      ach('x7', 'pl-off', 'proj-a', 'ativo', 'rascunho', SENSOR), ach('x8', 'pl-b', 'proj-b', 'ativo', 'rascunho', SENSOR),
+    ]);
+  });
+
+  it('conta rascunhos da sonda por entidade; ignora enviado, descartado, outra evidência, site não permitido e outro projeto', async () => {
+    const r = await chamar(gestor, 'GET', `${P}/ot/sensores/pontos`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ativos: 2, fluxos: 1 });
+  });
+
+  it('quem vê mascarado: 403', async () => {
+    expect((await chamar(cli, 'GET', `${P}/ot/sensores/pontos`)).status).toBe(403);
+  });
+
+  it('não grava trilha de dado sensível', async () => {
+    const { results } = await env.DB.prepare(`SELECT 1 FROM audit_logs WHERE action = 'ot.inventario.ver_sensivel'`).all();
+    expect(results).toHaveLength(0);
+  });
+});
+
 describe('situacaoSensor / vencendo', () => {
   const agora = new Date('2026-11-05T12:00:00Z');
   const h = (n: number) => new Date(agora.getTime() - n * 3_600_000).toISOString();

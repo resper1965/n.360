@@ -795,6 +795,19 @@ otApp.get('/sites/:sid/sensores', async (c) => {
   } catch (e) { return erro500(c, 'Falha ao listar as sondas', e); }
 });
 
+// Pontos a esclarecer: rascunhos que a sonda trouxe, por entidade, só em sessões de sites permitidos. Só contagem: sem decifrar, sem confronto, sem trilha.
+otApp.get('/sensores/pontos', async (c) => {
+  try {
+    const { db, user, projectId, sites } = await contexto(c);
+    if (!await podeVerCompleto(db, user, projectId)) return SO_COMPLETO_SONDA(c);
+    const { results } = await db.prepare(`SELECT a.entidade, count(*) AS n FROM ot_achados a JOIN ot_levantamentos l ON l.id = a.levantamento_id AND l.project_id = a.project_id
+      WHERE a.project_id = ? AND a.situacao = 'rascunho' AND a.evidencia LIKE 'Sensor de rede (Zeek): %' AND l.status = 'ativo' AND l.site_id IN (SELECT value FROM json_each(?))
+      GROUP BY a.entidade LIMIT 10`).bind(projectId, sites).all<{ entidade: string; n: number }>();
+    const n = (e: string) => results.find((r) => r.entidade === e)?.n ?? 0;
+    return c.json({ ativos: n('ativo'), fluxos: n('fluxo') });
+  } catch (e) { return erro500(c, 'Falha ao contar os pontos a esclarecer', e); }
+});
+
 otApp.post('/sites/:sid/sensores', async (c) => {
   try {
     const { db, user, projectId, sites } = await contexto(c);
