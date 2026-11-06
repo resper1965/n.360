@@ -68,18 +68,21 @@ export async function handlerOtSensor(req: Request, env: Bindings, ctx: Executio
   const ins = await db.prepare(`INSERT INTO ot_sensor_envios (id, sensor_id, project_id, impressao, periodo_inicio, periodo_fim, capture_loss, versao_script)
     SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT count(*) FROM ot_sensor_envios WHERE sensor_id = ? AND situacao = 'concluido'
       AND created_at >= datetime('now', '-1 day')) < ${TETO_ENVIOS_DIA}
-    ON CONFLICT (sensor_id, impressao) DO NOTHING`)
-    .bind(envioId, sensor.id, sensor.projectId, impressao, p.inicio, p.fim, resumo.capture_loss ?? null, resumo.versao_script ?? null, sensor.id).run();
+    ON CONFLICT (sensor_id, impressao) DO NOTHING RETURNING atualizado_em`)
+    .bind(envioId, sensor.id, sensor.projectId, impressao, p.inicio, p.fim, resumo.capture_loss ?? null, resumo.versao_script ?? null, sensor.id)
+    .first<{ atualizado_em: string }>();
+  // `marca` = o atualizado_em que este pedido gravou: toda escrita no envio é guardada por ela, para não mexer numa linha assumida por outro.
+  let marca = ins?.atualizado_em;
   let levantamentoId: string | null = null;
-  if (!ins.meta.changes) {
+  if (!marca) {
     const e = await db.prepare(`SELECT id, situacao, levantamento_id, atualizado_em < datetime('now', '-10 minutes') AS velho FROM ot_sensor_envios
       WHERE sensor_id = ? AND impressao = ?`).bind(sensor.id, impressao).first<{ id: string; situacao: string; levantamento_id: string | null; velho: number }>();
     if (!e) return recusa(429, `Limite de ${TETO_ENVIOS_DIA} envios por dia desta sonda atingido. Tente de novo amanhã.`);
     if (e.situacao === 'concluido') return json({ recebido: true, envio_id: e.id }, 200);
     // Processando há 10 min ou mais: o pedido anterior morreu; assume a linha (só um pedido vence o UPDATE) e reusa a sessão anotada.
-    const assumiu = e.velho && (await db.prepare(`UPDATE ot_sensor_envios SET atualizado_em = CURRENT_TIMESTAMP WHERE id = ? AND situacao = 'processando'
-      AND atualizado_em < datetime('now', '-10 minutes')`).bind(e.id).run()).meta.changes;
-    if (!assumiu) return recusa(503, 'Resumo em processamento: reenvie mais tarde');
+    marca = e.velho ? (await db.prepare(`UPDATE ot_sensor_envios SET atualizado_em = CURRENT_TIMESTAMP WHERE id = ? AND situacao = 'processando'
+      AND atualizado_em < datetime('now', '-10 minutes') RETURNING atualizado_em`).bind(e.id).first<{ atualizado_em: string }>())?.atualizado_em : undefined;
+    if (!marca) return recusa(503, 'Resumo em processamento: reenvie mais tarde');
     envioId = e.id;
     levantamentoId = e.levantamento_id;
   }
@@ -93,29 +96,41 @@ export async function handlerOtSensor(req: Request, env: Bindings, ctx: Executio
     if (novos.ativos.length + novos.macs.length + novos.fluxos.length + novos.pendentes.length) {
       if (!levantamentoId) {
         // Sessão de documento já encerrada, anotada no envio antes dos achados: quem assumir a linha depois reusa esta sessão.
-        levantamentoId = genId();
-        await db.batch([
+        // A sessão só nasce se este pedido ainda é dono da linha (a guarda vai no INSERT e no UPDATE do mesmo batch).
+        const novo = genId();
+        const [, anotou] = await db.batch([
           db.prepare(`INSERT INTO ot_levantamentos (id, project_id, site_id, tipo, realizado_em, documento_titulo, situacao, encerrado_em, criado_por)
-            VALUES (?, ?, ?, 'documento', ?, ?, 'encerrado', CURRENT_TIMESTAMP, ?)`)
-            .bind(levantamentoId, sensor.projectId, sensor.siteId, hojeEmSaoPaulo(), `Sonda ${sensor.nome} · ${ddmm(p.inicio)} a ${ddmm(p.fim)}`, `sensor:${sensor.id}`),
-          db.prepare('UPDATE ot_sensor_envios SET levantamento_id = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?').bind(levantamentoId, envioId),
+            SELECT ?, ?, ?, 'documento', ?, ?, 'encerrado', CURRENT_TIMESTAMP, ?
+            WHERE EXISTS (SELECT 1 FROM ot_sensor_envios WHERE id = ? AND situacao = 'processando' AND atualizado_em = ?)`)
+            .bind(novo, sensor.projectId, sensor.siteId, hojeEmSaoPaulo(), `Sonda ${sensor.nome} · ${ddmm(p.inicio)} a ${ddmm(p.fim)}`, `sensor:${sensor.id}`, envioId, marca),
+          db.prepare(`UPDATE ot_sensor_envios SET levantamento_id = ? WHERE id = ? AND situacao = 'processando' AND atualizado_em = ?`).bind(novo, envioId, marca),
         ]);
+        if (!anotou.meta.changes) throw new Error('envio assumido por outro pedido');
+        levantamentoId = novo;
       }
       const evidencia = EVIDENCIA_SENSOR(resumo.conexoes.reduce((n, x) => n + x.contagem, 0), p.inicio, p.fim);
       k = await deps.gravarPlano(db, chaves, { projectId: sensor.projectId, siteId: sensor.siteId, levantamentoId, criadoPor: `sensor:${sensor.id}`, evidencia, plano: novos });
     }
     const contagens = { ...k, ativos_conhecidos: plano.contagem.ativos_conhecidos, repetidos };
-    await db.prepare(`UPDATE ot_sensor_envios SET situacao = 'concluido', contagens = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?`)
-      .bind(JSON.stringify(contagens), envioId).run();
+    const fim = await db.prepare(`UPDATE ot_sensor_envios SET situacao = 'concluido', contagens = ?, atualizado_em = CURRENT_TIMESTAMP
+      WHERE id = ? AND situacao = 'processando' AND atualizado_em = ?`).bind(JSON.stringify(contagens), envioId, marca).run();
+    if (!fim.meta.changes) {
+      // Outro pedido assumiu a linha no meio: só responde 200 se o envio ficou concluído; senão a sonda reenvia.
+      console.error('ot.sensor.resumo: envio assumido por outro pedido antes de concluir', envioId);
+      const c = await db.prepare(`SELECT id FROM ot_sensor_envios WHERE sensor_id = ? AND impressao = ? AND situacao = 'concluido'`)
+        .bind(sensor.id, impressao).first<{ id: string }>();
+      return c ? json({ recebido: true, envio_id: c.id }, 200) : recusa(503, 'Resumo em processamento: reenvie mais tarde');
+    }
     // O envio já foi gravado: falha da trilha não pode virar 5xx (a sonda reenviaria à toa). Sem IP nem credencial na trilha.
     await logAudit(db, 'ot.sensor.resumo', `sensor:${sensor.id}`, `Envio ${envioId} da sonda ${sensor.id}: levantamento ${levantamentoId ?? 'nenhum'}; `
       + Object.entries(contagens).map(([c, n]) => `${c} ${n}`).join(', '), '', '', sensor.projectId, { tipo: 'ot_sensor', id: sensor.id })
       .catch((e) => console.error('ot.sensor.resumo: falha na trilha', e));
     return json({ recebido: true, envio_id: envioId }, 200);
   } catch (e) {
-    // Apaga a linha deste pedido: um reenvio imediato reprocessa (o filtro de novidade pula o que já foi gravado).
-    await db.prepare(`DELETE FROM ot_sensor_envios WHERE id = ? AND situacao = 'processando'`).bind(envioId).run()
-      .catch((x) => console.error('ot.sensor.resumo: falha ao apagar o envio', x));
+    // Libera a linha deste pedido (atualizado_em volta para antes da janela de 10 min): o reenvio imediato a assume, reusa a sessão
+    // anotada nela e o filtro de novidade pula o que já foi gravado. A guarda pela `marca` não toca numa linha assumida por outro.
+    await db.prepare(`UPDATE ot_sensor_envios SET atualizado_em = datetime('now', '-11 minutes') WHERE id = ? AND situacao = 'processando' AND atualizado_em = ?`)
+      .bind(envioId, marca).run().catch((x) => console.error('ot.sensor.resumo: falha ao liberar o envio', x));
     console.error('ot.sensor.resumo', e);
     return recusa(500, 'Falha ao processar o resumo');
   }

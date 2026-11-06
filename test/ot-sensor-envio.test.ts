@@ -233,12 +233,14 @@ describe('envio', () => {
     expect((await r2.json<{ error: string }>()).error).toContain('em processamento');
   });
 
-  it('★ falha no meio: 5xx, a linha sai; o reenvio cria o que falta (não "já recebido") e o total é o de um envio limpo', async () => {
+  it('★ falha no meio: 5xx e a linha fica liberada; o reenvio a assume, reusa a sessão e o total é o de um envio limpo', async () => {
     const c = resumo(17);
     const metade: typeof gravarPlano = async (db, ch, a) => {
       await gravarPlano(db, ch, { ...a, plano: { ...a.plano, ativos: a.plano.ativos.slice(0, 2), macs: [], fluxos: [], pendentes: a.plano.pendentes.slice(0, 1) } });
       throw new Error('falha forçada');
     };
+    const sessoes = () => conta(`SELECT count(*) AS n FROM ot_levantamentos WHERE criado_por = 'sensor:sen1'`);
+    const antes = await sessoes();
     const errs: unknown[] = [];
     const orig = console.error;
     console.error = (...x: unknown[]) => { errs.push(x); };
@@ -247,29 +249,33 @@ describe('envio', () => {
     expect(r.status).toBeGreaterThanOrEqual(500);
     expect(errs).toHaveLength(1);
     const imp = await sha256Hex(c);
-    expect(await conta('SELECT count(*) AS n FROM ot_sensor_envios WHERE impressao = ?', imp)).toBe(0);
+    const liberada = (await env.DB.prepare(`SELECT id, situacao, levantamento_id, atualizado_em < datetime('now', '-10 minutes') AS velho
+      FROM ot_sensor_envios WHERE impressao = ?`).bind(imp).first<{ id: string; situacao: string; levantamento_id: string; velho: number }>())!;
+    expect(liberada).toMatchObject({ situacao: 'processando', velho: 1 });
+    expect(await daSessao(liberada.levantamento_id)).toEqual([2, 1]);
+    expect(await sessoes()).toBe(antes + 1);
     const r2 = await enviar(c);
     expect(r2.status).toBe(200);
+    expect(await r2.json()).toEqual({ recebido: true, envio_id: liberada.id });
     const e = (await env.DB.prepare('SELECT situacao, levantamento_id, contagens FROM ot_sensor_envios WHERE impressao = ?').bind(imp).first<Record<string, string>>())!;
-    expect(e.situacao).toBe('concluido');
+    expect(e).toMatchObject({ situacao: 'concluido', levantamento_id: liberada.levantamento_id });
     expect(JSON.parse(e.contagens)).toMatchObject({ ativos_novos: 2, fluxos_pendentes: 1, repetidos: 3 });
-    // a sessão do primeiro pedido (órfã: a linha do envio saiu) e a do reenvio somam o conjunto de um envio limpo
-    const sess = await env.DB.prepare(`SELECT id FROM ot_levantamentos WHERE criado_por = 'sensor:sen1' AND id NOT IN (SELECT levantamento_id FROM ot_sensor_envios
-      WHERE levantamento_id IS NOT NULL AND impressao <> ?)`).bind(imp).all<{ id: string }>();
-    const somas = await Promise.all(sess.results.map((s) => daSessao(s.id)));
-    expect(somas.reduce((a, [x, y]) => [a[0] + x, a[1] + y], [0, 0])).toEqual([4, 2]);
+    expect(await sessoes()).toBe(antes + 1); // nenhuma sessão nova
+    expect(await daSessao(liberada.levantamento_id)).toEqual([4, 2]);
   });
 
   it('★ dois envios simultâneos do mesmo corpo: um único conjunto de achados; 200 e 200 ou 503', async () => {
     const c = resumo(18);
-    const rs = await Promise.all([enviar(c), enviar(c)]);
+    const sessoes = () => conta(`SELECT count(*) AS n FROM ot_levantamentos WHERE criado_por = 'sensor:sen2'`);
+    const antes = await sessoes();
+    const rs = await Promise.all([enviar(c, { k: cred(2) }), enviar(c, { k: cred(2) })]);
     const st = rs.map((r) => r.status).sort();
     expect(st[0]).toBe(200);
     expect([200, 503]).toContain(st[1]);
-    const envios = await env.DB.prepare('SELECT levantamento_id FROM ot_sensor_envios WHERE impressao = ?').bind(await sha256Hex(c)).all<{ levantamento_id: string }>();
+    const envios = await env.DB.prepare(`SELECT levantamento_id FROM ot_sensor_envios WHERE sensor_id = 'sen2' AND impressao = ?`).bind(await sha256Hex(c))
+      .all<{ levantamento_id: string }>();
     expect(envios.results).toHaveLength(1);
     expect(await daSessao(envios.results[0].levantamento_id)).toEqual([4, 2]);
-    expect(await conta(`SELECT count(*) AS n FROM ot_levantamentos WHERE documento_titulo LIKE 'Sonda SE sen1%' AND id NOT IN
-      (SELECT levantamento_id FROM ot_sensor_envios WHERE levantamento_id IS NOT NULL)`)).toBe(1); // só a sessão órfã do teste de falha no meio
+    expect(await sessoes()).toBe(antes + 1);
   });
 });
