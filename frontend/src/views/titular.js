@@ -493,6 +493,7 @@ async function renderIncidenteFicha(c, h, a) {
     try { i = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}`); }
     catch (e) { if (minha === seqInc) { h.textContent = 'Incidente'; c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível abrir o incidente', texto: (e && e.message) || '', acao: voltar }); } return; }
     if (minha !== seqInc) return;
+    a.innerHTML = `${voltar} <button type="button" class="btn" data-action="baixarIncidenteWord" data-args='${args(projectId, id)}'>Baixar em Word</button>`;
     const aba = abaIncDoEndereco();
     const editar = podeRegistrar() && i.status !== 'encerrado';
     const encerrar = podeEditar() && i.status !== 'encerrado';
@@ -597,6 +598,7 @@ async function carregarHistorico(projectId, id) {
             <p class="at-nota">${escapeHTML(x.nome || '')} · ${formatarData(x.data, { hora: true })}</p></li>`).join('')}</ul>`
         : '<p class="at-nota">Nenhum registro ainda. Registro, alterações, análises, ações, comunicações e encerramento passam a aparecer aqui.</p>'}`;
 }
+window.baixarIncidenteWord = (projectId, id) => baixarArquivo(`/api/v1/projects/${projectId}/incidentes/${id}/docx`).catch((e) => falha(e, 'Não foi possível gerar o Word'));
 window.exportarHistoricoIncidente = (projectId, id) => baixarArquivo(`/api/v1/projects/${projectId}/incidentes/${id}/historico/csv`).catch((e) => falha(e, 'Não foi possível exportar o histórico'));
 
 // Confirmação na própria janela (o app não usa confirm()). Sem a comunicação à ANPD (e com risco), a pergunta diz isso.

@@ -45,6 +45,8 @@ export async function salvarPostmortem(
       ).bind(incidenteId, projectId, id, v, ator)
       : db.prepare('DELETE FROM incidente_postmortem WHERE incidente_id = ? AND project_id = ? AND pergunta = ?').bind(incidenteId, projectId, id);
   }));
-  await logAudit(db, 'incidente.postmortem', ator, `Incidente ${i.protocolo}: ${ids.length} resposta(s)`, '', '', projectId, { tipo: 'incidente', id: incidenteId });
+  // A tela manda as 14 de uma vez: a trilha conta o que ficou preenchido, não o que veio no corpo.
+  const n = (await db.prepare('SELECT count(*) AS n FROM incidente_postmortem WHERE incidente_id = ? AND project_id = ?').bind(incidenteId, projectId).first<{ n: number }>())?.n ?? 0;
+  await logAudit(db, 'incidente.postmortem', ator, `Incidente ${i.protocolo}: ${n} de ${PERGUNTAS_POSTMORTEM.length} respondidas`, '', '', projectId, { tipo: 'incidente', id: incidenteId });
   return { ok: true };
 }

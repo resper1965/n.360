@@ -13,6 +13,10 @@ import { documentoAtual, hashConteudo } from './pedidos';
 import { ORG_NESS } from './organizacao';
 import { logoComoDataUri } from './logo-org';
 import { ESTRATEGIA, NIVEL, STATUS, traduz } from './exportacao';
+import { lerIncidente } from './incidentes';
+import { listarAnalises, lerHistoricoIncidente } from './incidente-analises';
+import { listarAcoesDoIncidente } from './incidente-acoes';
+import { lerPostmortem } from './incidente-postmortem';
 
 /**
  * RIPD e LIA em Word (F4). Tudo é lido AO VIVO da origem única (pré-preenchimento): a empresa (`empresas`, 0071), o encarregado
@@ -236,5 +240,79 @@ export async function documentoEmWord(db: D1Database, projectId: string, documen
   return montar(db, projectId, {
     nome: nomeArquivo('Documento', d.titulo), titulo: txt(d.titulo), rascunho: !vigente, corpo,
     rodape: `Gerado pelo n.privacy em ${dataBr(new Date().toISOString())}. Versão ${v.numero}${txt(v.hash) ? `, conteúdo ${txt(v.hash).slice(0, 8)}` : ''}.`,
+  }, storage);
+}
+
+// Incidente (fatia 7): os rótulos são os da tela (`frontend/src/views/titular.js`); os valores, os do servidor (`src/schemas/nucleo.ts`).
+const STATUS_INCIDENTE: Record<string, string> = { aberto: 'Aberto', avaliado: 'Avaliado', comunicado: 'Comunicado', encerrado: 'Encerrado' };
+const RISCO_TITULAR: Record<string, string> = { sem_risco: 'Sem risco', baixo: 'Baixo', relevante: 'Relevante' };
+const SEVERIDADE: Record<string, string> = { baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica' };
+const TIPO_INCIDENTE: Record<string, string> = { acesso_indevido: 'Acesso indevido', vazamento: 'Vazamento ou exposição', perda: 'Perda ou extravio',
+  indisponibilidade: 'Indisponibilidade', alteracao_indevida: 'Alteração indevida', terceiro: 'Incidente em terceiro (fornecedor ou operador)',
+  malware: 'Malware ou ransomware', engenharia_social: 'Engenharia social', outro: 'Outro' };
+const COMPROMETIMENTO: Record<string, string> = { confidencialidade: 'Confidencialidade', integridade: 'Integridade', disponibilidade: 'Disponibilidade' };
+const CRITERIO_RISCO: Record<string, string> = { sensiveis: 'Dados sensíveis', criancas_idosos: 'Crianças, adolescentes ou idosos', financeiros: 'Dados financeiros',
+  autenticacao: 'Autenticação em sistemas', sigilo: 'Sigilo legal, judicial ou profissional', larga_escala: 'Larga escala', nenhum: 'Não afeta nenhum dos critérios' };
+const CANAL_ANPD: Record<string, string> = { sei: 'Peticionamento eletrônico (SEI)', formulario_anpd: 'Formulário da ANPD', email: 'E-mail', outro: 'Outro' };
+const TRATAMENTO_ACAO: Record<string, string> = { contencao: 'Contenção', correcao: 'Correção', aperfeicoamento: 'Aperfeiçoamento' };
+const rotulos = (mapa: Record<string, string>, xs: string[]) => xs.map((x) => mapa[x] ?? x).join(', ');
+// Instante (SQLite `AAAA-MM-DD HH:MM:SS` é UTC, como lê a tela em `frontend/src/ui.js`; ISO com fuso respeita o fuso) sai na hora de
+// Brasília; só data fica como está.
+const HORA_SP = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const dataHora = (v: unknown) => {
+  const t = txt(v);
+  if (!/[T ]\d{2}:\d{2}/.test(t)) return t ? dataBr(t) : '';
+  const d = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(t) ? t : `${t.replace(' ', 'T')}Z`);
+  return Number.isNaN(d.getTime()) ? dataBr(t) : HORA_SP.format(d).replace(',', '');
+};
+
+/**
+ * O incidente em Word (fatia 7): registro, risco, comunicações, análises, ações corretivas, post mortem e o histórico resumido (os 100
+ * eventos mais recentes, sem texto livre, como na aba). Lido ao vivo pelos mesmos serviços das abas. Antes do encerramento sai como
+ * rascunho. null = o incidente não é do projeto.
+ */
+export async function incidenteEmWord(db: D1Database, projectId: string, incidenteId: string, storage?: R2Bucket): Promise<Gerado | null> {
+  const i = await lerIncidente(db, projectId, incidenteId);
+  if (!i) return null;
+  const [ident, analises, acoes, postmortem, historico, resp] = await Promise.all([
+    identificacao(db, projectId), listarAnalises(db, projectId, incidenteId, ''), listarAcoesDoIncidente(db, projectId, incidenteId),
+    lerPostmortem(db, projectId, incidenteId), lerHistoricoIncidente(db, projectId, incidenteId, 100),
+    i.responsavel_parte_id ? db.prepare('SELECT nome FROM partes WHERE id = ? AND project_id = ?').bind(i.responsavel_parte_id, projectId).first<{ nome: string }>() : null,
+  ]);
+  const encerrado = i.status === 'encerrado';
+  const comunicacao = (feita: string | null, prazo: string | null) => feita ? `Comunicada em ${dataHora(feita)}` : prazo ? `Pendente, prazo ${dataHora(prazo)}` : 'Pendente, prazo não calculado';
+  const corpo: Bloco[] = [
+    ...ident,
+    titulo('Registro'), ...campos([
+      ['Protocolo', i.protocolo], ['Título', i.titulo], ['Situação', STATUS_INCIDENTE[i.status] ?? i.status], ['Responsável', resp?.nome],
+      ['Origem do alerta', i.origem_alerta], ['Severidade', i.severidade ? SEVERIDADE[i.severidade] : ''], ['Tipo', i.tipo ? TIPO_INCIDENTE[i.tipo] : ''],
+      ['Início', dataHora(i.ocorrido_em)], ['Ciência', dataHora(i.ciencia_em)], ['Fim', dataHora(i.fim_em)],
+      ['Áreas afetadas', i.areas.map((a) => a.nome).join(', ')], ['Comprometimento', rotulos(COMPROMETIMENTO, i.comprometimento)],
+      ['Titulares estimados', i.titulares_estimados ?? ''], ['Critérios de risco', rotulos(CRITERIO_RISCO, i.criterios_risco)],
+      ['Descrição', i.descricao],
+    ]),
+    ...(i.dados.length ? [titulo('Titulares e dados afetados'), tabela(['Titulares', 'Dado', 'Sensível'], i.dados.map((d) => [d.titular, d.dado, simNao(d.sensivel)])), par('')] : []),
+    titulo('Risco ao titular'), ...campos([['Avaliação', i.risco_titular ? RISCO_TITULAR[i.risco_titular] : 'Não avaliado'], ['Justificativa', i.avaliacao_texto]]),
+    titulo('Comunicação'), ...campos([
+      ['ANPD', comunicacao(i.comunicacao_anpd_em, i.prazo_anpd_em)], ['Canal', i.anpd_canal ? CANAL_ANPD[i.anpd_canal] : ''],
+      ['Protocolo na ANPD', i.anpd_protocolo], ['Protocolo interno', i.anpd_protocolo_interno], ['Justificativa', i.anpd_justificativa],
+      ['Titulares', comunicacao(i.comunicacao_titular_em, i.prazo_titular_em)],
+    ]),
+    titulo('Análises'),
+    ...(analises?.length ? analises.flatMap((a) => [par(`${txt(a.autor_nome) || a.autor} · ${dataHora(a.created_at)}`, { bold: true }), par(a.texto)]) : [par('Nenhuma análise.')]),
+    titulo('Ações corretivas'),
+    ...(acoes?.length ? [tabela(['Protocolo', 'Ação', 'Tratamento', 'Responsável', 'Prazo', 'Situação'], (acoes as Linha[]).map((a) => [
+      txt(a.protocolo), txt(a.title), TRATAMENTO_ACAO[txt(a.tratamento)] ?? 'Não informado', ou(a.assigned_to_parte_nome, '—'),
+      a.due_date ? dataBr(txt(a.due_date)) : '—', traduz(STATUS, a.status || 'Open')])), par('')] : [par('Nenhuma ação.')]),
+    titulo('Post mortem'),
+    ...(postmortem?.aberto ? campos(postmortem.perguntas.map((q, n): [string, unknown] => [`${n + 1}. ${q.texto}`, q.resposta]))
+      : [par('Abre depois do encerramento do incidente.')]),
+    titulo('Histórico'),
+    ...(historico?.length ? [tabela(['Data', 'Evento', 'Detalhe', 'Quem'], historico.map((h) => [dataHora(h.data), h.evento, h.detalhe ?? '', h.nome])), par('')]
+      : [par('Nenhum registro.')]),
+  ];
+  return montar(db, projectId, {
+    nome: nomeArquivo('Incidente', i.protocolo), titulo: `Incidente ${i.protocolo}`, rascunho: !encerrado, corpo,
+    rodape: `Gerado pelo n.360 em ${dataBr(new Date().toISOString())}.`,
   }, storage);
 }

@@ -759,7 +759,7 @@ Cria `incidente_postmortem` (uma resposta por pergunta das 14 do legado, `src/da
 gatilhos `incidente_postmortem_ins` e `incidente_postmortem_upd`, que só aceitam resposta de incidente ENCERRADO do mesmo projeto, também
 por SQL direto. Aditiva e repetível. Fatia 5 da spec `2026-11-04-incidentes-legado-design`. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name IN ('incidente_postmortem','incidente_postmortem_ins','incidente_postmortem_upd')` (3 linhas).
-Produção só com o "sim" do dono e backup antes.
+Aplicada em produção em 06/11/2026, com backup antes: a conferência deu 3 linhas.
 
 ## 0102 — análise de incidente encerrado não muda por UPDATE (2026-11-06)
 

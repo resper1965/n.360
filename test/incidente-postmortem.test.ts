@@ -48,7 +48,8 @@ describe('post mortem do incidente', () => {
     r = await json(await chamar(ana, 'GET', `${B}/incidentes/ipm-enc/postmortem`));
     expect(r.perguntas.every((p: any) => p.resposta === null)).toBe(true);
     const { historico } = await json(await chamar(ana, 'GET', `${B}/incidentes/ipm-enc/historico`));
-    expect(historico[0]).toMatchObject({ evento: 'Post mortem', detalhe: '2 resposta(s)', nome: 'Ana Exemplo' });
+    expect(historico.map((h: any) => h.detalhe)).toEqual(['0 de 14 respondidas', '2 de 14 respondidas']);
+    expect(historico[0]).toMatchObject({ evento: 'Post mortem', nome: 'Ana Exemplo' });
     expect(JSON.stringify(historico)).not.toMatch(/sigiloso/);
   });
 
