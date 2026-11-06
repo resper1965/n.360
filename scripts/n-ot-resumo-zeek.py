@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Resume logs JSON do Zeek em resumo.json (n.ot-resumo-rede/1). So biblioteca padrao.
 Uso: python3 n-ot-resumo-zeek.py <pasta-de-logs> [-o resumo.json] [--ultimas-horas N]
-     python3 n-ot-resumo-zeek.py <pasta-de-logs> --enviar [--conf /etc/n-ot-sonda.conf] [--estado /var/lib/n-ot-sonda]
+     python3 n-ot-resumo-zeek.py <pasta-de-logs> --enviar [--so-fila] [--conf /etc/n-ot-sonda.conf] [--estado /var/lib/n-ot-sonda]
 Le apenas IP, MAC, portas, protocolo e horarios; nunca payload, usuario, URI, arquivo ou certificado."""
 import argparse, fnmatch, gzip, ipaddress, json, os, re, sys, time, urllib.error, urllib.parse, urllib.request
 from datetime import datetime, timezone
@@ -240,12 +240,20 @@ def ler_conf(caminho):
     return conf
 
 
+class SemRedirecionar(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a):
+        return None  # o 3xx vira HTTPError: o Authorization nunca segue para outro endereco
+
+
+ABRIR = urllib.request.build_opener(SemRedirecionar).open
+
+
 def postar(conf, corpo):
     """(codigo HTTP ou None em falha de rede, texto do motivo)."""
     req = urllib.request.Request(conf["url"], data=corpo, method="POST", headers={
         "Authorization": "Bearer " + conf["credencial"], "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with ABRIR(req, timeout=60) as resp:
             return resp.status, ""
     except urllib.error.HTTPError as e:
         texto = e.read(2000).decode("utf-8", "replace")
@@ -294,13 +302,14 @@ def esvaziar(estado, conf, agora):
             codigo, motivo = postar(conf, f.read())
         if codigo in (200, 400, 413) and os.path.exists(espera_json):
             os.remove(espera_json)  # o n.360 respondeu: a espera recomeca
+            espera = {}
         if codigo == 200:
             os.remove(caminho)
             log("enviado %s" % nome)
         elif codigo in (400, 413):
             rejeitar(caminho, rejeitados, "HTTP %d: %s" % (codigo, motivo))
             saida = 1
-        elif codigo in (401, 403):
+        elif codigo in (401, 403) or (codigo and 300 <= codigo < 400):  # 3xx: url errada na conf
             log("erro: HTTP %d: %s; envio interrompido, a fila fica" % (codigo, motivo))
             return 1
         else:
@@ -312,8 +321,8 @@ def esvaziar(estado, conf, agora):
     return saida
 
 
-def enviar(pasta, conf_caminho, estado, horas=24, agora=None):
-    """Poe o resumo das ultimas horas na fila e esvazia a fila."""
+def enviar(pasta, conf_caminho, estado, horas=24, agora=None, so_fila=False):
+    """Poe o resumo das ultimas horas na fila e esvazia a fila; com so_fila, so esvazia (timer de 5 min das esperas)."""
     agora = time.time() if agora is None else agora
     try:
         conf = ler_conf(conf_caminho)
@@ -324,6 +333,8 @@ def enviar(pasta, conf_caminho, estado, horas=24, agora=None):
         os.makedirs(os.path.join(estado, sub), mode=0o700, exist_ok=True)
     saida = 0
     try:
+        if so_fila:
+            return esvaziar(estado, conf, agora)
         r = resumir(pasta, janela=(agora - horas * 3600, agora))
         nome = datetime.fromtimestamp(agora, timezone.utc).strftime("%Y%m%dT%H%M%S") + ".json"
         gravar(os.path.join(estado, "fila", nome), caber(r))
@@ -342,9 +353,10 @@ def main(argv=None):
     ap.add_argument("--enviar", action="store_true", help="poe o resumo na fila e envia ao n.ot")
     ap.add_argument("--conf", default="/etc/n-ot-sonda.conf")
     ap.add_argument("--estado", default="/var/lib/n-ot-sonda")
+    ap.add_argument("--so-fila", action="store_true", help="com --enviar: nao gera resumo, so esvazia a fila")
     args = ap.parse_args(argv)
     if args.enviar:
-        return enviar(args.pasta, args.conf, args.estado, args.ultimas_horas or 24)
+        return enviar(args.pasta, args.conf, args.estado, args.ultimas_horas or 24, so_fila=args.so_fila)
     agora = time.time()
     try:
         r = resumir(args.pasta, janela=(agora - args.ultimas_horas * 3600, agora) if args.ultimas_horas else None)

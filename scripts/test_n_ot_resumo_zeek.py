@@ -201,6 +201,7 @@ class T(unittest.TestCase):
         # bacnet: https://github.com/cisagov/icsnpp-bacnet/blob/a04c08110328a57514383c626e5d4ad53aad57b1/scripts/icsnpp/bacnet/main.zeek#L154
         # opcua-binary: https://github.com/cisagov/icsnpp-opcua-binary/blob/d7fd8894d23baabcaf59989abc3cbab6b469c074/scripts/icsnpp/opcua-binary/main.zeek#L616
         # spicy_profinet_io_cm (analisador Spicy, nome dado pelo Zeek; o pacote nao chama add c$service):
+        #   baseline btest do proprio pacote (conn.log com service = spicy_profinet_io_cm):
         #   https://github.com/cisagov/icsnpp-profinet-io-cm/blob/4fa4d446efff2f01d8921c7455fb6e1298856041/testing/baseline/tests.profinet_io_cm_read/conn.log
         r = resumo.resumir(os.path.join(AQUI, "fixtures-zeek-icsnpp"))
         self.assertEqual({c["destino"]: c["aplicacao"] for c in r["conexoes"]},
@@ -230,6 +231,12 @@ class Servidor(http.server.BaseHTTPRequestHandler):
         corpo = self.rfile.read(int(self.headers["Content-Length"]))
         Servidor.recebidos.append((self.headers["Authorization"], corpo))
         codigo = Servidor.codigos.pop(0)
+        if codigo == 302:
+            self.send_response(302)
+            self.send_header("Location", "http://127.0.0.1:%d/outro" % self.server.server_port)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         texto = json.dumps({"recebido": True, "envio_id": "e1"} if codigo == 200 else {"error": "motivo %d" % codigo}).encode()
         self.send_response(codigo)
         self.send_header("Content-Length", str(len(texto)))
@@ -334,6 +341,32 @@ class Enviar(unittest.TestCase):
         self.assertEqual(self.rodar([200] * 6, agora), 0)
         self.assertEqual(self.pasta("fila"), [])
         self.assertFalse(os.path.exists(os.path.join(self.estado, "espera.json")))
+
+    def test_200_zera_as_falhas(self):
+        os.makedirs(self.estado)
+        with open(os.path.join(self.estado, "espera.json"), "w") as f:
+            json.dump({"proxima": AGORA - 1, "falhas": 3}, f)
+        self.na_fila("20261031T000000.json", "antigo")
+        self.assertNotEqual(self.rodar([200, 503]), 0)
+        self.assertEqual(self.espera() - AGORA, 60)
+
+    def test_redirecionamento_para_sem_seguir(self):
+        self.na_fila("20261031T000000.json", "antigo")
+        self.assertNotEqual(self.rodar([302, 200]), 0)
+        self.assertEqual(len(Servidor.recebidos), 1)  # nao seguiu o 302 nem tentou o segundo
+        self.assertEqual(len(self.pasta("fila")), 2)
+        self.assertFalse(os.path.exists(os.path.join(self.estado, "espera.json")))
+        self.assertIn("HTTP 302", self.err.getvalue())
+
+    def test_so_fila(self):
+        vazia = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, vazia)
+        self.na_fila("20261031T000000.json", "antigo")
+        Servidor.codigos = [200]
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(resumo.main([vazia, "--enviar", "--so-fila", "--conf", self.conf, "--estado", self.estado]), 0)
+        self.assertEqual([json.loads(c) for _, c in Servidor.recebidos], [{"marca": "antigo"}])
+        self.assertEqual(self.pasta("fila"), [])
 
     def test_mais_de_7_dias_vai_para_rejeitados(self):
         self.na_fila("20261025T000000.json", "velho")  # 7 dias e 1 h antes de AGORA
