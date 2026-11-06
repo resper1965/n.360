@@ -129,7 +129,7 @@ import {
   tratamentoItensSchema, tratamentoDepartamentosSchema, tratamentoTransferenciaSchema, ropaImportarSchema, liaSalvarSchema, tratamentoImpactoSchema, tratamentoCicloSchema, tratamentoBasesSchema,
   riscoAtividadeCriarSchema, riscoAtividadeAtualizarSchema, acaoAtividadeCriarSchema, acaoAtividadeAtualizarSchema,
   terceiroTipoSchema, avaliacaoTerceiroSchema, terceiroDocumentoSchema, criticidadeTerceiroSchema,
-  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, tratativaSchema, portalAbrirSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteAtualizarSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, consentimentoCriarSchema,
+  parametroLegalSchema, titularPedidoCriarSchema, titularPedidoAtualizarSchema, tratativaSchema, portalAbrirSchema, incidenteCriarSchema, incidenteRiscoSchema, incidenteAtualizarSchema, incidenteComunicacaoSchema, incidenteRascunhoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, titularIdentidadeSchema, encaminhamentoCriarSchema, encaminhamentoAtualizarSchema, consentimentoCriarSchema,
   evidenciaValidadeSchema, importacaoItemSchema, importacaoItensDecidirSchema, similaresSchema, copilotoRopaSchema,
 } from './schemas';
 import {
@@ -381,6 +381,9 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/criticidades', schema: criticidadeTerceiroSchema, nome: 'criticidadeTerceiroSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/documentos', schema: terceiroDocumentoSchema, nome: 'terceiroDocumentoSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/terceiros/:parteId/tipo', schema: terceiroTipoSchema, nome: 'terceiroTipoSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/titular-pedidos/:id/encaminhamentos/:encId', schema: encaminhamentoAtualizarSchema, nome: 'encaminhamentoAtualizarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/titular-pedidos/:id/encaminhamentos', schema: encaminhamentoCriarSchema, nome: 'encaminhamentoCriarSchema' },
+  { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/titular-pedidos/:id/identidade', schema: titularIdentidadeSchema, nome: 'titularIdentidadeSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/titular-pedidos/:id/tratativas', schema: tratativaSchema, nome: 'tratativaSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/titular-pedidos/:id', schema: titularPedidoAtualizarSchema, nome: 'titularPedidoAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/titular-pedidos', schema: titularPedidoCriarSchema, nome: 'titularPedidoCriarSchema' },

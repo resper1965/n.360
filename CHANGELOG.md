@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.privacy: conferência de identidade e encaminhamento a ponto focal (migration 0104)
+- No pedido do titular, o bloco "Identidade do titular" registra como a identidade foi conferida (documento com foto, dados cadastrais, canal autenticado, presencial ou outro), com observação curta e quem e quando conferiu. É só registro: responder sem a conferência pede confirmação, e a lista marca os pedidos abertos sem ela.
+- "Encaminhar" manda o pedido a uma pessoa do cadastro, com prazo interno e mensagem. O ponto focal recebe um e-mail sem os dados do titular e responde por fora; o DPO registra o retorno ou cancela. O encaminhamento vira tratativa e o prazo entra nos avisos (no dia e no atraso).
+- Rotas `PUT /projects/:id/titular-pedidos/:id/identidade`, `GET|POST .../encaminhamentos` e `PUT .../encaminhamentos/:encId`; só equipe e administrador do cliente; fora do agente MCP e da chave de API.
+- Migration 0104 (aditiva): quatro colunas em `titular_pedidos` e a tabela `titular_pedido_encaminhamentos`.
+
 ### n.privacy: CSV das Solicitações, hora de Brasília nas exportações e roteiro de aceite
 - "Exportar CSV" na lista de Solicitações (`GET /projects/:id/export/pedidos-titular`, faixa `privacy`, fora do agente), com os filtros de tipo e status da tela: protocolo, tipo, canal, recebido em, prazo, situação do prazo, status e respondido em. Não leva nome, contato, descrição nem resposta do titular.
 - O CSV do Histórico do incidente passa a sair na hora de Brasília, como o Word (`dataHoraBr` em `src/services/exportacao.ts`, o mesmo auxiliar nos dois).

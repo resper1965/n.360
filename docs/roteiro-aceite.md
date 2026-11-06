@@ -44,7 +44,7 @@ Antes de começar:
 | 3.4 | Exclua "Saúde" e marque "Mostrar inativos" | Some da lista; volta com o filtro, com o selo Inativo e o botão Reativar. Reative. |
 | 3.5 | Áreas: crie "RH" com uma descrição | Aparece com a descrição. Edite e inative. |
 | 3.6 | Ativos: crie "ERP Exemplo" com uma descrição | Aparece na lista com Ativo, Descrição e Empresa. |
-| 3.7 | Pessoas: crie "Responsável Exemplo" | Só pessoas aparecem aqui; organizações ficam em Parceiros e Fornecedores. |
+| 3.7 | Pessoas: crie "Responsável Exemplo", com um e-mail seu | Só pessoas aparecem aqui; organizações ficam em Parceiros e Fornecedores. |
 | 3.8 | Parceiros: crie "Fornecedor Exemplo" | A organização aparece na lista. |
 | 3.9 | Empresas: abra "Dados da empresa" e preencha à mão | Salva sem depender da consulta de CNPJ. Se a consulta falhar, a mensagem pede o preenchimento à mão e nada bloqueia. |
 | 3.10 | Ainda em Empresas, digite um CNPJ com o último dígito trocado | O sistema recusa o CNPJ inválido. Com um CNPJ válido, a consulta (administrador da plataforma ou da consultoria) preenche razão social e endereço. |
@@ -107,10 +107,14 @@ Antes de começar:
 |---|---|---|
 | 8.1 | Solicitações: registre um pedido | Recebe um protocolo PT-AAAA-NNNN, com Canal. O prazo aparece, ou "não calculado" se o parâmetro legal não estiver cadastrado. |
 | 8.2 | Abra o pedido e registre uma tratativa ("Nova tratativa") | A tratativa entra no histórico do atendimento. |
-| 8.3 | "Link do portal" → "Gerar link" | Mostra o link do portal de solicitações. |
-| 8.4 | Abra o link numa janela anônima e envie uma solicitação | A página devolve o protocolo. O pedido aparece em Solicitações com o canal Formulário. |
-| 8.5 | "Gerar novo link" e tente o link antigo | O sistema avisa antes de trocar; o link antigo para de funcionar. Desative o portal no fim. |
-| 8.6 | Filtre a lista por Tipo e "Exportar CSV" | A planilha abre no Excel em português, só com os pedidos do filtro: protocolo, tipo, canal, datas na hora de Brasília, prazo e status. Não leva nome, contato nem descrição do titular. |
+| 8.3 | No pedido, "Identidade do titular": escolha "Presencial", uma observação, e "Registrar conferência" | Mostra o método e "Conferida por <você> em <data>". Uma observação com número de documento é recusada. |
+| 8.4 | Noutro pedido, sem conferência, mude o status para Respondido e salve | Pergunta "Identidade não conferida. Responder mesmo assim?". Na lista, os pedidos abertos sem conferência têm o selo. |
+| 8.5 | "Encaminhar" a "Responsável Exemplo" (com e-mail) com prazo e mensagem | O encaminhamento aparece com o prazo e "Aguardando"; vira uma tratativa. O e-mail ao ponto focal não traz nome, contato nem descrição do titular. |
+| 8.6 | "Registrar retorno" com um texto; noutro encaminhamento, "Cancelar" | O retorno fica registrado; o cancelado pede confirmação e sai de "Aguardando". |
+| 8.7 | "Link do portal" → "Gerar link" | Mostra o link do portal de solicitações. |
+| 8.8 | Abra o link numa janela anônima e envie uma solicitação | A página devolve o protocolo. O pedido aparece em Solicitações com o canal Formulário. |
+| 8.9 | "Gerar novo link" e tente o link antigo | O sistema avisa antes de trocar; o link antigo para de funcionar. Desative o portal no fim. |
+| 8.10 | Filtre a lista por Tipo e "Exportar CSV" | A planilha abre no Excel em português, só com os pedidos do filtro: protocolo, tipo, canal, datas na hora de Brasília, prazo e status. Não leva nome, contato nem descrição do titular. |
 
 ## 9. Incidente (n.privacy, Mais → Incidentes)
 

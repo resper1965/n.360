@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables } from '../index';
-import { ehEquipeNess, erro500, logAudit, registraErro } from '../helpers';
+import { ehEquipeNess, erro500, logAudit, registraErro, sendEmail } from '../helpers';
 import { appUrl } from '../config/url';
 import { lerParametros, removerParametro, salvarParametro } from '../services/parametros-legais';
 import { atualizarPedido, criarPedido, lerPedido, listarPedidos, gerarPortal, lerPortal, desativarPortal, listarTratativas, adicionarTratativa } from '../services/titular-pedidos';
@@ -8,13 +8,17 @@ import { guardarAnexoIncidente, listarAnexosIncidente, baixarAnexoIncidente, apa
 import { listarAcoesDoIncidente, criarAcaoDoIncidente, atualizarAcaoDoIncidente } from '../services/incidente-acoes';
 import { listarAnalises, criarAnalise, atualizarAnalise, lerHistoricoIncidente } from '../services/incidente-analises';
 import { lerPostmortem, salvarPostmortem } from '../services/incidente-postmortem';
-import { dataHoraBr, montarCsv } from '../services/exportacao';
+import { salvarIdentidade } from '../services/titular-identidade';
+import { listarEncaminhamentos, criarEncaminhamento, atualizarEncaminhamento } from '../services/titular-encaminhamentos';
+import { emailEncaminhamentoTitular } from '../services/emails';
+import { remetente } from '../services/email-layout';
+import { dataHoraBr, montarCsv, TIPO_PEDIDO } from '../services/exportacao';
 import { guardarAnexo, listarAnexos, baixarAnexo, apagarAnexo } from '../services/ropa-abas/anexos';
 import { atualizarIncidente, avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
 import { listarConsentimentos, registrarConsentimento, revogarConsentimento } from '../services/consentimentos';
 import { rascunharComunicacao, rascunharResposta } from '../services/rascunhos-privacy';
 import {
-  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
+  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, titularIdentidadeSchema, encaminhamentoCriarSchema, encaminhamentoAtualizarSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
   titularPedidoAtualizarSchema, titularPedidoCriarSchema, tratativaSchema,
 } from '../schemas';
 
@@ -79,6 +83,54 @@ titularPedidosApp.put('/:id', async (c) => {
     const r = await atualizarPedido(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao atualizar o pedido do titular', e); }
+});
+
+// Conferência de identidade (spec 2026-11-06): pessoa da equipe ou o org_admin do projeto; chave de API e agente, não.
+const podeAtender = (u: { role?: string } | undefined) => ehEquipeNess(u) || u?.role === 'org_admin';
+titularPedidosApp.put('/:id/identidade', async (c) => {
+  try {
+    if (!podeAtender(c.get('user'))) return c.json({ error: 'Forbidden: a conferência de identidade é ato de pessoa, pela interface' }, 403);
+    const v = await validateBody(c, titularIdentidadeSchema);
+    if (!v.success) return v.response;
+    const r = await salvarIdentidade(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao registrar a conferência de identidade', e); }
+});
+
+// Encaminhamento a ponto focal (spec 2026-11-06): o ponto focal recebe e-mail e responde por fora; o DPO registra o retorno.
+titularPedidosApp.get('/:id/encaminhamentos', async (c) => {
+  const l = await listarEncaminhamentos(c.env.DB, c.req.param('projectId')!, c.req.param('id'));
+  return l ? c.json({ encaminhamentos: l }) : c.json({ error: 'Pedido não encontrado' }, 404);
+});
+
+titularPedidosApp.post('/:id/encaminhamentos', async (c) => {
+  try {
+    if (!podeAtender(c.get('user'))) return c.json({ error: 'Forbidden: encaminhar o pedido do titular é ato de pessoa, pela interface' }, 403);
+    const v = await validateBody(c, encaminhamentoCriarSchema);
+    if (!v.success) return v.response;
+    const projectId = c.req.param('projectId')!;
+    const user = c.get('user');
+    const r = await criarEncaminhamento(c.env.DB, projectId, c.req.param('id'), user.email, v.data);
+    if (!r.ok) return c.json({ error: r.error }, r.status);
+    let email_enviado = false;
+    try {
+      const cliente = (await c.env.DB.prepare('SELECT client_name FROM projects WHERE id = ?').bind(projectId).first<string>('client_name')) ?? '';
+      const m = emailEncaminhamentoTitular({ protocolo: r.protocolo, tipo: TIPO_PEDIDO[r.tipo] ?? r.tipo, prazo: v.data.prazo, mensagem: v.data.mensagem, nome: r.parte.nome, quem: { nome: user.name ?? null, email: user.email } });
+      email_enviado = c.env.RESEND_API_KEY ? await sendEmail(c, r.parte.email, m.assunto, m, { from: remetente('n.privacy', cliente), replyTo: user.email }) : false;
+    } catch (e) { registraErro(c, e); }
+    if (!email_enviado) console.log(JSON.stringify({ nivel: 'warn', msg: 'titular_encaminhamento_email_falhou', encaminhamento: r.id }));
+    return c.json({ ok: true, id: r.id, email_enviado }, 201);
+  } catch (e) { return erro500(c, 'Falha ao encaminhar o pedido', e); }
+});
+
+titularPedidosApp.put('/:id/encaminhamentos/:encId', async (c) => {
+  try {
+    if (!podeAtender(c.get('user'))) return c.json({ error: 'Forbidden: registrar o retorno do ponto focal é ato de pessoa, pela interface' }, 403);
+    const v = await validateBody(c, encaminhamentoAtualizarSchema);
+    if (!v.success) return v.response;
+    const r = await atualizarEncaminhamento(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.req.param('encId'), c.get('user').email, v.data);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao atualizar o encaminhamento', e); }
 });
 
 // Rascunho de IA da resposta: nada é gravado; enviar continua sendo o PUT acima.

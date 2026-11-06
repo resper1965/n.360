@@ -15,6 +15,9 @@ import { rotuloDe } from '../rotulos.js';
 const TIPOS_PEDIDO = { confirmacao: 'Confirmação de tratamento', acesso: 'Acesso aos dados', correcao: 'Correção', anonimizacao_bloqueio_eliminacao: 'Anonimização, bloqueio ou eliminação', portabilidade: 'Portabilidade',
     informacao_compartilhamento: 'Informação sobre compartilhamento', revogacao_consentimento: 'Revogação do consentimento', oposicao: 'Oposição', outro: 'Outro' };
 const CANAIS = { email: 'E-mail', telefone: 'Telefone', formulario: 'Formulário', presencial: 'Presencial', outro: 'Outro' };
+// Conferência de identidade e encaminhamento a ponto focal (spec 2026-11-06; valores do servidor em src/schemas/nucleo.ts).
+const METODOS_IDENTIDADE = { documento_foto: 'Documento com foto', dados_cadastrais: 'Dados cadastrais conferidos', canal_autenticado: 'Canal autenticado do cliente', presencial: 'Presencial', outro: 'Outro' };
+const STATUS_ENCAMINHAMENTO = { aguardando: 'Aguardando', respondido: 'Respondido', cancelado: 'Cancelado' };
 const STATUS_PEDIDO = { recebido: 'Recebido', em_andamento: 'Em andamento', respondido: 'Respondido', negado: 'Negado', arquivado: 'Arquivado' };
 const TIPOS_TRATATIVA = { comunicacao_titular: 'Comunicação ao titular', encaminhamento: 'Encaminhamento a ponto focal', evidencia: 'Evidência recebida', nota: 'Nota interna' };
 const PRAZO = { sem_prazo: ['Prazo não calculado', 'neutral'], encerrado: ['Encerrado', 'neutral'], no_prazo: ['No prazo', 'success'], vence_hoje: ['Vence hoje', 'warning'], atrasado: ['Atrasado', 'danger'], comunicado: ['Comunicado', 'success'] };
@@ -128,7 +131,8 @@ async function renderTitular(c, h, a) {
             colunas: colunasDe(['Protocolo', 'Titular', 'Tipo', 'Canal', 'Recebido em', 'Prazo', 'Respondido em', 'Situação', 'Status', 'Ações'], (p) => [
                 `<strong>${escapeHTML(p.protocolo)}</strong>`, escapeHTML(p.titular_nome || '—'), escapeHTML(TIPOS_PEDIDO[p.tipo] || p.tipo), escapeHTML(CANAIS[p.canal] || p.canal || '—'), dia(p.recebido_em),
                 (p.prazo_em ? dia(p.prazo_em) : 'Não calculado'), dia(p.respondido_em),
-                selo(p.situacao_prazo), escapeHTML(STATUS_PEDIDO[p.status] || p.status),
+                selo(p.situacao_prazo) + (['recebido', 'em_andamento'].includes(p.status) && !p.identidade_metodo ? ` ${window.renderStatusBadge('Identidade não conferida', 'warning')}` : ''),
+                escapeHTML(STATUS_PEDIDO[p.status] || p.status),
                 // Atrasado e aberto para quem responde: a ação da linha é responder, não só abrir.
                 registrar && p.situacao_prazo === 'atrasado'
                     ? `<button class="btn btn-sm" data-action="abrirPedidoTitular" data-args='${args(proj.id, p.id)}' aria-label="Responder: ${escapeHTML(p.protocolo)}">Responder</button>`
@@ -231,9 +235,93 @@ window.abrirPedidoTitular = async function (projectId, id) {
                 <button class="btn btn-sm" data-action="localizarDadosDoTitular" data-args='${args(projectId, id)}'>Localizar dados</button>
                 ${p.tipo === 'anonimizacao_bloqueio_eliminacao' ? `<button class="btn btn-sm" data-action="eliminarDadosDoTitular" data-args='${args(projectId, id)}'>Eliminar dados</button>` : ''}
             </div><div id="pt-dados" style="margin-top:0.75rem"></div>` : ''}
+        <div id="pt-identidade-box" class="mt-4"></div>
+        <div id="pt-encaminhamentos-box" class="mt-4"></div>
         <div id="pt-tratativas-box" class="mt-4"></div>`, 'modal-large');
     pedidoAberto = p;
+    montarIdentidade(projectId, p, editar);
+    carregarEncaminhamentos(projectId, id, editar, ['recebido', 'em_andamento'].includes(p.status));
     carregarTratativas(projectId, id, podeRegistrar());
+};
+
+// Conferência de identidade (spec 2026-11-06): só registro; quem e quando vêm do servidor. Não trava responder.
+function montarIdentidade(projectId, p, editar) {
+    const box = el('pt-identidade-box');
+    if (!box) return;
+    const feita = p.identidade_metodo
+        ? `<p>${escapeHTML(METODOS_IDENTIDADE[p.identidade_metodo] || p.identidade_metodo)}${p.identidade_obs ? ` · ${escapeHTML(p.identidade_obs)}` : ''}</p>
+            <p class="at-nota">Conferida por ${escapeHTML(p.identidade_por_nome || p.identidade_por || '')} em ${dia(p.identidade_em)}</p>`
+        : '<p class="at-nota">Identidade não conferida.</p>';
+    const form = editar ? `<div class="form-group mt-2"><label class="form-label" for="pt-id-metodo">Como a identidade foi conferida</label>
+            <select class="form-input" id="pt-id-metodo">${opcoes(METODOS_IDENTIDADE, p.identidade_metodo || 'documento_foto')}</select></div>
+        <div class="form-group"><label class="form-label" for="pt-id-obs">Observação (sem número de documento)</label>
+            <input class="form-input" id="pt-id-obs" maxlength="500" value="${escapeHTML(p.identidade_obs || '')}"></div>
+        <button class="btn btn-sm" data-action="salvarIdentidadeTitular" data-args='${args(projectId, p.id)}'>${p.identidade_metodo ? 'Alterar conferência' : 'Registrar conferência'}</button>` : '';
+    box.innerHTML = `<h4 class="mb-2">Identidade do titular</h4>${feita}${form}`;
+}
+window.salvarIdentidadeTitular = async function (projectId, id) {
+    try {
+        await api('PUT', `/api/v1/projects/${projectId}/titular-pedidos/${id}/identidade`, { metodo: el('pt-id-metodo').value, observacao: valorOuNulo('pt-id-obs') });
+        showToast('Conferência de identidade registrada.', 'success');
+        await window.abrirPedidoTitular(projectId, id);
+    } catch (e) { falha(e, 'Não foi possível registrar a conferência'); }
+};
+
+// Encaminhamento a ponto focal (spec 2026-11-06): pessoa do cadastro com e-mail; ela responde por fora e o DPO registra o retorno.
+async function carregarEncaminhamentos(projectId, id, editar, aberto) {
+    const box = el('pt-encaminhamentos-box');
+    if (!box) return;
+    let es = [];
+    try { es = lista((await api('GET', `/api/v1/projects/${projectId}/titular-pedidos/${id}/encaminhamentos`)).encaminhamentos); } catch (e) { box.innerHTML = '<p class="at-nota">Não foi possível carregar os encaminhamentos.</p>'; return; }
+    const linha = (e) => `<li class="et-linha"><span><strong>${escapeHTML(e.parte_nome || '')}</strong> · prazo ${dia(e.prazo)} ${selo(e.situacao)} · ${escapeHTML(STATUS_ENCAMINHAMENTO[e.status] || e.status)}
+            <br>${escapeHTML(e.mensagem || '')}${e.retorno ? `<br>Retorno: ${escapeHTML(e.retorno)}` : ''}</span>
+        ${editar && e.status === 'aguardando' ? `<div class="form-group mt-2"><textarea class="form-input" id="pt-enc-ret-${escapeHTML(e.id)}" rows="2" maxlength="5000" aria-label="Retorno do ponto focal"></textarea></div>
+            <div class="d-flex gap-2"><button class="btn btn-sm" data-action="registrarRetornoEncaminhamento" data-args='${args(projectId, id, e.id)}'>Registrar retorno</button>
+            <button class="btn btn-ghost btn-sm" data-action="cancelarEncaminhamento" data-args='${args(projectId, id, e.id)}'>Cancelar</button></div>` : ''}</li>`;
+    box.innerHTML = `<h4 class="mb-2">Encaminhamentos</h4>
+        ${es.length ? `<ul class="et-lista">${es.map(linha).join('')}</ul>` : '<p class="at-nota">Nenhum encaminhamento.</p>'}
+        ${editar && aberto ? `<button class="btn btn-sm mt-2" data-action="abrirEncaminhar" data-args='${args(projectId, id)}'>Encaminhar</button><div id="pt-enc-form"></div>` : ''}`;
+}
+window.abrirEncaminhar = async function (projectId, id) {
+    const alvo = el('pt-enc-form');
+    if (!alvo) return;
+    let pessoas = [];
+    try { pessoas = lista(await api('GET', `/api/v1/projects/${projectId}/partes?tipo=pessoa&status=ativa`)).filter((x) => x.email); } catch (e) { falha(e, 'Não foi possível carregar as pessoas'); return; }
+    if (!pessoas.length) { alvo.innerHTML = '<p class="at-nota">Nenhuma pessoa ativa com e-mail no cadastro. Cadastre o ponto focal em Pessoas.</p>'; return; }
+    alvo.innerHTML = `<div class="form-group mt-2"><label class="form-label" for="pt-enc-parte">Ponto focal</label>
+            <select class="form-input" id="pt-enc-parte">${pessoas.map((x) => `<option value="${escapeHTML(x.id)}">${escapeHTML(x.nome)}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label" for="pt-enc-prazo">Prazo interno</label><input class="form-input" id="pt-enc-prazo" type="date" min="${hojeSP()}"></div>
+        <div class="form-group"><label class="form-label" for="pt-enc-msg">Mensagem (vai no e-mail; o e-mail não leva os dados do titular)</label>
+            <textarea class="form-input" id="pt-enc-msg" rows="3" maxlength="2000"></textarea></div>
+        <button class="btn btn-sm" data-action="salvarEncaminhamento" data-args='${args(projectId, id)}'>Enviar encaminhamento</button>`;
+};
+window.salvarEncaminhamento = async function (projectId, id) {
+    const prazo = el('pt-enc-prazo').value;
+    const mensagem = el('pt-enc-msg').value.trim();
+    if (!prazo || !mensagem) { showToast('Informe o prazo e a mensagem.', 'error'); return; }
+    try {
+        const r = await api('POST', `/api/v1/projects/${projectId}/titular-pedidos/${id}/encaminhamentos`, { parte_id: el('pt-enc-parte').value, prazo, mensagem });
+        showToast(r.email_enviado ? 'Pedido encaminhado; o e-mail foi enviado.' : 'Pedido encaminhado, mas o e-mail não foi enviado. Avise o ponto focal por outro canal.', r.email_enviado ? 'success' : 'error');
+        await carregarEncaminhamentos(projectId, id, true, true);
+        await carregarTratativas(projectId, id, true);
+    } catch (e) { falha(e, 'Não foi possível encaminhar o pedido'); }
+};
+window.registrarRetornoEncaminhamento = async function (projectId, id, encId) {
+    const retorno = (el(`pt-enc-ret-${encId}`)?.value || '').trim();
+    if (!retorno) { showToast('Escreva o retorno do ponto focal.', 'error'); return; }
+    try {
+        await api('PUT', `/api/v1/projects/${projectId}/titular-pedidos/${id}/encaminhamentos/${encId}`, { status: 'respondido', retorno });
+        showToast('Retorno registrado.', 'success');
+        await carregarEncaminhamentos(projectId, id, true, ['recebido', 'em_andamento'].includes(pedidoAberto?.status));
+    } catch (e) { falha(e, 'Não foi possível registrar o retorno'); }
+};
+window.cancelarEncaminhamento = async function (projectId, id, encId) {
+    if (!(await confirmar('Cancelar este encaminhamento? O ponto focal não é avisado do cancelamento.', { rotulo: 'Cancelar encaminhamento', perigo: true }))) return;
+    try {
+        await api('PUT', `/api/v1/projects/${projectId}/titular-pedidos/${id}/encaminhamentos/${encId}`, { status: 'cancelado' });
+        showToast('Encaminhamento cancelado.', 'success');
+        await carregarEncaminhamentos(projectId, id, true, ['recebido', 'em_andamento'].includes(pedidoAberto?.status));
+    } catch (e) { falha(e, 'Não foi possível cancelar o encaminhamento'); }
 };
 
 // Tratativas do atendimento: o histórico de passos (comunicação, encaminhamento, evidência, nota). Quem registra o pedido também as registra.
@@ -355,9 +443,14 @@ window.rascunhoRespostaTitular = async function (projectId, id) {
 
 window.usarRascunhoTitular = function () { el('pt-resp').value = el('pt-rascunho-texto').value; };
 
-window.salvarPedidoTitular = (projectId, id) => acao(
+window.salvarPedidoTitular = async (projectId, id) => {
+    // Identidade é só registro (spec 2026-11-06): responder sem a conferência pede confirmação, mas não trava.
+    if (el('pt-status').value === 'respondido' && pedidoAberto && pedidoAberto.id === id && pedidoAberto.status !== 'respondido' && !pedidoAberto.identidade_metodo
+        && !(await confirmar('Identidade não conferida. Responder mesmo assim?', { rotulo: 'Responder' }))) return;
+    return acao(
     () => api('PUT', `/api/v1/projects/${projectId}/titular-pedidos/${id}`, { status: el('pt-status').value, resposta_texto: el('pt-resp').disabled ? undefined : valorOuNulo('pt-resp') }),
     'Não foi possível salvar o pedido', 'Pedido atualizado.', () => window.abrirPedidoTitular(projectId, id));
+};
 
 // ─── Incidentes ───────────────────────────────────────────────────────────────────────────────────
 window.abrirNovoIncidente = function (projectId) {
