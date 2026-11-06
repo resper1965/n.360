@@ -6,12 +6,14 @@ import { lerParametros, removerParametro, salvarParametro } from '../services/pa
 import { atualizarPedido, criarPedido, lerPedido, listarPedidos, gerarPortal, lerPortal, desativarPortal, listarTratativas, adicionarTratativa } from '../services/titular-pedidos';
 import { guardarAnexoIncidente, listarAnexosIncidente, baixarAnexoIncidente, apagarAnexoIncidente, MAX_ANEXO } from '../services/incidente-anexos';
 import { listarAcoesDoIncidente, criarAcaoDoIncidente, atualizarAcaoDoIncidente } from '../services/incidente-acoes';
+import { listarAnalises, criarAnalise, atualizarAnalise, lerHistoricoIncidente } from '../services/incidente-analises';
+import { montarCsv } from '../services/exportacao';
 import { guardarAnexo, listarAnexos, baixarAnexo, apagarAnexo } from '../services/ropa-abas/anexos';
 import { atualizarIncidente, avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
 import { listarConsentimentos, registrarConsentimento, revogarConsentimento } from '../services/consentimentos';
 import { rascunharComunicacao, rascunharResposta } from '../services/rascunhos-privacy';
 import {
-  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
+  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
   titularPedidoAtualizarSchema, titularPedidoCriarSchema, tratativaSchema,
 } from '../schemas';
 
@@ -180,7 +182,7 @@ incidentesApp.post('/:id/anexos', async (c) => {
     const projectId = c.req.param('projectId')!;
     const r = await guardarAnexoIncidente(c.env, projectId, c.req.param('id'), c.get('user').email, { name: arq.name, bytes: await arq.arrayBuffer() });
     if (!r.ok) return c.json({ error: r.error }, r.status);
-    await logAudit(c.env.DB, 'incidente.anexo', c.get('user').email, `Incidente ${c.req.param('id')}: evidência anexada`, '', '', projectId);
+    await logAudit(c.env.DB, 'incidente.anexo', c.get('user').email, `Incidente ${c.req.param('id')}: evidência anexada`, '', '', projectId, { tipo: 'incidente', id: c.req.param('id')! });
     return c.json({ ok: true, id: r.id }, 201);
   } catch (e) { return erro500(c, 'Falha ao anexar o arquivo', e); }
 });
@@ -197,9 +199,55 @@ incidentesApp.delete('/:id/anexos/:anexoId', async (c) => {
     const projectId = c.req.param('projectId')!;
     const r = await apagarAnexoIncidente(c.env, projectId, c.req.param('id'), c.req.param('anexoId'));
     if (!r.ok) return c.json({ error: r.error }, r.status);
-    await logAudit(c.env.DB, 'incidente.anexo', c.get('user').email, `Incidente ${c.req.param('id')}: evidência removida`, '', '', projectId);
+    await logAudit(c.env.DB, 'incidente.anexo', c.get('user').email, `Incidente ${c.req.param('id')}: evidência removida`, '', '', projectId, { tipo: 'incidente', id: c.req.param('id')! });
     return c.json({ ok: true });
   } catch (e) { return erro500(c, 'Falha ao apagar o anexo', e); }
+});
+
+// Análises do incidente (fatia 3): várias, cada uma com autor; só o autor altera a sua.
+incidentesApp.get('/:id/analises', async (c) => {
+  try {
+    const r = await listarAnalises(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email);
+    return r ? c.json({ analises: r }) : c.json({ error: 'Incidente não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao listar as análises', e); }
+});
+
+incidentesApp.post('/:id/analises', async (c) => {
+  try {
+    const v = await validateBody(c, incidenteAnaliseSchema);
+    if (!v.success) return v.response;
+    const r = await criarAnalise(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data.texto);
+    return r.ok ? c.json({ ok: true, id: r.id }, 201) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao registrar a análise', e); }
+});
+
+incidentesApp.put('/:id/analises/:analiseId', async (c) => {
+  try {
+    const v = await validateBody(c, incidenteAnaliseSchema);
+    if (!v.success) return v.response;
+    const r = await atualizarAnalise(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.req.param('analiseId'), c.get('user').email, v.data.texto);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao alterar a análise', e); }
+});
+
+// Histórico (fatia 3): a trilha do incidente, sem texto livre nem justificativa; CSV no formato pt-BR das exportações (fora do agente).
+incidentesApp.get('/:id/historico', async (c) => {
+  try {
+    const r = await lerHistoricoIncidente(c.env.DB, c.req.param('projectId')!, c.req.param('id'));
+    return r ? c.json({ historico: r }) : c.json({ error: 'Incidente não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao ler o histórico do incidente', e); }
+});
+
+incidentesApp.get('/:id/historico/csv', async (c) => {
+  try {
+    const projectId = c.req.param('projectId')!;
+    const r = await lerHistoricoIncidente(c.env.DB, projectId, c.req.param('id'), 500);
+    if (!r) return c.json({ error: 'Incidente não encontrado' }, 404);
+    await logAudit(c.env.DB, 'exportacao.csv', c.get('user').email, `Exportação CSV do histórico do incidente: ${r.length} linhas`, '', '', projectId);
+    return new Response(montarCsv(['Data', 'Evento', 'Detalhe', 'Quem'], r.map((l) => [l.data, l.evento, l.detalhe ?? '', l.nome])), {
+      headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="historico-incidente.csv"', 'Cache-Control': 'no-store' },
+    });
+  } catch (e) { return erro500(c, 'Falha ao exportar o histórico do incidente', e); }
 });
 
 // Ações corretivas do incidente (fatia 4): a mesma corrective_actions da CAPA, ligada por incidente_id, nos dois módulos.
@@ -249,7 +297,7 @@ incidentesApp.post('/:id/acoes/:acaoId/anexos', async (c) => {
     const projectId = c.req.param('projectId')!;
     const r = await guardarAnexo(c.env, projectId, donoIncidente(c), c.req.param('acaoId'), c.get('user').email, { name: arq.name, bytes: await arq.arrayBuffer() });
     if (!r.ok) return c.json({ error: r.error }, r.status);
-    await logAudit(c.env.DB, 'incidente.acao', c.get('user').email, `Incidente ${c.req.param('id')}: anexo da ação corretiva`, '', '', projectId);
+    await logAudit(c.env.DB, 'incidente.acao', c.get('user').email, `Incidente ${c.req.param('id')}: anexo da ação corretiva`, '', '', projectId, { tipo: 'incidente', id: c.req.param('id')! });
     return c.json({ ok: true, id: r.id }, 201);
   } catch (e) { return erro500(c, 'Falha ao anexar o arquivo', e); }
 });
@@ -265,7 +313,7 @@ incidentesApp.delete('/:id/acoes/:acaoId/anexos/:anexoId', async (c) => {
   try {
     const projectId = c.req.param('projectId')!;
     const ok = await apagarAnexo(c.env, projectId, donoIncidente(c), c.req.param('acaoId'), c.req.param('anexoId'));
-    if (ok) await logAudit(c.env.DB, 'incidente.acao', c.get('user').email, `Incidente ${c.req.param('id')}: anexo da ação corretiva removido`, '', '', projectId);
+    if (ok) await logAudit(c.env.DB, 'incidente.acao', c.get('user').email, `Incidente ${c.req.param('id')}: anexo da ação corretiva removido`, '', '', projectId, { tipo: 'incidente', id: c.req.param('id')! });
     return ok ? c.json({ ok: true }) : c.json({ error: 'Anexo não encontrado' }, 404);
   } catch (e) { return erro500(c, 'Falha ao apagar o anexo', e); }
 });

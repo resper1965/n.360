@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Incidente: página com abas, análises e histórico (migration 0101)
+- O incidente abre numa página com abas, no lugar da janela: Registro, Análise, Ações corretivas, Comunicação e Histórico, com o incidente e a aba no endereço (`?tela=incidente-ficha&incidente=&aba=`). A faixa do prazo da ANPD fica no topo; "Voltar aos incidentes" volta à lista.
+- Análise: várias por incidente, cada uma com autor e data; só o autor altera a sua (403 aos demais) e o incidente encerrado não muda, também pelo gatilho do banco. O risco ao titular continua sendo a avaliação formal, no Registro.
+- Histórico: a trilha do incidente (registro, alterações com os nomes dos campos, risco, comunicações, evidências, ações, análises, encerramento), mais novo primeiro, sem texto livre nem justificativa, com "Exportar CSV" no formato pt-BR das exportações (fora do agente MCP). Todo evento de incidente passa a gravar `audit_logs.entity_type = 'incidente'`; o que foi gravado antes desta versão não aparece no histórico.
+- Rotas `GET|POST /projects/:id/incidentes/:id/analises`, `PUT .../analises/:analiseId`, `GET .../historico` e `GET .../historico/csv` (`src/services/incidente-analises.ts`). Migration 0101 (aditiva): `incidente_analises`, com os gatilhos de projeto e de encerrado; a 0102 acrescenta o gatilho de UPDATE, para a análise feita antes do encerramento também não mudar depois.
+
 ### n.ot: sonda com envio automático e saúde da coleta (migration 0101)
 - A sonda de rede manda o resumo sozinha: `POST /ot-sensor/resumo`, com credencial própria `ots_…` por sonda (até 2 ativas, 365 dias, faixa de origem obrigatória, IP só de `CF-Connecting-IP`). A resposta é só `{ recebido, envio_id }`; o envio é idempotente.
 - Só a novidade vira achado: o que já está em rascunho, pendente ou descartado há menos de 90 dias não volta; sem novidade, não nasce sessão. A chave de novidade inclui o site e o lado externo vira `ext`.
