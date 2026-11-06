@@ -1,14 +1,14 @@
-// test/migration-0099.test.ts
+// test/migration-0101.test.ts
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:test';
 import { applySchema, execSql, seedTwoProjects } from './helpers/d1';
-import mig from '../migrations/0099_ot_sensores.sql?raw';
+import mig from '../migrations/0101_ot_sensores.sql?raw';
 
 const um = <T>(sql: string) => env.DB.prepare(sql).all<T>();
 const sensor = `INSERT INTO ot_sensores (id, project_id, site_id, nome, faixa_origem, criado_por) VALUES ('sn1', 'proj-a', 's-a', 'Sonda', '10.0.0.0/8', 'u')`;
 
-// 0099: sondas com envio automático. ALTER não é repetível, então o teste roda o resto.
-describe('migration 0099: sondas, credenciais e envios do n.ot', () => {
+// 0101: sondas com envio automático. ALTER não é repetível, então o teste roda o resto.
+describe('migration 0101: sondas, credenciais e envios do n.ot', () => {
   beforeAll(async () => {
     await applySchema(); await seedTwoProjects();
     await env.DB.prepare(`INSERT INTO ot_sites (id, project_id, nome) VALUES ('s-a', 'proj-a', 'SE A')`).run();

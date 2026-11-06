@@ -12,7 +12,7 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
-### n.ot: sonda com envio automático e saúde da coleta (migration 0099)
+### n.ot: sonda com envio automático e saúde da coleta (migration 0101)
 - A sonda de rede manda o resumo sozinha: `POST /ot-sensor/resumo`, com credencial própria `ots_…` por sonda (até 2 ativas, 365 dias, faixa de origem obrigatória, IP só de `CF-Connecting-IP`). A resposta é só `{ recebido, envio_id }`; o envio é idempotente.
 - Só a novidade vira achado: o que já está em rascunho, pendente ou descartado há menos de 90 dias não volta; sem novidade, não nasce sessão. A chave de novidade inclui o site e o lado externo vira `ext`.
 - Saúde da coleta: em dia até 26 h, atrasada até 72 h, parada acima disso ou sem credencial válida; e-mail diário ao Gestor ARCiber só para sonda parada.

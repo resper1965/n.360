@@ -1,4 +1,4 @@
--- 0099_ot_sensores.sql — n.ot: sonda com envio automático. Sondas, credenciais, envios idempotentes e chave de novidade nos achados/fluxos.
+-- 0101_ot_sensores.sql — n.ot: sonda com envio automático. Sondas, credenciais, envios idempotentes e chave de novidade nos achados/fluxos.
 -- Aditiva: duas colunas por ALTER (rodam uma vez pelo runner) e o resto repetível (IF NOT EXISTS).
 -- Verificar depois de aplicar: SELECT name FROM sqlite_master WHERE name IN ('ot_sensores','ot_sensor_credenciais','ot_sensor_envios') → 3 linhas;
 --                              SELECT name FROM pragma_table_info('ot_achados') WHERE name = 'chave_sensor' → 1 linha.

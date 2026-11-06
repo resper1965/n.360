@@ -776,7 +776,7 @@ Colunas novas em `incidentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo r
 (7 linhas) e `SELECT name FROM sqlite_master WHERE name IN ('incidente_departamentos','incidente_dados','incidente_anexos')` (3 linhas).
 Aplicada em produção em 05/11/2026, com backup antes: as duas conferências deram 7 e 3 linhas, mais os 6 gatilhos.
 
-## 0099 — sondas do n.ot com envio automático (2026-11-05)
+## 0101 — sondas do n.ot com envio automático (2026-11-05)
 
 Colunas `chave_sensor` em `ot_achados` e `ot_fluxos_pendentes` por `ALTER TABLE ADD COLUMN` (rodam uma vez pelo runner) e tabelas novas `ot_sensores`, `ot_sensor_credenciais` e `ot_sensor_envios`. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name IN ('ot_sensores','ot_sensor_credenciais','ot_sensor_envios')` (3 linhas) e `SELECT name FROM pragma_table_info('ot_achados') WHERE name = 'chave_sensor'` (1 linha).

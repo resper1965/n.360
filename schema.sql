@@ -2445,11 +2445,11 @@ CREATE TABLE IF NOT EXISTS ot_achados (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     pergunta_id TEXT REFERENCES ot_roteiro_perguntas(id) ON DELETE SET NULL, -- 0094
     lote_item_id TEXT, -- 0094
-    chave_sensor TEXT, -- 0099
+    chave_sensor TEXT, -- 0101
     FOREIGN KEY (levantamento_id, project_id) REFERENCES ot_levantamentos(id, project_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_ot_achados_sessao ON ot_achados(levantamento_id, situacao);
-CREATE INDEX IF NOT EXISTS idx_ot_achados_chave_sensor ON ot_achados(project_id, chave_sensor); -- 0099
+CREATE INDEX IF NOT EXISTS idx_ot_achados_chave_sensor ON ot_achados(project_id, chave_sensor); -- 0101
 CREATE INDEX IF NOT EXISTS idx_ot_achados_lote_item ON ot_achados(lote_item_id); -- 0094
 
 CREATE TABLE IF NOT EXISTS ot_roteiro_perguntas (
@@ -2504,15 +2504,15 @@ CREATE TABLE IF NOT EXISTS ot_fluxos_pendentes (
     destino_ip_hash TEXT,
     dados TEXT NOT NULL CHECK (json_valid(dados) AND json_type(dados) = 'object'),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    chave_sensor TEXT, -- 0099
+    chave_sensor TEXT, -- 0101
     CHECK (origem_ip_hash IS NOT NULL OR destino_ip_hash IS NOT NULL),
     FOREIGN KEY (levantamento_id, project_id) REFERENCES ot_levantamentos(id, project_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_origem ON ot_fluxos_pendentes(project_id, origem_ip_hash);
 CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_destino ON ot_fluxos_pendentes(project_id, destino_ip_hash);
-CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_chave ON ot_fluxos_pendentes(project_id, chave_sensor); -- 0099
+CREATE INDEX IF NOT EXISTS idx_ot_fluxos_pend_chave ON ot_fluxos_pendentes(project_id, chave_sensor); -- 0101
 
--- ─── n.ot: sonda com envio automático (0099) ───
+-- ─── n.ot: sonda com envio automático (0101) ───
 CREATE TABLE IF NOT EXISTS ot_sensores (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
