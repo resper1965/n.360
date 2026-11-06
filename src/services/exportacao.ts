@@ -45,13 +45,14 @@ const ROTULO_FAIXA = Object.fromEntries(FAIXAS_PRAZO.map((f) => [f.id, f.rotulo]
  */
 export type FiltroExportacao = { probabilidade?: number; impacto?: number; faixa?: FaixaPrazo; q?: string; area?: string; status?: string; motivo?: string; nivel?: string; tipo?: string };
 
-// Instante (SQLite `AAAA-MM-DD HH:MM:SS` é UTC, como lê a tela em `frontend/src/ui.js`; ISO com fuso respeita o fuso) sai na hora de
-// Brasília, em dd/mm/aaaa hh:mm; só data sai em dd/mm/aaaa.
+// A mesma regra do `formatarData` da tela (`frontend/src/ui.js`): só data, ou meia-noite UTC exata (um dia gravado como instante, os prazos
+// legais de `somarPrazo`), sai em dd/mm/aaaa sem passar por fuso; outro instante (SQLite `AAAA-MM-DD HH:MM:SS` é UTC; ISO com fuso respeita
+// o fuso) sai na hora de Brasília, em dd/mm/aaaa hh:mm.
 const HORA_SP = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 export function dataHoraBr(v: unknown): string {
   const t = v == null ? '' : String(v).trim();
   const dia = (s: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); return m ? `${m[3]}/${m[2]}/${m[1]}` : s; };
-  if (!/[T ]\d{2}:\d{2}/.test(t)) return dia(t);
+  if (!/[T ]\d{2}:\d{2}/.test(t) || /^\d{4}-\d{2}-\d{2}T00:00(:00(\.0+)?)?Z$/.test(t)) return dia(t);
   const d = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(t) ? t : `${t.replace(' ', 'T')}Z`);
   return Number.isNaN(d.getTime()) ? dia(t) : HORA_SP.format(d).replace(',', '');
 }
