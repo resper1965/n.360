@@ -99,6 +99,9 @@
         $('sl-estado').hidden = true;
         $('sl-protocolo').textContent = dados.protocolo || '';
         $('sl-codigo').textContent = dados.codigo || '';
+        $('sl-email-aviso').textContent = dados.email_enviado
+            ? 'Também enviamos o protocolo e o código ao seu e-mail. Com os dois você acompanha a situação nesta página.'
+            : 'Não conseguimos enviar o e-mail agora. Anote o protocolo e o código: o código não pode ser recuperado depois.';
         $('sl-ok').hidden = false;
         $('sl-ok').querySelector('.pub-estado-titulo').focus();
     }

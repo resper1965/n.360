@@ -1,6 +1,6 @@
 import { logAudit, genToken, sha256Hex } from '../helpers';
 import { prazoDe, proximoProtocolo } from './parametros-legais';
-import { hojeEmSaoPaulo } from './hoje';
+import { hojeEmSaoPaulo, diaEmSaoPaulo } from './hoje';
 
 /**
  * Núcleo do n.privacy, fatia 7: pedido do titular (registro interno). Protocolo `PT-AAAA-NNNN` por projeto; o prazo vem do parâmetro
@@ -211,13 +211,15 @@ export async function abrirPedidoPortal(db: D1Database, projectId: string, d: Ab
 
 export type ConsultaPublica = { protocolo: string; tipo: string; status: string; recebido_em: string; prazo_em: string | null; respondido_em: string | null };
 
-/** Consulta pública: acha pelo hash do código e confere o protocolo. null para qualquer falha (a rota dá o mesmo 404). */
+/** Consulta pública: acha pelo hash do código e confere o protocolo. null para qualquer falha (a rota dá o mesmo 404). As datas saem
+ *  como o dia de São Paulo (AAAA-MM-DD): `respondido_em` é gravado como instante UTC. */
 export async function consultarPedidoPortal(db: D1Database, protocolo: string, codigo: string): Promise<ConsultaPublica | null> {
   const canonico = normalizarCodigo(codigo);
   if (!canonico) return null;
   const p = await db.prepare('SELECT protocolo, tipo, status, recebido_em, prazo_em, respondido_em FROM titular_pedidos WHERE acompanhamento_hash = ?')
     .bind(await sha256Hex(canonico)).first<ConsultaPublica>();
-  return p && p.protocolo === protocolo.toUpperCase() ? p : null;
+  if (!p || p.protocolo !== protocolo.toUpperCase()) return null;
+  return { ...p, recebido_em: diaEmSaoPaulo(p.recebido_em)!, prazo_em: diaEmSaoPaulo(p.prazo_em), respondido_em: diaEmSaoPaulo(p.respondido_em) };
 }
 
 // ─── Tratativas do atendimento (migration 0096) ───────────────────────────────────────────────────

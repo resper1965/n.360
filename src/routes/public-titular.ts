@@ -41,15 +41,18 @@ publicTitularApp.post('/abrir', async (c) => {
       tipo: v.data.tipo, titular_nome: v.data.titular_nome, titular_contato: v.data.titular_contato, descricao: v.data.descricao,
     });
     if (!r.ok) return c.json({ error: r.error }, r.status);
-    // Retorno ao titular com o protocolo, best-effort: sem RESEND ou com falha de envio, o pedido já está criado e o protocolo vai na resposta.
+    // Retorno ao titular com o protocolo e o código, best-effort: com falha de envio o pedido já está criado e os dois vão na resposta;
+    // `email_enviado: false` faz a tela avisar que o código não chegou ao e-mail (não há como reemiti-lo).
+    let emailEnviado = false;
     try {
       const link = `${appUrl(c.env)}/solicitacao#acompanhar=${r.protocolo}.${r.codigo}`;
       const m = emailProtocoloTitular({ protocolo: r.protocolo, codigo: r.codigo, link });
-      await enviarEmail(c.env, v.data.titular_contato, m.assunto, m, { from: remetente('n.privacy') });
+      emailEnviado = await enviarEmail(c.env, v.data.titular_contato, m.assunto, m, { from: remetente('n.privacy') });
+      if (!emailEnviado) log('warn', { msg: 'titular_portal_email_falhou', projeto: portal.project_id, erro: 'envio recusado' });
     } catch (e) {
       log('warn', { msg: 'titular_portal_email_falhou', projeto: portal.project_id, erro: e instanceof Error ? e.message : String(e) });
     }
-    return c.json({ ok: true, protocolo: r.protocolo, codigo: r.codigo }, 201);
+    return c.json({ ok: true, protocolo: r.protocolo, codigo: r.codigo, email_enviado: emailEnviado }, 201);
   } catch (e) { return erro500(c, 'Falha ao registrar a solicitação', e); }
 });
 

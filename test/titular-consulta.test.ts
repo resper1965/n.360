@@ -49,7 +49,9 @@ describe('abrir e consultar', () => {
   it('a abertura devolve o código e grava só o hash', async () => {
     const r = await abrir(tokens[P]);
     expect(r.status, await r.clone().text()).toBe(201);
-    ({ protocolo, codigo } = await r.json() as { protocolo: string; codigo: string });
+    const corpo = await r.json() as { protocolo: string; codigo: string; email_enviado: boolean };
+    ({ protocolo, codigo } = corpo);
+    expect(corpo.email_enviado).toBe(true); // sem RESEND_API_KEY o envio é simulado e conta como enviado
     expect(codigo).toMatch(/^[2-9A-HJKMNP-Z]{4}(-[2-9A-HJKMNP-Z]{4}){3}$/);
     const linha = await env.DB.prepare('SELECT * FROM titular_pedidos WHERE project_id = ? AND protocolo = ?').bind(P, protocolo).first<Record<string, unknown>>();
     expect(linha!.acompanhamento_hash).toMatch(/^[0-9a-f]{64}$/);
@@ -100,6 +102,9 @@ describe('abrir e consultar', () => {
     const d = await r.json() as Record<string, unknown>;
     expect(d).toMatchObject({ status: 'respondido', respondido_em: '2026-11-06' });
     expect(JSON.stringify(d)).not.toContain('Segredo');
+    // gravado como instante UTC (o PUT usa toISOString): 02:30 UTC de 07/11 ainda é 06/11 em São Paulo
+    await env.DB.prepare(`UPDATE titular_pedidos SET respondido_em = '2026-11-07T02:30:00.000Z' WHERE id = ?`).bind(id).run();
+    expect(await (await consultar({ protocolo, codigo })).json()).toMatchObject({ respondido_em: '2026-11-06', recebido_em: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
   });
 
   it('portal desligado: a consulta continua', async () => {

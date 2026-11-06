@@ -77,7 +77,7 @@ describe('consulta do andamento', () => {
     });
 
     it('a confirmação da abertura mostra o protocolo e o código', async () => {
-        servidor({ '/api/v1/public/titular-pedidos/abrir': json({ ok: true, protocolo: 'PT-2026-0007', codigo: CODIGO }, 201) });
+        servidor({ '/api/v1/public/titular-pedidos/abrir': json({ ok: true, protocolo: 'PT-2026-0007', codigo: CODIGO, email_enviado: true }, 201) });
         await abre('#' + 'a'.repeat(64));
         $('sl-nome').value = 'Fulano';
         $('sl-contato').value = 'fulano@exemplo.com';
@@ -86,6 +86,19 @@ describe('consulta do andamento', () => {
         await espera();
         expect($('sl-protocolo').textContent).toBe('PT-2026-0007');
         expect($('sl-codigo').textContent).toBe(CODIGO);
+        expect($('sl-email-aviso').textContent).toContain('Também enviamos');
+    });
+
+    it('sem o e-mail, a confirmação não promete o envio e pede para anotar o código', async () => {
+        servidor({ '/api/v1/public/titular-pedidos/abrir': json({ ok: true, protocolo: 'PT-2026-0007', codigo: CODIGO, email_enviado: false }, 201) });
+        await abre('#' + 'a'.repeat(64));
+        $('sl-nome').value = 'Fulano';
+        $('sl-contato').value = 'fulano@exemplo.com';
+        $('sl-descricao').value = 'Quero acesso.';
+        $('sl-form').dispatchEvent(new Event('submit', { cancelable: true }));
+        await espera();
+        expect($('sl-email-aviso').textContent).toContain('Não conseguimos enviar o e-mail');
+        expect($('sl-email-aviso').textContent).not.toContain('Também enviamos');
     });
 
     it('nada inline; as classes sl-* novas têm regra', () => {

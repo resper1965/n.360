@@ -25,7 +25,8 @@ SHA-256 do código, nunca o código. Pedido registrado pelo DPO, importado ou ab
   (`K7QM-3XRP-9WTD-H2FN`). Sorteio sem viés de módulo.
 - Na consulta, o código digitado é normalizado antes do hash: maiúsculas, sem espaço nem hífen; depois reagrupado. O hash é do
   formato canônico com hífens.
-- Aparece uma vez: na resposta do `POST .../abrir` (`codigo`) e no e-mail do protocolo. Não há rota que o devolva depois.
+- Aparece uma vez: na resposta do `POST .../abrir` (`codigo`) e no e-mail do protocolo. Não há rota que o devolva depois. A resposta traz
+  `email_enviado`; sem o e-mail, a confirmação pede para anotar o código em vez de prometer o envio.
 
 ## 3. Rota pública
 
@@ -36,7 +37,8 @@ SHA-256 do código, nunca o código. Pedido registrado pelo DPO, importado ou ab
   código: o **mesmo 404** `{ error: 'Protocolo ou código não conferem' }`. Esquema inválido (campo a mais, protocolo fora do formato):
   400 do `validateBody`, que não revela nada do banco.
 - **Não depende do link do portal**: o código é a credencial. Desligar o portal para de receber pedidos, não de consultar.
-- Resposta: `{ protocolo, tipo, status, recebido_em, prazo_em, respondido_em }`. Nada de nome, contato, descrição, resposta,
+- Resposta: `{ protocolo, tipo, status, recebido_em, prazo_em, respondido_em }`, as datas como o dia de São Paulo (AAAA-MM-DD;
+  `respondido_em` é gravado como instante UTC). Nada de nome, contato, descrição, resposta,
   tratativas, encaminhamentos, identidade, projeto ou organização.
 - Sem trilha por consulta (leitura pública sem efeito). O agente MCP já não alcança `/api/v1/public` (`caminhoSeguro`).
 
