@@ -256,7 +256,15 @@ const CRITERIO_RISCO: Record<string, string> = { sensiveis: 'Dados sensíveis', 
 const CANAL_ANPD: Record<string, string> = { sei: 'Peticionamento eletrônico (SEI)', formulario_anpd: 'Formulário da ANPD', email: 'E-mail', outro: 'Outro' };
 const TRATAMENTO_ACAO: Record<string, string> = { contencao: 'Contenção', correcao: 'Correção', aperfeicoamento: 'Aperfeiçoamento' };
 const rotulos = (mapa: Record<string, string>, xs: string[]) => xs.map((x) => mapa[x] ?? x).join(', ');
-const dataHora = (v: unknown) => { const t = txt(v); const h = /[T ](\d{2}:\d{2})/.exec(t); return t ? `${dataBr(t)}${h ? ` ${h[1]}` : ''}` : ''; };
+// Instante (SQLite `AAAA-MM-DD HH:MM:SS` é UTC, como lê a tela em `frontend/src/ui.js`; ISO com fuso respeita o fuso) sai na hora de
+// Brasília; só data fica como está.
+const HORA_SP = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const dataHora = (v: unknown) => {
+  const t = txt(v);
+  if (!/[T ]\d{2}:\d{2}/.test(t)) return t ? dataBr(t) : '';
+  const d = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(t) ? t : `${t.replace(' ', 'T')}Z`);
+  return Number.isNaN(d.getTime()) ? dataBr(t) : HORA_SP.format(d).replace(',', '');
+};
 
 /**
  * O incidente em Word (fatia 7): registro, risco, comunicações, análises, ações corretivas, post mortem e o histórico resumido (os 100

@@ -27,7 +27,7 @@ beforeAll(async () => {
       VALUES ('iw-enc', ?1, 'IN-2026-0030', 'Vazamento <b>exemplo</b> & cia', 'Planilha enviada por engano', '2026-10-01T10:00:00Z', 'aberto', 'alta', 'vazamento', '["confidencialidade"]', 'sei', 'ANPD-123', '2026-10-02T09:00:00Z'),
              ('iw-in', ?1, 'IN-2026-0031', 'Ainda aberto', NULL, '2026-10-05', 'aberto', NULL, NULL, NULL, NULL, NULL, NULL),
              ('iw-o', ?2, 'IN-2026-0001', 'Alheio', NULL, '2026-10-01', 'aberto', NULL, NULL, NULL, NULL, NULL, NULL)`).bind(P, OUTRO),
-    env.DB.prepare(`INSERT INTO incidente_analises (id, project_id, incidente_id, autor, texto) VALUES ('iw-an', ?, 'iw-enc', 'ana-iw@ness.lat', 'Origem: envio manual sem revisão')`).bind(P),
+    env.DB.prepare(`INSERT INTO incidente_analises (id, project_id, incidente_id, autor, texto, created_at) VALUES ('iw-an', ?, 'iw-enc', 'ana-iw@ness.lat', 'Origem: envio manual sem revisão', '2026-10-01 10:00:00')`).bind(P),
     env.DB.prepare(`INSERT INTO corrective_actions (id, project_id, incidente_id, title, tratamento, status) VALUES ('iw-ac', ?, 'iw-enc', 'Bloquear anexos externos', 'contencao', 'Closed')`).bind(P),
     env.DB.prepare(`UPDATE incidentes SET status = 'encerrado', risco_titular = 'baixo' WHERE id = 'iw-enc'`),
     env.DB.prepare(`INSERT INTO incidente_postmortem (incidente_id, project_id, pergunta, resposta) VALUES ('iw-enc', ?, 'melhorar', 'Treinar a revisão de anexos')`).bind(P),
@@ -44,6 +44,10 @@ describe('incidente em Word', () => {
     for (const t of ['Incidente IN-2026-0030', 'Encerrado', 'Alta', 'Vazamento ou exposição', 'Confidencialidade', 'Baixo', 'Peticionamento eletrônico (SEI)',
       'ANPD-123', 'IN-2026-0030-COM01', 'Origem: envio manual sem revisão', 'IN-2026-0030-PA01', 'Bloquear anexos externos', 'Contenção', 'Concluído',
       'Treinar a revisão de anexos', 'Durante a gestão do incidente', 'Histórico']) expect(txt, t).toContain(t);
+    // Instantes em UTC saem na hora de Brasília (UTC-3): a análise de 10:00 UTC e a ciência de 10:00Z aparecem às 07:00.
+    expect(txt).toContain('Ana Exemplo · 01/10/2026 07:00');
+    expect(txt).toContain('01/10/2026 07:00');
+    expect(txt).not.toContain('01/10/2026 10:00');
     expect(txt).not.toContain('RASCUNHO');
     expect(xml).not.toContain('<b>exemplo</b>');
     expect(xml).toContain('&lt;b&gt;exemplo&lt;/b&gt; &amp; cia');
