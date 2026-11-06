@@ -2660,3 +2660,9 @@ WHEN (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
 BEGIN
     SELECT RAISE(ABORT, 'incidente encerrado não muda');
 END;
+CREATE TRIGGER IF NOT EXISTS incidente_analises_encerrado_upd BEFORE UPDATE ON incidente_analises
+WHEN (SELECT status FROM incidentes WHERE id = OLD.incidente_id) = 'encerrado'
+  OR (SELECT status FROM incidentes WHERE id = NEW.incidente_id) = 'encerrado'
+BEGIN
+    SELECT RAISE(ABORT, 'incidente encerrado não muda');
+END;

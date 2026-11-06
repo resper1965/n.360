@@ -50,6 +50,14 @@ describe('análises do incidente', () => {
     expect((await chamar(ana, 'POST', `${B}/incidentes/ian-enc/analises`, { texto: 'X' })).status).toBe(409);
     await expect(env.DB.prepare(`INSERT INTO incidente_analises (id, project_id, incidente_id, autor, texto) VALUES ('x1', ?, 'ian-enc', 'a', 'b')`).bind(P).run()).rejects.toThrow(/encerrado/);
     await expect(env.DB.prepare(`INSERT INTO incidente_analises (id, project_id, incidente_id, autor, texto) VALUES ('x2', ?, 'ian-o', 'a', 'b')`).bind(P).run()).rejects.toThrow(/outro projeto/);
+    // A análise feita com o incidente aberto também congela quando ele é encerrado (0102), mesmo por SQL direto.
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO incidentes (id, project_id, protocolo, titulo, ciencia_em, status) VALUES ('ian-fech', ?, 'IN-2026-0011', 'Fecha depois', '2026-10-01', 'aberto')`).bind(P),
+      env.DB.prepare(`INSERT INTO incidente_analises (id, project_id, incidente_id, autor, texto) VALUES ('x3', ?, 'ian-fech', 'ana-ian@ness.lat', 'Antes')`).bind(P),
+      env.DB.prepare(`UPDATE incidentes SET status = 'encerrado', risco_titular = 'baixo' WHERE id = 'ian-fech'`),
+    ]);
+    await expect(env.DB.prepare(`UPDATE incidente_analises SET texto = 'Depois' WHERE id = 'x3'`).run()).rejects.toThrow(/encerrado/);
+    expect((await chamar(ana, 'PUT', `${B}/incidentes/ian-fech/analises/x3`, { texto: 'Depois' })).status).toBe(409);
   });
 });
 

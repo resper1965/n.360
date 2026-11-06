@@ -3,7 +3,7 @@ import { genId, logAudit } from '../helpers';
 /**
  * Análises do incidente (fatia 3, migration 0101): o registro do trabalho da equipe, várias por incidente, cada uma com autor e data. Só o
  * autor altera a própria análise (como no legado); quem alcança o incidente lê todas. O risco ao titular continua sendo a avaliação formal.
- * Encerrado não muda (o gatilho `incidente_analises_aberto` recusa a inclusão também por SQL direto). A trilha nunca leva o texto.
+ * Encerrado não muda (o gatilho `incidente_analises_aberto` e o `incidente_analises_encerrado_upd`, da 0102, recusam a inclusão e a alteração também por SQL direto). A trilha nunca leva o texto.
  */
 type Falha = { ok: false; status: 403 | 404 | 409; error: string };
 const falha = (status: Falha['status'], error: string): Falha => ({ ok: false, status, error });
