@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { hmacOt, normalizarIp, normalizarMac, type ChavesOt } from './ot-cifra';
 import { ativosDoSite, indice } from './ot-coleta';
 import { gravarAchados, INSERIR_ACHADO } from './ot-depara';
-import { pontasDoSite } from './ot-fluxo-achado';
+import { fluxosDoSite, pontasDoSite } from './ot-fluxo-achado';
 import { TETO_LEITURA_OT } from './ot-inventario';
 import { prepararAchado, zonasDoSite } from './ot-levantamento';
 import { genId } from '../helpers';
@@ -83,7 +83,8 @@ export interface Plano {
   macs: { chave: string; dados: { ip: string; mac: string; nome: string } }[];
   fluxos: { chave: string; dados: Record<string, unknown> }[];
   pendentes: { chave: string; origem_ip_hash: string | null; destino_ip_hash: string | null; dados: Record<string, unknown> }[];
-  contagem: { ativos_novos: number; ativos_conhecidos: number; macs_completados: number; fluxos_criados: number; fluxos_pendentes: number };
+  contagem: { ativos_novos: number; ativos_conhecidos: number; macs_completados: number; fluxos_criados: number; fluxos_pendentes: number;
+    fluxos_conhecidos: number };
 }
 
 /** Chave de novidade (HMAC por projeto, com o site): o mesmo IP em outro site é outra chave. */
@@ -105,13 +106,20 @@ const contar = (p: Plano) => {
  * índice do site, sem decifrar. Na pendência o lado externo fica com hash nulo: IP externo nunca é guardado, nem como HMAC.
  */
 export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId: string, site: { id: string; faixas: string[] }, resumo: ResumoRede): Promise<Plano> {
-  const idx = indice((await ativosDoSite(db, projectId, site.id)).results);
+  const [ativos, fluxosInv] = await Promise.all([ativosDoSite(db, projectId, site.id), fluxosDoSite(db, projectId, site.id)]);
+  const idx = indice(ativos.results);
+  // Fluxo já no inventário (mesmas pontas, protocolo e porta) não vira achado (spec §1/§4.4); o bidirecional cobre o sentido inverso.
+  const pontaInv = (f: Record<string, unknown>, lado: string) => String(f[`${lado}_ativo_id`] ?? f[`${lado}_zona_id`] ?? '');
+  const inventario = new Set(fluxosInv.flatMap((f) => {
+    const o = pontaInv(f, 'origem'), d = pontaInv(f, 'destino');
+    return [`${o}|${d}|${f.protocolo}|${f.porta}`, ...(f.direcao === 'bidirecional' ? [`${d}|${o}|${f.protocolo}|${f.porta}`] : [])];
+  }));
   const hashes = new Map<string, string>();
   const hash = async (x: string) => hashes.get(x) ?? hashes.set(x, await hmacOt(chaves, projectId, x)).get(x)!;
   const interno = (x: string) => ehInterno(x, site.faixas);
   const doSite = async (x: string) => idx.achar({ ip_hash: await hash(x) });
 
-  const plano: Plano = { ativos: [], macs: [], fluxos: [], pendentes: [], contagem: { ativos_novos: 0, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0 } };
+  const plano: Plano = { ativos: [], macs: [], fluxos: [], pendentes: [], contagem: { ativos_novos: 0, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0, fluxos_conhecidos: 0 } };
   const conexoes = resumo.conexoes.map((c) => ({ ...c, origem: normalizarIp(c.origem)!, destino: normalizarIp(c.destino)! }))
     .filter((c) => ehHost(c.origem) && ehHost(c.destino));
   // ativo novo só para IP que originou conexão, tem MAC, ou foi destino de TCP/aplicação identificada (outstation só responde; sem MAC no Zeek).
@@ -156,6 +164,7 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
       plano.pendentes.push({ chave, origem_ip_hash: io ? await hash(o) : null, destino_ip_hash: id ? await hash(d) : null, dados });
       continue;
     }
+    if (inventario.has(`${ao ?? ''}|${ad ?? ''}|${protocolo}|${c.porta}`)) { plano.contagem.fluxos_conhecidos++; continue; }
     plano.fluxos.push({ chave, dados: { ...(ao && { origem_ativo_id: ao }), ...(ad && { destino_ativo_id: ad }), ...dados } });
   }
   return contar(plano);

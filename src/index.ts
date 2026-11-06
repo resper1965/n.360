@@ -693,6 +693,7 @@ export default Object.assign(app, {
     // ponytail: cron que não é o dos avisos nem o da sonda cai na manutenção, o comportamento de antes destas rotinas.
     ctx.waitUntil(
       evento.cron === CRON_AVISOS ? Promise.allSettled([avisosDePrazo(env, hojeEmSaoPaulo()), avisarSensores(env, new Date())])
+          .then((rs) => rs.forEach((r, i) => r.status === 'rejected' && console.error(`cron avisos: falha em ${['avisosDePrazo', 'avisarSensores'][i]}`, r.reason)))
         : evento.cron === CRON_SONDA ? sondaInterna(env)
         : evento.cron === CRON_SLO ? verificarSlo(env)
         : manutencaoDiaria(env)

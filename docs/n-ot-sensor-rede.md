@@ -188,10 +188,10 @@ Sem o ICSNPP, o Zeek identifica Modbus, DNP3 e pouco mais de protocolo industria
 - **Ativos novos** (IP fora do inventário) viram achados com nome gerado, como `SEL (dnp3) #3` (sem o IP). Renomeie na revisão. Vira ativo novo o IP que **iniciou** alguma conexão, **tem MAC**, ou **recebeu TCP ou um protocolo conhecido** (um CLP ou UTR que só responde). Quem só recebeu UDP sem protocolo identificado não vira: é o caso do broadcast de sub-rede.
 - **Broadcast de sub-rede** (como 192.168.1.255) não é reconhecido sem a máscara; o fluxo para ele fica pendente e nunca vira ativo. Se aparecer como ponta de algum achado, descarte.
 - **IP conhecido sem MAC** no inventário gera um achado que completa o MAC quando você aprova.
-- **Fluxos** aparecem como `novo` (não está no inventário) ou `confirma`. O sensor não sabe se o tráfego usa VPN, então nunca produz `contradiz`.
+- **Fluxos** aparecem como `novo` (as pontas não têm fluxo no inventário) ou `confirma` (têm, com outro protocolo ou porta; com os mesmos, o fluxo não vira achado). O sensor não sabe se o tráfego usa VPN, então nunca produz `contradiz`.
 - **Fluxos pendentes**: conexão cujo lado interno ainda não está no inventário espera (guardam-se só hashes, nenhum IP) e vira achado de fluxo quando esse ativo for aprovado. Pendência vence em 90 dias.
 - Tetos por sessão: 2.000 pendências e 2.000 achados.
-- **No modo manual, subir o mesmo resumo de novo duplica** os achados e as pendências (até os tetos); descarte os repetidos na revisão. No automático, o filtro de novidade evita isso.
+- **Subir o mesmo resumo de novo não duplica**: no modo manual e no automático, o filtro de novidade pula o que já está em rascunho, foi descartado há menos de 90 dias ou está pendente (a resposta conta esses itens em `repetidos`). Fluxo que já está no inventário (mesmas pontas, protocolo e porta) também não vira achado (`fluxos_conhecidos`).
 
 ## Rede interna
 

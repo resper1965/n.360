@@ -75,8 +75,8 @@ export async function avisarSensores(env: Bindings, agora: Date): Promise<{ atra
       (SELECT created_at FROM ot_sensor_envios e WHERE e.sensor_id = s.id AND e.situacao = 'concluido' ORDER BY e.created_at DESC LIMIT 1) AS ultimo_envio
     FROM ot_sensores s JOIN ot_sites st ON st.id = s.site_id AND st.project_id = s.project_id WHERE s.situacao = 'ativa' LIMIT ${TETO_LEITURA_OT}`)
     .all<{ id: string; nome: string; project_id: string; site: string; created_at: string; ultimo_envio: string | null }>();
-  const { results: creds } = await env.DB.prepare(`SELECT sensor_id, expira_em, situacao FROM ot_sensor_credenciais WHERE situacao = 'ativa' LIMIT ${TETO_LEITURA_OT}`)
-    .all<Cred & { sensor_id: string }>();
+  const { results: creds } = await env.DB.prepare(`SELECT sensor_id, expira_em, situacao FROM ot_sensor_credenciais WHERE situacao = 'ativa'
+    AND expira_em > ? LIMIT ${TETO_LEITURA_OT}`).bind(agora.toISOString()).all<Cred & { sensor_id: string }>(); // vencida não ocupa o LIMIT; sem válida segue parada
   const out = { atrasadas: 0, paradas: 0, emails: 0 };
   const paradas: typeof sondas = [];
   for (const s of sondas) {

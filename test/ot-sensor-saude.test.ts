@@ -46,6 +46,13 @@ describe('saúde da coleta', () => {
     expect(m.subject + m.html + m.text).not.toMatch(/200\.10|\d+\.\d+\.\d+\.\d+/);
   });
 
+  it('sonda em dia cuja única credencial ativa venceu: parada', async () => {
+    await env.DB.batch([sonda('vencida', 'Vencida', ha(500)), envio('e4', 'vencida', ha(1)),
+      env.DB.prepare(`INSERT INTO ot_sensor_credenciais (id, sensor_id, project_id, chave_hash, expira_em) VALUES ('k-venc', 'vencida', 'proj-a', 'h-venc', ?)`)
+        .bind(new Date(Date.now() - 86_400_000).toISOString())]);
+    expect(await avisarSensores({ ...env } as any, new Date())).toMatchObject({ atrasadas: 1, paradas: 2 });
+  });
+
   it('sem RESEND_API_KEY não lança', async () => {
     await expect(avisarSensores({ ...env, RESEND_API_KEY: undefined } as any, new Date())).resolves.toMatchObject({ paradas: 1 });
   });

@@ -4,6 +4,7 @@ import worker from '../src/index';
 import { sha256Hex } from '../src/helpers';
 import { handlerOtSensor } from '../src/routes/ot-sensor';
 import { gravarPlano } from '../src/services/ot-rede';
+import { chavesOt, hmacOt } from '../src/services/ot-cifra';
 import { applySchema, workerEnv, seedTwoProjects, habilitarOt } from './helpers/d1';
 
 // n.ot: a sonda envia o resumo sozinha (POST /ot-sensor/resumo). D1 real, credencial `ots_` no Bearer.
@@ -215,6 +216,30 @@ describe('envio', () => {
     const r = await enviar(resumo(14), { k: cred(3) });
     expect(r.status).toBe(429);
     expect(await enviar(c, { k: cred(3) }).then((x) => x.json())).toEqual({ recebido: true, envio_id: ok.envio_id });
+  });
+
+  it('teto conta processando e concluído: 30 linhas misturadas e o envio diferente é 429', async () => {
+    await sensor('sen4', 'proj-a', 's3', '203.0.113.0/24', 9);
+    await env.DB.batch(Array.from({ length: 30 }, (_, i) => env.DB.prepare(`INSERT INTO ot_sensor_envios (id, sensor_id, project_id, impressao, situacao)
+      VALUES (?, 'sen4', 'proj-a', ?, ?)`).bind(`mix-${i}`, `mix-${i}`, i % 2 ? 'processando' : 'concluido')));
+    expect((await enviar(resumo(19), { k: cred(9) })).status).toBe(429);
+  });
+
+  it('fluxo já no inventário (mesmas pontas, protocolo e porta) não vira achado; com outra porta, vira', async () => {
+    const ch = chavesOt(workerEnv())!;
+    await env.DB.batch([
+      ...await Promise.all([1, 2, 3, 4].map(async (i) => env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_hash, mac_hash)
+        VALUES (?, 'proj-a', 's1', ?, ?, 'mh')`).bind(`inv-${i}`, `Inv ${i}`, await hmacOt(ch, 'proj-a', `10.30.0.${i}`)))),
+      env.DB.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, destino_ativo_id, protocolo, porta) VALUES
+        ('fi-1', 'proj-a', 's1', 'inv-1', 'inv-2', 'modbus', 502), ('fi-2', 'proj-a', 's1', 'inv-3', 'inv-4', 'modbus', 503)`),
+    ]);
+    const r = await enviar(resumo(30));
+    expect(r.status).toBe(200);
+    const e = (await env.DB.prepare('SELECT levantamento_id, contagens FROM ot_sensor_envios WHERE id = ?').bind((await r.json<{ envio_id: string }>()).envio_id)
+      .first<{ levantamento_id: string; contagens: string }>())!;
+    expect(JSON.parse(e.contagens)).toMatchObject({ ativos_novos: 0, fluxos_criados: 1, fluxos_conhecidos: 1 });
+    const { results } = await env.DB.prepare(`SELECT entidade, dados FROM ot_achados WHERE levantamento_id = ?`).bind(e.levantamento_id).all<{ entidade: string; dados: string }>();
+    expect(results.map((a) => [a.entidade, JSON.parse(a.dados).origem_ativo_id])).toEqual([['fluxo', 'inv-3']]);
   });
 
   it('processando há 11 min: reprocessa a mesma linha; há 2 min: 503', async () => {

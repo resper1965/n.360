@@ -201,9 +201,9 @@ otDeparaApp.post('/levantamentos/:id/depara/rede', async (c) => {
 
     const { plano: novos, repetidos } = await filtrarNovidade(db, projectId, plano);
     const k = { ...await gravarPlano(db, chaves, { projectId, siteId: lev.site_id, levantamentoId: lev.id, criadoPor: user.id, evidencia, plano: novos }),
-      ativos_conhecidos: plano.contagem.ativos_conhecidos, repetidos };
+      ativos_conhecidos: plano.contagem.ativos_conhecidos, fluxos_conhecidos: plano.contagem.fluxos_conhecidos, repetidos };
     await trilha(c, 'ot.depara.rede', projectId, `Resumo de rede no levantamento ${lev.id}: ${k.ativos_novos} ativos novos, ${k.ativos_conhecidos} conhecidos, `
-      + `${k.macs_completados} MACs, ${k.fluxos_criados} fluxos, ${k.fluxos_pendentes} pendentes, ${k.nao_importados} não importados, `
+      + `${k.macs_completados} MACs, ${k.fluxos_conhecidos} fluxos conhecidos, ${k.fluxos_criados} fluxos, ${k.fluxos_pendentes} pendentes, ${k.nao_importados} não importados, `
       + `${k.pendentes_nao_importados} pendentes não importados, ${k.repetidos} repetidos`, { tipo: 'ot_levantamento', id: lev.id });
     return c.json(k, 201);
   } catch (e) { return erro500(c, 'Falha ao importar o resumo de rede', e); }

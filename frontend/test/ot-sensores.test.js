@@ -71,6 +71,7 @@ describe('área Sondas', () => {
         await abrir('acessos', { [`GET ${B}/sites/s1/sensores`]: SONDAS,
             [`POST ${B}/sites/s1/sensores`]: [201, { sensor: { id: 'z9' }, credencial: SEGREDO, expira_em: dias(365), conf: `# /etc/n-ot-sonda.conf\ncredencial = ${SEGREDO}\n` }] });
         window.otNovaSonda('s1');
+        expect(el('ot-so-nome').maxLength).toBe(80); // livreSemPii(80) no servidor
         await window.otSalvarSonda('s1');
         expect(chamadas.some((c) => c.k.startsWith('POST'))).toBe(false);
         el('ot-so-nome').value = 'Nova';
@@ -83,6 +84,7 @@ describe('área Sondas', () => {
         expect(el('modal-content').textContent).toContain('não será mostrada de novo');
         expect(el('ot-so-cred').value).toBe(SEGREDO);
         expect(el('ot-so-conf').value).toContain('/etc/n-ot-sonda.conf');
+        expect(el('modal-content').textContent).toContain('dono n-ot-sonda');
         expect(el('modal-content').textContent).toContain('Copiar');
         el('modal-overlay').classList.add('open'); el('modal-overlay').classList.remove('open');
         await pausa();

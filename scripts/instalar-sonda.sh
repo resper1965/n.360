@@ -151,7 +151,7 @@ verificar() {
 	[[ $ESCUTA != "$GESTAO" ]] || falha "escuta e gestao precisam ser placas diferentes"
 	ip link show dev "$ESCUTA" >/dev/null || falha "placa de escuta $ESCUTA nao existe"
 	ip link show dev "$GESTAO" >/dev/null || falha "placa de gestao $GESTAO nao existe"
-	if ip route show default | grep -qw "dev $ESCUTA" || ip -6 route show default | grep -qw "dev $ESCUTA"; then
+	if ip route show default | grep -w "dev $ESCUTA" >/dev/null || ip -6 route show default | grep -w "dev $ESCUTA" >/dev/null; then
 		falha "a rota padrao sai por $ESCUTA: essa e a placa de gestao? Trocar as duas cortaria o SSH"
 	fi
 	[[ -f $ORIGEM_CONF ]] || falha "conf $ORIGEM_CONF nao existe"
@@ -179,7 +179,7 @@ instalar_zeek() {
 	zkg autoconfig --force >/dev/null
 	local p falta=()
 	for p in "${ICSNPP[@]}"; do
-		zkg list installed 2>/dev/null | grep -q "/$p " || falta+=("$p")
+		zkg list installed 2>/dev/null | grep "/$p " >/dev/null || falta+=("$p")  # grep -q fecharia o pipe: SIGPIPE com pipefail
 	done
 	if ((${#falta[@]})); then
 		if nft list table inet n_ot_sonda >/dev/null 2>&1; then
@@ -220,8 +220,16 @@ configurar_escuta() {
 		sysctl -q -p /etc/sysctl.d/90-n-ot-escuta.conf
 		ip link set dev "$ESCUTA" up promisc on
 	fi
-	[[ -z $(ip -o addr show dev "$ESCUTA") ]] ||
-		falha "$ESCUTA ainda tem endereco; outro arquivo em /etc/netplan (ex.: 50-cloud-init.yaml) deve estar configurando essa placa"
+	# Um lease de DHCP de outra definicao (netplan/cloud-init) chega segundos depois do apply; DISCOVER e ARP passam por fora do nft.
+	local i
+	for i in {1..10}; do
+		[[ -z $(ip -o addr show dev "$ESCUTA") ]] ||
+			falha "$ESCUTA ganhou endereco; outro arquivo em /etc/netplan (ex.: 50-cloud-init.yaml) ou o cloud-init deve estar configurando essa placa"
+		if networkctl status "$ESCUTA" 2>/dev/null | grep -Ei 'dhcp|lease' >/dev/null; then
+			falha "o systemd-networkd faz DHCP em $ESCUTA; outro arquivo em /etc/netplan (ex.: 50-cloud-init.yaml) deve estar configurando essa placa"
+		fi
+		sleep 2
+	done
 	cat >/etc/systemd/system/n-ot-escuta.service <<EOF
 [Unit]
 Description=n.ot: placa de escuta $ESCUTA em modo promiscuo

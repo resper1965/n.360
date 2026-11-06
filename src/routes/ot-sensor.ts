@@ -35,8 +35,8 @@ async function lerAte(req: Request, teto: number): Promise<string | null> {
   return new TextDecoder().decode(tudo);
 }
 
-export async function handlerOtSensor(req: Request, env: Bindings, ctx: ExecutionContext, deps = { gravarPlano }): Promise<Response> {
-  void ctx;
+// `_ctx` mantém a assinatura dos handlers do fetch (como handlerOtColeta); os testes injetam `deps` na 4ª posição.
+export async function handlerOtSensor(req: Request, env: Bindings, _ctx: ExecutionContext, deps = { gravarPlano }): Promise<Response> {
   if (req.method !== 'POST') return recusa(405, 'Use POST');
   const auth = await autenticarSensor(env, req);
   if (!auth.ok) return recusa(auth.status, auth.error);
@@ -64,9 +64,9 @@ export async function handlerOtSensor(req: Request, env: Bindings, ctx: Executio
   // impressão; esse caso é coberto pelo filtro de novidade (filtrarNovidade), que pula o que já está em rascunho ou pendente.
   const impressao = await sha256Hex(texto);
   let envioId = genId();
-  // O teto vai no próprio INSERT: conta os aceitos (concluídos) das últimas 24 h; o "já recebido" não chega a contar.
+  // O teto vai no próprio INSERT: conta os aceitos (processando ou concluídos) das últimas 24 h; o "já recebido" não chega a contar.
   const ins = await db.prepare(`INSERT INTO ot_sensor_envios (id, sensor_id, project_id, impressao, periodo_inicio, periodo_fim, capture_loss, versao_script)
-    SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT count(*) FROM ot_sensor_envios WHERE sensor_id = ? AND situacao = 'concluido'
+    SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT count(*) FROM ot_sensor_envios WHERE sensor_id = ? AND situacao IN ('processando', 'concluido')
       AND created_at >= datetime('now', '-1 day')) < ${TETO_ENVIOS_DIA}
     ON CONFLICT (sensor_id, impressao) DO NOTHING RETURNING atualizado_em`)
     .bind(envioId, sensor.id, sensor.projectId, impressao, p.inicio, p.fim, resumo.capture_loss ?? null, resumo.versao_script ?? null, sensor.id)
@@ -79,7 +79,7 @@ export async function handlerOtSensor(req: Request, env: Bindings, ctx: Executio
       WHERE sensor_id = ? AND impressao = ?`).bind(sensor.id, impressao).first<{ id: string; situacao: string; levantamento_id: string | null; velho: number }>();
     if (!e) return recusa(429, `Limite de ${TETO_ENVIOS_DIA} envios por dia desta sonda atingido. Tente de novo amanhã.`);
     if (e.situacao === 'concluido') return json({ recebido: true, envio_id: e.id }, 200);
-    // Processando há 10 min ou mais: o pedido anterior morreu; assume a linha (só um pedido vence o UPDATE) e reusa a sessão anotada.
+    // Processando há 10 min ou mais (pedido anterior morreu, ou liberou a linha após um erro capturado): assume a linha (só um pedido vence o UPDATE) e reusa a sessão anotada.
     marca = e.velho ? (await db.prepare(`UPDATE ot_sensor_envios SET atualizado_em = CURRENT_TIMESTAMP WHERE id = ? AND situacao = 'processando'
       AND atualizado_em < datetime('now', '-10 minutes') RETURNING atualizado_em`).bind(e.id).first<{ atualizado_em: string }>())?.atualizado_em : undefined;
     if (!marca) return recusa(503, 'Resumo em processamento: reenvie mais tarde');
@@ -109,9 +109,11 @@ export async function handlerOtSensor(req: Request, env: Bindings, ctx: Executio
         levantamentoId = novo;
       }
       const evidencia = EVIDENCIA_SENSOR(resumo.conexoes.reduce((n, x) => n + x.contagem, 0), p.inicio, p.fim);
+      // Limite aceito: a marca não guarda o gravarPlano; um pedido de mais de 10 min sobreposto a uma tomada pode gravar rascunhos
+      // duplicados (o filtro de novidade atenua no envio seguinte).
       k = await deps.gravarPlano(db, chaves, { projectId: sensor.projectId, siteId: sensor.siteId, levantamentoId, criadoPor: `sensor:${sensor.id}`, evidencia, plano: novos });
     }
-    const contagens = { ...k, ativos_conhecidos: plano.contagem.ativos_conhecidos, repetidos };
+    const contagens = { ...k, ativos_conhecidos: plano.contagem.ativos_conhecidos, fluxos_conhecidos: plano.contagem.fluxos_conhecidos, repetidos };
     const fim = await db.prepare(`UPDATE ot_sensor_envios SET situacao = 'concluido', contagens = ?, atualizado_em = CURRENT_TIMESTAMP
       WHERE id = ? AND situacao = 'processando' AND atualizado_em = ?`).bind(JSON.stringify(contagens), envioId, marca).run();
     if (!fim.meta.changes) {

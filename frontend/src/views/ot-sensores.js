@@ -70,7 +70,7 @@ export async function areaSondas(p, sites) {
 
 window.otNovaSonda = (siteId) => {
     openModal(`<div class="modal-header"><span class="modal-title">Nova sonda</span></div>
-        <div class="form-group"><label class="form-label" for="ot-so-nome">Nome</label><input class="form-input" id="ot-so-nome" maxlength="100" placeholder="Ex.: sonda do barramento" autofocus></div>
+        <div class="form-group"><label class="form-label" for="ot-so-nome">Nome</label><input class="form-input" id="ot-so-nome" maxlength="80" placeholder="Ex.: sonda do barramento" autofocus></div>
         <div class="form-group"><label class="form-label" for="ot-so-faixa">Faixa de origem</label><input class="form-input f-mono" id="ot-so-faixa" placeholder="Ex.: 203.0.113.0/24">
         <p class="org-dica">Só envios vindos desta faixa de IP são aceitos.</p></div>
         <div class="acoes-rodape"><button class="btn" data-action="closeModal">Cancelar</button><button class="btn btn-primary" data-action="otSalvarSonda" data-args='${args(siteId)}'>Criar sonda</button></div>`);
@@ -94,7 +94,7 @@ function mostrarCredencial(titulo, credencial, expiraEm, conf) {
         <p class="org-dica mb-3"><strong>Guarde agora: ela não será mostrada de novo.</strong> Vale até ${escapeHTML(formatarData(expiraEm))}.</p>
         <label class="rotulo-campo" for="ot-so-cred">Credencial</label>
         <div class="ca-bloco"><input class="form-input f-mono" id="ot-so-cred" readonly value="${escapeHTML(credencial)}"><button class="btn" data-action="otCopiarSonda" data-args='${args('ot-so-cred')}'>Copiar</button></div>
-        ${conf ? `<div class="rotulo-campo mt-3">Arquivo /etc/n-ot-sonda.conf (dono root, modo 0600)</div>
+        ${conf ? `<div class="rotulo-campo mt-3">Arquivo /etc/n-ot-sonda.conf (dono n-ot-sonda, o usuário da sonda; modo 0600)</div>
         <textarea class="form-input f-mono" id="ot-so-conf" rows="4" readonly>${escapeHTML(conf)}</textarea>
         <button class="btn mt-2" data-action="otCopiarSonda" data-args='${args('ot-so-conf')}'>Copiar</button>` : ''}
         <div class="acoes-rodape"><button class="btn btn-primary" data-action="forceCloseModal">Fechar</button></div>`);

@@ -60,6 +60,18 @@ class T(unittest.TestCase):
                         self.s.index('ip link set dev "$ESCUTA" up'))
         self.tem('[[ -z $(ip -o addr show dev "$ESCUTA") ]]', "50-cloud-init.yaml")
 
+    def test_escuta_sem_lease_por_20_s_apos_o_apply(self):
+        # o lease de DHCP de outra definicao chega depois do apply: checa endereco e networkd 10 x 2 s, depois do apply
+        laco = self.s.index("for i in {1..10}; do")
+        self.assertLess(self.s.index("netplan apply"), laco)
+        corpo = self.s[laco:self.s.index("done", laco)]
+        for t in ('ip -o addr show dev "$ESCUTA"', 'networkctl status "$ESCUTA"', "dhcp|lease", "falha", "sleep 2"):
+            self.assertIn(t, corpo)
+
+    def test_sem_grep_q_em_pipe(self):
+        # grep -q no fim de um pipe sai cedo; com pipefail o SIGPIPE do produtor vira falso negativo
+        self.assertNotRegex(self.s, r"\|\s*grep -q")
+
     def test_recusa_escuta_com_rota_padrao(self):
         self.tem("ip route show default", "ip -6 route show default")
 

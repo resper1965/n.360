@@ -162,7 +162,7 @@ describe('chave de novidade', () => {
     await achado('f5', await k(5), 'enviado', 0);
     await achado('f6', await k(6, 's2'), 'rascunho', 0);
     const plano: Plano = { ativos: await Promise.all([1, 2, 3, 4, 5, 6].map(async (i) => ({ chave: await k(i), dados: { ip: ip(i) } }))), macs: [], fluxos: [], pendentes: [],
-      contagem: { ativos_novos: 6, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0 } };
+      contagem: { ativos_novos: 6, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0, fluxos_conhecidos: 0 } };
     const r = await filtrarNovidade(env.DB, PJ, plano);
     expect(r.repetidos).toBe(3);
     expect(r.plano.ativos.map((a) => a.dados.ip)).toEqual([ip(4), ip(5), ip(6)]);

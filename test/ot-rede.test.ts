@@ -100,7 +100,7 @@ beforeAll(async () => {
     env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_hash) VALUES ('a-rtu', 'proj-a', ?, 'RTU 1', ?)`).bind(ids.s1, await hmacOt(chaves, 'proj-a', '10.1.1.10')),
     env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_hash, mac_hash) VALUES ('a-ihm', 'proj-a', ?, 'IHM', ?, 'mh')`).bind(ids.s1, await hmacOt(chaves, 'proj-a', '10.1.1.20')),
   ]);
-  // Fluxo externo do inventário com a mesma ponta do fluxo externo da IHM no sensor (confirma); o da RTU não tem par (novo).
+  // Fluxo externo do inventário igual ao externo da IHM no sensor (mesma ponta, protocolo e porta: não vira achado); o da RTU não tem par (novo).
   ids.fext = await criar(cons, 'fluxos', { site_id: ids.s1, origem_ativo_id: 'a-ihm', externo: true, protocolo: 'https', porta: 443 });
   ids.doc = await doc('Sensor SE Norte');
   ids.ent = await criar(cons, 'levantamentos', { site_id: ids.s1, tipo: 'entrevista', realizado_em: '2026-11-04' });
@@ -110,11 +110,11 @@ describe('POST /levantamentos/:id/depara/rede', () => {
   it('resumo válido: 201 com as contagens; achados do consultor com evidência do sensor e IP cifrado com a AAD do id gravado', async () => {
     const r = await enviar(cons, ids.doc, RESUMO);
     expect(r.status, await r.clone().text()).toBe(201);
-    expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 3, fluxos_pendentes: 2, nao_importados: 0,
-      pendentes_nao_importados: 0, repetidos: 0 });
+    expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 2, fluxos_pendentes: 2, nao_importados: 0,
+      pendentes_nao_importados: 0, fluxos_conhecidos: 1, repetidos: 0 });
     const lista = await achados(cons, ids.doc);
-    expect(lista).toHaveLength(5);
-    expect(lista.filter((a) => a.entidade === 'fluxo')).toHaveLength(3);
+    expect(lista).toHaveLength(4);
+    expect(lista.filter((a) => a.entidade === 'fluxo')).toHaveLength(2);
     for (const a of lista) {
       expect(a.origem).toBe('consultor');
       expect(a.evidencia).toBe('Sensor de rede (Zeek): 15 conexões entre 01/11 e 03/11');
@@ -126,12 +126,17 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     expect(await decifrarOt(d.mac_cifrado, chaves, aadOt('proj-a', 'ot_achados', novo!.id, 'mac'))).toBe('00:30:a7:01:02:04');
   });
 
-  it('fluxo externo do sensor: novo sem par no inventário, confirma com o fluxo externo já cadastrado (o consultor vê)', async () => {
+  it('fluxo externo do sensor: o já cadastrado (mesma ponta, protocolo e porta) não vira achado; o sem par é novo', async () => {
     const externos = (await achados(cons, ids.doc)).filter((a) => a.entidade === 'fluxo' && a.dados.externo === true);
-    const ihm = externos.find((a) => a.dados.origem_ativo_id === 'a-ihm')!;
-    const rtu = externos.find((a) => a.dados.origem_ativo_id === 'a-rtu')!;
-    expect(ihm).toMatchObject({ dados: { protocolo: 'https', porta: 443 }, confronto: 'confirma' });
-    expect(rtu.confronto).toBe('novo');
+    expect(externos.find((a) => a.dados.origem_ativo_id === 'a-ihm')).toBeUndefined();
+    expect(externos.find((a) => a.dados.origem_ativo_id === 'a-rtu')!.confronto).toBe('novo');
+  });
+
+  it('fluxo do inventário com outra porta: o do sensor ainda vira achado (confirma as pontas)', async () => {
+    const lev = await doc('Outra porta');
+    const r = await enviar(cons, lev, JSON.stringify({ ...base, ativos: [], conexoes: [cx('10.1.1.20', '203.0.113.5', 8443, 'https')] }));
+    expect(await r.json()).toMatchObject({ fluxos_criados: 1, fluxos_conhecidos: 0 });
+    expect((await achados(cons, lev))[0]).toMatchObject({ entidade: 'fluxo', dados: { origem_ativo_id: 'a-ihm', porta: 8443 }, confronto: 'confirma' });
   });
 
   it('pendências gravadas só com hash, sem IP em claro, e com a evidência para a segunda passagem', async () => {
@@ -148,11 +153,11 @@ describe('POST /levantamentos/:id/depara/rede', () => {
     const r = await enviar(cons, lev, RESUMO);
     expect(r.status, await r.clone().text()).toBe(201);
     expect(await r.json()).toEqual({ ativos_novos: 0, ativos_conhecidos: 2, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0, nao_importados: 0,
-      pendentes_nao_importados: 0, repetidos: 7 });
+      pendentes_nao_importados: 0, fluxos_conhecidos: 1, repetidos: 6 });
     expect(await contar(lev)).toBe(0);
     expect((await env.DB.prepare('SELECT count(*) AS n FROM ot_fluxos_pendentes WHERE levantamento_id = ?').bind(lev).first<{ n: number }>())!.n).toBe(0);
     const chaves = await env.DB.prepare(`SELECT count(*) AS n FROM ot_achados WHERE levantamento_id = ? AND chave_sensor IS NOT NULL`).bind(ids.doc).first<{ n: number }>();
-    expect(chaves!.n).toBe(5);
+    expect(chaves!.n).toBe(4);
   });
 
   it('quem vê mascarado não importa: 403 e nada gravado', async () => {
@@ -200,8 +205,8 @@ describe('POST /levantamentos/:id/depara/rede', () => {
       INSERT INTO ot_achados (id, project_id, levantamento_id, criado_por) SELECT 'rede-quase-' || i, 'proj-a', ?, 'x' FROM n`).bind(lev).run();
     const r = await enviar(cons, lev, RESUMO);
     expect(r.status, await r.clone().text()).toBe(201);
-    expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 1, fluxos_pendentes: 2, nao_importados: 2,
-      pendentes_nao_importados: 0, repetidos: 0 });
+    expect(await r.json()).toEqual({ ativos_novos: 1, ativos_conhecidos: 2, macs_completados: 1, fluxos_criados: 1, fluxos_pendentes: 2, nao_importados: 1,
+      pendentes_nao_importados: 0, fluxos_conhecidos: 1, repetidos: 0 });
     expect(await contar(lev)).toBe(2000);
   });
 
