@@ -760,7 +760,7 @@ Coluna `titular_pedidos.acompanhamento_hash` por `ALTER TABLE ADD COLUMN` (roda 
 consulta pública acha o pedido por ele. Spec `2026-11-06-titular-consulta-protocolo-design`. Conferência depois:
 `SELECT name FROM pragma_table_info('titular_pedidos') WHERE name = 'acompanhamento_hash'` (1 linha) e
 `SELECT name FROM sqlite_master WHERE name = 'idx_titular_pedidos_acompanhamento'` (1 linha).
-**Pendente em produção.**
+Aplicada em produção em 06/11/2026, com backup antes: as conferências deram 1 e 1 linha.
 
 ## 0104 — identidade e encaminhamento do pedido do titular (2026-11-06)
 
