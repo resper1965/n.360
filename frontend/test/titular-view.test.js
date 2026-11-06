@@ -129,7 +129,7 @@ describe('pedidos', () => {
         expect(document.body.textContent).toContain('25/10/2026');
     });
     it('abrir o pedido mostra descrição e resposta escapadas; responder manda status e texto; respondido trava a resposta', async () => {
-        const base = { id: 'a', protocolo: 'PT-2026-0001', tipo: 'acesso', canal: 'email', titular_nome: 'Ana <b>x</b>', titular_contato: null, descricao: 'Quero <i>meus</i> dados', recebido_em: '2026-10-01', prazo_em: null, situacao_prazo: 'sem_prazo', resposta_texto: null };
+        const base = { id: 'a', protocolo: 'PT-2026-0001', tipo: 'acesso', canal: 'email', titular_nome: 'Ana <b>x</b>', titular_contato: null, descricao: 'Quero <i>meus</i> dados', recebido_em: '2026-10-01', prazo_em: null, situacao_prazo: 'sem_prazo', resposta_texto: null, identidade_metodo: 'documento_foto' };
         const f = await abrir('pedidos', { [`GET ${B}/titular-pedidos/a`]: { ...base, status: 'recebido' }, [`PUT ${B}/titular-pedidos/a`]: { ok: true } });
         await window.abrirPedidoTitular('p9', 'a');
         const m = el('modal-content');
@@ -144,6 +144,77 @@ describe('pedidos', () => {
         expect(el('pt-resp').disabled).toBe(true);
         // Respondido só vai para arquivado (o servidor recusa o resto): o seletor oferece só isso.
         expect([...el('pt-status').options].map((o) => o.value)).toEqual(['respondido', 'arquivado']);
+    });
+});
+
+describe('identidade e encaminhamento do pedido', () => {
+    const PED = { id: 'a', protocolo: 'PT-2026-0001', tipo: 'acesso', canal: 'email', titular_nome: 'Ana', titular_contato: null, descricao: 'x', recebido_em: '2026-10-01', prazo_em: null, situacao_prazo: 'sem_prazo', resposta_texto: null, status: 'recebido', identidade_metodo: null };
+    const ENC = { id: 'e1', parte_nome: 'Ponto <b>Focal</b>', prazo: '2026-12-01', mensagem: 'Ver registros', status: 'aguardando', retorno: null, situacao: 'no_prazo' };
+    const rotasPed = (pedido = PED, encs = [ENC]) => ({
+        [`GET ${B}/titular-pedidos/a`]: pedido, [`GET ${B}/titular-pedidos/a/tratativas`]: [], [`GET ${B}/titular-pedidos/a/encaminhamentos`]: { encaminhamentos: encs },
+        [`PUT ${B}/titular-pedidos/a/identidade`]: { ok: true }, [`PUT ${B}/titular-pedidos/a`]: { ok: true },
+        [`GET ${B}/partes`]: [{ id: 'pf', nome: 'Ponto Focal', email: 'pf@exemplo.invalid', tipo: 'pessoa' }, { id: 'sem', nome: 'Sem Email', email: null, tipo: 'pessoa' }],
+        [`POST ${B}/titular-pedidos/a/encaminhamentos`]: { ok: true, id: 'e2', email_enviado: false },
+        [`PUT ${B}/titular-pedidos/a/encaminhamentos/e1`]: { ok: true },
+    });
+    it('sem conferência: diz que não foi conferida; registrar manda método e observação; conferida mostra quem e quando', async () => {
+        const f = await abrir('pedidos', rotasPed());
+        await window.abrirPedidoTitular('p9', 'a');
+        expect(el('pt-identidade-box').textContent).toContain('Identidade não conferida');
+        el('pt-id-metodo').value = 'presencial'; el('pt-id-obs').value = ' Atendido no balcão ';
+        await window.salvarIdentidadeTitular('p9', 'a');
+        expect(corpoDe(f, `PUT ${B}/titular-pedidos/a/identidade`)).toEqual({ metodo: 'presencial', observacao: 'Atendido no balcão' });
+        servir(rotas(rotasPed({ ...PED, identidade_metodo: 'presencial', identidade_obs: 'Balcão', identidade_por_nome: 'Ana Exemplo', identidade_em: '2026-11-06T13:00:00Z' })));
+        await window.abrirPedidoTitular('p9', 'a');
+        expect(el('pt-identidade-box').textContent).toContain('Presencial');
+        expect(el('pt-identidade-box').textContent).toContain('Conferida por Ana Exemplo em 06/11/2026');
+    });
+    it('responder sem conferência pede confirmação; recusar não grava, aceitar grava', async () => {
+        const f = await abrir('pedidos', rotasPed());
+        await window.abrirPedidoTitular('p9', 'a');
+        el('pt-status').value = 'respondido'; el('pt-resp').value = 'Resposta';
+        let salvar = window.salvarPedidoTitular('p9', 'a');
+        await vi.waitFor(() => expect(document.querySelector('[data-confirmar="nao"]')).not.toBeNull());
+        expect(document.body.textContent).toContain('Identidade não conferida. Responder mesmo assim?');
+        document.querySelector('[data-confirmar="nao"]').click();
+        await salvar;
+        expect(chamadas(f)).not.toContain(`PUT ${B}/titular-pedidos/a`);
+        salvar = window.salvarPedidoTitular('p9', 'a');
+        await vi.waitFor(() => expect(document.querySelector('[data-confirmar="sim"]')).not.toBeNull());
+        document.querySelector('[data-confirmar="sim"]').click();
+        await salvar;
+        expect(corpoDe(f, `PUT ${B}/titular-pedidos/a`)).toEqual({ status: 'respondido', resposta_texto: 'Resposta' });
+    });
+    it('lista: pedido aberto sem conferência tem o selo; respondido não', async () => {
+        await abrir('pedidos', { [`GET ${B}/titular-pedidos`]: [{ ...PED }, { ...PED, id: 'r', protocolo: 'PT-2026-0009', status: 'respondido', situacao_prazo: 'encerrado' }] });
+        const linhas = [...el('c').querySelectorAll('tbody tr')];
+        expect(linhas.find((l) => l.textContent.includes('PT-2026-0001')).textContent).toContain('Identidade não conferida');
+        expect(linhas.find((l) => l.textContent.includes('PT-2026-0009')).textContent).not.toContain('Identidade não conferida');
+    });
+    it('encaminhamentos: lista escapada; encaminhar só oferece pessoa com e-mail e avisa e-mail não enviado; retorno e cancelar', async () => {
+        const f = await abrir('pedidos', rotasPed());
+        await window.abrirPedidoTitular('p9', 'a');
+        await vi.waitFor(() => expect(el('pt-encaminhamentos-box').textContent).toContain('Ver registros'));
+        expect(el('pt-encaminhamentos-box').querySelector('b')).toBeNull();
+        await window.abrirEncaminhar('p9', 'a');
+        expect([...el('pt-enc-parte').options].map((o) => o.value)).toEqual(['pf']);
+        el('pt-enc-prazo').value = '2026-12-10'; el('pt-enc-msg').value = ' Localizar ponto ';
+        await window.salvarEncaminhamento('p9', 'a');
+        expect(corpoDe(f, `POST ${B}/titular-pedidos/a/encaminhamentos`)).toEqual({ parte_id: 'pf', prazo: '2026-12-10', mensagem: 'Localizar ponto' });
+        expect(document.body.textContent).toContain('o e-mail não foi enviado');
+        el('pt-enc-ret-e1').value = ' Feito ';
+        await window.registrarRetornoEncaminhamento('p9', 'a', 'e1');
+        expect(corpoDe(f, `PUT ${B}/titular-pedidos/a/encaminhamentos/e1`)).toEqual({ status: 'respondido', retorno: 'Feito' });
+    });
+    it('cancelar encaminhamento pede confirmação', async () => {
+        const f = await abrir('pedidos', rotasPed());
+        await window.abrirPedidoTitular('p9', 'a');
+        await vi.waitFor(() => expect(el('pt-encaminhamentos-box').textContent).toContain('Ver registros'));
+        const cancelar = window.cancelarEncaminhamento('p9', 'a', 'e1');
+        await vi.waitFor(() => expect(document.querySelector('[data-confirmar="sim"]')).not.toBeNull());
+        document.querySelector('[data-confirmar="sim"]').click();
+        await cancelar;
+        expect(corpoDe(f, `PUT ${B}/titular-pedidos/a/encaminhamentos/e1`)).toEqual({ status: 'cancelado' });
     });
 });
 
@@ -723,7 +794,8 @@ describe('o cliente age: administrador do cliente registra e responde', () => {
         expect(linhas.map((b) => b.textContent)).toEqual(['Abrir', 'Abrir', 'Abrir']);
     });
     it('o pedido abre com status e resposta; o rascunho gerado vai para a resposta e é salvo pelo PUT', async () => {
-        const f = await abrir('pedidos', { [`GET ${B}/titular-pedidos/c`]: PED, [`POST ${B}/titular-pedidos/c/rascunho`]: { ok: true, texto: 'Prezado titular' }, [`PUT ${B}/titular-pedidos/c`]: { ok: true } });
+        // Identidade conferida: responder não pede confirmação (o caso sem conferência está em "identidade e encaminhamento do pedido").
+        const f = await abrir('pedidos', { [`GET ${B}/titular-pedidos/c`]: { ...PED, identidade_metodo: 'documento_foto' }, [`POST ${B}/titular-pedidos/c/rascunho`]: { ok: true, texto: 'Prezado titular' }, [`PUT ${B}/titular-pedidos/c`]: { ok: true } });
         await window.abrirPedidoTitular('p9', 'c');
         expect(el('pt-status')).not.toBeNull();
         await window.rascunhoRespostaTitular('p9', 'c');
