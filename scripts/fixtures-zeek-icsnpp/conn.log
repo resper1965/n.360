@@ -1,0 +1,7 @@
+{"ts": 1793491200, "uid": "I0", "id.orig_h": "10.2.0.1", "id.orig_p": 50000, "id.resp_h": "10.2.0.10", "id.resp_p": 44818, "proto": "tcp", "service": "enip"}
+{"ts": 1793491201, "uid": "I1", "id.orig_h": "10.2.0.1", "id.orig_p": 50000, "id.resp_h": "10.2.0.11", "id.resp_p": 2222, "proto": "udp", "service": "cip"}
+{"ts": 1793491202, "uid": "I2", "id.orig_h": "10.2.0.1", "id.orig_p": 50000, "id.resp_h": "10.2.0.12", "id.resp_p": 102, "proto": "tcp", "service": "cotp,s7comm"}
+{"ts": 1793491203, "uid": "I3", "id.orig_h": "10.2.0.1", "id.orig_p": 50000, "id.resp_h": "10.2.0.13", "id.resp_p": 102, "proto": "tcp", "service": "cotp,s7comm-plus"}
+{"ts": 1793491204, "uid": "I4", "id.orig_h": "10.2.0.1", "id.orig_p": 50000, "id.resp_h": "10.2.0.14", "id.resp_p": 47808, "proto": "udp", "service": "bacnet"}
+{"ts": 1793491205, "uid": "I5", "id.orig_h": "10.2.0.1", "id.orig_p": 50000, "id.resp_h": "10.2.0.15", "id.resp_p": 4840, "proto": "tcp", "service": "opcua-binary"}
+{"ts": 1793491206, "uid": "I6", "id.orig_h": "10.2.0.1", "id.orig_p": 50000, "id.resp_h": "10.2.0.16", "id.resp_p": 34964, "proto": "udp", "service": "spicy_profinet_io_cm"}

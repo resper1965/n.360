@@ -3,6 +3,7 @@ import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
 import { podeEditarOt, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
+import { preencherCartoes } from './ot-sensores.js';
 
 // Levantamento do n.ot (L1, descoberta operacional): sessões de entrevista, visita de campo e documento, com o roteiro guiado e os
 // achados que viram lote da coleta (a aprovação continua na Coleta). O operador é só função e turno. IP/MAC aparecem como a API
@@ -17,7 +18,7 @@ const RESPOSTA = { sim: 'Sim', nao: 'Não', nao_perguntado: 'Não perguntado' };
 const ACHADO = { rascunho: ['neutral', 'Rascunho'], enviado: ['info', 'Enviado ao lote'], descartado: ['warning', 'Descartado'] };
 const SELO_ORIGEM = { ia: 'Sugerido pela IA', agente: 'Enviado pelo agente' };
 // O sensor de rede grava origem 'consultor'; a fonte fica na evidência (EVIDENCIA_SENSOR, src/services/ot-rede.ts).
-const seloDoAchado = (x) => SELO_ORIGEM[x.origem] || (String(x.evidencia || '').startsWith('Sensor de rede (Zeek): ') ? 'Sensor de rede' : '');
+export const seloDoAchado = (x) => SELO_ORIGEM[x.origem] || (String(x.evidencia || '').startsWith('Sensor de rede (Zeek): ') ? 'Sensor de rede' : '');
 const selo = (mapa, v) => renderStatusBadge(...(mapa[v] || ['neutral', v || '—']));
 const situacao = (l) => (l.situacao === 'encerrado' ? renderStatusBadge('neutral', 'Encerrado') : renderStatusBadge('info', 'Aberto'));
 const quem = (l) => (l.tipo === 'documento' ? escapeHTML(l.documento_titulo || '—')
@@ -39,11 +40,12 @@ export async function montarLevantamento(c, a, p) {
         sites = lista(s, 'sites'); levs = lista(l, 'levantamentos');
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os levantamentos do n.ot.', e); return; }
     if (podeEditarOt() && sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoLevantamento">+ Novo levantamento</button>';
-    c.innerHTML = `<p class="org-header-intro">Entrevistas, visitas de campo e documentos do site. O operador é registrado só por função e turno: não escreva nomes, IP, MAC, e-mail ou telefone nas notas.</p>
+    c.innerHTML = `<div id="ot-cartoes-slot"></div><p class="org-header-intro">Entrevistas, visitas de campo e documentos do site. O operador é registrado só por função e turno: não escreva nomes, IP, MAC, e-mail ou telefone nas notas.</p>
         ${renderDataTable(['Tipo', 'Data', 'Quem ou documento', 'Site', 'Achados', 'Situação', 'Ações'], levs.map((l) => [
         escapeHTML(TIPO[l.tipo] || l.tipo), escapeHTML(formatarData(l.realizado_em)), quem(l), escapeHTML(nomeDe(sites, l.site_id)), escapeHTML(String(l.achados ?? 0)), situacao(l),
         `<button class="btn btn-sm" data-action="otAbrirLevantamento" data-args='${args(l.id)}' aria-label="${escapeHTML(`Abrir ${TIPO[l.tipo] || l.tipo} de ${formatarData(l.realizado_em)}`)}">Abrir</button>`,
     ]), { emptyMessage: 'Nenhum levantamento registrado.', emptyHint: 'Comece por uma entrevista ou visita de campo no site.' })}`;
+    preencherCartoes(p, sites); // sem await: a lista não espera os cartões
 }
 
 window.otAbrirLevantamento = (id) => { S.otLevantamento = id; window.render(); };

@@ -135,7 +135,7 @@ import {
 import {
   otSiteCriarSchema, otSiteAtualizarSchema, otZonaCriarSchema, otZonaAtualizarSchema, otAtivoCriarSchema, otAtivoAtualizarSchema,
   otFluxoCriarSchema, otFluxoAtualizarSchema, otAcessoCriarSchema, otRevelarSchema, otExportarSchema, otLoteManualSchema, otLoteRejeitarSchema,
-  otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, otAgenteInterruptorSchema, otAgenteChaveSchema,
+  otLevantamentoCriarSchema, otLevantamentoAtualizarSchema, otAchadoCriarSchema, otAchadoAtualizarSchema, otEnviarAchadosSchema, otAgenteInterruptorSchema, otAgenteChaveSchema, sensorCriarSchema,
 } from './schemas/ot';
 import { otIaZonaSchema, otIaCompletudeSchema } from './schemas/ot-saidas';
 import { escopoSchema, agentesSchema, baseJuridicaSchema, medidaCriarSchema, medidaAtualizarSchema, orgaoPublicoCriarSchema, orgaoPublicoAtualizarSchema, situacaoSchema, gapCriarSchema, gapAtualizarSchema, gapsNaoAplicavelSchema, etapaCabecalhoSchema, etapaAtivosSchema, etapaAreasSchema, etapaParceirosSchema, etapaTitularesColetaSchema, etapaTitularSchema, etapaRascunhoSchema, catalogoCriarSchema, catalogoAtualizarSchema, ripdQuestionarioSchema, liaQuestionarioSchema } from './schemas/ropa-abas';
@@ -319,6 +319,7 @@ export const ROTAS_COM_SCHEMA: Entrada[] = [
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/lotes/:id/rejeitar', schema: otLoteRejeitarSchema, nome: 'otLoteRejeitarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/lotes/manual', schema: otLoteManualSchema, nome: 'otLoteManualSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/sites/:id', schema: otSiteAtualizarSchema, nome: 'otSiteAtualizarSchema' },
+  { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites/:sid/sensores', schema: sensorCriarSchema, nome: 'sensorCriarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/sites', schema: otSiteCriarSchema, nome: 'otSiteCriarSchema' },
   { metodo: 'PUT', caminho: '/api/v1/projects/:projectId/ot/zonas/:id', schema: otZonaAtualizarSchema, nome: 'otZonaAtualizarSchema' },
   { metodo: 'POST', caminho: '/api/v1/projects/:projectId/ot/zonas', schema: otZonaCriarSchema, nome: 'otZonaCriarSchema' },
