@@ -55,7 +55,7 @@ export async function atualizarAnalise(db: D1Database, projectId: string, incide
 const EVENTO: Record<string, string> = {
   'incidente.criado': 'Registrado', 'incidente.importado': 'Importado do histórico', 'incidente.alterado': 'Registro alterado',
   'incidente.risco': 'Risco ao titular avaliado', 'incidente.comunicacao': 'Comunicação registrada', 'incidente.encerrado': 'Encerrado',
-  'incidente.anexo': 'Evidência', 'incidente.acao': 'Ação corretiva', 'incidente.analise': 'Análise',
+  'incidente.anexo': 'Evidência', 'incidente.acao': 'Ação corretiva', 'incidente.analise': 'Análise', 'incidente.postmortem': 'Post mortem',
 };
 const mascara = (e: string) => e.replace(/^(.).*(@.*)$/, '$1***$2');
 

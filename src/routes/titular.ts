@@ -7,13 +7,14 @@ import { atualizarPedido, criarPedido, lerPedido, listarPedidos, gerarPortal, le
 import { guardarAnexoIncidente, listarAnexosIncidente, baixarAnexoIncidente, apagarAnexoIncidente, MAX_ANEXO } from '../services/incidente-anexos';
 import { listarAcoesDoIncidente, criarAcaoDoIncidente, atualizarAcaoDoIncidente } from '../services/incidente-acoes';
 import { listarAnalises, criarAnalise, atualizarAnalise, lerHistoricoIncidente } from '../services/incidente-analises';
+import { lerPostmortem, salvarPostmortem } from '../services/incidente-postmortem';
 import { montarCsv } from '../services/exportacao';
 import { guardarAnexo, listarAnexos, baixarAnexo, apagarAnexo } from '../services/ropa-abas/anexos';
 import { atualizarIncidente, avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
 import { listarConsentimentos, registrarConsentimento, revogarConsentimento } from '../services/consentimentos';
 import { rascunharComunicacao, rascunharResposta } from '../services/rascunhos-privacy';
 import {
-  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
+  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
   titularPedidoAtualizarSchema, titularPedidoCriarSchema, tratativaSchema,
 } from '../schemas';
 
@@ -228,6 +229,23 @@ incidentesApp.put('/:id/analises/:analiseId', async (c) => {
     const r = await atualizarAnalise(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.req.param('analiseId'), c.get('user').email, v.data.texto);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao alterar a análise', e); }
+});
+
+// Post mortem (fatia 5): as 14 perguntas do legado; só depois do encerramento, e responder não reabre o incidente.
+incidentesApp.get('/:id/postmortem', async (c) => {
+  try {
+    const r = await lerPostmortem(c.env.DB, c.req.param('projectId')!, c.req.param('id'));
+    return r ? c.json(r) : c.json({ error: 'Incidente não encontrado' }, 404);
+  } catch (e) { return erro500(c, 'Falha ao ler o post mortem', e); }
+});
+
+incidentesApp.put('/:id/postmortem', async (c) => {
+  try {
+    const v = await validateBody(c, incidentePostmortemSchema);
+    if (!v.success) return v.response;
+    const r = await salvarPostmortem(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data.respostas);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao gravar o post mortem', e); }
 });
 
 // Histórico (fatia 3): a trilha do incidente, sem texto livre nem justificativa; CSV no formato pt-BR das exportações (fora do agente).

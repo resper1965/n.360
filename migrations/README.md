@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0102** (`ls migrations/*.sql | tail -1`). São 103 arquivos
+- Última migration no repositório: **0103** (`ls migrations/*.sql | tail -1`). São 104 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -753,12 +753,20 @@ depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titula
 Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).
 
+## 0103 — post mortem do incidente (2026-11-06)
+
+Cria `incidente_postmortem` (uma resposta por pergunta das 14 do legado, `src/data/incidente-postmortem.ts`; até 5.000 caracteres) e os
+gatilhos `incidente_postmortem_ins` e `incidente_postmortem_upd`, que só aceitam resposta de incidente ENCERRADO do mesmo projeto, também
+por SQL direto. Aditiva e repetível. Fatia 5 da spec `2026-11-04-incidentes-legado-design`. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name IN ('incidente_postmortem','incidente_postmortem_ins','incidente_postmortem_upd')` (3 linhas).
+Produção só com o "sim" do dono e backup antes.
+
 ## 0102 — análise de incidente encerrado não muda por UPDATE (2026-11-06)
 
 Gatilho `incidente_analises_encerrado_upd` (BEFORE UPDATE): a análise de incidente encerrado também não muda por SQL direto; a 0101 só
 barrava a inclusão. Sem gatilho de DELETE (a exclusão do projeto ou do incidente cascateia). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'incidente_analises_encerrado_upd'` (1 linha).
-Produção só com o "sim" do dono e backup antes.
+Aplicada em produção em 06/11/2026, com backup antes: a conferência deu 1 linha.
 
 ## 0101 — análises do incidente (2026-11-06)
 
