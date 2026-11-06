@@ -113,16 +113,12 @@ Pontos de atenção na instalação:
 ip -br addr show <placa-de-escuta>
 ```
 
-- **O `zeek-lts` não se atualiza sozinho, de propósito.** Os plugins ICSNPP são compilados para a ABI do Zeek; uma atualização automática os quebraria em silêncio. Atualizar é **procedimento de janela de manutenção**: atualize o pacote à mão, **reconstrua os pacotes ICSNPP com o `zkg`** e faça o `zeekctl deploy`. Como o firewall bloqueia a saída do root para o GitHub, é preciso abri-lo. **Enquanto a tabela estiver apagada, o firewall da sonda está totalmente aberto**: faça tudo seguido e feche no fim, mesmo que um passo falhe.
+- **O `zeek-lts` não se atualiza sozinho, de propósito.** Os plugins ICSNPP são compilados para a ABI do Zeek; uma atualização automática os quebraria em silêncio. Atualizar é **procedimento de janela de manutenção**: atualize o pacote à mão, **reconstrua os pacotes ICSNPP com o `zkg`** e faça o `zeekctl deploy`. Como o firewall bloqueia a saída do root para o GitHub, é preciso abri-lo. **Enquanto a tabela estiver apagada, o firewall da sonda está totalmente aberto**: faça tudo seguido, num bloco só, que fecha o firewall sozinho no fim.
+
+Rode dentro de `tmux` ou `screen` (ou prefixe o comando com `systemd-run --wait --pty`), para uma queda do SSH não matar o bloco no meio. O `trap` reabre as regras ao sair do bloco, por sucesso, falha ou Ctrl-C; se a sessão cair mesmo assim, o shell recebe o sinal de desligamento e o `trap` também roda. Confira depois com `sudo nft list tables`: tem de aparecer `inet n_ot_sonda`.
 
 ```bash
-sudo nft delete table inet n_ot_sonda
-sudo apt-get update
-sudo apt-get install --only-upgrade -y zeek-lts
-sudo env PATH=/opt/zeek/bin:$PATH zkg refresh
-sudo env PATH=/opt/zeek/bin:$PATH zkg install --force --skiptests icsnpp-enip icsnpp-s7comm icsnpp-bacnet icsnpp-opcua-binary icsnpp-profinet-io-cm
-sudo /opt/zeek/bin/zeekctl deploy
-sudo nft -f /etc/nftables.conf   # feche sempre, mesmo se um passo acima falhou
+sudo bash -c 'trap "nft -f /etc/nftables.conf" EXIT; nft delete table inet n_ot_sonda && apt-get update && apt-get install --only-upgrade -y zeek-lts && env PATH=/opt/zeek/bin:$PATH zkg refresh && env PATH=/opt/zeek/bin:$PATH zkg install --force --skiptests icsnpp-enip icsnpp-s7comm icsnpp-bacnet icsnpp-opcua-binary icsnpp-profinet-io-cm && /opt/zeek/bin/zeekctl deploy'
 ```
 
 Teste o primeiro envio:
