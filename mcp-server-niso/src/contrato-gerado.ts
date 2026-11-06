@@ -245,6 +245,7 @@ export const ROTAS = {
   'PUT /api/v1/projects/{projectId}/sso': { obrigatorios: ['client_id', 'client_secret', 'dominios', 'issuer'] },
   'PUT /api/v1/projects/{projectId}/terceiros/{parteId}/tipo': { obrigatorios: ['terceiro_tipo'] },
   'PUT /api/v1/projects/{projectId}/titular-pedidos/{id}': { obrigatorios: [] },
+  'PUT /api/v1/projects/{projectId}/titular-pedidos/{id}/identidade': { obrigatorios: ['metodo'] },
   'PUT /api/v1/proposals/{id}': { obrigatorios: [] },
   'PUT /api/v1/proposals/config/pricing': { obrigatorios: [] },
   'PUT /api/v1/propostas/{id}': { obrigatorios: [] },

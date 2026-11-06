@@ -8,13 +8,14 @@ import { guardarAnexoIncidente, listarAnexosIncidente, baixarAnexoIncidente, apa
 import { listarAcoesDoIncidente, criarAcaoDoIncidente, atualizarAcaoDoIncidente } from '../services/incidente-acoes';
 import { listarAnalises, criarAnalise, atualizarAnalise, lerHistoricoIncidente } from '../services/incidente-analises';
 import { lerPostmortem, salvarPostmortem } from '../services/incidente-postmortem';
+import { salvarIdentidade } from '../services/titular-identidade';
 import { dataHoraBr, montarCsv } from '../services/exportacao';
 import { guardarAnexo, listarAnexos, baixarAnexo, apagarAnexo } from '../services/ropa-abas/anexos';
 import { atualizarIncidente, avaliarRisco, criarIncidente, encerrarIncidente, lerIncidente, listarIncidentes, registrarComunicacao } from '../services/incidentes';
 import { listarConsentimentos, registrarConsentimento, revogarConsentimento } from '../services/consentimentos';
 import { rascunharComunicacao, rascunharResposta } from '../services/rascunhos-privacy';
 import {
-  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
+  validateBody, consentimentoCriarSchema, incidenteComunicacaoSchema, incidenteAcaoCriarSchema, incidenteAcaoAtualizarSchema, incidenteAnaliseSchema, incidentePostmortemSchema, titularIdentidadeSchema, incidenteCriarSchema, incidenteRascunhoSchema, incidenteRiscoSchema, incidenteAtualizarSchema, parametroLegalSchema,
   titularPedidoAtualizarSchema, titularPedidoCriarSchema, tratativaSchema,
 } from '../schemas';
 
@@ -79,6 +80,18 @@ titularPedidosApp.put('/:id', async (c) => {
     const r = await atualizarPedido(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data);
     return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
   } catch (e) { return erro500(c, 'Falha ao atualizar o pedido do titular', e); }
+});
+
+// Conferência de identidade (spec 2026-11-06): pessoa da equipe ou o org_admin do projeto; chave de API e agente, não.
+const podeAtender = (u: { role?: string } | undefined) => ehEquipeNess(u) || u?.role === 'org_admin';
+titularPedidosApp.put('/:id/identidade', async (c) => {
+  try {
+    if (!podeAtender(c.get('user'))) return c.json({ error: 'Forbidden: a conferência de identidade é ato de pessoa, pela interface' }, 403);
+    const v = await validateBody(c, titularIdentidadeSchema);
+    if (!v.success) return v.response;
+    const r = await salvarIdentidade(c.env.DB, c.req.param('projectId')!, c.req.param('id'), c.get('user').email, v.data);
+    return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, r.status);
+  } catch (e) { return erro500(c, 'Falha ao registrar a conferência de identidade', e); }
 });
 
 // Rascunho de IA da resposta: nada é gravado; enviar continua sendo o PUT acima.

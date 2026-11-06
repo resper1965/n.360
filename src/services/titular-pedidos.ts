@@ -28,20 +28,24 @@ export function situacaoDoPrazo(p: { prazo_em: string | null; status: string }, 
   return dia < em ? 'atrasado' : dia === em ? 'vence_hoje' : 'no_prazo';
 }
 
-const COLS = 'id, protocolo, tipo, canal, titular_nome, titular_contato, descricao, recebido_em, prazo_em, status, respondido_em, resposta_texto, responsavel_parte_id, criado_por, created_at, updated_at';
+const COLS = 'id, protocolo, tipo, canal, titular_nome, titular_contato, descricao, recebido_em, prazo_em, status, respondido_em, resposta_texto, responsavel_parte_id, criado_por, created_at, updated_at, identidade_metodo, identidade_obs, identidade_por, identidade_em';
+// Leitura com o nome de quem conferiu a identidade (migration 0104).
+const LEITURA = `SELECT ${COLS.split(', ').map((c) => `t.${c}`).join(', ')}, NULLIF(u.name, '') AS identidade_por_nome
+  FROM titular_pedidos t LEFT JOIN users u ON t.identidade_por IS NOT NULL AND lower(u.email) = lower(t.identidade_por)`;
 export type Pedido = {
   id: string; protocolo: string; tipo: TipoPedido; canal: CanalPedido; titular_nome: string | null; titular_contato: string | null; descricao: string | null;
   recebido_em: string; prazo_em: string | null; status: StatusPedido; respondido_em: string | null; resposta_texto: string | null; responsavel_parte_id: string | null;
+  identidade_metodo: string | null; identidade_obs: string | null; identidade_por: string | null; identidade_em: string | null; identidade_por_nome?: string | null;
 };
 const comSituacao = (p: Pedido) => ({ ...p, situacao_prazo: situacaoDoPrazo(p) });
 
 export async function listarPedidos(db: D1Database, projectId: string) {
-  const { results } = await db.prepare(`SELECT ${COLS} FROM titular_pedidos WHERE project_id = ? ORDER BY recebido_em DESC, protocolo DESC`).bind(projectId).all<Pedido>();
+  const { results } = await db.prepare(`${LEITURA} WHERE t.project_id = ? ORDER BY t.recebido_em DESC, t.protocolo DESC`).bind(projectId).all<Pedido>();
   return results.map(comSituacao);
 }
 
 export async function lerPedido(db: D1Database, projectId: string, id: string) {
-  const p = await db.prepare(`SELECT ${COLS} FROM titular_pedidos WHERE id = ? AND project_id = ?`).bind(id, projectId).first<Pedido>();
+  const p = await db.prepare(`${LEITURA} WHERE t.id = ? AND t.project_id = ?`).bind(id, projectId).first<Pedido>();
   return p ? comSituacao(p) : null;
 }
 

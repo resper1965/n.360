@@ -244,6 +244,12 @@ export const portalAbrirSchema = z.object({
   descricao: z.string().trim().min(1).max(5000),
 }).strict();
 
+/** Conferência de identidade do titular (migration 0104): método da lista fechada; null limpa. A observação é conferida no serviço. */
+export const titularIdentidadeSchema = z.object({
+  metodo: z.enum(['documento_foto', 'dados_cadastrais', 'canal_autenticado', 'presencial', 'outro']).nullable(),
+  observacao: z.string().max(500).nullish(),
+}).strict();
+
 /** Tratativa do atendimento de um pedido do titular (migration 0096). */
 export const tratativaSchema = z.object({
   tipo: z.enum(['comunicacao_titular', 'encaminhamento', 'evidencia', 'nota']),
