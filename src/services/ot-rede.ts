@@ -44,7 +44,7 @@ export const ehHost = (ip: string): boolean => !NAO_HOST.some((f) => ipNaFaixa(i
 
 // Resumo do sensor de rede (spec §2–§3): esquema estrito; qualquer erro recusa o arquivo inteiro.
 export const PROTOCOLOS_REDE = ['modbus', 'dnp3', 'iec104', 's7comm', 'enip', 'bacnet', 'opcua', 'mms', 'goose', 'http', 'https', 'ssh', 'telnet',
-  'rdp', 'smb', 'snmp', 'ntp', 'dns', 'syslog', 'ftp'] as const;
+  'rdp', 'smb', 'snmp', 'ntp', 'dns', 'syslog', 'ftp', 'profinet'] as const;
 const ip = z.string().refine((s) => normalizarIp(s) !== null, 'IP inválido');
 const quando = z.iso.datetime();
 const porta = z.number().int().min(0).max(65535);

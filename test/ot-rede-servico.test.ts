@@ -28,11 +28,14 @@ describe('resumoRedeSchema', () => {
   const ok = { ...base, ativos: [at('10.1.1.10', { mac: '00:30:a7:01:02:03', fabricante: 'SEL', protocolos: ['dnp3'], portas_servico: [20000] })],
     conexoes: [cx('10.1.1.20', '10.1.1.10', 20000, 'dnp3')] };
   it('aceita o formato da spec', () => expect(resumoRedeSchema.safeParse(ok).success).toBe(true));
+  it('aceita profinet (ICSNPP)', () => expect(resumoRedeSchema.safeParse({ ...ok,
+    conexoes: [cx('10.1.1.20', '10.1.1.10', 34964, 'profinet', 'udp')] }).success).toBe(true));
   it('aceita a saída do script sobre as fixtures (contrato entre o script e o importador)', () => {
     const r = resumoRedeSchema.safeParse(esperado);
     expect(r.error?.issues).toBeUndefined();
     expect(r.data!.ativos.length).toBeGreaterThan(0);
     expect(r.data!.conexoes.length).toBeGreaterThan(0);
+    expect([r.data!.capture_loss, r.data!.versao_script]).toEqual([3.14, '2.0.0']);
   });
   it.each([
     ['campo desconhecido', { ...ok, extra: 1 }],
