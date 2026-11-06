@@ -109,10 +109,11 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
   const [ativos, fluxosInv] = await Promise.all([ativosDoSite(db, projectId, site.id), fluxosDoSite(db, projectId, site.id)]);
   const idx = indice(ativos.results);
   // Fluxo já no inventário (mesmas pontas, protocolo e porta) não vira achado (spec §1/§4.4); o bidirecional cobre o sentido inverso.
+  const norm = (p: unknown) => String(p ?? "").trim().toLowerCase();
   const pontaInv = (f: Record<string, unknown>, lado: string) => String(f[`${lado}_ativo_id`] ?? f[`${lado}_zona_id`] ?? '');
   const inventario = new Set(fluxosInv.flatMap((f) => {
     const o = pontaInv(f, 'origem'), d = pontaInv(f, 'destino');
-    return [`${o}|${d}|${f.protocolo}|${f.porta}`, ...(f.direcao === 'bidirecional' ? [`${d}|${o}|${f.protocolo}|${f.porta}`] : [])];
+    return [`${o}|${d}|${norm(f.protocolo)}|${f.porta}`, ...(f.direcao === 'bidirecional' ? [`${d}|${o}|${norm(f.protocolo)}|${f.porta}`] : [])];
   }));
   const hashes = new Map<string, string>();
   const hash = async (x: string) => hashes.get(x) ?? hashes.set(x, await hmacOt(chaves, projectId, x)).get(x)!;
@@ -164,7 +165,7 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
       plano.pendentes.push({ chave, origem_ip_hash: io ? await hash(o) : null, destino_ip_hash: id ? await hash(d) : null, dados });
       continue;
     }
-    if (inventario.has(`${ao ?? ''}|${ad ?? ''}|${protocolo}|${c.porta}`)) { plano.contagem.fluxos_conhecidos++; continue; }
+    if (inventario.has(`${ao ?? ''}|${ad ?? ''}|${norm(protocolo)}|${c.porta}`)) { plano.contagem.fluxos_conhecidos++; continue; }
     plano.fluxos.push({ chave, dados: { ...(ao && { origem_ativo_id: ao }), ...(ad && { destino_ativo_id: ad }), ...dados } });
   }
   return contar(plano);

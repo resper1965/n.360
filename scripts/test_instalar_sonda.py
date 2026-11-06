@@ -65,7 +65,7 @@ class T(unittest.TestCase):
         laco = self.s.index("for i in {1..10}; do")
         self.assertLess(self.s.index("netplan apply"), laco)
         corpo = self.s[laco:self.s.index("done", laco)]
-        for t in ('ip -o addr show dev "$ESCUTA"', 'networkctl status "$ESCUTA"', "dhcp|lease", "falha", "sleep 2"):
+        for t in ('ip -o addr show dev "$ESCUTA"', 'networkctl --lines=0 status "$ESCUTA"', "dhcp|lease", "falha", "sleep 2"):
             self.assertIn(t, corpo)
 
     def test_sem_grep_q_em_pipe(self):

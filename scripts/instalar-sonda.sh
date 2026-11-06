@@ -225,7 +225,7 @@ configurar_escuta() {
 	for i in {1..10}; do
 		[[ -z $(ip -o addr show dev "$ESCUTA") ]] ||
 			falha "$ESCUTA ganhou endereco; outro arquivo em /etc/netplan (ex.: 50-cloud-init.yaml) ou o cloud-init deve estar configurando essa placa"
-		if networkctl status "$ESCUTA" 2>/dev/null | grep -Ei 'dhcp|lease' >/dev/null; then
+		if networkctl --lines=0 status "$ESCUTA" 2>/dev/null | grep -Ei 'dhcp|lease' >/dev/null; then
 			falha "o systemd-networkd faz DHCP em $ESCUTA; outro arquivo em /etc/netplan (ex.: 50-cloud-init.yaml) deve estar configurando essa placa"
 		fi
 		sleep 2

@@ -225,13 +225,13 @@ describe('envio', () => {
     expect((await enviar(resumo(19), { k: cred(9) })).status).toBe(429);
   });
 
-  it('fluxo já no inventário (mesmas pontas, protocolo e porta) não vira achado; com outra porta, vira', async () => {
+  it('fluxo já no inventário (mesmas pontas, protocolo e porta; protocolo do inventário é texto livre, comparado sem caixa) não vira achado; com outra porta, vira', async () => {
     const ch = chavesOt(workerEnv())!;
     await env.DB.batch([
       ...await Promise.all([1, 2, 3, 4].map(async (i) => env.DB.prepare(`INSERT INTO ot_ativos (id, project_id, site_id, nome, ip_hash, mac_hash)
         VALUES (?, 'proj-a', 's1', ?, ?, 'mh')`).bind(`inv-${i}`, `Inv ${i}`, await hmacOt(ch, 'proj-a', `10.30.0.${i}`)))),
       env.DB.prepare(`INSERT INTO ot_fluxos (id, project_id, site_id, origem_ativo_id, destino_ativo_id, protocolo, porta) VALUES
-        ('fi-1', 'proj-a', 's1', 'inv-1', 'inv-2', 'modbus', 502), ('fi-2', 'proj-a', 's1', 'inv-3', 'inv-4', 'modbus', 503)`),
+        ('fi-1', 'proj-a', 's1', 'inv-1', 'inv-2', ' Modbus', 502), ('fi-2', 'proj-a', 's1', 'inv-3', 'inv-4', 'modbus', 503)`),
     ]);
     const r = await enviar(resumo(30));
     expect(r.status).toBe(200);
