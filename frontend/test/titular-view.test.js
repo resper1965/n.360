@@ -420,12 +420,12 @@ describe('incidentes', () => {
 });
 
 describe('ficha do incidente (página com abas)', () => {
-    it('cinco abas no endereço; Registro é a padrão; trocar de aba grava no endereço e redesenha', async () => {
+    it('seis abas no endereço; Registro é a padrão; trocar de aba grava no endereço e redesenha', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
         await ficha();
         const abas = [...el('c').querySelectorAll('[role="tab"]')];
-        expect(abas.map((b) => b.textContent)).toEqual(['Registro', 'Análise', 'Ações corretivas', 'Comunicação', 'Histórico']);
-        expect(abas.map((b) => b.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false']);
+        expect(abas.map((b) => b.textContent)).toEqual(['Registro', 'Análise', 'Ações corretivas', 'Comunicação', 'Post mortem', 'Histórico']);
+        expect(abas.map((b) => b.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false', 'false']);
         expect(new URLSearchParams(window.location.search).get('tela')).toBe('incidente-ficha');
         expect(el('h').textContent).toBe('IN-2026-0001 — Acesso <b>indevido</b>'); // textContent: escapado
         expect(el('a').querySelector('[data-action="incidenteVoltar"]')).not.toBeNull();
@@ -456,6 +456,30 @@ describe('ficha do incidente (página com abas)', () => {
         expect(corpoDe(f, `POST ${B}/incidentes/i1/analises`)).toEqual({ texto: 'Nova análise (exemplo)' });
         el('in-an-n1').value = 'Corrigida'; await window.salvarAnaliseIncidente('p9', 'i1', 'n1');
         expect(corpoDe(f, `PUT ${B}/incidentes/i1/analises/n1`)).toEqual({ texto: 'Corrigida' });
+    });
+    it('Post mortem: fechado antes do encerramento; depois, as perguntas numeradas e o envio de todas (branco vira null)', async () => {
+        await abrir('incidentes', {
+            [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] },
+            [`GET ${B}/incidentes/i1/postmortem`]: { aberto: false, perguntas: [] },
+        });
+        await ficha('postmortem');
+        await vi.waitFor(() => expect(el('in-postmortem').textContent).toContain('abre depois do encerramento'));
+        expect(el('in-postmortem').querySelector('textarea')).toBeNull();
+        const f = await abrir('incidentes', {
+            [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], status: 'encerrado' },
+            [`GET ${B}/incidentes/i1/postmortem`]: { aberto: true, perguntas: [
+                { id: 'resposta_equipe', texto: 'Como a <b>equipe</b> respondeu?', resposta: 'Bem' }, { id: 'melhorar', texto: 'O que melhorar?', resposta: null }] },
+            [`PUT ${B}/incidentes/i1/postmortem`]: { ok: true },
+        });
+        await ficha('postmortem');
+        await vi.waitFor(() => expect(el('in-pm-melhorar')).not.toBeNull());
+        expect(el('in-postmortem').querySelectorAll('ol > li')).toHaveLength(2);
+        expect(el('in-postmortem').querySelector('b')).toBeNull();
+        expect(el('in-pm-resposta_equipe').value).toBe('Bem');
+        el('in-pm-resposta_equipe').value = '  ';
+        el('in-pm-melhorar').value = ' Treinar o plantão ';
+        await window.salvarPostmortemIncidente('p9', 'i1');
+        expect(corpoDe(f, `PUT ${B}/incidentes/i1/postmortem`)).toEqual({ respostas: { resposta_equipe: null, melhorar: 'Treinar o plantão' } });
     });
     it('Histórico: eventos com detalhe, quem e quando; Exportar CSV baixa pela rota do servidor', async () => {
         const f = await abrir('incidentes', {

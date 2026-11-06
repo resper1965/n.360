@@ -406,8 +406,8 @@ function faixaAnpd(i) {
 }
 
 // ─── Ficha do incidente (fatia 3): página com abas, no molde da do RIPD, com o incidente e a aba no endereço
-// (`?tela=incidente-ficha&incidente=<id>&aba=<aba>`). O post mortem (fatia 5) entra como aba depois.
-const ABAS_INC = [['registro', 'Registro'], ['analise', 'Análise'], ['acoes', 'Ações corretivas'], ['comunicacao', 'Comunicação'], ['historico', 'Histórico']];
+// (`?tela=incidente-ficha&incidente=<id>&aba=<aba>`). O post mortem (fatia 5) é a aba antes do Histórico.
+const ABAS_INC = [['registro', 'Registro'], ['analise', 'Análise'], ['acoes', 'Ações corretivas'], ['comunicacao', 'Comunicação'], ['postmortem', 'Post mortem'], ['historico', 'Histórico']];
 const incidenteDoEndereco = () => new URLSearchParams(window.location.search).get('incidente') || (S.incidente && S.incidente.id);
 const abaIncDoEndereco = () => {
     const a = new URLSearchParams(window.location.search).get('aba');
@@ -502,6 +502,7 @@ async function renderIncidenteFicha(c, h, a) {
         : aba === 'comunicacao' ? painelComunicacao(i, projectId, id, editar, semRisco)
         : aba === 'analise' ? '<div id="in-analises"></div>'
         : aba === 'acoes' ? '<div id="in-acoes"></div>'
+        : aba === 'postmortem' ? '<div id="in-postmortem"></div>'
         : '<div id="in-historico"></div>';
     c.innerHTML = `<div class="tc">${faixaAnpd(i)}
         <div class="at-abas" role="tablist" aria-label="Abas do incidente">${ABAS_INC.map(([x, r]) =>
@@ -512,6 +513,7 @@ async function renderIncidenteFicha(c, h, a) {
     // A ação segue depois do encerramento (a correção costuma vir depois): quem registra o incidente cuida dela.
     if (aba === 'acoes') carregarAcoesIncidente(projectId, id, podeRegistrar());
     if (aba === 'analise') carregarAnalises(projectId, id, editar);
+    if (aba === 'postmortem') carregarPostmortem(projectId, id, podeRegistrar());
     if (aba === 'historico') carregarHistorico(projectId, id);
 }
 window.renderIncidenteFicha = renderIncidenteFicha;
@@ -558,6 +560,30 @@ window.salvarAnaliseIncidente = async function (projectId, id, analiseId) {
         showToast(analiseId ? 'Análise alterada.' : 'Análise registrada.', 'success');
         await carregarAnalises(projectId, id, true);
     } catch (e) { falha(e, 'Não foi possível salvar a análise'); }
+};
+
+// Post mortem (fatia 5): as 14 perguntas do legado, só depois do encerramento; responder não reabre o incidente.
+async function carregarPostmortem(projectId, id, editar) {
+    const box = el('in-postmortem');
+    if (!box) return;
+    let r;
+    try { r = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}/postmortem`); } catch (e) { box.innerHTML = '<p class="at-nota">Não foi possível carregar o post mortem.</p>'; return; }
+    if (!r.aberto) { box.innerHTML = '<p class="at-nota">O post mortem (análise de causa raiz) abre depois do encerramento do incidente.</p>'; return; }
+    const perguntas = lista(r.perguntas);
+    box.innerHTML = `<p class="at-nota">Análise de causa raiz. Responder não reabre o incidente.</p>
+        <ol class="at-lista-itens">${perguntas.map((p) => `<li class="form-group"><label class="form-label" for="in-pm-${escapeHTML(p.id)}">${escapeHTML(p.texto)}</label>
+            ${editar ? `<textarea class="form-input" id="in-pm-${escapeHTML(p.id)}" data-pergunta="${escapeHTML(p.id)}" rows="3" maxlength="5000">${escapeHTML(p.resposta || '')}</textarea>`
+                : `<p class="at-log-linha" id="in-pm-${escapeHTML(p.id)}">${p.resposta ? escapeHTML(p.resposta) : 'Sem resposta.'}</p>`}</li>`).join('')}</ol>
+        ${editar ? `<button class="btn btn-sm" data-action="salvarPostmortemIncidente" data-args='${args(projectId, id)}'>Salvar post mortem</button>` : ''}`;
+}
+window.salvarPostmortemIncidente = async function (projectId, id) {
+    const respostas = {};
+    document.querySelectorAll('#in-postmortem textarea[data-pergunta]').forEach((t) => { respostas[t.dataset.pergunta] = t.value.trim() || null; });
+    try {
+        await api('PUT', `/api/v1/projects/${projectId}/incidentes/${id}/postmortem`, { respostas });
+        showToast('Post mortem salvo.', 'success');
+        await carregarPostmortem(projectId, id, true);
+    } catch (e) { falha(e, 'Não foi possível salvar o post mortem'); }
 };
 
 // Histórico (fatia 3): a trilha do incidente, sem texto livre; exporta em CSV.

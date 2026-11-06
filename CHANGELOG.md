@@ -12,6 +12,11 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Incidente: post mortem (migration 0103)
+- Aba "Post mortem" na página do incidente, antes do Histórico: as 14 perguntas de causa raiz do legado, com o texto exato. Abre só depois do encerramento (antes, a aba diz isso) e responder não reabre o incidente. Quem registra o incidente responde; o cliente só lê.
+- Rotas `GET|PUT /projects/:id/incidentes/:id/postmortem` (`src/services/incidente-postmortem.ts`); resposta em branco apaga. O Histórico mostra "Post mortem" com a contagem de respostas, nunca o texto.
+- Migration 0103 (aditiva): `incidente_postmortem`, com gatilhos que só aceitam resposta de incidente encerrado do mesmo projeto, também por SQL direto.
+
 ### Incidente: página com abas, análises e histórico (migration 0101)
 - O incidente abre numa página com abas, no lugar da janela: Registro, Análise, Ações corretivas, Comunicação e Histórico, com o incidente e a aba no endereço (`?tela=incidente-ficha&incidente=&aba=`). A faixa do prazo da ANPD fica no topo; "Voltar aos incidentes" volta à lista.
 - Análise: várias por incidente, cada uma com autor e data; só o autor altera a sua (403 aos demais) e o incidente encerrado não muda, também pelo gatilho do banco. O risco ao titular continua sendo a avaliação formal, no Registro.
