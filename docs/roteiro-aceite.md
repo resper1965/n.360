@@ -113,6 +113,7 @@ Antes de começar:
 | 8.6 | "Registrar retorno" com um texto; noutro encaminhamento, "Cancelar" | O retorno fica registrado; o cancelado pede confirmação e sai de "Aguardando". |
 | 8.7 | "Link do portal" → "Gerar link" | Mostra o link do portal de solicitações. |
 | 8.8 | Abra o link numa janela anônima e envie uma solicitação | A página devolve o protocolo. O pedido aparece em Solicitações com o canal Formulário. |
+| 8.8a | Na confirmação, anote o protocolo e o código; abra "Acompanhar uma solicitação" e consulte. Abra também o link do e-mail do protocolo | A página mostra a situação (Recebida), o tipo, a data de abertura e o prazo, sem nome nem descrição. O link do e-mail já abre a consulta. Um código errado diz "Protocolo ou código não conferem". |
 | 8.9 | "Gerar novo link" e tente o link antigo | O sistema avisa antes de trocar; o link antigo para de funcionar. Desative o portal no fim. |
 | 8.10 | Filtre a lista por Tipo e "Exportar CSV" | A planilha abre no Excel em português, só com os pedidos do filtro: protocolo, tipo, canal, datas na hora de Brasília, prazo e status. Não leva nome, contato nem descrição do titular. |
 

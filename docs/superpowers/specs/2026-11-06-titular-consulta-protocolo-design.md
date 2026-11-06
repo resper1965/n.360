@@ -1,6 +1,6 @@
 # Pedido do titular: consulta pública do andamento pelo protocolo (n.privacy)
 
-Data: 06/11/2026. Situação: **desenho aprovado pelo dono em 06/11/2026**.
+Data: 06/11/2026. Situação: **desenho aprovado pelo dono em 06/11/2026** e construída (migration 0105; plano `docs/superpowers/plans/2026-11-06-titular-consulta-protocolo.md`).
 Base: `2026-11-03-portal-solicitacoes-titular-design.md`, que deixou a consulta pelo protocolo "de fora (follow-up)", e
 `2026-11-06-titular-identidade-encaminhamento-design.md`, que a manteve fora. Hoje o titular recebe só o protocolo, na tela e no
 e-mail ("Guarde este número de protocolo para acompanhar o atendimento"), e não há onde acompanhar.
