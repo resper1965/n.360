@@ -45,6 +45,12 @@ async function abrir(aba, extra = {}) {
     return f;
 }
 
+/** A ficha do incidente é página (fatia 3): abre pelo endereço (o navigate é dublado) e desenha em #c, na aba pedida. */
+async function ficha(aba = 'registro', id = 'i1') {
+    window.abrirIncidente('p9', id, aba);
+    await window.renderIncidenteFicha(el('c'), el('h'), el('a'));
+}
+
 beforeEach(() => {
     S.token = 'tok';
     S.user = { role: 'consultor' };
@@ -212,8 +218,12 @@ describe('incidentes', () => {
         expect(corpoDe(f, `POST ${B}/incidentes`)).toEqual({ titulo: 'Perda de notebook', descricao: null, ocorrido_em: null, ciencia_em: '2026-10-08' });
         expect(document.body.textContent).toContain('IN-2026-0002');
         expect(document.body.textContent).toContain('Prazos não calculados');
+        // Depois de registrar, abre a ficha do incidente criado (página com abas).
+        expect(navigate).toHaveBeenLastCalledWith('incidente-ficha');
+        expect(new URLSearchParams(window.location.search).get('incidente')).toBe('n');
+        await window.renderIncidenteFicha(el('c'), el('h'), el('a'));
         expect(chamadas(f)).toContain(`GET ${B}/incidentes/n`);
-        expect(el('modal-content').textContent).toContain('IN-2026-0002 — Perda de notebook');
+        expect(el('h').textContent).toBe('IN-2026-0002 — Perda de notebook');
         expect(el('in-faixa-anpd').textContent).toContain('Prazo da ANPD não calculado');
     });
 
@@ -222,21 +232,21 @@ describe('incidentes', () => {
         vi.setSystemTime(new Date('2026-10-12T12:00:00Z')); // segunda-feira
         try {
             await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-16T10:00:00.000Z', situacao_anpd: 'no_prazo' } });
-            await window.abrirIncidente('p9', 'i1');
+            await ficha();
             const faixa = el('in-faixa-anpd');
             expect(faixa.textContent).toContain('Comunicar à ANPD até 16/10 (faltam 4 dias úteis)');
             expect(faixa.getAttribute('style')).toContain('var(--warning)');
-            expect(el('modal-content').firstElementChild).toBe(faixa);
+            expect(el('c').querySelector('.tc').firstElementChild).toBe(faixa);
             servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-13T10:00:00.000Z', situacao_anpd: 'no_prazo' } }));
-            await window.abrirIncidente('p9', 'i1');
+            await ficha();
             expect(el('in-faixa-anpd').textContent).toContain('(falta 1 dia útil)');
             expect(el('in-faixa-anpd').getAttribute('style')).toContain('var(--danger)');
             servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } })); // atrasado
-            await window.abrirIncidente('p9', 'i1');
+            await ficha();
             expect(el('in-faixa-anpd').textContent).toContain('Comunicação à ANPD atrasada: o prazo era 04/10');
             expect(el('in-faixa-anpd').getAttribute('style')).toContain('var(--danger-ink)');
             servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], comunicacao_anpd_em: '2026-10-03T09:00:00Z', situacao_anpd: 'comunicado' } }));
-            await window.abrirIncidente('p9', 'i1');
+            await ficha();
             expect(el('in-faixa-anpd').textContent).toContain('Comunicado à ANPD em 03/10, dentro do prazo.');
         } finally { vi.useRealTimers(); }
     });
@@ -247,38 +257,41 @@ describe('incidentes', () => {
         try {
             // prazo hoje, com o servidor ainda dizendo "no_prazo"
             await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-16T22:00:00.000Z', situacao_anpd: 'no_prazo' } });
-            await window.abrirIncidente('p9', 'i1');
+            await ficha();
             expect(el('in-faixa-anpd').textContent).toContain('Comunicar à ANPD até hoje, 16/10.');
             // prazo no sábado: nenhum dia útil antes dele
             servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-17T10:00:00.000Z', situacao_anpd: 'no_prazo' } }));
-            await window.abrirIncidente('p9', 'i1');
+            await ficha();
             expect(el('in-faixa-anpd').textContent).not.toContain('0 dias');
             expect(el('in-faixa-anpd').getAttribute('style')).toContain('var(--danger)');
             // prazo ontem
             servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], prazo_anpd_em: '2026-10-15T10:00:00.000Z', situacao_anpd: 'no_prazo' } }));
-            await window.abrirIncidente('p9', 'i1');
+            await ficha();
             expect(el('in-faixa-anpd').textContent).toContain('Comunicação à ANPD atrasada: o prazo era 15/10');
         } finally { vi.useRealTimers(); }
     });
 
     it('sem risco ao titular: nenhuma comunicação é a próxima ação e encerrar não fala da ANPD', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], risco_titular: 'sem_risco' } });
-        await window.abrirIncidente('p9', 'i1');
-        expect(el('modal-content').querySelectorAll('.btn-primary').length).toBe(0);
-        window.pedirEncerramentoIncidente(...JSON.parse(el('modal-content').querySelector('[data-action="pedirEncerramentoIncidente"]').getAttribute('data-args')));
+        await ficha('comunicacao');
+        expect(el('c').querySelectorAll('.btn-primary').length).toBe(0);
+        await ficha();
+        expect(el('c').querySelectorAll('.btn-primary').length).toBe(0);
+        window.pedirEncerramentoIncidente(...JSON.parse(el('c').querySelector('[data-action="pedirEncerramentoIncidente"]').getAttribute('data-args')));
         expect(el('in-encerrar').textContent).not.toContain('ANPD');
         expect(el('in-encerrar').textContent).toContain('Encerrar o incidente?');
     });
 
     it('o primário é a próxima comunicação devida; encerrar é ghost, no fim, e confirma na janela', async () => {
         const f = await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] }, [`POST ${B}/incidentes/i1/encerrar`]: { ok: true } });
-        await window.abrirIncidente('p9', 'i1');
-        const primarios = [...el('modal-content').querySelectorAll('.btn-primary')].map((b) => b.textContent);
+        await ficha('comunicacao');
+        const primarios = [...el('c').querySelectorAll('.btn-primary')].map((b) => b.textContent);
         expect(primarios).toEqual(['Registrei a comunicação à ANPD']);
-        const pedir = el('modal-content').querySelector('[data-action="pedirEncerramentoIncidente"]');
+        await ficha();
+        const pedir = el('c').querySelector('[data-action="pedirEncerramentoIncidente"]');
         expect(pedir.className).toContain('btn-ghost');
         expect(pedir.textContent).toBe('Encerrar incidente');
-        const botoes = [...el('modal-content').querySelectorAll('button')];
+        const botoes = [...el('c').querySelectorAll('button')];
         expect(botoes[botoes.length - 1]).toBe(pedir);
         // Risco relevante sem ANPD e risco não avaliado: o servidor recusa, então a tela diz o que falta e não oferece encerrar.
         window.pedirEncerramentoIncidente('p9', 'i1', false, 'relevante');
@@ -294,8 +307,9 @@ describe('incidentes', () => {
         expect(chamadas(f)).toContain(`POST ${B}/incidentes/i1/encerrar`);
         // ANPD comunicada: o primário passa a ser o titular, e a confirmação não fala da ANPD
         servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], comunicacao_anpd_em: '2026-10-03', situacao_anpd: 'comunicado' } }));
-        await window.abrirIncidente('p9', 'i1');
-        expect([...el('modal-content').querySelectorAll('.btn-primary')].map((b) => b.textContent)).toEqual(['Registrei a comunicação ao titular']);
+        await ficha('comunicacao');
+        expect([...el('c').querySelectorAll('.btn-primary')].map((b) => b.textContent)).toEqual(['Registrei a comunicação ao titular']);
+        await ficha();
         window.pedirEncerramentoIncidente('p9', 'i1', true, 'relevante');
         expect(el('in-encerrar').textContent).not.toContain('ANPD ainda não');
         window.cancelarEncerramentoIncidente();
@@ -306,12 +320,13 @@ describe('incidentes', () => {
             [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] },
             [`PUT ${B}/incidentes/i1/risco`]: { ok: true }, [`POST ${B}/incidentes/i1/comunicacoes`]: { ok: true }, [`POST ${B}/incidentes/i1/encerrar`]: { ok: true },
         });
-        await window.abrirIncidente('p9', 'i1');
+        await ficha();
         expect(el('in-prazos').textContent).toContain('prazo não calculado');
         el('in-risco').value = 'baixo'; el('in-aval').value = ' pouco dado ';
         await window.avaliarRiscoIncidente('p9', 'i1');
         expect(corpoDe(f, `PUT ${B}/incidentes/i1/risco`)).toEqual({ risco_titular: 'baixo', avaliacao_texto: 'pouco dado' });
         // Registrar a comunicação pede confirmação na janela e manda a data escolhida (hoje vem preenchido).
+        await ficha('comunicacao');
         el('in-com-data').value = '2026-10-03';
         // Canal e protocolo da ANPD vêm com a comunicação à ANPD.
         expect([...el('in-com-canal').options].map((o) => o.textContent)).toEqual(['Não informado', 'Peticionamento eletrônico (SEI)', 'Formulário da ANPD', 'E-mail', 'Outro']);
@@ -337,11 +352,11 @@ describe('incidentes', () => {
             [`GET ${B}/catalogos/dados`]: [{ id: 'x1', nome: 'E-mail', status: 'ativo' }, { id: 'x2', nome: 'Saúde', status: 'ativo' }],
             [`PUT ${B}/incidentes/i1`]: { ok: true },
         });
-        await window.abrirIncidente('p9', 'i1');
+        await ficha();
         expect(el('in-registro').textContent).toContain('Severidade: Média');
         expect(el('in-registro').textContent).toContain('Clientes: E-mail');
         await vi.waitFor(() => expect(el('in-anexos').textContent).toContain('laudo.pdf'));
-        el('modal-content').querySelector('[data-action="editarIncidente"]').click();
+        el('c').querySelector('[data-action="editarIncidente"]').click();
         await vi.waitFor(() => expect(el('in-ed-titulo')).not.toBeNull());
         expect(el('in-ed-desc').value).toBe('Antes');
         // O responsável é uma pessoa do cadastro; organização não aparece.
@@ -368,7 +383,7 @@ describe('incidentes', () => {
             [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], areas: [], dados: [], comunicacao_anpd_em: '2026-10-03', anpd_protocolo_interno: 'IN-2026-0001-COM01', anpd_canal: 'formulario_anpd', anpd_protocolo: null, anpd_justificativa: null },
             [`GET ${B}/departamentos`]: [], [`PUT ${B}/incidentes/i1`]: { ok: true },
         });
-        await window.abrirIncidente('p9', 'i1');
+        await ficha();
         const resumo = el('in-registro').textContent;
         expect(resumo).toContain('Comunicação à ANPD: IN-2026-0001-COM01, enviada em 03/10/2026');
         expect(resumo).toContain('Canal: Formulário da ANPD');
@@ -389,18 +404,70 @@ describe('incidentes', () => {
     });
     it('incidente encerrado e papel de leitura não têm ações', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0], status: 'encerrado' } });
-        await window.abrirIncidente('p9', 'i1');
-        expect(el('modal-content').querySelector('[data-action="encerrarIncidente"], [data-action="pedirEncerramentoIncidente"]')).toBeNull();
+        await ficha();
+        expect(el('c').querySelector('[data-action="encerrarIncidente"], [data-action="pedirEncerramentoIncidente"]')).toBeNull();
         S.user = { role: 'org_user' };
         servir(rotas({ [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } }));
-        await window.abrirIncidente('p9', 'i1');
-        expect(el('modal-content').querySelector('[data-action="encerrarIncidente"], [data-action="pedirEncerramentoIncidente"]')).toBeNull();
+        await ficha();
+        expect(el('c').querySelector('[data-action="encerrarIncidente"], [data-action="pedirEncerramentoIncidente"]')).toBeNull();
     });
     it('erro de regra do servidor (409 no encerramento) vira aviso e não derruba a tela', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
-        await window.abrirIncidente('p9', 'i1');
+        await ficha();
         await window.encerrarIncidente('p9', 'i1'); // POST sem dublê: 404 do Worker
         expect(document.body.textContent).toContain('API route not found');
+    });
+});
+
+describe('ficha do incidente (página com abas)', () => {
+    it('cinco abas no endereço; Registro é a padrão; trocar de aba grava no endereço e redesenha', async () => {
+        await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
+        await ficha();
+        const abas = [...el('c').querySelectorAll('[role="tab"]')];
+        expect(abas.map((b) => b.textContent)).toEqual(['Registro', 'Análise', 'Ações corretivas', 'Comunicação', 'Histórico']);
+        expect(abas.map((b) => b.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false']);
+        expect(new URLSearchParams(window.location.search).get('tela')).toBe('incidente-ficha');
+        expect(el('h').textContent).toBe('IN-2026-0001 — Acesso <b>indevido</b>'); // textContent: escapado
+        expect(el('a').querySelector('[data-action="incidenteVoltar"]')).not.toBeNull();
+        await window.incidenteIrParaAba(null, 'historico');
+        expect(new URLSearchParams(window.location.search).get('aba')).toBe('historico');
+        expect(el('in-aba-historico').getAttribute('aria-selected')).toBe('true');
+        window.incidenteVoltar();
+        expect(navigate).toHaveBeenLastCalledWith('titular');
+        expect(S.titularAba).toBe('incidentes');
+        expect(new URLSearchParams(window.location.search).get('incidente')).toBeNull();
+    });
+    it('Análise: lista com autor; só a do autor é editável; registra nova e altera a própria', async () => {
+        const f = await abrir('incidentes', {
+            [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] },
+            [`GET ${B}/incidentes/i1/analises`]: { analises: [
+                { id: 'n1', autor: 'eu@ness.lat', autor_nome: 'Eu', texto: 'Minha <b>análise</b>', created_at: '2026-10-02 10:00:00', updated_at: '2026-10-02 10:00:00', pode_editar: true },
+                { id: 'n2', autor: 'outra@ness.lat', autor_nome: 'Outra', texto: 'Dela', created_at: '2026-10-03 10:00:00', updated_at: '2026-10-03 10:00:00', pode_editar: false }] },
+            [`POST ${B}/incidentes/i1/analises`]: { ok: true, id: 'n3' }, [`PUT ${B}/incidentes/i1/analises/n1`]: { ok: true },
+        });
+        await ficha('analise');
+        await vi.waitFor(() => expect(el('in-analises').textContent).toContain('Outra'));
+        expect(el('in-an-n1').value).toBe('Minha <b>análise</b>');
+        expect(el('in-an-n2')).toBeNull();
+        expect(el('in-analises').querySelector('b')).toBeNull();
+        el('in-an-nova').value = '  '; await window.salvarAnaliseIncidente('p9', 'i1', null);
+        expect(chamadas(f)).not.toContain(`POST ${B}/incidentes/i1/analises`);
+        el('in-an-nova').value = ' Nova análise (exemplo) '; await window.salvarAnaliseIncidente('p9', 'i1', null);
+        expect(corpoDe(f, `POST ${B}/incidentes/i1/analises`)).toEqual({ texto: 'Nova análise (exemplo)' });
+        el('in-an-n1').value = 'Corrigida'; await window.salvarAnaliseIncidente('p9', 'i1', 'n1');
+        expect(corpoDe(f, `PUT ${B}/incidentes/i1/analises/n1`)).toEqual({ texto: 'Corrigida' });
+    });
+    it('Histórico: eventos com detalhe, quem e quando; Exportar CSV baixa pela rota do servidor', async () => {
+        const f = await abrir('incidentes', {
+            [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] },
+            [`GET ${B}/incidentes/i1/historico`]: { historico: [{ evento: 'Registro alterado', detalhe: 'severidade', nome: 'Ana', data: '2026-10-02 10:00:00' }, { evento: 'Registrado', detalhe: null, nome: 'Ana', data: '2026-10-01 10:00:00' }] },
+        });
+        await ficha('historico');
+        await vi.waitFor(() => expect(el('in-historico').textContent).toContain('Registro alterado: severidade'));
+        expect(el('in-historico').textContent).toContain('Registrado');
+        expect(el('in-historico').querySelector('[data-action="exportarHistoricoIncidente"]')).not.toBeNull();
+        await window.exportarHistoricoIncidente('p9', 'i1');
+        expect(chamadas(f)).toContain(`GET ${B}/incidentes/i1/historico/csv`);
     });
 });
 
@@ -507,8 +574,8 @@ describe('incidentes no n.iso', () => {
             [`POST ${B}/incidentes/i1/acoes`]: { ok: true, id: 'a1' },
         });
         expect(el('c').querySelectorAll('[role="tab"][data-action="escolherAbaTitular"]').length).toBe(4);
-        await window.abrirIncidente('p9', 'i1');
-        expect(el('modal-content').querySelector('[data-action="abrirCapaDoIncidente"]')).toBeNull();
+        await ficha('acoes');
+        expect(el('c').querySelector('[data-action="abrirCapaDoIncidente"]')).toBeNull();
         await vi.waitFor(() => expect(el('in-acoes').textContent).toContain('Nenhuma ação.'));
         await window.abrirAcaoIncidente('p9', 'i1', null);
         expect([...el('in-ac-trat').options].map((o) => o.textContent)).toEqual(['Não informado', 'Contenção', 'Correção', 'Aperfeiçoamento']);
@@ -529,7 +596,7 @@ describe('incidentes no n.iso', () => {
             [`GET ${B}/incidentes/i1/acoes/a1/anexos`]: { anexos: [{ id: 'x1', file_name: 'plano.pdf' }] },
             [`PUT ${B}/incidentes/i1/acoes/a1`]: { ok: true },
         });
-        await window.abrirIncidente('p9', 'i1');
+        await ficha('acoes');
         await vi.waitFor(() => expect(el('in-acoes').textContent).toContain('IN-2026-0001-PA01'));
         expect(el('in-acoes').textContent).toContain('Contenção · Aberto · prazo 01/12/2026 · Ana');
         expect(el('in-acoes').innerHTML).not.toContain('<b>o</b>'); // escapado
@@ -563,7 +630,7 @@ describe('rascunhos de IA no n.privacy', () => {
             [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] },
             [`POST ${B}/incidentes/i1/rascunho-comunicacao`]: { ok: true, texto: 'À ANPD <script>x</script>', presentes: ['Data da ciência'], faltando: ['Número de titulares <i>afetados</i>'] },
         });
-        await window.abrirIncidente('p9', 'i1');
+        await ficha('comunicacao');
         await window.rascunhoComunicacaoIncidente('p9', 'i1', 'anpd');
         expect(corpoDe(f, `POST ${B}/incidentes/i1/rascunho-comunicacao`)).toEqual({ destino: 'anpd' });
         expect(el('in-rascunho-tem').textContent).toContain('Data da ciência');
@@ -576,17 +643,17 @@ describe('rascunhos de IA no n.privacy', () => {
     it('org_admin vê os botões de rascunho; org_user e a casca n.iso não', async () => {
         S.user = { role: 'org_admin' };
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] }, [`GET ${B}/titular-pedidos/a`]: PED });
-        await window.abrirIncidente('p9', 'i1');
-        expect(el('modal-content').querySelectorAll('[data-action="rascunhoComunicacaoIncidente"]').length).toBe(2);
+        await ficha('comunicacao');
+        expect(el('c').querySelectorAll('[data-action="rascunhoComunicacaoIncidente"]').length).toBe(2);
         await window.abrirPedidoTitular('p9', 'a');
         expect(el('modal-content').querySelector('[data-action="rascunhoRespostaTitular"]')).not.toBeNull();
         S.user = { role: 'org_user' };
-        await window.abrirIncidente('p9', 'i1');
-        expect(el('modal-content').querySelector('[data-action="rascunhoComunicacaoIncidente"]')).toBeNull();
+        await ficha('comunicacao');
+        expect(el('c').querySelector('[data-action="rascunhoComunicacaoIncidente"]')).toBeNull();
         S.user = { role: 'consultor' };
         history.replaceState(null, '', '/iso');
-        await window.abrirIncidente('p9', 'i1');
-        expect(el('modal-content').querySelector('[data-action="rascunhoComunicacaoIncidente"]')).toBeNull();
+        await ficha('comunicacao');
+        expect(el('c').querySelector('[data-action="rascunhoComunicacaoIncidente"]')).toBeNull();
     });
 });
 
@@ -636,11 +703,11 @@ describe('o cliente age: administrador do cliente registra e responde', () => {
     it('incidentes: registra, avalia e registra comunicação; encerrar segue só com a equipe', async () => {
         await abrir('incidentes', { [`GET ${B}/incidentes/i1`]: { ...INCIDENTES[0] } });
         expect(el('a').querySelector('[data-action="abrirNovoIncidente"]')).not.toBeNull();
-        await window.abrirIncidente('p9', 'i1');
-        const m = el('modal-content');
-        expect(m.querySelector('[data-action="avaliarRiscoIncidente"]')).not.toBeNull();
-        expect(m.querySelector('[data-action="registrarComunicacaoIncidente"]')).not.toBeNull();
-        expect(m.querySelector('[data-action="pedirEncerramentoIncidente"]')).toBeNull();
+        await ficha();
+        expect(el('c').querySelector('[data-action="avaliarRiscoIncidente"]')).not.toBeNull();
+        expect(el('c').querySelector('[data-action="pedirEncerramentoIncidente"]')).toBeNull();
+        await ficha('comunicacao');
+        expect(el('c').querySelector('[data-action="registrarComunicacaoIncidente"]')).not.toBeNull();
     });
     it('consentimento continua com a equipe: sem registrar nem revogar', async () => {
         await abrir('consentimentos');

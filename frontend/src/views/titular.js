@@ -2,7 +2,7 @@ import { S } from '../state.js';
 import { api, baixarArquivo, API_BASE, cabecalhosAuth } from '../api.js';
 import { showToast, openModal, forceCloseModal, escapeHTML, formatarData, tituloDaTela, confirmar } from '../ui.js';
 import { navigate } from '../router.js';
-import { produtoAtual } from '../produto.js';
+import { produtoAtual, limparFichaDoEndereco } from '../produto.js';
 import { filtrarDoPainel } from '../filtro-painel.js';
 import { montarLista, colunasDe } from '../lista.js';
 import { carregarConsentimentos, telaConsentimentos } from './consentimentos.js';
@@ -405,30 +405,64 @@ function faixaAnpd(i) {
     return faixa(n <= 1 ? 'var(--danger)' : 'var(--warning)', `Comunicar à ANPD até ${diaMes(i.prazo_anpd_em)} (${n === 0 ? 'nenhum dia útil antes do prazo' : n === 1 ? 'falta 1 dia útil' : `faltam ${n} dias úteis`})`);
 }
 
-window.abrirIncidente = async function (projectId, id) {
-    let i;
-    try { i = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}`); } catch (e) { falha(e, 'Não foi possível abrir o incidente'); return; }
-    const editar = podeRegistrar() && i.status !== 'encerrado';
-    const encerrar = podeEditar() && i.status !== 'encerrado';
-    // A ação primária é a próxima comunicação devida; encerrar é secundário e fica no fim, com confirmação.
-    // Sem risco ao titular não há comunicação devida (nem à ANPD): nenhuma vira a ação primária, e encerrar não alerta da ANPD.
-    const semRisco = i.risco_titular === 'sem_risco';
-    const proxima = semRisco ? null : !i.comunicacao_anpd_em ? 'anpd' : !i.comunicacao_titular_em ? 'titular' : null;
-    const comunicar = (destino, rotulo) => `<button class="btn ${proxima === destino ? 'btn-primary' : ''} btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, destino)}'>${rotulo}</button>`;
-    openModal(`${faixaAnpd(i)}<h3>${escapeHTML(i.protocolo)} — ${escapeHTML(i.titulo)}</h3>
-        <p style="white-space:pre-wrap">${escapeHTML(i.descricao || '')}</p>
-        <p id="in-prazos">Ciência em ${dia(i.ciencia_em)}. ANPD: ${selo(i.situacao_anpd)} (${(i.prazo_anpd_em ? dia(i.prazo_anpd_em) : 'prazo não calculado')}) · Titular: ${selo(i.situacao_titular)} (${(i.prazo_titular_em ? dia(i.prazo_titular_em) : 'prazo não calculado')}).</p>
+// ─── Ficha do incidente (fatia 3): página com abas, no molde da do RIPD, com o incidente e a aba no endereço
+// (`?tela=incidente-ficha&incidente=<id>&aba=<aba>`). O post mortem (fatia 5) entra como aba depois.
+const ABAS_INC = [['registro', 'Registro'], ['analise', 'Análise'], ['acoes', 'Ações corretivas'], ['comunicacao', 'Comunicação'], ['historico', 'Histórico']];
+const incidenteDoEndereco = () => new URLSearchParams(window.location.search).get('incidente') || (S.incidente && S.incidente.id);
+const abaIncDoEndereco = () => {
+    const a = new URLSearchParams(window.location.search).get('aba');
+    return ABAS_INC.some(([x]) => x === a) ? a : 'registro';
+};
+function gravarIncidenteNoEndereco(id, aba) {
+    const u = new URL(window.location.href);
+    u.searchParams.set('tela', 'incidente-ficha');
+    u.searchParams.set('incidente', id);
+    u.searchParams.set('aba', aba);
+    window.history.replaceState(null, '', u);
+}
+
+window.abrirIncidente = function (projectId, id, aba = abaIncDoEndereco()) {
+    if (typeof forceCloseModal === 'function') forceCloseModal();
+    S.incidente = { projectId, id };
+    gravarIncidenteNoEndereco(id, ABAS_INC.some(([x]) => x === aba) ? aba : 'registro');
+    navigate('incidente-ficha');
+};
+window.incidenteVoltar = function () {
+    S.incidente = null;
+    limparFichaDoEndereco();
+    S.titularAba = 'incidentes';
+    navigate('titular');
+};
+
+let fichaInc = null;
+let seqInc = 0;
+const repintarIncidente = () => (fichaInc ? window.renderIncidenteFicha(fichaInc.c, fichaInc.h, fichaInc.a) : undefined);
+
+function painelRegistro(i, projectId, id, editar, encerrar, semRisco) {
+    return `<p id="in-prazos">Ciência em ${dia(i.ciencia_em)}. ANPD: ${selo(i.situacao_anpd)} (${(i.prazo_anpd_em ? dia(i.prazo_anpd_em) : 'prazo não calculado')}) · Titular: ${selo(i.situacao_titular)} (${(i.prazo_titular_em ? dia(i.prazo_titular_em) : 'prazo não calculado')}).</p>
         <p id="in-status">Status: ${escapeHTML(STATUS_INCIDENTE[i.status] || i.status)} · Risco ao titular: ${escapeHTML(RISCOS[i.risco_titular] || 'não avaliado')}</p>
+        ${i.descricao ? `<p class="at-nota">${escapeHTML(i.descricao)}</p>` : ''}
         ${blocoRegistroIncidente(i)}
         ${editar ? `<button class="btn btn-ghost btn-sm" data-action="editarIncidente" data-args='${args(projectId, id)}'>Editar registro</button>` : ''}
         <h4 class="mt-4 mb-2">Evidências</h4><div id="in-anexos"></div>
-        ${editar ? `<h4 style="margin:1rem 0 0.5rem">Avaliar o risco</h4>
+        ${editar ? `<h4 class="mt-4 mb-2">Avaliar o risco</h4>
             <div class="form-group"><select class="form-input" id="in-risco" aria-label="Risco ao titular">${opcoes(RISCOS, i.risco_titular)}</select></div>
             <div class="form-group"><textarea class="form-input" id="in-aval" rows="2" maxlength="5000" placeholder="Justificativa">${escapeHTML(i.avaliacao_texto || '')}</textarea></div>
-            <button class="btn btn-sm" data-action="avaliarRiscoIncidente" data-args='${args(projectId, id)}'>Salvar avaliação</button>
-            <h4 style="margin:1rem 0 0.5rem">Comunicações</h4>
-            ${i.comunicacao_anpd_em && i.comunicacao_titular_em ? '' : `<div class="form-group"><label class="form-label" for="in-com-data">Data da comunicação</label>
-                <input class="form-input" id="in-com-data" type="date" max="${hojeSP()}" value="${hojeSP()}"></div>`}
+            <button class="btn btn-sm" data-action="avaliarRiscoIncidente" data-args='${args(projectId, id)}'>Salvar avaliação</button>` : ''}
+        ${encerrar ? `<div class="mt-4"><div id="in-encerrar"></div>
+            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco, i.risco_titular || null)}'>Encerrar incidente</button></div>` : ''}`;
+}
+
+function painelComunicacao(i, projectId, id, editar, semRisco) {
+    // A ação primária é a próxima comunicação devida; sem risco ao titular não há comunicação devida (nem à ANPD).
+    const proxima = semRisco ? null : !i.comunicacao_anpd_em ? 'anpd' : !i.comunicacao_titular_em ? 'titular' : null;
+    const comunicar = (destino, rotulo) => `<button class="btn ${proxima === destino ? 'btn-primary' : ''} btn-sm" data-action="registrarComunicacaoIncidente" data-args='${args(projectId, id, destino)}'>${rotulo}</button>`;
+    const feitas = `<ul class="at-lista">
+        <li><strong>ANPD:</strong> ${i.comunicacao_anpd_em ? `${escapeHTML(i.anpd_protocolo_interno || '')}, enviada em ${dia(i.comunicacao_anpd_em)}${i.anpd_canal ? ` · ${escapeHTML(CANAIS_ANPD[i.anpd_canal] || i.anpd_canal)}` : ''}${i.anpd_protocolo ? ` · protocolo ${escapeHTML(i.anpd_protocolo)}` : ''}` : 'não registrada'}</li>
+        <li><strong>Titular:</strong> ${i.comunicacao_titular_em ? `enviada em ${dia(i.comunicacao_titular_em)}` : 'não registrada'}</li></ul>`;
+    return `${feitas}
+        ${editar && !(i.comunicacao_anpd_em && i.comunicacao_titular_em) ? `<div class="form-group"><label class="form-label" for="in-com-data">Data da comunicação</label>
+                <input class="form-input" id="in-com-data" type="date" max="${hojeSP()}" value="${hojeSP()}"></div>
             ${i.comunicacao_anpd_em ? '' : `<div class="at-linha-form"><div class="form-group"><label class="form-label" for="in-com-canal">Canal da comunicação à ANPD</label>
                 <select class="form-input" id="in-com-canal"><option value="">Não informado</option>${opcoes(CANAIS_ANPD)}</select></div>
                 <div class="form-group"><label class="form-label" for="in-com-prot">Nº do protocolo na ANPD (opcional)</label><input class="form-input" id="in-com-prot" maxlength="100"></div></div>`}
@@ -436,20 +470,108 @@ window.abrirIncidente = async function (projectId, id) {
                 ${i.comunicacao_anpd_em ? '' : comunicar('anpd', 'Registrei a comunicação à ANPD')}
                 ${i.comunicacao_titular_em ? '' : comunicar('titular', 'Registrei a comunicação ao titular')}
             </div>` : ''}
-        ${podeRascunho() ? `<h4 style="margin:1rem 0 0.5rem">Rascunho da comunicação</h4>
+        ${podeRascunho() ? `<h4 class="mt-4 mb-2">Rascunho da comunicação</h4>
             <div class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-sm" data-action="rascunhoComunicacaoIncidente" data-args='${args(projectId, id, 'anpd')}'>Rascunho para a ANPD</button>
                 <button class="btn btn-sm" data-action="rascunhoComunicacaoIncidente" data-args='${args(projectId, id, 'titular')}'>Rascunho para o titular</button>
-            </div><div id="in-rascunho" style="margin-top:0.75rem"></div>` : ''}
-        <h4 class="mt-4 mb-2">Ações corretivas</h4><div id="in-acoes"></div>
-        ${encerrar ? `<div style="border-top:1px solid var(--border); margin-top:1.5rem; padding-top:1rem">
-            <div id="in-encerrar"></div>
-            <button class="btn btn-ghost btn-sm" data-action="pedirEncerramentoIncidente" data-args='${args(projectId, id, !!i.comunicacao_anpd_em || semRisco, i.risco_titular || null)}'>Encerrar incidente</button>
-        </div>` : ''}`, 'modal-large');
-    carregarAnexosIncidente(projectId, id, editar);
+            </div><div id="in-rascunho" class="mt-3"></div>` : ''}`;
+}
+
+async function renderIncidenteFicha(c, h, a) {
+    fichaInc = { c, h, a };
+    const voltar = '<button type="button" class="btn" data-action="incidenteVoltar">Voltar aos incidentes</button>';
+    a.innerHTML = voltar;
+    const id = incidenteDoEndereco();
+    const projectId = (S.incidente && S.incidente.id === id && S.incidente.projectId) || (projetoAtivo() || {}).id;
+    if (!id || !projectId) {
+        h.textContent = 'Incidente';
+        c.innerHTML = window.renderEmptyState({ titulo: 'Nenhum incidente aberto', texto: 'Abra um incidente pela lista.', acao: voltar });
+        return;
+    }
+    const minha = ++seqInc;
+    let i;
+    try { i = await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}`); }
+    catch (e) { if (minha === seqInc) { h.textContent = 'Incidente'; c.innerHTML = window.renderEmptyState({ titulo: 'Não foi possível abrir o incidente', texto: (e && e.message) || '', acao: voltar }); } return; }
+    if (minha !== seqInc) return;
+    const aba = abaIncDoEndereco();
+    const editar = podeRegistrar() && i.status !== 'encerrado';
+    const encerrar = podeEditar() && i.status !== 'encerrado';
+    const semRisco = i.risco_titular === 'sem_risco';
+    h.textContent = `${i.protocolo} — ${i.titulo}`;
+    const corpo = aba === 'registro' ? painelRegistro(i, projectId, id, editar, encerrar, semRisco)
+        : aba === 'comunicacao' ? painelComunicacao(i, projectId, id, editar, semRisco)
+        : aba === 'analise' ? '<div id="in-analises"></div>'
+        : aba === 'acoes' ? '<div id="in-acoes"></div>'
+        : '<div id="in-historico"></div>';
+    c.innerHTML = `<div class="tc">${faixaAnpd(i)}
+        <div class="at-abas" role="tablist" aria-label="Abas do incidente">${ABAS_INC.map(([x, r]) =>
+            `<button type="button" role="tab" class="at-aba" id="in-aba-${x}" aria-controls="in-painel" aria-selected="${x === aba}" tabindex="${x === aba ? 0 : -1}"
+                data-action="incidenteIrParaAba" data-action-keydown="incidenteTeclaAba" data-arg-event data-args='${args(x)}'>${escapeHTML(r)}</button>`).join('')}</div>
+        <div role="tabpanel" class="tc-painel" id="in-painel" aria-labelledby="in-aba-${aba}" tabindex="0">${corpo}</div></div>`;
+    if (aba === 'registro') carregarAnexosIncidente(projectId, id, editar);
     // A ação segue depois do encerramento (a correção costuma vir depois): quem registra o incidente cuida dela.
-    carregarAcoesIncidente(projectId, id, podeRegistrar());
+    if (aba === 'acoes') carregarAcoesIncidente(projectId, id, podeRegistrar());
+    if (aba === 'analise') carregarAnalises(projectId, id, editar);
+    if (aba === 'historico') carregarHistorico(projectId, id);
+}
+window.renderIncidenteFicha = renderIncidenteFicha;
+
+async function irParaAbaInc(aba) {
+    const id = incidenteDoEndereco();
+    if (!id) return;
+    gravarIncidenteNoEndereco(id, aba);
+    await repintarIncidente();
+    const b = el(`in-aba-${aba}`);
+    if (b) b.focus();
+}
+window.incidenteIrParaAba = (_e, aba) => irParaAbaInc(aba);
+window.incidenteTeclaAba = function (e, atual) {
+    const k = ABAS_INC.findIndex(([x]) => x === atual);
+    const n = ABAS_INC.length;
+    const prox = { ArrowRight: (k + 1) % n, ArrowLeft: (k + n - 1) % n, Home: 0, End: n - 1 }[e.key];
+    if (prox === undefined) return;
+    e.preventDefault();
+    return irParaAbaInc(ABAS_INC[prox][0]);
 };
+
+// Análises (fatia 3): várias, cada uma com autor e data; só o autor altera a sua; encerrado não muda.
+async function carregarAnalises(projectId, id, editar) {
+    const box = el('in-analises');
+    if (!box) return;
+    let l = [];
+    try { l = lista((await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}/analises`)).analises); } catch (e) { box.innerHTML = '<p class="at-nota">Não foi possível carregar as análises.</p>'; return; }
+    box.innerHTML = `<p class="at-nota">A análise é o registro do trabalho da equipe; a avaliação formal do risco ao titular fica no Registro.</p>
+        ${l.length ? `<ul class="at-lista-itens">${l.map((x) => `<li class="at-log"><p class="at-nota">${escapeHTML(x.autor_nome || x.autor)} · ${formatarData(x.created_at, { hora: true })}${x.updated_at && x.updated_at !== x.created_at ? ' (alterada)' : ''}</p>
+            ${x.pode_editar ? `<textarea class="form-input" id="in-an-${escapeHTML(x.id)}" rows="4" maxlength="10000" aria-label="Sua análise">${escapeHTML(x.texto)}</textarea>
+                <button class="btn btn-sm mt-2" data-action="salvarAnaliseIncidente" data-args='${args(projectId, id, x.id)}'>Salvar alteração</button>`
+                : `<p class="at-log-linha">${escapeHTML(x.texto)}</p>`}</li>`).join('')}</ul>` : '<p class="at-nota">Nenhuma análise.</p>'}
+        ${editar ? `<div class="form-group mt-3"><label class="form-label" for="in-an-nova">Nova análise</label><textarea class="form-input" id="in-an-nova" rows="4" maxlength="10000"></textarea></div>
+            <button class="btn btn-sm" data-action="salvarAnaliseIncidente" data-args='${args(projectId, id, null)}'>Registrar análise</button>` : ''}`;
+}
+window.salvarAnaliseIncidente = async function (projectId, id, analiseId) {
+    const campo = el(analiseId ? `in-an-${analiseId}` : 'in-an-nova');
+    const texto = (campo && campo.value || '').trim();
+    if (!texto) { showToast('Escreva a análise.', 'error'); return; }
+    try {
+        if (analiseId) await api('PUT', `/api/v1/projects/${projectId}/incidentes/${id}/analises/${analiseId}`, { texto });
+        else await api('POST', `/api/v1/projects/${projectId}/incidentes/${id}/analises`, { texto });
+        showToast(analiseId ? 'Análise alterada.' : 'Análise registrada.', 'success');
+        await carregarAnalises(projectId, id, true);
+    } catch (e) { falha(e, 'Não foi possível salvar a análise'); }
+};
+
+// Histórico (fatia 3): a trilha do incidente, sem texto livre; exporta em CSV.
+async function carregarHistorico(projectId, id) {
+    const box = el('in-historico');
+    if (!box) return;
+    let l = [];
+    try { l = lista((await api('GET', `/api/v1/projects/${projectId}/incidentes/${id}/historico`)).historico); } catch (e) { box.innerHTML = '<p class="at-nota">Não foi possível carregar o histórico.</p>'; return; }
+    box.innerHTML = `<div class="at-acoes"><button class="btn btn-sm" data-action="exportarHistoricoIncidente" data-args='${args(projectId, id)}'>Exportar CSV</button></div>
+        ${l.length ? `<ul class="at-lista-itens">${l.map((x) => `<li class="at-log"><p class="at-log-linha">${escapeHTML(x.evento)}${x.detalhe ? `: ${escapeHTML(x.detalhe)}` : ''}</p>
+            <p class="at-nota">${escapeHTML(x.nome || '')} · ${formatarData(x.data, { hora: true })}</p></li>`).join('')}</ul>`
+        : '<p class="at-nota">Nenhum registro ainda. Registro, alterações, análises, ações, comunicações e encerramento passam a aparecer aqui.</p>'}`;
+}
+window.exportarHistoricoIncidente = (projectId, id) => baixarArquivo(`/api/v1/projects/${projectId}/incidentes/${id}/historico/csv`).catch((e) => falha(e, 'Não foi possível exportar o histórico'));
 
 // Confirmação na própria janela (o app não usa confirm()). Sem a comunicação à ANPD (e com risco), a pergunta diz isso.
 window.pedirEncerramentoIncidente = function (projectId, id, semPendenciaAnpd, risco) {
