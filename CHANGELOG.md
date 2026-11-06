@@ -12,6 +12,12 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Incidente: página com abas, análises e histórico (migration 0101)
+- O incidente abre numa página com abas, no lugar da janela: Registro, Análise, Ações corretivas, Comunicação e Histórico, com o incidente e a aba no endereço (`?tela=incidente-ficha&incidente=&aba=`). A faixa do prazo da ANPD fica no topo; "Voltar aos incidentes" volta à lista.
+- Análise: várias por incidente, cada uma com autor e data; só o autor altera a sua (403 aos demais) e o incidente encerrado não muda, também pelo gatilho do banco. O risco ao titular continua sendo a avaliação formal, no Registro.
+- Histórico: a trilha do incidente (registro, alterações com os nomes dos campos, risco, comunicações, evidências, ações, análises, encerramento), mais novo primeiro, sem texto livre nem justificativa, com "Exportar CSV" no formato pt-BR das exportações (fora do agente MCP). Todo evento de incidente passa a gravar `audit_logs.entity_type = 'incidente'`; o que foi gravado antes desta versão não aparece no histórico.
+- Rotas `GET|POST /projects/:id/incidentes/:id/analises`, `PUT .../analises/:analiseId`, `GET .../historico` e `GET .../historico/csv` (`src/services/incidente-analises.ts`). Migration 0101 (aditiva): `incidente_analises`, com os gatilhos de projeto e de encerrado.
+
 ### Incidente: ações corretivas dentro do incidente, nos dois módulos (migration 0100)
 - A janela do incidente ganha a seção "Ações corretivas", no n.iso e no n.privacy: lista com o protocolo `<protocolo>-PA01` (derivado pela ordem de criação), o tratamento, o status, o prazo e o responsável; "Nova ação" e "Abrir" para editar. Sem ação, "Nenhuma ação." Nada é criado sozinho.
 - A ação é a mesma `corrective_actions` da CAPA do n.iso, ligada pelo `incidente_id`; o "Abrir CAPA", que só existia no n.iso, saiu da janela. Tratamento: contenção, correção ou aperfeiçoamento; prazo opcional em todos. A ação segue depois do encerramento do incidente.

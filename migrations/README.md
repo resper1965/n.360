@@ -6,7 +6,7 @@ arquivado em [`docs/arquivo/reconciliacao-migrations-2026-08.md`](../docs/arquiv
 
 ## Estado
 
-- Última migration no repositório: **0100** (`ls migrations/*.sql | tail -1`). São 100 arquivos
+- Última migration no repositório: **0101** (`ls migrations/*.sql | tail -1`). São 101 arquivos
   `.sql` (`ls migrations/*.sql | wc -l`): não existe 0001, há três 0002 de antes da numeração
   estável, **não existem 0031 a 0033** (eram da camada MSP, que entrou por engano no #204 e
   saiu no #206) e há **duas 0096** (`0096_ot_agente_coleta.sql` e `0096_titular_portal.sql`)
@@ -753,11 +753,19 @@ depois: `SELECT name FROM sqlite_master WHERE name IN ('titular_portais','titula
 Cria `tratamento_orgaos_publicos` (nome e obrigação legal, gatilho de projeto). Aditiva e repetível. Conferência depois:
 `SELECT name FROM sqlite_master WHERE name = 'tratamento_orgaos_publicos'` (1 linha).
 
+## 0101 — análises do incidente (2026-11-06)
+
+Cria `incidente_analises` (autor, texto até 10.000, datas; índice por incidente) e os gatilhos `incidente_analises_do_projeto` (incidente
+do mesmo projeto) e `incidente_analises_aberto` (encerrado não muda). Aditiva e repetível (`IF NOT EXISTS`). Fatia 3 da spec
+`2026-11-04-incidentes-legado-design`. Conferência depois:
+`SELECT name FROM sqlite_master WHERE name IN ('incidente_analises','incidente_analises_do_projeto','incidente_analises_aberto')` (3 linhas).
+Produção só com o "sim" do dono e `npm run db:backup` antes.
+
 ## 0100 — tratamento da ação corretiva do incidente (2026-11-05)
 
 `corrective_actions.tratamento` (`contencao`, `correcao`, `aperfeicoamento`) por `ALTER TABLE ADD COLUMN`. Fatia 4 da spec
 `2026-11-04-incidentes-legado-design`. Conferência depois: `SELECT name FROM pragma_table_info('corrective_actions') WHERE name = 'tratamento'`
-(1 linha). Produção só com o "sim" do dono e `npm run db:backup` antes.
+(1 linha). Aplicada em produção em 05/11/2026, com backup antes: a conferência deu 1 linha.
 
 ## 0099 — comunicação à ANPD completa (2026-11-05)
 
