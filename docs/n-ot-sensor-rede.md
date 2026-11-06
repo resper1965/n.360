@@ -92,7 +92,7 @@ url = https://<endereço do n.360>/ot-sensor/resumo
 credencial = ots_…
 ```
 
-A `url` tem de ser **https**; o script recusa outra coisa. O arquivo fica em `/etc/n-ot-sonda.conf`, com modo 0600 e dono o usuário dedicado da sonda (`n-ot-sonda`); o script se recusa a ler se outros usuários puderem lê-lo.
+A `url` tem de ser **https**; o script só aceita http para `127.0.0.1` e `localhost`. O firewall fixa na instalação a porta de saída da `url`: se a `url` mudar para outra porta, rode o instalador de novo. O arquivo fica em `/etc/n-ot-sonda.conf`, com modo 0600 e dono o usuário dedicado da sonda (`n-ot-sonda`); o script se recusa a ler se outros usuários puderem lê-lo.
 
 O que o instalador faz (repetível: rodar de novo não quebra uma instalação existente):
 
@@ -113,14 +113,16 @@ Pontos de atenção na instalação:
 ip -br addr show <placa-de-escuta>
 ```
 
-- **O `zeek-lts` não se atualiza sozinho, de propósito.** Os plugins ICSNPP são compilados para a ABI do Zeek; uma atualização automática os quebraria em silêncio. Para atualizar: atualize o pacote à mão, **reconstrua os pacotes ICSNPP com o `zkg`** e faça o `zeekctl deploy`. Como o firewall bloqueia a saída do root para o GitHub, abra-o só durante essa janela e feche-o no fim:
+- **O `zeek-lts` não se atualiza sozinho, de propósito.** Os plugins ICSNPP são compilados para a ABI do Zeek; uma atualização automática os quebraria em silêncio. Atualizar é **procedimento de janela de manutenção**: atualize o pacote à mão, **reconstrua os pacotes ICSNPP com o `zkg`** e faça o `zeekctl deploy`. Como o firewall bloqueia a saída do root para o GitHub, é preciso abri-lo. **Enquanto a tabela estiver apagada, o firewall da sonda está totalmente aberto**: faça tudo seguido e feche no fim, mesmo que um passo falhe.
 
 ```bash
 sudo nft delete table inet n_ot_sonda
+sudo apt-get update
 sudo apt-get install --only-upgrade -y zeek-lts
-sudo /opt/zeek/bin/zkg install --force --skiptests icsnpp-enip icsnpp-s7comm icsnpp-bacnet icsnpp-opcua-binary icsnpp-profinet-io-cm
+sudo env PATH=/opt/zeek/bin:$PATH zkg refresh
+sudo env PATH=/opt/zeek/bin:$PATH zkg install --force --skiptests icsnpp-enip icsnpp-s7comm icsnpp-bacnet icsnpp-opcua-binary icsnpp-profinet-io-cm
 sudo /opt/zeek/bin/zeekctl deploy
-sudo nft -f /etc/nftables.conf
+sudo nft -f /etc/nftables.conf   # feche sempre, mesmo se um passo acima falhou
 ```
 
 Teste o primeiro envio:
@@ -152,7 +154,7 @@ journalctl -u n-ot-sonda-resumo -n 30 --no-pager
 | 503 | Chaves do n.360 ausentes, ou envio em processamento | Reenvia com espera |
 | 5xx e falha de rede | Falha transitória | Reenvia com espera |
 
-A espera é de 1 minuto, depois 5 minutos, 30 minutos e então a cada hora; qualquer resposta do n.360 que não seja erro transitório zera a espera. Em 401, 403 e 3xx a fila não é apagada: corrija a credencial ou a `url` e ela sai no próximo ciclo.
+A espera é de 1 minuto, depois 5 minutos, 30 minutos e então a cada hora; a espera só é zerada por uma resposta 200, 400 ou 413. Em 401, 403 e 3xx a fila não é apagada: corrija a credencial ou a `url` e ela sai no próximo ciclo.
 
 A resposta de sucesso é sempre só `{ recebido, envio_id }`, igual para aceito e para já recebido. Ela **nunca** traz contagens nem diz o que é novo: a sonda é uma máquina dentro da subestação e a contagem seria um oráculo do inventário.
 

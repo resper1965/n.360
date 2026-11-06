@@ -111,7 +111,7 @@ traz ao lado o comando que o mede**; numero sem comando nao entra.
   (`/levantamentos*`, incl. `…/:id/achados` e `…/:id/enviar`; `POST …/ot/lotes` aceita `levantamento_id` para sessoes de documento).
   Operador so por funcao e turno; texto livre recusa IP/MAC/CPF/e-mail/telefone; o confronto com o inventario so sai para quem
   `podeVerCompleto`; achado so entra no inventario por lote aprovado; a leitura sem mascara da sessao vai a trilha
-  (`ot.inventario.ver_sensivel`). Retencao (`src/manutencao.ts`): descartado sai em 30 dias; rascunho de sessao encerrada ha
+  (`ot.inventario.ver_sensivel`). Retencao (`src/manutencao.ts`): descartado sai em 30 dias (90 dias se veio da sonda, com `chave_sensor`); rascunho de sessao encerrada ha
   30 dias sai; rascunho de sessao aberta nao expira; `enviado` sem lote, de lote rejeitado ou de lote apagado volta a rascunho
   apos 1 dia. Chaves do `roteiro` so as de `ot_roteiro_perguntas` (400 nas demais). Leituras com `LIMIT` explicito (`TETO_LEITURA_OT`) por causa do teto de 500 linhas
   da consulta. Frontend: aba Levantamento (`views/ot-levantamento.js`) com notas em autosave, roteiro para achado, aba inicial
