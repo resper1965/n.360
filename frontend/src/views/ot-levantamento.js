@@ -3,6 +3,7 @@ import { api, API_BASE, cabecalhosAuth, sessaoTerminada } from '../api.js';
 import { escapeHTML, renderDataTable, falhaDeCarga, renderStatusBadge, openModal, forceCloseModal, showToast, formatarData, confirmar } from '../ui.js';
 import { podeEditarOt, podeAprovarOt, mensagemDeErro, lista, opcoes, nomeDe, camposDoAtivo, lerCamposDoAtivo, listaDeErros, nomeDoAtivo, rotaDoFluxo, ROTULO_CAMPO, semRepetir } from '../ot-comum.js';
 import { hojeSP } from '../hoje.js';
+import { cartoesColeta } from './ot-sensores.js';
 
 // Levantamento do n.ot (L1, descoberta operacional): sessões de entrevista, visita de campo e documento, com o roteiro guiado e os
 // achados que viram lote da coleta (a aprovação continua na Coleta). O operador é só função e turno. IP/MAC aparecem como a API
@@ -39,7 +40,8 @@ export async function montarLevantamento(c, a, p) {
         sites = lista(s, 'sites'); levs = lista(l, 'levantamentos');
     } catch (e) { falhaDeCarga(c, a, 'Não foi possível carregar os levantamentos do n.ot.', e); return; }
     if (podeEditarOt() && sites.length) a.innerHTML = '<button class="btn btn-primary" data-action="otNovoLevantamento">+ Novo levantamento</button>';
-    c.innerHTML = `<p class="org-header-intro">Entrevistas, visitas de campo e documentos do site. O operador é registrado só por função e turno: não escreva nomes, IP, MAC, e-mail ou telefone nas notas.</p>
+    const cartoes = await cartoesColeta(p, sites, levs);
+    c.innerHTML = `${cartoes}<p class="org-header-intro">Entrevistas, visitas de campo e documentos do site. O operador é registrado só por função e turno: não escreva nomes, IP, MAC, e-mail ou telefone nas notas.</p>
         ${renderDataTable(['Tipo', 'Data', 'Quem ou documento', 'Site', 'Achados', 'Situação', 'Ações'], levs.map((l) => [
         escapeHTML(TIPO[l.tipo] || l.tipo), escapeHTML(formatarData(l.realizado_em)), quem(l), escapeHTML(nomeDe(sites, l.site_id)), escapeHTML(String(l.achados ?? 0)), situacao(l),
         `<button class="btn btn-sm" data-action="otAbrirLevantamento" data-args='${args(l.id)}' aria-label="${escapeHTML(`Abrir ${TIPO[l.tipo] || l.tipo} de ${formatarData(l.realizado_em)}`)}">Abrir</button>`,
