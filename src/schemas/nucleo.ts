@@ -250,6 +250,17 @@ export const titularIdentidadeSchema = z.object({
   observacao: z.string().max(500).nullish(),
 }).strict();
 
+/** Encaminhamento do pedido do titular a ponto focal (migration 0104). Pessoa, prazo e data conferidos no serviço. */
+export const encaminhamentoCriarSchema = z.object({
+  parte_id: z.string().min(1).max(64),
+  prazo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  mensagem: z.string().trim().min(1).max(2000),
+}).strict();
+export const encaminhamentoAtualizarSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('respondido'), retorno: z.string().trim().min(1).max(5000) }).strict(),
+  z.object({ status: z.literal('cancelado') }).strict(),
+]);
+
 /** Tratativa do atendimento de um pedido do titular (migration 0096). */
 export const tratativaSchema = z.object({
   tipo: z.enum(['comunicacao_titular', 'encaminhamento', 'evidencia', 'nota']),

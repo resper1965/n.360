@@ -250,3 +250,20 @@ export function emailAvisoOtSensivel(d: { quem: string; oQue: string; justificat
     motivo: 'este endereço está cadastrado como Gestor ARCiber (titular ou suplente) do projeto no n.360.',
   });
 }
+
+/** Encaminhamento de pedido do titular a um ponto focal (n.privacy). Nunca leva nome, contato, descrição nem resposta do titular. */
+export function emailEncaminhamentoTitular(d: { protocolo: string; tipo: string; prazo: string; mensagem: string; nome: string | null; quem: Pessoa }): EmailComAssunto {
+  const prazo = dataBr(d.prazo);
+  return com(`Pedido de titular ${d.protocolo}: precisamos da sua ajuda até ${prazo}`, {
+    produto: 'n.privacy',
+    previa: `${d.tipo}. Prazo interno: ${prazo}.`,
+    titulo: 'Pedido de titular de dados encaminhado a você',
+    saudacao: ola(d.nome),
+    paragrafos: [`Um pedido de titular de dados (${d.tipo}, protocolo ${d.protocolo}) precisa de informações da sua área.`, d.mensagem],
+    quemPede: d.quem,
+    acao: 'Responder a este e-mail com as informações pedidas',
+    prazo,
+    motivo: 'este endereço foi indicado como ponto focal para pedidos de titulares de dados.',
+    contato: d.quem,
+  });
+}
