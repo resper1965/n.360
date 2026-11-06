@@ -161,6 +161,7 @@ export const ROTAS = {
   'POST /api/v1/public/propostas/ver': { obrigatorios: ['token'] },
   'POST /api/v1/public/sso/iniciar': { obrigatorios: ['email'] },
   'POST /api/v1/public/titular-pedidos/abrir': { obrigatorios: ['descricao', 'tipo', 'titular_contato', 'titular_nome', 'token'] },
+  'POST /api/v1/public/titular-pedidos/consultar': { obrigatorios: ['codigo', 'protocolo'] },
   'POST /api/v1/requisitos/mapeamentos': { obrigatorios: ['de_id', 'para_id', 'tipo'] },
   'POST /api/v1/requisitos/mapeamentos/validar': { obrigatorios: [] },
   'POST /api/v1/servicos': { obrigatorios: [] },
