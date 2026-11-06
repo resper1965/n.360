@@ -1757,10 +1757,13 @@ CREATE TABLE IF NOT EXISTS titular_pedidos (
     identidade_obs TEXT CHECK (length(identidade_obs) <= 500),
     identidade_por TEXT,
     identidade_em TEXT,
+    -- Consulta pública (migration 0105): só o SHA-256 do código de acompanhamento gerado na abertura pelo portal.
+    acompanhamento_hash TEXT,
     UNIQUE (project_id, protocolo),
     CHECK (status NOT IN ('respondido', 'negado') OR respondido_em IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS idx_titular_pedidos_projeto ON titular_pedidos(project_id, status, prazo_em);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_titular_pedidos_acompanhamento ON titular_pedidos(acompanhamento_hash) WHERE acompanhamento_hash IS NOT NULL;
 
 -- Portal público de solicitações do titular (migration 0096): um link por projeto (só o SHA-256 do token).
 CREATE TABLE IF NOT EXISTS titular_portais (
