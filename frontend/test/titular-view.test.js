@@ -91,6 +91,12 @@ describe('abas', () => {
 });
 
 describe('pedidos', () => {
+    it('Exportar CSV baixa pela rota do servidor, com o filtro da tela', async () => {
+        const f = await abrir('pedidos');
+        expect(el('c').querySelector('[data-action="listaExportar"]')).not.toBeNull();
+        await window.listaExportar('pt');
+        expect(chamadas(f)).toContain(`GET ${B}/export/pedidos-titular`);
+    });
     it('lista protocolo, tipo, prazo ("Não calculado" quando não há) e a situação do prazo', async () => {
         await abrir('pedidos');
         const t = el('c').textContent;

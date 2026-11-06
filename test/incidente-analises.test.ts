@@ -79,6 +79,7 @@ describe('histórico do incidente', () => {
     const texto = await csv.text();
     expect(texto.split('\r\n')[0]).toBe('﻿"Data";"Evento";"Detalhe";"Quem"');
     expect(texto).toContain('"Registro alterado"');
+    expect(texto.split('\r\n')[1]).toMatch(/^"\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}";/); // hora de Brasília, nunca o instante UTC cru
     expect((await chamar(ana, 'GET', `${B}/incidentes/ian-o/historico`)).status).toBe(404);
   });
 });
