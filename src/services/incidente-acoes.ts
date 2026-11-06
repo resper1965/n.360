@@ -43,7 +43,7 @@ export async function criarAcaoDoIncidente(db: D1Database, projectId: string, in
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, projectId, incidenteId, d.title, d.description ?? null, d.tratamento ?? null, d.assigned_to_parte_id || null, d.due_date ?? null,
     status, status === 'Closed' ? agora : null, agora).run();
-  await logAudit(db, 'incidente.acao', ator, `Incidente ${i.protocolo}: ação corretiva criada`, '', '', projectId);
+  await logAudit(db, 'incidente.acao', ator, `Incidente ${i.protocolo}: ação corretiva criada`, '', '', projectId, { tipo: 'incidente', id: incidenteId });
   return { ok: true, id };
 }
 
@@ -59,6 +59,6 @@ export async function atualizarAcaoDoIncidente(db: D1Database, projectId: string
   if (d.status !== undefined && d.status !== acao.status) { sets.push('completed_at = ?'); binds.push(d.status === 'Closed' ? new Date().toISOString() : null); }
   if (!sets.length) return { ok: true };
   await db.prepare(`UPDATE corrective_actions SET ${sets.join(', ')} WHERE id = ? AND incidente_id = ? AND project_id = ?`).bind(...binds, acaoId, incidenteId, projectId).run();
-  await logAudit(db, 'incidente.acao', ator, `Incidente ${i.protocolo}: ação corretiva alterada (${Object.keys(d).filter((k) => (d as Record<string, unknown>)[k] !== undefined).join(', ')})`, '', '', projectId);
+  await logAudit(db, 'incidente.acao', ator, `Incidente ${i.protocolo}: ação corretiva alterada (${Object.keys(d).filter((k) => (d as Record<string, unknown>)[k] !== undefined).join(', ')})`, '', '', projectId, { tipo: 'incidente', id: incidenteId });
   return { ok: true };
 }

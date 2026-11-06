@@ -306,6 +306,9 @@ export const incidenteAcaoAtualizarSchema = z.object({
   status: z.enum(['Open', 'In Progress', 'Closed']).optional(),
 }).strict();
 
+// Análise do incidente (fatia 3, 0101): texto do trabalho da equipe; só o autor altera (regra no serviço).
+export const incidenteAnaliseSchema = z.object({ texto: z.string().trim().min(1).max(10000) }).strict();
+
 export const incidenteRiscoSchema = z.object({
   risco_titular: z.enum(['sem_risco', 'baixo', 'relevante']),
   avaliacao_texto: textoLongo.nullish(),
