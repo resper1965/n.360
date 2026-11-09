@@ -46,6 +46,19 @@ class T(unittest.TestCase):
         self.assertEqual((b["mac"], b["fabricante"]), ("00:0e:8c:aa:bb:cc", "Siemens"))
         self.assertNotIn("mac", self.ativo("10.1.1.30"))
 
+    def test_mac_do_gateway_descartado(self):
+        gw = "00:09:0f:00:00:01"  # o mesmo MAC (roteador) em 50 IPs de outra sub-rede
+        conn = [self._c(**{"id.orig_h": "10.0.0.1", "id.resp_h": "192.168.9.%d" % i, "resp_l2_addr": gw}) for i in range(1, 51)]
+        conn.append(self._c(**{"id.orig_h": "10.0.0.1", "id.resp_h": "10.0.0.5", "resp_l2_addr": "00:30:a7:01:02:03"}))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            r = resumo.resumir(self._pasta(conn, dhcp=[{"assigned_addr": "192.168.9.7", "mac": gw}]))
+        macs = {a["ip"]: (a.get("mac"), a.get("fabricante")) for a in r["ativos"]}
+        self.assertEqual(macs["192.168.9.7"], (gw, None))  # MAC do dhcp.log e do proprio cliente
+        self.assertEqual({ip for ip, (m, _) in macs.items() if m == gw}, {"192.168.9.7"})
+        self.assertEqual(macs["10.0.0.5"], ("00:30:a7:01:02:03", "SEL"))
+        self.assertIn("49 MACs de gateway", err.getvalue())
+
     def test_gz(self):
         r = resumo.resumir(os.path.join(AQUI, "fixtures-zeek-gz"))
         self.assertEqual(sum(c["contagem"] for c in r["conexoes"]), 2)

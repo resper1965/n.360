@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 FORMATO = "n.ot-resumo-rede/1"
 VERSAO = "2.0.0"
 LIMITE_ATIVOS, LIMITE_CONEXOES = 5000, 20000
+MAC_GATEWAY_MIN_IPS = 3  # MAC do conn.log em 3+ IPs e do roteador/firewall (L3 de outra sub-rede), nao do ativo
 TETO_BYTES = 4500000  # o n.ot recusa arquivo acima de 5 MB
 ACEITOS = {"modbus", "dnp3", "iec104", "s7comm", "enip", "bacnet", "opcua", "mms", "goose", "http",
            "https", "ssh", "telnet", "rdp", "smb", "snmp", "ntp", "dns", "syslog", "ftp", "profinet"}
@@ -100,7 +101,7 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES,
     ativos, conns, ts_all = {}, {}, []
 
     def ativo(ip):
-        return ativos.setdefault(ip, {"mac": None, "protocolos": set(), "portas": set(), "ini": None, "fim": None, "peso": 0})
+        return ativos.setdefault(ip, {"mac": None, "dhcp": None, "protocolos": set(), "portas": set(), "ini": None, "fim": None, "peso": 0})
 
     def tempo(a, ts):
         a["ini"] = ts if a["ini"] is None else min(a["ini"], ts)
@@ -133,7 +134,7 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES,
         ip = r.get("assigned_addr") or r.get("client_addr")
         if ip_ok(ip) and mac_ok(r.get("mac")):
             a = ativo(ip)
-            a["mac"] = a["mac"] or mac_ok(r["mac"])
+            a["dhcp"] = a["dhcp"] or mac_ok(r["mac"])  # observacao L2 direta do cliente: vale mesmo se o MAC aparece em outros IPs
     for r in ler(pasta, "known_hosts", desde):
         if ip_ok(r.get("host")):
             ativo(r["host"])
@@ -160,18 +161,28 @@ def resumir(pasta, limite_ativos=LIMITE_ATIVOS, limite_conexoes=LIMITE_CONEXOES,
         print("aviso: %d ativos; mantidos os %d mais frequentes" % (len(la), limite_ativos), file=sys.stderr)
         la = la[:limite_ativos]
 
+    ips_por_mac = {}
+    for a in ativos.values():
+        if a["mac"]:
+            ips_por_mac[a["mac"]] = ips_por_mac.get(a["mac"], 0) + 1
+    gateway = {m for m, n in ips_por_mac.items() if n >= MAC_GATEWAY_MIN_IPS}
+    descartados = 0
     out_a = []
     for ip, a in la:
         x = {"ip": ip}
-        if a["mac"]:
-            x["mac"] = a["mac"]
-            if a["mac"][:8] in OUI:
-                x["fabricante"] = OUI[a["mac"][:8]]
+        mac = a["dhcp"] or (a["mac"] if a["mac"] not in gateway else None)
+        descartados += bool(a["mac"] and not mac)
+        if mac:
+            x["mac"] = mac
+            if mac[:8] in OUI:
+                x["fabricante"] = OUI[mac[:8]]
         x["protocolos"] = sorted(a["protocolos"])
         x["portas_servico"] = sorted(a["portas"])
         if a["ini"] is not None:
             x["primeira_vez"], x["ultima_vez"] = iso(a["ini"]), iso(a["fim"])
         out_a.append(x)
+    if descartados:
+        print("aviso: %d MACs de gateway descartados (MAC visto em %d ou mais IPs no conn.log)" % (descartados, MAC_GATEWAY_MIN_IPS), file=sys.stderr)
     agora = janela[1] if janela else datetime.now(timezone.utc).timestamp()
     out = {"formato": FORMATO, "gerado_em": iso(agora)}
     ini, fim = janela or ((min(ts_all), max(ts_all)) if ts_all else (agora, agora))

@@ -84,7 +84,7 @@ export interface Plano {
   fluxos: { chave: string; dados: Record<string, unknown> }[];
   pendentes: { chave: string; origem_ip_hash: string | null; destino_ip_hash: string | null; dados: Record<string, unknown> }[];
   contagem: { ativos_novos: number; ativos_conhecidos: number; macs_completados: number; fluxos_criados: number; fluxos_pendentes: number;
-    fluxos_conhecidos: number };
+    fluxos_conhecidos: number; macs_gateway_ignorados: number };
 }
 
 /** Chave de novidade (HMAC por projeto, com o site): o mesmo IP em outro site é outra chave. */
@@ -120,17 +120,27 @@ export async function planejarResumo(db: D1Database, chaves: ChavesOt, projectId
   const interno = (x: string) => ehInterno(x, site.faixas);
   const doSite = async (x: string) => idx.achar({ ip_hash: await hash(x) });
 
-  const plano: Plano = { ativos: [], macs: [], fluxos: [], pendentes: [], contagem: { ativos_novos: 0, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0, fluxos_conhecidos: 0 } };
+  const plano: Plano = { ativos: [], macs: [], fluxos: [], pendentes: [], contagem: { ativos_novos: 0, ativos_conhecidos: 0, macs_completados: 0, fluxos_criados: 0, fluxos_pendentes: 0, fluxos_conhecidos: 0, macs_gateway_ignorados: 0 } };
   const conexoes = resumo.conexoes.map((c) => ({ ...c, origem: normalizarIp(c.origem)!, destino: normalizarIp(c.destino)! }))
     .filter((c) => ehHost(c.origem) && ehHost(c.destino));
   // ativo novo só para IP que originou conexão, tem MAC, ou foi destino de TCP/aplicação identificada (outstation só responde; sem MAC no Zeek).
   // Broadcast de sub-rede só recebe UDP sem aplicação, então fica de fora.
   const vivos = new Set(conexoes.flatMap((c) => [c.origem, ...(c.transporte === 'tcp' || c.aplicacao ? [c.destino] : [])]));
-  const ipsVistos = new Set<string>();
+  // Sonda atrás de roteador/firewall: IPs de outra sub-rede chegam com o MAC do gateway. MAC em 3+ IPs do resumo (externos contam) é dele,
+  // não do ativo: nem completa MAC, nem vai no ativo novo, nem dá fabricante (o script tira o fabricante do OUI desse MAC).
+  const ipsPorMac = new Map<string, Set<string>>();
   for (const a of resumo.ativos) {
+    const m = a.mac && normalizarMac(a.mac);
+    if (m) ipsPorMac.set(m, (ipsPorMac.get(m) ?? new Set()).add(normalizarIp(a.ip)!));
+  }
+  const ipsVistos = new Set<string>();
+  for (const a0 of resumo.ativos) {
+    const gateway = !!a0.mac && ipsPorMac.get(normalizarMac(a0.mac)!)!.size >= 3;
+    const a = gateway ? { ...a0, mac: undefined, fabricante: undefined } : a0;
     const x = normalizarIp(a.ip)!;
     if (!interno(x) || !ehHost(x) || ipsVistos.has(x)) continue;
     ipsVistos.add(x); // IP conhecido repetido também conta uma vez só
+    if (gateway) plano.contagem.macs_gateway_ignorados++;
     const mac = a.mac && normalizarMac(a.mac)!;
     const existente = await doSite(x);
     if (existente) {

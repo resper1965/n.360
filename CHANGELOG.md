@@ -12,6 +12,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### n.ot: MAC do gateway deixa de ir para os ativos
+- Com a sonda atrás de roteador ou firewall, os IPs de outra sub-rede chegavam todos com o MAC do gateway (numa subestação, 212 de 230 ativos com o mesmo MAC). O script `n-ot-resumo-zeek.py` passa a descartar o MAC do `conn.log` visto para 3 ou mais IPs, e o fabricante tirado dele; o MAC do `dhcp.log` fica sempre. Avisa no stderr quantos descartou.
+- O n.ot repete a defesa para resumos de versões antigas do script ou enviados à mão: MAC em 3 ou mais ativos do resumo não gera achado de completar MAC, não vai no ativo novo e não dá fabricante.
+
 ### Fornecedores (TPRM): validade pelo modelo e reavaliação quando o tipo muda (fatia 2)
 - A validade de uma avaliação de fornecedor não passa mais do prazo do modelo do tipo (crítico 12 meses, médio 24, pequeno 36, grande provedor 12, ou o que a consultoria definir em "Modelos de avaliação de fornecedor"). A tela já preenche a data com o máximo.
 - Quando a criticidade (ou a escolha manual) muda o tipo de um fornecedor com avaliação em dia, a situação vira "Reavaliar": a avaliação continua no histórico, mas deixa de valer, aparece como pendência e entra na fila de avaliações, num grupo próprio. A ficha diz de que tipo para qual mudou.

@@ -26,7 +26,7 @@ Instale o Zeek (ou o Malcolm, que já traz o Zeek) numa máquina própria para o
 @load policy/protocols/conn/mac-logging
 ```
 
-O `mac-logging` faz o MAC aparecer no `conn.log`; sem ele, equipamentos que só respondem (CLPs e UTRs consultados) chegam sem MAC.
+O `mac-logging` faz o MAC aparecer no `conn.log`; sem ele, equipamentos que só respondem (CLPs e UTRs consultados) chegam sem MAC. Um MAC visto para 3 ou mais IPs é o do roteador ou firewall (a sonda vê os IPs de outra sub-rede com o MAC do gateway): o script e o n.ot o ignoram, sem completar MAC nem tirar o fabricante dele; para ter o MAC real, ligue a sonda num espelhamento de porta do mesmo segmento L2 ou conte com o `dhcp.log`, cujo MAC vale sempre.
 
 ### Ligar na porta espelhada
 
